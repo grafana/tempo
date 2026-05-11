@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/model/exemplar"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
@@ -14,6 +15,10 @@ import (
 )
 
 var testTenant = "test-tenant"
+
+func stringPtr(s string) *string {
+	return &s
+}
 
 // Duplicate labels should not grow the series count.
 func Test_ObserveWithExemplar_duplicate(t *testing.T) {
@@ -61,6 +66,18 @@ func Test_nativeHistogram_nativeOnlyDoesNotRetainClassicLabels(t *testing.T) {
 		require.Empty(t, s.countLabels)
 		require.Empty(t, s.sumLabels)
 	}
+}
+
+func Test_convertLabelPairToLabels(t *testing.T) {
+	require.Equal(t, labels.EmptyLabels(), convertLabelPairToLabels(nil))
+	require.Equal(t, labels.FromStrings("trace_id", "trace-1"), convertLabelPairToLabels([]*dto.LabelPair{{
+		Name:  stringPtr("trace_id"),
+		Value: stringPtr("trace-1"),
+	}}))
+	require.Equal(t, labels.FromStrings("a", "1", "b", "2"), convertLabelPairToLabels([]*dto.LabelPair{
+		{Name: stringPtr("b"), Value: stringPtr("2")},
+		{Name: stringPtr("a"), Value: stringPtr("1")},
+	}))
 }
 
 func Test_Histograms(t *testing.T) {
