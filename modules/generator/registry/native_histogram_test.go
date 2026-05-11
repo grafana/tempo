@@ -2,6 +2,7 @@ package registry
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"testing"
 	"time"
@@ -78,6 +79,15 @@ func Test_convertLabelPairToLabels(t *testing.T) {
 		{Name: stringPtr("b"), Value: stringPtr("2")},
 		{Name: stringPtr("a"), Value: stringPtr("1")},
 	}))
+}
+
+func Test_nativeHistogram_classicBucketLabelAt(t *testing.T) {
+	h := newNativeHistogram("my_histogram", []float64{0.1, 0.2}, noopLimiter, "trace_id", HistogramModeBoth, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+
+	require.Equal(t, "0.1", h.classicBucketLabelAt(0, 0.1))
+	require.Equal(t, "0.2", h.classicBucketLabelAt(1, 0.2))
+	require.Equal(t, "+Inf", h.classicBucketLabelAt(2, math.Inf(1)))
+	require.Equal(t, "0.3", h.classicBucketLabelAt(1, 0.3))
 }
 
 func Test_Histograms(t *testing.T) {
