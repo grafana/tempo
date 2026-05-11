@@ -13,6 +13,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/proto"
 	"github.com/prometheus/client_golang/prometheus"
+	promdto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/model/exemplar"
 	promhistogram "github.com/prometheus/prometheus/model/histogram"
 	"github.com/prometheus/prometheus/model/labels"
@@ -148,6 +149,15 @@ func BenchmarkPushSpansConfigurations(b *testing.B) {
 			},
 			request: benchmarkGeneratorProdRequest(4, true),
 		},
+		{
+			name: "combined_prod_7dims_native_only_histograms",
+			overrides: func(o *mockOverrides) {
+				o.processors = map[string]struct{}{processor.SpanMetricsName: {}, processor.ServiceGraphsName: {}}
+				benchmarkGeneratorProdOverrides(o)
+				o.nativeHistograms = histograms.HistogramMethodNative
+			},
+			request: benchmarkGeneratorProdRequest(4, true),
+		},
 	} {
 		b.Run(tc.name, func(b *testing.B) {
 			inst := benchmarkGeneratorInstance(b, tc.overrides)
@@ -217,6 +227,18 @@ func BenchmarkPushSpansProductionCardinality(b *testing.B) {
 			request: benchmarkGeneratorProdHighCardinalityServiceGraphRequest(0, benchmarkGeneratorHighCardinalityTimedEdges),
 		},
 		{
+			name: "combined_prod_7dims_100k_series_native_only_steady",
+			overrides: func(o *mockOverrides) {
+				o.processors = map[string]struct{}{processor.SpanMetricsName: {}, processor.ServiceGraphsName: {}}
+				benchmarkGeneratorProdOverrides(o)
+				o.nativeHistograms = histograms.HistogramMethodNative
+			},
+			seed: func(ctx context.Context, inst *instance) {
+				benchmarkGeneratorSeedHighCardinalityServiceGraph(ctx, inst, benchmarkGeneratorProdCombinedNativeOnly100kEdges)
+			},
+			request: benchmarkGeneratorProdHighCardinalityServiceGraphRequest(0, benchmarkGeneratorHighCardinalityTimedEdges),
+		},
+		{
 			name: "combined_prod_7dims_1m_series_steady",
 			overrides: func(o *mockOverrides) {
 				o.processors = map[string]struct{}{processor.SpanMetricsName: {}, processor.ServiceGraphsName: {}}
@@ -241,11 +263,13 @@ func BenchmarkPushSpansProductionCardinality(b *testing.B) {
 			tc.seed(ctx, inst)
 			runtime.GC()
 
+			activeSeries := benchmarkGeneratorActiveSeries(b)
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				inst.pushSpans(ctx, tc.request)
 			}
+			b.ReportMetric(activeSeries, "active_series")
 		})
 	}
 }
@@ -277,6 +301,17 @@ func BenchmarkCollectMetricsProductionCardinality(b *testing.B) {
 				benchmarkGeneratorSeedHighCardinalityServiceGraph(ctx, inst, benchmarkGeneratorProdCombinedNative100kEdges)
 			},
 		},
+		{
+			name: "combined_prod_7dims_native_only_100k_series",
+			overrides: func(o *mockOverrides) {
+				o.processors = map[string]struct{}{processor.SpanMetricsName: {}, processor.ServiceGraphsName: {}}
+				benchmarkGeneratorProdOverrides(o)
+				o.nativeHistograms = histograms.HistogramMethodNative
+			},
+			seed: func(ctx context.Context, inst *instance) {
+				benchmarkGeneratorSeedHighCardinalityServiceGraph(ctx, inst, benchmarkGeneratorProdCombinedNativeOnly100kEdges)
+			},
+		},
 	} {
 		b.Run(tc.name, func(b *testing.B) {
 			inst := benchmarkGeneratorInstance(b, tc.overrides)
@@ -287,11 +322,13 @@ func BenchmarkCollectMetricsProductionCardinality(b *testing.B) {
 			inst.registry.CollectMetrics(ctx)
 			runtime.GC()
 
+			activeSeries := benchmarkGeneratorActiveSeries(b)
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				inst.registry.CollectMetrics(ctx)
 			}
+			b.ReportMetric(activeSeries, "active_series")
 		})
 	}
 }
@@ -313,6 +350,17 @@ func BenchmarkCollectMetricsProductionCardinalityWithRefs(b *testing.B) {
 				benchmarkGeneratorSeedHighCardinalityServiceGraph(ctx, inst, benchmarkGeneratorProdCombinedNative100kEdges)
 			},
 		},
+		{
+			name: "combined_prod_7dims_native_only_100k_series",
+			overrides: func(o *mockOverrides) {
+				o.processors = map[string]struct{}{processor.SpanMetricsName: {}, processor.ServiceGraphsName: {}}
+				benchmarkGeneratorProdOverrides(o)
+				o.nativeHistograms = histograms.HistogramMethodNative
+			},
+			seed: func(ctx context.Context, inst *instance) {
+				benchmarkGeneratorSeedHighCardinalityServiceGraph(ctx, inst, benchmarkGeneratorProdCombinedNativeOnly100kEdges)
+			},
+		},
 	} {
 		b.Run(tc.name, func(b *testing.B) {
 			storage := newBenchmarkRefStorage()
@@ -324,11 +372,13 @@ func BenchmarkCollectMetricsProductionCardinalityWithRefs(b *testing.B) {
 			inst.registry.CollectMetrics(ctx)
 			runtime.GC()
 
+			activeSeries := benchmarkGeneratorActiveSeries(b)
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				inst.registry.CollectMetrics(ctx)
 			}
+			b.ReportMetric(activeSeries, "active_series")
 		})
 	}
 }
@@ -352,6 +402,18 @@ func BenchmarkCollectMetricsProductionCardinalityWithRefsAndExemplars(b *testing
 			},
 			request: benchmarkGeneratorProdHighCardinalityServiceGraphRequest(0, benchmarkGeneratorHighCardinalityTimedEdges),
 		},
+		{
+			name: "combined_prod_7dims_native_only_100k_series",
+			overrides: func(o *mockOverrides) {
+				o.processors = map[string]struct{}{processor.SpanMetricsName: {}, processor.ServiceGraphsName: {}}
+				benchmarkGeneratorProdOverrides(o)
+				o.nativeHistograms = histograms.HistogramMethodNative
+			},
+			seed: func(ctx context.Context, inst *instance) {
+				benchmarkGeneratorSeedHighCardinalityServiceGraph(ctx, inst, benchmarkGeneratorProdCombinedNativeOnly100kEdges)
+			},
+			request: benchmarkGeneratorProdHighCardinalityServiceGraphRequest(0, benchmarkGeneratorHighCardinalityTimedEdges),
+		},
 	} {
 		b.Run(tc.name, func(b *testing.B) {
 			storage := newBenchmarkRefStorage()
@@ -363,6 +425,7 @@ func BenchmarkCollectMetricsProductionCardinalityWithRefsAndExemplars(b *testing
 			inst.registry.CollectMetrics(ctx)
 			runtime.GC()
 
+			activeSeries := benchmarkGeneratorActiveSeries(b)
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
@@ -371,6 +434,7 @@ func BenchmarkCollectMetricsProductionCardinalityWithRefsAndExemplars(b *testing
 				b.StartTimer()
 				inst.registry.CollectMetrics(ctx)
 			}
+			b.ReportMetric(activeSeries, "active_series")
 		})
 	}
 }
@@ -394,6 +458,17 @@ func BenchmarkCollectMetricsProductionCardinalityRealStorage(b *testing.B) {
 				benchmarkGeneratorSeedHighCardinalityServiceGraph(ctx, inst, benchmarkGeneratorProdCombinedNative100kEdges)
 			},
 		},
+		{
+			name: "combined_prod_7dims_native_only_100k_series",
+			overrides: func(o *mockOverrides) {
+				o.processors = map[string]struct{}{processor.SpanMetricsName: {}, processor.ServiceGraphsName: {}}
+				benchmarkGeneratorProdOverrides(o)
+				o.nativeHistograms = histograms.HistogramMethodNative
+			},
+			seed: func(ctx context.Context, inst *instance) {
+				benchmarkGeneratorSeedHighCardinalityServiceGraph(ctx, inst, benchmarkGeneratorProdCombinedNativeOnly100kEdges)
+			},
+		},
 	} {
 		b.Run(tc.name, func(b *testing.B) {
 			inst := benchmarkGeneratorInstanceWithRealStorage(b, tc.overrides)
@@ -404,6 +479,7 @@ func BenchmarkCollectMetricsProductionCardinalityRealStorage(b *testing.B) {
 			inst.registry.CollectMetrics(ctx)
 			runtime.GC()
 
+			activeSeries := benchmarkGeneratorActiveSeries(b)
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
@@ -416,6 +492,7 @@ func BenchmarkCollectMetricsProductionCardinalityRealStorage(b *testing.B) {
 					}
 				}
 			}
+			b.ReportMetric(activeSeries, "active_series")
 			b.ReportMetric(collectionsPerOp, "collections/op")
 		})
 	}
@@ -451,6 +528,18 @@ func BenchmarkPushCollectCycleProduction(b *testing.B) {
 			},
 			request: benchmarkGeneratorProdHighCardinalityServiceGraphRequest(0, benchmarkGeneratorHighCardinalityTimedEdges),
 		},
+		{
+			name: "combined_prod_7dims_native_only_100k_series_10_pushes_per_collect",
+			overrides: func(o *mockOverrides) {
+				o.processors = map[string]struct{}{processor.SpanMetricsName: {}, processor.ServiceGraphsName: {}}
+				benchmarkGeneratorProdOverrides(o)
+				o.nativeHistograms = histograms.HistogramMethodNative
+			},
+			seed: func(ctx context.Context, inst *instance) {
+				benchmarkGeneratorSeedHighCardinalityServiceGraph(ctx, inst, benchmarkGeneratorProdCombinedNativeOnly100kEdges)
+			},
+			request: benchmarkGeneratorProdHighCardinalityServiceGraphRequest(0, benchmarkGeneratorHighCardinalityTimedEdges),
+		},
 	} {
 		b.Run(tc.name, func(b *testing.B) {
 			inst := benchmarkGeneratorInstance(b, tc.overrides)
@@ -462,6 +551,7 @@ func BenchmarkPushCollectCycleProduction(b *testing.B) {
 			inst.registry.CollectMetrics(ctx)
 			runtime.GC()
 
+			activeSeries := benchmarkGeneratorActiveSeries(b)
 			b.SetBytes(int64(proto.Size(tc.request) * benchmarkGeneratorPushesPerCollect))
 			b.ReportMetric(float64(benchmarkGeneratorPushesPerCollect), "pushes/op")
 			b.ReportAllocs()
@@ -472,20 +562,19 @@ func BenchmarkPushCollectCycleProduction(b *testing.B) {
 				}
 				inst.registry.CollectMetrics(ctx)
 			}
+			b.ReportMetric(activeSeries, "active_series")
 		})
 	}
 }
 
 func BenchmarkRetainedMemoryProductionCardinality(b *testing.B) {
 	for _, tc := range []struct {
-		name         string
-		targetSeries float64
-		overrides    func(*mockOverrides)
-		seed         func(context.Context, *instance)
+		name      string
+		overrides func(*mockOverrides)
+		seed      func(context.Context, *instance)
 	}{
 		{
-			name:         "combined_prod_7dims_100k_series",
-			targetSeries: benchmarkGeneratorProd100kActiveSeriesTarget,
+			name: "combined_prod_7dims_100k_series",
 			overrides: func(o *mockOverrides) {
 				o.processors = map[string]struct{}{processor.SpanMetricsName: {}, processor.ServiceGraphsName: {}}
 				benchmarkGeneratorProdOverrides(o)
@@ -495,8 +584,7 @@ func BenchmarkRetainedMemoryProductionCardinality(b *testing.B) {
 			},
 		},
 		{
-			name:         "combined_prod_7dims_native_100k_series",
-			targetSeries: benchmarkGeneratorProd100kActiveSeriesTarget,
+			name: "combined_prod_7dims_native_100k_series",
 			overrides: func(o *mockOverrides) {
 				o.processors = map[string]struct{}{processor.SpanMetricsName: {}, processor.ServiceGraphsName: {}}
 				benchmarkGeneratorProdOverrides(o)
@@ -506,10 +594,22 @@ func BenchmarkRetainedMemoryProductionCardinality(b *testing.B) {
 				benchmarkGeneratorSeedHighCardinalityServiceGraph(ctx, inst, benchmarkGeneratorProdCombinedNative100kEdges)
 			},
 		},
+		{
+			name: "combined_prod_7dims_native_only_100k_series",
+			overrides: func(o *mockOverrides) {
+				o.processors = map[string]struct{}{processor.SpanMetricsName: {}, processor.ServiceGraphsName: {}}
+				benchmarkGeneratorProdOverrides(o)
+				o.nativeHistograms = histograms.HistogramMethodNative
+			},
+			seed: func(ctx context.Context, inst *instance) {
+				benchmarkGeneratorSeedHighCardinalityServiceGraph(ctx, inst, benchmarkGeneratorProdCombinedNativeOnly100kEdges)
+			},
+		},
 	} {
 		b.Run(tc.name, func(b *testing.B) {
 			var heapBytesPerSeries float64
 			var objectsPerSeries float64
+			var activeSeriesTotal float64
 
 			ctx := context.Background()
 			for i := 0; i < b.N; i++ {
@@ -522,21 +622,24 @@ func BenchmarkRetainedMemoryProductionCardinality(b *testing.B) {
 				inst := benchmarkGeneratorInstance(b, tc.overrides)
 				tc.seed(ctx, inst)
 				inst.registry.CollectMetrics(ctx)
+				activeSeries := benchmarkGeneratorActiveSeries(b)
 				runtime.GC()
 
 				var after runtime.MemStats
 				runtime.ReadMemStats(&after)
 
-				heapBytesPerSeries += float64(benchmarkGeneratorMemStatsDelta(after.HeapAlloc, before.HeapAlloc)) / tc.targetSeries
-				objectsPerSeries += float64(benchmarkGeneratorMemStatsDelta(after.HeapObjects, before.HeapObjects)) / tc.targetSeries
+				heapBytesPerSeries += float64(benchmarkGeneratorMemStatsDelta(after.HeapAlloc, before.HeapAlloc)) / activeSeries
+				objectsPerSeries += float64(benchmarkGeneratorMemStatsDelta(after.HeapObjects, before.HeapObjects)) / activeSeries
+				activeSeriesTotal += activeSeries
 
 				inst.shutdown()
 				b.StartTimer()
 			}
 
 			if b.N > 0 {
-				b.ReportMetric(heapBytesPerSeries/float64(b.N), "heap_bytes/target_series")
-				b.ReportMetric(objectsPerSeries/float64(b.N), "objects/target_series")
+				b.ReportMetric(activeSeriesTotal/float64(b.N), "active_series")
+				b.ReportMetric(heapBytesPerSeries/float64(b.N), "heap_bytes/active_series")
+				b.ReportMetric(objectsPerSeries/float64(b.N), "objects/active_series")
 			}
 		})
 	}
@@ -556,13 +659,14 @@ const (
 	benchmarkGeneratorProdServiceGraphs100kEdges      = 2858
 	benchmarkGeneratorProdCombined100kEdges           = 1334
 	benchmarkGeneratorProdCombinedNative100kEdges     = 1266
+	benchmarkGeneratorProdCombinedNativeOnly100kEdges = 9500
 	benchmarkGeneratorProdCombined1MEdges             = 13334
-	benchmarkGeneratorProd100kActiveSeriesTarget      = 100000
 	benchmarkGeneratorHighCardinalityTimedResources   = 400
 	benchmarkGeneratorHighCardinalityTimedEdges       = 200
 	benchmarkGeneratorHighCardinalitySeedResourceSize = 500
 	benchmarkGeneratorHighCardinalitySeedEdgeSize     = 250
 	benchmarkGeneratorPushesPerCollect                = 10
+	benchmarkGeneratorTenant                          = "bench-tenant"
 )
 
 var benchmarkGeneratorProdDimensions = []string{
@@ -670,7 +774,7 @@ func benchmarkGeneratorInstanceWithStorage(b *testing.B, tune func(*mockOverride
 	o.ingestionSlack = 365 * 24 * time.Hour
 	tune(o)
 
-	inst, err := newInstance(cfg, "bench-tenant", o, storage, log.NewNopLogger())
+	inst, err := newInstance(cfg, benchmarkGeneratorTenant, o, storage, log.NewNopLogger())
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -695,13 +799,13 @@ func benchmarkGeneratorInstanceWithRealStorage(b *testing.B, tune func(*mockOver
 	var wal generator_storage.Storage
 	var err error
 	benchmarkWithDiscardedStdout(b, func() {
-		wal, err = generator_storage.New(storageCfg, o, "bench-tenant", prometheus.NewRegistry(), log.NewNopLogger())
+		wal, err = generator_storage.New(storageCfg, o, benchmarkGeneratorTenant, prometheus.NewRegistry(), log.NewNopLogger())
 	})
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	inst, err := newInstance(cfg, "bench-tenant", o, wal, log.NewNopLogger())
+	inst, err := newInstance(cfg, benchmarkGeneratorTenant, o, wal, log.NewNopLogger())
 	if err != nil {
 		_ = wal.Close()
 		b.Fatal(err)
@@ -726,6 +830,44 @@ func benchmarkWithDiscardedStdout(b *testing.B, f func()) {
 	}()
 
 	f()
+}
+
+func benchmarkGeneratorActiveSeries(b *testing.B) float64 {
+	b.Helper()
+
+	metricFamilies, err := prometheus.DefaultGatherer.Gather()
+	if err != nil {
+		b.Fatal(err)
+	}
+	for _, family := range metricFamilies {
+		if family.GetName() != "tempo_metrics_generator_registry_active_series" {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			if !benchmarkGeneratorHasLabel(metric, "tenant", benchmarkGeneratorTenant) {
+				continue
+			}
+			if metric.GetGauge() == nil {
+				b.Fatalf("active series metric has no gauge")
+			}
+			activeSeries := metric.GetGauge().GetValue()
+			if activeSeries == 0 {
+				b.Fatalf("active series metric is zero")
+			}
+			return activeSeries
+		}
+	}
+	b.Fatalf("active series metric for %q not found", benchmarkGeneratorTenant)
+	return 0
+}
+
+func benchmarkGeneratorHasLabel(metric *promdto.Metric, name, value string) bool {
+	for _, label := range metric.GetLabel() {
+		if label.GetName() == name && label.GetValue() == value {
+			return true
+		}
+	}
+	return false
 }
 
 type benchmarkRefStorage struct {
