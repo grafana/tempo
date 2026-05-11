@@ -110,7 +110,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.MaxLiveTracesBytes = 250_000_000 // 250MB
 	cfg.MaxBlockDuration = 30 * time.Second
 	cfg.MaxBlockBytes = 50 * 1024 * 1024
-	cfg.BlockReclaimGrace = 30 * time.Second
+	cfg.BlockReclaimGrace = 2 * time.Minute
 
 	cfg.CommitInterval = 5 * time.Second
 	cfg.ConsumeFromKafka = true

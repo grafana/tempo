@@ -579,7 +579,7 @@ live_store:
     # its files on disk. Must be at least the maximum querier->live-store call timeout
     # (querier.search.query_timeout, default 30s) so in-flight queries iterating an older
     # snapshot don't see ENOENT on page files.
-    [block_reclaim_grace: <duration> | default = 30s]
+    [block_reclaim_grace: <duration> | default = 2m]
 
     # Target consumer lag threshold before the live-store is considered ready to serve queries.
     # Set to 0 to disable readiness waiting.
