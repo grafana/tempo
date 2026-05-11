@@ -45,7 +45,7 @@ The output JSON has shape:
       "path": "github.com/foo/bar",
       "version": "v1.2.3",
       "skipped": false,
-      "extra_scrutiny": ["incompatible" | "old-pseudo-version"],
+      "extra_scrutiny": ["incompatible", "old-pseudo-version"],
       "repo_url": "https://github.com/foo/bar",
       "github": {
         "owner": "foo",
@@ -64,6 +64,10 @@ The output JSON has shape:
 
 `github` is `null` for non-GitHub origins (e.g., gopkg.in vanity paths the proxy doesn't resolve); `repo_url` carries the raw URL when available. `recent_releases` falls back to tag names with `date: null` when the repo publishes tags but no GitHub Releases.
 
+`extra_scrutiny` is a (possibly empty) subset of `["incompatible", "old-pseudo-version"]`.
+
+If any GitHub API call failed, a `github.github_errors` array lists which subcalls failed (`meta`, `releases`, `tags`). Treat those deps as "data incomplete" rather than healthy.
+
 `skipped: true` deps still carry their path/version but no other data — surface them only if `extra_scrutiny` is non-empty.
 
 ## Step 2 — Pick the candidate set from the JSON
@@ -78,7 +82,9 @@ A dep is a **stale candidate** if any of these is true:
 Filter with jq:
 
 ```bash
-TWO_YEARS_AGO=$(date -u -d '2 years ago' +%Y-%m-%dT%H:%M:%SZ)
+# GNU date uses -d, BSD/macOS date uses -v; fall back to the BSD form if -d fails.
+TWO_YEARS_AGO=$(date -u -d '2 years ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+    || date -u -v-2y +%Y-%m-%dT%H:%M:%SZ)
 jq --arg cutoff "$TWO_YEARS_AGO" '
   def path_major:
     ((capture("/v(?<n>[0-9]+)$") | .n)? // "1") | tonumber;

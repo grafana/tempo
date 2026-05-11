@@ -82,19 +82,31 @@ resolve_repo_url() {
 
 # Fetch GitHub metadata + the most recent 20 releases (falling back to tag
 # names when the repo doesn't publish releases — date is null in that case).
+# Records which API calls failed in `github_errors` so the consumer can
+# distinguish "repo healthy" from "data not available".
 github_meta() {
-    local owner=$1 name=$2 meta releases
+    local owner=$1 name=$2 meta releases errs_json
+    local errs=()
 
-    meta=$(gh api "repos/$owner/$name" --jq '{archived, pushed_at}' 2>/dev/null) || meta='{}'
-    releases=$(gh api "repos/$owner/$name/releases?per_page=20" \
-        --jq 'map({tag: .tag_name, date: .published_at})' 2>/dev/null) || releases='[]'
-    if [ "$(jq 'length' <<<"$releases")" -eq 0 ]; then
-        releases=$(gh api "repos/$owner/$name/tags?per_page=20" \
-            --jq 'map({tag: .name, date: null})' 2>/dev/null) || releases='[]'
+    if ! meta=$(gh api "repos/$owner/$name" --jq '{archived, pushed_at}' 2>/dev/null); then
+        meta='{}'; errs+=("meta")
     fi
+    if ! releases=$(gh api "repos/$owner/$name/releases?per_page=20" \
+            --jq 'map({tag: .tag_name, date: .published_at})' 2>/dev/null); then
+        releases='[]'; errs+=("releases")
+    fi
+    if [ "$(jq 'length' <<<"$releases")" -eq 0 ]; then
+        if ! releases=$(gh api "repos/$owner/$name/tags?per_page=20" \
+                --jq 'map({tag: .name, date: null})' 2>/dev/null); then
+            releases='[]'; errs+=("tags")
+        fi
+    fi
+    errs_json=$(jq -nc --args '$ARGS.positional' "${errs[@]}")
 
-    jq -n --arg owner "$owner" --arg name "$name" --argjson meta "$meta" --argjson releases "$releases" \
-        '{owner: $owner, name: $name} + $meta + {recent_releases: $releases}'
+    jq -n --arg owner "$owner" --arg name "$name" --argjson meta "$meta" \
+        --argjson releases "$releases" --argjson errs "$errs_json" \
+        '{owner: $owner, name: $name} + $meta + {recent_releases: $releases}
+         + (if $errs == [] then {} else {github_errors: $errs} end)'
 }
 
 # Count distinct modules that require the given module@version from the graph.
@@ -103,12 +115,15 @@ count_dependents() {
     awk -v mod="$module_at" 'index($2, mod) == 1 { print $1 }' "$graph_file" | sort -u | wc -l | tr -d ' '
 }
 
-# Count vendored directories that import the given path.
+# Count vendored directories that import the given path. Uses -F so that
+# regex metacharacters in the module path (e.g. `.`) aren't interpreted,
+# and matches both the exact import and any subpackage so that the count
+# doesn't pick up unrelated paths that share a prefix.
 count_vendor_packages() {
     local path=$1
     [ -d vendor ] || { printf '0'; return; }
-    grep -r "\"$path" vendor/ --include='*.go' -l 2>/dev/null | awk 'NF { sub("/[^/]+$", "", $0); print }' \
-        | sort -u | wc -l | tr -d ' '
+    grep -rl --include='*.go' -F -e "\"$path\"" -e "\"$path/" vendor/ 2>/dev/null \
+        | awk 'NF { sub("/[^/]+$", "", $0); print }' | sort -u | wc -l | tr -d ' '
 }
 
 # Build the JSON record for a single direct dep and write it to $outfile.
