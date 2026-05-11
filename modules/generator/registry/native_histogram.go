@@ -537,6 +537,14 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs in
 }
 
 func convertLabelPairToLabels(lbps []*dto.LabelPair) labels.Labels {
+	if len(lbps) == 0 {
+		return labels.EmptyLabels()
+	}
+	if len(lbps) == 1 {
+		lbp := lbps[0]
+		return labels.FromStrings(lbp.GetName(), lbp.GetValue())
+	}
+
 	lbs := make([]labels.Label, len(lbps))
 	for i, lbp := range lbps {
 		lbs[i] = labels.Label{
