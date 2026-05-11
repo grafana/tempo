@@ -12,12 +12,62 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/grafana/tempo/pkg/cache"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
+	tempo_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 )
+
+// pageCacheErrorBytes counts cache write-path bytes that did not make it
+// into the cache because the backend read failed with a non-nil non-EOF
+// error. Hit / miss / store totals are already observable from memcached's
+// own metrics, so we only emit the loss signal here.
+var pageCacheErrorBytes = promauto.NewCounterVec(prometheus.CounterOpts{
+	Namespace: "tempodb",
+	Name:      "cache_page_error_bytes_total",
+	Help:      "Parquet page cache bytes lost to backend read errors, by error class.",
+}, []string{"class"})
+
+func recordPageError(ci *backend.CacheInfo, err error, name string, offset uint64, n int, logger *tempo_log.RateLimitedLogger) {
+	if ci == nil || ci.Role != cache.RoleParquetPage {
+		return
+	}
+	class := errorClass(err)
+	pageCacheErrorBytes.WithLabelValues(class).Add(float64(n))
+	if logger != nil {
+		logger.Log(
+			"msg", "cache write-path read error",
+			"class", class,
+			"err", err,
+			"name", name,
+			"offset", offset,
+			"len", n,
+		)
+	}
+}
+
+// errorClass maps a backend read error to a stable, low-cardinality label.
+// io.EOF is intentionally absent because it is not an error in this context
+// (io.ReaderAt returns valid data alongside io.EOF at end-of-object).
+func errorClass(err error) string {
+	switch {
+	case errors.Is(err, io.ErrUnexpectedEOF):
+		return "unexpected_eof"
+	case errors.Is(err, context.Canceled):
+		return "canceled"
+	case errors.Is(err, context.DeadlineExceeded):
+		return "deadline_exceeded"
+	default:
+		return "other"
+	}
+}
+
+// errorLogsPerSecond caps cache write-path error log volume across the pod.
+const errorLogsPerSecond = 10
 
 type BloomConfig struct {
 	CacheMinCompactionLevel uint8         `yaml:"cache_min_compaction_level"`
@@ -29,6 +79,8 @@ type readerWriter struct {
 
 	nextReader backend.RawReader
 	nextWriter backend.RawWriter
+
+	errLogger *tempo_log.RateLimitedLogger
 
 	footerCache     cache.Cache
 	bloomCache      cache.Cache
@@ -51,6 +103,8 @@ func NewCache(cfgBloom *BloomConfig, nextReader backend.RawReader, nextWriter ba
 
 		nextReader: nextReader,
 		nextWriter: nextWriter,
+
+		errLogger: tempo_log.NewRateLimitedLogger(errorLogsPerSecond, level.Warn(logger)),
 	}
 
 	level.Info(logger).Log("msg", "caches available to storage backend",
@@ -124,10 +178,13 @@ func (r *readerWriter) ReadRange(ctx context.Context, name string, keypath backe
 	// previous implemenation always passed false forward for "shouldCache" so we are matching that behavior by passing nil for cacheInfo
 	// todo: reevaluate. should we pass the cacheInfo forward?
 	err := r.nextReader.ReadRange(ctx, name, keypath, offset, buffer, nil)
-	// io.EOF alongside valid data is a successful read per the io.ReaderAt
-	// contract; store the buffer instead of dropping it.
+	// io.EOF alongside valid data is a successful read per io.ReaderAt;
+	// store it instead of dropping it.
 	if (err == nil || errors.Is(err, io.EOF)) && cache != nil {
 		store(ctx, cache, cacheInfo.Role, k, buffer)
+	}
+	if err != nil && !errors.Is(err, io.EOF) {
+		recordPageError(cacheInfo, err, name, offset, len(buffer), r.errLogger)
 	}
 
 	return err
