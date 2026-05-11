@@ -36,6 +36,22 @@ func Test_ObserveWithExemplar_duplicate(t *testing.T) {
 	assert.Equal(t, int(h.activeSeriesPerHistogramSerie()), seriesAdded)
 }
 
+func Test_nativeHistogram_collectMetricsReleasesEncodedHistogram(t *testing.T) {
+	for _, histogramMode := range []HistogramMode{HistogramModeNative, HistogramModeBoth} {
+		t.Run(HistogramModeToString[histogramMode], func(t *testing.T) {
+			h := newNativeHistogram("my_histogram", []float64{0.1, 0.2}, noopLimiter, "trace_id", histogramMode, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+			h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0, "trace-1", 1.0)
+
+			err := h.collectMetrics(&noopAppender{}, time.Now().UnixMilli())
+			require.NoError(t, err)
+
+			for _, s := range h.series {
+				require.Nil(t, s.histogram)
+			}
+		})
+	}
+}
+
 func Test_Histograms(t *testing.T) {
 	// A single observation has a labelset, a value, and a multiplier.
 	type observations []struct {
