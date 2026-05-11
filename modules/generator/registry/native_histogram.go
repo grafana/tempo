@@ -481,7 +481,7 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs in
 	}
 
 	// bucket
-	s.lb.Set(labels.MetricName, h.metricName+"_bucket")
+	s.lb.Set(labels.MetricName, h.nameBucket)
 
 	// the Prometheus histogram will sometimes add the +Inf bucket, it depends on whether there is an exemplar
 	// for that bucket or not. To avoid adding it twice, keep track of it with this boolean.
