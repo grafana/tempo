@@ -45,7 +45,7 @@ func (d *Duration) UnmarshalJSON(input []byte) error {
 // nested "duration: 5m0s" map that yaml.v2's default reflection produces for
 // the embedded time.Duration field.
 func (d *Duration) MarshalYAML() (interface{}, error) {
-	return d.Duration.String(), nil
+	return d.String(), nil
 }
 
 // UnmarshalYAML parses a duration string ("5m0s") into d.
