@@ -258,6 +258,7 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 		if hasClassicHistograms(h.histogramOverride) {
 			classicErr := h.classicHistograms(appender, timeMs, s)
 			if classicErr != nil {
+				s.histogram = nil
 				return classicErr
 			}
 		}
@@ -266,6 +267,7 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 		if hasNativeHistograms(h.histogramOverride) {
 			nativeErr := h.nativeHistograms(appender, s.labels, timeMs, s)
 			if nativeErr != nil {
+				s.histogram = nil
 				return nativeErr
 			}
 		}
@@ -274,6 +276,7 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 		if s.isNew() {
 			s.registerSeenSeries()
 		}
+		s.histogram = nil
 	}
 
 	return nil
