@@ -52,6 +52,17 @@ func Test_nativeHistogram_collectMetricsReleasesEncodedHistogram(t *testing.T) {
 	}
 }
 
+func Test_nativeHistogram_nativeOnlyDoesNotRetainClassicLabels(t *testing.T) {
+	h := newNativeHistogram("my_histogram", []float64{0.1, 0.2}, noopLimiter, "trace_id", HistogramModeNative, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+	h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0, "trace-1", 1.0)
+
+	for _, s := range h.series {
+		require.Nil(t, s.lb)
+		require.Empty(t, s.countLabels)
+		require.Empty(t, s.sumLabels)
+	}
+}
+
 func Test_Histograms(t *testing.T) {
 	// A single observation has a labelset, a value, and a multiplier.
 	type observations []struct {
