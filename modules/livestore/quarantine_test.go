@@ -148,8 +148,10 @@ func TestQuarantine_ConcurrentAddAndReclaim(t *testing.T) {
 
 	// Block reclaim's fn long enough that an add() must succeed concurrently
 	// while reclaim is still running.
+	started := make(chan struct{})
 	gate := make(chan struct{})
 	q.add(uuid.New(), "blocker", "wal", func() error {
+		close(started)
 		<-gate
 		return nil
 	})
@@ -167,9 +169,7 @@ func TestQuarantine_ConcurrentAddAndReclaim(t *testing.T) {
 	// Adder goroutine: must not deadlock while reclaim is mid-fn.
 	go func() {
 		defer wg.Done()
-		// Give reclaim a moment to enter fn and (importantly) release the
-		// internal mutex.
-		time.Sleep(10 * time.Millisecond)
+		<-started
 		for range adds {
 			q.add(uuid.New(), "tenant", "wal", func() error { return nil })
 		}
