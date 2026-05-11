@@ -1063,7 +1063,7 @@ func TestIterateBlocksRecoversPanic(t *testing.T) {
 				require.NoError(t, err)
 				require.NotEqual(t, uuid.Nil, blockID)
 				i.blocksMtx.Lock()
-				i.headBlock = nil
+				i.blocks.Store(i.blocks.Load().withHeadBlock(nil))
 				i.blocksMtx.Unlock()
 			},
 		},
@@ -1077,7 +1077,7 @@ func TestIterateBlocksRecoversPanic(t *testing.T) {
 				_, err = i.completeBlock(t.Context(), blockID)
 				require.NoError(t, err)
 				i.blocksMtx.Lock()
-				i.headBlock = nil
+				i.blocks.Store(i.blocks.Load().withHeadBlock(nil))
 				i.blocksMtx.Unlock()
 			},
 		},
