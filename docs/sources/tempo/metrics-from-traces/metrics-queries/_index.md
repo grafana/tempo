@@ -110,7 +110,7 @@ Example:
 
 An experimental span-only fetch layer is available in vParquet5 that significantly improves performance for most metrics queries. This optimized read path processes individual spans instead of full traces, reducing latency and memory usage.
 
-The faster read path applies automatically to metrics queries that don't require knowledge of the full trace structure. Queries using structural operators like `>>`, `<<`, `~`, `!>>`, `!<<`, or `!~` still use the standard fetch layer.
+You must enable the faster read path explicitly using a query hint or a per-tenant override. Once enabled, it applies to metrics queries that don't require knowledge of the full trace structure. Queries using structural operators like `>>`, `<<`, `~`, `!>>`, `!<<`, or `!~` still use the standard fetch layer.
 
 #### Enable with a query hint
 
@@ -122,14 +122,13 @@ Add the `spanonly_fetch=true` hint to your query. This hint requires [`unsafe_qu
 
 #### Enable with a per-tenant override
 
-Operators can enable the faster read path by default for a tenant using the `metrics_spanonly_fetch` override. When set, it applies to all eligible metrics queries for that tenant without requiring a query hint.
+Operators can enable the faster read path by default for a tenant using the `metrics_spanonly_fetch` override. When set, it applies to all eligible metrics queries for that tenant without requiring a query hint. This override doesn't require `unsafe_query_hints`.
 
 ```yaml
 overrides:
   'tenant-id':
     read:
-      unsafe_query_hints: true
       metrics_spanonly_fetch: true
 ```
 
-The query hint takes precedence over the per-tenant override. Set `spanonly_fetch=false` in a query to opt out when the override is enabled.
+When `unsafe_query_hints` is also enabled for the tenant, the `spanonly_fetch` query hint takes precedence over the per-tenant override. Users can set `spanonly_fetch=false` to opt out, or `spanonly_fetch=true` to opt in even when the override is disabled.

@@ -915,7 +915,7 @@ batch_id:     <BATCH_ID>
 jobs_created: <COUNT>
 ```
 
-Monitor job progress through the [`/status/backendscheduler`](/docs/tempo/<TEMPO_VERSION>/api_docs/#backend-scheduler-status) endpoint.
+Monitor job progress through the [`/status/backendscheduler`](/docs/tempo/<TEMPO_VERSION>/api_docs/#backend-scheduler-job-status) endpoint.
 
 ### Examples
 
