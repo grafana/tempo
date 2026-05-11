@@ -16,6 +16,52 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// eofReader is a RawReader that returns (data, io.EOF) on ReadRange, as
+// io.ReaderAt implementations do when a read reaches end-of-object.
+type eofReader struct {
+	*backend.MockRawReader
+	data []byte
+}
+
+func (e *eofReader) ReadRange(_ context.Context, _ string, _ backend.KeyPath, _ uint64, buffer []byte, _ *backend.CacheInfo) error {
+	copy(buffer, e.data)
+	return io.EOF
+}
+
+// TestReadRangeStoresOnEOF pins the behavior that a backend read returning
+// io.EOF alongside valid data still populates the cache. Without this,
+// tail reads of every parquet file are never cached and miss forever.
+func TestReadRangeStoresOnEOF(t *testing.T) {
+	tenantID := "test"
+	blockID := uuid.New()
+	keypath := backend.KeyPathForBlock(blockID, tenantID)
+	data := []byte{0x01, 0x02, 0x03, 0x04}
+
+	provider := test.NewMockProvider()
+	mockR := &eofReader{MockRawReader: &backend.MockRawReader{}, data: data}
+	reader, _, err := NewCache(nil, mockR, &backend.MockRawWriter{}, provider, log.NewNopLogger())
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	buf := make([]byte, len(data))
+
+	// First read: cache miss, backend returns io.EOF with data. Cache must store.
+	err = reader.ReadRange(ctx, "data.parquet", keypath, 0, buf, &backend.CacheInfo{
+		Role: cache.RoleParquetFooter,
+	})
+	require.ErrorIs(t, err, io.EOF, "backend EOF must propagate to the caller")
+	require.Equal(t, data, buf)
+
+	// Second read of the same range must hit the cache (no backend call).
+	mockR.data = nil // any backend call would return zeros, failing the assertion below
+	buf2 := make([]byte, len(data))
+	err = reader.ReadRange(ctx, "data.parquet", keypath, 0, buf2, &backend.CacheInfo{
+		Role: cache.RoleParquetFooter,
+	})
+	require.NoError(t, err)
+	require.Equal(t, data, buf2, "second read must be served from cache (EOF response was stored)")
+}
+
 func TestCacheFor(t *testing.T) {
 	reader, _, err := NewCache(&BloomConfig{
 		CacheMaxBlockAge:        time.Hour,

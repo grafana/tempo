@@ -3,6 +3,7 @@ package cache
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"strconv"
 	"strings"
@@ -123,7 +124,9 @@ func (r *readerWriter) ReadRange(ctx context.Context, name string, keypath backe
 	// previous implemenation always passed false forward for "shouldCache" so we are matching that behavior by passing nil for cacheInfo
 	// todo: reevaluate. should we pass the cacheInfo forward?
 	err := r.nextReader.ReadRange(ctx, name, keypath, offset, buffer, nil)
-	if err == nil && cache != nil {
+	// io.EOF alongside valid data is a successful read per the io.ReaderAt
+	// contract; store the buffer instead of dropping it.
+	if (err == nil || errors.Is(err, io.EOF)) && cache != nil {
 		store(ctx, cache, cacheInfo.Role, k, buffer)
 	}
 
