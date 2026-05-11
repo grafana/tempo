@@ -14,7 +14,6 @@ import (
 	promhistogram "github.com/prometheus/prometheus/model/histogram"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
-	"go.uber.org/atomic"
 
 	tempo_util "github.com/grafana/tempo/pkg/util"
 )
@@ -69,7 +68,7 @@ type nativeHistogramSeries struct {
 	// This is used in classic histograms to ensure that new counters begin with 0.
 	// This avoids Prometheus throwing away the first value in the series,
 	// due to the transition from null -> x.
-	firstSeries *atomic.Bool
+	firstSeries bool
 
 	// classic
 	countLabels labels.Labels
@@ -81,11 +80,11 @@ type nativeHistogramSeries struct {
 }
 
 func (hs *nativeHistogramSeries) isNew() bool {
-	return hs.firstSeries.Load()
+	return hs.firstSeries
 }
 
 func (hs *nativeHistogramSeries) registerSeenSeries() {
-	hs.firstSeries.Store(false)
+	hs.firstSeries = false
 }
 
 var (
@@ -181,7 +180,7 @@ func (h *nativeHistogram) newSeries(lbls labels.Labels, hash uint64, value float
 	newSeries := &nativeHistogramSeries{
 		promHistogram: prometheus.NewHistogram(nativeOpts),
 		lastUpdated:   0,
-		firstSeries:   atomic.NewBool(true),
+		firstSeries:   true,
 		overridesHash: hsh,
 	}
 
