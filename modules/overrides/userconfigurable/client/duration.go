@@ -44,7 +44,7 @@ func (d *Duration) UnmarshalJSON(input []byte) error {
 // MarshalYAML emits the duration as a flat scalar ("5m0s") instead of the
 // nested "duration: 5m0s" map that yaml.v2's default reflection produces for
 // the embedded time.Duration field.
-func (d Duration) MarshalYAML() (interface{}, error) {
+func (d *Duration) MarshalYAML() (interface{}, error) {
 	return d.Duration.String(), nil
 }
 
@@ -65,6 +65,6 @@ func (d *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 var (
 	_ json.Marshaler   = (*Duration)(nil)
 	_ json.Unmarshaler = (*Duration)(nil)
-	_ yaml.Marshaler   = Duration{}
+	_ yaml.Marshaler   = (*Duration)(nil)
 	_ yaml.Unmarshaler = (*Duration)(nil)
 )
