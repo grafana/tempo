@@ -887,3 +887,52 @@ Drop multiple traces:
 ```bash
 tempo-cli rewrite-blocks drop-traces --drop-trace --backend=local --bucket=./cmd/tempo-cli/test-data/ single-tenant 04d5f549746c96e4f3daed6202571db2,111fa1850042aea83c17cd7e674210b8
 ```
+
+## Redact traces
+
+Submits a redaction request to the [backend scheduler](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/compaction/#backend-scheduler). The scheduler creates jobs that rewrite affected blocks in object storage to remove the specified traces. Unlike [`drop-traces`](#drop-traces-by-id), which operates directly on object storage from the CLI, `redact` delegates the work to the backend scheduler over gRPC.
+
+```bash
+tempo-cli redact --tenant=<TENANT_ID> --trace-id=<TRACE_ID> [--trace-id=<TRACE_ID> ...] <scheduler-address>
+```
+
+Arguments:
+
+- `scheduler-address` The backend scheduler gRPC address (`host:port`).
+
+Options:
+
+- `--tenant <value>` **(required)** Tenant ID.
+- `--trace-id <value>` **(required)** Trace ID to redact, in hex format. Specify multiple times to redact several traces in one request.
+- `--tls` Use TLS for the gRPC connection (default: `false`).
+- `--tls-server-name <value>` Override the TLS server name (SNI).
+- `--tls-ca <value>` Path to a PEM-encoded CA certificate file.
+
+On success, the command prints the batch ID and the number of jobs created:
+
+```
+batch_id:     <BATCH_ID>
+jobs_created: <COUNT>
+```
+
+Monitor job progress through the [`/status/backendscheduler`](/docs/tempo/<TEMPO_VERSION>/api_docs/#backend-scheduler-status) endpoint.
+
+### Examples
+
+Redact a single trace:
+
+```bash
+tempo-cli redact --tenant=my-tenant --trace-id=931281e2a09876de16e15f45ff86283d localhost:9095
+```
+
+Redact multiple traces in one request:
+
+```bash
+tempo-cli redact --tenant=my-tenant --trace-id=931281e2a09876de16e15f45ff86283d --trace-id=00000000000000000000000000000001 localhost:9095
+```
+
+With TLS and a custom CA:
+
+```bash
+tempo-cli redact --tenant=my-tenant --trace-id=931281e2a09876de16e15f45ff86283d --tls --tls-ca=/path/to/ca.pem scheduler.example.com:9095
+```
