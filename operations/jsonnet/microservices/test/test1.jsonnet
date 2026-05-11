@@ -17,6 +17,7 @@ local withLiveStoreKeda(url, tenant='') = default {
     autoscaling_prometheus_url: url,
     autoscaling_prometheus_tenant: tenant,
     live_store+: { replicas: 1, keda+: { enabled: true } },
+    rollout_operator_replica_template_access_enabled: true,
   },
 };
 
@@ -116,6 +117,7 @@ test.new(std.thisFile)
     (default {
        _config+:: {
          autoscaling_prometheus_url: 'http://prometheus:9090',
+         rollout_operator_replica_template_access_enabled: true,
          live_store+: {
            replicas: 1,
            keda+: {

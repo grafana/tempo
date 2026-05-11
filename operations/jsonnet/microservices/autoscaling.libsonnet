@@ -132,6 +132,7 @@
       partitions_per_instance: 1,
     },
 
+
   },
 
   // Returns a KEDA Prometheus trigger using the shared autoscaling_prometheus_url and
@@ -270,6 +271,8 @@
   tempo_live_store_scaled_object:
     if $._config.live_store.keda.enabled then
       assert $._config.autoscaling_prometheus_url != '' : 'autoscaling_prometheus_url is required for live_store autoscaling';
+      assert $._config.rollout_operator_replica_template_access_enabled :
+             'live_store.keda.enabled requires rollout_operator_replica_template_access_enabled=true so the rollout-operator can read the ReplicaTemplate scale';
       local config = $._config.live_store.keda;
       local query = if config.query != '' then config.query else
         |||
