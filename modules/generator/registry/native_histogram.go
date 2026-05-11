@@ -191,8 +191,11 @@ func (h *nativeHistogram) newSeries(lbls labels.Labels, hash uint64, value float
 	lb.Set(labels.MetricName, h.metricName)
 
 	newSeries.labels = lb.Labels()
-	newSeries.lb = lb
+	if !hasClassic {
+		return newSeries
+	}
 
+	newSeries.lb = lb
 	// _count
 	lb.Set(labels.MetricName, h.nameCount)
 	newSeries.countLabels = lb.Labels()
