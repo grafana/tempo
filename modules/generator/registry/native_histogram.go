@@ -34,7 +34,8 @@ type nativeHistogram struct {
 
 	lifecycler Limiter
 
-	buckets []float64
+	buckets      []float64
+	bucketLabels []string
 
 	traceIDLabelName string
 	exemplarLabels   prometheus.Labels
@@ -97,6 +98,11 @@ func newNativeHistogram(name string, buckets []float64, lifecycler Limiter, trac
 		traceIDLabelName = "traceID"
 	}
 
+	bucketLabels := make([]string, len(buckets))
+	for i, bucket := range buckets {
+		bucketLabels[i] = formatFloat(bucket)
+	}
+
 	return &nativeHistogram{
 		metricName:        name,
 		series:            make(map[uint64]*nativeHistogramSeries),
@@ -105,6 +111,7 @@ func newNativeHistogram(name string, buckets []float64, lifecycler Limiter, trac
 		traceIDLabelName:  traceIDLabelName,
 		exemplarLabels:    make(prometheus.Labels, 1),
 		buckets:           buckets,
+		bucketLabels:      bucketLabels,
 		histogramOverride: histogramOverride,
 		externalLabels:    externalLabels,
 		overrides:         overrides,
@@ -480,9 +487,9 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs in
 	// for that bucket or not. To avoid adding it twice, keep track of it with this boolean.
 	infBucketWasAdded := false
 
-	for _, bucket := range s.histogram.Bucket {
+	for i, bucket := range s.histogram.Bucket {
 		// add "le" label
-		s.lb.Set(labels.BucketLabel, formatFloat(bucket.GetUpperBound()))
+		s.lb.Set(labels.BucketLabel, h.classicBucketLabelAt(i, bucket.GetUpperBound()))
 
 		if bucket.GetUpperBound() == math.Inf(1) {
 			infBucketWasAdded = true
@@ -534,6 +541,16 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs in
 	s.lb.Del(labels.BucketLabel)
 
 	return nil
+}
+
+func (h *nativeHistogram) classicBucketLabelAt(bucketIndex int, upperBound float64) string {
+	if math.IsInf(upperBound, 1) {
+		return "+Inf"
+	}
+	if bucketIndex < len(h.bucketLabels) && h.buckets[bucketIndex] == upperBound {
+		return h.bucketLabels[bucketIndex]
+	}
+	return formatFloat(upperBound)
 }
 
 func convertLabelPairToLabels(lbps []*dto.LabelPair) labels.Labels {
