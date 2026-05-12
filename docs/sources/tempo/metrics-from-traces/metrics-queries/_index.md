@@ -108,7 +108,7 @@ Example:
 
 {{< docs/experimental product="Tempo" >}}
 
-An experimental span-only fetch layer is available in vParquet5 that significantly improves performance for most metrics queries. This optimized read path processes individual spans instead of full traces, reducing latency and memory usage.
+In vParquet5, you can use an experimental span-only fetch layer to significantly improve performance for most metrics queries. This optimized read path processes individual spans instead of full traces, reducing latency and memory usage.
 
 You must enable the faster read path explicitly using a query hint or a per-tenant override. Once enabled, it applies to metrics queries that don't require knowledge of the full trace structure. Queries using structural operators like `>>`, `<<`, `~`, `!>>`, `!<<`, or `!~` still use the standard fetch layer.
 
