@@ -15,13 +15,13 @@ import (
 	"github.com/gogo/status"
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/services"
-	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/backendscheduler/provider"
 	"github.com/grafana/tempo/modules/backendscheduler/work"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/blocklist"
 	"github.com/jedib0t/go-pretty/v6/table"
@@ -433,7 +433,7 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 	_, span := tracer.Start(ctx, "SubmitRedaction")
 	defer span.End()
 
-	tenant, err := user.ExtractOrgID(ctx)
+	tenant, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, err.Error())
 	}
