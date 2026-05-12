@@ -700,6 +700,11 @@ func (i *instance) deleteOldBlocks() error {
 
 	snap := i.blocks.Load()
 	newSnap := snap
+	defer func() {
+		if newSnap != snap {
+			i.blocks.Store(newSnap)
+		}
+	}()
 
 	for id, walBlock := range snap.walBlocks {
 		if walBlock.BlockMeta().EndTime.Before(cutoff) {
@@ -731,8 +736,5 @@ func (i *instance) deleteOldBlocks() error {
 		i.reclaim.add(bid, tenant, "complete", func() error { return bk.ClearBlock(bid, tenant) })
 	}
 
-	if newSnap != snap {
-		i.blocks.Store(newSnap)
-	}
 	return nil
 }

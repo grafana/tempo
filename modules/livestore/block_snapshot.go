@@ -1,6 +1,8 @@
 package livestore
 
 import (
+	"maps"
+
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -21,47 +23,50 @@ func emptyBlockSnapshot() *blockSnapshot {
 	}
 }
 
-func (s *blockSnapshot) clone() *blockSnapshot {
-	out := &blockSnapshot{
-		headBlock:      s.headBlock,
-		walBlocks:      make(map[uuid.UUID]common.WALBlock, len(s.walBlocks)),
-		completeBlocks: make(map[uuid.UUID]*LocalBlock, len(s.completeBlocks)),
-	}
-	for k, v := range s.walBlocks {
-		out.walBlocks[k] = v
-	}
-	for k, v := range s.completeBlocks {
-		out.completeBlocks[k] = v
-	}
-	return out
-}
-
 func (s *blockSnapshot) withHeadBlock(b common.WALBlock) *blockSnapshot {
-	out := s.clone()
-	out.headBlock = b
-	return out
+	return &blockSnapshot{
+		headBlock:      b,
+		walBlocks:      s.walBlocks,
+		completeBlocks: s.completeBlocks,
+	}
 }
 
 func (s *blockSnapshot) withWALBlockAdded(id uuid.UUID, b common.WALBlock) *blockSnapshot {
-	out := s.clone()
-	out.walBlocks[id] = b
-	return out
+	w := maps.Clone(s.walBlocks)
+	w[id] = b
+	return &blockSnapshot{
+		headBlock:      s.headBlock,
+		walBlocks:      w,
+		completeBlocks: s.completeBlocks,
+	}
 }
 
 func (s *blockSnapshot) withWALBlockRemoved(id uuid.UUID) *blockSnapshot {
-	out := s.clone()
-	delete(out.walBlocks, id)
-	return out
+	w := maps.Clone(s.walBlocks)
+	delete(w, id)
+	return &blockSnapshot{
+		headBlock:      s.headBlock,
+		walBlocks:      w,
+		completeBlocks: s.completeBlocks,
+	}
 }
 
 func (s *blockSnapshot) withCompleteBlockAdded(id uuid.UUID, b *LocalBlock) *blockSnapshot {
-	out := s.clone()
-	out.completeBlocks[id] = b
-	return out
+	c := maps.Clone(s.completeBlocks)
+	c[id] = b
+	return &blockSnapshot{
+		headBlock:      s.headBlock,
+		walBlocks:      s.walBlocks,
+		completeBlocks: c,
+	}
 }
 
 func (s *blockSnapshot) withCompleteBlockRemoved(id uuid.UUID) *blockSnapshot {
-	out := s.clone()
-	delete(out.completeBlocks, id)
-	return out
+	c := maps.Clone(s.completeBlocks)
+	delete(c, id)
+	return &blockSnapshot{
+		headBlock:      s.headBlock,
+		walBlocks:      s.walBlocks,
+		completeBlocks: c,
+	}
 }

@@ -244,15 +244,6 @@ func (s *LiveStore) perTenantCleanupLoop(inst *instance) {
 				level.Info(s.logger).Log("msg", "reclaimed block", "tenant", r.Tenant, "block_id", r.BlockID.String(), "block_type", r.BlockType)
 			}
 		case <-s.ctx.Done():
-			// Drain remaining reclaims on shutdown.
-			for _, r := range inst.reclaim.drain() {
-				if r.Err != nil {
-					level.Error(s.logger).Log("msg", "reclaim drain failed", "tenant", r.Tenant, "block_id", r.BlockID.String(), "block_type", r.BlockType, "err", r.Err)
-					continue
-				}
-				metricBlocksClearedTotal.WithLabelValues(r.BlockType).Inc()
-				level.Info(s.logger).Log("msg", "reclaimed block (drain)", "tenant", r.Tenant, "block_id", r.BlockID.String(), "block_type", r.BlockType)
-			}
 			return
 		}
 	}

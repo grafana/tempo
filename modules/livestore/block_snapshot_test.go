@@ -16,20 +16,6 @@ func TestBlockSnapshot_EmptyHasInitializedMaps(t *testing.T) {
 	assert.Nil(t, s.headBlock)
 }
 
-func TestBlockSnapshot_CloneIsDeep(t *testing.T) {
-	s := emptyBlockSnapshot()
-	id := uuid.New()
-	s.walBlocks[id] = nil
-	s.completeBlocks[id] = nil
-
-	c := s.clone()
-	delete(c.walBlocks, id)
-	delete(c.completeBlocks, id)
-
-	assert.Contains(t, s.walBlocks, id, "clone is independent of original walBlocks")
-	assert.Contains(t, s.completeBlocks, id, "clone is independent of original completeBlocks")
-}
-
 func TestBlockSnapshot_WithWALBlockAddedRemovedDoesNotMutateOriginal(t *testing.T) {
 	s := emptyBlockSnapshot()
 	id := uuid.New()

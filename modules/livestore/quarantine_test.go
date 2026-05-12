@@ -3,7 +3,6 @@ package livestore
 import (
 	"errors"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -95,47 +94,6 @@ func TestQuarantine_ReclaimMixedDeadlines(t *testing.T) {
 
 	require.Len(t, q.entries, 1)
 	assert.Equal(t, notDueID, q.entries[0].blockID)
-}
-
-func TestQuarantine_DrainRunsAllEntriesRegardlessOfDeadline(t *testing.T) {
-	q := newQuarantine(time.Hour) // all entries are far in the future
-
-	var calls atomic.Int32
-	for range 3 {
-		q.add(uuid.New(), "tenant", "wal", func() error {
-			calls.Add(1)
-			return nil
-		})
-	}
-
-	results := q.drain()
-	require.Len(t, results, 3)
-	assert.Equal(t, int32(3), calls.Load())
-	assert.Empty(t, q.entries)
-
-	// Subsequent drain is a no-op.
-	results = q.drain()
-	assert.Nil(t, results)
-}
-
-func TestQuarantine_DrainPropagatesErrors(t *testing.T) {
-	q := newQuarantine(time.Hour)
-
-	wantErr := errors.New("rm failed")
-	q.add(uuid.New(), "tenant", "wal", func() error { return wantErr })
-	q.add(uuid.New(), "tenant", "complete", func() error { return nil })
-
-	results := q.drain()
-	require.Len(t, results, 2)
-
-	var errCount int
-	for _, r := range results {
-		if r.Err != nil {
-			assert.ErrorIs(t, r.Err, wantErr)
-			errCount++
-		}
-	}
-	assert.Equal(t, 1, errCount)
 }
 
 // TestQuarantine_ConcurrentAddAndReclaim verifies that reclaim does not hold

@@ -83,25 +83,3 @@ func (q *quarantine) reclaim() []ReclaimResult {
 	}
 	return results
 }
-
-// drain runs fn for every entry regardless of deadline. Used on shutdown.
-func (q *quarantine) drain() []ReclaimResult {
-	q.mtx.Lock()
-	due := q.entries
-	q.entries = nil
-	q.mtx.Unlock()
-
-	if len(due) == 0 {
-		return nil
-	}
-	results := make([]ReclaimResult, 0, len(due))
-	for _, e := range due {
-		results = append(results, ReclaimResult{
-			BlockID:   e.blockID,
-			Tenant:    e.tenant,
-			BlockType: e.blockType,
-			Err:       e.reclaim(),
-		})
-	}
-	return results
-}
