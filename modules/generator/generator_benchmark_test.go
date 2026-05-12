@@ -23,6 +23,7 @@ import (
 	"github.com/grafana/tempo/modules/generator/processor"
 	generator_storage "github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/modules/overrides/histograms"
+	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -268,6 +269,100 @@ func BenchmarkPushSpansProductionCardinality(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				inst.pushSpans(ctx, tc.request)
+			}
+			b.ReportMetric(activeSeries, "active_series")
+		})
+	}
+}
+
+func BenchmarkDecodePushSpansProductionCardinality(b *testing.B) {
+	for _, tc := range []struct {
+		name      string
+		decoder   func() ingest.GeneratorCodec
+		payload   func(testing.TB, *tempopb.PushSpansRequest) []byte
+		overrides func(*mockOverrides)
+		seed      func(context.Context, *instance)
+		request   *tempopb.PushSpansRequest
+	}{
+		{
+			name:    "combined_prod_7dims_100k_series_otlp_decode_push",
+			decoder: func() ingest.GeneratorCodec { return ingest.NewOTLPDecoder() },
+			payload: benchmarkGeneratorOTLPPayload,
+			overrides: func(o *mockOverrides) {
+				o.processors = map[string]struct{}{processor.SpanMetricsName: {}, processor.ServiceGraphsName: {}}
+				benchmarkGeneratorProdOverrides(o)
+			},
+			seed: func(ctx context.Context, inst *instance) {
+				benchmarkGeneratorSeedHighCardinalityServiceGraph(ctx, inst, benchmarkGeneratorProdCombined100kEdges)
+			},
+			request: benchmarkGeneratorProdHighCardinalityServiceGraphRequest(0, benchmarkGeneratorHighCardinalityTimedEdges),
+		},
+		{
+			name:    "combined_prod_7dims_100k_series_push_bytes_decode_push",
+			decoder: func() ingest.GeneratorCodec { return ingest.NewPushBytesDecoder() },
+			payload: benchmarkGeneratorPushBytesPayload,
+			overrides: func(o *mockOverrides) {
+				o.processors = map[string]struct{}{processor.SpanMetricsName: {}, processor.ServiceGraphsName: {}}
+				benchmarkGeneratorProdOverrides(o)
+			},
+			seed: func(ctx context.Context, inst *instance) {
+				benchmarkGeneratorSeedHighCardinalityServiceGraph(ctx, inst, benchmarkGeneratorProdCombined100kEdges)
+			},
+			request: benchmarkGeneratorProdHighCardinalityServiceGraphRequest(0, benchmarkGeneratorHighCardinalityTimedEdges),
+		},
+		{
+			name:    "combined_prod_7dims_native_only_100k_series_otlp_decode_push",
+			decoder: func() ingest.GeneratorCodec { return ingest.NewOTLPDecoder() },
+			payload: benchmarkGeneratorOTLPPayload,
+			overrides: func(o *mockOverrides) {
+				o.processors = map[string]struct{}{processor.SpanMetricsName: {}, processor.ServiceGraphsName: {}}
+				benchmarkGeneratorProdOverrides(o)
+				o.nativeHistograms = histograms.HistogramMethodNative
+			},
+			seed: func(ctx context.Context, inst *instance) {
+				benchmarkGeneratorSeedHighCardinalityServiceGraph(ctx, inst, benchmarkGeneratorProdCombinedNativeOnly100kEdges)
+			},
+			request: benchmarkGeneratorProdHighCardinalityServiceGraphRequest(0, benchmarkGeneratorHighCardinalityTimedEdges),
+		},
+		{
+			name:    "combined_prod_7dims_native_only_100k_series_push_bytes_decode_push",
+			decoder: func() ingest.GeneratorCodec { return ingest.NewPushBytesDecoder() },
+			payload: benchmarkGeneratorPushBytesPayload,
+			overrides: func(o *mockOverrides) {
+				o.processors = map[string]struct{}{processor.SpanMetricsName: {}, processor.ServiceGraphsName: {}}
+				benchmarkGeneratorProdOverrides(o)
+				o.nativeHistograms = histograms.HistogramMethodNative
+			},
+			seed: func(ctx context.Context, inst *instance) {
+				benchmarkGeneratorSeedHighCardinalityServiceGraph(ctx, inst, benchmarkGeneratorProdCombinedNativeOnly100kEdges)
+			},
+			request: benchmarkGeneratorProdHighCardinalityServiceGraphRequest(0, benchmarkGeneratorHighCardinalityTimedEdges),
+		},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			inst := benchmarkGeneratorInstance(b, tc.overrides)
+			defer inst.shutdown()
+
+			ctx := context.Background()
+			tc.seed(ctx, inst)
+			payload := tc.payload(b, tc.request)
+			decoder := tc.decoder()
+			runtime.GC()
+
+			activeSeries := benchmarkGeneratorActiveSeries(b)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				iterator, err := decoder.Decode(payload)
+				if err != nil {
+					b.Fatal(err)
+				}
+				for req, err := range iterator {
+					if err != nil {
+						b.Fatal(err)
+					}
+					inst.pushSpans(ctx, req)
+				}
 			}
 			b.ReportMetric(activeSeries, "active_series")
 		})
@@ -1014,6 +1109,32 @@ func benchmarkGeneratorInstanceWithRealStorage(b *testing.B, tune func(*mockOver
 		b.Fatal(err)
 	}
 	return inst
+}
+
+func benchmarkGeneratorOTLPPayload(tb testing.TB, req *tempopb.PushSpansRequest) []byte {
+	tb.Helper()
+
+	trace := tempopb.Trace{ResourceSpans: req.Batches}
+	data, err := trace.Marshal()
+	if err != nil {
+		tb.Fatal(err)
+	}
+	return data
+}
+
+func benchmarkGeneratorPushBytesPayload(tb testing.TB, req *tempopb.PushSpansRequest) []byte {
+	tb.Helper()
+
+	traceBytes := benchmarkGeneratorOTLPPayload(tb, req)
+	pushBytes := tempopb.PushBytesRequest{
+		Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
+		Ids:    [][]byte{{}},
+	}
+	data, err := pushBytes.Marshal()
+	if err != nil {
+		tb.Fatal(err)
+	}
+	return data
 }
 
 func benchmarkWithDiscardedStdout(b *testing.B, f func()) {
