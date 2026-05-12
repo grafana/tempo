@@ -421,7 +421,7 @@ func newNativeAccumulatorBounds() [][]float64 {
 		factor := math.Exp2(math.Exp2(float64(-schema)))
 		for bucket := 0; bucket < numBuckets-1; bucket++ {
 			var bound float64
-			if (bucket+1)%2 == 0 {
+			if schema > 0 && (bucket+1)%2 == 0 {
 				bound = boundsBySchema[schema-1][bucket/2+1]
 			} else {
 				bound = bounds[bucket] * factor
