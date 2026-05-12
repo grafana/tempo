@@ -10,6 +10,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/exemplar"
 	promhistogram "github.com/prometheus/prometheus/model/histogram"
 	"github.com/prometheus/prometheus/model/labels"
@@ -484,7 +485,7 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs in
 	}
 
 	// bucket
-	s.lb.Set(labels.MetricName, h.nameBucket)
+	s.lb.Set(model.MetricNameLabel, h.nameBucket)
 
 	// the Prometheus histogram will sometimes add the +Inf bucket, it depends on whether there is an exemplar
 	// for that bucket or not. To avoid adding it twice, keep track of it with this boolean.
