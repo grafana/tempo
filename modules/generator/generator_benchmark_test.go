@@ -274,6 +274,116 @@ func BenchmarkPushSpansProductionCardinality(b *testing.B) {
 	}
 }
 
+func BenchmarkPushSpansProductionChurn(b *testing.B) {
+	if os.Getenv(benchmarkGeneratorChurnEnv) == "" {
+		b.Skipf("set %s=1 to run this high-cardinality churn benchmark", benchmarkGeneratorChurnEnv)
+	}
+
+	for _, tc := range []struct {
+		name      string
+		overrides func(*mockOverrides)
+		seed      func(context.Context, *instance)
+		request   func(int) *tempopb.PushSpansRequest
+	}{
+		{
+			name: "spanmetrics_prod_7dims_100k_series_churn",
+			overrides: func(o *mockOverrides) {
+				o.processors = map[string]struct{}{processor.SpanMetricsName: {}}
+				benchmarkGeneratorProdOverrides(o)
+			},
+			seed: func(ctx context.Context, inst *instance) {
+				benchmarkGeneratorSeedHighCardinalitySpanmetrics(ctx, inst, benchmarkGeneratorProdSpanmetrics100kResources)
+			},
+			request: func(iter int) *tempopb.PushSpansRequest {
+				start := benchmarkGeneratorProdSpanmetrics100kResources + iter*benchmarkGeneratorHighCardinalityTimedResources
+				return benchmarkGeneratorProdHighCardinalitySpanmetricsRequest(start, benchmarkGeneratorHighCardinalityTimedResources)
+			},
+		},
+		{
+			name: "servicegraphs_prod_7dims_100k_series_churn",
+			overrides: func(o *mockOverrides) {
+				o.processors = map[string]struct{}{processor.ServiceGraphsName: {}}
+				benchmarkGeneratorProdOverrides(o)
+			},
+			seed: func(ctx context.Context, inst *instance) {
+				benchmarkGeneratorSeedHighCardinalityServiceGraph(ctx, inst, benchmarkGeneratorProdServiceGraphs100kEdges)
+			},
+			request: func(iter int) *tempopb.PushSpansRequest {
+				start := benchmarkGeneratorProdServiceGraphs100kEdges + iter*benchmarkGeneratorHighCardinalityTimedEdges
+				return benchmarkGeneratorProdHighCardinalityServiceGraphRequest(start, benchmarkGeneratorHighCardinalityTimedEdges)
+			},
+		},
+		{
+			name: "combined_prod_7dims_100k_series_churn",
+			overrides: func(o *mockOverrides) {
+				o.processors = map[string]struct{}{processor.SpanMetricsName: {}, processor.ServiceGraphsName: {}}
+				benchmarkGeneratorProdOverrides(o)
+			},
+			seed: func(ctx context.Context, inst *instance) {
+				benchmarkGeneratorSeedHighCardinalityServiceGraph(ctx, inst, benchmarkGeneratorProdCombined100kEdges)
+			},
+			request: func(iter int) *tempopb.PushSpansRequest {
+				start := benchmarkGeneratorProdCombined100kEdges + iter*benchmarkGeneratorHighCardinalityTimedEdges
+				return benchmarkGeneratorProdHighCardinalityServiceGraphRequest(start, benchmarkGeneratorHighCardinalityTimedEdges)
+			},
+		},
+		{
+			name: "combined_prod_7dims_native_100k_series_churn",
+			overrides: func(o *mockOverrides) {
+				o.processors = map[string]struct{}{processor.SpanMetricsName: {}, processor.ServiceGraphsName: {}}
+				benchmarkGeneratorProdOverrides(o)
+				o.nativeHistograms = histograms.HistogramMethodBoth
+			},
+			seed: func(ctx context.Context, inst *instance) {
+				benchmarkGeneratorSeedHighCardinalityServiceGraph(ctx, inst, benchmarkGeneratorProdCombinedNative100kEdges)
+			},
+			request: func(iter int) *tempopb.PushSpansRequest {
+				start := benchmarkGeneratorProdCombinedNative100kEdges + iter*benchmarkGeneratorHighCardinalityTimedEdges
+				return benchmarkGeneratorProdHighCardinalityServiceGraphRequest(start, benchmarkGeneratorHighCardinalityTimedEdges)
+			},
+		},
+		{
+			name: "combined_prod_7dims_native_only_100k_series_churn",
+			overrides: func(o *mockOverrides) {
+				o.processors = map[string]struct{}{processor.SpanMetricsName: {}, processor.ServiceGraphsName: {}}
+				benchmarkGeneratorProdOverrides(o)
+				o.nativeHistograms = histograms.HistogramMethodNative
+			},
+			seed: func(ctx context.Context, inst *instance) {
+				benchmarkGeneratorSeedHighCardinalityServiceGraph(ctx, inst, benchmarkGeneratorProdCombinedNativeOnly100kEdges)
+			},
+			request: func(iter int) *tempopb.PushSpansRequest {
+				start := benchmarkGeneratorProdCombinedNativeOnly100kEdges + iter*benchmarkGeneratorHighCardinalityTimedEdges
+				return benchmarkGeneratorProdHighCardinalityServiceGraphRequest(start, benchmarkGeneratorHighCardinalityTimedEdges)
+			},
+		},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			inst := benchmarkGeneratorInstance(b, tc.overrides)
+			defer inst.shutdown()
+
+			ctx := context.Background()
+			tc.seed(ctx, inst)
+			runtime.GC()
+
+			initialActiveSeries := benchmarkGeneratorActiveSeries(b)
+			b.SetBytes(int64(proto.Size(tc.request(0))))
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				b.StopTimer()
+				request := tc.request(i)
+				b.StartTimer()
+
+				inst.pushSpans(ctx, request)
+			}
+			b.StopTimer()
+			b.ReportMetric(initialActiveSeries, "initial_active_series")
+			b.ReportMetric(benchmarkGeneratorActiveSeries(b), "final_active_series")
+		})
+	}
+}
+
 func BenchmarkCollectMetricsProductionCardinality(b *testing.B) {
 	for _, tc := range []struct {
 		name      string
@@ -567,6 +677,94 @@ func BenchmarkPushCollectCycleProduction(b *testing.B) {
 	}
 }
 
+func BenchmarkPushCollectCycleProductionChurn(b *testing.B) {
+	if os.Getenv(benchmarkGeneratorChurnEnv) == "" {
+		b.Skipf("set %s=1 to run this high-cardinality churn benchmark", benchmarkGeneratorChurnEnv)
+	}
+
+	for _, tc := range []struct {
+		name      string
+		overrides func(*mockOverrides)
+		seed      func(context.Context, *instance)
+		request   func(int) *tempopb.PushSpansRequest
+	}{
+		{
+			name: "combined_prod_7dims_100k_series_10_pushes_per_collect_churn",
+			overrides: func(o *mockOverrides) {
+				o.processors = map[string]struct{}{processor.SpanMetricsName: {}, processor.ServiceGraphsName: {}}
+				benchmarkGeneratorProdOverrides(o)
+			},
+			seed: func(ctx context.Context, inst *instance) {
+				benchmarkGeneratorSeedHighCardinalityServiceGraph(ctx, inst, benchmarkGeneratorProdCombined100kEdges)
+			},
+			request: func(iter int) *tempopb.PushSpansRequest {
+				start := benchmarkGeneratorProdCombined100kEdges + iter*benchmarkGeneratorHighCardinalityTimedEdges
+				return benchmarkGeneratorProdHighCardinalityServiceGraphRequest(start, benchmarkGeneratorHighCardinalityTimedEdges)
+			},
+		},
+		{
+			name: "combined_prod_7dims_native_100k_series_10_pushes_per_collect_churn",
+			overrides: func(o *mockOverrides) {
+				o.processors = map[string]struct{}{processor.SpanMetricsName: {}, processor.ServiceGraphsName: {}}
+				benchmarkGeneratorProdOverrides(o)
+				o.nativeHistograms = histograms.HistogramMethodBoth
+			},
+			seed: func(ctx context.Context, inst *instance) {
+				benchmarkGeneratorSeedHighCardinalityServiceGraph(ctx, inst, benchmarkGeneratorProdCombinedNative100kEdges)
+			},
+			request: func(iter int) *tempopb.PushSpansRequest {
+				start := benchmarkGeneratorProdCombinedNative100kEdges + iter*benchmarkGeneratorHighCardinalityTimedEdges
+				return benchmarkGeneratorProdHighCardinalityServiceGraphRequest(start, benchmarkGeneratorHighCardinalityTimedEdges)
+			},
+		},
+		{
+			name: "combined_prod_7dims_native_only_100k_series_10_pushes_per_collect_churn",
+			overrides: func(o *mockOverrides) {
+				o.processors = map[string]struct{}{processor.SpanMetricsName: {}, processor.ServiceGraphsName: {}}
+				benchmarkGeneratorProdOverrides(o)
+				o.nativeHistograms = histograms.HistogramMethodNative
+			},
+			seed: func(ctx context.Context, inst *instance) {
+				benchmarkGeneratorSeedHighCardinalityServiceGraph(ctx, inst, benchmarkGeneratorProdCombinedNativeOnly100kEdges)
+			},
+			request: func(iter int) *tempopb.PushSpansRequest {
+				start := benchmarkGeneratorProdCombinedNativeOnly100kEdges + iter*benchmarkGeneratorHighCardinalityTimedEdges
+				return benchmarkGeneratorProdHighCardinalityServiceGraphRequest(start, benchmarkGeneratorHighCardinalityTimedEdges)
+			},
+		},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			storage := newBenchmarkRefStorage()
+			inst := benchmarkGeneratorInstanceWithStorage(b, tc.overrides, storage)
+			defer inst.shutdown()
+
+			ctx := context.Background()
+			tc.seed(ctx, inst)
+			inst.registry.CollectMetrics(ctx)
+			runtime.GC()
+
+			initialActiveSeries := benchmarkGeneratorActiveSeries(b)
+			b.SetBytes(int64(proto.Size(tc.request(0)) * benchmarkGeneratorPushesPerCollect))
+			b.ReportMetric(float64(benchmarkGeneratorPushesPerCollect), "pushes/op")
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				for j := 0; j < benchmarkGeneratorPushesPerCollect; j++ {
+					b.StopTimer()
+					request := tc.request(i*benchmarkGeneratorPushesPerCollect + j)
+					b.StartTimer()
+
+					inst.pushSpans(ctx, request)
+				}
+				inst.registry.CollectMetrics(ctx)
+			}
+			b.StopTimer()
+			b.ReportMetric(initialActiveSeries, "initial_active_series")
+			b.ReportMetric(benchmarkGeneratorActiveSeries(b), "final_active_series")
+		})
+	}
+}
+
 func BenchmarkRetainedMemoryProductionCardinality(b *testing.B) {
 	for _, tc := range []struct {
 		name      string
@@ -667,6 +865,7 @@ const (
 	benchmarkGeneratorHighCardinalitySeedEdgeSize     = 250
 	benchmarkGeneratorPushesPerCollect                = 10
 	benchmarkGeneratorTenant                          = "bench-tenant"
+	benchmarkGeneratorChurnEnv                        = "TEMPO_GENERATOR_BENCH_CHURN"
 )
 
 var benchmarkGeneratorProdDimensions = []string{
