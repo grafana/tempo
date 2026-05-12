@@ -82,6 +82,49 @@ func TestDecoderInvalidData(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestPushBytesDecoder(t *testing.T) {
+	firstTrace := marshalBatches(t, []*v1.ResourceSpans{
+		test.MakeBatch(1, []byte("test batch 1")),
+	})
+	secondTrace := marshalBatches(t, []*v1.ResourceSpans{
+		test.MakeBatch(2, []byte("test batch 2")),
+		test.MakeBatch(3, []byte("test batch 3")),
+	})
+	req := &tempopb.PushBytesRequest{
+		Traces: []tempopb.PreallocBytes{
+			{Slice: firstTrace},
+			{Slice: secondTrace},
+		},
+		Ids:                   [][]byte{[]byte("first"), []byte("second")},
+		SkipMetricsGeneration: true,
+	}
+	data, err := req.Marshal()
+	require.NoError(t, err)
+
+	decoder := NewPushBytesDecoder()
+	iterator, err := decoder.Decode(data)
+	require.NoError(t, err)
+
+	var got []*tempopb.PushSpansRequest
+	for req, err := range iterator {
+		require.NoError(t, err)
+		got = append(got, req)
+	}
+
+	require.Len(t, got, 2)
+	require.True(t, got[0].SkipMetricsGeneration)
+	require.True(t, got[1].SkipMetricsGeneration)
+	require.Len(t, got[0].Batches, 1)
+	require.Len(t, got[1].Batches, 2)
+}
+
+func TestPushBytesDecoderInvalidData(t *testing.T) {
+	decoder := NewPushBytesDecoder()
+
+	_, err := decoder.Decode([]byte("invalid data"))
+	require.Error(t, err)
+}
+
 func TestEncoderDecoderEmptyStream(t *testing.T) {
 	decoder := NewDecoder()
 
