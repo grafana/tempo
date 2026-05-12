@@ -7,8 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/model/exemplar"
+	promhistogram "github.com/prometheus/prometheus/model/histogram"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/stretchr/testify/assert"
@@ -644,6 +646,37 @@ func assertAppenderExemplars(t *testing.T, appender *capturingAppender, expected
 	})
 }
 
+func dtoToPromHistogram(hist *dto.Histogram) *promhistogram.Histogram {
+	result := &promhistogram.Histogram{
+		Schema:        hist.GetSchema(),
+		Count:         hist.GetSampleCount(),
+		Sum:           hist.GetSampleSum(),
+		ZeroThreshold: hist.GetZeroThreshold(),
+		ZeroCount:     hist.GetZeroCount(),
+	}
+	if len(hist.PositiveSpan) > 0 {
+		result.PositiveSpans = make([]promhistogram.Span, len(hist.PositiveSpan))
+		for i, span := range hist.PositiveSpan {
+			result.PositiveSpans[i] = promhistogram.Span{
+				Offset: span.GetOffset(),
+				Length: span.GetLength(),
+			}
+		}
+	}
+	result.PositiveBuckets = append(result.PositiveBuckets, hist.PositiveDelta...)
+	if len(hist.NegativeSpan) > 0 {
+		result.NegativeSpans = make([]promhistogram.Span, len(hist.NegativeSpan))
+		for i, span := range hist.NegativeSpan {
+			result.NegativeSpans[i] = promhistogram.Span{
+				Offset: span.GetOffset(),
+				Length: span.GetLength(),
+			}
+		}
+	}
+	result.NegativeBuckets = append(result.NegativeBuckets, hist.NegativeDelta...)
+	return result
+}
+
 func expectedSeriesLen(samples []sample) int {
 	series := make(map[string]struct{})
 	for _, s := range samples {
@@ -754,6 +787,70 @@ func Test_NativeOnlyExemplars(t *testing.T) {
 		require.Equal(t, "trace-native-123", appender.exemplars[1].e.Labels.Get("trace_id"))
 		require.Equal(t, 1.5, appender.exemplars[1].e.Value)
 	})
+}
+
+func Test_nativeHistogramAccumulator_matchesPrometheusNativeHistogram(t *testing.T) {
+	for _, tc := range []struct {
+		bucketFactor     float64
+		maxBucketNumber  uint32
+		minResetDuration time.Duration
+	}{
+		{bucketFactor: 1.1},
+		{bucketFactor: 1.5},
+		{bucketFactor: 2},
+		{bucketFactor: 1.1, maxBucketNumber: 2, minResetDuration: 15 * time.Minute},
+	} {
+		t.Run(fmt.Sprintf("bucket_factor_%g_max_buckets_%d", tc.bucketFactor, tc.maxBucketNumber), func(t *testing.T) {
+			overrides := &mockOverrides{
+				nativeHistogramBucketFactor:     tc.bucketFactor,
+				nativeHistogramMaxBucketNumber:  tc.maxBucketNumber,
+				nativeHistogramMinResetDuration: tc.minResetDuration,
+			}
+			h := newNativeHistogram("test_native_histogram", []float64{}, noopLimiter, "trace_id", HistogramModeNative, nil, testTenant, overrides, 15*time.Minute)
+
+			values := []float64{
+				math.Inf(-1),
+				-2,
+				-0.1,
+				0,
+				0.1,
+				0.5,
+				1.5,
+				2,
+				math.Inf(1),
+				math.NaN(),
+			}
+			lbls := buildTestLabels([]string{"service"}, []string{"test-service"})
+			for i, value := range values {
+				h.ObserveWithExemplar(lbls, value, fmt.Sprintf("trace-%d", i), 1.0)
+			}
+
+			appender := &capturingAppender{}
+			err := h.collectMetrics(appender, time.Now().UnixMilli())
+			require.NoError(t, err)
+			require.Len(t, appender.histograms, 2)
+			actual := appender.histograms[1].h
+
+			prometheusHistogram := prometheus.NewHistogram(prometheus.HistogramOpts{
+				Name:                            "test_native_histogram",
+				Help:                            "Native histogram for metric test_native_histogram",
+				NativeHistogramBucketFactor:     tc.bucketFactor,
+				NativeHistogramMaxBucketNumber:  tc.maxBucketNumber,
+				NativeHistogramMinResetDuration: tc.minResetDuration,
+			})
+			exemplarObserver := prometheusHistogram.(prometheus.ExemplarObserver)
+			for i, value := range values {
+				exemplarObserver.ObserveWithExemplar(value, prometheus.Labels{"trace_id": fmt.Sprintf("trace-%d", i)})
+			}
+
+			encoded := &dto.Metric{}
+			err = prometheusHistogram.Write(encoded)
+			require.NoError(t, err)
+			expected := dtoToPromHistogram(encoded.GetHistogram())
+
+			require.True(t, expected.Equals(actual), "expected %s, got %s", expected, actual)
+		})
+	}
 }
 
 func Test_nativeHistogram_demandTracking(t *testing.T) {
