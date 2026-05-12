@@ -42,7 +42,7 @@ type LimitsMetricsGenerator struct {
 	CollectionInterval              *Duration                   `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
 	TraceIDLabelName                *string                     `yaml:"trace_id_label_name,omitempty" json:"trace_id_label_name,omitempty"`
 	IngestionSlack                  *Duration                   `yaml:"ingestion_time_range_slack,omitempty" json:"ingestion_time_range_slack,omitempty"`
-	GenerateNativeHistograms        *histograms.HistogramMethod `yaml:"generate_native_histograms" json:"generate_native_histograms,omitempty"`
+	GenerateNativeHistograms        *histograms.HistogramMethod `yaml:"generate_native_histograms,omitempty" json:"generate_native_histograms,omitempty"`
 	NativeHistogramMaxBucketNumber  *uint32                     `yaml:"native_histogram_max_bucket_number,omitempty" json:"native_histogram_max_bucket_number,omitempty"`
 	NativeHistogramBucketFactor     *float64                    `yaml:"native_histogram_bucket_factor,omitempty" json:"native_histogram_bucket_factor,omitempty"`
 	NativeHistogramMinResetDuration *Duration                   `yaml:"native_histogram_min_reset_duration,omitempty" json:"native_histogram_min_reset_duration,omitempty"`
