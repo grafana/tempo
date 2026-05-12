@@ -56,6 +56,8 @@ func (cmd *redactCmd) Run(_ *globalOptions) error {
 }
 
 // submit injects the tenant org ID into the outgoing gRPC metadata and calls SubmitRedaction.
+// The tenant is sent exclusively via the X-Scope-OrgID header; the server sources it from
+// the authenticated context and ignores any tenant_id field on the request body.
 func (cmd *redactCmd) submit(ctx context.Context, c tempopb.BackendSchedulerClient, traceIDs [][]byte) (*tempopb.SubmitRedactionResponse, error) {
 	ctx = user.InjectOrgID(ctx, cmd.TenantID)
 	ctx, err := user.InjectIntoGRPCRequest(ctx)
@@ -64,7 +66,6 @@ func (cmd *redactCmd) submit(ctx context.Context, c tempopb.BackendSchedulerClie
 	}
 
 	resp, err := c.SubmitRedaction(ctx, &tempopb.SubmitRedactionRequest{
-		TenantId: cmd.TenantID,
 		TraceIds: traceIDs,
 	})
 	if err != nil {

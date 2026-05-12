@@ -41,13 +41,11 @@ func TestRedactCmdSubmit(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "test-batch", resp.BatchId)
 
-	// Org ID must be present in the outgoing gRPC metadata.
+	// Org ID must be present in the outgoing gRPC metadata; it must NOT appear in the body.
 	md, ok := metadata.FromOutgoingContext(mock.capturedCtx)
 	require.True(t, ok, "expected outgoing metadata on context")
 	require.Equal(t, []string{tenant}, md["x-scope-orgid"])
-
-	// Request body must carry the tenant and trace IDs.
-	require.Equal(t, tenant, mock.capturedReq.TenantId)
+	require.Empty(t, mock.capturedReq.TenantId, "tenant must not be sent in the request body")
 	require.Equal(t, [][]byte{traceIDBytes}, mock.capturedReq.TraceIds)
 }
 

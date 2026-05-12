@@ -15,6 +15,7 @@ import (
 	"github.com/gogo/status"
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/services"
+	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/backendscheduler/provider"
 	"github.com/grafana/tempo/modules/backendscheduler/work"
 	"github.com/grafana/tempo/modules/overrides"
@@ -421,38 +422,42 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 	}, nil
 }
 
-// SubmitRedaction implements the BackendSchedulerServer interface. It accepts the tenant and
-// trace IDs to redact, snapshots the tenant's block list, and enqueues one pending job per
-// block. Trace IDs are stored in a shared batch manifest rather than in each job to avoid
-// copying the list across potentially millions of pending jobs.
+// SubmitRedaction implements the BackendSchedulerServer interface. The tenant is sourced
+// exclusively from the authenticated request context (X-Scope-OrgID header); any tenant_id
+// field on the request body is ignored. This prevents a cross-tenant escalation where an
+// authenticated caller could supply a different tenant in the body and trigger redaction
+// against that tenant's blocks. The method snapshots the tenant's block list and enqueues
+// one pending job per block. Trace IDs are stored in a shared batch manifest rather than
+// in each job to avoid copying the list across potentially millions of pending jobs.
 func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.SubmitRedactionRequest) (*tempopb.SubmitRedactionResponse, error) {
 	_, span := tracer.Start(ctx, "SubmitRedaction")
 	defer span.End()
 
-	if req.TenantId == "" {
-		return nil, status.Error(codes.InvalidArgument, "tenant_id is required")
+	tenant, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, status.Error(codes.Unauthenticated, err.Error())
 	}
 	if len(req.TraceIds) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "trace_ids must not be empty")
 	}
-	if s.overrides.CompactionDisabled(req.TenantId) {
+	if s.overrides.CompactionDisabled(tenant) {
 		return nil, status.Error(codes.FailedPrecondition, "compaction is disabled for this tenant")
 	}
 
-	if s.work.TenantPending(req.TenantId) {
+	if s.work.TenantPending(tenant) {
 		return nil, status.Error(codes.AlreadyExists, "a redaction is already in progress for this tenant")
 	}
 
 	batchID := uuid.New().String()
 	span.SetAttributes(
-		attribute.String("tenant", req.TenantId),
+		attribute.String("tenant", tenant),
 		attribute.String("batch_id", batchID),
 		attribute.Int("trace_count", len(req.TraceIds)),
 	)
 
 	// Snapshot the block list for this tenant. One pending job is created per block;
 	// the worker checks whether the block actually contains any of the trace IDs.
-	metas := s.store.BlockMetas(req.TenantId)
+	metas := s.store.BlockMetas(tenant)
 	if len(metas) == 0 {
 		return nil, status.Error(codes.NotFound, "no blocks found for tenant")
 	}
@@ -464,7 +469,7 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 	// maintenance loop can look up output blocks once compaction finishes.
 	// Since TenantPending returned false above, there are no active redaction jobs
 	// for this tenant, so busy blocks are exclusively from other providers.
-	busyBlocks := s.work.BusyBlocksForTenant(req.TenantId)
+	busyBlocks := s.work.BusyBlocksForTenant(tenant)
 
 	skippedJobSet := make(map[string]struct{})
 	filtered := metas[:0:0]
@@ -478,7 +483,7 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 	skippedBlocks := len(metas) - len(filtered)
 	if skippedBlocks > 0 {
 		level.Warn(log.Logger).Log("msg", "skipping blocks in active compaction jobs during redaction submission",
-			"tenant", req.TenantId,
+			"tenant", tenant,
 			"skipped_blocks", skippedBlocks,
 			"skipped_compaction_jobs", len(skippedJobSet),
 			"total_blocks", len(metas))
@@ -491,7 +496,7 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 			ID:   uuid.New().String(),
 			Type: tempopb.JobType_JOB_TYPE_REDACTION,
 			JobDetail: tempopb.JobDetail{
-				Tenant:  req.TenantId,
+				Tenant:  tenant,
 				BatchId: batchID,
 				Redaction: &tempopb.RedactionDetail{
 					BlockId: meta.BlockID.String(),
@@ -503,7 +508,7 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 
 	batch := &tempopb.RedactionBatch{
 		BatchId:           batchID,
-		TenantId:          req.TenantId,
+		TenantId:          tenant,
 		TraceIds:          req.TraceIds,
 		CreatedAtUnixNano: time.Now().UnixNano(),
 	}
@@ -522,7 +527,7 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	if err := s.work.AddPendingJobs(jobs); err != nil {
-		s.work.RemoveBatch(req.TenantId)
+		s.work.RemoveBatch(tenant)
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
@@ -540,7 +545,7 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 	}
 
 	level.Info(log.Logger).Log("msg", "redaction batch submitted",
-		"tenant", req.TenantId,
+		"tenant", tenant,
 		"batch_id", batchID,
 		"jobs_created", len(jobs),
 		"blocks_skipped_compacting", skippedBlocks,

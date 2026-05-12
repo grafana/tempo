@@ -10,6 +10,7 @@ import (
 	"github.com/go-kit/log"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
+	"github.com/grafana/dskit/user"
 
 	"github.com/grafana/tempo/modules/backendscheduler/work"
 	"github.com/grafana/tempo/modules/overrides"
@@ -362,40 +363,45 @@ func TestSubmitRedactionValidation(t *testing.T) {
 	writeTenantBlocks(ctx, t, backend.NewWriter(ww), testTenant, 1)
 	time.Sleep(300 * time.Millisecond)
 
+	tenantCtx := user.InjectOrgID(ctx, testTenant)
+
 	validReq := &tempopb.SubmitRedactionRequest{
-		TenantId: testTenant,
 		TraceIds: [][]byte{[]byte(uuid.New().String())},
 	}
 
 	tests := []struct {
 		name     string
+		ctx      context.Context
 		req      *tempopb.SubmitRedactionRequest
 		wantCode codes.Code
 	}{
 		{
-			name:     "missing tenant_id",
+			name:     "missing context tenant",
+			ctx:      ctx, // no org ID injected — simulates unauthenticated caller
 			req:      &tempopb.SubmitRedactionRequest{TraceIds: [][]byte{[]byte("trace1")}},
-			wantCode: codes.InvalidArgument,
+			wantCode: codes.Unauthenticated,
 		},
 		{
 			name:     "empty trace_ids",
-			req:      &tempopb.SubmitRedactionRequest{TenantId: testTenant},
+			ctx:      tenantCtx,
+			req:      &tempopb.SubmitRedactionRequest{},
 			wantCode: codes.InvalidArgument,
 		},
 		{
 			name:     "duplicate submission",
+			ctx:      tenantCtx,
 			req:      validReq,
 			wantCode: codes.AlreadyExists,
 		},
 	}
 
 	// Seed an active batch so the duplicate-submission case fires.
-	_, err = s.SubmitRedaction(ctx, validReq)
+	_, err = s.SubmitRedaction(tenantCtx, validReq)
 	require.NoError(t, err)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := s.SubmitRedaction(ctx, tt.req)
+			_, err := s.SubmitRedaction(tt.ctx, tt.req)
 			require.Error(t, err)
 			st, ok := status.FromError(err)
 			require.True(t, ok)
@@ -457,8 +463,7 @@ func TestSubmitRedactionAndRescan(t *testing.T) {
 
 	// Submit the redaction. Blocks 0 and 1 are in active compaction and must be
 	// skipped; blocks 2, 3, 4 must receive pending jobs.
-	resp, err := s.SubmitRedaction(ctx, &tempopb.SubmitRedactionRequest{
-		TenantId: testTenant,
+	resp, err := s.SubmitRedaction(user.InjectOrgID(ctx, testTenant), &tempopb.SubmitRedactionRequest{
 		TraceIds: [][]byte{[]byte(uuid.New().String())},
 	})
 	require.NoError(t, err)
@@ -553,8 +558,7 @@ func TestRescanSkipsRunningJob(t *testing.T) {
 	s.work.StartJob(compJob.ID)
 
 	// Submit the redaction; blocks 0+1 under compaction are skipped.
-	resp, err := s.SubmitRedaction(ctx, &tempopb.SubmitRedactionRequest{
-		TenantId: testTenant,
+	resp, err := s.SubmitRedaction(user.InjectOrgID(ctx, testTenant), &tempopb.SubmitRedactionRequest{
 		TraceIds: [][]byte{[]byte(uuid.New().String())},
 	})
 	require.NoError(t, err)
@@ -725,8 +729,8 @@ func TestCleanupOrphanedBatchesAfterDeadJobTimeout(t *testing.T) {
 	// with the manual job lifecycle below.
 
 	// Submit a redaction. With 2 blocks, we expect 2 pending jobs.
-	resp, err := s.SubmitRedaction(ctx, &tempopb.SubmitRedactionRequest{
-		TenantId: testTenant,
+	tenantCtx := user.InjectOrgID(ctx, testTenant)
+	resp, err := s.SubmitRedaction(tenantCtx, &tempopb.SubmitRedactionRequest{
 		TraceIds: [][]byte{[]byte(uuid.New().String())},
 	})
 	require.NoError(t, err)
@@ -772,8 +776,7 @@ func TestCleanupOrphanedBatchesAfterDeadJobTimeout(t *testing.T) {
 		"tenant must not be blocked after batch cleanup")
 
 	// A new redaction submission must succeed — the tenant is no longer locked out.
-	_, err = s.SubmitRedaction(ctx, &tempopb.SubmitRedactionRequest{
-		TenantId: testTenant,
+	_, err = s.SubmitRedaction(tenantCtx, &tempopb.SubmitRedactionRequest{
 		TraceIds: [][]byte{[]byte(uuid.New().String())},
 	})
 	require.NoError(t, err, "SubmitRedaction must not return AlreadyExists after batch cleanup")
