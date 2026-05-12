@@ -12,7 +12,11 @@ import (
 
 // generateTenantRemoteWriteConfigs creates a copy of the remote write configurations with the
 // X-Scope-OrgID header present for the given tenant, unless Tempo is run in single tenant mode or instructed not to add X-Scope-OrgID header.
-func generateTenantRemoteWriteConfigs(inputs []prometheus_config.RemoteWriteConfig, tenant string, headers map[string]string, addOrgIDHeader bool, logger *slog.Logger, sendNativeHistograms bool) []*prometheus_config.RemoteWriteConfig {
+func generateTenantRemoteWriteConfigs(inputs []prometheus_config.RemoteWriteConfig, tenant string, noAuthTenant string, headers map[string]string, addOrgIDHeader bool, logger *slog.Logger, sendNativeHistograms bool) []*prometheus_config.RemoteWriteConfig {
+	if noAuthTenant == "" {
+		noAuthTenant = util.FakeTenantID
+	}
+
 	var outputs []*prometheus_config.RemoteWriteConfig
 
 	for _, input := range inputs {
@@ -28,7 +32,7 @@ func generateTenantRemoteWriteConfigs(inputs []prometheus_config.RemoteWriteConf
 		}
 
 		// Inject X-Scope-OrgID header in multi-tenant setups if not set already
-		if tenant != util.FakeTenantID && addOrgIDHeader {
+		if tenant != noAuthTenant && addOrgIDHeader {
 			existing := ""
 			for k, v := range output.Headers {
 				if strings.EqualFold(user.OrgIDHeaderName, strings.TrimSpace(k)) {

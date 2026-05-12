@@ -50,6 +50,20 @@ func TestFakeTenantMiddleware(t *testing.T) {
 		ctx := context.Background()
 		require.NoError(t, m.Wrap(consumer).ConsumeTraces(ctx, ptrace.Traces{}))
 	})
+
+	t.Run("injects configured org id", func(t *testing.T) {
+		tenantID := "custom-tenant"
+		m := FakeTenantMiddlewareFor(tenantID)
+
+		consumer := newAssertingConsumer(t, func(t *testing.T, ctx context.Context) {
+			orgID, err := user.ExtractOrgID(ctx)
+			require.NoError(t, err)
+			require.Equal(t, tenantID, orgID)
+		})
+
+		ctx := context.Background()
+		require.NoError(t, m.Wrap(consumer).ConsumeTraces(ctx, ptrace.Traces{}))
+	})
 }
 
 func TestMultiTenancyMiddleware(t *testing.T) {

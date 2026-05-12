@@ -16,6 +16,7 @@ and other [configuration documentation](../). Most installations will require on
 
 ```yaml
 target: all
+no_auth_tenant: single-tenant
 http_api_prefix: ""
 memory:
     automemlimit_enabled: false
