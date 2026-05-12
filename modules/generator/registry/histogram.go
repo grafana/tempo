@@ -41,20 +41,20 @@ type histogramSeries struct {
 	sumLabels    labels.Labels
 	bucketLabels []labels.Labels
 
-	count *atomic.Float64
-	sum   *atomic.Float64
+	count atomic.Float64
+	sum   atomic.Float64
 	// buckets includes the +Inf bucket
-	buckets []*atomic.Float64
+	buckets []atomic.Float64
 	// exemplars stores either a hex-encoded string traceID or a raw <=16 byte
 	// traceID per bucket; access is serialized by histogram.seriesMtx.
 	exemplars      []histogramExemplar
-	exemplarValues []*atomic.Float64
-	lastUpdated    *atomic.Int64
+	exemplarValues []atomic.Float64
+	lastUpdated    atomic.Int64
 	// firstSeries is used to track if this series is new to the counter.  This
 	// is used to ensure that new counters being with 0, and then are incremented
 	// to the desired value.  This avoids Prometheus throwing away the first
 	// value in the series, due to the transition from null -> x.
-	firstSeries *atomic.Bool
+	firstSeries atomic.Bool
 }
 
 type histogramExemplar struct {
@@ -161,18 +161,11 @@ func (h *histogram) observeWithExemplarWithHashAt(lbls labels.Labels, hash uint6
 
 func (h *histogram) newSeries(lbls labels.Labels, hash uint64, value float64, ex histogramExemplar, multiplier float64, timeMs int64) *histogramSeries {
 	newSeries := &histogramSeries{
-		count:          atomic.NewFloat64(0),
-		sum:            atomic.NewFloat64(0),
-		buckets:        make([]*atomic.Float64, 0, len(h.buckets)),
+		buckets:        make([]atomic.Float64, len(h.buckets)),
 		exemplars:      make([]histogramExemplar, len(h.buckets)),
-		exemplarValues: make([]*atomic.Float64, 0, len(h.buckets)),
-		lastUpdated:    atomic.NewInt64(0),
-		firstSeries:    atomic.NewBool(true),
+		exemplarValues: make([]atomic.Float64, len(h.buckets)),
 	}
-	for i := 0; i < len(h.buckets); i++ {
-		newSeries.buckets = append(newSeries.buckets, atomic.NewFloat64(0))
-		newSeries.exemplarValues = append(newSeries.exemplarValues, atomic.NewFloat64(0))
-	}
+	newSeries.firstSeries.Store(true)
 
 	// Precompute all labels for all sub-metrics upfront
 
