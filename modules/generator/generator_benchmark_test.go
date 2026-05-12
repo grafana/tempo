@@ -946,6 +946,10 @@ var benchmarkGeneratorProdFilterPolicies = []filterconfig.FilterPolicy{
 }
 
 func benchmarkGeneratorProdOverrides(o *mockOverrides) {
+	o.nativeHistogramBucketFactor = 1.1
+	o.nativeHistogramMaxBucketNumber = 16
+	o.nativeHistogramMinResetDuration = 15 * time.Minute
+
 	o.spanMetricsDimensions = benchmarkGeneratorProdDimensions
 	o.spanMetricsEnableTargetInfo = boolPtr(true)
 	o.spanMetricsTargetInfoExcludedDimensions = benchmarkGeneratorProdTargetInfoExcludedDimensions
