@@ -395,6 +395,23 @@ func TestSubmitRedactionValidation(t *testing.T) {
 		},
 	}
 
+	// Regression: a body tenant_id different from the context tenant must be ignored —
+	// jobs must be created for the authenticated tenant, not the body tenant.
+	otherTenant := "tenant-other"
+	writeTenantBlocks(ctx, t, backend.NewWriter(ww), otherTenant, 1)
+	time.Sleep(300 * time.Millisecond)
+	crossReq := &tempopb.SubmitRedactionRequest{
+		TenantId: otherTenant, // attacker-supplied body tenant
+		TraceIds: [][]byte{[]byte(uuid.New().String())},
+	}
+	crossResp, err := s.SubmitRedaction(tenantCtx, crossReq)
+	require.NoError(t, err)
+	require.Positive(t, crossResp.JobsCreated, "jobs must be created for the authenticated tenant")
+	require.False(t, s.work.TenantPending(otherTenant), "body tenant_id must not be used")
+	require.True(t, s.work.TenantPending(testTenant), "authenticated tenant must have a pending batch")
+	// Clean up so the duplicate-submission test case fires correctly below.
+	s.work.RemoveBatch(testTenant)
+
 	// Seed an active batch so the duplicate-submission case fires.
 	_, err = s.SubmitRedaction(tenantCtx, validReq)
 	require.NoError(t, err)

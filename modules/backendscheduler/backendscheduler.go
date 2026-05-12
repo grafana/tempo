@@ -15,6 +15,7 @@ import (
 	"github.com/gogo/status"
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/services"
+	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/backendscheduler/provider"
 	"github.com/grafana/tempo/modules/backendscheduler/work"
 	"github.com/grafana/tempo/modules/overrides"
@@ -435,7 +436,10 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 
 	tenant, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
-		return nil, status.Error(codes.Unauthenticated, err.Error())
+		if errors.Is(err, user.ErrNoOrgID) {
+			return nil, status.Error(codes.Unauthenticated, err.Error())
+		}
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 	if len(req.TraceIds) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "trace_ids must not be empty")
