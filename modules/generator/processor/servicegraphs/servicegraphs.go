@@ -205,7 +205,6 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 		isNew             bool
 		totalDroppedSpans int
 	)
-
 	for _, rs := range resourceSpans {
 		svcName, ok := processor_util.FindServiceName(rs.Resource.Attributes)
 		if !ok {
@@ -360,10 +359,24 @@ func updateServerEdge(e *store.Edge, u serverEdgeUpdate) {
 }
 
 func (p *Processor) upsertDimensions(prefix string, m map[string]string, resourceAttr, spanAttr []*v1_common.KeyValue) {
+	isClient := prefix == "client_"
 	for _, dim := range p.dimensionLabels {
-		if v, ok := processor_util.FindAttributeValue(dim.name, resourceAttr, spanAttr); ok {
+		if v, ok := findAttributeValue(dim.name, resourceAttr); ok {
 			if p.Cfg.EnableClientServerPrefix {
-				if prefix == "client_" {
+				if isClient {
+					m[dim.clientName] = v
+				} else {
+					m[dim.serverName] = v
+				}
+			} else {
+				m[dim.label] = v
+			}
+			continue
+		}
+		v, ok := findAttributeValue(dim.name, spanAttr)
+		if ok {
+			if p.Cfg.EnableClientServerPrefix {
+				if isClient {
 					m[dim.clientName] = v
 				} else {
 					m[dim.serverName] = v
@@ -373,6 +386,15 @@ func (p *Processor) upsertDimensions(prefix string, m map[string]string, resourc
 			}
 		}
 	}
+}
+
+func findAttributeValue(key string, attrs []*v1_common.KeyValue) (string, bool) {
+	for _, kv := range attrs {
+		if key == kv.Key {
+			return tempo_util.StringifyAnyValue(kv.Value), true
+		}
+	}
+	return "", false
 }
 
 func (p *Processor) upsertPeerNode(e *store.Edge, spanAttr []*v1_common.KeyValue) {
