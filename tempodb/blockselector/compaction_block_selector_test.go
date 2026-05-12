@@ -22,6 +22,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 		maxInputBlocks     int    // optional, defaults to global const
 		maxBlockBytes      uint64 // optional, defaults to ???
 		maxCompactionLevel int    // optional, default to global const
+		maxCompactionRange time.Duration
 		expected           []*backend.BlockMeta
 		expectedHash       string
 		expectedSecond     []*backend.BlockMeta
@@ -612,6 +613,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					CompactionLevel: 0,
 				},
 			},
+			maxCompactionRange: time.Hour,
 		},
 		{
 			name: "ensures blocks of different versions are not compacted",
@@ -915,7 +917,12 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 				maxLevel = tt.maxCompactionLevel
 			}
 
-			selector := NewTimeWindowBlockSelector(tt.blocklist, time.Second, 100, maxSize, minBlocks, maxBlocks, maxLevel)
+			maxCompactionRange := time.Second
+			if tt.maxCompactionRange > 0 {
+				maxCompactionRange = tt.maxCompactionRange
+			}
+
+			selector := NewTimeWindowBlockSelector(tt.blocklist, maxCompactionRange, 100, maxSize, minBlocks, maxBlocks, maxLevel)
 
 			actual, hash := selector.BlocksToCompact()
 			assert.Equal(t, tt.expected, actual)
