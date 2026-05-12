@@ -283,7 +283,11 @@
   // When live-store KEDA is enabled, remove spec.replicas from block-builder so
   // the chosen scaling mechanism (rollout-operator or KEDA) exclusively owns it.
   tempo_block_builder_statefulset+:
-    if $._config.live_store.keda.enabled then $.removeReplicasFromSpec else {},
+    if $._config.live_store.keda.enabled then
+      assert std.member(['rollout-operator', 'keda'], $._config.live_store.keda.block_builder_scaling) :
+             'live_store.keda.block_builder_scaling must be "rollout-operator" or "keda", got: ' + $._config.live_store.keda.block_builder_scaling;
+      $.removeReplicasFromSpec
+    else {},
 
   //
   // Block Builder: KEDA kubernetes-workload scaler counting live-store zone-a pods.

@@ -381,7 +381,7 @@ _config+:: {
   autoscaling_prometheus_url: 'http://prometheus-operated.monitoring.svc.cluster.local:9090',
   // autoscaling_prometheus_tenant: 'my-tenant',  // Required for multi-tenant backends (e.g. Grafana Mimir)
   distributor+: {
-    keda: {
+    keda+: {
       enabled: true,
       min_replicas: 2,
       max_replicas: 200,
@@ -389,7 +389,7 @@ _config+:: {
     },
   },
   metrics_generator+: {
-    keda: {
+    keda+: {
       enabled: true,
       min_replicas: 1,
       max_replicas: 200,
@@ -397,7 +397,7 @@ _config+:: {
     },
   },
   backend_worker+: {
-    keda: {
+    keda+: {
       enabled: true,
       min_replicas: 3,
       max_replicas: 200,
@@ -405,7 +405,7 @@ _config+:: {
     },
   },
   live_store+: {
-    keda: {
+    keda+: {
       enabled: true,
       min_replicas: 1,
       max_replicas: 200,
