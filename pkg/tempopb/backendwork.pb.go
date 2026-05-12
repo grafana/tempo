@@ -539,8 +539,9 @@ func (m *UpdateJobStatusResponse) GetSuccess() bool {
 }
 
 // SubmitRedactionRequest is the user-facing API for redacting traces from a tenant.
-// The caller provides the tenant and the trace IDs to remove. The scheduler discovers
-// all blocks for the tenant and fans out one internal pending job per block.
+// The scheduler fans out one internal pending job per block for the authenticated tenant.
+// The tenant is sourced exclusively from the X-Scope-OrgID request header; the server
+// ignores tenant_id in the body to prevent cross-tenant escalation.
 type SubmitRedactionRequest struct {
 	TenantId string   `protobuf:"bytes,1,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
 	TraceIds [][]byte `protobuf:"bytes,2,rep,name=trace_ids,json=traceIds,proto3" json:"trace_ids,omitempty"`

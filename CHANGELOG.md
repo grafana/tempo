@@ -1,6 +1,7 @@
 ## main / unreleased
 
 * [FEATURE] jsonnet: Add KEDA autoscaling for live-store via Prometheus trigger on expected bytes held. Enable with `live_store.keda.enabled: true`. Configure block-builder coupling via `live_store.keda.block_builder_scaling`: `'rollout-operator'` (default, requires `rollout_operator_replica_template_access_enabled: true`) mirrors live-store zone-a replicas to block-builder; `'keda'` creates a dedicated block-builder KEDA ScaledObject using a kubernetes-workload trigger without requiring rollout-operator RBAC. [#7142](https://github.com/grafana/tempo/pull/7142) (@zachfi)
+* [SECURITY] backend-scheduler: fix cross-tenant escalation in SubmitRedaction -- tenant is now sourced exclusively from the authenticated request context (X-Scope-OrgID header) and the body tenant_id field is ignored. [#7153](https://github.com/grafana/tempo/pull/7153) (@zalegrala)
 * [FEATURE] Make individual AST transformations skippable via config and query hints [#7012](https://github.com/grafana/tempo/pull/7012) (@stoewer)
 * [ENHANCEMENT] tempodb: add `tempodb_cache_store_size_bytes` histogram labelled by `role` recording the size of every item written to the backend cache. [#7152](https://github.com/grafana/tempo/pull/7152) (@javiermolinar)
 * [ENHANCEMENT] Add `TempoDistributorKafkaProduceFailing` alert that triggers when Kafka records cannot be produced by the distributor. [#7148](https://github.com/grafana/tempo/pull/7148) (@javiermolinar)
