@@ -326,6 +326,7 @@ gen-proto:  ## Generate proto files
 	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.otel.yaml --path $(PROTO_INTERMEDIATE_DIR)/common/v1/common.proto
 	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.otel.yaml --path $(PROTO_INTERMEDIATE_DIR)/resource/v1/resource.proto
 	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.otel.yaml --path $(PROTO_INTERMEDIATE_DIR)/trace/v1/trace.proto
+	sed -i $(SED_OPTS) 's+m.Key = string(dAtA\[iNdEx:postIndex\])+m.Key = internKey(dAtA[iNdEx:postIndex])+g' pkg/tempopb/common/v1/common.pb.go
 
 	@# Generate Tempo protos
 	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.tempopb.yaml --path pkg/tempopb/tempo.proto
