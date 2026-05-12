@@ -1631,7 +1631,148 @@ func sovTrace(x uint64) (n int) {
 func sozTrace(x uint64) (n int) {
 	return sovTrace(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
+
+func appendResourceSpansForUnmarshal(values []*ResourceSpans) ([]*ResourceSpans, *ResourceSpans) {
+	n := len(values)
+	if n < cap(values) {
+		values = values[:n+1]
+		if values[n] == nil {
+			values[n] = &ResourceSpans{}
+		} else {
+			values[n].resetForUnmarshal()
+		}
+		return values, values[n]
+	}
+	values = append(values, &ResourceSpans{})
+	return values, values[n]
+}
+
+func appendScopeSpansForUnmarshal(values []*ScopeSpans) ([]*ScopeSpans, *ScopeSpans) {
+	n := len(values)
+	if n < cap(values) {
+		values = values[:n+1]
+		if values[n] == nil {
+			values[n] = &ScopeSpans{}
+		} else {
+			values[n].resetForUnmarshal()
+		}
+		return values, values[n]
+	}
+	values = append(values, &ScopeSpans{})
+	return values, values[n]
+}
+
+func appendSpanForUnmarshal(values []*Span) ([]*Span, *Span) {
+	n := len(values)
+	if n < cap(values) {
+		values = values[:n+1]
+		if values[n] == nil {
+			values[n] = &Span{}
+		} else {
+			values[n].resetForUnmarshal()
+		}
+		return values, values[n]
+	}
+	values = append(values, &Span{})
+	return values, values[n]
+}
+
+func appendSpanEventForUnmarshal(values []*Span_Event) ([]*Span_Event, *Span_Event) {
+	n := len(values)
+	if n < cap(values) {
+		values = values[:n+1]
+		if values[n] == nil {
+			values[n] = &Span_Event{}
+		} else {
+			values[n].resetForUnmarshal()
+		}
+		return values, values[n]
+	}
+	values = append(values, &Span_Event{})
+	return values, values[n]
+}
+
+func appendSpanLinkForUnmarshal(values []*Span_Link) ([]*Span_Link, *Span_Link) {
+	n := len(values)
+	if n < cap(values) {
+		values = values[:n+1]
+		if values[n] == nil {
+			values[n] = &Span_Link{}
+		} else {
+			values[n].resetForUnmarshal()
+		}
+		return values, values[n]
+	}
+	values = append(values, &Span_Link{})
+	return values, values[n]
+}
+
+func appendKeyValueForUnmarshal(values []*v11.KeyValue) ([]*v11.KeyValue, *v11.KeyValue) {
+	n := len(values)
+	if n < cap(values) {
+		values = values[:n+1]
+		if values[n] == nil {
+			values[n] = &v11.KeyValue{}
+		}
+		return values, values[n]
+	}
+	values = append(values, &v11.KeyValue{})
+	return values, values[n]
+}
+
+func (m *ResourceSpans) resetForUnmarshal() {
+	resource := m.Resource
+	m.Resource = resource
+	m.ScopeSpans = m.ScopeSpans[:0]
+	m.SchemaUrl = ""
+}
+
+func (m *ScopeSpans) resetForUnmarshal() {
+	scope := m.Scope
+	m.Scope = scope
+	m.Spans = m.Spans[:0]
+	m.SchemaUrl = ""
+}
+
+func (m *Span) resetForUnmarshal() {
+	status := m.Status
+	m.TraceId = m.TraceId[:0]
+	m.SpanId = m.SpanId[:0]
+	m.TraceState = ""
+	m.ParentSpanId = m.ParentSpanId[:0]
+	m.Flags = 0
+	m.Name = ""
+	m.Kind = 0
+	m.StartTimeUnixNano = 0
+	m.EndTimeUnixNano = 0
+	m.Attributes = m.Attributes[:0]
+	m.DroppedAttributesCount = 0
+	m.Events = m.Events[:0]
+	m.DroppedEventsCount = 0
+	m.Links = m.Links[:0]
+	m.DroppedLinksCount = 0
+	m.Status = status
+}
+
+func (m *Span_Event) resetForUnmarshal() {
+	m.TimeUnixNano = 0
+	m.Name = ""
+	m.Attributes = m.Attributes[:0]
+	m.DroppedAttributesCount = 0
+}
+
+func (m *Span_Link) resetForUnmarshal() {
+	m.TraceId = m.TraceId[:0]
+	m.SpanId = m.SpanId[:0]
+	m.TraceState = ""
+	m.Attributes = m.Attributes[:0]
+	m.DroppedAttributesCount = 0
+	m.Flags = 0
+}
+
 func (m *TracesData) Unmarshal(dAtA []byte) error {
+	previousResourceSpans := m.ResourceSpans
+	m.ResourceSpans = m.ResourceSpans[:0]
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1689,8 +1830,9 @@ func (m *TracesData) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.ResourceSpans = append(m.ResourceSpans, &ResourceSpans{})
-			if err := m.ResourceSpans[len(m.ResourceSpans)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			var resourceSpans *ResourceSpans
+			m.ResourceSpans, resourceSpans = appendResourceSpansForUnmarshal(m.ResourceSpans)
+			if err := resourceSpans.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -1713,9 +1855,17 @@ func (m *TracesData) Unmarshal(dAtA []byte) error {
 	if iNdEx > l {
 		return io.ErrUnexpectedEOF
 	}
+	if len(m.ResourceSpans) < len(previousResourceSpans) {
+		clear(previousResourceSpans[len(m.ResourceSpans):])
+	}
 	return nil
 }
 func (m *ResourceSpans) Unmarshal(dAtA []byte) error {
+	previousResource := m.Resource
+	previousScopeSpans := m.ScopeSpans
+	m.Resource = nil
+	m.ScopeSpans = m.ScopeSpans[:0]
+	m.SchemaUrl = ""
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1773,7 +1923,9 @@ func (m *ResourceSpans) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.Resource == nil {
+			if previousResource != nil {
+				m.Resource = previousResource
+			} else if m.Resource == nil {
 				m.Resource = &v1.Resource{}
 			}
 			if err := m.Resource.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
@@ -1809,8 +1961,9 @@ func (m *ResourceSpans) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.ScopeSpans = append(m.ScopeSpans, &ScopeSpans{})
-			if err := m.ScopeSpans[len(m.ScopeSpans)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			var scopeSpans *ScopeSpans
+			m.ScopeSpans, scopeSpans = appendScopeSpansForUnmarshal(m.ScopeSpans)
+			if err := scopeSpans.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -1865,9 +2018,17 @@ func (m *ResourceSpans) Unmarshal(dAtA []byte) error {
 	if iNdEx > l {
 		return io.ErrUnexpectedEOF
 	}
+	if len(m.ScopeSpans) < len(previousScopeSpans) {
+		clear(previousScopeSpans[len(m.ScopeSpans):])
+	}
 	return nil
 }
 func (m *ScopeSpans) Unmarshal(dAtA []byte) error {
+	previousScope := m.Scope
+	previousSpans := m.Spans
+	m.Scope = nil
+	m.Spans = m.Spans[:0]
+	m.SchemaUrl = ""
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1925,7 +2086,9 @@ func (m *ScopeSpans) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.Scope == nil {
+			if previousScope != nil {
+				m.Scope = previousScope
+			} else if m.Scope == nil {
 				m.Scope = &v11.InstrumentationScope{}
 			}
 			if err := m.Scope.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
@@ -1961,8 +2124,9 @@ func (m *ScopeSpans) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Spans = append(m.Spans, &Span{})
-			if err := m.Spans[len(m.Spans)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			var span *Span
+			m.Spans, span = appendSpanForUnmarshal(m.Spans)
+			if err := span.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -2017,9 +2181,32 @@ func (m *ScopeSpans) Unmarshal(dAtA []byte) error {
 	if iNdEx > l {
 		return io.ErrUnexpectedEOF
 	}
+	if len(m.Spans) < len(previousSpans) {
+		clear(previousSpans[len(m.Spans):])
+	}
 	return nil
 }
 func (m *Span) Unmarshal(dAtA []byte) error {
+	previousStatus := m.Status
+	previousAttributes := m.Attributes
+	previousEvents := m.Events
+	previousLinks := m.Links
+	m.TraceId = m.TraceId[:0]
+	m.SpanId = m.SpanId[:0]
+	m.TraceState = ""
+	m.ParentSpanId = m.ParentSpanId[:0]
+	m.Flags = 0
+	m.Name = ""
+	m.Kind = 0
+	m.StartTimeUnixNano = 0
+	m.EndTimeUnixNano = 0
+	m.Attributes = m.Attributes[:0]
+	m.DroppedAttributesCount = 0
+	m.Events = m.Events[:0]
+	m.DroppedEventsCount = 0
+	m.Links = m.Links[:0]
+	m.DroppedLinksCount = 0
+	m.Status = nil
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -2282,8 +2469,9 @@ func (m *Span) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Attributes = append(m.Attributes, &v11.KeyValue{})
-			if err := m.Attributes[len(m.Attributes)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			var attr *v11.KeyValue
+			m.Attributes, attr = appendKeyValueForUnmarshal(m.Attributes)
+			if err := attr.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -2335,8 +2523,9 @@ func (m *Span) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Events = append(m.Events, &Span_Event{})
-			if err := m.Events[len(m.Events)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			var event *Span_Event
+			m.Events, event = appendSpanEventForUnmarshal(m.Events)
+			if err := event.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -2388,8 +2577,9 @@ func (m *Span) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Links = append(m.Links, &Span_Link{})
-			if err := m.Links[len(m.Links)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			var link *Span_Link
+			m.Links, link = appendSpanLinkForUnmarshal(m.Links)
+			if err := link.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -2441,7 +2631,9 @@ func (m *Span) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.Status == nil {
+			if previousStatus != nil {
+				m.Status = previousStatus
+			} else if m.Status == nil {
 				m.Status = &Status{}
 			}
 			if err := m.Status.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
@@ -2477,9 +2669,23 @@ func (m *Span) Unmarshal(dAtA []byte) error {
 	if iNdEx > l {
 		return io.ErrUnexpectedEOF
 	}
+	if len(m.Attributes) < len(previousAttributes) {
+		clear(previousAttributes[len(m.Attributes):])
+	}
+	if len(m.Events) < len(previousEvents) {
+		clear(previousEvents[len(m.Events):])
+	}
+	if len(m.Links) < len(previousLinks) {
+		clear(previousLinks[len(m.Links):])
+	}
 	return nil
 }
 func (m *Span_Event) Unmarshal(dAtA []byte) error {
+	previousAttributes := m.Attributes
+	m.TimeUnixNano = 0
+	m.Name = ""
+	m.Attributes = m.Attributes[:0]
+	m.DroppedAttributesCount = 0
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -2579,8 +2785,9 @@ func (m *Span_Event) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Attributes = append(m.Attributes, &v11.KeyValue{})
-			if err := m.Attributes[len(m.Attributes)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			var attr *v11.KeyValue
+			m.Attributes, attr = appendKeyValueForUnmarshal(m.Attributes)
+			if err := attr.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -2622,9 +2829,19 @@ func (m *Span_Event) Unmarshal(dAtA []byte) error {
 	if iNdEx > l {
 		return io.ErrUnexpectedEOF
 	}
+	if len(m.Attributes) < len(previousAttributes) {
+		clear(previousAttributes[len(m.Attributes):])
+	}
 	return nil
 }
 func (m *Span_Link) Unmarshal(dAtA []byte) error {
+	previousAttributes := m.Attributes
+	m.TraceId = m.TraceId[:0]
+	m.SpanId = m.SpanId[:0]
+	m.TraceState = ""
+	m.Attributes = m.Attributes[:0]
+	m.DroppedAttributesCount = 0
+	m.Flags = 0
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -2782,8 +2999,9 @@ func (m *Span_Link) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Attributes = append(m.Attributes, &v11.KeyValue{})
-			if err := m.Attributes[len(m.Attributes)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			var attr *v11.KeyValue
+			m.Attributes, attr = appendKeyValueForUnmarshal(m.Attributes)
+			if err := attr.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -2835,9 +3053,14 @@ func (m *Span_Link) Unmarshal(dAtA []byte) error {
 	if iNdEx > l {
 		return io.ErrUnexpectedEOF
 	}
+	if len(m.Attributes) < len(previousAttributes) {
+		clear(previousAttributes[len(m.Attributes):])
+	}
 	return nil
 }
 func (m *Status) Unmarshal(dAtA []byte) error {
+	m.Message = ""
+	m.Code = 0
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {

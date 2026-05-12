@@ -186,7 +186,24 @@ func sovResource(x uint64) (n int) {
 func sozResource(x uint64) (n int) {
 	return sovResource(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
+
+func appendKeyValueForUnmarshal(values []*v1.KeyValue) ([]*v1.KeyValue, *v1.KeyValue) {
+	n := len(values)
+	if n < cap(values) {
+		values = values[:n+1]
+		if values[n] == nil {
+			values[n] = &v1.KeyValue{}
+		}
+		return values, values[n]
+	}
+	values = append(values, &v1.KeyValue{})
+	return values, values[n]
+}
+
 func (m *Resource) Unmarshal(dAtA []byte) error {
+	previousAttributes := m.Attributes
+	m.Attributes = m.Attributes[:0]
+	m.DroppedAttributesCount = 0
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -244,8 +261,9 @@ func (m *Resource) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Attributes = append(m.Attributes, &v1.KeyValue{})
-			if err := m.Attributes[len(m.Attributes)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			var attr *v1.KeyValue
+			m.Attributes, attr = appendKeyValueForUnmarshal(m.Attributes)
+			if err := attr.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -286,6 +304,9 @@ func (m *Resource) Unmarshal(dAtA []byte) error {
 
 	if iNdEx > l {
 		return io.ErrUnexpectedEOF
+	}
+	if len(m.Attributes) < len(previousAttributes) {
+		clear(previousAttributes[len(m.Attributes):])
 	}
 	return nil
 }
