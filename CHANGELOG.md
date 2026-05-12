@@ -1,5 +1,8 @@
 ## main / unreleased
 
+* [CHANGE] **BREAKING CHANGE** jsonnet: Remove `block_builder.keda` ScaledObject. Block-builder replicas are now managed by the rollout-operator mirroring live-store zone-a, which keeps block-builder alive through the live-store drain window. Remove any `_config.block_builder.keda` overrides from your config. [#7133](https://github.com/grafana/tempo/pull/7133) (@zachfi)
+* [FEATURE] jsonnet: Add KEDA autoscaling for live-store via a Prometheus trigger on expected bytes held (`tempo_distributor_kafka_write_bytes_total`). Enable with `live_store.keda.enabled: true`. Requires `rollout_operator_replica_template_access_enabled: true` and a Prometheus URL set via `autoscaling_prometheus_url`. [#7133](https://github.com/grafana/tempo/pull/7133) (@zachfi)
+* [ENHANCEMENT] jsonnet: add `autoscaling_prometheus_url` and `autoscaling_prometheus_tenant` top-level config fields for KEDA autoscaling. Setting `autoscaling_prometheus_tenant` sends an `X-Scope-OrgID` header on all Prometheus trigger requests, which is required when the backend is a multi-tenant system such as Grafana Mimir. [#7099](https://github.com/grafana/tempo/pull/7099) (@zachfi)
 * [FEATURE] Make individual AST transformations skippable via config and query hints [#7012](https://github.com/grafana/tempo/pull/7012) (@stoewer)
 * [ENHANCEMENT] Add `TempoDistributorKafkaProduceFailing` alert that triggers when Kafka records cannot be produced by the distributor. [#7148](https://github.com/grafana/tempo/pull/7148) (@javiermolinar)
 * [ENHANCEMENT] **BREAKING CHANGE** Query-frontend: new job sharding approach for trace lookups, using a new config option `blocks_per_shard` which replaces `query_shards`. [#7105](https://github.com/grafana/tempo/pull/7105) (@mdisibio)

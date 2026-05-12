@@ -368,9 +368,9 @@ storage+: {
 Enabling metrics generation and remote writing them to Grafana Cloud Metrics produces extra active series that could potentially impact your billing. For more information on billing, refer to [Billing and usage](/docs/grafana-cloud/billing-and-usage/). For more information on metrics generation, refer the [Metrics-generator documentation](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/).
 {{< /admonition >}}
 
-### Optional: Enable KEDA autoscaling 
+### Optional: Enable KEDA autoscaling
 
-The microservices Jsonnet library includes optional KEDA-based horizontal autoscaling for distributor, metrics-generator, backend-worker, and block-builder components. All KEDA scalers are disabled by default (`enabled: false`), and you enable each component independently under `_config.<component>.keda`.
+The microservices Jsonnet library includes optional KEDA-based horizontal autoscaling for distributor, metrics-generator, backend-worker, and live-store components. All KEDA scalers are disabled by default (`enabled: false`), and you enable each component independently under `_config.<component>.keda`.
 
 Before you enable this option, make sure your cluster has the KEDA operator and CRDs installed.
 
@@ -380,6 +380,7 @@ The following example enables all supported KEDA scalers. Set `autoscaling_prome
 _config+:: {
   autoscaling_prometheus_url: 'http://prometheus-operated.monitoring.svc.cluster.local:9090',
   // autoscaling_prometheus_tenant: 'my-tenant',  // Required for multi-tenant backends (e.g. Grafana Mimir)
+  rollout_operator_replica_template_access_enabled: true,
   distributor+: {
     keda: {
       enabled: true,
@@ -404,19 +405,21 @@ _config+:: {
       threshold: 200,
     },
   },
-  block_builder+: {
+  live_store+: {
     keda: {
       enabled: true,
       min_replicas: 1,
       max_replicas: 200,
-      partitions_per_instance: 1,
-      pod_selector: 'name=live-store-zone-a',
+      // window_seconds: 1800,         // retention window; >= complete_block_timeout + query_backend_after
+      // bytes_per_replica: 16800000000, // ~16 GiB at 10 MB/s per pod over 30m
     },
   },
 },
 ```
 
-Tempo uses these trigger types when KEDA is enabled: CPU for distributor and metrics-generator, Prometheus for backend-worker, and kubernetes-workload for block-builder. When you enable block-builder autoscaling, Tempo also sets `block_builder.partitions_per_instance` from `_config.block_builder.keda.partitions_per_instance`.
+Tempo uses these trigger types when KEDA is enabled: CPU for distributor and metrics-generator, Prometheus for backend-worker and live-store.
+
+When live-store KEDA is enabled, block-builder replicas are managed automatically by the rollout-operator, which mirrors the live-store zone-a replica count to block-builder. This keeps block-builder alive through the live-store drain window so that in-flight data is not lost. You do not need to configure block-builder autoscaling separately. The value of `_config.block_builder.partitions_per_instance` (default: `1`) is injected into the block-builder config when live-store KEDA is active.
 
 ### Optional: Reduce component system requirements
 
