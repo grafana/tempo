@@ -138,11 +138,25 @@ func (p *Processor) Shutdown(_ context.Context) {
 func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 	resourceLabels := make([]string, 0)
 	resourceValues := make([]string, 0)
+	var resourceDimensionValueBuf [16]string
+	var resourceDimensionFoundBuf [16]bool
+	var resourceDimensionValues []string
+	var resourceDimensionFound []bool
+	if len(p.Cfg.Dimensions) <= len(resourceDimensionValueBuf) {
+		resourceDimensionValues = resourceDimensionValueBuf[:len(p.Cfg.Dimensions)]
+		resourceDimensionFound = resourceDimensionFoundBuf[:len(p.Cfg.Dimensions)]
+	} else {
+		resourceDimensionValues = make([]string, len(p.Cfg.Dimensions))
+		resourceDimensionFound = make([]bool, len(p.Cfg.Dimensions))
+	}
 	jobNameBuf := make([]byte, 0, 64)
 	for _, rs := range resourceSpans {
 		// already extract job name & instance id, so we only have to do it once per batch of spans
 		var svcName, jobName, instanceID string
 		svcName, jobName, instanceID, jobNameBuf = getResourceServiceLabels(rs.Resource.Attributes, jobNameBuf)
+		for i, d := range p.Cfg.Dimensions {
+			resourceDimensionValues[i], resourceDimensionFound[i] = processor_util.FindAttributeValue(d, rs.Resource.Attributes)
+		}
 		targetInfoLabelsValid := true
 		targetInfoLabelsBuilt := false
 		targetInfoResourceLabelsBuilt := false
@@ -161,7 +175,7 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 					if p.Cfg.Subprocessors[Latency] {
 						traceID = span.TraceId
 					}
-					p.aggregateMetricsForSpan(svcName, jobName, instanceID, rs.Resource, span, traceID, targetInfoLabelsValid)
+					p.aggregateMetricsForSpan(svcName, jobName, instanceID, rs.Resource, span, traceID, targetInfoLabelsValid, resourceDimensionValues, resourceDimensionFound)
 					continue
 				}
 				p.filteredSpansCounter.Inc()
@@ -170,7 +184,7 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 	}
 }
 
-func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, instanceID string, rs *v1.Resource, span *v1_trace.Span, traceID []byte, targetInfoLabelsValid bool) {
+func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, instanceID string, rs *v1.Resource, span *v1_trace.Span, traceID []byte, targetInfoLabelsValid bool, resourceDimensionValues []string, resourceDimensionFound []bool) {
 	builder := p.registry.NewLabelBuilder()
 
 	if p.Cfg.IntrinsicDimensions.Service {
@@ -190,7 +204,10 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 	}
 
 	for i, d := range p.Cfg.Dimensions {
-		value, _ := processor_util.FindAttributeValue(d, rs.Attributes, span.Attributes)
+		value := resourceDimensionValues[i]
+		if !resourceDimensionFound[i] {
+			value, _ = processor_util.FindAttributeValue(d, span.Attributes)
+		}
 		// if there is a collision, for example deployment.environment and deployment_environment,
 		// both sanitized to deployment_environment, we just take the last one configured.
 		builder.Add(p.dimensionLabels[i], value)
