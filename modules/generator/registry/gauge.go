@@ -30,8 +30,8 @@ type gauge struct {
 
 type gaugeSeries struct {
 	labels      labels.Labels
-	value       *atomic.Float64
-	lastUpdated *atomic.Int64
+	value       atomic.Float64
+	lastUpdated atomic.Int64
 }
 
 var (
@@ -106,11 +106,12 @@ func (g *gauge) updateSeries(lbls labels.Labels, hash uint64, value float64, ope
 }
 
 func (g *gauge) newSeries(lbls labels.Labels, value float64, timeMs int64) *gaugeSeries {
-	return &gaugeSeries{
-		labels:      getSeriesLabels(g.metricName, lbls, g.externalLabels),
-		value:       atomic.NewFloat64(value),
-		lastUpdated: atomic.NewInt64(timeMs),
+	s := &gaugeSeries{
+		labels: getSeriesLabels(g.metricName, lbls, g.externalLabels),
 	}
+	s.value.Store(value)
+	s.lastUpdated.Store(timeMs)
+	return s
 }
 
 func (g *gauge) updateSeriesValue(hash uint64, s *gaugeSeries, value float64, operation string, timeMs int64) {

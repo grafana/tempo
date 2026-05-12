@@ -548,26 +548,27 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs in
 	for i, bucket := range s.histogram.Bucket {
 		// add "le" label
 		s.lb.Set(labels.BucketLabel, h.classicBucketLabelAt(i, bucket.GetUpperBound()))
+		bucketLabels := s.lb.Labels()
 
 		if bucket.GetUpperBound() == math.Inf(1) {
 			infBucketWasAdded = true
 		}
 		if s.isNew() {
 			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
-			_, appendErr := appender.Append(0, s.lb.Labels(), endOfLastMinuteMs, 0)
-			if err != nil && !isOutOfOrderError(err) {
+			_, appendErr := appender.Append(0, bucketLabels, endOfLastMinuteMs, 0)
+			if appendErr != nil && !isOutOfOrderError(appendErr) {
 				return appendErr
 			}
 		}
 
-		ref, appendErr := appender.Append(0, s.lb.Labels(), timeMs, getIfGreaterThenZeroOr(bucket.GetCumulativeCountFloat(), bucket.GetCumulativeCount()))
+		ref, appendErr := appender.Append(0, bucketLabels, timeMs, getIfGreaterThenZeroOr(bucket.GetCumulativeCountFloat(), bucket.GetCumulativeCount()))
 		if appendErr != nil {
 			return appendErr
 		}
 
 		// Check for exemplars from prometheus histogram
 		if bucket.Exemplar != nil && len(bucket.Exemplar.Label) > 0 {
-			_, err = appender.AppendExemplar(ref, s.lb.Labels(), exemplar.Exemplar{
+			_, err = appender.AppendExemplar(ref, bucketLabels, exemplar.Exemplar{
 				Labels: convertLabelPairToLabels(bucket.Exemplar.GetLabel()),
 				Value:  bucket.Exemplar.GetValue(),
 				Ts:     timeMs,
@@ -582,14 +583,15 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs in
 	if !infBucketWasAdded {
 		// Add +Inf bucket
 		s.lb.Set(labels.BucketLabel, "+Inf")
+		bucketLabels := s.lb.Labels()
 		if s.isNew() {
 			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
-			_, err = appender.Append(0, s.lb.Labels(), endOfLastMinuteMs, 0)
+			_, err = appender.Append(0, bucketLabels, endOfLastMinuteMs, 0)
 			if err != nil && !isOutOfOrderError(err) {
 				return err
 			}
 		}
-		_, err := appender.Append(0, s.lb.Labels(), timeMs, getIfGreaterThenZeroOr(s.histogram.GetSampleCountFloat(), s.histogram.GetSampleCount()))
+		_, err := appender.Append(0, bucketLabels, timeMs, getIfGreaterThenZeroOr(s.histogram.GetSampleCountFloat(), s.histogram.GetSampleCount()))
 		if err != nil {
 			return err
 		}
