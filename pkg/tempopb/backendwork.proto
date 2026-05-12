@@ -101,7 +101,7 @@ message UpdateJobStatusResponse {
 // The tenant is sourced exclusively from the X-Scope-OrgID request header; the server
 // ignores tenant_id in the body to prevent cross-tenant escalation.
 message SubmitRedactionRequest {
-  string tenant_id = 1; // deprecated: ignored by the server; tenant is read from the request header
+  string tenant_id = 1 [deprecated = true]; // ignored by the server; tenant is read from the request header
   repeated bytes trace_ids = 2;
 }
 

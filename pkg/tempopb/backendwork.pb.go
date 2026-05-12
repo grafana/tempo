@@ -543,7 +543,7 @@ func (m *UpdateJobStatusResponse) GetSuccess() bool {
 // The tenant is sourced exclusively from the X-Scope-OrgID request header; the server
 // ignores tenant_id in the body to prevent cross-tenant escalation.
 type SubmitRedactionRequest struct {
-	TenantId string   `protobuf:"bytes,1,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	TenantId string   `protobuf:"bytes,1,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"` // Deprecated: Do not use.
 	TraceIds [][]byte `protobuf:"bytes,2,rep,name=trace_ids,json=traceIds,proto3" json:"trace_ids,omitempty"`
 }
 
@@ -580,6 +580,7 @@ func (m *SubmitRedactionRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_SubmitRedactionRequest proto.InternalMessageInfo
 
+// Deprecated: Do not use.
 func (m *SubmitRedactionRequest) GetTenantId() string {
 	if m != nil {
 		return m.TenantId
