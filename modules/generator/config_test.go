@@ -30,6 +30,8 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 	t.Run("test enable service graph flags", func(t *testing.T) {
 		o := &mockOverrides{
 			serviceGraphsEnableClientServerPrefix:              true,
+			serviceGraphsEnableClientLatencyHistogram:          boolPtr(false),
+			serviceGraphsEnableServerLatencyHistogram:          boolPtr(false),
 			serviceGraphsEnableVirtualNodeLabel:                boolPtr(true),
 			serviceGraphsEnableMessagingSystemLatencyHistogram: boolPtr(true),
 		}
@@ -37,6 +39,8 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 		copied, err := original.copyWithOverrides(o, "tenant")
 		require.NoError(t, err)
 		assert.Equal(t, true, copied.ServiceGraphs.EnableClientServerPrefix)
+		assert.Equal(t, false, copied.ServiceGraphs.EnableClientLatencyHistogram)
+		assert.Equal(t, false, copied.ServiceGraphs.EnableServerLatencyHistogram)
 		assert.Equal(t, true, copied.ServiceGraphs.EnableVirtualNodeLabel)
 		assert.Equal(t, true, copied.ServiceGraphs.EnableMessagingSystemLatencyHistogram)
 	})

@@ -572,6 +572,22 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEn
 	return false
 }
 
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableClientLatencyHistogram(userID string) (bool, bool) {
+	enableClientLatencyHistogram := o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.EnableClientLatencyHistogram
+	if enableClientLatencyHistogram != nil {
+		return *enableClientLatencyHistogram, true
+	}
+	return false, false
+}
+
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableServerLatencyHistogram(userID string) (bool, bool) {
+	enableServerLatencyHistogram := o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.EnableServerLatencyHistogram
+	if enableServerLatencyHistogram != nil {
+		return *enableServerLatencyHistogram, true
+	}
+	return false, false
+}
+
 // MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram enables this metric
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram(userID string) (bool, bool) {
 	enableMessagingSystemLatencyHistogram := o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.EnableMessagingSystemLatencyHistogram

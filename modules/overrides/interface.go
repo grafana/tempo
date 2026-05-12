@@ -68,6 +68,8 @@ type Interface interface {
 	MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID string) []sharedconfig.DimensionMappings
 	MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) (bool, bool) // returns (enabled, isSet)
 	MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID string) bool
+	MetricsGeneratorProcessorServiceGraphsEnableClientLatencyHistogram(userID string) (bool, bool)          // returns (enabled, isSet)
+	MetricsGeneratorProcessorServiceGraphsEnableServerLatencyHistogram(userID string) (bool, bool)          // returns (enabled, isSet)
 	MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram(userID string) (bool, bool) // returns (enabled, isSet)
 	MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(userID string) (bool, bool)                // returns (enabled, isSet)
 	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string

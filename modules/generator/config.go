@@ -232,6 +232,14 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 		copyCfg.ServiceGraphs.EnableClientServerPrefix = enableClientServerPrefix
 	}
 
+	if enableClientLatencyHistogram, ok := o.MetricsGeneratorProcessorServiceGraphsEnableClientLatencyHistogram(userID); ok {
+		copyCfg.ServiceGraphs.EnableClientLatencyHistogram = enableClientLatencyHistogram
+	}
+
+	if enableServerLatencyHistogram, ok := o.MetricsGeneratorProcessorServiceGraphsEnableServerLatencyHistogram(userID); ok {
+		copyCfg.ServiceGraphs.EnableServerLatencyHistogram = enableServerLatencyHistogram
+	}
+
 	if enableMessagingSystemLatencyHistogram, ok := o.MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram(userID); ok {
 		copyCfg.ServiceGraphs.EnableMessagingSystemLatencyHistogram = enableMessagingSystemLatencyHistogram
 	}

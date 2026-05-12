@@ -30,6 +30,8 @@ type metricsGeneratorOverrides interface {
 	MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID string) []sharedconfig.DimensionMappings
 	MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) (bool, bool)
 	MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID string) bool
+	MetricsGeneratorProcessorServiceGraphsEnableClientLatencyHistogram(userID string) (bool, bool)
+	MetricsGeneratorProcessorServiceGraphsEnableServerLatencyHistogram(userID string) (bool, bool)
 	MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram(userID string) (bool, bool)
 	MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(userID string) (bool, bool)
 	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string

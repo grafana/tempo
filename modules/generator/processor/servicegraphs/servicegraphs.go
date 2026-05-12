@@ -122,8 +122,6 @@ func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, fi
 
 		serviceGraphRequestTotal:                           reg.NewCounter(metricRequestTotal),
 		serviceGraphRequestFailedTotal:                     reg.NewCounter(metricRequestFailedTotal),
-		serviceGraphRequestServerSecondsHistogram:          reg.NewHistogram(metricRequestServerSeconds, cfg.HistogramBuckets, cfg.HistogramOverride),
-		serviceGraphRequestClientSecondsHistogram:          reg.NewHistogram(metricRequestClientSeconds, cfg.HistogramBuckets, cfg.HistogramOverride),
 		serviceGraphRequestMessagingSystemSecondsHistogram: reg.NewHistogram(metricRequestMessagingSystemSeconds, cfg.HistogramBuckets, cfg.HistogramOverride),
 		sanitizeCache: sanitizeCache,
 		filter:        filter,
@@ -136,6 +134,13 @@ func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, fi
 		metricExpiredEdges:                  metricExpiredEdges.WithLabelValues(tenant),
 		invalidUTF8Counter:                  invalidUTF8Counter,
 		logger:                              log.With(logger, "component", "service-graphs"),
+	}
+
+	if cfg.EnableServerLatencyHistogram {
+		p.serviceGraphRequestServerSecondsHistogram = reg.NewHistogram(metricRequestServerSeconds, cfg.HistogramBuckets, cfg.HistogramOverride)
+	}
+	if cfg.EnableClientLatencyHistogram {
+		p.serviceGraphRequestClientSecondsHistogram = reg.NewHistogram(metricRequestClientSeconds, cfg.HistogramBuckets, cfg.HistogramOverride)
 	}
 
 	p.store = store.NewStore(cfg.Wait, cfg.MaxItems, p.onComplete, p.onExpire, p.metricDroppedSpanSideCacheOverflows)
@@ -387,8 +392,12 @@ func (p *Processor) onComplete(e *store.Edge) {
 		p.serviceGraphRequestFailedTotal.Inc(registryLabelValues, 1*e.SpanMultiplier)
 	}
 
-	p.serviceGraphRequestServerSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ServerLatencySec, e.TraceID, e.SpanMultiplier)
-	p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ClientLatencySec, e.TraceID, e.SpanMultiplier)
+	if p.Cfg.EnableServerLatencyHistogram {
+		p.serviceGraphRequestServerSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ServerLatencySec, e.TraceID, e.SpanMultiplier)
+	}
+	if p.Cfg.EnableClientLatencyHistogram {
+		p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ClientLatencySec, e.TraceID, e.SpanMultiplier)
+	}
 
 	if p.Cfg.EnableMessagingSystemLatencyHistogram && e.ConnectionType == store.MessagingSystem {
 		messagingSystemLatencySec := unixNanosDiffSec(e.ClientEndTimeUnixNano, e.ServerStartTimeUnixNano)
