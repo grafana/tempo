@@ -337,12 +337,11 @@
       )
     else {},
 
-  // When KEDA manages the live-store, omit spec.replicas from the ReplicaTemplate
-  // so that KEDA exclusively owns that field and Tanka apply does not fight it.
+  // When KEDA manages the live-store, drop spec.replicas from the ReplicaTemplate and
+  // both zone StatefulSets so the ScaledObject exclusively owns the replica count and
+  // Tanka apply does not fight it.
   tempo_live_store_replica_template+:
-    if $._config.live_store.keda.enabled then {
-      spec+: { replicas+:: null },
-    } else {},
+    if $._config.live_store.keda.enabled then $.removeReplicasFromSpec else {},
 
   tempo_live_store_zone_a_statefulset+:
     if $._config.live_store.keda.enabled then $.removeReplicasFromSpec else {},
