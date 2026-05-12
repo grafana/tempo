@@ -59,11 +59,12 @@ type nativeHistogram struct {
 
 type nativeHistogramSeries struct {
 	// labels should not be modified after creation
-	lb            *labels.Builder
-	labels        labels.Labels
-	promHistogram prometheus.Histogram
-	lastUpdated   int64
-	histogram     *dto.Histogram
+	lb                *labels.Builder
+	labels            labels.Labels
+	promHistogram     prometheus.Histogram
+	nativeAccumulator *nativeHistogramAccumulator
+	lastUpdated       int64
+	histogram         *dto.Histogram
 
 	// firstSeries is used to track if this series is new to the counter.
 	// This is used in classic histograms to ensure that new counters begin with 0.
@@ -168,27 +169,30 @@ func (h *nativeHistogram) newSeries(lbls labels.Labels, hash uint64, value float
 
 	hsh, bucketFactor, maxBucketNum, minResetDur := h.hashOverrides()
 
-	// Configure native histogram options based on mode
-	nativeOpts := prometheus.HistogramOpts{
-		Name:    h.name(),
-		Help:    "Native histogram for metric " + h.name(),
-		Buckets: buckets, // nil for pure native, h.buckets for hybrid
-		// Native histogram parameters
-		NativeHistogramBucketFactor:     bucketFactor,
-		NativeHistogramMaxBucketNumber:  maxBucketNum,
-		NativeHistogramMinResetDuration: minResetDur,
-	}
-
-	if hasClassic {
-		// Hybrid mode: let Prometheus decide defaults for compatibility
-		nativeOpts.NativeHistogramMaxExemplars = -1 // Use default
-	}
-
 	newSeries := &nativeHistogramSeries{
-		promHistogram: prometheus.NewHistogram(nativeOpts),
 		lastUpdated:   0,
 		firstSeries:   true,
 		overridesHash: hsh,
+	}
+	if useNativeHistogramAccumulator(hasClassic, bucketFactor, maxBucketNum) {
+		newSeries.nativeAccumulator = newNativeHistogramAccumulator(bucketFactor, maxBucketNum, minResetDur)
+	} else {
+		// Configure native histogram options based on mode
+		nativeOpts := prometheus.HistogramOpts{
+			Name:    h.name(),
+			Help:    "Native histogram for metric " + h.name(),
+			Buckets: buckets, // nil for pure native, h.buckets for hybrid
+			// Native histogram parameters
+			NativeHistogramBucketFactor:     bucketFactor,
+			NativeHistogramMaxBucketNumber:  maxBucketNum,
+			NativeHistogramMinResetDuration: minResetDur,
+		}
+
+		if hasClassic {
+			// Hybrid mode: let Prometheus decide defaults for compatibility
+			nativeOpts.NativeHistogramMaxExemplars = -1 // Use default
+		}
+		newSeries.promHistogram = prometheus.NewHistogram(nativeOpts)
 	}
 
 	h.updateSeries(hash, newSeries, value, traceID, multiplier, timeMs)
@@ -221,6 +225,13 @@ func (h *nativeHistogram) newSeries(lbls labels.Labels, hash uint64, value float
 }
 
 func (h *nativeHistogram) updateSeries(hash uint64, s *nativeHistogramSeries, value float64, traceID string, multiplier float64, timeMs int64) {
+	if s.nativeAccumulator != nil {
+		s.nativeAccumulator.observe(value, traceID, multiplier, h.traceIDLabelName)
+		s.lastUpdated = timeMs
+		h.lifecycler.OnUpdate(hash, h.activeSeriesPerHistogramSerie())
+		return
+	}
+
 	// Use Prometheus native exemplar handling
 	exemplarObserver := s.promHistogram.(prometheus.ExemplarObserver)
 
@@ -252,6 +263,16 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 	defer h.seriesMtx.Unlock()
 
 	for _, s := range h.series {
+		if s.nativeAccumulator != nil {
+			if err := h.nativeAccumulatorHistogram(appender, s.labels, timeMs, s); err != nil {
+				return err
+			}
+			if s.isNew() {
+				s.registerSeenSeries()
+			}
+			continue
+		}
+
 		// Extract histogram
 		encodedMetric := &dto.Metric{}
 
@@ -290,6 +311,39 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 			s.registerSeenSeries()
 		}
 		s.histogram = nil
+	}
+
+	return nil
+}
+
+func (h *nativeHistogram) nativeAccumulatorHistogram(appender storage.Appender, lbls labels.Labels, timeMs int64, s *nativeHistogramSeries) error {
+	if s.isNew() {
+		endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
+		zeroHist := &promhistogram.Histogram{
+			Schema: s.nativeAccumulator.schema,
+		}
+		_, err := appender.AppendHistogram(0, lbls, endOfLastMinuteMs, zeroHist, nil)
+		if err != nil && !isOutOfOrderError(err) {
+			return err
+		}
+	}
+
+	hist := s.nativeAccumulator.histogram()
+	ref, err := appender.AppendHistogram(0, lbls, timeMs, hist, nil)
+	if err != nil {
+		return err
+	}
+
+	for i := range s.nativeAccumulator.exemplars {
+		ex := &s.nativeAccumulator.exemplars[i]
+		_, err = appender.AppendExemplar(ref, lbls, exemplar.Exemplar{
+			Labels: labels.FromStrings(ex.labelName, ex.labelValue),
+			Value:  ex.value,
+			Ts:     timeMs,
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
