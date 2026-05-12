@@ -338,6 +338,9 @@ gen-proto:  ## Generate proto files
 	@# Generate frontend proto
 	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.frontend.yaml --path modules/frontend/v1/frontendv1pb/frontend.proto
 
+	@# Restore generated protobuf unmarshal reuse patches.
+	git apply pkg/tempopb/patches/unmarshal-reuse.patch
+
 	rm -rf $(PROTO_INTERMEDIATE_DIR)
 
 .PHONY: gen-traceql 

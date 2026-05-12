@@ -947,7 +947,36 @@ func sovCommon(x uint64) (n int) {
 func sozCommon(x uint64) (n int) {
 	return sovCommon(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
+
+func appendAnyValueForUnmarshal(values []*AnyValue) ([]*AnyValue, *AnyValue) {
+	n := len(values)
+	if n < cap(values) {
+		values = values[:n+1]
+		if values[n] == nil {
+			values[n] = &AnyValue{}
+		}
+		return values, values[n]
+	}
+	values = append(values, &AnyValue{})
+	return values, values[n]
+}
+
+func appendKeyValueForUnmarshal(values []*KeyValue) ([]*KeyValue, *KeyValue) {
+	n := len(values)
+	if n < cap(values) {
+		values = values[:n+1]
+		if values[n] == nil {
+			values[n] = &KeyValue{}
+		}
+		return values, values[n]
+	}
+	values = append(values, &KeyValue{})
+	return values, values[n]
+}
+
 func (m *AnyValue) Unmarshal(dAtA []byte) error {
+	previousValue := m.Value
+	m.Value = nil
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1006,7 +1035,12 @@ func (m *AnyValue) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Value = &AnyValue_StringValue{string(dAtA[iNdEx:postIndex])}
+			if v, ok := previousValue.(*AnyValue_StringValue); ok {
+				v.StringValue = string(dAtA[iNdEx:postIndex])
+				m.Value = v
+			} else {
+				m.Value = &AnyValue_StringValue{string(dAtA[iNdEx:postIndex])}
+			}
 			iNdEx = postIndex
 		case 2:
 			if wireType != 0 {
@@ -1028,7 +1062,12 @@ func (m *AnyValue) Unmarshal(dAtA []byte) error {
 				}
 			}
 			b := bool(v != 0)
-			m.Value = &AnyValue_BoolValue{b}
+			if value, ok := previousValue.(*AnyValue_BoolValue); ok {
+				value.BoolValue = b
+				m.Value = value
+			} else {
+				m.Value = &AnyValue_BoolValue{b}
+			}
 		case 3:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field IntValue", wireType)
@@ -1048,7 +1087,12 @@ func (m *AnyValue) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
-			m.Value = &AnyValue_IntValue{v}
+			if value, ok := previousValue.(*AnyValue_IntValue); ok {
+				value.IntValue = v
+				m.Value = value
+			} else {
+				m.Value = &AnyValue_IntValue{v}
+			}
 		case 4:
 			if wireType != 1 {
 				return fmt.Errorf("proto: wrong wireType = %d for field DoubleValue", wireType)
@@ -1059,7 +1103,13 @@ func (m *AnyValue) Unmarshal(dAtA []byte) error {
 			}
 			v = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
 			iNdEx += 8
-			m.Value = &AnyValue_DoubleValue{float64(math.Float64frombits(v))}
+			doubleValue := float64(math.Float64frombits(v))
+			if value, ok := previousValue.(*AnyValue_DoubleValue); ok {
+				value.DoubleValue = doubleValue
+				m.Value = value
+			} else {
+				m.Value = &AnyValue_DoubleValue{doubleValue}
+			}
 		case 5:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field ArrayValue", wireType)
@@ -1159,9 +1209,17 @@ func (m *AnyValue) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			v := make([]byte, postIndex-iNdEx)
-			copy(v, dAtA[iNdEx:postIndex])
-			m.Value = &AnyValue_BytesValue{v}
+			if value, ok := previousValue.(*AnyValue_BytesValue); ok {
+				value.BytesValue = append(value.BytesValue[:0], dAtA[iNdEx:postIndex]...)
+				if value.BytesValue == nil {
+					value.BytesValue = []byte{}
+				}
+				m.Value = value
+			} else {
+				v := make([]byte, postIndex-iNdEx)
+				copy(v, dAtA[iNdEx:postIndex])
+				m.Value = &AnyValue_BytesValue{v}
+			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -1185,6 +1243,8 @@ func (m *AnyValue) Unmarshal(dAtA []byte) error {
 	return nil
 }
 func (m *ArrayValue) Unmarshal(dAtA []byte) error {
+	previousValues := m.Values
+	m.Values = m.Values[:0]
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1242,8 +1302,9 @@ func (m *ArrayValue) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Values = append(m.Values, &AnyValue{})
-			if err := m.Values[len(m.Values)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			var value *AnyValue
+			m.Values, value = appendAnyValueForUnmarshal(m.Values)
+			if err := value.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -1266,9 +1327,14 @@ func (m *ArrayValue) Unmarshal(dAtA []byte) error {
 	if iNdEx > l {
 		return io.ErrUnexpectedEOF
 	}
+	if len(m.Values) < len(previousValues) {
+		clear(previousValues[len(m.Values):])
+	}
 	return nil
 }
 func (m *KeyValueList) Unmarshal(dAtA []byte) error {
+	previousValues := m.Values
+	m.Values = m.Values[:0]
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1326,8 +1392,9 @@ func (m *KeyValueList) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Values = append(m.Values, &KeyValue{})
-			if err := m.Values[len(m.Values)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			var value *KeyValue
+			m.Values, value = appendKeyValueForUnmarshal(m.Values)
+			if err := value.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -1350,9 +1417,15 @@ func (m *KeyValueList) Unmarshal(dAtA []byte) error {
 	if iNdEx > l {
 		return io.ErrUnexpectedEOF
 	}
+	if len(m.Values) < len(previousValues) {
+		clear(previousValues[len(m.Values):])
+	}
 	return nil
 }
 func (m *KeyValue) Unmarshal(dAtA []byte) error {
+	previousValue := m.Value
+	m.Key = ""
+	m.Value = nil
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1442,7 +1515,9 @@ func (m *KeyValue) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.Value == nil {
+			if previousValue != nil {
+				m.Value = previousValue
+			} else if m.Value == nil {
 				m.Value = &AnyValue{}
 			}
 			if err := m.Value.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
@@ -1471,6 +1546,11 @@ func (m *KeyValue) Unmarshal(dAtA []byte) error {
 	return nil
 }
 func (m *InstrumentationScope) Unmarshal(dAtA []byte) error {
+	previousAttributes := m.Attributes
+	m.Name = ""
+	m.Version = ""
+	m.Attributes = m.Attributes[:0]
+	m.DroppedAttributesCount = 0
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1592,8 +1672,9 @@ func (m *InstrumentationScope) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Attributes = append(m.Attributes, &KeyValue{})
-			if err := m.Attributes[len(m.Attributes)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			var attr *KeyValue
+			m.Attributes, attr = appendKeyValueForUnmarshal(m.Attributes)
+			if err := attr.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -1634,6 +1715,9 @@ func (m *InstrumentationScope) Unmarshal(dAtA []byte) error {
 
 	if iNdEx > l {
 		return io.ErrUnexpectedEOF
+	}
+	if len(m.Attributes) < len(previousAttributes) {
+		clear(previousAttributes[len(m.Attributes):])
 	}
 	return nil
 }

@@ -176,7 +176,6 @@ func (d *PushBytesDecoder) Decode(data []byte) (iter.Seq2[*tempopb.PushSpansRequ
 
 	return func(yield func(*tempopb.PushSpansRequest, error) bool) {
 		for _, traceBytes := range d.traceSlices {
-			d.trace.ResourceSpans = d.trace.ResourceSpans[:0]
 			err := d.trace.Unmarshal(traceBytes)
 
 			if !yield(&tempopb.PushSpansRequest{
@@ -243,7 +242,6 @@ func NewOTLPDecoder() *OTLPDecoder {
 
 // Decode implements GeneratorCodec.
 func (d *OTLPDecoder) Decode(data []byte) (iter.Seq2[*tempopb.PushSpansRequest, error], error) {
-	d.trace.ResourceSpans = d.trace.ResourceSpans[:0]
 	err := d.trace.Unmarshal(data)
 	if err != nil {
 		return nil, err
