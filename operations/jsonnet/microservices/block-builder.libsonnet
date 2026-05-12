@@ -46,12 +46,16 @@
     statefulset.new(target_name, $._config.block_builder.replicas, $.tempo_block_builder_container, [], { app: target_name }) +
     statefulset.mixin.spec.withServiceName(target_name) +
     statefulset.spec.template.spec.securityContext.withFsGroup(10001) +  // 10001 is the UID of the tempo user
-    statefulset.mixin.spec.template.metadata.withAnnotations({
-      config_hash: std.md5(std.toString($.tempo_block_builder_configmap.data['tempo.yaml'])),
-      'grafana.com/rollout-mirror-replicas-from-resource-name': $.tempo_block_builder_follow_controller.metadata.name,
-      'grafana.com/rollout-mirror-replicas-from-resource-kind': $.tempo_block_builder_follow_controller.kind,
-      'grafana.com/rollout-mirror-replicas-from-resource-api-version': $.tempo_block_builder_follow_controller.apiVersion,
-    }) +
+    statefulset.mixin.spec.template.metadata.withAnnotations(
+      { config_hash: std.md5(std.toString($.tempo_block_builder_configmap.data['tempo.yaml'])) }
+      + (
+        if $._config.live_store.keda.enabled && $._config.live_store.keda.block_builder_scaling == 'rollout-operator' then {
+          'grafana.com/rollout-mirror-replicas-from-resource-name': $.tempo_block_builder_follow_controller.metadata.name,
+          'grafana.com/rollout-mirror-replicas-from-resource-kind': $.tempo_block_builder_follow_controller.kind,
+          'grafana.com/rollout-mirror-replicas-from-resource-api-version': $.tempo_block_builder_follow_controller.apiVersion,
+        } else {}
+      )
+    ) +
     statefulset.mixin.spec.template.spec.withVolumes([
       volume.fromConfigMap(tempo_config_volume, $.tempo_block_builder_configmap.metadata.name),
       volume.fromConfigMap(tempo_overrides_config_volume, $._config.overrides_configmap_name),

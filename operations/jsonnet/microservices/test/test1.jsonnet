@@ -11,12 +11,21 @@ local withBackendWorkerKeda(url, tenant='') = default {
   },
 };
 
-// Helper: default env with live_store KEDA enabled and a given Prometheus URL/tenant.
+// Helper: default env with live_store KEDA enabled (rollout-operator approach, the default).
 local withLiveStoreKeda(url, tenant='') = default {
   _config+:: {
     autoscaling_prometheus_url: url,
     autoscaling_prometheus_tenant: tenant,
+    rollout_operator_replica_template_access_enabled: true,
     live_store+: { replicas: 1, keda+: { enabled: true } },
+  },
+};
+
+// Helper: default env with live_store KEDA enabled and block-builder managed by KEDA.
+local withLiveStoreKedaBlockBuilderKeda(url) = default {
+  _config+:: {
+    autoscaling_prometheus_url: url,
+    live_store+: { replicas: 1, keda+: { enabled: true, block_builder_scaling: 'keda' } },
   },
 };
 
@@ -116,6 +125,7 @@ test.new(std.thisFile)
     (default {
        _config+:: {
          autoscaling_prometheus_url: 'http://prometheus:9090',
+         rollout_operator_replica_template_access_enabled: true,
          live_store+: {
            replicas: 1,
            keda+: {
@@ -168,5 +178,60 @@ test.new(std.thisFile)
       null
     ),
     null
+  )
+)
++ test.case.new(
+  'live_store KEDA default block_builder_scaling is rollout-operator',
+  test.expect.eq(
+    withLiveStoreKeda('http://prometheus:9090')._config.live_store.keda.block_builder_scaling,
+    'rollout-operator'
+  )
+)
++ test.case.new(
+  'live_store KEDA rollout-operator approach omits block-builder ScaledObject',
+  test.expect.eq(
+    withLiveStoreKeda('http://prometheus:9090').tempo_block_builder_scaled_object,
+    {}
+  )
+)
++ test.case.new(
+  'live_store KEDA disabled omits rollout-mirror annotations from block-builder',
+  test.expect.eq(
+    std.objectHas(
+      default.tempo_block_builder_statefulset.spec.template.metadata.annotations,
+      'grafana.com/rollout-mirror-replicas-from-resource-name'
+    ),
+    false
+  )
+)
++ test.case.new(
+  'live_store KEDA keda approach creates block-builder ScaledObject',
+  test.expect.eq(
+    withLiveStoreKedaBlockBuilderKeda('http://prometheus:9090').tempo_block_builder_scaled_object.spec.scaleTargetRef.name,
+    'block-builder'
+  )
+)
++ test.case.new(
+  'live_store KEDA keda approach block-builder ScaledObject uses kubernetes-workload trigger',
+  test.expect.eq(
+    withLiveStoreKedaBlockBuilderKeda('http://prometheus:9090').tempo_block_builder_scaled_object.spec.triggers[0].type,
+    'kubernetes-workload'
+  )
+)
++ test.case.new(
+  'live_store KEDA keda approach omits rollout-mirror annotations from block-builder',
+  test.expect.eq(
+    std.objectHas(
+      withLiveStoreKedaBlockBuilderKeda('http://prometheus:9090').tempo_block_builder_statefulset.spec.template.metadata.annotations,
+      'grafana.com/rollout-mirror-replicas-from-resource-name'
+    ),
+    false
+  )
+)
++ test.case.new(
+  'live_store KEDA keda approach uses pod_selector from block_builder.keda config',
+  test.expect.eq(
+    withLiveStoreKedaBlockBuilderKeda('http://prometheus:9090').tempo_block_builder_scaled_object.spec.triggers[0].metadata.podSelector,
+    'name=live-store-zone-a'
   )
 )

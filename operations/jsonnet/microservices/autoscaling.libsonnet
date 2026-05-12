@@ -121,6 +121,13 @@
         // from private config without requiring an upstream Jsonnet change.
         // Each entry is a raw KEDA trigger object passed directly to withTriggersMixin.
         additional_triggers: [],
+        // How block-builder replicas are coupled to live-store when KEDA is enabled.
+        // 'rollout-operator' (default): rollout-operator mirrors live-store zone-a
+        //   replicas to block-builder. Requires rollout_operator_replica_template_access_enabled=true.
+        //   Block-builder lags zone-a through the drain window, preventing data loss on scale-down.
+        // 'keda': dedicated KEDA ScaledObject using a kubernetes-workload trigger counting
+        //   live-store zone-a pods. Does not require rollout_operator_replica_template_access_enabled.
+        block_builder_scaling: 'rollout-operator',
       },
     },
 
@@ -130,6 +137,22 @@
     // Default: 1 (each block-builder pod mirrors one live-store pod 1:1).
     block_builder+: {
       partitions_per_instance: 1,
+      // KEDA config for block-builder, used when live_store.keda.block_builder_scaling == 'keda'.
+      // Ignored when block_builder_scaling == 'rollout-operator'.
+      keda: {
+        min_replicas: 1,
+        max_replicas: 200,
+        paused_replicas: 0,
+        // Pod selector to count live-store zone-a pods.
+        // KEDA sets block-builder replicas = ceil(matching pods / partitions_per_instance).
+        pod_selector: 'name=live-store-zone-a',
+        scale_up_stabilization_window_seconds: 60,
+        scale_up_pods: 5,
+        scale_up_period_seconds: 60,
+        scale_down_stabilization_window_seconds: 60 * 5,
+        scale_down_pods: 5,
+        scale_down_period_seconds: 60 * 5,
+      },
     },
 
   },
@@ -258,9 +281,26 @@
     if $._config.backend_worker.keda.enabled then $.removeReplicasFromSpec else {},
 
   // When live-store KEDA is enabled, remove spec.replicas from block-builder so
-  // the rollout-operator (mirroring from live-store zone-a) exclusively owns it.
+  // the chosen scaling mechanism (rollout-operator or KEDA) exclusively owns it.
   tempo_block_builder_statefulset+:
     if $._config.live_store.keda.enabled then $.removeReplicasFromSpec else {},
+
+  //
+  // Block Builder: KEDA kubernetes-workload scaler counting live-store zone-a pods.
+  // Used when live_store.keda.block_builder_scaling == 'keda'.
+  //
+  tempo_block_builder_scaled_object:
+    if $._config.live_store.keda.enabled && $._config.live_store.keda.block_builder_scaling == 'keda' then
+      assert $._config.block_builder.partitions_per_instance > 0 : 'block_builder.partitions_per_instance must be > 0';
+      $.scaledObjectForController($.tempo_block_builder_statefulset, 'block_builder')
+      + scaledObject.spec.withTriggersMixin([{
+        type: 'kubernetes-workload',
+        metadata: {
+          podSelector: $._config.block_builder.keda.pod_selector,
+          value: '%d' % $._config.block_builder.partitions_per_instance,
+        },
+      }])
+    else {},
 
   //
   // Live Store: Prometheus-based autoscaling on expected bytes held.
@@ -270,6 +310,8 @@
   tempo_live_store_scaled_object:
     if $._config.live_store.keda.enabled then
       assert $._config.autoscaling_prometheus_url != '' : 'autoscaling_prometheus_url is required for live_store autoscaling';
+      assert $._config.live_store.keda.block_builder_scaling != 'rollout-operator' || $._config.rollout_operator_replica_template_access_enabled :
+             'live_store.keda with block_builder_scaling=rollout-operator requires rollout_operator_replica_template_access_enabled=true';
       local config = $._config.live_store.keda;
       local query = if config.query != '' then config.query else
         |||

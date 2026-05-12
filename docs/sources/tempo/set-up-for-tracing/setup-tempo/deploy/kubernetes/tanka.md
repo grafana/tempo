@@ -368,9 +368,9 @@ storage+: {
 Enabling metrics generation and remote writing them to Grafana Cloud Metrics produces extra active series that could potentially impact your billing. For more information on billing, refer to [Billing and usage](/docs/grafana-cloud/billing-and-usage/). For more information on metrics generation, refer the [Metrics-generator documentation](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/).
 {{< /admonition >}}
 
-### Optional: Enable KEDA autoscaling 
+### Optional: Enable KEDA autoscaling
 
-The microservices Jsonnet library includes optional KEDA-based horizontal autoscaling for distributor, metrics-generator, backend-worker, and block-builder components. All KEDA scalers are disabled by default (`enabled: false`), and you enable each component independently under `_config.<component>.keda`.
+The microservices Jsonnet library includes optional KEDA-based horizontal autoscaling for distributor, metrics-generator, backend-worker, and live-store components. All KEDA scalers are disabled by default (`enabled: false`), and you enable each component independently under `_config.<component>.keda`.
 
 Before you enable this option, make sure your cluster has the KEDA operator and CRDs installed.
 
@@ -404,19 +404,34 @@ _config+:: {
       threshold: 200,
     },
   },
-  block_builder+: {
+  live_store+: {
     keda: {
       enabled: true,
       min_replicas: 1,
       max_replicas: 200,
-      partitions_per_instance: 1,
-      pod_selector: 'name=live-store-zone-a',
+      // window_seconds: 1800,           // retention window; >= complete_block_timeout + query_backend_after
+      // bytes_per_replica: 16800000000, // ~16 GiB at 10 MB/s per pod over 30m
+
+      // block_builder_scaling controls how block-builder replicas track live-store:
+      //   'rollout-operator' (default): rollout-operator mirrors live-store zone-a replicas
+      //     to block-builder. Requires rollout_operator_replica_template_access_enabled: true.
+      //     Recommended: block-builder intentionally lags zone-a through the drain window
+      //     so in-flight data is not lost on scale-down.
+      //   'keda': a dedicated block-builder KEDA ScaledObject uses a kubernetes-workload
+      //     trigger to count live-store zone-a pods. Does not require rollout-operator RBAC.
+      // block_builder_scaling: 'rollout-operator',
     },
   },
+  // Required when live_store.keda.block_builder_scaling == 'rollout-operator' (the default):
+  rollout_operator_replica_template_access_enabled: true,
 },
 ```
 
-Tempo uses these trigger types when KEDA is enabled: CPU for distributor and metrics-generator, Prometheus for backend-worker, and kubernetes-workload for block-builder. When you enable block-builder autoscaling, Tempo also sets `block_builder.partitions_per_instance` from `_config.block_builder.keda.partitions_per_instance`.
+Tempo uses these trigger types when KEDA is enabled: CPU for distributor and metrics-generator, Prometheus for backend-worker and live-store.
+
+When live-store KEDA is enabled, block-builder replicas are coupled to live-store automatically. The default approach (`block_builder_scaling: 'rollout-operator'`) uses the rollout-operator to mirror the live-store zone-a replica count to block-builder, keeping block-builder alive through the live-store drain window so that in-flight data is not lost. This requires `rollout_operator_replica_template_access_enabled: true`.
+
+Alternatively, set `block_builder_scaling: 'keda'` to use a dedicated KEDA ScaledObject (kubernetes-workload trigger) that counts live-store zone-a pods directly. This approach does not require the rollout-operator RBAC change, but block-builder scales concurrently with live-store without the drain-window lag. The value of `_config.block_builder.partitions_per_instance` (default: `1`) is injected into the block-builder config when live-store KEDA is active under either approach.
 
 ### Optional: Reduce component system requirements
 
