@@ -890,6 +890,8 @@ tempo-cli rewrite-blocks drop-traces --drop-trace --backend=local --bucket=./cmd
 
 ## Redact traces
 
+Remove traces containing personally identifiable information or other sensitive data from object storage without waiting for retention to expire.
+
 Submits a redaction request to the [backend scheduler](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/compaction/#backend-scheduler). The scheduler creates jobs that rewrite affected blocks in object storage to remove the specified traces. Unlike [`drop-traces`](#drop-traces-by-id), which operates directly on object storage from the CLI, `redact` delegates the work to the backend scheduler over gRPC.
 
 ```bash
