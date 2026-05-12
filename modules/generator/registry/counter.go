@@ -26,13 +26,13 @@ type counter struct {
 
 type counterSeries struct {
 	labels      labels.Labels
-	value       *atomic.Float64
-	lastUpdated *atomic.Int64
+	value       atomic.Float64
+	lastUpdated atomic.Int64
 	// firstSeries is used to track if this series is new to the counter.  This
 	// is used to ensure that new counters being with 0, and then are incremented
 	// to the desired value.  This avoids Prometheus throwing away the first
 	// value in the series, due to the transition from null -> x.
-	firstSeries *atomic.Bool
+	firstSeries atomic.Bool
 }
 
 var (
@@ -111,12 +111,13 @@ func resolveSeries[T any](series map[uint64]*T, hash uint64, lbls labels.Labels,
 }
 
 func (c *counter) newSeries(lbls labels.Labels, value float64, timeMs int64) *counterSeries {
-	return &counterSeries{
-		labels:      getSeriesLabels(c.metricName, lbls, c.externalLabels),
-		value:       atomic.NewFloat64(value),
-		lastUpdated: atomic.NewInt64(timeMs),
-		firstSeries: atomic.NewBool(true),
+	s := &counterSeries{
+		labels: getSeriesLabels(c.metricName, lbls, c.externalLabels),
 	}
+	s.value.Store(value)
+	s.lastUpdated.Store(timeMs)
+	s.firstSeries.Store(true)
+	return s
 }
 
 func (c *counter) updateSeries(hash uint64, s *counterSeries, value float64, timeMs int64) {
