@@ -842,9 +842,12 @@ func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *LocalBlock, r
 		return nil, nil
 	}
 
-	cached, name, err := i.queryRangeCacheGet(ctx, m, req)
+	name := queryRangeCacheName(req)
+
+	cached, err := i.queryRangeCacheGet(ctx, m, name)
 	if err != nil {
-		return nil, err
+		level.Warn(i.logger).Log("msg", "reading local query cache failed",
+			"block", m.BlockID.String(), "err", err)
 	}
 
 	span.SetAttributes(attribute.Bool("cached", cached != nil))
@@ -853,7 +856,6 @@ func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *LocalBlock, r
 		return cached.Series, nil
 	}
 
-	// Not in cache or not cacheable, so execute
 	eval, err := traceql.NewEngine().CompileMetricsQueryRange(&req, compileOpts...)
 	if err != nil {
 		return nil, err
@@ -873,46 +875,41 @@ func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *LocalBlock, r
 
 	results := eval.Results().ToProto(&req)
 
-	if name != "" {
-		err = i.queryRangeCacheSet(ctx, m, name, &tempopb.QueryRangeResponse{
-			Series: results,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("writing local query cache: %w", err)
-		}
+	if err := i.queryRangeCacheSet(ctx, m, name, &tempopb.QueryRangeResponse{
+		Series: results,
+	}); err != nil {
+		level.Warn(i.logger).Log("msg", "writing local query cache failed",
+			"block", m.BlockID.String(), "err", err)
 	}
 
 	return results, nil
 }
 
-func (i *instance) queryRangeCacheGet(ctx context.Context, m *backend.BlockMeta, req tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, string, error) {
-	hash := queryRangeHashForBlock(req)
+func queryRangeCacheName(req tempopb.QueryRangeRequest) string {
+	return fmt.Sprintf("cache_query_range_%v.buf", queryRangeHashForBlock(req))
+}
 
-	name := fmt.Sprintf("cache_query_range_%v.buf", hash)
-
+func (i *instance) queryRangeCacheGet(ctx context.Context, m *backend.BlockMeta, name string) (*tempopb.QueryRangeResponse, error) {
 	keyPath := backend.KeyPathForBlock((uuid.UUID)(m.BlockID), m.TenantID)
 	reader, size, err := i.wal.LocalBackend().Read(ctx, name, keyPath, nil)
 	if err != nil {
 		if errors.Is(err, backend.ErrDoesNotExist) {
-			// Not cached, but return the name/keypath so it can be set after
-			return nil, name, nil
+			return nil, nil
 		}
-		return nil, "", err
+		return nil, err
 	}
 	defer reader.Close()
 
 	data, err := tempo_io.ReadAllWithEstimate(reader, size)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 
 	resp := &tempopb.QueryRangeResponse{}
-	err = proto.Unmarshal(data, resp)
-	if err != nil {
-		return nil, "", err
+	if err := proto.Unmarshal(data, resp); err != nil {
+		return nil, err
 	}
-
-	return resp, name, nil
+	return resp, nil
 }
 
 func (i *instance) queryRangeCacheSet(ctx context.Context, m *backend.BlockMeta, name string, resp *tempopb.QueryRangeResponse) error {
@@ -922,7 +919,7 @@ func (i *instance) queryRangeCacheSet(ctx context.Context, m *backend.BlockMeta,
 	}
 
 	keyPath := backend.KeyPathForBlock((uuid.UUID)(m.BlockID), m.TenantID)
-	return i.wal.LocalBackend().Write(ctx, name, keyPath, bytes.NewReader(data), int64(len(data)), nil)
+	return i.wal.LocalBackend().WriteAtomic(ctx, name, keyPath, bytes.NewReader(data), int64(len(data)))
 }
 
 func queryRangeHashForBlock(req tempopb.QueryRangeRequest) uint64 {

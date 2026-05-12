@@ -10,6 +10,7 @@
 * [BUGFIX] backend-scheduler: fix redaction batch not cleaned up after dead-job timeout, leaving tenant permanently blocked from new redaction submissions and compaction. [#6992](https://github.com/grafana/tempo/pull/6992) (@zalegrala)
 * [BUGFIX] backend-scheduler: fix outstanding-blocks metric suppressed to zero during active redaction batch, causing autoscaler to scale down workers mid-redaction. [#6992](https://github.com/grafana/tempo/pull/6992) (@zalegrala)
 * [BUGFIX] backend-scheduler: fix O(N) lock contention in GetJobForWorker under concurrent worker load; replace shard scan with O(1) index lookup. [#6992](https://github.com/grafana/tempo/pull/6992) (@zalegrala)
+* [BUGFIX] livestore: write the per-block query-range response cache atomically (temp file + rename) and log+ignore cache read errors. [#7155](https://github.com/grafana/tempo/pull/7155) (@zhxiaogg)
 * [BUGFIX] livestore: recover from panics in `iterateBlocks` per-block paths so a panic in vparquet/parquetquery (e.g. malformed `ByteArray` values) returns an error instead of crashing the process. [#7134](https://github.com/grafana/tempo/pull/7134) (@zhxiaogg)
 * [BUGFIX] user-configurable overrides: emit duration fields as flat YAML scalars on `/status/overrides/{tenant}` and omit `generate_native_histograms` when unset. [#7138](https://github.com/grafana/tempo/pull/7138) (@electron0zero)
 
