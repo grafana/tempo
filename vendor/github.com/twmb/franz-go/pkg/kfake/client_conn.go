@@ -17,6 +17,7 @@ type (
 		conn   net.Conn
 		respCh chan clientResp
 		done   chan struct{} // closed when read() returns
+		mute   chan bool     // capacity 1: serializes request processing per connection; false = stop reading
 
 		saslStage saslStage
 		s0        *scramServer0
@@ -30,7 +31,12 @@ type (
 		cid       string
 		corr      int32
 		seq       uint32
-		topicMeta topicMetaSnap // snapshot for KIP-848 consumer group assignment
+		topicMeta topicMetaSnap // snapshot for group assignment (consumer/share)
+
+		// Pre-validated error topics to merge into the response,
+		// used when TopicID resolution fails for some topics while
+		// the rest proceed through normal handling.
+		offsetCommitErrTopics []kmsg.OffsetCommitResponseTopic
 	}
 
 	clientResp struct {
@@ -42,6 +48,28 @@ type (
 )
 
 func (creq *clientReq) empty() bool { return creq == nil || creq.cc == nil || creq.kreq == nil }
+
+// unmute signals the read goroutine that it may submit the next request.
+// ok=true means the prior response was written successfully; ok=false
+// tells read to stop (the connection is dead).
+func (cc *clientConn) unmute(ok bool) {
+	select {
+	case cc.mute <- ok:
+	case <-cc.done:
+	case <-cc.c.die:
+	}
+}
+
+// reply sends a response back to the client, respecting connection close
+// and cluster shutdown. Used by manage goroutines (groups, share groups)
+// that handle requests asynchronously.
+func (creq *clientReq) reply(kresp kmsg.Response) {
+	select {
+	case creq.cc.respCh <- clientResp{kresp: kresp, corr: creq.corr, seq: creq.seq}:
+	case <-creq.cc.done:
+	case <-creq.cc.c.die:
+	}
+}
 
 func (cc *clientConn) read() {
 	defer close(cc.done)
@@ -103,6 +131,20 @@ func (cc *clientConn) read() {
 			cid = *clientID
 		}
 
+		// Wait until the previous request's response has been fully
+		// written before submitting the next. This matches the real
+		// Kafka broker's per-connection serial request processing.
+		// write() sends true after a successful write, false on error.
+		// The channel is pre-filled with true so the first request
+		// proceeds immediately.
+		select {
+		case ok := <-cc.mute:
+			if !ok {
+				return
+			}
+		case <-cc.c.die:
+			return
+		}
 		select {
 		case cc.c.reqCh <- &clientReq{cc: cc, kreq: kreq, at: time.Now(), cid: cid, corr: corr, seq: seq}:
 			seq++
@@ -152,6 +194,7 @@ func (cc *clientConn) write() {
 		}
 		if err := resp.err; err != nil {
 			cc.c.cfg.logger.Logf(LogLevelInfo, "client %s request unable to be handled: %v", who, err)
+			cc.unmute(false)
 			return
 		}
 
@@ -175,6 +218,7 @@ func (cc *clientConn) write() {
 			return
 		case err = <-writeCh:
 		}
+		cc.unmute(err == nil)
 		if err != nil {
 			return
 		}

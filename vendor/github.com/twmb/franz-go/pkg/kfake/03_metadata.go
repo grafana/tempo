@@ -95,11 +95,14 @@ func (c *Cluster) handleMetadata(creq *clientReq) (kmsg.Response, error) {
 	}
 
 	allowAuto := req.AllowAutoTopicCreation && c.cfg.allowAutoTopic
+	// Dedupe after name resolution so a request that specifies both a
+	// topic name and its TopicID produces one response entry with one
+	// set of partitions (not a merged entry with partitions duplicated).
+	seenTopic := make(map[string]bool, len(req.Topics))
 	for _, rt := range req.Topics {
 		var topic string
 		var ok bool
 		// If topic ID is present, we ignore any provided topic.
-		// Duplicate topics are merged into one response topic.
 		// Topics with no topic and no ID are ignored.
 		if rt.TopicID != noID {
 			if topic, ok = c.data.id2t[rt.TopicID]; !ok {
@@ -126,6 +129,11 @@ func (c *Cluster) handleMetadata(creq *clientReq) (kmsg.Response, error) {
 			c.data.mkt(topic, -1, -1, nil)
 			ps, _ = c.data.tps.gett(topic)
 		}
+
+		if seenTopic[topic] {
+			continue
+		}
+		seenTopic[topic] = true
 
 		id := c.data.t2id[topic]
 		for p, pd := range ps {
