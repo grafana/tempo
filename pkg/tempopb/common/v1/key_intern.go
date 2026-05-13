@@ -134,3 +134,64 @@ func internKey(b []byte) string {
 	}
 	return string(b)
 }
+
+// internStringValue returns canonical strings for common low-cardinality OTLP
+// attribute values. Values can be high-cardinality tenant data, so only static
+// well-known values are interned here.
+func internStringValue(b []byte) string {
+	if value, ok := internStaticStringValue(b); ok {
+		return value
+	}
+	return string(b)
+}
+
+func unmarshalStringValue(previous string, b []byte) string {
+	if value, ok := internStaticStringValue(b); ok {
+		return value
+	}
+	if stringEqualBytes(previous, b) {
+		return previous
+	}
+	return string(b)
+}
+
+func internStaticStringValue(b []byte) (string, bool) {
+	switch len(b) {
+	case 2:
+		if b[0] == 'g' && b[1] == 'o' {
+			return "go", true
+		}
+	case 3:
+		switch b[0] {
+		case 'G':
+			if b[1] == 'E' && b[2] == 'T' {
+				return "GET", true
+			}
+		case '2':
+			if b[1] == '0' && b[2] == '0' {
+				return "200", true
+			}
+		}
+	case 4:
+		if b[0] == 'p' && b[1] == 'r' && b[2] == 'o' && b[3] == 'd' {
+			return "prod", true
+		}
+	case 5:
+		if b[0] == 'l' && b[1] == 'i' && b[2] == 'n' && b[3] == 'u' && b[4] == 'x' {
+			return "linux", true
+		}
+	}
+	return "", false
+}
+
+func stringEqualBytes(s string, b []byte) bool {
+	if len(s) != len(b) {
+		return false
+	}
+	for i := range b {
+		if s[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}

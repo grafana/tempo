@@ -22,3 +22,24 @@ func TestInternKey(t *testing.T) {
 		t.Fatalf("internKey() = %q, want %q", got, customKey)
 	}
 }
+
+func TestInternStringValue(t *testing.T) {
+	for _, value := range []string{
+		"GET",
+		"200",
+		"prod",
+		"go",
+		"linux",
+	} {
+		t.Run(value, func(t *testing.T) {
+			if got := internStringValue([]byte(value)); got != value {
+				t.Fatalf("internStringValue() = %q, want %q", got, value)
+			}
+		})
+	}
+
+	const customValue = "tenant-specific-value"
+	if got := internStringValue([]byte(customValue)); got != customValue {
+		t.Fatalf("internStringValue() = %q, want %q", got, customValue)
+	}
+}

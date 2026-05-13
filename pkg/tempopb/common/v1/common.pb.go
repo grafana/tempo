@@ -1036,10 +1036,10 @@ func (m *AnyValue) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if v, ok := previousValue.(*AnyValue_StringValue); ok {
-				v.StringValue = string(dAtA[iNdEx:postIndex])
+				v.StringValue = unmarshalStringValue(v.StringValue, dAtA[iNdEx:postIndex])
 				m.Value = v
 			} else {
-				m.Value = &AnyValue_StringValue{string(dAtA[iNdEx:postIndex])}
+				m.Value = &AnyValue_StringValue{internStringValue(dAtA[iNdEx:postIndex])}
 			}
 			iNdEx = postIndex
 		case 2:
