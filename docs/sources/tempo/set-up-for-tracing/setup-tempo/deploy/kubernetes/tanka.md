@@ -370,7 +370,7 @@ Enabling metrics generation and remote writing them to Grafana Cloud Metrics pro
 
 ### Optional: Enable KEDA autoscaling
 
-The microservices Jsonnet library includes optional KEDA-based horizontal autoscaling for distributor, metrics-generator, backend-worker, and live-store components. All KEDA scalers are disabled by default (`enabled: false`), and you enable each component independently under `_config.<component>.keda`.
+The microservices Jsonnet library includes optional KEDA-based horizontal autoscaling for distributor, metrics-generator, backend-worker, live-store, and block-builder components. All KEDA scalers are disabled by default (`enabled: false`), and you enable each component independently under `_config.<component>.keda`.
 
 Before you enable this option, make sure your cluster has the KEDA operator and CRDs installed.
 
