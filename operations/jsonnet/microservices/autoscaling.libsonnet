@@ -163,12 +163,12 @@
       },
     },
 
-    // Auto-derive: when the rollout-operator block-builder scaling approach is active,
-    // rollout_operator_replica_template_access_enabled must be true. Set it automatically
-    // so users only need to set live_store.keda.block_builder_scaling (one config key).
+    // Auto-derive: whenever live-store KEDA is enabled, rollout_operator_replica_template_access_enabled
+    // must be true — rollout-operator uses the ReplicaTemplate to sync both zone StatefulSets regardless
+    // of which block-builder scaling approach is active. The extra statefulsets/scale RBAC grant is
+    // still gated to block_builder_scaling == 'rollout-operator' (see rollout_operator_role+ below).
     rollout_operator_replica_template_access_enabled:
-      super.rollout_operator_replica_template_access_enabled ||
-      (self.live_store.keda.enabled && self.live_store.keda.block_builder_scaling == 'rollout-operator'),
+      super.rollout_operator_replica_template_access_enabled || self.live_store.keda.enabled,
 
   },
 

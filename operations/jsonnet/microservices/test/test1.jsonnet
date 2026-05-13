@@ -203,10 +203,10 @@ test.new(std.thisFile)
   )
 )
 + test.case.new(
-  'live_store KEDA keda approach does not auto-enable rollout_operator_replica_template_access_enabled',
+  'live_store KEDA keda approach also auto-enables rollout_operator_replica_template_access_enabled',
   test.expect.eq(
     withLiveStoreKedaBlockBuilderKeda('http://prometheus:9090')._config.rollout_operator_replica_template_access_enabled,
-    false
+    true
   )
 )
 + test.case.new(
