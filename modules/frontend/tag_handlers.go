@@ -58,7 +58,7 @@ func newTagsStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[com
 
 		var finalResponse *tempopb.SearchTagsResponse
 		comb := combiner.NewTypedSearchTags(o.MaxBytesPerTagValuesQuery(tenant), req.MaxTagsPerScope, req.StaleValuesThreshold, api.MarshallingFormatProtobuf)
-		collector := pipeline.NewGRPCCollector(next, cfg.ResponseConsumers, comb, func(res *tempopb.SearchTagsResponse) error {
+		collector := pipeline.NewGRPCCollector(next, cfg.ResponseConsumers, cfg.MaxGRPCStreamingPacketSize, comb, func(res *tempopb.SearchTagsResponse) error {
 			finalResponse = res // to get the bytes processed for SLO calculations
 			return srv.Send(res)
 		})
@@ -121,7 +121,7 @@ func newTagsV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 
 		var finalResponse *tempopb.SearchTagsV2Response
 		comb := combiner.NewTypedSearchTagsV2(o.MaxBytesPerTagValuesQuery(tenant), req.MaxTagsPerScope, req.StaleValuesThreshold, api.MarshallingFormatProtobuf)
-		collector := pipeline.NewGRPCCollector(next, cfg.ResponseConsumers, comb, func(res *tempopb.SearchTagsV2Response) error {
+		collector := pipeline.NewGRPCCollector(next, cfg.ResponseConsumers, cfg.MaxGRPCStreamingPacketSize, comb, func(res *tempopb.SearchTagsV2Response) error {
 			finalResponse = res // to get the bytes processed for SLO calculations
 			return srv.Send(res)
 		})
@@ -189,7 +189,7 @@ func newTagValuesStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrippe
 
 		var finalResponse *tempopb.SearchTagValuesResponse
 		comb := combiner.NewTypedSearchTagValues(o.MaxBytesPerTagValuesQuery(tenant), req.MaxTagValues, req.StaleValueThreshold, api.MarshallingFormatProtobuf)
-		collector := pipeline.NewGRPCCollector(next, cfg.ResponseConsumers, comb, func(res *tempopb.SearchTagValuesResponse) error {
+		collector := pipeline.NewGRPCCollector(next, cfg.ResponseConsumers, cfg.MaxGRPCStreamingPacketSize, comb, func(res *tempopb.SearchTagValuesResponse) error {
 			finalResponse = res // to get the bytes processed for SLO calculations
 			return srv.Send(res)
 		})
@@ -243,7 +243,7 @@ func newTagValuesV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrip
 
 		var finalResponse *tempopb.SearchTagValuesV2Response
 		comb := combiner.NewTypedSearchTagValuesV2(o.MaxBytesPerTagValuesQuery(tenant), req.MaxTagValues, req.StaleValueThreshold, api.MarshallingFormatProtobuf)
-		collector := pipeline.NewGRPCCollector(next, cfg.ResponseConsumers, comb, func(res *tempopb.SearchTagValuesV2Response) error {
+		collector := pipeline.NewGRPCCollector(next, cfg.ResponseConsumers, cfg.MaxGRPCStreamingPacketSize, comb, func(res *tempopb.SearchTagValuesV2Response) error {
 			finalResponse = res // to get the bytes processed for SLO calculations
 			return srv.Send(res)
 		})

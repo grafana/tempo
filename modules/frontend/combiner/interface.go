@@ -27,4 +27,5 @@ type GRPCCombiner[T TResponse] interface {
 
 	GRPCFinal() (T, error)
 	GRPCDiff() (T, error)
+	GRPCSegment(response T, maxSize int) ([]T, error)
 }

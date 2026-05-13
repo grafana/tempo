@@ -331,3 +331,11 @@ func fromHTTPResponse(t *testing.T, r *http.Response, pb proto.Message) {
 		require.NoError(t, err)
 	}
 }
+
+func requireProtoSegmentsFit[T proto.Message](t *testing.T, segments []T, maxSize int) {
+	t.Helper()
+
+	for i, segment := range segments {
+		require.LessOrEqualf(t, proto.Size(segment), maxSize, "segment %d exceeds max size", i)
+	}
+}

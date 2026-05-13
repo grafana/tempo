@@ -362,6 +362,7 @@ query_frontend:
         max_regex_conditions: 1
     mcp_server:
         enabled: false
+    max_grpc_streaming_packet_size: 2097152
     max_query_expression_size_bytes: 131072
     query_end_cutoff: 30s
 metrics_generator:
