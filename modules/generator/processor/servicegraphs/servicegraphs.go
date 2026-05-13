@@ -15,6 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
+	semconvnew "go.opentelemetry.io/otel/semconv/v1.34.0"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs/store"
@@ -93,6 +94,7 @@ type Processor struct {
 	serviceGraphRequestClientSecondsHistogram          registry.Histogram
 	serviceGraphRequestMessagingSystemSecondsHistogram registry.Histogram
 	dimensionLabels                                    []dimensionLabel
+	usesDefaultDatabaseNameAttributes                  bool
 	filter                                             *spanfilter.SpanFilter
 	usesSpanMultiplier                                 bool
 
@@ -151,6 +153,7 @@ func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, fi
 		serviceGraphRequestClientSecondsHistogram:          reg.NewHistogram(metricRequestClientSeconds, cfg.HistogramBuckets, cfg.HistogramOverride),
 		serviceGraphRequestMessagingSystemSecondsHistogram: reg.NewHistogram(metricRequestMessagingSystemSeconds, cfg.HistogramBuckets, cfg.HistogramOverride),
 		dimensionLabels:                                    dimensionLabels,
+		usesDefaultDatabaseNameAttributes:                  usesDefaultDatabaseNameAttributes(cfg.DatabaseNameAttributes),
 		filter:                                             filter,
 		usesSpanMultiplier:                                 cfg.SpanMultiplierKey != "" || cfg.EnableTraceStateSpanMultiplier,
 
@@ -435,11 +438,15 @@ func (p *Processor) upsertDatabaseRequest(e *store.Edge, resourceAttr []*v1_comm
 	)
 
 	// Check for db.name or db.namespace first.  The dbName is set initially to maintain backwards compatbility.
-	for _, attrName := range p.Cfg.DatabaseNameAttributes {
-		if name, ok := processor_util.FindAttributeValue(attrName, resourceAttr, span.Attributes); ok {
-			dbName = name
-			isDatabase = true
-			break
+	if p.usesDefaultDatabaseNameAttributes {
+		dbName, isDatabase = findDefaultDatabaseName(resourceAttr, span.Attributes)
+	} else {
+		for _, attrName := range p.Cfg.DatabaseNameAttributes {
+			if name, ok := processor_util.FindAttributeValue(attrName, resourceAttr, span.Attributes); ok {
+				dbName = name
+				isDatabase = true
+				break
+			}
 		}
 	}
 
@@ -476,6 +483,52 @@ func (p *Processor) upsertDatabaseRequest(e *store.Edge, resourceAttr []*v1_comm
 	if dbName != "" {
 		e.ServerService = dbName
 	}
+}
+
+func usesDefaultDatabaseNameAttributes(attrs []string) bool {
+	return len(attrs) == 3 &&
+		attrs[0] == string(semconvnew.DBNamespaceKey) &&
+		attrs[1] == string(semconv.DBNameKey) &&
+		attrs[2] == string(semconv.DBSystemKey)
+}
+
+func findDefaultDatabaseName(resourceAttr, spanAttr []*v1_common.KeyValue) (string, bool) {
+	namespace, name, system, hasNamespace, hasName, hasSystem := scanDefaultDatabaseNameAttributes(resourceAttr, "", "", "", false, false, false)
+	namespace, name, system, hasNamespace, hasName, hasSystem = scanDefaultDatabaseNameAttributes(spanAttr, namespace, name, system, hasNamespace, hasName, hasSystem)
+
+	switch {
+	case hasNamespace:
+		return namespace, true
+	case hasName:
+		return name, true
+	case hasSystem:
+		return system, true
+	default:
+		return "", false
+	}
+}
+
+func scanDefaultDatabaseNameAttributes(attrs []*v1_common.KeyValue, namespace, name, system string, hasNamespace, hasName, hasSystem bool) (string, string, string, bool, bool, bool) {
+	for _, kv := range attrs {
+		switch kv.Key {
+		case string(semconvnew.DBNamespaceKey):
+			if !hasNamespace {
+				namespace = tempo_util.StringifyAnyValue(kv.Value)
+				hasNamespace = true
+			}
+		case string(semconv.DBNameKey):
+			if !hasName {
+				name = tempo_util.StringifyAnyValue(kv.Value)
+				hasName = true
+			}
+		case string(semconv.DBSystemKey):
+			if !hasSystem {
+				system = tempo_util.StringifyAnyValue(kv.Value)
+				hasSystem = true
+			}
+		}
+	}
+	return namespace, name, system, hasNamespace, hasName, hasSystem
 }
 
 func (p *Processor) Shutdown(_ context.Context) {
