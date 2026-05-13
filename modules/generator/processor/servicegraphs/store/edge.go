@@ -27,7 +27,12 @@ type Edge struct {
 	// Intrusive list pointers; mutated only by *store under store.mtx.
 	prev, next *Edge
 
+	// TraceID is used when the trace ID is already a string or is too large to
+	// keep in TraceIDBytes. Normal OTLP trace IDs use TraceIDBytes to avoid
+	// hex-encoding before the exemplar is actually collected.
 	TraceID                                        string
+	TraceIDLen                                     int
+	TraceIDRaw                                     [16]byte
 	ConnectionType                                 ConnectionType
 	ServerService, ClientService                   string
 	ServerLatencySec, ClientLatencySec             float64

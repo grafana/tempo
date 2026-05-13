@@ -451,6 +451,8 @@ func TestResetEdge(t *testing.T) {
 	e := &Edge{
 		key:                     "test-key",
 		TraceID:                 "trace-123",
+		TraceIDLen:              8,
+		TraceIDRaw:              [16]byte{1, 2, 3, 4, 5, 6, 7, 8},
 		ConnectionType:          Database,
 		ServerService:           "server-svc",
 		ClientService:           "client-svc",
@@ -471,6 +473,8 @@ func TestResetEdge(t *testing.T) {
 	// Verify all fields are properly reset
 	assert.Equal(t, "", e.key, "key should be preserved")
 	assert.Equal(t, "", e.TraceID, "TraceID should be reset")
+	assert.Equal(t, 0, e.TraceIDLen, "TraceIDLen should be reset")
+	assert.Equal(t, [16]byte{}, e.TraceIDRaw, "TraceIDRaw should be reset")
 	assert.Equal(t, Unknown, e.ConnectionType, "ConnectionType should be reset to Unknown")
 	assert.Equal(t, "", e.ServerService, "ServerService should be reset")
 	assert.Equal(t, "", e.ClientService, "ClientService should be reset")

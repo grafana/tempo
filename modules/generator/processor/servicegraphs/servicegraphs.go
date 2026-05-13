@@ -309,10 +309,7 @@ type clientEdgeUpdate struct {
 }
 
 func updateClientEdge(e *store.Edge, u clientEdgeUpdate) {
-	// TraceID is forwarded to histogram exemplars (which keep the string after
-	// scrape) and the edge is recycled with its keyBuf preserved, so this must
-	// be a freshly owned string, not a substring of any pooled buffer.
-	e.TraceID = tempo_util.TraceIDToHexString(u.span.TraceId)
+	u.p.setEdgeTraceID(e, u.span.TraceId)
 	e.ConnectionType = u.connectionType
 	e.ClientService = u.svcName
 	e.ClientLatencySec = spanDurationSec(u.span)
@@ -336,7 +333,7 @@ type serverEdgeUpdate struct {
 
 func updateServerEdge(e *store.Edge, u serverEdgeUpdate) {
 	if u.root {
-		e.TraceID = tempo_util.TraceIDToHexString(u.span.TraceId)
+		u.p.setEdgeTraceID(e, u.span.TraceId)
 	}
 	e.ConnectionType = u.connectionType
 	e.ServerService = u.svcName
@@ -505,19 +502,59 @@ func (p *Processor) onComplete(e *store.Edge) {
 		p.serviceGraphRequestFailedTotal.IncWithHashAt(registryLabelValues.Labels, registryLabelValues.Hash, 1*e.SpanMultiplier, updateTimeMs)
 	}
 
-	p.serviceGraphRequestServerSecondsHistogram.ObserveWithExemplarWithHashAt(registryLabelValues.Labels, registryLabelValues.Hash, e.ServerLatencySec, e.TraceID, e.SpanMultiplier, updateTimeMs)
-	p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplarWithHashAt(registryLabelValues.Labels, registryLabelValues.Hash, e.ClientLatencySec, e.TraceID, e.SpanMultiplier, updateTimeMs)
+	if p.Cfg.HistogramOverride == registry.HistogramModeClassic && e.TraceIDLen > 0 {
+		traceID := e.TraceIDRaw[:e.TraceIDLen]
+		p.serviceGraphRequestServerSecondsHistogram.ObserveWithExemplarTraceIDBytesWithHashAt(registryLabelValues.Labels, registryLabelValues.Hash, e.ServerLatencySec, traceID, e.SpanMultiplier, updateTimeMs)
+		p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplarTraceIDBytesWithHashAt(registryLabelValues.Labels, registryLabelValues.Hash, e.ClientLatencySec, traceID, e.SpanMultiplier, updateTimeMs)
+
+		if p.Cfg.EnableMessagingSystemLatencyHistogram && e.ConnectionType == store.MessagingSystem {
+			messagingSystemLatencySec := unixNanosDiffSec(e.ClientEndTimeUnixNano, e.ServerStartTimeUnixNano)
+			if messagingSystemLatencySec == 0 {
+				level.Warn(p.logger).Log("msg", "producerSpanEndTime must be smaller than consumerSpanStartTime. maybe the peers clocks are not synced", "messagingSystemLatencySec", messagingSystemLatencySec, "traceID", edgeTraceIDString(e))
+			} else {
+				p.serviceGraphRequestMessagingSystemSecondsHistogram.ObserveWithExemplarTraceIDBytesWithHashAt(registryLabelValues.Labels, registryLabelValues.Hash, messagingSystemLatencySec, traceID, e.SpanMultiplier, updateTimeMs)
+			}
+		}
+
+		registryLabelValues.Release()
+		return
+	}
+
+	traceID := edgeTraceIDString(e)
+	p.serviceGraphRequestServerSecondsHistogram.ObserveWithExemplarWithHashAt(registryLabelValues.Labels, registryLabelValues.Hash, e.ServerLatencySec, traceID, e.SpanMultiplier, updateTimeMs)
+	p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplarWithHashAt(registryLabelValues.Labels, registryLabelValues.Hash, e.ClientLatencySec, traceID, e.SpanMultiplier, updateTimeMs)
 
 	if p.Cfg.EnableMessagingSystemLatencyHistogram && e.ConnectionType == store.MessagingSystem {
 		messagingSystemLatencySec := unixNanosDiffSec(e.ClientEndTimeUnixNano, e.ServerStartTimeUnixNano)
 		if messagingSystemLatencySec == 0 {
-			level.Warn(p.logger).Log("msg", "producerSpanEndTime must be smaller than consumerSpanStartTime. maybe the peers clocks are not synced", "messagingSystemLatencySec", messagingSystemLatencySec, "traceID", e.TraceID)
+			level.Warn(p.logger).Log("msg", "producerSpanEndTime must be smaller than consumerSpanStartTime. maybe the peers clocks are not synced", "messagingSystemLatencySec", messagingSystemLatencySec, "traceID", traceID)
 		} else {
-			p.serviceGraphRequestMessagingSystemSecondsHistogram.ObserveWithExemplarWithHashAt(registryLabelValues.Labels, registryLabelValues.Hash, messagingSystemLatencySec, e.TraceID, e.SpanMultiplier, updateTimeMs)
+			p.serviceGraphRequestMessagingSystemSecondsHistogram.ObserveWithExemplarWithHashAt(registryLabelValues.Labels, registryLabelValues.Hash, messagingSystemLatencySec, traceID, e.SpanMultiplier, updateTimeMs)
 		}
 	}
 
 	registryLabelValues.Release()
+}
+
+func (p *Processor) setEdgeTraceID(e *store.Edge, traceID []byte) {
+	e.TraceID = ""
+	e.TraceIDLen = 0
+	if len(traceID) == 0 {
+		return
+	}
+	if p.Cfg.HistogramOverride != registry.HistogramModeClassic || len(traceID) > len(e.TraceIDRaw) {
+		e.TraceID = tempo_util.TraceIDToHexString(traceID)
+		return
+	}
+	copy(e.TraceIDRaw[:], traceID)
+	e.TraceIDLen = len(traceID)
+}
+
+func edgeTraceIDString(e *store.Edge) string {
+	if e.TraceIDLen > 0 {
+		return tempo_util.TraceIDToHexString(e.TraceIDRaw[:e.TraceIDLen])
+	}
+	return e.TraceID
 }
 
 func (p *Processor) onExpire(e *store.Edge) {
