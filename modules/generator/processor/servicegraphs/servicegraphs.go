@@ -572,7 +572,7 @@ func (p *Processor) onCompleteAt(e *store.Edge, updateTimeMs int64) {
 		p.serviceGraphRequestFailedTotal.IncWithHashAt(registryLabelValues.Labels, registryLabelValues.Hash, 1*e.SpanMultiplier, updateTimeMs)
 	}
 
-	if p.Cfg.HistogramOverride == registry.HistogramModeClassic && e.TraceIDLen > 0 {
+	if (p.Cfg.HistogramOverride == registry.HistogramModeClassic || p.Cfg.HistogramOverride == registry.HistogramModeNative) && e.TraceIDLen > 0 {
 		traceID := e.TraceIDRaw[:e.TraceIDLen]
 		p.serviceGraphRequestServerSecondsHistogram.ObserveWithExemplarTraceIDBytesWithHashAt(registryLabelValues.Labels, registryLabelValues.Hash, e.ServerLatencySec, traceID, e.SpanMultiplier, updateTimeMs)
 		p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplarTraceIDBytesWithHashAt(registryLabelValues.Labels, registryLabelValues.Hash, e.ClientLatencySec, traceID, e.SpanMultiplier, updateTimeMs)
@@ -612,12 +612,15 @@ func (p *Processor) setEdgeTraceID(e *store.Edge, traceID []byte) {
 	if len(traceID) == 0 {
 		return
 	}
-	if p.Cfg.HistogramOverride != registry.HistogramModeClassic || len(traceID) > len(e.TraceIDRaw) {
-		e.TraceID = tempo_util.TraceIDToHexString(traceID)
-		return
+	if len(traceID) <= len(e.TraceIDRaw) {
+		switch p.Cfg.HistogramOverride {
+		case registry.HistogramModeClassic, registry.HistogramModeNative:
+			copy(e.TraceIDRaw[:], traceID)
+			e.TraceIDLen = len(traceID)
+			return
+		}
 	}
-	copy(e.TraceIDRaw[:], traceID)
-	e.TraceIDLen = len(traceID)
+	e.TraceID = tempo_util.TraceIDToHexString(traceID)
 }
 
 func edgeTraceIDString(e *store.Edge) string {

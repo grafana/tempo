@@ -150,10 +150,28 @@ func (h *nativeHistogram) ObserveWithExemplarWithHashAt(lbls labels.Labels, hash
 }
 
 func (h *nativeHistogram) ObserveWithExemplarTraceIDBytesWithHashAt(lbls labels.Labels, hash uint64, value float64, traceID []byte, multiplier float64, timeMs int64) {
-	h.ObserveWithExemplarWithHashAt(lbls, hash, value, tempo_util.TraceIDToHexString(traceID), multiplier, timeMs)
+	h.seriesDemand.Insert(hash)
+
+	h.seriesMtx.Lock()
+	defer h.seriesMtx.Unlock()
+
+	s, lbls, hash := resolveSeries(h.series, hash, lbls, h.lifecycler, h.activeSeriesPerHistogramSerie())
+	if s != nil {
+		h.updateSeriesTraceIDBytes(hash, s, value, traceID, multiplier, timeMs)
+		return
+	}
+	s = h.newSeriesMetadata(lbls)
+	h.series[hash] = s
+	h.updateSeriesTraceIDBytes(hash, s, value, traceID, multiplier, timeMs)
 }
 
 func (h *nativeHistogram) newSeries(lbls labels.Labels, hash uint64, value float64, traceID string, multiplier float64, timeMs int64) *nativeHistogramSeries {
+	newSeries := h.newSeriesMetadata(lbls)
+	h.updateSeries(hash, newSeries, value, traceID, multiplier, timeMs)
+	return newSeries
+}
+
+func (h *nativeHistogram) newSeriesMetadata(lbls labels.Labels) *nativeHistogramSeries {
 	// Configure histogram based on mode
 	//
 	// Native-only mode sets buckets to nil, and uses the histogram.Exemplars slice as the native exemplar format.
@@ -196,8 +214,6 @@ func (h *nativeHistogram) newSeries(lbls labels.Labels, hash uint64, value float
 		newSeries.promHistogram = prometheus.NewHistogram(nativeOpts)
 	}
 
-	h.updateSeries(hash, newSeries, value, traceID, multiplier, timeMs)
-
 	lb := newSeriesLabelsBuilder(lbls, h.externalLabels)
 
 	lb.Set(labels.MetricName, h.metricName)
@@ -223,6 +239,17 @@ func (h *nativeHistogram) newSeries(lbls labels.Labels, hash uint64, value float
 	lb.Set(labels.BucketLabel, "+Inf")
 	lb.Reset(newSeries.labels)
 	return newSeries
+}
+
+func (h *nativeHistogram) updateSeriesTraceIDBytes(hash uint64, s *nativeHistogramSeries, value float64, traceID []byte, multiplier float64, timeMs int64) {
+	if s.nativeAccumulator != nil {
+		s.nativeAccumulator.observeTraceIDBytes(value, traceID, multiplier, h.traceIDLabelName)
+		s.lastUpdated = timeMs
+		h.lifecycler.OnUpdate(hash, h.activeSeriesPerHistogramSerie())
+		return
+	}
+
+	h.updateSeries(hash, s, value, tempo_util.TraceIDToHexString(traceID), multiplier, timeMs)
 }
 
 func (h *nativeHistogram) updateSeries(hash uint64, s *nativeHistogramSeries, value float64, traceID string, multiplier float64, timeMs int64) {
@@ -338,7 +365,7 @@ func (h *nativeHistogram) nativeAccumulatorHistogram(appender storage.Appender, 
 	for i := range s.nativeAccumulator.exemplars {
 		ex := &s.nativeAccumulator.exemplars[i]
 		_, err = appender.AppendExemplar(ref, lbls, exemplar.Exemplar{
-			Labels: labels.FromStrings(ex.labelName, ex.labelValue),
+			Labels: labels.FromStrings(h.traceIDLabelName, ex.cachedLabelValueString()),
 			Value:  ex.value,
 			Ts:     timeMs,
 		})

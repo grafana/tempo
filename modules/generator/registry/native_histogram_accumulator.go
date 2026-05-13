@@ -8,6 +8,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	promhistogram "github.com/prometheus/prometheus/model/histogram"
+
+	tempo_util "github.com/grafana/tempo/pkg/util"
 )
 
 const (
@@ -45,10 +47,12 @@ type nativeHistogramAccumulator struct {
 }
 
 type nativeHistogramAccumulatorExemplar struct {
-	labelName  string
-	labelValue string
-	value      float64
-	timestamp  time.Time
+	labelValue    string
+	labelValueRaw [16]byte
+	labelValueLen int
+	hasRawValue   bool
+	value         float64
+	timestamp     time.Time
 }
 
 func useNativeHistogramAccumulator(hasClassic bool, bucketFactor float64, _ uint32) bool {
@@ -76,18 +80,37 @@ func newNativeHistogramAccumulator(bucketFactor float64, maxBuckets uint32, minR
 	return a
 }
 
-func (a *nativeHistogramAccumulator) observe(value float64, traceID string, multiplier float64, traceIDLabelName string) {
+func (a *nativeHistogramAccumulator) observe(value float64, traceID string, multiplier float64, _ string) {
+	ex := nativeHistogramAccumulatorExemplar{
+		labelValue: traceID,
+	}
+	a.observeWithExemplar(value, ex, multiplier)
+}
+
+func (a *nativeHistogramAccumulator) observeTraceIDBytes(value float64, traceID []byte, multiplier float64, _ string) {
+	ex := nativeHistogramAccumulatorExemplar{}
+	if len(traceID) <= len(ex.labelValueRaw) {
+		copy(ex.labelValueRaw[:], traceID)
+		ex.labelValueLen = len(traceID)
+		ex.hasRawValue = true
+	} else {
+		ex.labelValue = tempo_util.TraceIDToHexString(traceID)
+	}
+	a.observeWithExemplar(value, ex, multiplier)
+}
+
+func (a *nativeHistogramAccumulator) observeWithExemplar(value float64, ex nativeHistogramAccumulatorExemplar, multiplier float64) {
 	if multiplier == 1 {
-		a.observeOne(value, traceID, traceIDLabelName)
+		a.observeOne(value, ex)
 		return
 	}
 
 	for i := 0.0; i < multiplier; i++ {
-		a.observeOne(value, traceID, traceIDLabelName)
+		a.observeOne(value, ex)
 	}
 }
 
-func (a *nativeHistogramAccumulator) observeOne(value float64, traceID string, traceIDLabelName string) {
+func (a *nativeHistogramAccumulator) observeOne(value float64, ex nativeHistogramAccumulatorExemplar) {
 	a.maybeRunScheduledReset()
 
 	a.count++
@@ -107,7 +130,7 @@ func (a *nativeHistogramAccumulator) observeOne(value float64, traceID string, t
 		a.negativeBucketCounts[key]++
 	}
 	a.limitBuckets(value)
-	a.addExemplar(value, traceID, traceIDLabelName)
+	a.addExemplar(value, ex)
 }
 
 func (a *nativeHistogramAccumulator) bucketKey(value float64) (int, bool, bool) {
@@ -145,13 +168,18 @@ func (a *nativeHistogramAccumulator) bucketKey(value float64) (int, bool, bool) 
 	}
 }
 
-func (a *nativeHistogramAccumulator) addExemplar(value float64, traceID string, traceIDLabelName string) {
-	ex := nativeHistogramAccumulatorExemplar{
-		labelName:  traceIDLabelName,
-		labelValue: traceID,
-		value:      value,
-		timestamp:  time.Now(),
+func (ex *nativeHistogramAccumulatorExemplar) cachedLabelValueString() string {
+	if !ex.hasRawValue {
+		return ex.labelValue
 	}
+	ex.labelValue = tempo_util.TraceIDToHexString(ex.labelValueRaw[:ex.labelValueLen])
+	ex.hasRawValue = false
+	return ex.labelValue
+}
+
+func (a *nativeHistogramAccumulator) addExemplar(value float64, ex nativeHistogramAccumulatorExemplar) {
+	ex.value = value
+	ex.timestamp = time.Now()
 
 	if len(a.exemplars) < cap(a.exemplars) {
 		insertAt := sort.Search(len(a.exemplars), func(i int) bool {
