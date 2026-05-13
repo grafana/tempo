@@ -402,6 +402,48 @@ func TestStoreUpsertEdgeFromBytesWith_StackKey(t *testing.T) {
 	assert.Equal(t, 0, s.len())
 }
 
+func TestStoreUpsertEdgeFromBytesWithCompletion_UsesCompletionCallback(t *testing.T) {
+	type state struct {
+		clientService string
+		serverService string
+		completedAt   int
+	}
+
+	var fallbackCompleted int
+	storeInterface := NewStore(time.Hour, 1, countingCallback(&fallbackCompleted), noopCallback, newTestCounter())
+	s := storeInterface.(*store)
+
+	traceID := []byte{0x01, 0x02, 0x03, 0x04}
+	spanID := []byte{0xa1, 0xa2, 0xa3, 0xa4}
+	st := state{
+		clientService: clientService,
+		serverService: "server",
+		completedAt:   123,
+	}
+
+	isNew, err := UpsertEdgeFromBytesWithCompletion(s, traceID, spanID, Client, st, func(e *Edge, st state) {
+		e.ClientService = st.clientService
+	}, func(*Edge, state) {
+		t.Fatal("completion callback called before edge is complete")
+	})
+	require.NoError(t, err)
+	require.True(t, isNew)
+
+	var completedAt int
+	isNew, err = UpsertEdgeFromBytesWithCompletion(s, traceID, spanID, Server, st, func(e *Edge, st state) {
+		e.ServerService = st.serverService
+	}, func(e *Edge, st state) {
+		assert.Equal(t, clientService, e.ClientService)
+		assert.Equal(t, st.serverService, e.ServerService)
+		completedAt = st.completedAt
+	})
+	require.NoError(t, err)
+	require.False(t, isNew)
+	assert.Equal(t, st.completedAt, completedAt)
+	assert.Equal(t, 0, fallbackCompleted)
+	assert.Equal(t, 0, s.len())
+}
+
 func TestStoreUpsertEdgeFromBytesWith_HeapFallback(t *testing.T) {
 	// IDs whose hex+'-'+hex exceeds 64 bytes force the heap fallback at
 	// store.go:165. Use 33-byte IDs so encodedKeyLen = 66+1+66 = 133 > 64.

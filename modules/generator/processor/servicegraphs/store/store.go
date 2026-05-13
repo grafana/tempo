@@ -148,16 +148,22 @@ func (s *store) UpsertEdgeFromBytes(traceID, spanID []byte, side Side, update Ca
 // UpsertEdgeFromBytesWith is like Store.UpsertEdgeFromBytes, but passes typed
 // state to a top-level update function so callers can avoid per-call closures.
 func UpsertEdgeFromBytesWith[T any](st Store, traceID, spanID []byte, side Side, state T, update func(*Edge, T)) (isNew bool, err error) {
+	return UpsertEdgeFromBytesWithCompletion(st, traceID, spanID, side, state, update, nil)
+}
+
+// UpsertEdgeFromBytesWithCompletion is like UpsertEdgeFromBytesWith, but lets
+// callers customize completion while retaining the closure-free update path.
+func UpsertEdgeFromBytesWithCompletion[T any](st Store, traceID, spanID []byte, side Side, state T, update func(*Edge, T), complete func(*Edge, T)) (isNew bool, err error) {
 	s, ok := st.(*store)
 	if !ok {
 		return st.UpsertEdgeFromBytes(traceID, spanID, side, func(edge *Edge) {
 			update(edge, state)
 		})
 	}
-	return upsertEdgeFromBytesWith(s, traceID, spanID, side, state, update)
+	return upsertEdgeFromBytesWith(s, traceID, spanID, side, state, update, complete)
 }
 
-func upsertEdgeFromBytesWith[T any](s *store, traceID, spanID []byte, side Side, state T, update func(*Edge, T)) (isNew bool, err error) {
+func upsertEdgeFromBytesWith[T any](s *store, traceID, spanID []byte, side Side, state T, update func(*Edge, T), complete func(*Edge, T)) (isNew bool, err error) {
 	encodedLen := encodedKeyLen(traceID, spanID)
 	if encodedLen > 64 {
 		return s.UpsertEdge(encodeKey(traceID, spanID), side, func(edge *Edge) {
@@ -175,7 +181,7 @@ func upsertEdgeFromBytesWith[T any](s *store, traceID, spanID []byte, side Side,
 		update(edge, state)
 
 		if edge.isComplete() {
-			s.onComplete(edge)
+			completeEdge(s, edge, state, complete)
 			s.deleteEdge(edge)
 		}
 
@@ -190,7 +196,7 @@ func upsertEdgeFromBytesWith[T any](s *store, traceID, spanID []byte, side Side,
 	update(edge, state)
 
 	if edge.isComplete() {
-		s.onComplete(edge)
+		completeEdge(s, edge, state, complete)
 		s.returnEdge(edge)
 		return true, nil
 	}
@@ -206,6 +212,14 @@ func upsertEdgeFromBytesWith[T any](s *store, traceID, spanID []byte, side Side,
 	s.m[edge.key] = edge
 
 	return true, nil
+}
+
+func completeEdge[T any](s *store, edge *Edge, state T, complete func(*Edge, T)) {
+	if complete != nil {
+		complete(edge, state)
+		return
+	}
+	s.onComplete(edge)
 }
 
 func (s *store) pushBack(edge *Edge) {

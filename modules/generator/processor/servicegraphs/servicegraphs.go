@@ -204,6 +204,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 	var (
 		isNew             bool
 		totalDroppedSpans int
+		updateTimeMs      = time.Now().UnixMilli()
 	)
 	for _, rs := range resourceSpans {
 		svcName, ok := processor_util.FindServiceName(rs.Resource.Attributes)
@@ -235,14 +236,15 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 					connectionType = store.MessagingSystem
 					fallthrough
 				case v1_trace.Span_SPAN_KIND_CLIENT:
-					isNew, err = store.UpsertEdgeFromBytesWith(p.store, span.TraceId, span.SpanId, store.Client, clientEdgeUpdate{
+					isNew, err = store.UpsertEdgeFromBytesWithCompletion(p.store, span.TraceId, span.SpanId, store.Client, clientEdgeUpdate{
 						p:              p,
 						resourceAttr:   rs.Resource.Attributes,
 						span:           span,
 						svcName:        svcName,
 						connectionType: connectionType,
 						spanMultiplier: spanMultiplier,
-					}, updateClientEdge)
+						updateTimeMs:   updateTimeMs,
+					}, updateClientEdge, completeClientEdge)
 
 				case v1_trace.Span_SPAN_KIND_CONSUMER:
 					// override connection type and continue processing as span kind server
@@ -250,7 +252,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 					fallthrough
 				case v1_trace.Span_SPAN_KIND_SERVER:
 					if len(span.ParentSpanId) == 0 {
-						isNew, err = store.UpsertEdgeFromBytesWith(p.store, span.TraceId, span.ParentSpanId, store.Server, serverEdgeUpdate{
+						isNew, err = store.UpsertEdgeFromBytesWithCompletion(p.store, span.TraceId, span.ParentSpanId, store.Server, serverEdgeUpdate{
 							p:              p,
 							resourceAttr:   rs.Resource.Attributes,
 							span:           span,
@@ -258,16 +260,18 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 							connectionType: connectionType,
 							spanMultiplier: spanMultiplier,
 							root:           true,
-						}, updateServerEdge)
+							updateTimeMs:   updateTimeMs,
+						}, updateServerEdge, completeServerEdge)
 					} else {
-						isNew, err = store.UpsertEdgeFromBytesWith(p.store, span.TraceId, span.ParentSpanId, store.Server, serverEdgeUpdate{
+						isNew, err = store.UpsertEdgeFromBytesWithCompletion(p.store, span.TraceId, span.ParentSpanId, store.Server, serverEdgeUpdate{
 							p:              p,
 							resourceAttr:   rs.Resource.Attributes,
 							span:           span,
 							svcName:        svcName,
 							connectionType: connectionType,
 							spanMultiplier: spanMultiplier,
-						}, updateServerEdge)
+							updateTimeMs:   updateTimeMs,
+						}, updateServerEdge, completeServerEdge)
 					}
 				}
 
@@ -306,6 +310,7 @@ type clientEdgeUpdate struct {
 	svcName        string
 	connectionType store.ConnectionType
 	spanMultiplier float64
+	updateTimeMs   int64
 }
 
 func updateClientEdge(e *store.Edge, u clientEdgeUpdate) {
@@ -321,6 +326,10 @@ func updateClientEdge(e *store.Edge, u clientEdgeUpdate) {
 	u.p.upsertDatabaseRequest(e, u.resourceAttr, u.span)
 }
 
+func completeClientEdge(e *store.Edge, u clientEdgeUpdate) {
+	u.p.onCompleteAt(e, u.updateTimeMs)
+}
+
 type serverEdgeUpdate struct {
 	p              *Processor
 	resourceAttr   []*v1_common.KeyValue
@@ -329,6 +338,7 @@ type serverEdgeUpdate struct {
 	connectionType store.ConnectionType
 	spanMultiplier float64
 	root           bool
+	updateTimeMs   int64
 }
 
 func updateServerEdge(e *store.Edge, u serverEdgeUpdate) {
@@ -353,6 +363,10 @@ func updateServerEdge(e *store.Edge, u serverEdgeUpdate) {
 		// carry peer.* attributes (uncommon in OTel SDKs).
 		u.p.upsertPeerNode(e, u.span.Attributes)
 	}
+}
+
+func completeServerEdge(e *store.Edge, u serverEdgeUpdate) {
+	u.p.onCompleteAt(e, u.updateTimeMs)
 }
 
 func (p *Processor) upsertDimensions(prefix string, m map[string]string, resourceAttr, spanAttr []*v1_common.KeyValue) {
@@ -469,6 +483,10 @@ func (p *Processor) Shutdown(_ context.Context) {
 }
 
 func (p *Processor) onComplete(e *store.Edge) {
+	p.onCompleteAt(e, time.Now().UnixMilli())
+}
+
+func (p *Processor) onCompleteAt(e *store.Edge, updateTimeMs int64) {
 	builder := p.registry.NewLabelBuilder()
 	builder.Add("client", e.ClientService)
 	builder.Add("server", e.ServerService)
@@ -495,7 +513,6 @@ func (p *Processor) onComplete(e *store.Edge) {
 		p.invalidUTF8Counter.Inc()
 		return
 	}
-	updateTimeMs := time.Now().UnixMilli()
 
 	p.serviceGraphRequestTotal.IncWithHashAt(registryLabelValues.Labels, registryLabelValues.Hash, 1*e.SpanMultiplier, updateTimeMs)
 	if e.Failed {
