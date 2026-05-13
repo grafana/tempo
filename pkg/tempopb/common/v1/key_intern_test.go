@@ -23,6 +23,21 @@ func TestInternKey(t *testing.T) {
 	}
 }
 
+func TestUnmarshalKey(t *testing.T) {
+	previous := "custom.tenant.attribute"
+	if got := unmarshalKey(previous, []byte(previous)); got != previous {
+		t.Fatalf("unmarshalKey() = %q, want %q", got, previous)
+	}
+
+	if got := unmarshalKey(previous, []byte("custom.tenant.other")); got != "custom.tenant.other" {
+		t.Fatalf("unmarshalKey() = %q, want %q", got, "custom.tenant.other")
+	}
+
+	if got := unmarshalKey(previous, []byte("service.name")); got != "service.name" {
+		t.Fatalf("unmarshalKey() = %q, want %q", got, "service.name")
+	}
+}
+
 func TestInternStringValue(t *testing.T) {
 	for _, value := range []string{
 		"GET",

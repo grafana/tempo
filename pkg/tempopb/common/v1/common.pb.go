@@ -1423,6 +1423,7 @@ func (m *KeyValueList) Unmarshal(dAtA []byte) error {
 	return nil
 }
 func (m *KeyValue) Unmarshal(dAtA []byte) error {
+	previousKey := m.Key
 	previousValue := m.Value
 	m.Key = ""
 	m.Value = nil
@@ -1484,7 +1485,7 @@ func (m *KeyValue) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Key = internKey(dAtA[iNdEx:postIndex])
+			m.Key = unmarshalKey(previousKey, dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {

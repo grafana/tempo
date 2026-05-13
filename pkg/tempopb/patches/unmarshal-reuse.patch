@@ -165,7 +165,7 @@ index 370663198..74ab1582c 100644
  				return err
  			}
  			iNdEx = postIndex
-@@ -1350,9 +1417,15 @@ func (m *KeyValueList) Unmarshal(dAtA []byte) error {
+@@ -1350,9 +1417,16 @@ func (m *KeyValueList) Unmarshal(dAtA []byte) error {
  	if iNdEx > l {
  		return io.ErrUnexpectedEOF
  	}
@@ -175,12 +175,16 @@ index 370663198..74ab1582c 100644
  	return nil
  }
  func (m *KeyValue) Unmarshal(dAtA []byte) error {
++	previousKey := m.Key
 +	previousValue := m.Value
 +	m.Key = ""
 +	m.Value = nil
  	l := len(dAtA)
  	iNdEx := 0
  	for iNdEx < l {
+@@ -1413 +1487 @@ func (m *KeyValue) Unmarshal(dAtA []byte) error {
+-			m.Key = internKey(dAtA[iNdEx:postIndex])
++			m.Key = unmarshalKey(previousKey, dAtA[iNdEx:postIndex])
 @@ -1442,7 +1515,9 @@ func (m *KeyValue) Unmarshal(dAtA []byte) error {
  			if postIndex > l {
  				return io.ErrUnexpectedEOF
