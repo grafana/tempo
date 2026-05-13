@@ -414,24 +414,23 @@ _config+:: {
 
       // block_builder_scaling controls how block-builder replicas track live-store:
       //   'rollout-operator' (default): rollout-operator mirrors live-store zone-a replicas
-      //     to block-builder. Requires rollout_operator_replica_template_access_enabled: true.
-      //     Recommended: block-builder intentionally lags zone-a through the drain window
-      //     so in-flight data is not lost on scale-down.
+      //     directly to block-builder. Faster on both scale-up and scale-down.
+      //     Block-builder stays alive through the drain window so in-flight data is not lost.
+      //     rollout_operator_replica_template_access_enabled is set automatically.
       //   'keda': a dedicated block-builder KEDA ScaledObject uses a kubernetes-workload
-      //     trigger to count live-store zone-a pods. Does not require rollout-operator RBAC.
+      //     trigger to count live-store zone-a pods. Reaction time is bounded by KEDA's
+      //     polling cycle and stabilization windows. Does not require rollout-operator RBAC.
       // block_builder_scaling: 'rollout-operator',
     },
   },
-  // Required when live_store.keda.block_builder_scaling == 'rollout-operator' (the default):
-  rollout_operator_replica_template_access_enabled: true,
 },
 ```
 
 Tempo uses these trigger types when KEDA is enabled: CPU for distributor and metrics-generator, Prometheus for backend-worker and live-store.
 
-When live-store KEDA is enabled, block-builder replicas are coupled to live-store automatically. The default approach (`block_builder_scaling: 'rollout-operator'`) uses the rollout-operator to mirror the live-store zone-a replica count to block-builder, keeping block-builder alive through the live-store drain window so that in-flight data is not lost. This requires `rollout_operator_replica_template_access_enabled: true`.
+When live-store KEDA is enabled, block-builder replicas are coupled to live-store automatically. The default approach (`block_builder_scaling: 'rollout-operator'`) uses the rollout-operator to mirror the live-store zone-a replica count directly to block-builder. This is the faster approach on both scale-up and scale-down: block-builder reacts as soon as the ReplicaTemplate changes, which is the same signal zone-a responds to. Block-builder intentionally stays alive through the live-store drain window so that in-flight partition data is not lost before it is written to the backend. `rollout_operator_replica_template_access_enabled` is enabled automatically when this approach is active.
 
-Alternatively, set `block_builder_scaling: 'keda'` to use a dedicated KEDA ScaledObject (kubernetes-workload trigger) that counts live-store zone-a pods directly. This approach does not require the rollout-operator RBAC change, but block-builder scales concurrently with live-store without the drain-window lag. The value of `_config.block_builder.partitions_per_instance` (default: `1`) is injected into the block-builder config when live-store KEDA is active under either approach.
+Alternatively, set `block_builder_scaling: 'keda'` to use a dedicated KEDA ScaledObject (kubernetes-workload trigger) that counts live-store zone-a pods. Because KEDA must observe pod counts through its polling cycle and apply stabilization windows before acting, reaction time is longer than the rollout-operator approach — on scale-up, block-builder only reacts after new zone-a pods are running and counted; on scale-down, block-builder only reacts after zone-a pods have fully terminated. The block-builder KEDA defaults use aggressive scaling windows to minimize this delay. This approach does not require the rollout-operator RBAC change. The value of `_config.block_builder.partitions_per_instance` (default: `1`) is injected into the block-builder config when live-store KEDA is active under either approach.
 
 ### Optional: Reduce component system requirements
 

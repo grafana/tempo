@@ -148,12 +148,18 @@
         // Pod selector to count live-store zone-a pods.
         // KEDA sets block-builder replicas = ceil(matching pods / partitions_per_instance).
         pod_selector: 'name=live-store-zone-a',
-        scale_up_stabilization_window_seconds: 60,
-        scale_up_pods: 5,
-        scale_up_period_seconds: 60,
-        scale_down_stabilization_window_seconds: 60 * 5,
+        // Block-builder must scale up as fast as live-store: new live-store pods create new
+        // Kafka partitions that block-builders must immediately begin reading. Any delay on
+        // scale-up means partition backlogs accumulate. Use 0s stabilization so KEDA acts on
+        // the first observation (KEDA's ~30s polling interval is the practical floor).
+        scale_up_stabilization_window_seconds: 0,
+        scale_up_pods: 10,
+        scale_up_period_seconds: 30,
+        // Scale down quickly once live-store pods are gone: those partitions are reassigned
+        // and block-builder no longer needs capacity for them.
+        scale_down_stabilization_window_seconds: 60,
         scale_down_pods: 5,
-        scale_down_period_seconds: 60 * 5,
+        scale_down_period_seconds: 60,
       },
     },
 
