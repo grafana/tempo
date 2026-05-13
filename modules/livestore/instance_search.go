@@ -61,12 +61,7 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 		oteltrace.WithAttributes(attribute.String("tenant", i.tenantID)))
 	defer span.End()
 
-	i.blocksMtx.RLock()
-	span.AddEvent("acquired blocksMtx")
-	defer func() {
-		i.blocksMtx.RUnlock()
-		span.AddEvent("released blocksMtx")
-	}()
+	snap := i.blocks.Load()
 
 	var anyErr atomic.Error
 	ctx, cancel := context.WithCancel(ctx)
@@ -87,8 +82,10 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 		anyErr.Store(err)
 	}
 
-	if i.headBlock != nil {
-		meta := i.headBlock.BlockMeta()
+	// headBlock meta is mutated in place by AppendTrace; use MetaSnapshot
+	// for a stable copy.
+	if snap.headBlock != nil {
+		meta := snap.headBlock.MetaSnapshot()
 		if includeBlock(meta, reqStart, reqEnd) {
 			ctx, span := tracer.Start(ctx, "process.headBlock")
 			span.SetAttributes(attribute.String("blockID", meta.BlockID.String()))
@@ -100,7 +97,7 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 						handleErr(fmt.Errorf("processing head block (%s): panic: %v", meta.BlockID, r))
 					}
 				}()
-				if err := fn(ctx, meta, i.headBlock); err != nil {
+				if err := fn(ctx, meta, snap.headBlock); err != nil {
 					handleErr(fmt.Errorf("processing head block (%s): %w", meta.BlockID, err))
 				}
 			}()
@@ -115,7 +112,7 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 	wg := boundedwaitgroup.New(i.Cfg.QueryBlockConcurrency)
 
 	// Process wal blocks
-	for _, b := range i.walBlocks {
+	for _, b := range snap.walBlocks {
 		if ctx.Err() != nil {
 			continue
 		}
@@ -150,7 +147,7 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 	}
 
 	// Process complete blocks
-	for _, b := range i.completeBlocks {
+	for _, b := range snap.completeBlocks {
 		if ctx.Err() != nil {
 			continue
 		}

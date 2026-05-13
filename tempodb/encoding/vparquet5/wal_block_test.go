@@ -387,6 +387,7 @@ func TestWalBlockRaceConditionCheck(t *testing.T) {
 		"FetchTagNames": func() {
 			_ = w.FetchTagNames(ctx, traceql.FetchTagsRequest{}, func(string, traceql.AttributeScope) bool { return false }, func(uint64) {}, opts)
 		},
+		"MetaSnapshot": func() { _ = w.MetaSnapshot() },
 	}
 
 	for _, read := range readers {
@@ -400,6 +401,61 @@ func TestWalBlockRaceConditionCheck(t *testing.T) {
 	}
 
 	wg.Wait()
+}
+
+func TestWalBlockMetaSnapshot(t *testing.T) {
+	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
+	w, err := createWALBlock(meta, t.TempDir(), model.CurrentEncoding, 0)
+	require.NoError(t, err)
+
+	// Snapshot before any append: counts are zero, returned pointer is distinct.
+	snap0 := w.MetaSnapshot()
+	require.NotSame(t, w.BlockMeta(), snap0, "MetaSnapshot must return a fresh allocation, not the live meta pointer")
+	require.Equal(t, int64(0), snap0.TotalObjects)
+
+	// Append a trace and confirm the snapshot reflects the mutation.
+	id := test.ValidTraceID(nil)
+	tr := test.MakeTrace(10, id)
+	trace.SortTrace(tr)
+	require.NoError(t, w.AppendTrace(id, tr, 100, 200, false))
+
+	snap1 := w.MetaSnapshot()
+	require.NotSame(t, snap0, snap1, "successive MetaSnapshot calls must return distinct pointers")
+	require.Equal(t, int64(1), snap1.TotalObjects)
+	require.Equal(t, w.BlockMeta().StartTime, snap1.StartTime)
+	require.Equal(t, w.BlockMeta().EndTime, snap1.EndTime)
+
+	// Mutating the snapshot must not affect the live meta.
+	snap1.TotalObjects = 9999
+	require.Equal(t, int64(1), w.BlockMeta().TotalObjects)
+}
+
+func TestWalBlockTombstone(t *testing.T) {
+	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
+	w, err := createWALBlock(meta, t.TempDir(), model.CurrentEncoding, 0)
+	require.NoError(t, err)
+
+	id := test.ValidTraceID(nil)
+	tr := test.MakeTrace(10, id)
+	trace.SortTrace(tr)
+	require.NoError(t, w.AppendTrace(id, tr, 100, 200, false))
+	require.NoError(t, w.Flush())
+
+	metaPath := filepath.Join(w.walPath(), backend.MetaName)
+	deletedPath := filepath.Join(w.walPath(), backend.DeletedMetaName)
+
+	_, err = os.Stat(metaPath)
+	require.NoError(t, err, "meta.json should exist after Flush")
+
+	require.NoError(t, w.Tombstone())
+
+	_, err = os.Stat(metaPath)
+	assert.True(t, os.IsNotExist(err), "meta.json should be renamed away")
+	_, err = os.Stat(deletedPath)
+	assert.NoError(t, err, "meta.deleted.json should be present")
+
+	// Idempotent: a second Tombstone (meta.json is gone) returns nil.
+	require.NoError(t, w.Tombstone(), "Tombstone must be idempotent when meta.json is missing")
 }
 
 func testWalBlock(t *testing.T, f func(w *walBlock, ids []common.ID, trs []*tempopb.Trace)) {

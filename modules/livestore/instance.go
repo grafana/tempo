@@ -6,6 +6,7 @@ import (
 	"errors"
 	"iter"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-kit/log"
@@ -20,7 +21,6 @@ import (
 	util_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -114,12 +114,16 @@ type instance struct {
 	completeBlockEncoding  encoding.VersionedEncoding
 	completeBlockLifecycle completeBlockLifecycle
 
-	// Block management
-	blocksMtx      sync.RWMutex
-	headBlock      common.WALBlock
-	walBlocks      map[uuid.UUID]common.WALBlock
-	completeBlocks map[uuid.UUID]*LocalBlock
-	lastCutTime    time.Time
+	// blocksMtx serializes writers. Readers iterate the immutable snapshot
+	// via atomic.Load; for the headBlock's mutating BlockMeta they must use
+	// WALBlock.MetaSnapshot.
+	blocksMtx   sync.Mutex
+	blocks      atomic.Pointer[blockSnapshot]
+	lastCutTime time.Time
+
+	// reclaim holds blocks removed from the snapshot whose files must
+	// outlive in-flight readers; drained after the grace window.
+	reclaim *quarantine
 
 	// Live traces
 	liveTracesMtx      sync.Mutex
@@ -152,16 +156,15 @@ func newInstance(instanceID string, cfg Config, wal *wal.WAL, completeBlockEncod
 		wal:                    wal,
 		completeBlockEncoding:  completeBlockEncoding,
 		completeBlockLifecycle: completeBlockLifecycle,
-		walBlocks:              map[uuid.UUID]common.WALBlock{},
-		completeBlocks:         map[uuid.UUID]*LocalBlock{},
 		liveTraces:             livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, cfg.MaxTraceIdle, cfg.MaxTraceLive, instanceID),
 		traceSizes:             tracesizes.New(),
 		maxTraceLogger:         util_log.NewRateLimitedLogger(maxTraceLogLinesPerSecond, level.Warn(logger)),
 		overrides:              overrides,
 		tracesCreatedTotal:     metricTracesCreatedTotal.WithLabelValues(instanceID),
 		bytesReceivedTotal:     metricBytesReceivedTotal,
-		// blockOffsetMeta:   make(map[uuid.UUID]offsetMetadata),
+		reclaim:                newQuarantine(cfg.BlockReclaimGrace),
 	}
+	i.blocks.Store(emptyBlockSnapshot())
 
 	err := i.resetHeadBlock()
 	if err != nil {
@@ -216,9 +219,7 @@ func (i *instance) backpressure(ctx context.Context) bool {
 	}
 
 	// Check outstanding wal blocks
-	i.blocksMtx.RLock()
-	count := len(i.walBlocks)
-	i.blocksMtx.RUnlock()
+	count := len(i.blocks.Load().walBlocks)
 
 	if count > walBackpressureLimit {
 		// There are multiple outstanding WAL blocks that need completion
@@ -394,8 +395,8 @@ func (i *instance) cutIdleTraces(ctx context.Context, immediate bool) (bool, err
 		i.blocksMtx.Unlock()
 		span.AddEvent("released blocksMtx")
 	}()
-	if i.headBlock != nil {
-		err := i.headBlock.Flush()
+	if hb := i.blocks.Load().headBlock; hb != nil {
+		err := hb.Flush()
 		if err != nil {
 			span.SetStatus(codes.Error, err.Error())
 			span.RecordError(err)
@@ -409,11 +410,12 @@ func (i *instance) writeHeadBlock(id []byte, liveTrace *livetraces.LiveTrace[*v1
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
-	if i.headBlock == nil {
-		err := i.resetHeadBlock()
-		if err != nil {
+	hb := i.blocks.Load().headBlock
+	if hb == nil {
+		if err := i.resetHeadBlock(); err != nil {
 			return 0, err
 		}
+		hb = i.blocks.Load().headBlock
 	}
 
 	tr := &tempopb.Trace{
@@ -453,8 +455,8 @@ func (i *instance) writeHeadBlock(id []byte, liveTrace *livetraces.LiveTrace[*v1
 		endSeconds = maxEnd
 	}
 
-	err := i.headBlock.AppendTrace(id, tr, startSeconds, endSeconds, false)
-	return i.headBlock.DataLength(), err
+	err := hb.AppendTrace(id, tr, startSeconds, endSeconds, false)
+	return hb.DataLength(), err
 }
 
 func (i *instance) getDedicatedColumns() backend.DedicatedColumns {
@@ -482,7 +484,7 @@ func (i *instance) resetHeadBlock() error {
 	if err != nil {
 		return err
 	}
-	i.headBlock = block
+	i.blocks.Store(i.blocks.Load().withHeadBlock(block))
 	i.lastCutTime = time.Now()
 	return nil
 }
@@ -499,7 +501,8 @@ const (
 // shouldCutHead checks whether the head block should be cut and returns the
 // reason(s). Caller must hold blocksMtx.
 func (i *instance) shouldCutHead(immediate bool) cutReason {
-	if i.headBlock == nil || i.headBlock.DataLength() == 0 {
+	hb := i.blocks.Load().headBlock
+	if hb == nil || hb.DataLength() == 0 {
 		return cutReasonNone
 	}
 
@@ -511,7 +514,7 @@ func (i *instance) shouldCutHead(immediate bool) cutReason {
 	if time.Since(i.lastCutTime) >= i.Cfg.MaxBlockDuration {
 		reason |= cutReasonMaxBlockDuration
 	}
-	if i.headBlock.DataLength() >= i.Cfg.MaxBlockBytes {
+	if hb.DataLength() >= i.Cfg.MaxBlockBytes {
 		reason |= cutReasonMaxBlockBytes
 	}
 
@@ -549,17 +552,21 @@ func (i *instance) cutBlocks(ctx context.Context, immediate bool) (uuid.UUID, er
 
 	i.traceSizes.ClearIdle(i.lastCutTime)
 
+	snap := i.blocks.Load()
+	hb := snap.headBlock
+
 	// Final flush
-	err := i.headBlock.Flush()
-	if err != nil {
+	if err := hb.Flush(); err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 		return uuid.Nil, err
 	}
 
-	id := (uuid.UUID)(i.headBlock.BlockMeta().BlockID)
-	blockSize := i.headBlock.DataLength()
-	i.walBlocks[id] = i.headBlock
+	id := (uuid.UUID)(hb.BlockMeta().BlockID)
+	blockSize := hb.DataLength()
+
+	// Move headBlock into walBlocks and clear head, in one published snapshot.
+	i.blocks.Store(snap.withWALBlockAdded(id, hb).withHeadBlock(nil))
 
 	span.SetAttributes(
 		attribute.String("blockID", id.String()),
@@ -568,8 +575,7 @@ func (i *instance) cutBlocks(ctx context.Context, immediate bool) (uuid.UUID, er
 
 	level.Info(i.logger).Log("msg", "queueing wal block for completion", "block", id.String(), "size", blockSize)
 
-	err = i.resetHeadBlock()
-	if err != nil {
+	if err := i.resetHeadBlock(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return uuid.Nil, err
@@ -588,11 +594,7 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) (*LocalBlock
 		))
 	defer span.End()
 
-	i.blocksMtx.Lock()
-	span.AddEvent("acquired blocksMtx")
-	walBlock := i.walBlocks[id]
-	i.blocksMtx.Unlock()
-	span.AddEvent("released blocksMtx")
+	walBlock := i.blocks.Load().walBlocks[id]
 
 	if walBlock == nil {
 		level.Warn(i.logger).Log("msg", "WAL block disappeared before being completed", "id", id)
@@ -653,8 +655,10 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) (*LocalBlock
 		span.AddEvent("released blocksMtx")
 	}()
 
+	snap := i.blocks.Load()
+
 	// Verify the WAL block still exists
-	if _, ok := i.walBlocks[id]; !ok {
+	if _, ok := snap.walBlocks[id]; !ok {
 		level.Warn(i.logger).Log("msg", "WAL block disappeared while being completed, deleting complete block", "id", id)
 		err := i.wal.LocalBackend().ClearBlock(id, i.tenantID)
 		if err != nil {
@@ -666,25 +670,26 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) (*LocalBlock
 	}
 
 	completeBlock := NewLocalBlock(ctx, newBlock, i.wal.LocalBackend())
-	i.completeBlocks[id] = completeBlock
 
-	err = walBlock.Clear()
-	if err != nil {
-		level.Error(i.logger).Log("msg", "failed to clear WAL block", "id", id, "err", err)
+	// Tombstone the WAL block before publishing the new snapshot. If we
+	// crash between here and the deferred Clear, replay sees the
+	// meta.deleted.json marker and reclaims the dir.
+	if err := walBlock.Tombstone(); err != nil {
+		level.Error(i.logger).Log("msg", "failed to tombstone WAL block", "id", id, "err", err)
 		span.RecordError(err)
 	}
-	delete(i.walBlocks, (uuid.UUID)(walBlock.BlockMeta().BlockID))
+
+	walID := (uuid.UUID)(walBlock.BlockMeta().BlockID)
+	i.blocks.Store(snap.withCompleteBlockAdded(id, completeBlock).withWALBlockRemoved(walID))
+
+	// Defer file deletion past the grace window so readers on the previous
+	// snapshot don't hit ENOENT.
+	wb := walBlock
+	i.reclaim.add(walID, i.tenantID, "wal", func() error { return wb.Clear() })
 
 	level.Info(i.logger).Log("msg", "completed block", "id", id.String())
 	span.AddEvent("block completed successfully")
 	return completeBlock, nil
-}
-
-func (i *instance) getCompleteBlock(id uuid.UUID) *LocalBlock {
-	i.blocksMtx.RLock()
-	defer i.blocksMtx.RUnlock()
-
-	return i.completeBlocks[id]
 }
 
 func (i *instance) deleteOldBlocks() error {
@@ -693,32 +698,42 @@ func (i *instance) deleteOldBlocks() error {
 
 	cutoff := time.Now().Add(-i.Cfg.CompleteBlockTimeout) // Delete blocks older than Complete Block Timeout
 
-	for id, walBlock := range i.walBlocks {
+	snap := i.blocks.Load()
+	newSnap := snap
+	defer func() {
+		if newSnap != snap {
+			i.blocks.Store(newSnap)
+		}
+	}()
+
+	for id, walBlock := range snap.walBlocks {
 		if walBlock.BlockMeta().EndTime.Before(cutoff) {
-			if _, ok := i.completeBlocks[id]; !ok {
+			if _, ok := snap.completeBlocks[id]; !ok {
 				level.Warn(i.logger).Log("msg", "deleting WAL block that was never completed", "block", id.String())
 			}
-			err := walBlock.Clear()
-			if err != nil {
+			if err := walBlock.Tombstone(); err != nil {
 				return err
 			}
-			delete(i.walBlocks, id)
-			metricBlocksClearedTotal.WithLabelValues("wal").Inc()
+			newSnap = newSnap.withWALBlockRemoved(id)
+			wb := walBlock
+			i.reclaim.add(id, i.tenantID, "wal", func() error { return wb.Clear() })
 		}
 	}
 
-	for id, completeBlock := range i.completeBlocks {
+	for id, completeBlock := range snap.completeBlocks {
 		if !i.completeBlockLifecycle.shouldDeleteCompleteBlock(completeBlock, cutoff) {
 			continue
 		}
 
 		level.Info(i.logger).Log("msg", "deleting complete block", "block", id.String())
-		err := i.wal.LocalBackend().ClearBlock(id, i.tenantID)
-		if err != nil {
+		if err := i.wal.LocalBackend().TombstoneBlock(id, i.tenantID); err != nil {
 			return err
 		}
-		delete(i.completeBlocks, id)
-		metricBlocksClearedTotal.WithLabelValues("complete").Inc()
+		newSnap = newSnap.withCompleteBlockRemoved(id)
+		bid := id
+		tenant := i.tenantID
+		bk := i.wal.LocalBackend()
+		i.reclaim.add(bid, tenant, "complete", func() error { return bk.ClearBlock(bid, tenant) })
 	}
 
 	return nil
