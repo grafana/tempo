@@ -154,7 +154,7 @@ func TestReadMetrics(t *testing.T) {
 		assertMetricEquals(t, queryFrontend, "tempo_query_frontend_queries_within_slo_total", float64(1), map[string]string{"op": "traces", "result": "completed"})
 
 		assertMetricGreater(t, queryFrontend, "tempo_query_frontend_bytes_inspected_total", float64(0), map[string]string{"op": "metadata"})
-		assertMetricEquals(t, queryFrontend, "tempo_query_frontend_bytes_inspected_total", float64(0), map[string]string{"op": "metrics"}) // metrics is 0? possibly a bug?
+		assertMetricGreater(t, queryFrontend, "tempo_query_frontend_bytes_inspected_total", float64(0), map[string]string{"op": "metrics"})
 		assertMetricGreater(t, queryFrontend, "tempo_query_frontend_bytes_inspected_total", float64(0), map[string]string{"op": "search"})
 		assertMetricGreater(t, queryFrontend, "tempo_query_frontend_bytes_inspected_total", float64(0), map[string]string{"op": "traces"})
 
