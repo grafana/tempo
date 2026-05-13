@@ -21,7 +21,9 @@ import (
 	"go.uber.org/atomic"
 	"go.yaml.in/yaml/v3"
 
+	"github.com/grafana/dskit/clusterutil"
 	"github.com/grafana/dskit/flagext"
+	"github.com/grafana/dskit/middleware"
 	"github.com/grafana/dskit/services"
 )
 
@@ -37,17 +39,27 @@ type Config struct {
 	ReloadPeriod time.Duration `yaml:"period" category:"advanced"`
 	// LoadPath contains the path to the runtime config files or HTTP URLs.
 	// Requires a non-empty value
-	LoadPath          flagext.StringSliceCSV `yaml:"file"`
-	HTTPClientTimeout time.Duration          `yaml:"http_client_timeout" category:"advanced"`
-	Preprocessor      Preprocessor           `yaml:"-"`
-	Loader            Loader                 `yaml:"-"`
+	LoadPath     flagext.StringSliceCSV `yaml:"file"`
+	Preprocessor Preprocessor           `yaml:"-"`
+	Loader       Loader                 `yaml:"-"`
+
+	// Configurations related to fetching runtime configurations from HTTP URLs rather than local files.
+	HTTPClientTimeout           time.Duration                       `yaml:"http_client_timeout" category:"advanced"`
+	HTTPClientClusterValidation clusterutil.ClusterValidationConfig `yaml:"http_client_cluster_validation" category:"advanced"`
+}
+
+// RegisterFlagsWithPrefix registers flags under the specified prefix, which could be empty.
+// If a non-empty prefix is provided, it's expected to end with a dot.
+func (mc *Config) RegisterFlagsWithPrefix(prefix string, f *flag.FlagSet) {
+	f.Var(&mc.LoadPath, prefix+"file", "Comma separated list of yaml files or URLs with the configuration that can be updated at runtime. Runtime config files will be merged from left to right.")
+	f.DurationVar(&mc.ReloadPeriod, prefix+"reload-period", 10*time.Second, "How often to check runtime config files.")
+	f.DurationVar(&mc.HTTPClientTimeout, prefix+"http-client-timeout", 30*time.Second, "HTTP client timeout when fetching runtime config from URLs.")
+	mc.HTTPClientClusterValidation.RegisterFlagsWithPrefix(prefix+"http-client-cluster-validation.", f)
 }
 
 // RegisterFlags registers flags.
 func (mc *Config) RegisterFlags(f *flag.FlagSet) {
-	f.Var(&mc.LoadPath, "runtime-config.file", "Comma separated list of yaml files or URLs with the configuration that can be updated at runtime. Runtime config files will be merged from left to right.")
-	f.DurationVar(&mc.ReloadPeriod, "runtime-config.reload-period", 10*time.Second, "How often to check runtime config files.")
-	f.DurationVar(&mc.HTTPClientTimeout, "runtime-config.http-client-timeout", 30*time.Second, "HTTP client timeout when fetching runtime config from URLs.")
+	mc.RegisterFlagsWithPrefix("runtime-config.", f)
 }
 
 // Manager periodically reloads the configuration from specified files, and keeps this
@@ -78,6 +90,12 @@ func New(cfg Config, configName string, registerer prometheus.Registerer, logger
 		return nil, errors.New("LoadPath is empty")
 	}
 
+	// The cluster-validation counter shares its name with similarly-named counters from other
+	// client-side cluster-validation reporters in the calling application (e.g. gRPC clients), so
+	// its label set must match theirs: {client, protocol, method}, with no per-manager "config"
+	// label. We therefore pass an un-wrapped registerer to httpTransport and disambiguate per
+	// manager via the "client" label value (set to "runtime-config/<configName>").
+	clusterValidationRegisterer := registerer
 	registerer = prometheus.WrapRegistererWith(prometheus.Labels{"config": configName}, registerer)
 
 	mgr := Manager{
@@ -102,7 +120,7 @@ func New(cfg Config, configName string, registerer prometheus.Registerer, logger
 				if timeout == 0 {
 					timeout = 30 * time.Second
 				}
-				httpClient = &http.Client{Timeout: timeout}
+				httpClient = &http.Client{Timeout: timeout, Transport: httpTransport(cfg, configName, clusterValidationRegisterer, logger)}
 				httpDuration = newHTTPRequestDuration(registerer)
 			}
 			mgr.providers = append(mgr.providers, newHTTPProvider(p, httpClient, httpDuration))
@@ -362,4 +380,24 @@ func (om *Manager) GetConfig() interface{} {
 		return *p
 	}
 	return nil
+}
+
+func httpTransport(cfg Config, configName string, registerer prometheus.Registerer, logger log.Logger) http.RoundTripper {
+	rt := http.DefaultTransport
+	if cfg.HTTPClientClusterValidation.Label != "" {
+		invalidClusterValidations := promauto.With(registerer).NewCounterVec(prometheus.CounterOpts{
+			Name: "client_invalid_cluster_validation_label_requests_total",
+			Help: "Number of requests with invalid cluster validation label.",
+			ConstLabels: map[string]string{
+				"client":   "runtime-config/" + configName,
+				"protocol": "http",
+			},
+		}, []string{"method"})
+		reporter := func(msg string, method string) {
+			level.Warn(logger).Log("msg", msg, "method", method, "cluster_validation_label", cfg.HTTPClientClusterValidation.Label, "component", "runtimeconfig", "load_path", cfg.LoadPath)
+			invalidClusterValidations.WithLabelValues(method).Inc()
+		}
+		rt = middleware.ClusterValidationRoundTripper(cfg.HTTPClientClusterValidation.Label, reporter, http.DefaultTransport)
+	}
+	return rt
 }
