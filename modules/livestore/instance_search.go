@@ -290,6 +290,8 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		return nil, fmt.Errorf("Search: %w", err)
 	}
 
+	metricQueryInspectedBytesTotal.WithLabelValues(i.tenantID, queryOpSearch).Add(float64(metrics.InspectedBytes))
+
 	return &tempopb.SearchResponse{
 		Traces:  combiner.Metadata(),
 		Metrics: metrics,
@@ -396,6 +398,8 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 		level.Warn(i.logger).Log("msg", "Search of tags exceeded limit, reduce cardinality or size of tags", "orgID", userID, "stopReason", distinctValues.StopReason())
 	}
 
+	metricQueryInspectedBytesTotal.WithLabelValues(i.tenantID, queryOpSearchTags).Add(float64(mc.TotalValue()))
+
 	collected := distinctValues.Strings()
 	resp := &tempopb.SearchTagsV2Response{
 		Scopes: make([]*tempopb.SearchTagsV2Scope, 0, len(collected)+1), // +1 for intrinsic below
@@ -464,6 +468,8 @@ func (i *instance) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVa
 	if distinctValues.Exceeded() {
 		level.Warn(i.logger).Log("msg", "Search of tags exceeded limit,  reduce cardinality or size of tags", "tag", tagName, "orgID", userID, "stopReason", distinctValues.StopReason())
 	}
+
+	metricQueryInspectedBytesTotal.WithLabelValues(i.tenantID, queryOpSearchTagValues).Add(float64(mc.TotalValue()))
 
 	return &tempopb.SearchTagValuesResponse{
 		TagValues: distinctValues.Strings(),
@@ -617,6 +623,8 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		_ = level.Warn(i.logger).Log("msg", "size of tag values exceeded limit, reduce cardinality or size of tags", "tag", req.TagName, "tenant", userID, "limit", limit, "size", vCollector.Size())
 	}
 
+	metricQueryInspectedBytesTotal.WithLabelValues(i.tenantID, queryOpSearchTagValues).Add(float64(mCollector.TotalValue()))
+
 	resp := &tempopb.SearchTagValuesV2Response{
 		Metrics: &tempopb.MetadataMetrics{InspectedBytes: mCollector.TotalValue()}, // include metrics in response
 	}
@@ -685,6 +693,8 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte, allowParti
 		level.Error(i.logger).Log("msg", "error in FindTraceByID", "err", err)
 		return nil, fmt.Errorf("error searching for trace: %w", err)
 	}
+
+	metricQueryInspectedBytesTotal.WithLabelValues(i.tenantID, queryOpTraceByID).Add(float64(metrics.InspectedBytes))
 
 	result, _ := combiner.Result()
 	response := &tempopb.TraceByIDResponse{

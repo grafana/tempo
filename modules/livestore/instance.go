@@ -100,6 +100,19 @@ var (
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
+	metricQueryInspectedBytesTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo_live_store",
+		Name:      "query_inspected_bytes_total",
+		Help:      "Total bytes inspected by live-store queries, per tenant and operation.",
+	}, []string{"tenant", "op"})
+)
+
+// Operation labels for metricQueryInspectedBytesTotal.
+const (
+	queryOpSearch          = "search"
+	queryOpSearchTags      = "search_tags"
+	queryOpSearchTagValues = "search_tag_values"
+	queryOpTraceByID       = "trace_by_id"
 )
 
 type instance struct {
