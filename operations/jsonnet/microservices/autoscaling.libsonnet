@@ -349,4 +349,18 @@
   tempo_live_store_zone_b_statefulset+:
     if $._config.live_store.keda.enabled then $.removeReplicasFromSpec else {},
 
+  // The rollout-operator mirror-replicas feature reads the source StatefulSet's scale
+  // subresource to obtain the current replica count. The default rollout-operator role
+  // grants apps/statefulsets (list/get/watch/patch) but not apps/statefulsets/scale.
+  rollout_operator_role+:
+    if $._config.live_store.keda.enabled && $._config.live_store.keda.block_builder_scaling == 'rollout-operator' then
+      local role = $.rbac.v1.role;
+      local policyRule = $.rbac.v1.policyRule;
+      role.withRulesMixin([
+        policyRule.withApiGroups(['apps']) +
+        policyRule.withResources(['statefulsets/scale']) +
+        policyRule.withVerbs(['get']),
+      ])
+    else {},
+
 }
