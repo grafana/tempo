@@ -48,13 +48,17 @@
     statefulset.spec.template.spec.securityContext.withFsGroup(10001) +  // 10001 is the UID of the tempo user
     statefulset.mixin.spec.template.metadata.withAnnotations(
       { config_hash: std.md5(std.toString($.tempo_block_builder_configmap.data['tempo.yaml'])) }
-      + (
-        if $._config.live_store.keda.enabled && $._config.live_store.keda.block_builder_scaling == 'rollout-operator' then {
+    ) +
+    // The rollout-operator reads grafana.com/rollout-mirror-replicas-from-resource-* from the
+    // StatefulSet's own metadata.annotations, not the pod template. Keep these separate.
+    (
+      if $._config.live_store.keda.enabled && $._config.live_store.keda.block_builder_scaling == 'rollout-operator' then
+        statefulset.mixin.metadata.withAnnotationsMixin({
           'grafana.com/rollout-mirror-replicas-from-resource-name': $.tempo_block_builder_follow_controller.metadata.name,
           'grafana.com/rollout-mirror-replicas-from-resource-kind': $.tempo_block_builder_follow_controller.kind,
           'grafana.com/rollout-mirror-replicas-from-resource-api-version': $.tempo_block_builder_follow_controller.apiVersion,
-        } else {}
-      )
+        })
+      else {}
     ) +
     statefulset.mixin.spec.template.spec.withVolumes([
       volume.fromConfigMap(tempo_config_volume, $.tempo_block_builder_configmap.metadata.name),

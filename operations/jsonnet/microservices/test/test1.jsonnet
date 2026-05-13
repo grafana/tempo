@@ -157,8 +157,10 @@ test.new(std.thisFile)
 )
 + test.case.new(
   'live_store KEDA enabled block_builder follows live-store zone-a',
+  // rollout-operator reads grafana.com/rollout-mirror-replicas-from-resource-* from StatefulSet
+  // metadata.annotations, NOT from the pod template spec.template.metadata.annotations.
   test.expect.eq(
-    withLiveStoreKeda('http://prometheus:9090').tempo_block_builder_statefulset.spec.template.metadata.annotations['grafana.com/rollout-mirror-replicas-from-resource-name'],
+    withLiveStoreKeda('http://prometheus:9090').tempo_block_builder_statefulset.metadata.annotations['grafana.com/rollout-mirror-replicas-from-resource-name'],
     'live-store-zone-a'
   )
 )
@@ -195,13 +197,23 @@ test.new(std.thisFile)
   )
 )
 + test.case.new(
-  'live_store KEDA disabled omits rollout-mirror annotations from block-builder',
+  'live_store KEDA disabled omits rollout-mirror annotations from block-builder metadata',
   test.expect.eq(
     std.objectHas(
-      default.tempo_block_builder_statefulset.spec.template.metadata.annotations,
+      std.get(default.tempo_block_builder_statefulset.metadata, 'annotations', {}),
       'grafana.com/rollout-mirror-replicas-from-resource-name'
     ),
     false
+  )
+)
++ test.case.new(
+  'live_store KEDA rollout-operator grants statefulsets/scale to rollout-operator role',
+  test.expect.eq(
+    std.filter(
+      function(r) std.member(r.resources, 'statefulsets/scale'),
+      withLiveStoreKeda('http://prometheus:9090').rollout_operator_role.rules
+    )[0].verbs,
+    ['get']
   )
 )
 + test.case.new(
