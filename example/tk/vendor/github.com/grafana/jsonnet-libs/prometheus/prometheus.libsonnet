@@ -27,6 +27,31 @@ local kausal = import 'ksonnet-util/kausal.libsonnet';
   prometheusAlerts+:: {},
   prometheusRules+:: {},
 
+  // withAutoReload replaces the weaveworks/watch sidecar with Prometheus's
+  // native auto-reload-config feature (available since v3.0). It adds
+  // 'auto-reload-config' to the enabled feature flags, configures the reload
+  // interval, and removes the 'watch' container from the StatefulSet.
+  withAutoReload(interval='30s'):: {
+    _config+:: {
+      prometheus_enabled_features+: ['auto-reload-config'],
+    },
+    prometheus_container+:: {
+      args+: ['--config.auto-reload-interval=%s' % interval],
+    },
+    prometheus_statefulset+: {
+      spec+: {
+        template+: {
+          spec+: {
+            containers: std.filter(
+              function(c) c.name != 'watch',
+              super.containers,
+            ),
+          },
+        },
+      },
+    },
+  },
+
   withHighAvailability(replicas=2):: ha_mixin(replicas),
 
   local configMap = k.core.v1.configMap,
@@ -121,7 +146,8 @@ local kausal = import 'ksonnet-util/kausal.libsonnet';
       '-',
       '-sS',
       'http://localhost:%(prometheus_port)s%(prometheus_web_route_prefix)s-/reload' % _config,
-    ]),
+    ])
+    + k.util.resourcesRequests('10m', '10Mi'),
 
   local pvc = k.core.v1.persistentVolumeClaim,
 

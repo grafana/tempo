@@ -41,7 +41,7 @@ local k = import 'k.libsonnet';
   prometheus_datasource:: grafana.datasource.new('prometheus', $.config.prometheus_url, type='prometheus', default=true),
 
   grafana: grafana
-           + grafana.withAnonymous()
+           + grafana.withAnonymousAuth()
            + grafana.addFolder('Example')
            + grafana.addDashboard('simple', (import 'dashboard-simple.libsonnet'), folder='Example')
            + grafana.addDatasource('prometheus', $.prometheus_datasource),
