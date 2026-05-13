@@ -1441,6 +1441,23 @@ func TestQueryRangeReportsInspectedBytes(t *testing.T) {
 
 	blockID, err := i.cutBlocks(t.Context(), true)
 	require.NoError(t, err)
+
+	// At this point the data is in a WAL block (not yet completed).
+	now := time.Now()
+	walReq := &tempopb.QueryRangeRequest{
+		Query:     "{} | count_over_time()",
+		Start:     uint64(now.Add(-time.Minute).UnixNano()),
+		End:       uint64(now.Add(time.Minute).UnixNano()),
+		Step:      uint64(time.Second),
+		MaxSeries: 10,
+	}
+	walResp, err := i.QueryRange(t.Context(), walReq)
+	require.NoError(t, err)
+	require.NotNil(t, walResp.Metrics, "QueryRange should populate Metrics for WAL blocks")
+	require.Greater(t, walResp.Metrics.InspectedBytes, uint64(0),
+		"WAL-block QueryRange should report scanned bytes")
+
+	// Complete the block to exercise the complete-block path.
 	_, err = i.completeBlock(t.Context(), blockID)
 	require.NoError(t, err)
 
