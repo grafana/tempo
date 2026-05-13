@@ -52,7 +52,7 @@
     // The rollout-operator reads grafana.com/rollout-mirror-replicas-from-resource-* from the
     // StatefulSet's own metadata.annotations, not the pod template. Keep these separate.
     (
-      if $._config.live_store.keda.enabled && $._config.live_store.keda.block_builder_scaling == 'rollout-operator' then
+      if $._config.block_builder.keda.enabled && $._config.block_builder.keda.scaling == 'rollout-operator' then
         statefulset.mixin.metadata.withAnnotationsMixin({
           'grafana.com/rollout-mirror-replicas-from-resource-name': $.tempo_block_builder_follow_controller.metadata.name,
           'grafana.com/rollout-mirror-replicas-from-resource-kind': $.tempo_block_builder_follow_controller.kind,

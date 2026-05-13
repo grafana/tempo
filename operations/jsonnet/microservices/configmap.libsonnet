@@ -89,10 +89,9 @@
 
   tempo_query_frontend_config:: $.tempo_config {},
   tempo_block_builder_config:: $.tempo_config + $.tempo_ingest_config + (
-    // Inject partitions_per_instance whenever live-store KEDA is active, regardless of
-    // which block-builder scaling approach is used, because replica count is dynamic and
-    // must match the partition assignment.
-    if $._config.live_store.keda.enabled then
+    // Inject partitions_per_instance whenever block-builder KEDA is active so that the
+    // dynamic replica count stays coupled to the partition assignment math.
+    if $._config.block_builder.keda.enabled then
       assert $._config.block_builder.partitions_per_instance > 0 : 'block_builder.partitions_per_instance must be > 0';
       {
         block_builder+: {
