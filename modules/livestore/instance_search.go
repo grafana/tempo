@@ -760,7 +760,7 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 	maxSeries := int(req.MaxSeries)
 	maxSeriesReached := atomic.Bool{}
 	maxSeriesReached.Store(false)
-	completeBlockBytes := atomic.NewUint64(0)
+	inspectedBytes := atomic.NewUint64(0)
 
 	search := func(ctx context.Context, _ *backend.BlockMeta, b block) error {
 		if walBlock, ok := b.(common.WALBlock); ok {
@@ -780,7 +780,7 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 			if err != nil {
 				return err
 			}
-			completeBlockBytes.Add(bytes)
+			inspectedBytes.Add(bytes)
 			jobEval.ObserveSeries(resp)
 			if maxSeries > 0 && jobEval.Length() > maxSeries {
 				maxSeriesReached.Store(true)
@@ -806,10 +806,11 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 	rr := r.ToProto(req)
 
 	rawBytes, _, _ := rawEval.Metrics()
-	inspectedBytes := rawBytes + completeBlockBytes.Load()
-	metricQueryInspectedBytesTotal.WithLabelValues(i.tenantID, queryOpQueryRange).Add(float64(inspectedBytes))
+	inspectedBytes.Add(rawBytes)
+	totalBytes := inspectedBytes.Load()
+	metricQueryInspectedBytesTotal.WithLabelValues(i.tenantID, queryOpQueryRange).Add(float64(totalBytes))
 
-	respMetrics := &tempopb.SearchMetrics{InspectedBytes: inspectedBytes}
+	respMetrics := &tempopb.SearchMetrics{InspectedBytes: totalBytes}
 
 	if maxSeriesReached.Load() {
 		return &tempopb.QueryRangeResponse{
