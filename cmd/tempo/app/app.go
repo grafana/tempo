@@ -160,7 +160,7 @@ func (t *App) setupAuthMiddleware() {
 		noAuthTenant := t.cfg.NoAuthTenantID()
 		t.cfg.Generator.Storage.NoAuthTenant = noAuthTenant
 		t.cfg.Server.GRPCMiddleware = []grpc.UnaryServerInterceptor{
-			fakeGRPCAuthUniaryMiddleware(noAuthTenant),
+			fakeGRPCAuthUnaryMiddleware(noAuthTenant),
 		}
 		t.cfg.Server.GRPCStreamMiddleware = []grpc.StreamServerInterceptor{
 			fakeGRPCAuthStreamMiddleware(noAuthTenant),

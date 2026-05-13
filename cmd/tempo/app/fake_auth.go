@@ -18,7 +18,7 @@ func fakeHTTPAuthMiddleware(tenantID string) middleware.Interface {
 	})
 }
 
-func fakeGRPCAuthUniaryMiddleware(tenantID string) grpc.UnaryServerInterceptor {
+func fakeGRPCAuthUnaryMiddleware(tenantID string) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		ctx = user.InjectOrgID(ctx, tenantID)
 		return handler(ctx, req)

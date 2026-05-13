@@ -38,7 +38,7 @@ func TestFakeHTTPAuthMiddlewareUsesConfiguredTenant(t *testing.T) {
 func TestFakeGRPCAuthUnaryMiddlewareUsesConfiguredTenant(t *testing.T) {
 	const tenantID = "custom-tenant"
 
-	_, err := fakeGRPCAuthUniaryMiddleware(tenantID)(
+	_, err := fakeGRPCAuthUnaryMiddleware(tenantID)(
 		context.Background(),
 		nil,
 		&grpc.UnaryServerInfo{},
