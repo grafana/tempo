@@ -102,8 +102,9 @@
         // draining pods — which have abandoned their partitions but are still up
         // for query — do not dilute the signal.
         // When empty (default) the ScaledObject uses:
-        //   sum(rate(tempo_distributor_kafka_write_bytes_total{namespace="<ns>"}[10m])) * <window_seconds>
-        // Set to a non-empty string to replace this with a fully custom query.
+        //   sum(rate(tempo_distributor_kafka_write_bytes_total{namespace="<ns>"}[<window_seconds>s])) * <window_seconds>
+        // The rate window matches window_seconds so the averaged rate and the accumulation
+        // window are always consistent. Set to a non-empty string to use a fully custom query.
         query: '',
         scale_up_stabilization_window_seconds: 60,
         scale_up_pods: 2,
@@ -123,7 +124,8 @@
         additional_triggers: [],
         // How block-builder replicas are coupled to live-store when KEDA is enabled.
         // 'rollout-operator' (default): rollout-operator mirrors live-store zone-a
-        //   replicas to block-builder. Requires rollout_operator_replica_template_access_enabled=true.
+        //   replicas to block-builder. rollout_operator_replica_template_access_enabled is
+        //   automatically set to true when this mode is active.
         //   Block-builder lags zone-a through the drain window, preventing data loss on scale-down.
         // 'keda': dedicated KEDA ScaledObject using a kubernetes-workload trigger counting
         //   live-store zone-a pods. Does not require rollout_operator_replica_template_access_enabled.
@@ -154,6 +156,13 @@
         scale_down_period_seconds: 60 * 5,
       },
     },
+
+    // Auto-derive: when the rollout-operator block-builder scaling approach is active,
+    // rollout_operator_replica_template_access_enabled must be true. Set it automatically
+    // so users only need to set live_store.keda.block_builder_scaling (one config key).
+    rollout_operator_replica_template_access_enabled:
+      super.rollout_operator_replica_template_access_enabled ||
+      (self.live_store.keda.enabled && self.live_store.keda.block_builder_scaling == 'rollout-operator'),
 
   },
 
@@ -314,12 +323,10 @@
   tempo_live_store_scaled_object:
     if $._config.live_store.keda.enabled then
       assert $._config.autoscaling_prometheus_url != '' : 'autoscaling_prometheus_url is required for live_store autoscaling';
-      assert $._config.live_store.keda.block_builder_scaling != 'rollout-operator' || $._config.rollout_operator_replica_template_access_enabled :
-             'live_store.keda with block_builder_scaling=rollout-operator requires rollout_operator_replica_template_access_enabled=true';
       local config = $._config.live_store.keda;
       local query = if config.query != '' then config.query else
         |||
-          sum(rate(tempo_distributor_kafka_write_bytes_total{namespace="%(namespace)s"}[10m])) * %(window_seconds)d
+          sum(rate(tempo_distributor_kafka_write_bytes_total{namespace="%(namespace)s"}[%(window_seconds)ds])) * %(window_seconds)d
         ||| % { namespace: $._config.namespace, window_seconds: config.window_seconds };
       $.scaledObjectForController($.tempo_live_store_replica_template, 'live_store')
       + scaledObject.spec.withTriggersMixin(

@@ -12,11 +12,11 @@ local withBackendWorkerKeda(url, tenant='') = default {
 };
 
 // Helper: default env with live_store KEDA enabled (rollout-operator approach, the default).
+// rollout_operator_replica_template_access_enabled is auto-derived from the scaling mode.
 local withLiveStoreKeda(url, tenant='') = default {
   _config+:: {
     autoscaling_prometheus_url: url,
     autoscaling_prometheus_tenant: tenant,
-    rollout_operator_replica_template_access_enabled: true,
     live_store+: { replicas: 1, keda+: { enabled: true } },
   },
 };
@@ -110,10 +110,10 @@ test.new(std.thisFile)
   )
 )
 + test.case.new(
-  'live_store KEDA default query uses 10m rate window',
+  'live_store KEDA default query rate window matches window_seconds',
   test.expect.eq(
     std.length(std.findSubstr(
-      '[10m]',
+      '[1800s]',
       withLiveStoreKeda('http://prometheus:9090').tempo_live_store_scaled_object.spec.triggers[0].metadata.query,
     )) > 0,
     true
@@ -125,7 +125,6 @@ test.new(std.thisFile)
     (default {
        _config+:: {
          autoscaling_prometheus_url: 'http://prometheus:9090',
-         rollout_operator_replica_template_access_enabled: true,
          live_store+: {
            replicas: 1,
            keda+: {
@@ -194,6 +193,20 @@ test.new(std.thisFile)
   test.expect.eq(
     withLiveStoreKeda('http://prometheus:9090').tempo_block_builder_scaled_object,
     {}
+  )
+)
++ test.case.new(
+  'live_store KEDA rollout-operator approach auto-enables rollout_operator_replica_template_access_enabled',
+  test.expect.eq(
+    withLiveStoreKeda('http://prometheus:9090')._config.rollout_operator_replica_template_access_enabled,
+    true
+  )
+)
++ test.case.new(
+  'live_store KEDA keda approach does not auto-enable rollout_operator_replica_template_access_enabled',
+  test.expect.eq(
+    withLiveStoreKedaBlockBuilderKeda('http://prometheus:9090')._config.rollout_operator_replica_template_access_enabled,
+    false
   )
 )
 + test.case.new(
