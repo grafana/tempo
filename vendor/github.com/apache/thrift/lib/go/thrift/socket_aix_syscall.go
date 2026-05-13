@@ -1,4 +1,4 @@
-//go:build windows || wasm
+//go:build aix
 
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -21,14 +21,8 @@
 
 package thrift
 
-func (sc *socketConn) read0() error {
-	// On non-unix platforms, we fallback to the default behavior of reading 0 bytes.
-	var p []byte
-	_, err := sc.Conn.Read(p)
-	return err
-}
+import "syscall"
 
-func (sc *socketConn) checkConn() error {
-	// On non-unix platforms, we always return nil for this check.
-	return nil
+func peekNonblocking(fd int, p []byte) (int, syscall.Sockaddr, error) {
+	return syscall.Recvfrom(fd, p, syscall.MSG_PEEK|syscall.MSG_NONBLOCK)
 }
