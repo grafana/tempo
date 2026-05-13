@@ -1435,6 +1435,47 @@ func TestQueryRangeToleratesCorruptCache(t *testing.T) {
 	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
 }
 
+func TestQueryRangeReportsInspectedBytes(t *testing.T) {
+	i, ls := defaultInstance(t)
+	writeTracesForSearch(t, i, "", foo, bar, true, false)
+
+	blockID, err := i.cutBlocks(t.Context(), true)
+	require.NoError(t, err)
+	_, err = i.completeBlock(t.Context(), blockID)
+	require.NoError(t, err)
+
+	var block *LocalBlock
+	for _, b := range i.blocks.Load().completeBlocks {
+		block = b
+		break
+	}
+	require.NotNil(t, block)
+
+	req := &tempopb.QueryRangeRequest{
+		Query:     "{} | count_over_time()",
+		Start:     uint64(block.BlockMeta().StartTime.Add(-time.Minute).UnixNano()),
+		End:       uint64(block.BlockMeta().EndTime.Add(time.Minute).UnixNano()),
+		Step:      uint64(time.Second),
+		MaxSeries: 10,
+	}
+
+	// First call: cache miss, the parquet block is scanned.
+	first, err := i.QueryRange(t.Context(), req)
+	require.NoError(t, err)
+	require.NotNil(t, first.Metrics, "QueryRange should populate Metrics")
+	require.Greater(t, first.Metrics.InspectedBytes, uint64(0),
+		"cache-miss QueryRange should report scanned bytes")
+
+	// Second call: cache hit, no parquet read so we expect zero bytes.
+	second, err := i.QueryRange(t.Context(), req)
+	require.NoError(t, err)
+	require.NotNil(t, second.Metrics)
+	require.Equal(t, uint64(0), second.Metrics.InspectedBytes,
+		"cache-hit QueryRange should not report scanned bytes")
+
+	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
+}
+
 func TestQueryRangeCacheName_StableForSameRequest(t *testing.T) {
 	req := tempopb.QueryRangeRequest{
 		Query: "{} | count_over_time()",

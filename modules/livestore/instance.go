@@ -113,6 +113,7 @@ const (
 	queryOpSearchTags      = "search_tags"
 	queryOpSearchTagValues = "search_tag_values"
 	queryOpTraceByID       = "trace_by_id"
+	queryOpQueryRange      = "query_range"
 )
 
 type instance struct {

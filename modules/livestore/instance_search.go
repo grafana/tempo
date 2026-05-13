@@ -760,6 +760,7 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 	maxSeries := int(req.MaxSeries)
 	maxSeriesReached := atomic.Bool{}
 	maxSeriesReached.Store(false)
+	completeBlockBytes := atomic.NewUint64(0)
 
 	search := func(ctx context.Context, _ *backend.BlockMeta, b block) error {
 		if walBlock, ok := b.(common.WALBlock); ok {
@@ -775,10 +776,11 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 		}
 
 		if localBlock, ok := b.(*LocalBlock); ok {
-			resp, err := i.queryRangeCompleteBlock(ctx, localBlock, *req, compileOpts)
+			resp, bytes, err := i.queryRangeCompleteBlock(ctx, localBlock, *req, compileOpts)
 			if err != nil {
 				return err
 			}
+			completeBlockBytes.Add(bytes)
 			jobEval.ObserveSeries(resp)
 			if maxSeries > 0 && jobEval.Length() > maxSeries {
 				maxSeriesReached.Store(true)
@@ -803,15 +805,23 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 	r := jobEval.Results()
 	rr := r.ToProto(req)
 
+	rawBytes, _, _ := rawEval.Metrics()
+	inspectedBytes := rawBytes + completeBlockBytes.Load()
+	metricQueryInspectedBytesTotal.WithLabelValues(i.tenantID, queryOpQueryRange).Add(float64(inspectedBytes))
+
+	respMetrics := &tempopb.SearchMetrics{InspectedBytes: inspectedBytes}
+
 	if maxSeriesReached.Load() {
 		return &tempopb.QueryRangeResponse{
-			Series: rr[:maxSeries],
-			Status: tempopb.PartialStatus_PARTIAL,
+			Series:  rr[:maxSeries],
+			Metrics: respMetrics,
+			Status:  tempopb.PartialStatus_PARTIAL,
 		}, nil
 	}
 
 	return &tempopb.QueryRangeResponse{
-		Series: rr,
+		Series:  rr,
+		Metrics: respMetrics,
 	}, nil
 }
 
@@ -834,7 +844,9 @@ func (i *instance) queryRangeWALBlock(ctx context.Context, b common.WALBlock, ev
 	return eval.Do(ctx, fetcher, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()), maxSeries)
 }
 
-func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *LocalBlock, req tempopb.QueryRangeRequest, compileOpts []traceql.CompileOption) ([]*tempopb.TimeSeries, error) {
+// queryRangeCompleteBlock returns the per-block series and the bytes scanned to
+// produce them. A cache hit reports 0 bytes since no parquet data was read.
+func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *LocalBlock, req tempopb.QueryRangeRequest, compileOpts []traceql.CompileOption) ([]*tempopb.TimeSeries, uint64, error) {
 	m := b.BlockMeta()
 	ctx, span := tracer.Start(ctx, "instance.QueryRange.CompleteBlock", oteltrace.WithAttributes(
 		attribute.String("block", m.BlockID.String()),
@@ -849,7 +861,7 @@ func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *LocalBlock, r
 
 	if req.Start >= req.End {
 		// After alignment there is no overlap or something else isn't right
-		return nil, nil
+		return nil, 0, nil
 	}
 
 	name := queryRangeCacheName(req)
@@ -863,12 +875,12 @@ func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *LocalBlock, r
 	span.SetAttributes(attribute.Bool("cached", cached != nil))
 
 	if cached != nil {
-		return cached.Series, nil
+		return cached.Series, 0, nil
 	}
 
 	eval, err := traceql.NewEngine().CompileMetricsQueryRange(&req, compileOpts...)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	f := traceql.NewSpansetFetcherWrapperBoth(
 		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
@@ -880,10 +892,11 @@ func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *LocalBlock, r
 	)
 	err = eval.Do(ctx, f, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()), int(req.MaxSeries))
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	results := eval.Results().ToProto(&req)
+	inspectedBytes, _, _ := eval.Metrics()
 
 	if err := i.queryRangeCacheSet(ctx, m, name, &tempopb.QueryRangeResponse{
 		Series: results,
@@ -892,7 +905,7 @@ func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *LocalBlock, r
 			"block", m.BlockID.String(), "err", err)
 	}
 
-	return results, nil
+	return results, inspectedBytes, nil
 }
 
 func queryRangeCacheName(req tempopb.QueryRangeRequest) string {
