@@ -369,6 +369,70 @@ func BenchmarkDecodePushSpansProductionCardinality(b *testing.B) {
 	}
 }
 
+func BenchmarkDecodePushSpansProductionChurn(b *testing.B) {
+	const payloadCount = 8
+
+	for _, tc := range []struct {
+		name    string
+		decoder func() ingest.GeneratorCodec
+		payload func(testing.TB, *tempopb.PushSpansRequest) []byte
+	}{
+		{
+			name:    "combined_prod_7dims_100k_series_otlp_decode_push_churn",
+			decoder: func() ingest.GeneratorCodec { return ingest.NewOTLPDecoder() },
+			payload: benchmarkGeneratorOTLPPayload,
+		},
+		{
+			name:    "combined_prod_7dims_100k_series_push_bytes_decode_push_churn",
+			decoder: func() ingest.GeneratorCodec { return ingest.NewPushBytesDecoder() },
+			payload: benchmarkGeneratorPushBytesPayload,
+		},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			inst := benchmarkGeneratorInstance(b, func(o *mockOverrides) {
+				o.processors = map[string]struct{}{processor.SpanMetricsName: {}, processor.ServiceGraphsName: {}}
+				benchmarkGeneratorProdOverrides(o)
+			})
+			defer inst.shutdown()
+
+			ctx := context.Background()
+			benchmarkGeneratorSeedHighCardinalityServiceGraph(
+				ctx,
+				inst,
+				benchmarkGeneratorProdCombined100kEdges+payloadCount*benchmarkGeneratorHighCardinalityTimedEdges,
+			)
+
+			payloads := make([][]byte, 0, payloadCount)
+			for i := 0; i < payloadCount; i++ {
+				req := benchmarkGeneratorProdHighCardinalityServiceGraphRequest(
+					i*benchmarkGeneratorHighCardinalityTimedEdges,
+					benchmarkGeneratorHighCardinalityTimedEdges,
+				)
+				payloads = append(payloads, tc.payload(b, req))
+			}
+			decoder := tc.decoder()
+			runtime.GC()
+
+			activeSeries := benchmarkGeneratorActiveSeries(b)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				iterator, err := decoder.Decode(payloads[i%len(payloads)])
+				if err != nil {
+					b.Fatal(err)
+				}
+				for req, err := range iterator {
+					if err != nil {
+						b.Fatal(err)
+					}
+					inst.pushSpans(ctx, req)
+				}
+			}
+			b.ReportMetric(activeSeries, "active_series")
+		})
+	}
+}
+
 func BenchmarkPushSpansProductionChurn(b *testing.B) {
 	if os.Getenv(benchmarkGeneratorChurnEnv) == "" {
 		b.Skipf("set %s=1 to run this high-cardinality churn benchmark", benchmarkGeneratorChurnEnv)
