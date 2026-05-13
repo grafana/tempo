@@ -136,6 +136,7 @@ func (p *Processor) Shutdown(_ context.Context) {
 }
 
 func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
+	updateTimeMs := p.now().UnixMilli()
 	resourceLabels := make([]string, 0)
 	resourceValues := make([]string, 0)
 	var resourceDimensionValueBuf [16]string
@@ -168,14 +169,14 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 							getTargetInfoAttributesValues(&resourceLabels, &resourceValues, rs.Resource.Attributes, p.targetInfoExcluded, p.sanitizeCache.Get)
 							targetInfoResourceLabelsBuilt = true
 						}
-						targetInfoLabelsValid = p.buildAndSetTargetInfoLabels(resourceLabels, resourceValues, jobName, instanceID)
+						targetInfoLabelsValid = p.buildAndSetTargetInfoLabels(resourceLabels, resourceValues, jobName, instanceID, updateTimeMs)
 						targetInfoLabelsBuilt = true
 					}
 					var traceID []byte
 					if p.Cfg.Subprocessors[Latency] {
 						traceID = span.TraceId
 					}
-					p.aggregateMetricsForSpan(svcName, jobName, instanceID, rs.Resource, span, traceID, targetInfoLabelsValid, resourceDimensionValues, resourceDimensionFound)
+					p.aggregateMetricsForSpan(svcName, jobName, instanceID, rs.Resource, span, traceID, targetInfoLabelsValid, resourceDimensionValues, resourceDimensionFound, updateTimeMs)
 					continue
 				}
 				p.filteredSpansCounter.Inc()
@@ -184,7 +185,7 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 	}
 }
 
-func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, instanceID string, rs *v1.Resource, span *v1_trace.Span, traceID []byte, targetInfoLabelsValid bool, resourceDimensionValues []string, resourceDimensionFound []bool) {
+func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, instanceID string, rs *v1.Resource, span *v1_trace.Span, traceID []byte, targetInfoLabelsValid bool, resourceDimensionValues []string, resourceDimensionFound []bool, updateTimeMs int64) {
 	builder := p.registry.NewLabelBuilder()
 
 	if p.Cfg.IntrinsicDimensions.Service {
@@ -245,8 +246,6 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 		p.invalidUTF8Counter.Inc()
 		return
 	}
-	updateTimeMs := time.Now().UnixMilli()
-
 	if p.Cfg.Subprocessors[Count] {
 		p.spanMetricsCallsTotal.IncWithHashAt(registryLabelValues.Labels, registryLabelValues.Hash, 1*spanMultiplier, updateTimeMs)
 	}
@@ -274,7 +273,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 	registryLabelValues.Release()
 }
 
-func (p *Processor) buildAndSetTargetInfoLabels(resourceLabels, resourceValues []string, jobName string, instanceID string) bool {
+func (p *Processor) buildAndSetTargetInfoLabels(resourceLabels, resourceValues []string, jobName string, instanceID string, updateTimeMs int64) bool {
 	targetInfoBuilder := p.registry.NewInfoMetricLabelBuilder()
 	for i := range resourceLabels {
 		targetInfoBuilder.Add(resourceLabels[i], resourceValues[i])
@@ -300,7 +299,7 @@ func (p *Processor) buildAndSetTargetInfoLabels(resourceLabels, resourceValues [
 	// resource attribute in the built label set. We count from the built set because
 	// the Prometheus label builder drops empty-valued labels (Set("x","") calls Del("x")).
 	if identifyingLabels > 0 && targetInfoLabels.Labels.Len() > identifyingLabels {
-		p.spanMetricsTargetInfo.SetForTargetInfoWithHashAt(targetInfoLabels.Labels, targetInfoLabels.Hash, 1, time.Now().UnixMilli())
+		p.spanMetricsTargetInfo.SetForTargetInfoWithHashAt(targetInfoLabels.Labels, targetInfoLabels.Hash, 1, updateTimeMs)
 	}
 	targetInfoLabels.Release()
 	return true
