@@ -1,6 +1,7 @@
 package frontend
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -12,7 +13,16 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/tracing"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
+
+var blocksWithTraceHistogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	Namespace: "tempo",
+	Name:      "query_frontend_trace_by_id_blocks_with_trace",
+	Help:      "Number of blocks that contained data for a single trace lookup.",
+	Buckets:   []float64{0, 1, 2, 3, 5, 10, 50, 100, 500, 1000, 5000, 10000},
+}, []string{"tenant", "max_compaction_level"})
 
 // newTraceIDHandler creates a http.handler for trace by id requests
 func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor) *combiner.TraceByIDCombiner, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
@@ -69,6 +79,10 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 		}
 		postSLOHook(resp, tenant, inspectBytes, elapsed, err)
 
+		if resp != nil && resp.StatusCode == http.StatusOK {
+			observeBlocksWithTrace(comb.MetricsCombiner.Metrics, tenant)
+		}
+
 		traceID, _ := tracing.ExtractTraceID(req.Context())
 		level.Info(logger).Log(
 			"msg", "trace id response",
@@ -78,6 +92,8 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 			"duration_seconds", elapsed.Seconds(),
 			"inspected_bytes", inspectBytes,
 			"request_throughput", float64(inspectBytes)/elapsed.Seconds(),
+			"blocks_with_trace", comb.MetricsCombiner.Metrics.BlocksWithTrace,
+			"max_compaction_level", comb.MetricsCombiner.Metrics.MaxCompactionLevel,
 			"err", err)
 
 		return resp, err
@@ -141,7 +157,16 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 
 		postSLOHook(resp, tenant, bytesProcessed, elapsed, err)
 
+		if resp != nil && resp.StatusCode == http.StatusOK {
+			observeBlocksWithTrace(findResp.Metrics, tenant)
+		}
+
 		traceID, _ := tracing.ExtractTraceID(req.Context())
+		var blocksWithTrace, maxCompactionLevel uint32
+		if findResp != nil && findResp.Metrics != nil {
+			blocksWithTrace = findResp.Metrics.BlocksWithTrace
+			maxCompactionLevel = findResp.Metrics.MaxCompactionLevel
+		}
 		level.Info(logger).Log(
 			"msg", "trace id response",
 			"tenant", tenant,
@@ -150,8 +175,17 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			"inspected_bytes", bytesProcessed,
 			"request_throughput", float64(bytesProcessed)/elapsed.Seconds(),
 			"duration_seconds", elapsed.Seconds(),
+			"blocks_with_trace", blocksWithTrace,
+			"max_compaction_level", maxCompactionLevel,
 			"err", err)
 
 		return resp, err
 	})
+}
+
+func observeBlocksWithTrace(m *tempopb.TraceByIDMetrics, tenant string) {
+	if m == nil {
+		return
+	}
+	blocksWithTraceHistogram.WithLabelValues(tenant, fmt.Sprint(m.MaxCompactionLevel)).Observe(float64(m.BlocksWithTrace))
 }

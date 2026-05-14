@@ -138,6 +138,10 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 	}
 	bytesRead := rr.BytesRead()
 	result.Metrics.InspectedBytes += bytesRead
+	if foundTrace != nil {
+		result.Metrics.BlocksWithTrace = 1
+		result.Metrics.MaxCompactionLevel = b.meta.CompactionLevel
+	}
 	span.SetAttributes(attribute.Int64("inspectedBytes", int64(bytesRead)))
 
 	return result, err

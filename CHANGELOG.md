@@ -1,5 +1,6 @@
 ## main / unreleased
 
+
 * [FEATURE] Make individual AST transformations skippable via config and query hints [#7012](https://github.com/grafana/tempo/pull/7012) (@stoewer)
 * [ENHANCEMENT] tempodb: add `tempodb_cache_store_size_bytes` histogram labelled by `role` recording the size of every item written to the backend cache. [#7152](https://github.com/grafana/tempo/pull/7152) (@javiermolinar)
 * [ENHANCEMENT] Add `TempoDistributorKafkaProduceFailing` alert that triggers when Kafka records cannot be produced by the distributor. [#7148](https://github.com/grafana/tempo/pull/7148) (@javiermolinar)
@@ -8,6 +9,7 @@
 * [ENHANCEMENT] Query-frontend: split streamed search and metrics responses into smaller gRPC packets for better default client compatibility, and fix final streaming updates after metrics series limits are reached. [#6607](https://github.com/grafana/tempo/pull/6607) (@mdisibio)
 * [ENHANCEMENT] jsonnet: add `autoscaling_prometheus_url` and `autoscaling_prometheus_tenant` top-level config fields for KEDA autoscaling. Setting `autoscaling_prometheus_tenant` sends an `X-Scope-OrgID` header on all Prometheus trigger requests, which is required when the backend is a multi-tenant system such as Grafana Mimir. [#7099](https://github.com/grafana/tempo/pull/7099) (@zachfi)
 * [ENHANCEMENT] live-store: expose query inspected bytes as a metric. [#7162](https://github.com/grafana/tempo/pull/7162) [#7163](https://github.com/grafana/tempo/pull/7163) (@zhxiaogg)
+* [ENHANCEMENT] Add a new histogram metric to measure how well compaction collocates trace data across blocks [#7131](https://github.com/grafana/tempo/pull/7131) (@javiermolinar)
 * [BUGFIX] live-store: Fix panic in legacy tag-based search against vParquet5 blocks when matching attributes stored in integer dedicated columns (for example `/api/search?http.status_code=500`). [#7135](https://github.com/grafana/tempo/pull/7135) (@mdisibio)
 * [BUGFIX] backend-scheduler: fix redaction batch not cleaned up after dead-job timeout, leaving tenant permanently blocked from new redaction submissions and compaction. [#6992](https://github.com/grafana/tempo/pull/6992) (@zalegrala)
 * [BUGFIX] backend-scheduler: fix outstanding-blocks metric suppressed to zero during active redaction batch, causing autoscaler to scale down workers mid-redaction. [#6992](https://github.com/grafana/tempo/pull/6992) (@zalegrala)
