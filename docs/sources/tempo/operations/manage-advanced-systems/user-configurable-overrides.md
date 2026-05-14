@@ -53,7 +53,7 @@ user-configurable overrides takes priority.
 {{< admonition type="note" >}}
 In Tempo 2.x, `metrics_generator.processors` user-configurable override field is OR-merged with the runtime overrides list.
 
-In Tempo 3.0, If `processors` is set in user-configurable overrides, that list overrides the runtime `metrics_generator.processors` config. Setting `processors: []` in user-configurable overrides disables all processors for the tenant.
+In Tempo 3.0, if `processors` is set in user-configurable overrides, that will override the runtime `metrics_generator.processors` config. Setting `processors: []` in user-configurable overrides disables all processors for the tenant.
 {{< /admonition >}}
 
 {{< admonition type="warning" >}}

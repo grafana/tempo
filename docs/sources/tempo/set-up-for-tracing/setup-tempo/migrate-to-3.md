@@ -207,7 +207,7 @@ For more information, refer to [Metrics-generator](/docs/tempo/<TEMPO_VERSION>/m
 
 ##### User-configurable overrides config `metrics_generator.processors` behavior change
 
-In Tempo 2.x, `metrics_generator.processors` was the only user-configurable override field that OR-merged with the runtime overrides list. In Tempo 3.0, If `processors` is set in user-configurable overrides, that will overrides the runtime `metrics_generator.processors` config.
+In Tempo 2.x, `metrics_generator.processors` was the only user-configurable override field that OR-merged with the runtime overrides list. In Tempo 3.0, if `processors` is set in user-configurable overrides, that will override the runtime `metrics_generator.processors` config.
 
 If you previously relied on runtime override's merge behavior to force-enable a processor (_e.g. local-blocks_) for tenants that also use user-configurable overrides, you need to move that processor into each tenant's user-configurable overrides `metrics_generator.processors` config.
 
