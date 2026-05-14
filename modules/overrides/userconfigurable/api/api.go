@@ -208,7 +208,9 @@ func (a *UserConfigOverridesAPI) assertNoConflictingRuntimeOverrides(ctx context
 		return err
 	}
 
-	// clear out processors since we merge this field
+	// `processors` is deliberately excluded from the conflict check: a tenant must be
+	// able to override a runtime-set `processors` list via user-configurable overrides.
+	// user-configurable wins outright, falling back to runtime when unset so a runtime overrides is not a conflict.
 	runtimeLimits.MetricsGenerator.Processors = nil
 
 	emptyLimits := client.Limits{}
