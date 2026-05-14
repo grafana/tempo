@@ -26,13 +26,14 @@ type counter struct {
 
 type counterSeries struct {
 	labels      labels.Labels
-	value       *atomic.Float64
-	lastUpdated *atomic.Int64
+	ref         storage.SeriesRef
+	value       atomic.Float64
+	lastUpdated atomic.Int64
 	// firstSeries is used to track if this series is new to the counter.  This
 	// is used to ensure that new counters being with 0, and then are incremented
 	// to the desired value.  This avoids Prometheus throwing away the first
 	// value in the series, due to the transition from null -> x.
-	firstSeries *atomic.Bool
+	firstSeries atomic.Bool
 }
 
 var (
@@ -59,19 +60,24 @@ func newCounter(name string, lifecycler Limiter, externalLabels map[string]strin
 }
 
 func (c *counter) Inc(lbls labels.Labels, value float64) {
+	c.IncWithHash(lbls, lbls.Hash(), value)
+}
+
+func (c *counter) IncWithHash(lbls labels.Labels, hash uint64, value float64) {
+	c.IncWithHashAt(lbls, hash, value, time.Now().UnixMilli())
+}
+
+func (c *counter) IncWithHashAt(lbls labels.Labels, hash uint64, value float64, timeMs int64) {
 	if value < 0 {
 		panic("counter can only increase")
 	}
-
-	hash := lbls.Hash()
-
 	c.seriesMtx.RLock()
 	s, ok := c.series[hash]
 	c.seriesMtx.RUnlock()
 
 	c.seriesDemand.Insert(hash)
 	if ok {
-		c.updateSeries(hash, s, value)
+		c.updateSeries(hash, s, value, timeMs)
 		return
 	}
 
@@ -80,11 +86,11 @@ func (c *counter) Inc(lbls labels.Labels, value float64) {
 
 	s, lbls, hash = resolveSeries(c.series, hash, lbls, c.lifecycler, 1)
 	if s != nil {
-		c.updateSeries(hash, s, value)
+		c.updateSeries(hash, s, value, timeMs)
 		return
 	}
 
-	c.series[hash] = c.newSeries(lbls, value)
+	c.series[hash] = c.newSeries(lbls, value, timeMs)
 }
 
 func resolveSeries[T any](series map[uint64]*T, hash uint64, lbls labels.Labels, lifecycler Limiter, count uint32) (*T, labels.Labels, uint64) {
@@ -105,18 +111,19 @@ func resolveSeries[T any](series map[uint64]*T, hash uint64, lbls labels.Labels,
 	return nil, lbls, hash
 }
 
-func (c *counter) newSeries(lbls labels.Labels, value float64) *counterSeries {
-	return &counterSeries{
-		labels:      getSeriesLabels(c.metricName, lbls, c.externalLabels),
-		value:       atomic.NewFloat64(value),
-		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
-		firstSeries: atomic.NewBool(true),
+func (c *counter) newSeries(lbls labels.Labels, value float64, timeMs int64) *counterSeries {
+	s := &counterSeries{
+		labels: getSeriesLabels(c.metricName, lbls, c.externalLabels),
 	}
+	s.value.Store(value)
+	s.lastUpdated.Store(timeMs)
+	s.firstSeries.Store(true)
+	return s
 }
 
-func (c *counter) updateSeries(hash uint64, s *counterSeries, value float64) {
+func (c *counter) updateSeries(hash uint64, s *counterSeries, value float64, timeMs int64) {
 	s.value.Add(value)
-	s.lastUpdated.Store(time.Now().UnixMilli())
+	s.lastUpdated.Store(timeMs)
 	c.lifecycler.OnUpdate(hash, 1)
 }
 
@@ -125,8 +132,13 @@ func (c *counter) name() string {
 }
 
 func (c *counter) collectMetrics(appender storage.Appender, timeMs int64) error {
-	c.seriesMtx.RLock()
-	defer c.seriesMtx.RUnlock()
+	// Exclusive lock: collect mutates s.ref on every iteration. RLock would
+	// allow concurrent collectMetrics callers to race on those writes
+	// (Go memory model: concurrent writes to a plain field are undefined
+	// even when any settled value is benign). Histograms use Lock for the
+	// same reason — keep counter/gauge symmetric.
+	c.seriesMtx.Lock()
+	defer c.seriesMtx.Unlock()
 
 	for _, s := range c.series {
 		// If we are about to call Append for the first time on a series, we need
@@ -136,20 +148,24 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64) error 
 			// We set the timestamp of the init serie at the end of the previous minute, that way we ensure it ends in a
 			// different aggregation interval to avoid be downsampled.
 			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
-			_, err := appender.Append(0, s.labels, endOfLastMinuteMs, 0)
+			ref, err := appender.Append(s.ref, s.labels, endOfLastMinuteMs, 0)
 			// Out-of-order errors occur when a series is deleted from our registry due to staleness cleanup,
 			// but still exists in Prometheus's TSDB. When the series reappears, we attempt to add the initial 0
 			// but Prometheus already has more recent data. We ignore this error and continue with the current value.
 			if err != nil && !isOutOfOrderError(err) {
 				return err
 			}
+			if err == nil {
+				s.ref = ref
+			}
 			s.registerSeenSeries()
 		}
 
-		_, err := appender.Append(0, s.labels, timeMs, s.value.Load())
+		ref, err := appender.Append(s.ref, s.labels, timeMs, s.value.Load())
 		if err != nil {
 			return err
 		}
+		s.ref = ref
 
 		// TODO: support exemplars
 	}

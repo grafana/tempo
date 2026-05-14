@@ -159,3 +159,53 @@ func (c *capturingAppender) AppendHistogramCTZeroSample(_ storage.SeriesRef, _ l
 func (c *capturingAppender) AppendHistogramSTZeroSample(_ storage.SeriesRef, _ labels.Labels, _, _ int64, _ *prom_histogram.Histogram, _ *prom_histogram.FloatHistogram) (storage.SeriesRef, error) {
 	return 0, nil
 }
+
+// refIssuingAppender is an Appender that records the input SeriesRef of every
+// Append call and returns a fixed non-zero ref. Used to test that metrics
+// cache the issued ref and pass it back on subsequent collect cycles, which
+// capturingAppender cannot observe (it echoes whatever ref it receives).
+type refIssuingAppender struct {
+	nextRef   storage.SeriesRef
+	inputRefs []storage.SeriesRef
+}
+
+var (
+	_ storage.Appendable = (*refIssuingAppender)(nil)
+	_ storage.Appender   = (*refIssuingAppender)(nil)
+)
+
+func (r *refIssuingAppender) Appender(context.Context) storage.Appender { return r }
+func (r *refIssuingAppender) Append(ref storage.SeriesRef, _ labels.Labels, _ int64, _ float64) (storage.SeriesRef, error) {
+	r.inputRefs = append(r.inputRefs, ref)
+	return r.nextRef, nil
+}
+
+func (r *refIssuingAppender) AppendExemplar(ref storage.SeriesRef, _ labels.Labels, _ exemplar.Exemplar) (storage.SeriesRef, error) {
+	return ref, nil
+}
+
+func (r *refIssuingAppender) AppendHistogram(ref storage.SeriesRef, _ labels.Labels, _ int64, _ *prom_histogram.Histogram, _ *prom_histogram.FloatHistogram) (storage.SeriesRef, error) {
+	return ref, nil
+}
+func (r *refIssuingAppender) Commit() error                       { return nil }
+func (r *refIssuingAppender) Rollback() error                     { return nil }
+func (r *refIssuingAppender) SetOptions(_ *storage.AppendOptions) {}
+func (r *refIssuingAppender) UpdateMetadata(_ storage.SeriesRef, _ labels.Labels, _ metadata.Metadata) (storage.SeriesRef, error) {
+	return 0, nil
+}
+
+func (r *refIssuingAppender) AppendCTZeroSample(_ storage.SeriesRef, _ labels.Labels, _, _ int64) (storage.SeriesRef, error) {
+	return 0, nil
+}
+
+func (r *refIssuingAppender) AppendSTZeroSample(_ storage.SeriesRef, _ labels.Labels, _, _ int64) (storage.SeriesRef, error) {
+	return 0, nil
+}
+
+func (r *refIssuingAppender) AppendHistogramCTZeroSample(_ storage.SeriesRef, _ labels.Labels, _, _ int64, _ *prom_histogram.Histogram, _ *prom_histogram.FloatHistogram) (storage.SeriesRef, error) {
+	return 0, nil
+}
+
+func (r *refIssuingAppender) AppendHistogramSTZeroSample(_ storage.SeriesRef, _ labels.Labels, _, _ int64, _ *prom_histogram.Histogram, _ *prom_histogram.FloatHistogram) (storage.SeriesRef, error) {
+	return 0, nil
+}

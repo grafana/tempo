@@ -30,8 +30,9 @@ type gauge struct {
 
 type gaugeSeries struct {
 	labels      labels.Labels
-	value       *atomic.Float64
-	lastUpdated *atomic.Int64
+	ref         storage.SeriesRef
+	value       atomic.Float64
+	lastUpdated atomic.Int64
 }
 
 var (
@@ -55,20 +56,26 @@ func newGauge(name string, lifecycler Limiter, externalLabels map[string]string,
 }
 
 func (g *gauge) Set(lbls labels.Labels, value float64) {
-	g.updateSeries(lbls, value, set, true)
+	g.updateSeries(lbls, lbls.Hash(), value, set, true, time.Now().UnixMilli())
 }
 
 func (g *gauge) Inc(lbls labels.Labels, value float64) {
-	g.updateSeries(lbls, value, add, true)
+	g.updateSeries(lbls, lbls.Hash(), value, add, true, time.Now().UnixMilli())
 }
 
 func (g *gauge) SetForTargetInfo(lbls labels.Labels, value float64) {
-	g.updateSeries(lbls, value, set, false)
+	g.SetForTargetInfoWithHash(lbls, lbls.Hash(), value)
 }
 
-func (g *gauge) updateSeries(lbls labels.Labels, value float64, operation string, updateIfAlreadyExist bool) {
-	hash := lbls.Hash()
+func (g *gauge) SetForTargetInfoWithHash(lbls labels.Labels, hash uint64, value float64) {
+	g.SetForTargetInfoWithHashAt(lbls, hash, value, time.Now().UnixMilli())
+}
 
+func (g *gauge) SetForTargetInfoWithHashAt(lbls labels.Labels, hash uint64, value float64, timeMs int64) {
+	g.updateSeries(lbls, hash, value, set, false, timeMs)
+}
+
+func (g *gauge) updateSeries(lbls labels.Labels, hash uint64, value float64, operation string, updateIfAlreadyExist bool, timeMs int64) {
 	g.seriesMtx.RLock()
 	s, ok := g.series[hash]
 	g.seriesMtx.RUnlock()
@@ -80,7 +87,7 @@ func (g *gauge) updateSeries(lbls labels.Labels, value float64, operation string
 		if !updateIfAlreadyExist {
 			return
 		}
-		g.updateSeriesValue(hash, s, value, operation)
+		g.updateSeriesValue(hash, s, value, operation, timeMs)
 		return
 	}
 
@@ -92,28 +99,29 @@ func (g *gauge) updateSeries(lbls labels.Labels, value float64, operation string
 		if !updateIfAlreadyExist {
 			return
 		}
-		g.updateSeriesValue(hash, s, value, operation)
+		g.updateSeriesValue(hash, s, value, operation, timeMs)
 		return
 	}
 
-	g.series[hash] = g.newSeries(lbls, value)
+	g.series[hash] = g.newSeries(lbls, value, timeMs)
 }
 
-func (g *gauge) newSeries(lbls labels.Labels, value float64) *gaugeSeries {
-	return &gaugeSeries{
-		labels:      getSeriesLabels(g.metricName, lbls, g.externalLabels),
-		value:       atomic.NewFloat64(value),
-		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
+func (g *gauge) newSeries(lbls labels.Labels, value float64, timeMs int64) *gaugeSeries {
+	s := &gaugeSeries{
+		labels: getSeriesLabels(g.metricName, lbls, g.externalLabels),
 	}
+	s.value.Store(value)
+	s.lastUpdated.Store(timeMs)
+	return s
 }
 
-func (g *gauge) updateSeriesValue(hash uint64, s *gaugeSeries, value float64, operation string) {
+func (g *gauge) updateSeriesValue(hash uint64, s *gaugeSeries, value float64, operation string, timeMs int64) {
 	if operation == add {
 		s.value.Add(value)
 	} else {
 		s.value.Store(value)
 	}
-	s.lastUpdated.Store(time.Now().UnixMilli())
+	s.lastUpdated.Store(timeMs)
 	g.lifecycler.OnUpdate(hash, 1)
 }
 
@@ -122,14 +130,20 @@ func (g *gauge) name() string {
 }
 
 func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64) error {
-	g.seriesMtx.RLock()
-	defer g.seriesMtx.RUnlock()
+	// Exclusive lock: collect mutates s.ref on every iteration. RLock would
+	// allow concurrent collectMetrics callers to race on those writes
+	// (Go memory model: concurrent writes to a plain field are undefined
+	// even when any settled value is benign). Histograms use Lock for the
+	// same reason — keep counter/gauge symmetric.
+	g.seriesMtx.Lock()
+	defer g.seriesMtx.Unlock()
 
 	for _, s := range g.series {
-		_, err := appender.Append(0, s.labels, timeMs, s.value.Load())
+		ref, err := appender.Append(s.ref, s.labels, timeMs, s.value.Load())
 		if err != nil {
 			return err
 		}
+		s.ref = ref
 		// TODO: support exemplars
 	}
 
