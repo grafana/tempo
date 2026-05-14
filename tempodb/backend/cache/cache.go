@@ -22,26 +22,35 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
+// cacheStoreSizeBytes records the byte size of every item written to a tempodb backend cache, labelled by role.
+var cacheStoreSizeBytes = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	Namespace: "tempodb",
+	Name:      "cache_store_size_bytes",
+	Help:      "Distribution of item sizes written to tempodb backend caches, by role.",
+	Buckets:   prometheus.ExponentialBuckets(512, 2, 15), // 512 B, 1 KiB, ..., 8 MiB
+}, []string{"role"})
+
 // pageCacheErrorBytes counts cache write-path bytes that did not make it
 // into the cache because the backend read failed with a non-nil non-EOF
 // error. Hit / miss / store totals are already observable from memcached's
 // own metrics, so we only emit the loss signal here.
 var pageCacheErrorBytes = promauto.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "tempodb",
-	Name:      "cache_page_error_bytes_total",
-	Help:      "Parquet page cache bytes lost to backend read errors, by error class.",
-}, []string{"class"})
+	Name:      "cache_store_error_bytes_total",
+	Help:      "Parquet cache bytes lost to backend read errors, by error class and cache role.",
+}, []string{"class", "role"})
 
-func recordPageError(ci *backend.CacheInfo, err error, name string, offset uint64, n int, logger *tempo_log.RateLimitedLogger) {
-	if ci == nil || ci.Role != cache.RoleParquetPage {
+func recordCacheError(ci *backend.CacheInfo, err error, name string, offset uint64, n int, logger *tempo_log.RateLimitedLogger) {
+	if ci == nil {
 		return
 	}
 	class := errorClass(err)
-	pageCacheErrorBytes.WithLabelValues(class).Add(float64(n))
+	pageCacheErrorBytes.WithLabelValues(class, string(ci.Role)).Add(float64(n))
 	if logger != nil {
 		logger.Log(
 			"msg", "cache write-path read error",
 			"class", class,
+			"role", string(ci.Role),
 			"err", err,
 			"name", name,
 			"offset", offset,
@@ -178,16 +187,20 @@ func (r *readerWriter) ReadRange(ctx context.Context, name string, keypath backe
 	// previous implemenation always passed false forward for "shouldCache" so we are matching that behavior by passing nil for cacheInfo
 	// todo: reevaluate. should we pass the cacheInfo forward?
 	err := r.nextReader.ReadRange(ctx, name, keypath, offset, buffer, nil)
+
 	// io.EOF alongside valid data is a successful read per io.ReaderAt;
 	// store it instead of dropping it.
-	if (err == nil || errors.Is(err, io.EOF)) && cache != nil {
+	if err != nil && !errors.Is(err, io.EOF) {
+		if cache != nil {
+			recordCacheError(cacheInfo, err, name, offset, len(buffer), r.errLogger)
+		}
+		return err
+	}
+	if cache != nil {
 		store(ctx, cache, cacheInfo.Role, k, buffer)
 	}
-	if err != nil && !errors.Is(err, io.EOF) {
-		recordPageError(cacheInfo, err, name, offset, len(buffer), r.errLogger)
-	}
 
-	return err
+	return nil
 }
 
 // Shutdown implements backend.RawReader
@@ -203,6 +216,7 @@ func (r *readerWriter) Write(ctx context.Context, name string, keypath backend.K
 	}
 
 	if cache := r.cacheFor(cacheInfo); cache != nil {
+		cacheStoreSizeBytes.WithLabelValues(string(cacheInfo.Role)).Observe(float64(len(b)))
 		cache.Store(ctx, []string{key(keypath, name)}, [][]byte{b})
 	}
 
@@ -277,6 +291,8 @@ func (r *readerWriter) cacheFor(cacheInfo *backend.CacheInfo) cache.Cache {
 }
 
 func store(ctx context.Context, cache cache.Cache, role cache.Role, key string, val []byte) {
+	cacheStoreSizeBytes.WithLabelValues(string(role)).Observe(float64(len(val)))
+
 	write := val
 	if needsCopy(role) {
 		write = make([]byte, len(val))

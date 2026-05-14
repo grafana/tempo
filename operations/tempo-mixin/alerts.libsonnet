@@ -441,6 +441,37 @@
             },
           },
           {
+            // Distributors produce trace records to Kafka. If a non-trivial fraction of records fail
+            // to produce, traces are dropped on the write path. This alert is a fast leading
+            // indicator for write path issues: the request-latency / SLO burn alerts only fire once
+            // the failures cascade back to cortex-gw as gRPC errors or >2.5s requests, which can
+            // take hours when the error rate is small but sustained.
+            //
+            // The 'cancelled-before-producing' reason is excluded because it is a caller-side
+            // cancellation (upstream context done) rather than a Kafka/producer problem.
+            alert: 'TempoDistributorKafkaProduceFailing',
+            expr: |||
+              sum by (%s) (rate(tempo_distributor_produce_failures_total{namespace=~"%s", reason!="cancelled-before-producing"}[5m]))
+              /
+              sum by (%s) (rate(tempo_distributor_produce_records_total{namespace=~"%s"}[5m]))
+              > %s
+            ||| % [
+              $._config.group_by_cluster,
+              $._config.namespace,
+              $._config.group_by_cluster,
+              $._config.namespace,
+              $._config.alerts.distributor_kafka_produce_failure_ratio,
+            ],
+            'for': '5m',
+            labels: {
+              severity: 'critical',
+            },
+            annotations: {
+              message: '{{ $value | humanizePercentage }} of distributor -> Kafka record produces are failing in {{ $labels.cluster }}/{{ $labels.namespace }}.',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoDistributorKafkaProduceFailing',
+            },
+          },
+          {
             alert: 'TempoMetricsGeneratorProcessorUpdatesFailing',
             expr: |||
               sum by (cluster, namespace, tenant) (

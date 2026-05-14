@@ -127,6 +127,69 @@ func buildSeriesForExemplarTest(start, end, step uint64, include func(i int) boo
 	return resp, expectedSeries
 }
 
+func TestSegmentQueryRangeResponseToMaxPacketSize(t *testing.T) {
+	input := &tempopb.QueryRangeResponse{
+		Metrics: &tempopb.SearchMetrics{},
+		Series: []*tempopb.TimeSeries{
+			{
+				Labels: []v1.KeyValue{
+					{Key: "name", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "series0"}}},
+				},
+				Samples: []tempopb.Sample{{TimestampMs: 1000, Value: 1}},
+			},
+			{
+				Labels: []v1.KeyValue{
+					{Key: "name", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "series1"}}},
+				},
+				Samples: []tempopb.Sample{{TimestampMs: 2000, Value: 2}},
+			},
+			{
+				Labels: []v1.KeyValue{
+					{Key: "name", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "series2"}}},
+				},
+				Samples: []tempopb.Sample{{TimestampMs: 3000, Value: 3}},
+			},
+		},
+	}
+
+	t.Run("fits", func(t *testing.T) {
+		// Generate a test packet size that is large enough for only part of the data.
+		maxSize := (&tempopb.QueryRangeResponse{
+			Metrics: input.Metrics,
+			Series:  input.Series[:2],
+		}).Size()
+		out := segmentQueryRangeResponseToMaxPacketSize(input, maxSize)
+
+		require.Len(t, out, 2, "expected 2 responses")
+		requireProtoSegmentsFit(t, out, maxSize)
+		require.Len(t, out[0].Series, 2)
+		require.Len(t, out[1].Series, 1)
+		require.Equal(t, input.Series[0], out[0].Series[0])
+		require.Equal(t, input.Series[1], out[0].Series[1])
+		require.Equal(t, input.Series[2], out[1].Series[0])
+		// Metrics repeated in each segment
+		require.Equal(t, input.Metrics, out[0].Metrics)
+		require.Equal(t, input.Metrics, out[1].Metrics)
+	})
+
+	t.Run("at least one", func(t *testing.T) {
+		// This is smaller than every item but will test logic to ensure we always send at least one item even if too big
+		const maxSize = 1
+		out := segmentQueryRangeResponseToMaxPacketSize(input, maxSize)
+
+		require.Len(t, out, 3, "expected 3 responses")
+		require.Len(t, out[0].Series, 1)
+		require.Len(t, out[1].Series, 1)
+		require.Len(t, out[2].Series, 1)
+		require.Equal(t, input.Series[0], out[0].Series[0])
+		require.Equal(t, input.Series[1], out[1].Series[0])
+		require.Equal(t, input.Series[2], out[2].Series[0])
+		require.Equal(t, input.Metrics, out[0].Metrics)
+		require.Equal(t, input.Metrics, out[1].Metrics)
+		require.Equal(t, input.Metrics, out[2].Metrics)
+	})
+}
+
 func TestQueryRangemaxSeriesShouldQuit(t *testing.T) {
 	start := uint64(1100 * time.Second)
 	end := uint64(1300 * time.Second)

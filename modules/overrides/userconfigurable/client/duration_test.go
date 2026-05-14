@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.yaml.in/yaml/v2"
 )
 
 type mockStruct struct {
@@ -38,6 +39,21 @@ func TestDuration_MarshalJSON(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestDuration_MarshalYAML guards the admin /status/overrides/{tenant} page,
+// which yaml.Marshal()s a struct containing *Duration fields. Without a
+// MarshalYAML method, yaml.v2 emits "duration: 5m0s" (the embedded
+// time.Duration as a nested map) instead of the flat scalar "5m0s".
+func TestDuration_MarshalYAML(t *testing.T) {
+	in := mockStruct{&Duration{60 * time.Second}}
+	out, err := yaml.Marshal(in)
+	assert.NoError(t, err)
+	assert.Equal(t, "duration: 1m0s\n", string(out))
+
+	var decoded mockStruct
+	assert.NoError(t, yaml.Unmarshal(out, &decoded))
+	assert.Equal(t, in.Duration.Duration, decoded.Duration.Duration)
 }
 
 func TestDuration_UnmarshalJSON(t *testing.T) {

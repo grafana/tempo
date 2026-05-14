@@ -47,7 +47,7 @@ func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, 
 	return l, l, l, err
 }
 
-// Write implements backend.Writer
+// Write implements backend.Writer.
 func (rw *Backend) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64, _ *backend.CacheInfo) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -71,6 +71,44 @@ func (rw *Backend) Write(ctx context.Context, name string, keypath backend.KeyPa
 		return err
 	}
 	return err
+}
+
+// WriteAtomic writes via a temp file + os.Rename so concurrent writers to
+// the same path never leave a partial or interleaved file on disk.
+func (rw *Backend) WriteAtomic(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	blockFolder := rw.rootPath(keypath)
+	if err := os.MkdirAll(blockFolder, 0o700); err != nil {
+		return err
+	}
+
+	finalName := rw.objectFileName(keypath, name)
+	tmp, err := os.CreateTemp(blockFolder, "."+filepath.Base(name)+".tmp-*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer func() {
+		if tmpName != "" {
+			_ = os.Remove(tmpName)
+		}
+	}()
+
+	if _, err := io.Copy(tmp, data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpName, finalName); err != nil {
+		return err
+	}
+	tmpName = ""
+	return nil
 }
 
 // Append implements backend.Writer

@@ -35,6 +35,12 @@ type Config struct {
 	// A list of regexes for black listing requests, these will apply for every request regardless the endpoint
 	URLDenyList []string `yaml:"url_deny_list,omitempty"`
 
+	// The maximum size of a response message returned over gRPC streaming calls.
+	// Diffs and final responses will be segmented into packets of this size.
+	// This is separate from the max grpc packet server response size for the process overall,
+	// because we may need to target smaller responses for downstream clients.
+	MaxGRPCStreamingPacketSize int `yaml:"max_grpc_streaming_packet_size,omitempty"`
+
 	// Maximum allowed size of the raw TraceQL Query expression in bytes
 	MaxQueryExpressionSizeBytes int `yaml:"max_query_expression_size_bytes,omitempty"`
 
@@ -92,6 +98,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Config.MaxBatchSize = 7
 	cfg.MaxRetries = 2
 	cfg.ResponseConsumers = 10
+	cfg.MaxGRPCStreamingPacketSize = 2 * 1024 * 1024 // 2MB
 	cfg.Search = SearchConfig{
 		Sharder: SearchSharderConfig{
 			QueryBackendAfter:      15 * time.Minute,

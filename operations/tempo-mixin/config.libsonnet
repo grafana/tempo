@@ -41,6 +41,10 @@
       backend_scheduler_bad_jobs_count_per_minute: 0,  // alert if there are any bad jobs
       backend_worker_call_retries_count_per_minute: 5,  // 5 retries per minute
       vulture_error_rate_threshold: 0.1,  // 10% error rate
+      // Alert when more than this fraction of distributor -> Kafka record produces fail. Set well
+      // below the typical 99.9% write SLO budget so this fires as a fast leading indicator before
+      // the SLO burn-rate alerts can detect the issue.
+      distributor_kafka_produce_failure_ratio: 0.001,  // 0.1% of records
       // Livestore partition lag thresholds in seconds
       live_store_partition_lag_warning_seconds: 200,  // 3.3 minutes
       live_store_partition_lag_critical_seconds: 1200,  // 20 minutes
