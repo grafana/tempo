@@ -19,14 +19,14 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.yaml.in/yaml/v2"
 
-	"github.com/grafana/tempo/modules/overrides/histograms"
-	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
-	"github.com/grafana/tempo/pkg/sharedconfig"
-	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
-	"github.com/grafana/tempo/pkg/util/listtomap"
-	tempo_log "github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/pkg/util/tracing"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v3/modules/overrides/histograms"
+	userconfigurableoverrides "github.com/grafana/tempo/v3/modules/overrides/userconfigurable/client"
+	"github.com/grafana/tempo/v3/pkg/sharedconfig"
+	filterconfig "github.com/grafana/tempo/v3/pkg/spanfilter/config"
+	"github.com/grafana/tempo/v3/pkg/util/listtomap"
+	tempo_log "github.com/grafana/tempo/v3/pkg/util/log"
+	"github.com/grafana/tempo/v3/pkg/util/tracing"
+	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
 var metricUserConfigurableOverridesReloadFailed = promauto.NewCounter(prometheus.CounterOpts{

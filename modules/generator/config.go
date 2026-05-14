@@ -8,14 +8,14 @@ import (
 	"slices"
 	"time"
 
-	"github.com/grafana/tempo/modules/generator/processor/hostinfo"
-	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
-	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
-	"github.com/grafana/tempo/modules/generator/registry"
-	"github.com/grafana/tempo/modules/generator/storage"
-	"github.com/grafana/tempo/modules/generator/validation"
-	"github.com/grafana/tempo/pkg/ingest"
-	"github.com/grafana/tempo/pkg/ring"
+	"github.com/grafana/tempo/v3/modules/generator/processor/hostinfo"
+	"github.com/grafana/tempo/v3/modules/generator/processor/servicegraphs"
+	"github.com/grafana/tempo/v3/modules/generator/processor/spanmetrics"
+	"github.com/grafana/tempo/v3/modules/generator/registry"
+	"github.com/grafana/tempo/v3/modules/generator/storage"
+	"github.com/grafana/tempo/v3/modules/generator/validation"
+	"github.com/grafana/tempo/v3/pkg/ingest"
+	"github.com/grafana/tempo/v3/pkg/ring"
 	"go.uber.org/multierr"
 )
 

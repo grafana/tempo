@@ -5,19 +5,19 @@ import (
 	"slices"
 	"time"
 
-	"github.com/grafana/tempo/modules/generator/validation"
+	"github.com/grafana/tempo/v3/modules/generator/validation"
 	"github.com/prometheus/client_golang/prometheus"
 
-	gen "github.com/grafana/tempo/modules/generator/processor"
-	processor_util "github.com/grafana/tempo/modules/generator/processor/util"
-	"github.com/grafana/tempo/modules/generator/registry"
-	"github.com/grafana/tempo/pkg/cache/reclaimable"
-	"github.com/grafana/tempo/pkg/spanfilter"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	v1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
-	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	tempo_util "github.com/grafana/tempo/pkg/util"
+	gen "github.com/grafana/tempo/v3/modules/generator/processor"
+	processor_util "github.com/grafana/tempo/v3/modules/generator/processor/util"
+	"github.com/grafana/tempo/v3/modules/generator/registry"
+	"github.com/grafana/tempo/v3/pkg/cache/reclaimable"
+	"github.com/grafana/tempo/v3/pkg/spanfilter"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1_common "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/resource/v1"
+	v1_trace "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	tempo_util "github.com/grafana/tempo/v3/pkg/util"
 )
 
 const (

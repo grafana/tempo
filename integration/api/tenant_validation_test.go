@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/tenant"
-	"github.com/grafana/tempo/integration/util"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v3/integration/util"
+	tempoUtil "github.com/grafana/tempo/v3/pkg/util"
 	"github.com/stretchr/testify/require"
 )
 

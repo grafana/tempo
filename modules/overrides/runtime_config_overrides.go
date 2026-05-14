@@ -17,12 +17,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.yaml.in/yaml/v2"
 
-	"github.com/grafana/tempo/modules/overrides/histograms"
-	"github.com/grafana/tempo/pkg/sharedconfig"
-	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v3/modules/overrides/histograms"
+	"github.com/grafana/tempo/v3/pkg/sharedconfig"
+	filterconfig "github.com/grafana/tempo/v3/pkg/spanfilter/config"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/pkg/util/log"
+	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
 type Validator interface {

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/grafana/tempo/pkg/drain"
+	"github.com/grafana/tempo/v3/pkg/drain"
 	"github.com/stretchr/testify/require"
 )
 

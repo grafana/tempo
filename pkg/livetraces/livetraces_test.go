@@ -9,10 +9,10 @@ import (
 	"time"
 
 	kitlog "github.com/go-kit/log"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/util/log"
+	"github.com/grafana/tempo/v3/pkg/util/test"
 	"github.com/stretchr/testify/require"
 )
 

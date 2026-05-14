@@ -7,10 +7,10 @@ import (
 	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/grafana/tempo/modules/frontend/pipeline"
-	v1 "github.com/grafana/tempo/modules/frontend/v1"
-	"github.com/grafana/tempo/pkg/usagestats"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
+	v1 "github.com/grafana/tempo/v3/modules/frontend/v1"
+	"github.com/grafana/tempo/v3/pkg/usagestats"
+	"github.com/grafana/tempo/v3/pkg/util"
 )
 
 var statVersion = usagestats.NewString("frontend_version")
