@@ -178,7 +178,8 @@ If you explicitly set these values in your configuration, no action is needed.
 
 The ingester module is removed entirely. All ingester-related configuration fields, CLI flags, alerts, and dashboard panels must be removed from your deployment. The write path is now handled by the [block-builder](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/block-builder/) and [live-store](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/live-store/).
 
-Affected configuration sections: `ingester`, `ingester_client`, `compactor`, `metrics_generator_client`, `ingest.enabled`.
+Removed configuration sections: `ingester`, `ingester_client`, `compactor`, `metrics_generator_client`.
+The `ingest.enabled` field is also removed, but the `ingest` block itself is still required for microservices mode (for example, `ingest.kafka`).
 
 For step-by-step migration instructions, refer to [Migrate from Tempo 2.x to 3.0](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/migrate-to-3/).
 
