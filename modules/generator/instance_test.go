@@ -496,3 +496,93 @@ func (n noopAppender) AppendSTZeroSample(_ prometheus_storage.SeriesRef, _ label
 func (n *noopAppender) AppendHistogramSTZeroSample(_ prometheus_storage.SeriesRef, _ labels.Labels, _, _ int64, _ *histogram.Histogram, _ *histogram.FloatHistogram) (prometheus_storage.SeriesRef, error) {
 	return 0, nil
 }
+
+// TestPreprocessSpans_FiltersExpiredSpansInPlace exercises the in-place
+// expired-span filter: kept spans stay in their original order, expired ones
+// are dropped, and the tail of the underlying array is zeroed so the dropped
+// pointers can be garbage-collected.
+//
+// Each sub-test allocates ss.Spans with len==N and asserts that after
+// preprocessSpans the slice has the expected length AND that the tail
+// indices [newLen:N] in the backing array are nil. Without the `clear` in
+// preprocessSpans, those entries would still hold the dropped *Span values
+// and pin them in memory.
+func TestPreprocessSpans_FiltersExpiredSpansInPlace(t *testing.T) {
+	const slack = time.Hour
+	overrides := &mockOverrides{ingestionSlack: slack}
+
+	cfg := &Config{}
+	flagext := flag.NewFlagSet("", flag.PanicOnError)
+	cfg.RegisterFlagsAndApplyDefaults("", flagext)
+	logger := log.NewNopLogger()
+	inst, err := newInstance(cfg, "test-tenant", overrides, &noopStorage{}, logger)
+	require.NoError(t, err)
+	defer inst.shutdown()
+
+	now := time.Now().UnixNano()
+	inRange := uint64(now)
+	farPast := uint64(now - 2*slack.Nanoseconds())
+	farFuture := uint64(now + 2*slack.Nanoseconds())
+
+	span := func(end uint64) *v1.Span {
+		return &v1.Span{EndTimeUnixNano: end}
+	}
+
+	cases := []struct {
+		name     string
+		input    []*v1.Span
+		wantKept []uint64
+	}{
+		{
+			name:     "all_in_range",
+			input:    []*v1.Span{span(inRange), span(inRange), span(inRange)},
+			wantKept: []uint64{inRange, inRange, inRange},
+		},
+		{
+			name:     "all_expired_past",
+			input:    []*v1.Span{span(farPast), span(farPast)},
+			wantKept: nil,
+		},
+		{
+			name:     "all_expired_future",
+			input:    []*v1.Span{span(farFuture), span(farFuture)},
+			wantKept: nil,
+		},
+		{
+			name:     "mixed_preserves_order_of_kept",
+			input:    []*v1.Span{span(farPast), span(inRange), span(farFuture), span(inRange), span(farPast)},
+			wantKept: []uint64{inRange, inRange},
+		},
+		{
+			name:     "empty",
+			input:    nil,
+			wantKept: nil,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Snapshot original backing-array pointers so we can inspect the
+			// tail after preprocessSpans runs.
+			origLen := len(tc.input)
+			ss := &v1.ScopeSpans{Spans: tc.input}
+			req := &tempopb.PushSpansRequest{Batches: []*v1.ResourceSpans{{
+				ScopeSpans: []*v1.ScopeSpans{ss},
+			}}}
+
+			inst.preprocessSpans(req)
+
+			require.Len(t, ss.Spans, len(tc.wantKept), "filtered length mismatch")
+			for i, want := range tc.wantKept {
+				require.Equal(t, want, ss.Spans[i].EndTimeUnixNano, "kept span %d order mismatch", i)
+			}
+
+			// Tail of the backing array must be zeroed so expired *Span values
+			// don't get pinned. Re-slice up to original len to inspect.
+			tail := ss.Spans[len(ss.Spans):origLen]
+			for i, p := range tail {
+				require.Nilf(t, p, "tail index %d not zeroed; expired span retained in backing array", i)
+			}
+		})
+	}
+}
