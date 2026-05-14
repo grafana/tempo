@@ -87,7 +87,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 			return err
 		}
 
-		collector := pipeline.NewGRPCCollector(next, cfg.ResponseConsumers, c, func(qrr *tempopb.QueryRangeResponse) error {
+		collector := pipeline.NewGRPCCollector(next, cfg.ResponseConsumers, cfg.MaxGRPCStreamingPacketSize, c, func(qrr *tempopb.QueryRangeResponse) error {
 			finalResponse = qrr // sadly we can't pass srv.Send directly into the collector. we need bytesProcessed for the SLO calculations
 			return srv.Send(qrr)
 		})
@@ -171,7 +171,7 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 		// ask for the typed diff and use that for the SLO hook. it will have up to date metrics
 		// todo: is there a way to remove this? it can be costly for large responses
 		var bytesProcessed uint64
-		queryRangeResp, _ := combiner.GRPCDiff()
+		queryRangeResp, _ := combiner.GRPCFinal()
 		if queryRangeResp != nil && queryRangeResp.Metrics != nil {
 			bytesProcessed = queryRangeResp.Metrics.InspectedBytes
 		}

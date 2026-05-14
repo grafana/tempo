@@ -67,7 +67,7 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 			return err
 		}
 
-		collector := pipeline.NewGRPCCollector(next, cfg.ResponseConsumers, c, func(qrr *tempopb.QueryRangeResponse) error {
+		collector := pipeline.NewGRPCCollector(next, cfg.ResponseConsumers, cfg.MaxGRPCStreamingPacketSize, c, func(qrr *tempopb.QueryRangeResponse) error {
 			// Translate each diff into the instant version and send it
 			resp := translateQueryRangeToInstant(*qrr)
 			finalResponse = &resp // Save last response for bytesProcessed for the SLO calculations

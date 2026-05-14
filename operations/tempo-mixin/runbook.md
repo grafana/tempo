@@ -446,6 +446,53 @@ This alert means that the tenant's cost attribution is not working or is incorre
 - Metric/query: `sum by (tenant, reason) (increase(tempo_distributor_usage_tracker_errors_total[1h]))`
 - Log query: `{container="distributor"} |= "failed to collect usage tracker metric"`
 
+## TempoDistributorKafkaProduceFailing
+
+The distributor writes incoming trace records to Kafka before they are picked up by live-stores and
+block-builders. This alert fires when more than 0.1% of those produce attempts are failing, sustained
+for 5 minutes. Failed records are dropped on the write path, so this is a direct ingest-data-loss
+signal.
+
+This alert is intended as a **fast leading indicator**. The request-latency / write SLO burn-rate
+alerts only fire once the failures propagate back to `cortex-gw` as gRPC errors or as requests slower
+than the SLO bucket. With small-but-sustained failure rates the cortex-gw signal can take hours to
+cross the SLO burn threshold; this alert fires from the producer side in minutes.
+
+### Failure reasons
+
+The `tempo_distributor_produce_failures_total` metric carries a `reason` label set by
+`pkg/ingest/writer_client.go::produceErrReason`:
+
+- `timeout` -- `context.DeadlineExceeded` or `kgo.ErrRecordTimeout`. Kafka did not ack the record
+  before the deadline. Most common real failure mode. Look at Kafka broker / Warpstream agent health.
+- `buffer-full` -- `kgo.ErrMaxBuffered`. The Kafka client's in-memory buffer reached its byte limit.
+  The producer is unable to flush fast enough; usually a downstream Kafka slowdown.
+- `record-too-large` -- `kerr.MessageTooLarge`. A single record exceeded the topic's max message size.
+  Usually points at a misbehaving tenant sending oversized spans/batches.
+- `canceled` -- `context.Canceled`. The source comments state this should never happen; investigate
+  immediately.
+- `other` -- anything else not matched above. Inspect distributor logs for the underlying error.
+- `cancelled-before-producing` -- the caller cancelled before the record was handed to the Kafka
+  client. This is a caller-side cancellation, not a producer problem, and is **excluded** from the
+  alert expression.
+
+### How to investigate
+
+1. Break the failure rate down by reason to identify the failure mode:
+   `sum by (cluster, namespace, reason) (rate(tempo_distributor_produce_failures_total[5m]))`.
+2. Check Kafka / Warpstream agent and controlplane health (latency, error rates, restarts, OOMKills).
+3. Check distributor pod health and resource saturation -- a slow distributor can cause `timeout`
+   even when Kafka is healthy.
+4. Compare against the produce rate and write latency to confirm whether the issue is throughput
+   (broker slow) or capacity (client buffer full).
+
+### Quick checks
+- Metric/query: `sum by (cluster, namespace, reason) (rate(tempo_distributor_produce_failures_total[5m]))`
+- Metric/query: `sum by (cluster, namespace, reason) (rate(tempo_distributor_produce_failures_total[5m])) / ignoring(reason) group_left sum by (cluster, namespace) (rate(tempo_distributor_produce_records_total[5m]))`
+- Metric/query: `histogram_quantile(0.99, sum by (le) (rate(tempo_distributor_kafka_write_latency_seconds_bucket[5m])))`
+- Metric/query: `tempo_distributor_buffered_produce_bytes / tempo_distributor_buffered_produce_bytes_limit`
+- Log query: `{container="distributor"} |~ "failed to produce|kafka"`
+
 ## TempoMetricsGeneratorProcessorUpdatesFailing
 
 The metrics-generator contains processors to convert spans into metrics. They can be enabled or disabled dynamically per
