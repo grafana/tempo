@@ -23,7 +23,6 @@ import (
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
-	"github.com/grafana/tempo/pkg/util/listtomap"
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/util/tracing"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -233,11 +232,10 @@ func (o *userConfigurableOverridesManager) CostAttributionDimensions(userID stri
 }
 
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessors(userID string) map[string]struct{} {
-	// We merge settings from both layers meaning if a processor is enabled on any layer it will be always enabled (OR logic)
-	processorsUserConfigurable, _ := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessors()
-	processorsRuntime := o.Interface.MetricsGeneratorProcessors(userID)
-
-	return listtomap.Merge(processorsUserConfigurable, processorsRuntime)
+	if processors, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessors(); ok {
+		return processors
+	}
+	return o.Interface.MetricsGeneratorProcessors(userID)
 }
 
 func (o *userConfigurableOverridesManager) MetricsGeneratorIngestionSlack(userID string) time.Duration {
