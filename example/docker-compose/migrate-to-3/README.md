@@ -73,8 +73,13 @@ This starts Redpanda, creates the `tempo-ingest` topic with 2 partitions, and
 brings up every v3 component. Traffic is **still flowing to v2** — Alloy hasn't
 been touched.
 
-Confirm v3 is healthy before moving on. Open Grafana at <http://localhost:3000>
-→ **Explore** → select the **Prometheus** datasource and run:
+**First, verify that `compaction_disabled: true` is set in `tempo-v3.yaml`
+overrides** (it already is in this example). If both compactors run against
+the shared MinIO bucket at the same time, they can corrupt each other's work.
+
+Then confirm v3 is healthy before moving on. Open Grafana at
+<http://localhost:3000> → **Explore** → select the **Prometheus** datasource
+and run:
 
 ```promql
 # Both live-store replicas should report 1.
@@ -95,10 +100,6 @@ docker compose logs -f tempo-v3-live-store-0 tempo-v3-live-store-1 | grep -E 're
 > `live_store.readiness_max_wait` (30 s in this example, 30 m default) before
 > giving up and going ready. Once you switch traffic in step 4, restarts are
 > instant because there's data in the topic.
-
-Verify that `compaction_disabled: true` is set in `tempo-v3.yaml` overrides
-(it already is in this example) so the v3 deployment doesn't fight the v2
-compactor over shared storage.
 
 The `v3` profile also brings up [Tempo Vulture](https://grafana.com/docs/tempo/latest/operations/tempo-vulture/),
 which pushes synthetic traces directly to the v3 distributor and reads them
