@@ -848,7 +848,7 @@ func (s *LiveStore) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReq
 // SearchRecent implements tempopb.Querier
 func (s *LiveStore) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
 	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchResponse, error) {
-		if s.isLagged(int64(req.End) * 1e9) { // convert seconds to nanoseconds
+		if s.isLagged(int64(req.End)*1e9, "/tempopb.Querier/SearchRecent", req.Query) { // convert seconds to nanoseconds
 			metricLaggedRequests.WithLabelValues("/tempopb.Querier/SearchRecent").Inc()
 			if s.cfg.FailOnHighLag {
 				return nil, errLagged
@@ -894,7 +894,7 @@ func (s *LiveStore) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTa
 // QueryRange implements tempopb.MetricsServer
 func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
 	return withInstance(ctx, s, func(inst *instance) (*tempopb.QueryRangeResponse, error) {
-		if s.isLagged(int64(req.End)) { // end param is already nanos, no need to convert
+		if s.isLagged(int64(req.End), "/tempopb.Metrics/QueryRange", req.Query) { // end param is already nanos, no need to convert
 			metricLaggedRequests.WithLabelValues("/tempopb.Metrics/QueryRange").Inc()
 			if s.cfg.FailOnHighLag {
 				return nil, errLagged
@@ -906,15 +906,30 @@ func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 
 var errLagged = errors.New("cannot guarantee complete results")
 
-func (s *LiveStore) isLagged(endNanos int64) bool {
+func (s *LiveStore) isLagged(endNanos int64, route, query string) bool {
 	if !s.cfg.ConsumeFromKafka { // if config disabled or no kafka consumption, never lagged
 		return false
 	}
 	lag := s.calculateTimeLag(0)
-	if lag == nil { // lag is unknown
-		return true // prefer error over potentially incomplete results
+	// prefer fail when lag is unknown; otherwise lagged means queryEnd is more recent than the last consumed record.
+	lagged := lag == nil || time.Since(time.Unix(0, endNanos)) < *lag
+	if lagged {
+		timeLagSec := -1.0
+		if lag != nil {
+			timeLagSec = lag.Seconds()
+		}
+		level.Info(s.logger).Log(
+			"msg", "isLagged tripped",
+			"route", route,
+			"query", query,
+			"end_unix_nano", endNanos,
+			"now_unix_nano", time.Now().UnixNano(),
+			"time_lag_sec", timeLagSec,
+			"offset_lag", s.reader.lag.Load(),
+			"last_record_unix_nano", s.lastRecordTimeNanos.Load(),
+		)
 	}
-	return time.Since(time.Unix(0, endNanos)) < *lag
+	return lagged
 }
 
 // withInstance extracts the tenant ID from the context, gets the instance,
