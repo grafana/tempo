@@ -4,7 +4,7 @@
 # Notes vs the 2.x config:
 #   - No `ingester:`, `compactor:`, `ingester_client:`, `metrics_generator_client:` blocks.
 #   - New `ingest:` block points at Redpanda/Kafka.
-#   - New `block_builder:` block with explicit partition assignments.
+#   - New `block_builder:` block (one Kafka partition per replica).
 #   - New `live_store:` and `backend_scheduler:`/`backend_worker:` blocks.
 #   - `compaction_disabled: true` is set in overrides for the parallel-deployment
 #     phase. REMOVE that override after the 2.x deployment is decommissioned

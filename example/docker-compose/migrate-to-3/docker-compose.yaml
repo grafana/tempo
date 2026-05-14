@@ -179,9 +179,10 @@ services:
         until rpk cluster info --brokers redpanda:9092 2>/dev/null; do
           echo "Waiting for Redpanda..."; sleep 2
         done
-        rpk topic create tempo-ingest --partitions 1 --brokers redpanda:9092 || true
-        rpk topic add-partitions tempo-ingest --num 1 --brokers redpanda:9092 || true
-        echo "Topic tempo-ingest ready with 2 partitions."
+        # Idempotent: create with the desired partition count on first run;
+        # on subsequent runs the topic already exists and this is a no-op.
+        rpk topic create tempo-ingest --partitions 2 --brokers redpanda:9092 || true
+        echo "Topic tempo-ingest ready."
 
   redpanda-console:
     image: docker.redpanda.com/redpandadata/console:v3.5.0
