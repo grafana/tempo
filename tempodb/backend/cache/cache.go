@@ -189,7 +189,8 @@ func (r *readerWriter) ReadRange(ctx context.Context, name string, keypath backe
 	err := r.nextReader.ReadRange(ctx, name, keypath, offset, buffer, nil)
 
 	// io.EOF alongside valid data is a successful read per io.ReaderAt;
-	// store it instead of dropping it.
+	// store the bytes instead of dropping them, but still surface io.EOF
+	// to the caller so downstream code that distinguishes EOF keeps working.
 	if err != nil && !errors.Is(err, io.EOF) {
 		if cache != nil {
 			recordCacheError(cacheInfo, err, name, offset, len(buffer), r.errLogger)
@@ -200,7 +201,7 @@ func (r *readerWriter) ReadRange(ctx context.Context, name string, keypath backe
 		store(ctx, cache, cacheInfo.Role, k, buffer)
 	}
 
-	return nil
+	return err
 }
 
 // Shutdown implements backend.RawReader

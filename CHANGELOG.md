@@ -1,7 +1,7 @@
 ## main / unreleased
 
 * [FEATURE] Make individual AST transformations skippable via config and query hints [#7012](https://github.com/grafana/tempo/pull/7012) (@stoewer)
-* [BUGFIX] cache: store the backend response when ReadRange returns `io.EOF` alongside valid data. Adds `tempodb_cache_page_error_bytes_total{class}` and a sampled warn-level log to surface the remaining write-path losses (`canceled`, `unexpected_eof`, `deadline_exceeded`, `other`). [#7137](https://github.com/grafana/tempo/pull/7137) (@javiermolinar)
+* [BUGFIX] cache: store the backend response when ReadRange returns `io.EOF` alongside valid data. Adds `tempodb_cache_store_error_bytes_total{class, role}` and a sampled warn-level log to surface the remaining write-path losses (`class` is one of `canceled`, `unexpected_eof`, `deadline_exceeded`, `other`). [#7137](https://github.com/grafana/tempo/pull/7137) (@javiermolinar)
 * [ENHANCEMENT] tempodb: add `tempodb_cache_store_size_bytes` histogram labelled by `role` recording the size of every item written to the backend cache. [#7152](https://github.com/grafana/tempo/pull/7152) (@javiermolinar)
 * [ENHANCEMENT] Add `TempoDistributorKafkaProduceFailing` alert that triggers when Kafka records cannot be produced by the distributor. [#7148](https://github.com/grafana/tempo/pull/7148) (@javiermolinar)
 * [ENHANCEMENT] live-store: lock-free block reads via `atomic.Pointer[blockSnapshot]`; block deletion is two-phase (tombstone meta.json → meta.deleted.json, then reclaim files after `block_reclaim_grace`). Crash-safe; startup sweep reclaims any tombstoned dirs left by an unclean shutdown. [#7132](https://github.com/grafana/tempo/pull/7132) (@zhxiaogg)

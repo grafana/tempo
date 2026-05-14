@@ -401,7 +401,8 @@ func TestReadRangeErrorClass(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			baseClass := testutil.ToFloat64(pageCacheErrorBytes.WithLabelValues(tc.want))
+			roleLabel := string(cache.RoleParquetPage)
+			baseClass := testutil.ToFloat64(pageCacheErrorBytes.WithLabelValues(tc.want, roleLabel))
 
 			provider := test.NewMockProvider()
 			mockR := &errReader{MockRawReader: &backend.MockRawReader{}, err: tc.inErr}
@@ -413,7 +414,7 @@ func TestReadRangeErrorClass(t *testing.T) {
 				Role: cache.RoleParquetPage,
 			})
 
-			require.Equal(t, baseClass+32, testutil.ToFloat64(pageCacheErrorBytes.WithLabelValues(tc.want)))
+			require.Equal(t, baseClass+32, testutil.ToFloat64(pageCacheErrorBytes.WithLabelValues(tc.want, roleLabel)))
 		})
 	}
 }
@@ -452,14 +453,19 @@ func TestReadRangeLogsErrors(t *testing.T) {
 	require.True(t, found, "expected a cache write-path error log line; got entries: %v", cl.entries)
 }
 
-// TestReadRangeErrorIgnoresNonPageRoles ensures the error-bytes counter is
-// scoped to RoleParquetPage and does not fire for other roles.
-func TestReadRangeErrorIgnoresNonPageRoles(t *testing.T) {
+// TestReadRangeErrorRecordsRoleLabel verifies the error-bytes counter is
+// labelled by the cache role of the request, so callers can break it down
+// per role in dashboards.
+func TestReadRangeErrorRecordsRoleLabel(t *testing.T) {
 	tenantID := "test"
 	blockID := uuid.New()
 	keypath := backend.KeyPathForBlock(blockID, tenantID)
 
-	base := testutil.ToFloat64(pageCacheErrorBytes.WithLabelValues("other"))
+	footerRole := string(cache.RoleParquetFooter)
+	pageRole := string(cache.RoleParquetPage)
+
+	baseFooter := testutil.ToFloat64(pageCacheErrorBytes.WithLabelValues("other", footerRole))
+	basePage := testutil.ToFloat64(pageCacheErrorBytes.WithLabelValues("other", pageRole))
 
 	provider := test.NewMockProvider()
 	mockR := &errReader{MockRawReader: &backend.MockRawReader{}, err: errors.New("boom")}
@@ -470,5 +476,9 @@ func TestReadRangeErrorIgnoresNonPageRoles(t *testing.T) {
 	_ = reader.ReadRange(context.Background(), "data.parquet", keypath, 0, buf, &backend.CacheInfo{
 		Role: cache.RoleParquetFooter,
 	})
-	require.Equal(t, base, testutil.ToFloat64(pageCacheErrorBytes.WithLabelValues("other")))
+
+	require.Equal(t, baseFooter+64, testutil.ToFloat64(pageCacheErrorBytes.WithLabelValues("other", footerRole)),
+		"footer role time series must record the failed read")
+	require.Equal(t, basePage, testutil.ToFloat64(pageCacheErrorBytes.WithLabelValues("other", pageRole)),
+		"page role time series must not be touched by a footer read")
 }
