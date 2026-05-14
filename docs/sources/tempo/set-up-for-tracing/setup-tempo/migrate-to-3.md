@@ -223,7 +223,7 @@ To validate the deployment:
    On a fresh deployment with no traffic flowing yet, the live-store can take up to `live_store.readiness_max_wait` (default 30 minutes) to become ready, because there's no Kafka high-water mark to compare against. This is normal. Once traffic starts flowing in the next step, restarts are near-instant.
    {{< /admonition >}}
 
-1. It's highly recommended to validate the deployment end-to-end using [Tempo Vulture](/docs/tempo/<TEMPO_VERSION>/operations/tempo-vulture/), Tempo's built-in testing tool. Vulture writes traces to the distributor and reads them back through the query frontend, validating the full write and read path. Point it at the 3.0 deployment and let it run for 10–15 minutes. Confirm that `tempo_vulture_trace_error_total` stays at zero and `tempo_vulture_trace_total` is increasing.
+1. Validate the deployment end-to-end using [Tempo Vulture](/docs/tempo/<TEMPO_VERSION>/operations/tempo-vulture/), Tempo's built-in testing tool. Vulture writes traces to the distributor and reads them back through the query frontend, validating the full write and read path. Point it at the 3.0 deployment and let it run for 10–15 minutes. Confirm that `tempo_vulture_trace_error_total` stays at zero and `tempo_vulture_trace_total` is increasing.
 
    You can also validate manually by querying the 3.0 deployment directly — for example, using `curl` against the query frontend API or querying from Grafana:
 
@@ -240,7 +240,7 @@ Before proceeding to the cutover, confirm all of the following:
 - Vulture has been running for 10–15 minutes with `tempo_vulture_trace_error_total` at zero and `tempo_vulture_trace_total` increasing.
 - At least one trace-by-ID query for a trace that exists in your 2.x deployment returns data when sent to the 3.0 query frontend.
 
-If any of these aren't satisfied, resolve them before continuing. Switching traffic with an unhealthy 3.0 deployment risks data loss for newly ingested traces.
+Resolve any issues so all of these conditions are satisfied. Switching traffic with an unhealthy 3.0 deployment risks data loss for newly ingested traces.
 
 ## Switch traffic to Tempo 3.0
 
