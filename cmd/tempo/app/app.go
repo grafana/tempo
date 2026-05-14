@@ -46,7 +46,6 @@ import (
 	"github.com/grafana/tempo/v3/pkg/usagestats"
 	"github.com/grafana/tempo/v3/pkg/util"
 	"github.com/grafana/tempo/v3/pkg/util/log"
-	util_log "github.com/grafana/tempo/v3/pkg/util/log"
 )
 
 const (
@@ -327,7 +326,7 @@ func (t *App) writeStatusConfig(w io.Writer, r *http.Request) error {
 func (t *App) readyHandler(sm *services.Manager, shutdownRequested *atomic.Bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if shutdownRequested.Load() {
-			level.Debug(util_log.Logger).Log("msg", "application is stopping")
+			level.Debug(log.Logger).Log("msg", "application is stopping")
 			http.Error(w, "Application is stopping", http.StatusServiceUnavailable)
 			return
 		}
