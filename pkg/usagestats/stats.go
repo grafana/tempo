@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/grafana/tempo/cmd/tempo/build"
+	"github.com/grafana/tempo/v3/cmd/tempo/build"
 
 	"github.com/cespare/xxhash/v2"
 	prom "github.com/prometheus/prometheus/web/api/v1"
@@ -24,7 +24,7 @@ import (
 var (
 	httpClient    = http.Client{Timeout: 5 * time.Second}
 	usageStatsURL = "https://stats.grafana.org/tempo-usage-report"
-	statsPrefix   = "github.com/grafana/tempo/"
+	statsPrefix   = "github.com/grafana/tempo/v3/"
 	targetKey     = "target"
 	editionKey    = "edition"
 )

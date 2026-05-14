@@ -4,7 +4,7 @@ package ingesttest
 
 import (
 	"github.com/go-kit/log"
-	"github.com/grafana/tempo/pkg/ingest"
+	"github.com/grafana/tempo/v3/pkg/ingest"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 

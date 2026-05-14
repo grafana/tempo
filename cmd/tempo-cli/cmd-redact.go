@@ -13,9 +13,9 @@ import (
 
 	"github.com/grafana/dskit/user"
 
-	schedulerclient "github.com/grafana/tempo/modules/backendscheduler/client"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
+	schedulerclient "github.com/grafana/tempo/v3/modules/backendscheduler/client"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/util"
 )
 
 type redactCmd struct {

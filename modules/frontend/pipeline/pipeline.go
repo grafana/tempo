@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/grafana/tempo/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/combiner"
 	"go.opentelemetry.io/otel"
 )
 

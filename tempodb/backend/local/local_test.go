@@ -11,12 +11,12 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/pkg/io"
+	"github.com/grafana/tempo/v3/pkg/io"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
 const objectName = "test"

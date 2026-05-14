@@ -21,34 +21,33 @@ import (
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/server"
 	"github.com/grafana/dskit/services"
-	"github.com/grafana/tempo/modules/livestore"
+	"github.com/grafana/tempo/v3/modules/livestore"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 
-	"github.com/grafana/tempo/modules/backendscheduler"
-	"github.com/grafana/tempo/modules/backendworker"
-	"github.com/grafana/tempo/modules/blockbuilder"
-	"github.com/grafana/tempo/modules/cache"
-	"github.com/grafana/tempo/modules/distributor"
-	"github.com/grafana/tempo/modules/frontend"
-	"github.com/grafana/tempo/modules/frontend/interceptor"
-	frontend_v1pb "github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
-	"github.com/grafana/tempo/modules/generator"
-	"github.com/grafana/tempo/modules/overrides"
-	userconfigurableoverridesapi "github.com/grafana/tempo/modules/overrides/userconfigurable/api"
-	"github.com/grafana/tempo/modules/querier"
-	tempo_storage "github.com/grafana/tempo/modules/storage"
-	"github.com/grafana/tempo/pkg/api"
-	tempo_ring "github.com/grafana/tempo/pkg/ring"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/usagestats"
-	"github.com/grafana/tempo/pkg/util/log"
-	util_log "github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/azure"
-	"github.com/grafana/tempo/tempodb/backend/gcs"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/backend/s3"
+	"github.com/grafana/tempo/v3/modules/backendscheduler"
+	"github.com/grafana/tempo/v3/modules/backendworker"
+	"github.com/grafana/tempo/v3/modules/blockbuilder"
+	"github.com/grafana/tempo/v3/modules/cache"
+	"github.com/grafana/tempo/v3/modules/distributor"
+	"github.com/grafana/tempo/v3/modules/frontend"
+	"github.com/grafana/tempo/v3/modules/frontend/interceptor"
+	frontend_v1pb "github.com/grafana/tempo/v3/modules/frontend/v1/frontendv1pb"
+	"github.com/grafana/tempo/v3/modules/generator"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	userconfigurableoverridesapi "github.com/grafana/tempo/v3/modules/overrides/userconfigurable/api"
+	"github.com/grafana/tempo/v3/modules/querier"
+	tempo_storage "github.com/grafana/tempo/v3/modules/storage"
+	"github.com/grafana/tempo/v3/pkg/api"
+	tempo_ring "github.com/grafana/tempo/v3/pkg/ring"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/usagestats"
+	"github.com/grafana/tempo/v3/pkg/util/log"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend/azure"
+	"github.com/grafana/tempo/v3/tempodb/backend/gcs"
+	"github.com/grafana/tempo/v3/tempodb/backend/local"
+	"github.com/grafana/tempo/v3/tempodb/backend/s3"
 )
 
 // The various modules that make up tempo.
@@ -184,12 +183,12 @@ func (t *App) initPartitionRing() (services.Service, error) {
 	ringKey = livestore.PartitionRingKey
 	kvConfig = t.cfg.LiveStore.PartitionRing.KVStore
 
-	kvClient, err := kv.NewClient(kvConfig, ring.GetPartitionRingCodec(), kv.RegistererWithKVName(prometheus.DefaultRegisterer, ringName+"-watcher"), util_log.Logger)
+	kvClient, err := kv.NewClient(kvConfig, ring.GetPartitionRingCodec(), kv.RegistererWithKVName(prometheus.DefaultRegisterer, ringName+"-watcher"), log.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("creating KV store for %s partitions ring watcher: %w", ringName, err)
 	}
 
-	t.partitionRingWatcher = ring.NewPartitionRingWatcher(ringName, ringKey, kvClient, util_log.Logger, prometheus.WrapRegistererWithPrefix("tempo_", prometheus.DefaultRegisterer))
+	t.partitionRingWatcher = ring.NewPartitionRingWatcher(ringName, ringKey, kvClient, log.Logger, prometheus.WrapRegistererWithPrefix("tempo_", prometheus.DefaultRegisterer))
 	t.partitionRing = ring.NewPartitionInstanceRing(t.partitionRingWatcher, readRing, heartbeatTimeout)
 
 	// Expose a web page to view the partitions ring state.
@@ -359,7 +358,7 @@ func (t *App) initGeneratorRingWatcher() (services.Service, error) {
 	reg := prometheus.DefaultRegisterer
 
 	kvRegisterer := kv.RegistererWithKVName(reg, t.cfg.Generator.OverrideRingKey+"-watcher")
-	kvClient, err := kv.NewClient(t.cfg.Generator.Ring.KVStore, ring.GetPartitionRingCodec(), kvRegisterer, util_log.Logger)
+	kvClient, err := kv.NewClient(t.cfg.Generator.Ring.KVStore, ring.GetPartitionRingCodec(), kvRegisterer, log.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("creating KV store for generator partition ring watcher: %w", err)
 	}
@@ -368,7 +367,7 @@ func (t *App) initGeneratorRingWatcher() (services.Service, error) {
 		t.cfg.Generator.OverrideRingKey,
 		t.cfg.Generator.OverrideRingKey,
 		kvClient,
-		util_log.Logger,
+		log.Logger,
 		prometheus.WrapRegistererWithPrefix("tempo_", reg),
 	)
 
@@ -616,9 +615,9 @@ func (t *App) initUsageReport() (services.Service, error) {
 		return nil, fmt.Errorf("failed to initialize usage report: %w", err)
 	}
 
-	ur, err := usagestats.NewReporter(t.cfg.UsageReport, t.cfg.LiveStore.Ring.KVStore, reader, writer, util_log.Logger, prometheus.DefaultRegisterer)
+	ur, err := usagestats.NewReporter(t.cfg.UsageReport, t.cfg.LiveStore.Ring.KVStore, reader, writer, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
-		level.Info(util_log.Logger).Log("msg", "failed to initialize usage report", "err", err)
+		level.Info(log.Logger).Log("msg", "failed to initialize usage report", "err", err)
 		return nil, nil
 	}
 	t.usageReport = ur
@@ -626,7 +625,7 @@ func (t *App) initUsageReport() (services.Service, error) {
 }
 
 func (t *App) initCacheProvider() (services.Service, error) {
-	c, err := cache.NewProvider(&t.cfg.CacheProvider, util_log.Logger)
+	c, err := cache.NewProvider(&t.cfg.CacheProvider, log.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cache provider: %w", err)
 	}

@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/grafana/tempo/integration/util"
-	"github.com/grafana/tempo/modules/overrides/histograms"
-	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
-	"github.com/grafana/tempo/pkg/httpclient"
+	"github.com/grafana/tempo/v3/integration/util"
+	"github.com/grafana/tempo/v3/modules/overrides/histograms"
+	"github.com/grafana/tempo/v3/modules/overrides/userconfigurable/client"
+	"github.com/grafana/tempo/v3/pkg/httpclient"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

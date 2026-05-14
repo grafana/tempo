@@ -10,8 +10,8 @@ import (
 
 	"go.yaml.in/yaml/v2"
 
-	"github.com/grafana/tempo/cmd/tempo/app"
-	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/v3/cmd/tempo/app"
+	"github.com/grafana/tempo/v3/modules/overrides"
 )
 
 const (

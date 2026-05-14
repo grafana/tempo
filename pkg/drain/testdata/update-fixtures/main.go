@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/grafana/tempo/pkg/drain"
+	"github.com/grafana/tempo/v3/pkg/drain"
 )
 
 type TestData struct {

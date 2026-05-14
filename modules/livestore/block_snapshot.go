@@ -4,7 +4,7 @@ import (
 	"maps"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
 
 // blockSnapshot is an immutable view of an instance's blocks. Readers obtain

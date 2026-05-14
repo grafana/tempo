@@ -1,4 +1,4 @@
-module github.com/grafana/tempo
+module github.com/grafana/tempo/v3
 
 go 1.26.2
 

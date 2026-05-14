@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
+	"github.com/grafana/tempo/v3/modules/overrides/userconfigurable/client"
 )
 
 func TestRuntimeConfigOverridesManager_GetRuntimeOverridesFor_runtimeConfigOverridesManager(t *testing.T) {
