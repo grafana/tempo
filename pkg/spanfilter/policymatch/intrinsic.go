@@ -38,6 +38,7 @@ type IntrinsicFilter struct {
 	statusCode tracev1.Status_StatusCode
 	kind       tracev1.Span_SpanKind
 	regex      *regexp.Regexp
+	kindMask   uint8
 }
 
 // NewStrictIntrinsicFilter returns a new IntrinsicFilter that matches spans based on the given intrinsic and value.
@@ -98,8 +99,14 @@ func NewRegexpIntrinsicFilter(intrinsic traceql.Intrinsic, value interface{}) (I
 		return IntrinsicFilter{}, fmt.Errorf("invalid intrinsic filter regex: %v", err)
 	}
 	switch intrinsic {
-	case traceql.IntrinsicName, traceql.IntrinsicStatus, traceql.IntrinsicKind:
+	case traceql.IntrinsicName, traceql.IntrinsicStatus:
 		return IntrinsicFilter{intrinsic: intrinsic, regex: r}, nil
+	case traceql.IntrinsicKind:
+		// Keep the compiled regex even when the mask is set: Span_SpanKind is a
+		// proto enum and unknown integer values stringify to decimal (e.g. "6").
+		// Such values bypass spanKindMask (which returns 0 for them) and need
+		// the regex engine to preserve main's matching behavior.
+		return IntrinsicFilter{intrinsic: intrinsic, kindMask: kindRegexMask(r), regex: r}, nil
 	default:
 		return IntrinsicFilter{}, fmt.Errorf("intrinsic not supported %s", intrinsic)
 	}
@@ -119,11 +126,76 @@ func (a *IntrinsicFilter) Matches(span *tracev1.Span) bool {
 		}
 		return a.statusCode == span.GetStatus().GetCode()
 	case traceql.IntrinsicKind:
+		if a.kindMask != 0 {
+			if mask := spanKindMask(span.Kind); mask != 0 {
+				return a.kindMask&mask != 0
+			}
+			// Kind is outside the four canonical values — fall through to the
+			// regex engine if we kept one, so unknown enum values match the
+			// same set of regexes they would on main.
+		}
 		if a.regex != nil {
 			return a.regex.MatchString(span.Kind.String())
 		}
 		return a.kind == span.Kind
 	default:
 		return false
+	}
+}
+
+const (
+	spanKindServerBit uint8 = 1 << iota
+	spanKindClientBit
+	spanKindProducerBit
+	spanKindConsumerBit
+)
+
+// kindRegexMask returns a bitmask for any regex whose match set is a non-empty
+// subset of {SPAN_KIND_SERVER, SPAN_KIND_CLIENT, SPAN_KIND_PRODUCER,
+// SPAN_KIND_CONSUMER}. The mask is determined by trial-matching the regex
+// against each kind name and accepting only regexes that match no other
+// strings (including the INTERNAL/UNSPECIFIED kinds and the empty string).
+// This accelerates the default service-graph filter and any equivalent
+// rewrite (different alternation order, anchors, whitespace) without changing
+// behavior — the mask path is equivalent to running the regex by construction.
+func kindRegexMask(re *regexp.Regexp) uint8 {
+	var mask uint8
+	if re.MatchString("SPAN_KIND_SERVER") {
+		mask |= spanKindServerBit
+	}
+	if re.MatchString("SPAN_KIND_CLIENT") {
+		mask |= spanKindClientBit
+	}
+	if re.MatchString("SPAN_KIND_PRODUCER") {
+		mask |= spanKindProducerBit
+	}
+	if re.MatchString("SPAN_KIND_CONSUMER") {
+		mask |= spanKindConsumerBit
+	}
+	if mask == 0 {
+		return 0
+	}
+	// Reject regexes whose match set extends beyond the four kinds above.
+	if re.MatchString("SPAN_KIND_INTERNAL") || re.MatchString("SPAN_KIND_UNSPECIFIED") {
+		return 0
+	}
+	if re.MatchString("") {
+		return 0
+	}
+	return mask
+}
+
+func spanKindMask(kind tracev1.Span_SpanKind) uint8 {
+	switch kind {
+	case tracev1.Span_SPAN_KIND_SERVER:
+		return spanKindServerBit
+	case tracev1.Span_SPAN_KIND_CLIENT:
+		return spanKindClientBit
+	case tracev1.Span_SPAN_KIND_PRODUCER:
+		return spanKindProducerBit
+	case tracev1.Span_SPAN_KIND_CONSUMER:
+		return spanKindConsumerBit
+	default:
+		return 0
 	}
 }
