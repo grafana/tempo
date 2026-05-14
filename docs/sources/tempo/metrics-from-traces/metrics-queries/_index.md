@@ -23,8 +23,6 @@ refs:
 
 # TraceQL metrics
 
-<!-- Using a custom admonition because no feature flag is required. -->
-
 TraceQL metrics is a feature in Grafana Tempo that creates metrics from traces.
 
 Metric queries extend trace queries by applying a function to trace query results.
@@ -103,3 +101,34 @@ Example:
 ```
 { span:name = "GET /:endpoint" } | quantile_over_time(duration, .99) by (span.http.target) with (exemplars=true)
 ```
+
+### Faster read path (experimental)
+
+{{< docs/experimental product="Tempo" >}}
+
+An experimental span-only fetch layer is available in vParquet5 that significantly improves performance for most metrics queries. This optimized read path processes individual spans instead of full traces, reducing latency and memory usage.
+
+The faster read path applies automatically to metrics queries that don't require knowledge of the full trace structure. Queries using structural operators like `>>`, `<<`, `~`, `!>>`, `!<<`, or `!~` still use the standard fetch layer.
+
+#### Enable with a query hint
+
+Add the `spanonly_fetch=true` hint to your query. This hint requires [`unsafe_query_hints`](/docs/tempo/<TEMPO_VERSION>/configuration/#overrides) to be enabled for the tenant.
+
+```
+{ resource.service.name = "frontend" } | rate() by (status) with (spanonly_fetch=true)
+```
+
+#### Enable with a per-tenant override
+
+Operators can enable the faster read path by default for a tenant using the `metrics_spanonly_fetch` override. When set, it applies to all eligible metrics queries for that tenant without requiring a query hint.
+
+```yaml
+overrides:
+  'tenant-id':
+    read:
+      unsafe_query_hints: true
+      metrics_spanonly_fetch: true
+```
+
+The query hint takes precedence over the per-tenant override. Set `spanonly_fetch=false` in a query to opt out when the override is enabled.
+
