@@ -8,9 +8,19 @@ import (
 	math_bits "math/bits"
 	"sync"
 
+	"google.golang.org/protobuf/encoding/protowire"
+
 	"github.com/twmb/franz-go/pkg/kgo"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+)
+
+// Proto field numbers for tempopb.PushBytesRequest. Kept in sync with
+// pkg/tempopb/tempo.pb.go — if the proto is renumbered, decode() will silently
+// skip or mismatch fields.
+const (
+	pushBytesFieldTraces                = 2
+	pushBytesFieldSkipMetricsGeneration = 5
 )
 
 var encoderPool = sync.Pool{
@@ -156,36 +166,89 @@ type GeneratorCodec interface {
 }
 
 // PushBytesDecoder unmarshals tempopb.PushBytesRequest.
+//
+// The iterator returned by Decode yields *PushSpansRequest values whose
+// Batches alias a single reusable tempopb.Trace.ResourceSpans slice owned by
+// the decoder. Each yield clears and overwrites that slice, so callers MUST
+// consume the request fully before resuming the iterator. Retaining a yielded
+// *PushSpansRequest (or any sub-slice) past the next iterator step is unsafe.
 type PushBytesDecoder struct {
-	dec *Decoder
+	trace                 tempopb.Trace
+	traceSlices           [][]byte
+	skipMetricsGeneration bool
 }
 
 func NewPushBytesDecoder() *PushBytesDecoder {
-	return &PushBytesDecoder{dec: NewDecoder()}
+	return &PushBytesDecoder{}
 }
 
 // Decode implements GeneratorCodec.
 func (d *PushBytesDecoder) Decode(data []byte) (iter.Seq2[*tempopb.PushSpansRequest, error], error) {
-	d.dec.Reset()
-	spanBytes, err := d.dec.Decode(data)
-	if err != nil {
+	if err := d.decode(data); err != nil {
 		return nil, err
 	}
 
-	trace := tempopb.Trace{}
 	return func(yield func(*tempopb.PushSpansRequest, error) bool) {
-		for _, tr := range spanBytes.Traces {
-			trace.Reset()
-			err = trace.Unmarshal(tr.Slice)
+		for _, traceBytes := range d.traceSlices {
+			clear(d.trace.ResourceSpans)
+			d.trace.ResourceSpans = d.trace.ResourceSpans[:0]
+			err := d.trace.Unmarshal(traceBytes)
 
-			yield(&tempopb.PushSpansRequest{
-				Batches:               trace.ResourceSpans,
-				SkipMetricsGeneration: spanBytes.SkipMetricsGeneration,
-			}, err)
-
-			tempopb.ReuseByteSlices([][]byte{tr.Slice})
+			if !yield(&tempopb.PushSpansRequest{
+				Batches:               d.trace.ResourceSpans,
+				SkipMetricsGeneration: d.skipMetricsGeneration,
+			}, err) {
+				return
+			}
 		}
 	}, nil
+}
+
+func (d *PushBytesDecoder) decode(data []byte) error {
+	// Clearing before truncation drops references to the previous Decode's
+	// `data` buffer that linger in the slice's tail capacity, so a large
+	// payload followed by smaller ones doesn't keep the large one alive.
+	clear(d.traceSlices)
+	d.traceSlices = d.traceSlices[:0]
+	d.skipMetricsGeneration = false
+
+	for len(data) > 0 {
+		fieldNum, wireType, n := protowire.ConsumeTag(data)
+		if n < 0 {
+			return protowire.ParseError(n)
+		}
+		data = data[n:]
+
+		switch fieldNum {
+		case pushBytesFieldTraces:
+			if wireType != protowire.BytesType {
+				return fmt.Errorf("proto: wrong wireType = %d for field Traces", wireType)
+			}
+			traceBytes, n := protowire.ConsumeBytes(data)
+			if n < 0 {
+				return protowire.ParseError(n)
+			}
+			d.traceSlices = append(d.traceSlices, traceBytes)
+			data = data[n:]
+		case pushBytesFieldSkipMetricsGeneration:
+			if wireType != protowire.VarintType {
+				return fmt.Errorf("proto: wrong wireType = %d for field SkipMetricsGeneration", wireType)
+			}
+			v, n := protowire.ConsumeVarint(data)
+			if n < 0 {
+				return protowire.ParseError(n)
+			}
+			d.skipMetricsGeneration = v != 0
+			data = data[n:]
+		default:
+			n := protowire.ConsumeFieldValue(fieldNum, wireType, data)
+			if n < 0 {
+				return protowire.ParseError(n)
+			}
+			data = data[n:]
+		}
+	}
+	return nil
 }
 
 // OTLPDecoder unmarshals ptrace.Traces.
@@ -199,6 +262,7 @@ func NewOTLPDecoder() *OTLPDecoder {
 
 // Decode implements GeneratorCodec.
 func (d *OTLPDecoder) Decode(data []byte) (iter.Seq2[*tempopb.PushSpansRequest, error], error) {
+	clear(d.trace.ResourceSpans)
 	d.trace.ResourceSpans = d.trace.ResourceSpans[:0]
 	err := d.trace.Unmarshal(data)
 	if err != nil {
