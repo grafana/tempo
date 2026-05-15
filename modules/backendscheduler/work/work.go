@@ -7,6 +7,7 @@ import (
 	"hash/fnv"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,6 +27,14 @@ const (
 // pendingBlockKey returns a stable key for the blocks-pending index (tenant + blockID).
 func pendingBlockKey(tenantID, blockID string) string {
 	return tenantID + "\x00" + blockID
+}
+
+// splitPendingBlockKey is the inverse of pendingBlockKey. It splits key into its
+// (tenantID, blockID) components. Callers must only call this on a non-empty key
+// returned by Job.PendingBlockKey.
+func splitPendingBlockKey(key string) (tenantID, blockID string) {
+	tenantID, blockID, _ = strings.Cut(key, "\x00")
+	return tenantID, blockID
 }
 
 // Shard represents a single shard containing a subset of jobs
@@ -517,7 +526,7 @@ func (w *Work) Unmarshal(data []byte) error {
 			if key := j.PendingBlockKey(); key != "" {
 				w.pendingBlocks[key] = j.ID
 				tenant := j.JobDetail.Tenant
-				blockID := key[len(tenant)+1:]
+				_, blockID := splitPendingBlockKey(key)
 				if w.pendingBlocksByTenant[tenant] == nil {
 					w.pendingBlocksByTenant[tenant] = make(map[string]string)
 				}
@@ -698,7 +707,7 @@ func (w *Work) rebuildPendingIndexes() {
 			if key := j.PendingBlockKey(); key != "" {
 				w.pendingBlocks[key] = j.ID
 				tenant := j.JobDetail.Tenant
-				blockID := key[len(tenant)+1:]
+				_, blockID := splitPendingBlockKey(key)
 				if w.pendingBlocksByTenant[tenant] == nil {
 					w.pendingBlocksByTenant[tenant] = make(map[string]string)
 				}
@@ -763,7 +772,7 @@ func (w *Work) AddPendingJobs(jobs []*Job) error {
 		if key := j.PendingBlockKey(); key != "" {
 			w.pendingBlocks[key] = j.ID
 			tenant := j.Tenant()
-			blockID := key[len(tenant)+1:]
+			_, blockID := splitPendingBlockKey(key)
 			if w.pendingBlocksByTenant[tenant] == nil {
 				w.pendingBlocksByTenant[tenant] = make(map[string]string)
 			}
@@ -993,7 +1002,7 @@ func (w *Work) removePendingBlockIndex(j *Job) {
 	w.pendingMtx.Lock()
 	defer w.pendingMtx.Unlock()
 	delete(w.pendingBlocks, key)
-	blockID := key[len(tenant)+1:]
+	_, blockID := splitPendingBlockKey(key)
 	if tb := w.pendingBlocksByTenant[tenant]; tb != nil {
 		delete(tb, blockID)
 		if len(tb) == 0 {
