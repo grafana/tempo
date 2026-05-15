@@ -10,6 +10,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 	"syscall"
 
@@ -61,6 +62,9 @@ func main() {
 	case "none":
 		logLevel = kfake.LogLevelNone
 	}
+
+	runtime.SetBlockProfileRate(1)
+	runtime.SetMutexProfileFraction(1)
 
 	if pprofAddr != "" {
 		addr := net.JoinHostPort("127.0.0.1", strings.TrimPrefix(pprofAddr, ":"))

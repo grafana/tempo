@@ -61,7 +61,12 @@ func parseXML[K any](target ottl.StringGetter[K]) ottl.ExprFunc[K] {
 	}
 }
 
+// maxXMLElementDepth mirrors encoding/xml maxUnmarshalDepth to bound the
+// recursion depth of XML parsing input.
+const maxXMLElementDepth = 10_000
+
 type xmlElement struct {
+	depth      int
 	tag        string
 	attributes []xml.Attr
 	text       string
@@ -70,6 +75,9 @@ type xmlElement struct {
 
 // UnmarshalXML implements xml.Unmarshaler for xmlElement
 func (a *xmlElement) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	if a.depth > maxXMLElementDepth {
+		return fmt.Errorf("exceeded maximum XML nesting depth of %d", maxXMLElementDepth)
+	}
 	a.tag = start.Name.Local
 	a.attributes = start.Attr
 
@@ -81,7 +89,7 @@ func (a *xmlElement) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error 
 
 		switch t := tok.(type) {
 		case xml.StartElement:
-			child := xmlElement{}
+			child := xmlElement{depth: a.depth + 1}
 			err := d.DecodeElement(&child, &t)
 			if err != nil {
 				return err

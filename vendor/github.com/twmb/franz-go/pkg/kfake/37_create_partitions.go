@@ -132,6 +132,7 @@ func (c *Cluster) handleCreatePartitions(creq *clientReq) (kmsg.Response, error)
 							leader:          leader,
 							followers:       followers,
 							watch:           make(map[*watchFetch]struct{}),
+							shareWatch:      make(map[*watchShareFetch]struct{}),
 							createdAt:       time.Now(),
 						}
 					})

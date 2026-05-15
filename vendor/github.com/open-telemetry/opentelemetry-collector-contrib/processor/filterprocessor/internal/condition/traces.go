@@ -58,7 +58,7 @@ func (tc TracesConsumer) ConsumeTraces(ctx context.Context, td ptrace.Traces) er
 
 		rs.ScopeSpans().RemoveIf(func(ss ptrace.ScopeSpans) bool {
 			if tc.scopeExpr != nil {
-				sCtx := ottlscope.NewTransformContextPtr(ss.Scope(), rs.Resource(), ss)
+				sCtx := ottlscope.NewTransformContextPtr(ss.Scope(), rs.Resource(), ss, rs)
 				sCond, sErr := tc.scopeExpr.Eval(ctx, sCtx)
 				sCtx.Close()
 				if sErr != nil {

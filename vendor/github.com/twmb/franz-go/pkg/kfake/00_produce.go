@@ -196,6 +196,16 @@ func (c *Cluster) handleProduce(creq *clientReq) (kmsg.Response, error) {
 				}
 				pidinf, window := c.pids.get(b.ProducerID, rt.Topic, rp.Partition, implicit)
 
+				// For non-transactional idempotent produce with no
+				// existing producer state, implicitly create it.
+				// Apache Kafka and Redpanda accept the first batch
+				// for an unknown (PID, epoch) with any sequence
+				// number; this seeds producer state on demand.
+				// See twmb/franz-go#1281.
+				if !txnal && pidinf == nil && b.ProducerEpoch != -1 {
+					pidinf, window = c.pids.getOrCreateNonTx(b.ProducerID, b.ProducerEpoch, rt.Topic, rp.Partition)
+				}
+
 				// Reject non-transactional produce during an
 				// active transaction.
 				if pidinf != nil && pidinf.inTx && !txnal {
@@ -213,7 +223,14 @@ func (c *Cluster) handleProduce(creq *clientReq) (kmsg.Response, error) {
 					case window != nil && b.ProducerEpoch < pidinf.epoch:
 						errCode = kerr.InvalidProducerEpoch.Code
 					case window != nil && b.ProducerEpoch > pidinf.epoch:
-						errCode = kerr.InvalidProducerEpoch.Code
+						// KIP-360: the real broker accepts any batchEpoch >= storedEpoch
+						// for data batches (ProducerAppendInfo.java:119 -- only rejects
+						// batchEpoch < storedEpoch). Non-txn idempotent producers bump
+						// locally on produce errors; firstSeq==0 is enforced downstream
+						// in pushAndValidate, which returns OOOSN (not InvalidProducerEpoch)
+						// on violation -- matching the broker's error-code semantics.
+						pidinf.epoch = b.ProducerEpoch
+						fallthrough
 					default:
 						var seqOk bool
 						seqOk, dup, baseOffset = window.pushAndValidate(b.ProducerEpoch, b.FirstSequence, b.NumRecords, pd.highWatermark)
