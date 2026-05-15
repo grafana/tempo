@@ -199,6 +199,7 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 		case <-maintenanceTicker.C:
 			s.work.Prune(ctx)
 			s.checkPendingRescans(ctx)
+			s.checkPostSubmitCompaction(ctx)
 			s.cleanupOrphanedBatches(ctx)
 		case <-backendFlushTicker.C:
 			err = s.flushWorkCacheToBackend(ctx)
@@ -591,6 +592,102 @@ func (s *BackendScheduler) cleanupBatchIfDone(ctx context.Context, tenantID stri
 		level.Warn(log.Logger).Log("msg", "failed to flush batch manifest after cleanup", "tenant", tenantID, "err", err)
 	}
 	level.Info(log.Logger).Log("msg", "redaction batch completed, manifest removed", "tenant", tenantID)
+}
+
+// checkPostSubmitCompaction is called on each maintenance tick. It handles the race
+// where compaction starts after a redaction batch is submitted: the input blocks
+// already have redaction jobs, but the compaction output block has none. For each
+// active batch it finds compaction jobs created after the batch, checks whether
+// their input blocks overlap with the batch's targeted blocks, and enqueues
+// redaction jobs for any output blocks not yet covered.
+func (s *BackendScheduler) checkPostSubmitCompaction(ctx context.Context) {
+	for _, batch := range s.work.ListBatches() {
+		s.checkBatchForPostSubmitCompaction(ctx, batch)
+	}
+}
+
+func (s *BackendScheduler) checkBatchForPostSubmitCompaction(ctx context.Context, batch *tempopb.RedactionBatch) {
+	tenant := batch.TenantId
+
+	// Build the set of all block IDs currently covered by this batch (pending,
+	// active, completed, or failed redaction jobs).
+	covered := s.work.BatchCoveredBlocks(tenant, batch.BatchId)
+	if len(covered) == 0 {
+		return
+	}
+
+	var newJobs []*work.Job
+	for _, j := range s.work.ListJobs() {
+		if j.GetType() != tempopb.JobType_JOB_TYPE_COMPACTION {
+			continue
+		}
+		if j.Tenant() != tenant {
+			continue
+		}
+		// Only consider compaction jobs created after the batch was submitted.
+		// Pre-submission compactions are already handled by SkippedCompactionJobIds.
+		if j.GetCreatedTime().UnixNano() < batch.CreatedAtUnixNano {
+			continue
+		}
+
+		// Check whether any input block is covered by this batch.
+		overlaps := false
+		for _, input := range j.GetCompactionInput() {
+			if _, ok := covered[input]; ok {
+				overlaps = true
+				break
+			}
+		}
+		if !overlaps {
+			continue
+		}
+
+		// Enqueue a redaction job for each output block not yet covered.
+		for _, outputBlock := range j.GetCompactionOutput() {
+			if _, ok := covered[outputBlock]; ok {
+				continue
+			}
+			if s.work.IsBlockBusy(tenant, outputBlock) {
+				covered[outputBlock] = struct{}{} // already has a job; track so we don't re-create
+				continue
+			}
+			newJobs = append(newJobs, &work.Job{
+				ID:   uuid.New().String(),
+				Type: tempopb.JobType_JOB_TYPE_REDACTION,
+				JobDetail: tempopb.JobDetail{
+					Tenant:  tenant,
+					BatchId: batch.BatchId,
+					Redaction: &tempopb.RedactionDetail{
+						BlockId: outputBlock,
+					},
+				},
+			})
+			covered[outputBlock] = struct{}{}
+		}
+	}
+
+	if len(newJobs) == 0 {
+		return
+	}
+
+	level.Info(log.Logger).Log(
+		"msg", "post-submission compaction race detected; enqueuing follow-up redaction jobs",
+		"tenant", tenant, "batch_id", batch.BatchId, "new_jobs", len(newJobs),
+	)
+	if err := s.work.AddPendingJobs(newJobs); err != nil {
+		level.Error(log.Logger).Log("msg", "post-submission compaction scan: failed to add pending jobs", "tenant", tenant, "err", err)
+		return
+	}
+	if err := s.work.FlushBatchesToLocal(ctx, s.cfg.LocalWorkPath); err != nil {
+		level.Warn(log.Logger).Log("msg", "post-submission compaction scan: failed to flush batch manifest", "tenant", tenant, "err", err)
+	}
+	affectedIDs := make([]string, len(newJobs))
+	for i, j := range newJobs {
+		affectedIDs[i] = j.ID
+	}
+	if err := s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, affectedIDs); err != nil {
+		level.Warn(log.Logger).Log("msg", "post-submission compaction scan: failed to flush job shards", "tenant", tenant, "err", err)
+	}
 }
 
 // checkPendingRescans is called on each maintenance tick. It looks for batches whose

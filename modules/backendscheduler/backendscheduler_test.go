@@ -614,6 +614,87 @@ func TestRescanSkipsRunningJob(t *testing.T) {
 	require.Zero(t, batch.RescanAfterUnixNano, "rescan deadline must be cleared after successful enqueue")
 }
 
+// TestPostSubmitCompactionRace proves the correctness gap where compaction starts
+// after redaction submission. The blocks are not in active compaction at submission
+// time so SkippedCompactionJobIds is empty and the existing rescan mechanism never
+// fires. The fix adds a separate maintenance scan that walks post-submission
+// compaction jobs, detects overlap with the batch's targeted blocks, and creates
+// follow-up redaction jobs for the output blocks.
+func TestPostSubmitCompactionRace(t *testing.T) {
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	cfg.ProviderConfig.Redaction.RescanDelay = 0
+
+	tmpDir := t.TempDir()
+	cfg.LocalWorkPath = tmpDir
+
+	var (
+		ctx, cancel   = context.WithCancel(context.Background())
+		store, rr, ww = newStore(ctx, t, tmpDir)
+	)
+	defer func() {
+		cancel()
+		store.Shutdown()
+	}()
+
+	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.NewRegistry())
+	require.NoError(t, err)
+
+	testTenant := "tenant-post-submit-compaction-race"
+
+	// Write 3 blocks; poll the blocklist before creating the scheduler.
+	blockIDs := writeTenantBlocks(ctx, t, backend.NewWriter(ww), testTenant, 3)
+	time.Sleep(300 * time.Millisecond)
+
+	s, err := New(cfg, store, limits, rr, ww)
+	require.NoError(t, err)
+
+	// Submit redaction with NO compaction running. All 3 blocks get jobs and
+	// SkippedCompactionJobIds is empty — the existing rescan mechanism is not armed.
+	resp, err := s.SubmitRedaction(user.InjectOrgID(ctx, testTenant), &tempopb.SubmitRedactionRequest{
+		TraceIds: [][]byte{[]byte(uuid.New().String())},
+	})
+	require.NoError(t, err)
+	require.Equal(t, int32(3), resp.JobsCreated)
+
+	batch := s.work.GetBatch(testTenant)
+	require.NotNil(t, batch)
+	require.Empty(t, batch.SkippedCompactionJobIds, "no compaction was running at submission time")
+	require.Zero(t, batch.RescanAfterUnixNano, "no rescan armed at submission time")
+
+	// Compaction starts and completes AFTER submission, covering blocks 0 and 1 and
+	// producing one new output block. This is the race: the new block has no redaction job.
+	compJob := &work.Job{
+		ID:   uuid.New().String(),
+		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
+		JobDetail: tempopb.JobDetail{
+			Tenant: testTenant,
+			Compaction: &tempopb.CompactionDetail{
+				Input: []string{blockIDs[0].String(), blockIDs[1].String()},
+			},
+		},
+	}
+	s.work.RegisterJob(compJob)
+	require.NoError(t, s.work.AddJob(compJob))
+	s.work.StartJob(compJob.ID)
+
+	outputBlock := uuid.New().String()
+	s.work.SetJobCompactionOutput(compJob.ID, []string{outputBlock})
+	s.work.CompleteJob(compJob.ID)
+
+	// Without the fix, the output block has no pending redaction job.
+	require.False(t, s.work.IsBlockBusy(testTenant, outputBlock),
+		"output block must have no job yet (proving the race exists)")
+
+	// The fix: a maintenance scan detects post-submission compaction jobs whose
+	// input blocks overlap with the batch's targeted blocks and creates follow-up
+	// redaction jobs for uncovered output blocks.
+	s.checkPostSubmitCompaction(ctx)
+
+	require.True(t, s.work.IsBlockBusy(testTenant, outputBlock),
+		"output block from post-submission compaction must have a pending redaction job after fix scan")
+}
+
 func TestProviderBasedScheduling(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})

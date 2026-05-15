@@ -160,3 +160,28 @@ func (w *Work) ListBatches() []*tempopb.RedactionBatch {
 func (w *Work) SetBatchRescan(tenantID string, skippedJobIDs []string, rescanAfterUnixNano int64) {
 	w.batches.setRescan(tenantID, skippedJobIDs, rescanAfterUnixNano)
 }
+
+// BatchCoveredBlocks returns the set of block IDs targeted by all redaction jobs
+// (pending or active/completed in the shard map) that belong to the given batch.
+// Used to detect post-submission compaction races.
+func (w *Work) BatchCoveredBlocks(tenantID, batchID string) map[string]struct{} {
+	covered := make(map[string]struct{})
+
+	for _, j := range w.ListJobs() {
+		if j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION &&
+			j.GetBatchID() == batchID && j.Tenant() == tenantID {
+			if bid := j.GetRedactionBlockID(); bid != "" {
+				covered[bid] = struct{}{}
+			}
+		}
+	}
+	for _, j := range w.ListAllPendingJobs() {
+		if j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION &&
+			j.GetBatchID() == batchID && j.Tenant() == tenantID {
+			if bid := j.GetRedactionBlockID(); bid != "" {
+				covered[bid] = struct{}{}
+			}
+		}
+	}
+	return covered
+}

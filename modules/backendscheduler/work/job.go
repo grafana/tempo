@@ -159,6 +159,13 @@ func (j *Job) SetCompactionOutput(blocks []string) {
 	}
 }
 
+// GetBatchID returns the batch ID for this job.
+func (j *Job) GetBatchID() string {
+	j.mtx.Lock()
+	defer j.mtx.Unlock()
+	return j.JobDetail.BatchId
+}
+
 // GetRedactionBlockID returns the block ID for redaction jobs, or empty string otherwise.
 func (j *Job) GetRedactionBlockID() string {
 	j.mtx.Lock()
