@@ -199,7 +199,6 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 		case <-maintenanceTicker.C:
 			s.work.Prune(ctx)
 			s.checkPendingRescans(ctx)
-			s.checkPostSubmitCompaction(ctx)
 			s.cleanupOrphanedBatches(ctx)
 		case <-backendFlushTicker.C:
 			err = s.flushWorkCacheToBackend(ctx)
@@ -594,169 +593,174 @@ func (s *BackendScheduler) cleanupBatchIfDone(ctx context.Context, tenantID stri
 	level.Info(log.Logger).Log("msg", "redaction batch completed, manifest removed", "tenant", tenantID)
 }
 
-// checkPostSubmitCompaction is called on each maintenance tick. It handles the race
-// where compaction starts after a redaction batch is submitted: the input blocks
-// already have redaction jobs, but the compaction output block has none. For each
-// active batch it finds compaction jobs created after the batch, checks whether
-// their input blocks overlap with the batch's targeted blocks, and enqueues
-// redaction jobs for any output blocks not yet covered.
-func (s *BackendScheduler) checkPostSubmitCompaction(ctx context.Context) {
-	for _, batch := range s.work.ListBatches() {
-		s.checkBatchForPostSubmitCompaction(ctx, batch)
-	}
-}
-
-func (s *BackendScheduler) checkBatchForPostSubmitCompaction(ctx context.Context, batch *tempopb.RedactionBatch) {
-	tenant := batch.TenantId
-
-	// Build the set of all block IDs currently covered by this batch (pending,
-	// active, completed, or failed redaction jobs).
-	covered := s.work.BatchCoveredBlocks(tenant, batch.BatchId)
-	if len(covered) == 0 {
-		return
-	}
-
-	var newJobs []*work.Job
-	for _, j := range s.work.ListJobs() {
-		if j.GetType() != tempopb.JobType_JOB_TYPE_COMPACTION {
-			continue
-		}
-		if j.Tenant() != tenant {
-			continue
-		}
-		// Only consider compaction jobs created after the batch was submitted.
-		// Pre-submission compactions are already handled by SkippedCompactionJobIds.
-		if j.GetCreatedTime().UnixNano() < batch.CreatedAtUnixNano {
-			continue
-		}
-
-		// Check whether any input block is covered by this batch.
-		overlaps := false
-		for _, input := range j.GetCompactionInput() {
-			if _, ok := covered[input]; ok {
-				overlaps = true
-				break
-			}
-		}
-		if !overlaps {
-			continue
-		}
-
-		// Enqueue a redaction job for each output block not yet covered.
-		for _, outputBlock := range j.GetCompactionOutput() {
-			if _, ok := covered[outputBlock]; ok {
-				continue
-			}
-			if s.work.IsBlockBusy(tenant, outputBlock) {
-				covered[outputBlock] = struct{}{} // already has a job; track so we don't re-create
-				continue
-			}
-			newJobs = append(newJobs, &work.Job{
-				ID:   uuid.New().String(),
-				Type: tempopb.JobType_JOB_TYPE_REDACTION,
-				JobDetail: tempopb.JobDetail{
-					Tenant:  tenant,
-					BatchId: batch.BatchId,
-					Redaction: &tempopb.RedactionDetail{
-						BlockId: outputBlock,
-					},
-				},
-			})
-			covered[outputBlock] = struct{}{}
-		}
-	}
-
-	if len(newJobs) == 0 {
-		return
-	}
-
-	level.Info(log.Logger).Log(
-		"msg", "post-submission compaction race detected; enqueuing follow-up redaction jobs",
-		"tenant", tenant, "batch_id", batch.BatchId, "new_jobs", len(newJobs),
-	)
-	if err := s.work.AddPendingJobs(newJobs); err != nil {
-		level.Error(log.Logger).Log("msg", "post-submission compaction scan: failed to add pending jobs", "tenant", tenant, "err", err)
-		return
-	}
-	if err := s.work.FlushBatchesToLocal(ctx, s.cfg.LocalWorkPath); err != nil {
-		level.Warn(log.Logger).Log("msg", "post-submission compaction scan: failed to flush batch manifest", "tenant", tenant, "err", err)
-	}
-	affectedIDs := make([]string, len(newJobs))
-	for i, j := range newJobs {
-		affectedIDs[i] = j.ID
-	}
-	if err := s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, affectedIDs); err != nil {
-		level.Warn(log.Logger).Log("msg", "post-submission compaction scan: failed to flush job shards", "tenant", tenant, "err", err)
-	}
-}
-
-// checkPendingRescans is called on each maintenance tick. It looks for batches whose
-// rescan window has elapsed, looks up the output blocks from the skipped compaction
-// jobs, and enqueues new pending redaction jobs for those blocks.
+// checkPendingRescans is called on each maintenance tick. For every active batch it
+// calls performRescan, which handles two independent correctness paths:
+//
+//  1. SkippedCompactionJobIds rescan: blocks that were in active compaction at
+//     submission time; gated on the batch's RescanAfterUnixNano timer.
+//  2. Post-submission compaction scan: blocks that gained a compaction job after
+//     submission, whose output blocks have no redaction job; runs every tick.
 func (s *BackendScheduler) checkPendingRescans(ctx context.Context) {
 	now := time.Now().UnixNano()
 	for _, batch := range s.work.ListBatches() {
-		if batch.RescanAfterUnixNano == 0 || now < batch.RescanAfterUnixNano {
-			continue
-		}
-		s.performRescan(ctx, batch)
+		s.performRescan(ctx, batch, now)
 	}
 }
 
-// performRescan handles one batch that is ready for a rescan.
+// performRescan handles one batch on every maintenance tick. It runs two independent
+// correctness paths and shares a single flush/commit at the end.
 //
-// It loops over the skipped compaction job IDs, classifying each job as still-running
-// (output not yet available) or complete (output blocks known). For complete jobs it
-// further classifies output blocks as ready (enqueue a redaction job) or still being
-// compacted (discover the covering job and advance to that inline).
+// Path 1 — SkippedCompactionJobIds (gated on RescanAfterUnixNano): handles blocks
+// that were in active compaction at submission time. Loops over the recorded job IDs,
+// classifies each as still-running or complete, advances through cascaded compaction
+// chains, and re-arms the batch when output is not yet available.
 //
-// The loop resolves cascaded compaction chains in a single maintenance tick. It only
-// bails out and re-arms when it encounters a still-running job whose output is not yet
-// available. MaxRescanGenerations bounds the depth to prevent infinite chains.
-func (s *BackendScheduler) performRescan(ctx context.Context, batch *tempopb.RedactionBatch) {
+// Path 2 — post-submission compaction scan (every tick): handles the race where a
+// compaction job starts after submission. Builds the set of block IDs covered by this
+// batch, then walks all post-submission compaction jobs to find any whose input blocks
+// overlap; output blocks not yet covered receive new redaction jobs.
+func (s *BackendScheduler) performRescan(ctx context.Context, batch *tempopb.RedactionBatch, now int64) {
 	tenantID := batch.TenantId
 	batchID := batch.BatchId
-	maxRetries := s.cfg.ProviderConfig.Redaction.MaxRescanGenerations
 
-	currentJobIDs := batch.SkippedCompactionJobIds
 	var allReadyJobs []*work.Job
-	var rearmIDs []string // non-empty → re-arm batch for next tick
-	resolved := false     // true on clean exit (done or scheduled for re-arm)
+	var rearmIDs []string
 
-	for range maxRetries {
-		// skippedSet doubles as a "not-yet-found" tracker: delete each entry on match;
-		// any IDs remaining after the loop were never found (pruned/failed externally).
-		skippedSet := make(map[string]struct{}, len(currentJobIDs))
-		for _, id := range currentJobIDs {
-			skippedSet[id] = struct{}{}
+	// --- Path 1: SkippedCompactionJobIds rescan (only when timer has elapsed) ---
+	if batch.RescanAfterUnixNano > 0 && now >= batch.RescanAfterUnixNano {
+		maxRetries := s.cfg.ProviderConfig.Redaction.MaxRescanGenerations
+		currentJobIDs := batch.SkippedCompactionJobIds
+		resolved := false
+
+		for range maxRetries {
+			// skippedSet doubles as a "not-yet-found" tracker: delete each entry on match;
+			// any IDs remaining after the loop were never found (pruned/failed externally).
+			skippedSet := make(map[string]struct{}, len(currentJobIDs))
+			for _, id := range currentJobIDs {
+				skippedSet[id] = struct{}{}
+			}
+
+			var stillRunningIDs, outputBlockIDs []string
+			for _, j := range s.work.ListJobs() {
+				if _, ok := skippedSet[j.ID]; !ok {
+					continue
+				}
+				delete(skippedSet, j.ID)
+				if !j.IsComplete() {
+					stillRunningIDs = append(stillRunningIDs, j.ID)
+				} else {
+					outputBlockIDs = append(outputBlockIDs, j.GetCompactionOutput()...)
+				}
+			}
+			for id := range skippedSet {
+				level.Warn(log.Logger).Log(
+					"msg", "redaction rescan: skipped compaction job not found; it may have been pruned or failed externally -- operator should resubmit if traces are still present",
+					"tenant", tenantID, "batch_id", batchID, "job_id", id,
+				)
+			}
+
+			// Classify output blocks: ready to redact vs still being compacted.
+			busyBlocks := s.work.BusyBlocksForTenant(tenantID)
+			var nextJobIDs []string
+			for _, blockID := range outputBlockIDs {
+				if jobID, busy := busyBlocks[blockID]; busy {
+					nextJobIDs = append(nextJobIDs, jobID)
+				} else {
+					allReadyJobs = append(allReadyJobs, &work.Job{
+						ID:   uuid.New().String(),
+						Type: tempopb.JobType_JOB_TYPE_REDACTION,
+						JobDetail: tempopb.JobDetail{
+							Tenant:  tenantID,
+							BatchId: batchID,
+							Redaction: &tempopb.RedactionDetail{
+								BlockId: blockID,
+							},
+						},
+					})
+				}
+			}
+
+			level.Info(log.Logger).Log(
+				"msg", "redaction rescan: iteration",
+				"tenant", tenantID, "batch_id", batchID,
+				"still_running", len(stillRunningIDs), "output_blocks", len(outputBlockIDs),
+				"ready_jobs", len(allReadyJobs), "next_job_ids", len(nextJobIDs),
+			)
+
+			if len(stillRunningIDs) > 0 {
+				// Can't proceed inline: wait for next tick.
+				rearmIDs = append(rearmIDs, stillRunningIDs...)
+				rearmIDs = append(rearmIDs, nextJobIDs...)
+				resolved = true
+				break
+			}
+
+			if len(nextJobIDs) == 0 {
+				// All complete, no further compaction chains: nothing more to do.
+				resolved = true
+				break
+			}
+
+			// All current jobs are complete but their output is still being compacted:
+			// advance to the next generation inline.
+			currentJobIDs = nextJobIDs
 		}
 
-		var stillRunningIDs, outputBlockIDs []string
-		for _, j := range s.work.ListJobs() {
-			if _, ok := skippedSet[j.ID]; !ok {
-				continue
-			}
-			delete(skippedSet, j.ID)
-			if !j.IsComplete() {
-				stillRunningIDs = append(stillRunningIDs, j.ID)
-			} else {
-				outputBlockIDs = append(outputBlockIDs, j.GetCompactionOutput()...)
-			}
-		}
-		for id := range skippedSet {
+		if !resolved {
 			level.Warn(log.Logger).Log(
-				"msg", "redaction rescan: skipped compaction job not found; it may have been pruned or failed externally -- operator should resubmit if traces are still present",
-				"tenant", tenantID, "batch_id", batchID, "job_id", id,
+				"msg", "redaction rescan: cascaded compaction depth exceeded -- operator should resubmit if traces are still present",
+				"tenant", tenantID, "batch_id", batchID, "max_retries", maxRetries,
 			)
 		}
 
-		// Classify output blocks: ready to redact vs still being compacted.
-		busyBlocks := s.work.BusyBlocksForTenant(tenantID)
-		var nextJobIDs []string
-		for _, blockID := range outputBlockIDs {
-			if jobID, busy := busyBlocks[blockID]; busy {
-				nextJobIDs = append(nextJobIDs, jobID)
-			} else {
+		// Commit rescan state update under the batch store's write lock.
+		var rescanAfterNano int64
+		if len(rearmIDs) > 0 {
+			rescanAfterNano = time.Now().Add(s.cfg.ProviderConfig.Redaction.RescanDelay).UnixNano()
+		}
+		s.work.SetBatchRescan(tenantID, rearmIDs, rescanAfterNano)
+	}
+
+	// --- Path 2: post-submission compaction scan (every tick) ---
+	// Build the set of blocks already covered by this batch. Seed it with any blocks
+	// already queued by Path 1 so we never issue duplicate jobs.
+	jobsBefore := len(allReadyJobs)
+	covered := s.work.BatchCoveredBlocks(tenantID, batchID)
+	for _, j := range allReadyJobs {
+		if bid := j.GetRedactionBlockID(); bid != "" {
+			covered[bid] = struct{}{}
+		}
+	}
+	if len(covered) > 0 {
+		for _, j := range s.work.ListJobs() {
+			if j.GetType() != tempopb.JobType_JOB_TYPE_COMPACTION {
+				continue
+			}
+			if j.Tenant() != tenantID {
+				continue
+			}
+			// Pre-submission compactions are handled by Path 1 (SkippedCompactionJobIds).
+			if j.GetCreatedTime().UnixNano() < batch.CreatedAtUnixNano {
+				continue
+			}
+			overlaps := false
+			for _, input := range j.GetCompactionInput() {
+				if _, ok := covered[input]; ok {
+					overlaps = true
+					break
+				}
+			}
+			if !overlaps {
+				continue
+			}
+			for _, outputBlock := range j.GetCompactionOutput() {
+				if _, ok := covered[outputBlock]; ok {
+					continue
+				}
+				if s.work.IsBlockBusy(tenantID, outputBlock) {
+					covered[outputBlock] = struct{}{}
+					continue
+				}
 				allReadyJobs = append(allReadyJobs, &work.Job{
 					ID:   uuid.New().String(),
 					Type: tempopb.JobType_JOB_TYPE_REDACTION,
@@ -764,53 +768,22 @@ func (s *BackendScheduler) performRescan(ctx context.Context, batch *tempopb.Red
 						Tenant:  tenantID,
 						BatchId: batchID,
 						Redaction: &tempopb.RedactionDetail{
-							BlockId: blockID,
+							BlockId: outputBlock,
 						},
 					},
 				})
+				covered[outputBlock] = struct{}{}
 			}
 		}
-
-		level.Info(log.Logger).Log(
-			"msg", "redaction rescan: iteration",
-			"tenant", tenantID, "batch_id", batchID,
-			"still_running", len(stillRunningIDs), "output_blocks", len(outputBlockIDs),
-			"ready_jobs", len(allReadyJobs), "next_job_ids", len(nextJobIDs),
-		)
-
-		if len(stillRunningIDs) > 0 {
-			// Can't proceed inline: wait for next tick.
-			rearmIDs = append(rearmIDs, stillRunningIDs...)
-			rearmIDs = append(rearmIDs, nextJobIDs...)
-			resolved = true
-			break
+		if postSubmitCount := len(allReadyJobs) - jobsBefore; postSubmitCount > 0 {
+			level.Info(log.Logger).Log(
+				"msg", "redaction rescan: post-submission compaction race detected; enqueuing follow-up jobs",
+				"tenant", tenantID, "batch_id", batchID, "new_jobs", postSubmitCount,
+			)
 		}
-
-		if len(nextJobIDs) == 0 {
-			// All complete, no further compaction chains: nothing more to do.
-			resolved = true
-			break
-		}
-
-		// All current jobs are complete but their output is still being compacted:
-		// advance to the next generation inline.
-		currentJobIDs = nextJobIDs
 	}
 
-	if !resolved {
-		level.Warn(log.Logger).Log(
-			"msg", "redaction rescan: cascaded compaction depth exceeded -- operator should resubmit if traces are still present",
-			"tenant", tenantID, "batch_id", batchID, "max_retries", maxRetries,
-		)
-	}
-
-	// Commit rescan state update under the batch store's write lock.
-	var rescanAfterNano int64
-	if len(rearmIDs) > 0 {
-		rescanAfterNano = time.Now().Add(s.cfg.ProviderConfig.Redaction.RescanDelay).UnixNano()
-	}
-	s.work.SetBatchRescan(tenantID, rearmIDs, rescanAfterNano)
-
+	// --- Shared flush / commit ---
 	if len(allReadyJobs) == 0 && len(rearmIDs) == 0 {
 		s.cleanupBatchIfDone(ctx, tenantID)
 		return

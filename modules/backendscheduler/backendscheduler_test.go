@@ -686,10 +686,9 @@ func TestPostSubmitCompactionRace(t *testing.T) {
 	require.False(t, s.work.IsBlockBusy(testTenant, outputBlock),
 		"output block must have no job yet (proving the race exists)")
 
-	// The fix: a maintenance scan detects post-submission compaction jobs whose
-	// input blocks overlap with the batch's targeted blocks and creates follow-up
-	// redaction jobs for uncovered output blocks.
-	s.checkPostSubmitCompaction(ctx)
+	// The fix: checkPendingRescans now runs the post-submission compaction scan on
+	// every tick regardless of whether a rescan timer is armed.
+	s.checkPendingRescans(ctx)
 
 	require.True(t, s.work.IsBlockBusy(testTenant, outputBlock),
 		"output block from post-submission compaction must have a pending redaction job after fix scan")
