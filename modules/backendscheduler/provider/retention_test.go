@@ -36,7 +36,9 @@ func TestRetentionProvider(t *testing.T) {
 
 	logger := log.NewLogfmtLogger(os.Stderr)
 
-	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.NewRegistry())
+	overridesCfg := overrides.Config{}
+	overridesCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+	limits, err := overrides.NewOverrides(overridesCfg, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
 	p := NewRetentionProvider(cfg, logger, tenants, limits, w)
 
@@ -87,7 +89,9 @@ func TestRetentionProviderSkipsRedactionPending(t *testing.T) {
 	tenants := &staticTenantLister{tenants: []string{"tenant-a", "tenant-b"}}
 	logger := log.NewLogfmtLogger(os.Stderr)
 
-	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.NewRegistry())
+	overridesCfg := overrides.Config{}
+	overridesCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+	limits, err := overrides.NewOverrides(overridesCfg, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
 	p := NewRetentionProvider(cfg, logger, tenants, limits, w)
 	jobChan := p.Start(ctx)
@@ -132,7 +136,9 @@ func TestRetentionProviderRolloutCompat(t *testing.T) {
 	tenants := &staticTenantLister{tenants: []string{"tenant-a"}}
 	logger := log.NewLogfmtLogger(os.Stderr)
 
-	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.NewRegistry())
+	overridesCfg := overrides.Config{}
+	overridesCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+	limits, err := overrides.NewOverrides(overridesCfg, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
 	p := NewRetentionProvider(cfg, logger, tenants, limits, w)
 	jobChan := p.Start(ctx)

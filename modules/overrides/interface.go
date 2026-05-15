@@ -30,7 +30,7 @@ type Interface interface {
 	GetRuntimeOverridesFor(userID string) *Overrides
 
 	// Config
-	IngestionRateStrategy() string
+	IngestionRateStrategy() IngestionRateStrategy
 	MaxLocalTracesPerUser(userID string) int
 	MaxGlobalTracesPerUser(userID string) int
 	MaxBytesPerTrace(userID string) int

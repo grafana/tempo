@@ -25,7 +25,6 @@ overrides:
       collection_interval: 30s
       disable_collection: true
       forwarder:
-        queue_size: 100
         workers: 4
       generate_native_histograms: both
       ingestion_time_range_slack: 30s
@@ -40,7 +39,6 @@ overrides:
           host_identifiers:
           - host.name
           - host.id
-          metric_name: traces_host_info
         service_graphs:
           dimensions:
           - service.namespace
@@ -101,7 +99,6 @@ overrides:
         X-Custom-Header: <secret>
       ring_size: 5
       span_name_sanitization: drop
-      trace_id_label_name: traceID
     read:
       left_pad_trace_ids: true
       max_blocks_per_tag_values_query: 50

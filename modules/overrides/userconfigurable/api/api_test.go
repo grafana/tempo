@@ -23,6 +23,8 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 )
 
+func ptrTo[T any](v T) *T { return &v }
+
 func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 	tenant := "my-tenant"
 
@@ -397,7 +399,7 @@ func TestUserConfigOverridesAPI_assertConflictingRuntimeOverrides(t *testing.T) 
 			defaultOverrides: overrides.Overrides{
 				MetricsGenerator: overrides.MetricsGeneratorOverrides{
 					Processors:         map[string]struct{}{"service-graphs": {}},
-					CollectionInterval: 15 * time.Second,
+					CollectionInterval: ptrTo(15 * time.Second),
 				},
 			},
 			userConfigOverrides: nil,
@@ -414,7 +416,7 @@ func TestUserConfigOverridesAPI_assertConflictingRuntimeOverrides(t *testing.T) 
 			checkForConflictingRuntimeOverrides: false,
 			defaultOverrides: overrides.Overrides{
 				MetricsGenerator: overrides.MetricsGeneratorOverrides{
-					CollectionInterval: 15 * time.Second,
+					CollectionInterval: ptrTo(15 * time.Second),
 				},
 			},
 			userConfigOverrides: nil,
@@ -433,7 +435,7 @@ func TestUserConfigOverridesAPI_assertConflictingRuntimeOverrides(t *testing.T) 
 			defaultOverrides: overrides.Overrides{
 				MetricsGenerator: overrides.MetricsGeneratorOverrides{
 					Processors:         map[string]struct{}{"service-graphs": {}},
-					CollectionInterval: 15 * time.Second,
+					CollectionInterval: ptrTo(15 * time.Second),
 				},
 			},
 			userConfigOverrides: nil,
@@ -452,7 +454,7 @@ func TestUserConfigOverridesAPI_assertConflictingRuntimeOverrides(t *testing.T) 
 			defaultOverrides: overrides.Overrides{
 				MetricsGenerator: overrides.MetricsGeneratorOverrides{
 					Processors:         map[string]struct{}{"service-graphs": {}},
-					CollectionInterval: 15 * time.Second,
+					CollectionInterval: ptrTo(15 * time.Second),
 				},
 			},
 			userConfigOverrides: &client.Limits{
@@ -474,7 +476,7 @@ func TestUserConfigOverridesAPI_assertConflictingRuntimeOverrides(t *testing.T) 
 			defaultOverrides: overrides.Overrides{
 				MetricsGenerator: overrides.MetricsGeneratorOverrides{
 					Processors:         map[string]struct{}{"service-graphs": {}},
-					CollectionInterval: 15 * time.Second,
+					CollectionInterval: ptrTo(15 * time.Second),
 				},
 			},
 			userConfigOverrides: nil,

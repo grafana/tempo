@@ -19,6 +19,7 @@ var metricAddedLatency = promauto.NewHistogramVec(prometheus.HistogramOpts{
 
 func (d *Distributor) padWithArtificialDelay(reqStart time.Time, userID string) {
 	artificialDelay := d.cfg.ArtificialDelay
+	// TODO: this can be made simple if we return single value??
 	if artificialDelayOverride, ok := d.overrides.IngestionArtificialDelay(userID); ok {
 		artificialDelay = artificialDelayOverride
 	}

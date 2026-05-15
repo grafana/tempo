@@ -47,7 +47,9 @@ func TestShardedIntegration(t *testing.T) {
 				store.Shutdown()
 			}()
 
-			limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.DefaultRegisterer)
+			overridesCfg := overrides.Config{}
+			overridesCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+			limits, err := overrides.NewOverrides(overridesCfg, nil, prometheus.DefaultRegisterer)
 			require.NoError(t, err)
 
 			scheduler, err := New(cfg, store, limits, rr, ww)

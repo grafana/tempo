@@ -69,6 +69,7 @@ var (
 
 func newHistogram(name string, buckets []float64, lifecycler Limiter, traceIDLabelName string, externalLabels map[string]string, staleDuration time.Duration) *histogram {
 	if traceIDLabelName == "" {
+		// TODO: this will never hit, we set the default to "traceID"
 		traceIDLabelName = "traceID"
 	}
 

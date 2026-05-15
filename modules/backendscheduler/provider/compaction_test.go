@@ -54,7 +54,9 @@ func TestCompactionProvider(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.DefaultRegisterer)
+	overridesCfg := overrides.Config{}
+	overridesCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+	limits, err := overrides.NewOverrides(overridesCfg, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	w := work.New(work.Config{})
@@ -117,7 +119,9 @@ func TestCompactionProvider_EmptyStart(t *testing.T) {
 		store.Shutdown()
 	}()
 
-	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.DefaultRegisterer)
+	overridesCfg := overrides.Config{}
+	overridesCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+	limits, err := overrides.NewOverrides(overridesCfg, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	w := work.New(work.Config{})
@@ -249,7 +253,9 @@ func TestCompactionProvider_SkipsAllCompactionDuringRedaction(t *testing.T) {
 		TenantId: testTenant,
 	}))
 
-	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.DefaultRegisterer)
+	overridesCfg := overrides.Config{}
+	overridesCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+	limits, err := overrides.NewOverrides(overridesCfg, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	p := NewCompactionProvider(
@@ -335,7 +341,9 @@ func TestCompactionProvider_InFlightJobsPreventDuplicates(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.DefaultRegisterer)
+	overridesCfg := overrides.Config{}
+	overridesCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+	limits, err := overrides.NewOverrides(overridesCfg, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	w := work.New(work.Config{})

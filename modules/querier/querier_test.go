@@ -2,6 +2,7 @@ package querier
 
 import (
 	"context"
+	"flag"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -20,7 +21,9 @@ import (
 )
 
 func TestVirtualTagsDoesntHitBackend(t *testing.T) {
-	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+	overridesCfg := overrides.Config{}
+	overridesCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+	o, err := overrides.NewOverrides(overridesCfg, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	q, err := New(Config{}, nil, livestore_client.Config{}, nil, false, nil, o)
@@ -158,7 +161,9 @@ func TestFindTraceByID_ExternalMode(t *testing.T) {
 		},
 	}
 
-	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+	overridesCfg := overrides.Config{}
+	overridesCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+	o, err := overrides.NewOverrides(overridesCfg, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	q, err := New(cfg, nil, livestore_client.Config{}, nil, true, nil, o)

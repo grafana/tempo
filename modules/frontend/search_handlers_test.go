@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"math"
@@ -897,6 +898,7 @@ func frontendWithSettings(t require.TestingT, next pipeline.RoundTripper, rdr te
 	}
 
 	overridesCfg := &overrides.Config{}
+	overridesCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
 
 	for _, o := range opts {
 		o(cfg, overridesCfg)

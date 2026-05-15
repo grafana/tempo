@@ -43,7 +43,7 @@ func TestOverridesExtension_MarshalJSON(t *testing.T) {
 
 		fieldB := 42
 		o := Overrides{}
-		o.Ingestion.MaxLocalTracesPerUser = 1000
+		o.Ingestion.MaxLocalTracesPerUser = ptrTo(1000)
 		o.Extensions = map[string]any{
 			"test_extension": &testExtension{FieldA: "custom", FieldB: &fieldB},
 		}
@@ -54,7 +54,7 @@ func TestOverridesExtension_MarshalJSON(t *testing.T) {
 		var o2 Overrides
 		require.NoError(t, json.Unmarshal(b, &o2))
 
-		assert.Equal(t, 1000, o2.Ingestion.MaxLocalTracesPerUser)
+		assert.Equal(t, 1000, *o2.Ingestion.MaxLocalTracesPerUser)
 		ext := get(&o2)
 		require.NotNil(t, ext)
 		assert.Equal(t, "custom", ext.FieldA)
@@ -67,7 +67,7 @@ func TestOverridesExtension_MarshalJSON(t *testing.T) {
 
 		fieldB := 7
 		o := Overrides{}
-		o.Ingestion.MaxLocalTracesPerUser = 500
+		o.Ingestion.MaxLocalTracesPerUser = ptrTo(500)
 		o.Extensions = map[string]any{
 			"test_extension": &testExtension{FieldA: "flat_val", FieldB: &fieldB},
 		}
@@ -109,7 +109,7 @@ func TestOverridesExtension_UnmarshalJSON(t *testing.T) {
 		var o Overrides
 		require.NoError(t, json.Unmarshal([]byte(input), &o))
 
-		assert.Equal(t, 1000, o.Ingestion.MaxLocalTracesPerUser)
+		assert.Equal(t, 1000, *o.Ingestion.MaxLocalTracesPerUser)
 		ext := get(&o)
 		require.NotNil(t, ext)
 		assert.Equal(t, "from_json", ext.FieldA)
@@ -172,7 +172,7 @@ func TestOverridesExtension_UnmarshalJSON(t *testing.T) {
 		input := `{"max_traces_per_user": 1000, "test_extension_field_a": "from_legacy_json"}`
 		var l LegacyOverrides
 		require.NoError(t, json.Unmarshal([]byte(input), &l))
-		assert.Equal(t, 1000, l.MaxLocalTracesPerUser)
+		assert.Equal(t, 1000, *l.MaxLocalTracesPerUser)
 		ext, ok := l.Extensions["test_extension"].(*testExtension)
 		require.True(t, ok, "expected typed test_extension in l.Extensions after unmarshal")
 		assert.Equal(t, "from_legacy_json", ext.FieldA)
@@ -188,7 +188,7 @@ func TestOverridesExtension_MarshalYAML(t *testing.T) {
 
 		fieldB := 3
 		o := Overrides{}
-		o.Ingestion.MaxLocalTracesPerUser = 1000
+		o.Ingestion.MaxLocalTracesPerUser = ptrTo(1000)
 		o.Extensions = map[string]any{
 			"test_extension": &testExtension{FieldA: "yaml_val", FieldB: &fieldB},
 		}
@@ -203,7 +203,7 @@ func TestOverridesExtension_MarshalYAML(t *testing.T) {
 		var o2 Overrides
 		require.NoError(t, yaml.Unmarshal(b, &o2))
 
-		assert.Equal(t, 1000, o2.Ingestion.MaxLocalTracesPerUser)
+		assert.Equal(t, 1000, *o2.Ingestion.MaxLocalTracesPerUser)
 		ext := get(&o2)
 		require.NotNil(t, ext)
 		assert.Equal(t, "yaml_val", ext.FieldA)
@@ -216,7 +216,7 @@ func TestOverridesExtension_MarshalYAML(t *testing.T) {
 
 		fieldB := 8
 		o := Overrides{}
-		o.Ingestion.MaxLocalTracesPerUser = 500
+		o.Ingestion.MaxLocalTracesPerUser = ptrTo(500)
 		o.Extensions = map[string]any{
 			"test_extension": &testExtension{FieldA: "legacy_yaml", FieldB: &fieldB},
 		}
@@ -247,7 +247,7 @@ test_extension:
 		var o Overrides
 		require.NoError(t, yaml.Unmarshal([]byte(input), &o))
 
-		assert.Equal(t, 1000, o.Ingestion.MaxLocalTracesPerUser)
+		assert.Equal(t, 1000, *o.Ingestion.MaxLocalTracesPerUser)
 		ext := get(&o)
 		require.NotNil(t, ext)
 		assert.Equal(t, "from_yaml", ext.FieldA)
@@ -295,7 +295,7 @@ test_extension_field_a: from_legacy_yaml
 		var l LegacyOverrides
 		require.NoError(t, yaml.Unmarshal([]byte(input), &l))
 
-		assert.Equal(t, 1000, l.MaxLocalTracesPerUser)
+		assert.Equal(t, 1000, *l.MaxLocalTracesPerUser)
 		// processLegacyExtensions converts the flat key to a typed instance at unmarshal time.
 		lExt, ok := l.Extensions["test_extension"].(*testExtension)
 		require.True(t, ok, "expected typed test_extension in l.Extensions after unmarshal")
@@ -334,7 +334,7 @@ overrides:
 
 	limits := pto.TenantLimits["tenant-1"]
 	require.NotNil(t, limits)
-	assert.Equal(t, 1000, limits.Ingestion.MaxLocalTracesPerUser)
+	assert.Equal(t, 1000, *limits.Ingestion.MaxLocalTracesPerUser)
 	ext := get(limits)
 	require.NotNil(t, ext)
 	assert.Equal(t, "roundtrip_val", ext.FieldA)
@@ -361,7 +361,7 @@ overrides:
 
 	limits := pto.TenantLimits["tenant-1"]
 	require.NotNil(t, limits)
-	assert.Equal(t, 2000, limits.Ingestion.MaxLocalTracesPerUser)
+	assert.Equal(t, 2000, *limits.Ingestion.MaxLocalTracesPerUser)
 	ext := get(limits)
 	require.NotNil(t, ext)
 	assert.Equal(t, "new_format_val", ext.FieldA)
@@ -374,7 +374,7 @@ func TestExtension_JSONRoundTrip_Overrides(t *testing.T) {
 
 	fieldB := 13
 	o := Overrides{}
-	o.Ingestion.MaxLocalTracesPerUser = 777
+	o.Ingestion.MaxLocalTracesPerUser = ptrTo(777)
 	o.Extensions = map[string]any{
 		"test_extension": &testExtension{FieldA: "json_rt", FieldB: &fieldB},
 	}
@@ -385,7 +385,7 @@ func TestExtension_JSONRoundTrip_Overrides(t *testing.T) {
 	var o2 Overrides
 	require.NoError(t, json.Unmarshal(b, &o2))
 
-	assert.Equal(t, 777, o2.Ingestion.MaxLocalTracesPerUser)
+	assert.Equal(t, 777, *o2.Ingestion.MaxLocalTracesPerUser)
 	ext := get(&o2)
 	require.NotNil(t, ext)
 	assert.Equal(t, "json_rt", ext.FieldA)
@@ -495,7 +495,7 @@ overrides:
 	require.NoError(t, decoder.Decode(&pto))
 	assert.Equal(t, ConfigTypeLegacy, pto.ConfigType)
 	require.NotNil(t, pto.TenantLimits["tenant-1"])
-	assert.Equal(t, 1000, pto.TenantLimits["tenant-1"].Ingestion.MaxLocalTracesPerUser)
+	assert.Equal(t, 1000, *pto.TenantLimits["tenant-1"].Ingestion.MaxLocalTracesPerUser)
 }
 
 func TestUnknownExtensionKey_Config_BlocksLegacyFallback(t *testing.T) {
