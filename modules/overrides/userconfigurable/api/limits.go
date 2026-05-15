@@ -8,6 +8,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	"github.com/grafana/tempo/pkg/spanfilter/config"
+	"github.com/grafana/tempo/pkg/util/listtomap"
 )
 
 // limitsFromOverrides will reconstruct a client.Limits from the overrides module
@@ -15,7 +16,7 @@ func limitsFromOverrides(overrides overrides.Interface, userID string) *client.L
 	return &client.Limits{
 		Forwarders: strArrPtr(overrides.Forwarders(userID)),
 		MetricsGenerator: client.LimitsMetricsGenerator{
-			Processors:                      overrides.MetricsGeneratorProcessors(userID),
+			Processors:                      listToMapPtr(overrides.MetricsGeneratorProcessors(userID)),
 			DisableCollection:               boolPtr(overrides.MetricsGeneratorDisableCollection(userID)),
 			CollectionInterval:              timePtr(overrides.MetricsGeneratorCollectionInterval(userID)),
 			TraceIDLabelName:                strPtr(overrides.MetricsGeneratorTraceIDLabelName(userID)),
@@ -109,4 +110,9 @@ func histogramModePtr(h histograms.HistogramMethod) *histograms.HistogramMethod 
 
 func uint32Ptr(u uint32) *uint32 {
 	return &u
+}
+
+func listToMapPtr(m map[string]struct{}) *listtomap.ListToMap {
+	lm := listtomap.ListToMap(m)
+	return &lm
 }

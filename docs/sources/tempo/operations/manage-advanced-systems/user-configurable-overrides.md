@@ -50,8 +50,11 @@ overrides.
 When you set a field in both the user-configurable overrides and the runtime overrides, the value from the
 user-configurable overrides takes priority.
 
-Note that `processors` is an exception. Tempo merges values from both user-configurable overrides and runtime overrides
-into a single list.
+{{< admonition type="note" >}}
+In Tempo 2.x, `metrics_generator.processors` user-configurable override field is OR-merged with the runtime overrides list.
+
+In Tempo 3.0, if `processors` is set in user-configurable overrides, that will override the runtime `metrics_generator.processors` config. Setting `processors: []` in user-configurable overrides disables all processors for the tenant.
+{{< /admonition >}}
 
 {{< admonition type="warning" >}}
 The `local-blocks` processor was removed in Tempo 3.0. TraceQL metrics queries on recent data are now served by the live-store instead. If your overrides reference `local-blocks`, remove it before upgrading.

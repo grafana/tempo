@@ -14,6 +14,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
+	"github.com/grafana/tempo/pkg/util/listtomap"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/assert"
 )
@@ -305,7 +306,7 @@ func Test_overridesValidator(t *testing.T) {
 			cfg:  Config{},
 			limits: client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
-					Processors: map[string]struct{}{
+					Processors: &listtomap.ListToMap{
 						"service-graphs": {},
 						"span-span":      {},
 					},

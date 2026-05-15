@@ -19,6 +19,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/util/listtomap"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 )
@@ -241,6 +242,30 @@ func Test_UserConfigOverridesAPI_patchOverridesHandlers(t *testing.T) {
 			expResp:       "json: unknown field \"newField\"\n",
 			expStatusCode: 400,
 		},
+		{
+			name:           "PATCH - processors: non-empty list over existing empty list sets the field",
+			current:        `{"metrics_generator":{"processors":[]}}`,
+			patch:          `{"metrics_generator":{"processors":["span-metrics"]}}`,
+			expResp:        `{"cost_attribution":{},"metrics_generator":{"processors":["span-metrics"],"processor":{"service_graphs":{},"span_metrics":{},"host_info":{}}}}`,
+			expContentType: api.HeaderAcceptJSON,
+			expStatusCode:  200,
+		},
+		{
+			name:           "PATCH - processors: null over existing list unsets the field (RFC 7386)",
+			current:        `{"metrics_generator":{"processors":["span-metrics"]}}`,
+			patch:          `{"metrics_generator":{"processors":null}}`,
+			expResp:        `{"cost_attribution":{},"metrics_generator":{"processor":{"service_graphs":{},"span_metrics":{},"host_info":{}}}}`,
+			expContentType: api.HeaderAcceptJSON,
+			expStatusCode:  200,
+		},
+		{
+			name:           "PATCH - processors: empty list over existing non-empty list disables all processors",
+			current:        `{"metrics_generator":{"processors":["span-metrics"]}}`,
+			patch:          `{"metrics_generator":{"processors":[]}}`,
+			expResp:        `{"cost_attribution":{},"metrics_generator":{"processors":[],"processor":{"service_graphs":{},"span_metrics":{},"host_info":{}}}}`,
+			expContentType: api.HeaderAcceptJSON,
+			expStatusCode:  200,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -384,7 +409,7 @@ func TestUserConfigOverridesAPI_assertConflictingRuntimeOverrides(t *testing.T) 
 			userConfigOverrides: nil,
 			request: &client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
-					Processors:         map[string]struct{}{"service-graphs": {}},
+					Processors:         &listtomap.ListToMap{"service-graphs": {}},
 					CollectionInterval: &client.Duration{Duration: 60 * time.Second},
 				},
 			},
@@ -420,7 +445,7 @@ func TestUserConfigOverridesAPI_assertConflictingRuntimeOverrides(t *testing.T) 
 			userConfigOverrides: nil,
 			request: &client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
-					Processors:         map[string]struct{}{"service-graphs": {}},
+					Processors:         &listtomap.ListToMap{"service-graphs": {}},
 					CollectionInterval: &client.Duration{Duration: 60 * time.Second},
 				},
 			},
