@@ -121,7 +121,7 @@ require (
 	go.opentelemetry.io/proto/otlp v1.10.0
 	go.yaml.in/yaml/v2 v2.4.4
 	golang.org/x/net v0.53.0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260406210006-6f92a3bedf2d
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260511170946-3700d4141b60
 )
 
 require github.com/Microsoft/go-winio v0.6.2 // indirect
