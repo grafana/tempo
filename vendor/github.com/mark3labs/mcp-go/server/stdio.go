@@ -476,8 +476,17 @@ func (s *StdioServer) toolCallWorker(ctx context.Context) {
 				// Channel closed, exit worker
 				return
 			}
-			// Process the tool call
-			response := s.server.HandleMessage(work.ctx, work.message)
+			// Process the tool call with panic recovery so a single
+			// panicking handler does not kill the worker permanently.
+			response := func() (resp mcp.JSONRPCMessage) {
+				defer func() {
+					if r := recover(); r != nil {
+						s.errLogger.Printf("panic recovered in stdio tool call worker: %v", r)
+						resp = createErrorResponse(nil, mcp.INTERNAL_ERROR, fmt.Sprintf("internal panic: %v", r))
+					}
+				}()
+				return s.server.HandleMessage(work.ctx, work.message)
+			}()
 			if response != nil {
 				if err := s.writeResponse(response, work.writer); err != nil {
 					s.errLogger.Printf("Error writing tool response: %v", err)
@@ -601,7 +610,7 @@ func (s *StdioServer) processMessage(
 	var baseMessage struct {
 		Method string `json:"method"`
 	}
-	if json.Unmarshal(rawMessage, &baseMessage) == nil && baseMessage.Method == "tools/call" {
+	if json.Unmarshal(rawMessage, &baseMessage) == nil && baseMessage.Method == string(mcp.MethodToolsCall) {
 		// Queue tool calls for processing by workers
 		select {
 		case s.toolCallQueue <- &toolCallWork{
