@@ -51,7 +51,15 @@ Then, check `tempo_metrics_generator_registry_active_series` for the calculated 
 
 If your active series limit is already reached and `tempo_metrics_generator_registry_active_series` no longer reflects true demand, use the `tempo_metrics_generator_registry_active_series_demand_estimate` metric instead. This metric uses HyperLogLog estimation to approximate the actual cardinality even when limits are in effect.
 
-## Managing cardinality with limits
+## Reduce cardinality with span name clustering
+
+The `span_name` label is one of the largest contributors to high cardinality in generated metrics. Applications that include dynamic values in span names, for example, `GET /users/123` or `query-abc-def-ghi`, create a unique series for every distinct path or identifier.
+
+The `span_name_sanitization` option uses the DRAIN clustering algorithm to automatically group similar span names and replace variable segments with a placeholder. For example, `GET /users/123` and `GET /users/456` are both mapped to `GET /users/<_>`, which reduces them to a single series.
+
+To configure span name clustering, refer to [Reduce cardinality with span name clustering](../reduce-cardinality/).
+
+## Manage cardinality with limits
 
 For troubleshooting and managing cardinality limits at runtime, refer to the following sections in the [metrics-generator troubleshooting](https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/metrics-generator/) documentation:
 

@@ -2363,7 +2363,7 @@ overrides:
       [generate_native_histograms: <classic|native|both> | default = classic]
 
       # Enables span name sanitization using DRAIN clustering to reduce cardinality.
-      # Similar span names are clustered together (e.g., "GET /users/123" becomes "GET /users/<*>").
+      # Similar span names are clustered together (e.g., "GET /users/123" becomes "GET /users/<_>").
       # Options:
       #   - "" (empty string): Disabled (default)
       #   - "dry_run": Produces a demand metric for the sanitized cardinality without applying changes
