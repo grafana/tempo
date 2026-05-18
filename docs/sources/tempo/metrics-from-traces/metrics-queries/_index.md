@@ -85,6 +85,12 @@ These functions can be added as an operator at the end of any TraceQL query.
 
 The `topk` and `bottomk` functions and comparison operators (`>`, `>=`, `<`, `<=`, `=`, `!=`) are supported on TraceQL metrics results.
 
+You can also combine metrics queries with arithmetic operators (`+`, `-`, `*`, `/`) to compute derived metrics like error rate ratios. Each sub-query must be wrapped in parentheses:
+
+```traceql
+({status=error} | rate()) / ({} | rate())
+```
+
 For detailed information and example queries for each function, refer to [TraceQL metrics functions](ref:mq-functions).
 
 ### Exemplars
