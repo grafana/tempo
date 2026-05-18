@@ -29,22 +29,34 @@ tempo-cli command [subcommand] -h
 
 ## Run Tempo CLI
 
-Tempo CLI is currently available as source code.
+Tempo CLI is available as source code and as a Docker image.
 
-To build Tempo CLI, you need a working Go installation and a build environment.
-You can compile it to a native binary and execute normally, or you can execute it using the `go run` command.
-You can also package it as a binary in a Docker container using `make docker-tempo-cli`.
-
-Example:
+### Run with Docker (published image)
 
 ```bash
-./tempo-cli [arguments...]
+docker run --rm grafana/tempo-cli [arguments...]
+```
+
+### Run directly with `go run`
+
+```bash
 go run ./cmd/tempo-cli [arguments...]
 ```
 
+### Build and run a local binary
+
+To build a local binary, you need a working Go installation and build environment.
+
+```bash
+make tempo-cli
+./bin/$(go env GOOS)/tempo-cli-$(go env GOARCH) [arguments...]
+```
+
+### Build and run a local Docker image
+
 ```bash
 make docker-tempo-cli
-docker run docker.io/grafana/tempo-cli [arguments...]
+docker run --rm tempo-cli [arguments...]
 ```
 
 ## Backend options
