@@ -2004,7 +2004,7 @@
       "uid": "${metrics}"
      },
      "editorMode": "code",
-     "expr": "sum(rate(tempo_backend_scheduler_jobs_created_total{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_REDACTION\"}[1h])) by (tenant)",
+     "expr": "sum(increase(tempo_backend_scheduler_jobs_created_total{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_REDACTION\"}[1h])) by (tenant)",
      "legendFormat": "{{tenant}}",
      "range": true,
      "refId": "A"
@@ -2106,7 +2106,7 @@
       "uid": "${metrics}"
      },
      "editorMode": "code",
-     "expr": "sum(rate(tempo_backend_scheduler_jobs_completed_total{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_REDACTION\"}[1h])) by (tenant)",
+     "expr": "sum(increase(tempo_backend_scheduler_jobs_completed_total{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_REDACTION\"}[1h])) by (tenant)",
      "legendFormat": "{{tenant}}",
      "range": true,
      "refId": "A"
