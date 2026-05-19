@@ -23,8 +23,6 @@ refs:
 
 # TraceQL metrics
 
-<!-- Using a custom admonition because no feature flag is required. -->
-
 TraceQL metrics is a feature in Grafana Tempo that creates metrics from traces.
 
 Metric queries extend trace queries by applying a function to trace query results.
