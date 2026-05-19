@@ -89,6 +89,10 @@ func (m *mockReader) FetchSpans(context.Context, *backend.BlockMeta, traceql.Fet
 	return traceql.FetchSpansOnlyResponse{}, nil
 }
 
+func (m *mockReader) FetchSpansForRowGroups(context.Context, *backend.BlockMeta, traceql.FetchSpansRequest, common.SearchOptions, []int) ([]traceql.FetchSpansOnlyResponse, error) {
+	return nil, nil
+}
+
 func (m *mockReader) FetchTagNames(context.Context, *backend.BlockMeta, traceql.FetchTagsRequest, traceql.FetchTagsCallback, common.MetricsCallback, common.SearchOptions) error {
 	return nil
 }

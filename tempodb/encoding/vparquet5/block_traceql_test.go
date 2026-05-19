@@ -1783,6 +1783,59 @@ func BenchmarkIterators(b *testing.B) {
 	}
 }
 
+// BenchmarkBackendBlockFetchSpansForRowGroups measures the overhead of
+// fetching spans one row group at a time vs. a single full-block fetch.
+// Requires VP5_BENCH_* env vars (see blockForBenchmarks).
+func BenchmarkBackendBlockFetchSpansForRowGroups(b *testing.B) {
+	ctx := b.Context()
+	block := blockForBenchmarks(b)
+	opts := common.DefaultSearchOptions()
+	req := traceql.FetchSpansRequest{}
+
+	pf, _, err := block.openForSearch(ctx, opts)
+	require.NoError(b, err)
+	numRGs := len(pf.RowGroups())
+
+	rgIdxs := make([]int, numRGs)
+	for i := range rgIdxs {
+		rgIdxs[i] = i
+	}
+
+	b.Run("FetchSpans/all", func(b *testing.B) {
+		b.ResetTimer()
+		for b.Loop() {
+			resp, err := block.FetchSpans(ctx, req, opts)
+			require.NoError(b, err)
+			for {
+				s, err := resp.Results.Next(ctx)
+				require.NoError(b, err)
+				if s == nil {
+					break
+				}
+			}
+			resp.Results.Close()
+		}
+	})
+
+	b.Run("FetchSpansForRowGroups/all", func(b *testing.B) {
+		b.ResetTimer()
+		for b.Loop() {
+			resps, err := block.FetchSpansForRowGroups(ctx, req, opts, rgIdxs)
+			require.NoError(b, err)
+			for _, resp := range resps {
+				for {
+					s, err := resp.Results.Next(ctx)
+					require.NoError(b, err)
+					if s == nil {
+						break
+					}
+				}
+				resp.Results.Close()
+			}
+		}
+	})
+}
+
 func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	testCases := []string{
 		"{} | rate()",

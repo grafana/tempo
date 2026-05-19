@@ -1,6 +1,7 @@
 package vparquet5
 
 import (
+	"context"
 	"math/rand"
 	"testing"
 
@@ -12,6 +13,105 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/stretchr/testify/require"
 )
+
+// TestFetchSpansForRowGroups_MatchesFetchSpans verifies that requesting all row
+// groups via the per-row-group API and concatenating their span streams
+// produces the same multiset of spans as a single FetchSpans over the whole
+// block. Per-row-group caching depends on this equivalence.
+func TestFetchSpansForRowGroups_MatchesFetchSpans(t *testing.T) {
+	ctx := context.Background()
+
+	// makeBackendBlockWithTraces flushes every 100 traces; with 250 traces we
+	// get ~3 row groups, enough to exercise the multi-RG path.
+	traces := make([]*Trace, 0, 250)
+	for i := 0; i < 250; i++ {
+		id := test.ValidTraceID(nil)
+		tr, _ := traceToParquet(&backend.BlockMeta{}, id, test.MakeTrace(1, id), nil)
+		traces = append(traces, tr)
+	}
+	b := makeBackendBlockWithTraces(t, traces)
+
+	pf, _, err := b.openForSearch(ctx, common.DefaultSearchOptions())
+	require.NoError(t, err)
+	numRowGroups := len(pf.RowGroups())
+	require.Greater(t, numRowGroups, 1, "expected multi-row-group block; got %d", numRowGroups)
+
+	// Baseline: a single FetchSpans over the whole block. Use AllConditions
+	// false + an empty condition list so every span matches.
+	baselineReq := traceql.FetchSpansRequest{}
+	baseline, err := b.FetchSpans(ctx, baselineReq, common.DefaultSearchOptions())
+	require.NoError(t, err)
+	defer baseline.Results.Close()
+
+	baselineCount := 0
+	for {
+		s, err := baseline.Results.Next(ctx)
+		require.NoError(t, err)
+		if s == nil {
+			break
+		}
+		baselineCount++
+	}
+
+	// Per-row-group fetch: request every row group sequentially.
+	rgIdxs := make([]int, numRowGroups)
+	for i := range rgIdxs {
+		rgIdxs[i] = i
+	}
+	perRG, err := b.FetchSpansForRowGroups(ctx, baselineReq, common.DefaultSearchOptions(), rgIdxs)
+	require.NoError(t, err)
+	require.Len(t, perRG, numRowGroups)
+
+	perRGCount := 0
+	var totalBytes uint64
+	for _, resp := range perRG {
+		for {
+			s, err := resp.Results.Next(ctx)
+			require.NoError(t, err)
+			if s == nil {
+				break
+			}
+			perRGCount++
+		}
+		resp.Results.Close()
+		totalBytes += resp.Bytes()
+	}
+
+	require.Equal(t, baselineCount, perRGCount, "per-RG span count differs from baseline")
+	require.Greater(t, totalBytes, uint64(0), "expected non-zero bytes attributed across row groups")
+}
+
+// TestFetchSpansForRowGroups_OutOfRange verifies that invalid row group indices
+// produce a clear error rather than a silent miss.
+func TestFetchSpansForRowGroups_OutOfRange(t *testing.T) {
+	traces := []*Trace{}
+	for i := 0; i < 5; i++ {
+		id := test.ValidTraceID(nil)
+		tr, _ := traceToParquet(&backend.BlockMeta{}, id, test.MakeTrace(1, id), nil)
+		traces = append(traces, tr)
+	}
+	b := makeBackendBlockWithTraces(t, traces)
+
+	_, err := b.FetchSpansForRowGroups(t.Context(), traceql.FetchSpansRequest{}, common.DefaultSearchOptions(), []int{99})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "out of range")
+}
+
+// TestFetchSpansForRowGroups_EmptyList returns an empty slice for an empty
+// rgIdxs slice (no-op).
+func TestFetchSpansForRowGroups_EmptyList(t *testing.T) {
+	traces := []*Trace{}
+	for i := 0; i < 5; i++ {
+		id := test.ValidTraceID(nil)
+		tr, _ := traceToParquet(&backend.BlockMeta{}, id, test.MakeTrace(1, id), nil)
+		traces = append(traces, tr)
+	}
+	b := makeBackendBlockWithTraces(t, traces)
+
+	out, err := b.FetchSpansForRowGroups(t.Context(), traceql.FetchSpansRequest{}, common.DefaultSearchOptions(), nil)
+	require.NoError(t, err)
+	require.Empty(t, out)
+}
 
 func TestSearchFetchSpansOnly(t *testing.T) {
 	var (

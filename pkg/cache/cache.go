@@ -20,6 +20,12 @@ const (
 	RoleParquetOffsetIdx Role = "parquet-offset-idx"
 	RoleFrontendSearch   Role = "frontend-search"
 	RoleParquetPage      Role = "parquet-page"
+	// RoleMetricsQueryRowGroup caches per-row-group partial first-stage results
+	// for TraceQL metric queries. Values are proto-marshalled QueryRangeResponse
+	// fragments keyed by tenant, block UUID, row group index, and a canonical hash
+	// of the query, time range, step, exemplar count, and other options that
+	// affect the per-row-group result.
+	RoleMetricsQueryRowGroup Role = "metrics-query-row-group"
 )
 
 // Provider is an object that can return a cache for a requested role
