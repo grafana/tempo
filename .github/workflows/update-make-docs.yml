@@ -11,7 +11,7 @@ jobs:
     if: github.repository == 'grafana/tempo'
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           persist-credentials: false
-      - uses: grafana/writers-toolkit/update-make-docs@6200164349ac8f24bab065ce3689dd8c9a093061
+      - uses: grafana/writers-toolkit/update-make-docs@6200164349ac8f24bab065ce3689dd8c9a093061 # main
