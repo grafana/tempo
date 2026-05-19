@@ -403,6 +403,9 @@ Any key or values that exceed the configured limit are truncated before storing.
 The default value is `2048`.
 
 Use the `tempo_distributor_attributes_truncated_total` metric to track how many attributes are truncated.
+This metric includes `tenant` and `scope` labels, where `scope` is one of `resource`, `scope`, `span`, `event`, or `link`.
+
+When truncation occurs, the distributor also emits a rate-limited log line (at most one per second) with diagnostic details including the tenant, total truncated count, configured limit, and an example of the first truncated attribute (scope, name, field, and original size).
 
 For additional information, refer to [Troubleshoot out-of-memory errors](https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/out-of-memory-errors/).
 
