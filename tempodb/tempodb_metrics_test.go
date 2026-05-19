@@ -1688,7 +1688,7 @@ var queryRangeTestCases = []struct {
 					tempopb.MakeKeyValueString("__name__", "(max_over_time + max_over_time)"),
 				},
 				Samples: []tempopb.Sample{
-					{TimestampMs: 15_000, Value: 15},  // 15 + 0 (15 not > 20, treated as 0)
+					// t=15s: 15 + NaN = NaN (15 is not > 20)
 					{TimestampMs: 30_000, Value: 60},  // 30 + 30
 					{TimestampMs: 45_000, Value: 90},  // 45 + 45
 					{TimestampMs: 60_000, Value: 100}, // 50 + 50
@@ -1721,7 +1721,7 @@ var queryRangeTestCases = []struct {
 					tempopb.MakeKeyValueString("__name__", "(max_over_time + max_over_time)"),
 				},
 				Samples: []tempopb.Sample{
-					{TimestampMs: 15_000, Value: 15}, // 15 + 0 = 15 < 100 ✓
+					// t=15s: 15 + Nan = Nan < 100 -> filtered out
 					{TimestampMs: 30_000, Value: 60}, // 30 + 30 = 60 < 100 ✓
 					{TimestampMs: 45_000, Value: 90}, // 45 + 45 = 90 < 100 ✓
 					// t=60s: 50+50=100, not < 100 → filtered out
@@ -1754,8 +1754,8 @@ var queryRangeTestCases = []struct {
 				// NOTE: NaN + NaN is converted to 0+0=0 by applyArithmeticOp (NaN inputs become 0).
 				// This means t=15s appears with value 0 even though both sub-expressions were filtered out.
 				Samples: []tempopb.Sample{
-					{TimestampMs: 15_000, Value: 0},   // NaN(>30) + NaN(>20) = 0
-					{TimestampMs: 30_000, Value: 30},  // NaN(>30) + 30(>20) = 30
+					// t=15s: NaN + NaN = NaN
+					// t=30s: NaN + 30 = NaN
 					{TimestampMs: 45_000, Value: 90},  // 45 + 45
 					{TimestampMs: 60_000, Value: 100}, // 50 + 50
 				},

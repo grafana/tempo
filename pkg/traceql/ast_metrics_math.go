@@ -280,12 +280,6 @@ func mergeExemplars(a, b []Exemplar) []Exemplar {
 }
 
 func applyArithmeticOp(op Operator, lhs, rhs float64) float64 {
-	if math.IsNaN(lhs) {
-		lhs = 0
-	}
-	if math.IsNaN(rhs) {
-		rhs = 0
-	}
 	switch op {
 	case OpAdd:
 		return lhs + rhs
