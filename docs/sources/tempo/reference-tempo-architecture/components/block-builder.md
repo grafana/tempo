@@ -40,6 +40,14 @@ Blocks are written in Apache Parquet format and contain the span data (`data.par
 block metadata (`meta.json`) including time range, tenant, and a `replaces` field for atomic block replacement,
 as well as bloom filters and indexes for efficient querying.
 
+### Span deduplication
+
+During block creation, the block-builder deduplicates spans within each trace.
+Because the block-builder rewinds to the last committed Kafka offset on each cycle, replicated or re-consumed records can produce duplicate spans.
+The block-builder identifies duplicates using a combination of span ID and span kind, and removes them before writing the block.
+
+Use the `tempo_block_builder_spans_deduped_total` metric (labeled by `tenant`) to track how many duplicate spans are removed.
+
 ### Deterministic block IDs
 
 The block-builder generates block IDs deterministically based on the partition, tenant, and Kafka offset range.
@@ -103,6 +111,7 @@ Size the scratch disk to hold at least one full consumption cycle's worth of dat
 | Metric | Description |
 |---|---|
 | `tempo_block_builder_flushed_blocks` | Number of blocks flushed to object storage |
+| `tempo_block_builder_spans_deduped_total` | Duplicate spans removed during block creation, by tenant |
 | `tempo_block_builder_fetch_errors_total` | Kafka fetch errors encountered |
 | `tempo_ingest_group_partition_lag{group="block-builder"}` | Consumer lag per partition |
 

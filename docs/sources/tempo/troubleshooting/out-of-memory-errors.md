@@ -18,6 +18,10 @@ To avoid these out-of-memory crashes, use `max_attribute_bytes` to limit the max
 Any key or values that exceed the configured limit are truncated before storing.
 
 Use the `tempo_distributor_attributes_truncated_total` metric to track how many attributes are truncated.
+This metric includes `tenant` and `scope` labels, where `scope` is one of `resource`, `scope`, `span`, `event`, or `link`.
+Use the `scope` label to identify which part of your trace data produces the most oversized attributes.
+
+When truncation occurs, the distributor also emits a rate-limited log line (at most one per second) with an example of the truncated attribute, including its scope, name, whether the key or value was truncated, and the original size in bytes.
 
 ```yaml
    # Optional

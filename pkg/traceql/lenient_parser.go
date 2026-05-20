@@ -35,8 +35,37 @@ func ParseLenient(s string) (*RootExpr, error) {
 // removeBareAttributes walks the AST and replaces bare Attribute expressions
 // inside SpansetFilters with `true`. These are leftovers from incomplete matchers
 // (e.g. { event:name = } cleaned to { event:name }) that wouldn't pass validation.
+// After mutation, pipeline map keys and expression tree leaf keys are rebuilt
+// to stay consistent with the changed pipeline string representations.
 func removeBareAttributes(root *RootExpr) {
-	removeBareAttrsInPipeline(root.Pipeline)
+	keyMap := make(map[string]string, len(root.Pipeline))
+	newPipelines := make(map[string]Pipeline, len(root.Pipeline))
+	for k, p := range root.Pipeline {
+		removeBareAttrsInPipeline(p)
+		newKey := p.String()
+		if sp, ok := root.BatchSpanProcessor[k]; ok {
+			newKey += " | " + sp.(Element).String()
+		}
+		newPipelines[newKey] = p
+		keyMap[k] = newKey
+	}
+	root.Pipeline = newPipelines
+	root.expression = root.expression.rewriteKeys(keyMap)
+
+	if len(root.BatchSpanProcessor) > 0 {
+		newSpanProcs := make(map[string]spanProcessor, len(root.BatchSpanProcessor))
+		for k, v := range root.BatchSpanProcessor {
+			newSpanProcs[keyMap[k]] = v
+		}
+		root.BatchSpanProcessor = newSpanProcs
+	}
+	if len(root.SeriesProcessor) > 0 {
+		newSeriesProcs := make(map[string]seriesProcessor, len(root.SeriesProcessor))
+		for k, v := range root.SeriesProcessor {
+			newSeriesProcs[keyMap[k]] = v
+		}
+		root.SeriesProcessor = newSeriesProcs
+	}
 }
 
 func removeBareAttrsInPipeline(p Pipeline) {

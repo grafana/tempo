@@ -145,6 +145,12 @@ func TestQueryRangeExemplars(t *testing.T) {
 				"{} | histogram_over_time(duration)",
 				"{} | count_over_time() by (status)",
 				"{status != error} | count_over_time() by (status)",
+
+				// Math operations
+				"({} | rate()) + ({} | rate())",
+				"({} | rate()) - ({} | rate())",
+				"({} | count_over_time()) / ({} | count_over_time())",
+				"({} | rate()) * ({} | count_over_time())",
 			} {
 				t.Run(fmt.Sprintf("%s: %s", exemplarsCase.name, query), func(t *testing.T) {
 					req := queryRangeRequest{
@@ -221,6 +227,11 @@ func TestQueryRangeExemplars(t *testing.T) {
 			},
 			{
 				query:                   "{} | sum_over_time(duration) by (span.span_attr)",
+				targetAttribute:         "span.span_attr",
+				targetExemplarAttribute: "span.span_attr",
+			},
+			{
+				query:                   "({} | rate() by (span.span_attr)) + ({} | rate() by (span.span_attr))",
 				targetAttribute:         "span.span_attr",
 				targetExemplarAttribute: "span.span_attr",
 			},

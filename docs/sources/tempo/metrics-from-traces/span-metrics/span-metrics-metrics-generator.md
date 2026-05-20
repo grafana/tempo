@@ -130,6 +130,12 @@ metrics_generator:
 Additional user defined labels can be created using the [`dimensions` configuration option](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration#metrics-generator).
 When a configured dimension collides with one of the default labels (for example, `status_code`), the label for the respective dimension is prefixed with double underscore (for example, `__status_code`).
 
+Duplicate dimensions are allowed after Prometheus label name conversion. This supports environments where different instrumentation libraries use different attribute naming conventions. For example, you can configure both `deployment.environment` and `deployment_environment` in the `dimensions` list even though both convert to the same Prometheus label `deployment_environment`. When a collision occurs, the last configured value wins.
+
+{{< admonition type="note" >}}
+Duplicate dimension validation still applies to `dimension_mappings`. If a `dimension_mapping` produces a label that collides with an existing dimension or another mapping, the configuration is rejected.
+{{< /admonition >}}
+
 ### Renaming dimensions with dimension_mappings
 
 Custom labeling of dimensions is also supported using the [`dimension_mappings` configuration option](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration#metrics-generator).
@@ -362,6 +368,19 @@ metrics_generator:
 ```
 
 In the above, we want to capture metrics for all production spans in the EU, but we also want to explicitly allow INTERNAL spans from the auth-service, which would otherwise be ignored by the include filter.
+
+#### Validation
+
+Tempo validates filter policies when they're submitted through the [user-configurable overrides API](/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/user-configurable-overrides/) and rejects invalid configurations. The validation checks:
+
+- Each policy has at least one `include`, `include_any`, or `exclude` block.
+- The `match_type` is `strict` or `regex`.
+- Attribute keys are valid TraceQL identifiers.
+- Only `resource` and `span` scopes are supported. Other scopes such as `event`, `link`, or `instrumentation` are rejected.
+- Regex patterns compile successfully.
+- Intrinsic values are valid: `kind` must be a recognized `SPAN_KIND_*` value, `status` must be a recognized `STATUS_CODE_*` value.
+
+If you're upgrading from Tempo 2.x, refer to [Stricter filter policy validation](/docs/tempo/<TEMPO_VERSION>/release-notes/v3-0/#stricter-filter-policy-validation) in the 3.0 release notes for details on how this affects existing configurations.
 
 ## Example
 

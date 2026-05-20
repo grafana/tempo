@@ -37,7 +37,8 @@ func (l *Limits) GetCostAttribution() *CostAttribution {
 }
 
 type LimitsMetricsGenerator struct {
-	Processors                      listtomap.ListToMap         `yaml:"processors,omitempty" json:"processors,omitempty"`
+	// Pointer types to ensure that an explicit empty list (e.g: `processors: []`) round-trips through JSON without being stripped by `omitempty`
+	Processors                      *listtomap.ListToMap        `yaml:"processors,omitempty" json:"processors,omitempty"`
 	DisableCollection               *bool                       `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
 	CollectionInterval              *Duration                   `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
 	TraceIDLabelName                *string                     `yaml:"trace_id_label_name,omitempty" json:"trace_id_label_name,omitempty"`
@@ -53,7 +54,7 @@ type LimitsMetricsGenerator struct {
 
 func (l *LimitsMetricsGenerator) GetProcessors() (listtomap.ListToMap, bool) {
 	if l != nil && l.Processors != nil {
-		return l.Processors, true
+		return *l.Processors, true
 	}
 	return nil, false
 }

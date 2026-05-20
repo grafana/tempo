@@ -1204,7 +1204,7 @@ func TestIsLagged(t *testing.T) {
 			require.NoError(t, err)
 
 			t.Run("isLagged", func(t *testing.T) {
-				result := ls.isLagged(tc.end.UnixNano())
+				result := ls.isLagged(tc.end.UnixNano(), "/test", "{}")
 				require.Equal(t, tc.expectedLagged, result, tc.description)
 			})
 

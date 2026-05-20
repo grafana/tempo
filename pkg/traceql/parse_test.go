@@ -1716,10 +1716,7 @@ func TestMetricsSecondStage(t *testing.T) {
 			expected: newRootExprWithMetricsTwoStage(
 				newPipeline(newSpansetFilter(NewStaticBool(true))),
 				newMetricsAggregate(metricsAggregateRate, nil),
-				ChainedSecondStage{
-					elements:   []secondStageElement{newTopKBottomK(OpTopK, 10)},
-					separators: []string{" | "},
-				},
+				ChainedSecondStage{newTopKBottomK(OpTopK, 10, " | ")},
 			),
 			expectedStr: `{ true } | rate() | topk(10)`,
 		},
@@ -1731,10 +1728,7 @@ func TestMetricsSecondStage(t *testing.T) {
 					NewIntrinsic(IntrinsicName),
 					NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"),
 				}),
-				ChainedSecondStage{
-					elements:   []secondStageElement{newTopKBottomK(OpTopK, 10)},
-					separators: []string{" | "},
-				},
+				ChainedSecondStage{newTopKBottomK(OpTopK, 10, " | ")},
 			),
 			expectedStr: `{ true } | count_over_time()by(name,span.http.status_code) | topk(10)`,
 		},
@@ -1743,10 +1737,7 @@ func TestMetricsSecondStage(t *testing.T) {
 			expected: newRootExprWithMetricsTwoStage(
 				newPipeline(newSpansetFilter(NewStaticBool(true))),
 				newMetricsAggregate(metricsAggregateRate, nil),
-				ChainedSecondStage{
-					elements:   []secondStageElement{newTopKBottomK(OpTopK, 10)},
-					separators: []string{" | "},
-				},
+				ChainedSecondStage{newTopKBottomK(OpTopK, 10, " | ")},
 			).withHints(newHints([]*Hint{
 				newHint("foo", NewStaticString("bar")),
 			})),
@@ -1757,10 +1748,7 @@ func TestMetricsSecondStage(t *testing.T) {
 			expected: newRootExprWithMetricsTwoStage(
 				newPipeline(newSpansetFilter(NewStaticBool(true))),
 				newMetricsAggregate(metricsAggregateRate, nil),
-				ChainedSecondStage{
-					elements:   []secondStageElement{newTopKBottomK(OpBottomK, 10)},
-					separators: []string{" | "},
-				},
+				ChainedSecondStage{newTopKBottomK(OpBottomK, 10, " | ")},
 			),
 			expectedStr: `{ true } | rate() | bottomk(10)`,
 		},
@@ -1772,10 +1760,7 @@ func TestMetricsSecondStage(t *testing.T) {
 					NewIntrinsic(IntrinsicName),
 					NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"),
 				}),
-				ChainedSecondStage{
-					elements:   []secondStageElement{newTopKBottomK(OpBottomK, 10)},
-					separators: []string{" | "},
-				},
+				ChainedSecondStage{newTopKBottomK(OpBottomK, 10, " | ")},
 			),
 			expectedStr: `{ true } | count_over_time()by(name,span.http.status_code) | bottomk(10)`,
 		},
@@ -1784,10 +1769,7 @@ func TestMetricsSecondStage(t *testing.T) {
 			expected: newRootExprWithMetricsTwoStage(
 				newPipeline(newSpansetFilter(NewStaticBool(true))),
 				newMetricsAggregate(metricsAggregateRate, nil),
-				ChainedSecondStage{
-					elements:   []secondStageElement{newTopKBottomK(OpBottomK, 10)},
-					separators: []string{" | "},
-				},
+				ChainedSecondStage{newTopKBottomK(OpBottomK, 10, " | ")},
 			).withHints(newHints([]*Hint{
 				newHint("foo", NewStaticString("bar")),
 			})),
@@ -1799,10 +1781,7 @@ func TestMetricsSecondStage(t *testing.T) {
 			expected: newRootExprWithMetricsTwoStage(
 				newPipeline(newSpansetFilter(NewStaticBool(true))),
 				newMetricsAggregate(metricsAggregateRate, nil),
-				ChainedSecondStage{
-					elements:   []secondStageElement{newTopKBottomK(OpTopK, 5), newMetricsFilter(OpGreater, 10)},
-					separators: []string{" | ", " "},
-				},
+				ChainedSecondStage{newTopKBottomK(OpTopK, 5, " | "), newMetricsFilter(OpGreater, 10, " ")},
 			),
 			expectedStr: `{ true } | rate() | topk(5) > 10`,
 		},
@@ -1813,10 +1792,7 @@ func TestMetricsSecondStage(t *testing.T) {
 				newMetricsAggregate(metricsAggregateRate, []Attribute{
 					NewIntrinsic(IntrinsicName),
 				}),
-				ChainedSecondStage{
-					elements:   []secondStageElement{newTopKBottomK(OpBottomK, 3), newMetricsFilter(OpGreaterEqual, 5.5)},
-					separators: []string{" | ", " "},
-				},
+				ChainedSecondStage{newTopKBottomK(OpBottomK, 3, " | "), newMetricsFilter(OpGreaterEqual, 5.5, " ")},
 			),
 			expectedStr: `{ true } | rate()by(name) | bottomk(3) >= 5.5`,
 		},
@@ -1825,10 +1801,7 @@ func TestMetricsSecondStage(t *testing.T) {
 			expected: newRootExprWithMetricsTwoStage(
 				newPipeline(newSpansetFilter(NewStaticBool(true))),
 				newMetricsAggregate(metricsAggregateCountOverTime, nil),
-				ChainedSecondStage{
-					elements:   []secondStageElement{newTopKBottomK(OpTopK, 10), newMetricsFilter(OpNotEqual, 0)},
-					separators: []string{" | ", " "},
-				},
+				ChainedSecondStage{newTopKBottomK(OpTopK, 10, " | "), newMetricsFilter(OpNotEqual, 0, " ")},
 			),
 			expectedStr: `{ true } | count_over_time() | topk(10) != 0`,
 		},
@@ -1837,10 +1810,7 @@ func TestMetricsSecondStage(t *testing.T) {
 			expected: newRootExprWithMetricsTwoStage(
 				newPipeline(newSpansetFilter(NewStaticBool(true))),
 				newMetricsAggregate(metricsAggregateCountOverTime, nil),
-				ChainedSecondStage{
-					elements:   []secondStageElement{newTopKBottomK(OpTopK, 10), newMetricsFilter(OpNotEqual, 0)},
-					separators: []string{" | ", " "},
-				},
+				ChainedSecondStage{newTopKBottomK(OpTopK, 10, " | "), newMetricsFilter(OpNotEqual, 0, " ")},
 			).withHints(newHints([]*Hint{
 				newHint("sample", NewStaticFloat(0.1)),
 			})),
@@ -1852,10 +1822,7 @@ func TestMetricsSecondStage(t *testing.T) {
 			expected: newRootExprWithMetricsTwoStage(
 				newPipeline(newSpansetFilter(NewStaticBool(true))),
 				newMetricsAggregate(metricsAggregateRate, nil),
-				ChainedSecondStage{
-					elements:   []secondStageElement{newMetricsFilter(OpGreater, 10), newTopKBottomK(OpTopK, 5)},
-					separators: []string{" ", " | "},
-				},
+				ChainedSecondStage{newMetricsFilter(OpGreater, 10, " "), newTopKBottomK(OpTopK, 5, " | ")},
 			),
 			expectedStr: `{ true } | rate() > 10 | topk(5)`,
 		},
@@ -1866,10 +1833,7 @@ func TestMetricsSecondStage(t *testing.T) {
 				newMetricsAggregate(metricsAggregateRate, []Attribute{
 					NewIntrinsic(IntrinsicName),
 				}),
-				ChainedSecondStage{
-					elements:   []secondStageElement{newMetricsFilter(OpGreaterEqual, 5.5), newTopKBottomK(OpBottomK, 3)},
-					separators: []string{" ", " | "},
-				},
+				ChainedSecondStage{newMetricsFilter(OpGreaterEqual, 5.5, " "), newTopKBottomK(OpBottomK, 3, " | ")},
 			),
 			expectedStr: `{ true } | rate()by(name) >= 5.5 | bottomk(3)`,
 		},
@@ -1878,10 +1842,7 @@ func TestMetricsSecondStage(t *testing.T) {
 			expected: newRootExprWithMetricsTwoStage(
 				newPipeline(newSpansetFilter(NewStaticBool(true))),
 				newMetricsAggregate(metricsAggregateCountOverTime, nil),
-				ChainedSecondStage{
-					elements:   []secondStageElement{newMetricsFilter(OpNotEqual, 0), newTopKBottomK(OpTopK, 10)},
-					separators: []string{" ", " | "},
-				},
+				ChainedSecondStage{newMetricsFilter(OpNotEqual, 0, " "), newTopKBottomK(OpTopK, 10, " | ")},
 			),
 			expectedStr: `{ true } | count_over_time() != 0 | topk(10)`,
 		},
@@ -1890,10 +1851,7 @@ func TestMetricsSecondStage(t *testing.T) {
 			expected: newRootExprWithMetricsTwoStage(
 				newPipeline(newSpansetFilter(NewStaticBool(true))),
 				newMetricsAggregate(metricsAggregateCountOverTime, nil),
-				ChainedSecondStage{
-					elements:   []secondStageElement{newTopKBottomK(OpTopK, 1), newMetricsFilter(OpNotEqual, 0), newTopKBottomK(OpTopK, 10)},
-					separators: []string{" | ", " ", " | "},
-				},
+				ChainedSecondStage{newTopKBottomK(OpTopK, 1, " | "), newMetricsFilter(OpNotEqual, 0, " "), newTopKBottomK(OpTopK, 10, " | ")},
 			),
 			expectedStr: `{ true } | count_over_time() | topk(1) != 0 | topk(10)`,
 		},
@@ -1958,6 +1916,133 @@ func TestMetricsSecondStageErrors(t *testing.T) {
 	}
 }
 
+func TestMetricsMathExpression(t *testing.T) {
+	w := newWrappedMetricsPipeline // alias for readability
+	tests := []struct {
+		in       string
+		expected *RootExpr
+	}{
+		{
+			in: `({status=error} | count_over_time()) / ({} | count_over_time())`,
+			expected: newRootExprMath(OpDiv,
+				w(newPipeline(newSpansetFilter(newBinaryOperation(OpEqual, NewIntrinsic(IntrinsicStatus), NewStaticStatus(StatusError)))),
+					newMetricsAggregate(metricsAggregateCountOverTime, nil), nil),
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateCountOverTime, nil), nil),
+			),
+		},
+		{
+			in: `({} | rate()) + ({} | rate())`,
+			expected: newRootExprMath(OpAdd,
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateRate, nil), nil),
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateRate, nil), nil),
+			),
+		},
+		{
+			in: `({} | count_over_time()) * ({} | count_over_time())`,
+			expected: newRootExprMath(OpMult,
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateCountOverTime, nil), nil),
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateCountOverTime, nil), nil),
+			),
+		},
+		{
+			in: `({} | count_over_time()) - ({} | count_over_time())`,
+			expected: newRootExprMath(OpSub,
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateCountOverTime, nil), nil),
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateCountOverTime, nil), nil),
+			),
+		},
+		{
+			in: `(({} | count_over_time()) - ({} | count_over_time())) / ({} | count_over_time())`,
+			expected: newRootExprMath(OpDiv,
+				newRootExprMath(OpSub,
+					w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+						newMetricsAggregate(metricsAggregateCountOverTime, nil), nil),
+					w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+						newMetricsAggregate(metricsAggregateCountOverTime, nil), nil),
+				),
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateCountOverTime, nil), nil),
+			),
+		},
+		{
+			in: `({} | count_over_time() by(resource.service.name)) / ({} | count_over_time())`,
+			expected: newRootExprMath(OpDiv,
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateCountOverTime, []Attribute{
+						NewScopedAttribute(AttributeScopeResource, false, "service.name"),
+					}), nil),
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateCountOverTime, nil), nil),
+			),
+		},
+		{
+			in: `({} | rate() | topk(10)) / ({} | rate())`,
+			expected: newRootExprMath(OpDiv,
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateRate, nil),
+					ChainedSecondStage{newTopKBottomK(OpTopK, 10, " | ")}),
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateRate, nil), nil),
+			),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			actual, err := Parse(tc.in)
+
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
+func TestMetricsMathExpressionErrors(t *testing.T) {
+	tests := []string{
+		`{} | count_over_time() / {} | count_over_time()`,
+		`({} | count_over_time()) / `,
+		`/ ({} | count_over_time())`,
+	}
+
+	for _, tc := range tests {
+		t.Run(tc, func(t *testing.T) {
+			_, err := Parse(tc)
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestMetricsMathExpressionString(t *testing.T) {
+	tests := []struct {
+		in       string
+		expected string
+	}{
+		{
+			in:       `({status=error} | count_over_time()) / ({} | count_over_time())`,
+			expected: `({ status = error } | count_over_time()) / ({ true } | count_over_time())`,
+		},
+		{
+			in:       `(({} | count_over_time()) - ({} | count_over_time())) / ({} | count_over_time())`,
+			expected: `(({ true } | count_over_time()) - ({ true } | count_over_time())) / ({ true } | count_over_time())`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			actual, err := Parse(tc.in)
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, actual.String())
+		})
+	}
+}
+
 func TestParseRewrites(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -2016,10 +2101,7 @@ func TestMetricsFilter(t *testing.T) {
 			expected: newRootExprWithMetricsTwoStage(
 				newPipeline(newSpansetFilter(NewStaticBool(true))),
 				newMetricsAggregate(metricsAggregateRate, nil),
-				ChainedSecondStage{
-					elements:   []secondStageElement{newMetricsFilter(OpGreater, 10)},
-					separators: []string{" "},
-				},
+				ChainedSecondStage{newMetricsFilter(OpGreater, 10, " ")},
 			),
 			expectedStr: `{ true } | rate() > 10`,
 		},
@@ -2030,10 +2112,7 @@ func TestMetricsFilter(t *testing.T) {
 				newMetricsAggregate(metricsAggregateRate, []Attribute{
 					NewIntrinsic(IntrinsicName),
 				}),
-				ChainedSecondStage{
-					elements:   []secondStageElement{newMetricsFilter(OpGreaterEqual, 5.5)},
-					separators: []string{" "},
-				},
+				ChainedSecondStage{newMetricsFilter(OpGreaterEqual, 5.5, " ")},
 			),
 			expectedStr: `{ true } | rate()by(name) >= 5.5`,
 		},
@@ -2042,10 +2121,7 @@ func TestMetricsFilter(t *testing.T) {
 			expected: newRootExprWithMetricsTwoStage(
 				newPipeline(newSpansetFilter(NewStaticBool(true))),
 				newMetricsAggregate(metricsAggregateRate, nil),
-				ChainedSecondStage{
-					elements:   []secondStageElement{newMetricsFilter(OpGreater, 10)},
-					separators: []string{" "},
-				},
+				ChainedSecondStage{newMetricsFilter(OpGreater, 10, " ")},
 			),
 			expectedStr: `{ true } | rate() > 10`,
 		},
@@ -2054,10 +2130,7 @@ func TestMetricsFilter(t *testing.T) {
 			expected: newRootExprWithMetricsTwoStage(
 				newPipeline(newSpansetFilter(NewStaticBool(true))),
 				newMetricsAggregate(metricsAggregateCountOverTime, nil),
-				ChainedSecondStage{
-					elements:   []secondStageElement{newMetricsFilter(OpLess, 100)},
-					separators: []string{" "},
-				},
+				ChainedSecondStage{newMetricsFilter(OpLess, 100, " ")},
 			),
 			expectedStr: `{ true } | count_over_time() < 100`,
 		},
@@ -2066,10 +2139,7 @@ func TestMetricsFilter(t *testing.T) {
 			expected: newRootExprWithMetricsTwoStage(
 				newPipeline(newSpansetFilter(NewStaticBool(true))),
 				newMetricsAggregate(metricsAggregateRate, nil),
-				ChainedSecondStage{
-					elements:   []secondStageElement{newMetricsFilter(OpLessEqual, 0.5)},
-					separators: []string{" "},
-				},
+				ChainedSecondStage{newMetricsFilter(OpLessEqual, 0.5, " ")},
 			),
 			expectedStr: `{ true } | rate() <= 0.5`,
 		},
@@ -2078,10 +2148,7 @@ func TestMetricsFilter(t *testing.T) {
 			expected: newRootExprWithMetricsTwoStage(
 				newPipeline(newSpansetFilter(NewStaticBool(true))),
 				newMetricsAggregate(metricsAggregateRate, nil),
-				ChainedSecondStage{
-					elements:   []secondStageElement{newMetricsFilter(OpEqual, 42)},
-					separators: []string{" "},
-				},
+				ChainedSecondStage{newMetricsFilter(OpEqual, 42, " ")},
 			),
 			expectedStr: `{ true } | rate() = 42`,
 		},
@@ -2090,10 +2157,7 @@ func TestMetricsFilter(t *testing.T) {
 			expected: newRootExprWithMetricsTwoStage(
 				newPipeline(newSpansetFilter(NewStaticBool(true))),
 				newMetricsAggregate(metricsAggregateRate, nil),
-				ChainedSecondStage{
-					elements:   []secondStageElement{newMetricsFilter(OpNotEqual, 0)},
-					separators: []string{" "},
-				},
+				ChainedSecondStage{newMetricsFilter(OpNotEqual, 0, " ")},
 			),
 			expectedStr: `{ true } | rate() != 0`,
 		},
@@ -2102,10 +2166,7 @@ func TestMetricsFilter(t *testing.T) {
 			expected: newRootExprWithMetricsTwoStage(
 				newPipeline(newSpansetFilter(NewStaticBool(true))),
 				newMetricsAggregate(metricsAggregateRate, nil),
-				ChainedSecondStage{
-					elements:   []secondStageElement{newMetricsFilter(OpGreater, -3)},
-					separators: []string{" "},
-				},
+				ChainedSecondStage{newMetricsFilter(OpGreater, -3, " ")},
 			),
 			expectedStr: `{ true } | rate() > -3`,
 		},
@@ -2114,22 +2175,26 @@ func TestMetricsFilter(t *testing.T) {
 			expected: newRootExprWithMetricsTwoStage(
 				newPipeline(newSpansetFilter(NewStaticBool(true))),
 				newMetricsAggregate(metricsAggregateRate, nil),
-				ChainedSecondStage{
-					elements:   []secondStageElement{newMetricsFilter(OpGreater, -2.5)},
-					separators: []string{" "},
-				},
+				ChainedSecondStage{newMetricsFilter(OpGreater, -2.5, " ")},
 			),
 			expectedStr: `{ true } | rate() > -2.5`,
+		},
+		{
+			in:          `({ } | rate()) > 10`,
+			expected:    chainMathSecondStage(newWrappedMetricsPipeline(newPipeline(newSpansetFilter(NewStaticBool(true))), newMetricsAggregate(metricsAggregateRate, nil), nil), ChainedSecondStage{newMetricsFilter(OpGreater, 10, " ")}),
+			expectedStr: `{ true } | rate() > 10`,
+		},
+		{
+			in:          `({ } | max_over_time(duration)) > 30`,
+			expected:    chainMathSecondStage(newWrappedMetricsPipeline(newPipeline(newSpansetFilter(NewStaticBool(true))), newMetricsAggregateWithAttr(metricsAggregateMaxOverTime, NewIntrinsic(IntrinsicDuration), nil), nil), ChainedSecondStage{newMetricsFilter(OpGreater, 30, " ")}),
+			expectedStr: `{ true } | max_over_time(duration) > 30`,
 		},
 		{
 			in: `{ } | rate() > 10 with(foo="bar")`,
 			expected: newRootExprWithMetricsTwoStage(
 				newPipeline(newSpansetFilter(NewStaticBool(true))),
 				newMetricsAggregate(metricsAggregateRate, nil),
-				ChainedSecondStage{
-					elements:   []secondStageElement{newMetricsFilter(OpGreater, 10)},
-					separators: []string{" "},
-				},
+				ChainedSecondStage{newMetricsFilter(OpGreater, 10, " ")},
 			).withHints(newHints([]*Hint{
 				newHint("foo", NewStaticString("bar")),
 			})),

@@ -91,9 +91,7 @@ For details about constructing queries, refer to the [TraceQL documentation](htt
 
 #### TraceQL metrics queries
 
-{{< docs/experimental product="TraceQL metrics" >}}
-
-TraceQL language provides metrics queries as an experimental feature.
+TraceQL language provides metrics queries.
 Metric queries extend trace queries by applying an aggregate function to trace query results. For example: `{ span:name = "foo" } | rate() by (span:status)`
 This powerful feature creates metrics from traces, much in the same way that LogQL metric queries create metrics from logs.
 
