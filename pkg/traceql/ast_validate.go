@@ -19,31 +19,32 @@ func (e *unsupportedError) Error() string {
 }
 
 func (r RootExpr) validate() error {
-	err := r.Pipeline.validate()
-	if err != nil {
-		return err
-	}
-
-	if r.MetricsPipeline != nil {
-		err := r.MetricsPipeline.validate()
-		if err != nil {
+	for _, p := range r.Pipeline {
+		if err := p.validate(); err != nil {
 			return err
 		}
 	}
 
-	if r.MetricsSecondStage != nil {
-		err := r.MetricsSecondStage.validate()
-		if err != nil {
+	for _, sp := range r.BatchSpanProcessor {
+		if e, ok := sp.(Element); ok {
+			if err := e.validate(); err != nil {
+				return err
+			}
+		}
+	}
+
+	if r.expression != nil {
+		if err := r.expression.validate(); err != nil {
 			return err
 		}
 	}
 
-	// extra validation to disallow compare() with second stage functions
-	// for example: `{} | compare({status=error}) | topk(10)` doesn't make sense
-	if r.MetricsPipeline != nil && r.MetricsSecondStage != nil {
-		// cast and check if the first stage is a compare operation
-		if _, ok := r.MetricsPipeline.(*MetricsCompare); ok {
-			return fmt.Errorf("`compare()` cannot be used with second stage functions")
+	// Disallow compare() with second stage functions or math.
+	if r.expression != nil && (r.expression.filter != nil || r.expression.op != OpNone) {
+		for _, sp := range r.BatchSpanProcessor {
+			if _, ok := sp.(*MetricsCompare); ok {
+				return fmt.Errorf("`compare()` cannot be used with second stage functions")
+			}
 		}
 	}
 

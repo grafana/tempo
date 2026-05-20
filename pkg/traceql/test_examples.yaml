@@ -180,6 +180,18 @@ valid:
   - '{} | rate() != 0'
   - '{} | rate() > -3'
   - '{} | rate() by (span.client_ip) > 10 with(sample=0.1)'
+  - '({} | rate()) > 10'
+  - '({} | max_over_time(duration)) > 30'
+  # math expressions
+  - '({} | rate()) + ({} | rate())'
+  - '({} | rate()) + ({} | count_over_time())'
+  - '({} | rate()) - ({} | count_over_time())'
+  - '({} | rate()) / ({} | count_over_time())'
+  - '({} | rate()) * ({} | count_over_time())'
+  - '(({} | rate()) * ({} | count_over_time())) + ({} | rate())'
+  - '({} | rate()) + ({} | rate()) | topk(5)'
+  - '({} | rate()) + ({} | rate()) > 10'
+  - '({} | rate()) + ({} | rate()) | topk(5) > 10'
   # second stage combined
   - '{} | rate() | topk(5) = 10'
   - '{} | rate() | topk(5) != 10'
@@ -293,6 +305,14 @@ parse_fails:
   # invalid metrics filter (comparison without metrics pipeline)
   - '{} > 10'
   - '{} == 10'
+  # invalid math expressions
+  - '({}) + ({})'
+  - '{} | rate() + {} | count_over_time()'
+  - '({} | rate()) % ({} | count_over_time())'
+  - '({} | rate()) ^ ({} | count_over_time())'
+  - '({} | rate()) ** ({} | count_over_time())'
+  - '({} | rate()) >> ({} | count_over_time())'
+  - '({} | rate()) << ({} | count_over_time())'
 
 # validate_fails parse correctly and return an error **besides unsupported** when calling .validate()
 validate_fails:
@@ -372,6 +392,11 @@ validate_fails:
   - '{} | compare({status=error}) >= 10'
   - '{} | compare({status=error}) < 10'
   - '{} | compare({status=error}) <= 10'
+  - '({} | compare({status=error})) + ({} | compare({status=error}))'
+  - '({} | compare({status=error})) - ({} | compare({status=error}))'
+  - '({} | compare({status=error})) / ({} | compare({status=error}))'
+  - '({} | compare({status=error})) * ({} | compare({status=error}))'
+
 
 # unsupported parse correctly and return an unsupported error when calling .validate()
 unsupported:

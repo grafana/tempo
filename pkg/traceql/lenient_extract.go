@@ -40,7 +40,12 @@ func ExtractConditionGroups(query string, maxGroups int) ([][]Condition, error) 
 
 	// Find the first SpansetFilter in the pipeline.
 	// Returns nil for structural operators (SpansetOperation) indicating multiple spansets.
-	filter := findSpansetFilter(expr.Pipeline)
+
+	var pipeline Pipeline
+	for _, p := range expr.Pipeline {
+		pipeline = p
+	}
+	filter := findSpansetFilter(pipeline)
 	if filter == nil {
 		return nil, nil
 	}
