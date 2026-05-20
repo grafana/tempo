@@ -2349,9 +2349,6 @@ overrides:
       #  - service-graphs-connection-info  (only emits traces_service_graph_connection_info;
       #                                     opt-in, not enabled by the bare "service-graphs" name)
       #  - span-metrics
-      #  - span-metrics-count
-      #  - span-metrics-latency
-      #  - span-metrics-size
       #  - host-info
       #
       # The bare "service-graphs" name enables request and latency metrics for backwards
