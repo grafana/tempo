@@ -173,8 +173,8 @@ func (r *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendTr
 }
 
 func (r *readerWriter) Delete(ctx context.Context, name string, keypath backend.KeyPath, cacheInfo *backend.CacheInfo) error {
-	if cacheInfo != nil {
-		panic("delete is not supported for cache.Cache backend")
+	if c := r.cacheFor(cacheInfo); c != nil {
+		c.Remove(ctx, []string{key(keypath, name)})
 	}
 	return r.nextWriter.Delete(ctx, name, keypath, nil)
 }
