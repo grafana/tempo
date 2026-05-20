@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -92,9 +93,17 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 			ctx, span := tracer.Start(ctx, "process.headBlock")
 			span.SetAttributes(attribute.String("blockID", meta.BlockID.String()))
 
-			if err := fn(ctx, meta, i.headBlock); err != nil {
-				handleErr(fmt.Errorf("processing head block (%s): %w", meta.BlockID, err))
-			}
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						level.Error(i.logger).Log("msg", "panic in iterateBlocks head block", "blockID", meta.BlockID, "panic", r, "stack", string(debug.Stack()))
+						handleErr(fmt.Errorf("processing head block (%s): panic: %v", meta.BlockID, r))
+					}
+				}()
+				if err := fn(ctx, meta, i.headBlock); err != nil {
+					handleErr(fmt.Errorf("processing head block (%s): %w", meta.BlockID, err))
+				}
+			}()
 			span.End()
 		}
 	}
@@ -119,6 +128,12 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 		wg.Add(1)
 		go func(block common.WALBlock) {
 			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					level.Error(i.logger).Log("msg", "panic in iterateBlocks wal block", "blockID", meta.BlockID, "panic", r, "stack", string(debug.Stack()))
+					handleErr(fmt.Errorf("processing wal block (%s): panic: %v", meta.BlockID, r))
+				}
+			}()
 
 			if ctx.Err() != nil {
 				return
@@ -148,6 +163,12 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 		wg.Add(1)
 		go func(block *LocalBlock) {
 			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					level.Error(i.logger).Log("msg", "panic in iterateBlocks complete block", "blockID", meta.BlockID, "panic", r, "stack", string(debug.Stack()))
+					handleErr(fmt.Errorf("processing complete block (%s): panic: %v", meta.BlockID, r))
+				}
+			}()
 
 			if ctx.Err() != nil {
 				return
