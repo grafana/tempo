@@ -58,6 +58,12 @@ type Config struct {
 
 	// FilterPolicies is a list of policies that will be applied to spans for inclusion or exclusion.
 	FilterPolicies []filterconfig.FilterPolicy `yaml:"filter_policies"`
+
+	// Subprocessor options for this Processor include Request, Latency, ConnectionInfo
+	// These are metrics categories that exist under the umbrella of Service Graphs.
+	// Bare "service-graphs" enables Request and Latency for backwards compatibility;
+	// ConnectionInfo is opt-in via the "service-graphs-connection-info" sub-name.
+	Subprocessors map[Subprocessor]bool
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
@@ -81,4 +87,10 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 		string(semconv.DBNameKey),
 		string(semconv.DBSystemKey),
 	}
+
+	// Request and Latency are on for backwards compatibility with the bare "service-graphs"
+	// processor. ConnectionInfo is omitted (absent map key reads as false) so it stays opt-in.
+	cfg.Subprocessors = make(map[Subprocessor]bool)
+	cfg.Subprocessors[Request] = true
+	cfg.Subprocessors[Latency] = true
 }

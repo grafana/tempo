@@ -270,5 +270,11 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 	}
 	copyCfg.SpanMetrics.Subprocessors = copySubprocessors
 
+	copyServiceGraphSubprocessors := make(map[servicegraphs.Subprocessor]bool)
+	for sp, enabled := range cfg.ServiceGraphs.Subprocessors {
+		copyServiceGraphSubprocessors[sp] = enabled
+	}
+	copyCfg.ServiceGraphs.Subprocessors = copyServiceGraphSubprocessors
+
 	return copyCfg, nil
 }

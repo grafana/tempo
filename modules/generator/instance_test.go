@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/modules/generator/processor/hostinfo"
+	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -443,6 +444,115 @@ func Test_instance_updateProcessors(t *testing.T) {
 		err = instance.updateProcessors()
 		assert.NoError(t, err)
 		assertHistogramsNoChange(t)
+	})
+
+	t.Run("add service-graphs-connection-info subprocessor only", func(t *testing.T) {
+		overrides.processors = map[string]struct{}{
+			servicegraphs.ConnectionInfo.String(): {},
+		}
+		err := instance.updateProcessors()
+		assert.NoError(t, err)
+
+		// service-graphs sub-name should be folded into the bare service-graphs processor entry.
+		_, hasBare := instance.processors[processor.ServiceGraphsName]
+		assert.True(t, hasBare, "expected bare service-graphs processor to be registered")
+		_, hasSubName := instance.processors[processor.ServiceGraphsConnectionInfoName]
+		assert.False(t, hasSubName, "sub-name should not appear in the processors map")
+
+		cfg := instance.processors[processor.ServiceGraphsName].(*servicegraphs.Processor).Cfg
+		assert.False(t, cfg.Subprocessors[servicegraphs.Request], "Request should be disabled when only connection-info requested")
+		assert.False(t, cfg.Subprocessors[servicegraphs.Latency], "Latency should be disabled when only connection-info requested")
+		assert.True(t, cfg.Subprocessors[servicegraphs.ConnectionInfo], "ConnectionInfo should be enabled")
+	})
+
+	t.Run("bare service-graphs keeps connection-info opt-in", func(t *testing.T) {
+		overrides.processors = map[string]struct{}{
+			processor.ServiceGraphsName: {},
+		}
+		err := instance.updateProcessors()
+		assert.NoError(t, err)
+
+		cfg := instance.processors[processor.ServiceGraphsName].(*servicegraphs.Processor).Cfg
+		assert.True(t, cfg.Subprocessors[servicegraphs.Request])
+		assert.True(t, cfg.Subprocessors[servicegraphs.Latency])
+		assert.False(t, cfg.Subprocessors[servicegraphs.ConnectionInfo], "ConnectionInfo must remain off under bare service-graphs")
+	})
+
+	t.Run("service-graphs + connection-info sub-name combines RED and connection_info", func(t *testing.T) {
+		overrides.processors = map[string]struct{}{
+			processor.ServiceGraphsName:           {},
+			servicegraphs.ConnectionInfo.String(): {},
+		}
+		err := instance.updateProcessors()
+		assert.NoError(t, err)
+
+		cfg := instance.processors[processor.ServiceGraphsName].(*servicegraphs.Processor).Cfg
+		assert.True(t, cfg.Subprocessors[servicegraphs.Request])
+		assert.True(t, cfg.Subprocessors[servicegraphs.Latency])
+		assert.True(t, cfg.Subprocessors[servicegraphs.ConnectionInfo])
+	})
+
+	t.Run("service-graphs-request subprocessor only", func(t *testing.T) {
+		overrides.processors = map[string]struct{}{
+			servicegraphs.Request.String(): {},
+		}
+		err := instance.updateProcessors()
+		assert.NoError(t, err)
+
+		cfg := instance.processors[processor.ServiceGraphsName].(*servicegraphs.Processor).Cfg
+		assert.True(t, cfg.Subprocessors[servicegraphs.Request])
+		assert.False(t, cfg.Subprocessors[servicegraphs.Latency])
+		assert.False(t, cfg.Subprocessors[servicegraphs.ConnectionInfo])
+
+		_, hasSubName := instance.processors[processor.ServiceGraphsRequestName]
+		assert.False(t, hasSubName, "sub-name should be folded into the bare service-graphs entry")
+	})
+
+	t.Run("service-graphs-latency subprocessor only", func(t *testing.T) {
+		overrides.processors = map[string]struct{}{
+			servicegraphs.Latency.String(): {},
+		}
+		err := instance.updateProcessors()
+		assert.NoError(t, err)
+
+		cfg := instance.processors[processor.ServiceGraphsName].(*servicegraphs.Processor).Cfg
+		assert.False(t, cfg.Subprocessors[servicegraphs.Request])
+		assert.True(t, cfg.Subprocessors[servicegraphs.Latency])
+		assert.False(t, cfg.Subprocessors[servicegraphs.ConnectionInfo])
+	})
+
+	t.Run("transition between service-graphs subprocessor subsets triggers replace", func(t *testing.T) {
+		// Start with bare service-graphs (Request + Latency).
+		overrides.processors = map[string]struct{}{
+			processor.ServiceGraphsName: {},
+		}
+		err := instance.updateProcessors()
+		assert.NoError(t, err)
+
+		// Now request connection-info only. diffProcessors should mark the service-graphs
+		// processor for replacement (config changed) rather than removal.
+		overrides.processors = map[string]struct{}{
+			servicegraphs.ConnectionInfo.String(): {},
+		}
+
+		desiredProcessors := instance.filterSupportedProcessors(instance.overrides.MetricsGeneratorProcessors(instance.instanceID))
+		desiredCfg, err := instance.cfg.Processor.copyWithOverrides(instance.overrides, instance.instanceID)
+		assert.NoError(t, err)
+		desiredProcessors, desiredCfg = instance.updateSubprocessors(desiredProcessors, desiredCfg)
+
+		toAdd, toRemove, toReplace, err := instance.diffProcessors(desiredProcessors, desiredCfg)
+		assert.NoError(t, err)
+		assert.Empty(t, toAdd, "service-graphs already exists; no add")
+		assert.Empty(t, toRemove, "service-graphs should not be removed; sub-name folds into it")
+		assert.Equal(t, []string{processor.ServiceGraphsName}, toReplace, "config diff (Request+Latency -> ConnectionInfo only) must trigger replace")
+
+		err = instance.updateProcessors()
+		assert.NoError(t, err)
+
+		cfg := instance.processors[processor.ServiceGraphsName].(*servicegraphs.Processor).Cfg
+		assert.False(t, cfg.Subprocessors[servicegraphs.Request])
+		assert.False(t, cfg.Subprocessors[servicegraphs.Latency])
+		assert.True(t, cfg.Subprocessors[servicegraphs.ConnectionInfo])
 	})
 }
 
