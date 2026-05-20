@@ -2350,14 +2350,6 @@ overrides:
       #                                     opt-in, not enabled by the bare "service-graphs" name)
       #  - span-metrics
       #  - host-info
-      #
-      # The bare "service-graphs" name enables request and latency metrics for backwards
-      # compatibility. Connection-info is an info-style gauge held at 1 while the edge is
-      # being observed, and is designed to be queried with a long range window (for
-      # example, `last_over_time(traces_service_graph_connection_info[1h]) > 0`) so that
-      # service-to-service relationships can be reliably detected for low traffic endpoints
-      # even under aggressive head sampling. The gauge series goes stale and is dropped
-      # automatically once edges stop completing for a given label set.
       [processors: <list of strings>]
 
       # Maximum number of active series in the registry, per instance of the metrics-generator. A
