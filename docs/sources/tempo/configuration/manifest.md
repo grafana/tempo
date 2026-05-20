@@ -436,6 +436,9 @@ metrics_generator:
                 - db.name
                 - db.system
             filter_policies: []
+            subprocessors:
+                0: true
+                1: true
         span_metrics:
             histogram_buckets:
                 - 0.002
