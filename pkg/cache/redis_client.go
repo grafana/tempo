@@ -174,6 +174,15 @@ func (c *RedisClient) Get(ctx context.Context, key string) ([]byte, error) {
 	return StringToBytes(cmd.Val()), nil
 }
 
+func (c *RedisClient) Del(ctx context.Context, keys []string) error {
+	var cancel context.CancelFunc
+	if c.timeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, c.timeout)
+		defer cancel()
+	}
+	return c.rdb.Del(ctx, keys...).Err()
+}
+
 func (c *RedisClient) Close() error {
 	return c.rdb.Close()
 }
