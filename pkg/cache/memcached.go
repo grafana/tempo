@@ -174,6 +174,20 @@ func (c *Memcached) Store(ctx context.Context, keys []string, bufs [][]byte) {
 	}
 }
 
+// Remove deletes the given keys from the cache.
+func (c *Memcached) Remove(ctx context.Context, keys []string) {
+	for _, key := range keys {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+		if err := c.memcache.Delete(key); err != nil && !errors.Is(err, memcache.ErrCacheMiss) {
+			level.Error(c.logger).Log("msg", "failed to delete from memcached", "name", c.name, "err", err)
+		}
+	}
+}
+
 func (c *Memcached) Stop() {
 	c.memcache.Close()
 }
