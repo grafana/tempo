@@ -260,14 +260,17 @@ func TestMetricsGeneratorConnectionInfo(t *testing.T) {
 		// Wait for connection_info specifically — it's only present once the gauge is remote-written.
 		var metricFamilies map[string]*io_prometheus_client.MetricFamily
 		var err error
+		found := false
 		for i := 0; i < 60; i++ {
 			metricFamilies, err = extractMetricsFromPrometheus(h.Services[util.ServicePrometheus], `traces_service_graph_connection_info`)
 			require.NoError(t, err)
 			if _, ok := metricFamilies["traces_service_graph_connection_info"]; ok {
+				found = true
 				break
 			}
 			time.Sleep(time.Second)
 		}
+		require.True(t, found, "timed out waiting for traces_service_graph_connection_info to be remote-written")
 
 		lbls := []string{"client", "lb", "server", "app"}
 		// Gauge held at 1 per active edge.
