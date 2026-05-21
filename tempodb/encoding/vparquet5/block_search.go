@@ -55,7 +55,7 @@ var KindMapping = map[string]int{
 
 // openForSearch consolidates all the logic for opening a parquet file
 func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOptions) (*parquet.File, *BackendReaderAt, error) {
-	// TODO: ctx is also cached when we cache backendReaderAt, not ideal but leaving it as is for now
+	// openForSearch creates a fresh BackendReaderAt for each call using the provided context.
 	backendReaderAt := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta)
 
 	schema, _, _ := SchemaWithDynamicChanges(b.meta.DedicatedColumns)
