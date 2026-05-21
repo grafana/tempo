@@ -1,3 +1,5 @@
+multitenancy_enabled: true
+
 storage:
   trace:
     blocklist_poll: 1s # shorten the 2×poll lookback window so compacted blocks age out faster

@@ -50,8 +50,11 @@ overrides.
 When you set a field in both the user-configurable overrides and the runtime overrides, the value from the
 user-configurable overrides takes priority.
 
-Note that `processors` is an exception. Tempo merges values from both user-configurable overrides and runtime overrides
-into a single list.
+{{< admonition type="note" >}}
+In Tempo 2.x, `metrics_generator.processors` user-configurable override field is OR-merged with the runtime overrides list.
+
+In Tempo 3.0, if `processors` is set in user-configurable overrides, that will override the runtime `metrics_generator.processors` config. Setting `processors: []` in user-configurable overrides disables all processors for the tenant.
+{{< /admonition >}}
 
 {{< admonition type="warning" >}}
 The `local-blocks` processor was removed in Tempo 3.0. TraceQL metrics queries on recent data are now served by the live-store instead. If your overrides reference `local-blocks`, remove it before upgrading.
@@ -121,6 +124,12 @@ metrics_generator:
       [host_identifiers: <list of string>]
       [metric_name: <string>]
 ```
+
+### Filter policy validation
+
+Filter policies submitted through this API are fully validated. Tempo checks that attribute keys are valid TraceQL identifiers, only `resource` and `span` scopes are supported, regular expression patterns compile, and intrinsic values (`kind`, `status`) use recognized values. Invalid policies are rejected with a descriptive error.
+
+For the complete list of validation rules and supported values, refer to [Filtering](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/span-metrics/span-metrics-metrics-generator/#filtering).
 
 ## API
 

@@ -19,6 +19,7 @@ const (
 	// JSON
 	MetaName          = "meta.json"
 	CompactedMetaName = "meta.compacted.json"
+	DeletedMetaName   = "meta.deleted.json"
 	TenantIndexName   = "index.json.gz"
 
 	// Proto

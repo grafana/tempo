@@ -10,6 +10,7 @@ import (
 	"github.com/go-kit/log"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
+	"github.com/grafana/dskit/user"
 
 	"github.com/grafana/tempo/modules/backendscheduler/work"
 	"github.com/grafana/tempo/modules/overrides"
@@ -362,40 +363,62 @@ func TestSubmitRedactionValidation(t *testing.T) {
 	writeTenantBlocks(ctx, t, backend.NewWriter(ww), testTenant, 1)
 	time.Sleep(300 * time.Millisecond)
 
+	tenantCtx := user.InjectOrgID(ctx, testTenant)
+
 	validReq := &tempopb.SubmitRedactionRequest{
-		TenantId: testTenant,
 		TraceIds: [][]byte{[]byte(uuid.New().String())},
 	}
 
 	tests := []struct {
 		name     string
+		ctx      context.Context
 		req      *tempopb.SubmitRedactionRequest
 		wantCode codes.Code
 	}{
 		{
-			name:     "missing tenant_id",
+			name:     "missing context tenant",
+			ctx:      ctx, // no org ID injected — simulates unauthenticated caller
 			req:      &tempopb.SubmitRedactionRequest{TraceIds: [][]byte{[]byte("trace1")}},
-			wantCode: codes.InvalidArgument,
+			wantCode: codes.Unauthenticated,
 		},
 		{
 			name:     "empty trace_ids",
-			req:      &tempopb.SubmitRedactionRequest{TenantId: testTenant},
+			ctx:      tenantCtx,
+			req:      &tempopb.SubmitRedactionRequest{},
 			wantCode: codes.InvalidArgument,
 		},
 		{
 			name:     "duplicate submission",
+			ctx:      tenantCtx,
 			req:      validReq,
 			wantCode: codes.AlreadyExists,
 		},
 	}
 
+	// Regression: a body tenant_id different from the context tenant must be ignored —
+	// jobs must be created for the authenticated tenant, not the body tenant.
+	otherTenant := "tenant-other"
+	writeTenantBlocks(ctx, t, backend.NewWriter(ww), otherTenant, 1)
+	time.Sleep(300 * time.Millisecond)
+	crossReq := &tempopb.SubmitRedactionRequest{
+		TenantId: otherTenant, // attacker-supplied body tenant
+		TraceIds: [][]byte{[]byte(uuid.New().String())},
+	}
+	crossResp, err := s.SubmitRedaction(tenantCtx, crossReq)
+	require.NoError(t, err)
+	require.Positive(t, crossResp.JobsCreated, "jobs must be created for the authenticated tenant")
+	require.False(t, s.work.TenantPending(otherTenant), "body tenant_id must not be used")
+	require.True(t, s.work.TenantPending(testTenant), "authenticated tenant must have a pending batch")
+	// Clean up so the duplicate-submission test case fires correctly below.
+	s.work.RemoveBatch(testTenant)
+
 	// Seed an active batch so the duplicate-submission case fires.
-	_, err = s.SubmitRedaction(ctx, validReq)
+	_, err = s.SubmitRedaction(tenantCtx, validReq)
 	require.NoError(t, err)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := s.SubmitRedaction(ctx, tt.req)
+			_, err := s.SubmitRedaction(tt.ctx, tt.req)
 			require.Error(t, err)
 			st, ok := status.FromError(err)
 			require.True(t, ok)
@@ -457,8 +480,7 @@ func TestSubmitRedactionAndRescan(t *testing.T) {
 
 	// Submit the redaction. Blocks 0 and 1 are in active compaction and must be
 	// skipped; blocks 2, 3, 4 must receive pending jobs.
-	resp, err := s.SubmitRedaction(ctx, &tempopb.SubmitRedactionRequest{
-		TenantId: testTenant,
+	resp, err := s.SubmitRedaction(user.InjectOrgID(ctx, testTenant), &tempopb.SubmitRedactionRequest{
 		TraceIds: [][]byte{[]byte(uuid.New().String())},
 	})
 	require.NoError(t, err)
@@ -553,8 +575,7 @@ func TestRescanSkipsRunningJob(t *testing.T) {
 	s.work.StartJob(compJob.ID)
 
 	// Submit the redaction; blocks 0+1 under compaction are skipped.
-	resp, err := s.SubmitRedaction(ctx, &tempopb.SubmitRedactionRequest{
-		TenantId: testTenant,
+	resp, err := s.SubmitRedaction(user.InjectOrgID(ctx, testTenant), &tempopb.SubmitRedactionRequest{
 		TraceIds: [][]byte{[]byte(uuid.New().String())},
 	})
 	require.NoError(t, err)
@@ -685,4 +706,95 @@ func TestProviderBasedScheduling(t *testing.T) {
 	// We should have at least one retention job and some compaction jobs
 	require.GreaterOrEqual(t, retentionJobs, 1)
 	require.GreaterOrEqual(t, compactionJobs, 1)
+}
+
+// TestCleanupOrphanedBatchesAfterDeadJobTimeout verifies that
+// cleanupOrphanedBatches removes a batch whose redaction jobs were all
+// transitioned to FAILED by the Prune dead-job timeout path.
+//
+// Regression test for the bug where Prune called j.Fail() directly (to avoid
+// re-acquiring the shard lock), bypassing UpdateJob → cleanupBatchIfDone, and
+// leaving the batch in batchStore permanently. The fix adds
+// cleanupOrphanedBatches to the maintenance tick after each Prune call.
+func TestCleanupOrphanedBatchesAfterDeadJobTimeout(t *testing.T) {
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	// RescanDelay = 0 and no compaction jobs racing with submission, so the
+	// batch has RescanAfterUnixNano == 0 and cleanupBatchIfDone won't block on it.
+	cfg.ProviderConfig.Redaction.RescanDelay = 0
+
+	tmpDir := t.TempDir()
+	cfg.LocalWorkPath = tmpDir
+
+	ctx, cancel := context.WithCancel(context.Background())
+	store, rr, ww := newStore(ctx, t, tmpDir)
+	defer func() {
+		cancel()
+		store.Shutdown()
+	}()
+
+	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.NewRegistry())
+	require.NoError(t, err)
+
+	testTenant := "tenant-orphan-batch"
+	writeTenantBlocks(ctx, t, backend.NewWriter(ww), testTenant, 2)
+	time.Sleep(300 * time.Millisecond)
+
+	s, err := New(cfg, store, limits, rr, ww)
+	require.NoError(t, err)
+	// Do NOT call s.starting — it would launch background goroutines that race
+	// with the manual job lifecycle below.
+
+	// Submit a redaction. With 2 blocks, we expect 2 pending jobs.
+	tenantCtx := user.InjectOrgID(ctx, testTenant)
+	resp, err := s.SubmitRedaction(tenantCtx, &tempopb.SubmitRedactionRequest{
+		TraceIds: [][]byte{[]byte(uuid.New().String())},
+	})
+	require.NoError(t, err)
+	require.Greater(t, int(resp.JobsCreated), 0)
+	require.True(t, s.work.TenantPending(testTenant), "batch must be active after submission")
+
+	// Simulate workers picking up all pending redaction jobs. For each job:
+	// pop from pending → register → assign worker → promote to active → start.
+	// This mirrors the production path in backendscheduler.Next().
+	for i := 0; ; i++ {
+		j := s.work.NextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
+		if j == nil {
+			break
+		}
+		s.work.RegisterJob(j)
+		j.SetWorkerID("worker-" + strconv.Itoa(i))
+		require.NoError(t, s.work.AddJob(j))
+		s.work.StartJob(j.ID)
+		// Back-date the start time so Prune sees the job as past DeadJobTimeout
+		// (default 24h). Use 25h to give a clear margin.
+		s.work.GetJob(j.ID).StartTime = time.Now().Add(-25 * time.Hour)
+	}
+
+	require.True(t, s.work.HasJobsForTenant(testTenant, tempopb.JobType_JOB_TYPE_REDACTION),
+		"jobs must be running before prune")
+
+	// Prune transitions timed-out running jobs to FAILED and cleans up indexes,
+	// but does NOT call cleanupBatchIfDone — that is the bug this test covers.
+	s.work.Prune(ctx)
+
+	require.False(t, s.work.HasJobsForTenant(testTenant, tempopb.JobType_JOB_TYPE_REDACTION),
+		"no active jobs should remain after prune")
+	require.NotNil(t, s.work.GetBatch(testTenant),
+		"batch must still exist after prune alone (orphaned batch bug)")
+
+	// cleanupOrphanedBatches is the fix: it sweeps all batches and removes any
+	// whose jobs have all finished. This is now called on every maintenance tick.
+	s.cleanupOrphanedBatches(ctx)
+
+	require.Nil(t, s.work.GetBatch(testTenant),
+		"batch must be removed after cleanupOrphanedBatches")
+	require.False(t, s.work.TenantPending(testTenant),
+		"tenant must not be blocked after batch cleanup")
+
+	// A new redaction submission must succeed — the tenant is no longer locked out.
+	_, err = s.SubmitRedaction(tenantCtx, &tempopb.SubmitRedactionRequest{
+		TraceIds: [][]byte{[]byte(uuid.New().String())},
+	})
+	require.NoError(t, err, "SubmitRedaction must not return AlreadyExists after batch cleanup")
 }

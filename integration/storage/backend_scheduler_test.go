@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/grafana/dskit/user"
 	"github.com/grafana/e2e"
 	"github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/pkg/model"
@@ -311,7 +312,7 @@ func TestBackendSchedulerRedaction(t *testing.T) {
 
 		// Verify the trace is findable before redaction by querying object storage directly.
 		tempodbReader.EnablePolling(ctx, nil, false)
-		trs, failedBlocks, err := tempodbReader.Find(ctx, testTenant, traceID, tempodb.BlockIDMin, tempodb.BlockIDMax, 0, 0, common.DefaultSearchOptions())
+		trs, failedBlocks, err := tempodbReader.Find(ctx, testTenant, traceID, tempodb.BlockIDMin, tempodb.BlockIDMax, time.Time{}, time.Time{}, common.DefaultSearchOptions())
 		require.NoError(t, err)
 		require.Empty(t, failedBlocks, "no blocks should fail lookup")
 		require.NotEmpty(t, trs, "trace must be findable in all blocks before redaction")
@@ -325,17 +326,22 @@ func TestBackendSchedulerRedaction(t *testing.T) {
 		defer conn.Close()
 		schedulerClient := tempopb.NewBackendSchedulerClient(conn)
 
+		// Build an authenticated context: inject the tenant into the outgoing gRPC metadata.
+		// With multitenancy_enabled, the scheduler's auth interceptor reads X-Scope-OrgID and
+		// sets the tenant in the handler context; the body tenant_id field is ignored.
+		tenantCtx := user.InjectOrgID(ctx, testTenant)
+		tenantCtx, err = user.InjectIntoGRPCRequest(tenantCtx)
+		require.NoError(t, err)
+
 		// Submit a redaction — expect one pending job per block.
-		resp, err := schedulerClient.SubmitRedaction(ctx, &tempopb.SubmitRedactionRequest{
-			TenantId: testTenant,
+		resp, err := schedulerClient.SubmitRedaction(tenantCtx, &tempopb.SubmitRedactionRequest{
 			TraceIds: [][]byte{traceID},
 		})
 		require.NoError(t, err)
 		require.Equal(t, int32(blockCount), resp.JobsCreated)
 
 		// A second submission for the same tenant must be rejected.
-		_, err = schedulerClient.SubmitRedaction(ctx, &tempopb.SubmitRedactionRequest{
-			TenantId: testTenant,
+		_, err = schedulerClient.SubmitRedaction(tenantCtx, &tempopb.SubmitRedactionRequest{
 			TraceIds: [][]byte{traceID},
 		})
 		require.Error(t, err)
@@ -364,7 +370,7 @@ func TestBackendSchedulerRedaction(t *testing.T) {
 		// of the lookback window and the trace is no longer findable.
 		require.Eventually(t, func() bool {
 			tempodbReader.PollNow(ctx)
-			trs, _, err = tempodbReader.Find(ctx, testTenant, traceID, tempodb.BlockIDMin, tempodb.BlockIDMax, 0, 0, common.DefaultSearchOptions())
+			trs, _, err = tempodbReader.Find(ctx, testTenant, traceID, tempodb.BlockIDMin, tempodb.BlockIDMax, time.Time{}, time.Time{}, common.DefaultSearchOptions())
 			return err == nil && len(trs) == 0
 		}, 60*time.Second, 2*time.Second, "trace must not be findable in any block after redaction")
 	})

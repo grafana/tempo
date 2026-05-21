@@ -128,7 +128,7 @@ func TestSelectAllFetchSpansOnly(t *testing.T) {
 
 	b := makeBackendBlockWithTraces(t, traces)
 
-	_, eval, _, _, req, err := traceql.Compile("{}")
+	_, _, eval, req, err := traceql.Compile("{}")
 	require.NoError(t, err)
 
 	req.SecondPass = func(inSS *traceql.Spanset) ([]*traceql.Spanset, error) { return eval([]*traceql.Spanset{inSS}) }

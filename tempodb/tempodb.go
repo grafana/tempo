@@ -84,7 +84,7 @@ type Writer interface {
 type IterateObjectCallback func(id common.ID, obj []byte) bool
 
 type Reader interface {
-	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart int64, timeEnd int64, opts common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error)
+	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart, timeEnd time.Time, opts common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error)
 	Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error)
 	SearchTags(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagsBlockRequest, opts common.SearchOptions) (*tempopb.SearchTagsV2Response, error)
 	SearchTagValues(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagValuesBlockRequest, opts common.SearchOptions) (*tempopb.SearchTagValuesResponse, error)
@@ -329,7 +329,7 @@ func (rw *readerWriter) Tenants() []string {
 	return rw.blocklist.Tenants()
 }
 
-func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart int64, timeEnd int64, opts common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error) {
+func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart, timeEnd time.Time, opts common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error) {
 	// tracing instrumentation
 	logger := log.WithContext(ctx, log.Logger)
 	ctx, span := tracer.Start(ctx, "store.Find")
@@ -819,7 +819,7 @@ func (rw *readerWriter) pollBlocklist(ctx context.Context) {
 }
 
 // includeBlock indicates whether a given block should be included in a backend search
-func includeBlock(b *backend.BlockMeta, _ common.ID, blockStart, blockEnd []byte, timeStart, timeEnd int64) bool {
+func includeBlock(b *backend.BlockMeta, _ common.ID, blockStart, blockEnd []byte, timeStart, timeEnd time.Time) bool {
 	// todo: restore this functionality once it works. min/max ids are currently not recorded
 	//    https://github.com/grafana/tempo/issues/1903
 	//  correctly in a block
@@ -827,8 +827,8 @@ func includeBlock(b *backend.BlockMeta, _ common.ID, blockStart, blockEnd []byte
 	// 	return false
 	// }
 
-	if timeStart != 0 && timeEnd != 0 {
-		if b.StartTime.Unix() >= timeEnd || b.EndTime.Unix() <= timeStart {
+	if !timeStart.IsZero() && !timeEnd.IsZero() {
+		if !b.StartTime.Before(timeEnd) || !b.EndTime.After(timeStart) {
 			return false
 		}
 	}
@@ -844,7 +844,7 @@ func includeBlock(b *backend.BlockMeta, _ common.ID, blockStart, blockEnd []byte
 }
 
 // if block is compacted within lookback period, and is within shard ranges, include it in search
-func includeCompactedBlock(c *backend.CompactedBlockMeta, id common.ID, blockStart, blockEnd []byte, poll time.Duration, timeStart, timeEnd int64) bool {
+func includeCompactedBlock(c *backend.CompactedBlockMeta, id common.ID, blockStart, blockEnd []byte, poll time.Duration, timeStart, timeEnd time.Time) bool {
 	lookback := time.Now().Add(-(2 * poll))
 	if c.CompactedTime.Before(lookback) {
 		return false

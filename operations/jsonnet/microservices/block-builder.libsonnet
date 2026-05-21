@@ -23,6 +23,9 @@
     'config.file': '/conf/tempo.yaml',
   },
 
+  // Block-builder mirrors live-store zone-a replica count. This intentionally lags
+  // behind the ReplicaTemplate: the rollout-operator enforces the drain window before
+  // reducing zone-a, so block-builder stays alive while live-store data is still present.
   tempo_block_builder_follow_controller:: $.tempo_live_store_zone_a_statefulset,
 
   tempo_block_builder_container::
@@ -43,12 +46,20 @@
     statefulset.new(target_name, $._config.block_builder.replicas, $.tempo_block_builder_container, [], { app: target_name }) +
     statefulset.mixin.spec.withServiceName(target_name) +
     statefulset.spec.template.spec.securityContext.withFsGroup(10001) +  // 10001 is the UID of the tempo user
-    statefulset.mixin.spec.template.metadata.withAnnotations({
-      config_hash: std.md5(std.toString($.tempo_block_builder_configmap.data['tempo.yaml'])),
-      'grafana.com/rollout-mirror-replicas-from-resource-name': $.tempo_block_builder_follow_controller.metadata.name,
-      'grafana.com/rollout-mirror-replicas-from-resource-kind': $.tempo_block_builder_follow_controller.kind,
-      'grafana.com/rollout-mirror-replicas-from-resource-api-version': $.tempo_block_builder_follow_controller.apiVersion,
-    }) +
+    statefulset.mixin.spec.template.metadata.withAnnotations(
+      { config_hash: std.md5(std.toString($.tempo_block_builder_configmap.data['tempo.yaml'])) }
+    ) +
+    // The rollout-operator reads grafana.com/rollout-mirror-replicas-from-resource-* from the
+    // StatefulSet's own metadata.annotations, not the pod template. Keep these separate.
+    (
+      if $._config.block_builder.keda.enabled && $._config.block_builder.keda.scaling == 'rollout-operator' then
+        statefulset.mixin.metadata.withAnnotationsMixin({
+          'grafana.com/rollout-mirror-replicas-from-resource-name': $.tempo_block_builder_follow_controller.metadata.name,
+          'grafana.com/rollout-mirror-replicas-from-resource-kind': $.tempo_block_builder_follow_controller.kind,
+          'grafana.com/rollout-mirror-replicas-from-resource-api-version': $.tempo_block_builder_follow_controller.apiVersion,
+        })
+      else {}
+    ) +
     statefulset.mixin.spec.template.spec.withVolumes([
       volume.fromConfigMap(tempo_config_volume, $.tempo_block_builder_configmap.metadata.name),
       volume.fromConfigMap(tempo_overrides_config_volume, $._config.overrides_configmap_name),

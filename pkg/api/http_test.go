@@ -519,12 +519,12 @@ func TestBuildSearchBlockRequest(t *testing.T) {
 	}
 }
 
-func TestValidateAndSanitizeRequest(t *testing.T) {
+func TestParseTraceByIDRequest(t *testing.T) {
 	tests := []struct {
 		httpReq       *http.Request
 		queryMode     string
-		startTime     int64
-		endTime       int64
+		startTime     time.Time
+		endTime       time.Time
 		blockStart    string
 		blockEnd      string
 		expectedError string
@@ -532,48 +532,48 @@ func TestValidateAndSanitizeRequest(t *testing.T) {
 		{
 			httpReq:    httptest.NewRequest("GET", "/api/traces/1234?blockEnd=ffffffffffffffffffffffffffffffff&blockStart=00000000000000000000000000000000&mode=blocks&start=1&end=2", nil),
 			queryMode:  "blocks",
-			startTime:  1,
-			endTime:    2,
+			startTime:  time.Unix(1, 0),
+			endTime:    time.Unix(2, 0),
 			blockStart: "00000000000000000000000000000000",
 			blockEnd:   "ffffffffffffffffffffffffffffffff",
 		},
 		{
 			httpReq:    httptest.NewRequest("GET", "/api/traces/1234?blockEnd=ffffffffffffffffffffffffffffffff&blockStart=00000000000000000000000000000000&mode=blocks", nil),
 			queryMode:  "blocks",
-			startTime:  0,
-			endTime:    0,
+			startTime:  time.Time{},
+			endTime:    time.Time{},
 			blockStart: "00000000000000000000000000000000",
 			blockEnd:   "ffffffffffffffffffffffffffffffff",
 		},
 		{
 			httpReq:    httptest.NewRequest("GET", "/api/traces/1234?mode=blocks", nil),
 			queryMode:  "blocks",
-			startTime:  0,
-			endTime:    0,
+			startTime:  time.Time{},
+			endTime:    time.Time{},
 			blockStart: "00000000-0000-0000-0000-000000000000",
 			blockEnd:   "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF",
 		},
 		{
 			httpReq:    httptest.NewRequest("GET", "/api/traces/1234?mode=blocks&blockStart=12345678000000001235000001240000&blockEnd=ffffffffffffffffffffffffffffffff", nil),
 			queryMode:  "blocks",
-			startTime:  0,
-			endTime:    0,
+			startTime:  time.Time{},
+			endTime:    time.Time{},
 			blockStart: "12345678000000001235000001240000",
 			blockEnd:   "ffffffffffffffffffffffffffffffff",
 		},
 		{
 			httpReq:    httptest.NewRequest("GET", "/api/traces/1234?mode=blocks&blockStart=12345678000000001235000001240000&blockEnd=ffffffffffffffffffffffffffffffff&rf1After=1970-01-01T01:16:40Z", nil),
 			queryMode:  "blocks",
-			startTime:  0,
-			endTime:    0,
+			startTime:  time.Time{},
+			endTime:    time.Time{},
 			blockStart: "12345678000000001235000001240000",
 			blockEnd:   "ffffffffffffffffffffffffffffffff",
 		},
 		{
 			httpReq:       httptest.NewRequest("GET", "/api/traces/1234?mode=blocks&blockStart=12345678000000001235000001240000&blockEnd=ffffffffffffffffffffffffffffffff&start=1&end=1", nil),
 			queryMode:     "blocks",
-			startTime:     0,
-			endTime:       0,
+			startTime:     time.Time{},
+			endTime:       time.Time{},
 			blockStart:    "12345678000000001235000001240000",
 			blockEnd:      "ffffffffffffffffffffffffffffffff",
 			expectedError: "http parameter start must be before end. received start=1 end=1",
@@ -581,15 +581,15 @@ func TestValidateAndSanitizeRequest(t *testing.T) {
 		{
 			httpReq:    httptest.NewRequest("GET", "/api/traces/1234?mode=external&start=1&end=2", nil),
 			queryMode:  "external",
-			startTime:  1,
-			endTime:    2,
+			startTime:  time.Unix(1, 0),
+			endTime:    time.Unix(2, 0),
 			blockStart: "00000000-0000-0000-0000-000000000000",
 			blockEnd:   "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF",
 		},
 	}
 
 	for _, tc := range tests {
-		blockStart, blockEnd, queryMode, startTime, endTime, err := ValidateAndSanitizeRequest(tc.httpReq)
+		blockStart, blockEnd, queryMode, startTime, endTime, err := ParseTraceByIDRequest(tc.httpReq)
 		if len(tc.expectedError) != 0 {
 			assert.EqualError(t, err, tc.expectedError)
 			continue

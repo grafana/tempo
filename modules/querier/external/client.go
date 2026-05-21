@@ -50,10 +50,9 @@ func NewClient(endpoint string, timeout time.Duration) (*Client, error) {
 	}, nil
 }
 
-// TraceByID forwards a trace-by-ID v2 request to the external endpoint
-// traceID is the trace ID to query
-// startTime and endTime are Unix timestamps in seconds (0 means not specified)
-func (c *Client) TraceByID(ctx context.Context, userID string, traceID []byte, startTime, endTime int64) (*tempopb.TraceByIDResponse, error) {
+// TraceByID forwards a trace-by-ID v2 request to the external endpoint.
+// Zero-value times are treated as "not specified".
+func (c *Client) TraceByID(ctx context.Context, userID string, traceID []byte, startTime, endTime time.Time) (*tempopb.TraceByIDResponse, error) {
 	start := time.Now()
 	statusCode := "error"
 	defer func() {
@@ -64,11 +63,11 @@ func (c *Client) TraceByID(ctx context.Context, userID string, traceID []byte, s
 
 	// Add query parameters for start/end times
 	q := path.Query()
-	if startTime != 0 {
-		q.Set("start", strconv.FormatInt(startTime, 10))
+	if !startTime.IsZero() {
+		q.Set("start", strconv.FormatInt(startTime.Unix(), 10))
 	}
-	if endTime != 0 {
-		q.Set("end", strconv.FormatInt(endTime, 10))
+	if !endTime.IsZero() {
+		q.Set("end", strconv.FormatInt(endTime.Unix(), 10))
 	}
 	path.RawQuery = q.Encode()
 

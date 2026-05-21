@@ -154,7 +154,7 @@ func TestReadMetrics(t *testing.T) {
 		assertMetricEquals(t, queryFrontend, "tempo_query_frontend_queries_within_slo_total", float64(1), map[string]string{"op": "traces", "result": "completed"})
 
 		assertMetricGreater(t, queryFrontend, "tempo_query_frontend_bytes_inspected_total", float64(0), map[string]string{"op": "metadata"})
-		assertMetricEquals(t, queryFrontend, "tempo_query_frontend_bytes_inspected_total", float64(0), map[string]string{"op": "metrics"}) // metrics is 0? possibly a bug?
+		assertMetricGreater(t, queryFrontend, "tempo_query_frontend_bytes_inspected_total", float64(0), map[string]string{"op": "metrics"})
 		assertMetricGreater(t, queryFrontend, "tempo_query_frontend_bytes_inspected_total", float64(0), map[string]string{"op": "search"})
 		assertMetricGreater(t, queryFrontend, "tempo_query_frontend_bytes_inspected_total", float64(0), map[string]string{"op": "traces"})
 
@@ -178,7 +178,7 @@ func TestReadMetrics(t *testing.T) {
 
 		// testing these counts might be a little brittle and we find it's not worthwhile
 		assertMetricCountEquals(t, querier, "tempo_request_duration_seconds", float64(4), map[string]string{"method": "GET", "route": "querier_api_metrics_query_range", "status_code": "200", "ws": "false"})
-		assertMetricCountEquals(t, querier, "tempo_request_duration_seconds", float64(50), map[string]string{"method": "GET", "route": "querier_api_v2_traces_traceid", "status_code": "200", "ws": "false"})
+		assertMetricCountEquals(t, querier, "tempo_request_duration_seconds", float64(2), map[string]string{"method": "GET", "route": "querier_api_v2_traces_traceid", "status_code": "200", "ws": "false"})
 		assertMetricCountEquals(t, querier, "tempo_request_duration_seconds", float64(2), map[string]string{"method": "GET", "route": "querier_api_v2_search_tag_tagname_values", "status_code": "200", "ws": "false"})
 		assertMetricCountEquals(t, querier, "tempo_request_duration_seconds", float64(2), map[string]string{"method": "GET", "route": "querier_api_v2_search_tags", "status_code": "200", "ws": "false"})
 		assertMetricCountEquals(t, querier, "tempo_request_duration_seconds", float64(6), map[string]string{"method": "GET", "route": "querier_api_search", "status_code": "200", "ws": "false"})

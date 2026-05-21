@@ -11,7 +11,9 @@ import (
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	resourcev1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
+	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -51,6 +53,7 @@ func TestBackendBlockSearch(t *testing.T) {
 						String03: []string{"dedicated-resource-attr-value-3"},
 						String04: []string{"dedicated-resource-attr-value-4"},
 						String05: []string{"dedicated-resource-attr-value-5"},
+						Int01:    []int64{123},
 					},
 				},
 				ScopeSpans: []ScopeSpans{
@@ -61,7 +64,7 @@ func TestBackendBlockSearch(t *testing.T) {
 								Name:         "hello",
 								SpanID:       []byte{},
 								ParentSpanID: []byte{},
-								StatusCode:   int(v1.Status_STATUS_CODE_ERROR),
+								StatusCode:   int(tracev1.Status_STATUS_CODE_ERROR),
 								Attrs: []Attribute{
 									attr("foo", "bar"),
 									attr("http.method", "get"),
@@ -74,6 +77,7 @@ func TestBackendBlockSearch(t *testing.T) {
 									String03: []string{"dedicated-span-attr-value-3"},
 									String04: []string{"dedicated-span-attr-value-4"},
 									String05: []string{test.DedicatedBlobTestString()},
+									Int01:    []int64{456},
 								},
 							},
 						},
@@ -148,6 +152,7 @@ func TestBackendBlockSearch(t *testing.T) {
 
 		// Dedicated resource attributes
 		makeReq("dedicated.resource.3", "dedicated-resource-attr-value-3"),
+		makeReq("dedicated.resource.6", "123"), // Will be converted to integer comparison
 
 		// Well-known span attributes
 		makeReq(LabelName, "ell"),
@@ -157,6 +162,7 @@ func TestBackendBlockSearch(t *testing.T) {
 
 		// Dedicated span attributes
 		makeReq("dedicated.span.4", "dedicated-span-attr-value-4"),
+		makeReq("dedicated.span.6", "456"), // Will be converted to integer comparison
 
 		// Span attributes
 		makeReq("foo", "bar"),
@@ -220,6 +226,7 @@ func TestBackendBlockSearch(t *testing.T) {
 
 		// Dedicated resource attributes
 		makeReq("dedicated.resource.3", "dedicated-resource-attr-value-1"),
+		makeReq("dedicated.resource.6", "9999"),
 
 		// Former well-known span attributes
 		makeReq(LabelHTTPMethod, "post"),
@@ -230,6 +237,7 @@ func TestBackendBlockSearch(t *testing.T) {
 
 		// Dedicated span attributes
 		makeReq("dedicated.span.4", "dedicated-span-attr-value-5"),
+		makeReq("dedicated.span.6", "9999"),
 
 		// Span attributes
 		makeReq("foo", "baz"),
@@ -248,6 +256,67 @@ func TestBackendBlockSearch(t *testing.T) {
 		meta := findInResults(expected.TraceID, res.Traces)
 		require.Nil(t, meta, req)
 	}
+}
+
+// TestSearchLegacyTagsHTTPStatusCode tests the old legacy tag-based search
+// against http.status_code stored in a new vParquet5 dedicated integer column.
+func TestSearchLegacyTagsHTTPStatusCode(t *testing.T) {
+	ctx := context.Background()
+	id := test.ValidTraceID(nil)
+
+	meta := &backend.BlockMeta{DedicatedColumns: backend.DefaultDedicatedColumns()}
+	pbTrace := &tempopb.Trace{
+		ResourceSpans: []*tracev1.ResourceSpans{{
+			Resource: &resourcev1.Resource{
+				Attributes: []*commonv1.KeyValue{{
+					Key: LabelServiceName,
+					Value: &commonv1.AnyValue{
+						Value: &commonv1.AnyValue_StringValue{StringValue: "foo"},
+					},
+				}},
+			},
+			ScopeSpans: []*tracev1.ScopeSpans{{
+				Spans: []*tracev1.Span{{
+					Name:              "span",
+					SpanId:            []byte("spanid01"),
+					StartTimeUnixNano: uint64(time.Second),
+					EndTimeUnixNano:   uint64(2 * time.Second),
+					Attributes: []*commonv1.KeyValue{{
+						Key: LabelHTTPStatusCode,
+						Value: &commonv1.AnyValue{
+							Value: &commonv1.AnyValue_IntValue{IntValue: 500},
+						},
+					}},
+				}},
+			}},
+		}},
+	}
+
+	pqTrace, _ := traceToParquet(meta, id, pbTrace, nil)
+	// Includes http.status_code as a span-level dedicated integer column.
+	dc := backend.DefaultDedicatedColumns()
+	b := makeBackendBlockWithTracesWithDedicatedColumns(t, []*Trace{pqTrace}, dc)
+
+	req := &tempopb.SearchRequest{
+		Tags: map[string]string{
+			LabelServiceName:    "foo",
+			LabelHTTPStatusCode: "500",
+		},
+		Limit: 10,
+	}
+
+	res, err := b.Search(ctx, req, common.DefaultSearchOptions())
+	require.NoError(t, err)
+	require.Len(t, res.Traces, 1)
+
+	expected := &tempopb.TraceSearchMetadata{
+		TraceID:           util.TraceIDToHexString(id),
+		StartTimeUnixNano: pqTrace.StartTimeUnixNano,
+		DurationMs:        uint32(pqTrace.DurationNano / uint64(time.Millisecond)),
+		RootServiceName:   pqTrace.RootServiceName,
+		RootTraceName:     pqTrace.RootSpanName,
+	}
+	require.Equal(t, expected, res.Traces[0])
 }
 
 func makeBackendBlockWithTraces(t *testing.T, trs []*Trace) *backendBlock {

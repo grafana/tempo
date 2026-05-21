@@ -15,9 +15,6 @@ spec:
     metadata:
       annotations:
         config_hash: 35772ca8ace3c2f21537b08d1f875feb
-        grafana.com/rollout-mirror-replicas-from-resource-api-version: apps/v1
-        grafana.com/rollout-mirror-replicas-from-resource-kind: StatefulSet
-        grafana.com/rollout-mirror-replicas-from-resource-name: live-store-zone-a
       labels:
         app: block-builder
         name: block-builder

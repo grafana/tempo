@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"go.yaml.in/yaml/v2"
 )
 
 type Duration struct {
@@ -39,7 +41,30 @@ func (d *Duration) UnmarshalJSON(input []byte) error {
 	return nil
 }
 
+// MarshalYAML emits the duration as a flat scalar ("5m0s") instead of the
+// nested "duration: 5m0s" map that yaml.v2's default reflection produces for
+// the embedded time.Duration field.
+func (d *Duration) MarshalYAML() (interface{}, error) {
+	return d.String(), nil
+}
+
+// UnmarshalYAML parses a duration string ("5m0s") into d.
+func (d *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var s string
+	if err := unmarshal(&s); err != nil {
+		return err
+	}
+	parsed, err := time.ParseDuration(s)
+	if err != nil {
+		return err
+	}
+	d.Duration = parsed
+	return nil
+}
+
 var (
 	_ json.Marshaler   = (*Duration)(nil)
 	_ json.Unmarshaler = (*Duration)(nil)
+	_ yaml.Marshaler   = (*Duration)(nil)
+	_ yaml.Unmarshaler = (*Duration)(nil)
 )

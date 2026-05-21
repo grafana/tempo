@@ -2,6 +2,7 @@ package work
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -360,4 +361,52 @@ func TestLoadFromLocal_RebuildsPendingIndex(t *testing.T) {
 
 	require.True(t, w2.IsBlockBusy("t", "b1"))
 	require.True(t, w2.HasJobsForTenant("t", tempopb.JobType_JOB_TYPE_REDACTION))
+}
+
+// BenchmarkHasJobsForTenant measures HasJobsForTenant with 1000 tenants each having
+// active compaction jobs — the old path scanned all 256 shards on every call.
+func BenchmarkHasJobsForTenant(b *testing.B) {
+	const numTenants = 1000
+	w := New(Config{}).(*Work)
+
+	for i := range numTenants {
+		tenant := fmt.Sprintf("tenant-%04d", i)
+		j := createCompactionJob(fmt.Sprintf("job-%04d", i), tenant, []string{fmt.Sprintf("blk-%04d", i)})
+		j.SetWorkerID("worker-1")
+		w.RegisterJob(j)
+		_ = w.AddJob(j)
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for range b.N {
+		// Query the last tenant — worst case for the old shard scan.
+		w.HasJobsForTenant("tenant-0999", tempopb.JobType_JOB_TYPE_COMPACTION)
+	}
+}
+
+// BenchmarkBusyBlocksForTenant measures BusyBlocksForTenant with blocks spread across
+// many tenants — the old path prefix-scanned all entries on every call.
+func BenchmarkBusyBlocksForTenant(b *testing.B) {
+	const (
+		numTenants      = 100
+		blocksPerTenant = 100
+	)
+	w := New(Config{}).(*Work)
+
+	for i := range numTenants {
+		tenant := fmt.Sprintf("tenant-%04d", i)
+		var blockIDs []string
+		for k := range blocksPerTenant {
+			blockIDs = append(blockIDs, fmt.Sprintf("blk-%04d-%04d", i, k))
+		}
+		j := createCompactionJob(fmt.Sprintf("job-%04d", i), tenant, blockIDs)
+		w.RegisterJob(j)
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for range b.N {
+		w.BusyBlocksForTenant("tenant-0050")
+	}
 }

@@ -11,12 +11,22 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/grafana/tempo/pkg/cache"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/tempodb/backend"
 )
+
+// cacheStoreSizeBytes records the byte size of every item written to a tempodb backend cache, labelled by role.
+var cacheStoreSizeBytes = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	Namespace: "tempodb",
+	Name:      "cache_store_size_bytes",
+	Help:      "Distribution of item sizes written to tempodb backend caches, by role.",
+	Buckets:   prometheus.ExponentialBuckets(512, 2, 15), // 512 B, 1 KiB, ..., 8 MiB
+}, []string{"role"})
 
 type BloomConfig struct {
 	CacheMinCompactionLevel uint8         `yaml:"cache_min_compaction_level"`
@@ -143,6 +153,7 @@ func (r *readerWriter) Write(ctx context.Context, name string, keypath backend.K
 	}
 
 	if cache := r.cacheFor(cacheInfo); cache != nil {
+		cacheStoreSizeBytes.WithLabelValues(string(cacheInfo.Role)).Observe(float64(len(b)))
 		cache.Store(ctx, []string{key(keypath, name)}, [][]byte{b})
 	}
 
@@ -217,6 +228,8 @@ func (r *readerWriter) cacheFor(cacheInfo *backend.CacheInfo) cache.Cache {
 }
 
 func store(ctx context.Context, cache cache.Cache, role cache.Role, key string, val []byte) {
+	cacheStoreSizeBytes.WithLabelValues(string(role)).Observe(float64(len(val)))
+
 	write := val
 	if needsCopy(role) {
 		write = make([]byte, len(val))

@@ -194,19 +194,18 @@ func TestGetJobForWorker(t *testing.T) {
 		err  error
 	)
 
-	// Add jobs for different workers
+	// SetWorkerID must be called before AddJob so the workerJobs index is populated
+	// (mirrors the production path in backendscheduler.Next).
 	job1 := createTestJob("worker1-job", tempopb.JobType_JOB_TYPE_COMPACTION)
+	job1.SetWorkerID("worker-1")
 	err = work.AddJob(job1)
 	require.NoError(t, err)
-	work.StartJob(job1.ID) // Sets status to RUNNING
-	retrievedJob1 := work.GetJob(job1.ID)
-	retrievedJob1.SetWorkerID("worker-1")
+	work.StartJob(job1.ID)
 
 	job2 := createTestJob("worker2-job", tempopb.JobType_JOB_TYPE_COMPACTION)
+	job2.SetWorkerID("worker-2")
 	err = work.AddJob(job2)
 	require.NoError(t, err)
-	retrievedJob2 := work.GetJob(job2.ID)
-	retrievedJob2.SetWorkerID("worker-2")
 	// job2 remains in UNSPECIFIED status
 
 	// Test finding job for worker-1
@@ -222,6 +221,62 @@ func TestGetJobForWorker(t *testing.T) {
 	// Test worker with no jobs
 	foundJob = work.GetJobForWorker(ctx, "nonexistent-worker")
 	require.Nil(t, foundJob)
+
+	// Completing a job removes it from the workerJobs index.
+	work.CompleteJob(job1.ID)
+	foundJob = work.GetJobForWorker(ctx, "worker-1")
+	require.Nil(t, foundJob)
+
+	// Failing a job also removes it from the index.
+	work.FailJob(job2.ID)
+	foundJob = work.GetJobForWorker(ctx, "worker-2")
+	require.Nil(t, foundJob)
+}
+
+// TestPrune_CleansRunningBlocksAndWorkerJobs verifies that the dead-job timeout
+// path in Prune correctly removes the timed-out job from the runningBlocks and
+// workerJobs indexes. These indexes are normally maintained by CompleteJob/FailJob,
+// but Prune calls j.Fail() directly to avoid re-acquiring the shard lock.
+func TestPrune_CleansRunningBlocksAndWorkerJobs(t *testing.T) {
+	cfg := Config{
+		PruneAge:       time.Hour,
+		DeadJobTimeout: 30 * time.Minute,
+	}
+	w := New(cfg).(*Work)
+	ctx := context.Background()
+
+	// Simulate the production lifecycle: RegisterJob → AddJob → StartJob.
+	j := createRedactionJob("r-timeout", "tenant-x", "block-1")
+	j.SetWorkerID("worker-1")
+	w.RegisterJob(j) // populates runningBlocks
+	require.NoError(t, w.AddJob(j))
+	w.StartJob(j.ID)
+
+	require.True(t, w.IsBlockBusy("tenant-x", "block-1"))
+	w.pendingMtx.Lock()
+	_, indexed := w.workerJobs["worker-1"]
+	w.pendingMtx.Unlock()
+	require.True(t, indexed, "workerJobs should be set after AddJob")
+
+	// Age the job past DeadJobTimeout.
+	w.GetJob("r-timeout").StartTime = time.Now().Add(-time.Hour)
+
+	w.Prune(ctx)
+
+	timedOut := w.GetJob("r-timeout")
+	require.NotNil(t, timedOut)
+	require.Equal(t, tempopb.JobStatus_JOB_STATUS_FAILED, timedOut.GetStatus())
+
+	// runningBlocks must be cleared so the block is no longer reported as busy.
+	require.False(t, w.IsBlockBusy("tenant-x", "block-1"))
+
+	// workerJobs must be cleared so GetJobForWorker no longer returns the dead job.
+	w.pendingMtx.Lock()
+	_, indexed = w.workerJobs["worker-1"]
+	w.pendingMtx.Unlock()
+	require.False(t, indexed, "workerJobs should be cleared after Prune times out the job")
+
+	require.Nil(t, w.GetJobForWorker(ctx, "worker-1"))
 }
 
 func TestPrune(t *testing.T) {

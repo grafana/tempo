@@ -32,13 +32,14 @@ const (
 )
 
 type queryRangeSharder struct {
-	next         pipeline.AsyncRoundTripper[combiner.PipelineResponse]
-	reader       tempodb.Reader
-	overrides    overrides.Interface
-	cfg          QueryRangeSharderConfig
-	logger       log.Logger
-	instantMode  bool
-	jobsPerQuery *prometheus.HistogramVec
+	next                   pipeline.AsyncRoundTripper[combiner.PipelineResponse]
+	reader                 tempodb.Reader
+	overrides              overrides.Interface
+	cfg                    QueryRangeSharderConfig
+	skipASTTransformations []string
+	logger                 log.Logger
+	instantMode            bool
+	jobsPerQuery           *prometheus.HistogramVec
 }
 
 type QueryRangeSharderConfig struct {
@@ -54,16 +55,17 @@ type QueryRangeSharderConfig struct {
 }
 
 // newAsyncQueryRangeSharder creates a sharding middleware for search
-func newAsyncQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg QueryRangeSharderConfig, instantMode bool, jobsPerQuery *prometheus.HistogramVec, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
+func newAsyncQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg QueryRangeSharderConfig, skipASTTransformations []string, instantMode bool, jobsPerQuery *prometheus.HistogramVec, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
 	return pipeline.AsyncMiddlewareFunc[combiner.PipelineResponse](func(next pipeline.AsyncRoundTripper[combiner.PipelineResponse]) pipeline.AsyncRoundTripper[combiner.PipelineResponse] {
 		return queryRangeSharder{
-			next:         next,
-			reader:       reader,
-			overrides:    o,
-			instantMode:  instantMode,
-			cfg:          cfg,
-			logger:       logger,
-			jobsPerQuery: jobsPerQuery,
+			next:                   next,
+			reader:                 reader,
+			overrides:              o,
+			instantMode:            instantMode,
+			cfg:                    cfg,
+			skipASTTransformations: skipASTTransformations,
+			logger:                 logger,
+			jobsPerQuery:           jobsPerQuery,
 		}
 	})
 }
@@ -84,7 +86,9 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 		return pipeline.NewBadRequest(err), nil
 	}
 
-	expr, _, _, _, _, err := traceql.Compile(req.Query)
+	req.SkipASTTransformations = mergeSkipASTTransformations(s.skipASTTransformations, req.SkipASTTransformations)
+
+	expr, err := traceql.ParseNoOptimizations(req.Query)
 	if err != nil {
 		return pipeline.NewBadRequest(err), nil
 	}
@@ -295,9 +299,10 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 				Size_:         m.Size_,
 				FooterSize:    m.FooterSize,
 				// DedicatedColumns: dc, for perf reason we pass dedicated columns json in directly to not have to realloc object -> proto -> json
-				Exemplars: exemplars,
-				MaxSeries: searchReq.MaxSeries,
-				XInstant:  searchReq.XInstant,
+				Exemplars:              exemplars,
+				MaxSeries:              searchReq.MaxSeries,
+				XInstant:               searchReq.XInstant,
+				SkipASTTransformations: searchReq.SkipASTTransformations,
 			}
 
 			return api.BuildQueryRangeRequest(r, queryRangeReq, dedColsJSON), nil
@@ -404,7 +409,7 @@ func hashForQueryRangeRequest(req *tempopb.QueryRangeRequest) uint64 {
 		return 0
 	}
 
-	ast, err := traceql.Parse(req.Query)
+	ast, err := traceql.ParseNoOptimizations(req.Query)
 	if err != nil { // this should never occur. if we've made this far we've already validated the query can parse. however, for sanity, just fail to cache if we can't parse
 		return 0
 	}
@@ -417,6 +422,12 @@ func hashForQueryRangeRequest(req *tempopb.QueryRangeRequest) uint64 {
 	hash = fnv1a.AddUint64(hash, req.Step)
 	hash = fnv1a.AddUint64(hash, uint64(req.MaxSeries))
 	hash = fnv1a.AddUint64(hash, uint64(req.Exemplars))
+
+	// TODO: once we have IN/NOT IN syntax in TraceQL, we should pass down the optimized query with the
+	//       request and remove req.SkipASTTransformations entirely and skip this step
+	for _, name := range req.SkipASTTransformations {
+		hash = fnv1a.AddString64(hash, name)
+	}
 
 	return hash
 }

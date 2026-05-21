@@ -132,7 +132,9 @@ func TestSpansetFilter_extractConditions(t *testing.T) {
 			expr, err := Parse(tt.query)
 			require.NoError(t, err)
 
-			spansetFilter := expr.Pipeline.Elements[0].(*SpansetFilter)
+			pipeline, ok := expr.SinglePipeline()
+			require.True(t, ok)
+			spansetFilter := pipeline.Elements[0].(*SpansetFilter)
 
 			req := &FetchSpansRequest{
 				Conditions:    []Condition{},
@@ -193,7 +195,9 @@ func TestScalarFilter_extractConditions(t *testing.T) {
 				Conditions:    []Condition{},
 				AllConditions: true,
 			}
-			expr.Pipeline.extractConditions(req)
+			pipeline, ok := expr.SinglePipeline()
+			require.True(t, ok)
+			pipeline.extractConditions(req)
 
 			assert.Equal(t, tt.conditions, req.Conditions)
 			assert.Nil(t, req.SecondPassConditions)
@@ -242,7 +246,9 @@ func TestStructuralNestedSet_extractConditions(t *testing.T) {
 				Conditions:    []Condition{},
 				AllConditions: true,
 			}
-			expr.Pipeline.extractConditions(req)
+			pipeline, ok := expr.SinglePipeline()
+			require.True(t, ok)
+			pipeline.extractConditions(req)
 
 			assert.Equal(t, tt.conditions, req.Conditions)
 			assert.Nil(t, req.SecondPassConditions)
@@ -302,7 +308,9 @@ func TestSelect_extractConditions(t *testing.T) {
 				Conditions:    []Condition{},
 				AllConditions: true,
 			}
-			expr.Pipeline.extractConditions(req)
+			pipeline, ok := expr.SinglePipeline()
+			require.True(t, ok)
+			pipeline.extractConditions(req)
 
 			assert.Equal(t, tt.conditions, req.Conditions)
 			assert.Equal(t, tt.secondPassConditions, req.SecondPassConditions)
@@ -335,10 +343,14 @@ func TestMetricsAggregate_extractConditions(t *testing.T) {
 			expr, err := Parse(q)
 			require.NoError(t, err)
 
-			req := &FetchSpansRequest{
+			req := FetchSpansRequest{
 				AllConditions: true,
 			}
-			expr.extractConditions(req)
+			subReq := expr.extractConditions(req)
+			require.Len(t, subReq, 1, "must have only one sub-query")
+			for _, v := range subReq {
+				req = v
+			}
 
 			require.Equal(t, tt.first, req.Conditions)
 			require.Equal(t, tt.second, req.SecondPassConditions)
@@ -468,11 +480,15 @@ func TestUnaryOperation_extractConditions(t *testing.T) {
 			expr, err := Parse(tt.query)
 			require.NoError(t, err)
 
-			req := &FetchSpansRequest{
+			req := FetchSpansRequest{
 				Conditions:    []Condition{},
 				AllConditions: true,
 			}
-			expr.extractConditions(req)
+			subReq := expr.extractConditions(req)
+			require.Len(t, subReq, 1, "must have only one sub-query")
+			for _, v := range subReq {
+				req = v
+			}
 
 			assert.Equal(t, tt.conditions, req.Conditions)
 			assert.Nil(t, req.SecondPassConditions)

@@ -159,6 +159,37 @@ func (w *WAL) Clear() error {
 	return os.RemoveAll(w.c.Filepath)
 }
 
+// ClearTombstonedBlocks removes WAL block dirs containing meta.deleted.json,
+// left by a crash between Tombstone and Clear. Returns the count.
+func (w *WAL) ClearTombstonedBlocks() (int, error) {
+	entries, err := os.ReadDir(w.c.Filepath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("read wal dir: %w", err)
+	}
+	cleared := 0
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		marker := filepath.Join(w.c.Filepath, e.Name(), backend.DeletedMetaName)
+		if _, err := os.Stat(marker); err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return cleared, fmt.Errorf("stat marker %s: %w", marker, err)
+		}
+		dir := filepath.Join(w.c.Filepath, e.Name())
+		if err := os.RemoveAll(dir); err != nil {
+			return cleared, fmt.Errorf("remove tombstoned wal block %s: %w", dir, err)
+		}
+		cleared++
+	}
+	return cleared, nil
+}
+
 func (w *WAL) LocalBackend() *local.Backend {
 	return w.l
 }

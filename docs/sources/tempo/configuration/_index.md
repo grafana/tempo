@@ -191,7 +191,24 @@ server:
     # Allow clients to send pings even when there are no active streams.
     # Tempo enables this by default to prevent GOAWAY errors during idle periods.
     [grpc_server_ping_without_stream_allowed: <bool> | default = true]
+
+    # Size of the read buffer for each gRPC connection (bytes).
+    # A smaller buffer may reduce memory usage but may lead to more system calls.
+    [grpc_server_read_buffer_size: <int> | default = 32768]
+
+    # Size of the write buffer for each gRPC connection (bytes).
+    # A smaller buffer may reduce memory usage but may lead to more system calls.
+    [grpc_server_write_buffer_size: <int> | default = 32768]
 ```
+
+### Internal server
+
+Tempo can expose a separate HTTP server for internal endpoints (health checks, metrics, readiness) on a dedicated port.
+This keeps internal traffic isolated from the public API.
+The `internal_server` block accepts the same fields as `server` but defaults to port `3101` with instrumentation disabled.
+The internal server is disabled by default; set `internal_server.enable: true` to activate it.
+
+For the full list of `internal_server` options, refer to the [manifest](/docs/tempo/<TEMPO_VERSION>/configuration/manifest/).
 
 ## Memory
 
@@ -386,6 +403,9 @@ Any key or values that exceed the configured limit are truncated before storing.
 The default value is `2048`.
 
 Use the `tempo_distributor_attributes_truncated_total` metric to track how many attributes are truncated.
+This metric includes `tenant` and `scope` labels, where `scope` is one of `resource`, `scope`, `span`, `event`, or `link`.
+
+When truncation occurs, the distributor also emits a rate-limited log line (at most one per second) with diagnostic details including the tenant, total truncated count, configured limit, and an example of the first truncated attribute (scope, name, field, and original size).
 
 For additional information, refer to [Troubleshoot out-of-memory errors](https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/out-of-memory-errors/).
 
@@ -574,6 +594,12 @@ live_store:
 
     # Duration to keep blocks in the live-store after they have been completed.
     [complete_block_timeout: <duration> | default = 20m]
+
+    # Duration to wait after a block is removed from the in-memory snapshot before deleting
+    # its files on disk. Must be at least the maximum querier->live-store call timeout
+    # (querier.search.query_timeout, default 30s) so in-flight queries iterating an older
+    # snapshot don't see ENOENT on page files.
+    [block_reclaim_grace: <duration> | default = 2m]
 
     # Target consumer lag threshold before the live-store is considered ready to serve queries.
     # Set to 0 to disable readiness waiting.
@@ -933,6 +959,11 @@ query_frontend:
     # (default: 128 KiB)
     [max_query_expression_size_bytes: <int> | default = 131072]
 
+    # List of AST transformation names to disable globally for all TraceQL queries.
+    # Possible values: "or_to_in", "all" ("all" disables every transformation).
+    # (default: <empty list>, all transformations enabled)
+    [skip_ast_transformations: <list of strings> | default = []]
+
     search:
 
         # The number of concurrent jobs to execute when searching the backend.
@@ -1002,12 +1033,18 @@ query_frontend:
     # Trace by ID lookup configuration
     trace_by_id:
         # The number of shards to split a trace by id query into.
+        # (Deprecated, only used when blocks_per_shard is 0)
         # (default: 50)
         [query_shards: <int>]
 
-        # The maximum number of shards to execute at once. If set to 0 query_shards is used.
+        # The maximum number of shards to execute at once. If set to 0 then all are run concurrently.
         # (default: 0)
         [concurrent_shards: <int>]
+
+        # Determines the number of shards dynamically by targeting this number
+        # of blocks per shard. A value of 0 disables this feature and falls back to query_shards.
+        # (default: 30)
+        [blocks_per_shard: <int>]
 
         # Enable external trace source for trace-by-ID queries. When enabled,
         # the frontend will create an additional shard to query the external endpoint
@@ -1849,6 +1886,11 @@ memberlist:
     # is not needed.
     [rejoin_interval: <duration> | default = 0s]
 
+    # Seed nodes to use for periodic rejoin. Takes precedence over join_members
+    # for rejoining. If not specified, join_members is used.
+    # Supports IP, hostname, or DNS Service Discovery format.
+    [rejoin_seed_nodes: <string> | default = ""]
+
     # Timeout for leaving memberlist cluster.
     [leave_timeout: <duration> | default = 20s]
 
@@ -1882,6 +1924,21 @@ memberlist:
 
     # Timeout for writing 'packet' data.
     [packet_write_timeout: <duration> | default = 5s]
+
+    # Experimental. Tracks how long gossip updates take to propagate across the cluster.
+    propagation_delay_tracker:
+        # Enable the propagation delay tracker.
+        [enabled: <bool> | default = false]
+
+        # How often to publish beacon messages for propagation measurement.
+        [beacon_interval: <duration> | default = 1m]
+
+        # How long a beacon lives before being garbage collected.
+        [beacon_lifetime: <duration> | default = 10m]
+
+        # Log a warning when beacon propagation delay exceeds this threshold.
+        # 0 disables logging.
+        [log_beacons_latency_longer_than: <duration> | default = 0s]
 
 ```
 

@@ -895,12 +895,9 @@ func TestPollComparePreviousResults(t *testing.T) {
 					(uuid.UUID)(eff): 1,
 				},
 			},
-			expectedCompactedBlockMetaCalls: map[string]map[uuid.UUID]int{
-				"test": {
-					(uuid.UUID)(aaa):  1,
-					(uuid.UUID)(zero): 1,
-				},
-			},
+			// zero and aaa were previously known as live blocks, so their CompactedBlockMeta
+			// is synthesized from cached data — no backend fetch required.
+			expectedCompactedBlockMetaCalls: nil,
 		},
 		{
 			name:              "with previous compactions should be known",
@@ -1082,13 +1079,72 @@ func TestPollComparePreviousResults(t *testing.T) {
 					x := bytes.Compare(expectedCompactedMetas[i].BlockID[:], expectedCompactedMetas[j].BlockID[:])
 					return x > 0
 				})
-				require.Equal(t, expectedCompactedMetas, l)
+
+				// Strip CompactedTime before comparing: blocks synthesized from previously-known
+				// live blocks use time.Now(), which we cannot predict in expected values.
+				stripped := make([]*backend.CompactedBlockMeta, len(l))
+				for i, m := range l {
+					stripped[i] = &backend.CompactedBlockMeta{BlockMeta: m.BlockMeta}
+				}
+				require.Equal(t, expectedCompactedMetas, stripped)
 			}
 
 			require.Equal(t, tc.expectedBlockMetaCalls, r.(*backend.MockReader).BlockMetaCalls)
 			require.Equal(t, tc.expectedCompactedBlockMetaCalls, c.(*backend.MockCompactor).CompactedBlockMetaCalls)
 		})
 	}
+}
+
+// TestPollLiveToCompactedSynthesized verifies that blocks previously known as live are
+// synthesized into CompactedBlockMeta without a backend fetch, and that CompactedTime is set.
+func TestPollLiveToCompactedSynthesized(t *testing.T) {
+	blockID := backend.MustParse("00000000-0000-0000-0000-000000000001")
+	tenantID := "test"
+
+	previousMeta := &backend.BlockMeta{
+		BlockID:  blockID,
+		TenantID: tenantID,
+	}
+
+	// Previous poll saw the block as live; current poll reports it as compacted.
+	previous := newBlocklist(
+		PerTenant{tenantID: []*backend.BlockMeta{previousMeta}},
+		PerTenantCompacted{},
+	)
+	currentCompacted := PerTenantCompacted{
+		tenantID: []*backend.CompactedBlockMeta{
+			{BlockMeta: backend.BlockMeta{BlockID: blockID}},
+		},
+	}
+
+	c := newMockCompactor(currentCompacted, false)
+	r := newMockReader(PerTenant{}, currentCompacted, false)
+	w := &backend.MockWriter{}
+	s := &mockJobSharder{owns: true}
+
+	poller := NewPoller(&PollerConfig{
+		PollConcurrency:       testPollConcurrency,
+		TenantPollConcurrency: testTenantPollConcurrency,
+		PollFallback:          testPollFallback,
+		TenantIndexBuilders:   testBuilders,
+	}, s, r, c, w, log.NewNopLogger())
+
+	before := time.Now()
+	_, compactedMetas, err := poller.Do(context.Background(), previous)
+	require.NoError(t, err)
+
+	// Block should appear in the compacted list.
+	require.Len(t, compactedMetas[tenantID], 1)
+	got := compactedMetas[tenantID][0]
+	require.Equal(t, blockID, got.BlockID)
+	require.Equal(t, *previousMeta, got.BlockMeta)
+
+	// CompactedTime must be set (non-zero and after our start time).
+	require.False(t, got.CompactedTime.IsZero(), "CompactedTime should be set for synthesized compacted block")
+	require.True(t, got.CompactedTime.After(before) || got.CompactedTime.Equal(before))
+
+	// No backend fetch should have occurred for this block.
+	require.Empty(t, c.(*backend.MockCompactor).CompactedBlockMetaCalls)
 }
 
 func BenchmarkPoller10k(b *testing.B) {

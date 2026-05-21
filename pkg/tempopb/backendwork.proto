@@ -97,10 +97,11 @@ message UpdateJobStatusResponse {
 }
 
 // SubmitRedactionRequest is the user-facing API for redacting traces from a tenant.
-// The caller provides the tenant and the trace IDs to remove. The scheduler discovers
-// all blocks for the tenant and fans out one internal pending job per block.
+// The scheduler fans out one internal pending job per block for the authenticated tenant.
+// The tenant is sourced exclusively from the X-Scope-OrgID request header; the server
+// ignores tenant_id in the body to prevent cross-tenant escalation.
 message SubmitRedactionRequest {
-  string tenant_id = 1;
+  string tenant_id = 1 [deprecated = true]; // ignored by the server; tenant is read from the request header
   repeated bytes trace_ids = 2;
 }
 

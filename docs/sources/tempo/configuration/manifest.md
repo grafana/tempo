@@ -344,6 +344,7 @@ query_frontend:
         max_spans_per_span_set: 100
     trace_by_id:
         query_shards: 50
+        blocks_per_shard: 30
     metrics:
         concurrent_jobs: 1000
         target_bytes_per_job: 104857600
@@ -362,6 +363,7 @@ query_frontend:
         max_regex_conditions: 1
     mcp_server:
         enabled: false
+    max_grpc_streaming_packet_size: 2097152
     max_query_expression_size_bytes: 131072
 metrics_generator:
     ring:
@@ -1050,6 +1052,7 @@ live_store:
     query_block_concurrency: 10
     complete_block_timeout: 20m0s
     complete_block_concurrency: 2
+    block_reclaim_grace: 2m0s
     shutdown_marker_dir: /var/tempo/live-store/shutdown-marker
     flush_check_period: 5s
     flush_op_timeout: 5m0s

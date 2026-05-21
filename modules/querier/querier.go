@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"time"
 
 	"github.com/go-kit/log/level"
 	httpgrpc_server "github.com/grafana/dskit/httpgrpc/server"
@@ -177,7 +178,7 @@ func (q *Querier) stopping(_ error) error {
 }
 
 // FindTraceByID implements tempopb.Querier.
-func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest, timeStart int64, timeEnd int64) (*tempopb.TraceByIDResponse, error) {
+func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest, timeStart, timeEnd time.Time) (*tempopb.TraceByIDResponse, error) {
 	if !validation.ValidTraceID(req.TraceID) {
 		return nil, errors.New("invalid trace id")
 	}
@@ -239,8 +240,8 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 	if req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll {
 		span.AddEvent("searching store", oteltrace.WithAttributes(
-			attribute.Int64("timeStart", timeStart),
-			attribute.Int64("timeEnd", timeEnd),
+			attribute.String("timeStart", timeStart.String()),
+			attribute.String("timeEnd", timeEnd.String()),
 		))
 
 		opts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
@@ -277,8 +278,8 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		if req.QueryMode == QueryModeExternal || req.QueryMode == QueryModeAll {
 			span.AddEvent("searching external", oteltrace.WithAttributes(
 				attribute.String("traceID", hex.EncodeToString(req.TraceID)),
-				attribute.Int64("timeStart", timeStart),
-				attribute.Int64("timeEnd", timeEnd),
+				attribute.String("timeStart", timeStart.String()),
+				attribute.String("timeEnd", timeEnd.String()),
 			))
 			externalResp, err := q.externalClient.TraceByID(ctx, userID, req.TraceID, timeStart, timeEnd)
 			if err != nil {
@@ -654,7 +655,14 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 			},
 		)
 
-		return q.engine.ExecuteSearch(ctx, req.SearchReq, fetcher, q.limits.UnsafeQueryHints(tenantID))
+		var compileOpts []traceql.CompileOption
+		if q.limits.UnsafeQueryHints(tenantID) {
+			compileOpts = append(compileOpts, traceql.WithUnsafeHints(true))
+		}
+		for _, name := range req.SearchReq.SkipASTTransformations {
+			compileOpts = append(compileOpts, traceql.WithSkipOptimization(name))
+		}
+		return q.engine.ExecuteSearch(ctx, req.SearchReq, fetcher, compileOpts...)
 	}
 
 	return q.store.Search(ctx, meta, req.SearchReq, opts)

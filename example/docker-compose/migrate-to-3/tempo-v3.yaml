@@ -1,0 +1,110 @@
+# Tempo 3.0 microservices configuration.
+# Shared by all v3 components; each runs with -target=<role>.
+#
+# Notes vs the 2.x config:
+#   - No `ingester:`, `compactor:`, `ingester_client:`, `metrics_generator_client:` blocks.
+#   - New `ingest:` block points at Redpanda/Kafka.
+#   - New `block_builder:` block (one Kafka partition per replica).
+#   - New `live_store:` and `backend_scheduler:`/`backend_worker:` blocks.
+#   - `compaction_disabled: true` is set in overrides for the parallel-deployment
+#     phase. REMOVE that override after the 2.x deployment is decommissioned
+#     (see step 6 in README.md).
+
+stream_over_http_enabled: true
+
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+        http:
+          endpoint: "0.0.0.0:4318"
+
+memberlist:
+  cluster_label: tempo-v3
+  abort_if_cluster_join_fails: false
+  bind_port: 7946
+  join_members:
+    - tempo-v3-live-store-0:7946
+    - tempo-v3-live-store-1:7946
+
+ingest:
+  kafka:
+    address: redpanda:9092
+    topic: tempo-ingest
+
+block_builder:
+  consume_cycle_duration: 30s
+  partitions_per_instance: 1
+
+live_store:
+  readiness_target_lag: 5s
+  # Lowered from the 30m default so this demo doesn't block for a long time
+  # when the live-store starts against an empty Kafka topic (it has no record
+  # to use as a high-water mark, so it always waits the full max_wait). Real
+  # deployments can usually leave the default in place.
+  readiness_max_wait: 30s
+
+backend_scheduler:
+  provider:
+    compaction:
+      compaction:
+        block_retention: 1h
+
+backend_worker:
+  backend_scheduler_addr: tempo-v3-backend-scheduler:9095
+  compaction:
+    block_retention: 1h
+  ring:
+    kvstore:
+      store: memberlist
+
+querier:
+  frontend_worker:
+    frontend_address: tempo-v3-query-frontend:9095
+
+metrics_generator:
+  registry:
+    external_labels:
+      source: tempo
+      cluster: docker-compose-v3
+  storage:
+    path: /var/tempo/generator/wal
+    remote_write:
+      - url: http://prometheus:9090/api/v1/write
+        send_exemplars: true
+
+storage:
+  trace:
+    backend: s3
+    # Lowered from the 5m default so newly-flushed v2 blocks become visible to
+    # the v3 querier within ~1m during this demo. Real deployments can leave
+    # this at 5m — v2 will have been running long enough that the lag is
+    # invisible.
+    blocklist_poll: 1m
+    s3:
+      bucket: tempo # SAME bucket as v2 -- shared object storage.
+      endpoint: minio:9000
+      access_key: tempo
+      secret_key: supersecret
+      insecure: true
+    wal:
+      path: /var/tempo/wal
+
+overrides:
+  defaults:
+    metrics_generator:
+      processors: ["span-metrics", "service-graphs"]
+      generate_native_histograms: both
+    # Disable compaction in 3.0 while v2 compactors are still running.
+    # Only one compaction system can safely write to shared storage at a time.
+    # Remove this block after step 6 in README.md (decommissioning v2).
+    compaction:
+      compaction_disabled: true
+
+usage_report:
+  reporting_enabled: false

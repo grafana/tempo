@@ -47,7 +47,7 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// validate request
-	blockStart, blockEnd, queryMode, timeStart, timeEnd, err := api.ValidateAndSanitizeRequest(r)
+	blockStart, blockEnd, queryMode, timeStart, timeEnd, err := api.ParseTraceByIDRequest(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -56,8 +56,8 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		attribute.String("blockStart", blockStart),
 		attribute.String("blockEnd", blockEnd),
 		attribute.String("queryMode", queryMode),
-		attribute.String("timeStart", fmt.Sprint(timeStart)),
-		attribute.String("timeEnd", fmt.Sprint(timeEnd)),
+		attribute.String("timeStart", timeStart.String()),
+		attribute.String("timeEnd", timeEnd.String()),
 		attribute.String("apiVersion", "v1"),
 	))
 
@@ -96,7 +96,7 @@ func (q *Querier) TraceByIDHandlerV2(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// validate request
-	blockStart, blockEnd, queryMode, timeStart, timeEnd, err := api.ValidateAndSanitizeRequest(r)
+	blockStart, blockEnd, queryMode, timeStart, timeEnd, err := api.ParseTraceByIDRequest(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -105,8 +105,8 @@ func (q *Querier) TraceByIDHandlerV2(w http.ResponseWriter, r *http.Request) {
 		attribute.String("blockStart", blockStart),
 		attribute.String("blockEnd", blockEnd),
 		attribute.String("queryMode", queryMode),
-		attribute.String("timeStart", fmt.Sprint(timeStart)),
-		attribute.String("timeEnd", fmt.Sprint(timeEnd)),
+		attribute.String("timeStart", timeStart.String()),
+		attribute.String("timeEnd", timeEnd.String()),
 		attribute.String("apiVersion", "v2"),
 	))
 

@@ -35,6 +35,11 @@ type Config struct {
 	CompleteBlockTimeout     time.Duration `yaml:"complete_block_timeout"`
 	CompleteBlockConcurrency int           `yaml:"complete_block_concurrency,omitempty"`
 
+	// BlockReclaimGrace delays on-disk file deletion after a block is
+	// removed from the snapshot, so in-flight readers don't hit ENOENT.
+	// Must be >= querier search.query_timeout (30s default).
+	BlockReclaimGrace time.Duration `yaml:"block_reclaim_grace"`
+
 	// ShutdownMarkerDir is the path to the shutdown marker directory
 	ShutdownMarkerDir string `yaml:"shutdown_marker_dir"`
 
@@ -55,7 +60,7 @@ type Config struct {
 	// below this value. Set to 0 to disable readiness waiting (default, backward compatible).
 	ReadinessTargetLag time.Duration `yaml:"readiness_target_lag"`
 
-	// ReadinessMaxWait is the maximum time to wait for catching up a˛t startup.
+	// ReadinessMaxWait is the maximum time to wait for catching up at startup.
 	// If this timeout is exceeded, the live-store becomes ready anyway.
 	// Only used if ReadinessTargetLag > 0. Default: 30m.
 	ReadinessMaxWait time.Duration `yaml:"readiness_max_wait"`
@@ -105,6 +110,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.MaxLiveTracesBytes = 250_000_000 // 250MB
 	cfg.MaxBlockDuration = 30 * time.Second
 	cfg.MaxBlockBytes = 50 * 1024 * 1024
+	cfg.BlockReclaimGrace = 2 * time.Minute
 
 	cfg.CommitInterval = 5 * time.Second
 	cfg.ConsumeFromKafka = true
@@ -166,6 +172,10 @@ func (cfg *Config) Validate() error {
 
 	if cfg.MaxBlockBytes == 0 {
 		return fmt.Errorf("max_block_bytes must be greater than 0, got %d", cfg.MaxBlockBytes)
+	}
+
+	if cfg.BlockReclaimGrace <= 0 {
+		return fmt.Errorf("block_reclaim_grace must be greater than 0, got %s", cfg.BlockReclaimGrace)
 	}
 
 	if cfg.MaxTraceIdle > cfg.MaxTraceLive {

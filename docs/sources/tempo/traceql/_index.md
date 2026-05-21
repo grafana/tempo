@@ -54,8 +54,6 @@ For more information, refer to [Write TraceQL queries in Grafana](http://grafana
 TraceQL metrics generate metrics from traces and let you use TraceQL to query metrics.
 Refer to [TraceQL metrics](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/) for more information.
 
-{{< docs/shared source="tempo" lookup="traceql-metrics-admonition.md" version="<TEMPO_VERSION>" >}}
-
 ## Resources
 
 TraceQL requires the Parquet columnar format, which is the default block format for Tempo. Refer to the [Apache Parquet backend](http://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/parquet) documentation.

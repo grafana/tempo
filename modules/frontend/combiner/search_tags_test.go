@@ -359,3 +359,192 @@ func testGRPCCombiner[T proto.Message](t *testing.T, combiner GRPCCombiner[T], r
 	sort(actualFinal)
 	require.Equal(t, expectedFinal, actualFinal)
 }
+
+func TestSegmentSearchTagsResponse(t *testing.T) {
+	input := &tempopb.SearchTagsResponse{
+		Metrics:  &tempopb.MetadataMetrics{},
+		TagNames: []string{"a", "b", "c"},
+	}
+
+	t.Run("fits", func(t *testing.T) {
+		// Generate a test packet size that is large enough for only part of the data.
+		maxSize := (&tempopb.SearchTagsResponse{
+			Metrics:  input.Metrics,
+			TagNames: input.TagNames[:2],
+		}).Size()
+		out := segmentSearchTagsResponse(input, maxSize)
+
+		require.Len(t, out, 2)
+		requireProtoSegmentsFit(t, out, maxSize)
+		require.Len(t, out[0].TagNames, 2)
+		require.Len(t, out[1].TagNames, 1)
+		require.Equal(t, input.TagNames[0], out[0].TagNames[0])
+		require.Equal(t, input.TagNames[1], out[0].TagNames[1])
+		require.Equal(t, input.TagNames[2], out[1].TagNames[0])
+		require.Equal(t, input.Metrics, out[0].Metrics)
+		require.Equal(t, input.Metrics, out[1].Metrics)
+	})
+
+	t.Run("at least one", func(t *testing.T) {
+		// This is smaller than every item but will test logic to ensure we always send at least one item even if too big
+		const maxSize = 1
+		out := segmentSearchTagsResponse(input, maxSize)
+
+		require.Len(t, out, 3)
+		require.Len(t, out[0].TagNames, 1)
+		require.Len(t, out[1].TagNames, 1)
+		require.Len(t, out[2].TagNames, 1)
+		require.Equal(t, input.TagNames[0], out[0].TagNames[0])
+		require.Equal(t, input.TagNames[1], out[1].TagNames[0])
+		require.Equal(t, input.TagNames[2], out[2].TagNames[0])
+		require.Equal(t, input.Metrics, out[0].Metrics)
+		require.Equal(t, input.Metrics, out[1].Metrics)
+		require.Equal(t, input.Metrics, out[2].Metrics)
+	})
+}
+
+func TestSegmentSearchTagsV2Response(t *testing.T) {
+	input := &tempopb.SearchTagsV2Response{
+		Metrics: &tempopb.MetadataMetrics{},
+		Scopes: []*tempopb.SearchTagsV2Scope{{
+			Name: "s1",
+			Tags: []string{
+				"aaaaaaaaaaaaaaaaaaaa",
+				"bbbbbbbbbbbbbbbbbbbb",
+				"cccccccccccccccccccc",
+			},
+		}},
+	}
+
+	t.Run("fits", func(t *testing.T) {
+		// Generate a test packet size that is large enough for only part of the data.
+		maxSize := (&tempopb.SearchTagsV2Response{
+			Metrics: input.Metrics,
+			Scopes: []*tempopb.SearchTagsV2Scope{
+				{Name: input.Scopes[0].Name, Tags: input.Scopes[0].Tags[:2]},
+			},
+		}).Size()
+		out := segmentSearchTagsV2Response(input, maxSize)
+
+		require.Len(t, out, 2)
+		requireProtoSegmentsFit(t, out, maxSize)
+		require.Len(t, out[0].Scopes, 1)
+		require.Len(t, out[1].Scopes, 1)
+		require.Equal(t, input.Scopes[0].Name, out[0].Scopes[0].Name)
+		require.Equal(t, input.Scopes[0].Name, out[1].Scopes[0].Name)
+		require.Equal(t, input.Scopes[0].Tags[0:2], out[0].Scopes[0].Tags)
+		require.Equal(t, input.Scopes[0].Tags[2:3], out[1].Scopes[0].Tags)
+		require.Equal(t, input.Metrics, out[0].Metrics)
+		require.Equal(t, input.Metrics, out[1].Metrics)
+	})
+
+	t.Run("at least one", func(t *testing.T) {
+		// This is smaller than every item but will test logic to ensure we always send at least one item even if too big
+		const maxSize = 1
+		out := segmentSearchTagsV2Response(input, maxSize)
+
+		require.Len(t, out, 3)
+		require.Len(t, out[0].Scopes, 1)
+		require.Len(t, out[1].Scopes, 1)
+		require.Len(t, out[2].Scopes, 1)
+		require.Equal(t, input.Scopes[0].Name, out[0].Scopes[0].Name)
+		require.Equal(t, input.Scopes[0].Name, out[1].Scopes[0].Name)
+		require.Equal(t, input.Scopes[0].Name, out[2].Scopes[0].Name)
+		require.Equal(t, input.Scopes[0].Tags[0:1], out[0].Scopes[0].Tags)
+		require.Equal(t, input.Scopes[0].Tags[1:2], out[1].Scopes[0].Tags)
+		require.Equal(t, input.Scopes[0].Tags[2:3], out[2].Scopes[0].Tags)
+		require.Equal(t, input.Metrics, out[0].Metrics)
+		require.Equal(t, input.Metrics, out[1].Metrics)
+		require.Equal(t, input.Metrics, out[2].Metrics)
+	})
+}
+
+func TestSegmentSearchTagValuesResponse(t *testing.T) {
+	input := &tempopb.SearchTagValuesResponse{
+		Metrics:   &tempopb.MetadataMetrics{},
+		TagValues: []string{"a", "b", "c"},
+	}
+
+	t.Run("fits", func(t *testing.T) {
+		// Generate a test packet size that is large enough for only part of the data.
+		maxSize := (&tempopb.SearchTagValuesResponse{
+			Metrics:   input.Metrics,
+			TagValues: input.TagValues[:2],
+		}).Size()
+		out := segmentSearchTagValuesResponse(input, maxSize)
+
+		require.Len(t, out, 2)
+		requireProtoSegmentsFit(t, out, maxSize)
+		require.Len(t, out[0].TagValues, 2)
+		require.Len(t, out[1].TagValues, 1)
+		require.Equal(t, input.TagValues[0], out[0].TagValues[0])
+		require.Equal(t, input.TagValues[1], out[0].TagValues[1])
+		require.Equal(t, input.TagValues[2], out[1].TagValues[0])
+		require.Equal(t, input.Metrics, out[0].Metrics)
+		require.Equal(t, input.Metrics, out[1].Metrics)
+	})
+
+	t.Run("at least one", func(t *testing.T) {
+		// This is smaller than every item but will test logic to ensure we always send at least one item even if too big
+		const maxSize = 1
+		out := segmentSearchTagValuesResponse(input, maxSize)
+
+		require.Len(t, out, 3)
+		require.Len(t, out[0].TagValues, 1)
+		require.Len(t, out[1].TagValues, 1)
+		require.Len(t, out[2].TagValues, 1)
+		require.Equal(t, input.TagValues[0], out[0].TagValues[0])
+		require.Equal(t, input.TagValues[1], out[1].TagValues[0])
+		require.Equal(t, input.TagValues[2], out[2].TagValues[0])
+		require.Equal(t, input.Metrics, out[0].Metrics)
+		require.Equal(t, input.Metrics, out[1].Metrics)
+		require.Equal(t, input.Metrics, out[2].Metrics)
+	})
+}
+
+func TestSegmentSearchTagValuesV2Response(t *testing.T) {
+	input := &tempopb.SearchTagValuesV2Response{
+		Metrics: &tempopb.MetadataMetrics{},
+		TagValues: []*tempopb.TagValue{
+			{Type: "string", Value: "a"},
+			{Type: "string", Value: "b"},
+			{Type: "string", Value: "c"},
+		},
+	}
+
+	t.Run("fits", func(t *testing.T) {
+		// Generate a test packet size that is large enough for only part of the data.
+		maxSize := (&tempopb.SearchTagValuesV2Response{
+			Metrics:   input.Metrics,
+			TagValues: input.TagValues[:2],
+		}).Size()
+		out := segmentSearchTagValuesV2Response(input, maxSize)
+
+		require.Len(t, out, 2)
+		requireProtoSegmentsFit(t, out, maxSize)
+		require.Len(t, out[0].TagValues, 2)
+		require.Len(t, out[1].TagValues, 1)
+		require.Equal(t, input.TagValues[0], out[0].TagValues[0])
+		require.Equal(t, input.TagValues[1], out[0].TagValues[1])
+		require.Equal(t, input.TagValues[2], out[1].TagValues[0])
+		require.Equal(t, input.Metrics, out[0].Metrics)
+		require.Equal(t, input.Metrics, out[1].Metrics)
+	})
+
+	t.Run("at least one", func(t *testing.T) {
+		// This is smaller than every item but will test logic to ensure we always send at least one item even if too big
+		const maxSize = 1
+		out := segmentSearchTagValuesV2Response(input, maxSize)
+
+		require.Len(t, out, 3)
+		require.Len(t, out[0].TagValues, 1)
+		require.Len(t, out[1].TagValues, 1)
+		require.Len(t, out[2].TagValues, 1)
+		require.Equal(t, input.TagValues[0], out[0].TagValues[0])
+		require.Equal(t, input.TagValues[1], out[1].TagValues[0])
+		require.Equal(t, input.TagValues[2], out[2].TagValues[0])
+		require.Equal(t, input.Metrics, out[0].Metrics)
+		require.Equal(t, input.Metrics, out[1].Metrics)
+		require.Equal(t, input.Metrics, out[2].Metrics)
+	})
+}

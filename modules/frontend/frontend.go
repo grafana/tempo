@@ -146,7 +146,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			pipeline.NewWeightRequestWare(pipeline.TraceByID, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			tenantValidatorWare,
-			newAsyncTraceIDSharder(&cfg.TraceByID, jobsPerQuery, logger),
+			newAsyncTraceIDSharder(&cfg.TraceByID, cfg.Config.MaxOutstandingPerTenant, reader, jobsPerQuery, logger),
 		},
 		[]pipeline.Middleware{traceIDStatusCodeWare, retryWare},
 		next)
@@ -160,7 +160,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			pipeline.NewWeightRequestWare(pipeline.TraceQLSearch, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			tenantValidatorWare,
-			newAsyncSearchSharder(reader, o, cfg.Search.Sharder, jobsPerQuery, logger),
+			newAsyncSearchSharder(reader, o, cfg.Search.Sharder, cfg.SkipASTTransformations, jobsPerQuery, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next)
@@ -216,7 +216,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			pipeline.NewWeightRequestWare(pipeline.TraceQLMetrics, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			tenantValidatorWare,
-			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, false, jobsPerQuery, logger),
+			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, cfg.SkipASTTransformations, false, jobsPerQuery, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next)
@@ -230,7 +230,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			pipeline.NewWeightRequestWare(pipeline.TraceQLMetrics, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			tenantValidatorWare,
-			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, true, jobsPerQuery, logger),
+			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, cfg.SkipASTTransformations, true, jobsPerQuery, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next)

@@ -72,7 +72,7 @@ func TestClient_TraceByID(t *testing.T) {
 
 	// Call TraceByID
 	ctx := context.Background()
-	resp, err := client.TraceByID(ctx, userID, traceID, 123, 456)
+	resp, err := client.TraceByID(ctx, userID, traceID, time.Unix(123, 0), time.Unix(456, 0))
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	require.NotNil(t, resp.Trace)
