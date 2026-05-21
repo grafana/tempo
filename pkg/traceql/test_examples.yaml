@@ -399,6 +399,7 @@ parse_fails:
   - '({} | rate()) ** ({} | count_over_time())'
   - '({} | rate()) >> ({} | count_over_time())'
   - '({} | rate()) << ({} | count_over_time())'
+  - '({} | rate()) * 100000000000000000000000000000' # overflow
 
 # validate_fails parse correctly and return an error **besides unsupported** when calling .validate()
 validate_fails:
