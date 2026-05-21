@@ -63,7 +63,7 @@ type Config struct {
 	// These are metrics categories that exist under the umbrella of Service Graphs.
 	// Bare "service-graphs" enables Request and Latency for backwards compatibility;
 	// ConnectionInfo is opt-in via the "service-graphs-connection-info" sub-name.
-	Subprocessors map[Subprocessor]bool
+	Subprocessors map[Subprocessor]bool `yaml:"-"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
