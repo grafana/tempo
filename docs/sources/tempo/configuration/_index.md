@@ -2341,13 +2341,13 @@ overrides:
       # Per-user configuration of the metrics-generator processors. The following processors are
       # supported:
       #  - service-graphs
-      #  - service-graphs-request          (only emits traces_service_graph_request_total and
-      #                                     traces_service_graph_request_failed_total)
-      #  - service-graphs-latency          (only emits the request_server_seconds,
+      #  - service-graphs-request          only emits traces_service_graph_request_total and
+      #                                     traces_service_graph_request_failed_total
+      #  - service-graphs-latency          only emits the request_server_seconds,
       #                                     request_client_seconds, and request_messaging_system_seconds
-      #                                     histograms)
-      #  - service-graphs-connection-info  (only emits traces_service_graph_connection_info;
-      #                                     opt-in, not enabled by the bare "service-graphs" name)
+      #                                     histograms
+      #  - service-graphs-connection-info  only emits traces_service_graph_connection_info;
+      #                                     opt-in, not enabled by the bare "service-graphs" name
       #  - span-metrics
       #  - span-metrics-count              (only emits traces_spanmetrics_calls_total)
       #  - span-metrics-latency            (only emits traces_spanmetrics_latency histogram)
