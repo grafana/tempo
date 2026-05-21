@@ -2,7 +2,6 @@ package vparquet3
 
 import (
 	"context"
-	"sync"
 
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
@@ -20,8 +19,6 @@ var tracer = otel.Tracer("tempodb/encoding/vparquet3")
 type backendBlock struct {
 	meta *backend.BlockMeta
 	r    backend.Reader
-
-	openMtx sync.Mutex
 }
 
 var _ common.BackendBlock = (*backendBlock)(nil)
