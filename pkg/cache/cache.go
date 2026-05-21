@@ -11,6 +11,11 @@ import (
 type Role string
 
 const (
+	// eventKeysRemoved is the span event name emitted when cache keys are deleted.
+	eventKeysRemoved = "cache.keys.removed"
+)
+
+const (
 	// individual roles
 	RoleNone             Role = "none"
 	RoleBloom            Role = "bloom"

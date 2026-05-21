@@ -132,7 +132,7 @@ func (c *RedisCache) Remove(ctx context.Context, keys []string) {
 		t := trace.SpanFromContext(ctx)
 		err := c.redis.Del(ctx, keys)
 		if err == nil {
-			t.AddEvent("cache.keys.removed", trace.WithAttributes(attribute.Int("keys", len(keys))))
+			t.AddEvent(eventKeysRemoved, trace.WithAttributes(attribute.Int("keys", len(keys))))
 		}
 		return err
 	})
