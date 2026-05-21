@@ -2443,6 +2443,49 @@ var queryRangeTestCases = []struct {
 			},
 		},
 	},
+	{
+		name: "math_operation_order",
+		req:  requestWithDefaultRange("({} | rate()) * (6 / 2 * (1+2))"), // is unterpreted as (6÷2)×(1+2)
+		expectedL1: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "rate"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 1.0},
+					{TimestampMs: 30_000, Value: 1.0},
+					{TimestampMs: 45_000, Value: 1.0},
+					{TimestampMs: 60_000, Value: 5.0 / 15.0},
+				},
+			},
+		},
+		expectedL2: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "rate"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 2 * 1.0},
+					{TimestampMs: 30_000, Value: 2 * 1.0},
+					{TimestampMs: 45_000, Value: 2 * 1.0},
+					{TimestampMs: 60_000, Value: 2 * 5.0 / 15.0},
+				},
+			},
+		},
+		expectedL3: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "rate"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 2 * 1.0 * 9},
+					{TimestampMs: 30_000, Value: 2 * 1.0 * 9},
+					{TimestampMs: 45_000, Value: 2 * 1.0 * 9},
+					{TimestampMs: 60_000, Value: 2 * 5.0 * 9 / 15.0},
+				},
+			},
+		},
+	},
 }
 
 var expectedCompareTs = []*tempopb.TimeSeries{

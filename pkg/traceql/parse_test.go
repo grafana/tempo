@@ -2064,6 +2064,22 @@ func TestMetricsMathExpression(t *testing.T) {
 				ChainedSecondStage{newMetricsFilter(OpGreater, 0.5, " ")},
 			),
 		},
+		// Parenthesised compound constant with mixed precedence on the left: (2 + 3/3) folds to 3
+		{
+			in: `(2 + 3/3) + ({} | rate())`,
+			expected: newRootExprScalarMath(OpAdd, 3,
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateRate, nil), nil),
+				true),
+		},
+		// Two parenthesised compound constants combined: (1+2) * (3+4) folds to 21
+		{
+			in: `({} | rate()) + (1+2) * (3+4)`,
+			expected: newRootExprScalarMath(OpAdd, 21,
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateRate, nil), nil),
+				false),
+		},
 	}
 
 	for _, tc := range tests {

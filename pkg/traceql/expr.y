@@ -457,6 +457,20 @@ constExpr:
   | constExpr ADD FLOAT   %prec ADD                           { $$ = $1 + $3 }
   | constExpr SUB INTEGER %prec SUB                           { $$ = $1 - float64($3) }
   | constExpr SUB FLOAT   %prec SUB                           { $$ = $1 - $3 }
+  // literal OP constExpr (right side reduced first via higher precedence, e.g. 2 + 3/3)
+  | INTEGER MUL constExpr %prec MUL                           { $$ = float64($1) * $3 }
+  | FLOAT MUL constExpr   %prec MUL                           { $$ = $1 * $3 }
+  | INTEGER DIV constExpr %prec DIV                           { $$ = float64($1) / $3 }
+  | FLOAT DIV constExpr   %prec DIV                           { $$ = $1 / $3 }
+  | INTEGER ADD constExpr %prec ADD                           { $$ = float64($1) + $3 }
+  | FLOAT ADD constExpr   %prec ADD                           { $$ = $1 + $3 }
+  | INTEGER SUB constExpr %prec SUB                           { $$ = float64($1) - $3 }
+  | FLOAT SUB constExpr   %prec SUB                           { $$ = $1 - $3 }
+  // constExpr OP constExpr (both sides paren-wrapped, e.g. (1+2) + (3+4))
+  | constExpr MUL constExpr %prec MUL                         { $$ = $1 * $3 }
+  | constExpr DIV constExpr %prec DIV                         { $$ = $1 / $3 }
+  | constExpr ADD constExpr %prec ADD                         { $$ = $1 + $3 }
+  | constExpr SUB constExpr %prec SUB                         { $$ = $1 - $3 }
   ;
 
 wrappedMetricsPipeline:
