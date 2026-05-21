@@ -73,7 +73,7 @@ The processor determines the database node name using the following span attribu
 Instead of enabling all service graph metrics, you can enable individual metric categories using subprocessors in the overrides configuration:
 
 - `service-graphs-request` — Enables only the `traces_service_graph_request_total` and `traces_service_graph_request_failed_total` counters
-- `service-graphs-latency` — Enables only the `traces_service_graph_request_server_seconds`, `traces_service_graph_request_client_seconds`, and `traces_service_graph_request_messaging_system_seconds` histograms
+- `service-graphs-latency` — Enables only the `traces_service_graph_request_server_seconds` and `traces_service_graph_request_client_seconds` histograms. The `traces_service_graph_request_messaging_system_seconds` histogram additionally requires `enable_messaging_system_latency_histogram: true` in the metrics-generator config.
 - `service-graphs-connection-info` — Enables only the `traces_service_graph_connection_info` gauge
 
 The bare `service-graphs` name enables request and latency metrics.
