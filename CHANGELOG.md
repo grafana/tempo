@@ -1,7 +1,7 @@
 ## main / unreleased
 
 * [ENHANCEMENT] tempodb: evict bloom filter and trace-id-index cache entries for blocks deleted during retention, freeing cache space for active blocks sooner. [#7204](https://github.com/grafana/tempo/pull/7204) (@zalegrala)
-* [ENHANCEMENT] cache: add `Remove` method to the `Cache` interface, implemented for memcached and redis. [#7203](https://github.com/grafana/tempo/pull/7203) (@zalegrala)
+* [ENHANCEMENT] cache: add `Remove` method to the `Cache` interface, implemented for memcached and redis. [#7204](https://github.com/grafana/tempo/pull/7204) (@zalegrala)
 
 * [ENHANCEMENT] tempo-mixin: update backendwork dashboard with a Redaction section (active jobs, created/completed/failed/dropped by tenant, job duration), add Dropped and Job Duration panels to the Jobs row, and fix the Retry metric name (`jobs_retry` -> `jobs_retry_total`). [#7184](https://github.com/grafana/tempo/pull/7184) (@zalegrala)
 * [FEATURE] jsonnet: Add KEDA autoscaling for live-store via Prometheus trigger on expected bytes held. Enable with `live_store.keda.enabled: true`. Configure block-builder coupling via `live_store.keda.block_builder_scaling`: `'rollout-operator'` (default, requires `rollout_operator_replica_template_access_enabled: true`) mirrors live-store zone-a replicas to block-builder; `'keda'` creates a dedicated block-builder KEDA ScaledObject using a kubernetes-workload trigger without requiring rollout-operator RBAC. [#7142](https://github.com/grafana/tempo/pull/7142) (@zachfi)
