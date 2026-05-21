@@ -1059,6 +1059,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 
 		// Determine usage of new fetch layer.
 		// Hint in the query takes precedence over passed in options which are hard-coded or from tenant config.
+		me.spanOnlyFetch = true
 		if cfg.spanOnlyFetch != nil {
 			me.spanOnlyFetch = *cfg.spanOnlyFetch
 		}
