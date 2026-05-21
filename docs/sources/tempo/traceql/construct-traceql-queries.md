@@ -119,18 +119,35 @@ It's a convenient request to identify misconfigurations and leaks across product
 ### Find traces with arrays
 
 TraceQL automatically queries data contained in arrays.
-Support for arrays is available in vParquet4 and on.
+Support for arrays is available in vParquet4 and later.
 
-If `span.foo` is an array and contains the value `bar`, then this query will locate it.
+When an attribute contains an array of values, comparison operators check the elements of the array:
+
+- `=` and `=~` match if **any** element in the array satisfies the condition.
+- `!=` and `!~` match only if **no** element in the array satisfies the condition.
+
+If `span.foo` is an array and contains the value `bar`, then this query locates it:
 
 ```
 { span.foo = "bar" }
 ```
 
-You can use regular expressions to match multiple values of array `{span.http.request.header.Accept=~"application.*"}` and get all values of the array with `.*` regular expression.
+This query matches spans where `span.foo` is an array and none of its elements equal `bar`:
 
 ```
-{span.http.request.header.Accept=~".*"}
+{ span.foo != "bar" }
+```
+
+You can use regular expressions to match array values. This query finds spans where any element of the `Accept` header matches the pattern:
+
+```
+{ span.http.request.header.Accept =~ "application.*" }
+```
+
+This query finds spans where no element of the `Accept` header matches the pattern:
+
+```
+{ span.http.request.header.Accept !~ "application.*" }
 ```
 
 ### Use structural operators
