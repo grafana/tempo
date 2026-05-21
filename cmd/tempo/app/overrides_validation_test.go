@@ -315,6 +315,25 @@ func Test_overridesValidator(t *testing.T) {
 			expErr: fmt.Sprintf("metrics_generator.processor \"span-span\" is not a known processor, valid values: %v", validation.SupportedProcessors),
 		},
 		{
+			name: "metrics_generator.processor - all supported names including sub-names",
+			cfg:  Config{},
+			limits: client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					Processors: &listtomap.ListToMap{
+						processor.ServiceGraphsName:               {},
+						processor.ServiceGraphsRequestName:        {},
+						processor.ServiceGraphsLatencyName:        {},
+						processor.ServiceGraphsConnectionInfoName: {},
+						processor.SpanMetricsName:                 {},
+						processor.SpanMetricsCountName:            {},
+						processor.SpanMetricsLatencyName:          {},
+						processor.SpanMetricsSizeName:             {},
+						processor.HostInfoName:                    {},
+					},
+				},
+			},
+		},
+		{
 			name: "filter policies",
 			cfg:  Config{},
 			limits: client.Limits{
