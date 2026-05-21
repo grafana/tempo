@@ -142,7 +142,9 @@ func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, fi
 	if cfg.Subprocessors[Latency] {
 		p.serviceGraphRequestServerSecondsHistogram = reg.NewHistogram(metricRequestServerSeconds, cfg.HistogramBuckets, cfg.HistogramOverride)
 		p.serviceGraphRequestClientSecondsHistogram = reg.NewHistogram(metricRequestClientSeconds, cfg.HistogramBuckets, cfg.HistogramOverride)
-		p.serviceGraphRequestMessagingSystemSecondsHistogram = reg.NewHistogram(metricRequestMessagingSystemSeconds, cfg.HistogramBuckets, cfg.HistogramOverride)
+		if cfg.EnableMessagingSystemLatencyHistogram {
+			p.serviceGraphRequestMessagingSystemSecondsHistogram = reg.NewHistogram(metricRequestMessagingSystemSeconds, cfg.HistogramBuckets, cfg.HistogramOverride)
+		}
 	}
 	if cfg.Subprocessors[ConnectionInfo] {
 		p.serviceGraphConnectionInfo = reg.NewGauge(metricConnectionInfo)
