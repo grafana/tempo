@@ -183,8 +183,9 @@ func key(keypath backend.KeyPath, name string) string {
 	return strings.Join(keypath, ":") + ":" + name
 }
 
-// BlockKeyPrefix returns the cache key prefix for all entries belonging to a block.
-// Cache keys are constructed as BlockKeyPrefix(blockID, tenantID) + name.
+// BlockKeyPrefix returns the cache key prefix shared by bloom-filter shards and the
+// trace-id-index for a block. Whole-object cache keys are BlockKeyPrefix + name.
+// Note: ReadRange keys also embed ":offset:length" suffixes and cannot be derived from this prefix.
 func BlockKeyPrefix(blockID uuid.UUID, tenantID string) string {
 	return key(backend.KeyPathForBlock(blockID, tenantID), "")
 }

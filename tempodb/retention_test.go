@@ -12,8 +12,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/model"
+	testutil "github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
+	backend_cache "github.com/grafana/tempo/tempodb/backend/cache"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -359,4 +362,83 @@ func testRetainWithConfig(t *testing.T, targetBlockVersion string) {
 
 	require.Empty(t, rw.blocklist.Metas(testTenantID))
 	require.Empty(t, rw.blocklist.CompactedMetas(testTenantID))
+}
+
+func TestRetentionCacheEviction(t *testing.T) {
+	tempDir := t.TempDir()
+
+	provider := testutil.NewMockProvider()
+
+	r, w, c, err := New(&Config{
+		Backend: backend.Local,
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		Block: &common.BlockConfig{
+			BloomFP:             0.01,
+			BloomShardSizeBytes: 100_000,
+			Version:             encoding.DefaultEncoding().Version(),
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
+		},
+		BlocklistPoll: 0,
+	}, provider, log.NewNopLogger())
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	err = c.EnableCompaction(ctx, &CompactorConfig{
+		MaxCompactionRange:      time.Hour,
+		BlockRetention:          time.Hour,
+		CompactedBlockRetention: time.Hour,
+	}, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
+
+	r.EnablePolling(ctx, &mockJobSharder{}, false)
+
+	// Create and flush a block
+	head, err := w.WAL().NewBlock(
+		&backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID},
+		model.CurrentEncoding,
+	)
+	require.NoError(t, err)
+
+	complete, err := w.CompleteBlock(ctx, head)
+	require.NoError(t, err)
+	blockMeta := complete.BlockMeta()
+
+	rw := r.(*readerWriter)
+	rw.pollBlocklist(ctx)
+	require.Len(t, rw.blocklist.Metas(testTenantID), 1)
+
+	// Prime the cache with bloom and trace-id-index keys for this block
+	mockCache := provider.CacheFor(cache.RoleBloom)
+	keyPrefix := backend_cache.BlockKeyPrefix((uuid.UUID)(blockMeta.BlockID), testTenantID)
+	bloomKey := keyPrefix + common.BloomName(0)
+	idxKey := keyPrefix + common.NameIndex
+	mockCache.Store(ctx, []string{bloomKey, idxKey}, [][]byte{{1}, {2}})
+
+	_, found := mockCache.FetchKey(ctx, bloomKey)
+	require.True(t, found, "bloom key should be in cache before retention")
+	_, found = mockCache.FetchKey(ctx, idxKey)
+	require.True(t, found, "index key should be in cache before retention")
+
+	// Mark compacted — cache should not be touched at this stage
+	rw.compactorCfg.BlockRetention = 0
+	rw.compactorCfg.CompactedBlockRetention = time.Hour
+	rw.doRetention(ctx)
+	checkBlocklists(ctx, t, (uuid.UUID)(blockMeta.BlockID), 0, 1, rw)
+
+	_, found = mockCache.FetchKey(ctx, bloomKey)
+	require.True(t, found, "bloom key should remain cached after mark-compacted")
+
+	// Delete the compacted block — cache entries should be evicted
+	rw.compactorCfg.CompactedBlockRetention = 0
+	rw.doRetention(ctx)
+	checkBlocklists(ctx, t, (uuid.UUID)(blockMeta.BlockID), 0, 0, rw)
+
+	_, found = mockCache.FetchKey(ctx, bloomKey)
+	require.False(t, found, "bloom key should be evicted after block deletion")
+	_, found = mockCache.FetchKey(ctx, idxKey)
+	require.False(t, found, "index key should be evicted after block deletion")
 }

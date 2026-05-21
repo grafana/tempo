@@ -175,6 +175,9 @@ func (c *RedisClient) Get(ctx context.Context, key string) ([]byte, error) {
 }
 
 func (c *RedisClient) Del(ctx context.Context, keys []string) error {
+	if len(keys) == 0 {
+		return nil
+	}
 	var cancel context.CancelFunc
 	if c.timeout > 0 {
 		ctx, cancel = context.WithTimeout(ctx, c.timeout)
