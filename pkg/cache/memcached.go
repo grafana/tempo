@@ -185,7 +185,9 @@ func (c *Memcached) Remove(ctx context.Context, keys []string) {
 			return
 		default:
 		}
-		_ = c.memcache.Delete(key)
+		_ = measureRequest(ctx, "Memcache.Delete", c.requestDuration, memcacheStatusCode, func(_ context.Context) error {
+			return c.memcache.Delete(key)
+		})
 	}
 	sp.AddEvent(eventKeysRemoved, trace.WithAttributes(attribute.Int("keys", len(keys))))
 }
