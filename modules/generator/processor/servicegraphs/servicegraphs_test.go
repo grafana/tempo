@@ -1012,12 +1012,12 @@ func TestServiceGraphs_connectionInfo(t *testing.T) {
 			"connection_type": "messaging_system",
 		})
 
-		assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_connection_info`, requesterToServer))
-		assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_connection_info`, serverToDatabase))
-		assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_connection_info`, requesterToRecorder))
+		require.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_connection_info`, requesterToServer))
+		require.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_connection_info`, serverToDatabase))
+		require.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_connection_info`, requesterToRecorder))
 
 		// RED metrics still emit by default
-		assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, requesterToServer))
+		require.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, requesterToServer))
 	})
 
 	t.Run("not emitted when subprocessor disabled", func(t *testing.T) {
@@ -1041,7 +1041,7 @@ func TestServiceGraphs_connectionInfo(t *testing.T) {
 			"client": "mythical-requester",
 			"server": "mythical-server",
 		})
-		assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_connection_info`, requesterToServer))
+		require.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_connection_info`, requesterToServer))
 	})
 
 	t.Run("connection_info stays at 1 regardless of multiplier", func(t *testing.T) {
@@ -1078,9 +1078,9 @@ func TestServiceGraphs_connectionInfo(t *testing.T) {
 		})
 
 		// RED counter reflects the multiplier (1 * (1/0.5) = 2).
-		assert.Equal(t, 2.0, testRegistry.Query(`traces_service_graph_request_total`, requesterToServer))
+		require.Equal(t, 2.0, testRegistry.Query(`traces_service_graph_request_total`, requesterToServer))
 		// connection_info is a presence gauge: always 1, never scaled.
-		assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_connection_info`, requesterToServer))
+		require.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_connection_info`, requesterToServer))
 	})
 
 	t.Run("RED disabled, connection_info only", func(t *testing.T) {
@@ -1106,10 +1106,10 @@ func TestServiceGraphs_connectionInfo(t *testing.T) {
 			"server": "mythical-server",
 		})
 
-		assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_connection_info`, requesterToServer))
+		require.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_connection_info`, requesterToServer))
 		// RED metrics should not have any values for these labels.
-		assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_total`, requesterToServer))
-		assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_client_seconds_count`, requesterToServer))
+		require.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_total`, requesterToServer))
+		require.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_client_seconds_count`, requesterToServer))
 	})
 
 	t.Run("virtual node connection_info", func(t *testing.T) {
@@ -1142,8 +1142,8 @@ func TestServiceGraphs_connectionInfo(t *testing.T) {
 			"connection_type": "virtual_node",
 		})
 
-		assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_connection_info`, userToServer))
-		assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_connection_info`, clientToVirtualPeer))
+		require.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_connection_info`, userToServer))
+		require.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_connection_info`, clientToVirtualPeer))
 	})
 }
 
