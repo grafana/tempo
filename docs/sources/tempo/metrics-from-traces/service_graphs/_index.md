@@ -68,6 +68,42 @@ The processor identifies a database node when the span has at least one `db.name
 
 The processor determines the database node name using the following span attributes in order of precedence: `peer.service`, `server.address`, `network.peer.address:network.peer.port`, `db.namespace`, `db.name`.
 
+### Enabling specific metrics (subprocessors)
+
+Instead of enabling all service graph metrics, you can enable individual metric categories using subprocessors in the overrides configuration:
+
+- `service-graphs-request` — Enables only the `traces_service_graph_request_total` and `traces_service_graph_request_failed_total` counters
+- `service-graphs-latency` — Enables only the `traces_service_graph_request_server_seconds`, `traces_service_graph_request_client_seconds`, and `traces_service_graph_request_messaging_system_seconds` histograms
+- `service-graphs-connection-info` — Enables only the `traces_service_graph_connection_info` gauge
+
+The bare `service-graphs` name enables request and latency metrics.
+`service-graphs-connection-info` is off by default and must be listed explicitly; listing it alongside the bare name enables it additively without disabling RED.
+Listing `service-graphs-request` or `service-graphs-latency` alongside the bare name is redundant and silently dropped.
+
+Example overrides configuration:
+
+```yaml
+overrides:
+  defaults:
+    metrics_generator:
+      processors:
+        - service-graphs
+        - service-graphs-connection-info
+```
+
+### Connection info metric
+
+`traces_service_graph_connection_info` is a presence-only gauge held at `1` while an edge between two services is being observed.
+When edges stop completing for a given label set, the series goes stale and is dropped.
+
+It's intended for topology discovery rather than rate calculations.
+A single observed span keeps the gauge present, so service-to-service relationships stay visible on low-traffic endpoints even when `rate(traces_service_graph_request_total[...])` is noisy or zero under aggressive head sampling.
+Query it with a long range window:
+
+```promql
+last_over_time(traces_service_graph_connection_info[1h]) > 0
+```
+
 ### Metrics
 
 The following metrics are exported:

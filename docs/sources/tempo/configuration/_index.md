@@ -2349,6 +2349,9 @@ overrides:
       #  - service-graphs-connection-info  (only emits traces_service_graph_connection_info;
       #                                     opt-in, not enabled by the bare "service-graphs" name)
       #  - span-metrics
+      #  - span-metrics-count              (only emits traces_spanmetrics_calls_total)
+      #  - span-metrics-latency            (only emits traces_spanmetrics_latency histogram)
+      #  - span-metrics-size               (only emits traces_spanmetrics_size_total)
       #  - host-info
       [processors: <list of strings>]
 
