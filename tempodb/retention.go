@@ -10,6 +10,7 @@ import (
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/tempodb/backend"
+	backend_cache "github.com/grafana/tempo/tempodb/backend/cache"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -140,7 +141,7 @@ func (rw *readerWriter) removeCachedBlock(ctx context.Context, tenantID string, 
 		return
 	}
 
-	keyPrefix := tenantID + ":" + blockID.String() + ":"
+	keyPrefix := backend_cache.BlockKeyPrefix(blockID, tenantID)
 
 	if c := rw.cacheProvider.CacheFor(cache.RoleBloom); c != nil {
 		keys := make([]string, 0, common.ValidateShardCount(bloomShardCount))

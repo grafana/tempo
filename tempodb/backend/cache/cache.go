@@ -183,6 +183,12 @@ func key(keypath backend.KeyPath, name string) string {
 	return strings.Join(keypath, ":") + ":" + name
 }
 
+// BlockKeyPrefix returns the cache key prefix for all entries belonging to a block.
+// Cache keys are constructed as BlockKeyPrefix(blockID, tenantID) + name.
+func BlockKeyPrefix(blockID uuid.UUID, tenantID string) string {
+	return key(backend.KeyPathForBlock(blockID, tenantID), "")
+}
+
 // cacheFor evaluates the cacheInfo and returns the appropriate cache.
 func (r *readerWriter) cacheFor(cacheInfo *backend.CacheInfo) cache.Cache {
 	if cacheInfo == nil {

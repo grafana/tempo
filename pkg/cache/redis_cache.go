@@ -128,12 +128,14 @@ func (c *RedisCache) Store(ctx context.Context, keys []string, bufs [][]byte) {
 
 // Remove deletes the given keys from the cache.
 func (c *RedisCache) Remove(ctx context.Context, keys []string) {
-	err := measureRequest(ctx, "RedisCache.Del", c.requestDuration, redisStatusCode, func(ctx context.Context) error {
-		return c.redis.Del(ctx, keys)
+	_ = measureRequest(ctx, "RedisCache.Del", c.requestDuration, redisStatusCode, func(ctx context.Context) error {
+		t := trace.SpanFromContext(ctx)
+		err := c.redis.Del(ctx, keys)
+		if err == nil {
+			t.AddEvent("cache.keys.removed", trace.WithAttributes(attribute.Int("keys", len(keys))))
+		}
+		return err
 	})
-	if err != nil {
-		level.Error(c.logger).Log("msg", "failed to delete from redis", "name", c.name, "err", err)
-	}
 }
 
 // Stop stops the redis client.
