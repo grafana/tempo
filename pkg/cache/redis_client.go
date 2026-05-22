@@ -183,6 +183,18 @@ func (c *RedisClient) Del(ctx context.Context, keys []string) error {
 		ctx, cancel = context.WithTimeout(ctx, c.timeout)
 		defer cancel()
 	}
+
+	// redis.UniversalClient can take redis.Client and redis.ClusterClient.
+	// if redis.ClusterClient is set, multi-key DEL may fail with CROSSSLOT if keys hash to different slots.
+	_, isCluster := c.rdb.(*redis.ClusterClient)
+	if isCluster {
+		for _, key := range keys {
+			if err := c.rdb.Del(ctx, key).Err(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	return c.rdb.Del(ctx, keys...).Err()
 }
 
