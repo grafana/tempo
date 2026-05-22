@@ -126,6 +126,18 @@ func (c *RedisCache) Store(ctx context.Context, keys []string, bufs [][]byte) {
 	}
 }
 
+// Remove deletes the given keys from the cache.
+func (c *RedisCache) Remove(ctx context.Context, keys []string) {
+	_ = measureRequest(ctx, "RedisCache.Del", c.requestDuration, redisStatusCode, func(ctx context.Context) error {
+		t := trace.SpanFromContext(ctx)
+		err := c.redis.Del(ctx, keys)
+		if err == nil {
+			t.AddEvent(eventKeysRemoved, trace.WithAttributes(attribute.Int("keys", len(keys))))
+		}
+		return err
+	})
+}
+
 // Stop stops the redis client.
 func (c *RedisCache) Stop() {
 	_ = c.redis.Close()

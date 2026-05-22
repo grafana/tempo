@@ -52,5 +52,12 @@ func (m *mockMemcache) Get(key string, _ ...memcache.Option) (*memcache.Item, er
 	return nil, memcache.ErrCacheMiss
 }
 
+func (m *mockMemcache) Delete(key string) error {
+	m.Lock()
+	defer m.Unlock()
+	delete(m.contents, key)
+	return nil
+}
+
 func (m *mockMemcache) Close() {
 }

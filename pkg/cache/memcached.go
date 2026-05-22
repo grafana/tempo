@@ -15,6 +15,8 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // MemcachedConfig is config to make a Memcached
@@ -172,6 +174,22 @@ func (c *Memcached) Store(ctx context.Context, keys []string, bufs [][]byte) {
 			level.Error(c.logger).Log("msg", "failed to put to memcached", "name", c.name, "err", err)
 		}
 	}
+}
+
+// Remove deletes the given keys from the cache.
+func (c *Memcached) Remove(ctx context.Context, keys []string) {
+	sp := trace.SpanFromContext(ctx)
+	for _, key := range keys {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+		_ = measureRequest(ctx, "Memcache.Delete", c.requestDuration, memcacheStatusCode, func(_ context.Context) error {
+			return c.memcache.Delete(key)
+		})
+	}
+	sp.AddEvent(eventKeysRemoved, trace.WithAttributes(attribute.Int("keys", len(keys))))
 }
 
 func (c *Memcached) Stop() {

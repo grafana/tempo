@@ -29,6 +29,7 @@ type MemcachedClient interface {
 	GetMulti(ctx context.Context, keys []string, opts ...memcache.Option) (map[string]*memcache.Item, error)
 	Set(item *memcache.Item) error
 	Get(key string, opts ...memcache.Option) (*memcache.Item, error)
+	Delete(key string) error
 	Close()
 }
 
