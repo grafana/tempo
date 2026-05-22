@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/dskit/services"
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/model"
 	testutil "github.com/grafana/tempo/pkg/util/test"
@@ -364,10 +365,34 @@ func testRetainWithConfig(t *testing.T, targetBlockVersion string) {
 	require.Empty(t, rw.blocklist.CompactedMetas(testTenantID))
 }
 
+// perRoleMockProvider wraps a separate mock cache per role so tests can verify
+// that eviction targets the correct role-specific cache and not a shared one.
+type perRoleMockProvider struct {
+	services.Service
+	caches map[cache.Role]cache.Cache
+}
+
+func newPerRoleMockProvider(roles ...cache.Role) *perRoleMockProvider {
+	p := &perRoleMockProvider{caches: make(map[cache.Role]cache.Cache, len(roles))}
+	for _, r := range roles {
+		p.caches[r] = testutil.NewMockClient()
+	}
+	return p
+}
+
+func (p *perRoleMockProvider) CacheFor(role cache.Role) cache.Cache {
+	return p.caches[role]
+}
+
+func (p *perRoleMockProvider) AddCache(role cache.Role, c cache.Cache) error {
+	p.caches[role] = c
+	return nil
+}
+
 func TestRetentionCacheEviction(t *testing.T) {
 	tempDir := t.TempDir()
 
-	provider := testutil.NewMockProvider()
+	provider := newPerRoleMockProvider(cache.RoleBloom, cache.RoleTraceIDIdx)
 
 	r, w, c, err := New(&Config{
 		Backend: backend.Local,
@@ -411,17 +436,19 @@ func TestRetentionCacheEviction(t *testing.T) {
 	rw.pollBlocklist(ctx)
 	require.Len(t, rw.blocklist.Metas(testTenantID), 1)
 
-	// Prime the cache with bloom and trace-id-index keys for this block
-	mockCache := provider.CacheFor(cache.RoleBloom)
+	// Prime each role's cache separately so a wrong-role eviction is detectable.
+	bloomCache := provider.CacheFor(cache.RoleBloom)
+	idxCache := provider.CacheFor(cache.RoleTraceIDIdx)
 	keyPrefix := backend_cache.BlockKeyPrefix((uuid.UUID)(blockMeta.BlockID), testTenantID)
 	bloomKey := keyPrefix + common.BloomName(0)
 	idxKey := keyPrefix + common.NameIndex
-	mockCache.Store(ctx, []string{bloomKey, idxKey}, [][]byte{{1}, {2}})
+	bloomCache.Store(ctx, []string{bloomKey}, [][]byte{{1}})
+	idxCache.Store(ctx, []string{idxKey}, [][]byte{{2}})
 
-	_, found := mockCache.FetchKey(ctx, bloomKey)
-	require.True(t, found, "bloom key should be in cache before retention")
-	_, found = mockCache.FetchKey(ctx, idxKey)
-	require.True(t, found, "index key should be in cache before retention")
+	_, found := bloomCache.FetchKey(ctx, bloomKey)
+	require.True(t, found, "bloom key should be in bloom cache before retention")
+	_, found = idxCache.FetchKey(ctx, idxKey)
+	require.True(t, found, "index key should be in trace-id-index cache before retention")
 
 	// Mark compacted — cache should not be touched at this stage
 	rw.compactorCfg.BlockRetention = 0
@@ -429,16 +456,16 @@ func TestRetentionCacheEviction(t *testing.T) {
 	rw.doRetention(ctx)
 	checkBlocklists(ctx, t, (uuid.UUID)(blockMeta.BlockID), 0, 1, rw)
 
-	_, found = mockCache.FetchKey(ctx, bloomKey)
+	_, found = bloomCache.FetchKey(ctx, bloomKey)
 	require.True(t, found, "bloom key should remain cached after mark-compacted")
 
-	// Delete the compacted block — cache entries should be evicted
+	// Delete the compacted block — each role's cache entry should be evicted
 	rw.compactorCfg.CompactedBlockRetention = 0
 	rw.doRetention(ctx)
 	checkBlocklists(ctx, t, (uuid.UUID)(blockMeta.BlockID), 0, 0, rw)
 
-	_, found = mockCache.FetchKey(ctx, bloomKey)
-	require.False(t, found, "bloom key should be evicted after block deletion")
-	_, found = mockCache.FetchKey(ctx, idxKey)
-	require.False(t, found, "index key should be evicted after block deletion")
+	_, found = bloomCache.FetchKey(ctx, bloomKey)
+	require.False(t, found, "bloom key should be evicted from bloom cache after block deletion")
+	_, found = idxCache.FetchKey(ctx, idxKey)
+	require.False(t, found, "index key should be evicted from trace-id-index cache after block deletion")
 }
