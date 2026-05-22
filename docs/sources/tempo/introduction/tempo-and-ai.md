@@ -47,7 +47,7 @@ The MCP server's `traceql-metrics-instant` and `traceql-metrics-range` tools now
 
 ### Or conditions for tag autocomplete
 
-The [search tags v2](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#search-tags-v2) API now supports OR conditions, so the MCP server's `get-attribute-names` and `get-attribute-values` tools can match multiple values in a single request instead of making separate calls.
+The [search tags v2](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#search-tags-v2) and [search tag values v2](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#search-tag-values-v2) APIs now support OR conditions, so autocomplete requests can match multiple values in a single call instead of making separate requests.
 
 ### Trace redaction
 
