@@ -25,7 +25,7 @@ jobs:
         with:
           repository: "grafana/grafana-github-actions"
           path: ./actions
-          ref: main
+          ref: 3c62d35c5a66e730186a338e45aeb8fa784e2d56 # main
           persist-credentials: false
       - name: Install Actions
         run: npm install --production --prefix ./actions

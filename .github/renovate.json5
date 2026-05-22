@@ -53,6 +53,16 @@
       depNameTemplate: 'grafana/tempo-ci-tools',
       datasourceTemplate: 'docker',
     },
+    {
+      description: 'Track grafana/grafana-github-actions ref pin in metrics-collector workflow',
+      customType: 'regex',
+      managerFilePatterns: ['/^\\.github/workflows/metrics-collector\\.yml$/'],
+      matchStrings: [
+        'repository:\\s*["\']?(?<depName>grafana/grafana-github-actions)["\']?[\\s\\S]*?ref:\\s*(?<currentDigest>[a-f0-9]{40})\\s*#\\s*(?<currentValue>\\S+)',
+      ],
+      datasourceTemplate: 'git-refs',
+      packageNameTemplate: 'https://github.com/{{depName}}',
+    },
   ],
   packageRules: [
     {
