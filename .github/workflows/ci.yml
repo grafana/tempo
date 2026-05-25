@@ -181,9 +181,10 @@ jobs:
           go-version-file: 'go.mod'
       - name: Run Tests
         env:
-          # Only set for the storage matrix entries; empty for everything else so the harness
-          # falls back to the test's declared Backends.
-          TEMPO_E2E_BACKENDS: ${{ matrix.backend }}
+          # Only the storage matrix entries set `backend`; for everything else `matrix.backend` is
+          # undefined and the `|| ''` fallback makes the empty-string default explicit, so the
+          # harness sees TEMPO_E2E_BACKENDS="" and falls back to each test's declared Backends.
+          TEMPO_E2E_BACKENDS: ${{ matrix.backend || '' }}
         run: make ${{ matrix.test-target }}
 
   build:
