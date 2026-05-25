@@ -146,15 +146,27 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        test-target:
-          [
-            test-e2e-operations,
-            test-e2e-api,
-            test-e2e-limits,
-            test-e2e-metrics-generator,
-            test-e2e-storage,
-            test-e2e-util,
-          ]
+        # test-e2e-storage is fanned out per backend onto separate runners. Each runner gets a
+        # clean docker host so the timing-sensitive backend-scheduler tests don't have to share
+        # resources with the other backends' microservice stacks. The 'local' entry covers tests
+        # that use the local filesystem backend (TestEncodings). TEMPO_E2E_BACKENDS is
+        # authoritative — tests whose declared Backends don't intersect the matrix value are
+        # skipped on this runner and run on a different matrix entry.
+        # All other targets run once with no backend axis.
+        include:
+          - test-target: test-e2e-operations
+          - test-target: test-e2e-api
+          - test-target: test-e2e-limits
+          - test-target: test-e2e-metrics-generator
+          - test-target: test-e2e-util
+          - test-target: test-e2e-storage
+            backend: local
+          - test-target: test-e2e-storage
+            backend: s3
+          - test-target: test-e2e-storage
+            backend: azure
+          - test-target: test-e2e-storage
+            backend: gcs
 
     steps:
       - name: Check out code
@@ -168,6 +180,10 @@ jobs:
         with:
           go-version-file: 'go.mod'
       - name: Run Tests
+        env:
+          # Only set for the storage matrix entries; empty for everything else so the harness
+          # falls back to the test's declared Backends.
+          TEMPO_E2E_BACKENDS: ${{ matrix.backend }}
         run: make ${{ matrix.test-target }}
 
   build:

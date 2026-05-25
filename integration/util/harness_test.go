@@ -4,7 +4,37 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestParseBackendsEnv(t *testing.T) {
+	tests := []struct {
+		name    string
+		in      string
+		want    BackendsMask
+		wantErr bool
+	}{
+		{"single s3", "s3", BackendObjectStorageS3, false},
+		{"single azure", "azure", BackendObjectStorageAzure, false},
+		{"single gcs", "gcs", BackendObjectStorageGCS, false},
+		{"single local", "local", BackendLocal, false},
+		{"multi comma", "s3,azure", BackendObjectStorageS3 | BackendObjectStorageAzure, false},
+		{"whitespace and case", " S3 , Azure ", BackendObjectStorageS3 | BackendObjectStorageAzure, false},
+		{"empty entries ignored", "s3,,gcs", BackendObjectStorageS3 | BackendObjectStorageGCS, false},
+		{"unknown errors", "s3,foo", 0, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseBackendsEnv(tt.in)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
 
 func TestMergeMaps(t *testing.T) {
 	base := map[any]any{

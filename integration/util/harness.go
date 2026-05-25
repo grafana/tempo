@@ -172,6 +172,20 @@ func RunIntegrationTests(t *testing.T, config TestHarnessConfig, testFunc func(*
 		config.Components = ComponentsRecentDataQuerying
 	}
 
+	// Optional CI override: TEMPO_E2E_BACKENDS lets the workflow fan a single test target out
+	// over a matrix of backends (one runner each), which avoids running multiple docker stacks
+	// concurrently on the same host. The variable is a comma-separated list of backend names:
+	// "s3", "azure", "gcs", "local". The mask is authoritative — a test that doesn't intersect
+	// the mask is skipped on this runner and is expected to run on a different matrix entry.
+	if env := os.Getenv("TEMPO_E2E_BACKENDS"); env != "" {
+		mask, err := parseBackendsEnv(env)
+		require.NoError(t, err, "invalid TEMPO_E2E_BACKENDS")
+		config.Backends &= mask
+		if config.Backends == 0 {
+			t.Skipf("no requested backend matches TEMPO_E2E_BACKENDS=%q", env)
+		}
+	}
+
 	backendTCs := backendTestCases(config.Backends)
 
 	// Run tests for each deployment mode and backend combination
@@ -184,6 +198,29 @@ func RunIntegrationTests(t *testing.T, config TestHarnessConfig, testFunc func(*
 type backendTestCase struct {
 	mask BackendsMask
 	name string
+}
+
+// parseBackendsEnv parses a comma-separated list of backend names ("s3", "azure", "gcs", "local")
+// into a BackendsMask. Used to honor the TEMPO_E2E_BACKENDS env var.
+func parseBackendsEnv(env string) (BackendsMask, error) {
+	var mask BackendsMask
+	for _, raw := range strings.Split(env, ",") {
+		switch strings.ToLower(strings.TrimSpace(raw)) {
+		case "":
+			continue
+		case "s3":
+			mask |= BackendObjectStorageS3
+		case "azure":
+			mask |= BackendObjectStorageAzure
+		case "gcs":
+			mask |= BackendObjectStorageGCS
+		case "local":
+			mask |= BackendLocal
+		default:
+			return 0, fmt.Errorf("unknown backend %q (expected s3|azure|gcs|local)", raw)
+		}
+	}
+	return mask, nil
 }
 
 // backendTestCases returns the list of backends to test based on the config
