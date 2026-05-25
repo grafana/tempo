@@ -201,7 +201,9 @@ type backendTestCase struct {
 }
 
 // parseBackendsEnv parses a comma-separated list of backend names ("s3", "azure", "gcs", "local")
-// into a BackendsMask. Used to honor the TEMPO_E2E_BACKENDS env var.
+// into a BackendsMask. Used to honor the TEMPO_E2E_BACKENDS env var. Returns an error if the
+// input contains no valid backend names — a silent zero mask would otherwise make the harness
+// skip every test and let CI look green while running nothing.
 func parseBackendsEnv(env string) (BackendsMask, error) {
 	var mask BackendsMask
 	for _, raw := range strings.Split(env, ",") {
@@ -219,6 +221,9 @@ func parseBackendsEnv(env string) (BackendsMask, error) {
 		default:
 			return 0, fmt.Errorf("unknown backend %q (expected s3|azure|gcs|local)", raw)
 		}
+	}
+	if mask == 0 {
+		return 0, fmt.Errorf("no valid backends in %q (expected s3|azure|gcs|local)", env)
 	}
 	return mask, nil
 }

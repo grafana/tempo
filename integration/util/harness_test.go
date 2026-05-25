@@ -22,6 +22,13 @@ func TestParseBackendsEnv(t *testing.T) {
 		{"whitespace and case", " S3 , Azure ", BackendObjectStorageS3 | BackendObjectStorageAzure, false},
 		{"empty entries ignored", "s3,,gcs", BackendObjectStorageS3 | BackendObjectStorageGCS, false},
 		{"unknown errors", "s3,foo", 0, true},
+		// Edge cases that previously returned (0, nil) silently and could mask a misconfigured CI matrix
+		// into looking green while skipping every test. Now they must error.
+		{"empty string errors", "", 0, true},
+		{"only comma errors", ",", 0, true},
+		{"many commas errors", ",,,", 0, true},
+		{"whitespace only errors", "   ", 0, true},
+		{"comma and whitespace errors", " , , ", 0, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
