@@ -125,6 +125,12 @@ metrics_generator:
       [metric_name: <string>]
 ```
 
+### Filter policy validation
+
+Filter policies submitted through this API are fully validated. Tempo checks that attribute keys are valid TraceQL identifiers, only `resource` and `span` scopes are supported, regular expression patterns compile, and intrinsic values (`kind`, `status`) use recognized values. Invalid policies are rejected with a descriptive error.
+
+For the complete list of validation rules and supported values, refer to [Filtering](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/span-metrics/span-metrics-metrics-generator/#filtering).
+
 ## API
 
 All API requests are handled on the `/api/overrides` endpoint. The module supports `GET`, `POST`, `PATCH`, and `DELETE`

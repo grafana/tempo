@@ -92,6 +92,8 @@ Possible values for `connection_type`: unset, `virtual_node`, `messaging_system`
 
 You can include additional labels using the `dimensions` configuration option or the `enable_virtual_node_label` option.
 
+Duplicate dimensions are allowed after Prometheus label name conversion. This supports environments where different instrumentation libraries use different attribute naming conventions, for example, `deployment.environment` and `deployment_environment`. When a collision occurs, the last configured value wins.
+
 Since the service graph processor has to process both sides of an edge,
 it needs to process all spans of a trace to function properly.
 If spans of a trace spread across multiple instances, the processor can't pair them reliably.
