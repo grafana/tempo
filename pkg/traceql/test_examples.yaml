@@ -55,6 +55,18 @@ valid:
   - '{ link.foo = "bar" }'
   - '{ instrumentation.foo = "bar" }'
   - '{ span.foo != 3.0 }'
+  # quoted attribute identifiers — names with non-attribute runes (space, =, etc.)
+  # and escaped characters (\" and \\) must survive String() -> Parse() round-trip.
+  - '{ ."foo bar" = "v" }'
+  - '{ span."foo bar" = "v" }'
+  - '{ resource."foo bar" = "v" }'
+  - '{ ."foo\" = \"bar" = "v" }'
+  - '{ ."a\\b" = "v" }'
+  - '{ ."a\"b" = "v" }'
+  - "{ .\"foo\tbar\" = \"v\" }"
+  - "{ .\"foo\nbar\" = \"v\" }"
+  - "{ .\"foo\rbar\" = \"v\" }"
+  - "{ .\" x\" = \"v\" }"
   # scoped intrinsics
   - '{ trace:duration > 2s }'
   - '{ trace:rootName = "a" }'
