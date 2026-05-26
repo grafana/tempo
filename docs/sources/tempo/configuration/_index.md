@@ -588,8 +588,11 @@ live_store:
     # Maximum time to wait for catching up at startup. Only used if readiness_target_lag > 0.
     [readiness_max_wait: <duration> | default = 30m]
 
-    # Fail on search and metrics requests if lag is high and live-store cannot guarantee completeness.
-    [fail_on_high_lag: <bool> | default = false]
+    # Fail search and metrics requests when the live-store cannot guarantee complete results,
+    # rather than returning a partial response. Trades availability for correctness.
+    # Requires `query_frontend.query_end_cutoff` to be non-zero.
+    # When disabled, lagged requests are still counted via `tempo_live_store_lagged_requests_total`.
+    [fail_on_high_lag: <bool> | default = true]
 
     # Remove partition owner from the ring on shutdown.
     [remove_owner_on_shutdown: <bool> | default = true]
@@ -926,10 +929,10 @@ query_frontend:
     # (default: 0)
     [api_timeout: <duration>]
 
-    # Prevents querying incomplete recent data by excluding the most recent portion of the time range.
-    # Useful when live-store data may not yet be fully available for querying.
-    # 0 disables this cutoff.
-    # (default: 0)
+    # Excludes the most recent portion of the time range from queries to avoid returning
+    # incomplete results. Required when `live_store.fail_on_high_lag` is enabled.
+    # Must be less than `query_frontend.search.query_backend_after`. 0 disables the cutoff.
+    # (default: 30s)
     [query_end_cutoff: <duration>]
 
     # A list of regular expressions for refusing matching requests, these will apply for every request regardless of the endpoint.
