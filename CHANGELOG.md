@@ -23,6 +23,7 @@
 * [BUGFIX] livestore: recover from panics in `iterateBlocks` per-block paths so a panic in vparquet/parquetquery (e.g. malformed `ByteArray` values) returns an error instead of crashing the process. [#7134](https://github.com/grafana/tempo/pull/7134) (@zhxiaogg)
 * [ENHANCEMENT] TraceQL metrics: enable new span-only fetch by default. Can be disabled per-tenant via `metrics_spanonly_fetch: false` or per-query via the unsafe hint `with(spanonly_fetch=false)`. [#7179](https://github.com/grafana/tempo/pull/7179) (@mdisibio)
 * [BUGFIX] user-configurable overrides: emit duration fields as flat YAML scalars on `/status/overrides/{tenant}` and omit `generate_native_histograms` when unset. [#7138](https://github.com/grafana/tempo/pull/7138) (@electron0zero)
+* [BUGFIX] Fix unsafe quoting in query attributes [#7220](https://github.com/grafana/tempo/pull/7220) (@ruslan-mikhailov)
 
 # v3.0.0-rc.1
 
