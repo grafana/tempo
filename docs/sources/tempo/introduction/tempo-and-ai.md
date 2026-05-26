@@ -21,7 +21,7 @@ Grafana also provides command-line tools that connect agents to the broader obse
 
 ## Model Context Protocol server
 
-The [MCP server](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/mcp-server/) at `/api/mcp` gives agents access to seven tools and four documentation resources.
+The [MCP server](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/mcp-server/) at `/api/mcp` gives agents access to tools and documentation resources.
 Agents can search for traces with TraceQL, retrieve a trace by ID, compute metrics from span data, and discover available attributes, all without manual query construction.
 The server also serves TraceQL documentation as MCP resources, so agents can look up query syntax on demand instead of relying on training data.
 
@@ -34,7 +34,7 @@ To try it locally, refer to the [MCP server quick start](https://grafana.com/doc
 The [trace by ID v2](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#query-v2) and [tag values v2](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#search-tag-values-v2) endpoints accept an `Accept: application/vnd.grafana.llm` header.
 This returns a simplified JSON format that strips unnecessary detail and reduces token usage, so agents can process larger traces within their context window.
 
-Use this header when building custom integrations that call Tempo APIs directly rather than through the MCP server.
+Use this header when calling Tempo APIs directly rather than through the MCP server.
 
 ## Tempo 3.0 features relevant to AI workflows
 
