@@ -575,6 +575,12 @@ live_store:
     # Duration to keep blocks in the live-store after they have been completed.
     [complete_block_timeout: <duration> | default = 20m]
 
+    # Duration to wait after a block is removed from the in-memory snapshot before deleting
+    # its files on disk. Must be at least the maximum querier->live-store call timeout
+    # (querier.search.query_timeout, default 30s) so in-flight queries iterating an older
+    # snapshot don't see ENOENT on page files.
+    [block_reclaim_grace: <duration> | default = 2m]
+
     # Target consumer lag threshold before the live-store is considered ready to serve queries.
     # Set to 0 to disable readiness waiting.
     [readiness_target_lag: <duration> | default = 0]
@@ -932,6 +938,11 @@ query_frontend:
     # Max allowed TraceQL expression size, in bytes. queries bigger then this size will be rejected.
     # (default: 128 KiB)
     [max_query_expression_size_bytes: <int> | default = 131072]
+
+    # List of AST transformation names to disable globally for all TraceQL queries.
+    # Possible values: "or_to_in", "all" ("all" disables every transformation).
+    # (default: <empty list>, all transformations enabled)
+    [skip_ast_transformations: <list of strings> | default = []]
 
     search:
 

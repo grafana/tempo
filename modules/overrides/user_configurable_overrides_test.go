@@ -110,7 +110,7 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	mgr.tenantLimits[tenant1] = &userconfigurableoverrides.Limits{
 		Forwarders: &[]string{"my-forwarder"},
 		MetricsGenerator: userconfigurableoverrides.LimitsMetricsGenerator{
-			Processors:                      map[string]struct{}{"service-graphs": {}},
+			Processors:                      &listtomap.ListToMap{"service-graphs": {}},
 			DisableCollection:               boolPtr(true),
 			CollectionInterval:              &userconfigurableoverrides.Duration{Duration: 60 * time.Second},
 			TraceIDLabelName:                strPtr("trace_id"),
@@ -487,9 +487,11 @@ func mapBoolPtr(m map[string]bool) *map[string]bool {
 	return &m
 }
 
-// TestUserConfigOverridesManager_MergeRuntimeConfig tests that per tenant runtime overrides
-// are loaded correctly when userconfigurableoverrides are enabled
-func TestUserConfigOverridesManager_MergeRuntimeConfig(t *testing.T) {
+// TestUserConfigOverridesManager_OverridesRuntimeConfig verifies the layering of
+// user-configurable overrides on top of per-tenant runtime overrides: for fields set
+// in user-configurable overrides, the user-configurable value wins outright; for fields
+// not set, runtime overrides bubble through.
+func TestUserConfigOverridesManager_OverridesRuntimeConfig(t *testing.T) {
 	tenantID := "test"
 
 	// setup per tenant runtime override for tenant "test"
@@ -504,7 +506,7 @@ func TestUserConfigOverridesManager_MergeRuntimeConfig(t *testing.T) {
 	mgr.tenantLimits[tenantID] = &userconfigurableoverrides.Limits{
 		Forwarders: &[]string{"my-other-forwarder"},
 		MetricsGenerator: userconfigurableoverrides.LimitsMetricsGenerator{
-			Processors:                      map[string]struct{}{"span-metrics": {}},
+			Processors:                      &listtomap.ListToMap{"span-metrics": {}},
 			TraceIDLabelName:                strPtr("custom_trace_id"),
 			IngestionSlack:                  &userconfigurableoverrides.Duration{Duration: time.Minute},
 			NativeHistogramBucketFactor:     func(f float64) *float64 { return &f }(2.1),
@@ -527,8 +529,8 @@ func TestUserConfigOverridesManager_MergeRuntimeConfig(t *testing.T) {
 	// Forwarders are set in user-configurable overrides and will override runtime overrides
 	assert.NotEqual(t, mgr.Forwarders(tenantID), baseMgr.Forwarders(tenantID))
 
-	// Processors will be the merged result between runtime and user-configurable overrides
-	assert.Equal(t, mgr.MetricsGeneratorProcessors(tenantID), map[string]struct{}{"service-graphs": {}, "span-metrics": {}, "host-info": {}})
+	// Processors set in user-configurable overrides fully override the runtime list (no merge)
+	assert.Equal(t, mgr.MetricsGeneratorProcessors(tenantID), map[string]struct{}{"span-metrics": {}})
 
 	// For the remaining settings runtime overrides will bubble up
 	assert.Equal(t, mgr.IngestionRateStrategy(), baseMgr.IngestionRateStrategy())
@@ -581,6 +583,150 @@ func TestUserConfigOverridesManager_MergeRuntimeConfig(t *testing.T) {
 	overrideEnableInstanceLabelValue, overrideEnableInstanceLabelIsSet := baseMgr.MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel(tenantID)
 	assert.Equal(t, overrideEnableInstanceLabelValue, baseEnableInstanceLabelValue)
 	assert.Equal(t, overrideEnableInstanceLabelIsSet, baseEnableInstanceLabelIsSet)
+}
+
+// tests precedence semantics through the JSON round-trip - no merge,
+// user-configurable wins, and `[]` disables all - so an omitempty regression on Processors is caught.
+func TestUserConfigOverridesManager_MetricsGeneratorProcessorsPrecedenceRoundTrip(t *testing.T) {
+	tenantID := "test"
+
+	testCases := []struct {
+		name             string
+		runtime          listtomap.ListToMap
+		userConfigurable *listtomap.ListToMap
+		expected         map[string]struct{}
+	}{
+		{
+			name:             "both unset, no processors returned",
+			runtime:          nil,
+			userConfigurable: nil,
+			expected:         map[string]struct{}{},
+		},
+		{
+			name:             "user-configurable unset, falls back to runtime",
+			runtime:          listtomap.ListToMap{"span-metrics": {}, "service-graphs": {}, "host-info": {}},
+			userConfigurable: nil,
+			expected:         map[string]struct{}{"span-metrics": {}, "service-graphs": {}, "host-info": {}},
+		},
+		{
+			name:             "only user-configurable set, user-configurable wins",
+			runtime:          nil,
+			userConfigurable: &listtomap.ListToMap{"span-metrics": {}},
+			expected:         map[string]struct{}{"span-metrics": {}},
+		},
+		{
+			name:             "both set, user-configurable fully overrides (no merge)",
+			runtime:          listtomap.ListToMap{"service-graphs": {}, "host-info": {}},
+			userConfigurable: &listtomap.ListToMap{"span-metrics": {}},
+			expected:         map[string]struct{}{"span-metrics": {}},
+		},
+		{
+			name:             "user-configurable empty list disables all processors (overrides runtime)",
+			runtime:          listtomap.ListToMap{"span-metrics": {}, "service-graphs": {}, "host-info": {}},
+			userConfigurable: &listtomap.ListToMap{},
+			expected:         map[string]struct{}{},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			mgr, cleanup := setupRuntimeProcessors(t, tenantID, tc.runtime)
+			defer cleanup()
+
+			if tc.userConfigurable != nil {
+				setAndReloadUserConfigProcessors(t, mgr, tenantID, tc.userConfigurable, backend.VersionNew)
+			}
+
+			require.Equal(t, tc.expected, mgr.MetricsGeneratorProcessors(tenantID))
+		})
+	}
+}
+
+// test DELETE path: deleting user-configurable overrides must fall back to runtime.
+func TestUserConfigOverridesManager_MetricsGeneratorProcessorsDeleteLifecycle(t *testing.T) {
+	tenantID := "test"
+
+	mgr, cleanup := setupRuntimeProcessors(t, tenantID, listtomap.ListToMap{"service-graphs": {}, "host-info": {}})
+	defer cleanup()
+
+	// 1) set user-configurable processors; user-configurable wins
+	version := setAndReloadUserConfigProcessors(t, mgr, tenantID, &listtomap.ListToMap{"span-metrics": {}}, backend.VersionNew)
+	require.Equal(t, map[string]struct{}{"span-metrics": {}}, mgr.MetricsGeneratorProcessors(tenantID))
+
+	// 2) delete user-configurable overrides; must fall back to runtime
+	require.NoError(t, mgr.client.Delete(context.Background(), tenantID, version))
+	require.NoError(t, mgr.reloadAllTenantLimits(context.Background()))
+	require.Equal(t, map[string]struct{}{"service-graphs": {}, "host-info": {}}, mgr.MetricsGeneratorProcessors(tenantID))
+}
+
+// tests the empty/non-empty boundary across successive POSTs
+func TestUserConfigOverridesManager_MetricsGeneratorProcessorsUpdateTransitions(t *testing.T) {
+	tenantID := "test"
+	runtime := listtomap.ListToMap{"service-graphs": {}, "host-info": {}}
+
+	testCases := []struct {
+		name               string
+		first, second      *listtomap.ListToMap
+		firstExp, finalExp map[string]struct{}
+	}{
+		{
+			name:     "non-empty to empty disables all processors",
+			first:    &listtomap.ListToMap{"span-metrics": {}},
+			second:   &listtomap.ListToMap{},
+			firstExp: map[string]struct{}{"span-metrics": {}},
+			finalExp: map[string]struct{}{},
+		},
+		{
+			name:     "empty to non-empty enables the new list",
+			first:    &listtomap.ListToMap{},
+			second:   &listtomap.ListToMap{"span-metrics": {}},
+			firstExp: map[string]struct{}{},
+			finalExp: map[string]struct{}{"span-metrics": {}},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			mgr, cleanup := setupRuntimeProcessors(t, tenantID, runtime)
+			defer cleanup()
+
+			version := setAndReloadUserConfigProcessors(t, mgr, tenantID, tc.first, backend.VersionNew)
+			require.Equal(t, tc.firstExp, mgr.MetricsGeneratorProcessors(tenantID))
+
+			setAndReloadUserConfigProcessors(t, mgr, tenantID, tc.second, version)
+			require.Equal(t, tc.finalExp, mgr.MetricsGeneratorProcessors(tenantID))
+		})
+	}
+}
+
+func setupRuntimeProcessors(t *testing.T, tenantID string, runtime listtomap.ListToMap) (*userConfigurableOverridesManager, func()) {
+	pto := &perTenantOverrides{
+		TenantLimits: map[string]*Overrides{
+			tenantID: {
+				MetricsGenerator: MetricsGeneratorOverrides{
+					Processors: runtime,
+				},
+			},
+		},
+	}
+	_, mgr, cleanup := localUserConfigOverrides(t, Overrides{}, toYamlBytes(t, pto))
+	return mgr, cleanup
+}
+
+// setAndReloadUserConfigProcessors persists user-configurable processors for the tenant through
+// the full client round-trip (Set + reloadAllTenantLimits) and returns the new version.
+// Use this when a test needs to exercise the JSON serialization path, not a direct
+// in-memory write to mgr.tenantLimits.
+func setAndReloadUserConfigProcessors(t *testing.T, mgr *userConfigurableOverridesManager, tenantID string, processors *listtomap.ListToMap, version backend.Version) backend.Version {
+	limits := &userconfigurableoverrides.Limits{
+		MetricsGenerator: userconfigurableoverrides.LimitsMetricsGenerator{
+			Processors: processors,
+		},
+	}
+	v, err := mgr.client.Set(context.Background(), tenantID, limits, version)
+	require.NoError(t, err)
+	require.NoError(t, mgr.reloadAllTenantLimits(context.Background()))
+	return v
 }
 
 func perTenantRuntimeOverrides(tenantID string) *perTenantOverrides {

@@ -1700,7 +1700,7 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 					},
 				)
 
-				resp, err := e.ExecuteSearch(ctx, &tempopb.SearchRequest{Query: tc.query}, f, false)
+				resp, err := e.ExecuteSearch(ctx, &tempopb.SearchRequest{Query: tc.query}, f)
 				require.NoError(b, err)
 				require.NotNil(b, resp)
 
@@ -1838,7 +1838,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 				Exemplars: 2,
 			}
 
-			eval, err := e.CompileMetricsQueryRange(req, traceql.WithUnsafeQueryHints(true))
+			eval, err := e.CompileMetricsQueryRange(req, traceql.WithUnsafeHints(true))
 			require.NoError(b, err)
 
 			b.ResetTimer()

@@ -61,12 +61,7 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 		oteltrace.WithAttributes(attribute.String("tenant", i.tenantID)))
 	defer span.End()
 
-	i.blocksMtx.RLock()
-	span.AddEvent("acquired blocksMtx")
-	defer func() {
-		i.blocksMtx.RUnlock()
-		span.AddEvent("released blocksMtx")
-	}()
+	snap := i.blocks.Load()
 
 	var anyErr atomic.Error
 	ctx, cancel := context.WithCancel(ctx)
@@ -87,8 +82,10 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 		anyErr.Store(err)
 	}
 
-	if i.headBlock != nil {
-		meta := i.headBlock.BlockMeta()
+	// headBlock meta is mutated in place by AppendTrace; use MetaSnapshot
+	// for a stable copy.
+	if snap.headBlock != nil {
+		meta := snap.headBlock.MetaSnapshot()
 		if includeBlock(meta, reqStart, reqEnd) {
 			ctx, span := tracer.Start(ctx, "process.headBlock")
 			span.SetAttributes(attribute.String("blockID", meta.BlockID.String()))
@@ -100,7 +97,7 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 						handleErr(fmt.Errorf("processing head block (%s): panic: %v", meta.BlockID, r))
 					}
 				}()
-				if err := fn(ctx, meta, i.headBlock); err != nil {
+				if err := fn(ctx, meta, snap.headBlock); err != nil {
 					handleErr(fmt.Errorf("processing head block (%s): %w", meta.BlockID, err))
 				}
 			}()
@@ -115,7 +112,7 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 	wg := boundedwaitgroup.New(i.Cfg.QueryBlockConcurrency)
 
 	// Process wal blocks
-	for _, b := range i.walBlocks {
+	for _, b := range snap.walBlocks {
 		if ctx.Err() != nil {
 			continue
 		}
@@ -150,7 +147,7 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 	}
 
 	// Process complete blocks
-	for _, b := range i.completeBlocks {
+	for _, b := range snap.completeBlocks {
 		if ctx.Err() != nil {
 			continue
 		}
@@ -207,7 +204,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 
 	mostRecent := false
 	if len(req.Query) > 0 {
-		rootExpr, err := traceql.Parse(req.Query)
+		rootExpr, err := traceql.ParseNoOptimizations(req.Query)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing query: %w", err)
 		}
@@ -245,7 +242,14 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 			)
 			// note: we are creating new engine for each wal block,
 			// and engine.ExecuteSearch is parsing the query for each block
-			resp, err = traceql.NewEngine().ExecuteSearch(ctx, req, f, i.overrides.UnsafeQueryHints(i.tenantID))
+			var searchOpts []traceql.CompileOption
+			if i.overrides.UnsafeQueryHints(i.tenantID) {
+				searchOpts = append(searchOpts, traceql.WithUnsafeHints(true))
+			}
+			for _, name := range req.SkipASTTransformations {
+				searchOpts = append(searchOpts, traceql.WithSkipOptimization(name))
+			}
+			resp, err = traceql.NewEngine().ExecuteSearch(ctx, req, f, searchOpts...)
 		} else {
 			resp, err = b.Search(ctx, req, opts)
 		}
@@ -697,16 +701,20 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 
 	e := traceql.NewEngine()
 
-	expr, err := traceql.Parse(req.Query)
+	// Parse without optimizations to read hints; optimizations are applied by CompileMetricsQueryRange.
+	expr, err := traceql.ParseNoOptimizations(req.Query)
 	if err != nil {
 		return nil, fmt.Errorf("compiling query: %w", err)
 	}
 
-	var compileOpts []traceql.CompileMetricsQueryRangeOption
+	var compileOpts []traceql.CompileOption
 
 	unsafe := i.overrides.UnsafeQueryHints(i.tenantID)
 	if unsafe {
-		compileOpts = append(compileOpts, traceql.WithUnsafeQueryHints(true))
+		compileOpts = append(compileOpts, traceql.WithUnsafeHints(true))
+	}
+	for _, name := range req.SkipASTTransformations {
+		compileOpts = append(compileOpts, traceql.WithSkipOptimization(name))
 	}
 
 	if v, ok := expr.Hints.GetFloat(traceql.HintTimeOverlapCutoff, unsafe); ok && v >= 0 && v <= 1.0 {
@@ -729,7 +737,7 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 
 	// This is a summation version of the query for complete blocks
 	// which can be cached. They are timeseries, so they need the job-level evaluator.
-	jobEval, err := traceql.NewEngine().CompileMetricsQueryRangeNonRaw(req, traceql.AggregateModeSum)
+	jobEval, err := traceql.NewEngine().CompileMetricsQueryRangeNonRaw(req, traceql.AggregateModeSum, compileOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -816,7 +824,7 @@ func (i *instance) queryRangeWALBlock(ctx context.Context, b common.WALBlock, ev
 	return eval.Do(ctx, fetcher, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()), maxSeries)
 }
 
-func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *LocalBlock, req tempopb.QueryRangeRequest, compileOpts []traceql.CompileMetricsQueryRangeOption) ([]*tempopb.TimeSeries, error) {
+func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *LocalBlock, req tempopb.QueryRangeRequest, compileOpts []traceql.CompileOption) ([]*tempopb.TimeSeries, error) {
 	m := b.BlockMeta()
 	ctx, span := tracer.Start(ctx, "instance.QueryRange.CompleteBlock", oteltrace.WithAttributes(
 		attribute.String("block", m.BlockID.String()),
@@ -952,7 +960,7 @@ func searchTagValuesV2CacheKey(req *tempopb.SearchTagValuesRequest, limit int, p
 	var cacheKey string
 	if req.Query != "" {
 		q := traceql.NormalizeQuery(req.Query)
-		if ast, err := traceql.Parse(q); err == nil {
+		if ast, err := traceql.ParseNoOptimizations(q); err == nil {
 			// forces the query into a canonical form
 			cacheKey = ast.String()
 		} else {

@@ -128,6 +128,20 @@ func TestConfigValidate(t *testing.T) {
 			},
 			expectedErr: "max_trace_idle (20s) cannot be greater than max_trace_live (10s)",
 		},
+		{
+			name: "zero block reclaim grace",
+			modifyConfig: func(cfg *Config) {
+				cfg.BlockReclaimGrace = 0
+			},
+			expectedErr: "block_reclaim_grace must be greater than 0",
+		},
+		{
+			name: "negative block reclaim grace",
+			modifyConfig: func(cfg *Config) {
+				cfg.BlockReclaimGrace = -1 * time.Second
+			},
+			expectedErr: "block_reclaim_grace must be greater than 0",
+		},
 	}
 
 	for _, tt := range tests {

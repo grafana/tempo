@@ -563,3 +563,67 @@ func runWALBenchmarkWithAppendMode(b *testing.B, encoding string, flushCount int
 		runner(ids, traces, block)
 	}
 }
+
+func TestClearTombstonedBlocks_walSweep(t *testing.T) {
+	dir := t.TempDir()
+	wal, err := New(&Config{
+		Filepath:       dir,
+		IngestionSlack: 3 * time.Minute,
+		Version:        encoding.DefaultEncoding().Version(),
+	})
+	require.NoError(t, err)
+
+	enc := encoding.DefaultEncoding()
+
+	// Three WAL block dirs:
+	//   tombstoned: meta.deleted.json present, meta.json gone
+	//   alive:      meta.json present
+	//   bare:       directory exists but no meta files
+	mkBlock := func(id uuid.UUID) string {
+		meta := backend.NewBlockMeta("fake", id, enc.Version())
+		_, err := wal.NewBlock(meta, model.CurrentEncoding)
+		require.NoError(t, err)
+		// Find the dir on disk for this block. The wal block doesn't write
+		// meta.json until Flush(); seed one so the tombstone rename works.
+		entries, err := os.ReadDir(dir)
+		require.NoError(t, err)
+		for _, e := range entries {
+			if e.IsDir() && uuidInName(e.Name(), id) {
+				bdir := filepath.Join(dir, e.Name())
+				require.NoError(t, os.WriteFile(filepath.Join(bdir, backend.MetaName), []byte(`{}`), 0o600))
+				return bdir
+			}
+		}
+		t.Fatalf("could not find dir for block %s", id)
+		return ""
+	}
+
+	tombID := uuid.New()
+	aliveID := uuid.New()
+	tombDir := mkBlock(tombID)
+	aliveDir := mkBlock(aliveID)
+
+	bareDir := filepath.Join(dir, "bare-orphan-noop")
+	require.NoError(t, os.MkdirAll(bareDir, 0o755))
+
+	// Tombstone the first block by renaming meta.json → meta.deleted.json.
+	require.NoError(t,
+		os.Rename(filepath.Join(tombDir, backend.MetaName),
+			filepath.Join(tombDir, backend.DeletedMetaName)))
+
+	cleared, err := wal.ClearTombstonedBlocks()
+	require.NoError(t, err)
+	require.Equal(t, 1, cleared)
+
+	// tombstoned dir gone, alive intact, bare untouched.
+	_, err = os.Stat(tombDir)
+	require.True(t, os.IsNotExist(err), "tombstoned wal dir should be removed")
+	_, err = os.Stat(filepath.Join(aliveDir, backend.MetaName))
+	require.NoError(t, err, "alive wal dir's meta should be intact")
+	_, err = os.Stat(bareDir)
+	require.NoError(t, err, "bare dir without marker should be untouched")
+}
+
+func uuidInName(name string, id uuid.UUID) bool {
+	return len(name) >= 36 && name[:36] == id.String()
+}

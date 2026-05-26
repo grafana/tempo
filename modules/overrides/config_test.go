@@ -278,7 +278,7 @@ func TestOverrides_AssertUserConfigurableOverridesAreASubsetOfRuntimeOverrides(t
 		},
 		MetricsGenerator: client.LimitsMetricsGenerator{
 			CollectionInterval: &client.Duration{Duration: 5 * time.Minute},
-			Processors:         map[string]struct{}{"service-graphs": {}},
+			Processors:         &listtomap.ListToMap{"service-graphs": {}},
 		},
 	}
 

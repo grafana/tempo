@@ -1157,7 +1157,7 @@ func TestTempoDBQueryRange(t *testing.T) {
 	})
 
 	for _, tc := range queryRangeTestCases {
-		runTestWithHint := func(t *testing.T, opts ...traceql.CompileMetricsQueryRangeOption) {
+		runTestWithHint := func(t *testing.T, opts ...traceql.CompileOption) {
 			eval, err := e.CompileMetricsQueryRange(tc.req, opts...)
 			require.NoError(t, err)
 

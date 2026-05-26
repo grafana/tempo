@@ -273,13 +273,11 @@ func TestSearchTagValuesV2DiskCache(t *testing.T) {
 	require.NotEmpty(t, resp1.TagValues)
 
 	// Verify cache was written on the complete block
-	i.blocksMtx.RLock()
 	var block *LocalBlock
-	for _, b := range i.completeBlocks {
+	for _, b := range i.blocks.Load().completeBlocks {
 		block = b
 		break
 	}
-	i.blocksMtx.RUnlock()
 	require.NotNil(t, block)
 
 	limit := i.overrides.MaxBytesPerTagValuesQuery(testTenantID)
@@ -1065,7 +1063,7 @@ func TestIterateBlocksRecoversPanic(t *testing.T) {
 				require.NoError(t, err)
 				require.NotEqual(t, uuid.Nil, blockID)
 				i.blocksMtx.Lock()
-				i.headBlock = nil
+				i.blocks.Store(i.blocks.Load().withHeadBlock(nil))
 				i.blocksMtx.Unlock()
 			},
 		},
@@ -1079,7 +1077,7 @@ func TestIterateBlocksRecoversPanic(t *testing.T) {
 				_, err = i.completeBlock(t.Context(), blockID)
 				require.NoError(t, err)
 				i.blocksMtx.Lock()
-				i.headBlock = nil
+				i.blocks.Store(i.blocks.Load().withHeadBlock(nil))
 				i.blocksMtx.Unlock()
 			},
 		},
@@ -1293,13 +1291,11 @@ func TestLiveStoreQueryRange(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Get the completed block for testing
-	inst.blocksMtx.RLock()
 	var block *LocalBlock
-	for _, b := range inst.completeBlocks {
+	for _, b := range inst.blocks.Load().completeBlocks {
 		block = b
 		break
 	}
-	inst.blocksMtx.RUnlock()
 
 	require.NotNil(t, block, "block should have been created and completed")
 
