@@ -2735,6 +2735,10 @@ cache:
         #   parquet-offset-idx - Parquet offset index sections.
         #   parquet-page       - Parquet data pages. WARNING: This caches most reads from Parquet and is very high volume.
         #   frontend-search    - Frontend search job results.
+        #   metrics-query-row-group - Per-row-group partial results for TraceQL metric queries (vParquet5 only).
+        #                             Keyed by (tenant, block UUID, row group index, canonicalized query).
+        #                             Improves CPU/latency when the same row group is scanned by overlapping
+        #                             queries (e.g. dashboard time-range scrubbing).
 
     -   roles:
         - <role1>

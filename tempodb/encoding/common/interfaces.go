@@ -99,6 +99,13 @@ type BackendBlock interface {
 	Validate(ctx context.Context) error
 }
 
+// PerRowGroupSpanFetcher is an optional capability for BackendBlock encodings
+// that can produce one FetchSpansOnlyResponse per requested row group index.
+// Required by the querier's per-row-group metric-query result cache.
+type PerRowGroupSpanFetcher interface {
+	FetchSpansForRowGroups(ctx context.Context, req traceql.FetchSpansRequest, opts SearchOptions, rgIdxs []int) ([]traceql.FetchSpansOnlyResponse, error)
+}
+
 // WALBlock represents a Write-Ahead Log (WAL) block interface that extends the BackendBlock interface.
 // It provides methods to append traces, manage ingestion slack, flush data, and iterate over the block's data.
 type WALBlock interface {

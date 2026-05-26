@@ -29,6 +29,7 @@ import (
 	"github.com/grafana/tempo/modules/querier/worker"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/search"
@@ -62,9 +63,10 @@ type Querier struct {
 	liveStorePool *ring_client.Pool
 	partitionRing *ring.PartitionInstanceRing
 
-	engine *traceql.Engine
-	store  storage.Store
-	limits overrides.Interface
+	engine        *traceql.Engine
+	store         storage.Store
+	limits        overrides.Interface
+	cacheProvider cache.Provider
 
 	externalClient *external.Client
 
@@ -85,6 +87,7 @@ func New(
 	queryExternal bool,
 	store storage.Store,
 	limits overrides.Interface,
+	cacheProvider cache.Provider,
 ) (*Querier, error) {
 	var liveStoreClientFactory ring_client.PoolAddrFunc = func(addr string) (ring_client.PoolClient, error) {
 		return livestore_client.New(addr, liveStoreClientConfig)
@@ -99,9 +102,10 @@ func New(
 			liveStoreClientFactory,
 			metricMetricsLiveStoreClients,
 			log.Logger),
-		engine: traceql.NewEngine(),
-		store:  store,
-		limits: limits,
+		engine:        traceql.NewEngine(),
+		store:         store,
+		limits:        limits,
+		cacheProvider: cacheProvider,
 	}
 
 	if queryExternal {

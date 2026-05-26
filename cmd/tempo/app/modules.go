@@ -424,6 +424,7 @@ func (t *App) initQuerier() (services.Service, error) {
 		t.cfg.Frontend.TraceByID.ExternalEnabled,
 		t.store,
 		t.Overrides,
+		t.cacheProvider,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create querier: %w", err)

@@ -29,6 +29,57 @@ func (b *backendBlock) FetchSpans(ctx context.Context, req traceql.FetchSpansReq
 	}, nil
 }
 
+// FetchSpansForRowGroups opens the parquet block once and returns one
+// FetchSpansOnlyResponse per requested row group index. Each response's iterator
+// scans exactly its row group.
+//
+// Bytes attribution uses sequential-consumption deltas: each Bytes() call
+// returns the increase in rr.BytesRead() since the previous Bytes() call (or
+// since the file was opened for the first response). Async parquet read-ahead
+// may shift a few buffer-sizes worth of bytes across boundaries; the error is
+// bounded. Callers MUST consume iterators in slice order and call Bytes()
+// exactly once per response, after the iterator is closed, for the attribution
+// to be meaningful.
+func (b *backendBlock) FetchSpansForRowGroups(ctx context.Context, req traceql.FetchSpansRequest, opts common.SearchOptions, rgIdxs []int) ([]traceql.FetchSpansOnlyResponse, error) {
+	pf, rr, err := b.openForSearch(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	allRGs := pf.RowGroups()
+	out := make([]traceql.FetchSpansOnlyResponse, 0, len(rgIdxs))
+
+	// Shared mark across all per-row-group Bytes() closures. Each invocation
+	// returns the BytesRead delta since the previous invocation and advances
+	// the mark. The first invocation includes setup costs (footer reads, etc.).
+	var lastMark uint64
+
+	for _, rgIdx := range rgIdxs {
+		if rgIdx < 0 || rgIdx >= len(allRGs) {
+			return nil, fmt.Errorf("row group index %d out of range [0, %d)", rgIdx, len(allRGs))
+		}
+		iter, err := fetchSpans(ctx, req, pf, allRGs[rgIdx:rgIdx+1], b.meta.DedicatedColumns)
+		if err != nil {
+			return nil, fmt.Errorf("creating fetch iter for row group %d: %w", rgIdx, err)
+		}
+		out = append(out, traceql.FetchSpansOnlyResponse{
+			Results: iter,
+			Bytes: func() uint64 {
+				cur := rr.BytesRead()
+				if cur <= lastMark {
+					lastMark = cur
+					return 0
+				}
+				delta := cur - lastMark
+				lastMark = cur
+				return delta
+			},
+		})
+	}
+
+	return out, nil
+}
+
 // fetchSpans is the core logic for span-only fetch, like fetch is for Fetch. Callers open the parquet file and pass row groups.
 func fetchSpans(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File, rowGroups []parquet.RowGroup, dc backend.DedicatedColumns) (*spanOnlyIterator, error) {
 	makeIter := makeIterFunc(ctx, rowGroups, pf)

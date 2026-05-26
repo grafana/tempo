@@ -23,7 +23,7 @@ func TestVirtualTagsDoesntHitBackend(t *testing.T) {
 	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
-	q, err := New(Config{}, nil, livestore_client.Config{}, nil, false, nil, o)
+	q, err := New(Config{}, nil, livestore_client.Config{}, nil, false, nil, o, nil)
 	require.NoError(t, err)
 
 	ctx := user.InjectOrgID(context.Background(), "blerg")
@@ -161,7 +161,7 @@ func TestFindTraceByID_ExternalMode(t *testing.T) {
 	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
-	q, err := New(cfg, nil, livestore_client.Config{}, nil, true, nil, o)
+	q, err := New(cfg, nil, livestore_client.Config{}, nil, true, nil, o, nil)
 	require.NoError(t, err)
 
 	ctx := user.InjectOrgID(context.Background(), userID)

@@ -46,6 +46,10 @@ const (
 	BlockIDMax = "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF"
 )
 
+// ErrPerRowGroupUnsupported is returned by Reader.FetchSpansForRowGroups when
+// the underlying block encoding does not implement common.PerRowGroupSpanFetcher.
+var ErrPerRowGroupUnsupported = errors.New("block encoding does not support per-row-group fetch")
+
 var (
 	metricRetentionDuration = promauto.NewHistogram(prometheus.HistogramOpts{
 		Namespace:                       "tempodb",
@@ -93,6 +97,7 @@ type Reader interface {
 	// TODO(suraj): use common.MetricsCallback in Fetch and remove the Bytes callback from traceql.FetchSpansResponse
 	Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error)
 	FetchSpans(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansOnlyResponse, error)
+	FetchSpansForRowGroups(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions, rgIdxs []int) ([]traceql.FetchSpansOnlyResponse, error)
 	FetchTagValues(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, mcb common.MetricsCallback, opts common.SearchOptions) error
 	FetchTagNames(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, mcb common.MetricsCallback, opts common.SearchOptions) error
 
@@ -553,6 +558,23 @@ func (rw *readerWriter) FetchSpans(ctx context.Context, meta *backend.BlockMeta,
 
 	rw.cfg.Search.ApplyToOptions(&opts)
 	return block.FetchSpans(ctx, req, opts)
+}
+
+// FetchSpansForRowGroups opens the block and dispatches to a per-row-group
+// fetch if the encoding supports it. Returns ErrPerRowGroupUnsupported when the
+// block encoding does not implement common.PerRowGroupSpanFetcher.
+func (rw *readerWriter) FetchSpansForRowGroups(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions, rgIdxs []int) ([]traceql.FetchSpansOnlyResponse, error) {
+	block, err := encoding.OpenBlock(meta, rw.r)
+	if err != nil {
+		return nil, err
+	}
+	rw.cfg.Search.ApplyToOptions(&opts)
+
+	pgf, ok := block.(common.PerRowGroupSpanFetcher)
+	if !ok {
+		return nil, ErrPerRowGroupUnsupported
+	}
+	return pgf.FetchSpansForRowGroups(ctx, req, opts, rgIdxs)
 }
 
 func (rw *readerWriter) FetchTagValues(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, mcb common.MetricsCallback, opts common.SearchOptions) error {
