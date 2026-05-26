@@ -3,6 +3,7 @@
 #
 
 query_frontend:
+  query_end_cutoff: 0s # required so query_end_cutoff <= query_backend_after (set to 0 below)
   search:
     query_backend_after: 0s
   metrics:

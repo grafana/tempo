@@ -593,7 +593,6 @@ func (s *LiveStore) calculateTimeLag(lagShortcutThreshold int64) *time.Duration 
 
 	// Use cached high watermark from fetch responses (avoids extra API call)
 	lag := s.reader.lag.Load()
-	zero := time.Duration(0)
 
 	// If we haven't performed any fetches yet, we can't determine lag
 	if lag < 0 {
@@ -607,7 +606,7 @@ func (s *LiveStore) calculateTimeLag(lagShortcutThreshold int64) *time.Duration 
 		level.Debug(s.logger).Log(
 			"msg", "At or close to partition end",
 			"lag", lag)
-		return &zero
+		return new(time.Duration(0))
 	}
 
 	nanos := s.lastRecordTimeNanos.Load()
@@ -620,8 +619,7 @@ func (s *LiveStore) calculateTimeLag(lagShortcutThreshold int64) *time.Duration 
 	// Potential race condition that can result in negative lag?
 	// Assuming strictly monotonic timestamps in Kafka, can't cause an issue
 	lastRecordTime := time.Unix(0, nanos)
-	recordLag := time.Since(lastRecordTime)
-	return &recordLag
+	return new(time.Since(lastRecordTime))
 }
 
 func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (*kadm.Offset, error) {

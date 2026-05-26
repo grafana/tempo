@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -119,6 +120,17 @@ type TempoHarness struct {
 
 	overridesPath  string
 	readinessProbe e2e.ReadinessProbe
+
+	// lastWriteUnixNano records the wall-clock time of the most recent successful
+	// trace write, used by WaitTracesQueryable to honor query_end_cutoff.
+	lastWriteUnixNano atomic.Int64
+}
+
+// recordWrite stamps the time of a successful trace write. Callers should invoke this
+// after every method that emits traces to the distributor so that WaitTracesQueryable
+// can wait for the query_end_cutoff window to elapse before tests assert queryability.
+func (h *TempoHarness) recordWrite() {
+	h.lastWriteUnixNano.Store(time.Now().UnixNano())
 }
 
 // TestHarnessConfig provides configuration options for the test harness
@@ -380,6 +392,41 @@ func (h *TempoHarness) WaitTracesQueryable(t *testing.T, traces int) {
 
 	liveStoreZoneB := h.Services[ServiceLiveStoreZoneB]
 	require.NoError(t, liveStoreZoneB.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(float64(traces)), []string{"tempo_live_store_traces_created_total"}, e2e.WaitMissingMetrics))
+
+	// Honor query_end_cutoff: the frontend clamps each request's `end` to `now - cutoff`,
+	// so a trace written at time T is not queryable until T + cutoff. Wait for that window
+	// to elapse since the most recent write before letting the test assert queryability.
+	h.waitForQueryEndCutoff(t)
+}
+
+// waitForQueryEndCutoff sleeps until enough wall-clock time has passed since the last
+// recorded write for traces to fall inside the queryable window defined by
+// query_frontend.query_end_cutoff. Skipped when no writes have been recorded or when
+// the cutoff is disabled (<= 0).
+func (h *TempoHarness) waitForQueryEndCutoff(t *testing.T) {
+	t.Helper()
+
+	lastWrite := h.lastWriteUnixNano.Load()
+	if lastWrite == 0 {
+		return
+	}
+
+	cfg, err := h.GetConfig()
+	require.NoError(t, err)
+
+	cutoff := cfg.Frontend.QueryEndCutoff
+	if cutoff <= 0 {
+		return
+	}
+
+	// Tiny buffer to absorb clock skew between this process and the live-store containers.
+	// The wait is already conservative: the trace's span timestamps were assigned before the
+	// write completed, so lastWrite is strictly newer than the trace timestamp.
+	const buffer = 100 * time.Millisecond
+	waitUntil := time.Unix(0, lastWrite).Add(cutoff).Add(buffer)
+	if remaining := time.Until(waitUntil); remaining > 0 {
+		time.Sleep(remaining)
+	}
 }
 
 func (h *TempoHarness) WaitTracesWrittenToBackend(t *testing.T, traces int) {

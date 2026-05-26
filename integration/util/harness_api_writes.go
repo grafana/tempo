@@ -88,7 +88,11 @@ func (h *TempoHarness) WriteTraceInfo(traceInfo *util.TraceInfo, tenant string) 
 	if err != nil {
 		return err
 	}
-	return traceInfo.EmitAllBatches(exporter)
+	if err := traceInfo.EmitAllBatches(exporter); err != nil {
+		return err
+	}
+	h.recordWrite()
+	return nil
 }
 
 func (h *TempoHarness) WriteJaegerBatch(batch *thrift.Batch, tenant string) error {
@@ -97,7 +101,11 @@ func (h *TempoHarness) WriteJaegerBatch(batch *thrift.Batch, tenant string) erro
 	if err != nil {
 		return err
 	}
-	return exporter.EmitBatch(context.Background(), batch)
+	if err := exporter.EmitBatch(context.Background(), batch); err != nil {
+		return err
+	}
+	h.recordWrite()
+	return nil
 }
 
 func (h *TempoHarness) WriteTempoProtoTraces(traces *tempopb.Trace, tenant string) error {
@@ -120,6 +128,7 @@ func (h *TempoHarness) WriteTempoProtoTraces(traces *tempopb.Trace, tenant strin
 	if err := exporter.ConsumeTraces(context.Background(), otlpTraces); err != nil {
 		return err
 	}
+	h.recordWrite()
 	return exporter.Shutdown(context.Background())
 }
 
