@@ -752,6 +752,19 @@ func TestParseQueryRequestInvalidBounds(t *testing.T) {
 	}
 }
 
+func TestParseQueryRangeNegativeStep(t *testing.T) {
+	for _, step := range []string{"-1h", "-30m", "-1.5", "-0.001"} {
+		t.Run(step, func(t *testing.T) {
+			r := makeReq(map[string]string{
+				"q": "{} | rate()", "start": "1700000000", "end": "1700003600", "step": step,
+			})
+			_, err := ParseQueryRangeRequest(r)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "step must be positive")
+		})
+	}
+}
+
 func TestQueryRangeRoundtripEmpty(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
 		Step: uint64(time.Second), // you can't actually roundtrip an empty query b/c Build/Parse will force a default step
