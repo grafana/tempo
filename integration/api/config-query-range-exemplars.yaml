@@ -1,2 +1,5 @@
 query_frontend:
   query_end_cutoff: -5m # TestQueryRangeExemplars fails if this is not set. i don't know why
+
+live_store:
+  fail_on_high_lag: false # required because the test uses query_end_cutoff: -5m

@@ -67,6 +67,9 @@ ingest:
     address: kafka:9092
     topic: tempo-ingest
 
+query_frontend:
+  query_end_cutoff: 1s # timings: keep the new-data exclusion window short so tests don't wait the production default (30s)
+
 querier:
   frontend_worker:
     frontend_address: query-frontend:9095
