@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
 #
 # Emit a JSON report of direct Go dependencies with the data needed
-# to decide whether each one is stale: repo URL, GitHub status,
-# recent releases (or tags), and blast radius.
+# to decide whether each one is stale: repo URL, pkg.go.dev version
+# timeline (with deprecated/retracted flags), GitHub archived status,
+# and blast radius.
 #
 # Usage:  check-dependencies.sh [project-dir]
 # Output: JSON document on stdout, progress logs on stderr.
 
 set -euo pipefail
 
-# Number of deps to process concurrently. Each worker issues a few gh api calls.
-PARALLELISM=${PARALLELISM:-8}
+# Number of deps to process concurrently. Each worker issues a few API calls.
+# Default is conservative (4) to stay under pkg.go.dev's rate limits when the
+# script is run several times in quick succession.
+PARALLELISM=${PARALLELISM:-4}
 # Module path prefixes that are skipped (trusted maintainers / large orgs).
 SKIP_PREFIXES=${SKIP_PREFIXES:-"cloud.google.com
 golang.org/x/
@@ -24,6 +27,8 @@ github.com/google/
 github.com/hashicorp/
 go.uber.org/
 k8s.io/"}
+
+PKGSITE=https://pkg.go.dev/v1beta
 
 log() { printf '[check-deps] %s\n' "$*" >&2; }
 die() { log "$@"; exit 1; }
@@ -74,39 +79,116 @@ scrutiny_flags_json() {
     jq -nc --args '$ARGS.positional' "${flags[@]}"
 }
 
-# Echo the upstream repo URL for a module via go mod download, or empty.
-resolve_repo_url() {
-    local path=$1 version=$2
-    go mod download -json "$path@$version" 2>/dev/null | jq -r '.Origin.URL // empty' 2>/dev/null || true
+# Construct the module path for the next semver major. Handles both Go-module
+# style (foo/v8 -> foo/v9) and gopkg.in style (yaml.v3 -> yaml.v4). Modules
+# without a major suffix return the /v2 candidate.
+next_major_path() {
+    local path=$1
+    if [[ "$path" =~ ^(.+)/v([0-9]+)$ ]]; then
+        printf '%s/v%d' "${BASH_REMATCH[1]}" "$((BASH_REMATCH[2] + 1))"
+    elif [[ "$path" =~ ^(.+)\.v([0-9]+)$ ]]; then
+        printf '%s.v%d' "${BASH_REMATCH[1]}" "$((BASH_REMATCH[2] + 1))"
+    else
+        printf '%s/v2' "$path"
+    fi
 }
 
-# Fetch GitHub metadata + the most recent 20 releases (falling back to tag
-# names when the repo doesn't publish releases — date is null in that case).
-# Records which API calls failed in `github_errors` so the consumer can
-# distinguish "repo healthy" from "data not available".
-github_meta() {
-    local owner=$1 name=$2 meta releases errs_json
-    local errs=()
+CURL_TIMEOUT=${CURL_TIMEOUT:-30}
 
-    if ! meta=$(gh api "repos/$owner/$name" --jq '{archived, pushed_at}' 2>/dev/null); then
-        meta='{}'; errs+=("meta")
-    fi
-    if ! releases=$(gh api "repos/$owner/$name/releases?per_page=20" \
-            --jq 'map({tag: .tag_name, date: .published_at})' 2>/dev/null); then
-        releases='[]'; errs+=("releases")
-    fi
-    if [ "$(jq 'length' <<<"$releases")" -eq 0 ]; then
-        if ! releases=$(gh api "repos/$owner/$name/tags?per_page=20" \
-                --jq 'map({tag: .name, date: null})' 2>/dev/null); then
-            releases='[]'; errs+=("tags")
-        fi
-    fi
-    errs_json=$(jq -nc --args '$ARGS.positional' "${errs[@]}")
+# Fetch <url> with retries differentiated by HTTP status:
+# - 2xx → body to stdout, return 0
+# - 429 (rate-limit) → sleep 10s and retry, up to 3 attempts total
+# - 5xx / network error → sleep 2s and retry, up to 3 attempts total
+# - 4xx (other than 429) → return 1 immediately (not retryable)
+# Persistent failures return 1; the caller logs context.
+curl_retry() {
+    local url=$1 body_file code rc attempts=0
+    body_file=$(mktemp "$WORK/curl-body.XXXXXX")
+    while [ "$attempts" -lt 3 ]; do
+        code=$(curl -sL --max-time "$CURL_TIMEOUT" -w '%{http_code}' \
+            -o "$body_file" "$url" 2>/dev/null) || code='000'
+        case "$code" in
+            2*)   cat "$body_file"; rm -f "$body_file"; return 0 ;;
+            429)  sleep 10 ;;
+            4*)   rm -f "$body_file"; return 1 ;;
+            *)    sleep 2 ;;
+        esac
+        attempts=$((attempts + 1))
+    done
+    rm -f "$body_file"
+    return 1
+}
 
-    jq -n --arg owner "$owner" --arg name "$name" --argjson meta "$meta" \
-        --argjson releases "$releases" --argjson errs "$errs_json" \
-        '{owner: $owner, name: $name} + $meta + {recent_releases: $releases}
-         + (if $errs == [] then {} else {github_errors: $errs} end)'
+# Resolve the upstream repo URL. github.com/<o>/<n>/... paths derive it
+# directly; anything else (gopkg.in, vanity domains) goes through pkg.go.dev.
+# Echoes the URL on success, empty on failure (failures logged to stderr).
+resolve_repo_url() {
+    local path=$1 raw
+    if [[ "$path" =~ ^github\.com/([^/]+)/([^/]+) ]]; then
+        printf 'https://github.com/%s/%s' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+        return
+    fi
+    if raw=$(curl_retry "$PKGSITE/module/$path"); then
+        printf '%s' "$raw" | jq -r '.repoUrl // empty' 2>/dev/null || true
+    else
+        log "pkgsite module $path: fetch failed (after retry)"
+    fi
+}
+
+# Fetch the most recent versions from pkg.go.dev. Echoes the items array (with
+# {version, commitTime, deprecated, retracted} per entry) on success, empty
+# array if the module has no versions or the fetch failed (logged to stderr).
+pkgsite_versions() {
+    local path=$1 raw
+    if ! raw=$(curl_retry "$PKGSITE/versions/$path?limit=20"); then
+        log "pkgsite versions $path: fetch failed (after retry)"
+        printf '[]'
+        return
+    fi
+    printf '%s' "$raw" | jq -c '[.items // [] | .[] | {
+        version: .version,
+        commit_time: .commitTime,
+        deprecated: (.deprecated // false),
+        retracted: (.retracted // false)
+    }]' 2>/dev/null || printf '[]'
+}
+
+# Returns "true" if a module at the next-major path is published on pkg.go.dev.
+# 404 means the next major doesn't exist (the common case) — not logged.
+# Honors 429 with a 10s backoff; other transient failures get a 2s backoff.
+higher_major_exists() {
+    local path=$1 next_path code attempts=0
+    next_path=$(next_major_path "$path")
+    while [ "$attempts" -lt 3 ]; do
+        code=$(curl -sL --max-time "$CURL_TIMEOUT" -o /dev/null \
+            -w '%{http_code}' "$PKGSITE/versions/$next_path?limit=1" 2>/dev/null) \
+            || code='000'
+        case "$code" in
+            200|404|410) break ;;
+            429)         sleep 10 ;;
+            *)           sleep 2 ;;
+        esac
+        attempts=$((attempts + 1))
+    done
+    case "$code" in
+        200)     printf 'true' ;;
+        404|410) printf 'false' ;;
+        *)       log "pkgsite higher-major $next_path: persistent status $code"
+                 printf 'false' ;;
+    esac
+}
+
+# Query gh for the GitHub repo's archived flag. Echoes "true"/"false" on
+# success, "null" if the repo URL isn't a GitHub path or the call fails.
+github_archived() {
+    local repo_url=$1 archived
+    if [[ "$repo_url" =~ ^https?://github\.com/([^/]+)/([^/]+?)(\.git)?$ ]]; then
+        archived=$(gh api "repos/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}" \
+            --jq '.archived // false' 2>/dev/null) || archived='null'
+        printf '%s' "$archived"
+    else
+        printf 'null'
+    fi
 }
 
 # Count distinct modules that require the given module@version from the graph.
@@ -127,9 +209,12 @@ count_vendor_packages() {
 }
 
 # Build the JSON record for a single direct dep and write it to $outfile.
+# The three pkg.go.dev calls run sequentially within each dep (each ~2s) to
+# cap total concurrent connections at $PARALLELISM rather than 3*$PARALLELISM,
+# which avoids overloading pkg.go.dev and causing intermittent timeouts.
 process_dep() {
     local idx=$1 path=$2 version=$3 outfile=$4
-    local repo_url owner name meta scrutiny dependents vendor_pkgs
+    local scrutiny repo_url versions archived higher_major dependents vendor_pkgs
 
     scrutiny=$(scrutiny_flags_json "$version")
 
@@ -140,46 +225,42 @@ process_dep() {
         return
     fi
 
-    repo_url=$(resolve_repo_url "$path" "$version")
-    owner=""; name=""
-    if [[ "$repo_url" =~ ^https?://github\.com/([^/]+)/([^/]+?)(\.git)?$ ]]; then
-        owner="${BASH_REMATCH[1]}"
-        name="${BASH_REMATCH[2]}"
-    elif [[ "$path" == github.com/*/* ]]; then
-        owner=$(printf '%s' "$path" | cut -d/ -f2)
-        name=$(printf '%s' "$path" | cut -d/ -f3)
-        repo_url=${repo_url:-"https://github.com/$owner/$name"}
+    repo_url=$(resolve_repo_url "$path")
+    versions=$(pkgsite_versions "$path")
+    higher_major=$(higher_major_exists "$path")
+    archived='null'
+    if [ -n "$repo_url" ]; then
+        archived=$(github_archived "$repo_url")
     fi
-
-    meta='null'
-    if [ -n "$owner" ] && [ -n "$name" ]; then
-        meta=$(github_meta "$owner" "$name") || meta='null'
-    fi
-
     dependents=$(count_dependents "$path@$version" "$WORK/graph.txt")
     vendor_pkgs=$(count_vendor_packages "$path")
 
-    jq -n \
-        --arg path "$path" \
-        --arg version "$version" \
-        --argjson scrutiny "$scrutiny" \
-        --arg repo_url "$repo_url" \
-        --argjson github "$meta" \
-        --argjson dependents "$dependents" \
-        --argjson vendor_pkgs "$vendor_pkgs" \
+    jq -n --arg path "$path" --arg version "$version" --argjson scrutiny "$scrutiny" \
+        --arg repo_url "$repo_url" --argjson versions "$versions" \
+        --argjson higher_major "$higher_major" --argjson archived "$archived" \
+        --argjson dependents "$dependents" --argjson vendor_pkgs "$vendor_pkgs" \
+        --arg repo_host "$([[ "$repo_url" =~ ^https?://github\.com/ ]] && echo github || echo other)" \
         '{
             path: $path,
             version: $version,
             skipped: false,
             extra_scrutiny: $scrutiny,
             repo_url: (if $repo_url == "" then null else $repo_url end),
-            github: $github,
+            pkgsite: (if ($versions | length) == 0 then null else {
+                latest_version: $versions[0].version,
+                latest_commit_time: $versions[0].commit_time,
+                deprecated: $versions[0].deprecated,
+                retracted: $versions[0].retracted,
+                higher_major_exists: $higher_major,
+                recent_versions: $versions
+            } end),
+            github: (if $repo_host == "github" then {archived: $archived} else null end),
             blast_radius: {modules: $dependents, vendor_packages: $vendor_pkgs}
         }' >"$outfile"
 }
 
 main() {
-    require_cmd go jq gh awk
+    require_cmd go jq gh curl awk
 
     local project_dir=${1:-.}
     cd "$project_dir"
@@ -190,7 +271,8 @@ main() {
 
     log "project: $(go list -m 2>/dev/null || echo unknown)"
 
-    go mod edit -json | jq -r '.Require[]? | select(.Indirect != true) | [.Path, .Version] | @tsv' >"$WORK/deps.tsv"
+    go mod edit -json | jq -r '.Require[]? | select(.Indirect != true) | [.Path, .Version] | @tsv' \
+        >"$WORK/deps.tsv"
     local total
     total=$(wc -l <"$WORK/deps.tsv" | tr -d ' ')
     log "found $total direct deps"

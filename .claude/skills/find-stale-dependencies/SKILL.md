@@ -19,7 +19,7 @@ A dependency is **direct** if its line does NOT end with `// indirect`.
 
 ## Step 1 — Run the data-collection script
 
-The skill ships with a script that gathers all deterministic facts about the project's direct dependencies in one pass: repo URL, GitHub archived/pushed_at, last release for the major, version-string smells, and blast radius.
+The skill ships with a script that gathers all deterministic facts about the project's direct dependencies in one pass: repo URL, pkg.go.dev version timeline (with `deprecated`/`retracted` flags), GitHub `archived` status, and blast radius.
 
 ```bash
 .claude/skills/find-stale-dependencies/check-dependencies.sh > /tmp/deps-report.json
@@ -28,7 +28,9 @@ The skill ships with a script that gathers all deterministic facts about the pro
 The script:
 - Lists direct deps from `go mod edit -json`
 - Marks deps under trusted-org prefixes (`golang.org/x/`, `github.com/grafana/`, `github.com/google/`, `k8s.io/`, …) as `skipped`
-- Resolves vanity-domain modules (`go.yaml.in/`, `gopkg.in/`, …) via `go mod download -json` so non-GitHub origins are handled too
+- Queries pkg.go.dev's `/v1beta/versions/{path}` endpoint for the version timeline (works uniformly for GitHub, gopkg.in, and other vanity domains)
+- Detects whether a higher-major sibling module is published (`/v1beta/versions/{path-with-next-major}`)
+- Queries GitHub's API for the `archived` flag — **requires `gh auth login`** to avoid the 60/hour unauthenticated rate limit
 - Flags suspect version strings (`+incompatible`, old pseudo-versions) via `extra_scrutiny`
 - Computes blast radius from `go mod graph` and `vendor/`
 
@@ -47,36 +49,42 @@ The output JSON has shape:
       "skipped": false,
       "extra_scrutiny": ["incompatible", "old-pseudo-version"],
       "repo_url": "https://github.com/foo/bar",
-      "github": {
-        "owner": "foo",
-        "name": "bar",
-        "archived": false,
-        "pushed_at": "2024-01-01T00:00:00Z",
-        "recent_releases": [
-          {"tag": "v1.2.3", "date": "2024-01-01T00:00:00Z"}
+      "pkgsite": {
+        "latest_version": "v1.2.3",
+        "latest_commit_time": "2024-01-01T00:00:00Z",
+        "deprecated": false,
+        "retracted": false,
+        "higher_major_exists": false,
+        "recent_versions": [
+          {"version": "v1.2.3", "commit_time": "2024-01-01T00:00:00Z",
+           "deprecated": false, "retracted": false}
         ]
       },
+      "github": {"archived": false},
       "blast_radius": {"modules": 12, "vendor_packages": 3}
     }
   ]
 }
 ```
 
-`github` is `null` for non-GitHub origins (e.g., gopkg.in vanity paths the proxy doesn't resolve); `repo_url` carries the raw URL when available. `recent_releases` falls back to tag names with `date: null` when the repo publishes tags but no GitHub Releases.
+Semantics:
 
-`extra_scrutiny` is a (possibly empty) subset of `["incompatible", "old-pseudo-version"]`.
-
-If any GitHub API call failed, a `github.github_errors` array lists which subcalls failed (`meta`, `releases`, `tags`). Treat those deps as "data incomplete" rather than healthy.
-
-`skipped: true` deps still carry their path/version but no other data — surface them only if `extra_scrutiny` is non-empty.
+- `pkgsite: null` — pkg.go.dev had no data (private module, not yet indexed, network failure). Treat as "data incomplete".
+- `github: null` — repo isn't on GitHub (gopkg.in, GitLab, etc.). Not an error.
+- `github: {archived: null}` — repo IS on GitHub but the `gh api` call failed (often rate-limit). Treat as "archived status unknown".
+- `pkgsite.deprecated` and `pkgsite.retracted` reflect the **most recent version indexed on pkg.go.dev** — not the version pinned in this project's `go.mod`. `deprecated` is module-level (a `// Deprecated:` comment above `module` in the dep's go.mod), so when `true` every version reports it; `false` doesn't rule out informal README-only deprecation. `retracted` fires only when the latest indexed release has a `retract` directive — older retractions on otherwise-healthy projects do not fire, but a retracted *latest* release means even the maintainer says don't use it.
+- `extra_scrutiny` is a (possibly empty) subset of `["incompatible", "old-pseudo-version"]`.
+- `skipped: true` deps carry only path/version — surface them only if `extra_scrutiny` is non-empty.
 
 ## Step 2 — Pick the candidate set from the JSON
 
 A dep is a **stale candidate** if any of these is true:
 
 - `github.archived == true`
-- `github.pushed_at` is older than **today − 2 years**
-- `github.recent_releases` contains a release for a higher major than the path's `/vN` suffix (the depended-on major is frozen, a successor exists)
+- `pkgsite.deprecated == true` (formal go.mod deprecation)
+- `pkgsite.retracted == true` (latest version retracted)
+- `pkgsite.higher_major_exists == true` (a `path/v(N+1)` module is published — current major may be frozen)
+- `pkgsite.latest_commit_time` is older than **today − 2 years**
 - `extra_scrutiny` is non-empty
 
 Filter with jq:
@@ -86,19 +94,13 @@ Filter with jq:
 TWO_YEARS_AGO=$(date -u -d '2 years ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
     || date -u -v-2y +%Y-%m-%dT%H:%M:%SZ)
 jq --arg cutoff "$TWO_YEARS_AGO" '
-  def path_major:
-    ((capture("/v(?<n>[0-9]+)$") | .n)? // "1") | tonumber;
-  def release_major(t):
-    (t | capture("^v(?<n>[0-9]+)\\.").n | tonumber)? // -1;
-
   .deps | map(select(
     (.skipped | not) and (
       .github.archived == true
-      or (.github.pushed_at != null and .github.pushed_at < $cutoff)
-      or (
-        (.path | path_major) as $m
-        | (.github.recent_releases // []) | any(release_major(.tag) > $m)
-      )
+      or .pkgsite.deprecated == true
+      or .pkgsite.retracted == true
+      or .pkgsite.higher_major_exists == true
+      or ((.pkgsite.latest_commit_time // "9999") < $cutoff)
       or ((.extra_scrutiny // []) | length > 0)
     )
   ))
