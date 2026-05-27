@@ -3,7 +3,10 @@ package cache
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"io"
+	"sync"
 	"testing"
 	"time"
 
@@ -12,6 +15,7 @@ import (
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -304,4 +308,177 @@ func TestCacheKeys(t *testing.T) {
 	err = reader.ReadRange(ctx, "foo", backend.KeyPath{"bar", "baz"}, 10, actualBuffer, &backend.CacheInfo{Role: role})
 	require.NoError(t, err)
 	require.Equal(t, expectedData, actualBuffer)
+}
+
+// eofReader returns (data, io.EOF) on ReadRange, modeling an io.ReaderAt
+// implementation that reaches end-of-object during a read.
+type eofReader struct {
+	*backend.MockRawReader
+	data []byte
+}
+
+func (e *eofReader) ReadRange(_ context.Context, _ string, _ backend.KeyPath, _ uint64, buffer []byte, _ *backend.CacheInfo) error {
+	copy(buffer, e.data)
+	return io.EOF
+}
+
+// errReader returns a configurable non-nil non-EOF error on every ReadRange.
+type errReader struct {
+	*backend.MockRawReader
+	err error
+}
+
+func (e *errReader) ReadRange(_ context.Context, _ string, _ backend.KeyPath, _ uint64, _ []byte, _ *backend.CacheInfo) error {
+	return e.err
+}
+
+// captureLogger records every Log call so tests can assert log content.
+type captureLogger struct {
+	mu      sync.Mutex
+	entries []map[string]interface{}
+}
+
+func (c *captureLogger) Log(keyvals ...interface{}) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	m := make(map[string]interface{}, len(keyvals)/2)
+	for i := 0; i+1 < len(keyvals); i += 2 {
+		k, _ := keyvals[i].(string)
+		m[k] = keyvals[i+1]
+	}
+	c.entries = append(c.entries, m)
+	return nil
+}
+
+// TestReadRangeStoresOnEOF pins the io.EOF-as-success behavior: the data is
+// cached and a subsequent read hits.
+func TestReadRangeStoresOnEOF(t *testing.T) {
+	tenantID := "test"
+	blockID := uuid.New()
+	keypath := backend.KeyPathForBlock(blockID, tenantID)
+	data := []byte{0x01, 0x02, 0x03, 0x04}
+
+	provider := test.NewMockProvider()
+	mockR := &eofReader{MockRawReader: &backend.MockRawReader{}, data: data}
+	reader, _, err := NewCache(nil, mockR, &backend.MockRawWriter{}, provider, log.NewNopLogger())
+	require.NoError(t, err)
+
+	buf := make([]byte, len(data))
+	err = reader.ReadRange(context.Background(), "data.parquet", keypath, 0, buf, &backend.CacheInfo{
+		Role: cache.RoleParquetPage,
+	})
+	require.ErrorIs(t, err, io.EOF, "backend EOF must propagate to the caller")
+	require.Equal(t, data, buf)
+
+	// Second read of the same range hits the cache (no backend call).
+	mockR.data = nil
+	buf2 := make([]byte, len(data))
+	err = reader.ReadRange(context.Background(), "data.parquet", keypath, 0, buf2, &backend.CacheInfo{
+		Role: cache.RoleParquetPage,
+	})
+	require.NoError(t, err)
+	require.Equal(t, data, buf2, "second read must be served from cache")
+}
+
+// TestReadRangeErrorClass verifies that backend errors increment the
+// error-bytes counter with the expected class label.
+func TestReadRangeErrorClass(t *testing.T) {
+	tenantID := "test"
+	blockID := uuid.New()
+	keypath := backend.KeyPathForBlock(blockID, tenantID)
+
+	cases := []struct {
+		name  string
+		inErr error
+		want  string
+	}{
+		{"unexpected_eof", io.ErrUnexpectedEOF, "unexpected_eof"},
+		{"canceled", context.Canceled, "canceled"},
+		{"deadline_exceeded", context.DeadlineExceeded, "deadline_exceeded"},
+		{"other", errors.New("some random error"), "other"},
+		{"wrapped_canceled", fmt.Errorf("wrap: %w", context.Canceled), "canceled"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			roleLabel := string(cache.RoleParquetPage)
+			baseClass := testutil.ToFloat64(pageCacheErrorBytes.WithLabelValues(tc.want, roleLabel))
+
+			provider := test.NewMockProvider()
+			mockR := &errReader{MockRawReader: &backend.MockRawReader{}, err: tc.inErr}
+			reader, _, err := NewCache(nil, mockR, &backend.MockRawWriter{}, provider, log.NewNopLogger())
+			require.NoError(t, err)
+
+			buf := make([]byte, 32)
+			_ = reader.ReadRange(context.Background(), "data.parquet", keypath, 0, buf, &backend.CacheInfo{
+				Role: cache.RoleParquetPage,
+			})
+
+			require.Equal(t, baseClass+32, testutil.ToFloat64(pageCacheErrorBytes.WithLabelValues(tc.want, roleLabel)))
+		})
+	}
+}
+
+// TestReadRangeLogsErrors verifies the rate-limited error log fires with the
+// expected fields when a non-nil non-EOF error reaches the cache layer.
+func TestReadRangeLogsErrors(t *testing.T) {
+	tenantID := "test"
+	blockID := uuid.New()
+	keypath := backend.KeyPathForBlock(blockID, tenantID)
+
+	cl := &captureLogger{}
+	provider := test.NewMockProvider()
+	mockR := &errReader{MockRawReader: &backend.MockRawReader{}, err: context.Canceled}
+	reader, _, err := NewCache(nil, mockR, &backend.MockRawWriter{}, provider, cl)
+	require.NoError(t, err)
+
+	buf := make([]byte, 64)
+	_ = reader.ReadRange(context.Background(), "data.parquet", keypath, 12345, buf, &backend.CacheInfo{
+		Role: cache.RoleParquetPage,
+	})
+
+	found := false
+	cl.mu.Lock()
+	defer cl.mu.Unlock()
+	for _, e := range cl.entries {
+		if e["msg"] == "cache write-path read error" {
+			require.Equal(t, "canceled", e["class"])
+			require.Equal(t, "data.parquet", e["name"])
+			require.Equal(t, uint64(12345), e["offset"])
+			require.Equal(t, 64, e["len"])
+			found = true
+			break
+		}
+	}
+	require.True(t, found, "expected a cache write-path error log line; got entries: %v", cl.entries)
+}
+
+// TestReadRangeErrorRecordsRoleLabel verifies the error-bytes counter is
+// labelled by the cache role of the request, so callers can break it down
+// per role in dashboards.
+func TestReadRangeErrorRecordsRoleLabel(t *testing.T) {
+	tenantID := "test"
+	blockID := uuid.New()
+	keypath := backend.KeyPathForBlock(blockID, tenantID)
+
+	footerRole := string(cache.RoleParquetFooter)
+	pageRole := string(cache.RoleParquetPage)
+
+	baseFooter := testutil.ToFloat64(pageCacheErrorBytes.WithLabelValues("other", footerRole))
+	basePage := testutil.ToFloat64(pageCacheErrorBytes.WithLabelValues("other", pageRole))
+
+	provider := test.NewMockProvider()
+	mockR := &errReader{MockRawReader: &backend.MockRawReader{}, err: errors.New("boom")}
+	reader, _, err := NewCache(nil, mockR, &backend.MockRawWriter{}, provider, log.NewNopLogger())
+	require.NoError(t, err)
+
+	buf := make([]byte, 64)
+	_ = reader.ReadRange(context.Background(), "data.parquet", keypath, 0, buf, &backend.CacheInfo{
+		Role: cache.RoleParquetFooter,
+	})
+
+	require.Equal(t, baseFooter+64, testutil.ToFloat64(pageCacheErrorBytes.WithLabelValues("other", footerRole)),
+		"footer role time series must record the failed read")
+	require.Equal(t, basePage, testutil.ToFloat64(pageCacheErrorBytes.WithLabelValues("other", pageRole)),
+		"page role time series must not be touched by a footer read")
 }
