@@ -54,8 +54,8 @@ jobs:
       - name: docker-build-and-push
         run: |
           TAG_ARCH="$TAG-${{ matrix.runner_arch.arch }}"
-          docker build -f tools/Dockerfile -t $IMAGE_NAME:$TAG_ARCH .
-          docker push $IMAGE_NAME:$TAG_ARCH
+          docker build -f tools/Dockerfile -t "$IMAGE_NAME:$TAG_ARCH" .
+          docker push "$IMAGE_NAME:$TAG_ARCH"
 
   manifest:
     if: github.repository == 'grafana/tempo'
@@ -77,13 +77,13 @@ jobs:
       - name: docker-manifest-create-and-push
         run: |
           docker manifest create \
-          	$IMAGE_NAME:$TAG               \
-          	--amend $IMAGE_NAME:$TAG-amd64  \
-          	--amend $IMAGE_NAME:$TAG-arm64 
-          docker manifest push $IMAGE_NAME:$TAG
+          	"$IMAGE_NAME:$TAG"               \
+          	--amend "$IMAGE_NAME:$TAG-amd64"  \
+          	--amend "$IMAGE_NAME:$TAG-arm64"
+          docker manifest push "$IMAGE_NAME:$TAG"
 
           docker manifest create \
-          	$IMAGE_NAME:latest            \
-          	--amend $IMAGE_NAME:$TAG-amd64   \
-          	--amend $IMAGE_NAME:$TAG-arm64
-          docker manifest push $IMAGE_NAME:latest
+          	"$IMAGE_NAME:latest"              \
+          	--amend "$IMAGE_NAME:$TAG-amd64"   \
+          	--amend "$IMAGE_NAME:$TAG-arm64"
+          docker manifest push "$IMAGE_NAME:latest"

@@ -42,7 +42,7 @@ jobs:
 
       - name: Get year and week number
         id: get-year-week-number
-        run: echo "date=$(date +"%Yweek%U")" >> $GITHUB_OUTPUT
+        run: echo "date=$(date +"%Yweek%U")" >> "$GITHUB_OUTPUT"
 
       - name: cache golangci
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
@@ -54,8 +54,8 @@ jobs:
         # using env instead of template expansions to avoid template injection
         # https://woodruffw.github.io/zizmor/audits/#template-injection
         run: |
-          make lint base=origin/${BASE_REF}
-          sudo chown -R $(id -u):$(id -g) .cache/golangci-lint  # needed to archive cache
+          make lint "base=origin/${BASE_REF}"
+          sudo chown -R "$(id -u):$(id -g)" .cache/golangci-lint  # needed to archive cache
         env:
           BASE_REF: ${{ github.base_ref }}
 
@@ -115,7 +115,9 @@ jobs:
           EXPECTED_FOLDERS=("api" "limits" "metrics-generator" "operations" "storage" "util")
 
           # Get actual folders in integration/ (excluding hidden files)
-          ACTUAL_FOLDERS=($(ls -d integration/*/ 2>/dev/null | xargs -n1 basename | sort))
+          mapfile -d '' _raw < <(find integration/ -mindepth 1 -maxdepth 1 -type d -not -name '.*' -print0 2>/dev/null)
+          ACTUAL_FOLDERS=()
+          for _d in "${_raw[@]}"; do ACTUAL_FOLDERS+=("$(basename "$_d")"); done
 
           # Convert arrays to strings for comparison
           EXPECTED_SORTED=$(printf '%s\n' "${EXPECTED_FOLDERS[@]}" | sort | tr '\n' ' ')
@@ -279,7 +281,7 @@ jobs:
           persist-credentials: false
 
       - name: Build Website
-        run: docker run -v ${PWD}/docs/sources:/hugo/content/docs/tempo/latest --rm grafana/docs-base:latest make prod
+        run: docker run -v "${PWD}/docs/sources:/hugo/content/docs/tempo/latest" --rm grafana/docs-base:latest make prod
 
   coverage-annotations:
     name: Coverage Annotations
