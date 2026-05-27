@@ -29,7 +29,7 @@ For more information, read the [multi-tenancy](https://grafana.com/docs/tempo/<T
 
 Tempo exposes operational endpoints on component HTTP and gRPC listeners for status pages, ring inspection, flush, shutdown, downscale workflows, and backend scheduling.
 These endpoints are intended for internal operator access, automation, and component-to-component communication.
-They are not tenant-scoped API endpoints and should not be exposed to tenants or untrusted clients.
+They aren't tenant-scoped API endpoints and shouldn't be exposed to tenants or untrusted clients.
 
 Expose only the tenant-facing API routes that are required for ingestion and querying through public or tenant-facing ingress.
 Keep component listeners, such as backend-scheduler and live-store, restricted to internal networks.
@@ -45,7 +45,7 @@ Depending on the enabled components, internal HTTP routes include:
 - `/status/backendscheduler`
 
 The backend-scheduler also exposes gRPC methods for backend workers and redaction workflows.
-Do not expose the backend-scheduler gRPC service to untrusted clients.
+Don't expose the backend-scheduler gRPC service to untrusted clients.
 Restrict access to trusted backend workers and operators, including methods such as:
 
 - `/tempopb.BackendScheduler/Next`
@@ -53,4 +53,4 @@ Restrict access to trusted backend workers and operators, including methods such
 - `/tempopb.BackendScheduler/SubmitRedaction`
 
 The `X-Scope-OrgID` header scopes tenant data.
-It is not an administrative authorization mechanism for cluster-wide operational endpoints.
+It isn't an administrative authorization mechanism for cluster-wide operational endpoints.
