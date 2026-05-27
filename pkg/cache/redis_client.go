@@ -10,7 +10,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/grafana/dskit/flagext"
 )
@@ -68,8 +68,8 @@ func NewRedisClient(cfg *RedisConfig) *RedisClient {
 		SentinelPassword: cfg.SentinelPassword.String(),
 		DB:               cfg.DB,
 		PoolSize:         cfg.PoolSize,
-		IdleTimeout:      cfg.IdleTimeout,
-		MaxConnAge:       cfg.MaxConnAge,
+		ConnMaxIdleTime:  cfg.IdleTimeout,
+		ConnMaxLifetime:  cfg.MaxConnAge,
 	}
 	if cfg.EnableTLS {
 		opt.TLSConfig = &tls.Config{InsecureSkipVerify: cfg.InsecureSkipVerify}
@@ -109,7 +109,7 @@ func (c *RedisClient) MSet(ctx context.Context, keys []string, values [][]byte) 
 		return fmt.Errorf("MSet the length of keys and values not equal, len(keys)=%d, len(values)=%d", len(keys), len(values))
 	}
 
-	pipe := c.rdb.TxPipeline()
+	pipe := c.rdb.Pipeline()
 	for i := range keys {
 		pipe.Set(ctx, keys[i], values[i], c.expiration)
 	}
@@ -150,8 +150,11 @@ func (c *RedisClient) MGet(ctx context.Context, keys []string) ([][]byte, error)
 		}
 
 		for i, val := range cmd.Val() {
-			if val != nil {
-				ret[i] = StringToBytes(val.(string))
+			switch v := val.(type) {
+			case string:
+				ret[i] = StringToBytes(v)
+			case []byte:
+				ret[i] = v
 			}
 		}
 	}
