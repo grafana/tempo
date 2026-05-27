@@ -84,7 +84,7 @@ func isServeMuxRegisterCall(pass *analysis.Pass, call *ast.CallExpr) bool {
 	if !isMethodNamed(fn, "net/http", "Handle", "HandleFunc") {
 		return false
 	}
-	recv := fn.Type().(*types.Signature).Recv() // isMethodNamed() -> non-nil
+	recv := fn.Signature().Recv() // isMethodNamed() -> non-nil
 	isPtr, named := typesinternal.ReceiverNamed(recv)
 	return isPtr && typesinternal.IsTypeNamed(named, "net/http", "ServeMux")
 }
@@ -92,7 +92,7 @@ func isServeMuxRegisterCall(pass *analysis.Pass, call *ast.CallExpr) bool {
 // isMethodNamed reports when a function f is a method,
 // in a package with the path pkgPath and the name of f is in names.
 //
-// (Unlike [analysisinternal.IsMethodNamed], it ignores the receiver type name.)
+// (Unlike [analysis.IsMethodNamed], it ignores the receiver type name.)
 func isMethodNamed(f *types.Func, pkgPath string, names ...string) bool {
 	if f == nil {
 		return false
@@ -100,7 +100,7 @@ func isMethodNamed(f *types.Func, pkgPath string, names ...string) bool {
 	if f.Pkg() == nil || f.Pkg().Path() != pkgPath {
 		return false // not at pkgPath
 	}
-	if f.Type().(*types.Signature).Recv() == nil {
+	if f.Signature().Recv() == nil {
 		return false // not a method
 	}
 	return slices.Contains(names, f.Name())

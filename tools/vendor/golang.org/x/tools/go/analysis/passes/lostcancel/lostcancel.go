@@ -13,10 +13,9 @@ import (
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/ctrlflow"
 	"golang.org/x/tools/go/analysis/passes/inspect"
-	"golang.org/x/tools/go/analysis/passes/internal/analysisutil"
 	"golang.org/x/tools/go/ast/inspector"
 	"golang.org/x/tools/go/cfg"
-	"golang.org/x/tools/internal/astutil"
+	"golang.org/x/tools/internal/analysis/analyzerutil"
 	"golang.org/x/tools/internal/typesinternal"
 )
 
@@ -25,7 +24,7 @@ var doc string
 
 var Analyzer = &analysis.Analyzer{
 	Name: "lostcancel",
-	Doc:  analysisutil.MustExtractDoc(doc, "lostcancel"),
+	Doc:  analyzerutil.MustExtractDoc(doc, "lostcancel"),
 	URL:  "https://pkg.go.dev/golang.org/x/tools/go/analysis/passes/lostcancel",
 	Run:  run,
 	Requires: []*analysis.Analyzer{
@@ -84,7 +83,7 @@ func runFunc(pass *analysis.Pass, node ast.Node) {
 	// {FuncDecl,FuncLit,CallExpr,SelectorExpr}.
 
 	// Find the set of cancel vars to analyze.
-	astutil.PreorderStack(node, nil, func(n ast.Node, stack []ast.Node) bool {
+	ast.PreorderStack(node, nil, func(n ast.Node, stack []ast.Node) bool {
 		if _, ok := n.(*ast.FuncLit); ok && len(stack) > 0 {
 			return false // don't stray into nested functions
 		}
@@ -316,8 +315,8 @@ outer:
 }
 
 func tupleContains(tuple *types.Tuple, v *types.Var) bool {
-	for i := 0; i < tuple.Len(); i++ {
-		if tuple.At(i) == v {
+	for v0 := range tuple.Variables() {
+		if v0 == v {
 			return true
 		}
 	}
