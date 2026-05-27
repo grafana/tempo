@@ -44,8 +44,8 @@ func (rw *Azure) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
 		return err
 	}
 
-	// delete the old file
-	return rw.Delete(ctx, metaFilename, []string{}, nil)
+	// metaFilename is already prefixed so use deleteRaw - rw.Delete would re-apply it.
+	return rw.deleteRaw(ctx, metaFilename)
 }
 
 func (rw *Azure) ClearBlock(blockID uuid.UUID, tenantID string) error {
@@ -78,7 +78,8 @@ func (rw *Azure) ClearBlock(blockID uuid.UUID, tenantID string) error {
 				return fmt.Errorf("unexpected empty blob name when listing %s: %w", prefix, err)
 			}
 
-			err = rw.Delete(ctx, *b.Name, []string{}, nil)
+			// b.Name from the listing is already prefixed so use deleteRaw - rw.Delete would re-apply it.
+			err = rw.deleteRaw(ctx, *b.Name)
 			if err != nil {
 				warning = err
 				continue
