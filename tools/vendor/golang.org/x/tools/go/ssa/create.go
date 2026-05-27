@@ -312,3 +312,14 @@ func (prog *Program) AllPackages() []*Package {
 func (prog *Program) ImportedPackage(path string) *Package {
 	return prog.imported[path]
 }
+
+// SetNoReturn sets the predicate used when building the ssa.Program
+// prog that reports whether a given function cannot return.
+// This may be used to prune spurious control flow edges
+// after (e.g.) log.Fatal, improving the precision of analyses.
+//
+// A typical implementation is the [ctrlflow.CFGs.NoReturn] method from
+// [golang.org/x/tools/go/analysis/passes/ctrlflow].
+func (prog *Program) SetNoReturn(noReturn func(*types.Func) bool) {
+	prog.noReturn = noReturn
+}
