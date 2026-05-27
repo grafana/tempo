@@ -1173,7 +1173,7 @@ querier:
         # The querier limits the external endpoint response size to querier gRPC send-message size
         # (`querier.frontend_worker.grpc_client_config.max_send_msg_size`, default 16 MiB).
         # A larger response cannot be returned to the frontend, so the read is bounded to that
-        # limit and the querier returns an error if the external endpoint sends more data then the limit.
+        # limit and the querier returns an error if the external endpoint sends more data than the limit.
         external:
             # The URL of the external service.
             # Example: "http://external-service:3200"
