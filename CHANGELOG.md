@@ -2,6 +2,7 @@
 
 # v3.0.0
 
+* [BUGFIX] backend: fix double prefix in compactor and DeleteVersioned in azure and s3. [#7271](https://github.com/grafana/tempo/pull/7271) (@electron0zero)
 * [CHANGE] **BREAKING CHANGE** Recent data queries guarantee complete results by failing when an instance is lagging. Defaults `query_frontend.query_end_cutoff` to `30s` and `live_store.fail_on_high_lag` to `true`. [#7210](https://github.com/grafana/tempo/pull/7210) (@mapno)
 * [CHANGE] **BREAKING CHANGE** user-configurable overrides config `metrics_generator.processors` no longer merges with runtime overrides. `metrics_generator.processors` now takes precedence over the runtime overrides, matching every other config in user-configurable overrides. Setting `processors: []` disables all processors for the tenant. [#7176](https://github.com/grafana/tempo/pull/7176) (@electron0zero)
 * [CHANGE] Stop publishing 32-bit ARM binary archives. Release artifacts continue to include amd64 and arm64 binaries. [#7106](https://github.com/grafana/tempo/pull/7106) (@javiermolinar)
