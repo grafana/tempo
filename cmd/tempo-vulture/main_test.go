@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-test/deep"
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -101,10 +101,8 @@ func TestResponseFixture(t *testing.T) {
 
 	assert.True(t, equalTraces(expected, generatedTrace))
 
-	if diff := deep.Equal(expected, generatedTrace); diff != nil {
-		for _, d := range diff {
-			t.Error(d)
-		}
+	if diff := cmp.Diff(expected, generatedTrace); diff != "" {
+		t.Error(diff)
 	}
 }
 

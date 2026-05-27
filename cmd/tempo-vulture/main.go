@@ -15,7 +15,7 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/go-test/deep"
+	"github.com/google/go-cmp/cmp"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
@@ -642,12 +642,8 @@ func queryTrace(client httpclient.TempoHTTPClient, info *util.TraceInfo, l *zap.
 	match := equalTraces(expected, trace)
 	if !match {
 		tm.incorrectResult++
-		if diff := deep.Equal(expected, trace); diff != nil {
-			for _, d := range diff {
-				logger.Error("incorrect result",
-					zap.String("expected -> response", d),
-				)
-			}
+		if diff := cmp.Diff(expected, trace); diff != "" {
+			logger.Error("incorrect result", zap.String("diff", diff))
 		}
 		return tm, nil
 	}
