@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/go-kit/log" //nolint:all deprecated
 	"github.com/go-kit/log/level"
-	"github.com/segmentio/fasthash/fnv1a"
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
@@ -21,6 +21,7 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	tempo_util "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -418,16 +419,17 @@ func hashForQueryRangeRequest(req *tempopb.QueryRangeRequest) uint64 {
 	query := ast.String()
 
 	// add the query and other fields that change the response to the hash
-	hash := fnv1a.HashString64(query)
-	hash = fnv1a.AddUint64(hash, req.Step)
-	hash = fnv1a.AddUint64(hash, uint64(req.MaxSeries))
-	hash = fnv1a.AddUint64(hash, uint64(req.Exemplars))
+	d := xxhash.New()
+	_, _ = d.WriteString(query)
+	tempo_util.HashUint64(d, req.Step)
+	tempo_util.HashUint64(d, uint64(req.MaxSeries))
+	tempo_util.HashUint64(d, uint64(req.Exemplars))
 
 	// TODO: once we have IN/NOT IN syntax in TraceQL, we should pass down the optimized query with the
 	//       request and remove req.SkipASTTransformations entirely and skip this step
 	for _, name := range req.SkipASTTransformations {
-		hash = fnv1a.AddString64(hash, name)
+		_, _ = d.WriteString(name)
 	}
 
-	return hash
+	return d.Sum64()
 }

@@ -7,8 +7,8 @@ import (
 	"slices"
 	"time"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/go-kit/log" //nolint:all deprecated
-	"github.com/segmentio/fasthash/fnv1a"
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
@@ -17,6 +17,7 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	tempo_util "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -365,14 +366,15 @@ func hashForSearchRequest(searchRequest *tempopb.SearchRequest) uint64 {
 	query := ast.String()
 
 	// add the query, limit and spss to the hash
-	hash := fnv1a.HashString64(query)
-	hash = fnv1a.AddUint64(hash, uint64(searchRequest.Limit))
-	hash = fnv1a.AddUint64(hash, uint64(searchRequest.SpansPerSpanSet))
+	d := xxhash.New()
+	_, _ = d.WriteString(query)
+	tempo_util.HashUint64(d, uint64(searchRequest.Limit))
+	tempo_util.HashUint64(d, uint64(searchRequest.SpansPerSpanSet))
 	for _, name := range searchRequest.SkipASTTransformations {
-		hash = fnv1a.AddString64(hash, name)
+		_, _ = d.WriteString(name)
 	}
 
-	return hash
+	return d.Sum64()
 }
 
 // pagesPerRequest returns an integer value that indicates the number of pages

@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/gogo/protobuf/proto"
@@ -21,7 +22,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/util/strutil"
-	"github.com/segmentio/fasthash/fnv1a"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -712,8 +712,11 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 				traceKey := util.HashForTraceID(traceID)
 				ilsKey := traceKey
 				if ils.Scope != nil {
-					ilsKey = fnv1a.AddString64(ilsKey, ils.Scope.Name)
-					ilsKey = fnv1a.AddString64(ilsKey, ils.Scope.Version)
+					d := xxhash.New()
+					util.HashUint64(d, traceKey)
+					_, _ = d.WriteString(ils.Scope.Name)
+					_, _ = d.WriteString(ils.Scope.Version)
+					ilsKey = d.Sum64()
 				}
 
 				existingILS, ilsAdded := spansByILS[ilsKey]

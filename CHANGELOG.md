@@ -1,6 +1,7 @@
 ## main / unreleased
 
 * [SECURITY] jsonnet: bump `memcached` to `1.6.42-alpine` and `prom/memcached-exporter` to `v0.16.0` to clear accumulated CVEs. [#7244](https://github.com/grafana/tempo/pull/7244) (@zhxiaogg)
+* [CHANGE] Replace `segmentio/fasthash/fnv1a` with `cespare/xxhash/v2` for in-memory hashing, sharding, and cache-key computation. Existing cache entries (Redis, memcached, livestore on-disk `.buf` files) keyed under the old hashes will miss on rolling deploy and self-heal as the cache warms or blocks are evicted. [#7218](https://github.com/grafana/tempo/issues/7218)
 * [CHANGE] **BREAKING CHANGE** Recent data queries guarantee complete results by failing when an instance is lagging. Defaults `query_frontend.query_end_cutoff` to `30s` and `live_store.fail_on_high_lag` to `true`. [#7210](https://github.com/grafana/tempo/pull/7210) (@mapno)
 * [ENHANCEMENT] tempo-mixin: update backendwork dashboard with a Redaction section (active jobs, created/completed/failed/dropped by tenant, job duration), add Dropped and Job Duration panels to the Jobs row, and fix the Retry metric name (`jobs_retry` -> `jobs_retry_total`). [#7184](https://github.com/grafana/tempo/pull/7184) (@zalegrala)
 * [ENHANCEMENT] querier: limit external endpoint response size to querier grpc MaxSendMsgSize. [#7240](https://github.com/grafana/tempo/pull/7240) (@electron0zero)
