@@ -10,9 +10,9 @@ import (
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
-	"golang.org/x/tools/go/analysis/passes/internal/analysisutil"
 	"golang.org/x/tools/go/ast/inspector"
 	"golang.org/x/tools/go/types/typeutil"
+	"golang.org/x/tools/internal/analysis/analyzerutil"
 	"golang.org/x/tools/internal/typesinternal"
 )
 
@@ -23,8 +23,8 @@ var doc string
 var Analyzer = &analysis.Analyzer{
 	Name:     "defers",
 	Requires: []*analysis.Analyzer{inspect.Analyzer},
+	Doc:      analyzerutil.MustExtractDoc(doc, "defers"),
 	URL:      "https://pkg.go.dev/golang.org/x/tools/go/analysis/passes/defers",
-	Doc:      analysisutil.MustExtractDoc(doc, "defers"),
 	Run:      run,
 }
 
