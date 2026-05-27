@@ -56,10 +56,6 @@ jobs:
           test -f actionlint
           chmod +x actionlint
 
-      # Intentional error to verify problem matcher annotations (remove before merge).
-      - name: Echo undefined input
-        run: echo "${{ inputs.nonexistent }}"
-
       - name: Run Actionlint
         run: |
           echo "::add-matcher::.github/actionlint-matcher.json"
