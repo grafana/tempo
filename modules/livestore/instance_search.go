@@ -12,9 +12,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
-	"github.com/segmentio/fasthash/fnv1a"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -947,17 +947,18 @@ func (i *instance) queryRangeCacheSet(ctx context.Context, m *backend.BlockMeta,
 }
 
 func queryRangeHashForBlock(req tempopb.QueryRangeRequest) uint64 {
-	h := fnv1a.HashString64(req.Query)
-	h = fnv1a.AddUint64(h, req.Start)
-	h = fnv1a.AddUint64(h, req.End)
-	h = fnv1a.AddUint64(h, req.Step)
+	d := xxhash.New()
+	_, _ = d.WriteString(req.Query)
+	util.HashUint64(d, req.Start)
+	util.HashUint64(d, req.End)
+	util.HashUint64(d, req.Step)
 
 	// TODO - caching for WAL blocks
 	// Including trace count means we can safely cache results
 	// for wal blocks which might receive new data
-	// h = fnv1a.AddUint64(h, m.TotalObjects)
+	// util.HashUint64(d, m.TotalObjects)
 
-	return h
+	return d.Sum64()
 }
 
 // includeBlock uses the provided time range to determine if the block should be included in the search.
@@ -993,11 +994,12 @@ func searchTagValuesV2CacheKey(req *tempopb.SearchTagValuesRequest, limit int, p
 
 	// NOTE: we are not adding req.Start and req.End to the cache key because we don't respect the start and end
 	// please add them to cacheKey if we start respecting them
-	h := fnv1a.HashString64(req.TagName)
-	h = fnv1a.AddString64(h, cacheKey)
-	h = fnv1a.AddUint64(h, uint64(limit))
+	d := xxhash.New()
+	_, _ = d.WriteString(req.TagName)
+	_, _ = d.WriteString(cacheKey)
+	util.HashUint64(d, uint64(limit))
 
-	return fmt.Sprintf("%s_%v.buf", prefix, h)
+	return fmt.Sprintf("%s_%v.buf", prefix, d.Sum64())
 }
 
 // valuesToTagValuesV2RespProto converts TagValues to a protobuf marshalled bytes

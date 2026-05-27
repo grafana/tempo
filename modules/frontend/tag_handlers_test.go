@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
@@ -26,7 +27,6 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/segmentio/fasthash/fnv1a"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
@@ -598,7 +598,7 @@ func TestSearchTagsV2AccessesCache(t *testing.T) {
 	// setup query
 	tenant := "foo"
 	scope := "resource"
-	hash := fnv1a.HashString64(scope)
+	hash := xxhash.Sum64String(scope)
 	start := uint32(10)
 	end := uint32(20)
 	startTime := time.Unix(int64(start), 0)
@@ -718,7 +718,7 @@ func TestTagValuesCachedMetrics(t *testing.T) {
 	// setup query
 	tenant := "foo"
 	tagName := "resource.service.name"
-	hash := fnv1a.HashString64(tagName)
+	hash := xxhash.Sum64String(tagName)
 	start := uint32(10)
 	end := uint32(20)
 	startTime := time.Unix(int64(start), 0)
@@ -812,7 +812,7 @@ func TestTagsCachedMetrics(t *testing.T) {
 	// setup query
 	tenant := "foo"
 	scope := "resource"
-	hash := fnv1a.HashString64(scope)
+	hash := xxhash.Sum64String(scope)
 	start := uint32(10)
 	end := uint32(20)
 	startTime := time.Unix(int64(start), 0)

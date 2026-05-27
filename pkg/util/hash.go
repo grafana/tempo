@@ -1,8 +1,19 @@
 package util
 
 import (
+	"encoding/binary"
 	"hash/fnv"
+
+	"github.com/cespare/xxhash/v2"
 )
+
+// HashUint64 appends n to d as 8 little-endian bytes. Use with xxhash.Digest
+// when chaining string and integer values into a single hash.
+func HashUint64(d *xxhash.Digest, n uint64) {
+	var buf [8]byte
+	binary.LittleEndian.PutUint64(buf[:], n)
+	_, _ = d.Write(buf[:])
+}
 
 // TokenFor generates a token used for finding ingesters from ring.
 // Not suitable for in-memory hashing or deduping because it is only 32-bit.
