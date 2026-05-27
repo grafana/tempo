@@ -47,6 +47,7 @@
 * [FEATURE] Extend `TraceRedactor` interface to support hiding complete traces via `ErrTraceHidden`. [#6811](https://github.com/grafana/tempo/pull/6811) (@stoewer)
 * [FEATURE] Single-binary mode: push distributor local ingest directly to live-store and metrics-generator without Kafka [#6729](https://github.com/grafana/tempo/pull/6729) (@javiermolinar)
 * [FEATURE] Add experimental drain limiter to the metrics generator. This can reduce metrics cardinality by clustering similar span names. [#6098](https://github.com/grafana/tempo/pull/6098) (@Logiraptor)
+* [ENHANCEMENT] Query-frontend: split streamed search and metrics responses into smaller gRPC packets for better default client compatibility, and fix final streaming updates after metrics series limits are reached. [#6607](https://github.com/grafana/tempo/pull/6607) (@mdisibio)
 * [ENHANCEMENT] live-store: lock-free block reads via `atomic.Pointer[blockSnapshot]`; block deletion is two-phase (tombstone meta.json → meta.deleted.json, then reclaim files after `block_reclaim_grace`). Crash-safe; startup sweep reclaims any tombstoned dirs left by an unclean shutdown. [#7132](https://github.com/grafana/tempo/pull/7132) (@zhxiaogg)
 * [ENHANCEMENT] Support OR conditions for tag name and tag value autocomplete (search tags v2) [#6827](https://github.com/grafana/tempo/pull/6827) (@ie-pham)
 * [ENHANCEMENT] Expose MinIO retry settings via S3 config [#6561](https://github.com/grafana/tempo/pull/6561) (@rwhitty)

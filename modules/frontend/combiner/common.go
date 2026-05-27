@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/bits"
 	"net/http"
 	"strings"
 	"sync"
@@ -43,6 +44,9 @@ type genericCombiner[T TResponse] struct {
 	finalize func(T) (T, error)
 	diff     func(T) (T, error)
 	quit     func(T) bool
+
+	// Segment one response into smaller ones, that fit within the given max size.
+	segment func(T, int) []T
 
 	// Used to determine the response code and when to stop
 	httpStatusCode int
@@ -232,6 +236,18 @@ func (c *genericCombiner[T]) GRPCDiff() (T, error) {
 	return diffClone.(T), nil
 }
 
+func (c *genericCombiner[T]) GRPCSegment(response T, maxSize int) ([]T, error) {
+	c.mu.Lock()
+	segment := c.segment
+	c.mu.Unlock()
+
+	if segment == nil {
+		return nil, fmt.Errorf("grpc response segmentation not supported for response type:  %T", response)
+	}
+
+	return segment(response, maxSize), nil
+}
+
 func (c *genericCombiner[T]) erroredResponse() (*http.Response, error) {
 	if c.httpStatusCode == http.StatusOK {
 		return nil, nil
@@ -341,4 +357,21 @@ type TraceRedactor interface {
 // The returned byte slice must not be modified.
 func unsafeStringToBytes(s string) []byte {
 	return unsafe.Slice(unsafe.StringData(s), len(s))
+}
+
+// protoStringSize returns the size in bytes of a string in a repeated string field.
+// Size is 1 byte for the field number, the string content itself, and then the string length encoded as varint.
+func protoStringSize(s string) int {
+	l := len(s)
+	// Calculation copied from sovTempo in tempopb.
+	varIntSize := (bits.Len64(uint64(l)|1) + 6) / 7
+	return 1 + l + varIntSize
+}
+
+// protoSizeMath returns the full size in bytes including overhead to store an entry in a proto slice.
+// It accounts for the field number, the length of the item itself, and then the length encoded as a varint.
+func protoSizeMath(item proto.Message) (n int) {
+	sz := proto.Size(item)
+	varIntSize := (bits.Len64(uint64(sz)|1) + 6) / 7
+	return 1 + sz + varIntSize
 }

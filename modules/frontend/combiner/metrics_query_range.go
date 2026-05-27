@@ -105,7 +105,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 			// Check if any shards have completed
 			completedThrough := completionTracker.CompletedThroughSeconds()
 
-			// If no shards have completed yet or the completedThrough is the same as the lastCompletedThrough, return empty response
+			// If we are still waiting for new data, then send an interim empty diff.
 			if completedThrough == shardtracker.TimestampUnknown || completedThrough == lastCompletedThrough {
 				return &tempopb.QueryRangeResponse{
 					Series:  []*tempopb.TimeSeries{},
@@ -119,7 +119,6 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 			}
 
 			// only trim the response if we're not at the end of the stream. for the final response, we'll send all the data.
-			// TODO: why aren't we using .GRPCFinal() correctly instead of doing this? also it looks like TimestampAlways is never set? so I don't think this ever works the way it's intended to.
 			if completedThrough != shardtracker.TimestampAlways {
 				trimSeriesToCompletedWindow(resp.Series, lastCompletedThrough, completedThrough)
 			}
@@ -148,6 +147,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 			// will return an empty response
 			return combiner.MaxSeriesReached() && completionTracker.CompletedThroughSeconds() != shardtracker.TimestampUnknown
 		},
+		segment: segmentQueryRangeResponseToMaxPacketSize,
 	}
 
 	initHTTPCombiner(c, api.HeaderAcceptJSON)
@@ -161,6 +161,51 @@ func NewTypedQueryRange(req *tempopb.QueryRangeRequest, maxSeries int) (GRPCComb
 		return nil, err
 	}
 	return c.(GRPCCombiner[*tempopb.QueryRangeResponse]), nil
+}
+
+// segmentQueryRangeResponseToMaxPacketSize splits resp into one or more QueryRangeResponse values, each within
+// maxSize bytes (by proto Size()), accounting for the response object itself. Metrics are included
+// in every segment; Status and Message are set on the last segment.
+func segmentQueryRangeResponseToMaxPacketSize(resp *tempopb.QueryRangeResponse, maxSize int) []*tempopb.QueryRangeResponse {
+	// If not configured return as-is.
+	if maxSize <= 0 {
+		return []*tempopb.QueryRangeResponse{resp}
+	}
+
+	var out []*tempopb.QueryRangeResponse
+	var current *tempopb.QueryRangeResponse
+	var currentSz int
+
+	startNextPacket := func() {
+		current = &tempopb.QueryRangeResponse{
+			Metrics: resp.Metrics,
+		}
+		currentSz = current.Size()
+		out = append(out, current)
+	}
+
+	startNextPacket()
+
+	for _, s := range resp.Series {
+		seriesSz := protoSizeMath(s)
+
+		// Start a new packet if there isn't room for this entry,
+		// unless it's the first one, that way we always try to fit at least one.
+		if len(current.Series) > 0 && currentSz+seriesSz > maxSize {
+			startNextPacket()
+		}
+
+		current.Series = append(current.Series, s)
+		currentSz += seriesSz
+	}
+
+	// Attach real status and message only to the last packet
+	if len(out) > 0 {
+		out[len(out)-1].Status = resp.Status
+		out[len(out)-1].Message = resp.Message
+	}
+
+	return out
 }
 
 // trimSeriesToCompletedWindow filters series samples and exemplars to only include
