@@ -1169,6 +1169,11 @@ querier:
         # also fetch trace data from an external HTTP endpoint that returns
         # an OpenTelemetry protobuf formatted trace. Enable this feature using
         # query_frontend.trace_by_id.external_enabled.
+        #
+        # The querier caps the external response body size at the gRPC send-message size
+        # (`querier.frontend_worker.grpc_client_config.max_send_msg_size`, default 16 MiB).
+        # A larger response cannot be returned to the frontend, so the read is bounded to that
+        # limit and the querier returns an error if the external endpoint exceeds it.
         external:
             # The URL of the external service.
             # Example: "http://external-service:3200"
