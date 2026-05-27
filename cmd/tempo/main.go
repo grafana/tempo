@@ -8,7 +8,6 @@ import (
 	"reflect"
 	"runtime"
 
-	"github.com/drone/envsubst"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/flagext"
 	dslog "github.com/grafana/dskit/log"
@@ -21,6 +20,7 @@ import (
 
 	"github.com/grafana/tempo/cmd/tempo/app"
 	"github.com/grafana/tempo/pkg/gogocodec"
+	tempo_util "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
 )
 
@@ -175,7 +175,7 @@ func loadConfig() (*app.Config, bool, error) {
 		}
 
 		if configExpandEnv {
-			s, err := envsubst.EvalEnv(string(buff))
+			s, err := tempo_util.ExpandEnv(string(buff))
 			if err != nil {
 				return nil, false, fmt.Errorf("failed to expand env vars from configFile %s: %w", configFile, err)
 			}

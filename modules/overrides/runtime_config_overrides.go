@@ -10,7 +10,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/drone/envsubst"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/runtimeconfig"
 	"github.com/grafana/dskit/services"
@@ -95,7 +94,7 @@ func loadPerTenantOverrides(validator Validator, typ ConfigType, expandEnv bool,
 				return nil, err
 			}
 
-			s, err := envsubst.EvalEnv(string(b))
+			s, err := util.ExpandEnv(string(b))
 			if err != nil {
 				return nil, fmt.Errorf("failed to expand env vars: %w", err)
 			}

@@ -82,17 +82,9 @@ Where `VAR` is the name of the environment variable.
 
 Each variable reference is replaced at startup by the value of the environment variable.
 The replacement is case-sensitive and occurs before the YAML file is parsed.
-References to undefined variables are replaced by empty strings unless you specify a default value or custom error text.
+References to undefined variables are replaced by empty strings.
 
-To specify a default value, use:
-
-```
-${VAR:-default_value}
-```
-
-where `default_value` is the value to use if the environment variable is undefined.
-
-You can find more about other supported syntax [here](https://github.com/drone/envsubst/blob/master/readme.md).
+Only `$VAR` and `${VAR}` are supported. POSIX shell parameter expansions such as `${VAR:-default}`, `${VAR:?error}`, or `${VAR^^}` are rejected at startup with an error.
 
 ## Deployment modes
 
