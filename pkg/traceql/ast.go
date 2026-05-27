@@ -658,6 +658,9 @@ type BinaryOperation struct {
 
 	compiledExpressions []*regexp.Regexp
 
+	referencesSpanCached bool
+	referencesSpanValue  bool
+
 	b branchOptimizer
 }
 
@@ -678,15 +681,18 @@ func newBinaryOperation(op Operator, lhs, rhs FieldExpression) FieldExpression {
 			binop.LHS = normalizeTraceIDOperand(static)
 		}
 	}
+	referencesSpan := binop.LHS.referencesSpan() || binop.RHS.referencesSpan()
+	binop.referencesSpanCached = true
+	binop.referencesSpanValue = referencesSpan
 
 	// AST rewrite for simplification
-	if !binop.referencesSpan() && binop.validate() == nil {
+	if !referencesSpan && binop.validate() == nil {
 		if simplified, err := binop.execute(nil); err == nil {
 			return simplified
 		}
 	}
 
-	if (op == OpAnd || op == OpOr) && binop.referencesSpan() {
+	if (op == OpAnd || op == OpOr) && referencesSpan {
 		binop.b = newBranchPredictor(2, 1000)
 	}
 
@@ -722,6 +728,9 @@ func (o *BinaryOperation) impliedType() StaticType {
 }
 
 func (o *BinaryOperation) referencesSpan() bool {
+	if o.referencesSpanCached {
+		return o.referencesSpanValue
+	}
 	return o.LHS.referencesSpan() || o.RHS.referencesSpan()
 }
 

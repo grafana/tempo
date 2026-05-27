@@ -42,6 +42,17 @@ func TestRootExprIsNoop(t *testing.T) {
 	}
 }
 
+func TestBinaryOperationCachesReferencesSpan(t *testing.T) {
+	lhs := newBinaryOperation(OpEqual, NewAttribute("foo"), NewStaticInt(1))
+	expr := newBinaryOperation(OpAnd, lhs, NewStaticBool(true))
+
+	binop, ok := expr.(*BinaryOperation)
+	require.True(t, ok)
+	require.True(t, binop.referencesSpanCached)
+	require.True(t, binop.referencesSpanValue)
+	require.True(t, binop.referencesSpan())
+}
+
 func TestNewStaticNil(t *testing.T) {
 	s := NewStaticNil()
 	assert.Equal(t, TypeNil, s.Type)

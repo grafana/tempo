@@ -40,6 +40,9 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 				return err
 			}
 		}
+		if err := pipeline.ValidateTraceQLQuerySize(req.Query, cfg.MaxQueryExpressionSizeBytes); err != nil {
+			return status.Error(codes.InvalidArgument, err.Error())
+		}
 
 		headers := headersFromGrpcContext(ctx)
 
@@ -100,6 +103,9 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 				level.Error(logger).Log("msg", "http search: access control handling failed", "err", err)
 				return httpInvalidRequest(err), nil
 			}
+		}
+		if err := pipeline.ValidateTraceQLQueryParamsSize(req.URL.Query(), cfg.MaxQueryExpressionSizeBytes); err != nil {
+			return httpInvalidRequest(err), nil
 		}
 
 		// parse request

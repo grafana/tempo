@@ -85,3 +85,20 @@ func TestQueryValidator(t *testing.T) {
 		})
 	}
 }
+
+func TestQuerySizeValidator(t *testing.T) {
+	rt := NewQuerySizeValidatorWare(10).Wrap(nextFunc)
+	req, err := http.NewRequest(http.MethodGet, "http://localhost:8080/api/search?q={ malformed query that is too large", nil)
+	require.NoError(t, err)
+
+	resp, err := rt.RoundTrip(NewHTTPRequest(req))
+	require.NoError(t, err)
+
+	httpResponse, _, err := resp.Next(context.Background())
+	require.NoError(t, err)
+	body, err := io.ReadAll(httpResponse.HTTPResponse().Body)
+	require.NoError(t, err)
+
+	require.Equal(t, http.StatusBadRequest, httpResponse.HTTPResponse().StatusCode)
+	require.Contains(t, string(body), "TraceQL expression exceeds the configured maximum size")
+}

@@ -136,6 +136,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	traceIDStatusCodeWare := pipeline.NewStatusCodeAdjustWareWithAllowedCode(http.StatusNotFound)
 	urlDenyListWare := pipeline.NewURLDenyListWare(cfg.URLDenyList)
 	queryValidatorWare := pipeline.NewQueryValidatorWare(cfg.MaxQueryExpressionSizeBytes)
+	querySizeValidatorWare := pipeline.NewQuerySizeValidatorWare(cfg.MaxQueryExpressionSizeBytes)
 	headerStripWare := pipeline.NewStripHeadersWare(cfg.AllowedHeaders)
 	tenantValidatorWare := pipeline.NewTenantValidatorMiddleware()
 
@@ -170,6 +171,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			headerStripWare,
 			adjustEndWareSeconds,
 			urlDenyListWare,
+			querySizeValidatorWare,
 			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			tenantValidatorWare,
@@ -183,6 +185,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			headerStripWare,
 			adjustEndWareSeconds,
 			urlDenyListWare,
+			querySizeValidatorWare,
 			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			tenantValidatorWare,
@@ -196,6 +199,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			headerStripWare,
 			adjustEndWareSeconds,
 			urlDenyListWare,
+			querySizeValidatorWare,
 			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			tenantValidatorWare,
@@ -272,7 +276,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 
 	if cfg.MCPServer.Enabled {
 		// Initialize MCP server
-		mcpServer := NewMCPServer(f, apiPrefix, logger, authMiddleware)
+		mcpServer := NewMCPServer(f, apiPrefix, logger, authMiddleware, cfg.MaxQueryExpressionSizeBytes)
 		f.MCPHandler = mcpServer
 	} else {
 		f.MCPHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -14,12 +14,14 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/status"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/tracing"
+	"google.golang.org/grpc/codes"
 )
 
 func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, logger log.Logger, dataAccessController DataAccessController) streamingQueryInstantHandler {
@@ -41,6 +43,9 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 				level.Error(logger).Log("msg", "instant query streaming: access control handling failed", "err", err)
 				return err
 			}
+		}
+		if err := pipeline.ValidateTraceQLQuerySize(req.Query, cfg.MaxQueryExpressionSizeBytes); err != nil {
+			return status.Error(codes.InvalidArgument, err.Error())
 		}
 
 		// --------------------------------------------------
@@ -105,6 +110,9 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 				level.Error(logger).Log("msg", "http instant query: access control handling failed", "err", err)
 				return httpInvalidRequest(err), nil
 			}
+		}
+		if err := pipeline.ValidateTraceQLQueryParamsSize(req.URL.Query(), cfg.MaxQueryExpressionSizeBytes); err != nil {
+			return httpInvalidRequest(err), nil
 		}
 
 		// Parse request

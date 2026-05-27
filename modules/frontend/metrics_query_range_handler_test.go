@@ -15,6 +15,7 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
+	"github.com/gogo/status"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
@@ -26,6 +27,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
 )
 
 func TestQueryRangeHandlerSucceeds(t *testing.T) {
@@ -116,6 +118,73 @@ func TestQueryRangeHandlerSucceeds(t *testing.T) {
 	err := jsonpb.Unmarshal(httpResp.Body, actualResp)
 	require.NoError(t, err)
 	require.Equal(t, expectedResp, actualResp)
+}
+
+func TestMetricsHandlersRejectOversizedQueryBeforeParsing(t *testing.T) {
+	f := frontendWithSettings(t, nil, nil, nil, nil, func(c *Config, _ *overrides.Config) {
+		c.MaxQueryExpressionSizeBytes = 10
+	})
+	query := oversizedTraceQLQuery()
+
+	t.Run("range http", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, api.PathMetricsQueryRange, nil)
+		req = api.BuildQueryRangeRequest(req, &tempopb.QueryRangeRequest{
+			Query: query,
+			Start: uint64(1100 * time.Second),
+			End:   uint64(1300 * time.Second),
+			Step:  uint64(100 * time.Second),
+		}, "")
+		req = req.WithContext(user.InjectOrgID(req.Context(), "tenant"))
+		resp := httptest.NewRecorder()
+
+		f.MetricsQueryRangeHandler.ServeHTTP(resp, req)
+
+		require.Equal(t, http.StatusBadRequest, resp.Code)
+		require.Contains(t, resp.Body.String(), "TraceQL expression exceeds the configured maximum size")
+		require.NotContains(t, resp.Body.String(), "parse error")
+	})
+
+	t.Run("range grpc", func(t *testing.T) {
+		err := f.streamingQueryRange(&tempopb.QueryRangeRequest{
+			Query: query,
+			Start: uint64(1100 * time.Second),
+			End:   uint64(1300 * time.Second),
+			Step:  uint64(100 * time.Second),
+		}, newMockStreamingServer[*tempopb.QueryRangeResponse]("tenant", nil))
+
+		require.Equal(t, codes.InvalidArgument, status.Code(err))
+		require.Contains(t, err.Error(), "TraceQL expression exceeds the configured maximum size")
+		require.NotContains(t, err.Error(), "parse error")
+	})
+
+	t.Run("instant http", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, api.PathMetricsQueryInstant, nil)
+		req = api.BuildQueryInstantRequest(req, &tempopb.QueryInstantRequest{
+			Query: query,
+			Start: uint64(1100 * time.Second),
+			End:   uint64(1300 * time.Second),
+		})
+		req = req.WithContext(user.InjectOrgID(req.Context(), "tenant"))
+		resp := httptest.NewRecorder()
+
+		f.MetricsQueryInstantHandler.ServeHTTP(resp, req)
+
+		require.Equal(t, http.StatusBadRequest, resp.Code)
+		require.Contains(t, resp.Body.String(), "TraceQL expression exceeds the configured maximum size")
+		require.NotContains(t, resp.Body.String(), "parse error")
+	})
+
+	t.Run("instant grpc", func(t *testing.T) {
+		err := f.streamingQueryInstant(&tempopb.QueryInstantRequest{
+			Query: query,
+			Start: uint64(1100 * time.Second),
+			End:   uint64(1300 * time.Second),
+		}, newMockStreamingServer[*tempopb.QueryInstantResponse]("tenant", nil))
+
+		require.Equal(t, codes.InvalidArgument, status.Code(err))
+		require.Contains(t, err.Error(), "TraceQL expression exceeds the configured maximum size")
+		require.NotContains(t, err.Error(), "parse error")
+	})
 }
 
 func TestQueryRangeAccessesCache(t *testing.T) {

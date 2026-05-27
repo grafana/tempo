@@ -51,6 +51,54 @@ func TestFrontendTags(t *testing.T) {
 	}
 }
 
+func TestTagHandlersRejectOversizedQueryBeforeParsing(t *testing.T) {
+	f := frontendWithSettings(t, nil, nil, nil, nil, func(c *Config, _ *overrides.Config) {
+		c.MaxQueryExpressionSizeBytes = 10
+	})
+	query := oversizedTraceQLQuery()
+
+	t.Run("tags http", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, api.PathSearchTags+"?q="+url.QueryEscape(query), nil)
+		req = req.WithContext(user.InjectOrgID(req.Context(), "tenant"))
+		resp := httptest.NewRecorder()
+
+		f.SearchTagsHandler.ServeHTTP(resp, req)
+
+		require.Equal(t, http.StatusBadRequest, resp.Code)
+		require.Contains(t, resp.Body.String(), "TraceQL expression exceeds the configured maximum size")
+		require.NotContains(t, resp.Body.String(), "parse error")
+	})
+
+	t.Run("tags v2 grpc", func(t *testing.T) {
+		err := f.streamingTagsV2(&tempopb.SearchTagsRequest{Query: query}, newMockStreamingServer[*tempopb.SearchTagsV2Response]("tenant", nil))
+
+		require.Equal(t, codes.InvalidArgument, status.Code(err))
+		require.Contains(t, err.Error(), "TraceQL expression exceeds the configured maximum size")
+		require.NotContains(t, err.Error(), "parse error")
+	})
+
+	t.Run("tag values v2 http", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v2/search/tag/span.name/values?q="+url.QueryEscape(query), nil)
+		req = mux.SetURLVars(req, map[string]string{"tagName": "span.name"})
+		req = req.WithContext(user.InjectOrgID(req.Context(), "tenant"))
+		resp := httptest.NewRecorder()
+
+		f.SearchTagsValuesV2Handler.ServeHTTP(resp, req)
+
+		require.Equal(t, http.StatusBadRequest, resp.Code)
+		require.Contains(t, resp.Body.String(), "TraceQL expression exceeds the configured maximum size")
+		require.NotContains(t, resp.Body.String(), "parse error")
+	})
+
+	t.Run("tag values v2 grpc", func(t *testing.T) {
+		err := f.streamingTagValuesV2(&tempopb.SearchTagValuesRequest{TagName: "span.name", Query: query}, newMockStreamingServer[*tempopb.SearchTagValuesV2Response]("tenant", nil))
+
+		require.Equal(t, codes.InvalidArgument, status.Code(err))
+		require.Contains(t, err.Error(), "TraceQL expression exceeds the configured maximum size")
+		require.NotContains(t, err.Error(), "parse error")
+	})
+}
+
 func runnerTagsBadRequestOnOrgID(t *testing.T, f *QueryFrontend) {
 	// http
 	httpReq := httptest.NewRequest("GET", "/api/search/tags", nil)

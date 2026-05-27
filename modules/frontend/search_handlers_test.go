@@ -121,6 +121,10 @@ func newMockStreamingServer[T proto.Message](orgID string, cb func(int, T)) *moc
 	}
 }
 
+func oversizedTraceQLQuery() string {
+	return "{ " + strings.Repeat(".foo = 1 && ", 10)
+}
+
 // these are integration tests against the search http and streaming pipelines. they could be extended to handle all
 // endpoints as we migrate them to the new pipelines and have common expectations on behaviors.
 // todo: build a test harness that extends these to all endpoints
@@ -422,6 +426,36 @@ func TestSearchLimitHonored(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSearchRejectsOversizedQueryBeforeParsing(t *testing.T) {
+	f := frontendWithSettings(t, nil, nil, nil, nil, func(c *Config, _ *overrides.Config) {
+		c.MaxQueryExpressionSizeBytes = 10
+	})
+	query := oversizedTraceQLQuery()
+
+	t.Run("http", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, api.PathSearch, nil)
+		var err error
+		req, err = api.BuildSearchRequest(req, &tempopb.SearchRequest{Query: query, Start: 1, End: 2})
+		require.NoError(t, err)
+		req = req.WithContext(user.InjectOrgID(req.Context(), "tenant"))
+		resp := httptest.NewRecorder()
+
+		f.SearchHandler.ServeHTTP(resp, req)
+
+		require.Equal(t, http.StatusBadRequest, resp.Code)
+		require.Contains(t, resp.Body.String(), "TraceQL expression exceeds the configured maximum size")
+		require.NotContains(t, resp.Body.String(), "parse error")
+	})
+
+	t.Run("grpc", func(t *testing.T) {
+		err := f.streamingSearch(&tempopb.SearchRequest{Query: query, Start: 1, End: 2}, newMockStreamingServer[*tempopb.SearchResponse]("tenant", nil))
+
+		require.Equal(t, codes.InvalidArgument, status.Code(err))
+		require.Contains(t, err.Error(), "TraceQL expression exceeds the configured maximum size")
+		require.NotContains(t, err.Error(), "parse error")
+	})
 }
 
 func TestSearchFailurePropagatesFromQueriers(t *testing.T) {
