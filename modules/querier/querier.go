@@ -105,7 +105,8 @@ func New(
 	}
 
 	if queryExternal {
-		externalClient, err := external.NewClient(cfg.TraceByID.External.Endpoint, cfg.TraceByID.External.Timeout)
+		// Cap external reads at the gRPC send ceiling: a larger response cannot be returned to the frontend.
+		externalClient, err := external.NewClient(cfg.TraceByID.External.Endpoint, cfg.TraceByID.External.Timeout, cfg.Worker.GRPCClientConfig.MaxSendMsgSize)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create external client: %w", err)
 		}
