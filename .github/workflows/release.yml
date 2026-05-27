@@ -4,7 +4,7 @@ on:
     tags:
       - 'v*'
 
-# Needed to login to DockerHub
+# No default token permissions; the release job grants only what it needs.
 permissions: {}
 jobs:
   release:
