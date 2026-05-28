@@ -99,7 +99,8 @@ When edges stop completing for a given label set, the series goes stale and is d
 
 The metric is intended for topology discovery rather than rate calculations.
 A single observed span keeps the gauge present, so service-to-service relationships stay visible on low-traffic endpoints even when `rate(traces_service_graph_request_total[...])` is noisy or zero under aggressive head sampling.
-Query it with a long range window:
+
+Example query it with a long range window:
 
 ```promql
 last_over_time(traces_service_graph_connection_info[1h]) > 0
