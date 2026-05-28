@@ -2055,9 +2055,18 @@ func TestMetricsMathExpression(t *testing.T) {
 					newMetricsAggregate(metricsAggregateRate, nil), nil),
 				true),
 		},
-		// Constant folding in metrics filter: > 1/2
+		// Int math is preserved when both operands are ints (1/2 truncates to 0)
 		{
 			in: `({} | rate()) > 1 / 2`,
+			expected: chainMathSecondStage(
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateRate, nil), nil),
+				ChainedSecondStage{newMetricsFilter(OpGreater, 0, " ")},
+			),
+		},
+		// One float operand promotes both sides to float (1 / 2.0 = 0.5)
+		{
+			in: `({} | rate()) > 1 / 2.0`,
 			expected: chainMathSecondStage(
 				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
 					newMetricsAggregate(metricsAggregateRate, nil), nil),
@@ -2097,6 +2106,12 @@ func TestMetricsMathExpressionErrors(t *testing.T) {
 		`{} | count_over_time() / {} | count_over_time()`,
 		`({} | count_over_time()) / `,
 		`/ ({} | count_over_time())`,
+		// Duration is not a valid scalar operand in metric arithmetic — only in
+		// filter thresholds like `({} | rate()) > 5s`. metricScalarFloat flags
+		// these via yylex.Error.
+		`100s + ({} | rate())`,
+		`({} | rate()) - 50ms`,
+		`2s * ({} | count_over_time())`,
 	}
 
 	for _, tc := range tests {
@@ -2312,4 +2327,8 @@ func TestMetricsFilter(t *testing.T) {
 			require.Equal(t, tc.expectedStr, q, "stringified query should match expected string")
 		})
 	}
+}
+
+func newMetricsFilter(op Operator, value float64, separator string) *MetricsFilter { //nolint:unparam
+	return &MetricsFilter{op: op, value: value, sep: separator}
 }

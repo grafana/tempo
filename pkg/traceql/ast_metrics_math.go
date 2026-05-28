@@ -377,3 +377,35 @@ func applyArithmeticOp(op Operator, lhs, rhs float64) float64 {
 		return math.NaN()
 	}
 }
+
+func metricScalarFloat(yylex yyLexer, s Static) float64 {
+	if s.Type == TypeDuration { // reject duration
+		yylex.Error("duration cannot be used as a scalar operand in metric arithmetic")
+	}
+	return s.Float()
+}
+
+// foldConstArith folds an arithmetic op between two constant Statics at parse time by
+// delegating to BinaryOperation.execute(), reusing the runtime int-vs-float dispatch
+// (so `1/2` truncates to 0 when both operands are ints, but `1/2.0` promotes to 0.5).
+func foldConstArith(yylex yyLexer, op Operator, lhs, rhs Static) Static {
+	result, err := (&BinaryOperation{Op: op, LHS: lhs, RHS: rhs}).execute(nil)
+	if err != nil {
+		yylex.Error(err.Error())
+		return NewStaticNil()
+	}
+	return result
+}
+
+// foldConstUnary applies a unary op (currently OpSub for negation) to a constant Static
+// at parse time, delegating to UnaryOperation.execute() so type info is preserved
+// (e.g. negating a Duration stays a Duration, unlike `0 - duration` which falls through
+// to the float dispatch).
+func foldConstUnary(yylex yyLexer, op Operator, operand Static) Static {
+	result, err := UnaryOperation{Op: op, Expression: operand}.execute(nil)
+	if err != nil {
+		yylex.Error(err.Error())
+		return NewStaticNil()
+	}
+	return result
+}

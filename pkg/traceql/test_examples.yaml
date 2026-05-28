@@ -231,6 +231,8 @@ valid:
   - '(1 - 2) + ({} | rate())'
   - '(1 / 2) + ({} | rate())'
   - '(1 * 2) + ({} | rate())'
+  - 'min(span:childCount) < 2 / 6'
+  - 'avg(.field) > 1 - 3'
   # negative scalars
   - '({} | rate()) * -100'
   - '({} | rate()) / -1000'
@@ -369,6 +371,8 @@ parse_fails:
   - '2 + 3'
   - '2 - 3'
   - '2 / 3'
+  - '3 = 2'
+  - '{ .foo = "a" } | 3 > 2'
   # consecutive scalars without operator
   - '({} | rate()) + 5 100'
   # todo: improve the following
@@ -492,7 +496,6 @@ unsupported:
   - 'sum(.field) = min(.field)'
   - 'min(.field) + max(.field) > 1'
   - 'min(.field) + max(span:childCount) > max(duration) - min(.field)'
-  - 'min(span:childCount) < 2 / 6'
   - 'max(1 - (2 + .field)) < avg(3 * duration ^ 2)'
   # aggregates - will be valid when supported
   - '{ true } | max(parent.a) = 1'
@@ -515,9 +518,6 @@ unsupported:
   - '({ true } | count()) * ({ true } | count()) < ({ true } | count()) / ({ true } | count())'
   - '({ .http.status = 200 } | count()) + ({ name = `foo` } | avg(duration)) = 2'
   - '({ .a } | count()) > ({ .b } | count())'
-  # other scalar filters. no idea if these should be supported
-  - '3 = 2'                       # naked scalar filter, technically allowed
-  - 'avg(.field) > 1 - 3'         # scalar expressions in scalar filters are currently not allowed. possible future addition
 
 # parsed and the ast is dumped to stdout. this is a debugging tool
 dump:

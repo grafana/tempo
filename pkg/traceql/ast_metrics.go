@@ -518,8 +518,12 @@ type MetricsFilter struct {
 	sep   string
 }
 
-func newMetricsFilter(op Operator, value float64, separator string) *MetricsFilter { //nolint:unparam
-	return &MetricsFilter{op: op, value: value, sep: separator}
+func newMetricsFilterFromStatic(op Operator, s Static, separator string) *MetricsFilter {
+	v := s.Float()
+	if s.Type == TypeDuration {
+		v /= float64(time.Second)
+	}
+	return &MetricsFilter{op: op, value: v, sep: separator}
 }
 
 func (m *MetricsFilter) String() string {

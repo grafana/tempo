@@ -1204,9 +1204,21 @@ func TestScalarMath(t *testing.T) {
 			transform: func(v float64) float64 { return -v },
 		},
 		{
-			name:      "A + ( 1 / 0)",
-			q:         fmt.Sprintf("(%s) + (1/0)", q),
+			name:      "A + ( 1.0 / 0)",
+			q:         fmt.Sprintf("(%s) + (1.0/0)", q),
 			transform: func(float64) float64 { return math.Inf(+1) },
+		},
+
+		// int vs float
+		{
+			name:      "A * 3/2 (int)",
+			q:         fmt.Sprintf("(%s) * ( 3 / 2 )", q),
+			transform: func(v float64) float64 { return v },
+		},
+		{
+			name:      "A * 3.0/2 (float)",
+			q:         fmt.Sprintf("(%s) * ( 3.0 / 2 )", q),
+			transform: func(v float64) float64 { return v * 1.5 },
 		},
 
 		// negative numbers (int)
