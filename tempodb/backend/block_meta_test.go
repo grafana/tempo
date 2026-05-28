@@ -412,6 +412,26 @@ func TestDedicatedColumnsMarshalRoundTrip(t *testing.T) {
 	})
 }
 
+func TestCompactedBlockMetaUnmarshalJSON_Invalid(t *testing.T) {
+	tests := []struct {
+		name string
+		data string
+	}{
+		{name: "array", data: `[]`},
+		{name: "null", data: `null`},
+		{name: "string", data: `"hello"`},
+		{name: "number", data: `123`},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var b CompactedBlockMeta
+			err := b.UnmarshalJSON([]byte(tc.data))
+			require.EqualError(t, err, "invalid meta: expected a JSON object")
+		})
+	}
+}
+
 func TestDedicatedColumns_Validate(t *testing.T) {
 	testCases := []struct {
 		name             string
