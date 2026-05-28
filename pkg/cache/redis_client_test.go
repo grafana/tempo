@@ -60,6 +60,22 @@ func TestRedisClient(t *testing.T) {
 			for _, value := range values {
 				require.Nil(t, value)
 			}
+
+			// delete keys
+			err = tt.client.Del(ctx, keys)
+			require.Nil(t, err)
+
+			// verify deleted
+			values, err = tt.client.MGet(ctx, keys)
+			require.Nil(t, err)
+			require.Len(t, values, len(keys))
+			for _, value := range values {
+				require.Nil(t, value, "expected key to be absent after Del")
+			}
+
+			// delete empty slice should be a no-op
+			err = tt.client.Del(ctx, []string{})
+			require.Nil(t, err)
 		})
 	}
 }

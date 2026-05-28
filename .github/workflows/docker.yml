@@ -3,13 +3,15 @@ on:
   push:
     branches:
       - 'main'
-      - 'r[0-9]+'
     tags:
       - 'v*'
 
-# Needed to login to DockerHub
+# Needed to authenticate to GAR with OIDC.
 permissions:
   contents: read
+
+env:
+  DOCKERHUB_MIRROR_REPOSITORY: us-docker.pkg.dev/grafanalabs-global/dockerhub-tempo-prod-mirror
 
 jobs:
 
@@ -40,6 +42,7 @@ jobs:
         runner_arch: [ { runner: ubuntu-24.04, arch: amd64 }, { runner: github-hosted-ubuntu-arm64, arch: arm64 } ]
     runs-on: ${{ matrix.runner_arch.runner }}
     permissions:
+      contents: read
       id-token: write
     env:
       TAG: ${{ needs.get-tag.outputs.tag }}
@@ -59,20 +62,23 @@ jobs:
       - name: docker-build
         run: |
           TAG_ARCH="$TAG-${{ matrix.runner_arch.arch }}"
-          docker build --provenance false --platform linux/${{ matrix.runner_arch.arch }} -f cmd/${{ matrix.component }}/Dockerfile -t grafana/${{ matrix.component }}:$TAG_ARCH .
+          docker build --provenance false --platform "linux/${{ matrix.runner_arch.arch }}" -f "cmd/${{ matrix.component }}/Dockerfile" -t "$DOCKERHUB_MIRROR_REPOSITORY/${{ matrix.component }}:$TAG_ARCH" .
 
-      - name: Login to DockerHub
-        uses: grafana/shared-workflows/actions/dockerhub-login@081a366728379fd0426b9cfef190e9a21c2d5418 # dockerhub-login/v1.0.3
+      - name: Login to GAR
+        uses: grafana/shared-workflows/actions/login-to-gar@c7ad5f57693ac858c698d95783685a9cbfd91223 # login-to-gar/v1.0.1
+        with:
+          registry: us-docker.pkg.dev
 
       - name: docker-push
         run: |
-          TAG_ARCH="$TAG-${{ matrix.runner_arch.arch }}"          
-          docker push grafana/${{ matrix.component }}:$TAG_ARCH
+          TAG_ARCH="$TAG-${{ matrix.runner_arch.arch }}"
+          docker push "$DOCKERHUB_MIRROR_REPOSITORY/${{ matrix.component }}:$TAG_ARCH"
 
   manifest:
     if: github.repository == 'grafana/tempo'
     needs: ['get-tag', 'docker']
     permissions:
+      contents: read
       id-token: write
     strategy:
       matrix:
@@ -80,29 +86,31 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       TAG: ${{ needs.get-tag.outputs.tag }}
-      IMAGE_NAME: grafana/${{ matrix.component }}
+      IMAGE_NAME: us-docker.pkg.dev/grafanalabs-global/dockerhub-tempo-prod-mirror/${{ matrix.component }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
 
-      - name: Login to DockerHub
-        uses: grafana/shared-workflows/actions/dockerhub-login@081a366728379fd0426b9cfef190e9a21c2d5418 # dockerhub-login/v1.0.3
+      - name: Login to GAR
+        uses: grafana/shared-workflows/actions/login-to-gar@c7ad5f57693ac858c698d95783685a9cbfd91223 # login-to-gar/v1.0.1
+        with:
+          registry: us-docker.pkg.dev
 
       - name: docker-manifest-create-and-push
         run: |
           docker manifest create \
-          	$IMAGE_NAME:$TAG               \
-          	--amend $IMAGE_NAME:$TAG-amd64  \
-          	--amend $IMAGE_NAME:$TAG-arm64
-          docker manifest push $IMAGE_NAME:$TAG
+          	"$IMAGE_NAME:$TAG"               \
+          	--amend "$IMAGE_NAME:$TAG-amd64"  \
+          	--amend "$IMAGE_NAME:$TAG-arm64"
+          docker manifest push "$IMAGE_NAME:$TAG"
 
           docker manifest create \
-          	$IMAGE_NAME:latest            \
-          	--amend $IMAGE_NAME:$TAG-amd64   \
-          	--amend $IMAGE_NAME:$TAG-arm64
-          docker manifest push $IMAGE_NAME:latest
+          	"$IMAGE_NAME:latest"            \
+          	--amend "$IMAGE_NAME:$TAG-amd64"   \
+          	--amend "$IMAGE_NAME:$TAG-arm64"
+          docker manifest push "$IMAGE_NAME:latest"
 
   cd-to-dev-env:
     # This job deploys the latest main commit to the dev environment

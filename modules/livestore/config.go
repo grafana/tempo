@@ -119,6 +119,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.ReadinessTargetLag = 0
 	cfg.ReadinessMaxWait = 30 * time.Minute
 
+	cfg.FailOnHighLag = true
+
 	cfg.RemoveOwnerOnShutdown = true
 
 	cfg.initialBackoff = defaultInitialBackoff

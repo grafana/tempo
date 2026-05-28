@@ -46,6 +46,14 @@ func (m *mockClient) FetchKey(_ context.Context, key string) (buf []byte, found 
 	return buf, false
 }
 
+func (m *mockClient) Remove(_ context.Context, keys []string) {
+	m.Lock()
+	defer m.Unlock()
+	for _, key := range keys {
+		delete(m.cache, key)
+	}
+}
+
 func (m *mockClient) MaxItemSize() int {
 	return 0
 }

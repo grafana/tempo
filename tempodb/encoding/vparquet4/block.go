@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"sync"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -24,8 +23,6 @@ var tracer = otel.Tracer("tempodb/encoding/vparquet4")
 type backendBlock struct {
 	meta *backend.BlockMeta
 	r    backend.Reader
-
-	openMtx sync.Mutex
 }
 
 var _ common.BackendBlock = (*backendBlock)(nil)

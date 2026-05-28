@@ -11,6 +11,11 @@ import (
 type Role string
 
 const (
+	// eventKeysRemoved is the span event name emitted when cache keys are deleted.
+	eventKeysRemoved = "cache.keys.removed"
+)
+
+const (
 	// individual roles
 	RoleNone             Role = "none"
 	RoleBloom            Role = "bloom"
@@ -39,9 +44,8 @@ type Provider interface {
 // when they returned an error.
 type Cache interface {
 	Store(ctx context.Context, key []string, buf [][]byte)
+	Remove(ctx context.Context, key []string)
 	MaxItemSize() int
-	// TODO: both cached backend clients support deletion. Should we implement?
-	// Remove(ctx context.Context, key []string)
 	Fetch(ctx context.Context, keys []string) (found []string, bufs [][]byte, missing []string)
 	FetchKey(ctx context.Context, key string) (buf []byte, found bool)
 	// Release allows compliant implementations to reclaim buffers back into a pool for memory efficiency
