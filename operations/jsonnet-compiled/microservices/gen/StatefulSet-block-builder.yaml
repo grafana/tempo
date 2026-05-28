@@ -27,7 +27,7 @@ spec:
       - args:
         - -config.file=/conf/tempo.yaml
         - -target=block-builder
-        image: grafana/tempo:latest
+        image: grafana/tempo:3.0.0
         imagePullPolicy: IfNotPresent
         name: block-builder
         ports:
