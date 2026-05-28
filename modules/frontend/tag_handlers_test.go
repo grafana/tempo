@@ -24,9 +24,9 @@ import (
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util/fnv1a"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/pkg/util/fnv1a"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )

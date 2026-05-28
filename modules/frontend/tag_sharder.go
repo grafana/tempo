@@ -13,11 +13,11 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util/fnv1a"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/grafana/tempo/pkg/util/fnv1a"
 )
 
 /* tagsSearchRequest request interface for transform tags and tags V2 requests into a querier request */
