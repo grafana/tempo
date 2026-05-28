@@ -79,3 +79,12 @@ func TestError(t *testing.T) {
 	var z Error
 	assert.NoError(t, z.Load())
 }
+
+func TestStdlibConstructors(t *testing.T) {
+	require.Equal(t, int32(7), NewInt32(7).Load())
+	require.Equal(t, int64(-9), NewInt64(-9).Load())
+	require.Equal(t, uint32(42), NewUint32(42).Load())
+	require.Equal(t, uint64(1<<40), NewUint64(1<<40).Load())
+	require.True(t, NewBool(true).Load())
+	require.False(t, NewBool(false).Load())
+}

@@ -113,8 +113,6 @@ func (h *histogram) ObserveWithExemplar(lbls labels.Labels, value float64, trace
 }
 
 func (h *histogram) newSeries(lbls labels.Labels, value float64, traceID string, multiplier float64) *histogramSeries {
-	firstSeries := &atomic.Bool{}
-	firstSeries.Store(true)
 	newSeries := &histogramSeries{
 		count:          atomicx.NewFloat64(0),
 		sum:            atomicx.NewFloat64(0),
@@ -122,7 +120,7 @@ func (h *histogram) newSeries(lbls labels.Labels, value float64, traceID string,
 		exemplars:      make([]*atomicx.String, 0, len(h.buckets)),
 		exemplarValues: make([]*atomicx.Float64, 0, len(h.buckets)),
 		lastUpdated:    &atomic.Int64{},
-		firstSeries:    firstSeries,
+		firstSeries:    atomicx.NewBool(true),
 	}
 	for i := 0; i < len(h.buckets); i++ {
 		newSeries.buckets = append(newSeries.buckets, atomicx.NewFloat64(0))

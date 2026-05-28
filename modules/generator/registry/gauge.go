@@ -101,12 +101,10 @@ func (g *gauge) updateSeries(lbls labels.Labels, value float64, operation string
 }
 
 func (g *gauge) newSeries(lbls labels.Labels, value float64) *gaugeSeries {
-	lastUpdated := &atomic.Int64{}
-	lastUpdated.Store(time.Now().UnixMilli())
 	return &gaugeSeries{
 		labels:      getSeriesLabels(g.metricName, lbls, g.externalLabels),
 		value:       atomicx.NewFloat64(value),
-		lastUpdated: lastUpdated,
+		lastUpdated: atomicx.NewInt64(time.Now().UnixMilli()),
 	}
 }
 

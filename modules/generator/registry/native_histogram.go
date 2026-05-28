@@ -15,6 +15,8 @@ import (
 	promhistogram "github.com/prometheus/prometheus/model/histogram"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
+
+	"github.com/grafana/tempo/pkg/util/atomicx"
 )
 
 type nativeHistogram struct {
@@ -163,12 +165,10 @@ func (h *nativeHistogram) newSeries(lbls labels.Labels, value float64, traceID s
 		nativeOpts.NativeHistogramMaxExemplars = -1 // Use default
 	}
 
-	firstSeries := &atomic.Bool{}
-	firstSeries.Store(true)
 	newSeries := &nativeHistogramSeries{
 		promHistogram: prometheus.NewHistogram(nativeOpts),
 		lastUpdated:   0,
-		firstSeries:   firstSeries,
+		firstSeries:   atomicx.NewBool(true),
 		overridesHash: hsh,
 	}
 

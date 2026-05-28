@@ -107,15 +107,11 @@ func resolveSeries[T any](series map[uint64]*T, hash uint64, lbls labels.Labels,
 }
 
 func (c *counter) newSeries(lbls labels.Labels, value float64) *counterSeries {
-	lastUpdated := &atomic.Int64{}
-	lastUpdated.Store(time.Now().UnixMilli())
-	firstSeries := &atomic.Bool{}
-	firstSeries.Store(true)
 	return &counterSeries{
 		labels:      getSeriesLabels(c.metricName, lbls, c.externalLabels),
 		value:       atomicx.NewFloat64(value),
-		lastUpdated: lastUpdated,
-		firstSeries: firstSeries,
+		lastUpdated: atomicx.NewInt64(time.Now().UnixMilli()),
+		firstSeries: atomicx.NewBool(true),
 	}
 }
 

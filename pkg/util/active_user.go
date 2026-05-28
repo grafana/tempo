@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/services"
+
+	"github.com/grafana/tempo/pkg/util/atomicx"
 )
 
 // ActiveUsers keeps track of latest user's activity timestamp,
@@ -33,8 +35,7 @@ func (m *ActiveUsers) UpdateUserTimestamp(userID string, ts int64) {
 	}
 
 	// Pre-allocate new atomic to avoid doing allocation with lock held.
-	newAtomic := &atomic.Int64{}
-	newAtomic.Store(ts)
+	newAtomic := atomicx.NewInt64(ts)
 
 	// We need RW lock to create new entry.
 	m.mu.Lock()

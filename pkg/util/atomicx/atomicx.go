@@ -99,6 +99,39 @@ func (e *Error) CompareAndSwap(old, new error) bool {
 	return false
 }
 
+// Constructors for stdlib atomic types initialized with a non-zero value.
+// For zero-value init, use the stdlib type directly (e.g. &atomic.Int64{}).
+
+func NewInt32(v int32) *atomic.Int32 {
+	x := &atomic.Int32{}
+	x.Store(v)
+	return x
+}
+
+func NewInt64(v int64) *atomic.Int64 {
+	x := &atomic.Int64{}
+	x.Store(v)
+	return x
+}
+
+func NewUint32(v uint32) *atomic.Uint32 {
+	x := &atomic.Uint32{}
+	x.Store(v)
+	return x
+}
+
+func NewUint64(v uint64) *atomic.Uint64 {
+	x := &atomic.Uint64{}
+	x.Store(v)
+	return x
+}
+
+func NewBool(v bool) *atomic.Bool {
+	x := &atomic.Bool{}
+	x.Store(v)
+	return x
+}
+
 // noCopy may be embedded into structs which must not be copied
 // after the first use. Detected by `go vet`'s -copylocks check.
 type noCopy struct{}

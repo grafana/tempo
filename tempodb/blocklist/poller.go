@@ -8,7 +8,6 @@ import (
 	"path"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/go-kit/log"
@@ -22,6 +21,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
+	"github.com/grafana/tempo/pkg/util/atomicx"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
@@ -159,12 +159,11 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (PerTenant, PerTe
 		blocklist          = PerTenant{}
 		compactedBlocklist = PerTenantCompacted{}
 
-		tenantFailuresRemaining = &atomic.Int32{}
+		tenantFailuresRemaining = atomicx.NewInt32(int32(p.cfg.TolerateTenantFailures))
 
 		link  = trace.LinkFromContext(parentCtx)
 		bgCtx = context.Background()
 	)
-	tenantFailuresRemaining.Store(int32(p.cfg.TolerateTenantFailures))
 
 	for _, tenantID := range tenants {
 		// Do not continue if we have been canceled.

@@ -20,6 +20,8 @@ import (
 	"github.com/twmb/franz-go/plugin/kprom"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/grafana/tempo/pkg/util/atomicx"
 )
 
 // NewWriterClient returns the kgo.Client that should be used by the Writer.
@@ -268,12 +270,11 @@ func (c *Producer) updateMetricsLoop() {
 // if the configured limit is reached.
 func (c *Producer) ProduceSync(ctx context.Context, records []*kgo.Record) kgo.ProduceResults {
 	var (
-		remaining = &atomic.Int64{}
+		remaining = atomicx.NewInt64(int64(len(records)))
 		done      = make(chan struct{})
 		resMx     sync.Mutex
 		res       = make(kgo.ProduceResults, 0, len(records))
 	)
-	remaining.Store(int64(len(records)))
 
 	// As a safety mechanism, we want to make sure that the context is not already canceled or its deadline exceeded.
 	// The reason is that once we buffer records to the Kafka client (later in this function), these records will be
