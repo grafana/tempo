@@ -77,7 +77,8 @@ Instead of enabling all service graph metrics, you can enable individual metric 
 - `service-graphs-connection-info` — Enables only the `traces_service_graph_connection_info` gauge
 
 The bare `service-graphs` name enables request and latency metrics.
-`service-graphs-connection-info` is off by default and must be listed explicitly; listing it alongside the bare name enables it additively without disabling RED.
+The `service-graphs-connection-info` subprocessor is off by default and must be listed explicitly.
+Listing it alongside the bare name enables the subprocessor additively without disabling RED.
 Listing `service-graphs-request` or `service-graphs-latency` alongside the bare name is redundant and silently dropped.
 
 Example overrides configuration:
