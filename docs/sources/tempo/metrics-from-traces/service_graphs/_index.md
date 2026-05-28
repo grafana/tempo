@@ -94,10 +94,10 @@ overrides:
 
 ### Connection info metric
 
-`traces_service_graph_connection_info` is a presence-only gauge held at `1` while an edge between two services is being observed.
+The `traces_service_graph_connection_info` metric is a presence-only gauge held at `1` while an edge between two services is being observed.
 When edges stop completing for a given label set, the series goes stale and is dropped.
 
-It's intended for topology discovery rather than rate calculations.
+The metric is intended for topology discovery rather than rate calculations.
 A single observed span keeps the gauge present, so service-to-service relationships stay visible on low-traffic endpoints even when `rate(traces_service_graph_request_total[...])` is noisy or zero under aggressive head sampling.
 Query it with a long range window:
 
