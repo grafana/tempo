@@ -10,7 +10,7 @@ import (
 
 	"github.com/go-kit/log" //nolint:all deprecated
 	"github.com/go-kit/log/level"
-	"github.com/segmentio/fasthash/fnv1a"
+	"github.com/grafana/tempo/pkg/util/fnv1a"
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/grafana/tempo/modules/frontend/combiner"

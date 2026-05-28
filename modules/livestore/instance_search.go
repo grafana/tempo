@@ -14,7 +14,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
-	"github.com/segmentio/fasthash/fnv1a"
+	"github.com/grafana/tempo/pkg/util/fnv1a"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"

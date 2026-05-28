@@ -26,7 +26,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/segmentio/fasthash/fnv1a"
+	"github.com/grafana/tempo/pkg/util/fnv1a"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )

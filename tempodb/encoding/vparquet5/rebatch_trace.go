@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/segmentio/fasthash/fnv1a"
+	"github.com/grafana/tempo/pkg/util/fnv1a"
 )
 
 // rebatchTrace removes redundant ResourceSpans and ScopeSpans from the trace through rebatching.

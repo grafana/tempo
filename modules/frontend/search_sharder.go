@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log" //nolint:all deprecated
-	"github.com/segmentio/fasthash/fnv1a"
+	"github.com/grafana/tempo/pkg/util/fnv1a"
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
