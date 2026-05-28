@@ -2,6 +2,7 @@ package distributor
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -10,7 +11,6 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"go.uber.org/multierr"
 
 	"github.com/grafana/tempo/modules/distributor/queue"
 	"github.com/grafana/tempo/modules/generator"
@@ -214,7 +214,7 @@ func (f *generatorForwarder) stop(_ error) error {
 			errs = append(errs, err)
 		}
 	}
-	return multierr.Combine(errs...)
+	return errors.Join(errs...)
 }
 
 func (f *generatorForwarder) processFunc(ctx context.Context, data *request) {
