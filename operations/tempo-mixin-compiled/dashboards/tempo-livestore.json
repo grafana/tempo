@@ -1,0 +1,2552 @@
+{
+ "annotations": {
+  "list": [
+
+  ]
+ },
+ "description": "Tempo LiveStore dashboard",
+ "editable": true,
+ "gnetId": null,
+ "graphTooltip": 0,
+ "hideControls": false,
+ "links": [
+  {
+   "asDropdown": false,
+   "icon": "external link",
+   "includeVars": true,
+   "keepTime": true,
+   "tags": [
+
+   ],
+   "targetBlank": true,
+   "title": "Livestore Write Path",
+   "tooltip": "",
+   "type": "link",
+   "url": "/d/livestore-write-path/livestore-write-path?${__url_time_range}&var-datasource=$datasource&var-namespace=$namespace&var-pod=$pod"
+  }
+ ],
+ "refresh": "",
+ "rows": [
+  {
+   "collapse": false,
+   "height": "250px",
+   "panels": [
+    {
+     "datasource": "$datasource",
+     "description": "### Read latency p99 by zone/route\nFirst read-path signal: p99 live-store read latency split by zone and gRPC route. If this rises, open the Read latency row next.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "auto",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "decimals": 2,
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 1,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "calcs": [
+        "lastNotNull"
+       ],
+       "displayMode": "table",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "span": 4,
+     "targets": [
+      {
+       "expr": "histogram_quantile(0.99, sum by (le, zone, route) (label_replace(rate(tempo_request_duration_seconds_bucket{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\", method=\"gRPC\", route=~\"/tempopb.Querier/.*|/tempopb.Metrics/.*\"}[$__rate_interval]), \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\")))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{zone}} {{route}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Read latency p99 by zone/route",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### Read QPS by zone\nLive-store read request rate by zone. This gives read-traffic context for the p99 latency panel without route-cardinality noise.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "auto",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "decimals": 2,
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "ops"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 2,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "calcs": [
+        "lastNotNull"
+       ],
+       "displayMode": "table",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "span": 2,
+     "targets": [
+      {
+       "expr": "sum by (zone) (label_replace(rate(tempo_request_duration_seconds_count{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\", method=\"gRPC\", route=~\"/tempopb.Querier/.*|/tempopb.Metrics/.*\"}[$__rate_interval]), \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\"))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{zone}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Read QPS by zone",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### Max ingest lag by zone\nWorst live-store Kafka lag age by live-store consumer group / zone.\n",
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "decimals": 0,
+       "noValue": "",
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green",
+          "value": 0
+         }
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 3,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "reduceOptions": {
+       "calcs": [
+        "lastNotNull"
+       ]
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
+     "span": 2,
+     "targets": [
+      {
+       "expr": "max by (group) (tempo_ingest_group_partition_lag_seconds{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", group=~\"live-store.*\", container=\"live-store\"})",
+       "format": null,
+       "instant": false,
+       "interval": "",
+       "intervalFactor": null,
+       "legendFormat": "{{group}}",
+       "legendLink": null,
+       "step": null
+      }
+     ],
+     "title": "Max ingest lag by zone",
+     "type": "stat"
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### Backpressure time by zone\nSeconds spent backpressuring per second, split by live-store zone. Uses tempo_live_store_back_pressure_seconds_total when present, with duration histogram sum as fallback for cells that do not expose the counter.\n",
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "decimals": 2,
+       "noValue": "",
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green",
+          "value": 0
+         }
+        ]
+       },
+       "unit": "percentunit"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 4,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "reduceOptions": {
+       "calcs": [
+        "lastNotNull"
+       ]
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
+     "span": 2,
+     "targets": [
+      {
+       "expr": "sum by (zone) (label_replace(rate(tempo_live_store_back_pressure_seconds_total{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\"}[$__rate_interval]), \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\")) or sum by (zone) (label_replace(rate(tempo_live_store_back_pressure_duration_seconds_sum{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\"}[$__rate_interval]), \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\"))",
+       "format": null,
+       "instant": false,
+       "interval": "",
+       "intervalFactor": null,
+       "legendFormat": "{{zone}}",
+       "legendLink": null,
+       "step": null
+      }
+     ],
+     "title": "Backpressure time by zone",
+     "type": "stat"
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### Complete queue depth by zone\nPending complete-block queue depth by live-store zone. Max highlights the hottest pod; p99 shows broad zone pressure.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "auto",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "decimals": 2,
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 5,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "calcs": [
+        "lastNotNull"
+       ],
+       "displayMode": "table",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "span": 2,
+     "targets": [
+      {
+       "expr": "max by (zone) (label_replace(tempo_live_store_complete_queue_length{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\"}, \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\"))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "max {{zone}}",
+       "legendLink": null
+      },
+      {
+       "expr": "quantile by (zone) (0.99, label_replace(tempo_live_store_complete_queue_length{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\"}, \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\"))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "p99 {{zone}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Complete queue depth by zone",
+     "type": "timeseries"
+    }
+   ],
+   "repeat": null,
+   "repeatIteration": null,
+   "repeatRowId": null,
+   "showTitle": true,
+   "title": "Triage cockpit",
+   "titleSize": "h6"
+  },
+  {
+   "collapse": false,
+   "height": "250px",
+   "panels": [
+    {
+     "datasource": "$datasource",
+     "description": "### Query latency p99/p50 by namespace/route\nLive-store read latency by cluster, namespace, and gRPC route with live-store zones collapsed by aggregating histogram buckets before quantiles. This is the request-weighted latency view; use zone-specific panels only for diagnostics.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "auto",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "decimals": 2,
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 6,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "calcs": [
+        "lastNotNull"
+       ],
+       "displayMode": "table",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "span": 7,
+     "targets": [
+      {
+       "expr": "histogram_quantile(0.99, sum by (le, cluster, namespace, route) (rate(tempo_request_duration_seconds_bucket{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\", method=\"gRPC\", route=~\"/tempopb.Querier/.*|/tempopb.Metrics/.*\"}[$__rate_interval])))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "p99 {{cluster}}/{{namespace}} {{route}}",
+       "legendLink": null
+      },
+      {
+       "expr": "histogram_quantile(0.50, sum by (le, cluster, namespace, route) (rate(tempo_request_duration_seconds_bucket{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\", method=\"gRPC\", route=~\"/tempopb.Querier/.*|/tempopb.Metrics/.*\"}[$__rate_interval])))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "p50 {{cluster}}/{{namespace}} {{route}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Query latency p99/p50 by namespace/route",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### Query QPS by namespace/route\nRead traffic served by live-store query routes, split by cluster, namespace, and route with live-store zones collapsed.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "auto",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "decimals": 2,
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "ops"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 7,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "calcs": [
+        "lastNotNull"
+       ],
+       "displayMode": "table",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "span": 5,
+     "targets": [
+      {
+       "expr": "sum by (cluster, namespace, route) (rate(tempo_request_duration_seconds_count{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\", method=\"gRPC\", route=~\"/tempopb.Querier/.*|/tempopb.Metrics/.*\"}[$__rate_interval]))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{cluster}}/{{namespace}} {{route}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Query QPS by namespace/route",
+     "type": "timeseries"
+    }
+   ],
+   "repeat": null,
+   "repeatIteration": null,
+   "repeatRowId": null,
+   "showTitle": true,
+   "title": "Read latency and query impact",
+   "titleSize": "h6"
+  },
+  {
+   "collapse": false,
+   "height": "250px",
+   "panels": [
+    {
+     "datasource": "$datasource",
+     "description": "### Ingest lag by zone\nMax live-store partition lag age by cluster/namespace and live-store zone.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "auto",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "decimals": 2,
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 8,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "calcs": [
+        "lastNotNull"
+       ],
+       "displayMode": "table",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "span": 6,
+     "targets": [
+      {
+       "expr": "max by (cluster, namespace, group) (tempo_ingest_group_partition_lag_seconds{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", group=~\"live-store.*\", container=\"live-store\"})",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{cluster}}/{{namespace}} {{group}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Ingest lag by zone",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### Worst partition lag by pod\nTop lagging partitions. Pod names include the live-store zone; use this to identify skew or stuck consumers.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "auto",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "decimals": 2,
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 9,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "calcs": [
+        "lastNotNull"
+       ],
+       "displayMode": "table",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "span": 6,
+     "targets": [
+      {
+       "expr": "topk(20, max by (cluster, namespace, pod, partition) (tempo_ingest_group_partition_lag_seconds{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", group=~\"live-store.*\", container=\"live-store\"}))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{cluster}}/{{namespace}} {{pod}} p{{partition}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Worst partition lag by pod",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### Records processed/s by zone\nLive-store records processed after Kafka fetch, split by live-store zone. This avoids hiding zone imbalance or double-counting as a single total.\n",
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "decimals": 1,
+       "noValue": "",
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green",
+          "value": 0
+         }
+        ]
+       },
+       "unit": "ops"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 10,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "reduceOptions": {
+       "calcs": [
+        "lastNotNull"
+       ]
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
+     "span": 4,
+     "targets": [
+      {
+       "expr": "sum by (zone) (label_replace(rate(tempo_live_store_records_processed_total{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\", tenant=~\"$tenant\"}[$__rate_interval]), \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\"))",
+       "format": null,
+       "instant": false,
+       "interval": "",
+       "intervalFactor": null,
+       "legendFormat": "{{zone}}",
+       "legendLink": null,
+       "step": null
+      }
+     ],
+     "title": "Records processed/s by zone",
+     "type": "stat"
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### Bytes received/s by zone\nConsumer-side live-store input bytes/s from the ingest stream, split by live-store zone. This is live-store consumer work, not unique producer-side Kafka ingress.\n",
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "decimals": 0,
+       "noValue": "",
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green",
+          "value": 0
+         }
+        ]
+       },
+       "unit": "Bps"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 11,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "reduceOptions": {
+       "calcs": [
+        "lastNotNull"
+       ]
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
+     "span": 4,
+     "targets": [
+      {
+       "expr": "sum by (zone) (label_replace(rate(tempo_live_store_bytes_received_total{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\", tenant=~\"$tenant\"}[$__rate_interval]), \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\"))",
+       "format": null,
+       "instant": false,
+       "interval": "",
+       "intervalFactor": null,
+       "legendFormat": "{{zone}}",
+       "legendLink": null,
+       "step": null
+      }
+     ],
+     "title": "Bytes received/s by zone",
+     "type": "stat"
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### Records processed trend by zone\nLive-store records successfully processed after Kafka fetch, split by zone. This is not a loss detector; use lag, backpressure, completion queue, readiness, and logs to investigate missing throughput.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "auto",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "decimals": 2,
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "ops"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 12,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "calcs": [
+        "lastNotNull"
+       ],
+       "displayMode": "table",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "span": 4,
+     "targets": [
+      {
+       "expr": "sum by (zone) (label_replace(rate(tempo_live_store_records_processed_total{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\"}[$__rate_interval]), \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\"))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{zone}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Records processed trend by zone",
+     "type": "timeseries"
+    }
+   ],
+   "repeat": null,
+   "repeatIteration": null,
+   "repeatRowId": null,
+   "showTitle": true,
+   "title": "Consistency: lag and throughput",
+   "titleSize": "h6"
+  },
+  {
+   "collapse": true,
+   "height": "250px",
+   "panels": [
+    {
+     "datasource": "$datasource",
+     "description": "### Backpressure time by zone/reason\nBackpressure seconds per second by live-store zone and reason. Uses reason when the counter is available; otherwise falls back to duration-sum by zone.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "auto",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "decimals": 2,
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "percentunit"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 13,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "calcs": [
+        "lastNotNull"
+       ],
+       "displayMode": "table",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "span": 6,
+     "targets": [
+      {
+       "expr": "sum by (zone, reason) (label_replace(rate(tempo_live_store_back_pressure_seconds_total{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\"}[$__rate_interval]), \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\")) or sum by (zone) (label_replace(rate(tempo_live_store_back_pressure_duration_seconds_sum{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\"}[$__rate_interval]), \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\"))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{zone}} {{reason}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Backpressure time by zone/reason",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### Backpressure duration by zone\nDuration distribution for individual backpressure stalls by live-store zone.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "auto",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "decimals": 2,
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 14,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "calcs": [
+        "lastNotNull"
+       ],
+       "displayMode": "table",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "span": 6,
+     "targets": [
+      {
+       "expr": "histogram_quantile(0.50, sum by (le, zone) (label_replace(rate(tempo_live_store_back_pressure_duration_seconds_bucket{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\"}[$__rate_interval]), \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\")))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "p50 {{zone}}",
+       "legendLink": null
+      },
+      {
+       "expr": "histogram_quantile(0.99, sum by (le, zone) (label_replace(rate(tempo_live_store_back_pressure_duration_seconds_bucket{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\"}[$__rate_interval]), \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\")))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "p99 {{zone}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Backpressure duration by zone",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### Backpressure by pod\nTop live-store pods spending time in backpressure. Reason is shown when that counter is available; otherwise duration-sum fallback is shown by pod.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "auto",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "decimals": 2,
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "percentunit"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 15,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "calcs": [
+        "lastNotNull"
+       ],
+       "displayMode": "table",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "span": 6,
+     "targets": [
+      {
+       "expr": "topk(30, sum by (cluster, namespace, pod, reason) (label_replace(rate(tempo_live_store_back_pressure_seconds_total{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\"}[$__rate_interval]), \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\"))) or topk(30, sum by (cluster, namespace, pod) (label_replace(rate(tempo_live_store_back_pressure_duration_seconds_sum{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\"}[$__rate_interval]), \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\")))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{cluster}}/{{namespace}} {{pod}} {{reason}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Backpressure by pod",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### Live-store readiness by zone\nReady live-store pods versus pod count, split by zone. Drops indicate lost capacity or pods not serving normally.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "auto",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "decimals": 2,
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 16,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "calcs": [
+        "lastNotNull"
+       ],
+       "displayMode": "table",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "span": 6,
+     "targets": [
+      {
+       "expr": "sum by (zone) (label_replace(tempo_live_store_ready{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\"}, \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\"))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "ready {{zone}}",
+       "legendLink": null
+      },
+      {
+       "expr": "count by (zone) (label_replace(kube_pod_info{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\"}, \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\"))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "pods {{zone}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Live-store readiness by zone",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### Catch-up duration by pod\nTime spent catching up after startup or lag events. Pod names include live-store zone.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "auto",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "decimals": 2,
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 17,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "calcs": [
+        "lastNotNull"
+       ],
+       "displayMode": "table",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "span": 6,
+     "targets": [
+      {
+       "expr": "topk(20, tempo_live_store_catch_up_duration_seconds{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\"})",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{cluster}}/{{namespace}} {{pod}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Catch-up duration by pod",
+     "type": "timeseries"
+    }
+   ],
+   "repeat": null,
+   "repeatIteration": null,
+   "repeatRowId": null,
+   "showTitle": true,
+   "title": "Backpressure and readiness",
+   "titleSize": "h6"
+  },
+  {
+   "collapse": true,
+   "height": "250px",
+   "panels": [
+    {
+     "datasource": "$datasource",
+     "description": "### Completion duration by zone\nWAL completion latency by live-store zone. Rising p99 with queue depth indicates completion throughput trouble.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "auto",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "decimals": 2,
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 18,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "calcs": [
+        "lastNotNull"
+       ],
+       "displayMode": "table",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "span": 4,
+     "targets": [
+      {
+       "expr": "histogram_quantile(0.50, sum by (le, zone) (label_replace(rate(tempo_live_store_completion_duration_seconds_bucket{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\"}[$__rate_interval]), \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\")))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "p50 {{zone}}",
+       "legendLink": null
+      },
+      {
+       "expr": "histogram_quantile(0.99, sum by (le, zone) (label_replace(rate(tempo_live_store_completion_duration_seconds_bucket{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\"}[$__rate_interval]), \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\")))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "p99 {{zone}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Completion duration by zone",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### Blocks completed / failures by zone\nSuccessful block completions, failures, and retries by live-store zone.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "auto",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "decimals": 2,
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "ops"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 19,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "calcs": [
+        "lastNotNull"
+       ],
+       "displayMode": "table",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "span": 4,
+     "targets": [
+      {
+       "expr": "sum by (zone) (label_replace(rate(tempo_live_store_blocks_completed_total{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\"}[$__rate_interval]), \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\"))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "completed {{zone}}",
+       "legendLink": null
+      },
+      {
+       "expr": "sum by (zone) (label_replace(rate(tempo_live_store_failed_completions_total{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\"}[$__rate_interval]), \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\"))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "failed {{zone}}",
+       "legendLink": null
+      },
+      {
+       "expr": "sum by (zone) (label_replace(rate(tempo_live_store_completion_retries_total{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\"}[$__rate_interval]), \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\"))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "retries {{zone}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Blocks completed / failures by zone",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### Completion failures/s by zone\nWAL complete-block failures split by live-store zone. Non-zero means the completion path needs inspection.\n",
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "decimals": 3,
+       "noValue": "",
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green",
+          "value": null
+         }
+        ]
+       },
+       "unit": "ops"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 20,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "reduceOptions": {
+       "calcs": [
+        "lastNotNull"
+       ]
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
+     "span": 4,
+     "targets": [
+      {
+       "expr": "sum by (zone) (label_replace(rate(tempo_live_store_failed_completions_total{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\"}[$__rate_interval]), \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\"))",
+       "format": null,
+       "instant": false,
+       "interval": "",
+       "intervalFactor": null,
+       "legendFormat": "{{zone}}",
+       "legendLink": null,
+       "step": null
+      }
+     ],
+     "title": "Completion failures/s by zone",
+     "type": "stat"
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### Completion block size by zone\nCompleted block size distribution by live-store zone. Large shifts can explain completion latency and memory pressure.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "auto",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "decimals": 2,
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "bytes"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 21,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "calcs": [
+        "lastNotNull"
+       ],
+       "displayMode": "table",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "span": 6,
+     "targets": [
+      {
+       "expr": "histogram_quantile(0.50, sum by (le, zone) (label_replace(rate(tempo_live_store_completion_size_bytes_bucket{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\"}[$__rate_interval]), \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\")))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "p50 {{zone}}",
+       "legendLink": null
+      },
+      {
+       "expr": "histogram_quantile(0.99, sum by (le, zone) (label_replace(rate(tempo_live_store_completion_size_bytes_bucket{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\"}[$__rate_interval]), \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\")))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "p99 {{zone}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Completion block size by zone",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### Blocks cut by zone/reason\nRate of WAL block cuts by zone and reason. Use with block size to confirm expected cut behavior.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "auto",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "decimals": 2,
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "ops"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 22,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "calcs": [
+        "lastNotNull"
+       ],
+       "displayMode": "table",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "span": 6,
+     "targets": [
+      {
+       "expr": "sum by (zone, reason) (label_replace(rate(tempo_live_store_blocks_cut_total{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\"}[$__rate_interval]), \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\"))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{zone}} {{reason}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Blocks cut by zone/reason",
+     "type": "timeseries"
+    }
+   ],
+   "repeat": null,
+   "repeatIteration": null,
+   "repeatRowId": null,
+   "showTitle": true,
+   "title": "WAL completion path",
+   "titleSize": "h6"
+  },
+  {
+   "collapse": true,
+   "height": "250px",
+   "panels": [
+    {
+     "datasource": "$datasource",
+     "description": "### Live traces by zone\nNumber of in-memory live traces by live-store zone. Sudden growth can create memory pressure and backpressure.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "auto",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "decimals": 2,
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 23,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "calcs": [
+        "lastNotNull"
+       ],
+       "displayMode": "table",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "span": 6,
+     "targets": [
+      {
+       "expr": "sum by (zone) (label_replace(tempo_live_store_live_traces{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", tenant=~\"$tenant\", container=\"live-store\"}, \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\"))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{zone}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Live traces by zone",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### Live trace memory by zone\nBytes retained for live traces by live-store zone.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "auto",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "decimals": 2,
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "bytes"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 24,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "calcs": [
+        "lastNotNull"
+       ],
+       "displayMode": "table",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "span": 6,
+     "targets": [
+      {
+       "expr": "sum by (zone) (label_replace(tempo_live_store_live_trace_bytes{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", tenant=~\"$tenant\", container=\"live-store\"}, \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\"))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{zone}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Live trace memory by zone",
+     "type": "timeseries"
+    },
+    {
+     "description": "### Top tenants by traces created/s (current)\nCurrent top tenants by live-store trace creation rate across selected zones. Click a tenant to filter this dashboard or open RT overrides.\n",
+     "id": 25,
+     "span": 6,
+     "styles": [
+      {
+       "alias": "Time",
+       "dateFormat": "YYYY-MM-DD HH:mm:ss",
+       "pattern": "Time",
+       "type": "hidden"
+      },
+      {
+       "alias": "traces/s",
+       "colorMode": null,
+       "colors": [
+
+       ],
+       "dateFormat": "YYYY-MM-DD HH:mm:ss",
+       "decimals": 2,
+       "link": false,
+       "linkTargetBlank": false,
+       "linkTooltip": "Drill down",
+       "linkUrl": "",
+       "pattern": "Value",
+       "thresholds": [
+
+       ],
+       "type": "number",
+       "unit": "ops"
+      },
+      {
+       "alias": "tenant",
+       "colorMode": null,
+       "colors": [
+
+       ],
+       "dateFormat": "YYYY-MM-DD HH:mm:ss",
+       "decimals": 2,
+       "link": false,
+       "linkTargetBlank": false,
+       "linkTooltip": "Drill down",
+       "linkUrl": "",
+       "pattern": "tenant",
+       "thresholds": [
+
+       ],
+       "type": "string",
+       "unit": "string"
+      },
+      {
+       "alias": "",
+       "colorMode": null,
+       "colors": [
+
+       ],
+       "dateFormat": "YYYY-MM-DD HH:mm:ss",
+       "decimals": 2,
+       "pattern": "/.*/",
+       "thresholds": [
+
+       ],
+       "type": "string",
+       "unit": "short"
+      }
+     ],
+     "targets": [
+      {
+       "expr": "topk(10, sum by (tenant) (rate(tempo_live_store_traces_created_total{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", tenant=~\"$tenant\", container=\"live-store\"}[$__rate_interval])))",
+       "format": "table",
+       "instant": true,
+       "legendFormat": "{{tenant}}",
+       "refId": "A"
+      }
+     ],
+     "title": "Top tenants by traces created/s (current)",
+     "transform": "table",
+     "transformations": [
+      {
+       "id": "organize",
+       "options": {
+        "excludeByName": {
+
+        },
+        "includeByName": {
+         "Value": true,
+         "tenant": true
+        },
+        "indexByName": {
+         "Value": 1,
+         "tenant": 0
+        },
+        "renameByName": {
+         "Value": "traces/s",
+         "tenant": "tenant"
+        }
+       }
+      },
+      {
+       "id": "sortBy",
+       "options": {
+        "fields": {
+
+        },
+        "sort": [
+         {
+          "desc": true,
+          "field": "traces/s"
+         }
+        ]
+       }
+      }
+     ],
+     "type": "table"
+    },
+    {
+     "description": "### Top tenants by bytes received (current)\nCurrent top tenants by live-store input byte rate across selected zones. Click a tenant to filter this dashboard or open RT overrides.\n",
+     "id": 26,
+     "span": 6,
+     "styles": [
+      {
+       "alias": "Time",
+       "dateFormat": "YYYY-MM-DD HH:mm:ss",
+       "pattern": "Time",
+       "type": "hidden"
+      },
+      {
+       "alias": "bytes/s",
+       "colorMode": null,
+       "colors": [
+
+       ],
+       "dateFormat": "YYYY-MM-DD HH:mm:ss",
+       "decimals": 0,
+       "link": false,
+       "linkTargetBlank": false,
+       "linkTooltip": "Drill down",
+       "linkUrl": "",
+       "pattern": "Value",
+       "thresholds": [
+
+       ],
+       "type": "number",
+       "unit": "Bps"
+      },
+      {
+       "alias": "tenant",
+       "colorMode": null,
+       "colors": [
+
+       ],
+       "dateFormat": "YYYY-MM-DD HH:mm:ss",
+       "decimals": 2,
+       "link": false,
+       "linkTargetBlank": false,
+       "linkTooltip": "Drill down",
+       "linkUrl": "",
+       "pattern": "tenant",
+       "thresholds": [
+
+       ],
+       "type": "string",
+       "unit": "string"
+      },
+      {
+       "alias": "",
+       "colorMode": null,
+       "colors": [
+
+       ],
+       "dateFormat": "YYYY-MM-DD HH:mm:ss",
+       "decimals": 2,
+       "pattern": "/.*/",
+       "thresholds": [
+
+       ],
+       "type": "string",
+       "unit": "short"
+      }
+     ],
+     "targets": [
+      {
+       "expr": "topk(10, sum by (tenant) (rate(tempo_live_store_bytes_received_total{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", tenant=~\"$tenant\", container=\"live-store\"}[$__rate_interval])))",
+       "format": "table",
+       "instant": true,
+       "legendFormat": "{{tenant}}",
+       "refId": "A"
+      }
+     ],
+     "title": "Top tenants by bytes received (current)",
+     "transform": "table",
+     "transformations": [
+      {
+       "id": "organize",
+       "options": {
+        "excludeByName": {
+
+        },
+        "includeByName": {
+         "Value": true,
+         "tenant": true
+        },
+        "indexByName": {
+         "Value": 1,
+         "tenant": 0
+        },
+        "renameByName": {
+         "Value": "bytes/s",
+         "tenant": "tenant"
+        }
+       }
+      },
+      {
+       "id": "sortBy",
+       "options": {
+        "fields": {
+
+        },
+        "sort": [
+         {
+          "desc": true,
+          "field": "bytes/s"
+         }
+        ]
+       }
+      }
+     ],
+     "type": "table"
+    }
+   ],
+   "repeat": null,
+   "repeatIteration": null,
+   "repeatRowId": null,
+   "showTitle": true,
+   "title": "Live traces and tenant pressure",
+   "titleSize": "h6"
+  },
+  {
+   "collapse": true,
+   "height": "250px",
+   "panels": [
+    {
+     "datasource": "$datasource",
+     "description": "### CPU pressure by zone\nMax and p95 live-store CPU utilization by zone. Use after identifying a skewed zone or queue.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "auto",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "decimals": 2,
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "percentunit"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 27,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "calcs": [
+        "lastNotNull"
+       ],
+       "displayMode": "table",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "span": 6,
+     "targets": [
+      {
+       "expr": "max by (zone) (label_replace(container:cpu_utilisation:ratio{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\"}, \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\"))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "max {{zone}}",
+       "legendLink": null
+      },
+      {
+       "expr": "quantile by (zone) (0.95, label_replace(container:cpu_utilisation:ratio{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\"}, \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\"))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "p95 {{zone}}",
+       "legendLink": null
+      }
+     ],
+     "title": "CPU pressure by zone",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### Memory working set by zone\nMax and p95 live-store memory working set by zone.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "auto",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "decimals": 2,
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "bytes"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 28,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "calcs": [
+        "lastNotNull"
+       ],
+       "displayMode": "table",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "span": 6,
+     "targets": [
+      {
+       "expr": "max by (zone) (label_replace(container_memory_working_set_bytes{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\"}, \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\"))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "max {{zone}}",
+       "legendLink": null
+      },
+      {
+       "expr": "quantile by (zone) (0.95, label_replace(container_memory_working_set_bytes{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\"}, \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\"))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "p95 {{zone}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Memory working set by zone",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### Go heap allocation by zone\nGo heap allocation churn summed by live-store zone. Rising allocation with backpressure suggests GC/memory pressure.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "auto",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "decimals": 2,
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "Bps"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 29,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "calcs": [
+        "lastNotNull"
+       ],
+       "displayMode": "table",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "span": 6,
+     "targets": [
+      {
+       "expr": "sum by (zone) (label_replace(rate(go_memstats_alloc_bytes_total{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\"}[$__rate_interval]), \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\"))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{zone}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Go heap allocation by zone",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### Restarts over range by zone\nContainer restarts for live-store pods during the dashboard time range, summed by zone.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "auto",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "decimals": 2,
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 30,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "calcs": [
+        "lastNotNull"
+       ],
+       "displayMode": "table",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "span": 6,
+     "targets": [
+      {
+       "expr": "sum by (zone) (label_replace(increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\"}[$__range]), \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\"))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{zone}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Restarts over range by zone",
+     "type": "timeseries"
+    }
+   ],
+   "repeat": null,
+   "repeatIteration": null,
+   "repeatRowId": null,
+   "showTitle": true,
+   "title": "Resource pressure",
+   "titleSize": "h6"
+  },
+  {
+   "collapse": false,
+   "height": "250px",
+   "panels": [
+    {
+     "datasource": "$datasource",
+     "description": "### KEDA/HPA replicas\nReplica bounds and HPA decisions for live-store when present plus the Warpstream agents that feed the live-store path. Some prod cells do not have a live-store HPA.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "auto",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "decimals": 2,
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 31,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "calcs": [
+        "lastNotNull"
+       ],
+       "displayMode": "table",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "span": 3,
+     "targets": [
+      {
+       "expr": "max by (scaletargetref_name) (\n  kube_horizontalpodautoscaler_spec_min_replicas{cluster=~\"$cluster\", namespace=~\"$namespace\", horizontalpodautoscaler=~\"keda-hpa-(live-store|warpstream-agent-read|warpstream-agent-write|warpstream-agent-jobs)\"}\n  * on (cluster, namespace, horizontalpodautoscaler) group_left (scaletargetref_name)\n  group by (cluster, namespace, horizontalpodautoscaler, scaletargetref_name) (kube_horizontalpodautoscaler_info{cluster=~\"$cluster\", namespace=~\"$namespace\", horizontalpodautoscaler=~\"keda-hpa-(live-store|warpstream-agent-read|warpstream-agent-write|warpstream-agent-jobs)\"})\n)\n",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "min {{scaletargetref_name}}",
+       "legendLink": null
+      },
+      {
+       "expr": "max by (scaletargetref_name) (\n  kube_horizontalpodautoscaler_status_current_replicas{cluster=~\"$cluster\", namespace=~\"$namespace\", horizontalpodautoscaler=~\"keda-hpa-(live-store|warpstream-agent-read|warpstream-agent-write|warpstream-agent-jobs)\"}\n  * on (cluster, namespace, horizontalpodautoscaler) group_left (scaletargetref_name)\n  group by (cluster, namespace, horizontalpodautoscaler, scaletargetref_name) (kube_horizontalpodautoscaler_info{cluster=~\"$cluster\", namespace=~\"$namespace\", horizontalpodautoscaler=~\"keda-hpa-(live-store|warpstream-agent-read|warpstream-agent-write|warpstream-agent-jobs)\"})\n)\n",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "current {{scaletargetref_name}}",
+       "legendLink": null
+      },
+      {
+       "expr": "max by (scaletargetref_name) (\n  kube_horizontalpodautoscaler_status_desired_replicas{cluster=~\"$cluster\", namespace=~\"$namespace\", horizontalpodautoscaler=~\"keda-hpa-(live-store|warpstream-agent-read|warpstream-agent-write|warpstream-agent-jobs)\"}\n  * on (cluster, namespace, horizontalpodautoscaler) group_left (scaletargetref_name)\n  group by (cluster, namespace, horizontalpodautoscaler, scaletargetref_name) (kube_horizontalpodautoscaler_info{cluster=~\"$cluster\", namespace=~\"$namespace\", horizontalpodautoscaler=~\"keda-hpa-(live-store|warpstream-agent-read|warpstream-agent-write|warpstream-agent-jobs)\"})\n)\n",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "desired {{scaletargetref_name}}",
+       "legendLink": null
+      },
+      {
+       "expr": "max by (scaletargetref_name) (\n  kube_horizontalpodautoscaler_spec_max_replicas{cluster=~\"$cluster\", namespace=~\"$namespace\", horizontalpodautoscaler=~\"keda-hpa-(live-store|warpstream-agent-read|warpstream-agent-write|warpstream-agent-jobs)\"}\n  * on (cluster, namespace, horizontalpodautoscaler) group_left (scaletargetref_name)\n  group by (cluster, namespace, horizontalpodautoscaler, scaletargetref_name) (kube_horizontalpodautoscaler_info{cluster=~\"$cluster\", namespace=~\"$namespace\", horizontalpodautoscaler=~\"keda-hpa-(live-store|warpstream-agent-read|warpstream-agent-write|warpstream-agent-jobs)\"})\n)\n",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "max {{scaletargetref_name}}",
+       "legendLink": null
+      }
+     ],
+     "title": "KEDA/HPA replicas",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### KEDA CPU desired replicas\nKEDA scaler metric divided by the HPA target, following the Warpstream Agent Read dashboard pattern. Shows which Warpstream agent CPU scaler is driving desired replicas.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "auto",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "decimals": 2,
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 32,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "calcs": [
+        "lastNotNull"
+       ],
+       "displayMode": "table",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "span": 3,
+     "targets": [
+      {
+       "expr": "sum by (scaledObject) (\n  max by (cluster, namespace, scaledObject, metric, scaler) (\n    label_replace(keda_scaler_metrics_value{cluster=~\"$cluster\", exported_namespace=~\"$namespace\", scaledObject=~\"live-store|warpstream-agent-read|warpstream-agent-write|warpstream-agent-jobs\", scaler=~\".*cpu.*|prometheusScaler\"}, \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\")\n  )\n  / on(cluster, namespace, scaledObject, metric) group_left\n  max by (cluster, namespace, scaledObject, metric) (\n    label_replace(label_replace(kube_horizontalpodautoscaler_spec_target_metric{cluster=~\"$cluster\", namespace=~\"$namespace\", horizontalpodautoscaler=~\"keda-hpa-(live-store|warpstream-agent-read|warpstream-agent-write|warpstream-agent-jobs)\"}, \"metric\", \"$1\", \"metric_name\", \"(.+)\"), \"scaledObject\", \"$1\", \"horizontalpodautoscaler\", \"keda-hpa-(.*)\")\n  )\n)\n",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{scaledObject}}",
+       "legendLink": null
+      }
+     ],
+     "title": "KEDA CPU desired replicas",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### KEDA memory desired replicas\nKEDA memory scaler metric divided by the HPA target, following the Warpstream Agent Read dashboard pattern.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "auto",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "decimals": 2,
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 33,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "calcs": [
+        "lastNotNull"
+       ],
+       "displayMode": "table",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "span": 3,
+     "targets": [
+      {
+       "expr": "sum by (scaledObject) (\n  max by (cluster, namespace, scaledObject, metric, scaler) (\n    label_replace(keda_scaler_metrics_value{cluster=~\"$cluster\", exported_namespace=~\"$namespace\", scaledObject=~\"live-store|warpstream-agent-read|warpstream-agent-write|warpstream-agent-jobs\", scaler=~\".*memory.*\"}, \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\")\n  )\n  / on(cluster, namespace, scaledObject, metric) group_left\n  max by (cluster, namespace, scaledObject, metric) (\n    label_replace(label_replace(kube_horizontalpodautoscaler_spec_target_metric{cluster=~\"$cluster\", namespace=~\"$namespace\", horizontalpodautoscaler=~\"keda-hpa-(live-store|warpstream-agent-read|warpstream-agent-write|warpstream-agent-jobs)\"}, \"metric\", \"$1\", \"metric_name\", \"(.+)\"), \"scaledObject\", \"$1\", \"horizontalpodautoscaler\", \"keda-hpa-(.*)\")\n  )\n)\n",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{scaledObject}}",
+       "legendLink": null
+      }
+     ],
+     "title": "KEDA memory desired replicas",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### KEDA scaler failures\nKEDA scaler error rate for live-store when present plus Warpstream agents on the live-store ingest path.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "auto",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "decimals": 2,
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 34,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "calcs": [
+        "lastNotNull"
+       ],
+       "displayMode": "table",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "span": 3,
+     "targets": [
+      {
+       "expr": "sum by (scaledObject, scaler) (\n  label_replace(rate(keda_scaler_errors{cluster=~\"$cluster\", exported_namespace=~\"$namespace\", scaledObject=~\"live-store|warpstream-agent-read|warpstream-agent-write|warpstream-agent-jobs\"}[$__rate_interval]), \"namespace\", \"$1\", \"exported_namespace\", \"(.+)\")\n)\n",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{scaledObject}} {{scaler}}",
+       "legendLink": null
+      }
+     ],
+     "title": "KEDA scaler failures",
+     "type": "timeseries"
+    }
+   ],
+   "repeat": null,
+   "repeatIteration": null,
+   "repeatRowId": null,
+   "showTitle": true,
+   "title": "Autoscaling / KEDA",
+   "titleSize": "h6"
+  }
+ ],
+ "schemaVersion": 14,
+ "style": "dark",
+ "tags": [
+  "tempo",
+  "livestore",
+  "triage"
+ ],
+ "templating": {
+  "list": [
+   {
+    "current": {
+     "text": "default",
+     "value": "default"
+    },
+    "hide": 0,
+    "label": "Data source",
+    "name": "datasource",
+    "options": [
+
+    ],
+    "query": "prometheus",
+    "refresh": 1,
+    "regex": "",
+    "type": "datasource"
+   },
+   {
+    "allValue": "tempo.*",
+    "allowCustomValue": true,
+    "current": {
+     "text": "All",
+     "value": "$__all"
+    },
+    "datasource": {
+     "type": "prometheus",
+     "uid": "$datasource"
+    },
+    "hide": 0,
+    "includeAll": true,
+    "multi": true,
+    "name": "namespace",
+    "options": [
+
+    ],
+    "query": "label_values(tempo_live_store_records_processed_total, namespace)",
+    "refresh": 2,
+    "regex": "",
+    "regexApplyTo": "value",
+    "skipUrlSync": false,
+    "sort": 0,
+    "type": "query"
+   },
+   {
+    "allValue": ".*",
+    "allowCustomValue": true,
+    "current": {
+     "text": "All",
+     "value": "$__all"
+    },
+    "datasource": {
+     "type": "prometheus",
+     "uid": "$datasource"
+    },
+    "hide": 0,
+    "includeAll": true,
+    "multi": true,
+    "name": "cluster",
+    "options": [
+
+    ],
+    "query": "label_values(tempo_live_store_records_processed_total{namespace=~\"$namespace\"}, cluster)",
+    "refresh": 2,
+    "regex": "",
+    "regexApplyTo": "value",
+    "skipUrlSync": false,
+    "sort": 0,
+    "type": "query"
+   },
+   {
+    "allValue": "live-store-zone-.*",
+    "allowCustomValue": true,
+    "current": {
+     "text": "All",
+     "value": "$__all"
+    },
+    "datasource": {
+     "type": "prometheus",
+     "uid": "$datasource"
+    },
+    "hide": 0,
+    "includeAll": true,
+    "multi": true,
+    "name": "pod",
+    "options": [
+
+    ],
+    "query": "label_values(kube_pod_container_info{namespace=~\"$namespace\", cluster=~\"$cluster\", container=\"live-store\", pod=~\"live-store-zone-.*\"}, pod)",
+    "refresh": 2,
+    "regex": "/^(live-store-zone-[ab]-.*)$/",
+    "regexApplyTo": "value",
+    "skipUrlSync": false,
+    "sort": 0,
+    "type": "query"
+   },
+   {
+    "allValue": ".*",
+    "allowCustomValue": true,
+    "current": {
+     "text": "All",
+     "value": "$__all"
+    },
+    "datasource": {
+     "type": "prometheus",
+     "uid": "$datasource"
+    },
+    "hide": 0,
+    "includeAll": true,
+    "multi": true,
+    "name": "tenant",
+    "options": [
+
+    ],
+    "query": "label_values(tempo_live_store_traces_created_total{namespace=~\"$namespace\", cluster=~\"$cluster\"}, tenant)",
+    "refresh": 2,
+    "regex": "",
+    "regexApplyTo": "value",
+    "skipUrlSync": false,
+    "sort": 0,
+    "type": "query"
+   }
+  ]
+ },
+ "time": {
+  "from": "now-1h",
+  "to": "now"
+ },
+ "timepicker": {
+  "refresh_intervals": [
+   "5s",
+   "10s",
+   "30s",
+   "1m",
+   "5m",
+   "15m",
+   "30m",
+   "1h",
+   "2h",
+   "1d"
+  ],
+  "time_options": [
+   "5m",
+   "15m",
+   "1h",
+   "6h",
+   "12h",
+   "24h",
+   "2d",
+   "7d",
+   "30d"
+  ]
+ },
+ "timezone": "utc",
+ "title": "Tempo / Livestore",
+ "uid": "",
+ "version": 0
+}
