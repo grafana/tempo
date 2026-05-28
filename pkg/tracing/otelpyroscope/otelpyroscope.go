@@ -63,7 +63,7 @@ func (w *profileTracer) Start(ctx context.Context, spanName string, opts ...trac
 	spanCtx := span.SpanContext()
 	addSpanIDLabel := w.p.config.spanIDScope != scopeNone && spanCtx.IsSampled()
 	addSpanNameLabel := w.p.config.spanNameScope != scopeNone && spanName != ""
-	if !(addSpanIDLabel || addSpanNameLabel) {
+	if !addSpanIDLabel && !addSpanNameLabel {
 		return ctx, span
 	}
 
@@ -134,32 +134,6 @@ func withRootSpan(ctx context.Context, s rootSpan) context.Context {
 func rootSpanFromContext(ctx context.Context) (rootSpan, bool) {
 	s, ok := ctx.Value(rootSpanCtxKey{}).(rootSpan)
 	return s, ok
-}
-
-// TODO(kolesnikovae): Make options public.
-
-// withSpanNameLabelScope specifies whether the current span name should be
-// added to the profile labels. If the name is dynamic, i.e. includes
-// span-specific identifiers, such as URL or SQL query, this may significantly
-// deteriorate performance.
-//
-// By default, only the local root span name is recorded. Samples collected
-// during the child span execution will be included into the root span profile.
-func withSpanNameLabelScope(scope scope) Option {
-	return func(tp *tracerProvider) {
-		tp.config.spanNameScope = scope
-	}
-}
-
-// withSpanIDScope specifies whether the current span ID should be added to
-// the profile labels.
-//
-// By default, only the local root span ID is recorded. Samples collected
-// during the child span execution will be included into the root span profile.
-func withSpanIDScope(scope scope) Option {
-	return func(tp *tracerProvider) {
-		tp.config.spanNameScope = scope
-	}
 }
 
 type scope uint
