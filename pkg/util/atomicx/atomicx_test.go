@@ -67,13 +67,24 @@ func TestError(t *testing.T) {
 	e.Store(err1)
 	require.ErrorIs(t, e.Load(), err1)
 
-	// CAS: only set if currently nil
 	first := errors.New("first")
 	second := errors.New("second")
+
+	// CAS from nil (lazy-init path)
 	overall := &Error{}
 	require.True(t, overall.CompareAndSwap(nil, first))
 	require.False(t, overall.CompareAndSwap(nil, second))
 	require.ErrorIs(t, overall.Load(), first)
+
+	// CAS with non-nil old
+	require.True(t, overall.CompareAndSwap(first, second))
+	require.ErrorIs(t, overall.Load(), second)
+	require.False(t, overall.CompareAndSwap(first, errors.New("third")))
+	require.ErrorIs(t, overall.Load(), second)
+
+	// CAS to nil
+	require.True(t, overall.CompareAndSwap(second, nil))
+	require.NoError(t, overall.Load())
 
 	// zero value reads as nil
 	var z Error

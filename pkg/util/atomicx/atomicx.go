@@ -7,7 +7,6 @@ package atomicx
 
 import (
 	"math"
-	"sync"
 	"sync/atomic"
 )
 
@@ -39,8 +38,8 @@ func (f *Float64) Add(delta float64) float64 {
 
 func (f *Float64) Sub(delta float64) float64 { return f.Add(-delta) }
 
-func (f *Float64) CompareAndSwap(old, new float64) bool {
-	return f.v.CompareAndSwap(math.Float64bits(old), math.Float64bits(new))
+func (f *Float64) CompareAndSwap(old, next float64) bool {
+	return f.v.CompareAndSwap(math.Float64bits(old), math.Float64bits(next))
 }
 
 // String is an atomic string backed by atomic.Pointer[string].
@@ -64,37 +63,39 @@ func (s *String) Load() string {
 
 func (s *String) Store(v string) { s.v.Store(&v) }
 
-// Error is an atomic error. Uses a mutex; intended for low-frequency error
-// propagation paths (first-writer-wins, completion handoff, etc.) — not hot
-// loops.
 type Error struct {
-	_  noCopy
-	mu sync.RWMutex
-	v  error
+	_ noCopy
+	v atomic.Value
 }
 
+type packedError struct{ Value error }
+
 func NewError(err error) *Error {
-	return &Error{v: err}
+	e := &Error{}
+	if err != nil {
+		e.Store(err)
+	}
+	return e
 }
 
 func (e *Error) Load() error {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	return e.v
+	v := e.v.Load()
+	if v == nil {
+		return nil
+	}
+	return v.(packedError).Value
 }
 
-func (e *Error) Store(err error) {
-	e.mu.Lock()
-	e.v = err
-	e.mu.Unlock()
-}
+func (e *Error) Store(err error) { e.v.Store(packedError{err}) }
 
-func (e *Error) CompareAndSwap(old, new error) bool {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if e.v == old {
-		e.v = new
+func (e *Error) CompareAndSwap(old, next error) bool {
+	if e.v.CompareAndSwap(packedError{old}, packedError{next}) {
 		return true
+	}
+	// Before any Store, atomic.Value's internal state is the nil interface
+	// rather than a zero packedError, so the first CAS misses. Retry against nil.
+	if old == nil {
+		return e.v.CompareAndSwap(nil, packedError{next})
 	}
 	return false
 }
