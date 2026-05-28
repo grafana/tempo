@@ -2,6 +2,7 @@ package pool
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"sync"
@@ -11,7 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
-	"go.uber.org/multierr"
 )
 
 func TestResults(t *testing.T) {
@@ -120,7 +120,7 @@ func TestError(t *testing.T) {
 	msg, funcErrs, err := p.RunJobs(context.Background(), payloads, fn)
 	assert.Nil(t, msg)
 	assert.Nil(t, err)
-	assert.Equal(t, ret, multierr.Combine(funcErrs...))
+	assert.ErrorIs(t, errors.Join(funcErrs...), ret)
 	goleak.VerifyNone(t, opts)
 
 	p.Shutdown()
