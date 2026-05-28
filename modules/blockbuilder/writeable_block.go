@@ -3,6 +3,7 @@ package blockbuilder
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -10,7 +11,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"go.uber.org/atomic"
 )
 
 // Overrides is just the set of overrides needed here.

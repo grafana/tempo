@@ -5,12 +5,12 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/grafana/dskit/httpgrpc"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 )
 
 func TestRetry(t *testing.T) {
@@ -27,7 +27,7 @@ func TestRetry(t *testing.T) {
 		{
 			name: "retry errors until success",
 			handler: RoundTripperFunc(func(_ Request) (*http.Response, error) {
-				if try.Inc() == 5 {
+				if try.Add(1) == 5 {
 					return &http.Response{StatusCode: 200}, nil
 				}
 				return nil, errors.New("this request failed")
@@ -40,7 +40,7 @@ func TestRetry(t *testing.T) {
 		{
 			name: "don't retry 400's",
 			handler: RoundTripperFunc(func(_ Request) (*http.Response, error) {
-				try.Inc()
+				try.Add(1)
 				return &http.Response{StatusCode: 400}, nil
 			}),
 			maxRetries:    5,
@@ -51,7 +51,7 @@ func TestRetry(t *testing.T) {
 		{
 			name: "don't retry GRPC request with HTTP 400's",
 			handler: RoundTripperFunc(func(_ Request) (*http.Response, error) {
-				try.Inc()
+				try.Add(1)
 				return nil, httpgrpc.ErrorFromHTTPResponse(&httpgrpc.HTTPResponse{Code: 400})
 			}),
 			maxRetries:    5,
@@ -62,7 +62,7 @@ func TestRetry(t *testing.T) {
 		{
 			name: "retry 500s",
 			handler: RoundTripperFunc(func(_ Request) (*http.Response, error) {
-				try.Inc()
+				try.Add(1)
 				return &http.Response{StatusCode: 503}, nil
 			}),
 			maxRetries:    5,
@@ -73,7 +73,7 @@ func TestRetry(t *testing.T) {
 		{
 			name: "return last error",
 			handler: RoundTripperFunc(func(_ Request) (*http.Response, error) {
-				if try.Inc() == 5 {
+				if try.Add(1) == 5 {
 					return nil, errors.New("request failed")
 				}
 				return nil, errors.New("not the last request")
@@ -86,7 +86,7 @@ func TestRetry(t *testing.T) {
 		{
 			name: "maxRetries=1",
 			handler: RoundTripperFunc(func(_ Request) (*http.Response, error) {
-				try.Inc()
+				try.Add(1)
 				return &http.Response{StatusCode: 500}, nil
 			}),
 			maxRetries:    1,
@@ -97,7 +97,7 @@ func TestRetry(t *testing.T) {
 		{
 			name: "maxRetries=0",
 			handler: RoundTripperFunc(func(_ Request) (*http.Response, error) {
-				try.Inc()
+				try.Add(1)
 				return &http.Response{StatusCode: 500}, nil
 			}),
 			maxRetries:    0,
@@ -135,7 +135,7 @@ func TestRetry_CancelledRequest(t *testing.T) {
 
 	_, err = NewRetryWare(5, false, prometheus.NewRegistry()).
 		Wrap(RoundTripperFunc(func(_ Request) (*http.Response, error) {
-			try.Inc()
+			try.Add(1)
 			return nil, ctx.Err()
 		})).RoundTrip(NewHTTPRequest(req))
 
@@ -150,7 +150,7 @@ func TestRetry_CancelledRequest(t *testing.T) {
 
 	_, err = NewRetryWare(5, false, prometheus.NewRegistry()).
 		Wrap(RoundTripperFunc(func(_ Request) (*http.Response, error) {
-			try.Inc()
+			try.Add(1)
 			cancel()
 			return nil, errors.New("this request failed")
 		})).RoundTrip(NewHTTPRequest(req))

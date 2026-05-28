@@ -1,6 +1,7 @@
 package ingest_test
 
 import (
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -12,7 +13,6 @@ import (
 	"github.com/twmb/franz-go/pkg/kfake"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kmsg"
-	"go.uber.org/atomic"
 )
 
 const (
@@ -31,7 +31,7 @@ func TestLeaveConsumerGroupByInstanceID_NoOp(t *testing.T) {
 
 	var leaveGroupCalled atomic.Int32
 	fake.ControlKey(int16(kmsg.LeaveGroup), func(_ kmsg.Request) (kmsg.Response, error, bool) {
-		leaveGroupCalled.Inc()
+		leaveGroupCalled.Add(1)
 		return nil, nil, false
 	})
 

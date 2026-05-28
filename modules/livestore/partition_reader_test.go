@@ -3,6 +3,7 @@ package livestore
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -17,7 +18,6 @@ import (
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kmsg"
-	"go.uber.org/atomic"
 )
 
 const (
@@ -30,9 +30,9 @@ func TestPartitionReaderCommits(t *testing.T) {
 	t.Run("sync commits", func(t *testing.T) {
 		k, address := testkafka.CreateCluster(t, 1, testTopic)
 
-		kafkaCommits := atomic.NewInt32(0)
+		kafkaCommits := &atomic.Int32{}
 		k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
-			kafkaCommits.Inc()
+			kafkaCommits.Add(1)
 			return nil, nil, false
 		})
 
@@ -64,7 +64,7 @@ func TestPartitionReaderCommits(t *testing.T) {
 
 		k, address := testkafka.CreateCluster(t, 1, testTopic)
 		k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
-			asyncCommits.Inc()
+			asyncCommits.Add(1)
 			return nil, nil, false
 		})
 
@@ -98,9 +98,9 @@ func TestPartitionReaderCommits(t *testing.T) {
 func TestPartitionReaderLag(t *testing.T) {
 	k, address := testkafka.CreateCluster(t, 1, testTopic)
 
-	kafkaCommits := atomic.NewInt32(0)
+	kafkaCommits := &atomic.Int32{}
 	k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
-		kafkaCommits.Inc()
+		kafkaCommits.Add(1)
 		return nil, nil, false
 	})
 

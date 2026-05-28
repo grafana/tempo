@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"go.uber.org/atomic"
 )
 
 const (
@@ -48,7 +48,7 @@ type job struct {
 
 type Pool struct {
 	cfg  *Config
-	size *atomic.Int32
+	size atomic.Int32
 
 	workQueue  chan *job
 	shutdownCh chan struct{}
@@ -63,7 +63,6 @@ func NewPool(cfg *Config) *Pool {
 	p := &Pool{
 		cfg:        cfg,
 		workQueue:  q,
-		size:       atomic.NewInt32(0),
 		shutdownCh: make(chan struct{}),
 	}
 
@@ -90,7 +89,7 @@ func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) 
 	}
 
 	resultsCh := make(chan result, totalJobs) // way for jobs to send back results
-	stop := atomic.NewBool(false)             // way to signal to the jobs to quit
+	stop := &atomic.Bool{}                    // way to signal to the jobs to quit
 	wg := &sync.WaitGroup{}                   // way to wait for all jobs to complete
 
 	// add each job one at a time.  even though we checked length above these might still fail
@@ -107,7 +106,7 @@ func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) 
 
 		select {
 		case p.workQueue <- j:
-			p.size.Inc()
+			p.size.Add(1)
 		default:
 			wg.Done()
 			stop.Store(true)
@@ -150,7 +149,7 @@ func (p *Pool) worker(j <-chan *job) {
 				return
 			}
 			runJob(j)
-			p.size.Dec()
+			p.size.Add(-1)
 		}
 	}
 }

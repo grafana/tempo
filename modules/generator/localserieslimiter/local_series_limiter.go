@@ -1,7 +1,7 @@
 package localserieslimiter
 
 import (
-	"go.uber.org/atomic"
+	"sync/atomic"
 
 	"github.com/grafana/tempo/modules/generator/registry"
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
@@ -127,7 +127,7 @@ func (l *LocalSeriesLimiter) OnDelete(hash uint64, seriesCount uint32) {
 		seriesCount = activeSeries
 	}
 
-	l.activeSeries.Sub(seriesCount)
+	l.activeSeries.Add(^(seriesCount - 1))
 	l.metricActiveSeries.Set(float64(l.activeSeries.Load()))
 	l.metricTotalSeriesRemoved.Add(float64(seriesCount))
 }

@@ -12,13 +12,14 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/grafana/tempo/cmd/tempo/build"
+	"github.com/grafana/tempo/pkg/util/atomicx"
 
 	"github.com/cespare/xxhash/v2"
 	prom "github.com/prometheus/prometheus/web/api/v1"
-	"go.uber.org/atomic"
 )
 
 var (
@@ -210,15 +211,15 @@ func Edition(edition string) {
 }
 
 type Statistics struct {
-	min   *atomic.Float64
-	max   *atomic.Float64
+	min   *atomicx.Float64
+	max   *atomicx.Float64
 	count *atomic.Int64
 
-	avg *atomic.Float64
+	avg *atomicx.Float64
 
 	// require for stddev and stdvar
-	mean  *atomic.Float64
-	value *atomic.Float64
+	mean  *atomicx.Float64
+	value *atomicx.Float64
 }
 
 // NewStatistics returns a new Statistics object.
@@ -233,12 +234,12 @@ type Statistics struct {
 // If a Statistics object with the same name already exists it is returned.
 func NewStatistics(name string) *Statistics {
 	s := &Statistics{
-		min:   atomic.NewFloat64(math.Inf(0)),
-		max:   atomic.NewFloat64(math.Inf(-1)),
-		count: atomic.NewInt64(0),
-		avg:   atomic.NewFloat64(0),
-		mean:  atomic.NewFloat64(0),
-		value: atomic.NewFloat64(0),
+		min:   atomicx.NewFloat64(math.Inf(0)),
+		max:   atomicx.NewFloat64(math.Inf(-1)),
+		count: &atomic.Int64{},
+		avg:   atomicx.NewFloat64(0),
+		mean:  atomicx.NewFloat64(0),
+		value: atomicx.NewFloat64(0),
 	}
 	existing := expvar.Get(statsPrefix + name)
 	if existing != nil {
@@ -318,7 +319,7 @@ func (s *Statistics) Record(v float64) {
 
 type Counter struct {
 	total *atomic.Int64
-	rate  *atomic.Float64
+	rate  *atomicx.Float64
 
 	resetTime time.Time
 }
@@ -327,8 +328,8 @@ type Counter struct {
 // If a Counter stats object with the same name already exists it is returned.
 func NewCounter(name string) *Counter {
 	c := &Counter{
-		total:     atomic.NewInt64(0),
-		rate:      atomic.NewFloat64(0),
+		total:     &atomic.Int64{},
+		rate:      atomicx.NewFloat64(0),
 		resetTime: time.Now(),
 	}
 	existing := expvar.Get(statsPrefix + name)
@@ -379,7 +380,7 @@ type WordCounter struct {
 // If a WordCounter stats object with the same name already exists it is returned.
 func NewWordCounter(name string) *WordCounter {
 	c := &WordCounter{
-		count: atomic.NewInt64(0),
+		count: &atomic.Int64{},
 		words: sync.Map{},
 	}
 	existing := expvar.Get(statsPrefix + name)

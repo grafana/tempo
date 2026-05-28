@@ -5,9 +5,8 @@ import (
 	"net/http"
 	"sync"
 
-	"go.uber.org/atomic"
-
 	"github.com/grafana/tempo/modules/frontend/combiner"
+	"github.com/grafana/tempo/pkg/util/atomicx"
 )
 
 type httpCollector struct {
@@ -66,7 +65,7 @@ func (r httpCollector) RoundTrip(req *http.Request) (*http.Response, error) {
 
 func consumeAndCombineResponses(ctx context.Context, consumers int, resps Responses[combiner.PipelineResponse], c combiner.Combiner, callback func() error) error {
 	respChan := make(chan combiner.PipelineResponse)
-	overallErr := atomic.Error{}
+	var overallErr atomicx.Error
 	wg := sync.WaitGroup{}
 
 	setErr := func(err error) {

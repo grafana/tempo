@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
-	"go.uber.org/atomic"
+	"github.com/grafana/tempo/pkg/util/atomicx"
 )
 
 type Responses[T any] interface {
@@ -97,7 +97,7 @@ var _ Responses[combiner.PipelineResponse] = &asyncResponse{}
 type asyncResponse struct {
 	respChan chan Responses[combiner.PipelineResponse]
 	errChan  chan error
-	err      *atomic.Error
+	err      *atomicx.Error
 
 	curResponses Responses[combiner.PipelineResponse]
 }
@@ -106,7 +106,7 @@ func newAsyncResponse() *asyncResponse {
 	return &asyncResponse{
 		respChan: make(chan Responses[combiner.PipelineResponse]),
 		errChan:  make(chan error, 1),
-		err:      atomic.NewError(nil),
+		err:      atomicx.NewError(nil),
 	}
 }
 

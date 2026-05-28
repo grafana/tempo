@@ -2,11 +2,12 @@ package registry
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/grafana/tempo/pkg/util/atomicx"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
-	"go.uber.org/atomic"
 )
 
 var _ metric = (*gauge)(nil)
@@ -30,7 +31,7 @@ type gauge struct {
 
 type gaugeSeries struct {
 	labels      labels.Labels
-	value       *atomic.Float64
+	value       *atomicx.Float64
 	lastUpdated *atomic.Int64
 }
 
@@ -100,10 +101,12 @@ func (g *gauge) updateSeries(lbls labels.Labels, value float64, operation string
 }
 
 func (g *gauge) newSeries(lbls labels.Labels, value float64) *gaugeSeries {
+	lastUpdated := &atomic.Int64{}
+	lastUpdated.Store(time.Now().UnixMilli())
 	return &gaugeSeries{
 		labels:      getSeriesLabels(g.metricName, lbls, g.externalLabels),
-		value:       atomic.NewFloat64(value),
-		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
+		value:       atomicx.NewFloat64(value),
+		lastUpdated: lastUpdated,
 	}
 }
 

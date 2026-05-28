@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -25,7 +26,6 @@ import (
 	"github.com/prometheus/prometheus/storage/remote"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 
 	"github.com/grafana/tempo/modules/overrides/histograms"
 )
@@ -272,7 +272,7 @@ type mockPrometheusRemoteWriteServer struct {
 	mtx sync.Mutex
 
 	server         *httptest.Server
-	refuseRequests *atomic.Bool
+	refuseRequests atomic.Bool
 	timeSeries     map[string][]prompb.TimeSeries
 
 	// metrics
@@ -286,7 +286,6 @@ func newMockPrometheusRemoteWriterServer(logger log.Logger) *mockPrometheusRemot
 	logger = log.With(logger, "component", "mockserver")
 
 	m := &mockPrometheusRemoteWriteServer{
-		refuseRequests:   atomic.NewBool(false),
 		timeSeries:       make(map[string][]prompb.TimeSeries),
 		acceptedRequests: map[string]int{},
 		logger:           logger,

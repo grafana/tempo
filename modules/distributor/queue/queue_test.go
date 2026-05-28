@@ -3,6 +3,7 @@ package queue
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -10,7 +11,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 )
 
 func newQueue[T any](t *testing.T, size, workerCount int, processFunc ProcessFunc[T]) *Queue[T] {
@@ -69,13 +69,13 @@ func TestNew_ReturnsNotNilAndSetsCorrectFieldsFromConfig(t *testing.T) {
 
 func TestQueue_Push_ReturnsNoErrorAndWorkersInvokeProcessFuncCorrectNumberOfTimesWithRunningWorkers(t *testing.T) {
 	// Given
-	count := atomic.NewUint32(0)
+	count := &atomic.Uint32{}
 	wg := sync.WaitGroup{}
 	size := 10
 	workerCount := 3
 	processFunc := func(context.Context, any) {
 		defer wg.Done()
-		count.Inc()
+		count.Add(1)
 	}
 	q := newStartedQueue(t, size, workerCount, processFunc)
 
@@ -130,13 +130,13 @@ func TestQueue_Push_ReturnsErrorWhenPushingItemsToShutdownQueue(t *testing.T) {
 
 func TestQueue_Push_QueueGetsProperlyDrainedOnShutdown(t *testing.T) {
 	// Given
-	count := atomic.NewUint32(0)
+	count := &atomic.Uint32{}
 	wg := sync.WaitGroup{}
 	size := 10
 	workerCount := 3
 	processFunc := func(context.Context, any) {
 		defer wg.Done()
-		count.Inc()
+		count.Add(1)
 	}
 	q := newQueue(t, size, workerCount, processFunc)
 

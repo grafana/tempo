@@ -5,8 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
-
-	"go.uber.org/atomic"
+	"sync/atomic"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/cache"

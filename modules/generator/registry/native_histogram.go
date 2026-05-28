@@ -6,6 +6,7 @@ import (
 	"hash/fnv"
 	"math"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -14,7 +15,6 @@ import (
 	promhistogram "github.com/prometheus/prometheus/model/histogram"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
-	"go.uber.org/atomic"
 )
 
 type nativeHistogram struct {
@@ -163,10 +163,12 @@ func (h *nativeHistogram) newSeries(lbls labels.Labels, value float64, traceID s
 		nativeOpts.NativeHistogramMaxExemplars = -1 // Use default
 	}
 
+	firstSeries := &atomic.Bool{}
+	firstSeries.Store(true)
 	newSeries := &nativeHistogramSeries{
 		promHistogram: prometheus.NewHistogram(nativeOpts),
 		lastUpdated:   0,
-		firstSeries:   atomic.NewBool(true),
+		firstSeries:   firstSeries,
 		overridesHash: hsh,
 	}
 

@@ -6,12 +6,13 @@ import (
 	"sort"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/grafana/tempo/pkg/util/atomicx"
 	"github.com/prometheus/prometheus/model/exemplar"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
-	"go.uber.org/atomic"
 )
 
 var _ metric = (*histogram)(nil)
@@ -39,13 +40,13 @@ type histogramSeries struct {
 	sumLabels    labels.Labels
 	bucketLabels []labels.Labels
 
-	count *atomic.Float64
-	sum   *atomic.Float64
+	count *atomicx.Float64
+	sum   *atomicx.Float64
 	// buckets includes the +Inf bucket
-	buckets []*atomic.Float64
+	buckets []*atomicx.Float64
 	// exemplar is stored as a single traceID
-	exemplars      []*atomic.String
-	exemplarValues []*atomic.Float64
+	exemplars      []*atomicx.String
+	exemplarValues []*atomicx.Float64
 	lastUpdated    *atomic.Int64
 	// firstSeries is used to track if this series is new to the counter.  This
 	// is used to ensure that new counters being with 0, and then are incremented
@@ -112,19 +113,21 @@ func (h *histogram) ObserveWithExemplar(lbls labels.Labels, value float64, trace
 }
 
 func (h *histogram) newSeries(lbls labels.Labels, value float64, traceID string, multiplier float64) *histogramSeries {
+	firstSeries := &atomic.Bool{}
+	firstSeries.Store(true)
 	newSeries := &histogramSeries{
-		count:          atomic.NewFloat64(0),
-		sum:            atomic.NewFloat64(0),
-		buckets:        make([]*atomic.Float64, 0, len(h.buckets)),
-		exemplars:      make([]*atomic.String, 0, len(h.buckets)),
-		exemplarValues: make([]*atomic.Float64, 0, len(h.buckets)),
-		lastUpdated:    atomic.NewInt64(0),
-		firstSeries:    atomic.NewBool(true),
+		count:          atomicx.NewFloat64(0),
+		sum:            atomicx.NewFloat64(0),
+		buckets:        make([]*atomicx.Float64, 0, len(h.buckets)),
+		exemplars:      make([]*atomicx.String, 0, len(h.buckets)),
+		exemplarValues: make([]*atomicx.Float64, 0, len(h.buckets)),
+		lastUpdated:    &atomic.Int64{},
+		firstSeries:    firstSeries,
 	}
 	for i := 0; i < len(h.buckets); i++ {
-		newSeries.buckets = append(newSeries.buckets, atomic.NewFloat64(0))
-		newSeries.exemplars = append(newSeries.exemplars, atomic.NewString(""))
-		newSeries.exemplarValues = append(newSeries.exemplarValues, atomic.NewFloat64(0))
+		newSeries.buckets = append(newSeries.buckets, atomicx.NewFloat64(0))
+		newSeries.exemplars = append(newSeries.exemplars, atomicx.NewString(""))
+		newSeries.exemplarValues = append(newSeries.exemplarValues, atomicx.NewFloat64(0))
 	}
 
 	// Precompute all labels for all sub-metrics upfront

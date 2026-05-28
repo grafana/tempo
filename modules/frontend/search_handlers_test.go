@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -22,7 +23,6 @@ import (
 	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 
@@ -96,7 +96,7 @@ type mockGRPCStreaming[T proto.Message] struct {
 
 func (m *mockGRPCStreaming[T]) Send(r T) error {
 	m.lastResponse.Store(&r)
-	m.responses.Inc()
+	m.responses.Add(1)
 	if m.cb != nil {
 		m.cb(int(m.responses.Load()), r)
 	}

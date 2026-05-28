@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"testing"
 
 	"github.com/go-kit/log"
 	"github.com/grafana/gomemcache/memcache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 
 	"github.com/grafana/tempo/pkg/cache"
 )
@@ -79,7 +79,7 @@ func newMockMemcacheFailing() *mockMemcacheFailing {
 }
 
 func (c *mockMemcacheFailing) GetMulti(ctx context.Context, keys []string, _ ...memcache.Option) (map[string]*memcache.Item, error) {
-	calls := c.calls.Inc()
+	calls := c.calls.Add(1)
 	if calls%3 == 0 {
 		return nil, errors.New("fail")
 	}

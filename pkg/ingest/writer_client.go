@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-kit/log"
@@ -19,7 +20,6 @@ import (
 	"github.com/twmb/franz-go/plugin/kprom"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/atomic"
 )
 
 // NewWriterClient returns the kgo.Client that should be used by the Writer.
@@ -181,7 +181,7 @@ type Producer struct {
 
 	// Keep track of Kafka records size (bytes) currently in-flight in the Kafka client.
 	// This counter is used to implement a limit on the max buffered bytes.
-	bufferedBytes *atomic.Int64
+	bufferedBytes atomic.Int64
 
 	// The max buffered bytes allowed. Once this limit is reached, produce requests fail.
 	maxBufferedBytes int64
@@ -201,7 +201,6 @@ func NewProducer(client *kgo.Client, maxBufferedBytes int64, reg prometheus.Regi
 		Client:           client,
 		closeOnce:        &sync.Once{},
 		closed:           make(chan struct{}),
-		bufferedBytes:    atomic.NewInt64(0),
 		maxBufferedBytes: maxBufferedBytes,
 
 		// Metrics.
@@ -269,11 +268,12 @@ func (c *Producer) updateMetricsLoop() {
 // if the configured limit is reached.
 func (c *Producer) ProduceSync(ctx context.Context, records []*kgo.Record) kgo.ProduceResults {
 	var (
-		remaining = atomic.NewInt64(int64(len(records)))
+		remaining = &atomic.Int64{}
 		done      = make(chan struct{})
 		resMx     sync.Mutex
 		res       = make(kgo.ProduceResults, 0, len(records))
 	)
+	remaining.Store(int64(len(records)))
 
 	// As a safety mechanism, we want to make sure that the context is not already canceled or its deadline exceeded.
 	// The reason is that once we buffer records to the Kafka client (later in this function), these records will be
@@ -303,7 +303,7 @@ func (c *Producer) ProduceSync(ctx context.Context, records []*kgo.Record) kgo.P
 		// In case of error we'll wait for all responses anyway before returning from produceSync().
 		// It allows us to keep code easier, given we don't expect this function to be frequently
 		// called with multiple records.
-		if remaining.Dec() == 0 {
+		if remaining.Add(-1) == 0 {
 			close(done)
 		}
 	}

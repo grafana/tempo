@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"runtime/debug"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -18,7 +19,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
-	"go.uber.org/atomic"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -31,6 +31,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/util/atomicx"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -63,7 +64,7 @@ func (i *instance) iterateBlocks(ctx context.Context, reqStart, reqEnd time.Time
 
 	snap := i.blocks.Load()
 
-	var anyErr atomic.Error
+	var anyErr atomicx.Error
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -447,7 +448,7 @@ func (i *instance) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVa
 		}
 
 		// Atomically reserve a slot
-		if maxBlocks > 0 && inspectedBlocks.Inc() > maxBlocks {
+		if maxBlocks > 0 && inspectedBlocks.Add(1) > maxBlocks {
 			return errComplete
 		}
 
@@ -525,7 +526,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	// helper functions as closures, to access local variables
 	search := func(ctx context.Context, s common.Searcher, collect func(tempopb.TagValue) bool) error {
 		// note the interaction below with searchWithCache. if we ever return errComplete for reasons besides this we may need to adjust the error handling there
-		if maxBlocks > 0 && inspectedBlocks.Inc() > maxBlocks {
+		if maxBlocks > 0 && inspectedBlocks.Add(1) > maxBlocks {
 			return errComplete
 		}
 
@@ -758,9 +759,8 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 	}
 
 	maxSeries := int(req.MaxSeries)
-	maxSeriesReached := atomic.Bool{}
-	maxSeriesReached.Store(false)
-	inspectedBytes := atomic.NewUint64(0)
+	var maxSeriesReached atomic.Bool
+	var inspectedBytes atomic.Uint64
 
 	search := func(ctx context.Context, _ *backend.BlockMeta, b block) error {
 		if walBlock, ok := b.(common.WALBlock); ok {

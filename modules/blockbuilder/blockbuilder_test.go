@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -31,7 +32,6 @@ import (
 	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kmsg"
-	"go.uber.org/atomic"
 )
 
 const (
@@ -53,9 +53,9 @@ func TestBlockbuilder_lookbackOnNoCommit(t *testing.T) {
 
 	k, address := testkafka.CreateCluster(t, 1, testTopic)
 
-	kafkaCommits := atomic.NewInt32(0)
+	kafkaCommits := &atomic.Int32{}
 	k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
-		kafkaCommits.Inc()
+		kafkaCommits.Add(1)
 		return nil, nil, false
 	})
 
@@ -92,9 +92,9 @@ func TestBlockbuilder_without_partitions_assigned_returns_an_error(t *testing.T)
 
 	k, address := testkafka.CreateCluster(t, 1, testTopic)
 
-	kafkaCommits := atomic.NewInt32(0)
+	kafkaCommits := &atomic.Int32{}
 	k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
-		kafkaCommits.Inc()
+		kafkaCommits.Add(1)
 		return nil, nil, false
 	})
 
@@ -130,9 +130,9 @@ func TestBlockbuilder_fetchMetricsIncrement(t *testing.T) {
 	t.Cleanup(func() { cancel(errors.New("test done")) })
 
 	k, address := testkafka.CreateCluster(t, 1, testTopic)
-	kafkaCommits := atomic.NewInt32(0)
+	kafkaCommits := &atomic.Int32{}
 	k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
-		kafkaCommits.Inc()
+		kafkaCommits.Add(1)
 		return nil, nil, false
 	})
 
@@ -176,9 +176,9 @@ func TestBlockbuilder_startWithCommit(t *testing.T) {
 
 	k, address := testkafka.CreateCluster(t, 100, testTopic)
 
-	kafkaCommits := atomic.NewInt32(0)
+	kafkaCommits := &atomic.Int32{}
 	k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
-		kafkaCommits.Inc()
+		kafkaCommits.Add(1)
 		return nil, nil, false
 	})
 
@@ -230,16 +230,16 @@ func TestBlockbuilder_flushingFails(t *testing.T) {
 
 	k, address := testkafka.CreateCluster(t, 1, "test-topic")
 
-	kafkaCommits := atomic.NewInt32(0)
+	kafkaCommits := &atomic.Int32{}
 	k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
-		kafkaCommits.Inc()
+		kafkaCommits.Add(1)
 		return nil, nil, false
 	})
 
-	storageWrites := atomic.NewInt32(0)
+	storageWrites := &atomic.Int32{}
 	store := newStoreWrapper(newStore(ctx, t), func(ctx context.Context, block tempodb.WriteableBlock, store storage.Store) error {
 		// Fail the first block write
-		if storageWrites.Inc() == 1 {
+		if storageWrites.Add(1) == 1 {
 			return errors.New("failed to write block")
 		}
 		return store.WriteBlock(ctx, block)
@@ -276,9 +276,9 @@ func TestBlockbuilder_receivesOldRecords(t *testing.T) {
 
 	k, address := testkafka.CreateCluster(t, 1, "test-topic")
 
-	kafkaCommits := atomic.NewInt32(0)
+	kafkaCommits := &atomic.Int32{}
 	k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
-		kafkaCommits.Inc()
+		kafkaCommits.Add(1)
 		return nil, nil, false
 	})
 
@@ -345,9 +345,9 @@ func TestBlockbuilder_committingFails(t *testing.T) {
 
 	k, address := testkafka.CreateCluster(t, 1, "test-topic")
 
-	kafkaCommits := atomic.NewInt32(0)
+	kafkaCommits := &atomic.Int32{}
 	k.ControlKey(kmsg.OffsetCommit, func(req kmsg.Request) (kmsg.Response, error, bool) {
-		kafkaCommits.Inc()
+		kafkaCommits.Add(1)
 
 		if kafkaCommits.Load() == 1 { // First commit fails
 			res := kmsg.NewOffsetCommitResponse()
@@ -402,9 +402,9 @@ func TestBlockbuilder_retries_on_retriable_commit_error(t *testing.T) {
 
 	k, address := testkafka.CreateCluster(t, 1, "test-topic")
 
-	kafkaCommits := atomic.NewInt32(0)
+	kafkaCommits := &atomic.Int32{}
 	k.ControlKey(kmsg.OffsetCommit, func(req kmsg.Request) (kmsg.Response, error, bool) {
-		kafkaCommits.Inc()
+		kafkaCommits.Add(1)
 
 		if kafkaCommits.Load() == 1 {
 			res := kmsg.NewOffsetCommitResponse()
@@ -461,9 +461,9 @@ func TestBlockbuilder_retries_on_commit_error(t *testing.T) {
 
 	k, address := testkafka.CreateCluster(t, 1, "test-topic")
 
-	kafkaCommits := atomic.NewInt32(0)
+	kafkaCommits := &atomic.Int32{}
 	k.ControlKey(kmsg.OffsetCommit, func(req kmsg.Request) (kmsg.Response, error, bool) {
-		kafkaCommits.Inc()
+		kafkaCommits.Add(1)
 
 		if kafkaCommits.Load() == 1 {
 			res := kmsg.NewOffsetCommitResponse()
@@ -521,9 +521,9 @@ func TestBlockbuilder_noDoubleConsumption(t *testing.T) {
 	k, address := testkafka.CreateCluster(t, 1, testTopic)
 
 	// Track commits
-	kafkaCommits := atomic.NewInt32(0)
+	kafkaCommits := &atomic.Int32{}
 	k.ControlKey(kmsg.OffsetCommit, func(_ kmsg.Request) (kmsg.Response, error, bool) {
-		kafkaCommits.Inc()
+		kafkaCommits.Add(1)
 		return nil, nil, false
 	})
 
@@ -608,15 +608,15 @@ func TestBlockBuilder_honor_maxBytesPerCycle(t *testing.T) {
 
 			k, address := testkafka.CreateCluster(t, 1, "test-topic")
 
-			kafkaCommits := atomic.NewInt32(0)
+			kafkaCommits := &atomic.Int32{}
 			k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
-				kafkaCommits.Inc()
+				kafkaCommits.Add(1)
 				return nil, nil, false
 			})
 
-			storageWrites := atomic.NewInt32(0)
+			storageWrites := &atomic.Int32{}
 			store := newStoreWrapper(newStore(ctx, t), func(ctx context.Context, block tempodb.WriteableBlock, store storage.Store) error {
-				storageWrites.Inc()
+				storageWrites.Add(1)
 				return store.WriteBlock(ctx, block)
 			})
 
@@ -697,9 +697,9 @@ func TestBlockbuilder_usesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 
 			k, address := testkafka.CreateCluster(t, 1, testTopic)
 
-			kafkaCommits := atomic.NewInt32(0)
+			kafkaCommits := &atomic.Int32{}
 			k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
-				kafkaCommits.Inc()
+				kafkaCommits.Add(1)
 				return nil, nil, false
 			})
 
@@ -759,9 +759,9 @@ func TestBlockbuilder_marksOldBlocksCompacted(t *testing.T) {
 	k, address := testkafka.CreateCluster(t, 1, testTopic)
 
 	// Track commits
-	kafkaCommits := atomic.NewInt32(0)
+	kafkaCommits := &atomic.Int32{}
 	k.ControlKey(kmsg.OffsetCommit, func(_ kmsg.Request) (kmsg.Response, error, bool) {
-		kafkaCommits.Inc()
+		kafkaCommits.Add(1)
 		return nil, nil, false
 	})
 
@@ -781,14 +781,14 @@ func TestBlockbuilder_marksOldBlocksCompacted(t *testing.T) {
 	lastRecordOffset := producedRecords[len(producedRecords)-1].Offset
 
 	// Simulate failures on the first cycle
-	badWrites := atomic.NewInt32(0)
-	goodWrites := atomic.NewInt32(0)
+	badWrites := &atomic.Int32{}
+	goodWrites := &atomic.Int32{}
 	goodBlockIDs := []backend.UUID{}
 	store := newStoreWrapper(newStore(ctx, t), func(ctx context.Context, block tempodb.WriteableBlock, store storage.Store) error {
 		switch block.BlockMeta().TenantID {
 		case badTenantID:
 			// First flush on tenant 2 fails
-			if badWrites.Inc() == 1 {
+			if badWrites.Add(1) == 1 {
 				// Wait until flush on good tenant is complete
 				// and then return the error. Tenants are flushed in parallel
 				// so this is required to ensure we get a block flushed on the first cycle.
@@ -799,7 +799,7 @@ func TestBlockbuilder_marksOldBlocksCompacted(t *testing.T) {
 			}
 		case goodTenantID:
 			// Save all blocks flushed for good tenant
-			defer goodWrites.Inc()
+			defer goodWrites.Add(1)
 			goodBlockIDs = append(goodBlockIDs, block.BlockMeta().BlockID)
 		}
 		return store.WriteBlock(ctx, block)
@@ -1251,9 +1251,9 @@ func TestBlockbuilder_PartitionWithNoLag(t *testing.T) {
 	_, address := testkafka.CreateCluster(t, 2, testTopic)
 
 	// Setup block-builder
-	storageWrites := atomic.NewInt32(0)
+	storageWrites := &atomic.Int32{}
 	store := newStoreWrapper(newStore(ctx, t), func(ctx context.Context, block tempodb.WriteableBlock, store storage.Store) error {
-		storageWrites.Inc()
+		storageWrites.Add(1)
 		return store.WriteBlock(ctx, block)
 	})
 	cfg := blockbuilderConfig(t, address, []int32{0, 1})

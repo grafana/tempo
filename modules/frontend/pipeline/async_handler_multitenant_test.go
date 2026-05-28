@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/go-kit/log"
@@ -16,7 +17,6 @@ import (
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 )
 
 func TestMultiTenant(t *testing.T) {
@@ -53,7 +53,7 @@ func TestMultiTenant(t *testing.T) {
 
 			once := sync.Once{}
 			next := AsyncRoundTripperFunc[combiner.PipelineResponse](func(req Request) (Responses[combiner.PipelineResponse], error) {
-				reqCount.Inc() // Count the number of requests.
+				reqCount.Add(1) // Count the number of requests.
 
 				// Check if the tenant is in the list of tenants.
 				tenantID, err := user.ExtractOrgID(req.Context())

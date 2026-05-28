@@ -2,11 +2,12 @@ package registry
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/grafana/tempo/pkg/util/atomicx"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
-	"go.uber.org/atomic"
 )
 
 type counter struct {
@@ -26,7 +27,7 @@ type counter struct {
 
 type counterSeries struct {
 	labels      labels.Labels
-	value       *atomic.Float64
+	value       *atomicx.Float64
 	lastUpdated *atomic.Int64
 	// firstSeries is used to track if this series is new to the counter.  This
 	// is used to ensure that new counters being with 0, and then are incremented
@@ -106,11 +107,15 @@ func resolveSeries[T any](series map[uint64]*T, hash uint64, lbls labels.Labels,
 }
 
 func (c *counter) newSeries(lbls labels.Labels, value float64) *counterSeries {
+	lastUpdated := &atomic.Int64{}
+	lastUpdated.Store(time.Now().UnixMilli())
+	firstSeries := &atomic.Bool{}
+	firstSeries.Store(true)
 	return &counterSeries{
 		labels:      getSeriesLabels(c.metricName, lbls, c.externalLabels),
-		value:       atomic.NewFloat64(value),
-		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
-		firstSeries: atomic.NewBool(true),
+		value:       atomicx.NewFloat64(value),
+		lastUpdated: lastUpdated,
+		firstSeries: firstSeries,
 	}
 }
 

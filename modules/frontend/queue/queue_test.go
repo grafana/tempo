@@ -3,6 +3,7 @@ package queue
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -11,7 +12,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 )
 
 const messages = 50_000
@@ -35,10 +35,10 @@ func TestGetNextForQuerierOneUser(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	stop := make(chan struct{})
-	requestsPulled := atomic.NewInt32(0)
+	requestsPulled := &atomic.Int32{}
 
 	q, start := queueWithListeners(ctx, 100, 1, func(_ []Request) {
-		i := requestsPulled.Inc()
+		i := requestsPulled.Add(1)
 		if i == int32(messages) {
 			close(stop)
 		}
@@ -65,10 +65,10 @@ func TestGetNextForQuerierRandomUsers(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	stop := make(chan struct{})
-	requestsPulled := atomic.NewInt32(0)
+	requestsPulled := &atomic.Int32{}
 
 	q, start := queueWithListeners(ctx, 100, 1, func(_ []Request) {
-		if requestsPulled.Inc() == int32(messages) {
+		if requestsPulled.Add(1) == int32(messages) {
 			close(stop)
 		}
 	})
@@ -94,7 +94,7 @@ func TestGetNextBatches(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	stop := make(chan struct{})
-	requestsPulled := atomic.NewInt32(0)
+	requestsPulled := &atomic.Int32{}
 
 	q, start := queueWithListeners(ctx, 100, 3, func(r []Request) {
 		if requestsPulled.Add(int32(len(r))) == int32(messages) {
@@ -134,10 +134,10 @@ func benchmarkGetNextForQuerier(b *testing.B, listeners int, messages int) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	stop := make(chan struct{})
-	requestsPulled := atomic.NewInt32(0)
+	requestsPulled := &atomic.Int32{}
 
 	q, start := queueWithListeners(ctx, listeners, 1, func(_ []Request) {
-		if requestsPulled.Inc() == int32(messages) {
+		if requestsPulled.Add(1) == int32(messages) {
 			stop <- struct{}{}
 		}
 	})
@@ -154,7 +154,7 @@ func benchmarkGetNextForQuerier(b *testing.B, listeners int, messages int) {
 		}
 
 		<-stop
-		requestsPulled.Sub(int32(messages))
+		requestsPulled.Add(-int32(messages))
 	}
 
 	err := q.stopping(nil)

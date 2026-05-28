@@ -3,6 +3,7 @@ package otlpgrpc
 import (
 	"context"
 	"net"
+	"sync/atomic"
 	"testing"
 
 	"github.com/go-kit/log"
@@ -10,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
-	"go.uber.org/atomic"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"
 )

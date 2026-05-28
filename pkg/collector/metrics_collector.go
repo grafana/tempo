@@ -1,20 +1,18 @@
 package collector
 
 import (
-	"go.uber.org/atomic"
+	"sync/atomic"
 )
 
 // MetricsCollector is a thread-safe collector that uses atomic operations
 // to accumulate metrics. We primarily use it to collect the total bytes read from
 // a reader across a request
 type MetricsCollector struct {
-	totalValue *atomic.Uint64
+	totalValue atomic.Uint64
 }
 
 func NewMetricsCollector() *MetricsCollector {
-	return &MetricsCollector{
-		totalValue: atomic.NewUint64(0),
-	}
+	return &MetricsCollector{}
 }
 
 // Add adds new bytes read to TotalValue. this method is thread safe and

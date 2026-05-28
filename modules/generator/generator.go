@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-kit/log"
@@ -18,7 +19,6 @@ import (
 	"go.opentelemetry.io/collector/client"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.uber.org/atomic"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/grafana/tempo/modules/generator/storage"

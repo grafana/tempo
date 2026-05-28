@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"math/rand"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/atomic"
 )
 
 func Test_gaugeInc(t *testing.T) {
@@ -263,7 +263,7 @@ func Test_gauge_concurrencyCorrectness(t *testing.T) {
 	var wg sync.WaitGroup
 	end := make(chan struct{})
 
-	totalCount := atomic.NewUint64(0)
+	totalCount := &atomic.Uint64{}
 
 	for i := 0; i < 4; i++ {
 		wg.Add(1)
@@ -275,7 +275,7 @@ func Test_gauge_concurrencyCorrectness(t *testing.T) {
 					return
 				default:
 					c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
-					totalCount.Inc()
+					totalCount.Add(1)
 				}
 			}
 		}()

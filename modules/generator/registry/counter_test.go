@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/tempo/pkg/util/atomicx"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/atomic"
 )
 
 func Test_counter(t *testing.T) {
@@ -246,7 +246,7 @@ func Test_counter_concurrencyCorrectness(t *testing.T) {
 	var wg sync.WaitGroup
 	end := make(chan struct{})
 
-	totalCount := atomic.NewFloat64(0)
+	totalCount := atomicx.NewFloat64(0)
 
 	for i := 0; i < 4; i++ {
 		wg.Add(1)
