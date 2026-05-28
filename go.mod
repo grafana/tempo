@@ -77,7 +77,6 @@ require (
 	github.com/googleapis/gax-go/v2 v2.22.0
 	github.com/grafana/gomemcache v0.0.0-20251127154401-74f93547077b
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
-	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/jaegertracing/jaeger-idl v0.6.0
 	github.com/mark3labs/mcp-go v0.43.2
 	github.com/maypok86/otter/v2 v2.3.0
@@ -124,7 +123,10 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260406210006-6f92a3bedf2d
 )
 
-require github.com/Microsoft/go-winio v0.6.2 // indirect
+require (
+	github.com/Microsoft/go-winio v0.6.2 // indirect
+	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
+)
 
 require (
 	cel.dev/expr v0.25.1 // indirect
