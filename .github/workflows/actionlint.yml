@@ -1,4 +1,3 @@
-# This workflow depends on the ./actionlint-format.txt file. It is MIT licensed (thanks, rhysd!): https://github.com/rhysd/actionlint/blob/2ab3a12c7848f6c15faca9a92612ef4261d0e370/testdata/format/sarif_template.txt
 name: Actionlint
 
 on:
@@ -10,6 +9,7 @@ on:
       - .github/workflows/**
       - .github/actions/**
       - .github/actionlint.yaml
+      - .github/actionlint-matcher.json
   pull_request:
     types:
       - opened
@@ -19,6 +19,7 @@ on:
       - .github/workflows/**
       - .github/actions/**
       - .github/actionlint.yaml
+      - .github/actionlint-matcher.json
 
 permissions: {}
 
@@ -33,7 +34,6 @@ jobs:
     permissions:
       contents: read # to check out the code
       actions: read # to read the workflow files
-      security-events: write # for uploading the SARIF report
 
     env:
       ACTIONLINT_VERSION: 1.7.7
@@ -42,7 +42,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           persist-credentials: false
 
@@ -57,13 +57,7 @@ jobs:
           chmod +x actionlint
 
       - name: Run Actionlint
-        run: ./actionlint -format "$(cat .github/workflows/actionlint-format.txt)" | tee results.sarif
-
-      - name: Upload to GitHub security events
-        if: (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) && (success() || failure())
-        # If there are security problems, GitHub will automatically comment on the PR for us.
-        # security-events: write is not available for fork PRs, so skip the upload in that case.
-        uses: github/codeql-action/upload-sarif@f443b600d91635bebf5b0d9ebc620189c0d6fba5 # v4.30.8
-        with:
-          sarif_file: results.sarif
-          category: actionlint
+        run: |
+          echo "::add-matcher::.github/actionlint-matcher.json"
+          ./actionlint -color
+        shell: bash
