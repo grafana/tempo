@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
-	otelpyroscope "github.com/grafana/otel-profiling-go"
+	"github.com/grafana/tempo/pkg/tracing/otelpyroscope"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/prometheus/common/version"
 	"go.opentelemetry.io/contrib/exporters/autoexport"
