@@ -101,7 +101,8 @@ type (
 		leader    *broker
 		followers followers
 
-		watch map[*watchFetch]struct{}
+		watch      map[*watchFetch]struct{}
+		shareWatch map[*watchShareFetch]struct{}
 
 		createdAt time.Time
 
@@ -221,6 +222,7 @@ func (c *Cluster) newPartData(p int32) func() *partData {
 			maxTimestampIdx: -1,
 			leader:          c.bs[rand.Intn(len(c.bs))],
 			watch:           make(map[*watchFetch]struct{}),
+			shareWatch:      make(map[*watchShareFetch]struct{}),
 			createdAt:       time.Now(),
 		}
 	}
@@ -285,6 +287,9 @@ func (c *Cluster) pushBatch(pd *partData, nbytes int, b kmsg.RecordBatch, inTx b
 	pd.nbytes += int64(nbytes)
 	for w := range pd.watch {
 		w.push(pd, nbytes, inTx)
+	}
+	for w := range pd.shareWatch {
+		w.fire()
 	}
 	return firstOffset
 }
@@ -729,8 +734,35 @@ var validBrokerConfigs = map[string]string{
 	"offset.retention.ms":                       "",
 	"offsets.retention.check.interval.ms":       "",
 	"sasl.enabled.mechanisms":                   "",
+	"group.share.heartbeat.interval.ms":         "",
+	"group.share.session.timeout.ms":            "",
+	"group.share.delivery.count.limit":          "",
+	"group.share.record.lock.duration.ms":       "",
+	"share.record.lock.sweep.interval.ms":       "",
+	"group.share.partition.max.record.locks":    "",
+	"group.share.max.share.sessions":            "",
+	"group.share.max.size":                      "",
 	"state.log.compact.bytes":                   "",
 	"super.users":                               "",
+}
+
+// validGroupConfigs is the set of per-group configs accepted by
+// IncrementalAlterConfigs with GROUP resource type. These are the
+// UNPREFIXED names -- the "group." prefix belongs to the broker-level
+// defaults in validBrokerConfigs. Real Kafka returns INVALID_CONFIG
+// for unknown names here.
+var validGroupConfigs = map[string]bool{
+	"consumer.session.timeout.ms":      true,
+	"consumer.heartbeat.interval.ms":   true,
+	"share.auto.offset.reset":          true,
+	"share.isolation.level":            true,
+	"share.record.lock.duration.ms":    true,
+	"share.delivery.count.limit":       true,
+	"share.session.timeout.ms":         true,
+	"share.heartbeat.interval.ms":      true,
+	"share.partition.max.record.locks": true,
+	"share.max.share.sessions":         true,
+	"share.max.size":                   true,
 }
 
 const (
@@ -786,6 +818,14 @@ var configDefaults = map[string]string{
 	"message.max.bytes":                         strconv.Itoa(defMaxMessageBytes),
 	"offsets.retention.minutes":                 "10080",
 	"offsets.retention.check.interval.ms":       "600000",
+	"group.share.heartbeat.interval.ms":         strconv.Itoa(defHeartbeatInterval),
+	"group.share.session.timeout.ms":            "45000",
+	"group.share.delivery.count.limit":          "5",
+	"group.share.record.lock.duration.ms":       "30000",
+	"share.record.lock.sweep.interval.ms":       "5000",
+	"group.share.partition.max.record.locks":    "2000",
+	"group.share.max.share.sessions":            "2000",
+	"group.share.max.size":                      "200",
 }
 
 // configTypes maps config names to their data types for DescribeConfigs v3+.
@@ -822,6 +862,14 @@ var configTypes = map[string]kmsg.ConfigType{
 	"segment.bytes":                             kmsg.ConfigTypeInt,
 	"segment.ms":                                kmsg.ConfigTypeLong,
 	"sasl.enabled.mechanisms":                   kmsg.ConfigTypeList,
+	"group.share.heartbeat.interval.ms":         kmsg.ConfigTypeInt,
+	"group.share.session.timeout.ms":            kmsg.ConfigTypeInt,
+	"group.share.delivery.count.limit":          kmsg.ConfigTypeInt,
+	"group.share.record.lock.duration.ms":       kmsg.ConfigTypeInt,
+	"share.record.lock.sweep.interval.ms":       kmsg.ConfigTypeLong,
+	"group.share.partition.max.record.locks":    kmsg.ConfigTypeInt,
+	"group.share.max.share.sessions":            kmsg.ConfigTypeInt,
+	"group.share.max.size":                      kmsg.ConfigTypeInt,
 	"state.log.compact.bytes":                   kmsg.ConfigTypeLong,
 	"super.users":                               kmsg.ConfigTypeList,
 	"transaction.max.timeout.ms":                kmsg.ConfigTypeInt,
@@ -861,6 +909,15 @@ func (c *Cluster) consumerHeartbeatIntervalMs() int32 {
 
 func (c *Cluster) consumerSessionTimeoutMs() int32 {
 	return c.brokerConfigInt("group.consumer.session.timeout.ms", defSessionTimeout)
+}
+
+func (c *Cluster) consumerSessionTimeoutMsForGroup(group string) int32 {
+	if v := c.groupConfig(group, "consumer.session.timeout.ms"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return int32(n)
+		}
+	}
+	return c.consumerSessionTimeoutMs()
 }
 
 func (c *Cluster) groupMaxSize() int32 {
@@ -905,6 +962,53 @@ func (c *Cluster) offsetsRetentionMs() int64 {
 
 func (c *Cluster) offsetsRetentionCheckIntervalMs() int64 {
 	return int64(c.brokerConfigInt("offsets.retention.check.interval.ms", 600000))
+}
+
+func (c *Cluster) shareHeartbeatIntervalMs() int32 {
+	return c.brokerConfigInt("group.share.heartbeat.interval.ms", defHeartbeatInterval)
+}
+
+func (c *Cluster) shareSessionTimeoutMs() int32 {
+	return c.brokerConfigInt("group.share.session.timeout.ms", 45000)
+}
+
+func (c *Cluster) shareLockSweepIntervalMs() int32 {
+	return c.brokerConfigInt("share.record.lock.sweep.interval.ms", 5000)
+}
+
+func (c *Cluster) shareRecordLockDurationMs() int32 {
+	return c.brokerConfigInt("group.share.record.lock.duration.ms", 30000)
+}
+
+func (c *Cluster) shareMaxDeliveryAttempts() int32 {
+	return c.brokerConfigInt("group.share.delivery.count.limit", 5)
+}
+
+func (c *Cluster) shareMaxRecordLocks() int32 {
+	return c.brokerConfigInt("group.share.partition.max.record.locks", 2000)
+}
+
+func (c *Cluster) shareMaxSessions() int32 {
+	return c.brokerConfigInt("group.share.max.share.sessions", 2000)
+}
+
+func (c *Cluster) shareMaxGroupSize() int32 {
+	return c.brokerConfigInt("group.share.max.size", 200)
+}
+
+// groupConfig returns a per-group config value, or "" if the group or key
+// is not configured. Must only be called from run() where c.groupConfigs
+// is safe to read.
+func (c *Cluster) groupConfig(group, key string) string {
+	gc := c.groupConfigs[group]
+	if gc == nil {
+		return ""
+	}
+	v := gc[key]
+	if v == nil {
+		return ""
+	}
+	return *v
 }
 
 // maxMessageBytes returns the max.message.bytes for a topic, falling back to
@@ -1017,21 +1121,26 @@ func (d *data) isCompactTopic(t string) bool {
 	return false
 }
 
-// isBatchAborted returns true if the batch belongs to an aborted transaction.
-// A batch is produced atomically within a transaction, so all its records
-// share the same fate. abortedTxns is sorted by lastOffset, so we binary
-// search to skip entries that end before this batch.
-func (pd *partData) isBatchAborted(batch *partBatch) bool {
+// isOffsetAborted returns true if the given offset (identified by its batch's
+// firstOffset and producerID) belongs to an aborted transaction.
+// abortedTxns is sorted by lastOffset, so we binary search to skip entries
+// that end before this batch.
+func (pd *partData) isOffsetAborted(firstOffset, producerID int64) bool {
 	j := sort.Search(len(pd.abortedTxns), func(i int) bool {
-		return pd.abortedTxns[i].lastOffset >= batch.FirstOffset
+		return pd.abortedTxns[i].lastOffset >= firstOffset
 	})
 	for ; j < len(pd.abortedTxns); j++ {
 		a := pd.abortedTxns[j]
-		if a.producerID == batch.ProducerID && batch.FirstOffset >= a.firstOffset {
+		if a.producerID == producerID && firstOffset >= a.firstOffset {
 			return true
 		}
 	}
 	return false
+}
+
+// isBatchAborted returns true if the batch belongs to an aborted transaction.
+func (pd *partData) isBatchAborted(batch *partBatch) bool {
+	return pd.isOffsetAborted(batch.FirstOffset, batch.ProducerID)
 }
 
 // compact removes superseded records from a compactable partition.

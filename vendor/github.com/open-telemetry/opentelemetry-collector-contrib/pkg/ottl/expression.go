@@ -208,6 +208,7 @@ func newMapGetter[K any](mapValues map[string]Getter[K]) (Getter[K], error) {
 
 func (m *mapGetter[K]) Get(ctx context.Context, tCtx K) (any, error) {
 	result := pcommon.NewMap()
+	result.EnsureCapacity(len(m.mapValues))
 	for k, v := range m.mapValues {
 		val, err := v.Get(ctx, tCtx)
 		if err != nil {
@@ -219,6 +220,7 @@ func (m *mapGetter[K]) Get(ctx context.Context, tCtx K) (any, error) {
 			typedVal.CopyTo(target)
 		case []any:
 			target := result.PutEmpty(k).SetEmptySlice()
+			target.EnsureCapacity(len(typedVal))
 			for _, el := range typedVal {
 				switch typedEl := el.(type) {
 				case pcommon.Map:

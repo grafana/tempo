@@ -12,6 +12,14 @@ status:
   codeowners:
     active: [yurishkuro]
 
+feature_gates:
+  - id: receiver.jaeger.DisableRemoteSampling
+    description: "When enabled, the Jaeger Receiver will fail to start when it is configured with remote_sampling config. When disabled, the receiver will start and the remote_sampling config will be no-op."
+    stage: stable
+    from_version: v0.84.0
+    to_version: v0.152.0
+    reference_url: https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/24186
+
 tests:
   config:
     protocols:
