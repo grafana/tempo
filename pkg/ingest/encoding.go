@@ -8,6 +8,8 @@ import (
 	math_bits "math/bits"
 	"sync"
 
+	"google.golang.org/protobuf/encoding/protowire"
+
 	"github.com/twmb/franz-go/pkg/kgo"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -157,35 +159,77 @@ type GeneratorCodec interface {
 
 // PushBytesDecoder unmarshals tempopb.PushBytesRequest.
 type PushBytesDecoder struct {
-	dec *Decoder
+	trace                 tempopb.Trace
+	traceSlices           [][]byte
+	skipMetricsGeneration bool
 }
 
 func NewPushBytesDecoder() *PushBytesDecoder {
-	return &PushBytesDecoder{dec: NewDecoder()}
+	return &PushBytesDecoder{}
 }
 
 // Decode implements GeneratorCodec.
 func (d *PushBytesDecoder) Decode(data []byte) (iter.Seq2[*tempopb.PushSpansRequest, error], error) {
-	d.dec.Reset()
-	spanBytes, err := d.dec.Decode(data)
-	if err != nil {
+	if err := d.decode(data); err != nil {
 		return nil, err
 	}
 
-	trace := tempopb.Trace{}
 	return func(yield func(*tempopb.PushSpansRequest, error) bool) {
-		for _, tr := range spanBytes.Traces {
-			trace.Reset()
-			err = trace.Unmarshal(tr.Slice)
+		for _, traceBytes := range d.traceSlices {
+			d.trace.ResourceSpans = d.trace.ResourceSpans[:0]
+			err := d.trace.Unmarshal(traceBytes)
 
-			yield(&tempopb.PushSpansRequest{
-				Batches:               trace.ResourceSpans,
-				SkipMetricsGeneration: spanBytes.SkipMetricsGeneration,
-			}, err)
-
-			tempopb.ReuseByteSlices([][]byte{tr.Slice})
+			if !yield(&tempopb.PushSpansRequest{
+				Batches:               d.trace.ResourceSpans,
+				SkipMetricsGeneration: d.skipMetricsGeneration,
+			}, err) {
+				return
+			}
 		}
 	}, nil
+}
+
+func (d *PushBytesDecoder) decode(data []byte) error {
+	d.traceSlices = d.traceSlices[:0]
+	d.skipMetricsGeneration = false
+
+	for len(data) > 0 {
+		fieldNum, wireType, n := protowire.ConsumeTag(data)
+		if n < 0 {
+			return protowire.ParseError(n)
+		}
+		data = data[n:]
+
+		switch fieldNum {
+		case 2:
+			if wireType != protowire.BytesType {
+				return fmt.Errorf("proto: wrong wireType = %d for field Traces", wireType)
+			}
+			traceBytes, n := protowire.ConsumeBytes(data)
+			if n < 0 {
+				return protowire.ParseError(n)
+			}
+			d.traceSlices = append(d.traceSlices, traceBytes)
+			data = data[n:]
+		case 5:
+			if wireType != protowire.VarintType {
+				return fmt.Errorf("proto: wrong wireType = %d for field SkipMetricsGeneration", wireType)
+			}
+			v, n := protowire.ConsumeVarint(data)
+			if n < 0 {
+				return protowire.ParseError(n)
+			}
+			d.skipMetricsGeneration = v != 0
+			data = data[n:]
+		default:
+			n := protowire.ConsumeFieldValue(fieldNum, wireType, data)
+			if n < 0 {
+				return protowire.ParseError(n)
+			}
+			data = data[n:]
+		}
+	}
+	return nil
 }
 
 // OTLPDecoder unmarshals ptrace.Traces.
