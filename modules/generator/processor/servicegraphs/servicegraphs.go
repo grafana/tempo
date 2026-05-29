@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unsafe"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -91,8 +92,9 @@ type Processor struct {
 	serviceGraphRequestServerSecondsHistogram          registry.Histogram
 	serviceGraphRequestClientSecondsHistogram          registry.Histogram
 	serviceGraphRequestMessagingSystemSecondsHistogram registry.Histogram
-	sanitizeCache                                      reclaimable.Cache[string, string]
+	dimensionLabels                                    []dimensionLabel
 	filter                                             *spanfilter.SpanFilter
+	usesSpanMultiplier                                 bool
 
 	filteredSpansCounter                prometheus.Counter
 	metricDroppedSpans                  prometheus.Counter
@@ -104,12 +106,35 @@ type Processor struct {
 	logger                              log.Logger
 }
 
+type dimensionLabel struct {
+	name        string
+	label       string
+	clientName  string
+	clientLabel string
+	serverName  string
+	serverLabel string
+}
+
 func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, filteredSpansCounter, invalidUTF8Counter prometheus.Counter) (gen.Processor, error) {
 	if cfg.EnableVirtualNodeLabel {
 		cfg.Dimensions = append(cfg.Dimensions, virtualNodeLabel)
 	}
 
 	sanitizeCache := reclaimable.New(validation.SanitizeLabelName, 10000)
+	dimensionLabels := make([]dimensionLabel, len(cfg.Dimensions))
+	for i, dim := range cfg.Dimensions {
+		clientName := "client_" + dim
+		serverName := "server_" + dim
+		dimensionLabels[i] = dimensionLabel{
+			name:        dim,
+			label:       sanitizeCache.Get(dim),
+			clientName:  clientName,
+			clientLabel: sanitizeCache.Get(clientName),
+			serverName:  serverName,
+			serverLabel: sanitizeCache.Get(serverName),
+		}
+	}
+
 	filter, err := spanfilter.NewSpanFilter(cfg.FilterPolicies)
 	if err != nil {
 		return nil, err
@@ -125,8 +150,9 @@ func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, fi
 		serviceGraphRequestServerSecondsHistogram:          reg.NewHistogram(metricRequestServerSeconds, cfg.HistogramBuckets, cfg.HistogramOverride),
 		serviceGraphRequestClientSecondsHistogram:          reg.NewHistogram(metricRequestClientSeconds, cfg.HistogramBuckets, cfg.HistogramOverride),
 		serviceGraphRequestMessagingSystemSecondsHistogram: reg.NewHistogram(metricRequestMessagingSystemSeconds, cfg.HistogramBuckets, cfg.HistogramOverride),
-		sanitizeCache: sanitizeCache,
-		filter:        filter,
+		dimensionLabels:                                    dimensionLabels,
+		filter:                                             filter,
+		usesSpanMultiplier:                                 cfg.SpanMultiplierKey != "" || cfg.EnableTraceStateSpanMultiplier,
 
 		filteredSpansCounter:                filteredSpansCounter,
 		metricDroppedSpans:                  metricDroppedSpans.WithLabelValues(tenant),
@@ -179,7 +205,6 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 		isNew             bool
 		totalDroppedSpans int
 	)
-
 	for _, rs := range resourceSpans {
 		svcName, ok := processor_util.FindServiceName(rs.Resource.Attributes)
 		if !ok {
@@ -200,44 +225,50 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 				}
 
 				connectionType := store.Unknown
-				spanMultiplier := processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span, rs.Resource, p.Cfg.EnableTraceStateSpanMultiplier)
+				spanMultiplier := 1.0
+				if p.usesSpanMultiplier {
+					spanMultiplier = processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span, rs.Resource, p.Cfg.EnableTraceStateSpanMultiplier)
+				}
 				switch span.Kind {
 				case v1_trace.Span_SPAN_KIND_PRODUCER:
 					// override connection type and continue processing as span kind client
 					connectionType = store.MessagingSystem
 					fallthrough
 				case v1_trace.Span_SPAN_KIND_CLIENT:
-					key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.SpanId))
-					isNew, err = p.store.UpsertEdge(key, store.Client, func(e *store.Edge) {
-						e.TraceID = tempo_util.TraceIDToHexString(span.TraceId)
-						e.ConnectionType = connectionType
-						e.ClientService = svcName
-						e.ClientLatencySec = spanDurationSec(span)
-						e.ClientEndTimeUnixNano = span.EndTimeUnixNano
-						e.Failed = e.Failed || p.spanFailed(span)
-						p.upsertDimensions("client_", e.Dimensions, rs.Resource.Attributes, span.Attributes)
-						e.SpanMultiplier = spanMultiplier
-						p.upsertPeerNode(e, span.Attributes)
-						p.upsertDatabaseRequest(e, rs.Resource.Attributes, span)
-					})
+					isNew, err = store.UpsertEdgeFromBytesWith(p.store, span.TraceId, span.SpanId, store.Client, clientEdgeUpdate{
+						p:              p,
+						resourceAttr:   rs.Resource.Attributes,
+						span:           span,
+						svcName:        svcName,
+						connectionType: connectionType,
+						spanMultiplier: spanMultiplier,
+					}, updateClientEdge)
 
 				case v1_trace.Span_SPAN_KIND_CONSUMER:
 					// override connection type and continue processing as span kind server
 					connectionType = store.MessagingSystem
 					fallthrough
 				case v1_trace.Span_SPAN_KIND_SERVER:
-					key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.ParentSpanId))
-					isNew, err = p.store.UpsertEdge(key, store.Server, func(e *store.Edge) {
-						e.TraceID = tempo_util.TraceIDToHexString(span.TraceId)
-						e.ConnectionType = connectionType
-						e.ServerService = svcName
-						e.ServerLatencySec = spanDurationSec(span)
-						e.ServerStartTimeUnixNano = span.StartTimeUnixNano
-						e.Failed = e.Failed || p.spanFailed(span)
-						p.upsertDimensions("server_", e.Dimensions, rs.Resource.Attributes, span.Attributes)
-						e.SpanMultiplier = spanMultiplier
-						p.upsertPeerNode(e, span.Attributes)
-					})
+					if len(span.ParentSpanId) == 0 {
+						isNew, err = store.UpsertEdgeFromBytesWith(p.store, span.TraceId, span.ParentSpanId, store.Server, serverEdgeUpdate{
+							p:              p,
+							resourceAttr:   rs.Resource.Attributes,
+							span:           span,
+							svcName:        svcName,
+							connectionType: connectionType,
+							spanMultiplier: spanMultiplier,
+							root:           true,
+						}, updateServerEdge)
+					} else {
+						isNew, err = store.UpsertEdgeFromBytesWith(p.store, span.TraceId, span.ParentSpanId, store.Server, serverEdgeUpdate{
+							p:              p,
+							resourceAttr:   rs.Resource.Attributes,
+							span:           span,
+							svcName:        svcName,
+							connectionType: connectionType,
+							spanMultiplier: spanMultiplier,
+						}, updateServerEdge)
+					}
 				}
 
 				switch {
@@ -268,16 +299,99 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 	return nil
 }
 
+type clientEdgeUpdate struct {
+	p              *Processor
+	resourceAttr   []*v1_common.KeyValue
+	span           *v1_trace.Span
+	svcName        string
+	connectionType store.ConnectionType
+	spanMultiplier float64
+}
+
+func updateClientEdge(e *store.Edge, u clientEdgeUpdate) {
+	u.p.setEdgeTraceID(e, u.span.TraceId)
+	e.ConnectionType = u.connectionType
+	e.ClientService = u.svcName
+	e.ClientLatencySec = spanDurationSec(u.span)
+	e.ClientEndTimeUnixNano = u.span.EndTimeUnixNano
+	e.Failed = e.Failed || u.p.spanFailed(u.span)
+	u.p.upsertDimensions("client_", e.Dimensions, u.resourceAttr, u.span.Attributes)
+	e.SpanMultiplier = u.spanMultiplier
+	u.p.upsertPeerNode(e, u.span.Attributes)
+	u.p.upsertDatabaseRequest(e, u.resourceAttr, u.span)
+}
+
+type serverEdgeUpdate struct {
+	p              *Processor
+	resourceAttr   []*v1_common.KeyValue
+	span           *v1_trace.Span
+	svcName        string
+	connectionType store.ConnectionType
+	spanMultiplier float64
+	root           bool
+}
+
+func updateServerEdge(e *store.Edge, u serverEdgeUpdate) {
+	if u.root {
+		u.p.setEdgeTraceID(e, u.span.TraceId)
+	}
+	e.ConnectionType = u.connectionType
+	e.ServerService = u.svcName
+	e.ServerLatencySec = spanDurationSec(u.span)
+	e.ServerStartTimeUnixNano = u.span.StartTimeUnixNano
+	e.Failed = e.Failed || u.p.spanFailed(u.span)
+	u.p.upsertDimensions("server_", e.Dimensions, u.resourceAttr, u.span.Attributes)
+	e.SpanMultiplier = u.spanMultiplier
+	if u.root {
+		// PeerNode is only consumed by virtual-node inference in onExpire (see
+		// the e.PeerNode reads at the end of this file), which only fires for
+		// root server spans without a paired client. Non-root server spans
+		// always pair with a client edge that already set PeerNode if
+		// applicable, so calling upsertPeerNode here would only overwrite the
+		// client's value with a server-side attribute — a behavior change vs
+		// pre-optimization but only observable for non-root server spans that
+		// carry peer.* attributes (uncommon in OTel SDKs).
+		u.p.upsertPeerNode(e, u.span.Attributes)
+	}
+}
+
 func (p *Processor) upsertDimensions(prefix string, m map[string]string, resourceAttr, spanAttr []*v1_common.KeyValue) {
-	for _, dim := range p.Cfg.Dimensions {
-		if v, ok := processor_util.FindAttributeValue(dim, resourceAttr, spanAttr); ok {
+	isClient := prefix == "client_"
+	for _, dim := range p.dimensionLabels {
+		if v, ok := findAttributeValue(dim.name, resourceAttr); ok {
 			if p.Cfg.EnableClientServerPrefix {
-				m[prefix+dim] = v
+				if isClient {
+					m[dim.clientName] = v
+				} else {
+					m[dim.serverName] = v
+				}
 			} else {
-				m[dim] = v
+				m[dim.label] = v
+			}
+			continue
+		}
+		v, ok := findAttributeValue(dim.name, spanAttr)
+		if ok {
+			if p.Cfg.EnableClientServerPrefix {
+				if isClient {
+					m[dim.clientName] = v
+				} else {
+					m[dim.serverName] = v
+				}
+			} else {
+				m[dim.name] = v
 			}
 		}
 	}
+}
+
+func findAttributeValue(key string, attrs []*v1_common.KeyValue) (string, bool) {
+	for _, kv := range attrs {
+		if key == kv.Key {
+			return tempo_util.StringifyAnyValue(kv.Value), true
+		}
+	}
+	return "", false
 }
 
 func (p *Processor) upsertPeerNode(e *store.Edge, spanAttr []*v1_common.KeyValue) {
@@ -337,7 +451,7 @@ func (p *Processor) upsertDatabaseRequest(e *store.Edge, resourceAttr []*v1_comm
 	// Check for network.peer.address and network.peer.port.  Use port if it is present.
 	if host, ok := processor_util.FindAttributeValue(string(semconv.NetworkPeerAddressKey), resourceAttr, span.Attributes); ok {
 		if port, ok := processor_util.FindAttributeValue(string(semconv.NetworkPeerPortKey), resourceAttr, span.Attributes); ok {
-			e.ServerService = fmt.Sprintf("%s:%s", host, port)
+			e.ServerService = host + ":" + port
 			return
 		}
 		e.ServerService = host
@@ -360,44 +474,87 @@ func (p *Processor) onComplete(e *store.Edge) {
 	builder.Add("server", e.ServerService)
 	builder.Add("connection_type", string(e.ConnectionType))
 
-	for _, dimension := range p.Cfg.Dimensions {
+	for _, dimension := range p.dimensionLabels {
 		if p.Cfg.EnableClientServerPrefix {
 			if p.Cfg.EnableVirtualNodeLabel {
 				// leave the extra label for this feature as-is
-				if dimension == virtualNodeLabel {
-					builder.Add(virtualNodeLabel, e.Dimensions[dimension])
+				if dimension.name == virtualNodeLabel {
+					builder.Add(virtualNodeLabel, e.Dimensions[dimension.name])
 					continue
 				}
 			}
-			builder.Add(p.sanitizeCache.Get("client_"+dimension), e.Dimensions["client_"+dimension])
-			builder.Add(p.sanitizeCache.Get("server_"+dimension), e.Dimensions["server_"+dimension])
+			builder.Add(dimension.clientLabel, e.Dimensions[dimension.clientName])
+			builder.Add(dimension.serverLabel, e.Dimensions[dimension.serverName])
 		} else {
-			builder.Add(p.sanitizeCache.Get(dimension), e.Dimensions[dimension])
+			builder.Add(dimension.label, e.Dimensions[dimension.name])
 		}
 	}
 
-	registryLabelValues, validUTF8 := builder.CloseAndBuildLabels()
+	registryLabelValues, validUTF8 := builder.CloseAndBorrowLabels()
 	if !validUTF8 {
 		p.invalidUTF8Counter.Inc()
 		return
 	}
+	updateTimeMs := time.Now().UnixMilli()
 
-	p.serviceGraphRequestTotal.Inc(registryLabelValues, 1*e.SpanMultiplier)
+	p.serviceGraphRequestTotal.IncWithHashAt(registryLabelValues.Labels, registryLabelValues.Hash, 1*e.SpanMultiplier, updateTimeMs)
 	if e.Failed {
-		p.serviceGraphRequestFailedTotal.Inc(registryLabelValues, 1*e.SpanMultiplier)
+		p.serviceGraphRequestFailedTotal.IncWithHashAt(registryLabelValues.Labels, registryLabelValues.Hash, 1*e.SpanMultiplier, updateTimeMs)
 	}
 
-	p.serviceGraphRequestServerSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ServerLatencySec, e.TraceID, e.SpanMultiplier)
-	p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ClientLatencySec, e.TraceID, e.SpanMultiplier)
+	if p.Cfg.HistogramOverride == registry.HistogramModeClassic && e.TraceIDLen > 0 {
+		traceID := e.TraceIDRaw[:e.TraceIDLen]
+		p.serviceGraphRequestServerSecondsHistogram.ObserveWithExemplarTraceIDBytesWithHashAt(registryLabelValues.Labels, registryLabelValues.Hash, e.ServerLatencySec, traceID, e.SpanMultiplier, updateTimeMs)
+		p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplarTraceIDBytesWithHashAt(registryLabelValues.Labels, registryLabelValues.Hash, e.ClientLatencySec, traceID, e.SpanMultiplier, updateTimeMs)
+
+		if p.Cfg.EnableMessagingSystemLatencyHistogram && e.ConnectionType == store.MessagingSystem {
+			messagingSystemLatencySec := unixNanosDiffSec(e.ClientEndTimeUnixNano, e.ServerStartTimeUnixNano)
+			if messagingSystemLatencySec == 0 {
+				level.Warn(p.logger).Log("msg", "producerSpanEndTime must be smaller than consumerSpanStartTime. maybe the peers clocks are not synced", "messagingSystemLatencySec", messagingSystemLatencySec, "traceID", edgeTraceIDString(e))
+			} else {
+				p.serviceGraphRequestMessagingSystemSecondsHistogram.ObserveWithExemplarTraceIDBytesWithHashAt(registryLabelValues.Labels, registryLabelValues.Hash, messagingSystemLatencySec, traceID, e.SpanMultiplier, updateTimeMs)
+			}
+		}
+
+		registryLabelValues.Release()
+		return
+	}
+
+	traceID := edgeTraceIDString(e)
+	p.serviceGraphRequestServerSecondsHistogram.ObserveWithExemplarWithHashAt(registryLabelValues.Labels, registryLabelValues.Hash, e.ServerLatencySec, traceID, e.SpanMultiplier, updateTimeMs)
+	p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplarWithHashAt(registryLabelValues.Labels, registryLabelValues.Hash, e.ClientLatencySec, traceID, e.SpanMultiplier, updateTimeMs)
 
 	if p.Cfg.EnableMessagingSystemLatencyHistogram && e.ConnectionType == store.MessagingSystem {
 		messagingSystemLatencySec := unixNanosDiffSec(e.ClientEndTimeUnixNano, e.ServerStartTimeUnixNano)
 		if messagingSystemLatencySec == 0 {
-			level.Warn(p.logger).Log("msg", "producerSpanEndTime must be smaller than consumerSpanStartTime. maybe the peers clocks are not synced", "messagingSystemLatencySec", messagingSystemLatencySec, "traceID", e.TraceID)
+			level.Warn(p.logger).Log("msg", "producerSpanEndTime must be smaller than consumerSpanStartTime. maybe the peers clocks are not synced", "messagingSystemLatencySec", messagingSystemLatencySec, "traceID", traceID)
 		} else {
-			p.serviceGraphRequestMessagingSystemSecondsHistogram.ObserveWithExemplar(registryLabelValues, messagingSystemLatencySec, e.TraceID, e.SpanMultiplier)
+			p.serviceGraphRequestMessagingSystemSecondsHistogram.ObserveWithExemplarWithHashAt(registryLabelValues.Labels, registryLabelValues.Hash, messagingSystemLatencySec, traceID, e.SpanMultiplier, updateTimeMs)
 		}
 	}
+
+	registryLabelValues.Release()
+}
+
+func (p *Processor) setEdgeTraceID(e *store.Edge, traceID []byte) {
+	e.TraceID = ""
+	e.TraceIDLen = 0
+	if len(traceID) == 0 {
+		return
+	}
+	if p.Cfg.HistogramOverride != registry.HistogramModeClassic || len(traceID) > len(e.TraceIDRaw) {
+		e.TraceID = tempo_util.TraceIDToHexString(traceID)
+		return
+	}
+	copy(e.TraceIDRaw[:], traceID)
+	e.TraceIDLen = len(traceID)
+}
+
+func edgeTraceIDString(e *store.Edge) string {
+	if e.TraceIDLen > 0 {
+		return tempo_util.TraceIDToHexString(e.TraceIDRaw[:e.TraceIDLen])
+	}
+	return e.TraceID
 }
 
 func (p *Processor) onExpire(e *store.Edge) {
@@ -449,7 +606,7 @@ func (p *Processor) onExpire(e *store.Edge) {
 
 func (p *Processor) addDroppedSpanSide(span *v1_trace.Span) {
 	if isClient(span.Kind) {
-		key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.SpanId))
+		key := buildKeyFromBytes(span.TraceId, span.SpanId)
 		if p.store.AddDroppedSpanSide(key, store.Client) {
 			p.metricDroppedEdges.Inc()
 		}
@@ -462,7 +619,7 @@ func (p *Processor) addDroppedSpanSide(span *v1_trace.Span) {
 			return
 		}
 
-		key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.ParentSpanId))
+		key := buildKeyFromBytes(span.TraceId, span.ParentSpanId)
 		if p.store.AddDroppedSpanSide(key, store.Server) {
 			p.metricDroppedEdges.Inc()
 		}
@@ -495,10 +652,20 @@ func spanDurationSec(span *v1_trace.Span) float64 {
 }
 
 func buildKey(k1, k2 string) string {
-	return fmt.Sprintf("%s-%s", k1, k2)
+	return k1 + "-" + k2
+}
+
+func buildKeyFromBytes(k1, k2 []byte) string {
+	k1Len := hex.EncodedLen(len(k1))
+	buf := make([]byte, k1Len+1+hex.EncodedLen(len(k2)))
+	hex.Encode(buf[:k1Len], k1)
+	buf[k1Len] = '-'
+	hex.Encode(buf[k1Len+1:], k2)
+	// The buffer is private and is not mutated after conversion.
+	return unsafe.String(unsafe.SliceData(buf), len(buf))
 }
 
 func parseKey(key string) (string, string) {
-	parts := strings.Split(key, "-")
-	return parts[0], parts[1]
+	traceID, spanID, _ := strings.Cut(key, "-")
+	return traceID, spanID
 }
