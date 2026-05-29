@@ -712,7 +712,7 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 				traceKey := hash.HashForTraceID(traceID)
 				ilsKey := traceKey
 				if ils.Scope != nil {
-					d := hash.New()
+					d := hash.NewValue()
 					d.WriteUint64(traceKey)
 					_, _ = d.WriteString(ils.Scope.Name)
 					_, _ = d.WriteString(ils.Scope.Version)
