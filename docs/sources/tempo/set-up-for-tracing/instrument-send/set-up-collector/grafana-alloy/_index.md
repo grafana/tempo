@@ -47,7 +47,7 @@ backends.
 <!-- vale Grafana.Parentheses = NO -->
 
 Grafana Alloy supports multiple ingestion receivers:
-OTLP (OpenTelemetry), Jaeger, Zipkin, OpenCensus, and Kafka.
+OTLP (OpenTelemetry), Jaeger, Zipkin and Kafka.
 
 <!-- vale Grafana.Parentheses = YES -->
 
