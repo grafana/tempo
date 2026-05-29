@@ -86,7 +86,7 @@ overrides:
 
 You can automate the migration using the Tempo CLI. Refer to the [`tempo-cli migrate overrides-config` command](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/tempo_cli/#migrate-overrides-config-command).
 
-For the full field mapping between legacy and scoped formats, refer to the [Upgrade to Tempo 2.3](#new-defaults-block-in-overrides-module-configuration) section.
+For the full field mapping between legacy and scoped formats, refer to [Changes to the Overrides module configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/release-notes/version-2/v2-3/#changes-to-the-overrides-module-configuration) in the Tempo 2.3 release notes.
 
 #### Option 2: Temporarily opt back in
 
