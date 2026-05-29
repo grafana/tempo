@@ -12,6 +12,8 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/tempo/pkg/util"
 )
 
 func TestDigest_NewEqualsNewValue(t *testing.T) {
@@ -60,6 +62,28 @@ func TestTokenFunctions_returnExpectedShape(t *testing.T) {
 	assert.Equal(t, TokenForTraceID(id), TokenForTraceID(id))
 	assert.Equal(t, HashForTraceID(id), HashForTraceID(id))
 	assert.Equal(t, TokenFor("tenant-x", id), TokenFor("tenant-x", id))
+}
+
+// Verify cases of known collisions under TokenFor (FNV-1 32-bit) don't
+// collide in HashForTraceID (FNV-1 64-bit). These fixtures are empirical
+// trace-ID pairs discovered in production; they document inputs that are
+// known to defeat the 32-bit ring-token hash but must remain distinct
+// under the 64-bit map/dedupe hash.
+func TestHashForNoCollisions(t *testing.T) {
+	pairs := [][2]string{
+		{"fd5980503add11f09f80f77608c1b2da", "091ea7803ade11f0998a055186ee1243"},
+		{"9e0d446036dc11f09ac04988d2097052", "a61ed97036dc11f0883771db3b51b1ec"},
+		{"6b27f5501eda11f09e99db1b2c23c542", "6b4149b01eda11f0b0e2a966cf7ebbc8"},
+		{"3e9582202f9a11f0afb01b7c06024bd6", "370db6802f9a11f0a9a212dff3125239"},
+		{"978d70802a7311f0991f350653ef0ab4", "9b66da202a7311f09d292db17ccfd31a"},
+		{"de567f703bb711f0b8c377682d1667e6", "dc2d0fc03bb711f091de732fcf93048c"},
+	}
+	for _, pair := range pairs {
+		b1, _ := util.HexStringToTraceID(pair[0])
+		b2, _ := util.HexStringToTraceID(pair[1])
+
+		require.NotEqual(t, HashForTraceID(b1), HashForTraceID(b2))
+	}
 }
 
 // Verify HashForTraceID doesn't collide within reasonable numbers, and estimate
