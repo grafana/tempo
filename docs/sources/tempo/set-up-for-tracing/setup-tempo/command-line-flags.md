@@ -86,7 +86,7 @@ span_profiling: true
 | `--health` | Run a health check against the `/ready` endpoint and exit. Returns exit code `0` if healthy, `1` if unhealthy. | `false` |
 | `--health.url` | URL to check when running a health check | `http://localhost:3200/ready` |
 
-The Tempo container image uses a [distroless base image](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/upgrade/#busybox-removed-from-tempo-image) that doesn't include a shell, `curl`, `wget`, or other utilities. This means the common Docker health check pattern `HEALTHCHECK CMD curl -f http://localhost:3200/ready` doesn't work.
+The Tempo container image uses a [distroless base image](/docs/tempo/<TEMPO_VERSION>/release-notes/version-2/v2-10/#busybox-removed-from-tempo-image) that doesn't include a shell, `curl`, `wget`, or other utilities. This means the common Docker health check pattern `HEALTHCHECK CMD curl -f http://localhost:3200/ready` doesn't work.
 
 The `--health` flag provides a native alternative. It doesn't require a Tempo configuration file, so it can be used directly in a `HEALTHCHECK` instruction:
 
