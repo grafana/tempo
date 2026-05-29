@@ -1,0 +1,745 @@
+diff --git a/pkg/tempopb/common/v1/common.pb.go b/pkg/tempopb/common/v1/common.pb.go
+index 370663198..74ab1582c 100644
+--- a/pkg/tempopb/common/v1/common.pb.go
++++ b/pkg/tempopb/common/v1/common.pb.go
+@@ -947,7 +947,36 @@ func sovCommon(x uint64) (n int) {
+ func sozCommon(x uint64) (n int) {
+ 	return sovCommon(uint64((x << 1) ^ uint64((int64(x) >> 63))))
+ }
++
++func appendAnyValueForUnmarshal(values []*AnyValue) ([]*AnyValue, *AnyValue) {
++	n := len(values)
++	if n < cap(values) {
++		values = values[:n+1]
++		if values[n] == nil {
++			values[n] = &AnyValue{}
++		}
++		return values, values[n]
++	}
++	values = append(values, &AnyValue{})
++	return values, values[n]
++}
++
++func appendKeyValueForUnmarshal(values []*KeyValue) ([]*KeyValue, *KeyValue) {
++	n := len(values)
++	if n < cap(values) {
++		values = values[:n+1]
++		if values[n] == nil {
++			values[n] = &KeyValue{}
++		}
++		return values, values[n]
++	}
++	values = append(values, &KeyValue{})
++	return values, values[n]
++}
++
+ func (m *AnyValue) Unmarshal(dAtA []byte) error {
++	previousValue := m.Value
++	m.Value = nil
+ 	l := len(dAtA)
+ 	iNdEx := 0
+ 	for iNdEx < l {
+@@ -1006,7 +1035,12 @@ func (m *AnyValue) Unmarshal(dAtA []byte) error {
+ 			if postIndex > l {
+ 				return io.ErrUnexpectedEOF
+ 			}
+-			m.Value = &AnyValue_StringValue{string(dAtA[iNdEx:postIndex])}
++			if v, ok := previousValue.(*AnyValue_StringValue); ok {
++				v.StringValue = string(dAtA[iNdEx:postIndex])
++				m.Value = v
++			} else {
++				m.Value = &AnyValue_StringValue{string(dAtA[iNdEx:postIndex])}
++			}
+ 			iNdEx = postIndex
+ 		case 2:
+ 			if wireType != 0 {
+@@ -1028,7 +1062,12 @@ func (m *AnyValue) Unmarshal(dAtA []byte) error {
+ 				}
+ 			}
+ 			b := bool(v != 0)
+-			m.Value = &AnyValue_BoolValue{b}
++			if value, ok := previousValue.(*AnyValue_BoolValue); ok {
++				value.BoolValue = b
++				m.Value = value
++			} else {
++				m.Value = &AnyValue_BoolValue{b}
++			}
+ 		case 3:
+ 			if wireType != 0 {
+ 				return fmt.Errorf("proto: wrong wireType = %d for field IntValue", wireType)
+@@ -1048,7 +1087,12 @@ func (m *AnyValue) Unmarshal(dAtA []byte) error {
+ 					break
+ 				}
+ 			}
+-			m.Value = &AnyValue_IntValue{v}
++			if value, ok := previousValue.(*AnyValue_IntValue); ok {
++				value.IntValue = v
++				m.Value = value
++			} else {
++				m.Value = &AnyValue_IntValue{v}
++			}
+ 		case 4:
+ 			if wireType != 1 {
+ 				return fmt.Errorf("proto: wrong wireType = %d for field DoubleValue", wireType)
+@@ -1059,7 +1103,13 @@ func (m *AnyValue) Unmarshal(dAtA []byte) error {
+ 			}
+ 			v = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+ 			iNdEx += 8
+-			m.Value = &AnyValue_DoubleValue{float64(math.Float64frombits(v))}
++			doubleValue := float64(math.Float64frombits(v))
++			if value, ok := previousValue.(*AnyValue_DoubleValue); ok {
++				value.DoubleValue = doubleValue
++				m.Value = value
++			} else {
++				m.Value = &AnyValue_DoubleValue{doubleValue}
++			}
+ 		case 5:
+ 			if wireType != 2 {
+ 				return fmt.Errorf("proto: wrong wireType = %d for field ArrayValue", wireType)
+@@ -1159,9 +1209,17 @@ func (m *AnyValue) Unmarshal(dAtA []byte) error {
+ 			if postIndex > l {
+ 				return io.ErrUnexpectedEOF
+ 			}
+-			v := make([]byte, postIndex-iNdEx)
+-			copy(v, dAtA[iNdEx:postIndex])
+-			m.Value = &AnyValue_BytesValue{v}
++			if value, ok := previousValue.(*AnyValue_BytesValue); ok {
++				value.BytesValue = append(value.BytesValue[:0], dAtA[iNdEx:postIndex]...)
++				if value.BytesValue == nil {
++					value.BytesValue = []byte{}
++				}
++				m.Value = value
++			} else {
++				v := make([]byte, postIndex-iNdEx)
++				copy(v, dAtA[iNdEx:postIndex])
++				m.Value = &AnyValue_BytesValue{v}
++			}
+ 			iNdEx = postIndex
+ 		default:
+ 			iNdEx = preIndex
+@@ -1185,6 +1243,8 @@ func (m *AnyValue) Unmarshal(dAtA []byte) error {
+ 	return nil
+ }
+ func (m *ArrayValue) Unmarshal(dAtA []byte) error {
++	previousValues := m.Values
++	m.Values = m.Values[:0]
+ 	l := len(dAtA)
+ 	iNdEx := 0
+ 	for iNdEx < l {
+@@ -1242,8 +1302,9 @@ func (m *ArrayValue) Unmarshal(dAtA []byte) error {
+ 			if postIndex > l {
+ 				return io.ErrUnexpectedEOF
+ 			}
+-			m.Values = append(m.Values, &AnyValue{})
+-			if err := m.Values[len(m.Values)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
++			var value *AnyValue
++			m.Values, value = appendAnyValueForUnmarshal(m.Values)
++			if err := value.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+ 				return err
+ 			}
+ 			iNdEx = postIndex
+@@ -1266,9 +1327,14 @@ func (m *ArrayValue) Unmarshal(dAtA []byte) error {
+ 	if iNdEx > l {
+ 		return io.ErrUnexpectedEOF
+ 	}
++	if len(m.Values) < len(previousValues) {
++		clear(previousValues[len(m.Values):])
++	}
+ 	return nil
+ }
+ func (m *KeyValueList) Unmarshal(dAtA []byte) error {
++	previousValues := m.Values
++	m.Values = m.Values[:0]
+ 	l := len(dAtA)
+ 	iNdEx := 0
+ 	for iNdEx < l {
+@@ -1326,8 +1392,9 @@ func (m *KeyValueList) Unmarshal(dAtA []byte) error {
+ 			if postIndex > l {
+ 				return io.ErrUnexpectedEOF
+ 			}
+-			m.Values = append(m.Values, &KeyValue{})
+-			if err := m.Values[len(m.Values)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
++			var value *KeyValue
++			m.Values, value = appendKeyValueForUnmarshal(m.Values)
++			if err := value.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+ 				return err
+ 			}
+ 			iNdEx = postIndex
+@@ -1350,9 +1417,15 @@ func (m *KeyValueList) Unmarshal(dAtA []byte) error {
+ 	if iNdEx > l {
+ 		return io.ErrUnexpectedEOF
+ 	}
++	if len(m.Values) < len(previousValues) {
++		clear(previousValues[len(m.Values):])
++	}
+ 	return nil
+ }
+ func (m *KeyValue) Unmarshal(dAtA []byte) error {
++	previousValue := m.Value
++	m.Key = ""
++	m.Value = nil
+ 	l := len(dAtA)
+ 	iNdEx := 0
+ 	for iNdEx < l {
+@@ -1442,7 +1515,9 @@ func (m *KeyValue) Unmarshal(dAtA []byte) error {
+ 			if postIndex > l {
+ 				return io.ErrUnexpectedEOF
+ 			}
+-			if m.Value == nil {
++			if previousValue != nil {
++				m.Value = previousValue
++			} else if m.Value == nil {
+ 				m.Value = &AnyValue{}
+ 			}
+ 			if err := m.Value.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+@@ -1471,6 +1546,11 @@ func (m *KeyValue) Unmarshal(dAtA []byte) error {
+ 	return nil
+ }
+ func (m *InstrumentationScope) Unmarshal(dAtA []byte) error {
++	previousAttributes := m.Attributes
++	m.Name = ""
++	m.Version = ""
++	m.Attributes = m.Attributes[:0]
++	m.DroppedAttributesCount = 0
+ 	l := len(dAtA)
+ 	iNdEx := 0
+ 	for iNdEx < l {
+@@ -1592,8 +1672,9 @@ func (m *InstrumentationScope) Unmarshal(dAtA []byte) error {
+ 			if postIndex > l {
+ 				return io.ErrUnexpectedEOF
+ 			}
+-			m.Attributes = append(m.Attributes, &KeyValue{})
+-			if err := m.Attributes[len(m.Attributes)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
++			var attr *KeyValue
++			m.Attributes, attr = appendKeyValueForUnmarshal(m.Attributes)
++			if err := attr.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+ 				return err
+ 			}
+ 			iNdEx = postIndex
+@@ -1635,6 +1716,9 @@ func (m *InstrumentationScope) Unmarshal(dAtA []byte) error {
+ 	if iNdEx > l {
+ 		return io.ErrUnexpectedEOF
+ 	}
++	if len(m.Attributes) < len(previousAttributes) {
++		clear(previousAttributes[len(m.Attributes):])
++	}
+ 	return nil
+ }
+ func skipCommon(dAtA []byte) (n int, err error) {
+diff --git a/pkg/tempopb/resource/v1/resource.pb.go b/pkg/tempopb/resource/v1/resource.pb.go
+index 0e181b28b..7ab29d40e 100644
+--- a/pkg/tempopb/resource/v1/resource.pb.go
++++ b/pkg/tempopb/resource/v1/resource.pb.go
+@@ -186,7 +186,24 @@ func sovResource(x uint64) (n int) {
+ func sozResource(x uint64) (n int) {
+ 	return sovResource(uint64((x << 1) ^ uint64((int64(x) >> 63))))
+ }
++
++func appendKeyValueForUnmarshal(values []*v1.KeyValue) ([]*v1.KeyValue, *v1.KeyValue) {
++	n := len(values)
++	if n < cap(values) {
++		values = values[:n+1]
++		if values[n] == nil {
++			values[n] = &v1.KeyValue{}
++		}
++		return values, values[n]
++	}
++	values = append(values, &v1.KeyValue{})
++	return values, values[n]
++}
++
+ func (m *Resource) Unmarshal(dAtA []byte) error {
++	previousAttributes := m.Attributes
++	m.Attributes = m.Attributes[:0]
++	m.DroppedAttributesCount = 0
+ 	l := len(dAtA)
+ 	iNdEx := 0
+ 	for iNdEx < l {
+@@ -244,8 +261,9 @@ func (m *Resource) Unmarshal(dAtA []byte) error {
+ 			if postIndex > l {
+ 				return io.ErrUnexpectedEOF
+ 			}
+-			m.Attributes = append(m.Attributes, &v1.KeyValue{})
+-			if err := m.Attributes[len(m.Attributes)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
++			var attr *v1.KeyValue
++			m.Attributes, attr = appendKeyValueForUnmarshal(m.Attributes)
++			if err := attr.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+ 				return err
+ 			}
+ 			iNdEx = postIndex
+@@ -287,6 +305,9 @@ func (m *Resource) Unmarshal(dAtA []byte) error {
+ 	if iNdEx > l {
+ 		return io.ErrUnexpectedEOF
+ 	}
++	if len(m.Attributes) < len(previousAttributes) {
++		clear(previousAttributes[len(m.Attributes):])
++	}
+ 	return nil
+ }
+ func skipResource(dAtA []byte) (n int, err error) {
+diff --git a/pkg/tempopb/tempo.pb.go b/pkg/tempopb/tempo.pb.go
+index effb11d9d..e88320761 100644
+--- a/pkg/tempopb/tempo.pb.go
++++ b/pkg/tempopb/tempo.pb.go
+@@ -7117,6 +7117,20 @@ func sovTempo(x uint64) (n int) {
+ func sozTempo(x uint64) (n int) {
+ 	return sovTempo(uint64((x << 1) ^ uint64((int64(x) >> 63))))
+ }
++
++func appendTraceResourceSpansForUnmarshal(values []*v11.ResourceSpans) ([]*v11.ResourceSpans, *v11.ResourceSpans) {
++	n := len(values)
++	if n < cap(values) {
++		values = values[:n+1]
++		if values[n] == nil {
++			values[n] = &v11.ResourceSpans{}
++		}
++		return values, values[n]
++	}
++	values = append(values, &v11.ResourceSpans{})
++	return values, values[n]
++}
++
+ func (m *TraceByIDRequest) Unmarshal(dAtA []byte) error {
+ 	l := len(dAtA)
+ 	iNdEx := 0
+@@ -11412,6 +11426,8 @@ func (m *MetadataMetrics) Unmarshal(dAtA []byte) error {
+ 	return nil
+ }
+ func (m *Trace) Unmarshal(dAtA []byte) error {
++	previousResourceSpans := m.ResourceSpans
++	m.ResourceSpans = m.ResourceSpans[:0]
+ 	l := len(dAtA)
+ 	iNdEx := 0
+ 	for iNdEx < l {
+@@ -11469,8 +11485,9 @@ func (m *Trace) Unmarshal(dAtA []byte) error {
+ 			if postIndex > l {
+ 				return io.ErrUnexpectedEOF
+ 			}
+-			m.ResourceSpans = append(m.ResourceSpans, &v11.ResourceSpans{})
+-			if err := m.ResourceSpans[len(m.ResourceSpans)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
++			var resourceSpans *v11.ResourceSpans
++			m.ResourceSpans, resourceSpans = appendTraceResourceSpansForUnmarshal(m.ResourceSpans)
++			if err := resourceSpans.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+ 				return err
+ 			}
+ 			iNdEx = postIndex
+@@ -11493,6 +11510,9 @@ func (m *Trace) Unmarshal(dAtA []byte) error {
+ 	if iNdEx > l {
+ 		return io.ErrUnexpectedEOF
+ 	}
++	if len(m.ResourceSpans) < len(previousResourceSpans) {
++		clear(previousResourceSpans[len(m.ResourceSpans):])
++	}
+ 	return nil
+ }
+ func (m *PushResponse) Unmarshal(dAtA []byte) error {
+diff --git a/pkg/tempopb/trace/v1/trace.pb.go b/pkg/tempopb/trace/v1/trace.pb.go
+index 527b902bf..b994da602 100644
+--- a/pkg/tempopb/trace/v1/trace.pb.go
++++ b/pkg/tempopb/trace/v1/trace.pb.go
+@@ -1631,7 +1631,148 @@ func sovTrace(x uint64) (n int) {
+ func sozTrace(x uint64) (n int) {
+ 	return sovTrace(uint64((x << 1) ^ uint64((int64(x) >> 63))))
+ }
++
++func appendResourceSpansForUnmarshal(values []*ResourceSpans) ([]*ResourceSpans, *ResourceSpans) {
++	n := len(values)
++	if n < cap(values) {
++		values = values[:n+1]
++		if values[n] == nil {
++			values[n] = &ResourceSpans{}
++		} else {
++			values[n].resetForUnmarshal()
++		}
++		return values, values[n]
++	}
++	values = append(values, &ResourceSpans{})
++	return values, values[n]
++}
++
++func appendScopeSpansForUnmarshal(values []*ScopeSpans) ([]*ScopeSpans, *ScopeSpans) {
++	n := len(values)
++	if n < cap(values) {
++		values = values[:n+1]
++		if values[n] == nil {
++			values[n] = &ScopeSpans{}
++		} else {
++			values[n].resetForUnmarshal()
++		}
++		return values, values[n]
++	}
++	values = append(values, &ScopeSpans{})
++	return values, values[n]
++}
++
++func appendSpanForUnmarshal(values []*Span) ([]*Span, *Span) {
++	n := len(values)
++	if n < cap(values) {
++		values = values[:n+1]
++		if values[n] == nil {
++			values[n] = &Span{}
++		} else {
++			values[n].resetForUnmarshal()
++		}
++		return values, values[n]
++	}
++	values = append(values, &Span{})
++	return values, values[n]
++}
++
++func appendSpanEventForUnmarshal(values []*Span_Event) ([]*Span_Event, *Span_Event) {
++	n := len(values)
++	if n < cap(values) {
++		values = values[:n+1]
++		if values[n] == nil {
++			values[n] = &Span_Event{}
++		} else {
++			values[n].resetForUnmarshal()
++		}
++		return values, values[n]
++	}
++	values = append(values, &Span_Event{})
++	return values, values[n]
++}
++
++func appendSpanLinkForUnmarshal(values []*Span_Link) ([]*Span_Link, *Span_Link) {
++	n := len(values)
++	if n < cap(values) {
++		values = values[:n+1]
++		if values[n] == nil {
++			values[n] = &Span_Link{}
++		} else {
++			values[n].resetForUnmarshal()
++		}
++		return values, values[n]
++	}
++	values = append(values, &Span_Link{})
++	return values, values[n]
++}
++
++func appendKeyValueForUnmarshal(values []*v11.KeyValue) ([]*v11.KeyValue, *v11.KeyValue) {
++	n := len(values)
++	if n < cap(values) {
++		values = values[:n+1]
++		if values[n] == nil {
++			values[n] = &v11.KeyValue{}
++		}
++		return values, values[n]
++	}
++	values = append(values, &v11.KeyValue{})
++	return values, values[n]
++}
++
++func (m *ResourceSpans) resetForUnmarshal() {
++	resource := m.Resource
++	m.Resource = resource
++	m.ScopeSpans = m.ScopeSpans[:0]
++	m.SchemaUrl = ""
++}
++
++func (m *ScopeSpans) resetForUnmarshal() {
++	scope := m.Scope
++	m.Scope = scope
++	m.Spans = m.Spans[:0]
++	m.SchemaUrl = ""
++}
++
++func (m *Span) resetForUnmarshal() {
++	status := m.Status
++	m.TraceId = m.TraceId[:0]
++	m.SpanId = m.SpanId[:0]
++	m.TraceState = ""
++	m.ParentSpanId = m.ParentSpanId[:0]
++	m.Flags = 0
++	m.Name = ""
++	m.Kind = 0
++	m.StartTimeUnixNano = 0
++	m.EndTimeUnixNano = 0
++	m.Attributes = m.Attributes[:0]
++	m.DroppedAttributesCount = 0
++	m.Events = m.Events[:0]
++	m.DroppedEventsCount = 0
++	m.Links = m.Links[:0]
++	m.DroppedLinksCount = 0
++	m.Status = status
++}
++
++func (m *Span_Event) resetForUnmarshal() {
++	m.TimeUnixNano = 0
++	m.Name = ""
++	m.Attributes = m.Attributes[:0]
++	m.DroppedAttributesCount = 0
++}
++
++func (m *Span_Link) resetForUnmarshal() {
++	m.TraceId = m.TraceId[:0]
++	m.SpanId = m.SpanId[:0]
++	m.TraceState = ""
++	m.Attributes = m.Attributes[:0]
++	m.DroppedAttributesCount = 0
++	m.Flags = 0
++}
++
+ func (m *TracesData) Unmarshal(dAtA []byte) error {
++	previousResourceSpans := m.ResourceSpans
++	m.ResourceSpans = m.ResourceSpans[:0]
+ 	l := len(dAtA)
+ 	iNdEx := 0
+ 	for iNdEx < l {
+@@ -1689,8 +1830,9 @@ func (m *TracesData) Unmarshal(dAtA []byte) error {
+ 			if postIndex > l {
+ 				return io.ErrUnexpectedEOF
+ 			}
+-			m.ResourceSpans = append(m.ResourceSpans, &ResourceSpans{})
+-			if err := m.ResourceSpans[len(m.ResourceSpans)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
++			var resourceSpans *ResourceSpans
++			m.ResourceSpans, resourceSpans = appendResourceSpansForUnmarshal(m.ResourceSpans)
++			if err := resourceSpans.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+ 				return err
+ 			}
+ 			iNdEx = postIndex
+@@ -1713,9 +1855,17 @@ func (m *TracesData) Unmarshal(dAtA []byte) error {
+ 	if iNdEx > l {
+ 		return io.ErrUnexpectedEOF
+ 	}
++	if len(m.ResourceSpans) < len(previousResourceSpans) {
++		clear(previousResourceSpans[len(m.ResourceSpans):])
++	}
+ 	return nil
+ }
+ func (m *ResourceSpans) Unmarshal(dAtA []byte) error {
++	previousResource := m.Resource
++	previousScopeSpans := m.ScopeSpans
++	m.Resource = nil
++	m.ScopeSpans = m.ScopeSpans[:0]
++	m.SchemaUrl = ""
+ 	l := len(dAtA)
+ 	iNdEx := 0
+ 	for iNdEx < l {
+@@ -1773,7 +1923,9 @@ func (m *ResourceSpans) Unmarshal(dAtA []byte) error {
+ 			if postIndex > l {
+ 				return io.ErrUnexpectedEOF
+ 			}
+-			if m.Resource == nil {
++			if previousResource != nil {
++				m.Resource = previousResource
++			} else if m.Resource == nil {
+ 				m.Resource = &v1.Resource{}
+ 			}
+ 			if err := m.Resource.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+@@ -1809,8 +1961,9 @@ func (m *ResourceSpans) Unmarshal(dAtA []byte) error {
+ 			if postIndex > l {
+ 				return io.ErrUnexpectedEOF
+ 			}
+-			m.ScopeSpans = append(m.ScopeSpans, &ScopeSpans{})
+-			if err := m.ScopeSpans[len(m.ScopeSpans)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
++			var scopeSpans *ScopeSpans
++			m.ScopeSpans, scopeSpans = appendScopeSpansForUnmarshal(m.ScopeSpans)
++			if err := scopeSpans.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+ 				return err
+ 			}
+ 			iNdEx = postIndex
+@@ -1865,9 +2018,17 @@ func (m *ResourceSpans) Unmarshal(dAtA []byte) error {
+ 	if iNdEx > l {
+ 		return io.ErrUnexpectedEOF
+ 	}
++	if len(m.ScopeSpans) < len(previousScopeSpans) {
++		clear(previousScopeSpans[len(m.ScopeSpans):])
++	}
+ 	return nil
+ }
+ func (m *ScopeSpans) Unmarshal(dAtA []byte) error {
++	previousScope := m.Scope
++	previousSpans := m.Spans
++	m.Scope = nil
++	m.Spans = m.Spans[:0]
++	m.SchemaUrl = ""
+ 	l := len(dAtA)
+ 	iNdEx := 0
+ 	for iNdEx < l {
+@@ -1925,7 +2086,9 @@ func (m *ScopeSpans) Unmarshal(dAtA []byte) error {
+ 			if postIndex > l {
+ 				return io.ErrUnexpectedEOF
+ 			}
+-			if m.Scope == nil {
++			if previousScope != nil {
++				m.Scope = previousScope
++			} else if m.Scope == nil {
+ 				m.Scope = &v11.InstrumentationScope{}
+ 			}
+ 			if err := m.Scope.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+@@ -1961,8 +2124,9 @@ func (m *ScopeSpans) Unmarshal(dAtA []byte) error {
+ 			if postIndex > l {
+ 				return io.ErrUnexpectedEOF
+ 			}
+-			m.Spans = append(m.Spans, &Span{})
+-			if err := m.Spans[len(m.Spans)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
++			var span *Span
++			m.Spans, span = appendSpanForUnmarshal(m.Spans)
++			if err := span.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+ 				return err
+ 			}
+ 			iNdEx = postIndex
+@@ -2017,9 +2181,32 @@ func (m *ScopeSpans) Unmarshal(dAtA []byte) error {
+ 	if iNdEx > l {
+ 		return io.ErrUnexpectedEOF
+ 	}
++	if len(m.Spans) < len(previousSpans) {
++		clear(previousSpans[len(m.Spans):])
++	}
+ 	return nil
+ }
+ func (m *Span) Unmarshal(dAtA []byte) error {
++	previousStatus := m.Status
++	previousAttributes := m.Attributes
++	previousEvents := m.Events
++	previousLinks := m.Links
++	m.TraceId = m.TraceId[:0]
++	m.SpanId = m.SpanId[:0]
++	m.TraceState = ""
++	m.ParentSpanId = m.ParentSpanId[:0]
++	m.Flags = 0
++	m.Name = ""
++	m.Kind = 0
++	m.StartTimeUnixNano = 0
++	m.EndTimeUnixNano = 0
++	m.Attributes = m.Attributes[:0]
++	m.DroppedAttributesCount = 0
++	m.Events = m.Events[:0]
++	m.DroppedEventsCount = 0
++	m.Links = m.Links[:0]
++	m.DroppedLinksCount = 0
++	m.Status = nil
+ 	l := len(dAtA)
+ 	iNdEx := 0
+ 	for iNdEx < l {
+@@ -2282,8 +2469,9 @@ func (m *Span) Unmarshal(dAtA []byte) error {
+ 			if postIndex > l {
+ 				return io.ErrUnexpectedEOF
+ 			}
+-			m.Attributes = append(m.Attributes, &v11.KeyValue{})
+-			if err := m.Attributes[len(m.Attributes)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
++			var attr *v11.KeyValue
++			m.Attributes, attr = appendKeyValueForUnmarshal(m.Attributes)
++			if err := attr.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+ 				return err
+ 			}
+ 			iNdEx = postIndex
+@@ -2335,8 +2523,9 @@ func (m *Span) Unmarshal(dAtA []byte) error {
+ 			if postIndex > l {
+ 				return io.ErrUnexpectedEOF
+ 			}
+-			m.Events = append(m.Events, &Span_Event{})
+-			if err := m.Events[len(m.Events)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
++			var event *Span_Event
++			m.Events, event = appendSpanEventForUnmarshal(m.Events)
++			if err := event.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+ 				return err
+ 			}
+ 			iNdEx = postIndex
+@@ -2388,8 +2577,9 @@ func (m *Span) Unmarshal(dAtA []byte) error {
+ 			if postIndex > l {
+ 				return io.ErrUnexpectedEOF
+ 			}
+-			m.Links = append(m.Links, &Span_Link{})
+-			if err := m.Links[len(m.Links)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
++			var link *Span_Link
++			m.Links, link = appendSpanLinkForUnmarshal(m.Links)
++			if err := link.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+ 				return err
+ 			}
+ 			iNdEx = postIndex
+@@ -2441,7 +2631,9 @@ func (m *Span) Unmarshal(dAtA []byte) error {
+ 			if postIndex > l {
+ 				return io.ErrUnexpectedEOF
+ 			}
+-			if m.Status == nil {
++			if previousStatus != nil {
++				m.Status = previousStatus
++			} else if m.Status == nil {
+ 				m.Status = &Status{}
+ 			}
+ 			if err := m.Status.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+@@ -2477,9 +2669,23 @@ func (m *Span) Unmarshal(dAtA []byte) error {
+ 	if iNdEx > l {
+ 		return io.ErrUnexpectedEOF
+ 	}
++	if len(m.Attributes) < len(previousAttributes) {
++		clear(previousAttributes[len(m.Attributes):])
++	}
++	if len(m.Events) < len(previousEvents) {
++		clear(previousEvents[len(m.Events):])
++	}
++	if len(m.Links) < len(previousLinks) {
++		clear(previousLinks[len(m.Links):])
++	}
+ 	return nil
+ }
+ func (m *Span_Event) Unmarshal(dAtA []byte) error {
++	previousAttributes := m.Attributes
++	m.TimeUnixNano = 0
++	m.Name = ""
++	m.Attributes = m.Attributes[:0]
++	m.DroppedAttributesCount = 0
+ 	l := len(dAtA)
+ 	iNdEx := 0
+ 	for iNdEx < l {
+@@ -2579,8 +2785,9 @@ func (m *Span_Event) Unmarshal(dAtA []byte) error {
+ 			if postIndex > l {
+ 				return io.ErrUnexpectedEOF
+ 			}
+-			m.Attributes = append(m.Attributes, &v11.KeyValue{})
+-			if err := m.Attributes[len(m.Attributes)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
++			var attr *v11.KeyValue
++			m.Attributes, attr = appendKeyValueForUnmarshal(m.Attributes)
++			if err := attr.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+ 				return err
+ 			}
+ 			iNdEx = postIndex
+@@ -2622,9 +2829,19 @@ func (m *Span_Event) Unmarshal(dAtA []byte) error {
+ 	if iNdEx > l {
+ 		return io.ErrUnexpectedEOF
+ 	}
++	if len(m.Attributes) < len(previousAttributes) {
++		clear(previousAttributes[len(m.Attributes):])
++	}
+ 	return nil
+ }
+ func (m *Span_Link) Unmarshal(dAtA []byte) error {
++	previousAttributes := m.Attributes
++	m.TraceId = m.TraceId[:0]
++	m.SpanId = m.SpanId[:0]
++	m.TraceState = ""
++	m.Attributes = m.Attributes[:0]
++	m.DroppedAttributesCount = 0
++	m.Flags = 0
+ 	l := len(dAtA)
+ 	iNdEx := 0
+ 	for iNdEx < l {
+@@ -2782,8 +2999,9 @@ func (m *Span_Link) Unmarshal(dAtA []byte) error {
+ 			if postIndex > l {
+ 				return io.ErrUnexpectedEOF
+ 			}
+-			m.Attributes = append(m.Attributes, &v11.KeyValue{})
+-			if err := m.Attributes[len(m.Attributes)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
++			var attr *v11.KeyValue
++			m.Attributes, attr = appendKeyValueForUnmarshal(m.Attributes)
++			if err := attr.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+ 				return err
+ 			}
+ 			iNdEx = postIndex
+@@ -2835,9 +3053,14 @@ func (m *Span_Link) Unmarshal(dAtA []byte) error {
+ 	if iNdEx > l {
+ 		return io.ErrUnexpectedEOF
+ 	}
++	if len(m.Attributes) < len(previousAttributes) {
++		clear(previousAttributes[len(m.Attributes):])
++	}
+ 	return nil
+ }
+ func (m *Status) Unmarshal(dAtA []byte) error {
++	m.Message = ""
++	m.Code = 0
+ 	l := len(dAtA)
+ 	iNdEx := 0
+ 	for iNdEx < l {
