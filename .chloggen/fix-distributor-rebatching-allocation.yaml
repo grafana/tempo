@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: distributor
+note: bound per-trace slice preallocation during rebatching.
+issues: [7288]
+subtext:
+user: carles-grafana
