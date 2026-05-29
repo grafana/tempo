@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/storage"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 )
 
@@ -411,4 +413,39 @@ func Test_counter_onUpdate(t *testing.T) {
 	c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 3.0)
 	c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 4.0)
 	assert.Equal(t, 3, seriesUpdated)
+}
+
+// Test_counter_propagatesSeriesRefAcrossCollects verifies that the SeriesRef
+// returned by appender.Append is cached on the series and passed back into
+// every subsequent Append — both within the same collect cycle (for the
+// init-zero → value pair) and across collect cycles. This is the ref-caching
+// optimization; without it every Append would force the appender to re-look
+// up the series by labels.
+//
+// capturingAppender echoes back whatever ref it receives, so it cannot
+// observe this property. refIssuingAppender hands out a fixed non-zero ref
+// and records every input ref it sees.
+func Test_counter_propagatesSeriesRefAcrossCollects(t *testing.T) {
+	c := newCounter("test_counter", noopLimiter, nil, 15*time.Minute)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
+
+	const issuedRef storage.SeriesRef = 7000
+	app := &refIssuingAppender{nextRef: issuedRef}
+	require.NoError(t, c.collectMetrics(app, time.Now().UnixMilli()))
+
+	// First collect makes two Append calls for a new series: the init-zero
+	// sample and the value sample. The init pass has no cached ref yet, so
+	// it must be 0; the second Append must see the ref the appender issued
+	// in response to the first call.
+	require.Len(t, app.inputRefs, 2, "new-series first collect must call Append twice (init-zero + value)")
+	require.Equal(t, storage.SeriesRef(0), app.inputRefs[0], "init-zero Append must pass ref=0 (no cache yet)")
+	require.Equal(t, issuedRef, app.inputRefs[1], "value Append must reuse ref issued by the init-zero Append")
+
+	// Second collect: series is no longer new, only the value Append fires,
+	// and it must reuse the ref cached on the series from the previous
+	// collect. A regression that drops `s.ref = ref` would put 0 here.
+	app.inputRefs = nil
+	require.NoError(t, c.collectMetrics(app, time.Now().UnixMilli()))
+	require.Len(t, app.inputRefs, 1, "subsequent collect must Append once per series")
+	require.Equal(t, issuedRef, app.inputRefs[0], "subsequent collect must reuse the cached ref")
 }

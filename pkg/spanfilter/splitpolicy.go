@@ -84,7 +84,20 @@ func newSplitPolicy(policy *config.PolicyMatch) (*splitPolicy, error) {
 
 // Match returns true when the resource attributes and span attributes match the policy.
 func (p *splitPolicy) Match(rs *v1.Resource, span *tracev1.Span) bool {
-	return (p.ResourceMatch == nil || p.ResourceMatch.Matches(rs.Attributes)) &&
-		(p.SpanMatch == nil || p.SpanMatch.Matches(span.Attributes)) &&
-		(p.IntrinsicMatch == nil || p.IntrinsicMatch.Matches(span))
+	return (p.IntrinsicMatch == nil || p.IntrinsicMatch.Matches(span)) &&
+		(p.ResourceMatch == nil || p.ResourceMatch.Matches(rs.Attributes)) &&
+		(p.SpanMatch == nil || p.SpanMatch.Matches(span.Attributes))
+}
+
+func (p *splitPolicy) matchResource(rs *v1.Resource) bool {
+	return p.ResourceMatch == nil || p.ResourceMatch.Matches(rs.Attributes)
+}
+
+func (p *splitPolicy) matchSpan(span *tracev1.Span) bool {
+	return (p.IntrinsicMatch == nil || p.IntrinsicMatch.Matches(span)) &&
+		(p.SpanMatch == nil || p.SpanMatch.Matches(span.Attributes))
+}
+
+func (p *splitPolicy) hasSpanConditions() bool {
+	return p.IntrinsicMatch != nil || p.SpanMatch != nil
 }

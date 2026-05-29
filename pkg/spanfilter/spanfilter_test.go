@@ -715,8 +715,42 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 			}
 			x := sf.ApplyFilterPolicy(tc.resource, tc.span)
 			require.Equal(t, tc.expect, x)
+			resourceFilter := sf.ForResource(tc.resource)
+			require.Equal(t, x, resourceFilter.Apply(tc.span))
 		})
 	}
+}
+
+// TestResourceFilter_FallsBackBeyondMaskCap verifies that once an include /
+// includeAny / exclude list grows past maxResourceMaskedPolicies, ForResource
+// drops the mask fast path and falls back to per-span policy evaluation. The
+// fast path uses a uint64 bitmask so this boundary is silent — only Apply
+// behavior reveals it.
+func TestResourceFilter_FallsBackBeyondMaskCap(t *testing.T) {
+	// Build maxResourceMaskedPolicies+1 distinct include policies. Each one
+	// matches the same span attribute so Apply remains deterministic.
+	const n = maxResourceMaskedPolicies + 1
+	policies := make([]config.FilterPolicy, 0, n)
+	for i := 0; i < n; i++ {
+		policies = append(policies, config.FilterPolicy{
+			Include: &config.PolicyMatch{
+				MatchType: config.Strict,
+				Attributes: []config.MatchPolicyAttribute{{
+					Key:   "span.kind",
+					Value: "server",
+				}},
+			},
+		})
+	}
+	sf, err := NewSpanFilter(policies)
+	require.NoError(t, err)
+
+	rs := &v1.Resource{}
+	rf := sf.ForResource(rs)
+	require.False(t, rf.useResourceMasks, "policy count over cap must disable the mask fast path")
+
+	span := &tracev1.Span{Kind: tracev1.Span_SPAN_KIND_SERVER}
+	require.Equal(t, sf.ApplyFilterPolicy(rs, span), rf.Apply(span))
 }
 
 func BenchmarkSpanFilter_applyFilterPolicyNone(b *testing.B) {

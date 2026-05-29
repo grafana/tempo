@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/cespare/xxhash/v2"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewCardinalityClampsInputs(t *testing.T) {
@@ -242,4 +243,37 @@ func BenchmarkCardinalityAdvance(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		c.Advance()
 	}
+}
+
+// TestCardinalityCacheInvalidatedByInsert pins the cache-invalidation
+// contract on the Insert path: after Insert bumps the internal version,
+// the next Estimate must observe the new value rather than serve the
+// cached estimate computed before the Insert.
+//
+// A regression that drops the conditional `version++` in Insert (e.g.,
+// always bumps, never bumps, or wrong condition) would leave Estimate
+// returning stale data. TestCardinalityEstimateAccuracy / Concurrent /
+// Advance* only check the final value within a 5% bound, which can
+// silently mask cache-staleness.
+func TestCardinalityCacheInvalidatedByInsert(t *testing.T) {
+	c := NewCardinality(15*time.Minute, 5*time.Minute)
+	const insertsBeforeCache = 100
+
+	// Seed an initial population and force the cache to be populated.
+	for i := 0; i < insertsBeforeCache; i++ {
+		c.Insert(testHashUint64(uint64(i)))
+	}
+	firstEstimate := c.Estimate()
+	require.NotZero(t, firstEstimate, "initial estimate must be non-zero")
+
+	// Add many more distinct values. The cache must invalidate so the next
+	// Estimate recomputes — observing the new values, not the stale cache.
+	const additional = 1_000
+	for i := 0; i < additional; i++ {
+		c.Insert(testHashUint64(uint64(insertsBeforeCache + i)))
+	}
+	secondEstimate := c.Estimate()
+	require.Greater(t, secondEstimate, firstEstimate,
+		"Estimate after additional Inserts must observe new entries, not the cached value (got first=%d second=%d)",
+		firstEstimate, secondEstimate)
 }

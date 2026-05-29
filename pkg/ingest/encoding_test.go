@@ -1,6 +1,7 @@
 package ingest
 
 import (
+	"fmt"
 	"math/rand"
 	"reflect"
 	"testing"
@@ -9,6 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	resourcev1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
 )
@@ -80,6 +83,290 @@ func TestDecoderInvalidData(t *testing.T) {
 
 	_, err := decoder.Decode([]byte("invalid data"))
 	require.Error(t, err)
+}
+
+func TestPushBytesDecoder(t *testing.T) {
+	firstTrace := marshalBatches(t, []*v1.ResourceSpans{
+		test.MakeBatch(1, []byte("test batch 1")),
+	})
+	secondTrace := marshalBatches(t, []*v1.ResourceSpans{
+		test.MakeBatch(2, []byte("test batch 2")),
+		test.MakeBatch(3, []byte("test batch 3")),
+	})
+	req := &tempopb.PushBytesRequest{
+		Traces: []tempopb.PreallocBytes{
+			{Slice: firstTrace},
+			{Slice: secondTrace},
+		},
+		Ids:                   [][]byte{[]byte("first"), []byte("second")},
+		SkipMetricsGeneration: true,
+	}
+	data, err := req.Marshal()
+	require.NoError(t, err)
+
+	decoder := NewPushBytesDecoder()
+	iterator, err := decoder.Decode(data)
+	require.NoError(t, err)
+
+	var got []*tempopb.PushSpansRequest
+	for req, err := range iterator {
+		require.NoError(t, err)
+		got = append(got, req)
+	}
+
+	require.Len(t, got, 2)
+	require.True(t, got[0].SkipMetricsGeneration)
+	require.True(t, got[1].SkipMetricsGeneration)
+	require.Len(t, got[0].Batches, 1)
+	require.Len(t, got[1].Batches, 2)
+}
+
+func TestPushBytesDecoderInvalidData(t *testing.T) {
+	decoder := NewPushBytesDecoder()
+
+	_, err := decoder.Decode([]byte("invalid data"))
+	require.Error(t, err)
+}
+
+// TestPushBytesDecoder_DoesNotRetainPriorPayload verifies that decoding a
+// large payload followed by a smaller one does not keep the large one alive
+// through the traceSlices tail capacity. Before the fix, `traceSlices = [:0]`
+// preserved the previous Decode's []byte entries in the backing array,
+// pinning the prior `data` buffer.
+func TestPushBytesDecoder_DoesNotRetainPriorPayload(t *testing.T) {
+	decoder := NewPushBytesDecoder()
+
+	largePayload := &tempopb.PushBytesRequest{Traces: make([]tempopb.PreallocBytes, 0, 4)}
+	for i := 0; i < 4; i++ {
+		largePayload.Traces = append(largePayload.Traces, tempopb.PreallocBytes{
+			Slice: marshalBatches(t, []*v1.ResourceSpans{test.MakeBatch(1, []byte(fmt.Sprintf("large-%d", i)))}),
+		})
+		largePayload.Ids = append(largePayload.Ids, []byte(fmt.Sprintf("id-%d", i)))
+	}
+	largeData, err := largePayload.Marshal()
+	require.NoError(t, err)
+
+	smallPayload := &tempopb.PushBytesRequest{
+		Traces: []tempopb.PreallocBytes{
+			{Slice: marshalBatches(t, []*v1.ResourceSpans{test.MakeBatch(1, []byte("small"))})},
+		},
+		Ids: [][]byte{[]byte("only")},
+	}
+	smallData, err := smallPayload.Marshal()
+	require.NoError(t, err)
+
+	// Drain the large payload.
+	largeIter, err := decoder.Decode(largeData)
+	require.NoError(t, err)
+	for _, err := range largeIter {
+		require.NoError(t, err)
+	}
+
+	// After re-decoding the small payload, none of the tail traceSlices entries
+	// should still point at the largeData buffer.
+	smallIter, err := decoder.Decode(smallData)
+	require.NoError(t, err)
+	for _, err := range smallIter {
+		require.NoError(t, err)
+	}
+
+	// Every traceSlices entry past the current length must be a nil header so
+	// it cannot pin the previous Decode's data buffer.
+	tail := decoder.traceSlices[len(decoder.traceSlices):cap(decoder.traceSlices)]
+	for i, b := range tail {
+		require.Nil(t, b, "traceSlices tail entry %d retained a stale payload reference", i)
+	}
+}
+
+// TestPushBytesDecoder_EarlyTerminate verifies the iterator stops yielding
+// after the consumer returns false (e.g. by `break` in a range-over-func).
+func TestPushBytesDecoder_EarlyTerminate(t *testing.T) {
+	req := &tempopb.PushBytesRequest{
+		Traces: []tempopb.PreallocBytes{
+			{Slice: marshalBatches(t, []*v1.ResourceSpans{test.MakeBatch(1, []byte("first"))})},
+			{Slice: marshalBatches(t, []*v1.ResourceSpans{test.MakeBatch(1, []byte("second"))})},
+			{Slice: marshalBatches(t, []*v1.ResourceSpans{test.MakeBatch(1, []byte("third"))})},
+		},
+		Ids: [][]byte{[]byte("a"), []byte("b"), []byte("c")},
+	}
+	data, err := req.Marshal()
+	require.NoError(t, err)
+
+	iterator, err := NewPushBytesDecoder().Decode(data)
+	require.NoError(t, err)
+
+	seen := 0
+	for req, err := range iterator {
+		require.NoError(t, err)
+		require.NotNil(t, req)
+		seen++
+		if seen == 1 {
+			break
+		}
+	}
+	require.Equal(t, 1, seen, "iterator must stop yielding after consumer breaks")
+}
+
+// TestPushBytesDecoder_PerTraceUnmarshalError verifies that a malformed
+// sub-trace within an otherwise valid PushBytesRequest yields its error
+// through the iterator instead of being swallowed.
+func TestPushBytesDecoder_PerTraceUnmarshalError(t *testing.T) {
+	good := marshalBatches(t, []*v1.ResourceSpans{test.MakeBatch(1, []byte("good"))})
+	req := &tempopb.PushBytesRequest{
+		Traces: []tempopb.PreallocBytes{
+			{Slice: good},
+			{Slice: []byte{0xff, 0xff, 0xff, 0xff}}, // not a valid Trace proto
+			{Slice: good},
+		},
+		Ids: [][]byte{[]byte("a"), []byte("b"), []byte("c")},
+	}
+	data, err := req.Marshal()
+	require.NoError(t, err)
+
+	iterator, err := NewPushBytesDecoder().Decode(data)
+	require.NoError(t, err)
+
+	errs := 0
+	oks := 0
+	for _, err := range iterator {
+		if err != nil {
+			errs++
+		} else {
+			oks++
+		}
+	}
+	require.Equal(t, 1, errs, "exactly one malformed sub-trace should error")
+	require.Equal(t, 2, oks, "the two valid sub-traces should still yield")
+}
+
+func TestOTLPDecoderReuseDoesNotLeakPreviousFields(t *testing.T) {
+	first := []*v1.ResourceSpans{
+		{
+			Resource: &resourcev1.Resource{
+				Attributes: []*commonv1.KeyValue{
+					test.MakeAttribute("service.name", "first"),
+					test.MakeAttribute("first.only", "resource"),
+				},
+				DroppedAttributesCount: 7,
+			},
+			ScopeSpans: []*v1.ScopeSpans{
+				{
+					Scope: &commonv1.InstrumentationScope{
+						Name:    "scope-first",
+						Version: "v1",
+						Attributes: []*commonv1.KeyValue{
+							test.MakeAttribute("scope.attr", "first"),
+						},
+						DroppedAttributesCount: 3,
+					},
+					Spans: []*v1.Span{
+						{
+							TraceId:           []byte("0123456789abcdef"),
+							SpanId:            []byte("12345678"),
+							ParentSpanId:      []byte("87654321"),
+							TraceState:        "state=first",
+							Name:              "first",
+							Kind:              v1.Span_SPAN_KIND_CLIENT,
+							StartTimeUnixNano: 1,
+							EndTimeUnixNano:   2,
+							Attributes: []*commonv1.KeyValue{
+								test.MakeAttribute("span.attr", "first"),
+							},
+							Events: []*v1.Span_Event{
+								{
+									TimeUnixNano: 1,
+									Name:         "event-first",
+									Attributes: []*commonv1.KeyValue{
+										test.MakeAttribute("event.attr", "first"),
+									},
+									DroppedAttributesCount: 4,
+								},
+							},
+							Links: []*v1.Span_Link{
+								{
+									TraceId:    []byte("fedcba9876543210"),
+									SpanId:     []byte("87654321"),
+									TraceState: "state=link",
+									Attributes: []*commonv1.KeyValue{
+										test.MakeAttribute("link.attr", "first"),
+									},
+									DroppedAttributesCount: 5,
+									Flags:                  6,
+								},
+							},
+							Status: &v1.Status{
+								Message: "first status",
+								Code:    v1.Status_STATUS_CODE_ERROR,
+							},
+							DroppedAttributesCount: 8,
+							DroppedEventsCount:     9,
+							DroppedLinksCount:      10,
+							Flags:                  11,
+						},
+					},
+				},
+			},
+			SchemaUrl: "schema-first",
+		},
+	}
+	second := []*v1.ResourceSpans{
+		{
+			ScopeSpans: []*v1.ScopeSpans{
+				{
+					Spans: []*v1.Span{
+						{
+							TraceId:           []byte("fedcba9876543210"),
+							SpanId:            []byte("abcdefgh"),
+							Name:              "second",
+							Kind:              v1.Span_SPAN_KIND_SERVER,
+							StartTimeUnixNano: 3,
+							EndTimeUnixNano:   4,
+							Attributes: []*commonv1.KeyValue{
+								{
+									Key: "http.status_code",
+									Value: &commonv1.AnyValue{
+										Value: &commonv1.AnyValue_IntValue{IntValue: 200},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	decoder := NewOTLPDecoder()
+	require.Equal(t, first, decodeSinglePushSpans(t, decoder, marshalBatches(t, first)).Batches)
+
+	got := decodeSinglePushSpans(t, decoder, marshalBatches(t, second))
+	require.Len(t, got.Batches, 1)
+	require.Nil(t, got.Batches[0].Resource)
+	require.Empty(t, got.Batches[0].SchemaUrl)
+	require.Len(t, got.Batches[0].ScopeSpans, 1)
+	require.Nil(t, got.Batches[0].ScopeSpans[0].Scope)
+	require.Empty(t, got.Batches[0].ScopeSpans[0].SchemaUrl)
+	require.Len(t, got.Batches[0].ScopeSpans[0].Spans, 1)
+
+	span := got.Batches[0].ScopeSpans[0].Spans[0]
+	require.Equal(t, []byte("fedcba9876543210"), span.TraceId)
+	require.Equal(t, []byte("abcdefgh"), span.SpanId)
+	require.Empty(t, span.ParentSpanId)
+	require.Empty(t, span.TraceState)
+	require.Equal(t, "second", span.Name)
+	require.Equal(t, v1.Span_SPAN_KIND_SERVER, span.Kind)
+	require.Equal(t, uint64(3), span.StartTimeUnixNano)
+	require.Equal(t, uint64(4), span.EndTimeUnixNano)
+	require.Len(t, span.Attributes, 1)
+	require.Equal(t, "http.status_code", span.Attributes[0].Key)
+	require.Equal(t, int64(200), span.Attributes[0].Value.GetIntValue())
+	require.Empty(t, span.Events)
+	require.Empty(t, span.Links)
+	require.Nil(t, span.Status)
+	require.Zero(t, span.DroppedAttributesCount)
+	require.Zero(t, span.DroppedEventsCount)
+	require.Zero(t, span.DroppedLinksCount)
+	require.Zero(t, span.Flags)
 }
 
 func TestEncoderDecoderEmptyStream(t *testing.T) {
@@ -205,6 +492,22 @@ func marshalBatches(t testing.TB, batches []*v1.ResourceSpans) []byte {
 	require.NoError(t, err)
 
 	return m
+}
+
+func decodeSinglePushSpans(t testing.TB, decoder GeneratorCodec, data []byte) *tempopb.PushSpansRequest {
+	t.Helper()
+
+	iterator, err := decoder.Decode(data)
+	require.NoError(t, err)
+
+	var got []*tempopb.PushSpansRequest
+	for req, err := range iterator {
+		require.NoError(t, err)
+		got = append(got, req)
+	}
+	require.Len(t, got, 1)
+
+	return got[0]
 }
 
 func BenchmarkGeneratorDecoderPushBytes(b *testing.B) {

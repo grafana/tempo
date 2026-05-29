@@ -10,6 +10,7 @@ import (
 	"github.com/prometheus/prometheus/model/exemplar"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 )
 
@@ -150,6 +151,48 @@ func Test_histogram(t *testing.T) {
 		}),
 	}
 	collectMetricAndAssert(t, h, collectionTimeMs, 15, expectedSamples, expectedExemplars)
+}
+
+func Test_histogramSeriesSparseExemplars(t *testing.T) {
+	var s histogramSeries
+	s.exemplars = s.exemplarBuf[:0]
+
+	s.setExemplar(2, newHistogramStringExemplar("trace-2"), 2)
+	s.setExemplar(1, newHistogramStringExemplar("trace-1"), 1)
+
+	ex, value, ok := s.exemplarForBucket(1)
+	assert.True(t, ok)
+	assert.Equal(t, "trace-1", ex.string())
+	assert.Equal(t, 1.0, value)
+
+	ex, value, ok = s.exemplarForBucket(2)
+	assert.True(t, ok)
+	assert.Equal(t, "trace-2", ex.string())
+	assert.Equal(t, 2.0, value)
+
+	s.setExemplar(1, histogramExemplar{}, 0)
+	_, _, ok = s.exemplarForBucket(1)
+	assert.False(t, ok)
+
+	s.clearExemplars()
+	assert.Empty(t, s.exemplars)
+	assert.Equal(t, cap(s.exemplarBuf[:]), cap(s.exemplars))
+}
+
+// Test_histogram_skipsEmptyExemplar verifies that an all-zero TraceID byte
+// slice does not produce an AppendExemplar call with an empty trace_id label.
+// Regression test against the I1 finding where the new bytes-exemplar code
+// dropped main's `if ex != ""` guard.
+func Test_histogram_skipsEmptyExemplar(t *testing.T) {
+	h := newHistogram("test_histogram", []float64{1, 2}, noopLimiter, "trace_id", nil, 15*time.Minute)
+	lbls := buildTestLabels([]string{"service"}, []string{"svc"})
+
+	// All-zero 16-byte TraceID → TraceIDToHexString returns "".
+	h.ObserveWithExemplarTraceIDBytesWithHashAt(lbls, lbls.Hash(), 0.5, make([]byte, 16), 1, time.Now().UnixMilli())
+
+	appender := &capturingAppender{}
+	require.NoError(t, h.collectMetrics(appender, time.Now().UnixMilli()))
+	require.Empty(t, appender.exemplars, "exemplar with empty trace ID must not be emitted")
 }
 
 func Test_histogram_cantAdd(t *testing.T) {

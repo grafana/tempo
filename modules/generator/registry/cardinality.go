@@ -39,14 +39,18 @@ import (
 //
 // Note that we use sparse mode, so actual memory usage is lower for small cardinalities.
 type Cardinality struct {
-	mu             sync.RWMutex
-	sketches       []*hll.Sketch
-	sketchDuration time.Duration
-	sketchesLength int
-	precision      uint8
-	current        int
-	cachedMerge    *hll.Sketch
-	lastAdvance    time.Time
+	mu              sync.RWMutex
+	sketches        []*hll.Sketch
+	sketchDuration  time.Duration
+	sketchesLength  int
+	precision       uint8
+	current         int
+	cachedMerge     *hll.Sketch
+	lastAdvance     time.Time
+	version         uint64
+	estimateVersion uint64
+	cachedEstimate  uint64
+	estimating      int
 }
 
 // NewCardinality creates a new Cardinality estimate with a 3.25 standard error.
@@ -89,17 +93,36 @@ func newCardinality(precision uint8, staleTime, sketchDuration time.Duration) *C
 func (c *Cardinality) Insert(hash uint64) {
 	c.mu.Lock()
 	c.sketches[c.current].InsertHash(hash)
+	if c.estimateVersion == c.version || c.estimating > 0 {
+		c.version++
+	}
 	c.mu.Unlock()
 }
 
 // Estimate returns the estimated cardinality over the last staleTime window.
 func (c *Cardinality) Estimate() uint64 {
-	c.mu.RLock()
+	c.mu.Lock()
+	if c.estimateVersion == c.version {
+		estimate := c.cachedEstimate
+		c.mu.Unlock()
+		return estimate
+	}
+	c.estimating++
 	window := c.cachedMerge.Clone()
 	current := c.sketches[c.current].Clone()
-	c.mu.RUnlock()
+	version := c.version
+	c.mu.Unlock()
 	_ = window.Merge(current)
-	return window.Estimate()
+	estimate := window.Estimate()
+
+	c.mu.Lock()
+	c.estimating--
+	if c.version == version {
+		c.cachedEstimate = estimate
+		c.estimateVersion = version
+	}
+	c.mu.Unlock()
+	return estimate
 }
 
 // Advance should be called by an external ticker every sketchDuration to advance the ring.
@@ -138,5 +161,6 @@ func (c *Cardinality) Advance() {
 		_ = cachedMerge.Merge(c.sketches[i])
 	}
 	c.cachedMerge = cachedMerge
+	c.version++
 	c.mu.Unlock()
 }

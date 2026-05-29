@@ -1873,3 +1873,61 @@ func TestSpanMetricsTraceStateMultiplier(t *testing.T) {
 	// With 50% sampling (th:8), span multiplier is 2, so 1 span → count of 2
 	assert.Equal(t, 2.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
 }
+
+// TestTargetInfo_NotEmittedWhenAllSpansHaveInvalidUTF8 pins the contract that
+// target_info is only emitted for a resource when at least one of its passing
+// spans produces a valid label set. If every passing span carries invalid
+// UTF-8 in its own dimensions (e.g. status_message), main does NOT emit the
+// resource's target_info gauge — the per-span early-return runs before
+// target_info build.
+//
+// A regression that lifts target_info to per-resource eager build (before
+// the per-span UTF-8 check) would emit target_info for such resources;
+// this test would then see traces_target_info == 1 instead of 0.
+func TestTargetInfo_NotEmittedWhenAllSpansHaveInvalidUTF8(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.HistogramBuckets = []float64{1}
+	cfg.EnableTargetInfo = true
+	cfg.IntrinsicDimensions.StatusMessage = true
+
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, err)
+	defer p.Shutdown(context.Background())
+
+	// Resource attributes are clean UTF-8. Span dimensions carry invalid
+	// UTF-8 via the status message — this lands in the span label set and
+	// fails CloseAndBorrowLabels' UTF-8 check inside aggregateMetricsForSpan.
+	batch := test.MakeBatch(3, nil)
+	for _, ils := range batch.ScopeSpans {
+		for _, span := range ils.Spans {
+			if span.Status == nil {
+				span.Status = &trace_v1.Status{}
+			}
+			span.Status.Message = "\xff\xfe-not-utf-8"
+		}
+	}
+
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+
+	// target_info must NOT be present for any label set — the gauge should
+	// never have been Set. The TestRegistry returns 0 for unknown series.
+	targetInfoLbls := labels.FromMap(map[string]string{
+		"service": "test-service",
+		"job":     "test-service",
+	})
+	require.Equal(t, 0.0, testRegistry.Query("traces_target_info", targetInfoLbls),
+		"target_info must not be emitted when every passing span has invalid UTF-8")
+
+	// Span metrics also must not exist (count == 0).
+	spanLbls := labels.FromMap(map[string]string{
+		"service":   "test-service",
+		"span_name": "test",
+		"span_kind": "SPAN_KIND_CLIENT",
+	})
+	require.Equal(t, 0.0, testRegistry.Query("traces_spanmetrics_calls_total", spanLbls))
+}

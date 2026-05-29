@@ -16,6 +16,18 @@ type SpanFilter struct {
 	hasExclude    bool
 }
 
+type ResourceFilter struct {
+	filter *SpanFilter
+	rs     *v1.Resource
+
+	includeResourceMask    uint64
+	includeAnyResourceMask uint64
+	excludeResourceMask    uint64
+	useResourceMasks       bool
+}
+
+const maxResourceMaskedPolicies = 64
+
 // NewSpanFilter returns a SpanFilter that will filter spans based on the given filter policies.
 func NewSpanFilter(filterPolicies []config.FilterPolicy) (*SpanFilter, error) {
 	sf := new(SpanFilter)
@@ -58,6 +70,37 @@ func NewSpanFilter(filterPolicies []config.FilterPolicy) (*SpanFilter, error) {
 	return sf, nil
 }
 
+func (f *SpanFilter) ForResource(rs *v1.Resource) ResourceFilter {
+	rf := ResourceFilter{
+		filter: f,
+		rs:     rs,
+	}
+	if !f.hasInclude && !f.hasIncludeAny && !f.hasExclude {
+		return rf
+	}
+	if len(f.include) > maxResourceMaskedPolicies ||
+		len(f.includeAny) > maxResourceMaskedPolicies ||
+		len(f.exclude) > maxResourceMaskedPolicies {
+		return rf
+	}
+
+	rf.useResourceMasks = true
+	rf.includeResourceMask = resourceMatchMask(rs, f.include)
+	rf.includeAnyResourceMask = resourceMatchMask(rs, f.includeAny)
+	rf.excludeResourceMask = resourceMatchMask(rs, f.exclude)
+	return rf
+}
+
+func resourceMatchMask(rs *v1.Resource, policies []*splitPolicy) uint64 {
+	var mask uint64
+	for i, policy := range policies {
+		if policy.matchResource(rs) {
+			mask |= 1 << uint(i)
+		}
+	}
+	return mask
+}
+
 // ApplyFilterPolicy returns true if the span should be included in the metrics.
 func (f *SpanFilter) ApplyFilterPolicy(rs *v1.Resource, span *tracev1.Span) bool {
 	// With no filter policies specified, all spans are included.
@@ -81,6 +124,44 @@ func (f *SpanFilter) ApplyFilterPolicy(rs *v1.Resource, span *tracev1.Span) bool
 	// here, it means include_any didn't match. -> return false.
 	// IF NO inclusion rules exist at all -> return true.
 	return !f.hasIncludeAny
+}
+
+func (f ResourceFilter) Apply(span *tracev1.Span) bool {
+	if !f.useResourceMasks {
+		return f.filter.ApplyFilterPolicy(f.rs, span)
+	}
+
+	if f.filter.hasExclude && f.matchesAnySpan(f.filter.exclude, f.excludeResourceMask, span) {
+		return false
+	}
+
+	if f.filter.hasIncludeAny && f.matchesAnySpan(f.filter.includeAny, f.includeAnyResourceMask, span) {
+		return true
+	}
+
+	if f.filter.hasInclude {
+		return f.matchesAllSpans(f.filter.include, f.includeResourceMask, span)
+	}
+
+	return !f.filter.hasIncludeAny
+}
+
+func (f ResourceFilter) matchesAnySpan(policies []*splitPolicy, resourceMask uint64, span *tracev1.Span) bool {
+	for i, policy := range policies {
+		if resourceMask&(1<<uint(i)) != 0 && (!policy.hasSpanConditions() || policy.matchSpan(span)) {
+			return true
+		}
+	}
+	return false
+}
+
+func (f ResourceFilter) matchesAllSpans(policies []*splitPolicy, resourceMask uint64, span *tracev1.Span) bool {
+	for i, policy := range policies {
+		if resourceMask&(1<<uint(i)) == 0 || (policy.hasSpanConditions() && !policy.matchSpan(span)) {
+			return false
+		}
+	}
+	return true
 }
 
 // This is different than the isIncluded. It's a VIP pass,working as an OR expression.

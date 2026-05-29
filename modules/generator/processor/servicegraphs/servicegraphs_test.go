@@ -157,6 +157,39 @@ func TestServiceGraphs_prefixDimensions(t *testing.T) {
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, requesterToServerLabels))
 }
 
+func TestServiceGraphs_ResourceDimensionWithSanitizedName(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+
+	cfg.HistogramBuckets = []float64{0.04}
+	cfg.Dimensions = []string{"k8s.namespace.name"}
+
+	processor, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
+	require.NoError(t, err)
+	defer processor.Shutdown(context.Background())
+
+	p := processor.(*Processor)
+	edge := &store.Edge{
+		ClientService:  "client",
+		ServerService:  "server",
+		Dimensions:     map[string]string{},
+		SpanMultiplier: 1,
+	}
+
+	p.upsertDimensions("client_", edge.Dimensions, []*v1.KeyValue{
+		serviceGraphStringAttr("k8s.namespace.name", "prod"),
+	}, nil)
+	p.onComplete(edge)
+
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, labels.FromMap(map[string]string{
+		"client":             "client",
+		"server":             "server",
+		"k8s_namespace_name": "prod",
+	})))
+}
+
 func TestServiceGraphs_MessagingSystemLatencyHistogram(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 
@@ -980,6 +1013,51 @@ func TestServiceGraphs_DatabaseNameAttributes(t *testing.T) {
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, labels))
 }
 
+func TestFindDefaultDatabaseNamePreservesPrecedence(t *testing.T) {
+	require.True(t, usesDefaultDatabaseNameAttributes([]string{
+		string(semconvnew.DBNamespaceKey),
+		string(semconv.DBNameKey),
+		string(semconv.DBSystemKey),
+	}))
+
+	resourceAttrs := []*v1.KeyValue{
+		serviceGraphStringAttr(string(semconv.DBNameKey), "resource-db"),
+		serviceGraphStringAttr(string(semconv.DBNameKey), "resource-db-later"),
+		serviceGraphStringAttr(string(semconv.DBSystemKey), "postgresql"),
+	}
+	spanAttrs := []*v1.KeyValue{
+		serviceGraphStringAttr(string(semconvnew.DBNamespaceKey), "span-namespace"),
+		serviceGraphStringAttr(string(semconv.DBNameKey), "span-db"),
+	}
+
+	name, ok := findDefaultDatabaseName(resourceAttrs, spanAttrs)
+	require.True(t, ok)
+	assert.Equal(t, "span-namespace", name)
+
+	name, ok = findDefaultDatabaseName(resourceAttrs, nil)
+	require.True(t, ok)
+	assert.Equal(t, "resource-db", name)
+
+	name, ok = findDefaultDatabaseName(nil, []*v1.KeyValue{
+		serviceGraphStringAttr(string(semconv.DBSystemKey), "span-system"),
+	})
+	require.True(t, ok)
+	assert.Equal(t, "span-system", name)
+
+	name, ok = findDefaultDatabaseName(nil, nil)
+	require.False(t, ok)
+	assert.Empty(t, name)
+}
+
+func serviceGraphStringAttr(key, value string) *v1.KeyValue {
+	return &v1.KeyValue{
+		Key: key,
+		Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{
+			StringValue: value,
+		}},
+	}
+}
+
 func BenchmarkServiceGraphs(b *testing.B) {
 	testRegistry := registry.NewTestRegistry()
 
@@ -999,6 +1077,72 @@ func BenchmarkServiceGraphs(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		p.PushSpans(context.Background(), request)
 	}
+}
+
+// TestServiceGraphs_rootServerSpanUsesPeerNodeAtExpire verifies that a root
+// SERVER span (no parent) with a peer.* attribute produces a virtual-node
+// edge at expire time, with the peer attribute used as the (virtual) CLIENT.
+// This is the one path where Edge.PeerNode actually flows out into a metric:
+// onExpire gates the lookup on `parentSpan == ""`. Non-root SERVER spans do
+// NOT consult PeerNode at expire, so upsertPeerNode is intentionally skipped
+// for them.
+//
+// Without this test, removing the upsertPeerNode call for root SERVER spans
+// would silently drop external-caller inference for instrumented entry
+// points whose CLIENT counterpart lives outside Tempo's reach.
+func TestServiceGraphs_rootServerSpanUsesPeerNodeAtExpire(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.HistogramBuckets = []float64{0.04}
+	cfg.Wait = time.Nanosecond
+
+	p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
+	require.NoError(t, err)
+	defer p.Shutdown(context.Background())
+
+	traceID := bytes16(1)
+	serverID := bytes8(3)
+	req := &tempopb.PushSpansRequest{Batches: []*tracev1.ResourceSpans{{
+		Resource: &resourcev1.Resource{Attributes: []*v1.KeyValue{
+			serviceGraphStringAttr("service.name", "internal-service"),
+		}},
+		ScopeSpans: []*tracev1.ScopeSpans{{Spans: []*tracev1.Span{{
+			TraceId: traceID,
+			SpanId:  serverID,
+			// No ParentSpanId — this is a root server span.
+			Kind:              tracev1.Span_SPAN_KIND_SERVER,
+			StartTimeUnixNano: 1_700_000_000_000_000_000,
+			EndTimeUnixNano:   1_700_000_000_050_000_000,
+			Attributes: []*v1.KeyValue{
+				serviceGraphStringAttr(string(semconv.PeerServiceKey), "external-queue"),
+			},
+		}}}},
+	}}}
+
+	p.PushSpans(context.Background(), req)
+	p.(*Processor).store.Expire()
+
+	virtualClientToServer := labels.FromMap(map[string]string{
+		"client":          "external-queue",
+		"server":          "internal-service",
+		"connection_type": "virtual_node",
+	})
+	require.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, virtualClientToServer),
+		"root SERVER span's peer.service must drive virtual-node inference at expire")
+}
+
+func bytes16(seed byte) []byte {
+	out := make([]byte, 16)
+	out[15] = seed
+	return out
+}
+
+func bytes8(seed byte) []byte {
+	out := make([]byte, 8)
+	out[7] = seed
+	return out
 }
 
 func loadTestData(path string) (*tempopb.PushSpansRequest, error) {
