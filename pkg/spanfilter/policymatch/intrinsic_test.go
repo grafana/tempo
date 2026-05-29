@@ -138,6 +138,77 @@ func TestIntrinsicPolicyMatch_Matches(t *testing.T) {
 				Name: "test",
 			},
 		},
+		{
+			name:   "optimized regex kind matches SERVER",
+			expect: true,
+			policy: &IntrinsicPolicyMatch{
+				filters: []IntrinsicFilter{
+					must(NewRegexpIntrinsicFilter(traceql.IntrinsicKind, "SPAN_KIND_(SERVER|CONSUMER|CLIENT|PRODUCER)")),
+				},
+			},
+			span: &tracev1.Span{Kind: tracev1.Span_SPAN_KIND_SERVER},
+		},
+		{
+			name:   "optimized regex kind matches CLIENT",
+			expect: true,
+			policy: &IntrinsicPolicyMatch{
+				filters: []IntrinsicFilter{
+					must(NewRegexpIntrinsicFilter(traceql.IntrinsicKind, "SPAN_KIND_(SERVER|CONSUMER|CLIENT|PRODUCER)")),
+				},
+			},
+			span: &tracev1.Span{Kind: tracev1.Span_SPAN_KIND_CLIENT},
+		},
+		{
+			name:   "optimized regex kind matches PRODUCER",
+			expect: true,
+			policy: &IntrinsicPolicyMatch{
+				filters: []IntrinsicFilter{
+					must(NewRegexpIntrinsicFilter(traceql.IntrinsicKind, "SPAN_KIND_(SERVER|CONSUMER|CLIENT|PRODUCER)")),
+				},
+			},
+			span: &tracev1.Span{Kind: tracev1.Span_SPAN_KIND_PRODUCER},
+		},
+		{
+			name:   "optimized regex kind matches CONSUMER",
+			expect: true,
+			policy: &IntrinsicPolicyMatch{
+				filters: []IntrinsicFilter{
+					must(NewRegexpIntrinsicFilter(traceql.IntrinsicKind, "SPAN_KIND_(SERVER|CONSUMER|CLIENT|PRODUCER)")),
+				},
+			},
+			span: &tracev1.Span{Kind: tracev1.Span_SPAN_KIND_CONSUMER},
+		},
+		{
+			name:   "optimized regex kind rejects INTERNAL",
+			expect: false,
+			policy: &IntrinsicPolicyMatch{
+				filters: []IntrinsicFilter{
+					must(NewRegexpIntrinsicFilter(traceql.IntrinsicKind, "SPAN_KIND_(SERVER|CONSUMER|CLIENT|PRODUCER)")),
+				},
+			},
+			span: &tracev1.Span{Kind: tracev1.Span_SPAN_KIND_INTERNAL},
+		},
+		{
+			name:   "optimized regex kind rejects UNSPECIFIED",
+			expect: false,
+			policy: &IntrinsicPolicyMatch{
+				filters: []IntrinsicFilter{
+					must(NewRegexpIntrinsicFilter(traceql.IntrinsicKind, "SPAN_KIND_(SERVER|CONSUMER|CLIENT|PRODUCER)")),
+				},
+			},
+			span: &tracev1.Span{Kind: tracev1.Span_SPAN_KIND_UNSPECIFIED},
+		},
+		{
+			name:   "non-canonical regex kind falls back to engine and matches SERVER",
+			expect: true,
+			policy: &IntrinsicPolicyMatch{
+				filters: []IntrinsicFilter{
+					// Different alternation order — must NOT take the bitmask fast path.
+					must(NewRegexpIntrinsicFilter(traceql.IntrinsicKind, "SPAN_KIND_(CLIENT|SERVER)")),
+				},
+			},
+			span: &tracev1.Span{Kind: tracev1.Span_SPAN_KIND_SERVER},
+		},
 	}
 
 	for _, tc := range cases {

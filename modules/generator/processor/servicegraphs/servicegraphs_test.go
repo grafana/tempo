@@ -980,6 +980,51 @@ func TestServiceGraphs_DatabaseNameAttributes(t *testing.T) {
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, labels))
 }
 
+func TestFindDefaultDatabaseNamePreservesPrecedence(t *testing.T) {
+	require.True(t, usesDefaultDatabaseNameAttributes([]string{
+		string(semconvnew.DBNamespaceKey),
+		string(semconv.DBNameKey),
+		string(semconv.DBSystemKey),
+	}))
+
+	resourceAttrs := []*v1.KeyValue{
+		serviceGraphStringAttr(string(semconv.DBNameKey), "resource-db"),
+		serviceGraphStringAttr(string(semconv.DBNameKey), "resource-db-later"),
+		serviceGraphStringAttr(string(semconv.DBSystemKey), "postgresql"),
+	}
+	spanAttrs := []*v1.KeyValue{
+		serviceGraphStringAttr(string(semconvnew.DBNamespaceKey), "span-namespace"),
+		serviceGraphStringAttr(string(semconv.DBNameKey), "span-db"),
+	}
+
+	name, ok := findDefaultDatabaseName(resourceAttrs, spanAttrs)
+	require.True(t, ok)
+	assert.Equal(t, "span-namespace", name)
+
+	name, ok = findDefaultDatabaseName(resourceAttrs, nil)
+	require.True(t, ok)
+	assert.Equal(t, "resource-db", name)
+
+	name, ok = findDefaultDatabaseName(nil, []*v1.KeyValue{
+		serviceGraphStringAttr(string(semconv.DBSystemKey), "span-system"),
+	})
+	require.True(t, ok)
+	assert.Equal(t, "span-system", name)
+
+	name, ok = findDefaultDatabaseName(nil, nil)
+	require.False(t, ok)
+	assert.Empty(t, name)
+}
+
+func serviceGraphStringAttr(key, value string) *v1.KeyValue {
+	return &v1.KeyValue{
+		Key: key,
+		Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{
+			StringValue: value,
+		}},
+	}
+}
+
 func BenchmarkServiceGraphs(b *testing.B) {
 	testRegistry := registry.NewTestRegistry()
 

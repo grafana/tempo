@@ -11,11 +11,28 @@ const (
 	VirtualNode     ConnectionType = "virtual_node"
 )
 
-// Edge is an Edge between two nodes in the graph
+// Edge is an Edge between two nodes in the graph.
+//
+// Edges are pool-allocated and pointers handed to update/onComplete/onExpire
+// callbacks are only valid for the duration of the callback — the store may
+// recycle the Edge after the callback returns. Do not retain *Edge or any
+// substrings of its fields past the callback.
 type Edge struct {
-	key string
+	// key is unsafe.String aliased over keyBuf and is only valid while the
+	// Edge is in the store's map. keyBuf is preserved across pool recycles
+	// and overwritten on the next grabEdgeFromBytes; substrings of key
+	// must not outlive the Edge in the store.
+	key    string
+	keyBuf []byte
+	// Intrusive list pointers; mutated only by *store under store.mtx.
+	prev, next *Edge
 
+	// TraceID is used when the trace ID is already a string or is too large to
+	// keep in TraceIDBytes. Normal OTLP trace IDs use TraceIDBytes to avoid
+	// hex-encoding before the exemplar is actually collected.
 	TraceID                                        string
+	TraceIDLen                                     int
+	TraceIDRaw                                     [16]byte
 	ConnectionType                                 ConnectionType
 	ServerService, ClientService                   string
 	ServerLatencySec, ClientLatencySec             float64
@@ -43,6 +60,7 @@ type Edge struct {
 func resetEdge(e *Edge) {
 	*e = Edge{
 		Dimensions:     e.Dimensions,
+		keyBuf:         e.keyBuf,
 		SpanMultiplier: 1,
 	}
 	clear(e.Dimensions)

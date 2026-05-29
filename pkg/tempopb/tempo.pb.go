@@ -7169,6 +7169,20 @@ func sovTempo(x uint64) (n int) {
 func sozTempo(x uint64) (n int) {
 	return sovTempo(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
+
+func appendTraceResourceSpansForUnmarshal(values []*v11.ResourceSpans) ([]*v11.ResourceSpans, *v11.ResourceSpans) {
+	n := len(values)
+	if n < cap(values) {
+		values = values[:n+1]
+		if values[n] == nil {
+			values[n] = &v11.ResourceSpans{}
+		}
+		return values, values[n]
+	}
+	values = append(values, &v11.ResourceSpans{})
+	return values, values[n]
+}
+
 func (m *TraceByIDRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -11496,6 +11510,8 @@ func (m *MetadataMetrics) Unmarshal(dAtA []byte) error {
 	return nil
 }
 func (m *Trace) Unmarshal(dAtA []byte) error {
+	previousResourceSpans := m.ResourceSpans
+	m.ResourceSpans = m.ResourceSpans[:0]
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -11553,8 +11569,9 @@ func (m *Trace) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.ResourceSpans = append(m.ResourceSpans, &v11.ResourceSpans{})
-			if err := m.ResourceSpans[len(m.ResourceSpans)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			var resourceSpans *v11.ResourceSpans
+			m.ResourceSpans, resourceSpans = appendTraceResourceSpansForUnmarshal(m.ResourceSpans)
+			if err := resourceSpans.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -11576,6 +11593,9 @@ func (m *Trace) Unmarshal(dAtA []byte) error {
 
 	if iNdEx > l {
 		return io.ErrUnexpectedEOF
+	}
+	if len(m.ResourceSpans) < len(previousResourceSpans) {
+		clear(previousResourceSpans[len(m.ResourceSpans):])
 	}
 	return nil
 }
