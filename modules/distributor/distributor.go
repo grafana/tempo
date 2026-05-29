@@ -21,7 +21,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/util/strutil"
-	"github.com/segmentio/fasthash/fnv1a"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -34,6 +33,7 @@ import (
 	"github.com/grafana/tempo/modules/generator"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/dataquality"
+	"github.com/grafana/tempo/pkg/hash"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
@@ -709,11 +709,14 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 					return nil, nil, truncatedAttributesCount{}, nil, status.Errorf(codes.InvalidArgument, "span ids must be 64 bit and not all zero, received %d bits", len(span.SpanId)*8)
 				}
 
-				traceKey := util.HashForTraceID(traceID)
+				traceKey := hash.HashForTraceID(traceID)
 				ilsKey := traceKey
 				if ils.Scope != nil {
-					ilsKey = fnv1a.AddString64(ilsKey, ils.Scope.Name)
-					ilsKey = fnv1a.AddString64(ilsKey, ils.Scope.Version)
+					d := hash.NewValue()
+					d.WriteUint64(traceKey)
+					_, _ = d.WriteString(ils.Scope.Name)
+					_, _ = d.WriteString(ils.Scope.Version)
+					ilsKey = d.Sum64()
 				}
 
 				existingILS, ilsAdded := spansByILS[ilsKey]
@@ -775,7 +778,7 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 	traces := make([]*rebatchedTrace, 0, len(tracesByID))
 
 	for _, tr := range tracesByID {
-		ringTokens = append(ringTokens, util.TokenFor(userID, tr.id))
+		ringTokens = append(ringTokens, hash.TokenFor(userID, tr.id))
 		traces = append(traces, tr)
 	}
 

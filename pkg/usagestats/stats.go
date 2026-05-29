@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/cmd/tempo/build"
+	"github.com/grafana/tempo/pkg/hash"
 
-	"github.com/cespare/xxhash/v2"
 	prom "github.com/prometheus/prometheus/web/api/v1"
 	"go.uber.org/atomic"
 )
@@ -394,7 +394,7 @@ func NewWordCounter(name string) *WordCounter {
 }
 
 func (w *WordCounter) Add(word string) {
-	if _, loaded := w.words.LoadOrStore(xxhash.Sum64String(word), struct{}{}); !loaded {
+	if _, loaded := w.words.LoadOrStore(hash.Sum64String(word), struct{}{}); !loaded {
 		w.count.Add(1)
 	}
 }

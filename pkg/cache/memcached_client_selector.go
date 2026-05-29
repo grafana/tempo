@@ -5,9 +5,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/facette/natsort"
 	"github.com/grafana/gomemcache/memcache"
+
+	"github.com/grafana/tempo/pkg/hash"
 )
 
 // MemcachedJumpHashSelector implements the memcache.ServerSelector
@@ -110,7 +111,7 @@ func (s *MemcachedJumpHashSelector) PickServer(key string) (net.Addr, error) {
 	} else if len(s.addrs) == 1 {
 		return s.addrs[0], nil
 	}
-	cs := xxhash.Sum64String(key)
+	cs := hash.Sum64String(key)
 	idx := jumpHash(cs, len(s.addrs))
 	return s.addrs[idx], nil
 }

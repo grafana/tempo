@@ -11,13 +11,13 @@ import (
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/hash"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/segmentio/fasthash/fnv1a"
 )
 
 /* tagsSearchRequest request interface for transform tags and tags V2 requests into a querier request */
@@ -34,7 +34,7 @@ func (r *tagsSearchRequest) end() uint32 {
 }
 
 func (r *tagsSearchRequest) hash() uint64 {
-	return fnv1a.HashString64(r.request.Scope)
+	return hash.Sum64String(r.request.Scope)
 }
 
 func (r *tagsSearchRequest) keyPrefix() string {
@@ -84,10 +84,10 @@ func (r *tagValueSearchRequest) end() uint32 {
 }
 
 func (r *tagValueSearchRequest) hash() uint64 {
-	hash := fnv1a.HashString64(r.request.TagName)
-	hash = fnv1a.AddString64(hash, traceql.NormalizeQuery(r.request.Query))
-
-	return hash
+	d := hash.New()
+	_, _ = d.WriteString(r.request.TagName)
+	_, _ = d.WriteString(traceql.NormalizeQuery(r.request.Query))
+	return d.Sum64()
 }
 
 func (r *tagValueSearchRequest) keyPrefix() string {

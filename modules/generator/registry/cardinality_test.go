@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cespare/xxhash/v2"
+	"github.com/grafana/tempo/pkg/hash"
 )
 
 func TestNewCardinalityClampsInputs(t *testing.T) {
@@ -204,7 +204,7 @@ func TestCardinalityConcurrentInsertEstimate(t *testing.T) {
 func testHashUint64(v uint64) uint64 {
 	var buf [8]byte
 	binary.LittleEndian.PutUint64(buf[:], v)
-	return xxhash.Sum64(buf[:])
+	return hash.Sum64(buf[:])
 }
 
 func BenchmarkCardinalityInsert(b *testing.B) {

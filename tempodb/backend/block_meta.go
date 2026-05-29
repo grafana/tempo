@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/bytedance/sonic"
-	"github.com/cespare/xxhash/v2"
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/pkg/hash"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 )
@@ -397,7 +397,7 @@ func (dcs DedicatedColumns) Hash() uint64 {
 	if len(dcs) == 0 {
 		return 0
 	}
-	h := xxhash.New()
+	h := hash.New()
 	for _, c := range dcs {
 		_, _ = h.WriteString(string(c.Scope))
 		_, _ = h.Write(separatorByte)

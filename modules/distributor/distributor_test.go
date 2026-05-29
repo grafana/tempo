@@ -35,6 +35,7 @@ import (
 
 	"github.com/grafana/tempo/modules/distributor/receiver"
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/hash"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
@@ -143,7 +144,7 @@ func TestRequestsByTraceID(t *testing.T) {
 					},
 				},
 			},
-			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA)},
+			expectedKeys: []uint32{hash.TokenFor(util.FakeTenantID, traceIDA)},
 			expectedTraces: []*tempopb.Trace{
 				{
 					ResourceSpans: []*v1.ResourceSpans{
@@ -194,7 +195,7 @@ func TestRequestsByTraceID(t *testing.T) {
 					},
 				},
 			},
-			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
+			expectedKeys: []uint32{hash.TokenFor(util.FakeTenantID, traceIDA), hash.TokenFor(util.FakeTenantID, traceIDB)},
 			expectedTraces: []*tempopb.Trace{
 				{
 					ResourceSpans: []*v1.ResourceSpans{
@@ -278,7 +279,7 @@ func TestRequestsByTraceID(t *testing.T) {
 					},
 				},
 			},
-			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
+			expectedKeys: []uint32{hash.TokenFor(util.FakeTenantID, traceIDA), hash.TokenFor(util.FakeTenantID, traceIDB)},
 			expectedTraces: []*tempopb.Trace{
 				{
 					ResourceSpans: []*v1.ResourceSpans{
@@ -357,7 +358,7 @@ func TestRequestsByTraceID(t *testing.T) {
 					},
 				},
 			},
-			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
+			expectedKeys: []uint32{hash.TokenFor(util.FakeTenantID, traceIDA), hash.TokenFor(util.FakeTenantID, traceIDB)},
 			expectedTraces: []*tempopb.Trace{
 				{
 					ResourceSpans: []*v1.ResourceSpans{
@@ -436,7 +437,7 @@ func TestRequestsByTraceID(t *testing.T) {
 					},
 				},
 			},
-			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
+			expectedKeys: []uint32{hash.TokenFor(util.FakeTenantID, traceIDA), hash.TokenFor(util.FakeTenantID, traceIDB)},
 			expectedTraces: []*tempopb.Trace{
 				{
 					ResourceSpans: []*v1.ResourceSpans{
@@ -520,7 +521,7 @@ func TestRequestsByTraceID(t *testing.T) {
 					},
 				},
 			},
-			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDB)},
+			expectedKeys: []uint32{hash.TokenFor(util.FakeTenantID, traceIDB)},
 			expectedTraces: []*tempopb.Trace{
 				{
 					ResourceSpans: []*v1.ResourceSpans{
@@ -629,8 +630,8 @@ func TestRequestsByTraceID(t *testing.T) {
 				},
 			},
 			expectedKeys: []uint32{
-				util.TokenFor(util.FakeTenantID, traceIDB),
-				util.TokenFor(util.FakeTenantID, traceIDA),
+				hash.TokenFor(util.FakeTenantID, traceIDB),
+				hash.TokenFor(util.FakeTenantID, traceIDA),
 			},
 			expectedTraces: []*tempopb.Trace{
 				{
@@ -810,8 +811,8 @@ func TestRequestsByTraceID(t *testing.T) {
 				},
 			},
 			expectedKeys: []uint32{
-				util.TokenFor("", collision1),
-				util.TokenFor("", collision2),
+				hash.TokenFor("", collision1),
+				hash.TokenFor("", collision2),
 			},
 			expectedTraces: []*tempopb.Trace{
 				{

@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/segmentio/fasthash/fnv1a"
+	"github.com/grafana/tempo/pkg/hash"
 )
 
 // rebatchTrace removes redundant ResourceSpans and ScopeSpans from the trace through rebatching.
@@ -106,10 +106,11 @@ func rebatchTrace(trace *Trace) {
 }
 
 func scopeSpanHash(ss *ScopeSpans) uint64 {
-	hash := fnv1a.HashString64(ss.Scope.Name)
-	hash = addHashSeparator(hash)
-	hash = fnv1a.AddString64(hash, ss.Scope.Version)
-	hash = addHashSeparator(hash)
+	d := hash.New()
+	_, _ = d.WriteString(ss.Scope.Name)
+	addHashSeparator(d)
+	_, _ = d.WriteString(ss.Scope.Version)
+	addHashSeparator(d)
 
 	// sort keys for consistency
 	slices.SortFunc(ss.Scope.Attrs, func(i, j Attribute) int {
@@ -117,31 +118,42 @@ func scopeSpanHash(ss *ScopeSpans) uint64 {
 	})
 
 	for _, attr := range ss.Scope.Attrs {
-		hash = attributeHash(&attr, hash)
+		attributeHash(d, &attr)
 	}
 
-	return hash
+	return d.Sum64()
 }
 
 func resourceSpanHash(rs *ResourceSpans) uint64 {
-	hash := fnv1a.HashString64(rs.Resource.ServiceName)
-	hash = addHashSeparator(hash)
-	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String01...)
-	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String02...)
-	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String03...)
-	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String04...)
-	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String05...)
-	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String06...)
-	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String07...)
-	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String08...)
-	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String09...)
-	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String10...)
+	d := hash.New()
+	_, _ = d.WriteString(rs.Resource.ServiceName)
+	addHashSeparator(d)
+	addHashStr(d, rs.Resource.DedicatedAttributes.String01...)
+	addHashStr(d, rs.Resource.DedicatedAttributes.String02...)
+	addHashStr(d, rs.Resource.DedicatedAttributes.String03...)
+	addHashStr(d, rs.Resource.DedicatedAttributes.String04...)
+	addHashStr(d, rs.Resource.DedicatedAttributes.String05...)
+	addHashStr(d, rs.Resource.DedicatedAttributes.String06...)
+	addHashStr(d, rs.Resource.DedicatedAttributes.String07...)
+	addHashStr(d, rs.Resource.DedicatedAttributes.String08...)
+	addHashStr(d, rs.Resource.DedicatedAttributes.String09...)
+	addHashStr(d, rs.Resource.DedicatedAttributes.String10...)
+	addHashStr(d, rs.Resource.DedicatedAttributes.String11...)
+	addHashStr(d, rs.Resource.DedicatedAttributes.String12...)
+	addHashStr(d, rs.Resource.DedicatedAttributes.String13...)
+	addHashStr(d, rs.Resource.DedicatedAttributes.String14...)
+	addHashStr(d, rs.Resource.DedicatedAttributes.String15...)
+	addHashStr(d, rs.Resource.DedicatedAttributes.String16...)
+	addHashStr(d, rs.Resource.DedicatedAttributes.String17...)
+	addHashStr(d, rs.Resource.DedicatedAttributes.String18...)
+	addHashStr(d, rs.Resource.DedicatedAttributes.String19...)
+	addHashStr(d, rs.Resource.DedicatedAttributes.String20...)
 
-	hash = addHashInt(hash, rs.Resource.DedicatedAttributes.Int01...)
-	hash = addHashInt(hash, rs.Resource.DedicatedAttributes.Int02...)
-	hash = addHashInt(hash, rs.Resource.DedicatedAttributes.Int03...)
-	hash = addHashInt(hash, rs.Resource.DedicatedAttributes.Int04...)
-	hash = addHashInt(hash, rs.Resource.DedicatedAttributes.Int05...)
+	addHashInt(d, rs.Resource.DedicatedAttributes.Int01...)
+	addHashInt(d, rs.Resource.DedicatedAttributes.Int02...)
+	addHashInt(d, rs.Resource.DedicatedAttributes.Int03...)
+	addHashInt(d, rs.Resource.DedicatedAttributes.Int04...)
+	addHashInt(d, rs.Resource.DedicatedAttributes.Int05...)
 
 	// sort keys for consistency
 	slices.SortFunc(rs.Resource.Attrs, func(i, j Attribute) int {
@@ -149,81 +161,79 @@ func resourceSpanHash(rs *ResourceSpans) uint64 {
 	})
 
 	for _, attr := range rs.Resource.Attrs {
-		hash = attributeHash(&attr, hash)
+		attributeHash(d, &attr)
 	}
 
-	return hash
+	return d.Sum64()
 }
 
-func attributeHash(attr *Attribute, hash uint64) uint64 {
-	hash = fnv1a.AddString64(hash, attr.Key)
+func attributeHash(d *hash.Digest, attr *Attribute) {
+	_, _ = d.WriteString(attr.Key)
 
 	if attr.IsArray {
-		hash = addHashSeparator(hash)
+		addHashSeparator(d)
 	}
-	hash = addHashStr(hash, attr.Value...)
-	hash = addHashInt(hash, attr.ValueInt...)
-	hash = addHashDouble(hash, attr.ValueDouble...)
-	hash = addHashBool(hash, attr.ValueBool...)
+	addHashStr(d, attr.Value...)
+	addHashInt(d, attr.ValueInt...)
+	addHashDouble(d, attr.ValueDouble...)
+	addHashBool(d, attr.ValueBool...)
 
 	if attr.ValueUnsupported != nil {
-		hash = addHashStr(hash, *attr.ValueUnsupported)
+		addHashStr(d, *attr.ValueUnsupported)
 	} else {
-		hash = addHashSeparator(hash)
+		addHashSeparator(d)
 	}
-
-	return hash
 }
 
-func addHashStr(hash uint64, strs ...string) uint64 {
+func addHashStr(d *hash.Digest, strs ...string) {
 	if len(strs) == 0 {
-		return addHashSeparator(hash)
+		addHashSeparator(d)
+		return
 	}
 	for _, s := range strs {
-		hash = addHashSeparator(hash)
-		hash = fnv1a.AddString64(hash, s)
+		addHashSeparator(d)
+		_, _ = d.WriteString(s)
 	}
-	return hash
 }
 
-func addHashInt(hash uint64, ints ...int64) uint64 {
+func addHashInt(d *hash.Digest, ints ...int64) {
 	if len(ints) == 0 {
-		return addHashSeparator(hash)
+		addHashSeparator(d)
+		return
 	}
 	for _, n := range ints {
-		hash = fnv1a.AddUint64(hash, uint64(n))
+		d.WriteUint64(uint64(n))
 	}
-	return hash
 }
 
-func addHashDouble(hash uint64, ints ...float64) uint64 {
+func addHashDouble(d *hash.Digest, ints ...float64) {
 	if len(ints) == 0 {
-		return addHashSeparator(hash)
+		addHashSeparator(d)
+		return
 	}
 	for _, n := range ints {
-		hash = fnv1a.AddUint64(hash, math.Float64bits(n))
+		d.WriteUint64(math.Float64bits(n))
 	}
-	return hash
 }
 
-func addHashBool(hash uint64, bools ...bool) uint64 {
+func addHashBool(d *hash.Digest, bools ...bool) {
 	if len(bools) == 0 {
-		return addHashSeparator(hash)
+		addHashSeparator(d)
+		return
 	}
 	for _, b := range bools {
 		if b {
-			hash = fnv1a.AddUint64(hash, 1)
+			d.WriteUint64(1)
 		} else {
-			hash = fnv1a.AddUint64(hash, 0)
+			d.WriteUint64(0)
 		}
 	}
-	return hash
 }
 
-func addHashSeparator(hash uint64) uint64 {
+func addHashSeparator(d *hash.Digest) {
 	// hash twice with large primes to avoid collisions
-	hash = fnv1a.AddUint64(hash, 9952039)
-	return fnv1a.AddUint64(hash, 10188397)
+	d.WriteUint64(9952039)
+	d.WriteUint64(10188397)
 }
 
 // clearScopeSpans clears slices in ScopeSpans so avoid multiple copies of the same
