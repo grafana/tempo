@@ -2932,6 +2932,12 @@ cache:
             [max_connection_age: <duration> | default = 0s]
 
             # Optional
+            # The maximum size in bytes of an item stored in Redis.
+            # Bigger items are not stored. A value of 0 disables the limit.
+            # (default: 0)
+            [max_item_size: <int>]
+
+            # Optional
             # TTL for cached keys.
             [ttl: <duration>]
 ```
