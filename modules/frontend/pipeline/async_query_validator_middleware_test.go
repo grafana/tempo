@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"net/url"
 	"testing"
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
@@ -87,18 +88,41 @@ func TestQueryValidator(t *testing.T) {
 }
 
 func TestQuerySizeValidator(t *testing.T) {
-	rt := NewQuerySizeValidatorWare(10).Wrap(nextFunc)
-	req, err := http.NewRequest(http.MethodGet, "http://localhost:8080/api/search?q={ malformed query that is too large", nil)
-	require.NoError(t, err)
+	oversizedQuery := url.QueryEscape("{ malformed query that is too large")
+	tests := []struct {
+		name string
+		url  string
+	}{
+		{
+			name: "q too large",
+			url:  "http://localhost:8080/api/search?q=" + oversizedQuery,
+		},
+		{
+			name: "q too large with safe query alias",
+			url:  "http://localhost:8080/api/search?query={}&q=" + oversizedQuery,
+		},
+		{
+			name: "query too large with safe q alias",
+			url:  "http://localhost:8080/api/search?q={}&query=" + oversizedQuery,
+		},
+	}
 
-	resp, err := rt.RoundTrip(NewHTTPRequest(req))
-	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rt := NewQuerySizeValidatorWare(10).Wrap(nextFunc)
+			req, err := http.NewRequest(http.MethodGet, tt.url, nil)
+			require.NoError(t, err)
 
-	httpResponse, _, err := resp.Next(context.Background())
-	require.NoError(t, err)
-	body, err := io.ReadAll(httpResponse.HTTPResponse().Body)
-	require.NoError(t, err)
+			resp, err := rt.RoundTrip(NewHTTPRequest(req))
+			require.NoError(t, err)
 
-	require.Equal(t, http.StatusBadRequest, httpResponse.HTTPResponse().StatusCode)
-	require.Contains(t, string(body), "TraceQL expression exceeds the configured maximum size")
+			httpResponse, _, err := resp.Next(context.Background())
+			require.NoError(t, err)
+			body, err := io.ReadAll(httpResponse.HTTPResponse().Body)
+			require.NoError(t, err)
+
+			require.Equal(t, http.StatusBadRequest, httpResponse.HTTPResponse().StatusCode)
+			require.Contains(t, string(body), "TraceQL expression exceeds the configured maximum size")
+		})
+	}
 }

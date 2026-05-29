@@ -33,6 +33,9 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 	return func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error {
 		ctx := srv.Context()
 
+		if err := pipeline.ValidateTraceQLQuerySize(req.Query, cfg.MaxQueryExpressionSizeBytes); err != nil {
+			return status.Error(codes.InvalidArgument, err.Error())
+		}
 		if dataAccessController != nil {
 			err := dataAccessController.HandleGRPCSearchReq(ctx, req)
 			if err != nil {
@@ -98,6 +101,9 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 		}
 		start := time.Now()
 
+		if err := pipeline.ValidateTraceQLQueryParamsSize(req.URL.Query(), cfg.MaxQueryExpressionSizeBytes); err != nil {
+			return httpInvalidRequest(err), nil
+		}
 		if dataAccessController != nil {
 			if err := dataAccessController.HandleHTTPSearchReq(req); err != nil {
 				level.Error(logger).Log("msg", "http search: access control handling failed", "err", err)

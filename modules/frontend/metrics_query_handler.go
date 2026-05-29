@@ -37,6 +37,9 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 		}
 
 		headers := headersFromGrpcContext(ctx)
+		if err := pipeline.ValidateTraceQLQuerySize(req.Query, cfg.MaxQueryExpressionSizeBytes); err != nil {
+			return status.Error(codes.InvalidArgument, err.Error())
+		}
 		if dataAccessController != nil {
 			err = dataAccessController.HandleGRPCQueryInstantReq(ctx, req)
 			if err != nil {
@@ -105,6 +108,9 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 		}
 		start := time.Now()
 
+		if err := pipeline.ValidateTraceQLQueryParamsSize(req.URL.Query(), cfg.MaxQueryExpressionSizeBytes); err != nil {
+			return httpInvalidRequest(err), nil
+		}
 		if dataAccessController != nil {
 			if err := dataAccessController.HandleHTTPQueryInstantReq(req); err != nil {
 				level.Error(logger).Log("msg", "http instant query: access control handling failed", "err", err)

@@ -32,12 +32,12 @@ func (c queryValidatorWare) RoundTrip(req Request) (Responses[combiner.PipelineR
 }
 
 func (c queryValidatorWare) validateTraceQLQuery(queryParams url.Values) error {
+	if err := ValidateTraceQLQueryParamsSize(queryParams, c.maxQuerySizeBytes); err != nil {
+		return err
+	}
+
 	traceQLQuery := traceQLQueryFromParams(queryParams)
 	if traceQLQuery != "" {
-		if err := ValidateTraceQLQuerySize(traceQLQuery, c.maxQuerySizeBytes); err != nil {
-			return err
-		}
-
 		expr, err := traceql.ParseNoOptimizations(traceQLQuery)
 		if err == nil {
 			err = traceql.Validate(expr)
@@ -61,7 +61,14 @@ func NewQuerySizeValidatorWare(maxQuerySizeBytes int) AsyncMiddleware[combiner.P
 }
 
 func ValidateTraceQLQueryParamsSize(queryParams url.Values, maxQuerySizeBytes int) error {
-	return ValidateTraceQLQuerySize(traceQLQueryFromParams(queryParams), maxQuerySizeBytes)
+	for _, param := range []string{"q", "query"} {
+		for _, traceQLQuery := range queryParams[param] {
+			if err := ValidateTraceQLQuerySize(traceQLQuery, maxQuerySizeBytes); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func ValidateTraceQLQuerySize(traceQLQuery string, maxQuerySizeBytes int) error {

@@ -144,6 +144,25 @@ func TestMetricsHandlersRejectOversizedQueryBeforeParsing(t *testing.T) {
 		require.NotContains(t, resp.Body.String(), "parse error")
 	})
 
+	t.Run("range http rejects q when query alias is safe", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, api.PathMetricsQueryRange, nil)
+		params := req.URL.Query()
+		params.Set("query", "{} | rate()")
+		params.Set("q", query)
+		params.Set("start", "1100")
+		params.Set("end", "1300")
+		params.Set("step", "100")
+		req.URL.RawQuery = params.Encode()
+		req = req.WithContext(user.InjectOrgID(req.Context(), "tenant"))
+		resp := httptest.NewRecorder()
+
+		f.MetricsQueryRangeHandler.ServeHTTP(resp, req)
+
+		require.Equal(t, http.StatusBadRequest, resp.Code)
+		require.Contains(t, resp.Body.String(), "TraceQL expression exceeds the configured maximum size")
+		require.NotContains(t, resp.Body.String(), "parse error")
+	})
+
 	t.Run("range grpc", func(t *testing.T) {
 		err := f.streamingQueryRange(&tempopb.QueryRangeRequest{
 			Query: query,

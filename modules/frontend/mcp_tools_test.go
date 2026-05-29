@@ -125,12 +125,49 @@ func TestHandleSearch(t *testing.T) {
 func TestMCPRejectsOversizedQueryBeforeParsing(t *testing.T) {
 	server, callAndTestResults := testFrontend()
 	server.maxQueryExpressionSizeBytes = 10
+	tests := []struct {
+		name    string
+		request mcp.CallToolRequest
+		handler func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error)
+	}{
+		{
+			name: "search",
+			request: callToolRequest(map[string]any{
+				"query": oversizedTraceQLQuery(),
+			}),
+			handler: server.handleSearch,
+		},
+		{
+			name: "instant metrics",
+			request: callToolRequest(map[string]any{
+				"query": oversizedTraceQLQuery(),
+			}),
+			handler: server.handleInstantQuery,
+		},
+		{
+			name: "range metrics",
+			request: callToolRequest(map[string]any{
+				"query": oversizedTraceQLQuery(),
+			}),
+			handler: server.handleRangeQuery,
+		},
+		{
+			name: "attribute values filter query",
+			request: callToolRequest(map[string]any{
+				"name":         "span.name",
+				"filter-query": oversizedTraceQLQuery(),
+			}),
+			handler: server.handleGetAttributeValues,
+		},
+	}
 
-	callAndTestResults(t, callToolRequest(map[string]any{
-		"query": oversizedTraceQLQuery(),
-	}), server.handleSearch, expectedResult{
-		err: "TraceQL expression exceeds the configured maximum size of 10 bytes, reduce the query expression size or contact your system administrator",
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			callAndTestResults(t, tt.request, tt.handler, expectedResult{
+				err: "TraceQL expression exceeds the configured maximum size of 10 bytes, reduce the query expression size or contact your system administrator",
+			})
+		})
+	}
 }
 
 func TestHandleInstantQuery(t *testing.T) {
