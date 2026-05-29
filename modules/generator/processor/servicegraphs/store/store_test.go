@@ -372,6 +372,66 @@ func BenchmarkStoreUpsertEdge(b *testing.B) {
 	}
 }
 
+func TestStoreUpsertEdgeFromBytesWith_StackKey(t *testing.T) {
+	// Trace+span IDs with hex(16)+'-'+hex(16) = 33 bytes — fits in the 64-byte
+	// stack buffer fast path. Verify the typed-state callback runs and the
+	// edge pairs correctly across two calls (client then server).
+	type clientState struct{ svc string }
+
+	storeInterface := NewStore(time.Hour, 1, noopCallback, noopCallback, newTestCounter())
+	s := storeInterface.(*store)
+
+	traceID := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}
+	spanID := []byte{0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa8}
+
+	isNew, err := UpsertEdgeFromBytesWith(s, traceID, spanID, Client, clientState{svc: clientService}, func(e *Edge, st clientState) {
+		e.ClientService = st.svc
+	})
+	require.NoError(t, err)
+	require.True(t, isNew)
+	assert.Equal(t, 1, s.len())
+
+	type serverState struct{ svc string }
+	isNew, err = UpsertEdgeFromBytesWith(s, traceID, spanID, Server, serverState{svc: "server"}, func(e *Edge, st serverState) {
+		assert.Equal(t, clientService, e.ClientService)
+		e.ServerService = st.svc
+	})
+	require.NoError(t, err)
+	require.False(t, isNew)
+	// Edge completed and removed.
+	assert.Equal(t, 0, s.len())
+}
+
+func TestStoreUpsertEdgeFromBytesWith_HeapFallback(t *testing.T) {
+	// IDs whose hex+'-'+hex exceeds 64 bytes force the heap fallback at
+	// store.go:165. Use 33-byte IDs so encodedKeyLen = 66+1+66 = 133 > 64.
+	storeInterface := NewStore(time.Hour, 1, noopCallback, noopCallback, newTestCounter())
+	s := storeInterface.(*store)
+
+	bigTraceID := make([]byte, 33)
+	bigSpanID := make([]byte, 33)
+	for i := range bigTraceID {
+		bigTraceID[i] = byte(i + 1)
+		bigSpanID[i] = byte(i + 100)
+	}
+
+	isNew, err := UpsertEdgeFromBytesWith(s, bigTraceID, bigSpanID, Client, struct{}{}, func(e *Edge, _ struct{}) {
+		e.ClientService = clientService
+	})
+	require.NoError(t, err)
+	require.True(t, isNew)
+	assert.Equal(t, 1, s.len())
+
+	// Same key on the heap path must hit the existing edge.
+	isNew, err = UpsertEdgeFromBytesWith(s, bigTraceID, bigSpanID, Server, struct{}{}, func(e *Edge, _ struct{}) {
+		assert.Equal(t, clientService, e.ClientService)
+		e.ServerService = "server"
+	})
+	require.NoError(t, err)
+	require.False(t, isNew)
+	assert.Equal(t, 0, s.len())
+}
+
 func noopCallback(_ *Edge) {
 }
 
@@ -391,6 +451,8 @@ func TestResetEdge(t *testing.T) {
 	e := &Edge{
 		key:                     "test-key",
 		TraceID:                 "trace-123",
+		TraceIDLen:              8,
+		TraceIDRaw:              [16]byte{1, 2, 3, 4, 5, 6, 7, 8},
 		ConnectionType:          Database,
 		ServerService:           "server-svc",
 		ClientService:           "client-svc",
@@ -411,6 +473,8 @@ func TestResetEdge(t *testing.T) {
 	// Verify all fields are properly reset
 	assert.Equal(t, "", e.key, "key should be preserved")
 	assert.Equal(t, "", e.TraceID, "TraceID should be reset")
+	assert.Equal(t, 0, e.TraceIDLen, "TraceIDLen should be reset")
+	assert.Equal(t, [16]byte{}, e.TraceIDRaw, "TraceIDRaw should be reset")
 	assert.Equal(t, Unknown, e.ConnectionType, "ConnectionType should be reset to Unknown")
 	assert.Equal(t, "", e.ServerService, "ServerService should be reset")
 	assert.Equal(t, "", e.ClientService, "ClientService should be reset")

@@ -109,10 +109,15 @@ func (i *liveTracesIter) iter(ctx context.Context) {
 
 			tr := new(tempopb.Trace)
 
-			for _, b := range entry.Batches {
-				// This unmarshal appends the batches onto the existing tempopb.Trace
-				// so we don't need to allocate another container temporarily
-				err := tr.Unmarshal(b)
+			for batchIdx, b := range entry.Batches {
+				var err error
+				if batchIdx == 0 {
+					err = tr.Unmarshal(b)
+				} else {
+					var batchTr tempopb.Trace
+					err = batchTr.Unmarshal(b)
+					tr.ResourceSpans = append(tr.ResourceSpans, batchTr.ResourceSpans...)
+				}
 				if err != nil {
 					i.ch <- []chEntry{{err: err}}
 					return

@@ -4,7 +4,8 @@ import "github.com/prometheus/prometheus/model/labels"
 
 // newSeriesLabelsBuilder creates a labels builder with user labels and external labels pre-populated.
 func newSeriesLabelsBuilder(lbls labels.Labels, externalLabels map[string]string) *labels.Builder {
-	builder := labels.NewBuilder(lbls)
+	builder := &labels.Builder{}
+	builder.Reset(lbls)
 	for name, value := range externalLabels {
 		builder.Set(name, value)
 	}
