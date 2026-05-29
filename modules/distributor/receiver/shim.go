@@ -12,7 +12,6 @@ import (
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -57,11 +56,10 @@ var (
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
 
-	statReceiverOtlp       = usagestats.NewInt("receiver_enabled_otlp")
-	statReceiverJaeger     = usagestats.NewInt("receiver_enabled_jaeger")
-	statReceiverZipkin     = usagestats.NewInt("receiver_enabled_zipkin")
-	statReceiverOpencensus = usagestats.NewInt("receiver_enabled_opencensus")
-	statReceiverKafka      = usagestats.NewInt("receiver_enabled_kafka")
+	statReceiverOtlp   = usagestats.NewInt("receiver_enabled_otlp")
+	statReceiverJaeger = usagestats.NewInt("receiver_enabled_jaeger")
+	statReceiverZipkin = usagestats.NewInt("receiver_enabled_zipkin")
+	statReceiverKafka  = usagestats.NewInt("receiver_enabled_kafka")
 )
 
 var tracer = otel.Tracer("modules/distributor/receiver")
@@ -172,7 +170,6 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 	receiverFactories, err := otelcol.MakeFactoryMap(
 		jaegerreceiver.NewFactory(),
 		zipkinreceiver.NewFactory(),
-		opencensusreceiver.NewFactory(),
 		otlpreceiver.NewFactory(),
 		kafkareceiver.NewFactory(),
 	)
@@ -188,8 +185,6 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 			statReceiverJaeger.Set(1)
 		case "zipkin":
 			statReceiverZipkin.Set(1)
-		case "opencensus":
-			statReceiverOpencensus.Set(1)
 		case "kafka":
 			statReceiverKafka.Set(1)
 		}

@@ -1,5 +1,7 @@
 ## main / unreleased
 
+* [CHANGE] **BREAKING CHANGE** Dropped support for the OpenCensus receiver. [#PR](https://github.com/grafana/tempo/pull/PR) (@zhxiaogg)
+
 # v2.10.5
 
 * [ENHANCEMENT] Updated go dependency version to v1.16.2. [#7040](https://github.com/grafana/tempo/pull/7040) (@ie-pham)
