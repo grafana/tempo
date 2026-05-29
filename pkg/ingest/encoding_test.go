@@ -9,6 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	resourcev1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
 )
@@ -80,6 +82,179 @@ func TestDecoderInvalidData(t *testing.T) {
 
 	_, err := decoder.Decode([]byte("invalid data"))
 	require.Error(t, err)
+}
+
+func TestPushBytesDecoder(t *testing.T) {
+	firstTrace := marshalBatches(t, []*v1.ResourceSpans{
+		test.MakeBatch(1, []byte("test batch 1")),
+	})
+	secondTrace := marshalBatches(t, []*v1.ResourceSpans{
+		test.MakeBatch(2, []byte("test batch 2")),
+		test.MakeBatch(3, []byte("test batch 3")),
+	})
+	req := &tempopb.PushBytesRequest{
+		Traces: []tempopb.PreallocBytes{
+			{Slice: firstTrace},
+			{Slice: secondTrace},
+		},
+		Ids:                   [][]byte{[]byte("first"), []byte("second")},
+		SkipMetricsGeneration: true,
+	}
+	data, err := req.Marshal()
+	require.NoError(t, err)
+
+	decoder := NewPushBytesDecoder()
+	iterator, err := decoder.Decode(data)
+	require.NoError(t, err)
+
+	var got []*tempopb.PushSpansRequest
+	for req, err := range iterator {
+		require.NoError(t, err)
+		got = append(got, req)
+	}
+
+	require.Len(t, got, 2)
+	require.True(t, got[0].SkipMetricsGeneration)
+	require.True(t, got[1].SkipMetricsGeneration)
+	require.Len(t, got[0].Batches, 1)
+	require.Len(t, got[1].Batches, 2)
+}
+
+func TestPushBytesDecoderInvalidData(t *testing.T) {
+	decoder := NewPushBytesDecoder()
+
+	_, err := decoder.Decode([]byte("invalid data"))
+	require.Error(t, err)
+}
+
+func TestOTLPDecoderReuseDoesNotLeakPreviousFields(t *testing.T) {
+	first := []*v1.ResourceSpans{
+		{
+			Resource: &resourcev1.Resource{
+				Attributes: []*commonv1.KeyValue{
+					test.MakeAttribute("service.name", "first"),
+					test.MakeAttribute("first.only", "resource"),
+				},
+				DroppedAttributesCount: 7,
+			},
+			ScopeSpans: []*v1.ScopeSpans{
+				{
+					Scope: &commonv1.InstrumentationScope{
+						Name:    "scope-first",
+						Version: "v1",
+						Attributes: []*commonv1.KeyValue{
+							test.MakeAttribute("scope.attr", "first"),
+						},
+						DroppedAttributesCount: 3,
+					},
+					Spans: []*v1.Span{
+						{
+							TraceId:           []byte("0123456789abcdef"),
+							SpanId:            []byte("12345678"),
+							ParentSpanId:      []byte("87654321"),
+							TraceState:        "state=first",
+							Name:              "first",
+							Kind:              v1.Span_SPAN_KIND_CLIENT,
+							StartTimeUnixNano: 1,
+							EndTimeUnixNano:   2,
+							Attributes: []*commonv1.KeyValue{
+								test.MakeAttribute("span.attr", "first"),
+							},
+							Events: []*v1.Span_Event{
+								{
+									TimeUnixNano: 1,
+									Name:         "event-first",
+									Attributes: []*commonv1.KeyValue{
+										test.MakeAttribute("event.attr", "first"),
+									},
+									DroppedAttributesCount: 4,
+								},
+							},
+							Links: []*v1.Span_Link{
+								{
+									TraceId:    []byte("fedcba9876543210"),
+									SpanId:     []byte("87654321"),
+									TraceState: "state=link",
+									Attributes: []*commonv1.KeyValue{
+										test.MakeAttribute("link.attr", "first"),
+									},
+									DroppedAttributesCount: 5,
+									Flags:                  6,
+								},
+							},
+							Status: &v1.Status{
+								Message: "first status",
+								Code:    v1.Status_STATUS_CODE_ERROR,
+							},
+							DroppedAttributesCount: 8,
+							DroppedEventsCount:     9,
+							DroppedLinksCount:      10,
+							Flags:                  11,
+						},
+					},
+				},
+			},
+			SchemaUrl: "schema-first",
+		},
+	}
+	second := []*v1.ResourceSpans{
+		{
+			ScopeSpans: []*v1.ScopeSpans{
+				{
+					Spans: []*v1.Span{
+						{
+							TraceId:           []byte("fedcba9876543210"),
+							SpanId:            []byte("abcdefgh"),
+							Name:              "second",
+							Kind:              v1.Span_SPAN_KIND_SERVER,
+							StartTimeUnixNano: 3,
+							EndTimeUnixNano:   4,
+							Attributes: []*commonv1.KeyValue{
+								{
+									Key: "http.status_code",
+									Value: &commonv1.AnyValue{
+										Value: &commonv1.AnyValue_IntValue{IntValue: 200},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	decoder := NewOTLPDecoder()
+	require.Equal(t, first, decodeSinglePushSpans(t, decoder, marshalBatches(t, first)).Batches)
+
+	got := decodeSinglePushSpans(t, decoder, marshalBatches(t, second))
+	require.Len(t, got.Batches, 1)
+	require.Nil(t, got.Batches[0].Resource)
+	require.Empty(t, got.Batches[0].SchemaUrl)
+	require.Len(t, got.Batches[0].ScopeSpans, 1)
+	require.Nil(t, got.Batches[0].ScopeSpans[0].Scope)
+	require.Empty(t, got.Batches[0].ScopeSpans[0].SchemaUrl)
+	require.Len(t, got.Batches[0].ScopeSpans[0].Spans, 1)
+
+	span := got.Batches[0].ScopeSpans[0].Spans[0]
+	require.Equal(t, []byte("fedcba9876543210"), span.TraceId)
+	require.Equal(t, []byte("abcdefgh"), span.SpanId)
+	require.Empty(t, span.ParentSpanId)
+	require.Empty(t, span.TraceState)
+	require.Equal(t, "second", span.Name)
+	require.Equal(t, v1.Span_SPAN_KIND_SERVER, span.Kind)
+	require.Equal(t, uint64(3), span.StartTimeUnixNano)
+	require.Equal(t, uint64(4), span.EndTimeUnixNano)
+	require.Len(t, span.Attributes, 1)
+	require.Equal(t, "http.status_code", span.Attributes[0].Key)
+	require.Equal(t, int64(200), span.Attributes[0].Value.GetIntValue())
+	require.Empty(t, span.Events)
+	require.Empty(t, span.Links)
+	require.Nil(t, span.Status)
+	require.Zero(t, span.DroppedAttributesCount)
+	require.Zero(t, span.DroppedEventsCount)
+	require.Zero(t, span.DroppedLinksCount)
+	require.Zero(t, span.Flags)
 }
 
 func TestEncoderDecoderEmptyStream(t *testing.T) {
@@ -205,6 +380,22 @@ func marshalBatches(t testing.TB, batches []*v1.ResourceSpans) []byte {
 	require.NoError(t, err)
 
 	return m
+}
+
+func decodeSinglePushSpans(t testing.TB, decoder GeneratorCodec, data []byte) *tempopb.PushSpansRequest {
+	t.Helper()
+
+	iterator, err := decoder.Decode(data)
+	require.NoError(t, err)
+
+	var got []*tempopb.PushSpansRequest
+	for req, err := range iterator {
+		require.NoError(t, err)
+		got = append(got, req)
+	}
+	require.Len(t, got, 1)
+
+	return got[0]
 }
 
 func BenchmarkGeneratorDecoderPushBytes(b *testing.B) {
