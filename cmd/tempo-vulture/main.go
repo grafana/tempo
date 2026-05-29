@@ -643,6 +643,10 @@ func queryTrace(client httpclient.TempoHTTPClient, info *util.TraceInfo, l *zap.
 	if !match {
 		tm.incorrectResult++
 		if diff := cmp.Diff(expected, trace); diff != "" {
+			const maxDiffLen = 4096
+			if len(diff) > maxDiffLen {
+				diff = diff[:maxDiffLen] + "... [truncated]"
+			}
 			logger.Error("incorrect result", zap.String("diff", diff))
 		}
 		return tm, nil
