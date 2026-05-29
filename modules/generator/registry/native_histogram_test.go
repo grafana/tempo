@@ -2,10 +2,12 @@ package registry
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"testing"
 	"time"
 
+	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/model/exemplar"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
@@ -14,6 +16,10 @@ import (
 )
 
 var testTenant = "test-tenant"
+
+func stringPtr(s string) *string {
+	return &s
+}
 
 // Duplicate labels should not grow the series count.
 func Test_ObserveWithExemplar_duplicate(t *testing.T) {
@@ -34,6 +40,54 @@ func Test_ObserveWithExemplar_duplicate(t *testing.T) {
 	// In BOTH mode, a single histogram series contributes classic (sum+count+buckets including +Inf)
 	// plus one native series.
 	assert.Equal(t, int(h.activeSeriesPerHistogramSerie()), seriesAdded)
+}
+
+func Test_nativeHistogram_collectMetricsReleasesEncodedHistogram(t *testing.T) {
+	for _, histogramMode := range []HistogramMode{HistogramModeNative, HistogramModeBoth} {
+		t.Run(HistogramModeToString[histogramMode], func(t *testing.T) {
+			h := newNativeHistogram("my_histogram", []float64{0.1, 0.2}, noopLimiter, "trace_id", histogramMode, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+			h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0, "trace-1", 1.0)
+
+			err := h.collectMetrics(&noopAppender{}, time.Now().UnixMilli())
+			require.NoError(t, err)
+
+			for _, s := range h.series {
+				require.Nil(t, s.histogram)
+			}
+		})
+	}
+}
+
+func Test_nativeHistogram_nativeOnlyDoesNotRetainClassicLabels(t *testing.T) {
+	h := newNativeHistogram("my_histogram", []float64{0.1, 0.2}, noopLimiter, "trace_id", HistogramModeNative, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+	h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0, "trace-1", 1.0)
+
+	for _, s := range h.series {
+		require.Nil(t, s.lb)
+		require.Empty(t, s.countLabels)
+		require.Empty(t, s.sumLabels)
+	}
+}
+
+func Test_convertLabelPairToLabels(t *testing.T) {
+	require.Equal(t, labels.EmptyLabels(), convertLabelPairToLabels(nil))
+	require.Equal(t, labels.FromStrings("trace_id", "trace-1"), convertLabelPairToLabels([]*dto.LabelPair{{
+		Name:  stringPtr("trace_id"),
+		Value: stringPtr("trace-1"),
+	}}))
+	require.Equal(t, labels.FromStrings("a", "1", "b", "2"), convertLabelPairToLabels([]*dto.LabelPair{
+		{Name: stringPtr("b"), Value: stringPtr("2")},
+		{Name: stringPtr("a"), Value: stringPtr("1")},
+	}))
+}
+
+func Test_nativeHistogram_classicBucketLabelAt(t *testing.T) {
+	h := newNativeHistogram("my_histogram", []float64{0.1, 0.2}, noopLimiter, "trace_id", HistogramModeBoth, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+
+	require.Equal(t, "0.1", h.classicBucketLabelAt(0, 0.1))
+	require.Equal(t, "0.2", h.classicBucketLabelAt(1, 0.2))
+	require.Equal(t, "+Inf", h.classicBucketLabelAt(2, math.Inf(1)))
+	require.Equal(t, "0.3", h.classicBucketLabelAt(1, 0.3))
 }
 
 func Test_Histograms(t *testing.T) {

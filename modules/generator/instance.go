@@ -25,7 +25,6 @@ import (
 	"github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/modules/generator/validation"
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 
 	"go.uber.org/atomic"
 )
@@ -420,27 +419,28 @@ func (i *instance) preprocessSpans(req *tempopb.PushSpansRequest) {
 	spanCount := 0
 	expiredSpanCount := 0
 	ingestionSlackNano := i.ingestionSlackOverride.Load()
+	nowNano := time.Now().UnixNano()
+	maxTimePast := uint64(nowNano - ingestionSlackNano)
+	maxTimeFuture := uint64(nowNano + ingestionSlackNano)
 
 	for _, b := range req.Batches {
 		size += b.Size()
 		for _, ss := range b.ScopeSpans {
 			spanCount += len(ss.Spans)
 			// filter spans that have end time > max_age and end time more than 5 days in the future
-			newSpansArr := make([]*v1.Span, len(ss.Spans))
-			timeNow := time.Now()
-			maxTimePast := uint64(timeNow.UnixNano() - ingestionSlackNano)
-			maxTimeFuture := uint64(timeNow.UnixNano() + ingestionSlackNano)
+			spans := ss.Spans
 
 			index := 0
-			for _, span := range ss.Spans {
+			for _, span := range spans {
 				if span.EndTimeUnixNano >= maxTimePast && span.EndTimeUnixNano <= maxTimeFuture {
-					newSpansArr[index] = span
+					spans[index] = span
 					index++
 				} else {
 					expiredSpanCount++
 				}
 			}
-			ss.Spans = newSpansArr[0:index]
+			clear(spans[index:])
+			ss.Spans = spans[0:index]
 		}
 	}
 	i.updatePushMetrics(size, spanCount, expiredSpanCount)
