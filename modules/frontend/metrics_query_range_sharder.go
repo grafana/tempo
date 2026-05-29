@@ -428,6 +428,13 @@ func hashForQueryRangeRequest(req *tempopb.QueryRangeRequest) uint64 {
 	for _, name := range req.SkipASTTransformations {
 		hash = fnv1a.AddString64(hash, name)
 	}
+	// adding a big number instead of 0 or 1
+	// to avoid hash collision on small input mutations
+	if traceql.IsInstant(req) {
+		hash = fnv1a.AddUint64(hash, 2147483629)
+	} else {
+		hash = fnv1a.AddUint64(hash, 1147483619)
+	}
 
 	return hash
 }

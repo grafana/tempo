@@ -441,3 +441,19 @@ func TestExemplarsCutoff(t *testing.T) {
 		})
 	}
 }
+
+func TestHashCollision(t *testing.T) {
+	queryRange := tempopb.QueryRangeRequest{
+		Query:     "{}",
+		Step:      60,
+		MaxSeries: 100,
+	}
+	queryRange.SetInstant(false)
+
+	instant := queryRange
+	instant.SetInstant(true)
+
+	baseHash := hashForQueryRangeRequest(&queryRange)
+	instantHash := hashForQueryRangeRequest(&instant)
+	assert.False(t, baseHash == instantHash, "Hash collision detected between range and instant query")
+}
