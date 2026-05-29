@@ -55,8 +55,6 @@ distributor:
           endpoint: "tempo:4317"
         http:
           endpoint: "tempo:4318"
-    opencensus:
-      endpoint: "tempo:55678"
 
 ingester:
   max_block_duration: 5m # cut the headblock when this much time passes. this is being set for demo purposes and should probably be left alone normally
