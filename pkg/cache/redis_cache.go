@@ -21,14 +21,16 @@ type RedisCache struct {
 	redis           *RedisClient
 	logger          log.Logger
 	requestDuration *instr.HistogramCollector
+	maxItemSize     int
 }
 
 // NewRedisCache creates a new RedisCache
-func NewRedisCache(name string, redisClient *RedisClient, reg prometheus.Registerer, logger log.Logger) *RedisCache {
+func NewRedisCache(name string, redisClient *RedisClient, maxItemSize int, reg prometheus.Registerer, logger log.Logger) *RedisCache {
 	cache := &RedisCache{
-		name:   name,
-		redis:  redisClient,
-		logger: logger,
+		name:        name,
+		redis:       redisClient,
+		logger:      logger,
+		maxItemSize: maxItemSize,
 		requestDuration: instr.NewHistogramCollector(
 			promauto.With(reg).NewHistogramVec(prometheus.HistogramOpts{
 				Namespace:                       "tempo",
@@ -147,7 +149,6 @@ func (c *RedisCache) Release(_ []byte) {
 	// buffer pooling unimplemented in redis
 }
 
-// redis doesn't have a max item size. todo: add
 func (c *RedisCache) MaxItemSize() int {
-	return 0
+	return c.maxItemSize
 }

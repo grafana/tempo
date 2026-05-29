@@ -7,6 +7,8 @@ import (
 	"time"
 
 	miniredis "github.com/alicebob/miniredis/v2"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -80,6 +82,82 @@ func TestRedisClient(t *testing.T) {
 	}
 }
 
+func TestRedisClient_MSet_MaxItemSize(t *testing.T) {
+	const itemSize = 100
+
+	tests := []struct {
+		name        string
+		maxItemSize int
+		keys        []string
+		values      [][]byte
+		wantStored  []bool // parallel to keys; true = expected present in redis
+		wantSkipped int    // expected value of the skipped counter
+	}{
+		{
+			name:        "mixed batch skips oversized item",
+			maxItemSize: itemSize,
+			keys:        []string{"small1", "oversized", "small2"},
+			values:      [][]byte{[]byte("ok"), make([]byte, itemSize+1), []byte("also ok")},
+			wantStored:  []bool{true, false, true},
+			wantSkipped: 1,
+		},
+		{
+			name:        "boundary item exactly at the cap is stored",
+			maxItemSize: itemSize,
+			keys:        []string{"at-cap"},
+			values:      [][]byte{make([]byte, itemSize)},
+			wantStored:  []bool{true},
+			wantSkipped: 0,
+		},
+		{
+			name:        "all oversized batch skips every item and counter increments per item",
+			maxItemSize: itemSize,
+			keys:        []string{"big1", "big2", "big3"},
+			values:      [][]byte{make([]byte, itemSize+1), make([]byte, itemSize+50), make([]byte, itemSize*10)},
+			wantStored:  []bool{false, false, false},
+			wantSkipped: 3,
+		},
+		{
+			name:        "zero MaxItemSize disables the cap",
+			maxItemSize: 0,
+			keys:        []string{"huge"},
+			values:      [][]byte{make([]byte, 10*1024*1024)},
+			wantStored:  []bool{true},
+			wantSkipped: 0,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			redisServer, err := miniredis.Run()
+			require.NoError(t, err)
+			defer redisServer.Close()
+
+			client := NewRedisClient(&RedisConfig{
+				Expiration:  time.Minute,
+				Timeout:     100 * time.Millisecond,
+				Endpoint:    redisServer.Addr(),
+				MaxItemSize: tc.maxItemSize,
+			}, "test", prometheus.NewRegistry())
+
+			require.NoError(t, client.MSet(context.Background(), tc.keys, tc.values))
+
+			got, err := client.MGet(context.Background(), tc.keys)
+			require.NoError(t, err)
+
+			for i, key := range tc.keys {
+				if tc.wantStored[i] {
+					require.Equal(t, tc.values[i], got[i], "key %q must be stored", key)
+				} else {
+					require.Nil(t, got[i], "key %q must be skipped", key)
+				}
+			}
+			require.Equal(t, float64(tc.wantSkipped), testutil.ToFloat64(client.skipped),
+				"skipped counter must equal the number of items above the cap")
+		})
+	}
+}
+
 func mockRedisClientSingle() (*RedisClient, error) {
 	redisServer, err := miniredis.Run()
 	if err != nil {
@@ -94,7 +172,7 @@ func mockRedisClientSingle() (*RedisClient, error) {
 		}, ","),
 	}
 
-	return NewRedisClient(cfg), nil
+	return NewRedisClient(cfg, "test", nil), nil
 }
 
 func mockRedisClientCluster() (*RedisClient, error) {
@@ -117,5 +195,5 @@ func mockRedisClientCluster() (*RedisClient, error) {
 		}, ","),
 	}
 
-	return NewRedisClient(cfg), nil
+	return NewRedisClient(cfg, "test", nil), nil
 }
