@@ -1,6 +1,6 @@
 ## main / unreleased
 
-* [CHANGE] **BREAKING CHANGE** Dropped support for the OpenCensus receiver. [#7322](https://github.com/grafana/tempo/pull/7322) (@zhxiaogg)
+* [CHANGE] **BREAKING CHANGE** Dropped support for the OpenCensus receiver. [#7323](https://github.com/grafana/tempo/pull/7323) (@zhxiaogg)
 
 # v2.9.2
 
