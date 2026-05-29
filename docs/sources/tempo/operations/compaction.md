@@ -108,7 +108,7 @@ For a reference KEDA autoscaling configuration driven by outstanding block metri
 
 ## Configuration reference
 
-For a full configuration reference, refer to the [configuration documentation](../configuration/).
+For a full configuration reference, refer to the [configuration documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/).
 
 The following fields are most relevant to compaction behavior.
 
@@ -168,5 +168,5 @@ They are accepted by the configuration parser but have no effect.
 
 ## See also
 
-- [Polling configuration](../configuration/polling/)
-- [Monitor backend polling](./monitor/polling/)
+- [Polling configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/polling/)
+- [Monitor backend polling](../monitor/polling/)
