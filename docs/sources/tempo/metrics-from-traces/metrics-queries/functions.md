@@ -311,10 +311,16 @@ Combine multiple operations:
 
 You can use `by()` in each sub-query.
 When both sides use the same `by()` attributes, results are matched by label.
-When one side has labels and the other doesn't, the unlabeled (scalar) side is applied to every labeled series.
+When one side has labels and the other doesn't, the unlabeled side is applied to every labeled series.
 
 ```traceql
 ({status=error} | rate() by (resource.service.name)) / ({} | rate() by (resource.service.name))
+```
+
+To calculate each service's share of total throughput, group only one side. The unlabeled total rate is applied to every per-service series:
+
+```traceql
+({} | rate() by (resource.service.name)) / ({} | rate())
 ```
 
 ### Post-expression operations
@@ -337,7 +343,7 @@ You can apply `topk`, `bottomk`, and comparison operators after an arithmetic ex
 
 Division by zero returns `NaN`.
 When a time bucket has no matching spans for a sub-query, that sub-query returns `NaN` for the bucket.
-`NaN` values are treated as `0` in arithmetic operations, so `NaN + 5` evaluates to `5` and `NaN * 5` evaluates to `0`.
+Following IEEE-754 semantics, any arithmetic operation involving `NaN` returns `NaN`, so `NaN + 5` evaluates to `NaN` and `NaN * 5` evaluates to `NaN`.
 
 ### Limitations
 
