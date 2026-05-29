@@ -424,6 +424,8 @@ metrics_generator:
                 - 12.8
             dimensions: []
             enable_client_server_prefix: false
+            enable_client_latency_histogram: true
+            enable_server_latency_histogram: true
             enable_messaging_system_latency_histogram: false
             peer_attributes:
                 - peer.service

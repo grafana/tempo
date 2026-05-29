@@ -87,6 +87,7 @@ The following metrics are exported:
 <!-- vale Grafana.Spelling = YES -->
 
 The processor measures duration from both the client and server sides.
+You can disable the client or server latency histogram independently with `enable_client_latency_histogram` and `enable_server_latency_histogram`.
 
 Possible values for `connection_type`: unset, `virtual_node`, `messaging_system`, or `database`.
 

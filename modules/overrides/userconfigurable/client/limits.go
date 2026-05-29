@@ -159,6 +159,8 @@ func (l *LimitsMetricsGeneratorProcessor) GetHostInfo() *LimitsMetricGeneratorPr
 type LimitsMetricsGeneratorProcessorServiceGraphs struct {
 	Dimensions                            *[]string                    `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
 	EnableClientServerPrefix              *bool                        `yaml:"enable_client_server_prefix,omitempty" json:"enable_client_server_prefix,omitempty"`
+	EnableClientLatencyHistogram          *bool                        `yaml:"enable_client_latency_histogram,omitempty" json:"enable_client_latency_histogram,omitempty"`
+	EnableServerLatencyHistogram          *bool                        `yaml:"enable_server_latency_histogram,omitempty" json:"enable_server_latency_histogram,omitempty"`
 	EnableMessagingSystemLatencyHistogram *bool                        `yaml:"enable_messaging_system_latency_histogram,omitempty" json:"enable_messaging_system_latency_histogram,omitempty"`
 	EnableVirtualNodeLabel                *bool                        `yaml:"enable_virtual_node_label,omitempty" json:"enable_virtual_node_label,omitempty"`
 	PeerAttributes                        *[]string                    `yaml:"peer_attributes,omitempty" json:"peer_attributes,omitempty"`
@@ -178,6 +180,20 @@ func (l *LimitsMetricsGeneratorProcessorServiceGraphs) GetDimensions() ([]string
 func (l *LimitsMetricsGeneratorProcessorServiceGraphs) GetEnableClientServerPrefix() (bool, bool) {
 	if l != nil && l.EnableClientServerPrefix != nil {
 		return *l.EnableClientServerPrefix, true
+	}
+	return false, false
+}
+
+func (l *LimitsMetricsGeneratorProcessorServiceGraphs) GetEnableClientLatencyHistogram() (bool, bool) {
+	if l != nil && l.EnableClientLatencyHistogram != nil {
+		return *l.EnableClientLatencyHistogram, true
+	}
+	return false, false
+}
+
+func (l *LimitsMetricsGeneratorProcessorServiceGraphs) GetEnableServerLatencyHistogram() (bool, bool) {
+	if l != nil && l.EnableServerLatencyHistogram != nil {
+		return *l.EnableServerLatencyHistogram, true
 	}
 	return false, false
 }

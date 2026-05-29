@@ -315,6 +315,20 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraph
 	return o.Interface.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID)
 }
 
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableClientLatencyHistogram(userID string) (bool, bool) {
+	if enableClientLatencyHistogram, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetEnableClientLatencyHistogram(); ok {
+		return enableClientLatencyHistogram, true
+	}
+	return o.Interface.MetricsGeneratorProcessorServiceGraphsEnableClientLatencyHistogram(userID)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableServerLatencyHistogram(userID string) (bool, bool) {
+	if enableServerLatencyHistogram, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetEnableServerLatencyHistogram(); ok {
+		return enableServerLatencyHistogram, true
+	}
+	return o.Interface.MetricsGeneratorProcessorServiceGraphsEnableServerLatencyHistogram(userID)
+}
+
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(userID string) (bool, bool) {
 	if enableVirtualNodeLabel, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetEnableVirtualNodeLabel(); ok {
 		return enableVirtualNodeLabel, true

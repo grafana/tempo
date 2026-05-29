@@ -125,6 +125,8 @@ metrics_generator_processor_service_graphs_histogram_buckets: [1,2]
 metrics_generator_processor_service_graphs_dimensions: ['foo']
 metrics_generator_processor_service_graphs_peer_attributes: ['foo']
 metrics_generator_processor_service_graphs_enable_client_server_prefix: false
+metrics_generator_processor_service_graphs_enable_client_latency_histogram: false
+metrics_generator_processor_service_graphs_enable_server_latency_histogram: true
 metrics_generator_processor_service_graphs_enable_messaging_system_latency_histogram: false
 metrics_generator_processor_span_metrics_histogram_buckets: [3,4]
 metrics_generator_processor_span_metrics_dimensions: ['foo']
@@ -205,6 +207,8 @@ defaults:
         peer_attributes:
         - foo
         enable_client_server_prefix: false
+        enable_client_latency_histogram: false
+        enable_server_latency_histogram: true
         enable_messaging_system_latency_histogram: false
       span_metrics:
         histogram_buckets:
@@ -419,6 +423,8 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MetricsGeneratorProcessorServiceGraphsPeerAttributes:                        []string{"attribute-1", "attribute-2"},
 		MetricsGeneratorProcessorServiceGraphsFilterPolicies:                        []filterconfig.FilterPolicy{{Exclude: &filterconfig.PolicyMatch{MatchType: "strict", Attributes: []filterconfig.MatchPolicyAttribute{{Key: "resource.service.name", Value: "my-service"}}}}},
 		MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix:              boolPtr(true),
+		MetricsGeneratorProcessorServiceGraphsEnableClientLatencyHistogram:          boolPtr(false),
+		MetricsGeneratorProcessorServiceGraphsEnableServerLatencyHistogram:          boolPtr(true),
 		MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram: boolPtr(true),
 		MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel:                boolPtr(true),
 		MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey:                     "custom_key",

@@ -186,6 +186,64 @@ func TestServiceGraphs_MessagingSystemLatencyHistogram(t *testing.T) {
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_messaging_system_seconds_count`, requesterToRecorderLabels))
 }
 
+func TestServiceGraphs_LatencyHistogramToggles(t *testing.T) {
+	cases := []struct {
+		name         string
+		enableClient bool
+		enableServer bool
+		wantClient   float64
+		wantServer   float64
+	}{
+		{
+			name:         "client disabled",
+			enableClient: false,
+			enableServer: true,
+			wantClient:   0,
+			wantServer:   1,
+		},
+		{
+			name:         "server disabled",
+			enableClient: true,
+			enableServer: false,
+			wantClient:   1,
+			wantServer:   0,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			testRegistry := registry.NewTestRegistry()
+
+			cfg := Config{}
+			cfg.RegisterFlagsAndApplyDefaults("", nil)
+			cfg.HistogramBuckets = []float64{0.04}
+			cfg.Dimensions = []string{"beast", "god"}
+			cfg.EnableClientLatencyHistogram = tc.enableClient
+			cfg.EnableServerLatencyHistogram = tc.enableServer
+
+			p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
+			require.NoError(t, err)
+			defer p.Shutdown(context.Background())
+
+			request, err := loadTestData("testdata/trace-with-queue-database.json")
+			require.NoError(t, err)
+
+			p.PushSpans(context.Background(), request)
+
+			requesterToServerLabels := labels.FromMap(map[string]string{
+				"client": "mythical-requester",
+				"server": "mythical-server",
+				"beast":  "manticore",
+				"god":    "zeus",
+			})
+
+			assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, requesterToServerLabels))
+			assert.Equal(t, tc.wantClient, testRegistry.Query(`traces_service_graph_request_client_seconds_count`, requesterToServerLabels))
+			assert.Equal(t, tc.wantServer, testRegistry.Query(`traces_service_graph_request_server_seconds_count`, requesterToServerLabels))
+		})
+	}
+}
+
 func TestServiceGraphs_failedRequests(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 

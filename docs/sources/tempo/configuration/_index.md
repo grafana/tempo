@@ -727,6 +727,12 @@ metrics_generator:
             # per additional dimension instead of one.
             [enable_client_server_prefix: <bool> | default = false]
 
+            # If enabled, the client latency histogram will be produced.
+            [enable_client_latency_histogram: <bool> | default = true]
+
+            # If enabled, the server latency histogram will be produced.
+            [enable_server_latency_histogram: <bool> | default = true]
+
             # If enabled another histogram will be produced for interactions over messaging systems middlewares
             # If this feature is relevant over long time ranges (high latencies) - consider increasing
             # `wait` value for this processor.
@@ -2447,6 +2453,8 @@ overrides:
           [dimensions: <list of string>]
           [peer_attributes: <list of string>]
           [enable_client_server_prefix: <bool>]
+          [enable_client_latency_histogram: <bool>]
+          [enable_server_latency_histogram: <bool>]
           [enable_messaging_system_latency_histogram: <bool>]
           [enable_virtual_node_label: <bool>]
           [span_multiplier_key: <string>]

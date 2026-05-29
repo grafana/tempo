@@ -36,6 +36,12 @@ type Config struct {
 	// per dimension.
 	EnableClientServerPrefix bool `yaml:"enable_client_server_prefix"`
 
+	// If enabled, the client latency histogram will be produced.
+	EnableClientLatencyHistogram bool `yaml:"enable_client_latency_histogram"`
+
+	// If enabled, the server latency histogram will be produced.
+	EnableServerLatencyHistogram bool `yaml:"enable_server_latency_histogram"`
+
 	// If enabled another histogram will be produced for interactions over messaging systems middlewares
 	EnableMessagingSystemLatencyHistogram bool `yaml:"enable_messaging_system_latency_histogram"`
 
@@ -74,6 +80,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	}
 	cfg.PeerAttributes = peerAttr
 
+	cfg.EnableClientLatencyHistogram = true
+	cfg.EnableServerLatencyHistogram = true
 	cfg.EnableMessagingSystemLatencyHistogram = false
 
 	cfg.DatabaseNameAttributes = []string{
