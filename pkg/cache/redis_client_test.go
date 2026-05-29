@@ -102,12 +102,12 @@ func TestRedisClient_MSet_MaxItemSize(t *testing.T) {
 			wantSkipped: 1,
 		},
 		{
-			name:        "boundary item exactly at the cap is stored",
+			name:        "boundary item exactly at the cap is stored and one byte over is skipped",
 			maxItemSize: itemSize,
-			keys:        []string{"at-cap"},
-			values:      [][]byte{make([]byte, itemSize)},
-			wantStored:  []bool{true},
-			wantSkipped: 0,
+			keys:        []string{"at-cap", "over-cap-by-1"},
+			values:      [][]byte{make([]byte, itemSize), make([]byte, itemSize+1)},
+			wantStored:  []bool{true, false},
+			wantSkipped: 1,
 		},
 		{
 			name:        "all oversized batch skips every item and counter increments per item",
@@ -120,8 +120,8 @@ func TestRedisClient_MSet_MaxItemSize(t *testing.T) {
 		{
 			name:        "zero MaxItemSize disables the cap",
 			maxItemSize: 0,
-			keys:        []string{"huge"},
-			values:      [][]byte{make([]byte, 10*1024*1024)},
+			keys:        []string{"larger-than-cap"},
+			values:      [][]byte{make([]byte, itemSize*100)},
 			wantStored:  []bool{true},
 			wantSkipped: 0,
 		},
@@ -172,7 +172,7 @@ func mockRedisClientSingle() (*RedisClient, error) {
 		}, ","),
 	}
 
-	return NewRedisClient(cfg, "test", nil), nil
+	return NewRedisClient(cfg, "test", prometheus.NewRegistry()), nil
 }
 
 func mockRedisClientCluster() (*RedisClient, error) {
@@ -195,5 +195,5 @@ func mockRedisClientCluster() (*RedisClient, error) {
 		}, ","),
 	}
 
-	return NewRedisClient(cfg, "test", nil), nil
+	return NewRedisClient(cfg, "test", prometheus.NewRegistry()), nil
 }

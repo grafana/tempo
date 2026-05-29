@@ -33,8 +33,8 @@ type RedisConfig struct {
 	InsecureSkipVerify bool           `yaml:"tls_insecure_skip_verify"`
 	IdleTimeout        time.Duration  `yaml:"idle_timeout"`
 	MaxConnAge         time.Duration  `yaml:"max_connection_age"`
-	// MaxItemSize is the max size in bytes of an item stored in Redis. Items larger than this are not cached.
-	// 0 means no limit is enforced.
+	// MaxItemSize is the maximum size in bytes of an item stored in Redis.
+	// Items larger than this are not stored. A value of 0 disables the limit.
 	MaxItemSize int `yaml:"max_item_size"`
 }
 
@@ -54,7 +54,7 @@ func (cfg *RedisConfig) RegisterFlagsWithPrefix(prefix, description string, f *f
 	f.BoolVar(&cfg.InsecureSkipVerify, prefix+"redis.tls-insecure-skip-verify", false, description+"Skip validating server certificate.")
 	f.DurationVar(&cfg.IdleTimeout, prefix+"redis.idle-timeout", 0, description+"Close connections after remaining idle for this duration. If the value is zero, then idle connections are not closed.")
 	f.DurationVar(&cfg.MaxConnAge, prefix+"redis.max-connection-age", 0, description+"Close connections older than this duration. If the value is zero, then the pool does not close connections based on age.")
-	f.IntVar(&cfg.MaxItemSize, prefix+"redis.max-item-size", 0, description+"The maximum size in bytes of an item stored in Redis. Bigger items are not stored. If set to 0, no maximum size is enforced.")
+	f.IntVar(&cfg.MaxItemSize, prefix+"redis.max-item-size", 0, description+"The maximum size in bytes of an item stored in Redis. Items larger than this are not stored. A value of 0 disables the limit.")
 }
 
 type RedisClient struct {
@@ -62,8 +62,8 @@ type RedisClient struct {
 	timeout    time.Duration
 	rdb        redis.UniversalClient
 
-	maxItemSize int
-	skipped     prometheus.Counter
+	maxItemSizeBytes int
+	skipped          prometheus.Counter
 }
 
 // NewRedisClient creates Redis client
@@ -84,10 +84,10 @@ func NewRedisClient(cfg *RedisConfig, name string, reg prometheus.Registerer) *R
 		opt.TLSConfig = &tls.Config{InsecureSkipVerify: cfg.InsecureSkipVerify}
 	}
 	return &RedisClient{
-		expiration:  cfg.Expiration,
-		timeout:     cfg.Timeout,
-		rdb:         redis.NewUniversalClient(opt),
-		maxItemSize: cfg.MaxItemSize,
+		expiration:       cfg.Expiration,
+		timeout:          cfg.Timeout,
+		rdb:              redis.NewUniversalClient(opt),
+		maxItemSizeBytes: cfg.MaxItemSize,
 		skipped: promauto.With(reg).NewCounter(prometheus.CounterOpts{
 			Namespace:   "tempo",
 			Name:        "rediscache_client_set_skip_total",
@@ -127,8 +127,8 @@ func (c *RedisClient) MSet(ctx context.Context, keys []string, values [][]byte) 
 
 	pipe := c.rdb.TxPipeline()
 	for i := range keys {
-		// Skip hitting redis at all if the item is bigger than the max allowed size.
-		if c.maxItemSize > 0 && len(values[i]) > c.maxItemSize {
+		// Skip hitting redis at all if the item is larger than the max allowed size.
+		if c.maxItemSizeBytes > 0 && len(values[i]) > c.maxItemSizeBytes {
 			c.skipped.Inc()
 			continue
 		}

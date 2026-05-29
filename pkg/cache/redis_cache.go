@@ -17,20 +17,20 @@ import (
 
 // RedisCache type caches chunks in redis
 type RedisCache struct {
-	name            string
-	redis           *RedisClient
-	logger          log.Logger
-	requestDuration *instr.HistogramCollector
-	maxItemSize     int
+	name             string
+	redis            *RedisClient
+	logger           log.Logger
+	requestDuration  *instr.HistogramCollector
+	maxItemSizeBytes int
 }
 
 // NewRedisCache creates a new RedisCache
-func NewRedisCache(name string, redisClient *RedisClient, maxItemSize int, reg prometheus.Registerer, logger log.Logger) *RedisCache {
+func NewRedisCache(name string, redisClient *RedisClient, maxItemSizeBytes int, reg prometheus.Registerer, logger log.Logger) *RedisCache {
 	cache := &RedisCache{
-		name:        name,
-		redis:       redisClient,
-		logger:      logger,
-		maxItemSize: maxItemSize,
+		name:             name,
+		redis:            redisClient,
+		logger:           logger,
+		maxItemSizeBytes: maxItemSizeBytes,
 		requestDuration: instr.NewHistogramCollector(
 			promauto.With(reg).NewHistogramVec(prometheus.HistogramOpts{
 				Namespace:                       "tempo",
@@ -150,5 +150,5 @@ func (c *RedisCache) Release(_ []byte) {
 }
 
 func (c *RedisCache) MaxItemSize() int {
-	return c.maxItemSize
+	return c.maxItemSizeBytes
 }

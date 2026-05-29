@@ -8,6 +8,7 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/go-kit/log"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -62,7 +63,7 @@ func TestRedisCache_MaxItemSizeReturnsConfigured(t *testing.T) {
 	require.NoError(t, err)
 	defer c.redis.Close()
 
-	require.Equal(t, c.MaxItemSize(), 10*1024*1024,
+	require.Equal(t, 10*1024*1024, c.MaxItemSize(),
 		"RedisCache.MaxItemSize() must return the configured max size")
 }
 
@@ -77,6 +78,6 @@ func mockRedisCache() (*RedisCache, error) {
 		Endpoint:    strings.Join([]string{redisServer.Addr()}, ","),
 		MaxItemSize: 10 * 1024 * 1024,
 	}
-	redisClient := NewRedisClient(cfg, "mock", nil)
-	return NewRedisCache("mock", redisClient, cfg.MaxItemSize, nil, log.NewNopLogger()), nil
+	redisClient := NewRedisClient(cfg, "mock", prometheus.NewRegistry())
+	return NewRedisCache("mock", redisClient, cfg.MaxItemSize, prometheus.NewRegistry(), log.NewNopLogger()), nil
 }
