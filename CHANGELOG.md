@@ -1,5 +1,6 @@
 ## main / unreleased
 
+* [ENHANCEMENT] cache: enforce a configurable MaxItemSize for Redis. [#7311](https://github.com/grafana/tempo/pull/7311) (@electron0zero)
 * [SECURITY] jsonnet: bump `memcached` to `1.6.42-alpine` and `prom/memcached-exporter` to `v0.16.0` to clear accumulated CVEs. [#7244](https://github.com/grafana/tempo/pull/7244) (@zhxiaogg)
 * [ENHANCEMENT] tempo-mixin: update backendwork dashboard with a Redaction section (active jobs, created/completed/failed/dropped by tenant, job duration), add Dropped and Job Duration panels to the Jobs row, and fix the Retry metric name (`jobs_retry` -> `jobs_retry_total`). [#7184](https://github.com/grafana/tempo/pull/7184) (@zalegrala)
 * [ENHANCEMENT] querier: limit external endpoint response size to querier grpc MaxSendMsgSize. [#7240](https://github.com/grafana/tempo/pull/7240) (@electron0zero)

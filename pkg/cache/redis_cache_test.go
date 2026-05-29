@@ -2,12 +2,14 @@ package cache
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/go-kit/log"
-	"github.com/redis/go-redis/v9"
+	"github.com/prometheus/client_golang/prometheus"
+  "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -57,17 +59,26 @@ func TestRedisCache(t *testing.T) {
 	assert.False(t, foundKey)
 }
 
+func TestRedisCache_MaxItemSizeReturnsConfigured(t *testing.T) {
+	c, err := mockRedisCache()
+	require.NoError(t, err)
+	defer c.redis.Close()
+
+	require.Equal(t, 10*1024*1024, c.MaxItemSize(),
+		"RedisCache.MaxItemSize() must return the configured max size")
+}
+
 func mockRedisCache() (*RedisCache, error) {
 	redisServer, err := miniredis.Run()
 	if err != nil {
 		return nil, err
 	}
-	redisClient := &RedisClient{
-		expiration: time.Minute,
-		timeout:    100 * time.Millisecond,
-		rdb: redis.NewUniversalClient(&redis.UniversalOptions{
-			Addrs: []string{redisServer.Addr()},
-		}),
+	cfg := &RedisConfig{
+		Expiration:  time.Minute,
+		Timeout:     100 * time.Millisecond,
+		Endpoint:    strings.Join([]string{redisServer.Addr()}, ","),
+		MaxItemSize: 10 * 1024 * 1024,
 	}
-	return NewRedisCache("mock", redisClient, nil, log.NewNopLogger()), nil
+	redisClient := NewRedisClient(cfg, "mock", prometheus.NewRegistry())
+	return NewRedisCache("mock", redisClient, cfg.MaxItemSize, prometheus.NewRegistry(), log.NewNopLogger()), nil
 }
