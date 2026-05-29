@@ -22,6 +22,7 @@
 * [BUGFIX] user-configurable overrides: emit duration fields as flat YAML scalars on `/status/overrides/{tenant}` and omit `generate_native_histograms` when unset. [#7138](https://github.com/grafana/tempo/pull/7138) (@electron0zero)
 * [BUGFIX] Fix unsafe quoting in query attributes [#7220](https://github.com/grafana/tempo/pull/7220) (@ruslan-mikhailov)
 * [FEATURE] Support arithmetic operations in TraceQL Metrics [#6866](https://github.com/grafana/tempo/pull/6866) (@ruslan-mikhailov)
+* [BUGFIX] Fix rare cache collision between instant and range metrics queries [#7290](https://github.com/grafana/tempo/pull/7290) (@ruslan-mikhailov)
 
 # v3.0.0
 
