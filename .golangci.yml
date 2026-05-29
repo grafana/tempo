@@ -13,6 +13,7 @@ output:
 
 linters:
   enable:
+    - depguard
     - errorlint
     - forbidigo
     - gocritic
@@ -23,6 +24,16 @@ linters:
     - unconvert
     - unparam
   settings:
+    depguard:
+      rules:
+        no-direct-xxhash:
+          list-mode: lax
+          files:
+            - $all
+            - "!**/pkg/hash/*.go"
+          deny:
+            - pkg: github.com/cespare/xxhash/v2
+              desc: 'Use github.com/grafana/tempo/pkg/hash instead of importing xxhash directly.'
     errcheck:
       exclude-functions:
         - (github.com/go-kit/kit/log.Logger).Log

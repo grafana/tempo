@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/go-kit/log" //nolint:all deprecated
 	"github.com/go-kit/log/level"
 	"go.opentelemetry.io/otel/attribute"
@@ -19,9 +18,9 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/hash"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
-	tempo_util "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -419,11 +418,11 @@ func hashForQueryRangeRequest(req *tempopb.QueryRangeRequest) uint64 {
 	query := ast.String()
 
 	// add the query and other fields that change the response to the hash
-	d := xxhash.New()
+	d := hash.New()
 	_, _ = d.WriteString(query)
-	tempo_util.HashUint64(d, req.Step)
-	tempo_util.HashUint64(d, uint64(req.MaxSeries))
-	tempo_util.HashUint64(d, uint64(req.Exemplars))
+	d.WriteUint64(req.Step)
+	d.WriteUint64(uint64(req.MaxSeries))
+	d.WriteUint64(uint64(req.Exemplars))
 
 	// TODO: once we have IN/NOT IN syntax in TraceQL, we should pass down the optimized query with the
 	//       request and remove req.SkipASTTransformations entirely and skip this step

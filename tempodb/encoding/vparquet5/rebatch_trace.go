@@ -5,9 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/cespare/xxhash/v2"
-
-	tempo_util "github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/hash"
 )
 
 // rebatchTrace removes redundant ResourceSpans and ScopeSpans from the trace through rebatching.
@@ -108,7 +106,7 @@ func rebatchTrace(trace *Trace) {
 }
 
 func scopeSpanHash(ss *ScopeSpans) uint64 {
-	d := xxhash.New()
+	d := hash.New()
 	_, _ = d.WriteString(ss.Scope.Name)
 	addHashSeparator(d)
 	_, _ = d.WriteString(ss.Scope.Version)
@@ -127,7 +125,7 @@ func scopeSpanHash(ss *ScopeSpans) uint64 {
 }
 
 func resourceSpanHash(rs *ResourceSpans) uint64 {
-	d := xxhash.New()
+	d := hash.New()
 	_, _ = d.WriteString(rs.Resource.ServiceName)
 	addHashSeparator(d)
 	addHashStr(d, rs.Resource.DedicatedAttributes.String01...)
@@ -159,7 +157,7 @@ func resourceSpanHash(rs *ResourceSpans) uint64 {
 	return d.Sum64()
 }
 
-func attributeHash(d *xxhash.Digest, attr *Attribute) {
+func attributeHash(d *hash.Digest, attr *Attribute) {
 	_, _ = d.WriteString(attr.Key)
 
 	if attr.IsArray {
@@ -177,7 +175,7 @@ func attributeHash(d *xxhash.Digest, attr *Attribute) {
 	}
 }
 
-func addHashStr(d *xxhash.Digest, strs ...string) {
+func addHashStr(d *hash.Digest, strs ...string) {
 	if len(strs) == 0 {
 		addHashSeparator(d)
 		return
@@ -188,44 +186,44 @@ func addHashStr(d *xxhash.Digest, strs ...string) {
 	}
 }
 
-func addHashInt(d *xxhash.Digest, ints ...int64) {
+func addHashInt(d *hash.Digest, ints ...int64) {
 	if len(ints) == 0 {
 		addHashSeparator(d)
 		return
 	}
 	for _, n := range ints {
-		tempo_util.HashUint64(d, uint64(n))
+		d.WriteUint64(uint64(n))
 	}
 }
 
-func addHashDouble(d *xxhash.Digest, ints ...float64) {
+func addHashDouble(d *hash.Digest, ints ...float64) {
 	if len(ints) == 0 {
 		addHashSeparator(d)
 		return
 	}
 	for _, n := range ints {
-		tempo_util.HashUint64(d, math.Float64bits(n))
+		d.WriteUint64(math.Float64bits(n))
 	}
 }
 
-func addHashBool(d *xxhash.Digest, bools ...bool) {
+func addHashBool(d *hash.Digest, bools ...bool) {
 	if len(bools) == 0 {
 		addHashSeparator(d)
 		return
 	}
 	for _, b := range bools {
 		if b {
-			tempo_util.HashUint64(d, 1)
+			d.WriteUint64(1)
 		} else {
-			tempo_util.HashUint64(d, 0)
+			d.WriteUint64(0)
 		}
 	}
 }
 
-func addHashSeparator(d *xxhash.Digest) {
+func addHashSeparator(d *hash.Digest) {
 	// hash twice with large primes to avoid collisions
-	tempo_util.HashUint64(d, 9952039)
-	tempo_util.HashUint64(d, 10188397)
+	d.WriteUint64(9952039)
+	d.WriteUint64(10188397)
 }
 
 // clearScopeSpans clears slices in ScopeSpans so avoid multiple copies of the same

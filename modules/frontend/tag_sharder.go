@@ -6,12 +6,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/go-kit/log"
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/hash"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/validation"
@@ -34,7 +34,7 @@ func (r *tagsSearchRequest) end() uint32 {
 }
 
 func (r *tagsSearchRequest) hash() uint64 {
-	return xxhash.Sum64String(r.request.Scope)
+	return hash.Sum64String(r.request.Scope)
 }
 
 func (r *tagsSearchRequest) keyPrefix() string {
@@ -84,7 +84,7 @@ func (r *tagValueSearchRequest) end() uint32 {
 }
 
 func (r *tagValueSearchRequest) hash() uint64 {
-	d := xxhash.New()
+	d := hash.New()
 	_, _ = d.WriteString(r.request.TagName)
 	_, _ = d.WriteString(traceql.NormalizeQuery(r.request.Query))
 	return d.Sum64()

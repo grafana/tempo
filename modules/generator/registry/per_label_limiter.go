@@ -5,11 +5,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/schema"
+
+	"github.com/grafana/tempo/pkg/hash"
 )
 
 const (
@@ -111,7 +112,7 @@ func (s *PerLabelLimiter) Limit(lbls labels.Labels) labels.Labels {
 		// If we inserted the overflowValue, then the estimate would drop and cause oscillation:
 		// over limit -> Add overflowValue -> estimate drops -> under limit -> real values -> over limit ->...
 		// Insert acquires its own internal mu lock on the sketch.
-		state.sketch.Insert(xxhash.Sum64String(l.Value))
+		state.sketch.Insert(hash.Sum64String(l.Value))
 
 		// we are over the limit, replace label value and capture the metric
 		if state.overLimit {

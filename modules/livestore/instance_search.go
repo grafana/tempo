@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
@@ -26,6 +25,7 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/collector"
+	"github.com/grafana/tempo/pkg/hash"
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -652,7 +652,7 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte, allowParti
 
 	// Check live traces first
 	i.liveTracesMtx.Lock()
-	if liveTrace, ok := i.liveTraces.Traces[util.HashForTraceID(traceID)]; ok {
+	if liveTrace, ok := i.liveTraces.Traces[hash.HashForTraceID(traceID)]; ok {
 		tempTrace := &tempopb.Trace{}
 		tempTrace.ResourceSpans = liveTrace.Batches
 		// Previously there was some logic here to add inspected bytes in the ingester. But its hard to do with the different
@@ -947,16 +947,16 @@ func (i *instance) queryRangeCacheSet(ctx context.Context, m *backend.BlockMeta,
 }
 
 func queryRangeHashForBlock(req tempopb.QueryRangeRequest) uint64 {
-	d := xxhash.New()
+	d := hash.New()
 	_, _ = d.WriteString(req.Query)
-	util.HashUint64(d, req.Start)
-	util.HashUint64(d, req.End)
-	util.HashUint64(d, req.Step)
+	d.WriteUint64(req.Start)
+	d.WriteUint64(req.End)
+	d.WriteUint64(req.Step)
 
 	// TODO - caching for WAL blocks
 	// Including trace count means we can safely cache results
 	// for wal blocks which might receive new data
-	// util.HashUint64(d, m.TotalObjects)
+	// d.WriteUint64(m.TotalObjects)
 
 	return d.Sum64()
 }
@@ -994,10 +994,10 @@ func searchTagValuesV2CacheKey(req *tempopb.SearchTagValuesRequest, limit int, p
 
 	// NOTE: we are not adding req.Start and req.End to the cache key because we don't respect the start and end
 	// please add them to cacheKey if we start respecting them
-	d := xxhash.New()
+	d := hash.New()
 	_, _ = d.WriteString(req.TagName)
 	_, _ = d.WriteString(cacheKey)
-	util.HashUint64(d, uint64(limit))
+	d.WriteUint64(uint64(limit))
 
 	return fmt.Sprintf("%s_%v.buf", prefix, d.Sum64())
 }

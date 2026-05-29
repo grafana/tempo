@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
@@ -598,12 +597,12 @@ func TestSearchTagsV2AccessesCache(t *testing.T) {
 	// setup query
 	tenant := "foo"
 	scope := "resource"
-	hash := xxhash.Sum64String(scope)
+	hashVal := (&tagsSearchRequest{request: tempopb.SearchTagsRequest{Scope: scope}}).hash()
 	start := uint32(10)
 	end := uint32(20)
 	startTime := time.Unix(int64(start), 0)
 	endTime := time.Unix(int64(end), 0)
-	cacheKey := cacheKey(cacheKeyPrefixSearchTag, tenant, hash, startTime, endTime, meta, 0, 1)
+	cacheKey := cacheKey(cacheKeyPrefixSearchTag, tenant, hashVal, startTime, endTime, meta, 0, 1)
 
 	// confirm cache key coesn't exist
 	_, bufs, _ := c.Fetch(context.Background(), []string{cacheKey})
@@ -718,12 +717,12 @@ func TestTagValuesCachedMetrics(t *testing.T) {
 	// setup query
 	tenant := "foo"
 	tagName := "resource.service.name"
-	hash := xxhash.Sum64String(tagName)
+	hashVal := (&tagValueSearchRequest{request: tempopb.SearchTagValuesRequest{TagName: tagName}}).hash()
 	start := uint32(10)
 	end := uint32(20)
 	startTime := time.Unix(int64(start), 0)
 	endTime := time.Unix(int64(end), 0)
-	cacheKey := cacheKey(cacheKeyPrefixSearchTagValues, tenant, hash, startTime, endTime, meta, 0, 1)
+	cacheKey := cacheKey(cacheKeyPrefixSearchTagValues, tenant, hashVal, startTime, endTime, meta, 0, 1)
 
 	// confirm cache key doesn't exist
 	_, bufs, _ := c.Fetch(context.Background(), []string{cacheKey})
@@ -812,12 +811,12 @@ func TestTagsCachedMetrics(t *testing.T) {
 	// setup query
 	tenant := "foo"
 	scope := "resource"
-	hash := xxhash.Sum64String(scope)
+	hashVal := (&tagsSearchRequest{request: tempopb.SearchTagsRequest{Scope: scope}}).hash()
 	start := uint32(10)
 	end := uint32(20)
 	startTime := time.Unix(int64(start), 0)
 	endTime := time.Unix(int64(end), 0)
-	cacheKey := cacheKey(cacheKeyPrefixSearchTag, tenant, hash, startTime, endTime, meta, 0, 1)
+	cacheKey := cacheKey(cacheKeyPrefixSearchTag, tenant, hashVal, startTime, endTime, meta, 0, 1)
 
 	// confirm cache key doesn't exist
 	_, bufs, _ := c.Fetch(context.Background(), []string{cacheKey})

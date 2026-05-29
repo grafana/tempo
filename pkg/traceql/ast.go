@@ -11,7 +11,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/cespare/xxhash/v2"
+	"github.com/grafana/tempo/pkg/hash"
 	"github.com/grafana/tempo/pkg/regexp"
 )
 
@@ -897,7 +897,7 @@ func (s Static) MapKey() StaticMapKey {
 			return StaticMapKey{typ: s.Type}
 		}
 
-		h := xxhash.New()
+		h := hash.New()
 		_, _ = h.Write(s.valBytes)
 		return StaticMapKey{typ: s.Type, code: h.Sum64()}
 	case TypeStringArray:
@@ -905,7 +905,7 @@ func (s Static) MapKey() StaticMapKey {
 			return StaticMapKey{typ: s.Type}
 		}
 
-		h := xxhash.New()
+		h := hash.New()
 		_, _ = h.Write(seedBytes)
 		for _, str := range s.valStrings {
 			_, _ = h.Write([]byte(str))

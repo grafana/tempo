@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	tempo_hash "github.com/grafana/tempo/pkg/hash"
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -432,7 +432,7 @@ var _ prometheus.Collector = (*Tracker)(nil)
 // hash the given key-value pairs buffers. Buffers must have the
 // same lengths
 func hash(keys []string, values []string) uint64 {
-	h := xxhash.New()
+	h := tempo_hash.New()
 
 	for i := range keys {
 		_, _ = h.WriteString(keys[i])

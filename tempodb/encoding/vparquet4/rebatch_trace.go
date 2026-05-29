@@ -5,9 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/cespare/xxhash/v2"
-
-	tempo_util "github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/hash"
 )
 
 // rebatchTrace removes redundant ResourceSpans and ScopeSpans from the trace through rebatching.
@@ -98,7 +96,7 @@ func rebatchTrace(trace *Trace) {
 }
 
 func scopeSpanHash(ss *ScopeSpans) uint64 {
-	d := xxhash.New()
+	d := hash.New()
 	_, _ = d.WriteString(ss.Scope.Name)
 	_, _ = d.WriteString(ss.Scope.Version)
 
@@ -115,7 +113,7 @@ func scopeSpanHash(ss *ScopeSpans) uint64 {
 }
 
 func resourceSpanHash(rs *ResourceSpans) uint64 {
-	d := xxhash.New()
+	d := hash.New()
 	_, _ = d.WriteString(rs.Resource.ServiceName)
 
 	addHash(d, rs.Resource.Cluster)
@@ -150,7 +148,7 @@ func resourceSpanHash(rs *ResourceSpans) uint64 {
 	return d.Sum64()
 }
 
-func attributeHash(d *xxhash.Digest, attr *Attribute) {
+func attributeHash(d *hash.Digest, attr *Attribute) {
 	_, _ = d.WriteString(attr.Key)
 
 	// is array?
@@ -162,22 +160,22 @@ func attributeHash(d *xxhash.Digest, attr *Attribute) {
 		if v {
 			b = 1
 		}
-		tempo_util.HashUint64(d, b)
+		d.WriteUint64(b)
 	}
 	for _, v := range attr.ValueDouble {
-		tempo_util.HashUint64(d, math.Float64bits(v))
+		d.WriteUint64(math.Float64bits(v))
 	}
 	for _, v := range attr.ValueInt {
-		tempo_util.HashUint64(d, uint64(v))
+		d.WriteUint64(uint64(v))
 	}
 	addHash(d, attr.ValueUnsupported)
 }
 
-func addHash(d *xxhash.Digest, s *string) {
+func addHash(d *hash.Digest, s *string) {
 	if s == nil {
 		// hash twice with large primes to avoid collisions
-		tempo_util.HashUint64(d, 9952039)
-		tempo_util.HashUint64(d, 10188397)
+		d.WriteUint64(9952039)
+		d.WriteUint64(10188397)
 		return
 	}
 	_, _ = d.WriteString(*s)

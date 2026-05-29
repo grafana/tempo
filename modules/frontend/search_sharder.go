@@ -7,7 +7,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/go-kit/log" //nolint:all deprecated
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
@@ -15,9 +14,9 @@ import (
 	"github.com/grafana/tempo/modules/frontend/shardtracker"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/hash"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
-	tempo_util "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -366,10 +365,10 @@ func hashForSearchRequest(searchRequest *tempopb.SearchRequest) uint64 {
 	query := ast.String()
 
 	// add the query, limit and spss to the hash
-	d := xxhash.New()
+	d := hash.New()
 	_, _ = d.WriteString(query)
-	tempo_util.HashUint64(d, uint64(searchRequest.Limit))
-	tempo_util.HashUint64(d, uint64(searchRequest.SpansPerSpanSet))
+	d.WriteUint64(uint64(searchRequest.Limit))
+	d.WriteUint64(uint64(searchRequest.SpansPerSpanSet))
 	for _, name := range searchRequest.SkipASTTransformations {
 		_, _ = d.WriteString(name)
 	}

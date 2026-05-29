@@ -7,7 +7,7 @@ import (
 	"github.com/bits-and-blooms/bloom/v3"
 	"github.com/go-kit/log/level"
 
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/hash"
 	"github.com/grafana/tempo/pkg/util/log"
 )
 
@@ -81,7 +81,7 @@ func (b *ShardedBloomFilter) Test(traceID []byte) bool {
 }
 
 func ShardKeyForTraceID(traceID []byte, shardCount int) int {
-	return int(util.TokenForTraceID(traceID)) % ValidateShardCount(shardCount)
+	return int(hash.TokenForTraceID(traceID)) % ValidateShardCount(shardCount)
 }
 
 // For backward compatibility
