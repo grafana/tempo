@@ -174,6 +174,24 @@ The default values for several [live-store](/docs/tempo/<TEMPO_VERSION>/referenc
 
 If you explicitly set these values in your configuration, no action is needed.
 
+### Fail-on-high-lag enabled by default
+
+Tempo now fails search and metrics requests when a [live-store](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/live-store/) can't guarantee complete results, rather than returning a partial response.
+The `live_store.fail_on_high_lag` setting defaults to `true` (previously `false`). When a live-store's Kafka lag overlaps a query's time range, the request returns an error instead of silently incomplete results, trading availability for correctness. [[PR 7210](https://github.com/grafana/tempo/pull/7210)]
+
+This change also sets `query_frontend.query_end_cutoff` to `30s` (previously `0`), which excludes the most recent 30 seconds from queries to avoid incomplete results.
+The cutoff must be less than `query_frontend.search.query_backend_after`.
+
+To restore the previous behavior and continue returning partial results, set `fail_on_high_lag: false`:
+
+```yaml
+live_store:
+  fail_on_high_lag: false
+```
+
+To detect lagged requests, monitor the `tempo_live_store_lagged_requests_total` metric.
+Refer to [Manage trace ingestion](/docs/tempo/<TEMPO_VERSION>/operations/manage-trace-ingestion/) for details.
+
 ### Ingester removal
 
 The ingester module is removed entirely. All ingester-related configuration fields, CLI flags, alerts, and dashboard panels must be removed from your deployment. The write path is now handled by the [block-builder](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/block-builder/) and [live-store](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/live-store/).
