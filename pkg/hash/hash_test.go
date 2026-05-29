@@ -374,7 +374,6 @@ func BenchmarkHashForTraceID(b *testing.B) {
 	_ = sink
 }
 
-
 func BenchmarkTokenFor_UserID(b *testing.B) {
 	b.ReportAllocs()
 	var sink uint32
@@ -392,7 +391,6 @@ func BenchmarkSum64String_TagScope(b *testing.B) {
 	}
 	_ = sink
 }
-
 
 func makeRnd() *rand.Rand {
 	return rand.New(rand.NewPCG(1, 2))
