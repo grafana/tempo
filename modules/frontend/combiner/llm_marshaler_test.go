@@ -148,9 +148,45 @@ func TestTraceByIDResponseToSimplifiedJSON(t *testing.T) {
 		Metrics: &LLMMetrics{
 			InspectedBytes: 12345,
 		},
+		Status:  "COMPLETE",
+		Message: "",
 	}
 
 	assert.Equal(t, expected, &actual)
+}
+
+func TestTraceByIDResponseToSimplifiedJSONIncludesStatus(t *testing.T) {
+	traceResponse := &tempopb.TraceByIDResponse{
+		Trace: &tempopb.Trace{
+			ResourceSpans: []*tracev1.ResourceSpans{
+				{
+					ScopeSpans: []*tracev1.ScopeSpans{
+						{
+							Spans: []*tracev1.Span{
+								{
+									TraceId: []byte{0x01, 0x02, 0x03, 0x04},
+									SpanId:  []byte{0x11, 0x12, 0x13, 0x14},
+									Name:    "test-span",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Status:  tempopb.PartialStatus_PARTIAL,
+		Message: "Trace exceeds maximum size of 100 bytes, a partial trace is returned",
+	}
+
+	result, err := traceByIDResponseToSimplifiedJSON(traceResponse)
+	require.NoError(t, err)
+
+	var actual LLMTraceByIDResponse
+	err = json.Unmarshal([]byte(result), &actual)
+	require.NoError(t, err)
+
+	assert.Equal(t, "PARTIAL", actual.Status)
+	assert.Equal(t, "Trace exceeds maximum size of 100 bytes, a partial trace is returned", actual.Message)
 }
 
 func TestSearchTagValuesV2ResponseToSimplifiedJSON(t *testing.T) {
