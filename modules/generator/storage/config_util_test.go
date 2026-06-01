@@ -179,13 +179,14 @@ func Test_generateTenantRemoteWriteConfigs_writeRelabelConfigs(t *testing.T) {
 	// NameValidationScheme was never initialized on the relabel configs.
 	lbls := labels.FromStrings("deployment_environment", "production")
 
-	var newLbls labels.Labels
 	var keep bool
+	var lb *labels.Builder
 	assert.NotPanics(t, func() {
-		newLbls, keep = relabel.Process(lbls, result[0].WriteRelabelConfigs...)
+		lb = labels.NewBuilder(lbls)
+		keep = relabel.ProcessBuilder(lb, result[0].WriteRelabelConfigs...)
 	})
 	assert.True(t, keep)
-	assert.Equal(t, "production", newLbls.Get("client_deployment_environment"))
+	assert.Equal(t, "production", lb.Labels().Get("client_deployment_environment"))
 }
 
 func urlMustParse(urlStr string) *url.URL {

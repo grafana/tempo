@@ -18,6 +18,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/otlptranslator"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
@@ -272,12 +273,17 @@ func prometheusReader(ctx context.Context, prometheusConfig *Prometheus) (sdkmet
 	if prometheusConfig.WithoutScopeInfo != nil && *prometheusConfig.WithoutScopeInfo {
 		opts = append(opts, otelprom.WithoutScopeInfo())
 	}
-	if prometheusConfig.WithoutTypeSuffix != nil && *prometheusConfig.WithoutTypeSuffix {
-		opts = append(opts, otelprom.WithoutCounterSuffixes()) //nolint:staticcheck // WithoutCounterSuffixes is deprecated, but we still need it for backwards compatibility.
+
+	if prometheusConfig.WithoutTypeSuffix != nil && *prometheusConfig.WithoutTypeSuffix && prometheusConfig.WithoutUnits != nil && *prometheusConfig.WithoutUnits {
+		// NoTranslation preserves OTel dot-style label names (e.g. service.name)
+		// and suppresses metric name suffixes. The exporter's newConfig will
+		// automatically set withoutCounterSuffixes and withoutUnits when
+		// ShouldAddSuffixes() is false.
+		opts = append(opts, otelprom.WithTranslationStrategy(otlptranslator.NoTranslation))
+	} else {
+		opts = append(opts, otelprom.WithTranslationStrategy(otlptranslator.NoUTF8EscapingWithSuffixes))
 	}
-	if prometheusConfig.WithoutUnits != nil && *prometheusConfig.WithoutUnits {
-		opts = append(opts, otelprom.WithoutUnits()) //nolint:staticcheck // WithouTypeSuffix is deprecated, but we still need it for backwards compatibility.
-	}
+
 	if prometheusConfig.WithResourceConstantLabels != nil {
 		if prometheusConfig.WithResourceConstantLabels.Included != nil {
 			var keys []attribute.Key
@@ -321,7 +327,7 @@ func prometheusReader(ctx context.Context, prometheusConfig *Prometheus) (sdkmet
 	}
 
 	addr := net.JoinHostPort(host, strconv.Itoa(*prometheusConfig.Port))
-	lis, err := net.Listen("tcp", addr)
+	lis, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", addr)
 	if err != nil {
 		return nil, errors.Join(
 			fmt.Errorf("binding address %s for Prometheus exporter: %w", addr, err),
@@ -402,7 +408,7 @@ func stream(vs *ViewStream) sdkmetric.Stream {
 }
 
 func attributeFilter(attributeKeys []string) attribute.Filter {
-	var attrKeys []attribute.Key
+	attrKeys := make([]attribute.Key, 0, len(attributeKeys))
 	for _, attrStr := range attributeKeys {
 		attrKeys = append(attrKeys, attribute.Key(attrStr))
 	}

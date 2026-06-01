@@ -5,9 +5,10 @@ package maps
 
 import (
 	"fmt"
-	"github.com/mitchellh/copystructure"
 	"reflect"
 	"strings"
+
+	"github.com/mitchellh/copystructure"
 )
 
 // Flatten takes a map[string]interface{} and traverses it and flattens
@@ -73,9 +74,15 @@ func Unflatten(m map[string]interface{}, delim string) map[string]interface{} {
 	// Iterate through the flat conf map.
 	for k, v := range m {
 		var (
-			keys = strings.Split(k, delim)
+			keys []string
 			next = out
 		)
+
+		if delim != "" {
+			keys = strings.Split(k, delim)
+		} else {
+			keys = []string{k}
+		}
 
 		// Iterate through key parts, for eg:, parent.child.key
 		// will be ["parent", "child", "key"]
@@ -170,7 +177,9 @@ func mergeStrict(a, b map[string]interface{}, fullKey string) error {
 		// The source key and target keys are both maps. Merge them.
 		switch v := bVal.(type) {
 		case map[string]interface{}:
-			return mergeStrict(val.(map[string]interface{}), v, newFullKey)
+			if err := mergeStrict(val.(map[string]interface{}), v, newFullKey); err != nil {
+				return err
+			}
 		default:
 			b[key] = val
 		}

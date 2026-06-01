@@ -6,11 +6,8 @@ package otelconf // import "go.opentelemetry.io/contrib/otelconf/v0.3.0"
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"fmt"
-	"os"
 
 	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/log"
@@ -19,10 +16,13 @@ import (
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	sdkresource "go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	yaml "go.yaml.in/yaml/v3"
+
+	"go.opentelemetry.io/contrib/otelconf/internal/provider"
 )
 
 const (
@@ -53,6 +53,7 @@ type SDK struct {
 	meterProvider  metric.MeterProvider
 	tracerProvider trace.TracerProvider
 	loggerProvider log.LoggerProvider
+	resource       *sdkresource.Resource
 	shutdown       shutdownFunc
 }
 
@@ -71,6 +72,16 @@ func (s *SDK) LoggerProvider() log.LoggerProvider {
 	return s.loggerProvider
 }
 
+// Resource returns a copy of the resolved SDK resource configured in this SDK.
+// The copy preserves the immutability of the SDK-owned resource.
+func (s *SDK) Resource() *sdkresource.Resource {
+	if s.resource == nil {
+		return nil
+	}
+	res := *s.resource
+	return &res
+}
+
 // Shutdown calls shutdown on all configured providers.
 func (s *SDK) Shutdown(ctx context.Context) error {
 	return s.shutdown(ctx)
@@ -80,6 +91,7 @@ var noopSDK = SDK{
 	loggerProvider: nooplog.LoggerProvider{},
 	meterProvider:  noopmetric.MeterProvider{},
 	tracerProvider: nooptrace.TracerProvider{},
+	resource:       sdkresource.Empty(),
 	shutdown:       func(context.Context) error { return nil },
 }
 
@@ -116,6 +128,7 @@ func NewSDK(opts ...ConfigurationOption) (SDK, error) {
 		meterProvider:  mp,
 		tracerProvider: tp,
 		loggerProvider: lp,
+		resource:       r,
 		shutdown: func(ctx context.Context) error {
 			return errors.Join(mpShutdown(ctx), tpShutdown(ctx), lpShutdown(ctx))
 		},
@@ -179,40 +192,18 @@ func WithTracerProviderOptions(opts ...sdktrace.TracerProviderOption) Configurat
 
 // ParseYAML parses a YAML configuration file into an OpenTelemetryConfiguration.
 func ParseYAML(file []byte) (*OpenTelemetryConfiguration, error) {
+	file, err := provider.ReplaceEnvVars(file)
+	if err != nil {
+		return nil, err
+	}
+
 	var cfg OpenTelemetryConfiguration
-	err := yaml.Unmarshal(file, &cfg)
+	err = yaml.Unmarshal(file, &cfg)
 	if err != nil {
 		return nil, err
 	}
 
 	return &cfg, nil
-}
-
-// createTLSConfig creates a tls.Config from certificate files.
-func createTLSConfig(caCertFile, clientCertFile, clientKeyFile *string) (*tls.Config, error) {
-	tlsConfig := &tls.Config{}
-	if caCertFile != nil {
-		caText, err := os.ReadFile(*caCertFile)
-		if err != nil {
-			return nil, err
-		}
-		certPool := x509.NewCertPool()
-		if !certPool.AppendCertsFromPEM(caText) {
-			return nil, errors.New("could not create certificate authority chain from certificate")
-		}
-		tlsConfig.RootCAs = certPool
-	}
-	if clientCertFile != nil {
-		if clientKeyFile == nil {
-			return nil, errors.New("client certificate was provided but no client key was provided")
-		}
-		clientCert, err := tls.LoadX509KeyPair(*clientCertFile, *clientKeyFile)
-		if err != nil {
-			return nil, fmt.Errorf("could not use client certificate: %w", err)
-		}
-		tlsConfig.Certificates = []tls.Certificate{clientCert}
-	}
-	return tlsConfig, nil
 }
 
 // createHeadersConfig combines the two header config fields. Headers take precedence over headersList.

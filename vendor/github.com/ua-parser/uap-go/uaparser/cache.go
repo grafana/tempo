@@ -12,12 +12,11 @@ type cache struct {
 	userAgent *lru.ARCCache
 }
 
-func newCache() *cache {
+func newCache(cacheSize int) *cache {
 	var (
 		c   cache
 		err error
 	)
-	const cacheSize = 1024
 	// NewARC only fails when cacheSize <= 0.
 	// Also, returning an error up the stack would break the API.
 	c.device, err = lru.NewARC(cacheSize)
