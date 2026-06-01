@@ -23,6 +23,28 @@ const (
 	maxRetries = 1
 )
 
+// fqdnTransport is a custom http.RoundTripper that strips the trailing dot
+// from the Host header before sending the request, while keeping the trailing
+// dot in the URL so that DNS resolution uses the fully qualified domain name.
+//
+// This solves the Kubernetes ndots=5 problem (issue #1726): users can configure
+// a trailing dot in endpoint_suffix (e.g. "blob.core.windows.net.") to hint
+// kube-dns to skip local search and perform a direct DNS lookup, eliminating
+// up to 11 spurious DNS queries per storage API call. The trailing dot is then
+// stripped from the Host header only, because Azure rejects it with HTTP 400.
+type fqdnTransport struct {
+	wrapped http.RoundTripper
+}
+
+func (t *fqdnTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Clone the request to avoid mutating the original
+	r := req.Clone(req.Context())
+	// Strip trailing dot from Host header only.
+	// The URL retains the trailing dot for correct FQDN DNS resolution.
+	r.Host = strings.TrimSuffix(r.Host, ".")
+	return t.wrapped.RoundTrip(r)
+}
+
 func getContainerClient(ctx context.Context, cfg *Config, hedge bool) (*container.Client, error) {
 	var err error
 
@@ -59,6 +81,10 @@ func getContainerClient(ctx context.Context, cfg *Config, hedge bool) (*containe
 		instrumentation.PublishHedgedMetrics(stats)
 	}
 
+	// Wrap with fqdnTransport so the Host header has its trailing dot stripped
+	// on every request, while the URL retains it for FQDN DNS resolution.
+	transport = &fqdnTransport{wrapped: transport}
+
 	opts := azblob.ClientOptions{}
 	opts.Transport = &http.Client{Transport: transport}
 	opts.Retry = retry
@@ -67,6 +93,10 @@ func getContainerClient(ctx context.Context, cfg *Config, hedge bool) (*containe
 	}
 
 	accountName := getStorageAccountName(cfg)
+
+	// Use cfg.Endpoint as-is (trailing dot preserved) so the URL carries the
+	// FQDN for correct DNS resolution. The fqdnTransport above strips the dot
+	// from the Host header before the request is sent to Azure.
 	u, err := url.Parse(fmt.Sprintf("https://%s.%s", accountName, cfg.Endpoint))
 
 	// If the endpoint doesn't start with blob. we can assume Azurite is being used

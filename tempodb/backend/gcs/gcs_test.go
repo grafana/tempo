@@ -66,13 +66,10 @@ func TestHedge(t *testing.T) {
 
 			ctx := context.Background()
 
-			// the first call on each client initiates an extra http request
-			// clearing that here
 			_, _, _ = r.Read(ctx, "object", []string{"test"}, nil)
 			time.Sleep(tc.returnIn)
 			atomic.StoreInt32(&count, 0)
 
-			// calls that should hedge
 			_, _, _ = r.Read(ctx, "object", []string{"test"}, nil)
 			time.Sleep(tc.returnIn)
 			assert.Equal(t, tc.expectedHedgedRequests, atomic.LoadInt32(&count))
@@ -83,7 +80,6 @@ func TestHedge(t *testing.T) {
 			assert.Equal(t, tc.expectedHedgedRequests, atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 
-			// calls that should not hedge
 			_, _ = r.List(ctx, []string{"test"})
 			assert.Equal(t, int32(1), atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
@@ -159,7 +155,6 @@ func TestRetry_MarkBlockCompacted(t *testing.T) {
 				atomicCounter.Add(1)
 			}
 
-			// First two requests fail, third succeeds for each path.
 			if val.(*atomic.Int32).Load() <= 2 {
 				w.WriteHeader(503)
 				return
@@ -203,13 +198,10 @@ func TestRetry_ClearBlock(t *testing.T) {
 		case "/b/blerg":
 			_, _ = w.Write([]byte(`{}`))
 		default:
-			// Increment the request count for this path
-
 			val, _ := reqCounts.LoadOrStore(r.URL.Path, &requestInfo{method: r.Method})
 			info := val.(*requestInfo)
 			count := atomic.AddInt32(&info.count, 1)
 
-			// First two requests fail, third succeeds for each path.
 			if count <= 2 {
 				atomic.AddInt32(&count, 1)
 				w.WriteHeader(503)
@@ -229,7 +221,6 @@ func TestRetry_ClearBlock(t *testing.T) {
             ]
         }
 				`))
-
 			}
 		}
 	}))
@@ -268,21 +259,17 @@ func TestRetry_ClearBlock(t *testing.T) {
 func fakeServer(t *testing.T, returnIn time.Duration, counter *int32) *httptest.Server {
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(returnIn)
-
 		atomic.AddInt32(counter, 1)
 		_, _ = w.Write([]byte(`{}`))
 	}))
 	server.StartTLS()
 	t.Cleanup(server.Close)
-
 	return server
 }
 
 func fakeServerWithObjectAttributes(t *testing.T, o *raw.Object) *httptest.Server {
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Check that we are making the call to update the attributes before attempting to decode the request body.
 		if strings.HasPrefix(r.RequestURI, "/upload/storage/v1/b/blerg2") {
-
 			_, params, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 			require.NoError(t, err)
 
@@ -303,12 +290,10 @@ func fakeServerWithObjectAttributes(t *testing.T, o *raw.Object) *httptest.Serve
 				}
 			}
 		}
-
 		_, _ = w.Write([]byte(`{}`))
 	}))
 	server.StartTLS()
 	t.Cleanup(server.Close)
-
 	return server
 }
 
@@ -328,15 +313,9 @@ func TestObjectWithPrefix(t *testing.T) {
 			httpHandler: func(t *testing.T) http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
 					if r.Method == "GET" {
-						_, _ = w.Write([]byte(`
-						{
-							"location": "US",
-							"storageClass": "STANDARD"
-						}
-						`))
+						_, _ = w.Write([]byte(`{"location": "US", "storageClass": "STANDARD"}`))
 						return
 					}
-
 					assert.Equal(t, "/upload/storage/v1/b/blerg/o", r.URL.Path)
 					assert.True(t, r.URL.Query().Get("name") == "test_storage/test_path/object")
 					_, _ = w.Write([]byte(`{}`))
@@ -350,15 +329,9 @@ func TestObjectWithPrefix(t *testing.T) {
 			httpHandler: func(t *testing.T) http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
 					if r.Method == "GET" {
-						_, _ = w.Write([]byte(`
-						{
-							"location": "US",
-							"storageClass": "STANDARD"
-						}
-						`))
+						_, _ = w.Write([]byte(`{"location": "US", "storageClass": "STANDARD"}`))
 						return
 					}
-
 					assert.Equal(t, "/upload/storage/v1/b/blerg/o", r.URL.Path)
 					assert.True(t, r.URL.Query().Get("name") == "test_path/object")
 					_, _ = w.Write([]byte(`{}`))
@@ -401,12 +374,7 @@ func TestDelete(t *testing.T) {
 			httpHandler: func(t *testing.T) http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
 					if r.Method == "GET" {
-						_, _ = w.Write([]byte(`
-						{
-							"location": "US",
-							"storageClass": "STANDARD"
-						}
-						`))
+						_, _ = w.Write([]byte(`{"location": "US", "storageClass": "STANDARD"}`))
 						return
 					}
 					assert.Equal(t, "/b/blerg/o/test/object", r.URL.Path)
@@ -422,12 +390,7 @@ func TestDelete(t *testing.T) {
 			httpHandler: func(t *testing.T) http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
 					if r.Method == "GET" {
-						_, _ = w.Write([]byte(`
-						{
-							"location": "US",
-							"storageClass": "STANDARD"
-						}
-						`))
+						_, _ = w.Write([]byte(`{"location": "US", "storageClass": "STANDARD"}`))
 						return
 					}
 					assert.Equal(t, "/b/blerg/o/test_storage/test/object", r.URL.Path)
@@ -474,31 +437,21 @@ func TestListBlocksWithPrefix(t *testing.T) {
 				return func(w http.ResponseWriter, r *http.Request) {
 					if r.Method == "GET" {
 						assert.Equal(t, "a/b/c/single-tenant/", r.URL.Query().Get("prefix"))
-
 						_, _ = w.Write([]byte(`
 						{
 							"kind": "storage#objects",
 							"items": [{
-								"kind": "storage#object",
-								"id": "1",
+								"kind": "storage#object", "id": "1",
 								"name": "a/b/c/single-tenant/00000000-0000-0000-0000-000000000000/meta.json",
-								"bucket": "blerg",
-								"storageClass": "STANDARD",
-								"size": "1024",
-								"timeCreated": "2024-03-01T00:00:00.000Z",
-								"updated": "2024-03-01T00:00:00.000Z"
+								"bucket": "blerg", "storageClass": "STANDARD", "size": "1024",
+								"timeCreated": "2024-03-01T00:00:00.000Z", "updated": "2024-03-01T00:00:00.000Z"
 							}, {
-								"kind": "storage#object",
-								"id": "2",
+								"kind": "storage#object", "id": "2",
 								"name": "a/b/c/single-tenant/00000000-0000-0000-0000-000000000001/meta.compacted.json",
-								"bucket": "blerg",
-								"storageClass": "STANDARD",
-								"size": "1024",
-								"timeCreated": "2024-03-01T00:00:00.000Z",
-								"updated": "2024-03-01T00:00:00.000Z"
+								"bucket": "blerg", "storageClass": "STANDARD", "size": "1024",
+								"timeCreated": "2024-03-01T00:00:00.000Z", "updated": "2024-03-01T00:00:00.000Z"
 							}]
-						}
-						`))
+						}`))
 						return
 					}
 				}
@@ -514,31 +467,21 @@ func TestListBlocksWithPrefix(t *testing.T) {
 				return func(w http.ResponseWriter, r *http.Request) {
 					if r.Method == "GET" {
 						assert.Equal(t, "single-tenant/", r.URL.Query().Get("prefix"))
-
 						_, _ = w.Write([]byte(`
 						{
 							"kind": "storage#objects",
 							"items": [{
-								"kind": "storage#object",
-								"id": "1",
+								"kind": "storage#object", "id": "1",
 								"name": "single-tenant/00000000-0000-0000-0000-000000000000/meta.json",
-								"bucket": "blerg",
-								"storageClass": "STANDARD",
-								"size": "1024",
-								"timeCreated": "2024-03-01T00:00:00.000Z",
-								"updated": "2024-03-01T00:00:00.000Z"
+								"bucket": "blerg", "storageClass": "STANDARD", "size": "1024",
+								"timeCreated": "2024-03-01T00:00:00.000Z", "updated": "2024-03-01T00:00:00.000Z"
 							}, {
-								"kind": "storage#object",
-								"id": "2",
+								"kind": "storage#object", "id": "2",
 								"name": "single-tenant/00000000-0000-0000-0000-000000000001/meta.compacted.json",
-								"bucket": "blerg",
-								"storageClass": "STANDARD",
-								"size": "1024",
-								"timeCreated": "2024-03-01T00:00:00.000Z",
-								"updated": "2024-03-01T00:00:00.000Z"
+								"bucket": "blerg", "storageClass": "STANDARD", "size": "1024",
+								"timeCreated": "2024-03-01T00:00:00.000Z", "updated": "2024-03-01T00:00:00.000Z"
 							}]
-						}
-						`))
+						}`))
 						return
 					}
 				}
@@ -564,6 +507,56 @@ func TestListBlocksWithPrefix(t *testing.T) {
 
 			assert.ElementsMatchf(t, tc.liveBlockIDs, blockIDs, "Block IDs did not match")
 			assert.ElementsMatchf(t, tc.compactedBlockIDs, compactedBlockIDs, "Compacted block IDs did not match")
+		})
+	}
+}
+
+// TestFqdnTransport_StripsTrailingDotFromHostHeader verifies that fqdnTransport
+// strips the trailing dot from the Host header before sending the request,
+// while keeping the URL unchanged so DNS resolution uses the FQDN (issue #1726).
+func TestFqdnTransport_StripsTrailingDotFromHostHeader(t *testing.T) {
+	tests := []struct {
+		name            string
+		requestHost     string
+		expectedHostHdr string
+	}{
+		{
+			name:            "trailing dot stripped from Host header",
+			requestHost:     "storage.googleapis.com.",
+			expectedHostHdr: "storage.googleapis.com",
+		},
+		{
+			name:            "no trailing dot is unchanged",
+			requestHost:     "storage.googleapis.com",
+			expectedHostHdr: "storage.googleapis.com",
+		},
+		{
+			name:            "bucket subdomain trailing dot stripped",
+			requestHost:     "my-traces-bucket.storage.googleapis.com.",
+			expectedHostHdr: "my-traces-bucket.storage.googleapis.com",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var receivedHost string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				receivedHost = r.Host
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer server.Close()
+
+			req, err := http.NewRequest(http.MethodGet, server.URL, nil)
+			require.NoError(t, err)
+			req.Host = tc.requestHost
+
+			transport := &fqdnTransport{wrapped: http.DefaultTransport}
+			resp, err := transport.RoundTrip(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			assert.Equal(t, tc.expectedHostHdr, receivedHost,
+				"Host header must have trailing dot stripped before sending to server")
 		})
 	}
 }

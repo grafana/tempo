@@ -55,14 +55,10 @@ type ec2RoleCredRespBody struct {
 	Type            string    `json:"Type"`
 }
 
-// TestFetchCreds verifies that fetchCreds() correctly handles individual
-// credential sources. Each test only configures the specific source being
-// validated.
 func TestFetchCreds(t *testing.T) {
 	cwd, err := os.Getwd()
 	assert.NoError(t, err)
 
-	// Set up mock IAM endpoint once for all tests (for security and efficiency)
 	metadataSrv := httptest.NewServer(metadataMockedHandler(t))
 	t.Cleanup(metadataSrv.Close)
 
@@ -76,8 +72,6 @@ func TestFetchCreds(t *testing.T) {
 	}{
 		{
 			name: "no-creds",
-			// anonymous access is the last in the chain of fetchCreds,
-			// so we need to set an invalid endpoint to prevent IAM access
 			envs: map[string]string{
 				"TEST_IAM_ENDPOINT": "http://invalid-endpoint-to-prevent-iam-access:9999",
 			},
@@ -183,31 +177,18 @@ func TestFetchCreds(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Clear all credential-related environment variables for isolation
-			// because some may exist in the environment
 			credentialVars := []string{
-				"AWS_ACCESS_KEY_ID",
-				"AWS_SECRET_ACCESS_KEY",
-				"AWS_SESSION_TOKEN",
-				"AWS_PROFILE",
-				"AWS_SHARED_CREDENTIALS_FILE",
-				"AWS_CONFIG_FILE",
-				"MINIO_ACCESS_KEY",
-				"MINIO_SECRET_KEY",
-				"MINIO_SHARED_CREDENTIALS_FILE",
-				"MINIO_ALIAS",
-				"AWS_WEB_IDENTITY_TOKEN_FILE",
-				"AWS_ROLE_ARN",
-				"AWS_ROLE_SESSION_NAME",
+				"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN",
+				"AWS_PROFILE", "AWS_SHARED_CREDENTIALS_FILE", "AWS_CONFIG_FILE",
+				"MINIO_ACCESS_KEY", "MINIO_SECRET_KEY", "MINIO_SHARED_CREDENTIALS_FILE",
+				"MINIO_ALIAS", "AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_ROLE_ARN", "AWS_ROLE_SESSION_NAME",
 			}
 			for _, envVar := range credentialVars {
 				os.Unsetenv(envVar)
 			}
 
-			// Use shared mock IAM endpoint for security (prevents real IAM access if it exists)
 			t.Setenv("TEST_IAM_ENDPOINT", metadataSrv.URL)
 
-			// Set test-specific environment variables
 			for name, value := range tc.envs {
 				t.Setenv(name, value)
 			}
@@ -264,7 +245,7 @@ func TestHedge(t *testing.T) {
 				SecretKey:         flagext.SecretWithValue("test"),
 				Bucket:            "blerg",
 				Insecure:          true,
-				Endpoint:          server.URL[7:], // [7:] -> strip http://
+				Endpoint:          server.URL[7:],
 				HedgeRequestsAt:   tc.hedgeAt,
 				HedgeRequestsUpTo: 2,
 			})
@@ -272,13 +253,10 @@ func TestHedge(t *testing.T) {
 
 			ctx := context.Background()
 
-			// the first call on each client initiates an extra http request
-			// clearing that here
 			_, _, _ = r.Read(ctx, "object", backend.KeyPath{"test"}, nil)
 			time.Sleep(tc.returnIn)
 			atomic.StoreInt32(&count, 0)
 
-			// calls that should hedge
 			_, _, _ = r.Read(ctx, "object", backend.KeyPath{"test"}, nil)
 			time.Sleep(tc.returnIn)
 			assert.Equal(t, tc.expectedHedgedRequests, atomic.LoadInt32(&count))
@@ -289,7 +267,6 @@ func TestHedge(t *testing.T) {
 			assert.Equal(t, tc.expectedHedgedRequests, atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 
-			// calls that should not hedge
 			_, _ = r.List(ctx, backend.KeyPath{"test"})
 			assert.Equal(t, int32(1), atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
@@ -382,15 +359,12 @@ func TestNilConfig(t *testing.T) {
 func fakeServer(t *testing.T, returnIn time.Duration, counter *int32) *httptest.Server {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(returnIn)
-
 		atomic.AddInt32(counter, 1)
-		// return fake list response b/c it's the only call that has to succeed
 		_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
 		<ListBucketResult>
 		</ListBucketResult>`))
 	}))
 	t.Cleanup(server.Close)
-
 	return server
 }
 
@@ -414,14 +388,12 @@ func fakeServerWithHeader(t *testing.T, httpHeader *http.Header) *httptest.Serve
 		case putMethod:
 			*httpHeader = r.Header
 		case getMethod:
-			// return fake list response b/c it's the only call that has to succeed
 			_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
 		<ListBucketResult>
 		</ListBucketResult>`))
 		}
 	}))
 	t.Cleanup(server.Close)
-
 	return server
 }
 
@@ -429,7 +401,6 @@ func TestObjectBlockTags(t *testing.T) {
 	tests := []struct {
 		name string
 		tags map[string]string
-		// expectedObject raw.Object
 	}{
 		{
 			"env", map[string]string{"env": "prod", "app": "thing"},
@@ -438,7 +409,6 @@ func TestObjectBlockTags(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// rawObject := raw.Object{}
 			var httpHeaders http.Header
 
 			server := fakeServerWithHeader(t, &httpHeaders)
@@ -448,7 +418,7 @@ func TestObjectBlockTags(t *testing.T) {
 				SecretKey: flagext.SecretWithValue("test"),
 				Bucket:    "blerg",
 				Insecure:  true,
-				Endpoint:  server.URL[7:], // [7:] -> strip http://
+				Endpoint:  server.URL[7:],
 				Tags:      tc.tags,
 			})
 			require.NoError(t, err)
@@ -487,13 +457,11 @@ func TestObjectWithPrefix(t *testing.T) {
 				return func(w http.ResponseWriter, r *http.Request) {
 					if r.Method == getMethod {
 						assert.Equal(t, r.URL.Query().Get("prefix"), "test_storage")
-
 						_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
 						<ListBucketResult>
 						</ListBucketResult>`))
 						return
 					}
-
 					assert.Equal(t, "/blerg/test_storage/test/object", r.URL.String())
 				}
 			},
@@ -507,13 +475,11 @@ func TestObjectWithPrefix(t *testing.T) {
 				return func(w http.ResponseWriter, r *http.Request) {
 					if r.Method == getMethod {
 						assert.Equal(t, r.URL.Query().Get("prefix"), "")
-
 						_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
 						<ListBucketResult>
 						</ListBucketResult>`))
 						return
 					}
-
 					assert.Equal(t, "/blerg/test/object", r.URL.String())
 				}
 			},
@@ -558,7 +524,6 @@ func TestDelete(t *testing.T) {
 				return func(w http.ResponseWriter, r *http.Request) {
 					if r.Method == getMethod {
 						assert.Equal(t, r.URL.Query().Get("prefix"), "")
-
 						_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
 						<ListBucketResult>
 						</ListBucketResult>`))
@@ -578,7 +543,6 @@ func TestDelete(t *testing.T) {
 				return func(w http.ResponseWriter, r *http.Request) {
 					if r.Method == getMethod {
 						assert.Equal(t, r.URL.Query().Get("prefix"), "test_storage")
-
 						_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
 						<ListBucketResult>
 						</ListBucketResult>`))
@@ -631,7 +595,6 @@ func TestListBlocksWithPrefix(t *testing.T) {
 				return func(w http.ResponseWriter, r *http.Request) {
 					if r.Method == getMethod {
 						assert.Equal(t, "a/b/c/single-tenant/", r.URL.Query().Get("prefix"))
-
 						_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
 						<ListBucketResult>
 							<Name>blerg</Name>
@@ -648,7 +611,6 @@ func TestListBlocksWithPrefix(t *testing.T) {
 								<Size>398</Size>
 								<StorageClass>STANDARD</StorageClass>
 							</Contents>
-							
 							<Contents>
 								<Key>a/b/c/single-tenant/00000000-0000-0000-0000-000000000001/meta.compacted.json</Key>
 								<LastModified>2024-03-01T00:00:00.000Z</LastModified>
@@ -672,7 +634,6 @@ func TestListBlocksWithPrefix(t *testing.T) {
 				return func(w http.ResponseWriter, r *http.Request) {
 					if r.Method == getMethod {
 						assert.Equal(t, "single-tenant/", r.URL.Query().Get("prefix"))
-
 						_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
 						<ListBucketResult>
 							<Name>blerg</Name>
@@ -689,7 +650,6 @@ func TestListBlocksWithPrefix(t *testing.T) {
 								<Size>398</Size>
 								<StorageClass>STANDARD</StorageClass>
 							</Contents>
-							
 							<Contents>
 								<Key>single-tenant/00000000-0000-0000-0000-000000000001/meta.compacted.json</Key>
 								<LastModified>2024-03-01T00:00:00.000Z</LastModified>
@@ -734,7 +694,6 @@ func TestObjectStorageClass(t *testing.T) {
 	tests := []struct {
 		name         string
 		StorageClass string
-		// expectedObject raw.Object
 	}{
 		{
 			"Standard", "STANDARD",
@@ -743,7 +702,6 @@ func TestObjectStorageClass(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// rawObject := raw.Object{}
 			var httpHeader http.Header
 
 			server := fakeServerWithHeader(t, &httpHeader)
@@ -753,7 +711,7 @@ func TestObjectStorageClass(t *testing.T) {
 				SecretKey:    flagext.SecretWithValue("test"),
 				Bucket:       "blerg",
 				Insecure:     true,
-				Endpoint:     server.URL[7:], // [7:] -> strip http://
+				Endpoint:     server.URL[7:],
 				StorageClass: tc.StorageClass,
 			})
 			require.NoError(t, err)
@@ -761,6 +719,56 @@ func TestObjectStorageClass(t *testing.T) {
 			ctx := context.Background()
 			_ = w.Write(ctx, "object", backend.KeyPath{"test"}, bytes.NewReader([]byte{}), 0, nil)
 			require.Equal(t, tc.StorageClass, httpHeader.Get(storageClassHeader))
+		})
+	}
+}
+
+// TestFqdnTransport_StripsTrailingDotFromHostHeader verifies that fqdnTransport
+// strips the trailing dot from the Host header before sending the request,
+// while keeping the URL unchanged so DNS resolution uses the FQDN (issue #1726).
+func TestFqdnTransport_StripsTrailingDotFromHostHeader(t *testing.T) {
+	tests := []struct {
+		name            string
+		requestHost     string
+		expectedHostHdr string
+	}{
+		{
+			name:            "trailing dot stripped from Host header",
+			requestHost:     "s3.amazonaws.com.",
+			expectedHostHdr: "s3.amazonaws.com",
+		},
+		{
+			name:            "no trailing dot is unchanged",
+			requestHost:     "s3.amazonaws.com",
+			expectedHostHdr: "s3.amazonaws.com",
+		},
+		{
+			name:            "custom endpoint trailing dot stripped",
+			requestHost:     "minio.mynamespace.svc.cluster.local.",
+			expectedHostHdr: "minio.mynamespace.svc.cluster.local",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var receivedHost string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				receivedHost = r.Host
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer server.Close()
+
+			req, err := http.NewRequest(http.MethodGet, server.URL, nil)
+			require.NoError(t, err)
+			req.Host = tc.requestHost
+
+			transport := &fqdnTransport{wrapped: http.DefaultTransport}
+			resp, err := transport.RoundTrip(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			assert.Equal(t, tc.expectedHostHdr, receivedHost,
+				"Host header must have trailing dot stripped before sending to server")
 		})
 	}
 }
@@ -775,16 +783,15 @@ func testServer(t *testing.T, httpHandler http.HandlerFunc) *httptest.Server {
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 const (
-	letterIdxBits = 6                    // 6 bits to represent a letter index
-	letterIdxMask = 1<<letterIdxBits - 1 // All 1-bits, as many as letterIdxBits
-	letterIdxMax  = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
+	letterIdxBits = 6
+	letterIdxMask = 1<<letterIdxBits - 1
+	letterIdxMax  = 63 / letterIdxBits
 )
 
 var src = rand.NewSource(time.Now().UnixNano())
 
 func RandStringBytesMaskImprSrc(n int) string {
 	b := make([]byte, n)
-	// A src.Int63() generates 63 random bits, enough for letterIdxMax characters!
 	for i, cache, remain := n-1, src.Int63(), letterIdxMax; i >= 0; {
 		if remain == 0 {
 			cache, remain = src.Int63(), letterIdxMax
@@ -796,7 +803,6 @@ func RandStringBytesMaskImprSrc(n int) string {
 		cache >>= letterIdxBits
 		remain--
 	}
-
 	return string(b)
 }
 
@@ -839,20 +845,14 @@ func metadataMockedHandler(t *testing.T) http.HandlerFunc {
 			err1 := xml.NewEncoder(w).Encode(assumeResponse)
 			require.NoError(t, err1)
 		case "/latest/api/token":
-			// Check for X-aws-ec2-metadata-token-ttl-seconds request header
 			if r.Header.Get("X-aws-ec2-metadata-token-ttl-seconds") == "" {
 				w.WriteHeader(400)
 			}
-
-			// Check X-aws-ec2-metadata-token-ttl-seconds is an integer
 			secondsInt, err := strconv.Atoi(r.Header.Get("X-aws-ec2-metadata-token-ttl-seconds"))
 			if err != nil {
 				w.WriteHeader(400)
 			}
-
-			// Generate a token, 40 character string, base64 encoded
 			token := base64.StdEncoding.EncodeToString([]byte(RandStringBytesMaskImprSrc(40)))
-
 			w.Header().Set("X-Aws-Ec2-Metadata-Token-Ttl-Seconds", strconv.Itoa(secondsInt))
 			if _, err := w.Write([]byte(token)); err != nil {
 				require.NoError(t, err)
@@ -870,7 +870,6 @@ func metadataMockedHandler(t *testing.T) http.HandlerFunc {
 				Type:            "AWS-HMAC",
 				Code:            "Success",
 			}
-
 			err := json.NewEncoder(w).Encode(creds)
 			require.NoError(t, err)
 		}
