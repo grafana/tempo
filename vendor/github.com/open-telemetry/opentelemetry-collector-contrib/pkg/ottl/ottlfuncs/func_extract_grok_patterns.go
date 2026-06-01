@@ -107,6 +107,7 @@ func extractGrokPatterns[K any](target, pattern ottl.StringGetter[K], nco ottl.O
 		}
 
 		result := pcommon.NewMap()
+		result.EnsureCapacity(len(matches))
 		for k, v := range matches {
 			switch val := v.(type) {
 			case bool:

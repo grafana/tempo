@@ -16,7 +16,6 @@ import (
 	"github.com/grafana/tempo/modules/generator/validation"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/ring"
-	"go.uber.org/multierr"
 )
 
 const (
@@ -170,7 +169,7 @@ func (cfg *ProcessorConfig) Validate() error {
 	}
 
 	if len(errs) > 0 {
-		return multierr.Combine(errs...)
+		return errors.Join(errs...)
 	}
 	return nil
 }

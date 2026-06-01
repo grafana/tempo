@@ -52,6 +52,11 @@ type cfg struct {
 
 	dataDir    string
 	syncWrites bool
+
+	// injectFS, if non-nil, overrides the filesystem used for
+	// persistence. This allows tests to share a memFS across
+	// cluster restarts without touching the real disk.
+	injectFS fs
 }
 
 // NumBrokers sets the number of brokers to start in the fake cluster.
@@ -197,6 +202,10 @@ type ACL struct {
 //     consumer groups (default 5000, lowered to 100 in test binaries)
 //   - group.consumer.session.timeout.ms - session timeout for KIP-848
 //     consumer groups (default 45000)
+//   - group.share.session.timeout.ms - session timeout for share groups (default 45000)
+//   - group.share.record.lock.duration.ms - acquisition lock duration for share groups (default 30000)
+//   - share.record.lock.sweep.interval.ms - sweep interval for expired locks (default 5000)
+//   - group.share.delivery.count.limit - max deliveries before archival (default 5)
 //   - message.max.bytes - max produce batch size (default 1048588)
 //   - transaction.max.timeout.ms - max transaction timeout (default 900000)
 //   - max.incremental.fetch.session.cache.slots - max fetch sessions per broker (default 1000)
@@ -230,6 +239,12 @@ func DataDir(dir string) Opt {
 // produce is durable immediately at the cost of throughput.
 func SyncWrites() Opt {
 	return opt{func(c *cfg) { c.syncWrites = true }}
+}
+
+// withFS injects a custom filesystem implementation, allowing tests to
+// share a memFS across cluster restarts without touching the real disk.
+func withFS(f fs) Opt {
+	return opt{func(cfg *cfg) { cfg.injectFS = f }}
 }
 
 // User adds a SASL user with optional ACLs. Unlike Superuser, this user is

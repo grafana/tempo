@@ -2,6 +2,7 @@ package receiver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -30,7 +31,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
-	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
@@ -335,7 +335,7 @@ func (r *receiversShim) stopping(_ error) error {
 	}
 
 	if len(errs) > 0 {
-		return multierr.Combine(errs...)
+		return errors.Join(errs...)
 	}
 
 	return nil

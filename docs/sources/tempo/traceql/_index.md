@@ -30,7 +30,7 @@ For example, you can use traces to perform root cause analyses (RCA) on a servic
 
 Use these references to get started with TraceQL:
 
-- Determine the information you want to query by understanding the [relationship of queries to trace structure](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/structure/) and spans.
+- Determine the information you want to query by understanding the [relationship of queries to trace structure](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/construct-traceql-queries/) and spans.
 - [Construct a query to locate the information](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/construct-traceql-queries/). Use the examples and language reference to learn about the syntax and semantics of TraceQL.
 
 TraceQL uses similar syntax and semantics as [PromQL](/blog/2020/02/04/introduction-to-promql-the-prometheus-query-language/) and [LogQL](/docs/loki/latest/logql/), where possible.

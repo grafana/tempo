@@ -86,7 +86,7 @@ $defs:
         description: GroupInstanceID specifies the ID of the consumer
         type: string
       group_rebalance_strategy:
-        description: GroupRebalanceStrategy specifies the strategy to use for partition assignment. Possible values are "range", "roundrobin", "sticky", and "cooperative-sticky". Defaults to "cooperative-sticky"
+        description: GroupRebalanceStrategy specifies the strategy to use for partition assignment. Built-in values are "range", "roundrobin", "sticky", and "cooperative-sticky". Any other value is treated as the component ID of a registered extension that implements kgo.GroupBalancer. Defaults to "cooperative-sticky".
         $ref: group_rebalance_strategy
       heartbeat_interval:
         description: HeartbeatInterval controls the Kafka consumer group coordination heartbeat interval. Heartbeats ensure the consumer's session remains active.

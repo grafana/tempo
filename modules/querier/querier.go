@@ -19,7 +19,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
-	"go.uber.org/multierr"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -105,7 +104,8 @@ func New(
 	}
 
 	if queryExternal {
-		externalClient, err := external.NewClient(cfg.TraceByID.External.Endpoint, cfg.TraceByID.External.Timeout)
+		// Cap external reads at the gRPC send ceiling: a larger response cannot be returned to the frontend.
+		externalClient, err := external.NewClient(cfg.TraceByID.External.Endpoint, cfg.TraceByID.External.Timeout, cfg.Worker.GRPCClientConfig.MaxSendMsgSize)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create external client: %w", err)
 		}
@@ -254,7 +254,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		}
 
 		if len(blockErrs) > 0 {
-			return nil, multierr.Combine(blockErrs...)
+			return nil, errors.Join(blockErrs...)
 		}
 
 		span.AddEvent("done searching store", oteltrace.WithAttributes(

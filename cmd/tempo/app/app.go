@@ -28,9 +28,9 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/prometheus/common/version"
 	"go.uber.org/atomic"
+	"go.yaml.in/yaml/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
-	"gopkg.in/yaml.v3"
 
 	"github.com/grafana/tempo/cmd/tempo/build"
 	"github.com/grafana/tempo/modules/backendscheduler"

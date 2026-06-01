@@ -2,12 +2,12 @@ package traceql
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"testing"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 type TestQueries struct {
@@ -64,14 +64,13 @@ func TestExamples(t *testing.T) {
 		})
 	}
 
-	scs := spew.ConfigState{DisableMethods: true, Indent: " "}
 	for _, q := range queries.Dump {
 		t.Run("dump - "+q, func(t *testing.T) {
 			yyDebug = 3
 			p, err := Parse(q)
 			yyDebug = 0
 			require.NoError(t, err)
-			scs.Dump(p)
+			fmt.Printf("%#v\n", p)
 		})
 	}
 }

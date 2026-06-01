@@ -53,6 +53,16 @@
       depNameTemplate: 'grafana/tempo-ci-tools',
       datasourceTemplate: 'docker',
     },
+    {
+      description: 'Update memcached and memcached-exporter image tags in jsonnet config',
+      customType: 'regex',
+      managerFilePatterns: ['/^operations\\/jsonnet\\/microservices\\/config\\.libsonnet$/'],
+      matchStrings: [
+        "memcached:\\s*'(?<depName>memcached):(?<currentValue>[^'@]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?'",
+        "memcachedExporter:\\s*'(?<depName>prom/memcached-exporter):(?<currentValue>v[^'@]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?'",
+      ],
+      datasourceTemplate: 'docker',
+    },
   ],
   packageRules: [
     {

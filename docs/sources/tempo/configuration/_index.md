@@ -1169,6 +1169,11 @@ querier:
         # also fetch trace data from an external HTTP endpoint that returns
         # an OpenTelemetry protobuf formatted trace. Enable this feature using
         # query_frontend.trace_by_id.external_enabled.
+        #
+        # The querier limits the external endpoint response size to querier gRPC send-message size
+        # (`querier.frontend_worker.grpc_client_config.max_send_msg_size`, default 16 MiB).
+        # A larger response cannot be returned to the frontend, so the read is bounded to that
+        # limit and the querier returns an error if the external endpoint sends more data than the limit.
         external:
             # The URL of the external service.
             # Example: "http://external-service:3200"
@@ -2930,6 +2935,12 @@ cache:
             # Optional
             # Close connections older than this duration. (default 0s)
             [max_connection_age: <duration> | default = 0s]
+
+            # Optional
+            # The maximum size in bytes of an item stored in Redis.
+            # Items larger than this are not stored. A value of 0 disables the limit.
+            # (default: 0)
+            [max_item_size: <int>]
 
             # Optional
             # TTL for cached keys.

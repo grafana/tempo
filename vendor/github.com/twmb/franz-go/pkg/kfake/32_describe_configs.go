@@ -12,6 +12,7 @@ import (
 // Supported resource types:
 // * BROKER (2)
 // * TOPIC (4)
+// * GROUP (32)
 //
 // Version notes:
 // * v1: ConfigSynonyms in response
@@ -121,6 +122,19 @@ outer:
 			}
 			r := doner(rr.ResourceName, rr.ResourceType, 0)
 			c.data.configs(rr.ResourceName, rfn(r))
+			filter(rr, r)
+
+		case kmsg.ConfigResourceTypeGroupConfig:
+			r := doner(rr.ResourceName, rr.ResourceType, 0)
+			emit := rfn(r)
+			for k := range validGroupConfigs {
+				v, dynamic := c.groupConfigs[rr.ResourceName][k]
+				src := kmsg.ConfigSourceDefaultConfig
+				if dynamic {
+					src = kmsg.ConfigSourceGroupConfig
+				}
+				emit(k, v, src, false)
+			}
 			filter(rr, r)
 
 		default:
