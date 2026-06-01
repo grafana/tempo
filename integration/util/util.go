@@ -28,8 +28,10 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/exporter"
+	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
 	mnoop "go.opentelemetry.io/otel/metric/noop"
 	tnoop "go.opentelemetry.io/otel/trace/noop"
@@ -415,7 +417,7 @@ func NewOtelGRPCExporter(endpoint string) (exporter.Traces, error) {
 	// Disable retries to get immediate error feedback
 	otlpCfg.RetryConfig.Enabled = false
 	// Disable queueing
-	otlpCfg.QueueConfig.Enabled = false
+	otlpCfg.QueueConfig = configoptional.None[exporterhelper.QueueBatchConfig]()
 	logger, _ := zap.NewDevelopment()
 	te, err := factory.CreateTraces(
 		context.Background(),

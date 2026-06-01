@@ -22,11 +22,10 @@ import (
 	"strconv"
 	"strings"
 
+	dto "github.com/prometheus/client_model/go"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/prometheus/common/model"
-
-	dto "github.com/prometheus/client_model/go"
 )
 
 type encoderOption struct {
@@ -161,38 +160,38 @@ func MetricFamilyToOpenMetrics(out io.Writer, in *dto.MetricFamily, options ...E
 		n, err = w.WriteString("# HELP ")
 		written += n
 		if err != nil {
-			return
+			return written, err
 		}
 		n, err = writeName(w, compliantName)
 		written += n
 		if err != nil {
-			return
+			return written, err
 		}
 		err = w.WriteByte(' ')
 		written++
 		if err != nil {
-			return
+			return written, err
 		}
 		n, err = writeEscapedString(w, *in.Help, true)
 		written += n
 		if err != nil {
-			return
+			return written, err
 		}
 		err = w.WriteByte('\n')
 		written++
 		if err != nil {
-			return
+			return written, err
 		}
 	}
 	n, err = w.WriteString("# TYPE ")
 	written += n
 	if err != nil {
-		return
+		return written, err
 	}
 	n, err = writeName(w, compliantName)
 	written += n
 	if err != nil {
-		return
+		return written, err
 	}
 	switch metricType {
 	case dto.MetricType_COUNTER:
@@ -216,34 +215,34 @@ func MetricFamilyToOpenMetrics(out io.Writer, in *dto.MetricFamily, options ...E
 	}
 	written += n
 	if err != nil {
-		return
+		return written, err
 	}
 	if toOM.withUnit && in.Unit != nil {
 		n, err = w.WriteString("# UNIT ")
 		written += n
 		if err != nil {
-			return
+			return written, err
 		}
 		n, err = writeName(w, compliantName)
 		written += n
 		if err != nil {
-			return
+			return written, err
 		}
 
 		err = w.WriteByte(' ')
 		written++
 		if err != nil {
-			return
+			return written, err
 		}
 		n, err = writeEscapedString(w, *in.Unit, true)
 		written += n
 		if err != nil {
-			return
+			return written, err
 		}
 		err = w.WriteByte('\n')
 		written++
 		if err != nil {
-			return
+			return written, err
 		}
 	}
 
@@ -251,7 +250,7 @@ func MetricFamilyToOpenMetrics(out io.Writer, in *dto.MetricFamily, options ...E
 
 	// Finally the samples, one line for each.
 	if metricType == dto.MetricType_COUNTER && strings.HasSuffix(name, "_total") {
-		compliantName = compliantName + "_total"
+		compliantName += "_total"
 	}
 	for _, metric := range in.Metric {
 		switch metricType {
@@ -307,7 +306,7 @@ func MetricFamilyToOpenMetrics(out io.Writer, in *dto.MetricFamily, options ...E
 				)
 				written += n
 				if err != nil {
-					return
+					return written, err
 				}
 			}
 			n, err = writeOpenMetricsSample(
@@ -317,7 +316,7 @@ func MetricFamilyToOpenMetrics(out io.Writer, in *dto.MetricFamily, options ...E
 			)
 			written += n
 			if err != nil {
-				return
+				return written, err
 			}
 			n, err = writeOpenMetricsSample(
 				w, compliantName, "_count", metric, "", 0,
@@ -350,7 +349,7 @@ func MetricFamilyToOpenMetrics(out io.Writer, in *dto.MetricFamily, options ...E
 				)
 				written += n
 				if err != nil {
-					return
+					return written, err
 				}
 				if math.IsInf(b.GetUpperBound(), +1) {
 					infSeen = true
@@ -368,7 +367,7 @@ func MetricFamilyToOpenMetrics(out io.Writer, in *dto.MetricFamily, options ...E
 				// out if needed).
 				written += n
 				if err != nil {
-					return
+					return written, err
 				}
 			}
 			n, err = writeOpenMetricsSample(
@@ -378,7 +377,7 @@ func MetricFamilyToOpenMetrics(out io.Writer, in *dto.MetricFamily, options ...E
 			)
 			written += n
 			if err != nil {
-				return
+				return written, err
 			}
 			if metric.Histogram.GetSampleCountFloat() > 0 {
 				return written, fmt.Errorf(
@@ -402,10 +401,10 @@ func MetricFamilyToOpenMetrics(out io.Writer, in *dto.MetricFamily, options ...E
 		}
 		written += n
 		if err != nil {
-			return
+			return written, err
 		}
 	}
-	return
+	return written, err
 }
 
 // FinalizeOpenMetrics writes the final `# EOF\n` line required by OpenMetrics.
@@ -494,7 +493,7 @@ func writeOpenMetricsNameAndLabelPairs(
 	if name != "" {
 		// If the name does not pass the legacy validity check, we must put the
 		// metric name inside the braces, quoted.
-		if !model.IsValidLegacyMetricName(name) {
+		if !model.LegacyValidation.IsValidMetricName(name) {
 			metricInsideBraces = true
 			err := w.WriteByte(separator)
 			written++
@@ -658,11 +657,11 @@ func writeExemplar(w enhancedWriter, e *dto.Exemplar) (int, error) {
 		if err != nil {
 			return written, err
 		}
-		err = (*e).Timestamp.CheckValid()
+		err = e.Timestamp.CheckValid()
 		if err != nil {
 			return written, err
 		}
-		ts := (*e).Timestamp.AsTime()
+		ts := e.Timestamp.AsTime()
 		// TODO(beorn7): Format this directly from components of ts to
 		// avoid overflow/underflow and precision issues of the float
 		// conversion.

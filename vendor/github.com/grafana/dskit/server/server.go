@@ -85,6 +85,9 @@ type Config struct {
 	// https://pkg.go.dev/github.com/prometheus/client_golang/prometheus#HistogramOpts
 	// for details. A generally useful value is 1.1.
 	MetricsNativeHistogramFactor float64 `yaml:"-"`
+	// MetricsMessageSizeNativeHistograms enables use of MetricsNativeHistogramFactor for response_message_bytes,
+	// request_message_bytes metrics
+	MetricsMessageSizeNativeHistograms bool `yaml:"-"`
 
 	HTTPListenNetwork           string `yaml:"http_listen_network"`
 	HTTPListenAddress           string `yaml:"http_listen_address"`
@@ -448,7 +451,7 @@ func newServer(cfg Config, metrics *Metrics) (*Server, error) {
 	grpcMiddleware = append(grpcMiddleware, cfg.GRPCMiddleware...)
 	if cfg.ClusterValidation.GRPC.Enabled {
 		grpcMiddleware = append(grpcMiddleware, middleware.ClusterUnaryServerInterceptor(
-			cfg.ClusterValidation.Label, cfg.ClusterValidation.GRPC.SoftValidation,
+			cfg.ClusterValidation.GetAllowedClusterLabels(), cfg.ClusterValidation.GRPC.SoftValidation,
 			metrics.InvalidClusterRequests, logger,
 		))
 	}
@@ -483,7 +486,7 @@ func newServer(cfg Config, metrics *Metrics) (*Server, error) {
 
 	var grpcServerLimit *grpcInflightLimitCheck
 	if cfg.GrpcMethodLimiter != nil {
-		grpcServerLimit = newGrpcInflightLimitCheck(cfg.GrpcMethodLimiter)
+		grpcServerLimit = newGrpcInflightLimitCheck(cfg.GrpcMethodLimiter, logger)
 		grpcMiddleware = append(grpcMiddleware, grpcServerLimit.UnaryServerInterceptor)
 		grpcStreamMiddleware = append(grpcStreamMiddleware, grpcServerLimit.StreamServerInterceptor)
 	}
@@ -634,7 +637,7 @@ func BuildHTTPMiddleware(cfg Config, router *mux.Router, metrics *Metrics, logge
 	}
 	if cfg.ClusterValidation.HTTP.Enabled {
 		httpMiddleware = append(httpMiddleware, middleware.ClusterValidationMiddleware(
-			cfg.ClusterValidation.Label,
+			cfg.ClusterValidation.GetAllowedClusterLabels(),
 			cfg.ClusterValidation.HTTP,
 			metrics.InvalidClusterRequests,
 			logger,

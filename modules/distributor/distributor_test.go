@@ -2291,6 +2291,10 @@ func (r mockRing) ZonesCount() int {
 	return 0
 }
 
+func (r mockRing) Zones() []string {
+	return nil
+}
+
 type singlePartitionRingReader struct{}
 
 func (m singlePartitionRingReader) PartitionRing() *ring.PartitionRing {

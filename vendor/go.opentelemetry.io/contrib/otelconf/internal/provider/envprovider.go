@@ -101,8 +101,8 @@ type defaultValue struct {
 func parseEnvVar(in string) (string, defaultValue) {
 	in = strings.TrimPrefix(in, "env:")
 	const sep = ":-"
-	if i := strings.Index(in, sep); i >= 0 {
-		return in[:i], defaultValue{data: in[i+len(sep):], valid: true}
+	if before, after, ok := strings.Cut(in, sep); ok {
+		return before, defaultValue{data: after, valid: true}
 	}
 	return in, defaultValue{}
 }

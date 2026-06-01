@@ -5,7 +5,7 @@ import (
 	"errors"
 	"io"
 
-	"github.com/uber-go/atomic"
+	"go.uber.org/atomic"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )

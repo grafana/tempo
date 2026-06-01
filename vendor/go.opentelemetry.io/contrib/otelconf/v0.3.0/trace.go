@@ -238,6 +238,12 @@ func otlpHTTPSpanExporter(ctx context.Context, otlpConfig *OTLP) (sdktrace.SpanE
 
 		if u.Scheme == "http" {
 			opts = append(opts, otlptracehttp.WithInsecure())
+		} else {
+			tlsConfig, err := tls.CreateConfig(otlpConfig.Certificate, otlpConfig.ClientCertificate, otlpConfig.ClientKey)
+			if err != nil {
+				return nil, err
+			}
+			opts = append(opts, otlptracehttp.WithTLSClientConfig(tlsConfig))
 		}
 		if u.Path != "" {
 			opts = append(opts, otlptracehttp.WithURLPath(u.Path))
@@ -263,12 +269,6 @@ func otlpHTTPSpanExporter(ctx context.Context, otlpConfig *OTLP) (sdktrace.SpanE
 	if len(headersConfig) > 0 {
 		opts = append(opts, otlptracehttp.WithHeaders(headersConfig))
 	}
-
-	tlsConfig, err := tls.CreateConfig(otlpConfig.Certificate, otlpConfig.ClientCertificate, otlpConfig.ClientKey)
-	if err != nil {
-		return nil, err
-	}
-	opts = append(opts, otlptracehttp.WithTLSClientConfig(tlsConfig))
 
 	return otlptracehttp.New(ctx, opts...)
 }

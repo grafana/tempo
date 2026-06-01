@@ -80,8 +80,10 @@ func (h *communityIDHash) normalize() {
 }
 
 func (h *communityIDHash) compute() string {
+	flowTupleCap := 8 + len(h.srcIPBytes) + len(h.dstIPBytes)
+	flowTuple := make([]byte, 2, flowTupleCap)
+
 	// Add seed (2 bytes, network order)
-	flowTuple := make([]byte, 2)
 	binary.BigEndian.PutUint16(flowTuple, h.seed)
 
 	// Add source, destination IPs and 1-byte protocol
@@ -90,13 +92,8 @@ func (h *communityIDHash) compute() string {
 	flowTuple = append(flowTuple, h.protocol, 0)
 
 	// Add source and destination ports (2 bytes each, network order)
-	srcPortBytes := make([]byte, 2)
-	binary.BigEndian.PutUint16(srcPortBytes, h.srcPort)
-	flowTuple = append(flowTuple, srcPortBytes...)
-
-	dstPortBytes := make([]byte, 2)
-	binary.BigEndian.PutUint16(dstPortBytes, h.dstPort)
-	flowTuple = append(flowTuple, dstPortBytes...)
+	flowTuple = binary.BigEndian.AppendUint16(flowTuple, h.srcPort)
+	flowTuple = binary.BigEndian.AppendUint16(flowTuple, h.dstPort)
 
 	// Generate the SHA1 hash
 	//gosec:disable G401 -- we are not using SHA1 for security, but for generating unique identifier, conflicts will be solved with the seed

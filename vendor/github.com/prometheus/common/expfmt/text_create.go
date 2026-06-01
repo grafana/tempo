@@ -22,9 +22,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/prometheus/common/model"
-
 	dto "github.com/prometheus/client_model/go"
+
+	"github.com/prometheus/common/model"
 )
 
 // enhancedWriter has all the enhanced write functions needed here. bufio.Writer
@@ -108,38 +108,38 @@ func MetricFamilyToText(out io.Writer, in *dto.MetricFamily) (written int, err e
 		n, err = w.WriteString("# HELP ")
 		written += n
 		if err != nil {
-			return
+			return written, err
 		}
 		n, err = writeName(w, name)
 		written += n
 		if err != nil {
-			return
+			return written, err
 		}
 		err = w.WriteByte(' ')
 		written++
 		if err != nil {
-			return
+			return written, err
 		}
 		n, err = writeEscapedString(w, *in.Help, false)
 		written += n
 		if err != nil {
-			return
+			return written, err
 		}
 		err = w.WriteByte('\n')
 		written++
 		if err != nil {
-			return
+			return written, err
 		}
 	}
 	n, err = w.WriteString("# TYPE ")
 	written += n
 	if err != nil {
-		return
+		return written, err
 	}
 	n, err = writeName(w, name)
 	written += n
 	if err != nil {
-		return
+		return written, err
 	}
 	metricType := in.GetType()
 	switch metricType {
@@ -161,7 +161,7 @@ func MetricFamilyToText(out io.Writer, in *dto.MetricFamily) (written int, err e
 	}
 	written += n
 	if err != nil {
-		return
+		return written, err
 	}
 
 	// Finally the samples, one line for each.
@@ -211,7 +211,7 @@ func MetricFamilyToText(out io.Writer, in *dto.MetricFamily) (written int, err e
 				)
 				written += n
 				if err != nil {
-					return
+					return written, err
 				}
 			}
 			n, err = writeSample(
@@ -220,7 +220,7 @@ func MetricFamilyToText(out io.Writer, in *dto.MetricFamily) (written int, err e
 			)
 			written += n
 			if err != nil {
-				return
+				return written, err
 			}
 			n, err = writeSample(
 				w, name, "_count", metric, "", 0,
@@ -245,7 +245,7 @@ func MetricFamilyToText(out io.Writer, in *dto.MetricFamily) (written int, err e
 				)
 				written += n
 				if err != nil {
-					return
+					return written, err
 				}
 				if math.IsInf(b.GetUpperBound(), +1) {
 					infSeen = true
@@ -263,7 +263,7 @@ func MetricFamilyToText(out io.Writer, in *dto.MetricFamily) (written int, err e
 				)
 				written += n
 				if err != nil {
-					return
+					return written, err
 				}
 			}
 			n, err = writeSample(
@@ -272,7 +272,7 @@ func MetricFamilyToText(out io.Writer, in *dto.MetricFamily) (written int, err e
 			)
 			written += n
 			if err != nil {
-				return
+				return written, err
 			}
 			v := metric.Histogram.GetSampleCountFloat()
 			if v == 0 {
@@ -286,10 +286,10 @@ func MetricFamilyToText(out io.Writer, in *dto.MetricFamily) (written int, err e
 		}
 		written += n
 		if err != nil {
-			return
+			return written, err
 		}
 	}
-	return
+	return written, err
 }
 
 // writeSample writes a single sample in text format to w, given the metric
@@ -366,7 +366,7 @@ func writeNameAndLabelPairs(
 	if name != "" {
 		// If the name does not pass the legacy validity check, we must put the
 		// metric name inside the braces.
-		if !model.IsValidLegacyMetricName(name) {
+		if !model.LegacyValidation.IsValidMetricName(name) {
 			metricInsideBraces = true
 			err := w.WriteByte(separator)
 			written++
@@ -510,7 +510,7 @@ func writeInt(w enhancedWriter, i int64) (int, error) {
 // writeName writes a string as-is if it complies with the legacy naming
 // scheme, or escapes it in double quotes if not.
 func writeName(w enhancedWriter, name string) (int, error) {
-	if model.IsValidLegacyMetricName(name) {
+	if model.LegacyValidation.IsValidMetricName(name) {
 		return w.WriteString(name)
 	}
 	var written int

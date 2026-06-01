@@ -9,6 +9,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/consumer/xconsumer"
+	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/processor"
 	"go.opentelemetry.io/collector/processor/processorhelper"
 	"go.opentelemetry.io/collector/processor/processorhelper/xprocessorhelper"
@@ -27,6 +28,16 @@ import (
 )
 
 var processorCapabilities = consumer.Capabilities{MutatesData: true}
+
+const defaultErrorModeIgnoreGateID = "processor.filter.defaultErrorModeIgnore"
+
+var defaultErrorModeIgnoreFeatureGate = featuregate.GlobalRegistry().MustRegister(
+	defaultErrorModeIgnoreGateID,
+	featuregate.StageAlpha,
+	featuregate.WithRegisterDescription("Changes the default error_mode of the filter processor from propagate to ignore"),
+	featuregate.WithRegisterReferenceURL("https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/47232"),
+	featuregate.WithRegisterFromVersion("v0.150.0"),
+)
 
 type filterProcessorFactory struct {
 	resourceFunctions                   map[string]ottl.Factory[*ottlresource.TransformContext]
@@ -226,8 +237,12 @@ func NewFactoryWithOptions(options ...FactoryOption) processor.Factory {
 }
 
 func (f *filterProcessorFactory) createDefaultConfig() component.Config {
+	defaultErrorMode := ottl.PropagateError
+	if defaultErrorModeIgnoreFeatureGate.IsEnabled() {
+		defaultErrorMode = ottl.IgnoreError
+	}
 	return &Config{
-		ErrorMode:          ottl.PropagateError,
+		ErrorMode:          defaultErrorMode,
 		resourceFunctions:  f.resourceFunctions,
 		dataPointFunctions: f.dataPointFunctions,
 		logFunctions:       f.logFunctions,

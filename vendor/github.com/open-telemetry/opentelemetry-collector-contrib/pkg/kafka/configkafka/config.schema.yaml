@@ -206,8 +206,12 @@ $defs:
         description: AWSMSK holds configuration specific to AWS MSK.
         $ref: awsmsk_config
       mechanism:
-        description: 'SASL Mechanism to be used, possible values are: (PLAIN, AWS_MSK_IAM_OAUTHBEARER, SCRAM-SHA-256 or SCRAM-SHA-512).'
+        description: 'SASL Mechanism to be used, possible values are: (PLAIN, AWS_MSK_IAM_OAUTHBEARER, OAUTHBEARER, SCRAM-SHA-256 or SCRAM-SHA-512).'
         type: string
+      oauthbearer_token_source:
+        description: ID of type "extension" providing a TokenSource for OAUTHBEARER Mechanism, typically named "oauth2client"
+        type: string
+        x-customType: go.opentelemetry.io/collector/component.ID
       password:
         description: Password to be used on authentication
         type: string

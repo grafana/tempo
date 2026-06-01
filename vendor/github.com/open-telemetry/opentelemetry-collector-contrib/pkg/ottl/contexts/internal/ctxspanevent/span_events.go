@@ -43,9 +43,11 @@ func accessSpanEventTimeUnixNano[K Context]() ottl.StandardGetSetter[K] {
 			return tCtx.GetSpanEvent().Timestamp().AsTime().UnixNano(), nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if newTimestamp, ok := val.(int64); ok {
-				tCtx.GetSpanEvent().SetTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, newTimestamp)))
+			newTimestamp, err := ctxutil.ExpectType[int64](val)
+			if err != nil {
+				return err
 			}
+			tCtx.GetSpanEvent().SetTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, newTimestamp)))
 			return nil
 		},
 	}
@@ -57,9 +59,11 @@ func accessSpanEventTime[K Context]() ottl.StandardGetSetter[K] {
 			return tCtx.GetSpanEvent().Timestamp().AsTime(), nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if newTimestamp, ok := val.(time.Time); ok {
-				tCtx.GetSpanEvent().SetTimestamp(pcommon.NewTimestampFromTime(newTimestamp))
+			newTimestamp, err := ctxutil.ExpectType[time.Time](val)
+			if err != nil {
+				return err
 			}
+			tCtx.GetSpanEvent().SetTimestamp(pcommon.NewTimestampFromTime(newTimestamp))
 			return nil
 		},
 	}
@@ -71,9 +75,11 @@ func accessSpanEventName[K Context]() ottl.StandardGetSetter[K] {
 			return tCtx.GetSpanEvent().Name(), nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if newName, ok := val.(string); ok {
-				tCtx.GetSpanEvent().SetName(newName)
+			newName, err := ctxutil.ExpectType[string](val)
+			if err != nil {
+				return err
 			}
+			tCtx.GetSpanEvent().SetName(newName)
 			return nil
 		},
 	}
@@ -107,9 +113,11 @@ func accessSpanEventDroppedAttributeCount[K Context]() ottl.StandardGetSetter[K]
 			return int64(tCtx.GetSpanEvent().DroppedAttributesCount()), nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if newCount, ok := val.(int64); ok {
-				tCtx.GetSpanEvent().SetDroppedAttributesCount(uint32(newCount))
+			newCount, err := ctxutil.ExpectType[int64](val)
+			if err != nil {
+				return err
 			}
+			tCtx.GetSpanEvent().SetDroppedAttributesCount(uint32(newCount))
 			return nil
 		},
 	}

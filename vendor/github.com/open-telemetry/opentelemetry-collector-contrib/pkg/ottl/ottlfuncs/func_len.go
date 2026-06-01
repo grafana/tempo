@@ -6,6 +6,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -55,7 +56,7 @@ func computeLen[K any](target ottl.Getter[K]) ottl.ExprFunc[K] {
 			case pcommon.ValueTypeMap:
 				return int64(valType.Map().Len()), nil
 			}
-			return nil, errors.New(typeError)
+			return nil, fmt.Errorf("Len: unsupported target type %T. %s", val, typeError)
 		case pcommon.Map:
 			return int64(valType.Len()), nil
 		case pcommon.Slice:
@@ -105,6 +106,6 @@ func computeLen[K any](target ottl.Getter[K]) ottl.ExprFunc[K] {
 			return int64(v.Len()), nil
 		}
 
-		return nil, errors.New(typeError)
+		return nil, fmt.Errorf("Len: unsupported target type %T. %s", val, typeError)
 	}
 }

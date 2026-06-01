@@ -134,6 +134,12 @@ func otlpHTTPLogExporter(ctx context.Context, otlpConfig *OTLP) (sdklog.Exporter
 
 		if u.Scheme == "http" {
 			opts = append(opts, otlploghttp.WithInsecure())
+		} else {
+			tlsConfig, err := tls.CreateConfig(otlpConfig.Certificate, otlpConfig.ClientCertificate, otlpConfig.ClientKey)
+			if err != nil {
+				return nil, err
+			}
+			opts = append(opts, otlploghttp.WithTLSClientConfig(tlsConfig))
 		}
 		if u.Path != "" {
 			opts = append(opts, otlploghttp.WithURLPath(u.Path))
@@ -159,12 +165,6 @@ func otlpHTTPLogExporter(ctx context.Context, otlpConfig *OTLP) (sdklog.Exporter
 	if len(headersConfig) > 0 {
 		opts = append(opts, otlploghttp.WithHeaders(headersConfig))
 	}
-
-	tlsConfig, err := tls.CreateConfig(otlpConfig.Certificate, otlpConfig.ClientCertificate, otlpConfig.ClientKey)
-	if err != nil {
-		return nil, err
-	}
-	opts = append(opts, otlploghttp.WithTLSClientConfig(tlsConfig))
 
 	return otlploghttp.New(ctx, opts...)
 }
