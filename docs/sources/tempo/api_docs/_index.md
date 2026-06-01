@@ -924,6 +924,11 @@ To enable the streaming service over the HTTP port for use with Grafana, set the
 stream_over_http_enabled: true
 ```
 
+The query frontend segments streamed diffs and final responses into smaller packets.
+The default packet size is 2 MiB.
+To change the packet size, configure `query_frontend.max_grpc_streaming_packet_size`.
+For details, refer to the [query frontend configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#query-frontend).
+
 The query frontend supports the following interface. Refer to [`tempo.proto`](https://github.com/grafana/tempo/blob/main/pkg/tempopb/tempo.proto) for complete details of all objects.
 
 ```protobuf
