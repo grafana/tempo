@@ -107,9 +107,15 @@ These blocks are queryable until the data ages out of the live-store's retention
 |---|---|
 | `tempo_live_store_traces_created_total` | Total number of traces created in the live-store |
 | `tempo_live_store_lagged_requests_total` | Requests where the live-store could not guarantee complete results due to Kafka lag, labeled by `route` |
+| `tempo_live_store_query_inspected_bytes_total` | Total bytes inspected by live-store queries, labeled by `tenant` and `op` |
 | `tempo_warnings_total` | Warnings during trace processing, labeled by `reason` |
 | `tempo_ingest_group_partition_lag{group="live-store"}` | Consumer lag per partition |
+
+The `op` label for `tempo_live_store_query_inspected_bytes_total` identifies the live-store query operation.
+Possible values are `search`, `search_tags`, `search_tag_values`, `trace_by_id`, and `query_range`.
+Use this metric to understand recent-data query cost before the query frontend aggregates inspected bytes across the full query path.
 
 ## Related resources
 
 Refer to the [live-store configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#live-store) for the full list of options.
+For query I/O PromQL examples, refer to [Monitor query I/O and span timestamp distance](/docs/tempo/<TEMPO_VERSION>/operations/monitor/query-io-and-timestamp-distance/).
