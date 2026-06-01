@@ -372,6 +372,7 @@ parse_fails:
   - '2 - 3'
   - '2 / 3'
   - '3 = 2'
+  - '({} | rate()) % 10'
   - '{ .foo = "a" } | 3 > 2'
   # consecutive scalars without operator
   - '({} | rate()) + 5 100'
