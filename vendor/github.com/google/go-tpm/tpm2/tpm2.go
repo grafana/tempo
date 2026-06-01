@@ -59,6 +59,32 @@ func (h AuthHandle) KnownName() *TPM2BName {
 	return h.Handle.KnownName()
 }
 
+// invalidHandleValue is the sentinel value used for handles that have been
+// reconstructed from unmarshalling.
+// This value is intentionally invalid to prevent accidental use with a real TPM.
+const invalidHandleValue TPMHandle = 0xFFFFFFFF
+
+// UnmarshalledHandle represents a handle reconstructed from unmarshalling.
+// This type is used for audit and inspection purposes where only the Name is
+// available, not the actual TPM handle value.
+//
+// The HandleValue() method returns [invalidHandleValue] to prevent accidental
+// use of these handles with a real TPM.
+type UnmarshalledHandle struct {
+	Name TPM2BName
+}
+
+// HandleValue implements the handle interface.
+// Returns invalidHandleValue since unmarshalled handles don't have real TPM handle values.
+func (h UnmarshalledHandle) HandleValue() uint32 {
+	return uint32(invalidHandleValue)
+}
+
+// KnownName implements the handle interface.
+func (h UnmarshalledHandle) KnownName() *TPM2BName {
+	return &h.Name
+}
+
 // Command is an interface for any TPM command, parameterized by its response
 // type.
 type Command[R any, PR *R] interface {
@@ -277,7 +303,7 @@ type LoadExternalResponse struct {
 // See definition in Part 3, Commands, section 12.4
 type ReadPublic struct {
 	// TPM handle of an object
-	ObjectHandle TPMIDHObject `gotpm:"handle"`
+	ObjectHandle handle `gotpm:"handle"`
 }
 
 // Command implements the Command interface.
@@ -1194,8 +1220,8 @@ func (cmd PolicySecret) Execute(t transport.TPM, s ...Session) (*PolicySecretRes
 }
 
 // Update implements the PolicyCommand interface.
-func (cmd PolicySecret) Update(policy *PolicyCalculator) {
-	policyUpdate(policy, TPMCCPolicySecret, cmd.AuthHandle.KnownName().Buffer, cmd.PolicyRef.Buffer)
+func (cmd PolicySecret) Update(policy *PolicyCalculator) error {
+	return policyUpdate(policy, TPMCCPolicySecret, cmd.AuthHandle.KnownName().Buffer, cmd.PolicyRef.Buffer)
 }
 
 // PolicySecretResponse is the response from TPM2_PolicySecret.
@@ -2134,6 +2160,31 @@ type NVReadResponse struct {
 	Data TPM2BMaxNVBuffer
 }
 
+// NVReadLock is the input to TPM2_NV_NVReadLock.
+// See definition in Part 3, Commands, section 31.14.
+type NVReadLock struct {
+	// handle indicating the source of the authorization value
+	AuthHandle handle `gotpm:"handle,auth"`
+	// the NV index of the area to lock
+	NVIndex handle `gotpm:"handle"`
+}
+
+// Command implements the Command interface.
+func (NVReadLock) Command() TPMCC { return TPMCCNVReadLock }
+
+// Execute executes the command and returns the response.
+func (cmd NVReadLock) Execute(t transport.TPM, s ...Session) (*NVReadLockResponse, error) {
+	var rsp NVReadLockResponse
+	err := execute[NVReadLockResponse](t, cmd, &rsp, s...)
+	if err != nil {
+		return nil, err
+	}
+	return &rsp, nil
+}
+
+// NVReadLockResponse is the response from TPM2_NV_ReadLock.
+type NVReadLockResponse struct{}
+
 // NVCertify is the input to TPM2_NV_Certify.
 // See definition in Part 3, Commands, section 31.16.
 type NVCertify struct {
@@ -2170,5 +2221,38 @@ type NVCertifyResponse struct {
 	// the structure that was signed
 	CertifyInfo TPM2BAttest
 	// the asymmetric signature over certifyInfo using the key referenced by signHandle
+	Signature TPMTSignature
+}
+
+// GetTime is the input to TPM2_GetTime.
+// See definition in Part 3, Commands, section 18.7.
+type GetTime struct {
+	// handle of the privacy administrator (Must be the value TPM_RH_ENDORSEMENT or command will fail)
+	PrivacyAdminHandle TPMIRHEndorsement `gotpm:"handle,auth"`
+	// the keyHandle identifier of a loaded key that can perform digital signatures
+	SignHandle handle `gotpm:"handle,auth"`
+	// data to "tick stamp"
+	QualifyingData TPM2BData
+	// signing scheme to use if the scheme for signHandle is TPM_ALG_NULL
+	InScheme TPMTSigScheme `gotpm:"nullable"`
+}
+
+// Command implements the Command interface.
+func (GetTime) Command() TPMCC { return TPMCCGetTime }
+
+// Execute executes the command and returns the response.
+func (cmd GetTime) Execute(t transport.TPM, s ...Session) (*GetTimeResponse, error) {
+	var rsp GetTimeResponse
+	if err := execute[GetTimeResponse](t, cmd, &rsp, s...); err != nil {
+		return nil, err
+	}
+	return &rsp, nil
+}
+
+// GetTimeResponse is the response from TPM2_GetTime.
+type GetTimeResponse struct {
+	// standard TPM-generated attestation block
+	TimeInfo TPM2BAttest
+	// the signature over timeInfo
 	Signature TPMTSignature
 }

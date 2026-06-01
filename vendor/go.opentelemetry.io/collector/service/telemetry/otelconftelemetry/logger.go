@@ -4,22 +4,31 @@
 package otelconftelemetry // import "go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
 
 import (
-	config "go.opentelemetry.io/contrib/otelconf/v0.3.0"
-	"go.opentelemetry.io/otel/log"
-	"go.opentelemetry.io/otel/log/noop"
-	"go.opentelemetry.io/otel/sdk/resource"
+	"context"
+
+	otelconf "go.opentelemetry.io/contrib/otelconf/v0.3.0"
+	sdkresource "go.opentelemetry.io/otel/sdk/resource"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/service/telemetry"
 )
 
-// newLogger creates a Logger and a LoggerProvider from Config.
-func newLogger(set telemetry.Settings, cfg Config, sdk *config.SDK, res *resource.Resource) (*zap.Logger, log.LoggerProvider, error) {
+// createLogger creates a Logger and a LoggerProvider from Config.
+func createLogger(
+	ctx context.Context,
+	set telemetry.LoggerSettings,
+	componentConfig component.Config,
+) (*zap.Logger, component.ShutdownFunc, error) {
+	cfg := componentConfig.(*Config)
+	attrs := pcommonAttrsToOTelAttrs(set.Resource)
+	res := sdkresource.NewWithAttributes("", attrs...)
+
 	// Copied from NewProductionConfig.
 	ec := zap.NewProductionEncoderConfig()
 	ec.EncodeTime = zapcore.ISO8601TimeEncoder
-	zapCfg := &zap.Config{
+	zapCfg := zap.Config{
 		Level:             zap.NewAtomicLevelAt(cfg.Logs.Level),
 		Development:       cfg.Logs.Development,
 		Encoding:          cfg.Logs.Encoding,
@@ -36,7 +45,13 @@ func newLogger(set telemetry.Settings, cfg Config, sdk *config.SDK, res *resourc
 		zapCfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 	}
 
-	logger, err := zapCfg.Build(set.ZapOptions...)
+	buildZapLogger := set.BuildZapLogger
+	if buildZapLogger == nil {
+		// For backwards compatibility, use zap.Config.Build
+		// if set.BuildZapLogger is not provided.
+		buildZapLogger = zap.Config.Build
+	}
+	logger, err := buildZapLogger(zapCfg, set.ZapOptions...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -48,7 +63,7 @@ func newLogger(set telemetry.Settings, cfg Config, sdk *config.SDK, res *resourc
 	// add them to the logger using With, because that would apply to all logs,
 	// even ones exported through the core that wraps the LoggerProvider,
 	// meaning that the attributes would be exported twice.
-	if res != nil && len(res.Attributes()) > 0 {
+	if !cfg.Logs.DisableZapResource && res != nil && len(res.Attributes()) > 0 {
 		logger = logger.WithOptions(zap.WrapCore(func(c zapcore.Core) zapcore.Core {
 			var fields []zap.Field
 			for _, attr := range res.Attributes() {
@@ -71,11 +86,27 @@ func newLogger(set telemetry.Settings, cfg Config, sdk *config.SDK, res *resourc
 		}))
 	}
 
-	var lp log.LoggerProvider
-	if sdk != nil {
-		lp = sdk.LoggerProvider()
-	} else {
-		lp = noop.NewLoggerProvider()
+	sdk, err := newSDK(ctx, res, otelconf.OpenTelemetryConfiguration{
+		LoggerProvider: &otelconf.LoggerProvider{
+			Processors: cfg.Logs.Processors,
+		},
+	})
+	if err != nil {
+		return nil, nil, err
 	}
-	return logger, lp, nil
+
+	// Wrap the zap.Logger with a special zap.Core so scope attributes
+	// can be added and removed dynamically, and tee logs to the
+	// LoggerProvider.
+	loggerProvider := sdk.LoggerProvider()
+	logger = logger.WithOptions(zap.WrapCore(func(core zapcore.Core) zapcore.Core {
+		provider := zapCoreProvider{
+			sourceCore: core,
+			lp:         loggerProvider,
+			scopeName:  "go.opentelemetry.io/collector/service",
+		}
+		return provider.newCore()
+	}))
+
+	return logger, sdk.Shutdown, nil
 }

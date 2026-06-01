@@ -3,7 +3,6 @@ package registry
 import (
 	"context"
 	"fmt"
-	"sort"
 
 	"github.com/prometheus/prometheus/model/exemplar"
 	prom_histogram "github.com/prometheus/prometheus/model/histogram"
@@ -47,7 +46,15 @@ func (n noopAppender) AppendCTZeroSample(_ storage.SeriesRef, _ labels.Labels, _
 	return 0, nil
 }
 
+func (n noopAppender) AppendSTZeroSample(_ storage.SeriesRef, _ labels.Labels, _, _ int64) (storage.SeriesRef, error) {
+	return 0, nil
+}
+
 func (n noopAppender) AppendHistogramCTZeroSample(_ storage.SeriesRef, _ labels.Labels, _, _ int64, _ *prom_histogram.Histogram, _ *prom_histogram.FloatHistogram) (storage.SeriesRef, error) {
+	return 0, nil
+}
+
+func (n noopAppender) AppendHistogramSTZeroSample(_ storage.SeriesRef, _ labels.Labels, _, _ int64, _ *prom_histogram.Histogram, _ *prom_histogram.FloatHistogram) (storage.SeriesRef, error) {
 	return 0, nil
 }
 
@@ -71,7 +78,6 @@ type exemplarSample struct {
 
 func newSample(lbls map[string]string, t int64, v float64) sample {
 	l := labels.FromMap(lbls)
-	sort.Slice(l, func(i, j int) bool { return l[i].Name < l[j].Name })
 	return sample{
 		l: l,
 		t: t,
@@ -81,7 +87,6 @@ func newSample(lbls map[string]string, t int64, v float64) sample {
 
 func newExemplar(lbls map[string]string, e exemplar.Exemplar) exemplarSample {
 	l := labels.FromMap(lbls)
-	sort.Slice(l, func(i, j int) bool { return l[i].Name < l[j].Name })
 	return exemplarSample{
 		l: l,
 		e: e,
@@ -133,6 +138,14 @@ func (c *capturingAppender) AppendCTZeroSample(_ storage.SeriesRef, _ labels.Lab
 	return 0, nil
 }
 
+func (c *capturingAppender) AppendSTZeroSample(_ storage.SeriesRef, _ labels.Labels, _, _ int64) (storage.SeriesRef, error) {
+	return 0, nil
+}
+
 func (c *capturingAppender) AppendHistogramCTZeroSample(_ storage.SeriesRef, _ labels.Labels, _, _ int64, _ *prom_histogram.Histogram, _ *prom_histogram.FloatHistogram) (storage.SeriesRef, error) {
+	return 0, nil
+}
+
+func (c *capturingAppender) AppendHistogramSTZeroSample(_ storage.SeriesRef, _ labels.Labels, _, _ int64, _ *prom_histogram.Histogram, _ *prom_histogram.FloatHistogram) (storage.SeriesRef, error) {
 	return 0, nil
 }

@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"sync"
 
@@ -21,16 +22,15 @@ import (
 	"github.com/pierrec/lz4/v4"
 
 	"go.opentelemetry.io/collector/config/configcompression"
-	"go.opentelemetry.io/collector/featuregate"
+	"go.opentelemetry.io/collector/config/confighttp/internal/metadata"
 )
 
-var enableFramedSnappy = featuregate.GlobalRegistry().MustRegister(
-	"confighttp.framedSnappy",
-	featuregate.StageBeta,
-	featuregate.WithRegisterFromVersion("v0.125.0"),
-	featuregate.WithRegisterDescription("Content encoding 'snappy' will compress/decompress block snappy format while 'x-snappy-framed' will compress/decompress framed snappy format."),
-	featuregate.WithRegisterReferenceURL("https://github.com/open-telemetry/opentelemetry-collector/issues/10584"),
-)
+func defaultCompressionAlgorithms() []string {
+	if metadata.ConfighttpFramedSnappyFeatureGate.IsEnabled() {
+		return []string{"", "gzip", "zstd", "zlib", "snappy", "deflate", "lz4", "x-snappy-framed"}
+	}
+	return []string{"", "gzip", "zstd", "zlib", "snappy", "deflate", "lz4"}
+}
 
 type compressRoundTripper struct {
 	rt                http.RoundTripper
@@ -46,15 +46,21 @@ type pooledZstdReadCloser struct {
 }
 
 func (pzrc *pooledZstdReadCloser) Read(dst []byte) (int, error) {
+	if pzrc.inner == nil {
+		return 0, zstd.ErrDecoderClosed
+	}
 	return pzrc.inner.Read(dst)
 }
 
 func (pzrc *pooledZstdReadCloser) Close() error {
-	err := pzrc.inner.Reset(nil)
-	if err != nil {
-		return err
+	if pzrc.inner != nil {
+		err := pzrc.inner.Reset(nil)
+		if err != nil {
+			return err
+		}
+		zstdReaderPool.Put(pzrc.inner)
+		pzrc.inner = nil
 	}
-	zstdReaderPool.Put(pzrc.inner)
 	return nil
 }
 
@@ -222,7 +228,7 @@ func httpContentDecompressor(h http.Handler, maxRequestBodySize int64, eh func(w
 
 	enabled := map[string]func(body io.ReadCloser) (io.ReadCloser, error){}
 	for _, dec := range enableDecoders {
-		if dec == "x-frame-snappy" && !enableFramedSnappy.IsEnabled() {
+		if dec == "x-frame-snappy" && !metadata.ConfighttpFramedSnappyFeatureGate.IsEnabled() {
 			continue
 		}
 		enabled[dec] = availableDecoders[dec]
@@ -239,9 +245,7 @@ func httpContentDecompressor(h http.Handler, maxRequestBodySize int64, eh func(w
 		decoders:           enabled,
 	}
 
-	for key, dec := range decoders {
-		d.decoders[key] = dec
-	}
+	maps.Copy(d.decoders, decoders)
 
 	return d
 }
@@ -266,7 +270,11 @@ func (d *decompressor) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (d *decompressor) newBodyReader(r *http.Request) (io.ReadCloser, error) {
+	if len(d.decoders) == 0 {
+		return nil, nil // Signal: don't replace r.Body
+	}
 	encoding := r.Header.Get(headerContentEncoding)
+
 	decoder, ok := d.decoders[encoding]
 	if !ok {
 		return nil, fmt.Errorf("unsupported %s: %s", headerContentEncoding, encoding)

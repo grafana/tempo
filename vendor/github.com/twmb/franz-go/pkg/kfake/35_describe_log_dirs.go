@@ -17,7 +17,7 @@ func (c *Cluster) handleDescribeLogDirs(b *broker, kreq kmsg.Request) (kmsg.Resp
 	totalSpace := make(map[string]int64)
 	individual := make(map[string]map[string]map[int32]int64)
 
-	add := func(d string, t string, p int32, s int64) {
+	add := func(d, t string, p int32, s int64) {
 		totalSpace[d] += s
 		ts, ok := individual[d]
 		if !ok {

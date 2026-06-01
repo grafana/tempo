@@ -1,0 +1,8 @@
+description: Config defines configuration for Zipkin receiver.
+type: object
+properties:
+  parse_string_tags:
+    description: If enabled the zipkin receiver will attempt to parse string tags/binary annotations into int/bool/float. Disabled by default
+    type: boolean
+allOf:
+  - $ref: go.opentelemetry.io/collector/config/confighttp.server_config

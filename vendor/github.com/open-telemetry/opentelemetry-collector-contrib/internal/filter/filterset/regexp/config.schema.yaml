@@ -1,0 +1,11 @@
+$defs:
+  config:
+    description: Config represents the options for a NewFilterSet.
+    type: object
+    properties:
+      cacheenabled:
+        description: CacheEnabled determines whether match results are LRU cached to make subsequent matches faster. Cache size is unlimited unless CacheMaxNumEntries is also specified.
+        type: boolean
+      cachemaxnumentries:
+        description: CacheMaxNumEntries is the max number of entries of the LRU cache that stores match results. CacheMaxNumEntries is ignored if CacheEnabled is false.
+        type: integer

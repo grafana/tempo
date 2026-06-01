@@ -1,0 +1,20 @@
+$defs:
+  arguments:
+    description: Arguments holds the arguments for an OTTL function, with arguments specified as fields on a struct. Argument ordering is defined
+    x-customType: any
+  enum:
+    description: Enum is how OTTL represents an enum's numeric value.
+    type: integer
+    x-customType: int64
+  enum_symbol:
+    description: EnumSymbol is how OTTL represents an enum's string value.
+    type: string
+  error_mode:
+    description: ErrorMode is the way OTTL should handle errors.
+    type: string
+  logic_operation:
+    description: LogicOperation represents the logical operations OTTL understands.
+    type: string
+  type_error:
+    description: TypeError represents that a value was not an expected type.
+    type: string

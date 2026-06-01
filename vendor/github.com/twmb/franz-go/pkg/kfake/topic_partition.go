@@ -78,6 +78,7 @@ func (tps *tps[V]) delp(t string, p int32) {
 
 // TopicInfo contains snapshot-in-time metadata about an existing topic.
 type TopicInfo struct {
+	Topic       string             // Topic is the topic this info is for.
 	TopicID     [16]byte           // TopicID is the UUID of the topic.
 	NumReplicas int                // NumReplicas is the replication factor for all partitions in this topic.
 	Configs     map[string]*string // Configs contains all configuration values specified for this topic.
@@ -85,6 +86,7 @@ type TopicInfo struct {
 
 // PartitionInfo contains snapshot-in-time metadata about an existing partition.
 type PartitionInfo struct {
+	Partition        int32 // Partition is the partition this info is for.
 	HighWatermark    int64 // HighWatermark is the latest offset present in the partition.
 	LastStableOffset int64 // LastStableOffset is the last stable offset.
 	LogStartOffset   int64 // LogStartOffsets is the first offset present in the partition.
@@ -96,6 +98,7 @@ type PartitionInfo struct {
 
 func (pd *partData) info() *PartitionInfo {
 	return &PartitionInfo{
+		Partition:        pd.p,
 		HighWatermark:    pd.highWatermark,
 		LastStableOffset: pd.lastStableOffset,
 		LogStartOffset:   pd.logStartOffset,
@@ -106,6 +109,19 @@ func (pd *partData) info() *PartitionInfo {
 	}
 }
 
+func cloneConfigs(m map[string]*string) map[string]*string { // a deeper maps.Clone
+	m2 := make(map[string]*string, len(m))
+	for k, v := range m {
+		var v2 *string
+		if v != nil {
+			vv := *v
+			v2 = &vv
+		}
+		m2[k] = v2
+	}
+	return m2
+}
+
 // TopicInfo returns information about a topic if it exists.
 func (c *Cluster) TopicInfo(topic string) *TopicInfo {
 	var i *TopicInfo
@@ -114,22 +130,29 @@ func (c *Cluster) TopicInfo(topic string) *TopicInfo {
 		if !exists {
 			return
 		}
-		clone := func(m map[string]*string) map[string]*string { // a deeper maps.Clone
-			m2 := make(map[string]*string, len(m))
-			for k, v := range m {
-				var v2 *string
-				if v != nil {
-					vv := *v
-					v2 = &vv
-				}
-				m2[k] = v2
-			}
-			return m2
-		}
 		i = &TopicInfo{
+			Topic:       topic,
 			TopicID:     id,
 			NumReplicas: c.data.treplicas[topic],
-			Configs:     clone(c.data.tcfgs[topic]),
+			Configs:     cloneConfigs(c.data.tcfgs[topic]),
+		}
+	})
+	return i
+}
+
+// TopicIDInfo returns the topic for a topic ID if the topic ID exists.
+func (c *Cluster) TopicIDInfo(id [16]byte) *TopicInfo {
+	var i *TopicInfo
+	c.admin(func() {
+		topic, exists := c.data.id2t[id]
+		if !exists {
+			return
+		}
+		i = &TopicInfo{
+			Topic:       topic,
+			TopicID:     id,
+			NumReplicas: c.data.treplicas[topic],
+			Configs:     cloneConfigs(c.data.tcfgs[topic]),
 		}
 	})
 	return i

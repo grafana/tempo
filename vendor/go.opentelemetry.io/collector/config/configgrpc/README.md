@@ -35,7 +35,7 @@ Example:
 
 ```yaml
 exporters:
-  otlp:
+  otlp_grpc:
     endpoint: otelcol2:55690
     auth:
       authenticator: some-authenticator-extension
@@ -50,7 +50,7 @@ exporters:
 
 ### Compression Comparison
 
-[configgrpc_benchmark_test.go](./configgrpc_benchmark_test.go) contains benchmarks comparing the supported compression algorithms. It performs compression using `gzip`, `zstd`, and `snappy` compression on small, medium, and large sized log, trace, and metric payloads. Each test case outputs the uncompressed payload size, the compressed payload size, and the average nanoseconds spent on compression. 
+[configgrpc_benchmark_test.go](./configgrpc_benchmark_test.go) contains benchmarks comparing the supported compression algorithms. It performs compression using `gzip`, `zstd`, and `snappy` compression on small, medium, and large sized log, trace, and metric payloads. Each test case outputs the uncompressed payload size, the compressed payload size, and the average nanoseconds spent on compression.
 
 The following table summarizes the results, including some additional columns computed from the raw data. The benchmarks were performed on an AWS m5.large EC2 instance with an Intel(R) Xeon(R) Platinum 8259CL CPU @ 2.50GHz.
 
@@ -93,8 +93,9 @@ Compression ratios will vary in practice as they are highly dependent on the dat
 [Receivers](https://github.com/open-telemetry/opentelemetry-collector/blob/main/receiver/README.md)
 leverage server configuration.
 
-Note that transport configuration can also be configured. For more information,
-see [confignet README](../confignet/README.md).
+Note that transport configuration can also be configured. The default transport
+type is TCP. For more information, see [confignet
+README](../confignet/README.md).
 
 - [`keepalive`](https://godoc.org/google.golang.org/grpc/keepalive#ServerParameters)
   - [`enforcement_policy`](https://godoc.org/google.golang.org/grpc/keepalive#EnforcementPolicy)

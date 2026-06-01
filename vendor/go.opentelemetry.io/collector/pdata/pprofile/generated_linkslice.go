@@ -11,7 +11,6 @@ import (
 	"sort"
 
 	"go.opentelemetry.io/collector/pdata/internal"
-	otlpprofiles "go.opentelemetry.io/collector/pdata/internal/data/protogen/profiles/v1development"
 )
 
 // LinkSlice logically represents a slice of Link.
@@ -22,20 +21,19 @@ import (
 // Must use NewLinkSlice function to create new instances.
 // Important: zero-initialized instance is not valid for use.
 type LinkSlice struct {
-	orig  *[]*otlpprofiles.Link
+	orig  *[]*internal.Link
 	state *internal.State
 }
 
-func newLinkSlice(orig *[]*otlpprofiles.Link, state *internal.State) LinkSlice {
+func newLinkSlice(orig *[]*internal.Link, state *internal.State) LinkSlice {
 	return LinkSlice{orig: orig, state: state}
 }
 
-// NewLinkSlice creates a LinkSlice with 0 elements.
+// NewLinkSlice creates a LinkSliceWrapper with 0 elements.
 // Can use "EnsureCapacity" to initialize with a given capacity.
 func NewLinkSlice() LinkSlice {
-	orig := []*otlpprofiles.Link(nil)
-	state := internal.StateMutable
-	return newLinkSlice(&orig, &state)
+	orig := []*internal.Link(nil)
+	return newLinkSlice(&orig, internal.NewState())
 }
 
 // Len returns the number of elements in the slice.
@@ -91,7 +89,7 @@ func (es LinkSlice) EnsureCapacity(newCap int) {
 		return
 	}
 
-	newOrig := make([]*otlpprofiles.Link, len(*es.orig), newCap)
+	newOrig := make([]*internal.Link, len(*es.orig), newCap)
 	copy(newOrig, *es.orig)
 	*es.orig = newOrig
 }
@@ -100,7 +98,7 @@ func (es LinkSlice) EnsureCapacity(newCap int) {
 // It returns the newly added Link.
 func (es LinkSlice) AppendEmpty() Link {
 	es.state.AssertMutable()
-	*es.orig = append(*es.orig, &otlpprofiles.Link{})
+	*es.orig = append(*es.orig, internal.NewLink())
 	return es.At(es.Len() - 1)
 }
 
@@ -129,7 +127,9 @@ func (es LinkSlice) RemoveIf(f func(Link) bool) {
 	newLen := 0
 	for i := 0; i < len(*es.orig); i++ {
 		if f(es.At(i)) {
+			internal.DeleteLink((*es.orig)[i], true)
 			(*es.orig)[i] = nil
+
 			continue
 		}
 		if newLen == i {
@@ -138,6 +138,7 @@ func (es LinkSlice) RemoveIf(f func(Link) bool) {
 			continue
 		}
 		(*es.orig)[newLen] = (*es.orig)[i]
+		// Cannot delete here since we just move the data(or pointer to data) to a different position in the slice.
 		(*es.orig)[i] = nil
 		newLen++
 	}
@@ -147,7 +148,10 @@ func (es LinkSlice) RemoveIf(f func(Link) bool) {
 // CopyTo copies all elements from the current slice overriding the destination.
 func (es LinkSlice) CopyTo(dest LinkSlice) {
 	dest.state.AssertMutable()
-	*dest.orig = internal.CopyOrigLinkSlice(*dest.orig, *es.orig)
+	if es.orig == dest.orig {
+		return
+	}
+	*dest.orig = internal.CopyLinkPtrSlice(*dest.orig, *es.orig)
 }
 
 // Sort sorts the Link elements within LinkSlice given the

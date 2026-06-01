@@ -67,26 +67,18 @@ func (path StandardGetSetter[K]) Set(ctx context.Context, tCtx K, val any) error
 	return path.Setter(ctx, tCtx, val)
 }
 
-type literal[K any] struct {
-	value any
-}
-
-func (l literal[K]) Get(context.Context, K) (any, error) {
-	return l.value, nil
-}
-
 type exprGetter[K any] struct {
 	expr Expr[K]
 	keys []key
 }
 
-func (g exprGetter[K]) Get(ctx context.Context, tCtx K) (any, error) {
+func (g *exprGetter[K]) Get(ctx context.Context, tCtx K) (any, error) {
 	result, err := g.expr.Eval(ctx, tCtx)
 	if err != nil {
 		return nil, err
 	}
 
-	if g.keys == nil {
+	if len(g.keys) == 0 {
 		return result, nil
 	}
 
@@ -167,6 +159,20 @@ type listGetter[K any] struct {
 	slice []Getter[K]
 }
 
+func newListGetter[K any](slice []Getter[K]) (Getter[K], error) {
+	g := listGetter[K]{slice}
+	for _, v := range slice {
+		if !isLiteralGetter(v) {
+			return &g, nil
+		}
+	}
+	val, err := g.Get(context.Background(), *new(K))
+	if err != nil {
+		return nil, err
+	}
+	return newLiteral[K, any](val), nil
+}
+
 func (l *listGetter[K]) Get(ctx context.Context, tCtx K) (any, error) {
 	evaluated := make([]any, len(l.slice))
 
@@ -184,6 +190,20 @@ func (l *listGetter[K]) Get(ctx context.Context, tCtx K) (any, error) {
 
 type mapGetter[K any] struct {
 	mapValues map[string]Getter[K]
+}
+
+func newMapGetter[K any](mapValues map[string]Getter[K]) (Getter[K], error) {
+	g := mapGetter[K]{mapValues: mapValues}
+	for _, v := range mapValues {
+		if !isLiteralGetter(v) {
+			return &g, nil
+		}
+	}
+	val, err := g.Get(context.Background(), *new(K))
+	if err != nil {
+		return nil, err
+	}
+	return newLiteral[K, any](val), nil
 }
 
 func (m *mapGetter[K]) Get(ctx context.Context, tCtx K) (any, error) {
@@ -221,9 +241,58 @@ func (m *mapGetter[K]) Get(ctx context.Context, tCtx K) (any, error) {
 	return result, nil
 }
 
+// PSliceGetSetter is a GetSetter that must interact with a pcommon.Slice
+type PSliceGetSetter[K any] interface {
+	Get(ctx context.Context, tCtx K) (pcommon.Slice, error)
+	Set(ctx context.Context, tCtx K, val pcommon.Slice) error
+}
+
+// StandardPSliceGetSetter is a basic implementation of PSliceGetSetter
+type StandardPSliceGetSetter[K any] struct {
+	Getter func(ctx context.Context, tCtx K) (pcommon.Slice, error)
+	Setter func(ctx context.Context, tCtx K, val any) error
+}
+
+func (path StandardPSliceGetSetter[K]) Get(ctx context.Context, tCtx K) (pcommon.Slice, error) {
+	return path.Getter(ctx, tCtx)
+}
+
+func (path StandardPSliceGetSetter[K]) Set(ctx context.Context, tCtx K, val pcommon.Slice) error {
+	return path.Setter(ctx, tCtx, val)
+}
+
+// newStandardPSliceGetSetter creates a new StandardPSliceGetSetter from a GetSetter[K],
+// also validates getter on each use and checks if the GetSetter is a literalGetter.
+func newStandardPSliceGetSetter[K any](getSetter GetSetter[K]) (PSliceGetSetter[K], error) {
+	g, err := newStandardPSliceGetter[K](getSetter)
+	if err != nil {
+		return nil, err
+	}
+	return StandardPSliceGetSetter[K]{
+		Getter: g.Get,
+		Setter: getSetter.Set,
+	}, nil
+}
+
 // PSliceGetter is a Getter that must return a pcommon.Slice.
 type PSliceGetter[K any] interface {
 	Get(ctx context.Context, tCtx K) (pcommon.Slice, error)
+}
+
+// newStandardPSliceGetter creates a new StandardPSliceGetter from a Getter[K],
+// also checking if the Getter is a literalGetter.
+func newStandardPSliceGetter[K any](getter Getter[K]) (PSliceGetter[K], error) {
+	g := StandardPSliceGetter[K]{
+		Getter: getter.Get,
+	}
+	if isLiteralGetter(getter) {
+		val, err := g.Get(context.Background(), *new(K))
+		if err != nil {
+			return nil, err
+		}
+		return newLiteral[K, pcommon.Slice](val), nil
+	}
+	return g, nil
 }
 
 // StandardPSliceGetter is a basic implementation of PSliceGetter
@@ -316,6 +385,22 @@ type StringGetter[K any] interface {
 	Get(ctx context.Context, tCtx K) (string, error)
 }
 
+// newStandardStringGetter creates a new StandardStringGetter from a Getter[K],
+// also checking if the Getter is a literalGetter.
+func newStandardStringGetter[K any](getter Getter[K]) (StringGetter[K], error) {
+	g := StandardStringGetter[K]{
+		Getter: getter.Get,
+	}
+	if isLiteralGetter(getter) {
+		val, err := g.Get(context.Background(), *new(K))
+		if err != nil {
+			return nil, err
+		}
+		return newLiteral[K, string](val), nil
+	}
+	return g, nil
+}
+
 // StandardStringGetter is a basic implementation of StringGetter
 type StandardStringGetter[K any] struct {
 	Getter func(ctx context.Context, tCtx K) (any, error)
@@ -349,6 +434,22 @@ func (g StandardStringGetter[K]) Get(ctx context.Context, tCtx K) (string, error
 type IntGetter[K any] interface {
 	// Get retrieves an int64 value.
 	Get(ctx context.Context, tCtx K) (int64, error)
+}
+
+// newStandardIntGetter creates a new StandardIntGetter from a Getter[K],
+// also checking if the Getter is a literalGetter.
+func newStandardIntGetter[K any](getter Getter[K]) (IntGetter[K], error) {
+	g := StandardIntGetter[K]{
+		Getter: getter.Get,
+	}
+	if isLiteralGetter(getter) {
+		val, err := g.Get(context.Background(), *new(K))
+		if err != nil {
+			return nil, err
+		}
+		return newLiteral[K, int64](val), nil
+	}
+	return g, nil
 }
 
 // StandardIntGetter is a basic implementation of IntGetter
@@ -386,6 +487,20 @@ type FloatGetter[K any] interface {
 	Get(ctx context.Context, tCtx K) (float64, error)
 }
 
+func newStandardFloatGetter[K any](getter Getter[K]) (FloatGetter[K], error) {
+	g := StandardFloatGetter[K]{
+		Getter: getter.Get,
+	}
+	if isLiteralGetter(getter) {
+		val, err := g.Get(context.Background(), *new(K))
+		if err != nil {
+			return nil, err
+		}
+		return newLiteral[K, float64](val), nil
+	}
+	return g, nil
+}
+
 // StandardFloatGetter is a basic implementation of FloatGetter
 type StandardFloatGetter[K any] struct {
 	Getter func(ctx context.Context, tCtx K) (any, error)
@@ -419,6 +534,20 @@ func (g StandardFloatGetter[K]) Get(ctx context.Context, tCtx K) (float64, error
 type BoolGetter[K any] interface {
 	// Get retrieves a bool value.
 	Get(ctx context.Context, tCtx K) (bool, error)
+}
+
+func newStandardBoolGetter[K any](getter Getter[K]) (BoolGetter[K], error) {
+	g := StandardBoolGetter[K]{
+		Getter: getter.Get,
+	}
+	if isLiteralGetter(getter) {
+		val, err := g.Get(context.Background(), *new(K))
+		if err != nil {
+			return nil, err
+		}
+		return newLiteral[K, bool](val), nil
+	}
+	return g, nil
 }
 
 // StandardBoolGetter is a basic implementation of BoolGetter
@@ -519,6 +648,22 @@ type PMapGetter[K any] interface {
 	Get(ctx context.Context, tCtx K) (pcommon.Map, error)
 }
 
+// newStandardPMapGetter creates a new StandardPMapGetter from a Getter[K],
+// also checking if the Getter is a literalGetter.
+func newStandardPMapGetter[K any](getter Getter[K]) (PMapGetter[K], error) {
+	g := StandardPMapGetter[K]{
+		Getter: getter.Get,
+	}
+	if isLiteralGetter(getter) {
+		val, err := g.Get(context.Background(), *new(K))
+		if err != nil {
+			return nil, err
+		}
+		return newLiteral[K, pcommon.Map](val), nil
+	}
+	return g, nil
+}
+
 // StandardPMapGetter is a basic implementation of PMapGetter
 type StandardPMapGetter[K any] struct {
 	Getter func(ctx context.Context, tCtx K) (any, error)
@@ -562,6 +707,22 @@ type StringLikeGetter[K any] interface {
 	// If the value cannot be converted to a string, nil and an error are returned.
 	// If the value is nil, nil is returned without an error.
 	Get(ctx context.Context, tCtx K) (*string, error)
+}
+
+// newStandardStringLikeGetter creates a new StandardStringLikeGetter from a Getter[K],
+// also checking if the Getter is a literalGetter.
+func newStandardStringLikeGetter[K any](getter Getter[K]) (StringLikeGetter[K], error) {
+	g := StandardStringLikeGetter[K]{
+		Getter: getter.Get,
+	}
+	if isLiteralGetter(getter) {
+		val, err := g.Get(context.Background(), *new(K))
+		if err != nil {
+			return nil, err
+		}
+		return newLiteral[K, *string](val), nil
+	}
+	return g, nil
 }
 
 // StandardStringLikeGetter is a basic implementation of StringLikeGetter
@@ -614,6 +775,20 @@ type FloatLikeGetter[K any] interface {
 	// If the value cannot be converted to a float64, nil and an error are returned.
 	// If the value is nil, nil is returned without an error.
 	Get(ctx context.Context, tCtx K) (*float64, error)
+}
+
+func newStandardFloatLikeGetter[K any](getter Getter[K]) (FloatLikeGetter[K], error) {
+	g := StandardFloatLikeGetter[K]{
+		Getter: getter.Get,
+	}
+	if isLiteralGetter(getter) {
+		val, err := g.Get(context.Background(), *new(K))
+		if err != nil {
+			return nil, err
+		}
+		return newLiteral[K, *float64](val), nil
+	}
+	return g, nil
 }
 
 // StandardFloatLikeGetter is a basic implementation of FloatLikeGetter
@@ -681,6 +856,20 @@ type IntLikeGetter[K any] interface {
 	Get(ctx context.Context, tCtx K) (*int64, error)
 }
 
+func newStandardIntLikeGetter[K any](getter Getter[K]) (IntLikeGetter[K], error) {
+	g := StandardIntLikeGetter[K]{
+		Getter: getter.Get,
+	}
+	if isLiteralGetter(getter) {
+		val, err := g.Get(context.Background(), *new(K))
+		if err != nil {
+			return nil, err
+		}
+		return newLiteral[K, *int64](val), nil
+	}
+	return g, nil
+}
+
 // StandardIntLikeGetter is a basic implementation of IntLikeGetter
 type StandardIntLikeGetter[K any] struct {
 	Getter func(ctx context.Context, tCtx K) (any, error)
@@ -744,6 +933,20 @@ type ByteSliceLikeGetter[K any] interface {
 	// If the value cannot be converted to []byte, nil and an error are returned.
 	// If the value is nil, nil is returned without an error.
 	Get(ctx context.Context, tCtx K) ([]byte, error)
+}
+
+func newStandardByteSliceLikeGetter[K any](getter Getter[K]) (ByteSliceLikeGetter[K], error) {
+	g := StandardByteSliceLikeGetter[K]{
+		Getter: getter.Get,
+	}
+	if isLiteralGetter(getter) {
+		val, err := g.Get(context.Background(), *new(K))
+		if err != nil {
+			return nil, err
+		}
+		return newLiteral[K, []byte](val), nil
+	}
+	return g, nil
 }
 
 // StandardByteSliceLikeGetter is a basic implementation of ByteSliceLikeGetter
@@ -822,6 +1025,20 @@ type BoolLikeGetter[K any] interface {
 	Get(ctx context.Context, tCtx K) (*bool, error)
 }
 
+func newStandardBoolLikeGetter[K any](getter Getter[K]) (BoolLikeGetter[K], error) {
+	g := StandardBoolLikeGetter[K]{
+		Getter: getter.Get,
+	}
+	if isLiteralGetter(getter) {
+		val, err := g.Get(context.Background(), *new(K))
+		if err != nil {
+			return nil, err
+		}
+		return newLiteral[K, *bool](val), nil
+	}
+	return g, nil
+}
+
 // StandardBoolLikeGetter is a basic implementation of BoolLikeGetter
 type StandardBoolLikeGetter[K any] struct {
 	Getter func(ctx context.Context, tCtx K) (any, error)
@@ -874,17 +1091,17 @@ func (g StandardBoolLikeGetter[K]) Get(ctx context.Context, tCtx K) (*bool, erro
 
 func (p *Parser[K]) newGetter(val value) (Getter[K], error) {
 	if val.IsNil != nil && *val.IsNil {
-		return &literal[K]{value: nil}, nil
+		return newLiteral[K, any](nil), nil
 	}
 
 	if s := val.String; s != nil {
-		return &literal[K]{value: *s}, nil
+		return newLiteral[K, any](*s), nil
 	}
 	if b := val.Bool; b != nil {
-		return &literal[K]{value: bool(*b)}, nil
+		return newLiteral[K, any](bool(*b)), nil
 	}
 	if b := val.Bytes; b != nil {
-		return &literal[K]{value: []byte(*b)}, nil
+		return newLiteral[K, any]([]byte(*b)), nil
 	}
 
 	if val.Enum != nil {
@@ -892,15 +1109,15 @@ func (p *Parser[K]) newGetter(val value) (Getter[K], error) {
 		if err != nil {
 			return nil, err
 		}
-		return &literal[K]{value: int64(*enum)}, nil
+		return newLiteral[K, any](int64(*enum)), nil
 	}
 
 	if eL := val.Literal; eL != nil {
 		if f := eL.Float; f != nil {
-			return &literal[K]{value: *f}, nil
+			return newLiteral[K, any](*f), nil
 		}
 		if i := eL.Int; i != nil {
-			return &literal[K]{value: *i}, nil
+			return newLiteral[K, any](*i), nil
 		}
 		if eL.Path != nil {
 			np, err := p.newPath(eL.Path)
@@ -915,27 +1132,27 @@ func (p *Parser[K]) newGetter(val value) (Getter[K], error) {
 	}
 
 	if val.List != nil {
-		lg := listGetter[K]{slice: make([]Getter[K], len(val.List.Values))}
+		slice := make([]Getter[K], len(val.List.Values))
 		for i, v := range val.List.Values {
 			getter, err := p.newGetter(v)
 			if err != nil {
 				return nil, err
 			}
-			lg.slice[i] = getter
+			slice[i] = getter
 		}
-		return &lg, nil
+		return newListGetter(slice)
 	}
 
 	if val.Map != nil {
-		mg := mapGetter[K]{mapValues: map[string]Getter[K]{}}
+		mapValues := map[string]Getter[K]{}
 		for _, kvp := range val.Map.Values {
 			getter, err := p.newGetter(*kvp.Value)
 			if err != nil {
 				return nil, err
 			}
-			mg.mapValues[*kvp.Key] = getter
+			mapValues[*kvp.Key] = getter
 		}
-		return &mg, nil
+		return newMapGetter(mapValues)
 	}
 
 	if val.MathExpression == nil {
@@ -960,6 +1177,20 @@ func (p *Parser[K]) newGetterFromConverter(c converter) (Getter[K], error) {
 type TimeGetter[K any] interface {
 	// Get retrieves a time.Time value.
 	Get(ctx context.Context, tCtx K) (time.Time, error)
+}
+
+func newStandardTimeGetter[K any](getter Getter[K]) (TimeGetter[K], error) {
+	g := StandardTimeGetter[K]{
+		Getter: getter.Get,
+	}
+	if isLiteralGetter(getter) {
+		val, err := g.Get(context.Background(), *new(K))
+		if err != nil {
+			return nil, err
+		}
+		return newLiteral[K, time.Time](val), nil
+	}
+	return g, nil
 }
 
 // StandardTimeGetter is a basic implementation of TimeGetter
@@ -990,6 +1221,20 @@ func (g StandardTimeGetter[K]) Get(ctx context.Context, tCtx K) (time.Time, erro
 type DurationGetter[K any] interface {
 	// Get retrieves a time.Duration value.
 	Get(ctx context.Context, tCtx K) (time.Duration, error)
+}
+
+func newStandardDurationGetter[K any](getter Getter[K]) (DurationGetter[K], error) {
+	g := StandardDurationGetter[K]{
+		Getter: getter.Get,
+	}
+	if isLiteralGetter(getter) {
+		val, err := g.Get(context.Background(), *new(K))
+		if err != nil {
+			return nil, err
+		}
+		return newLiteral[K, time.Duration](val), nil
+	}
+	return g, nil
 }
 
 // StandardDurationGetter is a basic implementation of DurationGetter

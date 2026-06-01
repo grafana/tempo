@@ -118,6 +118,10 @@ func (cfg *Config) Validate() error {
 		}
 	}
 
+	if err := cfg.Storage.Validate(); err != nil {
+		return err
+	}
+
 	if !slices.Contains(validCodecs, cfg.Codec) {
 		return fmt.Errorf("invalid codec: %s, valid choices are %s", cfg.Codec, validCodecs)
 	}

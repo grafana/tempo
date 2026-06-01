@@ -2291,6 +2291,10 @@ func (r mockRing) ZonesCount() int {
 	return 0
 }
 
+func (r mockRing) Zones() []string {
+	return nil
+}
+
 type singlePartitionRingReader struct{}
 
 func (m singlePartitionRingReader) PartitionRing() *ring.PartitionRing {
@@ -2299,7 +2303,8 @@ func (m singlePartitionRingReader) PartitionRing() *ring.PartitionRing {
 			0: {Id: 0, Tokens: []uint32{0}, State: ring.PartitionActive},
 		},
 	}
-	return ring.NewPartitionRing(desc)
+	r, _ := ring.NewPartitionRing(desc)
+	return r
 }
 
 func TestCheckForRateLimits(t *testing.T) {

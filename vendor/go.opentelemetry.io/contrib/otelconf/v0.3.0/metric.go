@@ -18,8 +18,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"google.golang.org/grpc/credentials"
-
+	"github.com/prometheus/otlptranslator"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
@@ -32,6 +31,9 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.opentelemetry.io/otel/sdk/resource"
+	"google.golang.org/grpc/credentials"
+
+	"go.opentelemetry.io/contrib/otelconf/internal/tls"
 )
 
 var zeroScope instrumentation.Scope
@@ -42,9 +44,7 @@ func meterProvider(cfg configOptions, res *resource.Resource) (metric.MeterProvi
 	if cfg.opentelemetryConfig.MeterProvider == nil {
 		return noop.NewMeterProvider(), noopShutdown, nil
 	}
-	opts := []sdkmetric.Option{
-		sdkmetric.WithResource(res),
-	}
+	opts := append(cfg.meterProviderOptions, sdkmetric.WithResource(res))
 
 	var errs []error
 	for _, reader := range cfg.opentelemetryConfig.MeterProvider.Readers {
@@ -149,8 +149,14 @@ func otlpHTTPMetricExporter(ctx context.Context, otlpConfig *OTLPMetric) (sdkmet
 
 		if u.Scheme == "http" {
 			opts = append(opts, otlpmetrichttp.WithInsecure())
+		} else {
+			tlsConfig, err := tls.CreateConfig(otlpConfig.Certificate, otlpConfig.ClientCertificate, otlpConfig.ClientKey)
+			if err != nil {
+				return nil, err
+			}
+			opts = append(opts, otlpmetrichttp.WithTLSClientConfig(tlsConfig))
 		}
-		if len(u.Path) > 0 {
+		if u.Path != "" {
 			opts = append(opts, otlpmetrichttp.WithURLPath(u.Path))
 		}
 	}
@@ -186,12 +192,6 @@ func otlpHTTPMetricExporter(ctx context.Context, otlpConfig *OTLPMetric) (sdkmet
 			return nil, fmt.Errorf("unsupported temporality preference %q", *otlpConfig.TemporalityPreference)
 		}
 	}
-
-	tlsConfig, err := createTLSConfig(otlpConfig.Certificate, otlpConfig.ClientCertificate, otlpConfig.ClientKey)
-	if err != nil {
-		return nil, err
-	}
-	opts = append(opts, otlpmetrichttp.WithTLSClientConfig(tlsConfig))
 
 	return otlpmetrichttp.New(ctx, opts...)
 }
@@ -253,7 +253,7 @@ func otlpGRPCMetricExporter(ctx context.Context, otlpConfig *OTLPMetric) (sdkmet
 	}
 
 	if otlpConfig.Certificate != nil || otlpConfig.ClientCertificate != nil || otlpConfig.ClientKey != nil {
-		tlsConfig, err := createTLSConfig(otlpConfig.Certificate, otlpConfig.ClientCertificate, otlpConfig.ClientKey)
+		tlsConfig, err := tls.CreateConfig(otlpConfig.Certificate, otlpConfig.ClientCertificate, otlpConfig.ClientKey)
 		if err != nil {
 			return nil, err
 		}
@@ -292,7 +292,7 @@ func lowMemory(ik sdkmetric.InstrumentKind) metricdata.Temporality {
 // If IncludeExclude is empty a include-all filter is returned.
 func newIncludeExcludeFilter(lists *IncludeExclude) (attribute.Filter, error) {
 	if lists == nil {
-		return func(kv attribute.KeyValue) bool { return true }, nil
+		return func(attribute.KeyValue) bool { return true }, nil
 	}
 
 	included := make(map[attribute.Key]struct{})
@@ -360,7 +360,7 @@ func prometheusReader(ctx context.Context, prometheusConfig *Prometheus) (sdkmet
 	}
 
 	addr := net.JoinHostPort(host, strconv.Itoa(*prometheusConfig.Port))
-	lis, err := net.Listen("tcp", addr)
+	lis, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", addr)
 	if err != nil {
 		return nil, errors.Join(
 			fmt.Errorf("binding address %s for Prometheus exporter: %w", addr, err),
@@ -385,12 +385,17 @@ func prometheusReaderOpts(prometheusConfig *Prometheus) ([]otelprom.Option, erro
 	if prometheusConfig.WithoutScopeInfo != nil && *prometheusConfig.WithoutScopeInfo {
 		opts = append(opts, otelprom.WithoutScopeInfo())
 	}
-	if prometheusConfig.WithoutTypeSuffix != nil && *prometheusConfig.WithoutTypeSuffix {
-		opts = append(opts, otelprom.WithoutCounterSuffixes())
+
+	if prometheusConfig.WithoutTypeSuffix != nil && *prometheusConfig.WithoutTypeSuffix && prometheusConfig.WithoutUnits != nil && *prometheusConfig.WithoutUnits {
+		// NoTranslation preserves OTel dot-style label names (e.g. service.name)
+		// and suppresses metric name suffixes. The exporter's newConfig will
+		// automatically set withoutCounterSuffixes and withoutUnits when
+		// ShouldAddSuffixes() is false.
+		opts = append(opts, otelprom.WithTranslationStrategy(otlptranslator.NoTranslation))
+	} else {
+		opts = append(opts, otelprom.WithTranslationStrategy(otlptranslator.NoUTF8EscapingWithSuffixes))
 	}
-	if prometheusConfig.WithoutUnits != nil && *prometheusConfig.WithoutUnits {
-		opts = append(opts, otelprom.WithoutUnits())
-	}
+
 	if prometheusConfig.WithResourceConstantLabels != nil {
 		f, err := newIncludeExcludeFilter(prometheusConfig.WithResourceConstantLabels)
 		if err != nil {
@@ -556,7 +561,7 @@ func int32OrZero(pInt *int) int32 {
 	if i < math.MinInt32 {
 		return math.MinInt32
 	}
-	return int32(i) // nolint: gosec  // Overflow and underflow checked above.
+	return int32(i)
 }
 
 func strOrEmpty(pStr *string) string {

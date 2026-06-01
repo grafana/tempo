@@ -1,6 +1,8 @@
 ## main / unreleased
 
+* [CHANGE] Updated Prometheus to v0.311.3 and the OpenTelemetry Collector dependencies to v1.52, along with related transitive dependencies (dskit and others). [#7338](https://github.com/grafana/tempo/pull/7338) (@zhxiaogg)
 * [CHANGE] **BREAKING CHANGE** Dropped support for the OpenCensus receiver. [#7323](https://github.com/grafana/tempo/pull/7323) (@zhxiaogg)
+* [BUGFIX] generator: fix panic when `write_relabel_configs` is configured on remote write endpoints [#7338](https://github.com/grafana/tempo/pull/7338) (@carles-grafana)
 
 # v2.9.2
 

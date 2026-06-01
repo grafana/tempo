@@ -89,28 +89,28 @@ func PathGetSetter[K Context](path ottl.Path[K]) (ottl.GetSetter[K], error) {
 func accessAttributes[K Context]() ottl.StandardGetSetter[K] {
 	return ottl.StandardGetSetter[K]{
 		Getter: func(_ context.Context, tCtx K) (any, error) {
-			switch tCtx.GetDataPoint().(type) {
+			switch dp := tCtx.GetDataPoint().(type) {
 			case pmetric.NumberDataPoint:
-				return tCtx.GetDataPoint().(pmetric.NumberDataPoint).Attributes(), nil
+				return dp.Attributes(), nil
 			case pmetric.HistogramDataPoint:
-				return tCtx.GetDataPoint().(pmetric.HistogramDataPoint).Attributes(), nil
+				return dp.Attributes(), nil
 			case pmetric.ExponentialHistogramDataPoint:
-				return tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint).Attributes(), nil
+				return dp.Attributes(), nil
 			case pmetric.SummaryDataPoint:
-				return tCtx.GetDataPoint().(pmetric.SummaryDataPoint).Attributes(), nil
+				return dp.Attributes(), nil
 			}
 			return nil, nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			switch tCtx.GetDataPoint().(type) {
+			switch dp := tCtx.GetDataPoint().(type) {
 			case pmetric.NumberDataPoint:
-				return ctxutil.SetMap(tCtx.GetDataPoint().(pmetric.NumberDataPoint).Attributes(), val)
+				return ctxutil.SetMap(dp.Attributes(), val)
 			case pmetric.HistogramDataPoint:
-				return ctxutil.SetMap(tCtx.GetDataPoint().(pmetric.HistogramDataPoint).Attributes(), val)
+				return ctxutil.SetMap(dp.Attributes(), val)
 			case pmetric.ExponentialHistogramDataPoint:
-				return ctxutil.SetMap(tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint).Attributes(), val)
+				return ctxutil.SetMap(dp.Attributes(), val)
 			case pmetric.SummaryDataPoint:
-				return ctxutil.SetMap(tCtx.GetDataPoint().(pmetric.SummaryDataPoint).Attributes(), val)
+				return ctxutil.SetMap(dp.Attributes(), val)
 			}
 			return nil
 		},
@@ -120,28 +120,28 @@ func accessAttributes[K Context]() ottl.StandardGetSetter[K] {
 func accessAttributesKey[K Context](key []ottl.Key[K]) ottl.StandardGetSetter[K] {
 	return ottl.StandardGetSetter[K]{
 		Getter: func(ctx context.Context, tCtx K) (any, error) {
-			switch tCtx.GetDataPoint().(type) {
+			switch dp := tCtx.GetDataPoint().(type) {
 			case pmetric.NumberDataPoint:
-				return ctxutil.GetMapValue(ctx, tCtx, tCtx.GetDataPoint().(pmetric.NumberDataPoint).Attributes(), key)
+				return ctxutil.GetMapValue(ctx, tCtx, dp.Attributes(), key)
 			case pmetric.HistogramDataPoint:
-				return ctxutil.GetMapValue(ctx, tCtx, tCtx.GetDataPoint().(pmetric.HistogramDataPoint).Attributes(), key)
+				return ctxutil.GetMapValue(ctx, tCtx, dp.Attributes(), key)
 			case pmetric.ExponentialHistogramDataPoint:
-				return ctxutil.GetMapValue(ctx, tCtx, tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint).Attributes(), key)
+				return ctxutil.GetMapValue(ctx, tCtx, dp.Attributes(), key)
 			case pmetric.SummaryDataPoint:
-				return ctxutil.GetMapValue(ctx, tCtx, tCtx.GetDataPoint().(pmetric.SummaryDataPoint).Attributes(), key)
+				return ctxutil.GetMapValue(ctx, tCtx, dp.Attributes(), key)
 			}
 			return nil, nil
 		},
 		Setter: func(ctx context.Context, tCtx K, val any) error {
-			switch tCtx.GetDataPoint().(type) {
+			switch dp := tCtx.GetDataPoint().(type) {
 			case pmetric.NumberDataPoint:
-				return ctxutil.SetMapValue(ctx, tCtx, tCtx.GetDataPoint().(pmetric.NumberDataPoint).Attributes(), key, val)
+				return ctxutil.SetMapValue(ctx, tCtx, dp.Attributes(), key, val)
 			case pmetric.HistogramDataPoint:
-				return ctxutil.SetMapValue(ctx, tCtx, tCtx.GetDataPoint().(pmetric.HistogramDataPoint).Attributes(), key, val)
+				return ctxutil.SetMapValue(ctx, tCtx, dp.Attributes(), key, val)
 			case pmetric.ExponentialHistogramDataPoint:
-				return ctxutil.SetMapValue(ctx, tCtx, tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint).Attributes(), key, val)
+				return ctxutil.SetMapValue(ctx, tCtx, dp.Attributes(), key, val)
 			case pmetric.SummaryDataPoint:
-				return ctxutil.SetMapValue(ctx, tCtx, tCtx.GetDataPoint().(pmetric.SummaryDataPoint).Attributes(), key, val)
+				return ctxutil.SetMapValue(ctx, tCtx, dp.Attributes(), key, val)
 			}
 			return nil
 		},
@@ -151,30 +151,32 @@ func accessAttributesKey[K Context](key []ottl.Key[K]) ottl.StandardGetSetter[K]
 func accessStartTimeUnixNano[K Context]() ottl.StandardGetSetter[K] {
 	return ottl.StandardGetSetter[K]{
 		Getter: func(_ context.Context, tCtx K) (any, error) {
-			switch tCtx.GetDataPoint().(type) {
+			switch dp := tCtx.GetDataPoint().(type) {
 			case pmetric.NumberDataPoint:
-				return tCtx.GetDataPoint().(pmetric.NumberDataPoint).StartTimestamp().AsTime().UnixNano(), nil
+				return dp.StartTimestamp().AsTime().UnixNano(), nil
 			case pmetric.HistogramDataPoint:
-				return tCtx.GetDataPoint().(pmetric.HistogramDataPoint).StartTimestamp().AsTime().UnixNano(), nil
+				return dp.StartTimestamp().AsTime().UnixNano(), nil
 			case pmetric.ExponentialHistogramDataPoint:
-				return tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint).StartTimestamp().AsTime().UnixNano(), nil
+				return dp.StartTimestamp().AsTime().UnixNano(), nil
 			case pmetric.SummaryDataPoint:
-				return tCtx.GetDataPoint().(pmetric.SummaryDataPoint).StartTimestamp().AsTime().UnixNano(), nil
+				return dp.StartTimestamp().AsTime().UnixNano(), nil
 			}
 			return nil, nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if newTime, ok := val.(int64); ok {
-				switch tCtx.GetDataPoint().(type) {
-				case pmetric.NumberDataPoint:
-					tCtx.GetDataPoint().(pmetric.NumberDataPoint).SetStartTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, newTime)))
-				case pmetric.HistogramDataPoint:
-					tCtx.GetDataPoint().(pmetric.HistogramDataPoint).SetStartTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, newTime)))
-				case pmetric.ExponentialHistogramDataPoint:
-					tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint).SetStartTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, newTime)))
-				case pmetric.SummaryDataPoint:
-					tCtx.GetDataPoint().(pmetric.SummaryDataPoint).SetStartTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, newTime)))
-				}
+			newTime, err := ctxutil.ExpectType[int64](val)
+			if err != nil {
+				return err
+			}
+			switch dp := tCtx.GetDataPoint().(type) {
+			case pmetric.NumberDataPoint:
+				dp.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, newTime)))
+			case pmetric.HistogramDataPoint:
+				dp.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, newTime)))
+			case pmetric.ExponentialHistogramDataPoint:
+				dp.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, newTime)))
+			case pmetric.SummaryDataPoint:
+				dp.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, newTime)))
 			}
 			return nil
 		},
@@ -184,30 +186,32 @@ func accessStartTimeUnixNano[K Context]() ottl.StandardGetSetter[K] {
 func accessStartTime[K Context]() ottl.StandardGetSetter[K] {
 	return ottl.StandardGetSetter[K]{
 		Getter: func(_ context.Context, tCtx K) (any, error) {
-			switch tCtx.GetDataPoint().(type) {
+			switch dp := tCtx.GetDataPoint().(type) {
 			case pmetric.NumberDataPoint:
-				return tCtx.GetDataPoint().(pmetric.NumberDataPoint).StartTimestamp().AsTime(), nil
+				return dp.StartTimestamp().AsTime(), nil
 			case pmetric.HistogramDataPoint:
-				return tCtx.GetDataPoint().(pmetric.HistogramDataPoint).StartTimestamp().AsTime(), nil
+				return dp.StartTimestamp().AsTime(), nil
 			case pmetric.ExponentialHistogramDataPoint:
-				return tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint).StartTimestamp().AsTime(), nil
+				return dp.StartTimestamp().AsTime(), nil
 			case pmetric.SummaryDataPoint:
-				return tCtx.GetDataPoint().(pmetric.SummaryDataPoint).StartTimestamp().AsTime(), nil
+				return dp.StartTimestamp().AsTime(), nil
 			}
 			return nil, nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if newTime, ok := val.(time.Time); ok {
-				switch tCtx.GetDataPoint().(type) {
-				case pmetric.NumberDataPoint:
-					tCtx.GetDataPoint().(pmetric.NumberDataPoint).SetStartTimestamp(pcommon.NewTimestampFromTime(newTime))
-				case pmetric.HistogramDataPoint:
-					tCtx.GetDataPoint().(pmetric.HistogramDataPoint).SetStartTimestamp(pcommon.NewTimestampFromTime(newTime))
-				case pmetric.ExponentialHistogramDataPoint:
-					tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint).SetStartTimestamp(pcommon.NewTimestampFromTime(newTime))
-				case pmetric.SummaryDataPoint:
-					tCtx.GetDataPoint().(pmetric.SummaryDataPoint).SetStartTimestamp(pcommon.NewTimestampFromTime(newTime))
-				}
+			newTime, err := ctxutil.ExpectType[time.Time](val)
+			if err != nil {
+				return err
+			}
+			switch dp := tCtx.GetDataPoint().(type) {
+			case pmetric.NumberDataPoint:
+				dp.SetStartTimestamp(pcommon.NewTimestampFromTime(newTime))
+			case pmetric.HistogramDataPoint:
+				dp.SetStartTimestamp(pcommon.NewTimestampFromTime(newTime))
+			case pmetric.ExponentialHistogramDataPoint:
+				dp.SetStartTimestamp(pcommon.NewTimestampFromTime(newTime))
+			case pmetric.SummaryDataPoint:
+				dp.SetStartTimestamp(pcommon.NewTimestampFromTime(newTime))
 			}
 			return nil
 		},
@@ -217,30 +221,32 @@ func accessStartTime[K Context]() ottl.StandardGetSetter[K] {
 func accessTimeUnixNano[K Context]() ottl.StandardGetSetter[K] {
 	return ottl.StandardGetSetter[K]{
 		Getter: func(_ context.Context, tCtx K) (any, error) {
-			switch tCtx.GetDataPoint().(type) {
+			switch dp := tCtx.GetDataPoint().(type) {
 			case pmetric.NumberDataPoint:
-				return tCtx.GetDataPoint().(pmetric.NumberDataPoint).Timestamp().AsTime().UnixNano(), nil
+				return dp.Timestamp().AsTime().UnixNano(), nil
 			case pmetric.HistogramDataPoint:
-				return tCtx.GetDataPoint().(pmetric.HistogramDataPoint).Timestamp().AsTime().UnixNano(), nil
+				return dp.Timestamp().AsTime().UnixNano(), nil
 			case pmetric.ExponentialHistogramDataPoint:
-				return tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint).Timestamp().AsTime().UnixNano(), nil
+				return dp.Timestamp().AsTime().UnixNano(), nil
 			case pmetric.SummaryDataPoint:
-				return tCtx.GetDataPoint().(pmetric.SummaryDataPoint).Timestamp().AsTime().UnixNano(), nil
+				return dp.Timestamp().AsTime().UnixNano(), nil
 			}
 			return nil, nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if newTime, ok := val.(int64); ok {
-				switch tCtx.GetDataPoint().(type) {
-				case pmetric.NumberDataPoint:
-					tCtx.GetDataPoint().(pmetric.NumberDataPoint).SetTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, newTime)))
-				case pmetric.HistogramDataPoint:
-					tCtx.GetDataPoint().(pmetric.HistogramDataPoint).SetTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, newTime)))
-				case pmetric.ExponentialHistogramDataPoint:
-					tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint).SetTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, newTime)))
-				case pmetric.SummaryDataPoint:
-					tCtx.GetDataPoint().(pmetric.SummaryDataPoint).SetTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, newTime)))
-				}
+			newTime, err := ctxutil.ExpectType[int64](val)
+			if err != nil {
+				return err
+			}
+			switch dp := tCtx.GetDataPoint().(type) {
+			case pmetric.NumberDataPoint:
+				dp.SetTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, newTime)))
+			case pmetric.HistogramDataPoint:
+				dp.SetTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, newTime)))
+			case pmetric.ExponentialHistogramDataPoint:
+				dp.SetTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, newTime)))
+			case pmetric.SummaryDataPoint:
+				dp.SetTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, newTime)))
 			}
 			return nil
 		},
@@ -250,30 +256,32 @@ func accessTimeUnixNano[K Context]() ottl.StandardGetSetter[K] {
 func accessTime[K Context]() ottl.StandardGetSetter[K] {
 	return ottl.StandardGetSetter[K]{
 		Getter: func(_ context.Context, tCtx K) (any, error) {
-			switch tCtx.GetDataPoint().(type) {
+			switch dp := tCtx.GetDataPoint().(type) {
 			case pmetric.NumberDataPoint:
-				return tCtx.GetDataPoint().(pmetric.NumberDataPoint).Timestamp().AsTime(), nil
+				return dp.Timestamp().AsTime(), nil
 			case pmetric.HistogramDataPoint:
-				return tCtx.GetDataPoint().(pmetric.HistogramDataPoint).Timestamp().AsTime(), nil
+				return dp.Timestamp().AsTime(), nil
 			case pmetric.ExponentialHistogramDataPoint:
-				return tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint).Timestamp().AsTime(), nil
+				return dp.Timestamp().AsTime(), nil
 			case pmetric.SummaryDataPoint:
-				return tCtx.GetDataPoint().(pmetric.SummaryDataPoint).Timestamp().AsTime(), nil
+				return dp.Timestamp().AsTime(), nil
 			}
 			return nil, nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if newTime, ok := val.(time.Time); ok {
-				switch tCtx.GetDataPoint().(type) {
-				case pmetric.NumberDataPoint:
-					tCtx.GetDataPoint().(pmetric.NumberDataPoint).SetTimestamp(pcommon.NewTimestampFromTime(newTime))
-				case pmetric.HistogramDataPoint:
-					tCtx.GetDataPoint().(pmetric.HistogramDataPoint).SetTimestamp(pcommon.NewTimestampFromTime(newTime))
-				case pmetric.ExponentialHistogramDataPoint:
-					tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint).SetTimestamp(pcommon.NewTimestampFromTime(newTime))
-				case pmetric.SummaryDataPoint:
-					tCtx.GetDataPoint().(pmetric.SummaryDataPoint).SetTimestamp(pcommon.NewTimestampFromTime(newTime))
-				}
+			newTime, err := ctxutil.ExpectType[time.Time](val)
+			if err != nil {
+				return err
+			}
+			switch dp := tCtx.GetDataPoint().(type) {
+			case pmetric.NumberDataPoint:
+				dp.SetTimestamp(pcommon.NewTimestampFromTime(newTime))
+			case pmetric.HistogramDataPoint:
+				dp.SetTimestamp(pcommon.NewTimestampFromTime(newTime))
+			case pmetric.ExponentialHistogramDataPoint:
+				dp.SetTimestamp(pcommon.NewTimestampFromTime(newTime))
+			case pmetric.SummaryDataPoint:
+				dp.SetTimestamp(pcommon.NewTimestampFromTime(newTime))
 			}
 			return nil
 		},
@@ -289,10 +297,12 @@ func accessDoubleValue[K Context]() ottl.StandardGetSetter[K] {
 			return nil, nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if newDouble, ok := val.(float64); ok {
-				if numberDataPoint, ok := tCtx.GetDataPoint().(pmetric.NumberDataPoint); ok {
-					numberDataPoint.SetDoubleValue(newDouble)
-				}
+			newDouble, err := ctxutil.ExpectType[float64](val)
+			if err != nil {
+				return err
+			}
+			if numberDataPoint, ok := tCtx.GetDataPoint().(pmetric.NumberDataPoint); ok {
+				numberDataPoint.SetDoubleValue(newDouble)
 			}
 			return nil
 		},
@@ -308,10 +318,12 @@ func accessIntValue[K Context]() ottl.StandardGetSetter[K] {
 			return nil, nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if newInt, ok := val.(int64); ok {
-				if numberDataPoint, ok := tCtx.GetDataPoint().(pmetric.NumberDataPoint); ok {
-					numberDataPoint.SetIntValue(newInt)
-				}
+			newInt, err := ctxutil.ExpectType[int64](val)
+			if err != nil {
+				return err
+			}
+			if numberDataPoint, ok := tCtx.GetDataPoint().(pmetric.NumberDataPoint); ok {
+				numberDataPoint.SetIntValue(newInt)
 			}
 			return nil
 		},
@@ -321,26 +333,28 @@ func accessIntValue[K Context]() ottl.StandardGetSetter[K] {
 func accessExemplars[K Context]() ottl.StandardGetSetter[K] {
 	return ottl.StandardGetSetter[K]{
 		Getter: func(_ context.Context, tCtx K) (any, error) {
-			switch tCtx.GetDataPoint().(type) {
+			switch dp := tCtx.GetDataPoint().(type) {
 			case pmetric.NumberDataPoint:
-				return tCtx.GetDataPoint().(pmetric.NumberDataPoint).Exemplars(), nil
+				return dp.Exemplars(), nil
 			case pmetric.HistogramDataPoint:
-				return tCtx.GetDataPoint().(pmetric.HistogramDataPoint).Exemplars(), nil
+				return dp.Exemplars(), nil
 			case pmetric.ExponentialHistogramDataPoint:
-				return tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint).Exemplars(), nil
+				return dp.Exemplars(), nil
 			}
 			return nil, nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if newExemplars, ok := val.(pmetric.ExemplarSlice); ok {
-				switch tCtx.GetDataPoint().(type) {
-				case pmetric.NumberDataPoint:
-					newExemplars.CopyTo(tCtx.GetDataPoint().(pmetric.NumberDataPoint).Exemplars())
-				case pmetric.HistogramDataPoint:
-					newExemplars.CopyTo(tCtx.GetDataPoint().(pmetric.HistogramDataPoint).Exemplars())
-				case pmetric.ExponentialHistogramDataPoint:
-					newExemplars.CopyTo(tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint).Exemplars())
-				}
+			newExemplars, err := ctxutil.ExpectType[pmetric.ExemplarSlice](val)
+			if err != nil {
+				return err
+			}
+			switch dp := tCtx.GetDataPoint().(type) {
+			case pmetric.NumberDataPoint:
+				newExemplars.CopyTo(dp.Exemplars())
+			case pmetric.HistogramDataPoint:
+				newExemplars.CopyTo(dp.Exemplars())
+			case pmetric.ExponentialHistogramDataPoint:
+				newExemplars.CopyTo(dp.Exemplars())
 			}
 			return nil
 		},
@@ -350,30 +364,32 @@ func accessExemplars[K Context]() ottl.StandardGetSetter[K] {
 func accessFlags[K Context]() ottl.StandardGetSetter[K] {
 	return ottl.StandardGetSetter[K]{
 		Getter: func(_ context.Context, tCtx K) (any, error) {
-			switch tCtx.GetDataPoint().(type) {
+			switch dp := tCtx.GetDataPoint().(type) {
 			case pmetric.NumberDataPoint:
-				return int64(tCtx.GetDataPoint().(pmetric.NumberDataPoint).Flags()), nil
+				return int64(dp.Flags()), nil
 			case pmetric.HistogramDataPoint:
-				return int64(tCtx.GetDataPoint().(pmetric.HistogramDataPoint).Flags()), nil
+				return int64(dp.Flags()), nil
 			case pmetric.ExponentialHistogramDataPoint:
-				return int64(tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint).Flags()), nil
+				return int64(dp.Flags()), nil
 			case pmetric.SummaryDataPoint:
-				return int64(tCtx.GetDataPoint().(pmetric.SummaryDataPoint).Flags()), nil
+				return int64(dp.Flags()), nil
 			}
 			return nil, nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if newFlags, ok := val.(int64); ok {
-				switch tCtx.GetDataPoint().(type) {
-				case pmetric.NumberDataPoint:
-					tCtx.GetDataPoint().(pmetric.NumberDataPoint).SetFlags(pmetric.DataPointFlags(newFlags))
-				case pmetric.HistogramDataPoint:
-					tCtx.GetDataPoint().(pmetric.HistogramDataPoint).SetFlags(pmetric.DataPointFlags(newFlags))
-				case pmetric.ExponentialHistogramDataPoint:
-					tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint).SetFlags(pmetric.DataPointFlags(newFlags))
-				case pmetric.SummaryDataPoint:
-					tCtx.GetDataPoint().(pmetric.SummaryDataPoint).SetFlags(pmetric.DataPointFlags(newFlags))
-				}
+			newFlags, err := ctxutil.ExpectType[int64](val)
+			if err != nil {
+				return err
+			}
+			switch dp := tCtx.GetDataPoint().(type) {
+			case pmetric.NumberDataPoint:
+				dp.SetFlags(pmetric.DataPointFlags(newFlags))
+			case pmetric.HistogramDataPoint:
+				dp.SetFlags(pmetric.DataPointFlags(newFlags))
+			case pmetric.ExponentialHistogramDataPoint:
+				dp.SetFlags(pmetric.DataPointFlags(newFlags))
+			case pmetric.SummaryDataPoint:
+				dp.SetFlags(pmetric.DataPointFlags(newFlags))
 			}
 			return nil
 		},
@@ -383,26 +399,28 @@ func accessFlags[K Context]() ottl.StandardGetSetter[K] {
 func accessCount[K Context]() ottl.StandardGetSetter[K] {
 	return ottl.StandardGetSetter[K]{
 		Getter: func(_ context.Context, tCtx K) (any, error) {
-			switch tCtx.GetDataPoint().(type) {
+			switch dp := tCtx.GetDataPoint().(type) {
 			case pmetric.HistogramDataPoint:
-				return int64(tCtx.GetDataPoint().(pmetric.HistogramDataPoint).Count()), nil
+				return int64(dp.Count()), nil
 			case pmetric.ExponentialHistogramDataPoint:
-				return int64(tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint).Count()), nil
+				return int64(dp.Count()), nil
 			case pmetric.SummaryDataPoint:
-				return int64(tCtx.GetDataPoint().(pmetric.SummaryDataPoint).Count()), nil
+				return int64(dp.Count()), nil
 			}
 			return nil, nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if newCount, ok := val.(int64); ok {
-				switch tCtx.GetDataPoint().(type) {
-				case pmetric.HistogramDataPoint:
-					tCtx.GetDataPoint().(pmetric.HistogramDataPoint).SetCount(uint64(newCount))
-				case pmetric.ExponentialHistogramDataPoint:
-					tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint).SetCount(uint64(newCount))
-				case pmetric.SummaryDataPoint:
-					tCtx.GetDataPoint().(pmetric.SummaryDataPoint).SetCount(uint64(newCount))
-				}
+			newCount, err := ctxutil.ExpectType[int64](val)
+			if err != nil {
+				return err
+			}
+			switch dp := tCtx.GetDataPoint().(type) {
+			case pmetric.HistogramDataPoint:
+				dp.SetCount(uint64(newCount))
+			case pmetric.ExponentialHistogramDataPoint:
+				dp.SetCount(uint64(newCount))
+			case pmetric.SummaryDataPoint:
+				dp.SetCount(uint64(newCount))
 			}
 			return nil
 		},
@@ -412,26 +430,28 @@ func accessCount[K Context]() ottl.StandardGetSetter[K] {
 func accessSum[K Context]() ottl.StandardGetSetter[K] {
 	return ottl.StandardGetSetter[K]{
 		Getter: func(_ context.Context, tCtx K) (any, error) {
-			switch tCtx.GetDataPoint().(type) {
+			switch dp := tCtx.GetDataPoint().(type) {
 			case pmetric.HistogramDataPoint:
-				return tCtx.GetDataPoint().(pmetric.HistogramDataPoint).Sum(), nil
+				return dp.Sum(), nil
 			case pmetric.ExponentialHistogramDataPoint:
-				return tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint).Sum(), nil
+				return dp.Sum(), nil
 			case pmetric.SummaryDataPoint:
-				return tCtx.GetDataPoint().(pmetric.SummaryDataPoint).Sum(), nil
+				return dp.Sum(), nil
 			}
 			return nil, nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if newSum, ok := val.(float64); ok {
-				switch tCtx.GetDataPoint().(type) {
-				case pmetric.HistogramDataPoint:
-					tCtx.GetDataPoint().(pmetric.HistogramDataPoint).SetSum(newSum)
-				case pmetric.ExponentialHistogramDataPoint:
-					tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint).SetSum(newSum)
-				case pmetric.SummaryDataPoint:
-					tCtx.GetDataPoint().(pmetric.SummaryDataPoint).SetSum(newSum)
-				}
+			newSum, err := ctxutil.ExpectType[float64](val)
+			if err != nil {
+				return err
+			}
+			switch dp := tCtx.GetDataPoint().(type) {
+			case pmetric.HistogramDataPoint:
+				dp.SetSum(newSum)
+			case pmetric.ExponentialHistogramDataPoint:
+				dp.SetSum(newSum)
+			case pmetric.SummaryDataPoint:
+				dp.SetSum(newSum)
 			}
 			return nil
 		},
@@ -447,10 +467,8 @@ func accessExplicitBounds[K Context]() ottl.StandardGetSetter[K] {
 			return nil, nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if newExplicitBounds, ok := val.([]float64); ok {
-				if histogramDataPoint, ok := tCtx.GetDataPoint().(pmetric.HistogramDataPoint); ok {
-					histogramDataPoint.ExplicitBounds().FromRaw(newExplicitBounds)
-				}
+			if histogramDataPoint, ok := tCtx.GetDataPoint().(pmetric.HistogramDataPoint); ok {
+				return ctxutil.SetCommonTypedSliceValues[float64](histogramDataPoint.ExplicitBounds(), val)
 			}
 			return nil
 		},
@@ -466,10 +484,8 @@ func accessBucketCounts[K Context]() ottl.StandardGetSetter[K] {
 			return nil, nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if newBucketCount, ok := val.([]uint64); ok {
-				if histogramDataPoint, ok := tCtx.GetDataPoint().(pmetric.HistogramDataPoint); ok {
-					histogramDataPoint.BucketCounts().FromRaw(newBucketCount)
-				}
+			if histogramDataPoint, ok := tCtx.GetDataPoint().(pmetric.HistogramDataPoint); ok {
+				return ctxutil.SetCommonIntSliceValues[uint64](histogramDataPoint.BucketCounts(), val)
 			}
 			return nil
 		},
@@ -485,10 +501,12 @@ func accessScale[K Context]() ottl.StandardGetSetter[K] {
 			return nil, nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if newScale, ok := val.(int64); ok {
-				if expoHistogramDataPoint, ok := tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint); ok {
-					expoHistogramDataPoint.SetScale(int32(newScale))
-				}
+			newScale, err := ctxutil.ExpectType[int64](val)
+			if err != nil {
+				return err
+			}
+			if expoHistogramDataPoint, ok := tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint); ok {
+				expoHistogramDataPoint.SetScale(int32(newScale))
 			}
 			return nil
 		},
@@ -504,10 +522,12 @@ func accessZeroCount[K Context]() ottl.StandardGetSetter[K] {
 			return nil, nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if newZeroCount, ok := val.(int64); ok {
-				if expoHistogramDataPoint, ok := tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint); ok {
-					expoHistogramDataPoint.SetZeroCount(uint64(newZeroCount))
-				}
+			newZeroCount, err := ctxutil.ExpectType[int64](val)
+			if err != nil {
+				return err
+			}
+			if expoHistogramDataPoint, ok := tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint); ok {
+				expoHistogramDataPoint.SetZeroCount(uint64(newZeroCount))
 			}
 			return nil
 		},
@@ -523,10 +543,12 @@ func accessPositive[K Context]() ottl.StandardGetSetter[K] {
 			return nil, nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if newPositive, ok := val.(pmetric.ExponentialHistogramDataPointBuckets); ok {
-				if expoHistogramDataPoint, ok := tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint); ok {
-					newPositive.CopyTo(expoHistogramDataPoint.Positive())
-				}
+			newPositive, err := ctxutil.ExpectType[pmetric.ExponentialHistogramDataPointBuckets](val)
+			if err != nil {
+				return err
+			}
+			if expoHistogramDataPoint, ok := tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint); ok {
+				newPositive.CopyTo(expoHistogramDataPoint.Positive())
 			}
 			return nil
 		},
@@ -542,10 +564,12 @@ func accessPositiveOffset[K Context]() ottl.StandardGetSetter[K] {
 			return nil, nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if newPositiveOffset, ok := val.(int64); ok {
-				if expoHistogramDataPoint, ok := tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint); ok {
-					expoHistogramDataPoint.Positive().SetOffset(int32(newPositiveOffset))
-				}
+			newPositiveOffset, err := ctxutil.ExpectType[int64](val)
+			if err != nil {
+				return err
+			}
+			if expoHistogramDataPoint, ok := tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint); ok {
+				expoHistogramDataPoint.Positive().SetOffset(int32(newPositiveOffset))
 			}
 			return nil
 		},
@@ -561,10 +585,8 @@ func accessPositiveBucketCounts[K Context]() ottl.StandardGetSetter[K] {
 			return nil, nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if newPositiveBucketCounts, ok := val.([]uint64); ok {
-				if expoHistogramDataPoint, ok := tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint); ok {
-					expoHistogramDataPoint.Positive().BucketCounts().FromRaw(newPositiveBucketCounts)
-				}
+			if expoHistogramDataPoint, ok := tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint); ok {
+				return ctxutil.SetCommonIntSliceValues[uint64](expoHistogramDataPoint.Positive().BucketCounts(), val)
 			}
 			return nil
 		},
@@ -580,10 +602,12 @@ func accessNegative[K Context]() ottl.StandardGetSetter[K] {
 			return nil, nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if newNegative, ok := val.(pmetric.ExponentialHistogramDataPointBuckets); ok {
-				if expoHistogramDataPoint, ok := tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint); ok {
-					newNegative.CopyTo(expoHistogramDataPoint.Negative())
-				}
+			newNegative, err := ctxutil.ExpectType[pmetric.ExponentialHistogramDataPointBuckets](val)
+			if err != nil {
+				return err
+			}
+			if expoHistogramDataPoint, ok := tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint); ok {
+				newNegative.CopyTo(expoHistogramDataPoint.Negative())
 			}
 			return nil
 		},
@@ -599,10 +623,12 @@ func accessNegativeOffset[K Context]() ottl.StandardGetSetter[K] {
 			return nil, nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if newNegativeOffset, ok := val.(int64); ok {
-				if expoHistogramDataPoint, ok := tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint); ok {
-					expoHistogramDataPoint.Negative().SetOffset(int32(newNegativeOffset))
-				}
+			newNegativeOffset, err := ctxutil.ExpectType[int64](val)
+			if err != nil {
+				return err
+			}
+			if expoHistogramDataPoint, ok := tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint); ok {
+				expoHistogramDataPoint.Negative().SetOffset(int32(newNegativeOffset))
 			}
 			return nil
 		},
@@ -618,10 +644,8 @@ func accessNegativeBucketCounts[K Context]() ottl.StandardGetSetter[K] {
 			return nil, nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if newNegativeBucketCounts, ok := val.([]uint64); ok {
-				if expoHistogramDataPoint, ok := tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint); ok {
-					expoHistogramDataPoint.Negative().BucketCounts().FromRaw(newNegativeBucketCounts)
-				}
+			if expoHistogramDataPoint, ok := tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint); ok {
+				return ctxutil.SetCommonIntSliceValues[uint64](expoHistogramDataPoint.Negative().BucketCounts(), val)
 			}
 			return nil
 		},
@@ -637,10 +661,12 @@ func accessQuantileValues[K Context]() ottl.StandardGetSetter[K] {
 			return nil, nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if newQuantileValues, ok := val.(pmetric.SummaryDataPointValueAtQuantileSlice); ok {
-				if summaryDataPoint, ok := tCtx.GetDataPoint().(pmetric.SummaryDataPoint); ok {
-					newQuantileValues.CopyTo(summaryDataPoint.QuantileValues())
-				}
+			newQuantileValues, err := ctxutil.ExpectType[pmetric.SummaryDataPointValueAtQuantileSlice](val)
+			if err != nil {
+				return err
+			}
+			if summaryDataPoint, ok := tCtx.GetDataPoint().(pmetric.SummaryDataPoint); ok {
+				newQuantileValues.CopyTo(summaryDataPoint.QuantileValues())
 			}
 			return nil
 		},

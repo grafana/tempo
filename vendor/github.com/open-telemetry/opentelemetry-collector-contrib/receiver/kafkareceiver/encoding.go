@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/pmetric"
+	"go.opentelemetry.io/collector/pdata/pprofile"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/receiver"
 
@@ -72,6 +73,7 @@ func newLogsUnmarshaler(encoding string, set receiver.Settings, host component.H
 	case "json":
 		return unmarshaler.JSONLogsUnmarshaler{}, nil
 	case "azure_resource_logs":
+		set.Logger.Warn("The azure_resource_logs encoding is deprecated. Please migrate to azureencodingextension.")
 		return &azure.ResourceLogsUnmarshaler{
 			Version: set.BuildInfo.Version,
 			Logger:  set.Logger,
@@ -125,6 +127,24 @@ func loadEncodingExtension[T any](host component.Host, encoding, signalType stri
 		return zero, fmt.Errorf("extension %q is not a %s unmarshaler", encoding, signalType)
 	}
 	return unmarshaler, nil
+}
+
+func newProfilesUnmarshaler(encoding string, _ receiver.Settings, host component.Host) (pprofile.Unmarshaler, error) {
+	// Extensions take precedence.
+	if unmarshaler, err := loadEncodingExtension[pprofile.Unmarshaler](host, encoding, "profiles"); err != nil {
+		if !errors.Is(err, errInvalidComponentType) && !errors.Is(err, errUnknownEncodingExtension) {
+			return nil, err
+		}
+	} else {
+		return unmarshaler, nil
+	}
+	switch encoding {
+	case "otlp_proto":
+		return &pprofile.ProtoUnmarshaler{}, nil
+	case "otlp_json":
+		return &pprofile.JSONUnmarshaler{}, nil
+	}
+	return nil, fmt.Errorf("unrecognized profiles encoding %q", encoding)
 }
 
 // encodingToComponentID attempts to parse the encoding string as a component ID.

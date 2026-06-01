@@ -2,4 +2,4 @@ status:
   disable_codecov_badge: true
   class: pkg
   codeowners:
-    active: [pavolloffay, MovieStoreGuy, axw]
+    active: [pavolloffay, MovieStoreGuy, axw, paulojmdias]

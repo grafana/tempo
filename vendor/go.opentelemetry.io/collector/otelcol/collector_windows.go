@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"slices"
 	"time"
 
 	"go.uber.org/zap"
@@ -18,7 +19,6 @@ import (
 	"golang.org/x/sys/windows/svc/eventlog"
 
 	"go.opentelemetry.io/collector/featuregate"
-	"go.opentelemetry.io/collector/service"
 )
 
 type windowsService struct {
@@ -49,7 +49,7 @@ func (s *windowsService) Execute(args []string, requests <-chan svc.ChangeReques
 
 	changes <- svc.Status{State: svc.StartPending}
 	if err = s.start(elog, colErrorChannel); err != nil {
-		elog.Error(3, fmt.Sprintf("failed to start service: %v", err))
+		_ = elog.Error(3, fmt.Sprintf("failed to start service: %v", err))
 		return false, 1064 // 1064: ERROR_EXCEPTION_IN_SERVICE
 	}
 	changes <- svc.Status{State: svc.Running, Accepts: svc.AcceptStop | svc.AcceptShutdown}
@@ -62,13 +62,13 @@ func (s *windowsService) Execute(args []string, requests <-chan svc.ChangeReques
 		case svc.Stop, svc.Shutdown:
 			changes <- svc.Status{State: svc.StopPending}
 			if err = s.stop(colErrorChannel); err != nil {
-				elog.Error(3, fmt.Sprintf("errors occurred while shutting down the service: %v", err))
+				_ = elog.Error(3, fmt.Sprintf("errors occurred while shutting down the service: %v", err))
 			}
 			changes <- svc.Status{State: svc.Stopped}
 			return false, 0
 
 		default:
-			elog.Error(3, fmt.Sprintf("unexpected service control request #%d", req.Cmd))
+			_ = elog.Error(3, fmt.Sprintf("unexpected service control request #%d", req.Cmd))
 			return false, 1052 // 1052: ERROR_INVALID_SERVICE_CONTROL
 		}
 	}
@@ -92,14 +92,19 @@ func (s *windowsService) start(elog *eventlog.Log, colErrorChannel chan error) e
 		return err
 	}
 
-	// The logging options need to be in place before the collector Run method is called
-	// since the telemetry creates the logger at the time of the Run method call.
-	// However, the zap.WrapCore function needs to read the serviceConfig to determine
-	// if the Windows Event Log should be used, however, the serviceConfig is also
-	// only read at the time of the Run method call. To work around this, we pass the
-	// serviceConfig as a pointer to the logging options, and then read its value
-	// when the zap.Logger is created by the telemetry.
-	s.col.set.LoggingOptions = loggingOptionsWithEventLogCore(elog, &s.col.serviceConfig, s.col.set.LoggingOptions)
+	// Override the Zap logger to write to the Windows Event Log
+	// if no file output is specified.
+	s.col.buildZapLogger = func(cfg zap.Config, opts ...zap.Option) (*zap.Logger, error) {
+		for _, output := range cfg.OutputPaths {
+			if output != "stdout" && output != "stderr" {
+				// A file has been specified in the configuration,
+				// so do not use the Windows Event Log.
+				return cfg.Build(opts...)
+			}
+		}
+		opts = slices.Insert(opts, 0, zap.WrapCore(withWindowsCore(elog)))
+		return cfg.Build(opts...)
+	}
 
 	// col.Run blocks until receiving a SIGTERM signal, so needs to be started
 	// asynchronously, but it will exit early if an error occurs on startup
@@ -138,20 +143,6 @@ func openEventLog(serviceName string) (*eventlog.Log, error) {
 	return elog, nil
 }
 
-func loggingOptionsWithEventLogCore(
-	elog *eventlog.Log,
-	serviceConfig **service.Config,
-	userOptions []zap.Option,
-) []zap.Option {
-	return append(
-		// The order below must be preserved - see PR #11051
-		// The event log core must run *after* any user provided options, so it
-		// must be the first option in this list.
-		[]zap.Option{zap.WrapCore(withWindowsCore(elog, serviceConfig))},
-		userOptions...,
-	)
-}
-
 var _ zapcore.Core = (*windowsEventLogCore)(nil)
 
 type windowsEventLogCore struct {
@@ -186,7 +177,7 @@ func (w windowsEventLogCore) Check(ent zapcore.Entry, ce *zapcore.CheckedEntry) 
 func (w windowsEventLogCore) Write(ent zapcore.Entry, fields []zapcore.Field) error {
 	buf, err := w.encoder.EncodeEntry(ent, fields)
 	if err != nil {
-		w.elog.Warning(2, fmt.Sprintf("failed encoding log entry %v\r\n", err))
+		_ = w.elog.Warning(2, fmt.Sprintf("failed encoding log entry %v\r\n", err))
 		return err
 	}
 	msg := buf.String()
@@ -211,17 +202,8 @@ func (w windowsEventLogCore) Sync() error {
 	return w.core.Sync()
 }
 
-func withWindowsCore(elog *eventlog.Log, serviceConfig **service.Config) func(zapcore.Core) zapcore.Core {
+func withWindowsCore(elog *eventlog.Log) func(zapcore.Core) zapcore.Core {
 	return func(core zapcore.Core) zapcore.Core {
-		if serviceConfig != nil && *serviceConfig != nil {
-			for _, output := range (*serviceConfig).Telemetry.Logs.OutputPaths {
-				if output != "stdout" && output != "stderr" {
-					// A log file was specified in the configuration, so we should not use the Windows Event Log
-					return core
-				}
-			}
-		}
-
 		// Use the Windows Event Log
 		encoderConfig := zap.NewProductionEncoderConfig()
 		encoderConfig.LineEnding = "\r\n"

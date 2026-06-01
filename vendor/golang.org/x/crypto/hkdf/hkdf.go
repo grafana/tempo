@@ -11,7 +11,6 @@
 package hkdf
 
 import (
-	"crypto/hkdf"
 	"crypto/hmac"
 	"errors"
 	"hash"
@@ -25,19 +24,15 @@ import (
 // Expand invocations and different context values. Most common scenarios,
 // including the generation of multiple keys, should use New instead.
 func Extract(hash func() hash.Hash, secret, salt []byte) []byte {
-	// Use the stdlib Extract, which disables FIPS 140 enforcement of the HMAC
-	// key (which in HKDF is the salt). The only possible error is FIPS 140
-	// enforcement of the hash, which had to panic under this API anyway. We
-	// don't use the stdlib Expand, because it switched to returning a []byte
-	// instead of an io.Reader, and Expand uses the HMAC key as a key.
-	out, err := hkdf.Extract(hash, secret, salt)
-	if err != nil {
-		panic(err)
+	if salt == nil {
+		salt = make([]byte, hash().Size())
 	}
-	return out
+	extractor := hmac.New(hash, salt)
+	extractor.Write(secret)
+	return extractor.Sum(nil)
 }
 
-type hkdfReader struct {
+type hkdf struct {
 	expander hash.Hash
 	size     int
 
@@ -48,7 +43,7 @@ type hkdfReader struct {
 	buf  []byte
 }
 
-func (f *hkdfReader) Read(p []byte) (int, error) {
+func (f *hkdf) Read(p []byte) (int, error) {
 	// Check whether enough data can be generated
 	need := len(p)
 	remains := len(f.buf) + int(255-f.counter+1)*f.size
@@ -89,7 +84,7 @@ func (f *hkdfReader) Read(p []byte) (int, error) {
 // 3.3. Most common scenarios will want to use New instead.
 func Expand(hash func() hash.Hash, pseudorandomKey, info []byte) io.Reader {
 	expander := hmac.New(hash, pseudorandomKey)
-	return &hkdfReader{expander, expander.Size(), info, 1, nil, nil}
+	return &hkdf{expander, expander.Size(), info, 1, nil, nil}
 }
 
 // New returns a Reader, from which keys can be read, using the given hash,

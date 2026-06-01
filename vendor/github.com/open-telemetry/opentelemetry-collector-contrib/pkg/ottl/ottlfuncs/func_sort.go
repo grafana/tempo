@@ -169,7 +169,7 @@ func findCommonValueType(slice pcommon.Slice) (pcommon.ValueType, bool) {
 	wantStr := false
 	wantDouble := false
 
-	for i := 0; i < length; i++ {
+	for i := range length {
 		value := slice.At(i)
 		currType := value.Type()
 
@@ -226,8 +226,12 @@ type convertedValue[T targetType] struct {
 
 func makeConvertedCopy[T targetType](slice pcommon.Slice, converter func(idx int) T) []convertedValue[T] {
 	length := slice.Len()
-	var out []convertedValue[T]
-	for i := 0; i < length; i++ {
+	if length == 0 {
+		return nil
+	}
+
+	out := make([]convertedValue[T], 0, length)
+	for i := range length {
 		cv := convertedValue[T]{
 			value:         converter(i),
 			originalValue: slice.At(i).AsRaw(),
@@ -245,7 +249,7 @@ func sortConvertedSlice[T targetType](cvs []convertedValue[T], order string) []a
 		return cmp.Compare(a.value, b.value)
 	})
 
-	var out []any
+	out := make([]any, 0, len(cvs))
 	for _, cv := range cvs {
 		out = append(out, cv.originalValue)
 	}

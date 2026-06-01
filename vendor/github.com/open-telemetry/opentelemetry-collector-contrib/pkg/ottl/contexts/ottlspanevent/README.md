@@ -31,6 +31,7 @@ The following paths are supported.
 | spanevent.name                         | name of the span event being processed                                                                                                                                        | string                                                                  |
 | spanevent.dropped_attributes_count     | dropped_attributes_count of the span event being processed                                                                                                                    | int64                                                                   |
 | spanevent.event_index                  | index of the span event within the span                                                                                                                                       | int64                                                                   |
+| otelcol.*                              | All paths exposed by the [ottlotelcol](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/pkg/ottl/contexts/ottlotelcol) context.                    | varies                                                                  |
 
 ## Enums
 

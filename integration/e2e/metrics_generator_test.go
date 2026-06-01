@@ -16,6 +16,7 @@ import (
 	thrift "github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -508,7 +509,7 @@ func extractMetricsFromPrometheus(prometheus *e2e.HTTPService, matcher string) (
 		return nil, err
 	}
 
-	var tp expfmt.TextParser
+	tp := expfmt.NewTextParser(model.UTF8Validation)
 	return tp.TextToMetricFamilies(strings.NewReader(string(body)))
 }
 

@@ -19,7 +19,6 @@ import (
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/storage/remote"
 	"github.com/prometheus/prometheus/tsdb/agent"
-	tsdb_errors "github.com/prometheus/prometheus/tsdb/errors"
 )
 
 var metricStorageRemoteWriteUpdateFailed = promauto.NewCounterVec(prometheus.CounterOpts{
@@ -96,7 +95,7 @@ func New(cfg *Config, o Overrides, tenant string, reg prometheus.Registerer, _ l
 	startTimeCallback := func() (int64, error) {
 		return int64(model.Latest), nil
 	}
-	remoteStorage := remote.NewStorage(logger.With("component", "remote"), reg, startTimeCallback, walDir, cfg.RemoteWriteFlushDeadline, &noopScrapeManager{})
+	remoteStorage := remote.NewStorage(logger.With("component", "remote"), reg, startTimeCallback, walDir, cfg.RemoteWriteFlushDeadline, &noopScrapeManager{}, false)
 
 	headers := o.MetricsGeneratorRemoteWriteHeaders(tenant)
 	generateNativeHistograms := o.MetricsGeneratorGenerateNativeHistograms(tenant)
@@ -146,14 +145,14 @@ func (s *storageImpl) Close() error {
 	s.logger.Info("closing WAL", "dir", s.walDir)
 	close(s.closeCh)
 
-	return tsdb_errors.NewMulti(
+	return errors.Join(
 		s.storage.Close(),
 		func() error {
 			// remove the WAL at shutdown since remote write starts at the end of the WAL anyways
 			// https://github.com/prometheus/prometheus/issues/8809
 			return os.RemoveAll(s.walDir)
 		}(),
-	).Err()
+	)
 }
 
 func (s *storageImpl) watchOverrides() {
@@ -169,15 +168,16 @@ func (s *storageImpl) watchOverrides() {
 
 			if !headersEqual(s.currentHeaders, newHeaders) || s.sendNativeHistograms != newSendNativeHistograms {
 				s.logger.Info("updating remote write configuration")
-				s.currentHeaders = newHeaders
-				s.sendNativeHistograms = newSendNativeHistograms
 				err := s.remote.ApplyConfig(&prometheus_config.Config{
 					RemoteWriteConfigs: generateTenantRemoteWriteConfigs(s.cfg.RemoteWrite, s.tenantID, newHeaders, s.cfg.RemoteWriteAddOrgIDHeader, s.logger, newSendNativeHistograms),
 				})
 				if err != nil {
 					metricStorageRemoteWriteUpdateFailed.WithLabelValues(s.tenantID).Inc()
-					s.logger.Info("Failed to update remote write configuration. Remote write will continue with configuration", "err", err.Error())
+					s.logger.Warn("Failed to update remote write configuration. Remote write will continue with previous configuration", "err", err.Error())
+					continue
 				}
+				s.currentHeaders = newHeaders
+				s.sendNativeHistograms = newSendNativeHistograms
 			}
 		case <-s.closeCh:
 			return

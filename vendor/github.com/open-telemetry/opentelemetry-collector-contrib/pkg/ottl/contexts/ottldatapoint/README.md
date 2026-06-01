@@ -49,6 +49,7 @@ The following paths are supported.
 | datapoint.scale                                | the scale of the data point being processed                                                                                                                                         | int64                                                                   |
 | datapoint.zero_count                           | the zero_count of the data point being processed                                                                                                                                    | int64                                                                   |
 | datapoint.quantile_values                      | the quantile_values of the data point being processed                                                                                                                               | pmetric.SummaryDataPointValueAtQuantileSlice                            |
+| otelcol.*                                      | All paths exposed by the [ottlotelcol](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/pkg/ottl/contexts/ottlotelcol) context.                          | varies                                                                  |
 
 ## Enums
 
