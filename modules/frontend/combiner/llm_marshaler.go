@@ -20,7 +20,7 @@ type LLMTraceByIDResponse struct {
 	Trace   LLMTrace    `json:"trace"`
 	Metrics *LLMMetrics `json:"metrics,omitempty"`
 	Status  string      `json:"status"`
-	Message string      `json:"message"`
+	Message string      `json:"message,omitempty"`
 }
 
 type LLMTrace struct {
