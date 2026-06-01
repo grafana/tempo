@@ -2,7 +2,7 @@
 title: Version 2 release notes
 menuTitle: Version 2
 description: Release notes for Grafana Tempo version 2.x
-weight: 100
+weight: 875
 ---
 
 # Version 2 release notes

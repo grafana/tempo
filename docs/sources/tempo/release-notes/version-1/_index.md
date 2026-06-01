@@ -2,7 +2,7 @@
 title: Version 1 release notes
 menuTitle: Version 1
 description: Release notes for Grafana Tempo version 1.x
-weight: 200
+weight: 900
 ---
 
 # Version 1 release notes
