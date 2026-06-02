@@ -198,6 +198,6 @@ func TestRetentionProviderGatesOnActiveBatch(t *testing.T) {
 		job.Start()
 	}
 
-	require.False(t, seen["tenant-a"], "F-011: retention must be skipped while a redaction batch is active")
+	require.False(t, seen["tenant-a"], "retention must be skipped while a redaction batch is active")
 	require.True(t, seen["tenant-b"], "retention must still run for tenants without an active batch")
 }
