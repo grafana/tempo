@@ -17,6 +17,7 @@ package chlog
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -100,6 +101,41 @@ func TestSummary(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, string(expected), actual)
+}
+
+func TestConfiguredChangeTypes(t *testing.T) {
+	sec := Entry{
+		ChangeType: "security",
+		Component:  "foo",
+		Note:       "fix vuln",
+		Issues:     []int{1},
+	}
+	enh := Entry{
+		ChangeType: Enhancement,
+		Component:  "bar",
+		Note:       "improve bar",
+		Issues:     []int{2},
+	}
+
+	cfg := &config.Config{
+		ChangeTypes: []config.ChangeType{
+			{Key: "security", Heading: "Security"},
+			{Key: Enhancement, Heading: "Enhancements"},
+		},
+	}
+
+	// enh is passed before sec, but the configured order must drive the output.
+	actual, err := GenerateSummary("1.0", []*Entry{&enh, &sec}, cfg)
+	require.NoError(t, err)
+
+	// The custom 'security' change type renders (the default template would drop it).
+	assert.Contains(t, actual, "### Security")
+	assert.Contains(t, actual, "- `foo`: fix vuln (#1)")
+	assert.Contains(t, actual, "### Enhancements")
+	assert.Contains(t, actual, "- `bar`: improve bar (#2)")
+
+	// Sections appear in the configured order, not entry order or built-in order.
+	assert.Less(t, strings.Index(actual, "### Security"), strings.Index(actual, "### Enhancements"))
 }
 
 func TestCustomSummary(t *testing.T) {

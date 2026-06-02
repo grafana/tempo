@@ -6,7 +6,7 @@
 
 ### 🚩 Deprecations 🚩
 
-- `exporter/old`: Deprecate old (#12348)
+- `exporter/old`: Deprecate old (#12348) (@octocat)
 
 ## v0.44.0
 

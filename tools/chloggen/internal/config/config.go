@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -35,6 +36,15 @@ const (
 	DefaultChangeLogFilename = "CHANGELOG.md"
 )
 
+// ChangeType defines a valid change_type and how entries of that type are
+// grouped when rendering the changelog summary.
+type ChangeType struct {
+	// Key is the value an entry's 'change_type' must match.
+	Key string `yaml:"key"`
+	// Heading is the section heading used for this change type in the summary.
+	Heading string `yaml:"heading"`
+}
+
 // Config represents the configuration for changelogs.
 type Config struct {
 	ChangeLogs        map[string]string `yaml:"change_logs"`
@@ -43,6 +53,7 @@ type Config struct {
 	TemplateYAML      string            `yaml:"template_yaml"`
 	SummaryTemplate   string            `yaml:"summary_template"`
 	Components        []string          `yaml:"components"`
+	ChangeTypes       []ChangeType      `yaml:"change_types"`
 	ConfigYAML        string
 }
 
@@ -67,7 +78,7 @@ func NewFromFile(rootDir string, cfgFilename string) (*Config, error) {
 		return nil, err
 	}
 	cfg := &Config{}
-	if err = yaml.Unmarshal(cfgBytes, &cfg); err != nil {
+	if err = yaml.Unmarshal(cfgBytes, cfg); err != nil {
 		return nil, err
 	}
 
@@ -75,12 +86,20 @@ func NewFromFile(rootDir string, cfgFilename string) (*Config, error) {
 	cfg.EntriesDir = makeAbs(rootDir, cfg.EntriesDir, DefaultEntriesDir)
 	cfg.TemplateYAML = makeAbs(rootDir, cfg.TemplateYAML, filepath.Join(DefaultEntriesDir, DefaultTemplateYAML))
 
+	if err = validateChangeTypes(cfg.ChangeTypes); err != nil {
+		return nil, err
+	}
+
 	if len(cfg.ChangeLogs) == 0 && len(cfg.DefaultChangeLogs) > 0 {
-		return nil, errors.New("cannot specify 'default_changelogs' without 'changelogs'")
+		return nil, errors.New("cannot specify 'default_change_logs' without 'change_logs'")
 	}
 
 	if len(cfg.ChangeLogs) == 0 {
-		cfg.ChangeLogs[DefaultChangeLogKey] = filepath.Join(rootDir, DefaultChangeLogFilename)
+		// 'change_logs' was omitted; initialize the map before writing the default
+		// (yaml.Unmarshal leaves it nil when the key is absent).
+		cfg.ChangeLogs = map[string]string{
+			DefaultChangeLogKey: filepath.Join(rootDir, DefaultChangeLogFilename),
+		}
 		cfg.DefaultChangeLogs = []string{DefaultChangeLogKey}
 		return cfg, nil
 	}
@@ -96,11 +115,31 @@ func NewFromFile(rootDir string, cfgFilename string) (*Config, error) {
 
 	for _, key := range cfg.DefaultChangeLogs {
 		if _, ok := cfg.ChangeLogs[key]; !ok {
-			return nil, fmt.Errorf("'default_changelogs' contains key %q which is not defined in 'changelogs'", key)
+			return nil, fmt.Errorf("'default_change_logs' contains key %q which is not defined in 'change_logs'", key)
 		}
 	}
 
 	return cfg, nil
+}
+
+// validateChangeTypes fails fast on a malformed 'change_types' configuration:
+// empty keys or headings, or duplicate keys. An empty list is valid (the
+// built-in defaults are used).
+func validateChangeTypes(changeTypes []ChangeType) error {
+	seen := make(map[string]struct{}, len(changeTypes))
+	for _, ct := range changeTypes {
+		if strings.TrimSpace(ct.Key) == "" {
+			return errors.New("'change_types' entries must each have a non-empty 'key'")
+		}
+		if strings.TrimSpace(ct.Heading) == "" {
+			return fmt.Errorf("'change_types' entry %q must have a non-empty 'heading'", ct.Key)
+		}
+		if _, dup := seen[ct.Key]; dup {
+			return fmt.Errorf("'change_types' contains duplicate key %q", ct.Key)
+		}
+		seen[ct.Key] = struct{}{}
+	}
+	return nil
 }
 
 func makeAbs(rootDir, path, defaultPath string) string {
