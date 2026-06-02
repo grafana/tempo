@@ -6,13 +6,13 @@
 
 - **Product name (short):** Tempo
 - **Product name (first mention in prose):** Grafana Tempo
-- **GitHub org/repo:** grafana/tempo (upstream), knylander-grafana/tempo-doc-work (fork)
+- **GitHub org/repo:** grafana/tempo
 
 ## Branches and releases
 
 - **Default development branch:** `main`
 - **Release branch pattern:** `release-vX.Y` (for example, `release-v2.10`)
-- **Docs version mapping:** each `release-vX.Y` branch maps to the `vX.Y.x` version on grafana.com/docs/tempo/
+- **Docs version mapping:** each `release-vX.Y` branch maps to the `vX.Y.x` version on grafana.com/docs/tempo/. Docs sync from `main` to the website repo via `docs/sources/tempo/sync.json`; the root `_index.md` sets `GRAFANA_VERSION: next` for the current development version
 
 ## Documentation paths
 
@@ -22,7 +22,7 @@
 - **Generated pages (do not hand-edit):** `docs/sources/tempo/configuration/manifest.md` — refer to `docs/sources/tempo/configuration/AGENTS.md` for details. Only edit `_index.md` for config reference changes.
 - **Configuration reference:** `docs/sources/tempo/configuration/`
 - **Changelog:** `CHANGELOG.md` at repo root
-- **Architecture / "start here" page:** `docs/sources/tempo/reference-tempo-architecture/`
+- **Architecture / "start here" pages:** `docs/sources/tempo/introduction/` (overview, glossary, trace structure) and `docs/sources/tempo/reference-tempo-architecture/` (detailed component reference)
 - **Design proposals (internal, not published):** `docs/design-proposals/`
 - **Doc build tooling:** `docs/Makefile`, `docs/docs.mk`, `docs/variables.mk`, `docs/make-docs`
 
@@ -60,6 +60,7 @@ Helm chart docs under `docs/sources/helm-charts/tempo-distributed/`:
 | Code area | Documentation area |
 |-----------|---------------------|
 | `pkg/traceql/` | `docs/sources/tempo/traceql/` |
+| `pkg/api/` | `docs/sources/tempo/api_docs/` |
 | `modules/generator/` | `docs/sources/tempo/metrics-from-traces/metrics-generator/` |
 | `modules/distributor/` | `docs/sources/tempo/reference-tempo-architecture/components/distributor/` |
 | `modules/querier/` | `docs/sources/tempo/reference-tempo-architecture/components/querier/` |
@@ -82,20 +83,25 @@ Paths the agent should check when validating documentation claims against code.
 
 | What to validate | Where to look |
 |-----------------|---------------|
-| TraceQL syntax / grammar | `pkg/traceql/lexer.go`, `pkg/traceql/parse.go`, `pkg/traceql/expr.y.go` |
+| TraceQL syntax / grammar | `pkg/traceql/lexer.go`, `pkg/traceql/parse.go`, `pkg/traceql/expr.y.go`, `pkg/traceql/ast_validate.go` |
 | TraceQL types / intrinsics | `pkg/traceql/ast.go`, `pkg/traceql/enum_attributes.go`, `pkg/traceql/enum_statics.go` |
 | TraceQL operators | `pkg/traceql/enum_operators.go` |
 | TraceQL aggregates / hints | `pkg/traceql/enum_aggregates.go`, `pkg/traceql/enum_hints.go` |
 | TraceQL metrics engine | `pkg/traceql/engine_metrics.go`, `pkg/traceql/engine_metrics_functions.go` |
-| Configuration structs / defaults | `modules/*/config.go`, `cmd/tempo/app/*.go` |
+| Configuration structs / defaults | `modules/*/config.go`, `cmd/tempo/app/*.go`, `cmd/tempo/app/modules.go` |
+| Manifest / config reference generation | `pkg/docsgen/generate_manifest.go` |
 | Metrics-generator config | `modules/generator/` |
-| API endpoints | `cmd/tempo/`, `modules/frontend/` |
+| Metrics-generator processors | `modules/generator/processor/spanmetrics/`, `modules/generator/processor/servicegraphs/` |
+| Valid processor names | `modules/generator/validation/fields.go` |
+| API endpoints | `pkg/api/http.go`, `cmd/tempo/`, `modules/frontend/` |
 | Distributor / ingester behavior | `modules/distributor/`, `modules/ingester/` |
 | Storage / compaction | `tempodb/`, `modules/storage/` |
+| Block format versions & default | `tempodb/encoding/versioned.go` (`DefaultEncoding`, `LatestEncoding`, `AllEncodings`, `WritesSupported`); per-version code in `tempodb/encoding/vparquet{3,4,5}/` |
 
 ## Frontmatter and site conventions
 
-- **Frontmatter fields:** `title`, `menuTitle`, `description`, `keywords`, `weight`, `aliases`
+- **Frontmatter fields:** `title`, `menuTitle`, `description`, `keywords`, `weight`, `aliases`, `topicType`
+- **`topicType` values:** `concept` (reference/explanatory pages), `task` (procedural pages), `introduction` (section landing pages)
 - **Weight / ordering:** lower `weight` values appear first in navigation
 - **Internal link style:** relative paths ending in `/` (not `.md`)
 - **Section pages:** named `_index.md`; leaf pages are named `index.md` or `<slug>.md`
@@ -106,10 +112,10 @@ Paths the agent should check when validating documentation claims against code.
 ## Conventions for agents
 
 - **Query language:** TraceQL (always capitalized, one word)
-- **Storage format versions:** vParquet2, vParquet3, vParquet4, vParquet5 (lowercase "v", camelCase "Parquet", version digit)
+- **Storage format versions:** don't hardcode the supported versions or the default — they change per release and the code is the source of truth. Check `tempodb/encoding/versioned.go`: `DefaultEncoding()` / `LatestEncoding()` (current default), `AllEncodings()` (readable versions), and `WritesSupported()` / `AllEncodingsForWrites()` (writeable versions). For the user-facing summary, refer to `docs/sources/tempo/configuration/parquet.md`. Style: lowercase "v", camelCase "Parquet", version digit (for example, `vParquet4`)
 - **Block format:** always "block format" or "Parquet block format" (not "block type")
 - **Product references:** "Grafana Tempo" on first mention, "Tempo" thereafter; always "Grafana Cloud" (never just "Cloud"); always "Grafana Alloy" (not "Alloy" alone on first mention)
-- **Vale / linter config:** no `.vale.ini` in this repo; lint rules come from the docs build pipeline
+- **Vale / linter config:** prose linting uses the Grafana Writers' Toolkit `Grafana` style (with the Google, Hugo, and Readability packages). Refer to [Lint prose with the Vale linter](https://grafana.com/docs/writers-toolkit/review/lint-prose/). A local `.vale.ini` at the repo root configures these packages, but it's currently untracked (local only). Repositories with the `make docs` target also expose `make vale` (run from `docs/`) to lint `docs/sources/`
 
 ## Agent and skill resources
 
@@ -142,7 +148,7 @@ Non-obvious facts that cause errors if you assume the obvious:
 
 1. **`modules/ingester/` is legacy.** The ingester is replaced in 3.0 by live-store and block-builder. The code directory still exists pending cleanup — do not reference or document it. Use `reference-tempo-architecture/` for current components.
 2. **API parameters keep old names.** Some query parameters (for example, `mode=ingesters`) retain 2.x names while routing to new components. Check the code (for example, `modules/frontend/` query handlers) for the current mapping — code is the source of truth.
-3. **Block format default vs. latest may differ.** The latest format version in code may not be the default. Always check `docs/sources/tempo/configuration/parquet.md` for the current default.
+3. **Block format versions change between releases — verify against code, don't assume.** `tempodb/encoding/versioned.go` is the source of truth: which versions exist (`AllEncodings`), which are writeable (`WritesSupported`), and the default (`DefaultEncoding` / `LatestEncoding`). For the user-facing summary, refer to `docs/sources/tempo/configuration/parquet.md`.
 4. **Helm chart docs live in three places:**
    - `docs/sources/helm-charts/tempo-distributed/` — primary procedures
    - `docs/sources/tempo/set-up-for-tracing/setup-tempo/deploy/kubernetes/helm-chart/` — landing page that links to the primary procedures
