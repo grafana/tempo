@@ -61,21 +61,22 @@ Helm chart docs under `docs/sources/helm-charts/tempo-distributed/`:
 |-----------|---------------------|
 | `pkg/traceql/` | `docs/sources/tempo/traceql/` |
 | `pkg/api/` | `docs/sources/tempo/api_docs/` |
-| `modules/generator/` | `docs/sources/tempo/metrics-from-traces/metrics-generator/` |
-| `modules/distributor/` | `docs/sources/tempo/reference-tempo-architecture/components/distributor/` |
-| `modules/querier/` | `docs/sources/tempo/reference-tempo-architecture/components/querier/` |
-| `modules/frontend/` | `docs/sources/tempo/reference-tempo-architecture/components/query-frontend/` |
-| `modules/ingester/` | `docs/sources/tempo/reference-tempo-architecture/components/` |
-| `modules/blockbuilder/` | `docs/sources/tempo/reference-tempo-architecture/components/block-builder/` |
-| `modules/livestore/` | `docs/sources/tempo/reference-tempo-architecture/components/live-store/` |
-| `modules/cache/` | `docs/sources/tempo/operations/` (caching) |
+| `modules/generator/` | `docs/sources/tempo/metrics-from-traces/metrics-generator/` and `docs/sources/tempo/reference-tempo-architecture/components/metrics-generator.md` |
+| `modules/distributor/` | `docs/sources/tempo/reference-tempo-architecture/components/distributor.md` |
+| `modules/querier/` | `docs/sources/tempo/reference-tempo-architecture/components/querier.md` |
+| `modules/frontend/` | `docs/sources/tempo/reference-tempo-architecture/components/query-frontend.md` |
+| `modules/blockbuilder/` | `docs/sources/tempo/reference-tempo-architecture/components/block-builder.md` |
+| `modules/livestore/` | `docs/sources/tempo/reference-tempo-architecture/components/live-store.md` |
+| `modules/cache/` | `docs/sources/tempo/operations/caching.md` |
 | `modules/overrides/` | `docs/sources/tempo/operations/manage-advanced-systems/` (user-configurable overrides) |
-| `modules/storage/` | `docs/sources/tempo/reference-tempo-architecture/` (object storage, block format) |
-| `tempodb/` | `docs/sources/tempo/reference-tempo-architecture/` (block format, compaction) |
-| `cmd/tempo-cli/` | `docs/sources/tempo/operations/tempo_cli/` |
-| `cmd/tempo-vulture/` | `docs/sources/tempo/operations/` (vulture) |
+| `modules/storage/` | `docs/sources/tempo/reference-tempo-architecture/object-storage.md` |
+| `tempodb/` | `docs/sources/tempo/configuration/parquet.md` and `docs/sources/tempo/reference-tempo-architecture/block-format.md` |
+| `cmd/tempo-cli/` | `docs/sources/tempo/operations/tempo_cli.md` |
+| `cmd/tempo-vulture/` | `docs/sources/tempo/operations/tempo-vulture.md` |
 | `cmd/tempo/` | `docs/sources/tempo/configuration/` |
 | `operations/` (repo root) | `docs/sources/helm-charts/tempo-distributed/` (Helm/Jsonnet ops tooling) |
+
+`modules/ingester/` is legacy (replaced in 3.0 by live-store and block-builder); it has no current component doc page. Refer to the Gotchas section.
 
 ## Code validation paths
 
