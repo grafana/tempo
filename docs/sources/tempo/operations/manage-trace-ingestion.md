@@ -146,10 +146,10 @@ Monitor the `tempo_live_store_lagged_requests_total` metric to detect when this 
 This counter increments every time a search or metrics query hits a live-store whose Kafka lag overlaps the requested time range, meaning results may be incomplete.
 The metric is labeled by `route` (`/tempopb.Querier/SearchRecent` or `/tempopb.Metrics/QueryRange`).
 
-The `fail_on_high_lag` setting (default `false`) controls how the live-store responds when lag is detected:
+The `fail_on_high_lag` setting (default `true`) controls how the live-store responds when lag is detected:
 
+- When `true`, the live-store returns an error when it can't guarantee complete results, rather than returning a partial response. This trades availability for correctness.
 - When `false`, the live-store returns whatever data it has, which may be incomplete. The metric still increments.
-- When `true`, the live-store returns an error when it cannot guarantee completeness.
 
 Refer to [Unable to find traces](https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/querying/unable-to-see-trace/) for query-side troubleshooting.
 

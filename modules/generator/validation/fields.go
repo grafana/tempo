@@ -18,6 +18,9 @@ import (
 
 var SupportedProcessors = []string{
 	processor.ServiceGraphsName,
+	processor.ServiceGraphsRequestName,
+	processor.ServiceGraphsLatencyName,
+	processor.ServiceGraphsConnectionInfoName,
 	processor.SpanMetricsName,
 	processor.SpanMetricsCountName,
 	processor.SpanMetricsLatencyName,
