@@ -6,7 +6,7 @@
 
 ### 💡 Enhancements 💡
 
-- `receiver/foo`: Add some bar (#12345)
+- `receiver/foo`: Add some bar (#12345) (@octocat)
 
 ## v0.44.0
 

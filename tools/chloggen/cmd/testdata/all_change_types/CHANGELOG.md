@@ -6,8 +6,8 @@
 
 ### 🛑 Breaking changes 🛑
 
-- `processor/oops`: Change behavior when ... (#12350)
-- `processor/oops`: Change behavior when ... (#12350)
+- `processor/oops`: Change behavior when ... (#12350) (@octocat)
+- `processor/oops`: Change behavior when ... (#12350) (@octocat)
   - foo
     - bar
   - blah
@@ -15,19 +15,19 @@
 
 ### 🚩 Deprecations 🚩
 
-- `exporter/old`: Deprecate old (#12348)
+- `exporter/old`: Deprecate old (#12348) (@octocat)
 
 ### 🚀 New components 🚀
 
-- `exporter/new`: Add new exporter ... (#12349)
+- `exporter/new`: Add new exporter ... (#12349) (@octocat)
 
 ### 💡 Enhancements 💡
 
-- `receiver/foo`: Add some bar (#12345)
+- `receiver/foo`: Add some bar (#12345) (@octocat)
 
 ### 🧰 Bug fixes 🧰
 
-- `testbed`: Fix blah (#12346, #12347)
+- `testbed`: Fix blah (#12346, #12347) (@octocat)
 
 ## v0.44.0
 

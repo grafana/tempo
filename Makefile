@@ -418,30 +418,32 @@ tempo-mixin-check: tools-image
 
 ##@ Changelog
 
-# chloggen is vendored under tools/chloggen and built from the tools module.
-# It must run from the repo root so it can find .chloggen/ and CHANGELOG.md.
+# chloggen is built from the tools module and run from the repo root so it can
+# find .chloggen/ and CHANGELOG.md. A .chloggen/config.yaml is used only if it
+# exists. Pass FILENAME=... to chlog-new and VERSION=vX.Y.Z to chlog-update.
 CHLOGGEN ?= $(CURDIR)/bin/chloggen
 CHLOGGEN_CONFIG := .chloggen/config.yaml
+CHLOGGEN_CONFIG_ARG := $(if $(wildcard $(CHLOGGEN_CONFIG)),--config $(CHLOGGEN_CONFIG),)
 
 .PHONY: $(CHLOGGEN)
 $(CHLOGGEN):
 	cd $(CURDIR)/tools/chloggen && go build -o $(CHLOGGEN) .
 
 .PHONY: chlog-new
-chlog-new: $(CHLOGGEN) ## Create a new changelog entry under .chloggen/
-	$(CHLOGGEN) new --config $(CHLOGGEN_CONFIG)
+chlog-new: $(CHLOGGEN) ## Create a new changelog entry under .chloggen/ (FILENAME=... optional)
+	$(CHLOGGEN) new $(CHLOGGEN_CONFIG_ARG) $(if $(FILENAME),--filename $(FILENAME))
 
 .PHONY: chlog-validate
 chlog-validate: $(CHLOGGEN) ## Validate the pending changelog entries
-	$(CHLOGGEN) validate --config $(CHLOGGEN_CONFIG)
+	$(CHLOGGEN) validate $(CHLOGGEN_CONFIG_ARG)
 
 .PHONY: chlog-preview
 chlog-preview: $(CHLOGGEN) ## Render the pending changelog entries to stdout
-	$(CHLOGGEN) update --config $(CHLOGGEN_CONFIG) --dry
+	$(CHLOGGEN) update $(CHLOGGEN_CONFIG_ARG) --dry
 
 .PHONY: chlog-update
 chlog-update: $(CHLOGGEN) ## Collate pending entries into CHANGELOG.md (VERSION=vX.Y.Z)
-	$(CHLOGGEN) update --config $(CHLOGGEN_CONFIG) --version "$(VERSION)"
+	$(CHLOGGEN) update $(CHLOGGEN_CONFIG_ARG) --version "$(VERSION)"
 
 # Import fragments
 include build/tools.mk

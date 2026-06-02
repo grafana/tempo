@@ -6,7 +6,7 @@
 
 ### 🛑 Breaking changes 🛑
 
-- `processor/oops`: Change behavior when ... (#12350)
+- `processor/oops`: Change behavior when ... (#12350) (@octocat)
   - foo
     - bar
   - blah

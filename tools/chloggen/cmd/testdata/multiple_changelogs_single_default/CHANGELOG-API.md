@@ -6,23 +6,23 @@
 
 ### 🛑 Breaking changes 🛑
 
-- `receiver/foo`: Some change relevant to [api] (#125)
-- `receiver/foo`: Some change relevant to [user,api] (#11)
+- `receiver/foo`: Some change relevant to [api] (#125) (@octocat)
+- `receiver/foo`: Some change relevant to [user,api] (#11) (@octocat)
 
 ### 🚩 Deprecations 🚩
 
-- `receiver/foo`: Some change relevant to [api] (#223)
-- `receiver/foo`: Some change relevant to [user,api] (#234)
+- `receiver/foo`: Some change relevant to [api] (#223) (@octocat)
+- `receiver/foo`: Some change relevant to [user,api] (#234) (@octocat)
 
 ### 💡 Enhancements 💡
 
-- `receiver/foo`: Some change relevant to [api,user] (#333)
-- `receiver/foo`: Some change relevant to [api] (#555)
+- `receiver/foo`: Some change relevant to [api,user] (#333) (@octocat)
+- `receiver/foo`: Some change relevant to [api] (#555) (@octocat)
 
 ### 🧰 Bug fixes 🧰
 
-- `receiver/foo`: Some change relevant to [api] (#111)
-- `receiver/foo`: Some change relevant to [api] (#777)
+- `receiver/foo`: Some change relevant to [api] (#111) (@octocat)
+- `receiver/foo`: Some change relevant to [api] (#777) (@octocat)
 
 ## v0.44.0
 
