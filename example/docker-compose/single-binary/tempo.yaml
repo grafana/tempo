@@ -43,7 +43,7 @@ storage:
 overrides:
   defaults:
     metrics_generator:
-      processors: ["span-metrics", "service-graphs"]
+      processors: ["span-metrics", "service-graphs", "service-graphs-connection-info"]
       generate_native_histograms: both
 
 

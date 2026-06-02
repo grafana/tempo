@@ -1,0 +1,137 @@
+{
+  "annotations": { "list": [] },
+  "description": "Service-to-service topology discovered by the Tempo metrics-generator service-graphs connection_info gauge",
+  "editable": true,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": { "h": 24, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "nodes": {},
+        "edges": {},
+        "layoutAlgorithm": "force"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "label_replace(label_replace(label_replace(max by (client) (traces_service_graph_connection_info), \"id\", \"$1\", \"client\", \"(.*)\"), \"title\", \"$1\", \"client\", \"(.*)\"), \"color\", \"#1F3A6E\", \"\", \"\")",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "nodes_src"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "label_replace(label_replace(label_replace(max by (server) (traces_service_graph_connection_info), \"id\", \"$1\", \"server\", \"(.*)\"), \"title\", \"$1\", \"server\", \"(.*)\"), \"color\", \"#1F3A6E\", \"\", \"\")",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "nodes_dst"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "label_replace(label_replace(label_join(traces_service_graph_connection_info, \"id\", \"->\", \"client\", \"server\"), \"source\", \"$1\", \"client\", \"(.*)\"), \"target\", \"$1\", \"server\", \"(.*)\")",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "edges"
+        }
+      ],
+      "title": "Service Topology",
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": ["id", "title", "color"]
+            }
+          },
+          "filter": {
+            "id": "byRefId",
+            "options": "nodes_src|nodes_dst"
+          }
+        },
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": ["id", "source", "target"]
+            }
+          },
+          "filter": {
+            "id": "byRefId",
+            "options": "edges"
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "fieldName": "id",
+                "config": {
+                  "id": "equal",
+                  "options": { "value": "tempo-all->tempo-all" }
+                }
+              }
+            ],
+            "type": "exclude",
+            "match": "any"
+          },
+          "filter": {
+            "id": "byRefId",
+            "options": "edges"
+          }
+        },
+        {
+          "id": "merge",
+          "options": {},
+          "filter": {
+            "id": "byRefId",
+            "options": "nodes_src|nodes_dst"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": { "color": "nodes" }
+          }
+        }
+      ],
+      "type": "nodeGraph"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 41,
+  "tags": ["topology", "tempo", "service-graphs"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
+        "label": "Datasource",
+        "multi": false,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Service Topology (Tempo connection_info)",
+  "uid": "tempo-service-graph",
+  "version": 1
+}
