@@ -398,6 +398,31 @@ func TestReadDeleteEntries(t *testing.T) {
 	assert.FileExists(t, cfg.TemplateYAML)
 }
 
+func TestReadEntriesRejectsUnknownChangelog(t *testing.T) {
+	tempDir := t.TempDir()
+	entriesDir := filepath.Join(tempDir, config.DefaultEntriesDir)
+	require.NoError(t, os.Mkdir(entriesDir, 0o750))
+
+	entry := Entry{
+		ChangeLogs: []string{"nonexistent"},
+		ChangeType: "breaking",
+		Component:  "foo",
+		Note:       "broke foo",
+		Issues:     []int{123},
+		User:       "octocat",
+	}
+	writeEntry(t, entriesDir, &entry, "yaml")
+
+	cfg := &config.Config{
+		ChangeLogs:        map[string]string{"foo": filepath.Join(entriesDir, "CHANGELOG.foo.md")},
+		DefaultChangeLogs: []string{"foo"},
+		EntriesDir:        entriesDir,
+	}
+
+	_, err := ReadEntries(cfg)
+	require.ErrorContains(t, err, "'nonexistent' is not a valid value in 'change_logs'")
+}
+
 func TestFindYamlFilesEmptyDir(t *testing.T) {
 	dir := t.TempDir()
 

@@ -159,6 +159,9 @@ func ReadEntries(cfg *config.Config) (map[string][]*Entry, error) {
 			}
 		} else {
 			for _, cl := range entry.ChangeLogs {
+				if _, ok := entries[cl]; !ok {
+					return nil, fmt.Errorf("%s: '%s' is not a valid value in 'change_logs'", file, cl)
+				}
 				entries[cl] = append(entries[cl], entry)
 			}
 		}
@@ -173,16 +176,17 @@ func DeleteEntries(cfg *config.Config) error {
 		return err
 	}
 
+	var errs error
 	for _, file := range yamlFiles {
 		if file == cfg.TemplateYAML || file == cfg.ConfigYAML {
 			continue
 		}
 
 		if err := os.Remove(file); err != nil {
-			fmt.Printf("Failed to delete: %s\n", file)
+			errs = errors.Join(errs, fmt.Errorf("failed to delete %s: %w", file, err))
 		}
 	}
-	return nil
+	return errs
 }
 
 // findYamlFiles finds all YAML files in the specified directory.

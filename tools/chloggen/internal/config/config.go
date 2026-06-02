@@ -77,7 +77,7 @@ func NewFromFile(rootDir string, cfgFilename string) (*Config, error) {
 		return nil, err
 	}
 	cfg := &Config{}
-	if err = yaml.Unmarshal(cfgBytes, &cfg); err != nil {
+	if err = yaml.Unmarshal(cfgBytes, cfg); err != nil {
 		return nil, err
 	}
 
@@ -86,11 +86,15 @@ func NewFromFile(rootDir string, cfgFilename string) (*Config, error) {
 	cfg.TemplateYAML = makeAbs(rootDir, cfg.TemplateYAML, filepath.Join(DefaultEntriesDir, DefaultTemplateYAML))
 
 	if len(cfg.ChangeLogs) == 0 && len(cfg.DefaultChangeLogs) > 0 {
-		return nil, errors.New("cannot specify 'default_changelogs' without 'changelogs'")
+		return nil, errors.New("cannot specify 'default_change_logs' without 'change_logs'")
 	}
 
 	if len(cfg.ChangeLogs) == 0 {
-		cfg.ChangeLogs[DefaultChangeLogKey] = filepath.Join(rootDir, DefaultChangeLogFilename)
+		// 'change_logs' was omitted; initialize the map before writing the default
+		// (yaml.Unmarshal leaves it nil when the key is absent).
+		cfg.ChangeLogs = map[string]string{
+			DefaultChangeLogKey: filepath.Join(rootDir, DefaultChangeLogFilename),
+		}
 		cfg.DefaultChangeLogs = []string{DefaultChangeLogKey}
 		return cfg, nil
 	}
@@ -106,7 +110,7 @@ func NewFromFile(rootDir string, cfgFilename string) (*Config, error) {
 
 	for _, key := range cfg.DefaultChangeLogs {
 		if _, ok := cfg.ChangeLogs[key]; !ok {
-			return nil, fmt.Errorf("'default_changelogs' contains key %q which is not defined in 'changelogs'", key)
+			return nil, fmt.Errorf("'default_change_logs' contains key %q which is not defined in 'change_logs'", key)
 		}
 	}
 

@@ -68,7 +68,7 @@ func updateCmd() *cobra.Command {
 				}
 
 				if dry {
-					cmd.Printf("Generated changelog updates for %s:", changeLogKey)
+					cmd.Printf("Generated changelog updates for %s:\n", changeLogKey)
 					cmd.Println(chlogUpdate)
 					continue
 				}
@@ -92,7 +92,7 @@ func updateCmd() *cobra.Command {
 				chlogBuilder.WriteString(chlogHistory)
 
 				tmpMD := filename + ".tmp"
-				if err = os.WriteFile(filepath.Clean(tmpMD), []byte(chlogBuilder.String()), 0o600); err != nil {
+				if err = os.WriteFile(filepath.Clean(tmpMD), []byte(chlogBuilder.String()), 0o644); err != nil {
 					return err
 				}
 
@@ -101,7 +101,12 @@ func updateCmd() *cobra.Command {
 				}
 
 				cmd.Printf("Finished updating %s\n", filename)
+			}
 
+			// Delete the consumed entry files only once, after every changelog has
+			// been written successfully, and never in dry-run mode. This avoids
+			// losing the source YAMLs if a later changelog write fails.
+			if !dry {
 				if err = chlog.DeleteEntries(globalCfg); err != nil {
 					return err
 				}

@@ -78,7 +78,7 @@ func TestNewFromFile(t *testing.T) {
 				TemplateYAML:      "TEMPLATE-custom.yaml",
 				DefaultChangeLogs: []string{"foo"},
 			},
-			expectErr: "cannot specify 'default_changelogs' without 'changelogs",
+			expectErr: "cannot specify 'default_change_logs' without 'change_logs'",
 		},
 		{
 			name: "default-changelog-not-in-changelogs",
@@ -91,7 +91,7 @@ func TestNewFromFile(t *testing.T) {
 				},
 				DefaultChangeLogs: []string{"foo", "bar", "fake"},
 			},
-			expectErr: `contains key "fake" which is not defined in 'changelogs'`,
+			expectErr: `contains key "fake" which is not defined in 'change_logs'`,
 		},
 		{
 			name: "absolute-entries-dir",
@@ -207,4 +207,23 @@ func TestNewFromFileErr(t *testing.T) {
 
 	_, err = NewFromFile(tempDir, filepath.Base(cfgFile.Name()))
 	assert.Error(t, err)
+}
+
+func TestNewFromFileOmittedChangeLogs(t *testing.T) {
+	tempDir := t.TempDir()
+
+	cfgFile, err := os.CreateTemp(tempDir, "*.yaml")
+	require.NoError(t, err)
+	defer cfgFile.Close()
+
+	// A config file that omits 'change_logs' entirely must not panic; the
+	// default changelog should be applied.
+	_, err = cfgFile.WriteString("components: [foo]\n")
+	require.NoError(t, err)
+
+	cfg, err := NewFromFile(tempDir, filepath.Base(cfgFile.Name()))
+	require.NoError(t, err)
+	require.Equal(t, 1, len(cfg.ChangeLogs))
+	assert.Equal(t, filepath.Join(tempDir, DefaultChangeLogFilename), cfg.ChangeLogs[DefaultChangeLogKey])
+	assert.Equal(t, []string{DefaultChangeLogKey}, cfg.DefaultChangeLogs)
 }
