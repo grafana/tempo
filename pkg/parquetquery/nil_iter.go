@@ -184,13 +184,13 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 		// Consume current buffer until empty
 		for c.currBufN < len(c.currBuf) {
 			var (
-				v   = &c.currBuf[c.currBufN]
-				r   = v.RepetitionLevel()
-				d   = v.DefinitionLevel()
-				max = c.maxDefinitionLevel
+				v    = &c.currBuf[c.currBufN]
+				r    = v.RepetitionLevel()
+				d    = v.DefinitionLevel()
+				maxD = c.maxDefinitionLevel
 			)
 
-			if r < max {
+			if r < maxD {
 				// This means we are moving on to the next row.
 				// Before doing so, see if we need to emit a response for the row we are exiting.
 				if rn, ok := tryEmitNilOnScopeExit(); ok {
@@ -203,7 +203,7 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 				advanceValue(v)
 				scopeRow = c.curr
 
-				if r <= d && d == max-1 && v.IsNull() {
+				if r <= d && d == maxD-1 && v.IsNull() {
 					// Empty repeated values for this level, which means the value doesn't exist.
 					// However because we checking that we are the second to last level, it means
 					// we are also ensuring there is an owning row defined at this level.
