@@ -28,8 +28,23 @@ import (
 //go:embed summary.tmpl
 var defaultTmpl []byte
 
+// group is one rendered section of the changelog: a heading and the entries
+// that belong to a single change type.
+type group struct {
+	Heading string
+	Entries []*Entry
+}
+
 type summary struct {
-	Version         string
+	Version string
+
+	// Groups holds every configured change type in configured order. This is
+	// the data model the bundled template ranges over and the only path that
+	// surfaces custom change types.
+	Groups []group
+
+	// The following fields mirror the built-in change types and are retained so
+	// that custom summary templates referencing them by name keep working.
 	BreakingChanges []*Entry
 	Deprecations    []*Entry
 	NewComponents   []*Entry
@@ -37,24 +52,40 @@ type summary struct {
 	BugFixes        []*Entry
 }
 
-// GenerateSummary generates a changelog entry summary.
+// GenerateSummary generates a changelog entry summary. Entries are grouped and
+// ordered according to cfg.ChangeTypes; when none are configured, the built-in
+// DefaultChangeTypes are used.
 func GenerateSummary(version string, entries []*Entry, cfg *config.Config) (string, error) {
 	s := summary{
 		Version: version,
 	}
 
-	for _, entry := range entries {
-		switch entry.ChangeType {
+	changeTypes := cfg.ChangeTypes
+	if len(changeTypes) == 0 {
+		changeTypes = DefaultChangeTypes
+	}
+
+	for _, ct := range changeTypes {
+		var grouped []*Entry
+		for _, entry := range entries {
+			if entry.ChangeType == ct.Key {
+				grouped = append(grouped, entry)
+			}
+		}
+		s.Groups = append(s.Groups, group{Heading: ct.Heading, Entries: grouped})
+
+		// Mirror built-in change types onto the named fields for backward compatibility.
+		switch ct.Key {
 		case Breaking:
-			s.BreakingChanges = append(s.BreakingChanges, entry)
+			s.BreakingChanges = grouped
 		case Deprecation:
-			s.Deprecations = append(s.Deprecations, entry)
+			s.Deprecations = grouped
 		case NewComponent:
-			s.NewComponents = append(s.NewComponents, entry)
+			s.NewComponents = grouped
 		case Enhancement:
-			s.Enhancements = append(s.Enhancements, entry)
+			s.Enhancements = grouped
 		case BugFix:
-			s.BugFixes = append(s.BugFixes, entry)
+			s.BugFixes = grouped
 		}
 	}
 

@@ -6,7 +6,7 @@
 
 ### 🚀 New components 🚀
 
-- `exporter/new`: Add new exporter ... (#12349)
+- `exporter/new`: Add new exporter ... (#12349) (@octocat)
 
 ## v0.44.0
 

@@ -6,10 +6,10 @@
 
 ### 💡 Enhancements 💡
 
-- `receiver/a`: Some change (#1)
-- `receiver/aa`: Some other change for aa (#2)
-- `receiver/b`: Some other change (#3)
-- `receiver/bb`: One more bb change (#4)
+- `receiver/a`: Some change (#1) (@octocat)
+- `receiver/aa`: Some other change for aa (#2) (@octocat)
+- `receiver/b`: Some other change (#3) (@octocat)
+- `receiver/bb`: One more bb change (#4) (@octocat)
 
 ## v0.44.0
 

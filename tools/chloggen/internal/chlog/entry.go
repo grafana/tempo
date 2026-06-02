@@ -50,18 +50,36 @@ type Entry struct {
 	Note       string   `yaml:"note"`
 	Issues     []int    `yaml:"issues"`
 	SubText    string   `yaml:"subtext"`
+	User       string   `yaml:"user"`
 }
 
-var changeTypes = []string{
-	Breaking,
-	Deprecation,
-	NewComponent,
-	Enhancement,
-	BugFix,
+// DefaultChangeTypes lists the built-in change types in render order, along with
+// the headings used to group them in the generated changelog. It is the value
+// used when a configuration does not specify its own 'change_types'.
+var DefaultChangeTypes = []config.ChangeType{
+	{Key: Breaking, Heading: "🛑 Breaking changes 🛑"},
+	{Key: Deprecation, Heading: "🚩 Deprecations 🚩"},
+	{Key: NewComponent, Heading: "🚀 New components 🚀"},
+	{Key: Enhancement, Heading: "💡 Enhancements 💡"},
+	{Key: BugFix, Heading: "🧰 Bug fixes 🧰"},
 }
 
-// Validate validates the changelog entry.
-func (e Entry) Validate(requireChangelog bool, components []string, validChangeLogs ...string) error {
+// changeTypeKeys returns the change type keys from the provided change types,
+// preserving order.
+func changeTypeKeys(changeTypes []config.ChangeType) []string {
+	keys := make([]string, 0, len(changeTypes))
+	for _, ct := range changeTypes {
+		keys = append(keys, ct.Key)
+	}
+	return keys
+}
+
+// Validate validates the changelog entry. The set of valid change types is
+// given by changeTypes; when empty, the built-in DefaultChangeTypes are used.
+func (e Entry) Validate(requireChangelog bool, components []string, changeTypes []string, validChangeLogs ...string) error {
+	if len(changeTypes) == 0 {
+		changeTypes = changeTypeKeys(DefaultChangeTypes)
+	}
 	var errs error
 	if requireChangelog && len(e.ChangeLogs) == 0 {
 		errs = errors.Join(errs, fmt.Errorf("specify one or more 'change_logs'"))
@@ -100,6 +118,32 @@ func (e Entry) Validate(requireChangelog bool, components []string, validChangeL
 		errs = errors.Join(errs, fmt.Errorf("specify one or more issues #'s"))
 	}
 
+	if strings.TrimSpace(e.User) == "" {
+		errs = errors.Join(errs, fmt.Errorf("specify a 'user'"))
+	}
+
+	return errs
+}
+
+// ValidateEntries validates every entry against the configuration, accumulating
+// all errors. Both the 'validate' and 'update' commands use this so they
+// enforce identical rules (and 'update' never drops or deletes invalid entries).
+func ValidateEntries(cfg *config.Config, entriesByChangelog map[string][]*Entry) error {
+	changelogRequired := len(cfg.DefaultChangeLogs) == 0
+	validChangeLogs := make([]string, 0, len(cfg.ChangeLogs))
+	for changeLogKey := range cfg.ChangeLogs {
+		validChangeLogs = append(validChangeLogs, changeLogKey)
+	}
+	validChangeTypes := changeTypeKeys(cfg.ChangeTypes)
+
+	var errs error
+	for _, entries := range entriesByChangelog {
+		for _, entry := range entries {
+			if err := entry.Validate(changelogRequired, cfg.Components, validChangeTypes, validChangeLogs...); err != nil {
+				errs = errors.Join(errs, err)
+			}
+		}
+	}
 	return errs
 }
 
@@ -130,6 +174,9 @@ func ReadEntries(cfg *config.Config) (map[string][]*Entry, error) {
 			return nil, err
 		}
 		entry.SubText = strings.ReplaceAll(entry.SubText, "\r\n", "\n")
+		// 'user' is documented as a handle without the leading '@'; normalize it
+		// away so a value like "@octocat" doesn't render as "(@@octocat)".
+		entry.User = strings.TrimPrefix(strings.TrimSpace(entry.User), "@")
 
 		if len(entry.ChangeLogs) == 0 {
 			for _, cl := range cfg.DefaultChangeLogs {
@@ -137,6 +184,9 @@ func ReadEntries(cfg *config.Config) (map[string][]*Entry, error) {
 			}
 		} else {
 			for _, cl := range entry.ChangeLogs {
+				if _, ok := entries[cl]; !ok {
+					return nil, fmt.Errorf("%s: '%s' is not a valid value in 'change_logs'", file, cl)
+				}
 				entries[cl] = append(entries[cl], entry)
 			}
 		}
@@ -151,16 +201,17 @@ func DeleteEntries(cfg *config.Config) error {
 		return err
 	}
 
+	var errs error
 	for _, file := range yamlFiles {
 		if file == cfg.TemplateYAML || file == cfg.ConfigYAML {
 			continue
 		}
 
 		if err := os.Remove(file); err != nil {
-			fmt.Printf("Failed to delete: %s\n", file)
+			errs = errors.Join(errs, fmt.Errorf("failed to delete %s: %w", file, err))
 		}
 	}
-	return nil
+	return errs
 }
 
 // findYamlFiles finds all YAML files in the specified directory.
