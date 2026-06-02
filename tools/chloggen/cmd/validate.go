@@ -44,7 +44,11 @@ func validateCmd() *cobra.Command {
 					for changeLogKey := range globalCfg.ChangeLogs {
 						validChangeLogs = append(validChangeLogs, changeLogKey)
 					}
-					if err = entry.Validate(changelogRequired, globalCfg.Components, validChangeLogs...); err != nil {
+					validChangeTypes := []string{}
+					for _, ct := range globalCfg.ChangeTypes {
+						validChangeTypes = append(validChangeTypes, ct.Key)
+					}
+					if err = entry.Validate(changelogRequired, globalCfg.Components, validChangeTypes, validChangeLogs...); err != nil {
 						errs = errors.Join(errs, err)
 					}
 				}

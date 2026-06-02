@@ -35,6 +35,15 @@ const (
 	DefaultChangeLogFilename = "CHANGELOG.md"
 )
 
+// ChangeType defines a valid change_type and how entries of that type are
+// grouped when rendering the changelog summary.
+type ChangeType struct {
+	// Key is the value an entry's 'change_type' must match.
+	Key string `yaml:"key"`
+	// Heading is the section heading used for this change type in the summary.
+	Heading string `yaml:"heading"`
+}
+
 // Config represents the configuration for changelogs.
 type Config struct {
 	ChangeLogs        map[string]string `yaml:"change_logs"`
@@ -43,6 +52,7 @@ type Config struct {
 	TemplateYAML      string            `yaml:"template_yaml"`
 	SummaryTemplate   string            `yaml:"summary_template"`
 	Components        []string          `yaml:"components"`
+	ChangeTypes       []ChangeType      `yaml:"change_types"`
 	ConfigYAML        string
 }
 

@@ -6,7 +6,7 @@
 
 ### 🧰 Bug fixes 🧰
 
-- `testbed`: Fix blah (#12346, #12347)
+- `testbed`: Fix blah (#12346, #12347) (@octocat)
 
 ## v0.44.0
 

@@ -42,13 +42,14 @@ func TestEntry(t *testing.T) {
 		requireChangeLog bool
 		validChangeLogs  []string
 		components       []string
+		changeTypes      []string
 		expectErr        string
 		toString         string
 	}{
 		{
 			name:      "empty",
 			entry:     Entry{},
-			expectErr: "'' is not a valid 'change_type'. Specify one of [breaking deprecation new_component enhancement bug_fix]\nspecify a 'component'\nspecify a 'note'\nspecify one or more issues #'s",
+			expectErr: "'' is not a valid 'change_type'. Specify one of [breaking deprecation new_component enhancement bug_fix]\nspecify a 'component'\nspecify a 'note'\nspecify one or more issues #'s\nspecify a 'user'",
 		},
 		{
 			name: "missing_component",
@@ -57,6 +58,7 @@ func TestEntry(t *testing.T) {
 				Note:       "enhance!",
 				Issues:     []int{123},
 				SubText:    "",
+				User:       "octocat",
 			},
 			expectErr: "specify a 'component'",
 		},
@@ -67,6 +69,7 @@ func TestEntry(t *testing.T) {
 				Component:  "bar",
 				Issues:     []int{123},
 				SubText:    "",
+				User:       "octocat",
 			},
 			expectErr: "specify a 'note'",
 		},
@@ -77,6 +80,7 @@ func TestEntry(t *testing.T) {
 				Component:  "bar",
 				Note:       "fix bar",
 				SubText:    "",
+				User:       "octocat",
 			},
 			expectErr: "specify one or more issues #'s",
 		},
@@ -88,6 +92,7 @@ func TestEntry(t *testing.T) {
 				Note:       "fix bar",
 				Issues:     []int{123},
 				SubText:    "",
+				User:       "octocat",
 			},
 			requireChangeLog: true,
 			validChangeLogs:  []string{"foo"},
@@ -102,6 +107,7 @@ func TestEntry(t *testing.T) {
 				Note:       "fix bar",
 				Issues:     []int{123},
 				SubText:    "",
+				User:       "octocat",
 			},
 			validChangeLogs: []string{"foo"},
 			expectErr:       "'bar' is not a valid value in 'change_logs'. Specify one of [foo]",
@@ -114,8 +120,9 @@ func TestEntry(t *testing.T) {
 				Note:       "broke foo",
 				Issues:     []int{123},
 				SubText:    "",
+				User:       "octocat",
 			},
-			toString: "- `foo`: broke foo (#123)",
+			toString: "- `foo`: broke foo (#123) (@octocat)",
 		},
 		{
 			name: "multiple_issues",
@@ -125,8 +132,9 @@ func TestEntry(t *testing.T) {
 				Note:       "broke foo",
 				Issues:     []int{123, 345},
 				SubText:    "",
+				User:       "octocat",
 			},
-			toString: "- `foo`: broke foo (#123, #345)",
+			toString: "- `foo`: broke foo (#123, #345) (@octocat)",
 		},
 		{
 			name: "subtext",
@@ -136,8 +144,9 @@ func TestEntry(t *testing.T) {
 				Note:       "broke foo",
 				Issues:     []int{123},
 				SubText:    "more details",
+				User:       "octocat",
 			},
-			toString: "- `foo`: broke foo (#123)\n  more details",
+			toString: "- `foo`: broke foo (#123) (@octocat)\n  more details",
 		},
 		{
 			name: "multiline subtext",
@@ -147,8 +156,9 @@ func TestEntry(t *testing.T) {
 				Note:       "broke foo",
 				Issues:     []int{123},
 				SubText:    "more details\nsecond line",
+				User:       "octocat",
 			},
-			toString: "- `foo`: broke foo (#123)\n  more details\n  second line",
+			toString: "- `foo`: broke foo (#123) (@octocat)\n  more details\n  second line",
 		},
 		{
 			name: "required_changelog",
@@ -159,10 +169,11 @@ func TestEntry(t *testing.T) {
 				Note:       "broke foo",
 				Issues:     []int{123},
 				SubText:    "more details",
+				User:       "octocat",
 			},
 			requireChangeLog: true,
 			validChangeLogs:  []string{"foo"},
-			toString:         "- `foo`: broke foo (#123)\n  more details",
+			toString:         "- `foo`: broke foo (#123) (@octocat)\n  more details",
 		},
 		{
 			name: "default_changelog",
@@ -173,10 +184,11 @@ func TestEntry(t *testing.T) {
 				Note:       "broke foo",
 				Issues:     []int{123},
 				SubText:    "more details",
+				User:       "octocat",
 			},
 			requireChangeLog: false,
 			validChangeLogs:  []string{"foo"},
-			toString:         "- `foo`: broke foo (#123)\n  more details",
+			toString:         "- `foo`: broke foo (#123) (@octocat)\n  more details",
 		},
 		{
 			name: "subset_of_changelogs",
@@ -187,9 +199,10 @@ func TestEntry(t *testing.T) {
 				Note:       "broke foo",
 				Issues:     []int{123},
 				SubText:    "more details",
+				User:       "octocat",
 			},
 			validChangeLogs: []string{"foo", "bar", "baz"},
-			toString:        "- `foo`: broke foo (#123)\n  more details",
+			toString:        "- `foo`: broke foo (#123) (@octocat)\n  more details",
 		},
 		{
 			name: "all_changelogs",
@@ -200,9 +213,10 @@ func TestEntry(t *testing.T) {
 				Note:       "broke foo",
 				Issues:     []int{123},
 				SubText:    "more details",
+				User:       "octocat",
 			},
 			validChangeLogs: []string{"foo", "bar"},
-			toString:        "- `foo`: broke foo (#123)\n  more details",
+			toString:        "- `foo`: broke foo (#123) (@octocat)\n  more details",
 		},
 		{
 			name: "all_changelogs",
@@ -213,9 +227,10 @@ func TestEntry(t *testing.T) {
 				Note:       "broke foo",
 				Issues:     []int{123},
 				SubText:    "more details",
+				User:       "octocat",
 			},
 			validChangeLogs: []string{"foo", "bar"},
-			toString:        "- `foo`: broke foo (#123)\n  more details",
+			toString:        "- `foo`: broke foo (#123) (@octocat)\n  more details",
 		},
 		{
 			name: "with_components",
@@ -226,17 +241,63 @@ func TestEntry(t *testing.T) {
 				Note:       "changed foo",
 				Issues:     []int{123},
 				SubText:    "more details",
+				User:       "octocat",
 			},
 			components:      []string{"bar"},
 			validChangeLogs: []string{"foo", "bar"},
-			toString:        "- `foo`: changed foo (#123)\n  more details",
+			toString:        "- `foo`: changed foo (#123) (@octocat)\n  more details",
 			expectErr:       "foo is not a valid 'component'. It must be one of [bar]",
+		},
+		{
+			name: "custom_change_type_valid",
+			entry: Entry{
+				ChangeType: "security",
+				Component:  "foo",
+				Note:       "fix vuln",
+				Issues:     []int{123},
+				User:       "octocat",
+			},
+			changeTypes: []string{"security"},
+			toString:    "- `foo`: fix vuln (#123) (@octocat)",
+		},
+		{
+			name: "custom_change_types_reject_builtin",
+			entry: Entry{
+				ChangeType: "breaking",
+				Component:  "foo",
+				Note:       "broke foo",
+				Issues:     []int{123},
+				User:       "octocat",
+			},
+			changeTypes: []string{"security"},
+			expectErr:   "'breaking' is not a valid 'change_type'. Specify one of [security]",
+		},
+		{
+			name: "user_rendered_as_handle",
+			entry: Entry{
+				ChangeType: "breaking",
+				Component:  "foo",
+				Note:       "broke foo",
+				Issues:     []int{123},
+				User:       "octocat",
+			},
+			toString: "- `foo`: broke foo (#123) (@octocat)",
+		},
+		{
+			name: "missing_user",
+			entry: Entry{
+				ChangeType: "bug_fix",
+				Component:  "bar",
+				Note:       "fix bar",
+				Issues:     []int{123},
+			},
+			expectErr: "specify a 'user'",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := tc.entry.Validate(tc.requireChangeLog, tc.components, tc.validChangeLogs...)
+			err := tc.entry.Validate(tc.requireChangeLog, tc.components, tc.changeTypes, tc.validChangeLogs...)
 			if tc.expectErr != "" {
 				assert.Error(t, err)
 				assert.Equal(t, tc.expectErr, err.Error())

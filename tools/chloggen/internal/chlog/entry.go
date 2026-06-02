@@ -50,18 +50,36 @@ type Entry struct {
 	Note       string   `yaml:"note"`
 	Issues     []int    `yaml:"issues"`
 	SubText    string   `yaml:"subtext"`
+	User       string   `yaml:"user"`
 }
 
-var changeTypes = []string{
-	Breaking,
-	Deprecation,
-	NewComponent,
-	Enhancement,
-	BugFix,
+// DefaultChangeTypes lists the built-in change types in render order, along with
+// the headings used to group them in the generated changelog. It is the value
+// used when a configuration does not specify its own 'change_types'.
+var DefaultChangeTypes = []config.ChangeType{
+	{Key: Breaking, Heading: "🛑 Breaking changes 🛑"},
+	{Key: Deprecation, Heading: "🚩 Deprecations 🚩"},
+	{Key: NewComponent, Heading: "🚀 New components 🚀"},
+	{Key: Enhancement, Heading: "💡 Enhancements 💡"},
+	{Key: BugFix, Heading: "🧰 Bug fixes 🧰"},
 }
 
-// Validate validates the changelog entry.
-func (e Entry) Validate(requireChangelog bool, components []string, validChangeLogs ...string) error {
+// changeTypeKeys returns the change type keys from the provided change types,
+// preserving order.
+func changeTypeKeys(changeTypes []config.ChangeType) []string {
+	keys := make([]string, 0, len(changeTypes))
+	for _, ct := range changeTypes {
+		keys = append(keys, ct.Key)
+	}
+	return keys
+}
+
+// Validate validates the changelog entry. The set of valid change types is
+// given by changeTypes; when empty, the built-in DefaultChangeTypes are used.
+func (e Entry) Validate(requireChangelog bool, components []string, changeTypes []string, validChangeLogs ...string) error {
+	if len(changeTypes) == 0 {
+		changeTypes = changeTypeKeys(DefaultChangeTypes)
+	}
 	var errs error
 	if requireChangelog && len(e.ChangeLogs) == 0 {
 		errs = errors.Join(errs, fmt.Errorf("specify one or more 'change_logs'"))
@@ -98,6 +116,10 @@ func (e Entry) Validate(requireChangelog bool, components []string, validChangeL
 
 	if len(e.Issues) == 0 {
 		errs = errors.Join(errs, fmt.Errorf("specify one or more issues #'s"))
+	}
+
+	if strings.TrimSpace(e.User) == "" {
+		errs = errors.Join(errs, fmt.Errorf("specify a 'user'"))
 	}
 
 	return errs
