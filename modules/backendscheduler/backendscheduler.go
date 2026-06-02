@@ -732,6 +732,14 @@ func (s *BackendScheduler) performRescan(ctx context.Context, batch *tempopb.Red
 		}
 	}
 	if len(covered) > 0 {
+		// Compactions already tracked by Path 1 are in SkippedCompactionJobIds;
+		// skip them here to avoid double-covering and to handle cascade re-arm IDs
+		// (which are created after batch submission and would otherwise be processed).
+		skippedJobIDs := make(map[string]struct{}, len(batch.SkippedCompactionJobIds))
+		for _, id := range batch.SkippedCompactionJobIds {
+			skippedJobIDs[id] = struct{}{}
+		}
+		busyBlocks := s.work.BusyBlocksForTenant(tenantID)
 		for _, j := range s.work.ListJobs() {
 			if j.GetType() != tempopb.JobType_JOB_TYPE_COMPACTION {
 				continue
@@ -739,8 +747,7 @@ func (s *BackendScheduler) performRescan(ctx context.Context, batch *tempopb.Red
 			if j.Tenant() != tenantID {
 				continue
 			}
-			// Pre-submission compactions are handled by Path 1 (SkippedCompactionJobIds).
-			if j.GetCreatedTime().UnixNano() < batch.CreatedAtUnixNano {
+			if _, ok := skippedJobIDs[j.ID]; ok {
 				continue
 			}
 			overlaps := false
@@ -757,7 +764,7 @@ func (s *BackendScheduler) performRescan(ctx context.Context, batch *tempopb.Red
 				if _, ok := covered[outputBlock]; ok {
 					continue
 				}
-				if s.work.IsBlockBusy(tenantID, outputBlock) {
+				if _, busy := busyBlocks[outputBlock]; busy {
 					covered[outputBlock] = struct{}{}
 					continue
 				}
@@ -944,7 +951,7 @@ func (s *BackendScheduler) StatusHandler(w http.ResponseWriter, _ *http.Request)
 			j.GetID(),
 			j.GetType().String(),
 			blockID,
-			j.JobDetail.BatchId,
+			j.GetBatchID(),
 		})
 	}
 

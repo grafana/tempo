@@ -166,16 +166,7 @@ func (w *Work) SetBatchRescan(tenantID string, skippedJobIDs []string, rescanAft
 // Used to detect post-submission compaction races.
 func (w *Work) BatchCoveredBlocks(tenantID, batchID string) map[string]struct{} {
 	covered := make(map[string]struct{})
-
-	for _, j := range w.ListJobs() {
-		if j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION &&
-			j.GetBatchID() == batchID && j.Tenant() == tenantID {
-			if bid := j.GetRedactionBlockID(); bid != "" {
-				covered[bid] = struct{}{}
-			}
-		}
-	}
-	for _, j := range w.ListAllPendingJobs() {
+	for _, j := range append(w.ListJobs(), w.ListAllPendingJobs()...) {
 		if j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION &&
 			j.GetBatchID() == batchID && j.Tenant() == tenantID {
 			if bid := j.GetRedactionBlockID(); bid != "" {
