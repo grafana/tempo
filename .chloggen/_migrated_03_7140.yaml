@@ -1,0 +1,6 @@
+change_type: enhancement
+component: storage
+note: replace O(N²) `slices.ContainsFunc` loops in `updateInternal` with pre-built map lookups, reducing per-poll cost from O(N·M) to O(N+M).
+issues: [7140]
+subtext:
+user: zalegrala

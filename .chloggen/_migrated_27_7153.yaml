@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: backend-scheduler
+note: fix cross-tenant escalation in SubmitRedaction -- tenant is now sourced exclusively from the authenticated request context (X-Scope-OrgID header) and the body tenant_id field is ignored.
+issues: [7153]
+subtext:
+user: zalegrala

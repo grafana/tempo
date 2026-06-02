@@ -1,33 +1,4 @@
-## main / unreleased
-
-* [ENHANCEMENT] tempo-mixin: add `tempo-service-graph.json` dashboard visualizing the service topology from `traces_service_graph_connection_info`. [#7207](https://github.com/grafana/tempo/pull/7207) (@jcreixell)
-* [FEATURE] metrics-generator: add `service-graphs-*` subprocessors and an opt-in `traces_service_graph_connection_info` presence gauge for topology detection under heavy sampling. [#7202](https://github.com/grafana/tempo/pull/7202) (@jcreixell)
-* [FEATURE] Support arithmetic operations in TraceQL Metrics [#6866](https://github.com/grafana/tempo/pull/6866) (@ruslan-mikhailov)
-* [ENHANCEMENT] blocklist: replace O(N²) `slices.ContainsFunc` loops in `updateInternal` with pre-built map lookups, reducing per-poll cost from O(N·M) to O(N+M). [#7140](https://github.com/grafana/tempo/pull/7140) (@zalegrala)
-* [FEATURE] jsonnet: Add KEDA autoscaling for live-store via Prometheus trigger on expected bytes held. Enable with `live_store.keda.enabled: true`. Configure block-builder coupling via `live_store.keda.block_builder_scaling`: `'rollout-operator'` (default, requires `rollout_operator_replica_template_access_enabled: true`) mirrors live-store zone-a replicas to block-builder; `'keda'` creates a dedicated block-builder KEDA ScaledObject using a kubernetes-workload trigger without requiring rollout-operator RBAC. [#7142](https://github.com/grafana/tempo/pull/7142) (@zachfi)
-* [ENHANCEMENT] cache: enforce a configurable MaxItemSize for Redis. [#7311](https://github.com/grafana/tempo/pull/7311) (@electron0zero)
-* [ENHANCEMENT] tempo-mixin: update backendwork dashboard with a Redaction section (active jobs, created/completed/failed/dropped by tenant, job duration), add Dropped and Job Duration panels to the Jobs row, and fix the Retry metric name (`jobs_retry` -> `jobs_retry_total`). [#7184](https://github.com/grafana/tempo/pull/7184) (@zalegrala)
-* [ENHANCEMENT] querier: limit external endpoint response size to querier grpc MaxSendMsgSize. [#7240](https://github.com/grafana/tempo/pull/7240) (@electron0zero)
-* [ENHANCEMENT] backend-scheduler: eliminate O(256·M) shard scan in `HasJobsForTenant` and O(N) prefix scan in `BusyBlocksForTenant` via secondary indexes; `HasJobsForTenant` is now O(1), `BusyBlocksForTenant` is now O(|tenant blocks|). Add `splitPendingBlockKey` helper to centralise pending-block key parsing and decouple all index maintenance sites from the encoded key format. [#7141](https://github.com/grafana/tempo/pull/7141) (@zalegrala)
-* [ENHANCEMENT] tempodb: add `tempodb_cache_store_size_bytes` histogram labelled by `role` recording the size of every item written to the backend cache. [#7152](https://github.com/grafana/tempo/pull/7152) (@javiermolinar)
-* [ENHANCEMENT] Add `TempoDistributorKafkaProduceFailing` alert that triggers when Kafka records cannot be produced by the distributor. [#7148](https://github.com/grafana/tempo/pull/7148) (@javiermolinar)
-* [ENHANCEMENT] **BREAKING CHANGE** Query-frontend: new job sharding approach for trace lookups, using a new config option `blocks_per_shard` which replaces `query_shards`. [#7105](https://github.com/grafana/tempo/pull/7105) (@mdisibio)
-* [ENHANCEMENT] jsonnet: add `autoscaling_prometheus_url` and `autoscaling_prometheus_tenant` top-level config fields for KEDA autoscaling. Setting `autoscaling_prometheus_tenant` sends an `X-Scope-OrgID` header on all Prometheus trigger requests, which is required when the backend is a multi-tenant system such as Grafana Mimir. [#7099](https://github.com/grafana/tempo/pull/7099) (@zachfi)
-* [ENHANCEMENT] live-store: expose query inspected bytes as a metric. [#7162](https://github.com/grafana/tempo/pull/7162) [#7163](https://github.com/grafana/tempo/pull/7163) (@zhxiaogg)
-* [ENHANCEMENT] tempodb: evict bloom filter and trace-id-index cache entries for blocks deleted during retention, freeing cache space for active blocks sooner. [#7204](https://github.com/grafana/tempo/pull/7204) (@zalegrala)
-* [ENHANCEMENT] cache: add `Remove` method to the `Cache` interface, implemented for memcached and redis. [#7204](https://github.com/grafana/tempo/pull/7204) (@zalegrala)
-* [ENHANCEMENT] TraceQL metrics: enable new span-only fetch by default. Can be disabled per-tenant via `metrics_spanonly_fetch: false` or per-query via the unsafe hint `with(spanonly_fetch=false)`. [#7179](https://github.com/grafana/tempo/pull/7179) (@mdisibio)
-* [ENHANCEMENT] jsonnet: bump `memcached` to `1.6.42-alpine` and `prom/memcached-exporter` to `v0.16.0` to clear accumulated CVEs. [#7244](https://github.com/grafana/tempo/pull/7244) (@zhxiaogg)
-* [BUGFIX] backend-scheduler: fix redaction batch not cleaned up after dead-job timeout, leaving tenant permanently blocked from new redaction submissions and compaction. [#6992](https://github.com/grafana/tempo/pull/6992) (@zalegrala)
-* [BUGFIX] backend-scheduler: fix outstanding-blocks metric suppressed to zero during active redaction batch, causing autoscaler to scale down workers mid-redaction. [#6992](https://github.com/grafana/tempo/pull/6992) (@zalegrala)
-* [BUGFIX] backend-scheduler: fix O(N) lock contention in GetJobForWorker under concurrent worker load; replace shard scan with O(1) index lookup. [#6992](https://github.com/grafana/tempo/pull/6992) (@zalegrala)
-* [BUGFIX] livestore: write the per-block query-range response cache atomically (temp file + rename) and log+ignore cache read errors. [#7155](https://github.com/grafana/tempo/pull/7155) (@zhxiaogg)
-* [BUGFIX] Better validation for query_range endpoint: do not accept negative step [#7221](https://github.com/grafana/tempo/pull/7221) (@ruslan-mikhailov)
-* [BUGFIX] Return partial trace hint for the llm encoding [#7332](https://github.com/grafana/tempo/pull/7332) (@javiermolinar)
-* [BUGFIX] user-configurable overrides: emit duration fields as flat YAML scalars on `/status/overrides/{tenant}` and omit `generate_native_histograms` when unset. [#7138](https://github.com/grafana/tempo/pull/7138) (@electron0zero)
-* [BUGFIX] Fix unsafe quoting in query attributes [#7220](https://github.com/grafana/tempo/pull/7220) (@ruslan-mikhailov)
-* [BUGFIX] Fix rare cache collision between instant and range metrics queries [#7290](https://github.com/grafana/tempo/pull/7290) (@ruslan-mikhailov)
-* [BUGFIX] backend-scheduler: fix cross-tenant escalation in SubmitRedaction -- tenant is now sourced exclusively from the authenticated request context (X-Scope-OrgID header) and the body tenant_id field is ignored. [#7153](https://github.com/grafana/tempo/pull/7153) (@zalegrala)
+<!-- next version -->
 
 # v3.0.0
 

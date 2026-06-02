@@ -1,0 +1,6 @@
+change_type: enhancement
+component: storage
+note: evict bloom filter and trace-id-index cache entries for blocks deleted during retention, freeing cache space for active blocks sooner.
+issues: [7204]
+subtext:
+user: zalegrala

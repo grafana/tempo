@@ -1,0 +1,6 @@
+change_type: enhancement
+component: traceql
+note: "enable new span-only fetch by default. Can be disabled per-tenant via `metrics_spanonly_fetch: false` or per-query via the unsafe hint `with(spanonly_fetch=false)`."
+issues: [7179]
+subtext:
+user: mdisibio

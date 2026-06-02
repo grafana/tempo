@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: tempo
+note: Fix unsafe quoting in query attributes
+issues: [7220]
+subtext:
+user: ruslan-mikhailov

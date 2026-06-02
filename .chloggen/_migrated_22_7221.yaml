@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: tempo
+note: "Better validation for query_range endpoint: do not accept negative step"
+issues: [7221]
+subtext:
+user: ruslan-mikhailov

@@ -1,7 +1,9 @@
 # Release Candidates
 
-- Create a branch named `changelog-<version>-<rc.#>`. Clean up the changelog, add the version heading
-  and merge to main. 
+- Create a branch named `changelog-<version>-<rc.#>`. Generate the changelog section from the
+  `.chloggen/` entries by running `make chlog-update VERSION=v<version>-<rc.#>` (this collates the
+  entries into `CHANGELOG.md` under the version heading and deletes the consumed files). Review the
+  result, then merge to main.
 - Push a semver tag to main on the merge commit above.  Something like:
   - `git tag -a v1.2.0-rc.0`
   - `git push origin v1.2.0-rc.0`
@@ -27,10 +29,10 @@ This document details release procedures for Tempo.
     - `git tag -a v1.2.0`
     - `git push origin v1.2.0`
   - Make sure that the "This is a pre-release" is unchecked when publishing the release.
-- Submit a PR cleaning up the changelog and moving everything under "main/unreleased" to be under
-  the newly minted version.
-  - Given that the changelog was already cleaned up for the RC above. This will likely be simply
-    renaming the release candidate to the full version.
+- Submit a PR updating the changelog for the full version. Because the RC above already ran
+  `make chlog-update` (consuming the `.chloggen/` entries), this is usually just renaming the
+  `# v<version>-<rc.#>` heading in `CHANGELOG.md` to the final `# v<version>`. If new entries landed
+  since the RC, run `make chlog-update VERSION=v<version>` instead to collate them.
 - Update the tempo image tag in example configs and operations files, then regenerate compiled jsonnet.
   Run `make bump-tempo-image-tag TEMPO_IMAGE_TAG=X.Y.Z && make jsonnet` and open a PR to the release
   branch. This is intentionally done before tagging so that users referencing the examples or docs
@@ -57,8 +59,9 @@ You need to cherry-pick each commit and open a PR to be merged into the release 
   `git cherry-pick <commit hash>`
 
 ## 3. Update the changelog
-- Verify all backported fixes have entries in the CHANGELOG. Cross-reference the commits on the release branch since the last tag (`git log --oneline $(git describe --tags --abbrev=0)..release-vX.Y`) against the CHANGELOG entries.
-- Add any missing entries and update the heading from `main / unreleased` to the new patch version (e.g. `v2.10.1`).
+- Verify all backported fixes have a `.chloggen/` entry on the release branch. Cross-reference the commits since the last tag (`git log --oneline $(git describe --tags --abbrev=0)..release-vX.Y`) against the entries in `.chloggen/`.
+- Add any missing entries with `make chlog-new`.
+- Generate the release section: `make chlog-update VERSION=vX.Y.Z` (e.g. `v2.10.1`). This collates all `.chloggen/*.yaml` files into `CHANGELOG.md` under the new version heading and deletes the consumed entry files.
 - Open a PR with the changelog update to the release branch.
 
 ## 4. Update the tempo image tag
@@ -91,4 +94,4 @@ Check that all workflows triggered by the tag succeeded:
 In [GitHub Releases](https://github.com/grafana/tempo/releases) there should be a "Draft" release. Add the changelog entries to the release notes. Make sure "Set as the latest release" is checked and hit "Publish release".
 
 ## 8. Submit a changelog PR to main
-Submit a PR to `main` moving the relevant entries from "main/unreleased" to be under the newly minted version.
+Submit a PR to `main` adding the new version's section to `CHANGELOG.md` so the released notes are reflected on `main`. Either cherry-pick the changelog commit from the release branch (step 3), or run `make chlog-update VERSION=vX.Y.Z` against the corresponding `.chloggen/` entries on `main`.
