@@ -91,18 +91,54 @@ func (c *NilSyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorRe
 }
 
 func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
-	var lastValue *pq.Value
-	lastRowNumber := EmptyRowNumber()
+	var (
+		scopeRow      = EmptyRowNumber()
+		scopeMarker   *pq.Value
+		emptyNilValue pq.Value
+	)
+
+	tryEmitNilOnScopeChange := func() (RowNumber, bool) {
+		if c.valueFound || scopeMarker == nil || scopeMarker.IsNull() || !scopeRow.Valid() {
+			return RowNumber{}, false
+		}
+		if EqualRowNumber(c.maxDefinitionLevel, c.lastRowNumberReturned, c.curr) {
+			return RowNumber{}, false
+		}
+		c.lastRowNumberReturned = scopeRow
+		return scopeRow, true
+	}
+
+	tryEmitNilAtEOF := func() (RowNumber, bool) {
+		if c.valueFound || scopeMarker == nil || scopeMarker.IsNull() || !scopeRow.Valid() {
+			return RowNumber{}, false
+		}
+		if EqualRowNumber(scopeMarker.DefinitionLevel(), c.lastRowNumberReturned, scopeRow) {
+			return RowNumber{}, false
+		}
+		c.lastRowNumberReturned = scopeRow
+		return scopeRow, true
+	}
+
+	advanceValue := func(v *pq.Value) {
+		c.curr.Next(v.RepetitionLevel(), v.DefinitionLevel(), c.maxDefinitionLevel)
+		c.currBufN++
+		c.currPageN++
+
+		m := v.Clone()
+		scopeMarker = &m
+		if c.filter != nil && c.filter.KeepValue(*v) {
+			c.valueFound = true
+		}
+	}
+
 	for {
 		if c.currRowGroup == nil {
 			rg, minRN, maxRN := c.popRowGroup()
 			if rg == nil {
 				// no more rows, maybe return the last value
 				// if it matches criteria.
-				if lastValue != nil && !lastValue.IsNull() && !c.valueFound && lastRowNumber.Valid() && !EqualRowNumber(lastValue.DefinitionLevel(), c.lastRowNumberReturned, lastRowNumber) {
-					c.lastRowNumberReturned = lastRowNumber
-					// fmt.Println("Nil iter returning last value: ", "row:", lastRowNumber)
-					return lastRowNumber, &pq.Value{}, nil
+				if rn, ok := tryEmitNilAtEOF(); ok {
+					return rn, &emptyNilValue, nil
 				}
 				return EmptyRowNumber(), nil, nil
 			}
@@ -118,13 +154,13 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 
 		if c.currPage == nil {
 			pg, err := c.currChunk.NextPage()
+			if err != nil && !errors.Is(err, io.EOF) {
+				return EmptyRowNumber(), nil, err
+			}
 			if pg == nil || errors.Is(err, io.EOF) {
 				// This row group is exhausted
 				c.closeCurrRowGroup()
 				continue
-			}
-			if err != nil {
-				return EmptyRowNumber(), nil, err
 			}
 			if c.filter != nil && !c.filter.KeepPage(pg) {
 				// This page filtered out
@@ -157,57 +193,33 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 
 		// Consume current buffer until empty
 		for c.currBufN < len(c.currBuf) {
-			v := &c.currBuf[c.currBufN]
-
-			/*if v.RepetitionLevel() < v.DefinitionLevel() && !v.IsNull() {
-				// moving on to the next level higher than value level
-				// so if we haven't seen the value yet, it does not exist
-				// check if we've already returned this row so we can properly next()
-				if !c.valueFound && lastRowNumber.Valid() && !EqualRowNumber(c.maxDefinitionLevel, c.lastRowNumberReturned, c.curr) {
-					c.lastRowNumberReturned = lastRowNumber
-					return lastRowNumber, lastValue, nil
-				}
-				// new level reset
-				c.valueFound = false
-			}*/
-
 			var (
+				v   = &c.currBuf[c.currBufN]
 				r   = v.RepetitionLevel()
 				d   = v.DefinitionLevel()
 				max = c.maxDefinitionLevel
 			)
 
-			// fmt.Println("processing value", "curr row:", c.curr, "r:", r, "d:", d, "max:", max, "v:", v.String())
-
-			if r < max /*v.DefinitionLevel()*/ /*&& !v.IsNull()*/ {
+			if r < max {
 				// moving on to the next level higher than value level
+				// This means we are changing to the next row.
 				// so if we haven't seen the value yet, it does not exist
 				// check if we've already returned this row so we can properly next()
-				if !c.valueFound && lastValue != nil && !lastValue.IsNull() && lastRowNumber.Valid() && !EqualRowNumber(c.maxDefinitionLevel, c.lastRowNumberReturned, c.curr) {
-					c.lastRowNumberReturned = lastRowNumber
-					// fmt.Println("Nil iter returning: ", "row:", lastRowNumber, "curr", c.curr)
-					return lastRowNumber, &pq.Value{}, nil
+				if rn, ok := tryEmitNilOnScopeChange(); ok {
+					return rn, &emptyNilValue, nil
 				}
 
 				// new level reset
-				c.curr.Next(r, d, max)
-				c.currBufN++
-				c.currPageN++
-				lastRowNumber = c.curr
-				v2 := v.Clone()
-				lastValue = &v2
-
 				c.valueFound = false
-				if c.filter != nil && c.filter.KeepValue(*v) {
-					c.valueFound = true
-				}
+				advanceValue(v)
+				scopeRow = c.curr
 
-				if r <= d && d == (max-1) && v.IsNull() {
-					// Empty repeated values for this level, which means the value doesn't exist, but there is an owning row
-					// defined at this level..
-					c.lastRowNumberReturned = lastRowNumber
-					// fmt.Println("Nil iter returning in special case: ", "row:", lastRowNumber)
-					return c.curr, &pq.Value{}, nil
+				if r <= d && d == max-1 && v.IsNull() {
+					// Empty repeated values for this level, which means the value doesn't exist.
+					// However because we checking that we are the second to last level, it means
+					// we are also ensuring there is an owning row defined at this level.
+					c.lastRowNumberReturned = c.curr
+					return c.curr, &emptyNilValue, nil
 				}
 
 				// Neither of the above cases matched,
@@ -217,21 +229,7 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 
 			// Inspect all values to track the current row number,
 			// even if the value is filtered out next.
-			c.curr.Next(r, d, max)
-			c.currBufN++
-			c.currPageN++
-
-			if v.IsNull() {
-				continue
-			}
-
-			if c.filter != nil && c.filter.KeepValue(*v) {
-				c.valueFound = true
-			}
-
-			lastValue = v
-			// lastRowNumber = c.curr
-			continue
+			advanceValue(v)
 		}
 	}
 }
