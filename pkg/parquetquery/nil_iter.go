@@ -92,27 +92,18 @@ func (c *NilSyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorRe
 
 func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 	var (
-		scopeRow      = EmptyRowNumber()
-		scopeMarker   *pq.Value
-		emptyNilValue pq.Value
+		scopeRow       = EmptyRowNumber()
+		scopeHasValues bool
+		emptyNilValue  pq.Value
 	)
 
-	tryEmitNilOnScopeChange := func() (RowNumber, bool) {
-		if c.valueFound || scopeMarker == nil || scopeMarker.IsNull() || !scopeRow.Valid() {
+	// This is called right before we exit a scope of repeated values.
+	// We emit a nil response if we got at least one value and never saw the filter match.
+	tryEmitNilOnScopeExit := func() (RowNumber, bool) {
+		if c.valueFound || !scopeHasValues || !scopeRow.Valid() {
 			return RowNumber{}, false
 		}
 		if EqualRowNumber(c.maxDefinitionLevel, c.lastRowNumberReturned, c.curr) {
-			return RowNumber{}, false
-		}
-		c.lastRowNumberReturned = scopeRow
-		return scopeRow, true
-	}
-
-	tryEmitNilAtEOF := func() (RowNumber, bool) {
-		if c.valueFound || scopeMarker == nil || scopeMarker.IsNull() || !scopeRow.Valid() {
-			return RowNumber{}, false
-		}
-		if EqualRowNumber(scopeMarker.DefinitionLevel(), c.lastRowNumberReturned, scopeRow) {
 			return RowNumber{}, false
 		}
 		c.lastRowNumberReturned = scopeRow
@@ -124,8 +115,9 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 		c.currBufN++
 		c.currPageN++
 
-		m := v.Clone()
-		scopeMarker = &m
+		if !v.IsNull() {
+			scopeHasValues = true
+		}
 		if c.filter != nil && c.filter.KeepValue(*v) {
 			c.valueFound = true
 		}
@@ -135,9 +127,8 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 		if c.currRowGroup == nil {
 			rg, minRN, maxRN := c.popRowGroup()
 			if rg == nil {
-				// no more rows, maybe return the last value
-				// if it matches criteria.
-				if rn, ok := tryEmitNilAtEOF(); ok {
+				// No more rows, maybe return the last one if it matches criteria.
+				if rn, ok := tryEmitNilOnScopeExit(); ok {
 					return rn, &emptyNilValue, nil
 				}
 				return EmptyRowNumber(), nil, nil
@@ -201,16 +192,15 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 			)
 
 			if r < max {
-				// moving on to the next level higher than value level
-				// This means we are changing to the next row.
-				// so if we haven't seen the value yet, it does not exist
-				// check if we've already returned this row so we can properly next()
-				if rn, ok := tryEmitNilOnScopeChange(); ok {
+				// This means we are moving on to the next row.
+				// Before doing so, see if we need to emit a response for the row we are exiting.
+				if rn, ok := tryEmitNilOnScopeExit(); ok {
 					return rn, &emptyNilValue, nil
 				}
 
 				// new level reset
 				c.valueFound = false
+				scopeHasValues = false
 				advanceValue(v)
 				scopeRow = c.curr
 
@@ -218,6 +208,8 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 					// Empty repeated values for this level, which means the value doesn't exist.
 					// However because we checking that we are the second to last level, it means
 					// we are also ensuring there is an owning row defined at this level.
+					// In this case we emit a nil immediately upon entering the scope
+					// because this is the only row for it.
 					c.lastRowNumberReturned = c.curr
 					return c.curr, &emptyNilValue, nil
 				}
