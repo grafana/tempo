@@ -47,6 +47,7 @@ func enhancementEntry() *chlog.Entry {
 		Component:  "receiver/foo",
 		Note:       "Add some bar",
 		Issues:     []int{12345},
+		User:       "octocat",
 	}
 }
 
@@ -56,6 +57,7 @@ func bugFixEntry() *chlog.Entry {
 		Component:  "testbed",
 		Note:       "Fix blah",
 		Issues:     []int{12346, 12347},
+		User:       "octocat",
 	}
 }
 
@@ -65,6 +67,7 @@ func deprecationEntry() *chlog.Entry {
 		Component:  "exporter/old",
 		Note:       "Deprecate old",
 		Issues:     []int{12348},
+		User:       "octocat",
 	}
 }
 
@@ -74,6 +77,7 @@ func newComponentEntry() *chlog.Entry {
 		Component:  "exporter/new",
 		Note:       "Add new exporter ...",
 		Issues:     []int{12349},
+		User:       "octocat",
 	}
 }
 
@@ -83,6 +87,7 @@ func breakingEntry() *chlog.Entry {
 		Component:  "processor/oops",
 		Note:       "Change behavior when ...",
 		Issues:     []int{12350},
+		User:       "octocat",
 	}
 }
 
@@ -95,6 +100,7 @@ func entryWithSubtext() *chlog.Entry {
 		Note:       "Change behavior when ...",
 		Issues:     []int{12350},
 		SubText:    strings.Join(lines, "\n"),
+		User:       "octocat",
 	}
 }
 
@@ -109,6 +115,7 @@ func entryForChangelogs(changeType string, issue int, keys ...string) *chlog.Ent
 		Component:  "receiver/foo",
 		Note:       fmt.Sprintf("Some change relevant to [%s]", keyStr),
 		Issues:     []int{issue},
+		User:       "octocat",
 	}
 }
 

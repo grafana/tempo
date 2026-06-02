@@ -6,22 +6,22 @@
 
 ### 🛑 Breaking changes 🛑
 
-- `receiver/foo`: Some change relevant to [user,api] (#11)
+- `receiver/foo`: Some change relevant to [user,api] (#11) (@octocat)
 
 ### 🚩 Deprecations 🚩
 
-- `receiver/foo`: Some change relevant to [default] (#123)
-- `receiver/foo`: Some change relevant to [user,api] (#234)
+- `receiver/foo`: Some change relevant to [default] (#123) (@octocat)
+- `receiver/foo`: Some change relevant to [user,api] (#234) (@octocat)
 
 ### 💡 Enhancements 💡
 
-- `receiver/foo`: Some change relevant to [default] (#21)
-- `receiver/foo`: Some change relevant to [api,user] (#333)
+- `receiver/foo`: Some change relevant to [default] (#21) (@octocat)
+- `receiver/foo`: Some change relevant to [api,user] (#333) (@octocat)
 
 ### 🧰 Bug fixes 🧰
 
-- `receiver/foo`: Some change relevant to [default] (#32)
-- `receiver/foo`: Some change relevant to [default] (#222)
+- `receiver/foo`: Some change relevant to [default] (#32) (@octocat)
+- `receiver/foo`: Some change relevant to [default] (#222) (@octocat)
 
 ## v0.44.0
 
