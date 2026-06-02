@@ -12,4 +12,4 @@ Fixes #<issue number>
 **Checklist**
 - [ ] Tests updated
 - [ ] Documentation added
-- [ ] `CHANGELOG.md` updated - the order of entries should be `[CHANGE]`, `[FEATURE]`, `[ENHANCEMENT]`, `[BUGFIX]`
+- [ ] Changelog entry added under `.chloggen/` (run `make chlog-new`; see `.chloggen/README.md`)

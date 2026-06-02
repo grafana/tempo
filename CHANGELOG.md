@@ -1,7 +1,4 @@
-## main / unreleased
-
-* [CHANGE] Updated Prometheus to v0.311.3 and the OpenTelemetry Collector dependencies to v1.52, along with related transitive dependencies (dskit and others). [#7298](https://github.com/grafana/tempo/pull/7298) (@zhxiaogg)
-* [CHANGE] **BREAKING CHANGE** Dropped support for the OpenCensus receiver. [#7322](https://github.com/grafana/tempo/pull/7322) (@zhxiaogg)
+<!-- next version -->
 
 # v2.10.5
 
