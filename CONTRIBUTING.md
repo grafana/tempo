@@ -386,7 +386,7 @@ Before marking a PR ready for review, confirm:
 
 - [ ] Tests updated or added for the changed behavior
 - [ ] Documentation added or updated (refer to the [Documentation](#documentation) section)
-- [ ] `CHANGELOG.md` updated (refer to the [Changelog entries](#changelog-entries) section)
+- [ ] Changelog entry added under `.chloggen/` (refer to the [Changelog entries](#changelog-entries) section)
 
 ### Commit messages
 
@@ -415,23 +415,37 @@ chore(deps): update module google.golang.org/api to v0.267.0
 
 ### Changelog entries
 
-All PRs that change behavior (features, enhancements, bug fixes, breaking changes) must include a `CHANGELOG.md` entry. Dependency-only updates and pure internal refactors do not require one.
+All PRs that change behavior (features, enhancements, bug fixes, breaking changes) must include a changelog entry. Dependency-only updates and pure internal refactors do not require one (label such PRs `Skip Changelog` or `dependencies`, or prefix the title with `chore:`).
 
-Add your entry under `## main / unreleased` in this format:
+Tempo manages `CHANGELOG.md` with [chloggen](./tools/chloggen): instead of editing `CHANGELOG.md`, add a YAML file under `.chloggen/`. This avoids merge conflicts on the shared changelog.
 
-```
-* [TYPE] Short description of the change [#<PR>](https://github.com/grafana/tempo/pull/<PR>) (@your-github-handle)
-```
+Create an entry:
 
-Valid types in order of precedence: `[CHANGE]`, `[FEATURE]`, `[ENHANCEMENT]`, `[BUGFIX]`.
-
-Mark breaking changes explicitly:
-
-```
-* [CHANGE] **BREAKING CHANGE** Description of what changed and what users must do [#<PR>](https://github.com/grafana/tempo/pull/<PR>) (@your-github-handle)
+```bash
+make chlog-new
 ```
 
-Keep entries ordered as `[CHANGE]`, `[FEATURE]`, `[ENHANCEMENT]`, `[BUGFIX]` within each release section.
+Edit the generated `.chloggen/<branch>.yaml`:
+
+```yaml
+change_type: enhancement       # breaking | change | feature | enhancement | bug_fix | security
+component: metrics-generator   # must be in the components allowlist in .chloggen/config.yaml
+note: Short description of the change.
+issues: [<PR or issue number>]
+subtext:                       # optional extra detail
+user: <your-github-handle>     # rendered as "(@your-github-handle)"
+```
+
+`change_type` keywords render under these sections: `breaking` → Breaking changes, `change` → Changes, `feature` → Features, `enhancement` → Enhancements, `bug_fix` → Bug fixes, `security` → Security.
+
+Validate and preview before pushing:
+
+```bash
+make chlog-validate
+make chlog-preview
+```
+
+See `.chloggen/README.md` for details.
 
 ### Keeping your PR up to date
 

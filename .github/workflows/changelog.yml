@@ -1,0 +1,63 @@
+# Requires every PR targeting main to add a .chloggen entry.
+# Skip by adding the "Skip Changelog" label or using a "chore:" / "chore(scope):" / "[chore]" PR title.
+name: changelog
+
+on:
+  pull_request:
+    types: [opened, ready_for_review, synchronize, reopened, labeled, unlabeled]
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'pull_request'
+      && !contains(github.event.pull_request.labels.*.name, 'dependencies')
+      && !contains(github.event.pull_request.labels.*.name, 'Skip Changelog')
+      && !contains(github.event.pull_request.title, '[chore]')
+      && !startsWith(github.event.pull_request.title, 'chore:')
+      && !startsWith(github.event.pull_request.title, 'chore(')
+    env:
+      PR_HEAD: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Ensure CHANGELOG.md was not edited directly
+        run: |
+          base=$(git merge-base origin/main "$PR_HEAD")
+          if [[ -n "$(git diff --name-only "$base" "$PR_HEAD" ./CHANGELOG.md)" ]]; then
+            echo "CHANGELOG.md should not be edited directly."
+            echo "Add a .yaml file under ./.chloggen/ instead (run 'make chlog-new')."
+            echo "See .chloggen/README.md, or use a 'chore:' title / 'Skip Changelog' label to skip."
+            exit 1
+          fi
+          echo "CHANGELOG.md was not modified."
+
+      - name: Ensure a .chloggen entry was added
+        run: |
+          base=$(git merge-base origin/main "$PR_HEAD")
+          added=$(git diff --diff-filter=A --name-only "$base" "$PR_HEAD" ./.chloggen | grep -cE '\.ya?ml$' || true)
+          if [[ "$added" -lt 1 ]]; then
+            echo "No changelog entry was added under ./.chloggen/."
+            echo "Run 'make chlog-new' to create one. See .chloggen/README.md."
+            echo "Use a 'chore:' title / 'Skip Changelog' label to skip."
+            exit 1
+          fi
+          echo "A .chloggen entry was added."
+
+      - name: Validate .chloggen entries
+        run: make chlog-validate
