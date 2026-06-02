@@ -125,6 +125,28 @@ func (e Entry) Validate(requireChangelog bool, components []string, changeTypes 
 	return errs
 }
 
+// ValidateEntries validates every entry against the configuration, accumulating
+// all errors. Both the 'validate' and 'update' commands use this so they
+// enforce identical rules (and 'update' never drops or deletes invalid entries).
+func ValidateEntries(cfg *config.Config, entriesByChangelog map[string][]*Entry) error {
+	changelogRequired := len(cfg.DefaultChangeLogs) == 0
+	validChangeLogs := make([]string, 0, len(cfg.ChangeLogs))
+	for changeLogKey := range cfg.ChangeLogs {
+		validChangeLogs = append(validChangeLogs, changeLogKey)
+	}
+	validChangeTypes := changeTypeKeys(cfg.ChangeTypes)
+
+	var errs error
+	for _, entries := range entriesByChangelog {
+		for _, entry := range entries {
+			if err := entry.Validate(changelogRequired, cfg.Components, validChangeTypes, validChangeLogs...); err != nil {
+				errs = errors.Join(errs, err)
+			}
+		}
+	}
+	return errs
+}
+
 // ReadEntries reads changelog entries from YAML files based on the provided configuration.
 func ReadEntries(cfg *config.Config) (map[string][]*Entry, error) {
 	yamlFiles, err := findYamlFiles(cfg.EntriesDir)
@@ -152,6 +174,9 @@ func ReadEntries(cfg *config.Config) (map[string][]*Entry, error) {
 			return nil, err
 		}
 		entry.SubText = strings.ReplaceAll(entry.SubText, "\r\n", "\n")
+		// 'user' is documented as a handle without the leading '@'; normalize it
+		// away so a value like "@octocat" doesn't render as "(@@octocat)".
+		entry.User = strings.TrimPrefix(strings.TrimSpace(entry.User), "@")
 
 		if len(entry.ChangeLogs) == 0 {
 			for _, cl := range cfg.DefaultChangeLogs {

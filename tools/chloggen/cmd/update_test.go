@@ -199,24 +199,28 @@ func TestUpdate(t *testing.T) {
 					Component:  "receiver/foo",
 					Note:       "Some change",
 					Issues:     []int{1},
+					User:       "octocat",
 				},
 				{
 					ChangeType: "enhancement",
 					Component:  "receiver/bar",
 					Note:       "Some other change",
 					Issues:     []int{2},
+					User:       "octocat",
 				},
 				{
 					ChangeType: "enhancement",
 					Component:  "receiver/foobar",
 					Note:       "Some other change for foobar",
 					Issues:     []int{3},
+					User:       "octocat",
 				},
 				{
 					ChangeType: "enhancement",
 					Component:  "receiver/foo",
 					Note:       "One more foo change",
 					Issues:     []int{4},
+					User:       "octocat",
 				},
 			},
 			componentFilter: "receiver/foo",
@@ -230,24 +234,28 @@ func TestUpdate(t *testing.T) {
 					Component:  "receiver/foo",
 					Note:       "Some change",
 					Issues:     []int{1},
+					User:       "octocat",
 				},
 				{
 					ChangeType: "enhancement",
 					Component:  "receiver/bar",
 					Note:       "Some other change",
 					Issues:     []int{2},
+					User:       "octocat",
 				},
 				{
 					ChangeType: "enhancement",
 					Component:  "receiver/foobar",
 					Note:       "Some other change for foobar",
 					Issues:     []int{3},
+					User:       "octocat",
 				},
 				{
 					ChangeType: "enhancement",
 					Component:  "receiver/foo",
 					Note:       "One more foo change",
 					Issues:     []int{4},
+					User:       "octocat",
 				},
 			},
 			componentFilter: "receiver/foob",
@@ -260,24 +268,28 @@ func TestUpdate(t *testing.T) {
 					Component:  "receiver/a",
 					Note:       "Some change",
 					Issues:     []int{1},
+					User:       "octocat",
 				},
 				{
 					ChangeType: "enhancement",
 					Component:  "receiver/bb",
 					Note:       "One more bb change",
 					Issues:     []int{4},
+					User:       "octocat",
 				},
 				{
 					ChangeType: "enhancement",
 					Component:  "receiver/b",
 					Note:       "Some other change",
 					Issues:     []int{3},
+					User:       "octocat",
 				},
 				{
 					ChangeType: "enhancement",
 					Component:  "receiver/aa",
 					Note:       "Some other change for aa",
 					Issues:     []int{2},
+					User:       "octocat",
 				},
 			},
 			version: "v0.45.0",
@@ -343,4 +355,27 @@ func TestUpdate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUpdateValidatesBeforeWriting(t *testing.T) {
+	globalCfg = config.New(t.TempDir())
+
+	// An entry with an invalid change_type must abort update before rendering
+	// or deleting, so the source entry file is not lost.
+	bad := &chlog.Entry{
+		ChangeType: "not_a_real_type",
+		Component:  "receiver/foo",
+		Note:       "Some change",
+		Issues:     []int{1},
+		User:       "octocat",
+	}
+	setupTestDir(t, []*chlog.Entry{bad})
+
+	_, err := runCobra(t, "update", "--version", "v1.0.0")
+	require.ErrorContains(t, err, "not_a_real_type")
+
+	// The source entry file (plus TEMPLATE.yaml) must still be present.
+	remainingYAMLs, ioErr := filepath.Glob(filepath.Join(globalCfg.EntriesDir, "*.yaml"))
+	require.NoError(t, ioErr)
+	require.Equal(t, 2, len(remainingYAMLs))
 }

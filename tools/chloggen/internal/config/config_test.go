@@ -227,3 +227,40 @@ func TestNewFromFileOmittedChangeLogs(t *testing.T) {
 	assert.Equal(t, filepath.Join(tempDir, DefaultChangeLogFilename), cfg.ChangeLogs[DefaultChangeLogKey])
 	assert.Equal(t, []string{DefaultChangeLogKey}, cfg.DefaultChangeLogs)
 }
+
+func TestNewFromFileMalformedChangeTypes(t *testing.T) {
+	testCases := []struct {
+		name      string
+		yaml      string
+		expectErr string
+	}{
+		{
+			name:      "empty_key",
+			yaml:      "change_types:\n  - key: \"\"\n    heading: Stuff\n",
+			expectErr: "must each have a non-empty 'key'",
+		},
+		{
+			name:      "empty_heading",
+			yaml:      "change_types:\n  - key: stuff\n    heading: \"\"\n",
+			expectErr: `entry "stuff" must have a non-empty 'heading'`,
+		},
+		{
+			name:      "duplicate_key",
+			yaml:      "change_types:\n  - key: stuff\n    heading: Stuff\n  - key: stuff\n    heading: More stuff\n",
+			expectErr: `duplicate key "stuff"`,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tempDir := t.TempDir()
+			cfgFile, err := os.CreateTemp(tempDir, "*.yaml")
+			require.NoError(t, err)
+			defer cfgFile.Close()
+			_, err = cfgFile.WriteString(tc.yaml)
+			require.NoError(t, err)
+
+			_, err = NewFromFile(tempDir, filepath.Base(cfgFile.Name()))
+			require.ErrorContains(t, err, tc.expectErr)
+		})
+	}
+}

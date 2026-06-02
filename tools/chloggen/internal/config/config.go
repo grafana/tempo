@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -85,6 +86,10 @@ func NewFromFile(rootDir string, cfgFilename string) (*Config, error) {
 	cfg.EntriesDir = makeAbs(rootDir, cfg.EntriesDir, DefaultEntriesDir)
 	cfg.TemplateYAML = makeAbs(rootDir, cfg.TemplateYAML, filepath.Join(DefaultEntriesDir, DefaultTemplateYAML))
 
+	if err = validateChangeTypes(cfg.ChangeTypes); err != nil {
+		return nil, err
+	}
+
 	if len(cfg.ChangeLogs) == 0 && len(cfg.DefaultChangeLogs) > 0 {
 		return nil, errors.New("cannot specify 'default_change_logs' without 'change_logs'")
 	}
@@ -115,6 +120,26 @@ func NewFromFile(rootDir string, cfgFilename string) (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// validateChangeTypes fails fast on a malformed 'change_types' configuration:
+// empty keys or headings, or duplicate keys. An empty list is valid (the
+// built-in defaults are used).
+func validateChangeTypes(changeTypes []ChangeType) error {
+	seen := make(map[string]struct{}, len(changeTypes))
+	for _, ct := range changeTypes {
+		if strings.TrimSpace(ct.Key) == "" {
+			return errors.New("'change_types' entries must each have a non-empty 'key'")
+		}
+		if strings.TrimSpace(ct.Heading) == "" {
+			return fmt.Errorf("'change_types' entry %q must have a non-empty 'heading'", ct.Key)
+		}
+		if _, dup := seen[ct.Key]; dup {
+			return fmt.Errorf("'change_types' contains duplicate key %q", ct.Key)
+		}
+		seen[ct.Key] = struct{}{}
+	}
+	return nil
 }
 
 func makeAbs(rootDir, path, defaultPath string) string {

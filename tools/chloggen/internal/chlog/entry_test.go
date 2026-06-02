@@ -398,6 +398,34 @@ func TestReadDeleteEntries(t *testing.T) {
 	assert.FileExists(t, cfg.TemplateYAML)
 }
 
+func TestReadEntriesNormalizesUserHandle(t *testing.T) {
+	tempDir := t.TempDir()
+	entriesDir := filepath.Join(tempDir, config.DefaultEntriesDir)
+	require.NoError(t, os.Mkdir(entriesDir, 0o750))
+
+	// A user written with a leading '@' must be normalized so it doesn't render
+	// as "(@@handle)".
+	entry := Entry{
+		ChangeType: "breaking",
+		Component:  "foo",
+		Note:       "broke foo",
+		Issues:     []int{123},
+		User:       "@octocat",
+	}
+	writeEntry(t, entriesDir, &entry, "yaml")
+
+	cfg := &config.Config{
+		ChangeLogs:        map[string]string{"default": filepath.Join(entriesDir, "CHANGELOG.md")},
+		DefaultChangeLogs: []string{"default"},
+		EntriesDir:        entriesDir,
+	}
+
+	entries, err := ReadEntries(cfg)
+	require.NoError(t, err)
+	require.Len(t, entries["default"], 1)
+	assert.Equal(t, "octocat", entries["default"][0].User)
+}
+
 func TestReadEntriesRejectsUnknownChangelog(t *testing.T) {
 	tempDir := t.TempDir()
 	entriesDir := filepath.Join(tempDir, config.DefaultEntriesDir)

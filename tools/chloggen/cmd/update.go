@@ -47,6 +47,13 @@ func updateCmd() *cobra.Command {
 				return err
 			}
 
+			// Validate before rendering/deleting so an invalid entry is never
+			// silently dropped from the summary and then lost when its source
+			// file is deleted.
+			if err = chlog.ValidateEntries(globalCfg, entriesByChangelog); err != nil {
+				return err
+			}
+
 			for changeLogKey, entries := range entriesByChangelog {
 
 				slices.SortFunc(entries, func(a, b *chlog.Entry) int {

@@ -6,8 +6,8 @@
 
 ### 💡 Enhancements 💡
 
-- `receiver/foo`: Some change (#1)
-- `receiver/foo`: One more foo change (#4)
+- `receiver/foo`: Some change (#1) (@octocat)
+- `receiver/foo`: One more foo change (#4) (@octocat)
 
 ## v0.44.0
 
