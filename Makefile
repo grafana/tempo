@@ -416,5 +416,32 @@ tempo-mixin: tools-image
 tempo-mixin-check: tools-image
 	$(TOOLS_CMD) make -C operations/tempo-mixin check
 
+##@ Changelog
+
+# chloggen is vendored under tools/chloggen and built from the tools module.
+# It must run from the repo root so it can find .chloggen/ and CHANGELOG.md.
+CHLOGGEN ?= $(CURDIR)/bin/chloggen
+CHLOGGEN_CONFIG := .chloggen/config.yaml
+
+.PHONY: $(CHLOGGEN)
+$(CHLOGGEN):
+	cd $(CURDIR)/tools/chloggen && go build -o $(CHLOGGEN) .
+
+.PHONY: chlog-new
+chlog-new: $(CHLOGGEN) ## Create a new changelog entry under .chloggen/
+	$(CHLOGGEN) new --config $(CHLOGGEN_CONFIG)
+
+.PHONY: chlog-validate
+chlog-validate: $(CHLOGGEN) ## Validate the pending changelog entries
+	$(CHLOGGEN) validate --config $(CHLOGGEN_CONFIG)
+
+.PHONY: chlog-preview
+chlog-preview: $(CHLOGGEN) ## Render the pending changelog entries to stdout
+	$(CHLOGGEN) update --config $(CHLOGGEN_CONFIG) --dry
+
+.PHONY: chlog-update
+chlog-update: $(CHLOGGEN) ## Collate pending entries into CHANGELOG.md (VERSION=vX.Y.Z)
+	$(CHLOGGEN) update --config $(CHLOGGEN_CONFIG) --version "$(VERSION)"
+
 # Import fragments
 include build/tools.mk
