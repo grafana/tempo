@@ -463,10 +463,6 @@ metrics_generator:
             enable_target_info: false
             span_multiplier_key: ""
             enable_tracestate_span_multiplier: false
-            subprocessors:
-                0: true
-                1: true
-                2: true
             filter_policies: []
             target_info_excluded_dimensions: []
             enable_instance_label: true
