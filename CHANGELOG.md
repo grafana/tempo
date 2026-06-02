@@ -22,7 +22,6 @@
 * [BUGFIX] backend-scheduler: fix O(N) lock contention in GetJobForWorker under concurrent worker load; replace shard scan with O(1) index lookup. [#6992](https://github.com/grafana/tempo/pull/6992) (@zalegrala)
 * [BUGFIX] livestore: write the per-block query-range response cache atomically (temp file + rename) and log+ignore cache read errors. [#7155](https://github.com/grafana/tempo/pull/7155) (@zhxiaogg)
 * [BUGFIX] Fix edge cases in TraceQL `=nil` queries missing some values [#7345](https://github.com/grafana/tempo/pull/7345) (@mdisibio)
-* [ENHANCEMENT] TraceQL metrics: enable new span-only fetch by default. Can be disabled per-tenant via `metrics_spanonly_fetch: false` or per-query via the unsafe hint `with(spanonly_fetch=false)`. [#7179](https://github.com/grafana/tempo/pull/7179) (@mdisibio)
 * [BUGFIX] Better validation for query_range endpoint: do not accept negative step [#7221](https://github.com/grafana/tempo/pull/7221) (@ruslan-mikhailov)
 * [BUGFIX] Return partial trace hint for the llm encoding [#7332](https://github.com/grafana/tempo/pull/7332) (@javiermolinar)
 * [BUGFIX] user-configurable overrides: emit duration fields as flat YAML scalars on `/status/overrides/{tenant}` and omit `generate_native_histograms` when unset. [#7138](https://github.com/grafana/tempo/pull/7138) (@electron0zero)
