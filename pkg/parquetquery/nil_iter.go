@@ -13,7 +13,6 @@ import (
 type NilSyncIterator struct {
 	SyncIterator
 	lastRowNumberReturned RowNumber
-	valueFound            bool
 }
 
 var _ Iterator = (*NilSyncIterator)(nil)
@@ -25,7 +24,6 @@ func NewNilSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, opts
 	i := &NilSyncIterator{
 		SyncIterator:          *syncIterator,
 		lastRowNumberReturned: EmptyRowNumber(),
-		valueFound:            false,
 	}
 
 	return i
@@ -94,13 +92,14 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 	var (
 		scopeRow       = EmptyRowNumber()
 		scopeHasValues bool
+		valueFound     bool
 		emptyNilValue  pq.Value
 	)
 
 	// This is called right before we exit a scope of repeated values.
 	// We emit a nil response if we got at least one value and never saw the filter match.
 	tryEmitNilOnScopeExit := func() (RowNumber, bool) {
-		if c.valueFound || !scopeHasValues || !scopeRow.Valid() {
+		if valueFound || !scopeHasValues || !scopeRow.Valid() {
 			return RowNumber{}, false
 		}
 		if EqualRowNumber(c.maxDefinitionLevel, c.lastRowNumberReturned, c.curr) {
@@ -119,7 +118,7 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 			scopeHasValues = true
 		}
 		if c.filter != nil && c.filter.KeepValue(*v) {
-			c.valueFound = true
+			valueFound = true
 		}
 	}
 
@@ -199,7 +198,7 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 				}
 
 				// new level reset
-				c.valueFound = false
+				valueFound = false
 				scopeHasValues = false
 				advanceValue(v)
 				scopeRow = c.curr
