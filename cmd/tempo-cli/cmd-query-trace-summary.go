@@ -8,7 +8,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/google/uuid"
 
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
@@ -52,8 +51,7 @@ func (cmd *queryTraceSummaryCmd) Run(ctx *globalOptions) error {
 
 	fmt.Println("Root span info:")
 	if traceSummary.RootSpan != nil {
-		scs := spew.ConfigState{DisableMethods: true, Indent: " "}
-		scs.Dump(traceSummary.RootSpan)
+		fmt.Printf("%#v\n", traceSummary.RootSpan)
 	} else {
 		fmt.Println("No root span found")
 	}

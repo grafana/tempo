@@ -58,7 +58,7 @@ func (mc MetricsConsumer) ConsumeMetrics(ctx context.Context, md pmetric.Metrics
 
 		rm.ScopeMetrics().RemoveIf(func(sm pmetric.ScopeMetrics) bool {
 			if mc.scopeExpr != nil {
-				sCtx := ottlscope.NewTransformContextPtr(sm.Scope(), rm.Resource(), sm)
+				sCtx := ottlscope.NewTransformContextPtr(sm.Scope(), rm.Resource(), sm, rm)
 				sCond, sErr := mc.scopeExpr.Eval(ctx, sCtx)
 				sCtx.Close()
 				if sErr != nil {

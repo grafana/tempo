@@ -949,6 +949,14 @@ query_frontend:
     # (default: 0)
     [api_timeout: <duration>]
 
+    # The maximum size in bytes of a response message returned over gRPC streaming calls.
+    # Diffs and final responses are segmented into packets of this size.
+    # This is separate from the process-wide gRPC server response size because downstream clients
+    # might need smaller streamed responses.
+    # Set to 0 to disable segmentation.
+    # (default: 2097152)
+    [max_grpc_streaming_packet_size: <int>]
+
     # Excludes the most recent portion of the time range from queries to avoid returning
     # incomplete results. Required when `live_store.fail_on_high_lag` is enabled.
     # Must be less than `query_frontend.search.query_backend_after`. 0 disables the cutoff.
@@ -2945,6 +2953,12 @@ cache:
             # Optional
             # Close connections older than this duration. (default 0s)
             [max_connection_age: <duration> | default = 0s]
+
+            # Optional
+            # The maximum size in bytes of an item stored in Redis.
+            # Items larger than this are not stored. A value of 0 disables the limit.
+            # (default: 0)
+            [max_item_size: <int>]
 
             # Optional
             # TTL for cached keys.

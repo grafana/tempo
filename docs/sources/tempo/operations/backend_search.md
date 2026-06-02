@@ -29,7 +29,7 @@ All forms of search (TraceQL and tags based) require `vParquet` block formats. T
 
 You should understand the basic Tempo architecture.
 
-For more information, refer to the [Tempo architecture](https://grafana.com/docs/tempo/latest/operations/architecture/#query-frontend) to learn about how Tempo works.
+For more information, refer to the [Tempo architecture](https://grafana.com/docs/tempo/<TEMPO_VERSION>/introduction/architecture/#query-frontend) to learn about how Tempo works.
 
 ### Glossary
 

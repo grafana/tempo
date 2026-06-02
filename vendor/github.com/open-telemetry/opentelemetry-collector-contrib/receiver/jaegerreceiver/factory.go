@@ -14,7 +14,6 @@ import (
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/consumer"
-	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/receiver"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver/internal/metadata"
@@ -26,12 +25,6 @@ const (
 	defaultHTTPEndpoint          = "localhost:14268"
 	defaultThriftCompactEndpoint = "localhost:6831"
 	defaultThriftBinaryEndpoint  = "localhost:6832"
-)
-
-var disableJaegerReceiverRemoteSampling = featuregate.GlobalRegistry().MustRegister(
-	"receiver.jaeger.DisableRemoteSampling",
-	featuregate.StageBeta,
-	featuregate.WithRegisterDescription("When enabled, the Jaeger Receiver will fail to start when it is configured with remote_sampling config. When disabled, the receiver will start and the remote_sampling config will be no-op."),
 )
 
 // NewFactory creates a new Jaeger receiver factory.

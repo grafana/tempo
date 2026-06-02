@@ -81,11 +81,12 @@ The following settings can be optionally configured:
 - `initial_offset` (default = latest): The initial offset to use if no offset was previously committed. Must be `latest` or `earliest`.
 - `session_timeout` (default = `10s`): The request timeout for detecting client failures when using Kafka’s group management facilities.
 - `heartbeat_interval` (default = `3s`): The expected time between heartbeats to the consumer coordinator when using Kafka’s group management facilities.
-- `group_rebalance_strategy` (default = `cooperative-sticky`): This strategy is used to assign partitions to consumers within a consumer group. This setting determines how Kafka distributes topic partitions among the consumers in the group during rebalances. Supported strategies are:
-  - `range`: This strategy assigns partitions to consumers based on a range. It aims to distribute partitions evenly across consumers, but it can lead to uneven distribution if the number of partitions is not a multiple of the number of consumers. For more information, refer to the Kafka RangeAssignor documentation, see [RangeAssignor](https://kafka.apache.org/31/javadoc/org/apache/kafka/clients/consumer/RangeAssignor.html).
-  - `roundrobin`: This strategy assigns partitions to consumers in a round-robin fashion. It ensures a more even distribution of partitions across consumers, especially when the number of partitions is not a multiple of the number of consumers. For more information, refer to the Kafka RoundRobinAssignor documentation, see [RoundRobinAssignor](https://kafka.apache.org/31/javadoc/org/apache/kafka/clients/consumer/RoundRobinAssignor.html).
-  - `sticky`: This strategy aims to maintain the same partition assignments during rebalances as much as possible. It minimizes the number of partition movements, which can be beneficial for stateful consumers. For more information, refer to the Kafka StickyAssignor documentation, see [StickyAssignor](https://kafka.apache.org/31/javadoc/org/apache/kafka/clients/consumer/StickyAssignor.html).
-  - `cooperative-sticky`: This strategy is similar to `sticky`, but it supports cooperative rebalancing. It allows consumers to incrementally adjust their partition assignments without requiring a full rebalance, which can reduce downtime during rebalances. For more information, refer to the Kafka CooperativeStickyAssignor documentation, see [CooperativeStickyAssignor](https://kafka.apache.org/31/javadoc/org/apache/kafka/clients/consumer/CooperativeStickyAssignor.html).
+- `group_rebalance_strategy` (default = `cooperative-sticky`): The strategy used to assign partitions to consumers within a consumer group during rebalances. Built-in values are:
+  - `range`: Assigns partitions per topic based on a contiguous range. See [RangeAssignor](https://kafka.apache.org/31/javadoc/org/apache/kafka/clients/consumer/RangeAssignor.html).
+  - `roundrobin`: Assigns partitions across all topics in a round-robin fashion. See [RoundRobinAssignor](https://kafka.apache.org/31/javadoc/org/apache/kafka/clients/consumer/RoundRobinAssignor.html).
+  - `sticky`: Minimises partition movement across rebalances. See [StickyAssignor](https://kafka.apache.org/31/javadoc/org/apache/kafka/clients/consumer/StickyAssignor.html).
+  - `cooperative-sticky`: Like `sticky`, but uses cooperative (incremental) rebalancing to avoid a full stop-the-world rebalance. See [CooperativeStickyAssignor](https://kafka.apache.org/31/javadoc/org/apache/kafka/clients/consumer/CooperativeStickyAssignor.html).
+  - Any other value is interpreted as the component ID of a registered extension that implements `kgo.GroupBalancer`, which allows a custom partition-assignment strategy to be plugged in.
 - `group_instance_id`: A unique identifier for the consumer instance within a consumer group.
   - If set to a non-empty string, the consumer is treated as a static member of the group. This means that the consumer will maintain its partition assignments across restarts and rebalances, as long as it rejoins the group with the same `group_instance_id`.
   - If set to an empty string (or not set), the consumer is treated as a dynamic member. In this case, the consumer's partition assignments may change during rebalances.
@@ -129,9 +130,9 @@ The following settings can be optionally configured:
 - `message_marking`:
   - `after`: (default = false) If true, the messages are marked after the pipeline execution
   - `on_error`: (default = false) If false, only the successfully processed messages are marked. This applies to non-permanent errors.
-    **Note: this can block the entire partition in case a message processing returns a non-permanent error**
+    **Note: when `error_backoff` is enabled, the failed record is automatically retried on the next poll cycle once all retries are exhausted. Without `error_backoff`, the partition remains paused until a rebalance occurs.**
   - `on_permanent_error`: (default = value of `on_error`) If false, messages that generate permanent errors are not marked. If true, messages that generate permanent errors are marked.
-    **Note: this can block the entire partition in case a message processing returns a permanent error**
+    **Note: this can block the entire partition in case a message processing returns a permanent error. Permanent errors are not retried via `error_backoff`, but the uncommitted message will be reprocessed after a rebalance.**
 - `header_extraction`:
   - `extract_headers` (default = false): Allows user to attach header fields to resource attributes in otel pipeline
   - `headers` (default = []): List of headers they'd like to extract from kafka record.

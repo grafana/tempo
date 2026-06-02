@@ -19,7 +19,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
-	"go.uber.org/multierr"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -255,7 +254,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		}
 
 		if len(blockErrs) > 0 {
-			return nil, multierr.Combine(blockErrs...)
+			return nil, errors.Join(blockErrs...)
 		}
 
 		span.AddEvent("done searching store", oteltrace.WithAttributes(

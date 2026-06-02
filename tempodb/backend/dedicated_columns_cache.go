@@ -4,22 +4,18 @@ import (
 	"bytes"
 	"unsafe"
 
-	lru "github.com/hashicorp/golang-lru/v2"
+	"github.com/maypok86/otter/v2"
 )
 
 var (
 	dedicatedColumnsCacheNull  = []byte("null")
 	dedicatedColumnsCacheEmpty = []byte("[]")
 	dedicatedColumnsCacheSize  = 1024
-	dedicatedColumnsCache      *lru.Cache[string, DedicatedColumns]
+	dedicatedColumnsCache      *otter.Cache[string, DedicatedColumns]
 )
 
 func init() {
-	var err error
-	dedicatedColumnsCache, err = lru.New[string, DedicatedColumns](dedicatedColumnsCacheSize)
-	if err != nil { // only errors if dedicatedColumnsCacheSize <= 0
-		panic(err)
-	}
+	dedicatedColumnsCache = otter.Must(&otter.Options[string, DedicatedColumns]{MaximumSize: dedicatedColumnsCacheSize})
 }
 
 func getDedicatedColumnsFromCache(marshalled []byte) (DedicatedColumns, bool) {
@@ -33,12 +29,12 @@ func getDedicatedColumnsFromCache(marshalled []byte) (DedicatedColumns, bool) {
 		return nil, false
 	}
 	s := unsafe.String(unsafe.SliceData(marshalled), len(marshalled)) // unsafe conversion is safe for lookups
-	return dedicatedColumnsCache.Get(s)
+	return dedicatedColumnsCache.GetIfPresent(s)
 }
 
 func putDedicatedColumnsToCache(marshalled []byte, cols DedicatedColumns) {
 	if len(marshalled) == 0 {
 		return
 	}
-	_ = dedicatedColumnsCache.Add(string(marshalled), cols)
+	dedicatedColumnsCache.Set(string(marshalled), cols)
 }

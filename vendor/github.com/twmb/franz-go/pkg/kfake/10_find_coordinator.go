@@ -10,12 +10,13 @@ import (
 // Supports coordinator types:
 // * 0: Group coordinator
 // * 1: Transaction coordinator
+// * 2: Share coordinator (KIP-932)
 //
 // Version notes:
 // * v1: CoordinatorType, ThrottleMillis
 // * v3: Flexible versions
 // * v4: Multiple coordinator keys in single request (KIP-699)
-// * v6: Share groups (KIP-932) - coordinator type 2, not implemented
+// * v6: Share groups (KIP-932) - coordinator type 2
 
 func init() { regKey(10, 0, 6) }
 
@@ -28,7 +29,11 @@ func (c *Cluster) handleFindCoordinator(creq *clientReq) (kmsg.Response, error) 
 	}
 
 	var unknown bool
-	if req.CoordinatorType != 0 && req.CoordinatorType != 1 {
+	if req.CoordinatorType != 0 && req.CoordinatorType != 1 && req.CoordinatorType != 2 {
+		unknown = true
+	}
+	// Share coordinator (type 2) requires FindCoordinator v6+.
+	if req.CoordinatorType == 2 && req.Version < 6 {
 		unknown = true
 	}
 
@@ -67,6 +72,11 @@ func (c *Cluster) handleFindCoordinator(creq *clientReq) (kmsg.Response, error) 
 		case 1: // Transaction
 			allowed = c.allowedACL(creq, key, kmsg.ACLResourceTypeTransactionalId, kmsg.ACLOperationDescribe)
 			errCode = kerr.TransactionalIDAuthorizationFailed.Code
+		case 2: // Share (KIP-932): requires CLUSTER CLUSTER_ACTION
+			// (matching Java's KafkaApis.handleFindCoordinatorRequest
+			// which calls authHelper.authorizeClusterOperation(CLUSTER_ACTION)).
+			allowed = c.allowedClusterACL(creq, kmsg.ACLOperationClusterAction)
+			errCode = kerr.ClusterAuthorizationFailed.Code
 		}
 		if !allowed {
 			sc.ErrorCode = errCode

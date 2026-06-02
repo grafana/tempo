@@ -279,4 +279,4 @@ Your existing OpenTelemetry Collector configuration continues to work without mo
 
 Since Tempo 2.7, the OTLP receiver defaults to `localhost` instead of `0.0.0.0`.
 When running Tempo in Docker or Kubernetes, ensure the Tempo configuration explicitly binds to an accessible address, for example, `endpoint: "0.0.0.0:4317"`.
-Refer to [Upgrade to Tempo 2.7](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/upgrade/#upgrade-to-tempo-27) for details.
+Refer to [OpenTelemetry Collector receiver listens on `localhost` by default](/docs/tempo/<TEMPO_VERSION>/release-notes/version-2/v2-7/#opentelemetry-collector-receiver-listens-on-localhost-by-default) for details.

@@ -5,7 +5,7 @@
 #   -t, --test PATTERN     Test to run (default: all tests)
 #                          Examples: Txn, Group, Txn/range, Group/sticky
 #   -n, --iterations NUM   Max iterations (default: 50)
-#   -r, --records NUM      Number of records (default: 100000)
+#   -r, --records NUM      Number of records (default: 500000)
 #   --race                 Enable race detector (default: off)
 #   -l, --log-level LEVEL  Set log level for both client and server
 #   --client-log LEVEL     Set KGO_LOG_LEVEL for the test client only
@@ -14,7 +14,8 @@
 #   --pprof ADDR           Enable pprof on server (e.g., :6060)
 #   --data-dir DIR         Persistence directory for kfake server
 #   --restart SECS         Kill and restart server after SECS seconds (requires --data-dir)
-#   --timeout DURATION     Test timeout (default: 90s, 300s with --race)
+#   --timeout DURATION     Test timeout (default: 180s, 450s with --race)
+#   --keep-logs            Keep per-iteration logs (client_N.log, server_N.log)
 #   -k, --kill             Kill processes on ports 9092-9094 and exit
 #   --clean                Kill servers and remove /tmp/kfake_test_logs
 #   -h, --help             Show this help
@@ -30,6 +31,7 @@ PPROF_ADDR=""
 DATA_DIR=""
 CUSTOM_TIMEOUT=""
 RESTART_DELAY=""
+KEEP_LOGS=""
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 KFAKE_DIR="$SCRIPT_DIR"
@@ -87,6 +89,10 @@ while [[ $# -gt 0 ]]; do
             CUSTOM_TIMEOUT="$2"
             shift 2
             ;;
+        --keep-logs)
+            KEEP_LOGS=1
+            shift
+            ;;
         -k|--kill)
             echo "Killing processes on ports 9092, 9093, 9094..."
             for port in 9092 9093 9094; do
@@ -121,7 +127,7 @@ while [[ $# -gt 0 ]]; do
             echo "  -t, --test PATTERN     Test to run (default: all tests)"
             echo "                         Examples: Txn, Group, Txn/range, Group/sticky"
             echo "  -n, --iterations NUM   Max iterations (default: 50)"
-            echo "  -r, --records NUM      Number of records (default: 100000)"
+            echo "  -r, --records NUM      Number of records (default: 500000)"
             echo "  --race                 Enable race detector (default: off)"
             echo "  -l, --log-level LEVEL  Set log level for both client and server"
             echo "  --client-log LEVEL     Set KGO_LOG_LEVEL for the test client only"
@@ -130,7 +136,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --pprof ADDR           Enable pprof on server (e.g., :6060)"
             echo "  --data-dir DIR         Persistence directory for kfake server"
             echo "  --restart SECS         Kill and restart server after SECS seconds"
-            echo "  --timeout DURATION     Test timeout (default: 90s, 300s with --race)"
+            echo "  --timeout DURATION     Test timeout (default: 180s, 450s with --race)"
+            echo "  --keep-logs            Keep per-iteration logs (client_N.log, server_N.log)"
             echo "  -k, --kill             Kill processes on ports 9092-9094 and exit"
             echo "  --clean                Kill servers and remove /tmp/kfake_test_logs"
             echo "  -h, --help             Show this help"
@@ -187,9 +194,9 @@ port_in_use() {
 if [ -n "$CUSTOM_TIMEOUT" ]; then
     TIMEOUT="$CUSTOM_TIMEOUT"
 elif [ -n "$RACE" ]; then
-    TIMEOUT="300s"
+    TIMEOUT="450s"
 else
-    TIMEOUT="90s"
+    TIMEOUT="180s"
 fi
 
 # Build common server args once.
@@ -255,13 +262,41 @@ start_server() {
 }
 
 # Kill server and wait for clean exit.
+#
+# Uses wait_for_exit (kill -0 polling) instead of bash `wait` because the
+# server may have been started by restart_loop, which runs in a subshell;
+# that makes the server a grand-child of main, and bash `wait` on a
+# grand-child silently no-ops. Without a real wait, the caller's rm -rf
+# and next start_server race the old server's still-in-flight saveToDisk
+# (which writes *.tmp files and renames them) -- the new server then
+# panics in persistInitialState with "rename *.tmp: no such file or
+# directory" because both processes are competing on the same data dir.
+# If the graceful shutdown overshoots the 10s poll window, SIGKILL.
+#
+# Then sweep ports 9092-9094 for any server process we failed to track.
+# restart_loop can race with its own kill: if we killed restart_loop
+# after it backgrounded a new server but before it wrote the pid to
+# SERVER_PID_FILE, that server is a tracked-nowhere orphan that would
+# otherwise still be writing to the data dir when the next iteration's
+# rm -rf runs.
 stop_server() {
     local pid
     pid=$(cat "$SERVER_PID_FILE" 2>/dev/null)
     if [ -n "$pid" ]; then
         kill "$pid" 2>/dev/null || true
-        wait "$pid" 2>/dev/null
+        if ! wait_for_exit "$pid"; then
+            kill -9 "$pid" 2>/dev/null || true
+            wait_for_exit "$pid" || true
+        fi
     fi
+    for port in 9092 9093 9094; do
+        local orphan
+        orphan=$(lsof -ti:$port 2>/dev/null || true)
+        if [ -n "$orphan" ]; then
+            kill -9 "$orphan" 2>/dev/null || true
+            wait_for_exit "$orphan" || true
+        fi
+    done
     SERVER_PID=""
 }
 
@@ -321,6 +356,7 @@ echo "  Pprof: ${PPROF_ADDR:-disabled}"
 echo "  Data dir: ${DATA_DIR:-disabled}"
 echo "  Restart: ${RESTART_DELAY:-disabled}${RESTART_DELAY:+s}"
 echo "  Timeout: $TIMEOUT"
+echo "  Keep logs: ${KEEP_LOGS:-disabled}"
 echo "  Logs: $LOG_DIR"
 echo ""
 
@@ -348,6 +384,18 @@ for i in $(seq 1 $MAX_ITERATIONS); do
     fi
 
     if [ $TEST_EXIT -ne 0 ]; then
+        # Archive failure logs into a timestamped subdir so subsequent
+        # run_tests.sh invocations don't overwrite them.
+        FAIL_DIR="$LOG_DIR/fail_$(date +%Y%m%d_%H%M%S)_run${i}"
+        mkdir -p "$FAIL_DIR"
+        cp "$CLIENT_LOG_FILE" "$FAIL_DIR/client.log" 2>/dev/null
+        cp "$SERVER_LOG" "$FAIL_DIR/server.log" 2>/dev/null
+        echo "Archived failure logs to $FAIL_DIR"
+        if [ -n "$KEEP_LOGS" ]; then
+            cp "$CLIENT_LOG_FILE" "$LOG_DIR/client_${i}.log"
+            cp "$SERVER_LOG" "$LOG_DIR/server_${i}.log"
+            echo "Saved logs: client_${i}.log, server_${i}.log"
+        fi
         echo "FAILED on run $i"
         echo "Client log: $CLIENT_LOG_FILE"
         echo "Server log: $SERVER_LOG"
@@ -360,6 +408,11 @@ for i in $(seq 1 $MAX_ITERATIONS); do
         echo "Kill manually when done: kill $SERVER_PID"
         SERVER_PID=""  # Clear so EXIT trap doesn't kill it
         exit 1
+    fi
+
+    if [ -n "$KEEP_LOGS" ]; then
+        cp "$CLIENT_LOG_FILE" "$LOG_DIR/client_${i}.log"
+        cp "$SERVER_LOG" "$LOG_DIR/server_${i}.log"
     fi
 
     stop_server
