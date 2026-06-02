@@ -33,7 +33,7 @@ Run [`../docs-pr-write/SKILL.md`](../docs-pr-write/SKILL.md).
 **Input:** PRs classified as "docs needed" or "docs update needed" from step 1, plus gap notes and suggested target files.
 **Output:** Updated doc files, PR-to-doc mapping, and open items.
 
-Present the list of changed files. Ask the user to review before continuing to step 3.
+Present the list of changed files and a summary of what was written. Wait for the user to confirm before proceeding to step 3. Do not continue automatically.
 
 ### 3. Review — quality check the new content
 
@@ -50,11 +50,13 @@ If step 1 produced a **Screenshot inventory** (PRs with UI changes affecting pag
 
 ## Handoff contract
 
-| From | To | What passes |
-|------|------|-------------|
-| Step 1 → Step 2 | PR number, classification, gap notes, suggested target files |
-| Step 2 → Step 3 | Changed file paths, open items or uncertain claims |
-| Step 1 → Screenshot check | Screenshot inventory: PR numbers, affected doc pages, screenshot count, image references |
+| From | To | What passes | Receiving step validates |
+|------|------|-------------|------------------------|
+| Step 1 → Step 2 | PR number, classification, gap notes, suggested target files | PR is still accessible (`gh pr view` succeeds); classification is one of the four valid categories |
+| Step 2 → Step 3 | Changed file paths, open items or uncertain claims | Each file path exists on disk; files are non-empty |
+| Step 1 → Screenshot check | Screenshot inventory: PR numbers, affected doc pages, screenshot count, image references | Doc pages exist; image references resolve |
+
+Each receiving step must verify its inputs before proceeding. If validation fails (PR deleted, file missing, path changed), stop and report the issue rather than operating on stale data.
 
 ## When to use this vs. individual skills
 
@@ -65,6 +67,12 @@ If step 1 produced a **Screenshot inventory** (PRs with UI changes affecting pag
 | Already know what to write, have PR numbers | `docs-pr-write` standalone |
 | Review existing doc changes | `docs-review` standalone |
 | New docs from scratch, not tied to PRs | `docs-from-code` (if available) |
+
+## Known limitations
+
+- **Same-agent review.** Steps 2 and 3 run in the same agent session. The review step (docs-review) evaluates content that the same agent wrote in step 2. This is structurally self-review and should not be treated as an independent quality gate.
+- **Human PR review is the independent gate.** The mandatory independent verification happens when a human reviews and merges the PR on the target repository — not during step 3 of this workflow.
+- **High-impact changes warrant separate review.** For breaking changes, security-relevant documentation, or migration guides, consider running `docs-review` in a separate agent session or asking a different team member to review the output before creating a PR.
 
 ## Reference
 

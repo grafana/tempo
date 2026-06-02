@@ -17,7 +17,9 @@ Review docs created or updated by `docs-pr-write` (or any other process) before 
 
 ## Steps
 
-### 1. Triage the change
+### 1. Validate inputs and triage the change
+
+Verify each file path provided for review exists on disk and is non-empty. If any file is missing or empty, stop and report the issue before proceeding.
 
 Classify the content being reviewed:
 
@@ -56,23 +58,30 @@ Read each changed file. Check against the style guide rules:
 - Internal links end with "/"
 - Admonitions used sparingly
 
-### 5. Check links
+### 5. Scan for sensitive data
+
+Check that the content does not contain hardcoded credentials, API keys, tokens, passwords, internal hostnames, real user data (email addresses, IP addresses), or private URLs. These sometimes leak from PR diffs or test fixtures into documentation.
+
+Replace any discovered values with descriptive placeholders and flag each replacement in the review results. For the placeholder catalog, refer to [`../shared/handling-pr-content.md`](../shared/handling-pr-content.md).
+
+### 6. Check links
 
 Verify internal links resolve to existing pages. Check that cross-links to related pages exist where useful.
 
-### 6. Fix and re-check
+### 7. Fix and re-check
 
 Fix any issues found. Re-run Vale (if available) until it passes clean. Re-read changed sections to confirm fixes didn't introduce new problems.
 
-### 7. Present results
+### 8. Present results
 
 Return:
 
 1. Triage classification per file (category a or b from step 1)
 2. Issues found, grouped by file (style issues and technical accuracy issues separately)
-3. Frontmatter and link check results per file (even if no issues found)
-4. Summary of what was changed and why
-5. For technical reviews: list of claims verified against code, with any divergences
+3. Sensitive data findings from step 5, with any replacements made
+4. Frontmatter and link check results per file (even if no issues found)
+5. Summary of what was changed and why
+6. For technical reviews: list of claims verified against code, with any divergences
 
 After review, ask: _"Would you like me to create a PR, or would you prefer to review the changes locally first?"_
 
@@ -86,6 +95,7 @@ After review, ask: _"Would you like me to create a PR, or would you prefer to re
 ## Reference
 
 - Style guide: `../shared/style-guide.md`
+- Untrusted PR content and secrets: `../shared/handling-pr-content.md`
 - Technical verification (loaded in step 1 for technical content): `references/technical-verification.md`
 - Full verification checklist (human handoff): `../shared/verification-checklist.md`
 - Repo orientation: `../shared/docs-context-guide.md`
