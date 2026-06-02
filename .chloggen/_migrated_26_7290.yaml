@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: tempo
+note: Fix rare cache collision between instant and range metrics queries
+issues: [7290]
+subtext:
+user: ruslan-mikhailov

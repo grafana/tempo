@@ -1,0 +1,6 @@
+change_type: enhancement
+component: operations
+note: bump `memcached` to `1.6.42-alpine` and `prom/memcached-exporter` to `v0.16.0` to clear accumulated CVEs.
+issues: [7244]
+subtext:
+user: zhxiaogg

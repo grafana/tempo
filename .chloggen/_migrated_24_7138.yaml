@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: overrides
+note: emit duration fields as flat YAML scalars on `/status/overrides/{tenant}` and omit `generate_native_histograms` when unset.
+issues: [7138]
+subtext:
+user: electron0zero
