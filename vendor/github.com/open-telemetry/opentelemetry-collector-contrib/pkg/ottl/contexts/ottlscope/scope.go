@@ -38,10 +38,11 @@ var (
 
 // TransformContext represents an instrumentation scope and its associated hierarchy.
 type TransformContext struct {
-	instrumentationScope pcommon.InstrumentationScope
-	resource             pcommon.Resource
-	cache                pcommon.Map
-	schemaURLItem        ctxcommon.SchemaURLItem
+	instrumentationScope  pcommon.InstrumentationScope
+	resource              pcommon.Resource
+	cache                 pcommon.Map
+	scopeSchemaURLItem    ctxcommon.SchemaURLItem
+	resourceSchemaURLItem ctxcommon.SchemaURLItem
 }
 
 // MarshalLogObject serializes the TransformContext into a zapcore.ObjectEncoder for logging.
@@ -57,11 +58,12 @@ type TransformContextOption func(*TransformContext)
 
 // NewTransformContextPtr returns a new TransformContext with the provided parameters from a pool of contexts.
 // Caller must call TransformContext.Close on the returned TransformContext.
-func NewTransformContextPtr(instrumentationScope pcommon.InstrumentationScope, resource pcommon.Resource, schemaURLItem ctxcommon.SchemaURLItem, options ...TransformContextOption) *TransformContext {
+func NewTransformContextPtr(instrumentationScope pcommon.InstrumentationScope, resource pcommon.Resource, scopeSchemaURLItem, resourceSchemaURLItem ctxcommon.SchemaURLItem, options ...TransformContextOption) *TransformContext {
 	tCtx := tcPool.Get().(*TransformContext)
 	tCtx.instrumentationScope = instrumentationScope
 	tCtx.resource = resource
-	tCtx.schemaURLItem = schemaURLItem
+	tCtx.scopeSchemaURLItem = scopeSchemaURLItem
+	tCtx.resourceSchemaURLItem = resourceSchemaURLItem
 	for _, opt := range options {
 		opt(tCtx)
 	}
@@ -74,7 +76,8 @@ func (tCtx *TransformContext) Close() {
 	tCtx.instrumentationScope = pcommon.InstrumentationScope{}
 	tCtx.resource = pcommon.Resource{}
 	tCtx.cache.Clear()
-	tCtx.schemaURLItem = nil
+	tCtx.scopeSchemaURLItem = nil
+	tCtx.resourceSchemaURLItem = nil
 	tcPool.Put(tCtx)
 }
 
@@ -90,12 +93,12 @@ func (tCtx *TransformContext) GetResource() pcommon.Resource {
 
 // GetScopeSchemaURLItem returns the schema URL item for the scope from the TransformContext.
 func (tCtx *TransformContext) GetScopeSchemaURLItem() ctxcommon.SchemaURLItem {
-	return tCtx.schemaURLItem
+	return tCtx.scopeSchemaURLItem
 }
 
 // GetResourceSchemaURLItem returns the schema URL item for the resource from the TransformContext.
 func (tCtx *TransformContext) GetResourceSchemaURLItem() ctxcommon.SchemaURLItem {
-	return tCtx.schemaURLItem
+	return tCtx.resourceSchemaURLItem
 }
 
 // EnablePathContextNames enables the support for path's context names on statements.

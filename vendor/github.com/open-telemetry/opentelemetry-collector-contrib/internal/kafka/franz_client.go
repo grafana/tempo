@@ -163,15 +163,12 @@ func NewFranzConsumerGroup(
 	}
 
 	// Configure rebalance strategy
-	switch consumerCfg.GroupRebalanceStrategy {
-	case "range":
-		opts = append(opts, kgo.Balancers(kgo.RangeBalancer()))
-	case "roundrobin":
-		opts = append(opts, kgo.Balancers(kgo.RoundRobinBalancer()))
-	case "sticky":
-		opts = append(opts, kgo.Balancers(kgo.StickyBalancer()))
-	case "cooperative-sticky":
-		opts = append(opts, kgo.Balancers(kgo.CooperativeStickyBalancer()))
+	balancerOpt, err := balancerOptFromStrategy(consumerCfg.GroupRebalanceStrategy, host)
+	if err != nil {
+		return nil, err
+	}
+	if balancerOpt != nil {
+		opts = append(opts, balancerOpt)
 	}
 	return kgo.NewClient(opts...)
 }
@@ -204,6 +201,42 @@ func NewFranzClusterAdminClient(
 		return nil, nil, err
 	}
 	return kadm.NewClient(cl), cl, nil
+}
+
+// balancerOptFromStrategy returns a kgo.Opt that sets the group balancer, or
+// nil if strategy is empty (franz-go default applies). Built-in strategy names
+// map to the corresponding kgo balancer. Any other value is treated as a
+// component ID referencing an extension that implements kgo.GroupBalancer.
+func balancerOptFromStrategy(strategy configkafka.GroupRebalanceStrategy, host component.Host) (kgo.Opt, error) {
+	switch strategy {
+	case "":
+		return nil, nil
+	case configkafka.RangeBalanceStrategy:
+		return kgo.Balancers(kgo.RangeBalancer()), nil
+	case configkafka.RoundRobinBalanceStrategy:
+		return kgo.Balancers(kgo.RoundRobinBalancer()), nil
+	case configkafka.StickyBalanceStrategy:
+		return kgo.Balancers(kgo.StickyBalancer()), nil
+	case configkafka.CooperativeStickyBalanceStrategy:
+		return kgo.Balancers(kgo.CooperativeStickyBalancer()), nil
+	default:
+		var id component.ID
+		if err := id.UnmarshalText([]byte(strategy)); err != nil {
+			return nil, fmt.Errorf(
+				"group_rebalance_strategy %q is not a built-in strategy or a valid extension ID: %w",
+				strategy, err,
+			)
+		}
+		ext, ok := host.GetExtensions()[id]
+		if !ok {
+			return nil, fmt.Errorf("group_rebalance_strategy extension %q not found", id)
+		}
+		balancer, ok := ext.(kgo.GroupBalancer)
+		if !ok {
+			return nil, fmt.Errorf("extension %q does not implement kgo.GroupBalancer", id)
+		}
+		return kgo.Balancers(balancer), nil
+	}
 }
 
 func commonOpts(

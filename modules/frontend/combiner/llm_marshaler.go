@@ -19,6 +19,8 @@ type llmMarshaler struct{}
 type LLMTraceByIDResponse struct {
 	Trace   LLMTrace    `json:"trace"`
 	Metrics *LLMMetrics `json:"metrics,omitempty"`
+	Status  string      `json:"status"`
+	Message string      `json:"message,omitempty"`
 }
 
 type LLMTrace struct {
@@ -165,6 +167,9 @@ func traceByIDResponseToSimplifiedJSON(t *tempopb.TraceByIDResponse) (string, er
 			InspectedBytes: t.Metrics.InspectedBytes,
 		}
 	}
+
+	result.Status = t.GetStatus().String()
+	result.Message = t.GetMessage()
 
 	data, err := json.Marshal(result)
 	if err != nil {

@@ -608,8 +608,11 @@ live_store:
     # Maximum time to wait for catching up at startup. Only used if readiness_target_lag > 0.
     [readiness_max_wait: <duration> | default = 30m]
 
-    # Fail on search and metrics requests if lag is high and live-store cannot guarantee completeness.
-    [fail_on_high_lag: <bool> | default = false]
+    # Fail search and metrics requests when the live-store cannot guarantee complete results,
+    # rather than returning a partial response. Trades availability for correctness.
+    # Requires `query_frontend.query_end_cutoff` to be non-zero.
+    # When disabled, lagged requests are still counted via `tempo_live_store_lagged_requests_total`.
+    [fail_on_high_lag: <bool> | default = true]
 
     # Remove partition owner from the ring on shutdown.
     [remove_owner_on_shutdown: <bool> | default = true]
@@ -946,10 +949,18 @@ query_frontend:
     # (default: 0)
     [api_timeout: <duration>]
 
-    # Prevents querying incomplete recent data by excluding the most recent portion of the time range.
-    # Useful when live-store data may not yet be fully available for querying.
-    # 0 disables this cutoff.
-    # (default: 0)
+    # The maximum size in bytes of a response message returned over gRPC streaming calls.
+    # Diffs and final responses are segmented into packets of this size.
+    # This is separate from the process-wide gRPC server response size because downstream clients
+    # might need smaller streamed responses.
+    # Set to 0 to disable segmentation.
+    # (default: 2097152)
+    [max_grpc_streaming_packet_size: <int>]
+
+    # Excludes the most recent portion of the time range from queries to avoid returning
+    # incomplete results. Required when `live_store.fail_on_high_lag` is enabled.
+    # Must be less than `query_frontend.search.query_backend_after`. 0 disables the cutoff.
+    # (default: 30s)
     [query_end_cutoff: <duration>]
 
     # A list of regular expressions for refusing matching requests, these will apply for every request regardless of the endpoint.
@@ -1166,6 +1177,11 @@ querier:
         # also fetch trace data from an external HTTP endpoint that returns
         # an OpenTelemetry protobuf formatted trace. Enable this feature using
         # query_frontend.trace_by_id.external_enabled.
+        #
+        # The querier limits the external endpoint response size to querier gRPC send-message size
+        # (`querier.frontend_worker.grpc_client_config.max_send_msg_size`, default 16 MiB).
+        # A larger response cannot be returned to the frontend, so the read is bounded to that
+        # limit and the querier returns an error if the external endpoint sends more data than the limit.
         external:
             # The URL of the external service.
             # Example: "http://external-service:3200"
@@ -2341,7 +2357,17 @@ overrides:
       # Per-user configuration of the metrics-generator processors. The following processors are
       # supported:
       #  - service-graphs
+      #  - service-graphs-request          only emits traces_service_graph_request_total and
+      #                                     traces_service_graph_request_failed_total
+      #  - service-graphs-latency          only emits the request_server_seconds,
+      #                                     request_client_seconds, and request_messaging_system_seconds
+      #                                     histograms
+      #  - service-graphs-connection-info  only emits traces_service_graph_connection_info;
+      #                                     opt-in, not enabled by the bare "service-graphs" name
       #  - span-metrics
+      #  - span-metrics-count              (only emits traces_spanmetrics_calls_total)
+      #  - span-metrics-latency            (only emits traces_spanmetrics_latency histogram)
+      #  - span-metrics-size               (only emits traces_spanmetrics_size_total)
       #  - host-info
       [processors: <list of strings>]
 
@@ -2403,7 +2429,7 @@ overrides:
       [generate_native_histograms: <classic|native|both> | default = classic]
 
       # Enables span name sanitization using DRAIN clustering to reduce cardinality.
-      # Similar span names are clustered together (e.g., "GET /users/123" becomes "GET /users/<*>").
+      # Similar span names are clustered together (e.g., "GET /users/123" becomes "GET /users/<_>").
       # Options:
       #   - "" (empty string): Disabled (default)
       #   - "dry_run": Produces a demand metric for the sanitized cardinality without applying changes
@@ -2927,6 +2953,12 @@ cache:
             # Optional
             # Close connections older than this duration. (default 0s)
             [max_connection_age: <duration> | default = 0s]
+
+            # Optional
+            # The maximum size in bytes of an item stored in Redis.
+            # Items larger than this are not stored. A value of 0 disables the limit.
+            # (default: 0)
+            [max_item_size: <int>]
 
             # Optional
             # TTL for cached keys.

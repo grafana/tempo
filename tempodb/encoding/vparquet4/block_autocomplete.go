@@ -11,7 +11,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/parquet-go/parquet-go"
-	"github.com/pkg/errors"
 )
 
 type tagNameKey struct {
@@ -58,7 +57,7 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 
 	for _, condGroup := range req.ConditionGroups {
 		if err := checkConditions(condGroup); err != nil {
-			return errors.Wrap(err, "conditions invalid")
+			return fmt.Errorf("conditions invalid: %w", err)
 		}
 		_, mingledConditions, err := categorizeConditions(condGroup)
 		if err != nil {
@@ -96,7 +95,7 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 
 		iter, err := autocompleteIter(ctx, tr, pf, opts, b.meta.DedicatedColumns)
 		if err != nil {
-			return errors.Wrap(err, "creating fetch iter")
+			return fmt.Errorf("creating fetch iter: %w", err)
 		}
 
 		done, iterErr := func() (bool, error) {
@@ -194,7 +193,7 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 
 	for _, condGroup := range req.ConditionGroups {
 		if err := checkConditions(condGroup); err != nil {
-			return errors.Wrap(err, "conditions invalid")
+			return fmt.Errorf("conditions invalid: %w", err)
 		}
 		_, mingledConditions, err := categorizeConditions(condGroup)
 		if err != nil {
@@ -231,7 +230,7 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 
 		iter, err := autocompleteIter(ctx, tr, pf, opts, b.meta.DedicatedColumns)
 		if err != nil {
-			return errors.Wrap(err, "creating fetch iter")
+			return fmt.Errorf("creating fetch iter: %w", err)
 		}
 
 		done, iterErr := func() (bool, error) {
@@ -281,42 +280,42 @@ func autocompleteIter(ctx context.Context, tr tagRequest, pf *parquet.File, opts
 	if len(catConditions.event) > 0 || tr.keysRequested(traceql.AttributeScopeEvent) {
 		currentIter, err = createDistinctEventIterator(makeIter, makeNilIter, tr, currentIter, catConditions.event)
 		if err != nil {
-			return nil, errors.Wrap(err, "creating event iterator")
+			return nil, fmt.Errorf("creating event iterator: %w", err)
 		}
 	}
 
 	if len(catConditions.link) > 0 || tr.keysRequested(traceql.AttributeScopeLink) {
 		currentIter, err = createDistinctLinkIterator(makeIter, makeNilIter, tr, currentIter, catConditions.link)
 		if err != nil {
-			return nil, errors.Wrap(err, "creating link iterator")
+			return nil, fmt.Errorf("creating link iterator: %w", err)
 		}
 	}
 
 	if len(catConditions.span) > 0 || tr.keysRequested(traceql.AttributeScopeSpan) {
 		currentIter, err = createDistinctSpanIterator(makeIter, makeNilIter, tr, currentIter, catConditions.span, dc)
 		if err != nil {
-			return nil, errors.Wrap(err, "creating span iterator")
+			return nil, fmt.Errorf("creating span iterator: %w", err)
 		}
 	}
 
 	if len(catConditions.instrumentation) > 0 || tr.keysRequested(traceql.AttributeScopeInstrumentation) {
 		currentIter, err = createDistinctScopeIterator(makeIter, makeNilIter, tr, currentIter, catConditions.instrumentation)
 		if err != nil {
-			return nil, errors.Wrap(err, "creating instrumentation iterator")
+			return nil, fmt.Errorf("creating instrumentation iterator: %w", err)
 		}
 	}
 
 	if len(catConditions.resource) > 0 || tr.keysRequested(traceql.AttributeScopeResource) {
 		currentIter, err = createDistinctResourceIterator(makeIter, makeNilIter, tr, currentIter, catConditions.resource, dc)
 		if err != nil {
-			return nil, errors.Wrap(err, "creating resource iterator")
+			return nil, fmt.Errorf("creating resource iterator: %w", err)
 		}
 	}
 
 	if len(catConditions.trace) > 0 {
 		currentIter, err = createDistinctTraceIterator(makeIter, tr, currentIter, catConditions.trace)
 		if err != nil {
-			return nil, errors.Wrap(err, "creating trace iterator")
+			return nil, fmt.Errorf("creating trace iterator: %w", err)
 		}
 	}
 
@@ -363,7 +362,7 @@ func createDistinctEventIterator(
 	attrIter, err := createDistinctAttributeIterator(makeIter, tr, genericConditions, DefinitionLevelResourceSpansILSSpanEventAttrs,
 		columnPathEventAttrKey, columnPathEventAttrString, columnPathEventAttrInt, columnPathEventAttrDouble, columnPathEventAttrBool)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating event attribute iterator")
+		return nil, fmt.Errorf("creating event attribute iterator: %w", err)
 	}
 
 	// if no intrinsics and no primary then we can just return the attribute iterator
@@ -427,7 +426,7 @@ func createDistinctLinkIterator(
 	attrIter, err := createDistinctAttributeIterator(makeIter, tr, genericConditions, DefinitionLevelResourceSpansILSSpanLinkAttrs,
 		columnPathLinkAttrKey, columnPathLinkAttrString, columnPathLinkAttrInt, columnPathLinkAttrDouble, columnPathLinkAttrBool)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating link attribute iterator")
+		return nil, fmt.Errorf("creating link attribute iterator: %w", err)
 	}
 
 	// if no intrinsics and no events then we can just return the attribute iterator
@@ -591,7 +590,7 @@ func createDistinctSpanIterator(
 			if isMatchingColumnType(entry.typ, operandType(cond.Operands)) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
-					return nil, errors.Wrap(err, "creating predicate")
+					return nil, fmt.Errorf("creating predicate: %w", err)
 				}
 				addPredicate(entry.ColumnPath, pred)
 				addSelectAs(cond.Attribute, entry.ColumnPath, cond.Attribute.Name)
@@ -623,7 +622,7 @@ func createDistinctSpanIterator(
 			if isMatchingColumnType(typ, operandType(cond.Operands)) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
-					return nil, errors.Wrap(err, "creating predicate")
+					return nil, fmt.Errorf("creating predicate: %w", err)
 				}
 				addPredicate(c.ColumnPath, pred)
 				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
@@ -649,7 +648,7 @@ func createDistinctSpanIterator(
 	attrIter, err := createDistinctAttributeIterator(makeIter, tr, genericConditions, DefinitionLevelResourceSpansILSSpanAttrs,
 		columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating span attribute iterator")
+		return nil, fmt.Errorf("creating span attribute iterator: %w", err)
 	}
 
 	if len(iters) == 0 && primaryIter == nil {
@@ -890,7 +889,7 @@ func createDistinctScopeIterator(
 	attrIter, err := createDistinctAttributeIterator(makeIter, tr, genericConditions, DefinitionLevelInstrumentationScopeAttrs,
 		columnPathInstrumentationAttrKey, columnPathInstrumentationAttrString, columnPathInstrumentationAttrInt, columnPathInstrumentationAttrDouble, columnPathInstrumentationAttrBool)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating instrumentation attribute iterator")
+		return nil, fmt.Errorf("creating instrumentation attribute iterator: %w", err)
 	}
 
 	// if no intrinsics and no events then we can just return the attribute iterator
@@ -962,7 +961,7 @@ func createDistinctResourceIterator(
 			if isMatchingColumnType(entry.typ, operandType(cond.Operands)) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
-					return nil, errors.Wrap(err, "creating predicate")
+					return nil, fmt.Errorf("creating predicate: %w", err)
 				}
 				selectAs := cond.Attribute.Name
 				if tr.tag != cond.Attribute {
@@ -997,7 +996,7 @@ func createDistinctResourceIterator(
 			if isMatchingColumnType(typ, operandType(cond.Operands)) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
-					return nil, errors.Wrap(err, "creating predicate")
+					return nil, fmt.Errorf("creating predicate: %w", err)
 				}
 				addPredicate(c.ColumnPath, pred)
 				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
@@ -1023,7 +1022,7 @@ func createDistinctResourceIterator(
 	attrIter, err := createDistinctAttributeIterator(makeIter, tr, genericConditions, DefinitionLevelResourceAttrs,
 		columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating span attribute iterator")
+		return nil, fmt.Errorf("creating span attribute iterator: %w", err)
 	}
 	if attrIter != nil {
 		iters = append(iters, attrIter)

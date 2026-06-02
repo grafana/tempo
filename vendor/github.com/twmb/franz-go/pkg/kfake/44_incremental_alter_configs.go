@@ -152,6 +152,54 @@ outer:
 			}
 			c.persistTopicsState()
 
+		case kmsg.ConfigResourceTypeGroupConfig:
+			// Group configs are scalar (e.g. share.auto.offset.reset);
+			// the protocol's Append/Subtract ops are list-valued and
+			// not meaningful here. Reject the request if any config
+			// uses an unsupported op or an unknown config name.
+			//
+			// Per-group config names are UNPREFIXED -- the "group."
+			// prefix is only for broker-level defaults. Real Kafka
+			// returns INVALID_CONFIG for unknown names.
+			var invalid bool
+			for i := range rr.Configs {
+				switch rr.Configs[i].Op {
+				case kmsg.IncrementalAlterConfigOpSet, kmsg.IncrementalAlterConfigOpDelete:
+				default:
+					invalid = true
+				}
+				if !validGroupConfigs[rr.Configs[i].Name] {
+					invalid = true
+				}
+			}
+			if invalid {
+				doner(rr.ResourceName, rr.ResourceType, kerr.InvalidConfig.Code)
+				continue
+			}
+			doner(rr.ResourceName, rr.ResourceType, 0)
+			if req.ValidateOnly {
+				continue
+			}
+			if c.groupConfigs == nil {
+				c.groupConfigs = make(map[string]map[string]*string)
+			}
+			gc := c.groupConfigs[rr.ResourceName]
+			if gc == nil {
+				gc = make(map[string]*string)
+				c.groupConfigs[rr.ResourceName] = gc
+			}
+			for i := range rr.Configs {
+				rc := &rr.Configs[i]
+				switch rc.Op {
+				case kmsg.IncrementalAlterConfigOpSet:
+					gc[rc.Name] = rc.Value
+				case kmsg.IncrementalAlterConfigOpDelete:
+					delete(gc, rc.Name)
+				case kmsg.IncrementalAlterConfigOpAppend, kmsg.IncrementalAlterConfigOpSubtract:
+					// rejected above
+				}
+			}
+
 		default:
 			doner(rr.ResourceName, rr.ResourceType, kerr.InvalidRequest.Code)
 		}

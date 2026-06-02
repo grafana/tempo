@@ -92,7 +92,14 @@ func (c *Cluster) offsetCommit(request kmsg.Request) (kmsg.Response, error, bool
 	c.ensureConsumerGroupExists(consumerGroup)
 	require.Len(c.t, commitR.Topics, 1, "test only has support for one topic per request")
 	topic := commitR.Topics[0]
-	require.Equal(c.t, c.topic, topic.Topic)
+	// v10+ identifies topics by TopicID instead of Topic name (KIP-848 / KAFKA-19186).
+	if commitR.Version >= 10 {
+		info := c.fake.TopicIDInfo(topic.TopicID)
+		require.NotNil(c.t, info, "unknown topic id %x", topic.TopicID)
+		require.Equal(c.t, c.topic, info.Topic)
+	} else {
+		require.Equal(c.t, c.topic, topic.Topic)
+	}
 	require.Len(c.t, topic.Partitions, 1, "test only has support for one partition per request")
 
 	partitionID := topic.Partitions[0].Partition
@@ -100,12 +107,15 @@ func (c *Cluster) offsetCommit(request kmsg.Request) (kmsg.Response, error, bool
 
 	resp := request.ResponseKind().(*kmsg.OffsetCommitResponse)
 	resp.Default()
-	resp.Topics = []kmsg.OffsetCommitResponseTopic{
-		{
-			Topic:      c.topic,
-			Partitions: []kmsg.OffsetCommitResponseTopicPartition{{Partition: partitionID}},
-		},
+	respTopic := kmsg.OffsetCommitResponseTopic{
+		Partitions: []kmsg.OffsetCommitResponseTopicPartition{{Partition: partitionID}},
 	}
+	if commitR.Version >= 10 {
+		respTopic.TopicID = topic.TopicID
+	} else {
+		respTopic.Topic = c.topic
+	}
+	resp.Topics = []kmsg.OffsetCommitResponseTopic{respTopic}
 
 	return resp, nil, true
 }
@@ -161,12 +171,16 @@ func (c *Cluster) offsetFetch(kreq kmsg.Request) (kmsg.Response, error, bool) {
 	// This mimics the real Kafka behaviour.
 	var topicsResp []kmsg.OffsetFetchResponseGroupTopic
 	if len(partitionsResp) > 0 {
-		topicsResp = []kmsg.OffsetFetchResponseGroupTopic{
-			{
-				Topic:      c.topic,
-				Partitions: partitionsResp,
-			},
+		rt := kmsg.OffsetFetchResponseGroupTopic{Partitions: partitionsResp}
+		// v10+ identifies topics by TopicID instead of Topic name.
+		if req.Version >= 10 {
+			info := c.fake.TopicInfo(c.topic)
+			require.NotNil(c.t, info, "unknown topic %q", c.topic)
+			rt.TopicID = info.TopicID
+		} else {
+			rt.Topic = c.topic
 		}
+		topicsResp = []kmsg.OffsetFetchResponseGroupTopic{rt}
 	}
 
 	resp := kreq.ResponseKind().(*kmsg.OffsetFetchResponse)

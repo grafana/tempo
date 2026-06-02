@@ -11,6 +11,8 @@ import (
 	"unsafe"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/grafana/dskit/flagext"
 )
@@ -31,6 +33,9 @@ type RedisConfig struct {
 	InsecureSkipVerify bool           `yaml:"tls_insecure_skip_verify"`
 	IdleTimeout        time.Duration  `yaml:"idle_timeout"`
 	MaxConnAge         time.Duration  `yaml:"max_connection_age"`
+	// MaxItemSize is the maximum size in bytes of an item stored in Redis.
+	// Items larger than this are not stored. A value of 0 disables the limit.
+	MaxItemSize int `yaml:"max_item_size"`
 }
 
 // RegisterFlagsWithPrefix adds the flags required to config this to the given FlagSet
@@ -49,16 +54,20 @@ func (cfg *RedisConfig) RegisterFlagsWithPrefix(prefix, description string, f *f
 	f.BoolVar(&cfg.InsecureSkipVerify, prefix+"redis.tls-insecure-skip-verify", false, description+"Skip validating server certificate.")
 	f.DurationVar(&cfg.IdleTimeout, prefix+"redis.idle-timeout", 0, description+"Close connections after remaining idle for this duration. If the value is zero, then idle connections are not closed.")
 	f.DurationVar(&cfg.MaxConnAge, prefix+"redis.max-connection-age", 0, description+"Close connections older than this duration. If the value is zero, then the pool does not close connections based on age.")
+	f.IntVar(&cfg.MaxItemSize, prefix+"redis.max-item-size", 0, description+"The maximum size in bytes of an item stored in Redis. Items larger than this are not stored. A value of 0 disables the limit.")
 }
 
 type RedisClient struct {
 	expiration time.Duration
 	timeout    time.Duration
 	rdb        redis.UniversalClient
+
+	maxItemSizeBytes int
+	skipped          prometheus.Counter
 }
 
 // NewRedisClient creates Redis client
-func NewRedisClient(cfg *RedisConfig) *RedisClient {
+func NewRedisClient(cfg *RedisConfig, name string, reg prometheus.Registerer) *RedisClient {
 	opt := &redis.UniversalOptions{
 		Addrs:            strings.Split(cfg.Endpoint, ","),
 		MasterName:       cfg.MasterName,
@@ -75,9 +84,16 @@ func NewRedisClient(cfg *RedisConfig) *RedisClient {
 		opt.TLSConfig = &tls.Config{InsecureSkipVerify: cfg.InsecureSkipVerify}
 	}
 	return &RedisClient{
-		expiration: cfg.Expiration,
-		timeout:    cfg.Timeout,
-		rdb:        redis.NewUniversalClient(opt),
+		expiration:       cfg.Expiration,
+		timeout:          cfg.Timeout,
+		rdb:              redis.NewUniversalClient(opt),
+		maxItemSizeBytes: cfg.MaxItemSize,
+		skipped: promauto.With(reg).NewCounter(prometheus.CounterOpts{
+			Namespace:   "tempo",
+			Name:        "rediscache_client_set_skip_total",
+			Help:        "Total number of skipped set operations because the value is larger than max-item-size.",
+			ConstLabels: prometheus.Labels{"name": name},
+		}),
 	}
 }
 
@@ -111,6 +127,11 @@ func (c *RedisClient) MSet(ctx context.Context, keys []string, values [][]byte) 
 
 	pipe := c.rdb.TxPipeline()
 	for i := range keys {
+		// Skip hitting redis at all if the item is larger than the max allowed size.
+		if c.maxItemSizeBytes > 0 && len(values[i]) > c.maxItemSizeBytes {
+			c.skipped.Inc()
+			continue
+		}
 		pipe.Set(ctx, keys[i], values[i], c.expiration)
 	}
 	_, err := pipe.Exec(ctx)
@@ -172,6 +193,30 @@ func (c *RedisClient) Get(ctx context.Context, key string) ([]byte, error) {
 	}
 
 	return StringToBytes(cmd.Val()), nil
+}
+
+func (c *RedisClient) Del(ctx context.Context, keys []string) error {
+	if len(keys) == 0 {
+		return nil
+	}
+	var cancel context.CancelFunc
+	if c.timeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, c.timeout)
+		defer cancel()
+	}
+
+	// redis.UniversalClient can take redis.Client and redis.ClusterClient.
+	// if redis.ClusterClient is set, multi-key DEL may fail with CROSSSLOT if keys hash to different slots.
+	_, isCluster := c.rdb.(*redis.ClusterClient)
+	if isCluster {
+		for _, key := range keys {
+			if err := c.rdb.Del(ctx, key).Err(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return c.rdb.Del(ctx, keys...).Err()
 }
 
 func (c *RedisClient) Close() error {

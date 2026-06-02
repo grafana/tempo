@@ -2,6 +2,7 @@ package forwarder
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -17,7 +18,6 @@ import (
 	"go.opentelemetry.io/collector/processor"
 	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
-	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -40,7 +40,7 @@ func (l List) ForwardTraces(ctx context.Context, traces ptrace.Traces) error {
 		}
 	}
 
-	return multierr.Combine(errs...)
+	return errors.Join(errs...)
 }
 
 func New(cfg Config, logger log.Logger, logLevel dslog.Level) (Forwarder, error) {
@@ -139,7 +139,7 @@ func (f *FilterForwarder) Shutdown(ctx context.Context) error {
 		errs = append(errs, fmt.Errorf("failed to shutdown next forwarder: %w", err))
 	}
 
-	return multierr.Combine(errs...)
+	return errors.Join(errs...)
 }
 
 // GetExtensions implements component.Host

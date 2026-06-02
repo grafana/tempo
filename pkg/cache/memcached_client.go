@@ -29,6 +29,7 @@ type MemcachedClient interface {
 	GetMulti(ctx context.Context, keys []string, opts ...memcache.Option) (map[string]*memcache.Item, error)
 	Set(item *memcache.Item) error
 	Get(key string, opts ...memcache.Option) (*memcache.Item, error)
+	Delete(key string) error
 	Close()
 }
 
@@ -165,7 +166,7 @@ func NewMemcachedClient(cfg MemcachedClientConfig, name string, r prometheus.Reg
 		skipped: promauto.With(r).NewCounter(prometheus.CounterOpts{
 			Namespace:   "tempo",
 			Name:        "memcache_client_set_skip_total",
-			Help:        "Total number of skipped set operations because of the value is larger than the max-item-size.",
+			Help:        "Total number of skipped set operations because the value is larger than max-item-size.",
 			ConstLabels: prometheus.Labels{"name": name},
 		}),
 	}

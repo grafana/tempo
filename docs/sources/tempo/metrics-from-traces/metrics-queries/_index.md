@@ -83,6 +83,12 @@ These functions can be added as an operator at the end of any TraceQL query.
 
 The `topk` and `bottomk` functions and comparison operators (`>`, `>=`, `<`, `<=`, `=`, `!=`) are supported on TraceQL metrics results.
 
+You can also combine metrics queries with arithmetic operators (`+`, `-`, `*`, `/`) to compute derived metrics like error rate ratios. Each sub-query must be wrapped in parentheses:
+
+```traceql
+({status=error} | rate()) / ({} | rate())
+```
+
 For detailed information and example queries for each function, refer to [TraceQL metrics functions](ref:mq-functions).
 
 ### Exemplars
@@ -101,3 +107,32 @@ Example:
 ```
 { span:name = "GET /:endpoint" } | quantile_over_time(duration, .99) by (span.http.target) with (exemplars=true)
 ```
+
+### Faster read path (experimental)
+
+{{< docs/experimental product="Tempo" >}}
+
+In vParquet5, you can use an experimental span-only fetch layer to significantly improve performance for most metrics queries. This optimized read path processes individual spans instead of full traces, reducing latency and memory usage.
+
+You must enable the faster read path explicitly using a query hint or a per-tenant override. Once enabled, it applies to metrics queries that don't require knowledge of the full trace structure. Queries using structural operators like `>>`, `<<`, `~`, `!>>`, `!<<`, or `!~` still use the standard fetch layer.
+
+#### Enable with a query hint
+
+Add the `spanonly_fetch=true` hint to your query. This hint requires [`unsafe_query_hints`](/docs/tempo/<TEMPO_VERSION>/configuration/#overrides) to be enabled for the tenant.
+
+```
+{ resource.service.name = "frontend" } | rate() by (status) with (spanonly_fetch=true)
+```
+
+#### Enable with a per-tenant override
+
+Operators can enable the faster read path by default for a tenant using the `metrics_spanonly_fetch` override. When set, it applies to all eligible metrics queries for that tenant without requiring a query hint. This override doesn't require `unsafe_query_hints`.
+
+```yaml
+overrides:
+  'tenant-id':
+    read:
+      metrics_spanonly_fetch: true
+```
+
+When `unsafe_query_hints` is also enabled for the tenant, the `spanonly_fetch` query hint takes precedence over the per-tenant override. Users can set `spanonly_fetch=false` to opt out, or `spanonly_fetch=true` to opt in even when the override is disabled.

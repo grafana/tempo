@@ -173,14 +173,21 @@ func (r *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendTr
 }
 
 func (r *readerWriter) Delete(ctx context.Context, name string, keypath backend.KeyPath, cacheInfo *backend.CacheInfo) error {
-	if cacheInfo != nil {
-		panic("delete is not supported for cache.Cache backend")
+	if c := r.cacheFor(cacheInfo); c != nil {
+		c.Remove(ctx, []string{key(keypath, name)})
 	}
 	return r.nextWriter.Delete(ctx, name, keypath, nil)
 }
 
 func key(keypath backend.KeyPath, name string) string {
 	return strings.Join(keypath, ":") + ":" + name
+}
+
+// BlockKeyPrefix returns the cache key prefix shared by bloom-filter shards and the
+// trace-id-index for a block. Whole-object cache keys are BlockKeyPrefix + name.
+// Note: ReadRange keys also embed ":offset:length" suffixes and cannot be derived from this prefix.
+func BlockKeyPrefix(blockID uuid.UUID, tenantID string) string {
+	return key(backend.KeyPathForBlock(blockID, tenantID), "")
 }
 
 // cacheFor evaluates the cacheInfo and returns the appropriate cache.

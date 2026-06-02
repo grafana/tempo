@@ -143,9 +143,11 @@ type ConsumerConfig struct {
 	MaxPartitionFetchSize int32 `mapstructure:"max_partition_fetch_size"`
 
 	// GroupRebalanceStrategy specifies the strategy to use for partition assignment.
-	// Possible values are "range", "roundrobin", "sticky", and "cooperative-sticky".
+	// Built-in values are "range", "roundrobin", "sticky", and "cooperative-sticky".
+	// Any other value is treated as the component ID of a registered extension
+	// that implements kgo.GroupBalancer.
 	//
-	// Defaults to "cooperative-sticky"
+	// Defaults to "cooperative-sticky".
 	GroupRebalanceStrategy GroupRebalanceStrategy `mapstructure:"group_rebalance_strategy,omitempty"`
 
 	// GroupInstanceID specifies the ID of the consumer
@@ -183,13 +185,19 @@ func (c ConsumerConfig) Validate() error {
 	if c.GroupRebalanceStrategy != "" {
 		switch c.GroupRebalanceStrategy {
 		case RangeBalanceStrategy, RoundRobinBalanceStrategy, StickyBalanceStrategy, CooperativeStickyBalanceStrategy:
-			// Valid
+			// Built-in strategy, valid.
 		default:
-			return fmt.Errorf(
-				"rebalance_strategy should be one of '%s', '%s', '%s', or '%s'. configured value %v",
-				RangeBalanceStrategy, RoundRobinBalanceStrategy, StickyBalanceStrategy, CooperativeStickyBalanceStrategy,
-				c.GroupRebalanceStrategy,
-			)
+			// Accept any value that parses as a component ID; the extension
+			// will be resolved at runtime by the consumer client.
+			var id component.ID
+			if err := id.UnmarshalText([]byte(c.GroupRebalanceStrategy)); err != nil {
+				return fmt.Errorf(
+					"group_rebalance_strategy %q is not a built-in strategy (%s, %s, %s, %s) or a valid extension ID: %w",
+					c.GroupRebalanceStrategy,
+					RangeBalanceStrategy, RoundRobinBalanceStrategy, StickyBalanceStrategy, CooperativeStickyBalanceStrategy,
+					err,
+				)
+			}
 		}
 	}
 

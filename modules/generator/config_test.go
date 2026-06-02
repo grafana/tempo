@@ -18,6 +18,7 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 		ServiceGraphs: servicegraphs.Config{
 			HistogramBuckets: []float64{1},
 			Dimensions:       []string{},
+			Subprocessors:    map[servicegraphs.Subprocessor]bool{},
 		},
 		SpanMetrics: spanmetrics.Config{
 			HistogramBuckets:    []float64{1, 2},

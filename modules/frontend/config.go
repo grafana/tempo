@@ -145,6 +145,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.MultiTenantQueriesEnabled = true
 	cfg.Metrics.MaxIntervals = 10_000
 
+	cfg.QueryEndCutoff = 30 * time.Second
+
 	// enabling an mcp server opens the door to send tracing data to an LLM. it should require
 	// explicit enabling. registers a flag in addition to YAML configuration.
 	f.BoolVar(&cfg.MCPServer.Enabled, util.PrefixConfig(prefix, "mcp-server.enabled"), false, "Set to true to enable the MCP server")

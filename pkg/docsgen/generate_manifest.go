@@ -7,7 +7,7 @@ import (
 	"os/exec"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 const ManifestPath = "docs/sources/tempo/configuration/manifest.md"

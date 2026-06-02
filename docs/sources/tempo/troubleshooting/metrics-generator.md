@@ -218,6 +218,37 @@ tempo_metrics_generator_registry_active_series_demand_estimate{}
 
 This metric uses HyperLogLog estimation and has approximately 3% deviation from the actual cardinality. Use this to determine if you need to increase limits or reduce cardinality.
 
+### Span name sanitization
+
+If `span_name` is one of the highest-cardinality labels in your setup, the `span_name_sanitization` option can reduce it by grouping similar span names and replacing variable segments. For example, `GET /users/123` and `GET /users/456` are both mapped to `GET /users/<_>`.
+
+To evaluate the potential impact without modifying metrics, set `span_name_sanitization` to `dry_run`:
+
+```yaml
+overrides:
+  defaults:
+    metrics_generator:
+      span_name_sanitization: "dry_run"
+```
+
+After a few minutes, compare the demand estimate against current active series:
+
+```promql
+tempo_metrics_generator_registry_post_sanitization_demand_estimate{}
+```
+
+If this value is significantly lower than `tempo_metrics_generator_registry_active_series`, switch to `enabled` to apply the reduction.
+
+After you enable the option, use the following metric to confirm spans are being sanitized:
+
+```promql
+rate(tempo_metrics_generator_registry_spans_sanitized_total{}[5m])
+```
+
+If this rate is zero after enabling, the DRAIN model hasn't found patterns yet. This is expected for workloads with already-consistent span naming. The model trains continuously and adapts as new span names arrive.
+
+For more details on configuration and usage, refer to [Reduce cardinality with span name sanitization](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/reduce-cardinality/).
+
 ### Remote write failures
 
 For any number of reasons, the generator may fail a write to the remote write target. Use the following metrics to

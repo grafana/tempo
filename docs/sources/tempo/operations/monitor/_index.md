@@ -25,11 +25,12 @@ The [Tempo mixin](#dashboards) provides several dashboards using these metrics.
 
 #### Query frontend inspected bytes
 
-Use `tempo_query_frontend_bytes_inspected_total` to monitor how many bytes the query frontend reads from disk and object storage.
+Use `tempo_query_frontend_bytes_inspected_total` to monitor how many bytes the query path behind the query frontend inspects.
 This counter is emitted per `tenant` and `op` (`traces`, `search`, `metadata`, `metrics`).
-Because cached responses from queriers are excluded, it reflects actual storage and network I/O.
+Because cached responses from queriers are excluded, it reflects uncached query I/O.
+For recent-data queries, use `tempo_live_store_query_inspected_bytes_total` to isolate bytes inspected by live-stores.
 
-For PromQL examples and alerting guidance, refer to [Query query IO and time stamp distance](/docs/tempo/<TEMPO_VERSION>/operations/monitor/query-io-and-timestamp-distance/).
+For PromQL examples and alerting guidance, refer to [Monitor query I/O and span timestamp distance](/docs/tempo/<TEMPO_VERSION>/operations/monitor/query-io-and-timestamp-distance/).
 
 ### Logs
 

@@ -5,8 +5,10 @@
 - Push a semver tag to main on the merge commit above.  Something like:
   - `git tag -a v1.2.0-rc.0`
   - `git push origin v1.2.0-rc.0`
-- This will initiate the build process in Github Actions.  The tagged docker image should
-  be available here shortly: https://hub.docker.com/r/grafana/tempo/tags?page=1&ordering=last_updated
+- This will initiate the build process in Github Actions. The `docker` workflow publishes
+  tagged images to GAR under `us-docker.pkg.dev/grafanalabs-global/dockerhub-tempo-prod-mirror/`.
+  `gar-image-mirror` asynchronously mirrors those images to Docker Hub; they should be
+  available here shortly after the workflow succeeds: https://hub.docker.com/r/grafana/tempo/tags?page=1&ordering=last_updated
 - A Github Release Draft should also be available here:  https://github.com/grafana/tempo/releases
   - Copy over the CHANGELOG entries for the release
   - Call out contributors for their work
@@ -81,7 +83,8 @@ Tag the release branch and push. This triggers the `release` and `docker` workfl
 ## 6. Verify CI
 Check that all workflows triggered by the tag succeeded:
 - `release` — creates the GitHub Release draft and binaries
-- `docker` — builds per-arch images and creates multi-arch manifests
+- `docker` — builds per-arch images and creates multi-arch manifests in GAR under `us-docker.pkg.dev/grafanalabs-global/dockerhub-tempo-prod-mirror/` for asynchronous mirroring to Docker Hub
+- Verify the tag appears in GAR first, then on Docker Hub after the mirror catches up
 - `publish-technical-documentation-release` — syncs docs (may show as failed if docs are already up to date; this is harmless)
 
 ## 7. Publish the GitHub Release

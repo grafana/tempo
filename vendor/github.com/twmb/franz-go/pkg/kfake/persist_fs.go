@@ -236,9 +236,14 @@ func (f *memFile) Write(b []byte) (int, error) {
 	}
 	end := f.pos + int64(len(b))
 	if end > int64(len(f.d.data)) {
-		grown := make([]byte, end)
-		copy(grown, f.d.data)
-		f.d.data = grown
+		if end > int64(cap(f.d.data)) {
+			newCap := max(int64(cap(f.d.data))*2, end)
+			grown := make([]byte, end, newCap)
+			copy(grown, f.d.data)
+			f.d.data = grown
+		} else {
+			f.d.data = f.d.data[:end]
+		}
 	}
 	copy(f.d.data[f.pos:], b)
 	f.pos = end
@@ -276,9 +281,17 @@ func (f *memFile) Truncate(size int64) error {
 	if size < int64(len(f.d.data)) {
 		f.d.data = f.d.data[:size]
 	} else if size > int64(len(f.d.data)) {
-		grown := make([]byte, size)
-		copy(grown, f.d.data)
-		f.d.data = grown
+		if size > int64(cap(f.d.data)) {
+			newCap := max(int64(cap(f.d.data))*2, size)
+			grown := make([]byte, size, newCap)
+			copy(grown, f.d.data)
+			f.d.data = grown
+		} else {
+			// Zero the new bytes (POSIX truncate extension fills with zeros).
+			prev := len(f.d.data)
+			f.d.data = f.d.data[:size]
+			clear(f.d.data[prev:])
+		}
 	}
 	return nil
 }

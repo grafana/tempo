@@ -150,6 +150,8 @@ type readerWriter struct {
 	w backend.Writer
 	c backend.Compactor
 
+	cacheProvider cache.Provider
+
 	wal  *wal.WAL
 	pool *pool.Pool
 
@@ -225,6 +227,7 @@ func New(cfg *Config, cacheProvider cache.Provider, logger gkLog.Logger) (Reader
 		c:                       c,
 		r:                       r,
 		w:                       w,
+		cacheProvider:           cacheProvider,
 		cfg:                     cfg,
 		logger:                  logger,
 		pool:                    pool.NewPool(cfg.Pool),

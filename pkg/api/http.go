@@ -654,7 +654,14 @@ func step(vals url.Values, start, end time.Time) (time.Duration, error) {
 	if value == "" {
 		return time.Duration(traceql.DefaultQueryRangeStep(uint64(start.UnixNano()), uint64(end.UnixNano()))), nil
 	}
-	return parseSecondsOrDuration(value)
+	dur, err := parseSecondsOrDuration(value)
+	if err != nil {
+		return dur, err
+	}
+	if dur < 0 {
+		return 0, fmt.Errorf("cannot parse %q: step must be positive", value)
+	}
+	return dur, nil
 }
 
 func parseSecondsOrDuration(value string) (time.Duration, error) {

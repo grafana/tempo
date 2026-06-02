@@ -365,6 +365,7 @@ query_frontend:
         enabled: false
     max_grpc_streaming_packet_size: 2097152
     max_query_expression_size_bytes: 131072
+    query_end_cutoff: 30s
 metrics_generator:
     ring:
         kvstore:
@@ -462,10 +463,6 @@ metrics_generator:
             enable_target_info: false
             span_multiplier_key: ""
             enable_tracestate_span_multiplier: false
-            subprocessors:
-                0: true
-                1: true
-                2: true
             filter_policies: []
             target_info_excluded_dimensions: []
             enable_instance_label: true
@@ -1063,6 +1060,6 @@ live_store:
     max_block_bytes: 52428800
     readiness_target_lag: 0s
     readiness_max_wait: 30m0s
-    fail_on_high_lag: false
+    fail_on_high_lag: true
     remove_owner_on_shutdown: true
 ```

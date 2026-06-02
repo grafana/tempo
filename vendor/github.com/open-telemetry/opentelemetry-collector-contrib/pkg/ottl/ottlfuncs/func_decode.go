@@ -10,10 +10,57 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	"golang.org/x/text/encoding"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/textutils"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
+
+type decoder interface {
+	Decode(src []byte) (any, error)
+	DecodeString(src string) (any, error)
+}
+
+type textDecoder struct {
+	enc encoding.Encoding
+}
+
+func (td textDecoder) Decode(src []byte) (any, error) {
+	ret, err := td.enc.NewDecoder().Bytes(src)
+	if err != nil {
+		return nil, fmt.Errorf("could not decode: %w", err)
+	}
+	return string(ret), nil
+}
+
+func (td textDecoder) DecodeString(src string) (any, error) {
+	decodedString, err := td.enc.NewDecoder().String(src)
+	if err != nil {
+		return nil, fmt.Errorf("could not decode: %w", err)
+	}
+	return decodedString, nil
+}
+
+type base64Decoder struct {
+	enc *base64.Encoding
+}
+
+func (bd base64Decoder) Decode(src []byte) (any, error) {
+	dbuf := make([]byte, bd.enc.DecodedLen(len(src)))
+	n, err := bd.enc.Decode(dbuf, src)
+	if err != nil {
+		return nil, fmt.Errorf("could not decode: %w", err)
+	}
+	return string(dbuf[:n]), nil
+}
+
+func (bd base64Decoder) DecodeString(src string) (any, error) {
+	buf, err := bd.enc.DecodeString(src)
+	if err != nil {
+		return nil, fmt.Errorf("could not decode: %w", err)
+	}
+	return string(buf), nil
+}
 
 type DecodeArguments[K any] struct {
 	Target   ottl.Getter[K]
@@ -30,70 +77,94 @@ func createDecodeFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (
 		return nil, errors.New("DecodeFactory args must be of type *DecodeArguments[K]")
 	}
 
-	return Decode(args.Target, args.Encoding), nil
+	return decode(args.Target, args.Encoding)
 }
 
-func Decode[K any](target ottl.Getter[K], encoding ottl.StringGetter[K]) ottl.ExprFunc[K] {
+func decode[K any](target ottl.Getter[K], encoding ottl.StringGetter[K]) (ottl.ExprFunc[K], error) {
+	decGet, err := newDecoderGetter(encoding)
+	if err != nil {
+		return nil, err
+	}
 	return func(ctx context.Context, tCtx K) (any, error) {
 		val, err := target.Get(ctx, tCtx)
 		if err != nil {
 			return nil, err
 		}
-		encodingVal, err := encoding.Get(ctx, tCtx)
+		dec, err := decGet.Get(ctx, tCtx)
 		if err != nil {
 			return nil, err
 		}
-		var stringValue string
 
 		switch v := val.(type) {
 		case []byte:
-			stringValue = string(v)
+			return dec.Decode(v)
 		case *string:
-			stringValue = *v
+			return dec.DecodeString(*v)
 		case string:
-			stringValue = v
+			return dec.DecodeString(v)
 		case pcommon.ByteSlice:
-			stringValue = string(v.AsRaw())
+			return dec.Decode(v.AsRaw())
 		case *pcommon.ByteSlice:
-			stringValue = string(v.AsRaw())
+			return dec.Decode(v.AsRaw())
 		case pcommon.Value:
-			stringValue = v.AsString()
+			if v.Type() == pcommon.ValueTypeBytes {
+				return dec.Decode(v.Bytes().AsRaw())
+			}
+			return dec.DecodeString(v.AsString())
 		case *pcommon.Value:
-			stringValue = v.AsString()
+			if v.Type() == pcommon.ValueTypeBytes {
+				return dec.Decode(v.Bytes().AsRaw())
+			}
+			return dec.DecodeString(v.AsString())
 		default:
 			return nil, fmt.Errorf("unsupported type provided to Decode function: %T", v)
 		}
-
-		switch encodingVal {
-		// base64 is not in IANA index, so we have to deal with this encoding separately
-		case "base64":
-			return decodeBase64(base64.StdEncoding, stringValue)
-		case "base64-raw":
-			return decodeBase64(base64.RawStdEncoding, stringValue)
-		case "base64-url":
-			return decodeBase64(base64.URLEncoding, stringValue)
-		case "base64-raw-url":
-			return decodeBase64(base64.RawURLEncoding, stringValue)
-		default:
-			e, err := textutils.LookupEncoding(encodingVal)
-			if err != nil {
-				return nil, err
-			}
-
-			decodedString, err := e.NewDecoder().String(stringValue)
-			if err != nil {
-				return nil, fmt.Errorf("could not decode: %w", err)
-			}
-
-			return decodedString, nil
-		}
-	}
+	}, nil
 }
 
-func decodeBase64(encoding *base64.Encoding, stringValue string) (any, error) {
-	decodedBytes, err := encoding.DecodeString(stringValue)
-	if err != nil {
-		return nil, fmt.Errorf("could not decode: %w", err)
+type decoderGetter[K any] struct {
+	decoder decoder
+	getter  ottl.StringGetter[K]
+}
+
+func newDecoderGetter[K any](getter ottl.StringGetter[K]) (*decoderGetter[K], error) {
+	if enc, isLiteral := ottl.GetLiteralValue(getter); isLiteral {
+		dec, err := asDecoder(enc)
+		if err != nil {
+			return nil, err
+		}
+		return &decoderGetter[K]{decoder: dec}, nil
 	}
-	return string(decodedBytes), nil
+	return &decoderGetter[K]{getter: getter}, nil
+}
+
+func (d *decoderGetter[K]) Get(ctx context.Context, tCtx K) (decoder, error) {
+	if d.decoder != nil {
+		return d.decoder, nil
+	}
+	enc, err := d.getter.Get(ctx, tCtx)
+	if err != nil {
+		return nil, err
+	}
+	return asDecoder(enc)
+}
+
+func asDecoder(encodingVal string) (decoder, error) {
+	switch encodingVal {
+	// base64 is not in IANA index, so we have to deal with this encoding separately
+	case "base64":
+		return base64Decoder{enc: base64.StdEncoding}, nil
+	case "base64-raw":
+		return base64Decoder{enc: base64.RawStdEncoding}, nil
+	case "base64-url":
+		return base64Decoder{enc: base64.URLEncoding}, nil
+	case "base64-raw-url":
+		return base64Decoder{enc: base64.RawURLEncoding}, nil
+	default:
+		e, err := textutils.LookupEncoding(encodingVal)
+		if err != nil {
+			return nil, err
+		}
+		return textDecoder{enc: e}, nil
+	}
 }

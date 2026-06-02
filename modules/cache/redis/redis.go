@@ -23,8 +23,8 @@ func NewClient(cfg *Config, cfgBackground *cache.BackgroundConfig, name string, 
 		cfg.ClientConfig.Expiration = cfg.TTL
 	}
 
-	client := cache.NewRedisClient(&cfg.ClientConfig)
-	c := cache.NewRedisCache(name, client, prometheus.DefaultRegisterer, logger)
+	client := cache.NewRedisClient(&cfg.ClientConfig, name, prometheus.DefaultRegisterer)
+	c := cache.NewRedisCache(name, client, cfg.ClientConfig.MaxItemSize, prometheus.DefaultRegisterer, logger)
 
 	return cache.NewBackground(name, *cfgBackground, c, prometheus.DefaultRegisterer)
 }

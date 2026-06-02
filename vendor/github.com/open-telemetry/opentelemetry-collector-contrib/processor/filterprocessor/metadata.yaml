@@ -13,6 +13,14 @@ status:
   codeowners:
     active: [TylerHelmuth, evan-bradley, edmocosta, bogdandrutu]
     emeritus: [boostchicken]
+feature_gates:
+  - id: processor.filter.defaultErrorModeIgnore
+    description: >-
+      Changes the default error_mode of the filter processor from propagate to ignore
+    stage: alpha
+    from_version: "v0.150.0"
+    reference_url: https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/47232
+
 tests:
   config:
 

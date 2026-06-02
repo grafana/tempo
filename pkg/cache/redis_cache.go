@@ -17,18 +17,20 @@ import (
 
 // RedisCache type caches chunks in redis
 type RedisCache struct {
-	name            string
-	redis           *RedisClient
-	logger          log.Logger
-	requestDuration *instr.HistogramCollector
+	name             string
+	redis            *RedisClient
+	logger           log.Logger
+	requestDuration  *instr.HistogramCollector
+	maxItemSizeBytes int
 }
 
 // NewRedisCache creates a new RedisCache
-func NewRedisCache(name string, redisClient *RedisClient, reg prometheus.Registerer, logger log.Logger) *RedisCache {
+func NewRedisCache(name string, redisClient *RedisClient, maxItemSizeBytes int, reg prometheus.Registerer, logger log.Logger) *RedisCache {
 	cache := &RedisCache{
-		name:   name,
-		redis:  redisClient,
-		logger: logger,
+		name:             name,
+		redis:            redisClient,
+		logger:           logger,
+		maxItemSizeBytes: maxItemSizeBytes,
 		requestDuration: instr.NewHistogramCollector(
 			promauto.With(reg).NewHistogramVec(prometheus.HistogramOpts{
 				Namespace:                       "tempo",
@@ -126,6 +128,18 @@ func (c *RedisCache) Store(ctx context.Context, keys []string, bufs [][]byte) {
 	}
 }
 
+// Remove deletes the given keys from the cache.
+func (c *RedisCache) Remove(ctx context.Context, keys []string) {
+	_ = measureRequest(ctx, "RedisCache.Del", c.requestDuration, redisStatusCode, func(ctx context.Context) error {
+		t := trace.SpanFromContext(ctx)
+		err := c.redis.Del(ctx, keys)
+		if err == nil {
+			t.AddEvent(eventKeysRemoved, trace.WithAttributes(attribute.Int("keys", len(keys))))
+		}
+		return err
+	})
+}
+
 // Stop stops the redis client.
 func (c *RedisCache) Stop() {
 	_ = c.redis.Close()
@@ -135,7 +149,6 @@ func (c *RedisCache) Release(_ []byte) {
 	// buffer pooling unimplemented in redis
 }
 
-// redis doesn't have a max item size. todo: add
 func (c *RedisCache) MaxItemSize() int {
-	return 0
+	return c.maxItemSizeBytes
 }

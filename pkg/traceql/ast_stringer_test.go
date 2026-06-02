@@ -63,3 +63,36 @@ func TestStringerRoundtrip(t *testing.T) {
 		})
 	}
 }
+
+func TestStringerAttributeNameWithQuote(t *testing.T) {
+	queries := []string{
+		// " and \ escapes
+		`{ ."foo\" = \"bar" = "v" }`,
+		`{ ."a\\b" = "v" }`,
+		`{ ."a\"b c" = "v" }`,
+		// name contains only attribute runes plus a literal '"' — the stringer
+		// must still force-quote because '"' is an attribute rune per
+		// isAttributeRune, so ContainsNonAttributeRune would otherwise miss it.
+		`{ ."a\"b" = "v" }`,
+		// raw whitespace / control / non-printable runes — the parser accepts
+		// them verbatim inside a quoted identifier; a strconv.Quote-based
+		// serializer would emit \n / \t / \uXXXX and break re-parse.
+		"{ .\"foo\tbar\" = \"v\" }",
+		"{ .\"foo\nbar\" = \"v\" }",
+		"{ .\"foo\rbar\" = \"v\" }",
+		"{ .\"foo\vbar\" = \"v\" }",
+		"{ .\"foo\fbar\" = \"v\" }",
+		"{ .\" x\" = \"v\" }", // NBSP
+	}
+
+	for _, q := range queries {
+		t.Run(q, func(t *testing.T) {
+			pass1, err := ParseNoOptimizations(q)
+			require.NoError(t, err)
+
+			pass2, err := ParseNoOptimizations(pass1.String())
+			require.NoError(t, err, "round-trip failed: %q", pass1.String())
+			require.Equal(t, pass1, pass2, "round-trip changed AST: %q -> %q", q, pass1.String())
+		})
+	}
+}

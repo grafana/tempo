@@ -8,7 +8,10 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
+	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/tempodb/backend"
+	backend_cache "github.com/grafana/tempo/tempodb/backend/cache"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 // retentionLoop watches a timer to clean up blocks that are past retention.
@@ -121,10 +124,34 @@ func (rw *readerWriter) retainTenant(ctx context.Context, tenantID string, compa
 					metricRetentionErrors.Inc()
 				} else {
 					metricDeleted.Inc()
-
+					rw.removeCachedBlock(ctx, tenantID, (uuid.UUID)(b.BlockID), int(b.BloomShardCount))
 					rw.blocklist.Update(tenantID, nil, nil, nil, []*backend.CompactedBlockMeta{b})
 				}
 			}
 		}
+	}
+}
+
+// removeCachedBlock evicts bloom filter shards and the trace-id index for a deleted block
+// from all configured caches. Cache entries for other roles (parquet pages, footer, etc.)
+// use byte offsets in their keys that are not tracked in the block meta, so those are left
+// to expire via TTL or LRU eviction.
+func (rw *readerWriter) removeCachedBlock(ctx context.Context, tenantID string, blockID uuid.UUID, bloomShardCount int) {
+	if rw.cacheProvider == nil {
+		return
+	}
+
+	keyPrefix := backend_cache.BlockKeyPrefix(blockID, tenantID)
+
+	if c := rw.cacheProvider.CacheFor(cache.RoleBloom); c != nil {
+		keys := make([]string, 0, common.ValidateShardCount(bloomShardCount))
+		for i := 0; i < common.ValidateShardCount(bloomShardCount); i++ {
+			keys = append(keys, keyPrefix+common.BloomName(i))
+		}
+		c.Remove(ctx, keys)
+	}
+
+	if c := rw.cacheProvider.CacheFor(cache.RoleTraceIDIdx); c != nil {
+		c.Remove(ctx, []string{keyPrefix + common.NameIndex})
 	}
 }

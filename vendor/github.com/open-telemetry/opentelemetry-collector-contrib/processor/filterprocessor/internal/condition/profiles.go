@@ -55,7 +55,7 @@ func (pc ProfilesConsumer) ConsumeProfiles(ctx context.Context, pd pprofile.Prof
 
 		rp.ScopeProfiles().RemoveIf(func(sp pprofile.ScopeProfiles) bool {
 			if pc.scopeExpr != nil {
-				sCtx := ottlscope.NewTransformContextPtr(sp.Scope(), rp.Resource(), sp)
+				sCtx := ottlscope.NewTransformContextPtr(sp.Scope(), rp.Resource(), sp, rp)
 				sCond, err := pc.scopeExpr.Eval(ctx, sCtx)
 				sCtx.Close()
 				if err != nil {
