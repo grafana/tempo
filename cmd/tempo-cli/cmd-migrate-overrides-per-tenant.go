@@ -4,9 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"go.yaml.in/yaml/v3"
-
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/util"
 )
 
 type migrateOverridesPerTenantCmd struct {
@@ -53,7 +52,7 @@ func (cmd *migrateOverridesPerTenantCmd) Run(*globalOptions) error {
 		"overrides": result,
 	}
 
-	outputBytes, err := yaml.Marshal(output)
+	outputBytes, err := util.YAMLMarshal(output)
 	if err != nil {
 		return fmt.Errorf("failed to marshal per-tenant overrides: %w", err)
 	}

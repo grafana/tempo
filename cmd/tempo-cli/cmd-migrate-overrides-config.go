@@ -58,7 +58,7 @@ func (cmd *migrateOverridesConfigCmd) Run(*globalOptions) error {
 		"overrides": loadedMap,
 	}
 
-	outputBytes, err := yaml.Marshal(result)
+	outputBytes, err := util.YAMLMarshal(result)
 	if err != nil {
 		return fmt.Errorf("failed to marshal overrides: %w", err)
 	}

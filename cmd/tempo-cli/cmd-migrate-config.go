@@ -391,7 +391,7 @@ var validTargets = map[string]bool{
 
 // outputMigratedConfig marshals the map to YAML and prints it to stdout with a header comment.
 func outputMigratedConfig(m map[string]interface{}) error {
-	yamlBytes, err := yaml.Marshal(m)
+	yamlBytes, err := util.YAMLMarshal(m)
 	if err != nil {
 		return fmt.Errorf("failed to marshal migrated config: %w", err)
 	}
