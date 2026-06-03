@@ -335,20 +335,29 @@ func (m *MetricsScalarOp) process(input SeriesSet) SeriesSet {
 	result := make(SeriesSet, len(input))
 	for key, series := range input {
 		values := make([]float64, len(series.Values))
+		exemplars := make([]Exemplar, len(series.Exemplars))
 		if m.scalarOnLeft {
 			for i, v := range series.Values {
 				values[i] = applyArithmeticOp(m.op, m.value, v)
 			}
+			for i, v := range series.Exemplars {
+				exemplars[i] = v
+				exemplars[i].Value = applyArithmeticOp(m.op, m.value, v.Value)
+			}
 		} else {
 			for i, v := range series.Values {
 				values[i] = applyArithmeticOp(m.op, v, m.value)
+			}
+			for i, v := range series.Exemplars {
+				exemplars[i] = v
+				exemplars[i].Value = applyArithmeticOp(m.op, v.Value, m.value)
 			}
 		}
 
 		result[key] = TimeSeries{
 			Labels:    series.Labels,
 			Values:    values,
-			Exemplars: series.Exemplars,
+			Exemplars: exemplars,
 		}
 	}
 	return result
