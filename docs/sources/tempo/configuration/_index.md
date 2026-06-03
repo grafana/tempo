@@ -887,6 +887,9 @@ metrics_generator:
 
         # A list of remote write endpoints.
         # https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write
+        # To send sensitive header values, such as authentication tokens, use http_headers
+        # with secrets instead of the headers map. Values in the headers map are stored and
+        # displayed in plaintext. Refer to the section that follows this configuration block.
         remote_write:
             [- <Prometheus remote write config>]
 
@@ -897,6 +900,53 @@ metrics_generator:
 
     # Overrides the key used to register the metrics-generator in the ring.
     [override_ring_key: <string> | default = "metrics-generator"]
+```
+
+### Use `http_headers` with `secrets` to send sensitive header values
+
+Header values that you set under `headers` in a `remote_write` endpoint are stored and displayed in plaintext.
+They appear in the configuration that the [`/status/config` endpoint](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#status) returns, which can expose secrets such as authentication tokens.
+
+To send sensitive header values, use `http_headers` with `secrets` instead of `headers`.
+Each header under `http_headers` supports three optional fields:
+
+```yaml
+# Custom HTTP headers to send with each remote write request.
+http_headers:
+    # Header name.
+    [<string>]:
+        # Plaintext header values. Stored and displayed in plaintext.
+        [values: <list of strings>]
+        # Header values that Tempo masks as <secret> in the displayed configuration.
+        [secrets: <list of secrets>]
+        # Files that Tempo reads header values from.
+        [files: <list of strings>]
+```
+
+Use `secrets` for sensitive values, such as authentication tokens.
+Tempo masks values that you configure under `secrets` as `<secret>` in the displayed configuration.
+Use `values` for non-sensitive values, and `files` to read a value from a file on disk.
+
+For example:
+
+```yaml
+metrics_generator:
+  storage:
+    remote_write:
+      - url: https://prometheus.example.com/api/v1/write
+        http_headers:
+          # Masked as <secret> in the displayed configuration.
+          X-Custom-Token:
+            secrets:
+              - <SECRET_VALUE>
+          # Stored and displayed in plaintext.
+          X-Custom-Header:
+            values:
+              - custom-value
+          # Read from a file on disk.
+          X-Token-From-File:
+            files:
+              - /etc/tempo/custom-token
 ```
 
 ## Query-frontend
@@ -2984,4 +3034,4 @@ cache:
 
 ## Configure authentication
 
-Grafana Tempo does not come with any included authentication layer. You must run an authenticating reverse proxy in front of your services to prevent unauthorized access to Tempo (for example, nginx). [Manage authentication](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/authentication/) for more details
+Grafana Tempo doesn't come with any included authentication layer. You must run an authenticating reverse proxy in front of your services to prevent unauthorized access to Tempo (for example, nginx). Refer to [Manage authentication](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/authentication/) for more details.
