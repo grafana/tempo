@@ -17,6 +17,7 @@ package chlog
 import (
 	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"text/template"
@@ -49,7 +50,7 @@ func TestEntry(t *testing.T) {
 		{
 			name:      "empty",
 			entry:     Entry{},
-			expectErr: "'' is not a valid 'change_type'. Specify one of [breaking deprecation new_component enhancement bug_fix]\nspecify a 'component'\nspecify a 'note'\nspecify one or more issues #'s\nspecify a 'user'",
+			expectErr: "'' is not a valid 'change_type'. Specify one of [breaking deprecation new_component enhancement bug_fix]\nspecify a 'component'\nspecify a 'note'\nspecify a 'user'",
 		},
 		{
 			name: "missing_component",
@@ -74,7 +75,10 @@ func TestEntry(t *testing.T) {
 			expectErr: "specify a 'note'",
 		},
 		{
-			name: "missing_issue",
+			// 'issues' is optional and validates when empty; update fails before
+			// rendering such an entry, so the bare "()" here is never reached in
+			// practice.
+			name: "no_issues",
 			entry: Entry{
 				ChangeType: "bug_fix",
 				Component:  "bar",
@@ -82,7 +86,7 @@ func TestEntry(t *testing.T) {
 				SubText:    "",
 				User:       "octocat",
 			},
-			expectErr: "specify one or more issues #'s",
+			toString: "- `bar`: fix bar () (@octocat)",
 		},
 		{
 			name: "missing_required_changelog",
@@ -451,6 +455,71 @@ func TestReadEntriesRejectsUnknownChangelog(t *testing.T) {
 	require.ErrorContains(t, err, "'nonexistent' is not a valid value in 'change_logs'")
 }
 
+func TestBackfillIssues(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+
+	dir := t.TempDir()
+	runGit := func(args ...string) {
+		t.Helper()
+		out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput()
+		require.NoError(t, err, string(out))
+	}
+	runGit("init")
+	runGit("config", "user.email", "test@example.com")
+	runGit("config", "user.name", "Test")
+
+	// Simulate Tempo's squash-merge: the commit that adds the entry file carries
+	// the PR number in its subject.
+	path := filepath.Join(dir, "my-change.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("note: x\n"), 0o600))
+	runGit("add", "my-change.yaml")
+	runGit("commit", "-m", "Add a thing (#4242)")
+
+	t.Run("backfills PR from git when empty", func(t *testing.T) {
+		e := &Entry{path: path}
+		e.BackfillIssues()
+		assert.Equal(t, []int{4242}, e.Issues)
+	})
+
+	t.Run("keeps issues set by the author", func(t *testing.T) {
+		e := &Entry{path: path, Issues: []int{1}}
+		e.BackfillIssues()
+		assert.Equal(t, []int{1}, e.Issues)
+	})
+
+	t.Run("no-op when the file has no git history", func(t *testing.T) {
+		e := &Entry{path: filepath.Join(t.TempDir(), "untracked.yaml")}
+		e.BackfillIssues()
+		assert.Empty(t, e.Issues)
+	})
+
+	t.Run("uses the adding commit, not a later edit", func(t *testing.T) {
+		p := filepath.Join(dir, "edited.yaml")
+		require.NoError(t, os.WriteFile(p, []byte("note: a\n"), 0o600))
+		runGit("add", "edited.yaml")
+		runGit("commit", "-m", "Add edited (#100)")
+		require.NoError(t, os.WriteFile(p, []byte("note: b\n"), 0o600))
+		runGit("commit", "-am", "Tweak edited (#200)")
+
+		e := &Entry{path: p}
+		e.BackfillIssues()
+		assert.Equal(t, []int{100}, e.Issues)
+	})
+
+	t.Run("not found when the adding commit has no PR", func(t *testing.T) {
+		p := filepath.Join(dir, "nopr.yaml")
+		require.NoError(t, os.WriteFile(p, []byte("note: c\n"), 0o600))
+		runGit("add", "nopr.yaml")
+		runGit("commit", "-m", "local wip, no pr number")
+
+		e := &Entry{path: p}
+		e.BackfillIssues()
+		assert.Empty(t, e.Issues)
+	})
+}
+
 func TestFindYamlFilesEmptyDir(t *testing.T) {
 	dir := t.TempDir()
 
@@ -514,4 +583,8 @@ func writeEntry(t *testing.T, dir string, entry *Entry, ext string) {
 
 	_, err = entryFile.Write(entryBytes)
 	require.NoError(t, err)
+
+	// Record the source path so it matches what ReadEntries sets on the entries
+	// it returns (used by struct-equality assertions and BackfillIssues).
+	entry.path = entryFile.Name()
 }
