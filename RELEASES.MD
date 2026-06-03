@@ -1,7 +1,9 @@
 # Release Candidates
 
-- Create a branch named `changelog-<version>-<rc.#>`. Clean up the changelog, add the version heading
-  and merge to main. 
+- Create a branch named `changelog-<version>-<rc.#>`. Generate the changelog section from the
+  `.chloggen/` entries by running `make chlog-update VERSION=v<version>-<rc.#>` (this collates the
+  entries into `CHANGELOG.md` under the version heading and deletes the consumed files). Review the
+  result, then merge to main.
 - Push a semver tag to main on the merge commit above.  Something like:
   - `git tag -a v1.2.0-rc.0`
   - `git push origin v1.2.0-rc.0`
@@ -25,10 +27,10 @@ This document details release procedures for Tempo.
     - `git tag -a v1.2.0`
     - `git push origin v1.2.0`
   - Make sure that the "This is a pre-release" is unchecked when publishing the release.
-- Submit a PR cleaning up the changelog and moving everything under "main/unreleased" to be under
-  the newly minted version.
-  - Given that the changelog was already cleaned up for the RC above. This will likely be simply
-    renaming the release candidate to the full version.
+- Submit a PR updating the changelog for the full version. Because the RC above already ran
+  `make chlog-update` (consuming the `.chloggen/` entries), this is usually just renaming the
+  `# v<version>-<rc.#>` heading in `CHANGELOG.md` to the final `# v<version>`. If new entries landed
+  since the RC, run `make chlog-update VERSION=v<version>` instead to collate them.
 - In [github releases](https://github.com/grafana/tempo/releases) there should be a "Draft" release.
   Pretty up the changelog, add it to the release notes and hit "Publish release". Make sure that
   "Set as the latest release" is checked.
@@ -46,14 +48,17 @@ Patches release should be cut for serious bug fixes or security issues.
 - Commits should already have been backported to this branch using backport automation, but if 
   you need to add more you can cherry-pick them:
    `git cherry-pick <commit hash>`
+- Generate the patch version's changelog section on the release branch by running
+  `make chlog-update VERSION=v1.0.1` (this collates the backported `.chloggen/*.yaml` entries into
+  `CHANGELOG.md` under the new version heading and deletes the consumed files), then commit it.
 - Push the commit  
   `git push`
 - Create and push a tag to initiate the release. This will be pushed to the release branch.
   `git tag -a v1.0.1`  
   `git push origin v1.0.1`  
   This triggers the build.
-- Submit a PR to main cleaning up the changelog and moving those entries in the patch release under "main/unreleased" 
-  to be under the newly minted version.
+- Submit a PR to main adding the new patch version's section to `CHANGELOG.md` so the released notes
+  are reflected there too.
 - In [github releases](https://github.com/grafana/tempo/releases) there should be a "Draft" release.
   Pretty up the changelog, add it to the release notes and hit "Publish release". Make sure that
   "Set as the latest release" is checked.

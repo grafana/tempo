@@ -1,0 +1,64 @@
+# Configuration for chloggen (the in-tree tool at tools/chloggen).
+# See .chloggen/README.md for usage.
+
+# Directory holding individual, unreleased changelog entries (one YAML per change).
+entries_dir: .chloggen
+
+# Template copied by `chloggen new` / `make chlog-new`.
+template_yaml: .chloggen/TEMPLATE.yaml
+
+# Custom render template producing Tempo's CHANGELOG.md format.
+summary_template: .chloggen/summary.tmpl
+
+# Target changelog file(s). Tempo uses a single changelog.
+change_logs:
+  default: CHANGELOG.md
+
+# Changelog used when an entry does not set `change_logs`.
+default_change_logs: [default]
+
+# Change types, in render order, with their section headings. Derived from Tempo's
+# historical CHANGELOG categories ([CHANGE], [FEATURE], [ENHANCEMENT], [BUGFIX],
+# [SECURITY]) plus breaking changes (historically the `**BREAKING CHANGE**` marker).
+change_types:
+  - key: security
+    heading: 🔒 Security 🔒
+  - key: breaking
+    heading: 🛑 Breaking changes 🛑
+  - key: feature
+    heading: 🚀 Features 🚀
+  - key: enhancement
+    heading: 💡 Enhancements 💡
+  - key: bug_fix
+    heading: 🧰 Bug fixes 🧰
+  - key: change
+    heading: 🔧 Changes 🔧
+
+# Allowlist of valid `component` values. Entries with a component outside this
+# list fail `chlog-validate`. Add a new component here when introducing one.
+components:
+  # services / modules
+  - distributor
+  - querier
+  - query-frontend
+  - compactor
+  - metrics-generator
+  - block-builder
+  - live-store
+  - backend-scheduler
+  - backend-worker
+  - overrides
+  - cache
+  # storage / core
+  - storage
+  - traceql
+  - api
+  # binaries
+  - tempo
+  - tempo-cli
+  - tempo-query
+  - tempo-vulture
+  # operations / tooling / meta
+  - operations
+  - docs
+  - deps
