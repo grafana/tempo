@@ -15,7 +15,7 @@
 # See README.md for the step-by-step playbook.
 
 x-tempo-v2-image: &tempoV2Image grafana/tempo:2.9.2
-x-tempo-v3-image: &tempoV3Image grafana/tempo:3.0.0-rc.1
+x-tempo-v3-image: &tempoV3Image grafana/tempo:3.0.0
 
 services:
   # =========================================================================
@@ -314,7 +314,7 @@ services:
   # confirming tempo_vulture_trace_error_total stays at 0.
   # Independent of the k6+alloy traffic above, which represents real app traces.
   vulture:
-    image: grafana/tempo-vulture:latest
+    image: grafana/tempo-vulture:3.0.0
     profiles: ["v3"]
     restart: always
     hostname: vulture

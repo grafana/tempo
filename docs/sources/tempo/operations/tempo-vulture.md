@@ -30,7 +30,7 @@ Tempo Vulture can run in two modes:
 Tempo Vulture is available as a Docker image:
 
 ```bash
-docker run grafana/tempo-vulture:latest [arguments...]
+docker run grafana/tempo-vulture:3.0.0 [arguments...]
 ```
 
 You can also build it from source:
@@ -83,7 +83,7 @@ In continuous mode, Tempo Vulture runs indefinitely and exposes Prometheus metri
 ### Example
 
 ```bash
-docker run grafana/tempo-vulture:latest \
+docker run grafana/tempo-vulture:3.0.0 \
   --tempo-query-url=http://tempo:3200 \
   --tempo-push-url=http://tempo:4317 \
   --tempo-org-id=my-tenant \
@@ -152,7 +152,7 @@ Validation mode requires authentication:
 ```bash
 docker run \
   -e TEMPO_ACCESS_POLICY_TOKEN=your-token \
-  grafana/tempo-vulture:latest \
+  grafana/tempo-vulture:3.0.0 \
   --tempo-query-url=https://tempo.example.com \
   --tempo-push-url=https://tempo.example.com:4317 \
   --tempo-org-id=my-tenant \
@@ -176,7 +176,7 @@ Example CI/CD usage in a GitHub Actions workflow:
   run: |
     docker run \
       -e TEMPO_ACCESS_POLICY_TOKEN=${{ secrets.TEMPO_TOKEN }} \
-      grafana/tempo-vulture:latest \
+      grafana/tempo-vulture:3.0.0 \
       --tempo-query-url=${{ vars.TEMPO_URL }} \
       --tempo-push-url=${{ vars.TEMPO_PUSH_URL }} \
       --tempo-org-id=${{ vars.TEMPO_ORG_ID }} \
@@ -210,7 +210,7 @@ Example from a Docker Compose file:
 
 ```yaml
 vulture:
-  image: grafana/tempo-vulture:latest
+  image: grafana/tempo-vulture:3.0.0
   command:
     - "-tempo-push-url=http://distributor:4317"
     - "-tempo-query-url=http://query-frontend:3200"
