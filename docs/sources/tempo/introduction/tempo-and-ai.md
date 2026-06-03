@@ -94,7 +94,7 @@ For example, an agent could find a failing trace in Tempo, then use the `assista
 
 ### Documentation as Markdown
 
-Grafana documentation is [available as Markdown](https://grafana.com/whats-new/2026-05-15-grafana-documentation-now-ships-as-markdown/), so agents can fetch current reference material on demand instead of relying on training data that may be outdated.
+Grafana documentation is [available as Markdown](https://grafana.com/whats-new/2026-05-15-grafana-documentation-now-ships-as-markdown/), so agents can fetch current reference material instead of relying on potentially outdated training data.
 
 ## Next steps
 
