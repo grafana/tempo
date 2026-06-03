@@ -415,28 +415,33 @@ chore(deps): update module google.golang.org/api to v0.267.0
 
 ### Changelog entries
 
-All PRs that change behavior (features, enhancements, bug fixes, breaking changes) must include a changelog entry. Dependency-only updates and pure internal refactors do not require one (label such PRs `Skip Changelog` or `dependencies`, or prefix the title with `chore:`).
+All PRs that change behavior (features, enhancements, bug fixes, breaking changes) must include a changelog entry. Dependency-only updates, docs-only changes, and pure internal refactors do not require one (label such PRs `Skip Changelog`, `dependencies`, or `type/docs`, or prefix the title with `chore:`).
 
 Tempo manages `CHANGELOG.md` with [chloggen](./tools/chloggen): instead of editing `CHANGELOG.md`, add a YAML file under `.chloggen/`. This avoids merge conflicts on the shared changelog.
 
 Create an entry:
 
 ```bash
-make chlog-new
+make chlog-new                     # names the file after your branch
+make chlog-new FILENAME=my-change  # optional: choose the filename explicitly
 ```
 
-Edit the generated `.chloggen/<branch>.yaml`:
+The filename defaults to the current branch name. Pass `FILENAME=` to override
+it (required when on `main`/`master` or a detached HEAD). Edit the generated
+`.chloggen/<name>.yaml`:
 
 ```yaml
 change_type: enhancement       # breaking | change | feature | enhancement | bug_fix | security
 component: metrics-generator   # must be in the components allowlist in .chloggen/config.yaml
 note: Short description of the change.
-issues: [<PR or issue number>]
+issues: []                     # (optional) PR number(s); blank = auto-filled at release
 subtext:                       # optional extra detail
 user: <your-github-handle>     # rendered as "(@your-github-handle)"
 ```
 
 `change_type` keywords render under these sections: `breaking` → Breaking changes, `change` → Changes, `feature` → Features, `enhancement` → Enhancements, `bug_fix` → Bug fixes, `security` → Security.
+
+`issues` is optional: leave it blank and `chlog-update` backfills the PR number from the commit that adds the entry file at release time (see [`.chloggen/README.md`](./.chloggen/README.md) for details, including how this behaves on release branches).
 
 Validate and preview before pushing:
 

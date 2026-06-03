@@ -119,16 +119,18 @@ func TestValidate(t *testing.T) {
 			wantErr: "specify a 'note'",
 		},
 		{
-			name: "missing_issue",
+			// 'issues' is optional; update backfills it from git history, so an
+			// entry without issues must pass validation.
+			name: "no_issues_is_valid",
 			entries: func() []*chlog.Entry {
 				return append(getSampleEntries(), &chlog.Entry{
 					ChangeType: chlog.BugFix,
 					Component:  "receiver/foo",
 					Note:       "Add some bar",
 					Issues:     []int{},
+					User:       "octocat",
 				})
 			}(),
-			wantErr: "specify one or more issues #'s",
 		},
 		{
 			name: "all_invalid",

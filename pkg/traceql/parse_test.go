@@ -1992,6 +1992,103 @@ func TestMetricsMathExpression(t *testing.T) {
 					newMetricsAggregate(metricsAggregateRate, nil), nil),
 			),
 		},
+		// Scalar on right
+		{
+			in: `({} | rate()) * 100`,
+			expected: newRootExprScalarMath(OpMult, 100,
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateRate, nil), nil),
+				false),
+		},
+		// Scalar on left
+		{
+			in: `100 * ({} | rate())`,
+			expected: newRootExprScalarMath(OpMult, 100,
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateRate, nil), nil),
+				true),
+		},
+		// Float scalar
+		{
+			in: `({} | rate()) / 1000.5`,
+			expected: newRootExprScalarMath(OpDiv, 1000.5,
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateRate, nil), nil),
+				false),
+		},
+		// Scalar with binary math: (60 * rate) / count
+		{
+			in: `(60 * ({} | rate())) / ({} | count_over_time())`,
+			expected: newRootExprMath(OpDiv,
+				newRootExprScalarMath(OpMult, 60,
+					w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+						newMetricsAggregate(metricsAggregateRate, nil), nil),
+					true),
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateCountOverTime, nil), nil),
+			),
+		},
+		// Scalar with second stage filter
+		{
+			in: `({} | rate()) * 100 > 5`,
+			expected: chainMathSecondStage(
+				newRootExprScalarMath(OpMult, 100,
+					w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+						newMetricsAggregate(metricsAggregateRate, nil), nil),
+					false),
+				ChainedSecondStage{newMetricsFilter(OpGreater, 5, " ")},
+			),
+		},
+		// Constant folding: 2 * 20 folded to 40
+		{
+			in: `({} | rate()) - 2 * 20`,
+			expected: newRootExprScalarMath(OpSub, 40,
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateRate, nil), nil),
+				false),
+		},
+		// Constant folding on left: 2 * 3 * rate
+		{
+			in: `2 * 3 * ({} | rate())`,
+			expected: newRootExprScalarMath(OpMult, 6,
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateRate, nil), nil),
+				true),
+		},
+		// Int math is preserved when both operands are ints (1/2 truncates to 0)
+		{
+			in: `({} | rate()) > 1 / 2`,
+			expected: chainMathSecondStage(
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateRate, nil), nil),
+				ChainedSecondStage{newMetricsFilter(OpGreater, 0, " ")},
+			),
+		},
+		// One float operand promotes both sides to float (1 / 2.0 = 0.5)
+		{
+			in: `({} | rate()) > 1 / 2.0`,
+			expected: chainMathSecondStage(
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateRate, nil), nil),
+				ChainedSecondStage{newMetricsFilter(OpGreater, 0.5, " ")},
+			),
+		},
+		// Parenthesised compound constant with mixed precedence on the left: (2 + 3/3) folds to 3
+		{
+			in: `(2 + 3/3) + ({} | rate())`,
+			expected: newRootExprScalarMath(OpAdd, 3,
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateRate, nil), nil),
+				true),
+		},
+		// Two parenthesised compound constants combined: (1+2) * (3+4) folds to 21
+		{
+			in: `({} | rate()) + (1+2) * (3+4)`,
+			expected: newRootExprScalarMath(OpAdd, 21,
+				w(newPipeline(newSpansetFilter(NewStaticBool(true))),
+					newMetricsAggregate(metricsAggregateRate, nil), nil),
+				false),
+		},
 	}
 
 	for _, tc := range tests {
@@ -2009,6 +2106,12 @@ func TestMetricsMathExpressionErrors(t *testing.T) {
 		`{} | count_over_time() / {} | count_over_time()`,
 		`({} | count_over_time()) / `,
 		`/ ({} | count_over_time())`,
+		// Duration is not a valid scalar operand in metric arithmetic — only in
+		// filter thresholds like `({} | rate()) > 5s`. metricScalarFloat flags
+		// these via yylex.Error.
+		`100s + ({} | rate())`,
+		`({} | rate()) - 50ms`,
+		`2s * ({} | count_over_time())`,
 	}
 
 	for _, tc := range tests {
@@ -2031,6 +2134,18 @@ func TestMetricsMathExpressionString(t *testing.T) {
 		{
 			in:       `(({} | count_over_time()) - ({} | count_over_time())) / ({} | count_over_time())`,
 			expected: `(({ true } | count_over_time()) - ({ true } | count_over_time())) / ({ true } | count_over_time())`,
+		},
+		{
+			in:       `({} | rate()) * 100`,
+			expected: `({ true } | rate()) * 100`,
+		},
+		{
+			in:       `100 * ({} | rate())`,
+			expected: `100 * ({ true } | rate())`,
+		},
+		{
+			in:       `(60 * ({} | rate())) / ({} | count_over_time())`,
+			expected: `(60 * ({ true } | rate())) / ({ true } | count_over_time())`,
 		},
 	}
 
@@ -2212,4 +2327,8 @@ func TestMetricsFilter(t *testing.T) {
 			require.Equal(t, tc.expectedStr, q, "stringified query should match expected string")
 		})
 	}
+}
+
+func newMetricsFilter(op Operator, value float64, separator string) *MetricsFilter { //nolint:unparam
+	return &MetricsFilter{op: op, value: value, sep: separator}
 }
