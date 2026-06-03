@@ -2948,13 +2948,9 @@ cache:
         # EXPERIMENTAL
         redis:
 
-            # Redis Server endpoint to use for caching. A comma-separated list of
-            # endpoints for Redis Cluster or Redis Sentinel.
+            # Redis Server endpoint to use for caching. A comma-separated list
+            # of endpoints for Redis Cluster. If empty, no redis will be used.
             [endpoint: <string>]
-
-            # Optional
-            # Redis Sentinel master name. (default "")
-            [master_name: <string>]
 
             # Optional
             # Maximum time to wait before giving up on redis requests. (default 500ms)
@@ -2981,28 +2977,73 @@ cache:
             [password: <string>]
 
             # Optional
-            # Username to use when connecting to redis sentinel. (default "")
-            [sentinel_username: <string>]
-
-            # Optional
-            # Password to use when connecting to redis sentinel. (default "")
-            [sentinel_password: <string>]
+            # Connect to a single Redis node instead of a Redis Cluster.
+            [single_node: <bool> | default = false]
 
             # Optional
             # Enable connecting to redis with TLS. (default false)
             [tls_enabled: <bool> | default = false]
 
             # Optional
+            # Path to the client certificate file.
+            [tls_cert_path: <string> | default = ""]
+
+            # Optional
+            # Path to the private client key file.
+            [tls_key_path: <string> | default = ""]
+
+            # Optional
+            # Path to the CA certificate file.
+            [tls_ca_path: <string> | default = ""]
+
+            # Optional
+            # Override the expected name on the server certificate.
+            [tls_server_name: <string> | default = ""]
+
+            # Optional
             # Skip validating server certificate. (default false)
             [tls_insecure_skip_verify: <bool> | default = false]
 
             # Optional
+            # Override the default cipher suite list, separated by commas.
+            [tls_cipher_suites: <string> | default = ""]
+
+            # Optional
+            # Override the default minimum TLS version. Allowed values: VersionTLS10,
+            # VersionTLS11, VersionTLS12, VersionTLS13.
+            [tls_min_version: <string> | default = ""]
+
+            # Optional
             # Close connections after remaining idle for this duration. (default 0s)
-            [idle_timeout: <duration> | default = 0s]
+            [conn_max_idle_time: <duration> | default = 0s]
 
             # Optional
             # Close connections older than this duration. (default 0s)
-            [max_connection_age: <duration> | default = 0s]
+            [conn_max_lifetime: <duration> | default = 0s]
+
+            # Cluster-only options. Ignored when `single_node` is true. In
+            # cluster mode the client transparently shards MGet/MSet/Del across
+            # nodes per key slot.
+
+            # Optional
+            # Route read-only commands to the node with the lowest measured latency.
+            [route_by_latency: <bool> | default = false]
+
+            # Optional
+            # Route read-only commands to a random node.
+            [route_randomly: <bool> | default = false]
+
+            # Optional
+            # Allow read-only commands on replica nodes. Reads may be stale.
+            [read_only: <bool> | default = false]
+
+            # Optional
+            # Maximum number of redirects to follow on MOVED/ASK responses.
+            [max_redirects: <int> | default = 3]
+
+            # Optional
+            # Minimum number of idle connections to maintain in the pool.
+            [min_idle_conns: <int> | default = 0]
 
             # Optional
             # The maximum size in bytes of an item stored in Redis.

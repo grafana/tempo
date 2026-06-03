@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -78,7 +79,52 @@ func TestRedisClient(t *testing.T) {
 			// delete empty slice should be a no-op
 			err = tt.client.Del(ctx, []string{})
 			require.Nil(t, err)
+
+			// large multi-key Del cross-slot smoke test: in real clusters this
+			// would touch multiple slots and must complete without CROSSSLOT.
+			many := make([]string, 0, 50)
+			manyVals := make([][]byte, 0, 50)
+			for i := 0; i < 50; i++ {
+				many = append(many, "many-"+strconv.Itoa(i))
+				manyVals = append(manyVals, []byte(strconv.Itoa(i)))
+			}
+			require.Nil(t, tt.client.MSet(ctx, many, manyVals))
+			require.Nil(t, tt.client.Del(ctx, many))
+			gotMany, err := tt.client.MGet(ctx, many)
+			require.Nil(t, err)
+			for _, v := range gotMany {
+				require.Nil(t, v)
+			}
 		})
+	}
+}
+
+// TestRedisClient_MSet_Cluster_AllKeysReadable codifies the invariant that
+// every key written through MSet must subsequently be readable via MGet on a
+// cluster client. The original v8 implementation used TxPipeline (MULTI/EXEC),
+// which is rejected with CROSSSLOT for multi-slot writes in a real cluster —
+// this test guards against a regression on the simpler Pipeline path.
+func TestRedisClient_MSet_Cluster_AllKeysReadable(t *testing.T) {
+	cluster, err := mockRedisClientCluster()
+	require.Nil(t, err)
+	defer cluster.Close()
+
+	ctx := context.Background()
+	const n = 64
+	keys := make([]string, n)
+	vals := make([][]byte, n)
+	for i := 0; i < n; i++ {
+		keys[i] = "xs-key-" + strconv.Itoa(i)
+		vals[i] = []byte("xs-val-" + strconv.Itoa(i))
+	}
+
+	require.NoError(t, cluster.MSet(ctx, keys, vals))
+
+	got, err := cluster.MGet(ctx, keys)
+	require.NoError(t, err)
+	require.Len(t, got, n)
+	for i := range keys {
+		require.Equal(t, vals[i], got[i], "key %q must be readable after MSet", keys[i])
 	}
 }
 
@@ -133,12 +179,14 @@ func TestRedisClient_MSet_MaxItemSize(t *testing.T) {
 			require.NoError(t, err)
 			defer redisServer.Close()
 
-			client := NewRedisClient(&RedisConfig{
+			client, err := NewRedisClient(&RedisConfig{
 				Expiration:  time.Minute,
 				Timeout:     100 * time.Millisecond,
 				Endpoint:    redisServer.Addr(),
+				SingleNode:  true,
 				MaxItemSize: tc.maxItemSize,
 			}, "test", prometheus.NewRegistry())
+			require.NoError(t, err)
 
 			require.NoError(t, client.MSet(context.Background(), tc.keys, tc.values))
 
@@ -170,9 +218,10 @@ func mockRedisClientSingle() (*RedisClient, error) {
 		Endpoint: strings.Join([]string{
 			redisServer.Addr(),
 		}, ","),
+		SingleNode: true,
 	}
 
-	return NewRedisClient(cfg, "test", prometheus.NewRegistry()), nil
+	return NewRedisClient(cfg, "test", prometheus.NewRegistry())
 }
 
 func mockRedisClientCluster() (*RedisClient, error) {
@@ -195,5 +244,5 @@ func mockRedisClientCluster() (*RedisClient, error) {
 		}, ","),
 	}
 
-	return NewRedisClient(cfg, "test", prometheus.NewRegistry()), nil
+	return NewRedisClient(cfg, "test", prometheus.NewRegistry())
 }
