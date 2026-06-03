@@ -45,26 +45,21 @@
         paused_replicas: 0,
         // Target CPU per pod for the default CPU-based trigger (used when 'query' is empty).
         target_cpu: '500m',
-        // Optional PromQL query for Prometheus-based scaling. When empty (default), a
-        // CPU trigger using target_cpu is used. When set, a Prometheus trigger is used
-        // instead: the query must return the exact desired pod count (see metricType
-        // Value / threshold 1 below), and autoscaling_prometheus_url must be configured.
+        // Optional PromQL query for Prometheus-based scaling. When empty (default),
+        // a CPU trigger using target_cpu is used.
         //
         // Use a Prometheus query to keep replicas from exceeding the partition count.
         // The metrics-generator reads from the live-store partitions, so scaling beyond
         // the partition count adds pods that have no partition to own and just sit idle.
-        // CPU alone cannot express that ceiling; a query can clamp CPU-derived demand to
-        // the partition count (see the example below).
         //
-        // Example that clamps CPU-derived demand to the partition count so generators
-        // never exceed the number of partitions (0.5 == 500m CPU target per pod):
+        // Example (0.5 == 500m CPU target per pod):
         //   (
-        //     ceil(sum(rate(container_cpu_usage_seconds_total{pod=~"metrics-generator-.*", cluster="<cluster>", namespace="<namespace>"}[1h])) / 0.5)
+        //     ceil(sum(rate(container_cpu_usage_seconds_total{pod=~"metrics-generator-.*"}[1h])) / 0.5)
         //     <
-        //     max(sum by (instance) (tempo_partition_ring_partitions{name="livestore-partitions", state=~"Active|Inactive", cluster="<cluster>", namespace="<namespace>"}))
+        //     max(sum by (instance) (tempo_partition_ring_partitions{name="livestore-partitions", state=~"Active|Inactive"}))
         //   )
         //   or
-        //     max(sum by (instance) (tempo_partition_ring_partitions{name="livestore-partitions", state=~"Active|Inactive", cluster="<cluster>", namespace="<namespace>"}))
+        //     max(sum by (instance) (tempo_partition_ring_partitions{name="livestore-partitions", state=~"Active|Inactive"}))
         query: '',
         scale_up_stabilization_window_seconds: 60,
         scale_up_pods: 5,
