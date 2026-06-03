@@ -10,7 +10,7 @@ import (
 
 var noLabelsSeriesMapKey = SeriesMapKey{}
 
-// mathExpression implements secondStageElement and evaluates binary arithmetic
+// MathExpression implements secondStageElement and evaluates binary arithmetic
 // operations (+, -, *, /) between metrics sub-query results. The tree structure
 // lives here — RootExpr stays flat.
 //
@@ -19,17 +19,17 @@ var noLabelsSeriesMapKey = SeriesMapKey{}
 // (e.g. topk inside parentheses).
 //
 // Binary nodes recursively process children and combine with applyBinaryOp.
-type mathExpression struct {
+type MathExpression struct {
 	op     Operator
 	key    string
-	lhs    *mathExpression
-	rhs    *mathExpression
+	lhs    *MathExpression
+	rhs    *MathExpression
 	filter secondStageElement
 }
 
-var _ secondStageElement = (*mathExpression)(nil)
+var _ secondStageElement = (*MathExpression)(nil)
 
-func (m *mathExpression) rewriteKeys(keyMap map[string]string) *mathExpression {
+func (m *MathExpression) RewriteKeys(keyMap map[string]string) *MathExpression {
 	if m == nil {
 		return nil
 	}
@@ -39,21 +39,21 @@ func (m *mathExpression) rewriteKeys(keyMap map[string]string) *mathExpression {
 			cp.key = newKey
 		}
 	} else {
-		cp.lhs = m.lhs.rewriteKeys(keyMap)
-		cp.rhs = m.rhs.rewriteKeys(keyMap)
+		cp.lhs = m.lhs.RewriteKeys(keyMap)
+		cp.rhs = m.rhs.RewriteKeys(keyMap)
 	}
 	return &cp
 }
 
-func newFlatExpression(key string, filter secondStageElement) *mathExpression {
-	return &mathExpression{
+func newFlatExpression(key string, filter secondStageElement) *MathExpression {
+	return &MathExpression{
 		op:     OpNone,
 		key:    key,
 		filter: filter,
 	}
 }
 
-func (m *mathExpression) String() string {
+func (m *MathExpression) String() string {
 	var s string
 	if m.op == OpNone {
 		s = m.key
@@ -80,7 +80,7 @@ func renderFilter(inner string, f secondStageElement) string {
 	}
 }
 
-func (m *mathExpression) validate() error {
+func (m *MathExpression) validate() error {
 	if m.op != OpNone {
 		if !m.op.isArithmetic() {
 			return fmt.Errorf("unsupported math operation between queries: %s", m.op)
@@ -98,7 +98,7 @@ func (m *mathExpression) validate() error {
 	return nil
 }
 
-func (m *mathExpression) init(req *tempopb.QueryRangeRequest) {
+func (m *MathExpression) init(req *tempopb.QueryRangeRequest) {
 	if m.op != OpNone {
 		m.lhs.init(req)
 		m.rhs.init(req)
@@ -108,13 +108,13 @@ func (m *mathExpression) init(req *tempopb.QueryRangeRequest) {
 	}
 }
 
-func (m *mathExpression) separator() string {
+func (m *MathExpression) separator() string {
 	return ""
 }
 
 // process evaluates the math expression tree against a combined SeriesSet that
 // contains series from all sub-queries, tagged with __query_fragment labels.
-func (m *mathExpression) process(input SeriesSet) SeriesSet {
+func (m *MathExpression) process(input SeriesSet) SeriesSet {
 	if m.op == OpNone {
 		return m.processLeaf(input)
 	}
@@ -132,7 +132,7 @@ func (m *mathExpression) process(input SeriesSet) SeriesSet {
 
 // processLeaf extracts series matching this leaf's __query_fragment key,
 // strips internal labels, and optionally applies a per-leaf filter.
-func (m *mathExpression) processLeaf(input SeriesSet) SeriesSet {
+func (m *MathExpression) processLeaf(input SeriesSet) SeriesSet {
 	var result SeriesSet
 	result = make(SeriesSet, len(input))
 	for smk, v := range input {
