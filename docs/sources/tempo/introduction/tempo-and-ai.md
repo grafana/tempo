@@ -34,29 +34,40 @@ To try it locally, refer to the [MCP server quick start](https://grafana.com/doc
 The [trace by ID v2](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#query-v2) and [tag values v2](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#search-tag-values-v2) endpoints accept an `Accept: application/vnd.grafana.llm` header.
 This returns a simplified JSON format that strips unnecessary detail and reduces token usage, so agents can process larger traces within their context window.
 
-Use this header when calling Tempo APIs directly rather than through the MCP server.
+{{< admonition type="caution" >}}
+The simplified LLM format is subject to change and shouldn't be relied on for programmatic use.
+{{< /admonition >}}
 
-## Tempo 3.0 features relevant to AI workflows
+Use this header for interactive or experimental agent use.
+For stable integrations, use the MCP server or request the standard JSON or protobuf formats.
 
-These Tempo 3.0 features aren't AI-specific, but they directly improve what agents can do with tracing data.
+## Tempo features relevant to AI workflows
+
+These Tempo features aren't AI-specific, but they directly improve what agents can do with tracing data.
 
 ### TraceQL metrics at general availability
 
-[TraceQL metrics](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/) moved from experimental to GA in Tempo 3.0.
-The MCP server's `traceql-metrics-instant` and `traceql-metrics-range` tools now query a GA engine, so agents can compute rate, error, and duration metrics directly from trace data and use the results with confidence.
+The MCP server's `traceql-metrics-instant` and `traceql-metrics-range` tools let agents compute rate, error, and duration metrics directly from trace data.
+Because [TraceQL metrics](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/) moved from experimental to GA in Tempo 3.0, these tools query a production-ready engine.
 
-### Or conditions for tag autocomplete
+### OR conditions for tag autocomplete
 
-The [search tags v2](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#search-tags-v2) and [search tag values v2](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#search-tag-values-v2) APIs now support OR conditions, so autocomplete requests can match multiple values in a single call instead of making separate requests.
+The [search tags v2](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#search-tags-v2) and [search tag values v2](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#search-tag-values-v2) APIs support OR conditions, so autocomplete requests can match multiple values in a single call instead of making separate requests.
+When an agent discovers available attributes through the MCP tools, fewer round-trips mean faster, cheaper exploration of what's queryable.
 
-### Trace redaction
+### Control what agents can access
 
-[Trace redaction](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/tempo_cli/#redact-traces) removes traces containing sensitive data from object storage.
-If your traces contain personally identifiable information or security tokens, redact them before enabling agent access through the MCP server or API endpoints.
+Before you open up trace data to agents through the MCP server or API endpoints, you can control what's available.
+If your traces contain personally identifiable information or security tokens, use the Tempo CLI to remove that data first.
+
+[Redact traces](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/tempo_cli/#redact-traces) removes traces containing sensitive data from object storage.
+To remove a specific trace, [drop traces by ID](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/tempo_cli/#drop-traces-by-id).
 
 ## Grafana tools for AI workflows
 
-Grafana provides additional tools that connect agents to the broader observability platform.
+These capabilities aren't specific to Tempo.
+You have them by working in the Grafana product family, and they apply across the platform.
+Their AI value is composability: an agent that starts in Tempo's trace data can pivot outward to act on Grafana resources, chain investigations across other signals, and look up current documentation.
 
 For additional information about AI capabilities in Grafana, refer to the [AI and machine learning](https://grafana.com/docs/grafana-cloud/machine-learning/) documentation.
 
