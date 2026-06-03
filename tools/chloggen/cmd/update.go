@@ -54,6 +54,31 @@ func updateCmd() *cobra.Command {
 				return err
 			}
 
+			// Backfill empty 'issues' from git here, not in validate, so the PR-CI
+			// validation of an unmerged entry doesn't depend on git history. Dedupe
+			// by pointer: one entry can appear under several changelogs, and a
+			// failed backfill would otherwise re-spawn git for it each time.
+			backfilled := make(map[*chlog.Entry]bool)
+			for _, entries := range entriesByChangelog {
+				for _, e := range entries {
+					if backfilled[e] {
+						continue
+					}
+					backfilled[e] = true
+					e.BackfillIssues()
+				}
+			}
+
+			// Never render an entry without a PR link: fail, listing all of them.
+			if missing := chlog.MissingIssues(entriesByChangelog); len(missing) > 0 {
+				noun := "entry"
+				if len(missing) > 1 {
+					noun = "entries"
+				}
+				return fmt.Errorf("could not determine a PR number for %d changelog %s; set 'issues' explicitly in:\n  %s",
+					len(missing), noun, strings.Join(missing, "\n  "))
+			}
+
 			for changeLogKey, entries := range entriesByChangelog {
 
 				slices.SortFunc(entries, func(a, b *chlog.Entry) int {

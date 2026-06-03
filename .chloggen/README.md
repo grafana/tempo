@@ -8,19 +8,32 @@ release time. This avoids merge conflicts on a shared file.
 ## Add an entry
 
 ```bash
-make chlog-new        # creates .chloggen/<your-branch>.yaml from TEMPLATE.yaml
+make chlog-new                     # creates .chloggen/<your-branch>.yaml from TEMPLATE.yaml
+make chlog-new FILENAME=my-change  # optional: name the file explicitly
 ```
 
-Edit the generated file:
+The filename defaults to the current branch name; pass `FILENAME=` to override
+it (required on `main`/`master` or a detached HEAD). Edit the generated file:
 
 ```yaml
 change_type: enhancement       # breaking | change | feature | enhancement | bug_fix | security
 component: metrics-generator   # must be in the components allowlist in config.yaml
 note: A brief description of the change.
-issues: [1234]                 # PR or issue number(s)
+issues: []                     # (optional) PR number(s); blank = auto-filled at release
 subtext:                       # optional extra detail
 user: your-github-handle       # rendered as "(@your-github-handle)"
 ```
+
+`issues` is optional. If you leave it blank, `chlog-update` fills it at release
+time with the PR number parsed from the commit that added this file (Tempo
+squash-merges PRs as `... (#1234)`). On a release branch the file is added by the
+backport PR, so the backport PR number is used; to pin a specific number instead,
+set `issues` explicitly.
+
+If the PR cannot be determined (for example the entry was committed directly to
+`main`, or its PR is not yet merged), both `chlog-update` and `chlog-preview`
+fail and list the entries needing an explicit `issues` — they never render an
+entry without a PR link.
 
 `change_type` keywords render under these sections:
 
