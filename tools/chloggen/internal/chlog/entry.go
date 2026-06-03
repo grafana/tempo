@@ -17,11 +17,15 @@
 package chlog
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -51,6 +55,10 @@ type Entry struct {
 	Issues     []int    `yaml:"issues"`
 	SubText    string   `yaml:"subtext"`
 	User       string   `yaml:"user"`
+
+	// path is the source file (not part of the on-disk format); BackfillIssues
+	// uses it to recover the PR number from git.
+	path string
 }
 
 // DefaultChangeTypes lists the built-in change types in render order, along with
@@ -114,15 +122,61 @@ func (e Entry) Validate(requireChangelog bool, components []string, changeTypes 
 		errs = errors.Join(errs, fmt.Errorf("specify a 'note'"))
 	}
 
-	if len(e.Issues) == 0 {
-		errs = errors.Join(errs, fmt.Errorf("specify one or more issues #'s"))
-	}
+	// 'issues' is optional; 'update' backfills it from git (see BackfillIssues).
 
 	if strings.TrimSpace(e.User) == "" {
 		errs = errors.Join(errs, fmt.Errorf("specify a 'user'"))
 	}
 
 	return errs
+}
+
+// prSuffix captures the PR number from a squash-merge subject like "title (#1234)".
+var prSuffix = regexp.MustCompile(`\(#(\d+)\)\s*$`)
+
+// BackfillIssues fills Issues from the PR number in the commit that added the
+// entry file, when the author left 'issues' empty. Best-effort: on any failure
+// Issues stays empty and 'update' then fails via MissingIssues.
+func (e *Entry) BackfillIssues() {
+	if len(e.Issues) > 0 || e.path == "" {
+		return
+	}
+	if pr, ok := prFromGitHistory(e.path); ok {
+		e.Issues = []int{pr}
+	}
+}
+
+// MissingIssues returns the de-duplicated source paths of entries that still
+// have no 'issues' after backfill.
+func MissingIssues(entriesByChangelog map[string][]*Entry) []string {
+	seen := make(map[string]bool)
+	var paths []string
+	for _, entries := range entriesByChangelog {
+		for _, e := range entries {
+			if len(e.Issues) == 0 && !seen[e.path] {
+				seen[e.path] = true
+				paths = append(paths, e.path)
+			}
+		}
+	}
+	slices.Sort(paths)
+	return paths
+}
+
+func prFromGitHistory(path string) (int, bool) {
+	// -C <dir> so resolution doesn't depend on the process working directory.
+	dir, base := filepath.Dir(path), filepath.Base(path)
+	// Only the commit that added the file; a later edit could carry a different PR.
+	out, err := exec.Command("git", "-C", dir, "log", "-1", "--diff-filter=A", "--format=%s", "--", base).Output()
+	if err != nil {
+		return 0, false
+	}
+	if m := prSuffix.FindSubmatch(bytes.TrimSpace(out)); m != nil {
+		if n, err := strconv.Atoi(string(m[1])); err == nil {
+			return n, true
+		}
+	}
+	return 0, false
 }
 
 // ValidateEntries validates every entry against the configuration, accumulating
@@ -173,6 +227,7 @@ func ReadEntries(cfg *config.Config) (map[string][]*Entry, error) {
 		if err = yaml.Unmarshal(fileBytes, entry); err != nil {
 			return nil, err
 		}
+		entry.path = file
 		entry.SubText = strings.ReplaceAll(entry.SubText, "\r\n", "\n")
 		// 'user' is documented as a handle without the leading '@'; normalize it
 		// away so a value like "@octocat" doesn't render as "(@@octocat)".
