@@ -95,7 +95,8 @@ valid:
   - '{ .a * 1 = 2 }'
   - '{ .a / 1 = 2 }'
   - '{ .a ^ 1 = 2 }'
-  - '{ duration > 1s * 2s }' 
+  - '{ duration > 1s * 2s }'
+  - '{ duration < (10s * 20s) }'
   - '{ 1 * 1h = 1 }'     # combining float, int and duration can make sense, but can also be weird. we just accept it all
   - '{ 1 / 1.1 = 1 }'
   - '{ .http.status >= "200" }'
@@ -194,6 +195,7 @@ valid:
   - '{} | rate() by (span.client_ip) > 10 with(sample=0.1)'
   - '({} | rate()) > 10'
   - '({} | max_over_time(duration)) > 30'
+  - '({} | max_over_time(duration)) > 10s'
   # math expressions
   - '({} | rate()) + ({} | rate())'
   - '({} | rate()) + ({} | count_over_time())'
@@ -405,6 +407,14 @@ parse_fails:
   - '({} | rate()) >> ({} | count_over_time())'
   - '({} | rate()) << ({} | count_over_time())'
   - '({} | rate()) * 100000000000000000000000000000' # overflow
+  # duration arithmetic
+  - '({} | rate()) > (10s * 2)'
+  - '({} | rate()) > (10s / 2)'
+  - '({} | rate()) > (10s + 5s)'
+  - '({} | rate()) > (10s * 10s)'
+  - '({} | rate()) * (10s * 2)'
+  - '({} | rate()) * 10s * 2'
+  - '({} | rate()) * 10s'
 
 # validate_fails parse correctly and return an error **besides unsupported** when calling .validate()
 validate_fails:

@@ -398,6 +398,10 @@ func metricScalarFloat(yylex yyLexer, s Static) float64 {
 // delegating to BinaryOperation.execute(), reusing the runtime int-vs-float dispatch
 // (so `1/2` truncates to 0 when both operands are ints, but `1/2.0` promotes to 0.5).
 func foldConstArith(yylex yyLexer, op Operator, lhs, rhs Static) Static {
+	if lhs.Type == TypeDuration || rhs.Type == TypeDuration {
+		yylex.Error("duration cannot be used in scalar arithmetic")
+		return NewStaticNil()
+	}
 	result, err := (&BinaryOperation{Op: op, LHS: lhs, RHS: rhs}).execute(nil)
 	if err != nil {
 		yylex.Error(err.Error())
