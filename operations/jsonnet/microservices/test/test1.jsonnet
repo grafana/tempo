@@ -102,6 +102,13 @@ test.new(std.thisFile)
   )
 )
 + test.case.new(
+  'live_store KEDA Prometheus trigger uses AverageValue metricType',
+  test.expect.eq(
+    withLiveStoreKeda('http://prometheus:9090').tempo_live_store_scaled_object.spec.triggers[0].metricType,
+    'AverageValue'
+  )
+)
++ test.case.new(
   'live_store KEDA Prometheus trigger includes X-Scope-OrgID header when tenant is set',
   test.expect.eq(
     withLiveStoreKeda('http://prometheus:9090', 'my-tenant').tempo_live_store_scaled_object.spec.triggers[0].metadata.customHeaders,
