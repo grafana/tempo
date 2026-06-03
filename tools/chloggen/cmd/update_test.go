@@ -379,3 +379,63 @@ func TestUpdateValidatesBeforeWriting(t *testing.T) {
 	require.NoError(t, ioErr)
 	require.Equal(t, 2, len(remainingYAMLs))
 }
+
+func TestUpdateFailsWhenPRUnresolved(t *testing.T) {
+	globalCfg = config.New(t.TempDir())
+
+	// A valid entry that left 'issues' empty. The temp dir is not a git repo, so
+	// the PR can't be backfilled.
+	entry := &chlog.Entry{
+		ChangeType: chlog.BugFix,
+		Component:  "receiver/foo",
+		Note:       "Fix something",
+		User:       "octocat",
+	}
+	setupTestDir(t, []*chlog.Entry{entry})
+
+	// Both --dry and a real update fail rather than emit an entry with no link.
+	_, err := runCobra(t, "update", "--dry")
+	require.ErrorContains(t, err, "could not determine a PR number")
+
+	_, err = runCobra(t, "update")
+	require.ErrorContains(t, err, "could not determine a PR number")
+
+	// The source entry file must not be deleted when the update fails.
+	remainingYAMLs, ioErr := filepath.Glob(filepath.Join(globalCfg.EntriesDir, "*.yaml"))
+	require.NoError(t, ioErr)
+	require.Equal(t, 2, len(remainingYAMLs))
+}
+
+func TestUpdateListsAllUnresolvedPRs(t *testing.T) {
+	globalCfg = config.New(t.TempDir())
+
+	// Two unresolvable entries plus one with an explicit issue: both unresolved
+	// files must appear in a single error, not just the first.
+	resolvable := &chlog.Entry{
+		ChangeType: chlog.Enhancement,
+		Component:  "receiver/foo",
+		Note:       "Has a PR",
+		Issues:     []int{42},
+		User:       "octocat",
+	}
+	missingA := &chlog.Entry{
+		ChangeType: chlog.BugFix,
+		Component:  "receiver/foo",
+		Note:       "Missing A",
+		User:       "octocat",
+	}
+	missingB := &chlog.Entry{
+		ChangeType: chlog.BugFix,
+		Component:  "receiver/foo",
+		Note:       "Missing B",
+		User:       "octocat",
+	}
+	setupTestDir(t, []*chlog.Entry{resolvable, missingA, missingB})
+
+	_, err := runCobra(t, "update")
+	require.ErrorContains(t, err, "could not determine a PR number for 2 changelog")
+	// setupTestDir writes entries as 0.yaml (resolvable), 1.yaml, 2.yaml.
+	assert.ErrorContains(t, err, "1.yaml")
+	assert.ErrorContains(t, err, "2.yaml")
+	assert.NotContains(t, err.Error(), "0.yaml")
+}
