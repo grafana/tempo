@@ -28,6 +28,7 @@
 * [BUGFIX] Fix unsafe quoting in query attributes [#7220](https://github.com/grafana/tempo/pull/7220) (@ruslan-mikhailov)
 * [BUGFIX] Fix rare cache collision between instant and range metrics queries [#7290](https://github.com/grafana/tempo/pull/7290) (@ruslan-mikhailov)
 * [BUGFIX] backend-scheduler: fix cross-tenant escalation in SubmitRedaction -- tenant is now sourced exclusively from the authenticated request context (X-Scope-OrgID header) and the body tenant_id field is ignored. [#7153](https://github.com/grafana/tempo/pull/7153) (@zalegrala)
+<!-- next version -->
 
 # v3.0.0
 

@@ -1,7 +1,6 @@
 package blocklist
 
 import (
-	"slices"
 	"sync"
 
 	"github.com/grafana/tempo/tempodb/backend"
@@ -125,42 +124,44 @@ func (l *List) Update(tenantID string, add []*backend.BlockMeta, remove []*backe
 // updateInternal exists to do the work of applying updates to held PerTenant and PerTenantCompacted maps
 // it must be called under lock
 func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove []*backend.BlockMeta, compactedAdd []*backend.CompactedBlockMeta, compactedRemove []*backend.CompactedBlockMeta) {
-	hasID := func(id backend.UUID) func(*backend.BlockMeta) bool {
-		return func(b *backend.BlockMeta) bool {
-			return b.BlockID == id
-		}
-	}
-
-	hasIDC := func(id backend.UUID) func(*backend.CompactedBlockMeta) bool {
-		return func(b *backend.CompactedBlockMeta) bool {
-			return b.BlockID == id
-		}
-	}
-
 	// ******** Regular blocks ********
 	if len(add) > 0 || len(remove) > 0 || len(compactedAdd) > 0 || len(compactedRemove) > 0 {
-		var (
-			existing = l.metas[tenantID]
-			final    = make([]*backend.BlockMeta, 0, max(0, len(existing)+len(add)-len(remove)))
-		)
+		removeIDs := make(map[backend.UUID]struct{}, len(remove))
+		for _, b := range remove {
+			removeIDs[b.BlockID] = struct{}{}
+		}
+		compactedAddIDs := make(map[backend.UUID]struct{}, len(compactedAdd))
+		for _, b := range compactedAdd {
+			compactedAddIDs[b.BlockID] = struct{}{}
+		}
+		compactedRemoveIDs := make(map[backend.UUID]struct{}, len(compactedRemove))
+		for _, b := range compactedRemove {
+			compactedRemoveIDs[b.BlockID] = struct{}{}
+		}
+
+		existing := l.metas[tenantID]
+		final := make([]*backend.BlockMeta, 0, max(0, len(existing)+len(add)-len(remove)))
 
 		// rebuild dropping all removals
+		finalIDs := make(map[backend.UUID]struct{}, len(existing))
 		for _, b := range existing {
-			if slices.ContainsFunc(remove, hasID(b.BlockID)) {
+			if _, ok := removeIDs[b.BlockID]; ok {
 				continue
 			}
 			final = append(final, b)
+			finalIDs[b.BlockID] = struct{}{}
 		}
 		// add new if they don't already exist and weren't also removed
 		for _, b := range add {
-			if slices.ContainsFunc(final, hasID(b.BlockID)) ||
-				slices.ContainsFunc(remove, hasID(b.BlockID)) ||
-				slices.ContainsFunc(compactedAdd, hasIDC(b.BlockID)) ||
-				slices.ContainsFunc(compactedRemove, hasIDC(b.BlockID)) {
+			_, inFinal := finalIDs[b.BlockID]
+			_, inRemove := removeIDs[b.BlockID]
+			_, inCompactedAdd := compactedAddIDs[b.BlockID]
+			_, inCompactedRemove := compactedRemoveIDs[b.BlockID]
+			if inFinal || inRemove || inCompactedAdd || inCompactedRemove {
 				continue
 			}
-
 			final = append(final, b)
+			finalIDs[b.BlockID] = struct{}{}
 		}
 
 		l.metas[tenantID] = final
@@ -168,22 +169,28 @@ func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove 
 
 	// ******** Compacted blocks ********
 	if len(compactedAdd) > 0 || len(compactedRemove) > 0 {
-		var (
-			existing = l.compactedMetas[tenantID]
-			final    = make([]*backend.CompactedBlockMeta, 0, max(0, len(existing)+len(compactedAdd)-len(compactedRemove)))
-		)
+		compactedRemoveIDs := make(map[backend.UUID]struct{}, len(compactedRemove))
+		for _, b := range compactedRemove {
+			compactedRemoveIDs[b.BlockID] = struct{}{}
+		}
+
+		existing := l.compactedMetas[tenantID]
+		final := make([]*backend.CompactedBlockMeta, 0, max(0, len(existing)+len(compactedAdd)-len(compactedRemove)))
 
 		// rebuild dropping all removals
+		existingIDs := make(map[backend.UUID]struct{}, len(existing))
 		for _, b := range existing {
-			if slices.ContainsFunc(compactedRemove, hasIDC(b.BlockID)) {
+			existingIDs[b.BlockID] = struct{}{}
+			if _, ok := compactedRemoveIDs[b.BlockID]; ok {
 				continue
 			}
 			final = append(final, b)
 		}
 		// add new if they don't already exist and weren't also removed
 		for _, b := range compactedAdd {
-			if slices.ContainsFunc(existing, hasIDC(b.BlockID)) ||
-				slices.ContainsFunc(compactedRemove, hasIDC(b.BlockID)) {
+			_, inExisting := existingIDs[b.BlockID]
+			_, inRemove := compactedRemoveIDs[b.BlockID]
+			if inExisting || inRemove {
 				continue
 			}
 			final = append(final, b)

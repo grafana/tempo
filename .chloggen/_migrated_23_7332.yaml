@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: tempo
+note: Return partial trace hint for the llm encoding
+issues: [7332]
+subtext:
+user: javiermolinar

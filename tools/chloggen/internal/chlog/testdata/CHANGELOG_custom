@@ -1,0 +1,8 @@
+
+## 1.0
+
+### 🛑 Breaking changes 🛑
+
+- `foo`: broke foo ([#123](https://github.com/open-telemetry/opentelemetry-go-build-tools/issues/123))
+- `bar`: broke bar ([#345](https://github.com/open-telemetry/opentelemetry-go-build-tools/issues/345), [#678](https://github.com/open-telemetry/opentelemetry-go-build-tools/issues/678))
+  more details
