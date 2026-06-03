@@ -1,6 +1,6 @@
 change_type: enhancement
 component: operations
 note: "jsonnet: support Prometheus-based KEDA autoscaling for the metrics-generator"
-issues: []
+issues: [7362]
 subtext:
 user: mapno
