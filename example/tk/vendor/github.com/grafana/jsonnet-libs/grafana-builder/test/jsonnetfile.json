@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "dependencies": [
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/jsonnet-libs/testonnet.git"
+        }
+      },
+      "version": "master"
+    },
+    {
+      "source": {
+        "local": {
+          "directory": "../../mixin-utils"
+        }
+      }
+    }
+  ],
+  "legacyImports": true
+}

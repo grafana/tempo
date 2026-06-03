@@ -40,7 +40,7 @@
     {
       "source": {
         "git": {
-          "remote": "https://github.com/rfrail3/grafana-dashboards.git",
+          "remote": "https://github.com/rfmoz/grafana-dashboards.git",
           "subdir": "prometheus"
         }
       },
