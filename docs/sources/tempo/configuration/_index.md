@@ -887,6 +887,9 @@ metrics_generator:
 
         # A list of remote write endpoints.
         # https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write
+        # To send sensitive header values, such as authentication tokens, use http_headers
+        # with secrets instead of the headers map. Values in the headers map are stored and
+        # displayed in plaintext. Refer to the caution that follows this configuration block.
         remote_write:
             [- <Prometheus remote write config>]
 
@@ -898,6 +901,26 @@ metrics_generator:
     # Overrides the key used to register the metrics-generator in the ring.
     [override_ring_key: <string> | default = "metrics-generator"]
 ```
+
+{{< admonition type="caution" >}}
+Header values that you set under `headers` in a `remote_write` endpoint are stored and displayed in plaintext.
+They appear in the configuration that the [`/status/config` endpoint](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#status) returns, which can expose secrets such as authentication tokens.
+
+To send sensitive header values, use `http_headers` with `secrets` instead of `headers`.
+Tempo masks values that you configure under `secrets` as `<secret>` in the displayed configuration.
+To read a value from a file, use `files` instead.
+
+```yaml
+metrics_generator:
+  storage:
+    remote_write:
+      - url: https://prometheus.example.com/api/v1/write
+        http_headers:
+          X-Custom-Token:
+            secrets:
+              - <SECRET_VALUE>
+```
+{{< /admonition >}}
 
 ## Query-frontend
 
