@@ -27,6 +27,10 @@ The server also serves TraceQL documentation as MCP resources, so agents can loo
 
 The MCP server uses the `streamable-http` transport and supports the same authentication and [multi-tenancy](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/multitenancy/) as other Tempo API endpoints.
 
+{{< admonition type="warning" >}}
+Be aware that using this feature may cause tracing data to be passed to an LLM or LLM provider. Consider the content of your tracing data and organizational policies when enabling this feature.
+{{< /admonition >}}
+
 To try it locally, refer to the [MCP server quick start](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/mcp-server/#quick-start).
 
 ## LLM-optimized API responses
@@ -58,10 +62,10 @@ When an agent discovers available attributes through the MCP tools, fewer round-
 ### Control what agents can access
 
 Before you open up trace data to agents through the MCP server or API endpoints, you can control what's available.
-If your traces contain personally identifiable information or security tokens, use the Tempo CLI to remove that data first.
+If your traces contain personally identifiable information or security tokens, use the Tempo CLI to remove affected traces from object storage first.
 
 [Redact traces](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/tempo_cli/#redact-traces) removes traces containing sensitive data from object storage.
-To remove a specific trace, [drop traces by ID](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/tempo_cli/#drop-traces-by-id).
+To remove specific traces directly from the CLI, [drop traces by ID](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/tempo_cli/#drop-traces-by-id).
 
 ## Grafana tools for AI workflows
 
