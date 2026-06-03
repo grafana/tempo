@@ -179,11 +179,11 @@ func TestScalarFilter_extractConditions(t *testing.T) {
 			allConditions: false,
 		},
 		{
-			query: `{ .foo = "a" } | 3 > 2`,
+			query: `{ .foo = "a" } | count() > 2`,
 			conditions: []Condition{
 				newCondition(NewAttribute("foo"), OpEqual, NewStaticString("a")),
 			},
-			allConditions: true,
+			allConditions: false,
 		},
 	}
 	for _, tt := range tests {

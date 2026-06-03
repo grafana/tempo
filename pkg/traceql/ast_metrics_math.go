@@ -61,9 +61,23 @@ func (m *mathExpression) String() string {
 		s = "(" + m.lhs.String() + ") " + m.op.String() + " (" + m.rhs.String() + ")"
 	}
 	if m.filter != nil {
-		s += m.filter.String()
+		s = renderFilter(s, m.filter)
 	}
 	return s
+}
+
+func renderFilter(inner string, f secondStageElement) string {
+	switch v := f.(type) {
+	case *MetricsScalarOp:
+		return v.WrapExpr(inner)
+	case ChainedSecondStage:
+		for _, e := range v {
+			inner = renderFilter(inner, e)
+		}
+		return inner
+	default:
+		return inner + f.separator() + f.String()
+	}
 }
 
 func (m *mathExpression) validate() error {
@@ -279,6 +293,82 @@ func mergeExemplars(a, b []Exemplar) []Exemplar {
 	return result
 }
 
+// MetricsScalarOp implements second stage scalar arithmetic on metrics results.
+// It applies an arithmetic operation between each sample value and a scalar constant.
+// Example: 100 * ({} | rate()) or ({} | rate()) / 1000
+type MetricsScalarOp struct {
+	op           Operator // OpAdd, OpSub, OpMult, OpDiv
+	value        float64
+	scalarOnLeft bool // true: value OP series, false: series OP value
+}
+
+func newMetricsScalarOp(op Operator, value float64, scalarOnLeft bool) *MetricsScalarOp {
+	return &MetricsScalarOp{op: op, value: value, scalarOnLeft: scalarOnLeft}
+}
+
+func (m *MetricsScalarOp) String() string {
+	v := formatFloat(m.value)
+	if m.scalarOnLeft {
+		return v + " " + m.op.String() + " "
+	}
+	return " " + m.op.String() + " " + v
+}
+
+func (m *MetricsScalarOp) WrapExpr(inner string) string {
+	v := formatFloat(m.value)
+	if m.scalarOnLeft {
+		return v + " " + m.op.String() + " (" + inner + ")"
+	}
+	return "(" + inner + ") " + m.op.String() + " " + v
+}
+
+func (m *MetricsScalarOp) validate() error {
+	if !m.op.isArithmetic() {
+		return fmt.Errorf("unsupported scalar operation: %s", m.op.String())
+	}
+	return nil
+}
+
+func (m *MetricsScalarOp) init(_ *tempopb.QueryRangeRequest) {}
+
+func (m *MetricsScalarOp) process(input SeriesSet) SeriesSet {
+	result := make(SeriesSet, len(input))
+	for key, series := range input {
+		values := make([]float64, len(series.Values))
+		exemplars := make([]Exemplar, len(series.Exemplars))
+		if m.scalarOnLeft {
+			for i, v := range series.Values {
+				values[i] = applyArithmeticOp(m.op, m.value, v)
+			}
+			for i, v := range series.Exemplars {
+				exemplars[i] = v
+				exemplars[i].Value = applyArithmeticOp(m.op, m.value, v.Value)
+			}
+		} else {
+			for i, v := range series.Values {
+				values[i] = applyArithmeticOp(m.op, v, m.value)
+			}
+			for i, v := range series.Exemplars {
+				exemplars[i] = v
+				exemplars[i].Value = applyArithmeticOp(m.op, v.Value, m.value)
+			}
+		}
+
+		result[key] = TimeSeries{
+			Labels:    series.Labels,
+			Values:    values,
+			Exemplars: exemplars,
+		}
+	}
+	return result
+}
+
+func (m *MetricsScalarOp) separator() string {
+	return ""
+}
+
+var _ secondStageElement = (*MetricsScalarOp)(nil)
+
 func applyArithmeticOp(op Operator, lhs, rhs float64) float64 {
 	switch op {
 	case OpAdd:
@@ -295,4 +385,40 @@ func applyArithmeticOp(op Operator, lhs, rhs float64) float64 {
 	default:
 		return math.NaN()
 	}
+}
+
+func metricScalarFloat(yylex yyLexer, s Static) float64 {
+	if s.Type == TypeDuration { // reject duration
+		yylex.Error("duration cannot be used as a scalar operand in metric arithmetic")
+	}
+	return s.Float()
+}
+
+// foldConstArith folds an arithmetic op between two constant Statics at parse time by
+// delegating to BinaryOperation.execute(), reusing the runtime int-vs-float dispatch
+// (so `1/2` truncates to 0 when both operands are ints, but `1/2.0` promotes to 0.5).
+func foldConstArith(yylex yyLexer, op Operator, lhs, rhs Static) Static {
+	if lhs.Type == TypeDuration || rhs.Type == TypeDuration {
+		yylex.Error("duration cannot be used in scalar arithmetic")
+		return NewStaticNil()
+	}
+	result, err := (&BinaryOperation{Op: op, LHS: lhs, RHS: rhs}).execute(nil)
+	if err != nil {
+		yylex.Error(err.Error())
+		return NewStaticNil()
+	}
+	return result
+}
+
+// foldConstUnary applies a unary op (currently OpSub for negation) to a constant Static
+// at parse time, delegating to UnaryOperation.execute() so type info is preserved
+// (e.g. negating a Duration stays a Duration, unlike `0 - duration` which falls through
+// to the float dispatch).
+func foldConstUnary(yylex yyLexer, op Operator, operand Static) Static {
+	result, err := UnaryOperation{Op: op, Expression: operand}.execute(nil)
+	if err != nil {
+		yylex.Error(err.Error())
+		return NewStaticNil()
+	}
+	return result
 }
