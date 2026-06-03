@@ -1,5 +1,5 @@
 # Requires every PR targeting main to add a .chloggen entry.
-# Skip by adding the "Skip Changelog" label or using a "chore:" / "chore(scope):" / "[chore]" PR title.
+# Skip by adding the "Skip Changelog", "dependencies", or "type/docs" label, or using a "chore:" / "chore(scope):" / "[chore]" PR title.
 name: changelog
 
 on:
@@ -18,6 +18,7 @@ jobs:
       github.event_name == 'pull_request'
       && !contains(github.event.pull_request.labels.*.name, 'dependencies')
       && !contains(github.event.pull_request.labels.*.name, 'Skip Changelog')
+      && !contains(github.event.pull_request.labels.*.name, 'type/docs')
       && !contains(github.event.pull_request.title, '[chore]')
       && !startsWith(github.event.pull_request.title, 'chore:')
       && !startsWith(github.event.pull_request.title, 'chore(')
@@ -50,7 +51,7 @@ jobs:
       - name: Ensure a .chloggen entry was added
         run: |
           base=$(git merge-base origin/main "$PR_HEAD")
-          added=$(git diff --diff-filter=A --name-only "$base" "$PR_HEAD" ./.chloggen | grep -cE '\.ya?ml$' || true)
+          added=$(git diff --diff-filter=AM --name-only "$base" "$PR_HEAD" ./.chloggen | grep -cE '\.ya?ml$' || true)
           if [[ "$added" -lt 1 ]]; then
             echo "No changelog entry was added under ./.chloggen/."
             echo "Run 'make chlog-new' to create one. See .chloggen/README.md."

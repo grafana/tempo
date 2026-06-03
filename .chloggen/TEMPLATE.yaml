@@ -10,7 +10,8 @@ component:
 # A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
 note:
 
-# One or more PR or issue numbers, e.g. [1234].
+# (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
+# .chloggen/README.md.
 issues: []
 
 # (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.

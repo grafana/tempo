@@ -12,4 +12,4 @@ Fixes #<issue number>
 **Checklist**
 - [ ] Tests updated
 - [ ] Documentation added
-- [ ] Changelog entry added under `.chloggen/` (run `make chlog-new`; see `.chloggen/README.md`)
+- [ ] Changelog entry added under `.chloggen/` (run `make chlog-new`, or `make chlog-new FILENAME=<name>` to override the default branch-name file; see `.chloggen/README.md`)

@@ -89,6 +89,7 @@ import (
 %type <attribute> attribute
 
 %type <numericList> numericList
+%type <static> scalar
 
 %type <hint> hint
 %type <hintList> hintList
@@ -117,10 +118,12 @@ import (
 %left <binOp> PIPE
 %left <binOp> AND OR
 %left <binOp> EQ NEQ LT LTE GT GTE NRE RE DESC ANCE SIBL NOT_CHILD NOT_PARENT NOT_DESC NOT_ANCE UNION_CHILD UNION_PARENT UNION_DESC UNION_ANCE UNION_SIBL
+%nonassoc INTEGER FLOAT
 %left <binOp> ADD SUB
 %left <binOp> NOT
 %left <binOp> MUL DIV MOD
 %right <binOp> POW
+%nonassoc UMINUS
 %nonassoc NIL
 %%
 
@@ -239,8 +242,14 @@ spansetFilter:
   | OPEN_BRACE fieldExpression CLOSE_BRACE      { $$ = newSpansetFilter($2) }
   ;
 
+// scalarFilter requires at least one aggregate-containing operand (`scalarExpression`).
+// Bare-scalar comparisons like `5 > 3` no longer parse — they were marked "technically
+// allowed / unsupported" in test_examples.yaml and dropping them is what frees the
+// metric-scalar grammar from the LALR(1) constraint that forced its enumeration.
 scalarFilter:
-    scalarExpression          scalarFilterOperation scalarExpression          { $$ = newScalarFilter($2, $1, $3) }
+    scalarExpression scalarFilterOperation scalarExpression  { $$ = newScalarFilter($2, $1, $3) }
+  | scalarExpression scalarFilterOperation scalar            { $$ = newScalarFilter($2, $1, $3) }
+  | scalar           scalarFilterOperation scalarExpression  { $$ = newScalarFilter($2, $1, $3) }
   ;
 
 scalarFilterOperation:
@@ -257,7 +266,7 @@ scalarFilterOperation:
 // **********************
 scalarPipelineExpressionFilter:
     scalarPipelineExpression scalarFilterOperation scalarPipelineExpression { $$ = newScalarFilter($2, $1, $3) }
-  | scalarPipelineExpression scalarFilterOperation static                   { $$ = newScalarFilter($2, $1, $3) }
+  | scalarPipelineExpression scalarFilterOperation scalar                   { $$ = newScalarFilter($2, $1, $3) }
   ;
 
 scalarPipelineExpression: // shares the same operators as scalarExpression. split out for readability
@@ -279,21 +288,31 @@ scalarPipeline:
     spansetPipeline PIPE aggregate      { $$ = $1.addItem($3)  }
   ;
 
-scalarExpression: // shares the same operators as scalarPipelineExpression. split out for readability
-    OPEN_PARENS scalarExpression CLOSE_PARENS  { $$ = $2 }                                   
-  | scalarExpression ADD scalarExpression      { $$ = newScalarOperation(OpAdd, $1, $3) }
-  | scalarExpression SUB scalarExpression      { $$ = newScalarOperation(OpSub, $1, $3) }
-  | scalarExpression MUL scalarExpression      { $$ = newScalarOperation(OpMult, $1, $3) }
-  | scalarExpression DIV scalarExpression      { $$ = newScalarOperation(OpDiv, $1, $3) }
-  | scalarExpression MOD scalarExpression      { $$ = newScalarOperation(OpMod, $1, $3) }
-  | scalarExpression POW scalarExpression      { $$ = newScalarOperation(OpPower, $1, $3) }
-  | aggregate                                  { $$ = $1 }
-  | INTEGER                                    { $$ = NewStaticInt($1)              }
-  | FLOAT                                      { $$ = NewStaticFloat($1)            }
-  | DURATION                                   { $$ = NewStaticDuration($1)         }
-  | SUB INTEGER                                { $$ = NewStaticInt(-$2)             }
-  | SUB FLOAT                                  { $$ = NewStaticFloat(-$2)           }
-  | SUB DURATION                               { $$ = NewStaticDuration(-$2)        }
+// scalarExpression is aggregate-containing only — bare-literal leaves moved to `scalar`.
+// Compound combinations with literals go through `scalarExpression OP scalar` /
+// `scalar OP scalarExpression`. This ensures every scalarExpression contains at least
+// one aggregate, which is what makes the scalarFilter aggregate-required rule work.
+scalarExpression:
+    OPEN_PARENS scalarExpression CLOSE_PARENS    { $$ = $2 }
+  | scalarExpression ADD scalarExpression        { $$ = newScalarOperation(OpAdd, $1, $3) }
+  | scalarExpression SUB scalarExpression        { $$ = newScalarOperation(OpSub, $1, $3) }
+  | scalarExpression MUL scalarExpression        { $$ = newScalarOperation(OpMult, $1, $3) }
+  | scalarExpression DIV scalarExpression        { $$ = newScalarOperation(OpDiv, $1, $3) }
+  | scalarExpression MOD scalarExpression        { $$ = newScalarOperation(OpMod, $1, $3) }
+  | scalarExpression POW scalarExpression        { $$ = newScalarOperation(OpPower, $1, $3) }
+  | scalarExpression ADD scalar                  { $$ = newScalarOperation(OpAdd, $1, $3) }
+  | scalarExpression SUB scalar                  { $$ = newScalarOperation(OpSub, $1, $3) }
+  | scalarExpression MUL scalar                  { $$ = newScalarOperation(OpMult, $1, $3) }
+  | scalarExpression DIV scalar                  { $$ = newScalarOperation(OpDiv, $1, $3) }
+  | scalarExpression MOD scalar                  { $$ = newScalarOperation(OpMod, $1, $3) }
+  | scalarExpression POW scalar                  { $$ = newScalarOperation(OpPower, $1, $3) }
+  | scalar ADD scalarExpression                  { $$ = newScalarOperation(OpAdd, $1, $3) }
+  | scalar SUB scalarExpression                  { $$ = newScalarOperation(OpSub, $1, $3) }
+  | scalar MUL scalarExpression                  { $$ = newScalarOperation(OpMult, $1, $3) }
+  | scalar DIV scalarExpression                  { $$ = newScalarOperation(OpDiv, $1, $3) }
+  | scalar MOD scalarExpression                  { $$ = newScalarOperation(OpMod, $1, $3) }
+  | scalar POW scalarExpression                  { $$ = newScalarOperation(OpPower, $1, $3) }
+  | aggregate                                    { $$ = $1 }
   ;
 
 aggregate:
@@ -351,12 +370,7 @@ metricsFilterOperation:
   ;
 
 metricsFilter:
-    metricsFilterOperation INTEGER       { $$ = newMetricsFilter($1, float64($2), " ") }
-  | metricsFilterOperation FLOAT         { $$ = newMetricsFilter($1, $2, " ") }
-  | metricsFilterOperation DURATION      { $$ = newMetricsFilter($1, float64($2) / float64(time.Second), " ") }
-  | metricsFilterOperation SUB INTEGER   { $$ = newMetricsFilter($1, float64(-$3), " ") }
-  | metricsFilterOperation SUB FLOAT     { $$ = newMetricsFilter($1, -$3, " ") }
-  | metricsFilterOperation SUB DURATION  { $$ = newMetricsFilter($1, float64(-$3) / float64(time.Second), " ") }
+    metricsFilterOperation scalar  { $$ = newMetricsFilterFromStatic($1, $2, " ") }
   ;
 
 // **********************
@@ -373,6 +387,10 @@ metricsSecondStagePipeline:
 // Metrics Math Expressions
 // Combines parenthesized metrics pipelines with arithmetic operators.
 // Example: ({status=error} | count_over_time()) / ({} | count_over_time())
+//
+// Scalars are handled via explicit boundary rules (me OP scalar, scalar OP me).
+// scalar itself folds compound constants at parse time (e.g. `(2 + 3/3)` → 3),
+// so the boundary rules see a single Static and emit MetricsScalarOp directly.
 // **********************
 metricsExpression:
     OPEN_PARENS metricsExpression CLOSE_PARENS               { $$ = $2 }
@@ -381,6 +399,31 @@ metricsExpression:
   | metricsExpression MUL metricsExpression                   { $$ = newRootExprMath(OpMult, $1, $3) }
   | metricsExpression DIV metricsExpression                   { $$ = newRootExprMath(OpDiv, $1, $3) }
   | wrappedMetricsPipeline                                    { $$ = $1 }
+  | metricsExpression ADD scalar  %prec ADD                   { $$ = newRootExprScalarMath(OpAdd,  metricScalarFloat(yylex, $3), $1, false) }
+  | metricsExpression SUB scalar  %prec SUB                   { $$ = newRootExprScalarMath(OpSub,  metricScalarFloat(yylex, $3), $1, false) }
+  | metricsExpression MUL scalar  %prec MUL                   { $$ = newRootExprScalarMath(OpMult, metricScalarFloat(yylex, $3), $1, false) }
+  | metricsExpression DIV scalar  %prec DIV                   { $$ = newRootExprScalarMath(OpDiv,  metricScalarFloat(yylex, $3), $1, false) }
+  | scalar ADD metricsExpression  %prec ADD                   { $$ = newRootExprScalarMath(OpAdd,  metricScalarFloat(yylex, $1), $3, true) }
+  | scalar SUB metricsExpression  %prec SUB                   { $$ = newRootExprScalarMath(OpSub,  metricScalarFloat(yylex, $1), $3, true) }
+  | scalar MUL metricsExpression  %prec MUL                   { $$ = newRootExprScalarMath(OpMult, metricScalarFloat(yylex, $1), $3, true) }
+  | scalar DIV metricsExpression  %prec DIV                   { $$ = newRootExprScalarMath(OpDiv,  metricScalarFloat(yylex, $1), $3, true) }
+  ;
+
+// scalar is the literal+folded-arithmetic non-terminal used uniformly in metric
+// and scalar-filter contexts. Binary ops fold constants at parse time via
+// foldConstArith → BinaryOperation.execute, giving us matching int-vs-float
+// semantics (so `1/2` truncates to 0, `1.0/2.0` promotes to 0.5). Unary minus
+// folds via foldConstUnary → UnaryOperation.execute, preserving Duration type.
+scalar:
+    INTEGER                                                   { $$ = NewStaticInt($1) }
+  | FLOAT                                                     { $$ = NewStaticFloat($1) }
+  | DURATION                                                  { $$ = NewStaticDuration($1) }
+  | SUB scalar  %prec UMINUS                                  { $$ = foldConstUnary(yylex, OpSub, $2) }
+  | OPEN_PARENS scalar CLOSE_PARENS                           { $$ = $2 }
+  | scalar MUL scalar  %prec MUL                              { $$ = foldConstArith(yylex, OpMult, $1, $3) }
+  | scalar DIV scalar  %prec DIV                              { $$ = foldConstArith(yylex, OpDiv,  $1, $3) }
+  | scalar ADD scalar  %prec ADD                              { $$ = foldConstArith(yylex, OpAdd,  $1, $3) }
+  | scalar SUB scalar  %prec SUB                              { $$ = foldConstArith(yylex, OpSub,  $1, $3) }
   ;
 
 wrappedMetricsPipeline:

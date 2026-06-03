@@ -2123,6 +2123,369 @@ var queryRangeTestCases = []struct {
 			},
 		},
 	},
+	// scalar operations
+	{
+		name: "math_scalar_mul_rate",
+		req:  requestWithDefaultRange("({} | rate()) * 100"),
+		expectedL1: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "rate"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 1.0},
+					{TimestampMs: 30_000, Value: 1.0},
+					{TimestampMs: 45_000, Value: 1.0},
+					{TimestampMs: 60_000, Value: 5.0 / 15.0},
+				},
+			},
+		},
+		expectedL2: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "rate"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 2 * 1.0},
+					{TimestampMs: 30_000, Value: 2 * 1.0},
+					{TimestampMs: 45_000, Value: 2 * 1.0},
+					{TimestampMs: 60_000, Value: 2 * 5.0 / 15.0},
+				},
+			},
+		},
+		expectedL3: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "rate"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 100 * 2 * 1.0},
+					{TimestampMs: 30_000, Value: 100 * 2 * 1.0},
+					{TimestampMs: 45_000, Value: 100 * 2 * 1.0},
+					{TimestampMs: 60_000, Value: 100 * 2 * 5.0 / 15.0},
+				},
+			},
+		},
+	},
+	{
+		name: "math_scalar_rate_div_count",
+		req:  requestWithDefaultRange("(60 * ({} | rate())) / ({} | count_over_time())"),
+		expectedL1: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "rate"),
+					tempopb.MakeKeyValueString("__query_fragment", "{ true } | rate()"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 1.0},
+					{TimestampMs: 30_000, Value: 1.0},
+					{TimestampMs: 45_000, Value: 1.0},
+					{TimestampMs: 60_000, Value: 5.0 / 15.0},
+				},
+			},
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "count_over_time"),
+					tempopb.MakeKeyValueString("__query_fragment", "{ true } | count_over_time()"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 15},
+					{TimestampMs: 30_000, Value: 15},
+					{TimestampMs: 45_000, Value: 15},
+					{TimestampMs: 60_000, Value: 5},
+				},
+			},
+		},
+		expectedL2: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "rate"),
+					tempopb.MakeKeyValueString("__query_fragment", "{ true } | rate()"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 2 * 1.0},
+					{TimestampMs: 30_000, Value: 2 * 1.0},
+					{TimestampMs: 45_000, Value: 2 * 1.0},
+					{TimestampMs: 60_000, Value: 2 * 5.0 / 15.0},
+				},
+			},
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "count_over_time"),
+					tempopb.MakeKeyValueString("__query_fragment", "{ true } | count_over_time()"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 2 * 15},
+					{TimestampMs: 30_000, Value: 2 * 15},
+					{TimestampMs: 45_000, Value: 2 * 15},
+					{TimestampMs: 60_000, Value: 2 * 5},
+				},
+			},
+		},
+		expectedL3: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "(rate / count_over_time)"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: (60 * 2 * 1.0) / (2 * 15)},
+					{TimestampMs: 30_000, Value: (60 * 2 * 1.0) / (2 * 15)},
+					{TimestampMs: 45_000, Value: (60 * 2 * 1.0) / (2 * 15)},
+					{TimestampMs: 60_000, Value: (60 * 2 * 5.0 / 15.0) / (2 * 5)},
+				},
+			},
+		},
+	},
+	{
+		name: "math_scalar_float_mul_rate",
+		req:  requestWithDefaultRange("({} | rate()) * 0.5"),
+		expectedL1: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "rate"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 1.0},
+					{TimestampMs: 30_000, Value: 1.0},
+					{TimestampMs: 45_000, Value: 1.0},
+					{TimestampMs: 60_000, Value: 5.0 / 15.0},
+				},
+			},
+		},
+		expectedL2: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "rate"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 2 * 1.0},
+					{TimestampMs: 30_000, Value: 2 * 1.0},
+					{TimestampMs: 45_000, Value: 2 * 1.0},
+					{TimestampMs: 60_000, Value: 2 * 5.0 / 15.0},
+				},
+			},
+		},
+		expectedL3: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "rate"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 0.5 * 2 * 1.0},
+					{TimestampMs: 30_000, Value: 0.5 * 2 * 1.0},
+					{TimestampMs: 45_000, Value: 0.5 * 2 * 1.0},
+					{TimestampMs: 60_000, Value: 0.5 * 2 * 5.0 / 15.0},
+				},
+			},
+		},
+	},
+	{
+		name: "math_scalar_count_by_service",
+		req:  requestWithDefaultRange("({ } | count_over_time() by (.service.name)) * 100"),
+		expectedL1: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString(".service.name", "even"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 7},
+					{TimestampMs: 30_000, Value: 8},
+					{TimestampMs: 45_000, Value: 7},
+					{TimestampMs: 60_000, Value: 3},
+				},
+			},
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString(".service.name", "odd"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 8},
+					{TimestampMs: 30_000, Value: 7},
+					{TimestampMs: 45_000, Value: 8},
+					{TimestampMs: 60_000, Value: 2},
+				},
+			},
+		},
+		expectedL2: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString(".service.name", "even"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 2 * 7},
+					{TimestampMs: 30_000, Value: 2 * 8},
+					{TimestampMs: 45_000, Value: 2 * 7},
+					{TimestampMs: 60_000, Value: 2 * 3},
+				},
+			},
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString(".service.name", "odd"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 2 * 8},
+					{TimestampMs: 30_000, Value: 2 * 7},
+					{TimestampMs: 45_000, Value: 2 * 8},
+					{TimestampMs: 60_000, Value: 2 * 2},
+				},
+			},
+		},
+		expectedL3: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString(".service.name", "even"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 100 * 2 * 7},
+					{TimestampMs: 30_000, Value: 100 * 2 * 8},
+					{TimestampMs: 45_000, Value: 100 * 2 * 7},
+					{TimestampMs: 60_000, Value: 100 * 2 * 3},
+				},
+			},
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString(".service.name", "odd"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 100 * 2 * 8},
+					{TimestampMs: 30_000, Value: 100 * 2 * 7},
+					{TimestampMs: 45_000, Value: 100 * 2 * 8},
+					{TimestampMs: 60_000, Value: 100 * 2 * 2},
+				},
+			},
+		},
+	},
+	{
+		name: "math_scalar_mul_then_filter",
+		req:  requestWithDefaultRange("({} | rate()) * 100 > 150"),
+		expectedL1: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "rate"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 1.0},
+					{TimestampMs: 30_000, Value: 1.0},
+					{TimestampMs: 45_000, Value: 1.0},
+					{TimestampMs: 60_000, Value: 5.0 / 15.0},
+				},
+			},
+		},
+		expectedL2: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "rate"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 2 * 1.0},
+					{TimestampMs: 30_000, Value: 2 * 1.0},
+					{TimestampMs: 45_000, Value: 2 * 1.0},
+					{TimestampMs: 60_000, Value: 2 * 5.0 / 15.0},
+				},
+			},
+		},
+		expectedL3: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "rate"),
+				},
+				// rate*100 = (200, 200, 200, 66.7). Only the first three are > 150 → they pass
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 100 * 2 * 1.0},
+					{TimestampMs: 30_000, Value: 100 * 2 * 1.0},
+					{TimestampMs: 45_000, Value: 100 * 2 * 1.0},
+					// 100 * 2 * 5 / 15 is filtered out
+				},
+			},
+		},
+	},
+	{
+		// Multiply by negative: rate * (-1)
+		name: "math_scalar_mul_negative",
+		req:  requestWithDefaultRange("({} | rate()) * -1"),
+		expectedL1: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "rate"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 1.0},
+					{TimestampMs: 30_000, Value: 1.0},
+					{TimestampMs: 45_000, Value: 1.0},
+					{TimestampMs: 60_000, Value: 5.0 / 15.0},
+				},
+			},
+		},
+		expectedL2: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "rate"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 2 * 1.0},
+					{TimestampMs: 30_000, Value: 2 * 1.0},
+					{TimestampMs: 45_000, Value: 2 * 1.0},
+					{TimestampMs: 60_000, Value: 2 * 5.0 / 15.0},
+				},
+			},
+		},
+		expectedL3: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "rate"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: -2 * 1.0},
+					{TimestampMs: 30_000, Value: -2 * 1.0},
+					{TimestampMs: 45_000, Value: -2 * 1.0},
+					{TimestampMs: 60_000, Value: -2 * 5.0 / 15.0},
+				},
+			},
+		},
+	},
+	{
+		name: "math_operation_order",
+		req:  requestWithDefaultRange("({} | rate()) * (6 / 2 * (1+2))"), // is unterpreted as (6÷2)×(1+2)
+		expectedL1: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "rate"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 1.0},
+					{TimestampMs: 30_000, Value: 1.0},
+					{TimestampMs: 45_000, Value: 1.0},
+					{TimestampMs: 60_000, Value: 5.0 / 15.0},
+				},
+			},
+		},
+		expectedL2: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "rate"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 2 * 1.0},
+					{TimestampMs: 30_000, Value: 2 * 1.0},
+					{TimestampMs: 45_000, Value: 2 * 1.0},
+					{TimestampMs: 60_000, Value: 2 * 5.0 / 15.0},
+				},
+			},
+		},
+		expectedL3: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "rate"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 2 * 1.0 * 9},
+					{TimestampMs: 30_000, Value: 2 * 1.0 * 9},
+					{TimestampMs: 45_000, Value: 2 * 1.0 * 9},
+					{TimestampMs: 60_000, Value: 2 * 5.0 * 9 / 15.0},
+				},
+			},
+		},
+	},
 }
 
 var expectedCompareTs = []*tempopb.TimeSeries{
