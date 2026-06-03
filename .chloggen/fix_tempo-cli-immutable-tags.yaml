@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: operations
+note: Stop publishing mutable Docker image tags to immutable GAR repositories and pin examples to Tempo 3.0.0.
+issues: [7369]
+subtext:
+user: javiermolinar
