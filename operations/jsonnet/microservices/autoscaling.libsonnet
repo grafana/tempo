@@ -273,7 +273,8 @@
     if $._config.distributor.keda.enabled then $.removeReplicasFromSpec else {},
 
   //
-  // Metrics Generator: CPU-based autoscaling.
+  // Metrics Generator: CPU-based autoscaling by default, or Prometheus-based
+  // autoscaling when metrics_generator.keda.query is set.
   //
   tempo_metrics_generator_scaled_object:
     if $._config.metrics_generator.keda.enabled then
