@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
 	"go.yaml.in/yaml/v3"
@@ -73,21 +74,35 @@ func main() {
 
 	yamlBlock := "```yaml\n" + string(newConfigBytes) + "```\n"
 
-	writeGenerated(ManifestPath, Manifest+yamlBlock)
-	writeGenerated(MCPConfigReferencePath, MCPConfigReference+yamlBlock)
+	// Write every generated file first, then check them all, so a single invocation
+	// always regenerates every output even when more than one has drifted.
+	writeFile(ManifestPath, Manifest+yamlBlock)
+	writeFile(MCPConfigReferencePath, MCPConfigReference+yamlBlock)
+
+	var changed []string
+	for _, path := range []string{ManifestPath, MCPConfigReferencePath} {
+		if fileChanged(path) {
+			changed = append(changed, path)
+		}
+	}
+
+	if len(changed) > 0 {
+		log.Fatalf("The following generated files have changed: %s. Please run '%s' and commit the changes.", strings.Join(changed, ", "), Cmd)
+	}
 }
 
-// writeGenerated writes content to path and fails if the on-disk file changed, mirroring
-// the freshness guarantee enforced in CI.
-func writeGenerated(path, content string) {
+// writeFile writes generated content to path, panicking on failure.
+func writeFile(path, content string) {
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		panic(err)
 	}
+}
 
+// fileChanged reports whether path differs from the committed version, printing the diff
+// for visibility. This mirrors the freshness guarantee enforced in CI.
+func fileChanged(path string) bool {
 	cmd := exec.Command("git", "diff", "--exit-code", path)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		log.Fatalf("%s has changed. Please run '%s' and commit the changes.", path, Cmd)
-	}
+	return cmd.Run() != nil
 }
