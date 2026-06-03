@@ -1,7 +1,7 @@
 <!-- next version -->
 ## main / unreleased
 
-* [ENHANCEMENT] jsonnet: support Prometheus-based KEDA autoscaling for the metrics-generator via `metrics_generator.keda.query`, to keep replicas from exceeding the live-store partition count. Falls back to the existing CPU trigger when unset. [#PRNUM](https://github.com/grafana/tempo/pull/PRNUM) (@mapno)
+* [ENHANCEMENT] jsonnet: support Prometheus-based KEDA autoscaling for the metrics-generator via `metrics_generator.keda.query`, to keep replicas from exceeding the live-store partition count. Falls back to the existing CPU trigger when unset. [#7362](https://github.com/grafana/tempo/pull/7362) (@mapno)
 * [ENHANCEMENT] cache: enforce a configurable MaxItemSize for Redis. [#7311](https://github.com/grafana/tempo/pull/7311) (@electron0zero)
 * [SECURITY] jsonnet: bump `memcached` to `1.6.42-alpine` and `prom/memcached-exporter` to `v0.16.0` to clear accumulated CVEs. [#7244](https://github.com/grafana/tempo/pull/7244) (@zhxiaogg)
 * [ENHANCEMENT] tempo-mixin: update backendwork dashboard with a Redaction section (active jobs, created/completed/failed/dropped by tenant, job duration), add Dropped and Job Duration panels to the Jobs row, and fix the Retry metric name (`jobs_retry` -> `jobs_retry_total`). [#7184](https://github.com/grafana/tempo/pull/7184) (@zalegrala)
