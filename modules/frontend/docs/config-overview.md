@@ -6,10 +6,13 @@ nesting, and default values, request the "config-reference" doc, which lists eve
 
 ## How Tempo configuration works
 
-Tempo is a single binary that runs one or more components. The `target` option selects
-which components run in a process (`all` runs everything; otherwise name a component such
-as `distributor` or `querier`). All components read from the same configuration file, so
-a block such as `storage` applies wherever it's relevant.
+Tempo ships as a single binary that supports two deployment modes. In monolithic mode
+(`-target=all`, the default), all components run in one process and no Kafka is required.
+In microservices mode, each component runs as its own process with its own `-target`
+(for example, `-target=distributor` or `-target=querier`), which requires a
+Kafka-compatible system. The `target` option selects which components a process runs. All
+components read from the same configuration file, so a block such as `storage` applies
+wherever it's relevant.
 
 Configuration is set in a YAML file and may be overridden by command-line flags. Flag
 names mirror the YAML path, for example `query_frontend.mcp_server.enabled` becomes
@@ -17,21 +20,23 @@ names mirror the YAML path, for example `query_frontend.mcp_server.enabled` beco
 
 ## Top-level configuration blocks
 
-- `target`: Which component(s) this process runs. Use `all` for single-binary mode.
+- `target`: Which component(s) this process runs. Use `all` for monolithic mode.
 - `http_api_prefix`: Optional prefix applied to Tempo's HTTP API paths.
 - `memory`: Process memory management, including automatic memory limit settings.
 - `server`: HTTP and gRPC listen addresses, ports, TLS, and logging for the public API.
 - `internal_server`: An optional separate server for internal endpoints.
 - `distributor`: Receives incoming spans. Configures the OTLP, Jaeger, and Zipkin
   receivers and any forwarders.
-- `querier`: Executes queries against the storage and live data, including any external
-  query endpoints.
+- `querier`: Executes query jobs dispatched by the query frontend, fetching trace data
+  from live-stores (recent data) and object storage (historical data).
 - `query_frontend`: Splits, queues, and shards incoming queries. Holds `search`,
   `trace_by_id`, and `metrics` query settings, and the `mcp_server` block.
 - `metrics_generator`: Generates metrics from incoming spans, such as service graphs and
   span metrics, and remote-writes them. Configures processors and generator storage.
-- `ingest`: Configures ingestion from Kafka-compatible queues.
-- `block_builder`: Builds storage blocks from ingested data.
+- `ingest`: Configures the Kafka-compatible queue used between components. Microservices
+  mode only.
+- `block_builder`: Consumes trace data from Kafka and builds storage blocks. Microservices
+  mode only.
 - `live_store` and `live_store_client`: Hold and serve recent trace data before it's
   flushed to long-term storage, and the client used to query it.
 - `storage`: The trace backend (object storage such as S3, GCS, or Azure, or local),
