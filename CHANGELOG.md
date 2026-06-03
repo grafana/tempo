@@ -1,4 +1,4 @@
-## main / unreleased
+<!-- next version -->
 
 # v3.0.0
 
