@@ -1,0 +1,58 @@
+name: govulncheck
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  govulncheck:
+    name: Check for vulnerabilities introduced by this PR
+    runs-on: ubuntu-24.04
+    steps:
+      # PR head merged onto the base branch, into ./head (shallow: one commit).
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          path: head
+          persist-credentials: false
+
+      # Base branch tip into ./base (shallow: one commit). Kept in its own folder,
+      # a sibling of ./head, so neither checkout is a nested module of the other.
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ github.base_ref }}
+          path: base
+          persist-credentials: false
+
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version-file: head/go.mod
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      # Fail only on vulnerabilities this PR introduces. A reachable vuln already
+      # present in the base branch shows up in both scans and is filtered out, so
+      # a fresh CVE in main never blocks unrelated PRs.
+      - name: Fail on new reachable vulnerabilities
+        run: |
+          # In -json mode govulncheck exits 0 even when it finds vulns, so a non-zero
+          # exit here means a real scan error (e.g. a tree failed to build) — let it
+          # fail the step rather than diffing against empty output. The jq filter keeps
+          # only reachable (symbol-level) findings, which carry a function frame in trace[0].
+          scan() { govulncheck -json ./... | jq -r 'select(.finding.trace[0].function != null) | .finding.osv' | sort -u; }
+
+          (cd head && scan) > head.ids
+          (cd base && scan) > base.ids
+
+          # comm splits two sorted files into 3 columns: base-only, head-only, common.
+          # -13 suppresses columns 1 and 3, leaving column 2 = OSV IDs in head but not
+          # base, i.e. the vulns this PR newly introduces. scan() sorts so comm is valid.
+          new="$(comm -13 base.ids head.ids)"
+          if [ -n "$new" ]; then
+            echo "::error::This PR introduces reachable vulnerabilities not present in the base branch:"
+            echo "$new"
+            exit 1
+          fi
+          echo "No new reachable vulnerabilities."
