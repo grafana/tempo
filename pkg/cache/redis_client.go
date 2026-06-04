@@ -54,7 +54,7 @@ func (cfg *RedisConfig) RegisterFlagsWithPrefix(prefix, description string, f *f
 	f.StringVar(&cfg.Endpoint, prefix+"redis.endpoint", "", description+"Redis Server endpoint to use for caching. A comma-separated list of endpoints for Redis Cluster. If empty, no redis will be used.")
 	f.DurationVar(&cfg.Timeout, prefix+"redis.timeout", 500*time.Millisecond, description+"Maximum time to wait before giving up on redis requests.")
 	f.DurationVar(&cfg.Expiration, prefix+"redis.expiration", 0, description+"How long keys stay in the redis.")
-	f.IntVar(&cfg.DB, prefix+"redis.db", 0, description+"Database index.")
+	f.IntVar(&cfg.DB, prefix+"redis.db", 0, description+"Single-node only: database index. Ignored in cluster mode, which requires DB 0.")
 	f.IntVar(&cfg.PoolSize, prefix+"redis.pool-size", 0, description+"Maximum number of connections in the pool.")
 	f.StringVar(&cfg.Username, prefix+"redis.username", "", description+"Username to use when connecting to redis (utilizes Redis 6+ ACL-based AUTH)")
 	f.Var(&cfg.Password, prefix+"redis.password", description+"Password to use when connecting to redis.")
@@ -66,9 +66,11 @@ func (cfg *RedisConfig) RegisterFlagsWithPrefix(prefix, description string, f *f
 	f.BoolVar(&cfg.RouteByLatency, prefix+"redis.route-by-latency", false, description+"Cluster only: route read-only commands to the node with the lowest measured latency.")
 	f.BoolVar(&cfg.RouteRandomly, prefix+"redis.route-randomly", false, description+"Cluster only: route read-only commands to a random node.")
 	f.BoolVar(&cfg.ReadOnly, prefix+"redis.read-only", false, description+"Cluster only: allow read-only commands on replica nodes. Reads may be stale.")
-	// MaxRedirects defaults to 3 to match go-redis's own default; setting 0
-	// here would disable MOVED/ASK retries and silently break cluster routing.
-	f.IntVar(&cfg.MaxRedirects, prefix+"redis.max-redirects", 3, description+"Cluster only: maximum number of redirects to follow on MOVED/ASK responses.")
+	// Cosmetic alignment with go-redis's own resolved default: go-redis remaps
+	// MaxRedirects==0 to 3 internally (and -1 to "disable"), so a missing YAML
+	// field already gets 3. Exposing 3 here just makes --help reflect the
+	// effective default.
+	f.IntVar(&cfg.MaxRedirects, prefix+"redis.max-redirects", 3, description+"Cluster only: maximum number of redirects to follow on MOVED/ASK responses. Set to -1 to disable retries.")
 	f.IntVar(&cfg.MinIdleConns, prefix+"redis.min-idle-conns", 0, description+"Minimum number of idle connections to maintain in the pool. Useful to avoid the overhead of establishing new connections on demand.")
 	f.IntVar(&cfg.MaxItemSize, prefix+"redis.max-item-size", 0, description+"The maximum size in bytes of an item stored in Redis. Items larger than this are not stored. A value of 0 disables the limit.")
 }
@@ -248,7 +250,12 @@ func (c *RedisClient) Close() error {
 	return c.rdb.Close()
 }
 
-// StringToBytes reads the string header and returns a byte slice without copying.
+// StringToBytes returns a byte slice aliasing s without a copy.
+//
+// The returned slice shares storage with s, so callers MUST NOT write to it —
+// mutating the bytes would violate the immutability of the source string and
+// is undefined behavior. Use this only when you immediately read the result;
+// if you need to retain or modify the data, copy it first.
 func StringToBytes(s string) []byte {
 	return unsafe.Slice(unsafe.StringData(s), len(s))
 }
