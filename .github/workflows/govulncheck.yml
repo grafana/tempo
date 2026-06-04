@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   govulncheck:
-    name: Check for vulnerabilities introduced by this PR
+    name: Run govulncheck
     runs-on: ubuntu-24.04
     steps:
       # PR head merged onto the base branch, into ./head (shallow: one commit).
@@ -17,26 +17,32 @@ jobs:
           path: head
           persist-credentials: false
 
-      # Base branch tip into ./base (shallow: one commit). Kept in its own folder,
-      # a sibling of ./head, so neither checkout is a nested module of the other.
+      # Base into ./base (shallow: one commit). Kept in its own folder, a sibling
+      # of ./head, so neither checkout is a nested module of the other. Pin to the
+      # exact base SHA the PR's merge ref was built from rather than the base_ref
+      # branch name, which can advance mid-run and produce an inconsistent diff.
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
-          ref: ${{ github.base_ref }}
+          ref: ${{ github.event.pull_request.base.sha }}
           path: base
           persist-credentials: false
 
+      # use the go version from the PR
       - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
           go-version-file: head/go.mod
 
+      # Pinned rather than @latest so the gate is reproducible and an upstream
+      # release can't silently change CI behavior; bump deliberately.
       - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.3.0
 
       # Fail only on vulnerabilities this PR introduces. A reachable vuln already
       # present in the base branch shows up in both scans and is filtered out, so
       # a fresh CVE in main never blocks unrelated PRs.
-      - name: Fail on new reachable vulnerabilities
+      - name: Check for new CVEs
         run: |
+          set -euo pipefail
           # In -json mode govulncheck exits 0 even when it finds vulns, so a non-zero
           # exit here means a real scan error (e.g. a tree failed to build) — let it
           # fail the step rather than diffing against empty output. The jq filter keeps
@@ -48,11 +54,11 @@ jobs:
 
           # comm splits two sorted files into 3 columns: base-only, head-only, common.
           # -13 suppresses columns 1 and 3, leaving column 2 = OSV IDs in head but not
-          # base, i.e. the vulns this PR newly introduces. scan() sorts so comm is valid.
+          # base, i.e. the vulns this PR newly introduces. scan() already sorts.
           new="$(comm -13 base.ids head.ids)"
           if [ -n "$new" ]; then
-            echo "::error::This PR introduces reachable vulnerabilities not present in the base branch:"
+            echo "::error::This PR introduces CVEs not present in the base branch:"
             echo "$new"
             exit 1
           fi
-          echo "No new reachable vulnerabilities."
+          echo "No new CVE."
