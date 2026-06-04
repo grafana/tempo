@@ -59,14 +59,6 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
 
-  govulncheck:
-    name: Run govulncheck
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: golang/govulncheck-action@b625fbe08f3bccbe446d94fbf87fcc875a4f50ee # v1.0.4
-        with:
-          go-version-file: go.mod
-
   unit-tests:
     name: Run Unit Tests
     runs-on: ubuntu-24.04

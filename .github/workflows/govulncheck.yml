@@ -1,0 +1,64 @@
+name: govulncheck
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  govulncheck:
+    name: Run govulncheck
+    runs-on: ubuntu-24.04
+    steps:
+      # PR head merged onto the base branch, into ./head (shallow: one commit).
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          path: head
+          persist-credentials: false
+
+      # Base into ./base (shallow: one commit). Kept in its own folder, a sibling
+      # of ./head, so neither checkout is a nested module of the other. Pin to the
+      # exact base SHA the PR's merge ref was built from rather than the base_ref
+      # branch name, which can advance mid-run and produce an inconsistent diff.
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+          persist-credentials: false
+
+      # use the go version from the PR
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version-file: head/go.mod
+
+      # Pinned rather than @latest so the gate is reproducible and an upstream
+      # release can't silently change CI behavior; bump deliberately.
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.3.0
+
+      # Fail only on vulnerabilities this PR introduces. A reachable vuln already
+      # present in the base branch shows up in both scans and is filtered out, so
+      # a fresh CVE in main never blocks unrelated PRs.
+      - name: Check for new CVEs
+        run: |
+          set -euo pipefail
+          # In -json mode govulncheck exits 0 even when it finds vulns, so a non-zero
+          # exit here means a real scan error (e.g. a tree failed to build) — let it
+          # fail the step rather than diffing against empty output. The jq filter keeps
+          # only reachable (symbol-level) findings, which carry a function frame in trace[0].
+          scan() { govulncheck -json ./... | jq -r 'select(.finding.trace[0].function != null) | .finding.osv' | sort -u; }
+
+          (cd head && scan) > head.ids
+          (cd base && scan) > base.ids
+
+          # comm splits two sorted files into 3 columns: base-only, head-only, common.
+          # -13 suppresses columns 1 and 3, leaving column 2 = OSV IDs in head but not
+          # base, i.e. the vulns this PR newly introduces. scan() already sorts.
+          new="$(comm -13 base.ids head.ids)"
+          if [ -n "$new" ]; then
+            echo "::error::This PR introduces CVEs not present in the base branch:"
+            echo "$new"
+            exit 1
+          fi
+          echo "No new CVE."
