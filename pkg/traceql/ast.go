@@ -34,7 +34,7 @@ type RootExpr struct {
 	Pipeline           map[string]Pipeline        // spanset filters
 	BatchSpanProcessor map[string]spanProcessor   // span processing
 	SeriesProcessor    map[string]seriesProcessor // time series processing
-	expression         *mathExpression            // query expression structure (second stage)
+	expression         *MathExpression            // query expression structure (second stage)
 	Hints              *Hints
 	OptimizationCount  int
 }
@@ -58,6 +58,10 @@ func (r *RootExpr) MetricsSecondStage() secondStageElement {
 	if r.expression.op == OpNone { // flat expression
 		return r.expression.filter
 	}
+	return r.expression
+}
+
+func (r *RootExpr) Expression() *MathExpression {
 	return r.expression
 }
 
@@ -167,7 +171,7 @@ func newRootExprMath(op Operator, lhs, rhs *RootExpr) *RootExpr {
 		Pipeline:           pipelines,
 		BatchSpanProcessor: spanProcs,
 		SeriesProcessor:    seriesProcs,
-		expression: &mathExpression{
+		expression: &MathExpression{
 			op:  op,
 			lhs: lhs.expression,
 			rhs: rhs.expression,
