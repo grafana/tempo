@@ -258,6 +258,8 @@ However, many real-world questions require comparing or combining two groups, fo
 Arithmetic expressions let you answer these questions in a single TraceQL query by combining metrics queries with `+`, `-`, `*`, and `/`.
 Without this, you'd need to run separate queries and combine them externally using tools like Grafana Math expressions.
 
+You can combine two metrics queries with each other, or combine a metrics query with a constant number (a scalar) to scale or shift its values.
+
 Each sub-query must be wrapped in parentheses.
 
 ### Syntax
@@ -307,6 +309,25 @@ Combine multiple operations:
 ({} | rate()) + ({} | count_over_time()) | topk(5)
 ```
 
+### Scalar operands
+
+You can use a constant number (a scalar) as one side of an arithmetic expression to scale or shift the values of a metrics query.
+The number can appear on either side of the operator, and it applies to every series and every data point in the result.
+Scalars can be integers, floating-point numbers, or negative values. You can use multiple operations in a single expression:
+
+```traceql
+({} | rate()) / 2.5
+({} | rate()) - 5
+({} | rate()) * (-100)
+100 + ({} | rate())
+```
+
+In scalar-only subexpressions, integer arithmetic keeps integer semantics, so `1 / 2` evaluates to `0`, while `1.0 / 2.0` evaluates to `0.5`.
+
+{{< admonition type="note" >}}
+Duration literals such as `10s` can't be used as scalar operands in arithmetic. For example, `({} | rate()) * 10s` isn't valid.
+{{< /admonition >}}
+
 ### Group-by with arithmetic
 
 You can use `by()` in each sub-query.
@@ -348,7 +369,7 @@ Following IEEE-754 semantics, any arithmetic operation involving `NaN` returns `
 ### Limitations
 
 - Each sub-query must be enclosed in parentheses. Bare expressions like `{} | rate() + {} | rate()` aren't valid.
-- Scalar operands aren't supported. Expressions like `1000 * ({} | rate())` aren't valid.
+- Duration literals such as `10s` can't be used as scalar operands.
 - The `compare()` function can't be used in arithmetic expressions.
 
 ## Multi-stage metrics queries
