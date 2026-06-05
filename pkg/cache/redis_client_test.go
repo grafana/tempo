@@ -2,8 +2,10 @@ package cache
 
 import (
 	"context"
+	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -245,4 +247,90 @@ func mockRedisClientCluster() (*RedisClient, error) {
 	}
 
 	return NewRedisClient(cfg, "test", prometheus.NewRegistry())
+}
+
+// TestRedisClient_TimeoutBoundsHangingServer guards the wiring that bounds
+// every Redis command by cfg.Timeout. go-redis v9 ignores context deadlines
+// for socket I/O unless ContextTimeoutEnabled is set, and its DialTimeout /
+// ReadTimeout / WriteTimeout fall back to 5s/3s/3s defaults when left at
+// zero — so a forgotten mapping silently lets a configured 100ms turn into a
+// multi-second stall. The server here accepts TCP connections but never
+// writes a reply, which is the scenario the defaults mask.
+func TestRedisClient_TimeoutBoundsHangingServer(t *testing.T) {
+	tests := []struct {
+		name       string
+		singleNode bool
+	}{
+		{name: "single node", singleNode: true},
+		{name: "cluster", singleNode: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			addr := newHangingTCPServer(t)
+
+			cfg := &RedisConfig{
+				Endpoint:   addr,
+				Timeout:    100 * time.Millisecond,
+				SingleNode: tc.singleNode,
+				// Cluster only: keep the retry blast-radius small so a regression
+				// to multi-second socket defaults is unambiguous in the upper
+				// bound below rather than swallowed by MaxRedirects*ReadTimeout.
+				MaxRedirects: 0,
+			}
+			client, err := NewRedisClient(cfg, "test-hanging-"+tc.name, prometheus.NewRegistry())
+			require.NoError(t, err)
+			defer client.Close()
+
+			start := time.Now()
+			err = client.Ping(context.Background())
+			elapsed := time.Since(start)
+
+			require.Error(t, err, "Ping against a hanging server must fail")
+			// Headroom over cfg.Timeout=100ms accommodates scheduling jitter
+			// and, in cluster mode, the initial CLUSTER SLOTS probe before
+			// PING. Without the fix this elapsed ~3s (go-redis's default
+			// ReadTimeout), so 1.5s is comfortably below the regression and
+			// well above the legitimate timeout.
+			require.Less(t, elapsed, 1500*time.Millisecond,
+				"Ping must respect cfg.Timeout=100ms, took %v", elapsed)
+		})
+	}
+}
+
+// newHangingTCPServer returns the address of a TCP listener that accepts
+// connections and holds them open without ever writing a byte back. Accepted
+// connections are tracked so the test cleanup can close them and unblock any
+// goroutines that may still be reading on the client side.
+func newHangingTCPServer(t *testing.T) string {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	var (
+		mu    sync.Mutex
+		conns []net.Conn
+	)
+
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			mu.Lock()
+			conns = append(conns, conn)
+			mu.Unlock()
+		}
+	}()
+
+	t.Cleanup(func() {
+		_ = ln.Close()
+		mu.Lock()
+		defer mu.Unlock()
+		for _, c := range conns {
+			_ = c.Close()
+		}
+	})
+	return ln.Addr().String()
 }

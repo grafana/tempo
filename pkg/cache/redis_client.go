@@ -103,33 +103,49 @@ func NewRedisClient(cfg *RedisConfig, name string, reg prometheus.Registerer) (*
 		tlsCfg = t
 	}
 
+	// go-redis v9 ignores context deadlines for socket I/O unless
+	// ContextTimeoutEnabled is set, and its DialTimeout/ReadTimeout/WriteTimeout
+	// fall back to multi-second defaults (5s/3s/3s) when left at zero. Mapping
+	// cfg.Timeout into all four socket-timeout fields keeps each network op
+	// bounded even when the caller's context is background, and enabling
+	// ContextTimeoutEnabled honors the wrapper's WithTimeout in Ping/MGet/etc.
 	var rdb redis.UniversalClient
 	if cfg.SingleNode {
 		rdb = redis.NewClient(&redis.Options{
-			Addr:            cfg.Endpoint,
-			Username:        cfg.Username,
-			Password:        cfg.Password.String(),
-			DB:              cfg.DB,
-			PoolSize:        cfg.PoolSize,
-			MinIdleConns:    cfg.MinIdleConns,
-			ConnMaxIdleTime: cfg.ConnMaxIdleTime,
-			ConnMaxLifetime: cfg.ConnMaxLifetime,
-			TLSConfig:       tlsCfg,
+			Addr:                  cfg.Endpoint,
+			Username:              cfg.Username,
+			Password:              cfg.Password.String(),
+			DB:                    cfg.DB,
+			PoolSize:              cfg.PoolSize,
+			MinIdleConns:          cfg.MinIdleConns,
+			ConnMaxIdleTime:       cfg.ConnMaxIdleTime,
+			ConnMaxLifetime:       cfg.ConnMaxLifetime,
+			TLSConfig:             tlsCfg,
+			ContextTimeoutEnabled: true,
+			DialTimeout:           cfg.Timeout,
+			ReadTimeout:           cfg.Timeout,
+			WriteTimeout:          cfg.Timeout,
+			PoolTimeout:           cfg.Timeout,
 		})
 	} else {
 		cc := redis.NewClusterClient(&redis.ClusterOptions{
-			Addrs:           strings.Split(cfg.Endpoint, ","),
-			Username:        cfg.Username,
-			Password:        cfg.Password.String(),
-			PoolSize:        cfg.PoolSize,
-			MinIdleConns:    cfg.MinIdleConns,
-			ConnMaxIdleTime: cfg.ConnMaxIdleTime,
-			ConnMaxLifetime: cfg.ConnMaxLifetime,
-			RouteByLatency:  cfg.RouteByLatency,
-			RouteRandomly:   cfg.RouteRandomly,
-			ReadOnly:        cfg.ReadOnly,
-			MaxRedirects:    cfg.MaxRedirects,
-			TLSConfig:       tlsCfg,
+			Addrs:                 strings.Split(cfg.Endpoint, ","),
+			Username:              cfg.Username,
+			Password:              cfg.Password.String(),
+			PoolSize:              cfg.PoolSize,
+			MinIdleConns:          cfg.MinIdleConns,
+			ConnMaxIdleTime:       cfg.ConnMaxIdleTime,
+			ConnMaxLifetime:       cfg.ConnMaxLifetime,
+			RouteByLatency:        cfg.RouteByLatency,
+			RouteRandomly:         cfg.RouteRandomly,
+			ReadOnly:              cfg.ReadOnly,
+			MaxRedirects:          cfg.MaxRedirects,
+			TLSConfig:             tlsCfg,
+			ContextTimeoutEnabled: true,
+			DialTimeout:           cfg.Timeout,
+			ReadTimeout:           cfg.Timeout,
+			WriteTimeout:          cfg.Timeout,
+			PoolTimeout:           cfg.Timeout,
 		})
 		// Wire up COMMAND INFO-driven routing so multi-key commands
 		// (MGET/DEL) get sharded across slots instead of failing with
