@@ -54,7 +54,7 @@ TraceQL supports several literal types for expressing values in queries.
 - Integers: positive or negative whole numbers, for example `200` or `-1`. The constants `minInt` and `maxInt` represent the minimum and maximum 64-bit integer values.
 - Floats: decimal notation, for example `1.5`.
 - Durations: a number with a unit. Supported units are `ns`, `us`, `ms`, `s`, `m`, and `h`, for example `100ms` or `5s`. Durations can be signed.
-- Strings: enclosed in double quotes, for example `"GET"`.
+- Strings: enclosed in double quotes or backticks, for example `"GET"` or `` `GET` ``.
 - Nil: use `nil` to check for missing or null attributes, and `!= nil` to require an attribute to be present.
 
 Examples:
@@ -86,7 +86,7 @@ Examples:
 - `||` - OR (either condition can be true)
 
 ## Spanset Operators
-Spanset operators allow conditions to be asserted on different spans within a trace. Also see strutural operators.
+Spanset operators allow conditions to be asserted on different spans within a trace. Also see structural operators.
 
 - `{condA} && {condB}` - Both conditions found matches
 - `{condA} || {condB}` - Either condition found matches

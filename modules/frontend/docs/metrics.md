@@ -146,18 +146,22 @@ Example:
 { resource.service.name = "api" && span.http.path = "/users" } | compare({span:status = error})
 ```
 
-The output is flat time-series for each attribute/value found in the spans. Each series carries a `__meta_type` label set to either `selection` or `baseline`:
+The output is flat time-series for each attribute/value found in the spans. Each series carries a `__meta_type` label indicating the group. Possible values are `baseline`, `selection`, `baseline_total`, and `selection_total`:
 ```
 { __meta_type="baseline", resource.cluster="prod" } 123
 { __meta_type="selection", resource.cluster="prod" } 456
+{ __meta_type="baseline_total", resource.cluster="prod" } 1000
+{ __meta_type="selection_total", resource.cluster="prod" } 800
 ```
+
+The `baseline_total` and `selection_total` series report the overall count across all values for each attribute, which helps calculate relative proportions.
 
 When an attribute exceeds the top `N` limit, an error indicator series is included:
 ```
 { __meta_error="__too_many_values__", resource.cluster=<nil> }
 ```
 
-`compare()` can't be combined with `topk`, `bottomk`, or comparison operators. It's generally run as an instant query.
+`compare()` can't be combined with second-stage functions such as `topk`, `bottomk`, comparison operators, or arithmetic expressions. It's generally run as an instant query.
 
 ## Practical Examples
 
