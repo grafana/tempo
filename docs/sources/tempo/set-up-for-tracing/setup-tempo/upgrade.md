@@ -29,6 +29,111 @@ For detailed information about any release, refer to the [Release notes](https:/
 You can check your configuration options using the [`status` API endpoint](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#status) in your Tempo installation.
 {{< /admonition >}}
 
+## Upgrade to Tempo 3.1
+
+### Redis cache configuration changes
+
+Tempo upgrades the Redis cache client to [`github.com/redis/go-redis/v9`](https://github.com/redis/go-redis) and reworks the cache configuration. Redis Cluster is now the default routing mode, Redis Sentinel support is removed, several YAML keys are renamed, and the TLS block is replaced with a dskit-style block that fails closed on invalid configuration. [[PR 7337](https://github.com/grafana/tempo/pull/7337)]
+
+If you do not use the Redis cache, no action is needed.
+
+#### Opt single-node Redis into the single-node client
+
+Routing is now explicit. Previously, Tempo inferred routing from the number of endpoints, which silently selected single-node for cluster configuration endpoints that resolve to one host (for example, AWS ElastiCache configuration endpoints). The default now targets a Redis Cluster; set `single_node: true` to opt into the single-node client.
+
+Before:
+
+```yaml
+cache:
+  caches:
+    - redis:
+        endpoint: redis:6379
+```
+
+After:
+
+```yaml
+cache:
+  caches:
+    - redis:
+        endpoint: redis:6379
+        single_node: true
+```
+
+If a single-node configuration is left without `single_node: true`, Tempo starts but the cluster client fails on the first connection attempt when the server responds to `CLUSTER SLOTS` with an error.
+
+Redis Cluster deployments now require Redis 7+ because Tempo uses the `multi_shard` request policy advertised through `COMMAND INFO` to fan out cross-slot `MGET`/`DEL`.
+
+#### Migrate off Redis Sentinel
+
+Redis Sentinel support is removed. The following YAML keys and their corresponding CLI flags no longer exist:
+
+- `master_name` / `-redis.master-name`
+- `sentinel_username` / `-redis.sentinel-username`
+- `sentinel_password` / `-redis.sentinel-password`
+
+Migrate to either a single-node Redis or a Redis Cluster.
+
+#### Rename `idle_timeout` and `max_connection_age`
+
+Two pool keys are renamed to match the go-redis v9 API:
+
+| Previous            | New                  |
+| ------------------- | -------------------- |
+| `idle_timeout`      | `conn_max_idle_time` |
+| `max_connection_age`| `conn_max_lifetime`  |
+
+Before:
+
+```yaml
+cache:
+  caches:
+    - redis:
+        idle_timeout: 5m
+        max_connection_age: 1h
+```
+
+After:
+
+```yaml
+cache:
+  caches:
+    - redis:
+        conn_max_idle_time: 5m
+        conn_max_lifetime: 1h
+```
+
+#### Replace the TLS block
+
+The minimal `tls_enabled` / `tls_insecure_skip_verify` pair is replaced with the dskit-style TLS block. Existing settings keep working; new fields are optional.
+
+| New field                  | Purpose                                                                |
+| -------------------------- | ---------------------------------------------------------------------- |
+| `tls_cert_path`            | Path to the client certificate file                                    |
+| `tls_key_path`             | Path to the private client key file                                    |
+| `tls_ca_path`              | Path to the CA certificate file                                        |
+| `tls_server_name`          | Override the expected name on the server certificate                   |
+| `tls_insecure_skip_verify` | Skip validating the server certificate (unchanged)                     |
+| `tls_cipher_suites`        | Override the default cipher suite list, comma-separated                |
+| `tls_min_version`          | Override the default minimum TLS version (`VersionTLS12`, and so on)   |
+
+Invalid TLS settings now fail closed: if `tls_enabled: true` but the TLS configuration cannot be assembled, Tempo returns an error from cache construction instead of silently downgrading to a cleartext connection.
+
+#### New Redis Cluster routing options
+
+These options are additive and only apply when the default cluster client is used (`single_node: false`). They are ignored on the single-node path.
+
+```yaml
+cache:
+  caches:
+    - redis:
+        route_by_latency: false # Route read-only commands to the lowest-latency node.
+        route_randomly: false   # Route read-only commands to a random node.
+        read_only: false        # Allow read-only commands on replica nodes. Reads may be stale.
+        max_redirects: 3        # Maximum redirects to follow on MOVED/ASK responses.
+        min_idle_conns: 0       # Minimum idle connections to maintain in the pool.
+```
+
 ## Upgrade to Tempo 3.0
 
 Tempo 3.0 is a major release that replaces the ingester-based architecture with a new design that separates the read and write paths.
