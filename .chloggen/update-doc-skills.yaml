@@ -1,0 +1,11 @@
+change_type: enhancement
+
+component: docs
+
+note: Add shared documentation skills, project context, and release-notes workflow for AI-assisted doc authoring
+
+issues: [7092]
+
+subtext:
+
+user: knylander-grafana
