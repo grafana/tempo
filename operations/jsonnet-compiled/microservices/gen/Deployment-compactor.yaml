@@ -31,7 +31,7 @@ spec:
         env:
         - name: GOMEMLIMIT
           value: 5GiB
-        image: grafana/tempo:2.10.5
+        image: grafana/tempo:2.10.6
         imagePullPolicy: IfNotPresent
         name: compactor
         ports:
