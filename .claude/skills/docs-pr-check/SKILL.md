@@ -16,7 +16,7 @@ For a list of PRs, determine whether each has adequate documentation, classify g
 2. Get PR numbers to check. The user may provide them directly, reference a curated release list or CHANGELOG, or ask for recently merged PRs by time range. If the user gives a time range (for example, "last week," "since Monday"), query for merged PRs:
 
 ```bash
-gh pr list --repo YOUR_ORG/YOUR_REPO --state merged --search "merged:>YYYY-MM-DD" --json number,title,labels,files --limit 100
+gh pr list --repo YOUR_ORG/YOUR_REPO --state merged --search "merged:>YYYY-MM-DD" --json number,title,labels,files,author --limit 100
 ```
 
 Filter out bot authors (dependabot, github-actions) and present the list for confirmation before classifying.

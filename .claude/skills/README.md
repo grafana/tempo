@@ -1,101 +1,70 @@
-# Skills: PR docs workflow
+# Skills
 
-This repository uses a three-step pipeline for PR-driven documentation work:
+AI skills for documentation and maintenance workflows in the Tempo repository. For technical writers, engineers, and community contributors who use Cursor, VS Code, or Claude Code.
 
-1. `docs-pr-check`: triage and classify documentation status per PR
-2. `docs-pr-write`: write or update documentation for the PRs that need work
-3. `docs-review`: review the changes for style, accuracy, and completeness
+## Available skills
 
-Use `/docs-workflow` to run all three steps in sequence, or invoke each skill individually.
+| Skill | Command | What it does |
+|-------|---------|--------------|
+| PR triage | `/docs-pr-check` | Classify documentation status for each PR in a list |
+| PR writing | `/docs-pr-write` | Write or update docs for PRs that need work |
+| Doc review | `/docs-review` | Review docs for style, accuracy, and completeness |
+| PR pipeline | `/docs-workflow` | Run check, write, and review end-to-end |
+| Audience fit | `/persona-check` | Check whether content matches its intended audience |
+| Vendor conflicts | `/fix-vendor-conflicts` | Resolve `vendor/` conflicts during a merge, rebase, or dependency upgrade |
+| Go version update | `/update-go-version` | Update Go version across go.mod, Dockerfile, CI workflows, and tools |
 
-## Quick start
+## Set up
 
-```text
-/docs-workflow
-```
+1. Install [Cursor](https://cursor.com/docs/skills), [VS Code with Copilot](https://code.visualstudio.com/docs/copilot/customization/agent-skills), or [Claude Code](https://code.claude.com/docs/en/skills)
+2. For docs skills: Install [GitHub CLI](https://cli.github.com/) and authenticate (`gh auth login`)
+3. Clone the repository and open it in your IDE
+4. Skills are discovered automatically from `.claude/skills/`
 
-Provide a list of PR numbers and a target branch. The workflow runs check → write → review and asks for your input between each step. See `docs-workflow/SKILL.md` for details.
+### Project context
 
-## Individual skills
+The doc skills use [`docs/project-context.md`](../../docs/project-context.md) to understand this repository. That file provides the product name, GitHub org/repo, doc root path, code-to-docs mapping, frontmatter conventions, validation paths, and known gotchas. Skills load it automatically through `shared/load-context.md` — you don't need to reference it in prompts.
 
-### 1) Triage — `/docs-pr-check`
+If you're working on docs manually (not through a skill), read [`docs/project-context.md`](../../docs/project-context.md) for Tempo conventions and `shared/docs-context-guide.md` for general orientation.
 
-Input:
-- Curated PR list for the release train
+If you're adapting these skills for another repository, copy `docs/project-context.md` and update the values for your product. The skills read from that file at runtime, so everything product-specific stays in one place.
 
-Output:
-- Classification table (`Docs present`, `Docs needed`, `Docs update needed`, `No docs required`)
-- Prioritized gap summary
+## Docs skills
 
-### 2) Write — `/docs-pr-write`
+Use the docs skills to create or update documentation, review it for quality, or check whether it fits the right audience. Each skill works on its own, or you can run the PR pipeline to do all three in sequence.
 
-Input:
-- Only PRs marked `Docs needed` or `Docs update needed` from step 1
-- Branch/version context (for example `main`, `release-2.10`, `3.0-docs`)
+- `/docs-pr-check`, `/docs-pr-write`, and `/docs-review` form a pipeline for PR-driven docs work. `/docs-workflow` runs all three steps end-to-end.
+- `/persona-check` assesses whether a doc page fits its intended audience — not a style check (use `/docs-review` for that).
 
-Output:
-- Updated docs files
-- PR-to-doc mapping
-- Open issues/blockers needing engineering clarification
+Skills draft and review content but never commit, push, or publish on their own. You decide when to advance each step, what to keep, and when to submit.
 
-### 3) Review — `/docs-review`
+### PR workflow
 
-Input:
-- File paths changed in step 2
-- Any open items or uncertain claims from the writing step
+Use `/docs-workflow` to run the full pipeline, or invoke each step individually. Provide a list of PR numbers and a target branch. The workflow runs check → write → review and asks for your input between each step.
 
-Output:
-- Issues found, grouped by file
-- Summary of changes
+1. **Triage** — `/docs-pr-check`. Provide a curated PR list. Returns a classification table (`Docs present`, `Docs needed`, `Docs update needed`, `No docs required`) and a prioritized gap summary.
 
-## Why split into three skills
+2. **Write** — `/docs-pr-write`. Takes PRs marked `Docs needed` or `Docs update needed` from step 1, plus branch/version context. Produces updated docs files, a PR-to-doc mapping, and flags blockers needing engineering input.
 
-Keeping triage, writing, and review separate improves quality and repeatability:
+3. **Review** — `/docs-review`. Takes the file paths changed in step 2 and any open items. Returns issues grouped by file and a summary.
 
-- `docs-pr-check` stays fast and objective (classification + gap detection).
-- `docs-pr-write` stays focused on content creation (target page, examples, validation).
-- `docs-review` applies a consistent quality bar (style, frontmatter, links, accuracy).
-- The handoffs create a clear audit trail of what was evaluated, what was changed, and what was reviewed.
+## Other skills
 
-## Handoff contract
+- *Vendor conflicts* — `/fix-vendor-conflicts`. Resolve `vendor/` directory conflicts during a merge, rebase, or dependency upgrade on main or release branches.
 
-| From → To | What passes |
-|-----------|-------------|
-| Check → Write | PR number, classification, gap note, suggested target files |
-| Write → Review | Changed file paths, open items or uncertain claims |
+- *Go version update* — `/update-go-version`. Update the Go version across all relevant files: `go.mod`, `tools/go.mod`, Dockerfile, CI workflows, and the tools image tag.
 
-Example handoff row (check → write):
+## Shared resources
 
-```text
-#5962 | Docs update needed | API docs missing new Accept header behavior | docs/sources/tempo/api_docs/_index.md
-```
+These files are loaded by skills automatically. This section is for maintainers editing or extending skills.
 
-## Scope boundaries
-
-- `docs-pr-check` determines if docs work is needed and where gaps exist.
-- `docs-pr-write` implements the required docs updates and validates against code.
-- `docs-review` checks the result for style, frontmatter, links, and accuracy.
-
-These skills and the `/docs-workflow` command shouldn't be used as a substitute for release-notes assembly unless explicitly requested.
-
-## When to use this vs. the writer-agent
-
-| Task | Use |
-|------|-----|
-| PRs shipped and need docs | `/docs-workflow` or individual skills |
-| New feature or product docs from scratch | Writer-agent (`.agents/doc-agents/writers/writer-agent.md`) |
-| General documentation work not tied to PRs | Writer-agent |
-
-## Evals
-
-Each skill has an `evals/evals.json` with test cases for evaluating output quality. See `evals/README.md` for how to select test inputs, run evals, and grade results.
-
-## Repo orientation
-
-Before starting any doc task, read `.claude/skills/shared/docs-context-guide.md` for code-to-docs mapping, key file paths, verification patterns, and Tempo conventions.
-
-## Tips
-
-- Start with a manually curated PR list so non-user-facing PRs are filtered out early.
-- Prefer updating existing docs pages over creating new ones.
-- Validate defaults, `configuration` keys, and endpoint details against code before finalizing docs.
+| File | Purpose |
+|------|---------|
+| `style-guide.md` | Documentation style rules, templates, and formatting |
+| `verification-checklist.md` | Pre-submission checklist for accuracy and completeness |
+| `best-practices.md` | Pre-writing checklist and common pitfalls |
+| `release-notes-workflow.md` | Multi-phase workflow for release notes |
+| `docs-context-guide.md` | General repo orientation for doc tasks |
+| `load-context.md` | Instructions for loading local project context |
+| `personas.md` | Persona and intent model for audience-fit checks |
+| `handling-pr-content.md` | Rules for treating PR content as untrusted input |
