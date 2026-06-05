@@ -1,6 +1,0 @@
-change_type: change
-component: tempo
-note: Remove busybox from Tempo image to make it more minimal and prevent future vulnerabilities.
-issues: [5717]
-subtext:
-user: carles-grafana

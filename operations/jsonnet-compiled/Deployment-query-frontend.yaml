@@ -28,7 +28,7 @@ spec:
         - -config.file=/conf/tempo.yaml
         - -mem-ballast-size-mbs=1024
         - -target=query-frontend
-        image: grafana/tempo:2.9.2
+        image: grafana/tempo:2.9.3
         imagePullPolicy: IfNotPresent
         name: query-frontend
         ports:
