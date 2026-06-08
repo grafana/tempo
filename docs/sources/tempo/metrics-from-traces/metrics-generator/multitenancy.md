@@ -49,3 +49,8 @@ export PROM_B_BEARER_AUTH="Bearer $(cat /token-prometheus-b)"
 In this example, `PROM_A_BASIC_AUTH` and `PROM_B_BEARER_AUTH` are environment variables that contain the respective tenants' authorization tokens.
 The `remote_write_headers` override is used to specify the `Authorization` header for each tenant.
 The `Authorization` header is used to authenticate the remote write request to the Prometheus remote write endpoint.
+
+Because `remote_write_headers` is an override, its values appear in the [`/status/runtime_config` endpoint](/docs/tempo/<TEMPO_VERSION>/api_docs/#status), where Tempo masks them as `<secret>`. They don't appear in `/status/config`, which excludes per-tenant overrides.
+
+If you configure headers directly in the `metrics_generator.storage.remote_write` block instead of using overrides, don't use the `headers` map for sensitive values. Those values appear in plaintext in the `/status/config` endpoint. Use `http_headers` with `secrets` instead, which Tempo masks as `<secret>`.
+For more information, refer to the [Metrics-generator](/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generator) section of the Tempo Configuration documentation.

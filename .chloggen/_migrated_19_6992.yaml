@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: backend-scheduler
+note: fix outstanding-blocks metric suppressed to zero during active redaction batch, causing autoscaler to scale down workers mid-redaction.
+issues: [6992]
+subtext:
+user: zalegrala

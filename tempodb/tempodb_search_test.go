@@ -32,6 +32,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet5"
 	"github.com/grafana/tempo/tempodb/wal"
@@ -50,6 +51,7 @@ func TestSearchCompleteBlock(t *testing.T) {
 			runCompleteBlockSearchTest(t, vers,
 				searchRunner,
 				traceQLRunner,
+				traceQLNilRunner,
 				advancedTraceQLRunner,
 				groupTraceQLRunner,
 				traceQLStructural,
@@ -119,6 +121,7 @@ func traceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearch
 	searchesThatMatch = append(searchesThatMatch, quotedAttributesThatMatch...)
 	searchesThatMatch = append(searchesThatMatch, parentIDQuery)
 	searchesThatMatch = append(searchesThatMatch, optimizedSearchesThatMatch...)
+
 	for _, req := range searchesThatMatch {
 		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
@@ -335,6 +338,56 @@ func advancedTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempop
 		})
 
 		res, err := e.ExecuteSearch(ctx, req, fetcher)
+		require.NoError(t, err, "search request: %+v", req)
+		require.Nil(t, actualForExpectedMeta(wantMeta, res), "search request: %v", req)
+	}
+}
+
+func traceQLNilRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, meta *backend.BlockMeta, r Reader, _ common.BackendBlock) {
+	var (
+		ctx     = context.Background()
+		e       = traceql.NewEngine()
+		fetcher = traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
+		})
+	)
+
+	searchesThatMatch := []*tempopb.SearchRequest{
+		// Test cases of matching nil with some generic attributes.
+		{Query: "{ resource.service.name = `MyService` && resource.asdf=nil }"},
+		{Query: "{ span:name = `RootSpan` && span.foobar=nil }"},
+
+		// Test cases of matching nil when no generic attributes.
+		// The resource for RootService matches this condition, and the addition of resource.foobar=nil should still match it.
+		{Query: "{ resource.service.name = `RootService` && resource.foobar=nil}"},
+	}
+
+	if meta.Version != vparquet3.VersionString {
+		searchesThatMatch = append(searchesThatMatch, []*tempopb.SearchRequest{
+			{Query: "{ resource.service.name = `MyService` && instrumentation.foobar=nil }"},
+		}...)
+	}
+
+	searchesThatDontMatch := []*tempopb.SearchRequest{
+		{Query: "{ resource.service.name = `MyService` && resource.bat=nil }"},
+		{Query: "{ span:name = `RootSpan` && span.foo=nil }"},
+	}
+
+	for _, req := range searchesThatMatch {
+		res, err := e.ExecuteSearch(ctx, req, fetcher)
+		if errors.Is(err, util.ErrUnsupported) {
+			continue
+		}
+
+		require.NoError(t, err, "search request: %+v", req)
+		require.NotNil(t, actualForExpectedMeta(wantMeta, res), "search request: %v", req)
+	}
+
+	for _, req := range searchesThatDontMatch {
+		res, err := e.ExecuteSearch(ctx, req, fetcher)
+		if errors.Is(err, util.ErrUnsupported) {
+			continue
+		}
 		require.NoError(t, err, "search request: %+v", req)
 		require.Nil(t, actualForExpectedMeta(wantMeta, res), "search request: %v", req)
 	}

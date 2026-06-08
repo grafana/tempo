@@ -1,0 +1,6 @@
+change_type: enhancement
+component: operations
+note: add `autoscaling_prometheus_url` and `autoscaling_prometheus_tenant` top-level config fields for KEDA autoscaling. Setting `autoscaling_prometheus_tenant` sends an `X-Scope-OrgID` header on all Prometheus trigger requests, which is required when the backend is a multi-tenant system such as Grafana Mimir.
+issues: [7099]
+subtext:
+user: zachfi

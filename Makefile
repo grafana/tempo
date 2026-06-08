@@ -21,7 +21,7 @@ GORELEASER := $(GOPATH)/bin/goreleaser
 LOKI_BUILD_IMAGE ?= grafana/loki-build-image:0.35.0
 # https://hub.docker.com/repository/docker/grafana/tempo-ci-tools/
 # built by: .github/workflows/docker-ci-tools.yml
-TEMPO_CI_TOOLS_IMAGE ?= grafana/tempo-ci-tools:main-2c55cd0-20260421-172344
+TEMPO_CI_TOOLS_IMAGE ?= grafana/tempo-ci-tools:main-b0f57ed-20260527-203411
 DOCS_IMAGE ?= grafana/docs-base:latest
 
 # More exclusions can be added similar with: -not -path './testbed/*'
@@ -430,6 +430,43 @@ tempo-mixin: tools-image
 
 tempo-mixin-check: tools-image
 	$(TOOLS_CMD) make -C operations/tempo-mixin check
+
+##@ Changelog
+
+# chloggen is built from the tools module and run from the repo root so it can
+# find .chloggen/ and CHANGELOG.md. A .chloggen/config.yaml is used only if it
+# exists. chlog-new defaults the entry filename to the current branch; override
+# with FILENAME=... . Pass VERSION=vX.Y.Z to chlog-update.
+CHLOGGEN ?= $(CURDIR)/bin/chloggen
+CHLOGGEN_CONFIG := .chloggen/config.yaml
+CHLOGGEN_CONFIG_ARG := $(if $(wildcard $(CHLOGGEN_CONFIG)),--config $(CHLOGGEN_CONFIG),)
+CHLOG_BRANCH := $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null)
+CHLOG_FILENAME := $(if $(FILENAME),$(FILENAME),$(CHLOG_BRANCH))
+
+.PHONY: $(CHLOGGEN)
+$(CHLOGGEN):
+	cd $(CURDIR)/tools/chloggen && go build -o $(CHLOGGEN) .
+
+.PHONY: chlog-new
+chlog-new: $(CHLOGGEN) ## Create a new changelog entry under .chloggen/ (defaults to branch name; override with FILENAME=...)
+	@if [ -z "$(CHLOG_FILENAME)" ] || [ "$(CHLOG_FILENAME)" = "HEAD" ] || \
+	    [ "$(CHLOG_FILENAME)" = "main" ] || [ "$(CHLOG_FILENAME)" = "master" ]; then \
+	  echo "Cannot default the changelog filename from branch '$(CHLOG_BRANCH)'; pass FILENAME=<name>."; \
+	  exit 1; \
+	fi
+	$(CHLOGGEN) new $(CHLOGGEN_CONFIG_ARG) --filename "$(CHLOG_FILENAME)"
+
+.PHONY: chlog-validate
+chlog-validate: $(CHLOGGEN) ## Validate the pending changelog entries
+	$(CHLOGGEN) validate $(CHLOGGEN_CONFIG_ARG)
+
+.PHONY: chlog-preview
+chlog-preview: $(CHLOGGEN) ## Render the pending changelog entries to stdout
+	$(CHLOGGEN) update $(CHLOGGEN_CONFIG_ARG) --dry
+
+.PHONY: chlog-update
+chlog-update: $(CHLOGGEN) ## Collate pending entries into CHANGELOG.md (VERSION=vX.Y.Z)
+	$(CHLOGGEN) update $(CHLOGGEN_CONFIG_ARG) --version "$(VERSION)"
 
 # Import fragments
 include build/tools.mk

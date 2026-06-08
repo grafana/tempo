@@ -19,11 +19,14 @@ Create a cluster
 k3d cluster create tempo --api-port 6443 --port "3000:80@loadbalancer"
 ```
 
-If you wish to use a local image, you can import these into k3d
+If you wish to use a specific image tag, you can import it into k3d:
 
 ```console
-k3d image import grafana/tempo:latest --cluster tempo
+export TEMPO_IMAGE_TAG=3.0.0
+k3d image import "grafana/tempo:${TEMPO_IMAGE_TAG}" --cluster tempo
 ```
+
+Set `TEMPO_IMAGE_TAG=latest` after building a local image to import your local build.
 
 Next either deploy the microservices or the single binary. You can also use tanka [inline environments](https://tanka.dev/inline-environments) to deploy Tempo with either of the two.
 

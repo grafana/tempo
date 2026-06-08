@@ -32,7 +32,11 @@ jobs:
 
       - id: get-tag
         run: |
-          echo "tag=$(./tools/image-tag)" >> "$GITHUB_OUTPUT"
+          TAG="$(./tools/image-tag)"
+          if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then
+            TAG="$TAG-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
   docker:
     if: github.repository == 'grafana/tempo'
@@ -106,12 +110,6 @@ jobs:
           	--amend "$IMAGE_NAME:$TAG-amd64"  \
           	--amend "$IMAGE_NAME:$TAG-arm64"
           docker manifest push "$IMAGE_NAME:$TAG"
-
-          docker manifest create \
-          	"$IMAGE_NAME:latest"            \
-          	--amend "$IMAGE_NAME:$TAG-amd64"   \
-          	--amend "$IMAGE_NAME:$TAG-arm64"
-          docker manifest push "$IMAGE_NAME:latest"
 
   cd-to-dev-env:
     # This job deploys the latest main commit to the dev environment

@@ -50,7 +50,7 @@ func removeBareAttributes(root *RootExpr) {
 		keyMap[k] = newKey
 	}
 	root.Pipeline = newPipelines
-	root.expression = root.expression.rewriteKeys(keyMap)
+	root.expression = root.expression.RewriteKeys(keyMap)
 
 	if len(root.BatchSpanProcessor) > 0 {
 		newSpanProcs := make(map[string]spanProcessor, len(root.BatchSpanProcessor))

@@ -54,7 +54,7 @@ type Config struct {
 
 	// Subprocessor options for this Processor include Latency, Count, Size
 	// These are metrics categories that exist under the umbrella of Span Metrics
-	Subprocessors map[Subprocessor]bool
+	Subprocessors map[Subprocessor]bool `yaml:"-"`
 
 	// FilterPolicies is a list of policies that will be applied to spans for inclusion or exlusion.
 	FilterPolicies []filterconfig.FilterPolicy `yaml:"filter_policies"`

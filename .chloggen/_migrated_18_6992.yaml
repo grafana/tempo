@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: backend-scheduler
+note: fix redaction batch not cleaned up after dead-job timeout, leaving tenant permanently blocked from new redaction submissions and compaction.
+issues: [6992]
+subtext:
+user: zalegrala

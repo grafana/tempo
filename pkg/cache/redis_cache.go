@@ -51,10 +51,13 @@ func NewRedisCache(name string, redisClient *RedisClient, maxItemSizeBytes int, 
 }
 
 func redisStatusCode(err error) string {
-	// TODO: Figure out if there are more error types returned by Redis
-	switch err {
-	case nil:
+	switch {
+	case err == nil:
 		return "200"
+	case errors.Is(err, redis.Nil):
+		return "404"
+	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
+		return "504"
 	default:
 		return "500"
 	}
@@ -122,10 +125,13 @@ func (c *RedisCache) FetchKey(ctx context.Context, key string) (buf []byte, foun
 
 // Store stores the key in the cache.
 func (c *RedisCache) Store(ctx context.Context, keys []string, bufs [][]byte) {
-	err := c.redis.MSet(ctx, keys, bufs)
-	if err != nil {
-		level.Error(c.logger).Log("msg", "failed to put to redis", "name", c.name, "err", err)
-	}
+	_ = measureRequest(ctx, "RedisCache.MSet", c.requestDuration, redisStatusCode, func(ctx context.Context) error {
+		err := c.redis.MSet(ctx, keys, bufs)
+		if err != nil {
+			level.Error(c.logger).Log("msg", "failed to put to redis", "name", c.name, "err", err)
+		}
+		return err
+	})
 }
 
 // Remove deletes the given keys from the cache.

@@ -97,7 +97,7 @@ A non-zero rate means that query time ranges are overlapping with the live-store
   The `group` label is derived from the live-store ring instance ID. For example, in a zone-aware deployment the group might be `live-store-zone-a`.
 
 - If lag is persistent, the live-store may need more resources or partitions may need to be redistributed.
-- To make incomplete results explicit, set `fail_on_high_lag: true` in the [live-store configuration](/docs/tempo/<TEMPO_VERSION>/configuration/#live-store). When enabled, the live-store returns an error instead of silently incomplete results.
+- By default, the live-store fails these requests rather than returning silently incomplete results (`fail_on_high_lag: true` in the [live-store configuration](/docs/tempo/<TEMPO_VERSION>/configuration/#live-store)). To return partial results instead of an error, set `fail_on_high_lag: false`.
 
 ## Case 4 - Trace is not recent
 

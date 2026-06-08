@@ -139,7 +139,7 @@ func (f *fieldExpressionRewriter) RewriteRoot(r *RootExpr) *RootExpr {
 	}
 
 	// Update expression leaf keys
-	newExpr := r.expression.rewriteKeys(keyMap)
+	newExpr := r.expression.RewriteKeys(keyMap)
 
 	return &RootExpr{
 		Pipeline:           newPipelines,

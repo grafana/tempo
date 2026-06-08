@@ -1,0 +1,6 @@
+change_type: enhancement
+component: operations
+note: update backendwork dashboard with a Redaction section (active jobs, created/completed/failed/dropped by tenant, job duration), add Dropped and Job Duration panels to the Jobs row, and fix the Retry metric name (`jobs_retry` -> `jobs_retry_total`).
+issues: [7184]
+subtext:
+user: zalegrala

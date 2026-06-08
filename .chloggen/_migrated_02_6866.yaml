@@ -1,0 +1,6 @@
+change_type: feature
+component: tempo
+note: Support arithmetic operations in TraceQL Metrics
+issues: [6866, 7199]
+subtext:
+user: ruslan-mikhailov

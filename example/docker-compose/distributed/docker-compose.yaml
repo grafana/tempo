@@ -1,7 +1,7 @@
 services:
   # tempo, backend and kafka
   distributor:
-    image: &tempoImage grafana/tempo:latest
+    image: &tempoImage "grafana/tempo:${TEMPO_IMAGE_TAG:-3.0.0}"
     depends_on:
       - redpanda
     command: "-target=distributor -config.file=/etc/tempo.yaml"
@@ -255,7 +255,7 @@ services:
       - "3000:3000"
 
   vulture:
-    image: grafana/tempo-vulture:latest
+    image: "grafana/tempo-vulture:${TEMPO_IMAGE_TAG:-3.0.0}"
     restart: always
     command:
       [

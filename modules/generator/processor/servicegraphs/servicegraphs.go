@@ -62,6 +62,7 @@ const (
 	metricRequestServerSeconds          = "traces_service_graph_request_server_seconds"
 	metricRequestClientSeconds          = "traces_service_graph_request_client_seconds"
 	metricRequestMessagingSystemSeconds = "traces_service_graph_request_messaging_system_seconds"
+	metricConnectionInfo                = "traces_service_graph_connection_info"
 )
 
 const virtualNodeLabel = "virtual_node"
@@ -91,6 +92,7 @@ type Processor struct {
 	serviceGraphRequestServerSecondsHistogram          registry.Histogram
 	serviceGraphRequestClientSecondsHistogram          registry.Histogram
 	serviceGraphRequestMessagingSystemSecondsHistogram registry.Histogram
+	serviceGraphConnectionInfo                         registry.Gauge
 	sanitizeCache                                      reclaimable.Cache[string, string]
 	filter                                             *spanfilter.SpanFilter
 
@@ -120,11 +122,6 @@ func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, fi
 		registry: reg,
 		closeCh:  make(chan struct{}, 1),
 
-		serviceGraphRequestTotal:                           reg.NewCounter(metricRequestTotal),
-		serviceGraphRequestFailedTotal:                     reg.NewCounter(metricRequestFailedTotal),
-		serviceGraphRequestServerSecondsHistogram:          reg.NewHistogram(metricRequestServerSeconds, cfg.HistogramBuckets, cfg.HistogramOverride),
-		serviceGraphRequestClientSecondsHistogram:          reg.NewHistogram(metricRequestClientSeconds, cfg.HistogramBuckets, cfg.HistogramOverride),
-		serviceGraphRequestMessagingSystemSecondsHistogram: reg.NewHistogram(metricRequestMessagingSystemSeconds, cfg.HistogramBuckets, cfg.HistogramOverride),
 		sanitizeCache: sanitizeCache,
 		filter:        filter,
 
@@ -136,6 +133,21 @@ func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, fi
 		metricExpiredEdges:                  metricExpiredEdges.WithLabelValues(tenant),
 		invalidUTF8Counter:                  invalidUTF8Counter,
 		logger:                              log.With(logger, "component", "service-graphs"),
+	}
+
+	if cfg.Subprocessors[Request] {
+		p.serviceGraphRequestTotal = reg.NewCounter(metricRequestTotal)
+		p.serviceGraphRequestFailedTotal = reg.NewCounter(metricRequestFailedTotal)
+	}
+	if cfg.Subprocessors[Latency] {
+		p.serviceGraphRequestServerSecondsHistogram = reg.NewHistogram(metricRequestServerSeconds, cfg.HistogramBuckets, cfg.HistogramOverride)
+		p.serviceGraphRequestClientSecondsHistogram = reg.NewHistogram(metricRequestClientSeconds, cfg.HistogramBuckets, cfg.HistogramOverride)
+		if cfg.EnableMessagingSystemLatencyHistogram {
+			p.serviceGraphRequestMessagingSystemSecondsHistogram = reg.NewHistogram(metricRequestMessagingSystemSeconds, cfg.HistogramBuckets, cfg.HistogramOverride)
+		}
+	}
+	if cfg.Subprocessors[ConnectionInfo] {
+		p.serviceGraphConnectionInfo = reg.NewGauge(metricConnectionInfo)
 	}
 
 	p.store = store.NewStore(cfg.Wait, cfg.MaxItems, p.onComplete, p.onExpire, p.metricDroppedSpanSideCacheOverflows)
@@ -382,21 +394,31 @@ func (p *Processor) onComplete(e *store.Edge) {
 		return
 	}
 
-	p.serviceGraphRequestTotal.Inc(registryLabelValues, 1*e.SpanMultiplier)
-	if e.Failed {
-		p.serviceGraphRequestFailedTotal.Inc(registryLabelValues, 1*e.SpanMultiplier)
+	if p.Cfg.Subprocessors[Request] {
+		p.serviceGraphRequestTotal.Inc(registryLabelValues, 1*e.SpanMultiplier)
+		if e.Failed {
+			p.serviceGraphRequestFailedTotal.Inc(registryLabelValues, 1*e.SpanMultiplier)
+		}
 	}
 
-	p.serviceGraphRequestServerSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ServerLatencySec, e.TraceID, e.SpanMultiplier)
-	p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ClientLatencySec, e.TraceID, e.SpanMultiplier)
+	if p.Cfg.Subprocessors[Latency] {
+		p.serviceGraphRequestServerSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ServerLatencySec, e.TraceID, e.SpanMultiplier)
+		p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ClientLatencySec, e.TraceID, e.SpanMultiplier)
 
-	if p.Cfg.EnableMessagingSystemLatencyHistogram && e.ConnectionType == store.MessagingSystem {
-		messagingSystemLatencySec := unixNanosDiffSec(e.ClientEndTimeUnixNano, e.ServerStartTimeUnixNano)
-		if messagingSystemLatencySec == 0 {
-			level.Warn(p.logger).Log("msg", "producerSpanEndTime must be smaller than consumerSpanStartTime. maybe the peers clocks are not synced", "messagingSystemLatencySec", messagingSystemLatencySec, "traceID", e.TraceID)
-		} else {
-			p.serviceGraphRequestMessagingSystemSecondsHistogram.ObserveWithExemplar(registryLabelValues, messagingSystemLatencySec, e.TraceID, e.SpanMultiplier)
+		if p.Cfg.EnableMessagingSystemLatencyHistogram && e.ConnectionType == store.MessagingSystem {
+			messagingSystemLatencySec := unixNanosDiffSec(e.ClientEndTimeUnixNano, e.ServerStartTimeUnixNano)
+			if messagingSystemLatencySec == 0 {
+				level.Warn(p.logger).Log("msg", "producerSpanEndTime must be smaller than consumerSpanStartTime. maybe the peers clocks are not synced", "messagingSystemLatencySec", messagingSystemLatencySec, "traceID", e.TraceID)
+			} else {
+				p.serviceGraphRequestMessagingSystemSecondsHistogram.ObserveWithExemplar(registryLabelValues, messagingSystemLatencySec, e.TraceID, e.SpanMultiplier)
+			}
 		}
+	}
+
+	if p.Cfg.Subprocessors[ConnectionInfo] {
+		// Presence-only info metric: held at 1 while the edge is being observed.
+		// The series goes stale and is pruned once edges stop completing for this label set.
+		p.serviceGraphConnectionInfo.Set(registryLabelValues, 1)
 	}
 }
 

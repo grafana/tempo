@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/textproto"
 	"os"
+	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -460,6 +461,148 @@ func TestListBlocksWithPrefix(t *testing.T) {
 			assert.ElementsMatchf(t, tc.compactedBlockIDs, compactedBlockIDs, "Compacted block IDs did not match")
 		})
 	}
+}
+
+func TestMarkBlockCompacted_DoesNotDoublePrefix(t *testing.T) {
+	const prefix = "a/b/c/"
+	tenantID := "test-tenant"
+	blockID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+
+	// path.Join normalizes the trailing slash on prefix.
+	expectedDeletePath := "/testing_account/blerg/a/b/c/" + tenantID + "/" + blockID.String() + "/" + backend.MetaName
+
+	const body = `{}`
+	var capturedDeletePath string
+	server := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodHead:
+			// readAll calls GetProperties first - SDK requires Content-Length and ETag.
+			w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+			w.Header().Set("ETag", `"etag123"`)
+			w.WriteHeader(http.StatusOK)
+		case http.MethodGet:
+			_, _ = w.Write([]byte(body))
+		case http.MethodPut:
+			w.WriteHeader(http.StatusCreated)
+		case http.MethodDelete:
+			capturedDeletePath = r.URL.Path
+			w.WriteHeader(http.StatusAccepted)
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	})
+
+	_, _, compactor, err := NewNoConfirm(&Config{
+		StorageAccountName: "testing_account",
+		StorageAccountKey:  flagext.SecretWithValue("YQo="),
+		MaxBuffers:         3,
+		BufferSize:         1000,
+		ContainerName:      "blerg",
+		Prefix:             prefix,
+		Endpoint:           server.URL[7:], // [7:] -> strip http://
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, compactor.MarkBlockCompacted(blockID, tenantID))
+	assert.Equal(t, expectedDeletePath, capturedDeletePath,
+		"DELETE key path must contain the configured prefix exactly once")
+}
+
+func TestClearBlock_DoesNotDoublePrefix(t *testing.T) {
+	const (
+		prefix   = "a/b/c/"
+		tenantID = "test-tenant"
+		blockID  = "00000000-0000-0000-0000-000000000002"
+		blobPath = "a/b/c/test-tenant/00000000-0000-0000-0000-000000000002/data.parquet"
+	)
+	expectedDeletePath := "/testing_account/blerg/" + blobPath
+
+	var capturedDeletePath string
+	server := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			assert.Equal(t, "a/b/c/test-tenant/"+blockID, r.URL.Query().Get("prefix"))
+			_, _ = w.Write([]byte(`<?xml version="1.0" encoding="utf-8"?>
+				<EnumerationResults>
+				  <Prefix>a/b/c/</Prefix>
+				  <Blobs>
+				    <Blob>
+				      <Name>a/b/c/test-tenant/00000000-0000-0000-0000-000000000002/data.parquet</Name>
+				      <Properties>
+				        <Last-Modified>Fri, 01 Mar 2024 00:00:00 GMT</Last-Modified>
+				        <Etag>0x8CBFF45D8A29A19</Etag>
+				        <Content-Length>100</Content-Length>
+				        <BlobType>BlockBlob</BlobType>
+				      </Properties>
+				    </Blob>
+				  </Blobs>
+				  <NextMarker />
+				</EnumerationResults>`))
+		case http.MethodDelete:
+			capturedDeletePath = r.URL.Path
+			w.WriteHeader(http.StatusAccepted)
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	})
+
+	_, _, compactor, err := NewNoConfirm(&Config{
+		StorageAccountName: "testing_account",
+		StorageAccountKey:  flagext.SecretWithValue("YQo="),
+		MaxBuffers:         3,
+		BufferSize:         1000,
+		ContainerName:      "blerg",
+		Prefix:             prefix,
+		Endpoint:           server.URL[7:], // [7:] -> strip http://
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, compactor.ClearBlock(uuid.MustParse(blockID), tenantID))
+	assert.Equal(t, expectedDeletePath, capturedDeletePath,
+		"DELETE key path must contain the configured prefix exactly once")
+}
+
+func TestDeleteVersioned_DoesNotDoublePrefix(t *testing.T) {
+	const (
+		prefix             = "a/b/c/"
+		name               = "overrides.json"
+		etag               = `"etag123"`
+		body               = `{}`
+		expectedDeletePath = "/testing_account/blerg/a/b/c/overrides/tenant-1/" + name
+	)
+
+	var capturedDeletePath string
+	server := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodHead:
+			w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+			w.Header().Set("ETag", etag)
+			w.WriteHeader(http.StatusOK)
+		case http.MethodGet:
+			w.Header().Set("ETag", etag)
+			_, _ = w.Write([]byte(body))
+		case http.MethodDelete:
+			capturedDeletePath = r.URL.Path
+			w.WriteHeader(http.StatusAccepted)
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	})
+
+	rw, err := NewVersionedReaderWriter(&Config{
+		StorageAccountName: "testing_account",
+		StorageAccountKey:  flagext.SecretWithValue("YQo="),
+		MaxBuffers:         3,
+		BufferSize:         1000,
+		ContainerName:      "blerg",
+		Prefix:             prefix,
+		Endpoint:           server.URL[7:], // [7:] -> strip http://
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, rw.DeleteVersioned(context.Background(), name, backend.KeyPath{"overrides", "tenant-1"}, backend.Version(etag)))
+	assert.Equal(t, expectedDeletePath, capturedDeletePath,
+		"DELETE key path must contain the configured prefix exactly once")
 }
 
 func testServer(t *testing.T, httpHandler http.HandlerFunc) *httptest.Server {
