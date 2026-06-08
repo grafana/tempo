@@ -8,9 +8,9 @@ on:
       - 'tools/**'
 
 env:
-  IMAGE_NAME: grafana/tempo-ci-tools
+  IMAGE_NAME: us-docker.pkg.dev/grafanalabs-global/dockerhub-tempo-prod-mirror/tempo-ci-tools
 
-# Needed to login to DockerHub
+# Needed to authenticate to GAR with OIDC.
 permissions:
   contents: read
 
@@ -39,6 +39,7 @@ jobs:
         runner_arch: [ { runner: ubuntu-24.04, arch: amd64 }, { runner: github-hosted-ubuntu-arm64, arch: arm64 } ]
     runs-on: ${{ matrix.runner_arch.runner }}
     permissions:
+      contents: read
       id-token: write
     env:
       TAG: ${{ needs.get-image-tag.outputs.tag }}
@@ -48,8 +49,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Login to DockerHub
-        uses: grafana/shared-workflows/actions/dockerhub-login@081a366728379fd0426b9cfef190e9a21c2d5418 # dockerhub-login/v1.0.3
+      - name: Login to GAR
+        uses: grafana/shared-workflows/actions/login-to-gar@12c87e5aa323694c820c1ff3d8e47e8237e05136 # login-to-gar/v1.0.2
+        with:
+          registry: us-docker.pkg.dev
 
       - name: docker-build-and-push
         run: |
@@ -62,6 +65,7 @@ jobs:
     needs: ['get-image-tag', 'docker-ci-tools']
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       id-token: write
     env:
       TAG: ${{ needs.get-image-tag.outputs.tag }}
@@ -71,8 +75,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Login to DockerHub
-        uses: grafana/shared-workflows/actions/dockerhub-login@081a366728379fd0426b9cfef190e9a21c2d5418 # dockerhub-login/v1.0.3
+      - name: Login to GAR
+        uses: grafana/shared-workflows/actions/login-to-gar@12c87e5aa323694c820c1ff3d8e47e8237e05136 # login-to-gar/v1.0.2
+        with:
+          registry: us-docker.pkg.dev
 
       - name: docker-manifest-create-and-push
         run: |

@@ -1058,7 +1058,7 @@ func (c *consumer) assignPartitions(assignments map[string]map[int32]Offset, how
 	// The internal code can avoid giving an assign reason in cases where
 	// the caller logs itself immediately before assigning. We only log if
 	// there is a reason.
-	if len(why) > 0 {
+	if len(why) > 0 && c.cl.cfg.logger.Level() >= LogLevelInfo {
 		c.cl.cfg.logger.Log(LogLevelInfo, "assigning partitions",
 			"why", why,
 			"how", how,
@@ -1839,8 +1839,13 @@ func (c *consumer) stopSession() (listOrEpochLoads, *topicsPartitions) {
 	c.sourcesReadyForDraining = nil
 
 	// At this point, we have invalidated any buffered data from the prior
-	// session. We leave any fake things that were ready so that the user
-	// can act on errors. The session is dead.
+	// session. We deliberately leave c.fakeReadyForDraining so the user can
+	// still observe errors that happened in the dying session (data loss,
+	// list/epoch failures, no-committed-offset notices, etc.). A consequence
+	// is that the user's next poll may surface an error for a partition the
+	// new assignment does not include; callers that key off fake-fetch errors
+	// for committing must check current ownership before acting. The session
+	// is dead.
 
 	session.listOrEpochLoadsWaiting.mergeFrom(session.listOrEpochLoadsLoading)
 	return session.listOrEpochLoadsWaiting, session.tps
@@ -2053,9 +2058,18 @@ func (s *consumerSession) handleListOrEpochResults(loaded loadedOffsets) (reload
 				tusing[load.partition] = EpochOffset{load.leaderEpoch, load.offset}
 			}
 
+			// Preserve lastConsumedTime (for AfterMilli fallback on
+			// subsequent OffsetOutOfRange) and hwm (for lag metrics)
+			// across validation loads. The cursor is currently
+			// unusable (we're about to allowUsable it), so reading
+			// the prior cursorOffset here is safe: no concurrent
+			// fetch observes useState=true yet.
+			prior := load.cursor.cursorOffset
 			load.cursor.setOffset(cursorOffset{
 				offset:            load.offset,
 				lastConsumedEpoch: load.leaderEpoch,
+				lastConsumedTime:  prior.lastConsumedTime,
+				hwm:               prior.hwm,
 			})
 			load.cursor.allowUsable()
 			s.c.usingCursors.use(load.cursor)

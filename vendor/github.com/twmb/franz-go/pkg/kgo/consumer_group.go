@@ -494,6 +494,35 @@ func (g *groupConsumer) manageFailWait(consecutiveErrors int, err error) (ctxCan
 	return false
 }
 
+// abandonAssignment fires onLost, invalidates cursors, and clears local
+// assignment state in preparation for re-joining. Used by the 848 manage
+// loop when the server-side member state was lost (Fenced/UnknownMember/
+// StaleMember/GroupMaxSize/UnsupportedAssignor): the partitions are no
+// longer ours, so cursors must stop fetching before the next initialJoin
+// to prevent dual-processing records that have been reassigned to another
+// member. Mirrors manageFailWait's cleanup without the consecutive-error
+// backoff. Must be called with memberGen still holding the OLD member id
+// so onLost callbacks see the membership context that was active when the
+// loss occurred.
+func (g *groupConsumer) abandonAssignment(why string) {
+	g.c.waitAndAddRebalance()
+
+	g.cfg.onLost(g.cl.ctx, g.cl, g.nowAssigned.read())
+
+	g.c.mu.Lock()
+	g.c.assignPartitions(nil, assignInvalidateAll, nil, why)
+	g.mu.Lock()     // before allowing poll to touch uncommitted, lock the group
+	g.c.mu.Unlock() // now part of poll can continue
+	g.uncommitted = nil
+	g.mu.Unlock()
+
+	g.nowAssigned.store(nil)
+	g.lastAssigned = nil
+	g.fetching = nil
+
+	g.c.unaddRebalance()
+}
+
 // Manages the group consumer's join / sync / heartbeat / fetch offset flow.
 //
 // Once a group is assigned, we fire a metadata request for all topics the
@@ -1726,14 +1755,27 @@ start:
 		reqg.MemberEpoch = gen
 	}
 	groupTopics := g.tps.load()
+	pinV9 := false
 	for topic, partitions := range added {
 		reqTopic := kmsg.NewOffsetFetchRequestGroupTopic()
 		reqTopic.Topic = topic
 		reqTopic.TopicID = groupTopics.loadTopic(topic).id
+		if reqTopic.TopicID == ([16]byte{}) {
+			pinV9 = true
+		}
 		reqTopic.Partitions = partitions
 		reqg.Topics = append(reqg.Topics, reqTopic)
 	}
 	req.Groups = append(req.Groups, reqg)
+
+	// OffsetFetch v10 switched Topic to TopicID. If we have no TopicID
+	// for some topic (e.g. broker caps Metadata below v10, like Azure
+	// Event Hubs), v10+ would put a zero TopicID on the wire. Pin to
+	// v9 so the broker continues to match by name. See #1312.
+	reqCtx := ctx
+	if pinV9 {
+		reqCtx = context.WithValue(ctx, ctxPinReq, &pinReq{pinMax: true, max: 9})
+	}
 
 	var resp *kmsg.OffsetFetchResponse
 	var err error
@@ -1746,7 +1788,7 @@ start:
 	fetchDone := make(chan struct{})
 	go func() {
 		defer close(fetchDone)
-		resp, err = req.RequestWith(ctx, g.cl)
+		resp, err = req.RequestWith(reqCtx, g.cl)
 	}()
 	select {
 	case <-fetchDone:
@@ -1851,17 +1893,36 @@ start:
 					)
 					select {
 					case <-ctx.Done():
+						// Cancellation here means the
+						// heartbeat exited (rebalance, new
+						// assignment, client close); the
+						// session is tearing down. Returning
+						// ctx.Err() prevents falling through
+						// to the non-retryable injection path
+						// below, which would surface a
+						// transient retryable error as a fake
+						// fetch error to the user.
+						return ctx.Err()
 					case <-time.After(time.Second):
 						goto start
 					}
 				}
-				g.cfg.logger.Log(LogLevelError, "fetch offsets failed",
+				// A single non-retryable partition error (e.g.
+				// TopicAuthorizationFailed) used to abort the
+				// entire fetchOffsets and tear the session down,
+				// which then immediately rejoined and hit the same
+				// error: a spin loop driven by one bad partition.
+				// Instead we surface the error to the user via a
+				// fake fetch and drop the partition from this
+				// assignment; the rest of the session proceeds.
+				g.cfg.logger.Log(LogLevelError, "fetch offsets failed for partition; injecting error and continuing with remaining partitions",
 					"group", g.cfg.group,
 					"topic", topic,
 					"partition", rPartition.Partition,
 					"err", err,
 				)
-				return err
+				g.c.addFakeReadyForDraining(topic, rPartition.Partition, err, "fetch offsets returned a non-retryable partition error")
+				continue
 			}
 			offset := Offset{
 				at:    rPartition.Offset,
@@ -3137,11 +3198,15 @@ func (g *groupConsumer) commit(
 		g.cfg.logger.Log(LogLevelDebug, "issuing commit", "group", g.cfg.group, "uncommitted", uncommitted)
 
 		groupTopics := g.tps.load()
+		pinV9 := false
 		for topic, partitions := range uncommitted {
 			reqTopic := kmsg.NewOffsetCommitRequestTopic()
 			reqTopic.Topic = topic
 			if td := groupTopics.loadTopic(topic); td != nil {
 				reqTopic.TopicID = td.id
+			}
+			if reqTopic.TopicID == ([16]byte{}) {
+				pinV9 = true
 			}
 			for partition, eo := range partitions {
 				reqPartition := kmsg.NewOffsetCommitRequestTopicPartition()
@@ -3152,6 +3217,25 @@ func (g *groupConsumer) commit(
 				reqTopic.Partitions = append(reqTopic.Partitions, reqPartition)
 			}
 			req.Topics = append(req.Topics, reqTopic)
+		}
+
+		// OffsetCommit v10 switched Topic to TopicID. If we have no
+		// TopicID for some topic (e.g. broker caps Metadata below v10,
+		// like Azure Event Hubs), v10+ would put a zero TopicID on the
+		// wire. Pin to v9 so the broker continues to match by name.
+		// See #1312. Held in a separate variable from commitCtx so
+		// the cancel/retry-sleep paths keep using the unwrapped ctx.
+		//
+		// pinV9 is computed once here and not recomputed inside the
+		// STALE_MEMBER_EPOCH retry loop below because that loop only
+		// DROPS partitions from req.Topics; it never re-adds topics
+		// whose TopicID state could change pinV9. If a future change
+		// allows re-adding topics on retry, recompute pinV9 (and rebuild
+		// reqCtx) inside the loop so a topic-id-less topic never lands
+		// on a v10+ wire by accident.
+		reqCtx := commitCtx
+		if pinV9 {
+			reqCtx = context.WithValue(commitCtx, ctxPinReq, &pinReq{pinMax: true, max: 9})
 		}
 
 		if fn, ok := ctx.Value(commitContextFn).(func(*kmsg.OffsetCommitRequest) error); ok {
@@ -3170,11 +3254,31 @@ func (g *groupConsumer) commit(
 		// attempt sleeps 500ms between STALE responses) so that
 		// auto-commit before a rebalance does not surface a benign
 		// STALE to the user.
+		//
+		// On gen change, filter req.Topics down to partitions we
+		// still own before retrying so we do not race the new owner's
+		// commits for revoked partitions. The filtered-out partitions
+		// get synthesized REBALANCE_IN_PROGRESS responses after the
+		// loop so the caller still sees a per-partition result for
+		// everything they asked us to commit. We restore the original
+		// req.Topics before invoking onDone so the callback sees the
+		// caller's full request.
+		origReqTopics := req.Topics
+		// dropped tracks (topic name, topic id) -> partitions that
+		// were filtered out of req.Topics during retries.
+		type droppedTopic struct {
+			name       string
+			id         [16]byte
+			partitions []int32
+		}
+		var dropped []droppedTopic
+
 		staleRetries := 0
 		for {
 			start := time.Now()
-			resp, err = req.RequestWith(commitCtx, g.cl)
+			resp, err = req.RequestWith(reqCtx, g.cl)
 			if err != nil {
+				req.Topics = origReqTopics
 				onDone(g.cl, req, nil, err)
 				return
 			}
@@ -3222,17 +3326,80 @@ func (g *groupConsumer) commit(
 				}
 				_, newGen := g.memberGen.load()
 				if newGen != req.Generation {
+					owned := g.nowAssigned.read()
+					keptTopics := make([]kmsg.OffsetCommitRequestTopic, 0, len(req.Topics))
+					droppedParts := 0
+					for _, rt := range req.Topics {
+						ownedParts := owned[rt.Topic]
+						kept := make([]kmsg.OffsetCommitRequestTopicPartition, 0, len(rt.Partitions))
+						var drop []int32
+						for _, rp := range rt.Partitions {
+							if slices.Contains(ownedParts, rp.Partition) {
+								kept = append(kept, rp)
+							} else {
+								drop = append(drop, rp.Partition)
+							}
+						}
+						if len(drop) > 0 {
+							dropped = append(dropped, droppedTopic{rt.Topic, rt.TopicID, drop})
+							droppedParts += len(drop)
+						}
+						if len(kept) > 0 {
+							rt.Partitions = kept
+							keptTopics = append(keptTopics, rt)
+						}
+					}
+					req.Topics = keptTopics
 					g.cfg.logger.Log(LogLevelInfo, "offset commit got stale member epoch, retrying with updated epoch",
 						"group", g.cfg.group,
 						"old_epoch", req.Generation,
 						"new_epoch", newGen,
+						"lost_partitions_filtered", droppedParts,
 					)
 					req.Generation = newGen
+					if len(req.Topics) == 0 {
+						// Nothing left on the wire; synthesize an empty
+						// response that the dropped-partition fill below
+						// will populate.
+						resp = kmsg.NewPtrOffsetCommitResponse()
+						resp.Version = req.Version
+						break
+					}
 					continue
 				}
 			}
 			break
 		}
+
+		// Inject synthetic responses for partitions filtered out
+		// during retries so the caller sees a per-partition result
+		// for everything they asked us to commit.
+		for _, d := range dropped {
+			var rt *kmsg.OffsetCommitResponseTopic
+			for i := range resp.Topics {
+				if resp.Topics[i].Topic == d.name && resp.Topics[i].TopicID == d.id {
+					rt = &resp.Topics[i]
+					break
+				}
+			}
+			if rt == nil {
+				resp.Topics = append(resp.Topics, kmsg.OffsetCommitResponseTopic{
+					Topic:   d.name,
+					TopicID: d.id,
+				})
+				rt = &resp.Topics[len(resp.Topics)-1]
+			}
+			for _, p := range d.partitions {
+				rt.Partitions = append(rt.Partitions, kmsg.OffsetCommitResponseTopicPartition{
+					Partition: p,
+					ErrorCode: kerr.RebalanceInProgress.Code,
+				})
+			}
+		}
+
+		// Restore so updateCommitted and onDone see the caller's
+		// original request, not the wire-filtered one.
+		req.Topics = origReqTopics
 
 		g.updateCommitted(req, resp)
 		onDone(g.cl, req, resp, nil)

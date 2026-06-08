@@ -15,7 +15,7 @@
 # See README.md for the step-by-step playbook.
 
 x-tempo-v2-image: &tempoV2Image grafana/tempo:2.9.2
-x-tempo-v3-image: &tempoV3Image grafana/tempo:3.0.0-rc.1
+x-tempo-v3-image: &tempoV3Image grafana/tempo:3.0.0
 
 services:
   # =========================================================================
@@ -38,7 +38,7 @@ services:
   # To switch traffic between v2 and v3, edit the ALLOY_OTLP_UPSTREAM env var
   # (in .env or inline) and `docker compose up -d alloy`.
   alloy:
-    image: grafana/alloy:v1.16.0
+    image: grafana/alloy:v1.16.1@sha256:51aeb9d829239345070619dad3edd6873186f913c84f45b365b74574fcb38ec0
     volumes:
       - ./config.alloy:/etc/alloy/config.alloy
     command:
@@ -314,7 +314,7 @@ services:
   # confirming tempo_vulture_trace_error_total stays at 0.
   # Independent of the k6+alloy traffic above, which represents real app traces.
   vulture:
-    image: grafana/tempo-vulture:latest
+    image: grafana/tempo-vulture:3.0.0
     profiles: ["v3"]
     restart: always
     hostname: vulture

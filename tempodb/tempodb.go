@@ -863,7 +863,11 @@ func createLegacyCache(cfg *Config, logger gkLog.Logger) (cache.Cache, []cache.R
 
 	switch cfg.Cache {
 	case "redis":
-		legacyCache = redis.NewClient(cfg.Redis, cfg.BackgroundCache, "legacy", logger)
+		var err error
+		legacyCache, err = redis.NewClient(cfg.Redis, cfg.BackgroundCache, "legacy", logger)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create legacy redis cache: %w", err)
+		}
 	case "memcached":
 		legacyCache = memcached.NewClient(cfg.Memcached, cfg.BackgroundCache, "legacy", logger)
 	}

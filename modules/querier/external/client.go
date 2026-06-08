@@ -3,6 +3,7 @@ package external
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -33,9 +34,10 @@ var metricExternalRequestDuration = promauto.NewHistogramVec(prometheus.Histogra
 type Client struct {
 	httpClient  *http.Client
 	externalURL *url.URL
+	maxBytes    int
 }
 
-func NewClient(endpoint string, timeout time.Duration) (*Client, error) {
+func NewClient(endpoint string, timeout time.Duration, maxBytes int) (*Client, error) {
 	externalURL, err := url.Parse(endpoint)
 	if err != nil {
 		return nil, fmt.Errorf("invalid external endpoint URL: %w", err)
@@ -47,6 +49,7 @@ func NewClient(endpoint string, timeout time.Duration) (*Client, error) {
 			Transport: otelhttp.NewTransport(http.DefaultTransport),
 		},
 		externalURL: externalURL,
+		maxBytes:    maxBytes,
 	}, nil
 }
 
@@ -88,9 +91,12 @@ func (c *Client) TraceByID(ctx context.Context, userID string, traceID []byte, s
 	// Set the status code for the metric tracking in defer
 	statusCode = strconv.Itoa(resp.StatusCode)
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(http.MaxBytesReader(nil, resp.Body, int64(c.maxBytes)))
 	if err != nil {
-		return nil, fmt.Errorf("failed to read external response body: %w", err)
+		if tooLarge, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			return nil, fmt.Errorf("external response exceeds %d byte limit: %w", tooLarge.Limit, err)
+		}
+		return nil, fmt.Errorf("read external response: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {

@@ -125,9 +125,7 @@ func (cfg *Config) Validate() error {
 	}
 
 	if cfg.RemoteSampling != nil {
-		if disableJaegerReceiverRemoteSampling.IsEnabled() {
-			return errors.New("remote sampling config detected in the Jaeger receiver; use the `jaegerremotesampling` extension instead")
-		}
+		return errors.New("remote sampling config detected in the Jaeger receiver; use the `jaegerremotesampling` extension instead")
 	}
 
 	return nil

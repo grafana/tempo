@@ -1,0 +1,6 @@
+change_type: enhancement
+component: storage
+note: add `tempodb_cache_store_size_bytes` histogram labelled by `role` recording the size of every item written to the backend cache.
+issues: [7152]
+subtext:
+user: javiermolinar

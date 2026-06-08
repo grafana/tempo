@@ -2,6 +2,7 @@ package livestore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"sync"
@@ -14,7 +15,6 @@ import (
 	"github.com/grafana/dskit/multierror"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/tempo/pkg/ingest"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/twmb/franz-go/pkg/kadm"
@@ -269,7 +269,7 @@ func (r *PartitionReader) fetchLastCommittedOffset(ctx context.Context) (kgo.Off
 		return kgo.NewOffset().AtStart(), nil
 	}
 	if err != nil {
-		return kgo.NewOffset(), errors.Wrap(err, "unable to fetch group offsets")
+		return kgo.NewOffset(), fmt.Errorf("unable to fetch group offsets: %w", err)
 	}
 	offset, found := offsets.Lookup(r.topic, r.partitionID)
 	if !found || r.forceFromLookback {

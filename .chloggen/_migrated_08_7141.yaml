@@ -1,0 +1,6 @@
+change_type: enhancement
+component: backend-scheduler
+note: eliminate O(256·M) shard scan in `HasJobsForTenant` and O(N) prefix scan in `BusyBlocksForTenant` via secondary indexes; `HasJobsForTenant` is now O(1), `BusyBlocksForTenant` is now O(|tenant blocks|). Add `splitPendingBlockKey` helper to centralise pending-block key parsing and decouple all index maintenance sites from the encoded key format.
+issues: [7141]
+subtext:
+user: zalegrala

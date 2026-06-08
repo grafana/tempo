@@ -10,7 +10,7 @@ GO_MOD_OUTDATED  ?= go-mod-outdated
 TOOL_DIR     ?= tools
 
 TOOLS_IMAGE ?= grafana/tempo-ci-tools
-TOOLS_IMAGE_TAG ?= main-057ddf9-20260526-210749
+TOOLS_IMAGE_TAG ?= main-b0f57ed-20260527-203411
 
 # Mount the git common directory to the tools container.
 # This is needed when using git worktrees.

@@ -1,6 +1,7 @@
 package kgo
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
@@ -283,14 +284,14 @@ outer:
 				// re-initialJoin with a fresh member id so the
 				// server hands us back a current epoch.
 				member, gen := g.memberGen.load()
-				g.memberGen.store(newStringUUID(), 0)
 				g.cfg.logger.Log(LogLevelInfo, "consumer group heartbeat error, abandoning assignment and rejoining with new member id",
 					"group", g.cfg.group,
 					"member_id", member,
 					"generation", gen,
 					"err", err,
 				)
-				g.nowAssigned.store(nil)
+				g.abandonAssignment(fmt.Sprintf("abandoning assignment after %v", err))
+				g.memberGen.store(newStringUUID(), 0)
 				continue outer
 
 			case errors.Is(err, kerr.FencedMemberEpoch),
@@ -309,7 +310,7 @@ outer:
 					"generation", gen,
 					"err", err,
 				)
-				g.nowAssigned.store(nil)
+				g.abandonAssignment(fmt.Sprintf("abandoning assignment after %v", err))
 				continue outer
 			}
 
@@ -324,7 +325,9 @@ outer:
 					"generation", gen,
 					"now_assigned", nowAssigned,
 				)
-				g.nowAssigned.store(nowAssigned)
+				// handleResp already stored nowAssigned (before memberGen)
+				// so concurrent readers see a consistent (gen, assignment)
+				// pair; no additional store needed here.
 			}
 		}
 
@@ -410,6 +413,14 @@ func newStringUUID() string {
 }
 
 func (g *g848) initialJoin() (time.Duration, error) {
+	// handleResp publishes nowAssigned BEFORE memberGen so that any
+	// concurrent commit retry observing the new gen also sees the new
+	// assignment (see comment in handleResp). Verify the invariant up
+	// front: a clean initialJoin must enter with no assignment so that
+	// the publish order remains the source of truth.
+	if g.g.nowAssigned.read() != nil {
+		panic("nowAssigned is not nil in our initial join, invalid invariant!")
+	}
 	g.g.memberGen.storeGeneration(0)
 	g.lastSubscribedTopics = nil
 	g.lastTopics = nil
@@ -431,24 +442,10 @@ func (g *g848) initialJoin() (time.Duration, error) {
 		"now_assigned", nowAssigned,
 	)
 
-	// We always keep nowAssigned: the field is always nil here, so we
-	// either re-store nil or we save an update.
-	if g.g.nowAssigned.read() != nil {
-		panic("nowAssigned is not nil in our initial join, invalid invariant!")
-	}
-	g.g.nowAssigned.store(nowAssigned)
 	return time.Duration(resp.HeartbeatIntervalMillis) * time.Millisecond, nil
 }
 
 func (g *g848) handleResp(req *kmsg.ConsumerGroupHeartbeatRequest, resp *kmsg.ConsumerGroupHeartbeatResponse) map[string][]int32 {
-	if resp.MemberID != nil {
-		g.g.memberGen.store(*resp.MemberID, resp.MemberEpoch)
-		g.g.cl.cfg.logger.Log(LogLevelDebug, "storing member and epoch", "group", g.g.cfg.group, "member", *resp.MemberID, "epoch", resp.MemberEpoch)
-	} else {
-		g.g.memberGen.storeGeneration(resp.MemberEpoch)
-		g.g.cl.cfg.logger.Log(LogLevelDebug, "storing epoch", "group", g.g.cfg.group, "epoch", resp.MemberEpoch)
-	}
-
 	id2t := g.g.cl.id2tMap()
 	newAssigned := make(map[string][]int32)
 
@@ -501,6 +498,24 @@ func (g *g848) handleResp(req *kmsg.ConsumerGroupHeartbeatRequest, resp *kmsg.Co
 		g.g.cl.triggerUpdateMetadataNow("consumer group heartbeat has unresolved topic IDs in assignment")
 	}
 
+	// storeMember publishes the new memberGen. We defer it so it runs AFTER
+	// any nowAssigned.store below. Atomic stores in Go are sequentially
+	// consistent, so concurrent readers (e.g. the commit() STALE retry
+	// filter at consumer_group.go) cannot observe new memberGen with
+	// stale nowAssigned: seeing the new gen happens-after seeing the new
+	// assignment. This closes the race that would otherwise leak revoked
+	// partitions into a retried commit.
+	storeMember := func() {
+		if resp.MemberID != nil {
+			g.g.memberGen.store(*resp.MemberID, resp.MemberEpoch)
+			g.g.cl.cfg.logger.Log(LogLevelDebug, "storing member and epoch", "group", g.g.cfg.group, "member", *resp.MemberID, "epoch", resp.MemberEpoch)
+		} else {
+			g.g.memberGen.storeGeneration(resp.MemberEpoch)
+			g.g.cl.cfg.logger.Log(LogLevelDebug, "storing epoch", "group", g.g.cfg.group, "epoch", resp.MemberEpoch)
+		}
+	}
+	defer storeMember()
+
 	// Only return nil (no change) when the response had no
 	// assignment at all (keepalive) or when all topics in the
 	// assignment are still unresolved. When the server explicitly
@@ -533,6 +548,10 @@ func (g *g848) handleResp(req *kmsg.ConsumerGroupHeartbeatRequest, resp *kmsg.Co
 	}
 
 	if !mapi32sDeepEq(current, newAssigned) {
+		// Store BEFORE the deferred storeMember runs, so an observer that
+		// sees new memberGen via memberGen.load() is guaranteed to also
+		// see the matching nowAssigned via nowAssigned.read().
+		g.g.nowAssigned.store(newAssigned)
 		return newAssigned
 	}
 	return nil
@@ -600,12 +619,24 @@ func (g *g848) mkreq() *kmsg.ConsumerGroupHeartbeatRequest {
 	// uses prerevoking to strip this to nil during prerevoke,
 	// preventing the server from seeing released partitions before
 	// offsets are committed.
+	//
+	// A topic may be in nowAssigned but absent from tps if the user
+	// just called PurgeFetchTopics: purge removes from tps, but
+	// nowAssigned reflects the server's view and is only updated when
+	// the server acknowledges the revoke in a future heartbeat
+	// response. We skip such topics here; SubscribedTopicNames (built
+	// from tps above) signals the unsubscribe and the server revokes
+	// on the next response.
 	nowAssigned := g.g.nowAssigned.read()
 	req.Topics = []kmsg.ConsumerGroupHeartbeatRequestTopic{} // ALWAYS initialize: len 0 is significantly different than nil (nil means same as last time)
 	for t, ps := range nowAssigned {
+		tp, ok := tps[t]
+		if !ok {
+			continue
+		}
 		rt := kmsg.NewConsumerGroupHeartbeatRequestTopic()
 		rt.Partitions = slices.Clone(ps)
-		rt.TopicID = tps[t].load().id
+		rt.TopicID = tp.load().id
 		req.Topics = append(req.Topics, rt)
 	}
 	// Include unresolved topic IDs so the server sees them
@@ -618,6 +649,13 @@ func (g *g848) mkreq() *kmsg.ConsumerGroupHeartbeatRequest {
 		rt.Partitions = slices.Clone(ps)
 		req.Topics = append(req.Topics, rt)
 	}
+
+	// Canonicalize ordering by TopicID so the heartbeat closure's
+	// DeepEqual against lastTopics is stable across map-iteration
+	// orderings, avoiding unnecessary full heartbeats.
+	slices.SortFunc(req.Topics, func(a, b kmsg.ConsumerGroupHeartbeatRequestTopic) int {
+		return bytes.Compare(a.TopicID[:], b.TopicID[:])
+	})
 
 	return req
 }

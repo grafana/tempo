@@ -43,7 +43,24 @@
         min_replicas: 1,
         max_replicas: 200,
         paused_replicas: 0,
+        // Target CPU per pod for the default CPU-based trigger (used when 'query' is empty).
         target_cpu: '500m',
+        // Optional PromQL query for Prometheus-based scaling. When empty (default),
+        // a CPU trigger using target_cpu is used.
+        //
+        // Use a Prometheus query to keep replicas from exceeding the partition count.
+        // The metrics-generator reads from the live-store partitions, so scaling beyond
+        // the partition count adds pods that have no partition to own and just sit idle.
+        //
+        // Example (0.5 == 500m CPU target per pod):
+        //   (
+        //     ceil(sum(rate(container_cpu_usage_seconds_total{pod=~"metrics-generator-.*"}[1h])) / 0.5)
+        //     <
+        //     max(sum by (instance) (tempo_partition_ring_partitions{name="livestore-partitions", state=~"Active|Inactive"}))
+        //   )
+        //   or
+        //     max(sum by (instance) (tempo_partition_ring_partitions{name="livestore-partitions", state=~"Active|Inactive"}))
+        query: '',
         scale_up_stabilization_window_seconds: 60,
         scale_up_pods: 5,
         scale_up_period_seconds: 60,
@@ -256,18 +273,39 @@
     if $._config.distributor.keda.enabled then $.removeReplicasFromSpec else {},
 
   //
-  // Metrics Generator: CPU-based autoscaling.
+  // Metrics Generator: CPU-based autoscaling by default, or Prometheus-based
+  // autoscaling when metrics_generator.keda.query is set.
   //
   tempo_metrics_generator_scaled_object:
     if $._config.metrics_generator.keda.enabled then
+      local config = $._config.metrics_generator.keda;
       $.scaledObjectForController($.tempo_metrics_generator_statefulset, 'metrics_generator')
-      + scaledObject.spec.withTriggersMixin([{
-        type: 'cpu',
-        metricType: 'AverageValue',
-        metadata: {
-          value: $._config.metrics_generator.keda.target_cpu,
-        },
-      }])
+      + (
+        if config.query != '' then
+          // Prometheus-based scaling. The query must return the exact desired pod count.
+          // For more details about how HPA uses the query and threshold to calculate
+          // desired replicas, see:
+          // https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/#algorithm-details
+          assert $._config.autoscaling_prometheus_url != '' : 'autoscaling_prometheus_url is required for metrics_generator Prometheus autoscaling';
+          scaledObject.spec.withTriggersMixin([
+            // metricType Value with threshold 1 → desiredReplicas = ceil(queryResult / 1) = queryResult.
+            // The default AverageValue would multiply by currentReplicas and cause runaway scaling.
+            $.prometheusTrigger(
+              query=config.query,
+              metricName='metrics_generator_desired_replicas',
+              threshold='1',
+            ) + { metricType: 'Value' },
+          ])
+        else
+          // CPU-based scaling.
+          scaledObject.spec.withTriggersMixin([{
+            type: 'cpu',
+            metricType: 'AverageValue',
+            metadata: {
+              value: config.target_cpu,
+            },
+          }])
+      )
     else {},
 
   tempo_metrics_generator_statefulset+:

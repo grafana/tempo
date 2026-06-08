@@ -68,6 +68,43 @@ The processor identifies a database node when the span has at least one `db.name
 
 The processor determines the database node name using the following span attributes in order of precedence: `peer.service`, `server.address`, `network.peer.address:network.peer.port`, `db.namespace`, `db.name`.
 
+### Enabling specific metrics (subprocessors)
+
+Instead of enabling all service graph metrics, you can enable individual metric categories using subprocessors in the overrides configuration:
+
+- `service-graphs-request` — Enables only the `traces_service_graph_request_total` and `traces_service_graph_request_failed_total` counters
+- `service-graphs-latency` — Enables only the `traces_service_graph_request_server_seconds` and `traces_service_graph_request_client_seconds` histograms. The `traces_service_graph_request_messaging_system_seconds` histogram additionally requires `enable_messaging_system_latency_histogram: true` in the metrics-generator config.
+- `service-graphs-connection-info` — Enables only the `traces_service_graph_connection_info` gauge
+
+The bare `service-graphs` name enables request and latency metrics.
+The `service-graphs-connection-info` subprocessor is off by default and must be listed explicitly.
+Listing it alongside the bare name enables the subprocessor additively without disabling RED.
+Listing `service-graphs-request` or `service-graphs-latency` alongside the bare name is redundant and silently dropped.
+
+Example overrides configuration:
+
+```yaml
+overrides:
+  defaults:
+    metrics_generator:
+      processors:
+        - service-graphs
+        - service-graphs-connection-info
+```
+
+### Connection information metric
+
+The `traces_service_graph_connection_info` metric is a presence-only gauge held at `1` while an edge between two services is being observed.
+
+The metric is intended for topology discovery rather than rate calculations.
+A single observed span keeps the gauge present, so service-to-service relationships stay visible on low-traffic endpoints even when `rate(traces_service_graph_request_total[...])` is noisy or zero under aggressive head sampling.
+
+Example query with a long range window:
+
+```promql
+last_over_time(traces_service_graph_connection_info[1h]) > 0
+```
+
 ### Metrics
 
 The following metrics are exported:
@@ -81,6 +118,7 @@ The following metrics are exported:
 | `traces_service_graph_request_server_seconds`           | Histogram | client, server, connection_type | Time for a request between two nodes as seen from the server                                               |
 | `traces_service_graph_request_client_seconds`           | Histogram | client, server, connection_type | Time for a request between two nodes as seen from the client                                               |
 | `traces_service_graph_request_messaging_system_seconds` | Histogram | client, server, connection_type | (Off by default) Time between publisher and consumer for services communicating through a messaging system |
+| `traces_service_graph_connection_info`                  | Gauge     | client, server, connection_type | (Off by default) Presence signal for service-to-service edges (value 1 per active edge)                    |
 | `traces_service_graph_unpaired_spans_total`             | Counter   | client, server, connection_type | Total count of unpaired spans                                                                              |
 | `traces_service_graph_dropped_spans_total`              | Counter   | client, server, connection_type | Total count of dropped spans                                                                               |
 

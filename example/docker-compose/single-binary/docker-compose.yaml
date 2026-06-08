@@ -1,6 +1,6 @@
 services:
   tempo:
-    image: grafana/tempo:latest
+    image: "grafana/tempo:${TEMPO_IMAGE_TAG:-3.0.0}"
     command: "-target=all -config.file=/etc/tempo.yaml"
     restart: always
     volumes:
@@ -24,7 +24,7 @@ services:
       - alloy
 
   alloy:
-    image: grafana/alloy:v1.16.0@sha256:6e00cf7c5a692ff5f24844529416ed017d76fce922f8199004e73d5eca46b6b8
+    image: grafana/alloy:v1.16.1@sha256:51aeb9d829239345070619dad3edd6873186f913c84f45b365b74574fcb38ec0
     volumes:
       - ./config.alloy:/etc/alloy/config.alloy
     command:
@@ -57,6 +57,8 @@ services:
     image: grafana/grafana:13.0.1@sha256:0f86bada30d65ef9d0183b90c1e2682ac92d53d95da8bed322b984ea78a4a73a
     volumes:
       - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+      - ./grafana-dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml
+      - ./dashboards:/var/lib/grafana/dashboards
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
@@ -66,7 +68,7 @@ services:
       - "3000:3000"
 
   vulture:
-    image: grafana/tempo-vulture:latest
+    image: "grafana/tempo-vulture:${TEMPO_IMAGE_TAG:-3.0.0}"
     restart: always
     command:
       [

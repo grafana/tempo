@@ -242,7 +242,7 @@ func spanLinksToZipkinTags(links ptrace.SpanLinkSlice, zTags map[string]string) 
 }
 
 func attributeMapToStringMap(attrMap pcommon.Map) map[string]string {
-	rawMap := make(map[string]string)
+	rawMap := make(map[string]string, attrMap.Len())
 	for k, v := range attrMap.All() {
 		rawMap[k] = v.AsString()
 	}
@@ -260,8 +260,8 @@ func removeRedundantTags(redundantKeys map[string]bool, zTags map[string]string)
 func resourceToZipkinEndpointServiceNameAndAttributeMap(
 	resource pcommon.Resource,
 ) (serviceName string, zTags map[string]string) {
-	zTags = make(map[string]string)
 	attrs := resource.Attributes()
+	zTags = make(map[string]string, attrs.Len())
 	if attrs.Len() == 0 {
 		return tracetranslator.ResourceNoServiceName, zTags
 	}
@@ -319,9 +319,14 @@ func zipkinEndpointFromTags(
 	redundantKeys map[string]bool,
 ) (endpoint *zipkinmodel.Endpoint) {
 	serviceName := localServiceName
-	if peerSvc, ok := zTags[string(conventionsv138.PeerServiceKey)]; ok && remoteEndpoint {
-		serviceName = peerSvc
-		redundantKeys[string(conventionsv138.PeerServiceKey)] = true
+	if remoteEndpoint {
+		if peerSvc, ok := zTags[string(conventions.ServicePeerNameKey)]; ok {
+			serviceName = peerSvc
+			redundantKeys[string(conventions.ServicePeerNameKey)] = true
+		} else if peerSvc, ok := zTags[string(conventionsv138.PeerServiceKey)]; ok {
+			serviceName = peerSvc
+			redundantKeys[string(conventionsv138.PeerServiceKey)] = true
+		}
 	}
 
 	var ipKey, v0IPKey, portKey string

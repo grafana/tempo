@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"unicode/utf8"
 
+	"go.uber.org/zap"
+
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
@@ -22,17 +24,17 @@ func NewTruncateAllFactory[K any]() ottl.Factory[K] {
 	return ottl.NewFactory("truncate_all", &TruncateAllArguments[K]{}, createTruncateAllFunction[K])
 }
 
-func createTruncateAllFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
+func createTruncateAllFunction[K any](fCtx ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
 	args, ok := oArgs.(*TruncateAllArguments[K])
 
 	if !ok {
 		return nil, errors.New("TruncateAllFactory args must be of type *TruncateAllArguments[K]")
 	}
 
-	return TruncateAll(args.Target, args.Limit, args.Utf8Safe)
+	return TruncateAll(args.Target, args.Limit, args.Utf8Safe, fCtx.Set.Logger)
 }
 
-func TruncateAll[K any](target ottl.PMapGetSetter[K], limit int64, utf8Safe ottl.Optional[bool]) (ottl.ExprFunc[K], error) {
+func TruncateAll[K any](target ottl.PMapGetSetter[K], limit int64, utf8Safe ottl.Optional[bool], logger *zap.Logger) (ottl.ExprFunc[K], error) {
 	if limit < 0 {
 		return nil, fmt.Errorf("invalid limit for truncate_all function, %d cannot be negative", limit)
 	}
@@ -44,7 +46,9 @@ func TruncateAll[K any](target ottl.PMapGetSetter[K], limit int64, utf8Safe ottl
 		if err != nil {
 			return nil, err
 		}
-		for _, value := range val.All() {
+		var truncated []string
+		debugEnabled := logger.Core().Enabled(zap.DebugLevel)
+		for key, value := range val.All() {
 			stringVal := value.Str()
 			if int64(len(stringVal)) > limit {
 				truncateAt := int(limit)
@@ -55,10 +59,14 @@ func TruncateAll[K any](target ottl.PMapGetSetter[K], limit int64, utf8Safe ottl
 					}
 				}
 				value.SetStr(stringVal[:truncateAt])
+				if debugEnabled {
+					truncated = append(truncated, key)
+				}
 			}
 		}
-		// TODO: Write log when truncation is performed
-		// https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/9730
+		if len(truncated) != 0 {
+			logger.Debug(fmt.Sprintf("truncated %d values", len(truncated)), zap.Strings("keys", truncated))
+		}
 		return nil, target.Set(ctx, tCtx, val)
 	}, nil
 }

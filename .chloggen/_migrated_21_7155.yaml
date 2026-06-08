@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: live-store
+note: write the per-block query-range response cache atomically (temp file + rename) and log+ignore cache read errors.
+issues: [7155]
+subtext:
+user: zhxiaogg

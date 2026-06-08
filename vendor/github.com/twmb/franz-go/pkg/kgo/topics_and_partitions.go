@@ -216,6 +216,7 @@ func (m pausedTopics) delTopics(topics ...string) {
 			continue
 		}
 		pps.all = false
+		m[topic] = pps
 		if !pps.all && len(pps.m) == 0 {
 			delete(m, topic)
 		}
@@ -615,6 +616,12 @@ func (old *topicPartition) migrateProductionTo(new *topicPartition) { //nolint:r
 	old.records.mu.Lock() // guard setting sink and topic partition data
 	old.records.sink = new.records.sink
 	old.records.topicPartitionData = new.topicPartitionData
+	// okOnSink tracks "the last response on this recBuf's current sink
+	// was a success", which gates >1 in-flight per #223. After a sink
+	// change, a stale true from the old sink could allow pipelining two
+	// unresolved requests on the new sink before its first ack. Reset so
+	// the new sink re-earns pipelining through its own response.
+	old.records.okOnSink = false
 	old.records.mu.Unlock()
 
 	// After the unlock above, record buffering can trigger drains

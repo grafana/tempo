@@ -1,0 +1,24 @@
+{{- define "entry" -}}
+- `{{ .Component }}`: {{ .Note }} (
+{{- range $i, $issue := .Issues }}
+{{- if $i }}, {{ end -}}
+[#{{ $issue }}](https://github.com/grafana/tempo/issues/{{ $issue }})
+{{- end -}}
+)
+{{- if .User }} (@{{ .User }}){{- end }}
+{{- if .SubText }}
+{{ .SubText | indent 2 }}
+{{- end }}
+{{- end }}
+# {{ .Version }}
+{{- range .Groups }}
+{{- if .Entries }}
+
+## {{ .Heading }}
+{{- range $i, $change := .Entries }}
+{{- if eq $i 0}}
+{{end}}
+{{ template "entry" $change }}
+{{- end }}
+{{- end }}
+{{- end }}

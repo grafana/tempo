@@ -1,0 +1,6 @@
+change_type: feature
+component: operations
+note: "Add KEDA autoscaling for live-store via Prometheus trigger on expected bytes held. Enable with `live_store.keda.enabled: true`. Configure block-builder coupling via `live_store.keda.block_builder_scaling`: `'rollout-operator'` (default, requires `rollout_operator_replica_template_access_enabled: true`) mirrors live-store zone-a replicas to block-builder; `'keda'` creates a dedicated block-builder KEDA ScaledObject using a kubernetes-workload trigger without requiring rollout-operator RBAC."
+issues: [7142]
+subtext:
+user: zachfi

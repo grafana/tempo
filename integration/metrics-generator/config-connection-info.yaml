@@ -1,0 +1,13 @@
+metrics_generator:
+  processor:
+    service_graphs:
+      histogram_buckets: [1, 2]  # seconds
+    span_metrics:
+      histogram_buckets: [1, 2]
+
+overrides:
+  defaults:
+    metrics_generator:
+      max_active_series: 1000
+      # Bare "service-graphs" keeps RED defaults; the sub-name additively opts in to connection_info.
+      processors: [service-graphs, service-graphs-connection-info, span-metrics]

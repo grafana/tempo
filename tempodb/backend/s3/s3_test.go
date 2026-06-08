@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -763,6 +764,56 @@ func TestObjectStorageClass(t *testing.T) {
 			require.Equal(t, tc.StorageClass, httpHeader.Get(storageClassHeader))
 		})
 	}
+}
+
+func TestDeleteVersioned_DoesNotDoublePrefix(t *testing.T) {
+	const (
+		prefix             = "a/b/c"
+		name               = "overrides.json"
+		etag               = `"etag123"`
+		body               = `{}`
+		expectedDeletePath = "/blerg/a/b/c/overrides/tenant-1/" + name
+	)
+
+	var capturedDeletePath string
+	server := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodHead:
+			w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+			w.Header().Set("ETag", etag)
+			w.WriteHeader(http.StatusOK)
+		case http.MethodGet:
+			// New() probes the bucket with a list; ReadVersioned fetches the object body.
+			if strings.HasSuffix(r.URL.Path, "/"+name) {
+				w.Header().Set("ETag", etag)
+				w.Header().Set("Last-Modified", "Fri, 01 Mar 2024 00:00:00 GMT")
+				_, _ = w.Write([]byte(body))
+				return
+			}
+			_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?><ListBucketResult></ListBucketResult>`))
+		case http.MethodDelete:
+			capturedDeletePath = r.URL.Path
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	})
+
+	rw, err := NewVersionedReaderWriter(&Config{
+		Region:    "blerg",
+		AccessKey: "test",
+		SecretKey: flagext.SecretWithValue("test"),
+		Bucket:    "blerg",
+		Prefix:    prefix,
+		Insecure:  true,
+		Endpoint:  server.URL[7:],
+	})
+	require.NoError(t, err)
+
+	// minio strips the surrounding quotes from the ETag in the response.
+	require.NoError(t, rw.DeleteVersioned(context.Background(), name, backend.KeyPath{"overrides", "tenant-1"}, backend.Version("etag123")))
+	assert.Equal(t, expectedDeletePath, capturedDeletePath,
+		"DELETE wire path must contain the configured prefix exactly once")
 }
 
 func testServer(t *testing.T, httpHandler http.HandlerFunc) *httptest.Server {

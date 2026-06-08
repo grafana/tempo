@@ -1,0 +1,6 @@
+change_type: breaking
+component: query-frontend
+note: new job sharding approach for trace lookups, using a new config option `blocks_per_shard` which replaces `query_shards`.
+issues: [7105]
+subtext:
+user: mdisibio

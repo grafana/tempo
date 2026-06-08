@@ -151,9 +151,14 @@ func (i *instance) watchOverrides() {
 	}
 }
 
-// Look at the processors defined and see if any are actually span-metrics subprocessors
-// If they are, set the appropriate flags in the spanmetrics struct
+// updateSubprocessors resolves subprocessor sub-names into Subprocessors flags on the parent processor's config.
 func (i *instance) updateSubprocessors(desiredProcessors map[string]struct{}, desiredCfg ProcessorConfig) (map[string]struct{}, ProcessorConfig) {
+	desiredProcessors, desiredCfg = i.updateSpanMetricsSubprocessors(desiredProcessors, desiredCfg)
+	desiredProcessors, desiredCfg = i.updateServiceGraphsSubprocessors(desiredProcessors, desiredCfg)
+	return desiredProcessors, desiredCfg
+}
+
+func (i *instance) updateSpanMetricsSubprocessors(desiredProcessors map[string]struct{}, desiredCfg ProcessorConfig) (map[string]struct{}, ProcessorConfig) {
 	desiredProcessorsFound := false
 	for d := range desiredProcessors {
 		if (d == processor.SpanMetricsName) || (spanmetrics.ParseSubprocessor(d)) {
@@ -196,6 +201,56 @@ func (i *instance) updateSubprocessors(desiredProcessors map[string]struct{}, de
 	delete(newDesiredProcessors, spanmetrics.Latency.String())
 	delete(newDesiredProcessors, spanmetrics.Count.String())
 	delete(newDesiredProcessors, spanmetrics.Size.String())
+
+	return newDesiredProcessors, desiredCfg
+}
+
+// updateServiceGraphsSubprocessors resolves service-graphs-* sub-names. Bare "service-graphs"
+// enables Request and Latency; listing service-graphs-connection-info alongside adds it on top.
+func (i *instance) updateServiceGraphsSubprocessors(desiredProcessors map[string]struct{}, desiredCfg ProcessorConfig) (map[string]struct{}, ProcessorConfig) {
+	desiredProcessorsFound := false
+	for d := range desiredProcessors {
+		if (d == processor.ServiceGraphsName) || (servicegraphs.ParseSubprocessor(d)) {
+			desiredProcessorsFound = true
+		}
+	}
+
+	if !desiredProcessorsFound {
+		return desiredProcessors, desiredCfg
+	}
+
+	_, allOk := desiredProcessors[processor.ServiceGraphsName]
+	_, requestOk := desiredProcessors[servicegraphs.Request.String()]
+	_, latencyOk := desiredProcessors[servicegraphs.Latency.String()]
+	_, connectionInfoOk := desiredProcessors[servicegraphs.ConnectionInfo.String()]
+
+	// Copy the map before modifying it. This map can be shared by multiple instances and is not safe to write to.
+	newDesiredProcessors := map[string]struct{}{}
+	maps.Copy(newDesiredProcessors, desiredProcessors)
+
+	if !allOk {
+		newDesiredProcessors[processor.ServiceGraphsName] = struct{}{}
+		desiredCfg.ServiceGraphs.Subprocessors[servicegraphs.Request] = false
+		desiredCfg.ServiceGraphs.Subprocessors[servicegraphs.Latency] = false
+		desiredCfg.ServiceGraphs.Subprocessors[servicegraphs.ConnectionInfo] = false
+
+		if requestOk {
+			desiredCfg.ServiceGraphs.Subprocessors[servicegraphs.Request] = true
+		}
+		if latencyOk {
+			desiredCfg.ServiceGraphs.Subprocessors[servicegraphs.Latency] = true
+		}
+		if connectionInfoOk {
+			desiredCfg.ServiceGraphs.Subprocessors[servicegraphs.ConnectionInfo] = true
+		}
+	} else if connectionInfoOk {
+		// Additive opt-in alongside bare service-graphs; defaults already have Request and Latency on.
+		desiredCfg.ServiceGraphs.Subprocessors[servicegraphs.ConnectionInfo] = true
+	}
+
+	delete(newDesiredProcessors, servicegraphs.Request.String())
+	delete(newDesiredProcessors, servicegraphs.Latency.String())
+	delete(newDesiredProcessors, servicegraphs.ConnectionInfo.String())
 
 	return newDesiredProcessors, desiredCfg
 }

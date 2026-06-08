@@ -205,8 +205,7 @@ GCS and Azure Blob Storage rely on their respective SDK defaults for TLS and don
 
 ### Redis cache
 
-If you use Redis as a cache backend, enable TLS with the `tls_enabled` field.
-Redis TLS has limited configuration. It supports `tls_enabled` and `tls_insecure_skip_verify` but doesn't expose CA or client certificate path fields:
+If you use Redis as a cache backend, enable TLS with `tls_enabled` and configure the dskit-style TLS block inline alongside it. The same fields used by S3 and memcached are available — CA, client certificate, key, server name, minimum TLS version, and cipher suites — plus `tls_insecure_skip_verify` for development. Invalid TLS settings fail closed: if `tls_enabled: true` but the TLS block cannot be assembled, Tempo returns an error from cache construction instead of silently downgrading to a cleartext connection.
 
 ```yaml
 cache:
@@ -214,7 +213,12 @@ cache:
     - redis:
         endpoint: redis.example.com:6380
         tls_enabled: true
+        tls_ca_path: /tls/ca.crt
+        tls_cert_path: /tls/tls.crt
+        tls_key_path: /tls/tls.key
+        tls_server_name: redis.example.com
         tls_insecure_skip_verify: false
+        tls_min_version: VersionTLS12
       roles:
         - parquet-footer
         - bloom

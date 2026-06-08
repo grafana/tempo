@@ -1,8 +1,8 @@
 {
   _images+:: {
-    tempo: 'grafana/tempo:latest',
-    tempo_query: 'grafana/tempo-query:latest',
-    tempo_vulture: 'grafana/tempo-vulture:latest',
+    tempo: 'grafana/tempo:3.0.0',
+    tempo_query: 'grafana/tempo-query:3.0.0',
+    tempo_vulture: 'grafana/tempo-vulture:3.0.0',
   },
 
   _config+:: {

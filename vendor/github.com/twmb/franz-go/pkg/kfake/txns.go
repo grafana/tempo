@@ -79,12 +79,26 @@ type (
 		lastWasCommit bool
 	}
 
-	// Sequence ID window, and where the start is.
+	// Independent dup-detection entry: stores (firstSeq, nextSeq,
+	// offset) for one committed batch. Real Kafka stores 5
+	// independent BatchMetadata records; we match that.
+	pidEntry struct {
+		firstSeq int32
+		nextSeq  int32
+		offset   int64
+	}
+
+	// Sequence ID window for duplicate detection. 5 independent
+	// entries (not overlapping pairs), so all 5 in-flight batches
+	// allowed by maxInFlight=5 are deduplicatable after a
+	// connection death.
 	pidwindow struct {
-		seq     [5]int32
-		offsets [5]int64 // base offsets corresponding to each seq entry, for dup detection
-		at      uint8
+		entries [5]pidEntry
+		at      uint8 // next write position (circular)
+		count   uint8 // number of valid entries (0-5)
+		seen    bool  // true after the first batch has been accepted
 		epoch   int16 // last seen epoch; when epoch changes, seq 0 is accepted
+		nextSeq int32 // next expected firstSequence (authoritative, survives window rotation)
 	}
 )
 
@@ -101,7 +115,12 @@ func (pids *pids) hasUnstableOffsets(group string) bool {
 }
 
 // updateTimer reschedules the transaction timeout timer based on the
-// next expiring transaction.
+// next expiring transaction. This also handles any already-expired
+// transactions inline: under high request throughput, this function
+// runs after every request and drains the timer channel. Without the
+// inline check, the timer fires (negative duration for expired txns)
+// but gets drained here before mainSelect can read it, creating a
+// livelock where expired transactions are never aborted.
 func (pids *pids) updateTimer() {
 	if !pids.txTimer.Stop() {
 		select {
@@ -109,6 +128,32 @@ func (pids *pids) updateTimer() {
 		default:
 		}
 	}
+
+	// Abort any already-expired transactions inline.
+	now := time.Now()
+	for {
+		var minPid *pidinfo
+		var minExpire time.Time
+		for pidinf := range pids.txs {
+			expire := pidinf.txStart.Add(time.Duration(pidinf.txTimeout) * time.Millisecond)
+			if minPid == nil || expire.Before(minExpire) {
+				minPid = pidinf
+				minExpire = expire
+			}
+		}
+		if minPid == nil || now.Before(minExpire) {
+			break
+		}
+		elapsed := now.Sub(minPid.txStart)
+		pids.c.cfg.logger.Logf(LogLevelWarn,
+			"txn timeout abort: txn_id=%s producer_id=%d epoch=%d timeout=%dms elapsed=%v",
+			minPid.txid, minPid.id, minPid.epoch, minPid.txTimeout, elapsed)
+		minPid = pids.bumpEpoch(minPid)
+		minPid.endTx(false)
+		pids.c.persistPIDEntry(pidLogEntry{Type: "timeout", PID: minPid.id, Epoch: minPid.epoch})
+	}
+
+	// Schedule timer for the next future expiry.
 	var nextExpire time.Time
 	var found bool
 	for pidinf := range pids.txs {
@@ -135,35 +180,12 @@ func (pids *pids) updateTimer() {
 	}
 }
 
-// handleTimeout checks for expired transactions, aborts the earliest
-// one if expired, and reschedules the timer.
+// handleTimeout is called when the transaction timer fires in
+// mainSelect. It expires transactional IDs and reschedules the timer.
+// Transaction abort for expired txns is handled inline by updateTimer,
+// which runs after every request - this ensures aborts happen even
+// under high throughput when the timer channel gets starved.
 func (pids *pids) handleTimeout() {
-	var minPid *pidinfo
-	var minExpire time.Time
-	for pidinf := range pids.txs {
-		expire := pidinf.txStart.Add(time.Duration(pidinf.txTimeout) * time.Millisecond)
-		if minPid == nil || expire.Before(minExpire) {
-			minPid = pidinf
-			minExpire = expire
-		}
-	}
-	if minPid != nil {
-		elapsed := time.Since(minPid.txStart)
-		timeout := time.Duration(minPid.txTimeout) * time.Millisecond
-		if elapsed >= 30*time.Second && elapsed < timeout {
-			pids.c.cfg.logger.Logf(LogLevelWarn,
-				"txn long-running: txn_id=%s pid=%d epoch=%d elapsed=%v timeout=%dms batches=%d",
-				minPid.txid, minPid.id, minPid.epoch, elapsed, minPid.txTimeout, minPid.txBatchCount)
-		}
-		if elapsed >= timeout {
-			pids.c.cfg.logger.Logf(LogLevelWarn,
-				"txn timeout abort: txn_id=%s producer_id=%d epoch=%d timeout=%dms elapsed=%v",
-				minPid.txid, minPid.id, minPid.epoch, minPid.txTimeout, elapsed)
-			minPid = pids.bumpEpoch(minPid)
-			minPid.endTx(false)
-			pids.c.persistPIDEntry(pidLogEntry{Type: "timeout", PID: minPid.id, Epoch: minPid.epoch})
-		}
-	}
 	pids.expireTransactionalIDs()
 	pids.updateTimer()
 }
@@ -586,6 +608,24 @@ func (pids *pids) get(id int64, t string, p int32, pd *partData) (*pidinfo, *pid
 	return pidinf, pidinf.windows.mkpDefault(t, p)
 }
 
+// getOrCreateNonTx returns or creates producer state for a non-transactional
+// idempotent produce. Apache Kafka and Redpanda implicitly create producer
+// state on demand when the first batch arrives for an unknown (PID, epoch).
+// See twmb/franz-go#1281.
+func (pids *pids) getOrCreateNonTx(id int64, epoch int16, t string, p int32) (*pidinfo, *pidwindow) {
+	pidinf := pids.ids[id]
+	if pidinf == nil {
+		pidinf = &pidinfo{
+			pids:       pids,
+			id:         id,
+			epoch:      epoch,
+			lastActive: time.Now(),
+		}
+		pids.ids[id] = pidinf
+	}
+	return pidinf, pidinf.windows.mkpDefault(t, p)
+}
+
 func (pids *pids) randomID() int64 {
 	for {
 		id := int64(rand.Uint64()) & math.MaxInt64
@@ -698,7 +738,6 @@ func (pidinf *pidinfo) endTx(commit bool) {
 	b.CRC = int32(crc32.Checksum(benc[21:], crc32c))
 
 	pidinf.txParts.each(func(t string, p int32, pd *partData) {
-		// Remove PID from uncommittedPIDs before pushing control batch
 		delete(pd.uncommittedPIDs, pidinf.id)
 
 		c := pidinf.pids.c
@@ -778,44 +817,57 @@ func (pidinf *pidinfo) resetTx(wasCommit bool) {
 // For duplicates, dupOffset is the base offset from the original push.
 // For new (non-dup) batches, baseOffset is stored for future dup
 // detection.
+//
+// Sequence validation uses s.nextSeq (the authoritative next-expected
+// sequence), not a position in the 5-entry circular buffer. This
+// matches the real broker's ProducerStateEntry.lastSeq -- nextSeq
+// survives buffer rotation, so retries of committed-but-evicted
+// batches are correctly identified as dups or gaps rather than
+// false-positive OOOSN.
 func (s *pidwindow) pushAndValidate(epoch int16, firstSeq, numRecs int32, baseOffset int64) (ok, dup bool, dupOffset int64) {
 	if s == nil {
 		return true, false, 0
 	}
 
-	// If epoch changed, client has reset sequences.
-	if epoch != s.epoch {
-		if firstSeq != 0 {
+	// Epoch change or first-ever batch: client has reset sequences.
+	if !s.seen || epoch != s.epoch {
+		if s.seen && firstSeq != 0 {
 			return false, false, 0
 		}
+		next := int32((int64(firstSeq) + int64(numRecs)) % math.MaxInt32)
+		s.seen = true
 		s.epoch = epoch
-		s.at = 0
-		s.seq = [5]int32{}
-		s.offsets = [5]int64{}
-		s.seq[0] = 0
-		s.seq[1] = numRecs
-		s.offsets[0] = baseOffset
+		s.nextSeq = next
+		// Reset the window with the first entry.
+		s.entries = [5]pidEntry{{firstSeq, next, baseOffset}}
 		s.at = 1
+		s.count = 1
 		return true, false, 0
 	}
 
-	var (
-		seq    = firstSeq
-		seq64  = int64(seq)
-		next64 = (seq64 + int64(numRecs)) % math.MaxInt32
-		next   = int32(next64)
-	)
-	for i := range 5 {
-		if s.seq[i] == seq && s.seq[(i+1)%5] == next {
-			return true, true, s.offsets[i]
+	// Dup check: scan valid entries for a matching (firstSeq, nextSeq) pair.
+	next := int32((int64(firstSeq) + int64(numRecs)) % math.MaxInt32)
+	for i := range s.count {
+		e := s.entries[i]
+		if e.firstSeq == firstSeq && e.nextSeq == next {
+			return true, true, e.offset
 		}
 	}
-	if s.seq[s.at] != seq {
+
+	// Sequence validation: compare against nextSeq, not the
+	// circular buffer position. nextSeq is the authoritative
+	// next-expected sequence that survives window rotation.
+	if firstSeq != s.nextSeq {
 		return false, false, 0
 	}
-	s.offsets[s.at] = baseOffset
+
+	// Accept: advance nextSeq and store the entry.
+	s.nextSeq = next
+	s.entries[s.at] = pidEntry{firstSeq, next, baseOffset}
 	s.at = (s.at + 1) % 5
-	s.seq[s.at] = next
+	if s.count < 5 {
+		s.count++
+	}
 	return true, false, 0
 }
 
@@ -1024,7 +1076,7 @@ func (pids *pids) txnProducers(topic string, partition int32) []kmsg.DescribePro
 		ap.CurrentTxnStartOffset = -1
 		ap.LastSequence = -1
 		if pw, ok := pidinf.windows.getp(topic, partition); ok && pw != nil {
-			ap.LastSequence = pw.seq[pw.at] - 1
+			ap.LastSequence = pw.nextSeq - 1
 		}
 		if firstOffset, ok := pidinf.txPartFirstOffsets.getp(topic, partition); ok && firstOffset != nil {
 			ap.CurrentTxnStartOffset = *firstOffset

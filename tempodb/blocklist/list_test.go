@@ -534,6 +534,33 @@ func BenchmarkUpdate(b *testing.B) {
 	}
 }
 
+// BenchmarkUpdateInternalLargeAdd stresses the O(N²) path: 100K existing blocks + 1K new adds.
+// Each add scans the full `final` slice to check for duplicates — 1K × 100K = 100M comparisons.
+func BenchmarkUpdateInternalLargeAdd(b *testing.B) {
+	const (
+		numExisting = 100_000
+		numAdd      = 1_000
+	)
+
+	existing := make([]*backend.BlockMeta, numExisting)
+	for i := range existing {
+		existing[i] = meta(uuid.NewString())
+	}
+	add := make([]*backend.BlockMeta, numAdd)
+	for i := range add {
+		add[i] = meta(uuid.NewString())
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		l := New()
+		l.metas[testTenantID] = existing
+		l.updateInternal(testTenantID, add, nil, nil, nil)
+	}
+}
+
 func meta(id string) *backend.BlockMeta {
 	return &backend.BlockMeta{
 		BlockID: backend.MustParse(id),
