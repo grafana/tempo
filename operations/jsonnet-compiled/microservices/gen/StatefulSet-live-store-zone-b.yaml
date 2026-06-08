@@ -68,7 +68,7 @@ spec:
         - -config.file=/conf/tempo.yaml
         - -target=live-store
         - -live-store.instance-availability-zone=zone-b
-        image: grafana/tempo:3.0.0
+        image: grafana/tempo:3.0.1
         imagePullPolicy: IfNotPresent
         name: live-store
         ports:

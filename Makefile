@@ -395,6 +395,8 @@ generate-manifest:  ## Generate manifest.md file
 ##@ Release
 
 TEMPO_IMAGE_TAG ?=
+# The migrate-to-3 example intentionally pins distinct v2 and v3 tempo image
+# tags to demonstrate a 2.x -> 3.0 migration, so it is excluded from the bump.
 .PHONY: bump-tempo-image-tag
 bump-tempo-image-tag: ## Bump grafana/tempo image tag in docker-compose and jsonnet files. Usage: make bump-tempo-image-tag TEMPO_IMAGE_TAG=2.10.2
 	@test -n "$(TEMPO_IMAGE_TAG)" || (echo "ERROR: TEMPO_IMAGE_TAG is required. Usage: make bump-tempo-image-tag TEMPO_IMAGE_TAG=<tag>"; exit 1)
@@ -405,6 +407,7 @@ bump-tempo-image-tag: ## Bump grafana/tempo image tag in docker-compose and json
 		-not -path './.git/*' \
 		-not -path './vendor/*' \
 		-not -path './.worktrees/*' \
+		-not -path './example/docker-compose/migrate-to-3/*' \
 		\( -name "*.yaml" -o -name "*.libsonnet" -o -name "*.jsonnet" -o -name "*.md" \) \
 		-print0 \
 		| xargs -0 grep -l "grafana/tempo:" \

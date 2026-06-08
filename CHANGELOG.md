@@ -1,5 +1,11 @@
 <!-- next version -->
 
+# v3.0.1
+
+## 🔒 Security 🔒
+
+- `deps`: Build Tempo with Go 1.26.3, which includes upstream security and bug fixes. ([#7423](https://github.com/grafana/tempo/issues/7423)) (@ie-pham)
+
 # v3.0.0
 
 * [CHANGE] **BREAKING CHANGE** Recent data queries guarantee complete results by failing when an instance is lagging. Defaults `query_frontend.query_end_cutoff` to `30s` and `live_store.fail_on_high_lag` to `true`. [#7210](https://github.com/grafana/tempo/pull/7210) (@mapno)

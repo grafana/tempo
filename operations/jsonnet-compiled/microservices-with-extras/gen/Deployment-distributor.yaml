@@ -29,7 +29,7 @@ spec:
       - args:
         - -config.file=/conf/tempo.yaml
         - -target=distributor
-        image: grafana/tempo:3.0.0
+        image: grafana/tempo:3.0.1
         imagePullPolicy: IfNotPresent
         name: distributor
         ports:
