@@ -1,0 +1,6 @@
+change_type: enhancement
+component: tempo
+note: Add `TempoDistributorKafkaProduceFailing` alert that triggers when Kafka records cannot be produced by the distributor.
+issues: [7148]
+subtext:
+user: javiermolinar

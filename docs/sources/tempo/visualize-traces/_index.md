@@ -4,8 +4,8 @@ menuTitle: Visualize data
 description: Use Grafana to visualize, query, and explore your tracing data with the built-in Tempo data source.
 weight: 650
 aliases:
-  - ../getting-started/tempo-in-grafana/ #/docs/tempo/latest/introduction/tempo-in-grafana/
-  - ../introduction/tempo-in-grafana/ # /docs/tempo/<TEMPO_VERSION>/introduction/tempo-in-grafana/
+  - /docs/tempo/latest/introduction/tempo-in-grafana/
+  - /docs/tempo/latest/getting-started/tempo-in-grafana/
 
 ---
 

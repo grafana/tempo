@@ -34,7 +34,7 @@ type RootExpr struct {
 	Pipeline           map[string]Pipeline        // spanset filters
 	BatchSpanProcessor map[string]spanProcessor   // span processing
 	SeriesProcessor    map[string]seriesProcessor // time series processing
-	expression         *mathExpression            // query expression structure (second stage)
+	expression         *MathExpression            // query expression structure (second stage)
 	Hints              *Hints
 	OptimizationCount  int
 }
@@ -58,6 +58,10 @@ func (r *RootExpr) MetricsSecondStage() secondStageElement {
 	if r.expression.op == OpNone { // flat expression
 		return r.expression.filter
 	}
+	return r.expression
+}
+
+func (r *RootExpr) Expression() *MathExpression {
 	return r.expression
 }
 
@@ -167,7 +171,7 @@ func newRootExprMath(op Operator, lhs, rhs *RootExpr) *RootExpr {
 		Pipeline:           pipelines,
 		BatchSpanProcessor: spanProcs,
 		SeriesProcessor:    seriesProcs,
-		expression: &mathExpression{
+		expression: &MathExpression{
 			op:  op,
 			lhs: lhs.expression,
 			rhs: rhs.expression,
@@ -200,6 +204,21 @@ func chainMathSecondStage(r *RootExpr, stage ChainedSecondStage) *RootExpr {
 		r.expression.filter = append(ChainedSecondStage{r.expression.filter}, stage...)
 	}
 	return r
+}
+
+func newRootExprScalarMath(op Operator, value float64, rhs *RootExpr, scalarOnLeft bool) *RootExpr {
+	scalarOp := newMetricsScalarOp(op, value, scalarOnLeft)
+	if rhs.expression.filter == nil {
+		rhs.expression.filter = scalarOp
+		return rhs
+	}
+	if chain, ok := rhs.expression.filter.(ChainedSecondStage); ok {
+		chain = append(chain, scalarOp)
+		rhs.expression.filter = chain
+		return rhs
+	}
+	rhs.expression.filter = ChainedSecondStage{rhs.expression.filter, scalarOp}
+	return rhs
 }
 
 func (r *RootExpr) withHints(h *Hints) *RootExpr {

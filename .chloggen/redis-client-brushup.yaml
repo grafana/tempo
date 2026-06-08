@@ -1,0 +1,13 @@
+change_type: breaking
+component: cache
+note: "Experimental Redis cache has been completely rewritten with multiple breaking changes. Sentinel support has been dropped in favor of Redis Cluster (default, opt-out)"
+issues: [7337]
+subtext: |
+  * Upgrade Redis client to `github.com/redis/go-redis/v9` and make routing explicit. 
+  * Redis Cluster is now the default; opt into the single-node client with `single_node: true` (or `-redis.single-node`).
+  * Redis Cluster deployments require Redis 7+.
+  * Redis Sentinel support is removed: the `master_name`, `sentinel_username`, `sentinel_password` YAML keys and their `-redis.master-name`, `-redis.sentinel-username`, `-redis.sentinel-password` flags are gone. YAML keys `idle_timeout` and `max_connection_age` are renamed to `conn_max_idle_time` and `conn_max_lifetime`.
+  * The minimal `tls_enabled`/`tls_insecure_skip_verify` pair is replaced with the dskit-style TLS block (`tls_cert_path`, `tls_key_path`, `tls_ca_path`, `tls_server_name`, `tls_insecure_skip_verify`, `tls_cipher_suites`, `tls_min_version`); invalid TLS settings now fail closed instead of silently downgrading to cleartext.
+  * Adds Redis Cluster routing options (`route_by_latency`, `route_randomly`, `read_only`, `max_redirects`, `min_idle_conns`) and a configurable `max_item_size` cap. Cross-slot `MGet`/`Del` fan out across shards in parallel; `MSet` uses `Pipeline` instead of `TxPipeline` so cross-slot writes no longer fail with `CROSSSLOT`.
+  * `RedisCache.Store` is now recorded in `tempo_rediscache_request_duration_seconds`, matching the memcached client.
+user: oleg-kozlyuk-grafana

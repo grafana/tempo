@@ -1,0 +1,6 @@
+change_type: enhancement
+component: cache
+note: enforce a configurable MaxItemSize for Redis.
+issues: [7311]
+subtext:
+user: electron0zero

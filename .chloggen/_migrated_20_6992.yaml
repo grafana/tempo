@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: backend-scheduler
+note: fix O(N) lock contention in GetJobForWorker under concurrent worker load; replace shard scan with O(1) index lookup.
+issues: [6992]
+subtext:
+user: zalegrala

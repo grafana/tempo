@@ -32,7 +32,11 @@ jobs:
 
       - id: get-tag
         run: |
-          echo "tag=$(./tools/image-tag)" >> "$GITHUB_OUTPUT"
+          TAG="$(./tools/image-tag)"
+          if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then
+            TAG="$TAG-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
   docker:
     if: github.repository == 'grafana/tempo'
@@ -66,7 +70,7 @@ jobs:
           docker build --provenance false --platform "linux/${{ matrix.runner_arch.arch }}" -f "cmd/${{ matrix.component }}/Dockerfile" -t "$DOCKERHUB_MIRROR_REPOSITORY/${{ matrix.component }}:$TAG_ARCH" .
 
       - name: Login to GAR
-        uses: grafana/shared-workflows/actions/login-to-gar@c7ad5f57693ac858c698d95783685a9cbfd91223 # login-to-gar/v1.0.1
+        uses: grafana/shared-workflows/actions/login-to-gar@12c87e5aa323694c820c1ff3d8e47e8237e05136 # login-to-gar/v1.0.2
         with:
           registry: us-docker.pkg.dev
 
@@ -95,7 +99,7 @@ jobs:
           persist-credentials: false
 
       - name: Login to GAR
-        uses: grafana/shared-workflows/actions/login-to-gar@c7ad5f57693ac858c698d95783685a9cbfd91223 # login-to-gar/v1.0.1
+        uses: grafana/shared-workflows/actions/login-to-gar@12c87e5aa323694c820c1ff3d8e47e8237e05136 # login-to-gar/v1.0.2
         with:
           registry: us-docker.pkg.dev
 
@@ -106,12 +110,6 @@ jobs:
           	--amend "$IMAGE_NAME:$TAG-amd64"  \
           	--amend "$IMAGE_NAME:$TAG-arm64"
           docker manifest push "$IMAGE_NAME:$TAG"
-
-          docker manifest create \
-          	"$IMAGE_NAME:latest"            \
-          	--amend "$IMAGE_NAME:$TAG-amd64"   \
-          	--amend "$IMAGE_NAME:$TAG-arm64"
-          docker manifest push "$IMAGE_NAME:latest"
 
   cd-to-dev-env:
     # This job deploys the latest main commit to the dev environment

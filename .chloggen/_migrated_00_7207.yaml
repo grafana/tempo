@@ -1,0 +1,6 @@
+change_type: enhancement
+component: operations
+note: add `tempo-service-graph.json` dashboard visualizing the service topology from `traces_service_graph_connection_info`.
+issues: [7207]
+subtext:
+user: jcreixell

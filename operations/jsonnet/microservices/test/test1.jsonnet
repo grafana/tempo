@@ -11,6 +11,15 @@ local withBackendWorkerKeda(url, tenant='') = default {
   },
 };
 
+// Helper: metrics-generator KEDA enabled. With a query it uses a Prometheus trigger;
+// without one it falls back to the CPU trigger.
+local withMetricsGeneratorKeda(url='', query='') = default {
+  _config+:: {
+    autoscaling_prometheus_url: url,
+    metrics_generator+: { keda+: { enabled: true, query: query } },
+  },
+};
+
 // Helper: live-store KEDA only (no block-builder autoscaling).
 local withLiveStoreKeda(url, tenant='') = default {
   _config+:: {
@@ -298,5 +307,54 @@ test.new(std.thisFile)
   test.expect.eq(
     withBlockBuilderKedaKedaOnly('http://prometheus:9090').tempo_block_builder_scaled_object.spec.scaleTargetRef.name,
     'block-builder'
+  )
+)
++ test.case.new(
+  'metrics_generator KEDA defaults to a CPU trigger when query is empty',
+  test.expect.eq(
+    withMetricsGeneratorKeda().tempo_metrics_generator_scaled_object.spec.triggers[0].type,
+    'cpu'
+  )
+)
++ test.case.new(
+  'metrics_generator KEDA CPU trigger uses target_cpu from config',
+  test.expect.eq(
+    withMetricsGeneratorKeda().tempo_metrics_generator_scaled_object.spec.triggers[0].metadata.value,
+    '500m'
+  )
+)
++ test.case.new(
+  'metrics_generator KEDA uses a Prometheus trigger when query is set',
+  test.expect.eq(
+    withMetricsGeneratorKeda('http://prometheus:9090', 'max(some_metric)').tempo_metrics_generator_scaled_object.spec.triggers[0].type,
+    'prometheus'
+  )
+)
++ test.case.new(
+  'metrics_generator KEDA Prometheus trigger uses metricType Value',
+  test.expect.eq(
+    withMetricsGeneratorKeda('http://prometheus:9090', 'max(some_metric)').tempo_metrics_generator_scaled_object.spec.triggers[0].metricType,
+    'Value'
+  )
+)
++ test.case.new(
+  'metrics_generator KEDA Prometheus trigger uses threshold 1',
+  test.expect.eq(
+    withMetricsGeneratorKeda('http://prometheus:9090', 'max(some_metric)').tempo_metrics_generator_scaled_object.spec.triggers[0].metadata.threshold,
+    '1'
+  )
+)
++ test.case.new(
+  'metrics_generator KEDA Prometheus trigger uses autoscaling_prometheus_url',
+  test.expect.eq(
+    withMetricsGeneratorKeda('http://prometheus:9090', 'max(some_metric)').tempo_metrics_generator_scaled_object.spec.triggers[0].metadata.serverAddress,
+    'http://prometheus:9090'
+  )
+)
++ test.case.new(
+  'metrics_generator KEDA Prometheus trigger passes the configured query through',
+  test.expect.eq(
+    withMetricsGeneratorKeda('http://prometheus:9090', 'max(some_metric)').tempo_metrics_generator_scaled_object.spec.triggers[0].metadata.query,
+    'max(some_metric)'
   )
 )

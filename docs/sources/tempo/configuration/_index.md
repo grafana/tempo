@@ -887,6 +887,9 @@ metrics_generator:
 
         # A list of remote write endpoints.
         # https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write
+        # To send sensitive header values, such as authentication tokens, use http_headers
+        # with secrets instead of the headers map. Values in the headers map are stored and
+        # displayed in plaintext. Refer to the section that follows this configuration block.
         remote_write:
             [- <Prometheus remote write config>]
 
@@ -897,6 +900,53 @@ metrics_generator:
 
     # Overrides the key used to register the metrics-generator in the ring.
     [override_ring_key: <string> | default = "metrics-generator"]
+```
+
+### Use `http_headers` with `secrets` to send sensitive header values
+
+Header values that you set under `headers` in a `remote_write` endpoint are stored and displayed in plaintext.
+They appear in the configuration that the [`/status/config` endpoint](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#status) returns, which can expose secrets such as authentication tokens.
+
+To send sensitive header values, use `http_headers` with `secrets` instead of `headers`.
+Each header under `http_headers` supports three optional fields:
+
+```yaml
+# Custom HTTP headers to send with each remote write request.
+http_headers:
+    # Header name.
+    [<string>]:
+        # Plaintext header values. Stored and displayed in plaintext.
+        [values: <list of strings>]
+        # Header values that Tempo masks as <secret> in the displayed configuration.
+        [secrets: <list of secrets>]
+        # Files that Tempo reads header values from.
+        [files: <list of strings>]
+```
+
+Use `secrets` for sensitive values, such as authentication tokens.
+Tempo masks values that you configure under `secrets` as `<secret>` in the displayed configuration.
+Use `values` for non-sensitive values, and `files` to read a value from a file on disk.
+
+For example:
+
+```yaml
+metrics_generator:
+  storage:
+    remote_write:
+      - url: https://prometheus.example.com/api/v1/write
+        http_headers:
+          # Masked as <secret> in the displayed configuration.
+          X-Custom-Token:
+            secrets:
+              - <SECRET_VALUE>
+          # Stored and displayed in plaintext.
+          X-Custom-Header:
+            values:
+              - custom-value
+          # Read from a file on disk.
+          X-Token-From-File:
+            files:
+              - /etc/tempo/custom-token
 ```
 
 ## Query-frontend
@@ -948,6 +998,14 @@ query_frontend:
     # from imposing more work on Tempo than desired.
     # (default: 0)
     [api_timeout: <duration>]
+
+    # The maximum size in bytes of a response message returned over gRPC streaming calls.
+    # Diffs and final responses are segmented into packets of this size.
+    # This is separate from the process-wide gRPC server response size because downstream clients
+    # might need smaller streamed responses.
+    # Set to 0 to disable segmentation.
+    # (default: 2097152)
+    [max_grpc_streaming_packet_size: <int>]
 
     # Excludes the most recent portion of the time range from queries to avoid returning
     # incomplete results. Required when `live_store.fail_on_high_lag` is enabled.
@@ -2349,7 +2407,17 @@ overrides:
       # Per-user configuration of the metrics-generator processors. The following processors are
       # supported:
       #  - service-graphs
+      #  - service-graphs-request          only emits traces_service_graph_request_total and
+      #                                     traces_service_graph_request_failed_total
+      #  - service-graphs-latency          only emits the request_server_seconds,
+      #                                     request_client_seconds, and request_messaging_system_seconds
+      #                                     histograms
+      #  - service-graphs-connection-info  only emits traces_service_graph_connection_info;
+      #                                     opt-in, not enabled by the bare "service-graphs" name
       #  - span-metrics
+      #  - span-metrics-count              (only emits traces_spanmetrics_calls_total)
+      #  - span-metrics-latency            (only emits traces_spanmetrics_latency histogram)
+      #  - span-metrics-size               (only emits traces_spanmetrics_size_total)
       #  - host-info
       [processors: <list of strings>]
 
@@ -2880,13 +2948,9 @@ cache:
         # EXPERIMENTAL
         redis:
 
-            # Redis Server endpoint to use for caching. A comma-separated list of
-            # endpoints for Redis Cluster or Redis Sentinel.
+            # Redis Server endpoint to use for caching. A comma-separated list
+            # of endpoints for Redis Cluster. If empty, no redis will be used.
             [endpoint: <string>]
-
-            # Optional
-            # Redis Sentinel master name. (default "")
-            [master_name: <string>]
 
             # Optional
             # Maximum time to wait before giving up on redis requests. (default 500ms)
@@ -2913,28 +2977,79 @@ cache:
             [password: <string>]
 
             # Optional
-            # Username to use when connecting to redis sentinel. (default "")
-            [sentinel_username: <string>]
-
-            # Optional
-            # Password to use when connecting to redis sentinel. (default "")
-            [sentinel_password: <string>]
+            # Connect to a single Redis node instead of a Redis Cluster.
+            [single_node: <bool> | default = false]
 
             # Optional
             # Enable connecting to redis with TLS. (default false)
             [tls_enabled: <bool> | default = false]
 
             # Optional
+            # Path to the client certificate file.
+            [tls_cert_path: <string> | default = ""]
+
+            # Optional
+            # Path to the private client key file.
+            [tls_key_path: <string> | default = ""]
+
+            # Optional
+            # Path to the CA certificate file.
+            [tls_ca_path: <string> | default = ""]
+
+            # Optional
+            # Override the expected name on the server certificate.
+            [tls_server_name: <string> | default = ""]
+
+            # Optional
             # Skip validating server certificate. (default false)
             [tls_insecure_skip_verify: <bool> | default = false]
 
             # Optional
+            # Override the default cipher suite list, separated by commas.
+            [tls_cipher_suites: <string> | default = ""]
+
+            # Optional
+            # Override the default minimum TLS version. Allowed values: VersionTLS10,
+            # VersionTLS11, VersionTLS12, VersionTLS13.
+            [tls_min_version: <string> | default = ""]
+
+            # Optional
             # Close connections after remaining idle for this duration. (default 0s)
-            [idle_timeout: <duration> | default = 0s]
+            [conn_max_idle_time: <duration> | default = 0s]
 
             # Optional
             # Close connections older than this duration. (default 0s)
-            [max_connection_age: <duration> | default = 0s]
+            [conn_max_lifetime: <duration> | default = 0s]
+
+            # Cluster-only options. Ignored when `single_node` is true. In
+            # cluster mode the client transparently shards MGet/MSet/Del across
+            # nodes per key slot.
+
+            # Optional
+            # Route read-only commands to the node with the lowest measured latency.
+            [route_by_latency: <bool> | default = false]
+
+            # Optional
+            # Route read-only commands to a random node.
+            [route_randomly: <bool> | default = false]
+
+            # Optional
+            # Allow read-only commands on replica nodes. Reads may be stale.
+            [read_only: <bool> | default = false]
+
+            # Optional
+            # Maximum number of redirects to follow on MOVED/ASK responses.
+            [max_redirects: <int> | default = 3]
+
+            # Optional
+            # Minimum number of idle connections to maintain in the pool.
+            [min_idle_conns: <int> | default = 0]
+
+            # Optional
+            # The maximum size in bytes of an item stored in Redis.
+            # Items larger than this are not stored. A value of 0 disables the limit.
+            # (default: 0)
+            [max_item_size: <int>]
 
             # Optional
             # TTL for cached keys.
@@ -2960,4 +3075,4 @@ cache:
 
 ## Configure authentication
 
-Grafana Tempo does not come with any included authentication layer. You must run an authenticating reverse proxy in front of your services to prevent unauthorized access to Tempo (for example, nginx). [Manage authentication](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/authentication/) for more details
+Grafana Tempo doesn't come with any included authentication layer. You must run an authenticating reverse proxy in front of your services to prevent unauthorized access to Tempo (for example, nginx). Refer to [Manage authentication](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/authentication/) for more details.

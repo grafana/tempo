@@ -33,6 +33,25 @@ For configuration parameters and an example, refer to the [Cache](https://grafan
 
 For information about search performance, refer to [Tune search performance](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/backend_search/).
 
+## Monitor cache item sizes
+
+Tempo emits the `tempodb_cache_store_size_bytes` histogram for every item written to the tempodb backend cache.
+The metric is labeled by `role`, so you can compare item sizes for backend cache roles such as `bloom`, `trace-id-index`, `parquet-footer`, `parquet-column-idx`, `parquet-offset-idx`, and `parquet-page`.
+
+Use this metric when you tune Memcached slab classes or decide whether to split high-volume cache roles onto a dedicated cache.
+For example, chart the P95 cache item size by role:
+
+```promql
+histogram_quantile(
+  0.95,
+  sum by (role, le) (
+    rate(tempodb_cache_store_size_bytes_bucket[5m])
+  )
+)
+```
+
+If a role regularly writes larger items than the cache can store efficiently, move that role to a cache sized for larger objects or adjust the cache configuration before increasing query concurrency.
+
 ## Memcached
 
 Memcached is used by default in the Tanka and Helm examples.

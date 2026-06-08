@@ -32,11 +32,13 @@ See below for a list of all examples and the features they demonstrate
 
 ### Build images (optional)
 
-This step is not necessary, but it can be nice for local testing.  For any of the above examples rebuilding these
-images will cause docker compose to use your local code when running the examples.
-
-Run the following from the project root folder to build the `grafana/tempo:latest` image that is used in all the examples:
+This step is not necessary, but it can be nice for local testing. The examples default to the published Tempo 3.0.0 images.
+To use your local code when running the examples, build the local images from the project root folder and start Docker Compose from the example directory with `TEMPO_IMAGE_TAG=latest`:
 
 ```console
+# From the project root.
 make docker-images
+
+# From the example directory.
+TEMPO_IMAGE_TAG=latest docker compose up
 ```

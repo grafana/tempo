@@ -1,0 +1,6 @@
+change_type: enhancement
+component: querier
+note: limit external endpoint response size to querier grpc MaxSendMsgSize.
+issues: [7240]
+subtext:
+user: electron0zero
