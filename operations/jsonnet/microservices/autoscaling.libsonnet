@@ -375,15 +375,20 @@
       $.scaledObjectForController($.tempo_live_store_replica_template, 'live_store')
       + scaledObject.spec.withTriggersMixin(
         [
-          // metricType: Value → desiredReplicas = ceil(queryResult / threshold).
-          // The query returns total expected bytes across all pods, so we must use
-          // Value rather than the default AverageValue (which would multiply by
-          // currentReplicas and cause runaway scaling).
+          // metricType: AverageValue → desiredReplicas = ceil(queryResult / threshold), where the
+          // query returns total expected bytes across all pods and threshold is the per-replica
+          // target (bytes_per_replica). This yields total / per-replica = the desired replica count.
+          //
+          // Do NOT use metricType 'Value' here. KEDA serves the metric to the HPA as a
+          // milli-quantity; for a large byte-valued metric the 'Value' path mis-scales it (the HPA
+          // divides the milli-integer by the plain threshold) and the scaler runs away to
+          // maxReplicas regardless of actual load (observed in dev). 'AverageValue' computes the
+          // same intended replica count and is unit-safe.
           $.prometheusTrigger(
             query=query,
             metricName='tempo_live_store_expected_bytes',
             threshold='%d' % config.bytes_per_replica,
-          ) + { metricType: 'Value' },
+          ) + { metricType: 'AverageValue' },
         ] + config.additional_triggers
       )
     else {},
