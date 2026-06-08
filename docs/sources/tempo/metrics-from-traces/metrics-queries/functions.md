@@ -322,7 +322,7 @@ Scalars can be integers, floating-point numbers, or negative values. You can use
 100 + ({} | rate())
 ```
 
-Scalar operands let you shape a metric into the form you want to read or alert on, without post-processing the result in Grafana or another tool. Use them to:
+Scalar operands let you shape a metric into the form you want to read or alert on, without post-processing the result in Grafana or another tool. You can use them to:
 * Express a ratio as a percentage
 * Rescale a rate
 * Set alert and panel thresholds
@@ -346,7 +346,7 @@ Use scalar operands to set alert and panel thresholds in one place. Bake the con
 100 * ({status=error} | rate()) / ({} | rate()) > 5
 ```
 
-To convert units, divide or multiply by a constant to read a value in the unit you want, for example, bytes as megabytes.
+To convert units, divide or multiply by a constant to read a value in the unit you want, for example, bytes as mebibytes.
 
 ```traceql
 ({} | avg_over_time(span.http.response.body.size)) / (1024 * 1024)
