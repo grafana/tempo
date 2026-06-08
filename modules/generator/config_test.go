@@ -236,6 +236,101 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 		assert.True(t, copied.SpanMetrics.EnableTraceStateSpanMultiplier)
 	})
 
+	t.Run("enable_connection_info true enables ConnectionInfo subprocessor", func(t *testing.T) {
+		o := &mockOverrides{
+			serviceGraphsEnableConnectionInfo: boolPtr(true),
+		}
+
+		copied, err := original.copyWithOverrides(o, "tenant")
+		require.NoError(t, err)
+
+		assert.True(t, copied.ServiceGraphs.Subprocessors[servicegraphs.ConnectionInfo])
+	})
+
+	t.Run("enable_connection_info false disables ConnectionInfo subprocessor", func(t *testing.T) {
+		originalWithConnectionInfo := &ProcessorConfig{
+			ServiceGraphs: servicegraphs.Config{
+				Subprocessors: map[servicegraphs.Subprocessor]bool{
+					servicegraphs.ConnectionInfo: true,
+				},
+			},
+			SpanMetrics: spanmetrics.Config{
+				Subprocessors: map[spanmetrics.Subprocessor]bool{},
+			},
+		}
+
+		o := &mockOverrides{
+			serviceGraphsEnableConnectionInfo: boolPtr(false),
+		}
+
+		copied, err := originalWithConnectionInfo.copyWithOverrides(o, "tenant")
+		require.NoError(t, err)
+
+		assert.False(t, copied.ServiceGraphs.Subprocessors[servicegraphs.ConnectionInfo])
+	})
+
+	t.Run("enable_red_metrics false disables Request and Latency subprocessors", func(t *testing.T) {
+		originalWithRED := &ProcessorConfig{
+			ServiceGraphs: servicegraphs.Config{
+				Subprocessors: map[servicegraphs.Subprocessor]bool{
+					servicegraphs.Request: true,
+					servicegraphs.Latency: true,
+				},
+			},
+			SpanMetrics: spanmetrics.Config{
+				Subprocessors: map[spanmetrics.Subprocessor]bool{},
+			},
+		}
+
+		o := &mockOverrides{
+			serviceGraphsEnableRedMetrics: boolPtr(false),
+		}
+
+		copied, err := originalWithRED.copyWithOverrides(o, "tenant")
+		require.NoError(t, err)
+
+		assert.False(t, copied.ServiceGraphs.Subprocessors[servicegraphs.Request])
+		assert.False(t, copied.ServiceGraphs.Subprocessors[servicegraphs.Latency])
+	})
+
+	t.Run("enable_red_metrics true enables Request and Latency subprocessors", func(t *testing.T) {
+		o := &mockOverrides{
+			serviceGraphsEnableRedMetrics: boolPtr(true),
+		}
+
+		copied, err := original.copyWithOverrides(o, "tenant")
+		require.NoError(t, err)
+
+		assert.True(t, copied.ServiceGraphs.Subprocessors[servicegraphs.Request])
+		assert.True(t, copied.ServiceGraphs.Subprocessors[servicegraphs.Latency])
+	})
+
+	t.Run("subprocessor overrides do not mutate original config", func(t *testing.T) {
+		originalWithSubprocessors := &ProcessorConfig{
+			ServiceGraphs: servicegraphs.Config{
+				Subprocessors: map[servicegraphs.Subprocessor]bool{
+					servicegraphs.Request: true,
+					servicegraphs.Latency: true,
+				},
+			},
+			SpanMetrics: spanmetrics.Config{
+				Subprocessors: map[spanmetrics.Subprocessor]bool{},
+			},
+		}
+
+		o := &mockOverrides{
+			serviceGraphsEnableConnectionInfo: boolPtr(true),
+			serviceGraphsEnableRedMetrics:     boolPtr(false),
+		}
+
+		_, err := originalWithSubprocessors.copyWithOverrides(o, "tenant")
+		require.NoError(t, err)
+
+		assert.True(t, originalWithSubprocessors.ServiceGraphs.Subprocessors[servicegraphs.Request])
+		assert.True(t, originalWithSubprocessors.ServiceGraphs.Subprocessors[servicegraphs.Latency])
+		assert.False(t, originalWithSubprocessors.ServiceGraphs.Subprocessors[servicegraphs.ConnectionInfo])
+	})
+
 	t.Run("dimension_mappings preserved when no override", func(t *testing.T) {
 		// Create original config with dimension_mappings set
 		originalWithMappings := &ProcessorConfig{
