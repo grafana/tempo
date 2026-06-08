@@ -1,0 +1,29 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "add_plus_object.go",
+        "enforce_comment_style.go",
+        "enforce_max_blank_lines.go",
+        "enforce_string_style.go",
+        "fix_indentation.go",
+        "fix_newlines.go",
+        "fix_parens.go",
+        "fix_trailing_commas.go",
+        "jsonnetfmt.go",
+        "no_redundant_slice_colon.go",
+        "pretty_field_names.go",
+        "remove_plus_object.go",
+        "sort_imports.go",
+        "strip.go",
+        "unparser.go",
+    ],
+    importpath = "github.com/google/go-jsonnet/internal/formatter",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//ast:go_default_library",
+        "//internal/parser:go_default_library",
+        "//internal/pass:go_default_library",
+    ],
+)

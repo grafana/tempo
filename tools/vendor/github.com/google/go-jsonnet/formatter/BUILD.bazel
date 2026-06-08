@@ -1,0 +1,21 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["formatter.go"],
+    importpath = "github.com/google/go-jsonnet/formatter",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//ast:go_default_library",
+        "//internal/formatter:go_default_library",
+        "//internal/parser:go_default_library",
+    ],
+)
+
+go_test(
+    name = "go_default_test",
+    srcs = ["formatter_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":go_default_library"],
+    deps = ["//internal/testutils:go_default_library"],
+)
