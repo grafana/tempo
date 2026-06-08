@@ -322,6 +322,32 @@ Scalars can be integers, floating-point numbers, or negative values. You can use
 100 + ({} | rate())
 ```
 
+Scalar operands let you shape a metric into the form you want to read or alert on, without post-processing the result in Grafana or another tool. Use them to:
+
+Express a ratio as a percentage. Multiply an error-rate ratio by `100` to read it as a percentage instead of a fraction.
+
+```traceql
+100 * ({status=error} | count_over_time()) / ({} | count_over_time())
+```
+
+Rescale a rate. Because `rate()` returns matching spans per second, multiply by `60` to read it as a per-minute value.
+
+```traceql
+({} | rate()) * 60
+```
+
+Set alert and panel thresholds in one place. Bake the conversion into the query so the value matches the unit your threshold expects, instead of maintaining the math separately in each dashboard or alert rule.
+
+```traceql
+100 * ({status=error} | rate()) / ({} | rate()) > 5
+```
+
+Convert units. Divide or multiply by a constant to read a value in the unit you want, for example bytes as mebibytes.
+
+```traceql
+({} | avg_over_time(span.http.response.body.size)) / (1024 * 1024)
+```
+
 In scalar-only subexpressions, integer arithmetic keeps integer semantics, so `1 / 2` evaluates to `0`, while `1.0 / 2.0` evaluates to `0.5`.
 
 {{< admonition type="note" >}}
