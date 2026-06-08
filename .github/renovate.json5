@@ -83,6 +83,17 @@
       enabled: true,
     },
     {
+      description: 'Group all Go module patch updates into a single PR',
+      matchManagers: [
+        'gomod',
+      ],
+      matchUpdateTypes: [
+        'patch',
+        'digest',
+      ],
+      groupName: 'gomod patch updates',
+    },
+    {
       description: 'Group OpenTelemetry OTEL updates',
       matchManagers: [
         'gomod',
