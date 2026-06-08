@@ -93,8 +93,10 @@ func main() {
 
 // writeFile writes generated content to path, panicking on failure.
 func writeFile(path, content string) {
-	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		panic(err)
+	}
+}
 	}
 }
 
