@@ -23,7 +23,7 @@ spec:
       - args:
         - -config.file=/conf/tempo.yaml
         - -target=backend-worker
-        image: grafana/tempo:3.0.0
+        image: grafana/tempo:3.0.1
         imagePullPolicy: IfNotPresent
         name: backend-worker
         ports:

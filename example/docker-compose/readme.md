@@ -33,9 +33,9 @@ See below for a list of all examples and the features they demonstrate
 ### Build images (optional)
 
 This step is not necessary, but it can be nice for local testing. The examples use the released
-`grafana/tempo:3.0.0` image by default. To test local code, run the following from the project root
-folder and either update the compose files to use `grafana/tempo:latest` or tag the locally built image
-as `grafana/tempo:3.0.0`:
+`grafana/tempo:3.0.1` image by default. To test local code, run the following from the project root
+folder and either update the compose files to use `grafana/tempo:3.0.1` or tag the locally built image
+as `grafana/tempo:3.0.1`:
 
 ```console
 make docker-images
