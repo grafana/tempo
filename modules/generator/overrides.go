@@ -38,6 +38,8 @@ type metricsGeneratorOverrides interface {
 	MetricsGeneratorProcessorHostInfoMetricName(userID string) string
 	MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey(userID string) string
 	MetricsGeneratorProcessorServiceGraphsEnableTraceStateSpanMultiplier(userID string) (bool, bool)
+	MetricsGeneratorProcessorServiceGraphsEnableConnectionInfo(userID string) (bool, bool)
+	MetricsGeneratorProcessorServiceGraphsEnableRedMetrics(userID string) (bool, bool)
 	MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey(userID string) string
 	MetricsGeneratorProcessorSpanMetricsEnableTraceStateSpanMultiplier(userID string) (bool, bool)
 	DedicatedColumns(userID string) backend.DedicatedColumns

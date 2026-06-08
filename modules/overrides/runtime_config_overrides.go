@@ -659,6 +659,22 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEn
 	return false, false
 }
 
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableConnectionInfo(userID string) (bool, bool) {
+	enableConnectionInfo := o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.EnableConnectionInfo
+	if enableConnectionInfo != nil {
+		return *enableConnectionInfo, true
+	}
+	return false, false
+}
+
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableRedMetrics(userID string) (bool, bool) {
+	enableRedMetrics := o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.EnableRedMetrics
+	if enableRedMetrics != nil {
+		return *enableRedMetrics, true
+	}
+	return false, false
+}
+
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey(userID string) string {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.SpanMultiplierKey
 }

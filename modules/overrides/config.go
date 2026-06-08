@@ -97,6 +97,8 @@ type ServiceGraphsOverrides struct {
 	EnableVirtualNodeLabel                *bool                       `yaml:"enable_virtual_node_label,omitempty" json:"enable_virtual_node_label,omitempty"`
 	SpanMultiplierKey                     string                      `yaml:"span_multiplier_key,omitempty" json:"span_multiplier_key,omitempty"`
 	EnableTraceStateSpanMultiplier        *bool                       `yaml:"enable_tracestate_span_multiplier,omitempty" json:"enable_tracestate_span_multiplier,omitempty"`
+	EnableConnectionInfo                  *bool                       `yaml:"enable_connection_info,omitempty" json:"enable_connection_info,omitempty"`
+	EnableRedMetrics                      *bool                       `yaml:"enable_red_metrics,omitempty" json:"enable_red_metrics,omitempty"`
 }
 
 type SpanMetricsOverrides struct {

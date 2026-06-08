@@ -357,6 +357,20 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraph
 	return o.Interface.MetricsGeneratorProcessorServiceGraphsEnableTraceStateSpanMultiplier(userID)
 }
 
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableConnectionInfo(userID string) (bool, bool) {
+	if enableConnectionInfo, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetEnableConnectionInfo(); ok {
+		return enableConnectionInfo, true
+	}
+	return o.Interface.MetricsGeneratorProcessorServiceGraphsEnableConnectionInfo(userID)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableRedMetrics(userID string) (bool, bool) {
+	if enableRedMetrics, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetEnableRedMetrics(); ok {
+		return enableRedMetrics, true
+	}
+	return o.Interface.MetricsGeneratorProcessorServiceGraphsEnableRedMetrics(userID)
+}
+
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsDimensions(userID string) []string {
 	if dimensions, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetDimensions(); ok {
 		return dimensions

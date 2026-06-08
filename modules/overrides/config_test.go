@@ -423,6 +423,8 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel:                boolPtr(true),
 		MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey:                     "custom_key",
 		MetricsGeneratorProcessorServiceGraphsEnableTraceStateSpanMultiplier:        boolPtr(true),
+		MetricsGeneratorProcessorServiceGraphsEnableConnectionInfo:                  boolPtr(true),
+		MetricsGeneratorProcessorServiceGraphsEnableRedMetrics:                      boolPtr(false),
 		MetricsGeneratorProcessorSpanMetricsHistogramBuckets:                        []float64{1.0, 2.0, 5.0},
 		MetricsGeneratorProcessorSpanMetricsDimensions:                              []string{"dimension-1", "dimension-2"},
 		MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions:                     map[string]bool{"dim-1": true, "dim-2": false},

@@ -21,6 +21,8 @@ type mockOverrides struct {
 	serviceGraphsEnableClientServerPrefix              bool
 	serviceGraphsEnableMessagingSystemLatencyHistogram *bool
 	serviceGraphsEnableVirtualNodeLabel                *bool
+	serviceGraphsEnableConnectionInfo                  *bool
+	serviceGraphsEnableRedMetrics                      *bool
 	spanMetricsHistogramBuckets                        []float64
 	spanMetricsDimensions                              []string
 	spanMetricsIntrinsicDimensions                     map[string]bool
@@ -162,6 +164,22 @@ func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeL
 	serviceGraphsEnableVirtualNodeLabel := m.serviceGraphsEnableVirtualNodeLabel
 	if serviceGraphsEnableVirtualNodeLabel != nil {
 		return *serviceGraphsEnableVirtualNodeLabel, true
+	}
+	return false, false
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsEnableConnectionInfo(string) (bool, bool) {
+	serviceGraphsEnableConnectionInfo := m.serviceGraphsEnableConnectionInfo
+	if serviceGraphsEnableConnectionInfo != nil {
+		return *serviceGraphsEnableConnectionInfo, true
+	}
+	return false, false
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsEnableRedMetrics(string) (bool, bool) {
+	serviceGraphsEnableRedMetrics := m.serviceGraphsEnableRedMetrics
+	if serviceGraphsEnableRedMetrics != nil {
+		return *serviceGraphsEnableRedMetrics, true
 	}
 	return false, false
 }

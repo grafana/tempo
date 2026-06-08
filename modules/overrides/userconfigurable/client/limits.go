@@ -166,6 +166,8 @@ type LimitsMetricsGeneratorProcessorServiceGraphs struct {
 	HistogramBuckets                      *[]float64                   `yaml:"histogram_buckets,omitempty" json:"histogram_buckets,omitempty"`
 	SpanMultiplierKey                     *string                      `yaml:"span_multiplier_key,omitempty" json:"span_multiplier_key,omitempty"`
 	EnableTraceStateSpanMultiplier        *bool                        `yaml:"enable_tracestate_span_multiplier,omitempty" json:"enable_tracestate_span_multiplier,omitempty"`
+	EnableConnectionInfo                  *bool                        `yaml:"enable_connection_info,omitempty" json:"enable_connection_info,omitempty"`
+	EnableRedMetrics                      *bool                        `yaml:"enable_red_metrics,omitempty" json:"enable_red_metrics,omitempty"`
 }
 
 func (l *LimitsMetricsGeneratorProcessorServiceGraphs) GetDimensions() ([]string, bool) {
@@ -220,6 +222,20 @@ func (l *LimitsMetricsGeneratorProcessorServiceGraphs) GetSpanMultiplierKey() (s
 func (l *LimitsMetricsGeneratorProcessorServiceGraphs) GetEnableTraceStateSpanMultiplier() (bool, bool) {
 	if l != nil && l.EnableTraceStateSpanMultiplier != nil {
 		return *l.EnableTraceStateSpanMultiplier, true
+	}
+	return false, false
+}
+
+func (l *LimitsMetricsGeneratorProcessorServiceGraphs) GetEnableConnectionInfo() (bool, bool) {
+	if l != nil && l.EnableConnectionInfo != nil {
+		return *l.EnableConnectionInfo, true
+	}
+	return false, false
+}
+
+func (l *LimitsMetricsGeneratorProcessorServiceGraphs) GetEnableRedMetrics() (bool, bool) {
+	if l != nil && l.EnableRedMetrics != nil {
+		return *l.EnableRedMetrics, true
 	}
 	return false, false
 }

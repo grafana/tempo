@@ -51,6 +51,8 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel:                c.MetricsGenerator.Processor.ServiceGraphs.EnableVirtualNodeLabel,
 		MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey:                     c.MetricsGenerator.Processor.ServiceGraphs.SpanMultiplierKey,
 		MetricsGeneratorProcessorServiceGraphsEnableTraceStateSpanMultiplier:        c.MetricsGenerator.Processor.ServiceGraphs.EnableTraceStateSpanMultiplier,
+		MetricsGeneratorProcessorServiceGraphsEnableConnectionInfo:                  c.MetricsGenerator.Processor.ServiceGraphs.EnableConnectionInfo,
+		MetricsGeneratorProcessorServiceGraphsEnableRedMetrics:                      c.MetricsGenerator.Processor.ServiceGraphs.EnableRedMetrics,
 		MetricsGeneratorProcessorSpanMetricsHistogramBuckets:                        c.MetricsGenerator.Processor.SpanMetrics.HistogramBuckets,
 		MetricsGeneratorProcessorSpanMetricsDimensions:                              c.MetricsGenerator.Processor.SpanMetrics.Dimensions,
 		MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions:                     c.MetricsGenerator.Processor.SpanMetrics.IntrinsicDimensions,
@@ -139,6 +141,8 @@ type LegacyOverrides struct {
 	MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel                *bool                            `yaml:"metrics_generator_processor_service_graphs_enable_virtual_node_label" json:"metrics_generator_processor_service_graphs_enable_virtual_node_label"`
 	MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey                     string                           `yaml:"metrics_generator_processor_service_graphs_span_multiplier_key" json:"metrics_generator_processor_service_graphs_span_multiplier_key"`
 	MetricsGeneratorProcessorServiceGraphsEnableTraceStateSpanMultiplier        *bool                            `yaml:"metrics_generator_processor_service_graphs_enable_tracestate_span_multiplier" json:"metrics_generator_processor_service_graphs_enable_tracestate_span_multiplier"`
+	MetricsGeneratorProcessorServiceGraphsEnableConnectionInfo                  *bool                            `yaml:"metrics_generator_processor_service_graphs_enable_connection_info" json:"metrics_generator_processor_service_graphs_enable_connection_info"`
+	MetricsGeneratorProcessorServiceGraphsEnableRedMetrics                      *bool                            `yaml:"metrics_generator_processor_service_graphs_enable_red_metrics" json:"metrics_generator_processor_service_graphs_enable_red_metrics"`
 	MetricsGeneratorProcessorSpanMetricsHistogramBuckets                        []float64                        `yaml:"metrics_generator_processor_span_metrics_histogram_buckets" json:"metrics_generator_processor_span_metrics_histogram_buckets"`
 	MetricsGeneratorProcessorSpanMetricsDimensions                              []string                         `yaml:"metrics_generator_processor_span_metrics_dimensions" json:"metrics_generator_processor_span_metrics_dimensions"`
 	MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions                     map[string]bool                  `yaml:"metrics_generator_processor_span_metrics_intrinsic_dimensions" json:"metrics_generator_processor_span_metrics_intrinsic_dimensions"`
@@ -356,6 +360,8 @@ func (l *LegacyOverrides) toNewLimits() *Overrides {
 					EnableVirtualNodeLabel:                l.MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel,
 					SpanMultiplierKey:                     l.MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey,
 					EnableTraceStateSpanMultiplier:        l.MetricsGeneratorProcessorServiceGraphsEnableTraceStateSpanMultiplier,
+					EnableConnectionInfo:                  l.MetricsGeneratorProcessorServiceGraphsEnableConnectionInfo,
+					EnableRedMetrics:                      l.MetricsGeneratorProcessorServiceGraphsEnableRedMetrics,
 				},
 				SpanMetrics: SpanMetricsOverrides{
 					HistogramBuckets:               l.MetricsGeneratorProcessorSpanMetricsHistogramBuckets,
