@@ -1,0 +1,63 @@
+name: repair-image-manifest
+
+# Manually (re)assemble and push multi-arch image manifests from already-published
+# per-arch images.
+#
+# Use this when a release's `docker` workflow partially failed and left a
+# `:<version>` multi-arch tag missing while the per-arch `:<version>-amd64` /
+# `:<version>-arm64` images were published (e.g. a `manifest` matrix leg was
+# fail-fast-cancelled). It runs under the repo's GAR OIDC identity — the only
+# principal authorized to push to the mirror — and does not rebuild anything.
+#
+# Tags are immutable, so components whose `:<version>` manifest already exists are
+# skipped rather than failing the run.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Image tag to (re)assemble, e.g. 3.0.1'
+        required: true
+        type: string
+      components:
+        description: 'Space-separated components to repair'
+        required: false
+        default: 'tempo tempo-query tempo-cli tempo-vulture'
+        type: string
+
+# Needed to authenticate to GAR with OIDC.
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  REGISTRY: us-docker.pkg.dev/grafanalabs-global/dockerhub-tempo-prod-mirror
+
+jobs:
+  repair:
+    if: github.repository == 'grafana/tempo'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Login to GAR
+        uses: grafana/shared-workflows/actions/login-to-gar@12c87e5aa323694c820c1ff3d8e47e8237e05136 # login-to-gar/v1.0.2
+        with:
+          registry: us-docker.pkg.dev
+
+      - name: Assemble multi-arch manifests
+        env:
+          VERSION: ${{ inputs.version }}
+          COMPONENTS: ${{ inputs.components }}
+        run: |
+          set -euo pipefail
+          for c in $COMPONENTS; do
+            img="$REGISTRY/$c"
+            if docker buildx imagetools inspect "$img:$VERSION" >/dev/null 2>&1; then
+              echo "✓ $img:$VERSION already exists — skipping (tags are immutable)"
+              continue
+            fi
+            echo "→ creating $img:$VERSION from $img:$VERSION-amd64 + $img:$VERSION-arm64"
+            docker buildx imagetools create -t "$img:$VERSION" \
+              "$img:$VERSION-amd64" \
+              "$img:$VERSION-arm64"
+            echo "✓ pushed $img:$VERSION"
+          done
