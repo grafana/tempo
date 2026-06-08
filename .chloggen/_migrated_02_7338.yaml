@@ -1,6 +1,0 @@
-change_type: bug_fix
-component: metrics-generator
-note: Fix panic when `write_relabel_configs` is configured on remote write endpoints.
-issues: [7338]
-subtext:
-user: carles-grafana
