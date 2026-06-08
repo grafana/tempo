@@ -17,12 +17,7 @@ builds:
     goarch:
       - amd64
       - arm64
-      - arm
     ignore:
-      - goarch: arm
-        goos: darwin
-      - goarch: arm
-        goos: windows
       - goarch: arm64
         goos: windows
     flags:
@@ -47,12 +42,7 @@ builds:
     goarch:
       - amd64
       - arm64
-      - arm
     ignore:
-      - goarch: arm
-        goos: darwin
-      - goarch: arm
-        goos: windows
       - goarch: arm64
         goos: windows
     flags:
@@ -77,12 +67,7 @@ builds:
     goarch:
       - amd64
       - arm64
-      - arm
     ignore:
-      - goarch: arm
-        goos: darwin
-      - goarch: arm
-        goos: windows
       - goarch: arm64
         goos: windows
     flags:
