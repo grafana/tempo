@@ -43,7 +43,7 @@ The published docs live under `docs/sources/tempo/`. Major sections:
 | `operations/` | Manage Tempo | Auth, caching, backend search, schema, CLI, vulture, dedicated columns, ingestion, monitoring, advanced systems |
 | `reference-tempo-architecture/` | Tempo architecture reference | Architecture overview, deployment modes, object storage, block format, partition ring, components |
 | `api_docs/` | Tempo HTTP API | HTTP ingest endpoints, MCP server doc |
-| `release-notes/` | Release notes | v2-0 through v2-10, plus `version-1/` (v1-2 through v1-5) |
+| `release-notes/` | Release notes | Current version (v3-0) at top level; `version-2/` (v2-0 through v2-10) and `version-1/` (v1-2 through v1-5) in subdirectories |
 | `troubleshooting/` | Troubleshoot Tempo | Sending traces, querying issues |
 | `community/` | Community | Community content |
 

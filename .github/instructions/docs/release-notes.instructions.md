@@ -1,4 +1,7 @@
 ---
+# Current-version release notes (for example v3-0.md) live directly
+# under release-notes/. Older versions are nested in version-1/ and
+# version-2/ subdirectories and don't need this instruction.
 applyTo: "**/release-notes/*.md"
 ---
 
