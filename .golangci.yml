@@ -4,6 +4,8 @@ run:
   issues-exit-code: 1
   tests: true
 
+
+
 output:
   formats:
     text:
