@@ -275,11 +275,11 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 	}
 	copyCfg.ServiceGraphs.Subprocessors = copyServiceGraphSubprocessors
 
-	if enableConnectionInfo, ok  := o.MetricsGeneratorProcessorServiceGraphsEnableConnectionInfo(userID); ok {
+	if enableConnectionInfo, ok := o.MetricsGeneratorProcessorServiceGraphsEnableConnectionInfo(userID); ok {
 		copyCfg.ServiceGraphs.Subprocessors[servicegraphs.ConnectionInfo] = enableConnectionInfo
 	}
 
-	if enableRedMetrics, ok  := o.MetricsGeneratorProcessorServiceGraphsEnableRedMetrics(userID); ok {
+	if enableRedMetrics, ok := o.MetricsGeneratorProcessorServiceGraphsEnableRedMetrics(userID); ok {
 		copyCfg.ServiceGraphs.Subprocessors[servicegraphs.Request] = enableRedMetrics
 		copyCfg.ServiceGraphs.Subprocessors[servicegraphs.Latency] = enableRedMetrics
 	}
