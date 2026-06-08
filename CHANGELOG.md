@@ -1,5 +1,28 @@
 <!-- next version -->
 
+# v2.9.3
+
+## 🔒 Security 🔒
+
+- `deps`: Update github.com/apache/thrift to v0.23.0 to pick up upstream security fixes. ([#7119](https://github.com/grafana/tempo/issues/7119)) (@renovate)
+- `deps`: Update golang.org/x/crypto to v0.52.0 to pick up upstream security fixes. ([#7258](https://github.com/grafana/tempo/issues/7258), [#7343](https://github.com/grafana/tempo/issues/7343)) (@renovate)
+- `deps`: Update golang.org/x/net to v0.55.0 to pick up upstream security fixes. ([#7128](https://github.com/grafana/tempo/issues/7128), [#7259](https://github.com/grafana/tempo/issues/7259), [#7371](https://github.com/grafana/tempo/issues/7371)) (@renovate)
+- `deps`: Update golang.org/x/sys to v0.44.0 to pick up upstream security fixes. ([#7260](https://github.com/grafana/tempo/issues/7260)) (@renovate)
+- `deps`: Build Tempo with Go 1.26.3, which includes upstream security and bug fixes. ([#7421](https://github.com/grafana/tempo/issues/7421)) (@ie-pham)
+
+## 🛑 Breaking changes 🛑
+
+- `distributor`: Dropped support for the OpenCensus receiver. ([#7323](https://github.com/grafana/tempo/issues/7323)) (@zhxiaogg)
+
+## 🧰 Bug fixes 🧰
+
+- `metrics-generator`: Fix panic when `write_relabel_configs` is configured on remote write endpoints. ([#7338](https://github.com/grafana/tempo/issues/7338)) (@carles-grafana)
+
+## 🔧 Changes 🔧
+
+- `deps`: Updated Prometheus to v0.311.3 and the OpenTelemetry Collector dependencies to v1.52, along with related transitive dependencies (dskit and others). ([#7338](https://github.com/grafana/tempo/issues/7338)) (@zhxiaogg)
+- `tempo`: Remove busybox from Tempo image to make it more minimal and prevent future vulnerabilities. ([#5717](https://github.com/grafana/tempo/issues/5717)) (@carles-grafana)
+
 # v2.9.2
 
 * [BUGFIX] updated go version to 1.26.2 for CVE-2026-25679 fix [#6779](https://github.com/grafana/tempo/pull/6779) (@ie-pham)
