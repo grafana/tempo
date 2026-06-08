@@ -1,6 +1,0 @@
-change_type: breaking
-component: distributor
-note: Dropped support for the OpenCensus receiver.
-issues: [7322]
-subtext:
-user: zhxiaogg

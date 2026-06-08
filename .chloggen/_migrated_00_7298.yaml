@@ -1,6 +1,0 @@
-change_type: change
-component: deps
-note: Updated Prometheus to v0.311.3 and the OpenTelemetry Collector dependencies to v1.52, along with related transitive dependencies (dskit and others).
-issues: [7298]
-subtext:
-user: zhxiaogg
