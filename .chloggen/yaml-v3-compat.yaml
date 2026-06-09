@@ -2,3 +2,5 @@ change_type: bug_fix
 component: deps
 note: Fix YAML v3 dependency compatibility for strict config decoding.
 issues: []
+subtext:
+user: renovate-sh-app
