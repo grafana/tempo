@@ -48,6 +48,9 @@ const (
 	distributorRingKey = "distributor"
 
 	truncationLogsPerSecond = 1
+
+	// 16 covers the typical spans-per-trace seen in production.
+	maxPreallocSpansPerTrace = 16
 )
 
 var (
@@ -662,9 +665,19 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 // rebatched traces for downstream write-path processing. It truncates oversized attributes
 // and returns the first truncation example (if any) for diagnostic logging.
 func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, maxSpanAttrSize int) ([]uint32, []*rebatchedTrace, truncatedAttributesCount, *truncatedAttrInfo, error) {
-	const tracesPerBatch = 20 // p50 of internal env
+	const tracesPerBatch = 20 // map size hint and per-trace prealloc divisor
 	tracesByID := make(map[uint64]*rebatchedTrace, tracesPerBatch)
 	truncatedCount := truncatedAttributesCount{}
+
+	// Estimate spans per trace, but cap it: an uncapped spanCount/tracesPerBatch
+	// would preallocate too much memory for high-cardinality requests.
+	perTracePrealloc := spanCount / tracesPerBatch
+	if perTracePrealloc > maxPreallocSpansPerTrace {
+		perTracePrealloc = maxPreallocSpansPerTrace
+	}
+	if perTracePrealloc < 1 {
+		perTracePrealloc = 1
+	}
 
 	// truncationExample captures one example of a truncated attribute for rate-limited logging.
 	var truncationExample truncatedAttrInfo
@@ -720,7 +733,7 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 				if !ilsAdded {
 					existingILS = &v1.ScopeSpans{
 						Scope: ils.Scope,
-						Spans: make([]*v1.Span, 0, spanCount/tracesPerBatch),
+						Spans: make([]*v1.Span, 0, perTracePrealloc),
 					}
 					spansByILS[ilsKey] = existingILS
 				}
@@ -732,7 +745,7 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 					existingTrace = &rebatchedTrace{
 						id: traceID,
 						trace: &tempopb.Trace{
-							ResourceSpans: make([]*v1.ResourceSpans, 0, spanCount/tracesPerBatch),
+							ResourceSpans: make([]*v1.ResourceSpans, 0, perTracePrealloc),
 						},
 						start:     math.MaxUint32,
 						end:       0,
