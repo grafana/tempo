@@ -25,10 +25,10 @@ Automations run in a **cloud sandbox** with your instructions and configured **M
 
 ## 2. Prerequisites
 
-1. **Repository**: Connect **`tempo-doc-work`** (your fork) to Cursor / the automation’s target repo.
+1. **Repository**: Connect **your docs repository** (the clone where you maintain Tempo docs) to Cursor / the automation’s target repo. Substitute `YOUR_ORG/YOUR_REPO` from `docs/project-context.md`.
 2. **GitHub**: For Tempo PR data, the agent needs either:
    - **`gh` in the sandbox** with auth, or  
-   - **GitHub MCP** / REST with a token that can read **`grafana/tempo`** PRs (and write issues/PRs on your fork if you want it to open PRs).
+   - **GitHub MCP** / REST with a token that can read **`grafana/tempo`** PRs (and write issues/PRs on your docs repo if you want it to open PRs).
 3. **Optional**: **Ripgrep**-style search in-repo is only available if the automation environment exposes it; keyword search over `docs/sources/tempo` may use `grep`/`rg` per agent capabilities.
 
 ---
@@ -38,7 +38,7 @@ Automations run in a **cloud sandbox** with your instructions and configured **M
 | Goal | Trigger | Notes |
 |------|---------|--------|
 | Weekly Tempo triage | **Schedule** (e.g. Mon/Wed) | Same cadence as local `scripts/docs-pr-triage-local.sh` if you use it; output can mirror that script or run full `/docs-pr-check` on the PR list |
-| Docs PR opened/updated | **GitHub: PR to `tempo-doc-work`** | Filter path **`docs/**`** — run **`docs-review`** on the diff |
+| Docs PR opened/updated | **GitHub: PR to your docs repo** | Filter path **`docs/**`** — run **`docs-review`** on the diff |
 | After you paste PR numbers | **Manual / webhook** | Custom webhook or Slack → automation with PR list in payload |
 
 Start with **one scheduled “check-only”** automation and **one PR-triggered “review-only”** automation before chaining write steps.
@@ -61,7 +61,7 @@ Avoid a single automation that **writes production docs and merges** without rev
 
 Adapt the repo name and branches. Point the agent at these files **in the cloned repo**:
 
-| Skill | Path in `tempo-doc-work` |
+| Skill | Path in your repo |
 |-------|---------------------------|
 | Workflow | `.claude/skills/docs-workflow/SKILL.md` |
 | Check | `.claude/skills/docs-pr-check/SKILL.md` |
@@ -73,9 +73,10 @@ Adapt the repo name and branches. Point the agent at these files **in the cloned
 **Example system instructions**
 
 ```text
-You are a technical documentation agent for the tempo-doc-work repository (Tempo product docs).
+You are a technical documentation agent for this repository (Tempo product docs).
 
 Repository layout: shipped docs live under docs/sources/tempo/. Always read:
+- docs/project-context.md (repo-specific paths and conventions)
 - .claude/skills/shared/docs-context-guide.md
 - .claude/skills/docs-workflow/SKILL.md for the three-phase pipeline
 
@@ -90,7 +91,7 @@ When asked to review doc changes:
 
 Constraints:
 - Default Tempo repo for PRs: grafana/tempo.
-- Docs repo: this clone (tempo-doc-work). Open a draft PR for doc changes; do not merge without human approval.
+- Docs repo: this clone (YOUR_ORG/YOUR_REPO). Open a draft PR for doc changes; do not merge without human approval.
 - If gh or GitHub access is missing, state what token or MCP is needed and stop.
 ```
 
@@ -98,7 +99,7 @@ Constraints:
 
 ## 6. MCPs and integrations
 
-- **GitHub MCP** (if enabled in your workspace): use for PR files, comments, and opening draft PRs on **`knylander-grafana/tempo-doc-work`**.
+- **GitHub MCP** (if enabled in your workspace): use for PR files, comments, and opening draft PRs on **YOUR_ORG/YOUR_REPO**.
 - **Slack / Linear**: optional for notifications from Automation A.
 - **Memory tool** (if offered): use to store “last triage PR set” or style preferences — optional.
 
@@ -106,7 +107,7 @@ Constraints:
 
 ## 7. Operational checklist
 
-- [ ] Connect **`tempo-doc-work`** as the automation repository.
+- [ ] Connect **your docs repository** as the automation target.
 - [ ] Confirm **read access to `grafana/tempo`** PRs via `gh` or PAT.
 - [ ] Create **Automation A** (schedule) with the prompt in §5 scoped to **step 1 only**.
 - [ ] Create **Automation B** (PR trigger, `docs/**`) scoped to **step 3 only**.

@@ -76,7 +76,7 @@ Helm chart docs under `docs/sources/helm-charts/tempo-distributed/`:
 | `cmd/tempo/` | `docs/sources/tempo/configuration/` |
 | `operations/` (repo root) | `docs/sources/helm-charts/tempo-distributed/` (Helm/Jsonnet ops tooling) |
 
-`modules/ingester/` is legacy (replaced in 3.0 by live-store and block-builder); it has no current component doc page. Refer to the Gotchas section.
+The legacy ingester component (replaced in 3.0 by live-store and block-builder) has no `modules/ingester/` directory or component doc page. Refer to the Gotchas section.
 
 ## Code validation paths
 
@@ -95,7 +95,7 @@ Paths the agent should check when validating documentation claims against code.
 | Metrics-generator processors | `modules/generator/processor/spanmetrics/`, `modules/generator/processor/servicegraphs/` |
 | Valid processor names | `modules/generator/validation/fields.go` |
 | API endpoints | `pkg/api/http.go`, `cmd/tempo/`, `modules/frontend/` |
-| Distributor / ingester behavior | `modules/distributor/`, `modules/ingester/` |
+| Distributor / ingestion behavior | `modules/distributor/`, `modules/livestore/`, `modules/blockbuilder/` |
 | Storage / compaction | `tempodb/`, `modules/storage/` |
 | Block format versions & default | `tempodb/encoding/versioned.go` (`DefaultEncoding`, `LatestEncoding`, `AllEncodings`, `WritesSupported`); per-version code in `tempodb/encoding/vparquet{3,4,5}/` |
 
@@ -147,7 +147,7 @@ Paths the agent should check when validating documentation claims against code.
 
 Non-obvious facts that cause errors if you assume the obvious:
 
-1. **`modules/ingester/` is legacy.** The ingester is replaced in 3.0 by live-store and block-builder. The code directory still exists pending cleanup — do not reference or document it. Use `reference-tempo-architecture/` for current components.
+1. **The ingester is legacy.** The ingester is replaced in 3.0 by live-store and block-builder. The `modules/ingester/` directory was removed — do not reference or document it. Use `reference-tempo-architecture/` for current components.
 2. **API parameters keep old names.** Some query parameters (for example, `mode=ingesters`) retain 2.x names while routing to new components. Check the code (for example, `modules/frontend/` query handlers) for the current mapping — code is the source of truth.
 3. **Block format versions change between releases — verify against code, don't assume.** `tempodb/encoding/versioned.go` is the source of truth: which versions exist (`AllEncodings`), which are writeable (`WritesSupported`), and the default (`DefaultEncoding` / `LatestEncoding`). For the user-facing summary, refer to `docs/sources/tempo/configuration/parquet.md`.
 4. **Helm chart docs live in three places:**

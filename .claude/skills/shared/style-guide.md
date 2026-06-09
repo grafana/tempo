@@ -39,7 +39,7 @@ Structure:
 
 Where necessary, use the following custom Grafana shortcodes for Hugo:
 
-- If a product or feature is in public preview, use `{{< docs/public-preview product="<PRODUCT|FEATURE>" >}}`
+- If a product or feature is in public preview, use `{{< docs/public-preview product="<PRODUCT>" >}}`
 - Use admonitions sparingly: `{{< admonition type="note|caution|warning" >}}<CONTENT>{{< /admonition >}}`
 
 ## Templates

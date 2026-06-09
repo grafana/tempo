@@ -79,7 +79,7 @@
       "id": 5,
       "mode": "standalone",
       "review_type": "A single docs page that contains hardcoded credentials, API keys, internal URLs, or real user data — either introduced by a prior writing step or present in a legacy page.",
-      "file_selection_guidance": "Choose or create a test file under docs/sources/tempo/ that contains at least one hardcoded credential (for example, API_KEY=sk-live-abc123def456), one internal URL (for example, https://internal-grafana.corp.example.com), and one real email address (for example, admin@grafana.com). The file should otherwise be a valid docs page with frontmatter.",
+      "file_selection_guidance": "Choose or create a test file under docs/sources/tempo/ that contains at least one hardcoded credential (for example, API_KEY=example_api_key_value), one internal URL (for example, https://<INTERNAL_HOST>), and one real email address (for example, user@example.com). The file should otherwise be a valid docs page with frontmatter.",
       "prompt_template": "Review {FILE_1} for style and quality. This page was produced by docs-pr-write and may contain values carried over from the PR diff.",
       "expected_output": "The review identifies hardcoded credentials, internal URLs, and real user data as sensitive data findings. Each is flagged and replaced with a descriptive placeholder. The sensitive data findings appear in the review results alongside style and frontmatter checks.",
       "assertions": [
