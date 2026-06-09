@@ -2,9 +2,7 @@
 
 # v3.0.2
 
-## 🔒 Security 🔒
-
-- `deps`: Build Tempo with Go 1.26.3, which includes upstream security and bug fixes. ([#7423](https://github.com/grafana/tempo/issues/7423)) (@ie-pham)
+* [CHANGE] Upgrade Tempo to Go 1.26.3 [#7423](https://github.com/grafana/tempo/pull/7423) (@ie-pham)
 
 # v3.0.0
 
@@ -147,24 +145,16 @@
 
 # v2.10.6
 
-## 🔒 Security 🔒
-
-- `deps`: Update github.com/apache/thrift to v0.23.0 to pick up upstream security fixes. ([#7120](https://github.com/grafana/tempo/issues/7120)) (@renovate)
-- `deps`: Update golang.org/x/crypto to v0.52.0 to pick up upstream security fixes. ([#7262](https://github.com/grafana/tempo/issues/7262)) (@renovate)
-- `deps`: Update golang.org/x/net to v0.55.0 to pick up upstream security fixes. ([#7129](https://github.com/grafana/tempo/issues/7129), [#7263](https://github.com/grafana/tempo/issues/7263)) (@renovate)
-- `deps`: Build Tempo with Go 1.26.3, which includes upstream security and bug fixes. ([#7422](https://github.com/grafana/tempo/issues/7422)) (@ie-pham)
-
-## 🛑 Breaking changes 🛑
-
-- `distributor`: Dropped support for the OpenCensus receiver. ([#7322](https://github.com/grafana/tempo/issues/7322)) (@zhxiaogg)
-
-## 🔧 Changes 🔧
-
-- `deps`: Updated Prometheus to v0.311.3 and the OpenTelemetry Collector dependencies to v1.52, along with related transitive dependencies (dskit and others). ([#7298](https://github.com/grafana/tempo/issues/7298)) (@zhxiaogg)
+* [CHANGE] **BREAKING CHANGE** Remove Opencensus receiver [#7322](https://github.com/grafana/tempo/pull/7322) (@zhxiaogg)
+* [CHANGE] Upgrade Tempo to Go 1.26.3 [#7422](https://github.com/grafana/tempo/pull/7422) (@ie-pham)
+* [CHANGE] Update Prometheus to v0.311.3 and OpenTelemetry Collector dependencies to v1.52, along with related transitive dependencies (dskit and others) [#7298](https://github.com/grafana/tempo/pull/7298) (@zhxiaogg)
+* [SECURITY] Update github.com/apache/thrift to v0.23.0 to pick up upstream security fixes [#7120](https://github.com/grafana/tempo/pull/7120) (@renovate)
+* [SECURITY] Update golang.org/x/crypto to v0.52.0 to pick up upstream security fixes [#7262](https://github.com/grafana/tempo/pull/7262) (@renovate)
+* [SECURITY] Update golang.org/x/net to v0.55.0 to pick up upstream security fixes [#7129](https://github.com/grafana/tempo/pull/7129) [#7263](https://github.com/grafana/tempo/pull/7263) (@renovate)
 
 # v2.10.5
 
-* [ENHANCEMENT] Updated go dependency version to v1.26.2. [#7040](https://github.com/grafana/tempo/pull/7040) (@ie-pham)
+* [CHANGE] Upgrade Tempo to Go 1.26.2 [#7040](https://github.com/grafana/tempo/pull/7040) (@ie-pham)
 
 # v2.10.4
 
