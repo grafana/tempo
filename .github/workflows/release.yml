@@ -3,6 +3,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Release tag to build (e.g. v2.10.6)'
+        type: string
+        required: true
 
 # No default token permissions; the release job grants only what it needs.
 permissions: {}
@@ -17,6 +23,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
+          ref: ${{ inputs.tag || github.ref }}
           persist-credentials: false
 
       - name: fetch tags

@@ -1,0 +1,190 @@
+name: release-prep
+# Dispatch-triggered prep for any release, detected from the version string:
+#   - release candidate (X.Y.Z-rc.N): prepped on main, NO image-tag bump,
+#     published later as a pre-release.
+#   - minor / patch (X.Y.Z): prepped on release-vX.Y, WITH image-tag bump,
+#     published later as latest.
+# Opens a labeled release-prep PR against the appropriate base branch.
+# Merging that PR triggers release-tag.yml.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release, e.g. 2.10.7 or 3.1.0-rc.0 (no leading v)'
+        type: string
+        required: true
+      validate_only:
+        description: 'Run validation checks only; do not open a PR'
+        type: boolean
+        default: false
+
+permissions: {}
+
+jobs:
+  prep:
+    if: github.repository == 'grafana/tempo'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      VERSION: ${{ inputs.version }}
+    steps:
+      - name: Validate version and derive release parameters
+        id: vars
+        run: |
+          set -euo pipefail
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$'; then
+            echo "ERROR: version must be X.Y.Z or X.Y.Z-rc.N with no leading v, got: '$VERSION'"
+            exit 1
+          fi
+          base="${VERSION%%-*}"   # strip -rc.N  -> X.Y.Z
+          minor="${base%.*}"      # X.Y
+          patch="${base##*.}"     # Z
+          is_rc=false
+          case "$VERSION" in *-rc.*) is_rc=true ;; esac
+          # minor (.0, non-rc) may legitimately have 0 pending entries because the
+          # preceding RC already consumed them; its changelog section is produced by
+          # renaming the RC heading (a manual step) rather than by collation.
+          is_minor=false
+          if [ "$is_rc" = false ] && [ "$patch" = "0" ]; then is_minor=true; fi
+          if [ "$is_rc" = true ]; then
+            base_branch="main"
+            bump=false
+          else
+            base_branch="release-v${minor}"
+            bump=true
+          fi
+          {
+            echo "base_branch=${base_branch}"
+            echo "prep_branch=release-prep/v${VERSION}"
+            echo "tag=v${VERSION}"
+            echo "image_tag=${base}"
+            echo "is_minor=${is_minor}"
+            echo "bump=${bump}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Get GitHub App token
+        id: app-token
+        uses: grafana/shared-workflows/actions/create-github-app-token@259ba21cb3ff07724f331e26d926d655d24b317b # create-github-app-token/v0.2.3
+        with:
+          github_app: tempo-ci-app
+
+      - name: Checkout base branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ steps.vars.outputs.base_branch }}
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: fetch tags
+        run: git fetch --tags --force
+
+      - name: Validate tag does not already exist
+        env:
+          TAG: ${{ steps.vars.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "ERROR: tag ${TAG} already exists"
+            exit 1
+          fi
+
+      - name: Setup Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Validate pending changelog entries
+        env:
+          BASE_BRANCH: ${{ steps.vars.outputs.base_branch }}
+          IS_MINOR: ${{ steps.vars.outputs.is_minor }}
+        run: |
+          set -euo pipefail
+          pending=$(find .chloggen -maxdepth 1 -type f \( -name '*.yaml' -o -name '*.yml' \) \
+            ! -name 'config.yaml' ! -name 'TEMPLATE.yaml' | wc -l | tr -d ' ')
+          echo "Found ${pending} pending changelog entr(y/ies)."
+          if [ "$pending" -lt 1 ] && [ "$IS_MINOR" != "true" ]; then
+            echo "ERROR: no pending .chloggen entries; nothing to release."
+            exit 1
+          fi
+          last_tag=$(git describe --tags --abbrev=0)
+          echo "Commits on ${BASE_BRANCH} since ${last_tag}:"
+          git log --oneline "${last_tag}..HEAD" | tee /tmp/commits.txt
+          make chlog-validate
+
+      - name: Generate changelog, bump image tag, regenerate jsonnet
+        if: ${{ ! inputs.validate_only }}
+        env:
+          TAG: ${{ steps.vars.outputs.tag }}
+          IMAGE_TAG: ${{ steps.vars.outputs.image_tag }}
+          BUMP: ${{ steps.vars.outputs.bump }}
+        run: |
+          set -euo pipefail
+          pending=$(find .chloggen -maxdepth 1 -type f \( -name '*.yaml' -o -name '*.yml' \) \
+            ! -name 'config.yaml' ! -name 'TEMPLATE.yaml' | wc -l | tr -d ' ')
+          if [ "$pending" -ge 1 ]; then
+            make chlog-update VERSION="${TAG}"
+          else
+            echo "No pending entries; skipping chlog-update (changelog section expected to be prepared manually, e.g. RC heading renamed)."
+          fi
+          if [ "$BUMP" = true ]; then
+            make bump-tempo-image-tag TEMPO_IMAGE_TAG="${IMAGE_TAG}"
+            make jsonnet
+          fi
+
+      - name: Verify changelog section exists
+        if: ${{ ! inputs.validate_only }}
+        env:
+          TAG: ${{ steps.vars.outputs.tag }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          if ! grep -qxF "# v${version}" CHANGELOG.md; then
+            echo "ERROR: CHANGELOG.md has no '# v${version}' section."
+            echo "For a minor release, rename the '# v${version}-rc.N' heading(s) to '# v${version}' on the release branch first, then re-run."
+            exit 1
+          fi
+
+      - name: Open release prep PR
+        if: ${{ ! inputs.validate_only }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          TAG: ${{ steps.vars.outputs.tag }}
+          PREP_BRANCH: ${{ steps.vars.outputs.prep_branch }}
+          BASE_BRANCH: ${{ steps.vars.outputs.base_branch }}
+          IMAGE_TAG: ${{ steps.vars.outputs.image_tag }}
+          BUMP: ${{ steps.vars.outputs.bump }}
+        run: |
+          set -euo pipefail
+          git config user.name "tempo-ci-app[bot]"
+          git config user.email "209701675+tempo-ci-app[bot]@users.noreply.github.com"
+          git checkout -b "$PREP_BRANCH"
+          git add -A
+          git commit -m "chore: prepare release ${TAG}"
+          git push --force-with-lease origin "$PREP_BRANCH"
+          {
+            echo "Automated release prep for **${TAG}** (base: \`${BASE_BRANCH}\`)."
+            echo
+            echo "- Changelog collated via \`make chlog-update VERSION=${TAG}\` (skipped if no pending entries)"
+            if [ "$BUMP" = true ]; then
+              echo "- Image tag bumped via \`make bump-tempo-image-tag TEMPO_IMAGE_TAG=${IMAGE_TAG}\` + \`make jsonnet\`"
+            else
+              echo "- Image tag bump skipped (release candidate)"
+            fi
+            echo
+            echo "Merging this PR triggers \`release-tag\`, which tags ${TAG}, builds binaries +"
+            echo "images, and publishes the GitHub Release ($([ "$BUMP" = true ] && echo 'latest' || echo 'pre-release'))."
+            echo
+            echo "Commits since the last tag (verify each has a changelog entry):"
+            echo '```'
+            cat /tmp/commits.txt
+            echo '```'
+          } > /tmp/pr-body.md
+          gh pr create \
+            --base "$BASE_BRANCH" \
+            --head "$PREP_BRANCH" \
+            --title "chore: prepare release ${TAG}" \
+            --body-file /tmp/pr-body.md \
+            --label "release-prep"
