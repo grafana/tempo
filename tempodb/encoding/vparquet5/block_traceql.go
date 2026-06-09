@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
+	"github.com/grafana/tempo/pkg/sampling"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
@@ -56,6 +57,7 @@ type span struct {
 	id                 []byte
 	startTimeUnixNanos uint64
 	durationNanos      uint64
+	spanMultiplier     float64 // sampling extrapolation (1.0 default); populated from TraceState column when requested
 	nestedSetParent    int32
 	nestedSetLeft      int32
 	nestedSetRight     int32
@@ -229,6 +231,9 @@ func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 		}
 		if a.Intrinsic == traceql.IntrinsicNestedSetParent {
 			return traceql.NewStaticInt(int(s.nestedSetParent)), true
+		}
+		if a.Intrinsic == traceql.IntrinsicSpanMultiplier {
+			return traceql.NewStaticFloat(s.spanMultiplier), true
 		}
 
 		// intrinsics are always on the span, trace, event, or link ... for now
@@ -917,6 +922,7 @@ func putSpan(s *span) {
 	s.id = nil
 	s.startTimeUnixNanos = 0
 	s.durationNanos = 0
+	s.spanMultiplier = 0
 	s.rowNum = parquetquery.EmptyRowNumber()
 	s.cbSpansetFinal = false
 	s.cbSpanset = nil
@@ -1002,6 +1008,7 @@ const (
 	columnPathInstrumentationAttrDouble = "rs.ss.Scope.Attrs.ValueDouble"
 	columnPathInstrumentationAttrBool   = "rs.ss.Scope.Attrs.ValueBool"
 
+	columnPathSpanTraceState       = "rs.ss.Spans.TraceState"
 	columnPathSpanID               = "rs.ss.Spans.SpanID"
 	ColumnPathSpanName             = "rs.ss.Spans.Name"
 	columnPathSpanStartTime        = "rs.ss.Spans.StartTimeUnixNano"
@@ -1073,6 +1080,7 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	traceql.IntrinsicNestedSetRight:       {intrinsicScopeSpan, traceql.TypeInt, columnPathSpanNestedSetRight},
 	traceql.IntrinsicNestedSetParent:      {intrinsicScopeSpan, traceql.TypeInt, columnPathSpanParentID},
 	traceql.IntrinsicChildCount:           {intrinsicScopeSpan, traceql.TypeInt, columnPathSpanChildCount},
+	traceql.IntrinsicSpanMultiplier:       {intrinsicScopeSpan, traceql.TypeFloat, columnPathSpanTraceState},
 
 	traceql.IntrinsicTraceRootService: {intrinsicScopeTrace, traceql.TypeString, columnPathRootServiceName},
 	traceql.IntrinsicTraceRootSpan:    {intrinsicScopeTrace, traceql.TypeString, columnPathRootSpanName},
@@ -2213,6 +2221,14 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 			addPredicate(columnPathSpanChildCount, pred)
 			columnSelectAs[columnPathSpanChildCount] = columnPathSpanChildCount
 			continue
+		case traceql.IntrinsicSpanMultiplier:
+			// IntrinsicSpanMultiplier is a synthetic float intrinsic derived from
+			// the W3C tracestate (ot=th:...). Storage just surfaces the raw
+			// TraceState column; the iterator callback parses it into a float.
+			// Only OpNone (projection) is supported.
+			addPredicate(columnPathSpanTraceState, nil)
+			columnSelectAs[columnPathSpanTraceState] = columnPathSpanTraceState
+			continue
 		}
 
 		// Attributes stored in dedicated columns
@@ -2271,7 +2287,8 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 				traceql.IntrinsicStructuralSibling,
 				traceql.IntrinsicNestedSetLeft,
 				traceql.IntrinsicNestedSetRight,
-				traceql.IntrinsicNestedSetParent:
+				traceql.IntrinsicNestedSetParent,
+				traceql.IntrinsicSpanMultiplier: // synthetic; explicitly requested by metrics queries
 				continue
 			}
 			addPredicate(entry.columnPath, nil)
@@ -3304,6 +3321,14 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			}
 		case columnPathSpanChildCount:
 			sp.addSpanAttr(traceql.IntrinsicChildCountAttribute, traceql.NewStaticInt(int(kv.Value.Int32())))
+		case columnPathSpanTraceState:
+			// Parse OTel probability sampling threshold once per span. Falls
+			// back to 1.0 when the tracestate is absent or unparseable.
+			m := sampling.MultiplierFromTraceState(unsafeToString(kv.Value.Bytes()))
+			if m <= 0 {
+				m = 1.0
+			}
+			sp.spanMultiplier = m
 		default:
 			// TODO - This exists for span-level dedicated columns like http.status_code
 			// Are nils possible here?
