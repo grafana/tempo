@@ -1,5 +1,11 @@
 <!-- next version -->
 
+# v3.0.2
+
+## 🔒 Security 🔒
+
+- `deps`: Build Tempo with Go 1.26.3, which includes upstream security and bug fixes. ([#7423](https://github.com/grafana/tempo/issues/7423)) (@ie-pham)
+
 # v3.0.0
 
 * [CHANGE] **BREAKING CHANGE** Recent data queries guarantee complete results by failing when an instance is lagging. Defaults `query_frontend.query_end_cutoff` to `30s` and `live_store.fail_on_high_lag` to `true`. [#7210](https://github.com/grafana/tempo/pull/7210) (@mapno)
@@ -138,6 +144,27 @@
 * [CHANGE] **BREAKING CHANGE** Sets the `all` target to be 3.0 compatible and removes the `scalable-single-binary` target [#6283](https://github.com/grafana/tempo/pull/6283) (@joe-elliott)
 * [CHANGE] **BREAKING CHANGE** Clean up enterprise jsonnet [#6505](https://github.com/grafana/tempo/pull/6505) (@javiermolinar)
 * [CHANGE] Expose otlp http and grpc ports for Docker examples [#6296](https://github.com/grafana/tempo/pull/6296) (@javiermolinar)
+
+# v2.10.6
+
+## 🔒 Security 🔒
+
+- `deps`: Update github.com/apache/thrift to v0.23.0 to pick up upstream security fixes. ([#7120](https://github.com/grafana/tempo/issues/7120)) (@renovate)
+- `deps`: Update golang.org/x/crypto to v0.52.0 to pick up upstream security fixes. ([#7262](https://github.com/grafana/tempo/issues/7262)) (@renovate)
+- `deps`: Update golang.org/x/net to v0.55.0 to pick up upstream security fixes. ([#7129](https://github.com/grafana/tempo/issues/7129), [#7263](https://github.com/grafana/tempo/issues/7263)) (@renovate)
+- `deps`: Build Tempo with Go 1.26.3, which includes upstream security and bug fixes. ([#7422](https://github.com/grafana/tempo/issues/7422)) (@ie-pham)
+
+## 🛑 Breaking changes 🛑
+
+- `distributor`: Dropped support for the OpenCensus receiver. ([#7322](https://github.com/grafana/tempo/issues/7322)) (@zhxiaogg)
+
+## 🔧 Changes 🔧
+
+- `deps`: Updated Prometheus to v0.311.3 and the OpenTelemetry Collector dependencies to v1.52, along with related transitive dependencies (dskit and others). ([#7298](https://github.com/grafana/tempo/issues/7298)) (@zhxiaogg)
+
+# v2.10.5
+
+* [ENHANCEMENT] Updated go dependency version to v1.26.2. [#7040](https://github.com/grafana/tempo/pull/7040) (@ie-pham)
 
 # v2.10.4
 
