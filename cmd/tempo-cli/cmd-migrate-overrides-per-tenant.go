@@ -53,7 +53,7 @@ func (cmd *migrateOverridesPerTenantCmd) Run(*globalOptions) error {
 		"overrides": result,
 	}
 
-	outputBytes, err := yaml.Marshal(output)
+	outputBytes, err := marshalYAML(output)
 	if err != nil {
 		return fmt.Errorf("failed to marshal per-tenant overrides: %w", err)
 	}

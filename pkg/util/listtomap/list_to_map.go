@@ -2,6 +2,7 @@ package listtomap
 
 import (
 	"encoding/json"
+	"slices"
 
 	"go.yaml.in/yaml/v3"
 )
@@ -21,6 +22,7 @@ func (l ListToMap) MarshalYAML() (interface{}, error) {
 	for k := range l {
 		list = append(list, k)
 	}
+	slices.Sort(list)
 
 	if len(list) == 0 {
 		return nil, nil
@@ -49,6 +51,7 @@ func (l ListToMap) MarshalJSON() ([]byte, error) {
 	for k := range l {
 		list = append(list, k)
 	}
+	slices.Sort(list)
 
 	return json.Marshal(&list)
 }
