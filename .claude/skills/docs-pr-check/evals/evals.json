@@ -4,6 +4,13 @@
     "standalone: invoked directly on one or more PRs outside the release notes workflow",
     "workflow: runs as Phase 1.5 of the release notes workflow, receiving a curated PR list from Phase 1 and producing a handoff for Phase 1.75 (docs-pr-write)"
   ],
+  "classification_categories": [
+    "Docs present",
+    "Docs needed",
+    "Docs update needed",
+    "No docs required"
+  ],
+  "classification_note": "Evals assert the same four categories defined in SKILL.md Step 3 (Assign a category). Step 1 heuristics (needs docs vs no docs required) determine which category applies.",
   "pr_selection": {
     "note": "Before running evals, select PRs using the commands in each test case's pr_selection_command field. See .claude/skills/evals/README.md for the full pre-flight process."
   },

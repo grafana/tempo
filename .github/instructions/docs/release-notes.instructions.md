@@ -1,8 +1,7 @@
 ---
-# Current-version release notes (for example v3-0.md) live directly
-# under release-notes/. Older versions are nested in version-1/ and
-# version-2/ subdirectories and don't need this instruction.
-applyTo: "**/release-notes/*.md"
+# Applies to all Tempo release notes pages, including nested version-1/
+# and version-2/ directories (for example v3-0.md and version-2/v2-10.md).
+applyTo: "**/release-notes/**/*.md"
 ---
 
 # Tempo release notes workflow

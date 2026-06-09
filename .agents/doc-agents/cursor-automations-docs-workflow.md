@@ -14,12 +14,11 @@ This guide wires **Cursor Automations** (cloud agents) to the same pipeline your
 
 | Piece | Local skill | In Automations |
 |-------|-------------|----------------|
-| Triage merged Tempo PRs (heuristic) | `scripts/docs-pr-triage-local.sh` | Optional: keep as **cron** on your machine, or duplicate intent with a **scheduled** automation + `gh` / GitHub API |
-| Deep gap analysis | `/docs-pr-check` | **Yes** — give the agent the same steps (PR list → `gh pr view` → classify → search `docs/sources/tempo`) |
-| Writing docs | `/docs-pr-write` | **Yes**, but prefer **human confirmation** before opening a PR (see §4) |
+| Triage merged Tempo PRs | `/docs-pr-check` | **Yes** — schedule an automation that runs the check skill (PR list → `gh pr view` → classify → search `docs/sources/tempo`) |
+| Writing docs | `/docs-pr-write` | **Yes**, but prefer **human confirmation** before opening a PR (see [Safety: split the pipeline across automations](#4-safety-split-the-pipeline-across-automations)) |
 | Quality pass | `/docs-review` | **Yes** — ideal for **PRs that only change `docs/**`** |
 
-Automations run in a **cloud sandbox** with your instructions and configured **MCPs**. They do not read your local Cursor “skills” UI automatically — paste the **workflow + file paths** into the automation prompt (§5), or keep skill bodies short and link to this repo.
+Automations run in a **cloud sandbox** with your instructions and configured **MCPs**. They do not read your local Cursor “skills” UI automatically — paste the **workflow + file paths** into the automation prompt ([Prompt skeleton](#5-prompt-skeleton-paste-into-the-automation-instructions)), or keep skill bodies short and link to this repo.
 
 ---
 
@@ -27,7 +26,7 @@ Automations run in a **cloud sandbox** with your instructions and configured **M
 
 1. **Repository**: Connect **your docs repository** (the clone where you maintain Tempo docs) to Cursor / the automation’s target repo. Substitute `YOUR_ORG/YOUR_REPO` from `docs/project-context.md`.
 2. **GitHub**: For Tempo PR data, the agent needs either:
-   - **`gh` in the sandbox** with auth, or  
+   - **`gh` in the sandbox** with auth, or
    - **GitHub MCP** / REST with a token that can read **`grafana/tempo`** PRs (and write issues/PRs on your docs repo if you want it to open PRs).
 3. **Optional**: **Ripgrep**-style search in-repo is only available if the automation environment exposes it; keyword search over `docs/sources/tempo` may use `grep`/`rg` per agent capabilities.
 
@@ -37,7 +36,7 @@ Automations run in a **cloud sandbox** with your instructions and configured **M
 
 | Goal | Trigger | Notes |
 |------|---------|--------|
-| Weekly Tempo triage | **Schedule** (e.g. Mon/Wed) | Same cadence as local `scripts/docs-pr-triage-local.sh` if you use it; output can mirror that script or run full `/docs-pr-check` on the PR list |
+| Weekly Tempo triage | **Schedule** (e.g. Mon/Wed) | Run `/docs-pr-check` on recently merged PRs; output is a classification table plus gap summary |
 | Docs PR opened/updated | **GitHub: PR to your docs repo** | Filter path **`docs/**`** — run **`docs-review`** on the diff |
 | After you paste PR numbers | **Manual / webhook** | Custom webhook or Slack → automation with PR list in payload |
 
@@ -109,15 +108,9 @@ Constraints:
 
 - [ ] Connect **your docs repository** as the automation target.
 - [ ] Confirm **read access to `grafana/tempo`** PRs via `gh` or PAT.
-- [ ] Create **Automation A** (schedule) with the prompt in §5 scoped to **step 1 only**.
-- [ ] Create **Automation B** (PR trigger, `docs/**`) scoped to **step 3 only**.
+- [ ] Create **Automation A** (schedule) using the [Prompt skeleton](#5-prompt-skeleton-paste-into-the-automation-instructions), scoped to **check only** (docs-pr-check).
+- [ ] Create **Automation B** (PR trigger, `docs/**`) using the same prompt skeleton, scoped to **review only** (docs-review).
 - [ ] Add **Automation C** only after A/B are stable; require **draft PR** + human merge.
 - [ ] Re-read Cursor’s Automations UI for **model selection**, **allowed commands**, and **secrets** naming — set least privilege on tokens.
-
----
-
-## 8. Related local tooling
-
-- Heuristic merged-PR triage (cron): `scripts/docs-pr-triage-local.sh` + `scripts/docs-pr-classify.jq` — see `scripts/README.md`.
 
 This document is descriptive only; Cursor’s product UI is the source of truth for triggers, limits, and pricing.

@@ -12,7 +12,7 @@ For a list of PRs, determine whether each has adequate documentation, classify g
 
 ## Before you begin
 
-1. Load local context per [`../shared/load-context.md`](../shared/load-context.md).
+1. Load local context per [`../shared/load-context.md`](../shared/load-context.md). Substitute **`YOUR_ORG/YOUR_REPO`** in commands below with the **GitHub org/repo** from local context (for Grafana Tempo in this repository, that is **`grafana/tempo`**).
 2. Get PR numbers to check. The user may provide them directly, reference a curated release list or CHANGELOG, or ask for recently merged PRs by time range. If the user gives a time range (for example, "last week," "since Monday"), query for merged PRs:
 
 ```bash
@@ -60,6 +60,8 @@ For PRs that need docs:
 3. **Completeness:** If yes, do those pages cover the PR's user-facing delta — behavior, config, examples, and concept/task/reference as your site expects for that scope?
 
 ### 3. Assign a category
+
+Use exactly these four categories — they are the same labels used in evals (`docs-pr-check/evals/evals.json`) and in the handoff to `docs-pr-write`:
 
 | Category | Meaning |
 |----------|---------|
