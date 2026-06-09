@@ -1,7 +1,7 @@
 services:
   # tempo, backend and kafka
   distributor:
-    image: &tempoImage grafana/tempo:3.0.1
+    image: &tempoImage grafana/tempo:3.0.2
     depends_on:
       - redpanda
     command: "-target=distributor -config.file=/etc/tempo.yaml"

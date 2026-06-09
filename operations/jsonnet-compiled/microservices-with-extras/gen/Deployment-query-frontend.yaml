@@ -27,7 +27,7 @@ spec:
       - args:
         - -config.file=/conf/tempo.yaml
         - -target=query-frontend
-        image: grafana/tempo:3.0.1
+        image: grafana/tempo:3.0.2
         imagePullPolicy: IfNotPresent
         name: query-frontend
         ports:
