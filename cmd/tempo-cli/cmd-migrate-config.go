@@ -395,6 +395,7 @@ func outputMigratedConfig(m map[string]interface{}) error {
 	var yamlBuff bytes.Buffer
 	encoder := yaml.NewEncoder(&yamlBuff)
 	encoder.SetIndent(2)
+	encoder.CompactSeqIndent()
 	if err := encoder.Encode(m); err != nil {
 		return fmt.Errorf("failed to marshal migrated config: %w", err)
 	}
