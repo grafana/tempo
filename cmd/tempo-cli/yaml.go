@@ -10,6 +10,7 @@ func marshalYAML(v interface{}) ([]byte, error) {
 	var buf bytes.Buffer
 	encoder := yaml.NewEncoder(&buf)
 	encoder.SetIndent(2)
+	encoder.CompactSeqIndent()
 	if err := encoder.Encode(v); err != nil {
 		return nil, err
 	}
