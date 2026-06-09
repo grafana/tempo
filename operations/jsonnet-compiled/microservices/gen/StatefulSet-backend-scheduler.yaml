@@ -23,7 +23,7 @@ spec:
       - args:
         - -config.file=/conf/tempo.yaml
         - -target=backend-scheduler
-        image: grafana/tempo:3.0.1
+        image: grafana/tempo:3.0.2
         imagePullPolicy: IfNotPresent
         name: backend-scheduler
         ports:
