@@ -113,4 +113,3 @@ Constraints:
 - [ ] Add **Automation C** only after A/B are stable; require **draft PR** + human merge.
 - [ ] Re-read Cursor’s Automations UI for **model selection**, **allowed commands**, and **secrets** naming — set least privilege on tokens.
 
-This document is descriptive only; Cursor’s product UI is the source of truth for triggers, limits, and pricing.
