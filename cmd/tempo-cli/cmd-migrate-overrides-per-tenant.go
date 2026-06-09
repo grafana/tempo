@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"go.yaml.in/yaml/v3"
-
 	"github.com/grafana/tempo/modules/overrides"
 )
 
