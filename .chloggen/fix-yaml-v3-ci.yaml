@@ -1,0 +1,4 @@
+change_type: bug_fix
+component: deps
+note: Fixed compatibility with go.yaml.in/yaml/v3 strict decoding.
+issues: [7284]
