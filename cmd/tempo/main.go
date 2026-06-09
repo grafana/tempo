@@ -21,6 +21,7 @@ import (
 
 	"github.com/grafana/tempo/cmd/tempo/app"
 	"github.com/grafana/tempo/pkg/gogocodec"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
 )
 
@@ -182,7 +183,7 @@ func loadConfig() (*app.Config, bool, error) {
 			buff = []byte(s)
 		}
 
-		err = yaml.UnmarshalStrict(buff, config)
+		err = util.UnmarshalYAMLStrict(buff, config)
 		if err != nil {
 			return nil, false, fmt.Errorf("failed to parse configFile %s: %w", configFile, err)
 		}

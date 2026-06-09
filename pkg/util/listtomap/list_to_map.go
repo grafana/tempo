@@ -29,9 +29,9 @@ func (l ListToMap) MarshalYAML() (interface{}, error) {
 }
 
 // UnmarshalYAML implements the Unmarshaler interface of the yaml pkg.
-func (l *ListToMap) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (l *ListToMap) UnmarshalYAML(value *yaml.Node) error {
 	list := make([]string, 0)
-	err := unmarshal(&list)
+	err := value.Decode(&list)
 	if err != nil {
 		return err
 	}
