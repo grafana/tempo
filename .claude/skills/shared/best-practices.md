@@ -12,7 +12,7 @@ Before writing or updating documentation:
 - [ ] Locate the relevant codebase implementation
 - [ ] Check the configuration reference documentation
 - [ ] Review related documentation for consistency
-- [ ] Understand feature scope (what's processor-specific vs. shared)
+- [ ] Understand feature scope (what's component-specific vs. shared)
 
 ## Verification Process
 
@@ -25,7 +25,7 @@ Always verify documentation against multiple sources:
 - Understand the relationship between features
 
 ### 2. Configuration Reference Check
-- Compare documented configuration options with `docs/sources/tempo/configuration/_index.md`
+- Compare documented configuration options with your project's configuration reference page (path from local context)
 - Ensure all options are documented consistently
 - Verify YAML structure and examples match the reference
 
@@ -35,7 +35,7 @@ Always verify documentation against multiple sources:
 - Note any version-specific behavior or requirements
 
 ### 4. Style Guide Compliance
-- Review against `.agents/doc-agents/shared/style-guide.md`
+- Review against `style-guide.md` in this `shared/` directory (or the path your mapping file specifies)
 - Check for "see" vs "refer to" usage
 - Verify heading structure and introductions
 - Ensure examples use proper phrasing
@@ -51,14 +51,14 @@ Always verify documentation against multiple sources:
 
 ### 2. Missing Clarifications
 **Problem**: Assuming users understand implicit requirements
-- **Bad**: Not explaining that `source_labels` must use original attribute names
-- **Good**: Explicitly stating "must contain original span or resource attribute names (with dots)"
+- **Bad**: Not explaining that a field requires values in their original format
+- **Good**: Explicitly stating "must contain original attribute names, not transformed names"
 
 **Solution**: Add admonitions or explicit notes for non-obvious requirements
 
 ### 3. Unclear Feature Relationships
 **Problem**: Not explaining how related features interact
-- **Bad**: Listing `dimensions` and `dimension_mappings` without explaining they're alternatives
+- **Bad**: Listing two similar config options without explaining they're alternatives
 - **Good**: Explaining when to use each and that they're alternatives, not complementary
 
 **Solution**: Add "Understanding X vs Y" sections for related features
@@ -77,21 +77,21 @@ Always verify documentation against multiple sources:
 
 **Clear Introductions After Headings**
 ```markdown
-### Disabling intrinsic dimensions
+### Disabling default labels
 
-You can control which intrinsic dimensions are included in your metrics. Disable any of the default intrinsic dimensions using the `intrinsic_dimensions` configuration.
+You can control which default labels are included in your output. Disable any of the built-in labels using the configuration options described below.
 ```
 
 **Explicit Clarifications**
 ```markdown
 {{< admonition type="note" >}}
-The `source_labels` field must contain the **original span or resource attribute names** (with dots), not sanitized Prometheus label names.
+The input field must contain **original attribute names** (with dots), not transformed or sanitized names.
 {{< /admonition >}}
 ```
 
 **Prose Over Lists for Explanations**
 ```markdown
-Use `dimensions` when you want to add span attributes as labels using their default (sanitized) names. Use `dimension_mappings` when you want to rename attributes to custom label names or combine multiple attributes.
+Use `option_a` when you want to add attributes using their default names. Use `option_b` when you want to rename attributes to custom names or combine multiple attributes.
 ```
 
 **Proper Example Phrasing**
@@ -106,8 +106,8 @@ The following example shows how to rename the `deployment.environment` attribute
 - ✅ "as described in the sections below" or "refer to the sections below"
 
 **Passive Voice**
-- ❌ "This processor mirrored the implementation"
-- ✅ "This processor mirrors the implementation"
+- ❌ "This component mirrored the implementation"
+- ✅ "This component mirrors the implementation"
 
 **Lists as Paragraph Substitutes**
 - ❌ Using bullet lists for explanatory content

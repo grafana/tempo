@@ -11,21 +11,21 @@ Use this checklist when writing or updating documentation to ensure accuracy, co
 - [ ] Identified user problem or confusion point (GitHub issue, user feedback, etc.)
 - [ ] Located relevant codebase files
 - [ ] Reviewed existing documentation for context
-- [ ] Understood feature scope (processor-specific vs. shared)
+- [ ] Understood feature scope (component-specific vs. shared)
 
 ## Codebase Verification
 
-- [ ] Read implementation code in `modules/` or relevant directory
+- [ ] Read implementation code in the source tree (paths from local context, e.g. `modules/` or `pkg/`)
 - [ ] Verified feature names match code (check constants, structs, functions)
 - [ ] Confirmed configuration struct fields match documentation
-- [ ] Checked default values in code (`RegisterFlagsAndApplyDefaults`)
+- [ ] Checked default values in code (look for the function that registers defaults — path from local context)
 - [ ] Verified optional vs. required parameters
-- [ ] Understood feature relationships (e.g., `dimensions` vs `dimension_mappings`)
+- [ ] Understood feature relationships (for example, whether related config options are alternatives or complementary)
 - [ ] Checked for version-specific behavior or availability
 
 ## Configuration Reference Check
 
-- [ ] Compared documented options with `docs/sources/tempo/configuration/_index.md`
+- [ ] Compared documented options with your project's configuration reference page (path from local context)
 - [ ] Verified YAML structure matches reference format
 - [ ] Ensured all configuration options are documented
 - [ ] Checked for missing options in documentation
@@ -36,15 +36,15 @@ Use this checklist when writing or updating documentation to ensure accuracy, co
 - [ ] Checked `CHANGELOG.md` for feature introduction version
 - [ ] Verified feature availability in target documentation version
 - [ ] Noted any version-specific requirements or breaking changes
-- [ ] Confirmed feature is not 3.0-only if documenting for 2.10
+- [ ] Confirmed feature availability matches the doc version you are targeting (no mixing incompatible release lines)
 
 ## Accuracy Checks
 
 - [ ] Verified counts (e.g., "three metrics" not "two metrics")
 - [ ] Confirmed default vs. optional labels/features
 - [ ] Checked metric names match code constants
-- [ ] Verified label names match code (`DimService`, `DimSpanName`, etc.)
-- [ ] Confirmed processor names match code (`SpanMetricsName`, etc.)
+- [ ] Verified label and metric names match code constants (refer to local context for specific identifiers)
+- [ ] Confirmed component or processor names match code
 
 ## Style Guide Compliance
 
