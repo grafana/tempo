@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
+	"github.com/grafana/tempo/pkg/sampling"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -617,6 +618,12 @@ func createSpanIterators(
 			addPredicate(columnPathSpanParentID, pred)
 			columnSelectAs[columnPathSpanParentID] = columnPathSpanParentID
 			continue
+		case traceql.IntrinsicSpanMultiplier:
+			// Synthetic float intrinsic; the iterator reads the raw TraceState
+			// column and the collector parses it into a per-span multiplier.
+			addPredicate(columnPathSpanTraceState, nil)
+			columnSelectAs[columnPathSpanTraceState] = columnPathSpanTraceState
+			continue
 		default:
 			panic("unhandled intrinsic: " + cond.Attribute.String())
 		}
@@ -677,7 +684,8 @@ func createSpanIterators(
 				traceql.IntrinsicStructuralSibling,
 				traceql.IntrinsicNestedSetLeft,
 				traceql.IntrinsicNestedSetRight,
-				traceql.IntrinsicNestedSetParent:
+				traceql.IntrinsicNestedSetParent,
+				traceql.IntrinsicSpanMultiplier: // synthetic; explicitly requested by metrics queries
 				continue
 			}
 			addPredicate(entry.columnPath, nil)
@@ -1259,6 +1267,7 @@ func (c *spanCollector2) Reset(rowNumber parquetquery.RowNumber) {
 		c.at.id = nil
 		c.at.startTimeUnixNanos = 0
 		c.at.durationNanos = 0
+		c.at.spanMultiplier = 0
 		c.at.nestedSetParent = 0
 		c.at.nestedSetLeft = 0
 		c.at.nestedSetRight = 0
@@ -1282,6 +1291,7 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 			sp.id = v.id
 			sp.startTimeUnixNanos = v.startTimeUnixNanos
 			sp.durationNanos = v.durationNanos
+			sp.spanMultiplier = v.spanMultiplier
 			sp.spanAttrs = append(sp.spanAttrs, v.spanAttrs...)
 			sp.traceAttrs = append(sp.traceAttrs, v.traceAttrs...)
 			sp.resourceAttrs = append(sp.resourceAttrs, v.resourceAttrs...)
@@ -1366,6 +1376,14 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 			sp.startTimeUnixNanos = intervalMapper3600Seconds.TimestampOf(int(kv.Value.Int64()))
 		case columnPathSpanChildCount:
 			sp.addSpanAttr(traceql.IntrinsicChildCountAttribute, traceql.NewStaticInt(int(kv.Value.Int32())))
+		case columnPathSpanTraceState:
+			// Parse OTel probability sampling threshold once per span; default
+			// to 1.0 when the tracestate is absent or unparseable.
+			m := sampling.MultiplierFromTraceState(unsafeToString(kv.Value.Bytes()))
+			if m <= 0 {
+				m = 1.0
+			}
+			sp.spanMultiplier = m
 		case columnPathSpanDuration:
 			durationNanos = kv.Value.Uint64()
 			sp.durationNanos = durationNanos

@@ -41,13 +41,15 @@ type MetricsCompare struct {
 	selectionExemplars []Exemplar
 	seriesAgg          SeriesAggregator
 	maxExemplars       uint32
+	extrapolate        bool
 
 	// Runtime fields to avoid allocating closures
 	// and escaping to the heap when we call span.AllAttributesFunc.
-	dest         map[Attribute]map[StaticMapKey]*staticWithCounts
-	destTotals   map[Attribute][]float64
-	interval     int
-	attrCallback func(Attribute, Static)
+	dest              map[Attribute]map[StaticMapKey]*staticWithCounts
+	destTotals        map[Attribute][]float64
+	interval          int
+	currentMultiplier float64
+	attrCallback      func(Attribute, Static)
 }
 
 type staticWithCounts struct {
@@ -57,19 +59,30 @@ type staticWithCounts struct {
 
 func newMetricsCompare(f *SpansetFilter, topN, start, end int) *MetricsCompare {
 	m := &MetricsCompare{
-		f:     f,
-		topN:  topN,
-		start: start,
-		end:   end,
+		f:                 f,
+		topN:              topN,
+		start:             start,
+		end:               end,
+		currentMultiplier: 1,
 	}
 	m.attrCallback = m.processAttribute
 	return m
+}
+
+// SetExtrapolate toggles per-span sampling extrapolation for compare(). When
+// true, each span contributes its IntrinsicSpanMultiplier value to the
+// per-attribute counts and totals instead of 1.
+func (m *MetricsCompare) SetExtrapolate(extrapolate bool) {
+	m.extrapolate = extrapolate
 }
 
 func (m *MetricsCompare) extractConditions(request *FetchSpansRequest) {
 	request.SecondPassSelectAll = true
 	if !request.HasAttribute(IntrinsicSpanStartTimeAttribute) {
 		request.SecondPassConditions = append(request.SecondPassConditions, Condition{Attribute: IntrinsicSpanStartTimeAttribute})
+	}
+	if m.extrapolate && !request.HasAttribute(IntrinsicSpanMultiplierAttribute) {
+		request.SecondPassConditions = append(request.SecondPassConditions, Condition{Attribute: IntrinsicSpanMultiplierAttribute})
 	}
 	// We don't need to extract conditions from the comparison expression
 	// because we're already selecting all.
@@ -121,6 +134,12 @@ func (m *MetricsCompare) observe(span Span) {
 	st := span.StartTimeUnixNanos()
 	m.interval = m.intervalMapper.Interval(st)
 
+	if m.extrapolate {
+		m.currentMultiplier = spanExtrapolation(span)
+	} else {
+		m.currentMultiplier = 1
+	}
+
 	// Determine if this span is inside the selection
 	// and choose destination buffers
 	if m.isSelection(span, st).Equals(&StaticTrue) {
@@ -170,7 +189,7 @@ func (m *MetricsCompare) processAttribute(a Attribute, v Static) {
 		sc = &staticWithCounts{val: v, counts: make([]float64, m.intervalMapper.IntervalCount())}
 		values[vk] = sc
 	}
-	sc.counts[m.interval]++
+	sc.counts[m.interval] += m.currentMultiplier
 
 	// TODO - It's probably faster to aggregate these at the end
 	// instead of incrementing in the hotpath twice
@@ -179,7 +198,7 @@ func (m *MetricsCompare) processAttribute(a Attribute, v Static) {
 		totals = make([]float64, m.intervalMapper.IntervalCount())
 		m.destTotals[a] = totals
 	}
-	totals[m.interval]++
+	totals[m.interval] += m.currentMultiplier
 }
 
 func (m *MetricsCompare) observeExemplar(span Span) {
