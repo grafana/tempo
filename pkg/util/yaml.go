@@ -1,6 +1,17 @@
 package util
 
-import "go.yaml.in/yaml/v3"
+import (
+	"bytes"
+
+	"go.yaml.in/yaml/v3"
+)
+
+// YAMLUnmarshalStrict decodes YAML while rejecting unknown struct fields.
+func YAMLUnmarshalStrict(in []byte, out interface{}) error {
+	decoder := yaml.NewDecoder(bytes.NewReader(in))
+	decoder.KnownFields(true)
+	return decoder.Decode(out)
+}
 
 // YAMLMarshalUnmarshal utility function that converts a YAML interface in a map
 // doing marshal and unmarshal of the parameter

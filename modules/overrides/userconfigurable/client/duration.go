@@ -49,9 +49,9 @@ func (d *Duration) MarshalYAML() (interface{}, error) {
 }
 
 // UnmarshalYAML parses a duration string ("5m0s") into d.
-func (d *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (d *Duration) UnmarshalYAML(value *yaml.Node) error {
 	var s string
-	if err := unmarshal(&s); err != nil {
+	if err := value.Decode(&s); err != nil {
 		return err
 	}
 	parsed, err := time.ParseDuration(s)

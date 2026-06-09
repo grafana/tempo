@@ -10,6 +10,7 @@ import (
 
 	"github.com/grafana/e2e"
 	"github.com/grafana/tempo/cmd/tempo/app"
+	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
@@ -110,7 +111,7 @@ func setupConfig(t *testing.T, s *e2e.Scenario, config *TestHarnessConfig, reque
 	require.NoError(t, err, "failed to read merged config file")
 
 	var cfg app.Config
-	err = yaml.UnmarshalStrict(configBytes, &cfg)
+	err = tempoUtil.YAMLUnmarshalStrict(configBytes, &cfg)
 	require.NoError(t, err, "failed to unmarshal merged config into app.Config")
 
 	return cfg

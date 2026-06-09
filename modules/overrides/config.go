@@ -315,7 +315,7 @@ type Config struct {
 }
 
 func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	// Note: this implementation relies on callers using yaml.UnmarshalStrict. In non-strict mode
+	// Note: this implementation relies on callers using strict YAML decoding. In non-strict mode
 	// unmarshal() will not return an error for legacy configuration and we return immediately.
 
 	// Try to unmarshal it normally. Overrides.UnmarshalYAML calls processExtensions for c.Defaults.

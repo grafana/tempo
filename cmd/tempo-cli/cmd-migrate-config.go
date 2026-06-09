@@ -12,6 +12,7 @@ import (
 
 	"github.com/grafana/tempo/cmd/tempo/app"
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/util"
 )
 
 const (
@@ -349,7 +350,7 @@ func validateMigratedConfig(m map[string]interface{}) ([]string, error) {
 	cfg := app.Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 
-	if err := yaml.UnmarshalStrict(yamlBytes, &cfg); err != nil {
+	if err := util.YAMLUnmarshalStrict(yamlBytes, &cfg); err != nil {
 		if isEnvVarTypeError(err) {
 			// ${VAR} placeholders cause type errors for non-string fields.
 			// This is expected — report as warning, not fatal.

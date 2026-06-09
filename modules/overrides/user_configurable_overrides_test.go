@@ -15,13 +15,13 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.yaml.in/yaml/v3"
 
 	"github.com/grafana/tempo/modules/overrides/histograms"
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	tempo_api "github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/listtomap"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -378,7 +378,7 @@ func TestUserConfigOverridesManager_WriteStatusRuntimeConfig(t *testing.T) {
 
 			// Verify the YAML output can be unmarshalled back
 			var config map[string]interface{}
-			require.NoError(t, yaml.UnmarshalStrict(w.Body.Bytes(), &config))
+			require.NoError(t, util.YAMLUnmarshalStrict(w.Body.Bytes(), &config))
 
 			require.Contains(t, config, "defaults")
 			require.Contains(t, config, "overrides")
