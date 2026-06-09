@@ -97,8 +97,6 @@ func writeFile(path, content string) {
 		panic(err)
 	}
 }
-	}
-}
 
 // fileChanged reports whether path differs from the committed version, printing the diff
 // for visibility. This mirrors the freshness guarantee enforced in CI.
