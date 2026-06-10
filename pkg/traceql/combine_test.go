@@ -201,7 +201,7 @@ func TestCombineResults(t *testing.T) {
 		{
 			name: "merge ServiceStats",
 			existing: &tempopb.TraceSearchMetadata{
-				ServiceStats: map[string]*tempopb.ServiceStats{
+				ServiceStats: map[string]tempopb.ServiceStats{
 					"service1": {
 						SpanCount:  5,
 						ErrorCount: 1,
@@ -209,7 +209,7 @@ func TestCombineResults(t *testing.T) {
 				},
 			},
 			new: &tempopb.TraceSearchMetadata{
-				ServiceStats: map[string]*tempopb.ServiceStats{
+				ServiceStats: map[string]tempopb.ServiceStats{
 					"service1": {
 						SpanCount:  3,
 						ErrorCount: 2,
@@ -217,7 +217,7 @@ func TestCombineResults(t *testing.T) {
 				},
 			},
 			expected: &tempopb.TraceSearchMetadata{
-				ServiceStats: map[string]*tempopb.ServiceStats{
+				ServiceStats: map[string]tempopb.ServiceStats{
 					"service1": {
 						SpanCount:  5,
 						ErrorCount: 2,
@@ -229,7 +229,7 @@ func TestCombineResults(t *testing.T) {
 			name:     "existing ServiceStats is nil doesn't panic",
 			existing: &tempopb.TraceSearchMetadata{},
 			new: &tempopb.TraceSearchMetadata{
-				ServiceStats: map[string]*tempopb.ServiceStats{
+				ServiceStats: map[string]tempopb.ServiceStats{
 					"service1": {
 						SpanCount:  3,
 						ErrorCount: 2,
@@ -237,7 +237,7 @@ func TestCombineResults(t *testing.T) {
 				},
 			},
 			expected: &tempopb.TraceSearchMetadata{
-				ServiceStats: map[string]*tempopb.ServiceStats{
+				ServiceStats: map[string]tempopb.ServiceStats{
 					"service1": {
 						SpanCount:  3,
 						ErrorCount: 2,

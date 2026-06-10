@@ -313,12 +313,12 @@ func asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMetadata {
 		RootTraceName:     spanset.RootSpanName,
 		StartTimeUnixNano: spanset.StartTimeUnixNanos,
 		DurationMs:        uint32(spanset.DurationNanos / 1_000_000),
-		ServiceStats:      make(map[string]*tempopb.ServiceStats, len(spanset.ServiceStats)),
+		ServiceStats:      make(map[string]tempopb.ServiceStats, len(spanset.ServiceStats)),
 		SpanSet:           &tempopb.SpanSet{},
 	}
 
 	for service, stats := range spanset.ServiceStats {
-		metadata.ServiceStats[service] = &tempopb.ServiceStats{
+		metadata.ServiceStats[service] = tempopb.ServiceStats{
 			SpanCount:  stats.SpanCount,
 			ErrorCount: stats.ErrorCount,
 		}

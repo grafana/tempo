@@ -7,6 +7,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -232,9 +233,9 @@ func testTagsCombiner(t *testing.T, marshalingFormat api.MarshallingFormat) {
 			fromHTTPResponse(t, res, tc.actualResult)
 			tc.sort(tc.expectedResult)
 			tc.sort(tc.actualResult)
-			require.Equal(t, tc.expectedResult, tc.actualResult)
+			test.RequireProtoEqual(t, tc.expectedResult.(test.ProtoMarshaler), tc.actualResult.(test.ProtoMarshaler))
 
-			require.Equal(t, metrics(tc.expectedResult), metrics(tc.actualResult))
+			test.RequireProtoEqual(t, metrics(tc.expectedResult), metrics(tc.actualResult))
 		})
 	}
 }
@@ -343,7 +344,7 @@ func testGRPCCombiner[T proto.Message](t *testing.T, combiner GRPCCombiner[T], r
 	actualDiff1, err := combiner.GRPCDiff()
 	require.NoError(t, err)
 	sort(actualDiff1)
-	require.Equal(t, diff1, actualDiff1)
+	test.RequireProtoEqual(t, any(diff1).(test.ProtoMarshaler), any(actualDiff1).(test.ProtoMarshaler))
 
 	err = combiner.AddResponse(toHTTPResponseWithFormat(t, result2, 200, nil, format))
 	assert.NoError(t, err)
@@ -351,13 +352,13 @@ func testGRPCCombiner[T proto.Message](t *testing.T, combiner GRPCCombiner[T], r
 	actualDiff2, err := combiner.GRPCDiff()
 	require.NoError(t, err)
 	sort(actualDiff2)
-	require.Equal(t, diff2, actualDiff2)
+	test.RequireProtoEqual(t, any(diff2).(test.ProtoMarshaler), any(actualDiff2).(test.ProtoMarshaler))
 
 	actualFinal, err := combiner.GRPCFinal()
 	require.NoError(t, err)
 
 	sort(actualFinal)
-	require.Equal(t, expectedFinal, actualFinal)
+	test.RequireProtoEqual(t, any(expectedFinal).(test.ProtoMarshaler), any(actualFinal).(test.ProtoMarshaler))
 }
 
 func TestSegmentSearchTagsResponse(t *testing.T) {
