@@ -64,7 +64,7 @@ $defs:
         description: RackID provides the rack identifier for this client to enable rack-aware replica selection when supported by the brokers. This maps to Kafka's standard "client.rack" setting. By default, this is empty.
         type: string
       resolve_canonical_bootstrap_servers_only:
-        description: ResolveCanonicalBootstrapServersOnly configures the Kafka client to perform a DNS lookup on each of the provided brokers, and then perform a reverse lookup on the resulting IPs to obtain the canonical hostnames to use as the bootstrap servers. This can be required in SASL environments.
+        description: 'ResolveCanonicalBootstrapServersOnly is ignored, and exists for backwards compatibility in config parsing. Deprecated [v0.153.0]: this field is a no-op since the migration to franz-go, which has no direct equivalent to the associated Sarama config. This config will be removed in a future release.'
         type: boolean
       tls:
         description: TLS holds TLS-related configuration for connecting to Kafka brokers. By default the client will use an insecure connection unless SASL/AWS_MSK_IAM_OAUTHBEARER auth is configured.
@@ -219,5 +219,5 @@ $defs:
         description: Username to be used on authentication
         type: string
       version:
-        description: 'SASL Protocol Version to be used, possible values are: (0, 1). Defaults to 0.'
+        description: 'Version is ignored, and exists for backwards compatibility in config parsing. Deprecated [v0.153.0]: this field is a no-op since the migration to franz-go, which negotiates the SASL handshake version automatically. This config will be removed in a future release.'
         type: integer
