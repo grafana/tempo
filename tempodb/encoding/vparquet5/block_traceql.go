@@ -3323,12 +3323,15 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			sp.addSpanAttr(traceql.IntrinsicChildCountAttribute, traceql.NewStaticInt(int(kv.Value.Int32())))
 		case columnPathSpanTraceState:
 			// Parse OTel probability sampling threshold once per span. Falls
-			// back to 1.0 when the tracestate is absent or unparseable.
+			// back to 1.0 when the tracestate is absent or unparseable. We
+			// also surface it as a span attribute so attributesMatched()
+			// counts it toward the spanCollector's minAttributes threshold.
 			m := sampling.MultiplierFromTraceState(unsafeToString(kv.Value.Bytes()))
 			if m <= 0 {
 				m = 1.0
 			}
 			sp.spanMultiplier = m
+			sp.addSpanAttr(traceql.IntrinsicSpanMultiplierAttribute, traceql.NewStaticFloat(m))
 		default:
 			// TODO - This exists for span-level dedicated columns like http.status_code
 			// Are nils possible here?
