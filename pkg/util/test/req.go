@@ -505,6 +505,23 @@ func ProtoEqual(a, b ProtoMarshaler) bool {
 	return bytes.Equal(ab, bb)
 }
 
+// RequireProtoEqual asserts wire-level equality of two protobuf messages and
+// prints a JSON diff on mismatch. Use instead of require.Equal for proto
+// structs: struct-literal expectations differ from unmarshaled values in the
+// wiresmith-internal presence bitmap even when semantically equal.
+func RequireProtoEqual(t require.TestingT, want, got ProtoMarshaler) {
+	if h, ok := t.(interface{ Helper() }); ok {
+		h.Helper()
+	}
+	if ProtoEqual(want, got) {
+		return
+	}
+	wantJSON, _ := json.MarshalIndent(want, "", "  ")
+	gotJSON, _ := json.MarshalIndent(got, "", "  ")
+	require.Equal(t, string(wantJSON), string(gotJSON), "protos differ")
+	require.Fail(t, "protos differ on the wire but share a JSON form")
+}
+
 func TracesEqual(t *testing.T, t1 *tempopb.Trace, t2 *tempopb.Trace) {
 	if !ProtoEqual(t1, t2) {
 		wantJSON, _ := json.MarshalIndent(t1, "", "  ")

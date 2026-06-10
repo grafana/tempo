@@ -1,6 +1,7 @@
 package tempopb
 
 import (
+	"bytes"
 	"os"
 	"strconv"
 )
@@ -41,6 +42,55 @@ func (r *PreallocBytes) Size() (n int) {
 		return 0
 	}
 	return len(r.Slice)
+}
+
+// SizeWiresmith implements wiresmith's CustomMarshaler.
+func (r *PreallocBytes) SizeWiresmith() int {
+	if r == nil {
+		return 0
+	}
+	return len(r.Slice)
+}
+
+// MarshalWiresmith implements wiresmith's CustomMarshaler. buf is sized to
+// exactly SizeWiresmith() bytes by the generated envelope code.
+func (r *PreallocBytes) MarshalWiresmith(buf []byte) (int, error) {
+	copy(buf, r.Slice)
+	return len(r.Slice), nil
+}
+
+// UnmarshalWiresmith implements wiresmith's CustomMarshaler. Like Unmarshal,
+// it copies the payload into a pooled slice; call ReuseByteSlices to return
+// the slice to the pool.
+func (r *PreallocBytes) UnmarshalWiresmith(buf []byte) error {
+	return r.Unmarshal(buf)
+}
+
+// EqualWiresmith implements wiresmith's CustomMarshaler.
+func (r *PreallocBytes) EqualWiresmith(other any) bool {
+	o, ok := other.(PreallocBytes)
+	if !ok {
+		po, pok := other.(*PreallocBytes)
+		if !pok || po == nil {
+			return false
+		}
+		o = *po
+	}
+	return bytes.Equal(r.Slice, o.Slice)
+}
+
+// CompareWiresmith implements wiresmith's CustomMarshaler. Returns -1 on a
+// type mismatch so the generated Compare stays total.
+func (r *PreallocBytes) CompareWiresmith(other any) int {
+	o, ok := other.(PreallocBytes)
+	if !ok {
+		po, pok := other.(*PreallocBytes)
+		if !pok || po == nil {
+			return -1
+		}
+		o = *po
+	}
+	return bytes.Compare(r.Slice, o.Slice)
 }
 
 // ReuseByteSlices puts the byte slice back into bytePool for reuse.
