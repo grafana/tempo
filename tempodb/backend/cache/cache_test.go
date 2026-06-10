@@ -12,6 +12,7 @@ import (
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -304,4 +305,138 @@ func TestCacheKeys(t *testing.T) {
 	err = reader.ReadRange(ctx, "foo", backend.KeyPath{"bar", "baz"}, 10, actualBuffer, &backend.CacheInfo{Role: role})
 	require.NoError(t, err)
 	require.Equal(t, expectedData, actualBuffer)
+}
+
+func TestCacheRequestCounters(t *testing.T) {
+	tenantID := "test"
+	blockID := uuid.New()
+	keypath := backend.KeyPathForBlock(blockID, tenantID)
+
+	// The metric helpers below read the current counter value for a given role.
+	// Each subtest captures before/after values so the assertions stay hermetic
+	// across parallel runs that share the package-level counter vars.
+	hits := func(role string) float64 {
+		return testutil.ToFloat64(cacheRequests.WithLabelValues(role, cacheOutcomeHit))
+	}
+	misses := func(role string) float64 {
+		return testutil.ToFloat64(cacheRequests.WithLabelValues(role, cacheOutcomeMiss))
+	}
+	hitBytes := func(role string) float64 {
+		return testutil.ToFloat64(cacheRequestBytes.WithLabelValues(role, cacheOutcomeHit))
+	}
+	missBytes := func(role string) float64 {
+		return testutil.ToFloat64(cacheRequestBytes.WithLabelValues(role, cacheOutcomeMiss))
+	}
+
+	t.Run("Read miss then hit, per role", func(t *testing.T) {
+		role := cache.RoleParquetFooter
+		roleStr := string(role)
+		hitsBefore, missesBefore := hits(roleStr), misses(roleStr)
+		hitBytesBefore, missBytesBefore := hitBytes(roleStr), missBytes(roleStr)
+
+		payload := []byte{0x01, 0x02, 0x03, 0x04}
+		mockR := &backend.MockRawReader{R: payload}
+		rw, _, err := NewCache(nil, mockR, &backend.MockRawWriter{}, test.NewMockProvider(), log.NewNopLogger())
+		require.NoError(t, err)
+		ctx := context.Background()
+
+		// First read: miss (cache empty) then populate.
+		r1, _, err := rw.Read(ctx, "foo", keypath, &backend.CacheInfo{Role: role})
+		require.NoError(t, err)
+		_, _ = io.ReadAll(r1)
+
+		assert.Equal(t, missesBefore+1, misses(roleStr), "miss counter incremented")
+		assert.Equal(t, hitsBefore, hits(roleStr), "hit counter unchanged")
+		assert.Equal(t, missBytesBefore+float64(len(payload)), missBytes(roleStr), "miss bytes incremented")
+
+		// Second read: hit (served from cache).
+		mockR.R = nil
+		r2, _, err := rw.Read(ctx, "foo", keypath, &backend.CacheInfo{Role: role})
+		require.NoError(t, err)
+		_, _ = io.ReadAll(r2)
+
+		assert.Equal(t, hitsBefore+1, hits(roleStr), "hit counter incremented")
+		assert.Equal(t, hitBytesBefore+float64(len(payload)), hitBytes(roleStr), "hit bytes incremented")
+	})
+
+	t.Run("ReadRange miss then hit, per role", func(t *testing.T) {
+		role := cache.RoleParquetPage
+		roleStr := string(role)
+		hitsBefore, missesBefore := hits(roleStr), misses(roleStr)
+		hitBytesBefore, missBytesBefore := hitBytes(roleStr), missBytes(roleStr)
+
+		payload := []byte{0xaa, 0xbb, 0xcc, 0xdd}
+		mockR := &backend.MockRawReader{Range: payload}
+		rw, _, err := NewCache(nil, mockR, &backend.MockRawWriter{}, test.NewMockProvider(), log.NewNopLogger())
+		require.NoError(t, err)
+		ctx := context.Background()
+
+		// First ReadRange: miss then populate.
+		buffer := make([]byte, len(payload))
+		require.NoError(t, rw.ReadRange(ctx, "bar", keypath, 0, buffer, &backend.CacheInfo{Role: role}))
+
+		assert.Equal(t, missesBefore+1, misses(roleStr), "miss counter incremented")
+		assert.Equal(t, hitsBefore, hits(roleStr), "hit counter unchanged")
+		assert.Equal(t, missBytesBefore+float64(len(buffer)), missBytes(roleStr), "miss bytes incremented")
+
+		// Second ReadRange: hit (served from cache).
+		mockR.Range = nil
+		buffer = make([]byte, len(payload))
+		require.NoError(t, rw.ReadRange(ctx, "bar", keypath, 0, buffer, &backend.CacheInfo{Role: role}))
+
+		assert.Equal(t, hitsBefore+1, hits(roleStr), "hit counter incremented")
+		assert.Equal(t, hitBytesBefore+float64(len(payload)), hitBytes(roleStr), "hit bytes incremented")
+	})
+
+	t.Run("per-role isolation: hit on one role does not move another role's counters", func(t *testing.T) {
+		hitRole := cache.RoleBloom
+		otherRole := cache.RoleTraceIDIdx
+		otherHitsBefore := hits(string(otherRole))
+		otherMissesBefore := misses(string(otherRole))
+		otherHitBytesBefore := hitBytes(string(otherRole))
+		otherMissBytesBefore := missBytes(string(otherRole))
+
+		payload := []byte{0x10, 0x20, 0x30}
+		mockR := &backend.MockRawReader{R: payload}
+		rw, _, err := NewCache(nil, mockR, &backend.MockRawWriter{}, test.NewMockProvider(), log.NewNopLogger())
+		require.NoError(t, err)
+		ctx := context.Background()
+
+		// Drive a miss then a hit on hitRole.
+		r1, _, err := rw.Read(ctx, "foo", keypath, &backend.CacheInfo{Role: hitRole})
+		require.NoError(t, err)
+		_, _ = io.ReadAll(r1)
+		mockR.R = nil
+		r2, _, err := rw.Read(ctx, "foo", keypath, &backend.CacheInfo{Role: hitRole})
+		require.NoError(t, err)
+		_, _ = io.ReadAll(r2)
+
+		// otherRole's counters are unchanged.
+		assert.Equal(t, otherHitsBefore, hits(string(otherRole)))
+		assert.Equal(t, otherMissesBefore, misses(string(otherRole)))
+		assert.Equal(t, otherHitBytesBefore, hitBytes(string(otherRole)))
+		assert.Equal(t, otherMissBytesBefore, missBytes(string(otherRole)))
+	})
+
+	t.Run("bypass when no cache configured for role", func(t *testing.T) {
+		// A role with no configured cache (cacheFor returns nil) must not move the counters.
+		role := cache.Role("nonexistent-role")
+		roleStr := string(role)
+		hitsBefore, missesBefore := hits(roleStr), misses(roleStr)
+		hitBytesBefore, missBytesBefore := hitBytes(roleStr), missBytes(roleStr)
+
+		mockR := &backend.MockRawReader{R: []byte{0xff}}
+		rw, _, err := NewCache(nil, mockR, &backend.MockRawWriter{}, test.NewMockProvider(), log.NewNopLogger())
+		require.NoError(t, err)
+		ctx := context.Background()
+
+		reader, _, err := rw.Read(ctx, "foo", keypath, &backend.CacheInfo{Role: role})
+		require.NoError(t, err)
+		_, _ = io.ReadAll(reader)
+
+		assert.Equal(t, hitsBefore, hits(roleStr))
+		assert.Equal(t, missesBefore, misses(roleStr))
+		assert.Equal(t, hitBytesBefore, hitBytes(roleStr))
+		assert.Equal(t, missBytesBefore, missBytes(roleStr))
+	})
 }

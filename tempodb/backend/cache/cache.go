@@ -28,6 +28,25 @@ var cacheStoreSizeBytes = promauto.NewHistogramVec(prometheus.HistogramOpts{
 	Buckets:   prometheus.ExponentialBuckets(512, 2, 15), // 512 B, 1 KiB, ..., 8 MiB
 }, []string{"role"})
 
+// cacheRequests counts cache lookups by role and outcome (hit / miss).
+var cacheRequests = promauto.NewCounterVec(prometheus.CounterOpts{
+	Namespace: "tempodb",
+	Name:      "cache_requests_total",
+	Help:      "Cache lookup outcome by role.",
+}, []string{"role", "outcome"})
+
+// cacheRequestBytes counts bytes served on hit and bytes fetched from backend on miss, by role.
+var cacheRequestBytes = promauto.NewCounterVec(prometheus.CounterOpts{
+	Namespace: "tempodb",
+	Name:      "cache_request_bytes_total",
+	Help:      "Bytes served by cache (hit) or fetched on miss, by role.",
+}, []string{"role", "outcome"})
+
+const (
+	cacheOutcomeHit  = "hit"
+	cacheOutcomeMiss = "miss"
+)
+
 type BloomConfig struct {
 	CacheMinCompactionLevel uint8         `yaml:"cache_min_compaction_level"`
 	CacheMaxBlockAge        time.Duration `yaml:"cache_max_block_age"`
@@ -91,13 +110,18 @@ func (r *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f back
 // Read implements backend.RawReader
 func (r *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath, cacheInfo *backend.CacheInfo) (io.ReadCloser, int64, error) {
 	var k string
+	var role string
 	cache := r.cacheFor(cacheInfo)
 	if cache != nil {
+		role = string(cacheInfo.Role)
 		k = key(keypath, name)
 		b, found := cache.FetchKey(ctx, k)
 		if found {
+			cacheRequests.WithLabelValues(role, cacheOutcomeHit).Inc()
+			cacheRequestBytes.WithLabelValues(role, cacheOutcomeHit).Add(float64(len(b)))
 			return io.NopCloser(bytes.NewReader(b)), int64(len(b)), nil
 		}
+		cacheRequests.WithLabelValues(role, cacheOutcomeMiss).Inc()
 	}
 
 	// previous implemenation always passed false forward for "shouldCache" so we are matching that behavior by passing nil for cacheInfo
@@ -110,6 +134,7 @@ func (r *readerWriter) Read(ctx context.Context, name string, keypath backend.Ke
 
 	b, err := tempo_io.ReadAllWithEstimate(object, size)
 	if err == nil && cache != nil {
+		cacheRequestBytes.WithLabelValues(role, cacheOutcomeMiss).Add(float64(len(b)))
 		store(ctx, cache, cacheInfo.Role, k, b)
 	}
 
@@ -119,21 +144,27 @@ func (r *readerWriter) Read(ctx context.Context, name string, keypath backend.Ke
 // ReadRange implements backend.RawReader
 func (r *readerWriter) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte, cacheInfo *backend.CacheInfo) error {
 	var k string
+	var role string
 	cache := r.cacheFor(cacheInfo)
 	if cache != nil {
+		role = string(cacheInfo.Role)
 		k = strings.Join(append(keypath, name, strconv.Itoa(int(offset)), strconv.Itoa(len(buffer))), ":")
 		b, found := cache.FetchKey(ctx, k)
 		if found {
+			cacheRequests.WithLabelValues(role, cacheOutcomeHit).Inc()
+			cacheRequestBytes.WithLabelValues(role, cacheOutcomeHit).Add(float64(len(b)))
 			copy(buffer, b)
 			cache.Release(b)
 			return nil
 		}
+		cacheRequests.WithLabelValues(role, cacheOutcomeMiss).Inc()
 	}
 
 	// previous implemenation always passed false forward for "shouldCache" so we are matching that behavior by passing nil for cacheInfo
 	// todo: reevaluate. should we pass the cacheInfo forward?
 	err := r.nextReader.ReadRange(ctx, name, keypath, offset, buffer, nil)
 	if err == nil && cache != nil {
+		cacheRequestBytes.WithLabelValues(role, cacheOutcomeMiss).Add(float64(len(buffer)))
 		store(ctx, cache, cacheInfo.Role, k, buffer)
 	}
 
