@@ -1,6 +1,8 @@
 package pipeline
 
 import (
+	"context"
+
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/pkg/traceql"
 )
@@ -10,6 +12,84 @@ type RequestType int
 type WeightRequest interface {
 	SetWeight(int)
 	Weight() int
+}
+
+// Query type values surfaced as `query_type` on logs and spans.
+const (
+	QueryTypeTraces   = "traces"
+	QueryTypeSearch   = "search"
+	QueryTypeMetrics  = "metrics"
+	QueryTypeMetadata = "metadata"
+)
+
+// QueryShape describes the structural shape of a query as computed by the
+// async-weight middleware. It is propagated to sharders via the Request
+// interface and to handlers via context.
+type QueryShape struct {
+	Type            string
+	Weight          int
+	Conditions      int
+	RegexConditions int
+	HasOr           bool
+	NeedsFullTrace  bool
+	SelectAll       bool
+}
+
+type queryShapeCtxKey struct{}
+
+// queryShapeCell is a mutable container the weight middleware writes into.
+// Handlers create the cell via WithQueryShapeCell before invoking the pipeline
+// so the outer request's context (which the handler keeps a reference to)
+// can read the populated shape after RoundTrip returns.
+type queryShapeCell struct {
+	qs *QueryShape
+}
+
+// WithQueryShapeCell installs a mutable cell on ctx that the weight middleware
+// will populate during RoundTrip. Handlers should call this once at their entry
+// point so the shape becomes readable via QueryShapeFromContext after the
+// pipeline returns.
+func WithQueryShapeCell(ctx context.Context) context.Context {
+	return context.WithValue(ctx, queryShapeCtxKey{}, &queryShapeCell{})
+}
+
+// QueryShapeFromContext returns the QueryShape stamped on the context by the
+// async-weight middleware. ok is false if no cell was installed or the cell
+// has not been populated yet.
+func QueryShapeFromContext(ctx context.Context) (QueryShape, bool) {
+	if ctx == nil {
+		return QueryShape{}, false
+	}
+	cell, ok := ctx.Value(queryShapeCtxKey{}).(*queryShapeCell)
+	if !ok || cell.qs == nil {
+		return QueryShape{}, false
+	}
+	return *cell.qs, true
+}
+
+func setQueryShapeOnContext(ctx context.Context, qs QueryShape) {
+	if ctx == nil {
+		return
+	}
+	cell, ok := ctx.Value(queryShapeCtxKey{}).(*queryShapeCell)
+	if !ok {
+		return
+	}
+	snapshot := qs
+	cell.qs = &snapshot
+}
+
+func (rt RequestType) queryTypeLabel() string {
+	switch rt {
+	case TraceByID:
+		return QueryTypeTraces
+	case TraceQLSearch:
+		return QueryTypeSearch
+	case TraceQLMetrics:
+		return QueryTypeMetrics
+	default:
+		return QueryTypeMetadata
+	}
 }
 
 type WeightsConfig struct {
@@ -72,17 +152,31 @@ func (c weightRequestWare) RoundTrip(req Request) (Responses[combiner.PipelineRe
 }
 
 func (c weightRequestWare) setWeight(req Request) {
+	qType := c.requestType.queryTypeLabel()
 	if !c.enabled {
 		req.SetWeight(c.weights.DefaultWeight)
+		c.stampQueryShape(req, QueryShape{Type: qType, Weight: c.weights.DefaultWeight})
 		return
 	}
 	switch c.requestType {
 	case TraceByID:
 		req.SetWeight(c.weights.TraceByIDWeight)
+		c.stampQueryShape(req, QueryShape{Type: qType, Weight: c.weights.TraceByIDWeight})
 	case TraceQLSearch, TraceQLMetrics:
 		c.setTraceQLWeight(req)
 	default:
 		req.SetWeight(c.weights.DefaultWeight)
+		c.stampQueryShape(req, QueryShape{Type: qType, Weight: c.weights.DefaultWeight})
+	}
+}
+
+// stampQueryShape stores the shape both on the Request (for sharders) and via
+// the mutable cell installed by WithQueryShapeCell (for handlers, which keep a
+// reference to the outer *http.Request).
+func (c weightRequestWare) stampQueryShape(req Request, qs QueryShape) {
+	req.SetQueryShape(qs)
+	if httpReq := req.HTTPRequest(); httpReq != nil {
+		setQueryShapeOnContext(httpReq.Context(), qs)
 	}
 }
 
@@ -98,6 +192,15 @@ func (c weightRequestWare) setTraceQLWeight(req Request) {
 
 	weight := c.weights.TraceQLSearchWeight
 	req.SetWeight(weight)
+
+	qType := c.requestType.queryTypeLabel()
+	// Stamp a base shape early so malformed/empty queries still produce a shape
+	// with at least Type and Weight populated.
+	shape := QueryShape{Type: qType, Weight: weight}
+	defer func() {
+		shape.Weight = weight
+		c.stampQueryShape(req, shape)
+	}()
 
 	if traceQLQuery == "" {
 		return
@@ -128,16 +231,21 @@ func (c weightRequestWare) setTraceQLWeight(req Request) {
 		}
 		if !spanReq.AllConditions {
 			weight++
+			shape.HasOr = true
 		}
 		if spanReq.SecondPassSelectAll {
 			weight++
+			shape.SelectAll = true
 		}
+		shape.Conditions += conditions
+		shape.RegexConditions += regexConditions
 	}
 
 	// Query that requires full trace scanning, e.g. with structural operators
 	for _, pipeline := range rootExpr.Pipeline {
 		if traceql.NeedsFullTrace(pipeline) {
 			weight++
+			shape.NeedsFullTrace = true
 		}
 	}
 

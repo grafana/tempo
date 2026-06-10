@@ -70,15 +70,17 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 		postSLOHook(resp, tenant, inspectBytes, elapsed, err)
 
 		traceID, _ := tracing.ExtractTraceID(req.Context())
-		level.Info(logger).Log(
+		fields := []any{
 			"msg", "trace id response",
 			"tenant", tenant,
 			"traceID", traceID,
 			"path", req.URL.Path,
 			"duration_seconds", elapsed.Seconds(),
 			"inspected_bytes", inspectBytes,
-			"request_throughput", float64(inspectBytes)/elapsed.Seconds(),
-			"err", err)
+			"request_throughput", float64(inspectBytes) / elapsed.Seconds(),
+			"err", err,
+		}
+		level.Info(logger).Log(append(fields, queryShapeLogFields(req.Context())...)...)
 
 		return resp, err
 	})
@@ -142,15 +144,17 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 		postSLOHook(resp, tenant, bytesProcessed, elapsed, err)
 
 		traceID, _ := tracing.ExtractTraceID(req.Context())
-		level.Info(logger).Log(
+		fields := []any{
 			"msg", "trace id response",
 			"tenant", tenant,
 			"traceID", traceID,
 			"path", req.URL.Path,
 			"inspected_bytes", bytesProcessed,
-			"request_throughput", float64(bytesProcessed)/elapsed.Seconds(),
+			"request_throughput", float64(bytesProcessed) / elapsed.Seconds(),
 			"duration_seconds", elapsed.Seconds(),
-			"err", err)
+			"err", err,
+		}
+		level.Info(logger).Log(append(fields, queryShapeLogFields(req.Context())...)...)
 
 		return resp, err
 	})

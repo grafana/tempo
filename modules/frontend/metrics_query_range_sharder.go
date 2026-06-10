@@ -80,6 +80,7 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 
 	ctx, span := tracer.Start(r.Context(), spanName)
 	defer span.End()
+	setQueryShapeSpanAttrs(span, pipelineRequest.QueryShape())
 
 	req, err := api.ParseQueryRangeRequest(r)
 	if err != nil {

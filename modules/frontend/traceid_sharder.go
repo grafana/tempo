@@ -68,6 +68,7 @@ func (s asyncTraceSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 	ctx, span := tracer.Start(pipelineRequest.Context(), "frontend.ShardQuery")
 	defer span.End()
 	pipelineRequest.SetContext(ctx)
+	setQueryShapeSpanAttrs(span, pipelineRequest.QueryShape())
 
 	_, _, _, startTime, endTime, err := api.ParseTraceByIDRequest(pipelineRequest.HTTPRequest())
 	if err != nil {

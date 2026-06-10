@@ -28,7 +28,7 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 
 	return func(req *tempopb.QueryInstantRequest, srv tempopb.StreamingQuerier_MetricsQueryInstantServer) error {
 		start := time.Now()
-		ctx := srv.Context()
+		ctx := pipeline.WithQueryShapeCell(srv.Context())
 		tenant, err := user.ExtractOrgID(ctx)
 		if err != nil {
 			return err
@@ -205,38 +205,42 @@ func translateQueryRangeToInstant(input tempopb.QueryRangeResponse) tempopb.Quer
 
 func logQueryInstantResult(ctx context.Context, logger log.Logger, tenantID string, durationSeconds float64, req *tempopb.QueryInstantRequest, resp *tempopb.QueryInstantResponse, err error) {
 	traceID, _ := tracing.ExtractTraceID(ctx)
+	shape := queryShapeLogFields(ctx)
 
 	if resp == nil {
-		level.Info(logger).Log(
+		fields := []any{
 			"msg", "query instant results - no resp",
 			"tenant", tenantID,
 			"traceID", traceID,
 			"duration_seconds", durationSeconds,
-			"error", err)
-
+			"error", err,
+		}
+		level.Info(logger).Log(append(fields, shape...)...)
 		return
 	}
 
 	if resp.Metrics == nil {
-		level.Info(logger).Log(
+		fields := []any{
 			"msg", "query instant results - no metrics",
 			"tenant", tenantID,
 			"traceID", traceID,
 			"query", req.Query,
-			"range_nanos", req.End-req.Start,
+			"range_nanos", req.End - req.Start,
 			"duration_seconds", durationSeconds,
-			"error", err)
+			"error", err,
+		}
+		level.Info(logger).Log(append(fields, shape...)...)
 		return
 	}
 
-	level.Info(logger).Log(
+	fields := []any{
 		"msg", "query instant results",
 		"tenant", tenantID,
 		"traceID", traceID,
 		"query", req.Query,
-		"range_nanos", req.End-req.Start,
+		"range_nanos", req.End - req.Start,
 		"duration_seconds", durationSeconds,
-		"request_throughput", float64(resp.Metrics.InspectedBytes)/durationSeconds,
+		"request_throughput", float64(resp.Metrics.InspectedBytes) / durationSeconds,
 		"total_requests", resp.Metrics.TotalJobs,
 		"total_blockBytes", resp.Metrics.TotalBlockBytes,
 		"total_blocks", resp.Metrics.TotalBlocks,
@@ -247,7 +251,9 @@ func logQueryInstantResult(ctx context.Context, logger log.Logger, tenantID stri
 		"partial_status", resp.Status,
 		"partial_message", resp.Message,
 		"num_response_series", len(resp.Series),
-		"error", err)
+		"error", err,
+	}
+	level.Info(logger).Log(append(fields, shape...)...)
 }
 
 func logQueryInstantRequest(logger log.Logger, tenantID string, req *tempopb.QueryInstantRequest) {

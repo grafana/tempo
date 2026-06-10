@@ -31,7 +31,7 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 	downstreamPath := path.Join(apiPrefix, api.PathSearch)
 
 	return func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error {
-		ctx := srv.Context()
+		ctx := pipeline.WithQueryShapeCell(srv.Context())
 
 		if dataAccessController != nil {
 			err := dataAccessController.HandleGRPCSearchReq(ctx, req)
@@ -184,39 +184,44 @@ func logResult(ctx context.Context, logger log.Logger, tenantID string, duration
 		statusCode = int(st.Code())
 	}
 
+	shape := queryShapeLogFields(ctx)
+
 	if resp == nil {
-		level.Info(logger).Log(
+		fields := []any{
 			"msg", "search response - no resp",
 			"tenant", tenantID,
 			"traceID", traceID,
 			"duration_seconds", durationSeconds,
 			"status_code", statusCode,
-			"error", err)
-
+			"error", err,
+		}
+		level.Info(logger).Log(append(fields, shape...)...)
 		return
 	}
 
 	if resp.Metrics == nil {
-		level.Info(logger).Log(
+		fields := []any{
 			"msg", "search response - no metrics",
 			"tenant", tenantID,
 			"traceID", traceID,
 			"query", req.Query,
-			"range_seconds", req.End-req.Start,
+			"range_seconds", req.End - req.Start,
 			"duration_seconds", durationSeconds,
 			"status_code", statusCode,
-			"error", err)
+			"error", err,
+		}
+		level.Info(logger).Log(append(fields, shape...)...)
 		return
 	}
 
-	level.Info(logger).Log(
+	fields := []any{
 		"msg", "search response",
 		"tenant", tenantID,
 		"traceID", traceID,
 		"query", req.Query,
-		"range_seconds", req.End-req.Start,
+		"range_seconds", req.End - req.Start,
 		"duration_seconds", durationSeconds,
-		"request_throughput", float64(resp.Metrics.InspectedBytes)/durationSeconds,
+		"request_throughput", float64(resp.Metrics.InspectedBytes) / durationSeconds,
 		"total_requests", resp.Metrics.TotalJobs,
 		"total_blockBytes", resp.Metrics.TotalBlockBytes,
 		"total_blocks", resp.Metrics.TotalBlocks,
@@ -225,7 +230,9 @@ func logResult(ctx context.Context, logger log.Logger, tenantID string, duration
 		"inspected_traces", resp.Metrics.InspectedTraces,
 		"inspected_spans", resp.Metrics.InspectedSpans,
 		"status_code", statusCode,
-		"error", err)
+		"error", err,
+	}
+	level.Info(logger).Log(append(fields, shape...)...)
 }
 
 func logRequest(logger log.Logger, tenantID string, req *tempopb.SearchRequest) {
