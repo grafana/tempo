@@ -26,7 +26,7 @@ func TestInterceptorsCancelContextForStreaming(t *testing.T) {
 	serv := grpc.NewServer(grpc.UnaryInterceptor(unaryInt), grpc.StreamInterceptor(streamInt))
 	defer serv.GracefulStop()
 
-	srv := &mockService{apiTimeout}
+	srv := &mockService{apiTimeout: apiTimeout}
 	tempopb.RegisterStreamingQuerierServer(serv, srv)
 	tempopb.RegisterPusherServer(serv, srv)
 
@@ -63,6 +63,8 @@ func TestInterceptorsCancelContextForStreaming(t *testing.T) {
 }
 
 type mockService struct {
+	tempopb.UnimplementedStreamingQuerierServer
+	tempopb.UnimplementedPusherServer
 	apiTimeout time.Duration
 }
 

@@ -12,6 +12,7 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
@@ -242,7 +243,7 @@ func testSearchCombinesResults(t *testing.T, marshalingFormat api.MarshallingFor
 		actual := &tempopb.SearchResponse{}
 		fromHTTPResponse(t, resp, actual)
 
-		require.Equal(t, expected, actual)
+		test.RequireProtoEqual(t, expected, actual)
 	}
 }
 
@@ -433,7 +434,7 @@ func testSearchResponseCombiner(t *testing.T, marshalingFormat api.MarshallingFo
 
 				grpcresp, err := combiner.GRPCFinal()
 				require.Equal(t, tc.expectedGRPCError, err)
-				require.Equal(t, tc.expectedResponse, grpcresp)
+				test.RequireProtoEqual(t, tc.expectedResponse, grpcresp)
 			})
 		}
 	}
@@ -701,7 +702,7 @@ func testCombinerShards(t *testing.T, marshalingFormat api.MarshallingFormat) {
 
 			resp, err := combiner.GRPCDiff()
 			require.NoError(t, err)
-			require.Equal(t, tc.expected, resp)
+			test.RequireProtoEqual(t, tc.expected, resp)
 		})
 	}
 }

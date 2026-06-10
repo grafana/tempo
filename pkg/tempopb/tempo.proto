@@ -3,7 +3,7 @@ syntax = "proto3";
 package tempopb;
 
 import "common/v1/common.proto";
-import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+import "wiresmith/options.proto";
 import "trace/v1/trace.proto";
 import 'google/protobuf/timestamp.proto';
 
@@ -48,14 +48,13 @@ message TraceByIDRequest {
 
   google.protobuf.Timestamp RF1After = 7 [
     deprecated = true,
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = false
+    (wiresmith.options.stdtime) = true
   ];
 }
 
 message TraceByIDResponse {
-  Trace trace = 1;
-  TraceByIDMetrics metrics = 2;
+  Trace trace = 1 [(wiresmith.options.pointer) = true];
+  TraceByIDMetrics metrics = 2 [(wiresmith.options.pointer) = true];
   PartialStatus status = 3;
   string message = 4;
 }
@@ -73,7 +72,7 @@ message TraceByIDMetrics {
 // SearchRequest takes no block parameters and implies a "recent traces" search
 message SearchRequest {
   // case insensitive partial match
-  map<string, string> Tags = 1 [(gogoproto.nullable) = false];
+  map<string, string> Tags = 1;
   uint32 MinDurationMs = 2;
   uint32 MaxDurationMs = 3;
   uint32 Limit = 4;
@@ -85,8 +84,7 @@ message SearchRequest {
 
   google.protobuf.Timestamp RF1After = 10 [
     deprecated = true,
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = false
+    (wiresmith.options.stdtime) = true
   ];
 
   // names of AST transformations to skip; populated by the frontend from query_frontend.skip_ast_transformations
@@ -96,7 +94,7 @@ message SearchRequest {
 // SearchBlockRequest takes SearchRequest parameters as well as all information
 // necessary to search a block in the backend.
 message SearchBlockRequest {
-  SearchRequest searchReq = 1;
+  SearchRequest searchReq = 1 [(wiresmith.options.pointer) = true];
   string blockID = 2;
   uint32 startPage = 3;
   uint32 pagesToSearch = 4;
@@ -105,9 +103,9 @@ message SearchBlockRequest {
   uint32 totalRecords = 7;
   // string dataEncoding = 8;
   string version = 9;
-  uint64 size = 10; // total size of data file
+  uint64 size = 10 [(wiresmith.options.customname) = "Size_"]; // total size of data file (Size_ avoids colliding with the generated Size() method, matching gogo)
   uint32 footerSize = 11; // size of file footer (parquet)
-  repeated DedicatedColumn dedicatedColumns = 12;
+  repeated DedicatedColumn dedicatedColumns = 12 [(wiresmith.options.pointer) = true];
 }
 
 // Configuration for a single dedicated attribute column.
@@ -133,8 +131,8 @@ message DedicatedColumn {
 }
 
 message SearchResponse {
-  repeated TraceSearchMetadata traces = 1;
-  SearchMetrics metrics = 2;
+  repeated TraceSearchMetadata traces = 1 [(wiresmith.options.pointer) = true];
+  SearchMetrics metrics = 2 [(wiresmith.options.pointer) = true];
 }
 
 message TraceSearchMetadata {
@@ -143,8 +141,8 @@ message TraceSearchMetadata {
   string rootTraceName = 3;
   uint64 startTimeUnixNano = 4;
   uint32 durationMs = 5;
-  SpanSet spanSet = 6; // deprecated. use SpanSets field below
-  repeated SpanSet spanSets = 7;
+  SpanSet spanSet = 6 [(wiresmith.options.pointer) = true]; // deprecated. use SpanSets field below
+  repeated SpanSet spanSets = 7 [(wiresmith.options.pointer) = true];
   map<string, ServiceStats> serviceStats = 8;
 }
 
@@ -154,9 +152,9 @@ message ServiceStats {
 }
 
 message SpanSet {
-  repeated Span spans = 1;
+  repeated Span spans = 1 [(wiresmith.options.pointer) = true];
   uint32 matched = 2;
-  repeated tempopb.common.v1.KeyValue attributes = 3;
+  repeated tempopb.common.v1.KeyValue attributes = 3 [(wiresmith.options.pointer) = true];
 }
 
 message Span {
@@ -164,7 +162,7 @@ message Span {
   string name = 2;
   uint64 startTimeUnixNano = 3;
   uint64 durationNanos = 4;
-  repeated tempopb.common.v1.KeyValue attributes = 5;
+  repeated tempopb.common.v1.KeyValue attributes = 5 [(wiresmith.options.pointer) = true];
 }
 
 message SearchMetrics {
@@ -193,15 +191,14 @@ message SearchTagsRequest {
 
   google.protobuf.Timestamp RF1After = 7 [
     deprecated = true,
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = false
+    (wiresmith.options.stdtime) = true
   ];
 }
 
 // SearchTagsBlockRequest takes SearchTagsRequest parameters as well as all information necessary
 // to search a block in the backend.
 message SearchTagsBlockRequest {
-  SearchTagsRequest searchReq = 1;
+  SearchTagsRequest searchReq = 1 [(wiresmith.options.pointer) = true];
   string blockID = 2;
   uint32 startPage = 3;
   uint32 pagesToSearch = 4;
@@ -210,15 +207,15 @@ message SearchTagsBlockRequest {
   uint32 totalRecords = 7;
   // string dataEncoding = 8;
   string version = 9;
-  uint64 size = 10; // total size of data file
+  uint64 size = 10 [(wiresmith.options.customname) = "Size_"]; // total size of data file (Size_ avoids colliding with the generated Size() method, matching gogo)
   uint32 footerSize = 11; // size of file footer (parquet)
-  repeated DedicatedColumn dedicatedColumns = 12;
+  repeated DedicatedColumn dedicatedColumns = 12 [(wiresmith.options.pointer) = true];
   uint32 maxTagsPerScope = 13; // Limit of tags per scope
   uint32 staleValueThreshold = 14; // Limit of stale values
 }
 
 message SearchTagValuesBlockRequest {
-  SearchTagValuesRequest searchReq = 1;
+  SearchTagValuesRequest searchReq = 1 [(wiresmith.options.pointer) = true];
   string blockID = 2;
   uint32 startPage = 3;
   uint32 pagesToSearch = 4;
@@ -227,20 +224,20 @@ message SearchTagValuesBlockRequest {
   uint32 totalRecords = 7;
   // string dataEncoding = 8;
   string version = 9;
-  uint64 size = 10; // total size of data file
+  uint64 size = 10 [(wiresmith.options.customname) = "Size_"]; // total size of data file (Size_ avoids colliding with the generated Size() method, matching gogo)
   uint32 footerSize = 11; // size of file footer (parquet)
-  repeated DedicatedColumn dedicatedColumns = 12;
+  repeated DedicatedColumn dedicatedColumns = 12 [(wiresmith.options.pointer) = true];
 }
 
 
 message SearchTagsResponse {
   repeated string tagNames = 1;
-  MetadataMetrics metrics = 2;
+  MetadataMetrics metrics = 2 [(wiresmith.options.pointer) = true];
 }
 
 message SearchTagsV2Response {
-  repeated SearchTagsV2Scope scopes = 1;
-  MetadataMetrics metrics = 2;
+  repeated SearchTagsV2Scope scopes = 1 [(wiresmith.options.pointer) = true];
+  MetadataMetrics metrics = 2 [(wiresmith.options.pointer) = true];
 }
 
 message SearchTagsV2Scope {
@@ -258,14 +255,13 @@ message SearchTagValuesRequest {
 
   google.protobuf.Timestamp RF1After = 8 [
     deprecated = true,
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = false
+    (wiresmith.options.stdtime) = true
   ];
 }
 
 message SearchTagValuesResponse {
   repeated string tagValues = 1;
-  MetadataMetrics metrics = 2;
+  MetadataMetrics metrics = 2 [(wiresmith.options.pointer) = true];
 }
 
 message TagValue {
@@ -274,8 +270,8 @@ message TagValue {
 }
 
 message SearchTagValuesV2Response {
-  repeated TagValue tagValues = 1;
-  MetadataMetrics metrics = 2;
+  repeated TagValue tagValues = 1 [(wiresmith.options.pointer) = true];
+  MetadataMetrics metrics = 2 [(wiresmith.options.pointer) = true];
 }
 
 message MetadataMetrics {
@@ -293,7 +289,7 @@ message MetadataMetrics {
 }
 
 message Trace {
-  repeated tempopb.trace.v1.ResourceSpans resourceSpans = 1;
+  repeated tempopb.trace.v1.ResourceSpans resourceSpans = 1 [(wiresmith.options.pointer) = true];
 }
 
 // Write
@@ -313,10 +309,7 @@ enum PushErrorReason {
 //  current BatchDecoder in ./pkg/model
 message PushBytesRequest {
   // pre-marshalled Traces. length must match ids
-  repeated bytes traces = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.customtype) = "PreallocBytes"
-  ];
+  repeated bytes traces = 2 [(wiresmith.options.customtype) = "PreallocBytes"];
   // trace ids. length must match traces
   repeated bytes ids = 3;
   // id 4 previously claimed by SearchData
@@ -328,7 +321,7 @@ message PushBytesRequest {
 
 message PushSpansRequest {
   // just send entire OTel spans for now
-  repeated tempopb.trace.v1.ResourceSpans batches = 1;
+  repeated tempopb.trace.v1.ResourceSpans batches = 1 [(wiresmith.options.pointer) = true];
 
   // indicates whether metrics generation should be skipped
   // for traces contained in this request.
@@ -345,7 +338,7 @@ message TraceBytes {
 // can't encode a slice directly so we use this wrapper to generate the required
 // marshalling/unmarshalling functions.
 message LinkSlice {
-  repeated tempopb.trace.v1.Span.Link links = 1;
+  repeated tempopb.trace.v1.Span.Link links = 1 [(wiresmith.options.pointer) = true];
 }
 
 message QueryInstantRequest {
@@ -355,8 +348,8 @@ message QueryInstantRequest {
 }
 
 message QueryInstantResponse {
-  repeated InstantSeries series = 1;
-  SearchMetrics metrics = 2;
+  repeated InstantSeries series = 1 [(wiresmith.options.pointer) = true];
+  SearchMetrics metrics = 2 [(wiresmith.options.pointer) = true];
   PartialStatus status = 3;
   string message = 4;
 }
@@ -367,7 +360,7 @@ message InstantSeries {
   reserved "prom_labels";
 
   // Series labels containing name and value. Data-type aware.
-  repeated tempopb.common.v1.KeyValue labels = 1 [(gogoproto.nullable) = false];
+  repeated tempopb.common.v1.KeyValue labels = 1;
 
   double value = 2;
 }
@@ -386,9 +379,9 @@ message QueryRangeRequest {
   uint32 pagesToSearch = 10;
   string version = 11;
   // string encoding = 12;
-  uint64 size = 13; // total size of data file
+  uint64 size = 13 [(wiresmith.options.customname) = "Size_"]; // total size of data file (Size_ avoids colliding with the generated Size() method, matching gogo)
   uint32 footerSize = 14; // size of file footer (parquet)
-  repeated DedicatedColumn dedicatedColumns = 15;
+  repeated DedicatedColumn dedicatedColumns = 15 [(wiresmith.options.pointer) = true];
   // Exemplars are optional and can be empty.
   uint32 exemplars = 16;
   uint32 maxSeries = 17; // max response serie before bailing early
@@ -404,15 +397,15 @@ enum PartialStatus {
 }
 
 message QueryRangeResponse {
-  repeated TimeSeries series = 1;
-  SearchMetrics metrics = 2;
+  repeated TimeSeries series = 1 [(wiresmith.options.pointer) = true];
+  SearchMetrics metrics = 2 [(wiresmith.options.pointer) = true];
   PartialStatus status = 3;
   string message = 4;
 }
 
 message Exemplar {
   // Optional, can be empty.
-  repeated tempopb.common.v1.KeyValue labels = 1 [(gogoproto.nullable) = false];
+  repeated tempopb.common.v1.KeyValue labels = 1;
   double value = 2;
   int64 timestamp_ms = 3;
 }
@@ -429,12 +422,12 @@ message TimeSeries {
   reserved "prom_labels";
   
   // Series labels containing name and value. Data-type aware.
-  repeated tempopb.common.v1.KeyValue labels = 1 [(gogoproto.nullable) = false];
+  repeated tempopb.common.v1.KeyValue labels = 1;
 
   // Sorted by time, oldest sample first.
-  repeated Sample samples = 2 [(gogoproto.nullable) = false];
+  repeated Sample samples = 2;
 
   // Exemplars are optional and can be empty.
   // Sorted by time, oldest exemplar first.
-  repeated Exemplar exemplars = 4 [(gogoproto.nullable) = false];
+  repeated Exemplar exemplars = 4;
 }
