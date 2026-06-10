@@ -92,8 +92,6 @@ type KeyValueList struct {
 type KeyValue struct {
 	Key   string    `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
 	Value *AnyValue `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 // InstrumentationScope is a message representing the instrumentation scope information
@@ -107,8 +105,6 @@ type InstrumentationScope struct {
 	// attribute with the same key).
 	Attributes             []*KeyValue `protobuf:"bytes,3,rep,name=attributes,proto3" json:"attributes,omitempty"`
 	DroppedAttributesCount uint32      `protobuf:"varint,4,opt,name=dropped_attributes_count,json=droppedAttributesCount,proto3" json:"dropped_attributes_count,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 func (m *AnyValue) Reset() {
@@ -179,34 +175,6 @@ func (m *InstrumentationScope) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("%v", *m)
-}
-
-func (m *KeyValue) HasKey() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *InstrumentationScope) HasName() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *InstrumentationScope) HasVersion() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<1) != 0
-}
-
-func (m *InstrumentationScope) HasDroppedAttributesCount() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<2) != 0
 }
 
 func (m *AnyValue) GetValue() AnyValue_Value {
@@ -1463,7 +1431,6 @@ func (m *KeyValue) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.Key = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 2: // value
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -1684,7 +1651,6 @@ func (m *InstrumentationScope) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.Name = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 2: // version
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -1730,7 +1696,6 @@ func (m *InstrumentationScope) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.Version = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 1
 		case 3: // attributes
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -1807,7 +1772,6 @@ func (m *InstrumentationScope) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.DroppedAttributesCount = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 2
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {

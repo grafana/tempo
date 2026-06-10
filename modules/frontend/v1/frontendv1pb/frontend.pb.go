@@ -70,8 +70,6 @@ type FrontendToClient struct {
 	Type        Type                `protobuf:"varint,2,opt,name=type,proto3,enum=frontend.Type" json:"type,omitempty"`
 	// bool statsEnabled = 3; - removed in 2.2. reserved until we can cleanly reclaim it
 	HttpRequestBatch []HTTPRequestEnvelope `protobuf:"bytes,4,rep,name=httpRequestBatch,proto3" json:"httpRequestBatch,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 type ClientToFrontend struct {
@@ -80,14 +78,10 @@ type ClientToFrontend struct {
 	// stats.Stats stats = 3; - removed in 2.2. reserved until we can cleanly reclaim it
 	HttpResponseBatch []HTTPResponseEnvelope `protobuf:"bytes,4,rep,name=httpResponseBatch,proto3" json:"httpResponseBatch,omitempty"`
 	Features          int32                  `protobuf:"varint,5,opt,name=features,proto3" json:"features,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 type NotifyClientShutdownRequest struct {
 	ClientID string `protobuf:"bytes,1,opt,name=clientID,proto3" json:"clientID,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 type NotifyClientShutdownResponse struct {
@@ -147,34 +141,6 @@ func (m *NotifyClientShutdownResponse) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("%v", *m)
-}
-
-func (m *FrontendToClient) HasType() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *ClientToFrontend) HasClientID() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *ClientToFrontend) HasFeatures() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<1) != 0
-}
-
-func (m *NotifyClientShutdownRequest) HasClientID() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
 }
 
 func (m *FrontendToClient) GetHttpRequest() HTTPRequestEnvelope {
@@ -689,7 +655,6 @@ func (m *FrontendToClient) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.Type = Type(v)
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 4: // httpRequestBatch
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -956,7 +921,6 @@ func (m *ClientToFrontend) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.ClientID = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 4: // httpResponseBatch
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -1034,7 +998,6 @@ func (m *ClientToFrontend) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.Features = int32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 1
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
@@ -1138,7 +1101,6 @@ func (m *NotifyClientShutdownRequest) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.ClientID = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {

@@ -87,8 +87,6 @@ type RetentionDetail struct {
 type RedactionDetail struct {
 	BlockId  string   `protobuf:"bytes,1,opt,name=block_id,json=blockId,proto3" json:"block_id,omitempty"`
 	TraceIds [][]byte `protobuf:"bytes,2,rep,name=trace_ids,json=traceIds,proto3" json:"trace_ids,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 // JobDetail contains the specific details for each job type
@@ -101,22 +99,16 @@ type JobDetail struct {
 	// batch_id groups the pending jobs that were created from a single SubmitRedaction
 	// call. Enables future Status/Cancel RPCs keyed on the original submission.
 	BatchId string `protobuf:"bytes,5,opt,name=batch_id,json=batchId,proto3" json:"batch_id,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 type NextJobRequest struct {
 	WorkerId string `protobuf:"bytes,1,opt,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 type NextJobResponse struct {
 	JobId  string    `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
 	Type   JobType   `protobuf:"varint,2,opt,name=type,proto3,enum=tempopb.JobType" json:"type,omitempty"`
 	Detail JobDetail `protobuf:"bytes,3,opt,name=detail,proto3" json:"detail,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 type UpdateJobStatusRequest struct {
@@ -125,14 +117,10 @@ type UpdateJobStatusRequest struct {
 	Error      string            `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"`
 	Compaction *CompactionDetail `protobuf:"bytes,4,opt,name=compaction,proto3" json:"compaction,omitempty"`
 	Redaction  *RedactionResult  `protobuf:"bytes,5,opt,name=redaction,proto3" json:"redaction,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 type UpdateJobStatusResponse struct {
 	Success bool `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 // SubmitRedactionRequest is the user-facing API for redacting traces from a tenant.
@@ -142,8 +130,6 @@ type UpdateJobStatusResponse struct {
 type SubmitRedactionRequest struct {
 	TenantId string   `protobuf:"bytes,1,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
 	TraceIds [][]byte `protobuf:"bytes,2,rep,name=trace_ids,json=traceIds,proto3" json:"trace_ids,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 type SubmitRedactionResponse struct {
@@ -151,8 +137,6 @@ type SubmitRedactionResponse struct {
 	BatchId string `protobuf:"bytes,1,opt,name=batch_id,json=batchId,proto3" json:"batch_id,omitempty"`
 	// jobs_created is the number of pending block-level redaction jobs that were enqueued.
 	JobsCreated int32 `protobuf:"varint,2,opt,name=jobs_created,json=jobsCreated,proto3" json:"jobs_created,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 // RedactionResult is reported by the worker when a redaction job completes.
@@ -160,8 +144,6 @@ type RedactionResult struct {
 	// traces_found is the number of target trace IDs that were present and removed
 	// from the block. Zero means the block was scanned and found clean.
 	TracesFound int32 `protobuf:"varint,1,opt,name=traces_found,json=tracesFound,proto3" json:"traces_found,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 // RedactionBatch holds the trace IDs for an in-flight redaction submission.
@@ -181,8 +163,6 @@ type RedactionBatch struct {
 	// rescan_after_unix_nano is the earliest time at which the scheduler should
 	// perform the rescan described above. Zero means no rescan is pending.
 	RescanAfterUnixNano int64 `protobuf:"varint,6,opt,name=rescan_after_unix_nano,json=rescanAfterUnixNano,proto3" json:"rescan_after_unix_nano,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 // RedactionBatches is the top-level container written to batches.pb.
@@ -372,139 +352,6 @@ func (m *RedactionBatches) String() string {
 	return fmt.Sprintf("%v", *m)
 }
 
-func (m *RedactionDetail) HasBlockId() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *JobDetail) HasTenant() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *JobDetail) HasBatchId() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<1) != 0
-}
-
-func (m *NextJobRequest) HasWorkerId() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *NextJobResponse) HasJobId() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *NextJobResponse) HasType() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<1) != 0
-}
-
-func (m *NextJobResponse) HasDetail() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<2) != 0
-}
-
-func (m *UpdateJobStatusRequest) HasJobId() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *UpdateJobStatusRequest) HasStatus() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<1) != 0
-}
-
-func (m *UpdateJobStatusRequest) HasError() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<2) != 0
-}
-
-func (m *UpdateJobStatusResponse) HasSuccess() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *SubmitRedactionRequest) HasTenantId() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *SubmitRedactionResponse) HasBatchId() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *SubmitRedactionResponse) HasJobsCreated() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<1) != 0
-}
-
-func (m *RedactionResult) HasTracesFound() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *RedactionBatch) HasBatchId() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *RedactionBatch) HasTenantId() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<1) != 0
-}
-
-func (m *RedactionBatch) HasCreatedAtUnixNano() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<2) != 0
-}
-
-func (m *RedactionBatch) HasRescanAfterUnixNano() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<3) != 0
-}
-
 func (m *CompactionDetail) GetInput() []string {
 	if m != nil {
 		return m.Input
@@ -590,7 +437,7 @@ func (m *NextJobResponse) GetType() JobType {
 }
 
 func (m *NextJobResponse) GetDetail() *JobDetail {
-	if m != nil && m.XXX_fieldsPresent[0]&(1<<2) != 0 {
+	if m != nil {
 		return &m.Detail
 	}
 	return nil
@@ -810,8 +657,6 @@ func (m *NextJobResponse) Size() int {
 		s := m.Detail.Size()
 		if s > 0 {
 			n += 1 + protowire.SizeVarint(uint64(s)) + s
-		} else if m.XXX_fieldsPresent[0]&(1<<2) != 0 {
-			n += 2
 		}
 	}
 	return n
@@ -1209,11 +1054,6 @@ func (m *NextJobResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		if size > 0 {
 			i -= size
 			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
-			i--
-			dAtA[i] = 0x1a
-		} else if m.XXX_fieldsPresent[0]&(1<<2) != 0 {
-			i--
-			dAtA[i] = 0
 			i--
 			dAtA[i] = 0x1a
 		}
@@ -2030,7 +1870,6 @@ func (m *RedactionDetail) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.BlockId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 2: // trace_ids
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -2179,7 +2018,6 @@ func (m *JobDetail) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.Tenant = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 2: // compaction
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -2375,7 +2213,6 @@ func (m *JobDetail) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.BatchId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 1
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
@@ -2479,7 +2316,6 @@ func (m *NextJobRequest) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.WorkerId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
@@ -2583,7 +2419,6 @@ func (m *NextJobResponse) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.JobId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 2: // type
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -2612,7 +2447,6 @@ func (m *NextJobResponse) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.Type = JobType(v)
-			m.XXX_fieldsPresent[0] |= 1 << 1
 		case 3: // detail
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -2660,7 +2494,6 @@ func (m *NextJobResponse) unmarshal(dAtA []byte, depth int) error {
 				return err
 			}
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 2
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
@@ -2764,7 +2597,6 @@ func (m *UpdateJobStatusRequest) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.JobId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 2: // status
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -2793,7 +2625,6 @@ func (m *UpdateJobStatusRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.Status = JobStatus(v)
-			m.XXX_fieldsPresent[0] |= 1 << 1
 		case 3: // error
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -2839,7 +2670,6 @@ func (m *UpdateJobStatusRequest) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.Error = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 2
 		case 4: // compaction
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -3026,7 +2856,6 @@ func (m *UpdateJobStatusResponse) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.Success = v != 0
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
@@ -3197,7 +3026,6 @@ func (m *SubmitRedactionRequest) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.TenantId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 2: // trace_ids
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -3346,7 +3174,6 @@ func (m *SubmitRedactionResponse) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.BatchId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 2: // jobs_created
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -3375,7 +3202,6 @@ func (m *SubmitRedactionResponse) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.JobsCreated = int32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 1
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
@@ -3462,7 +3288,6 @@ func (m *RedactionResult) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.TracesFound = int32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
@@ -3646,7 +3471,6 @@ func (m *RedactionBatch) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.BatchId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 2: // tenant_id
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -3692,7 +3516,6 @@ func (m *RedactionBatch) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.TenantId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 1
 		case 3: // trace_ids
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -3766,7 +3589,6 @@ func (m *RedactionBatch) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.CreatedAtUnixNano = int64(v)
-			m.XXX_fieldsPresent[0] |= 1 << 2
 		case 5: // skipped_compaction_job_ids
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -3840,7 +3662,6 @@ func (m *RedactionBatch) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.RescanAfterUnixNano = int64(v)
-			m.XXX_fieldsPresent[0] |= 1 << 3
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {

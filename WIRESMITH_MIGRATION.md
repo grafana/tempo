@@ -5,11 +5,13 @@ Tracking document for replacing protoc-gen-gogofaster with
 Wire format is unchanged (standard protobuf, binary-compatible with gogo);
 only the generated Go API shape changes.
 
-Toolchain: `wiresmith` CLI (v0.0.0-20260609114539-bee7aa4), invoked from
-`make gen-proto` (the buf+docker+gogofaster pipeline is gone). `go.mod`
-carries `require github.com/grafana/wiresmith` (runtime `protohelpers`
-package) with a local `replace` while the module is unpublished — **remove
-the replace and pin a published version before merging**.
+Toolchain: `wiresmith` CLI built from the `databases` branch (@9407011),
+invoked from `make gen-proto` (the buf+docker+gogofaster pipeline is gone).
+`go.mod` carries `require github.com/grafana/wiresmith` (runtime
+`protohelpers` package) with a local `replace` to the wiresmith-databases
+checkout while the branch is unpublished — **remove the replace and pin a
+published version before merging**. `make gen-proto` reproduces the
+committed output byte-identically.
 
 ## Status per proto
 
@@ -44,14 +46,18 @@ the replace and pin a published version before merging**.
   to limit call-site churn. gogo `nullable=false` fields map to wiresmith's
   value-type default (annotation deleted). Oneof wrappers hold values
   (`AnyValue_ArrayValue{ArrayValue: v}` not `&v`).
-- **gogo reflection interop is gone**: gogo's `proto.Equal/Clone/Merge` and
-  `cmp.Diff` cannot traverse wiresmith structs (unexported
-  `fieldsPresent [1]uint64`; gogo only skips `XXX_`-prefixed fields).
-  Replacements: `test.ProtoEqual`/`test.RequireProtoEqual`
-  (pkg/util/test/req.go, wire-bytes equality), `cloneProto` in
-  modules/frontend/combiner/common.go (Marshal/Unmarshal round trip;
-  normalizes empty top-level slices to nil), and
-  `cmpopts.IgnoreUnexported(...)` where cmp.Diff is used.
+- **gogo reflection interop**: restored on the databases branch — the
+  presence bitmap is `XXX_fieldsPresent`, which gogo's reflection-based
+  `proto.Equal/Clone/Merge` skip. The ~25 call sites that had been switched
+  to wire-bytes comparison are back on gogo `proto.Equal` (upstream form).
+  Note the field is exported: testify `require.Equal` and `cmp.Diff` DO see
+  it, so struct-literal vs unmarshaled comparisons still need
+  `test.RequireProtoEqual` (wire-bytes), the generated `Equal()`, or
+  `cmpopts.IgnoreFields(T{}, "XXX_fieldsPresent")` / a `cmp.FilterPath`
+  (tempodb/backend/cmp_test.go). Kept on purpose (better, not workarounds):
+  `cloneProto` in modules/frontend/combiner/common.go (generated
+  marshal/unmarshal round trip instead of reflection Clone; normalizes
+  empty top-level slices to nil) and vulture's wire-bytes `equalTraces`.
 - **cmp.Diff uses generated Equal on pointers**: `*TimeSeries` etc. now have
   `Equal(any) bool`, which cmp prefers — float comparisons become bit-exact.
   Tests needing tolerance must supply an explicit `cmp.Comparer`
@@ -79,32 +85,31 @@ the replace and pin a published version before merging**.
   itself evidence to reopen the wiresmith embed feature, but combined with
   the JSON-flattening footgun it is the most fragile part of the migration.
 - **Same-package multi-proto**: tempo.proto + backendwork.proto generate
-  into one Go package; wiresmith emits its package-level helpers
-  (`maxUnmarshalDepth`, `skipValue`) per file, so `make gen-proto` strips
-  the duplicate copy (tools/strip-wiresmith-dup-helpers.py).
+  into one Go package; the databases branch moved the unmarshal helpers
+  into `protohelpers` (`SkipValue`/`MaxUnmarshalDepth`), so this compiles
+  natively — the former strip script is deleted.
 
 ## Wiresmith blockers / friction (ranked)
 
 Each entry: where it bites, why wiresmith can't express it, suggested
 feature, severity.
 
-1. **Unexported presence bitmap breaks gogo-reflection interop**
-   (`proto.Equal/Clone/Merge`, `cmp.Diff`, testify `assert.Equal`).
-   - Every mixed gogo/wiresmith graph and every struct-literal vs
-     unmarshaled comparison in tests.
-   - gogo skips `XXX_`-prefixed fields; the bitmap used to be
-     `XXX_fieldsPresent` (interoperated) and is now unexported.
-   - Suggested: a compat flag restoring an `XXX_`-prefixed name, or at
-     least prominent migration docs. ~40 call sites had to change here.
-   - Severity: high during staged migrations; zero once fully migrated.
+1. **FIXED on the databases branch (@9407011)**: presence bitmap renamed
+   `XXX_fieldsPresent` — gogo `proto.Equal/Clone/Merge` interop restored;
+   the ~25 wire-bytes-comparison call sites were reverted to upstream's
+   gogo `proto.Equal`. Residual (inherent, also true of gogo's own `XXX_`
+   fields): the exported field is visible to testify deep equality and
+   `cmp.Diff`, so struct-literal vs unmarshaled comparisons use
+   `RequireProtoEqual`/generated `Equal()`/`IgnoreFields` recipes.
+   `(wiresmith.options.no_presence)` could remove even that for messages
+   that never use `Has*`/present-empty semantics — not yet adopted (see
+   Remaining work).
 
-2. **No multi-proto-per-Go-package support** — duplicate package-level
-   helpers (`maxUnmarshalDepth`, `skipValue`) do not compile.
-   - pkg/tempopb (tempo.proto + backendwork.proto) — a layout protoc-gen-go
-     and gogo support natively.
-   - Suggested: emit helpers once per output package (or guard with a
-     per-file suffix). Tempo works around it with a post-processing script.
-   - Severity: high (compile failure, needs build tooling workaround).
+2. **FIXED on the databases branch (@5f1416f)**: `skipValue`/
+   `maxUnmarshalDepth` live in `protohelpers` and are referenced
+   qualified; multiple .proto files per Go package compile natively.
+   tools/strip-wiresmith-dup-helpers.py and its gen-proto step are
+   deleted.
 
 3. **Generated `String()` is `fmt.Sprintf("%v", *m)` — nondeterministic for
    oneofs and not overridable**.
@@ -139,10 +144,11 @@ feature, severity.
    set on cross-package message types, so a proto importing dskit's
    httpgrpc.proto cannot reference dskit's Go types directly.
    - Worked around with envelope types + Wrap/Unwrap at call sites
-     (frontendv1pb). Also: wiresmith leaves an unused Go import for the
-     replaced package (goimports in gen step), and the proto build tree
-     must contain a gogo-stripped copy of the imported .proto because
-     wiresmith cannot parse gogoproto options.
+     (frontendv1pb). The unused-import leak for customtype-replaced
+     packages is fixed on the databases branch (@d143d4f; the goimports
+     gen step is gone). Still required: the proto build tree must contain
+     a gogo-stripped copy of the imported .proto because wiresmith cannot
+     parse gogoproto options.
    - Suggested: an option to treat an import as "external gogo package"
      (emit gogo-style Marshal/Size/Unmarshal calls), plus tolerate unknown
      custom options when the defining .proto is resolvable.
