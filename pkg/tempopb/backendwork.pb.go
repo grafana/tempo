@@ -5,12 +5,11 @@ package tempopb
 
 import (
 	"fmt"
+	"github.com/grafana/wiresmith/protohelpers"
+	"google.golang.org/protobuf/encoding/protowire"
 	"io"
 	"math"
 	"strconv"
-
-	"github.com/grafana/wiresmith/protohelpers"
-	"google.golang.org/protobuf/encoding/protowire"
 )
 
 type JobType int32
@@ -89,7 +88,7 @@ type RedactionDetail struct {
 	BlockId  string   `protobuf:"bytes,1,opt,name=block_id,json=blockId,proto3" json:"block_id,omitempty"`
 	TraceIds [][]byte `protobuf:"bytes,2,rep,name=trace_ids,json=traceIds,proto3" json:"trace_ids,omitempty"`
 
-	fieldsPresent [1]uint64
+	XXX_fieldsPresent [1]uint64
 }
 
 // JobDetail contains the specific details for each job type
@@ -103,13 +102,13 @@ type JobDetail struct {
 	// call. Enables future Status/Cancel RPCs keyed on the original submission.
 	BatchId string `protobuf:"bytes,5,opt,name=batch_id,json=batchId,proto3" json:"batch_id,omitempty"`
 
-	fieldsPresent [1]uint64
+	XXX_fieldsPresent [1]uint64
 }
 
 type NextJobRequest struct {
 	WorkerId string `protobuf:"bytes,1,opt,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty"`
 
-	fieldsPresent [1]uint64
+	XXX_fieldsPresent [1]uint64
 }
 
 type NextJobResponse struct {
@@ -117,7 +116,7 @@ type NextJobResponse struct {
 	Type   JobType   `protobuf:"varint,2,opt,name=type,proto3,enum=tempopb.JobType" json:"type,omitempty"`
 	Detail JobDetail `protobuf:"bytes,3,opt,name=detail,proto3" json:"detail,omitempty"`
 
-	fieldsPresent [1]uint64
+	XXX_fieldsPresent [1]uint64
 }
 
 type UpdateJobStatusRequest struct {
@@ -127,13 +126,13 @@ type UpdateJobStatusRequest struct {
 	Compaction *CompactionDetail `protobuf:"bytes,4,opt,name=compaction,proto3" json:"compaction,omitempty"`
 	Redaction  *RedactionResult  `protobuf:"bytes,5,opt,name=redaction,proto3" json:"redaction,omitempty"`
 
-	fieldsPresent [1]uint64
+	XXX_fieldsPresent [1]uint64
 }
 
 type UpdateJobStatusResponse struct {
 	Success bool `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
 
-	fieldsPresent [1]uint64
+	XXX_fieldsPresent [1]uint64
 }
 
 // SubmitRedactionRequest is the user-facing API for redacting traces from a tenant.
@@ -144,7 +143,7 @@ type SubmitRedactionRequest struct {
 	TenantId string   `protobuf:"bytes,1,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
 	TraceIds [][]byte `protobuf:"bytes,2,rep,name=trace_ids,json=traceIds,proto3" json:"trace_ids,omitempty"`
 
-	fieldsPresent [1]uint64
+	XXX_fieldsPresent [1]uint64
 }
 
 type SubmitRedactionResponse struct {
@@ -153,7 +152,7 @@ type SubmitRedactionResponse struct {
 	// jobs_created is the number of pending block-level redaction jobs that were enqueued.
 	JobsCreated int32 `protobuf:"varint,2,opt,name=jobs_created,json=jobsCreated,proto3" json:"jobs_created,omitempty"`
 
-	fieldsPresent [1]uint64
+	XXX_fieldsPresent [1]uint64
 }
 
 // RedactionResult is reported by the worker when a redaction job completes.
@@ -162,7 +161,7 @@ type RedactionResult struct {
 	// from the block. Zero means the block was scanned and found clean.
 	TracesFound int32 `protobuf:"varint,1,opt,name=traces_found,json=tracesFound,proto3" json:"traces_found,omitempty"`
 
-	fieldsPresent [1]uint64
+	XXX_fieldsPresent [1]uint64
 }
 
 // RedactionBatch holds the trace IDs for an in-flight redaction submission.
@@ -183,7 +182,7 @@ type RedactionBatch struct {
 	// perform the rescan described above. Zero means no rescan is pending.
 	RescanAfterUnixNano int64 `protobuf:"varint,6,opt,name=rescan_after_unix_nano,json=rescanAfterUnixNano,proto3" json:"rescan_after_unix_nano,omitempty"`
 
-	fieldsPresent [1]uint64
+	XXX_fieldsPresent [1]uint64
 }
 
 // RedactionBatches is the top-level container written to batches.pb.
@@ -377,133 +376,133 @@ func (m *RedactionDetail) HasBlockId() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<0) != 0
+	return m.XXX_fieldsPresent[0]&(1<<0) != 0
 }
 
 func (m *JobDetail) HasTenant() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<0) != 0
+	return m.XXX_fieldsPresent[0]&(1<<0) != 0
 }
 
 func (m *JobDetail) HasBatchId() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<1) != 0
+	return m.XXX_fieldsPresent[0]&(1<<1) != 0
 }
 
 func (m *NextJobRequest) HasWorkerId() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<0) != 0
+	return m.XXX_fieldsPresent[0]&(1<<0) != 0
 }
 
 func (m *NextJobResponse) HasJobId() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<0) != 0
+	return m.XXX_fieldsPresent[0]&(1<<0) != 0
 }
 
 func (m *NextJobResponse) HasType() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<1) != 0
+	return m.XXX_fieldsPresent[0]&(1<<1) != 0
 }
 
 func (m *NextJobResponse) HasDetail() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<2) != 0
+	return m.XXX_fieldsPresent[0]&(1<<2) != 0
 }
 
 func (m *UpdateJobStatusRequest) HasJobId() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<0) != 0
+	return m.XXX_fieldsPresent[0]&(1<<0) != 0
 }
 
 func (m *UpdateJobStatusRequest) HasStatus() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<1) != 0
+	return m.XXX_fieldsPresent[0]&(1<<1) != 0
 }
 
 func (m *UpdateJobStatusRequest) HasError() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<2) != 0
+	return m.XXX_fieldsPresent[0]&(1<<2) != 0
 }
 
 func (m *UpdateJobStatusResponse) HasSuccess() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<0) != 0
+	return m.XXX_fieldsPresent[0]&(1<<0) != 0
 }
 
 func (m *SubmitRedactionRequest) HasTenantId() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<0) != 0
+	return m.XXX_fieldsPresent[0]&(1<<0) != 0
 }
 
 func (m *SubmitRedactionResponse) HasBatchId() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<0) != 0
+	return m.XXX_fieldsPresent[0]&(1<<0) != 0
 }
 
 func (m *SubmitRedactionResponse) HasJobsCreated() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<1) != 0
+	return m.XXX_fieldsPresent[0]&(1<<1) != 0
 }
 
 func (m *RedactionResult) HasTracesFound() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<0) != 0
+	return m.XXX_fieldsPresent[0]&(1<<0) != 0
 }
 
 func (m *RedactionBatch) HasBatchId() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<0) != 0
+	return m.XXX_fieldsPresent[0]&(1<<0) != 0
 }
 
 func (m *RedactionBatch) HasTenantId() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<1) != 0
+	return m.XXX_fieldsPresent[0]&(1<<1) != 0
 }
 
 func (m *RedactionBatch) HasCreatedAtUnixNano() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<2) != 0
+	return m.XXX_fieldsPresent[0]&(1<<2) != 0
 }
 
 func (m *RedactionBatch) HasRescanAfterUnixNano() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<3) != 0
+	return m.XXX_fieldsPresent[0]&(1<<3) != 0
 }
 
 func (m *CompactionDetail) GetInput() []string {
@@ -591,7 +590,7 @@ func (m *NextJobResponse) GetType() JobType {
 }
 
 func (m *NextJobResponse) GetDetail() *JobDetail {
-	if m != nil && m.fieldsPresent[0]&(1<<2) != 0 {
+	if m != nil && m.XXX_fieldsPresent[0]&(1<<2) != 0 {
 		return &m.Detail
 	}
 	return nil
@@ -811,7 +810,7 @@ func (m *NextJobResponse) Size() int {
 		s := m.Detail.Size()
 		if s > 0 {
 			n += 1 + protowire.SizeVarint(uint64(s)) + s
-		} else if m.fieldsPresent[0]&(1<<2) != 0 {
+		} else if m.XXX_fieldsPresent[0]&(1<<2) != 0 {
 			n += 2
 		}
 	}
@@ -1212,7 +1211,7 @@ func (m *NextJobResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
 			i--
 			dAtA[i] = 0x1a
-		} else if m.fieldsPresent[0]&(1<<2) != 0 {
+		} else if m.XXX_fieldsPresent[0]&(1<<2) != 0 {
 			i--
 			dAtA[i] = 0
 			i--
@@ -1589,10 +1588,6 @@ func (m *RedactionBatches) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-// NOTE: maxUnmarshalDepth and skipValue are shared with the primary
-// .pb.go of this Go package; the duplicate copies emitted for this
-// file are stripped by `make gen-proto` (tools/strip-wiresmith-dup-helpers.py).
-
 func (m *CompactionDetail) Unmarshal(b []byte) error {
 	return m.unmarshal(b, 0)
 }
@@ -1605,7 +1600,7 @@ func (m *CompactionDetail) UnmarshalWithDepth(b []byte, depth int) error {
 }
 
 func (m *CompactionDetail) unmarshal(dAtA []byte, depth int) error {
-	if depth > maxUnmarshalDepth {
+	if depth > protohelpers.MaxUnmarshalDepth {
 		return fmt.Errorf("exceeded max recursion depth")
 	}
 	l := len(dAtA)
@@ -1673,13 +1668,21 @@ func (m *CompactionDetail) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			m.Input = make([]string, 0, c)
+			if cap(m.Input) < c {
+				m.Input = make([]string, 0, c)
+			} else {
+				m.Input = m.Input[:0]
+			}
 		}
 		if c := field2count; c > 0 {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			m.Output = make([]string, 0, c)
+			if cap(m.Output) < c {
+				m.Output = make([]string, 0, c)
+			} else {
+				m.Output = m.Output[:0]
+			}
 		}
 	}
 	for iNdEx < l {
@@ -1711,7 +1714,7 @@ func (m *CompactionDetail) unmarshal(dAtA []byte, depth int) error {
 		switch fieldNum {
 		case 1: // input
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -1756,7 +1759,7 @@ func (m *CompactionDetail) unmarshal(dAtA []byte, depth int) error {
 			iNdEx = postIndex
 		case 2: // output
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -1800,7 +1803,7 @@ func (m *CompactionDetail) unmarshal(dAtA []byte, depth int) error {
 			m.Output = append(m.Output, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
 		default:
-			n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
 				return err
 			}
@@ -1825,7 +1828,7 @@ func (m *RetentionDetail) UnmarshalWithDepth(b []byte, depth int) error {
 }
 
 func (m *RetentionDetail) unmarshal(dAtA []byte, depth int) error {
-	if depth > maxUnmarshalDepth {
+	if depth > protohelpers.MaxUnmarshalDepth {
 		return fmt.Errorf("exceeded max recursion depth")
 	}
 	l := len(dAtA)
@@ -1858,7 +1861,7 @@ func (m *RetentionDetail) unmarshal(dAtA []byte, depth int) error {
 		wireType := int(wire & 0x7)
 		switch fieldNum {
 		default:
-			n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
 				return err
 			}
@@ -1883,7 +1886,7 @@ func (m *RedactionDetail) UnmarshalWithDepth(b []byte, depth int) error {
 }
 
 func (m *RedactionDetail) unmarshal(dAtA []byte, depth int) error {
-	if depth > maxUnmarshalDepth {
+	if depth > protohelpers.MaxUnmarshalDepth {
 		return fmt.Errorf("exceeded max recursion depth")
 	}
 	l := len(dAtA)
@@ -1948,7 +1951,11 @@ func (m *RedactionDetail) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			m.TraceIds = make([][]byte, 0, c)
+			if cap(m.TraceIds) < c {
+				m.TraceIds = make([][]byte, 0, c)
+			} else {
+				m.TraceIds = m.TraceIds[:0]
+			}
 		}
 	}
 	for iNdEx < l {
@@ -1980,7 +1987,7 @@ func (m *RedactionDetail) unmarshal(dAtA []byte, depth int) error {
 		switch fieldNum {
 		case 1: // block_id
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -2023,10 +2030,10 @@ func (m *RedactionDetail) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.BlockId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.fieldsPresent[0] |= 1 << 0
+			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 2: // trace_ids
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -2070,7 +2077,7 @@ func (m *RedactionDetail) unmarshal(dAtA []byte, depth int) error {
 			m.TraceIds = append(m.TraceIds, append([]byte(nil), dAtA[iNdEx:postIndex]...))
 			iNdEx = postIndex
 		default:
-			n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
 				return err
 			}
@@ -2095,7 +2102,7 @@ func (m *JobDetail) UnmarshalWithDepth(b []byte, depth int) error {
 }
 
 func (m *JobDetail) unmarshal(dAtA []byte, depth int) error {
-	if depth > maxUnmarshalDepth {
+	if depth > protohelpers.MaxUnmarshalDepth {
 		return fmt.Errorf("exceeded max recursion depth")
 	}
 	l := len(dAtA)
@@ -2129,7 +2136,7 @@ func (m *JobDetail) unmarshal(dAtA []byte, depth int) error {
 		switch fieldNum {
 		case 1: // tenant
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -2172,10 +2179,10 @@ func (m *JobDetail) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.Tenant = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.fieldsPresent[0] |= 1 << 0
+			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 2: // compaction
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -2225,7 +2232,7 @@ func (m *JobDetail) unmarshal(dAtA []byte, depth int) error {
 			iNdEx = postIndex
 		case 3: // retention
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -2275,7 +2282,7 @@ func (m *JobDetail) unmarshal(dAtA []byte, depth int) error {
 			iNdEx = postIndex
 		case 4: // redaction
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -2325,7 +2332,7 @@ func (m *JobDetail) unmarshal(dAtA []byte, depth int) error {
 			iNdEx = postIndex
 		case 5: // batch_id
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -2368,9 +2375,9 @@ func (m *JobDetail) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.BatchId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.fieldsPresent[0] |= 1 << 1
+			m.XXX_fieldsPresent[0] |= 1 << 1
 		default:
-			n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
 				return err
 			}
@@ -2395,7 +2402,7 @@ func (m *NextJobRequest) UnmarshalWithDepth(b []byte, depth int) error {
 }
 
 func (m *NextJobRequest) unmarshal(dAtA []byte, depth int) error {
-	if depth > maxUnmarshalDepth {
+	if depth > protohelpers.MaxUnmarshalDepth {
 		return fmt.Errorf("exceeded max recursion depth")
 	}
 	l := len(dAtA)
@@ -2429,7 +2436,7 @@ func (m *NextJobRequest) unmarshal(dAtA []byte, depth int) error {
 		switch fieldNum {
 		case 1: // worker_id
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -2472,9 +2479,9 @@ func (m *NextJobRequest) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.WorkerId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.fieldsPresent[0] |= 1 << 0
+			m.XXX_fieldsPresent[0] |= 1 << 0
 		default:
-			n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
 				return err
 			}
@@ -2499,7 +2506,7 @@ func (m *NextJobResponse) UnmarshalWithDepth(b []byte, depth int) error {
 }
 
 func (m *NextJobResponse) unmarshal(dAtA []byte, depth int) error {
-	if depth > maxUnmarshalDepth {
+	if depth > protohelpers.MaxUnmarshalDepth {
 		return fmt.Errorf("exceeded max recursion depth")
 	}
 	l := len(dAtA)
@@ -2533,7 +2540,7 @@ func (m *NextJobResponse) unmarshal(dAtA []byte, depth int) error {
 		switch fieldNum {
 		case 1: // job_id
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -2576,10 +2583,10 @@ func (m *NextJobResponse) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.JobId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.fieldsPresent[0] |= 1 << 0
+			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 2: // type
 			if wireType != 0 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -2605,10 +2612,10 @@ func (m *NextJobResponse) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.Type = JobType(v)
-			m.fieldsPresent[0] |= 1 << 1
+			m.XXX_fieldsPresent[0] |= 1 << 1
 		case 3: // detail
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -2653,9 +2660,9 @@ func (m *NextJobResponse) unmarshal(dAtA []byte, depth int) error {
 				return err
 			}
 			iNdEx = postIndex
-			m.fieldsPresent[0] |= 1 << 2
+			m.XXX_fieldsPresent[0] |= 1 << 2
 		default:
-			n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
 				return err
 			}
@@ -2680,7 +2687,7 @@ func (m *UpdateJobStatusRequest) UnmarshalWithDepth(b []byte, depth int) error {
 }
 
 func (m *UpdateJobStatusRequest) unmarshal(dAtA []byte, depth int) error {
-	if depth > maxUnmarshalDepth {
+	if depth > protohelpers.MaxUnmarshalDepth {
 		return fmt.Errorf("exceeded max recursion depth")
 	}
 	l := len(dAtA)
@@ -2714,7 +2721,7 @@ func (m *UpdateJobStatusRequest) unmarshal(dAtA []byte, depth int) error {
 		switch fieldNum {
 		case 1: // job_id
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -2757,10 +2764,10 @@ func (m *UpdateJobStatusRequest) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.JobId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.fieldsPresent[0] |= 1 << 0
+			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 2: // status
 			if wireType != 0 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -2786,10 +2793,10 @@ func (m *UpdateJobStatusRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.Status = JobStatus(v)
-			m.fieldsPresent[0] |= 1 << 1
+			m.XXX_fieldsPresent[0] |= 1 << 1
 		case 3: // error
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -2832,10 +2839,10 @@ func (m *UpdateJobStatusRequest) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.Error = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.fieldsPresent[0] |= 1 << 2
+			m.XXX_fieldsPresent[0] |= 1 << 2
 		case 4: // compaction
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -2885,7 +2892,7 @@ func (m *UpdateJobStatusRequest) unmarshal(dAtA []byte, depth int) error {
 			iNdEx = postIndex
 		case 5: // redaction
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -2934,7 +2941,7 @@ func (m *UpdateJobStatusRequest) unmarshal(dAtA []byte, depth int) error {
 			}
 			iNdEx = postIndex
 		default:
-			n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
 				return err
 			}
@@ -2959,7 +2966,7 @@ func (m *UpdateJobStatusResponse) UnmarshalWithDepth(b []byte, depth int) error 
 }
 
 func (m *UpdateJobStatusResponse) unmarshal(dAtA []byte, depth int) error {
-	if depth > maxUnmarshalDepth {
+	if depth > protohelpers.MaxUnmarshalDepth {
 		return fmt.Errorf("exceeded max recursion depth")
 	}
 	l := len(dAtA)
@@ -2993,7 +3000,7 @@ func (m *UpdateJobStatusResponse) unmarshal(dAtA []byte, depth int) error {
 		switch fieldNum {
 		case 1: // success
 			if wireType != 0 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -3019,9 +3026,9 @@ func (m *UpdateJobStatusResponse) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.Success = v != 0
-			m.fieldsPresent[0] |= 1 << 0
+			m.XXX_fieldsPresent[0] |= 1 << 0
 		default:
-			n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
 				return err
 			}
@@ -3046,7 +3053,7 @@ func (m *SubmitRedactionRequest) UnmarshalWithDepth(b []byte, depth int) error {
 }
 
 func (m *SubmitRedactionRequest) unmarshal(dAtA []byte, depth int) error {
-	if depth > maxUnmarshalDepth {
+	if depth > protohelpers.MaxUnmarshalDepth {
 		return fmt.Errorf("exceeded max recursion depth")
 	}
 	l := len(dAtA)
@@ -3111,7 +3118,11 @@ func (m *SubmitRedactionRequest) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			m.TraceIds = make([][]byte, 0, c)
+			if cap(m.TraceIds) < c {
+				m.TraceIds = make([][]byte, 0, c)
+			} else {
+				m.TraceIds = m.TraceIds[:0]
+			}
 		}
 	}
 	for iNdEx < l {
@@ -3143,7 +3154,7 @@ func (m *SubmitRedactionRequest) unmarshal(dAtA []byte, depth int) error {
 		switch fieldNum {
 		case 1: // tenant_id
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -3186,10 +3197,10 @@ func (m *SubmitRedactionRequest) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.TenantId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.fieldsPresent[0] |= 1 << 0
+			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 2: // trace_ids
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -3233,7 +3244,7 @@ func (m *SubmitRedactionRequest) unmarshal(dAtA []byte, depth int) error {
 			m.TraceIds = append(m.TraceIds, append([]byte(nil), dAtA[iNdEx:postIndex]...))
 			iNdEx = postIndex
 		default:
-			n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
 				return err
 			}
@@ -3258,7 +3269,7 @@ func (m *SubmitRedactionResponse) UnmarshalWithDepth(b []byte, depth int) error 
 }
 
 func (m *SubmitRedactionResponse) unmarshal(dAtA []byte, depth int) error {
-	if depth > maxUnmarshalDepth {
+	if depth > protohelpers.MaxUnmarshalDepth {
 		return fmt.Errorf("exceeded max recursion depth")
 	}
 	l := len(dAtA)
@@ -3292,7 +3303,7 @@ func (m *SubmitRedactionResponse) unmarshal(dAtA []byte, depth int) error {
 		switch fieldNum {
 		case 1: // batch_id
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -3335,10 +3346,10 @@ func (m *SubmitRedactionResponse) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.BatchId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.fieldsPresent[0] |= 1 << 0
+			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 2: // jobs_created
 			if wireType != 0 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -3364,9 +3375,9 @@ func (m *SubmitRedactionResponse) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.JobsCreated = int32(v)
-			m.fieldsPresent[0] |= 1 << 1
+			m.XXX_fieldsPresent[0] |= 1 << 1
 		default:
-			n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
 				return err
 			}
@@ -3391,7 +3402,7 @@ func (m *RedactionResult) UnmarshalWithDepth(b []byte, depth int) error {
 }
 
 func (m *RedactionResult) unmarshal(dAtA []byte, depth int) error {
-	if depth > maxUnmarshalDepth {
+	if depth > protohelpers.MaxUnmarshalDepth {
 		return fmt.Errorf("exceeded max recursion depth")
 	}
 	l := len(dAtA)
@@ -3425,7 +3436,7 @@ func (m *RedactionResult) unmarshal(dAtA []byte, depth int) error {
 		switch fieldNum {
 		case 1: // traces_found
 			if wireType != 0 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -3451,9 +3462,9 @@ func (m *RedactionResult) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.TracesFound = int32(v)
-			m.fieldsPresent[0] |= 1 << 0
+			m.XXX_fieldsPresent[0] |= 1 << 0
 		default:
-			n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
 				return err
 			}
@@ -3478,7 +3489,7 @@ func (m *RedactionBatch) UnmarshalWithDepth(b []byte, depth int) error {
 }
 
 func (m *RedactionBatch) unmarshal(dAtA []byte, depth int) error {
-	if depth > maxUnmarshalDepth {
+	if depth > protohelpers.MaxUnmarshalDepth {
 		return fmt.Errorf("exceeded max recursion depth")
 	}
 	l := len(dAtA)
@@ -3546,13 +3557,21 @@ func (m *RedactionBatch) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			m.TraceIds = make([][]byte, 0, c)
+			if cap(m.TraceIds) < c {
+				m.TraceIds = make([][]byte, 0, c)
+			} else {
+				m.TraceIds = m.TraceIds[:0]
+			}
 		}
 		if c := field5count; c > 0 {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			m.SkippedCompactionJobIds = make([]string, 0, c)
+			if cap(m.SkippedCompactionJobIds) < c {
+				m.SkippedCompactionJobIds = make([]string, 0, c)
+			} else {
+				m.SkippedCompactionJobIds = m.SkippedCompactionJobIds[:0]
+			}
 		}
 	}
 	for iNdEx < l {
@@ -3584,7 +3603,7 @@ func (m *RedactionBatch) unmarshal(dAtA []byte, depth int) error {
 		switch fieldNum {
 		case 1: // batch_id
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -3627,10 +3646,10 @@ func (m *RedactionBatch) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.BatchId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.fieldsPresent[0] |= 1 << 0
+			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 2: // tenant_id
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -3673,10 +3692,10 @@ func (m *RedactionBatch) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.TenantId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.fieldsPresent[0] |= 1 << 1
+			m.XXX_fieldsPresent[0] |= 1 << 1
 		case 3: // trace_ids
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -3721,7 +3740,7 @@ func (m *RedactionBatch) unmarshal(dAtA []byte, depth int) error {
 			iNdEx = postIndex
 		case 4: // created_at_unix_nano
 			if wireType != 0 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -3747,10 +3766,10 @@ func (m *RedactionBatch) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.CreatedAtUnixNano = int64(v)
-			m.fieldsPresent[0] |= 1 << 2
+			m.XXX_fieldsPresent[0] |= 1 << 2
 		case 5: // skipped_compaction_job_ids
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -3795,7 +3814,7 @@ func (m *RedactionBatch) unmarshal(dAtA []byte, depth int) error {
 			iNdEx = postIndex
 		case 6: // rescan_after_unix_nano
 			if wireType != 0 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -3821,9 +3840,9 @@ func (m *RedactionBatch) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.RescanAfterUnixNano = int64(v)
-			m.fieldsPresent[0] |= 1 << 3
+			m.XXX_fieldsPresent[0] |= 1 << 3
 		default:
-			n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
 				return err
 			}
@@ -3848,7 +3867,7 @@ func (m *RedactionBatches) UnmarshalWithDepth(b []byte, depth int) error {
 }
 
 func (m *RedactionBatches) unmarshal(dAtA []byte, depth int) error {
-	if depth > maxUnmarshalDepth {
+	if depth > protohelpers.MaxUnmarshalDepth {
 		return fmt.Errorf("exceeded max recursion depth")
 	}
 	l := len(dAtA)
@@ -3913,7 +3932,11 @@ func (m *RedactionBatches) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			m.Batches = make([]*RedactionBatch, 0, c)
+			if cap(m.Batches) < c {
+				m.Batches = make([]*RedactionBatch, 0, c)
+			} else {
+				m.Batches = m.Batches[:0]
+			}
 		}
 	}
 	for iNdEx < l {
@@ -3945,7 +3968,7 @@ func (m *RedactionBatches) unmarshal(dAtA []byte, depth int) error {
 		switch fieldNum {
 		case 1: // batches
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -3992,7 +4015,7 @@ func (m *RedactionBatches) unmarshal(dAtA []byte, depth int) error {
 			}
 			iNdEx = postIndex
 		default:
-			n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
 				return err
 			}

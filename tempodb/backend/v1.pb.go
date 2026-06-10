@@ -31,7 +31,7 @@ type BlockMeta struct {
 	DedicatedColumns  DedicatedColumns `protobuf:"bytes,17,opt,name=dedicated_columns,json=dedicatedColumns,proto3" json:"dedicatedColumns,omitempty"`
 	ReplicationFactor uint32           `protobuf:"varint,18,opt,name=replication_factor,json=replicationFactor,proto3" json:"replicationFactor,omitempty"`
 
-	fieldsPresent [1]uint64
+	XXX_fieldsPresent [1]uint64
 }
 
 type CompactedBlockMeta struct {
@@ -44,7 +44,7 @@ type CompactedBlockMeta struct {
 	BlockMeta     BlockMeta `protobuf:"bytes,1,opt,name=block_meta,json=blockMeta,proto3" json:"-"`
 	CompactedTime time.Time `protobuf:"bytes,2,opt,name=compacted_time,json=compactedTime,proto3" json:"compactedTime"`
 
-	fieldsPresent [1]uint64
+	XXX_fieldsPresent [1]uint64
 }
 
 type TenantIndex struct {
@@ -99,91 +99,91 @@ func (m *BlockMeta) HasVersion() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<0) != 0
+	return m.XXX_fieldsPresent[0]&(1<<0) != 0
 }
 
 func (m *BlockMeta) HasBlockID() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<1) != 0
+	return m.XXX_fieldsPresent[0]&(1<<1) != 0
 }
 
 func (m *BlockMeta) HasTenantID() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<2) != 0
+	return m.XXX_fieldsPresent[0]&(1<<2) != 0
 }
 
 func (m *BlockMeta) HasTotalObjects() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<3) != 0
+	return m.XXX_fieldsPresent[0]&(1<<3) != 0
 }
 
 func (m *BlockMeta) HasSize_() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<4) != 0
+	return m.XXX_fieldsPresent[0]&(1<<4) != 0
 }
 
 func (m *BlockMeta) HasCompactionLevel() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<5) != 0
+	return m.XXX_fieldsPresent[0]&(1<<5) != 0
 }
 
 func (m *BlockMeta) HasIndexPageSize() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<6) != 0
+	return m.XXX_fieldsPresent[0]&(1<<6) != 0
 }
 
 func (m *BlockMeta) HasTotalRecords() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<7) != 0
+	return m.XXX_fieldsPresent[0]&(1<<7) != 0
 }
 
 func (m *BlockMeta) HasBloomShardCount() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<8) != 0
+	return m.XXX_fieldsPresent[0]&(1<<8) != 0
 }
 
 func (m *BlockMeta) HasFooterSize() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<9) != 0
+	return m.XXX_fieldsPresent[0]&(1<<9) != 0
 }
 
 func (m *BlockMeta) HasDedicatedColumns() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<10) != 0
+	return m.XXX_fieldsPresent[0]&(1<<10) != 0
 }
 
 func (m *BlockMeta) HasReplicationFactor() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<11) != 0
+	return m.XXX_fieldsPresent[0]&(1<<11) != 0
 }
 
 func (m *CompactedBlockMeta) HasBlockMeta() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<0) != 0
+	return m.XXX_fieldsPresent[0]&(1<<0) != 0
 }
 
 func (m *BlockMeta) GetVersion() string {
@@ -287,7 +287,7 @@ func (m *BlockMeta) GetReplicationFactor() uint32 {
 }
 
 func (m *CompactedBlockMeta) GetBlockMeta() *BlockMeta {
-	if m != nil && m.fieldsPresent[0]&(1<<0) != 0 {
+	if m != nil && m.XXX_fieldsPresent[0]&(1<<0) != 0 {
 		return &m.BlockMeta
 	}
 	return nil
@@ -382,7 +382,7 @@ func (m *CompactedBlockMeta) Size() int {
 		s := m.BlockMeta.Size()
 		if s > 0 {
 			n += 1 + protowire.SizeVarint(uint64(s)) + s
-		} else if m.fieldsPresent[0]&(1<<0) != 0 {
+		} else if m.XXX_fieldsPresent[0]&(1<<0) != 0 {
 			n += 2
 		}
 	}
@@ -600,7 +600,7 @@ func (m *CompactedBlockMeta) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
 			i--
 			dAtA[i] = 0x0a
-		} else if m.fieldsPresent[0]&(1<<0) != 0 {
+		} else if m.XXX_fieldsPresent[0]&(1<<0) != 0 {
 			i--
 			dAtA[i] = 0
 			i--
@@ -676,73 +676,6 @@ func (m *TenantIndex) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-const maxUnmarshalDepth = 10000
-
-func skipValue(dAtA []byte, wireType int, fieldNum int32) (int, error) {
-	iNdEx := 0
-	l := len(dAtA)
-	switch wireType {
-	case 0:
-		for shift := 0; ; shift++ {
-			if shift >= 10 {
-				return 0, fmt.Errorf("invalid varint")
-			}
-			if iNdEx >= l {
-				return 0, fmt.Errorf("invalid varint")
-			}
-			iNdEx++
-			if dAtA[iNdEx-1] < 0x80 {
-				break
-			}
-		}
-	case 1:
-		if (iNdEx + 8) > l {
-			return 0, fmt.Errorf("truncated fixed64")
-		}
-		iNdEx += 8
-	case 2:
-		var length uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return 0, fmt.Errorf("invalid bytes")
-			}
-			if iNdEx >= l {
-				return 0, fmt.Errorf("invalid bytes")
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			length |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				if shift == 63 && b > 1 {
-					return 0, fmt.Errorf("invalid bytes")
-				}
-				break
-			}
-		}
-		if length > uint64(math.MaxInt) {
-			return 0, fmt.Errorf("invalid bytes")
-		}
-		iNdEx += int(length)
-		if iNdEx < 0 || iNdEx > l {
-			return 0, fmt.Errorf("invalid bytes")
-		}
-	case 3:
-		_, n := protowire.ConsumeGroup(protowire.Number(fieldNum), dAtA[iNdEx:])
-		if n < 0 {
-			return 0, fmt.Errorf("invalid group")
-		}
-		iNdEx += n
-	case 5:
-		if (iNdEx + 4) > l {
-			return 0, fmt.Errorf("truncated fixed32")
-		}
-		iNdEx += 4
-	default:
-		return 0, fmt.Errorf("unknown wire type %d", wireType)
-	}
-	return iNdEx, nil
-}
-
 func (m *BlockMeta) Unmarshal(b []byte) error {
 	return m.unmarshal(b, 0)
 }
@@ -755,7 +688,7 @@ func (m *BlockMeta) UnmarshalWithDepth(b []byte, depth int) error {
 }
 
 func (m *BlockMeta) unmarshal(dAtA []byte, depth int) error {
-	if depth > maxUnmarshalDepth {
+	if depth > protohelpers.MaxUnmarshalDepth {
 		return fmt.Errorf("exceeded max recursion depth")
 	}
 	l := len(dAtA)
@@ -789,7 +722,7 @@ func (m *BlockMeta) unmarshal(dAtA []byte, depth int) error {
 		switch fieldNum {
 		case 1: // version
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -832,10 +765,10 @@ func (m *BlockMeta) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.Version = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.fieldsPresent[0] |= 1 << 0
+			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 2: // block_id
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -880,10 +813,10 @@ func (m *BlockMeta) unmarshal(dAtA []byte, depth int) error {
 				return err
 			}
 			iNdEx = postIndex
-			m.fieldsPresent[0] |= 1 << 1
+			m.XXX_fieldsPresent[0] |= 1 << 1
 		case 5: // tenant_id
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -926,10 +859,10 @@ func (m *BlockMeta) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.TenantID = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.fieldsPresent[0] |= 1 << 2
+			m.XXX_fieldsPresent[0] |= 1 << 2
 		case 6: // start_time
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -978,7 +911,7 @@ func (m *BlockMeta) unmarshal(dAtA []byte, depth int) error {
 			iNdEx = postIndex
 		case 7: // end_time
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -1027,7 +960,7 @@ func (m *BlockMeta) unmarshal(dAtA []byte, depth int) error {
 			iNdEx = postIndex
 		case 8: // total_objects
 			if wireType != 0 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -1053,10 +986,10 @@ func (m *BlockMeta) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.TotalObjects = int64(v)
-			m.fieldsPresent[0] |= 1 << 3
+			m.XXX_fieldsPresent[0] |= 1 << 3
 		case 9: // size
 			if wireType != 0 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -1082,10 +1015,10 @@ func (m *BlockMeta) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.Size_ = v
-			m.fieldsPresent[0] |= 1 << 4
+			m.XXX_fieldsPresent[0] |= 1 << 4
 		case 10: // compaction_level
 			if wireType != 0 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -1111,10 +1044,10 @@ func (m *BlockMeta) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.CompactionLevel = uint32(v)
-			m.fieldsPresent[0] |= 1 << 5
+			m.XXX_fieldsPresent[0] |= 1 << 5
 		case 12: // index_page_size
 			if wireType != 0 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -1140,10 +1073,10 @@ func (m *BlockMeta) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.IndexPageSize = uint32(v)
-			m.fieldsPresent[0] |= 1 << 6
+			m.XXX_fieldsPresent[0] |= 1 << 6
 		case 13: // total_records
 			if wireType != 0 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -1169,10 +1102,10 @@ func (m *BlockMeta) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.TotalRecords = uint32(v)
-			m.fieldsPresent[0] |= 1 << 7
+			m.XXX_fieldsPresent[0] |= 1 << 7
 		case 15: // bloom_shard_count
 			if wireType != 0 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -1198,10 +1131,10 @@ func (m *BlockMeta) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.BloomShardCount = uint32(v)
-			m.fieldsPresent[0] |= 1 << 8
+			m.XXX_fieldsPresent[0] |= 1 << 8
 		case 16: // footer_size
 			if wireType != 0 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -1227,10 +1160,10 @@ func (m *BlockMeta) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.FooterSize = uint32(v)
-			m.fieldsPresent[0] |= 1 << 9
+			m.XXX_fieldsPresent[0] |= 1 << 9
 		case 17: // dedicated_columns
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -1275,10 +1208,10 @@ func (m *BlockMeta) unmarshal(dAtA []byte, depth int) error {
 				return err
 			}
 			iNdEx = postIndex
-			m.fieldsPresent[0] |= 1 << 10
+			m.XXX_fieldsPresent[0] |= 1 << 10
 		case 18: // replication_factor
 			if wireType != 0 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -1304,9 +1237,9 @@ func (m *BlockMeta) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.ReplicationFactor = uint32(v)
-			m.fieldsPresent[0] |= 1 << 11
+			m.XXX_fieldsPresent[0] |= 1 << 11
 		default:
-			n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
 				return err
 			}
@@ -1331,7 +1264,7 @@ func (m *CompactedBlockMeta) UnmarshalWithDepth(b []byte, depth int) error {
 }
 
 func (m *CompactedBlockMeta) unmarshal(dAtA []byte, depth int) error {
-	if depth > maxUnmarshalDepth {
+	if depth > protohelpers.MaxUnmarshalDepth {
 		return fmt.Errorf("exceeded max recursion depth")
 	}
 	l := len(dAtA)
@@ -1365,7 +1298,7 @@ func (m *CompactedBlockMeta) unmarshal(dAtA []byte, depth int) error {
 		switch fieldNum {
 		case 1: // block_meta
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -1410,10 +1343,10 @@ func (m *CompactedBlockMeta) unmarshal(dAtA []byte, depth int) error {
 				return err
 			}
 			iNdEx = postIndex
-			m.fieldsPresent[0] |= 1 << 0
+			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 2: // compacted_time
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -1461,7 +1394,7 @@ func (m *CompactedBlockMeta) unmarshal(dAtA []byte, depth int) error {
 			m.CompactedTime = stdtimeVal
 			iNdEx = postIndex
 		default:
-			n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
 				return err
 			}
@@ -1486,7 +1419,7 @@ func (m *TenantIndex) UnmarshalWithDepth(b []byte, depth int) error {
 }
 
 func (m *TenantIndex) unmarshal(dAtA []byte, depth int) error {
-	if depth > maxUnmarshalDepth {
+	if depth > protohelpers.MaxUnmarshalDepth {
 		return fmt.Errorf("exceeded max recursion depth")
 	}
 	l := len(dAtA)
@@ -1554,13 +1487,21 @@ func (m *TenantIndex) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			m.Meta = make([]*BlockMeta, 0, c)
+			if cap(m.Meta) < c {
+				m.Meta = make([]*BlockMeta, 0, c)
+			} else {
+				m.Meta = m.Meta[:0]
+			}
 		}
 		if c := field3count; c > 0 {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			m.CompactedMeta = make([]*CompactedBlockMeta, 0, c)
+			if cap(m.CompactedMeta) < c {
+				m.CompactedMeta = make([]*CompactedBlockMeta, 0, c)
+			} else {
+				m.CompactedMeta = m.CompactedMeta[:0]
+			}
 		}
 	}
 	for iNdEx < l {
@@ -1592,7 +1533,7 @@ func (m *TenantIndex) unmarshal(dAtA []byte, depth int) error {
 		switch fieldNum {
 		case 1: // created_at
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -1641,7 +1582,7 @@ func (m *TenantIndex) unmarshal(dAtA []byte, depth int) error {
 			iNdEx = postIndex
 		case 2: // meta
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -1689,7 +1630,7 @@ func (m *TenantIndex) unmarshal(dAtA []byte, depth int) error {
 			iNdEx = postIndex
 		case 3: // compacted_meta
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -1736,7 +1677,7 @@ func (m *TenantIndex) unmarshal(dAtA []byte, depth int) error {
 			}
 			iNdEx = postIndex
 		default:
-			n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
 				return err
 			}

@@ -9,6 +9,8 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/gogo/protobuf/proto"
+
 	"github.com/dustin/go-humanize"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -985,7 +987,7 @@ func tempopbTraceEqual(t *testing.T, expected, actual *tempopb.Trace) {
 	sortAttributesTempopb(expected)
 	sortAttributesTempopb(actual)
 
-	if !test.ProtoEqual(expected, actual) {
+	if !proto.Equal(expected, actual) {
 		t.Log(cmp.Diff(expected, actual))
 		assert.Fail(t, "expected and actual are not equal")
 	}
