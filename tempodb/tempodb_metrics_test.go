@@ -2,6 +2,7 @@ package tempodb
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"path"
 	"sort"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
@@ -2848,7 +2850,7 @@ func TestTempoDBQueryRange(t *testing.T) {
 			sortTimeSeries(actual)
 			sortTimeSeries(expected)
 
-			if diff := cmp.Diff(expected, actual, floatComparer); diff != "" {
+			if diff := cmp.Diff(expected, actual, floatComparer, cmpProtoOpt); diff != "" {
 				t.Errorf("Unexpected results for Level 1 processing. Query: %v\n Diff: %v", tc.req.Query, diff)
 			}
 
@@ -2864,7 +2866,7 @@ func TestTempoDBQueryRange(t *testing.T) {
 				sortTimeSeries(expected)
 			}
 
-			if diff := cmp.Diff(expected, actual, floatComparer); diff != "" {
+			if diff := cmp.Diff(expected, actual, floatComparer, cmpProtoOpt); diff != "" {
 				t.Errorf("Unexpected results for Level 2 processing. Query: %v\n Diff: %v", tc.req.Query, diff)
 			}
 
@@ -2882,7 +2884,7 @@ func TestTempoDBQueryRange(t *testing.T) {
 			}
 			sortTimeSeries(expected)
 
-			if diff := cmp.Diff(expected, actual, floatComparer); diff != "" {
+			if diff := cmp.Diff(expected, actual, floatComparer, cmpProtoOpt); diff != "" {
 				t.Errorf("Unexpected results for Level 3 processing. Query: %v\n Diff: %v", tc.req.Query, diff)
 			}
 		}
@@ -2913,7 +2915,9 @@ func TestTempoDBQueryRange(t *testing.T) {
 		const labelName = `resource.service.name`
 		targetTs := filterTimeSeriesByLabel(actual, labelName)
 		sortTimeSeries(targetTs)
-		require.Equal(t, expectedCompareTs, targetTs)
+		if diff := cmp.Diff(expectedCompareTs, targetTs, floatComparer, cmpProtoOpt); diff != "" {
+			t.Errorf("Unexpected results: %v", diff)
+		}
 
 		// Level 2
 		evalLevel2, err := e.CompileMetricsQueryRangeNonRaw(req, traceql.AggregateModeSum)
@@ -2923,7 +2927,9 @@ func TestTempoDBQueryRange(t *testing.T) {
 
 		targetTs = filterTimeSeriesByLabel(actual, labelName)
 		sortTimeSeries(targetTs)
-		require.Equal(t, expectedCompareTs, targetTs)
+		if diff := cmp.Diff(expectedCompareTs, targetTs, floatComparer, cmpProtoOpt); diff != "" {
+			t.Errorf("Unexpected results: %v", diff)
+		}
 
 		// Level 3
 		evalLevel3, err := e.CompileMetricsQueryRangeNonRaw(req, traceql.AggregateModeFinal)
@@ -2936,7 +2942,9 @@ func TestTempoDBQueryRange(t *testing.T) {
 		// Final aggregation strips __query_fragment from labels
 		expectedCompareL3 := stripQueryFragmentLabel(expectedCompareTs)
 		sortTimeSeries(expectedCompareL3)
-		require.Equal(t, expectedCompareL3, targetTs)
+		if diff := cmp.Diff(expectedCompareL3, targetTs, floatComparer, cmpProtoOpt); diff != "" {
+			t.Errorf("Unexpected results: %v", diff)
+		}
 	})
 }
 
@@ -2950,8 +2958,8 @@ func sortTimeSeries(ts []*tempopb.TimeSeries) {
 			if ts[i].Labels[l].Key != ts[j].Labels[l].Key {
 				return ts[i].Labels[l].Key < ts[j].Labels[l].Key
 			}
-			si := ts[i].Labels[l].Value.String()
-			sj := ts[j].Labels[l].Value.String()
+			si := labelValueKey(ts[i].Labels[l].Value)
+			sj := labelValueKey(ts[j].Labels[l].Value)
 			if si != sj {
 				return si < sj
 			}
@@ -2962,9 +2970,49 @@ func sortTimeSeries(ts []*tempopb.TimeSeries) {
 	})
 }
 
+// labelValueKey returns a stable sort key for an AnyValue. wiresmith's
+// generated String() prints interface pointer addresses for oneof fields,
+// so we extract the underlying scalar (or marshal as a fallback). Marshal
+// alone is unsafe as a sort key because the length-delimited wire format
+// puts a length byte before the payload, breaking lexicographic ordering.
+func labelValueKey(v *common_v1.AnyValue) string {
+	if v == nil {
+		return ""
+	}
+	switch x := v.Value.(type) {
+	case *common_v1.AnyValue_StringValue:
+		return "s:" + x.StringValue
+	case *common_v1.AnyValue_BoolValue:
+		if x.BoolValue {
+			return "b:1"
+		}
+		return "b:0"
+	case *common_v1.AnyValue_IntValue:
+		return fmt.Sprintf("i:%020d", x.IntValue)
+	case *common_v1.AnyValue_DoubleValue:
+		return fmt.Sprintf("d:%030.10f", x.DoubleValue)
+	case *common_v1.AnyValue_BytesValue:
+		return "y:" + string(x.BytesValue)
+	}
+	b, err := v.Marshal()
+	if err != nil {
+		return ""
+	}
+	return "m:" + string(b)
+}
+
 var floatComparer = cmp.Comparer(func(x, y float64) bool {
 	return math.Abs(x-y) < 1e-6
 })
+
+// cmpProtoOpt ignores the wiresmith-internal (unexported) fieldsPresent
+// tracking bitmap so round-trip comparisons (struct literal vs unmarshaled)
+// succeed. Wiresmith only emits this field on messages with presence-tracked
+// scalar fields (so AnyValue itself doesn't get one, but KeyValue and most
+// trace types do).
+var cmpProtoOpt = cmpopts.IgnoreUnexported(
+	common_v1.KeyValue{},
+)
 
 // stripQueryFragmentLabel returns a copy of the time series slice with the __query_fragment label removed from each series.
 // The Final aggregation stage strips this label, so expected L2 results need it removed when comparing to L3 actual.

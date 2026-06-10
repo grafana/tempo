@@ -272,7 +272,7 @@ func testSearchResponseCombiner(t *testing.T, marshalingFormat api.MarshallingFo
 				response2:      toHTTPResponseWithFormat(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200, nil, marshalingFormat),
 				expectedStatus: 200,
 				expectedResponse: &tempopb.SearchResponse{
-					Traces: []*tempopb.TraceSearchMetadata{},
+					Traces: nil, // wire round-trip clone in GRPCFinal/GRPCDiff normalizes empty slices to nil
 					Metrics: &tempopb.SearchMetrics{
 						CompletedJobs: 2,
 					},
@@ -457,7 +457,7 @@ func testCombinerShards(t *testing.T, marshalingFormat api.MarshallingFormat) {
 			name:             "initial state",
 			pipelineResponse: nil,
 			expected: &tempopb.SearchResponse{
-				Traces:  []*tempopb.TraceSearchMetadata{},
+				Traces:  nil, // wire round-trip clone in GRPCDiff normalizes empty slices to nil
 				Metrics: &tempopb.SearchMetrics{},
 			},
 		},
@@ -493,7 +493,7 @@ func testCombinerShards(t *testing.T, marshalingFormat api.MarshallingFormat) {
 				},
 			},
 			expected: &tempopb.SearchResponse{
-				Traces: []*tempopb.TraceSearchMetadata{},
+				Traces: nil, // wire round-trip clone in GRPCFinal/GRPCDiff normalizes empty slices to nil
 				Metrics: &tempopb.SearchMetrics{
 					TotalBlocks:     5,
 					TotalJobs:       6,
@@ -522,7 +522,7 @@ func testCombinerShards(t *testing.T, marshalingFormat api.MarshallingFormat) {
 				},
 			}, 200, 0, marshalingFormat), // shard 0
 			expected: &tempopb.SearchResponse{
-				Traces: []*tempopb.TraceSearchMetadata{}, // no traces b/c only one job has finished and the first shard has 2 jobs
+				Traces: nil, // no traces b/c only one job has finished and the first shard has 2 jobs
 				Metrics: &tempopb.SearchMetrics{ // metadata is incrementing
 					CompletedJobs:   1,
 					InspectedTraces: 1,
@@ -622,7 +622,7 @@ func testCombinerShards(t *testing.T, marshalingFormat api.MarshallingFormat) {
 				},
 			}, 200, 3, marshalingFormat), // complete shard 3,
 			expected: &tempopb.SearchResponse{
-				Traces: []*tempopb.TraceSearchMetadata{}, // no traces b/c we skipped shard 2 and we can't include results from 3 until 2 is done
+				Traces: nil, // no traces b/c we skipped shard 2 and we can't include results from 3 until 2 is done
 				Metrics: &tempopb.SearchMetrics{ // metadata is incrementing
 					CompletedJobs:   4,
 					InspectedTraces: 4,
@@ -636,7 +636,7 @@ func testCombinerShards(t *testing.T, marshalingFormat api.MarshallingFormat) {
 		{
 			name: "fill in shard 2 and see results",
 			pipelineResponse: toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
-				Traces: []*tempopb.TraceSearchMetadata{},
+				Traces: nil, // wire round-trip clone in GRPCFinal/GRPCDiff normalizes empty slices to nil
 				Metrics: &tempopb.SearchMetrics{
 					InspectedTraces: 1,
 					InspectedBytes:  2,
@@ -663,7 +663,7 @@ func testCombinerShards(t *testing.T, marshalingFormat api.MarshallingFormat) {
 		{
 			name: "complete all shards which dumps all results",
 			pipelineResponse: toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
-				Traces: []*tempopb.TraceSearchMetadata{},
+				Traces: nil, // wire round-trip clone in GRPCFinal/GRPCDiff normalizes empty slices to nil
 				Metrics: &tempopb.SearchMetrics{
 					InspectedTraces: 1,
 					InspectedBytes:  2,

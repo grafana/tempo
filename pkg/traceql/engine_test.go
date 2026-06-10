@@ -493,7 +493,7 @@ func TestStatic_AsAnyValue(t *testing.T) {
 			NewStaticIntArray([]int{1, 2}),
 			&v1.AnyValue{
 				Value: &v1.AnyValue_ArrayValue{
-					ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_IntValue{IntValue: 1}}, {Value: &v1.AnyValue_IntValue{IntValue: 2}}}},
+					ArrayValue: v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_IntValue{IntValue: 1}}, {Value: &v1.AnyValue_IntValue{IntValue: 2}}}},
 				},
 			},
 		},
@@ -501,7 +501,7 @@ func TestStatic_AsAnyValue(t *testing.T) {
 			NewStaticFloatArray([]float64{1.1, 2.2}),
 			&v1.AnyValue{
 				Value: &v1.AnyValue_ArrayValue{
-					ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_DoubleValue{DoubleValue: 1.1}}, {Value: &v1.AnyValue_DoubleValue{DoubleValue: 2.2}}}},
+					ArrayValue: v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_DoubleValue{DoubleValue: 1.1}}, {Value: &v1.AnyValue_DoubleValue{DoubleValue: 2.2}}}},
 				},
 			},
 		},
@@ -509,7 +509,7 @@ func TestStatic_AsAnyValue(t *testing.T) {
 			NewStaticStringArray([]string{"foo", "bar"}),
 			&v1.AnyValue{
 				Value: &v1.AnyValue_ArrayValue{
-					ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_StringValue{StringValue: "foo"}}, {Value: &v1.AnyValue_StringValue{StringValue: "bar"}}}},
+					ArrayValue: v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_StringValue{StringValue: "foo"}}, {Value: &v1.AnyValue_StringValue{StringValue: "bar"}}}},
 				},
 			},
 		},
@@ -517,7 +517,7 @@ func TestStatic_AsAnyValue(t *testing.T) {
 			NewStaticBooleanArray([]bool{true, false}),
 			&v1.AnyValue{
 				Value: &v1.AnyValue_ArrayValue{
-					ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_BoolValue{BoolValue: true}}, {Value: &v1.AnyValue_BoolValue{BoolValue: false}}}},
+					ArrayValue: v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_BoolValue{BoolValue: true}}, {Value: &v1.AnyValue_BoolValue{BoolValue: false}}}},
 				},
 			},
 		},

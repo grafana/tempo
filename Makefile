@@ -285,6 +285,9 @@ endif
 
 PROTO_INTERMEDIATE_DIR = pkg/.patched-proto
 BUF = docker run --rm -u ${shell id -u} -v${PWD}:/tempo -w/tempo -e HOME=/tempo --entrypoint /usr/local/bin/buf ${TEMPO_CI_TOOLS_IMAGE}
+# wiresmith protobuf compiler (https://github.com/grafana/wiresmith). Build it
+# from a checkout with `go install ./cmd/wiresmith` — see WIRESMITH_MIGRATION.md.
+WIRESMITH = wiresmith
 
 .PHONY: gen-proto
 gen-proto:  ## Generate proto files
@@ -295,7 +298,8 @@ gen-proto:  ## Generate proto files
 	rm -rf $(PROTO_INTERMEDIATE_DIR)
 	find pkg/tempopb -name *.pb.go | xargs -L 1 -I rm
 	# Here we avoid removing our tempo.proto and our frontend.proto due to reliance on the gogoproto bits.
-	find pkg/tempopb -name *.proto | grep -v tempo.proto | grep -v frontend.proto | grep -v backendwork.proto | xargs -L 1 -I rm
+	# .wiresmith-proto holds the wiresmith-annotated OTel proto sources (checked in) and must survive.
+	find pkg/tempopb -name *.proto | grep -v tempo.proto | grep -v frontend.proto | grep -v backendwork.proto | grep -v .wiresmith-proto | xargs -L 1 -I rm
 
 	@echo --
 	@echo -- Copying to $(PROTO_INTERMEDIATE_DIR)
@@ -322,10 +326,12 @@ gen-proto:  ## Generate proto files
 	@echo --
 	@echo -- Gen proto --
 	@echo --
-	@# Generate patched OpenTelemetry protos (output to pkg/tempopb/)
-	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.otel.yaml --path $(PROTO_INTERMEDIATE_DIR)/common/v1/common.proto
-	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.otel.yaml --path $(PROTO_INTERMEDIATE_DIR)/resource/v1/resource.proto
-	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.otel.yaml --path $(PROTO_INTERMEDIATE_DIR)/trace/v1/trace.proto
+	@# Generate patched OpenTelemetry protos (output to pkg/tempopb/) with wiresmith.
+	@# Source of truth is pkg/tempopb/.wiresmith-proto: the .patched-proto output
+	@# above plus wiresmith field annotations (pointer=true on repeated message
+	@# fields to keep the gogo []*T shapes). When the OTel submodule changes,
+	@# diff $(PROTO_INTERMEDIATE_DIR) against .wiresmith-proto and port the changes.
+	$(WIRESMITH) --proto_path=pkg/tempopb/.wiresmith-proto --out=pkg/tempopb --module=github.com/grafana/tempo
 
 	@# Generate Tempo protos
 	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.tempopb.yaml --path pkg/tempopb/tempo.proto

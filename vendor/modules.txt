@@ -1316,8 +1316,8 @@ github.com/pkg/browser
 # github.com/pkg/errors v0.9.1
 ## explicit
 github.com/pkg/errors
-# github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
-## explicit; go 1.20
+# github.com/planetscale/vtprotobuf v0.6.1-0.20250313105119-ba97887b0a25
+## explicit; go 1.21
 github.com/planetscale/vtprotobuf/protohelpers
 github.com/planetscale/vtprotobuf/types/known/anypb
 github.com/planetscale/vtprotobuf/types/known/durationpb
@@ -2713,3 +2713,4 @@ sigs.k8s.io/yaml
 # k8s.io/api => k8s.io/api v0.36.2
 # k8s.io/client-go => k8s.io/client-go v0.36.2
 # github.com/hashicorp/memberlist => github.com/grafana/memberlist v0.3.1-0.20260515134459-1798cf41aca7
+# github.com/grafana/wiresmith => /Users/oleg-kozlyuk/Projects/wiresmith/wiresmith

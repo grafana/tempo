@@ -17,8 +17,8 @@ import (
 	"time"
 
 	kitlog "github.com/go-kit/log"
+	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
-	"github.com/golang/protobuf/proto" // nolint: all  //ProtoReflect
 	dslog "github.com/grafana/dskit/log"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"

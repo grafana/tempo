@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/dustin/go-humanize"
-	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/parquet-go/parquet-go"
@@ -205,27 +204,27 @@ func TestTraceToParquet(t *testing.T) {
 							{Key: "dedicated.resource.3", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-resource-attr-value-3"}}},
 							{Key: "dedicated.resource.4", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-resource-attr-value-4"}}},
 							{Key: "dedicated.resource.5", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-resource-attr-value-5"}}},
-							{Key: "res.string.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
+							{Key: "res.string.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: v1.ArrayValue{
 								Values: []*v1.AnyValue{
 									{Value: &v1.AnyValue_StringValue{StringValue: "one"}},
 									{Value: &v1.AnyValue_StringValue{StringValue: "two"}},
 									{Value: &v1.AnyValue_StringValue{StringValue: "three"}},
 								},
 							}}}},
-							{Key: "res.int.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
+							{Key: "res.int.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: v1.ArrayValue{
 								Values: []*v1.AnyValue{
 									{Value: &v1.AnyValue_IntValue{IntValue: 1}},
 									{Value: &v1.AnyValue_IntValue{IntValue: 2}},
 								},
 							}}}},
-							{Key: "res.double.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
+							{Key: "res.double.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: v1.ArrayValue{
 								Values: []*v1.AnyValue{
 									{Value: &v1.AnyValue_DoubleValue{DoubleValue: 1.1}},
 									{Value: &v1.AnyValue_DoubleValue{DoubleValue: 2.2}},
 									{Value: &v1.AnyValue_DoubleValue{DoubleValue: 3.3}},
 								},
 							}}}},
-							{Key: "res.bool.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
+							{Key: "res.bool.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: v1.ArrayValue{
 								Values: []*v1.AnyValue{
 									{Value: &v1.AnyValue_BoolValue{BoolValue: true}},
 									{Value: &v1.AnyValue_BoolValue{BoolValue: false}},
@@ -245,7 +244,7 @@ func TestTraceToParquet(t *testing.T) {
 								{Key: "scope.attr.int", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 102}}},
 								{Key: "scope.attr.float", Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 1.234}}},
 								{Key: "scope.attr.bool", Value: &v1.AnyValue{Value: &v1.AnyValue_BoolValue{BoolValue: true}}},
-								{Key: "scope.string.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
+								{Key: "scope.string.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: v1.ArrayValue{
 									Values: []*v1.AnyValue{
 										{Value: &v1.AnyValue_StringValue{StringValue: "one"}},
 										{Value: &v1.AnyValue_StringValue{StringValue: "two"}},
@@ -263,26 +262,26 @@ func TestTraceToParquet(t *testing.T) {
 								{Key: "dedicated.span.3", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-span-attr-value-3"}}},
 								{Key: "dedicated.span.4", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-span-attr-value-4"}}},
 								{Key: "dedicated.span.5", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: test.DedicatedBlobTestString()}}},
-								{Key: "span.string.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
+								{Key: "span.string.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: v1.ArrayValue{
 									Values: []*v1.AnyValue{
 										{Value: &v1.AnyValue_StringValue{StringValue: "one"}},
 										{Value: &v1.AnyValue_StringValue{StringValue: "two"}},
 									},
 								}}}},
-								{Key: "span.int.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
+								{Key: "span.int.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: v1.ArrayValue{
 									Values: []*v1.AnyValue{
 										{Value: &v1.AnyValue_IntValue{IntValue: 1}},
 										{Value: &v1.AnyValue_IntValue{IntValue: 2}},
 										{Value: &v1.AnyValue_IntValue{IntValue: 3}},
 									},
 								}}}},
-								{Key: "span.double.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
+								{Key: "span.double.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: v1.ArrayValue{
 									Values: []*v1.AnyValue{
 										{Value: &v1.AnyValue_DoubleValue{DoubleValue: 1.1}},
 										{Value: &v1.AnyValue_DoubleValue{DoubleValue: 2.2}},
 									},
 								}}}},
-								{Key: "span.bool.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
+								{Key: "span.bool.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: v1.ArrayValue{
 									Values: []*v1.AnyValue{
 										{Value: &v1.AnyValue_BoolValue{BoolValue: true}},
 										{Value: &v1.AnyValue_BoolValue{BoolValue: false}},
@@ -293,14 +292,14 @@ func TestTraceToParquet(t *testing.T) {
 								{Key: "http.method", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "POST"}}},
 								{Key: "http.url", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "https://example.com"}}},
 								{Key: "http.status_code", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 201}}},
-								{Key: "span.unsupported.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
+								{Key: "span.unsupported.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: v1.ArrayValue{
 									Values: []*v1.AnyValue{
 										{Value: &v1.AnyValue_BoolValue{BoolValue: true}},
 										{Value: &v1.AnyValue_IntValue{IntValue: 1}},
 										{Value: &v1.AnyValue_BoolValue{BoolValue: true}},
 									},
 								}}}},
-								{Key: "span.unsupported.kvlist", Value: &v1.AnyValue{Value: &v1.AnyValue_KvlistValue{KvlistValue: &v1.KeyValueList{
+								{Key: "span.unsupported.kvlist", Value: &v1.AnyValue{Value: &v1.AnyValue_KvlistValue{KvlistValue: v1.KeyValueList{
 									Values: []*v1.KeyValue{
 										{Key: "key-a", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "val-a"}}},
 										{Key: "key-b", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "val-b"}}},
@@ -802,13 +801,13 @@ func BenchmarkEventToParquet(b *testing.B) {
 			{Key: "b", Value: &v1.AnyValue{Value: &v1.AnyValue_BoolValue{BoolValue: true}}},
 
 			// KVList
-			{Key: "kv", Value: &v1.AnyValue{Value: &v1.AnyValue_KvlistValue{KvlistValue: &v1.KeyValueList{Values: []*v1.KeyValue{
+			{Key: "kv", Value: &v1.AnyValue{Value: &v1.AnyValue_KvlistValue{KvlistValue: v1.KeyValueList{Values: []*v1.KeyValue{
 				{Key: "s2", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "s3"}}},
 				{Key: "i2", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 789}}},
 			}}}}},
 
 			// Array
-			{Key: "a", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{
+			{Key: "a", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: v1.ArrayValue{Values: []*v1.AnyValue{
 				{Value: &v1.AnyValue_StringValue{StringValue: "s4"}},
 				{Value: &v1.AnyValue_IntValue{IntValue: 101112}},
 			}}}}},
@@ -986,7 +985,7 @@ func tempopbTraceEqual(t *testing.T, expected, actual *tempopb.Trace) {
 	sortAttributesTempopb(expected)
 	sortAttributesTempopb(actual)
 
-	if !proto.Equal(expected, actual) {
+	if !test.ProtoEqual(expected, actual) {
 		t.Log(cmp.Diff(expected, actual))
 		assert.Fail(t, "expected and actual are not equal")
 	}
@@ -997,7 +996,7 @@ func sortAttributesTempopb(t *tempopb.Trace) {
 	for _, rs := range t.ResourceSpans {
 		sort.Slice(rs.Resource.Attributes, func(i, j int) bool {
 			if rs.Resource.Attributes[i].Key == rs.Resource.Attributes[j].Key {
-				return rs.Resource.Attributes[i].Value.String() < rs.Resource.Attributes[j].Value.String()
+				return rs.Resource.Attributes[i].Value.StableString() < rs.Resource.Attributes[j].Value.StableString()
 			}
 
 			return rs.Resource.Attributes[i].Key < rs.Resource.Attributes[j].Key
@@ -1005,7 +1004,7 @@ func sortAttributesTempopb(t *tempopb.Trace) {
 		for _, ss := range rs.ScopeSpans {
 			sort.Slice(ss.Scope.Attributes, func(i, j int) bool {
 				if rs.Resource.Attributes[i].Key == rs.Resource.Attributes[j].Key {
-					return rs.Resource.Attributes[i].Value.String() < rs.Resource.Attributes[j].Value.String()
+					return rs.Resource.Attributes[i].Value.StableString() < rs.Resource.Attributes[j].Value.StableString()
 				}
 
 				return ss.Scope.Attributes[i].Key < ss.Scope.Attributes[j].Key

@@ -150,7 +150,7 @@ func testFindByTraceID(t *testing.T, e encoding.VersionedEncoding) {
 		for i, id := range ids {
 			obj, err := block.FindTraceByID(ctx, id, common.DefaultSearchOptions())
 			require.NoError(t, err)
-			require.Equal(t, objs[i], obj.Trace)
+			require.True(t, test.ProtoEqual(objs[i], obj.Trace), "trace at index %d not equal", i)
 		}
 	}
 
@@ -200,7 +200,7 @@ func testIterator(t *testing.T, e encoding.VersionedEncoding) {
 			}
 
 			require.True(t, found)
-			require.Equal(t, objs[j], obj)
+			require.True(t, test.ProtoEqual(objs[j], obj), "trace at index %d not equal", j)
 			require.Equal(t, ids[j], []byte(id))
 			i++
 		}

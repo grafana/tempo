@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"strings"
 
-	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/parquet-go/parquet-go"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -313,7 +313,7 @@ func attrToParquet(a *v1.KeyValue, p *Attribute) {
 		p.ValueBool = append(p.ValueBool, v.BoolValue)
 	case *v1.AnyValue_ArrayValue:
 		p.IsArray = true
-		if v.ArrayValue == nil || len(v.ArrayValue.Values) == 0 {
+		if len(v.ArrayValue.Values) == 0 {
 			return
 		}
 		switch v.ArrayValue.Values[0].Value.(type) {
@@ -645,7 +645,7 @@ func parquetToProtoAttrs(parquetAttrs []Attribute) []*v1.KeyValue {
 					values[i].Value = s
 				}
 
-				protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
+				protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: v1.ArrayValue{Values: values}}
 			case len(attr.ValueInt) > 0:
 				values := make([]*v1.AnyValue, len(attr.ValueInt))
 
@@ -658,7 +658,7 @@ func parquetToProtoAttrs(parquetAttrs []Attribute) []*v1.KeyValue {
 					values[i].Value = n
 				}
 
-				protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
+				protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: v1.ArrayValue{Values: values}}
 			case len(attr.ValueDouble) > 0:
 				values := make([]*v1.AnyValue, len(attr.ValueDouble))
 
@@ -671,7 +671,7 @@ func parquetToProtoAttrs(parquetAttrs []Attribute) []*v1.KeyValue {
 					values[i].Value = n
 				}
 
-				protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
+				protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: v1.ArrayValue{Values: values}}
 			case len(attr.ValueBool) > 0:
 				values := make([]*v1.AnyValue, len(attr.ValueBool))
 
@@ -684,9 +684,9 @@ func parquetToProtoAttrs(parquetAttrs []Attribute) []*v1.KeyValue {
 					values[i].Value = n
 				}
 
-				protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
+				protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: v1.ArrayValue{Values: values}}
 			default:
-				protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{}}}
+				protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: v1.ArrayValue{Values: []*v1.AnyValue{}}}
 			}
 		}
 

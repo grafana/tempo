@@ -1,6 +1,7 @@
 package test
 
 import (
+	"bytes"
 	crand "crypto/rand"
 	"encoding/json"
 	"fmt"
@@ -482,8 +483,30 @@ func RandomString() string {
 	return string(s)
 }
 
+// ProtoMarshaler is satisfied by both gogo- and wiresmith-generated messages.
+type ProtoMarshaler interface {
+	Marshal() ([]byte, error)
+}
+
+// ProtoEqual reports whether two protobuf messages marshal to identical wire
+// bytes. gogo's reflection-based proto.Equal cannot traverse
+// wiresmith-generated structs (it chokes on the unexported presence bitmap),
+// so mid-migration equality is checked on the wire form instead. Repeated
+// field order matters, same as with proto.Equal.
+func ProtoEqual(a, b ProtoMarshaler) bool {
+	ab, err := a.Marshal()
+	if err != nil {
+		return false
+	}
+	bb, err := b.Marshal()
+	if err != nil {
+		return false
+	}
+	return bytes.Equal(ab, bb)
+}
+
 func TracesEqual(t *testing.T, t1 *tempopb.Trace, t2 *tempopb.Trace) {
-	if !proto.Equal(t1, t2) {
+	if !ProtoEqual(t1, t2) {
 		wantJSON, _ := json.MarshalIndent(t1, "", "  ")
 		gotJSON, _ := json.MarshalIndent(t2, "", "  ")
 

@@ -58,7 +58,7 @@ func TestProtoParquetRando(t *testing.T) {
 
 		parqTr, _ := traceToParquet(&backend.BlockMeta{}, id, expectedTrace, trp)
 		actualTrace := ParquetTraceToTempopbTrace(&backend.BlockMeta{}, parqTr)
-		require.Equal(t, expectedTrace, actualTrace)
+		require.True(t, test.ProtoEqual(expectedTrace, actualTrace), "expected and actual traces are not equal")
 	}
 }
 
@@ -371,13 +371,13 @@ func BenchmarkEventToParquet(b *testing.B) {
 			{Key: "b", Value: &v1.AnyValue{Value: &v1.AnyValue_BoolValue{BoolValue: true}}},
 
 			// KVList
-			{Key: "kv", Value: &v1.AnyValue{Value: &v1.AnyValue_KvlistValue{KvlistValue: &v1.KeyValueList{Values: []*v1.KeyValue{
+			{Key: "kv", Value: &v1.AnyValue{Value: &v1.AnyValue_KvlistValue{KvlistValue: v1.KeyValueList{Values: []*v1.KeyValue{
 				{Key: "s2", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "s3"}}},
 				{Key: "i2", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 789}}},
 			}}}}},
 
 			// Array
-			{Key: "a", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{
+			{Key: "a", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: v1.ArrayValue{Values: []*v1.AnyValue{
 				{Value: &v1.AnyValue_StringValue{StringValue: "s4"}},
 				{Value: &v1.AnyValue_IntValue{IntValue: 101112}},
 			}}}}},

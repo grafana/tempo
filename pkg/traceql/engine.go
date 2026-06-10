@@ -465,7 +465,7 @@ func (s Static) AsAnyValue() *common_v1.AnyValue {
 			anyArray.Values[i] = &anyVals[i]
 		}
 
-		return &common_v1.AnyValue{Value: &common_v1.AnyValue_ArrayValue{ArrayValue: &anyArray}}
+		return &common_v1.AnyValue{Value: &common_v1.AnyValue_ArrayValue{ArrayValue: anyArray}}
 	case TypeFloatArray:
 		floats, _ := s.FloatArray()
 
@@ -480,7 +480,7 @@ func (s Static) AsAnyValue() *common_v1.AnyValue {
 			anyArray.Values[i] = &anyVals[i]
 		}
 
-		return &common_v1.AnyValue{Value: &common_v1.AnyValue_ArrayValue{ArrayValue: &anyArray}}
+		return &common_v1.AnyValue{Value: &common_v1.AnyValue_ArrayValue{ArrayValue: anyArray}}
 	case TypeStringArray:
 		strs, _ := s.StringArray()
 
@@ -495,7 +495,7 @@ func (s Static) AsAnyValue() *common_v1.AnyValue {
 			anyArray.Values[i] = &anyVals[i]
 		}
 
-		return &common_v1.AnyValue{Value: &common_v1.AnyValue_ArrayValue{ArrayValue: &anyArray}}
+		return &common_v1.AnyValue{Value: &common_v1.AnyValue_ArrayValue{ArrayValue: anyArray}}
 	case TypeBooleanArray:
 		bools, _ := s.BooleanArray()
 
@@ -510,7 +510,7 @@ func (s Static) AsAnyValue() *common_v1.AnyValue {
 			anyArray.Values[i] = &anyVals[i]
 		}
 
-		return &common_v1.AnyValue{Value: &common_v1.AnyValue_ArrayValue{ArrayValue: &anyArray}}
+		return &common_v1.AnyValue{Value: &common_v1.AnyValue_ArrayValue{ArrayValue: anyArray}}
 	default:
 		return &common_v1.AnyValue{
 			Value: &common_v1.AnyValue_StringValue{

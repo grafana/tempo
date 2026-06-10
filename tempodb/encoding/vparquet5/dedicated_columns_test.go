@@ -317,7 +317,7 @@ func TestDedicatedColumn_readValue(t *testing.T) {
 			dedicatedColumn: dedicatedColumn{Type: "string", ColumnIndex: 2 /*, IsArray: true*/},
 			attr:            attrComplete,
 			want: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{
-				ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_StringValue{StringValue: "three"}}, {Value: &v1.AnyValue_StringValue{StringValue: "three_b"}}}},
+				ArrayValue: v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_StringValue{StringValue: "three"}}, {Value: &v1.AnyValue_StringValue{StringValue: "three_b"}}}},
 			}},
 		},
 		{
@@ -343,7 +343,7 @@ func TestDedicatedColumn_readValue(t *testing.T) {
 			dedicatedColumn: dedicatedColumn{Type: "int", ColumnIndex: 3 /*, IsArray: true*/},
 			attr:            attrComplete,
 			want: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{
-				ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_IntValue{IntValue: 4}}, {Value: &v1.AnyValue_IntValue{IntValue: 40}}}},
+				ArrayValue: v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_IntValue{IntValue: 4}}, {Value: &v1.AnyValue_IntValue{IntValue: 40}}}},
 			}},
 		},
 		{
@@ -399,7 +399,7 @@ func TestDedicatedColumn_writeValue(t *testing.T) {
 			name:            "string array",
 			dedicatedColumn: dedicatedColumn{Type: "string", ColumnIndex: 4},
 			value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{
-				ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_StringValue{StringValue: "five"}}, {Value: &v1.AnyValue_StringValue{StringValue: "five_b"}}}},
+				ArrayValue: v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_StringValue{StringValue: "five"}}, {Value: &v1.AnyValue_StringValue{StringValue: "five_b"}}}},
 			}},
 			expectedWritten: true,
 			expectedAttr:    DedicatedAttributes{String05: []string{"five", "five_b"}},
@@ -415,7 +415,7 @@ func TestDedicatedColumn_writeValue(t *testing.T) {
 			name:            "int array",
 			dedicatedColumn: dedicatedColumn{Type: "int", ColumnIndex: 3},
 			value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{
-				ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_IntValue{IntValue: 11}}, {Value: &v1.AnyValue_IntValue{IntValue: 12}}}},
+				ArrayValue: v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_IntValue{IntValue: 11}}, {Value: &v1.AnyValue_IntValue{IntValue: 12}}}},
 			}},
 			expectedWritten: true,
 			expectedAttr:    DedicatedAttributes{Int04: []int64{11, 12}},
@@ -429,7 +429,7 @@ func TestDedicatedColumn_writeValue(t *testing.T) {
 			name:            "wrong array element type",
 			dedicatedColumn: dedicatedColumn{Type: "string", ColumnIndex: 2},
 			value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{
-				ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_IntValue{IntValue: 2}}}},
+				ArrayValue: v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_IntValue{IntValue: 2}}}},
 			}},
 		},
 		{
