@@ -66,12 +66,12 @@ func WithWatchers(watchers ...SpanWatcher) CompileOption {
 	}
 }
 
-// WithExtrapolation sets the tenant default for per-span sampling
-// extrapolation. When not set the default (off) is used, and this may be
-// overridden by the `with(extrapolate=true|false)` query hint. When
-// extrapolation is on, matched spans contribute their IntrinsicSpanMultiplier
-// (= 1 / sampling probability, parsed from the W3C tracestate by the storage
-// layer) to count/sum/rate aggregates instead of 1. min/max are unaffected.
+// WithExtrapolation sets the default for per-span sampling extrapolation.
+// When not set the default (off) is used, and this may be overridden by the
+// `with(extrapolate=true|false)` query hint. When extrapolation is on,
+// matched spans contribute their IntrinsicSpanMultiplier (= 1 / sampling
+// probability, parsed from the W3C tracestate by the storage layer) to
+// count/sum/rate aggregates instead of 1. min/max are unaffected.
 func WithExtrapolation(v bool) CompileOption {
 	return func(o *compileOptions) {
 		o.extrapolate = &v
