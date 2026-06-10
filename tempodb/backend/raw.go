@@ -286,7 +286,7 @@ func (r *reader) TenantIndex(ctx context.Context, tenantID string) (*TenantIndex
 	}
 
 	i := &TenantIndex{}
-	err = i.unmarshal(bytesJ)
+	err = i.unmarshalJSONGz(bytesJ)
 	if err != nil {
 		return nil, err
 	}

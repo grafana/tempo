@@ -2842,14 +2842,49 @@ var floatComparer = cmp.Comparer(func(x, y float64) bool {
 	return math.Abs(x-y) < 1e-6
 })
 
-// cmpProtoOpt ignores the wiresmith-internal (unexported) fieldsPresent
-// tracking bitmap so round-trip comparisons (struct literal vs unmarshaled)
-// succeed. Wiresmith only emits this field on messages with presence-tracked
-// scalar fields (so AnyValue itself doesn't get one, but KeyValue and most
-// trace types do).
-var cmpProtoOpt = cmpopts.IgnoreUnexported(
-	common_v1.KeyValue{},
-)
+// cmpProtoOpt makes cmp.Diff work with wiresmith-generated protos:
+//   - ignores the unexported fieldsPresent tracking bitmap so round-trip
+//     comparisons (struct literal vs unmarshaled) succeed
+//   - overrides *tempopb.TimeSeries comparison: cmp would otherwise use the
+//     generated Equal method, which compares floats bit-exact and defeats
+//     the test's tolerance (floatComparer)
+var cmpProtoOpt = cmp.Options{
+	cmpopts.IgnoreUnexported(common_v1.KeyValue{}),
+	cmp.Comparer(func(x, y *tempopb.TimeSeries) bool {
+		if (x == nil) != (y == nil) {
+			return false
+		}
+		if x == nil {
+			return true
+		}
+		if len(x.Labels) != len(y.Labels) || len(x.Samples) != len(y.Samples) || len(x.Exemplars) != len(y.Exemplars) {
+			return false
+		}
+		for i := range x.Labels {
+			if !x.Labels[i].Equal(&y.Labels[i]) {
+				return false
+			}
+		}
+		approx := func(a, b float64) bool { return math.Abs(a-b) < 1e-6 }
+		for i := range x.Samples {
+			if x.Samples[i].TimestampMs != y.Samples[i].TimestampMs || !approx(x.Samples[i].Value, y.Samples[i].Value) {
+				return false
+			}
+		}
+		for i := range x.Exemplars {
+			xe, ye := &x.Exemplars[i], &y.Exemplars[i]
+			if xe.TimestampMs != ye.TimestampMs || !approx(xe.Value, ye.Value) || len(xe.Labels) != len(ye.Labels) {
+				return false
+			}
+			for j := range xe.Labels {
+				if !xe.Labels[j].Equal(&ye.Labels[j]) {
+					return false
+				}
+			}
+		}
+		return true
+	}),
+}
 
 // stripQueryFragmentLabel returns a copy of the time series slice with the __query_fragment label removed from each series.
 // The Final aggregation stage strips this label, so expected L2 results need it removed when comparing to L3 actual.
