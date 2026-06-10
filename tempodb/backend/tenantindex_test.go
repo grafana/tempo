@@ -77,7 +77,7 @@ func TestIndexMarshalUnmarshal(t *testing.T) {
 		require.NoError(t, err)
 
 		actual := &TenantIndex{}
-		err = actual.unmarshal(buff)
+		err = actual.unmarshalJSONGz(buff)
 		require.NoError(t, err)
 
 		// cmp.Equal used due to time marshalling: https://github.com/stretchr/testify/issues/502
@@ -102,6 +102,6 @@ func TestIndexMarshalUnmarshal(t *testing.T) {
 
 func TestIndexUnmarshalErrors(t *testing.T) {
 	test := &TenantIndex{}
-	err := test.unmarshal([]byte("bad data"))
+	err := test.unmarshalJSONGz([]byte("bad data"))
 	assert.Error(t, err)
 }

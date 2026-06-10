@@ -284,7 +284,6 @@ endif
 ##@ Code Generation
 
 PROTO_INTERMEDIATE_DIR = pkg/.patched-proto
-BUF = docker run --rm -u ${shell id -u} -v${PWD}:/tempo -w/tempo -e HOME=/tempo --entrypoint /usr/local/bin/buf ${TEMPO_CI_TOOLS_IMAGE}
 # wiresmith protobuf compiler (https://github.com/grafana/wiresmith). Build it
 # from a checkout with `go install ./cmd/wiresmith` — see WIRESMITH_MIGRATION.md.
 WIRESMITH = wiresmith
@@ -347,8 +346,14 @@ gen-proto:  ## Generate proto files
 	@# its package-level unmarshal helpers per file, so strip the duplicates.
 	python3 tools/strip-wiresmith-dup-helpers.py pkg/tempopb/backendwork.pb.go
 
-	@# Generate backend proto (uses go_package for output path)
-	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.backend.yaml --path tempodb/backend/v1/v1.proto
+	@# Generate backend proto with wiresmith. The file is staged as
+	@# backend/v1.proto so the source-relative output lands at
+	@# tempodb/backend/v1.pb.go (package backend), matching the old layout.
+	rm -rf pkg/.wiresmith-build
+	mkdir -p pkg/.wiresmith-build/backend
+	cp tempodb/backend/v1/v1.proto pkg/.wiresmith-build/backend/v1.proto
+	$(WIRESMITH) --proto_path=pkg/.wiresmith-build --out=tempodb --module=github.com/grafana/tempo -M "backend/v1.proto=github.com/grafana/tempo/tempodb/backend" pkg/.wiresmith-build/backend/v1.proto
+	rm -rf pkg/.wiresmith-build
 
 	@# Generate frontend proto with wiresmith. The dskit httpgrpc import is
 	@# copied from vendor with its gogoproto lines stripped (wiresmith does not
