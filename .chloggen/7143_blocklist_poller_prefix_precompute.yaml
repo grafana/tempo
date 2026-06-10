@@ -1,0 +1,6 @@
+change_type: enhancement
+component: storage
+note: precompute tenant-index job prefixes in the blocklist poller's `NewPoller`, hoisting the per-builder `strconv.Itoa` and prefix concatenation out of the per-tenant ownership check that runs on every poll cycle.
+issues: [7143]
+subtext:
+user: zalegrala
