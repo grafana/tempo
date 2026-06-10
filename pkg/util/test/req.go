@@ -489,10 +489,10 @@ type ProtoMarshaler interface {
 }
 
 // ProtoEqual reports whether two protobuf messages marshal to identical wire
-// bytes. gogo's reflection-based proto.Equal cannot traverse
-// wiresmith-generated structs (it chokes on the unexported presence bitmap),
-// so mid-migration equality is checked on the wire form instead. Repeated
-// field order matters, same as with proto.Equal.
+// bytes. Repeated field order matters, same as with proto.Equal. Prefer this
+// (or RequireProtoEqual) over require.Equal for proto structs: struct-literal
+// expectations differ from unmarshaled values in the wiresmith
+// XXX_fieldsPresent bitmap even when semantically equal.
 func ProtoEqual(a, b ProtoMarshaler) bool {
 	ab, err := a.Marshal()
 	if err != nil {
@@ -523,7 +523,7 @@ func RequireProtoEqual(t require.TestingT, want, got ProtoMarshaler) {
 }
 
 func TracesEqual(t *testing.T, t1 *tempopb.Trace, t2 *tempopb.Trace) {
-	if !ProtoEqual(t1, t2) {
+	if !proto.Equal(t1, t2) {
 		wantJSON, _ := json.MarshalIndent(t1, "", "  ")
 		gotJSON, _ := json.MarshalIndent(t2, "", "  ")
 

@@ -233,7 +233,7 @@ func TestTraceIDHandler(t *testing.T) {
 
 				trace.SortTrace(tc.expectedTrace)
 				trace.SortTrace(actualResp)
-				assert.True(t, test.ProtoEqual(tc.expectedTrace, actualResp))
+				assert.True(t, proto.Equal(tc.expectedTrace, actualResp))
 			}
 		})
 	}
@@ -431,7 +431,7 @@ func TestTraceIDHandlerV2(t *testing.T) {
 
 				trace.SortTrace(tc.expectedTrace)
 				trace.SortTrace(actualResp.Trace)
-				assert.True(t, test.ProtoEqual(tc.expectedTrace, actualResp.Trace))
+				assert.True(t, proto.Equal(tc.expectedTrace, actualResp.Trace))
 			}
 		})
 	}

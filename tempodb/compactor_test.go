@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -206,7 +208,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 			trace.SortTrace(allReqs[i])
 			trace.SortTrace(tr)
 
-			if !test.ProtoEqual(allReqs[i], tr) {
+			if !proto.Equal(allReqs[i], tr) {
 				wantJSON, _ := json.MarshalIndent(allReqs[i], "", "  ")
 				gotJSON, _ := json.MarshalIndent(tr, "", "  ")
 				require.Equal(t, wantJSON, gotJSON)

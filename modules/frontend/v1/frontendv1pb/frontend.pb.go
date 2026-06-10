@@ -5,12 +5,11 @@ package frontendv1pb
 
 import (
 	"fmt"
+	"github.com/grafana/wiresmith/protohelpers"
+	"google.golang.org/protobuf/encoding/protowire"
 	"io"
 	"math"
 	"strconv"
-
-	"github.com/grafana/wiresmith/protohelpers"
-	"google.golang.org/protobuf/encoding/protowire"
 )
 
 type Type int32
@@ -72,7 +71,7 @@ type FrontendToClient struct {
 	// bool statsEnabled = 3; - removed in 2.2. reserved until we can cleanly reclaim it
 	HttpRequestBatch []HTTPRequestEnvelope `protobuf:"bytes,4,rep,name=httpRequestBatch,proto3" json:"httpRequestBatch,omitempty"`
 
-	fieldsPresent [1]uint64
+	XXX_fieldsPresent [1]uint64
 }
 
 type ClientToFrontend struct {
@@ -82,13 +81,13 @@ type ClientToFrontend struct {
 	HttpResponseBatch []HTTPResponseEnvelope `protobuf:"bytes,4,rep,name=httpResponseBatch,proto3" json:"httpResponseBatch,omitempty"`
 	Features          int32                  `protobuf:"varint,5,opt,name=features,proto3" json:"features,omitempty"`
 
-	fieldsPresent [1]uint64
+	XXX_fieldsPresent [1]uint64
 }
 
 type NotifyClientShutdownRequest struct {
 	ClientID string `protobuf:"bytes,1,opt,name=clientID,proto3" json:"clientID,omitempty"`
 
-	fieldsPresent [1]uint64
+	XXX_fieldsPresent [1]uint64
 }
 
 type NotifyClientShutdownResponse struct {
@@ -154,28 +153,28 @@ func (m *FrontendToClient) HasType() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<0) != 0
+	return m.XXX_fieldsPresent[0]&(1<<0) != 0
 }
 
 func (m *ClientToFrontend) HasClientID() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<0) != 0
+	return m.XXX_fieldsPresent[0]&(1<<0) != 0
 }
 
 func (m *ClientToFrontend) HasFeatures() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<1) != 0
+	return m.XXX_fieldsPresent[0]&(1<<1) != 0
 }
 
 func (m *NotifyClientShutdownRequest) HasClientID() bool {
 	if m == nil {
 		return false
 	}
-	return m.fieldsPresent[0]&(1<<0) != 0
+	return m.XXX_fieldsPresent[0]&(1<<0) != 0
 }
 
 func (m *FrontendToClient) GetHttpRequest() HTTPRequestEnvelope {
@@ -504,73 +503,6 @@ func (m *NotifyClientShutdownResponse) MarshalToSizedBuffer(dAtA []byte) (int, e
 	return len(dAtA) - i, nil
 }
 
-const maxUnmarshalDepth = 10000
-
-func skipValue(dAtA []byte, wireType int, fieldNum int32) (int, error) {
-	iNdEx := 0
-	l := len(dAtA)
-	switch wireType {
-	case 0:
-		for shift := 0; ; shift++ {
-			if shift >= 10 {
-				return 0, fmt.Errorf("invalid varint")
-			}
-			if iNdEx >= l {
-				return 0, fmt.Errorf("invalid varint")
-			}
-			iNdEx++
-			if dAtA[iNdEx-1] < 0x80 {
-				break
-			}
-		}
-	case 1:
-		if (iNdEx + 8) > l {
-			return 0, fmt.Errorf("truncated fixed64")
-		}
-		iNdEx += 8
-	case 2:
-		var length uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return 0, fmt.Errorf("invalid bytes")
-			}
-			if iNdEx >= l {
-				return 0, fmt.Errorf("invalid bytes")
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			length |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				if shift == 63 && b > 1 {
-					return 0, fmt.Errorf("invalid bytes")
-				}
-				break
-			}
-		}
-		if length > uint64(math.MaxInt) {
-			return 0, fmt.Errorf("invalid bytes")
-		}
-		iNdEx += int(length)
-		if iNdEx < 0 || iNdEx > l {
-			return 0, fmt.Errorf("invalid bytes")
-		}
-	case 3:
-		_, n := protowire.ConsumeGroup(protowire.Number(fieldNum), dAtA[iNdEx:])
-		if n < 0 {
-			return 0, fmt.Errorf("invalid group")
-		}
-		iNdEx += n
-	case 5:
-		if (iNdEx + 4) > l {
-			return 0, fmt.Errorf("truncated fixed32")
-		}
-		iNdEx += 4
-	default:
-		return 0, fmt.Errorf("unknown wire type %d", wireType)
-	}
-	return iNdEx, nil
-}
-
 func (m *FrontendToClient) Unmarshal(b []byte) error {
 	return m.unmarshal(b, 0)
 }
@@ -583,7 +515,7 @@ func (m *FrontendToClient) UnmarshalWithDepth(b []byte, depth int) error {
 }
 
 func (m *FrontendToClient) unmarshal(dAtA []byte, depth int) error {
-	if depth > maxUnmarshalDepth {
+	if depth > protohelpers.MaxUnmarshalDepth {
 		return fmt.Errorf("exceeded max recursion depth")
 	}
 	l := len(dAtA)
@@ -648,7 +580,11 @@ func (m *FrontendToClient) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			m.HttpRequestBatch = make([]HTTPRequestEnvelope, 0, c)
+			if cap(m.HttpRequestBatch) < c {
+				m.HttpRequestBatch = make([]HTTPRequestEnvelope, 0, c)
+			} else {
+				m.HttpRequestBatch = m.HttpRequestBatch[:0]
+			}
 		}
 	}
 	for iNdEx < l {
@@ -680,7 +616,7 @@ func (m *FrontendToClient) unmarshal(dAtA []byte, depth int) error {
 		switch fieldNum {
 		case 1: // httpRequest
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -727,7 +663,7 @@ func (m *FrontendToClient) unmarshal(dAtA []byte, depth int) error {
 			iNdEx = postIndex
 		case 2: // type
 			if wireType != 0 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -753,10 +689,10 @@ func (m *FrontendToClient) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.Type = Type(v)
-			m.fieldsPresent[0] |= 1 << 0
+			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 4: // httpRequestBatch
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -804,7 +740,7 @@ func (m *FrontendToClient) unmarshal(dAtA []byte, depth int) error {
 			m.HttpRequestBatch = append(m.HttpRequestBatch, elem)
 			iNdEx = postIndex
 		default:
-			n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
 				return err
 			}
@@ -829,7 +765,7 @@ func (m *ClientToFrontend) UnmarshalWithDepth(b []byte, depth int) error {
 }
 
 func (m *ClientToFrontend) unmarshal(dAtA []byte, depth int) error {
-	if depth > maxUnmarshalDepth {
+	if depth > protohelpers.MaxUnmarshalDepth {
 		return fmt.Errorf("exceeded max recursion depth")
 	}
 	l := len(dAtA)
@@ -894,7 +830,11 @@ func (m *ClientToFrontend) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			m.HttpResponseBatch = make([]HTTPResponseEnvelope, 0, c)
+			if cap(m.HttpResponseBatch) < c {
+				m.HttpResponseBatch = make([]HTTPResponseEnvelope, 0, c)
+			} else {
+				m.HttpResponseBatch = m.HttpResponseBatch[:0]
+			}
 		}
 	}
 	for iNdEx < l {
@@ -926,7 +866,7 @@ func (m *ClientToFrontend) unmarshal(dAtA []byte, depth int) error {
 		switch fieldNum {
 		case 1: // httpResponse
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -973,7 +913,7 @@ func (m *ClientToFrontend) unmarshal(dAtA []byte, depth int) error {
 			iNdEx = postIndex
 		case 2: // clientID
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -1016,10 +956,10 @@ func (m *ClientToFrontend) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.ClientID = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.fieldsPresent[0] |= 1 << 0
+			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 4: // httpResponseBatch
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -1068,7 +1008,7 @@ func (m *ClientToFrontend) unmarshal(dAtA []byte, depth int) error {
 			iNdEx = postIndex
 		case 5: // features
 			if wireType != 0 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -1094,9 +1034,9 @@ func (m *ClientToFrontend) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.Features = int32(v)
-			m.fieldsPresent[0] |= 1 << 1
+			m.XXX_fieldsPresent[0] |= 1 << 1
 		default:
-			n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
 				return err
 			}
@@ -1121,7 +1061,7 @@ func (m *NotifyClientShutdownRequest) UnmarshalWithDepth(b []byte, depth int) er
 }
 
 func (m *NotifyClientShutdownRequest) unmarshal(dAtA []byte, depth int) error {
-	if depth > maxUnmarshalDepth {
+	if depth > protohelpers.MaxUnmarshalDepth {
 		return fmt.Errorf("exceeded max recursion depth")
 	}
 	l := len(dAtA)
@@ -1155,7 +1095,7 @@ func (m *NotifyClientShutdownRequest) unmarshal(dAtA []byte, depth int) error {
 		switch fieldNum {
 		case 1: // clientID
 			if wireType != 2 {
-				n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 				if err != nil {
 					return err
 				}
@@ -1198,9 +1138,9 @@ func (m *NotifyClientShutdownRequest) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.ClientID = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.fieldsPresent[0] |= 1 << 0
+			m.XXX_fieldsPresent[0] |= 1 << 0
 		default:
-			n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
 				return err
 			}
@@ -1225,7 +1165,7 @@ func (m *NotifyClientShutdownResponse) UnmarshalWithDepth(b []byte, depth int) e
 }
 
 func (m *NotifyClientShutdownResponse) unmarshal(dAtA []byte, depth int) error {
-	if depth > maxUnmarshalDepth {
+	if depth > protohelpers.MaxUnmarshalDepth {
 		return fmt.Errorf("exceeded max recursion depth")
 	}
 	l := len(dAtA)
@@ -1258,7 +1198,7 @@ func (m *NotifyClientShutdownResponse) unmarshal(dAtA []byte, depth int) error {
 		wireType := int(wire & 0x7)
 		switch fieldNum {
 		default:
-			n, err := skipValue(dAtA[iNdEx:], wireType, fieldNum)
+			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
 				return err
 			}

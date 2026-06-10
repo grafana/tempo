@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+
 	"github.com/go-kit/log" //nolint:all
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -150,7 +152,7 @@ func testFindByTraceID(t *testing.T, e encoding.VersionedEncoding) {
 		for i, id := range ids {
 			obj, err := block.FindTraceByID(ctx, id, common.DefaultSearchOptions())
 			require.NoError(t, err)
-			require.True(t, test.ProtoEqual(objs[i], obj.Trace), "trace at index %d not equal", i)
+			require.True(t, proto.Equal(objs[i], obj.Trace), "trace at index %d not equal", i)
 		}
 	}
 
@@ -200,7 +202,7 @@ func testIterator(t *testing.T, e encoding.VersionedEncoding) {
 			}
 
 			require.True(t, found)
-			require.True(t, test.ProtoEqual(objs[j], obj), "trace at index %d not equal", j)
+			require.True(t, proto.Equal(objs[j], obj), "trace at index %d not equal", j)
 			require.Equal(t, ids[j], []byte(id))
 			i++
 		}
