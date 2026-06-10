@@ -23,17 +23,20 @@ committed output byte-identically.
 | modules/frontend/v1/frontendv1pb/frontend.proto | DONE | dskit httpgrpc fields carried via customtype envelopes (`httpgrpc_envelope.go`). |
 | tempodb/backend/v1/v1.proto | DONE | jsontag/customname/stdtime/customtype map 1:1; embed replaced by named field + hand-written flat MarshalJSON. |
 
-## Test results (2026-06-10)
+## Test results (2026-06-10, databases-branch toolchain)
 
 - `go test -count=1 ./cmd/... ./modules/... ./pkg/... ./tempodb/...`
-  (the `make test` package set): all pass except
-  - `modules/backendscheduler TestShardedIntegration/sharded_work`: fails
-    identically on the unmodified base commit (927ed1b71) — pre-existing,
-    not migration fallout.
-  - `pkg/usagestats Test_Memberlist`: flaky under parallel package load
-    (timing-based memberlist convergence; no proto involvement); passes
-    3x consecutively when run alone with `-count=3`.
-- Integration (e2e, `make test-e2e`) not run — requires docker images.
+  (the `make test` package set, 85 packages): all pass except
+  `modules/backendscheduler TestShardedIntegration/sharded_work`, which
+  fails identically on the unmodified base commit (927ed1b71) —
+  pre-existing, not migration fallout. (`pkg/usagestats Test_Memberlist`
+  flaked once on the previous run under parallel load; passes here.)
+- e2e (docker): `./integration/api` and `./integration/operations` run
+  with locally built grafana/tempo + tempo-query images — see below; the
+  api suite exercises the customtype-enveloped httpgrpc bidi stream and
+  the full ingest/query path. The api suite caught one real bug
+  (pkg/httpclient used golang/protobuf jsonpb, see Migration notes), and
+  one nil-vs-empty decode difference in a test helper.
 - JSON/stored-format compatibility: `tempodb/backend` golden tests
   (`TestBlockMetaJSON*`, fixture-based `TestFixtures`/`TestOriginalFixtures`
   against stored tenant indexes) pass; generated struct json tags were
@@ -77,6 +80,19 @@ committed output byte-identically.
 - **jsonpb**: gogo jsonpb still handles Trace/SearchResponse JSON because
   hand-written shims provide `XXX_OneofWrappers` (AnyValue) and register
   enums with the gogo registry (`*_gogo_shim.go`, pkg/tempopb/gogo_shim.go).
+  The **golang/protobuf** jsonpb shim is NOT usable: it routes through
+  protoreflect field-level reflection, which wiresmith messages reject
+  with a panic. pkg/httpclient and modules/querier were switched to gogo
+  jsonpb (found by the e2e api suite — a unit-test blind spot). One
+  behavior nit: gogo jsonpb decodes an empty JSON array into an empty
+  non-nil slice where the golang decoder left nil (integration helper
+  adjusted).
+- **no_presence_all**: adopted on every Tempo proto. The DB-10 exported
+  bitmap is untagged, so encoding/json serialized
+  `"XXX_fieldsPresent":[0]` into stored meta.json/tenant indexes, the
+  `dc=` query param, and work-shard files; dropping the bitmap fixes that
+  at the root and restores gogo's declared-fields-only layout (Tempo
+  never had Has*/present-but-empty semantics under gogo).
 - **embed (CompactedBlockMeta)**: solved Tempo-side with a named
   `BlockMeta` field + hand-written flat `MarshalJSON`
   (tempodb/backend/wiresmith_custom.go). Promoted-field fallout:
@@ -97,13 +113,15 @@ feature, severity.
 1. **FIXED on the databases branch (@9407011)**: presence bitmap renamed
    `XXX_fieldsPresent` — gogo `proto.Equal/Clone/Merge` interop restored;
    the ~25 wire-bytes-comparison call sites were reverted to upstream's
-   gogo `proto.Equal`. Residual (inherent, also true of gogo's own `XXX_`
-   fields): the exported field is visible to testify deep equality and
-   `cmp.Diff`, so struct-literal vs unmarshaled comparisons use
-   `RequireProtoEqual`/generated `Equal()`/`IgnoreFields` recipes.
-   `(wiresmith.options.no_presence)` could remove even that for messages
-   that never use `Has*`/present-empty semantics — not yet adopted (see
-   Remaining work).
+   gogo `proto.Equal`. Follow-up found during adoption: the exported
+   bitmap carries **no struct tag**, so `encoding/json` serializes
+   `"XXX_fieldsPresent":[0]` into every JSON surface (gogo tags its XXX_
+   fields `json:"-"`). Tempo sidestepped it by adopting
+   `(wiresmith.options.no_presence_all)` on every proto (gogo parity —
+   Tempo never had Has*/present-but-empty semantics), which also let the
+   remaining testify/cmp bitmap workarounds revert to upstream forms.
+   Suggested wiresmith fix: emit `json:"-"` on the bitmap for consumers
+   that keep it.
 
 2. **FIXED on the databases branch (@5f1416f)**: `skipValue`/
    `maxUnmarshalDepth` live in `protohelpers` and are referenced
@@ -177,8 +195,10 @@ feature, severity.
 
 ## Remaining work
 
-- Run the e2e suite (`make test-e2e`) before merging; cross-version
-  compatibility (old querier ↔ new frontend) is exercised there.
+- e2e: `./integration/api` and `./integration/operations` pass with the
+  locally built images; run the remaining suites (`limits`,
+  `metrics-generator`, `storage`, `util`) and a mixed-version cluster
+  (old querier ↔ new frontend) before merging.
 - Benchmark the hot paths (distributor PushBytes, query combiners) to
   quantify the wiresmith win on Tempo workloads.
 - Replace the local `replace github.com/grafana/wiresmith => ...` with a
