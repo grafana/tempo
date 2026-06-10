@@ -14,6 +14,100 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
+// TestExtrapolationFilterEndToEnd reproduces the docker-compose symptom via
+// the real CompileMetricsQueryRange + Do flow. Two services: shop-backend
+// (tracestate ot=th:8 -> multiplier 2) and tempo-vulture (no tracestate).
+// `{resource.service.name="shop-backend"} | count_over_time() with(extrapolate=true)`
+// must return exactly 2x the count of shop-backend spans only — not all spans.
+func TestExtrapolationFilterEndToEnd(t *testing.T) {
+	startTime := time.Now().Add(-1 * time.Minute)
+	makeTrace := func(svc, traceState string, n int) *Trace {
+		spans := make([]Span, n)
+		for i := range spans {
+			spans[i] = Span{
+				SpanID:            []byte(svc + "/span00000000")[:12],
+				Name:              svc,
+				StartTimeUnixNano: uint64(startTime.UnixNano()) + uint64(i),
+				DurationNano:      uint64(time.Second),
+				TraceState:        traceState,
+				Attrs:             []Attribute{attr("foo", "y")},
+			}
+		}
+		return &Trace{
+			TraceID: test.ValidTraceID(nil),
+			ResourceSpans: []ResourceSpans{{
+				Resource: Resource{
+					ServiceName: svc,
+					Attrs:       []Attribute{attr("foo", "x")},
+				},
+				ScopeSpans: []ScopeSpans{{
+					SpanCount: int32(n),
+					Spans:     spans,
+				}},
+			}},
+		}
+	}
+
+	shop := makeTrace("shop-backend", "ot=th:8", 5)
+	vulture := makeTrace("tempo-vulture", "", 10)
+
+	block := makeBackendBlockWithTraces(t, []*Trace{shop, vulture})
+
+	opts := common.DefaultSearchOptions()
+	fetcher := traceql.NewSpansetFetcherWrapperBoth(
+		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return block.Fetch(ctx, req, opts)
+		},
+		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+			return block.FetchSpans(ctx, req, opts)
+		},
+	)
+
+	ctx := context.Background()
+	st := uint64(startTime.Add(-10 * time.Second).UnixNano())
+	end := uint64(startTime.Add(10 * time.Second).UnixNano())
+
+	cases := []struct {
+		query    string
+		want     float64
+		descr    string
+	}{
+		{`{resource.service.name="shop-backend"} | count_over_time()`, 5, "naive shop"},
+		{`{resource.service.name="shop-backend"} | count_over_time() with(extrapolate=true)`, 10, "extrap shop = 2x"},
+		{`{resource.service.name="tempo-vulture"} | count_over_time()`, 10, "naive vulture"},
+		{`{resource.service.name="tempo-vulture"} | count_over_time() with(extrapolate=true)`, 10, "extrap vulture = 1x (no tracestate)"},
+		{`{} | count_over_time()`, 15, "naive all"},
+		{`{} | count_over_time() with(extrapolate=true)`, 20, "extrap all = 5*2 + 10*1"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.descr, func(t *testing.T) {
+			req := &tempopb.QueryRangeRequest{
+				Query:     tc.query,
+				Step:      uint64(time.Minute),
+				Start:     st,
+				End:       end,
+				MaxSeries: 1000,
+			}
+			eng := traceql.NewEngine()
+			eval, err := eng.CompileMetricsQueryRange(req)
+			require.NoError(t, err)
+			err = eval.Do(ctx, fetcher, st, end, int(req.MaxSeries))
+			require.NoError(t, err)
+
+			ss := eval.Results()
+			var total float64
+			for _, s := range ss {
+				for _, v := range s.Values {
+					total += v
+				}
+			}
+			t.Logf("query=%q total=%v want=%v", tc.query, total, tc.want)
+			require.Equal(t, tc.want, total, tc.descr)
+		})
+	}
+}
+
 // TestExtrapolationFilterInteraction reproduces the docker-compose symptom:
 // `{resource.service.name="shop-backend"} | rate() with(extrapolate=true)`
 // returns all spans instead of only shop-backend spans.
