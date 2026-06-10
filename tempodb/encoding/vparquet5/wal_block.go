@@ -25,6 +25,8 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/parquet-go/parquet-go"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 var _ common.WALBlock = (*walBlock)(nil)
@@ -711,7 +713,13 @@ func (b *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute,
 }
 
 func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, _ common.SearchOptions) (traceql.FetchSpansResponse, error) {
-	ctx, span := tracer.Start(ctx, "walBlock.Fetch")
+	ctx, span := tracer.Start(ctx, "walBlock.Fetch", oteltrace.WithAttributes(
+		attribute.String("blockID", b.meta.BlockID.String()),
+		attribute.String("tenantID", b.meta.TenantID),
+		attribute.Int("numConditions", len(req.Conditions)),
+		attribute.Bool("allConditions", req.AllConditions),
+		attribute.Bool("secondPassSelectAll", req.SecondPassSelectAll),
+	))
 	defer span.End()
 
 	// todo: this same method is called in backendBlock.Fetch. is there anyway to share this?
@@ -759,7 +767,13 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, _ c
 }
 
 func (b *walBlock) FetchSpans(ctx context.Context, req traceql.FetchSpansRequest, _ common.SearchOptions) (traceql.FetchSpansOnlyResponse, error) {
-	ctx, span := tracer.Start(ctx, "walBlock.FetchSpans")
+	ctx, span := tracer.Start(ctx, "walBlock.FetchSpans", oteltrace.WithAttributes(
+		attribute.String("blockID", b.meta.BlockID.String()),
+		attribute.String("tenantID", b.meta.TenantID),
+		attribute.Int("numConditions", len(req.Conditions)),
+		attribute.Bool("allConditions", req.AllConditions),
+		attribute.Bool("secondPassSelectAll", req.SecondPassSelectAll),
+	))
 	defer span.End()
 
 	if err := checkConditions(req.Conditions); err != nil {
@@ -799,7 +813,12 @@ func (b *walBlock) FetchSpans(ctx context.Context, req traceql.FetchSpansRequest
 }
 
 func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, mcb common.MetricsCallback, opts common.SearchOptions) error {
-	ctx, span := tracer.Start(ctx, "walBlock.FetchTagValues")
+	ctx, span := tracer.Start(ctx, "walBlock.FetchTagValues", oteltrace.WithAttributes(
+		attribute.String("blockID", b.meta.BlockID.String()),
+		attribute.String("tenantID", b.meta.TenantID),
+		attribute.Int("numConditionGroups", len(req.ConditionGroups)),
+		attribute.String("tagName", req.TagName.String()),
+	))
 	defer span.End()
 
 	if len(req.ConditionGroups) == 0 {
@@ -891,7 +910,11 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValue
 }
 
 func (b *walBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, mcb common.MetricsCallback, opts common.SearchOptions) error {
-	ctx, span := tracer.Start(ctx, "walBlock.FetchTagNames")
+	ctx, span := tracer.Start(ctx, "walBlock.FetchTagNames", oteltrace.WithAttributes(
+		attribute.String("blockID", b.meta.BlockID.String()),
+		attribute.String("tenantID", b.meta.TenantID),
+		attribute.Int("numConditionGroups", len(req.ConditionGroups)),
+	))
 	defer span.End()
 
 	if len(req.ConditionGroups) == 0 {

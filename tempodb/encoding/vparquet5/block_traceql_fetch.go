@@ -12,9 +12,21 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/parquet-go/parquet-go"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func (b *backendBlock) FetchSpans(ctx context.Context, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansOnlyResponse, error) {
+	ctx, span := tracer.Start(ctx, "parquet.backendBlock.FetchSpans", trace.WithAttributes(
+		attribute.String("blockID", b.meta.BlockID.String()),
+		attribute.String("tenantID", b.meta.TenantID),
+		attribute.Int64("blockSize", int64(b.meta.Size_)),
+		attribute.Int("numConditions", len(req.Conditions)),
+		attribute.Bool("allConditions", req.AllConditions),
+		attribute.Bool("secondPassSelectAll", req.SecondPassSelectAll),
+	))
+	defer span.End()
+
 	pf, rr, err := b.openForSearch(ctx, opts)
 	if err != nil {
 		return traceql.FetchSpansOnlyResponse{}, err
@@ -23,6 +35,13 @@ func (b *backendBlock) FetchSpans(ctx context.Context, req traceql.FetchSpansReq
 	if err != nil {
 		return traceql.FetchSpansOnlyResponse{}, err
 	}
+
+	// Span covers planning + iterator creation; iteration consumes lazily after
+	// return. End-attribute reflects bytes read at function exit.
+	defer func() {
+		span.SetAttributes(attribute.Int64("inspectedBytes", int64(rr.BytesRead())))
+	}()
+
 	return traceql.FetchSpansOnlyResponse{
 		Results: iter,
 		Stats: func() traceql.FetchSpansStats {
