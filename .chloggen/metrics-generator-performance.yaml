@@ -1,0 +1,6 @@
+change_type: enhancement
+component: metrics-generator
+note: Reduce CPU and memory allocations in metrics-generator span metrics, service graphs, and registry hot paths.
+issues: [7124]
+subtext:
+user: carles-grafana
