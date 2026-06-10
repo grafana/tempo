@@ -1263,19 +1263,6 @@ func TestServiceGraphs_nonRootServerSpanPeerAttributesDoNotChangeSeries(t *testi
 // service.name: ServerService stays empty, the edge never completes, and on
 // expiry the server span's peer attribute names the external server service.
 func TestServiceGraphs_emptyServiceNameServerSpanInfersVirtualNodeFromPeer(t *testing.T) {
-	testRegistry := registry.NewTestRegistry()
-
-	cfg := Config{}
-	cfg.RegisterFlagsAndApplyDefaults("", nil)
-	cfg.Wait = time.Nanosecond
-
-	p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
-	require.NoError(t, err)
-	defer p.Shutdown(context.Background())
-
-	traceID := []byte{0x1a}
-	clientSpanID := []byte{0x1b}
-
 	peerAttr := &v1.KeyValue{
 		Key: string(semconv.PeerServiceKey),
 		Value: &v1.AnyValue{
@@ -1283,20 +1270,58 @@ func TestServiceGraphs_emptyServiceNameServerSpanInfersVirtualNodeFromPeer(t *te
 		},
 	}
 
-	request := &tempopb.PushSpansRequest{
-		Batches: []*tracev1.ResourceSpans{
-			makeServiceGraphBatch("svc-a", tracev1.Span_SPAN_KIND_CLIENT, traceID, clientSpanID, nil),
-			makeServiceGraphBatch("", tracev1.Span_SPAN_KIND_SERVER, traceID, []byte{0x1c}, clientSpanID, peerAttr),
+	traceID := []byte{0x1a}
+	clientSpanID := []byte{0x1b}
+	serverSpanID := []byte{0x1c}
+
+	tests := []struct {
+		name    string
+		batches []*tracev1.ResourceSpans
+	}{
+		{
+			name: "client before server",
+			batches: []*tracev1.ResourceSpans{
+				makeServiceGraphBatch("svc-a", tracev1.Span_SPAN_KIND_CLIENT, traceID, clientSpanID, nil),
+				makeServiceGraphBatch("", tracev1.Span_SPAN_KIND_SERVER, traceID, serverSpanID, clientSpanID, peerAttr),
+			},
+		},
+		{
+			name: "server before client",
+			batches: []*tracev1.ResourceSpans{
+				makeServiceGraphBatch("", tracev1.Span_SPAN_KIND_SERVER, traceID, serverSpanID, clientSpanID, peerAttr),
+				makeServiceGraphBatch("svc-a", tracev1.Span_SPAN_KIND_CLIENT, traceID, clientSpanID, nil),
+			},
+		},
+		{
+			name: "producer and consumer messaging spans",
+			batches: []*tracev1.ResourceSpans{
+				makeServiceGraphBatch("svc-a", tracev1.Span_SPAN_KIND_PRODUCER, traceID, clientSpanID, nil),
+				makeServiceGraphBatch("", tracev1.Span_SPAN_KIND_CONSUMER, traceID, serverSpanID, clientSpanID, peerAttr),
+			},
 		},
 	}
 
-	p.PushSpans(context.Background(), request)
-	p.(*Processor).store.Expire()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testRegistry := registry.NewTestRegistry()
 
-	virtualNodeLabels := labels.FromMap(map[string]string{
-		"client":          "svc-a",
-		"server":          "external-peer",
-		"connection_type": "virtual_node",
-	})
-	assert.Equal(t, 1.0, testRegistry.Query("traces_service_graph_request_total", virtualNodeLabels))
+			cfg := Config{}
+			cfg.RegisterFlagsAndApplyDefaults("", nil)
+			cfg.Wait = time.Nanosecond
+
+			p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
+			require.NoError(t, err)
+			defer p.Shutdown(context.Background())
+
+			p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: tt.batches})
+			p.(*Processor).store.Expire()
+
+			virtualNodeLabels := labels.FromMap(map[string]string{
+				"client":          "svc-a",
+				"server":          "external-peer",
+				"connection_type": "virtual_node",
+			})
+			assert.Equal(t, 1.0, testRegistry.Query("traces_service_graph_request_total", virtualNodeLabels))
+		})
+	}
 }

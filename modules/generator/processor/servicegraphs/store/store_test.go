@@ -569,3 +569,37 @@ func TestStoreUpsertEdgeFromBytesWith_pooledEdgeReuseDoesNotAliasKeys(t *testing
 	}
 	assert.Equal(t, 0, s.len())
 }
+
+func TestSetEdgeKeyFromBytes_reuseOverwritesPreviousKey(t *testing.T) {
+	// Deterministic version of the pooled-reuse scenario: when the same Edge
+	// (and its keyBuf) is reused for a different key, the encoded key must
+	// fully replace the previous contents, for shorter, equal, and longer keys.
+	e := &Edge{Dimensions: map[string]string{}}
+
+	traceA := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}
+	spanA := []byte{0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa8}
+	setEdgeKeyFromBytes(e, traceA, spanA)
+	require.Equal(t, encodeKey(traceA, spanA), e.Key())
+	bufA := &e.keyBuf[0]
+
+	// Shorter key: the buffer is reused in place and the key must not retain
+	// any trailing bytes of the previous key.
+	resetEdge(e)
+	traceShort := []byte{0x11}
+	spanShort := []byte{0x22}
+	setEdgeKeyFromBytes(e, traceShort, spanShort)
+	assert.Equal(t, encodeKey(traceShort, spanShort), e.Key())
+	assert.Same(t, bufA, &e.keyBuf[0], "shorter key should reuse the existing buffer")
+
+	// Longer key than current capacity: the buffer must grow and still encode
+	// the full key.
+	resetEdge(e)
+	traceLong := make([]byte, 32)
+	spanLong := make([]byte, 32)
+	for i := range traceLong {
+		traceLong[i] = byte(i + 1)
+		spanLong[i] = byte(i + 101)
+	}
+	setEdgeKeyFromBytes(e, traceLong, spanLong)
+	assert.Equal(t, encodeKey(traceLong, spanLong), e.Key())
+}

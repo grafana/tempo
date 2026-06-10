@@ -357,14 +357,21 @@ func (s *store) grabEdge(key string) *Edge {
 func (s *store) grabEdgeFromBytes(traceID, spanID []byte) *Edge {
 	edge := edgePool.Get().(*Edge)
 	resetEdge(edge)
+	setEdgeKeyFromBytes(edge, traceID, spanID)
+	edge.expiration = time.Now().Add(s.ttl).Unix()
+	return edge
+}
+
+// setEdgeKeyFromBytes encodes the key into the edge's reusable keyBuf and
+// aliases edge.key over it. It runs on freshly grabbed (possibly recycled)
+// edges, so it must fully overwrite any previous key contents.
+func setEdgeKeyFromBytes(edge *Edge, traceID, spanID []byte) {
 	encodedLen := encodedKeyLen(traceID, spanID)
 	if cap(edge.keyBuf) < encodedLen {
 		edge.keyBuf = make([]byte, encodedLen)
 	}
 	edge.keyBuf = edge.keyBuf[:encodedLen]
 	edge.key = encodeKeyToString(edge.keyBuf, traceID, spanID)
-	edge.expiration = time.Now().Add(s.ttl).Unix()
-	return edge
 }
 
 // returnEdge returns an Edge to the pool.

@@ -178,9 +178,10 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 	}
 }
 
-// aggregateMetricsForSpan updates the span metrics series for a single span.
-// It reports whether the span's primary label set was valid UTF-8 and its
-// series were updated.
+// aggregateMetricsForSpan updates the enabled span metric series for a single
+// span. It reports whether the span's primary label set was valid UTF-8;
+// callers gate target_info registration on this, independent of which
+// subprocessors are enabled.
 func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, instanceID string, rs *v1.Resource, span *v1_trace.Span, traceID []byte) bool {
 	builder := p.registry.NewLabelBuilder()
 

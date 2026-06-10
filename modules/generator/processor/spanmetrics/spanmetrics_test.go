@@ -2075,4 +2075,72 @@ func TestSpanMetricsTargetInfoInvalidUTF8Spans(t *testing.T) {
 		assert.Equal(t, 1.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
 		assert.Equal(t, 1.0, testutil.ToFloat64(invalidUTF8Counter))
 	})
+
+	t.Run("invalid target_info labels still emit span metrics", func(t *testing.T) {
+		testRegistry, invalidUTF8Counter, p := newProcessor(t)
+		defer p.Shutdown(context.Background())
+
+		// Valid spans, but a resource attribute with an invalid UTF-8 value
+		// poisons the target_info label set only.
+		batch := test.MakeBatchWithAttributes(2, nil, []*common_v1.KeyValue{
+			{
+				Key: "res.attr",
+				Value: &common_v1.AnyValue{
+					Value: &common_v1.AnyValue_StringValue{StringValue: "invalid-\xff-utf8"},
+				},
+			},
+		})
+
+		p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+
+		// Span metrics still emit for both spans; target_info is rejected and
+		// counted once per accepted span (pre-optimization contract).
+		lbls := labels.FromMap(map[string]string{
+			"service":     "test-service",
+			"span_name":   "test",
+			"span_kind":   "SPAN_KIND_CLIENT",
+			"status_code": "STATUS_CODE_OK",
+			"job":         "test-service",
+		})
+		assert.Equal(t, 2.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
+		assert.NotContains(t, testRegistry.String(), "traces_target_info")
+		assert.Equal(t, 2.0, testutil.ToFloat64(invalidUTF8Counter))
+	})
+}
+
+// TestSpanMetricsTargetInfoWithDisabledSubprocessors pins that target_info
+// registration only depends on the span's primary labels being valid UTF-8,
+// not on any span metric series actually being updated.
+func TestSpanMetricsTargetInfoWithDisabledSubprocessors(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+	filteredSpansCounter := prometheus.NewCounter(prometheus.CounterOpts{Name: "test_filtered_spans_total"})
+	invalidUTF8Counter := prometheus.NewCounter(prometheus.CounterOpts{Name: "test_invalid_utf8_spans_total"})
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.EnableTargetInfo = true
+	cfg.Subprocessors[Count] = false
+	cfg.Subprocessors[Latency] = false
+	cfg.Subprocessors[Size] = false
+
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8Counter)
+	require.NoError(t, err)
+	defer p.Shutdown(context.Background())
+
+	batch := test.MakeBatch(1, nil)
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+
+	var resAttr string
+	for _, kv := range batch.Resource.Attributes {
+		if kv.Key == "random.res.attr" {
+			resAttr = kv.Value.GetStringValue()
+		}
+	}
+	targetInfoLabels := labels.FromMap(map[string]string{
+		"job":             "test-service",
+		"random_res_attr": resAttr,
+	})
+	assert.Equal(t, 1.0, testRegistry.Query("traces_target_info", targetInfoLabels))
+	assert.NotContains(t, testRegistry.String(), "traces_spanmetrics_calls_total")
+	assert.Equal(t, 0.0, testutil.ToFloat64(invalidUTF8Counter))
 }

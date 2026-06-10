@@ -1074,6 +1074,12 @@ func TestManagedRegistry_borrowedLabelsSurviveScratchReuse(t *testing.T) {
 	gauge.SetForTargetInfoWithHashAt(borrowed.Labels, borrowed.Hash, 1.0, timeMs)
 	borrowed.Release()
 
+	// Overwrite the caller-owned trace ID slice: the histogram must have
+	// copied the bytes synchronously.
+	for i := range traceID {
+		traceID[i] = 0xff
+	}
+
 	// Churn the pooled builders and scratch buffers with other label values to
 	// overwrite the storage the borrowed labels were built in.
 	for i := 0; i < 100; i++ {

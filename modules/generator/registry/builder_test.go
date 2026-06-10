@@ -155,10 +155,14 @@ func TestLabelBuilder_LargeLabelSetSortsAndDeduplicates(t *testing.T) {
 	builder := NewLabelBuilder(0, 0, newTestDrainSanitizer(SpanNameSanitizationDisabled), newTestLabelLimiter())
 
 	want := make(map[string]string, insertionSortThreshold+2)
-	// Add in reverse order to force real sorting work.
+	// Add every name once in reverse order, then again in reverse order with
+	// the final values: duplicates are interleaved across the whole set, so
+	// last-write-wins only holds if the fallback sort is stable.
+	for i := insertionSortThreshold + 1; i >= 0; i-- {
+		builder.Add(fmt.Sprintf("label_%03d", i), "first")
+	}
 	for i := insertionSortThreshold + 1; i >= 0; i-- {
 		name := fmt.Sprintf("label_%03d", i)
-		builder.Add(name, "first")
 		builder.Add(name, fmt.Sprintf("value_%03d", i))
 		want[name] = fmt.Sprintf("value_%03d", i)
 	}
