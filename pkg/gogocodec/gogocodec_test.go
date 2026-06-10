@@ -44,9 +44,7 @@ func TestCodecMarshallAndUnmarshall_tempo_type(t *testing.T) {
 	req2 := &tempopb.TraceByIDRequest{}
 	err = c.Unmarshal(data, req2)
 	require.NoError(t, err)
-	// generated Equal: unmarshalling sets the wiresmith presence bitmap, so a
-	// struct-literal comparison via assert.Equal would diff on it
-	assert.True(t, req1.Equal(req2))
+	assert.Equal(t, req1, req2)
 }
 
 func TestCodecMarshallAndUnmarshall_foreign_type(t *testing.T) {
@@ -84,7 +82,7 @@ func TestWireCompatibility(t *testing.T) {
 	req2 := &tempopb.TraceByIDRequest{}
 	err = c.Unmarshal(data2, req2)
 	require.NoError(t, err)
-	assert.True(t, req1.Equal(req2))
+	assert.Equal(t, req1, req2)
 }
 
 func TestCodecMarshallAndUnmarshall_otel_proto_type(t *testing.T) {

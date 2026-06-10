@@ -4,8 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/stretchr/testify/assert"
@@ -82,7 +80,7 @@ func TestFixtures(t *testing.T) {
 	var i *backend.TenantIndex
 	i, err = r.TenantIndex(ctx, tenant)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(blockMetas, i.Meta, cmpopts.IgnoreFields(backend.BlockMeta{}, "XXX_fieldsPresent")))
+	require.Equal(t, blockMetas, i.Meta)
 	require.Len(t, i.Meta, len(listMetas))
 }
 

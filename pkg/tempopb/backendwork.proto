@@ -4,6 +4,12 @@ package tempopb;
 
 import "wiresmith/options.proto";
 
+// Drop the XXX_fieldsPresent bitmap: gogo never generated Has methods or
+// presence tracking for these messages, the exported bitmap would leak
+// into encoding/json output, and the declared-fields-only layout matches
+// gogo's nullable=false structs.
+option (wiresmith.options.no_presence_all) = true;
+
 service BackendScheduler {
   // Get next available job
   rpc Next(NextJobRequest) returns (NextJobResponse) {}

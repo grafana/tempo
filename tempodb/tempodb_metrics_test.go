@@ -11,7 +11,6 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
@@ -3005,14 +3004,10 @@ var floatComparer = cmp.Comparer(func(x, y float64) bool {
 	return math.Abs(x-y) < 1e-6
 })
 
-// cmpProtoOpt makes cmp.Diff work with wiresmith-generated protos:
-//   - ignores the XXX_fieldsPresent tracking bitmap so round-trip
-//     comparisons (struct literal vs unmarshaled) succeed
-//   - overrides *tempopb.TimeSeries comparison: cmp would otherwise use the
-//     generated Equal method, which compares floats bit-exact and defeats
-//     the test's tolerance (floatComparer)
+// cmpProtoOpt overrides *tempopb.TimeSeries comparison: cmp would otherwise
+// use the generated Equal method, which compares floats bit-exact and
+// defeats the test's tolerance (floatComparer).
 var cmpProtoOpt = cmp.Options{
-	cmpopts.IgnoreFields(common_v1.KeyValue{}, "XXX_fieldsPresent"),
 	cmp.Comparer(func(x, y *tempopb.TimeSeries) bool {
 		if (x == nil) != (y == nil) {
 			return false
