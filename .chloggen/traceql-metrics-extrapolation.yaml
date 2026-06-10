@@ -5,7 +5,7 @@ change_type: feature
 component: traceql
 
 # A brief description of the change.
-note: TraceQL metrics queries can extrapolate counts from the W3C tracestate sampling probability. Opt in via the `metrics_traceql_extrapolation` per-tenant override or the `with(extrapolate=true)` query hint.
+note: TraceQL metrics queries can extrapolate counts from the W3C tracestate sampling probability. Opt in per query via the `with(extrapolate=true)` hint.
 
 # (Optional) PR number(s). Leave blank to auto-fill at release.
 issues: []
