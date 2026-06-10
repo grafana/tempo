@@ -65,16 +65,18 @@ func TestWriter(t *testing.T) {
 	err = idxP.unmarshalPb(m.writeBuffer[tenantIndexPathPb])
 	assert.NoError(t, err)
 
-	assert.True(t, cmp.Equal([]*BlockMeta{meta}, idxP.Meta, cmpMetaOpt))                  // using cmp.Equal to compare json datetimes
-	assert.True(t, cmp.Equal([]*CompactedBlockMeta(nil), idxP.CompactedMeta, cmpMetaOpt)) // using cmp.Equal to compare json datetimes
+	assert.Equal(t, []*BlockMeta{meta}, idxP.Meta)
+	assert.True(t, cmp.Equal([]*BlockMeta{meta}, idxP.Meta))                  // using cmp.Equal to compare json datetimes
+	assert.True(t, cmp.Equal([]*CompactedBlockMeta(nil), idxP.CompactedMeta)) // using cmp.Equal to compare json datetimes
 
 	// json
 	idxJ := &TenantIndex{}
 	err = idxJ.unmarshalJSONGz(m.writeBuffer[tenantIndexPath])
 	assert.NoError(t, err)
 
-	assert.True(t, cmp.Equal([]*BlockMeta{meta}, idxJ.Meta, cmpMetaOpt))                  // using cmp.Equal to compare json datetimes
-	assert.True(t, cmp.Equal([]*CompactedBlockMeta(nil), idxJ.CompactedMeta, cmpMetaOpt)) // using cmp.Equal to compare json datetimes
+	assert.Equal(t, []*BlockMeta{meta}, idxJ.Meta)
+	assert.True(t, cmp.Equal([]*BlockMeta{meta}, idxJ.Meta))                  // using cmp.Equal to compare json datetimes
+	assert.True(t, cmp.Equal([]*CompactedBlockMeta(nil), idxJ.CompactedMeta)) // using cmp.Equal to compare json datetimes
 
 	// When there are no blocks, the tenant index should be deleted
 	assert.Equal(t, map[string]map[string]int(nil), w.(*writer).w.(*MockRawWriter).deleteCalls)
@@ -215,7 +217,7 @@ func TestRoundTripMeta(t *testing.T) {
 	expectedPb2 := &BlockMeta{}
 	err = expectedPb2.Unmarshal(expectedPb)
 	assert.NoError(t, err)
-	assert.Empty(t, cmp.Diff(meta, expectedPb2, cmpMetaOpt))
+	assert.Equal(t, meta, expectedPb2)
 
 	// RoundTrip with non-empty DedicatedColumns
 	meta.DedicatedColumns = DedicatedColumns{
@@ -229,7 +231,7 @@ func TestRoundTripMeta(t *testing.T) {
 	expectedPb3 := &BlockMeta{}
 	err = expectedPb3.Unmarshal(expectedPb)
 	assert.NoError(t, err)
-	assert.Empty(t, cmp.Diff(meta, expectedPb3, cmpMetaOpt))
+	assert.Equal(t, meta, expectedPb3)
 
 	// Round trip the json
 	jsonBytes, err := json.Marshal(meta)
@@ -237,7 +239,7 @@ func TestRoundTripMeta(t *testing.T) {
 	expected2 := &BlockMeta{}
 	err = json.Unmarshal(jsonBytes, expected2)
 	assert.NoError(t, err)
-	assert.Empty(t, cmp.Diff(meta, expected2, cmpMetaOpt))
+	assert.Equal(t, meta, expected2)
 }
 
 func TestTenantIndexFallback(t *testing.T) {

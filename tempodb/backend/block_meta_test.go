@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/google/go-cmp/cmp"
 	uuid "github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -148,7 +147,7 @@ func TestBlockMetaJSONProtoRoundTrip(t *testing.T) {
 	var metaRoundtrip BlockMeta
 	err = json.Unmarshal(metaJSON, &metaRoundtrip)
 	require.NoError(t, err)
-	assert.Empty(t, cmp.Diff(meta, metaRoundtrip, cmpMetaOpt))
+	assert.Equal(t, meta, metaRoundtrip)
 
 	// proto
 	protoData, err := meta.Marshal()
@@ -156,7 +155,7 @@ func TestBlockMetaJSONProtoRoundTrip(t *testing.T) {
 	newMeta := BlockMeta{}
 	require.NoError(t, newMeta.Unmarshal(protoData))
 
-	assert.Empty(t, cmp.Diff(meta, newMeta, cmpMetaOpt))
+	assert.Equal(t, meta, newMeta)
 }
 
 func BenchmarkBlockMetaMarshalUnmarshal(b *testing.B) {

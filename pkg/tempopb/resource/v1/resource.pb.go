@@ -21,8 +21,6 @@ type Resource struct {
 	// dropped_attributes_count is the number of dropped attributes. If the value is 0, then
 	// no attributes were dropped.
 	DroppedAttributesCount uint32 `protobuf:"varint,2,opt,name=dropped_attributes_count,json=droppedAttributesCount,proto3" json:"dropped_attributes_count,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 func (m *Resource) Reset() {
@@ -37,13 +35,6 @@ func (m *Resource) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("%v", *m)
-}
-
-func (m *Resource) HasDroppedAttributesCount() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
 }
 
 func (m *Resource) GetAttributes() []*commonv1.KeyValue {
@@ -315,7 +306,6 @@ func (m *Resource) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.DroppedAttributesCount = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {

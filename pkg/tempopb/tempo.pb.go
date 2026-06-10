@@ -156,8 +156,6 @@ type TraceByIDRequest struct {
 	QueryMode         string    `protobuf:"bytes,5,opt,name=queryMode,proto3" json:"queryMode,omitempty"`
 	AllowPartialTrace bool      `protobuf:"varint,6,opt,name=allowPartialTrace,proto3" json:"allowPartialTrace,omitempty"`
 	RF1After          time.Time `protobuf:"bytes,7,opt,name=RF1After,proto3" json:"RF1After,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 type TraceByIDResponse struct {
@@ -165,14 +163,10 @@ type TraceByIDResponse struct {
 	Metrics *TraceByIDMetrics `protobuf:"bytes,2,opt,name=metrics,proto3" json:"metrics,omitempty"`
 	Status  PartialStatus     `protobuf:"varint,3,opt,name=status,proto3,enum=tempopb.PartialStatus" json:"status,omitempty"`
 	Message string            `protobuf:"bytes,4,opt,name=message,proto3" json:"message,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 type TraceByIDMetrics struct {
 	InspectedBytes uint64 `protobuf:"varint,1,opt,name=inspectedBytes,proto3" json:"inspectedBytes,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 // SearchRequest takes no block parameters and implies a "recent traces" search
@@ -190,8 +184,6 @@ type SearchRequest struct {
 	RF1After        time.Time `protobuf:"bytes,10,opt,name=RF1After,proto3" json:"RF1After,omitempty"`
 	// names of AST transformations to skip; populated by the frontend from query_frontend.skip_ast_transformations
 	SkipASTTransformations []string `protobuf:"bytes,11,rep,name=skipASTTransformations,proto3" json:"skipASTTransformations,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 // SearchBlockRequest takes SearchRequest parameters as well as all information
@@ -209,8 +201,6 @@ type SearchBlockRequest struct {
 	Size_            uint64             `protobuf:"varint,10,opt,name=size,proto3" json:"size,omitempty"`
 	FooterSize       uint32             `protobuf:"varint,11,opt,name=footerSize,proto3" json:"footerSize,omitempty"`
 	DedicatedColumns []*DedicatedColumn `protobuf:"bytes,12,rep,name=dedicatedColumns,proto3" json:"dedicatedColumns,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 // Configuration for a single dedicated attribute column.
@@ -219,8 +209,6 @@ type DedicatedColumn struct {
 	Name    string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	Type    DedicatedColumn_Type   `protobuf:"varint,1,opt,name=type,proto3,enum=tempopb.DedicatedColumn.Type" json:"type,omitempty"`
 	Options DedicatedColumn_Option `protobuf:"varint,4,opt,name=options,proto3,enum=tempopb.DedicatedColumn.Option" json:"options,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 type SearchResponse struct {
@@ -237,23 +225,17 @@ type TraceSearchMetadata struct {
 	SpanSet           *SpanSet                `protobuf:"bytes,6,opt,name=spanSet,proto3" json:"spanSet,omitempty"`
 	SpanSets          []*SpanSet              `protobuf:"bytes,7,rep,name=spanSets,proto3" json:"spanSets,omitempty"`
 	ServiceStats      map[string]ServiceStats `protobuf:"bytes,8,rep,name=serviceStats,proto3" json:"serviceStats,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 type ServiceStats struct {
 	SpanCount  uint32 `protobuf:"varint,1,opt,name=spanCount,proto3" json:"spanCount,omitempty"`
 	ErrorCount uint32 `protobuf:"varint,2,opt,name=errorCount,proto3" json:"errorCount,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 type SpanSet struct {
 	Spans      []*Span        `protobuf:"bytes,1,rep,name=spans,proto3" json:"spans,omitempty"`
 	Matched    uint32         `protobuf:"varint,2,opt,name=matched,proto3" json:"matched,omitempty"`
 	Attributes []*v1.KeyValue `protobuf:"bytes,3,rep,name=attributes,proto3" json:"attributes,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 type Span struct {
@@ -262,8 +244,6 @@ type Span struct {
 	StartTimeUnixNano uint64         `protobuf:"varint,3,opt,name=startTimeUnixNano,proto3" json:"startTimeUnixNano,omitempty"`
 	DurationNanos     uint64         `protobuf:"varint,4,opt,name=durationNanos,proto3" json:"durationNanos,omitempty"`
 	Attributes        []*v1.KeyValue `protobuf:"bytes,5,rep,name=attributes,proto3" json:"attributes,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 type SearchMetrics struct {
@@ -274,8 +254,6 @@ type SearchMetrics struct {
 	TotalJobs       uint32 `protobuf:"varint,5,opt,name=totalJobs,proto3" json:"totalJobs,omitempty"`
 	TotalBlockBytes uint64 `protobuf:"varint,6,opt,name=totalBlockBytes,proto3" json:"totalBlockBytes,omitempty"`
 	InspectedSpans  uint64 `protobuf:"varint,7,opt,name=inspectedSpans,proto3" json:"inspectedSpans,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 type SearchTagsRequest struct {
@@ -286,8 +264,6 @@ type SearchTagsRequest struct {
 	MaxTagsPerScope      uint32    `protobuf:"varint,5,opt,name=maxTagsPerScope,proto3" json:"maxTagsPerScope,omitempty"`
 	StaleValuesThreshold uint32    `protobuf:"varint,6,opt,name=staleValuesThreshold,proto3" json:"staleValuesThreshold,omitempty"`
 	RF1After             time.Time `protobuf:"bytes,7,opt,name=RF1After,proto3" json:"RF1After,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 // SearchTagsBlockRequest takes SearchTagsRequest parameters as well as all information necessary
@@ -307,8 +283,6 @@ type SearchTagsBlockRequest struct {
 	DedicatedColumns    []*DedicatedColumn `protobuf:"bytes,12,rep,name=dedicatedColumns,proto3" json:"dedicatedColumns,omitempty"`
 	MaxTagsPerScope     uint32             `protobuf:"varint,13,opt,name=maxTagsPerScope,proto3" json:"maxTagsPerScope,omitempty"`
 	StaleValueThreshold uint32             `protobuf:"varint,14,opt,name=staleValueThreshold,proto3" json:"staleValueThreshold,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 type SearchTagValuesBlockRequest struct {
@@ -324,8 +298,6 @@ type SearchTagValuesBlockRequest struct {
 	Size_            uint64             `protobuf:"varint,10,opt,name=size,proto3" json:"size,omitempty"`
 	FooterSize       uint32             `protobuf:"varint,11,opt,name=footerSize,proto3" json:"footerSize,omitempty"`
 	DedicatedColumns []*DedicatedColumn `protobuf:"bytes,12,rep,name=dedicatedColumns,proto3" json:"dedicatedColumns,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 type SearchTagsResponse struct {
@@ -341,8 +313,6 @@ type SearchTagsV2Response struct {
 type SearchTagsV2Scope struct {
 	Name string   `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	Tags []string `protobuf:"bytes,2,rep,name=tags,proto3" json:"tags,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 type SearchTagValuesRequest struct {
@@ -353,8 +323,6 @@ type SearchTagValuesRequest struct {
 	MaxTagValues        uint32    `protobuf:"varint,6,opt,name=maxTagValues,proto3" json:"maxTagValues,omitempty"`
 	StaleValueThreshold uint32    `protobuf:"varint,7,opt,name=staleValueThreshold,proto3" json:"staleValueThreshold,omitempty"`
 	RF1After            time.Time `protobuf:"bytes,8,opt,name=RF1After,proto3" json:"RF1After,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 type SearchTagValuesResponse struct {
@@ -365,8 +333,6 @@ type SearchTagValuesResponse struct {
 type TagValue struct {
 	Type  string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
 	Value string `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 type SearchTagValuesV2Response struct {
@@ -380,8 +346,6 @@ type MetadataMetrics struct {
 	CompletedJobs   uint32 `protobuf:"varint,3,opt,name=completedJobs,proto3" json:"completedJobs,omitempty"`
 	TotalBlocks     uint32 `protobuf:"varint,4,opt,name=totalBlocks,proto3" json:"totalBlocks,omitempty"`
 	TotalBlockBytes uint64 `protobuf:"varint,5,opt,name=totalBlockBytes,proto3" json:"totalBlockBytes,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 type Trace struct {
@@ -404,8 +368,6 @@ type PushBytesRequest struct {
 	// indicates whether metrics generation should be skipped
 	// for traces contained in this request.
 	SkipMetricsGeneration bool `protobuf:"varint,5,opt,name=skipMetricsGeneration,proto3" json:"skipMetricsGeneration,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 type PushSpansRequest struct {
@@ -414,8 +376,6 @@ type PushSpansRequest struct {
 	// indicates whether metrics generation should be skipped
 	// for traces contained in this request.
 	SkipMetricsGeneration bool `protobuf:"varint,2,opt,name=skipMetricsGeneration,proto3" json:"skipMetricsGeneration,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 type TraceBytes struct {
@@ -435,8 +395,6 @@ type QueryInstantRequest struct {
 	Query string `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
 	Start uint64 `protobuf:"varint,2,opt,name=start,proto3" json:"start,omitempty"`
 	End   uint64 `protobuf:"varint,3,opt,name=end,proto3" json:"end,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 type QueryInstantResponse struct {
@@ -444,16 +402,12 @@ type QueryInstantResponse struct {
 	Metrics *SearchMetrics   `protobuf:"bytes,2,opt,name=metrics,proto3" json:"metrics,omitempty"`
 	Status  PartialStatus    `protobuf:"varint,3,opt,name=status,proto3,enum=tempopb.PartialStatus" json:"status,omitempty"`
 	Message string           `protobuf:"bytes,4,opt,name=message,proto3" json:"message,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 type InstantSeries struct {
 	// Series labels containing name and value. Data-type aware.
 	Labels []v1.KeyValue `protobuf:"bytes,1,rep,name=labels,proto3" json:"labels,omitempty"`
 	Value  float64       `protobuf:"fixed64,2,opt,name=value,proto3" json:"value,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 type QueryRangeRequest struct {
@@ -479,8 +433,6 @@ type QueryRangeRequest struct {
 	Instant   *bool  `protobuf:"varint,18,opt,name=instant,proto3,oneof" json:"instant,omitempty"`
 	// names of AST transformations to skip; populated by the frontend from query_frontend.skip_ast_transformations
 	SkipASTTransformations []string `protobuf:"bytes,19,rep,name=skipASTTransformations,proto3" json:"skipASTTransformations,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 type QueryRangeResponse struct {
@@ -488,8 +440,6 @@ type QueryRangeResponse struct {
 	Metrics *SearchMetrics `protobuf:"bytes,2,opt,name=metrics,proto3" json:"metrics,omitempty"`
 	Status  PartialStatus  `protobuf:"varint,3,opt,name=status,proto3,enum=tempopb.PartialStatus" json:"status,omitempty"`
 	Message string         `protobuf:"bytes,4,opt,name=message,proto3" json:"message,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 type Exemplar struct {
@@ -497,16 +447,12 @@ type Exemplar struct {
 	Labels      []v1.KeyValue `protobuf:"bytes,1,rep,name=labels,proto3" json:"labels,omitempty"`
 	Value       float64       `protobuf:"fixed64,2,opt,name=value,proto3" json:"value,omitempty"`
 	TimestampMs int64         `protobuf:"varint,3,opt,name=timestamp_ms,json=timestampMs,proto3" json:"timestamp_ms,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 type Sample struct {
 	// Fields order MUST match promql.FPoint so that we can cast types between them.
 	TimestampMs int64   `protobuf:"varint,2,opt,name=timestamp_ms,json=timestampMs,proto3" json:"timestamp_ms,omitempty"`
 	Value       float64 `protobuf:"fixed64,1,opt,name=value,proto3" json:"value,omitempty"`
-
-	XXX_fieldsPresent [1]uint64
 }
 
 type TimeSeries struct {
@@ -1037,785 +983,8 @@ func (m *TimeSeries) String() string {
 	return fmt.Sprintf("%v", *m)
 }
 
-func (m *TraceByIDRequest) HasTraceID() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *TraceByIDRequest) HasBlockStart() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<1) != 0
-}
-
-func (m *TraceByIDRequest) HasBlockEnd() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<2) != 0
-}
-
-func (m *TraceByIDRequest) HasQueryMode() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<3) != 0
-}
-
-func (m *TraceByIDRequest) HasAllowPartialTrace() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<4) != 0
-}
-
-func (m *TraceByIDResponse) HasStatus() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *TraceByIDResponse) HasMessage() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<1) != 0
-}
-
-func (m *TraceByIDMetrics) HasInspectedBytes() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *SearchRequest) HasMinDurationMs() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *SearchRequest) HasMaxDurationMs() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<1) != 0
-}
-
-func (m *SearchRequest) HasLimit() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<2) != 0
-}
-
-func (m *SearchRequest) HasStart() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<3) != 0
-}
-
-func (m *SearchRequest) HasEnd() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<4) != 0
-}
-
-func (m *SearchRequest) HasQuery() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<5) != 0
-}
-
-func (m *SearchRequest) HasSpansPerSpanSet() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<6) != 0
-}
-
-func (m *SearchBlockRequest) HasBlockID() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *SearchBlockRequest) HasStartPage() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<1) != 0
-}
-
-func (m *SearchBlockRequest) HasPagesToSearch() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<2) != 0
-}
-
-func (m *SearchBlockRequest) HasIndexPageSize() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<3) != 0
-}
-
-func (m *SearchBlockRequest) HasTotalRecords() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<4) != 0
-}
-
-func (m *SearchBlockRequest) HasVersion() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<5) != 0
-}
-
-func (m *SearchBlockRequest) HasSize_() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<6) != 0
-}
-
-func (m *SearchBlockRequest) HasFooterSize() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<7) != 0
-}
-
-func (m *DedicatedColumn) HasScope() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *DedicatedColumn) HasName() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<1) != 0
-}
-
-func (m *DedicatedColumn) HasType() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<2) != 0
-}
-
-func (m *DedicatedColumn) HasOptions() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<3) != 0
-}
-
-func (m *TraceSearchMetadata) HasTraceID() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *TraceSearchMetadata) HasRootServiceName() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<1) != 0
-}
-
-func (m *TraceSearchMetadata) HasRootTraceName() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<2) != 0
-}
-
-func (m *TraceSearchMetadata) HasStartTimeUnixNano() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<3) != 0
-}
-
-func (m *TraceSearchMetadata) HasDurationMs() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<4) != 0
-}
-
-func (m *ServiceStats) HasSpanCount() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *ServiceStats) HasErrorCount() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<1) != 0
-}
-
-func (m *SpanSet) HasMatched() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *Span) HasSpanID() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *Span) HasName() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<1) != 0
-}
-
-func (m *Span) HasStartTimeUnixNano() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<2) != 0
-}
-
-func (m *Span) HasDurationNanos() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<3) != 0
-}
-
-func (m *SearchMetrics) HasInspectedTraces() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *SearchMetrics) HasInspectedBytes() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<1) != 0
-}
-
-func (m *SearchMetrics) HasTotalBlocks() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<2) != 0
-}
-
-func (m *SearchMetrics) HasCompletedJobs() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<3) != 0
-}
-
-func (m *SearchMetrics) HasTotalJobs() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<4) != 0
-}
-
-func (m *SearchMetrics) HasTotalBlockBytes() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<5) != 0
-}
-
-func (m *SearchMetrics) HasInspectedSpans() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<6) != 0
-}
-
-func (m *SearchTagsRequest) HasScope() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *SearchTagsRequest) HasQuery() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<1) != 0
-}
-
-func (m *SearchTagsRequest) HasStart() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<2) != 0
-}
-
-func (m *SearchTagsRequest) HasEnd() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<3) != 0
-}
-
-func (m *SearchTagsRequest) HasMaxTagsPerScope() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<4) != 0
-}
-
-func (m *SearchTagsRequest) HasStaleValuesThreshold() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<5) != 0
-}
-
-func (m *SearchTagsBlockRequest) HasBlockID() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *SearchTagsBlockRequest) HasStartPage() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<1) != 0
-}
-
-func (m *SearchTagsBlockRequest) HasPagesToSearch() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<2) != 0
-}
-
-func (m *SearchTagsBlockRequest) HasIndexPageSize() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<3) != 0
-}
-
-func (m *SearchTagsBlockRequest) HasTotalRecords() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<4) != 0
-}
-
-func (m *SearchTagsBlockRequest) HasVersion() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<5) != 0
-}
-
-func (m *SearchTagsBlockRequest) HasSize_() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<6) != 0
-}
-
-func (m *SearchTagsBlockRequest) HasFooterSize() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<7) != 0
-}
-
-func (m *SearchTagsBlockRequest) HasMaxTagsPerScope() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<8) != 0
-}
-
-func (m *SearchTagsBlockRequest) HasStaleValueThreshold() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<9) != 0
-}
-
-func (m *SearchTagValuesBlockRequest) HasBlockID() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *SearchTagValuesBlockRequest) HasStartPage() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<1) != 0
-}
-
-func (m *SearchTagValuesBlockRequest) HasPagesToSearch() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<2) != 0
-}
-
-func (m *SearchTagValuesBlockRequest) HasIndexPageSize() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<3) != 0
-}
-
-func (m *SearchTagValuesBlockRequest) HasTotalRecords() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<4) != 0
-}
-
-func (m *SearchTagValuesBlockRequest) HasVersion() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<5) != 0
-}
-
-func (m *SearchTagValuesBlockRequest) HasSize_() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<6) != 0
-}
-
-func (m *SearchTagValuesBlockRequest) HasFooterSize() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<7) != 0
-}
-
-func (m *SearchTagsV2Scope) HasName() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *SearchTagValuesRequest) HasTagName() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *SearchTagValuesRequest) HasQuery() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<1) != 0
-}
-
-func (m *SearchTagValuesRequest) HasStart() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<2) != 0
-}
-
-func (m *SearchTagValuesRequest) HasEnd() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<3) != 0
-}
-
-func (m *SearchTagValuesRequest) HasMaxTagValues() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<4) != 0
-}
-
-func (m *SearchTagValuesRequest) HasStaleValueThreshold() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<5) != 0
-}
-
-func (m *TagValue) HasType() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *TagValue) HasValue() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<1) != 0
-}
-
-func (m *MetadataMetrics) HasInspectedBytes() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *MetadataMetrics) HasTotalJobs() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<1) != 0
-}
-
-func (m *MetadataMetrics) HasCompletedJobs() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<2) != 0
-}
-
-func (m *MetadataMetrics) HasTotalBlocks() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<3) != 0
-}
-
-func (m *MetadataMetrics) HasTotalBlockBytes() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<4) != 0
-}
-
-func (m *PushBytesRequest) HasSkipMetricsGeneration() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *PushSpansRequest) HasSkipMetricsGeneration() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *QueryInstantRequest) HasQuery() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *QueryInstantRequest) HasStart() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<1) != 0
-}
-
-func (m *QueryInstantRequest) HasEnd() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<2) != 0
-}
-
-func (m *QueryInstantResponse) HasStatus() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *QueryInstantResponse) HasMessage() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<1) != 0
-}
-
-func (m *InstantSeries) HasValue() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *QueryRangeRequest) HasQuery() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *QueryRangeRequest) HasStart() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<1) != 0
-}
-
-func (m *QueryRangeRequest) HasEnd() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<2) != 0
-}
-
-func (m *QueryRangeRequest) HasStep() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<3) != 0
-}
-
-func (m *QueryRangeRequest) HasQueryMode() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<4) != 0
-}
-
-func (m *QueryRangeRequest) HasBlockID() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<5) != 0
-}
-
-func (m *QueryRangeRequest) HasStartPage() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<6) != 0
-}
-
-func (m *QueryRangeRequest) HasPagesToSearch() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<7) != 0
-}
-
-func (m *QueryRangeRequest) HasVersion() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<8) != 0
-}
-
-func (m *QueryRangeRequest) HasSize_() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<9) != 0
-}
-
-func (m *QueryRangeRequest) HasFooterSize() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<10) != 0
-}
-
-func (m *QueryRangeRequest) HasExemplars() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<11) != 0
-}
-
-func (m *QueryRangeRequest) HasMaxSeries() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<12) != 0
-}
-
 func (m *QueryRangeRequest) HasInstant() bool {
 	return m != nil && m.Instant != nil
-}
-
-func (m *QueryRangeResponse) HasStatus() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *QueryRangeResponse) HasMessage() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<1) != 0
-}
-
-func (m *Exemplar) HasValue() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *Exemplar) HasTimestampMs() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<1) != 0
-}
-
-func (m *Sample) HasTimestampMs() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<0) != 0
-}
-
-func (m *Sample) HasValue() bool {
-	if m == nil {
-		return false
-	}
-	return m.XXX_fieldsPresent[0]&(1<<1) != 0
 }
 
 func (m *TraceByIDRequest) GetTraceID() []byte {
@@ -6280,7 +5449,6 @@ func (m *TraceByIDRequest) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.TraceID = append(m.TraceID[:0], dAtA[iNdEx:postIndex]...)
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 2: // blockStart
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -6326,7 +5494,6 @@ func (m *TraceByIDRequest) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.BlockStart = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 1
 		case 3: // blockEnd
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -6372,7 +5539,6 @@ func (m *TraceByIDRequest) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.BlockEnd = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 2
 		case 5: // queryMode
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -6418,7 +5584,6 @@ func (m *TraceByIDRequest) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.QueryMode = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 3
 		case 6: // allowPartialTrace
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -6447,7 +5612,6 @@ func (m *TraceByIDRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.AllowPartialTrace = v != 0
-			m.XXX_fieldsPresent[0] |= 1 << 4
 		case 7: // RF1After
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -6683,7 +5847,6 @@ func (m *TraceByIDResponse) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.Status = PartialStatus(v)
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 4: // message
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -6729,7 +5892,6 @@ func (m *TraceByIDResponse) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.Message = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 1
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
@@ -6816,7 +5978,6 @@ func (m *TraceByIDMetrics) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.InspectedBytes = v
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
@@ -7152,7 +6313,6 @@ func (m *SearchRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.MinDurationMs = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 3: // MaxDurationMs
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -7181,7 +6341,6 @@ func (m *SearchRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.MaxDurationMs = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 1
 		case 4: // Limit
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -7210,7 +6369,6 @@ func (m *SearchRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.Limit = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 2
 		case 5: // start
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -7239,7 +6397,6 @@ func (m *SearchRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.Start = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 3
 		case 6: // end
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -7268,7 +6425,6 @@ func (m *SearchRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.End = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 4
 		case 8: // Query
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -7314,7 +6470,6 @@ func (m *SearchRequest) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.Query = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 5
 		case 9: // SpansPerSpanSet
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -7343,7 +6498,6 @@ func (m *SearchRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.SpansPerSpanSet = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 6
 		case 10: // RF1After
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -7658,7 +6812,6 @@ func (m *SearchBlockRequest) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.BlockID = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 3: // startPage
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -7687,7 +6840,6 @@ func (m *SearchBlockRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.StartPage = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 1
 		case 4: // pagesToSearch
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -7716,7 +6868,6 @@ func (m *SearchBlockRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.PagesToSearch = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 2
 		case 6: // indexPageSize
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -7745,7 +6896,6 @@ func (m *SearchBlockRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.IndexPageSize = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 3
 		case 7: // totalRecords
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -7774,7 +6924,6 @@ func (m *SearchBlockRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.TotalRecords = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 4
 		case 9: // version
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -7820,7 +6969,6 @@ func (m *SearchBlockRequest) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.Version = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 5
 		case 10: // size
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -7849,7 +6997,6 @@ func (m *SearchBlockRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.Size_ = v
-			m.XXX_fieldsPresent[0] |= 1 << 6
 		case 11: // footerSize
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -7878,7 +7025,6 @@ func (m *SearchBlockRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.FooterSize = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 7
 		case 12: // dedicatedColumns
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -8013,7 +7159,6 @@ func (m *DedicatedColumn) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.Scope = DedicatedColumn_Scope(v)
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 2: // name
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -8059,7 +7204,6 @@ func (m *DedicatedColumn) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.Name = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 1
 		case 1: // type
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -8088,7 +7232,6 @@ func (m *DedicatedColumn) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.Type = DedicatedColumn_Type(v)
-			m.XXX_fieldsPresent[0] |= 1 << 2
 		case 4: // options
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -8117,7 +7260,6 @@ func (m *DedicatedColumn) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.Options = DedicatedColumn_Option(v)
-			m.XXX_fieldsPresent[0] |= 1 << 3
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
@@ -8520,7 +7662,6 @@ func (m *TraceSearchMetadata) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.TraceID = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 2: // rootServiceName
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -8566,7 +7707,6 @@ func (m *TraceSearchMetadata) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.RootServiceName = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 1
 		case 3: // rootTraceName
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -8612,7 +7752,6 @@ func (m *TraceSearchMetadata) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.RootTraceName = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 2
 		case 4: // startTimeUnixNano
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -8641,7 +7780,6 @@ func (m *TraceSearchMetadata) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.StartTimeUnixNano = v
-			m.XXX_fieldsPresent[0] |= 1 << 3
 		case 5: // durationMs
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -8670,7 +7808,6 @@ func (m *TraceSearchMetadata) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.DurationMs = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 4
 		case 6: // spanSet
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -9030,7 +8167,6 @@ func (m *ServiceStats) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.SpanCount = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 2: // errorCount
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -9059,7 +8195,6 @@ func (m *ServiceStats) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.ErrorCount = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 1
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
@@ -9274,7 +8409,6 @@ func (m *SpanSet) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.Matched = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 3: // attributes
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -9493,7 +8627,6 @@ func (m *Span) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.SpanID = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 2: // name
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -9539,7 +8672,6 @@ func (m *Span) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.Name = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 1
 		case 3: // startTimeUnixNano
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -9568,7 +8700,6 @@ func (m *Span) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.StartTimeUnixNano = v
-			m.XXX_fieldsPresent[0] |= 1 << 2
 		case 4: // durationNanos
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -9597,7 +8728,6 @@ func (m *Span) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.DurationNanos = v
-			m.XXX_fieldsPresent[0] |= 1 << 3
 		case 5: // attributes
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -9732,7 +8862,6 @@ func (m *SearchMetrics) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.InspectedTraces = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 2: // inspectedBytes
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -9761,7 +8890,6 @@ func (m *SearchMetrics) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.InspectedBytes = v
-			m.XXX_fieldsPresent[0] |= 1 << 1
 		case 3: // totalBlocks
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -9790,7 +8918,6 @@ func (m *SearchMetrics) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.TotalBlocks = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 2
 		case 4: // completedJobs
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -9819,7 +8946,6 @@ func (m *SearchMetrics) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.CompletedJobs = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 3
 		case 5: // totalJobs
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -9848,7 +8974,6 @@ func (m *SearchMetrics) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.TotalJobs = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 4
 		case 6: // totalBlockBytes
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -9877,7 +9002,6 @@ func (m *SearchMetrics) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.TotalBlockBytes = v
-			m.XXX_fieldsPresent[0] |= 1 << 5
 		case 7: // inspectedSpans
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -9906,7 +9030,6 @@ func (m *SearchMetrics) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.InspectedSpans = v
-			m.XXX_fieldsPresent[0] |= 1 << 6
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
@@ -10010,7 +9133,6 @@ func (m *SearchTagsRequest) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.Scope = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 2: // query
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -10056,7 +9178,6 @@ func (m *SearchTagsRequest) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.Query = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 1
 		case 3: // start
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -10085,7 +9206,6 @@ func (m *SearchTagsRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.Start = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 2
 		case 4: // end
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -10114,7 +9234,6 @@ func (m *SearchTagsRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.End = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 3
 		case 5: // maxTagsPerScope
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -10143,7 +9262,6 @@ func (m *SearchTagsRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.MaxTagsPerScope = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 4
 		case 6: // staleValuesThreshold
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -10172,7 +9290,6 @@ func (m *SearchTagsRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.StaleValuesThreshold = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 5
 		case 7: // RF1After
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -10442,7 +9559,6 @@ func (m *SearchTagsBlockRequest) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.BlockID = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 3: // startPage
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -10471,7 +9587,6 @@ func (m *SearchTagsBlockRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.StartPage = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 1
 		case 4: // pagesToSearch
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -10500,7 +9615,6 @@ func (m *SearchTagsBlockRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.PagesToSearch = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 2
 		case 6: // indexPageSize
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -10529,7 +9643,6 @@ func (m *SearchTagsBlockRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.IndexPageSize = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 3
 		case 7: // totalRecords
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -10558,7 +9671,6 @@ func (m *SearchTagsBlockRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.TotalRecords = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 4
 		case 9: // version
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -10604,7 +9716,6 @@ func (m *SearchTagsBlockRequest) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.Version = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 5
 		case 10: // size
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -10633,7 +9744,6 @@ func (m *SearchTagsBlockRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.Size_ = v
-			m.XXX_fieldsPresent[0] |= 1 << 6
 		case 11: // footerSize
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -10662,7 +9772,6 @@ func (m *SearchTagsBlockRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.FooterSize = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 7
 		case 12: // dedicatedColumns
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -10739,7 +9848,6 @@ func (m *SearchTagsBlockRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.MaxTagsPerScope = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 8
 		case 14: // staleValueThreshold
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -10768,7 +9876,6 @@ func (m *SearchTagsBlockRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.StaleValueThreshold = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 9
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
@@ -10989,7 +10096,6 @@ func (m *SearchTagValuesBlockRequest) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.BlockID = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 3: // startPage
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -11018,7 +10124,6 @@ func (m *SearchTagValuesBlockRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.StartPage = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 1
 		case 4: // pagesToSearch
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -11047,7 +10152,6 @@ func (m *SearchTagValuesBlockRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.PagesToSearch = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 2
 		case 6: // indexPageSize
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -11076,7 +10180,6 @@ func (m *SearchTagValuesBlockRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.IndexPageSize = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 3
 		case 7: // totalRecords
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -11105,7 +10208,6 @@ func (m *SearchTagValuesBlockRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.TotalRecords = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 4
 		case 9: // version
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -11151,7 +10253,6 @@ func (m *SearchTagValuesBlockRequest) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.Version = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 5
 		case 10: // size
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -11180,7 +10281,6 @@ func (m *SearchTagValuesBlockRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.Size_ = v
-			m.XXX_fieldsPresent[0] |= 1 << 6
 		case 11: // footerSize
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -11209,7 +10309,6 @@ func (m *SearchTagValuesBlockRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.FooterSize = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 7
 		case 12: // dedicatedColumns
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -11871,7 +10970,6 @@ func (m *SearchTagsV2Scope) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.Name = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 2: // tags
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -12020,7 +11118,6 @@ func (m *SearchTagValuesRequest) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.TagName = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 2: // query
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -12066,7 +11163,6 @@ func (m *SearchTagValuesRequest) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.Query = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 1
 		case 4: // start
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -12095,7 +11191,6 @@ func (m *SearchTagValuesRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.Start = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 2
 		case 5: // end
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -12124,7 +11219,6 @@ func (m *SearchTagValuesRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.End = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 3
 		case 6: // maxTagValues
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -12153,7 +11247,6 @@ func (m *SearchTagValuesRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.MaxTagValues = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 4
 		case 7: // staleValueThreshold
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -12182,7 +11275,6 @@ func (m *SearchTagValuesRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.StaleValueThreshold = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 5
 		case 8: // RF1After
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -12555,7 +11647,6 @@ func (m *TagValue) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.Type = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 2: // value
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -12601,7 +11692,6 @@ func (m *TagValue) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.Value = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 1
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
@@ -12911,7 +12001,6 @@ func (m *MetadataMetrics) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.InspectedBytes = v
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 2: // totalJobs
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -12940,7 +12029,6 @@ func (m *MetadataMetrics) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.TotalJobs = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 1
 		case 3: // completedJobs
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -12969,7 +12057,6 @@ func (m *MetadataMetrics) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.CompletedJobs = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 2
 		case 4: // totalBlocks
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -12998,7 +12085,6 @@ func (m *MetadataMetrics) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.TotalBlocks = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 3
 		case 5: // totalBlockBytes
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -13027,7 +12113,6 @@ func (m *MetadataMetrics) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.TotalBlockBytes = v
-			m.XXX_fieldsPresent[0] |= 1 << 4
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
@@ -13616,7 +12701,6 @@ func (m *PushBytesRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.SkipMetricsGeneration = v != 0
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
@@ -13818,7 +12902,6 @@ func (m *PushSpansRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.SkipMetricsGeneration = v != 0
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
@@ -14265,7 +13348,6 @@ func (m *QueryInstantRequest) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.Query = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 2: // start
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -14294,7 +13376,6 @@ func (m *QueryInstantRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.Start = v
-			m.XXX_fieldsPresent[0] |= 1 << 1
 		case 3: // end
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -14323,7 +13404,6 @@ func (m *QueryInstantRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.End = v
-			m.XXX_fieldsPresent[0] |= 1 << 2
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
@@ -14575,7 +13655,6 @@ func (m *QueryInstantResponse) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.Status = PartialStatus(v)
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 4: // message
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -14621,7 +13700,6 @@ func (m *QueryInstantResponse) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.Message = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 1
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
@@ -14810,7 +13888,6 @@ func (m *InstantSeries) unmarshal(dAtA []byte, depth int) error {
 			v := binary.LittleEndian.Uint64(dAtA[iNdEx:])
 			iNdEx += 8
 			m.Value = math.Float64frombits(v)
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
@@ -14994,7 +14071,6 @@ func (m *QueryRangeRequest) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.Query = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 2: // start
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -15023,7 +14099,6 @@ func (m *QueryRangeRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.Start = v
-			m.XXX_fieldsPresent[0] |= 1 << 1
 		case 3: // end
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -15052,7 +14127,6 @@ func (m *QueryRangeRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.End = v
-			m.XXX_fieldsPresent[0] |= 1 << 2
 		case 4: // step
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -15081,7 +14155,6 @@ func (m *QueryRangeRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.Step = v
-			m.XXX_fieldsPresent[0] |= 1 << 3
 		case 7: // queryMode
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -15127,7 +14200,6 @@ func (m *QueryRangeRequest) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.QueryMode = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 4
 		case 8: // blockID
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -15173,7 +14245,6 @@ func (m *QueryRangeRequest) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.BlockID = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 5
 		case 9: // startPage
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -15202,7 +14273,6 @@ func (m *QueryRangeRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.StartPage = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 6
 		case 10: // pagesToSearch
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -15231,7 +14301,6 @@ func (m *QueryRangeRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.PagesToSearch = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 7
 		case 11: // version
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -15277,7 +14346,6 @@ func (m *QueryRangeRequest) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.Version = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 8
 		case 13: // size
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -15306,7 +14374,6 @@ func (m *QueryRangeRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.Size_ = v
-			m.XXX_fieldsPresent[0] |= 1 << 9
 		case 14: // footerSize
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -15335,7 +14402,6 @@ func (m *QueryRangeRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.FooterSize = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 10
 		case 15: // dedicatedColumns
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -15412,7 +14478,6 @@ func (m *QueryRangeRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.Exemplars = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 11
 		case 17: // maxSeries
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -15441,7 +14506,6 @@ func (m *QueryRangeRequest) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.MaxSeries = uint32(v)
-			m.XXX_fieldsPresent[0] |= 1 << 12
 		case 18: // instant
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -15767,7 +14831,6 @@ func (m *QueryRangeResponse) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.Status = PartialStatus(v)
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 4: // message
 			if wireType != 2 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -15813,7 +14876,6 @@ func (m *QueryRangeResponse) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.Message = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-			m.XXX_fieldsPresent[0] |= 1 << 1
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
@@ -16002,7 +15064,6 @@ func (m *Exemplar) unmarshal(dAtA []byte, depth int) error {
 			v := binary.LittleEndian.Uint64(dAtA[iNdEx:])
 			iNdEx += 8
 			m.Value = math.Float64frombits(v)
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 3: // timestamp_ms
 			if wireType != 0 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -16031,7 +15092,6 @@ func (m *Exemplar) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.TimestampMs = int64(v)
-			m.XXX_fieldsPresent[0] |= 1 << 1
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
@@ -16118,7 +15178,6 @@ func (m *Sample) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.TimestampMs = int64(v)
-			m.XXX_fieldsPresent[0] |= 1 << 0
 		case 1: // value
 			if wireType != 1 {
 				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
@@ -16134,7 +15193,6 @@ func (m *Sample) unmarshal(dAtA []byte, depth int) error {
 			v := binary.LittleEndian.Uint64(dAtA[iNdEx:])
 			iNdEx += 8
 			m.Value = math.Float64frombits(v)
-			m.XXX_fieldsPresent[0] |= 1 << 1
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
