@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/pkg/cache"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 )
 
@@ -282,6 +283,64 @@ type FetchSpansOnlyResponse struct {
 	Results SpanIterator
 	// callback to get the cumulative read stats during Fetch
 	Stats func() FetchSpansStats
+}
+
+// populateMetricsFromFetchStats writes the per-query counters from a
+// FetchSpansStats into the matching fields of a SearchMetrics. The per-role
+// maps are summed into the scalar BackendReads/BackendBytes fields; per-role
+// detail is left on the spans (and on the FetchSpansStats struct).
+func populateMetricsFromFetchStats(metrics *tempopb.SearchMetrics, stats FetchSpansStats) {
+	if metrics == nil {
+		return
+	}
+	for _, v := range stats.BackendReadsByRole {
+		metrics.BackendReads += v
+	}
+	for _, v := range stats.BackendBytesByRole {
+		metrics.BackendBytes += v
+	}
+
+	var cacheHits, cacheMisses, cacheBytes uint64
+	for _, v := range stats.CacheHitsByRole {
+		cacheHits += v
+	}
+	for _, v := range stats.CacheMissesByRole {
+		cacheMisses += v
+	}
+	for _, v := range stats.CacheBytesByRole {
+		cacheBytes += v
+	}
+
+	if stats.RowGroupsInspected == 0 && stats.RowGroupsSkipped == 0 &&
+		stats.PagesInspected == 0 && stats.PagesSkipped == 0 &&
+		cacheHits == 0 && cacheMisses == 0 && cacheBytes == 0 {
+		return
+	}
+	if metrics.AdditionalMetrics == nil {
+		metrics.AdditionalMetrics = map[string]int64{}
+	}
+	// Use += so the helper is safe to call more than once on the same metrics.
+	if stats.RowGroupsInspected != 0 {
+		metrics.AdditionalMetrics[tempopb.AdditionalMetricRowGroupsInspected] += int64(stats.RowGroupsInspected)
+	}
+	if stats.RowGroupsSkipped != 0 {
+		metrics.AdditionalMetrics[tempopb.AdditionalMetricRowGroupsSkipped] += int64(stats.RowGroupsSkipped)
+	}
+	if stats.PagesInspected != 0 {
+		metrics.AdditionalMetrics[tempopb.AdditionalMetricPagesInspected] += int64(stats.PagesInspected)
+	}
+	if stats.PagesSkipped != 0 {
+		metrics.AdditionalMetrics[tempopb.AdditionalMetricPagesSkipped] += int64(stats.PagesSkipped)
+	}
+	if cacheHits != 0 {
+		metrics.AdditionalMetrics[tempopb.AdditionalMetricCacheHits] += int64(cacheHits)
+	}
+	if cacheMisses != 0 {
+		metrics.AdditionalMetrics[tempopb.AdditionalMetricCacheMisses] += int64(cacheMisses)
+	}
+	if cacheBytes != 0 {
+		metrics.AdditionalMetrics[tempopb.AdditionalMetricCacheBytes] += int64(cacheBytes)
+	}
 }
 
 type SpansetFetcher interface {

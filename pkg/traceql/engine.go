@@ -191,9 +191,10 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 
 	// Stats can be nil when callback is not set.
 	if fetchSpansResponse.Stats != nil {
-		// InspectedBytes is used to compute query throughput and SLO metrics.
 		stats := fetchSpansResponse.Stats()
+		// InspectedBytes is used to compute query throughput and SLO metrics.
 		res.Metrics.InspectedBytes = stats.Bytes
+		populateMetricsFromFetchStats(res.Metrics, stats)
 		span.SetAttributes(attribute.Int64("inspectedBytes", int64(stats.Bytes)))
 	}
 
