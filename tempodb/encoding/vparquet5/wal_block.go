@@ -746,13 +746,14 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, _ c
 			iters: iters,
 		},
 		// FIXME: can this be simplified with the common.MetadataCallback?? and Metrics Collector??
-		Bytes: func() uint64 {
-			// read value when callback is called
+		Stats: func() traceql.FetchSpansStats {
+			// Per-iterator / per-cache-role counters are wired up in issue #1274
+			// (Proposal 2E). Today only Bytes is populated.
 			var totalBytesRead uint64
 			for _, r := range readers {
 				totalBytesRead += r.BytesRead()
 			}
-			return totalBytesRead
+			return traceql.FetchSpansStats{Bytes: totalBytesRead}
 		},
 	}, nil
 }
@@ -785,12 +786,14 @@ func (b *walBlock) FetchSpans(ctx context.Context, req traceql.FetchSpansRequest
 
 	return traceql.FetchSpansOnlyResponse{
 		Results: &mergeIterator[traceql.Span]{iters: iters},
-		Bytes: func() uint64 {
+		Stats: func() traceql.FetchSpansStats {
+			// Per-iterator / per-cache-role counters are wired up in issue #1274
+			// (Proposal 2E). Today only Bytes is populated.
 			var totalBytesRead uint64
 			for _, r := range readers {
 				totalBytesRead += r.BytesRead()
 			}
-			return totalBytesRead
+			return traceql.FetchSpansStats{Bytes: totalBytesRead}
 		},
 	}, nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/util"
 )
 
@@ -249,10 +250,28 @@ type SpansetIterator interface {
 	CommonIterator[*Spanset]
 }
 
+// FetchSpansStats carries cumulative read-side counters reported by a storage
+// Fetch / FetchSpans call. Implementations populate the fields they can
+// measure; counters not yet wired through the iterator remain zero.
+type FetchSpansStats struct {
+	Bytes              uint64
+	RowGroupsInspected uint32
+	RowGroupsSkipped   uint32
+	PagesInspected     uint32
+	PagesSkipped       uint32
+	ValuesMatched      uint64
+	// Per-role breakdowns, keyed by cache.Role (see pkg/cache/cache.go).
+	CacheHitsByRole    map[cache.Role]uint64
+	CacheMissesByRole  map[cache.Role]uint64
+	CacheBytesByRole   map[cache.Role]uint64
+	BackendReadsByRole map[cache.Role]uint64
+	BackendBytesByRole map[cache.Role]uint64
+}
+
 type FetchSpansResponse struct {
 	Results SpansetIterator
-	// callback to get the size of data read during Fetch
-	Bytes func() uint64
+	// callback to get the cumulative read stats during Fetch
+	Stats func() FetchSpansStats
 }
 
 type SpanIterator interface {
@@ -261,8 +280,8 @@ type SpanIterator interface {
 
 type FetchSpansOnlyResponse struct {
 	Results SpanIterator
-	// callback to get the size of data read during Fetch
-	Bytes func() uint64
+	// callback to get the cumulative read stats during Fetch
+	Stats func() FetchSpansStats
 }
 
 type SpansetFetcher interface {

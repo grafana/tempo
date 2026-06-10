@@ -1125,7 +1125,11 @@ func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest,
 
 	return traceql.FetchSpansResponse{
 		Results: iter,
-		Bytes:   func() uint64 { return rr.BytesRead() },
+		Stats: func() traceql.FetchSpansStats {
+			// Per-iterator / per-cache-role counters are wired up in issue #1274
+			// (Proposal 2E). Today only Bytes is populated.
+			return traceql.FetchSpansStats{Bytes: rr.BytesRead()}
+		},
 	}, nil
 }
 

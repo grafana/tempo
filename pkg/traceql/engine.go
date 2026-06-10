@@ -189,11 +189,12 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 	span.SetAttributes(attribute.Int("spansets_evaluated", spansetsEvaluated))
 	span.SetAttributes(attribute.Int("spansets_found", len(res.Traces)))
 
-	// Bytes can be nil when callback is no set
-	if fetchSpansResponse.Bytes != nil {
-		// InspectedBytes is used to compute query throughput and SLO metrics
-		res.Metrics.InspectedBytes = fetchSpansResponse.Bytes()
-		span.SetAttributes(attribute.Int64("inspectedBytes", int64(res.Metrics.InspectedBytes)))
+	// Stats can be nil when callback is not set.
+	if fetchSpansResponse.Stats != nil {
+		// InspectedBytes is used to compute query throughput and SLO metrics.
+		stats := fetchSpansResponse.Stats()
+		res.Metrics.InspectedBytes = stats.Bytes
+		span.SetAttributes(attribute.Int64("inspectedBytes", int64(stats.Bytes)))
 	}
 
 	return res, nil

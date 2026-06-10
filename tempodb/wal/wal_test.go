@@ -280,10 +280,11 @@ func testFetch(t *testing.T, e encoding.VersionedEncoding) {
 			require.NotNil(t, ss)
 			require.Equal(t, ss.TraceID, expectedID)
 
-			// ensure Bytes callback is set
-			require.NotNil(t, resp.Bytes())
-			require.NotZero(t, resp.Bytes())
-			require.LessOrEqual(t, resp.Bytes(), block.DataLength())
+			// ensure Stats callback is set and reports non-zero bytes
+			require.NotNil(t, resp.Stats)
+			stats := resp.Stats()
+			require.NotZero(t, stats.Bytes)
+			require.LessOrEqual(t, stats.Bytes, block.DataLength())
 
 			// confirm no more matches
 			ss, err = resp.Results.Next(ctx)

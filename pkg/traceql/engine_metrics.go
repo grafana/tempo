@@ -1476,7 +1476,9 @@ func (e *metricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
-	e.bytes += fetch.Bytes()
+	if fetch.Stats != nil {
+		e.bytes += fetch.Stats().Bytes
+	}
 
 	return nil
 }
@@ -1572,7 +1574,9 @@ func (e *metricsEvaluator) DoSpansOnly(ctx context.Context, f SpansetFetcher, fe
 
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
-	e.bytes += fetch.Bytes()
+	if fetch.Stats != nil {
+		e.bytes += fetch.Stats().Bytes
+	}
 
 	return nil
 }
