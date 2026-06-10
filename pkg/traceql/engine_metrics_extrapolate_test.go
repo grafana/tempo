@@ -74,9 +74,11 @@ func (b *benchSpan) DurationNanos() uint64                     { return 0 }
 func (b *benchSpan) SiblingOf([]Span, []Span, bool, bool, []Span) []Span {
 	return nil
 }
+
 func (b *benchSpan) DescendantOf([]Span, []Span, bool, bool, bool, []Span) []Span {
 	return nil
 }
+
 func (b *benchSpan) ChildOf([]Span, []Span, bool, bool, bool, []Span) []Span {
 	return nil
 }
