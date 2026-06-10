@@ -137,39 +137,51 @@ func (p *Processor) Shutdown(_ context.Context) {
 func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 	resourceLabels := make([]string, 0)
 	resourceValues := make([]string, 0)
-	jobNameBuf := make([]byte, 0, 64)
 	for _, rs := range resourceSpans {
 		// already extract job name & instance id, so we only have to do it once per batch of spans
-		var svcName, jobName, instanceID string
-		svcName, jobName, instanceID, jobNameBuf = getResourceServiceLabels(rs.Resource.Attributes, jobNameBuf)
+		svcName, jobName, instanceID := getResourceServiceLabels(rs.Resource.Attributes)
 		targetInfoLabelsValid := true
 		targetInfoLabelsBuilt := false
-		targetInfoResourceLabelsBuilt := false
 		for _, ils := range rs.ScopeSpans {
 			for _, span := range ils.Spans {
-				if p.filter.ApplyFilterPolicy(rs.Resource, span) {
-					if p.Cfg.EnableTargetInfo && !targetInfoLabelsBuilt {
-						if !targetInfoResourceLabelsBuilt {
-							getTargetInfoAttributesValues(&resourceLabels, &resourceValues, rs.Resource.Attributes, p.targetInfoExcluded, p.sanitizeCache.Get)
-							targetInfoResourceLabelsBuilt = true
-						}
+				if !p.filter.ApplyFilterPolicy(rs.Resource, span) {
+					p.filteredSpansCounter.Inc()
+					continue
+				}
+				var traceID []byte
+				if p.Cfg.Subprocessors[Latency] {
+					traceID = span.TraceId
+				}
+				if !p.aggregateMetricsForSpan(svcName, jobName, instanceID, rs.Resource, span, traceID) {
+					continue
+				}
+				if p.Cfg.EnableTargetInfo {
+					// Register target_info only after a span's primary labels have been
+					// validated and its series updated. This preserves the pre-optimization
+					// ordering: span metrics claim active-series/entity limiter capacity
+					// before target_info, and a resource whose accepted spans all carry
+					// invalid UTF-8 labels emits no target_info at all. The labels are
+					// still built and registered at most once per resource batch.
+					if !targetInfoLabelsBuilt {
+						getTargetInfoAttributesValues(&resourceLabels, &resourceValues, rs.Resource.Attributes, p.targetInfoExcluded, p.sanitizeCache.Get)
 						targetInfoLabelsValid = p.buildAndSetTargetInfoLabels(resourceLabels, resourceValues, jobName, instanceID)
 						targetInfoLabelsBuilt = true
 					}
-					var traceID []byte
-					if p.Cfg.Subprocessors[Latency] {
-						traceID = span.TraceId
+					if !targetInfoLabelsValid {
+						// Pre-optimization behavior: every span that reached the target_info
+						// step with invalid target_info labels counted one discarded update.
+						p.invalidUTF8Counter.Inc()
 					}
-					p.aggregateMetricsForSpan(svcName, jobName, instanceID, rs.Resource, span, traceID, targetInfoLabelsValid)
-					continue
 				}
-				p.filteredSpansCounter.Inc()
 			}
 		}
 	}
 }
 
-func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, instanceID string, rs *v1.Resource, span *v1_trace.Span, traceID []byte, targetInfoLabelsValid bool) {
+// aggregateMetricsForSpan updates the span metrics series for a single span.
+// It reports whether the span's primary label set was valid UTF-8 and its
+// series were updated.
+func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, instanceID string, rs *v1.Resource, span *v1_trace.Span, traceID []byte) bool {
 	builder := p.registry.NewLabelBuilder()
 
 	if p.Cfg.IntrinsicDimensions.Service {
@@ -225,7 +237,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 	registryLabelValues, validUTF8 := builder.CloseAndBorrowLabels()
 	if !validUTF8 {
 		p.invalidUTF8Counter.Inc()
-		return
+		return false
 	}
 	updateTimeMs := time.Now().UnixMilli()
 
@@ -246,14 +258,8 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 		p.spanMetricsSizeTotal.IncWithHashAt(registryLabelValues.Labels, registryLabelValues.Hash, float64(span.Size()), updateTimeMs)
 	}
 
-	// abort if target_info labels were rejected for this resource batch.
-	if p.Cfg.EnableTargetInfo && !targetInfoLabelsValid {
-		registryLabelValues.Release()
-		p.invalidUTF8Counter.Inc()
-		return
-	}
-
 	registryLabelValues.Release()
+	return true
 }
 
 func (p *Processor) buildAndSetTargetInfoLabels(resourceLabels, resourceValues []string, jobName string, instanceID string) bool {
@@ -288,7 +294,7 @@ func (p *Processor) buildAndSetTargetInfoLabels(resourceLabels, resourceValues [
 	return true
 }
 
-func getResourceServiceLabels(attributes []*v1_common.KeyValue, jobNameBuf []byte) (svcName string, jobName string, instanceID string, returnedJobNameBuf []byte) {
+func getResourceServiceLabels(attributes []*v1_common.KeyValue) (svcName string, jobName string, instanceID string) {
 	var (
 		namespace       string
 		foundSvcName    bool
@@ -317,12 +323,12 @@ func getResourceServiceLabels(attributes []*v1_common.KeyValue, jobNameBuf []byt
 	}
 
 	if svcName == "" {
-		return svcName, "", instanceID, jobNameBuf[:0]
+		return svcName, "", instanceID
 	}
 	if namespace == "" {
-		return svcName, svcName, instanceID, jobNameBuf[:0]
+		return svcName, svcName, instanceID
 	}
-	return svcName, namespace + "/" + svcName, instanceID, jobNameBuf[:0]
+	return svcName, namespace + "/" + svcName, instanceID
 }
 
 func getTargetInfoAttributesValues(keys, values *[]string, attributes []*v1_common.KeyValue, exclude map[string]struct{}, sanitizeFn validation.SanitizeFn) {

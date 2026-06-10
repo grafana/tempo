@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"slices"
 	"strings"
 	"sync"
 	"unicode/utf8"
@@ -160,7 +161,21 @@ func validUTF8Labels(lbls labels.Labels) bool {
 	return valid
 }
 
+// insertionSortThreshold is the label count above which sortLabels falls back
+// to the standard library sort. Span metric label sets are almost always small
+// and nearly sorted, where insertion sort is faster and allocation-free, but it
+// is O(n²) so large label sets (e.g. target_info on resources with many
+// attributes) use O(n log n) instead. Both paths are stable: compactLabels
+// relies on the last-added duplicate name winning.
+const insertionSortThreshold = 16
+
 func sortLabels(lbls []labels.Label) {
+	if len(lbls) > insertionSortThreshold {
+		slices.SortStableFunc(lbls, func(a, b labels.Label) int {
+			return strings.Compare(a.Name, b.Name)
+		})
+		return
+	}
 	for i := 1; i < len(lbls); i++ {
 		for j := i; j > 0 && strings.Compare(lbls[j-1].Name, lbls[j].Name) > 0; j-- {
 			lbls[j-1], lbls[j] = lbls[j], lbls[j-1]

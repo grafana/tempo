@@ -1184,3 +1184,119 @@ func withLe(lbls labels.Labels, le float64) labels.Labels {
 	lb = lb.Set(labels.BucketLabel, strconv.FormatFloat(le, 'f', -1, 64))
 	return lb.Labels()
 }
+
+func makeServiceGraphBatch(svcName string, kind tracev1.Span_SpanKind, traceID, spanID, parentSpanID []byte, spanAttrs ...*v1.KeyValue) *tracev1.ResourceSpans {
+	return &tracev1.ResourceSpans{
+		Resource: &resourcev1.Resource{
+			Attributes: []*v1.KeyValue{
+				{
+					Key: "service.name",
+					Value: &v1.AnyValue{
+						Value: &v1.AnyValue_StringValue{StringValue: svcName},
+					},
+				},
+			},
+		},
+		ScopeSpans: []*tracev1.ScopeSpans{
+			{
+				Spans: []*tracev1.Span{
+					{
+						TraceId:           traceID,
+						SpanId:            spanID,
+						ParentSpanId:      parentSpanID,
+						Kind:              kind,
+						StartTimeUnixNano: 1,
+						EndTimeUnixNano:   2,
+						Attributes:        spanAttrs,
+					},
+				},
+			},
+		},
+	}
+}
+
+// TestServiceGraphs_nonRootServerSpanPeerAttributesDoNotChangeSeries locks in
+// that peer attributes on an ordinary non-root server span do not influence
+// the emitted service graph series: the completed edge uses the client and
+// server service names, and the peer value surfaces nowhere.
+func TestServiceGraphs_nonRootServerSpanPeerAttributesDoNotChangeSeries(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.Wait = time.Nanosecond
+
+	p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
+	require.NoError(t, err)
+	defer p.Shutdown(context.Background())
+
+	traceID := []byte{0x0a}
+	clientSpanID := []byte{0x0b}
+
+	peerAttr := &v1.KeyValue{
+		Key: string(semconv.PeerServiceKey),
+		Value: &v1.AnyValue{
+			Value: &v1.AnyValue_StringValue{StringValue: "external-peer"},
+		},
+	}
+
+	request := &tempopb.PushSpansRequest{
+		Batches: []*tracev1.ResourceSpans{
+			makeServiceGraphBatch("svc-a", tracev1.Span_SPAN_KIND_CLIENT, traceID, clientSpanID, nil),
+			makeServiceGraphBatch("svc-b", tracev1.Span_SPAN_KIND_SERVER, traceID, []byte{0x0c}, clientSpanID, peerAttr),
+		},
+	}
+
+	p.PushSpans(context.Background(), request)
+	p.(*Processor).store.Expire()
+
+	completedLabels := labels.FromMap(map[string]string{
+		"client": "svc-a",
+		"server": "svc-b",
+	})
+	assert.Equal(t, 1.0, testRegistry.Query("traces_service_graph_request_total", completedLabels))
+	assert.NotContains(t, testRegistry.String(), "external-peer")
+}
+
+// TestServiceGraphs_emptyServiceNameServerSpanInfersVirtualNodeFromPeer covers
+// the degenerate case where the server resource carries a present-but-empty
+// service.name: ServerService stays empty, the edge never completes, and on
+// expiry the server span's peer attribute names the external server service.
+func TestServiceGraphs_emptyServiceNameServerSpanInfersVirtualNodeFromPeer(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.Wait = time.Nanosecond
+
+	p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
+	require.NoError(t, err)
+	defer p.Shutdown(context.Background())
+
+	traceID := []byte{0x1a}
+	clientSpanID := []byte{0x1b}
+
+	peerAttr := &v1.KeyValue{
+		Key: string(semconv.PeerServiceKey),
+		Value: &v1.AnyValue{
+			Value: &v1.AnyValue_StringValue{StringValue: "external-peer"},
+		},
+	}
+
+	request := &tempopb.PushSpansRequest{
+		Batches: []*tracev1.ResourceSpans{
+			makeServiceGraphBatch("svc-a", tracev1.Span_SPAN_KIND_CLIENT, traceID, clientSpanID, nil),
+			makeServiceGraphBatch("", tracev1.Span_SPAN_KIND_SERVER, traceID, []byte{0x1c}, clientSpanID, peerAttr),
+		},
+	}
+
+	p.PushSpans(context.Background(), request)
+	p.(*Processor).store.Expire()
+
+	virtualNodeLabels := labels.FromMap(map[string]string{
+		"client":          "svc-a",
+		"server":          "external-peer",
+		"connection_type": "virtual_node",
+	})
+	assert.Equal(t, 1.0, testRegistry.Query("traces_service_graph_request_total", virtualNodeLabels))
+}

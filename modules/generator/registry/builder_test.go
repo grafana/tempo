@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/prometheus/prometheus/model/labels"
@@ -146,4 +147,23 @@ func TestLabelBuilder_Sanitizer(t *testing.T) {
 
 	assert.True(t, ok)
 	assert.Equal(t, labels.FromStrings("name", "sanitized_value"), lbls)
+}
+
+func TestLabelBuilder_LargeLabelSetSortsAndDeduplicates(t *testing.T) {
+	// More than insertionSortThreshold labels routes sortLabels to the stdlib
+	// stable sort. Last-write-wins for duplicates must hold on that path too.
+	builder := NewLabelBuilder(0, 0, newTestDrainSanitizer(SpanNameSanitizationDisabled), newTestLabelLimiter())
+
+	want := make(map[string]string, insertionSortThreshold+2)
+	// Add in reverse order to force real sorting work.
+	for i := insertionSortThreshold + 1; i >= 0; i-- {
+		name := fmt.Sprintf("label_%03d", i)
+		builder.Add(name, "first")
+		builder.Add(name, fmt.Sprintf("value_%03d", i))
+		want[name] = fmt.Sprintf("value_%03d", i)
+	}
+
+	lbls, ok := builder.CloseAndBuildLabels()
+	assert.True(t, ok)
+	assert.Equal(t, labels.FromMap(want), lbls)
 }

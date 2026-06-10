@@ -357,15 +357,16 @@ func updateServerEdge(e *store.Edge, u serverEdgeUpdate) {
 	e.Failed = e.Failed || u.p.spanFailed(u.span)
 	u.p.upsertDimensions("server_", e.Dimensions, u.resourceAttr, u.span.Attributes)
 	e.SpanMultiplier = u.spanMultiplier
-	if u.root {
-		// PeerNode is only consumed by virtual-node inference in onExpire (see
-		// the e.PeerNode reads at the end of this file), which only fires for
-		// root server spans without a paired client. Non-root server spans
-		// always pair with a client edge that already set PeerNode if
-		// applicable, so calling upsertPeerNode here would only overwrite the
-		// client's value with a server-side attribute — a behavior change vs
-		// pre-optimization but only observable for non-root server spans that
-		// carry peer.* attributes (uncommon in OTel SDKs).
+	if u.root || u.svcName == "" {
+		// PeerNode is only read in onExpire: (1) root server edges without a
+		// client span use it to name the external client service, and (2)
+		// client-only edges (ServerService empty) use it to name the external
+		// server service. A non-root server span's peer attributes can reach
+		// read (2) only when its ServerService stays empty, i.e. the degenerate
+		// case of a present-but-empty service.name — hence the svcName check.
+		// For ordinary non-root server spans PeerNode is never read (onComplete
+		// ignores it and neither onExpire branch applies), so the attribute
+		// scan is skipped without observable behavior change.
 		u.p.upsertPeerNode(e, u.span.Attributes)
 	}
 }

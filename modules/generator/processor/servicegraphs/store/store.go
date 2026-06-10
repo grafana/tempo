@@ -157,15 +157,21 @@ func UpsertEdgeFromBytesWith[T any](st Store, traceID, spanID []byte, side Side,
 	return upsertEdgeFromBytesWith(s, traceID, spanID, side, state, update)
 }
 
+// maxStackKeyLen is the largest encoded edge key built in a stack buffer
+// before falling back to the heap-allocating path. A spec-compliant key is
+// hex(16-byte trace ID) + "-" + hex(8-byte span ID) = 49 bytes, so 64 covers
+// normal IDs with headroom while keeping the buffer cheap to stack-allocate.
+const maxStackKeyLen = 64
+
 func upsertEdgeFromBytesWith[T any](s *store, traceID, spanID []byte, side Side, state T, update func(*Edge, T)) (isNew bool, err error) {
 	encodedLen := encodedKeyLen(traceID, spanID)
-	if encodedLen > 64 {
+	if encodedLen > maxStackKeyLen {
 		return s.UpsertEdge(encodeKey(traceID, spanID), side, func(edge *Edge) {
 			update(edge, state)
 		})
 	}
 
-	var buf [64]byte
+	var buf [maxStackKeyLen]byte
 	key := encodeKeyToString(buf[:encodedLen], traceID, spanID)
 
 	s.mtx.Lock()
