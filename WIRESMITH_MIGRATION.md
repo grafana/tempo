@@ -31,11 +31,12 @@ committed output byte-identically.
   fails identically on the unmodified base commit (927ed1b71) —
   pre-existing, not migration fallout. (`pkg/usagestats Test_Memberlist`
   flaked once on the previous run under parallel load; passes here.)
-- e2e (docker): `./integration/api` and `./integration/operations` run
-  with locally built grafana/tempo + tempo-query images — see below; the
-  api suite exercises the customtype-enveloped httpgrpc bidi stream and
-  the full ingest/query path. The api suite caught one real bug
-  (pkg/httpclient used golang/protobuf jsonpb, see Migration notes), and
+- e2e (docker): the full `make test-e2e` suite set — `integration/api`,
+  `operations`, `limits`, `metrics-generator`, `storage`, `util` — passes
+  with locally built grafana/tempo + tempo-query images. The api suite
+  exercises the customtype-enveloped httpgrpc bidi stream, streaming gRPC
+  search, and the JSON+protobuf HTTP APIs, and caught one real bug
+  (pkg/httpclient used golang/protobuf jsonpb, see Migration notes) plus
   one nil-vs-empty decode difference in a test helper.
 - JSON/stored-format compatibility: `tempodb/backend` golden tests
   (`TestBlockMetaJSON*`, fixture-based `TestFixtures`/`TestOriginalFixtures`
@@ -195,10 +196,9 @@ feature, severity.
 
 ## Remaining work
 
-- e2e: `./integration/api` and `./integration/operations` pass with the
-  locally built images; run the remaining suites (`limits`,
-  `metrics-generator`, `storage`, `util`) and a mixed-version cluster
-  (old querier ↔ new frontend) before merging.
+- e2e: all six suites pass with locally built images. Still worth a
+  mixed-version cluster test (old querier ↔ new frontend) before
+  merging — the suites here run a single version.
 - Benchmark the hot paths (distributor PushBytes, query combiners) to
   quantify the wiresmith win on Tempo workloads.
 - Replace the local `replace github.com/grafana/wiresmith => ...` with a
