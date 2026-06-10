@@ -1,4 +1,8 @@
-# Skills: PR docs workflow
+# Skills
+
+This repository includes skills for PR-driven documentation work and changelog entry formatting.
+
+## PR docs workflow
 
 This repository uses a three-step pipeline for PR-driven documentation work:
 
@@ -17,6 +21,15 @@ Use `/docs-workflow` to run all three steps in sequence, or invoke each skill in
 Provide a list of PR numbers and a target branch. The workflow runs check → write → review and asks for your input between each step. See `docs-workflow/SKILL.md` for details.
 
 ## Individual skills
+
+### Changelog — `/changelog-entry`
+
+Use this when adding or updating a `CHANGELOG.md` entry. It enforces:
+
+- allowed tags only: `[CHANGE]`, `[FEATURE]`, `[ENHANCEMENT]`, `[BUGFIX]`
+- required ordering: change, feature, enhancement, bugfix
+- one concise bullet line with PR number, PR link, and GitHub author
+- `gh pr view` lookup for PR metadata
 
 ### 1) Triage — `/docs-pr-check`
 
