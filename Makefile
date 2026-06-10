@@ -333,15 +333,36 @@ gen-proto:  ## Generate proto files
 	@# diff $(PROTO_INTERMEDIATE_DIR) against .wiresmith-proto and port the changes.
 	$(WIRESMITH) --proto_path=pkg/tempopb/.wiresmith-proto --out=pkg/tempopb --module=github.com/grafana/tempo
 
-	@# Generate Tempo protos
-	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.tempopb.yaml --path pkg/tempopb/tempo.proto
-	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.tempopb.yaml --path pkg/tempopb/backendwork.proto
+	@# Generate Tempo protos with wiresmith. tempo.proto/backendwork.proto import
+	@# the patched OTel protos, so a combined tree is assembled first. --out=pkg
+	@# because files at the proto_path root get a package-derived import key
+	@# (tempopb/tempo.proto), which places the output in pkg/tempopb/.
+	rm -rf pkg/.wiresmith-build
+	mkdir -p pkg/.wiresmith-build
+	cp -R pkg/tempopb/.wiresmith-proto/* pkg/.wiresmith-build/
+	cp pkg/tempopb/tempo.proto pkg/tempopb/backendwork.proto pkg/.wiresmith-build/
+	$(WIRESMITH) --proto_path=pkg/.wiresmith-build --out=pkg --module=github.com/grafana/tempo pkg/.wiresmith-build/tempo.proto pkg/.wiresmith-build/backendwork.proto
+	rm -rf pkg/.wiresmith-build
+	@# tempo.pb.go and backendwork.pb.go share one Go package; wiresmith emits
+	@# its package-level unmarshal helpers per file, so strip the duplicates.
+	python3 tools/strip-wiresmith-dup-helpers.py pkg/tempopb/backendwork.pb.go
 
 	@# Generate backend proto (uses go_package for output path)
 	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.backend.yaml --path tempodb/backend/v1/v1.proto
 
-	@# Generate frontend proto
-	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.frontend.yaml --path modules/frontend/v1/frontendv1pb/frontend.proto
+	@# Generate frontend proto with wiresmith. The dskit httpgrpc import is
+	@# copied from vendor with its gogoproto lines stripped (wiresmith does not
+	@# parse gogo options); the httpgrpc-typed fields ride through codegen via
+	@# (wiresmith.options.customtype) envelopes, see
+	@# modules/frontend/v1/frontendv1pb/httpgrpc_envelope.go.
+	rm -rf pkg/.wiresmith-build
+	mkdir -p pkg/.wiresmith-build/frontendv1pb pkg/.wiresmith-build/github.com/grafana/dskit/httpgrpc
+	cp modules/frontend/v1/frontendv1pb/frontend.proto pkg/.wiresmith-build/frontendv1pb/
+	sed '/gogoproto/d' vendor/github.com/grafana/dskit/httpgrpc/httpgrpc.proto > pkg/.wiresmith-build/github.com/grafana/dskit/httpgrpc/httpgrpc.proto
+	$(WIRESMITH) --proto_path=pkg/.wiresmith-build --out=modules/frontend/v1 --module=github.com/grafana/tempo -M "frontendv1pb/frontend.proto=github.com/grafana/tempo/modules/frontend/v1/frontendv1pb" -M "github.com/grafana/dskit/httpgrpc/httpgrpc.proto=github.com/grafana/dskit/httpgrpc" pkg/.wiresmith-build/frontendv1pb/frontend.proto
+	rm -rf pkg/.wiresmith-build
+	@# wiresmith leaves an unused import for the customtype-replaced httpgrpc types
+	goimports -w modules/frontend/v1/frontendv1pb/frontend.pb.go
 
 	rm -rf $(PROTO_INTERMEDIATE_DIR)
 
