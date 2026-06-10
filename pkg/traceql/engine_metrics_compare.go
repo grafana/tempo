@@ -135,7 +135,9 @@ func (m *MetricsCompare) observe(span Span) {
 	m.interval = m.intervalMapper.Interval(st)
 
 	if m.extrapolate {
-		m.currentMultiplier = spanExtrapolation(span)
+		// Stochastic rounding keeps per-attribute counts integer (the
+		// observed value is the same for every attribute on this span).
+		m.currentMultiplier = stochasticRoundExtrapolation(span)
 	} else {
 		m.currentMultiplier = 1
 	}
