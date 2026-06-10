@@ -3,7 +3,7 @@ package vparquet3
 import (
 	"bytes"
 
-	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/parquet-go/parquet-go"
 
 	"github.com/grafana/tempo/pkg/tempopb"

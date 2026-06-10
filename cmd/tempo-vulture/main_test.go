@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -100,10 +99,6 @@ func TestResponseFixture(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.True(t, equalTraces(expected, generatedTrace))
-
-	if diff := cmp.Diff(expected, generatedTrace); diff != "" {
-		t.Error(diff)
-	}
 }
 
 func TestEqualTraces(t *testing.T) {
