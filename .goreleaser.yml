@@ -1,6 +1,8 @@
+version: 2
+
 archives:
   - id: default
-    builds:
+    ids:
       - tempo
       - tempo-query
       - tempo-cli
@@ -81,7 +83,7 @@ builds:
       - -X main.Version={{ .Version }}
     mod_timestamp: '{{ .CommitTimestamp }}'
 changelog:
-  skip: true
+  disable: true
   sort: asc
   filters:
     exclude:
@@ -95,10 +97,10 @@ release:
   draft: true
   prerelease: auto
 snapshot:
-  name_template: "{{ .Version }}-SNAPSHOT-{{ .ShortCommit }}"
+  version_template: "{{ .Version }}-SNAPSHOT-{{ .ShortCommit }}"
 # RPM (yum) and deb (apt) packages
 nfpms:
-  - builds:
+  - ids:
       - tempo
       - tempo-cli
       - tempo-query
