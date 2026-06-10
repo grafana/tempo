@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: backend-worker
+note: add `tempo_backend_worker_redaction_block_missing_total` and a warning log when a redaction job's target block is absent from the live blocklist, so a coverage gap is observable rather than a silent no-op.
+issues: [7358]
+subtext:
+user: zalegrala

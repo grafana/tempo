@@ -26,6 +26,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -247,6 +248,40 @@ func writeTraceToWal(t require.TestingT, b common.WALBlock, dec model.SegmentDec
 
 	err = b.Append(id, b2, start, end, true)
 	require.NoError(t, err, "unexpected error writing req")
+}
+
+// TestProcessRedactionJobMissingBlockObservable verifies that a redaction job
+// whose target block is absent from the live blocklist is counted (and logged),
+// rather than silently completing as a no-op. The completion stays non-fatal —
+// the scheduler's coverage logic is responsible for re-targeting moved blocks —
+// but the event must be observable.
+func TestProcessRedactionJobMissingBlockObservable(t *testing.T) {
+	limitCfg := overrides.Config{}
+	limitCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	workerCfg, schedulerClientCfg, overridesSvc, _, store := setupDependencies(ctx, t, limitCfg)
+	defer func() {
+		cancel()
+		store.StopAsync()
+		_ = store.AwaitTerminated(context.Background())
+	}()
+
+	w, err := New(workerCfg, schedulerClientCfg, store, overridesSvc, prometheus.NewRegistry())
+	require.NoError(t, err)
+	w.backendScheduler = &mockScheduler{updateJob: updateJobNoop}
+
+	before := testutil.ToFloat64(metricRedactionBlockMissing.WithLabelValues(tenant))
+	err = w.processRedactionJob(ctx, &tempopb.NextJobResponse{
+		JobId: "job-missing-block",
+		Detail: tempopb.JobDetail{
+			Tenant:    tenant,
+			Redaction: &tempopb.RedactionDetail{BlockId: uuid.New().String()},
+		},
+	})
+	require.NoError(t, err, "a missing block must complete as a non-fatal no-op")
+	after := testutil.ToFloat64(metricRedactionBlockMissing.WithLabelValues(tenant))
+	require.Equal(t, before+1, after, "a missing redaction block must be counted, not silently dropped")
 }
 
 func TestIsSharded(t *testing.T) {
