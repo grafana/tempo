@@ -46,6 +46,7 @@ func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
 // for requests which failed.
 type Frontend struct {
 	services.Service
+	frontendv1pb.UnimplementedFrontendServer
 
 	cfg Config
 	log log.Logger
@@ -275,12 +276,12 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 			if reqBatch.len() == 1 {
 				err = server.Send(&frontendv1pb.FrontendToClient{
 					Type:        frontendv1pb.Type_HTTP_REQUEST,
-					HttpRequest: reqBatch.httpGrpcRequests()[0],
+					HttpRequest: frontendv1pb.HTTPRequestEnvelope{Req: reqBatch.httpGrpcRequests()[0]},
 				})
 			} else {
 				err = server.Send(&frontendv1pb.FrontendToClient{
 					Type:             frontendv1pb.Type_HTTP_REQUEST_BATCH,
-					HttpRequestBatch: reqBatch.httpGrpcRequests(),
+					HttpRequestBatch: frontendv1pb.WrapHTTPRequests(reqBatch.httpGrpcRequests()),
 				})
 			}
 			if err != nil {
@@ -329,9 +330,9 @@ func reportResponseUpstream(reqBatch *requestBatch, errs chan error, resps chan 
 		// can be removed in a few versions once all queriers support batching
 		var err error
 		if len(resp.HttpResponseBatch) == 0 {
-			err = reqBatch.reportResultsToPipeline([]*httpgrpc.HTTPResponse{resp.HttpResponse})
+			err = reqBatch.reportResultsToPipeline([]*httpgrpc.HTTPResponse{resp.HttpResponse.Resp})
 		} else {
-			err = reqBatch.reportResultsToPipeline(resp.HttpResponseBatch)
+			err = reqBatch.reportResultsToPipeline(frontendv1pb.UnwrapHTTPResponses(resp.HttpResponseBatch))
 		}
 		if err != nil {
 			return fmt.Errorf("unexpected error reporting results upstream: %w", err)
@@ -352,10 +353,10 @@ func getQuerierInfo(server frontendv1pb.Frontend_ProcessServer) (string, int32, 
 		Type: frontendv1pb.Type_GET_ID,
 		// Old queriers don't support GET_ID, and will try to use the request.
 		// To avoid confusing them, include dummy request.
-		HttpRequest: &httpgrpc.HTTPRequest{
+		HttpRequest: frontendv1pb.HTTPRequestEnvelope{Req: &httpgrpc.HTTPRequest{
 			Method: "GET",
 			Url:    "/invalid_request_sent_by_frontend",
-		},
+		}},
 	})
 	if err != nil {
 		return "", int32(frontendv1pb.Feature_NONE), err
