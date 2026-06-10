@@ -89,7 +89,7 @@ func TestTraceByIDHonorsContentType(t *testing.T) {
 	require.NoError(t, err)
 	err = proto.Unmarshal(buff, actual)
 	require.NoError(t, err)
-	require.Equal(t, expected, actual)
+	require.True(t, test.ProtoEqual(expected, actual), "expected and actual traces are not equal")
 }
 
 // hidingRedactor is a TraceRedactor stub that always returns ErrTraceHidden,

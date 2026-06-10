@@ -8,7 +8,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/model"
@@ -128,7 +127,7 @@ func TestPartialReplay(t *testing.T) {
 		}
 
 		require.Equal(t, ids[match], id)
-		require.True(t, proto.Equal(trs[match], tr))
+		require.True(t, test.ProtoEqual(trs[match], tr))
 	}
 	require.Equal(t, count/2, gotCount)
 }
@@ -224,7 +223,7 @@ func TestWalBlockFindTraceByID(t *testing.T) {
 			found, err := w.FindTraceByID(context.Background(), ids[i], common.DefaultSearchOptions())
 			require.NoError(t, err)
 			require.NotNil(t, found)
-			require.True(t, proto.Equal(trs[i], found.Trace))
+			require.True(t, test.ProtoEqual(trs[i], found.Trace))
 			require.Greater(t, found.Metrics.InspectedBytes, uint64(10))
 		}
 	})
@@ -256,7 +255,7 @@ func TestWalBlockIterator(t *testing.T) {
 
 			require.NotEqual(t, -1, match, "iterator returned unexpected id")
 			require.Equal(t, ids[match], id)
-			require.True(t, proto.Equal(trs[match], tr))
+			require.True(t, test.ProtoEqual(trs[match], tr))
 		}
 		require.Equal(t, len(ids), count)
 	})

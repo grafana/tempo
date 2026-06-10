@@ -257,8 +257,10 @@ func sortResponse(res *tempopb.QueryRangeResponse) {
 				return ki < kj
 			}
 
-			si := res.Series[i].Labels[k].Value.String()
-			sj := res.Series[j].Labels[k].Value.String()
+			// StableString: wiresmith's generated String() is not deterministic
+			// for oneof-backed values, and this sort must produce a stable order.
+			si := res.Series[i].Labels[k].Value.StableString()
+			sj := res.Series[j].Labels[k].Value.StableString()
 			if si != sj {
 				return si < sj
 			}

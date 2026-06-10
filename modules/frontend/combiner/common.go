@@ -212,8 +212,38 @@ func (c *genericCombiner[T]) GRPCFinal() (T, error) {
 	}
 
 	// clone the final response to prevent race conditions with marshalling this data
-	finalClone := proto.Clone(final).(T)
+	finalClone, err := cloneProto(c.new, final)
+	if err != nil {
+		return empty, err
+	}
 	return finalClone, nil
+}
+
+// cloneProto deep-copies a response by round-tripping it through the wire
+// format. gogo's reflection-based proto.Clone cannot traverse
+// wiresmith-generated structs (it drops the unexported presence bitmap and
+// logs "proto: don't know how to copy" per field), so cloning goes through
+// the generated Marshal/Unmarshal pair, which both gogo and wiresmith
+// messages implement.
+func cloneProto[T TResponse](newT func() T, in T) (T, error) {
+	var empty T
+	m, ok := any(in).(interface{ Marshal() ([]byte, error) })
+	if !ok {
+		return empty, fmt.Errorf("response type %T does not implement Marshal", in)
+	}
+	b, err := m.Marshal()
+	if err != nil {
+		return empty, err
+	}
+	out := newT()
+	u, ok := any(out).(interface{ Unmarshal([]byte) error })
+	if !ok {
+		return empty, fmt.Errorf("response type %T does not implement Unmarshal", out)
+	}
+	if err := u.Unmarshal(b); err != nil {
+		return empty, err
+	}
+	return out, nil
 }
 
 func (c *genericCombiner[T]) GRPCDiff() (T, error) {
@@ -232,8 +262,11 @@ func (c *genericCombiner[T]) GRPCDiff() (T, error) {
 	}
 
 	// clone the diff to prevent race conditions with marshalling this data
-	diffClone := proto.Clone(diff)
-	return diffClone.(T), nil
+	diffClone, err := cloneProto(c.new, diff)
+	if err != nil {
+		return empty, err
+	}
+	return diffClone, nil
 }
 
 func (c *genericCombiner[T]) GRPCSegment(response T, maxSize int) ([]T, error) {

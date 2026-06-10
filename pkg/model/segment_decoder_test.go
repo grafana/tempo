@@ -5,7 +5,6 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/model/decoder"
@@ -30,7 +29,7 @@ func TestSegmentDecoderToObjectDecoder(t *testing.T) {
 			// segment prepareforread
 			actual, err := segmentDecoder.PrepareForRead([][]byte{segment})
 			require.NoError(t, err)
-			require.True(t, proto.Equal(trace, actual))
+			require.True(t, test.ProtoEqual(trace, actual))
 
 			// convert to object
 			object, err := segmentDecoder.ToObject([][]byte{segment})
@@ -38,7 +37,7 @@ func TestSegmentDecoderToObjectDecoder(t *testing.T) {
 
 			actual, err = objectDecoder.PrepareForRead(object)
 			require.NoError(t, err)
-			require.True(t, proto.Equal(trace, actual))
+			require.True(t, test.ProtoEqual(trace, actual))
 		})
 	}
 }

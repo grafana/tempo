@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-test/deep"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -100,12 +99,6 @@ func TestResponseFixture(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.True(t, equalTraces(expected, generatedTrace))
-
-	if diff := deep.Equal(expected, generatedTrace); diff != nil {
-		for _, d := range diff {
-			t.Error(d)
-		}
-	}
 }
 
 func TestEqualTraces(t *testing.T) {
