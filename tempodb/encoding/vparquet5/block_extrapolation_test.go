@@ -68,9 +68,9 @@ func TestExtrapolationFilterEndToEnd(t *testing.T) {
 	end := uint64(startTime.Add(10 * time.Second).UnixNano())
 
 	cases := []struct {
-		query    string
-		want     float64
-		descr    string
+		query string
+		want  float64
+		descr string
 	}{
 		{`{resource.service.name="shop-backend"} | count_over_time()`, 5, "naive shop"},
 		{`{resource.service.name="shop-backend"} | count_over_time() with(extrapolate=true)`, 10, "extrap shop = 2x"},
@@ -206,8 +206,8 @@ func TestExtrapolationFilterInteraction(t *testing.T) {
 	defer resp.Results.Close()
 
 	var (
-		matched      []*span
-		multipliers  []float64
+		matched     []*span
+		multipliers []float64
 	)
 	for {
 		s, err := resp.Results.Next(ctx)
@@ -254,5 +254,7 @@ func spanNameOf(s *span) string {
 }
 
 // Keep import used.
-var _ = (*v1.Span)(nil)
-var _ = (*tempopb.QueryRangeRequest)(nil)
+var (
+	_ = (*v1.Span)(nil)
+	_ = (*tempopb.QueryRangeRequest)(nil)
+)
