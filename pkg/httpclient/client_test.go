@@ -8,8 +8,9 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/gogo/protobuf/proto"
+
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -25,7 +26,7 @@ func TestQueryTrace(t *testing.T) {
 		mockTransport := MockRoundTripper(func(req *http.Request) *http.Response {
 			assert.Equal(t, "www.tempo.com/api/traces/100", req.URL.Path)
 			assert.Equal(t, "application/protobuf", req.Header.Get("Accept"))
-			response, _ := trace.Marshal()
+			response, _ := proto.Marshal(trace)
 			return &http.Response{
 				StatusCode: 200,
 				Body:       io.NopCloser(bytes.NewReader(response)),
@@ -37,13 +38,13 @@ func TestQueryTrace(t *testing.T) {
 		response, err := client.QueryTrace("100")
 
 		assert.NoError(t, err)
-		assert.True(t, test.ProtoEqual(trace, response))
+		assert.True(t, proto.Equal(trace, response))
 	})
 
 	t.Run("includes the recentDataTarget header", func(t *testing.T) {
 		mockTransport := MockRoundTripper(func(req *http.Request) *http.Response {
 			assert.Equal(t, liveStoreHeaderValue, req.Header.Get(recentDataTargetHeader))
-			response, _ := trace.Marshal()
+			response, _ := proto.Marshal(trace)
 			return &http.Response{
 				StatusCode: 200,
 				Body:       io.NopCloser(bytes.NewReader(response)),
@@ -56,7 +57,7 @@ func TestQueryTrace(t *testing.T) {
 		response, err := client.QueryTrace("100")
 
 		assert.NoError(t, err)
-		assert.True(t, test.ProtoEqual(trace, response))
+		assert.True(t, proto.Equal(trace, response))
 	})
 
 	t.Run("returns a trace not found error on 404", func(t *testing.T) {
@@ -90,7 +91,7 @@ func TestQueryTraceWithRange(t *testing.T) {
 		mockTransport := MockRoundTripper(func(req *http.Request) *http.Response {
 			assert.Equal(t, "www.tempo.com/api/traces/100?end=2000&start=1000", fmt.Sprint(req.URL))
 			assert.Equal(t, "application/protobuf", req.Header.Get("Accept"))
-			response, _ := trace.Marshal()
+			response, _ := proto.Marshal(trace)
 			return &http.Response{
 				StatusCode: 200,
 				Body:       io.NopCloser(bytes.NewReader(response)),
@@ -102,7 +103,7 @@ func TestQueryTraceWithRange(t *testing.T) {
 		response, err := client.QueryTraceWithRange(context.Background(), "100", 1000, 2000)
 
 		assert.NoError(t, err)
-		assert.True(t, test.ProtoEqual(trace, response))
+		assert.True(t, proto.Equal(trace, response))
 	})
 
 	t.Run("returns a trace with range not found error on 404", func(t *testing.T) {

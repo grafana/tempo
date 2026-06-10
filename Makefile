@@ -342,9 +342,6 @@ gen-proto:  ## Generate proto files
 	cp pkg/tempopb/tempo.proto pkg/tempopb/backendwork.proto pkg/.wiresmith-build/
 	$(WIRESMITH) --proto_path=pkg/.wiresmith-build --out=pkg --module=github.com/grafana/tempo pkg/.wiresmith-build/tempo.proto pkg/.wiresmith-build/backendwork.proto
 	rm -rf pkg/.wiresmith-build
-	@# tempo.pb.go and backendwork.pb.go share one Go package; wiresmith emits
-	@# its package-level unmarshal helpers per file, so strip the duplicates.
-	python3 tools/strip-wiresmith-dup-helpers.py pkg/tempopb/backendwork.pb.go
 
 	@# Generate backend proto with wiresmith. The file is staged as
 	@# backend/v1.proto so the source-relative output lands at
@@ -366,8 +363,6 @@ gen-proto:  ## Generate proto files
 	sed '/gogoproto/d' vendor/github.com/grafana/dskit/httpgrpc/httpgrpc.proto > pkg/.wiresmith-build/github.com/grafana/dskit/httpgrpc/httpgrpc.proto
 	$(WIRESMITH) --proto_path=pkg/.wiresmith-build --out=modules/frontend/v1 --module=github.com/grafana/tempo -M "frontendv1pb/frontend.proto=github.com/grafana/tempo/modules/frontend/v1/frontendv1pb" -M "github.com/grafana/dskit/httpgrpc/httpgrpc.proto=github.com/grafana/dskit/httpgrpc" pkg/.wiresmith-build/frontendv1pb/frontend.proto
 	rm -rf pkg/.wiresmith-build
-	@# wiresmith leaves an unused import for the customtype-replaced httpgrpc types
-	goimports -w modules/frontend/v1/frontendv1pb/frontend.pb.go
 
 	rm -rf $(PROTO_INTERMEDIATE_DIR)
 

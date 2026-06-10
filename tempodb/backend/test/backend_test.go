@@ -82,7 +82,7 @@ func TestFixtures(t *testing.T) {
 	var i *backend.TenantIndex
 	i, err = r.TenantIndex(ctx, tenant)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(blockMetas, i.Meta, cmpopts.IgnoreUnexported(backend.BlockMeta{})))
+	require.Empty(t, cmp.Diff(blockMetas, i.Meta, cmpopts.IgnoreFields(backend.BlockMeta{}, "XXX_fieldsPresent")))
 	require.Len(t, i.Meta, len(listMetas))
 }
 

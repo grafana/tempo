@@ -5,6 +5,8 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/gogo/protobuf/proto"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -28,17 +30,17 @@ func TestObjectDecoderMarshalUnmarshal(t *testing.T) {
 
 			actual, err := encoding.PrepareForRead(bytes)
 			require.NoError(t, err)
-			assert.True(t, test.ProtoEqual(trace, actual))
+			assert.True(t, proto.Equal(trace, actual))
 
 			// nil trace
 			actual, err = encoding.PrepareForRead(nil)
 			assert.NoError(t, err)
-			assert.True(t, test.ProtoEqual(empty, actual))
+			assert.True(t, proto.Equal(empty, actual))
 
 			// empty byte slice
 			actual, err = encoding.PrepareForRead([]byte{})
 			assert.NoError(t, err)
-			assert.True(t, test.ProtoEqual(empty, actual))
+			assert.True(t, proto.Equal(empty, actual))
 		})
 	}
 }
@@ -156,7 +158,7 @@ func TestCombines(t *testing.T) {
 				if tt.expected != nil {
 					actual, err := d.PrepareForRead(actualBytes)
 					require.NoError(t, err)
-					assert.True(t, test.ProtoEqual(tt.expected, actual))
+					assert.True(t, proto.Equal(tt.expected, actual))
 
 					start, end, err := d.FastRange(actualBytes)
 					if errors.Is(err, decoder.ErrUnsupported) {

@@ -8,6 +8,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gogo/protobuf/proto"
+
 	"github.com/dustin/go-humanize"
 	"github.com/parquet-go/parquet-go"
 	"github.com/stretchr/testify/assert"
@@ -58,7 +60,7 @@ func TestProtoParquetRando(t *testing.T) {
 
 		parqTr, _ := traceToParquet(&backend.BlockMeta{}, id, expectedTrace, trp)
 		actualTrace := ParquetTraceToTempopbTrace(&backend.BlockMeta{}, parqTr)
-		require.True(t, test.ProtoEqual(expectedTrace, actualTrace), "expected and actual traces are not equal")
+		require.True(t, proto.Equal(expectedTrace, actualTrace), "expected and actual traces are not equal")
 	}
 }
 

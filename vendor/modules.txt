@@ -2713,4 +2713,4 @@ sigs.k8s.io/yaml
 # k8s.io/api => k8s.io/api v0.36.2
 # k8s.io/client-go => k8s.io/client-go v0.36.2
 # github.com/hashicorp/memberlist => github.com/grafana/memberlist v0.3.1-0.20260515134459-1798cf41aca7
-# github.com/grafana/wiresmith => /Users/oleg-kozlyuk/Projects/wiresmith/wiresmith
+# github.com/grafana/wiresmith => /Users/oleg-kozlyuk/Projects/wiresmith/wiresmith-databases

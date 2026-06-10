@@ -1016,7 +1016,7 @@ func requireTraceInLiveStore(t *testing.T, liveStore *LiveStore, traceID []byte,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, resp.Trace)
-	require.True(t, test.ProtoEqual(expectedTrace, resp.Trace), "trace not equal")
+	require.True(t, proto.Equal(expectedTrace, resp.Trace), "trace not equal")
 }
 
 func requireTraceInBlock(t *testing.T, block common.BackendBlock, traceID []byte, expectedTrace *tempopb.Trace) {
@@ -1024,7 +1024,7 @@ func requireTraceInBlock(t *testing.T, block common.BackendBlock, traceID []byte
 	actualTrace, err := block.FindTraceByID(ctx, traceID, common.DefaultSearchOptions())
 	require.NoError(t, err)
 	require.NotNil(t, actualTrace)
-	require.True(t, test.ProtoEqual(expectedTrace, actualTrace.Trace), "trace not equal")
+	require.True(t, proto.Equal(expectedTrace, actualTrace.Trace), "trace not equal")
 }
 
 func createValidPushRequest(t *testing.T) []byte {
