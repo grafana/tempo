@@ -250,7 +250,9 @@ func encodeKeyToString(buf []byte, k1, k2 []byte) string {
 	hex.Encode(buf[:k1Len], k1)
 	buf[k1Len] = '-'
 	hex.Encode(buf[k1Len+1:], k2)
-	return unsafe.String(unsafe.SliceData(buf), len(buf))
+	// The caller owns buf and keeps it immutable for as long as the returned
+	// key is in use. This avoids copying servicegraph keys on the hot path.
+	return unsafe.String(unsafe.SliceData(buf), len(buf)) // nosemgrep
 }
 
 // Expire evicts all expired items in the store.

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"strings"
 	"time"
-	"unsafe"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -624,8 +623,7 @@ func buildKeyFromBytes(k1, k2 []byte) string {
 	hex.Encode(buf[:k1Len], k1)
 	buf[k1Len] = '-'
 	hex.Encode(buf[k1Len+1:], k2)
-	// The buffer is private and is not mutated after conversion.
-	return unsafe.String(unsafe.SliceData(buf), len(buf))
+	return string(buf)
 }
 
 func parseKey(key string) (string, string) {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 	"time"
-	"unsafe"
 
 	"github.com/grafana/tempo/modules/generator/validation"
 	"github.com/prometheus/client_golang/prometheus"
@@ -323,12 +322,7 @@ func getResourceServiceLabels(attributes []*v1_common.KeyValue, jobNameBuf []byt
 	if namespace == "" {
 		return svcName, svcName, instanceID, jobNameBuf[:0]
 	}
-	jobNameBuf = append(jobNameBuf[:0], namespace...)
-	jobNameBuf = append(jobNameBuf, '/')
-	jobNameBuf = append(jobNameBuf, svcName...)
-	// The registry label builders copy label values before jobNameBuf is reused
-	// for the next resource.
-	return svcName, unsafe.String(unsafe.SliceData(jobNameBuf), len(jobNameBuf)), instanceID, jobNameBuf
+	return svcName, namespace + "/" + svcName, instanceID, jobNameBuf[:0]
 }
 
 func getTargetInfoAttributesValues(keys, values *[]string, attributes []*v1_common.KeyValue, exclude map[string]struct{}, sanitizeFn validation.SanitizeFn) {
