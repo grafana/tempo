@@ -1102,8 +1102,8 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 		storageReq := storageReqs[key]
 
 		// Per-span sampling extrapolation. Hint in the query takes precedence
-		// over the tenant default passed in via WithExtrapolation. Must apply
-		// before sp.init() so inner aggregators capture the flag.
+		// over the default passed in via WithExtrapolation. Must apply before
+		// sp.init() so inner aggregators capture the flag.
 		extrapolate := false
 		if cfg.extrapolate != nil {
 			extrapolate = *cfg.extrapolate
