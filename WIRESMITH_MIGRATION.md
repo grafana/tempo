@@ -198,8 +198,8 @@ feature, severity.
 - e2e: all six suites pass with locally built images. Still worth a
   mixed-version cluster test (old querier ↔ new frontend) before
   merging — the suites here run a single version.
-- Benchmark the hot paths (distributor PushBytes, query combiners) to
-  quantify the wiresmith win on Tempo workloads.
+- ~~Benchmark the hot paths~~ — done for the ingest decode path, see
+  **Benchmarks** below.
 - Replace the local `replace github.com/grafana/wiresmith => ...` with a
   published module version.
 - `vendor/modules.txt` pins vtprotobuf one rev newer (pulled transitively
@@ -207,3 +207,50 @@ feature, severity.
 - Old gogo annotations are gone from the protos; consider dropping the
   gogoproto vendored package once nothing else imports it (dskit still
   does).
+
+## Benchmarks (Apple M4 Pro, benchstat-grade — DB-9, 2026-06-11)
+
+`pkg/ingest` decode benchmarks, gogo baseline (7c61b2b70b) vs wiresmith
+`wiresmith` branch. Method: two `go test -c` binaries **alternated** 20 rounds
+so thermal drift cancels; `benchstat`, all deltas p=0.000 except OTLP time.
+
+| Bench | gogo sec/op | wiresmith sec/op | Δ time | B/op Δ | allocs Δ |
+|---|---|---|---|---|---|
+| GeneratorDecoderOTLP       | 92.46µ | 90.53µ | ~ (p=0.20) | −6.88% | −5.34% |
+| GeneratorDecoderPushBytes  | 172.6µ | 183.3µ | +6.14% | −1.02% | +2.67% |
+| EncodeDecode               | 165.5µ | **3800µ** | **+2197%** | **+6788%** (1.25Mi→86Mi) | +0.10% |
+
+- **OTLP decode**: parity (slightly fewer allocs/bytes). The decoder resets
+  `trace.ResourceSpans[:0]` before each `Unmarshal`.
+- **PushBytes decode**: +6.1% wall, ~flat memory. `PushBytesDecoder` calls
+  `Reset()` (len→0, cap retained), so the pre-scan finds enough capacity and
+  does no realloc — the +6% is purely the pre-scan's extra linear *scan* over
+  the payload (same class as mimir RW2, bead `wiresmith-bobw` / DB-18).
+- **EncodeDecode**: catastrophic — +2197% time, 86 MiB/op (67×). This bench
+  reuses one bare `ingest.Decoder` and calls `Decode` (→ `PushBytesRequest.
+  Unmarshal`) repeatedly **without** `Reset()`. Each decode appends, so
+  `len(m.Traces)` grows every call; the pre-scan grows the slice with
+  **exact-fit** capacity (`make([]T, len, len+c)`), reallocating+copying the
+  entire growing backing array every call ⇒ **O(n²)**. gogo's plain `append`
+  doubles capacity (amortized O(n)) so the identical no-Reset usage stays
+  bounded. Proven by an isolation build (pre-scan forced off): wiresmith
+  collapses to **161µs / 1.33 MiB — a dead match with gogo** (165µs / 1.30 MiB).
+
+The EncodeDecode blowup was a genuine perf cliff (not just bench misuse:
+`ingest.Decoder.Decode` is public and doesn't reset). Filed as
+**`wiresmith-zlce`** (P1) and **FIXED** (Option A): `emitPreScan` now reserves
+the slice only when `len(m.X)==0`; merges into a populated slice fall back to
+amortized append (gogo-equivalent). The `pkg/tempopb/*.pb.go` here are
+regenerated with that fixed compiler (wiresmith-databases @39ef729 →
+`grafana/wiresmith:pre-scan-tempo-fix`). Re-bench (gogo 7c61b2b70b vs fixed):
+
+| Bench | gogo | wiresmith (fixed) | vs gogo |
+|---|---|---|---|
+| EncodeDecode | 173.7µ / 1.235Mi | 178.1µ / 1.247Mi | **parity** (p=0.10 / 0.14) |
+| GeneratorDecoderOTLP | 91.7µ | 87.6µ | −4.4% |
+| GeneratorDecoderPushBytes | 175.3µ | 182.0µ | +3.8% |
+
+EncodeDecode dropped from 3.8ms / 86Mi to gogo parity (~21× faster, ~69× less
+memory); the O(n²) is gone. PushBytes +3.8% is the *separate* scan-cost class
+(`wiresmith-bobw` / DB-18), untouched by this fix. Distinct also from the
+prealloc-reuse *security* analysis (`wiresmith-u4qg` / DB-6).

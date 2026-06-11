@@ -196,10 +196,8 @@ func (m *Resource) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.Attributes) + c; cap(m.Attributes) < need {
-				grown := make([]*commonv1.KeyValue, len(m.Attributes), need)
-				copy(grown, m.Attributes)
-				m.Attributes = grown
+			if len(m.Attributes) == 0 && cap(m.Attributes) < c {
+				m.Attributes = make([]*commonv1.KeyValue, 0, c)
 			}
 		}
 	}

@@ -6080,10 +6080,8 @@ func (m *SearchRequest) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.SkipASTTransformations) + c; cap(m.SkipASTTransformations) < need {
-				grown := make([]string, len(m.SkipASTTransformations), need)
-				copy(grown, m.SkipASTTransformations)
-				m.SkipASTTransformations = grown
+			if len(m.SkipASTTransformations) == 0 && cap(m.SkipASTTransformations) < c {
+				m.SkipASTTransformations = make([]string, 0, c)
 			}
 		}
 	}
@@ -6685,10 +6683,8 @@ func (m *SearchBlockRequest) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.DedicatedColumns) + c; cap(m.DedicatedColumns) < need {
-				grown := make([]*DedicatedColumn, len(m.DedicatedColumns), need)
-				copy(grown, m.DedicatedColumns)
-				m.DedicatedColumns = grown
+			if len(m.DedicatedColumns) == 0 && cap(m.DedicatedColumns) < c {
+				m.DedicatedColumns = make([]*DedicatedColumn, 0, c)
 			}
 		}
 	}
@@ -7353,10 +7349,8 @@ func (m *SearchResponse) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.Traces) + c; cap(m.Traces) < need {
-				grown := make([]*TraceSearchMetadata, len(m.Traces), need)
-				copy(grown, m.Traces)
-				m.Traces = grown
+			if len(m.Traces) == 0 && cap(m.Traces) < c {
+				m.Traces = make([]*TraceSearchMetadata, 0, c)
 			}
 		}
 	}
@@ -7579,10 +7573,8 @@ func (m *TraceSearchMetadata) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.SpanSets) + c; cap(m.SpanSets) < need {
-				grown := make([]*SpanSet, len(m.SpanSets), need)
-				copy(grown, m.SpanSets)
-				m.SpanSets = grown
+			if len(m.SpanSets) == 0 && cap(m.SpanSets) < c {
+				m.SpanSets = make([]*SpanSet, 0, c)
 			}
 		}
 		if c := field8count; c > 0 {
@@ -8293,20 +8285,16 @@ func (m *SpanSet) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.Spans) + c; cap(m.Spans) < need {
-				grown := make([]*Span, len(m.Spans), need)
-				copy(grown, m.Spans)
-				m.Spans = grown
+			if len(m.Spans) == 0 && cap(m.Spans) < c {
+				m.Spans = make([]*Span, 0, c)
 			}
 		}
 		if c := field3count; c > 0 {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.Attributes) + c; cap(m.Attributes) < need {
-				grown := make([]*v1.KeyValue, len(m.Attributes), need)
-				copy(grown, m.Attributes)
-				m.Attributes = grown
+			if len(m.Attributes) == 0 && cap(m.Attributes) < c {
+				m.Attributes = make([]*v1.KeyValue, 0, c)
 			}
 		}
 	}
@@ -8552,10 +8540,8 @@ func (m *Span) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.Attributes) + c; cap(m.Attributes) < need {
-				grown := make([]*v1.KeyValue, len(m.Attributes), need)
-				copy(grown, m.Attributes)
-				m.Attributes = grown
+			if len(m.Attributes) == 0 && cap(m.Attributes) < c {
+				m.Attributes = make([]*v1.KeyValue, 0, c)
 			}
 		}
 	}
@@ -9434,10 +9420,8 @@ func (m *SearchTagsBlockRequest) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.DedicatedColumns) + c; cap(m.DedicatedColumns) < need {
-				grown := make([]*DedicatedColumn, len(m.DedicatedColumns), need)
-				copy(grown, m.DedicatedColumns)
-				m.DedicatedColumns = grown
+			if len(m.DedicatedColumns) == 0 && cap(m.DedicatedColumns) < c {
+				m.DedicatedColumns = make([]*DedicatedColumn, 0, c)
 			}
 		}
 	}
@@ -9971,10 +9955,8 @@ func (m *SearchTagValuesBlockRequest) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.DedicatedColumns) + c; cap(m.DedicatedColumns) < need {
-				grown := make([]*DedicatedColumn, len(m.DedicatedColumns), need)
-				copy(grown, m.DedicatedColumns)
-				m.DedicatedColumns = grown
+			if len(m.DedicatedColumns) == 0 && cap(m.DedicatedColumns) < c {
+				m.DedicatedColumns = make([]*DedicatedColumn, 0, c)
 			}
 		}
 	}
@@ -10452,10 +10434,8 @@ func (m *SearchTagsResponse) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.TagNames) + c; cap(m.TagNames) < need {
-				grown := make([]string, len(m.TagNames), need)
-				copy(grown, m.TagNames)
-				m.TagNames = grown
+			if len(m.TagNames) == 0 && cap(m.TagNames) < c {
+				m.TagNames = make([]string, 0, c)
 			}
 		}
 	}
@@ -10672,10 +10652,8 @@ func (m *SearchTagsV2Response) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.Scopes) + c; cap(m.Scopes) < need {
-				grown := make([]*SearchTagsV2Scope, len(m.Scopes), need)
-				copy(grown, m.Scopes)
-				m.Scopes = grown
+			if len(m.Scopes) == 0 && cap(m.Scopes) < c {
+				m.Scopes = make([]*SearchTagsV2Scope, 0, c)
 			}
 		}
 	}
@@ -10895,10 +10873,8 @@ func (m *SearchTagsV2Scope) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.Tags) + c; cap(m.Tags) < need {
-				grown := make([]string, len(m.Tags), need)
-				copy(grown, m.Tags)
-				m.Tags = grown
+			if len(m.Tags) == 0 && cap(m.Tags) < c {
+				m.Tags = make([]string, 0, c)
 			}
 		}
 	}
@@ -11419,10 +11395,8 @@ func (m *SearchTagValuesResponse) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.TagValues) + c; cap(m.TagValues) < need {
-				grown := make([]string, len(m.TagValues), need)
-				copy(grown, m.TagValues)
-				m.TagValues = grown
+			if len(m.TagValues) == 0 && cap(m.TagValues) < c {
+				m.TagValues = make([]string, 0, c)
 			}
 		}
 	}
@@ -11787,10 +11761,8 @@ func (m *SearchTagValuesV2Response) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.TagValues) + c; cap(m.TagValues) < need {
-				grown := make([]*TagValue, len(m.TagValues), need)
-				copy(grown, m.TagValues)
-				m.TagValues = grown
+			if len(m.TagValues) == 0 && cap(m.TagValues) < c {
+				m.TagValues = make([]*TagValue, 0, c)
 			}
 		}
 	}
@@ -12208,10 +12180,8 @@ func (m *Trace) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.ResourceSpans) + c; cap(m.ResourceSpans) < need {
-				grown := make([]*tracev1.ResourceSpans, len(m.ResourceSpans), need)
-				copy(grown, m.ResourceSpans)
-				m.ResourceSpans = grown
+			if len(m.ResourceSpans) == 0 && cap(m.ResourceSpans) < c {
+				m.ResourceSpans = make([]*tracev1.ResourceSpans, 0, c)
 			}
 		}
 	}
@@ -12539,20 +12509,16 @@ func (m *PushBytesRequest) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.Traces) + c; cap(m.Traces) < need {
-				grown := make([]PreallocBytes, len(m.Traces), need)
-				copy(grown, m.Traces)
-				m.Traces = grown
+			if len(m.Traces) == 0 && cap(m.Traces) < c {
+				m.Traces = make([]PreallocBytes, 0, c)
 			}
 		}
 		if c := field3count; c > 0 {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.Ids) + c; cap(m.Ids) < need {
-				grown := make([][]byte, len(m.Ids), need)
-				copy(grown, m.Ids)
-				m.Ids = grown
+			if len(m.Ids) == 0 && cap(m.Ids) < c {
+				m.Ids = make([][]byte, 0, c)
 			}
 		}
 	}
@@ -12796,10 +12762,8 @@ func (m *PushSpansRequest) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.Batches) + c; cap(m.Batches) < need {
-				grown := make([]*tracev1.ResourceSpans, len(m.Batches), need)
-				copy(grown, m.Batches)
-				m.Batches = grown
+			if len(m.Batches) == 0 && cap(m.Batches) < c {
+				m.Batches = make([]*tracev1.ResourceSpans, 0, c)
 			}
 		}
 	}
@@ -12997,10 +12961,8 @@ func (m *TraceBytes) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.Traces) + c; cap(m.Traces) < need {
-				grown := make([][]byte, len(m.Traces), need)
-				copy(grown, m.Traces)
-				m.Traces = grown
+			if len(m.Traces) == 0 && cap(m.Traces) < c {
+				m.Traces = make([][]byte, 0, c)
 			}
 		}
 	}
@@ -13167,10 +13129,8 @@ func (m *LinkSlice) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.Links) + c; cap(m.Links) < need {
-				grown := make([]*tracev1.Span_Link, len(m.Links), need)
-				copy(grown, m.Links)
-				m.Links = grown
+			if len(m.Links) == 0 && cap(m.Links) < c {
+				m.Links = make([]*tracev1.Span_Link, 0, c)
 			}
 		}
 	}
@@ -13499,10 +13459,8 @@ func (m *QueryInstantResponse) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.Series) + c; cap(m.Series) < need {
-				grown := make([]*InstantSeries, len(m.Series), need)
-				copy(grown, m.Series)
-				m.Series = grown
+			if len(m.Series) == 0 && cap(m.Series) < c {
+				m.Series = make([]*InstantSeries, 0, c)
 			}
 		}
 	}
@@ -13795,10 +13753,8 @@ func (m *InstantSeries) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.Labels) + c; cap(m.Labels) < need {
-				grown := make([]v1.KeyValue, len(m.Labels), need)
-				copy(grown, m.Labels)
-				m.Labels = grown
+			if len(m.Labels) == 0 && cap(m.Labels) < c {
+				m.Labels = make([]v1.KeyValue, 0, c)
 			}
 		}
 	}
@@ -13986,20 +13942,16 @@ func (m *QueryRangeRequest) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.DedicatedColumns) + c; cap(m.DedicatedColumns) < need {
-				grown := make([]*DedicatedColumn, len(m.DedicatedColumns), need)
-				copy(grown, m.DedicatedColumns)
-				m.DedicatedColumns = grown
+			if len(m.DedicatedColumns) == 0 && cap(m.DedicatedColumns) < c {
+				m.DedicatedColumns = make([]*DedicatedColumn, 0, c)
 			}
 		}
 		if c := field19count; c > 0 {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.SkipASTTransformations) + c; cap(m.SkipASTTransformations) < need {
-				grown := make([]string, len(m.SkipASTTransformations), need)
-				copy(grown, m.SkipASTTransformations)
-				m.SkipASTTransformations = grown
+			if len(m.SkipASTTransformations) == 0 && cap(m.SkipASTTransformations) < c {
+				m.SkipASTTransformations = make([]string, 0, c)
 			}
 		}
 	}
@@ -14675,10 +14627,8 @@ func (m *QueryRangeResponse) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.Series) + c; cap(m.Series) < need {
-				grown := make([]*TimeSeries, len(m.Series), need)
-				copy(grown, m.Series)
-				m.Series = grown
+			if len(m.Series) == 0 && cap(m.Series) < c {
+				m.Series = make([]*TimeSeries, 0, c)
 			}
 		}
 	}
@@ -14971,10 +14921,8 @@ func (m *Exemplar) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.Labels) + c; cap(m.Labels) < need {
-				grown := make([]v1.KeyValue, len(m.Labels), need)
-				copy(grown, m.Labels)
-				m.Labels = grown
+			if len(m.Labels) == 0 && cap(m.Labels) < c {
+				m.Labels = make([]v1.KeyValue, 0, c)
 			}
 		}
 	}
@@ -15294,30 +15242,24 @@ func (m *TimeSeries) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.Labels) + c; cap(m.Labels) < need {
-				grown := make([]v1.KeyValue, len(m.Labels), need)
-				copy(grown, m.Labels)
-				m.Labels = grown
+			if len(m.Labels) == 0 && cap(m.Labels) < c {
+				m.Labels = make([]v1.KeyValue, 0, c)
 			}
 		}
 		if c := field2count; c > 0 {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.Samples) + c; cap(m.Samples) < need {
-				grown := make([]Sample, len(m.Samples), need)
-				copy(grown, m.Samples)
-				m.Samples = grown
+			if len(m.Samples) == 0 && cap(m.Samples) < c {
+				m.Samples = make([]Sample, 0, c)
 			}
 		}
 		if c := field4count; c > 0 {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.Exemplars) + c; cap(m.Exemplars) < need {
-				grown := make([]Exemplar, len(m.Exemplars), need)
-				copy(grown, m.Exemplars)
-				m.Exemplars = grown
+			if len(m.Exemplars) == 0 && cap(m.Exemplars) < c {
+				m.Exemplars = make([]Exemplar, 0, c)
 			}
 		}
 	}
