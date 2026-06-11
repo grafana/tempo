@@ -17,8 +17,15 @@ is_valid_semver() {
 }
 
 
-VERSION=$(git describe --tags `git rev-list --tags --max-count=1`)
-if is_valid_semver "$VERSION"; then
+# 1. Release build: HEAD itself is tagged — that tag is the version.
+VERSION=$(git describe --exact-match --tags HEAD 2>/dev/null) ||
+# 2. Build from an untagged commit: nearest release tag in HEAD's ancestry.
+VERSION=$(git describe --tags --abbrev=0 2>/dev/null) ||
+# 3. Shallow clone (no ancestry to walk): newest tag in the repo by commit date.
+VERSION=$(git describe --tags "$(git rev-list --tags --max-count=1)" 2>/dev/null) ||
+VERSION=""
+
+if [ -n "$VERSION" ] && is_valid_semver "$VERSION"; then
       echo "$VERSION"
       exit 0
 fi
