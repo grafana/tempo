@@ -409,7 +409,7 @@ bump-tempo-image-tag: ## Bump grafana/tempo image tag in docker-compose and json
 		-print0 \
 		| xargs -0 grep -l "grafana/tempo:" \
 		| tr '\n' '\0' \
-		| xargs -0 -I{} sed -i '' -E "s#grafana/tempo:(latest|[0-9]+\.[0-9]+\.[0-9]+)#grafana/tempo:$(TEMPO_IMAGE_TAG)#g" {}
+		| xargs -0 -I{} sed -i $(SED_OPTS) -E "s#grafana/tempo:(latest|[0-9]+\.[0-9]+\.[0-9]+)#grafana/tempo:$(TEMPO_IMAGE_TAG)#g" {}
 	@echo "Done. Re-run 'make jsonnet' to regenerate compiled jsonnet if needed."
 
 ##@ jsonnet

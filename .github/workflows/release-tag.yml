@@ -1,0 +1,152 @@
+name: release-tag
+# Triggered when a release-prep PR is merged. Handles any release type:
+#   - RC (tag X.Y.Z-rc.N, based on main): published as a pre-release.
+#   - minor / patch (tag X.Y.Z, based on release-vX.Y): published as latest.
+# NOTE: pull_request workflows run from the BASE branch's copy of this file, so
+# this workflow must exist on every branch that release-prep PRs target — i.e.
+# main (for RCs) and each active release-vX.Y branch (for minor/patch).
+on:
+  pull_request:
+    types: [closed]
+
+permissions: {}
+
+jobs:
+  guard-and-tag:
+    # Author check is the primary safeguard: release-prep PRs are only ever opened by the
+    # tempo-ci-app bot (its PRs have user.login 'tempo-ci-app[bot]', confirmed against the
+    # repo's existing bot PRs), and a human/forged PR cannot spoof that login — so a forged
+    # PR is rejected even if correctly named, labeled, and merged. The branch/base checks
+    # below are defense in depth.
+    if: >-
+      github.repository == 'grafana/tempo' &&
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.user.login == 'tempo-ci-app[bot]' &&
+      contains(github.event.pull_request.labels.*.name, 'release-prep')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.guard.outputs.tag }}
+    steps:
+      - name: Verify provenance and parse version
+        id: guard
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          if ! echo "$HEAD_REF" | grep -qE '^release-prep/v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$'; then
+            echo "ERROR: head branch '$HEAD_REF' is not release-prep/vX.Y.Z[-rc.N]"
+            exit 1
+          fi
+          version="${HEAD_REF#release-prep/v}"
+          base="${version%%-*}"
+          minor="${base%.*}"
+          if echo "$version" | grep -q -- '-rc\.'; then
+            # release candidate: must be based on main
+            if [ "$BASE_REF" != "main" ]; then
+              echo "ERROR: RC v${version} must be based on main, got '$BASE_REF'"
+              exit 1
+            fi
+          else
+            # minor / patch: must be based on the matching release branch
+            if [ "release-v${minor}" != "$BASE_REF" ]; then
+              echo "ERROR: v${version} must be based on release-v${minor}, got '$BASE_REF'"
+              exit 1
+            fi
+          fi
+          echo "tag=v${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout merge commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          # Tag the exact PR merge commit, not the branch tip (main moves under RCs).
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+          # persist-credentials defaults true: keep GITHUB_TOKEN for the tag push
+          # so the push: tags triggers in release.yml/docker.yml stay dormant.
+
+      - name: fetch tags
+        run: git fetch --tags --force
+
+      - name: Create and push tag
+        env:
+          TAG: ${{ steps.guard.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "ERROR: tag ${TAG} already exists"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "$TAG"
+          git push origin "$TAG"
+
+  build-release:
+    needs: guard-and-tag
+    permissions:
+      contents: write
+      id-token: write
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.guard-and-tag.outputs.tag }}
+    secrets: inherit
+
+  build-docker:
+    needs: guard-and-tag
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/docker.yml
+    with:
+      tag: ${{ needs.guard-and-tag.outputs.tag }}
+    secrets: inherit
+
+  publish:
+    needs: [guard-and-tag, build-release, build-docker]
+    if: github.repository == 'grafana/tempo'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ needs.guard-and-tag.outputs.tag }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.guard-and-tag.outputs.tag }}
+          persist-credentials: false
+
+      - name: Extract changelog section
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          awk -v tag="# v${version}" '
+            $0 == tag {found=1; next}
+            found && /^# v/ {exit}
+            found {print}
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "ERROR: no CHANGELOG section found for ${TAG}"
+            exit 1
+          fi
+          echo "----- release notes -----"
+          cat release-notes.md
+
+      - name: Publish GitHub Release
+        run: |
+          set -euo pipefail
+          # RC tags publish as a pre-release; final tags as latest. goreleaser's
+          # prerelease: auto already sets the prerelease bit from the tag.
+          flags=(--draft=false)
+          case "$TAG" in
+            *-rc.*) flags+=(--prerelease --latest=false) ;;
+            *)      flags+=(--latest) ;;
+          esac
+          gh release edit "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --notes-file release-notes.md \
+            "${flags[@]}"
