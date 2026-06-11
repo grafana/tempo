@@ -8,8 +8,10 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-var ErrNilTrace = errors.New("trace is nil")
-var ErrUnsupportedFormat = errors.New("unsupported trace diff format")
+var (
+	ErrNilTrace          = errors.New("trace is nil")
+	ErrUnsupportedFormat = errors.New("unsupported trace diff format")
+)
 
 // Diff compares base and compare and returns the requested diff format.
 func Diff(base, compare *tempopb.Trace, format Format) (*Result, error) {
