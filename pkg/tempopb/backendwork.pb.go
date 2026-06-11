@@ -1508,20 +1508,16 @@ func (m *CompactionDetail) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.Input) + c; cap(m.Input) < need {
-				grown := make([]string, len(m.Input), need)
-				copy(grown, m.Input)
-				m.Input = grown
+			if len(m.Input) == 0 && cap(m.Input) < c {
+				m.Input = make([]string, 0, c)
 			}
 		}
 		if c := field2count; c > 0 {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.Output) + c; cap(m.Output) < need {
-				grown := make([]string, len(m.Output), need)
-				copy(grown, m.Output)
-				m.Output = grown
+			if len(m.Output) == 0 && cap(m.Output) < c {
+				m.Output = make([]string, 0, c)
 			}
 		}
 	}
@@ -1791,10 +1787,8 @@ func (m *RedactionDetail) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.TraceIds) + c; cap(m.TraceIds) < need {
-				grown := make([][]byte, len(m.TraceIds), need)
-				copy(grown, m.TraceIds)
-				m.TraceIds = grown
+			if len(m.TraceIds) == 0 && cap(m.TraceIds) < c {
+				m.TraceIds = make([][]byte, 0, c)
 			}
 		}
 	}
@@ -2947,10 +2941,8 @@ func (m *SubmitRedactionRequest) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.TraceIds) + c; cap(m.TraceIds) < need {
-				grown := make([][]byte, len(m.TraceIds), need)
-				copy(grown, m.TraceIds)
-				m.TraceIds = grown
+			if len(m.TraceIds) == 0 && cap(m.TraceIds) < c {
+				m.TraceIds = make([][]byte, 0, c)
 			}
 		}
 	}
@@ -3382,20 +3374,16 @@ func (m *RedactionBatch) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.TraceIds) + c; cap(m.TraceIds) < need {
-				grown := make([][]byte, len(m.TraceIds), need)
-				copy(grown, m.TraceIds)
-				m.TraceIds = grown
+			if len(m.TraceIds) == 0 && cap(m.TraceIds) < c {
+				m.TraceIds = make([][]byte, 0, c)
 			}
 		}
 		if c := field5count; c > 0 {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.SkippedCompactionJobIds) + c; cap(m.SkippedCompactionJobIds) < need {
-				grown := make([]string, len(m.SkippedCompactionJobIds), need)
-				copy(grown, m.SkippedCompactionJobIds)
-				m.SkippedCompactionJobIds = grown
+			if len(m.SkippedCompactionJobIds) == 0 && cap(m.SkippedCompactionJobIds) < c {
+				m.SkippedCompactionJobIds = make([]string, 0, c)
 			}
 		}
 	}
@@ -3753,10 +3741,8 @@ func (m *RedactionBatches) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.Batches) + c; cap(m.Batches) < need {
-				grown := make([]*RedactionBatch, len(m.Batches), need)
-				copy(grown, m.Batches)
-				m.Batches = grown
+			if len(m.Batches) == 0 && cap(m.Batches) < c {
+				m.Batches = make([]*RedactionBatch, 0, c)
 			}
 		}
 	}
