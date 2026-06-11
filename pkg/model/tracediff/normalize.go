@@ -29,7 +29,10 @@ type normalizedSpan struct {
 }
 
 type spanMatchKey struct {
-	path    string
+	logicalPath string
+}
+
+type spanLogicalKey struct {
 	service string
 	name    string
 	kind    string
@@ -65,10 +68,11 @@ func normalizeTrace(trace *tempopb.Trace) normalizedTrace {
 
 	out := normalizedTrace{meta: meta, spans: make([]normalizedSpan, 0, len(spans))}
 	visited := make(map[string]struct{}, len(spans))
+	rootOrdinals := map[spanLogicalKey]int{}
 	// First assign paths from normal roots and orphans.
-	rootIndex := assignPaths(&out, children, children[""], nil, 0, visited)
+	rootIndex := assignPaths(&out, children, children[""], nil, "", rootOrdinals, 0, visited)
 	// Then assign remaining cycle-only/disconnected spans as extra roots.
-	assignPaths(&out, children, spans, nil, rootIndex, visited)
+	assignPaths(&out, children, spans, nil, "", rootOrdinals, rootIndex, visited)
 	return out
 }
 
@@ -93,8 +97,11 @@ func flattenSpans(trace *tempopb.Trace) ([]spanWithResource, TraceMeta) {
 	return spans, meta
 }
 
-func assignPaths(out *normalizedTrace, children map[string][]spanWithResource, spans []spanWithResource, parentPath []int, startIndex int, visited map[string]struct{}) int {
+func assignPaths(out *normalizedTrace, children map[string][]spanWithResource, spans []spanWithResource, parentPath []int, parentMatchPath string, ordinals map[spanLogicalKey]int, startIndex int, visited map[string]struct{}) int {
 	nextIndex := startIndex
+	if ordinals == nil {
+		ordinals = map[spanLogicalKey]int{}
+	}
 	for _, span := range spans {
 		spanID := spanIDKey(span.span.GetSpanId())
 		if _, ok := visited[spanID]; ok {
@@ -106,32 +113,28 @@ func assignPaths(out *normalizedTrace, children map[string][]spanWithResource, s
 		path[len(parentPath)] = nextIndex
 		nextIndex++
 
-		out.spans = append(out.spans, normalizeSpan(span, path))
+		logicalKey := logicalKey(span)
+		ordinal := ordinals[logicalKey]
+		ordinals[logicalKey]++
+		matchPath := appendLogicalPath(parentMatchPath, logicalKey, ordinal)
+
+		out.spans = append(out.spans, normalizeSpan(span, path, logicalKey, matchPath))
 		visited[spanID] = struct{}{}
-		assignPaths(out, children, children[spanID], path, 0, visited)
+		assignPaths(out, children, children[spanID], path, matchPath, nil, 0, visited)
 	}
 	return nextIndex
 }
 
-func normalizeSpan(span spanWithResource, path []int) normalizedSpan {
-	service := attributeString(span.span.GetAttributes(), serviceNameAttribute)
-	if service == "" {
-		service = span.resourceService
-	}
+func normalizeSpan(span spanWithResource, path []int, logicalKey spanLogicalKey, matchPath string) normalizedSpan {
 	ref := SpanRef{
 		Path:    path,
-		Service: service,
-		Name:    span.span.GetName(),
-		Kind:    modeltrace.KindToString(span.span.GetKind()),
+		Service: logicalKey.service,
+		Name:    logicalKey.name,
+		Kind:    logicalKey.kind,
 	}
 	return normalizedSpan{
-		spanID: spanIDKey(span.span.GetSpanId()),
-		matchKey: spanMatchKey{
-			path:    pathKey(path),
-			service: ref.Service,
-			name:    ref.Name,
-			kind:    ref.Kind,
-		},
+		spanID:    spanIDKey(span.span.GetSpanId()),
+		matchKey:  spanMatchKey{logicalPath: matchPath},
 		ref:       ref,
 		spanAttrs: attributesMap(span.span.GetAttributes()),
 		snapshot: SpanSnapshot{
@@ -143,6 +146,39 @@ func normalizeSpan(span spanWithResource, path []int) normalizedSpan {
 			Status:     statusToString(span.span.GetStatus()),
 		},
 	}
+}
+
+func logicalKey(span spanWithResource) spanLogicalKey {
+	service := attributeString(span.span.GetAttributes(), serviceNameAttribute)
+	if service == "" {
+		service = span.resourceService
+	}
+	return spanLogicalKey{
+		service: service,
+		name:    span.span.GetName(),
+		kind:    modeltrace.KindToString(span.span.GetKind()),
+	}
+}
+
+func appendLogicalPath(parent string, key spanLogicalKey, ordinal int) string {
+	var b strings.Builder
+	if parent != "" {
+		b.WriteString(parent)
+		b.WriteByte('/')
+	}
+	writeLogicalPathPart(&b, key.service)
+	writeLogicalPathPart(&b, key.name)
+	writeLogicalPathPart(&b, key.kind)
+	b.WriteByte('#')
+	b.WriteString(strconv.Itoa(ordinal))
+	return b.String()
+}
+
+func writeLogicalPathPart(b *strings.Builder, value string) {
+	b.WriteString(strconv.Itoa(len(value)))
+	b.WriteByte(':')
+	b.WriteString(value)
+	b.WriteByte('|')
 }
 
 func sortSpans(spans []spanWithResource) {
