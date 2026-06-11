@@ -1,6 +1,6 @@
 change_type: enhancement
 component: metrics-generator
 note: Fast-path span filter matching for the default span-kind regex and evaluate intrinsic filters before attribute filters.
-issues: [7124]
+issues: [7465]
 subtext:
 user: carles-grafana
