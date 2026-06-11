@@ -218,3 +218,35 @@ func TestIntrinsicPolicyMatch_Matches(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkIntrinsicFilterMatches(b *testing.B) {
+	span := &tracev1.Span{
+		Kind: tracev1.Span_SPAN_KIND_SERVER,
+		Name: "GET /api/users",
+		Status: &tracev1.Status{
+			Code: tracev1.Status_STATUS_CODE_OK,
+		},
+	}
+
+	// The default service-graphs filter shape: takes the bitmask fast path.
+	b.Run("kind_default_alternation", func(b *testing.B) {
+		f, err := NewRegexpIntrinsicFilter(traceql.IntrinsicKind, "SPAN_KIND_(SERVER|CONSUMER|CLIENT|PRODUCER)")
+		require.NoError(b, err)
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_ = f.Matches(span)
+		}
+	})
+
+	// A custom pattern: falls back to the regexp engine.
+	b.Run("kind_custom_regex", func(b *testing.B) {
+		f, err := NewRegexpIntrinsicFilter(traceql.IntrinsicKind, "SPAN_KIND_(CLIENT|SERVER)")
+		require.NoError(b, err)
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_ = f.Matches(span)
+		}
+	})
+}
