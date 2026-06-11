@@ -1,0 +1,6 @@
+change_type: enhancement
+component: metrics-generator
+note: Reduce per-span overhead in span-metrics and service-graphs processors (precomputed dimension labels, single-pass resource attribute scan, fewer allocations building service-graph keys, in-place expired-span filtering).
+issues: [7124]
+subtext:
+user: carles-grafana
