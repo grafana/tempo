@@ -3,6 +3,7 @@ package distributor
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -951,6 +952,39 @@ func TestRequestsByTraceID(t *testing.T) {
 
 			require.Equal(t, tt.expectedErr, err)
 		})
+	}
+}
+
+func TestRequestsByTraceIDDoesNotPreallocateEachTraceFromTotalSpanCount(t *testing.T) {
+	const spanCount = 1000
+	spans := make([]*v1.Span, 0, spanCount)
+	for i := 0; i < spanCount; i++ {
+		traceID := make([]byte, 16)
+		spanID := make([]byte, 8)
+		binary.BigEndian.PutUint64(traceID[8:], uint64(i+1))
+		binary.BigEndian.PutUint64(spanID, uint64(i+1))
+		spans = append(spans, &v1.Span{
+			TraceId: traceID,
+			SpanId:  spanID,
+		})
+	}
+
+	_, rebatchedTraces, _, _, err := requestsByTraceID([]*v1.ResourceSpans{{
+		ScopeSpans: []*v1.ScopeSpans{{Spans: spans}},
+	}}, "test", spanCount, 1000)
+	require.NoError(t, err)
+	require.Len(t, rebatchedTraces, spanCount)
+
+	// The invariant: per-trace slice capacity must be bounded and must not scale
+	// with the request's total span count, otherwise a high-cardinality request
+	// preallocates too much memory. Without the cap each of the spanCount unique
+	// traces would preallocate spanCount/tracesPerBatch slots.
+	for _, tr := range rebatchedTraces {
+		require.Len(t, tr.trace.ResourceSpans, 1)
+		require.LessOrEqual(t, cap(tr.trace.ResourceSpans), maxPreallocSpansPerTrace)
+		require.Len(t, tr.trace.ResourceSpans[0].ScopeSpans, 1)
+		require.Len(t, tr.trace.ResourceSpans[0].ScopeSpans[0].Spans, 1)
+		require.LessOrEqual(t, cap(tr.trace.ResourceSpans[0].ScopeSpans[0].Spans), maxPreallocSpansPerTrace)
 	}
 }
 

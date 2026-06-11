@@ -294,9 +294,12 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 				switch j.GetType() {
 				case tempopb.JobType_JOB_TYPE_RETENTION:
 					// A redaction may have been submitted after this job was emitted.
-					// Drop and retry to avoid running retention over a mid-redaction tenant.
-					if s.work.HasJobsForTenant(j.Tenant(), tempopb.JobType_JOB_TYPE_REDACTION) {
-						level.Debug(log.Logger).Log("msg", "dropping stale retention job: tenant has pending redaction",
+					// Drop and retry to avoid running retention over a mid-redaction
+					// tenant. Gate on the batch barrier (TenantPending), not just
+					// in-flight redaction jobs, so a batch in its rescan-wait window
+					// (no jobs in flight) still blocks retention.
+					if s.work.TenantPending(j.Tenant()) {
+						level.Debug(log.Logger).Log("msg", "dropping stale retention job: tenant has active redaction batch",
 							"job_id", j.ID, "tenant", j.Tenant())
 						metricJobsDropped.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
 						drop = true

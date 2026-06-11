@@ -73,12 +73,19 @@ func TestRetentionProviderSkipsRedactionPending(t *testing.T) {
 	workCfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 	w := work.New(workCfg)
 
-	// Enqueue a pending redaction job for tenant-a.
+	// Submit a redaction for tenant-a the way production does: a batch plus a
+	// pending redaction job. The batch is what marks the tenant pending.
+	require.NoError(t, w.AddBatch(&tempopb.RedactionBatch{
+		BatchId:  "batch-1",
+		TenantId: "tenant-a",
+		TraceIds: [][]byte{[]byte("trace-1")},
+	}))
 	err := w.AddPendingJobs([]*work.Job{{
 		ID:   "redact-1",
 		Type: tempopb.JobType_JOB_TYPE_REDACTION,
 		JobDetail: tempopb.JobDetail{
 			Tenant:    "tenant-a",
+			BatchId:   "batch-1",
 			Redaction: &tempopb.RedactionDetail{BlockId: "block-1"},
 		},
 	}})
@@ -144,4 +151,53 @@ func TestRetentionProviderRolloutCompat(t *testing.T) {
 
 	// No per-tenant jobs should be emitted while a global job is in flight.
 	require.Empty(t, receivedJobs, "no jobs should be emitted while a global retention job is running")
+}
+
+// TestRetentionProviderGatesOnActiveBatch covers the rescan-wait window: a
+// redaction batch is active (TenantPending true) but no redaction jobs are in
+// flight, so HasJobsForTenant(REDACTION) is false. Retention must still skip the
+// tenant — otherwise it can compact-out a skipped block before the rescan covers
+// it.
+func TestRetentionProviderGatesOnActiveBatch(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	cfg := RetentionConfig{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	cfg.Interval = 10 * time.Millisecond
+
+	workCfg := work.Config{}
+	workCfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	w := work.New(workCfg)
+
+	// Active redaction batch for tenant-a in its rescan-wait window: the batch
+	// exists with a pending rescan, but there are NO redaction jobs in flight.
+	require.NoError(t, w.AddBatch(&tempopb.RedactionBatch{
+		BatchId:                 "batch-1",
+		TenantId:                "tenant-a",
+		TraceIds:                [][]byte{[]byte("trace-1")},
+		SkippedCompactionJobIds: []string{"comp-1"},
+		RescanAfterUnixNano:     time.Now().Add(time.Hour).UnixNano(),
+	}))
+	require.True(t, w.TenantPending("tenant-a"))
+	require.False(t, w.HasJobsForTenant("tenant-a", tempopb.JobType_JOB_TYPE_REDACTION),
+		"precondition: no redaction jobs in flight during the rescan-wait window")
+
+	tenants := &staticTenantLister{tenants: []string{"tenant-a", "tenant-b"}}
+	logger := log.NewLogfmtLogger(os.Stderr)
+
+	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.NewRegistry())
+	require.NoError(t, err)
+	p := NewRetentionProvider(cfg, logger, tenants, limits, w)
+	jobChan := p.Start(ctx)
+
+	seen := make(map[string]bool)
+	for job := range jobChan {
+		seen[job.Tenant()] = true
+		require.NoError(t, w.AddJob(job))
+		job.Start()
+	}
+
+	require.False(t, seen["tenant-a"], "retention must be skipped while a redaction batch is active")
+	require.True(t, seen["tenant-b"], "retention must still run for tenants without an active batch")
 }

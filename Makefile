@@ -394,15 +394,15 @@ update-mod: tools-update-mod ## Update module
 
 ### Release (intended to be used in the .github/workflows/release.yml)
 $(GORELEASER):
-	go install github.com/goreleaser/goreleaser@v1.25.1
+	go install github.com/goreleaser/goreleaser/v2@v2.16.0
 
 .PHONY: release
 release: $(GORELEASER)  ## Release 
-	$(GORELEASER) release --rm-dist 
+	$(GORELEASER) release --clean
 
 .PHONY: release-snapshot
 release-snapshot: $(GORELEASER) ## Release snapshot
-	$(GORELEASER) release --skip-validate --rm-dist --snapshot
+	$(GORELEASER) release --skip=validate --clean --snapshot
 
 ##@ Docs
 .PHONY: docs

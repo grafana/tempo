@@ -1,5 +1,9 @@
 <!-- next version -->
 
+# v3.0.2
+
+* [CHANGE] Upgrade Tempo to Go 1.26.3 [#7423](https://github.com/grafana/tempo/pull/7423) (@ie-pham)
+
 # v3.0.0
 
 * [CHANGE] **BREAKING CHANGE** Recent data queries guarantee complete results by failing when an instance is lagging. Defaults `query_frontend.query_end_cutoff` to `30s` and `live_store.fail_on_high_lag` to `true`. [#7210](https://github.com/grafana/tempo/pull/7210) (@mapno)
@@ -138,6 +142,19 @@
 * [CHANGE] **BREAKING CHANGE** Sets the `all` target to be 3.0 compatible and removes the `scalable-single-binary` target [#6283](https://github.com/grafana/tempo/pull/6283) (@joe-elliott)
 * [CHANGE] **BREAKING CHANGE** Clean up enterprise jsonnet [#6505](https://github.com/grafana/tempo/pull/6505) (@javiermolinar)
 * [CHANGE] Expose otlp http and grpc ports for Docker examples [#6296](https://github.com/grafana/tempo/pull/6296) (@javiermolinar)
+
+# v2.10.6
+
+* [CHANGE] **BREAKING CHANGE** Remove Opencensus receiver [#7322](https://github.com/grafana/tempo/pull/7322) (@zhxiaogg)
+* [CHANGE] Upgrade Tempo to Go 1.26.3 [#7422](https://github.com/grafana/tempo/pull/7422) (@ie-pham)
+* [CHANGE] Update Prometheus to v0.311.3 and OpenTelemetry Collector dependencies to v1.52, along with related transitive dependencies (dskit and others) [#7298](https://github.com/grafana/tempo/pull/7298) (@zhxiaogg)
+* [SECURITY] Update github.com/apache/thrift to v0.23.0 to pick up upstream security fixes [#7120](https://github.com/grafana/tempo/pull/7120) (@renovate)
+* [SECURITY] Update golang.org/x/crypto to v0.52.0 to pick up upstream security fixes [#7262](https://github.com/grafana/tempo/pull/7262) (@renovate)
+* [SECURITY] Update golang.org/x/net to v0.55.0 to pick up upstream security fixes [#7129](https://github.com/grafana/tempo/pull/7129) [#7263](https://github.com/grafana/tempo/pull/7263) (@renovate)
+
+# v2.10.5
+
+* [CHANGE] Upgrade Tempo to Go 1.26.2 [#7040](https://github.com/grafana/tempo/pull/7040) (@ie-pham)
 
 # v2.10.4
 
