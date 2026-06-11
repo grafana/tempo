@@ -157,12 +157,6 @@ func (a *MetricsAggregate) extractConditions(request *FetchSpansRequest) {
 		})
 	}
 
-	if a.extrapolate && !request.HasAttribute(IntrinsicSpanMultiplierAttribute) {
-		request.SecondPassConditions = append(request.SecondPassConditions, Condition{
-			Attribute: IntrinsicSpanMultiplierAttribute,
-		})
-	}
-
 	for _, b := range a.by {
 		// In the case of the AllConditions, it is enough to check that the
 		// attribute is present in any of the passes.
