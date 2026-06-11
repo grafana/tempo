@@ -191,11 +191,11 @@ func (m *BlockMeta) GetReplicationFactor() uint32 {
 	return 0
 }
 
-func (m *CompactedBlockMeta) GetBlockMeta() *BlockMeta {
+func (m *CompactedBlockMeta) GetBlockMeta() BlockMeta {
 	if m != nil {
-		return &m.BlockMeta
+		return m.BlockMeta
 	}
-	return nil
+	return BlockMeta{}
 }
 
 func (m *CompactedBlockMeta) GetCompactedTime() time.Time {
@@ -1372,20 +1372,20 @@ func (m *TenantIndex) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if cap(m.Meta) < c {
-				m.Meta = make([]*BlockMeta, 0, c)
-			} else {
-				m.Meta = m.Meta[:0]
+			if need := len(m.Meta) + c; cap(m.Meta) < need {
+				grown := make([]*BlockMeta, len(m.Meta), need)
+				copy(grown, m.Meta)
+				m.Meta = grown
 			}
 		}
 		if c := field3count; c > 0 {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if cap(m.CompactedMeta) < c {
-				m.CompactedMeta = make([]*CompactedBlockMeta, 0, c)
-			} else {
-				m.CompactedMeta = m.CompactedMeta[:0]
+			if need := len(m.CompactedMeta) + c; cap(m.CompactedMeta) < need {
+				grown := make([]*CompactedBlockMeta, len(m.CompactedMeta), need)
+				copy(grown, m.CompactedMeta)
+				m.CompactedMeta = grown
 			}
 		}
 	}

@@ -546,10 +546,10 @@ func (m *FrontendToClient) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if cap(m.HttpRequestBatch) < c {
-				m.HttpRequestBatch = make([]HTTPRequestEnvelope, 0, c)
-			} else {
-				m.HttpRequestBatch = m.HttpRequestBatch[:0]
+			if need := len(m.HttpRequestBatch) + c; cap(m.HttpRequestBatch) < need {
+				grown := make([]HTTPRequestEnvelope, len(m.HttpRequestBatch), need)
+				copy(grown, m.HttpRequestBatch)
+				m.HttpRequestBatch = grown
 			}
 		}
 	}
@@ -795,10 +795,10 @@ func (m *ClientToFrontend) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if cap(m.HttpResponseBatch) < c {
-				m.HttpResponseBatch = make([]HTTPResponseEnvelope, 0, c)
-			} else {
-				m.HttpResponseBatch = m.HttpResponseBatch[:0]
+			if need := len(m.HttpResponseBatch) + c; cap(m.HttpResponseBatch) < need {
+				grown := make([]HTTPResponseEnvelope, len(m.HttpResponseBatch), need)
+				copy(grown, m.HttpResponseBatch)
+				m.HttpResponseBatch = grown
 			}
 		}
 	}

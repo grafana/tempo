@@ -1073,10 +1073,10 @@ func (m *ArrayValue) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if cap(m.Values) < c {
-				m.Values = make([]*AnyValue, 0, c)
-			} else {
-				m.Values = m.Values[:0]
+			if need := len(m.Values) + c; cap(m.Values) < need {
+				grown := make([]*AnyValue, len(m.Values), need)
+				copy(grown, m.Values)
+				m.Values = grown
 			}
 		}
 	}
@@ -1246,10 +1246,10 @@ func (m *KeyValueList) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if cap(m.Values) < c {
-				m.Values = make([]*KeyValue, 0, c)
-			} else {
-				m.Values = m.Values[:0]
+			if need := len(m.Values) + c; cap(m.Values) < need {
+				grown := make([]*KeyValue, len(m.Values), need)
+				copy(grown, m.Values)
+				m.Values = grown
 			}
 		}
 	}
@@ -1572,10 +1572,10 @@ func (m *InstrumentationScope) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if cap(m.Attributes) < c {
-				m.Attributes = make([]*KeyValue, 0, c)
-			} else {
-				m.Attributes = m.Attributes[:0]
+			if need := len(m.Attributes) + c; cap(m.Attributes) < need {
+				grown := make([]*KeyValue, len(m.Attributes), need)
+				copy(grown, m.Attributes)
+				m.Attributes = grown
 			}
 		}
 	}

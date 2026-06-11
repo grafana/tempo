@@ -436,11 +436,11 @@ func (m *NextJobResponse) GetType() JobType {
 	return 0
 }
 
-func (m *NextJobResponse) GetDetail() *JobDetail {
+func (m *NextJobResponse) GetDetail() JobDetail {
 	if m != nil {
-		return &m.Detail
+		return m.Detail
 	}
-	return nil
+	return JobDetail{}
 }
 
 func (m *UpdateJobStatusRequest) GetJobId() string {
@@ -1508,20 +1508,20 @@ func (m *CompactionDetail) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if cap(m.Input) < c {
-				m.Input = make([]string, 0, c)
-			} else {
-				m.Input = m.Input[:0]
+			if need := len(m.Input) + c; cap(m.Input) < need {
+				grown := make([]string, len(m.Input), need)
+				copy(grown, m.Input)
+				m.Input = grown
 			}
 		}
 		if c := field2count; c > 0 {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if cap(m.Output) < c {
-				m.Output = make([]string, 0, c)
-			} else {
-				m.Output = m.Output[:0]
+			if need := len(m.Output) + c; cap(m.Output) < need {
+				grown := make([]string, len(m.Output), need)
+				copy(grown, m.Output)
+				m.Output = grown
 			}
 		}
 	}
@@ -1791,10 +1791,10 @@ func (m *RedactionDetail) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if cap(m.TraceIds) < c {
-				m.TraceIds = make([][]byte, 0, c)
-			} else {
-				m.TraceIds = m.TraceIds[:0]
+			if need := len(m.TraceIds) + c; cap(m.TraceIds) < need {
+				grown := make([][]byte, len(m.TraceIds), need)
+				copy(grown, m.TraceIds)
+				m.TraceIds = grown
 			}
 		}
 	}
@@ -2947,10 +2947,10 @@ func (m *SubmitRedactionRequest) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if cap(m.TraceIds) < c {
-				m.TraceIds = make([][]byte, 0, c)
-			} else {
-				m.TraceIds = m.TraceIds[:0]
+			if need := len(m.TraceIds) + c; cap(m.TraceIds) < need {
+				grown := make([][]byte, len(m.TraceIds), need)
+				copy(grown, m.TraceIds)
+				m.TraceIds = grown
 			}
 		}
 	}
@@ -3382,20 +3382,20 @@ func (m *RedactionBatch) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if cap(m.TraceIds) < c {
-				m.TraceIds = make([][]byte, 0, c)
-			} else {
-				m.TraceIds = m.TraceIds[:0]
+			if need := len(m.TraceIds) + c; cap(m.TraceIds) < need {
+				grown := make([][]byte, len(m.TraceIds), need)
+				copy(grown, m.TraceIds)
+				m.TraceIds = grown
 			}
 		}
 		if c := field5count; c > 0 {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if cap(m.SkippedCompactionJobIds) < c {
-				m.SkippedCompactionJobIds = make([]string, 0, c)
-			} else {
-				m.SkippedCompactionJobIds = m.SkippedCompactionJobIds[:0]
+			if need := len(m.SkippedCompactionJobIds) + c; cap(m.SkippedCompactionJobIds) < need {
+				grown := make([]string, len(m.SkippedCompactionJobIds), need)
+				copy(grown, m.SkippedCompactionJobIds)
+				m.SkippedCompactionJobIds = grown
 			}
 		}
 	}
@@ -3753,10 +3753,10 @@ func (m *RedactionBatches) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if cap(m.Batches) < c {
-				m.Batches = make([]*RedactionBatch, 0, c)
-			} else {
-				m.Batches = m.Batches[:0]
+			if need := len(m.Batches) + c; cap(m.Batches) < need {
+				grown := make([]*RedactionBatch, len(m.Batches), need)
+				copy(grown, m.Batches)
+				m.Batches = grown
 			}
 		}
 	}
