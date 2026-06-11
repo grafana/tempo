@@ -95,3 +95,70 @@ In [GitHub Releases](https://github.com/grafana/tempo/releases) there should be 
 
 ## 8. Submit a changelog PR to main
 Submit a PR to `main` adding the new version's section to `CHANGELOG.md` so the released notes are reflected on `main`. Either cherry-pick the changelog commit from the release branch (step 3), or run `make chlog-update VERSION=vX.Y.Z` against the corresponding `.chloggen/` entries on `main`.
+
+# Automated Releases (experimental)
+
+> **Status:** new and not yet verified end to end. The manual procedures above remain the
+> source of truth until this flow has been proven on a real release. Both can coexist.
+
+This flow drives release candidates, minor releases, and patch releases with two GitHub
+Actions workflows that reuse the existing `release.yml` and `docker.yml` build pipelines:
+
+- **`release-prep`** (`workflow_dispatch`) — prepares the changelog and (for non-RC
+  releases) the image-tag bump, then opens a labeled `release-prep` PR.
+- **`release-tag`** (triggered when that PR is merged) — tags the merge commit, builds
+  binaries and multi-arch images, then publishes the GitHub Release.
+
+The release type is detected from the version string passed to `release-prep`:
+
+| Version input | Type | Base branch | Image-tag bump | Published as |
+|---------------|------|-------------|----------------|--------------|
+| `X.Y.Z-rc.N`  | Release candidate | `main` | no | pre-release |
+| `X.Y.0`       | Minor | `release-vX.Y` | yes | latest |
+| `X.Y.Z` (Z>0) | Patch | `release-vX.Y` | yes | latest |
+
+> **Prerequisite:** because `pull_request` workflows run from the **base branch's** copy of
+> the workflow file, `release-tag.yml` (plus the reusable `release.yml`/`docker.yml` and the
+> portable `bump-tempo-image-tag` Makefile target) must exist on every branch that
+> `release-prep` PRs target: `main` (for RCs) and each active `release-vX.Y` branch (for
+> minor/patch). Backport these to active release branches before using the flow there.
+
+## Steps
+
+1. **Run `release-prep`.** Actions → `release-prep` → Run workflow, enter the version (no
+   leading `v`, e.g. `3.1.0-rc.0`, `3.1.0`, or `3.0.3`). It validates the version, collates
+   pending `.chloggen/` entries into `CHANGELOG.md`, bumps the image tag + regenerates
+   jsonnet for non-RC releases, and opens a `release-prep` PR against the correct base
+   branch. The `validate_only` option dry-runs the checks without opening a PR.
+2. **Review and merge the prep PR.** Merging is the human gate. **Merging auto-tags and
+   publishes** — only merge when you intend to release.
+3. **`release-tag` takes over** (triggered by the merge): it verifies the PR is a genuine
+   release-prep PR (see Security below), tags the merge commit, builds binaries and
+   multi-arch images, then un-drafts and publishes the GitHub Release — `--latest` for
+   minor/patch, `--prerelease` for RCs — using the `CHANGELOG.md` section.
+4. **Verify** the `release-tag` run succeeded and the images appear in GAR, then on Docker
+   Hub after the mirror catches up.
+
+## Security
+
+`release-tag` triggers on any merged PR, so before tagging it verifies the PR is a genuine,
+bot-generated release-prep PR and aborts otherwise:
+
+- the PR was authored by the `tempo-ci-app` bot (a human cannot open a PR as the bot, so a
+  forged PR is rejected even if it is correctly named, labeled, and merged);
+- the `release-prep` label is present;
+- the head branch matches `release-prep/vX.Y.Z[-rc.N]`;
+- the base branch matches the release type (`main` for RCs, `release-vX.Y` otherwise).
+
+The workflow that runs is always the base branch's copy of `release-tag.yml`, so the guard
+cannot be weakened from within a PR.
+
+## Steps that remain manual
+
+- **Minor release changelog consolidation.** A minor (`X.Y.0`) is preceded by RCs whose
+  `chlog-update` already consumed the `.chloggen/` entries, so there are usually none left
+  to collate. Before running `release-prep` for the minor, rename the `# vX.Y.0-rc.N`
+  heading(s) in `CHANGELOG.md` on the release branch to `# vX.Y.0`. `release-prep` verifies
+  that section exists and fails with guidance if it doesn't.
+- Release notes documentation, helm-chart PRs, and the changelog PR back to `main` (see the
+  manual sections above).
