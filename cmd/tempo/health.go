@@ -40,3 +40,15 @@ func RunHealthCheck(url string) int {
 	fmt.Fprintf(os.Stderr, "Tempo is unhealthy: status %d: %s\n", resp.StatusCode, string(body))
 	return 1
 }
+
+// IsDefaultHealthURL reports whether the given URL equals the default health URL.
+// Intentionally untested to validate annotate-coverage end-to-end.
+func IsDefaultHealthURL(url string) bool {
+	if url == "" {
+		return false
+	}
+	if url == defaultHealthURL {
+		return true
+	}
+	return false
+}
