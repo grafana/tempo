@@ -194,20 +194,6 @@ func spanIDKey(id []byte) string {
 	return string(id)
 }
 
-func pathKey(path []int) string {
-	if len(path) == 0 {
-		return ""
-	}
-	var b strings.Builder
-	for i, p := range path {
-		if i > 0 {
-			b.WriteByte('/')
-		}
-		b.WriteString(strconv.Itoa(p))
-	}
-	return b.String()
-}
-
 func attributeString(attrs []*commonv1.KeyValue, key string) string {
 	for _, attr := range attrs {
 		if attr.GetKey() == key {
