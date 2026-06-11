@@ -372,6 +372,66 @@ func BenchmarkStoreUpsertEdge(b *testing.B) {
 	}
 }
 
+func TestStoreUpsertEdgeFromBytesWith_StackKey(t *testing.T) {
+	// Trace+span IDs with hex(16)+'-'+hex(16) = 33 bytes — fits in the 64-byte
+	// stack buffer fast path. Verify the typed-state callback runs and the
+	// edge pairs correctly across two calls (client then server).
+	type clientState struct{ svc string }
+
+	storeInterface := NewStore(time.Hour, 1, noopCallback, noopCallback, newTestCounter())
+	s := storeInterface.(*store)
+
+	traceID := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}
+	spanID := []byte{0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa8}
+
+	isNew, err := UpsertEdgeFromBytesWith(s, traceID, spanID, Client, clientState{svc: clientService}, func(e *Edge, st clientState) {
+		e.ClientService = st.svc
+	})
+	require.NoError(t, err)
+	require.True(t, isNew)
+	assert.Equal(t, 1, s.len())
+
+	type serverState struct{ svc string }
+	isNew, err = UpsertEdgeFromBytesWith(s, traceID, spanID, Server, serverState{svc: "server"}, func(e *Edge, st serverState) {
+		assert.Equal(t, clientService, e.ClientService)
+		e.ServerService = st.svc
+	})
+	require.NoError(t, err)
+	require.False(t, isNew)
+	// Edge completed and removed.
+	assert.Equal(t, 0, s.len())
+}
+
+func TestStoreUpsertEdgeFromBytesWith_HeapFallback(t *testing.T) {
+	// IDs whose hex+'-'+hex exceeds 64 bytes force the heap fallback at
+	// store.go:165. Use 33-byte IDs so encodedKeyLen = 66+1+66 = 133 > 64.
+	storeInterface := NewStore(time.Hour, 1, noopCallback, noopCallback, newTestCounter())
+	s := storeInterface.(*store)
+
+	bigTraceID := make([]byte, 33)
+	bigSpanID := make([]byte, 33)
+	for i := range bigTraceID {
+		bigTraceID[i] = byte(i + 1)
+		bigSpanID[i] = byte(i + 100)
+	}
+
+	isNew, err := UpsertEdgeFromBytesWith(s, bigTraceID, bigSpanID, Client, struct{}{}, func(e *Edge, _ struct{}) {
+		e.ClientService = clientService
+	})
+	require.NoError(t, err)
+	require.True(t, isNew)
+	assert.Equal(t, 1, s.len())
+
+	// Same key on the heap path must hit the existing edge.
+	isNew, err = UpsertEdgeFromBytesWith(s, bigTraceID, bigSpanID, Server, struct{}{}, func(e *Edge, _ struct{}) {
+		assert.Equal(t, clientService, e.ClientService)
+		e.ServerService = "server"
+	})
+	require.NoError(t, err)
+	require.False(t, isNew)
+	assert.Equal(t, 0, s.len())
+}
+
 func noopCallback(_ *Edge) {
 }
 
@@ -429,4 +489,117 @@ func TestResetEdge(t *testing.T) {
 	originalPtr := reflect.ValueOf(dimensions).Pointer()
 	newPtr := reflect.ValueOf(e.Dimensions).Pointer()
 	assert.Equal(t, originalPtr, newPtr, "Dimensions map should be the exact same instance, not reallocated")
+}
+
+func TestStoreUpsertEdgeFromBytesWith_droppedCounterpart(t *testing.T) {
+	// The stack-key fast path must find a dropped counterpart that was
+	// recorded under a heap-allocated key (as addDroppedSpanSide does).
+	storeInterface := NewStore(time.Hour, 10, noopCallback, noopCallback, newTestCounter())
+	s := storeInterface.(*store)
+
+	traceID := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}
+	spanID := []byte{0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa8}
+
+	s.AddDroppedSpanSide(encodeKey(traceID, spanID), Server)
+
+	isNew, err := UpsertEdgeFromBytesWith(s, traceID, spanID, Client, struct{}{}, func(e *Edge, _ struct{}) {
+		e.ClientService = clientService
+	})
+	require.ErrorIs(t, err, ErrDroppedSpanSide)
+	assert.True(t, isNew)
+	assert.Equal(t, 0, s.len())
+}
+
+func TestStoreUpsertEdgeFromBytesWith_pooledEdgeReuseDoesNotAliasKeys(t *testing.T) {
+	// Edges keep their key aliased over a reusable keyBuf that survives pool
+	// recycling. Expire an edge so its pooled Edge (including keyBuf) can be
+	// reused for a different key, then verify map lookups never alias the old
+	// key. The pool does not guarantee reuse, but when it happens this test
+	// exercises the overwrite path.
+	var expired int
+	storeInterface := NewStore(time.Hour, 10, noopCallback, countingCallback(&expired), newTestCounter())
+	s := storeInterface.(*store)
+
+	traceA := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}
+	spanA := []byte{0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa8}
+	traceB := []byte{0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20}
+	spanB := []byte{0xb1, 0xb2, 0xb3, 0xb4, 0xb5, 0xb6, 0xb7, 0xb8}
+
+	// Create edge A and expire it so its pooled Edge is recycled.
+	isNew, err := UpsertEdgeFromBytesWith(s, traceA, spanA, Client, struct{}{}, func(e *Edge, _ struct{}) {
+		e.ClientService = clientService
+		e.expiration = 0
+	})
+	require.NoError(t, err)
+	require.True(t, isNew)
+	require.True(t, s.tryEvictHead())
+	require.Equal(t, 1, expired)
+	require.Equal(t, 0, s.len())
+
+	// Insert edge B, which may reuse the recycled Edge and overwrite its keyBuf.
+	isNew, err = UpsertEdgeFromBytesWith(s, traceB, spanB, Client, struct{}{}, func(e *Edge, _ struct{}) {
+		e.ClientService = clientService
+	})
+	require.NoError(t, err)
+	require.True(t, isNew)
+
+	// B must be addressable under its own key; A's old key must be gone.
+	_, foundB := s.m[encodeKey(traceB, spanB)]
+	assert.True(t, foundB)
+	_, foundA := s.m[encodeKey(traceA, spanA)]
+	assert.False(t, foundA)
+
+	// Re-inserting A must create a fresh edge, not resurrect stale state.
+	isNew, err = UpsertEdgeFromBytesWith(s, traceA, spanA, Client, struct{}{}, func(e *Edge, _ struct{}) {
+		assert.Empty(t, e.ClientService)
+		e.ClientService = clientService
+	})
+	require.NoError(t, err)
+	require.True(t, isNew)
+	assert.Equal(t, 2, s.len())
+
+	// Pair both edges to completion to prove lookups keep working after reuse.
+	for _, ids := range [][2][]byte{{traceA, spanA}, {traceB, spanB}} {
+		isNew, err = UpsertEdgeFromBytesWith(s, ids[0], ids[1], Server, struct{}{}, func(e *Edge, _ struct{}) {
+			assert.Equal(t, clientService, e.ClientService)
+			e.ServerService = "server"
+		})
+		require.NoError(t, err)
+		require.False(t, isNew)
+	}
+	assert.Equal(t, 0, s.len())
+}
+
+func TestSetEdgeKeyFromBytes_reuseOverwritesPreviousKey(t *testing.T) {
+	// Deterministic version of the pooled-reuse scenario: when the same Edge
+	// (and its keyBuf) is reused for a different key, the encoded key must
+	// fully replace the previous contents, for shorter, equal, and longer keys.
+	e := &Edge{Dimensions: map[string]string{}}
+
+	traceA := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}
+	spanA := []byte{0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa8}
+	setEdgeKeyFromBytes(e, traceA, spanA)
+	require.Equal(t, encodeKey(traceA, spanA), e.Key())
+	bufA := &e.keyBuf[0]
+
+	// Shorter key: the buffer is reused in place and the key must not retain
+	// any trailing bytes of the previous key.
+	resetEdge(e)
+	traceShort := []byte{0x11}
+	spanShort := []byte{0x22}
+	setEdgeKeyFromBytes(e, traceShort, spanShort)
+	assert.Equal(t, encodeKey(traceShort, spanShort), e.Key())
+	assert.Same(t, bufA, &e.keyBuf[0], "shorter key should reuse the existing buffer")
+
+	// Longer key than current capacity: the buffer must grow and still encode
+	// the full key.
+	resetEdge(e)
+	traceLong := make([]byte, 32)
+	spanLong := make([]byte, 32)
+	for i := range traceLong {
+		traceLong[i] = byte(i + 1)
+		spanLong[i] = byte(i + 101)
+	}
+	setEdgeKeyFromBytes(e, traceLong, spanLong)
+	assert.Equal(t, encodeKey(traceLong, spanLong), e.Key())
 }
