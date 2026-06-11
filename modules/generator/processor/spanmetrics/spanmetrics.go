@@ -2,7 +2,6 @@ package spanmetrics
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/grafana/tempo/modules/generator/validation"
@@ -194,16 +193,20 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 	}
 
 	for i, m := range p.Cfg.DimensionMappings {
-		var values strings.Builder
+		// Plain concatenation is intentional: source-label lists are typically
+		// 1-3 entries, where strings.Builder's growth allocations measurably
+		// cost more than the at-most-one concat allocation per extra source.
+		values := ""
 		for _, s := range m.SourceLabel {
 			if value, _ := processor_util.FindAttributeValue(s, rs.Attributes, span.Attributes); value != "" {
-				if values.Len() > 0 {
-					values.WriteString(m.Join)
+				if values == "" {
+					values = value
+				} else {
+					values = values + m.Join + value
 				}
-				values.WriteString(value)
 			}
 		}
-		builder.Add(p.dimensionMappingLabels[i], values.String())
+		builder.Add(p.dimensionMappingLabels[i], values)
 	}
 
 	// add job label only if job is not blank and target_info is enabled

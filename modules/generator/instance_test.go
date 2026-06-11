@@ -139,6 +139,84 @@ tempo_metrics_generator_metrics_generation_skipped_processor_pushes_total{tenant
 	})
 }
 
+// Test_instance_preprocessSpans covers the in-place ingestion-slack filtering:
+// spans outside the slack window are dropped by compacting each span slice in
+// place, the stale tail is nil-cleared so dropped spans are not retained, and
+// the discarded-spans counter is incremented.
+func Test_instance_preprocessSpans(t *testing.T) {
+	const tenantID = "preprocess-spans-test"
+
+	inst := &instance{instanceID: tenantID}
+	inst.ingestionSlackOverride.Store((30 * time.Second).Nanoseconds())
+
+	makeSpan := func(name string, end time.Time) *v1.Span {
+		return &v1.Span{Name: name, EndTimeUnixNano: uint64(end.UnixNano())}
+	}
+
+	now := time.Now()
+	keepA1 := makeSpan("keep-a1", now)
+	dropA2 := makeSpan("drop-a2", now.Add(-time.Hour)) // too far in the past
+	keepA3 := makeSpan("keep-a3", now)
+	dropA4 := makeSpan("drop-a4", now.Add(time.Hour)) // too far in the future
+	dropB1 := makeSpan("drop-b1", now.Add(-time.Hour))
+	dropB2 := makeSpan("drop-b2", now.Add(time.Hour))
+	keepC1 := makeSpan("keep-c1", now)
+	keepC2 := makeSpan("keep-c2", now)
+
+	scopeMixed := &v1.ScopeSpans{Spans: []*v1.Span{keepA1, dropA2, keepA3, dropA4}}
+	scopeAllDropped := &v1.ScopeSpans{Spans: []*v1.Span{dropB1, dropB2}}
+	scopeAllKept := &v1.ScopeSpans{Spans: []*v1.Span{keepC1, keepC2}}
+	scopeEmpty := &v1.ScopeSpans{}
+
+	req := &tempopb.PushSpansRequest{Batches: []*v1.ResourceSpans{
+		{ScopeSpans: []*v1.ScopeSpans{scopeMixed, scopeAllDropped}},
+		{ScopeSpans: []*v1.ScopeSpans{scopeAllKept, scopeEmpty}},
+	}}
+
+	// Keep the original slice headers to verify in-place compaction and the
+	// nil-cleared tails afterwards.
+	originalMixed := scopeMixed.Spans
+	originalAllDropped := scopeAllDropped.Spans
+
+	discarded := metricSpansDiscarded.WithLabelValues(tenantID, reasonOutsideTimeRangeSlack, "all")
+	received := metricSpansIngested.WithLabelValues(tenantID)
+	discardedBefore := testutil.ToFloat64(discarded)
+	receivedBefore := testutil.ToFloat64(received)
+
+	inst.preprocessSpans(req)
+
+	// Mixed scope: survivors compacted in place, order preserved, tail nil-cleared.
+	require.Len(t, scopeMixed.Spans, 2)
+	require.Same(t, keepA1, scopeMixed.Spans[0])
+	require.Same(t, keepA3, scopeMixed.Spans[1])
+	require.Same(t, &originalMixed[0], &scopeMixed.Spans[0], "filtering must reuse the original backing array")
+	require.Nil(t, originalMixed[2], "dropped tail must be nil-cleared to release span pointers")
+	require.Nil(t, originalMixed[3], "dropped tail must be nil-cleared to release span pointers")
+
+	// All dropped: empty result, fully nil-cleared backing array.
+	require.Empty(t, scopeAllDropped.Spans)
+	require.Nil(t, originalAllDropped[0])
+	require.Nil(t, originalAllDropped[1])
+
+	// All kept: untouched.
+	require.Len(t, scopeAllKept.Spans, 2)
+	require.Same(t, keepC1, scopeAllKept.Spans[0])
+	require.Same(t, keepC2, scopeAllKept.Spans[1])
+
+	require.Equal(t, float64(4), testutil.ToFloat64(discarded)-discardedBefore, "4 spans outside the slack window")
+	require.Equal(t, float64(8), testutil.ToFloat64(received)-receivedBefore, "all 8 spans count as received")
+
+	// Re-pushing the already-filtered request drops nothing further.
+	inst.preprocessSpans(req)
+	require.Len(t, scopeMixed.Spans, 2)
+	require.Empty(t, scopeAllDropped.Spans)
+	require.Len(t, scopeAllKept.Spans, 2)
+	require.Equal(t, float64(4), testutil.ToFloat64(discarded)-discardedBefore)
+
+	// An empty request is a no-op.
+	require.NotPanics(t, func() { inst.preprocessSpans(&tempopb.PushSpansRequest{}) })
+}
+
 func Test_instance_updateProcessors(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
