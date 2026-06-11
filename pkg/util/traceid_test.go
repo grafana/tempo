@@ -426,3 +426,22 @@ func TestHexStringToSpanID(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkTraceIDToHexString(b *testing.B) {
+	fullID := []byte{0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef}
+	paddedID := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef}
+
+	b.Run("128bit", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			_ = TraceIDToHexString(fullID)
+		}
+	})
+
+	b.Run("64bit_padded", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			_ = TraceIDToHexString(paddedID)
+		}
+	})
+}
