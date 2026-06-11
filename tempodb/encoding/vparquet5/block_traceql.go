@@ -55,7 +55,6 @@ type span struct {
 	id                 []byte
 	startTimeUnixNanos uint64
 	durationNanos      uint64
-	spanMultiplier     float64 // sampling extrapolation (1.0 default); populated from TraceState column when requested
 	nestedSetParent    int32
 	nestedSetLeft      int32
 	nestedSetRight     int32
@@ -229,9 +228,6 @@ func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 		}
 		if a.Intrinsic == traceql.IntrinsicNestedSetParent {
 			return traceql.NewStaticInt(int(s.nestedSetParent)), true
-		}
-		if a.Intrinsic == traceql.IntrinsicSpanMultiplier {
-			return traceql.NewStaticFloat(s.spanMultiplier), true
 		}
 
 		// intrinsics are always on the span, trace, event, or link ... for now
@@ -920,7 +916,6 @@ func putSpan(s *span) {
 	s.id = nil
 	s.startTimeUnixNanos = 0
 	s.durationNanos = 0
-	s.spanMultiplier = 0
 	s.rowNum = parquetquery.EmptyRowNumber()
 	s.cbSpansetFinal = false
 	s.cbSpanset = nil
@@ -3297,15 +3292,15 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		case columnPathSpanChildCount:
 			sp.addSpanAttr(traceql.IntrinsicChildCountAttribute, traceql.NewStaticInt(int(kv.Value.Int32())))
 		case columnPathSpanTraceState:
-			// Parse OTel probability sampling threshold once per span. Falls
-			// back to 1.0 when the tracestate is absent or unparseable. We
-			// also surface it as a span attribute so attributesMatched()
-			// counts it toward the spanCollector's minAttributes threshold.
+			// Parse OTel probability sampling threshold once per span. Surface
+			// as a span attribute (falling back to 1.0 when the tracestate is
+			// absent or unparseable) — the engine reads it via AttributeFor,
+			// and it also counts toward attributesMatched() so the higher
+			// minAttributes threshold from the extra condition is satisfied.
 			m := sampling.MultiplierFromTraceState(unsafeToString(kv.Value.Bytes()))
 			if m <= 0 {
 				m = 1.0
 			}
-			sp.spanMultiplier = m
 			sp.addSpanAttr(traceql.IntrinsicSpanMultiplierAttribute, traceql.NewStaticFloat(m))
 		default:
 			// TODO - This exists for span-level dedicated columns like http.status_code

@@ -81,9 +81,6 @@ func (m *MetricsCompare) extractConditions(request *FetchSpansRequest) {
 	if !request.HasAttribute(IntrinsicSpanStartTimeAttribute) {
 		request.SecondPassConditions = append(request.SecondPassConditions, Condition{Attribute: IntrinsicSpanStartTimeAttribute})
 	}
-	if m.extrapolate && !request.HasAttribute(IntrinsicSpanMultiplierAttribute) {
-		request.SecondPassConditions = append(request.SecondPassConditions, Condition{Attribute: IntrinsicSpanMultiplierAttribute})
-	}
 	// We don't need to extract conditions from the comparison expression
 	// because we're already selecting all.
 }

@@ -1267,7 +1267,6 @@ func (c *spanCollector2) Reset(rowNumber parquetquery.RowNumber) {
 		c.at.id = nil
 		c.at.startTimeUnixNanos = 0
 		c.at.durationNanos = 0
-		c.at.spanMultiplier = 0
 		c.at.nestedSetParent = 0
 		c.at.nestedSetLeft = 0
 		c.at.nestedSetRight = 0
@@ -1291,7 +1290,6 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 			sp.id = v.id
 			sp.startTimeUnixNanos = v.startTimeUnixNanos
 			sp.durationNanos = v.durationNanos
-			sp.spanMultiplier = v.spanMultiplier
 			sp.spanAttrs = append(sp.spanAttrs, v.spanAttrs...)
 			sp.traceAttrs = append(sp.traceAttrs, v.traceAttrs...)
 			sp.resourceAttrs = append(sp.resourceAttrs, v.resourceAttrs...)
@@ -1377,15 +1375,15 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 		case columnPathSpanChildCount:
 			sp.addSpanAttr(traceql.IntrinsicChildCountAttribute, traceql.NewStaticInt(int(kv.Value.Int32())))
 		case columnPathSpanTraceState:
-			// Parse OTel probability sampling threshold once per span; default
-			// to 1.0 when the tracestate is absent or unparseable. Also surface
-			// as a span attribute so attributesMatched() counts it toward the
-			// spanCollector's minAttributes threshold.
+			// Parse OTel probability sampling threshold once per span. Surface
+			// as a span attribute (falling back to 1.0 when the tracestate is
+			// absent or unparseable) — the engine reads it via AttributeFor,
+			// and it also counts toward attributesMatched() so the higher
+			// minAttributes threshold from the extra condition is satisfied.
 			m := sampling.MultiplierFromTraceState(unsafeToString(kv.Value.Bytes()))
 			if m <= 0 {
 				m = 1.0
 			}
-			sp.spanMultiplier = m
 			sp.addSpanAttr(traceql.IntrinsicSpanMultiplierAttribute, traceql.NewStaticFloat(m))
 		case columnPathSpanDuration:
 			durationNanos = kv.Value.Uint64()
