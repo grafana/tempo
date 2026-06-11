@@ -141,12 +141,6 @@ func (a *averageOverTimeAggregator) extractConditions(request *FetchSpansRequest
 			})
 		}
 	}
-
-	if a.extrapolate && !request.HasAttribute(IntrinsicSpanMultiplierAttribute) {
-		request.SecondPassConditions = append(request.SecondPassConditions, Condition{
-			Attribute: IntrinsicSpanMultiplierAttribute,
-		})
-	}
 }
 
 func (a *averageOverTimeAggregator) validate() error {
