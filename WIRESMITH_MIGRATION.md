@@ -5,13 +5,17 @@ Tracking document for replacing protoc-gen-gogofaster with
 Wire format is unchanged (standard protobuf, binary-compatible with gogo);
 only the generated Go API shape changes.
 
-Toolchain: `wiresmith` CLI built from the `databases` branch (@9407011),
+Toolchain: `wiresmith` CLI built from the `databases` branch (@75caef9),
 invoked from `make gen-proto` (the buf+docker+gogofaster pipeline is gone).
 `go.mod` carries `require github.com/grafana/wiresmith` (runtime
 `protohelpers` package) with a local `replace` to the wiresmith-databases
 checkout while the branch is unpublished — **remove the replace and pin a
 published version before merging**. `make gen-proto` reproduces the
 committed output byte-identically.
+
+Note: `(wiresmith.options.enum_no_prefix)` (gogo goproto_enum_prefix=false
+parity) exists since @698587a but is not needed — Tempo's gogo protos all
+used prefixed enum constants.
 
 ## Status per proto
 
@@ -66,10 +70,10 @@ committed output byte-identically.
   `Equal(any) bool`, which cmp prefers — float comparisons become bit-exact.
   Tests needing tolerance must supply an explicit `cmp.Comparer`
   (tempodb/tempodb_metrics_test.go).
-- **No merge-on-unmarshal**: gogo's `Unmarshal` appended repeated fields
-  across calls; wiresmith's pre-scan replaces non-empty repeated fields for
-  payloads >= 256B (and appends below that). blockbuilder's
-  live_traces_iter now unmarshals each batch separately.
+- **Merge-on-unmarshal**: fixed upstream (@c471fd6, uniform append/merge
+  semantics on both sides of the pre-scan threshold). blockbuilder's
+  live_traces_iter is reverted to upstream's merge-by-unmarshal — the
+  file is byte-identical to base main again.
 - **gRPC**: stubs come from the vendored protoc-gen-go-grpc v1.6
   (requireUnimplemented=true): server impls embed `Unimplemented*Server`
   (frontend.QueryFrontend, livestore.LiveStore, BackendScheduler,
@@ -121,8 +125,8 @@ feature, severity.
    `(wiresmith.options.no_presence_all)` on every proto (gogo parity —
    Tempo never had Has*/present-but-empty semantics), which also let the
    remaining testify/cmp bitmap workarounds revert to upstream forms.
-   Suggested wiresmith fix: emit `json:"-"` on the bitmap for consumers
-   that keep it.
+   The bitmap carries `json:"-"` since @75caef9, so even protos that keep
+   it are JSON-safe now.
 
 2. **FIXED on the databases branch (@5f1416f)**: `skipValue`/
    `maxUnmarshalDepth` live in `protohelpers` and are referenced
@@ -140,15 +144,10 @@ feature, severity.
    - Severity: medium-high — the failure mode is silent nondeterminism, not
      a compile error. Worked around with a hand-written `StableString()`.
 
-4. **Unmarshal replaces non-empty repeated fields when the pre-scan kicks in
-   (payload >= 256B) but appends below the threshold**.
-   - blockbuilder relied on gogo's merge-on-unmarshal ("unmarshal appends
-     batches onto the existing Trace").
-   - The size-dependent behavior split is arguably a bug: semantics should
-     not depend on payload size. Either always-replace (document loudly) or
-     always-append.
-   - Severity: medium — silent data loss when relied upon; found only via a
-     well-aimed test.
+4. **FIXED on the databases branch (@c471fd6, DB-13)**: unmarshal into a
+   non-empty message appends repeated elements / merges maps uniformly on
+   both sides of the 256B pre-scan threshold. blockbuilder's adaptation
+   is reverted; gogo merge-by-unmarshal semantics hold again.
 
 5. **No embed option** (wiresmith-9ks, cancelled) — `CompactedBlockMeta`.
    - Cost measured: ~33 promoted-field call sites + a hand-written flat

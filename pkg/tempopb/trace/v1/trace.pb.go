@@ -1499,10 +1499,10 @@ func (m *TracesData) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if cap(m.ResourceSpans) < c {
-				m.ResourceSpans = make([]*ResourceSpans, 0, c)
-			} else {
-				m.ResourceSpans = m.ResourceSpans[:0]
+			if need := len(m.ResourceSpans) + c; cap(m.ResourceSpans) < need {
+				grown := make([]*ResourceSpans, len(m.ResourceSpans), need)
+				copy(grown, m.ResourceSpans)
+				m.ResourceSpans = grown
 			}
 		}
 	}
@@ -1672,10 +1672,10 @@ func (m *ResourceSpans) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if cap(m.ScopeSpans) < c {
-				m.ScopeSpans = make([]*ScopeSpans, 0, c)
-			} else {
-				m.ScopeSpans = m.ScopeSpans[:0]
+			if need := len(m.ScopeSpans) + c; cap(m.ScopeSpans) < need {
+				grown := make([]*ScopeSpans, len(m.ScopeSpans), need)
+				copy(grown, m.ScopeSpans)
+				m.ScopeSpans = grown
 			}
 		}
 	}
@@ -1940,10 +1940,10 @@ func (m *ScopeSpans) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if cap(m.Spans) < c {
-				m.Spans = make([]*Span, 0, c)
-			} else {
-				m.Spans = m.Spans[:0]
+			if need := len(m.Spans) + c; cap(m.Spans) < need {
+				grown := make([]*Span, len(m.Spans), need)
+				copy(grown, m.Spans)
+				m.Spans = grown
 			}
 		}
 	}
@@ -2208,10 +2208,10 @@ func (m *Span_Event) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if cap(m.Attributes) < c {
-				m.Attributes = make([]*commonv1.KeyValue, 0, c)
-			} else {
-				m.Attributes = m.Attributes[:0]
+			if need := len(m.Attributes) + c; cap(m.Attributes) < need {
+				grown := make([]*commonv1.KeyValue, len(m.Attributes), need)
+				copy(grown, m.Attributes)
+				m.Attributes = grown
 			}
 		}
 	}
@@ -2469,10 +2469,10 @@ func (m *Span_Link) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if cap(m.Attributes) < c {
-				m.Attributes = make([]*commonv1.KeyValue, 0, c)
-			} else {
-				m.Attributes = m.Attributes[:0]
+			if need := len(m.Attributes) + c; cap(m.Attributes) < need {
+				grown := make([]*commonv1.KeyValue, len(m.Attributes), need)
+				copy(grown, m.Attributes)
+				m.Attributes = grown
 			}
 		}
 	}
@@ -2826,30 +2826,30 @@ func (m *Span) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if cap(m.Attributes) < c {
-				m.Attributes = make([]*commonv1.KeyValue, 0, c)
-			} else {
-				m.Attributes = m.Attributes[:0]
+			if need := len(m.Attributes) + c; cap(m.Attributes) < need {
+				grown := make([]*commonv1.KeyValue, len(m.Attributes), need)
+				copy(grown, m.Attributes)
+				m.Attributes = grown
 			}
 		}
 		if c := field11count; c > 0 {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if cap(m.Events) < c {
-				m.Events = make([]*Span_Event, 0, c)
-			} else {
-				m.Events = m.Events[:0]
+			if need := len(m.Events) + c; cap(m.Events) < need {
+				grown := make([]*Span_Event, len(m.Events), need)
+				copy(grown, m.Events)
+				m.Events = grown
 			}
 		}
 		if c := field13count; c > 0 {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if cap(m.Links) < c {
-				m.Links = make([]*Span_Link, 0, c)
-			} else {
-				m.Links = m.Links[:0]
+			if need := len(m.Links) + c; cap(m.Links) < need {
+				grown := make([]*Span_Link, len(m.Links), need)
+				copy(grown, m.Links)
+				m.Links = grown
 			}
 		}
 	}
