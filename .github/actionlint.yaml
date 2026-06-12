@@ -1,5 +1,5 @@
 self-hosted-runner:
-  # Grafana org GitHub-hosted runner labels, unknown to actionlint by default.
+  # Grafana org runner labels, unknown to actionlint by default.
   labels:
     - github-hosted-ubuntu-arm64
-    - github-hosted-ubuntu-x64-large
+    - ubuntu-x64-large

@@ -17,7 +17,7 @@ jobs:
     if: github.repository == 'grafana/tempo'  # skip in forks
     # Large runner: goreleaser cross-compiles ~20 binaries in parallel, making
     # this the longest job in the repo (~17 min) on standard 4-vCPU runners.
-    runs-on: github-hosted-ubuntu-x64-large
+    runs-on: ubuntu-x64-large
     permissions:
       contents: write
       id-token: write
