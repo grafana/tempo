@@ -5,8 +5,8 @@ help:  ## Display this help
 
 .DEFAULT_GOAL:=help
 
-# Version number
-VERSION=$(shell ./tools/version-tag.sh | cut -d, -f 1)
+# Version number, read from the VERSION file at the repo root
+VERSION=$(shell ./tools/version-tag.sh)
 
 GIT_REVISION := $(shell git rev-parse --short HEAD)
 GIT_BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
@@ -412,7 +412,7 @@ bump-tempo-image-tag: ## Bump grafana/tempo image tag in docker-compose and json
 		-print0 \
 		| xargs -0 grep -l "grafana/tempo:" \
 		| tr '\n' '\0' \
-		| xargs -0 -I{} sed -i '' -E "s#grafana/tempo:(latest|[0-9]+\.[0-9]+\.[0-9]+)#grafana/tempo:$(TEMPO_IMAGE_TAG)#g" {}
+		| xargs -0 -I{} sed -i $(SED_OPTS) -E "s#grafana/tempo:(latest|[0-9]+\.[0-9]+\.[0-9]+)#grafana/tempo:$(TEMPO_IMAGE_TAG)#g" {}
 	@echo "Done. Re-run 'make jsonnet' to regenerate compiled jsonnet if needed."
 
 ##@ jsonnet

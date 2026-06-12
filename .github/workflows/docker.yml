@@ -5,6 +5,12 @@ on:
       - 'main'
     tags:
       - 'v*'
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Release tag to build (e.g. v2.10.6)'
+        type: string
+        required: true
 
 # Needed to authenticate to GAR with OIDC.
 permissions:
@@ -24,14 +30,36 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
+          ref: ${{ inputs.tag || github.ref }}
           persist-credentials: false
 
       - name: fetch tags
         run: git fetch --tags --force
 
-      - id: get-tag
+      - name: check tag matches VERSION file
+        if: inputs.tag != '' || github.ref_type == 'tag'
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
         run: |
-          echo "tag=$(./tools/image-tag)" >> "$GITHUB_OUTPUT"
+          if [ "v$(cat VERSION)" != "$TAG" ]; then
+            echo "ERROR: tag ${TAG} does not match the VERSION file ($(cat VERSION))."
+            echo "Bump VERSION on the release branch (release-prep does this) before tagging."
+            exit 1
+          fi
+
+      - id: get-tag
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          if [ -n "$INPUT_TAG" ]; then
+            echo "tag=${INPUT_TAG#v}" >> "$GITHUB_OUTPUT"
+          else
+            TAG="$(./tools/image-tag)"
+            if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then
+              TAG="$TAG-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
+            fi
+            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          fi
 
   docker:
     if: github.repository == 'grafana/tempo'
@@ -50,6 +78,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
+          ref: ${{ inputs.tag || github.ref }}
           persist-credentials: false
 
       - name: fetch tags
@@ -91,6 +120,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
+          ref: ${{ inputs.tag || github.ref }}
           persist-credentials: false
 
       - name: Login to GAR

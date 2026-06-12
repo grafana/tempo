@@ -28,3 +28,6 @@ jobs:
       - name: Run tools unit tests
         working-directory: tools
         run: go test ./...
+
+      - name: Run version-tag tests
+        run: ./tools/version-tag_test.sh
