@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: tempo
+note: StringifyAnyValue no longer panics on attributes with an absent value. Absent values are valid proto3 and previously could crash the metrics-generator and the distributor's span logging.
+issues: [7462]
+subtext:
+user: carles-grafana
