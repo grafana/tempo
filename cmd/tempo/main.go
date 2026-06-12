@@ -16,7 +16,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	ver "github.com/prometheus/client_golang/prometheus/collectors/version"
 	"github.com/prometheus/common/version"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 	"google.golang.org/grpc/encoding"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
