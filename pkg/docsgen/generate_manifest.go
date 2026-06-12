@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -93,7 +94,7 @@ func main() {
 
 // writeFile writes generated content to path, panicking on failure.
 func writeFile(path, content string) {
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil { //nolint:gosec // G306: generated docs are committed to git and should be world-readable
 		panic(err)
 	}
 }
@@ -104,5 +105,13 @@ func fileChanged(path string) bool {
 	cmd := exec.Command("git", "diff", "--exit-code", path)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run() != nil
+	err := cmd.Run()
+	if err == nil {
+		return false
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+		return true
+	}
+	panic(err)
 }
