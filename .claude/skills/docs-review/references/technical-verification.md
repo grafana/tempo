@@ -6,7 +6,7 @@ When the review triage classifies a change as **technical** (new features, confi
 
 Read the changed content and flag every statement that makes a factual claim about code behavior: config option names, default values, numeric limits, syntax examples, API behavior, metric/label names, or version availability.
 
-For the specific lookup locations (which files to check for each claim type), refer to the **Codebase Verification**, **Configuration Reference Check**, **Accuracy Checks**, and **Version Compatibility** sections of `.agents/doc-agents/shared/verification-checklist.md`.
+For the specific lookup locations (which files to check for each claim type), refer to the **Codebase Verification**, **Configuration Reference Check**, **Accuracy Checks**, and **Version Compatibility** sections of `../../shared/verification-checklist.md`.
 
 ## 2. Prioritize and verify
 
