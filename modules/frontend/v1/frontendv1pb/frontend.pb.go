@@ -486,7 +486,7 @@ func (m *FrontendToClient) unmarshal(dAtA []byte, depth int) error {
 	}
 	l := len(dAtA)
 	iNdEx := 0
-	if l >= 256 {
+	if l >= 256 && depth >= 0 {
 		var preIdx int
 		var field4count int
 		for preIdx < l {
@@ -716,6 +716,10 @@ func (m *FrontendToClient) unmarshal(dAtA []byte, depth int) error {
 	return nil
 }
 
+func (m *FrontendToClient) UnmarshalNoPrescan(dAtA []byte) error {
+	return m.unmarshal(dAtA, -1)
+}
+
 func (m *ClientToFrontend) Unmarshal(b []byte) error {
 	return m.unmarshal(b, 0)
 }
@@ -733,7 +737,7 @@ func (m *ClientToFrontend) unmarshal(dAtA []byte, depth int) error {
 	}
 	l := len(dAtA)
 	iNdEx := 0
-	if l >= 256 {
+	if l >= 256 && depth >= 0 {
 		var preIdx int
 		var field4count int
 		for preIdx < l {
@@ -1006,6 +1010,10 @@ func (m *ClientToFrontend) unmarshal(dAtA []byte, depth int) error {
 		return io.ErrUnexpectedEOF
 	}
 	return nil
+}
+
+func (m *ClientToFrontend) UnmarshalNoPrescan(dAtA []byte) error {
+	return m.unmarshal(dAtA, -1)
 }
 
 func (m *NotifyClientShutdownRequest) Unmarshal(b []byte) error {

@@ -1439,7 +1439,7 @@ func (m *TracesData) unmarshal(dAtA []byte, depth int) error {
 	}
 	l := len(dAtA)
 	iNdEx := 0
-	if l >= 256 {
+	if l >= 256 && depth >= 0 {
 		var preIdx int
 		var field1count int
 		for preIdx < l {
@@ -1593,6 +1593,10 @@ func (m *TracesData) unmarshal(dAtA []byte, depth int) error {
 	return nil
 }
 
+func (m *TracesData) UnmarshalNoPrescan(dAtA []byte) error {
+	return m.unmarshal(dAtA, -1)
+}
+
 func (m *ResourceSpans) Unmarshal(b []byte) error {
 	return m.unmarshal(b, 0)
 }
@@ -1610,7 +1614,7 @@ func (m *ResourceSpans) unmarshal(dAtA []byte, depth int) error {
 	}
 	l := len(dAtA)
 	iNdEx := 0
-	if l >= 256 {
+	if l >= 256 && depth >= 0 {
 		var preIdx int
 		var field2count int
 		for preIdx < l {
@@ -1859,6 +1863,10 @@ func (m *ResourceSpans) unmarshal(dAtA []byte, depth int) error {
 	return nil
 }
 
+func (m *ResourceSpans) UnmarshalNoPrescan(dAtA []byte) error {
+	return m.unmarshal(dAtA, -1)
+}
+
 func (m *ScopeSpans) Unmarshal(b []byte) error {
 	return m.unmarshal(b, 0)
 }
@@ -1876,7 +1884,7 @@ func (m *ScopeSpans) unmarshal(dAtA []byte, depth int) error {
 	}
 	l := len(dAtA)
 	iNdEx := 0
-	if l >= 256 {
+	if l >= 256 && depth >= 0 {
 		var preIdx int
 		var field2count int
 		for preIdx < l {
@@ -2125,6 +2133,10 @@ func (m *ScopeSpans) unmarshal(dAtA []byte, depth int) error {
 	return nil
 }
 
+func (m *ScopeSpans) UnmarshalNoPrescan(dAtA []byte) error {
+	return m.unmarshal(dAtA, -1)
+}
+
 func (m *Span_Event) Unmarshal(b []byte) error {
 	return m.unmarshal(b, 0)
 }
@@ -2142,7 +2154,7 @@ func (m *Span_Event) unmarshal(dAtA []byte, depth int) error {
 	}
 	l := len(dAtA)
 	iNdEx := 0
-	if l >= 256 {
+	if l >= 256 && depth >= 0 {
 		var preIdx int
 		var field3count int
 		for preIdx < l {
@@ -2384,6 +2396,10 @@ func (m *Span_Event) unmarshal(dAtA []byte, depth int) error {
 	return nil
 }
 
+func (m *Span_Event) UnmarshalNoPrescan(dAtA []byte) error {
+	return m.unmarshal(dAtA, -1)
+}
+
 func (m *Span_Link) Unmarshal(b []byte) error {
 	return m.unmarshal(b, 0)
 }
@@ -2401,7 +2417,7 @@ func (m *Span_Link) unmarshal(dAtA []byte, depth int) error {
 	}
 	l := len(dAtA)
 	iNdEx := 0
-	if l >= 256 {
+	if l >= 256 && depth >= 0 {
 		var preIdx int
 		var field4count int
 		for preIdx < l {
@@ -2733,6 +2749,10 @@ func (m *Span_Link) unmarshal(dAtA []byte, depth int) error {
 	return nil
 }
 
+func (m *Span_Link) UnmarshalNoPrescan(dAtA []byte) error {
+	return m.unmarshal(dAtA, -1)
+}
+
 func (m *Span) Unmarshal(b []byte) error {
 	return m.unmarshal(b, 0)
 }
@@ -2750,7 +2770,7 @@ func (m *Span) unmarshal(dAtA []byte, depth int) error {
 	}
 	l := len(dAtA)
 	iNdEx := 0
-	if l >= 256 {
+	if l >= 256 && depth >= 0 {
 		var preIdx int
 		var field9count int
 		var field11count int
@@ -3452,6 +3472,10 @@ func (m *Span) unmarshal(dAtA []byte, depth int) error {
 		return io.ErrUnexpectedEOF
 	}
 	return nil
+}
+
+func (m *Span) UnmarshalNoPrescan(dAtA []byte) error {
+	return m.unmarshal(dAtA, -1)
 }
 
 func (m *Status) Unmarshal(b []byte) error {

@@ -1445,7 +1445,7 @@ func (m *CompactionDetail) unmarshal(dAtA []byte, depth int) error {
 	}
 	l := len(dAtA)
 	iNdEx := 0
-	if l >= 256 {
+	if l >= 256 && depth >= 0 {
 		var preIdx int
 		var field1count int
 		var field2count int
@@ -1652,6 +1652,10 @@ func (m *CompactionDetail) unmarshal(dAtA []byte, depth int) error {
 	return nil
 }
 
+func (m *CompactionDetail) UnmarshalNoPrescan(dAtA []byte) error {
+	return m.unmarshal(dAtA, -1)
+}
+
 func (m *RetentionDetail) Unmarshal(b []byte) error {
 	return m.unmarshal(b, 0)
 }
@@ -1727,7 +1731,7 @@ func (m *RedactionDetail) unmarshal(dAtA []byte, depth int) error {
 	}
 	l := len(dAtA)
 	iNdEx := 0
-	if l >= 256 {
+	if l >= 256 && depth >= 0 {
 		var preIdx int
 		var field2count int
 		for preIdx < l {
@@ -1921,6 +1925,10 @@ func (m *RedactionDetail) unmarshal(dAtA []byte, depth int) error {
 		return io.ErrUnexpectedEOF
 	}
 	return nil
+}
+
+func (m *RedactionDetail) UnmarshalNoPrescan(dAtA []byte) error {
+	return m.unmarshal(dAtA, -1)
 }
 
 func (m *JobDetail) Unmarshal(b []byte) error {
@@ -2881,7 +2889,7 @@ func (m *SubmitRedactionRequest) unmarshal(dAtA []byte, depth int) error {
 	}
 	l := len(dAtA)
 	iNdEx := 0
-	if l >= 256 {
+	if l >= 256 && depth >= 0 {
 		var preIdx int
 		var field2count int
 		for preIdx < l {
@@ -3075,6 +3083,10 @@ func (m *SubmitRedactionRequest) unmarshal(dAtA []byte, depth int) error {
 		return io.ErrUnexpectedEOF
 	}
 	return nil
+}
+
+func (m *SubmitRedactionRequest) UnmarshalNoPrescan(dAtA []byte) error {
+	return m.unmarshal(dAtA, -1)
 }
 
 func (m *SubmitRedactionResponse) Unmarshal(b []byte) error {
@@ -3311,7 +3323,7 @@ func (m *RedactionBatch) unmarshal(dAtA []byte, depth int) error {
 	}
 	l := len(dAtA)
 	iNdEx := 0
-	if l >= 256 {
+	if l >= 256 && depth >= 0 {
 		var preIdx int
 		var field3count int
 		var field5count int
@@ -3664,6 +3676,10 @@ func (m *RedactionBatch) unmarshal(dAtA []byte, depth int) error {
 	return nil
 }
 
+func (m *RedactionBatch) UnmarshalNoPrescan(dAtA []byte) error {
+	return m.unmarshal(dAtA, -1)
+}
+
 func (m *RedactionBatches) Unmarshal(b []byte) error {
 	return m.unmarshal(b, 0)
 }
@@ -3681,7 +3697,7 @@ func (m *RedactionBatches) unmarshal(dAtA []byte, depth int) error {
 	}
 	l := len(dAtA)
 	iNdEx := 0
-	if l >= 256 {
+	if l >= 256 && depth >= 0 {
 		var preIdx int
 		var field1count int
 		for preIdx < l {
@@ -3833,4 +3849,8 @@ func (m *RedactionBatches) unmarshal(dAtA []byte, depth int) error {
 		return io.ErrUnexpectedEOF
 	}
 	return nil
+}
+
+func (m *RedactionBatches) UnmarshalNoPrescan(dAtA []byte) error {
+	return m.unmarshal(dAtA, -1)
 }
