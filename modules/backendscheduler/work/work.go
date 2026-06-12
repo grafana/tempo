@@ -174,12 +174,38 @@ func (w *Work) AddJob(j *Job) error {
 // The registration is cleared automatically when AddJob promotes the job to active.
 func (w *Work) RegisterJob(job *Job) {
 	w.pendingMtx.Lock()
+	w.registerJobLocked(job)
+	w.pendingMtx.Unlock()
+}
+
+// registerJobLocked indexes job's blocks as registered/running. Caller must hold pendingMtx.
+func (w *Work) registerJobLocked(job *Job) {
 	w.registeredJobs[job.ID] = job
 	for _, key := range runningBlockKeys(job) {
 		w.runningBlocks[key] = job
 	}
 	w.addRunningBlocksByTenant(job)
+}
+
+// TryRegisterJob registers job (like RegisterJob) only if no redaction batch is active
+// for its tenant, atomically with respect to ClaimRedactionBatch. Returns false without
+// registering when a batch is active.
+//
+// Lock order: batch store (read) OUTER, pendingMtx INNER — the same direction
+// ClaimRedactionBatch takes the batch write lock, so the two are serialized by the batch
+// RWMutex and never partially interleave. A compaction therefore either registers fully
+// before the claim's snapshot (its block lands in the snapshot → recorded for rescan) or
+// observes the installed barrier and is refused (the block stays put for direct redaction).
+func (w *Work) TryRegisterJob(job *Job) bool {
+	w.batches.mu.RLock()
+	defer w.batches.mu.RUnlock()
+	if _, active := w.batches.byTenant[job.Tenant()]; active {
+		return false
+	}
+	w.pendingMtx.Lock()
+	w.registerJobLocked(job)
 	w.pendingMtx.Unlock()
+	return true
 }
 
 // FlushToLocal writes the work cache to local storage using sharding optimizations
@@ -901,15 +927,21 @@ func (w *Work) IsBlockBusy(tenantID, blockID string) bool {
 // currently referenced by a pending, registered, or active job for the tenant.
 // Acquires pendingMtx exactly once and returns a snapshot.
 func (w *Work) BusyBlocksForTenant(tenantID string) map[string]string {
-	result := make(map[string]string)
 	w.pendingMtx.Lock()
+	defer w.pendingMtx.Unlock()
+	return w.busyBlocksForTenantLocked(tenantID)
+}
+
+// busyBlocksForTenantLocked returns blockID -> jobID for the tenant's pending and
+// running blocks. Caller must hold pendingMtx.
+func (w *Work) busyBlocksForTenantLocked(tenantID string) map[string]string {
+	result := make(map[string]string)
 	for blockID, jobID := range w.pendingBlocksByTenant[tenantID] {
 		result[blockID] = jobID
 	}
 	for blockID, jobID := range w.runningBlocksByTenant[tenantID] {
 		result[blockID] = jobID
 	}
-	w.pendingMtx.Unlock()
 	return result
 }
 

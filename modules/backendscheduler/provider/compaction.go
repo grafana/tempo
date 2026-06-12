@@ -163,21 +163,20 @@ func (p *CompactionProvider) Start(ctx context.Context) <-chan *work.Job {
 				continue
 			}
 
-			// Re-check after job creation: a batch may have been submitted while we were
-			// draining the selector that was built before the submission. Discard the job
-			// before it enters the recent-jobs cache or the channel.
-			// TenantPending is true for the full batch lifetime (submission → cleanup),
-			// which subsumes the HasJobsForTenant(REDACTION) condition.
-			if p.sched.TenantPending(p.curTenant.Value()) {
-				level.Info(p.logger).Log("msg", "redaction batch submitted for tenant since selector was built; abandoning remaining compaction jobs", "tenant", p.curTenant.Value())
+			// Atomically register the job only if no redaction batch is active for the
+			// tenant. A batch may have been submitted while we were draining the selector
+			// that was built before the submission. TryRegisterJob and ClaimRedactionBatch
+			// are serialized by the batch RWMutex, so this either registers the job before
+			// the claim's busy snapshot (input blocks recorded for rescan) or is refused
+			// because the barrier is already installed (blocks stay put, redacted directly).
+			// This closes the check-then-act gap between a separate TenantPending check and
+			// RegisterJob.
+			if !p.sched.TryRegisterJob(job) {
+				level.Info(p.logger).Log("msg", "redaction batch active for tenant; abandoning remaining compaction jobs", "tenant", p.curTenant.Value())
 				span.AddEvent("tenant has active redaction batch")
 				reset()
 				continue
 			}
-
-			// Register the job so SubmitRedaction can see its input blocks
-			// before the job is promoted to active via AddJob.
-			p.sched.RegisterJob(job)
 
 			select {
 			case <-ctx.Done():

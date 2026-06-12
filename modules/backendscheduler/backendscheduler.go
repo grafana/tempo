@@ -67,6 +67,11 @@ func (s *BackendScheduler) RegisterJob(job *work.Job) {
 	s.work.RegisterJob(job)
 }
 
+// TryRegisterJob delegates to work.Work, satisfying the provider.Scheduler interface.
+func (s *BackendScheduler) TryRegisterJob(job *work.Job) bool {
+	return s.work.TryRegisterJob(job)
+}
+
 // New creates a new BackendScheduler
 func New(cfg Config, store storage.Store, overrides overrides.Interface, reader backend.RawReader, writer backend.RawWriter) (*BackendScheduler, error) {
 	err := ValidateConfig(&cfg)
@@ -451,10 +456,6 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		return nil, status.Error(codes.FailedPrecondition, "compaction is disabled for this tenant")
 	}
 
-	if s.work.TenantPending(tenant) {
-		return nil, status.Error(codes.AlreadyExists, "a redaction is already in progress for this tenant")
-	}
-
 	batchID := uuid.New().String()
 	span.SetAttributes(
 		attribute.String("tenant", tenant),
@@ -468,49 +469,9 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 	if len(metas) == 0 {
 		return nil, status.Error(codes.NotFound, "no blocks found for tenant")
 	}
-
-	// Build a map of block ID -> job ID for all blocks currently referenced by
-	// any job. Blocks in active compaction may disappear before a redaction worker
-	// can process them — their contents will be merged into a new output block not
-	// yet covered by any pending redaction job. We record the job IDs so the
-	// maintenance loop can look up output blocks once compaction finishes.
-	// Since TenantPending returned false above, there are no active redaction jobs
-	// for this tenant, so busy blocks are exclusively from other providers.
-	busyBlocks := s.work.BusyBlocksForTenant(tenant)
-
-	skippedJobSet := make(map[string]struct{})
-	filtered := metas[:0:0]
-	for _, meta := range metas {
-		if jobID, busy := busyBlocks[meta.BlockID.String()]; busy {
-			skippedJobSet[jobID] = struct{}{}
-			continue
-		}
-		filtered = append(filtered, meta)
-	}
-	skippedBlocks := len(metas) - len(filtered)
-	if skippedBlocks > 0 {
-		level.Warn(log.Logger).Log("msg", "skipping blocks in active compaction jobs during redaction submission",
-			"tenant", tenant,
-			"skipped_blocks", skippedBlocks,
-			"skipped_compaction_jobs", len(skippedJobSet),
-			"total_blocks", len(metas))
-	}
-	metas = filtered
-
-	jobs := make([]*work.Job, 0, len(metas))
-	for _, meta := range metas {
-		jobs = append(jobs, &work.Job{
-			ID:   uuid.New().String(),
-			Type: tempopb.JobType_JOB_TYPE_REDACTION,
-			JobDetail: tempopb.JobDetail{
-				Tenant:  tenant,
-				BatchId: batchID,
-				Redaction: &tempopb.RedactionDetail{
-					BlockId: meta.BlockID.String(),
-					// TraceIds intentionally empty here — populated from batch in Next().
-				},
-			},
-		})
+	candidateBlockIDs := make([]string, len(metas))
+	for i, meta := range metas {
+		candidateBlockIDs[i] = meta.BlockID.String()
 	}
 
 	batch := &tempopb.RedactionBatch{
@@ -519,20 +480,47 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		TraceIds:          req.TraceIds,
 		CreatedAtUnixNano: time.Now().UnixNano(),
 	}
-	if len(skippedJobSet) > 0 {
-		skippedJobIDs := make([]string, 0, len(skippedJobSet))
-		for id := range skippedJobSet {
-			skippedJobIDs = append(skippedJobIDs, id)
-		}
-		batch.SkippedCompactionJobIds = skippedJobIDs
-		batch.RescanAfterUnixNano = time.Now().Add(s.cfg.ProviderConfig.Redaction.RescanDelay).UnixNano()
+
+	// Atomically install the batch barrier and classify the candidate blocks against the
+	// tenant's busy blocks in a single critical section. Blocks under active compaction
+	// are recorded as skipped — their compaction job IDs feed the rescan, which follows
+	// the output blocks once compaction finishes — and the rest are free to redact
+	// directly. Because the busy snapshot and the barrier install are atomic, no
+	// compaction can register a block for this tenant in between and slip its output past
+	// the skip set (the prior split TenantPending-check / snapshot / AddBatch left that gap).
+	rescanAfter := time.Now().Add(s.cfg.ProviderConfig.Redaction.RescanDelay).UnixNano()
+	free, skipped, ok := s.work.ClaimRedactionBatch(batch, candidateBlockIDs, rescanAfter)
+	if !ok {
+		return nil, status.Error(codes.AlreadyExists, "a redaction is already in progress for this tenant")
 	}
 
-	// Store batch first, then jobs. On job failure, roll back the batch so the
-	// tenant is not permanently locked out of future submissions.
-	if err := s.work.AddBatch(batch); err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
+	skippedBlocks := len(candidateBlockIDs) - len(free)
+	if skippedBlocks > 0 {
+		level.Warn(log.Logger).Log("msg", "skipping blocks in active compaction jobs during redaction submission",
+			"tenant", tenant,
+			"skipped_blocks", skippedBlocks,
+			"skipped_compaction_jobs", len(skipped),
+			"total_blocks", len(candidateBlockIDs))
 	}
+
+	jobs := make([]*work.Job, 0, len(free))
+	for _, blockID := range free {
+		jobs = append(jobs, &work.Job{
+			ID:   uuid.New().String(),
+			Type: tempopb.JobType_JOB_TYPE_REDACTION,
+			JobDetail: tempopb.JobDetail{
+				Tenant:  tenant,
+				BatchId: batchID,
+				Redaction: &tempopb.RedactionDetail{
+					BlockId: blockID,
+					// TraceIds intentionally empty here — populated from batch in Next().
+				},
+			},
+		})
+	}
+
+	// The batch is already installed by ClaimRedactionBatch; on job-creation failure roll
+	// it back so the tenant is not permanently locked out of future submissions.
 	if err := s.work.AddPendingJobs(jobs); err != nil {
 		s.work.RemoveBatch(tenant)
 		return nil, status.Error(codes.Internal, err.Error())

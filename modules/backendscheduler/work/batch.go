@@ -133,6 +133,52 @@ func (w *Work) AddBatch(batch *tempopb.RedactionBatch) error {
 	return w.batches.add(batch)
 }
 
+// ClaimRedactionBatch atomically installs batch for its tenant and classifies the
+// candidate block IDs against the tenant's busy blocks under one critical section, so no
+// provider can register a block for the tenant between the snapshot and the barrier
+// becoming active (see TryRegisterJob). Returns the block IDs that are free to redact and
+// the busy compaction job IDs to rescan; ok=false (nothing installed) if a batch already
+// exists for the tenant. When any block is skipped, the batch's rescan fields are set to
+// rescanAfter before the batch becomes observable, so a maintenance tick never sees a
+// half-initialized batch.
+//
+// Lock order: batch store (write) OUTER, pendingMtx INNER.
+func (w *Work) ClaimRedactionBatch(batch *tempopb.RedactionBatch, candidateBlockIDs []string, rescanAfter int64) (free []string, skipped []string, ok bool) {
+	w.batches.mu.Lock()
+	defer w.batches.mu.Unlock()
+
+	if _, exists := w.batches.byTenant[batch.TenantId]; exists {
+		return nil, nil, false
+	}
+
+	w.pendingMtx.Lock()
+	busy := w.busyBlocksForTenantLocked(batch.TenantId)
+	w.pendingMtx.Unlock()
+
+	skippedSet := make(map[string]struct{})
+	free = make([]string, 0, len(candidateBlockIDs))
+	for _, blockID := range candidateBlockIDs {
+		if jobID, isBusy := busy[blockID]; isBusy {
+			if _, seen := skippedSet[jobID]; !seen {
+				skippedSet[jobID] = struct{}{}
+				skipped = append(skipped, jobID)
+			}
+			continue
+		}
+		free = append(free, blockID)
+	}
+
+	if len(skipped) > 0 {
+		batch.SkippedCompactionJobIds = skipped
+		batch.RescanAfterUnixNano = rescanAfter
+	}
+
+	// Install last, with rescan fields already populated, so the batch is never
+	// observable in a half-initialized state.
+	w.batches.byTenant[batch.TenantId] = batch
+	return free, skipped, true
+}
+
 // GetBatch returns a live pointer into batchStore. Callers must treat the returned
 // value as read-only; use SetBatchRescan to mutate rescan fields under the write lock.
 // TODO: return a copy or add narrower accessor methods so the read-only contract is
