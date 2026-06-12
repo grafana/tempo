@@ -105,7 +105,7 @@ Paths the agent should check when validating documentation claims against code.
 
 ## Frontmatter and site conventions
 
-- **Frontmatter fields:** `title`, `menuTitle`, `description`, `keywords`, `weight`, `aliases`, `topicType`
+- **Frontmatter fields:** `title`, `menuTitle`, `description`, `keywords`, `weight`, `aliases`, `topicType`, `versionDate` (used on some reference pages)
 - **`topicType` values:** `concept` (reference/explanatory pages), `task` (procedural pages), `introduction` (section landing pages)
 - **Weight / ordering:** lower `weight` values appear first in navigation
 - **Internal link style:** relative paths ending in `/` (not `.md`)
