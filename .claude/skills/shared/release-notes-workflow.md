@@ -69,10 +69,42 @@ Provide the raw CHANGELOG to the AI assistant, along with the known headline fea
 3. **Group every CHANGELOG entry** into the feature areas:
    - Assign each entry to the feature area where it has the most user impact. PRs associated with known headline features should be grouped under those areas first.
    - Within each group, weight the entries: identify which are headline items versus supporting changes, minor improvements, or bug fixes.
-   - Flag entries that should be excluded from release notes (internal refactors, test-only changes, dependency bumps, CI/CD changes).
+   - Flag entries for exclusion or folding using the criteria in Step 3b.
    - Flag entries that are uncertain -- these need human judgment.
 
 4. **Return a structured, grouped list** organized by feature area, with entries ordered by importance within each group and exclusions listed separately. Known headline features should appear first.
+
+#### Step 3b: Apply inclusion/exclusion criteria
+
+Use these criteria to decide what belongs in the release notes. Based on analysis of Tempo 2.10 (where ~75% of CHANGELOG entries made it into the release notes), entries fall into three categories: include, exclude, or fold.
+
+**Exclude** — omit entirely:
+
+| Category | Example (2.10) |
+|----------|----------------|
+| Test/validation infrastructure | Vulture changes, perf-test harness (#5723) |
+| Docs-only PRs | Auth notes in docs (#5735), config example fix (#6116) |
+| Dashboard/mixin/runbook updates | New dashboard panels (#5848, #6210), panel removal (#6221) |
+| Internal refactors | SDK migration (#5856), preview encoding churn (#6134) |
+| Dependency/vendor updates | jsonnet vendor deps (#6202) |
+| Example/Docker config changes | Port exposure, backend changes in example configs |
+| Internal metrics plumbing | Metric type fixes (gauge vs counter), internal histograms |
+
+**Fold** — represent in the narrative of a headline section, not as a separate entry:
+
+Multiple PRs that describe the same change from different angles get one description, not N bullets. For example, if 5 PRs all remove parts of the ingester module, the release notes describe the ingester removal once and list the PR numbers together.
+
+Also fold: narrow follow-up bug fixes for a feature PR (cite the feature, not each fix), and preview/iteration PRs that led to a shipped feature.
+
+**Include** — even if they look internal:
+
+- Breaking changes (always, even if the change is an internal cleanup)
+- Go version upgrades (under Upgrade considerations)
+- New config options or flags, even if minor
+- Deprecations (users need to plan)
+- Bug fixes that users could have hit in production
+
+**Expected ratio:** ~70-80% of CHANGELOG entries appear in the release notes. If significantly more or fewer entries survive, revisit the criteria.
 
 #### Step 4: Human review
 
@@ -356,7 +388,7 @@ Use this prompt when the main features of the release are already known. The kno
 > 1. **Group entries under the known headline features first.** PRs associated with each headline feature should be grouped together, with the key PRs as the headline items.
 > 2. **Identify any additional feature areas** from the remaining entries that don't fit under the known features.
 > 3. **Order entries within each group** by importance: headline items first, then supporting changes, then minor fixes.
-> 4. **Flag entries to exclude** from release notes (internal refactors, test-only changes, dependency bumps, CI/CD changes). List these separately with a brief reason.
+> 4. **Flag entries to exclude or fold** using the inclusion/exclusion criteria in Step 3b of the workflow. List exclusions separately with a brief reason.
 > 5. **Flag uncertain entries** that need human judgment. Explain why you're unsure.
 >
 > Return the result as a structured, grouped list with the known headline features listed first. I'll review and adjust your groupings before we proceed.
@@ -379,7 +411,7 @@ Use this prompt when the main features aren't known yet. The AI proposes the maj
 > 1. **Identify the major feature areas** for this release. These should be the themes that emerge from the entries themselves (for example, "TraceQL enhancements", "metrics-generator cardinality management", "vParquet5 production readiness"). Don't use fixed categories; let the entries tell you what this release is about.
 > 2. **Group every entry** into the proposed feature areas. Assign each entry to the area where it has the most user impact.
 > 3. **Order entries within each group** by importance: headline items first, then supporting changes, then minor fixes.
-> 4. **Flag entries to exclude** from release notes (internal refactors, test-only changes, dependency bumps, CI/CD changes). List these separately with a brief reason.
+> 4. **Flag entries to exclude or fold** using the inclusion/exclusion criteria in Step 3b of the workflow. List exclusions separately with a brief reason.
 > 5. **Flag uncertain entries** that need human judgment. Explain why you're unsure.
 >
 > Return the result as a structured, grouped list organized by feature area. I'll review and adjust your groupings before we proceed.
