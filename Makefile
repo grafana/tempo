@@ -5,8 +5,8 @@ help:  ## Display this help
 
 .DEFAULT_GOAL:=help
 
-# Version number
-VERSION=$(shell ./tools/version-tag.sh | cut -d, -f 1)
+# Version number, read from the VERSION file at the repo root
+VERSION=$(shell ./tools/version-tag.sh)
 
 GIT_REVISION := $(shell git rev-parse --short HEAD)
 GIT_BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
