@@ -1,6 +1,6 @@
 change_type: enhancement
 component: query-frontend
-note: "TraceByID V2: Add first pass of filtering support with "
+note: "TraceByID V2: Add first pass of filtering support with `q` (TraceQL filter) and `keep_hierarchy` query parameters to return only matching spans"
 issues: [7483]
 subtext:
-user: surajsidh
+user: electron0zero
