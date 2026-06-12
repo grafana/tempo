@@ -5,13 +5,13 @@ Tracking document for replacing protoc-gen-gogofaster with
 Wire format is unchanged (standard protobuf, binary-compatible with gogo);
 only the generated Go API shape changes.
 
-Toolchain: `wiresmith` CLI built from the `databases` branch (@75caef9),
-invoked from `make gen-proto` (the buf+docker+gogofaster pipeline is gone).
-`go.mod` carries `require github.com/grafana/wiresmith` (runtime
-`protohelpers` package) with a local `replace` to the wiresmith-databases
-checkout while the branch is unpublished — **remove the replace and pin a
-published version before merging**. `make gen-proto` reproduces the
-committed output byte-identically.
+Toolchain: `wiresmith` CLI built from public `github.com/grafana/wiresmith`
+`main` (`v0.0.0-20260611164808-4f41063d76a2`, commit 4f41063), invoked from
+`make gen-proto` (the buf+docker+gogofaster pipeline is gone). The repo is
+now public and go-installable: `go.mod` carries `require
+github.com/grafana/wiresmith` (runtime `protohelpers` package) pinned to that
+published pseudo-version — no `replace` and no private-module env needed.
+`make gen-proto` reproduces the committed output byte-identically.
 
 Note: `(wiresmith.options.enum_no_prefix)` (gogo goproto_enum_prefix=false
 parity) exists since @698587a but is not needed — Tempo's gogo protos all
@@ -22,19 +22,56 @@ used prefixed enum constants.
 | Proto | Status | Notes |
 |---|---|---|
 | pkg/tempopb/.wiresmith-proto/{common,resource,trace}/v1 (patched OTel) | DONE | Source of truth is `.wiresmith-proto` (annotated copies of the `pkg/.patched-proto` output; diff and port when the OTel submodule moves). |
-| pkg/tempopb/tempo.proto | DONE | stdtime, customtype `PreallocBytes`, customname `Size_`, pointer=true; gRPC stubs via vendored protoc-gen-go-grpc. |
+| pkg/tempopb/tempo.proto | DONE | stdtime, customtype `PreallocBytes`, customname `Size_`, pointer=true; gRPC stubs via wiresmith's built-in grpc generator (emits a `protoc-gen-go-grpc v1.6.0`-labelled header for compat; no external tool vendored in this repo). |
 | pkg/tempopb/backendwork.proto | DONE | equal/compare always generated; nullable=false → value field. |
 | modules/frontend/v1/frontendv1pb/frontend.proto | DONE | dskit httpgrpc fields carried via customtype envelopes (`httpgrpc_envelope.go`). |
 | tempodb/backend/v1/v1.proto | DONE | jsontag/customname/stdtime/customtype map 1:1; embed replaced by named field + hand-written flat MarshalJSON. |
 
-## Test results (2026-06-10, databases-branch toolchain)
+## Public-toolchain brush-up (2026-06-12)
+
+Re-pinned go.mod from the c489c2b pseudo-version to the public
+`v0.0.0-20260611164808-4f41063d76a2` (4f41063) and re-ran `make gen-proto`.
+Two API-neutral commits land between c489c2b and 4f41063 (#136 CI, #137
+generator refactor), so regen was expected byte-identical — and was for
+every `pkg/tempopb/*` file and the vendored `protohelpers` (all hashes
+unchanged). **Exception:** `modules/frontend/v1/frontendv1pb/frontend.pb.go`
+and `tempodb/backend/v1.pb.go` changed — they still carried the *old*
+exact-fit pre-scan grow (`grown := make(..., need); copy(...)`). The earlier
+pre-scan-fix regen (commit 0b331f994) only re-ran the `pkg/tempopb` step, so
+these two files missed the `wiresmith-zlce` O(n²) fix. The full regen on
+4f41063 applies the amortized-append form (`if len(...)==0 && cap(...)<c`)
+everywhere; no old form remains. Beneficial, kept.
+
+Workaround review against now-shipped compiler features (#117 customtype-on-
+message, #118 stdduration, #119 casttype, #121 Has<F>(), #133 transitive `-M`,
+#104 customname): **nothing removed.** Each remaining workaround is either an
+in-use shipped feature (stdtime, customname `Size_`, customtype envelopes,
+generated `HasInstant`) or tied to a deliberate decision / open gap:
+- `httpgrpc_envelope.go` + the frontend `customtype` fields — required bridge
+  for dskit's *gogo-generated* httpgrpc types (wiresmith calls its own
+  `*Wiresmith` method set, which gogo types lack). #117 is what lets the
+  field *declare* the customtype; the envelope is still the only escape hatch
+  (blocker #6, open). Kept.
+- The frontend `-M "…/httpgrpc.proto=…/httpgrpc"` transitive-import pin — #133
+  makes it *honored*, but because the customtype envelopes replace the
+  httpgrpc field types the generated package never imports dskit, so this `-M`
+  is now provably a no-op for output (verified: dropping it yields a
+  byte-identical `frontend.pb.go`). Kept as harmless intent-documentation and
+  a guard against a future non-customtype field; the staged gogo-stripped
+  httpgrpc copy is still load-bearing (wiresmith must resolve the import).
+- `Size_` customname (blocker #8), embed-replacement `wiresmith_custom.go`
+  (blocker #5), `no_presence_all`, the `*_gogo_shim.go` jsonpb interop +
+  `StableString` (blocker #3) — all deliberate, all kept.
+
+## Test results (2026-06-12, public toolchain 4f41063)
 
 - `go test -count=1 ./cmd/... ./modules/... ./pkg/... ./tempodb/...`
-  (the `make test` package set, 85 packages): all pass except
-  `modules/backendscheduler TestShardedIntegration/sharded_work`, which
-  fails identically on the unmodified base commit (927ed1b71) —
-  pre-existing, not migration fallout. (`pkg/usagestats Test_Memberlist`
-  flaked once on the previous run under parallel load; passes here.)
+  (the `make test` package set, 86 packages): all pass. The
+  `modules/backendscheduler TestShardedIntegration/sharded_work` case,
+  which fails identically on the unmodified base commit (927ed1b71) and is
+  pre-existing (not migration fallout), did not trip this run — it is
+  load/timing-dependent and passed here. (`pkg/usagestats Test_Memberlist`
+  has flaked under parallel load on earlier runs; passed here.)
 - e2e (docker): the full `make test-e2e` suite set — `integration/api`,
   `operations`, `limits`, `metrics-generator`, `storage`, `util` — passes
   with locally built grafana/tempo + tempo-query images. The api suite
@@ -200,8 +237,9 @@ feature, severity.
   merging — the suites here run a single version.
 - ~~Benchmark the hot paths~~ — done for the ingest decode path, see
   **Benchmarks** below.
-- Replace the local `replace github.com/grafana/wiresmith => ...` with a
-  published module version.
+- ~~Replace the local `replace github.com/grafana/wiresmith => ...` with a
+  published module version.~~ Done — pinned to the public pseudo-version
+  `v0.0.0-20260611164808-4f41063d76a2` (4f41063); no `replace` remains.
 - `vendor/modules.txt` pins vtprotobuf one rev newer (pulled transitively
   via the wiresmith module) — sanity-checked, but worth a second look.
 - Old gogo annotations are gone from the protos; consider dropping the
@@ -254,3 +292,25 @@ EncodeDecode dropped from 3.8ms / 86Mi to gogo parity (~21× faster, ~69× less
 memory); the O(n²) is gone. PushBytes +3.8% is the *separate* scan-cost class
 (`wiresmith-bobw` / DB-18), untouched by this fix. Distinct also from the
 prealloc-reuse *security* analysis (`wiresmith-u4qg` / DB-6).
+
+### Re-bench on the public toolchain (2026-06-12, 4f41063)
+
+Re-ran the same alternated `go test -c` method (20 rounds, idle M4 Pro) after
+re-pinning to the public `v0.0.0-20260611164808-4f41063d76a2` and full
+`make gen-proto` (gogo baseline 7c61b2b70b):
+
+| Bench | gogo sec/op | wiresmith sec/op | Δ time | B/op Δ | allocs Δ |
+|---|---|---|---|---|---|
+| EncodeDecode              | 182.2µ / 1.250Mi | 192.0µ / 1.232Mi | +5.40% (p=0.000) | ~ (p=0.34) | ~ (2004, equal) |
+| GeneratorDecoderOTLP      | 99.45µ | 95.10µ | −4.37% (p=0.04) | −6.24% | −4.97% |
+| GeneratorDecoderPushBytes | 192.4µ | 201.4µ | +4.66% (p=0.000) | −1.05% | +2.51% |
+
+- **EncodeDecode**: memory and allocs are at gogo parity (1.23–1.25 MiB, 2004
+  allocs) — the `wiresmith-zlce` O(n²) fix is confirmed holding on the public
+  compiler (no 86 MiB blowup). The +5.4% steady-state *time* is a small, stable
+  delta (vs the earlier ~+2.4% reading; run-to-run, not the perf cliff). The
+  load-bearing result — bounded O(n) memory — is intact.
+- **PushBytes**: +4.66% time / +2.51% allocs is the same DB-18
+  (`wiresmith-bobw`) pre-scan linear-scan cost noted above (was +3.8%); not a
+  new regression.
+- **OTLP**: faster than gogo on all three axes.

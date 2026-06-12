@@ -1372,20 +1372,16 @@ func (m *TenantIndex) unmarshal(dAtA []byte, depth int) error {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.Meta) + c; cap(m.Meta) < need {
-				grown := make([]*BlockMeta, len(m.Meta), need)
-				copy(grown, m.Meta)
-				m.Meta = grown
+			if len(m.Meta) == 0 && cap(m.Meta) < c {
+				m.Meta = make([]*BlockMeta, 0, c)
 			}
 		}
 		if c := field3count; c > 0 {
 			if c > preCapMax {
 				c = preCapMax
 			}
-			if need := len(m.CompactedMeta) + c; cap(m.CompactedMeta) < need {
-				grown := make([]*CompactedBlockMeta, len(m.CompactedMeta), need)
-				copy(grown, m.CompactedMeta)
-				m.CompactedMeta = grown
+			if len(m.CompactedMeta) == 0 && cap(m.CompactedMeta) < c {
+				m.CompactedMeta = make([]*CompactedBlockMeta, 0, c)
 			}
 		}
 	}
