@@ -1,0 +1,6 @@
+change_type: enhancement
+component: query-frontend
+note: "Add optional `q` (single TraceQL spanset filter) and `keep_hierarchy` query parameters to return only matching spans (and, optionally, their ancestor path)."
+issues: [7483]
+subtext:
+user: electron0zero

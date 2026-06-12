@@ -16,8 +16,12 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/pkg/collector"
+	"github.com/grafana/tempo/pkg/httpclient"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
+	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	resourcev1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
+	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/stretchr/testify/require"
@@ -1046,4 +1050,119 @@ func TestTagValuesWithSpecialCharacters(t *testing.T) {
 
 		manuallyTestSlash(t, h, start, end)
 	})
+}
+
+// TestTraceByIDV2Filtering exercises the `q` spanset filter and keep_hierarchy options on the V2
+// trace-by-id endpoint end to end, on both the recent-data and backend querying paths.
+func TestTraceByIDV2Filtering(t *testing.T) {
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
+		Components: util.ComponentsRecentDataQuerying | util.ComponentsBackendQuerying,
+	}, func(h *util.TempoHarness) {
+		h.WaitTracesWritable(t)
+
+		// trace shape: A(root) -> B -> C(status_code=500), and A -> D(status_code=200).
+		// only C matches the filter; B and A are its ancestors; D is an unrelated branch.
+		traceID := []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
+		require.NoError(t, h.WriteTempoProtoTraces(buildFilterTestTrace(traceID), ""))
+		h.WaitTracesQueryable(t, 1)
+
+		hexID := tempoUtil.TraceIDToHexString(traceID)
+
+		assertFiltering := func(t *testing.T, apiClient *httpclient.Client) {
+			// no params: full trace, all four spans.
+			full, err := apiClient.QueryTraceV2WithQueryParams(hexID, nil)
+			require.NoError(t, err)
+			require.ElementsMatch(t, []byte{1, 2, 3, 4}, spanLastBytes(full.Trace))
+
+			// q only: keep_hierarchy defaults to true, so the match plus its ancestor path (A,B,C).
+			withHierarchy, err := apiClient.QueryTraceV2WithQueryParams(hexID, map[string]string{"q": "{ .http.status_code = 500 }"})
+			require.NoError(t, err)
+			require.ElementsMatch(t, []byte{1, 2, 3}, spanLastBytes(withHierarchy.Trace))
+
+			// keep_hierarchy=false: only the matched span (C).
+			flat, err := apiClient.QueryTraceV2WithQueryParams(hexID, map[string]string{"q": "{ .http.status_code = 500 }", "keep_hierarchy": "false"})
+			require.NoError(t, err)
+			require.ElementsMatch(t, []byte{3}, spanLastBytes(flat.Trace))
+		}
+
+		apiClient := h.APIClientHTTP("")
+
+		// recent-data path.
+		assertFiltering(t, apiClient)
+		assertBadFilterRejected(t, apiClient, hexID)
+
+		// backend path.
+		h.WaitTracesWrittenToBackend(t, 1)
+		h.ForceBackendQuerying(t)
+		apiClient = h.APIClientHTTP("")
+		assertFiltering(t, apiClient)
+		assertBadFilterRejected(t, apiClient, hexID)
+	})
+}
+
+// assertBadFilterRejected confirms a malformed q is rejected with 400, not 500.
+func assertBadFilterRejected(t *testing.T, apiClient *httpclient.Client, hexID string) {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodGet, apiClient.BaseURL+"/api/v2/traces/"+hexID+"?q="+url.QueryEscape("{ .a = }"), nil)
+	require.NoError(t, err)
+	resp, err := apiClient.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+// spanLastBytes returns the last byte of each span id in the trace, used as a compact span identity.
+func spanLastBytes(tr *tempopb.Trace) []byte {
+	var ids []byte
+	for _, rs := range tr.ResourceSpans {
+		for _, ss := range rs.ScopeSpans {
+			for _, s := range ss.Spans {
+				ids = append(ids, s.SpanId[len(s.SpanId)-1])
+			}
+		}
+	}
+	return ids
+}
+
+// buildFilterTestTrace builds the A->B->C(500), A->D(200) trace used by TestTraceByIDV2Filtering.
+func buildFilterTestTrace(traceID []byte) *tempopb.Trace {
+	start := uint64(time.Now().Add(-3 * time.Second).UnixNano())
+	spanID := func(n byte) []byte { return []byte{0, 0, 0, 0, 0, 0, 0, n} }
+
+	span := func(id, parent byte, statusCode int64) *tracev1.Span {
+		s := &tracev1.Span{
+			TraceId:           traceID,
+			SpanId:            spanID(id),
+			Name:              "span",
+			StartTimeUnixNano: start,
+			EndTimeUnixNano:   start + uint64(time.Millisecond),
+		}
+		if parent != 0 {
+			s.ParentSpanId = spanID(parent)
+		}
+		if statusCode != 0 {
+			s.Attributes = []*commonv1.KeyValue{{
+				Key:   "http.status_code",
+				Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_IntValue{IntValue: statusCode}},
+			}}
+		}
+		return s
+	}
+
+	return &tempopb.Trace{
+		ResourceSpans: []*tracev1.ResourceSpans{{
+			Resource: &resourcev1.Resource{Attributes: []*commonv1.KeyValue{{
+				Key:   "service.name",
+				Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "filter-test"}},
+			}}},
+			ScopeSpans: []*tracev1.ScopeSpans{{
+				Spans: []*tracev1.Span{
+					span(1, 0, 0),   // A root
+					span(2, 1, 0),   // B child of A
+					span(3, 2, 500), // C child of B, matches
+					span(4, 1, 200), // D child of A, unrelated
+				},
+			}},
+		}},
+	}
 }

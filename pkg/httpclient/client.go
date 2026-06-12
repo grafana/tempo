@@ -290,6 +290,18 @@ func (c *Client) QueryTraceV2(id string) (*tempopb.TraceByIDResponse, error) {
 	return m, nil
 }
 
+func (c *Client) QueryTraceV2WithQueryParams(id string, queryParams map[string]string) (*tempopb.TraceByIDResponse, error) {
+	m := &tempopb.TraceByIDResponse{}
+	resp, err := c.getFor(c.getURLWithQueryParams(QueryTraceV2Endpoint+"/"+id, queryParams), m)
+	if err != nil {
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			return nil, util.ErrTraceNotFound
+		}
+		return nil, err
+	}
+	return m, nil
+}
+
 func (c *Client) QueryTraceWithRange(ctx context.Context, id string, start int64, end int64) (*tempopb.Trace, error) {
 	m := &tempopb.Trace{}
 	if start > end {
@@ -547,6 +559,7 @@ func (c *Client) DeleteOverrides(version string) error {
 }
 
 func (c *Client) getURLWithQueryParams(endpoint string, queryParams map[string]string) string {
+	// parse error is ignored, consistent with the other URL builders in this file.
 	joinURL, _ := url.Parse(c.BaseURL + endpoint + "?")
 	q := joinURL.Query()
 
