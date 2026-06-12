@@ -8,6 +8,7 @@ import (
 	"github.com/go-kit/log/level" //nolint:all //deprecated
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
+	"github.com/grafana/tempo/modules/frontend/tracefilter"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -107,6 +108,18 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			return httpInvalidRequest(reqErr), nil
 		}
 
+		// compile up front so a malformed filter fails fast as a 400, before any backend work.
+		filter, err := tracefilter.NewFilterFromValues(req.URL.Query())
+		if err != nil {
+			return httpInvalidRequest(err), nil
+		}
+		// assign only when non-nil, else the interface holds a typed-nil and reads as non-nil.
+		var traceFilter combiner.TraceFilter
+		if filter != nil {
+			traceFilter = filter
+		}
+		// filter runs in finalize so it always applies after caching.
+
 		// check marshalling format
 		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header)
 
@@ -143,6 +156,7 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 				opts.Logger = logger
 			}
 		}
+		opts.TraceFilter = traceFilter
 
 		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat, traceRedactor, opts)
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)

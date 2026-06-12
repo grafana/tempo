@@ -562,6 +562,7 @@ func (c *Client) DeleteOverrides(version string) error {
 }
 
 func (c *Client) getURLWithQueryParams(endpoint string, queryParams map[string]string) string {
+	// parse error is ignored, consistent with the other URL builders in this file.
 	joinURL, _ := url.Parse(c.BaseURL + endpoint + "?")
 	q := joinURL.Query()
 

@@ -222,3 +222,74 @@ func TestNewTraceByIDV2WithSpanPruning(t *testing.T) {
 	require.True(t, found, "expected a pruned summary span")
 	require.Equal(t, int64(3), test.SpanAttrInt(summary, "aggregation.span_count"))
 }
+
+// dropAllFilter drops every span and records whether it ran.
+type dropAllFilter struct {
+	called bool
+}
+
+func (f *dropAllFilter) Process(_ *tempopb.Trace) (*tempopb.Trace, error) {
+	f.called = true
+	return &tempopb.Trace{}, nil
+}
+
+// errorFilter is a TraceFilter that always fails, used to assert filter errors surface.
+type errorFilter struct{}
+
+func (errorFilter) Process(_ *tempopb.Trace) (*tempopb.Trace, error) {
+	return nil, assert.AnError
+}
+
+func TestTraceByIDV2AppliesTraceFilter(t *testing.T) {
+	traceResponse := &tempopb.TraceByIDResponse{
+		Trace:   test.MakeTrace(2, []byte{0x01, 0x02}),
+		Metrics: &tempopb.TraceByIDMetrics{},
+	}
+	resBytes, err := proto.Marshal(traceResponse)
+	require.NoError(t, err)
+
+	newResp := func() http.Response {
+		return http.Response{
+			StatusCode: 200,
+			Header:     map[string][]string{"Content-Type": {"application/protobuf"}},
+			Body:       io.NopCloser(bytes.NewReader(resBytes)),
+		}
+	}
+
+	t.Run("HTTPFinal", func(t *testing.T) {
+		filter := &dropAllFilter{}
+		c := NewTraceByIDV2(100_000, api.HeaderAcceptProtobuf, nil, TraceByIDV2Options{TraceFilter: filter})
+		response := newResp()
+		require.NoError(t, c.AddResponse(MockResponse{&response}))
+
+		res, err := c.HTTPFinal()
+		require.NoError(t, err)
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		actual := &tempopb.TraceByIDResponse{}
+		require.NoError(t, proto.Unmarshal(body, actual))
+		assert.True(t, filter.called, "filter must be invoked")
+		assert.Empty(t, actual.Trace.ResourceSpans, "filtered trace must be reflected in the response")
+	})
+
+	t.Run("GRPCFinal", func(t *testing.T) {
+		filter := &dropAllFilter{}
+		c := NewTypedTraceByIDV2(100_000, api.HeaderAcceptProtobuf, nil, TraceByIDV2Options{TraceFilter: filter})
+		response := newResp()
+		require.NoError(t, c.AddResponse(MockResponse{&response}))
+
+		res, err := c.GRPCFinal()
+		require.NoError(t, err)
+		assert.True(t, filter.called, "filter must be invoked")
+		assert.Empty(t, res.Trace.ResourceSpans, "filtered trace must be reflected in the grpc response")
+	})
+
+	t.Run("filter error surfaces", func(t *testing.T) {
+		c := NewTraceByIDV2(100_000, api.HeaderAcceptProtobuf, nil, TraceByIDV2Options{TraceFilter: errorFilter{}})
+		response := newResp()
+		require.NoError(t, c.AddResponse(MockResponse{&response}))
+
+		_, err := c.HTTPFinal()
+		require.Error(t, err)
+	})
+}

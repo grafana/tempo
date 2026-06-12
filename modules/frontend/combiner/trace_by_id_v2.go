@@ -13,12 +13,19 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
+// TraceFilter filters an assembled trace; Process must not mutate its input, which may be cached.
+type TraceFilter interface {
+	Process(t *tempopb.Trace) (*tempopb.Trace, error)
+}
+
 // TraceByIDV2Options holds optional post-processing configuration for the v2 trace combiner.
 type TraceByIDV2Options struct {
 	// SpanPruningConfig holds processor configuration when span pruning is active. nil = off.
 	SpanPruningConfig *spanpruningprocessor.Config
 	// Logger is used to log non-fatal pruning errors.
 	Logger log.Logger
+	// TraceFilter, when set, restricts the trace to the spans matching a TraceQL filter.
+	TraceFilter TraceFilter
 }
 
 func NewTypedTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceRedactor TraceRedactor, opts TraceByIDV2Options) GRPCCombiner[*tempopb.TraceByIDResponse] {
@@ -56,6 +63,15 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceR
 				}
 			}
 
+			// filter before pruning so the TraceQL filter matches on real spans, not summary spans.
+			if opts.TraceFilter != nil {
+				filtered, err := opts.TraceFilter.Process(traceResult)
+				if err != nil {
+					return nil, err
+				}
+				traceResult = filtered
+			}
+
 			// Pruning runs even on a partial trace (see partialTrace/combiner.IsPartialTrace below):
 			// reducing the size of an already-oversized partial trace is still valuable, and the
 			// resulting summary spans are simply scoped to whatever spans made it into the partial result.
@@ -73,6 +89,7 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceR
 			}
 
 			resp.Trace = traceResult
+			// metrics report bytes inspected to pull the whole trace; filtering only trims output, so they are unchanged.
 			resp.Metrics = metricsCombiner.Metrics
 
 			if partialTrace || combiner.IsPartialTrace() {
