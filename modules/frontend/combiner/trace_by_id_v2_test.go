@@ -47,7 +47,7 @@ func TestNewTraceByIdV2ReturnsAPartialTrace(t *testing.T) {
 		},
 		Body: io.NopCloser(bytes.NewReader(resBytes)),
 	}
-	combiner := NewTraceByIDV2(10, api.HeaderAcceptJSON, nil)
+	combiner := NewTraceByIDV2(10, api.HeaderAcceptJSON, nil, nil)
 	err = combiner.AddResponse(MockResponse{&response})
 	require.NoError(t, err)
 
@@ -75,7 +75,7 @@ func TestNewTraceByIdV2ReturnsAPartialTraceOnPartialTraceReturnedByQuerier(t *te
 		},
 		Body: io.NopCloser(bytes.NewReader(resBytes)),
 	}
-	combiner := NewTraceByIDV2(10, api.HeaderAcceptJSON, nil)
+	combiner := NewTraceByIDV2(10, api.HeaderAcceptJSON, nil, nil)
 	err = combiner.AddResponse(MockResponse{&response})
 	require.NoError(t, err)
 
@@ -105,7 +105,7 @@ func TestTraceByIDV2RedactorHidesTrace(t *testing.T) {
 	}
 
 	t.Run("HTTPFinal returns 404 with empty body", func(t *testing.T) {
-		c := NewTraceByIDV2(100_000, api.HeaderAcceptJSON, hidingRedactor{})
+		c := NewTraceByIDV2(100_000, api.HeaderAcceptJSON, hidingRedactor{}, nil)
 		err := c.AddResponse(newMockResponse(t))
 		require.NoError(t, err)
 
@@ -118,7 +118,7 @@ func TestTraceByIDV2RedactorHidesTrace(t *testing.T) {
 	})
 
 	t.Run("GRPCFinal returns codes.NotFound", func(t *testing.T) {
-		c := NewTypedTraceByIDV2(100_000, api.HeaderAcceptJSON, hidingRedactor{})
+		c := NewTypedTraceByIDV2(100_000, api.HeaderAcceptJSON, hidingRedactor{}, nil)
 		err := c.AddResponse(newMockResponse(t))
 		require.NoError(t, err)
 
@@ -148,7 +148,7 @@ func TestNewTraceByIDV2(t *testing.T) {
 	}
 
 	t.Run("returns a combined trace response as JSON", func(t *testing.T) {
-		combiner := NewTraceByIDV2(100_000, api.HeaderAcceptJSON, nil)
+		combiner := NewTraceByIDV2(100_000, api.HeaderAcceptJSON, nil, nil)
 		err = combiner.AddResponse(MockResponse{&response})
 		require.NoError(t, err)
 
@@ -161,12 +161,83 @@ func TestNewTraceByIDV2(t *testing.T) {
 		require.NoError(t, err)
 	})
 	t.Run("returns a combined trace response as protobuff", func(t *testing.T) {
-		combiner := NewTraceByIDV2(100_000, api.HeaderAcceptProtobuf, nil)
+		combiner := NewTraceByIDV2(100_000, api.HeaderAcceptProtobuf, nil, nil)
 		err = combiner.AddResponse(MockResponse{&response})
 		require.NoError(t, err)
 
 		res, err := combiner.HTTPFinal()
 		require.NoError(t, err)
 		require.NotNil(t, res)
+	})
+}
+
+// dropAllFilter drops every span and records whether it ran.
+type dropAllFilter struct {
+	called bool
+}
+
+func (f *dropAllFilter) Process(_ *tempopb.Trace) (*tempopb.Trace, error) {
+	f.called = true
+	return &tempopb.Trace{}, nil
+}
+
+// errorFilter is a TraceFilter that always fails, used to assert filter errors surface.
+type errorFilter struct{}
+
+func (errorFilter) Process(_ *tempopb.Trace) (*tempopb.Trace, error) {
+	return nil, assert.AnError
+}
+
+func TestTraceByIDV2AppliesTraceFilter(t *testing.T) {
+	traceResponse := &tempopb.TraceByIDResponse{
+		Trace:   test.MakeTrace(2, []byte{0x01, 0x02}),
+		Metrics: &tempopb.TraceByIDMetrics{},
+	}
+	resBytes, err := proto.Marshal(traceResponse)
+	require.NoError(t, err)
+
+	newResp := func() http.Response {
+		return http.Response{
+			StatusCode: 200,
+			Header:     map[string][]string{"Content-Type": {"application/protobuf"}},
+			Body:       io.NopCloser(bytes.NewReader(resBytes)),
+		}
+	}
+
+	t.Run("HTTPFinal", func(t *testing.T) {
+		filter := &dropAllFilter{}
+		c := NewTraceByIDV2(100_000, api.HeaderAcceptProtobuf, nil, filter)
+		response := newResp()
+		require.NoError(t, c.AddResponse(MockResponse{&response}))
+
+		res, err := c.HTTPFinal()
+		require.NoError(t, err)
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		actual := &tempopb.TraceByIDResponse{}
+		require.NoError(t, proto.Unmarshal(body, actual))
+		assert.True(t, filter.called, "filter must be invoked")
+		assert.Empty(t, actual.Trace.ResourceSpans, "filtered trace must be reflected in the response")
+	})
+
+	t.Run("GRPCFinal", func(t *testing.T) {
+		filter := &dropAllFilter{}
+		c := NewTypedTraceByIDV2(100_000, api.HeaderAcceptProtobuf, nil, filter)
+		response := newResp()
+		require.NoError(t, c.AddResponse(MockResponse{&response}))
+
+		res, err := c.GRPCFinal()
+		require.NoError(t, err)
+		assert.True(t, filter.called, "filter must be invoked")
+		assert.Empty(t, res.Trace.ResourceSpans, "filtered trace must be reflected in the grpc response")
+	})
+
+	t.Run("filter error surfaces", func(t *testing.T) {
+		c := NewTraceByIDV2(100_000, api.HeaderAcceptProtobuf, nil, errorFilter{})
+		response := newResp()
+		require.NoError(t, c.AddResponse(MockResponse{&response}))
+
+		_, err := c.HTTPFinal()
+		require.Error(t, err)
 	})
 }

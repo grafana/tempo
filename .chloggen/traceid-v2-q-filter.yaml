@@ -1,0 +1,7 @@
+change_type: enhancement
+component: query-frontend
+note: "TraceByID V2: add optional `q` (single TraceQL spanset filter) and `keep_hierarchy` query parameters to return only matching spans (and, optionally, their ancestor path)."
+# TODO: fill in the PR number once the PR is opened.
+issues: []
+subtext:
+user: surajsidh
