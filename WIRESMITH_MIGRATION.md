@@ -314,3 +314,58 @@ re-pinning to the public `v0.0.0-20260611164808-4f41063d76a2` and full
   (`wiresmith-bobw`) pre-scan linear-scan cost noted above (was +3.8%); not a
   new regression.
 - **OTLP**: faster than gogo on all three axes.
+
+### `UnmarshalNoPrescan` adoption at reuse sites (2026-06-12)
+
+The PushBytes (+4.66%) and EncodeDecode (+5.40% time, fluctuating up to the
++7.9% seen in a later run) regressions above were both 100% the generated
+*top-level* pre-scan in `(*PushBytesRequest).unmarshal`. The prealloc the
+pre-scan feeds never fires on these paths: the `ingest.Decoder` REUSES its
+`PushBytesRequest` (`Reset()` does `Traces[:0]/Ids[:0]`, retaining cap; the
+EncodeDecode bench doesn't even `Reset()`), so the scan is pure overhead. OTLP
+(the −2.9%/−4.4% control) instead gains from the *nested* pre-scans inside
+`Trace`/`ResourceSpans` and must keep them.
+
+The wiresmith `databases` compiler (@854b4c6) now emits
+`UnmarshalNoPrescan(dAtA []byte) error` on every pre-scan-bearing message. It
+calls `unmarshal(dAtA, -1)`: the generated top-level guard is now
+`if l >= 256 && depth >= 0`, so depth `−1` skips ONLY the top-level pre-scan;
+nested messages recurse via `UnmarshalWithDepth(b, depth+1)` (which clamps a
+negative depth to 0), so the first nested level lifts to depth 0 and pre-scans
+normally. Default `Unmarshal` (depth 0) is byte-for-byte unchanged.
+
+Adopted at exactly one reuse site — `pkg/ingest/encoding.go`'s
+`(*Decoder).Decode`, `d.req.Unmarshal(data)` → `d.req.UnmarshalNoPrescan(data)`
+— which both regressing benchmarks share (the EncodeDecode bench reuses the
+bare `Decoder`; `PushBytesDecoder` wraps the same `Decoder`). `PushBytesRequest`
+has no nested message fields, so no nested pre-scans are lost. The OTLP path
+(`OTLPDecoder`, `(*Trace).Unmarshal`) is left on plain `Unmarshal` to keep its
+nested pre-scans and its win.
+
+Re-bench, same alternated 20-round `go test -c` method (idle M4 Pro, gogo
+baseline 7c61b2b70b) with the `databases`@854b4c6 binary regen + the call-site
+change:
+
+| Bench | gogo sec/op | wiresmith sec/op | Δ time | B/op Δ | allocs Δ |
+|---|---|---|---|---|---|
+| EncodeDecode              | 148.2µ / 1.227Mi | 150.0µ / 1.228Mi | ~ (p=0.640) | ~ (p=0.659) | ~ (2004, equal) |
+| GeneratorDecoderOTLP      | 89.74µ | 88.30µ | ~ (p=0.068) | −6.75% | −5.57% |
+| GeneratorDecoderPushBytes | 168.6µ | 166.6µ | −1.22% (p=0.008) | −1.09% | +2.67% |
+
+- **EncodeDecode**: time is now at gogo parity (was +5.40%/+7.9%); memory holds
+  at gogo parity (1.227→1.228 MiB, 2004 allocs exactly equal) — the
+  `wiresmith-zlce` O(n²) fix is still intact, the pre-scan removal didn't
+  disturb it.
+- **PushBytes**: −1.22% time — now marginally *faster* than gogo (was +4.66%);
+  the DB-18 (`wiresmith-bobw`) linear-scan cost is removed on this path. B/op
+  −1.09%; allocs +2.67% (unchanged from before — not pre-scan related).
+- **OTLP**: control, unchanged call site; still faster than gogo on bytes
+  (−6.75%) and allocs (−5.57%), time at parity. The nested pre-scan win is
+  retained.
+
+Both remaining time regressions are eliminated at parity (n=20) with the OTLP
+win kept and EncodeDecode memory/allocs at gogo parity. Other reuse-decode
+sites were deliberately NOT changed: `blockbuilder/live_traces_iter.go`'s
+merge-by-unmarshal (kept byte-identical to upstream) and
+`livestore/instance.go`'s `[:0]`-reset `Trace` decode are candidates left for a
+separate decision.
