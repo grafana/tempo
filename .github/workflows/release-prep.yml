@@ -129,6 +129,9 @@ jobs:
           else
             echo "No pending entries; skipping chlog-update (changelog section expected to be prepared manually, e.g. RC heading renamed)."
           fi
+          # VERSION file is the source of truth for the version baked into
+          # binaries; docker.yml/release.yml refuse tags that don't match it.
+          echo "${TAG#v}" > VERSION
           if [ "$BUMP" = true ]; then
             make bump-tempo-image-tag TEMPO_IMAGE_TAG="${IMAGE_TAG}"
             make jsonnet
@@ -168,6 +171,7 @@ jobs:
             echo "Automated release prep for **${TAG}** (base: \`${BASE_BRANCH}\`)."
             echo
             echo "- Changelog collated via \`make chlog-update VERSION=${TAG}\` (skipped if no pending entries)"
+            echo "- \`VERSION\` file set to ${TAG#v}"
             if [ "$BUMP" = true ]; then
               echo "- Image tag bumped via \`make bump-tempo-image-tag TEMPO_IMAGE_TAG=${IMAGE_TAG}\` + \`make jsonnet\`"
             else

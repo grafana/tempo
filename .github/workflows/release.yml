@@ -29,6 +29,16 @@ jobs:
       - name: fetch tags
         run: git fetch --tags --force
 
+      - name: check tag matches VERSION file
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          if [ "v$(cat VERSION)" != "$TAG" ]; then
+            echo "ERROR: tag ${TAG} does not match the VERSION file ($(cat VERSION))."
+            echo "Bump VERSION on the release branch (release-prep does this) before tagging."
+            exit 1
+          fi
+
       - name: test release
         run: make release-snapshot
 
