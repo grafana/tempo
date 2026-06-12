@@ -117,7 +117,6 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.44.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.44.0
 	go.opentelemetry.io/proto/otlp v1.10.0
-	go.yaml.in/yaml/v2 v2.4.4
 	golang.org/x/net v0.55.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa
 )
@@ -126,6 +125,7 @@ require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/google/jsonschema-go v0.4.2 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
+	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	gopkg.in/ini.v1 v1.67.2 // indirect
 )
 
