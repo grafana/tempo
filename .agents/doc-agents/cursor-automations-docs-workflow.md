@@ -1,6 +1,8 @@
 # Cursor Automations × Tempo docs workflow
 
-This guide wires **Cursor Automations** (cloud agents) to the same pipeline your local skills define: **`docs-pr-check` → `docs-pr-write` → `docs-review`**, orchestrated by **`docs-workflow`**.
+This guide wires **Cursor Automations** (cloud agents) to the same pipeline the Tempo docs skills define: **`docs-pr-check` → `docs-pr-write` → `docs-review`**, orchestrated by **`docs-workflow`**.
+
+**Audience:** Tempo docs maintainers who want to run the doc skills unattended (scheduled or PR-triggered) against `grafana/tempo`. This is maintainer tooling, not general contributor documentation, and it is specific to this repository.
 
 **Official entry points**
 
@@ -17,6 +19,7 @@ This guide wires **Cursor Automations** (cloud agents) to the same pipeline your
 | Triage merged Tempo PRs | `/docs-pr-check` | **Yes** — schedule an automation that runs the check skill (PR list → `gh pr view` → classify → search `docs/sources/tempo`) |
 | Writing docs | `/docs-pr-write` | **Yes**, but prefer **human confirmation** before opening a PR (see [Safety: split the pipeline across automations](#4-safety-split-the-pipeline-across-automations)) |
 | Quality pass | `/docs-review` | **Yes** — ideal for **PRs that only change `docs/**`** |
+| Audience fit | `/persona-check` | **Optional** — run on changed `docs/sources/tempo` pages if you want an audience-fit check; it is not part of the core check → write → review pipeline |
 
 Automations run in a **cloud sandbox** with your instructions and configured **MCPs**. They do not read your local Cursor “skills” UI automatically — paste the **workflow + file paths** into the automation prompt ([Prompt skeleton](#5-prompt-skeleton-paste-into-the-automation-instructions)), or keep skill bodies short and link to this repo.
 
@@ -24,10 +27,10 @@ Automations run in a **cloud sandbox** with your instructions and configured **M
 
 ## 2. Prerequisites
 
-1. **Repository**: Connect **your docs repository** (the clone where you maintain Tempo docs) to Cursor / the automation’s target repo. Substitute `YOUR_ORG/YOUR_REPO` from `docs/project-context.md`.
+1. **Repository**: Connect your clone or fork of **`grafana/tempo`** (where the Tempo docs live, under `docs/sources/tempo/`) as the automation's target repository.
 2. **GitHub**: For Tempo PR data, the agent needs either:
    - **`gh` in the sandbox** with auth, or
-   - **GitHub MCP** / REST with a token that can read **`grafana/tempo`** PRs (and write issues/PRs on your docs repo if you want it to open PRs).
+   - **GitHub MCP** / REST with a token that can read **`grafana/tempo`** PRs (and write issues/PRs on your fork if you want it to open PRs).
 3. **Optional**: **Ripgrep**-style search in-repo is only available if the automation environment exposes it; keyword search over `docs/sources/tempo` may use `grep`/`rg` per agent capabilities.
 
 ---
@@ -37,7 +40,7 @@ Automations run in a **cloud sandbox** with your instructions and configured **M
 | Goal | Trigger | Notes |
 |------|---------|--------|
 | Weekly Tempo triage | **Schedule** (e.g. Mon/Wed) | Run `/docs-pr-check` on recently merged PRs; output is a classification table plus gap summary |
-| Docs PR opened/updated | **GitHub: PR to your docs repo** | Filter path **`docs/**`** — run **`docs-review`** on the diff |
+| Docs PR opened/updated | **GitHub: PR to `grafana/tempo`** | Filter path **`docs/**`** — run **`docs-review`** on the diff |
 | After you paste PR numbers | **Manual / webhook** | Custom webhook or Slack → automation with PR list in payload |
 
 Start with **one scheduled “check-only”** automation and **one PR-triggered “review-only”** automation before chaining write steps.
@@ -58,21 +61,22 @@ Avoid a single automation that **writes production docs and merges** without rev
 
 ## 5. Prompt skeleton (paste into the automation instructions)
 
-Adapt the repo name and branches. Point the agent at these files **in the cloned repo**:
+Adapt the branches as needed. Point the agent at these files in the cloned `grafana/tempo` repo:
 
-| Skill | Path in your repo |
+| Skill | Path in the repo |
 |-------|---------------------------|
 | Workflow | `.claude/skills/docs-workflow/SKILL.md` |
 | Check | `.claude/skills/docs-pr-check/SKILL.md` |
 | Write | `.claude/skills/docs-pr-write/SKILL.md` |
 | Review | `.claude/skills/docs-review/SKILL.md` |
+| Audience fit (optional) | `.claude/skills/persona-check/SKILL.md` |
 | Orientation | `.claude/skills/shared/docs-context-guide.md` |
 | Style | `.claude/skills/shared/style-guide.md` |
 
 **Example system instructions**
 
 ```text
-You are a technical documentation agent for this repository (Tempo product docs).
+You are a technical documentation agent for the grafana/tempo repository (Tempo product docs).
 
 Repository layout: shipped docs live under docs/sources/tempo/. Always read:
 - docs/project-context.md (repo-specific paths and conventions)
@@ -89,8 +93,8 @@ When asked to review doc changes:
 3. Follow .claude/skills/docs-review/SKILL.md on the listed paths. Run Vale if available; otherwise note Vale was skipped.
 
 Constraints:
-- Default Tempo repo for PRs: grafana/tempo.
-- Docs repo: this clone (YOUR_ORG/YOUR_REPO). Open a draft PR for doc changes; do not merge without human approval.
+- Tempo repo for PRs: grafana/tempo.
+- Open a draft PR for doc changes (from your fork); do not merge without human approval.
 - If gh or GitHub access is missing, state what token or MCP is needed and stop.
 ```
 
@@ -98,7 +102,7 @@ Constraints:
 
 ## 6. MCPs and integrations
 
-- **GitHub MCP** (if enabled in your workspace): use for PR files, comments, and opening draft PRs on **YOUR_ORG/YOUR_REPO**.
+- **GitHub MCP** (if enabled in your workspace): use for PR files, comments, and opening draft PRs against **`grafana/tempo`**.
 - **Slack / Linear**: optional for notifications from Automation A.
 - **Memory tool** (if offered): use to store “last triage PR set” or style preferences — optional.
 
@@ -106,10 +110,9 @@ Constraints:
 
 ## 7. Operational checklist
 
-- [ ] Connect **your docs repository** as the automation target.
+- [ ] Connect your clone or fork of **`grafana/tempo`** as the automation target.
 - [ ] Confirm **read access to `grafana/tempo`** PRs via `gh` or PAT.
 - [ ] Create **Automation A** (schedule) using the [Prompt skeleton](#5-prompt-skeleton-paste-into-the-automation-instructions), scoped to **check only** (docs-pr-check).
 - [ ] Create **Automation B** (PR trigger, `docs/**`) using the same prompt skeleton, scoped to **review only** (docs-review).
 - [ ] Add **Automation C** only after A/B are stable; require **draft PR** + human merge.
 - [ ] Re-read Cursor’s Automations UI for **model selection**, **allowed commands**, and **secrets** naming — set least privilege on tokens.
-

@@ -48,6 +48,10 @@ Use `/docs-workflow` to run the full pipeline, or invoke each step individually.
 
 3. **Review** — `/docs-review`. Takes the file paths changed in step 2 and any open items. Returns issues grouped by file and a summary.
 
+### Automations
+
+To run this pipeline unattended (scheduled or PR-triggered) as Cursor Automations against `grafana/tempo`, refer to [`../../.agents/doc-agents/cursor-automations-docs-workflow.md`](../../.agents/doc-agents/cursor-automations-docs-workflow.md). This is maintainer tooling for setting up cloud automations; it is not required for running the skills locally.
+
 ## Other skills
 
 - *Vendor conflicts* — `/fix-vendor-conflicts`. Resolve `vendor/` directory conflicts during a merge, rebase, or dependency upgrade on main or release branches.
