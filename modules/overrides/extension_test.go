@@ -266,7 +266,7 @@ test_extension:
 `
 		var o Overrides
 		decoder := yaml.NewDecoder(strings.NewReader(input))
-		decoder.SetStrict(true)
+		decoder.KnownFields(true)
 		require.NoError(t, decoder.Decode(&o), "strict YAML decoder must not error on registered extension keys")
 	})
 
@@ -328,7 +328,7 @@ overrides:
 `
 	var pto perTenantOverrides
 	decoder := yaml.NewDecoder(strings.NewReader(input))
-	decoder.SetStrict(true)
+	decoder.KnownFields(true)
 	require.NoError(t, decoder.Decode(&pto))
 	require.Equal(t, ConfigTypeLegacy, pto.ConfigType)
 
@@ -355,7 +355,7 @@ overrides:
 `
 	var pto perTenantOverrides
 	decoder := yaml.NewDecoder(strings.NewReader(input))
-	decoder.SetStrict(true)
+	decoder.KnownFields(true)
 	require.NoError(t, decoder.Decode(&pto))
 	require.Equal(t, ConfigTypeNew, pto.ConfigType)
 
@@ -454,7 +454,7 @@ overrides:
 `
 	var pto perTenantOverrides
 	decoder := yaml.NewDecoder(strings.NewReader(input))
-	decoder.SetStrict(true)
+	decoder.KnownFields(true)
 	err := decoder.Decode(&pto)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "field_a cannot be empty", "validation error must not be swallowed by legacy fallback")
@@ -473,7 +473,7 @@ overrides:
 `
 	var pto perTenantOverrides
 	decoder := yaml.NewDecoder(strings.NewReader(input))
-	decoder.SetStrict(true)
+	decoder.KnownFields(true)
 	err := decoder.Decode(&pto)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unknown extension key", "must propagate the unknown-key error, not a legacy-fallback error")
@@ -491,7 +491,7 @@ overrides:
 `
 	var pto perTenantOverrides
 	decoder := yaml.NewDecoder(strings.NewReader(input))
-	decoder.SetStrict(true)
+	decoder.KnownFields(true)
 	require.NoError(t, decoder.Decode(&pto))
 	assert.Equal(t, ConfigTypeLegacy, pto.ConfigType)
 	require.NotNil(t, pto.TenantLimits["tenant-1"])
@@ -510,7 +510,7 @@ defaults:
 `
 	var cfg Config
 	decoder := yaml.NewDecoder(strings.NewReader(input))
-	decoder.SetStrict(true)
+	decoder.KnownFields(true)
 	err := decoder.Decode(&cfg)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unknown extension key")

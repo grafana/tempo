@@ -12,6 +12,7 @@ import (
 
 	"github.com/grafana/tempo/cmd/tempo/app"
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/util"
 )
 
 const (
@@ -349,7 +350,7 @@ func validateMigratedConfig(m map[string]interface{}) ([]string, error) {
 	cfg := app.Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 
-	if err := yaml.UnmarshalStrict(yamlBytes, &cfg); err != nil {
+	if err := util.YAMLUnmarshalStrict(yamlBytes, &cfg); err != nil {
 		if isEnvVarTypeError(err) {
 			// ${VAR} placeholders cause type errors for non-string fields.
 			// This is expected — report as warning, not fatal.
@@ -390,7 +391,7 @@ var validTargets = map[string]bool{
 
 // outputMigratedConfig marshals the map to YAML and prints it to stdout with a header comment.
 func outputMigratedConfig(m map[string]interface{}) error {
-	yamlBytes, err := yaml.Marshal(m)
+	yamlBytes, err := util.YAMLMarshalIndent2(m)
 	if err != nil {
 		return fmt.Errorf("failed to marshal migrated config: %w", err)
 	}
