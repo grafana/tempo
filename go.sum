@@ -407,6 +407,8 @@ github.com/grafana/regexp v0.0.0-20250905093917-f7b3be9d1853 h1:cLN4IBkmkYZNnk7E
 github.com/grafana/regexp v0.0.0-20250905093917-f7b3be9d1853/go.mod h1:+JKpmjMGhpgPL+rXZ5nsZieVzvarn86asRlBg4uNGnk=
 github.com/grafana/wiresmith v0.0.0-20260611140145-c489c2b3685d h1:y7GqSK4eZazZE76fd50ibIJ85cqOynyyKKz6kXqGDUc=
 github.com/grafana/wiresmith v0.0.0-20260611140145-c489c2b3685d/go.mod h1:DOJ6wXM/DqpexnNJlQQxMN4dL+vFVQOwtTToO9+ltaY=
+github.com/grafana/wiresmith v0.0.0-20260611164808-4f41063d76a2 h1:aUDs1MlqR2FGZEY/2lNlJ4vn3jShg/LtF+TR7EkBpvk=
+github.com/grafana/wiresmith v0.0.0-20260611164808-4f41063d76a2/go.mod h1:DOJ6wXM/DqpexnNJlQQxMN4dL+vFVQOwtTToO9+ltaY=
 github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 h1:UH//fgunKIs4JdUbpDl1VZCDaL56wXCB/5+wF6uHfaI=
 github.com/grpc-ecosystem/go-grpc-middleware v1.4.0/go.mod h1:g5qyo/la0ALbONm6Vbp88Yd8NsDy6rZz+RcrMPxvld8=
 github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.1.0 h1:pRhl55Yx1eC7BZ1N+BBWwnKaMyD8uC+34TLdndZMAKk=
