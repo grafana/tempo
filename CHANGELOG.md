@@ -143,6 +143,11 @@
 * [CHANGE] **BREAKING CHANGE** Clean up enterprise jsonnet [#6505](https://github.com/grafana/tempo/pull/6505) (@javiermolinar)
 * [CHANGE] Expose otlp http and grpc ports for Docker examples [#6296](https://github.com/grafana/tempo/pull/6296) (@javiermolinar)
 
+# v2.10.7
+
+* [CHANGE] Stop publishing 32-bit ARM binary archives. Release artifacts continue to include amd64 and arm64 binaries. [#7106](https://github.com/grafana/tempo/pull/7106) (@javiermolinar)
+* [BUGFIX] Fix incorrect version reported by `--version`, the build-info metric, and `/api/status/buildinfo`. The build version is now read from the new top-level VERSION file instead of the most recently created git tag, which could belong to a different release. [#7469](https://github.com/grafana/tempo/pull/7469) (@zhxiaogg)
+
 # v2.10.6
 
 * [CHANGE] **BREAKING CHANGE** Remove Opencensus receiver [#7322](https://github.com/grafana/tempo/pull/7322) (@zhxiaogg)
