@@ -32,20 +32,14 @@ func (c queryValidatorWare) RoundTrip(req Request) (Responses[combiner.PipelineR
 }
 
 func (c queryValidatorWare) validateTraceQLQuery(queryParams url.Values) error {
-	var traceQLQuery string
-	if queryParams.Has("q") {
-		traceQLQuery = queryParams.Get("q")
+	// Keep this guard next to ParseNoOptimizations so the middleware remains safe
+	// if it is mounted behind a handler that does not pre-validate query size.
+	if err := ValidateTraceQLQueryParamsSize(queryParams, c.maxQuerySizeBytes); err != nil {
+		return err
 	}
-	if queryParams.Has("query") {
-		traceQLQuery = queryParams.Get("query")
-	}
-	if traceQLQuery != "" {
-		// reject query if the query expression size exceeds the maximum allowed size.
-		// reject huge queries before we parse them, this avoids parsing huge queries.
-		if len(traceQLQuery) > c.maxQuerySizeBytes {
-			return fmt.Errorf("TraceQL expression exceeds the configured maximum size of %d bytes, reduce the query expression size or contact your system administrator", c.maxQuerySizeBytes)
-		}
 
+	traceQLQuery := traceQLQueryFromParams(queryParams)
+	if traceQLQuery != "" {
 		expr, err := traceql.ParseNoOptimizations(traceQLQuery)
 		if err == nil {
 			err = traceql.Validate(expr)
@@ -55,4 +49,36 @@ func (c queryValidatorWare) validateTraceQLQuery(queryParams url.Values) error {
 		}
 	}
 	return nil
+}
+
+// ValidateTraceQLQueryParamsSize validates all TraceQL query aliases in queryParams.
+func ValidateTraceQLQueryParamsSize(queryParams url.Values, maxQuerySizeBytes int) error {
+	for _, param := range []string{"q", "query"} {
+		for _, traceQLQuery := range queryParams[param] {
+			if err := ValidateTraceQLQuerySize(traceQLQuery, maxQuerySizeBytes); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// ValidateTraceQLQuerySize rejects TraceQL expressions larger than maxQuerySizeBytes.
+func ValidateTraceQLQuerySize(traceQLQuery string, maxQuerySizeBytes int) error {
+	// Reject huge queries before parsing to avoid parser CPU and memory exhaustion.
+	if traceQLQuery != "" && len(traceQLQuery) > maxQuerySizeBytes {
+		return fmt.Errorf("TraceQL expression exceeds the configured maximum size of %d bytes, reduce the query expression size or contact your system administrator", maxQuerySizeBytes)
+	}
+	return nil
+}
+
+func traceQLQueryFromParams(queryParams url.Values) string {
+	var traceQLQuery string
+	if queryParams.Has("q") {
+		traceQLQuery = queryParams.Get("q")
+	}
+	if queryParams.Has("query") {
+		traceQLQuery = queryParams.Get("query")
+	}
+	return traceQLQuery
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"net/url"
 	"testing"
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
@@ -82,6 +83,57 @@ func TestQueryValidator(t *testing.T) {
 			require.NotEmpty(t, body)
 
 			require.Equal(t, tt.statusCode, httpResponse.HTTPResponse().StatusCode)
+		})
+	}
+}
+
+func TestValidateTraceQLQueryParamsSize(t *testing.T) {
+	oversizedQuery := "{ malformed query that is too large"
+	tests := []struct {
+		name    string
+		params  url.Values
+		wantErr bool
+	}{
+		{
+			name:    "no query params",
+			params:  url.Values{},
+			wantErr: false,
+		},
+		{
+			name:    "q within limit",
+			params:  url.Values{"q": []string{"{}"}},
+			wantErr: false,
+		},
+		{
+			name:    "q too large",
+			params:  url.Values{"q": []string{oversizedQuery}},
+			wantErr: true,
+		},
+		{
+			name:    "q too large with safe query alias",
+			params:  url.Values{"query": []string{"{}"}, "q": []string{oversizedQuery}},
+			wantErr: true,
+		},
+		{
+			name:    "query too large with safe q alias",
+			params:  url.Values{"q": []string{"{}"}, "query": []string{oversizedQuery}},
+			wantErr: true,
+		},
+		{
+			name:    "repeated q with one oversized value",
+			params:  url.Values{"q": []string{"{}", oversizedQuery}},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateTraceQLQueryParamsSize(tt.params, 10)
+			if tt.wantErr {
+				require.ErrorContains(t, err, "TraceQL expression exceeds the configured maximum size")
+				return
+			}
+			require.NoError(t, err)
 		})
 	}
 }

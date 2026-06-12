@@ -44,6 +44,9 @@ func newTagsStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[com
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 
 	return func(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsServer) error {
+		if err := pipeline.ValidateTraceQLQuerySize(req.Query, cfg.MaxQueryExpressionSizeBytes); err != nil {
+			return status.Error(codes.InvalidArgument, err.Error())
+		}
 		if dataAccessController != nil {
 			err := dataAccessController.HandleGRPCTagsReq(srv.Context(), req)
 			if err != nil {
@@ -99,6 +102,9 @@ func newTagsV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 	return func(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsV2Server) error {
 		ctx := srv.Context()
 
+		if err := pipeline.ValidateTraceQLQuerySize(req.Query, cfg.MaxQueryExpressionSizeBytes); err != nil {
+			return status.Error(codes.InvalidArgument, err.Error())
+		}
 		if dataAccessController != nil {
 			err := dataAccessController.HandleGRPCTagsV2Req(ctx, req)
 			if err != nil {
@@ -169,6 +175,9 @@ func newTagValuesStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrippe
 		ctx := srv.Context()
 		var err error
 
+		if err := pipeline.ValidateTraceQLQuerySize(req.Query, cfg.MaxQueryExpressionSizeBytes); err != nil {
+			return status.Error(codes.InvalidArgument, err.Error())
+		}
 		if dataAccessController != nil {
 			err = dataAccessController.HandleGRPCTagValuesReq(ctx, req)
 			if err != nil {
@@ -216,6 +225,9 @@ func newTagValuesV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrip
 	return func(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesV2Server) error {
 		ctx := srv.Context()
 
+		if err := pipeline.ValidateTraceQLQuerySize(req.Query, cfg.MaxQueryExpressionSizeBytes); err != nil {
+			return status.Error(codes.InvalidArgument, err.Error())
+		}
 		if dataAccessController != nil {
 			err := dataAccessController.HandleGRPCTagValuesV2Req(ctx, req)
 			if err != nil {
@@ -274,13 +286,15 @@ func newTagsHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pip
 			return errResp, nil
 		}
 
+		if err := pipeline.ValidateTraceQLQueryParamsSize(req.URL.Query(), cfg.MaxQueryExpressionSizeBytes); err != nil {
+			return httpInvalidRequest(err), nil
+		}
 		if dataAccessController != nil {
 			if err := dataAccessController.HandleHTTPTagsReq(req); err != nil {
 				level.Error(logger).Log("msg", "SearchTags http: access control handling failed", "err", err)
 				return httpInvalidRequest(err), nil
 			}
 		}
-
 		scope, _, rangeDur, maxTagsPerScope, staleValueThreshold := parseParams(req)
 
 		// check marshalling format
@@ -332,13 +346,15 @@ func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 			return errResp, nil
 		}
 
+		if err := pipeline.ValidateTraceQLQueryParamsSize(req.URL.Query(), cfg.MaxQueryExpressionSizeBytes); err != nil {
+			return httpInvalidRequest(err), nil
+		}
 		if dataAccessController != nil {
 			if err := dataAccessController.HandleHTTPTagsV2Req(req); err != nil {
 				level.Error(logger).Log("msg", "SearchTagsV2 http: access control handling failed", "err", err)
 				return httpInvalidRequest(err), nil
 			}
 		}
-
 		scope, q, rangeDur, maxTagsPerScope, staleValueThreshold := parseParams(req)
 		if q != "" {
 			_, err := traceql.ExtractConditionGroups(q, o.MaxConditionGroupsPerTagQuery())
@@ -404,13 +420,15 @@ func newTagValuesHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combine
 			return errResp, nil
 		}
 
+		if err := pipeline.ValidateTraceQLQueryParamsSize(req.URL.Query(), cfg.MaxQueryExpressionSizeBytes); err != nil {
+			return httpInvalidRequest(err), nil
+		}
 		if dataAccessController != nil {
 			if err := dataAccessController.HandleHTTPTagValuesReq(req); err != nil {
 				level.Error(logger).Log("msg", "SearchTagValues http: access control handling failed", "err", err)
 				return httpInvalidRequest(err), nil
 			}
 		}
-
 		_, query, rangeDur, maxTagsValues, staleValueThreshold := parseParams(req)
 		tagName := extractTagName(req.URL.Path, tagNameRegexV1)
 
@@ -449,13 +467,15 @@ func newTagValuesV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combi
 			return errResp, nil
 		}
 
+		if err := pipeline.ValidateTraceQLQueryParamsSize(req.URL.Query(), cfg.MaxQueryExpressionSizeBytes); err != nil {
+			return httpInvalidRequest(err), nil
+		}
 		if dataAccessController != nil {
 			if err := dataAccessController.HandleHTTPTagValuesV2Req(req); err != nil {
 				level.Error(logger).Log("msg", "SearchTagValuesV2 http: access control handling failed", "err", err)
 				return httpInvalidRequest(err), nil
 			}
 		}
-
 		_, query, rangeDur, maxTagsValues, staleValueThreshold := parseParams(req)
 		tagName := extractTagName(req.URL.Path, tagNameRegexV2)
 		if query != "" {
