@@ -1,5 +1,15 @@
 <!-- next version -->
 
+# v2.10.7
+
+## 🧰 Bug fixes 🧰
+
+- `tempo`: Fix incorrect version reported by `--version`, the build-info metric, and `/api/status/buildinfo`. The build version is now read from the new top-level VERSION file instead of the most recently created git tag, which could belong to a different release. ([#7469](https://github.com/grafana/tempo/issues/7469)) (@zhxiaogg)
+
+## 🔧 Changes 🔧
+
+- `tempo`: Stop publishing 32-bit ARM binary archives. Release artifacts continue to include amd64 and arm64 binaries. ([#7106](https://github.com/grafana/tempo/issues/7106)) (@javiermolinar)
+
 # v2.10.6
 
 ## 🔒 Security 🔒
