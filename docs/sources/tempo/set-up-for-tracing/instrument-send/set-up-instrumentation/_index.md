@@ -101,17 +101,15 @@ Refer to [Set up Beyla](https://grafana.com/docs/beyla/<BEYLA_VERSION>/setup/) f
 While Beyla is a good choice for metrics, span metrics, and service graphs, if you choose to use it for tracing, check the [Beyla documentation](https://grafana.com/docs/beyla/<BEYLA_VERSION>/) to verify that it meets your tracing needs.
 {{< /admonition >}}
 
-<!-- update these blog links
 ## Grafana Blog
 
 The Grafana blog periodically features instrumentation posts.
 
-- [How to configure OpenTelemetry .NET automatic instrumentation with Grafana Cloud](https://grafana.com/blog/2023/10/31/how-to-configure-opentelemetry-.net-automatic-instrumentation-with-grafana-cloud)
-- [Java Spring Boot Auto-Instrumentation](https://grafana.com/blog/2021/02/03/auto-instrumenting-a-java-spring-boot-application-for-traces-and-logs-using-opentelemetry-and-grafana-tempo/)
-- [Go + OpenMetrics Exemplars](https://grafana.com/blog/2020/11/09/trace-discovery-in-grafana-tempo-using-prometheus-exemplars-loki-2.0-queries-and-more/)
-- [.NET](https://grafana.com/blog/2021/02/11/instrumenting-a-.net-web-api-using-opentelemetry-tempo-and-grafana-cloud/)
-- [Python](https:/grafana.com/blog/2021/05/04/get-started-with-distributed-tracing-and-grafana-tempo-using-foobar-a-demo-written-in-python/)
--->
+- [Why OpenTelemetry instrumentation needs both eBPF and SDKs](https://grafana.com/blog/why-opentelemetry-instrumentation-needs-both-ebpf-and-sdks/)
+- [Database observability: How OpenTelemetry semantic conventions improve consistency across signals](https://grafana.com/blog/database-observability-how-opentelemetry-semantic-conventions-improve-consistency-across-signals/)
+- [Introducing OpenTelemetry eBPF Instrumentation: Why we donated Grafana Beyla to OpenTelemetry](https://grafana.com/blog/opentelemetry-ebpf-instrumentation-beyla-donation/)
+- [Demystifying the OpenTelemetry Operator: Observing Kubernetes applications without writing code](https://grafana.com/blog/demystifying-the-opentelemetry-operator-observing-kubernetes-applications-without-writing-code/)
+- [How to instrument your Python application using OpenTelemetry](https://grafana.com/blog/how-to-instrument-your-python-application-using-opentelemetry/)
 
 ### Community resources
 
