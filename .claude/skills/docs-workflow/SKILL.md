@@ -42,7 +42,9 @@ Run [`../docs-review/SKILL.md`](../docs-review/SKILL.md) on the files changed in
 **Input:** File paths from step 2, plus any uncertain claims flagged during writing.
 **Output:** Review report covering style guide compliance, frontmatter, links, and accuracy.
 
-Present findings. After addressing review feedback, ask: _"Would you like me to create a PR, or would you prefer to review the changes locally first?"_
+Present findings. If `docs-review` flags a real (non-example) secret in its sensitive-data scan, stop here: do not offer to create a PR until the user has rotated or invalidated the value at the source, since it may already persist in git history.
+
+After addressing review feedback, ask: _"Would you like me to create a PR, or would you prefer to review the changes locally first?"_
 
 ### Optional: Screenshot validation
 

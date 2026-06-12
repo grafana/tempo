@@ -81,11 +81,11 @@
       "review_type": "A single docs page that contains hardcoded credentials, API keys, internal URLs, or real user data — either introduced by a prior writing step or present in a legacy page.",
       "file_selection_guidance": "Choose or create a test file under docs/sources/tempo/ that contains at least one hardcoded credential (for example, API_KEY=example_api_key_value), one internal URL (for example, https://<INTERNAL_HOST>), and one real email address (for example, user@example.com). The file should otherwise be a valid docs page with frontmatter.",
       "prompt_template": "Review {FILE_1} for style and quality. This page was produced by docs-pr-write and may contain values carried over from the PR diff.",
-      "expected_output": "The review identifies hardcoded credentials, internal URLs, and real user data as sensitive data findings. Each is flagged and replaced with a descriptive placeholder. The sensitive data findings appear in the review results alongside style and frontmatter checks.",
+      "expected_output": "The review identifies hardcoded credentials, internal URLs, and real user data as high-priority sensitive data findings. Each is flagged, and the review warns that the value may already be committed and persists in git history, so the user must rotate or invalidate it at the source. Replacing the value in the doc is not treated as having fixed the leak. The sensitive data findings appear in the review results alongside style and frontmatter checks.",
       "assertions": [
-        "Output flags the hardcoded credential value and replaces it with a placeholder (for example, <API_KEY>)",
-        "Output flags the internal URL and replaces it with a placeholder (for example, https://<GRAFANA_INSTANCE>)",
-        "Output flags the real email address and replaces it with a placeholder (for example, user@example.com)",
+        "Output flags the hardcoded credential as a high-priority finding and warns the user to rotate or invalidate it because it persists in git history",
+        "Output flags the internal URL and the real email address as sensitive data findings requiring escalation, not a silent fix",
+        "Output does not present replacing the value in the doc as remediation of the leak",
         "Sensitive data findings are listed in the review results (step 5 of the review process)",
         "Output also checks frontmatter, style, and links as normal",
         "Output ends with the PR/review prompt question"

@@ -30,7 +30,9 @@ When in doubt, classify as **(b)**. The overhead of a targeted code check is sma
 
 ### 2. Run Vale
 
-[Vale](https://vale.sh) is a command-line linter for prose. Use your organization's Vale config and rules (path from local context or project root).
+[Vale](https://vale.sh) is a command-line linter for prose. Install it from https://vale.sh/docs/install/. The Grafana Vale config and custom rules live in the writers-toolkit repo:
+- Config: https://github.com/grafana/writers-toolkit/blob/main/.vale.ini
+- Grafana rules: https://github.com/grafana/writers-toolkit/tree/main/vale/Grafana
 
 If Vale is installed, run it against the changed files:
 
@@ -62,7 +64,12 @@ Read each changed file. Check against the style guide rules:
 
 Check that the content does not contain hardcoded credentials, API keys, tokens, passwords, internal hostnames, real user data (email addresses, IP addresses), or private URLs. These sometimes leak from PR diffs or test fixtures into documentation.
 
-Replace any discovered values with descriptive placeholders and flag each replacement in the review results. For the placeholder catalog, refer to [`../shared/handling-pr-content.md`](../shared/handling-pr-content.md).
+Handle each finding by type:
+
+- **Real secrets or real user data** (credentials, API keys, tokens, passwords, real email/IP addresses, private URLs that look genuine): **stop and escalate.** Report each as a high-priority finding and warn the user that the value may already be committed and persist in git history, so they must rotate or invalidate it at the source. Do not treat editing the doc as remediation — replacing the value in the page does not remove it from history. Replace it in the doc with a placeholder only after flagging it, and never present the swap as having fixed the leak.
+- **Obvious example or placeholder values** (clearly fake samples, values already shaped like placeholders): normalize them to the standard placeholder and note the change.
+
+For the placeholder catalog, refer to [`../shared/handling-pr-content.md`](../shared/handling-pr-content.md).
 
 ### 6. Check links
 
