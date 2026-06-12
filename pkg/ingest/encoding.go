@@ -128,7 +128,11 @@ func NewDecoder() *Decoder {
 
 // Decode converts a Kafka record's byte data back into a tempopb.Trace.
 func (d *Decoder) Decode(data []byte) (*tempopb.PushBytesRequest, error) {
-	err := d.req.Unmarshal(data)
+	// d.req is reused across calls (Reset retains slice capacity), so the
+	// generated top-level pre-scan prealloc never fires usefully. Skip it via
+	// UnmarshalNoPrescan; PushBytesRequest has no nested message fields, so no
+	// nested pre-scans are lost.
+	err := d.req.UnmarshalNoPrescan(data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal record: %w", err)
 	}
