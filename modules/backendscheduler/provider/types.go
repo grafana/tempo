@@ -22,6 +22,11 @@ type Scheduler interface {
 	// promoted to the active map via AddJob.
 	RegisterJob(job *work.Job)
 
+	// TryRegisterJob registers a job only if no redaction batch is active for its
+	// tenant, atomically with respect to batch installation. Returns false (without
+	// registering) when a batch is active.
+	TryRegisterJob(job *work.Job) bool
+
 	// HasJobsForTenant returns true if there are any jobs of the given type in
 	// any state (pending, in-flight, or active) for the tenant.
 	HasJobsForTenant(tenantID string, jobType tempopb.JobType) bool
