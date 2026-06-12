@@ -61,6 +61,8 @@ Match content to one of five use cases:
 
 ## How to infer entry state
 
+Entry state is the reader's starting clarity for *this* page — a situational signal that changes per visit, distinct from persona (the reader's stable capability). Persona sets depth and tone; entry state sets how the page should open. The same Practitioner can arrive at an overview in `unknown_goal` state and a reference page in `need_precision` state. These four are the complete set.
+
 What does the content assume about the reader's starting point?
 
 - **unknown_goal** — Reader doesn't know what the product does. Content should orient.
@@ -70,28 +72,9 @@ What does the content assume about the reader's starting point?
 
 ## Red-flag signals
 
-3-4 high-signal checks per persona. Use judgment for cases not listed here.
+Per-persona red flags live in the `red_flags` list under each persona in `../shared/agent_personas.yaml` (loaded in Workflow step 1). Check the content against the red flags for the detected persona. Use judgment for cases not listed there.
 
-**Learner red flags:**
-- Jumps into commands without explaining what they do or why
-- Uses jargon or acronyms without definition
-- No framing for why this task matters
-- Dead-end page with no next steps
-
-**Practitioner red flags:**
-- Too abstract or conceptual with no concrete examples
-- Steps that are hard to translate into action
-- Missing connection between steps and expected outcomes
-
-**Expert red flags:**
-- Oversimplified explanations that waste the reader's time
-- Missing edge cases, constraints, or reference details
-- Unnecessary introductory material
-
-**Operator red flags:**
-- Only covers the happy path
-- No failure modes or troubleshooting
-- Missing system-level context (scaling, architecture, dependencies)
+The cross-cutting checks below apply to every persona and are specific to this skill's assessment:
 
 **Cross-cutting (all personas):**
 - Does the page guide the reader forward (next steps, related content)?
@@ -118,7 +101,9 @@ Use this format for every file evaluated:
 - After each step, briefly state what the user should see or expect
 ```
 
-Keep suggestions to 1-3 actionable items. Don't score or rate — just say what's missing and how to fix it.
+Keep suggestions to 1-3 actionable items. Don't score or rate, but do order both "What's missing" and "Suggestions" by severity — lead with the single most significant gap so a major issue isn't buried under minor ones.
+
+This skill flags audience-fit gaps only. Factual or accuracy errors are out of scope (use docs-review for those), so don't rank a factual problem here — surface it through docs-review instead.
 
 If nothing is missing, say so explicitly: "Content fits the detected persona well. No gaps identified." But that should be rare.
 
@@ -127,21 +112,19 @@ If nothing is missing, say so explicitly: "Content fits the detected persona wel
 - **The failure mode to watch for:** If your output is just "This is for a Practitioner" and nothing else, you're not done. You must always answer "What's missing for this user?" That's the whole point of this skill.
 - Content can legitimately serve multiple personas (layered: Learner intro followed by Expert detail). Report this as "layered" with the primary and secondary personas, not as a mismatch.
 - Reference pages targeting Experts should not be flagged for lacking conceptual intros. That's by design.
-- "Operator" applies primarily to self-managed and OSS docs (Tempo, Loki, Mimir, Pyroscope, Alloy), not Grafana Cloud docs.
-- Some pages target evaluators or migrators (cross-cutting concerns in the persona model). These won't map to a single persona — note the cross-cutting concern instead of forcing a fit.
 
 ## Multi-file reports
 
-When checking multiple files (PR or batch), produce one report per file, then a brief summary:
+When checking multiple files (PR or batch), produce one report per file. The summary is in addition to those per-file reports, never a replacement — always keep the per-file detail. Lead the summary with the files that need attention, since that's the actionable part:
 
 ```markdown
 ## Summary
 
-- X files checked
-- Primary personas detected: Learner (3), Practitioner (2)
-- Most common gap: missing examples (4 files)
-- Files with strongest fit: path/to/file1.md, path/to/file2.md
-- Files needing attention: path/to/file3.md (persona mismatch), path/to/file4.md (dead-end)
+**Files needing attention:**
+- path/to/file3.md — persona mismatch
+- path/to/file4.md — dead-end, no next steps
+
+X files checked. Most common gap: missing examples (4 files).
 ```
 
 ## Scope

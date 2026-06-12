@@ -15,6 +15,11 @@ personas:
         content_preferences:
           - walkthroughs
           - step_by_step_guides
+    red_flags:
+      - 'Jumps into commands without explaining what they do or why'
+      - 'Uses jargon or acronyms without definition'
+      - 'No framing for why this task matters'
+      - 'Dead-end page with no next steps'
 
   Practitioner:
     description: 'Task-oriented user comfortable with tools and workflows'
@@ -22,6 +27,10 @@ personas:
       - task_guides
       - examples
       - workflow_docs
+    red_flags:
+      - 'Too abstract or conceptual with no concrete examples'
+      - 'Steps that are hard to translate into action'
+      - 'Missing connection between steps and expected outcomes'
 
   Expert:
     description: 'Advanced user needing precision and deep control'
@@ -29,6 +38,10 @@ personas:
       - reference
       - advanced_examples
       - edge_cases
+    red_flags:
+      - "Oversimplified explanations that waste the reader's time"
+      - 'Missing edge cases, constraints, or reference details'
+      - 'Unnecessary introductory material'
 
   Operator:
     description: 'User responsible for running and maintaining systems'
@@ -36,6 +49,10 @@ personas:
       - architecture
       - configuration
       - troubleshooting
+    red_flags:
+      - 'Only covers the happy path'
+      - 'No failure modes or troubleshooting'
+      - 'Missing system-level context (scaling, architecture, dependencies)'
 
 use_cases:
   - name: understand

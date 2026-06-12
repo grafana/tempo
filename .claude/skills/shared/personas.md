@@ -113,7 +113,9 @@ Users arrive with different levels of clarity.
 - "I don't know what this does"
 - "I know what I want to do"
 - "I need exact syntax or configuration"
-- "I need to run or maintain this system"
+- "I'm running this at scale"
+
+Entry state is situational: it's the reader's starting clarity for a particular page and changes per visit. This is distinct from persona, which is a stable capability. Persona sets depth and tone; entry state sets how the page should open. The same Practitioner can arrive at an overview in an "I don't know what this does" state and a reference page in an "I need exact syntax" state.
 
 Entry state helps determine:
 
