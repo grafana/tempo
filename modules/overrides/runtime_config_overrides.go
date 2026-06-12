@@ -15,7 +15,7 @@ import (
 	"github.com/grafana/dskit/runtimeconfig"
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/pkg/sharedconfig"
@@ -66,7 +66,7 @@ func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) er
 // and new scoped formats. Returns a map of tenant ID to their overrides.
 func UnmarshalPerTenantOverrides(data []byte) (map[string]*Overrides, error) {
 	var o perTenantOverrides
-	if err := yaml.UnmarshalStrict(data, &o); err != nil {
+	if err := util.YAMLUnmarshalStrict(data, &o); err != nil {
 		return nil, err
 	}
 	return o.TenantLimits, nil
@@ -103,7 +103,7 @@ func loadPerTenantOverrides(validator Validator, typ ConfigType, expandEnv bool,
 		}
 
 		decoder := yaml.NewDecoder(r)
-		decoder.SetStrict(true)
+		decoder.KnownFields(true)
 		if err := decoder.Decode(&overrides); err != nil {
 			return nil, err
 		}

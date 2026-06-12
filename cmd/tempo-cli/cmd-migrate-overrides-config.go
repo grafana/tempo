@@ -7,9 +7,10 @@ import (
 	"os"
 	"reflect"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
+	"github.com/grafana/tempo/pkg/util"
 )
 
 type migrateOverridesConfigCmd struct {
@@ -35,7 +36,7 @@ func (cmd *migrateOverridesConfigCmd) Run(*globalOptions) error {
 
 	// Legacy overrides are automatically converted to a new format during unmarshaling
 	// via Config.UnmarshalYAML.
-	if err := yaml.UnmarshalStrict(buff, &cfg); err != nil {
+	if err := util.YAMLUnmarshalStrict(buff, &cfg); err != nil {
 		return fmt.Errorf("failed to parse configFile %s: %w", cmd.ConfigFile, err)
 	}
 
