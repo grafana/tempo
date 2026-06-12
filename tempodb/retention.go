@@ -115,16 +115,16 @@ func (rw *readerWriter) retainTenant(ctx context.Context, tenantID string, compa
 		case <-ctx.Done():
 			return
 		default:
-			level.Debug(rw.logger).Log("owns", compactorSharder.Owns(b.BlockID.String()), "blockID", b.BlockID, "tenantID", tenantID)
-			if b.CompactedTime.Before(cutoff) && compactorSharder.Owns(b.BlockID.String()) {
-				level.Info(rw.logger).Log("msg", "deleting block", "blockID", b.BlockID, "tenantID", tenantID)
-				err := rw.c.ClearBlock((uuid.UUID)(b.BlockID), tenantID)
+			level.Debug(rw.logger).Log("owns", compactorSharder.Owns(b.BlockMeta.BlockID.String()), "blockID", b.BlockMeta.BlockID, "tenantID", tenantID)
+			if b.CompactedTime.Before(cutoff) && compactorSharder.Owns(b.BlockMeta.BlockID.String()) {
+				level.Info(rw.logger).Log("msg", "deleting block", "blockID", b.BlockMeta.BlockID, "tenantID", tenantID)
+				err := rw.c.ClearBlock((uuid.UUID)(b.BlockMeta.BlockID), tenantID)
 				if err != nil {
-					level.Error(rw.logger).Log("msg", "failed to clear compacted block during retention", "blockID", b.BlockID, "tenantID", tenantID, "err", err)
+					level.Error(rw.logger).Log("msg", "failed to clear compacted block during retention", "blockID", b.BlockMeta.BlockID, "tenantID", tenantID, "err", err)
 					metricRetentionErrors.Inc()
 				} else {
 					metricDeleted.Inc()
-					rw.removeCachedBlock(ctx, tenantID, (uuid.UUID)(b.BlockID), int(b.BloomShardCount))
+					rw.removeCachedBlock(ctx, tenantID, (uuid.UUID)(b.BlockMeta.BlockID), int(b.BlockMeta.BloomShardCount))
 					rw.blocklist.Update(tenantID, nil, nil, nil, []*backend.CompactedBlockMeta{b})
 				}
 			}

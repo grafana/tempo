@@ -708,7 +708,13 @@ func callSearchTagValuesV2AndAssert(t *testing.T, h *util.TempoHarness, tagName,
 	require.NoError(t, err)
 
 	sort.Slice(response.TagValues, func(i, j int) bool { return response.TagValues[i].Value < response.TagValues[j].Value })
-	require.Equal(t, expected.TagValues, response.TagValues)
+	if len(expected.TagValues) == 0 {
+		// gogo jsonpb decodes an empty JSON array as an empty (non-nil) slice,
+		// the golang/protobuf decoder used to leave it nil — treat both as "no values"
+		require.Empty(t, response.TagValues)
+	} else {
+		require.Equal(t, expected.TagValues, response.TagValues)
+	}
 	assertMetrics(t, response.Metrics, len(expected.TagValues))
 
 	// streaming

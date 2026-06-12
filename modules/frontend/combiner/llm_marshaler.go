@@ -290,18 +290,12 @@ func extractAnyValue(av *commonv1.AnyValue) interface{} {
 	case *commonv1.AnyValue_BytesValue:
 		return hex.EncodeToString(v.BytesValue)
 	case *commonv1.AnyValue_ArrayValue:
-		if v.ArrayValue == nil {
-			return []interface{}{}
-		}
 		arr := make([]interface{}, 0, len(v.ArrayValue.Values))
 		for _, item := range v.ArrayValue.Values {
 			arr = append(arr, extractAnyValue(item))
 		}
 		return arr
 	case *commonv1.AnyValue_KvlistValue:
-		if v.KvlistValue == nil {
-			return map[string]interface{}{}
-		}
 		return flattenAttributes(v.KvlistValue.Values)
 	default:
 		return nil

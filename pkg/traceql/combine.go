@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/util"
 )
 
@@ -255,16 +256,13 @@ func combineSearchResults(existing *tempopb.TraceSearchMetadata, incoming *tempo
 	// It's possible to find multiple trace fragments that satisfy a TraceQL result,
 	// therefore we use max() to merge the ServiceStats.
 	for service, incomingStats := range incoming.ServiceStats {
-		existingStats, ok := existing.ServiceStats[service]
-		if !ok {
-			existingStats = &tempopb.ServiceStats{}
-			if existing.ServiceStats == nil {
-				existing.ServiceStats = make(map[string]*tempopb.ServiceStats)
-			}
-			existing.ServiceStats[service] = existingStats
+		if existing.ServiceStats == nil {
+			existing.ServiceStats = make(map[string]tempopb.ServiceStats)
 		}
+		existingStats := existing.ServiceStats[service]
 		existingStats.SpanCount = max(existingStats.SpanCount, incomingStats.SpanCount)
 		existingStats.ErrorCount = max(existingStats.ErrorCount, incomingStats.ErrorCount)
+		existing.ServiceStats[service] = existingStats
 	}
 
 	// make a map of existing Spansets
@@ -311,11 +309,26 @@ func spansetID(ss *tempopb.SpanSet) string {
 	for _, s := range ss.Attributes {
 		// any attributes that start with "by" are considered to be part of the spanset identity
 		if strings.HasPrefix(s.Key, "by") {
-			id += s.Key + s.Value.String()
+			id += s.Key + anyValueIdentity(s.Value)
 		}
 	}
 
 	return id
+}
+
+// anyValueIdentity returns a stable string identity for an AnyValue suitable
+// for grouping spansets by their by(...) attribute values. The wiresmith
+// String() output isn't deterministic for oneof fields (it prints interface
+// pointer addresses), so we serialise the value via the wire format instead.
+func anyValueIdentity(v *commonv1.AnyValue) string {
+	if v == nil {
+		return ""
+	}
+	b, err := v.Marshal()
+	if err != nil {
+		return ""
+	}
+	return string(b)
 }
 
 type QueryRangeCombiner struct {

@@ -1,6 +1,7 @@
 package test
 
 import (
+	"bytes"
 	crand "crypto/rand"
 	"encoding/json"
 	"fmt"
@@ -480,6 +481,45 @@ func RandomString() string {
 		s[i] = letters[rand.Intn(len(letters))] // nolint:gosec // G404: Use of weak random number generator
 	}
 	return string(s)
+}
+
+// ProtoMarshaler is satisfied by both gogo- and wiresmith-generated messages.
+type ProtoMarshaler interface {
+	Marshal() ([]byte, error)
+}
+
+// ProtoEqual reports whether two protobuf messages marshal to identical wire
+// bytes. Repeated field order matters, same as with proto.Equal. Prefer this
+// (or RequireProtoEqual) over require.Equal for proto structs: struct-literal
+// expectations differ from unmarshaled values in the wiresmith
+// XXX_fieldsPresent bitmap even when semantically equal.
+func ProtoEqual(a, b ProtoMarshaler) bool {
+	ab, err := a.Marshal()
+	if err != nil {
+		return false
+	}
+	bb, err := b.Marshal()
+	if err != nil {
+		return false
+	}
+	return bytes.Equal(ab, bb)
+}
+
+// RequireProtoEqual asserts wire-level equality of two protobuf messages and
+// prints a JSON diff on mismatch. Use instead of require.Equal for proto
+// structs: struct-literal expectations differ from unmarshaled values in the
+// wiresmith-internal presence bitmap even when semantically equal.
+func RequireProtoEqual(t require.TestingT, want, got ProtoMarshaler) {
+	if h, ok := t.(interface{ Helper() }); ok {
+		h.Helper()
+	}
+	if ProtoEqual(want, got) {
+		return
+	}
+	wantJSON, _ := json.MarshalIndent(want, "", "  ")
+	gotJSON, _ := json.MarshalIndent(got, "", "  ")
+	require.Equal(t, string(wantJSON), string(gotJSON), "protos differ")
+	require.Fail(t, "protos differ on the wire but share a JSON form")
 }
 
 func TracesEqual(t *testing.T, t1 *tempopb.Trace, t2 *tempopb.Trace) {

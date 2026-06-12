@@ -1071,12 +1071,12 @@ func TestPollComparePreviousResults(t *testing.T) {
 			for tenantID, expectedCompactedMetas := range tc.expectedCompactedPerTenant {
 				l := compactedMetas[tenantID]
 				sort.Slice(l, func(i, j int) bool {
-					x := bytes.Compare(l[i].BlockID[:], l[j].BlockID[:])
+					x := bytes.Compare(l[i].BlockMeta.BlockID[:], l[j].BlockMeta.BlockID[:])
 					return x > 0
 				})
 
 				sort.Slice(expectedCompactedMetas, func(i, j int) bool {
-					x := bytes.Compare(expectedCompactedMetas[i].BlockID[:], expectedCompactedMetas[j].BlockID[:])
+					x := bytes.Compare(expectedCompactedMetas[i].BlockMeta.BlockID[:], expectedCompactedMetas[j].BlockMeta.BlockID[:])
 					return x > 0
 				})
 
@@ -1136,7 +1136,7 @@ func TestPollLiveToCompactedSynthesized(t *testing.T) {
 	// Block should appear in the compacted list.
 	require.Len(t, compactedMetas[tenantID], 1)
 	got := compactedMetas[tenantID][0]
-	require.Equal(t, blockID, got.BlockID)
+	require.Equal(t, blockID, got.BlockMeta.BlockID)
 	require.Equal(t, *previousMeta, got.BlockMeta)
 
 	// CompactedTime must be set (non-zero and after our start time).
@@ -1431,7 +1431,7 @@ func newMockCompactor(list PerTenantCompacted, expectsError bool) backend.Compac
 			}
 
 			for _, m := range l {
-				if (uuid.UUID)(m.BlockID) == blockID {
+				if (uuid.UUID)(m.BlockMeta.BlockID) == blockID {
 					return m, nil
 				}
 			}
@@ -1470,7 +1470,7 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 			}
 			compactedBlocks := compactedList[tenantID]
 			for _, b := range compactedBlocks {
-				compactedUUIDs = append(compactedUUIDs, (uuid.UUID)(b.BlockID))
+				compactedUUIDs = append(compactedUUIDs, (uuid.UUID)(b.BlockMeta.BlockID))
 			}
 
 			return uuids, compactedUUIDs, nil

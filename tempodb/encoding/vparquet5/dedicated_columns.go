@@ -407,7 +407,7 @@ func dedicatedColStrToAnyValue(v []string) *v1.AnyValue {
 			anyV.Value = anyS
 			values = append(values, anyV)
 		}
-		return &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}}
+		return &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: v1.ArrayValue{Values: values}}}
 	}
 }
 
@@ -458,6 +458,6 @@ func dedicatedColIntToAnyValue(v []int64) *v1.AnyValue {
 			values = append(values, anyV)
 		}
 
-		return &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}}
+		return &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: v1.ArrayValue{Values: values}}}
 	}
 }

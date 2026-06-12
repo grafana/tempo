@@ -349,7 +349,7 @@ func (p *Poller) pollTenantBlocks(
 	}
 
 	for _, i := range compactedMetas {
-		cm[i.BlockID] = i
+		cm[i.BlockMeta.BlockID] = i
 	}
 
 	// The boolean here to track if we know the block has been compacted
@@ -615,8 +615,8 @@ func sumTotalBackendMetaMetrics(
 	}
 
 	for _, cbm := range compactedBlockMeta {
-		sumTotalObjectsCBM += int(cbm.TotalObjects)
-		sumTotalBytesCBM += cbm.Size_
+		sumTotalObjectsCBM += int(cbm.BlockMeta.TotalObjects)
+		sumTotalBytesCBM += cbm.BlockMeta.Size_
 	}
 
 	return backendMetaMetrics{
