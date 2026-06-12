@@ -87,42 +87,53 @@ func TestQueryValidator(t *testing.T) {
 	}
 }
 
-func TestQuerySizeValidator(t *testing.T) {
-	oversizedQuery := url.QueryEscape("{ malformed query that is too large")
+func TestValidateTraceQLQueryParamsSize(t *testing.T) {
+	oversizedQuery := "{ malformed query that is too large"
 	tests := []struct {
-		name string
-		url  string
+		name    string
+		params  url.Values
+		wantErr bool
 	}{
 		{
-			name: "q too large",
-			url:  "http://localhost:8080/api/search?q=" + oversizedQuery,
+			name:    "no query params",
+			params:  url.Values{},
+			wantErr: false,
 		},
 		{
-			name: "q too large with safe query alias",
-			url:  "http://localhost:8080/api/search?query={}&q=" + oversizedQuery,
+			name:    "q within limit",
+			params:  url.Values{"q": []string{"{}"}},
+			wantErr: false,
 		},
 		{
-			name: "query too large with safe q alias",
-			url:  "http://localhost:8080/api/search?q={}&query=" + oversizedQuery,
+			name:    "q too large",
+			params:  url.Values{"q": []string{oversizedQuery}},
+			wantErr: true,
+		},
+		{
+			name:    "q too large with safe query alias",
+			params:  url.Values{"query": []string{"{}"}, "q": []string{oversizedQuery}},
+			wantErr: true,
+		},
+		{
+			name:    "query too large with safe q alias",
+			params:  url.Values{"q": []string{"{}"}, "query": []string{oversizedQuery}},
+			wantErr: true,
+		},
+		{
+			name:    "repeated q with one oversized value",
+			params:  url.Values{"q": []string{"{}", oversizedQuery}},
+			wantErr: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rt := NewQuerySizeValidatorWare(10).Wrap(nextFunc)
-			req, err := http.NewRequest(http.MethodGet, tt.url, nil)
+			err := ValidateTraceQLQueryParamsSize(tt.params, 10)
+			if tt.wantErr {
+				require.ErrorContains(t, err, "TraceQL expression exceeds the configured maximum size")
+				return
+			}
 			require.NoError(t, err)
-
-			resp, err := rt.RoundTrip(NewHTTPRequest(req))
-			require.NoError(t, err)
-
-			httpResponse, _, err := resp.Next(context.Background())
-			require.NoError(t, err)
-			body, err := io.ReadAll(httpResponse.HTTPResponse().Body)
-			require.NoError(t, err)
-
-			require.Equal(t, http.StatusBadRequest, httpResponse.HTTPResponse().StatusCode)
-			require.Contains(t, string(body), "TraceQL expression exceeds the configured maximum size")
 		})
 	}
 }

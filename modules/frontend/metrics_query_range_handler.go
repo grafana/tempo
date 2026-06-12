@@ -46,10 +46,6 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 				return err
 			}
 		}
-		if err := pipeline.ValidateTraceQLQuerySize(req.Query, cfg.MaxQueryExpressionSizeBytes); err != nil {
-			return status.Error(codes.InvalidArgument, err.Error())
-		}
-
 		// default step if not set
 		if req.Step == 0 {
 			req.Step = traceql.DefaultQueryRangeStep(req.Start, req.End)
@@ -134,10 +130,6 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 				return httpInvalidRequest(err), nil
 			}
 		}
-		if err := pipeline.ValidateTraceQLQueryParamsSize(req.URL.Query(), cfg.MaxQueryExpressionSizeBytes); err != nil {
-			return httpInvalidRequest(err), nil
-		}
-
 		// parse request
 		queryRangeReq, err := api.ParseQueryRangeRequest(req)
 		if err != nil {

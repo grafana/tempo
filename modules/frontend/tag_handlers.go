@@ -112,9 +112,6 @@ func newTagsV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 				return err
 			}
 		}
-		if err := pipeline.ValidateTraceQLQuerySize(req.Query, cfg.MaxQueryExpressionSizeBytes); err != nil {
-			return status.Error(codes.InvalidArgument, err.Error())
-		}
 		httpReq, tenant, err := buildTagsRequestAndExtractTenant(ctx, req, downstreamPath, logger)
 		if err != nil {
 			return err
@@ -238,9 +235,6 @@ func newTagValuesV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrip
 				return err
 			}
 		}
-		if err := pipeline.ValidateTraceQLQuerySize(req.Query, cfg.MaxQueryExpressionSizeBytes); err != nil {
-			return status.Error(codes.InvalidArgument, err.Error())
-		}
 		// we have to interpolate the tag name into the path so that when it is routed to the queriers
 		// they will parse it correctly. see also the mux.SetUrlVars discussion below.
 		pathWithValue := strings.Replace(api.PathSearchTagValuesV2, api.MuxVarTagInPath, req.TagName, 1)
@@ -301,10 +295,6 @@ func newTagsHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pip
 				return httpInvalidRequest(err), nil
 			}
 		}
-		if err := pipeline.ValidateTraceQLQueryParamsSize(req.URL.Query(), cfg.MaxQueryExpressionSizeBytes); err != nil {
-			return httpInvalidRequest(err), nil
-		}
-
 		scope, _, rangeDur, maxTagsPerScope, staleValueThreshold := parseParams(req)
 
 		// check marshalling format
@@ -365,10 +355,6 @@ func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 				return httpInvalidRequest(err), nil
 			}
 		}
-		if err := pipeline.ValidateTraceQLQueryParamsSize(req.URL.Query(), cfg.MaxQueryExpressionSizeBytes); err != nil {
-			return httpInvalidRequest(err), nil
-		}
-
 		scope, q, rangeDur, maxTagsPerScope, staleValueThreshold := parseParams(req)
 		if q != "" {
 			_, err := traceql.ExtractConditionGroups(q, o.MaxConditionGroupsPerTagQuery())
@@ -443,10 +429,6 @@ func newTagValuesHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combine
 				return httpInvalidRequest(err), nil
 			}
 		}
-		if err := pipeline.ValidateTraceQLQueryParamsSize(req.URL.Query(), cfg.MaxQueryExpressionSizeBytes); err != nil {
-			return httpInvalidRequest(err), nil
-		}
-
 		_, query, rangeDur, maxTagsValues, staleValueThreshold := parseParams(req)
 		tagName := extractTagName(req.URL.Path, tagNameRegexV1)
 
@@ -494,10 +476,6 @@ func newTagValuesV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combi
 				return httpInvalidRequest(err), nil
 			}
 		}
-		if err := pipeline.ValidateTraceQLQueryParamsSize(req.URL.Query(), cfg.MaxQueryExpressionSizeBytes); err != nil {
-			return httpInvalidRequest(err), nil
-		}
-
 		_, query, rangeDur, maxTagsValues, staleValueThreshold := parseParams(req)
 		tagName := extractTagName(req.URL.Path, tagNameRegexV2)
 		if query != "" {

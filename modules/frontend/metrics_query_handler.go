@@ -47,10 +47,6 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 				return err
 			}
 		}
-		if err := pipeline.ValidateTraceQLQuerySize(req.Query, cfg.MaxQueryExpressionSizeBytes); err != nil {
-			return status.Error(codes.InvalidArgument, err.Error())
-		}
-
 		// --------------------------------------------------
 		// Rewrite into a query_range request.
 		// --------------------------------------------------
@@ -117,10 +113,6 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 				return httpInvalidRequest(err), nil
 			}
 		}
-		if err := pipeline.ValidateTraceQLQueryParamsSize(req.URL.Query(), cfg.MaxQueryExpressionSizeBytes); err != nil {
-			return httpInvalidRequest(err), nil
-		}
-
 		// Parse request
 		i, err := api.ParseQueryInstantRequest(req)
 		if err != nil {

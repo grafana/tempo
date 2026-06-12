@@ -49,17 +49,6 @@ func (c queryValidatorWare) validateTraceQLQuery(queryParams url.Values) error {
 	return nil
 }
 
-func NewQuerySizeValidatorWare(maxQuerySizeBytes int) AsyncMiddleware[combiner.PipelineResponse] {
-	return AsyncMiddlewareFunc[combiner.PipelineResponse](func(next AsyncRoundTripper[combiner.PipelineResponse]) AsyncRoundTripper[combiner.PipelineResponse] {
-		return AsyncRoundTripperFunc[combiner.PipelineResponse](func(req Request) (Responses[combiner.PipelineResponse], error) {
-			if err := ValidateTraceQLQueryParamsSize(req.HTTPRequest().URL.Query(), maxQuerySizeBytes); err != nil {
-				return NewBadRequest(err), nil
-			}
-			return next.RoundTrip(req)
-		})
-	})
-}
-
 func ValidateTraceQLQueryParamsSize(queryParams url.Values, maxQuerySizeBytes int) error {
 	for _, param := range []string{"q", "query"} {
 		for _, traceQLQuery := range queryParams[param] {
