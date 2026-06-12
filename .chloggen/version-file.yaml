@@ -1,0 +1,11 @@
+change_type: bug_fix
+
+component: tempo
+
+note: Fix incorrect version reported by `--version`, the build-info metric, and `/api/status/buildinfo`. The build version is now read from the new top-level VERSION file instead of the most recently created git tag, which could belong to a different release.
+
+issues: [7469]
+
+subtext:
+
+user: zhxiaogg
