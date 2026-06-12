@@ -76,7 +76,8 @@ func (o Options) Compile() (*Filter, error) {
 		return nil, fmt.Errorf("invalid %s filter: %w", QueryParam, err)
 	}
 
-	return &Filter{spansetFilter: sf,
+	return &Filter{
+		spansetFilter: sf,
 		keepHierarchy: o.KeepHierarchy,
 	}, nil
 }
