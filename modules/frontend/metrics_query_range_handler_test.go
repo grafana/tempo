@@ -147,7 +147,7 @@ func TestMetricsHandlersRejectOversizedQueryBeforeParsing(t *testing.T) {
 	t.Run("range http rejects q when query alias is safe", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, api.PathMetricsQueryRange, nil)
 		params := req.URL.Query()
-		params.Set("query", "{} | rate()")
+		params.Set("query", "{}")
 		params.Set("q", query)
 		params.Set("start", "1100")
 		params.Set("end", "1300")

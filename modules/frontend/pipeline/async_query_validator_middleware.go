@@ -32,6 +32,8 @@ func (c queryValidatorWare) RoundTrip(req Request) (Responses[combiner.PipelineR
 }
 
 func (c queryValidatorWare) validateTraceQLQuery(queryParams url.Values) error {
+	// Keep this guard next to ParseNoOptimizations so the middleware remains safe
+	// if it is mounted behind a handler that does not pre-validate query size.
 	if err := ValidateTraceQLQueryParamsSize(queryParams, c.maxQuerySizeBytes); err != nil {
 		return err
 	}
@@ -49,6 +51,7 @@ func (c queryValidatorWare) validateTraceQLQuery(queryParams url.Values) error {
 	return nil
 }
 
+// ValidateTraceQLQueryParamsSize validates all TraceQL query aliases in queryParams.
 func ValidateTraceQLQueryParamsSize(queryParams url.Values, maxQuerySizeBytes int) error {
 	for _, param := range []string{"q", "query"} {
 		for _, traceQLQuery := range queryParams[param] {
@@ -60,6 +63,7 @@ func ValidateTraceQLQueryParamsSize(queryParams url.Values, maxQuerySizeBytes in
 	return nil
 }
 
+// ValidateTraceQLQuerySize rejects TraceQL expressions larger than maxQuerySizeBytes.
 func ValidateTraceQLQuerySize(traceQLQuery string, maxQuerySizeBytes int) error {
 	// Reject huge queries before parsing to avoid parser CPU and memory exhaustion.
 	if traceQLQuery != "" && len(traceQLQuery) > maxQuerySizeBytes {

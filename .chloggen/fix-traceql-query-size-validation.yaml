@@ -1,6 +1,6 @@
 change_type: bug_fix
 component: query-frontend
 note: reject TraceQL queries that exceed `max_query_expression_size_bytes` before parsing across search, metrics, tags, and MCP query paths.
-issues: [7245]
+issues: []
 subtext:
 user: carles-grafana

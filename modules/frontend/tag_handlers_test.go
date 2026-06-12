@@ -69,8 +69,48 @@ func TestTagHandlersRejectOversizedQueryBeforeParsing(t *testing.T) {
 		require.NotContains(t, resp.Body.String(), "parse error")
 	})
 
+	t.Run("tags grpc", func(t *testing.T) {
+		err := f.streamingTags(&tempopb.SearchTagsRequest{Query: query}, newMockStreamingServer[*tempopb.SearchTagsResponse]("tenant", nil))
+
+		require.Equal(t, codes.InvalidArgument, status.Code(err))
+		require.Contains(t, err.Error(), "TraceQL expression exceeds the configured maximum size")
+		require.NotContains(t, err.Error(), "parse error")
+	})
+
+	t.Run("tags v2 http", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, api.PathSearchTagsV2+"?q="+url.QueryEscape(query), nil)
+		req = req.WithContext(user.InjectOrgID(req.Context(), "tenant"))
+		resp := httptest.NewRecorder()
+
+		f.SearchTagsV2Handler.ServeHTTP(resp, req)
+
+		require.Equal(t, http.StatusBadRequest, resp.Code)
+		require.Contains(t, resp.Body.String(), "TraceQL expression exceeds the configured maximum size")
+		require.NotContains(t, resp.Body.String(), "parse error")
+	})
+
 	t.Run("tags v2 grpc", func(t *testing.T) {
 		err := f.streamingTagsV2(&tempopb.SearchTagsRequest{Query: query}, newMockStreamingServer[*tempopb.SearchTagsV2Response]("tenant", nil))
+
+		require.Equal(t, codes.InvalidArgument, status.Code(err))
+		require.Contains(t, err.Error(), "TraceQL expression exceeds the configured maximum size")
+		require.NotContains(t, err.Error(), "parse error")
+	})
+
+	t.Run("tag values http", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/search/tag/span.name/values?q="+url.QueryEscape(query), nil)
+		req = req.WithContext(user.InjectOrgID(req.Context(), "tenant"))
+		resp := httptest.NewRecorder()
+
+		f.SearchTagsValuesHandler.ServeHTTP(resp, req)
+
+		require.Equal(t, http.StatusBadRequest, resp.Code)
+		require.Contains(t, resp.Body.String(), "TraceQL expression exceeds the configured maximum size")
+		require.NotContains(t, resp.Body.String(), "parse error")
+	})
+
+	t.Run("tag values grpc", func(t *testing.T) {
+		err := f.streamingTagValues(&tempopb.SearchTagValuesRequest{TagName: "span.name", Query: query}, newMockStreamingServer[*tempopb.SearchTagValuesResponse]("tenant", nil))
 
 		require.Equal(t, codes.InvalidArgument, status.Code(err))
 		require.Contains(t, err.Error(), "TraceQL expression exceeds the configured maximum size")
