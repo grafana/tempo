@@ -15,6 +15,7 @@ import (
 	"github.com/parquet-go/parquet-go"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
+	"github.com/grafana/tempo/pkg/sampling"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
@@ -925,6 +926,7 @@ const (
 	columnPathInstrumentationAttrDouble = "rs.list.element.ss.list.element.Scope.Attrs.list.element.ValueDouble.list.element"
 	columnPathInstrumentationAttrBool   = "rs.list.element.ss.list.element.Scope.Attrs.list.element.ValueBool.list.element"
 
+	columnPathSpanTraceState      = "rs.list.element.ss.list.element.Spans.list.element.TraceState"
 	columnPathSpanID              = "rs.list.element.ss.list.element.Spans.list.element.SpanID"
 	ColumnPathSpanName            = "rs.list.element.ss.list.element.Spans.list.element.Name"
 	columnPathSpanStartTime       = "rs.list.element.ss.list.element.Spans.list.element.StartTimeUnixNano"
@@ -993,6 +995,7 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	traceql.IntrinsicNestedSetLeft:        {intrinsicScopeSpan, traceql.TypeInt, columnPathSpanNestedSetLeft},
 	traceql.IntrinsicNestedSetRight:       {intrinsicScopeSpan, traceql.TypeInt, columnPathSpanNestedSetRight},
 	traceql.IntrinsicNestedSetParent:      {intrinsicScopeSpan, traceql.TypeInt, columnPathSpanParentID},
+	traceql.IntrinsicSpanMultiplier:       {intrinsicScopeSpan, traceql.TypeFloat, columnPathSpanTraceState},
 
 	traceql.IntrinsicTraceRootService: {intrinsicScopeTrace, traceql.TypeString, columnPathRootServiceName},
 	traceql.IntrinsicTraceRootSpan:    {intrinsicScopeTrace, traceql.TypeString, columnPathRootSpanName},
@@ -2083,6 +2086,13 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 			addPredicate(columnPathSpanParentID, pred)
 			columnSelectAs[columnPathSpanParentID] = columnPathSpanParentID
 			continue
+		case traceql.IntrinsicSpanMultiplier:
+			// Synthetic float intrinsic; the iterator reads the raw TraceState
+			// column and the collector parses it into a per-span multiplier.
+			// Only OpNone (projection) is supported.
+			addPredicate(columnPathSpanTraceState, nil)
+			columnSelectAs[columnPathSpanTraceState] = columnPathSpanTraceState
+			continue
 		}
 
 		// Well-known attribute?
@@ -2159,7 +2169,8 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 				traceql.IntrinsicStructuralSibling,
 				traceql.IntrinsicNestedSetLeft,
 				traceql.IntrinsicNestedSetRight,
-				traceql.IntrinsicNestedSetParent:
+				traceql.IntrinsicNestedSetParent,
+				traceql.IntrinsicSpanMultiplier: // synthetic; explicitly requested by metrics queries
 				continue
 			}
 			addPredicate(entry.columnPath, nil)
@@ -3188,6 +3199,17 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			if c.nestedSetRightExplicit {
 				sp.addSpanAttr(traceql.IntrinsicNestedSetRightAttribute, traceql.NewStaticInt(int(kv.Value.Int32())))
 			}
+		case columnPathSpanTraceState:
+			// Parse OTel probability sampling threshold once per span. Surface
+			// as a span attribute (falling back to 1.0 when the tracestate is
+			// absent or unparseable) — the engine reads it via AttributeFor,
+			// and it also counts toward attributesMatched() so the higher
+			// minAttributes threshold from the extra condition is satisfied.
+			m := sampling.MultiplierFromTraceState(unsafeToString(kv.Value.Bytes()))
+			if m <= 0 {
+				m = 1.0
+			}
+			sp.addSpanAttr(traceql.IntrinsicSpanMultiplierAttribute, traceql.NewStaticFloat(m))
 		default:
 			// TODO - This exists for span-level dedicated columns like http.status_code
 			// Are nils possible here?

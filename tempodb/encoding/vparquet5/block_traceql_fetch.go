@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
+	"github.com/grafana/tempo/pkg/sampling"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -617,6 +618,12 @@ func createSpanIterators(
 			addPredicate(columnPathSpanParentID, pred)
 			columnSelectAs[columnPathSpanParentID] = columnPathSpanParentID
 			continue
+		case traceql.IntrinsicSpanMultiplier:
+			// Synthetic float intrinsic; the iterator reads the raw TraceState
+			// column and the collector parses it into a per-span multiplier.
+			addPredicate(columnPathSpanTraceState, nil)
+			columnSelectAs[columnPathSpanTraceState] = columnPathSpanTraceState
+			continue
 		default:
 			panic("unhandled intrinsic: " + cond.Attribute.String())
 		}
@@ -677,7 +684,8 @@ func createSpanIterators(
 				traceql.IntrinsicStructuralSibling,
 				traceql.IntrinsicNestedSetLeft,
 				traceql.IntrinsicNestedSetRight,
-				traceql.IntrinsicNestedSetParent:
+				traceql.IntrinsicNestedSetParent,
+				traceql.IntrinsicSpanMultiplier: // synthetic; explicitly requested by metrics queries
 				continue
 			}
 			addPredicate(entry.columnPath, nil)
@@ -1366,6 +1374,17 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 			sp.startTimeUnixNanos = intervalMapper3600Seconds.TimestampOf(int(kv.Value.Int64()))
 		case columnPathSpanChildCount:
 			sp.addSpanAttr(traceql.IntrinsicChildCountAttribute, traceql.NewStaticInt(int(kv.Value.Int32())))
+		case columnPathSpanTraceState:
+			// Parse OTel probability sampling threshold once per span. Surface
+			// as a span attribute (falling back to 1.0 when the tracestate is
+			// absent or unparseable) — the engine reads it via AttributeFor,
+			// and it also counts toward attributesMatched() so the higher
+			// minAttributes threshold from the extra condition is satisfied.
+			m := sampling.MultiplierFromTraceState(unsafeToString(kv.Value.Bytes()))
+			if m <= 0 {
+				m = 1.0
+			}
+			sp.addSpanAttr(traceql.IntrinsicSpanMultiplierAttribute, traceql.NewStaticFloat(m))
 		case columnPathSpanDuration:
 			durationNanos = kv.Value.Uint64()
 			sp.durationNanos = durationNanos

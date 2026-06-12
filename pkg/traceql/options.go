@@ -11,6 +11,7 @@ type compileOptions struct {
 	// metrics query only
 	spanOnlyFetch     *bool
 	timeOverlapCutoff float64
+	extrapolate       *bool
 }
 
 func applyCompileOptions(opts ...CompileOption) compileOptions {
@@ -51,5 +52,17 @@ func WithSpanOnlyFetch(v bool) CompileOption {
 func WithTimeOverlapCutoff(v float64) CompileOption {
 	return func(o *compileOptions) {
 		o.timeOverlapCutoff = v
+	}
+}
+
+// WithExtrapolation sets the default for per-span sampling extrapolation.
+// When not set the default (off) is used, and this may be overridden by the
+// `with(extrapolate=true|false)` query hint. When extrapolation is on,
+// matched spans contribute their IntrinsicSpanMultiplier (= 1 / sampling
+// probability, parsed from the W3C tracestate by the storage layer) to
+// count/sum/rate aggregates instead of 1. min/max are unaffected.
+func WithExtrapolation(v bool) CompileOption {
+	return func(o *compileOptions) {
+		o.extrapolate = &v
 	}
 }

@@ -462,12 +462,58 @@ type SpanAggregator interface {
 	Length() int
 }
 
+// spanExtrapolation returns the per-span sampling multiplier (= 1 / sampling
+// probability) surfaced by the storage layer as IntrinsicSpanMultiplier.
+// Falls back to 1.0 when the storage layer didn't expose a value or it is
+// invalid — callers may safely call this on every span.
+func spanExtrapolation(s Span) float64 {
+	v, ok := s.AttributeFor(IntrinsicSpanMultiplierAttribute)
+	if !ok {
+		return 1.0
+	}
+	f := v.Float()
+	if math.IsNaN(f) || f <= 0 {
+		return 1.0
+	}
+	return f
+}
+
+// stochasticRoundExtrapolation returns floor(m) with probability 1 - frac, or
+// ceil(m) with probability frac, where frac = m - floor(m). E[result] == m, so
+// large-sample averages converge to the deterministic-multiplier value but
+// each per-span contribution stays integer. Use this for count-style
+// aggregators (count_over_time, rate, histogram buckets, compare) where the
+// integer-ness of per-bucket values is part of the contract.
+//
+// The random bit source is derived from the span ID (OTel SDKs generate
+// random 64-bit span IDs uniformly, per the spec), so the decision is
+// deterministic per span — repeated queries against the same data return
+// the same counts, and one span's outcome is independent of others.
+func stochasticRoundExtrapolation(s Span) float64 {
+	m := spanExtrapolation(s)
+	i := math.Floor(m)
+	frac := m - i
+	if frac == 0 {
+		return i
+	}
+
+	// Top 53 bits of the span ID as a uniform float64 in [0, 1). Span IDs
+	// are uniformly-random 64-bit values from the SDK, and util.SpanIDToUint64
+	// zero-pads shorter IDs (only relevant for synthetic test spans).
+	r := float64(util.SpanIDToUint64(s.ID())>>11) / (1 << 53)
+	if r < frac {
+		return i + 1
+	}
+	return i
+}
+
 // CountOverTimeAggregator counts the number of spans. It can also
 // calculate the rate when given a multiplier.
 // TODO - Rewrite me to be []float64 which is more efficient
 type CountOverTimeAggregator struct {
-	count    float64
-	rateMult float64
+	count       float64
+	rateMult    float64
+	extrapolate bool
 }
 
 var _ VectorAggregator = (*CountOverTimeAggregator)(nil)
@@ -484,7 +530,19 @@ func NewRateAggregator(rateMult float64) *CountOverTimeAggregator {
 	}
 }
 
-func (c *CountOverTimeAggregator) Observe(_ Span) {
+// SetExtrapolate toggles per-span sampling extrapolation. When true, each
+// observed span contributes spanExtrapolation(span) instead of 1.
+func (c *CountOverTimeAggregator) SetExtrapolate(extrapolate bool) {
+	c.extrapolate = extrapolate
+}
+
+func (c *CountOverTimeAggregator) Observe(s Span) {
+	if c.extrapolate {
+		// Stochastic rounding keeps per-span contributions integer (so the
+		// emitted count is also an integer) while preserving expected value.
+		c.count += stochasticRoundExtrapolation(s)
+		return
+	}
 	c.count++
 }
 
@@ -498,6 +556,8 @@ type OverTimeAggregator struct {
 	getSpanAttValue func(s Span) float64
 	agg             func(current, n float64) float64
 	val             float64
+	op              SimpleAggregationOp
+	extrapolate     bool
 }
 
 var _ VectorAggregator = (*OverTimeAggregator)(nil)
@@ -534,11 +594,25 @@ func NewOverTimeAggregator(attr Attribute, op SimpleAggregationOp) *OverTimeAggr
 		getSpanAttValue: fn,
 		agg:             agg,
 		val:             math.Float64frombits(normalNaN),
+		op:              op,
+	}
+}
+
+// SetExtrapolate toggles per-span sampling extrapolation. Only applies to
+// sum_over_time; min/max remain unscaled (population extremes don't scale
+// with sampling).
+func (c *OverTimeAggregator) SetExtrapolate(extrapolate bool) {
+	if c.op == sumOverTimeAggregation {
+		c.extrapolate = extrapolate
 	}
 }
 
 func (c *OverTimeAggregator) Observe(s Span) {
-	c.val = c.agg(c.val, c.getSpanAttValue(s))
+	v := c.getSpanAttValue(s)
+	if c.extrapolate {
+		v *= spanExtrapolation(s)
+	}
+	c.val = c.agg(c.val, v)
 }
 
 func (c *OverTimeAggregator) Sample() float64 {
@@ -996,6 +1070,26 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 	}, nil
 }
 
+// metricsPipelineExtrapolator is implemented by metrics pipelines that
+// support per-span sampling extrapolation.
+type metricsPipelineExtrapolator interface {
+	SetExtrapolate(bool)
+}
+
+// applyExtrapolation toggles per-span extrapolation on the pipeline if it
+// supports it, and adds the multiplier intrinsic to the storage request so
+// the storage layer surfaces it. Must be called before sp.init().
+func applyExtrapolation(pipeline spanProcessor, req *FetchSpansRequest) {
+	if ext, ok := pipeline.(metricsPipelineExtrapolator); ok {
+		ext.SetExtrapolate(true)
+	}
+	if !req.HasAttribute(IntrinsicSpanMultiplierAttribute) {
+		req.SecondPassConditions = append(req.SecondPassConditions, Condition{
+			Attribute: IntrinsicSpanMultiplierAttribute,
+		})
+	}
+}
+
 // CompileMetricsQueryRange returns an evaluator that can be reused across multiple data sources.
 func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts ...CompileOption) (MetricsEvaluator, error) {
 	cfg := applyCompileOptions(opts...)
@@ -1035,10 +1129,26 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 		if sp == nil {
 			return nil, fmt.Errorf("not a metrics query")
 		}
+
+		storageReq := storageReqs[key]
+
+		// Per-span sampling extrapolation. Hint in the query takes precedence
+		// over the default passed in via WithExtrapolation. Must apply before
+		// sp.init() so inner aggregators capture the flag.
+		extrapolate := false
+		if cfg.extrapolate != nil {
+			extrapolate = *cfg.extrapolate
+		}
+		if b, ok := expr.Hints.GetBool(HintExtrapolate, cfg.allowUnsafeHints); ok {
+			extrapolate = b
+		}
+		if extrapolate {
+			applyExtrapolation(sp, &storageReq)
+		}
+
 		// This initializes all step buffers, counters, etc
 		sp.init(req, AggregateModeRaw)
 
-		storageReq := storageReqs[key]
 		e.applySampleHints(expr, pipeline, &storageReq, cfg.allowUnsafeHints)
 
 		exemplars := exemplars
