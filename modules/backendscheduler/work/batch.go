@@ -155,7 +155,7 @@ func (w *Work) ClaimRedactionBatch(batch *tempopb.RedactionBatch, candidateBlock
 	busy := w.busyBlocksForTenantLocked(batch.TenantId)
 	w.pendingMtx.Unlock()
 
-	skippedSet := make(map[string]struct{})
+	skippedSet := make(map[string]struct{}, len(busy))
 	free = make([]string, 0, len(candidateBlockIDs))
 	for _, blockID := range candidateBlockIDs {
 		if jobID, isBusy := busy[blockID]; isBusy {
