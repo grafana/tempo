@@ -1,0 +1,6 @@
+change_type: enhancement
+component: tempo
+note: Avoid heap allocation and unsafe string aliasing when hex-encoding trace IDs.
+issues: [7463]
+subtext:
+user: carles-grafana
