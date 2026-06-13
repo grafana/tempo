@@ -370,7 +370,9 @@ Enabling metrics generation and remote writing them to Grafana Cloud Metrics pro
 
 ### Optional: Enable KEDA autoscaling
 
-The microservices Jsonnet library includes optional KEDA-based horizontal autoscaling for distributor, metrics-generator, backend-worker, live-store, and block-builder components. All KEDA scalers are disabled by default (`enabled: false`), and you enable each component independently under `_config.<component>.keda`.
+The microservices Jsonnet library includes optional KEDA-based horizontal autoscaling for distributor, metrics-generator, backend-worker, live-store, and block-builder components.
+All KEDA scalers are disabled by default (`enabled: false`).
+You can enable each component independently under `_config.<component>.keda`.
 
 Before you enable this option, make sure your cluster has the KEDA operator and CRDs installed.
 
@@ -433,11 +435,24 @@ _config+:: {
 
 Tempo uses these trigger types when KEDA is enabled: CPU for distributor, CPU or Prometheus for metrics-generator, and Prometheus for backend-worker and live-store.
 
-By default, the metrics-generator scales on CPU using `target_cpu`. To scale on a custom signal instead, set `_config.metrics_generator.keda.query` to a PromQL query. When `query` is set, it replaces the CPU trigger, and the query must return the exact desired pod count. Use this to cap replicas at the live-store partition count: because the metrics-generator reads from live-store partitions, any pods beyond the partition count have no partition to own and sit idle.
+By default, the metrics-generator scales on CPU using `target_cpu`.
+To scale on a custom signal instead, set `_config.metrics_generator.keda.query` to a PromQL query.
+When you set `query`, it replaces the CPU trigger, and the query must return the exact desired pod count.
+You can use this to cap replicas at the live-store partition count: because the metrics-generator reads from live-store partitions, any pods beyond the partition count have no partition to own and sit idle.
 
-Block-builder autoscaling is configured independently under `_config.block_builder.keda`. The default approach (`scaling: 'rollout-operator'`) uses the rollout-operator to mirror the live-store zone-a replica count directly to block-builder. This is the faster approach on both scale-up and scale-down: block-builder reacts as soon as the ReplicaTemplate changes, which is the same signal zone-a responds to. Block-builder intentionally stays alive through the live-store drain window so that in-flight partition data is not lost before it is written to the backend. This approach requires `live_store.keda.enabled=true`; `rollout_operator_replica_template_access_enabled` is set automatically.
+You configure block-builder autoscaling independently under `_config.block_builder.keda`. The default approach (`scaling: 'rollout-operator'`) uses the rollout-operator to mirror the live-store zone-a replica count directly to block-builder.
+This is the faster approach on both scale-up and scale-down: block-builder reacts as soon as the ReplicaTemplate changes, which is the same signal zone-a responds to.
+Block-builder intentionally stays alive through the live-store drain window so that it doesn't lose in-flight partition data before writing it to the backend.
+This approach requires `live_store.keda.enabled=true`; Tempo sets `rollout_operator_replica_template_access_enabled` automatically.
 
-Alternatively, set `scaling: 'keda'` to use a dedicated KEDA ScaledObject (kubernetes-workload trigger) that counts live-store zone-a pods. This approach works with or without live-store KEDA enabled. Because KEDA must observe pod counts through its polling cycle and apply stabilization windows before acting, reaction time is longer than the rollout-operator approach — on scale-up, block-builder only reacts after new zone-a pods are running and counted; on scale-down, block-builder only reacts after zone-a pods have fully terminated. The block-builder KEDA defaults use aggressive scaling windows to minimize this delay. The value of `_config.block_builder.partitions_per_instance` (default: `1`) is injected into the block-builder config when block-builder KEDA is active under either approach.
+Alternatively, set `scaling: 'keda'` to use a dedicated KEDA ScaledObject (kubernetes-workload trigger) that counts live-store zone-a pods.
+This approach works with or without live-store KEDA enabled. Because KEDA must observe pod counts through its polling cycle and apply stabilization windows before acting, reaction time is longer than the rollout-operator approach:
+
+- On scale-up, block-builder only reacts after new zone-a pods are running and counted.
+- On scale-down, block-builder only reacts after zone-a pods have fully terminated.
+
+The block-builder KEDA defaults use aggressive scaling windows to minimize this delay.
+Tempo injects the value of `_config.block_builder.partitions_per_instance` (default: `1`) into the block-builder configuration when block-builder KEDA is active under either approach.
 
 ### Optional: Reduce component system requirements
 
