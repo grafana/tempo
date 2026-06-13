@@ -394,6 +394,7 @@ _config+:: {
       min_replicas: 1,
       max_replicas: 200,
       target_cpu: '500m',
+      // query: '',  // Optional: a PromQL query for a Prometheus trigger. When set, it replaces the CPU trigger.
     },
   },
   backend_worker+: {
@@ -430,7 +431,9 @@ _config+:: {
 },
 ```
 
-Tempo uses these trigger types when KEDA is enabled: CPU for distributor and metrics-generator, Prometheus for backend-worker and live-store.
+Tempo uses these trigger types when KEDA is enabled: CPU for distributor, CPU or Prometheus for metrics-generator, and Prometheus for backend-worker and live-store.
+
+By default, the metrics-generator scales on CPU using `target_cpu`. To scale on a custom signal instead, set `_config.metrics_generator.keda.query` to a PromQL query. When `query` is set, it replaces the CPU trigger, and the query must return the exact desired pod count. Use this to cap replicas at the live-store partition count: because the metrics-generator reads from live-store partitions, any pods beyond the partition count have no partition to own and sit idle.
 
 Block-builder autoscaling is configured independently under `_config.block_builder.keda`. The default approach (`scaling: 'rollout-operator'`) uses the rollout-operator to mirror the live-store zone-a replica count directly to block-builder. This is the faster approach on both scale-up and scale-down: block-builder reacts as soon as the ReplicaTemplate changes, which is the same signal zone-a responds to. Block-builder intentionally stays alive through the live-store drain window so that in-flight partition data is not lost before it is written to the backend. This approach requires `live_store.keda.enabled=true`; `rollout_operator_replica_template_access_enabled` is set automatically.
 
