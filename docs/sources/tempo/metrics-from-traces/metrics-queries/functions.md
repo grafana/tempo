@@ -596,7 +596,7 @@ The `compare` function has four parameters:
 
 2. Optional. The second parameter is the top `N` values to return per attribute. If an attribute exceeds this limit in
    either the selection group or baseline group, then only the top `N` values (based on frequency) are returned, and an
-   error indicator for the attribute is included output (see below). Defaults to `10`.
+   error indicator for the attribute is included output (see below). Must be an integer between 1 and 1000. Defaults to `10`.
 
 3. Optional. Start and End timestamps in Unix nanoseconds, which can be used to constrain the selection window by time,
    in addition to the filter. For example, the overall query could cover the past hour, and the selection window only a
