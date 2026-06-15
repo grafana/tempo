@@ -177,7 +177,8 @@ func boolCompare(a, b bool) int {
 // exact order does not matter as long as it is stable).
 func compareWire(a, b interface {
 	Marshal() ([]byte, error)
-}) int {
+},
+) int {
 	ab, err := a.Marshal()
 	if err != nil {
 		return -1
