@@ -159,6 +159,154 @@ func TestDiffMatchesUnchangedSiblingsAfterInsertedSibling(t *testing.T) {
 	assert.Empty(t, got.Modified)
 }
 
+func TestDiffMatchesUnchangedSubtreeAfterInsertedAncestor(t *testing.T) {
+	// root -> A -> B -> C   vs   root -> X -> A -> B -> C
+	// X is inserted between the root and A; A, B, C are byte-identical, just one
+	// level deeper. The only real change is "X added". A matcher that keys on the
+	// full root-to-span path shifts every descendant's key and reports them all as
+	// removed+added (a cascade). The correct result is 1 added, the rest matched.
+	baseTraceID := []byte("trace-id-0000001")
+	cmpTraceID := []byte("trace-id-0000002")
+	base := traceWithNamedSpans(
+		spanForNormalizeTest(baseTraceID, "base-root", "", "gateway", "GET /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 200, tracev1.Status_STATUS_CODE_OK),
+		spanForNormalizeTest(baseTraceID, "base-a", "base-root", "auth", "authorize", tracev1.Span_SPAN_KIND_SERVER, 10, 180, tracev1.Status_STATUS_CODE_OK),
+		spanForNormalizeTest(baseTraceID, "base-b", "base-a", "inventory", "reserve", tracev1.Span_SPAN_KIND_SERVER, 20, 150, tracev1.Status_STATUS_CODE_OK),
+		spanForNormalizeTest(baseTraceID, "base-c", "base-b", "db", "persist", tracev1.Span_SPAN_KIND_SERVER, 30, 120, tracev1.Status_STATUS_CODE_OK),
+	)
+	compare := traceWithNamedSpans(
+		spanForNormalizeTest(cmpTraceID, "cmp-root", "", "gateway", "GET /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 200, tracev1.Status_STATUS_CODE_OK),
+		spanForNormalizeTest(cmpTraceID, "cmp-x", "cmp-root", "proxy", "forward", tracev1.Span_SPAN_KIND_SERVER, 5, 190, tracev1.Status_STATUS_CODE_OK),
+		spanForNormalizeTest(cmpTraceID, "cmp-a", "cmp-x", "auth", "authorize", tracev1.Span_SPAN_KIND_SERVER, 10, 180, tracev1.Status_STATUS_CODE_OK),
+		spanForNormalizeTest(cmpTraceID, "cmp-b", "cmp-a", "inventory", "reserve", tracev1.Span_SPAN_KIND_SERVER, 20, 150, tracev1.Status_STATUS_CODE_OK),
+		spanForNormalizeTest(cmpTraceID, "cmp-c", "cmp-b", "db", "persist", tracev1.Span_SPAN_KIND_SERVER, 30, 120, tracev1.Status_STATUS_CODE_OK),
+	)
+
+	got, err := Diff(base, compare, FormatTracePatchV0)
+	require.NoError(t, err)
+
+	assert.Equal(t, Stats{
+		SpanCountA:   4,
+		SpanCountB:   5,
+		MatchedSpans: 4, // root, authorize, reserve, persist
+		AddedSpans:   1, // forward (X)
+	}, got.Stats)
+	require.Len(t, got.Added, 1)
+	assert.Equal(t, "forward", got.Added[0].Span.Name)
+	assert.Empty(t, got.Removed)
+	assert.Empty(t, got.Modified)
+}
+
+func TestDiffReportsAddedSubtreeInParentBeforeChildOrder(t *testing.T) {
+	traceID := []byte("trace-id-0000001")
+	base := traceWithNamedSpans(
+		spanForNormalizeTest(traceID, "base-root", "", "gateway", "GET /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 200, tracev1.Status_STATUS_CODE_OK),
+	)
+	compare := traceWithNamedSpans(
+		spanForNormalizeTest(traceID, "cmp-root", "", "gateway", "GET /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 200, tracev1.Status_STATUS_CODE_OK),
+		spanForNormalizeTest(traceID, "cmp-recommend", "cmp-root", "recommendations", "recommend", tracev1.Span_SPAN_KIND_SERVER, 10, 120, tracev1.Status_STATUS_CODE_OK),
+		spanForNormalizeTest(traceID, "cmp-cache", "cmp-recommend", "cache", "lookup recommendations", tracev1.Span_SPAN_KIND_CLIENT, 20, 60, tracev1.Status_STATUS_CODE_OK),
+		spanForNormalizeTest(traceID, "cmp-db", "cmp-cache", "db", "SELECT recommendations", tracev1.Span_SPAN_KIND_CLIENT, 30, 50, tracev1.Status_STATUS_CODE_OK),
+	)
+
+	got, err := Diff(base, compare, FormatTracePatchV0)
+	require.NoError(t, err)
+
+	assert.Equal(t, Stats{
+		SpanCountA:   1,
+		SpanCountB:   4,
+		MatchedSpans: 1,
+		AddedSpans:   3,
+	}, got.Stats)
+	require.Len(t, got.Added, 3)
+	assert.Equal(t, []string{"recommend", "lookup recommendations", "SELECT recommendations"}, []string{
+		got.Added[0].Span.Name,
+		got.Added[1].Span.Name,
+		got.Added[2].Span.Name,
+	})
+	assert.Equal(t, SpanTarget{Type: TargetSpan, ParentPath: []int{0}, Index: intPtr(0)}, got.Added[0].Target)
+	assert.Equal(t, SpanTarget{Type: TargetSpan, ParentPath: []int{0, 0}, Index: intPtr(0)}, got.Added[1].Target)
+	assert.Equal(t, SpanTarget{Type: TargetSpan, ParentPath: []int{0, 0, 0}, Index: intPtr(0)}, got.Added[2].Target)
+	assert.Empty(t, got.Removed)
+	assert.Empty(t, got.Modified)
+}
+
+func TestDiffMatchesDuplicateSpanIdentityByParent(t *testing.T) {
+	// Both branches contain a db span with the same logical identity. When the
+	// alpha branch is removed, the db span under beta should match the db span
+	// under beta, not the first db span in pre-order.
+	baseTraceID := []byte("trace-id-0000001")
+	cmpTraceID := []byte("trace-id-0000002")
+	base := traceWithNamedSpans(
+		spanForNormalizeTest(baseTraceID, "base-root", "", "gateway", "GET /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 200, tracev1.Status_STATUS_CODE_OK),
+		spanForNormalizeTest(baseTraceID, "base-alpha", "base-root", "alpha", "call alpha", tracev1.Span_SPAN_KIND_SERVER, 10, 80, tracev1.Status_STATUS_CODE_OK),
+		spanForNormalizeTest(baseTraceID, "base-alpha-db", "base-alpha", "db", "SELECT users", tracev1.Span_SPAN_KIND_CLIENT, 20, 30, tracev1.Status_STATUS_CODE_OK),
+		spanForNormalizeTest(baseTraceID, "base-beta", "base-root", "beta", "call beta", tracev1.Span_SPAN_KIND_SERVER, 100, 180, tracev1.Status_STATUS_CODE_OK),
+		spanForNormalizeTest(baseTraceID, "base-beta-db", "base-beta", "db", "SELECT users", tracev1.Span_SPAN_KIND_CLIENT, 110, 150, tracev1.Status_STATUS_CODE_OK),
+	)
+	compare := traceWithNamedSpans(
+		spanForNormalizeTest(cmpTraceID, "cmp-root", "", "gateway", "GET /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 200, tracev1.Status_STATUS_CODE_OK),
+		spanForNormalizeTest(cmpTraceID, "cmp-beta", "cmp-root", "beta", "call beta", tracev1.Span_SPAN_KIND_SERVER, 100, 180, tracev1.Status_STATUS_CODE_OK),
+		spanForNormalizeTest(cmpTraceID, "cmp-beta-db", "cmp-beta", "db", "SELECT users", tracev1.Span_SPAN_KIND_CLIENT, 110, 150, tracev1.Status_STATUS_CODE_OK),
+	)
+
+	got, err := Diff(base, compare, FormatTracePatchV0)
+	require.NoError(t, err)
+
+	assert.Equal(t, Stats{
+		SpanCountA:   5,
+		SpanCountB:   3,
+		MatchedSpans: 3,
+		RemovedSpans: 2,
+	}, got.Stats)
+	assert.Empty(t, got.Added)
+	assert.Empty(t, got.Modified)
+	require.Len(t, got.Removed, 2)
+	removedDBDurations := make([]int64, 0, 1)
+	for _, removed := range got.Removed {
+		if removed.Span.Service == "db" && removed.Span.Name == "SELECT users" {
+			removedDBDurations = append(removedDBDurations, removed.Span.DurationMs)
+		}
+	}
+	assert.Equal(t, []int64{10}, removedDBDurations)
+}
+
+func TestDiffWarnsAndUsesRawHighCardinalitySpanName(t *testing.T) {
+	// The span name embeds a per-request ID. That is an instrumentation problem:
+	// IDs belong in attributes, not span names. The diff should preserve raw-name
+	// matching for correctness and warn that equivalent operations may be reported
+	// as added/removed.
+	baseTraceID := []byte("trace-id-0000001")
+	cmpTraceID := []byte("trace-id-0000002")
+	base := traceWithNamedSpans(
+		spanForNormalizeTest(baseTraceID, "base-root", "", "gateway", "GET /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 200, tracev1.Status_STATUS_CODE_OK),
+		spanForNormalizeTest(baseTraceID, "base-db", "base-root", "db", "SELECT id=3f2a1b9c-0001", tracev1.Span_SPAN_KIND_CLIENT, 10, 80, tracev1.Status_STATUS_CODE_OK),
+	)
+	compare := traceWithNamedSpans(
+		spanForNormalizeTest(cmpTraceID, "cmp-root", "", "gateway", "GET /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 200, tracev1.Status_STATUS_CODE_OK),
+		spanForNormalizeTest(cmpTraceID, "cmp-db", "cmp-root", "db", "SELECT id=7c4e88d0-0002", tracev1.Span_SPAN_KIND_CLIENT, 10, 80, tracev1.Status_STATUS_CODE_OK),
+	)
+
+	got, err := Diff(base, compare, FormatTracePatchV0)
+	require.NoError(t, err)
+
+	assert.Equal(t, Stats{
+		SpanCountA:   2,
+		SpanCountB:   2,
+		MatchedSpans: 1,
+		AddedSpans:   1,
+		RemovedSpans: 1,
+	}, got.Stats)
+	require.Len(t, got.Added, 1)
+	assert.Equal(t, "SELECT id=7c4e88d0-0002", got.Added[0].Span.Name)
+	require.Len(t, got.Removed, 1)
+	assert.Equal(t, "SELECT id=3f2a1b9c-0001", got.Removed[0].Span.Name)
+	assert.Empty(t, got.Modified)
+	require.Len(t, got.Warnings, 1)
+	assert.Equal(t, WarningHighCardinalitySpanName, got.Warnings[0].Code)
+	assert.Contains(t, got.Warnings[0].Message, "SELECT id=3f2a1b9c-0001")
+	assert.Contains(t, got.Warnings[0].Message, "raw span names")
+}
+
 func TestDiffReportsModifiedSpanFields(t *testing.T) {
 	traceID := []byte("trace-id-0000001")
 	base := traceWithNamedSpans(

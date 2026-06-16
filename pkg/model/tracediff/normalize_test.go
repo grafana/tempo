@@ -14,7 +14,8 @@ import (
 func TestNormalizeTraceAssignsStructuralPaths(t *testing.T) {
 	trace := traceForNormalizeTest()
 
-	got := normalizeTrace(trace)
+	got, warnings := normalizeTrace(trace)
+	require.Empty(t, warnings)
 
 	paths := map[string][]int{}
 	for _, span := range got.spans {
@@ -32,7 +33,8 @@ func TestNormalizeTraceAssignsStructuralPaths(t *testing.T) {
 func TestNormalizeTraceBuildsSpanRefsAndSnapshots(t *testing.T) {
 	trace := traceForNormalizeTest()
 
-	got := normalizeTrace(trace)
+	got, warnings := normalizeTrace(trace)
+	require.Empty(t, warnings)
 
 	byID := map[string]normalizedSpan{}
 	for _, span := range got.spans {
@@ -73,7 +75,8 @@ func TestNormalizeTraceHandlesCyclicParents(t *testing.T) {
 		},
 	}
 
-	got := normalizeTrace(trace)
+	got, warnings := normalizeTrace(trace)
+	require.Empty(t, warnings)
 
 	paths := map[string][]int{}
 	for _, span := range got.spans {
@@ -132,5 +135,28 @@ func stringAttribute(key, value string) *commonv1.KeyValue {
 		Value: &commonv1.AnyValue{
 			Value: &commonv1.AnyValue_StringValue{StringValue: value},
 		},
+	}
+}
+
+func TestSpanNameHasHighCardinalityToken(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want bool
+	}{
+		{name: "canonical UUID", in: "GET /users/550e8400-e29b-41d4-a716-446655440000", want: true},
+		{name: "trace ID hex token", in: "GET /user/3f2a1b9c0d1e2f3a", want: true},
+		{name: "explicit ID key with hex value", in: "SELECT id=3f2a1b9c-0001", want: true},
+		{name: "explicit ID key with numeric value", in: "SELECT id=123456", want: true},
+		{name: "long numeric path segment", in: "GET /orders/123456", want: true},
+		{name: "low-cardinality route", in: "GET /checkout", want: false},
+		{name: "short numeric path segment", in: "GET /orders/42", want: false},
+		{name: "versioned route", in: "GET /api/v10/users", want: false},
+		{name: "single-digit product name", in: "s3 upload", want: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, spanNameHasHighCardinalityToken(tc.in))
+		})
 	}
 }

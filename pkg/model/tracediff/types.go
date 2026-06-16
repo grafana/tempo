@@ -27,6 +27,19 @@ const (
 	TargetSpan      TargetType = "span"
 )
 
+// Field names (Target.Name) and attribute scopes (Target.Scope) in the
+// trace-patch-v0 vocabulary.
+const (
+	FieldDurationMs = "duration_ms"
+	FieldStatus     = "status"
+	ScopeSpan       = "span"
+)
+
+// Warning codes in the trace-patch-v0 vocabulary.
+const (
+	WarningHighCardinalitySpanName = "high_cardinality_span_name"
+)
+
 // Result is the trace-patch-v0 diff document.
 type Result struct {
 	Version  string         `json:"version"`

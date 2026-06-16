@@ -25,9 +25,10 @@ func Diff(base, compare *tempopb.Trace, format Format) (*Result, error) {
 		return nil, fmt.Errorf("%q: %w", format, ErrUnsupportedFormat)
 	}
 
-	baseTrace := normalizeTrace(base)
-	compareTrace := normalizeTrace(compare)
-	matched, modified, added, removed := diffSpanPresence(baseTrace, compareTrace)
+	baseTrace, baseWarnings := normalizeTrace(base)
+	compareTrace, compareWarnings := normalizeTrace(compare)
+	matched, modified, added, removed := computeDiff(baseTrace, compareTrace)
+	warnings := mergeWarnings(baseWarnings, compareWarnings)
 
 	return &Result{
 		Version: VersionTracePatchV0,
@@ -46,39 +47,35 @@ func Diff(base, compare *tempopb.Trace, format Format) (*Result, error) {
 		Modified: modified,
 		Added:    added,
 		Removed:  removed,
-		Warnings: []Warning{},
+		Warnings: warnings,
 	}, nil
 }
 
-func diffSpanPresence(base, compare normalizedTrace) (int, []ModifiedSpan, []SpanChange, []SpanChange) {
-	baseByKey := indexByMatchKey(base)
-	compareByKey := indexByMatchKey(compare)
+func computeDiff(base, compare normalizedTrace) (int, []ModifiedSpan, []SpanChange, []SpanChange) {
+	baseSpanByCompareSpanID := matchSpans(base, compare)
+	matchedBaseSpanIDs := make(map[string]struct{}, len(baseSpanByCompareSpanID))
 
-	var matched int
 	modified := make([]ModifiedSpan, 0)
 	added := make([]SpanChange, 0)
 	removed := make([]SpanChange, 0)
+
 	for _, span := range compare.spans {
-		baseSpan, ok := baseByKey[span.matchKey]
-		if ok {
-			matched++
-			changes := fieldChanges(baseSpan, span)
-			changes = append(changes, attributeChanges(baseSpan, span)...)
-			if len(changes) > 0 {
-				modified = append(modified, ModifiedSpan{
-					Span:    span.ref,
-					Changes: changes,
-				})
-			}
+		baseSpan, ok := baseSpanByCompareSpanID[span.spanID]
+		if !ok {
+			added = append(added, SpanChange{Target: addedSpanTarget(span.snapshot.Path), Span: span.snapshot})
 			continue
 		}
-		added = append(added, SpanChange{
-			Target: addedSpanTarget(span.snapshot.Path),
-			Span:   span.snapshot,
-		})
+
+		matchedBaseSpanIDs[baseSpan.spanID] = struct{}{}
+		changes := fieldChanges(baseSpan, span)
+		changes = append(changes, attributeChanges(baseSpan, span)...)
+		if len(changes) > 0 {
+			modified = append(modified, ModifiedSpan{Span: span.ref, Changes: changes})
+		}
 	}
+
 	for _, span := range base.spans {
-		if _, ok := compareByKey[span.matchKey]; ok {
+		if _, ok := matchedBaseSpanIDs[span.spanID]; ok {
 			continue
 		}
 		removed = append(removed, SpanChange{
@@ -86,7 +83,77 @@ func diffSpanPresence(base, compare normalizedTrace) (int, []ModifiedSpan, []Spa
 			Span:   span.snapshot,
 		})
 	}
-	return matched, modified, added, removed
+
+	return len(matchedBaseSpanIDs), modified, added, removed
+}
+
+// matchSpans decides which base span, if any, matches each compare span.
+func matchSpans(base, compare normalizedTrace) map[string]normalizedSpan {
+	baseSpanByCompareSpanID := make(map[string]normalizedSpan)
+	usedBaseSpanIDs := make(map[string]struct{})
+	baseByID := bucketByIdentity(base)
+
+	for _, compareSpan := range compare.spans {
+		baseSpan, ok := findMatch(baseByID[compareSpan.identity()], compareSpan, usedBaseSpanIDs)
+		if !ok {
+			continue
+		}
+		baseSpanByCompareSpanID[compareSpan.spanID] = baseSpan
+		usedBaseSpanIDs[baseSpan.spanID] = struct{}{}
+	}
+	return baseSpanByCompareSpanID
+}
+
+// findMatch receives base spans with the same identity as compareSpan. Parent
+// identity is only a duplicate tie-breaker: if it cannot disambiguate, the first
+// unused candidate preserves the ancestor-insert behavior.
+func findMatch(baseCandidates []normalizedSpan, compareSpan normalizedSpan, usedBaseSpanIDs map[string]struct{}) (normalizedSpan, bool) {
+	var fallback normalizedSpan
+	fallbackSet := false
+	for _, baseSpan := range baseCandidates {
+		if _, ok := usedBaseSpanIDs[baseSpan.spanID]; ok {
+			continue
+		}
+		// Both spans share the same parent identity
+		if sameParentIdentity(baseSpan, compareSpan) {
+			return baseSpan, true
+		}
+		// If not we choose the first one as a fallback
+		if !fallbackSet {
+			fallback = baseSpan
+			fallbackSet = true
+		}
+	}
+	return fallback, fallbackSet
+}
+
+func sameParentIdentity(a, b normalizedSpan) bool {
+	return a.hasParent && b.hasParent && a.parentIdentity == b.parentIdentity
+}
+
+// bucketByIdentity groups spans by their flat identity.
+func bucketByIdentity(trace normalizedTrace) map[spanLogicalKey][]normalizedSpan {
+	out := make(map[spanLogicalKey][]normalizedSpan, len(trace.spans))
+	for _, s := range trace.spans {
+		id := s.identity()
+		out[id] = append(out[id], s)
+	}
+	return out
+}
+
+func mergeWarnings(warningGroups ...[]Warning) []Warning {
+	out := make([]Warning, 0)
+	seen := make(map[string]struct{})
+	for _, group := range warningGroups {
+		for _, warning := range group {
+			if _, ok := seen[warning.Code]; ok {
+				continue
+			}
+			seen[warning.Code] = struct{}{}
+			out = append(out, warning)
+		}
+	}
+	return out
 }
 
 func fieldChanges(base, compare normalizedSpan) []Change {
@@ -94,7 +161,7 @@ func fieldChanges(base, compare normalizedSpan) []Change {
 	if base.snapshot.DurationMs != compare.snapshot.DurationMs {
 		changes = append(changes, Change{
 			Op:     OperationModify,
-			Target: Target{Type: TargetField, Name: "duration_ms"},
+			Target: Target{Type: TargetField, Name: FieldDurationMs},
 			Before: base.snapshot.DurationMs,
 			After:  compare.snapshot.DurationMs,
 		})
@@ -102,7 +169,7 @@ func fieldChanges(base, compare normalizedSpan) []Change {
 	if base.snapshot.Status != compare.snapshot.Status {
 		changes = append(changes, Change{
 			Op:     OperationModify,
-			Target: Target{Type: TargetField, Name: "status"},
+			Target: Target{Type: TargetField, Name: FieldStatus},
 			Before: base.snapshot.Status,
 			After:  compare.snapshot.Status,
 		})
@@ -118,7 +185,7 @@ func attributeChanges(base, compare normalizedSpan) []Change {
 	for _, key := range sortedAttributeKeys(baseAttrs, compareAttrs) {
 		before, inBase := baseAttrs[key]
 		after, inCompare := compareAttrs[key]
-		target := Target{Type: TargetAttribute, Scope: "span", Key: key}
+		target := Target{Type: TargetAttribute, Scope: ScopeSpan, Key: key}
 
 		switch {
 		case !inBase:
@@ -214,14 +281,6 @@ func countChanges(modified []ModifiedSpan, targetType TargetType) int {
 		}
 	}
 	return count
-}
-
-func indexByMatchKey(trace normalizedTrace) map[spanMatchKey]normalizedSpan {
-	out := make(map[spanMatchKey]normalizedSpan, len(trace.spans))
-	for _, span := range trace.spans {
-		out[span.matchKey] = span
-	}
-	return out
 }
 
 func addedSpanTarget(path []int) SpanTarget {
