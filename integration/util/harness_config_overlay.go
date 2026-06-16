@@ -12,7 +12,7 @@ import (
 	"github.com/grafana/tempo/cmd/tempo/app"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/require"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 )
 
 const (

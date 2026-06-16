@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 )
 
 type Duration struct {
