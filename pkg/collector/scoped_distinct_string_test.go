@@ -236,3 +236,37 @@ func BenchmarkScopedDistinctStringCollect(b *testing.B) {
 		})
 	}
 }
+
+// BenchmarkScopedDistinctStringCollectParallel simulates the SearchTagsV2 hot
+// path: many block goroutines (iterateBlocks fan-out) concurrently collect into
+// one shared collector, and the parquet dictionary scan re-emits the same tag
+// keys from every row group/block, so the overwhelming majority of Collect
+// calls are duplicates. This is the contended workload the production CPU
+// profile showed serializing on the collector mutex.
+func BenchmarkScopedDistinctStringCollectParallel(b *testing.B) {
+	scopeTypes := []string{"resource", "span", "event", "instrumentation"}
+	// A realistic-ish set of distinct tag keys per scope. These repeat across
+	// every block, so after warm-up nearly every Collect is a duplicate.
+	const numTagsPerScope = 200
+	tagsByScope := make(map[string][]string, len(scopeTypes))
+	for _, scope := range scopeTypes {
+		tags := make([]string, numTagsPerScope)
+		for j := 0; j < numTagsPerScope; j++ {
+			tags[j] = fmt.Sprintf("%s.tag.key.number.%d", scope, j)
+		}
+		tagsByScope[scope] = tags
+	}
+
+	scopedDistinctStrings := NewScopedDistinctString(0, 0, 0) // no limit
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		i := 0
+		for pb.Next() {
+			scope := scopeTypes[i%len(scopeTypes)]
+			tags := tagsByScope[scope]
+			scopedDistinctStrings.Collect(scope, tags[i%numTagsPerScope])
+			i++
+		}
+	})
+}
