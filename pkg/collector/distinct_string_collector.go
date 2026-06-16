@@ -71,7 +71,7 @@ func (d *DistinctString) Collect(s string) (added bool) {
 	}
 
 	if d.maxCacheHits > 0 && d.currentCacheHits.Load() >= d.maxCacheHits {
-		d.setExceeded(fmt.Sprintf("Max stale values exceeded: cacheHits %d, maxValues %d", d.currentCacheHits.Load(), d.maxCacheHits))
+		d.setExceeded(fmt.Sprintf("Max stale values exceeded: cacheHits %d, maxCacheHits %d", d.currentCacheHits.Load(), d.maxCacheHits))
 		return false
 	}
 
