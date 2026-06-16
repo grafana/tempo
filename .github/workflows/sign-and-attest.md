@@ -13,10 +13,9 @@ It is keyless throughout: there are **no signing keys or stored secrets**. Trust
 comes from the workflow's GitHub Actions OIDC identity plus public transparency
 logs.
 
-> We use keyless cosign + SLSA provenance (Sigstore) because it is the
-> foundation-backed, widely adopted standard — used by Kubernetes, npm, PyPI,
-> and GitHub's own attestations — and it matches the approach already adopted by
-> Grafana Alloy.
+> We use keyless cosign + SLSA provenance ([Sigstore](https://www.sigstore.dev/),
+> [docs](https://docs.sigstore.dev/)) because it is the foundation-backed, widely
+> adopted standard — used by Kubernetes, npm, PyPI, and GitHub's own attestations.
 
 ## Why
 
