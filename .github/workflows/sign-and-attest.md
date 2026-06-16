@@ -156,3 +156,46 @@ gh attestation verify \
 > **Compatibility note:** the cosign verification identity
 > (`.../sign-and-attest.yml@<ref>` + the OIDC issuer) is a public contract.
 > Renaming or moving this workflow is a **breaking change** for anyone verifying.
+
+## Why this approach is solid
+
+The keyless flow relies on **Sigstore** (Fulcio + Rekor). It is a well-established,
+foundation-governed standard rather than a single-vendor tool:
+
+- **Governance & backing.** Sigstore is an open-source project under the
+  [OpenSSF](https://openssf.org/) / Linux Foundation, founded and maintained by
+  Google, Red Hat, and Purdue University with a broad community of maintainers.
+  The public Fulcio/Rekor instances are operated as a community good and the
+  project has undergone independent third-party security audits.
+- **Generally available & stable.** Sigstore has been GA since 2022 with a public
+  API stability guarantee, and `cosign` is the de-facto standard for container
+  signing.
+- **Load-bearing for major ecosystems.** The exact Fulcio + Rekor flow used here
+  underpins:
+  - **Kubernetes** — signs all release images and artifacts.
+  - **npm** and **PyPI** — package provenance / attestations.
+  - **GitHub** — `actions/attest-build-provenance` (used by this workflow) is
+    built on Sigstore.
+  - **OpenTelemetry Collector**, **Chainguard**, distroless images, and many
+    CNCF projects.
+- **Consistent with Grafana.** Mirrors the keyless cosign approach already adopted
+  by Grafana Alloy.
+
+### Trust trade-offs to be aware of
+
+- Signing has a **runtime dependency on the public Sigstore instances**
+  (`fulcio.sigstore.dev` / `rekor.sigstore.dev`). An outage breaks *signing*, not
+  verification of already-logged signatures. ([status page](https://status.sigstore.dev))
+- **Rekor is a public log** — everything written is world-readable forever. That
+  is fine for image digests and workflow identities, which are not secret.
+- Verification strength depends on **pinning the exact identity** (the
+  `--certificate-identity-regexp` + `--certificate-oidc-issuer` above). A loose
+  identity match weakens the guarantee.
+
+### References
+
+- Sigstore overview — https://docs.sigstore.dev/about/overview/
+- Fulcio (the CA) — https://docs.sigstore.dev/certificate_authority/overview/
+- Rekor (the transparency log) — https://docs.sigstore.dev/logging/overview/
+- cosign verifying — https://docs.sigstore.dev/cosign/verifying/verify/
+- SLSA provenance — https://slsa.dev/
