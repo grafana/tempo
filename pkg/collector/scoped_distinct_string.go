@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 )
@@ -62,7 +63,7 @@ func (d *ScopedDistinctString) Collect(scope string, val string) (exceeded bool)
 	// can it fit?
 	if d.maxDataSize > 0 && int(d.currDataSize.Load())+valueLen > d.maxDataSize {
 		// No
-		d.limExceeded.Store(true)
+		d.setExceeded(fmt.Sprintf("Max data exceeded: dataSize %d, maxDataSize %d", d.currDataSize.Load(), d.maxDataSize))
 		return true
 	}
 
@@ -75,13 +76,18 @@ func (d *ScopedDistinctString) Collect(scope string, val string) (exceeded bool)
 	}
 	if col.Exceeded() {
 		// we stop if one of the scopes exceed the limit
-		reason := col.StopReason()
-		if !d.limExceeded.Swap(true) {
-			d.stopReason.Store(&reason)
-		}
+		d.setExceeded(col.StopReason())
 		return true
 	}
 	return false
+}
+
+// setExceeded records the first stop reason and marks the collector as full.
+func (d *ScopedDistinctString) setExceeded(reason string) {
+	if d.limExceeded.Swap(true) {
+		return // already marked by another goroutine
+	}
+	d.stopReason.Store(&reason)
 }
 
 func (d *ScopedDistinctString) getOrCreateCollector(scope string) *DistinctString {
