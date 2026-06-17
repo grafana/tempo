@@ -22,7 +22,7 @@ on:
         required: true
         type: string
       registry:
-        description: 'Registry to authenticate against when writing the signature and attestation.'
+        description: 'GAR (Artifact Registry) hostname to authenticate against when writing the signature and attestation.'
         required: false
         type: string
         default: us-docker.pkg.dev
