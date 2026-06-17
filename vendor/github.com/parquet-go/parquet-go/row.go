@@ -38,7 +38,7 @@ func AppendRow(row Row, columns ...[]Value) Row {
 		numValues += len(column)
 
 		for _, value := range column {
-			if value.columnIndex != ^uint16(expectedColumnIndex) {
+			if value.columnIndex != ^int16(expectedColumnIndex) {
 				panic(fmt.Sprintf("value of column %d has column index %d", expectedColumnIndex, value.Column()))
 			}
 		}
@@ -100,7 +100,7 @@ func (row Row) Range(f func(columnIndex int, columnValues []Value) bool) {
 	for i := 0; i < len(row); {
 		j := i + 1
 
-		for j < len(row) && row[j].columnIndex == ^uint16(columnIndex) {
+		for j < len(row) && row[j].columnIndex == ^int16(columnIndex) {
 			j++
 		}
 
@@ -414,7 +414,7 @@ func targetSchemaOf(w RowWriter) *Schema {
 // individually as the base case.
 type deconstructFunc func([][]Value, columnLevels, reflect.Value)
 
-func deconstructFuncOf(columnIndex uint16, node Node) (uint16, deconstructFunc) {
+func deconstructFuncOf(columnIndex int16, node Node) (int16, deconstructFunc) {
 	switch {
 	case node.Optional():
 		return deconstructFuncOfOptional(columnIndex, node)
@@ -424,15 +424,13 @@ func deconstructFuncOf(columnIndex uint16, node Node) (uint16, deconstructFunc) 
 		return deconstructFuncOfList(columnIndex, node)
 	case isMap(node):
 		return deconstructFuncOfMap(columnIndex, node)
-	case isVariant(node):
-		return deconstructFuncOfVariant(columnIndex, node)
 	default:
 		return deconstructFuncOfRequired(columnIndex, node)
 	}
 }
 
 //go:noinline
-func deconstructFuncOfOptional(columnIndex uint16, node Node) (uint16, deconstructFunc) {
+func deconstructFuncOfOptional(columnIndex int16, node Node) (int16, deconstructFunc) {
 	columnIndex, deconstruct := deconstructFuncOf(columnIndex, Required(node))
 	return columnIndex, func(columns [][]Value, levels columnLevels, value reflect.Value) {
 		if value.IsValid() {
@@ -450,7 +448,7 @@ func deconstructFuncOfOptional(columnIndex uint16, node Node) (uint16, deconstru
 }
 
 //go:noinline
-func deconstructFuncOfRepeated(columnIndex uint16, node Node) (uint16, deconstructFunc) {
+func deconstructFuncOfRepeated(columnIndex int16, node Node) (int16, deconstructFunc) {
 	columnIndex, deconstruct := deconstructFuncOf(columnIndex, Required(node))
 	return columnIndex, func(columns [][]Value, levels columnLevels, value reflect.Value) {
 		if value.Kind() == reflect.Interface {
@@ -472,7 +470,7 @@ func deconstructFuncOfRepeated(columnIndex uint16, node Node) (uint16, deconstru
 	}
 }
 
-func deconstructFuncOfRequired(columnIndex uint16, node Node) (uint16, deconstructFunc) {
+func deconstructFuncOfRequired(columnIndex int16, node Node) (int16, deconstructFunc) {
 	switch {
 	case node.Leaf():
 		return deconstructFuncOfLeaf(columnIndex, node)
@@ -481,7 +479,7 @@ func deconstructFuncOfRequired(columnIndex uint16, node Node) (uint16, deconstru
 	}
 }
 
-func deconstructFuncOfList(columnIndex uint16, node Node) (uint16, deconstructFunc) {
+func deconstructFuncOfList(columnIndex int16, node Node) (int16, deconstructFunc) {
 	return deconstructFuncOf(columnIndex, Repeated(listElementOf(node)))
 }
 
@@ -500,7 +498,7 @@ func makeKeyValueType(keyValueElem reflect.Type, actualKey, actualVal reflect.Ty
 }
 
 //go:noinline
-func deconstructFuncOfMap(columnIndex uint16, node Node) (uint16, deconstructFunc) {
+func deconstructFuncOfMap(columnIndex int16, node Node) (int16, deconstructFunc) {
 	keyValue := mapKeyValueOf(node)
 	keyValueType := keyValue.GoType()
 	keyValueElem := keyValueType.Elem()
@@ -530,7 +528,7 @@ func deconstructFuncOfMap(columnIndex uint16, node Node) (uint16, deconstructFun
 }
 
 //go:noinline
-func deconstructFuncOfGroup(columnIndex uint16, node Node) (uint16, deconstructFunc) {
+func deconstructFuncOfGroup(columnIndex int16, node Node) (int16, deconstructFunc) {
 	fields := node.Fields()
 	funcs := make([]deconstructFunc, len(fields))
 	for i, field := range fields {
@@ -550,9 +548,9 @@ func deconstructFuncOfGroup(columnIndex uint16, node Node) (uint16, deconstructF
 }
 
 //go:noinline
-func deconstructFuncOfLeaf(columnIndex uint16, node Node) (uint16, deconstructFunc) {
+func deconstructFuncOfLeaf(columnIndex int16, node Node) (int16, deconstructFunc) {
 	if columnIndex > MaxColumnIndex {
-		panic("row cannot be deconstructed because it has too many columns")
+		panic("row cannot be deconstructed because it has more than 127 columns")
 	}
 	typ := node.Type()
 	kind := typ.Kind()
@@ -578,25 +576,23 @@ func deconstructFuncOfLeaf(columnIndex uint16, node Node) (uint16, deconstructFu
 
 type reconstructFunc func(reflect.Value, columnLevels, [][]Value) error
 
-func reconstructFuncOf(columnIndex uint16, node Node) (uint16, reconstructFunc) {
+func reconstructFuncOf(columnIndex int16, node Node) (int16, reconstructFunc) {
 	switch {
 	case node.Optional():
 		return reconstructFuncOfOptional(columnIndex, node)
 	case node.Repeated():
-		return reconstructFuncOfRepeated(columnIndex, Required(node))
+		return reconstructFuncOfRepeated(columnIndex, node)
 	case isList(node):
 		return reconstructFuncOfList(columnIndex, node)
 	case isMap(node):
 		return reconstructFuncOfMap(columnIndex, node)
-	case isVariant(node):
-		return reconstructFuncOfVariant(columnIndex, node)
 	default:
 		return reconstructFuncOfRequired(columnIndex, node)
 	}
 }
 
 //go:noinline
-func reconstructFuncOfOptional(columnIndex uint16, node Node) (uint16, reconstructFunc) {
+func reconstructFuncOfOptional(columnIndex int16, node Node) (int16, reconstructFunc) {
 	// We convert the optional func to required so that we eventually reach the
 	// leaf base-case.  We're still using the heuristics of optional in the
 	// returned closure (see levels.definitionLevel++), but we don't actually do
@@ -616,11 +612,9 @@ func reconstructFuncOfOptional(columnIndex uint16, node Node) (uint16, reconstru
 		}
 
 		if value.Kind() == reflect.Ptr {
-			// Always allocate a fresh pointer. Reusing the caller's
-			// previous-call allocation would let downstream AssignValue
-			// mutate bytes behind any pointer the caller has retained from
-			// an earlier Read (issue #522).
-			value.Set(reflect.New(value.Type().Elem()))
+			if value.IsNil() {
+				value.Set(reflect.New(value.Type().Elem()))
+			}
 			value = value.Elem()
 		}
 
@@ -649,8 +643,8 @@ func setNullSlice(v reflect.Value) reflect.Value {
 }
 
 //go:noinline
-func reconstructFuncOfRepeated(columnIndex uint16, node Node) (uint16, reconstructFunc) {
-	nextColumnIndex, reconstruct := reconstructFuncOf(columnIndex, node)
+func reconstructFuncOfRepeated(columnIndex int16, node Node) (int16, reconstructFunc) {
+	nextColumnIndex, reconstruct := reconstructFuncOf(columnIndex, Required(node))
 	return nextColumnIndex, func(value reflect.Value, levels columnLevels, columns [][]Value) error {
 		levels.repetitionDepth++
 		levels.definitionLevel++
@@ -715,7 +709,7 @@ func reconstructFuncOfRepeated(columnIndex uint16, node Node) (uint16, reconstru
 	}
 }
 
-func reconstructFuncOfRequired(columnIndex uint16, node Node) (uint16, reconstructFunc) {
+func reconstructFuncOfRequired(columnIndex int16, node Node) (int16, reconstructFunc) {
 	switch {
 	case node.Leaf():
 		return reconstructFuncOfLeaf(columnIndex, node)
@@ -724,20 +718,104 @@ func reconstructFuncOfRequired(columnIndex uint16, node Node) (uint16, reconstru
 	}
 }
 
-func reconstructFuncOfList(columnIndex uint16, node Node) (uint16, reconstructFunc) {
+func reconstructFuncOfList(columnIndex int16, node Node) (int16, reconstructFunc) {
 	elem := listElementOf(node)
 	// If the list element is optional (e.g., from `parquet-element:",optional"`),
 	// we need to handle it specially because the normal path through
 	// reconstructFuncOfRepeated would wrap the node with Required() which
 	// hides the Optional property.
 	if elem.Optional() {
-		return reconstructFuncOfRepeated(columnIndex, elem)
+		return reconstructFuncOfRepeatedOptional(columnIndex, elem)
 	}
 	return reconstructFuncOf(columnIndex, Repeated(elem))
 }
 
+// reconstructFuncOfRepeatedOptional handles the case where list elements are optional.
+// This is needed because reconstructFuncOfRepeated uses Required() which hides
+// the Optional property of the inner node.
+//
 //go:noinline
-func reconstructFuncOfMap(columnIndex uint16, node Node) (uint16, reconstructFunc) {
+func reconstructFuncOfRepeatedOptional(columnIndex int16, node Node) (int16, reconstructFunc) {
+	// node is Optional(X), get the inner reconstruction for the required version
+	nextColumnIndex, reconstruct := reconstructFuncOf(columnIndex, Required(node))
+
+	return nextColumnIndex, func(value reflect.Value, levels columnLevels, columns [][]Value) error {
+		// Increment both for the repeated and optional levels
+		levels.repetitionDepth++
+		levels.definitionLevel += 2 // +1 for repeated, +1 for optional
+
+		// Handle empty groups (no columns)
+		if len(columns) == 0 || len(columns[0]) == 0 {
+			setMakeSlice(value, 0)
+			return nil
+		}
+
+		// Check if the list itself is null (definition level less than the repeated level)
+		// We need to check against (levels.definitionLevel - 1) because that's the repeated level
+		if columns[0][0].definitionLevel < levels.definitionLevel-1 {
+			setMakeSlice(value, 0)
+			return nil
+		}
+
+		values := make([][]Value, len(columns))
+		column := columns[0]
+		n := 0
+
+		for i, column := range columns {
+			values[i] = column[0:0:len(column)]
+		}
+
+		for i := 0; i < len(column); {
+			i++
+			n++
+
+			for i < len(column) && column[i].repetitionLevel > levels.repetitionDepth {
+				i++
+			}
+		}
+
+		value = setMakeSlice(value, n)
+
+		for i := range n {
+			for j, column := range values {
+				column = column[:cap(column)]
+				if len(column) == 0 {
+					continue
+				}
+
+				k := 1
+				for k < len(column) && column[k].repetitionLevel > levels.repetitionDepth {
+					k++
+				}
+
+				values[j] = column[:k]
+			}
+
+			// Check if this element is null (definition level indicates null)
+			// An element is null if its definition level is less than the max (which includes optional)
+			elemValue := value.Index(i)
+			if len(values) > 0 && len(values[0]) > 0 && values[0][0].definitionLevel < levels.definitionLevel {
+				// Element is null, leave as zero value
+				elemValue.SetZero()
+			} else {
+				if err := reconstruct(elemValue, levels, values); err != nil {
+					return err
+				}
+			}
+
+			for j, column := range values {
+				values[j] = column[len(column):len(column):cap(column)]
+			}
+
+			levels.repetitionLevel = levels.repetitionDepth
+		}
+
+		return nil
+	}
+}
+
+//go:noinline
+func reconstructFuncOfMap(columnIndex int16, node Node) (int16, reconstructFunc) {
 	keyValue := mapKeyValueOf(node)
 	keyValueType := keyValue.GoType()
 	keyValueElem := keyValueType.Elem()
@@ -866,10 +944,10 @@ func convertListWrapperToSlice(wrapper reflect.Value, targetSliceType reflect.Ty
 }
 
 //go:noinline
-func reconstructFuncOfGroup(columnIndex uint16, node Node) (uint16, reconstructFunc) {
+func reconstructFuncOfGroup(columnIndex int16, node Node) (int16, reconstructFunc) {
 	fields := node.Fields()
 	funcs := make([]reconstructFunc, len(fields))
-	columnOffsets := make([]uint16, len(fields))
+	columnOffsets := make([]int16, len(fields))
 	firstColumnIndex := columnIndex
 
 	for i, field := range fields {
@@ -892,7 +970,7 @@ func reconstructFuncOfGroup(columnIndex uint16, node Node) (uint16, reconstructF
 				value.Set(reflect.MakeMap(value.Type()))
 			}
 
-			off := uint16(0)
+			off := int16(0)
 
 			for i, f := range funcs {
 				name.SetString(fields[i].Name())
@@ -906,7 +984,7 @@ func reconstructFuncOfGroup(columnIndex uint16, node Node) (uint16, reconstructF
 				elem.SetZero()
 			}
 		} else {
-			off := uint16(0)
+			off := int16(0)
 
 			for i, f := range funcs {
 				end := columnOffsets[i]
@@ -923,7 +1001,7 @@ func reconstructFuncOfGroup(columnIndex uint16, node Node) (uint16, reconstructF
 }
 
 //go:noinline
-func reconstructFuncOfLeaf(columnIndex uint16, node Node) (uint16, reconstructFunc) {
+func reconstructFuncOfLeaf(columnIndex int16, node Node) (int16, reconstructFunc) {
 	typ := node.Type()
 	return columnIndex + 1, func(value reflect.Value, _ columnLevels, columns [][]Value) error {
 		column := columns[0]

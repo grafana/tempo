@@ -5,6 +5,7 @@ package otelcol // import "go.opentelemetry.io/collector/otelcol"
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -15,6 +16,7 @@ import (
 
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/xconfmap"
+	"go.opentelemetry.io/collector/otelcol/internal/metadata"
 )
 
 // newConfigPrintSubCommand constructs a new print-config command using the given CollectorSettings.
@@ -73,6 +75,9 @@ type printContext struct {
 }
 
 func (pctx *printContext) configPrintSubCommand(flagSet *flag.FlagSet, mode string) error {
+	if !metadata.OtelcolPrintInitialConfigFeatureGate.IsEnabled() {
+		return errors.New("print-config is currently experimental, use the otelcol.printInitialConfig feature gate to enable this command")
+	}
 	err := updateSettingsUsingFlags(&pctx.set, flagSet)
 	if err != nil {
 		return err

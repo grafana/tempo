@@ -9,6 +9,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/internal"
 	pmetadata "go.opentelemetry.io/collector/pdata/internal/metadata"
 	"go.opentelemetry.io/collector/pdata/pprofile"
+	"go.opentelemetry.io/collector/pdata/xpdata/internal/metadata"
 )
 
 // MarkPipelineOwnedProfiles marks the pprofile.Profiles data as owned by the pipeline, returns true if the data were
@@ -18,16 +19,20 @@ func MarkPipelineOwnedProfiles(pd pprofile.Profiles) bool {
 }
 
 func RefProfiles(pd pprofile.Profiles) {
-	internal.GetProfilesState(internal.ProfilesWrapper(pd)).Ref()
+	if metadata.PdataEnableRefCountingFeatureGate.IsEnabled() {
+		internal.GetProfilesState(internal.ProfilesWrapper(pd)).Ref()
+	}
 }
 
 func UnrefProfiles(pd pprofile.Profiles) {
-	if !internal.GetProfilesState(internal.ProfilesWrapper(pd)).Unref() {
-		return
-	}
-	// Don't call DeleteExportLogsServiceRequest without the gate because we reset the data and that may still cause issues.
-	if pmetadata.PdataUseProtoPoolingFeatureGate.IsEnabled() {
-		internal.DeleteExportProfilesServiceRequest(internal.GetProfilesOrig(internal.ProfilesWrapper(pd)), true)
+	if metadata.PdataEnableRefCountingFeatureGate.IsEnabled() {
+		if !internal.GetProfilesState(internal.ProfilesWrapper(pd)).Unref() {
+			return
+		}
+		// Don't call DeleteExportLogsServiceRequest without the gate because we reset the data and that may still cause issues.
+		if pmetadata.PdataUseProtoPoolingFeatureGate.IsEnabled() {
+			internal.DeleteExportProfilesServiceRequest(internal.GetProfilesOrig(internal.ProfilesWrapper(pd)), true)
+		}
 	}
 }
 

@@ -1,12 +1,20 @@
-// Package characters provides functions for working with string encodings.
 package characters
 
 import (
 	"unicode/utf8"
 )
 
-// Utf8TomlValidAlreadyEscaped verifies that a given string is only made of
-// valid UTF-8 characters allowed by the TOML spec:
+type utf8Err struct {
+	Index int
+	Size  int
+}
+
+func (u utf8Err) Zero() bool {
+	return u.Size == 0
+}
+
+// Verified that a given string is only made of valid UTF-8 characters allowed
+// by the TOML spec:
 //
 // Any Unicode character may be used except those that must be escaped:
 // quotation mark, backslash, and the control characters other than tab (U+0000
@@ -15,8 +23,8 @@ import (
 // It is a copy of the Go 1.17 utf8.Valid implementation, tweaked to exit early
 // when a character is not allowed.
 //
-// The returned slice is empty if the string is valid, or contains the bytes
-// of the invalid character.
+// The returned utf8Err is Zero() if the string is valid, or contains the byte
+// index and size of the invalid character.
 //
 // quotation mark => already checked
 // backslash => already checked
@@ -24,8 +32,9 @@ import (
 // 0x9 => tab, ok
 // 0xA - 0x1F => invalid
 // 0x7F => invalid
-func Utf8TomlValidAlreadyEscaped(p []byte) []byte {
+func Utf8TomlValidAlreadyEscaped(p []byte) (err utf8Err) {
 	// Fast path. Check for and skip 8 bytes of ASCII characters per iteration.
+	offset := 0
 	for len(p) >= 8 {
 		// Combining two 32 bit loads allows the same code to be used
 		// for 32 and 64 bit platforms.
@@ -39,19 +48,24 @@ func Utf8TomlValidAlreadyEscaped(p []byte) []byte {
 		}
 
 		for i, b := range p[:8] {
-			if InvalidASCII(b) {
-				return p[i : i+1]
+			if InvalidAscii(b) {
+				err.Index = offset + i
+				err.Size = 1
+				return
 			}
 		}
 
 		p = p[8:]
+		offset += 8
 	}
 	n := len(p)
 	for i := 0; i < n; {
 		pi := p[i]
 		if pi < utf8.RuneSelf {
-			if InvalidASCII(pi) {
-				return p[i : i+1]
+			if InvalidAscii(pi) {
+				err.Index = offset + i
+				err.Size = 1
+				return
 			}
 			i++
 			continue
@@ -59,34 +73,44 @@ func Utf8TomlValidAlreadyEscaped(p []byte) []byte {
 		x := first[pi]
 		if x == xx {
 			// Illegal starter byte.
-			return p[i : i+1]
+			err.Index = offset + i
+			err.Size = 1
+			return
 		}
 		size := int(x & 7)
 		if i+size > n {
 			// Short or invalid.
-			return p[i:n]
+			err.Index = offset + i
+			err.Size = n - i
+			return
 		}
 		accept := acceptRanges[x>>4]
 		if c := p[i+1]; c < accept.lo || accept.hi < c {
-			return p[i : i+2]
-		} else if size == 2 { //revive:disable:empty-block
+			err.Index = offset + i
+			err.Size = 2
+			return
+		} else if size == 2 {
 		} else if c := p[i+2]; c < locb || hicb < c {
-			return p[i : i+3]
-		} else if size == 3 { //revive:disable:empty-block
+			err.Index = offset + i
+			err.Size = 3
+			return
+		} else if size == 3 {
 		} else if c := p[i+3]; c < locb || hicb < c {
-			return p[i : i+4]
+			err.Index = offset + i
+			err.Size = 4
+			return
 		}
 		i += size
 	}
-	return nil
+	return
 }
 
-// Utf8ValidNext returns the size of the next rune if valid, 0 otherwise.
+// Return the size of the next rune if valid, 0 otherwise.
 func Utf8ValidNext(p []byte) int {
 	c := p[0]
 
 	if c < utf8.RuneSelf {
-		if InvalidASCII(c) {
+		if InvalidAscii(c) {
 			return 0
 		}
 		return 1
@@ -105,10 +129,10 @@ func Utf8ValidNext(p []byte) int {
 	accept := acceptRanges[x>>4]
 	if c := p[1]; c < accept.lo || accept.hi < c {
 		return 0
-	} else if size == 2 { //nolint:revive
+	} else if size == 2 {
 	} else if c := p[2]; c < locb || hicb < c {
 		return 0
-	} else if size == 3 { //nolint:revive
+	} else if size == 3 {
 	} else if c := p[3]; c < locb || hicb < c {
 		return 0
 	}

@@ -1,6 +1,6 @@
 package characters
 
-var invalidASCIITable = [256]bool{
+var invalidAsciiTable = [256]bool{
 	0x00: true,
 	0x01: true,
 	0x02: true,
@@ -37,6 +37,6 @@ var invalidASCIITable = [256]bool{
 	0x7F: true,
 }
 
-func InvalidASCII(b byte) bool {
-	return invalidASCIITable[b]
+func InvalidAscii(b byte) bool {
+	return invalidAsciiTable[b]
 }

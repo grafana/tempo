@@ -16,8 +16,7 @@ import (
 // resembles the one displayed by the Version Reporter Applet (winver.exe).
 func platformOSDescription() (string, error) {
 	k, err := registry.OpenKey(
-		registry.LOCAL_MACHINE, `SOFTWARE\Microsoft\Windows NT\CurrentVersion`, registry.QUERY_VALUE,
-	)
+		registry.LOCAL_MACHINE, `SOFTWARE\Microsoft\Windows NT\CurrentVersion`, registry.QUERY_VALUE)
 	if err != nil {
 		return "", err
 	}
@@ -38,8 +37,7 @@ func platformOSDescription() (string, error) {
 		displayVersion += " "
 	}
 
-	return fmt.Sprintf(
-		"%s %s(%s) [Version %s.%s.%s.%s]",
+	return fmt.Sprintf("%s %s(%s) [Version %s.%s.%s.%s]",
 		productName,
 		displayVersion,
 		releaseID,

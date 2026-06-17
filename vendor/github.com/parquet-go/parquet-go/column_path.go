@@ -54,7 +54,7 @@ type leafColumn struct {
 	path               columnPath
 	maxRepetitionLevel byte
 	maxDefinitionLevel byte
-	columnIndex        uint16
+	columnIndex        int16
 }
 
 func forEachLeafColumnOf(node Node, do func(leafColumn)) {

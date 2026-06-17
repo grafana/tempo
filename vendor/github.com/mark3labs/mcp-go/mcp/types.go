@@ -35,14 +35,6 @@ const (
 	// https://modelcontextprotocol.io/specification/2024-11-05/server/resources/
 	MethodResourcesRead MCPMethod = "resources/read"
 
-	// MethodResourcesSubscribe subscribes the client to updates for a resource.
-	// https://modelcontextprotocol.io/specification/2025-11-25/server/resources
-	MethodResourcesSubscribe MCPMethod = "resources/subscribe"
-
-	// MethodResourcesUnsubscribe cancels a previous resources/subscribe request.
-	// https://modelcontextprotocol.io/specification/2025-11-25/server/resources
-	MethodResourcesUnsubscribe MCPMethod = "resources/unsubscribe"
-
 	// MethodPromptsList lists all available prompt templates.
 	// https://modelcontextprotocol.io/specification/2024-11-05/server/prompts/
 	MethodPromptsList MCPMethod = "prompts/list"
@@ -67,44 +59,9 @@ const (
 	// https://modelcontextprotocol.io/docs/concepts/elicitation
 	MethodElicitationCreate MCPMethod = "elicitation/create"
 
-	// MethodNotificationElicitationComplete notifies when a URL mode elicitation completes.
-	MethodNotificationElicitationComplete MCPMethod = "notifications/elicitation/complete"
-
 	// MethodListRoots requests roots list from the client during interactions.
 	// https://modelcontextprotocol.io/specification/2025-06-18/client/roots
 	MethodListRoots MCPMethod = "roots/list"
-
-	// MethodTasksGet retrieves the current status of a task.
-	// https://modelcontextprotocol.io/specification/2025-11-25/basic/utilities/tasks
-	MethodTasksGet MCPMethod = "tasks/get"
-
-	// MethodTasksList lists all tasks for the current session.
-	// https://modelcontextprotocol.io/specification/2025-11-25/basic/utilities/tasks
-	MethodTasksList MCPMethod = "tasks/list"
-
-	// MethodTasksResult retrieves the result of a completed task.
-	// https://modelcontextprotocol.io/specification/2025-11-25/basic/utilities/tasks
-	MethodTasksResult MCPMethod = "tasks/result"
-
-	// MethodTasksCancel cancels an in-progress task.
-	// https://modelcontextprotocol.io/specification/2025-11-25/basic/utilities/tasks
-	MethodTasksCancel MCPMethod = "tasks/cancel"
-
-	// MethodNotificationInitialized indicates that the client completed initialization.
-	// https://modelcontextprotocol.io/specification/2024-11-05/basic/lifecycle/#initialization
-	MethodNotificationInitialized MCPMethod = "notifications/initialized"
-
-	// MethodNotificationCancelled cancels an in-flight request.
-	// https://modelcontextprotocol.io/specification/2025-11-25/basic/utilities/cancellation
-	MethodNotificationCancelled MCPMethod = "notifications/cancelled"
-
-	// MethodNotificationProgress reports progress for a long-running request.
-	// https://modelcontextprotocol.io/specification/2025-11-25/basic/utilities/progress
-	MethodNotificationProgress MCPMethod = "notifications/progress"
-
-	// MethodNotificationMessage is a server-pushed log message.
-	// https://modelcontextprotocol.io/specification/2025-11-25/server/utilities/logging
-	MethodNotificationMessage MCPMethod = "notifications/message"
 
 	// MethodNotificationResourcesListChanged notifies when the list of available resources changes.
 	// https://modelcontextprotocol.io/specification/2025-03-26/server/resources#list-changed-notification
@@ -123,14 +80,6 @@ const (
 	// MethodNotificationRootsListChanged notifies when the list of available roots changes.
 	// https://modelcontextprotocol.io/specification/2025-06-18/client/roots#root-list-changes
 	MethodNotificationRootsListChanged = "notifications/roots/list_changed"
-
-	// MethodNotificationTasksStatus notifies when a task's status changes.
-	// https://modelcontextprotocol.io/specification/2025-11-25/basic/utilities/tasks
-	MethodNotificationTasksStatus = "notifications/tasks/status"
-
-	// MethodCompletionComplete returns completion suggestions for a given argument
-	// https://modelcontextprotocol.io/specification/2025-11-25/server/utilities/completion
-	MethodCompletionComplete MCPMethod = "completion/complete"
 )
 
 type URITemplate struct {
@@ -160,12 +109,11 @@ func (t *URITemplate) UnmarshalJSON(data []byte) error {
 type JSONRPCMessage any
 
 // LATEST_PROTOCOL_VERSION is the most recent version of the MCP protocol.
-const LATEST_PROTOCOL_VERSION = "2025-11-25"
+const LATEST_PROTOCOL_VERSION = "2025-06-18"
 
 // ValidProtocolVersions lists all known valid MCP protocol versions.
 var ValidProtocolVersions = []string{
 	LATEST_PROTOCOL_VERSION,
-	"2025-06-18",
 	"2025-03-26",
 	"2024-11-05",
 }
@@ -230,7 +178,7 @@ func NewMetaFromMap(m map[string]any) *Meta {
 
 type Request struct {
 	Method string        `json:"method"`
-	Params RequestParams `json:"params,omitzero"`
+	Params RequestParams `json:"params,omitempty"`
 }
 
 type RequestParams struct {
@@ -241,7 +189,7 @@ type Params map[string]any
 
 type Notification struct {
 	Method string             `json:"method"`
-	Params NotificationParams `json:"params,omitzero"`
+	Params NotificationParams `json:"params,omitempty"`
 }
 
 type NotificationParams struct {
@@ -424,25 +372,6 @@ type JSONRPCErrorDetails struct {
 	Data any `json:"data,omitempty"`
 }
 
-// UnmarshalJSON handles both the standard JSON-RPC error object
-// ({"code": -32600, "message": "..."}) and non-compliant servers that
-// return the error as a plain string (e.g. "cursor_invalid").
-func (e *JSONRPCErrorDetails) UnmarshalJSON(data []byte) error {
-	// Try the spec-compliant object shape first.
-	type plain JSONRPCErrorDetails
-	if err := json.Unmarshal(data, (*plain)(e)); err == nil {
-		return nil
-	}
-	// Some servers (e.g. Slack MCP) return a bare string.
-	var msg string
-	if err := json.Unmarshal(data, &msg); err != nil {
-		return fmt.Errorf("error field is neither an object nor a string: %w", err)
-	}
-	e.Code = INTERNAL_ERROR
-	e.Message = msg
-	return nil
-}
-
 // Standard JSON-RPC error codes
 const (
 	// PARSE_ERROR indicates invalid JSON was received by the server.
@@ -466,11 +395,8 @@ const (
 
 // MCP error codes
 const (
-	// RESOURCE_NOT_FOUND indicates that the requested resource was not found.
+	// RESOURCE_NOT_FOUND indicates a requested resource was not found.
 	RESOURCE_NOT_FOUND = -32002
-
-	// URL_ELICITATION_REQUIRED is the error code for when URL elicitation is required.
-	URL_ELICITATION_REQUIRED = -32042
 )
 
 /* Empty result */
@@ -554,8 +480,6 @@ type InitializedNotification struct {
 // capabilities are defined here, in this schema, but this is not a closed set: any
 // client can define its own, additional capabilities.
 type ClientCapabilities struct {
-	// Optional, present if the client is advertising extension support.
-	Extensions map[string]any `json:"extensions,omitempty"`
 	// Experimental, non-standard capabilities that the client supports.
 	Experimental map[string]any `json:"experimental,omitempty"`
 	// Present if the client supports listing roots.
@@ -564,19 +488,15 @@ type ClientCapabilities struct {
 		ListChanged bool `json:"listChanged,omitempty"`
 	} `json:"roots,omitempty"`
 	// Present if the client supports sampling from an LLM.
-	Sampling *SamplingCapability `json:"sampling,omitempty"`
+	Sampling *struct{} `json:"sampling,omitempty"`
 	// Present if the client supports elicitation requests from the server.
-	Elicitation *ElicitationCapability `json:"elicitation,omitempty"`
-	// Present if the client supports task-based execution.
-	Tasks *TasksCapability `json:"tasks,omitempty"`
+	Elicitation *struct{} `json:"elicitation,omitempty"`
 }
 
 // ServerCapabilities represents capabilities that a server may support. Known
 // capabilities are defined here, in this schema, but this is not a closed set: any
 // server can define its own, additional capabilities.
 type ServerCapabilities struct {
-	// Optional, present if the server is advertising extension support.
-	Extensions map[string]any `json:"extensions,omitempty"`
 	// Experimental, non-standard capabilities that the server supports.
 	Experimental map[string]any `json:"experimental,omitempty"`
 	// Present if the server supports sending log messages to the client.
@@ -595,64 +515,23 @@ type ServerCapabilities struct {
 		ListChanged bool `json:"listChanged,omitempty"`
 	} `json:"resources,omitempty"`
 	// Present if the server supports sending sampling requests to clients.
-	Sampling *SamplingCapability `json:"sampling,omitempty"`
+	Sampling *struct{} `json:"sampling,omitempty"`
 	// Present if the server offers any tools to call.
 	Tools *struct {
 		// Whether this server supports notifications for changes to the tool list.
 		ListChanged bool `json:"listChanged,omitempty"`
 	} `json:"tools,omitempty"`
 	// Present if the server supports elicitation requests to the client.
-	Elicitation *ElicitationCapability `json:"elicitation,omitempty"`
+	Elicitation *struct{} `json:"elicitation,omitempty"`
 	// Present if the server supports roots requests to the client.
 	Roots *struct{} `json:"roots,omitempty"`
-	// Present if the server supports task-based execution.
-	Tasks *TasksCapability `json:"tasks,omitempty"`
-	// Present if the server supports completions requests to the client.
-	Completions *struct{} `json:"completions,omitempty"`
-}
-
-// IconTheme is the background theme an icon is designed to be displayed on.
-type IconTheme string
-
-const (
-	// IconThemeLight indicates the icon is designed for use with a light background.
-	IconThemeLight IconTheme = "light"
-	// IconThemeDark indicates the icon is designed for use with a dark background.
-	IconThemeDark IconTheme = "dark"
-)
-
-// Icon represents a visual identifier for MCP entities.
-//
-// Security considerations:
-//   - Clients MUST support at least image/png and image/jpeg MIME types
-//   - Clients SHOULD support image/svg+xml and image/webp
-//   - Icons should be treated as untrusted input
-//   - URI scheme validation (HTTPS or data URI only)
-//   - Size/dimension limits to prevent resource exhaustion
-type Icon struct {
-	// URI pointing to the icon resource (HTTPS URL or data URI)
-	Src string `json:"src"`
-
-	// Optional MIME type (e.g., "image/png", "image/svg+xml")
-	MIMEType string `json:"mimeType,omitempty"`
-
-	// Optional size specifications (e.g., ["48x48"], ["any"] for SVG)
-	Sizes []string `json:"sizes,omitempty"`
-
-	// Theme is an optional specifier for the background theme this icon is designed for.
-	// Use IconThemeLight for light backgrounds or IconThemeDark for dark backgrounds.
-	Theme IconTheme `json:"theme,omitempty"`
 }
 
 // Implementation describes the name and version of an MCP implementation.
 type Implementation struct {
-	Name        string `json:"name"`
-	Version     string `json:"version"`
-	Title       string `json:"title,omitempty"`
-	Description string `json:"description,omitempty"`
-	WebsiteURL  string `json:"websiteUrl,omitempty"`
-	// Icons provides visual identifiers for the implementation
-	Icons []Icon `json:"icons,omitempty"`
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	Title   string `json:"title,omitempty"`
 }
 
 /* Ping */
@@ -692,18 +571,13 @@ type ProgressNotificationParams struct {
 
 type PaginatedRequest struct {
 	Request
-	Params PaginatedParams `json:"params,omitzero"`
+	Params PaginatedParams `json:"params,omitempty"`
 }
 
 type PaginatedParams struct {
 	// An opaque token representing the current pagination position.
 	// If provided, the server should return results starting after this cursor.
 	Cursor Cursor `json:"cursor,omitempty"`
-	// Meta carries protocol-level metadata. PaginatedRequest embeds Request
-	// and shadows its Params with this type, so Meta must be declared here
-	// to be marshaled on paginated requests (tools/list, resources/list,
-	// resources/templates/list, prompts/list, tasks/list).
-	Meta *Meta `json:"_meta,omitempty"`
 }
 
 type PaginatedResult struct {
@@ -827,9 +701,6 @@ type Resource struct {
 	//
 	// This can be used by clients to populate UI elements.
 	Name string `json:"name"`
-	// Title is an optional human-readable, UI-friendly display name for this resource.
-	// If not provided, clients should fall back to Name.
-	Title string `json:"title,omitempty"`
 	// A description of what this resource represents.
 	//
 	// This can be used by clients to improve the LLM's understanding of
@@ -837,15 +708,6 @@ type Resource struct {
 	Description string `json:"description,omitempty"`
 	// The MIME type of this resource, if known.
 	MIMEType string `json:"mimeType,omitempty"`
-	// Icons provides visual identifiers for the resource
-	Icons []Icon `json:"icons,omitempty"`
-	// Size is the size of the raw resource content, in bytes (i.e., before base64
-	// encoding or any tokenization), if known. This can be used by hosts to
-	// display file sizes and estimate context window usage.
-	//
-	// A pointer is used so that an explicit zero size remains distinguishable
-	// from an unset value.
-	Size *int64 `json:"size,omitempty"`
 }
 
 // GetName returns the name of the resource.
@@ -866,9 +728,6 @@ type ResourceTemplate struct {
 	//
 	// This can be used by clients to populate UI elements.
 	Name string `json:"name"`
-	// Title is an optional human-readable, UI-friendly display name for this resource template.
-	// If not provided, clients should fall back to Name.
-	Title string `json:"title,omitempty"`
 	// A description of what this template is for.
 	//
 	// This can be used by clients to improve the LLM's understanding of
@@ -877,8 +736,6 @@ type ResourceTemplate struct {
 	// The MIME type for all resources that match this template. This should only
 	// be included if all resources matching this template have the same type.
 	MIMEType string `json:"mimeType,omitempty"`
-	// Icons provides visual identifiers for the resource template
-	Icons []Icon `json:"icons,omitempty"`
 }
 
 // GetName returns the name of the resourceTemplate.
@@ -1004,49 +861,10 @@ type ElicitationRequest struct {
 
 // ElicitationParams contains the parameters for an elicitation request.
 type ElicitationParams struct {
-	Meta *Meta `json:"_meta,omitempty"`
-	// Mode specifies the type of elicitation: "form" or "url". Defaults to "form".
-	Mode string `json:"mode,omitempty"`
 	// A human-readable message explaining what information is being requested and why.
 	Message string `json:"message"`
-
-	// Form mode fields
-
 	// A JSON Schema defining the expected structure of the user's response.
-	RequestedSchema any `json:"requestedSchema,omitempty"`
-
-	// URL mode fields
-
-	// ElicitationID is a unique identifier for the elicitation request.
-	ElicitationID string `json:"elicitationId,omitempty"`
-	// URL is the URL to be opened by the user.
-	URL string `json:"url,omitempty"`
-}
-
-// Validate checks if the elicitation parameters are valid.
-func (p ElicitationParams) Validate() error {
-	mode := p.Mode
-	if mode == "" {
-		mode = ElicitationModeForm
-	}
-
-	switch mode {
-	case ElicitationModeForm:
-		if p.RequestedSchema == nil {
-			return fmt.Errorf("requestedSchema is required for form elicitation")
-		}
-	case ElicitationModeURL:
-		if p.ElicitationID == "" {
-			return fmt.Errorf("elicitationId is required for url elicitation")
-		}
-		if p.URL == "" {
-			return fmt.Errorf("url is required for url elicitation")
-		}
-	default:
-		return fmt.Errorf("invalid elicitation mode: %s", mode)
-	}
-
-	return nil
+	RequestedSchema any `json:"requestedSchema"`
 }
 
 // ElicitationResult represents the result of an elicitation request.
@@ -1101,38 +919,6 @@ type CreateMessageParams struct {
 	MaxTokens        int               `json:"maxTokens"`
 	StopSequences    []string          `json:"stopSequences,omitempty"`
 	Metadata         any               `json:"metadata,omitempty"`
-	// Tools the model may use during generation.
-	//
-	// Per the 2025-11-25 spec, the client MUST return an error if this field
-	// is provided but ClientCapabilities.Sampling.Tools is not declared.
-	Tools []Tool `json:"tools,omitempty"`
-	// ToolChoice controls how the model uses tools during generation.
-	//
-	// Per the 2025-11-25 spec, the client MUST return an error if this field
-	// is provided but ClientCapabilities.Sampling.Tools is not declared.
-	// When omitted the client defaults to {Mode: ToolChoiceModeAuto}.
-	ToolChoice *ToolChoice `json:"toolChoice,omitempty"`
-}
-
-// ToolChoiceMode controls tool selection behaviour during sampling.
-type ToolChoiceMode string
-
-const (
-	// ToolChoiceModeAuto lets the model decide whether to use tools. This is
-	// the default when ToolChoice is omitted.
-	ToolChoiceModeAuto ToolChoiceMode = "auto"
-	// ToolChoiceModeRequired forces the model to call at least one tool.
-	ToolChoiceModeRequired ToolChoiceMode = "required"
-	// ToolChoiceModeNone disables tool use for this sampling request.
-	ToolChoiceModeNone ToolChoiceMode = "none"
-)
-
-// ToolChoice controls tool selection behaviour for a sampling request as
-// defined by the 2025-11-25 protocol revision.
-type ToolChoice struct {
-	// Mode controls tool selection. Empty is treated as ToolChoiceModeAuto by
-	// the client.
-	Mode ToolChoiceMode `json:"mode,omitempty"`
 }
 
 // CreateMessageResult is the client's response to a sampling/create_message
@@ -1151,7 +937,7 @@ type CreateMessageResult struct {
 // SamplingMessage describes a message issued to or received from an LLM API.
 type SamplingMessage struct {
 	Role    Role `json:"role"`
-	Content any  `json:"content"` // Can be TextContent, ImageContent, AudioContent, ToolUseContent or ToolResultContent
+	Content any  `json:"content"` // Can be TextContent, ImageContent or AudioContent
 }
 
 type Annotations struct {
@@ -1166,10 +952,7 @@ type Annotations struct {
 	// A value of 1 means "most important," and indicates that the data is
 	// effectively required, while 0 means "least important," and indicates that
 	// the data is entirely optional.
-	// Priority ranges from 0.0 to 1.0 (1 = most important, 0 = least important).
-	Priority *float64 `json:"priority,omitempty"`
-	// ISO 8601 formatted timestamp (e.g., "2025-01-12T15:00:58Z")
-	LastModified string `json:"lastModified,omitempty"`
+	Priority float64 `json:"priority,omitempty"`
 }
 
 // Annotated is the base for objects that include optional annotations for the
@@ -1234,20 +1017,10 @@ type ResourceLink struct {
 	URI string `json:"uri"`
 	// The name of the resource.
 	Name string `json:"name"`
-	// Title is an optional human-readable, UI-friendly display name for this resource.
-	// If not provided, clients should fall back to Name.
-	Title string `json:"title,omitempty"`
 	// The description of the resource.
 	Description string `json:"description"`
 	// The MIME type of the resource.
 	MIMEType string `json:"mimeType"`
-	// Size is the size of the raw resource content, in bytes (i.e., before base64
-	// encoding or any tokenization), if known. This can be used by hosts to
-	// display file sizes and estimate context window usage.
-	//
-	// A pointer is used so that an explicit zero size remains distinguishable
-	// from an unset value.
-	Size *int64 `json:"size,omitempty"`
 }
 
 func (ResourceLink) isContent() {}
@@ -1265,77 +1038,6 @@ type EmbeddedResource struct {
 }
 
 func (EmbeddedResource) isContent() {}
-
-// ToolUseContent represents a request from the assistant to call a tool within a sampling message.
-// It must have Type set to "tool_use".
-type ToolUseContent struct {
-	Annotated
-	// Meta is a metadata object that is reserved by MCP for storing additional information.
-	Meta *Meta  `json:"_meta,omitempty"`
-	Type string `json:"type"` // Must be "tool_use"
-	// ID is a unique identifier for this tool use, used to match tool results to their corresponding tool uses.
-	ID string `json:"id"`
-	// Name is the name of the tool to call.
-	Name string `json:"name"`
-	// Input contains the arguments to pass to the tool, conforming to the tool's input schema.
-	Input any `json:"input"`
-}
-
-func (ToolUseContent) isContent() {}
-
-// ToolResultContent represents the result of a tool invocation within a sampling message.
-// It must have Type set to "tool_result".
-type ToolResultContent struct {
-	Annotated
-	// Meta is a metadata object that is reserved by MCP for storing additional information.
-	Meta *Meta  `json:"_meta,omitempty"`
-	Type string `json:"type"` // Must be "tool_result"
-	// ToolUseID is the ID of the tool use this result corresponds to.
-	// This MUST match the ID from a previous ToolUseContent.
-	ToolUseID string `json:"toolUseId"`
-	// Content is the unstructured result content of the tool use.
-	Content []Content `json:"content"`
-	// Whether the tool use resulted in an error.
-	IsError bool `json:"isError,omitempty"`
-}
-
-func (ToolResultContent) isContent() {}
-
-// toolResultContentJSON is a helper type for unmarshaling ToolResultContent.
-type toolResultContentJSON struct {
-	Annotated
-	Meta      *Meta             `json:"_meta,omitempty"`
-	Type      string            `json:"type"`
-	ToolUseID string            `json:"toolUseId"`
-	Content   []json.RawMessage `json:"content"`
-	IsError   bool              `json:"isError,omitempty"`
-}
-
-// UnmarshalJSON implements custom JSON unmarshaling for ToolResultContent
-// to handle the nested Content interface slice.
-func (t *ToolResultContent) UnmarshalJSON(data []byte) error {
-	var raw toolResultContentJSON
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	t.Annotated = raw.Annotated
-	t.Meta = raw.Meta
-	t.Type = raw.Type
-	t.ToolUseID = raw.ToolUseID
-	t.IsError = raw.IsError
-
-	if len(raw.Content) > 0 {
-		t.Content = make([]Content, 0, len(raw.Content))
-		for _, rawContent := range raw.Content {
-			c, err := UnmarshalContent(rawContent)
-			if err != nil {
-				return fmt.Errorf("unmarshaling tool result content: %w", err)
-			}
-			t.Content = append(t.Content, c)
-		}
-	}
-	return nil
-}
 
 // ModelPreferences represents the server's preferences for model selection,
 // requested of the client during sampling.
@@ -1402,81 +1104,29 @@ type CompleteRequest struct {
 	Header http.Header    `json:"-"`
 }
 
-// CompleteParams are the parameters for a completion/complete request
 type CompleteParams struct {
-	Ref      any              `json:"ref"` // Can be PromptReference or ResourceReference
-	Argument CompleteArgument `json:"argument"`
-	Context  CompleteContext  `json:"context"`
-}
-
-func (p *CompleteParams) UnmarshalJSON(data []byte) error {
-	// Use a temporary type to avoid infinite recursion on UnmarshalJSON
-	type Alias CompleteParams
-	aux := &struct {
-		// Use RawMessage to delay unmarshalling until after the type is known
-		Ref json.RawMessage `json:"ref"`
-		*Alias
-	}{
-		Alias: (*Alias)(p),
-	}
-	if err := json.Unmarshal(data, aux); err != nil {
-		return err
-	}
-	// Use a temporary "type peek" struct to determine the type
-	var typePeek struct {
-		Type string `json:"type"`
-	}
-	if err := json.Unmarshal(aux.Ref, &typePeek); err != nil {
-		return err
-	}
-	switch typePeek.Type {
-	case "ref/prompt":
-		var prompt PromptReference
-		if err := json.Unmarshal(aux.Ref, &prompt); err != nil {
-			return err
-		}
-		p.Ref = prompt
-	case "ref/resource":
-		var resource ResourceReference
-		if err := json.Unmarshal(aux.Ref, &resource); err != nil {
-			return err
-		}
-		p.Ref = resource
-	default:
-		return fmt.Errorf("unknown reference type: %s", typePeek.Type)
-	}
-	return nil
+	Ref      any `json:"ref"` // Can be PromptReference or ResourceReference
+	Argument struct {
+		// The name of the argument
+		Name string `json:"name"`
+		// The value of the argument to use for completion matching.
+		Value string `json:"value"`
+	} `json:"argument"`
 }
 
 // CompleteResult is the server's response to a completion/complete request
 type CompleteResult struct {
 	Result
-	Completion Completion `json:"completion"`
-}
-
-// CompleteArgument is an argument to a completion request
-type CompleteArgument struct {
-	// The name of the argument
-	Name string `json:"name"`
-	// The value of the argument to use for completion matching.
-	Value string `json:"value"`
-}
-
-// CompleteContext is the context about already-resolved arguments
-type CompleteContext struct {
-	Arguments map[string]string `json:"arguments"`
-}
-
-// Completion is the server's response to a completion/complete request
-type Completion struct {
-	// An array of completion values. Must not exceed 100 items.
-	Values []string `json:"values"`
-	// The total number of completion options available. This can exceed the
-	// number of values actually sent in the response.
-	Total int `json:"total,omitempty"`
-	// Indicates whether there are additional completion options beyond those
-	// provided in the current response, even if the exact total is unknown.
-	HasMore bool `json:"hasMore,omitempty"`
+	Completion struct {
+		// An array of completion values. Must not exceed 100 items.
+		Values []string `json:"values"`
+		// The total number of completion options available. This can exceed the
+		// number of values actually sent in the response.
+		Total int `json:"total,omitempty"`
+		// Indicates whether there are additional completion options beyond those
+		// provided in the current response, even if the exact total is unknown.
+		HasMore bool `json:"hasMore,omitempty"`
+	} `json:"completion"`
 }
 
 // ResourceReference is a reference to a resource or resource template definition.
@@ -1536,179 +1186,6 @@ type RootsListChangedNotification struct {
 	Notification
 }
 
-/* Tasks */
-
-// TasksCapability represents the task capabilities that a client or server may support.
-// Tasks enable long-running, asynchronous operations with status polling.
-type TasksCapability struct {
-	// Whether the party supports the tasks/list operation.
-	List *struct{} `json:"list,omitempty"`
-	// Whether the party supports the tasks/cancel operation.
-	Cancel *struct{} `json:"cancel,omitempty"`
-	// Requests that can be augmented with task metadata.
-	Requests *TaskRequestsCapability `json:"requests,omitempty"`
-}
-
-// TaskRequestsCapability indicates which request types support task augmentation.
-type TaskRequestsCapability struct {
-	// Tool-related capabilities.
-	Tools *struct {
-		// Whether tools/call can be augmented with task metadata.
-		Call *struct{} `json:"call,omitempty"`
-	} `json:"tools,omitempty"`
-	// Sampling-related capabilities.
-	Sampling *struct {
-		// Whether sampling/createMessage can be augmented with task metadata.
-		CreateMessage *struct{} `json:"createMessage,omitempty"`
-	} `json:"sampling,omitempty"`
-	// Elicitation-related capabilities.
-	Elicitation *struct {
-		// Whether elicitation/create can be augmented with task metadata.
-		Create *struct{} `json:"create,omitempty"`
-	} `json:"elicitation,omitempty"`
-}
-
-// TaskStatus represents the execution state of a task.
-type TaskStatus string
-
-const (
-	// TaskStatusWorking indicates the request is currently being processed.
-	TaskStatusWorking TaskStatus = "working"
-	// TaskStatusInputRequired indicates the receiver needs input from the requestor.
-	// NOTE: This status is defined by the spec but not yet implemented in this SDK.
-	// The input_required flow requires integration with elicitation which is planned
-	// for a future release.
-	TaskStatusInputRequired TaskStatus = "input_required"
-	// TaskStatusCompleted indicates the request completed successfully.
-	TaskStatusCompleted TaskStatus = "completed"
-	// TaskStatusFailed indicates the request did not complete successfully.
-	TaskStatusFailed TaskStatus = "failed"
-	// TaskStatusCancelled indicates the request was cancelled before completion.
-	TaskStatusCancelled TaskStatus = "cancelled"
-)
-
-// IsTerminal returns true if the task status is terminal (completed, failed, or cancelled).
-func (s TaskStatus) IsTerminal() bool {
-	return s == TaskStatusCompleted || s == TaskStatusFailed || s == TaskStatusCancelled
-}
-
-// Task represents the execution state of a request.
-type Task struct {
-	// Unique identifier for the task.
-	TaskId string `json:"taskId"`
-	// Current state of the task execution.
-	Status TaskStatus `json:"status"`
-	// Optional human-readable message describing the current state.
-	StatusMessage string `json:"statusMessage,omitempty"`
-	// ISO 8601 timestamp when the task was created.
-	CreatedAt string `json:"createdAt"`
-	// ISO 8601 timestamp when the task was last updated.
-	LastUpdatedAt string `json:"lastUpdatedAt"`
-	// Time in milliseconds from creation before task may be deleted.
-	// If null, the task has no expiration.
-	TTL *int64 `json:"ttl"`
-	// Suggested time in milliseconds between status checks.
-	PollInterval *int64 `json:"pollInterval,omitempty"`
-}
-
-// GetName returns the task ID, implementing the Named interface for pagination.
-func (t Task) GetName() string {
-	return t.TaskId
-}
-
-// TaskParams represents the task metadata included when augmenting a request.
-type TaskParams struct {
-	// Requested duration in milliseconds to retain task from creation.
-	TTL *int64 `json:"ttl,omitempty"`
-}
-
-// CreateTaskResult is returned immediately when a task-augmented request is accepted.
-// It contains task metadata rather than the actual operation result.
-type CreateTaskResult struct {
-	Result
-	Task              Task      `json:"task"`
-	Content           []Content `json:"-"`
-	StructuredContent any       `json:"-"`
-	IsError           bool      `json:"-"`
-}
-
-// GetTaskRequest retrieves the current status of a task.
-type GetTaskRequest struct {
-	Request
-	Header http.Header   `json:"-"`
-	Params GetTaskParams `json:"params"`
-}
-
-type GetTaskParams struct {
-	TaskId string `json:"taskId"`
-}
-
-// GetTaskResult returns the current state of a task.
-type GetTaskResult struct {
-	Result
-	Task
-}
-
-// ListTasksRequest retrieves a paginated list of tasks.
-type ListTasksRequest struct {
-	PaginatedRequest
-	Header http.Header `json:"-"`
-}
-
-// ListTasksResult returns a list of tasks.
-type ListTasksResult struct {
-	PaginatedResult
-	Tasks []Task `json:"tasks"`
-}
-
-// TaskResultRequest retrieves the result of a completed task.
-type TaskResultRequest struct {
-	Request
-	Header http.Header      `json:"-"`
-	Params TaskResultParams `json:"params"`
-}
-
-type TaskResultParams struct {
-	TaskId string `json:"taskId"`
-}
-
-// TaskResultResult contains the actual operation result.
-// For task-augmented tool calls, this embeds the CallToolResult fields.
-type TaskResultResult struct {
-	Result
-	// Tool call result fields (for task-augmented tool calls)
-	Content           []Content `json:"content,omitempty"`
-	StructuredContent any       `json:"structuredContent,omitempty"`
-	IsError           bool      `json:"isError,omitempty"`
-}
-
-// CancelTaskRequest cancels an in-progress task.
-type CancelTaskRequest struct {
-	Request
-	Header http.Header      `json:"-"`
-	Params CancelTaskParams `json:"params"`
-}
-
-type CancelTaskParams struct {
-	TaskId string `json:"taskId"`
-}
-
-// CancelTaskResult returns the cancelled task state.
-type CancelTaskResult struct {
-	Result
-	Task
-}
-
-// TaskStatusNotification is sent when a task's status changes.
-type TaskStatusNotification struct {
-	Notification
-	Params TaskStatusNotificationParams `json:"params"`
-}
-
-type TaskStatusNotificationParams struct {
-	Task
-}
-
 // ClientRequest represents any request that can be sent from client to server.
 type ClientRequest any
 
@@ -1738,14 +1215,12 @@ func MarshalContent(content Content) ([]byte, error) {
 
 // UnmarshalContent implements custom JSON unmarshaling for Content interface
 func UnmarshalContent(data []byte) (Content, error) {
-	var raw struct {
-		Type any `json:"type"`
-	}
+	var raw map[string]any
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return nil, err
 	}
 
-	contentType, ok := raw.Type.(string)
+	contentType, ok := raw["type"].(string)
 	if !ok {
 		return nil, fmt.Errorf("missing or invalid type field")
 	}
@@ -1771,54 +1246,7 @@ func UnmarshalContent(data []byte) (Content, error) {
 		var content EmbeddedResource
 		err := json.Unmarshal(data, &content)
 		return content, err
-	case ContentTypeToolUse:
-		var content ToolUseContent
-		err := json.Unmarshal(data, &content)
-		return content, err
-	case ContentTypeToolResult:
-		var content ToolResultContent
-		err := json.Unmarshal(data, &content)
-		return content, err
 	default:
 		return nil, fmt.Errorf("unknown content type: %s", contentType)
-	}
-}
-
-// ElicitationCapability represents the elicitation capabilities of a client or server.
-type ElicitationCapability struct {
-	Form *struct{} `json:"form,omitempty"` // Supports form mode
-	URL  *struct{} `json:"url,omitempty"`  // Supports URL mode
-}
-
-// SamplingCapability represents the sampling capabilities of a client or server
-// as defined by the 2025-11-25 protocol revision.
-//
-// A nil pointer means the peer does not support sampling at all. A non-nil but
-// empty value (the zero value) advertises baseline sampling support without the
-// optional context-inclusion or tool-use extensions.
-type SamplingCapability struct {
-	// Context, if non-nil, advertises that the client honours the
-	// CreateMessageParams.IncludeContext field. If a peer does not declare this
-	// sub-capability, servers SHOULD only use IncludeContext "none" or omit it.
-	Context *struct{} `json:"context,omitempty"`
-	// Tools, if non-nil, advertises that the client honours the
-	// CreateMessageParams.Tools and CreateMessageParams.ToolChoice fields
-	// (sampling with tools). Servers MUST NOT send those fields unless this
-	// sub-capability is declared.
-	Tools *struct{} `json:"tools,omitempty"`
-}
-
-// NewElicitationCompleteNotification creates a new elicitation complete notification.
-func NewElicitationCompleteNotification(elicitationID string) JSONRPCNotification {
-	return JSONRPCNotification{
-		JSONRPC: JSONRPC_VERSION,
-		Notification: Notification{
-			Method: string(MethodNotificationElicitationComplete),
-			Params: NotificationParams{
-				AdditionalFields: map[string]any{
-					"elicitationId": elicitationID,
-				},
-			},
-		},
 	}
 }

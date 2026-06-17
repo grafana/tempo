@@ -4,7 +4,7 @@ linters:
   enable:
     - durationcheck
     - gocritic
-    - gomodguard_v2
+    - gomodguard
     - govet
     - ineffassign
     - misspell

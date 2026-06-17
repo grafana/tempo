@@ -10,7 +10,6 @@ import (
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/tracing"
 )
 
@@ -85,7 +84,7 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 }
 
 // newTraceIDV2Handler creates a http.handler for trace by id requests
-func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
+func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor, combiner.TraceByIDV2Options) *combiner.TraceByIDV2Combiner, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	postSLOHook := traceByIDSLOPostHook(cfg.TraceByID.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -126,7 +125,15 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			}
 		}
 
-		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat, traceRedactor)
+		spanPruningCfg, err := api.ParseSpanPruningConfig(req)
+		if err != nil {
+			return httpInvalidRequest(err), nil
+		}
+		opts := combiner.TraceByIDV2Options{
+			SpanPruningConfig: spanPruningCfg,
+			Logger:            logger,
+		}
+		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat, traceRedactor, opts)
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 
 		start := time.Now()
@@ -134,9 +141,8 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 		elapsed := time.Since(start)
 
 		var bytesProcessed uint64
-		findResp, _ := comb.GRPCFinal()
-		if findResp != nil && findResp.Metrics != nil {
-			bytesProcessed = findResp.Metrics.InspectedBytes
+		if comb.MetricsCombiner != nil && comb.MetricsCombiner.Metrics != nil {
+			bytesProcessed = comb.MetricsCombiner.Metrics.InspectedBytes
 		}
 
 		postSLOHook(resp, tenant, bytesProcessed, elapsed, err)

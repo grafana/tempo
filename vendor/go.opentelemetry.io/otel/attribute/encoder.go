@@ -105,9 +105,7 @@ func (d *defaultAttrEncoder) Encode(iter Iterator) string {
 		if keyValue.Value.Type() == STRING {
 			copyAndEscape(buf, keyValue.Value.AsString())
 		} else {
-			_, _ = buf.WriteString(
-				keyValue.Value.Emit(),
-			) //nolint:staticcheck // Preserve the existing default encoder output.
+			_, _ = buf.WriteString(keyValue.Value.Emit())
 		}
 	}
 	return buf.String()

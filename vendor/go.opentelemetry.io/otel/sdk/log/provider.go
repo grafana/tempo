@@ -34,16 +34,9 @@ type providerConfig struct {
 	allowDupKeys  setting[bool]
 }
 
-type experimentalOption interface {
-	Experimental()
-}
-
 func newProviderConfig(opts []LoggerProviderOption) providerConfig {
 	var c providerConfig
 	for _, opt := range opts {
-		if _, ok := opt.(experimentalOption); ok {
-			continue
-		}
 		c = opt.apply(c)
 	}
 
@@ -240,8 +233,8 @@ func WithAttributeCountLimit(limit int) LoggerProviderOption {
 
 // WithAttributeValueLengthLimit sets the maximum allowed attribute value length.
 //
-// This limit only applies to string, string slice, and byte slice attribute values.
-// Strings and byte slices longer than this value will be truncated to this length.
+// This limit only applies to string and string slice attribute values.
+// Any string longer than this value will be truncated to this length.
 //
 // Setting this to a negative value means no limit is applied.
 //

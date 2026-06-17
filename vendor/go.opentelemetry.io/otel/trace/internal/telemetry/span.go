@@ -314,9 +314,9 @@ type SpanEvent struct {
 }
 
 // MarshalJSON encodes e into OTLP formatted JSON.
-func (se SpanEvent) MarshalJSON() ([]byte, error) {
-	t := se.Time.UnixNano()
-	if se.Time.IsZero() || t < 0 {
+func (e SpanEvent) MarshalJSON() ([]byte, error) {
+	t := e.Time.UnixNano()
+	if e.Time.IsZero() || t < 0 {
 		t = 0
 	}
 
@@ -325,7 +325,7 @@ func (se SpanEvent) MarshalJSON() ([]byte, error) {
 		Alias
 		Time uint64 `json:"timeUnixNano,omitempty"`
 	}{
-		Alias: Alias(se),
+		Alias: Alias(e),
 		Time:  uint64(t), // nolint: gosec  // >0 checked above
 	})
 }

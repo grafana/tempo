@@ -12,13 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/mark3labs/mcp-go/mcp"
 )
-
-// maxMetadataBodyBytes caps the size of an OAuth metadata document we are
-// willing to read.
-const maxMetadataBodyBytes = 1 << 20 // 1 MiB
 
 // ErrNoToken is returned when no token is available in the token store
 var ErrNoToken = errors.New("no token available")
@@ -27,8 +21,6 @@ var ErrNoToken = errors.New("no token available")
 type OAuthConfig struct {
 	// ClientID is the OAuth client ID
 	ClientID string
-	// ClientURI is the URI of the client
-	ClientURI string
 	// ClientSecret is the OAuth client secret (for confidential clients)
 	ClientSecret string
 	// RedirectURI is the redirect URI for the OAuth flow
@@ -40,10 +32,6 @@ type OAuthConfig struct {
 	// AuthServerMetadataURL is the URL to the OAuth server metadata
 	// If empty, the client will attempt to discover it from the base URL
 	AuthServerMetadataURL string
-	// ProtectedResourceMetadataURL is the URL to the OAuth protected resource metadata
-	// per RFC9728. If set, this URL will be used to discover the authorization server.
-	// This is typically extracted from the WWW-Authenticate header's resource_metadata parameter.
-	ProtectedResourceMetadataURL string
 	// PKCEEnabled enables PKCE for the OAuth flow (recommended for public clients)
 	PKCEEnabled bool
 	// HTTPClient is an optional HTTP client to use for requests.
@@ -86,7 +74,7 @@ type Token struct {
 	// Scope is the scope of the token
 	Scope string `json:"scope,omitempty"`
 	// ExpiresAt is the time when the token expires
-	ExpiresAt time.Time `json:"expires_at,omitzero"`
+	ExpiresAt time.Time `json:"expires_at,omitempty"`
 }
 
 // IsExpired returns true if the token is expired
@@ -136,36 +124,16 @@ func (s *MemoryTokenStore) SaveToken(ctx context.Context, token *Token) error {
 }
 
 // AuthServerMetadata represents the OAuth 2.0 Authorization Server Metadata
-// as defined in RFC 8414 (https://www.rfc-editor.org/rfc/rfc8414.html).
-//
-// URL-bearing fields are validated by validateAuthServerMetadataURLs to
-// reject non-http(s) schemes (e.g. javascript:, data:, file:) that could
-// otherwise be injected by a hostile authorization server.
-//
-// Signed metadata (the "signed_metadata" JWT field) is not supported.
 type AuthServerMetadata struct {
-	Issuer                                             string   `json:"issuer"`
-	AuthorizationEndpoint                              string   `json:"authorization_endpoint"`
-	TokenEndpoint                                      string   `json:"token_endpoint"`
-	JwksURI                                            string   `json:"jwks_uri,omitempty"`
-	RegistrationEndpoint                               string   `json:"registration_endpoint,omitempty"`
-	ScopesSupported                                    []string `json:"scopes_supported,omitempty"`
-	ResponseTypesSupported                             []string `json:"response_types_supported"`
-	ResponseModesSupported                             []string `json:"response_modes_supported,omitempty"`
-	GrantTypesSupported                                []string `json:"grant_types_supported,omitempty"`
-	TokenEndpointAuthMethodsSupported                  []string `json:"token_endpoint_auth_methods_supported,omitempty"`
-	TokenEndpointAuthSigningAlgValuesSupported         []string `json:"token_endpoint_auth_signing_alg_values_supported,omitempty"`
-	ServiceDocumentation                               string   `json:"service_documentation,omitempty"`
-	UILocalesSupported                                 []string `json:"ui_locales_supported,omitempty"`
-	OpPolicyURI                                        string   `json:"op_policy_uri,omitempty"`
-	OpTOSURI                                           string   `json:"op_tos_uri,omitempty"`
-	RevocationEndpoint                                 string   `json:"revocation_endpoint,omitempty"`
-	RevocationEndpointAuthMethodsSupported             []string `json:"revocation_endpoint_auth_methods_supported,omitempty"`
-	RevocationEndpointAuthSigningAlgValuesSupported    []string `json:"revocation_endpoint_auth_signing_alg_values_supported,omitempty"`
-	IntrospectionEndpoint                              string   `json:"introspection_endpoint,omitempty"`
-	IntrospectionEndpointAuthMethodsSupported          []string `json:"introspection_endpoint_auth_methods_supported,omitempty"`
-	IntrospectionEndpointAuthSigningAlgValuesSupported []string `json:"introspection_endpoint_auth_signing_alg_values_supported,omitempty"`
-	CodeChallengeMethodsSupported                      []string `json:"code_challenge_methods_supported,omitempty"`
+	Issuer                            string   `json:"issuer"`
+	AuthorizationEndpoint             string   `json:"authorization_endpoint"`
+	TokenEndpoint                     string   `json:"token_endpoint"`
+	RegistrationEndpoint              string   `json:"registration_endpoint,omitempty"`
+	JwksURI                           string   `json:"jwks_uri,omitempty"`
+	ScopesSupported                   []string `json:"scopes_supported,omitempty"`
+	ResponseTypesSupported            []string `json:"response_types_supported"`
+	GrantTypesSupported               []string `json:"grant_types_supported,omitempty"`
+	TokenEndpointAuthMethodsSupported []string `json:"token_endpoint_auth_methods_supported,omitempty"`
 }
 
 // OAuthHandler handles OAuth authentication for HTTP requests
@@ -174,22 +142,8 @@ type OAuthHandler struct {
 	httpClient       *http.Client
 	serverMetadata   *AuthServerMetadata
 	metadataFetchErr error
-	// metadataOnce gates the discovery RPCs so they run exactly once per
-	// OAuthHandler. It is a pointer (rather than an embedded value) so
-	// SetProtectedResourceMetadataURL can swap in a fresh sync.Once
-	// without racing against a concurrently running Do on the previous
-	// instance. The pointer itself is protected by metadataMu; callers
-	// snapshot the pointer under the lock and then invoke Do without
-	// holding the lock.
-	metadataOnce *sync.Once
-	baseURL      string
-	// metadataMu protects baseURL, serverMetadata, metadataFetchErr,
-	// metadataOnce, config.ProtectedResourceMetadataURL, and resourceURL.
-	// It MUST NOT be held across HTTP I/O — see getServerMetadata for the
-	// snapshot/publish discipline that keeps network round trips out of
-	// the critical section (#871).
-	metadataMu  sync.Mutex
-	resourceURL string // RFC 8707 resource indicator; set from protected resource metadata
+	metadataOnce     sync.Once
+	baseURL          string
 
 	mu            sync.RWMutex // Protects expectedState
 	expectedState string       // Expected state value for CSRF protection
@@ -217,10 +171,9 @@ func (h *OAuthHandler) GetAuthorizationHeader(ctx context.Context) (string, erro
 		return "", err
 	}
 
-	// Per RFC 6749 §5.1, token_type is case-insensitive.
-	// Normalize to "Bearer" for strict implementations.
+	// Some auth implementations are strict about token type
 	tokenType := token.TokenType
-	if strings.EqualFold(tokenType, "bearer") {
+	if tokenType == "bearer" {
 		tokenType = "Bearer"
 	}
 
@@ -264,10 +217,6 @@ func (h *OAuthHandler) refreshToken(ctx context.Context, refreshToken string) (*
 	if h.config.ClientSecret != "" {
 		data.Set("client_secret", h.config.ClientSecret)
 	}
-	// RFC 8707: Include resource parameter on refresh requests
-	if resourceURL := h.getResourceURL(); resourceURL != "" {
-		data.Set("resource", resourceURL)
-	}
 
 	req, err := http.NewRequestWithContext(
 		ctx,
@@ -288,28 +237,13 @@ func (h *OAuthHandler) refreshToken(ctx context.Context, refreshToken string) (*
 	}
 	defer resp.Body.Close()
 
-	// Accept any 2xx status; some authorization servers (e.g. Supabase) return
-	// 201 Created for successful token responses.
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		return nil, extractOAuthError(body, resp.StatusCode, "refresh token request failed")
 	}
 
-	// Read the response body for parsing
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read token response body: %w", err)
-	}
-
-	// GitHub returns HTTP 200 even for errors, with error details in the JSON body
-	// Check if the response contains an error field before parsing as Token
-	var oauthErr OAuthError
-	if err := json.Unmarshal(body, &oauthErr); err == nil && oauthErr.ErrorCode != "" {
-		return nil, fmt.Errorf("refresh token request failed: %w", oauthErr)
-	}
-
 	var tokenResp Token
-	if err := json.Unmarshal(body, &tokenResp); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
 		return nil, fmt.Errorf("failed to decode token response: %w", err)
 	}
 
@@ -353,118 +287,13 @@ func extractOAuthError(body []byte, statusCode int, context string) error {
 	return fmt.Errorf("%s with status %d: %s", context, statusCode, body)
 }
 
-// SetProtectedResourceMetadataURL updates the protected resource metadata URL
-// and resets the cached server metadata so it will be re-discovered on the next call.
-//
-// This setter does not validate the URL; callers that pass values obtained
-// out of band are trusted. For values parsed from a 401 WWW-Authenticate
-// header, prefer HandleUnauthorizedResponse, which applies origin
-// validation before storing.
-func (h *OAuthHandler) SetProtectedResourceMetadataURL(u string) {
-	h.metadataMu.Lock()
-	defer h.metadataMu.Unlock()
-	h.config.ProtectedResourceMetadataURL = u
-	h.serverMetadata = nil
-	h.metadataFetchErr = nil
-	// Install a fresh sync.Once so the next getServerMetadata call
-	// triggers re-discovery. Replacing the pointer (rather than mutating
-	// the pointed-to value) keeps this safe against concurrent Do calls
-	// that captured the previous instance.
-	h.metadataOnce = &sync.Once{}
-	h.resourceURL = ""
-}
-
-// HandleUnauthorizedResponse inspects a 401 response for RFC 9728 §5.1
-// WWW-Authenticate challenges and, when one carries a resource_metadata
-// parameter whose URL shares the protected resource's origin, stores it
-// so subsequent metadata discovery can use it. It iterates every
-// WWW-Authenticate header line (a response can carry multiple challenges
-// — Basic, Bearer, etc. — each on its own line) and every
-// resource_metadata parameter within each line, takes the first
-// candidate that validates, and silently ignores headers that are
-// absent, malformed, or advertise an unrelated origin.
-//
-// Origin validation rejects URLs whose scheme or host differs from the
-// OAuth handler's configured base URL. This prevents a compromised or
-// misconfigured resource from redirecting clients to an attacker's
-// metadata endpoint.
-//
-// It is safe to call with a nil response.
-func (h *OAuthHandler) HandleUnauthorizedResponse(resp *http.Response) {
-	if resp == nil {
-		return
-	}
-	for _, header := range resp.Header.Values("WWW-Authenticate") {
-		for _, candidate := range extractResourceMetadataURLs(header) {
-			if err := h.validateAdvertisedPRMURL(candidate); err != nil {
-				continue
-			}
-			h.SetProtectedResourceMetadataURL(candidate)
-			return
-		}
-	}
-}
-
-// validateAdvertisedPRMURL enforces that a PRM URL advertised by the
-// resource (i.e. parsed from an untrusted WWW-Authenticate header) shares
-// the configured base URL's scheme and host. Returns a non-nil error when
-// the candidate is unparseable, carries a different scheme or host, or
-// when no base URL has been configured to validate against.
-//
-// RFC 9728 §3.2 requires the protected resource to serve its own metadata;
-// this check rejects attempts to redirect discovery to an unrelated
-// origin, which would otherwise let the resource point the client at an
-// attacker-controlled OAuth metadata endpoint.
-func (h *OAuthHandler) validateAdvertisedPRMURL(candidate string) error {
-	h.metadataMu.Lock()
-	baseURL := h.baseURL
-	h.metadataMu.Unlock()
-	if baseURL == "" {
-		return errors.New("no base URL configured for origin validation")
-	}
-	base, err := url.Parse(baseURL)
-	if err != nil {
-		return fmt.Errorf("invalid base URL %q: %w", baseURL, err)
-	}
-	// url.Parse accepts relative references (empty Scheme and Host)
-	// without error. Reject those explicitly so two empty values do not
-	// EqualFold-match each other and bypass origin validation.
-	if base.Scheme == "" || base.Host == "" {
-		return fmt.Errorf("base URL %q is not absolute (missing scheme or host)", baseURL)
-	}
-	parsed, err := url.Parse(candidate)
-	if err != nil {
-		return fmt.Errorf("invalid advertised PRM URL %q: %w", candidate, err)
-	}
-	if parsed.Scheme == "" || parsed.Host == "" {
-		return fmt.Errorf("advertised PRM URL %q is not absolute (missing scheme or host)", candidate)
-	}
-	if !strings.EqualFold(parsed.Scheme, base.Scheme) {
-		return fmt.Errorf("advertised PRM URL scheme %q does not match base %q", parsed.Scheme, base.Scheme)
-	}
-	if !strings.EqualFold(parsed.Host, base.Host) {
-		return fmt.Errorf("advertised PRM URL host %q does not match base %q", parsed.Host, base.Host)
-	}
-	return nil
-}
-
-// getResourceURL returns the RFC 8707 resource indicator under metadataMu.
-func (h *OAuthHandler) getResourceURL() string {
-	h.metadataMu.Lock()
-	defer h.metadataMu.Unlock()
-	return h.resourceURL
-}
-
 // GetClientSecret returns the client secret
 func (h *OAuthHandler) GetClientSecret() string {
 	return h.config.ClientSecret
 }
 
-// SetBaseURL sets the base URL for the API server.
-// Must be called before any calls to getServerMetadata (i.e., during initialization).
+// SetBaseURL sets the base URL for the API server
 func (h *OAuthHandler) SetBaseURL(baseURL string) {
-	h.metadataMu.Lock()
-	defer h.metadataMu.Unlock()
 	h.baseURL = baseURL
 }
 
@@ -513,402 +342,136 @@ type OAuthProtectedResource struct {
 	ResourceName         string   `json:"resource_name,omitempty"`
 }
 
-// metadataDiscoveryResult bundles the outputs of a single OAuth server
-// metadata discovery attempt so that fetchServerMetadata can return them
-// to getServerMetadata for publication under metadataMu, instead of
-// mutating shared state directly while holding the lock across HTTP I/O.
-type metadataDiscoveryResult struct {
-	metadata    *AuthServerMetadata
-	resourceURL string
-}
-
-// getServerMetadata fetches the OAuth server metadata.
-//
-// Discovery is gated by metadataOnce so the network round trips happen
-// exactly once per OAuthHandler. metadataMu is taken only to snapshot
-// configuration inputs before the fetch and to publish the result
-// afterwards; it is intentionally NOT held while HTTP requests are in
-// flight so that concurrent callers of other metadataMu-guarded methods
-// (e.g. SetProtectedResourceMetadataURL, getResourceURL,
-// validateAdvertisedPRMURL) are not blocked on network I/O. See #871.
+// getServerMetadata fetches the OAuth server metadata
 func (h *OAuthHandler) getServerMetadata(ctx context.Context) (*AuthServerMetadata, error) {
-	// Snapshot (and lazily initialize) the current sync.Once under the
-	// lock. Using a pointer means SetProtectedResourceMetadataURL can
-	// install a fresh once without racing with a Do already in flight on
-	// the previous instance.
-	h.metadataMu.Lock()
-	if h.metadataOnce == nil {
-		h.metadataOnce = &sync.Once{}
-	}
-	once := h.metadataOnce
-	h.metadataMu.Unlock()
+	h.metadataOnce.Do(func() {
+		// If AuthServerMetadataURL is explicitly provided, use it directly
+		if h.config.AuthServerMetadataURL != "" {
+			h.fetchMetadataFromURL(ctx, h.config.AuthServerMetadataURL)
+			return
+		}
 
-	once.Do(func() {
-		result, err := h.fetchServerMetadata(ctx)
-		h.metadataMu.Lock()
-		defer h.metadataMu.Unlock()
-		// If SetProtectedResourceMetadataURL swapped in a fresh sync.Once
-		// while the fetch was in flight, the configuration that produced
-		// `result` is now stale. Discard the result instead of letting it
-		// clobber the newer state; the next getServerMetadata call will
-		// drive re-discovery through the new once.
-		if h.metadataOnce != once {
-			return
-		}
+		// Try to discover the authorization server via OAuth Protected Resource
+		// as per RFC 9728 (https://datatracker.ietf.org/doc/html/rfc9728)
+		baseURL, err := h.extractBaseURL()
 		if err != nil {
-			h.metadataFetchErr = err
+			h.metadataFetchErr = fmt.Errorf("failed to extract base URL: %w", err)
 			return
 		}
-		// Only overwrite serverMetadata on a positive result. Preserving the
-		// existing value on a no-op fetch (nil metadata, nil error) matches
-		// the prior behavior where fetchMetadataFromURL silently returned on
-		// non-200 responses without touching shared state.
-		if result.metadata != nil {
-			h.serverMetadata = result.metadata
-			h.metadataFetchErr = nil
+
+		// Try to fetch the OAuth Protected Resource metadata
+		protectedResourceURL := baseURL + "/.well-known/oauth-protected-resource"
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, protectedResourceURL, nil)
+		if err != nil {
+			h.metadataFetchErr = fmt.Errorf("failed to create protected resource request: %w", err)
+			return
 		}
-		if result.resourceURL != "" {
-			h.resourceURL = result.resourceURL
+
+		req.Header.Set("Accept", "application/json")
+		req.Header.Set("MCP-Protocol-Version", "2025-03-26")
+
+		resp, err := h.httpClient.Do(req)
+		if err != nil {
+			h.metadataFetchErr = fmt.Errorf("failed to send protected resource request: %w", err)
+			return
 		}
+		defer resp.Body.Close()
+
+		// If we can't get the protected resource metadata, try OAuth Authorization Server discovery
+		if resp.StatusCode != http.StatusOK {
+			h.fetchMetadataFromURL(ctx, baseURL+"/.well-known/oauth-authorization-server")
+			if h.serverMetadata != nil {
+				return
+			}
+			// If that also fails, fall back to default endpoints
+			metadata, err := h.getDefaultEndpoints(baseURL)
+			if err != nil {
+				h.metadataFetchErr = fmt.Errorf("failed to get default endpoints: %w", err)
+				return
+			}
+			h.serverMetadata = metadata
+			return
+		}
+
+		// Parse the protected resource metadata
+		var protectedResource OAuthProtectedResource
+		if err := json.NewDecoder(resp.Body).Decode(&protectedResource); err != nil {
+			h.metadataFetchErr = fmt.Errorf("failed to decode protected resource response: %w", err)
+			return
+		}
+
+		// If no authorization servers are specified, fall back to default endpoints
+		if len(protectedResource.AuthorizationServers) == 0 {
+			metadata, err := h.getDefaultEndpoints(baseURL)
+			if err != nil {
+				h.metadataFetchErr = fmt.Errorf("failed to get default endpoints: %w", err)
+				return
+			}
+			h.serverMetadata = metadata
+			return
+		}
+
+		// Use the first authorization server
+		authServerURL := protectedResource.AuthorizationServers[0]
+
+		// Try OpenID Connect discovery first
+		h.fetchMetadataFromURL(ctx, authServerURL+"/.well-known/openid-configuration")
+		if h.serverMetadata != nil {
+			return
+		}
+
+		// If OpenID Connect discovery fails, try OAuth Authorization Server Metadata
+		h.fetchMetadataFromURL(ctx, authServerURL+"/.well-known/oauth-authorization-server")
+		if h.serverMetadata != nil {
+			return
+		}
+
+		// If both discovery methods fail, use default endpoints based on the authorization server URL
+		metadata, err := h.getDefaultEndpoints(authServerURL)
+		if err != nil {
+			h.metadataFetchErr = fmt.Errorf("failed to get default endpoints: %w", err)
+			return
+		}
+		h.serverMetadata = metadata
 	})
 
-	h.metadataMu.Lock()
-	defer h.metadataMu.Unlock()
 	if h.metadataFetchErr != nil {
 		return nil, h.metadataFetchErr
 	}
+
 	return h.serverMetadata, nil
 }
 
-// fetchServerMetadata performs OAuth server metadata discovery without
-// holding metadataMu, so concurrent callers reading other state guarded
-// by the mutex are not blocked on network I/O. Configuration inputs are
-// snapshotted under the lock before the first request is issued; the
-// caller (getServerMetadata) is responsible for publishing the returned
-// result back into the handler under metadataMu.
-func (h *OAuthHandler) fetchServerMetadata(ctx context.Context) (metadataDiscoveryResult, error) {
-	// Snapshot config and base URL under the lock; release before any HTTP I/O.
-	h.metadataMu.Lock()
-	authServerMetadataURL := h.config.AuthServerMetadataURL
-	protectedResourceMetadataURL := h.config.ProtectedResourceMetadataURL
-	baseURL, baseURLErr := h.extractBaseURL()
-	h.metadataMu.Unlock()
-
-	// If AuthServerMetadataURL is explicitly provided, use it directly
-	if authServerMetadataURL != "" {
-		metadata, err := h.fetchMetadataFromURL(ctx, authServerMetadataURL)
-		if err != nil {
-			return metadataDiscoveryResult{}, err
-		}
-		return metadataDiscoveryResult{metadata: metadata}, nil
-	}
-
-	// Always extract base URL for fallback scenarios
-	if baseURLErr != nil {
-		return metadataDiscoveryResult{}, fmt.Errorf("failed to extract base URL: %w", baseURLErr)
-	}
-
-	// Determine the protected resource metadata URL with priority:
-	// 1. Explicit config (ProtectedResourceMetadataURL from RFC9728 WWW-Authenticate header)
-	// 2. Constructed from base URL
-	var protectedResourceURL string
-	explicitMetadataURL := protectedResourceMetadataURL != ""
-	if explicitMetadataURL {
-		protectedResourceURL = protectedResourceMetadataURL
-	} else {
-		var err error
-		protectedResourceURL, err = buildWellKnownURL(baseURL, "oauth-protected-resource")
-		if err != nil {
-			return metadataDiscoveryResult{}, fmt.Errorf("failed to build protected resource URL: %w", err)
-		}
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, protectedResourceURL, nil)
-	if err != nil {
-		return metadataDiscoveryResult{}, fmt.Errorf("failed to create protected resource request: %w", err)
-	}
-
-	req.Header.Set("Accept", "application/json")
-	// Advertise the latest protocol version this client supports. Metadata
-	// discovery happens before the MCP initialize handshake, so no negotiated
-	// version is available yet; servers that don't recognise it can fall back
-	// per the MCP spec.
-	req.Header.Set("MCP-Protocol-Version", mcp.LATEST_PROTOCOL_VERSION)
-
-	resp, err := h.httpClient.Do(req)
-	if err != nil {
-		return metadataDiscoveryResult{}, fmt.Errorf("failed to send protected resource request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// If we can't get the protected resource metadata, try OAuth Authorization Server discovery.
-	// However, if the resource_metadata URL was explicitly provided (via RFC 9728), don't
-	// fall back to baseURL-derived discovery — the server specifically indicated where to
-	// find metadata, so falling back would mask the signal.
-	if resp.StatusCode != http.StatusOK {
-		if explicitMetadataURL {
-			return metadataDiscoveryResult{}, fmt.Errorf("protected resource metadata discovery failed for explicit URL %q: status %d", protectedResourceURL, resp.StatusCode)
-		}
-		for _, u := range authorizationServerMetadataURLs(baseURL) {
-			// Intermediate fetch errors are intentionally discarded so the caller
-			// can fall through to the next candidate URL, mirroring the prior
-			// behavior where metadataFetchErr was cleared on the first success.
-			if metadata, _ := h.fetchMetadataFromURL(ctx, u); metadata != nil {
-				return metadataDiscoveryResult{metadata: metadata}, nil
-			}
-		}
-		// If that also fails, fall back to default endpoints
-		metadata, err := h.getDefaultEndpoints(baseURL)
-		if err != nil {
-			return metadataDiscoveryResult{}, fmt.Errorf("failed to get default endpoints: %w", err)
-		}
-		return metadataDiscoveryResult{metadata: metadata}, nil
-	}
-
-	// Parse the protected resource metadata
-	var protectedResource OAuthProtectedResource
-	if err := json.NewDecoder(resp.Body).Decode(&protectedResource); err != nil {
-		return metadataDiscoveryResult{}, fmt.Errorf("failed to decode protected resource response: %w", err)
-	}
-
-	// RFC 9728 §3.3/§7.3: when metadata is fetched from a PRM URL the
-	// server advertised via WWW-Authenticate (an untrusted network
-	// input), the declared resource identifier MUST match the
-	// protected resource the client addressed — otherwise the
-	// response MUST NOT be used. An advertised PRM response that
-	// omits the resource field is also rejected: since the PRM
-	// endpoint may not share an origin with the protected resource,
-	// the response cannot be implicitly trusted without an explicit
-	// binding.
-	//
-	// The check is scoped to the advertised path because the
-	// well-known origin-constructed path is already bound to the
-	// protected resource by same-origin URL construction.
-	if explicitMetadataURL {
-		if protectedResource.Resource == "" {
-			return metadataDiscoveryResult{}, fmt.Errorf(
-				"advertised protected resource metadata from %q omits required resource field",
-				protectedResourceURL,
-			)
-		}
-		if !resourceIdentifiersEqual(protectedResource.Resource, baseURL) {
-			return metadataDiscoveryResult{}, fmt.Errorf(
-				"advertised protected resource metadata declares resource %q which does not match base URL %q",
-				protectedResource.Resource, baseURL,
-			)
-		}
-	}
-
-	// RFC 8707: Capture the resource identifier for use in authorization requests.
-	// If not provided in metadata, fall back to base URL per RFC 8707 Section 2:
-	// "The client SHOULD use the base URI of the API as the resource parameter value
-	// unless specific knowledge of the resource dictates otherwise."
-	resourceURL := protectedResource.Resource
-	if resourceURL == "" {
-		resourceURL = baseURL
-	}
-
-	// If no authorization servers are specified, fall back to default endpoints
-	if len(protectedResource.AuthorizationServers) == 0 {
-		metadata, err := h.getDefaultEndpoints(baseURL)
-		if err != nil {
-			return metadataDiscoveryResult{}, fmt.Errorf("failed to get default endpoints: %w", err)
-		}
-		return metadataDiscoveryResult{metadata: metadata, resourceURL: resourceURL}, nil
-	}
-
-	// Use the first authorization server
-	authServerURL := protectedResource.AuthorizationServers[0]
-
-	// Try the MCP-specified discovery URLs in order (RFC 8414 with path
-	// insertion, plus OpenID Connect Discovery variants).
-	for _, u := range authorizationServerMetadataURLs(authServerURL) {
-		// Intermediate fetch errors are intentionally discarded so the caller
-		// can fall through to the next candidate URL.
-		if metadata, _ := h.fetchMetadataFromURL(ctx, u); metadata != nil {
-			return metadataDiscoveryResult{metadata: metadata, resourceURL: resourceURL}, nil
-		}
-	}
-
-	// If both discovery methods fail, use default endpoints based on the authorization server URL
-	metadata, err := h.getDefaultEndpoints(authServerURL)
-	if err != nil {
-		return metadataDiscoveryResult{}, fmt.Errorf("failed to get default endpoints: %w", err)
-	}
-	return metadataDiscoveryResult{metadata: metadata, resourceURL: resourceURL}, nil
-}
-
-// buildWellKnownURL constructs a well-known discovery URL by inserting the
-// given suffix between the authority and path of baseURL (RFC 8414 §3 /
-// RFC 9728 path-insertion semantics).
-func buildWellKnownURL(baseURL string, suffix string) (string, error) {
-	parsedURL, err := url.Parse(baseURL)
-	if err != nil {
-		return "", fmt.Errorf("failed to parse base URL: %w", err)
-	}
-
-	if parsedURL.Scheme == "" || parsedURL.Host == "" {
-		return "", fmt.Errorf("invalid base URL: missing scheme or host in %q", baseURL)
-	}
-
-	path := strings.TrimSuffix(parsedURL.EscapedPath(), "/")
-	root := fmt.Sprintf("%s://%s", parsedURL.Scheme, parsedURL.Host)
-	if path == "" || path == "/" {
-		return root + "/.well-known/" + suffix, nil
-	}
-
-	return root + "/.well-known/" + suffix + path, nil
-}
-
-// resourceIdentifiersEqual reports whether two OAuth protected resource
-// identifiers refer to the same resource for the purposes of RFC 9728 §3.3
-// equality checks. Scheme and host are compared case-insensitively per
-// RFC 3986 §3.1 / §3.2.2, and a single trailing slash on either path is
-// ignored because real-world OAuth deployments routinely emit the
-// resource with or without it for the same URL; rejecting that variant
-// would produce false positives on legitimate servers. Query, fragment,
-// and userinfo components are significant. Unparseable inputs fall back
-// to exact string equality.
-func resourceIdentifiersEqual(a, b string) bool {
-	ua, errA := url.Parse(a)
-	ub, errB := url.Parse(b)
-	if errA != nil || errB != nil {
-		return a == b
-	}
-	if !strings.EqualFold(ua.Scheme, ub.Scheme) {
-		return false
-	}
-	if !strings.EqualFold(ua.Host, ub.Host) {
-		return false
-	}
-	// Use EscapedPath rather than Path so percent-encoded reserved
-	// characters stay distinct from their decoded forms (e.g. "a%2Fb"
-	// must not compare equal to "a/b"), preserving RFC 3986 segment
-	// semantics.
-	if strings.TrimSuffix(ua.EscapedPath(), "/") != strings.TrimSuffix(ub.EscapedPath(), "/") {
-		return false
-	}
-	if ua.RawQuery != ub.RawQuery {
-		return false
-	}
-	if ua.Fragment != ub.Fragment {
-		return false
-	}
-	return ua.User.String() == ub.User.String()
-}
-
-// fetchMetadataFromURL fetches and parses OAuth server metadata from a URL.
-// Returns (nil, nil) when the server responds with a non-200 status so the
-// caller can fall through to the next candidate URL. Network, decode, and
-// validation failures are returned to the caller.
-//
-// This function performs HTTP I/O and must not be called while holding
-// metadataMu (see #871).
-func (h *OAuthHandler) fetchMetadataFromURL(ctx context.Context, metadataURL string) (*AuthServerMetadata, error) {
+// fetchMetadataFromURL fetches and parses OAuth server metadata from a URL
+func (h *OAuthHandler) fetchMetadataFromURL(ctx context.Context, metadataURL string) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, metadataURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create metadata request: %w", err)
+		h.metadataFetchErr = fmt.Errorf("failed to create metadata request: %w", err)
+		return
 	}
 
 	req.Header.Set("Accept", "application/json")
-	// Advertise the latest protocol version this client supports. Metadata
-	// discovery happens before the MCP initialize handshake, so no negotiated
-	// version is available yet; servers that don't recognise it can fall back
-	// per the MCP spec.
-	req.Header.Set("MCP-Protocol-Version", mcp.LATEST_PROTOCOL_VERSION)
+	req.Header.Set("MCP-Protocol-Version", "2025-03-26")
 
 	resp, err := h.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send metadata request: %w", err)
+		h.metadataFetchErr = fmt.Errorf("failed to send metadata request: %w", err)
+		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, nil
+		// If metadata discovery fails, don't set any metadata
+		return
 	}
 
 	var metadata AuthServerMetadata
-	dec := json.NewDecoder(io.LimitReader(resp.Body, maxMetadataBodyBytes))
-	if err := dec.Decode(&metadata); err != nil {
-		return nil, fmt.Errorf("failed to decode metadata response: %w", err)
+	if err := json.NewDecoder(resp.Body).Decode(&metadata); err != nil {
+		h.metadataFetchErr = fmt.Errorf("failed to decode metadata response: %w", err)
+		return
 	}
 
-	if err := validateAuthServerMetadataURLs(&metadata); err != nil {
-		return nil, fmt.Errorf("invalid authorization server metadata from %s: %w", metadataURL, err)
-	}
-
-	return &metadata, nil
-}
-
-// validateAuthServerMetadataURLs ensures every URL-bearing field in m uses an
-// http or https scheme. This prevents a hostile authorization server from
-// advertising values like "javascript:..." or "file:..." that could be
-// reflected into a browser or the local file system by downstream consumers.
-// Empty optional fields are permitted.
-func validateAuthServerMetadataURLs(m *AuthServerMetadata) error {
-	fields := []struct {
-		name  string
-		value string
-	}{
-		{"issuer", m.Issuer},
-		{"authorization_endpoint", m.AuthorizationEndpoint},
-		{"token_endpoint", m.TokenEndpoint},
-		{"jwks_uri", m.JwksURI},
-		{"registration_endpoint", m.RegistrationEndpoint},
-		{"service_documentation", m.ServiceDocumentation},
-		{"op_policy_uri", m.OpPolicyURI},
-		{"op_tos_uri", m.OpTOSURI},
-		{"revocation_endpoint", m.RevocationEndpoint},
-		{"introspection_endpoint", m.IntrospectionEndpoint},
-	}
-	for _, f := range fields {
-		if f.value == "" {
-			continue
-		}
-		u, err := url.Parse(f.value)
-		if err != nil {
-			return fmt.Errorf("%s: %w", f.name, err)
-		}
-		scheme := strings.ToLower(u.Scheme)
-		if scheme != "http" && scheme != "https" {
-			return fmt.Errorf("%s has disallowed scheme %q", f.name, u.Scheme)
-		}
-		if u.Host == "" {
-			return fmt.Errorf("%s is missing host", f.name)
-		}
-	}
-	return nil
-}
-
-// authorizationServerMetadataURLs returns the ordered list of discovery URLs to
-// try for a given issuer URL, following the MCP authorization spec. This
-// implements RFC 8414 §3 path-insertion semantics (the well-known segment is
-// inserted between the authority and the issuer path, not appended), plus
-// OpenID Connect Discovery 1.0 fallbacks.
-func authorizationServerMetadataURLs(issuerURL string) []string {
-	u, err := url.Parse(issuerURL)
-	if err != nil || u.Scheme == "" || u.Host == "" {
-		return nil
-	}
-	u.RawQuery = ""
-	u.Fragment = ""
-
-	originalPath := strings.Trim(u.Path, "/")
-
-	var urls []string
-	if originalPath == "" {
-		u.Path = "/.well-known/oauth-authorization-server"
-		urls = append(urls, u.String())
-		u.Path = "/.well-known/openid-configuration"
-		urls = append(urls, u.String())
-		return urls
-	}
-	u.Path = "/.well-known/oauth-authorization-server/" + originalPath
-	urls = append(urls, u.String())
-	u.Path = "/.well-known/openid-configuration/" + originalPath
-	urls = append(urls, u.String())
-	u.Path = "/" + originalPath + "/.well-known/openid-configuration"
-	urls = append(urls, u.String())
-	return urls
+	h.serverMetadata = &metadata
 }
 
 // extractBaseURL extracts the base URL from the first request
@@ -985,18 +548,9 @@ func (h *OAuthHandler) RegisterClient(ctx context.Context, clientName string) er
 		"scope":                      strings.Join(h.config.Scopes, " "),
 	}
 
-	if h.config.ClientURI != "" {
-		regRequest["client_uri"] = h.config.ClientURI
-	}
-
 	// Add client_secret if this is a confidential client
 	if h.config.ClientSecret != "" {
-		regRequest["token_endpoint_auth_method"] = "client_secret_post"
-	}
-
-	// RFC 8707: Include resource parameter in client registration
-	if resourceURL := h.getResourceURL(); resourceURL != "" {
-		regRequest["resource"] = resourceURL
+		regRequest["token_endpoint_auth_method"] = "client_secret_basic"
 	}
 
 	reqBody, err := json.Marshal(regRequest)
@@ -1087,11 +641,6 @@ func (h *OAuthHandler) ProcessAuthorizationResponse(ctx context.Context, code, s
 		data.Set("code_verifier", codeVerifier)
 	}
 
-	// RFC 8707: Include resource parameter in token exchange
-	if resourceURL := h.getResourceURL(); resourceURL != "" {
-		data.Set("resource", resourceURL)
-	}
-
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
@@ -1111,28 +660,13 @@ func (h *OAuthHandler) ProcessAuthorizationResponse(ctx context.Context, code, s
 	}
 	defer resp.Body.Close()
 
-	// Accept any 2xx status; some authorization servers (e.g. Supabase) return
-	// 201 Created for successful token responses.
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		return extractOAuthError(body, resp.StatusCode, "token request failed")
 	}
 
-	// Read the response body for parsing
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to read token response body: %w", err)
-	}
-
-	// GitHub returns HTTP 200 even for errors, with error details in the JSON body
-	// Check if the response contains an error field before parsing as Token
-	var oauthErr OAuthError
-	if err := json.Unmarshal(body, &oauthErr); err == nil && oauthErr.ErrorCode != "" {
-		return fmt.Errorf("token request failed: %w", oauthErr)
-	}
-
 	var tokenResp Token
-	if err := json.Unmarshal(body, &tokenResp); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
 		return fmt.Errorf("failed to decode token response: %w", err)
 	}
 
@@ -1172,11 +706,6 @@ func (h *OAuthHandler) GetAuthorizationURL(ctx context.Context, state, codeChall
 	if h.config.PKCEEnabled && codeChallenge != "" {
 		params.Set("code_challenge", codeChallenge)
 		params.Set("code_challenge_method", "S256")
-	}
-
-	// RFC 8707: Include resource parameter in authorization URL
-	if resourceURL := h.getResourceURL(); resourceURL != "" {
-		params.Set("resource", resourceURL)
 	}
 
 	return metadata.AuthorizationEndpoint + "?" + params.Encode(), nil

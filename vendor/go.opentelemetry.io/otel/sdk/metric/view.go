@@ -22,10 +22,6 @@ var (
 // should be collected for certain instruments. It returns true and the exact
 // Stream to use for matching Instruments. Otherwise, if the view does not
 // match, false is returned.
-//
-// Note that attributes filtered out by a View may still appear on Exemplars,
-// because Exemplars are recorded with the dropped measurement attributes
-// when View attribute filtering is applied.
 type View func(Instrument) (Stream, bool)
 
 // NewView returns a View that applies the Stream mask for all instruments that

@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/grafana/dskit/httpgrpc"
+	spanpruningprocessor "github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanpruningprocessor"
 	"github.com/prometheus/common/model"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -53,6 +54,12 @@ const (
 	urlParamDedicatedColumns = "dc"
 
 	urlParamSkipASTTransformations = "skip_ast_transformations"
+
+	// span pruning
+	urlParamSpanPruning              = "span_pruning"
+	urlParamSpanPruningGroupBy       = "span_pruning_group_by"
+	urlParamSpanPruningMinSpans      = "span_pruning_min_spans"
+	urlParamSpanPruningMaxParentDepth = "span_pruning_max_parent_depth"
 
 	// search tags
 	urlParamScope = "scope"
@@ -878,4 +885,41 @@ func ReadBodyToBuffer(resp *http.Response) (*bytes.Buffer, error) {
 	}
 
 	return buffer, nil
+}
+
+// ParseSpanPruningConfig returns a spanpruningprocessor.Config if span_pruning=true is set,
+// otherwise (nil, nil). Optional params span_pruning_group_by (comma-separated glob patterns),
+// span_pruning_min_spans (int), and span_pruning_max_parent_depth (int) override defaults.
+// Returns (nil, error) if any supplied parameter fails validation.
+func ParseSpanPruningConfig(r *http.Request) (*spanpruningprocessor.Config, error) {
+	enabled, err := strconv.ParseBool(r.URL.Query().Get(urlParamSpanPruning))
+	if err != nil || !enabled {
+		return nil, nil
+	}
+
+	cfg := spanpruningprocessor.NewFactory().CreateDefaultConfig().(*spanpruningprocessor.Config)
+
+	if v := r.URL.Query().Get(urlParamSpanPruningGroupBy); v != "" {
+		patterns := strings.Split(v, ",")
+		for i, p := range patterns {
+			patterns[i] = strings.TrimSpace(p)
+		}
+		cfg.GroupByAttributes = patterns
+	}
+	if v := r.URL.Query().Get(urlParamSpanPruningMinSpans); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.MinSpansToAggregate = n
+		}
+	}
+	if v := r.URL.Query().Get(urlParamSpanPruningMaxParentDepth); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.MaxParentDepth = n
+		}
+	}
+
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid span pruning config: %w", err)
+	}
+
+	return cfg, nil
 }

@@ -55,8 +55,7 @@ func uname() (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf(
-		"%s %s %s %s %s",
+	return fmt.Sprintf("%s %s %s %s %s",
 		unix.ByteSliceToString(utsName.Sysname[:]),
 		unix.ByteSliceToString(utsName.Nodename[:]),
 		unix.ByteSliceToString(utsName.Release[:]),

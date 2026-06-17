@@ -143,9 +143,9 @@ func (c *client) Start(ctx context.Context) error {
 }
 
 // Stop shuts down the client and interrupt any in-flight request.
-func (c *client) Stop(ctx context.Context) error {
-	c.stopOnce.Do(func() {
-		close(c.stopCh)
+func (d *client) Stop(ctx context.Context) error {
+	d.stopOnce.Do(func() {
+		close(d.stopCh)
 	})
 	select {
 	case <-ctx.Done():
@@ -156,7 +156,7 @@ func (c *client) Stop(ctx context.Context) error {
 }
 
 // UploadTraces sends a batch of spans to the collector.
-func (c *client) UploadTraces(ctx context.Context, protoSpans []*tracepb.ResourceSpans) (uploadErr error) {
+func (d *client) UploadTraces(ctx context.Context, protoSpans []*tracepb.ResourceSpans) (uploadErr error) {
 	pbRequest := &coltracepb.ExportTraceServiceRequest{
 		ResourceSpans: protoSpans,
 	}
@@ -165,41 +165,30 @@ func (c *client) UploadTraces(ctx context.Context, protoSpans []*tracepb.Resourc
 		return err
 	}
 
-	ctx, cancel := c.contextWithStop(ctx)
+	ctx, cancel := d.contextWithStop(ctx)
 	defer cancel()
 
-	if maxSize := c.cfg.MaxRequestSize; maxSize > 0 && len(rawRequest) > maxSize {
-		return fmt.Errorf("request body too large: exceeded %d bytes", maxSize)
-	}
-
-	request, err := c.newRequest(rawRequest)
+	request, err := d.newRequest(rawRequest)
 	if err != nil {
 		return err
 	}
 
 	var statusCode int
-	if c.inst != nil {
-		var spanCount int
-		for _, rs := range protoSpans {
-			for _, ss := range rs.ScopeSpans {
-				spanCount += len(ss.Spans)
-			}
-		}
-		op := c.inst.ExportSpans(ctx, spanCount)
+	if d.inst != nil {
+		op := d.inst.ExportSpans(ctx, len(protoSpans))
 		defer func() { op.End(uploadErr, statusCode) }()
 	}
 
-	return errors.Join(uploadErr, c.requestFunc(ctx, func(ctx context.Context) error {
+	return errors.Join(uploadErr, d.requestFunc(ctx, func(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
 		}
 
-		statusCode = 0
 		request.reset(ctx)
 		// nolint:gosec // URL is constructed from validated OTLP endpoint configuration
-		resp, err := c.client.Do(request.Request)
+		resp, err := d.client.Do(request.Request)
 		var urlErr *url.Error
 		if errors.As(err, &urlErr) && urlErr.Temporary() {
 			return newResponseError(http.Header{}, err)
@@ -283,8 +272,8 @@ func (c *client) UploadTraces(ctx context.Context, protoSpans []*tracepb.Resourc
 	}))
 }
 
-func (c *client) newRequest(body []byte) (request, error) {
-	u := url.URL{Scheme: c.getScheme(), Host: c.cfg.Endpoint, Path: c.cfg.URLPath}
+func (d *client) newRequest(body []byte) (request, error) {
+	u := url.URL{Scheme: d.getScheme(), Host: d.cfg.Endpoint, Path: d.cfg.URLPath}
 	r, err := http.NewRequestWithContext(context.Background(), http.MethodPost, u.String(), http.NoBody)
 	if err != nil {
 		return request{Request: r}, err
@@ -293,13 +282,13 @@ func (c *client) newRequest(body []byte) (request, error) {
 	userAgent := "OTel OTLP Exporter Go/" + otlptrace.Version()
 	r.Header.Set("User-Agent", userAgent)
 
-	for k, v := range c.cfg.Headers {
+	for k, v := range d.cfg.Headers {
 		r.Header.Set(k, v)
 	}
 	r.Header.Set("Content-Type", contentTypeProto)
 
 	req := request{Request: r}
-	switch Compression(c.cfg.Compression) {
+	switch Compression(d.cfg.Compression) {
 	case NoCompression:
 		r.ContentLength = int64(len(body))
 		req.bodyReader = bodyReader(body)
@@ -310,10 +299,7 @@ func (c *client) newRequest(body []byte) (request, error) {
 		r.Header.Set("Content-Encoding", "gzip")
 
 		gz := gzPool.Get().(*gzip.Writer)
-		defer func() {
-			gz.Reset(io.Discard)
-			gzPool.Put(gz)
-		}()
+		defer gzPool.Put(gz)
 
 		var b bytes.Buffer
 		gz.Reset(&b)
@@ -334,15 +320,15 @@ func (c *client) newRequest(body []byte) (request, error) {
 }
 
 // MarshalLog is the marshaling function used by the logging system to represent this Client.
-func (c *client) MarshalLog() any {
+func (d *client) MarshalLog() any {
 	return struct {
 		Type     string
 		Endpoint string
 		Insecure bool
 	}{
 		Type:     "otlptracehttp",
-		Endpoint: c.cfg.Endpoint,
-		Insecure: c.cfg.Insecure,
+		Endpoint: d.cfg.Endpoint,
+		Insecure: d.cfg.Insecure,
 	}
 }
 
@@ -439,14 +425,14 @@ func evaluate(err error) (bool, time.Duration) {
 	return true, time.Duration(rErr.throttle)
 }
 
-func (c *client) getScheme() string {
-	if c.cfg.Insecure {
+func (d *client) getScheme() string {
+	if d.cfg.Insecure {
 		return "http"
 	}
 	return "https"
 }
 
-func (c *client) contextWithStop(ctx context.Context) (context.Context, context.CancelFunc) {
+func (d *client) contextWithStop(ctx context.Context) (context.Context, context.CancelFunc) {
 	// Unify the parent context Done signal with the client's stop
 	// channel.
 	ctx, cancel := context.WithCancel(ctx)
@@ -455,7 +441,7 @@ func (c *client) contextWithStop(ctx context.Context) (context.Context, context.
 		case <-ctx.Done():
 			// Nothing to do, either cancelled or deadline
 			// happened.
-		case <-c.stopCh:
+		case <-d.stopCh:
 			cancel()
 		}
 	}(ctx, cancel)

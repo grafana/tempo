@@ -1,7 +1,5 @@
 package parquet
 
-import "math"
-
 // LeafColumn is a struct type representing leaf columns of a parquet schema.
 type LeafColumn struct {
 	Node               Node
@@ -51,7 +49,7 @@ func (group columnMappingGroup) lookup(path columnPath) leafColumn {
 			return c.lookup(path[1:])
 		}
 	}
-	return leafColumn{columnIndex: math.MaxUint16}
+	return leafColumn{columnIndex: -1}
 }
 
 func (group columnMappingGroup) lookupClosest(path columnPath) leafColumn {
@@ -75,7 +73,7 @@ func (group columnMappingGroup) lookupClosest(path columnPath) leafColumn {
 			break
 		}
 	}
-	return leafColumn{columnIndex: math.MaxUint16}
+	return leafColumn{columnIndex: -1}
 }
 
 type columnMappingLeaf struct {
@@ -86,5 +84,5 @@ func (leaf *columnMappingLeaf) lookup(path columnPath) leafColumn {
 	if len(path) == 0 {
 		return leaf.column
 	}
-	return leafColumn{columnIndex: math.MaxUint16}
+	return leafColumn{columnIndex: -1}
 }

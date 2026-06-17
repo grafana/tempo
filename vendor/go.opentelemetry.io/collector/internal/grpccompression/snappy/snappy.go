@@ -30,35 +30,41 @@ func registerCompressor(get func(string) encoding.Compressor, register func(enco
 	return true
 }
 
-var (
-	writerPool = sync.Pool{
-		New: func() any {
-			return snappylib.NewBufferedWriter(io.Discard)
-		},
-	}
-	readerPool = sync.Pool{
-		New: func() any {
-			return snappylib.NewReader(nil)
-		},
-	}
-)
-
-type compressor struct{}
-
-func newCompressor() *compressor {
-	return &compressor{}
+type compressor struct {
+	poolCompressor   sync.Pool
+	poolDecompressor sync.Pool
 }
 
-func (*compressor) Compress(w io.Writer) (io.WriteCloser, error) {
-	z := writerPool.Get().(*snappylib.Writer)
+func newCompressor() *compressor {
+	c := &compressor{}
+	c.poolCompressor.New = func() any {
+		return &writer{
+			Writer: snappylib.NewBufferedWriter(io.Discard),
+			pool:   &c.poolCompressor,
+		}
+	}
+	return c
+}
+
+func (c *compressor) Compress(w io.Writer) (io.WriteCloser, error) {
+	z := c.poolCompressor.Get().(*writer)
+	z.once = sync.Once{}
 	z.Reset(w)
-	return &writer{Writer: z}, nil
+	return z, nil
 }
 
 func (c *compressor) Decompress(r io.Reader) (io.Reader, error) {
-	z := readerPool.Get().(*snappylib.Reader)
+	z, ok := c.poolDecompressor.Get().(*reader)
+	if !ok {
+		return &reader{
+			Reader: snappylib.NewReader(r),
+			pool:   &c.poolDecompressor,
+		}, nil
+	}
+
+	z.once = sync.Once{}
 	z.Reset(r)
-	return &reader{Reader: z}, nil
+	return z, nil
 }
 
 func (c *compressor) Name() string {
@@ -67,24 +73,30 @@ func (c *compressor) Name() string {
 
 type writer struct {
 	*snappylib.Writer
+	pool *sync.Pool
+	once sync.Once
 }
 
 func (z *writer) Close() error {
 	err := z.Writer.Close()
-	writerPool.Put(z.Writer)
-	z.Writer = nil
+	z.once.Do(func() {
+		z.pool.Put(z)
+	})
 	return err
 }
 
 type reader struct {
 	*snappylib.Reader
+	pool *sync.Pool
+	once sync.Once
 }
 
 func (z *reader) Read(p []byte) (int, error) {
 	n, err := z.Reader.Read(p)
 	if err != nil {
-		readerPool.Put(z.Reader)
-		z.Reader = nil
+		z.once.Do(func() {
+			z.pool.Put(z)
+		})
 	}
 	return n, err
 }

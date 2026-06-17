@@ -42,18 +42,11 @@ type MeterOption interface {
 	applyMeter(MeterConfig) MeterConfig
 }
 
-type experimentalOption interface {
-	Experimental()
-}
-
 // NewMeterConfig creates a new MeterConfig and applies
 // all the given options.
 func NewMeterConfig(opts ...MeterOption) MeterConfig {
 	var config MeterConfig
 	for _, o := range opts {
-		if _, ok := o.(experimentalOption); ok {
-			continue
-		}
 		config = o.applyMeter(config)
 	}
 	return config

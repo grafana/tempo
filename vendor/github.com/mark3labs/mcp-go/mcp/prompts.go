@@ -26,7 +26,6 @@ type GetPromptRequest struct {
 	Header http.Header     `json:"-"`
 }
 
-// GetPromptParams contains parameters for a prompts/get request.
 type GetPromptParams struct {
 	// The name of the prompt or prompt template.
 	Name string `json:"name"`
@@ -52,16 +51,11 @@ type Prompt struct {
 	Meta *Meta `json:"_meta,omitempty"`
 	// The name of the prompt or prompt template.
 	Name string `json:"name"`
-	// Title is an optional human-readable, UI-friendly display name for the prompt.
-	// If not provided, clients should fall back to Name.
-	Title string `json:"title,omitempty"`
 	// An optional description of what this prompt provides
 	Description string `json:"description,omitempty"`
 	// A list of arguments to use for templating the prompt.
 	// The presence of arguments indicates this is a template prompt.
 	Arguments []PromptArgument `json:"arguments,omitempty"`
-	// Icons provides visual identifiers for the prompt
-	Icons []Icon `json:"icons,omitempty"`
 }
 
 // GetName returns the name of the prompt.
@@ -75,9 +69,6 @@ func (p Prompt) GetName() string {
 type PromptArgument struct {
 	// The name of the argument.
 	Name string `json:"name"`
-	// Title is an optional human-readable, UI-friendly display name for the argument.
-	// If not provided, clients should fall back to Name.
-	Title string `json:"title,omitempty"`
 	// A human-readable description of the argument.
 	Description string `json:"description,omitempty"`
 	// Whether this argument must be provided.
@@ -145,22 +136,6 @@ func WithPromptDescription(description string) PromptOption {
 	}
 }
 
-// WithPromptTitle sets the optional human-readable display title for the Prompt.
-// Per the MCP spec, clients should prefer Title over Name for display.
-func WithPromptTitle(title string) PromptOption {
-	return func(p *Prompt) {
-		p.Title = title
-	}
-}
-
-// WithPromptIcons adds icons to the Prompt.
-// Icons provide visual identifiers for the prompt.
-func WithPromptIcons(icons ...Icon) PromptOption {
-	return func(p *Prompt) {
-		p.Icons = icons
-	}
-}
-
 // WithArgument adds an argument to the prompt's argument list.
 // The argument will be configured based on the provided options.
 func WithArgument(name string, opts ...ArgumentOption) PromptOption {
@@ -189,14 +164,6 @@ func WithArgument(name string, opts ...ArgumentOption) PromptOption {
 func ArgumentDescription(desc string) ArgumentOption {
 	return func(arg *PromptArgument) {
 		arg.Description = desc
-	}
-}
-
-// ArgumentTitle sets the optional human-readable display title for a prompt argument.
-// Per the MCP spec, clients should prefer Title over Name for display.
-func ArgumentTitle(title string) ArgumentOption {
-	return func(arg *PromptArgument) {
-		arg.Title = title
 	}
 }
 

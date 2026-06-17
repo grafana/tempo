@@ -66,11 +66,10 @@ func (s *SimpleProcessor) OnEmit(ctx context.Context, r *Record) (err error) {
 	defer s.mu.Unlock()
 
 	records := simpleProcRecordsPool.Get().(*[]Record)
+	(*records)[0] = *r
 	defer func() {
-		clear(*records)
 		simpleProcRecordsPool.Put(records)
 	}()
-	(*records)[0] = *r
 
 	if s.inst != nil {
 		defer func() {

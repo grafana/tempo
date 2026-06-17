@@ -4,18 +4,14 @@ Crypto TLS exposes a [variety of settings](https://godoc.org/crypto/tls).
 Several of these settings are available for configuration within individual
 receivers or exporters.
 
-Note that mutual TLS (mTLS) is also supported as an optional enhancement on
-top of standard TLS.
+Note that mutual TLS (mTLS) is also supported.
 
 ## TLS / mTLS Configuration
 
-By default, TLS is enabled with server certificate verification using the
-system root CAs. No additional configuration is needed for standard TLS.
-Mutual TLS (mTLS), where both client and server present certificates, is
-optional and requires additional configuration (see examples below).
+By default, TLS is enabled:
 
-- `insecure` (default = false): whether to disable transport security entirely.
-  When set to true, no TLS is used at all. See
+- `insecure` (default = false): whether to enable client transport security for
+  the exporter's HTTPs or gRPC connection. See
   [grpc.WithInsecure()](https://godoc.org/google.golang.org/grpc#WithInsecure)
   for gRPC.
 - `curve_preferences` (default = []): specify your curve preferences that will
@@ -25,21 +21,22 @@ optional and requires additional configuration (see examples below).
   - P256
   - P384
 
-The following certificate parameters can be configured:
+As a result, the following parameters are also required:
 
-- `ca_file`: Path to the CA cert. For a client this verifies the server
-  certificate. For a server this verifies client certificates. If empty, the
-  system root CAs are used.
-  - `ca_pem`: Alternative to `ca_file`. Provide the CA cert contents as a string instead of a filepath.
-
-- `cert_file`: Path to the TLS certificate. For a server this is required to
-  serve TLS. For a client this is only needed for mTLS (client certificate
-  authentication).
+- `cert_file`: Path to the TLS cert to use for TLS required connections. Should
+  only be used if `insecure` is set to false.
   - `cert_pem`: Alternative to `cert_file`. Provide the certificate contents as a string instead of a filepath.
 
-- `key_file`: Path to the TLS private key. Must be provided alongside
-  `cert_file`.
+- `key_file`: Path to the TLS key to use for TLS required connections. Should
+  only be used if `insecure` is set to false.
   - `key_pem`: Alternative to `key_file`. Provide the key contents as a string instead of a filepath.
+
+A certificate authority may also need to be defined:
+
+- `ca_file`: Path to the CA cert. For a client this verifies the server
+  certificate. For a server this verifies client certificates. If empty uses
+  system root CA. Should only be used if `insecure` is set to false.
+  - `ca_pem`: Alternative to `ca_file`. Provide the CA cert contents as a string instead of a filepath.
 
 You can also combine defining a certificate authority with the system certificate authorities.
 

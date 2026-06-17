@@ -6,18 +6,13 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"maps"
 	"slices"
 	"sort"
 	"sync"
-	"time"
-
-	"github.com/google/uuid"
 
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/tracing"
 )
 
 // resourceEntry holds both a resource and its handler
@@ -30,19 +25,6 @@ type resourceEntry struct {
 type resourceTemplateEntry struct {
 	template mcp.ResourceTemplate
 	handler  ResourceTemplateHandlerFunc
-}
-
-// taskEntry holds task state and associated data
-type taskEntry struct {
-	task       mcp.Task
-	sessionID  string
-	toolName   string             // Name of the tool that created this task
-	createdAt  time.Time          // When the task was created (for metrics)
-	result     any                // The actual result once completed
-	resultErr  error              // Error if task failed
-	cancelFunc context.CancelFunc // Function to cancel the task
-	done       chan struct{}      // Channel to signal task completion
-	completed  bool               // Whether the task has been completed (guards done channel closure)
 }
 
 // ServerOption is a function that configures an MCPServer.
@@ -60,11 +42,6 @@ type PromptHandlerFunc func(ctx context.Context, request mcp.GetPromptRequest) (
 // ToolHandlerFunc handles tool calls with given arguments.
 type ToolHandlerFunc func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error)
 
-// TaskToolHandlerFunc handles tool calls that execute asynchronously.
-// It returns immediately with task creation info; the actual result is
-// retrieved later via tasks/result.
-type TaskToolHandlerFunc func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CreateTaskResult, error)
-
 // ToolHandlerMiddleware is a middleware function that wraps a ToolHandlerFunc.
 type ToolHandlerMiddleware func(ToolHandlerFunc) ToolHandlerFunc
 
@@ -74,22 +51,10 @@ type ResourceHandlerMiddleware func(ResourceHandlerFunc) ResourceHandlerFunc
 // ToolFilterFunc is a function that filters tools based on context, typically using session information.
 type ToolFilterFunc func(ctx context.Context, tools []mcp.Tool) []mcp.Tool
 
-// PromptHandlerMiddleware is a middleware function that wraps a PromptHandlerFunc.
-type PromptHandlerMiddleware func(PromptHandlerFunc) PromptHandlerFunc
-
-// PromptFilterFunc is a function that filters prompts based on context, typically using session information.
-type PromptFilterFunc func(ctx context.Context, prompts []mcp.Prompt) []mcp.Prompt
-
 // ServerTool combines a Tool with its ToolHandlerFunc.
 type ServerTool struct {
 	Tool    mcp.Tool
 	Handler ToolHandlerFunc
-}
-
-// ServerTaskTool combines a Tool with its TaskToolHandlerFunc.
-type ServerTaskTool struct {
-	Tool    mcp.Tool
-	Handler TaskToolHandlerFunc
 }
 
 // ServerPrompt combines a Prompt with its handler function.
@@ -181,46 +146,26 @@ type MCPServer struct {
 	promptsMu              sync.RWMutex
 	toolsMu                sync.RWMutex
 	toolMiddlewareMu       sync.RWMutex
-	promptMiddlewareMu     sync.RWMutex
 	notificationHandlersMu sync.RWMutex
 	capabilitiesMu         sync.RWMutex
 	toolFiltersMu          sync.RWMutex
-	promptFiltersMu        sync.RWMutex
-	tasksMu                sync.RWMutex
 
 	name                       string
 	version                    string
-	implementation             mcp.Implementation
 	instructions               string
 	resources                  map[string]resourceEntry
 	resourceTemplates          map[string]resourceTemplateEntry
 	prompts                    map[string]mcp.Prompt
 	promptHandlers             map[string]PromptHandlerFunc
 	tools                      map[string]ServerTool
-	taskTools                  map[string]ServerTaskTool
 	toolHandlerMiddlewares     []ToolHandlerMiddleware
 	resourceHandlerMiddlewares []ResourceHandlerMiddleware
-	promptHandlerMiddlewares   []PromptHandlerMiddleware
 	toolFilters                []ToolFilterFunc
-	promptFilters              []PromptFilterFunc
 	notificationHandlers       map[string]NotificationHandlerFunc
-	promptCompletionProvider   PromptCompletionProvider
-	resourceCompletionProvider ResourceCompletionProvider
 	capabilities               serverCapabilities
 	paginationLimit            *int
 	sessions                   sync.Map
 	hooks                      *Hooks
-	taskHooks                  *TaskHooks
-	tasks                      map[string]*taskEntry
-	expiredTasks               map[string]time.Time // Tracks recently expired task IDs with expiration timestamp
-	maxConcurrentTasks         *int                 // Optional limit on concurrent running tasks
-	activeTasks                int                  // Current count of running (non-terminal) tasks
-	inflightCancels            sync.Map             // Maps request ID -> context.CancelFunc for in-flight requests
-	inputValidator             *inputSchemaValidator
-	outputValidator            *outputSchemaValidator
-	strictInputSchemaDefault   bool
-	tracer                     tracing.Tracer
-	propagator                 tracing.Propagator
 }
 
 // WithPaginationLimit sets the pagination limit for the server.
@@ -232,16 +177,13 @@ func WithPaginationLimit(limit int) ServerOption {
 
 // serverCapabilities defines the supported features of the MCP server
 type serverCapabilities struct {
-	tools        *toolCapabilities
-	resources    *resourceCapabilities
-	prompts      *promptCapabilities
-	logging      *bool
-	sampling     *bool
-	elicitation  *bool
-	roots        *bool
-	tasks        *taskCapabilities
-	completions  *bool
-	experimental map[string]any
+	tools       *toolCapabilities
+	resources   *resourceCapabilities
+	prompts     *promptCapabilities
+	logging     *bool
+	sampling    *bool
+	elicitation *bool
+	roots       *bool
 }
 
 // resourceCapabilities defines the supported resource-related features
@@ -260,13 +202,6 @@ type toolCapabilities struct {
 	listChanged bool
 }
 
-// taskCapabilities defines the supported task-related features
-type taskCapabilities struct {
-	list          bool
-	cancel        bool
-	toolCallTasks bool
-}
-
 // WithResourceCapabilities configures resource-related server capabilities
 func WithResourceCapabilities(subscribe, listChanged bool) ServerOption {
 	return func(s *MCPServer) {
@@ -275,20 +210,6 @@ func WithResourceCapabilities(subscribe, listChanged bool) ServerOption {
 			subscribe:   subscribe,
 			listChanged: listChanged,
 		}
-	}
-}
-
-// WithPromptCompletionProvider sets a custom prompt completion provider
-func WithPromptCompletionProvider(provider PromptCompletionProvider) ServerOption {
-	return func(s *MCPServer) {
-		s.promptCompletionProvider = provider
-	}
-}
-
-// WithResourceCompletionProvider sets a custom resource completion provider
-func WithResourceCompletionProvider(provider ResourceCompletionProvider) ServerOption {
-	return func(s *MCPServer) {
-		s.resourceCompletionProvider = provider
 	}
 }
 
@@ -302,14 +223,6 @@ func WithToolHandlerMiddleware(
 		s.toolHandlerMiddlewares = append(s.toolHandlerMiddlewares, toolHandlerMiddleware)
 		s.toolMiddlewareMu.Unlock()
 	}
-}
-
-// Use adds one or more tool handler middlewares to the server.
-// Middleware is applied in the order added (outermost first), matching net/http convention.
-func (s *MCPServer) Use(mw ...ToolHandlerMiddleware) {
-	s.toolMiddlewareMu.Lock()
-	s.toolHandlerMiddlewares = append(s.toolHandlerMiddlewares, mw...)
-	s.toolMiddlewareMu.Unlock()
 }
 
 // WithResourceHandlerMiddleware allows adding a middleware for the
@@ -353,29 +266,6 @@ func WithToolFilter(
 	}
 }
 
-// WithPromptHandlerMiddleware allows adding a middleware for the
-// prompt handler call chain.
-func WithPromptHandlerMiddleware(
-	promptHandlerMiddleware PromptHandlerMiddleware,
-) ServerOption {
-	return func(s *MCPServer) {
-		s.promptMiddlewareMu.Lock()
-		s.promptHandlerMiddlewares = append(s.promptHandlerMiddlewares, promptHandlerMiddleware)
-		s.promptMiddlewareMu.Unlock()
-	}
-}
-
-// WithPromptFilter adds a filter function that will be applied to prompts before they are returned in list_prompts
-func WithPromptFilter(
-	promptFilter PromptFilterFunc,
-) ServerOption {
-	return func(s *MCPServer) {
-		s.promptFiltersMu.Lock()
-		s.promptFilters = append(s.promptFilters, promptFilter)
-		s.promptFiltersMu.Unlock()
-	}
-}
-
 // WithRecovery adds a middleware that recovers from panics in tool handlers.
 func WithRecovery() ServerOption {
 	return WithToolHandlerMiddleware(func(next ToolHandlerFunc) ToolHandlerFunc {
@@ -394,112 +284,12 @@ func WithRecovery() ServerOption {
 	})
 }
 
-// WithInputSchemaValidation enables server-side validation of tool call
-// arguments against each tool's declared inputSchema. When validation fails
-// the server returns a tool execution error result (CallToolResult with
-// IsError: true) per [SEP-1303] so that the language model receives the
-// failure details in its context window and can self-correct (for example,
-// when it sends an unknown parameter name).
-//
-// Validation is opt-in to preserve backwards compatibility with servers whose
-// hand-written schemas may not perfectly describe the arguments their handlers
-// actually accept. Enabling it is recommended for new servers and for any
-// server whose schemas are accurate.
-//
-// Tools whose input schemas cannot be compiled (malformed JSON Schema) are
-// silently skipped, so a single broken schema cannot block tool calls.
-//
-// [SEP-1303]: https://modelcontextprotocol.io/seps/1303-input-validation-errors-as-tool-execution-errors
-func WithInputSchemaValidation() ServerOption {
-	return func(s *MCPServer) {
-		if s.inputValidator == nil {
-			s.inputValidator = newInputSchemaValidator()
-		}
-	}
-}
-
-// WithStrictInputSchemaDefault sets additionalProperties:false on every
-// registered tool's input schema when the tool author has not configured the
-// field explicitly. Tools published by such a server reject unknown property
-// names — at the client (which sees the strict schema in tools/list) and at
-// the server when [WithInputSchemaValidation] is also enabled.
-//
-// Tools that supply [mcp.Tool.RawInputSchema] are not modified: those authors
-// have opted out of the structured-schema helpers and own additionalProperties
-// themselves. Tools that explicitly call
-// [mcp.WithSchemaAdditionalProperties] are left untouched, so a single tool
-// can opt back into permissive behaviour while the server default stays
-// strict.
-//
-// The option is independent of [WithInputSchemaValidation]: setting strict
-// schemas without server-side enforcement still steers schema-aware clients
-// and language models away from unknown arguments.
-func WithStrictInputSchemaDefault() ServerOption {
-	return func(s *MCPServer) {
-		s.strictInputSchemaDefault = true
-	}
-}
-
-// WithOutputSchemaValidation enables server-side validation of tool call
-// results against each tool's declared outputSchema. When a tool returns a
-// CallToolResult whose StructuredContent does not conform to the schema, the
-// server replaces the result with a tool execution error (CallToolResult with
-// IsError: true) so the client never sees a result that violates the
-// declared contract.
-//
-// The MCP tools specification states that when an outputSchema is provided,
-// the tool result MUST include structuredContent conforming to that schema.
-// Enabling this option enforces that contract at runtime.
-//
-// Validation is skipped for results whose StructuredContent is nil and for
-// error results (IsError: true). Tools whose output schemas cannot be
-// compiled (malformed JSON Schema) are silently skipped, matching the
-// behaviour of WithInputSchemaValidation, so a single broken schema cannot
-// block tool calls.
-//
-// This option is opt-in to preserve backwards compatibility with servers
-// whose hand-written output schemas may not perfectly describe the values
-// their handlers actually return. Enabling it is recommended for any server
-// whose schemas are accurate.
-func WithOutputSchemaValidation() ServerOption {
-	return func(s *MCPServer) {
-		if s.outputValidator == nil {
-			s.outputValidator = newOutputSchemaValidator()
-		}
-	}
-}
-
 // WithHooks allows adding hooks that will be called before or after
 // either [all] requests or before / after specific request methods, or else
 // prior to returning an error to the client.
 func WithHooks(hooks *Hooks) ServerOption {
 	return func(s *MCPServer) {
 		s.hooks = hooks
-	}
-}
-
-// GetHooks returns the server's current Hooks instance, or nil if no hooks
-// have been configured. The returned pointer can be used to add additional
-// hooks via the Add* methods without replacing existing hook registrations.
-func (s *MCPServer) GetHooks() *Hooks {
-	return s.hooks
-}
-
-// WithTaskHooks allows adding hooks for task lifecycle events.
-// Use these hooks to monitor task execution, track metrics, and observe
-// task-augmented tool behavior.
-func WithTaskHooks(taskHooks *TaskHooks) ServerOption {
-	return func(s *MCPServer) {
-		s.taskHooks = taskHooks
-	}
-}
-
-// WithMaxConcurrentTasks sets a limit on the maximum number of concurrent running tasks.
-// When this limit is reached, attempts to create new tasks will fail with an error.
-// If not set (or set to 0), there is no limit on concurrent tasks.
-func WithMaxConcurrentTasks(limit int) ServerOption {
-	return func(s *MCPServer) {
-		s.maxConcurrentTasks = &limit
 	}
 }
 
@@ -544,74 +334,10 @@ func WithRoots() ServerOption {
 	}
 }
 
-// WithTaskCapabilities configures task-related server capabilities
-func WithTaskCapabilities(list, cancel, toolCallTasks bool) ServerOption {
-	return func(s *MCPServer) {
-		// Always create a non-nil capability object
-		s.capabilities.tasks = &taskCapabilities{
-			list:          list,
-			cancel:        cancel,
-			toolCallTasks: toolCallTasks,
-		}
-	}
-}
-
 // WithInstructions sets the server instructions for the client returned in the initialize response
 func WithInstructions(instructions string) ServerOption {
 	return func(s *MCPServer) {
 		s.instructions = instructions
-	}
-}
-
-// WithCompletions enables the completion capability
-func WithCompletions() ServerOption {
-	return func(s *MCPServer) {
-		s.capabilities.completions = mcp.ToBoolPtr(true)
-	}
-}
-
-// WithExperimental sets experimental, non-standard capabilities on the server.
-func WithExperimental(experimental map[string]any) ServerOption {
-	return func(s *MCPServer) {
-		s.capabilities.experimental = experimental
-	}
-}
-
-// WithIcons sets the server icons for the implementation metadata returned
-// during initialization. The icons slice and nested Sizes fields are defensively
-// copied to prevent external mutation.
-func WithIcons(icons ...mcp.Icon) ServerOption {
-	return func(s *MCPServer) {
-		copied := make([]mcp.Icon, len(icons))
-		for i, icon := range icons {
-			copied[i] = icon
-			if icon.Sizes != nil {
-				copied[i].Sizes = make([]string, len(icon.Sizes))
-				copy(copied[i].Sizes, icon.Sizes)
-			}
-		}
-		s.implementation.Icons = copied
-	}
-}
-
-// WithTitle sets the human-readable display title for the server implementation.
-func WithTitle(title string) ServerOption {
-	return func(s *MCPServer) {
-		s.implementation.Title = title
-	}
-}
-
-// WithDescription sets the description for the server implementation.
-func WithDescription(description string) ServerOption {
-	return func(s *MCPServer) {
-		s.implementation.Description = description
-	}
-}
-
-// WithWebsiteURL sets the website URL for the server implementation.
-func WithWebsiteURL(websiteURL string) ServerOption {
-	return func(s *MCPServer) {
-		s.implementation.WebsiteURL = websiteURL
 	}
 }
 
@@ -626,30 +352,17 @@ func NewMCPServer(
 		prompts:                    make(map[string]mcp.Prompt),
 		promptHandlers:             make(map[string]PromptHandlerFunc),
 		tools:                      make(map[string]ServerTool),
-		taskTools:                  make(map[string]ServerTaskTool),
 		toolHandlerMiddlewares:     make([]ToolHandlerMiddleware, 0),
 		resourceHandlerMiddlewares: make([]ResourceHandlerMiddleware, 0),
-		promptHandlerMiddlewares:   make([]PromptHandlerMiddleware, 0),
 		name:                       name,
 		version:                    version,
 		notificationHandlers:       make(map[string]NotificationHandlerFunc),
-		tasks:                      make(map[string]*taskEntry),
-		expiredTasks:               make(map[string]time.Time),
-		promptCompletionProvider:   &DefaultPromptCompletionProvider{},
-		resourceCompletionProvider: &DefaultResourceCompletionProvider{},
 		capabilities: serverCapabilities{
-			tools:       nil,
-			resources:   nil,
-			prompts:     nil,
-			logging:     nil,
-			sampling:    nil,
-			elicitation: nil,
-			roots:       nil,
-			tasks:       nil,
-			completions: nil,
+			tools:     nil,
+			resources: nil,
+			prompts:   nil,
+			logging:   nil,
 		},
-		tracer:     tracing.NoopTracer(),
-		propagator: tracing.NoopPropagator(),
 	}
 
 	for _, opt := range opts {
@@ -716,23 +429,6 @@ func (s *MCPServer) DeleteResources(uris ...string) {
 	if exists && s.capabilities.resources != nil && s.capabilities.resources.listChanged {
 		s.SendNotificationToAllClients(mcp.MethodNotificationResourcesListChanged, nil)
 	}
-}
-
-// ListResources returns a copy of the registered resources map.
-func (s *MCPServer) ListResources() map[string]*ServerResource {
-	s.resourcesMu.RLock()
-	defer s.resourcesMu.RUnlock()
-	if len(s.resources) == 0 {
-		return nil
-	}
-	resourcesCopy := make(map[string]*ServerResource, len(s.resources))
-	for uri, entry := range s.resources {
-		resourcesCopy[uri] = &ServerResource{
-			Resource: entry.resource,
-			Handler:  entry.handler,
-		}
-	}
-	return resourcesCopy
 }
 
 // RemoveResource removes a resource from the server
@@ -838,49 +534,9 @@ func (s *MCPServer) DeletePrompts(names ...string) {
 	}
 }
 
-// ListPrompts returns a copy of the registered prompts map.
-func (s *MCPServer) ListPrompts() map[string]*ServerPrompt {
-	s.promptsMu.RLock()
-	defer s.promptsMu.RUnlock()
-	if len(s.prompts) == 0 {
-		return nil
-	}
-	promptsCopy := make(map[string]*ServerPrompt, len(s.prompts))
-	for name, prompt := range s.prompts {
-		promptsCopy[name] = &ServerPrompt{
-			Prompt:  prompt,
-			Handler: s.promptHandlers[name],
-		}
-	}
-	return promptsCopy
-}
-
-// applyStrictInputSchemaDefault fills in additionalProperties:false on a
-// registered tool's structured input schema when WithStrictInputSchemaDefault
-// is set and the author has not configured the field. Tools that ship a
-// RawInputSchema are skipped — those bypass the structured-schema helpers
-// and own additionalProperties themselves.
-func (s *MCPServer) applyStrictInputSchemaDefault(tool *mcp.Tool) {
-	if !s.strictInputSchemaDefault {
-		return
-	}
-	if len(tool.RawInputSchema) > 0 {
-		return
-	}
-	if tool.InputSchema.AdditionalProperties != nil {
-		return
-	}
-	tool.InputSchema.AdditionalProperties = false
-}
-
 // AddTool registers a new tool and its handler
 func (s *MCPServer) AddTool(tool mcp.Tool, handler ToolHandlerFunc) {
 	s.AddTools(ServerTool{Tool: tool, Handler: handler})
-}
-
-// AddTaskTool registers a new task tool and its handler
-func (s *MCPServer) AddTaskTool(tool mcp.Tool, handler TaskToolHandlerFunc) {
-	s.AddTaskTools(ServerTaskTool{Tool: tool, Handler: handler})
 }
 
 // Register tool capabilities due to a tool being added.  Default to
@@ -928,38 +584,7 @@ func (s *MCPServer) AddTools(tools ...ServerTool) {
 
 	s.toolsMu.Lock()
 	for _, entry := range tools {
-		name := entry.Tool.Name
-		// Check for collision with task tools
-		if _, exists := s.taskTools[name]; exists {
-			s.toolsMu.Unlock()
-			panic(fmt.Sprintf("tool name '%s' already registered as task tool", name))
-		}
-		s.applyStrictInputSchemaDefault(&entry.Tool)
-		s.tools[name] = entry
-	}
-	s.toolsMu.Unlock()
-
-	// When the list of available tools changes, servers that declared the listChanged capability SHOULD send a notification.
-	if s.capabilities.tools.listChanged {
-		// Send notification to all initialized sessions
-		s.SendNotificationToAllClients(mcp.MethodNotificationToolsListChanged, nil)
-	}
-}
-
-// AddTaskTools registers multiple task tools at once
-func (s *MCPServer) AddTaskTools(taskTools ...ServerTaskTool) {
-	s.implicitlyRegisterToolCapabilities()
-
-	s.toolsMu.Lock()
-	for _, entry := range taskTools {
-		name := entry.Tool.Name
-		// Check for collision with regular tools
-		if _, exists := s.tools[name]; exists {
-			s.toolsMu.Unlock()
-			panic(fmt.Sprintf("task tool name '%s' already registered as regular tool", name))
-		}
-		s.applyStrictInputSchemaDefault(&entry.Tool)
-		s.taskTools[name] = entry
+		s.tools[entry.Tool.Name] = entry
 	}
 	s.toolsMu.Unlock()
 
@@ -972,30 +597,10 @@ func (s *MCPServer) AddTaskTools(taskTools ...ServerTaskTool) {
 
 // SetTools replaces all existing tools with the provided list
 func (s *MCPServer) SetTools(tools ...ServerTool) {
-	s.implicitlyRegisterToolCapabilities()
-
 	s.toolsMu.Lock()
-	newTools := make(map[string]ServerTool, len(tools))
-	for _, entry := range tools {
-		name := entry.Tool.Name
-		// Check for collision with task tools
-		if _, exists := s.taskTools[name]; exists {
-			s.toolsMu.Unlock()
-			panic(fmt.Sprintf("tool name '%s' already registered as task tool", name))
-		}
-		s.applyStrictInputSchemaDefault(&entry.Tool)
-		newTools[name] = entry
-	}
-	s.tools = newTools
+	s.tools = make(map[string]ServerTool, len(tools))
 	s.toolsMu.Unlock()
-	s.inputValidator.invalidateAll()
-	s.outputValidator.invalidateAll()
-
-	// When the list of available tools changes, servers that declared the listChanged capability SHOULD send a notification.
-	if s.capabilities.tools.listChanged {
-		// Send notification to all initialized sessions
-		s.SendNotificationToAllClients(mcp.MethodNotificationToolsListChanged, nil)
-	}
+	s.AddTools(tools...)
 }
 
 // GetTool retrieves the specified tool
@@ -1017,10 +622,7 @@ func (s *MCPServer) ListTools() map[string]*ServerTool {
 	// Create a copy to prevent external modification
 	toolsCopy := make(map[string]*ServerTool, len(s.tools))
 	for name, tool := range s.tools {
-		toolsCopy[name] = &ServerTool{
-			Tool:    tool.Tool,
-			Handler: tool.Handler,
-		}
+		toolsCopy[name] = &tool
 	}
 	return toolsCopy
 }
@@ -1036,12 +638,6 @@ func (s *MCPServer) DeleteTools(names ...string) {
 		}
 	}
 	s.toolsMu.Unlock()
-
-	// Drop any cached compiled input/output schemas for the removed tools so
-	// a tool re-added later under the same name does not reuse a stale
-	// compilation.
-	s.inputValidator.invalidate(names...)
-	s.outputValidator.invalidate(names...)
 
 	// When the list of available tools changes, servers that declared the listChanged capability SHOULD send a notification.
 	if exists && s.capabilities.tools != nil && s.capabilities.tools.listChanged {
@@ -1101,59 +697,22 @@ func (s *MCPServer) handleInitialize(
 	}
 
 	if s.capabilities.sampling != nil && *s.capabilities.sampling {
-		capabilities.Sampling = &mcp.SamplingCapability{}
+		capabilities.Sampling = &struct{}{}
 	}
 
 	if s.capabilities.elicitation != nil && *s.capabilities.elicitation {
-		capabilities.Elicitation = &mcp.ElicitationCapability{}
+		capabilities.Elicitation = &struct{}{}
 	}
 
 	if s.capabilities.roots != nil && *s.capabilities.roots {
 		capabilities.Roots = &struct{}{}
 	}
 
-	// Only add task capabilities if they're configured
-	if s.capabilities.tasks != nil {
-		tasksCapability := &mcp.TasksCapability{}
-
-		if s.capabilities.tasks.list {
-			tasksCapability.List = &struct{}{}
-		}
-
-		if s.capabilities.tasks.cancel {
-			tasksCapability.Cancel = &struct{}{}
-		}
-
-		if s.capabilities.tasks.toolCallTasks {
-			tasksCapability.Requests = &mcp.TaskRequestsCapability{
-				Tools: &struct {
-					Call *struct{} `json:"call,omitempty"`
-				}{
-					Call: &struct{}{},
-				},
-			}
-		}
-
-		capabilities.Tasks = tasksCapability
-	}
-
-	if s.capabilities.completions != nil && *s.capabilities.completions {
-		capabilities.Completions = &struct{}{}
-	}
-
-	if s.capabilities.experimental != nil {
-		capabilities.Experimental = s.capabilities.experimental
-	}
-
 	result := mcp.InitializeResult{
 		ProtocolVersion: s.protocolVersion(request.Params.ProtocolVersion),
 		ServerInfo: mcp.Implementation{
-			Name:        s.name,
-			Version:     s.version,
-			Title:       s.implementation.Title,
-			Description: s.implementation.Description,
-			WebsiteURL:  s.implementation.WebsiteURL,
-			Icons:       s.implementation.Icons,
+			Name:    s.name,
+			Version: s.version,
 		},
 		Capabilities: capabilities,
 		Instructions: s.instructions,
@@ -1193,77 +752,6 @@ func (s *MCPServer) handlePing(
 	_ any,
 	_ mcp.PingRequest,
 ) (*mcp.EmptyResult, *requestError) {
-	return &mcp.EmptyResult{}, nil
-}
-
-// handleSubscribe processes a resources/subscribe request. Servers that opt in
-// to the resources.subscribe capability via WithResourceCapabilities must
-// accept this request; otherwise it is rejected as unsupported. The default
-// implementation only validates input and acknowledges the request. Users that
-// need to react to subscriptions (for example to track which sessions should
-// receive notifications/resources/updated) should register Hooks.AddBeforeSubscribe
-// or Hooks.AddAfterSubscribe, or implement an optional SessionWithResourceSubscriptions
-// interface on their ClientSession.
-func (s *MCPServer) handleSubscribe(
-	ctx context.Context,
-	id any,
-	request mcp.SubscribeRequest,
-) (*mcp.EmptyResult, *requestError) {
-	if s.capabilities.resources == nil || !s.capabilities.resources.subscribe {
-		return nil, &requestError{
-			id:   id,
-			code: mcp.METHOD_NOT_FOUND,
-			err:  fmt.Errorf("resources subscribe %w", ErrUnsupported),
-		}
-	}
-	if request.Params.URI == "" {
-		return nil, &requestError{
-			id:   id,
-			code: mcp.INVALID_PARAMS,
-			err:  errors.New("uri is required"),
-		}
-	}
-
-	if session := ClientSessionFromContext(ctx); session != nil {
-		if subs, ok := session.(SessionWithResourceSubscriptions); ok {
-			subs.SubscribeToResource(request.Params.URI)
-		}
-	}
-
-	return &mcp.EmptyResult{}, nil
-}
-
-// handleUnsubscribe processes a resources/unsubscribe request. The default
-// implementation validates input, removes any tracked subscription on the
-// current session if it implements SessionWithResourceSubscriptions, and
-// acknowledges the request. Unsubscribing a URI that was never subscribed to
-// is treated as a no-op for spec compatibility.
-func (s *MCPServer) handleUnsubscribe(
-	ctx context.Context,
-	id any,
-	request mcp.UnsubscribeRequest,
-) (*mcp.EmptyResult, *requestError) {
-	if s.capabilities.resources == nil || !s.capabilities.resources.subscribe {
-		return nil, &requestError{
-			id:   id,
-			code: mcp.METHOD_NOT_FOUND,
-			err:  fmt.Errorf("resources unsubscribe %w", ErrUnsupported),
-		}
-	}
-	if request.Params.URI == "" {
-		return nil, &requestError{
-			id:   id,
-			code: mcp.INVALID_PARAMS,
-			err:  errors.New("uri is required"),
-		}
-	}
-
-	if session := ClientSessionFromContext(ctx); session != nil {
-		if subs, ok := session.(SessionWithResourceSubscriptions); ok {
-			subs.UnsubscribeFromResource(request.Params.URI)
-		}
-	}
-
 	return &mcp.EmptyResult{}, nil
 }
 
@@ -1390,11 +878,6 @@ func (s *MCPServer) handleListResources(
 			err:  err,
 		}
 	}
-
-	if resourcesToReturn == nil {
-		resourcesToReturn = []mcp.Resource{}
-	}
-
 	result := mcp.ListResourcesResult{
 		Resources: resourcesToReturn,
 		PaginatedResult: mcp.PaginatedResult{
@@ -1622,16 +1105,6 @@ func (s *MCPServer) handleListPrompts(
 	sort.Slice(prompts, func(i, j int) bool {
 		return prompts[i].Name < prompts[j].Name
 	})
-
-	// Apply prompt filters if any are defined
-	s.promptFiltersMu.RLock()
-	if len(s.promptFilters) > 0 {
-		for _, filter := range s.promptFilters {
-			prompts = filter(ctx, prompts)
-		}
-	}
-	s.promptFiltersMu.RUnlock()
-
 	promptsToReturn, nextCursor, err := listByPagination(
 		ctx,
 		s,
@@ -1671,18 +1144,7 @@ func (s *MCPServer) handleGetPrompt(
 		}
 	}
 
-	finalHandler := handler
-
-	s.promptMiddlewareMu.RLock()
-	mw := s.promptHandlerMiddlewares
-
-	// Apply middlewares in reverse order
-	for i := len(mw) - 1; i >= 0; i-- {
-		finalHandler = mw[i](finalHandler)
-	}
-	s.promptMiddlewareMu.RUnlock()
-
-	result, err := finalHandler(ctx, request)
+	result, err := handler(ctx, request)
 	if err != nil {
 		return nil, &requestError{
 			id:   id,
@@ -1699,16 +1161,13 @@ func (s *MCPServer) handleListTools(
 	id any,
 	request mcp.ListToolsRequest,
 ) (*mcp.ListToolsResult, *requestError) {
-	// Get the base tools from the server (both regular and task tools)
+	// Get the base tools from the server
 	s.toolsMu.RLock()
-	tools := make([]mcp.Tool, 0, len(s.tools)+len(s.taskTools))
+	tools := make([]mcp.Tool, 0, len(s.tools))
 
 	// Get all tool names for consistent ordering
-	toolNames := make([]string, 0, len(s.tools)+len(s.taskTools))
+	toolNames := make([]string, 0, len(s.tools))
 	for name := range s.tools {
-		toolNames = append(toolNames, name)
-	}
-	for name := range s.taskTools {
 		toolNames = append(toolNames, name)
 	}
 
@@ -1717,11 +1176,7 @@ func (s *MCPServer) handleListTools(
 
 	// Add tools in sorted order
 	for _, name := range toolNames {
-		if tool, ok := s.tools[name]; ok {
-			tools = append(tools, tool.Tool)
-		} else if taskTool, ok := s.taskTools[name]; ok {
-			tools = append(tools, taskTool.Tool)
-		}
+		tools = append(tools, s.tools[name].Tool)
 	}
 	s.toolsMu.RUnlock()
 
@@ -1795,11 +1250,10 @@ func (s *MCPServer) handleToolCall(
 	ctx context.Context,
 	id any,
 	request mcp.CallToolRequest,
-) (any, *requestError) {
+) (*mcp.CallToolResult, *requestError) {
 	// First check session-specific tools
 	var tool ServerTool
 	var ok bool
-	var taskToolOnly bool
 
 	session := ClientSessionFromContext(ctx)
 	if session != nil {
@@ -1818,19 +1272,6 @@ func (s *MCPServer) handleToolCall(
 	if !ok {
 		s.toolsMu.RLock()
 		tool, ok = s.tools[request.Params.Name]
-		// If not in regular tools, check task tools
-		if !ok {
-			if taskTool, taskOk := s.taskTools[request.Params.Name]; taskOk {
-				// Convert ServerTaskTool to ServerTool for validation
-				// The tool metadata is the same, we just need it for checking task support
-				tool = ServerTool{
-					Tool:    taskTool.Tool,
-					Handler: nil, // Handler will be used from taskTool in handleTaskAugmentedToolCall
-				}
-				ok = true
-				taskToolOnly = true
-			}
-		}
 		s.toolsMu.RUnlock()
 	}
 
@@ -1839,47 +1280,6 @@ func (s *MCPServer) handleToolCall(
 			id:   id,
 			code: mcp.INVALID_PARAMS,
 			err:  fmt.Errorf("tool '%s' not found: %w", request.Params.Name, ErrToolNotFound),
-		}
-	}
-
-	// Validate task support requirements
-	if tool.Tool.Execution != nil && tool.Tool.Execution.TaskSupport == mcp.TaskSupportRequired {
-		if request.Params.Task == nil {
-			return nil, &requestError{
-				id:   id,
-				code: mcp.METHOD_NOT_FOUND,
-				err:  fmt.Errorf("tool '%s' requires task augmentation", request.Params.Name),
-			}
-		}
-	}
-
-	// Check if this should be executed as a task (hybrid mode support)
-	// Tools with TaskSupportOptional or TaskSupportRequired can be executed as tasks
-	shouldExecuteAsTask := request.Params.Task != nil &&
-		tool.Tool.Execution != nil &&
-		(tool.Tool.Execution.TaskSupport == mcp.TaskSupportOptional ||
-			tool.Tool.Execution.TaskSupport == mcp.TaskSupportRequired)
-
-	if shouldExecuteAsTask {
-		// Route to task-augmented execution handler
-		return s.handleTaskAugmentedToolCall(ctx, id, request)
-	}
-
-	if taskToolOnly {
-		return nil, &requestError{
-			id:   id,
-			code: mcp.METHOD_NOT_FOUND,
-			err:  fmt.Errorf("tool '%s' does not support synchronous execution", request.Params.Name),
-		}
-	}
-
-	// Validate the incoming arguments against the tool's input schema, when
-	// schema validation has been enabled via WithInputSchemaValidation. A
-	// validation failure is returned as a SEP-1303 tool execution error so the
-	// model receives feedback in its context window and can self-correct.
-	if s.inputValidator != nil {
-		if _, err := s.inputValidator.validate(tool.Tool, request.Params.Arguments); err != nil {
-			return validationToolResult(err), nil
 		}
 	}
 
@@ -1903,324 +1303,13 @@ func (s *MCPServer) handleToolCall(
 		}
 	}
 
-	// Validate the tool's StructuredContent against its declared output
-	// schema when output schema validation has been enabled via
-	// WithOutputSchemaValidation. A validation failure is surfaced as a
-	// tool execution error so the client cannot silently receive a result
-	// that violates the declared contract.
-	if s.outputValidator != nil {
-		if _, vErr := s.outputValidator.validate(tool.Tool, result); vErr != nil {
-			return validationToolResult(vErr), nil
-		}
-	}
-
 	return result, nil
-}
-
-// handleTaskAugmentedToolCall handles tool calls that are executed as tasks.
-// It creates a task entry, starts async execution, and returns CreateTaskResult immediately.
-func (s *MCPServer) handleTaskAugmentedToolCall(
-	ctx context.Context,
-	id any,
-	request mcp.CallToolRequest,
-) (*mcp.CreateTaskResult, *requestError) {
-	// Look up the tool - check both taskTools and regular tools
-	s.toolsMu.RLock()
-	taskTool, isTaskTool := s.taskTools[request.Params.Name]
-	regularTool, isRegularTool := s.tools[request.Params.Name]
-	s.toolsMu.RUnlock()
-
-	// Determine which tool to use and validate task support
-	var toolToUse ServerTaskTool
-	var hasTaskHandler bool
-
-	if isTaskTool {
-		// Tool is registered as a task tool
-		toolToUse = taskTool
-		hasTaskHandler = true
-	} else if isRegularTool {
-		// Tool is a regular tool with task support
-		// Validate that it actually supports task augmentation
-		if regularTool.Tool.Execution == nil ||
-			(regularTool.Tool.Execution.TaskSupport != mcp.TaskSupportOptional &&
-				regularTool.Tool.Execution.TaskSupport != mcp.TaskSupportRequired) {
-			return nil, &requestError{
-				id:   id,
-				code: mcp.METHOD_NOT_FOUND,
-				err:  fmt.Errorf("tool '%s' does not support task augmentation", request.Params.Name),
-			}
-		}
-
-		hasTaskHandler = false
-	} else {
-		// Tool not found in either map
-		return nil, &requestError{
-			id:   id,
-			code: mcp.INVALID_PARAMS,
-			err:  fmt.Errorf("tool '%s' not found", request.Params.Name),
-		}
-	}
-
-	// Note: input schema validation (WithInputSchemaValidation) is currently
-	// only applied on the synchronous tool call path. The task-augmented path
-	// would need to surface validation failures through tasks/result rather
-	// than the create-task response; that's deferred to a follow-up.
-
-	// Generate task ID (UUID v4)
-	taskID := uuid.New().String()
-
-	// Extract TTL from task params
-	var ttl *int64
-	if request.Params.Task != nil {
-		ttl = request.Params.Task.TTL
-	}
-
-	// Create task entry (pollInterval is nil - server doesn't set a default)
-	entry, err := s.createTask(ctx, taskID, request.Params.Name, ttl, nil)
-	if err != nil {
-		return nil, &requestError{
-			id:   id,
-			code: mcp.INTERNAL_ERROR,
-			err:  err,
-		}
-	}
-
-	// Execute tool asynchronously
-	// For regular tools being used as tasks, we need different execution logic
-	if hasTaskHandler {
-		go s.executeTaskTool(ctx, entry, toolToUse, request)
-	} else {
-		// Execute regular tool wrapped as a task
-		go s.executeRegularToolAsTask(ctx, entry, regularTool, request)
-	}
-
-	// Return CreateTaskResult immediately with task as top-level field
-	// Make a copy of the task to avoid data races with background goroutine
-	s.tasksMu.RLock()
-	taskCopy := entry.task
-	s.tasksMu.RUnlock()
-
-	return &mcp.CreateTaskResult{
-		Task: taskCopy,
-	}, nil
-}
-
-// executeTaskTool executes a task tool handler asynchronously.
-// It creates a cancellable context, stores the cancel function for potential cancellation,
-// and executes the handler in the background, storing the result when complete.
-func (s *MCPServer) executeTaskTool(
-	ctx context.Context,
-	entry *taskEntry,
-	taskTool ServerTaskTool,
-	request mcp.CallToolRequest,
-) {
-	defer func() {
-		if r := recover(); r != nil {
-			s.completeTask(entry, nil, fmt.Errorf("panic in task tool handler %s: %v", request.Params.Name, r))
-		}
-	}()
-
-	// Create cancellable context for this task execution
-	taskCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	// Store cancel func in entry so it can be cancelled via tasks/cancel
-	s.tasksMu.Lock()
-	entry.cancelFunc = cancel
-	s.tasksMu.Unlock()
-
-	// Execute the task tool handler
-	result, err := taskTool.Handler(taskCtx, request)
-
-	if err != nil {
-		// If the error is due to context cancellation, don't mark as failed.
-		// The cancelTask method will handle setting the proper status.
-		// However, if cancelTask hasn't been called yet, we should still mark it.
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			// Check if task was already cancelled via tasks/cancel
-			s.tasksMu.Lock()
-			alreadyCancelled := entry.task.Status == mcp.TaskStatusCancelled
-			s.tasksMu.Unlock()
-
-			if !alreadyCancelled {
-				// Handler detected cancellation before tasks/cancel was called
-				// Mark as cancelled with the context error message
-				cancelledAt := time.Now()
-				duration := cancelledAt.Sub(entry.createdAt)
-
-				s.tasksMu.Lock()
-				if !entry.completed {
-					entry.task.Status = mcp.TaskStatusCancelled
-					entry.task.StatusMessage = err.Error()
-					entry.task.LastUpdatedAt = cancelledAt.UTC().Format(time.RFC3339)
-					entry.completed = true
-					close(entry.done)
-
-					// Decrement active tasks counter
-					s.activeTasks--
-
-					s.sendTaskStatusNotification(entry.task)
-
-					// Fire task cancellation hook
-					if s.taskHooks != nil {
-						metrics := TaskMetrics{
-							TaskID:        entry.task.TaskId,
-							ToolName:      entry.toolName,
-							Status:        entry.task.Status,
-							StatusMessage: entry.task.StatusMessage,
-							CreatedAt:     entry.createdAt,
-							CompletedAt:   &cancelledAt,
-							Duration:      duration,
-							SessionID:     entry.sessionID,
-						}
-						s.taskHooks.taskCancelled(ctx, metrics)
-					}
-				}
-				s.tasksMu.Unlock()
-			}
-			return
-		}
-
-		// Task failed - complete with error
-		s.completeTask(entry, nil, err)
-		return
-	}
-
-	// Task succeeded - store the CreateTaskResult
-	// Note: The actual result will be retrieved later via tasks/result
-	//
-	// Validate the StructuredContent against the tool's declared output
-	// schema when WithOutputSchemaValidation is enabled. If validation fails,
-	// persist a tool execution error in place of the bad result so the
-	// client cannot retrieve a result that violates the schema via
-	// tasks/result. handleTaskResult accepts both *CallToolResult and
-	// *CreateTaskResult, so storing a *CallToolResult here is safe.
-	if s.outputValidator != nil {
-		if _, vErr := s.outputValidator.validateCreateTaskResult(taskTool.Tool, result); vErr != nil {
-			s.completeTask(entry, validationToolResult(vErr), nil)
-			return
-		}
-	}
-	s.completeTask(entry, result, nil)
-}
-
-// executeRegularToolAsTask executes a regular tool handler asynchronously as a task.
-// This is used for hybrid mode where a tool with TaskSupportOptional is called with task params.
-func (s *MCPServer) executeRegularToolAsTask(
-	ctx context.Context,
-	entry *taskEntry,
-	regularTool ServerTool,
-	request mcp.CallToolRequest,
-) {
-	// Create cancellable context for this task execution
-	taskCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	// Store cancel func in entry so it can be cancelled via tasks/cancel
-	s.tasksMu.Lock()
-	entry.cancelFunc = cancel
-	s.tasksMu.Unlock()
-
-	// Execute the regular tool handler with middleware applied
-	finalHandler := regularTool.Handler
-
-	s.toolMiddlewareMu.RLock()
-	mw := s.toolHandlerMiddlewares
-	for i := len(mw) - 1; i >= 0; i-- {
-		finalHandler = mw[i](finalHandler)
-	}
-	s.toolMiddlewareMu.RUnlock()
-
-	result, err := finalHandler(taskCtx, request)
-
-	if err != nil {
-		// If the error is due to context cancellation, don't mark as failed.
-		// The cancelTask method will handle setting the proper status.
-		// However, if cancelTask hasn't been called yet, we should still mark it.
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			// Check if task was already cancelled via tasks/cancel
-			s.tasksMu.Lock()
-			alreadyCancelled := entry.task.Status == mcp.TaskStatusCancelled
-			s.tasksMu.Unlock()
-
-			if !alreadyCancelled {
-				// Handler detected cancellation before tasks/cancel was called
-				// Mark as cancelled with the context error message
-				cancelledAt := time.Now()
-				duration := cancelledAt.Sub(entry.createdAt)
-
-				s.tasksMu.Lock()
-				if !entry.completed {
-					entry.task.Status = mcp.TaskStatusCancelled
-					entry.task.StatusMessage = err.Error()
-					entry.task.LastUpdatedAt = cancelledAt.UTC().Format(time.RFC3339)
-					entry.completed = true
-					close(entry.done)
-
-					// Decrement active tasks counter
-					s.activeTasks--
-
-					s.sendTaskStatusNotification(entry.task)
-
-					// Fire task cancellation hook
-					if s.taskHooks != nil {
-						metrics := TaskMetrics{
-							TaskID:        entry.task.TaskId,
-							ToolName:      entry.toolName,
-							Status:        entry.task.Status,
-							StatusMessage: entry.task.StatusMessage,
-							CreatedAt:     entry.createdAt,
-							CompletedAt:   &cancelledAt,
-							Duration:      duration,
-							SessionID:     entry.sessionID,
-						}
-						s.taskHooks.taskCancelled(ctx, metrics)
-					}
-				}
-				s.tasksMu.Unlock()
-			}
-			return
-		}
-
-		// Task failed - complete with error
-		s.completeTask(entry, nil, err)
-		return
-	}
-
-	// Task succeeded - store the CallToolResult directly
-	// When retrieved via tasks/result, this will be returned to the client
-	//
-	// Mirror the synchronous path: validate the result's StructuredContent
-	// against the tool's declared output schema when
-	// WithOutputSchemaValidation is enabled. A validation failure replaces
-	// the result with a tool execution error so the bad payload never
-	// reaches the client via tasks/result.
-	if s.outputValidator != nil {
-		if _, vErr := s.outputValidator.validate(regularTool.Tool, result); vErr != nil {
-			s.completeTask(entry, validationToolResult(vErr), nil)
-			return
-		}
-	}
-	s.completeTask(entry, result, nil)
 }
 
 func (s *MCPServer) handleNotification(
 	ctx context.Context,
 	notification mcp.JSONRPCNotification,
 ) mcp.JSONRPCMessage {
-	// Handle cancellation notifications per MCP spec
-	if notification.Method == string(mcp.MethodNotificationCancelled) {
-		if reqID, ok := notification.Params.AdditionalFields["requestId"]; ok {
-			key := inflightKey(ctx, reqID)
-			if cancel, loaded := s.inflightCancels.LoadAndDelete(key); loaded {
-				if cancelFunc, ok := cancel.(context.CancelFunc); ok {
-					cancelFunc()
-				}
-			}
-		}
-		return nil
-	}
-
 	s.notificationHandlersMu.RLock()
 	handler, ok := s.notificationHandlers[notification.Method]
 	s.notificationHandlersMu.RUnlock()
@@ -2229,15 +1318,6 @@ func (s *MCPServer) handleNotification(
 		handler(ctx, notification)
 	}
 	return nil
-}
-
-// inflightKey returns a session-scoped key for the inflight cancellation map.
-// This prevents cross-session request ID collisions in multi-client scenarios.
-func inflightKey(ctx context.Context, requestID any) string {
-	if session := ClientSessionFromContext(ctx); session != nil {
-		return fmt.Sprintf("%s:%v", session.SessionID(), requestID)
-	}
-	return fmt.Sprintf(":%v", requestID)
 }
 
 func createResponse(id any, result any) mcp.JSONRPCMessage {
@@ -2254,530 +1334,4 @@ func createErrorResponse(
 		ID:      mcp.NewRequestId(id),
 		Error:   mcp.NewJSONRPCErrorDetails(code, message, nil),
 	}
-}
-
-//
-// Task Request Handlers
-//
-
-// handleGetTask handles tasks/get requests to retrieve task status.
-func (s *MCPServer) handleGetTask(
-	ctx context.Context,
-	id any,
-	request mcp.GetTaskRequest,
-) (*mcp.GetTaskResult, *requestError) {
-	task, _, err := s.getTask(ctx, request.Params.TaskId)
-	if err != nil {
-		return nil, &requestError{
-			id:   id,
-			code: mcp.INVALID_PARAMS,
-			err:  err,
-		}
-	}
-
-	result := mcp.NewGetTaskResult(task)
-	return &result, nil
-}
-
-// handleListTasks handles tasks/list requests to list all tasks.
-func (s *MCPServer) handleListTasks(
-	ctx context.Context,
-	id any,
-	request mcp.ListTasksRequest,
-) (*mcp.ListTasksResult, *requestError) {
-	tasks := s.listTasks(ctx)
-
-	// Sort tasks by TaskId for consistent pagination
-	sort.Slice(tasks, func(i, j int) bool {
-		return tasks[i].TaskId < tasks[j].TaskId
-	})
-
-	// Apply pagination
-	tasksToReturn, nextCursor, err := listByPagination(
-		ctx,
-		s,
-		request.Params.Cursor,
-		tasks,
-	)
-	if err != nil {
-		return nil, &requestError{
-			id:   id,
-			code: mcp.INVALID_PARAMS,
-			err:  err,
-		}
-	}
-
-	result := mcp.ListTasksResult{
-		Tasks: tasksToReturn,
-		PaginatedResult: mcp.PaginatedResult{
-			NextCursor: nextCursor,
-		},
-	}
-	return &result, nil
-}
-
-// handleTaskResult handles tasks/result requests to get task results.
-func (s *MCPServer) handleTaskResult(
-	ctx context.Context,
-	id any,
-	request mcp.TaskResultRequest,
-) (*mcp.TaskResultResult, *requestError) {
-	task, done, err := s.getTask(ctx, request.Params.TaskId)
-	if err != nil {
-		return nil, &requestError{
-			id:   id,
-			code: mcp.INVALID_PARAMS,
-			err:  err,
-		}
-	}
-
-	// Wait for task completion if not terminal
-	if !task.Status.IsTerminal() {
-		select {
-		case <-done:
-			// Task completed
-		case <-ctx.Done():
-			return nil, &requestError{
-				id:   id,
-				code: mcp.REQUEST_INTERRUPTED,
-				err:  ctx.Err(),
-			}
-		}
-	}
-
-	// Re-fetch the task entry to get the final result/error under lock
-	entry, err := s.getTaskEntry(ctx, request.Params.TaskId)
-	if err != nil {
-		return nil, &requestError{
-			id:   id,
-			code: mcp.INVALID_PARAMS,
-			err:  err,
-		}
-	}
-
-	// Read result and error under lock
-	s.tasksMu.RLock()
-	storedResult := entry.result
-	resultErr := entry.resultErr
-	taskID := entry.task.TaskId
-	s.tasksMu.RUnlock()
-
-	// Return error if task failed
-	if resultErr != nil {
-		return nil, &requestError{
-			id:   id,
-			code: mcp.INTERNAL_ERROR,
-			err:  resultErr,
-		}
-	}
-
-	// Extract the CallToolResult and populate TaskResultResult
-	result := &mcp.TaskResultResult{
-		Result: mcp.Result{
-			Meta: mcp.WithRelatedTask(taskID),
-		},
-	}
-
-	switch taskResult := storedResult.(type) {
-	case *mcp.CallToolResult:
-		result.Content = taskResult.Content
-		result.StructuredContent = taskResult.StructuredContent
-		result.IsError = taskResult.IsError
-		mergeTaskResultMeta(result, taskResult.Meta)
-	case *mcp.CreateTaskResult:
-		result.Content = taskResult.Content
-		result.StructuredContent = taskResult.StructuredContent
-		result.IsError = taskResult.IsError
-		mergeTaskResultMeta(result, taskResult.Meta)
-	}
-
-	return result, nil
-}
-
-func mergeTaskResultMeta(result *mcp.TaskResultResult, meta *mcp.Meta) {
-	if meta == nil {
-		return
-	}
-
-	if result.Meta.AdditionalFields == nil {
-		result.Meta.AdditionalFields = make(map[string]any)
-	}
-
-	for k, v := range meta.AdditionalFields {
-		if k != mcp.RelatedTaskMetaKey {
-			result.Meta.AdditionalFields[k] = v
-		}
-	}
-}
-
-// handleCancelTask handles tasks/cancel requests to cancel a task.
-func (s *MCPServer) handleCancelTask(
-	ctx context.Context,
-	id any,
-	request mcp.CancelTaskRequest,
-) (*mcp.CancelTaskResult, *requestError) {
-	err := s.cancelTask(ctx, request.Params.TaskId)
-	if err != nil {
-		return nil, &requestError{
-			id:   id,
-			code: mcp.INVALID_PARAMS,
-			err:  err,
-		}
-	}
-
-	// Get the updated task
-	task, _, err := s.getTask(ctx, request.Params.TaskId)
-	if err != nil {
-		return nil, &requestError{
-			id:   id,
-			code: mcp.INVALID_PARAMS,
-			err:  err,
-		}
-	}
-
-	result := mcp.NewCancelTaskResult(task)
-	return &result, nil
-}
-
-func (s *MCPServer) handleComplete(
-	ctx context.Context,
-	id any,
-	request mcp.CompleteRequest,
-) (*mcp.CompleteResult, *requestError) {
-	var completion *mcp.Completion
-	var err error
-	switch ref := request.Params.Ref.(type) {
-	case mcp.PromptReference:
-		completion, err = s.promptCompletionProvider.CompletePromptArgument(
-			ctx,
-			ref.Name,
-			request.Params.Argument,
-			request.Params.Context,
-		)
-	case mcp.ResourceReference:
-		completion, err = s.resourceCompletionProvider.CompleteResourceArgument(
-			ctx,
-			ref.URI,
-			request.Params.Argument,
-			request.Params.Context,
-		)
-	default:
-		return nil, &requestError{
-			id:   id,
-			code: mcp.INVALID_REQUEST,
-			err:  fmt.Errorf("unknown reference type: %v", ref),
-		}
-	}
-	if err != nil {
-		return nil, &requestError{
-			id:   id,
-			code: mcp.INTERNAL_ERROR,
-			err:  err,
-		}
-	}
-
-	// Defensive nil check: default providers always return non-nil completions,
-	// but custom providers might erroneously return nil. Treat as empty result.
-	if completion == nil {
-		return &mcp.CompleteResult{}, nil
-	}
-
-	return &mcp.CompleteResult{
-		Completion: *completion,
-	}, nil
-}
-
-//
-// Task Management Methods
-//
-
-// createTask creates a new task entry and returns it.
-// Returns an error if the max concurrent tasks limit is exceeded.
-func (s *MCPServer) createTask(ctx context.Context, taskID string, toolName string, ttl *int64, pollInterval *int64) (*taskEntry, error) {
-	// Build task entry first (no lock needed)
-	opts := []mcp.TaskOption{}
-	if ttl != nil {
-		opts = append(opts, mcp.WithTaskTTL(*ttl))
-	}
-	if pollInterval != nil {
-		opts = append(opts, mcp.WithTaskPollInterval(*pollInterval))
-	}
-	task := mcp.NewTask(taskID, opts...)
-	createdAt := time.Now()
-
-	entry := &taskEntry{
-		task:      task,
-		sessionID: getSessionID(ctx),
-		toolName:  toolName,
-		createdAt: createdAt,
-		done:      make(chan struct{}),
-	}
-
-	// Single critical section for check + increment + insert
-	s.tasksMu.Lock()
-	defer s.tasksMu.Unlock()
-
-	// Check concurrent task limit
-	if s.maxConcurrentTasks != nil && *s.maxConcurrentTasks > 0 {
-		if s.activeTasks >= *s.maxConcurrentTasks {
-			return nil, fmt.Errorf("max concurrent tasks limit reached (%d)", *s.maxConcurrentTasks)
-		}
-	}
-
-	// Increment active task counter and insert task atomically
-	s.activeTasks++
-	s.tasks[taskID] = entry
-
-	// Fire task created hook
-	if s.taskHooks != nil {
-		metrics := TaskMetrics{
-			TaskID:    taskID,
-			ToolName:  toolName,
-			Status:    task.Status,
-			CreatedAt: createdAt,
-			SessionID: getSessionID(ctx),
-		}
-		s.taskHooks.taskCreated(ctx, metrics)
-	}
-
-	// Start TTL cleanup if specified
-	if ttl != nil && *ttl > 0 {
-		go s.scheduleTaskCleanup(taskID, *ttl)
-	}
-
-	return entry, nil
-}
-
-// getTask retrieves a task by ID, checking session isolation if applicable.
-// Returns a copy of the task and the done channel for waiting on completion.
-func (s *MCPServer) getTask(ctx context.Context, taskID string) (mcp.Task, chan struct{}, error) {
-	s.tasksMu.RLock()
-	entry, exists := s.tasks[taskID]
-	if !exists {
-		// Check if this task was recently expired
-		if _, wasExpired := s.expiredTasks[taskID]; wasExpired {
-			s.tasksMu.RUnlock()
-			return mcp.Task{}, nil, fmt.Errorf("task has expired")
-		}
-		s.tasksMu.RUnlock()
-		return mcp.Task{}, nil, fmt.Errorf("task not found")
-	}
-
-	// Verify session isolation
-	sessionID := getSessionID(ctx)
-	if entry.sessionID != "" && sessionID != "" && entry.sessionID != sessionID {
-		s.tasksMu.RUnlock()
-		return mcp.Task{}, nil, fmt.Errorf("task not found")
-	}
-
-	// Return a copy of the task and the done channel
-	taskCopy := entry.task
-	done := entry.done
-	s.tasksMu.RUnlock()
-
-	return taskCopy, done, nil
-}
-
-// getTaskEntry retrieves the raw task entry for internal use (requires caller to handle synchronization).
-func (s *MCPServer) getTaskEntry(ctx context.Context, taskID string) (*taskEntry, error) {
-	s.tasksMu.RLock()
-	entry, exists := s.tasks[taskID]
-	if !exists {
-		// Check if this task was recently expired
-		if _, wasExpired := s.expiredTasks[taskID]; wasExpired {
-			s.tasksMu.RUnlock()
-			return nil, fmt.Errorf("task has expired")
-		}
-		s.tasksMu.RUnlock()
-		return nil, fmt.Errorf("task not found")
-	}
-	s.tasksMu.RUnlock()
-
-	// Verify session isolation
-	sessionID := getSessionID(ctx)
-	if entry.sessionID != "" && sessionID != "" && entry.sessionID != sessionID {
-		return nil, fmt.Errorf("task not found")
-	}
-
-	return entry, nil
-}
-
-// listTasks returns copies of all tasks for the current session.
-func (s *MCPServer) listTasks(ctx context.Context) []mcp.Task {
-	sessionID := getSessionID(ctx)
-
-	s.tasksMu.RLock()
-	defer s.tasksMu.RUnlock()
-
-	var tasks []mcp.Task
-	for _, entry := range s.tasks {
-		// Filter by session if applicable
-		if sessionID == "" || entry.sessionID == "" || entry.sessionID == sessionID {
-			tasks = append(tasks, entry.task)
-		}
-	}
-
-	return tasks
-}
-
-// completeTask marks a task as completed with the given result.
-func (s *MCPServer) completeTask(entry *taskEntry, result any, err error) {
-	s.tasksMu.Lock()
-	defer s.tasksMu.Unlock()
-
-	// Guard against double completion
-	if entry.completed {
-		return
-	}
-
-	completedAt := time.Now()
-	duration := completedAt.Sub(entry.createdAt)
-
-	if err != nil {
-		entry.task.Status = mcp.TaskStatusFailed
-		entry.task.StatusMessage = err.Error()
-		entry.resultErr = err
-	} else {
-		entry.task.Status = mcp.TaskStatusCompleted
-		entry.result = result
-	}
-
-	// Update the lastUpdatedAt timestamp
-	entry.task.LastUpdatedAt = completedAt.UTC().Format(time.RFC3339)
-
-	// Mark as completed and signal
-	entry.completed = true
-	close(entry.done)
-
-	// Decrement active tasks counter
-	s.activeTasks--
-
-	// Send task status notification
-	s.sendTaskStatusNotification(entry.task)
-
-	// Fire task hooks
-	if s.taskHooks != nil {
-		metrics := TaskMetrics{
-			TaskID:        entry.task.TaskId,
-			ToolName:      entry.toolName,
-			Status:        entry.task.Status,
-			StatusMessage: entry.task.StatusMessage,
-			CreatedAt:     entry.createdAt,
-			CompletedAt:   &completedAt,
-			Duration:      duration,
-			SessionID:     entry.sessionID,
-			Error:         err,
-		}
-
-		if err != nil {
-			s.taskHooks.taskFailed(context.Background(), metrics)
-		} else {
-			s.taskHooks.taskCompleted(context.Background(), metrics)
-		}
-	}
-}
-
-// cancelTask cancels a running task.
-func (s *MCPServer) cancelTask(ctx context.Context, taskID string) error {
-	entry, err := s.getTaskEntry(ctx, taskID)
-	if err != nil {
-		return err
-	}
-
-	s.tasksMu.Lock()
-	defer s.tasksMu.Unlock()
-
-	// Don't allow cancelling already completed tasks
-	if entry.completed {
-		return fmt.Errorf("cannot cancel task in terminal status: %s", entry.task.Status)
-	}
-
-	// Cancel the context if available
-	if entry.cancelFunc != nil {
-		entry.cancelFunc()
-	}
-
-	cancelledAt := time.Now()
-	duration := cancelledAt.Sub(entry.createdAt)
-
-	entry.task.Status = mcp.TaskStatusCancelled
-	entry.task.StatusMessage = "Task cancelled by request"
-	// Update the lastUpdatedAt timestamp
-	entry.task.LastUpdatedAt = cancelledAt.UTC().Format(time.RFC3339)
-
-	// Mark as completed and signal
-	entry.completed = true
-	close(entry.done)
-
-	// Decrement active tasks counter
-	s.activeTasks--
-
-	// Send task status notification
-	s.sendTaskStatusNotification(entry.task)
-
-	// Fire task cancellation hook
-	if s.taskHooks != nil {
-		metrics := TaskMetrics{
-			TaskID:        entry.task.TaskId,
-			ToolName:      entry.toolName,
-			Status:        entry.task.Status,
-			StatusMessage: entry.task.StatusMessage,
-			CreatedAt:     entry.createdAt,
-			CompletedAt:   &cancelledAt,
-			Duration:      duration,
-			SessionID:     entry.sessionID,
-		}
-		s.taskHooks.taskCancelled(ctx, metrics)
-	}
-
-	return nil
-}
-
-// scheduleTaskCleanup removes the task from storage after its TTL expires so
-// clients have the full TTL window to retrieve results.
-func (s *MCPServer) scheduleTaskCleanup(taskID string, ttlMs int64) {
-	time.Sleep(time.Duration(ttlMs) * time.Millisecond)
-
-	s.tasksMu.Lock()
-	delete(s.tasks, taskID)
-	s.expiredTasks[taskID] = time.Now()
-	s.tasksMu.Unlock()
-
-	// Remove tombstone after 5 minutes.
-	time.AfterFunc(5*time.Minute, func() {
-		s.tasksMu.Lock()
-		delete(s.expiredTasks, taskID)
-		s.tasksMu.Unlock()
-	})
-}
-
-// sendTaskStatusNotification sends a notification when a task's status changes.
-func (s *MCPServer) sendTaskStatusNotification(task mcp.Task) {
-	// Convert task to map[string]any for notification params
-	taskMap := map[string]any{
-		"taskId":        task.TaskId,
-		"status":        task.Status,
-		"createdAt":     task.CreatedAt,
-		"lastUpdatedAt": task.LastUpdatedAt,
-	}
-
-	if task.StatusMessage != "" {
-		taskMap["statusMessage"] = task.StatusMessage
-	}
-	if task.TTL != nil {
-		taskMap["ttl"] = *task.TTL
-	}
-	if task.PollInterval != nil {
-		taskMap["pollInterval"] = *task.PollInterval
-	}
-
-	s.SendNotificationToAllClients(mcp.MethodNotificationTasksStatus, taskMap)
-}
-
-// getSessionID extracts the session ID from the context.
-func getSessionID(ctx context.Context) string {
-	if session := ClientSessionFromContext(ctx); session != nil {
-		return session.SessionID()
-	}
-	return ""
 }

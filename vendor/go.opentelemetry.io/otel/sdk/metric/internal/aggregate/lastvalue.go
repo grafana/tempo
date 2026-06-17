@@ -14,11 +14,10 @@ import (
 
 // lastValuePoint is timestamped measurement data.
 type lastValuePoint[N int64 | float64] struct {
-	attrs         attribute.Set
-	value         atomicN[N]
-	res           FilteredExemplarReservoir[N]
-	startTime     time.Time
-	dropExemplars bool
+	attrs     attribute.Set
+	value     atomicN[N]
+	res       FilteredExemplarReservoir[N]
+	startTime time.Time
 }
 
 // lastValueMap summarizes a set of measurements as the last one made.
@@ -34,22 +33,17 @@ func (s *lastValueMap[N]) measure(
 	droppedAttr []attribute.KeyValue,
 ) {
 	lv := s.values.LoadOrStoreAttr(fltrAttr, func(attr attribute.Set) any {
-		r := s.newRes(attr)
-		_, isDrop := r.(*dropRes[N])
 		p := &lastValuePoint[N]{
-			res:           r,
-			attrs:         attr,
-			startTime:     now(),
-			dropExemplars: isDrop,
+			res:       s.newRes(attr),
+			attrs:     attr,
+			startTime: now(),
 		}
 		p.value.Store(value)
 		return p
 	}).(*lastValuePoint[N])
 
 	lv.value.Store(value)
-	if !lv.dropExemplars {
-		lv.res.Offer(ctx, value, droppedAttr)
-	}
+	lv.res.Offer(ctx, value, droppedAttr)
 }
 
 func newDeltaLastValue[N int64 | float64](

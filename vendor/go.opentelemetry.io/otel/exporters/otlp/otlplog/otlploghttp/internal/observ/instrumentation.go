@@ -21,8 +21,8 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp/internal/x"
 	"go.opentelemetry.io/otel/internal/global"
 	"go.opentelemetry.io/otel/metric"
-	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
-	"go.opentelemetry.io/otel/semconv/v1.41.0/otelconv"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
+	"go.opentelemetry.io/otel/semconv/v1.40.0/otelconv"
 )
 
 const (
@@ -69,7 +69,6 @@ func get[T any](pool *sync.Pool) *[]T {
 }
 
 func put[T any](pool *sync.Pool, value *[]T) {
-	clear(*value) // erase elements to allow GC to collect what they refer to.
 	*value = (*value)[:0]
 	pool.Put(value)
 }
@@ -269,10 +268,11 @@ func (e ExportOp) recordOption(err error, code int) metric.RecordOption {
 	defer put(attrsPool, attrs)
 
 	*attrs = append(*attrs, e.inst.presetAttrs...)
-	if code != 0 {
-		*attrs = append(*attrs, semconv.HTTPResponseStatusCode(code))
-	}
-	*attrs = append(*attrs, semconv.ErrorType(err))
+	*attrs = append(
+		*attrs,
+		semconv.HTTPResponseStatusCode(code),
+		semconv.ErrorType(err),
+	)
 	return metric.WithAttributeSet(attribute.NewSet(*attrs...))
 }
 
@@ -305,10 +305,7 @@ var errPool = sync.Pool{
 // the provided non-nil err.
 func rejected(n int64, err error) int64 {
 	ps := errPool.Get().(*internal.PartialSuccess)
-	defer func() {
-		*ps = internal.PartialSuccess{} // erase fields to allow GC to collect them.
-		errPool.Put(ps)
-	}()
+	defer errPool.Put(ps)
 
 	if errors.As(err, ps) {
 		// Bound RejectedItems to [0, n]. This should not be needed,
@@ -319,7 +316,7 @@ func rejected(n int64, err error) int64 {
 	return n
 }
 
-// parseTarget parses the host and port from target that has the form
+// parseEndpoint parses the host and port from target that has the form
 // "host[:port]", or it returns an error if the target is not parsable.
 //
 // If no port is specified, -1 is returned.

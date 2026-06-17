@@ -45,7 +45,6 @@ func StringGraphemes(s string) Graphemes[string] {
 func (options Options) StringGraphemes(s string) Graphemes[string] {
 	g := graphemes.FromString(s)
 	g.AnsiEscapeSequences = options.ControlSequences
-	g.AnsiEscapeSequences8Bit = options.ControlSequences8Bit
 
 	return Graphemes[string]{iter: g, options: options}
 }
@@ -67,7 +66,6 @@ func BytesGraphemes(s []byte) Graphemes[[]byte] {
 func (options Options) BytesGraphemes(s []byte) Graphemes[[]byte] {
 	g := graphemes.FromBytes(s)
 	g.AnsiEscapeSequences = options.ControlSequences
-	g.AnsiEscapeSequences8Bit = options.ControlSequences8Bit
 
 	return Graphemes[[]byte]{iter: g, options: options}
 }

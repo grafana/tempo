@@ -8,9 +8,8 @@ import (
 
 var ExporterPersistRequestContextFeatureGate = featuregate.GlobalRegistry().MustRegister(
 	"exporter.PersistRequestContext",
-	featuregate.StageStable,
+	featuregate.StageBeta,
 	featuregate.WithRegisterDescription("controls whether context should be stored alongside requests in the persistent queue"),
 	featuregate.WithRegisterReferenceURL("https://github.com/open-telemetry/opentelemetry-collector/pull/13188"),
 	featuregate.WithRegisterFromVersion("v0.128.0"),
-	featuregate.WithRegisterToVersion("v0.154.0"),
 )

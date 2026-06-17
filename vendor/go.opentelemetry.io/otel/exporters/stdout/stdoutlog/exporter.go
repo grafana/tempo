@@ -8,9 +8,6 @@ import (
 	"encoding/json"
 	"sync/atomic"
 
-	"go.opentelemetry.io/otel/exporters/stdout/stdoutlog/internal/counter"
-	"go.opentelemetry.io/otel/exporters/stdout/stdoutlog/internal/observ"
-
 	"go.opentelemetry.io/otel/sdk/log"
 )
 
@@ -21,7 +18,6 @@ var _ log.Exporter = &Exporter{}
 type Exporter struct {
 	encoder    atomic.Pointer[json.Encoder]
 	timestamps bool
-	inst       *observ.Instrumentation
 }
 
 // New creates an [Exporter].
@@ -33,29 +29,19 @@ func New(options ...Option) (*Exporter, error) {
 		enc.SetIndent("", "\t")
 	}
 
-	e := &Exporter{
+	e := Exporter{
 		timestamps: cfg.Timestamps,
 	}
 	e.encoder.Store(enc)
 
-	var err error
-	e.inst, err = observ.NewInstrumentation(counter.NextExporterID())
-	return e, err
+	return &e, nil
 }
 
 // Export exports log records to writer.
-func (e *Exporter) Export(ctx context.Context, records []log.Record) (err error) {
+func (e *Exporter) Export(ctx context.Context, records []log.Record) error {
 	enc := e.encoder.Load()
 	if enc == nil {
 		return nil
-	}
-
-	var success int64
-	if e.inst != nil {
-		op := e.inst.ExportLogs(ctx, int64(len(records)))
-		defer func() {
-			op.End(success, err)
-		}()
 	}
 
 	for _, record := range records {
@@ -69,7 +55,6 @@ func (e *Exporter) Export(ctx context.Context, records []log.Record) (err error)
 		if err := enc.Encode(recordJSON); err != nil {
 			return err
 		}
-		success++
 	}
 	return nil
 }

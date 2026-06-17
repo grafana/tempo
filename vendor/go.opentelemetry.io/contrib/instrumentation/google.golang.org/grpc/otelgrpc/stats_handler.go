@@ -13,8 +13,8 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
 	oldrpcconv "go.opentelemetry.io/otel/semconv/v1.37.0/rpcconv" //nolint:depguard // Use of v1.37.0 is required for backward compatibility stability opt-in.
-	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
-	"go.opentelemetry.io/otel/semconv/v1.41.0/rpcconv"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
+	"go.opentelemetry.io/otel/semconv/v1.40.0/rpcconv"
 	"go.opentelemetry.io/otel/trace"
 
 	grpc_codes "google.golang.org/grpc/codes"
@@ -367,39 +367,27 @@ func (*config) handleRPC(
 			span.End()
 		}
 
-		var durationEnabled bool
-		var oldDurationEnabled bool
+		var metricAttrs []attribute.KeyValue
+		if gctx != nil {
+			// Don't use gctx.metricAttrSet here, because it requires passing
+			// multiple RecordOptions, which would call metric.mergeSets and
+			// allocate a new set for each Record call.
+			metricAttrs = make([]attribute.KeyValue, 0, len(gctx.metricAttrs)+1)
+			metricAttrs = append(metricAttrs, gctx.metricAttrs...)
+		}
+		metricAttrs = append(metricAttrs, rpcStatusAttr)
+		// Allocate vararg slice once.
+		recordOpts := []metric.RecordOption{metric.WithAttributeSet(attribute.NewSet(metricAttrs...))}
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		// Measure right before calling Record() to capture as much elapsed time as possible.
+		elapsedTime := float64(rs.EndTime.Sub(rs.BeginTime)) / float64(time.Second)
 
 		if duration != nil {
-			durationEnabled = duration.Enabled(ctx)
+			duration.Record(ctx, elapsedTime, recordOpts...)
 		}
 		if oldDuration != nil {
-			oldDurationEnabled = oldDuration.Enabled(ctx)
-		}
-
-		if durationEnabled || oldDurationEnabled {
-			var metricAttrs []attribute.KeyValue
-			if gctx != nil {
-				// Don't use gctx.metricAttrSet here, because it requires passing
-				// multiple RecordOptions, which would call metric.mergeSets and
-				// allocate a new set for each Record call.
-				metricAttrs = make([]attribute.KeyValue, 0, len(gctx.metricAttrs)+1)
-				metricAttrs = append(metricAttrs, gctx.metricAttrs...)
-			}
-			metricAttrs = append(metricAttrs, rpcStatusAttr)
-			// Allocate vararg slice once.
-			recordOpts := []metric.RecordOption{metric.WithAttributeSet(attribute.NewSet(metricAttrs...))}
-
-			// Use floating point division here for higher precision (instead of Millisecond method).
-			// Measure right before calling Record() to capture as much elapsed time as possible.
-			elapsedTime := float64(rs.EndTime.Sub(rs.BeginTime)) / float64(time.Second)
-
-			if durationEnabled {
-				duration.Record(ctx, elapsedTime, recordOpts...)
-			}
-			if oldDurationEnabled {
-				oldDuration.Record(ctx, elapsedTime*1000.0, recordOpts...)
-			}
+			oldDuration.Record(ctx, elapsedTime*1000.0, recordOpts...)
 		}
 
 	default:

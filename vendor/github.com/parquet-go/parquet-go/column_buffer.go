@@ -136,7 +136,6 @@ func (col *reversedColumnBuffer) Less(i, j int) bool { return col.ColumnBuffer.L
 var (
 	_ ColumnBuffer = (*optionalColumnBuffer)(nil)
 	_ ColumnBuffer = (*repeatedColumnBuffer)(nil)
-	_ ColumnBuffer = (*nullColumnBuffer)(nil)
 	_ ColumnBuffer = (*booleanColumnBuffer)(nil)
 	_ ColumnBuffer = (*int32ColumnBuffer)(nil)
 	_ ColumnBuffer = (*int64ColumnBuffer)(nil)

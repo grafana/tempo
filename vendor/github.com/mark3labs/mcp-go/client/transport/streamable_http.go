@@ -20,7 +20,6 @@ import (
 	"github.com/mark3labs/mcp-go/util"
 )
 
-// StreamableHTTPCOption configures a StreamableHTTP transport client.
 type StreamableHTTPCOption func(*StreamableHTTP)
 
 // WithContinuousListening enables receiving server-to-client notifications when no request is in flight.
@@ -36,21 +35,19 @@ func WithContinuousListening() StreamableHTTPCOption {
 	}
 }
 
-// WithHTTPBasicClient sets a custom HTTP client on the StreamableHTTP transport.
+// WithHTTPClient sets a custom HTTP client on the StreamableHTTP transport.
 func WithHTTPBasicClient(client *http.Client) StreamableHTTPCOption {
 	return func(sc *StreamableHTTP) {
 		sc.httpClient = client
 	}
 }
 
-// WithHTTPHeaders sets static headers for StreamableHTTP requests.
 func WithHTTPHeaders(headers map[string]string) StreamableHTTPCOption {
 	return func(sc *StreamableHTTP) {
 		sc.headers = headers
 	}
 }
 
-// WithHTTPHeaderFunc sets a function that returns headers for StreamableHTTP requests.
 func WithHTTPHeaderFunc(headerFunc HTTPHeaderFunc) StreamableHTTPCOption {
 	return func(sc *StreamableHTTP) {
 		sc.headerFunc = headerFunc
@@ -78,8 +75,6 @@ func WithHTTPLogger(logger util.Logger) StreamableHTTPCOption {
 	}
 }
 
-// WithLogger sets a custom logger for the StreamableHTTP transport.
-//
 // Deprecated: Use [WithHTTPLogger] instead.
 func WithLogger(logger util.Logger) StreamableHTTPCOption {
 	return WithHTTPLogger(logger)
@@ -89,15 +84,6 @@ func WithLogger(logger util.Logger) StreamableHTTPCOption {
 func WithSession(sessionID string) StreamableHTTPCOption {
 	return func(sc *StreamableHTTP) {
 		sc.sessionID.Store(sessionID)
-	}
-}
-
-// WithStreamableHTTPHost sets a custom Host header for the StreamableHTTP client, enabling manual DNS resolution.
-// This allows connecting to an IP address while sending a specific Host header to the server.
-// For example, connecting to "http://192.168.1.100:8080/mcp" but sending Host: "api.example.com"
-func WithStreamableHTTPHost(host string) StreamableHTTPCOption {
-	return func(sc *StreamableHTTP) {
-		sc.host = host
 	}
 }
 
@@ -117,7 +103,6 @@ type StreamableHTTP struct {
 	httpClient          *http.Client
 	headers             map[string]string
 	headerFunc          HTTPHeaderFunc
-	host                string
 	logger              util.Logger
 	getListeningEnabled bool
 
@@ -134,11 +119,11 @@ type StreamableHTTP struct {
 	requestHandler RequestHandler
 	requestMu      sync.RWMutex
 
-	closed    chan struct{}
-	closeOnce sync.Once
+	closed chan struct{}
 
 	// OAuth support
 	oauthHandler *OAuthHandler
+	wg           sync.WaitGroup
 }
 
 // NewStreamableHTTP creates a new Streamable HTTP transport with the given server URL.
@@ -167,10 +152,8 @@ func NewStreamableHTTP(serverURL string, options ...StreamableHTTPCOption) (*Str
 
 	// If OAuth is configured, set the base URL for metadata discovery
 	if smc.oauthHandler != nil {
-		discoveryURL := *parsedURL
-		discoveryURL.RawQuery = ""
-		discoveryURL.Fragment = ""
-		baseURL := discoveryURL.String()
+		// Extract base URL from server URL for metadata discovery
+		baseURL := fmt.Sprintf("%s://%s", parsedURL.Scheme, parsedURL.Host)
 		smc.oauthHandler.SetBaseURL(baseURL)
 	}
 
@@ -189,19 +172,12 @@ func (c *StreamableHTTP) Start(ctx context.Context) error {
 	// For Streamable HTTP, we don't need to establish a persistent connection by default
 	if c.getListeningEnabled {
 		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					c.logger.Errorf("panic in listener goroutine: %v", r)
-				}
-			}()
 			select {
 			case <-c.initialized:
 				ctx, cancel := c.contextAwareOfClientClose(ctx)
 				defer cancel()
 				c.listenForever(ctx)
 			case <-c.closed:
-				return
-			case <-ctx.Done():
 				return
 			}
 		}()
@@ -212,14 +188,21 @@ func (c *StreamableHTTP) Start(ctx context.Context) error {
 
 // Close closes the all the HTTP connections to the server.
 func (c *StreamableHTTP) Close() error {
-	c.closeOnce.Do(func() {
-		// Cancel all in-flight requests
-		close(c.closed)
+	select {
+	case <-c.closed:
+		return nil
+	default:
+	}
+	// Cancel all in-flight requests
+	close(c.closed)
 
-		sessionId := c.sessionID.Load().(string)
-		if sessionId != "" {
-			c.sessionID.Store("")
-			// notify server session closed
+	sessionId := c.sessionID.Load().(string)
+	if sessionId != "" {
+		c.sessionID.Store("")
+		c.wg.Add(1)
+		// notify server session closed
+		go func() {
+			defer c.wg.Done()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			req, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.serverURL.String(), nil)
@@ -234,19 +217,15 @@ func (c *StreamableHTTP) Close() error {
 					req.Header.Set(HeaderKeyProtocolVersion, version)
 				}
 			}
-
-			// Set custom Host header if provided
-			if c.host != "" {
-				req.Host = c.host
-			}
 			res, err := c.httpClient.Do(req)
 			if err != nil {
 				c.logger.Errorf("failed to send close request: %v", err)
 				return
 			}
 			res.Body.Close()
-		}
-	})
+		}()
+	}
+	c.wg.Wait()
 	return nil
 }
 
@@ -258,233 +237,9 @@ func (c *StreamableHTTP) SetProtocolVersion(version string) {
 // ErrOAuthAuthorizationRequired is a sentinel error for OAuth authorization required
 var ErrOAuthAuthorizationRequired = errors.New("no valid token available, authorization required")
 
-// ErrAuthorizationRequired is a sentinel error for authorization required (401)
-var ErrAuthorizationRequired = errors.New("authorization required")
-
-// parseAuthParams parses the auth-params from a WWW-Authenticate header value
-// per RFC 7235. It skips the auth-scheme (first token) and returns a map of
-// key=value pairs. Values may be tokens or quoted-strings (with backslash
-// escaping per RFC 7230 §3.2.6).
-func parseAuthParams(header string) map[string]string {
-	params := make(map[string]string)
-
-	// Skip leading whitespace
-	header = strings.TrimSpace(header)
-	if header == "" {
-		return params
-	}
-
-	// Skip the auth-scheme (first token before space)
-	_, rest, found := strings.Cut(header, " ")
-	if !found {
-		return params // auth-scheme only, no params
-	}
-	rest = strings.TrimSpace(rest)
-
-	for rest != "" {
-		rest = strings.TrimSpace(rest)
-		if rest == "" {
-			break
-		}
-
-		// Parse key
-		eqIdx := strings.IndexByte(rest, '=')
-		if eqIdx == -1 {
-			break
-		}
-		key := strings.TrimSpace(rest[:eqIdx])
-		rest = strings.TrimLeft(rest[eqIdx+1:], " \t")
-
-		// Parse value: quoted-string or token
-		var value string
-		if len(rest) > 0 && rest[0] == '"' {
-			value, rest = parseQuotedString(rest)
-		} else {
-			// Token value: ends at comma, space, or end of string
-			end := strings.IndexAny(rest, ", \t")
-			if end == -1 {
-				value = rest
-				rest = ""
-			} else {
-				value = rest[:end]
-				rest = rest[end:]
-			}
-		}
-
-		params[key] = value
-
-		// Skip comma separator
-		rest = strings.TrimSpace(rest)
-		if len(rest) > 0 && rest[0] == ',' {
-			rest = rest[1:]
-		}
-	}
-
-	return params
-}
-
-// parseQuotedString parses a quoted-string value per RFC 7230 §3.2.6.
-// Input must start with a double-quote. Returns the unescaped value and
-// the remaining unparsed input after the closing quote.
-func parseQuotedString(s string) (value, rest string) {
-	if len(s) == 0 || s[0] != '"' {
-		return "", s
-	}
-	s = s[1:] // skip opening quote
-
-	var b strings.Builder
-	for i := 0; i < len(s); i++ {
-		switch s[i] {
-		case '\\':
-			if i+1 < len(s) {
-				b.WriteByte(s[i+1])
-				i++ // skip escaped char
-			}
-		case '"':
-			return b.String(), s[i+1:]
-		default:
-			b.WriteByte(s[i])
-		}
-	}
-	// No closing quote found; return what we have
-	return b.String(), ""
-}
-
-// extractResourceMetadataURL extracts the resource_metadata parameter from WWW-Authenticate headers
-// per RFC9728 Section 5.1. Scans all provided header values since a response may contain multiple
-// WWW-Authenticate headers (RFC 9110). Returns empty string if not found.
-// Example: Bearer resource_metadata="https://resource.example.com/.well-known/oauth-protected-resource"
-func extractResourceMetadataURL(wwwAuthHeaders []string) string {
-	for _, header := range wwwAuthHeaders {
-		for _, u := range extractResourceMetadataURLs(header) {
-			if u != "" {
-				return u
-			}
-		}
-	}
-	return ""
-}
-
-// extractResourceMetadataURLs returns every resource_metadata parameter
-// value from a single WWW-Authenticate header value per RFC 9728 §5.1,
-// in the order they appear. Returns an empty slice when the header is
-// empty or no such parameters are present. Parameter names are matched
-// case-insensitively per RFC 9110 §11.2; both quoted-string and token
-// value forms are accepted. Multiple occurrences are possible when a
-// single header value contains several Bearer challenges each carrying
-// their own resource_metadata — an attacker-controlled first candidate
-// must not mask a legitimate later one.
-func extractResourceMetadataURLs(header string) []string {
-	const target = "resource_metadata"
-	var out []string
-	i := 0
-	for i < len(header) {
-		// Advance to the next token start.
-		for i < len(header) && !isAuthTokenChar(header[i]) {
-			i++
-		}
-		nameStart := i
-		for i < len(header) && isAuthTokenChar(header[i]) {
-			i++
-		}
-		name := header[nameStart:i]
-		// Skip optional whitespace between the name and '='.
-		for i < len(header) && (header[i] == ' ' || header[i] == '\t') {
-			i++
-		}
-		if i >= len(header) || header[i] != '=' {
-			// Name was a scheme token (e.g. "Bearer"), not a parameter.
-			continue
-		}
-		// Skip '=' and optional whitespace.
-		i++
-		for i < len(header) && (header[i] == ' ' || header[i] == '\t') {
-			i++
-		}
-		value, next, ok := parseAuthParamValue(header, i)
-		i = next
-		if !ok {
-			continue
-		}
-		if value != "" && strings.EqualFold(name, target) {
-			out = append(out, value)
-		}
-	}
-	return out
-}
-
-// parseAuthParamValue reads a single WWW-Authenticate parameter value
-// starting at offset i: a quoted-string (with backslash escapes) when the
-// first byte is '"', otherwise a bare token. It returns the decoded
-// value, the index of the first byte after it, and whether the value
-// was well-formed. Truncated quoted strings (no closing '"') and lone
-// trailing backslashes yield ok=false so malformed input is rejected
-// rather than producing a partial value.
-func parseAuthParamValue(s string, i int) (string, int, bool) {
-	if i >= len(s) {
-		return "", i, false
-	}
-	if s[i] == '"' {
-		i++
-		var b strings.Builder
-		for i < len(s) {
-			c := s[i]
-			if c == '\\' {
-				if i+1 >= len(s) {
-					// Lone trailing backslash — the quoted string was
-					// truncated mid-escape, so the value is malformed.
-					return "", i + 1, false
-				}
-				b.WriteByte(s[i+1])
-				i += 2
-				continue
-			}
-			if c == '"' {
-				return b.String(), i + 1, true
-			}
-			b.WriteByte(c)
-			i++
-		}
-		// Reached end of input without a closing '"'.
-		return "", i, false
-	}
-	start := i
-	for i < len(s) && isAuthTokenChar(s[i]) {
-		i++
-	}
-	return s[start:i], i, i > start
-}
-
-// isAuthTokenChar reports whether c is a valid RFC 9110 §5.6.2 token
-// character — the character class used for scheme and parameter names in
-// WWW-Authenticate.
-func isAuthTokenChar(c byte) bool {
-	switch {
-	case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9':
-		return true
-	}
-	return strings.IndexByte("!#$%&'*+-.^_`|~", c) >= 0
-}
-
-// AuthorizationRequiredError is returned when a 401 Unauthorized response is received.
-// It contains the protected resource metadata URL from the WWW-Authenticate header if present.
-type AuthorizationRequiredError struct {
-	ResourceMetadataURL string // Extracted from WWW-Authenticate header per RFC9728
-}
-
-func (e *AuthorizationRequiredError) Error() string {
-	return ErrAuthorizationRequired.Error()
-}
-
-func (e *AuthorizationRequiredError) Unwrap() error {
-	return ErrAuthorizationRequired
-}
-
 // OAuthAuthorizationRequiredError is returned when OAuth authorization is required
-// and an OAuth handler is available.
 type OAuthAuthorizationRequiredError struct {
 	Handler *OAuthHandler
-	AuthorizationRequiredError
 }
 
 func (e *OAuthAuthorizationRequiredError) Error() string {
@@ -508,65 +263,35 @@ func (c *StreamableHTTP) SendRequest(
 	}
 
 	ctx, cancel := c.contextAwareOfClientClose(ctx)
+	defer cancel()
 
 	resp, err := c.sendHTTP(ctx, http.MethodPost, bytes.NewReader(requestBody), "application/json, text/event-stream", request.Header)
 	if err != nil {
-		cancel()
 		if errors.Is(err, ErrSessionTerminated) && request.Method == string(mcp.MethodInitialize) {
-			// Per the MCP spec's backwards compatibility section: a 404 on an
-			// initialize POST means the server likely only supports legacy SSE.
-			return nil, ErrLegacySSEServer
+			// If the request is initialize, should not return a SessionTerminated error
+			// It should be a genuine endpoint-routing issue.
+			// ( Fall through to return StatusCode checking. )
+		} else {
+			return nil, fmt.Errorf("failed to send request: %w", err)
 		}
-		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 
 	// Only proceed if we have a valid response.
+	// When sendHTTP fails and resp is nil but method is mcp.MethodInitialize
+	// defer resp.Body.Close() fails with nil pointer dereference.
 	if resp == nil {
-		cancel()
-		return nil, fmt.Errorf("failed to send request: no response received")
+		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
-	// Cancel the context before closing the body. On HTTP/2, Close() blocks in a
-	// select on cs.donec (stream cleanup) or cs.ctx.Done() (context cancellation).
-	// If cc.wmu is contended, cs.donec may never close, making ctx.Done() the only
-	// exit path. Canceling first guarantees Close() returns promptly.
-	defer func() { cancel(); resp.Body.Close() }()
+	defer resp.Body.Close()
 
 	// Check if we got an error response
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 
-		// Handle unauthorized error
-		if resp.StatusCode == http.StatusUnauthorized {
-			// Extract discovered metadata URL per RFC9728
-			metadataURL := extractResourceMetadataURL(resp.Header.Values("WWW-Authenticate"))
-
-			// Feed discovered URL back to OAuthHandler so next auth attempt uses it.
-			// HandleUnauthorizedResponse applies RFC 9728 origin validation — a
-			// compromised resource advertising a cross-origin PRM URL is ignored.
-			if c.oauthHandler != nil {
-				c.oauthHandler.HandleUnauthorizedResponse(resp)
+		// Handle OAuth unauthorized error
+		if resp.StatusCode == http.StatusUnauthorized && c.oauthHandler != nil {
+			return nil, &OAuthAuthorizationRequiredError{
+				Handler: c.oauthHandler,
 			}
-
-			// If OAuth handler exists, return OAuth-specific error
-			if c.oauthHandler != nil {
-				return nil, &OAuthAuthorizationRequiredError{
-					Handler: c.oauthHandler,
-					AuthorizationRequiredError: AuthorizationRequiredError{
-						ResourceMetadataURL: metadataURL,
-					},
-				}
-			}
-
-			// No OAuth handler, return base authorization error
-			return nil, &AuthorizationRequiredError{
-				ResourceMetadataURL: metadataURL,
-			}
-		}
-
-		// Per the MCP spec's backwards compatibility section: if an initialize
-		// POST receives an HTTP 4xx (e.g. 405 Method Not Allowed, 404 Not Found),
-		// the server likely only supports the legacy HTTP+SSE transport.
-		if request.Method == string(mcp.MethodInitialize) && resp.StatusCode >= 400 && resp.StatusCode < 500 {
-			return nil, ErrLegacySSEServer
 		}
 
 		// handle error response
@@ -651,11 +376,6 @@ func (c *StreamableHTTP) sendHTTP(
 		req.Header.Set(k, v)
 	}
 
-	// Set custom Host header if provided
-	if c.host != "" {
-		req.Host = c.host
-	}
-
 	// Add OAuth authorization if configured
 	if c.oauthHandler != nil {
 		authHeader, err := c.oauthHandler.GetAuthorizationHeader(ctx)
@@ -664,9 +384,6 @@ func (c *StreamableHTTP) sendHTTP(
 			if errors.Is(err, ErrOAuthAuthorizationRequired) {
 				return nil, &OAuthAuthorizationRequiredError{
 					Handler: c.oauthHandler,
-					AuthorizationRequiredError: AuthorizationRequiredError{
-						ResourceMetadataURL: "", // No response available in this code path
-					},
 				}
 			}
 			return nil, fmt.Errorf("failed to get authorization header: %w", err)
@@ -688,7 +405,6 @@ func (c *StreamableHTTP) sendHTTP(
 
 	// universal handling for session terminated
 	if resp.StatusCode == http.StatusNotFound {
-		resp.Body.Close()
 		c.sessionID.CompareAndSwap(sessionID, "")
 		return nil, ErrSessionTerminated
 	}
@@ -708,11 +424,6 @@ func (c *StreamableHTTP) handleSSEResponse(ctx context.Context, reader io.ReadCl
 
 	// Start a goroutine to process the SSE stream
 	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				c.logger.Errorf("panic in SSE stream reader: %v", r)
-			}
-		}()
 		// Ensure this goroutine respects the context
 		defer close(responseChan)
 
@@ -772,72 +483,64 @@ func (c *StreamableHTTP) handleSSEResponse(ctx context.Context, reader io.ReadCl
 
 // readSSE reads the SSE stream(reader) and calls the handler for each event and data pair.
 // It will end when the reader is closed (or the context is done).
-//
-// A background goroutine closes the reader when ctx is cancelled, which unblocks
-// any in-progress ReadString call. This is necessary because ReadString is blocking
-// I/O that does not respect context cancellation on its own.
 func (c *StreamableHTTP) readSSE(ctx context.Context, reader io.ReadCloser, handler func(event, data string)) {
-	// Close the reader when context is cancelled to interrupt blocking reads.
-	// This ensures ReadString returns immediately with an error instead of
-	// blocking indefinitely when the SSE stream is open but idle.
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				c.logger.Errorf("panic closing SSE reader: %v", r)
-			}
-		}()
-		<-ctx.Done()
-		reader.Close()
-	}()
+	defer reader.Close()
 
 	br := bufio.NewReader(reader)
 	var event, data string
 
 	for {
-		line, err := br.ReadString('\n')
-		if err != nil {
-			// Context was cancelled — reader was closed by the goroutine above.
-			if ctx.Err() != nil {
-				return
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			line, err := br.ReadString('\n')
+			if err != nil {
+				if err == io.EOF {
+					// Process any pending event before exit
+					if data != "" {
+						// If no event type is specified, use empty string (default event type)
+						if event == "" {
+							event = "message"
+						}
+						handler(event, data)
+					}
+					return
+				}
+				select {
+				case <-ctx.Done():
+					return
+				default:
+					c.logger.Errorf("SSE stream error: %v", err)
+					return
+				}
 			}
-			if err == io.EOF {
-				// Process any pending event before exit
+
+			// Remove only newline markers
+			line = strings.TrimRight(line, "\r\n")
+			if line == "" {
+				// Empty line means end of event
 				if data != "" {
+					// If no event type is specified, use empty string (default event type)
 					if event == "" {
 						event = "message"
 					}
 					handler(event, data)
+					event = ""
+					data = ""
 				}
-				return
+				continue
 			}
-			c.logger.Errorf("SSE stream error: %v", err)
-			return
-		}
 
-		// Remove only newline markers
-		line = strings.TrimRight(line, "\r\n")
-		if line == "" {
-			// Empty line means end of event
-			if data != "" {
-				if event == "" {
-					event = "message"
-				}
-				handler(event, data)
-				event = ""
-				data = ""
+			if strings.HasPrefix(line, "event:") {
+				event = strings.TrimSpace(strings.TrimPrefix(line, "event:"))
+			} else if strings.HasPrefix(line, "data:") {
+				data = strings.TrimSpace(strings.TrimPrefix(line, "data:"))
 			}
-			continue
-		}
-
-		if eventStr, ok := strings.CutPrefix(line, "event:"); ok {
-			event = strings.TrimSpace(eventStr)
-		} else if dataStr, ok := strings.CutPrefix(line, "data:"); ok {
-			data = strings.TrimSpace(dataStr)
 		}
 	}
 }
 
-// SendNotification sends a JSON-RPC notification to the server without expecting a response.
 func (c *StreamableHTTP) SendNotification(ctx context.Context, notification mcp.JSONRPCNotification) error {
 	// Marshal request
 	requestBody, err := json.Marshal(notification)
@@ -847,43 +550,22 @@ func (c *StreamableHTTP) SendNotification(ctx context.Context, notification mcp.
 
 	// Create HTTP request
 	ctx, cancel := c.contextAwareOfClientClose(ctx)
+	defer cancel()
 
 	resp, err := c.sendHTTP(ctx, http.MethodPost, bytes.NewReader(requestBody), "application/json, text/event-stream", nil)
 	if err != nil {
-		cancel()
 		return fmt.Errorf("failed to send request: %w", err)
 	}
-	defer func() { cancel(); resp.Body.Close() }()
+	defer resp.Body.Close()
 
-	switch resp.StatusCode {
-	case http.StatusOK, http.StatusAccepted, http.StatusNoContent:
-		return nil
-	case http.StatusUnauthorized:
-		// Extract discovered metadata URL per RFC9728
-		metadataURL := extractResourceMetadataURL(resp.Header.Values("WWW-Authenticate"))
-
-		// Feed discovered URL back to OAuthHandler so next auth attempt uses it.
-		// HandleUnauthorizedResponse applies RFC 9728 origin validation — a
-		// compromised resource advertising a cross-origin PRM URL is ignored.
-		if c.oauthHandler != nil {
-			c.oauthHandler.HandleUnauthorizedResponse(resp)
-		}
-
-		// If OAuth handler exists, return OAuth-specific error
-		if c.oauthHandler != nil {
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+		// Handle OAuth unauthorized error
+		if resp.StatusCode == http.StatusUnauthorized && c.oauthHandler != nil {
 			return &OAuthAuthorizationRequiredError{
 				Handler: c.oauthHandler,
-				AuthorizationRequiredError: AuthorizationRequiredError{
-					ResourceMetadataURL: metadataURL,
-				},
 			}
 		}
 
-		// No OAuth handler, return base authorization error
-		return &AuthorizationRequiredError{
-			ResourceMetadataURL: metadataURL,
-		}
-	default:
 		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf(
 			"notification failed with status %d: %s",
@@ -891,9 +573,10 @@ func (c *StreamableHTTP) SendNotification(ctx context.Context, notification mcp.
 			body,
 		)
 	}
+
+	return nil
 }
 
-// SetNotificationHandler sets the handler for incoming JSON-RPC notifications.
 func (c *StreamableHTTP) SetNotificationHandler(handler func(mcp.JSONRPCNotification)) {
 	c.notifyMu.Lock()
 	defer c.notifyMu.Unlock()
@@ -907,7 +590,6 @@ func (c *StreamableHTTP) SetRequestHandler(handler RequestHandler) {
 	c.requestHandler = handler
 }
 
-// GetSessionId returns the current StreamableHTTP session ID.
 func (c *StreamableHTTP) GetSessionId() string {
 	return c.sessionID.Load().(string)
 }
@@ -938,13 +620,6 @@ func (c *StreamableHTTP) listenForever(ctx context.Context) {
 			c.logger.Errorf("server does not support listening")
 			return
 		}
-		if errors.Is(err, ErrSessionTerminated) {
-			// Server returned 404: the session no longer exists (server restarted
-			// or session expired). Retrying is pointless because the server won't
-			// recognize this session. The caller must re-initialize.
-			c.logger.Errorf("session terminated, stopping listener: %v", err)
-			return
-		}
 
 		select {
 		case <-ctx.Done():
@@ -966,11 +641,8 @@ func (c *StreamableHTTP) listenForever(ctx context.Context) {
 }
 
 var (
-	// ErrSessionTerminated indicates the server no longer recognizes the current session.
 	ErrSessionTerminated   = fmt.Errorf("session terminated (404). need to re-initialize")
 	ErrGetMethodNotAllowed = fmt.Errorf("GET method not allowed")
-	ErrUnauthorized        = fmt.Errorf("unauthorized (401)")
-	ErrLegacySSEServer     = fmt.Errorf("server returned 4xx for initialize POST, likely a legacy SSE server")
 
 	retryInterval = 1 * time.Second // a variable is convenient for testing
 )
@@ -980,9 +652,7 @@ func (c *StreamableHTTP) createGETConnectionToServer(ctx context.Context) error 
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
-	// Cancel the context before closing the body to prevent HTTP/2 drain hangs,
-	// matching the pattern used in SendRequest and SendNotification.
-	defer func() { resp.Body.Close() }()
+	defer resp.Body.Close()
 
 	// Check if we got an error response
 	if resp.StatusCode == http.StatusMethodNotAllowed {
@@ -1034,28 +704,6 @@ func (c *StreamableHTTP) handleIncomingRequest(ctx context.Context, request JSON
 
 	// Handle the request in a goroutine to avoid blocking the SSE reader
 	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				c.logger.Errorf("panic handling server request %s: %v", request.Method, r)
-				// Attempt to send an internal error response so the server doesn't hang.
-				// Use a nested recover to prevent sendResponseToServer from propagating
-				// a secondary panic (e.g., nil serverURL during shutdown).
-				func() {
-					defer func() {
-						if r2 := recover(); r2 != nil {
-							c.logger.Errorf("failed to send error response after panic: %v", r2)
-						}
-					}()
-					errorResponse := NewJSONRPCErrorResponse(
-						request.ID,
-						mcp.INTERNAL_ERROR,
-						fmt.Sprintf("internal error: panic in request handler: %v", r),
-						nil,
-					)
-					c.sendResponseToServer(ctx, errorResponse)
-				}()
-			}
-		}()
 		// Create a new context with timeout for request handling, respecting parent context
 		requestCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
@@ -1113,14 +761,14 @@ func (c *StreamableHTTP) sendResponseToServer(ctx context.Context, response *JSO
 	}
 
 	ctx, cancel := c.contextAwareOfClientClose(ctx)
+	defer cancel()
 
 	resp, err := c.sendHTTP(ctx, http.MethodPost, bytes.NewReader(responseBody), "application/json, text/event-stream", nil)
 	if err != nil {
-		cancel()
 		c.logger.Errorf("failed to send response to server: %v", err)
 		return
 	}
-	defer func() { cancel(); resp.Body.Close() }()
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 		body, _ := io.ReadAll(resp.Body)
@@ -1131,11 +779,6 @@ func (c *StreamableHTTP) sendResponseToServer(ctx context.Context, response *JSO
 func (c *StreamableHTTP) contextAwareOfClientClose(ctx context.Context) (context.Context, context.CancelFunc) {
 	newCtx, cancel := context.WithCancel(ctx)
 	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				c.logger.Errorf("panic in context-close watcher: %v", r)
-			}
-		}()
 		select {
 		case <-c.closed:
 			cancel()

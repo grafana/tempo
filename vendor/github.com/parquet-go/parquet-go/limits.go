@@ -7,10 +7,10 @@ import (
 
 const (
 	// MaxColumnDepth is the maximum column depth supported by this package.
-	MaxColumnDepth = math.MaxUint8
+	MaxColumnDepth = math.MaxInt8
 
 	// MaxColumnIndex is the maximum column index supported by this package.
-	MaxColumnIndex = math.MaxUint16 - 1
+	MaxColumnIndex = math.MaxInt16
 
 	// MaxRepetitionLevel is the maximum repetition level supported by this
 	// package.
@@ -43,9 +43,9 @@ func makeDefinitionLevel(i int) byte {
 	return byte(i)
 }
 
-func makeColumnIndex(i int) uint16 {
+func makeColumnIndex(i int) int16 {
 	checkIndexRange("column index", i, 0, MaxColumnIndex)
-	return uint16(i)
+	return int16(i)
 }
 
 func makeNumValues(i int) int32 {

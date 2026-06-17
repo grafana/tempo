@@ -87,16 +87,6 @@ func Value(v attribute.Value) *commonpb.AnyValue {
 		av.Value = &commonpb.AnyValue_StringValue{
 			StringValue: v.AsString(),
 		}
-	case attribute.BYTESLICE:
-		av.Value = &commonpb.AnyValue_BytesValue{
-			BytesValue: v.AsByteSlice(),
-		}
-	case attribute.SLICE:
-		av.Value = &commonpb.AnyValue_ArrayValue{
-			ArrayValue: &commonpb.ArrayValue{
-				Values: values(v.AsSlice()),
-			},
-		}
 	case attribute.STRINGSLICE:
 		av.Value = &commonpb.AnyValue_ArrayValue{
 			ArrayValue: &commonpb.ArrayValue{
@@ -156,14 +146,6 @@ func stringSliceValues(vals []string) []*commonpb.AnyValue {
 				StringValue: v,
 			},
 		}
-	}
-	return converted
-}
-
-func values(vals []attribute.Value) []*commonpb.AnyValue {
-	converted := make([]*commonpb.AnyValue, len(vals))
-	for i, v := range vals {
-		converted[i] = Value(v)
 	}
 	return converted
 }

@@ -54,16 +54,28 @@ type tracesEncoding struct{}
 var _ encoding[request.Request] = tracesEncoding{}
 
 func (tracesEncoding) Unmarshal(bytes []byte) (context.Context, request.Request, error) {
-	ctx, traces, err := pdatareq.UnmarshalTraces(bytes)
-	if errors.Is(err, pdatareq.ErrInvalidFormat) {
-		// fall back to unmarshaling without context
-		traces, err = tracesUnmarshaler.UnmarshalTraces(bytes)
+	if queue.PersistRequestContextOnRead() {
+		ctx, traces, err := pdatareq.UnmarshalTraces(bytes)
+		if errors.Is(err, pdatareq.ErrInvalidFormat) {
+			// fall back to unmarshaling without context
+			traces, err = tracesUnmarshaler.UnmarshalTraces(bytes)
+		}
+		return ctx, newTracesRequest(traces), err
 	}
-	return ctx, newTracesRequest(traces), err
+	traces, err := tracesUnmarshaler.UnmarshalTraces(bytes)
+	if err != nil {
+		var req request.Request
+		return context.Background(), req, err
+	}
+	return context.Background(), newTracesRequest(traces), nil
 }
 
 func (tracesEncoding) Marshal(ctx context.Context, req request.Request) ([]byte, error) {
-	return pdatareq.MarshalTraces(ctx, req.(*tracesRequest).td)
+	traces := req.(*tracesRequest).td
+	if queue.PersistRequestContextOnWrite() {
+		return pdatareq.MarshalTraces(ctx, traces)
+	}
+	return tracesMarshaler.MarshalTraces(traces)
 }
 
 var _ queue.ReferenceCounter[request.Request] = tracesReferenceCounter{}

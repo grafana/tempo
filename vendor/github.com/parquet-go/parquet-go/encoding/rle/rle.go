@@ -9,7 +9,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"math"
 	"unsafe"
 
 	"golang.org/x/sys/cpu"
@@ -22,9 +21,13 @@ import (
 )
 
 const (
-	// This limit prevents unbounded memory allocations when decoding runs.
-	// It is set to the largest run length the Parquet specification permits in an RLE header.
-	maxSupportedValueCount = math.MaxInt32
+	// This limit is intended to prevent unbounded memory allocations when
+	// decoding runs.
+	//
+	// We use a generous limit which allows for over 16 million values per page
+	// if there is only one run to encode the repetition or definition levels
+	// (this should be uncommon).
+	maxSupportedValueCount = 16 * 1024 * 1024
 )
 
 type Encoding struct {

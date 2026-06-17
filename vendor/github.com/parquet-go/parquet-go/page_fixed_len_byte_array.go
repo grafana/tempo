@@ -11,10 +11,10 @@ type fixedLenByteArrayPage struct {
 	typ         Type
 	data        memory.SliceBuffer[byte]
 	size        int
-	columnIndex uint16
+	columnIndex int16
 }
 
-func newFixedLenByteArrayPage(typ Type, columnIndex uint16, numValues int32, values encoding.Values) *fixedLenByteArrayPage {
+func newFixedLenByteArrayPage(typ Type, columnIndex int16, numValues int32, values encoding.Values) *fixedLenByteArrayPage {
 	data, size := values.FixedLenByteArray()
 	return &fixedLenByteArrayPage{
 		typ:         typ,
