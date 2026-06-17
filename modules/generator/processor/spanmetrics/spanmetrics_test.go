@@ -1873,3 +1873,73 @@ func TestSpanMetricsTraceStateMultiplier(t *testing.T) {
 	// With 50% sampling (th:8), span multiplier is 2, so 1 span → count of 2
 	assert.Equal(t, 2.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
 }
+
+func TestGetResourceServiceLabels(t *testing.T) {
+	strAttr := func(key, value string) *common_v1.KeyValue {
+		return &common_v1.KeyValue{Key: key, Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: value}}}
+	}
+
+	testCases := []struct {
+		name           string
+		attrs          []*common_v1.KeyValue
+		wantSvcName    string
+		wantJobName    string
+		wantInstanceID string
+	}{
+		{
+			name:        "service name only",
+			attrs:       []*common_v1.KeyValue{strAttr("service.name", "svc")},
+			wantSvcName: "svc",
+			wantJobName: "svc",
+		},
+		{
+			name: "service name, namespace and instance id",
+			attrs: []*common_v1.KeyValue{
+				strAttr("service.name", "svc"),
+				strAttr("service.namespace", "ns"),
+				strAttr("service.instance.id", "instance-1"),
+			},
+			wantSvcName:    "svc",
+			wantJobName:    "ns/svc",
+			wantInstanceID: "instance-1",
+		},
+		{
+			name:  "namespace without service name yields empty job",
+			attrs: []*common_v1.KeyValue{strAttr("service.namespace", "ns")},
+		},
+		{
+			name:        "first occurrence wins",
+			attrs:       []*common_v1.KeyValue{strAttr("service.name", "first"), strAttr("service.name", "second")},
+			wantSvcName: "first",
+			wantJobName: "first",
+		},
+		{
+			// regression: a KeyValue with an absent value is valid proto3 and
+			// must not panic, see StringifyAnyValue
+			name:  "nil-valued service.namespace without service.name",
+			attrs: []*common_v1.KeyValue{{Key: "service.namespace", Value: nil}},
+		},
+		{
+			name:  "nil-valued service.name",
+			attrs: []*common_v1.KeyValue{{Key: "service.name", Value: nil}},
+		},
+		{
+			name: "nil-valued service.instance.id",
+			attrs: []*common_v1.KeyValue{
+				strAttr("service.name", "svc"),
+				{Key: "service.instance.id", Value: nil},
+			},
+			wantSvcName: "svc",
+			wantJobName: "svc",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			svcName, jobName, instanceID := getResourceServiceLabels(tc.attrs)
+			assert.Equal(t, tc.wantSvcName, svcName)
+			assert.Equal(t, tc.wantJobName, jobName)
+			assert.Equal(t, tc.wantInstanceID, instanceID)
+		})
+	}
+}

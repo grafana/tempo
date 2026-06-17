@@ -516,6 +516,9 @@ func (d *Distributor) pushTracesKafka(ctx context.Context, userID string, keys [
 	return d.sendToKafka(ctx, userID, keys, traces, skipMetricsGeneration)
 }
 
+// pushLocal pushes traces to the in-process live-store and generator.
+// Order matters: the generator filters spans in place (instance.preprocessSpans),
+// so the live-store push, which marshals the traces, must finish first.
 func (d *Distributor) pushLocal(ctx context.Context, userID string, keys []uint32, traces []*rebatchedTrace) error {
 	if err := d.pushTracesToLiveStore(ctx, userID, traces); err != nil {
 		return err
@@ -560,6 +563,8 @@ func (d *Distributor) pushTracesToLiveStore(ctx context.Context, userID string, 
 	return nil
 }
 
+// sendToGenerators passes the traces to the in-process generator, which filters
+// spans in place (see instance.preprocessSpans). Do not reuse the batches after.
 func (d *Distributor) sendToGenerators(ctx context.Context, userID string, _ []uint32, traces []*rebatchedTrace, noGenerateMetrics bool) error {
 	req := tempopb.PushSpansRequest{
 		Batches:               nil,

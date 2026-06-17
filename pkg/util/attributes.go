@@ -6,7 +6,12 @@ import (
 	v1common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 )
 
+// StringifyAnyValue renders an attribute value as a string. A nil value is
+// valid proto3 (a KeyValue with no value) and stringifies to "".
 func StringifyAnyValue(anyValue *v1common.AnyValue) string {
+	if anyValue == nil {
+		return ""
+	}
 	switch anyValue.Value.(type) {
 	case *v1common.AnyValue_BoolValue:
 		return strconv.FormatBool(anyValue.GetBoolValue())

@@ -82,6 +82,43 @@ func TestStringifyAnyValue(t *testing.T) {
 			},
 			expected: "{key:value}",
 		},
+		{
+			name:     "nil value",
+			v:        nil,
+			expected: "",
+		},
+		{
+			name:     "unset value",
+			v:        &v1common.AnyValue{},
+			expected: "",
+		},
+		{
+			name: "array with nil element",
+			v: &v1common.AnyValue{
+				Value: &v1common.AnyValue_ArrayValue{
+					ArrayValue: &v1common.ArrayValue{
+						Values: []*v1common.AnyValue{
+							nil,
+							{Value: &v1common.AnyValue_StringValue{StringValue: "test"}},
+						},
+					},
+				},
+			},
+			expected: "[test]",
+		},
+		{
+			name: "map with nil value",
+			v: &v1common.AnyValue{
+				Value: &v1common.AnyValue_KvlistValue{
+					KvlistValue: &v1common.KeyValueList{
+						Values: []*v1common.KeyValue{
+							{Key: "key", Value: nil},
+						},
+					},
+				},
+			},
+			expected: "{key:}",
+		},
 	}
 
 	for _, tc := range testCases {
