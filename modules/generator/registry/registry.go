@@ -55,6 +55,7 @@ type ManagedRegistry struct {
 	sanitizer       Sanitizer
 	perLabelLimiter LabelLimiter
 	limiter         Limiter
+	builderPools    *labelBuilderPools
 
 	appendable storage.Appendable
 
@@ -154,6 +155,7 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 		sanitizer:       drainSanitizer,
 		perLabelLimiter: perLabelLimiter,
 		limiter:         limiter,
+		builderPools:    newLabelBuilderPools(),
 		entityDemand:    NewCardinality(cfg.StaleDuration, removeStaleSeriesInterval),
 
 		logger:                 logger,
@@ -170,11 +172,11 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 }
 
 func (r *ManagedRegistry) NewLabelBuilder() LabelBuilder {
-	return NewLabelBuilder(r.cfg.MaxLabelNameLength, r.cfg.MaxLabelValueLength, r.sanitizer, r.perLabelLimiter)
+	return r.builderPools.newLabelBuilder(r.cfg.MaxLabelNameLength, r.cfg.MaxLabelValueLength, r.sanitizer, r.perLabelLimiter)
 }
 
 func (r *ManagedRegistry) NewInfoMetricLabelBuilder() LabelBuilder {
-	return NewLabelBuilder(r.cfg.MaxLabelNameLength, r.cfg.MaxLabelValueLength, noopSanitizer{}, noopLabelLimiter{})
+	return r.builderPools.newLabelBuilder(r.cfg.MaxLabelNameLength, r.cfg.MaxLabelValueLength, noopSanitizer{}, noopLabelLimiter{})
 }
 
 func (r *ManagedRegistry) OnAdd(labelHash uint64, seriesCount uint32, lbls labels.Labels) (labels.Labels, uint64) {

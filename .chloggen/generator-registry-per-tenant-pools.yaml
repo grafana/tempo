@@ -1,0 +1,6 @@
+change_type: enhancement
+component: metrics-generator
+note: The registry builds series labels through reusable, borrowable buffers backed by per-tenant pools. Pooled scratch memory is isolated per tenant, and the borrow path is groundwork for lower per-span allocations once the processors adopt it.
+issues: [7124]
+subtext:
+user: carles-grafana
