@@ -25,6 +25,8 @@ jobs:
   get-tag:
     if: github.repository == 'grafana/tempo'  # skip in forks
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
     outputs:
       tag: ${{ steps.get-tag.outputs.tag }}
     steps:

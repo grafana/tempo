@@ -37,6 +37,10 @@ jobs:
     name: Sign and attest image
     if: github.repository == 'grafana/tempo'
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write     # keyless cosign OIDC, provenance signing, login-to-gar workload identity
+      attestations: write # write the SLSA provenance attestation to the GitHub attestations store
     steps:
       - name: Parse and validate image
         id: image
