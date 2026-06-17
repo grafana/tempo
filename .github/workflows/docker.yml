@@ -25,6 +25,8 @@ jobs:
   get-tag:
     if: github.repository == 'grafana/tempo'  # skip in forks
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
     outputs:
       tag: ${{ steps.get-tag.outputs.tag }}
     steps:
@@ -136,6 +138,56 @@ jobs:
           	--amend "$IMAGE_NAME:$TAG-amd64"  \
           	--amend "$IMAGE_NAME:$TAG-arm64"
           docker manifest push "$IMAGE_NAME:$TAG"
+
+  # Resolve the digest of the pushed tempo-vulture multi-arch manifest so it can
+  # be signed by digest (not by tag). Scoped to tempo-vulture for now; extend
+  # the matrix to the other components once this is proven out.
+  resolve-vulture-digest:
+    if: github.repository == 'grafana/tempo'
+    needs: ['get-tag', 'manifest']
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      image: ${{ steps.resolve.outputs.image }}
+    env:
+      TAG: ${{ needs.get-tag.outputs.tag }}
+    steps:
+      - name: Login to GAR
+        uses: grafana/shared-workflows/actions/login-to-gar@12c87e5aa323694c820c1ff3d8e47e8237e05136 # login-to-gar/v1.0.2
+        with:
+          registry: us-docker.pkg.dev
+
+      - name: Resolve digest
+        id: resolve
+        run: |
+          # IMAGE_NAME is derived from the workflow-level DOCKERHUB_MIRROR_REPOSITORY
+          # (exported into the step env) so it can't drift from the build/manifest
+          # jobs when this is extended to the other components.
+          IMAGE_NAME="${DOCKERHUB_MIRROR_REPOSITORY}/tempo-vulture"
+          DIGEST="$(docker buildx imagetools inspect "$IMAGE_NAME:$TAG" --format '{{.Manifest.Digest}}')"
+          if [[ "$DIGEST" != sha256:* ]]; then
+            echo "::error::failed to resolve digest for $IMAGE_NAME:$TAG, got: $DIGEST"
+            exit 1
+          fi
+          echo "image=$IMAGE_NAME@$DIGEST" >> "$GITHUB_OUTPUT"
+
+  # Signing/attestation runs after publish and is intentionally NOT a gate on
+  # the release or on cd-to-dev-env: the image is immutable once pushed and
+  # can't be re-signed, so we sign best-effort and rely on this job's own
+  # verify steps (plus alerting on failures) to catch a bad signature. A
+  # failure here surfaces as a failed check on the run without blocking deploy.
+  sign-vulture:
+    needs: resolve-vulture-digest
+    if: needs.resolve-vulture-digest.outputs.image != ''
+    uses: ./.github/workflows/sign-and-attest.yml
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    with:
+      image: ${{ needs.resolve-vulture-digest.outputs.image }}
 
   cd-to-dev-env:
     # This job deploys the latest main commit to the dev environment
