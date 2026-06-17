@@ -52,7 +52,7 @@ attestations store.
 | Input | Required | Default | Description |
 | --- | --- | --- | --- |
 | `image` | yes | — | Digest-pinned image ref, e.g. `us-docker.pkg.dev/.../tempo-vulture@sha256:...`. The workflow fails fast if it is not digest-pinned. |
-| `registry` | no | `us-docker.pkg.dev` | Registry to authenticate against when writing the signature and attestation. |
+| `registry` | no | `us-docker.pkg.dev` | GAR (Artifact Registry) hostname to authenticate against when writing the signature and attestation. |
 
 ## Step flow
 
