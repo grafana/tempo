@@ -31,7 +31,7 @@ jobs:
       tag: ${{ steps.get-tag.outputs.tag }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ inputs.tag || github.ref }}
           persist-credentials: false
@@ -79,7 +79,7 @@ jobs:
       TAG: ${{ needs.get-tag.outputs.tag }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ inputs.tag || github.ref }}
           persist-credentials: false
@@ -121,7 +121,7 @@ jobs:
       IMAGE_NAME: us-docker.pkg.dev/grafanalabs-global/dockerhub-tempo-prod-mirror/${{ matrix.component }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ inputs.tag || github.ref }}
           persist-credentials: false
