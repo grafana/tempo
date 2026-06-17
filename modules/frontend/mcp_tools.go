@@ -13,6 +13,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/gorilla/mux"
 	"github.com/grafana/tempo/modules/frontend/docs"
+	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -61,6 +62,9 @@ func (s *MCPServer) handleSearch(ctx context.Context, request mcp.CallToolReques
 	query, err := request.RequireString("query")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
+	}
+	if result := s.validateTraceQLQuerySize(query); result != nil {
+		return result, nil
 	}
 
 	var startEpoch, endEpoch int64
@@ -126,6 +130,9 @@ func (s *MCPServer) handleInstantQuery(ctx context.Context, request mcp.CallTool
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
+	if result := s.validateTraceQLQuerySize(query); result != nil {
+		return result, nil
+	}
 
 	var startEpochNanos, endEpochNanos int64
 
@@ -185,6 +192,9 @@ func (s *MCPServer) handleRangeQuery(ctx context.Context, request mcp.CallToolRe
 	query, err := request.RequireString("query")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
+	}
+	if result := s.validateTraceQLQuerySize(query); result != nil {
+		return result, nil
 	}
 
 	var startEpochNanos, endEpochNanos int64
@@ -298,6 +308,9 @@ func (s *MCPServer) handleGetAttributeValues(ctx context.Context, request mcp.Ca
 	}
 
 	query := request.GetString("filter-query", "")
+	if result := s.validateTraceQLQuerySize(query); result != nil {
+		return result, nil
+	}
 	if !traceql.IsEmptyQuery(query) {
 		conditionGroups, _ := traceql.ExtractConditionGroups(query, traceql.DefaultMaxConditionGroupsPerTagQuery)
 		if len(conditionGroups) == 0 {
@@ -326,6 +339,13 @@ func (s *MCPServer) handleGetAttributeValues(ctx context.Context, request mcp.Ca
 	}
 
 	return toolResult(body, MetaTypeAttributeValues, "json", "2"), nil
+}
+
+func (s *MCPServer) validateTraceQLQuerySize(query string) *mcp.CallToolResult {
+	if err := pipeline.ValidateTraceQLQuerySize(query, s.maxQueryExpressionSizeBytes); err != nil {
+		return mcp.NewToolResultError(err.Error())
+	}
+	return nil
 }
 
 func handleHTTP(ctx context.Context, handler http.Handler, req *http.Request) (string, error) {
