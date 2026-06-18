@@ -22,9 +22,8 @@ const (
 	QueryTypeMetadata = "metadata"
 )
 
-// QueryShape describes the structural shape of a query as computed by the
-// async-weight middleware. It is propagated to sharders via the Request
-// interface and to handlers via context.
+// QueryShape captures the structural shape of a query; populated by the
+// async-weight middleware, propagated via the Request and via context.
 type QueryShape struct {
 	Type            string
 	Weight          int
@@ -37,32 +36,20 @@ type QueryShape struct {
 
 type queryShapeCtxKey struct{}
 
-// queryShapeCell is a mutable container the weight middleware writes into.
-// Handlers create the cell via WithQueryShapeCell before invoking the pipeline
-// so the outer request's context (which the handler keeps a reference to)
-// can read the populated shape after RoundTrip returns.
-//
-// Concurrency: the cell has exactly one writer (the weight middleware, which
-// runs synchronously on the request goroutine before any pipeline fan-out)
-// and one reader (the handler, after RoundTrip returns). The happens-before
-// relationship is established by the synchronous call stack and by the
-// pipeline.Responses channel synchronization on the return path, so no mutex
-// is needed.
+// queryShapeCell is the mutable cell the middleware writes into so the handler's
+// outer context can read the shape after RoundTrip returns. Single writer
+// (middleware), single reader (handler), serialized by the pipeline; no mutex.
 type queryShapeCell struct {
 	qs *QueryShape
 }
 
-// WithQueryShapeCell installs a mutable cell on ctx that the weight middleware
-// will populate during RoundTrip. Handlers should call this once at their entry
-// point so the shape becomes readable via QueryShapeFromContext after the
-// pipeline returns.
+// WithQueryShapeCell installs an empty cell on ctx that the weight middleware
+// populates during RoundTrip.
 func WithQueryShapeCell(ctx context.Context) context.Context {
 	return context.WithValue(ctx, queryShapeCtxKey{}, &queryShapeCell{})
 }
 
-// QueryShapeFromContext returns the QueryShape stamped on the context by the
-// async-weight middleware. ok is false if no cell was installed or the cell
-// has not been populated yet.
+// QueryShapeFromContext returns the shape stamped on ctx, or ok=false when none.
 func QueryShapeFromContext(ctx context.Context) (QueryShape, bool) {
 	if ctx == nil {
 		return QueryShape{}, false
