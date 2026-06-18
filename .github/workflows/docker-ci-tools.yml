@@ -50,7 +50,7 @@ jobs:
           persist-credentials: false
 
       - name: Login to GAR
-        uses: grafana/shared-workflows/actions/login-to-gar@12c87e5aa323694c820c1ff3d8e47e8237e05136 # login-to-gar/v1.0.2
+        uses: grafana/shared-workflows/actions/login-to-gar@1f541877ceb22c7be7667d8a8df04984aeac9f9d # login-to-gar/v1.0.3
         with:
           registry: us-docker.pkg.dev
 
@@ -76,7 +76,7 @@ jobs:
           persist-credentials: false
 
       - name: Login to GAR
-        uses: grafana/shared-workflows/actions/login-to-gar@12c87e5aa323694c820c1ff3d8e47e8237e05136 # login-to-gar/v1.0.2
+        uses: grafana/shared-workflows/actions/login-to-gar@1f541877ceb22c7be7667d8a8df04984aeac9f9d # login-to-gar/v1.0.3
         with:
           registry: us-docker.pkg.dev
 
