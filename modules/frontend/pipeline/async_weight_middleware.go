@@ -27,6 +27,7 @@ const (
 type QueryShape struct {
 	Type            string
 	Weight          int
+	SubQueries      int
 	Conditions      int
 	RegexConditions int
 	HasOr           bool
@@ -233,6 +234,14 @@ func (c weightRequestWare) setTraceQLWeight(req Request) {
 		}
 		shape.Conditions += conditions
 		shape.RegexConditions += regexConditions
+	}
+
+	// Metrics math queries (e.g. `({} | rate()) / ({...} | rate())`) fan out
+	// into one storage sub-request per side; charge an extra unit per
+	// additional sub-request so weight scales with backend fan-out.
+	shape.SubQueries = len(subReqs)
+	if len(subReqs) > 1 {
+		weight += len(subReqs) - 1
 	}
 
 	// Query that requires full trace scanning, e.g. with structural operators

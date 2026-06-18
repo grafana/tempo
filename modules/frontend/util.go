@@ -37,6 +37,7 @@ func setQueryShapeSpanAttrs(span trace.Span, qs pipeline.QueryShape) {
 	span.SetAttributes(
 		attribute.String("query_type", qs.Type),
 		attribute.Int("query_weight", qs.Weight),
+		attribute.Int("query_sub_queries", qs.SubQueries),
 		attribute.Int("query_conditions", qs.Conditions),
 		attribute.Int("query_regex_conditions", qs.RegexConditions),
 		attribute.Bool("query_has_or", qs.HasOr),
@@ -56,11 +57,12 @@ func logWithShape(logger log.Logger, ctx context.Context, fields ...any) {
 		_ = logger.Log(fields...)
 		return
 	}
-	out := make([]any, 0, len(fields)+14)
+	out := make([]any, 0, len(fields)+16)
 	out = append(out, fields...)
 	out = append(out,
 		"query_type", qs.Type,
 		"query_weight", qs.Weight,
+		"query_sub_queries", qs.SubQueries,
 		"query_conditions", qs.Conditions,
 		"query_regex_conditions", qs.RegexConditions,
 		"query_has_or", qs.HasOr,

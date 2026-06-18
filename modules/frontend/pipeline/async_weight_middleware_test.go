@@ -145,7 +145,7 @@ func TestWeightMiddlewareForTraceQLRequest(t *testing.T) {
 			// Two sub-queries
 			query: "({ span.http.status_code >= 200 || span.http.status_code < 300 } | count_over_time()) + " +
 				"({ span.http.status_code >= 200 || span.http.status_code < 300 } | rate())",
-			expected: TraceQLSearchWeight*2 + 1, // +1 for OR operation
+			expected: TraceQLSearchWeight + 3, // +2 for OR in each sub-query, +1 for fan-out
 		},
 		{
 			// Aggregate requiring full trace
@@ -266,6 +266,16 @@ func TestWeightMiddlewareStampsQueryShape(t *testing.T) {
 		ctxShape, ok := QueryShapeFromContext(req.Context())
 		require.True(t, ok)
 		assert.Equal(t, qs, ctxShape)
+	})
+
+	t.Run("metrics math query stamps SubQueries and fan-out weight", func(t *testing.T) {
+		rt := NewWeightRequestWare(TraceQLMetrics, config).Wrap(nextRequest)
+		query := `({} | rate()) / ({span.status = "error"} | rate())`
+		req := DoWeightedRequest(t, fmt.Sprintf("http://localhost:8080/api/metrics/query_range?q=%s", url.QueryEscape(query)), rt)
+		qs := req.QueryShape()
+		assert.Equal(t, QueryTypeMetrics, qs.Type)
+		assert.Equal(t, 2, qs.SubQueries)
+		assert.Equal(t, TraceQLSearchWeight+1, qs.Weight) // base + fan-out for 2 sub-queries
 	})
 
 	t.Run("empty query still stamps Type and Weight", func(t *testing.T) {
