@@ -4,21 +4,30 @@
 package v1
 
 import (
+	"fmt"
 	"github.com/grafana/wiresmith/protohelpers"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/runtime/protoimpl"
 	"reflect"
+	"slices"
+	"strconv"
+	"strings"
 	"unsafe"
 )
 
-// Reflection / registration glue for common/v1/common.proto.
+// Cold companion utilities for common/v1/common.proto.
 //
-// This file holds the per-message ProtoReflect() methods, the per-enum
-// Descriptor()/Type()/Number() methods, the embedded FileDescriptorProto
-// blob, the file_*_msgTypes / file_*_enumTypes arrays, and the init()
-// that registers everything with protoregistry.GlobalFiles and
-// protoregistry.GlobalTypes. None of these are called on the marshal /
-// unmarshal / size hot path.
+// This file holds two cold concerns merged into one compilation unit:
+//
+//   - Reflection / registration glue: the per-message ProtoReflect()
+//     methods, the per-enum Descriptor()/Type()/Number() methods, the
+//     embedded FileDescriptorProto blob, the file_*_msgTypes /
+//     file_*_enumTypes arrays, and the init() that registers everything
+//     with protoregistry.GlobalFiles and protoregistry.GlobalTypes.
+//   - The per-message String() debug dumps (hand-rolled, deterministic,
+//     non-reflection — see compiler/generator/emit_string.go).
+//
+// None of these are called on the marshal / unmarshal / size hot path.
 //
 // Why a separate file? Putting this code (plus its descriptorpb /
 // protoreflect / protoimpl imports — ~64KB of descriptorpb alone, ~377KB
@@ -29,11 +38,208 @@ import (
 // in the same compilation unit shifted hot functions onto different
 // cache sets and pushed them ~131KB further into the binary. Emitting
 // the cold half here, in its own .o, lets the linker place it away
-// from the hot half and recovers that throughput.
+// from the hot half and recovers that throughput. reflect and String()
+// are both cold and were already split out, so merging them (cold→cold)
+// preserves the rationale while halving the companion-file count.
 //
 // See compiler/generator/emit_registration.go for the full rationale
 // and the benchmark methodology. DO NOT inline this file's contents
 // back into the main .pb.go without re-measuring.
+
+func (m *AnyValue) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	switch v := m.Value.(type) {
+	case *AnyValue_StringValue:
+		b.WriteString("string_value: ")
+		b.WriteString(strconv.Quote(v.StringValue))
+		b.WriteString(" ")
+	case *AnyValue_BoolValue:
+		b.WriteString("bool_value: ")
+		fmt.Fprintf(&b, "%v", v.BoolValue)
+		b.WriteString(" ")
+	case *AnyValue_IntValue:
+		b.WriteString("int_value: ")
+		fmt.Fprintf(&b, "%v", v.IntValue)
+		b.WriteString(" ")
+	case *AnyValue_DoubleValue:
+		b.WriteString("double_value: ")
+		fmt.Fprintf(&b, "%v", v.DoubleValue)
+		b.WriteString(" ")
+	case *AnyValue_ArrayValue:
+		b.WriteString("array_value: ")
+		b.WriteString("{")
+		b.WriteString(v.ArrayValue.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	case *AnyValue_KvlistValue:
+		b.WriteString("kvlist_value: ")
+		b.WriteString("{")
+		b.WriteString(v.KvlistValue.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	case *AnyValue_BytesValue:
+		b.WriteString("bytes_value: ")
+		b.WriteString(strconv.Quote(string(v.BytesValue)))
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *ArrayValue) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	for _, e := range m.Values {
+		b.WriteString("values: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *KeyValueList) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	for _, e := range m.Values {
+		b.WriteString("values: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *KeyValue) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if len(m.Key) > 0 {
+		b.WriteString("key: ")
+		b.WriteString(strconv.Quote(m.Key))
+		b.WriteString(" ")
+	}
+	if m.Value != nil {
+		b.WriteString("value: ")
+		b.WriteString("{")
+		b.WriteString(m.Value.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *InstrumentationScope) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if len(m.Name) > 0 {
+		b.WriteString("name: ")
+		b.WriteString(strconv.Quote(m.Name))
+		b.WriteString(" ")
+	}
+	if len(m.Version) > 0 {
+		b.WriteString("version: ")
+		b.WriteString(strconv.Quote(m.Version))
+		b.WriteString(" ")
+	}
+	for _, e := range m.Attributes {
+		b.WriteString("attributes: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if m.DroppedAttributesCount != 0 {
+		b.WriteString("dropped_attributes_count: ")
+		fmt.Fprintf(&b, "%v", m.DroppedAttributesCount)
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *AnyValue) Clone() *AnyValue {
+	if m == nil {
+		return nil
+	}
+	out := &AnyValue{}
+	switch v := m.Value.(type) {
+	case *AnyValue_StringValue:
+		out.Value = &AnyValue_StringValue{StringValue: v.StringValue}
+	case *AnyValue_BoolValue:
+		out.Value = &AnyValue_BoolValue{BoolValue: v.BoolValue}
+	case *AnyValue_IntValue:
+		out.Value = &AnyValue_IntValue{IntValue: v.IntValue}
+	case *AnyValue_DoubleValue:
+		out.Value = &AnyValue_DoubleValue{DoubleValue: v.DoubleValue}
+	case *AnyValue_ArrayValue:
+		out.Value = &AnyValue_ArrayValue{ArrayValue: *v.ArrayValue.Clone()}
+	case *AnyValue_KvlistValue:
+		out.Value = &AnyValue_KvlistValue{KvlistValue: *v.KvlistValue.Clone()}
+	case *AnyValue_BytesValue:
+		out.Value = &AnyValue_BytesValue{BytesValue: slices.Clone(v.BytesValue)}
+	}
+	return out
+}
+
+func (m *ArrayValue) Clone() *ArrayValue {
+	if m == nil {
+		return nil
+	}
+	out := &ArrayValue{}
+	out.Values = slices.Clone(m.Values)
+	for i := range out.Values {
+		out.Values[i] = out.Values[i].Clone()
+	}
+	return out
+}
+
+func (m *KeyValueList) Clone() *KeyValueList {
+	if m == nil {
+		return nil
+	}
+	out := &KeyValueList{}
+	out.Values = slices.Clone(m.Values)
+	for i := range out.Values {
+		out.Values[i] = out.Values[i].Clone()
+	}
+	return out
+}
+
+func (m *KeyValue) Clone() *KeyValue {
+	if m == nil {
+		return nil
+	}
+	out := &KeyValue{}
+	out.Key = m.Key
+	out.Value = m.Value.Clone()
+	return out
+}
+
+func (m *InstrumentationScope) Clone() *InstrumentationScope {
+	if m == nil {
+		return nil
+	}
+	out := &InstrumentationScope{}
+	out.Name = m.Name
+	out.Version = m.Version
+	out.Attributes = slices.Clone(m.Attributes)
+	for i := range out.Attributes {
+		out.Attributes[i] = out.Attributes[i].Clone()
+	}
+	out.DroppedAttributesCount = m.DroppedAttributesCount
+	return out
+}
 
 func (x *AnyValue) ProtoReflect() protoreflect.Message {
 	file_common_v1_common_proto_init()

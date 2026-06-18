@@ -94,12 +94,6 @@ func (m *FrontendToClient) Reset() {
 	*m = FrontendToClient{}
 }
 func (*FrontendToClient) ProtoMessage() {}
-func (m *FrontendToClient) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *ClientToFrontend) Reset() {
 	if m == nil {
@@ -108,12 +102,6 @@ func (m *ClientToFrontend) Reset() {
 	*m = ClientToFrontend{}
 }
 func (*ClientToFrontend) ProtoMessage() {}
-func (m *ClientToFrontend) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *NotifyClientShutdownRequest) Reset() {
 	if m == nil {
@@ -122,12 +110,6 @@ func (m *NotifyClientShutdownRequest) Reset() {
 	*m = NotifyClientShutdownRequest{}
 }
 func (*NotifyClientShutdownRequest) ProtoMessage() {}
-func (m *NotifyClientShutdownRequest) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *NotifyClientShutdownResponse) Reset() {
 	if m == nil {
@@ -136,12 +118,6 @@ func (m *NotifyClientShutdownResponse) Reset() {
 	*m = NotifyClientShutdownResponse{}
 }
 func (*NotifyClientShutdownResponse) ProtoMessage() {}
-func (m *NotifyClientShutdownResponse) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *FrontendToClient) GetHttpRequest() HTTPRequestEnvelope {
 	if m != nil {

@@ -4,6 +4,7 @@
 package tempopb
 
 import (
+	"fmt"
 	"github.com/grafana/tempo/pkg/tempopb/common/v1"
 	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/wiresmith/protohelpers"
@@ -11,17 +12,26 @@ import (
 	"google.golang.org/protobuf/runtime/protoimpl"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"reflect"
+	"slices"
+	"sort"
+	"strconv"
+	"strings"
 	"unsafe"
 )
 
-// Reflection / registration glue for tempopb/tempo.proto.
+// Cold companion utilities for tempopb/tempo.proto.
 //
-// This file holds the per-message ProtoReflect() methods, the per-enum
-// Descriptor()/Type()/Number() methods, the embedded FileDescriptorProto
-// blob, the file_*_msgTypes / file_*_enumTypes arrays, and the init()
-// that registers everything with protoregistry.GlobalFiles and
-// protoregistry.GlobalTypes. None of these are called on the marshal /
-// unmarshal / size hot path.
+// This file holds two cold concerns merged into one compilation unit:
+//
+//   - Reflection / registration glue: the per-message ProtoReflect()
+//     methods, the per-enum Descriptor()/Type()/Number() methods, the
+//     embedded FileDescriptorProto blob, the file_*_msgTypes /
+//     file_*_enumTypes arrays, and the init() that registers everything
+//     with protoregistry.GlobalFiles and protoregistry.GlobalTypes.
+//   - The per-message String() debug dumps (hand-rolled, deterministic,
+//     non-reflection — see compiler/generator/emit_string.go).
+//
+// None of these are called on the marshal / unmarshal / size hot path.
 //
 // Why a separate file? Putting this code (plus its descriptorpb /
 // protoreflect / protoimpl imports — ~64KB of descriptorpb alone, ~377KB
@@ -32,11 +42,1743 @@ import (
 // in the same compilation unit shifted hot functions onto different
 // cache sets and pushed them ~131KB further into the binary. Emitting
 // the cold half here, in its own .o, lets the linker place it away
-// from the hot half and recovers that throughput.
+// from the hot half and recovers that throughput. reflect and String()
+// are both cold and were already split out, so merging them (cold→cold)
+// preserves the rationale while halving the companion-file count.
 //
 // See compiler/generator/emit_registration.go for the full rationale
 // and the benchmark methodology. DO NOT inline this file's contents
 // back into the main .pb.go without re-measuring.
+
+func (m *TraceByIDRequest) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if len(m.TraceID) > 0 {
+		b.WriteString("traceID: ")
+		b.WriteString(strconv.Quote(string(m.TraceID)))
+		b.WriteString(" ")
+	}
+	if len(m.BlockStart) > 0 {
+		b.WriteString("blockStart: ")
+		b.WriteString(strconv.Quote(m.BlockStart))
+		b.WriteString(" ")
+	}
+	if len(m.BlockEnd) > 0 {
+		b.WriteString("blockEnd: ")
+		b.WriteString(strconv.Quote(m.BlockEnd))
+		b.WriteString(" ")
+	}
+	if len(m.QueryMode) > 0 {
+		b.WriteString("queryMode: ")
+		b.WriteString(strconv.Quote(m.QueryMode))
+		b.WriteString(" ")
+	}
+	if m.AllowPartialTrace {
+		b.WriteString("allowPartialTrace: ")
+		fmt.Fprintf(&b, "%v", m.AllowPartialTrace)
+		b.WriteString(" ")
+	}
+	b.WriteString("RF1After: ")
+	fmt.Fprintf(&b, "%v", m.RF1After)
+	b.WriteString(" ")
+	return strings.TrimSpace(b.String())
+}
+
+func (m *TraceByIDResponse) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if m.Trace != nil {
+		b.WriteString("trace: ")
+		b.WriteString("{")
+		b.WriteString(m.Trace.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if m.Metrics != nil {
+		b.WriteString("metrics: ")
+		b.WriteString("{")
+		b.WriteString(m.Metrics.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if m.Status != 0 {
+		b.WriteString("status: ")
+		b.WriteString(m.Status.String())
+		b.WriteString(" ")
+	}
+	if len(m.Message) > 0 {
+		b.WriteString("message: ")
+		b.WriteString(strconv.Quote(m.Message))
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *TraceByIDMetrics) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if m.InspectedBytes != 0 {
+		b.WriteString("inspectedBytes: ")
+		fmt.Fprintf(&b, "%v", m.InspectedBytes)
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *SearchRequest) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	{
+		entries := make([]string, 0, len(m.Tags))
+		for k, v := range m.Tags {
+			var eb strings.Builder
+			eb.WriteString("key: ")
+			eb.WriteString(strconv.Quote(k))
+			eb.WriteString(" ")
+			eb.WriteString("value: ")
+			eb.WriteString(strconv.Quote(v))
+			eb.WriteString(" ")
+			entries = append(entries, strings.TrimSpace(eb.String()))
+		}
+		sort.Strings(entries)
+		for _, e := range entries {
+			b.WriteString("Tags: {")
+			b.WriteString(e)
+			b.WriteString("}")
+			b.WriteString(" ")
+		}
+	}
+	if m.MinDurationMs != 0 {
+		b.WriteString("MinDurationMs: ")
+		fmt.Fprintf(&b, "%v", m.MinDurationMs)
+		b.WriteString(" ")
+	}
+	if m.MaxDurationMs != 0 {
+		b.WriteString("MaxDurationMs: ")
+		fmt.Fprintf(&b, "%v", m.MaxDurationMs)
+		b.WriteString(" ")
+	}
+	if m.Limit != 0 {
+		b.WriteString("Limit: ")
+		fmt.Fprintf(&b, "%v", m.Limit)
+		b.WriteString(" ")
+	}
+	if m.Start != 0 {
+		b.WriteString("start: ")
+		fmt.Fprintf(&b, "%v", m.Start)
+		b.WriteString(" ")
+	}
+	if m.End != 0 {
+		b.WriteString("end: ")
+		fmt.Fprintf(&b, "%v", m.End)
+		b.WriteString(" ")
+	}
+	if len(m.Query) > 0 {
+		b.WriteString("Query: ")
+		b.WriteString(strconv.Quote(m.Query))
+		b.WriteString(" ")
+	}
+	if m.SpansPerSpanSet != 0 {
+		b.WriteString("SpansPerSpanSet: ")
+		fmt.Fprintf(&b, "%v", m.SpansPerSpanSet)
+		b.WriteString(" ")
+	}
+	b.WriteString("RF1After: ")
+	fmt.Fprintf(&b, "%v", m.RF1After)
+	b.WriteString(" ")
+	for _, e := range m.SkipASTTransformations {
+		b.WriteString("skipASTTransformations: ")
+		b.WriteString(strconv.Quote(e))
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *SearchBlockRequest) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if m.SearchReq != nil {
+		b.WriteString("searchReq: ")
+		b.WriteString("{")
+		b.WriteString(m.SearchReq.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if len(m.BlockID) > 0 {
+		b.WriteString("blockID: ")
+		b.WriteString(strconv.Quote(m.BlockID))
+		b.WriteString(" ")
+	}
+	if m.StartPage != 0 {
+		b.WriteString("startPage: ")
+		fmt.Fprintf(&b, "%v", m.StartPage)
+		b.WriteString(" ")
+	}
+	if m.PagesToSearch != 0 {
+		b.WriteString("pagesToSearch: ")
+		fmt.Fprintf(&b, "%v", m.PagesToSearch)
+		b.WriteString(" ")
+	}
+	if m.IndexPageSize != 0 {
+		b.WriteString("indexPageSize: ")
+		fmt.Fprintf(&b, "%v", m.IndexPageSize)
+		b.WriteString(" ")
+	}
+	if m.TotalRecords != 0 {
+		b.WriteString("totalRecords: ")
+		fmt.Fprintf(&b, "%v", m.TotalRecords)
+		b.WriteString(" ")
+	}
+	if len(m.Version) > 0 {
+		b.WriteString("version: ")
+		b.WriteString(strconv.Quote(m.Version))
+		b.WriteString(" ")
+	}
+	if m.Size_ != 0 {
+		b.WriteString("size: ")
+		fmt.Fprintf(&b, "%v", m.Size_)
+		b.WriteString(" ")
+	}
+	if m.FooterSize != 0 {
+		b.WriteString("footerSize: ")
+		fmt.Fprintf(&b, "%v", m.FooterSize)
+		b.WriteString(" ")
+	}
+	for _, e := range m.DedicatedColumns {
+		b.WriteString("dedicatedColumns: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *DedicatedColumn) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if m.Type != 0 {
+		b.WriteString("type: ")
+		b.WriteString(m.Type.String())
+		b.WriteString(" ")
+	}
+	if len(m.Name) > 0 {
+		b.WriteString("name: ")
+		b.WriteString(strconv.Quote(m.Name))
+		b.WriteString(" ")
+	}
+	if m.Scope != 0 {
+		b.WriteString("scope: ")
+		b.WriteString(m.Scope.String())
+		b.WriteString(" ")
+	}
+	if m.Options != 0 {
+		b.WriteString("options: ")
+		b.WriteString(m.Options.String())
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *SearchResponse) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	for _, e := range m.Traces {
+		b.WriteString("traces: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if m.Metrics != nil {
+		b.WriteString("metrics: ")
+		b.WriteString("{")
+		b.WriteString(m.Metrics.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *TraceSearchMetadata) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if len(m.TraceID) > 0 {
+		b.WriteString("traceID: ")
+		b.WriteString(strconv.Quote(m.TraceID))
+		b.WriteString(" ")
+	}
+	if len(m.RootServiceName) > 0 {
+		b.WriteString("rootServiceName: ")
+		b.WriteString(strconv.Quote(m.RootServiceName))
+		b.WriteString(" ")
+	}
+	if len(m.RootTraceName) > 0 {
+		b.WriteString("rootTraceName: ")
+		b.WriteString(strconv.Quote(m.RootTraceName))
+		b.WriteString(" ")
+	}
+	if m.StartTimeUnixNano != 0 {
+		b.WriteString("startTimeUnixNano: ")
+		fmt.Fprintf(&b, "%v", m.StartTimeUnixNano)
+		b.WriteString(" ")
+	}
+	if m.DurationMs != 0 {
+		b.WriteString("durationMs: ")
+		fmt.Fprintf(&b, "%v", m.DurationMs)
+		b.WriteString(" ")
+	}
+	if m.SpanSet != nil {
+		b.WriteString("spanSet: ")
+		b.WriteString("{")
+		b.WriteString(m.SpanSet.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	for _, e := range m.SpanSets {
+		b.WriteString("spanSets: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	{
+		entries := make([]string, 0, len(m.ServiceStats))
+		for k, v := range m.ServiceStats {
+			var eb strings.Builder
+			eb.WriteString("key: ")
+			eb.WriteString(strconv.Quote(k))
+			eb.WriteString(" ")
+			eb.WriteString("value: {")
+			eb.WriteString(v.String())
+			eb.WriteString("}")
+			entries = append(entries, strings.TrimSpace(eb.String()))
+		}
+		sort.Strings(entries)
+		for _, e := range entries {
+			b.WriteString("serviceStats: {")
+			b.WriteString(e)
+			b.WriteString("}")
+			b.WriteString(" ")
+		}
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *ServiceStats) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if m.SpanCount != 0 {
+		b.WriteString("spanCount: ")
+		fmt.Fprintf(&b, "%v", m.SpanCount)
+		b.WriteString(" ")
+	}
+	if m.ErrorCount != 0 {
+		b.WriteString("errorCount: ")
+		fmt.Fprintf(&b, "%v", m.ErrorCount)
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *SpanSet) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	for _, e := range m.Spans {
+		b.WriteString("spans: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if m.Matched != 0 {
+		b.WriteString("matched: ")
+		fmt.Fprintf(&b, "%v", m.Matched)
+		b.WriteString(" ")
+	}
+	for _, e := range m.Attributes {
+		b.WriteString("attributes: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *Span) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if len(m.SpanID) > 0 {
+		b.WriteString("spanID: ")
+		b.WriteString(strconv.Quote(m.SpanID))
+		b.WriteString(" ")
+	}
+	if len(m.Name) > 0 {
+		b.WriteString("name: ")
+		b.WriteString(strconv.Quote(m.Name))
+		b.WriteString(" ")
+	}
+	if m.StartTimeUnixNano != 0 {
+		b.WriteString("startTimeUnixNano: ")
+		fmt.Fprintf(&b, "%v", m.StartTimeUnixNano)
+		b.WriteString(" ")
+	}
+	if m.DurationNanos != 0 {
+		b.WriteString("durationNanos: ")
+		fmt.Fprintf(&b, "%v", m.DurationNanos)
+		b.WriteString(" ")
+	}
+	for _, e := range m.Attributes {
+		b.WriteString("attributes: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *SearchMetrics) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if m.InspectedTraces != 0 {
+		b.WriteString("inspectedTraces: ")
+		fmt.Fprintf(&b, "%v", m.InspectedTraces)
+		b.WriteString(" ")
+	}
+	if m.InspectedBytes != 0 {
+		b.WriteString("inspectedBytes: ")
+		fmt.Fprintf(&b, "%v", m.InspectedBytes)
+		b.WriteString(" ")
+	}
+	if m.TotalBlocks != 0 {
+		b.WriteString("totalBlocks: ")
+		fmt.Fprintf(&b, "%v", m.TotalBlocks)
+		b.WriteString(" ")
+	}
+	if m.CompletedJobs != 0 {
+		b.WriteString("completedJobs: ")
+		fmt.Fprintf(&b, "%v", m.CompletedJobs)
+		b.WriteString(" ")
+	}
+	if m.TotalJobs != 0 {
+		b.WriteString("totalJobs: ")
+		fmt.Fprintf(&b, "%v", m.TotalJobs)
+		b.WriteString(" ")
+	}
+	if m.TotalBlockBytes != 0 {
+		b.WriteString("totalBlockBytes: ")
+		fmt.Fprintf(&b, "%v", m.TotalBlockBytes)
+		b.WriteString(" ")
+	}
+	if m.InspectedSpans != 0 {
+		b.WriteString("inspectedSpans: ")
+		fmt.Fprintf(&b, "%v", m.InspectedSpans)
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *SearchTagsRequest) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if len(m.Scope) > 0 {
+		b.WriteString("scope: ")
+		b.WriteString(strconv.Quote(m.Scope))
+		b.WriteString(" ")
+	}
+	if len(m.Query) > 0 {
+		b.WriteString("query: ")
+		b.WriteString(strconv.Quote(m.Query))
+		b.WriteString(" ")
+	}
+	if m.Start != 0 {
+		b.WriteString("start: ")
+		fmt.Fprintf(&b, "%v", m.Start)
+		b.WriteString(" ")
+	}
+	if m.End != 0 {
+		b.WriteString("end: ")
+		fmt.Fprintf(&b, "%v", m.End)
+		b.WriteString(" ")
+	}
+	if m.MaxTagsPerScope != 0 {
+		b.WriteString("maxTagsPerScope: ")
+		fmt.Fprintf(&b, "%v", m.MaxTagsPerScope)
+		b.WriteString(" ")
+	}
+	if m.StaleValuesThreshold != 0 {
+		b.WriteString("staleValuesThreshold: ")
+		fmt.Fprintf(&b, "%v", m.StaleValuesThreshold)
+		b.WriteString(" ")
+	}
+	b.WriteString("RF1After: ")
+	fmt.Fprintf(&b, "%v", m.RF1After)
+	b.WriteString(" ")
+	return strings.TrimSpace(b.String())
+}
+
+func (m *SearchTagsBlockRequest) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if m.SearchReq != nil {
+		b.WriteString("searchReq: ")
+		b.WriteString("{")
+		b.WriteString(m.SearchReq.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if len(m.BlockID) > 0 {
+		b.WriteString("blockID: ")
+		b.WriteString(strconv.Quote(m.BlockID))
+		b.WriteString(" ")
+	}
+	if m.StartPage != 0 {
+		b.WriteString("startPage: ")
+		fmt.Fprintf(&b, "%v", m.StartPage)
+		b.WriteString(" ")
+	}
+	if m.PagesToSearch != 0 {
+		b.WriteString("pagesToSearch: ")
+		fmt.Fprintf(&b, "%v", m.PagesToSearch)
+		b.WriteString(" ")
+	}
+	if m.IndexPageSize != 0 {
+		b.WriteString("indexPageSize: ")
+		fmt.Fprintf(&b, "%v", m.IndexPageSize)
+		b.WriteString(" ")
+	}
+	if m.TotalRecords != 0 {
+		b.WriteString("totalRecords: ")
+		fmt.Fprintf(&b, "%v", m.TotalRecords)
+		b.WriteString(" ")
+	}
+	if len(m.Version) > 0 {
+		b.WriteString("version: ")
+		b.WriteString(strconv.Quote(m.Version))
+		b.WriteString(" ")
+	}
+	if m.Size_ != 0 {
+		b.WriteString("size: ")
+		fmt.Fprintf(&b, "%v", m.Size_)
+		b.WriteString(" ")
+	}
+	if m.FooterSize != 0 {
+		b.WriteString("footerSize: ")
+		fmt.Fprintf(&b, "%v", m.FooterSize)
+		b.WriteString(" ")
+	}
+	for _, e := range m.DedicatedColumns {
+		b.WriteString("dedicatedColumns: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if m.MaxTagsPerScope != 0 {
+		b.WriteString("maxTagsPerScope: ")
+		fmt.Fprintf(&b, "%v", m.MaxTagsPerScope)
+		b.WriteString(" ")
+	}
+	if m.StaleValueThreshold != 0 {
+		b.WriteString("staleValueThreshold: ")
+		fmt.Fprintf(&b, "%v", m.StaleValueThreshold)
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *SearchTagValuesBlockRequest) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if m.SearchReq != nil {
+		b.WriteString("searchReq: ")
+		b.WriteString("{")
+		b.WriteString(m.SearchReq.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if len(m.BlockID) > 0 {
+		b.WriteString("blockID: ")
+		b.WriteString(strconv.Quote(m.BlockID))
+		b.WriteString(" ")
+	}
+	if m.StartPage != 0 {
+		b.WriteString("startPage: ")
+		fmt.Fprintf(&b, "%v", m.StartPage)
+		b.WriteString(" ")
+	}
+	if m.PagesToSearch != 0 {
+		b.WriteString("pagesToSearch: ")
+		fmt.Fprintf(&b, "%v", m.PagesToSearch)
+		b.WriteString(" ")
+	}
+	if m.IndexPageSize != 0 {
+		b.WriteString("indexPageSize: ")
+		fmt.Fprintf(&b, "%v", m.IndexPageSize)
+		b.WriteString(" ")
+	}
+	if m.TotalRecords != 0 {
+		b.WriteString("totalRecords: ")
+		fmt.Fprintf(&b, "%v", m.TotalRecords)
+		b.WriteString(" ")
+	}
+	if len(m.Version) > 0 {
+		b.WriteString("version: ")
+		b.WriteString(strconv.Quote(m.Version))
+		b.WriteString(" ")
+	}
+	if m.Size_ != 0 {
+		b.WriteString("size: ")
+		fmt.Fprintf(&b, "%v", m.Size_)
+		b.WriteString(" ")
+	}
+	if m.FooterSize != 0 {
+		b.WriteString("footerSize: ")
+		fmt.Fprintf(&b, "%v", m.FooterSize)
+		b.WriteString(" ")
+	}
+	for _, e := range m.DedicatedColumns {
+		b.WriteString("dedicatedColumns: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *SearchTagsResponse) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	for _, e := range m.TagNames {
+		b.WriteString("tagNames: ")
+		b.WriteString(strconv.Quote(e))
+		b.WriteString(" ")
+	}
+	if m.Metrics != nil {
+		b.WriteString("metrics: ")
+		b.WriteString("{")
+		b.WriteString(m.Metrics.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *SearchTagsV2Response) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	for _, e := range m.Scopes {
+		b.WriteString("scopes: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if m.Metrics != nil {
+		b.WriteString("metrics: ")
+		b.WriteString("{")
+		b.WriteString(m.Metrics.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *SearchTagsV2Scope) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if len(m.Name) > 0 {
+		b.WriteString("name: ")
+		b.WriteString(strconv.Quote(m.Name))
+		b.WriteString(" ")
+	}
+	for _, e := range m.Tags {
+		b.WriteString("tags: ")
+		b.WriteString(strconv.Quote(e))
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *SearchTagValuesRequest) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if len(m.TagName) > 0 {
+		b.WriteString("tagName: ")
+		b.WriteString(strconv.Quote(m.TagName))
+		b.WriteString(" ")
+	}
+	if len(m.Query) > 0 {
+		b.WriteString("query: ")
+		b.WriteString(strconv.Quote(m.Query))
+		b.WriteString(" ")
+	}
+	if m.Start != 0 {
+		b.WriteString("start: ")
+		fmt.Fprintf(&b, "%v", m.Start)
+		b.WriteString(" ")
+	}
+	if m.End != 0 {
+		b.WriteString("end: ")
+		fmt.Fprintf(&b, "%v", m.End)
+		b.WriteString(" ")
+	}
+	if m.MaxTagValues != 0 {
+		b.WriteString("maxTagValues: ")
+		fmt.Fprintf(&b, "%v", m.MaxTagValues)
+		b.WriteString(" ")
+	}
+	if m.StaleValueThreshold != 0 {
+		b.WriteString("staleValueThreshold: ")
+		fmt.Fprintf(&b, "%v", m.StaleValueThreshold)
+		b.WriteString(" ")
+	}
+	b.WriteString("RF1After: ")
+	fmt.Fprintf(&b, "%v", m.RF1After)
+	b.WriteString(" ")
+	return strings.TrimSpace(b.String())
+}
+
+func (m *SearchTagValuesResponse) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	for _, e := range m.TagValues {
+		b.WriteString("tagValues: ")
+		b.WriteString(strconv.Quote(e))
+		b.WriteString(" ")
+	}
+	if m.Metrics != nil {
+		b.WriteString("metrics: ")
+		b.WriteString("{")
+		b.WriteString(m.Metrics.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *TagValue) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if len(m.Type) > 0 {
+		b.WriteString("type: ")
+		b.WriteString(strconv.Quote(m.Type))
+		b.WriteString(" ")
+	}
+	if len(m.Value) > 0 {
+		b.WriteString("value: ")
+		b.WriteString(strconv.Quote(m.Value))
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *SearchTagValuesV2Response) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	for _, e := range m.TagValues {
+		b.WriteString("tagValues: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if m.Metrics != nil {
+		b.WriteString("metrics: ")
+		b.WriteString("{")
+		b.WriteString(m.Metrics.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *MetadataMetrics) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if m.InspectedBytes != 0 {
+		b.WriteString("inspectedBytes: ")
+		fmt.Fprintf(&b, "%v", m.InspectedBytes)
+		b.WriteString(" ")
+	}
+	if m.TotalJobs != 0 {
+		b.WriteString("totalJobs: ")
+		fmt.Fprintf(&b, "%v", m.TotalJobs)
+		b.WriteString(" ")
+	}
+	if m.CompletedJobs != 0 {
+		b.WriteString("completedJobs: ")
+		fmt.Fprintf(&b, "%v", m.CompletedJobs)
+		b.WriteString(" ")
+	}
+	if m.TotalBlocks != 0 {
+		b.WriteString("totalBlocks: ")
+		fmt.Fprintf(&b, "%v", m.TotalBlocks)
+		b.WriteString(" ")
+	}
+	if m.TotalBlockBytes != 0 {
+		b.WriteString("totalBlockBytes: ")
+		fmt.Fprintf(&b, "%v", m.TotalBlockBytes)
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *Trace) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	for _, e := range m.ResourceSpans {
+		b.WriteString("resourceSpans: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *PushResponse) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	for _, e := range m.ErrorsByTrace {
+		b.WriteString("errorsByTrace: ")
+		b.WriteString(e.String())
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *PushBytesRequest) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	for _, e := range m.Traces {
+		b.WriteString("traces: ")
+		fmt.Fprintf(&b, "%v", e)
+		b.WriteString(" ")
+	}
+	for _, e := range m.Ids {
+		b.WriteString("ids: ")
+		b.WriteString(strconv.Quote(string(e)))
+		b.WriteString(" ")
+	}
+	if m.SkipMetricsGeneration {
+		b.WriteString("skipMetricsGeneration: ")
+		fmt.Fprintf(&b, "%v", m.SkipMetricsGeneration)
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *PushSpansRequest) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	for _, e := range m.Batches {
+		b.WriteString("batches: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if m.SkipMetricsGeneration {
+		b.WriteString("skipMetricsGeneration: ")
+		fmt.Fprintf(&b, "%v", m.SkipMetricsGeneration)
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *TraceBytes) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	for _, e := range m.Traces {
+		b.WriteString("traces: ")
+		b.WriteString(strconv.Quote(string(e)))
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *LinkSlice) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	for _, e := range m.Links {
+		b.WriteString("links: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *QueryInstantRequest) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if len(m.Query) > 0 {
+		b.WriteString("query: ")
+		b.WriteString(strconv.Quote(m.Query))
+		b.WriteString(" ")
+	}
+	if m.Start != 0 {
+		b.WriteString("start: ")
+		fmt.Fprintf(&b, "%v", m.Start)
+		b.WriteString(" ")
+	}
+	if m.End != 0 {
+		b.WriteString("end: ")
+		fmt.Fprintf(&b, "%v", m.End)
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *QueryInstantResponse) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	for _, e := range m.Series {
+		b.WriteString("series: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if m.Metrics != nil {
+		b.WriteString("metrics: ")
+		b.WriteString("{")
+		b.WriteString(m.Metrics.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if m.Status != 0 {
+		b.WriteString("status: ")
+		b.WriteString(m.Status.String())
+		b.WriteString(" ")
+	}
+	if len(m.Message) > 0 {
+		b.WriteString("message: ")
+		b.WriteString(strconv.Quote(m.Message))
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *InstantSeries) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	for _, e := range m.Labels {
+		b.WriteString("labels: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if m.Value != 0 {
+		b.WriteString("value: ")
+		fmt.Fprintf(&b, "%v", m.Value)
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *QueryRangeRequest) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if len(m.Query) > 0 {
+		b.WriteString("query: ")
+		b.WriteString(strconv.Quote(m.Query))
+		b.WriteString(" ")
+	}
+	if m.Start != 0 {
+		b.WriteString("start: ")
+		fmt.Fprintf(&b, "%v", m.Start)
+		b.WriteString(" ")
+	}
+	if m.End != 0 {
+		b.WriteString("end: ")
+		fmt.Fprintf(&b, "%v", m.End)
+		b.WriteString(" ")
+	}
+	if m.Step != 0 {
+		b.WriteString("step: ")
+		fmt.Fprintf(&b, "%v", m.Step)
+		b.WriteString(" ")
+	}
+	if len(m.QueryMode) > 0 {
+		b.WriteString("queryMode: ")
+		b.WriteString(strconv.Quote(m.QueryMode))
+		b.WriteString(" ")
+	}
+	if len(m.BlockID) > 0 {
+		b.WriteString("blockID: ")
+		b.WriteString(strconv.Quote(m.BlockID))
+		b.WriteString(" ")
+	}
+	if m.StartPage != 0 {
+		b.WriteString("startPage: ")
+		fmt.Fprintf(&b, "%v", m.StartPage)
+		b.WriteString(" ")
+	}
+	if m.PagesToSearch != 0 {
+		b.WriteString("pagesToSearch: ")
+		fmt.Fprintf(&b, "%v", m.PagesToSearch)
+		b.WriteString(" ")
+	}
+	if len(m.Version) > 0 {
+		b.WriteString("version: ")
+		b.WriteString(strconv.Quote(m.Version))
+		b.WriteString(" ")
+	}
+	if m.Size_ != 0 {
+		b.WriteString("size: ")
+		fmt.Fprintf(&b, "%v", m.Size_)
+		b.WriteString(" ")
+	}
+	if m.FooterSize != 0 {
+		b.WriteString("footerSize: ")
+		fmt.Fprintf(&b, "%v", m.FooterSize)
+		b.WriteString(" ")
+	}
+	for _, e := range m.DedicatedColumns {
+		b.WriteString("dedicatedColumns: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if m.Exemplars != 0 {
+		b.WriteString("exemplars: ")
+		fmt.Fprintf(&b, "%v", m.Exemplars)
+		b.WriteString(" ")
+	}
+	if m.MaxSeries != 0 {
+		b.WriteString("maxSeries: ")
+		fmt.Fprintf(&b, "%v", m.MaxSeries)
+		b.WriteString(" ")
+	}
+	if m.Instant != nil {
+		b.WriteString("instant: ")
+		fmt.Fprintf(&b, "%v", (*m.Instant))
+		b.WriteString(" ")
+	}
+	for _, e := range m.SkipASTTransformations {
+		b.WriteString("skipASTTransformations: ")
+		b.WriteString(strconv.Quote(e))
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *QueryRangeResponse) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	for _, e := range m.Series {
+		b.WriteString("series: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if m.Metrics != nil {
+		b.WriteString("metrics: ")
+		b.WriteString("{")
+		b.WriteString(m.Metrics.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if m.Status != 0 {
+		b.WriteString("status: ")
+		b.WriteString(m.Status.String())
+		b.WriteString(" ")
+	}
+	if len(m.Message) > 0 {
+		b.WriteString("message: ")
+		b.WriteString(strconv.Quote(m.Message))
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *Exemplar) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	for _, e := range m.Labels {
+		b.WriteString("labels: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if m.Value != 0 {
+		b.WriteString("value: ")
+		fmt.Fprintf(&b, "%v", m.Value)
+		b.WriteString(" ")
+	}
+	if m.TimestampMs != 0 {
+		b.WriteString("timestamp_ms: ")
+		fmt.Fprintf(&b, "%v", m.TimestampMs)
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *Sample) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if m.Value != 0 {
+		b.WriteString("value: ")
+		fmt.Fprintf(&b, "%v", m.Value)
+		b.WriteString(" ")
+	}
+	if m.TimestampMs != 0 {
+		b.WriteString("timestamp_ms: ")
+		fmt.Fprintf(&b, "%v", m.TimestampMs)
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *TimeSeries) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	for _, e := range m.Labels {
+		b.WriteString("labels: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	for _, e := range m.Samples {
+		b.WriteString("samples: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	for _, e := range m.Exemplars {
+		b.WriteString("exemplars: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *TraceByIDRequest) Clone() *TraceByIDRequest {
+	if m == nil {
+		return nil
+	}
+	out := &TraceByIDRequest{}
+	out.TraceID = slices.Clone(m.TraceID)
+	out.BlockStart = m.BlockStart
+	out.BlockEnd = m.BlockEnd
+	out.QueryMode = m.QueryMode
+	out.AllowPartialTrace = m.AllowPartialTrace
+	out.RF1After = m.RF1After
+	return out
+}
+
+func (m *TraceByIDResponse) Clone() *TraceByIDResponse {
+	if m == nil {
+		return nil
+	}
+	out := &TraceByIDResponse{}
+	out.Trace = m.Trace.Clone()
+	out.Metrics = m.Metrics.Clone()
+	out.Status = m.Status
+	out.Message = m.Message
+	return out
+}
+
+func (m *TraceByIDMetrics) Clone() *TraceByIDMetrics {
+	if m == nil {
+		return nil
+	}
+	out := &TraceByIDMetrics{}
+	out.InspectedBytes = m.InspectedBytes
+	return out
+}
+
+func (m *SearchRequest) Clone() *SearchRequest {
+	if m == nil {
+		return nil
+	}
+	out := &SearchRequest{}
+	if m.Tags != nil {
+		out.Tags = make(map[string]string, len(m.Tags))
+		for k, v := range m.Tags {
+			out.Tags[k] = v
+		}
+	}
+	out.MinDurationMs = m.MinDurationMs
+	out.MaxDurationMs = m.MaxDurationMs
+	out.Limit = m.Limit
+	out.Start = m.Start
+	out.End = m.End
+	out.Query = m.Query
+	out.SpansPerSpanSet = m.SpansPerSpanSet
+	out.RF1After = m.RF1After
+	out.SkipASTTransformations = slices.Clone(m.SkipASTTransformations)
+	return out
+}
+
+func (m *SearchBlockRequest) Clone() *SearchBlockRequest {
+	if m == nil {
+		return nil
+	}
+	out := &SearchBlockRequest{}
+	out.SearchReq = m.SearchReq.Clone()
+	out.BlockID = m.BlockID
+	out.StartPage = m.StartPage
+	out.PagesToSearch = m.PagesToSearch
+	out.IndexPageSize = m.IndexPageSize
+	out.TotalRecords = m.TotalRecords
+	out.Version = m.Version
+	out.Size_ = m.Size_
+	out.FooterSize = m.FooterSize
+	out.DedicatedColumns = slices.Clone(m.DedicatedColumns)
+	for i := range out.DedicatedColumns {
+		out.DedicatedColumns[i] = out.DedicatedColumns[i].Clone()
+	}
+	return out
+}
+
+func (m *DedicatedColumn) Clone() *DedicatedColumn {
+	if m == nil {
+		return nil
+	}
+	out := &DedicatedColumn{}
+	out.Scope = m.Scope
+	out.Name = m.Name
+	out.Type = m.Type
+	out.Options = m.Options
+	return out
+}
+
+func (m *SearchResponse) Clone() *SearchResponse {
+	if m == nil {
+		return nil
+	}
+	out := &SearchResponse{}
+	out.Traces = slices.Clone(m.Traces)
+	for i := range out.Traces {
+		out.Traces[i] = out.Traces[i].Clone()
+	}
+	out.Metrics = m.Metrics.Clone()
+	return out
+}
+
+func (m *TraceSearchMetadata) Clone() *TraceSearchMetadata {
+	if m == nil {
+		return nil
+	}
+	out := &TraceSearchMetadata{}
+	out.TraceID = m.TraceID
+	out.RootServiceName = m.RootServiceName
+	out.RootTraceName = m.RootTraceName
+	out.StartTimeUnixNano = m.StartTimeUnixNano
+	out.DurationMs = m.DurationMs
+	out.SpanSet = m.SpanSet.Clone()
+	out.SpanSets = slices.Clone(m.SpanSets)
+	for i := range out.SpanSets {
+		out.SpanSets[i] = out.SpanSets[i].Clone()
+	}
+	if m.ServiceStats != nil {
+		out.ServiceStats = make(map[string]ServiceStats, len(m.ServiceStats))
+		for k, v := range m.ServiceStats {
+			out.ServiceStats[k] = *v.Clone()
+		}
+	}
+	return out
+}
+
+func (m *ServiceStats) Clone() *ServiceStats {
+	if m == nil {
+		return nil
+	}
+	out := &ServiceStats{}
+	out.SpanCount = m.SpanCount
+	out.ErrorCount = m.ErrorCount
+	return out
+}
+
+func (m *SpanSet) Clone() *SpanSet {
+	if m == nil {
+		return nil
+	}
+	out := &SpanSet{}
+	out.Spans = slices.Clone(m.Spans)
+	for i := range out.Spans {
+		out.Spans[i] = out.Spans[i].Clone()
+	}
+	out.Matched = m.Matched
+	out.Attributes = slices.Clone(m.Attributes)
+	for i := range out.Attributes {
+		out.Attributes[i] = out.Attributes[i].Clone()
+	}
+	return out
+}
+
+func (m *Span) Clone() *Span {
+	if m == nil {
+		return nil
+	}
+	out := &Span{}
+	out.SpanID = m.SpanID
+	out.Name = m.Name
+	out.StartTimeUnixNano = m.StartTimeUnixNano
+	out.DurationNanos = m.DurationNanos
+	out.Attributes = slices.Clone(m.Attributes)
+	for i := range out.Attributes {
+		out.Attributes[i] = out.Attributes[i].Clone()
+	}
+	return out
+}
+
+func (m *SearchMetrics) Clone() *SearchMetrics {
+	if m == nil {
+		return nil
+	}
+	out := &SearchMetrics{}
+	out.InspectedTraces = m.InspectedTraces
+	out.InspectedBytes = m.InspectedBytes
+	out.TotalBlocks = m.TotalBlocks
+	out.CompletedJobs = m.CompletedJobs
+	out.TotalJobs = m.TotalJobs
+	out.TotalBlockBytes = m.TotalBlockBytes
+	out.InspectedSpans = m.InspectedSpans
+	return out
+}
+
+func (m *SearchTagsRequest) Clone() *SearchTagsRequest {
+	if m == nil {
+		return nil
+	}
+	out := &SearchTagsRequest{}
+	out.Scope = m.Scope
+	out.Query = m.Query
+	out.Start = m.Start
+	out.End = m.End
+	out.MaxTagsPerScope = m.MaxTagsPerScope
+	out.StaleValuesThreshold = m.StaleValuesThreshold
+	out.RF1After = m.RF1After
+	return out
+}
+
+func (m *SearchTagsBlockRequest) Clone() *SearchTagsBlockRequest {
+	if m == nil {
+		return nil
+	}
+	out := &SearchTagsBlockRequest{}
+	out.SearchReq = m.SearchReq.Clone()
+	out.BlockID = m.BlockID
+	out.StartPage = m.StartPage
+	out.PagesToSearch = m.PagesToSearch
+	out.IndexPageSize = m.IndexPageSize
+	out.TotalRecords = m.TotalRecords
+	out.Version = m.Version
+	out.Size_ = m.Size_
+	out.FooterSize = m.FooterSize
+	out.DedicatedColumns = slices.Clone(m.DedicatedColumns)
+	for i := range out.DedicatedColumns {
+		out.DedicatedColumns[i] = out.DedicatedColumns[i].Clone()
+	}
+	out.MaxTagsPerScope = m.MaxTagsPerScope
+	out.StaleValueThreshold = m.StaleValueThreshold
+	return out
+}
+
+func (m *SearchTagValuesBlockRequest) Clone() *SearchTagValuesBlockRequest {
+	if m == nil {
+		return nil
+	}
+	out := &SearchTagValuesBlockRequest{}
+	out.SearchReq = m.SearchReq.Clone()
+	out.BlockID = m.BlockID
+	out.StartPage = m.StartPage
+	out.PagesToSearch = m.PagesToSearch
+	out.IndexPageSize = m.IndexPageSize
+	out.TotalRecords = m.TotalRecords
+	out.Version = m.Version
+	out.Size_ = m.Size_
+	out.FooterSize = m.FooterSize
+	out.DedicatedColumns = slices.Clone(m.DedicatedColumns)
+	for i := range out.DedicatedColumns {
+		out.DedicatedColumns[i] = out.DedicatedColumns[i].Clone()
+	}
+	return out
+}
+
+func (m *SearchTagsResponse) Clone() *SearchTagsResponse {
+	if m == nil {
+		return nil
+	}
+	out := &SearchTagsResponse{}
+	out.TagNames = slices.Clone(m.TagNames)
+	out.Metrics = m.Metrics.Clone()
+	return out
+}
+
+func (m *SearchTagsV2Response) Clone() *SearchTagsV2Response {
+	if m == nil {
+		return nil
+	}
+	out := &SearchTagsV2Response{}
+	out.Scopes = slices.Clone(m.Scopes)
+	for i := range out.Scopes {
+		out.Scopes[i] = out.Scopes[i].Clone()
+	}
+	out.Metrics = m.Metrics.Clone()
+	return out
+}
+
+func (m *SearchTagsV2Scope) Clone() *SearchTagsV2Scope {
+	if m == nil {
+		return nil
+	}
+	out := &SearchTagsV2Scope{}
+	out.Name = m.Name
+	out.Tags = slices.Clone(m.Tags)
+	return out
+}
+
+func (m *SearchTagValuesRequest) Clone() *SearchTagValuesRequest {
+	if m == nil {
+		return nil
+	}
+	out := &SearchTagValuesRequest{}
+	out.TagName = m.TagName
+	out.Query = m.Query
+	out.Start = m.Start
+	out.End = m.End
+	out.MaxTagValues = m.MaxTagValues
+	out.StaleValueThreshold = m.StaleValueThreshold
+	out.RF1After = m.RF1After
+	return out
+}
+
+func (m *SearchTagValuesResponse) Clone() *SearchTagValuesResponse {
+	if m == nil {
+		return nil
+	}
+	out := &SearchTagValuesResponse{}
+	out.TagValues = slices.Clone(m.TagValues)
+	out.Metrics = m.Metrics.Clone()
+	return out
+}
+
+func (m *TagValue) Clone() *TagValue {
+	if m == nil {
+		return nil
+	}
+	out := &TagValue{}
+	out.Type = m.Type
+	out.Value = m.Value
+	return out
+}
+
+func (m *SearchTagValuesV2Response) Clone() *SearchTagValuesV2Response {
+	if m == nil {
+		return nil
+	}
+	out := &SearchTagValuesV2Response{}
+	out.TagValues = slices.Clone(m.TagValues)
+	for i := range out.TagValues {
+		out.TagValues[i] = out.TagValues[i].Clone()
+	}
+	out.Metrics = m.Metrics.Clone()
+	return out
+}
+
+func (m *MetadataMetrics) Clone() *MetadataMetrics {
+	if m == nil {
+		return nil
+	}
+	out := &MetadataMetrics{}
+	out.InspectedBytes = m.InspectedBytes
+	out.TotalJobs = m.TotalJobs
+	out.CompletedJobs = m.CompletedJobs
+	out.TotalBlocks = m.TotalBlocks
+	out.TotalBlockBytes = m.TotalBlockBytes
+	return out
+}
+
+func (m *Trace) Clone() *Trace {
+	if m == nil {
+		return nil
+	}
+	out := &Trace{}
+	out.ResourceSpans = slices.Clone(m.ResourceSpans)
+	for i := range out.ResourceSpans {
+		out.ResourceSpans[i] = out.ResourceSpans[i].Clone()
+	}
+	return out
+}
+
+func (m *PushResponse) Clone() *PushResponse {
+	if m == nil {
+		return nil
+	}
+	out := &PushResponse{}
+	out.ErrorsByTrace = slices.Clone(m.ErrorsByTrace)
+	return out
+}
+
+func (m *PushBytesRequest) Clone() *PushBytesRequest {
+	if m == nil {
+		return nil
+	}
+	out := &PushBytesRequest{}
+	out.Traces = slices.Clone(m.Traces)
+	out.Ids = slices.Clone(m.Ids)
+	for i := range out.Ids {
+		out.Ids[i] = slices.Clone(m.Ids[i])
+	}
+	out.SkipMetricsGeneration = m.SkipMetricsGeneration
+	return out
+}
+
+func (m *PushSpansRequest) Clone() *PushSpansRequest {
+	if m == nil {
+		return nil
+	}
+	out := &PushSpansRequest{}
+	out.Batches = slices.Clone(m.Batches)
+	for i := range out.Batches {
+		out.Batches[i] = out.Batches[i].Clone()
+	}
+	out.SkipMetricsGeneration = m.SkipMetricsGeneration
+	return out
+}
+
+func (m *TraceBytes) Clone() *TraceBytes {
+	if m == nil {
+		return nil
+	}
+	out := &TraceBytes{}
+	out.Traces = slices.Clone(m.Traces)
+	for i := range out.Traces {
+		out.Traces[i] = slices.Clone(m.Traces[i])
+	}
+	return out
+}
+
+func (m *LinkSlice) Clone() *LinkSlice {
+	if m == nil {
+		return nil
+	}
+	out := &LinkSlice{}
+	out.Links = slices.Clone(m.Links)
+	for i := range out.Links {
+		out.Links[i] = out.Links[i].Clone()
+	}
+	return out
+}
+
+func (m *QueryInstantRequest) Clone() *QueryInstantRequest {
+	if m == nil {
+		return nil
+	}
+	out := &QueryInstantRequest{}
+	out.Query = m.Query
+	out.Start = m.Start
+	out.End = m.End
+	return out
+}
+
+func (m *QueryInstantResponse) Clone() *QueryInstantResponse {
+	if m == nil {
+		return nil
+	}
+	out := &QueryInstantResponse{}
+	out.Series = slices.Clone(m.Series)
+	for i := range out.Series {
+		out.Series[i] = out.Series[i].Clone()
+	}
+	out.Metrics = m.Metrics.Clone()
+	out.Status = m.Status
+	out.Message = m.Message
+	return out
+}
+
+func (m *InstantSeries) Clone() *InstantSeries {
+	if m == nil {
+		return nil
+	}
+	out := &InstantSeries{}
+	out.Labels = slices.Clone(m.Labels)
+	for i := range out.Labels {
+		out.Labels[i] = *m.Labels[i].Clone()
+	}
+	out.Value = m.Value
+	return out
+}
+
+func (m *QueryRangeRequest) Clone() *QueryRangeRequest {
+	if m == nil {
+		return nil
+	}
+	out := &QueryRangeRequest{}
+	out.Query = m.Query
+	out.Start = m.Start
+	out.End = m.End
+	out.Step = m.Step
+	out.QueryMode = m.QueryMode
+	out.BlockID = m.BlockID
+	out.StartPage = m.StartPage
+	out.PagesToSearch = m.PagesToSearch
+	out.Version = m.Version
+	out.Size_ = m.Size_
+	out.FooterSize = m.FooterSize
+	out.DedicatedColumns = slices.Clone(m.DedicatedColumns)
+	for i := range out.DedicatedColumns {
+		out.DedicatedColumns[i] = out.DedicatedColumns[i].Clone()
+	}
+	out.Exemplars = m.Exemplars
+	out.MaxSeries = m.MaxSeries
+	if m.Instant != nil {
+		tmp := *m.Instant
+		out.Instant = &tmp
+	}
+	out.SkipASTTransformations = slices.Clone(m.SkipASTTransformations)
+	return out
+}
+
+func (m *QueryRangeResponse) Clone() *QueryRangeResponse {
+	if m == nil {
+		return nil
+	}
+	out := &QueryRangeResponse{}
+	out.Series = slices.Clone(m.Series)
+	for i := range out.Series {
+		out.Series[i] = out.Series[i].Clone()
+	}
+	out.Metrics = m.Metrics.Clone()
+	out.Status = m.Status
+	out.Message = m.Message
+	return out
+}
+
+func (m *Exemplar) Clone() *Exemplar {
+	if m == nil {
+		return nil
+	}
+	out := &Exemplar{}
+	out.Labels = slices.Clone(m.Labels)
+	for i := range out.Labels {
+		out.Labels[i] = *m.Labels[i].Clone()
+	}
+	out.Value = m.Value
+	out.TimestampMs = m.TimestampMs
+	return out
+}
+
+func (m *Sample) Clone() *Sample {
+	if m == nil {
+		return nil
+	}
+	out := &Sample{}
+	out.TimestampMs = m.TimestampMs
+	out.Value = m.Value
+	return out
+}
+
+func (m *TimeSeries) Clone() *TimeSeries {
+	if m == nil {
+		return nil
+	}
+	out := &TimeSeries{}
+	out.Labels = slices.Clone(m.Labels)
+	for i := range out.Labels {
+		out.Labels[i] = *m.Labels[i].Clone()
+	}
+	out.Samples = slices.Clone(m.Samples)
+	for i := range out.Samples {
+		out.Samples[i] = *m.Samples[i].Clone()
+	}
+	out.Exemplars = slices.Clone(m.Exemplars)
+	for i := range out.Exemplars {
+		out.Exemplars[i] = *m.Exemplars[i].Clone()
+	}
+	return out
+}
 
 func (x PushErrorReason) Descriptor() protoreflect.EnumDescriptor {
 	file_tempopb_tempo_proto_init()

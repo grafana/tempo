@@ -3,23 +3,163 @@
 
 package backend
 
-// Per-message Compare() methods for backend/v1.proto.
+// Per-message value-comparison methods (Equal + Compare) for backend/v1.proto.
 //
-// Compare returns -1/0/+1 like bytes.Compare with the gogoproto.compare
-// nil/wrong-type preamble. Always emitted on every message; callers that
-// don't use it can rely on Go's dead-code elimination to drop the body.
+// Equal returns bool; Compare returns -1/0/+1 like bytes.Compare with the
+// gogoproto.compare nil/wrong-type preamble. Both are emitted on every
+// message; callers that don't use one can rely on Go's dead-code
+// elimination to drop the body.
 //
-// Why a separate file? Compare is never called from Marshal/Unmarshal/Size,
-// but emitting it next to those hot functions in the main .pb.go pushed
-// them onto different cache sets and produced a measured ~9% geomean
+// Why a separate file? Equal/Compare are never called from Marshal/Unmarshal/
+// Size, but emitting them next to those hot functions in the main .pb.go
+// pushed them onto different cache sets and produced a measured ~9% geomean
 // regression on OTel benchmarks (UnmarshalMap +14%, MarshalSingleSpan +13%)
-// purely from icache / iTLB / BTB pressure. Splitting Compare into its own
+// purely from icache / iTLB / BTB pressure. Splitting them into their own
 // compilation unit gives the linker freedom to place the cold half away
-// from the hot half — same trick the _reflect.pb.go split uses.
+// from the hot half — same trick the _util.pb.go split uses.
 //
-// See compiler/generator/emit_compare.go for the full rationale and the
-// benchmark methodology. DO NOT inline this file's contents back into
-// the main .pb.go without re-measuring.
+// See compiler/generator/emit_compare.go / emit_equal.go for the full
+// rationale and the benchmark methodology. DO NOT inline this file's
+// contents back into the main .pb.go without re-measuring.
+
+func (this *BlockMeta) Equal(that interface{}) bool {
+	if that == nil {
+		return this == nil
+	}
+
+	that1, ok := that.(*BlockMeta)
+	if !ok {
+		that2, ok := that.(BlockMeta)
+		if ok {
+			that1 = &that2
+		} else {
+			return false
+		}
+	}
+	if that1 == nil {
+		return this == nil
+	} else if this == nil {
+		return false
+	}
+	if this.Version != that1.Version {
+		return false
+	}
+	if !this.BlockID.EqualWiresmith(that1.BlockID) {
+		return false
+	}
+	if this.TenantID != that1.TenantID {
+		return false
+	}
+	if !this.StartTime.Equal(that1.StartTime) {
+		return false
+	}
+	if !this.EndTime.Equal(that1.EndTime) {
+		return false
+	}
+	if this.TotalObjects != that1.TotalObjects {
+		return false
+	}
+	if this.Size_ != that1.Size_ {
+		return false
+	}
+	if this.CompactionLevel != that1.CompactionLevel {
+		return false
+	}
+	if this.IndexPageSize != that1.IndexPageSize {
+		return false
+	}
+	if this.TotalRecords != that1.TotalRecords {
+		return false
+	}
+	if this.BloomShardCount != that1.BloomShardCount {
+		return false
+	}
+	if this.FooterSize != that1.FooterSize {
+		return false
+	}
+	if !this.DedicatedColumns.EqualWiresmith(that1.DedicatedColumns) {
+		return false
+	}
+	if this.ReplicationFactor != that1.ReplicationFactor {
+		return false
+	}
+	return true
+}
+
+func (this *CompactedBlockMeta) Equal(that interface{}) bool {
+	if that == nil {
+		return this == nil
+	}
+
+	that1, ok := that.(*CompactedBlockMeta)
+	if !ok {
+		that2, ok := that.(CompactedBlockMeta)
+		if ok {
+			that1 = &that2
+		} else {
+			return false
+		}
+	}
+	if that1 == nil {
+		return this == nil
+	} else if this == nil {
+		return false
+	}
+	if !this.BlockMeta.Equal(that1.BlockMeta) {
+		return false
+	}
+	if !this.CompactedTime.Equal(that1.CompactedTime) {
+		return false
+	}
+	return true
+}
+
+func (this *TenantIndex) Equal(that interface{}) bool {
+	if that == nil {
+		return this == nil
+	}
+
+	that1, ok := that.(*TenantIndex)
+	if !ok {
+		that2, ok := that.(TenantIndex)
+		if ok {
+			that1 = &that2
+		} else {
+			return false
+		}
+	}
+	if that1 == nil {
+		return this == nil
+	} else if this == nil {
+		return false
+	}
+	if !this.CreatedAt.Equal(that1.CreatedAt) {
+		return false
+	}
+	if len(this.Meta) != len(that1.Meta) {
+		return false
+	}
+	for i := range this.Meta {
+		if (this.Meta[i] == nil) != (that1.Meta[i] == nil) {
+			return false
+		}
+		if this.Meta[i] != nil && !this.Meta[i].Equal(that1.Meta[i]) {
+			return false
+		}
+	}
+	if len(this.CompactedMeta) != len(that1.CompactedMeta) {
+		return false
+	}
+	for i := range this.CompactedMeta {
+		if (this.CompactedMeta[i] == nil) != (that1.CompactedMeta[i] == nil) {
+			return false
+		}
+		if this.CompactedMeta[i] != nil && !this.CompactedMeta[i].Equal(that1.CompactedMeta[i]) {
+			return false
+		}
+	}
+	return true
+}
 
 func (this *BlockMeta) Compare(that interface{}) int {
 	if that == nil {

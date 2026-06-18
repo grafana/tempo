@@ -4,23 +4,32 @@
 package v1
 
 import (
+	"fmt"
 	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	resourcev1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	"github.com/grafana/wiresmith/protohelpers"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/runtime/protoimpl"
 	"reflect"
+	"slices"
+	"strconv"
+	"strings"
 	"unsafe"
 )
 
-// Reflection / registration glue for trace/v1/trace.proto.
+// Cold companion utilities for trace/v1/trace.proto.
 //
-// This file holds the per-message ProtoReflect() methods, the per-enum
-// Descriptor()/Type()/Number() methods, the embedded FileDescriptorProto
-// blob, the file_*_msgTypes / file_*_enumTypes arrays, and the init()
-// that registers everything with protoregistry.GlobalFiles and
-// protoregistry.GlobalTypes. None of these are called on the marshal /
-// unmarshal / size hot path.
+// This file holds two cold concerns merged into one compilation unit:
+//
+//   - Reflection / registration glue: the per-message ProtoReflect()
+//     methods, the per-enum Descriptor()/Type()/Number() methods, the
+//     embedded FileDescriptorProto blob, the file_*_msgTypes /
+//     file_*_enumTypes arrays, and the init() that registers everything
+//     with protoregistry.GlobalFiles and protoregistry.GlobalTypes.
+//   - The per-message String() debug dumps (hand-rolled, deterministic,
+//     non-reflection — see compiler/generator/emit_string.go).
+//
+// None of these are called on the marshal / unmarshal / size hot path.
 //
 // Why a separate file? Putting this code (plus its descriptorpb /
 // protoreflect / protoimpl imports — ~64KB of descriptorpb alone, ~377KB
@@ -31,11 +40,381 @@ import (
 // in the same compilation unit shifted hot functions onto different
 // cache sets and pushed them ~131KB further into the binary. Emitting
 // the cold half here, in its own .o, lets the linker place it away
-// from the hot half and recovers that throughput.
+// from the hot half and recovers that throughput. reflect and String()
+// are both cold and were already split out, so merging them (cold→cold)
+// preserves the rationale while halving the companion-file count.
 //
 // See compiler/generator/emit_registration.go for the full rationale
 // and the benchmark methodology. DO NOT inline this file's contents
 // back into the main .pb.go without re-measuring.
+
+func (m *TracesData) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	for _, e := range m.ResourceSpans {
+		b.WriteString("resource_spans: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *ResourceSpans) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if m.Resource != nil {
+		b.WriteString("resource: ")
+		b.WriteString("{")
+		b.WriteString(m.Resource.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	for _, e := range m.ScopeSpans {
+		b.WriteString("scope_spans: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if len(m.SchemaUrl) > 0 {
+		b.WriteString("schema_url: ")
+		b.WriteString(strconv.Quote(m.SchemaUrl))
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *ScopeSpans) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if m.Scope != nil {
+		b.WriteString("scope: ")
+		b.WriteString("{")
+		b.WriteString(m.Scope.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	for _, e := range m.Spans {
+		b.WriteString("spans: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if len(m.SchemaUrl) > 0 {
+		b.WriteString("schema_url: ")
+		b.WriteString(strconv.Quote(m.SchemaUrl))
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *Span_Event) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if m.TimeUnixNano != 0 {
+		b.WriteString("time_unix_nano: ")
+		fmt.Fprintf(&b, "%v", m.TimeUnixNano)
+		b.WriteString(" ")
+	}
+	if len(m.Name) > 0 {
+		b.WriteString("name: ")
+		b.WriteString(strconv.Quote(m.Name))
+		b.WriteString(" ")
+	}
+	for _, e := range m.Attributes {
+		b.WriteString("attributes: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if m.DroppedAttributesCount != 0 {
+		b.WriteString("dropped_attributes_count: ")
+		fmt.Fprintf(&b, "%v", m.DroppedAttributesCount)
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *Span_Link) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if len(m.TraceId) > 0 {
+		b.WriteString("trace_id: ")
+		b.WriteString(strconv.Quote(string(m.TraceId)))
+		b.WriteString(" ")
+	}
+	if len(m.SpanId) > 0 {
+		b.WriteString("span_id: ")
+		b.WriteString(strconv.Quote(string(m.SpanId)))
+		b.WriteString(" ")
+	}
+	if len(m.TraceState) > 0 {
+		b.WriteString("trace_state: ")
+		b.WriteString(strconv.Quote(m.TraceState))
+		b.WriteString(" ")
+	}
+	for _, e := range m.Attributes {
+		b.WriteString("attributes: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if m.DroppedAttributesCount != 0 {
+		b.WriteString("dropped_attributes_count: ")
+		fmt.Fprintf(&b, "%v", m.DroppedAttributesCount)
+		b.WriteString(" ")
+	}
+	if m.Flags != 0 {
+		b.WriteString("flags: ")
+		fmt.Fprintf(&b, "%v", m.Flags)
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *Span) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if len(m.TraceId) > 0 {
+		b.WriteString("trace_id: ")
+		b.WriteString(strconv.Quote(string(m.TraceId)))
+		b.WriteString(" ")
+	}
+	if len(m.SpanId) > 0 {
+		b.WriteString("span_id: ")
+		b.WriteString(strconv.Quote(string(m.SpanId)))
+		b.WriteString(" ")
+	}
+	if len(m.TraceState) > 0 {
+		b.WriteString("trace_state: ")
+		b.WriteString(strconv.Quote(m.TraceState))
+		b.WriteString(" ")
+	}
+	if len(m.ParentSpanId) > 0 {
+		b.WriteString("parent_span_id: ")
+		b.WriteString(strconv.Quote(string(m.ParentSpanId)))
+		b.WriteString(" ")
+	}
+	if len(m.Name) > 0 {
+		b.WriteString("name: ")
+		b.WriteString(strconv.Quote(m.Name))
+		b.WriteString(" ")
+	}
+	if m.Kind != 0 {
+		b.WriteString("kind: ")
+		b.WriteString(m.Kind.String())
+		b.WriteString(" ")
+	}
+	if m.StartTimeUnixNano != 0 {
+		b.WriteString("start_time_unix_nano: ")
+		fmt.Fprintf(&b, "%v", m.StartTimeUnixNano)
+		b.WriteString(" ")
+	}
+	if m.EndTimeUnixNano != 0 {
+		b.WriteString("end_time_unix_nano: ")
+		fmt.Fprintf(&b, "%v", m.EndTimeUnixNano)
+		b.WriteString(" ")
+	}
+	for _, e := range m.Attributes {
+		b.WriteString("attributes: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if m.DroppedAttributesCount != 0 {
+		b.WriteString("dropped_attributes_count: ")
+		fmt.Fprintf(&b, "%v", m.DroppedAttributesCount)
+		b.WriteString(" ")
+	}
+	for _, e := range m.Events {
+		b.WriteString("events: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if m.DroppedEventsCount != 0 {
+		b.WriteString("dropped_events_count: ")
+		fmt.Fprintf(&b, "%v", m.DroppedEventsCount)
+		b.WriteString(" ")
+	}
+	for _, e := range m.Links {
+		b.WriteString("links: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if m.DroppedLinksCount != 0 {
+		b.WriteString("dropped_links_count: ")
+		fmt.Fprintf(&b, "%v", m.DroppedLinksCount)
+		b.WriteString(" ")
+	}
+	if m.Status != nil {
+		b.WriteString("status: ")
+		b.WriteString("{")
+		b.WriteString(m.Status.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if m.Flags != 0 {
+		b.WriteString("flags: ")
+		fmt.Fprintf(&b, "%v", m.Flags)
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *Status) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if len(m.Message) > 0 {
+		b.WriteString("message: ")
+		b.WriteString(strconv.Quote(m.Message))
+		b.WriteString(" ")
+	}
+	if m.Code != 0 {
+		b.WriteString("code: ")
+		b.WriteString(m.Code.String())
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *TracesData) Clone() *TracesData {
+	if m == nil {
+		return nil
+	}
+	out := &TracesData{}
+	out.ResourceSpans = slices.Clone(m.ResourceSpans)
+	for i := range out.ResourceSpans {
+		out.ResourceSpans[i] = out.ResourceSpans[i].Clone()
+	}
+	return out
+}
+
+func (m *ResourceSpans) Clone() *ResourceSpans {
+	if m == nil {
+		return nil
+	}
+	out := &ResourceSpans{}
+	out.Resource = m.Resource.Clone()
+	out.ScopeSpans = slices.Clone(m.ScopeSpans)
+	for i := range out.ScopeSpans {
+		out.ScopeSpans[i] = out.ScopeSpans[i].Clone()
+	}
+	out.SchemaUrl = m.SchemaUrl
+	return out
+}
+
+func (m *ScopeSpans) Clone() *ScopeSpans {
+	if m == nil {
+		return nil
+	}
+	out := &ScopeSpans{}
+	out.Scope = m.Scope.Clone()
+	out.Spans = slices.Clone(m.Spans)
+	for i := range out.Spans {
+		out.Spans[i] = out.Spans[i].Clone()
+	}
+	out.SchemaUrl = m.SchemaUrl
+	return out
+}
+
+func (m *Span_Event) Clone() *Span_Event {
+	if m == nil {
+		return nil
+	}
+	out := &Span_Event{}
+	out.TimeUnixNano = m.TimeUnixNano
+	out.Name = m.Name
+	out.Attributes = slices.Clone(m.Attributes)
+	for i := range out.Attributes {
+		out.Attributes[i] = out.Attributes[i].Clone()
+	}
+	out.DroppedAttributesCount = m.DroppedAttributesCount
+	return out
+}
+
+func (m *Span_Link) Clone() *Span_Link {
+	if m == nil {
+		return nil
+	}
+	out := &Span_Link{}
+	out.TraceId = slices.Clone(m.TraceId)
+	out.SpanId = slices.Clone(m.SpanId)
+	out.TraceState = m.TraceState
+	out.Attributes = slices.Clone(m.Attributes)
+	for i := range out.Attributes {
+		out.Attributes[i] = out.Attributes[i].Clone()
+	}
+	out.DroppedAttributesCount = m.DroppedAttributesCount
+	out.Flags = m.Flags
+	return out
+}
+
+func (m *Span) Clone() *Span {
+	if m == nil {
+		return nil
+	}
+	out := &Span{}
+	out.TraceId = slices.Clone(m.TraceId)
+	out.SpanId = slices.Clone(m.SpanId)
+	out.TraceState = m.TraceState
+	out.ParentSpanId = slices.Clone(m.ParentSpanId)
+	out.Flags = m.Flags
+	out.Name = m.Name
+	out.Kind = m.Kind
+	out.StartTimeUnixNano = m.StartTimeUnixNano
+	out.EndTimeUnixNano = m.EndTimeUnixNano
+	out.Attributes = slices.Clone(m.Attributes)
+	for i := range out.Attributes {
+		out.Attributes[i] = out.Attributes[i].Clone()
+	}
+	out.DroppedAttributesCount = m.DroppedAttributesCount
+	out.Events = slices.Clone(m.Events)
+	for i := range out.Events {
+		out.Events[i] = out.Events[i].Clone()
+	}
+	out.DroppedEventsCount = m.DroppedEventsCount
+	out.Links = slices.Clone(m.Links)
+	for i := range out.Links {
+		out.Links[i] = out.Links[i].Clone()
+	}
+	out.DroppedLinksCount = m.DroppedLinksCount
+	out.Status = m.Status.Clone()
+	return out
+}
+
+func (m *Status) Clone() *Status {
+	if m == nil {
+		return nil
+	}
+	out := &Status{}
+	out.Message = m.Message
+	out.Code = m.Code
+	return out
+}
 
 func (x SpanFlags) Descriptor() protoreflect.EnumDescriptor {
 	file_trace_v1_trace_proto_init()

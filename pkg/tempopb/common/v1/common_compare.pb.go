@@ -8,23 +8,250 @@ import (
 	"math"
 )
 
-// Per-message Compare() methods for common/v1/common.proto.
+// Per-message value-comparison methods (Equal + Compare) for common/v1/common.proto.
 //
-// Compare returns -1/0/+1 like bytes.Compare with the gogoproto.compare
-// nil/wrong-type preamble. Always emitted on every message; callers that
-// don't use it can rely on Go's dead-code elimination to drop the body.
+// Equal returns bool; Compare returns -1/0/+1 like bytes.Compare with the
+// gogoproto.compare nil/wrong-type preamble. Both are emitted on every
+// message; callers that don't use one can rely on Go's dead-code
+// elimination to drop the body.
 //
-// Why a separate file? Compare is never called from Marshal/Unmarshal/Size,
-// but emitting it next to those hot functions in the main .pb.go pushed
-// them onto different cache sets and produced a measured ~9% geomean
+// Why a separate file? Equal/Compare are never called from Marshal/Unmarshal/
+// Size, but emitting them next to those hot functions in the main .pb.go
+// pushed them onto different cache sets and produced a measured ~9% geomean
 // regression on OTel benchmarks (UnmarshalMap +14%, MarshalSingleSpan +13%)
-// purely from icache / iTLB / BTB pressure. Splitting Compare into its own
+// purely from icache / iTLB / BTB pressure. Splitting them into their own
 // compilation unit gives the linker freedom to place the cold half away
-// from the hot half — same trick the _reflect.pb.go split uses.
+// from the hot half — same trick the _util.pb.go split uses.
 //
-// See compiler/generator/emit_compare.go for the full rationale and the
-// benchmark methodology. DO NOT inline this file's contents back into
-// the main .pb.go without re-measuring.
+// See compiler/generator/emit_compare.go / emit_equal.go for the full
+// rationale and the benchmark methodology. DO NOT inline this file's
+// contents back into the main .pb.go without re-measuring.
+
+func (this *AnyValue) Equal(that interface{}) bool {
+	if that == nil {
+		return this == nil
+	}
+
+	that1, ok := that.(*AnyValue)
+	if !ok {
+		that2, ok := that.(AnyValue)
+		if ok {
+			that1 = &that2
+		} else {
+			return false
+		}
+	}
+	if that1 == nil {
+		return this == nil
+	} else if this == nil {
+		return false
+	}
+	if (this.Value == nil) != (that1.Value == nil) {
+		return false
+	}
+	if this.Value != nil {
+		switch v := this.Value.(type) {
+		case *AnyValue_StringValue:
+			v2, ok := that1.Value.(*AnyValue_StringValue)
+			if !ok {
+				return false
+			}
+			if v.StringValue != v2.StringValue {
+				return false
+			}
+		case *AnyValue_BoolValue:
+			v2, ok := that1.Value.(*AnyValue_BoolValue)
+			if !ok {
+				return false
+			}
+			if v.BoolValue != v2.BoolValue {
+				return false
+			}
+		case *AnyValue_IntValue:
+			v2, ok := that1.Value.(*AnyValue_IntValue)
+			if !ok {
+				return false
+			}
+			if v.IntValue != v2.IntValue {
+				return false
+			}
+		case *AnyValue_DoubleValue:
+			v2, ok := that1.Value.(*AnyValue_DoubleValue)
+			if !ok {
+				return false
+			}
+			if math.Float64bits(v.DoubleValue) != math.Float64bits(v2.DoubleValue) {
+				return false
+			}
+		case *AnyValue_ArrayValue:
+			v2, ok := that1.Value.(*AnyValue_ArrayValue)
+			if !ok {
+				return false
+			}
+			if !v.ArrayValue.Equal(v2.ArrayValue) {
+				return false
+			}
+		case *AnyValue_KvlistValue:
+			v2, ok := that1.Value.(*AnyValue_KvlistValue)
+			if !ok {
+				return false
+			}
+			if !v.KvlistValue.Equal(v2.KvlistValue) {
+				return false
+			}
+		case *AnyValue_BytesValue:
+			v2, ok := that1.Value.(*AnyValue_BytesValue)
+			if !ok {
+				return false
+			}
+			if !bytes.Equal(v.BytesValue, v2.BytesValue) {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func (this *ArrayValue) Equal(that interface{}) bool {
+	if that == nil {
+		return this == nil
+	}
+
+	that1, ok := that.(*ArrayValue)
+	if !ok {
+		that2, ok := that.(ArrayValue)
+		if ok {
+			that1 = &that2
+		} else {
+			return false
+		}
+	}
+	if that1 == nil {
+		return this == nil
+	} else if this == nil {
+		return false
+	}
+	if len(this.Values) != len(that1.Values) {
+		return false
+	}
+	for i := range this.Values {
+		if (this.Values[i] == nil) != (that1.Values[i] == nil) {
+			return false
+		}
+		if this.Values[i] != nil && !this.Values[i].Equal(that1.Values[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (this *KeyValueList) Equal(that interface{}) bool {
+	if that == nil {
+		return this == nil
+	}
+
+	that1, ok := that.(*KeyValueList)
+	if !ok {
+		that2, ok := that.(KeyValueList)
+		if ok {
+			that1 = &that2
+		} else {
+			return false
+		}
+	}
+	if that1 == nil {
+		return this == nil
+	} else if this == nil {
+		return false
+	}
+	if len(this.Values) != len(that1.Values) {
+		return false
+	}
+	for i := range this.Values {
+		if (this.Values[i] == nil) != (that1.Values[i] == nil) {
+			return false
+		}
+		if this.Values[i] != nil && !this.Values[i].Equal(that1.Values[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (this *KeyValue) Equal(that interface{}) bool {
+	if that == nil {
+		return this == nil
+	}
+
+	that1, ok := that.(*KeyValue)
+	if !ok {
+		that2, ok := that.(KeyValue)
+		if ok {
+			that1 = &that2
+		} else {
+			return false
+		}
+	}
+	if that1 == nil {
+		return this == nil
+	} else if this == nil {
+		return false
+	}
+	if this.Key != that1.Key {
+		return false
+	}
+	if (this.Value == nil) != (that1.Value == nil) {
+		return false
+	}
+	if this.Value != nil && !this.Value.Equal(that1.Value) {
+		return false
+	}
+	return true
+}
+
+func (this *InstrumentationScope) Equal(that interface{}) bool {
+	if that == nil {
+		return this == nil
+	}
+
+	that1, ok := that.(*InstrumentationScope)
+	if !ok {
+		that2, ok := that.(InstrumentationScope)
+		if ok {
+			that1 = &that2
+		} else {
+			return false
+		}
+	}
+	if that1 == nil {
+		return this == nil
+	} else if this == nil {
+		return false
+	}
+	if this.Name != that1.Name {
+		return false
+	}
+	if this.Version != that1.Version {
+		return false
+	}
+	if len(this.Attributes) != len(that1.Attributes) {
+		return false
+	}
+	for i := range this.Attributes {
+		if (this.Attributes[i] == nil) != (that1.Attributes[i] == nil) {
+			return false
+		}
+		if this.Attributes[i] != nil && !this.Attributes[i].Equal(that1.Attributes[i]) {
+			return false
+		}
+	}
+	if this.DroppedAttributesCount != that1.DroppedAttributesCount {
+		return false
+	}
+	return true
+}
 
 func (this *AnyValue) Compare(that interface{}) int {
 	if that == nil {

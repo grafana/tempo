@@ -4,22 +4,30 @@
 package v1
 
 import (
+	"fmt"
 	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/wiresmith/protohelpers"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/runtime/protoimpl"
 	"reflect"
+	"slices"
+	"strings"
 	"unsafe"
 )
 
-// Reflection / registration glue for resource/v1/resource.proto.
+// Cold companion utilities for resource/v1/resource.proto.
 //
-// This file holds the per-message ProtoReflect() methods, the per-enum
-// Descriptor()/Type()/Number() methods, the embedded FileDescriptorProto
-// blob, the file_*_msgTypes / file_*_enumTypes arrays, and the init()
-// that registers everything with protoregistry.GlobalFiles and
-// protoregistry.GlobalTypes. None of these are called on the marshal /
-// unmarshal / size hot path.
+// This file holds two cold concerns merged into one compilation unit:
+//
+//   - Reflection / registration glue: the per-message ProtoReflect()
+//     methods, the per-enum Descriptor()/Type()/Number() methods, the
+//     embedded FileDescriptorProto blob, the file_*_msgTypes /
+//     file_*_enumTypes arrays, and the init() that registers everything
+//     with protoregistry.GlobalFiles and protoregistry.GlobalTypes.
+//   - The per-message String() debug dumps (hand-rolled, deterministic,
+//     non-reflection — see compiler/generator/emit_string.go).
+//
+// None of these are called on the marshal / unmarshal / size hot path.
 //
 // Why a separate file? Putting this code (plus its descriptorpb /
 // protoreflect / protoimpl imports — ~64KB of descriptorpb alone, ~377KB
@@ -30,11 +38,46 @@ import (
 // in the same compilation unit shifted hot functions onto different
 // cache sets and pushed them ~131KB further into the binary. Emitting
 // the cold half here, in its own .o, lets the linker place it away
-// from the hot half and recovers that throughput.
+// from the hot half and recovers that throughput. reflect and String()
+// are both cold and were already split out, so merging them (cold→cold)
+// preserves the rationale while halving the companion-file count.
 //
 // See compiler/generator/emit_registration.go for the full rationale
 // and the benchmark methodology. DO NOT inline this file's contents
 // back into the main .pb.go without re-measuring.
+
+func (m *Resource) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	for _, e := range m.Attributes {
+		b.WriteString("attributes: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if m.DroppedAttributesCount != 0 {
+		b.WriteString("dropped_attributes_count: ")
+		fmt.Fprintf(&b, "%v", m.DroppedAttributesCount)
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *Resource) Clone() *Resource {
+	if m == nil {
+		return nil
+	}
+	out := &Resource{}
+	out.Attributes = slices.Clone(m.Attributes)
+	for i := range out.Attributes {
+		out.Attributes[i] = out.Attributes[i].Clone()
+	}
+	out.DroppedAttributesCount = m.DroppedAttributesCount
+	return out
+}
 
 func (x *Resource) ProtoReflect() protoreflect.Message {
 	file_resource_v1_resource_proto_init()

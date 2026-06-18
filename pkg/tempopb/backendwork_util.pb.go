@@ -4,21 +4,30 @@
 package tempopb
 
 import (
+	"fmt"
 	"github.com/grafana/wiresmith/protohelpers"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/runtime/protoimpl"
 	"reflect"
+	"slices"
+	"strconv"
+	"strings"
 	"unsafe"
 )
 
-// Reflection / registration glue for tempopb/backendwork.proto.
+// Cold companion utilities for tempopb/backendwork.proto.
 //
-// This file holds the per-message ProtoReflect() methods, the per-enum
-// Descriptor()/Type()/Number() methods, the embedded FileDescriptorProto
-// blob, the file_*_msgTypes / file_*_enumTypes arrays, and the init()
-// that registers everything with protoregistry.GlobalFiles and
-// protoregistry.GlobalTypes. None of these are called on the marshal /
-// unmarshal / size hot path.
+// This file holds two cold concerns merged into one compilation unit:
+//
+//   - Reflection / registration glue: the per-message ProtoReflect()
+//     methods, the per-enum Descriptor()/Type()/Number() methods, the
+//     embedded FileDescriptorProto blob, the file_*_msgTypes /
+//     file_*_enumTypes arrays, and the init() that registers everything
+//     with protoregistry.GlobalFiles and protoregistry.GlobalTypes.
+//   - The per-message String() debug dumps (hand-rolled, deterministic,
+//     non-reflection — see compiler/generator/emit_string.go).
+//
+// None of these are called on the marshal / unmarshal / size hot path.
 //
 // Why a separate file? Putting this code (plus its descriptorpb /
 // protoreflect / protoimpl imports — ~64KB of descriptorpb alone, ~377KB
@@ -29,11 +38,433 @@ import (
 // in the same compilation unit shifted hot functions onto different
 // cache sets and pushed them ~131KB further into the binary. Emitting
 // the cold half here, in its own .o, lets the linker place it away
-// from the hot half and recovers that throughput.
+// from the hot half and recovers that throughput. reflect and String()
+// are both cold and were already split out, so merging them (cold→cold)
+// preserves the rationale while halving the companion-file count.
 //
 // See compiler/generator/emit_registration.go for the full rationale
 // and the benchmark methodology. DO NOT inline this file's contents
 // back into the main .pb.go without re-measuring.
+
+func (m *CompactionDetail) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	for _, e := range m.Input {
+		b.WriteString("input: ")
+		b.WriteString(strconv.Quote(e))
+		b.WriteString(" ")
+	}
+	for _, e := range m.Output {
+		b.WriteString("output: ")
+		b.WriteString(strconv.Quote(e))
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *RetentionDetail) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	return strings.TrimSpace(b.String())
+}
+
+func (m *RedactionDetail) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if len(m.BlockId) > 0 {
+		b.WriteString("block_id: ")
+		b.WriteString(strconv.Quote(m.BlockId))
+		b.WriteString(" ")
+	}
+	for _, e := range m.TraceIds {
+		b.WriteString("trace_ids: ")
+		b.WriteString(strconv.Quote(string(e)))
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *JobDetail) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if len(m.Tenant) > 0 {
+		b.WriteString("tenant: ")
+		b.WriteString(strconv.Quote(m.Tenant))
+		b.WriteString(" ")
+	}
+	if m.Compaction != nil {
+		b.WriteString("compaction: ")
+		b.WriteString("{")
+		b.WriteString(m.Compaction.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if m.Retention != nil {
+		b.WriteString("retention: ")
+		b.WriteString("{")
+		b.WriteString(m.Retention.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if m.Redaction != nil {
+		b.WriteString("redaction: ")
+		b.WriteString("{")
+		b.WriteString(m.Redaction.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if len(m.BatchId) > 0 {
+		b.WriteString("batch_id: ")
+		b.WriteString(strconv.Quote(m.BatchId))
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *NextJobRequest) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if len(m.WorkerId) > 0 {
+		b.WriteString("worker_id: ")
+		b.WriteString(strconv.Quote(m.WorkerId))
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *NextJobResponse) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if len(m.JobId) > 0 {
+		b.WriteString("job_id: ")
+		b.WriteString(strconv.Quote(m.JobId))
+		b.WriteString(" ")
+	}
+	if m.Type != 0 {
+		b.WriteString("type: ")
+		b.WriteString(m.Type.String())
+		b.WriteString(" ")
+	}
+	if m.Detail.Size() > 0 {
+		b.WriteString("detail: ")
+		b.WriteString("{")
+		b.WriteString(m.Detail.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *UpdateJobStatusRequest) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if len(m.JobId) > 0 {
+		b.WriteString("job_id: ")
+		b.WriteString(strconv.Quote(m.JobId))
+		b.WriteString(" ")
+	}
+	if m.Status != 0 {
+		b.WriteString("status: ")
+		b.WriteString(m.Status.String())
+		b.WriteString(" ")
+	}
+	if len(m.Error) > 0 {
+		b.WriteString("error: ")
+		b.WriteString(strconv.Quote(m.Error))
+		b.WriteString(" ")
+	}
+	if m.Compaction != nil {
+		b.WriteString("compaction: ")
+		b.WriteString("{")
+		b.WriteString(m.Compaction.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	if m.Redaction != nil {
+		b.WriteString("redaction: ")
+		b.WriteString("{")
+		b.WriteString(m.Redaction.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *UpdateJobStatusResponse) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if m.Success {
+		b.WriteString("success: ")
+		fmt.Fprintf(&b, "%v", m.Success)
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *SubmitRedactionRequest) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if len(m.TenantId) > 0 {
+		b.WriteString("tenant_id: ")
+		b.WriteString(strconv.Quote(m.TenantId))
+		b.WriteString(" ")
+	}
+	for _, e := range m.TraceIds {
+		b.WriteString("trace_ids: ")
+		b.WriteString(strconv.Quote(string(e)))
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *SubmitRedactionResponse) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if len(m.BatchId) > 0 {
+		b.WriteString("batch_id: ")
+		b.WriteString(strconv.Quote(m.BatchId))
+		b.WriteString(" ")
+	}
+	if m.JobsCreated != 0 {
+		b.WriteString("jobs_created: ")
+		fmt.Fprintf(&b, "%v", m.JobsCreated)
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *RedactionResult) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if m.TracesFound != 0 {
+		b.WriteString("traces_found: ")
+		fmt.Fprintf(&b, "%v", m.TracesFound)
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *RedactionBatch) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if len(m.BatchId) > 0 {
+		b.WriteString("batch_id: ")
+		b.WriteString(strconv.Quote(m.BatchId))
+		b.WriteString(" ")
+	}
+	if len(m.TenantId) > 0 {
+		b.WriteString("tenant_id: ")
+		b.WriteString(strconv.Quote(m.TenantId))
+		b.WriteString(" ")
+	}
+	for _, e := range m.TraceIds {
+		b.WriteString("trace_ids: ")
+		b.WriteString(strconv.Quote(string(e)))
+		b.WriteString(" ")
+	}
+	if m.CreatedAtUnixNano != 0 {
+		b.WriteString("created_at_unix_nano: ")
+		fmt.Fprintf(&b, "%v", m.CreatedAtUnixNano)
+		b.WriteString(" ")
+	}
+	for _, e := range m.SkippedCompactionJobIds {
+		b.WriteString("skipped_compaction_job_ids: ")
+		b.WriteString(strconv.Quote(e))
+		b.WriteString(" ")
+	}
+	if m.RescanAfterUnixNano != 0 {
+		b.WriteString("rescan_after_unix_nano: ")
+		fmt.Fprintf(&b, "%v", m.RescanAfterUnixNano)
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *RedactionBatches) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	for _, e := range m.Batches {
+		b.WriteString("batches: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *CompactionDetail) Clone() *CompactionDetail {
+	if m == nil {
+		return nil
+	}
+	out := &CompactionDetail{}
+	out.Input = slices.Clone(m.Input)
+	out.Output = slices.Clone(m.Output)
+	return out
+}
+
+func (m *RetentionDetail) Clone() *RetentionDetail {
+	if m == nil {
+		return nil
+	}
+	out := &RetentionDetail{}
+	return out
+}
+
+func (m *RedactionDetail) Clone() *RedactionDetail {
+	if m == nil {
+		return nil
+	}
+	out := &RedactionDetail{}
+	out.BlockId = m.BlockId
+	out.TraceIds = slices.Clone(m.TraceIds)
+	for i := range out.TraceIds {
+		out.TraceIds[i] = slices.Clone(m.TraceIds[i])
+	}
+	return out
+}
+
+func (m *JobDetail) Clone() *JobDetail {
+	if m == nil {
+		return nil
+	}
+	out := &JobDetail{}
+	out.Tenant = m.Tenant
+	out.Compaction = m.Compaction.Clone()
+	out.Retention = m.Retention.Clone()
+	out.Redaction = m.Redaction.Clone()
+	out.BatchId = m.BatchId
+	return out
+}
+
+func (m *NextJobRequest) Clone() *NextJobRequest {
+	if m == nil {
+		return nil
+	}
+	out := &NextJobRequest{}
+	out.WorkerId = m.WorkerId
+	return out
+}
+
+func (m *NextJobResponse) Clone() *NextJobResponse {
+	if m == nil {
+		return nil
+	}
+	out := &NextJobResponse{}
+	out.JobId = m.JobId
+	out.Type = m.Type
+	out.Detail = *m.Detail.Clone()
+	return out
+}
+
+func (m *UpdateJobStatusRequest) Clone() *UpdateJobStatusRequest {
+	if m == nil {
+		return nil
+	}
+	out := &UpdateJobStatusRequest{}
+	out.JobId = m.JobId
+	out.Status = m.Status
+	out.Error = m.Error
+	out.Compaction = m.Compaction.Clone()
+	out.Redaction = m.Redaction.Clone()
+	return out
+}
+
+func (m *UpdateJobStatusResponse) Clone() *UpdateJobStatusResponse {
+	if m == nil {
+		return nil
+	}
+	out := &UpdateJobStatusResponse{}
+	out.Success = m.Success
+	return out
+}
+
+func (m *SubmitRedactionRequest) Clone() *SubmitRedactionRequest {
+	if m == nil {
+		return nil
+	}
+	out := &SubmitRedactionRequest{}
+	out.TenantId = m.TenantId
+	out.TraceIds = slices.Clone(m.TraceIds)
+	for i := range out.TraceIds {
+		out.TraceIds[i] = slices.Clone(m.TraceIds[i])
+	}
+	return out
+}
+
+func (m *SubmitRedactionResponse) Clone() *SubmitRedactionResponse {
+	if m == nil {
+		return nil
+	}
+	out := &SubmitRedactionResponse{}
+	out.BatchId = m.BatchId
+	out.JobsCreated = m.JobsCreated
+	return out
+}
+
+func (m *RedactionResult) Clone() *RedactionResult {
+	if m == nil {
+		return nil
+	}
+	out := &RedactionResult{}
+	out.TracesFound = m.TracesFound
+	return out
+}
+
+func (m *RedactionBatch) Clone() *RedactionBatch {
+	if m == nil {
+		return nil
+	}
+	out := &RedactionBatch{}
+	out.BatchId = m.BatchId
+	out.TenantId = m.TenantId
+	out.TraceIds = slices.Clone(m.TraceIds)
+	for i := range out.TraceIds {
+		out.TraceIds[i] = slices.Clone(m.TraceIds[i])
+	}
+	out.CreatedAtUnixNano = m.CreatedAtUnixNano
+	out.SkippedCompactionJobIds = slices.Clone(m.SkippedCompactionJobIds)
+	out.RescanAfterUnixNano = m.RescanAfterUnixNano
+	return out
+}
+
+func (m *RedactionBatches) Clone() *RedactionBatches {
+	if m == nil {
+		return nil
+	}
+	out := &RedactionBatches{}
+	out.Batches = slices.Clone(m.Batches)
+	for i := range out.Batches {
+		out.Batches[i] = out.Batches[i].Clone()
+	}
+	return out
+}
 
 func (x JobType) Descriptor() protoreflect.EnumDescriptor {
 	file_tempopb_backendwork_proto_init()
