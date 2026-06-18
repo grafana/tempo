@@ -45,14 +45,20 @@ func setQueryShapeSpanAttrs(span trace.Span, qs pipeline.QueryShape) {
 	)
 }
 
-// queryShapeLogFields returns the key/value pairs to append to a per-query
-// response log line. Returns nil when no shape is stamped on the context.
-func queryShapeLogFields(ctx context.Context) []any {
+// logWithShape emits a per-query response log line with query-shape fields
+// appended when a shape is stamped on the context. The caller picks the level
+// by wrapping the logger, e.g. logWithShape(level.Info(logger), ctx, ...).
+//
+//nolint:revive // logger comes first so callers can write logWithShape(level.Info(logger), ctx, ...).
+func logWithShape(logger log.Logger, ctx context.Context, fields ...any) {
 	qs, ok := pipeline.QueryShapeFromContext(ctx)
 	if !ok {
-		return nil
+		_ = logger.Log(fields...)
+		return
 	}
-	return []any{
+	out := make([]any, 0, len(fields)+14)
+	out = append(out, fields...)
+	out = append(out,
 		"query_type", qs.Type,
 		"query_weight", qs.Weight,
 		"query_conditions", qs.Conditions,
@@ -60,5 +66,6 @@ func queryShapeLogFields(ctx context.Context) []any {
 		"query_has_or", qs.HasOr,
 		"query_needs_full_trace", qs.NeedsFullTrace,
 		"query_select_all", qs.SelectAll,
-	}
+	)
+	_ = logger.Log(out...)
 }

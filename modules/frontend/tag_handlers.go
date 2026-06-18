@@ -558,7 +558,7 @@ func logTagsRequest(logger log.Logger, tenantID, handler, scope string, rangeSec
 
 func logTagsResult(ctx context.Context, logger log.Logger, tenantID, handler, scope string, rangeSeconds uint32, durationSeconds float64, inspectedBytes uint64, err error) {
 	traceID, _ := tracing.ExtractTraceID(ctx)
-	fields := []any{
+	logWithShape(level.Info(logger), ctx,
 		"msg", "search tag response",
 		"tenant", tenantID,
 		"traceID", traceID,
@@ -567,10 +567,9 @@ func logTagsResult(ctx context.Context, logger log.Logger, tenantID, handler, sc
 		"range_seconds", rangeSeconds,
 		"duration_seconds", durationSeconds,
 		"inspected_bytes", inspectedBytes,
-		"request_throughput", float64(inspectedBytes) / durationSeconds,
+		"request_throughput", float64(inspectedBytes)/durationSeconds,
 		"error", err,
-	}
-	level.Info(logger).Log(append(fields, queryShapeLogFields(ctx)...)...)
+	)
 }
 
 func logTagValuesRequest(logger log.Logger, tenantID, handler, tagName, query string, rangeSeconds uint32) {
@@ -585,7 +584,7 @@ func logTagValuesRequest(logger log.Logger, tenantID, handler, tagName, query st
 
 func logTagValuesResult(ctx context.Context, logger log.Logger, tenantID, handler, tagName, query string, rangeSeconds uint32, durationSeconds float64, inspectedBytes uint64, err error) {
 	traceID, _ := tracing.ExtractTraceID(ctx)
-	fields := []any{
+	logWithShape(level.Info(logger), ctx,
 		"msg", "search tag values response",
 		"tenant", tenantID,
 		"traceID", traceID,
@@ -595,10 +594,9 @@ func logTagValuesResult(ctx context.Context, logger log.Logger, tenantID, handle
 		"range_seconds", rangeSeconds,
 		"duration_seconds", durationSeconds,
 		"inspected_bytes", inspectedBytes,
-		"request_throughput", float64(inspectedBytes) / durationSeconds,
+		"request_throughput", float64(inspectedBytes)/durationSeconds,
 		"error", err,
-	}
-	level.Info(logger).Log(append(fields, queryShapeLogFields(ctx)...)...)
+	)
 }
 
 // parseParams parses optional 'start', 'end', 'scope', and 'q' params from a http.Request

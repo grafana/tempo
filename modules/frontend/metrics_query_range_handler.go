@@ -207,43 +207,40 @@ func normalizeRequestExemplars(req *tempopb.QueryRangeRequest, maxExemplars uint
 
 func logQueryRangeResult(ctx context.Context, logger log.Logger, tenantID string, durationSeconds float64, req *tempopb.QueryRangeRequest, resp *tempopb.QueryRangeResponse, err error) {
 	traceID, _ := tracing.ExtractTraceID(ctx)
-	shape := queryShapeLogFields(ctx)
 
 	if resp == nil {
-		fields := []any{
+		logWithShape(level.Info(logger), ctx,
 			"msg", "query range response - no resp",
 			"tenant", tenantID,
 			"traceID", traceID,
 			"duration_seconds", durationSeconds,
 			"error", err,
-		}
-		level.Info(logger).Log(append(fields, shape...)...)
+		)
 		return
 	}
 
 	if resp.Metrics == nil {
-		fields := []any{
+		logWithShape(level.Info(logger), ctx,
 			"msg", "query range response - no metrics",
 			"tenant", tenantID,
 			"traceID", traceID,
 			"query", req.Query,
-			"range_nanos", req.End - req.Start,
+			"range_nanos", req.End-req.Start,
 			"duration_seconds", durationSeconds,
 			"error", err,
-		}
-		level.Info(logger).Log(append(fields, shape...)...)
+		)
 		return
 	}
 
-	fields := []any{
+	logWithShape(level.Info(logger), ctx,
 		"msg", "query range response",
 		"tenant", tenantID,
 		"traceID", traceID,
 		"query", req.Query,
-		"range_nanos", req.End - req.Start,
+		"range_nanos", req.End-req.Start,
 		"max_series", req.MaxSeries,
 		"duration_seconds", durationSeconds,
-		"request_throughput", float64(resp.Metrics.InspectedBytes) / durationSeconds,
+		"request_throughput", float64(resp.Metrics.InspectedBytes)/durationSeconds,
 		"total_requests", resp.Metrics.TotalJobs,
 		"total_blockBytes", resp.Metrics.TotalBlockBytes,
 		"total_blocks", resp.Metrics.TotalBlocks,
@@ -255,8 +252,7 @@ func logQueryRangeResult(ctx context.Context, logger log.Logger, tenantID string
 		"partial_message", resp.Message,
 		"num_response_series", len(resp.Series),
 		"error", err,
-	}
-	level.Info(logger).Log(append(fields, shape...)...)
+	)
 }
 
 func logQueryRangeRequest(logger log.Logger, tenantID string, req *tempopb.QueryRangeRequest) {

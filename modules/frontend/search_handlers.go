@@ -184,44 +184,40 @@ func logResult(ctx context.Context, logger log.Logger, tenantID string, duration
 		statusCode = int(st.Code())
 	}
 
-	shape := queryShapeLogFields(ctx)
-
 	if resp == nil {
-		fields := []any{
+		logWithShape(level.Info(logger), ctx,
 			"msg", "search response - no resp",
 			"tenant", tenantID,
 			"traceID", traceID,
 			"duration_seconds", durationSeconds,
 			"status_code", statusCode,
 			"error", err,
-		}
-		level.Info(logger).Log(append(fields, shape...)...)
+		)
 		return
 	}
 
 	if resp.Metrics == nil {
-		fields := []any{
+		logWithShape(level.Info(logger), ctx,
 			"msg", "search response - no metrics",
 			"tenant", tenantID,
 			"traceID", traceID,
 			"query", req.Query,
-			"range_seconds", req.End - req.Start,
+			"range_seconds", req.End-req.Start,
 			"duration_seconds", durationSeconds,
 			"status_code", statusCode,
 			"error", err,
-		}
-		level.Info(logger).Log(append(fields, shape...)...)
+		)
 		return
 	}
 
-	fields := []any{
+	logWithShape(level.Info(logger), ctx,
 		"msg", "search response",
 		"tenant", tenantID,
 		"traceID", traceID,
 		"query", req.Query,
-		"range_seconds", req.End - req.Start,
+		"range_seconds", req.End-req.Start,
 		"duration_seconds", durationSeconds,
-		"request_throughput", float64(resp.Metrics.InspectedBytes) / durationSeconds,
+		"request_throughput", float64(resp.Metrics.InspectedBytes)/durationSeconds,
 		"total_requests", resp.Metrics.TotalJobs,
 		"total_blockBytes", resp.Metrics.TotalBlockBytes,
 		"total_blocks", resp.Metrics.TotalBlocks,
@@ -231,8 +227,7 @@ func logResult(ctx context.Context, logger log.Logger, tenantID string, duration
 		"inspected_spans", resp.Metrics.InspectedSpans,
 		"status_code", statusCode,
 		"error", err,
-	}
-	level.Info(logger).Log(append(fields, shape...)...)
+	)
 }
 
 func logRequest(logger log.Logger, tenantID string, req *tempopb.SearchRequest) {
