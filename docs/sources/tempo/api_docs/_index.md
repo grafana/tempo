@@ -329,11 +329,11 @@ curl -G -s http://localhost:3200/api/search --data-urlencode 'tags=service.name=
     "inspectedTraces": 3100,
     "inspectedBytes": "3811736",
     "totalBlocks": 3,
-    "backendReads": 47,
+    "backendReads": "47",
     "backendBytes": "2415680",
     "additionalMetrics": {
-      "cacheHits": 124,
-      "cacheMisses": 18,
+      "cacheHits": "124",
+      "cacheMisses": "18",
       "cacheBytes": "1396224"
     }
   }

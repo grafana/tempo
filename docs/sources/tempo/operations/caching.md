@@ -24,7 +24,7 @@ This lets you size and tune each cache independently based on the workload it ha
 | `parquet-column-idx` | Parquet column index sections. | Low |
 | `parquet-offset-idx` | Parquet offset index sections. | Low |
 | `parquet-page` | Parquet data pages. Caches most Parquet reads. | **High** |
-| `frontend-search` | Query-frontend search job results. | Varies |
+| `frontend-search` | Query-frontend search job outcomes. | Varies |
 
 You can assign multiple roles to a single cache instance, or split high-volume roles (like `parquet-page`) onto a dedicated instance.
 For example, you might use a large Memcached pool for `parquet-page` and a smaller one for `bloom` and `parquet-footer`.
@@ -54,16 +54,16 @@ If a role regularly writes larger items than the cache can store efficiently, mo
 
 ## Monitor cache hit ratio
 
-Tempo emits two counters that report the cache traffic Tempo itself drives, labelled by `role` (the cache role, such as `bloom`, `parquet-page`, and so on) and `result` (`hit` or `miss`):
+Tempo emits two counters that report the cache traffic Tempo itself drives, labelled by `role` (the cache role, such as `bloom`, `parquet-page`, and so on) and `outcome` (`hit` or `miss`):
 
-- `tempodb_cache_requests_total{role,result}` counts cache lookups.
-- `tempodb_cache_request_bytes_total{role,result}` counts the bytes returned on `hit` and the bytes fetched from the backend on `miss`.
+- `tempodb_cache_requests_total{role,outcome}` counts cache lookups.
+- `tempodb_cache_request_bytes_total{role,outcome}` counts the bytes returned on `hit` and the bytes fetched from the backend on `miss`.
 
 Use these to track the live hit ratio per cache role and decide where to grow capacity.
 For example, the hit ratio for `parquet-page` over the last five minutes:
 
 ```promql
-sum(rate(tempodb_cache_requests_total{role="parquet-page",result="hit"}[5m]))
+sum(rate(tempodb_cache_requests_total{role="parquet-page",outcome="hit"}[5m]))
 /
 sum(rate(tempodb_cache_requests_total{role="parquet-page"}[5m]))
 ```
@@ -132,7 +132,7 @@ Using a combination of these configuration options, you can narrow down on which
 cache eviction rate, and increasing the cache hit rate.
 
 In order to decide the values of these configuration parameters, you can use a cache summary command in the [tempo-cli](../tempo_cli/) that
-prints a summary of bloom filter shards per day and per compaction level. The result looks something like this:
+prints a summary of bloom filter shards per day and per compaction level. The outcome looks something like this:
 
 ![Cache summary output](/media/docs/tempo/cache-summary.png)
 
