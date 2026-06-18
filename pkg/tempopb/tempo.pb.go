@@ -327,16 +327,11 @@ func (m *TraceByIDResponse) GetMessage() string {
 
 type TraceByIDMetrics struct {
 	InspectedBytes uint64 `protobuf:"varint,1,opt,name=inspectedBytes,proto3" json:"inspectedBytes,omitempty"`
-	// Number of backend (object-storage) read operations issued while serving
-	// this trace lookup.
+	// Number of backend read operations.
 	BackendReads uint64 `protobuf:"varint,2,opt,name=backendReads,proto3" json:"backendReads,omitempty"`
-	// Number of bytes read from the backend (object-storage). Excludes cache hits.
+	// Number of bytes read from the backend, excluding cache hits.
 	BackendBytes uint64 `protobuf:"varint,3,opt,name=backendBytes,proto3" json:"backendBytes,omitempty"`
-	// Open-ended counters keyed by stable string constants in
-	// pkg/tempopb/additional_metrics_keys.go (rowGroupsInspected,
-	// rowGroupsSkipped, pagesInspected, pagesSkipped, cacheHits, cacheMisses,
-	// cacheBytes). Using a map keeps the wire schema stable as new diagnostics
-	// are added.
+	// Open-ended counters keyed by constants in additional_metrics_keys.go.
 	AdditionalMetrics map[string]int64 `protobuf:"bytes,4,rep,name=additionalMetrics,proto3" json:"additionalMetrics,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"varint,2,opt,name=value,proto3"`
 }
 
@@ -1059,13 +1054,11 @@ type SearchMetrics struct {
 	TotalJobs       uint32 `protobuf:"varint,5,opt,name=totalJobs,proto3" json:"totalJobs,omitempty"`
 	TotalBlockBytes uint64 `protobuf:"varint,6,opt,name=totalBlockBytes,proto3" json:"totalBlockBytes,omitempty"`
 	InspectedSpans  uint64 `protobuf:"varint,7,opt,name=inspectedSpans,proto3" json:"inspectedSpans,omitempty"`
-	// Number of backend (object-storage) read operations issued by the queriers
-	// contributing to this search.
+	// Number of backend read operations.
 	BackendReads uint64 `protobuf:"varint,8,opt,name=backendReads,proto3" json:"backendReads,omitempty"`
-	// Number of bytes read from the backend (object-storage). Excludes cache hits.
+	// Number of bytes read from the backend, excluding cache hits.
 	BackendBytes uint64 `protobuf:"varint,9,opt,name=backendBytes,proto3" json:"backendBytes,omitempty"`
-	// Open-ended counters keyed by stable string constants in
-	// pkg/tempopb/additional_metrics_keys.go.
+	// Open-ended counters keyed by constants in additional_metrics_keys.go.
 	AdditionalMetrics map[string]int64 `protobuf:"bytes,10,rep,name=additionalMetrics,proto3" json:"additionalMetrics,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"varint,2,opt,name=value,proto3"`
 }
 
@@ -1930,13 +1923,11 @@ type MetadataMetrics struct {
 	CompletedJobs   uint32 `protobuf:"varint,3,opt,name=completedJobs,proto3" json:"completedJobs,omitempty"`
 	TotalBlocks     uint32 `protobuf:"varint,4,opt,name=totalBlocks,proto3" json:"totalBlocks,omitempty"`
 	TotalBlockBytes uint64 `protobuf:"varint,5,opt,name=totalBlockBytes,proto3" json:"totalBlockBytes,omitempty"`
-	// Number of backend (object-storage) read operations issued by queriers for
-	// this metadata request.
+	// Number of backend read operations.
 	BackendReads uint64 `protobuf:"varint,6,opt,name=backendReads,proto3" json:"backendReads,omitempty"`
-	// Number of bytes read from the backend (object-storage). Excludes cache hits.
+	// Number of bytes read from the backend, excluding cache hits.
 	BackendBytes uint64 `protobuf:"varint,7,opt,name=backendBytes,proto3" json:"backendBytes,omitempty"`
-	// Open-ended counters keyed by stable string constants in
-	// pkg/tempopb/additional_metrics_keys.go.
+	// Open-ended counters keyed by constants in additional_metrics_keys.go.
 	AdditionalMetrics map[string]int64 `protobuf:"bytes,8,rep,name=additionalMetrics,proto3" json:"additionalMetrics,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"varint,2,opt,name=value,proto3"`
 }
 

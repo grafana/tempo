@@ -62,16 +62,11 @@ message TraceByIDResponse {
 
 message TraceByIDMetrics {
   uint64 inspectedBytes = 1;
-  // Number of backend (object-storage) read operations issued while serving
-  // this trace lookup.
+  // Number of backend read operations.
   uint64 backendReads = 2;
-  // Number of bytes read from the backend (object-storage). Excludes cache hits.
+  // Number of bytes read from the backend, excluding cache hits.
   uint64 backendBytes = 3;
-  // Open-ended counters keyed by stable string constants in
-  // pkg/tempopb/additional_metrics_keys.go (rowGroupsInspected,
-  // rowGroupsSkipped, pagesInspected, pagesSkipped, cacheHits, cacheMisses,
-  // cacheBytes). Using a map keeps the wire schema stable as new diagnostics
-  // are added.
+  // Open-ended counters keyed by constants in additional_metrics_keys.go.
   map<string, int64> additionalMetrics = 4;
 }
 
@@ -180,13 +175,11 @@ message SearchMetrics {
   uint32 totalJobs = 5;
   uint64 totalBlockBytes = 6;
   uint64 inspectedSpans = 7;
-  // Number of backend (object-storage) read operations issued by the queriers
-  // contributing to this search.
+  // Number of backend read operations.
   uint64 backendReads = 8;
-  // Number of bytes read from the backend (object-storage). Excludes cache hits.
+  // Number of bytes read from the backend, excluding cache hits.
   uint64 backendBytes = 9;
-  // Open-ended counters keyed by stable string constants in
-  // pkg/tempopb/additional_metrics_keys.go.
+  // Open-ended counters keyed by constants in additional_metrics_keys.go.
   map<string, int64> additionalMetrics = 10;
 }
 
@@ -291,13 +284,11 @@ message MetadataMetrics {
   uint32 completedJobs = 3;
   uint32 totalBlocks = 4;
   uint64 totalBlockBytes = 5;
-  // Number of backend (object-storage) read operations issued by queriers for
-  // this metadata request.
+  // Number of backend read operations.
   uint64 backendReads = 6;
-  // Number of bytes read from the backend (object-storage). Excludes cache hits.
+  // Number of bytes read from the backend, excluding cache hits.
   uint64 backendBytes = 7;
-  // Open-ended counters keyed by stable string constants in
-  // pkg/tempopb/additional_metrics_keys.go.
+  // Open-ended counters keyed by constants in additional_metrics_keys.go.
   map<string, int64> additionalMetrics = 8;
 }
 
