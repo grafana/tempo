@@ -52,6 +52,25 @@ histogram_quantile(
 
 If a role regularly writes larger items than the cache can store efficiently, move that role to a cache sized for larger objects or adjust the cache configuration before increasing query concurrency.
 
+## Monitor cache hit ratio
+
+Tempo emits two counters that report the cache traffic Tempo itself drives, labelled by `role` (the cache role, such as `bloom`, `parquet-page`, and so on) and `result` (`hit` or `miss`):
+
+- `tempodb_cache_requests_total{role,result}` counts cache lookups.
+- `tempodb_cache_request_bytes_total{role,result}` counts the bytes returned on `hit` and the bytes fetched from the backend on `miss`.
+
+Use these to track the live hit ratio per cache role and decide where to grow capacity.
+For example, the hit ratio for `parquet-page` over the last five minutes:
+
+```promql
+sum(rate(tempodb_cache_requests_total{role="parquet-page",result="hit"}[5m]))
+/
+sum(rate(tempodb_cache_requests_total{role="parquet-page"}[5m]))
+```
+
+A persistently low hit ratio on a high-volume role (commonly `parquet-page`) is a signal to size up that cache pool or split it onto a dedicated cache instance.
+Pair the request counter with `tempodb_cache_request_bytes_total` to see whether misses are dominated by many small lookups or by a few large ones.
+
 ## Memcached
 
 Memcached is used by default in the Tanka and Helm examples.
