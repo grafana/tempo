@@ -13,6 +13,8 @@ import (
 	"unsafe"
 
 	"github.com/parquet-go/parquet-go"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -1038,6 +1040,16 @@ var WellKnownColumnLookups = map[string]struct {
 // internal consistencies:  operand count matches the operation, all operands in each condition are identical
 // types, and the operand type is compatible with the operation.
 func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error) {
+	ctx, span := tracer.Start(ctx, "parquet.backendBlock.Fetch", trace.WithAttributes(
+		attribute.String("blockID", b.meta.BlockID.String()),
+		attribute.String("tenantID", b.meta.TenantID),
+		attribute.Int64("blockSize", int64(b.meta.Size_)),
+		attribute.Int("numConditions", len(req.Conditions)),
+		attribute.Bool("allConditions", req.AllConditions),
+		attribute.Bool("secondPassSelectAll", req.SecondPassSelectAll),
+	))
+	defer span.End()
+
 	err := checkConditions(req.Conditions)
 	if err != nil {
 		return traceql.FetchSpansResponse{}, fmt.Errorf("conditions invalid: %w", err)
@@ -1056,6 +1068,16 @@ func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest,
 	if err != nil {
 		return traceql.FetchSpansResponse{}, fmt.Errorf("creating fetch iter: %w", err)
 	}
+
+	// The span covers planning and iterator creation. The iterator is consumed
+	// lazily by the caller after this function returns; the deferred attribute
+	// below reads rr.BytesRead() at function exit (before iteration), so
+	// inspectedBytes on the span will under-report relative to the true bytes
+	// read during iteration. Cumulative bytes are available via Stats() on the
+	// returned response.
+	defer func() {
+		span.SetAttributes(attribute.Int64("inspectedBytes", int64(rr.BytesRead())))
+	}()
 
 	return traceql.FetchSpansResponse{
 		Results: iter,
