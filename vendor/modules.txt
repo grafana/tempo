@@ -799,7 +799,7 @@ github.com/grafana/pyroscope-go/godeltaprof/internal/pprof
 ## explicit; go 1.21
 github.com/grafana/regexp
 github.com/grafana/regexp/syntax
-# github.com/grafana/wiresmith v0.0.0-20260618101418-7b3348950083
+# github.com/grafana/wiresmith v0.0.0-20260618135000-edd3e465d382
 ## explicit; go 1.26.4
 github.com/grafana/wiresmith/protohelpers
 # github.com/grpc-ecosystem/go-grpc-middleware v1.4.0

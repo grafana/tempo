@@ -56,12 +56,6 @@ func (m *BlockMeta) Reset() {
 	*m = BlockMeta{}
 }
 func (*BlockMeta) ProtoMessage() {}
-func (m *BlockMeta) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *CompactedBlockMeta) Reset() {
 	if m == nil {
@@ -70,12 +64,6 @@ func (m *CompactedBlockMeta) Reset() {
 	*m = CompactedBlockMeta{}
 }
 func (*CompactedBlockMeta) ProtoMessage() {}
-func (m *CompactedBlockMeta) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *TenantIndex) Reset() {
 	if m == nil {
@@ -84,12 +72,6 @@ func (m *TenantIndex) Reset() {
 	*m = TenantIndex{}
 }
 func (*TenantIndex) ProtoMessage() {}
-func (m *TenantIndex) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *BlockMeta) GetVersion() string {
 	if m != nil {

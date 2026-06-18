@@ -472,12 +472,6 @@ func (m *TraceByIDRequest) Reset() {
 	*m = TraceByIDRequest{}
 }
 func (*TraceByIDRequest) ProtoMessage() {}
-func (m *TraceByIDRequest) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *TraceByIDResponse) Reset() {
 	if m == nil {
@@ -486,12 +480,6 @@ func (m *TraceByIDResponse) Reset() {
 	*m = TraceByIDResponse{}
 }
 func (*TraceByIDResponse) ProtoMessage() {}
-func (m *TraceByIDResponse) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *TraceByIDMetrics) Reset() {
 	if m == nil {
@@ -500,12 +488,6 @@ func (m *TraceByIDMetrics) Reset() {
 	*m = TraceByIDMetrics{}
 }
 func (*TraceByIDMetrics) ProtoMessage() {}
-func (m *TraceByIDMetrics) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *SearchRequest) Reset() {
 	if m == nil {
@@ -514,12 +496,6 @@ func (m *SearchRequest) Reset() {
 	*m = SearchRequest{}
 }
 func (*SearchRequest) ProtoMessage() {}
-func (m *SearchRequest) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *SearchBlockRequest) Reset() {
 	if m == nil {
@@ -528,12 +504,6 @@ func (m *SearchBlockRequest) Reset() {
 	*m = SearchBlockRequest{}
 }
 func (*SearchBlockRequest) ProtoMessage() {}
-func (m *SearchBlockRequest) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *DedicatedColumn) Reset() {
 	if m == nil {
@@ -542,12 +512,6 @@ func (m *DedicatedColumn) Reset() {
 	*m = DedicatedColumn{}
 }
 func (*DedicatedColumn) ProtoMessage() {}
-func (m *DedicatedColumn) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *SearchResponse) Reset() {
 	if m == nil {
@@ -556,12 +520,6 @@ func (m *SearchResponse) Reset() {
 	*m = SearchResponse{}
 }
 func (*SearchResponse) ProtoMessage() {}
-func (m *SearchResponse) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *TraceSearchMetadata) Reset() {
 	if m == nil {
@@ -570,12 +528,6 @@ func (m *TraceSearchMetadata) Reset() {
 	*m = TraceSearchMetadata{}
 }
 func (*TraceSearchMetadata) ProtoMessage() {}
-func (m *TraceSearchMetadata) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *ServiceStats) Reset() {
 	if m == nil {
@@ -584,12 +536,6 @@ func (m *ServiceStats) Reset() {
 	*m = ServiceStats{}
 }
 func (*ServiceStats) ProtoMessage() {}
-func (m *ServiceStats) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *SpanSet) Reset() {
 	if m == nil {
@@ -598,12 +544,6 @@ func (m *SpanSet) Reset() {
 	*m = SpanSet{}
 }
 func (*SpanSet) ProtoMessage() {}
-func (m *SpanSet) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *Span) Reset() {
 	if m == nil {
@@ -612,12 +552,6 @@ func (m *Span) Reset() {
 	*m = Span{}
 }
 func (*Span) ProtoMessage() {}
-func (m *Span) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *SearchMetrics) Reset() {
 	if m == nil {
@@ -626,12 +560,6 @@ func (m *SearchMetrics) Reset() {
 	*m = SearchMetrics{}
 }
 func (*SearchMetrics) ProtoMessage() {}
-func (m *SearchMetrics) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *SearchTagsRequest) Reset() {
 	if m == nil {
@@ -640,12 +568,6 @@ func (m *SearchTagsRequest) Reset() {
 	*m = SearchTagsRequest{}
 }
 func (*SearchTagsRequest) ProtoMessage() {}
-func (m *SearchTagsRequest) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *SearchTagsBlockRequest) Reset() {
 	if m == nil {
@@ -654,12 +576,6 @@ func (m *SearchTagsBlockRequest) Reset() {
 	*m = SearchTagsBlockRequest{}
 }
 func (*SearchTagsBlockRequest) ProtoMessage() {}
-func (m *SearchTagsBlockRequest) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *SearchTagValuesBlockRequest) Reset() {
 	if m == nil {
@@ -668,12 +584,6 @@ func (m *SearchTagValuesBlockRequest) Reset() {
 	*m = SearchTagValuesBlockRequest{}
 }
 func (*SearchTagValuesBlockRequest) ProtoMessage() {}
-func (m *SearchTagValuesBlockRequest) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *SearchTagsResponse) Reset() {
 	if m == nil {
@@ -682,12 +592,6 @@ func (m *SearchTagsResponse) Reset() {
 	*m = SearchTagsResponse{}
 }
 func (*SearchTagsResponse) ProtoMessage() {}
-func (m *SearchTagsResponse) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *SearchTagsV2Response) Reset() {
 	if m == nil {
@@ -696,12 +600,6 @@ func (m *SearchTagsV2Response) Reset() {
 	*m = SearchTagsV2Response{}
 }
 func (*SearchTagsV2Response) ProtoMessage() {}
-func (m *SearchTagsV2Response) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *SearchTagsV2Scope) Reset() {
 	if m == nil {
@@ -710,12 +608,6 @@ func (m *SearchTagsV2Scope) Reset() {
 	*m = SearchTagsV2Scope{}
 }
 func (*SearchTagsV2Scope) ProtoMessage() {}
-func (m *SearchTagsV2Scope) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *SearchTagValuesRequest) Reset() {
 	if m == nil {
@@ -724,12 +616,6 @@ func (m *SearchTagValuesRequest) Reset() {
 	*m = SearchTagValuesRequest{}
 }
 func (*SearchTagValuesRequest) ProtoMessage() {}
-func (m *SearchTagValuesRequest) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *SearchTagValuesResponse) Reset() {
 	if m == nil {
@@ -738,12 +624,6 @@ func (m *SearchTagValuesResponse) Reset() {
 	*m = SearchTagValuesResponse{}
 }
 func (*SearchTagValuesResponse) ProtoMessage() {}
-func (m *SearchTagValuesResponse) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *TagValue) Reset() {
 	if m == nil {
@@ -752,12 +632,6 @@ func (m *TagValue) Reset() {
 	*m = TagValue{}
 }
 func (*TagValue) ProtoMessage() {}
-func (m *TagValue) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *SearchTagValuesV2Response) Reset() {
 	if m == nil {
@@ -766,12 +640,6 @@ func (m *SearchTagValuesV2Response) Reset() {
 	*m = SearchTagValuesV2Response{}
 }
 func (*SearchTagValuesV2Response) ProtoMessage() {}
-func (m *SearchTagValuesV2Response) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *MetadataMetrics) Reset() {
 	if m == nil {
@@ -780,12 +648,6 @@ func (m *MetadataMetrics) Reset() {
 	*m = MetadataMetrics{}
 }
 func (*MetadataMetrics) ProtoMessage() {}
-func (m *MetadataMetrics) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *Trace) Reset() {
 	if m == nil {
@@ -794,12 +656,6 @@ func (m *Trace) Reset() {
 	*m = Trace{}
 }
 func (*Trace) ProtoMessage() {}
-func (m *Trace) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *PushResponse) Reset() {
 	if m == nil {
@@ -808,12 +664,6 @@ func (m *PushResponse) Reset() {
 	*m = PushResponse{}
 }
 func (*PushResponse) ProtoMessage() {}
-func (m *PushResponse) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *PushBytesRequest) Reset() {
 	if m == nil {
@@ -822,12 +672,6 @@ func (m *PushBytesRequest) Reset() {
 	*m = PushBytesRequest{}
 }
 func (*PushBytesRequest) ProtoMessage() {}
-func (m *PushBytesRequest) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *PushSpansRequest) Reset() {
 	if m == nil {
@@ -836,12 +680,6 @@ func (m *PushSpansRequest) Reset() {
 	*m = PushSpansRequest{}
 }
 func (*PushSpansRequest) ProtoMessage() {}
-func (m *PushSpansRequest) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *TraceBytes) Reset() {
 	if m == nil {
@@ -850,12 +688,6 @@ func (m *TraceBytes) Reset() {
 	*m = TraceBytes{}
 }
 func (*TraceBytes) ProtoMessage() {}
-func (m *TraceBytes) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *LinkSlice) Reset() {
 	if m == nil {
@@ -864,12 +696,6 @@ func (m *LinkSlice) Reset() {
 	*m = LinkSlice{}
 }
 func (*LinkSlice) ProtoMessage() {}
-func (m *LinkSlice) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *QueryInstantRequest) Reset() {
 	if m == nil {
@@ -878,12 +704,6 @@ func (m *QueryInstantRequest) Reset() {
 	*m = QueryInstantRequest{}
 }
 func (*QueryInstantRequest) ProtoMessage() {}
-func (m *QueryInstantRequest) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *QueryInstantResponse) Reset() {
 	if m == nil {
@@ -892,12 +712,6 @@ func (m *QueryInstantResponse) Reset() {
 	*m = QueryInstantResponse{}
 }
 func (*QueryInstantResponse) ProtoMessage() {}
-func (m *QueryInstantResponse) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *InstantSeries) Reset() {
 	if m == nil {
@@ -906,12 +720,6 @@ func (m *InstantSeries) Reset() {
 	*m = InstantSeries{}
 }
 func (*InstantSeries) ProtoMessage() {}
-func (m *InstantSeries) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *QueryRangeRequest) Reset() {
 	if m == nil {
@@ -920,12 +728,6 @@ func (m *QueryRangeRequest) Reset() {
 	*m = QueryRangeRequest{}
 }
 func (*QueryRangeRequest) ProtoMessage() {}
-func (m *QueryRangeRequest) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *QueryRangeResponse) Reset() {
 	if m == nil {
@@ -934,12 +736,6 @@ func (m *QueryRangeResponse) Reset() {
 	*m = QueryRangeResponse{}
 }
 func (*QueryRangeResponse) ProtoMessage() {}
-func (m *QueryRangeResponse) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *Exemplar) Reset() {
 	if m == nil {
@@ -948,12 +744,6 @@ func (m *Exemplar) Reset() {
 	*m = Exemplar{}
 }
 func (*Exemplar) ProtoMessage() {}
-func (m *Exemplar) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *Sample) Reset() {
 	if m == nil {
@@ -962,12 +752,6 @@ func (m *Sample) Reset() {
 	*m = Sample{}
 }
 func (*Sample) ProtoMessage() {}
-func (m *Sample) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *TimeSeries) Reset() {
 	if m == nil {
@@ -976,12 +760,6 @@ func (m *TimeSeries) Reset() {
 	*m = TimeSeries{}
 }
 func (*TimeSeries) ProtoMessage() {}
-func (m *TimeSeries) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *QueryRangeRequest) HasInstant() bool {
 	return m != nil && m.Instant != nil

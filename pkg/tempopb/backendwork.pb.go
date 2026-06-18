@@ -177,12 +177,6 @@ func (m *CompactionDetail) Reset() {
 	*m = CompactionDetail{}
 }
 func (*CompactionDetail) ProtoMessage() {}
-func (m *CompactionDetail) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *RetentionDetail) Reset() {
 	if m == nil {
@@ -191,12 +185,6 @@ func (m *RetentionDetail) Reset() {
 	*m = RetentionDetail{}
 }
 func (*RetentionDetail) ProtoMessage() {}
-func (m *RetentionDetail) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *RedactionDetail) Reset() {
 	if m == nil {
@@ -205,12 +193,6 @@ func (m *RedactionDetail) Reset() {
 	*m = RedactionDetail{}
 }
 func (*RedactionDetail) ProtoMessage() {}
-func (m *RedactionDetail) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *JobDetail) Reset() {
 	if m == nil {
@@ -219,12 +201,6 @@ func (m *JobDetail) Reset() {
 	*m = JobDetail{}
 }
 func (*JobDetail) ProtoMessage() {}
-func (m *JobDetail) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *NextJobRequest) Reset() {
 	if m == nil {
@@ -233,12 +209,6 @@ func (m *NextJobRequest) Reset() {
 	*m = NextJobRequest{}
 }
 func (*NextJobRequest) ProtoMessage() {}
-func (m *NextJobRequest) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *NextJobResponse) Reset() {
 	if m == nil {
@@ -247,12 +217,6 @@ func (m *NextJobResponse) Reset() {
 	*m = NextJobResponse{}
 }
 func (*NextJobResponse) ProtoMessage() {}
-func (m *NextJobResponse) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *UpdateJobStatusRequest) Reset() {
 	if m == nil {
@@ -261,12 +225,6 @@ func (m *UpdateJobStatusRequest) Reset() {
 	*m = UpdateJobStatusRequest{}
 }
 func (*UpdateJobStatusRequest) ProtoMessage() {}
-func (m *UpdateJobStatusRequest) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *UpdateJobStatusResponse) Reset() {
 	if m == nil {
@@ -275,12 +233,6 @@ func (m *UpdateJobStatusResponse) Reset() {
 	*m = UpdateJobStatusResponse{}
 }
 func (*UpdateJobStatusResponse) ProtoMessage() {}
-func (m *UpdateJobStatusResponse) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *SubmitRedactionRequest) Reset() {
 	if m == nil {
@@ -289,12 +241,6 @@ func (m *SubmitRedactionRequest) Reset() {
 	*m = SubmitRedactionRequest{}
 }
 func (*SubmitRedactionRequest) ProtoMessage() {}
-func (m *SubmitRedactionRequest) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *SubmitRedactionResponse) Reset() {
 	if m == nil {
@@ -303,12 +249,6 @@ func (m *SubmitRedactionResponse) Reset() {
 	*m = SubmitRedactionResponse{}
 }
 func (*SubmitRedactionResponse) ProtoMessage() {}
-func (m *SubmitRedactionResponse) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *RedactionResult) Reset() {
 	if m == nil {
@@ -317,12 +257,6 @@ func (m *RedactionResult) Reset() {
 	*m = RedactionResult{}
 }
 func (*RedactionResult) ProtoMessage() {}
-func (m *RedactionResult) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *RedactionBatch) Reset() {
 	if m == nil {
@@ -331,12 +265,6 @@ func (m *RedactionBatch) Reset() {
 	*m = RedactionBatch{}
 }
 func (*RedactionBatch) ProtoMessage() {}
-func (m *RedactionBatch) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *RedactionBatches) Reset() {
 	if m == nil {
@@ -345,12 +273,6 @@ func (m *RedactionBatches) Reset() {
 	*m = RedactionBatches{}
 }
 func (*RedactionBatches) ProtoMessage() {}
-func (m *RedactionBatches) String() string {
-	if m == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%v", *m)
-}
 
 func (m *CompactionDetail) GetInput() []string {
 	if m != nil {

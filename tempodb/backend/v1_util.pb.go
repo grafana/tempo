@@ -4,22 +4,31 @@
 package backend
 
 import (
+	"fmt"
 	"github.com/grafana/wiresmith/protohelpers"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/runtime/protoimpl"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"reflect"
+	"slices"
+	"strconv"
+	"strings"
 	"unsafe"
 )
 
-// Reflection / registration glue for backend/v1.proto.
+// Cold companion utilities for backend/v1.proto.
 //
-// This file holds the per-message ProtoReflect() methods, the per-enum
-// Descriptor()/Type()/Number() methods, the embedded FileDescriptorProto
-// blob, the file_*_msgTypes / file_*_enumTypes arrays, and the init()
-// that registers everything with protoregistry.GlobalFiles and
-// protoregistry.GlobalTypes. None of these are called on the marshal /
-// unmarshal / size hot path.
+// This file holds two cold concerns merged into one compilation unit:
+//
+//   - Reflection / registration glue: the per-message ProtoReflect()
+//     methods, the per-enum Descriptor()/Type()/Number() methods, the
+//     embedded FileDescriptorProto blob, the file_*_msgTypes /
+//     file_*_enumTypes arrays, and the init() that registers everything
+//     with protoregistry.GlobalFiles and protoregistry.GlobalTypes.
+//   - The per-message String() debug dumps (hand-rolled, deterministic,
+//     non-reflection — see compiler/generator/emit_string.go).
+//
+// None of these are called on the marshal / unmarshal / size hot path.
 //
 // Why a separate file? Putting this code (plus its descriptorpb /
 // protoreflect / protoimpl imports — ~64KB of descriptorpb alone, ~377KB
@@ -30,11 +39,175 @@ import (
 // in the same compilation unit shifted hot functions onto different
 // cache sets and pushed them ~131KB further into the binary. Emitting
 // the cold half here, in its own .o, lets the linker place it away
-// from the hot half and recovers that throughput.
+// from the hot half and recovers that throughput. reflect and String()
+// are both cold and were already split out, so merging them (cold→cold)
+// preserves the rationale while halving the companion-file count.
 //
 // See compiler/generator/emit_registration.go for the full rationale
 // and the benchmark methodology. DO NOT inline this file's contents
 // back into the main .pb.go without re-measuring.
+
+func (m *BlockMeta) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if len(m.Version) > 0 {
+		b.WriteString("version: ")
+		b.WriteString(strconv.Quote(m.Version))
+		b.WriteString(" ")
+	}
+	b.WriteString("block_id: ")
+	fmt.Fprintf(&b, "%v", m.BlockID)
+	b.WriteString(" ")
+	if len(m.TenantID) > 0 {
+		b.WriteString("tenant_id: ")
+		b.WriteString(strconv.Quote(m.TenantID))
+		b.WriteString(" ")
+	}
+	b.WriteString("start_time: ")
+	fmt.Fprintf(&b, "%v", m.StartTime)
+	b.WriteString(" ")
+	b.WriteString("end_time: ")
+	fmt.Fprintf(&b, "%v", m.EndTime)
+	b.WriteString(" ")
+	if m.TotalObjects != 0 {
+		b.WriteString("total_objects: ")
+		fmt.Fprintf(&b, "%v", m.TotalObjects)
+		b.WriteString(" ")
+	}
+	if m.Size_ != 0 {
+		b.WriteString("size: ")
+		fmt.Fprintf(&b, "%v", m.Size_)
+		b.WriteString(" ")
+	}
+	if m.CompactionLevel != 0 {
+		b.WriteString("compaction_level: ")
+		fmt.Fprintf(&b, "%v", m.CompactionLevel)
+		b.WriteString(" ")
+	}
+	if m.IndexPageSize != 0 {
+		b.WriteString("index_page_size: ")
+		fmt.Fprintf(&b, "%v", m.IndexPageSize)
+		b.WriteString(" ")
+	}
+	if m.TotalRecords != 0 {
+		b.WriteString("total_records: ")
+		fmt.Fprintf(&b, "%v", m.TotalRecords)
+		b.WriteString(" ")
+	}
+	if m.BloomShardCount != 0 {
+		b.WriteString("bloom_shard_count: ")
+		fmt.Fprintf(&b, "%v", m.BloomShardCount)
+		b.WriteString(" ")
+	}
+	if m.FooterSize != 0 {
+		b.WriteString("footer_size: ")
+		fmt.Fprintf(&b, "%v", m.FooterSize)
+		b.WriteString(" ")
+	}
+	b.WriteString("dedicated_columns: ")
+	fmt.Fprintf(&b, "%v", m.DedicatedColumns)
+	b.WriteString(" ")
+	if m.ReplicationFactor != 0 {
+		b.WriteString("replication_factor: ")
+		fmt.Fprintf(&b, "%v", m.ReplicationFactor)
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *CompactedBlockMeta) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if m.BlockMeta.Size() > 0 {
+		b.WriteString("block_meta: ")
+		b.WriteString("{")
+		b.WriteString(m.BlockMeta.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	b.WriteString("compacted_time: ")
+	fmt.Fprintf(&b, "%v", m.CompactedTime)
+	b.WriteString(" ")
+	return strings.TrimSpace(b.String())
+}
+
+func (m *TenantIndex) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	b.WriteString("created_at: ")
+	fmt.Fprintf(&b, "%v", m.CreatedAt)
+	b.WriteString(" ")
+	for _, e := range m.Meta {
+		b.WriteString("meta: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	for _, e := range m.CompactedMeta {
+		b.WriteString("compacted_meta: ")
+		b.WriteString("{")
+		b.WriteString(e.String())
+		b.WriteString("}")
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *BlockMeta) Clone() *BlockMeta {
+	if m == nil {
+		return nil
+	}
+	out := &BlockMeta{}
+	out.Version = m.Version
+	out.BlockID = m.BlockID
+	out.TenantID = m.TenantID
+	out.StartTime = m.StartTime
+	out.EndTime = m.EndTime
+	out.TotalObjects = m.TotalObjects
+	out.Size_ = m.Size_
+	out.CompactionLevel = m.CompactionLevel
+	out.IndexPageSize = m.IndexPageSize
+	out.TotalRecords = m.TotalRecords
+	out.BloomShardCount = m.BloomShardCount
+	out.FooterSize = m.FooterSize
+	out.DedicatedColumns = m.DedicatedColumns
+	out.ReplicationFactor = m.ReplicationFactor
+	return out
+}
+
+func (m *CompactedBlockMeta) Clone() *CompactedBlockMeta {
+	if m == nil {
+		return nil
+	}
+	out := &CompactedBlockMeta{}
+	out.BlockMeta = *m.BlockMeta.Clone()
+	out.CompactedTime = m.CompactedTime
+	return out
+}
+
+func (m *TenantIndex) Clone() *TenantIndex {
+	if m == nil {
+		return nil
+	}
+	out := &TenantIndex{}
+	out.CreatedAt = m.CreatedAt
+	out.Meta = slices.Clone(m.Meta)
+	for i := range out.Meta {
+		out.Meta[i] = out.Meta[i].Clone()
+	}
+	out.CompactedMeta = slices.Clone(m.CompactedMeta)
+	for i := range out.CompactedMeta {
+		out.CompactedMeta[i] = out.CompactedMeta[i].Clone()
+	}
+	return out
+}
 
 func (x *BlockMeta) ProtoReflect() protoreflect.Message {
 	file_backend_v1_proto_init()

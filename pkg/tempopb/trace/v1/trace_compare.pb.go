@@ -7,23 +7,356 @@ import (
 	"bytes"
 )
 
-// Per-message Compare() methods for trace/v1/trace.proto.
+// Per-message value-comparison methods (Equal + Compare) for trace/v1/trace.proto.
 //
-// Compare returns -1/0/+1 like bytes.Compare with the gogoproto.compare
-// nil/wrong-type preamble. Always emitted on every message; callers that
-// don't use it can rely on Go's dead-code elimination to drop the body.
+// Equal returns bool; Compare returns -1/0/+1 like bytes.Compare with the
+// gogoproto.compare nil/wrong-type preamble. Both are emitted on every
+// message; callers that don't use one can rely on Go's dead-code
+// elimination to drop the body.
 //
-// Why a separate file? Compare is never called from Marshal/Unmarshal/Size,
-// but emitting it next to those hot functions in the main .pb.go pushed
-// them onto different cache sets and produced a measured ~9% geomean
+// Why a separate file? Equal/Compare are never called from Marshal/Unmarshal/
+// Size, but emitting them next to those hot functions in the main .pb.go
+// pushed them onto different cache sets and produced a measured ~9% geomean
 // regression on OTel benchmarks (UnmarshalMap +14%, MarshalSingleSpan +13%)
-// purely from icache / iTLB / BTB pressure. Splitting Compare into its own
+// purely from icache / iTLB / BTB pressure. Splitting them into their own
 // compilation unit gives the linker freedom to place the cold half away
-// from the hot half — same trick the _reflect.pb.go split uses.
+// from the hot half — same trick the _util.pb.go split uses.
 //
-// See compiler/generator/emit_compare.go for the full rationale and the
-// benchmark methodology. DO NOT inline this file's contents back into
-// the main .pb.go without re-measuring.
+// See compiler/generator/emit_compare.go / emit_equal.go for the full
+// rationale and the benchmark methodology. DO NOT inline this file's
+// contents back into the main .pb.go without re-measuring.
+
+func (this *TracesData) Equal(that interface{}) bool {
+	if that == nil {
+		return this == nil
+	}
+
+	that1, ok := that.(*TracesData)
+	if !ok {
+		that2, ok := that.(TracesData)
+		if ok {
+			that1 = &that2
+		} else {
+			return false
+		}
+	}
+	if that1 == nil {
+		return this == nil
+	} else if this == nil {
+		return false
+	}
+	if len(this.ResourceSpans) != len(that1.ResourceSpans) {
+		return false
+	}
+	for i := range this.ResourceSpans {
+		if (this.ResourceSpans[i] == nil) != (that1.ResourceSpans[i] == nil) {
+			return false
+		}
+		if this.ResourceSpans[i] != nil && !this.ResourceSpans[i].Equal(that1.ResourceSpans[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (this *ResourceSpans) Equal(that interface{}) bool {
+	if that == nil {
+		return this == nil
+	}
+
+	that1, ok := that.(*ResourceSpans)
+	if !ok {
+		that2, ok := that.(ResourceSpans)
+		if ok {
+			that1 = &that2
+		} else {
+			return false
+		}
+	}
+	if that1 == nil {
+		return this == nil
+	} else if this == nil {
+		return false
+	}
+	if (this.Resource == nil) != (that1.Resource == nil) {
+		return false
+	}
+	if this.Resource != nil && !this.Resource.Equal(that1.Resource) {
+		return false
+	}
+	if len(this.ScopeSpans) != len(that1.ScopeSpans) {
+		return false
+	}
+	for i := range this.ScopeSpans {
+		if (this.ScopeSpans[i] == nil) != (that1.ScopeSpans[i] == nil) {
+			return false
+		}
+		if this.ScopeSpans[i] != nil && !this.ScopeSpans[i].Equal(that1.ScopeSpans[i]) {
+			return false
+		}
+	}
+	if this.SchemaUrl != that1.SchemaUrl {
+		return false
+	}
+	return true
+}
+
+func (this *ScopeSpans) Equal(that interface{}) bool {
+	if that == nil {
+		return this == nil
+	}
+
+	that1, ok := that.(*ScopeSpans)
+	if !ok {
+		that2, ok := that.(ScopeSpans)
+		if ok {
+			that1 = &that2
+		} else {
+			return false
+		}
+	}
+	if that1 == nil {
+		return this == nil
+	} else if this == nil {
+		return false
+	}
+	if (this.Scope == nil) != (that1.Scope == nil) {
+		return false
+	}
+	if this.Scope != nil && !this.Scope.Equal(that1.Scope) {
+		return false
+	}
+	if len(this.Spans) != len(that1.Spans) {
+		return false
+	}
+	for i := range this.Spans {
+		if (this.Spans[i] == nil) != (that1.Spans[i] == nil) {
+			return false
+		}
+		if this.Spans[i] != nil && !this.Spans[i].Equal(that1.Spans[i]) {
+			return false
+		}
+	}
+	if this.SchemaUrl != that1.SchemaUrl {
+		return false
+	}
+	return true
+}
+
+func (this *Span_Event) Equal(that interface{}) bool {
+	if that == nil {
+		return this == nil
+	}
+
+	that1, ok := that.(*Span_Event)
+	if !ok {
+		that2, ok := that.(Span_Event)
+		if ok {
+			that1 = &that2
+		} else {
+			return false
+		}
+	}
+	if that1 == nil {
+		return this == nil
+	} else if this == nil {
+		return false
+	}
+	if this.TimeUnixNano != that1.TimeUnixNano {
+		return false
+	}
+	if this.Name != that1.Name {
+		return false
+	}
+	if len(this.Attributes) != len(that1.Attributes) {
+		return false
+	}
+	for i := range this.Attributes {
+		if (this.Attributes[i] == nil) != (that1.Attributes[i] == nil) {
+			return false
+		}
+		if this.Attributes[i] != nil && !this.Attributes[i].Equal(that1.Attributes[i]) {
+			return false
+		}
+	}
+	if this.DroppedAttributesCount != that1.DroppedAttributesCount {
+		return false
+	}
+	return true
+}
+
+func (this *Span_Link) Equal(that interface{}) bool {
+	if that == nil {
+		return this == nil
+	}
+
+	that1, ok := that.(*Span_Link)
+	if !ok {
+		that2, ok := that.(Span_Link)
+		if ok {
+			that1 = &that2
+		} else {
+			return false
+		}
+	}
+	if that1 == nil {
+		return this == nil
+	} else if this == nil {
+		return false
+	}
+	if !bytes.Equal(this.TraceId, that1.TraceId) {
+		return false
+	}
+	if !bytes.Equal(this.SpanId, that1.SpanId) {
+		return false
+	}
+	if this.TraceState != that1.TraceState {
+		return false
+	}
+	if len(this.Attributes) != len(that1.Attributes) {
+		return false
+	}
+	for i := range this.Attributes {
+		if (this.Attributes[i] == nil) != (that1.Attributes[i] == nil) {
+			return false
+		}
+		if this.Attributes[i] != nil && !this.Attributes[i].Equal(that1.Attributes[i]) {
+			return false
+		}
+	}
+	if this.DroppedAttributesCount != that1.DroppedAttributesCount {
+		return false
+	}
+	if this.Flags != that1.Flags {
+		return false
+	}
+	return true
+}
+
+func (this *Span) Equal(that interface{}) bool {
+	if that == nil {
+		return this == nil
+	}
+
+	that1, ok := that.(*Span)
+	if !ok {
+		that2, ok := that.(Span)
+		if ok {
+			that1 = &that2
+		} else {
+			return false
+		}
+	}
+	if that1 == nil {
+		return this == nil
+	} else if this == nil {
+		return false
+	}
+	if !bytes.Equal(this.TraceId, that1.TraceId) {
+		return false
+	}
+	if !bytes.Equal(this.SpanId, that1.SpanId) {
+		return false
+	}
+	if this.TraceState != that1.TraceState {
+		return false
+	}
+	if !bytes.Equal(this.ParentSpanId, that1.ParentSpanId) {
+		return false
+	}
+	if this.Flags != that1.Flags {
+		return false
+	}
+	if this.Name != that1.Name {
+		return false
+	}
+	if this.Kind != that1.Kind {
+		return false
+	}
+	if this.StartTimeUnixNano != that1.StartTimeUnixNano {
+		return false
+	}
+	if this.EndTimeUnixNano != that1.EndTimeUnixNano {
+		return false
+	}
+	if len(this.Attributes) != len(that1.Attributes) {
+		return false
+	}
+	for i := range this.Attributes {
+		if (this.Attributes[i] == nil) != (that1.Attributes[i] == nil) {
+			return false
+		}
+		if this.Attributes[i] != nil && !this.Attributes[i].Equal(that1.Attributes[i]) {
+			return false
+		}
+	}
+	if this.DroppedAttributesCount != that1.DroppedAttributesCount {
+		return false
+	}
+	if len(this.Events) != len(that1.Events) {
+		return false
+	}
+	for i := range this.Events {
+		if (this.Events[i] == nil) != (that1.Events[i] == nil) {
+			return false
+		}
+		if this.Events[i] != nil && !this.Events[i].Equal(that1.Events[i]) {
+			return false
+		}
+	}
+	if this.DroppedEventsCount != that1.DroppedEventsCount {
+		return false
+	}
+	if len(this.Links) != len(that1.Links) {
+		return false
+	}
+	for i := range this.Links {
+		if (this.Links[i] == nil) != (that1.Links[i] == nil) {
+			return false
+		}
+		if this.Links[i] != nil && !this.Links[i].Equal(that1.Links[i]) {
+			return false
+		}
+	}
+	if this.DroppedLinksCount != that1.DroppedLinksCount {
+		return false
+	}
+	if (this.Status == nil) != (that1.Status == nil) {
+		return false
+	}
+	if this.Status != nil && !this.Status.Equal(that1.Status) {
+		return false
+	}
+	return true
+}
+
+func (this *Status) Equal(that interface{}) bool {
+	if that == nil {
+		return this == nil
+	}
+
+	that1, ok := that.(*Status)
+	if !ok {
+		that2, ok := that.(Status)
+		if ok {
+			that1 = &that2
+		} else {
+			return false
+		}
+	}
+	if that1 == nil {
+		return this == nil
+	} else if this == nil {
+		return false
+	}
+	if this.Message != that1.Message {
+		return false
+	}
+	if this.Code != that1.Code {
+		return false
+	}
+	return true
+}
 
 func (this *TracesData) Compare(that interface{}) int {
 	if that == nil {

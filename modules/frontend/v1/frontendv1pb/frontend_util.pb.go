@@ -4,22 +4,31 @@
 package frontendv1pb
 
 import (
+	"fmt"
 	"github.com/grafana/dskit/httpgrpc"
 	"github.com/grafana/wiresmith/protohelpers"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/runtime/protoimpl"
 	"reflect"
+	"slices"
+	"strconv"
+	"strings"
 	"unsafe"
 )
 
-// Reflection / registration glue for frontendv1pb/frontend.proto.
+// Cold companion utilities for frontendv1pb/frontend.proto.
 //
-// This file holds the per-message ProtoReflect() methods, the per-enum
-// Descriptor()/Type()/Number() methods, the embedded FileDescriptorProto
-// blob, the file_*_msgTypes / file_*_enumTypes arrays, and the init()
-// that registers everything with protoregistry.GlobalFiles and
-// protoregistry.GlobalTypes. None of these are called on the marshal /
-// unmarshal / size hot path.
+// This file holds two cold concerns merged into one compilation unit:
+//
+//   - Reflection / registration glue: the per-message ProtoReflect()
+//     methods, the per-enum Descriptor()/Type()/Number() methods, the
+//     embedded FileDescriptorProto blob, the file_*_msgTypes /
+//     file_*_enumTypes arrays, and the init() that registers everything
+//     with protoregistry.GlobalFiles and protoregistry.GlobalTypes.
+//   - The per-message String() debug dumps (hand-rolled, deterministic,
+//     non-reflection — see compiler/generator/emit_string.go).
+//
+// None of these are called on the marshal / unmarshal / size hot path.
 //
 // Why a separate file? Putting this code (plus its descriptorpb /
 // protoreflect / protoimpl imports — ~64KB of descriptorpb alone, ~377KB
@@ -30,11 +39,121 @@ import (
 // in the same compilation unit shifted hot functions onto different
 // cache sets and pushed them ~131KB further into the binary. Emitting
 // the cold half here, in its own .o, lets the linker place it away
-// from the hot half and recovers that throughput.
+// from the hot half and recovers that throughput. reflect and String()
+// are both cold and were already split out, so merging them (cold→cold)
+// preserves the rationale while halving the companion-file count.
 //
 // See compiler/generator/emit_registration.go for the full rationale
 // and the benchmark methodology. DO NOT inline this file's contents
 // back into the main .pb.go without re-measuring.
+
+func (m *FrontendToClient) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	b.WriteString("httpRequest: ")
+	fmt.Fprintf(&b, "%v", m.HttpRequest)
+	b.WriteString(" ")
+	if m.Type != 0 {
+		b.WriteString("type: ")
+		b.WriteString(m.Type.String())
+		b.WriteString(" ")
+	}
+	for _, e := range m.HttpRequestBatch {
+		b.WriteString("httpRequestBatch: ")
+		fmt.Fprintf(&b, "%v", e)
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *ClientToFrontend) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	b.WriteString("httpResponse: ")
+	fmt.Fprintf(&b, "%v", m.HttpResponse)
+	b.WriteString(" ")
+	if len(m.ClientID) > 0 {
+		b.WriteString("clientID: ")
+		b.WriteString(strconv.Quote(m.ClientID))
+		b.WriteString(" ")
+	}
+	for _, e := range m.HttpResponseBatch {
+		b.WriteString("httpResponseBatch: ")
+		fmt.Fprintf(&b, "%v", e)
+		b.WriteString(" ")
+	}
+	if m.Features != 0 {
+		b.WriteString("features: ")
+		fmt.Fprintf(&b, "%v", m.Features)
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *NotifyClientShutdownRequest) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	if len(m.ClientID) > 0 {
+		b.WriteString("clientID: ")
+		b.WriteString(strconv.Quote(m.ClientID))
+		b.WriteString(" ")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (m *NotifyClientShutdownResponse) String() string {
+	if m == nil {
+		return "<nil>"
+	}
+	var b strings.Builder
+	return strings.TrimSpace(b.String())
+}
+
+func (m *FrontendToClient) Clone() *FrontendToClient {
+	if m == nil {
+		return nil
+	}
+	out := &FrontendToClient{}
+	out.HttpRequest = m.HttpRequest
+	out.Type = m.Type
+	out.HttpRequestBatch = slices.Clone(m.HttpRequestBatch)
+	return out
+}
+
+func (m *ClientToFrontend) Clone() *ClientToFrontend {
+	if m == nil {
+		return nil
+	}
+	out := &ClientToFrontend{}
+	out.HttpResponse = m.HttpResponse
+	out.ClientID = m.ClientID
+	out.HttpResponseBatch = slices.Clone(m.HttpResponseBatch)
+	out.Features = m.Features
+	return out
+}
+
+func (m *NotifyClientShutdownRequest) Clone() *NotifyClientShutdownRequest {
+	if m == nil {
+		return nil
+	}
+	out := &NotifyClientShutdownRequest{}
+	out.ClientID = m.ClientID
+	return out
+}
+
+func (m *NotifyClientShutdownResponse) Clone() *NotifyClientShutdownResponse {
+	if m == nil {
+		return nil
+	}
+	out := &NotifyClientShutdownResponse{}
+	return out
+}
 
 func (x Type) Descriptor() protoreflect.EnumDescriptor {
 	file_frontendv1pb_frontend_proto_init()
