@@ -62,11 +62,11 @@ message TraceByIDResponse {
 
 message TraceByIDMetrics {
   uint64 inspectedBytes = 1;
-  // Number of backend read operations.
+  // Number of backend read operations. TODO(issue/1274): populated by storage producers.
   uint64 backendReads = 2;
-  // Number of bytes read from the backend, excluding cache hits.
+  // Number of bytes read from the backend, excluding cache hits. TODO(issue/1274): populated by storage producers.
   uint64 backendBytes = 3;
-  // Open-ended counters keyed by constants in additional_metrics_keys.go.
+  // Open-ended counters keyed by constants in additional_metrics_keys.go. TODO(issue/1274): populated by storage producers.
   map<string, int64> additionalMetrics = 4;
 }
 
@@ -284,11 +284,11 @@ message MetadataMetrics {
   uint32 completedJobs = 3;
   uint32 totalBlocks = 4;
   uint64 totalBlockBytes = 5;
-  // Number of backend read operations.
+  // Number of backend read operations. TODO(issue/1274): populated by storage producers.
   uint64 backendReads = 6;
-  // Number of bytes read from the backend, excluding cache hits.
+  // Number of bytes read from the backend, excluding cache hits. TODO(issue/1274): populated by storage producers.
   uint64 backendBytes = 7;
-  // Open-ended counters keyed by constants in additional_metrics_keys.go.
+  // Open-ended counters keyed by constants in additional_metrics_keys.go. TODO(issue/1274): populated by storage producers.
   map<string, int64> additionalMetrics = 8;
 }
 
