@@ -378,7 +378,12 @@ func (m *ClientToFrontend) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if len(m.ClientID) > 0 {
 		i -= len(m.ClientID)
 		copy(dAtA[i:], m.ClientID)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.ClientID)))
+		if len(m.ClientID) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.ClientID))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.ClientID)))
+		}
 		i--
 		dAtA[i] = 0x12
 	}
@@ -430,7 +435,12 @@ func (m *NotifyClientShutdownRequest) MarshalToSizedBuffer(dAtA []byte) (int, er
 	if len(m.ClientID) > 0 {
 		i -= len(m.ClientID)
 		copy(dAtA[i:], m.ClientID)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.ClientID)))
+		if len(m.ClientID) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.ClientID))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.ClientID)))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}

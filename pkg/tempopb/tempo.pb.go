@@ -3041,28 +3041,48 @@ func (m *TraceByIDRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if len(m.QueryMode) > 0 {
 		i -= len(m.QueryMode)
 		copy(dAtA[i:], m.QueryMode)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.QueryMode)))
+		if len(m.QueryMode) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.QueryMode))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.QueryMode)))
+		}
 		i--
 		dAtA[i] = 0x2a
 	}
 	if len(m.BlockEnd) > 0 {
 		i -= len(m.BlockEnd)
 		copy(dAtA[i:], m.BlockEnd)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.BlockEnd)))
+		if len(m.BlockEnd) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.BlockEnd))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.BlockEnd)))
+		}
 		i--
 		dAtA[i] = 0x1a
 	}
 	if len(m.BlockStart) > 0 {
 		i -= len(m.BlockStart)
 		copy(dAtA[i:], m.BlockStart)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.BlockStart)))
+		if len(m.BlockStart) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.BlockStart))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.BlockStart)))
+		}
 		i--
 		dAtA[i] = 0x12
 	}
 	if len(m.TraceID) > 0 {
 		i -= len(m.TraceID)
 		copy(dAtA[i:], m.TraceID)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.TraceID)))
+		if len(m.TraceID) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.TraceID))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.TraceID)))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -3101,7 +3121,12 @@ func (m *TraceByIDResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if len(m.Message) > 0 {
 		i -= len(m.Message)
 		copy(dAtA[i:], m.Message)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Message)))
+		if len(m.Message) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.Message))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Message)))
+		}
 		i--
 		dAtA[i] = 0x22
 	}
@@ -3116,7 +3141,12 @@ func (m *TraceByIDResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x12
 	}
@@ -3126,7 +3156,12 @@ func (m *TraceByIDResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -3202,7 +3237,12 @@ func (m *SearchRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	for iNdEx := len(m.SkipASTTransformations) - 1; iNdEx >= 0; iNdEx-- {
 		i -= len(m.SkipASTTransformations[iNdEx])
 		copy(dAtA[i:], m.SkipASTTransformations[iNdEx])
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.SkipASTTransformations[iNdEx])))
+		if len(m.SkipASTTransformations[iNdEx]) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.SkipASTTransformations[iNdEx]))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.SkipASTTransformations[iNdEx])))
+		}
 		i--
 		dAtA[i] = 0x5a
 	}
@@ -3222,7 +3262,12 @@ func (m *SearchRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if len(m.Query) > 0 {
 		i -= len(m.Query)
 		copy(dAtA[i:], m.Query)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Query)))
+		if len(m.Query) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.Query))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Query)))
+		}
 		i--
 		dAtA[i] = 0x42
 	}
@@ -3255,15 +3300,30 @@ func (m *SearchRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		baseI := i
 		i -= len(v)
 		copy(dAtA[i:], v)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(v)))
+		if len(v) <= 0x7F {
+			dAtA[i-1] = uint8(len(v))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(v)))
+		}
 		i--
 		dAtA[i] = 0x12
 		i -= len(k)
 		copy(dAtA[i:], k)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(k)))
+		if len(k) <= 0x7F {
+			dAtA[i-1] = uint8(len(k))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(k)))
+		}
 		i--
 		dAtA[i] = 0x0a
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(baseI-i))
+		if baseI-i <= 0x7F {
+			dAtA[i-1] = uint8(baseI - i)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(baseI-i))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -3308,7 +3368,12 @@ func (m *SearchBlockRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x62
 	}
@@ -3325,7 +3390,12 @@ func (m *SearchBlockRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if len(m.Version) > 0 {
 		i -= len(m.Version)
 		copy(dAtA[i:], m.Version)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Version)))
+		if len(m.Version) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.Version))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Version)))
+		}
 		i--
 		dAtA[i] = 0x4a
 	}
@@ -3352,7 +3422,12 @@ func (m *SearchBlockRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if len(m.BlockID) > 0 {
 		i -= len(m.BlockID)
 		copy(dAtA[i:], m.BlockID)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.BlockID)))
+		if len(m.BlockID) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.BlockID))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.BlockID)))
+		}
 		i--
 		dAtA[i] = 0x12
 	}
@@ -3362,7 +3437,12 @@ func (m *SearchBlockRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -3411,7 +3491,12 @@ func (m *DedicatedColumn) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if len(m.Name) > 0 {
 		i -= len(m.Name)
 		copy(dAtA[i:], m.Name)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Name)))
+		if len(m.Name) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.Name))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Name)))
+		}
 		i--
 		dAtA[i] = 0x12
 	}
@@ -3458,7 +3543,12 @@ func (m *SearchResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x12
 	}
@@ -3471,7 +3561,12 @@ func (m *SearchResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -3514,15 +3609,30 @@ func (m *TraceSearchMetadata) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x12
 		i -= len(k)
 		copy(dAtA[i:], k)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(k)))
+		if len(k) <= 0x7F {
+			dAtA[i-1] = uint8(len(k))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(k)))
+		}
 		i--
 		dAtA[i] = 0x0a
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(baseI-i))
+		if baseI-i <= 0x7F {
+			dAtA[i-1] = uint8(baseI - i)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(baseI-i))
+		}
 		i--
 		dAtA[i] = 0x42
 	}
@@ -3535,7 +3645,12 @@ func (m *TraceSearchMetadata) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x3a
 	}
@@ -3545,7 +3660,12 @@ func (m *TraceSearchMetadata) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x32
 	}
@@ -3562,21 +3682,36 @@ func (m *TraceSearchMetadata) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if len(m.RootTraceName) > 0 {
 		i -= len(m.RootTraceName)
 		copy(dAtA[i:], m.RootTraceName)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.RootTraceName)))
+		if len(m.RootTraceName) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.RootTraceName))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.RootTraceName)))
+		}
 		i--
 		dAtA[i] = 0x1a
 	}
 	if len(m.RootServiceName) > 0 {
 		i -= len(m.RootServiceName)
 		copy(dAtA[i:], m.RootServiceName)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.RootServiceName)))
+		if len(m.RootServiceName) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.RootServiceName))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.RootServiceName)))
+		}
 		i--
 		dAtA[i] = 0x12
 	}
 	if len(m.TraceID) > 0 {
 		i -= len(m.TraceID)
 		copy(dAtA[i:], m.TraceID)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.TraceID)))
+		if len(m.TraceID) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.TraceID))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.TraceID)))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -3663,7 +3798,12 @@ func (m *SpanSet) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x1a
 	}
@@ -3681,7 +3821,12 @@ func (m *SpanSet) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -3726,7 +3871,12 @@ func (m *Span) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x2a
 	}
@@ -3743,14 +3893,24 @@ func (m *Span) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if len(m.Name) > 0 {
 		i -= len(m.Name)
 		copy(dAtA[i:], m.Name)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Name)))
+		if len(m.Name) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.Name))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Name)))
+		}
 		i--
 		dAtA[i] = 0x12
 	}
 	if len(m.SpanID) > 0 {
 		i -= len(m.SpanID)
 		copy(dAtA[i:], m.SpanID)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.SpanID)))
+		if len(m.SpanID) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.SpanID))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.SpanID)))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -3884,14 +4044,24 @@ func (m *SearchTagsRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if len(m.Query) > 0 {
 		i -= len(m.Query)
 		copy(dAtA[i:], m.Query)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Query)))
+		if len(m.Query) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.Query))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Query)))
+		}
 		i--
 		dAtA[i] = 0x12
 	}
 	if len(m.Scope) > 0 {
 		i -= len(m.Scope)
 		copy(dAtA[i:], m.Scope)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Scope)))
+		if len(m.Scope) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.Scope))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Scope)))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -3946,7 +4116,12 @@ func (m *SearchTagsBlockRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) 
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x62
 	}
@@ -3963,7 +4138,12 @@ func (m *SearchTagsBlockRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) 
 	if len(m.Version) > 0 {
 		i -= len(m.Version)
 		copy(dAtA[i:], m.Version)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Version)))
+		if len(m.Version) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.Version))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Version)))
+		}
 		i--
 		dAtA[i] = 0x4a
 	}
@@ -3990,7 +4170,12 @@ func (m *SearchTagsBlockRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) 
 	if len(m.BlockID) > 0 {
 		i -= len(m.BlockID)
 		copy(dAtA[i:], m.BlockID)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.BlockID)))
+		if len(m.BlockID) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.BlockID))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.BlockID)))
+		}
 		i--
 		dAtA[i] = 0x12
 	}
@@ -4000,7 +4185,12 @@ func (m *SearchTagsBlockRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) 
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -4045,7 +4235,12 @@ func (m *SearchTagValuesBlockRequest) MarshalToSizedBuffer(dAtA []byte) (int, er
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x62
 	}
@@ -4062,7 +4257,12 @@ func (m *SearchTagValuesBlockRequest) MarshalToSizedBuffer(dAtA []byte) (int, er
 	if len(m.Version) > 0 {
 		i -= len(m.Version)
 		copy(dAtA[i:], m.Version)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Version)))
+		if len(m.Version) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.Version))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Version)))
+		}
 		i--
 		dAtA[i] = 0x4a
 	}
@@ -4089,7 +4289,12 @@ func (m *SearchTagValuesBlockRequest) MarshalToSizedBuffer(dAtA []byte) (int, er
 	if len(m.BlockID) > 0 {
 		i -= len(m.BlockID)
 		copy(dAtA[i:], m.BlockID)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.BlockID)))
+		if len(m.BlockID) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.BlockID))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.BlockID)))
+		}
 		i--
 		dAtA[i] = 0x12
 	}
@@ -4099,7 +4304,12 @@ func (m *SearchTagValuesBlockRequest) MarshalToSizedBuffer(dAtA []byte) (int, er
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -4141,14 +4351,24 @@ func (m *SearchTagsResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x12
 	}
 	for iNdEx := len(m.TagNames) - 1; iNdEx >= 0; iNdEx-- {
 		i -= len(m.TagNames[iNdEx])
 		copy(dAtA[i:], m.TagNames[iNdEx])
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.TagNames[iNdEx])))
+		if len(m.TagNames[iNdEx]) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.TagNames[iNdEx]))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.TagNames[iNdEx])))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -4190,7 +4410,12 @@ func (m *SearchTagsV2Response) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x12
 	}
@@ -4203,7 +4428,12 @@ func (m *SearchTagsV2Response) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -4242,14 +4472,24 @@ func (m *SearchTagsV2Scope) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	for iNdEx := len(m.Tags) - 1; iNdEx >= 0; iNdEx-- {
 		i -= len(m.Tags[iNdEx])
 		copy(dAtA[i:], m.Tags[iNdEx])
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Tags[iNdEx])))
+		if len(m.Tags[iNdEx]) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.Tags[iNdEx]))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Tags[iNdEx])))
+		}
 		i--
 		dAtA[i] = 0x12
 	}
 	if len(m.Name) > 0 {
 		i -= len(m.Name)
 		copy(dAtA[i:], m.Name)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Name)))
+		if len(m.Name) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.Name))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Name)))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -4316,14 +4556,24 @@ func (m *SearchTagValuesRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) 
 	if len(m.Query) > 0 {
 		i -= len(m.Query)
 		copy(dAtA[i:], m.Query)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Query)))
+		if len(m.Query) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.Query))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Query)))
+		}
 		i--
 		dAtA[i] = 0x12
 	}
 	if len(m.TagName) > 0 {
 		i -= len(m.TagName)
 		copy(dAtA[i:], m.TagName)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.TagName)))
+		if len(m.TagName) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.TagName))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.TagName)))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -4365,14 +4615,24 @@ func (m *SearchTagValuesResponse) MarshalToSizedBuffer(dAtA []byte) (int, error)
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x12
 	}
 	for iNdEx := len(m.TagValues) - 1; iNdEx >= 0; iNdEx-- {
 		i -= len(m.TagValues[iNdEx])
 		copy(dAtA[i:], m.TagValues[iNdEx])
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.TagValues[iNdEx])))
+		if len(m.TagValues[iNdEx]) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.TagValues[iNdEx]))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.TagValues[iNdEx])))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -4411,14 +4671,24 @@ func (m *TagValue) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if len(m.Value) > 0 {
 		i -= len(m.Value)
 		copy(dAtA[i:], m.Value)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Value)))
+		if len(m.Value) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.Value))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Value)))
+		}
 		i--
 		dAtA[i] = 0x12
 	}
 	if len(m.Type) > 0 {
 		i -= len(m.Type)
 		copy(dAtA[i:], m.Type)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Type)))
+		if len(m.Type) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.Type))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Type)))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -4460,7 +4730,12 @@ func (m *SearchTagValuesV2Response) MarshalToSizedBuffer(dAtA []byte) (int, erro
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x12
 	}
@@ -4473,7 +4748,12 @@ func (m *SearchTagValuesV2Response) MarshalToSizedBuffer(dAtA []byte) (int, erro
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -4575,7 +4855,12 @@ func (m *Trace) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -4617,7 +4902,12 @@ func (m *PushResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		for j = len(m.ErrorsByTrace) - 1; j >= 0; j-- {
 			i = protohelpers.EncodeVarint(dAtA, i, uint64(m.ErrorsByTrace[j]))
 		}
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(pStart-i))
+		if pStart-i <= 0x7F {
+			dAtA[i-1] = uint8(pStart - i)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(pStart-i))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -4666,7 +4956,12 @@ func (m *PushBytesRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	for iNdEx := len(m.Ids) - 1; iNdEx >= 0; iNdEx-- {
 		i -= len(m.Ids[iNdEx])
 		copy(dAtA[i:], m.Ids[iNdEx])
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Ids[iNdEx])))
+		if len(m.Ids[iNdEx]) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.Ids[iNdEx]))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Ids[iNdEx])))
+		}
 		i--
 		dAtA[i] = 0x1a
 	}
@@ -4737,7 +5032,12 @@ func (m *PushSpansRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -4776,7 +5076,12 @@ func (m *TraceBytes) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	for iNdEx := len(m.Traces) - 1; iNdEx >= 0; iNdEx-- {
 		i -= len(m.Traces[iNdEx])
 		copy(dAtA[i:], m.Traces[iNdEx])
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Traces[iNdEx])))
+		if len(m.Traces[iNdEx]) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.Traces[iNdEx]))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Traces[iNdEx])))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -4821,7 +5126,12 @@ func (m *LinkSlice) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -4870,7 +5180,12 @@ func (m *QueryInstantRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if len(m.Query) > 0 {
 		i -= len(m.Query)
 		copy(dAtA[i:], m.Query)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Query)))
+		if len(m.Query) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.Query))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Query)))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -4909,7 +5224,12 @@ func (m *QueryInstantResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if len(m.Message) > 0 {
 		i -= len(m.Message)
 		copy(dAtA[i:], m.Message)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Message)))
+		if len(m.Message) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.Message))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Message)))
+		}
 		i--
 		dAtA[i] = 0x22
 	}
@@ -4924,7 +5244,12 @@ func (m *QueryInstantResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x12
 	}
@@ -4937,7 +5262,12 @@ func (m *QueryInstantResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -4985,7 +5315,12 @@ func (m *InstantSeries) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -5024,7 +5359,12 @@ func (m *QueryRangeRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	for iNdEx := len(m.SkipASTTransformations) - 1; iNdEx >= 0; iNdEx-- {
 		i -= len(m.SkipASTTransformations[iNdEx])
 		copy(dAtA[i:], m.SkipASTTransformations[iNdEx])
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.SkipASTTransformations[iNdEx])))
+		if len(m.SkipASTTransformations[iNdEx]) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.SkipASTTransformations[iNdEx]))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.SkipASTTransformations[iNdEx])))
+		}
 		i--
 		dAtA[i] = 0x01
 		i--
@@ -5065,7 +5405,12 @@ func (m *QueryRangeRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x7a
 	}
@@ -5082,7 +5427,12 @@ func (m *QueryRangeRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if len(m.Version) > 0 {
 		i -= len(m.Version)
 		copy(dAtA[i:], m.Version)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Version)))
+		if len(m.Version) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.Version))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Version)))
+		}
 		i--
 		dAtA[i] = 0x5a
 	}
@@ -5099,14 +5449,24 @@ func (m *QueryRangeRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if len(m.BlockID) > 0 {
 		i -= len(m.BlockID)
 		copy(dAtA[i:], m.BlockID)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.BlockID)))
+		if len(m.BlockID) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.BlockID))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.BlockID)))
+		}
 		i--
 		dAtA[i] = 0x42
 	}
 	if len(m.QueryMode) > 0 {
 		i -= len(m.QueryMode)
 		copy(dAtA[i:], m.QueryMode)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.QueryMode)))
+		if len(m.QueryMode) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.QueryMode))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.QueryMode)))
+		}
 		i--
 		dAtA[i] = 0x3a
 	}
@@ -5128,7 +5488,12 @@ func (m *QueryRangeRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if len(m.Query) > 0 {
 		i -= len(m.Query)
 		copy(dAtA[i:], m.Query)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Query)))
+		if len(m.Query) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.Query))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Query)))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -5167,7 +5532,12 @@ func (m *QueryRangeResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if len(m.Message) > 0 {
 		i -= len(m.Message)
 		copy(dAtA[i:], m.Message)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Message)))
+		if len(m.Message) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.Message))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Message)))
+		}
 		i--
 		dAtA[i] = 0x22
 	}
@@ -5182,7 +5552,12 @@ func (m *QueryRangeResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x12
 	}
@@ -5195,7 +5570,12 @@ func (m *QueryRangeResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -5248,7 +5628,12 @@ func (m *Exemplar) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -5333,7 +5718,12 @@ func (m *TimeSeries) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x22
 	}
@@ -5343,7 +5733,12 @@ func (m *TimeSeries) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x12
 	}
@@ -5353,7 +5748,12 @@ func (m *TimeSeries) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}

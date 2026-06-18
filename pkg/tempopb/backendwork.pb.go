@@ -436,11 +436,11 @@ func (m *NextJobResponse) GetType() JobType {
 	return 0
 }
 
-func (m *NextJobResponse) GetDetail() JobDetail {
+func (m *NextJobResponse) GetDetail() *JobDetail {
 	if m != nil {
-		return m.Detail
+		return &m.Detail
 	}
-	return JobDetail{}
+	return nil
 }
 
 func (m *UpdateJobStatusRequest) GetJobId() string {
@@ -810,14 +810,24 @@ func (m *CompactionDetail) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	for iNdEx := len(m.Output) - 1; iNdEx >= 0; iNdEx-- {
 		i -= len(m.Output[iNdEx])
 		copy(dAtA[i:], m.Output[iNdEx])
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Output[iNdEx])))
+		if len(m.Output[iNdEx]) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.Output[iNdEx]))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Output[iNdEx])))
+		}
 		i--
 		dAtA[i] = 0x12
 	}
 	for iNdEx := len(m.Input) - 1; iNdEx >= 0; iNdEx-- {
 		i -= len(m.Input[iNdEx])
 		copy(dAtA[i:], m.Input[iNdEx])
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Input[iNdEx])))
+		if len(m.Input[iNdEx]) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.Input[iNdEx]))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Input[iNdEx])))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -888,14 +898,24 @@ func (m *RedactionDetail) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	for iNdEx := len(m.TraceIds) - 1; iNdEx >= 0; iNdEx-- {
 		i -= len(m.TraceIds[iNdEx])
 		copy(dAtA[i:], m.TraceIds[iNdEx])
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.TraceIds[iNdEx])))
+		if len(m.TraceIds[iNdEx]) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.TraceIds[iNdEx]))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.TraceIds[iNdEx])))
+		}
 		i--
 		dAtA[i] = 0x12
 	}
 	if len(m.BlockId) > 0 {
 		i -= len(m.BlockId)
 		copy(dAtA[i:], m.BlockId)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.BlockId)))
+		if len(m.BlockId) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.BlockId))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.BlockId)))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -934,7 +954,12 @@ func (m *JobDetail) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if len(m.BatchId) > 0 {
 		i -= len(m.BatchId)
 		copy(dAtA[i:], m.BatchId)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.BatchId)))
+		if len(m.BatchId) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.BatchId))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.BatchId)))
+		}
 		i--
 		dAtA[i] = 0x2a
 	}
@@ -944,7 +969,12 @@ func (m *JobDetail) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x22
 	}
@@ -954,7 +984,12 @@ func (m *JobDetail) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x1a
 	}
@@ -964,14 +999,24 @@ func (m *JobDetail) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x12
 	}
 	if len(m.Tenant) > 0 {
 		i -= len(m.Tenant)
 		copy(dAtA[i:], m.Tenant)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Tenant)))
+		if len(m.Tenant) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.Tenant))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Tenant)))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -1010,7 +1055,12 @@ func (m *NextJobRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if len(m.WorkerId) > 0 {
 		i -= len(m.WorkerId)
 		copy(dAtA[i:], m.WorkerId)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.WorkerId)))
+		if len(m.WorkerId) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.WorkerId))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.WorkerId)))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -1053,7 +1103,12 @@ func (m *NextJobResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		}
 		if size > 0 {
 			i -= size
-			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+			if size <= 0x7F {
+				dAtA[i-1] = uint8(size)
+				i--
+			} else {
+				i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+			}
 			i--
 			dAtA[i] = 0x1a
 		}
@@ -1066,7 +1121,12 @@ func (m *NextJobResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if len(m.JobId) > 0 {
 		i -= len(m.JobId)
 		copy(dAtA[i:], m.JobId)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.JobId)))
+		if len(m.JobId) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.JobId))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.JobId)))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -1108,7 +1168,12 @@ func (m *UpdateJobStatusRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) 
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x2a
 	}
@@ -1118,14 +1183,24 @@ func (m *UpdateJobStatusRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) 
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x22
 	}
 	if len(m.Error) > 0 {
 		i -= len(m.Error)
 		copy(dAtA[i:], m.Error)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Error)))
+		if len(m.Error) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.Error))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Error)))
+		}
 		i--
 		dAtA[i] = 0x1a
 	}
@@ -1137,7 +1212,12 @@ func (m *UpdateJobStatusRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) 
 	if len(m.JobId) > 0 {
 		i -= len(m.JobId)
 		copy(dAtA[i:], m.JobId)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.JobId)))
+		if len(m.JobId) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.JobId))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.JobId)))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -1218,14 +1298,24 @@ func (m *SubmitRedactionRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) 
 	for iNdEx := len(m.TraceIds) - 1; iNdEx >= 0; iNdEx-- {
 		i -= len(m.TraceIds[iNdEx])
 		copy(dAtA[i:], m.TraceIds[iNdEx])
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.TraceIds[iNdEx])))
+		if len(m.TraceIds[iNdEx]) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.TraceIds[iNdEx]))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.TraceIds[iNdEx])))
+		}
 		i--
 		dAtA[i] = 0x12
 	}
 	if len(m.TenantId) > 0 {
 		i -= len(m.TenantId)
 		copy(dAtA[i:], m.TenantId)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.TenantId)))
+		if len(m.TenantId) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.TenantId))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.TenantId)))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -1269,7 +1359,12 @@ func (m *SubmitRedactionResponse) MarshalToSizedBuffer(dAtA []byte) (int, error)
 	if len(m.BatchId) > 0 {
 		i -= len(m.BatchId)
 		copy(dAtA[i:], m.BatchId)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.BatchId)))
+		if len(m.BatchId) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.BatchId))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.BatchId)))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -1350,7 +1445,12 @@ func (m *RedactionBatch) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	for iNdEx := len(m.SkippedCompactionJobIds) - 1; iNdEx >= 0; iNdEx-- {
 		i -= len(m.SkippedCompactionJobIds[iNdEx])
 		copy(dAtA[i:], m.SkippedCompactionJobIds[iNdEx])
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.SkippedCompactionJobIds[iNdEx])))
+		if len(m.SkippedCompactionJobIds[iNdEx]) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.SkippedCompactionJobIds[iNdEx]))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.SkippedCompactionJobIds[iNdEx])))
+		}
 		i--
 		dAtA[i] = 0x2a
 	}
@@ -1362,21 +1462,36 @@ func (m *RedactionBatch) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	for iNdEx := len(m.TraceIds) - 1; iNdEx >= 0; iNdEx-- {
 		i -= len(m.TraceIds[iNdEx])
 		copy(dAtA[i:], m.TraceIds[iNdEx])
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.TraceIds[iNdEx])))
+		if len(m.TraceIds[iNdEx]) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.TraceIds[iNdEx]))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.TraceIds[iNdEx])))
+		}
 		i--
 		dAtA[i] = 0x1a
 	}
 	if len(m.TenantId) > 0 {
 		i -= len(m.TenantId)
 		copy(dAtA[i:], m.TenantId)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.TenantId)))
+		if len(m.TenantId) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.TenantId))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.TenantId)))
+		}
 		i--
 		dAtA[i] = 0x12
 	}
 	if len(m.BatchId) > 0 {
 		i -= len(m.BatchId)
 		copy(dAtA[i:], m.BatchId)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.BatchId)))
+		if len(m.BatchId) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.BatchId))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.BatchId)))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -1421,7 +1536,12 @@ func (m *RedactionBatches) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
