@@ -191,11 +191,11 @@ func (m *BlockMeta) GetReplicationFactor() uint32 {
 	return 0
 }
 
-func (m *CompactedBlockMeta) GetBlockMeta() BlockMeta {
+func (m *CompactedBlockMeta) GetBlockMeta() *BlockMeta {
 	if m != nil {
-		return m.BlockMeta
+		return &m.BlockMeta
 	}
-	return BlockMeta{}
+	return nil
 }
 
 func (m *CompactedBlockMeta) GetCompactedTime() time.Time {
@@ -429,7 +429,12 @@ func (m *BlockMeta) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if len(m.TenantID) > 0 {
 		i -= len(m.TenantID)
 		copy(dAtA[i:], m.TenantID)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.TenantID)))
+		if len(m.TenantID) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.TenantID))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.TenantID)))
+		}
 		i--
 		dAtA[i] = 0x2a
 	}
@@ -449,7 +454,12 @@ func (m *BlockMeta) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if len(m.Version) > 0 {
 		i -= len(m.Version)
 		copy(dAtA[i:], m.Version)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Version)))
+		if len(m.Version) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.Version))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Version)))
+		}
 		i--
 		dAtA[i] = 0x0a
 	}
@@ -500,7 +510,12 @@ func (m *CompactedBlockMeta) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		}
 		if size > 0 {
 			i -= size
-			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+			if size <= 0x7F {
+				dAtA[i-1] = uint8(size)
+				i--
+			} else {
+				i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+			}
 			i--
 			dAtA[i] = 0x0a
 		}
@@ -546,7 +561,12 @@ func (m *TenantIndex) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x1a
 	}
@@ -559,7 +579,12 @@ func (m *TenantIndex) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i -= size
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0x12
 	}
