@@ -29,8 +29,8 @@ func compactionJob(tenant string, inputs ...string) *Job {
 	}
 }
 
-func redactionBatch(tenant, id string) *tempopb.RedactionBatch {
-	return &tempopb.RedactionBatch{BatchId: id, TenantId: tenant, TraceIds: [][]byte{[]byte("trace")}}
+func redactionBatch(id string) *tempopb.RedactionBatch {
+	return &tempopb.RedactionBatch{BatchId: id, TenantId: "t1", TraceIds: [][]byte{[]byte("trace")}}
 }
 
 func toSet(s []string) map[string]struct{} {
@@ -50,7 +50,7 @@ func TestClaimRedactionBatch_RegisterThenClaim(t *testing.T) {
 	require.True(t, w.TryRegisterJob(j), "no batch active yet → job registers")
 	require.True(t, w.IsBlockBusy("t1", "B"))
 
-	free, skipped, ok := w.ClaimRedactionBatch(redactionBatch("t1", "batch"), []string{"B", "C"}, int64(12345))
+	free, skipped, ok := w.ClaimRedactionBatch(redactionBatch("batch"), []string{"B", "C"}, int64(12345))
 	require.True(t, ok)
 	require.Equal(t, []string{j.ID}, skipped, "block under active compaction recorded for rescan")
 	require.Equal(t, []string{"C"}, free, "only the free block is redacted directly")
@@ -61,7 +61,7 @@ func TestClaimRedactionBatch_RegisterThenClaim(t *testing.T) {
 // covers it.
 func TestClaimRedactionBatch_ClaimThenRegisterRefused(t *testing.T) {
 	w := newTestWork(t)
-	free, skipped, ok := w.ClaimRedactionBatch(redactionBatch("t1", "batch"), []string{"B"}, int64(12345))
+	free, skipped, ok := w.ClaimRedactionBatch(redactionBatch("batch"), []string{"B"}, int64(12345))
 	require.True(t, ok)
 	require.Equal(t, []string{"B"}, free)
 	require.Empty(t, skipped)
@@ -73,10 +73,10 @@ func TestClaimRedactionBatch_ClaimThenRegisterRefused(t *testing.T) {
 
 func TestClaimRedactionBatch_RejectsConcurrentBatch(t *testing.T) {
 	w := newTestWork(t)
-	_, _, ok := w.ClaimRedactionBatch(redactionBatch("t1", "b1"), []string{"B"}, 0)
+	_, _, ok := w.ClaimRedactionBatch(redactionBatch("b1"), []string{"B"}, 0)
 	require.True(t, ok)
 
-	free, skipped, ok2 := w.ClaimRedactionBatch(redactionBatch("t1", "b2"), []string{"C"}, 0)
+	free, skipped, ok2 := w.ClaimRedactionBatch(redactionBatch("b2"), []string{"C"}, 0)
 	require.False(t, ok2, "second batch for the same tenant must be rejected")
 	require.Nil(t, free)
 	require.Nil(t, skipped)
@@ -104,7 +104,7 @@ func TestClaimRedactionBatch_RegisterRaceInvariant(t *testing.T) {
 	wg.Add(N + 1)
 	go func() {
 		defer wg.Done()
-		free, skipped, _ = w.ClaimRedactionBatch(redactionBatch("t1", "b"), blockIDs, int64(1))
+		free, skipped, _ = w.ClaimRedactionBatch(redactionBatch("b"), blockIDs, int64(1))
 	}()
 	for i := range jobs {
 		go func() {
