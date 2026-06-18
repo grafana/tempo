@@ -41,6 +41,13 @@ type queryShapeCtxKey struct{}
 // Handlers create the cell via WithQueryShapeCell before invoking the pipeline
 // so the outer request's context (which the handler keeps a reference to)
 // can read the populated shape after RoundTrip returns.
+//
+// Concurrency: the cell has exactly one writer (the weight middleware, which
+// runs synchronously on the request goroutine before any pipeline fan-out)
+// and one reader (the handler, after RoundTrip returns). The happens-before
+// relationship is established by the synchronous call stack and by the
+// pipeline.Responses channel synchronization on the return path, so no mutex
+// is needed.
 type queryShapeCell struct {
 	qs *QueryShape
 }
