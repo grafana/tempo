@@ -1,0 +1,6 @@
+change_type: feature
+component: tempo-cli
+note: Add an experimental trace diff command that compares two local trace JSON files and emits trace-patch-v0 output.
+issues: []
+subtext:
+user: javiermolinar
