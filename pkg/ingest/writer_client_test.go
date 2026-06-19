@@ -19,9 +19,11 @@ func TestStatusFromProduceErr(t *testing.T) {
 		err  error
 		want codes.Code
 	}{
+	{
 		{"nil", nil, codes.OK},
 		{"record timeout", kgo.ErrRecordTimeout, codes.Unavailable},
 		{"context deadline", context.DeadlineExceeded, codes.Unavailable},
+		{"context canceled", context.Canceled, codes.Canceled},
 		{"buffer full", kgo.ErrMaxBuffered, codes.Unavailable},
 		{"generic", errors.New("boom"), codes.Unavailable},
 		{"message too large", kerr.MessageTooLarge, codes.InvalidArgument},
