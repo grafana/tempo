@@ -35,14 +35,14 @@ func acceptAllBlocks(_ *backend.BlockMeta) bool { return true }
 // Called from each sharder after starting its span.
 func setQueryShapeSpanAttrs(span trace.Span, qs pipeline.QueryShape) {
 	span.SetAttributes(
-		attribute.String("query_type", qs.Type),
-		attribute.Int("query_weight", qs.Weight),
-		attribute.Int("query_sub_queries", qs.SubQueries),
-		attribute.Int("query_conditions", qs.Conditions),
-		attribute.Int("query_regex_conditions", qs.RegexConditions),
-		attribute.Bool("query_has_or", qs.HasOr),
-		attribute.Bool("query_needs_full_trace", qs.NeedsFullTrace),
-		attribute.Bool("query_select_all", qs.SelectAll),
+		attribute.String("queryType", qs.Type),
+		attribute.Int("queryWeight", qs.Weight),
+		attribute.Int("querySubQueries", qs.SubQueries),
+		attribute.Int("queryConditions", qs.Conditions),
+		attribute.Int("queryRegexConditions", qs.RegexConditions),
+		attribute.Bool("queryHasOr", qs.HasOr),
+		attribute.Bool("queryNeedsFullTrace", qs.NeedsFullTrace),
+		attribute.Bool("querySelectAll", qs.SelectAll),
 	)
 }
 
