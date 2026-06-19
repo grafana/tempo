@@ -265,6 +265,8 @@ func TestKafkaWriteTimeoutHTTPStatus(t *testing.T) {
 	body, err := req.MarshalProto()
 	require.NoError(t, err)
 
+	httpClient := &http.Client{Timeout: 1 * time.Second}
+
 	var resp *http.Response
 	require.Eventually(t, func() bool {
 		httpReq, reqErr := http.NewRequest(http.MethodPost, "http://127.0.0.1:4318/v1/traces", bytes.NewReader(body))
@@ -272,7 +274,7 @@ func TestKafkaWriteTimeoutHTTPStatus(t *testing.T) {
 			return false
 		}
 		httpReq.Header.Set("Content-Type", "application/x-protobuf")
-		resp, reqErr = http.DefaultClient.Do(httpReq)
+		resp, reqErr = httpClient.Do(httpReq)
 		return reqErr == nil
 	}, 5*time.Second, 50*time.Millisecond)
 	defer resp.Body.Close()
