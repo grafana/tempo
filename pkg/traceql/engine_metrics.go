@@ -1347,10 +1347,8 @@ type metricsEvaluator struct {
 	storageReq                      *FetchSpansRequest
 	metricsPipeline                 spanProcessor
 	spansTotal, spansDeduped, bytes uint64
-	// Accumulated stats from FetchSpansStats across all blocks fetched by this
-	// evaluator. The per-role maps are flattened into scalars here; producers
-	// in vparquet5 will populate the per-role detail once iterator counters
-	// are wired up.
+	// Accumulated FetchSpansStats across all blocks fetched by this evaluator.
+	// Per-role maps are flattened into scalars.
 	backendReads      uint64
 	backendBytes      uint64
 	additionalMetrics map[string]int64
