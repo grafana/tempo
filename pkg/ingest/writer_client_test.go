@@ -19,7 +19,6 @@ func TestStatusFromProduceErr(t *testing.T) {
 		err  error
 		want codes.Code
 	}{
-	{
 		{"nil", nil, codes.OK},
 		{"record timeout", kgo.ErrRecordTimeout, codes.Unavailable},
 		{"context deadline", context.DeadlineExceeded, codes.Unavailable},
