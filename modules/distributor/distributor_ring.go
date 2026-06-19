@@ -1,6 +1,7 @@
 package distributor
 
 import (
+	"errors"
 	"flag"
 	"net"
 	"os"
@@ -46,8 +47,8 @@ func (cfg *RingConfig) RegisterFlags(f *flag.FlagSet) {
 
 	// Ring flags
 	cfg.KVStore.RegisterFlagsWithPrefix("distributor.ring.", "collectors/", f)
-	f.DurationVar(&cfg.HeartbeatPeriod, "distributor.ring.heartbeat-period", 5*time.Second, "Period at which to heartbeat to the ring. 0 = disabled.")
-	f.DurationVar(&cfg.HeartbeatTimeout, "distributor.ring.heartbeat-timeout", time.Minute, "The heartbeat timeout after which distributors are considered unhealthy within the ring. 0 = never (timeout disabled).")
+	f.DurationVar(&cfg.HeartbeatPeriod, "distributor.ring.heartbeat-period", 5*time.Second, "Period at which to heartbeat to the ring. Must be greater than 0 when the global ingestion rate strategy is enabled.")
+	f.DurationVar(&cfg.HeartbeatTimeout, "distributor.ring.heartbeat-timeout", time.Minute, "The heartbeat timeout after which distributors are considered unhealthy within the ring. Must be greater than 0 when the global ingestion rate strategy is enabled.")
 
 	// Instance flags
 	cfg.InstanceInterfaceNames = []string{"eth0", "en0"}
@@ -106,6 +107,20 @@ func (c ringHealthyCounter) HealthyInstancesCount() int {
 // ring config. Mirrors modules/backendworker/config.go: only the fields the
 // distributor needs are populated.
 func toBasicLifecyclerConfig(cfg RingConfig, logger log.Logger) (ring.BasicLifecyclerConfig, error) {
+	// The legacy ring.Lifecycler rejected a zero heartbeat period/timeout via
+	// LifecyclerConfig.Validate(); BasicLifecycler does not, so re-check here to
+	// preserve fail-fast on this (global-strategy-only) path. A zero period
+	// disables heartbeating entirely, and a zero timeout makes the auto-forget
+	// period zero so every peer is evicted on the next heartbeat — both leave
+	// the ring broken. (<=0 also rejects negative values, which would panic the
+	// heartbeat ticker.)
+	if cfg.HeartbeatPeriod <= 0 {
+		return ring.BasicLifecyclerConfig{}, errors.New("distributor.ring.heartbeat-period must be greater than 0")
+	}
+	if cfg.HeartbeatTimeout <= 0 {
+		return ring.BasicLifecyclerConfig{}, errors.New("distributor.ring.heartbeat-timeout must be greater than 0")
+	}
+
 	instanceAddr, err := ring.GetInstanceAddr(cfg.InstanceAddr, cfg.InstanceInterfaceNames, logger, cfg.EnableInet6)
 	if err != nil {
 		return ring.BasicLifecyclerConfig{}, err
