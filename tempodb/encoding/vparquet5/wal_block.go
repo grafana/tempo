@@ -817,6 +817,7 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValue
 		attribute.String("blockID", b.meta.BlockID.String()),
 		attribute.String("tenantID", b.meta.TenantID),
 		attribute.Int("numConditionGroups", len(req.ConditionGroups)),
+		attribute.Int("numConditions", totalConditions(req.ConditionGroups)),
 		attribute.String("tagName", req.TagName.String()),
 	))
 	defer span.End()
@@ -914,6 +915,7 @@ func (b *walBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsReque
 		attribute.String("blockID", b.meta.BlockID.String()),
 		attribute.String("tenantID", b.meta.TenantID),
 		attribute.Int("numConditionGroups", len(req.ConditionGroups)),
+		attribute.Int("numConditions", totalConditions(req.ConditionGroups)),
 	))
 	defer span.End()
 
