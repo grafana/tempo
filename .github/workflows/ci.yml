@@ -25,7 +25,7 @@ jobs:
     steps:
 
       - name: Check out code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: "0"
           persist-credentials: false
@@ -42,7 +42,7 @@ jobs:
 
       - name: Get year and week number
         id: get-year-week-number
-        run: echo "date=$(date +"%Yweek%U")" >> $GITHUB_OUTPUT
+        run: echo "date=$(date +"%Yweek%U")" >> "$GITHUB_OUTPUT"
 
       - name: cache golangci
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
@@ -54,11 +54,10 @@ jobs:
         # using env instead of template expansions to avoid template injection
         # https://woodruffw.github.io/zizmor/audits/#template-injection
         run: |
-          make lint base=origin/${BASE_REF}
-          sudo chown -R $(id -u):$(id -g) .cache/golangci-lint  # needed to archive cache
+          make lint "base=origin/${BASE_REF}"
+          sudo chown -R "$(id -u):$(id -g)" .cache/golangci-lint  # needed to archive cache
         env:
           BASE_REF: ${{ github.base_ref }}
-
 
   unit-tests:
     name: Run Unit Tests
@@ -76,7 +75,7 @@ jobs:
 
     steps:
       - name: Check out code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
 
@@ -106,7 +105,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Check out code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
       - name: Validate all integration folders are covered by CI
@@ -115,7 +114,9 @@ jobs:
           EXPECTED_FOLDERS=("api" "limits" "metrics-generator" "operations" "storage" "util")
 
           # Get actual folders in integration/ (excluding hidden files)
-          ACTUAL_FOLDERS=($(ls -d integration/*/ 2>/dev/null | xargs -n1 basename | sort))
+          mapfile -d '' _raw < <(find integration/ -mindepth 1 -maxdepth 1 -type d -not -name '.*' -print0 2>/dev/null)
+          ACTUAL_FOLDERS=()
+          for _d in "${_raw[@]}"; do ACTUAL_FOLDERS+=("$(basename "$_d")"); done
 
           # Convert arrays to strings for comparison
           EXPECTED_SORTED=$(printf '%s\n' "${EXPECTED_FOLDERS[@]}" | sort | tr '\n' ' ')
@@ -158,7 +159,7 @@ jobs:
 
     steps:
       - name: Check out code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
       - name: Fetch tags
@@ -175,7 +176,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Check out code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
 
@@ -208,7 +209,7 @@ jobs:
       CGO_ENABLED: "0"
     steps:
       - name: Check out code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
 
@@ -234,7 +235,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Check out code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
 
@@ -251,7 +252,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Check out code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
 
@@ -274,12 +275,12 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Check out code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
 
       - name: Build Website
-        run: docker run -v ${PWD}/docs/sources:/hugo/content/docs/tempo/latest --rm grafana/docs-base:latest make prod
+        run: docker run -v "${PWD}/docs/sources:/hugo/content/docs/tempo/latest" --rm grafana/docs-base:latest make prod
 
   coverage-annotations:
     name: Coverage Annotations
@@ -290,7 +291,7 @@ jobs:
       actions: read
     steps:
       - name: Check out code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
           fetch-depth: 0  # Fetch full history for proper diff computation

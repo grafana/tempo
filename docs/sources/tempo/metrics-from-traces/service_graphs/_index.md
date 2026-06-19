@@ -68,6 +68,43 @@ The processor identifies a database node when the span has at least one `db.name
 
 The processor determines the database node name using the following span attributes in order of precedence: `peer.service`, `server.address`, `network.peer.address:network.peer.port`, `db.namespace`, `db.name`.
 
+### Enabling specific metrics (subprocessors)
+
+Instead of enabling all service graph metrics, you can enable individual metric categories using subprocessors in the overrides configuration:
+
+- `service-graphs-request` — Enables only the `traces_service_graph_request_total` and `traces_service_graph_request_failed_total` counters
+- `service-graphs-latency` — Enables only the `traces_service_graph_request_server_seconds` and `traces_service_graph_request_client_seconds` histograms. The `traces_service_graph_request_messaging_system_seconds` histogram additionally requires `enable_messaging_system_latency_histogram: true` in the metrics-generator config.
+- `service-graphs-connection-info` — Enables only the `traces_service_graph_connection_info` gauge
+
+The bare `service-graphs` name enables request and latency metrics.
+The `service-graphs-connection-info` subprocessor is off by default and must be listed explicitly.
+Listing it alongside the bare name enables the subprocessor additively without disabling RED.
+Listing `service-graphs-request` or `service-graphs-latency` alongside the bare name is redundant and silently dropped.
+
+Example overrides configuration:
+
+```yaml
+overrides:
+  defaults:
+    metrics_generator:
+      processors:
+        - service-graphs
+        - service-graphs-connection-info
+```
+
+### Connection information metric
+
+The `traces_service_graph_connection_info` metric is a presence-only gauge held at `1` while an edge between two services is being observed.
+
+The metric is intended for topology discovery rather than rate calculations.
+A single observed span keeps the gauge present, so service-to-service relationships stay visible on low-traffic endpoints even when `rate(traces_service_graph_request_total[...])` is noisy or zero under aggressive head sampling.
+
+Example query with a long range window:
+
+```promql
+last_over_time(traces_service_graph_connection_info[1h]) > 0
+```
+
 ### Metrics
 
 The following metrics are exported:
@@ -81,6 +118,7 @@ The following metrics are exported:
 | `traces_service_graph_request_server_seconds`           | Histogram | client, server, connection_type | Time for a request between two nodes as seen from the server                                               |
 | `traces_service_graph_request_client_seconds`           | Histogram | client, server, connection_type | Time for a request between two nodes as seen from the client                                               |
 | `traces_service_graph_request_messaging_system_seconds` | Histogram | client, server, connection_type | (Off by default) Time between publisher and consumer for services communicating through a messaging system |
+| `traces_service_graph_connection_info`                  | Gauge     | client, server, connection_type | (Off by default) Presence signal for service-to-service edges (value 1 per active edge)                    |
 | `traces_service_graph_unpaired_spans_total`             | Counter   | client, server, connection_type | Total count of unpaired spans                                                                              |
 | `traces_service_graph_dropped_spans_total`              | Counter   | client, server, connection_type | Total count of dropped spans                                                                               |
 
@@ -91,6 +129,8 @@ The processor measures duration from both the client and server sides.
 Possible values for `connection_type`: unset, `virtual_node`, `messaging_system`, or `database`.
 
 You can include additional labels using the `dimensions` configuration option or the `enable_virtual_node_label` option.
+
+Duplicate dimensions are allowed after Prometheus label name conversion. This supports environments where different instrumentation libraries use different attribute naming conventions, for example, `deployment.environment` and `deployment_environment`. When a collision occurs, the last configured value wins.
 
 Since the service graph processor has to process both sides of an edge,
 it needs to process all spans of a trace to function properly.
@@ -127,5 +167,40 @@ You can override this list to match your instrumentation if it uses non-standard
 
 ### Filter policies
 
-The `filter_policies` option lets you include or exclude spans from service graph generation based on span attributes.
-This works the same way as filter policies for [span metrics](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/span-metrics/span-metrics-metrics-generator/#filtering).
+The `filter_policies` option lets you include or exclude spans from service graph generation.
+It uses the same policy format as [span metrics](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/span-metrics/span-metrics-metrics-generator/#filtering).
+
+The service graph processor only evaluates spans that can form edges: `SPAN_KIND_CLIENT`, `SPAN_KIND_SERVER`, `SPAN_KIND_PRODUCER`, and `SPAN_KIND_CONSUMER`.
+When one side of an edge is filtered out, Tempo keeps a best-effort marker for the dropped side and drops the matching side if it arrives later or is already buffered.
+This reduces skewed edges and unwanted virtual nodes.
+The marker cache uses `wait` as its TTL and `max_items` as its maximum size.
+
+Policy behavior is:
+
+- `include`: all include policies must match.
+- `include_any`: any include_any policy can match. If only include_any policies are configured, non-matching spans are excluded.
+- `exclude`: matching spans are rejected, even if they match an include rule.
+
+Use scoped keys for resource and span attributes, such as `resource.service.name` or `span.http.route`.
+The supported intrinsic keys are `name`, `status`, and `kind`.
+Supported attribute value types are `bool`, `double`, `int`, and `string`.
+
+This example excludes service graph spans from `shop-backend`:
+
+```yaml
+metrics_generator:
+  processor:
+    service_graphs:
+      filter_policies:
+        - exclude:
+            match_type: strict
+            attributes:
+              - key: resource.service.name
+                value: shop-backend
+```
+
+Monitor service graph filtering with:
+
+- `tempo_metrics_generator_spans_discarded_total{reason="service_graphs_filtered", processor="service-graphs"}`
+- `tempo_metrics_generator_processor_service_graphs_dropped_edges_total`
+- `tempo_metrics_generator_processor_service_graphs_dropped_span_side_cache_overflow_total`

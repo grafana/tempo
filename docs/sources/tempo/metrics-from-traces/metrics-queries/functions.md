@@ -45,7 +45,7 @@ These functions can be added as an operator at the end of any TraceQL query.
 
 | Function                                                     | Description                                                                                        | Example                                                                         |
 | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| [`rate()`](#the-rate-functions)                              | Calculates the number of matching spans per second.                                                | `{ span:status = error } \| rate()`                                             |
+| [`rate()`](#the-rate-function)                              | Calculates the number of matching spans per second.                                                | `{ span:status = error } \| rate()`                                             |
 | [`count_over_time()`](#the-count_over_time-function)         | Counts the number of matching spans per time interval.                                             | `{ span:name = "GET /:endpoint" } \| count_over_time()`                         |
 | [`sum_over_time()`](#the-sum_over_time-function)             | Sums the value for the specified attribute across all matching spans per time interval.            | `{ } \| sum_over_time(span.http.response.size)`                                 |
 | [`min_over_time()`](#the-min_over_time-function)             | Returns the minimum value for the specified attribute across all matching spans per time interval. | `{ span:name = "GET /:endpoint" } \| min_over_time(span:duration)`              |
@@ -56,6 +56,7 @@ These functions can be added as an operator at the end of any TraceQL query.
 | [`topk()`](#the-topk-function)                               | Returns only the top `k` results from a metrics query.                                             | `{ resource.service.name = "foo" } \| rate() by (span.http.url) \| topk(10)`    |
 | [`bottomk()`](#the-bottomk-function)                         | Returns only the bottom `k` results from a metrics query.                                          | `{ resource.service.name = "foo" } \| rate() by (span.http.url) \| bottomk(10)` |
 | [Comparison operators](#comparison-operators)                 | Filters metric data points that don't meet a threshold condition.                                  | `{ } \| rate() > 10`                                                            |
+| [Arithmetic expressions](#arithmetic-expressions)            | Combines two or more metrics queries with `+`, `-`, `*`, `/`.                                      | `({status=error} \| rate()) / ({} \| rate())`                                   |
 
 ### Group results with `by()`
 
@@ -248,6 +249,158 @@ This example evaluates the frequency distribution of span duration, grouped by H
 ```traceql
 { } | histogram_over_time(span:duration) by (span.http.target)
 ```
+
+## Arithmetic expressions
+
+Individual metrics functions like `rate()` and `count_over_time()` answer questions about a single group of spans.
+However, many real-world questions require comparing or combining two groups, for example, "what percentage of requests are errors?" or "how does this service's throughput compare to overall throughput?"
+
+Arithmetic expressions let you answer these questions in a single TraceQL query by combining metrics queries with `+`, `-`, `*`, and `/`.
+Without this, you'd need to run separate queries and combine them externally using tools like Grafana Math expressions.
+
+You can combine two metrics queries with each other, or combine a metrics query with a constant number (a scalar) to scale or shift its values.
+
+Each sub-query must be wrapped in parentheses.
+
+### Syntax
+
+```
+(<spanset pipeline> | <metrics function>) <operator> (<spanset pipeline> | <metrics function>)
+```
+
+For example, to calculate an error rate ratio:
+
+```traceql
+({status=error} | rate()) / ({} | rate())
+```
+
+### Supported operators
+
+| Operator | Description |
+|----------|-------------|
+| `+` | Addition |
+| `-` | Subtraction |
+| `*` | Multiplication |
+| `/` | Division |
+
+### Examples
+
+Calculate the error rate as a proportion of total requests:
+
+```traceql
+({status=error} | count_over_time()) / ({} | count_over_time())
+```
+
+Compute the share of requests by service:
+
+```traceql
+({resource.service.name="frontend"} | rate()) / ({} | rate())
+```
+
+Add rates from two different span selectors:
+
+```traceql
+({} | rate()) + ({} | rate())
+```
+
+Combine multiple operations:
+
+```traceql
+({} | rate()) + ({} | count_over_time()) | topk(5)
+```
+
+### Scalar operands
+
+You can use a constant number (a scalar) as one side of an arithmetic expression to scale or shift the values of a metrics query.
+The number can appear on either side of the operator, and it applies to every series and every data point in the result.
+Scalars can be integers, floating-point numbers, or negative values. You can use multiple operations in a single expression:
+
+```traceql
+({} | rate()) / 2.5
+({} | rate()) - 5
+({} | rate()) * (-100)
+100 + ({} | rate())
+```
+
+Scalar operands let you shape a metric into the form you want to read or alert on, without post-processing the result in Grafana or another tool. You can use them to:
+* Express a ratio as a percentage
+* Rescale a rate
+* Set alert and panel thresholds
+* Convert units
+
+To express a ratio as a percentage, multiply an error-rate ratio by `100` to read it as a percentage instead of a fraction.
+
+```traceql
+100 * ({status=error} | count_over_time()) / ({} | count_over_time())
+```
+
+The operands can be used to rescale a rate. Because `rate()` returns matching spans per second, multiply by `60` to read it as a per-minute value.
+
+```traceql
+({} | rate()) * 60
+```
+
+Use scalar operands to set alert and panel thresholds in one place. Bake the conversion into the query so the value matches the unit your threshold expects, instead of maintaining the math separately in each dashboard or alert rule.
+
+```traceql
+100 * ({status=error} | rate()) / ({} | rate()) > 5
+```
+
+To convert units, divide or multiply by a constant to read a value in the unit you want, for example, bytes as mebibytes.
+
+```traceql
+({} | avg_over_time(span.http.response.body.size)) / (1024 * 1024)
+```
+
+In scalar-only subexpressions, integer arithmetic keeps integer semantics, so `1 / 2` evaluates to `0`, while `1.0 / 2.0` evaluates to `0.5`.
+
+{{< admonition type="note" >}}
+Duration literals such as `10s` can't be used as scalar operands in arithmetic. For example, `({} | rate()) * 10s` isn't valid.
+{{< /admonition >}}
+
+### Group-by with arithmetic
+
+You can use `by()` in each sub-query.
+When both sides use the same `by()` attributes, results are matched by label.
+When one side has labels and the other doesn't, the unlabeled side is applied to every labeled series.
+
+```traceql
+({status=error} | rate() by (resource.service.name)) / ({} | rate() by (resource.service.name))
+```
+
+To calculate each service's share of total throughput, group only one side. The unlabeled total rate is applied to every per-service series:
+
+```traceql
+({} | rate() by (resource.service.name)) / ({} | rate())
+```
+
+### Post-expression operations
+
+You can apply `topk`, `bottomk`, and comparison operators after an arithmetic expression, just as you can with a single metrics query:
+
+```traceql
+({status=error} | rate()) / ({} | rate()) | topk(5)
+```
+
+```traceql
+({status=error} | rate()) / ({} | rate()) > 10
+```
+
+```traceql
+({} | rate()) + ({} | rate()) | topk(5) > 10
+```
+
+### Division by zero and missing data
+
+Division by zero returns `NaN`.
+When a time bucket has no matching spans for a sub-query, that sub-query returns `NaN` for the bucket.
+Following IEEE-754 semantics, any arithmetic operation involving `NaN` returns `NaN`, so `NaN + 5` evaluates to `NaN` and `NaN * 5` evaluates to `NaN`.
+
+### Limitations
+
+- Each sub-query must be enclosed in parentheses. Bare expressions like `{} | rate() + {} | rate()` aren't valid.
+- Duration literals such as `10s` can't be used as scalar operands.
+- The `compare()` function can't be used in arithmetic expressions.
 
 ## Multi-stage metrics queries
 

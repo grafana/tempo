@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
 
@@ -33,6 +33,6 @@ jobs:
           key: ${{ runner.os }}-npx-renovate
 
       - name: Validate Renovate Config
-        uses: grafana/shared-workflows/actions/validate-renovate-config@726f1a912f45b4807774b76a6d40cbd3fb7a12c0 # validate-renovate-config/v0.1.2
+        uses: grafana/shared-workflows/actions/validate-renovate-config@ee85cc9b5b1d6c880b92c77c19817f29b2338c77 # validate-renovate-config/v0.1.3
         with:
           path: .github/renovate.json5

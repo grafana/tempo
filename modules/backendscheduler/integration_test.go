@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/backendscheduler/work"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
@@ -130,8 +131,7 @@ func testSubmitRedactionPersistence(ctx context.Context, t *testing.T, scheduler
 	blockIDs := writeTenantBlocks(ctx, t, backend.NewWriter(ww), testTenant, 3)
 	time.Sleep(300 * time.Millisecond)
 
-	resp, err := scheduler.SubmitRedaction(ctx, &tempopb.SubmitRedactionRequest{
-		TenantId: testTenant,
+	resp, err := scheduler.SubmitRedaction(user.InjectOrgID(ctx, testTenant), &tempopb.SubmitRedactionRequest{
 		TraceIds: [][]byte{[]byte(uuid.New().String())},
 	})
 	require.NoError(t, err)

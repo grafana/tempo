@@ -8,6 +8,7 @@ import (
 
 	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/pkg/sharedconfig"
+	"github.com/grafana/tempo/pkg/util/listtomap"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -83,7 +84,7 @@ func TestLimits_parseJson(t *testing.T) {
 			Limits{
 				Forwarders: &[]string{"dev"},
 				MetricsGenerator: LimitsMetricsGenerator{
-					Processors:                      map[string]struct{}{"service-graphs": {}},
+					Processors:                      &listtomap.ListToMap{"service-graphs": {}},
 					CollectionInterval:              &Duration{Duration: 30 * time.Second},
 					TraceIDLabelName:                strPtr("my_trace_id"),
 					IngestionSlack:                  &Duration{Duration: 45 * time.Second},

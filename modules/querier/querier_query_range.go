@@ -79,16 +79,20 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 	opts.StartPage = int(req.StartPage)
 	opts.TotalPages = int(req.PagesToSearch)
 
-	expr, err := traceql.Parse(req.Query)
+	// Parse without optimizations to read hints; optimizations are applied by CompileMetricsQueryRange.
+	expr, err := traceql.ParseNoOptimizations(req.Query)
 	if err != nil {
 		return nil, err
 	}
 
-	var compileOpts []traceql.CompileMetricsQueryRangeOption
+	var compileOpts []traceql.CompileOption
 
 	unsafe := q.limits.UnsafeQueryHints(tenantID)
 	if unsafe {
-		compileOpts = append(compileOpts, traceql.WithUnsafeQueryHints(true))
+		compileOpts = append(compileOpts, traceql.WithUnsafeHints(true))
+	}
+	for _, name := range req.SkipASTTransformations {
+		compileOpts = append(compileOpts, traceql.WithSkipOptimization(name))
 	}
 
 	if v, ok := expr.Hints.GetFloat(traceql.HintTimeOverlapCutoff, unsafe); ok && v >= 0 && v <= 1.0 {

@@ -8,7 +8,7 @@ import (
 	"io"
 	"reflect"
 
-	jsonpatch "github.com/evanphx/json-patch"
+	jsonpatch "github.com/evanphx/json-patch/v5"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/services"
@@ -208,7 +208,9 @@ func (a *UserConfigOverridesAPI) assertNoConflictingRuntimeOverrides(ctx context
 		return err
 	}
 
-	// clear out processors since we merge this field
+	// `processors` is deliberately excluded from the conflict check: a tenant must be
+	// able to override a runtime-set `processors` list via user-configurable overrides.
+	// user-configurable wins outright, falling back to runtime when unset so a runtime overrides is not a conflict.
 	runtimeLimits.MetricsGenerator.Processors = nil
 
 	emptyLimits := client.Limits{}

@@ -89,13 +89,16 @@
 
   tempo_query_frontend_config:: $.tempo_config {},
   tempo_block_builder_config:: $.tempo_config + $.tempo_ingest_config + (
-    // When autoscaling is enabled, set partitions_per_instance to match the KEDA ratio
-    // so each block-builder pod consumes the correct number of partitions.
-    if $._config.block_builder.keda.enabled then {
-      block_builder+: {
-        partitions_per_instance: $._config.block_builder.keda.partitions_per_instance,
-      },
-    } else {}
+    // Inject partitions_per_instance whenever block-builder KEDA is active so that the
+    // dynamic replica count stays coupled to the partition assignment math.
+    if $._config.block_builder.keda.enabled then
+      assert $._config.block_builder.partitions_per_instance > 0 : 'block_builder.partitions_per_instance must be > 0';
+      {
+        block_builder+: {
+          partitions_per_instance: $._config.block_builder.partitions_per_instance,
+        },
+      }
+    else {}
   ),
   tempo_live_store_config:: $.tempo_config + $.tempo_ingest_config {
     live_store: {

@@ -1,0 +1,90 @@
+# Tempo 2.x microservices configuration.
+# Shared by all v2 components; each runs with -target=<role>.
+#
+# This is intentionally minimal: RF=1 with a single ingester. Real 2.x
+# deployments typically use RF=3, but the migration story (parallel deployment,
+# shared object storage, traffic switch) is identical.
+
+stream_over_http_enabled: true
+
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+        http:
+          endpoint: "0.0.0.0:4318"
+
+ingester:
+  trace_idle_period: 10s
+  max_block_bytes: 1_000_000
+  max_block_duration: 5m
+  lifecycler:
+    ring:
+      replication_factor: 1
+      kvstore:
+        store: memberlist
+
+memberlist:
+  cluster_label: tempo-v2
+  abort_if_cluster_join_fails: false
+  bind_port: 7946
+  join_members:
+    - tempo-v2-distributor:7946
+    - tempo-v2-ingester:7946
+    - tempo-v2-querier:7946
+    - tempo-v2-query-frontend:7946
+    - tempo-v2-compactor:7946
+    - tempo-v2-metrics-generator:7946
+
+compactor:
+  compaction:
+    block_retention: 1h
+  ring:
+    kvstore:
+      store: memberlist
+
+querier:
+  frontend_worker:
+    frontend_address: tempo-v2-query-frontend:9095
+
+metrics_generator:
+  ring:
+    kvstore:
+      store: memberlist
+  registry:
+    external_labels:
+      source: tempo
+      cluster: docker-compose-v2
+  storage:
+    path: /var/tempo/generator/wal
+    remote_write:
+      - url: http://prometheus:9090/api/v1/write
+        send_exemplars: true
+
+storage:
+  trace:
+    backend: s3
+    s3:
+      bucket: tempo
+      endpoint: minio:9000
+      access_key: tempo
+      secret_key: supersecret
+      insecure: true
+    wal:
+      path: /var/tempo/wal
+    block:
+      version: vParquet4 # Tempo 3.0 requires vParquet4+ to read these blocks.
+
+overrides:
+  defaults:
+    metrics_generator:
+      processors: ["span-metrics", "service-graphs"]
+      generate_native_histograms: both
+
+usage_report:
+  reporting_enabled: false

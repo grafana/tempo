@@ -55,7 +55,7 @@ func (lc LogsConsumer) ConsumeLogs(ctx context.Context, ld plog.Logs) error {
 
 		rlogs.ScopeLogs().RemoveIf(func(slogs plog.ScopeLogs) bool {
 			if lc.scopeExpr != nil {
-				sCtx := ottlscope.NewTransformContextPtr(slogs.Scope(), rlogs.Resource(), slogs)
+				sCtx := ottlscope.NewTransformContextPtr(slogs.Scope(), rlogs.Resource(), slogs, rlogs)
 				sCond, sErr := lc.scopeExpr.Eval(ctx, sCtx)
 				sCtx.Close()
 				if sErr != nil {

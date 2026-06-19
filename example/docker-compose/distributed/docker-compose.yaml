@@ -1,7 +1,7 @@
 services:
   # tempo, backend and kafka
   distributor:
-    image: &tempoImage grafana/tempo:latest
+    image: &tempoImage "grafana/tempo:${TEMPO_IMAGE_TAG:-3.0.0}"
     depends_on:
       - redpanda
     command: "-target=distributor -config.file=/etc/tempo.yaml"
@@ -214,7 +214,7 @@ services:
       - alloy
 
   alloy:
-    image: grafana/alloy:v1.15.1@sha256:1f40cf52adda8fab3e058f9347a5d165624ecb9fbc1527769cb744748961940d
+    image: grafana/alloy:v1.16.1@sha256:51aeb9d829239345070619dad3edd6873186f913c84f45b365b74574fcb38ec0
     volumes:
       - ./config.alloy:/etc/alloy/config.alloy
     command:
@@ -255,7 +255,7 @@ services:
       - "3000:3000"
 
   vulture:
-    image: grafana/tempo-vulture:latest
+    image: "grafana/tempo-vulture:${TEMPO_IMAGE_TAG:-3.0.0}"
     restart: always
     command:
       [

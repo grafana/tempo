@@ -181,9 +181,8 @@ func TestOne(t *testing.T) {
 			Step:  uint64(1 * time.Second),
 		}
 	)
-	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, traceql.WithTimeOverlapCutoff(1))
+	fetchSpansRequest, err := traceql.ExtractFetchSpansRequest(q)
 	require.NoError(t, err)
-	fetchSpansRequest := eval.FetchSpansRequest()
 
 	spanOnly, err := b.FetchSpans(ctx, fetchSpansRequest, common.DefaultSearchOptions())
 	require.NoError(t, err, "search request:", req)
@@ -1444,7 +1443,7 @@ func TestBackendBlockSelectAll(t *testing.T) {
 
 	b := makeBackendBlockWithTraces(t, traces)
 
-	_, eval, _, _, req, err := traceql.Compile("{}")
+	_, _, eval, req, err := traceql.Compile("{}")
 	require.NoError(t, err)
 	req.SecondPass = func(inSS *traceql.Spanset) ([]*traceql.Spanset, error) { return eval([]*traceql.Spanset{inSS}) }
 	req.SecondPassSelectAll = true
@@ -1700,7 +1699,7 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 					},
 				)
 
-				resp, err := e.ExecuteSearch(ctx, &tempopb.SearchRequest{Query: tc.query}, f, false)
+				resp, err := e.ExecuteSearch(ctx, &tempopb.SearchRequest{Query: tc.query}, f)
 				require.NoError(b, err)
 				require.NotNil(b, resp)
 
@@ -1786,7 +1785,7 @@ func BenchmarkIterators(b *testing.B) {
 func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	testCases := []string{
 		"{} | rate()",
-		"{} | rate() with(spanonly_fetch=true)",
+		"{} | rate() with(spanonly_fetch=false)",
 		"{} | rate() with(sample=true)",
 		"{} | rate() by (span.http.status_code)",
 		"{} | rate() by (resource.service.name)",
@@ -1802,6 +1801,12 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		"{} | min_over_time(duration) by (span.http.status_code)",
 		"{ name != nil } | compare({status=error})",
 		"{} > {} | rate() by (name)", // structural
+
+		// Math operations
+		"({} | rate()) + ({} | rate())",
+		"({} | rate()) - ({} | rate())",
+		"({} | rate()) * ({} | rate())",
+		"({} | rate()) / ({} | count_over_time())",
 
 		// This is useful for sampler debugging
 		// {} | rate() with(sample=true,debug=true,info=true)
@@ -1838,7 +1843,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 				Exemplars: 2,
 			}
 
-			eval, err := e.CompileMetricsQueryRange(req, traceql.WithUnsafeQueryHints(true))
+			eval, err := e.CompileMetricsQueryRange(req, traceql.WithUnsafeHints(true))
 			require.NoError(b, err)
 
 			b.ResetTimer()
@@ -1923,6 +1928,12 @@ func TestSamplingError(t *testing.T) {
 		"{nestedSetParent<0 && true} | histogram_over_time(duration)",
 		`{nestedSetParent<0 && resource.service.name="gme-alertmanager" && resource.service.namespace != nil} | rate() by(resource.service.namespace)`,
 		"{true && true && resource.service.name != nil} | rate() by(resource.service.name)",*/
+
+		// Math operations
+		"({} | rate()) + ({} | rate())",
+		"({} | rate()) - ({} | rate())",
+		"({} | rate()) * ({} | rate())",
+		"({} | rate()) / ({} | count_over_time())",
 	}
 
 	options := []string{

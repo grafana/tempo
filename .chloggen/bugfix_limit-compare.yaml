@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: querier
+note: 'limit compare() topn'
+issues: [7467]
+subtext:
+user: ruslan-mikhailov

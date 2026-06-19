@@ -55,9 +55,6 @@ var KindMapping = map[string]int{
 
 // openForSearch consolidates all the logic for opening a parquet file
 func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOptions) (*parquet.File, *BackendReaderAt, error) {
-	b.openMtx.Lock()
-	defer b.openMtx.Unlock()
-
 	// TODO: ctx is also cached when we cache backendReaderAt, not ideal but leaving it as is for now
 	backendReaderAt := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta)
 	// no searches currently require bloom filters or the page index. so just add them statically

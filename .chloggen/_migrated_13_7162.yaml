@@ -1,0 +1,6 @@
+change_type: enhancement
+component: live-store
+note: expose query inspected bytes as a metric.
+issues: [7162, 7163]
+subtext:
+user: zhxiaogg

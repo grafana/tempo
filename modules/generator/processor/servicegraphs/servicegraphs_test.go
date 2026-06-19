@@ -980,6 +980,173 @@ func TestServiceGraphs_DatabaseNameAttributes(t *testing.T) {
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, labels))
 }
 
+func TestServiceGraphs_connectionInfo(t *testing.T) {
+	t.Run("emits connection_info when subprocessor enabled", func(t *testing.T) {
+		testRegistry := registry.NewTestRegistry()
+
+		cfg := Config{}
+		cfg.RegisterFlagsAndApplyDefaults("", nil)
+		cfg.HistogramBuckets = []float64{0.04}
+		cfg.Subprocessors[ConnectionInfo] = true
+
+		p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
+		require.NoError(t, err)
+		defer p.Shutdown(context.Background())
+
+		request, err := loadTestData("testdata/trace-with-queue-database.json")
+		require.NoError(t, err)
+		p.PushSpans(context.Background(), request)
+
+		requesterToServer := labels.FromMap(map[string]string{
+			"client": "mythical-requester",
+			"server": "mythical-server",
+		})
+		serverToDatabase := labels.FromMap(map[string]string{
+			"client":          "mythical-server",
+			"server":          "postgres",
+			"connection_type": "database",
+		})
+		requesterToRecorder := labels.FromMap(map[string]string{
+			"client":          "mythical-requester",
+			"server":          "mythical-recorder",
+			"connection_type": "messaging_system",
+		})
+
+		require.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_connection_info`, requesterToServer))
+		require.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_connection_info`, serverToDatabase))
+		require.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_connection_info`, requesterToRecorder))
+
+		// RED metrics still emit by default
+		require.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, requesterToServer))
+	})
+
+	t.Run("not emitted when subprocessor disabled", func(t *testing.T) {
+		testRegistry := registry.NewTestRegistry()
+
+		cfg := Config{}
+		cfg.RegisterFlagsAndApplyDefaults("", nil)
+		cfg.HistogramBuckets = []float64{0.04}
+		// ConnectionInfo defaults to false; assert that explicitly here.
+		require.False(t, cfg.Subprocessors[ConnectionInfo])
+
+		p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
+		require.NoError(t, err)
+		defer p.Shutdown(context.Background())
+
+		request, err := loadTestData("testdata/trace-with-queue-database.json")
+		require.NoError(t, err)
+		p.PushSpans(context.Background(), request)
+
+		requesterToServer := labels.FromMap(map[string]string{
+			"client": "mythical-requester",
+			"server": "mythical-server",
+		})
+		require.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_connection_info`, requesterToServer))
+	})
+
+	t.Run("connection_info stays at 1 regardless of multiplier", func(t *testing.T) {
+		testRegistry := registry.NewTestRegistry()
+
+		cfg := Config{}
+		cfg.RegisterFlagsAndApplyDefaults("", nil)
+		cfg.HistogramBuckets = []float64{0.04}
+		cfg.Subprocessors[ConnectionInfo] = true
+		cfg.SpanMultiplierKey = "sampler.param"
+
+		p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
+		require.NoError(t, err)
+		defer p.Shutdown(context.Background())
+
+		request, err := loadTestData("testdata/trace-with-queue-database.json")
+		require.NoError(t, err)
+		// Attach sampler.param=0.5 to every span so the multiplier resolves to 2.
+		for _, rs := range request.Batches {
+			for _, ils := range rs.ScopeSpans {
+				for _, span := range ils.Spans {
+					span.Attributes = append(span.Attributes, &v1.KeyValue{
+						Key:   "sampler.param",
+						Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 0.5}},
+					})
+				}
+			}
+		}
+		p.PushSpans(context.Background(), request)
+
+		requesterToServer := labels.FromMap(map[string]string{
+			"client": "mythical-requester",
+			"server": "mythical-server",
+		})
+
+		// RED counter reflects the multiplier (1 * (1/0.5) = 2).
+		require.Equal(t, 2.0, testRegistry.Query(`traces_service_graph_request_total`, requesterToServer))
+		// connection_info is a presence gauge: always 1, never scaled.
+		require.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_connection_info`, requesterToServer))
+	})
+
+	t.Run("RED disabled, connection_info only", func(t *testing.T) {
+		testRegistry := registry.NewTestRegistry()
+
+		cfg := Config{}
+		cfg.RegisterFlagsAndApplyDefaults("", nil)
+		cfg.HistogramBuckets = []float64{0.04}
+		cfg.Subprocessors[Request] = false
+		cfg.Subprocessors[Latency] = false
+		cfg.Subprocessors[ConnectionInfo] = true
+
+		p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
+		require.NoError(t, err)
+		defer p.Shutdown(context.Background())
+
+		request, err := loadTestData("testdata/trace-with-queue-database.json")
+		require.NoError(t, err)
+		p.PushSpans(context.Background(), request)
+
+		requesterToServer := labels.FromMap(map[string]string{
+			"client": "mythical-requester",
+			"server": "mythical-server",
+		})
+
+		require.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_connection_info`, requesterToServer))
+		// RED metrics should not have any values for these labels.
+		require.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_total`, requesterToServer))
+		require.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_client_seconds_count`, requesterToServer))
+	})
+
+	t.Run("virtual node connection_info", func(t *testing.T) {
+		testRegistry := registry.NewTestRegistry()
+
+		cfg := Config{}
+		cfg.RegisterFlagsAndApplyDefaults("", nil)
+		cfg.HistogramBuckets = []float64{0.04}
+		cfg.Wait = time.Nanosecond
+		cfg.Subprocessors[ConnectionInfo] = true
+
+		p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
+		require.NoError(t, err)
+		defer p.Shutdown(context.Background())
+
+		request, err := loadTestData("testdata/trace-with-virtual-nodes.json")
+		require.NoError(t, err)
+		p.PushSpans(context.Background(), request)
+
+		p.(*Processor).store.Expire()
+
+		userToServer := labels.FromMap(map[string]string{
+			"client":          "user",
+			"server":          "mythical-server",
+			"connection_type": "virtual_node",
+		})
+		clientToVirtualPeer := labels.FromMap(map[string]string{
+			"client":          "mythical-requester",
+			"server":          "external-payments-platform",
+			"connection_type": "virtual_node",
+		})
+
+		require.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_connection_info`, userToServer))
+		require.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_connection_info`, clientToVirtualPeer))
+	})
+}
+
 func BenchmarkServiceGraphs(b *testing.B) {
 	testRegistry := registry.NewTestRegistry()
 

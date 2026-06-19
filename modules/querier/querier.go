@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"time"
 
 	"github.com/go-kit/log/level"
 	httpgrpc_server "github.com/grafana/dskit/httpgrpc/server"
@@ -18,7 +19,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
-	"go.uber.org/multierr"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -104,7 +104,8 @@ func New(
 	}
 
 	if queryExternal {
-		externalClient, err := external.NewClient(cfg.TraceByID.External.Endpoint, cfg.TraceByID.External.Timeout)
+		// Cap external reads at the gRPC send ceiling: a larger response cannot be returned to the frontend.
+		externalClient, err := external.NewClient(cfg.TraceByID.External.Endpoint, cfg.TraceByID.External.Timeout, cfg.Worker.GRPCClientConfig.MaxSendMsgSize)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create external client: %w", err)
 		}
@@ -177,7 +178,7 @@ func (q *Querier) stopping(_ error) error {
 }
 
 // FindTraceByID implements tempopb.Querier.
-func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest, timeStart int64, timeEnd int64) (*tempopb.TraceByIDResponse, error) {
+func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest, timeStart, timeEnd time.Time) (*tempopb.TraceByIDResponse, error) {
 	if !validation.ValidTraceID(req.TraceID) {
 		return nil, errors.New("invalid trace id")
 	}
@@ -239,8 +240,8 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 	if req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll {
 		span.AddEvent("searching store", oteltrace.WithAttributes(
-			attribute.Int64("timeStart", timeStart),
-			attribute.Int64("timeEnd", timeEnd),
+			attribute.String("timeStart", timeStart.String()),
+			attribute.String("timeEnd", timeEnd.String()),
 		))
 
 		opts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
@@ -253,7 +254,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		}
 
 		if len(blockErrs) > 0 {
-			return nil, multierr.Combine(blockErrs...)
+			return nil, errors.Join(blockErrs...)
 		}
 
 		span.AddEvent("done searching store", oteltrace.WithAttributes(
@@ -277,8 +278,8 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		if req.QueryMode == QueryModeExternal || req.QueryMode == QueryModeAll {
 			span.AddEvent("searching external", oteltrace.WithAttributes(
 				attribute.String("traceID", hex.EncodeToString(req.TraceID)),
-				attribute.Int64("timeStart", timeStart),
-				attribute.Int64("timeEnd", timeEnd),
+				attribute.String("timeStart", timeStart.String()),
+				attribute.String("timeEnd", timeEnd.String()),
 			))
 			externalResp, err := q.externalClient.TraceByID(ctx, userID, req.TraceID, timeStart, timeEnd)
 			if err != nil {
@@ -654,7 +655,14 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 			},
 		)
 
-		return q.engine.ExecuteSearch(ctx, req.SearchReq, fetcher, q.limits.UnsafeQueryHints(tenantID))
+		var compileOpts []traceql.CompileOption
+		if q.limits.UnsafeQueryHints(tenantID) {
+			compileOpts = append(compileOpts, traceql.WithUnsafeHints(true))
+		}
+		for _, name := range req.SearchReq.SkipASTTransformations {
+			compileOpts = append(compileOpts, traceql.WithSkipOptimization(name))
+		}
+		return q.engine.ExecuteSearch(ctx, req.SearchReq, fetcher, compileOpts...)
 	}
 
 	return q.store.Search(ctx, meta, req.SearchReq, opts)

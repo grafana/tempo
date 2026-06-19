@@ -1,0 +1,110 @@
+name: Sign and attest container image
+
+# For a pushed, digest-pinned container image this workflow:
+#   1. Keyless-signs it with cosign via GitHub Actions OIDC (proves the image
+#      was produced by this workflow's identity).
+#   2. Generates and attaches a SLSA build provenance attestation that ties the
+#      image digest to the source commit, workflow, and run (proves *how* and
+#      *from what* the image was built).
+#
+# Signature verification identity:
+#   https://github.com/grafana/tempo/.github/workflows/sign-and-attest.yml@<ref>
+#   issuer https://token.actions.githubusercontent.com
+#
+# NOTE: this OIDC identity becomes part of the verification contract. Changing
+# the workflow path/name later is a breaking change for anyone verifying.
+
+on:
+  workflow_call:
+    inputs:
+      image:
+        description: 'Digest-pinned image reference, e.g. us-docker.pkg.dev/grafanalabs-global/dockerhub-tempo-prod-mirror/tempo-vulture@sha256:...'
+        required: true
+        type: string
+      registry:
+        description: 'GAR (Artifact Registry) hostname to authenticate against when writing the signature and attestation.'
+        required: false
+        type: string
+        default: us-docker.pkg.dev
+
+permissions:
+  contents: read
+  id-token: write     # keyless cosign OIDC, provenance signing, login-to-gar workload identity
+  attestations: write # write the SLSA provenance attestation to the GitHub attestations store
+
+jobs:
+  sign-and-attest:
+    name: Sign and attest image
+    if: github.repository == 'grafana/tempo'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write     # keyless cosign OIDC, provenance signing, login-to-gar workload identity
+      attestations: write # write the SLSA provenance attestation to the GitHub attestations store
+    steps:
+      - name: Parse and validate image
+        id: image
+        env:
+          IMAGE: ${{ inputs.image }}
+        run: |
+          if [[ "${IMAGE}" != *"@sha256:"* ]]; then
+            echo "::error::image must be digest-pinned (contain @sha256:), got: ${IMAGE}"
+            exit 1
+          fi
+          # Split "<name>@sha256:<hex>" into the registry path and the digest,
+          # which the attestation action needs as separate inputs.
+          echo "name=${IMAGE%@*}" >> "$GITHUB_OUTPUT"
+          echo "digest=${IMAGE##*@}" >> "$GITHUB_OUTPUT"
+
+      - name: Login to GAR
+        uses: grafana/shared-workflows/actions/login-to-gar@1f541877ceb22c7be7667d8a8df04984aeac9f9d # login-to-gar/v1.0.3
+        with:
+          registry: ${{ inputs.registry }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: v3.0.6
+
+      - name: Sign image
+        # Signs the image index by digest. Uploads to the public Rekor
+        # transparency log by default, which is what makes the short-lived
+        # Fulcio cert verifiable after it expires.
+        env:
+          IMAGE: ${{ inputs.image }}
+        run: |
+          cosign sign --yes "${IMAGE}"
+
+      - name: Attest SLSA build provenance
+        # Generates a signed SLSA provenance statement binding the image digest
+        # to this workflow, the source commit, and the run, and pushes it to the
+        # registry as an OCI referrer (in addition to the GitHub attestations
+        # store). This is the "tied to a commit / has provenance" requirement.
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        with:
+          subject-name: ${{ steps.image.outputs.name }}
+          subject-digest: ${{ steps.image.outputs.digest }}
+          push-to-registry: true
+
+      - name: Verify signature
+        # Catch a broken signature in CI before anyone relies on it. This checks
+        # the GAR copy; the mirror to Docker Hub is async, so it isn't verified
+        # here.
+        env:
+          IMAGE: ${{ inputs.image }}
+          REPO: ${{ github.repository }}
+        run: |
+          cosign verify \
+            --certificate-identity-regexp "^https://github\.com/${REPO}/\.github/workflows/sign-and-attest\.yml@" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "${IMAGE}"
+
+      - name: Verify provenance attestation
+        # Confirms the provenance attestation we just pushed verifies against
+        # this repository before anyone relies on it.
+        env:
+          IMAGE: ${{ inputs.image }}
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh attestation verify "oci://${IMAGE}" --repo "${REPO}"

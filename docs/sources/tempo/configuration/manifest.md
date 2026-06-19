@@ -70,6 +70,8 @@ server:
     grpc_server_num_workers: 0
     grpc_server_stats_tracking_enabled: true
     grpc_server_recv_buffer_pools_enabled: false
+    grpc_server_read_buffer_size: 32768
+    grpc_server_write_buffer_size: 32768
     log_format: logfmt
     log_level: info
     log_source_ips_enabled: false
@@ -93,6 +95,7 @@ server:
             soft_validation: false
             excluded_paths: ""
             excluded_user_agents: ""
+    create_new_traces: false
 internal_server:
     http_listen_network: tcp
     http_listen_address: ""
@@ -143,6 +146,8 @@ internal_server:
     grpc_server_num_workers: 0
     grpc_server_stats_tracking_enabled: false
     grpc_server_recv_buffer_pools_enabled: false
+    grpc_server_read_buffer_size: 0
+    grpc_server_write_buffer_size: 0
     log_format: logfmt
     log_level: info
     log_source_ips_enabled: false
@@ -166,6 +171,7 @@ internal_server:
             soft_validation: false
             excluded_paths: ""
             excluded_user_agents: ""
+    create_new_traces: false
     enable: false
 distributor:
     ring:
@@ -234,13 +240,14 @@ distributor:
         max_consumer_lag_at_startup: 0s
         disable_kafka_telemetry: false
         consumer_group_lag_metric_update_interval: 0s
-    retry_after_on_resource_exhausted: 0s
+    retry_after_on_resource_exhausted: 5s
     max_attribute_bytes: 2048
 live_store_client:
     pool_config:
         checkinterval: 15s
         healthcheckenabled: true
         healthchecktimeout: 1s
+        healthcheckgraceperiod: 0s
         maxconcurrenthealthchecks: 0
     remote_timeout: 5s
     grpc_client_config:
@@ -337,6 +344,7 @@ query_frontend:
         max_spans_per_span_set: 100
     trace_by_id:
         query_shards: 50
+        blocks_per_shard: 30
     metrics:
         concurrent_jobs: 1000
         target_bytes_per_job: 104857600
@@ -355,7 +363,9 @@ query_frontend:
         max_regex_conditions: 1
     mcp_server:
         enabled: false
+    max_grpc_streaming_packet_size: 2097152
     max_query_expression_size_bytes: 131072
+    query_end_cutoff: 30s
 metrics_generator:
     ring:
         kvstore:
@@ -453,10 +463,6 @@ metrics_generator:
             enable_target_info: false
             span_multiplier_key: ""
             enable_tracestate_span_multiplier: false
-            subprocessors:
-                0: true
-                1: true
-                2: true
             filter_policies: []
             target_info_excluded_dimensions: []
             enable_instance_label: true
@@ -787,17 +793,20 @@ memberlist:
     dead_node_reclaim_time: 0s
     compression_enabled: false
     notify_interval: 0s
+    received_messages_queue_size: 1024
     advertise_addr: ""
     advertise_port: 7946
     cluster_label: ""
     cluster_label_verification_disabled: false
-    join_members: []
+    join_members: ""
     min_join_backoff: 1s
     max_join_backoff: 1m0s
     max_join_retries: 10
     abort_if_cluster_fast_join_fails: false
+    abort_if_cluster_fast_join_fails_min_nodes: 1
     abort_if_cluster_join_fails: false
     rejoin_interval: 0s
+    rejoin_seed_nodes: ""
     left_ingesters_timeout: 5m0s
     obsolete_entries_timeout: 30s
     leave_timeout: 20s
@@ -822,6 +831,11 @@ memberlist:
         enabled: false
         instance_availability_zone: ""
         role: member
+    propagation_delay_tracker:
+        enabled: false
+        beacon_interval: 1m0s
+        beacon_lifetime: 10m0s
+        log_beacons_latency_longer_than: 0s
 usage_report:
     reporting_enabled: true
     backoff:
@@ -1035,6 +1049,7 @@ live_store:
     query_block_concurrency: 10
     complete_block_timeout: 20m0s
     complete_block_concurrency: 2
+    block_reclaim_grace: 2m0s
     shutdown_marker_dir: /var/tempo/live-store/shutdown-marker
     flush_check_period: 5s
     flush_op_timeout: 5m0s
@@ -1045,6 +1060,6 @@ live_store:
     max_block_bytes: 52428800
     readiness_target_lag: 0s
     readiness_max_wait: 30m0s
-    fail_on_high_lag: false
+    fail_on_high_lag: true
     remove_owner_on_shutdown: true
 ```

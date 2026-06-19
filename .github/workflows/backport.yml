@@ -96,42 +96,23 @@ jobs:
     permissions:
       contents: read
       id-token: write
-      pull-requests: write
     steps:
-      - name: Get GitHub App secrets from vault
-        id: get-secrets
-        uses: grafana/shared-workflows/actions/get-vault-secrets@f1614b210386ac420af6807a997ac7f6d96e477a # get-vault-secrets/v1.3.1
-        with:
-          export_env: false
-          repo_secrets: |
-            APP_ID=tempo-ci-app:app-id
-            PRIVATE_KEY=tempo-ci-app:private-key
-
-      - name: Generate GitHub App token
+      - name: Get GitHub App token
         id: app-token
-        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
+        uses: grafana/shared-workflows/actions/create-github-app-token@46f48da11e78ebdba7a8747ae456b11062fac83e # create-github-app-token/v0.3.1
         with:
-          app-id: ${{ fromJSON(steps.get-secrets.outputs.secrets).APP_ID }}
-          private-key: ${{ fromJSON(steps.get-secrets.outputs.secrets).PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: tempo
+          github_app: tempo-ci-app
 
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           token: ${{ steps.app-token.outputs.token }}
           fetch-depth: 0
 
-      - name: Configure git identity
-        run: |
-          git config --global user.email "132647405+grafana-delivery-bot[bot]@users.noreply.github.com"
-          git config --global user.name "grafana-delivery-bot[bot]"
-
       - name: Run backport
-        uses: grafana/grafana-github-actions-go/backport@main
+        uses: grafana/grafana-github-actions-go/backport@6782bcaa01680648bdbba76cce1847e1862dbb22
         with:
           token: ${{ steps.app-token.outputs.token }}
-          labelsToAdd: "backport"
           pr_number: ${{ needs.find-pr.outputs.pr_number }}
           repo_owner: ${{ github.repository_owner }}
           repo_name: ${{ github.event.repository.name }}

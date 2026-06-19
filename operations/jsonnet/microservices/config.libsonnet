@@ -1,10 +1,10 @@
 {
   _images+:: {
-    tempo: 'grafana/tempo:latest',
-    tempo_query: 'grafana/tempo-query:latest',
-    tempo_vulture: 'grafana/tempo-vulture:latest',
-    memcached: 'memcached:1.6.40-alpine',
-    memcachedExporter: 'prom/memcached-exporter:v0.15.5',
+    tempo: 'grafana/tempo:3.0.0',
+    tempo_query: 'grafana/tempo-query:3.0.0',
+    tempo_vulture: 'grafana/tempo-vulture:3.0.0',
+    memcached: 'memcached:1.6.42-alpine@sha256:43a2e7f74aebfff0c9921f4d367299ced9eacaeaccdc8bb4bc122a4fba2cd909',
+    memcachedExporter: 'prom/memcached-exporter:v0.16.0@sha256:fa03aba2f2aa6f572bf56ba07dd2960c62433805427be0fddc8b21b8074c1728',
 
     tempo_distributor: self.tempo,
     tempo_querier: self.tempo,
@@ -29,8 +29,8 @@
     // This feature modifies the block-builder StatefulSet which cannot be altered, so if it already exists it has to be deleted and re-applied again in order to be enabled.
     block_builder_concurrent_rollout_enabled: false,
     // Maximum number of unavailable replicas during a block-builder rollout when using block_builder_concurrent_rollout_enabled feature.
-    // Computed from block-builder replicas by default, but can also be specified as percentage, for example "25%".
-    block_builder_max_unavailable: $.tempo_block_builder_statefulset.spec.replicas,
+    // Defaults to 100% since block-builder pods are independent (each owns distinct Kafka partitions).
+    block_builder_max_unavailable: '100%',
 
     // disable tempo-query by default
     tempo_query: {

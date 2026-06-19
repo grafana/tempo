@@ -416,7 +416,12 @@ func zTagsToInternalAttrs(zspan *zipkinmodel.SpanModel, tags map[string]string, 
 	}
 	if zspan.RemoteEndpoint != nil {
 		if zspan.RemoteEndpoint.ServiceName != "" {
-			dest.PutStr(string(conventionsv138.PeerServiceKey), zspan.RemoteEndpoint.ServiceName)
+			if !metadata.PkgTranslatorZipkinDontEmitV0NetworkConventionsFeatureGate.IsEnabled() {
+				dest.PutStr(string(conventionsv138.PeerServiceKey), zspan.RemoteEndpoint.ServiceName)
+			}
+			if metadata.PkgTranslatorZipkinEmitV1NetworkConventionsFeatureGate.IsEnabled() {
+				dest.PutStr(string(conventions.ServicePeerNameKey), zspan.RemoteEndpoint.ServiceName)
+			}
 		}
 		if zspan.RemoteEndpoint.IPv4 != nil {
 			if !metadata.PkgTranslatorZipkinDontEmitV0NetworkConventionsFeatureGate.IsEnabled() {

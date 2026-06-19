@@ -9,9 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/dskit/grpcclient"
 	"github.com/grafana/dskit/user"
 	livestore_client "github.com/grafana/tempo/modules/livestore/client"
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/modules/querier/worker"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -156,6 +158,11 @@ func TestFindTraceByID_ExternalMode(t *testing.T) {
 				Timeout:  10 * time.Second,
 			},
 		},
+		Worker: worker.Config{
+			GRPCClientConfig: grpcclient.Config{
+				MaxSendMsgSize: 16 * 1024 * 1024,
+			},
+		},
 	}
 
 	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
@@ -169,7 +176,7 @@ func TestFindTraceByID_ExternalMode(t *testing.T) {
 	resp, err := q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 		TraceID:   traceID,
 		QueryMode: QueryModeExternal,
-	}, startTime, endTime)
+	}, time.Unix(startTime, 0), time.Unix(endTime, 0))
 
 	require.NoError(t, err)
 	require.NotNil(t, resp)

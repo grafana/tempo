@@ -1,45 +1,60 @@
-## main / unreleased
+<!-- next version -->
 
-* [FEATURE] Add span profiling support via otelpyroscope. Enable with `span_profiling: true` (or `-span-profiling` CLI flag) to attach pprof labels to OTel spans. [#7063](https://github.com/grafana/tempo/pull/7063) (@simonswine)
-* [BUGFIX] Fix tempo-vulture ignoring `-tempo-push-tls` flag in normal operating mode. [#6974](https://github.com/grafana/tempo/pull/6974) (@xaque208)
+# v3.0.2
+
+* [CHANGE] Upgrade Tempo to Go 1.26.3 [#7423](https://github.com/grafana/tempo/pull/7423) (@ie-pham)
+
+# v3.0.0
+
+* [CHANGE] **BREAKING CHANGE** Recent data queries guarantee complete results by failing when an instance is lagging. Defaults `query_frontend.query_end_cutoff` to `30s` and `live_store.fail_on_high_lag` to `true`. [#7210](https://github.com/grafana/tempo/pull/7210) (@mapno)
+* [CHANGE] **BREAKING CHANGE** user-configurable overrides config `metrics_generator.processors` no longer merges with runtime overrides. `metrics_generator.processors` now takes precedence over the runtime overrides, matching every other config in user-configurable overrides. Setting `processors: []` disables all processors for the tenant. [#7176](https://github.com/grafana/tempo/pull/7176) (@electron0zero)
+* [CHANGE] Stop publishing 32-bit ARM binary archives. Release artifacts continue to include amd64 and arm64 binaries. [#7106](https://github.com/grafana/tempo/pull/7106) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** Remove duplicate "compaction" prefix from CompactorConfig CLI flags. Affected flags: `compaction.block-retention`, `compaction.max-objects-per-block`, `compaction.max-block-bytes`, `compaction.compaction-window`. [#6909](https://github.com/grafana/tempo/pull/6909) (@electron0zero)
-* [ENHANCEMENT] Support OR conditions for tag name and tag value autocomplete (search tags v2) [#6827](https://github.com/grafana/tempo/pull/6827) (@ie-pham)
-* [ENHANCEMENT] Expose MinIO retry settings via S3 config [#6561](https://github.com/grafana/tempo/pull/6561) (@rwhitty)
-* [ENHANCEMENT] Reduce default livestore WAL size and align query defaults: `max_block_duration` `1m` to `30s`, `max_block_bytes` `100MiB` to `50MiB`, `complete_block_timeout` `1h` to `20m`, metrics `query_backend_after` `30m` to `15m`. [#6974](https://github.com/grafana/tempo/pull/6974) (@zhxiaogg)
+* [CHANGE] **BREAKING CHANGE** Enable RetryInfo by default. `distributor.retry_after_on_resource_exhausted` now defaults to `5s` (was `0`) so OTLP clients receive a retry hint on `ResourceExhausted` errors. [#7088](https://github.com/grafana/tempo/pull/7088) (@electron0zero)
+  Set to `0` to disable cluster-wide, or set the per-tenant override `ingestion.retry_info_enabled: false` to disable for a single tenant.
 * [CHANGE] **BREAKING CHANGE** Centralize block and WAL config: `block_builder` and `live_store` now always use `storage.trace.block` settings; per-module block config fields are removed. [#6647](https://github.com/grafana/tempo/pull/6647) (@stoewer)
 * [CHANGE] **BREAKING CHANGE** Remove Opencensus receiver [#6523](https://github.com/grafana/tempo/pull/6523) (@javiermolinar)
-* [CHANGE] Upgrade Tempo to Go 1.26.0 [#6443](https://github.com/grafana/tempo/pull/6443) (@stoewer)
 * [CHANGE] **BREAKING CHANGE** Remove legacy `mem-ballast-size-mbs` cli flag. [#6403](https://github.com/grafana/tempo/pull/6403) (@orkhan-huseyn)
-* [CHANGE] Allow duplicate dimensions for span metrics and service graphs. This is a valid use case if using different instrumentation libraries, with spans having "deployment.environment" and others "deployment_environment", for example. [#6288](https://github.com/grafana/tempo/pull/6288) (@carles-grafana)
-* [CHANGE] Updade default max duration for traceql metrics queries up to one day [#6285](https://github.com/grafana/tempo/pull/6285) (@javiermolinar)
-* [CHANGE] Set traceQL query metrics checks by default in Vulture [#6275](https://github.com/grafana/tempo/pull/6275) (@javiermolinar)
-* [CHANGE] Make tempo singlebinary example to use the local backend [#7033](https://github.com/grafana/tempo/pull/7033) (@javiermolinar)
-* [CHANGE] Bump ingestion limits [#7034](https://github.com/grafana/tempo/pull/7034) (@javiermolinar)
-* [CHANGE] TraceQL metrics - change default step intervals to align with new vParquet5 timestamp columns [#6413](https://github.com/grafana/tempo/pull/6413) (@mdisibio)
-* [CHANGE] Remove all traces of ingesters from the dashboards [#6352](https://github.com/grafana/tempo/pull/6352) (@javiermolinar)
 * [CHANGE] **BREAKING CHANGE** tempo-cli: Support relative time (now, now-1h) for start/end args and standardize on RFC3339 in all commands. [#6458](https://github.com/grafana/tempo/pull/6458) (@electron0zero)
   `query search` command no longer accepts timestamps without timezone (e.g. `2024-01-01T00:00:00`), use RFC3339 (e.g. `2024-01-01T00:00:00Z`) or relative time instead.
 * [CHANGE] **BREAKING CHANGE** Consolidate read configuration for recent data cutoff. `query_frontend.search.query_ingesters_until` is removed in favor of only `query_frontend.search.query_backend_after`. [#6507](https://github.com/grafana/tempo/pull/6507) (@mapno)
+* [CHANGE] **BREAKING CHANGE** Remove deprecated `querier.query_live_store` config. This field must be removed from configs on upgrade. [#7048](https://github.com/grafana/tempo/pull/7048) (@javiermolinar)
+* [CHANGE] Upgrade Tempo to Go 1.26.0 [#6443](https://github.com/grafana/tempo/pull/6443) (@stoewer)
+* [CHANGE] Allow duplicate dimensions for span metrics and service graphs. This is a valid use case if using different instrumentation libraries, with spans having "deployment.environment" and others "deployment_environment", for example. [#6288](https://github.com/grafana/tempo/pull/6288) (@carles-grafana)
+* [CHANGE] Update default max duration for TraceQL metrics queries up to one day [#6285](https://github.com/grafana/tempo/pull/6285) (@javiermolinar)
+* [CHANGE] Set TraceQL query metrics checks by default in Vulture [#6275](https://github.com/grafana/tempo/pull/6275) (@javiermolinar)
+* [CHANGE] Make Tempo single-binary example use the local backend [#7033](https://github.com/grafana/tempo/pull/7033) (@javiermolinar)
+* [CHANGE] Bump ingestion limits [#7034](https://github.com/grafana/tempo/pull/7034) (@javiermolinar)
+* [CHANGE] TraceQL metrics - change default step intervals to align with new vParquet5 timestamp columns [#6413](https://github.com/grafana/tempo/pull/6413) (@mdisibio)
+* [CHANGE] Remove all traces of ingesters from the dashboards [#6352](https://github.com/grafana/tempo/pull/6352) (@javiermolinar)
 * [CHANGE] jsonnet: Add emptyDir data volume to block-builder StatefulSet [#6648](https://github.com/grafana/tempo/pull/6648) (@mapno)
 * [CHANGE] Add quick checks to tempo mixin runbook [#6696](https://github.com/grafana/tempo/pull/6696) (@javiermolinar)
 * [CHANGE] Deprecate metrics-generator no-local-blocks [#6707](https://github.com/grafana/tempo/pull/6707) (@javiermolinar)
 * [CHANGE] Own local block and partition ring helpers [#6808](https://github.com/grafana/tempo/pull/6808) (@javiermolinar)
 * [CHANGE] Track invalid trace and span id discards [#6799](https://github.com/grafana/tempo/pull/6799) (@javiermolinar)
 * [CHANGE] Deprecate `query_frontend.rf1_after` and query all blocks regardless of replication factor for non-metrics paths. Simplifies 2.x to 3.0 migration. [#6969](https://github.com/grafana/tempo/pull/6969) (@mapno)
-* [CHANGE] **BREAKING CHANGE** Remove deprecated `querier.query_live_store` config. This field must be removed from configs on upgrade. [#7048](https://github.com/grafana/tempo/pull/7048) (@javiermolinar)
+* [FEATURE] Make individual AST transformations skippable via config and query hints [#7012](https://github.com/grafana/tempo/pull/7012) (@stoewer)
+* [FEATURE] **BREAKING CHANGE** Optimize TraceQL AST by rewriting conditions on the same attribute to their array equivalent [#6353](https://github.com/grafana/tempo/pull/6353) (@stoewer)
+  Slightly changes the array matching semantics of != and !~ operators and introduces stricter rules for regex literals.
+* [FEATURE] Add span profiling support via otelpyroscope. Enable with `span_profiling: true` (or `-span-profiling` CLI flag) to attach pprof labels to OTel spans. [#7063](https://github.com/grafana/tempo/pull/7063) (@simonswine)
+* [FEATURE] Add `tempo-cli migrate config` command for migrating Tempo 2.x configs to 3.0. [#6982](https://github.com/grafana/tempo/pull/6982) (@mapno)
 * [FEATURE] jsonnet: Add KEDA-based horizontal pod autoscaling support for microservices deployment [#6970](https://github.com/grafana/tempo/pull/6970) (@mapno)
 * [FEATURE] Add automemlimit support for automatic GOMEMLIMIT configuration. Enable with `memory.automemlimit_enabled: true`. [#6313](https://github.com/grafana/tempo/pull/6313) (@oleg-kozlyuk)
 * [FEATURE] Support comparison operators in TraceQL Metrics queries [#6474](https://github.com/grafana/tempo/pull/6474) (@ruslan-mikhailov)
+* [FEATURE] metrics-generator: Add span filtering to service graphs through `filter_policies`. [#6453](https://github.com/grafana/tempo/pull/6453) (@javiermolinar)
 * [FEATURE] Add new include_any filter policy for spanmetrics filter [#6392](https://github.com/grafana/tempo/pull/6392) (@javiermolinar)
 * [FEATURE] Add span_multiplier_key to overrides. This allows tenants to specify the attribute key used for span multiplier values to compensate for head-based sampling. [#6260](https://github.com/grafana/tempo/pull/6260) (@carles-grafana)
-* [FEATURE] **BREAKING CHANGE** Optimize TraceQL AST by rewriting conditions on the same attribute to their array equivalent [#6353](https://github.com/grafana/tempo/pull/6353) (@stoewer)
-  Slightly changes the array matching semantics of != and !~ operators and introduces stricter rules for regex literals.
 * [FEATURE] metrics-generator: Add per-label limiter to control cardinality [#6414](https://github.com/grafana/tempo/pull/6414) (@electron0zero)
-  Adds `max_cardinality_per_label` per per-tenant override and new metrics to estimate per label cardinality demand estimate.
+  Adds `max_cardinality_per_label` per tenant override and new metrics to estimate per label cardinality demand estimate.
 * [FEATURE] Add an extension mechanism for per-tenant overrides [#6758](https://github.com/grafana/tempo/pull/6758) (@stoewer)
 * [FEATURE] Extend `TraceRedactor` interface to support hiding complete traces via `ErrTraceHidden`. [#6811](https://github.com/grafana/tempo/pull/6811) (@stoewer)
 * [FEATURE] Single-binary mode: push distributor local ingest directly to live-store and metrics-generator without Kafka [#6729](https://github.com/grafana/tempo/pull/6729) (@javiermolinar)
+* [FEATURE] Add experimental drain limiter to the metrics generator. This can reduce metrics cardinality by clustering similar span names. [#6098](https://github.com/grafana/tempo/pull/6098) (@Logiraptor)
+* [ENHANCEMENT] Query-frontend: split streamed search and metrics responses into smaller gRPC packets for better default client compatibility, and fix final streaming updates after metrics series limits are reached. [#6607](https://github.com/grafana/tempo/pull/6607) (@mdisibio)
+* [ENHANCEMENT] live-store: lock-free block reads via `atomic.Pointer[blockSnapshot]`; block deletion is two-phase (tombstone meta.json → meta.deleted.json, then reclaim files after `block_reclaim_grace`). Crash-safe; startup sweep reclaims any tombstoned dirs left by an unclean shutdown. [#7132](https://github.com/grafana/tempo/pull/7132) (@zhxiaogg)
+* [ENHANCEMENT] Support OR conditions for tag name and tag value autocomplete (search tags v2) [#6827](https://github.com/grafana/tempo/pull/6827) (@ie-pham)
 * [ENHANCEMENT] Expose MinIO retry settings via S3 config [#6561](https://github.com/grafana/tempo/pull/6561) (@rwhitty)
+* [ENHANCEMENT] Reduce default livestore WAL size and align query defaults: `max_block_duration` `1m` to `30s`, `max_block_bytes` `100MiB` to `50MiB`, `complete_block_timeout` `1h` to `20m`, metrics `query_backend_after` `30m` to `15m`. [#6974](https://github.com/grafana/tempo/pull/6974) (@zhxiaogg)
 * [ENHANCEMENT] Enable native histogram emission for all promauto-registered histograms, including `tempo_request_duration_seconds`. Both classic and native formats are emitted simultaneously; existing scrapers are unaffected. [#6910](https://github.com/grafana/tempo/pull/6910) (@zalegrala)
 * [ENHANCEMENT] tempo-cli: Add `--header` flag to `query api` commands for custom headers [#6768](https://github.com/grafana/tempo/pull/6768) (@Nouuu)
 * [ENHANCEMENT] tempo-cli: add `redact` command to submit trace redaction jobs to the backend scheduler [#6832](https://github.com/grafana/tempo/pull/6832) (@zalegrala)
@@ -68,6 +83,7 @@
 * [ENHANCEMENT] Add metric to track livestore block cut reasons [#6922](https://github.com/grafana/tempo/pull/6922) (@zhxiaogg)
 * [ENHANCEMENT] Enable async parquet read mode for WAL completion path [#6967](https://github.com/grafana/tempo/pull/6967) (@zhxiaogg)
 * [ENHANCEMENT] metrics-generator: add `leave_consumer_group_on_shutdown` to send LeaveGroup on shutdown for immediate partition reassignment instead of waiting for session timeout [#6575](https://github.com/grafana/tempo/pull/6575) (@zalegrala)
+* [BUGFIX] Fix tempo-vulture ignoring `-tempo-push-tls` flag in normal operating mode. [#6976](https://github.com/grafana/tempo/pull/6976) (@xaque208)
 * [BUGFIX] livestore: check readiness before lag for SearchRecent and QueryRange queries [#6911](https://github.com/grafana/tempo/pull/6911) (@zhxiaogg)
 * [BUGFIX] Fix integer overflow in query parameters by using `strconv.ParseUint` instead of `strconv.Atoi`/`strconv.ParseInt` for unsigned integer fields. [#6612](https://github.com/grafana/tempo/pull/6612) (@bejaratommy)
 * [BUGFIX] Fix live-store SearchTagValuesV2 disk cache never being populated on complete blocks [#6858](https://github.com/grafana/tempo/pull/6858) (@mapno)
@@ -100,6 +116,9 @@
 * [BUGFIX] live-store: correct backoff duration calculation [#6999](https://github.com/grafana/tempo/pull/6999) (@ruslan-mikhailov)
 * [BUGFIX] vulture: fix for recent traces when query_end_cutoff is enabled [#7018](https://github.com/grafana/tempo/pull/7018) (@ruslan-mikhailov)
 * [BUGFIX] Fix live-store producing WAL blocks exceeding max_block_bytes when flushing large batches of idle traces [#6971](https://github.com/grafana/tempo/pull/6971) (@ruslan-mikhailov)
+* [BUGFIX] live-store: skip lookback replay when partition is Inactive during scaling down [#7101](https://github.com/grafana/tempo/pull/7101) (@zhxiaogg)
+* [BUGFIX] live-store: Fix panic in legacy tag-based search against vParquet5 blocks when matching attributes stored in integer dedicated columns (for example `/api/search?http.status_code=500`). [#7135](https://github.com/grafana/tempo/pull/7135) (@mdisibio)
+* [BUGFIX] livestore: recover from panics in `iterateBlocks` per-block paths so a panic in vparquet/parquetquery (e.g. malformed `ByteArray` values) returns an error instead of crashing the process. [#7134](https://github.com/grafana/tempo/pull/7134) (@zhxiaogg)
 
 ### 3.0 Cleanup
 
@@ -123,6 +142,24 @@
 * [CHANGE] **BREAKING CHANGE** Sets the `all` target to be 3.0 compatible and removes the `scalable-single-binary` target [#6283](https://github.com/grafana/tempo/pull/6283) (@joe-elliott)
 * [CHANGE] **BREAKING CHANGE** Clean up enterprise jsonnet [#6505](https://github.com/grafana/tempo/pull/6505) (@javiermolinar)
 * [CHANGE] Expose otlp http and grpc ports for Docker examples [#6296](https://github.com/grafana/tempo/pull/6296) (@javiermolinar)
+
+# v2.10.7
+
+* [CHANGE] Stop publishing 32-bit ARM binary archives. Release artifacts continue to include amd64 and arm64 binaries. [#7106](https://github.com/grafana/tempo/pull/7106) (@javiermolinar)
+* [BUGFIX] Fix incorrect version reported by `--version`, the build-info metric, and `/api/status/buildinfo`. The build version is now read from the new top-level VERSION file instead of the most recently created git tag, which could belong to a different release. [#7469](https://github.com/grafana/tempo/pull/7469) (@zhxiaogg)
+
+# v2.10.6
+
+* [CHANGE] **BREAKING CHANGE** Remove Opencensus receiver [#7322](https://github.com/grafana/tempo/pull/7322) (@zhxiaogg)
+* [CHANGE] Upgrade Tempo to Go 1.26.3 [#7422](https://github.com/grafana/tempo/pull/7422) (@ie-pham)
+* [CHANGE] Update Prometheus to v0.311.3 and OpenTelemetry Collector dependencies to v1.52, along with related transitive dependencies (dskit and others) [#7298](https://github.com/grafana/tempo/pull/7298) (@zhxiaogg)
+* [SECURITY] Update github.com/apache/thrift to v0.23.0 to pick up upstream security fixes [#7120](https://github.com/grafana/tempo/pull/7120) (@renovate)
+* [SECURITY] Update golang.org/x/crypto to v0.52.0 to pick up upstream security fixes [#7262](https://github.com/grafana/tempo/pull/7262) (@renovate)
+* [SECURITY] Update golang.org/x/net to v0.55.0 to pick up upstream security fixes [#7129](https://github.com/grafana/tempo/pull/7129) [#7263](https://github.com/grafana/tempo/pull/7263) (@renovate)
+
+# v2.10.5
+
+* [CHANGE] Upgrade Tempo to Go 1.26.2 [#7040](https://github.com/grafana/tempo/pull/7040) (@ie-pham)
 
 # v2.10.4
 
@@ -179,7 +216,6 @@
 * [FEATURE] Add entity-based limiting mode for metrics-generator as an alternative to series-based limiting. [#5788](https://github.com/grafana/tempo/pull/5788) (@Logiraptor)
 * [FEATURE] Add `tempo_metrics_generator_registry_active_series_demand_estimate` that estimates metrics-generator active series demand even when the active series limit is reached [#5710](https://github.com/grafana/tempo/pull/5710) (@carles-grafana)
 * [FEATURE] Metrics generator will now produce overflow series to capture new data once limits are hit. These series have the label `metric_overflow="true"`. [#5954](https://github.com/grafana/tempo/pull/5954) (@Logiraptor)
-* [FEATURE] Add experimental drain limiter to the metrics generator. This can reduce metrics cardinality by clustering similar span names. [#6098](https://github.com/grafana/tempo/pull/6098) (@Logiraptor)
 * [FEATURE] Add support for external storage to trace by id endpoint [#6185](https://github.com/grafana/tempo/pull/6185) (@Logiraptor)
 * [ENHANCEMENT] add database_name_attributes config to service graph processor [#5398](https://github.com/grafana/tempo/pull/5398) (@KyriosGN0)
 * [ENHANCEMENT] Added validation mode and tests for tempo-vulture [#5605](https://github.com/grafana/tempo/pull/5605) (@davidham)

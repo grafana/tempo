@@ -1,0 +1,6 @@
+change_type: feature
+component: metrics-generator
+note: add `service-graphs-*` subprocessors and an opt-in `traces_service_graph_connection_info` presence gauge for topology detection under heavy sampling.
+issues: [7202]
+subtext:
+user: jcreixell

@@ -372,11 +372,27 @@ func (s *LiveStore) startIngestPath(ctx context.Context) error {
 	return s.startKafkaIngestPath(ctx)
 }
 
-func (s *LiveStore) startKafkaIngestPath(ctx context.Context) error {
-	forceFromLookback := len(s.getInstances()) == 0
-	if forceFromLookback {
-		level.Info(s.logger).Log("msg", "no local data found after reload, will force reading from lookback period")
+// shouldForceFromLookback decides whether to re-read the Kafka lookback to rebuild query state.
+// Skipped when local data exists, or when the partition is Inactive (prior pod already drained).
+func (s *LiveStore) shouldForceFromLookback(ctx context.Context) bool {
+	if len(s.getInstances()) > 0 {
+		return false
 	}
+	state, _, err := s.ingestPartitionLifecycler.GetPartitionState(ctx)
+	if err != nil {
+		level.Warn(s.logger).Log("msg", "failed to read partition state, defaulting to lookback replay", "err", err)
+		return true
+	}
+	if state == ring.PartitionInactive {
+		level.Info(s.logger).Log("msg", "skipping lookback replay because partition is Inactive")
+		return false
+	}
+	level.Info(s.logger).Log("msg", "no local data found after reload, will force reading from lookback period")
+	return true
+}
+
+func (s *LiveStore) startKafkaIngestPath(ctx context.Context) error {
+	forceFromLookback := s.shouldForceFromLookback(ctx)
 
 	client, err := ingest.NewReaderClient(
 		s.cfg.IngestConfig.Kafka,
@@ -577,7 +593,6 @@ func (s *LiveStore) calculateTimeLag(lagShortcutThreshold int64) *time.Duration 
 
 	// Use cached high watermark from fetch responses (avoids extra API call)
 	lag := s.reader.lag.Load()
-	zero := time.Duration(0)
 
 	// If we haven't performed any fetches yet, we can't determine lag
 	if lag < 0 {
@@ -591,7 +606,7 @@ func (s *LiveStore) calculateTimeLag(lagShortcutThreshold int64) *time.Duration 
 		level.Debug(s.logger).Log(
 			"msg", "At or close to partition end",
 			"lag", lag)
-		return &zero
+		return new(time.Duration(0))
 	}
 
 	nanos := s.lastRecordTimeNanos.Load()
@@ -604,8 +619,7 @@ func (s *LiveStore) calculateTimeLag(lagShortcutThreshold int64) *time.Duration 
 	// Potential race condition that can result in negative lag?
 	// Assuming strictly monotonic timestamps in Kafka, can't cause an issue
 	lastRecordTime := time.Unix(0, nanos)
-	recordLag := time.Since(lastRecordTime)
-	return &recordLag
+	return new(time.Since(lastRecordTime))
 }
 
 func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (*kadm.Offset, error) {
@@ -832,7 +846,7 @@ func (s *LiveStore) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReq
 // SearchRecent implements tempopb.Querier
 func (s *LiveStore) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
 	return withInstance(ctx, s, func(inst *instance) (*tempopb.SearchResponse, error) {
-		if s.isLagged(int64(req.End) * 1e9) { // convert seconds to nanoseconds
+		if s.isLagged(int64(req.End)*1e9, "/tempopb.Querier/SearchRecent", req.Query) { // convert seconds to nanoseconds
 			metricLaggedRequests.WithLabelValues("/tempopb.Querier/SearchRecent").Inc()
 			if s.cfg.FailOnHighLag {
 				return nil, errLagged
@@ -878,7 +892,7 @@ func (s *LiveStore) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTa
 // QueryRange implements tempopb.MetricsServer
 func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
 	return withInstance(ctx, s, func(inst *instance) (*tempopb.QueryRangeResponse, error) {
-		if s.isLagged(int64(req.End)) { // end param is already nanos, no need to convert
+		if s.isLagged(int64(req.End), "/tempopb.Metrics/QueryRange", req.Query) { // end param is already nanos, no need to convert
 			metricLaggedRequests.WithLabelValues("/tempopb.Metrics/QueryRange").Inc()
 			if s.cfg.FailOnHighLag {
 				return nil, errLagged
@@ -890,15 +904,30 @@ func (s *LiveStore) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 
 var errLagged = errors.New("cannot guarantee complete results")
 
-func (s *LiveStore) isLagged(endNanos int64) bool {
+func (s *LiveStore) isLagged(endNanos int64, route, query string) bool {
 	if !s.cfg.ConsumeFromKafka { // if config disabled or no kafka consumption, never lagged
 		return false
 	}
 	lag := s.calculateTimeLag(0)
-	if lag == nil { // lag is unknown
-		return true // prefer error over potentially incomplete results
+	// prefer fail when lag is unknown; otherwise lagged means queryEnd is more recent than the last consumed record.
+	lagged := lag == nil || time.Since(time.Unix(0, endNanos)) < *lag
+	if lagged {
+		timeLagSec := -1.0
+		if lag != nil {
+			timeLagSec = lag.Seconds()
+		}
+		level.Info(s.logger).Log(
+			"msg", "isLagged tripped",
+			"route", route,
+			"query", query,
+			"end_unix_nano", endNanos,
+			"now_unix_nano", time.Now().UnixNano(),
+			"time_lag_sec", timeLagSec,
+			"offset_lag", s.reader.lag.Load(),
+			"last_record_unix_nano", s.lastRecordTimeNanos.Load(),
+		)
 	}
-	return time.Since(time.Unix(0, endNanos)) < *lag
+	return lagged
 }
 
 // withInstance extracts the tenant ID from the context, gets the instance,

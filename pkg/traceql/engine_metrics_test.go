@@ -14,6 +14,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func singleBatchMetricsEvaluator(eval MetricsEvaluator) (*metricsEvaluator, error) {
+	batch, ok := eval.(batchMetricsEvaluator)
+	if !ok {
+		return nil, fmt.Errorf("expected batchMetricsEvaluator, got %T", eval)
+	}
+	if len(batch) != 1 {
+		return nil, fmt.Errorf("expected batchMetricsEvaluator of size 1, got %d", len(batch))
+	}
+
+	for _, inner := range batch {
+		me, ok := inner.(*metricsEvaluator)
+		if !ok {
+			return nil, fmt.Errorf("expected *metricsEvaluator inside batch, got %T", inner)
+		}
+		return me, nil
+	}
+
+	return nil, fmt.Errorf("expected batchMetricsEvaluator to contain one metricsEvaluator")
+}
+
 func TestDefaultQueryRangeStep(t *testing.T) {
 	day := 24 * time.Hour
 	tc := []struct {
@@ -467,13 +487,26 @@ func TestCompileMetricsQueryRange(t *testing.T) {
 	}
 
 	for n, c := range tc {
-		t.Run(n, func(t *testing.T) {
+		t.Run("CompileMetricsQueryRange/"+n, func(t *testing.T) {
 			_, err := NewEngine().CompileMetricsQueryRange(&tempopb.QueryRangeRequest{
 				Query: c.q,
 				Start: c.start,
 				End:   c.end,
 				Step:  c.step,
 			})
+
+			if c.expectedErr != nil {
+				require.EqualError(t, err, c.expectedErr.Error())
+			}
+		})
+
+		t.Run("CompileMetricsQueryRangeNonRaw"+n, func(t *testing.T) {
+			_, err := NewEngine().CompileMetricsQueryRangeNonRaw(&tempopb.QueryRangeRequest{
+				Query: c.q,
+				Start: c.start,
+				End:   c.end,
+				Step:  c.step,
+			}, AggregateModeFinal)
 
 			if c.expectedErr != nil {
 				require.EqualError(t, err, c.expectedErr.Error())
@@ -495,7 +528,9 @@ func TestCompileMetricsQueryRangeExemplars(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, eval)
-	require.Equal(t, 5, eval.maxExemplars)
+	me, err := singleBatchMetricsEvaluator(eval)
+	require.NoError(t, err)
+	require.Equal(t, 5, me.maxExemplars)
 }
 
 func TestCompileMetricsQueryRangeExemplarsSafetyCap(t *testing.T) {
@@ -520,7 +555,9 @@ func TestCompileMetricsQueryRangeExemplarsSafetyCap(t *testing.T) {
 			}
 			eval, err := NewEngine().CompileMetricsQueryRange(req)
 			require.NoError(t, err)
-			require.Equal(t, tc.expected, eval.maxExemplars)
+			me, err := singleBatchMetricsEvaluator(eval)
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, me.maxExemplars)
 		})
 	}
 }
@@ -665,8 +702,10 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 			require.NoError(t, err)
 
 			// Nil out func to Equal works
-			eval.storageReq.SecondPass = nil
-			require.Equal(t, tc.expectedReq, *eval.storageReq)
+			me, err := singleBatchMetricsEvaluator(eval)
+			require.NoError(t, err)
+			me.storageReq.SecondPass = nil
+			require.Equal(t, tc.expectedReq, *me.storageReq)
 		})
 	}
 }
@@ -957,6 +996,671 @@ func TestCountOverTime(t *testing.T) {
 	requireEqualSeriesSets(t, out, result)
 }
 
+func TestScalarMath(t *testing.T) {
+	req := &tempopb.QueryRangeRequest{
+		Start: 1,
+		End:   uint64(3 * time.Second),
+		Step:  uint64(1 * time.Second),
+	}
+
+	// A variety of spans across times, durations, and series. All durations are powers of 2 for simplicity
+	in := []Span{
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithDuration(128),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithDuration(512),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "baz").WithDuration(512),
+
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
+
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(512),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(512),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(512),
+	}
+
+	q := "{ } | count_over_time() by (span.foo)"
+	noOp := func(v float64) float64 { return v }
+
+	for _, tc := range []struct {
+		name      string
+		q         string
+		transform func(v float64) float64
+	}{
+		{
+			name:      "A",
+			q:         q,
+			transform: noOp,
+		},
+		// basic
+		{
+			name:      "A + 10",
+			q:         fmt.Sprintf("(%s) + 10", q),
+			transform: func(v float64) float64 { return v + 10 },
+		},
+		{
+			name:      "10 + A",
+			q:         fmt.Sprintf("10 + (%s)", q),
+			transform: func(v float64) float64 { return 10 + v },
+		},
+		{
+			name:      "A - 5",
+			q:         fmt.Sprintf("(%s) - 5", q),
+			transform: func(v float64) float64 { return v - 5 },
+		},
+		{
+			name:      "5 - A",
+			q:         fmt.Sprintf("5 - (%s)", q),
+			transform: func(v float64) float64 { return 5 - v },
+		},
+		{
+			name:      "A * 2",
+			q:         fmt.Sprintf("(%s) * 2", q),
+			transform: func(v float64) float64 { return v * 2 },
+		},
+		{
+			name:      "2 * A",
+			q:         fmt.Sprintf("2 * (%s)", q),
+			transform: func(v float64) float64 { return 2 * v },
+		},
+		{
+			name:      "A / 2",
+			q:         fmt.Sprintf("(%s) / 2", q),
+			transform: func(v float64) float64 { return v / 2 },
+		},
+		{
+			name: "2 / A",
+			q:    fmt.Sprintf("2 / (%s)", q),
+			transform: func(v float64) float64 {
+				if v == 0 {
+					return math.NaN()
+				}
+				return 2 / v
+			},
+		},
+
+		// float
+		{
+			name:      "A + 1.5",
+			q:         fmt.Sprintf("(%s) + 1.5", q),
+			transform: func(v float64) float64 { return v + 1.5 },
+		},
+		{
+			name:      "1.5 + A",
+			q:         fmt.Sprintf("1.5 + (%s)", q),
+			transform: func(v float64) float64 { return 1.5 + v },
+		},
+		{
+			name:      "A - 1.5",
+			q:         fmt.Sprintf("(%s) - 1.5", q),
+			transform: func(v float64) float64 { return v - 1.5 },
+		},
+		{
+			name:      "1.5 - A",
+			q:         fmt.Sprintf("1.5 - (%s)", q),
+			transform: func(v float64) float64 { return 1.5 - v },
+		},
+		{
+			name:      "A * 2.5",
+			q:         fmt.Sprintf("(%s) * 2.5", q),
+			transform: func(v float64) float64 { return v * 2.5 },
+		},
+		{
+			name:      "2.5 * A",
+			q:         fmt.Sprintf("2.5 * (%s)", q),
+			transform: func(v float64) float64 { return 2.5 * v },
+		},
+		{
+			name:      "A / 2.5",
+			q:         fmt.Sprintf("(%s) / 2.5", q),
+			transform: func(v float64) float64 { return v / 2.5 },
+		},
+		{
+			name: "2.5 / A",
+			q:    fmt.Sprintf("2.5 / (%s)", q),
+			transform: func(v float64) float64 {
+				if v == 0 {
+					return math.NaN()
+				}
+				return 2.5 / v
+			},
+		},
+		{
+			name:      "A + 1e6",
+			q:         fmt.Sprintf("(%s) + 1e6", q),
+			transform: func(v float64) float64 { return v + 1e6 },
+		},
+		{
+			name:      "A + 1e31",
+			q:         fmt.Sprintf("(%s) + 1e31", q),
+			transform: func(v float64) float64 { return v + 1e31 },
+		},
+		{
+			name:      "A + 1e-6",
+			q:         fmt.Sprintf("(%s) + 1e-6", q),
+			transform: func(v float64) float64 { return v + 1e-6 },
+		},
+
+		// edge cases
+		{
+			name:      "A / 1",
+			q:         fmt.Sprintf("(%s) / 1", q),
+			transform: noOp,
+		},
+		{
+			name: "1 / A",
+			q:    fmt.Sprintf("1 / (%s)", q),
+			transform: func(v float64) float64 {
+				if v == 0 {
+					return math.NaN()
+				}
+				return 1 / v
+			},
+		},
+		{
+			name:      "A * 0",
+			q:         fmt.Sprintf("(%s) * 0", q),
+			transform: func(float64) float64 { return 0 },
+		},
+		{
+			name:      "0 * A",
+			q:         fmt.Sprintf("0 * (%s)", q),
+			transform: func(float64) float64 { return 0 },
+		},
+		{
+			name:      "A / 0",
+			q:         fmt.Sprintf("(%s) / 0", q),
+			transform: func(float64) float64 { return math.NaN() },
+		},
+		{
+			name: "0 / A",
+			q:    fmt.Sprintf("0 / (%s)", q),
+			transform: func(v float64) float64 {
+				if v == 0 {
+					return math.NaN()
+				}
+				return 0
+			},
+		},
+		{
+			name:      "A + 0",
+			q:         fmt.Sprintf("(%s) + 0", q),
+			transform: noOp,
+		},
+		{
+			name:      "0 + A",
+			q:         fmt.Sprintf("0 + (%s)", q),
+			transform: noOp,
+		},
+		{
+			name:      "A - 0",
+			q:         fmt.Sprintf("(%s) - 0", q),
+			transform: noOp,
+		},
+		{
+			name:      "0 - A",
+			q:         fmt.Sprintf("0 - (%s)", q),
+			transform: func(v float64) float64 { return -v },
+		},
+		{
+			name:      "A + ( 1.0 / 0)",
+			q:         fmt.Sprintf("(%s) + (1.0/0)", q),
+			transform: func(float64) float64 { return math.Inf(+1) },
+		},
+
+		// int vs float
+		{
+			name:      "A * 3/2 (int)",
+			q:         fmt.Sprintf("(%s) * ( 3 / 2 )", q),
+			transform: func(v float64) float64 { return v },
+		},
+		{
+			name:      "A * 3.0/2 (float)",
+			q:         fmt.Sprintf("(%s) * ( 3.0 / 2 )", q),
+			transform: func(v float64) float64 { return v * 1.5 },
+		},
+
+		// negative numbers (int)
+		{
+			name:      "A + -10",
+			q:         fmt.Sprintf("(%s) + -10", q),
+			transform: func(v float64) float64 { return v + -10 },
+		},
+		{
+			name:      "-10 + A",
+			q:         fmt.Sprintf("-10 + (%s)", q),
+			transform: func(v float64) float64 { return -10 + v },
+		},
+		{
+			name:      "A - -5",
+			q:         fmt.Sprintf("(%s) - -5", q),
+			transform: func(v float64) float64 { return v - -5 },
+		},
+		{
+			name:      "-5 - A",
+			q:         fmt.Sprintf("-5 - (%s)", q),
+			transform: func(v float64) float64 { return -5 - v },
+		},
+		{
+			name:      "A * -2",
+			q:         fmt.Sprintf("(%s) * -2", q),
+			transform: func(v float64) float64 { return v * -2 },
+		},
+		{
+			name:      "-2 * A",
+			q:         fmt.Sprintf("-2 * (%s)", q),
+			transform: func(v float64) float64 { return -2 * v },
+		},
+		{
+			name:      "A / -2",
+			q:         fmt.Sprintf("(%s) / -2", q),
+			transform: func(v float64) float64 { return v / -2 },
+		},
+		{
+			name: "-2 / A",
+			q:    fmt.Sprintf("-2 / (%s)", q),
+			transform: func(v float64) float64 {
+				if v == 0 {
+					return math.NaN()
+				}
+				return -2 / v
+			},
+		},
+
+		// negative numbers (float)
+		{
+			name:      "A + -1.5",
+			q:         fmt.Sprintf("(%s) + -1.5", q),
+			transform: func(v float64) float64 { return v + -1.5 },
+		},
+		{
+			name:      "-1.5 + A",
+			q:         fmt.Sprintf("-1.5 + (%s)", q),
+			transform: func(v float64) float64 { return -1.5 + v },
+		},
+		{
+			name:      "A - -1.5",
+			q:         fmt.Sprintf("(%s) - -1.5", q),
+			transform: func(v float64) float64 { return v - -1.5 },
+		},
+		{
+			name:      "-1.5 - A",
+			q:         fmt.Sprintf("-1.5 - (%s)", q),
+			transform: func(v float64) float64 { return -1.5 - v },
+		},
+		{
+			name:      "A * -2.5",
+			q:         fmt.Sprintf("(%s) * -2.5", q),
+			transform: func(v float64) float64 { return v * -2.5 },
+		},
+		{
+			name:      "-2.5 * A",
+			q:         fmt.Sprintf("-2.5 * (%s)", q),
+			transform: func(v float64) float64 { return -2.5 * v },
+		},
+		{
+			name:      "A / -2.5",
+			q:         fmt.Sprintf("(%s) / -2.5", q),
+			transform: func(v float64) float64 { return v / -2.5 },
+		},
+		{
+			name: "-2.5 / A",
+			q:    fmt.Sprintf("-2.5 / (%s)", q),
+			transform: func(v float64) float64 {
+				if v == 0 {
+					return math.NaN()
+				}
+				return -2.5 / v
+			},
+		},
+
+		// operation order
+		{
+			name:      "A * 2 + 5",
+			q:         fmt.Sprintf("(%s) * 2 + 5", q),
+			transform: func(v float64) float64 { return v*2 + 5 },
+		},
+		{
+			name:      "A * (2 + 5)",
+			q:         fmt.Sprintf("(%s) * (2 + 5)", q),
+			transform: func(v float64) float64 { return v * (2 + 5) },
+		},
+		{
+			name:      "5 + A * 2",
+			q:         fmt.Sprintf("5 + (%s) * 2", q),
+			transform: func(v float64) float64 { return 5 + v*2 },
+		},
+		{
+			name:      "(A + 5) * 2",
+			q:         fmt.Sprintf("((%s) + 5) * 2", q),
+			transform: func(v float64) float64 { return (v + 5) * 2 },
+		},
+		{
+			name:      "A + 5 * 2",
+			q:         fmt.Sprintf("(%s) + 5 * 2", q),
+			transform: func(v float64) float64 { return v + 5*2 },
+		},
+		{
+			name:      "A / 2 + 1",
+			q:         fmt.Sprintf("(%s) / 2 + 1", q),
+			transform: func(v float64) float64 { return v/2 + 1 },
+		},
+		{
+			name:      "A / (2 + 1)",
+			q:         fmt.Sprintf("(%s) / (2 + 1)", q),
+			transform: func(v float64) float64 { return v / (2 + 1) },
+		},
+		{
+			name: "10 / A * 2",
+			q:    fmt.Sprintf("10 / (%s) * 2", q),
+			transform: func(v float64) float64 {
+				if v == 0 {
+					return math.NaN() // 10/0=NaN, NaN*2=NaN
+				}
+				return 10 / v * 2
+			},
+		},
+		{
+			name: "10 / (A * 2)",
+			q:    fmt.Sprintf("10 / ((%s) * 2)", q),
+			transform: func(v float64) float64 {
+				if v == 0 {
+					return math.NaN()
+				}
+				return 10 / (v * 2)
+			},
+		},
+		{
+			name:      "A - 10 - 5",
+			q:         fmt.Sprintf("(%s) - 10 - 5", q),
+			transform: func(v float64) float64 { return v - 10 - 5 },
+		},
+		{
+			name:      "A - (10 - 5)",
+			q:         fmt.Sprintf("(%s) - (10 - 5)", q),
+			transform: func(v float64) float64 { return v - (10 - 5) },
+		},
+		{
+			name: "100 / A / 2",
+			q:    fmt.Sprintf("100 / (%s) / 2", q),
+			transform: func(v float64) float64 {
+				if v == 0 {
+					return math.NaN() // 100/0=NaN
+				}
+				return 100 / v / 2
+			},
+		},
+		{
+			name: "100 / (A / 2)",
+			q:    fmt.Sprintf("100 / ((%s) / 2)", q),
+			transform: func(v float64) float64 {
+				if v == 0 {
+					return math.NaN()
+				}
+				return 100 / (v / 2)
+			},
+		},
+		{
+			name:      "10 + 5 * A / 2",
+			q:         fmt.Sprintf("10 + 5 * (%s) / 2", q),
+			transform: func(v float64) float64 { return 10 + 5*v/2 },
+		},
+		{
+			name:      "(10 + 5) * A / 2",
+			q:         fmt.Sprintf("(10 + 5) * (%s) / 2", q),
+			transform: func(v float64) float64 { return (10 + 5) * v / 2 },
+		},
+		{
+			name:      "2 + 10 * A",
+			q:         fmt.Sprintf("2 + 10 * (%s)", q),
+			transform: func(v float64) float64 { return 2 + (10 * v) },
+		},
+		{
+			name:      "A + 10 / 2 * 4",
+			q:         fmt.Sprintf("(%s) + 10 / 2 * 4", q),
+			transform: func(v float64) float64 { return v + 10.0/2*4 },
+		},
+
+		// vector and scalar
+		{
+			name:      "(A + 10) * (A + 1)",
+			q:         fmt.Sprintf("((%s) + 10) * ((%s) + 1)", q, q),
+			transform: func(v float64) float64 { return (v + 10) * (v + 1) },
+		},
+		{
+			name:      "6 / 2 * (A + A)",
+			q:         fmt.Sprintf("6 / 2 * ((%s) + (%s))", q, q),
+			transform: func(v float64) float64 { return 3 * (v + v) },
+		},
+
+		// comparison
+		{
+			name: "A > 1",
+			q:    fmt.Sprintf("(%s) > 1", q),
+			transform: func(v float64) float64 {
+				if v > 1 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "A > 1.0",
+			q:    fmt.Sprintf("(%s) > 1.0", q),
+			transform: func(v float64) float64 {
+				if v > 1 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "A >= 3",
+			q:    fmt.Sprintf("(%s) >= 3", q),
+			transform: func(v float64) float64 {
+				if v >= 3 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "A >= 3.0",
+			q:    fmt.Sprintf("(%s) >= 3.0", q),
+			transform: func(v float64) float64 {
+				if v >= 3 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "A < 4",
+			q:    fmt.Sprintf("(%s) < 4", q),
+			transform: func(v float64) float64 {
+				if v < 4 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "A <= 4",
+			q:    fmt.Sprintf("(%s) <= 4", q),
+			transform: func(v float64) float64 {
+				if v <= 4 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "A < 4.0",
+			q:    fmt.Sprintf("(%s) < 4.0", q),
+			transform: func(v float64) float64 {
+				if v < 4 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "A <= 4.0",
+			q:    fmt.Sprintf("(%s) <= 4.0", q),
+			transform: func(v float64) float64 {
+				if v <= 4 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "A < 3.5",
+			q:    fmt.Sprintf("(%s) < 3.5", q),
+			transform: func(v float64) float64 {
+				if v < 3.5 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "A == 3",
+			q:    fmt.Sprintf("(%s) = 3", q),
+			transform: func(v float64) float64 {
+				if v == 3 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "A == 3.0",
+			q:    fmt.Sprintf("(%s) = 3.0", q),
+			transform: func(v float64) float64 {
+				if v == 3 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "A != 3",
+			q:    fmt.Sprintf("(%s) != 3", q),
+			transform: func(v float64) float64 {
+				if v != 3 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "A != 3.0",
+			q:    fmt.Sprintf("(%s) != 3.0", q),
+			transform: func(v float64) float64 {
+				if v != 3 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+
+		// comparison order
+		{
+			name: "A >= 1.5 * 2",
+			q:    fmt.Sprintf("(%s) >= 1.5 * 2", q),
+			transform: func(v float64) float64 {
+				if v >= 3 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "(A >= 1.5) * 2",
+			q:    fmt.Sprintf("(%s >= 1.5) * 2", q),
+			transform: func(v float64) float64 {
+				if v >= 1.5 {
+					return v * 2
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "2 * A >= 1.5",
+			q:    fmt.Sprintf("2 * (%s) >= 1.5", q),
+			transform: func(v float64) float64 {
+				if 2*v >= 1.5 {
+					return 2 * v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "2 * (A >= 1.5)",
+			q:    fmt.Sprintf("2 * (%s >= 1.5)", q),
+			transform: func(v float64) float64 {
+				if v >= 1.5 {
+					return 2 * v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "A >= 3 <=4",
+			q:    fmt.Sprintf("(%s) >= 3 <= 4", q),
+			transform: func(v float64) float64 {
+				if v >= 3 && v <= 4 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+		{
+			name: "A >=3 < 4",
+			q:    fmt.Sprintf("(%s) >= 3 < 4", q),
+			transform: func(v float64) float64 {
+				if v >= 3 && v < 4 {
+					return v
+				}
+				return math.NaN()
+			},
+		},
+	} {
+		process := func(values []float64) []float64 {
+			for i := range values {
+				values[i] = tc.transform(values[i])
+			}
+			return values
+		}
+		t.Run(tc.name, func(t *testing.T) {
+			out := []TimeSeries{
+				{
+					Labels: []Label{
+						{Name: "span.foo", Value: NewStaticString("baz")},
+					},
+					Values:    process([]float64{1, 0, 3}),
+					Exemplars: make([]Exemplar, 0),
+				},
+				{
+					Labels: []Label{
+						{Name: "span.foo", Value: NewStaticString("bar")},
+					},
+					Values:    process([]float64{3, 4, 0}),
+					Exemplars: make([]Exemplar, 0),
+				},
+			}
+
+			req.Query = tc.q
+			result, seriesCount, err := runTraceQLMetric(req, in)
+			require.NoError(t, err)
+			require.Equal(t, len(result), seriesCount)
+			requireEqualSeriesSets(t, out, result)
+		})
+	}
+}
+
 func TestCountOverTimeInstantNs(t *testing.T) {
 	// not rounded values to simulate real world data
 	start := 1*time.Second - 9*time.Nanosecond
@@ -1123,21 +1827,25 @@ func TestCountOverTimeInstantNsWithCutoff(t *testing.T) {
 		// process different series in L1
 		layer1, err := e.CompileMetricsQueryRange(&req1)
 		require.NoError(t, err)
+		me, err := singleBatchMetricsEvaluator(layer1)
+		require.NoError(t, err)
 		for _, s := range in1 {
-			layer1.metricsPipeline.observe(s)
+			me.metricsPipeline.observe(s)
 		}
 		res1 := layer1.Results().ToProto(&req1)
 
 		layer1, err = e.CompileMetricsQueryRange(&req2)
 		require.NoError(t, err)
+		me, err = singleBatchMetricsEvaluator(layer1)
+		require.NoError(t, err)
 		for _, s := range in2 {
-			layer1.metricsPipeline.observe(s)
+			me.metricsPipeline.observe(s)
 		}
 		res2 := layer1.Results().ToProto(&req2)
 
 		// merge in L2
-		layer2.metricsPipeline.observeSeries(res1)
-		layer2.metricsPipeline.observeSeries(res2)
+		layer2.ObserveSeries(res1)
+		layer2.ObserveSeries(res2)
 
 		result, seriesCount, err := processLayer3(req, layer2.Results())
 		require.NoError(t, err)
@@ -1725,14 +2433,18 @@ func TestObserveSeriesAverageOverTimeForSpanAttribute(t *testing.T) {
 	layer2B, _ := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
 	layer3, _ := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeFinal)
 
+	me, err := singleBatchMetricsEvaluator(layer1A)
+	require.NoError(t, err)
 	for _, s := range in {
-		layer1A.metricsPipeline.observe(s)
+		me.metricsPipeline.observe(s)
 	}
 
 	layer2A.ObserveSeries(layer1A.Results().ToProto(req))
 
+	me, err = singleBatchMetricsEvaluator(layer1B)
+	require.NoError(t, err)
 	for _, s := range in2 {
-		layer1B.metricsPipeline.observe(s)
+		me.metricsPipeline.observe(s)
 	}
 
 	layer2B.ObserveSeries(layer1B.Results().ToProto(req))
@@ -1801,13 +2513,17 @@ func TestObserveSeriesAverageOverTimeForSpanAttributeWithTruncation(t *testing.T
 	layer3, _ := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeFinal)
 
 	for _, s := range in {
-		layer1A.metricsPipeline.observe(s)
+		me, err := singleBatchMetricsEvaluator(layer1A)
+		require.NoError(t, err)
+		me.metricsPipeline.observe(s)
 	}
 
 	layer2A.ObserveSeries(layer1A.Results().ToProto(req))
 
 	for _, s := range in2 {
-		layer1B.metricsPipeline.observe(s)
+		me, err := singleBatchMetricsEvaluator(layer1B)
+		require.NoError(t, err)
+		me.metricsPipeline.observe(s)
 	}
 
 	layer2B.ObserveSeries(layer1B.Results().ToProto(req))
@@ -2991,13 +3707,17 @@ func processLayer1AndLayer2(req *tempopb.QueryRangeRequest, in ...[]Span) (Serie
 		if err != nil {
 			return nil, err
 		}
+		me, err := singleBatchMetricsEvaluator(layer1)
+		if err != nil {
+			return nil, err
+		}
 		for _, s := range spanSet {
-			layer1.metricsPipeline.observe(s)
+			me.metricsPipeline.observe(s)
 		}
 		res := layer1.Results()
 		// Pass layer 1 to layer 2
 		// These are partial counts over time by bucket
-		layer2.metricsPipeline.observeSeries(res.ToProto(req))
+		layer2.ObserveSeries(res.ToProto(req))
 	}
 
 	return layer2.Results(), nil
@@ -3762,6 +4482,261 @@ func TestLog2QuantileWithBucket(t *testing.T) {
 			originalValue := Log2Quantile(tt.quantile, buckets)
 			require.Equal(t, originalValue, value,
 				"Log2QuantileWithBucket should return same value as Log2Quantile")
+		})
+	}
+}
+
+func BenchmarkMetricsFrontendEvaluator(b *testing.B) {
+	start := uint64(time.Now().Add(-1 * time.Hour).UnixNano())
+	end := uint64(time.Now().UnixNano())
+	step := uint64(15 * time.Second.Nanoseconds())
+
+	singleQuery := "{ } | count_over_time() by (span.foo)"
+	mathQuery := "({} | rate()) / ({} | count_over_time())"
+
+	seriesCounts := []int{10, 100, 1000}
+
+	const samplesPerSeries = 240
+	const exemplarsPerSeries = 5
+
+	newReq := func(query string) *tempopb.QueryRangeRequest {
+		return &tempopb.QueryRangeRequest{
+			Start: start,
+			End:   end,
+			Step:  step,
+			Query: query,
+		}
+	}
+
+	compileSingle := func(b *testing.B, mode AggregateMode) *MetricsFrontendEvaluator {
+		b.Helper()
+		e := NewEngine()
+		eval, err := e.CompileMetricsQueryRangeNonRaw(newReq(singleQuery), mode)
+		require.NoError(b, err)
+		return eval
+	}
+
+	compileMath := func(b *testing.B, mode AggregateMode) *MetricsFrontendEvaluator {
+		b.Helper()
+		e := NewEngine()
+		eval, err := e.CompileMetricsQueryRangeNonRaw(newReq(mathQuery), mode)
+		require.NoError(b, err)
+		return eval
+	}
+
+	mathFragmentKeys := func(b *testing.B) []string {
+		b.Helper()
+		expr, err := Parse(mathQuery)
+		require.NoError(b, err)
+		keys := make([]string, 0, len(expr.BatchSpanProcessor))
+		for k := range expr.BatchSpanProcessor {
+			keys = append(keys, k)
+		}
+		return keys
+	}
+
+	generateMathTimeSeries := func(b *testing.B, seriesCount int) []*tempopb.TimeSeries {
+		b.Helper()
+		keys := mathFragmentKeys(b)
+		perFragment := generateTestTimeSeries(seriesCount, samplesPerSeries, exemplarsPerSeries, start, end)
+		all := make([]*tempopb.TimeSeries, 0, len(perFragment)*len(keys))
+		for _, key := range keys {
+			for _, ts := range perFragment {
+				tagged := &tempopb.TimeSeries{
+					Samples:   ts.Samples,
+					Exemplars: ts.Exemplars,
+					Labels: append([]commonv1proto.KeyValue{{
+						Key: internalLabelQueryFragment,
+						Value: &commonv1proto.AnyValue{
+							Value: &commonv1proto.AnyValue_StringValue{StringValue: key},
+						},
+					}}, ts.Labels...),
+				}
+				all = append(all, tagged)
+			}
+		}
+		return all
+	}
+
+	b.Run("single", func(b *testing.B) {
+		for _, sc := range seriesCounts {
+			data := generateTestTimeSeries(sc, samplesPerSeries, exemplarsPerSeries, start, end)
+
+			b.Run(fmt.Sprintf("series_%d/ObserveSeries", sc), func(b *testing.B) {
+				for b.Loop() {
+					eval := compileSingle(b, AggregateModeSum)
+					eval.ObserveSeries(data)
+				}
+			})
+
+			b.Run(fmt.Sprintf("series_%d/Results", sc), func(b *testing.B) {
+				eval := compileSingle(b, AggregateModeSum)
+				eval.ObserveSeries(data)
+				b.ResetTimer()
+				for b.Loop() {
+					_ = eval.Results()
+				}
+			})
+		}
+	})
+
+	b.Run("sum", func(b *testing.B) {
+		for _, sc := range seriesCounts {
+			data := generateMathTimeSeries(b, sc)
+
+			b.Run(fmt.Sprintf("series_%d/ObserveSeries", sc), func(b *testing.B) {
+				for b.Loop() {
+					eval := compileMath(b, AggregateModeSum)
+					eval.ObserveSeries(data)
+				}
+			})
+
+			b.Run(fmt.Sprintf("series_%d/Results", sc), func(b *testing.B) {
+				eval := compileMath(b, AggregateModeSum)
+				eval.ObserveSeries(data)
+				b.ResetTimer()
+				for b.Loop() {
+					_ = eval.Results()
+				}
+			})
+		}
+	})
+
+	b.Run("final", func(b *testing.B) {
+		for _, sc := range seriesCounts {
+			data := generateMathTimeSeries(b, sc)
+
+			b.Run(fmt.Sprintf("series_%d/ObserveSeries", sc), func(b *testing.B) {
+				for b.Loop() {
+					eval := compileMath(b, AggregateModeFinal)
+					eval.ObserveSeries(data)
+				}
+			})
+
+			b.Run(fmt.Sprintf("series_%d/Results", sc), func(b *testing.B) {
+				eval := compileMath(b, AggregateModeFinal)
+				eval.ObserveSeries(data)
+				b.ResetTimer()
+				for b.Loop() {
+					_ = eval.Results()
+				}
+			})
+		}
+	})
+}
+
+func TestMergeLabels(t *testing.T) {
+	tests := []struct {
+		name string
+		op   Operator
+		l, r Labels
+		want Labels
+	}{
+		{
+			name: "combines __name__ from both sides",
+			op:   OpAdd,
+			l:    Labels{{Name: "__name__", Value: NewStaticString("rate")}},
+			r:    Labels{{Name: "__name__", Value: NewStaticString("count_over_time")}},
+			want: Labels{{Name: "__name__", Value: NewStaticString("(rate + count_over_time)")}},
+		},
+		{
+			name: "removes __name__ when LHS has no metric name",
+			op:   OpAdd,
+			l:    Labels{{Name: "foo", Value: NewStaticString("bar")}},
+			r:    Labels{{Name: "__name__", Value: NewStaticString("rate")}},
+			want: Labels{{Name: "foo", Value: NewStaticString("bar")}},
+		},
+		{
+			name: "removes __name__ when RHS has no metric name",
+			op:   OpSub,
+			l:    Labels{{Name: "__name__", Value: NewStaticString("rate")}},
+			r:    Labels{{Name: "foo", Value: NewStaticString("bar")}},
+			want: Labels{{Name: "foo", Value: NewStaticString("bar")}},
+		},
+		{
+			name: "appends RHS labels not present in LHS",
+			op:   OpDiv,
+			l:    Labels{{Name: "__name__", Value: NewStaticString("rate")}},
+			r: Labels{
+				{Name: "__name__", Value: NewStaticString("count")},
+				{Name: "service", Value: NewStaticString("web")},
+			},
+			want: Labels{
+				{Name: "__name__", Value: NewStaticString("(rate / count)")},
+				{Name: "service", Value: NewStaticString("web")},
+			},
+		},
+		{
+			name: "shared label not duplicated",
+			op:   OpAdd,
+			l: Labels{
+				{Name: "__name__", Value: NewStaticString("rate")},
+				{Name: "service", Value: NewStaticString("web")},
+			},
+			r: Labels{
+				{Name: "__name__", Value: NewStaticString("rate")},
+				{Name: "service", Value: NewStaticString("web")},
+			},
+			want: Labels{
+				{Name: "__name__", Value: NewStaticString("(rate + rate)")},
+				{Name: "service", Value: NewStaticString("web")},
+			},
+		},
+		{
+			name: "both empty",
+			op:   OpAdd,
+			l:    Labels{},
+			r:    Labels{},
+			want: Labels{},
+		},
+		{
+			name: "LHS empty, RHS has labels",
+			op:   OpMult,
+			l:    Labels{},
+			r: Labels{
+				{Name: "__name__", Value: NewStaticString("rate")},
+				{Name: "x", Value: NewStaticString("1")},
+			},
+			want: Labels{
+				{Name: "x", Value: NewStaticString("1")},
+			},
+		},
+		{
+			name: "operator appears in combined name",
+			op:   OpMult,
+			l:    Labels{{Name: "__name__", Value: NewStaticString("a")}},
+			r:    Labels{{Name: "__name__", Value: NewStaticString("b")}},
+			want: Labels{{Name: "__name__", Value: NewStaticString("(a * b)")}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := mergeLabels(tt.op, tt.l, tt.r)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestMergeExemplars(t *testing.T) {
+	e1 := Exemplar{Labels: Labels{{Name: "a"}}, Value: 1, TimestampMs: 100}
+	e2 := Exemplar{Labels: Labels{{Name: "b"}}, Value: 2, TimestampMs: 200}
+
+	tests := []struct {
+		name string
+		a, b []Exemplar
+		want []Exemplar
+	}{
+		{"both nil", nil, nil, nil},
+		{"a nil", nil, []Exemplar{e2}, []Exemplar{e2}},
+		{"b nil", []Exemplar{e1}, nil, []Exemplar{e1}},
+		{"both present", []Exemplar{e1}, []Exemplar{e2}, []Exemplar{e1, e2}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := mergeExemplars(tt.a, tt.b)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }

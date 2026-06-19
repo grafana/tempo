@@ -1,0 +1,11 @@
+change_type: bug_fix
+
+component: operations
+
+note: Use `AverageValue` (not `Value`) for the live-store KEDA autoscaler trigger; the `Value` metricType mis-scales the byte-valued ingest metric and runs the autoscaler away to maxReplicas regardless of load.
+
+issues: [7376]
+
+subtext:
+
+user: zalegrala

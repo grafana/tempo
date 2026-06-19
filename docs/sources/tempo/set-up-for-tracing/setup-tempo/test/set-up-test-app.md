@@ -61,7 +61,7 @@ You should see a message that says `Data source is working`.
 ## Visualize your data
 
 After you have created a data source, you can visualize your traces in the **Grafana Explore** page.
-For more information, refer to [Tempo in Grafana](https://grafana.com/docs/tempo/<TEMPO_VERSION>/introduction/tempo-in-grafana/).
+For more information, refer to [Tempo in Grafana](https://grafana.com/docs/tempo/<TEMPO_VERSION>/visualize-traces/).
 
 ### Use OpenTelemetry `telemetrygen` to generate tracing data
 

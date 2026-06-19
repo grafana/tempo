@@ -3,24 +3,43 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Release tag to build (e.g. v2.10.6)'
+        type: string
+        required: true
 
-# Needed to login to DockerHub
+# No default token permissions; the release job grants only what it needs.
 permissions: {}
 jobs:
   release:
     if: github.repository == 'grafana/tempo'  # skip in forks
-    runs-on: ubuntu-24.04
+    # Large runner: goreleaser cross-compiles ~20 binaries in parallel, making
+    # this the longest job in the repo (~17 min) on standard 4-vCPU runners.
+    runs-on: ubuntu-x64-large
     permissions:
       contents: write
       id-token: write
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
+          ref: ${{ inputs.tag || github.ref }}
           persist-credentials: false
 
       - name: fetch tags
         run: git fetch --tags --force
+
+      - name: check tag matches VERSION file
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          if [ "v$(cat VERSION)" != "$TAG" ]; then
+            echo "ERROR: tag ${TAG} does not match the VERSION file ($(cat VERSION))."
+            echo "Bump VERSION on the release branch (release-prep does this) before tagging."
+            exit 1
+          fi
 
       - name: test release
         run: make release-snapshot

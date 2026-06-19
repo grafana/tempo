@@ -142,10 +142,14 @@ If the distributor is not refusing spans but traces are missing from query resul
 Live-stores consume trace data from Kafka and serve recent queries.
 If a live-store falls behind its Kafka partition, query results may be incomplete.
 
-The `fail_on_high_lag` setting (default `false`) controls this behavior:
+Monitor the `tempo_live_store_lagged_requests_total` metric to detect when this happens.
+This counter increments every time a search or metrics query hits a live-store whose Kafka lag overlaps the requested time range, meaning results may be incomplete.
+The metric is labeled by `route` (`/tempopb.Querier/SearchRecent` or `/tempopb.Metrics/QueryRange`).
 
-- When `false`, the live-store returns whatever data it has, which may be incomplete.
-- When `true`, the live-store returns an error when it cannot guarantee completeness.
+The `fail_on_high_lag` setting (default `true`) controls how the live-store responds when lag is detected:
+
+- When `true`, the live-store returns an error when it can't guarantee complete results, rather than returning a partial response. This trades availability for correctness.
+- When `false`, the live-store returns whatever data it has, which may be incomplete. The metric still increments.
 
 Refer to [Unable to find traces](https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/querying/unable-to-see-trace/) for query-side troubleshooting.
 

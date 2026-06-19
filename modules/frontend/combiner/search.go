@@ -132,6 +132,7 @@ func NewSearch(limit int, keepMostRecent bool, marshalingFormat api.MarshallingF
 
 			return metadataCombiner.IsCompleteFor(completedThroughSeconds)
 		},
+		segment: segmentSearchResponse,
 	}
 	initHTTPCombiner(c, marshalingFormat)
 	return c
@@ -154,4 +155,41 @@ func padTraceIDsInResponse(traces []*tempopb.TraceSearchMetadata) {
 	for _, t := range traces {
 		t.TraceID = util.PadTraceIDString(t.TraceID)
 	}
+}
+
+// segmentSearchResponse splits response into one or more SearchResponse values, each within
+// maxSize bytes (by proto Size()). Metrics are included in every segment.
+func segmentSearchResponse(response *tempopb.SearchResponse, maxSize int) []*tempopb.SearchResponse {
+	if maxSize <= 0 {
+		return []*tempopb.SearchResponse{response}
+	}
+
+	var out []*tempopb.SearchResponse
+	var current *tempopb.SearchResponse
+	var currentSz int
+
+	startNextPacket := func() {
+		current = &tempopb.SearchResponse{
+			Metrics: response.Metrics,
+		}
+		currentSz = current.Size()
+		out = append(out, current)
+	}
+
+	startNextPacket()
+
+	for _, t := range response.Traces {
+		traceSz := protoSizeMath(t)
+
+		// Start a new packet if there isn't room for this entry,
+		// unless it's the first one, that way we always try to fit at least one.
+		if len(current.Traces) > 0 && currentSz+traceSz > maxSize {
+			startNextPacket()
+		}
+
+		current.Traces = append(current.Traces, t)
+		currentSz += traceSz
+	}
+
+	return out
 }

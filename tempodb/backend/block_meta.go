@@ -455,7 +455,10 @@ func (b *CompactedBlockMeta) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
-	msgMap := msg.(map[string]interface{})
+	msgMap, ok := msg.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("invalid meta: expected a JSON object")
+	}
 
 	if v, ok := msgMap["compactedTime"]; ok {
 		b.CompactedTime, err = time.Parse(time.RFC3339, v.(string))

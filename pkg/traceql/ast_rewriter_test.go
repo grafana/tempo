@@ -175,7 +175,7 @@ func TestBinaryOpToArrayOpRewriter(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			expr, err := ParseWithOptimizationOption(tc.query, true)
+			expr, err := Parse(tc.query)
 			require.NoError(t, err)
 
 			rewrite := rewriter.RewriteRoot(expr)

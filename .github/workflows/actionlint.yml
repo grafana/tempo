@@ -1,0 +1,63 @@
+name: Actionlint
+
+on:
+  push:
+    branches:
+      - main
+      - release-*
+    paths:
+      - .github/workflows/**
+      - .github/actions/**
+      - .github/actionlint.yaml
+      - .github/actionlint-matcher.json
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+    paths:
+      - .github/workflows/**
+      - .github/actions/**
+      - .github/actionlint.yaml
+      - .github/actionlint-matcher.json
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+
+jobs:
+  run-actionlint:
+    name: Lint GitHub Actions files
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # to check out the code
+      actions: read # to read the workflow files
+
+    env:
+      ACTIONLINT_VERSION: 1.7.7
+      # curl -LXGET https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_checksums.txt | grep linux_amd64
+      CHECKSUM: 023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      # GitHub Actions only runs x86_64. This will break if that assumption changes.
+      - name: Download Actionlint
+        run: |
+          set -euo pipefail
+          curl -OLXGET https://github.com/rhysd/actionlint/releases/download/v"${ACTIONLINT_VERSION}"/actionlint_"${ACTIONLINT_VERSION}"_linux_amd64.tar.gz
+          echo "${CHECKSUM}  actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" | sha256sum -c -
+          tar xzf actionlint_"${ACTIONLINT_VERSION}"_linux_amd64.tar.gz
+          test -f actionlint
+          chmod +x actionlint
+
+      - name: Run Actionlint
+        run: |
+          echo "::add-matcher::.github/actionlint-matcher.json"
+          ./actionlint -color
+        shell: bash

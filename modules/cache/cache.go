@@ -53,7 +53,11 @@ func NewProvider(cfg *Config, logger log.Logger) (cache.Provider, error) {
 			level.Info(logger).Log("msg", "configuring redis client", "roles", cacheCfg.Name())
 
 			statRedis.Add(1)
-			c = redis.NewClient(cacheCfg.RedisConfig, cfg.Background, cacheCfg.Name(), logger)
+			var err error
+			c, err = redis.NewClient(cacheCfg.RedisConfig, cfg.Background, cacheCfg.Name(), logger)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create redis client for roles %s: %w", cacheCfg.Name(), err)
+			}
 		}
 
 		// add this cache for all claimed roles

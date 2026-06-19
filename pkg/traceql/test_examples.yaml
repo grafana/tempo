@@ -55,6 +55,18 @@ valid:
   - '{ link.foo = "bar" }'
   - '{ instrumentation.foo = "bar" }'
   - '{ span.foo != 3.0 }'
+  # quoted attribute identifiers — names with non-attribute runes (space, =, etc.)
+  # and escaped characters (\" and \\) must survive String() -> Parse() round-trip.
+  - '{ ."foo bar" = "v" }'
+  - '{ span."foo bar" = "v" }'
+  - '{ resource."foo bar" = "v" }'
+  - '{ ."foo\" = \"bar" = "v" }'
+  - '{ ."a\\b" = "v" }'
+  - '{ ."a\"b" = "v" }'
+  - "{ .\"foo\tbar\" = \"v\" }"
+  - "{ .\"foo\nbar\" = \"v\" }"
+  - "{ .\"foo\rbar\" = \"v\" }"
+  - "{ .\" x\" = \"v\" }"
   # scoped intrinsics
   - '{ trace:duration > 2s }'
   - '{ trace:rootName = "a" }'
@@ -83,7 +95,8 @@ valid:
   - '{ .a * 1 = 2 }'
   - '{ .a / 1 = 2 }'
   - '{ .a ^ 1 = 2 }'
-  - '{ duration > 1s * 2s }' 
+  - '{ duration > 1s * 2s }'
+  - '{ duration < (10s * 20s) }'
   - '{ 1 * 1h = 1 }'     # combining float, int and duration can make sense, but can also be weird. we just accept it all
   - '{ 1 / 1.1 = 1 }'
   - '{ .http.status >= "200" }'
@@ -180,6 +193,85 @@ valid:
   - '{} | rate() != 0'
   - '{} | rate() > -3'
   - '{} | rate() by (span.client_ip) > 10 with(sample=0.1)'
+  - '({} | rate()) > 10'
+  - '({} | max_over_time(duration)) > 30'
+  - '({} | max_over_time(duration)) > 10s'
+  # math expressions
+  - '({} | rate()) + ({} | rate())'
+  - '({} | rate()) + ({} | count_over_time())'
+  - '({} | rate()) - ({} | count_over_time())'
+  - '({} | rate()) / ({} | count_over_time())'
+  - '({} | rate()) * ({} | count_over_time())'
+  - '(({} | rate()) * ({} | count_over_time())) + ({} | rate())'
+  - '({} | rate()) + ({} | rate()) | topk(5)'
+  - '({} | rate()) + ({} | rate()) > 10'
+  - '({} | rate()) + ({} | rate()) | topk(5) > 10'
+  # scalar math expressions
+  - '({} | rate()) * 100'
+  - '({} | rate()) / 1000'
+  - '({} | rate()) + 5'
+  - '({} | rate()) - 5'
+  - '100 * ({} | rate())'
+  - '1 / ({} | rate())'
+  - '5 + ({} | rate())'
+  - '1 - ({} | rate())'
+  - '1 + 2 + ({} | rate())'
+  - '3 * 2 + ({} | rate())'
+  - '3 / 2 + ({} | rate())'
+  - '3 - 2 + ({} | rate())'
+  - '3 * 2 - ({} | rate())'
+  - '3 * 2 * ({} | rate())'
+  - '3 * 2 / ({} | rate())'
+  - '({} | rate()) + 1 + 2'
+  - '({} | rate()) + 3 * 2'
+  - '({} | rate()) + 3 / 2'
+  - '({} | rate()) + 3 - 2'
+  - '({} | rate()) - 3 * 2'
+  - '({} | rate()) * 3 * 2'
+  - '({} | rate()) / 3 * 2'
+  - '(1 + 2) + ({} | rate())'
+  - '(1 - 2) + ({} | rate())'
+  - '(1 / 2) + ({} | rate())'
+  - '(1 * 2) + ({} | rate())'
+  - 'min(span:childCount) < 2 / 6'
+  - 'avg(.field) > 1 - 3'
+  # negative scalars
+  - '({} | rate()) * -100'
+  - '({} | rate()) / -1000'
+  - '({} | rate()) + -5'
+  - '({} | rate()) - -5'
+  - '-100 * ({} | rate())'
+  - '-1 / ({} | rate())'
+  - '-5 + ({} | rate())'
+  - '-1 - ({} | rate())'
+  # float scalars
+  - '({} | rate()) * 1.5'
+  - '({} | rate()) / 1.5'
+  - '({} | rate()) + 1.5'
+  - '({} | rate()) - 1.5'
+  - '-1.5 * ({} | rate())'
+  - '-1.5 / ({} | rate())'
+  - '-5.5 + ({} | rate())'
+  - '-1.5 - ({} | rate())'
+
+  - '(60 * ({} | rate())) / ({} | count_over_time())'
+  - '({} | rate()) * 100 > 5'
+  - '({} | rate() > 6) * 100 > 5'
+  - '({} | rate()) * 10 - 1'
+  - '({} | rate()) * 10 + 5 > 50 | topk(1)'
+  - '({} | count_over_time() by(.service.name)) * 100'
+  # constant folding
+  - '({} | rate()) > 1 / 2'
+  - '({} | rate()) >= 100 * 3'
+  - '({} | rate()) < 1 + 2'
+  - '({} | rate()) <= 1 - 2'
+  - '({} | rate()) - 2 * 20'
+  - '({} | rate()) + 100 / 3'
+  - '-2 - 20 / ({} | rate())'
+  - '100 / 3 + ({} | rate())'
+  - '5 + ({} | rate()) * 10'
+  - '(({} | rate()) * 100) + ({} | count_over_time())'
+  - '(100 * ({} | rate())) - (200 * ({} | rate()))'
   # second stage combined
   - '{} | rate() | topk(5) = 10'
   - '{} | rate() | topk(5) != 10'
@@ -273,6 +365,19 @@ parse_fails:
   - '({ true } | count()) && ({ true } | count()) = 1'
   - '({ true }) + ({ true }) = 1'
   - '({ true } | count()) + ({ true } | count())'
+  # scalar math requires wrapped metrics pipeline
+  - '5 + {} | rate()'
+  - '{} | rate() + 5'
+  # bare constant expression without metrics pipeline
+  - '2 * 3'
+  - '2 + 3'
+  - '2 - 3'
+  - '2 / 3'
+  - '3 = 2'
+  - '({} | rate()) % 10'
+  - '{ .foo = "a" } | 3 > 2'
+  # consecutive scalars without operator
+  - '({} | rate()) + 5 100'
   # todo: improve the following
   - '(by(namespace) | count()) > 2 * 2' # scalar expressions are currently not allowed in scalar pipelines
   - '(by(namespace) | count()) * 2 > 2'
@@ -293,6 +398,23 @@ parse_fails:
   # invalid metrics filter (comparison without metrics pipeline)
   - '{} > 10'
   - '{} == 10'
+  # invalid math expressions
+  - '({}) + ({})'
+  - '{} | rate() + {} | count_over_time()'
+  - '({} | rate()) % ({} | count_over_time())'
+  - '({} | rate()) ^ ({} | count_over_time())'
+  - '({} | rate()) ** ({} | count_over_time())'
+  - '({} | rate()) >> ({} | count_over_time())'
+  - '({} | rate()) << ({} | count_over_time())'
+  - '({} | rate()) * 100000000000000000000000000000' # overflow
+  # duration arithmetic
+  - '({} | rate()) > (10s * 2)'
+  - '({} | rate()) > (10s / 2)'
+  - '({} | rate()) > (10s + 5s)'
+  - '({} | rate()) > (10s * 10s)'
+  - '({} | rate()) * (10s * 2)'
+  - '({} | rate()) * 10s * 2'
+  - '({} | rate()) * 10s'
 
 # validate_fails parse correctly and return an error **besides unsupported** when calling .validate()
 validate_fails:
@@ -372,6 +494,11 @@ validate_fails:
   - '{} | compare({status=error}) >= 10'
   - '{} | compare({status=error}) < 10'
   - '{} | compare({status=error}) <= 10'
+  - '({} | compare({status=error})) + ({} | compare({status=error}))'
+  - '({} | compare({status=error})) - ({} | compare({status=error}))'
+  - '({} | compare({status=error})) / ({} | compare({status=error}))'
+  - '({} | compare({status=error})) * ({} | compare({status=error}))'
+
 
 # unsupported parse correctly and return an unsupported error when calling .validate()
 unsupported:
@@ -380,7 +507,6 @@ unsupported:
   - 'sum(.field) = min(.field)'
   - 'min(.field) + max(.field) > 1'
   - 'min(.field) + max(span:childCount) > max(duration) - min(.field)'
-  - 'min(span:childCount) < 2 / 6'
   - 'max(1 - (2 + .field)) < avg(3 * duration ^ 2)'
   # aggregates - will be valid when supported
   - '{ true } | max(parent.a) = 1'
@@ -403,9 +529,6 @@ unsupported:
   - '({ true } | count()) * ({ true } | count()) < ({ true } | count()) / ({ true } | count())'
   - '({ .http.status = 200 } | count()) + ({ name = `foo` } | avg(duration)) = 2'
   - '({ .a } | count()) > ({ .b } | count())'
-  # other scalar filters. no idea if these should be supported
-  - '3 = 2'                       # naked scalar filter, technically allowed
-  - 'avg(.field) > 1 - 3'         # scalar expressions in scalar filters are currently not allowed. possible future addition
 
 # parsed and the ast is dumped to stdout. this is a debugging tool
 dump:

@@ -45,7 +45,7 @@ services:
       - "3000:3000"
      
   vulture:
-    image: grafana/tempo-vulture:latest
+    image: "grafana/tempo-vulture:${TEMPO_IMAGE_TAG:-3.0.0}"
     restart: always
     command:
       [

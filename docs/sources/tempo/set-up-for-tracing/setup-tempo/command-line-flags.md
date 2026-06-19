@@ -67,6 +67,18 @@ Refer to the [Plan your Tempo deployment](../plan/) documentation for informatio
 | `--enable-go-runtime-metrics` | Set to true to enable all Go runtime metrics | `false` |
 | `--shutdown-delay` | How long to wait between SIGTERM and shutdown. After receiving SIGTERM, Tempo reports not-ready status via the `/ready` endpoint. | `0` |
 
+## Span profiling
+
+| Flag | Description | Default |
+| --- | --- | --- |
+| `--span-profiling` | Enable span profiling via `otelpyroscope`. When enabled, Tempo attaches pprof goroutine labels (`span_id`, `span_name`) to OTel spans and adds a `pyroscope.profile.id` attribute to root spans, enabling profile-to-trace correlation in Pyroscope. Requires an OTLP exporter to be configured through environment variables (`OTEL_TRACES_EXPORTER`, `OTEL_EXPORTER_OTLP_ENDPOINT`, or `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`). | `false` |
+
+You can also set this option in the configuration file:
+
+```yaml
+span_profiling: true
+```
+
 ## Health check
 
 | Flag | Description | Default |
@@ -74,7 +86,7 @@ Refer to the [Plan your Tempo deployment](../plan/) documentation for informatio
 | `--health` | Run a health check against the `/ready` endpoint and exit. Returns exit code `0` if healthy, `1` if unhealthy. | `false` |
 | `--health.url` | URL to check when running a health check | `http://localhost:3200/ready` |
 
-The Tempo container image uses a [distroless base image](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/upgrade/#busybox-removed-from-tempo-image) that doesn't include a shell, `curl`, `wget`, or other utilities. This means the common Docker health check pattern `HEALTHCHECK CMD curl -f http://localhost:3200/ready` doesn't work.
+The Tempo container image uses a [distroless base image](/docs/tempo/<TEMPO_VERSION>/release-notes/version-2/v2-10/#busybox-removed-from-tempo-image) that doesn't include a shell, `curl`, `wget`, or other utilities. This means the common Docker health check pattern `HEALTHCHECK CMD curl -f http://localhost:3200/ready` doesn't work.
 
 The `--health` flag provides a native alternative. It doesn't require a Tempo configuration file, so it can be used directly in a `HEALTHCHECK` instruction:
 

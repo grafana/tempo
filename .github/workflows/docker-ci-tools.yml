@@ -8,9 +8,9 @@ on:
       - 'tools/**'
 
 env:
-  IMAGE_NAME: grafana/tempo-ci-tools
+  IMAGE_NAME: us-docker.pkg.dev/grafanalabs-global/dockerhub-tempo-prod-mirror/tempo-ci-tools
 
-# Needed to login to DockerHub
+# Needed to authenticate to GAR with OIDC.
 permissions:
   contents: read
 
@@ -23,7 +23,7 @@ jobs:
       tag: ${{ steps.get-tag.outputs.tag }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
 
@@ -39,51 +39,57 @@ jobs:
         runner_arch: [ { runner: ubuntu-24.04, arch: amd64 }, { runner: github-hosted-ubuntu-arm64, arch: arm64 } ]
     runs-on: ${{ matrix.runner_arch.runner }}
     permissions:
+      contents: read
       id-token: write
     env:
       TAG: ${{ needs.get-image-tag.outputs.tag }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
 
-      - name: Login to DockerHub
-        uses: grafana/shared-workflows/actions/dockerhub-login@081a366728379fd0426b9cfef190e9a21c2d5418 # dockerhub-login/v1.0.3
+      - name: Login to GAR
+        uses: grafana/shared-workflows/actions/login-to-gar@1f541877ceb22c7be7667d8a8df04984aeac9f9d # login-to-gar/v1.0.3
+        with:
+          registry: us-docker.pkg.dev
 
       - name: docker-build-and-push
         run: |
           TAG_ARCH="$TAG-${{ matrix.runner_arch.arch }}"
-          docker build -f tools/Dockerfile -t $IMAGE_NAME:$TAG_ARCH .
-          docker push $IMAGE_NAME:$TAG_ARCH
+          docker build -f tools/Dockerfile -t "$IMAGE_NAME:$TAG_ARCH" .
+          docker push "$IMAGE_NAME:$TAG_ARCH"
 
   manifest:
     if: github.repository == 'grafana/tempo'
     needs: ['get-image-tag', 'docker-ci-tools']
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       id-token: write
     env:
       TAG: ${{ needs.get-image-tag.outputs.tag }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
 
-      - name: Login to DockerHub
-        uses: grafana/shared-workflows/actions/dockerhub-login@081a366728379fd0426b9cfef190e9a21c2d5418 # dockerhub-login/v1.0.3
+      - name: Login to GAR
+        uses: grafana/shared-workflows/actions/login-to-gar@1f541877ceb22c7be7667d8a8df04984aeac9f9d # login-to-gar/v1.0.3
+        with:
+          registry: us-docker.pkg.dev
 
       - name: docker-manifest-create-and-push
         run: |
           docker manifest create \
-          	$IMAGE_NAME:$TAG               \
-          	--amend $IMAGE_NAME:$TAG-amd64  \
-          	--amend $IMAGE_NAME:$TAG-arm64 
-          docker manifest push $IMAGE_NAME:$TAG
+          	"$IMAGE_NAME:$TAG"               \
+          	--amend "$IMAGE_NAME:$TAG-amd64"  \
+          	--amend "$IMAGE_NAME:$TAG-arm64"
+          docker manifest push "$IMAGE_NAME:$TAG"
 
           docker manifest create \
-          	$IMAGE_NAME:latest            \
-          	--amend $IMAGE_NAME:$TAG-amd64   \
-          	--amend $IMAGE_NAME:$TAG-arm64
-          docker manifest push $IMAGE_NAME:latest
+          	"$IMAGE_NAME:latest"              \
+          	--amend "$IMAGE_NAME:$TAG-amd64"   \
+          	--amend "$IMAGE_NAME:$TAG-arm64"
+          docker manifest push "$IMAGE_NAME:latest"

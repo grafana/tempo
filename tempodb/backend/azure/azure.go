@@ -154,10 +154,15 @@ func (rw *Azure) CloseAppend(context.Context, backend.AppendTracker) error {
 
 func (rw *Azure) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ *backend.CacheInfo) error {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+	return rw.deleteRaw(ctx, backend.ObjectFileName(keypath, name))
+}
 
-	blobClient, err := getBlobClient(ctx, rw.cfg, backend.ObjectFileName(keypath, name))
+// deleteRaw deletes a blob using its fully-qualified path verbatim. The caller
+// must include the configured prefix.
+func (rw *Azure) deleteRaw(ctx context.Context, path string) error {
+	blobClient, err := getBlobClient(ctx, rw.cfg, path)
 	if err != nil {
-		return fmt.Errorf("cannot get Azure blob client, name: %s: %w", backend.ObjectFileName(keypath, name), err)
+		return fmt.Errorf("cannot get Azure blob client, name: %s: %w", path, err)
 	}
 
 	snapshotType := blob.DeleteSnapshotsOptionTypeInclude
@@ -365,8 +370,7 @@ func (rw *Azure) WriteVersioned(ctx context.Context, name string, keypath backen
 }
 
 func (rw *Azure) DeleteVersioned(ctx context.Context, name string, keypath backend.KeyPath, version backend.Version) error {
-	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
-
+	// ReadVersioned and Delete both add the configured prefix; pre-prefixing here would double it.
 	// TODO use conditional if-match API
 	_, currentVersion, err := rw.ReadVersioned(ctx, name, keypath)
 	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {

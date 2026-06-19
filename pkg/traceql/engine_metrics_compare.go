@@ -18,6 +18,7 @@ const (
 	// internalLabelBaseline      = "__baseline"
 	internalLabelError         = "__meta_error"
 	internalErrorTooManyValues = "__too_many_values__"
+	maxCompareTopN             = 1000
 )
 
 var (
@@ -322,8 +323,8 @@ func (m *MetricsCompare) validate() error {
 		return err
 	}
 
-	if m.topN <= 0 {
-		return fmt.Errorf("compare() top number of values must be integer greater than 0")
+	if m.topN <= 0 || m.topN > maxCompareTopN {
+		return fmt.Errorf("compare() top number of values must be an integer between 1 and %d", maxCompareTopN)
 	}
 
 	if m.start == 0 && m.end == 0 {
@@ -343,7 +344,11 @@ func (m *MetricsCompare) String() string {
 	return "compare(" + m.f.String() + "}"
 }
 
-var _ firstStageElement = (*MetricsCompare)(nil)
+var (
+	_ firstStageElement = (*MetricsCompare)(nil)
+	_ spanProcessor     = (*MetricsCompare)(nil)
+	_ seriesProcessor   = (*MetricsCompare)(nil)
+)
 
 // BaselineAggregator is a special series combiner for the compare() function.
 // It resplits job-level results into baseline and selection buffers, and if

@@ -35,6 +35,12 @@ type Config struct {
 	// A list of regexes for black listing requests, these will apply for every request regardless the endpoint
 	URLDenyList []string `yaml:"url_deny_list,omitempty"`
 
+	// The maximum size of a response message returned over gRPC streaming calls.
+	// Diffs and final responses will be segmented into packets of this size.
+	// This is separate from the max grpc packet server response size for the process overall,
+	// because we may need to target smaller responses for downstream clients.
+	MaxGRPCStreamingPacketSize int `yaml:"max_grpc_streaming_packet_size,omitempty"`
+
 	// Maximum allowed size of the raw TraceQL Query expression in bytes
 	MaxQueryExpressionSizeBytes int `yaml:"max_query_expression_size_bytes,omitempty"`
 
@@ -46,6 +52,10 @@ type Config struct {
 
 	// QueryEndCutoff prevents querying incomplete recent data.
 	QueryEndCutoff time.Duration `yaml:"query_end_cutoff,omitempty"`
+
+	// SkipASTTransformations is a list of AST transformation names to disable globally.
+	// Valid names: "or_to_in". Use "all" to disable all transformations.
+	SkipASTTransformations []string `yaml:"skip_ast_transformations,omitempty"`
 }
 
 type MCPServerConfig struct {
@@ -62,6 +72,7 @@ type SearchConfig struct {
 type TraceByIDConfig struct {
 	QueryShards      int       `yaml:"query_shards,omitempty"`
 	ConcurrentShards int       `yaml:"concurrent_shards,omitempty"`
+	BlocksPerShard   uint      `yaml:"blocks_per_shard,omitempty"` // BlocksPerShard is used to dynamically create shards based on the number of blocks instead of the fixed amount in QueryShards. Set to 0 to disable and fall back to QueryShards.
 	SLO              SLOConfig `yaml:",inline"`
 	ExternalEnabled  bool      `yaml:"external_enabled,omitempty"`
 }
@@ -87,6 +98,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Config.MaxBatchSize = 7
 	cfg.MaxRetries = 2
 	cfg.ResponseConsumers = 10
+	cfg.MaxGRPCStreamingPacketSize = 2 * 1024 * 1024 // 2MB
 	cfg.Search = SearchConfig{
 		Sharder: SearchSharderConfig{
 			QueryBackendAfter:      15 * time.Minute,
@@ -103,8 +115,9 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 		SLO: slo,
 	}
 	cfg.TraceByID = TraceByIDConfig{
-		QueryShards: 50,
-		SLO:         slo,
+		QueryShards:    50,
+		BlocksPerShard: 30, // This is a good default for most workloads, found by surveying production deployments.
+		SLO:            slo,
 	}
 	cfg.Metrics = MetricsConfig{
 		Sharder: QueryRangeSharderConfig{
@@ -131,6 +144,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	// enable multi tenant queries by default
 	cfg.MultiTenantQueriesEnabled = true
 	cfg.Metrics.MaxIntervals = 10_000
+
+	cfg.QueryEndCutoff = 30 * time.Second
 
 	// enabling an mcp server opens the door to send tracing data to an LLM. it should require
 	// explicit enabling. registers a flag in addition to YAML configuration.

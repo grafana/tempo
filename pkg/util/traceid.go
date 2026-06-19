@@ -30,14 +30,25 @@ func PadTraceIDString(id string) string {
 
 // TraceIDToHexString converts a trace ID to its string representation and removes any leading zeros.
 func TraceIDToHexString(byteID []byte) string {
-	dst := make([]byte, hex.EncodedLen(len(byteID)))
+	encodedLen := hex.EncodedLen(len(byteID))
+	if encodedLen == 0 {
+		return ""
+	}
+	// Fast path: trace IDs are <=16 bytes (32 hex chars). Encode into a stack
+	// buffer and only heap-allocate the trimmed result.
+	if encodedLen <= 32 {
+		var buf [32]byte
+		hex.Encode(buf[:encodedLen], byteID)
+		for i := 0; i < encodedLen; i++ {
+			if buf[i] != '0' {
+				return string(buf[i:encodedLen])
+			}
+		}
+		return ""
+	}
+	dst := make([]byte, encodedLen)
 	hex.Encode(dst, byteID)
-	// fast conversion to string
-	p := unsafe.SliceData(dst)
-	id := unsafe.String(p, len(dst))
-	// remove leading zeros
-	id = strings.TrimLeft(id, "0")
-	return id
+	return strings.TrimLeft(string(dst), "0")
 }
 
 // SpanIDToHexString converts a span ID to its string representation and WITHOUT removing any leading zeros.

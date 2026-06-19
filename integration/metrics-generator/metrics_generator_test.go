@@ -24,6 +24,7 @@ const (
 	configMetricsGenerator                = "config-remote-write.yaml"
 	configMetricsGeneratorTargetInfo      = "config-targetinfo.yaml"
 	configMetricsGeneratorMessagingSystem = "config-messaging-system.yaml"
+	configMetricsGeneratorConnectionInfo  = "config-connection-info.yaml"
 )
 
 func TestMetricsGeneratorSingleBinaryPushesInProcess(t *testing.T) {
@@ -39,8 +40,8 @@ func TestMetricsGeneratorSingleBinaryPushesInProcess(t *testing.T) {
 		tempo := h.Services[util.ServiceMetricsGenerator]
 		// In single-binary mode the generator receives spans in-process and should
 		// not consume from Kafka.
-		require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(float64(0)), "tempo_metrics_generator_enqueue_time_seconds_total"))
-		require.NoError(t, tempo.WaitSumMetrics(e2e.GreaterOrEqual(1), "tempo_metrics_generator_spans_received_total"))
+		require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(float64(0)), []string{"tempo_metrics_generator_enqueue_time_seconds_total"}, e2e.WaitMissingMetrics))
+		require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(1), []string{"tempo_metrics_generator_spans_received_total"}, e2e.WaitMissingMetrics))
 	})
 }
 
@@ -208,6 +209,74 @@ func TestMetricsGeneratorRemoteWrite(t *testing.T) {
 		assert.NoError(t, metricsGenerator.WaitSumMetrics(e2e.Equals(25), "tempo_metrics_generator_registry_active_series"))
 		assert.NoError(t, metricsGenerator.WaitSumMetrics(e2e.Equals(1000), "tempo_metrics_generator_registry_max_active_series"))
 		assert.NoError(t, metricsGenerator.WaitSumMetrics(e2e.Equals(25), "tempo_metrics_generator_registry_series_added_total"))
+	})
+}
+
+func TestMetricsGeneratorConnectionInfo(t *testing.T) {
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
+		ConfigOverlay: configMetricsGeneratorConnectionInfo,
+		Components:    util.ComponentsMetricsGeneration,
+	}, func(h *util.TempoHarness) {
+		h.WaitTracesWritable(t)
+
+		// Send a single client/server span pair.
+		r := rand.New(rand.NewSource(time.Now().UnixMilli()))
+		traceIDLow := r.Int63()   // nolint:gosec // G404
+		traceIDHigh := r.Int63()  // nolint:gosec // G404
+		parentSpanID := r.Int63() // nolint:gosec // G404
+
+		require.NoError(t, h.WriteJaegerBatch(&thrift.Batch{
+			Process: &thrift.Process{ServiceName: "lb"},
+			Spans: []*thrift.Span{
+				{
+					TraceIdLow:    traceIDLow,
+					TraceIdHigh:   traceIDHigh,
+					SpanId:        parentSpanID,
+					ParentSpanId:  0,
+					OperationName: "lb-get",
+					StartTime:     time.Now().UnixMicro(),
+					Duration:      int64(2 * time.Second / time.Microsecond),
+					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("client")}},
+				},
+			},
+		}, ""))
+
+		require.NoError(t, h.WriteJaegerBatch(&thrift.Batch{
+			Process: &thrift.Process{ServiceName: "app"},
+			Spans: []*thrift.Span{
+				{
+					TraceIdLow:    traceIDLow,
+					TraceIdHigh:   traceIDHigh,
+					SpanId:        r.Int63(), // nolint:gosec // G404
+					ParentSpanId:  parentSpanID,
+					OperationName: "app-handle",
+					StartTime:     time.Now().UnixMicro(),
+					Duration:      int64(1 * time.Second / time.Microsecond),
+					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
+				},
+			},
+		}, ""))
+
+		// Wait for connection_info specifically — it's only present once the gauge is remote-written.
+		var metricFamilies map[string]*io_prometheus_client.MetricFamily
+		var err error
+		for {
+			metricFamilies, err = extractMetricsFromPrometheus(h.Services[util.ServicePrometheus], `traces_service_graph_connection_info`)
+			require.NoError(t, err)
+			if _, ok := metricFamilies["traces_service_graph_connection_info"]; ok {
+				break
+			}
+			time.Sleep(time.Second)
+		}
+
+		lbls := []string{"client", "lb", "server", "app"}
+		// Gauge held at 1 per active edge.
+		assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_service_graph_connection_info", lbls))
+
+		// Sanity: RED metrics also still emit (bare service-graphs + sub-name is additive).
+		redMetrics, err := extractMetricsFromPrometheus(h.Services[util.ServicePrometheus], `traces_service_graph_request_total`)
+		require.NoError(t, err)
+		assert.Equal(t, 1.0, sumValues(redMetrics, "traces_service_graph_request_total", lbls))
 	})
 }
 

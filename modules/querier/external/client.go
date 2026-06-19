@@ -3,6 +3,7 @@ package external
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -33,9 +34,10 @@ var metricExternalRequestDuration = promauto.NewHistogramVec(prometheus.Histogra
 type Client struct {
 	httpClient  *http.Client
 	externalURL *url.URL
+	maxBytes    int
 }
 
-func NewClient(endpoint string, timeout time.Duration) (*Client, error) {
+func NewClient(endpoint string, timeout time.Duration, maxBytes int) (*Client, error) {
 	externalURL, err := url.Parse(endpoint)
 	if err != nil {
 		return nil, fmt.Errorf("invalid external endpoint URL: %w", err)
@@ -47,13 +49,13 @@ func NewClient(endpoint string, timeout time.Duration) (*Client, error) {
 			Transport: otelhttp.NewTransport(http.DefaultTransport),
 		},
 		externalURL: externalURL,
+		maxBytes:    maxBytes,
 	}, nil
 }
 
-// TraceByID forwards a trace-by-ID v2 request to the external endpoint
-// traceID is the trace ID to query
-// startTime and endTime are Unix timestamps in seconds (0 means not specified)
-func (c *Client) TraceByID(ctx context.Context, userID string, traceID []byte, startTime, endTime int64) (*tempopb.TraceByIDResponse, error) {
+// TraceByID forwards a trace-by-ID v2 request to the external endpoint.
+// Zero-value times are treated as "not specified".
+func (c *Client) TraceByID(ctx context.Context, userID string, traceID []byte, startTime, endTime time.Time) (*tempopb.TraceByIDResponse, error) {
 	start := time.Now()
 	statusCode := "error"
 	defer func() {
@@ -64,11 +66,11 @@ func (c *Client) TraceByID(ctx context.Context, userID string, traceID []byte, s
 
 	// Add query parameters for start/end times
 	q := path.Query()
-	if startTime != 0 {
-		q.Set("start", strconv.FormatInt(startTime, 10))
+	if !startTime.IsZero() {
+		q.Set("start", strconv.FormatInt(startTime.Unix(), 10))
 	}
-	if endTime != 0 {
-		q.Set("end", strconv.FormatInt(endTime, 10))
+	if !endTime.IsZero() {
+		q.Set("end", strconv.FormatInt(endTime.Unix(), 10))
 	}
 	path.RawQuery = q.Encode()
 
@@ -89,9 +91,12 @@ func (c *Client) TraceByID(ctx context.Context, userID string, traceID []byte, s
 	// Set the status code for the metric tracking in defer
 	statusCode = strconv.Itoa(resp.StatusCode)
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(http.MaxBytesReader(nil, resp.Body, int64(c.maxBytes)))
 	if err != nil {
-		return nil, fmt.Errorf("failed to read external response body: %w", err)
+		if tooLarge, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			return nil, fmt.Errorf("external response exceeds %d byte limit: %w", tooLarge.Limit, err)
+		}
+		return nil, fmt.Errorf("read external response: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {

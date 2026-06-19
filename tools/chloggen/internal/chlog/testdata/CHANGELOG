@@ -1,0 +1,32 @@
+
+## 1.0
+
+### 🛑 Breaking changes 🛑
+
+- `foo`: broke foo (#123)
+- `bar`: broke bar (#345, #678)
+  more details
+
+### 🚩 Deprecations 🚩
+
+- `foo`: deprecate foo (#1234)
+- `bar`: deprecate bar (#3456, #6789)
+  more details
+
+### 🚀 New components 🚀
+
+- `foo`: new foo (#2)
+- `bar`: new bar (#4, #7)
+  more details
+
+### 💡 Enhancements 💡
+
+- `foo`: enhance foo (#12)
+- `bar`: enhance bar (#34, #67)
+  more details
+
+### 🧰 Bug fixes 🧰
+
+- `foo`: bug foo (#1)
+- `bar`: bug bar (#3, #6)
+  more details

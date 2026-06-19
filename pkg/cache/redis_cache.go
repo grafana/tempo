@@ -7,28 +7,30 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/go-redis/redis/v8"
 	instr "github.com/grafana/dskit/instrument"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
 // RedisCache type caches chunks in redis
 type RedisCache struct {
-	name            string
-	redis           *RedisClient
-	logger          log.Logger
-	requestDuration *instr.HistogramCollector
+	name             string
+	redis            *RedisClient
+	logger           log.Logger
+	requestDuration  *instr.HistogramCollector
+	maxItemSizeBytes int
 }
 
 // NewRedisCache creates a new RedisCache
-func NewRedisCache(name string, redisClient *RedisClient, reg prometheus.Registerer, logger log.Logger) *RedisCache {
+func NewRedisCache(name string, redisClient *RedisClient, maxItemSizeBytes int, reg prometheus.Registerer, logger log.Logger) *RedisCache {
 	cache := &RedisCache{
-		name:   name,
-		redis:  redisClient,
-		logger: logger,
+		name:             name,
+		redis:            redisClient,
+		logger:           logger,
+		maxItemSizeBytes: maxItemSizeBytes,
 		requestDuration: instr.NewHistogramCollector(
 			promauto.With(reg).NewHistogramVec(prometheus.HistogramOpts{
 				Namespace:                       "tempo",
@@ -49,10 +51,13 @@ func NewRedisCache(name string, redisClient *RedisClient, reg prometheus.Registe
 }
 
 func redisStatusCode(err error) string {
-	// TODO: Figure out if there are more error types returned by Redis
-	switch err {
-	case nil:
+	switch {
+	case err == nil:
 		return "200"
+	case errors.Is(err, redis.Nil):
+		return "404"
+	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
+		return "504"
 	default:
 		return "500"
 	}
@@ -120,10 +125,25 @@ func (c *RedisCache) FetchKey(ctx context.Context, key string) (buf []byte, foun
 
 // Store stores the key in the cache.
 func (c *RedisCache) Store(ctx context.Context, keys []string, bufs [][]byte) {
-	err := c.redis.MSet(ctx, keys, bufs)
-	if err != nil {
-		level.Error(c.logger).Log("msg", "failed to put to redis", "name", c.name, "err", err)
-	}
+	_ = measureRequest(ctx, "RedisCache.MSet", c.requestDuration, redisStatusCode, func(ctx context.Context) error {
+		err := c.redis.MSet(ctx, keys, bufs)
+		if err != nil {
+			level.Error(c.logger).Log("msg", "failed to put to redis", "name", c.name, "err", err)
+		}
+		return err
+	})
+}
+
+// Remove deletes the given keys from the cache.
+func (c *RedisCache) Remove(ctx context.Context, keys []string) {
+	_ = measureRequest(ctx, "RedisCache.Del", c.requestDuration, redisStatusCode, func(ctx context.Context) error {
+		t := trace.SpanFromContext(ctx)
+		err := c.redis.Del(ctx, keys)
+		if err == nil {
+			t.AddEvent(eventKeysRemoved, trace.WithAttributes(attribute.Int("keys", len(keys))))
+		}
+		return err
+	})
 }
 
 // Stop stops the redis client.
@@ -135,7 +155,6 @@ func (c *RedisCache) Release(_ []byte) {
 	// buffer pooling unimplemented in redis
 }
 
-// redis doesn't have a max item size. todo: add
 func (c *RedisCache) MaxItemSize() int {
-	return 0
+	return c.maxItemSizeBytes
 }

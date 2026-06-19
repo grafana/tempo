@@ -55,10 +55,7 @@ var KindMapping = map[string]int{
 
 // openForSearch consolidates all the logic for opening a parquet file
 func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOptions) (*parquet.File, *BackendReaderAt, error) {
-	b.openMtx.Lock()
-	defer b.openMtx.Unlock()
-
-	// TODO: ctx is also cached when we cache backendReaderAt, not ideal but leaving it as is for now
+	// openForSearch creates a fresh BackendReaderAt for each call using the provided context.
 	backendReaderAt := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta)
 
 	schema, _, _ := SchemaWithDynamicChanges(b.meta.DedicatedColumns)
@@ -133,7 +130,19 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 	for k, v := range req.Tags {
 		// dedicated attribute columns
 		if c, ok := spanAndResourceColumnMapping.get(k); ok {
-			resourceIters = append(resourceIters, makeIter(c.ColumnPath, pq.NewSubstringPredicate(v), ""))
+			switch c.Type {
+			case backend.DedicatedColumnTypeInt:
+				if i, err := strconv.ParseInt(v, 10, 64); err == nil {
+					// Column is integer and so is input, do integer comparison.
+					resourceIters = append(resourceIters, makeIter(c.ColumnPath, pq.NewIntEqualPredicate(i), ""))
+				} else {
+					// Column is integer but input is not, so fallback to the generic string handling.
+					otherAttrConditions[k] = v
+					continue
+				}
+			case backend.DedicatedColumnTypeString:
+				resourceIters = append(resourceIters, makeIter(c.ColumnPath, pq.NewSubstringPredicate(v), ""))
+			}
 			continue
 		}
 
@@ -147,8 +156,8 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 		// most columns are just a substring predicate over the column, but we have
 		// special handling for http status code and span status
 		if k == LabelHTTPStatusCode {
-			if i, err := strconv.Atoi(v); err == nil {
-				resourceIters = append(resourceIters, makeIter(column, pq.NewIntBetweenPredicate(int64(i), int64(i)), ""))
+			if i, err := strconv.ParseInt(v, 10, 64); err == nil {
+				resourceIters = append(resourceIters, makeIter(column, pq.NewIntBetweenPredicate(i, i), ""))
 				continue
 			}
 			// Non-numeric string field

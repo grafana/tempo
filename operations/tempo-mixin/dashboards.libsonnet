@@ -10,5 +10,6 @@
       _config:: $._config,
       'tempo-operational.json': import './dashboards/tempo-operational.json',
       'tempo-backendwork.json': import './dashboards/tempo-backendwork.json',
+      'tempo-service-graph.json': import './dashboards/tempo-service-graph.json',
     },
 }

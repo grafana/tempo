@@ -14,6 +14,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
+	"github.com/grafana/tempo/pkg/util/listtomap"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/assert"
 )
@@ -305,13 +306,32 @@ func Test_overridesValidator(t *testing.T) {
 			cfg:  Config{},
 			limits: client.Limits{
 				MetricsGenerator: client.LimitsMetricsGenerator{
-					Processors: map[string]struct{}{
+					Processors: &listtomap.ListToMap{
 						"service-graphs": {},
 						"span-span":      {},
 					},
 				},
 			},
 			expErr: fmt.Sprintf("metrics_generator.processor \"span-span\" is not a known processor, valid values: %v", validation.SupportedProcessors),
+		},
+		{
+			name: "metrics_generator.processor - all supported names including sub-names",
+			cfg:  Config{},
+			limits: client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					Processors: &listtomap.ListToMap{
+						processor.ServiceGraphsName:               {},
+						processor.ServiceGraphsRequestName:        {},
+						processor.ServiceGraphsLatencyName:        {},
+						processor.ServiceGraphsConnectionInfoName: {},
+						processor.SpanMetricsName:                 {},
+						processor.SpanMetricsCountName:            {},
+						processor.SpanMetricsLatencyName:          {},
+						processor.SpanMetricsSizeName:             {},
+						processor.HostInfoName:                    {},
+					},
+				},
+			},
 		},
 		{
 			name: "filter policies",

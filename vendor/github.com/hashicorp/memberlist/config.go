@@ -118,6 +118,12 @@ type Config struct {
 	// usage.
 	PushPullInterval time.Duration
 
+	// PushPullNodes is the number of random nodes to perform complete state
+	// syncs with per PushPullInterval. Increasing this number will increase
+	// convergence speeds across larger clusters at the expense of increased
+	// bandwidth usage. Setting this to 0 will use the default of 1.
+	PushPullNodes int
+
 	// ProbeInterval and ProbeTimeout are used to configure probing
 	// behavior for memberlist.
 	//
@@ -179,6 +185,13 @@ type Config struct {
 	// be used to reduce bandwidth usage at the cost of slightly more CPU
 	// utilization. This is only available starting at protocol version 1.
 	EnableCompression bool
+
+	// CompressionAlgorithm selects which algorithm is used to compress
+	// outgoing messages when EnableCompression is true. Defaults to LZW for
+	// backward compatibility. Receivers always decode every algorithm they
+	// understand independently of this setting; senders only emit one.
+	// Empty string is treated as LZW.
+	CompressionAlgorithm CompressionAlgorithm
 
 	// SecretKey is used to initialize the primary encryption key in a keyring.
 	// The primary encryption key is the only key used to encrypt messages and
@@ -294,6 +307,11 @@ func ParseCIDRs(v []string) ([]net.IPNet, error) {
 	return nets, errs
 }
 
+// defaultUDPBufferSize is the default value used for Config.UDPBufferSize.
+// 1400 bytes leaves comfortable headroom under the standard 1500-byte
+// Ethernet MTU once IP/UDP headers are accounted for.
+const defaultUDPBufferSize = 1400
+
 // DefaultLANConfig returns a sane set of configurations for Memberlist.
 // It uses the hostname as the node name, and otherwise sets very conservative
 // values that are sane for most LAN environments. The default configuration
@@ -315,6 +333,7 @@ func DefaultLANConfig() *Config {
 		SuspicionMult:           4,                      // Suspect a node for 4 * log(N+1) * Interval
 		SuspicionMaxTimeoutMult: 6,                      // For 10k nodes this will give a max timeout of 120 seconds
 		PushPullInterval:        30 * time.Second,       // Low frequency
+		PushPullNodes:           1,                      // Push/pull with a single node
 		ProbeTimeout:            500 * time.Millisecond, // Reasonable RTT time for LAN
 		ProbeInterval:           1 * time.Second,        // Failure check every second
 		DisableTcpPings:         false,                  // TCP pings are safe, even with mixed versions
@@ -326,7 +345,8 @@ func DefaultLANConfig() *Config {
 		GossipVerifyIncoming: true,
 		GossipVerifyOutgoing: true,
 
-		EnableCompression: true, // Enable compression by default
+		EnableCompression:    true, // Enable compression by default
+		CompressionAlgorithm: CompressionAlgorithmLZW,
 
 		SecretKey: nil,
 		Keyring:   nil,
@@ -334,7 +354,7 @@ func DefaultLANConfig() *Config {
 		DNSConfigPath: "/etc/resolv.conf",
 
 		HandoffQueueDepth: 1024,
-		UDPBufferSize:     1400,
+		UDPBufferSize:     defaultUDPBufferSize,
 		CIDRsAllowed:      nil, // same as allow all
 
 		QueueCheckInterval: 30 * time.Second,
@@ -349,6 +369,7 @@ func DefaultWANConfig() *Config {
 	conf.TCPTimeout = 30 * time.Second
 	conf.SuspicionMult = 6
 	conf.PushPullInterval = 60 * time.Second
+	conf.PushPullNodes = 1
 	conf.ProbeTimeout = 3 * time.Second
 	conf.ProbeInterval = 5 * time.Second
 	conf.GossipNodes = 4 // Gossip less frequently, but to an additional node
@@ -385,6 +406,7 @@ func DefaultLocalConfig() *Config {
 	conf.RetransmitMult = 2
 	conf.SuspicionMult = 3
 	conf.PushPullInterval = 15 * time.Second
+	conf.PushPullNodes = 1
 	conf.ProbeTimeout = 200 * time.Millisecond
 	conf.ProbeInterval = time.Second
 	conf.GossipInterval = 100 * time.Millisecond

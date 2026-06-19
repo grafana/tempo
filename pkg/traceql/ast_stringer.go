@@ -9,14 +9,9 @@ import (
 
 func (r RootExpr) String() string {
 	s := strings.Builder{}
-	s.WriteString(r.Pipeline.String())
-	if r.MetricsPipeline != nil {
-		s.WriteString(" | ")
-		s.WriteString(r.MetricsPipeline.String())
-	}
-	if r.MetricsSecondStage != nil {
-		s.WriteString(r.MetricsSecondStage.String())
-	}
+
+	s.WriteString(r.expression.String())
+
 	if r.Hints != nil {
 		s.WriteString(" ")
 		s.WriteString(r.Hints.String())
@@ -153,6 +148,10 @@ func arrayToString[T any](array []T, quoted bool) string {
 	return s.String()
 }
 
+// attributeIdentEscaper escapes the only two metacharacters the TraceQL
+// parser recognises inside a quoted attribute identifier
+var attributeIdentEscaper = strings.NewReplacer(`\`, `\\`, `"`, `\"`)
+
 func (a Attribute) String() string {
 	scopes := []string{}
 	if a.Parent {
@@ -179,8 +178,9 @@ func (a Attribute) String() string {
 		scope += "."
 	}
 
-	if ContainsNonAttributeRune(att) {
-		att = "\"" + att + "\""
+	// does attr contain something that can't be emitted unquoted
+	if ContainsNonAttributeRune(att) || strings.ContainsRune(att, '"') {
+		att = `"` + attributeIdentEscaper.Replace(att) + `"`
 	}
 
 	return scope + att

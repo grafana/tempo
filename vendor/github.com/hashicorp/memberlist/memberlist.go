@@ -65,8 +65,8 @@ type Memberlist struct {
 	msgQueueLock         sync.Mutex
 
 	nodeLock   sync.RWMutex
-	nodes      []*nodeState          // Known nodes
-	nodeMap    map[string]*nodeState // Maps Node.Name -> NodeState
+	nodes      []*NodeState          // Known nodes
+	nodeMap    map[string]*NodeState // Maps Node.Name -> NodeState
 	nodeTimers map[string]*suspicion // Maps Node.Name -> suspicion timer
 	awareness  *awareness
 
@@ -84,6 +84,29 @@ type Memberlist struct {
 
 	// metricLabels is the slice of labels to put on all emitted metrics
 	metricLabels []metrics.Label
+
+	// compressionType is the wire-level algorithm tag derived from
+	// config.CompressionAlgorithm at construction time. Cached here so
+	// per-message send paths avoid string parsing.
+	compressionType compressionType
+
+	// compressMetricLabels is metricLabels + an "algo" label set to the
+	// configured compressionType. Precomputed at construction so the
+	// per-send compress hot path can pass it directly to
+	// metrics.IncrCounterWithLabels without rebuilding the slice on each
+	// call.
+	compressMetricLabels []metrics.Label
+
+	// compressSkippedSizeWorseLabels is compressMetricLabels + a
+	// reason label, precomputed so the size-skipped fallback path
+	// doesn't allocate when fired (incompressible
+	// payloads can hit this often enough to matter).
+	compressSkippedSizeWorseLabels []metrics.Label
+
+	// decompressLZWLabels and decompressSnappyLabels are metricLabels +
+	// an "algo" label set to the corresponding algorithm name.
+	decompressLZWLabels    []metrics.Label
+	decompressSnappyLabels []metrics.Label
 }
 
 // BuildVsnArray creates the array of Vsn
@@ -135,6 +158,11 @@ func newMemberlist(conf *Config) (*Memberlist, error) {
 	logger := conf.Logger
 	if logger == nil {
 		logger = log.New(logDest, "", log.LstdFlags)
+	}
+
+	typ, err := resolveCompressionType(conf.CompressionAlgorithm)
+	if err != nil {
+		return nil, err
 	}
 
 	// Set up a network transport by default if a custom one wasn't given
@@ -214,14 +242,16 @@ func newMemberlist(conf *Config) (*Memberlist, error) {
 		handoffCh:            make(chan struct{}, 1),
 		highPriorityMsgQueue: list.New(),
 		lowPriorityMsgQueue:  list.New(),
-		nodeMap:              make(map[string]*nodeState),
+		nodeMap:              make(map[string]*NodeState),
 		nodeTimers:           make(map[string]*suspicion),
 		awareness:            newAwareness(conf.AwarenessMaxMultiplier, conf.MetricLabels),
 		ackHandlers:          make(map[uint32]*ackHandler),
 		broadcasts:           &TransmitLimitedQueue{RetransmitMult: conf.RetransmitMult},
 		logger:               logger,
 		metricLabels:         conf.MetricLabels,
+		compressionType:      typ,
 	}
+	m.initCompressionMetricLabels()
 	m.broadcasts.NumNodes = func() int {
 		return m.estNumNodes()
 	}
@@ -774,7 +804,7 @@ func (m *Memberlist) getNodeStateChange(addr string) time.Time {
 	return n.StateChange
 }
 
-func (m *Memberlist) changeNode(addr string, f func(*nodeState)) {
+func (m *Memberlist) changeNode(addr string, f func(*NodeState)) {
 	m.nodeLock.Lock()
 	defer m.nodeLock.Unlock()
 

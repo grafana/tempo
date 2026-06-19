@@ -2,6 +2,7 @@ package forwarder
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -11,7 +12,6 @@ import (
 	dslog "github.com/grafana/dskit/log"
 	"github.com/grafana/dskit/services"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	"go.uber.org/multierr"
 
 	"github.com/grafana/tempo/modules/distributor/queue"
 	"github.com/grafana/tempo/modules/overrides"
@@ -199,7 +199,7 @@ func (m *Manager) shutdown() error {
 
 	m.forwarderNameToForwarder = make(map[string]Forwarder)
 
-	return multierr.Combine(errs...)
+	return errors.Join(errs...)
 }
 
 func (m *Manager) shutdownQueueList(tenantID string, ql *queueList) {
@@ -274,7 +274,7 @@ func (l *queueList) shutdown(ctx context.Context) error {
 		delete(l.forwarderNameToQueue, forwarderName)
 	}
 
-	return multierr.Combine(errs...)
+	return errors.Join(errs...)
 }
 
 type queueAdapter struct {

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/grafana/dskit/user"
 	"github.com/grafana/e2e"
 	"github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/pkg/model"
@@ -124,14 +125,6 @@ func TestBackendScheduler(t *testing.T) {
 			})
 		}
 
-		time.Sleep(8 * time.Second) // Wait for polling and measurement to catch up
-
-		// Capture the total blocks which have been written
-		totalBlocksPreCompactions, err := scheduler.SumMetrics([]string{"tempodb_blocklist_length"})
-		require.NoError(t, err)
-		require.Len(t, totalBlocksPreCompactions, 1, "expected only one blocklist length metric")
-		require.Equal(t, float64(totalBlocksWritten), totalBlocksPreCompactions[0], "expected total blocks to match the sum of all tenants")
-
 		// NOTE: the compaction provider has a channel capacity of 1, and the
 		// backendscheduler has a channel capacity of 1.  This means that the
 		// compaction provider can create 4 jobs before they are processed in the
@@ -156,6 +149,20 @@ func TestBackendScheduler(t *testing.T) {
 		expectedTotalOutstandingMin := totalOutstanding - 16
 		expectedTotalOutstandingMax := totalOutstanding - 8
 
+		// Wait for total blocklist length and outstanding blocks metrics to stabilize.
+		require.NoError(t, scheduler.WaitSumMetricsWithOptions(e2e.Equals(float64(totalBlocksWritten)), []string{"tempodb_blocklist_length"},
+			e2e.WaitMissingMetrics,
+		))
+		require.NoError(t, scheduler.WaitSumMetricsWithOptions(e2e.Between(float64(expectedTotalOutstandingMin), float64(expectedTotalOutstandingMax)), []string{"tempodb_compaction_outstanding_blocks"},
+			e2e.WaitMissingMetrics,
+		))
+
+		// Capture the total blocks which have been written
+		totalBlocksPreCompactions, err := scheduler.SumMetrics([]string{"tempodb_blocklist_length"})
+		require.NoError(t, err)
+		require.Len(t, totalBlocksPreCompactions, 1, "expected only one blocklist length metric")
+		require.Equal(t, float64(totalBlocksWritten), totalBlocksPreCompactions[0], "expected total blocks to match the sum of all tenants")
+
 		outstanding, err := scheduler.SumMetrics([]string{"tempodb_compaction_outstanding_blocks"})
 		require.NoError(t, err)
 		require.Len(t, outstanding, 1, "expected only one outstanding block metric")
@@ -169,25 +176,36 @@ func TestBackendScheduler(t *testing.T) {
 		// the worker starts processing jobs.
 		require.NoError(t, s.StartAndWaitReady(worker))
 
-		// Allow the worker some time to process the blocks.
-		// Wait until the last tenant has processed its blocks
+		// A fully compacted tenant should have between 1 and 4 blocks with 0 or 1 outstanding.
+		expectedMin := &expectations{
+			blocks:      1,
+			outstanding: 0,
+		}
 
+		expectedMax := &expectations{
+			blocks:      4,
+			outstanding: 1,
+		}
+
+		// Wait for the worker to compact each tenant's block count into the target range before
+		// stopping it. Only block count is checked here — the outstanding-blocks metric fluctuates
+		// continuously while the worker is running (new jobs are generated and assigned in a loop),
+		// so it is only meaningful to assert on it after the worker has been stopped.
 		for _, tenantID := range tenants {
 			t.Run(fmt.Sprintf("work-finished-check-wait-%s", tenantID), func(t *testing.T) {
 				tenantMatcher := e2e.WithLabelMatchers(&labels.Matcher{Type: labels.MatchEqual, Name: "tenant", Value: tenantID})
 
-				// We should have at least 1 block for each tenant
-				require.NoError(t, scheduler.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(1.0), []string{"tempodb_blocklist_length"},
+				t.Logf("Waiting for blocklist metric: %s: %d-%d", tenantID, expectedMin.blocks, expectedMax.blocks)
+
+				require.NoError(t, scheduler.WaitSumMetricsWithOptions(e2e.Between(float64(expectedMin.blocks), float64(expectedMax.blocks)), []string{"tempodb_blocklist_length"},
 					e2e.WaitMissingMetrics,
 					tenantMatcher,
-					printMetricValue(t, fmt.Sprintf("%f+", 1.0), "tempodb_blocklist_length"),
+					printMetricValue(t, fmt.Sprintf("%d-%d", expectedMin.blocks, expectedMax.blocks), "tempodb_blocklist_length"),
 				))
 			})
 		}
 
-		time.Sleep(5 * time.Second)
-
-		// Stop the worker to ensure it is not running while we check the metrics.
+		// Stop the worker now that all tenants have been compacted to the expected range.
 		require.NoError(t, s.Stop(worker))
 
 		// Require that all jobs which have been processed are not failed.
@@ -199,49 +217,11 @@ func TestBackendScheduler(t *testing.T) {
 		require.Len(t, totalBlocksPostCompactions, 1, "expected only one blocklist length metric")
 		require.Less(t, totalBlocksPostCompactions[0], totalBlocksPreCompactions[0], "expected total blocks to be less after compaction")
 
-		// Some variance in the number of expected due to the notes above.  We should
-		// expect that a fully compacted tenant has between 1 and 4 blocks, and
-		// between 0 and 1 outstanding blocks.  The sleep above should be enough to
-		// allow the worker to finish processing all the outstanding blocks.
-		expectedMin := &expectations{
-			blocks:      1,
-			outstanding: 0,
-		}
-
-		expectedMax := &expectations{
-			blocks:      4,
-			outstanding: 1,
-		}
-
-		for _, tenantID := range tenants {
-			t.Run(fmt.Sprintf("prestop-check-%s", tenantID), func(t *testing.T) {
-				tenantMatcher := e2e.WithLabelMatchers(&labels.Matcher{Type: labels.MatchEqual, Name: "tenant", Value: tenantID})
-
-				t.Logf("Waiting for blocklist metric: %s: %d-%d", tenantID, expectedMin.blocks, expectedMax.blocks)
-
-				require.NoError(t, scheduler.WaitSumMetricsWithOptions(e2e.Between(float64(expectedMin.blocks), float64(expectedMax.blocks)), []string{"tempodb_blocklist_length"},
-					e2e.WaitMissingMetrics,
-					tenantMatcher,
-					printMetricValue(t, fmt.Sprintf("%d-%d", expectedMin.blocks, expectedMax.blocks), "tempodb_blocklist_length"),
-				))
-
-				t.Logf("Waiting for outstanding blocks metric: %s: %d-%d", tenantID, expectedMin.outstanding, expectedMax.outstanding)
-
-				require.NoError(t, scheduler.WaitSumMetricsWithOptions(e2e.Between(float64(expectedMin.outstanding), float64(expectedMax.outstanding)), []string{"tempodb_compaction_outstanding_blocks"},
-					e2e.WaitMissingMetrics,
-					tenantMatcher,
-					printMetricValue(t, fmt.Sprintf("%d-%d", expectedMin.outstanding, expectedMax.outstanding), "tempodb_compaction_outstanding_blocks"),
-				))
-			})
-		}
-
 		// Stop and restart the scheduler to ensure we replay the state correctly.
 		// It should match the outstanding blocks above since we have not modified
 		// the backend.
 		require.NoError(t, s.Stop(scheduler))
 		require.NoError(t, s.StartAndWaitReady(scheduler, worker))
-
-		time.Sleep(2 * time.Second)
 
 		for _, tenantID := range tenants {
 			t.Run(fmt.Sprintf("final-check-%s", tenantID), func(t *testing.T) {
@@ -311,7 +291,7 @@ func TestBackendSchedulerRedaction(t *testing.T) {
 
 		// Verify the trace is findable before redaction by querying object storage directly.
 		tempodbReader.EnablePolling(ctx, nil, false)
-		trs, failedBlocks, err := tempodbReader.Find(ctx, testTenant, traceID, tempodb.BlockIDMin, tempodb.BlockIDMax, 0, 0, common.DefaultSearchOptions())
+		trs, failedBlocks, err := tempodbReader.Find(ctx, testTenant, traceID, tempodb.BlockIDMin, tempodb.BlockIDMax, time.Time{}, time.Time{}, common.DefaultSearchOptions())
 		require.NoError(t, err)
 		require.Empty(t, failedBlocks, "no blocks should fail lookup")
 		require.NotEmpty(t, trs, "trace must be findable in all blocks before redaction")
@@ -325,17 +305,22 @@ func TestBackendSchedulerRedaction(t *testing.T) {
 		defer conn.Close()
 		schedulerClient := tempopb.NewBackendSchedulerClient(conn)
 
+		// Build an authenticated context: inject the tenant into the outgoing gRPC metadata.
+		// With multitenancy_enabled, the scheduler's auth interceptor reads X-Scope-OrgID and
+		// sets the tenant in the handler context; the body tenant_id field is ignored.
+		tenantCtx := user.InjectOrgID(ctx, testTenant)
+		tenantCtx, err = user.InjectIntoGRPCRequest(tenantCtx)
+		require.NoError(t, err)
+
 		// Submit a redaction — expect one pending job per block.
-		resp, err := schedulerClient.SubmitRedaction(ctx, &tempopb.SubmitRedactionRequest{
-			TenantId: testTenant,
+		resp, err := schedulerClient.SubmitRedaction(tenantCtx, &tempopb.SubmitRedactionRequest{
 			TraceIds: [][]byte{traceID},
 		})
 		require.NoError(t, err)
 		require.Equal(t, int32(blockCount), resp.JobsCreated)
 
 		// A second submission for the same tenant must be rejected.
-		_, err = schedulerClient.SubmitRedaction(ctx, &tempopb.SubmitRedactionRequest{
-			TenantId: testTenant,
+		_, err = schedulerClient.SubmitRedaction(tenantCtx, &tempopb.SubmitRedactionRequest{
 			TraceIds: [][]byte{traceID},
 		})
 		require.Error(t, err)
@@ -364,7 +349,7 @@ func TestBackendSchedulerRedaction(t *testing.T) {
 		// of the lookback window and the trace is no longer findable.
 		require.Eventually(t, func() bool {
 			tempodbReader.PollNow(ctx)
-			trs, _, err = tempodbReader.Find(ctx, testTenant, traceID, tempodb.BlockIDMin, tempodb.BlockIDMax, 0, 0, common.DefaultSearchOptions())
+			trs, _, err = tempodbReader.Find(ctx, testTenant, traceID, tempodb.BlockIDMin, tempodb.BlockIDMax, time.Time{}, time.Time{}, common.DefaultSearchOptions())
 			return err == nil && len(trs) == 0
 		}, 60*time.Second, 2*time.Second, "trace must not be findable in any block after redaction")
 	})

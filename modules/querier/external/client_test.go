@@ -66,13 +66,13 @@ func TestClient_TraceByID(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Create client
-	client, err := NewClient(server.URL, 10*time.Second)
+	// Create client with a generous transport ceiling for the happy path
+	client, err := NewClient(server.URL, 10*time.Second, 16<<20)
 	require.NoError(t, err)
 
 	// Call TraceByID
 	ctx := context.Background()
-	resp, err := client.TraceByID(ctx, userID, traceID, 123, 456)
+	resp, err := client.TraceByID(ctx, userID, traceID, time.Unix(123, 0), time.Unix(456, 0))
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	require.NotNil(t, resp.Trace)
@@ -80,4 +80,26 @@ func TestClient_TraceByID(t *testing.T) {
 	require.Len(t, resp.Trace.ResourceSpans[0].ScopeSpans, 1)
 	require.Len(t, resp.Trace.ResourceSpans[0].ScopeSpans[0].Spans, 1)
 	require.Equal(t, "test-span", resp.Trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Name)
+}
+
+func TestTraceByID_RejectsOversizedResponse(t *testing.T) {
+	const maxBytes = 10
+
+	traceID := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(make([]byte, maxBytes+1))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.URL, 30*time.Second, maxBytes)
+	require.NoError(t, err)
+
+	_, err = client.TraceByID(context.Background(), "tenant", traceID, time.Time{}, time.Time{})
+	require.Error(t, err)
+
+	var tooLarge *http.MaxBytesError
+	require.ErrorAs(t, err, &tooLarge)
+	require.EqualValues(t, maxBytes, tooLarge.Limit)
 }

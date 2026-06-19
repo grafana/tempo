@@ -6,30 +6,63 @@ on:
       - 'r[0-9]+'
     tags:
       - 'v*'
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Release tag to build (e.g. v2.10.6)'
+        type: string
+        required: true
 
-# Needed to login to DockerHub
+# Needed to authenticate to GAR with OIDC.
 permissions:
   contents: read
+
+env:
+  DOCKERHUB_MIRROR_REPOSITORY: us-docker.pkg.dev/grafanalabs-global/dockerhub-tempo-prod-mirror
 
 jobs:
 
   get-tag:
     if: github.repository == 'grafana/tempo'  # skip in forks
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
     outputs:
       tag: ${{ steps.get-tag.outputs.tag }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
+          ref: ${{ inputs.tag || github.ref }}
           persist-credentials: false
 
       - name: fetch tags
         run: git fetch --tags --force
 
-      - id: get-tag
+      - name: check tag matches VERSION file
+        if: inputs.tag != '' || github.ref_type == 'tag'
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
         run: |
-          echo "tag=$(./tools/image-tag)" >> "$GITHUB_OUTPUT"
+          if [ "v$(cat VERSION)" != "$TAG" ]; then
+            echo "ERROR: tag ${TAG} does not match the VERSION file ($(cat VERSION))."
+            echo "Bump VERSION on the release branch (release-prep does this) before tagging."
+            exit 1
+          fi
+
+      - id: get-tag
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          if [ -n "$INPUT_TAG" ]; then
+            echo "tag=${INPUT_TAG#v}" >> "$GITHUB_OUTPUT"
+          else
+            TAG="$(./tools/image-tag)"
+            if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then
+              TAG="$TAG-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
+            fi
+            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          fi
 
   docker:
     if: github.repository == 'grafana/tempo'
@@ -40,13 +73,15 @@ jobs:
         runner_arch: [ { runner: ubuntu-24.04, arch: amd64 }, { runner: github-hosted-ubuntu-arm64, arch: arm64 } ]
     runs-on: ${{ matrix.runner_arch.runner }}
     permissions:
+      contents: read
       id-token: write
     env:
       TAG: ${{ needs.get-tag.outputs.tag }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
+          ref: ${{ inputs.tag || github.ref }}
           persist-credentials: false
 
       - name: fetch tags
@@ -59,20 +94,23 @@ jobs:
       - name: docker-build
         run: |
           TAG_ARCH="$TAG-${{ matrix.runner_arch.arch }}"
-          docker build --provenance false --platform linux/${{ matrix.runner_arch.arch }} -f cmd/${{ matrix.component }}/Dockerfile -t grafana/${{ matrix.component }}:$TAG_ARCH .
+          docker build --provenance false --platform "linux/${{ matrix.runner_arch.arch }}" -f "cmd/${{ matrix.component }}/Dockerfile" -t "$DOCKERHUB_MIRROR_REPOSITORY/${{ matrix.component }}:$TAG_ARCH" .
 
-      - name: Login to DockerHub
-        uses: grafana/shared-workflows/actions/dockerhub-login@081a366728379fd0426b9cfef190e9a21c2d5418 # dockerhub-login/v1.0.3
+      - name: Login to GAR
+        uses: grafana/shared-workflows/actions/login-to-gar@1f541877ceb22c7be7667d8a8df04984aeac9f9d # login-to-gar/v1.0.3
+        with:
+          registry: us-docker.pkg.dev
 
       - name: docker-push
         run: |
-          TAG_ARCH="$TAG-${{ matrix.runner_arch.arch }}"          
-          docker push grafana/${{ matrix.component }}:$TAG_ARCH
+          TAG_ARCH="$TAG-${{ matrix.runner_arch.arch }}"
+          docker push "$DOCKERHUB_MIRROR_REPOSITORY/${{ matrix.component }}:$TAG_ARCH"
 
   manifest:
     if: github.repository == 'grafana/tempo'
     needs: ['get-tag', 'docker']
     permissions:
+      contents: read
       id-token: write
     strategy:
       matrix:
@@ -80,29 +118,76 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       TAG: ${{ needs.get-tag.outputs.tag }}
-      IMAGE_NAME: grafana/${{ matrix.component }}
+      IMAGE_NAME: us-docker.pkg.dev/grafanalabs-global/dockerhub-tempo-prod-mirror/${{ matrix.component }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
+          ref: ${{ inputs.tag || github.ref }}
           persist-credentials: false
 
-      - name: Login to DockerHub
-        uses: grafana/shared-workflows/actions/dockerhub-login@081a366728379fd0426b9cfef190e9a21c2d5418 # dockerhub-login/v1.0.3
+      - name: Login to GAR
+        uses: grafana/shared-workflows/actions/login-to-gar@1f541877ceb22c7be7667d8a8df04984aeac9f9d # login-to-gar/v1.0.3
+        with:
+          registry: us-docker.pkg.dev
 
       - name: docker-manifest-create-and-push
         run: |
           docker manifest create \
-          	$IMAGE_NAME:$TAG               \
-          	--amend $IMAGE_NAME:$TAG-amd64  \
-          	--amend $IMAGE_NAME:$TAG-arm64
-          docker manifest push $IMAGE_NAME:$TAG
+          	"$IMAGE_NAME:$TAG"               \
+          	--amend "$IMAGE_NAME:$TAG-amd64"  \
+          	--amend "$IMAGE_NAME:$TAG-arm64"
+          docker manifest push "$IMAGE_NAME:$TAG"
 
-          docker manifest create \
-          	$IMAGE_NAME:latest            \
-          	--amend $IMAGE_NAME:$TAG-amd64   \
-          	--amend $IMAGE_NAME:$TAG-arm64
-          docker manifest push $IMAGE_NAME:latest
+  # Resolve the digest of the pushed tempo-vulture multi-arch manifest so it can
+  # be signed by digest (not by tag). Scoped to tempo-vulture for now; extend
+  # the matrix to the other components once this is proven out.
+  resolve-vulture-digest:
+    if: github.repository == 'grafana/tempo'
+    needs: ['get-tag', 'manifest']
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      image: ${{ steps.resolve.outputs.image }}
+    env:
+      TAG: ${{ needs.get-tag.outputs.tag }}
+    steps:
+      - name: Login to GAR
+        uses: grafana/shared-workflows/actions/login-to-gar@1f541877ceb22c7be7667d8a8df04984aeac9f9d # login-to-gar/v1.0.3
+        with:
+          registry: us-docker.pkg.dev
+
+      - name: Resolve digest
+        id: resolve
+        run: |
+          # IMAGE_NAME is derived from the workflow-level DOCKERHUB_MIRROR_REPOSITORY
+          # (exported into the step env) so it can't drift from the build/manifest
+          # jobs when this is extended to the other components.
+          IMAGE_NAME="${DOCKERHUB_MIRROR_REPOSITORY}/tempo-vulture"
+          DIGEST="$(docker buildx imagetools inspect "$IMAGE_NAME:$TAG" --format '{{.Manifest.Digest}}')"
+          if [[ "$DIGEST" != sha256:* ]]; then
+            echo "::error::failed to resolve digest for $IMAGE_NAME:$TAG, got: $DIGEST"
+            exit 1
+          fi
+          echo "image=$IMAGE_NAME@$DIGEST" >> "$GITHUB_OUTPUT"
+
+  # Signing/attestation runs after publish and is intentionally NOT a gate on
+  # the release or on cd-to-dev-env: the image is immutable once pushed and
+  # can't be re-signed, so we sign best-effort and rely on this job's own
+  # verify steps (plus alerting on failures) to catch a bad signature. A
+  # failure here surfaces as a failed check on the run without blocking deploy.
+  sign-vulture:
+    needs: resolve-vulture-digest
+    if: needs.resolve-vulture-digest.outputs.image != ''
+    uses: ./.github/workflows/sign-and-attest.yml
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    with:
+      image: ${{ needs.resolve-vulture-digest.outputs.image }}
 
   cd-to-dev-env:
     # This job deploys the latest main commit to the dev environment

@@ -1,0 +1,22 @@
+target: distributor
+server:
+  http_listen_port: 3200
+ingester:
+  max_block_duration: 5m
+ingester_client:
+  grpc_compression: snappy
+compactor:
+  compaction:
+    compaction_window: 4h
+storage:
+  trace:
+    backend: s3
+    s3:
+      bucket: tempo-traces
+      endpoint: s3.amazonaws.com
+    wal:
+      path: /var/tempo/wal
+overrides:
+  defaults:
+    ingestion:
+      rate_limit_bytes: 5000000

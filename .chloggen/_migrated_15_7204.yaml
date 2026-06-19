@@ -1,0 +1,6 @@
+change_type: enhancement
+component: cache
+note: add `Remove` method to the `Cache` interface, implemented for memcached and redis.
+issues: [7204]
+subtext:
+user: zalegrala

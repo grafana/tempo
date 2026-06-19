@@ -8,11 +8,9 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/middleware"
-	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-	"go.uber.org/multierr"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -83,7 +81,7 @@ func (f *Forwarder) ForwardTraces(ctx context.Context, traces ptrace.Traces) err
 	}
 	f.mu.RUnlock()
 
-	return multierr.Combine(errs...)
+	return errors.Join(errs...)
 }
 
 func (f *Forwarder) Shutdown(_ context.Context) error {
@@ -99,7 +97,7 @@ func (f *Forwarder) Shutdown(_ context.Context) error {
 		delete(f.connections, endpoint)
 	}
 
-	return multierr.Combine(errs...)
+	return errors.Join(errs...)
 }
 
 func (f *Forwarder) newTraceOTLPGRPCClientAndConn(ctx context.Context, endpoint string, cfg TLSConfig, opts ...grpc.DialOption) (ptraceotlp.GRPCClient, *grpc.ClientConn, error) {
@@ -119,8 +117,8 @@ func (f *Forwarder) newTraceOTLPGRPCClientAndConn(ctx context.Context, endpoint 
 	opts = append(
 		opts,
 		grpc.WithTransportCredentials(creds),
-		grpc.WithUnaryInterceptor(grpcmw.ChainUnaryClient(unaryClientInterceptor...)),
-		grpc.WithStreamInterceptor(grpcmw.ChainStreamClient(streamClientInterceptor...)),
+		grpc.WithChainUnaryInterceptor(unaryClientInterceptor...),
+		grpc.WithChainStreamInterceptor(streamClientInterceptor...),
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 	)
 

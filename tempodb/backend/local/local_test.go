@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -155,4 +156,118 @@ func blockExists(t *testing.T, blockID backend.UUID, tenant string, r backend.Ra
 	require.NoError(t, err)
 	require.Len(t, blocks, 1)
 	require.Equal(t, blockID.String(), blocks[0])
+}
+
+func TestWriteAtomicConcurrent(t *testing.T) {
+	b, err := NewBackend(&Config{Path: t.TempDir()})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	keypath := backend.KeyPath{"tenant", "block-uuid"}
+	name := "concurrent.buf"
+	payloadA := bytes.Repeat([]byte{0xAA}, 4*1024)
+	payloadB := bytes.Repeat([]byte{0xBB}, 1024)
+
+	const iters = 500
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	for _, p := range [][]byte{payloadA, payloadB} {
+		p := p
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < iters; i++ {
+				require.NoError(t, b.WriteAtomic(ctx, name, keypath, bytes.NewReader(p), int64(len(p))))
+			}
+		}()
+	}
+	go func() { wg.Wait(); close(done) }()
+
+	for {
+		select {
+		case <-done:
+			return
+		default:
+		}
+		r, sz, rerr := b.Read(ctx, name, keypath, nil)
+		if rerr != nil {
+			continue
+		}
+		got, rerr := io.ReadAllWithEstimate(r, sz)
+		r.Close()
+		require.NoError(t, rerr)
+		require.True(t, bytes.Equal(got, payloadA) || bytes.Equal(got, payloadB),
+			"read observed bytes that match neither payload")
+	}
+}
+
+func TestWriteAtomic(t *testing.T) {
+	b, err := NewBackend(&Config{Path: t.TempDir()})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	keypath := backend.KeyPath{"tenant", "block-uuid"}
+	name := "obj.buf"
+	payload := []byte("hello world")
+
+	require.NoError(t, b.WriteAtomic(ctx, name, keypath, bytes.NewReader(payload), int64(len(payload))))
+
+	r, sz, err := b.Read(ctx, name, keypath, nil)
+	require.NoError(t, err)
+	defer r.Close()
+	got, err := io.ReadAllWithEstimate(r, sz)
+	require.NoError(t, err)
+	require.Equal(t, payload, got)
+}
+
+func TestWriteAtomicOverwritesExistingFile(t *testing.T) {
+	b, err := NewBackend(&Config{Path: t.TempDir()})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	keypath := backend.KeyPath{"tenant", "block-uuid"}
+	name := "obj.buf"
+	first := []byte("first")
+	second := []byte("second value, larger than first")
+
+	require.NoError(t, b.WriteAtomic(ctx, name, keypath, bytes.NewReader(first), int64(len(first))))
+	require.NoError(t, b.WriteAtomic(ctx, name, keypath, bytes.NewReader(second), int64(len(second))))
+
+	r, sz, err := b.Read(ctx, name, keypath, nil)
+	require.NoError(t, err)
+	defer r.Close()
+	got, err := io.ReadAllWithEstimate(r, sz)
+	require.NoError(t, err)
+	require.Equal(t, second, got)
+}
+
+func TestWriteAtomicLeavesNoTempFiles(t *testing.T) {
+	root := t.TempDir()
+	b, err := NewBackend(&Config{Path: root})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	keypath := backend.KeyPath{"tenant", "block-uuid"}
+	name := "obj.buf"
+	require.NoError(t, b.WriteAtomic(ctx, name, keypath, bytes.NewReader([]byte("x")), 1))
+
+	entries, err := os.ReadDir(b.rootPath(keypath))
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	require.Equal(t, name, entries[0].Name())
+}
+
+func TestWriteAtomicRespectsCancelledContext(t *testing.T) {
+	b, err := NewBackend(&Config{Path: t.TempDir()})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	keypath := backend.KeyPath{"tenant", "block-uuid"}
+	err = b.WriteAtomic(ctx, "obj.buf", keypath, bytes.NewReader([]byte("x")), 1)
+	require.ErrorIs(t, err, context.Canceled)
+
+	entries, _ := os.ReadDir(b.rootPath(keypath))
+	require.Empty(t, entries)
 }

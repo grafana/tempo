@@ -63,7 +63,7 @@ This approach values speed over predictability and is quite simple; enforcing th
 TraceQL follows the same behavior.
 
 By adding `most_recent=true` to your TraceQL queries, the search results become deterministic.
-For more information, refer to [Retrieve most recent results](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/#retrieving-most-recent-results-experimental).
+For more information, refer to [Retrieve most recent results](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/construct-traceql-queries/#retrieve-most-recent-results-experimental).
 
 #### Use trace search results as panels in dashboards
 
@@ -91,9 +91,7 @@ For details about constructing queries, refer to the [TraceQL documentation](htt
 
 #### TraceQL metrics queries
 
-{{< docs/experimental product="TraceQL metrics" >}}
-
-TraceQL language provides metrics queries as an experimental feature.
+TraceQL language provides metrics queries.
 Metric queries extend trace queries by applying an aggregate function to trace query results. For example: `{ span:name = "foo" } | rate() by (span:status)`
 This powerful feature creates metrics from traces, much in the same way that LogQL metric queries create metrics from logs.
 
