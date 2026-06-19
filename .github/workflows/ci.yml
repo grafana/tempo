@@ -313,7 +313,7 @@ jobs:
           merge-multiple: true
 
       - name: Annotate uncovered lines in PR diff
-        uses: oleg-kozlyuk-grafana/shared-workflows/actions/annotate-coverage@feat/annotate-coverage
+        uses: oleg-kozlyuk-grafana/shared-workflows/actions/annotate-coverage@c59818a7382a3f60bad35ad21086ae7660a7f23c # feat/annotate-coverage
         with:
           coverage-path: .coverage
           format: GitHubAnnotations
