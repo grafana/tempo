@@ -311,36 +311,22 @@ func populateMetricsFromFetchStats(metrics *tempopb.SearchMetrics, stats FetchSp
 		cacheBytes += v
 	}
 
-	if stats.RowGroupsInspected == 0 && stats.RowGroupsSkipped == 0 &&
-		stats.PagesInspected == 0 && stats.PagesSkipped == 0 &&
-		cacheHits == 0 && cacheMisses == 0 && cacheBytes == 0 {
-		return
+	addIfNonZero := func(key string, v uint64) {
+		if v == 0 {
+			return
+		}
+		if metrics.AdditionalMetrics == nil {
+			metrics.AdditionalMetrics = map[string]int64{}
+		}
+		metrics.AdditionalMetrics[key] += int64(v)
 	}
-	if metrics.AdditionalMetrics == nil {
-		metrics.AdditionalMetrics = map[string]int64{}
-	}
-	// Use += so the helper is safe to call more than once on the same metrics.
-	if stats.RowGroupsInspected != 0 {
-		metrics.AdditionalMetrics[tempopb.AdditionalMetricRowGroupsInspected] += int64(stats.RowGroupsInspected)
-	}
-	if stats.RowGroupsSkipped != 0 {
-		metrics.AdditionalMetrics[tempopb.AdditionalMetricRowGroupsSkipped] += int64(stats.RowGroupsSkipped)
-	}
-	if stats.PagesInspected != 0 {
-		metrics.AdditionalMetrics[tempopb.AdditionalMetricPagesInspected] += int64(stats.PagesInspected)
-	}
-	if stats.PagesSkipped != 0 {
-		metrics.AdditionalMetrics[tempopb.AdditionalMetricPagesSkipped] += int64(stats.PagesSkipped)
-	}
-	if cacheHits != 0 {
-		metrics.AdditionalMetrics[tempopb.AdditionalMetricCacheHits] += int64(cacheHits)
-	}
-	if cacheMisses != 0 {
-		metrics.AdditionalMetrics[tempopb.AdditionalMetricCacheMisses] += int64(cacheMisses)
-	}
-	if cacheBytes != 0 {
-		metrics.AdditionalMetrics[tempopb.AdditionalMetricCacheBytes] += int64(cacheBytes)
-	}
+	addIfNonZero(tempopb.AdditionalMetricRowGroupsInspected, uint64(stats.RowGroupsInspected))
+	addIfNonZero(tempopb.AdditionalMetricRowGroupsSkipped, uint64(stats.RowGroupsSkipped))
+	addIfNonZero(tempopb.AdditionalMetricPagesInspected, uint64(stats.PagesInspected))
+	addIfNonZero(tempopb.AdditionalMetricPagesSkipped, uint64(stats.PagesSkipped))
+	addIfNonZero(tempopb.AdditionalMetricCacheHits, cacheHits)
+	addIfNonZero(tempopb.AdditionalMetricCacheMisses, cacheMisses)
+	addIfNonZero(tempopb.AdditionalMetricCacheBytes, cacheBytes)
 }
 
 type SpansetFetcher interface {
