@@ -45,8 +45,7 @@ func (b *backendBlock) FetchSpans(ctx context.Context, req traceql.FetchSpansReq
 	return traceql.FetchSpansOnlyResponse{
 		Results: iter,
 		Stats: func() traceql.FetchSpansStats {
-			// Per-iterator / per-cache-role counters land in issue #1274
-			// (Proposal 2E). Today only Bytes is populated.
+			// TODO(issue/1274): populate per-iterator and per-role counters.
 			return traceql.FetchSpansStats{Bytes: rr.BytesRead()}
 		},
 	}, nil
