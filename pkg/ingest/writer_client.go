@@ -338,11 +338,12 @@ func (c *Producer) ProduceSync(ctx context.Context, records []*kgo.Record) kgo.P
 	}
 }
 
-// StatusFromProduceErr maps a Kafka produce error to a retryable gRPC status,
-// or codes.InvalidArgument for records that are too large.
 func StatusFromProduceErr(err error) error {
 	if err == nil {
 		return nil
+	}
+	if errors.Is(err, context.Canceled) {
+		return status.Error(codes.Canceled, err.Error())
 	}
 	if errors.Is(err, kerr.MessageTooLarge) {
 		return status.Error(codes.InvalidArgument, err.Error())
