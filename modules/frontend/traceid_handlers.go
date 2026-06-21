@@ -8,6 +8,7 @@ import (
 	"github.com/go-kit/log/level" //nolint:all //deprecated
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
+	"github.com/grafana/tempo/modules/frontend/tracefilter"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/util/tracing"
@@ -125,14 +126,23 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			}
 		}
 
+		// compile up front so a malformed filter fails fast as a 400, before any backend work.
+		filter, err := tracefilter.NewFilterFromValues(req.URL.Query())
+		if err != nil {
+			return httpInvalidRequest(err), nil
+		}
+		// assign only when non-nil, else the interface holds a typed-nil and reads as non-nil.
+		var traceFilter combiner.TraceFilter
+		if filter != nil {
+			traceFilter = filter
+		}
+
 		spanPruningCfg, err := api.ParseSpanPruningConfig(req)
 		if err != nil {
 			return httpInvalidRequest(err), nil
 		}
-		if spanPruningCfg == nil {
-			spanPruningCfg = api.DefaultSpanPruningConfig()
-		}
 		opts := combiner.TraceByIDV2Options{
+			TraceFilter:       traceFilter,
 			SpanPruningConfig: spanPruningCfg,
 			Logger:            logger,
 		}

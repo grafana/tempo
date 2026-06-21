@@ -13,9 +13,16 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
+// TraceFilter filters an assembled trace. Process must not mutate its input, which may be cached.
+type TraceFilter interface {
+	Process(t *tempopb.Trace) (*tempopb.Trace, error)
+}
+
 // TraceByIDV2Options holds optional post-processing configuration for the v2 trace combiner.
 type TraceByIDV2Options struct {
-	// SpanPruningConfig is non-nil when the caller requested span pruning via query params.
+	// TraceFilter is applied first (e.g. a TraceQL spanset filter). nil = no filtering.
+	TraceFilter TraceFilter
+	// SpanPruningConfig is applied after TraceFilter. nil = no pruning.
 	SpanPruningConfig *spanpruningprocessor.Config
 	// Logger is used to log non-fatal errors such as pruning failures.
 	Logger log.Logger
@@ -72,6 +79,16 @@ func NewTraceByIDV2WithMetrics(maxBytes int, marshalingFormat api.MarshallingFor
 				}
 			}
 
+			// TraceQL spanset filter runs before pruning so pruning operates on the already-filtered set.
+			if opts.TraceFilter != nil {
+				filtered, err := opts.TraceFilter.Process(traceResult)
+				if err != nil {
+					return nil, err
+				}
+				traceResult = filtered
+			}
+
+			// Span pruning runs last: it collapses repetitive leaf spans in whatever trace remains.
 			if opts.SpanPruningConfig != nil {
 				pruned, err := spanpruning.PruneTrace(opts.SpanPruningConfig, traceResult)
 				if err != nil {
@@ -84,6 +101,7 @@ func NewTraceByIDV2WithMetrics(maxBytes int, marshalingFormat api.MarshallingFor
 			}
 
 			resp.Trace = traceResult
+			// metrics report bytes inspected to pull the whole trace; filtering/pruning only trims output, so they are unchanged.
 			resp.Metrics = metricsCombiner.Metrics
 
 			if partialTrace || combiner.IsPartialTrace() {
