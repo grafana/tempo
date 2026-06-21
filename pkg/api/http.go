@@ -887,6 +887,12 @@ func ReadBodyToBuffer(resp *http.Response) (*bytes.Buffer, error) {
 	return buffer, nil
 }
 
+// DefaultSpanPruningConfig returns the processor's built-in defaults.
+// Used when span pruning is enabled globally via config but the caller sent no query params.
+func DefaultSpanPruningConfig() *spanpruningprocessor.Config {
+	return spanpruningprocessor.NewFactory().CreateDefaultConfig().(*spanpruningprocessor.Config)
+}
+
 // ParseSpanPruningConfig returns a spanpruningprocessor.Config if span_pruning=true is set,
 // otherwise (nil, nil). Optional params span_pruning_group_by (comma-separated glob patterns),
 // span_pruning_min_spans (int), and span_pruning_max_parent_depth (int) override defaults.

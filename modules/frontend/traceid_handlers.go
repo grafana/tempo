@@ -129,6 +129,9 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 		if err != nil {
 			return httpInvalidRequest(err), nil
 		}
+		if spanPruningCfg == nil {
+			spanPruningCfg = api.DefaultSpanPruningConfig()
+		}
 		opts := combiner.TraceByIDV2Options{
 			SpanPruningConfig: spanPruningCfg,
 			Logger:            logger,
