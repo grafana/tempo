@@ -1,4 +1,4 @@
-FROM alpine:latest@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11 AS ca-certificates
+FROM alpine:latest@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b AS ca-certificates
 RUN apk add --update --no-cache ca-certificates
 
 # Use the same image with busybox for the setup to ensure the /etc files are compatible.
