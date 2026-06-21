@@ -37,6 +37,7 @@ k {
     exporter_memory_limits:: null,
     use_topology_spread:: false,
     topology_spread_max_skew:: 1,
+    min_ready_seconds:: null,
     extended_options:: [],
 
     local container = $.core.v1.container,
@@ -77,6 +78,7 @@ k {
         self.memcached_exporter,
       ], []) +
       statefulSet.spec.withServiceName(self.name) +
+      (if self.min_ready_seconds == null then {} else statefulSet.mixin.spec.withMinReadySeconds(self.min_ready_seconds)) +
       if self.use_topology_spread then
         local pod_name = self.name;
         statefulSet.spec.template.spec.withTopologySpreadConstraints(
