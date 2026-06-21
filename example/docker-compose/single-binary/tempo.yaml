@@ -31,6 +31,8 @@ metrics_generator:
 query_frontend:
   mcp_server:
     enabled: true
+  trace_by_id:
+    span_pruning_enabled: false
 
 storage:
   trace:

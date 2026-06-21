@@ -1,6 +1,6 @@
 services:
   tempo:
-    image: "grafana/tempo:${TEMPO_IMAGE_TAG:-3.0.0}"
+    image: "grafana/tempo:latest"
     command: "-target=all -config.file=/etc/tempo.yaml"
     restart: always
     volumes:
@@ -16,6 +16,11 @@ services:
   # ingest pipeline
   k6-tracing:
     image: ghcr.io/grafana/xk6-client-tracing:v0.0.9
+    volumes:
+      - ./k6-script.js:/k6-script.js
+    command:
+      - run
+      - /k6-script.js
     environment:
       - ENDPOINT=alloy:4317
     restart: always
