@@ -1015,7 +1015,7 @@ func TestProcessAttributes(t *testing.T) {
 
 	// add long attributes to the event level
 	trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Events = append(trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Events,
-		v1.Span_Event{
+		&v1.Span_Event{
 			TimeUnixNano: 0,
 			Attributes: []v1_common.KeyValue{
 				*test.MakeAttribute("long value", longString),
@@ -1026,7 +1026,7 @@ func TestProcessAttributes(t *testing.T) {
 
 	// add long attributes to the link level
 	trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Links = append(trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Links,
-		v1.Span_Link{
+		&v1.Span_Link{
 			TraceId: []byte{0x0A, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F},
 			SpanId:  []byte{0x0A, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F},
 			Attributes: []v1_common.KeyValue{
