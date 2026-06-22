@@ -87,8 +87,8 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 
 	// Memory settings
 	c.Memory = MemoryConfig{
-		AutoMemLimitEnabled:         false,
-		AutoMemLimitRatio:           0.8,
+		AutoMemLimitEnabled: false,
+		AutoMemLimitRatio:   0.8,
 		AutoMemLimitRefreshInterval: 15 * time.Second,
 	}
 
