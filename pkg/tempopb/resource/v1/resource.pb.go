@@ -17,7 +17,7 @@ type Resource struct {
 	// Set of attributes that describe the resource.
 	// Attribute keys MUST be unique (it is not allowed to have more than one
 	// attribute with the same key).
-	Attributes []*commonv1.KeyValue `protobuf:"bytes,1,rep,name=attributes,proto3" json:"attributes,omitempty"`
+	Attributes []commonv1.KeyValue `protobuf:"bytes,1,rep,name=attributes,proto3" json:"attributes,omitempty"`
 	// dropped_attributes_count is the number of dropped attributes. If the value is 0, then
 	// no attributes were dropped.
 	DroppedAttributesCount uint32 `protobuf:"varint,2,opt,name=dropped_attributes_count,json=droppedAttributesCount,proto3" json:"dropped_attributes_count,omitempty"`
@@ -31,7 +31,7 @@ func (m *Resource) Reset() {
 }
 func (*Resource) ProtoMessage() {}
 
-func (m *Resource) GetAttributes() []*commonv1.KeyValue {
+func (m *Resource) GetAttributes() []commonv1.KeyValue {
 	if m != nil {
 		return m.Attributes
 	}
@@ -51,10 +51,7 @@ func (m *Resource) Size() int {
 	}
 	var n int
 	for i := range m.Attributes {
-		if m.Attributes[i] == nil {
-			continue
-		}
-		s := (*m.Attributes[i]).Size()
+		s := m.Attributes[i].Size()
 		n += 1 + protowire.SizeVarint(uint64(s)) + s
 	}
 	if m.DroppedAttributesCount != 0 {
@@ -98,10 +95,7 @@ func (m *Resource) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		dAtA[i] = 0x10
 	}
 	for iNdEx := len(m.Attributes) - 1; iNdEx >= 0; iNdEx-- {
-		if m.Attributes[iNdEx] == nil {
-			continue
-		}
-		size, err := (*m.Attributes[iNdEx]).MarshalToSizedBuffer(dAtA[:i])
+		size, err := m.Attributes[iNdEx].MarshalToSizedBuffer(dAtA[:i])
 		if err != nil {
 			return 0, err
 		}
@@ -196,7 +190,7 @@ func (m *Resource) unmarshal(dAtA []byte, depth int) error {
 				c = preCapMax
 			}
 			if len(m.Attributes) == 0 && cap(m.Attributes) < c {
-				m.Attributes = make([]*commonv1.KeyValue, 0, c)
+				m.Attributes = make([]commonv1.KeyValue, 0, c)
 			}
 		}
 	}
@@ -270,7 +264,7 @@ func (m *Resource) unmarshal(dAtA []byte, depth int) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Attributes = append(m.Attributes, &commonv1.KeyValue{})
+			m.Attributes = append(m.Attributes, commonv1.KeyValue{})
 			if err := m.Attributes[len(m.Attributes)-1].UnmarshalWithDepth(dAtA[iNdEx:postIndex], depth+1); err != nil {
 				return err
 			}

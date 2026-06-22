@@ -257,7 +257,7 @@ func (u *Tracker) getTenant(tenant string) *tenantUsage {
 // Observe processes trace batches for usage tracking in the hot path.
 // NOTE: this is performance sensitive code, because it is called on every ingested span.
 // you should consider the performance impact of a change made here.
-func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
+func (u *Tracker) Observe(tenant string, batches []v1.ResourceSpans) {
 	dimensions := u.labelsFn(tenant)
 	if len(dimensions) == 0 {
 		// Not configured
@@ -279,7 +279,8 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 		mapping, buffer1, buffer2, last = data.GetBuffersForDimensions(dimensions)
 	)
 
-	for _, batch := range batches {
+	for i := range batches {
+		batch := &batches[i]
 		unaccountedForBatchData, totalSpanCount := nonSpanDataLength(batch)
 
 		if totalSpanCount == 0 {

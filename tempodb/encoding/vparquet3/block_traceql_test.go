@@ -869,13 +869,13 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 	}
 
 	links := tempopb.LinkSlice{
-		Links: []*v1.Span_Link{
+		Links: []v1.Span_Link{
 			{
 				TraceId:                []byte{0x01},
 				SpanId:                 []byte{0x02},
 				TraceState:             "state",
 				DroppedAttributesCount: 3,
-				Attributes: []*v1_common.KeyValue{
+				Attributes: []v1_common.KeyValue{
 					{
 						Key:   "key",
 						Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "value"}},

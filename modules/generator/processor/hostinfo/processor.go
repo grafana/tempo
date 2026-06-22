@@ -51,8 +51,7 @@ func (p *Processor) findHostIdentifier(resourceSpans *v1.ResourceSpans) (string,
 
 func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) {
 	for i := range req.Batches {
-		resourceSpans := req.Batches[i]
-		if hostID, hostSource := p.findHostIdentifier(resourceSpans); hostID != "" && hostSource != "" {
+		if hostID, hostSource := p.findHostIdentifier(&req.Batches[i]); hostID != "" && hostSource != "" {
 			builder := p.registry.NewInfoMetricLabelBuilder()
 			builder.Add(hostIdentifierAttr, hostID)
 			builder.Add(hostSourceAttr, hostSource)

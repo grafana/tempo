@@ -383,3 +383,34 @@ sites were deliberately NOT changed: `blockbuilder/live_traces_iter.go`'s
 merge-by-unmarshal (kept byte-identical to upstream) and
 `livestore/instance.go`'s `[:0]`-reset `Trace` decode are candidates left for a
 separate decision.
+
+## Performance: pointer-drop on OTLP type tree (value slices)
+
+Dropped `(wiresmith.options.pointer) = true` from all repeated message fields in
+the OTLP type tree (`trace/v1`, `common/v1`, `resource/v1`) and from the
+container fields in `tempo.proto` that hold OTLP values (`Trace.resourceSpans`,
+`PushSpansRequest.batches`, `SpanSet.spans`, `SpanSet.attributes`, etc.).
+
+Wire format is unchanged. The Go API changes from `[]*T` to `[]T` (value slices),
+eliminating per-element heap allocation for every span, attribute, event, and link.
+All mutation loops were updated to index-based form (`for i := range s { s[i].F = x }`)
+and pointer-identity maps were changed to store indices instead of pointers.
+
+An additional bug was found and fixed in `engine.go`: after `SpanSets =
+[]SpanSet{*SpanSet}` (the copy), subsequent mutations via `SpanSet` were not
+reflected in `SpanSets[0]`. Fixed by re-pointing `SpanSet = &SpanSets[0]`
+immediately after the copy.
+
+Benchmarks (n=20, alternated binaries, Apple M4 Pro):
+
+| Benchmark                              | sec/op    | B/op      | allocs/op |
+|----------------------------------------|-----------|-----------|-----------|
+| GeneratorDecoderOTLP (OTLP ingest)    | −12.14%** | −3.56%*   | −19.36%** |
+| GeneratorDecoderPushBytes (ingest)    | ~         | ~         | ~         |
+| SortTraceAndAttributes (model/trace)  | ~         | ~         | ~         |
+| BenchmarkDeduper{100..100000} (dedup) | ~         | —         | —         |
+
+`**` p<0.001 n=20, `*` p<0.01 n=20, `~` not significant
+
+Win is concentrated in the OTLP decode path (`GeneratorDecoderOTLP`): −12% time,
+−19% allocs — the primary hot path. Sorting and deduplication are unaffected.

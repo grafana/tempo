@@ -223,7 +223,7 @@ type TraceSearchMetadata struct {
 	StartTimeUnixNano uint64                  `protobuf:"varint,4,opt,name=startTimeUnixNano,proto3" json:"startTimeUnixNano,omitempty"`
 	DurationMs        uint32                  `protobuf:"varint,5,opt,name=durationMs,proto3" json:"durationMs,omitempty"`
 	SpanSet           *SpanSet                `protobuf:"bytes,6,opt,name=spanSet,proto3" json:"spanSet,omitempty"`
-	SpanSets          []*SpanSet              `protobuf:"bytes,7,rep,name=spanSets,proto3" json:"spanSets,omitempty"`
+	SpanSets          []SpanSet               `protobuf:"bytes,7,rep,name=spanSets,proto3" json:"spanSets,omitempty"`
 	ServiceStats      map[string]ServiceStats `protobuf:"bytes,8,rep,name=serviceStats,proto3" json:"serviceStats,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 }
 
@@ -233,17 +233,17 @@ type ServiceStats struct {
 }
 
 type SpanSet struct {
-	Spans      []*Span        `protobuf:"bytes,1,rep,name=spans,proto3" json:"spans,omitempty"`
-	Matched    uint32         `protobuf:"varint,2,opt,name=matched,proto3" json:"matched,omitempty"`
-	Attributes []*v1.KeyValue `protobuf:"bytes,3,rep,name=attributes,proto3" json:"attributes,omitempty"`
+	Spans      []Span        `protobuf:"bytes,1,rep,name=spans,proto3" json:"spans,omitempty"`
+	Matched    uint32        `protobuf:"varint,2,opt,name=matched,proto3" json:"matched,omitempty"`
+	Attributes []v1.KeyValue `protobuf:"bytes,3,rep,name=attributes,proto3" json:"attributes,omitempty"`
 }
 
 type Span struct {
-	SpanID            string         `protobuf:"bytes,1,opt,name=spanID,proto3" json:"spanID,omitempty"`
-	Name              string         `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	StartTimeUnixNano uint64         `protobuf:"varint,3,opt,name=startTimeUnixNano,proto3" json:"startTimeUnixNano,omitempty"`
-	DurationNanos     uint64         `protobuf:"varint,4,opt,name=durationNanos,proto3" json:"durationNanos,omitempty"`
-	Attributes        []*v1.KeyValue `protobuf:"bytes,5,rep,name=attributes,proto3" json:"attributes,omitempty"`
+	SpanID            string        `protobuf:"bytes,1,opt,name=spanID,proto3" json:"spanID,omitempty"`
+	Name              string        `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	StartTimeUnixNano uint64        `protobuf:"varint,3,opt,name=startTimeUnixNano,proto3" json:"startTimeUnixNano,omitempty"`
+	DurationNanos     uint64        `protobuf:"varint,4,opt,name=durationNanos,proto3" json:"durationNanos,omitempty"`
+	Attributes        []v1.KeyValue `protobuf:"bytes,5,rep,name=attributes,proto3" json:"attributes,omitempty"`
 }
 
 type SearchMetrics struct {
@@ -349,7 +349,7 @@ type MetadataMetrics struct {
 }
 
 type Trace struct {
-	ResourceSpans []*tracev1.ResourceSpans `protobuf:"bytes,1,rep,name=resourceSpans,proto3" json:"resourceSpans,omitempty"`
+	ResourceSpans []tracev1.ResourceSpans `protobuf:"bytes,1,rep,name=resourceSpans,proto3" json:"resourceSpans,omitempty"`
 }
 
 // Write
@@ -372,7 +372,7 @@ type PushBytesRequest struct {
 
 type PushSpansRequest struct {
 	// just send entire OTel spans for now
-	Batches []*tracev1.ResourceSpans `protobuf:"bytes,1,rep,name=batches,proto3" json:"batches,omitempty"`
+	Batches []tracev1.ResourceSpans `protobuf:"bytes,1,rep,name=batches,proto3" json:"batches,omitempty"`
 	// indicates whether metrics generation should be skipped
 	// for traces contained in this request.
 	SkipMetricsGeneration bool `protobuf:"varint,2,opt,name=skipMetricsGeneration,proto3" json:"skipMetricsGeneration,omitempty"`
@@ -388,7 +388,7 @@ type TraceBytes struct {
 // can't encode a slice directly so we use this wrapper to generate the required
 // marshalling/unmarshalling functions.
 type LinkSlice struct {
-	Links []*tracev1.Span_Link `protobuf:"bytes,1,rep,name=links,proto3" json:"links,omitempty"`
+	Links []tracev1.Span_Link `protobuf:"bytes,1,rep,name=links,proto3" json:"links,omitempty"`
 }
 
 type QueryInstantRequest struct {
@@ -1066,7 +1066,7 @@ func (m *TraceSearchMetadata) GetSpanSet() *SpanSet {
 	return nil
 }
 
-func (m *TraceSearchMetadata) GetSpanSets() []*SpanSet {
+func (m *TraceSearchMetadata) GetSpanSets() []SpanSet {
 	if m != nil {
 		return m.SpanSets
 	}
@@ -1094,7 +1094,7 @@ func (m *ServiceStats) GetErrorCount() uint32 {
 	return 0
 }
 
-func (m *SpanSet) GetSpans() []*Span {
+func (m *SpanSet) GetSpans() []Span {
 	if m != nil {
 		return m.Spans
 	}
@@ -1108,7 +1108,7 @@ func (m *SpanSet) GetMatched() uint32 {
 	return 0
 }
 
-func (m *SpanSet) GetAttributes() []*v1.KeyValue {
+func (m *SpanSet) GetAttributes() []v1.KeyValue {
 	if m != nil {
 		return m.Attributes
 	}
@@ -1143,7 +1143,7 @@ func (m *Span) GetDurationNanos() uint64 {
 	return 0
 }
 
-func (m *Span) GetAttributes() []*v1.KeyValue {
+func (m *Span) GetAttributes() []v1.KeyValue {
 	if m != nil {
 		return m.Attributes
 	}
@@ -1570,7 +1570,7 @@ func (m *MetadataMetrics) GetTotalBlockBytes() uint64 {
 	return 0
 }
 
-func (m *Trace) GetResourceSpans() []*tracev1.ResourceSpans {
+func (m *Trace) GetResourceSpans() []tracev1.ResourceSpans {
 	if m != nil {
 		return m.ResourceSpans
 	}
@@ -1605,7 +1605,7 @@ func (m *PushBytesRequest) GetSkipMetricsGeneration() bool {
 	return false
 }
 
-func (m *PushSpansRequest) GetBatches() []*tracev1.ResourceSpans {
+func (m *PushSpansRequest) GetBatches() []tracev1.ResourceSpans {
 	if m != nil {
 		return m.Batches
 	}
@@ -1626,7 +1626,7 @@ func (m *TraceBytes) GetTraces() [][]byte {
 	return nil
 }
 
-func (m *LinkSlice) GetLinks() []*tracev1.Span_Link {
+func (m *LinkSlice) GetLinks() []tracev1.Span_Link {
 	if m != nil {
 		return m.Links
 	}
@@ -2101,10 +2101,7 @@ func (m *TraceSearchMetadata) Size() int {
 		n += 1 + protowire.SizeVarint(uint64(s)) + s
 	}
 	for i := range m.SpanSets {
-		if m.SpanSets[i] == nil {
-			continue
-		}
-		s := (*m.SpanSets[i]).Size()
+		s := m.SpanSets[i].Size()
 		n += 1 + protowire.SizeVarint(uint64(s)) + s
 	}
 	for k, v := range m.ServiceStats {
@@ -2137,20 +2134,14 @@ func (m *SpanSet) Size() int {
 	}
 	var n int
 	for i := range m.Spans {
-		if m.Spans[i] == nil {
-			continue
-		}
-		s := (*m.Spans[i]).Size()
+		s := m.Spans[i].Size()
 		n += 1 + protowire.SizeVarint(uint64(s)) + s
 	}
 	if m.Matched != 0 {
 		n += 1 + protowire.SizeVarint(uint64(m.Matched))
 	}
 	for i := range m.Attributes {
-		if m.Attributes[i] == nil {
-			continue
-		}
-		s := (*m.Attributes[i]).Size()
+		s := m.Attributes[i].Size()
 		n += 1 + protowire.SizeVarint(uint64(s)) + s
 	}
 	return n
@@ -2174,10 +2165,7 @@ func (m *Span) Size() int {
 		n += 1 + protowire.SizeVarint(uint64(m.DurationNanos))
 	}
 	for i := range m.Attributes {
-		if m.Attributes[i] == nil {
-			continue
-		}
-		s := (*m.Attributes[i]).Size()
+		s := m.Attributes[i].Size()
 		n += 1 + protowire.SizeVarint(uint64(s)) + s
 	}
 	return n
@@ -2489,10 +2477,7 @@ func (m *Trace) Size() int {
 	}
 	var n int
 	for i := range m.ResourceSpans {
-		if m.ResourceSpans[i] == nil {
-			continue
-		}
-		s := (*m.ResourceSpans[i]).Size()
+		s := m.ResourceSpans[i].Size()
 		n += 1 + protowire.SizeVarint(uint64(s)) + s
 	}
 	return n
@@ -2537,10 +2522,7 @@ func (m *PushSpansRequest) Size() int {
 	}
 	var n int
 	for i := range m.Batches {
-		if m.Batches[i] == nil {
-			continue
-		}
-		s := (*m.Batches[i]).Size()
+		s := m.Batches[i].Size()
 		n += 1 + protowire.SizeVarint(uint64(s)) + s
 	}
 	if m.SkipMetricsGeneration {
@@ -2566,10 +2548,7 @@ func (m *LinkSlice) Size() int {
 	}
 	var n int
 	for i := range m.Links {
-		if m.Links[i] == nil {
-			continue
-		}
-		s := (*m.Links[i]).Size()
+		s := m.Links[i].Size()
 		n += 1 + protowire.SizeVarint(uint64(s)) + s
 	}
 	return n
@@ -3415,10 +3394,7 @@ func (m *TraceSearchMetadata) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		dAtA[i] = 0x42
 	}
 	for iNdEx := len(m.SpanSets) - 1; iNdEx >= 0; iNdEx-- {
-		if m.SpanSets[iNdEx] == nil {
-			continue
-		}
-		size, err := (*m.SpanSets[iNdEx]).MarshalToSizedBuffer(dAtA[:i])
+		size, err := m.SpanSets[iNdEx].MarshalToSizedBuffer(dAtA[:i])
 		if err != nil {
 			return 0, err
 		}
@@ -3568,10 +3544,7 @@ func (m *SpanSet) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	}
 	i := len(dAtA)
 	for iNdEx := len(m.Attributes) - 1; iNdEx >= 0; iNdEx-- {
-		if m.Attributes[iNdEx] == nil {
-			continue
-		}
-		size, err := (*m.Attributes[iNdEx]).MarshalToSizedBuffer(dAtA[:i])
+		size, err := m.Attributes[iNdEx].MarshalToSizedBuffer(dAtA[:i])
 		if err != nil {
 			return 0, err
 		}
@@ -3591,10 +3564,7 @@ func (m *SpanSet) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		dAtA[i] = 0x10
 	}
 	for iNdEx := len(m.Spans) - 1; iNdEx >= 0; iNdEx-- {
-		if m.Spans[iNdEx] == nil {
-			continue
-		}
-		size, err := (*m.Spans[iNdEx]).MarshalToSizedBuffer(dAtA[:i])
+		size, err := m.Spans[iNdEx].MarshalToSizedBuffer(dAtA[:i])
 		if err != nil {
 			return 0, err
 		}
@@ -3641,10 +3611,7 @@ func (m *Span) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	}
 	i := len(dAtA)
 	for iNdEx := len(m.Attributes) - 1; iNdEx >= 0; iNdEx-- {
-		if m.Attributes[iNdEx] == nil {
-			continue
-		}
-		size, err := (*m.Attributes[iNdEx]).MarshalToSizedBuffer(dAtA[:i])
+		size, err := m.Attributes[iNdEx].MarshalToSizedBuffer(dAtA[:i])
 		if err != nil {
 			return 0, err
 		}
@@ -4625,10 +4592,7 @@ func (m *Trace) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	}
 	i := len(dAtA)
 	for iNdEx := len(m.ResourceSpans) - 1; iNdEx >= 0; iNdEx-- {
-		if m.ResourceSpans[iNdEx] == nil {
-			continue
-		}
-		size, err := (*m.ResourceSpans[iNdEx]).MarshalToSizedBuffer(dAtA[:i])
+		size, err := m.ResourceSpans[iNdEx].MarshalToSizedBuffer(dAtA[:i])
 		if err != nil {
 			return 0, err
 		}
@@ -4802,10 +4766,7 @@ func (m *PushSpansRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		dAtA[i] = 0x10
 	}
 	for iNdEx := len(m.Batches) - 1; iNdEx >= 0; iNdEx-- {
-		if m.Batches[iNdEx] == nil {
-			continue
-		}
-		size, err := (*m.Batches[iNdEx]).MarshalToSizedBuffer(dAtA[:i])
+		size, err := m.Batches[iNdEx].MarshalToSizedBuffer(dAtA[:i])
 		if err != nil {
 			return 0, err
 		}
@@ -4896,10 +4857,7 @@ func (m *LinkSlice) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	}
 	i := len(dAtA)
 	for iNdEx := len(m.Links) - 1; iNdEx >= 0; iNdEx-- {
-		if m.Links[iNdEx] == nil {
-			continue
-		}
-		size, err := (*m.Links[iNdEx]).MarshalToSizedBuffer(dAtA[:i])
+		size, err := m.Links[iNdEx].MarshalToSizedBuffer(dAtA[:i])
 		if err != nil {
 			return 0, err
 		}
@@ -7764,7 +7722,7 @@ func (m *TraceSearchMetadata) unmarshal(dAtA []byte, depth int) error {
 				c = preCapMax
 			}
 			if len(m.SpanSets) == 0 && cap(m.SpanSets) < c {
-				m.SpanSets = make([]*SpanSet, 0, c)
+				m.SpanSets = make([]SpanSet, 0, c)
 			}
 		}
 		if c := field8count; c > 0 {
@@ -8087,7 +8045,7 @@ func (m *TraceSearchMetadata) unmarshal(dAtA []byte, depth int) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.SpanSets = append(m.SpanSets, &SpanSet{})
+			m.SpanSets = append(m.SpanSets, SpanSet{})
 			if err := m.SpanSets[len(m.SpanSets)-1].unmarshal(dAtA[iNdEx:postIndex], depth+1); err != nil {
 				return err
 			}
@@ -8480,7 +8438,7 @@ func (m *SpanSet) unmarshal(dAtA []byte, depth int) error {
 				c = preCapMax
 			}
 			if len(m.Spans) == 0 && cap(m.Spans) < c {
-				m.Spans = make([]*Span, 0, c)
+				m.Spans = make([]Span, 0, c)
 			}
 		}
 		if c := field3count; c > 0 {
@@ -8488,7 +8446,7 @@ func (m *SpanSet) unmarshal(dAtA []byte, depth int) error {
 				c = preCapMax
 			}
 			if len(m.Attributes) == 0 && cap(m.Attributes) < c {
-				m.Attributes = make([]*v1.KeyValue, 0, c)
+				m.Attributes = make([]v1.KeyValue, 0, c)
 			}
 		}
 	}
@@ -8562,7 +8520,7 @@ func (m *SpanSet) unmarshal(dAtA []byte, depth int) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Spans = append(m.Spans, &Span{})
+			m.Spans = append(m.Spans, Span{})
 			if err := m.Spans[len(m.Spans)-1].unmarshal(dAtA[iNdEx:postIndex], depth+1); err != nil {
 				return err
 			}
@@ -8638,7 +8596,7 @@ func (m *SpanSet) unmarshal(dAtA []byte, depth int) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Attributes = append(m.Attributes, &v1.KeyValue{})
+			m.Attributes = append(m.Attributes, v1.KeyValue{})
 			if err := m.Attributes[len(m.Attributes)-1].UnmarshalWithDepth(dAtA[iNdEx:postIndex], depth+1); err != nil {
 				return err
 			}
@@ -8739,7 +8697,7 @@ func (m *Span) unmarshal(dAtA []byte, depth int) error {
 				c = preCapMax
 			}
 			if len(m.Attributes) == 0 && cap(m.Attributes) < c {
-				m.Attributes = make([]*v1.KeyValue, 0, c)
+				m.Attributes = make([]v1.KeyValue, 0, c)
 			}
 		}
 	}
@@ -8959,7 +8917,7 @@ func (m *Span) unmarshal(dAtA []byte, depth int) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Attributes = append(m.Attributes, &v1.KeyValue{})
+			m.Attributes = append(m.Attributes, v1.KeyValue{})
 			if err := m.Attributes[len(m.Attributes)-1].UnmarshalWithDepth(dAtA[iNdEx:postIndex], depth+1); err != nil {
 				return err
 			}
@@ -12411,7 +12369,7 @@ func (m *Trace) unmarshal(dAtA []byte, depth int) error {
 				c = preCapMax
 			}
 			if len(m.ResourceSpans) == 0 && cap(m.ResourceSpans) < c {
-				m.ResourceSpans = make([]*tracev1.ResourceSpans, 0, c)
+				m.ResourceSpans = make([]tracev1.ResourceSpans, 0, c)
 			}
 		}
 	}
@@ -12485,7 +12443,7 @@ func (m *Trace) unmarshal(dAtA []byte, depth int) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.ResourceSpans = append(m.ResourceSpans, &tracev1.ResourceSpans{})
+			m.ResourceSpans = append(m.ResourceSpans, tracev1.ResourceSpans{})
 			if err := m.ResourceSpans[len(m.ResourceSpans)-1].UnmarshalWithDepth(dAtA[iNdEx:postIndex], depth+1); err != nil {
 				return err
 			}
@@ -13001,7 +12959,7 @@ func (m *PushSpansRequest) unmarshal(dAtA []byte, depth int) error {
 				c = preCapMax
 			}
 			if len(m.Batches) == 0 && cap(m.Batches) < c {
-				m.Batches = make([]*tracev1.ResourceSpans, 0, c)
+				m.Batches = make([]tracev1.ResourceSpans, 0, c)
 			}
 		}
 	}
@@ -13075,7 +13033,7 @@ func (m *PushSpansRequest) unmarshal(dAtA []byte, depth int) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Batches = append(m.Batches, &tracev1.ResourceSpans{})
+			m.Batches = append(m.Batches, tracev1.ResourceSpans{})
 			if err := m.Batches[len(m.Batches)-1].UnmarshalWithDepth(dAtA[iNdEx:postIndex], depth+1); err != nil {
 				return err
 			}
@@ -13376,7 +13334,7 @@ func (m *LinkSlice) unmarshal(dAtA []byte, depth int) error {
 				c = preCapMax
 			}
 			if len(m.Links) == 0 && cap(m.Links) < c {
-				m.Links = make([]*tracev1.Span_Link, 0, c)
+				m.Links = make([]tracev1.Span_Link, 0, c)
 			}
 		}
 	}
@@ -13450,7 +13408,7 @@ func (m *LinkSlice) unmarshal(dAtA []byte, depth int) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Links = append(m.Links, &tracev1.Span_Link{})
+			m.Links = append(m.Links, tracev1.Span_Link{})
 			if err := m.Links[len(m.Links)-1].UnmarshalWithDepth(dAtA[iNdEx:postIndex], depth+1); err != nil {
 				return err
 			}

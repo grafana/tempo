@@ -394,18 +394,12 @@ func dedicatedColStrToAnyValue(v []string) *v1.AnyValue {
 
 	default:
 		var (
-			// Build array.
-			// All pointers allocated together for performance.
-			values   = make([]*v1.AnyValue, 0, len(v))
-			allocAny = make([]v1.AnyValue, len(v))
-			allocStr = make([]v1.AnyValue_StringValue, len(v))
+			values    = make([]v1.AnyValue, len(v))
+			strValues = make([]v1.AnyValue_StringValue, len(v))
 		)
 		for i, s := range v {
-			anyS := &allocStr[i]
-			anyS.StringValue = s
-			anyV := &allocAny[i]
-			anyV.Value = anyS
-			values = append(values, anyV)
+			strValues[i].StringValue = s
+			values[i].Value = &strValues[i]
 		}
 		return &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: v1.ArrayValue{Values: values}}}
 	}
@@ -444,18 +438,12 @@ func dedicatedColIntToAnyValue(v []int64) *v1.AnyValue {
 
 	default:
 		var (
-			// Build array.
-			// All pointers allocated together for performance.
-			values   = make([]*v1.AnyValue, 0, len(v))
-			allocAny = make([]v1.AnyValue, len(v))
-			allocInt = make([]v1.AnyValue_IntValue, len(v))
+			values    = make([]v1.AnyValue, len(v))
+			intValues = make([]v1.AnyValue_IntValue, len(v))
 		)
 		for i, n := range v {
-			anyS := &allocInt[i]
-			anyS.IntValue = n
-			anyV := &allocAny[i]
-			anyV.Value = anyS
-			values = append(values, anyV)
+			intValues[i].IntValue = n
+			values[i].Value = &intValues[i]
 		}
 
 		return &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: v1.ArrayValue{Values: values}}}

@@ -71,7 +71,7 @@ type AnyValue struct {
 // since oneof in AnyValue does not allow repeated fields.
 type ArrayValue struct {
 	// Array of values. The array may be empty (contain 0 elements).
-	Values []*AnyValue `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
+	Values []AnyValue `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
 }
 
 // KeyValueList is a list of KeyValue messages. We need KeyValueList as a message
@@ -84,7 +84,7 @@ type KeyValueList struct {
 	// contain 0 elements).
 	// The keys MUST be unique (it is not allowed to have more than one
 	// value with the same key).
-	Values []*KeyValue `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
+	Values []KeyValue `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
 }
 
 // KeyValue is a key-value pair that is used to store Span attributes, Link
@@ -103,8 +103,8 @@ type InstrumentationScope struct {
 	// Additional attributes that describe the scope. [Optional].
 	// Attribute keys MUST be unique (it is not allowed to have more than one
 	// attribute with the same key).
-	Attributes             []*KeyValue `protobuf:"bytes,3,rep,name=attributes,proto3" json:"attributes,omitempty"`
-	DroppedAttributesCount uint32      `protobuf:"varint,4,opt,name=dropped_attributes_count,json=droppedAttributesCount,proto3" json:"dropped_attributes_count,omitempty"`
+	Attributes             []KeyValue `protobuf:"bytes,3,rep,name=attributes,proto3" json:"attributes,omitempty"`
+	DroppedAttributesCount uint32     `protobuf:"varint,4,opt,name=dropped_attributes_count,json=droppedAttributesCount,proto3" json:"dropped_attributes_count,omitempty"`
 }
 
 func (m *AnyValue) Reset() {
@@ -203,14 +203,14 @@ func (m *AnyValue) GetBytesValue() []byte {
 	return nil
 }
 
-func (m *ArrayValue) GetValues() []*AnyValue {
+func (m *ArrayValue) GetValues() []AnyValue {
 	if m != nil {
 		return m.Values
 	}
 	return nil
 }
 
-func (m *KeyValueList) GetValues() []*KeyValue {
+func (m *KeyValueList) GetValues() []KeyValue {
 	if m != nil {
 		return m.Values
 	}
@@ -245,7 +245,7 @@ func (m *InstrumentationScope) GetVersion() string {
 	return ""
 }
 
-func (m *InstrumentationScope) GetAttributes() []*KeyValue {
+func (m *InstrumentationScope) GetAttributes() []KeyValue {
 	if m != nil {
 		return m.Attributes
 	}
@@ -295,10 +295,7 @@ func (m *ArrayValue) Size() int {
 	}
 	var n int
 	for i := range m.Values {
-		if m.Values[i] == nil {
-			continue
-		}
-		s := (*m.Values[i]).Size()
+		s := m.Values[i].Size()
 		n += 1 + protowire.SizeVarint(uint64(s)) + s
 	}
 	return n
@@ -310,10 +307,7 @@ func (m *KeyValueList) Size() int {
 	}
 	var n int
 	for i := range m.Values {
-		if m.Values[i] == nil {
-			continue
-		}
-		s := (*m.Values[i]).Size()
+		s := m.Values[i].Size()
 		n += 1 + protowire.SizeVarint(uint64(s)) + s
 	}
 	return n
@@ -346,10 +340,7 @@ func (m *InstrumentationScope) Size() int {
 		n += 1 + protowire.SizeVarint(uint64(len(m.Version))) + len(m.Version)
 	}
 	for i := range m.Attributes {
-		if m.Attributes[i] == nil {
-			continue
-		}
-		s := (*m.Attributes[i]).Size()
+		s := m.Attributes[i].Size()
 		n += 1 + protowire.SizeVarint(uint64(s)) + s
 	}
 	if m.DroppedAttributesCount != 0 {
@@ -490,10 +481,7 @@ func (m *ArrayValue) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	}
 	i := len(dAtA)
 	for iNdEx := len(m.Values) - 1; iNdEx >= 0; iNdEx-- {
-		if m.Values[iNdEx] == nil {
-			continue
-		}
-		size, err := (*m.Values[iNdEx]).MarshalToSizedBuffer(dAtA[:i])
+		size, err := m.Values[iNdEx].MarshalToSizedBuffer(dAtA[:i])
 		if err != nil {
 			return 0, err
 		}
@@ -540,10 +528,7 @@ func (m *KeyValueList) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	}
 	i := len(dAtA)
 	for iNdEx := len(m.Values) - 1; iNdEx >= 0; iNdEx-- {
-		if m.Values[iNdEx] == nil {
-			continue
-		}
-		size, err := (*m.Values[iNdEx]).MarshalToSizedBuffer(dAtA[:i])
+		size, err := m.Values[iNdEx].MarshalToSizedBuffer(dAtA[:i])
 		if err != nil {
 			return 0, err
 		}
@@ -654,10 +639,7 @@ func (m *InstrumentationScope) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		dAtA[i] = 0x20
 	}
 	for iNdEx := len(m.Attributes) - 1; iNdEx >= 0; iNdEx-- {
-		if m.Attributes[iNdEx] == nil {
-			continue
-		}
-		size, err := (*m.Attributes[iNdEx]).MarshalToSizedBuffer(dAtA[:i])
+		size, err := m.Attributes[iNdEx].MarshalToSizedBuffer(dAtA[:i])
 		if err != nil {
 			return 0, err
 		}
@@ -1099,7 +1081,7 @@ func (m *ArrayValue) unmarshal(dAtA []byte, depth int) error {
 				c = preCapMax
 			}
 			if len(m.Values) == 0 && cap(m.Values) < c {
-				m.Values = make([]*AnyValue, 0, c)
+				m.Values = make([]AnyValue, 0, c)
 			}
 		}
 	}
@@ -1173,7 +1155,7 @@ func (m *ArrayValue) unmarshal(dAtA []byte, depth int) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Values = append(m.Values, &AnyValue{})
+			m.Values = append(m.Values, AnyValue{})
 			if err := m.Values[len(m.Values)-1].unmarshal(dAtA[iNdEx:postIndex], depth+1); err != nil {
 				return err
 			}
@@ -1274,7 +1256,7 @@ func (m *KeyValueList) unmarshal(dAtA []byte, depth int) error {
 				c = preCapMax
 			}
 			if len(m.Values) == 0 && cap(m.Values) < c {
-				m.Values = make([]*KeyValue, 0, c)
+				m.Values = make([]KeyValue, 0, c)
 			}
 		}
 	}
@@ -1348,7 +1330,7 @@ func (m *KeyValueList) unmarshal(dAtA []byte, depth int) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Values = append(m.Values, &KeyValue{})
+			m.Values = append(m.Values, KeyValue{})
 			if err := m.Values[len(m.Values)-1].unmarshal(dAtA[iNdEx:postIndex], depth+1); err != nil {
 				return err
 			}
@@ -1602,7 +1584,7 @@ func (m *InstrumentationScope) unmarshal(dAtA []byte, depth int) error {
 				c = preCapMax
 			}
 			if len(m.Attributes) == 0 && cap(m.Attributes) < c {
-				m.Attributes = make([]*KeyValue, 0, c)
+				m.Attributes = make([]KeyValue, 0, c)
 			}
 		}
 	}
@@ -1766,7 +1748,7 @@ func (m *InstrumentationScope) unmarshal(dAtA []byte, depth int) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Attributes = append(m.Attributes, &KeyValue{})
+			m.Attributes = append(m.Attributes, KeyValue{})
 			if err := m.Attributes[len(m.Attributes)-1].unmarshal(dAtA[iNdEx:postIndex], depth+1); err != nil {
 				return err
 			}

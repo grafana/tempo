@@ -379,10 +379,7 @@ func (this *TraceSearchMetadata) Equal(that interface{}) bool {
 		return false
 	}
 	for i := range this.SpanSets {
-		if (this.SpanSets[i] == nil) != (that1.SpanSets[i] == nil) {
-			return false
-		}
-		if this.SpanSets[i] != nil && !this.SpanSets[i].Equal(that1.SpanSets[i]) {
+		if !this.SpanSets[i].Equal(that1.SpanSets[i]) {
 			return false
 		}
 	}
@@ -452,10 +449,7 @@ func (this *SpanSet) Equal(that interface{}) bool {
 		return false
 	}
 	for i := range this.Spans {
-		if (this.Spans[i] == nil) != (that1.Spans[i] == nil) {
-			return false
-		}
-		if this.Spans[i] != nil && !this.Spans[i].Equal(that1.Spans[i]) {
+		if !this.Spans[i].Equal(that1.Spans[i]) {
 			return false
 		}
 	}
@@ -466,10 +460,7 @@ func (this *SpanSet) Equal(that interface{}) bool {
 		return false
 	}
 	for i := range this.Attributes {
-		if (this.Attributes[i] == nil) != (that1.Attributes[i] == nil) {
-			return false
-		}
-		if this.Attributes[i] != nil && !this.Attributes[i].Equal(that1.Attributes[i]) {
+		if !this.Attributes[i].Equal(that1.Attributes[i]) {
 			return false
 		}
 	}
@@ -511,10 +502,7 @@ func (this *Span) Equal(that interface{}) bool {
 		return false
 	}
 	for i := range this.Attributes {
-		if (this.Attributes[i] == nil) != (that1.Attributes[i] == nil) {
-			return false
-		}
-		if this.Attributes[i] != nil && !this.Attributes[i].Equal(that1.Attributes[i]) {
+		if !this.Attributes[i].Equal(that1.Attributes[i]) {
 			return false
 		}
 	}
@@ -1053,10 +1041,7 @@ func (this *Trace) Equal(that interface{}) bool {
 		return false
 	}
 	for i := range this.ResourceSpans {
-		if (this.ResourceSpans[i] == nil) != (that1.ResourceSpans[i] == nil) {
-			return false
-		}
-		if this.ResourceSpans[i] != nil && !this.ResourceSpans[i].Equal(that1.ResourceSpans[i]) {
+		if !this.ResourceSpans[i].Equal(that1.ResourceSpans[i]) {
 			return false
 		}
 	}
@@ -1157,10 +1142,7 @@ func (this *PushSpansRequest) Equal(that interface{}) bool {
 		return false
 	}
 	for i := range this.Batches {
-		if (this.Batches[i] == nil) != (that1.Batches[i] == nil) {
-			return false
-		}
-		if this.Batches[i] != nil && !this.Batches[i].Equal(that1.Batches[i]) {
+		if !this.Batches[i].Equal(that1.Batches[i]) {
 			return false
 		}
 	}
@@ -1223,10 +1205,7 @@ func (this *LinkSlice) Equal(that interface{}) bool {
 		return false
 	}
 	for i := range this.Links {
-		if (this.Links[i] == nil) != (that1.Links[i] == nil) {
-			return false
-		}
-		if this.Links[i] != nil && !this.Links[i].Equal(that1.Links[i]) {
+		if !this.Links[i].Equal(that1.Links[i]) {
 			return false
 		}
 	}
@@ -2149,16 +2128,8 @@ func (this *TraceSearchMetadata) Compare(that interface{}) int {
 		return 1
 	}
 	for i := range this.SpanSets {
-		if (this.SpanSets[i] == nil) != (that1.SpanSets[i] == nil) {
-			if this.SpanSets[i] == nil {
-				return -1
-			}
-			return 1
-		}
-		if this.SpanSets[i] != nil {
-			if c := this.SpanSets[i].Compare(that1.SpanSets[i]); c != 0 {
-				return c
-			}
+		if c := this.SpanSets[i].Compare(that1.SpanSets[i]); c != 0 {
+			return c
 		}
 	}
 	if len(this.ServiceStats) != len(that1.ServiceStats) {
@@ -2267,16 +2238,8 @@ func (this *SpanSet) Compare(that interface{}) int {
 		return 1
 	}
 	for i := range this.Spans {
-		if (this.Spans[i] == nil) != (that1.Spans[i] == nil) {
-			if this.Spans[i] == nil {
-				return -1
-			}
-			return 1
-		}
-		if this.Spans[i] != nil {
-			if c := this.Spans[i].Compare(that1.Spans[i]); c != 0 {
-				return c
-			}
+		if c := this.Spans[i].Compare(that1.Spans[i]); c != 0 {
+			return c
 		}
 	}
 	if this.Matched != that1.Matched {
@@ -2292,16 +2255,8 @@ func (this *SpanSet) Compare(that interface{}) int {
 		return 1
 	}
 	for i := range this.Attributes {
-		if (this.Attributes[i] == nil) != (that1.Attributes[i] == nil) {
-			if this.Attributes[i] == nil {
-				return -1
-			}
-			return 1
-		}
-		if this.Attributes[i] != nil {
-			if c := this.Attributes[i].Compare(that1.Attributes[i]); c != 0 {
-				return c
-			}
+		if c := this.Attributes[i].Compare(that1.Attributes[i]); c != 0 {
+			return c
 		}
 	}
 	return 0
@@ -2363,16 +2318,8 @@ func (this *Span) Compare(that interface{}) int {
 		return 1
 	}
 	for i := range this.Attributes {
-		if (this.Attributes[i] == nil) != (that1.Attributes[i] == nil) {
-			if this.Attributes[i] == nil {
-				return -1
-			}
-			return 1
-		}
-		if this.Attributes[i] != nil {
-			if c := this.Attributes[i].Compare(that1.Attributes[i]); c != 0 {
-				return c
-			}
+		if c := this.Attributes[i].Compare(that1.Attributes[i]); c != 0 {
+			return c
 		}
 	}
 	return 0
@@ -3206,16 +3153,8 @@ func (this *Trace) Compare(that interface{}) int {
 		return 1
 	}
 	for i := range this.ResourceSpans {
-		if (this.ResourceSpans[i] == nil) != (that1.ResourceSpans[i] == nil) {
-			if this.ResourceSpans[i] == nil {
-				return -1
-			}
-			return 1
-		}
-		if this.ResourceSpans[i] != nil {
-			if c := this.ResourceSpans[i].Compare(that1.ResourceSpans[i]); c != 0 {
-				return c
-			}
+		if c := this.ResourceSpans[i].Compare(that1.ResourceSpans[i]); c != 0 {
+			return c
 		}
 	}
 	return 0
@@ -3351,16 +3290,8 @@ func (this *PushSpansRequest) Compare(that interface{}) int {
 		return 1
 	}
 	for i := range this.Batches {
-		if (this.Batches[i] == nil) != (that1.Batches[i] == nil) {
-			if this.Batches[i] == nil {
-				return -1
-			}
-			return 1
-		}
-		if this.Batches[i] != nil {
-			if c := this.Batches[i].Compare(that1.Batches[i]); c != 0 {
-				return c
-			}
+		if c := this.Batches[i].Compare(that1.Batches[i]); c != 0 {
+			return c
 		}
 	}
 	if this.SkipMetricsGeneration != that1.SkipMetricsGeneration {
@@ -3443,16 +3374,8 @@ func (this *LinkSlice) Compare(that interface{}) int {
 		return 1
 	}
 	for i := range this.Links {
-		if (this.Links[i] == nil) != (that1.Links[i] == nil) {
-			if this.Links[i] == nil {
-				return -1
-			}
-			return 1
-		}
-		if this.Links[i] != nil {
-			if c := this.Links[i].Compare(that1.Links[i]); c != 0 {
-				return c
-			}
+		if c := this.Links[i].Compare(that1.Links[i]); c != 0 {
+			return c
 		}
 	}
 	return 0

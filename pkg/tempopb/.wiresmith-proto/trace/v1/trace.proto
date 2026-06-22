@@ -48,7 +48,7 @@ message TracesData {
   // one element. Intermediary nodes that receive data from multiple origins
   // typically batch the data before forwarding further and in that case this
   // array will contain multiple elements.
-  repeated ResourceSpans resource_spans = 1 [(wiresmith.options.pointer) = true];
+  repeated ResourceSpans resource_spans = 1;
 }
 
 // A collection of ScopeSpans from a Resource.
@@ -60,7 +60,7 @@ message ResourceSpans {
   tempopb.resource.v1.Resource resource = 1 [(wiresmith.options.pointer) = true];
 
   // A list of ScopeSpans that originate from a resource.
-  repeated ScopeSpans scope_spans = 2 [(wiresmith.options.pointer) = true];
+  repeated ScopeSpans scope_spans = 2;
 
   // The Schema URL, if known. This is the identifier of the Schema that the resource data
   // is recorded in. To learn more about Schema URL see
@@ -78,7 +78,7 @@ message ScopeSpans {
   tempopb.common.v1.InstrumentationScope scope = 1 [(wiresmith.options.pointer) = true];
 
   // A list of Spans that originate from an instrumentation scope.
-  repeated Span spans = 2 [(wiresmith.options.pointer) = true];
+  repeated Span spans = 2;
 
   // The Schema URL, if known. This is the identifier of the Schema that the span data
   // is recorded in. To learn more about Schema URL see
@@ -215,7 +215,7 @@ message Span {
   // https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/common/README.md#attribute
   // Attribute keys MUST be unique (it is not allowed to have more than one
   // attribute with the same key).
-  repeated tempopb.common.v1.KeyValue attributes = 9 [(wiresmith.options.pointer) = true];
+  repeated tempopb.common.v1.KeyValue attributes = 9;
 
   // dropped_attributes_count is the number of attributes that were discarded. Attributes
   // can be discarded because their keys are too long or because there are too many
@@ -235,7 +235,7 @@ message Span {
     // attributes is a collection of attribute key/value pairs on the event.
     // Attribute keys MUST be unique (it is not allowed to have more than one
     // attribute with the same key).
-    repeated tempopb.common.v1.KeyValue attributes = 3 [(wiresmith.options.pointer) = true];
+    repeated tempopb.common.v1.KeyValue attributes = 3;
 
     // dropped_attributes_count is the number of dropped attributes. If the value is 0,
     // then no attributes were dropped.
@@ -243,7 +243,7 @@ message Span {
   }
 
   // events is a collection of Event items.
-  repeated Event events = 11 [(wiresmith.options.pointer) = true];
+  repeated Event events = 11;
 
   // dropped_events_count is the number of dropped events. If the value is 0, then no
   // events were dropped.
@@ -267,7 +267,7 @@ message Span {
     // attributes is a collection of attribute key/value pairs on the link.
     // Attribute keys MUST be unique (it is not allowed to have more than one
     // attribute with the same key).
-    repeated tempopb.common.v1.KeyValue attributes = 4 [(wiresmith.options.pointer) = true];
+    repeated tempopb.common.v1.KeyValue attributes = 4;
 
     // dropped_attributes_count is the number of dropped attributes. If the value is 0,
     // then no attributes were dropped.
@@ -295,7 +295,7 @@ message Span {
 
   // links is a collection of Links, which are references from this span to a span
   // in the same or different trace.
-  repeated Link links = 13 [(wiresmith.options.pointer) = true];
+  repeated Link links = 13;
 
   // dropped_links_count is the number of dropped links after the maximum size was
   // enforced. If this value is 0, then no links were dropped.

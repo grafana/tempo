@@ -1047,12 +1047,12 @@ func createValidPushRequest(t *testing.T) []byte {
 func createValidPushRequestStartEnd(t *testing.T, start, end time.Time) []byte {
 	id := test.ValidTraceID(nil)
 	tr := &tempopb.Trace{
-		ResourceSpans: []*v1_trace.ResourceSpans{
+		ResourceSpans: []v1_trace.ResourceSpans{
 			{
 				Resource: &v1_resource.Resource{},
-				ScopeSpans: []*v1_trace.ScopeSpans{
+				ScopeSpans: []v1_trace.ScopeSpans{
 					{
-						Spans: []*v1_trace.Span{
+						Spans: []v1_trace.Span{
 							{
 								TraceId:           id,
 								StartTimeUnixNano: uint64(start.UnixNano()),

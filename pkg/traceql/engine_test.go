@@ -119,12 +119,12 @@ func TestEngine_Execute(t *testing.T) {
 	assert.Equal(t, expectedFetchSpansRequest, spanSetFetcher.capturedRequest)
 
 	expectedSpanset := &tempopb.SpanSet{
-		Spans: []*tempopb.Span{
+		Spans: []tempopb.Span{
 			{
 				SpanID:            "0000000000000002",
 				StartTimeUnixNano: uint64(now.UnixNano()),
 				DurationNanos:     100_000_000,
-				Attributes: []*v1.KeyValue{
+				Attributes: []v1.KeyValue{
 					{
 						Key: "foo",
 						Value: &v1.AnyValue{
@@ -147,7 +147,7 @@ func TestEngine_Execute(t *testing.T) {
 				SpanID:            "0000000000000003",
 				StartTimeUnixNano: uint64(now.UnixNano()),
 				DurationNanos:     200_000_000,
-				Attributes: []*v1.KeyValue{
+				Attributes: []v1.KeyValue{
 					{
 						Key: "foo",
 						Value: &v1.AnyValue{
@@ -181,7 +181,7 @@ func TestEngine_Execute(t *testing.T) {
 				},
 			},
 			SpanSet:  expectedSpanset,
-			SpanSets: []*tempopb.SpanSet{expectedSpanset},
+			SpanSets: []tempopb.SpanSet{*expectedSpanset},
 		},
 	}
 
@@ -257,13 +257,13 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 
 	expectedSpanset := &tempopb.SpanSet{
 		Matched: 2,
-		Spans: []*tempopb.Span{
+		Spans: []tempopb.Span{
 			{
 				SpanID:            util.SpanIDToHexString(spanID1),
 				Name:              "HTTP GET",
 				StartTimeUnixNano: uint64(now.UnixNano()),
 				DurationNanos:     10_000_000_000,
-				Attributes: []*v1.KeyValue{
+				Attributes: []v1.KeyValue{
 					{
 						Key: "cluster",
 						Value: &v1.AnyValue{
@@ -321,7 +321,7 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 				Attributes:        nil,
 			},
 		},
-		Attributes: []*v1.KeyValue{
+		Attributes: []v1.KeyValue{
 			{
 				Key: "avg(duration)",
 				Value: &v1.AnyValue{
@@ -345,7 +345,7 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 			},
 		},
 		SpanSet:  expectedSpanset,
-		SpanSets: []*tempopb.SpanSet{expectedSpanset},
+		SpanSets: []tempopb.SpanSet{*expectedSpanset},
 	}
 
 	// Ensure attributes are sorted to avoid a flaky test
@@ -493,7 +493,7 @@ func TestStatic_AsAnyValue(t *testing.T) {
 			NewStaticIntArray([]int{1, 2}),
 			&v1.AnyValue{
 				Value: &v1.AnyValue_ArrayValue{
-					ArrayValue: v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_IntValue{IntValue: 1}}, {Value: &v1.AnyValue_IntValue{IntValue: 2}}}},
+					ArrayValue: v1.ArrayValue{Values: []v1.AnyValue{{Value: &v1.AnyValue_IntValue{IntValue: 1}}, {Value: &v1.AnyValue_IntValue{IntValue: 2}}}},
 				},
 			},
 		},
@@ -501,7 +501,7 @@ func TestStatic_AsAnyValue(t *testing.T) {
 			NewStaticFloatArray([]float64{1.1, 2.2}),
 			&v1.AnyValue{
 				Value: &v1.AnyValue_ArrayValue{
-					ArrayValue: v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_DoubleValue{DoubleValue: 1.1}}, {Value: &v1.AnyValue_DoubleValue{DoubleValue: 2.2}}}},
+					ArrayValue: v1.ArrayValue{Values: []v1.AnyValue{{Value: &v1.AnyValue_DoubleValue{DoubleValue: 1.1}}, {Value: &v1.AnyValue_DoubleValue{DoubleValue: 2.2}}}},
 				},
 			},
 		},
@@ -509,7 +509,7 @@ func TestStatic_AsAnyValue(t *testing.T) {
 			NewStaticStringArray([]string{"foo", "bar"}),
 			&v1.AnyValue{
 				Value: &v1.AnyValue_ArrayValue{
-					ArrayValue: v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_StringValue{StringValue: "foo"}}, {Value: &v1.AnyValue_StringValue{StringValue: "bar"}}}},
+					ArrayValue: v1.ArrayValue{Values: []v1.AnyValue{{Value: &v1.AnyValue_StringValue{StringValue: "foo"}}, {Value: &v1.AnyValue_StringValue{StringValue: "bar"}}}},
 				},
 			},
 		},
@@ -517,7 +517,7 @@ func TestStatic_AsAnyValue(t *testing.T) {
 			NewStaticBooleanArray([]bool{true, false}),
 			&v1.AnyValue{
 				Value: &v1.AnyValue_ArrayValue{
-					ArrayValue: v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_BoolValue{BoolValue: true}}, {Value: &v1.AnyValue_BoolValue{BoolValue: false}}}},
+					ArrayValue: v1.ArrayValue{Values: []v1.AnyValue{{Value: &v1.AnyValue_BoolValue{BoolValue: true}}, {Value: &v1.AnyValue_BoolValue{BoolValue: false}}}},
 				},
 			},
 		},

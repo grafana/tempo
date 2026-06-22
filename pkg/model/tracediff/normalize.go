@@ -36,7 +36,7 @@ type spanLogicalKey struct {
 }
 
 type spanWithResource struct {
-	span            *tracev1.Span
+	span            tracev1.Span
 	resourceService string
 }
 
@@ -134,7 +134,7 @@ func normalizeSpan(span spanWithResource, path []int, logicalKey spanLogicalKey,
 			Service:    ref.Service,
 			Name:       ref.Name,
 			Kind:       ref.Kind,
-			DurationMs: durationMs(span.span),
+			DurationMs: durationMs(&span.span),
 			Status:     statusToString(span.span.GetStatus()),
 		},
 	}
@@ -196,19 +196,19 @@ func spanIDKey(id []byte) string {
 	return string(id)
 }
 
-func attributeString(attrs []*commonv1.KeyValue, key string) string {
-	for _, attr := range attrs {
-		if attr.GetKey() == key {
-			return attr.GetValue().GetStringValue()
+func attributeString(attrs []commonv1.KeyValue, key string) string {
+	for i := range attrs {
+		if attrs[i].GetKey() == key {
+			return attrs[i].GetValue().GetStringValue()
 		}
 	}
 	return ""
 }
 
-func attributesMap(attrs []*commonv1.KeyValue) map[string]any {
+func attributesMap(attrs []commonv1.KeyValue) map[string]any {
 	out := make(map[string]any, len(attrs))
-	for _, attr := range attrs {
-		out[attr.GetKey()] = anyValue(attr.GetValue())
+	for i := range attrs {
+		out[attrs[i].GetKey()] = anyValue(attrs[i].GetValue())
 	}
 	return out
 }
@@ -229,8 +229,8 @@ func anyValue(value *commonv1.AnyValue) any {
 	case *commonv1.AnyValue_ArrayValue:
 		values := v.ArrayValue.GetValues()
 		out := make([]any, 0, len(values))
-		for _, item := range values {
-			out = append(out, anyValue(item))
+		for i := range values {
+			out = append(out, anyValue(&values[i]))
 		}
 		return out
 	case *commonv1.AnyValue_KvlistValue:

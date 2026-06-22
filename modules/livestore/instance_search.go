@@ -29,6 +29,7 @@ import (
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
+	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/validation"
@@ -653,8 +654,12 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte, allowParti
 	// Check live traces first
 	i.liveTracesMtx.Lock()
 	if liveTrace, ok := i.liveTraces.Traces[util.HashForTraceID(traceID)]; ok {
-		tempTrace := &tempopb.Trace{}
-		tempTrace.ResourceSpans = liveTrace.Batches
+		// liveTrace.Batches holds pointers; dereference into a value slice for tempopb.Trace.
+		resourceSpans := make([]tracev1.ResourceSpans, len(liveTrace.Batches))
+		for i, b := range liveTrace.Batches {
+			resourceSpans[i] = *b
+		}
+		tempTrace := &tempopb.Trace{ResourceSpans: resourceSpans}
 		// Previously there was some logic here to add inspected bytes in the ingester. But its hard to do with the different
 		// live traces format and feels inaccurate.
 		_, err := combiner.Consume(tempTrace)

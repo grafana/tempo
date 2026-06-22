@@ -1542,7 +1542,8 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 		for _, a := range parquetToProtoAttrs(rs.Resource.Attrs) {
 			if arr := a.Value.GetArrayValue(); arr != nil {
 				for _, v := range arr.Values {
-					rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, a.Key), traceql.StaticFromAnyValue(v)})
+					v := v
+					rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, a.Key), traceql.StaticFromAnyValue(&v)})
 				}
 				continue
 			}
@@ -1573,7 +1574,8 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 			for _, a := range parquetToProtoAttrs(ss.Scope.Attrs) {
 				if arr := a.Value.GetArrayValue(); arr != nil {
 					for _, v := range arr.Values {
-						instrumentationAttrs = append(instrumentationAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeInstrumentation, false, a.Key), traceql.StaticFromAnyValue(v)})
+						v := v
+						instrumentationAttrs = append(instrumentationAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeInstrumentation, false, a.Key), traceql.StaticFromAnyValue(&v)})
 					}
 					continue
 				}
@@ -1615,7 +1617,8 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 				for _, a := range parquetToProtoAttrs(s.Attrs) {
 					if arr := a.Value.GetArrayValue(); arr != nil {
 						for _, v := range arr.Values {
-							newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, a.Key), traceql.StaticFromAnyValue(v))
+							v := v
+							newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, a.Key), traceql.StaticFromAnyValue(&v))
 						}
 						continue
 					}

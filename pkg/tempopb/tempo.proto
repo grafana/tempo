@@ -142,7 +142,7 @@ message TraceSearchMetadata {
   uint64 startTimeUnixNano = 4;
   uint32 durationMs = 5;
   SpanSet spanSet = 6 [(wiresmith.options.pointer) = true]; // deprecated. use SpanSets field below
-  repeated SpanSet spanSets = 7 [(wiresmith.options.pointer) = true];
+  repeated SpanSet spanSets = 7;
   map<string, ServiceStats> serviceStats = 8;
 }
 
@@ -152,9 +152,9 @@ message ServiceStats {
 }
 
 message SpanSet {
-  repeated Span spans = 1 [(wiresmith.options.pointer) = true];
+  repeated Span spans = 1;
   uint32 matched = 2;
-  repeated tempopb.common.v1.KeyValue attributes = 3 [(wiresmith.options.pointer) = true];
+  repeated tempopb.common.v1.KeyValue attributes = 3;
 }
 
 message Span {
@@ -162,7 +162,7 @@ message Span {
   string name = 2;
   uint64 startTimeUnixNano = 3;
   uint64 durationNanos = 4;
-  repeated tempopb.common.v1.KeyValue attributes = 5 [(wiresmith.options.pointer) = true];
+  repeated tempopb.common.v1.KeyValue attributes = 5;
 }
 
 message SearchMetrics {
@@ -277,7 +277,7 @@ message MetadataMetrics {
 }
 
 message Trace {
-  repeated tempopb.trace.v1.ResourceSpans resourceSpans = 1 [(wiresmith.options.pointer) = true];
+  repeated tempopb.trace.v1.ResourceSpans resourceSpans = 1;
 }
 
 // Write
@@ -309,7 +309,7 @@ message PushBytesRequest {
 
 message PushSpansRequest {
   // just send entire OTel spans for now
-  repeated tempopb.trace.v1.ResourceSpans batches = 1 [(wiresmith.options.pointer) = true];
+  repeated tempopb.trace.v1.ResourceSpans batches = 1;
 
   // indicates whether metrics generation should be skipped
   // for traces contained in this request.
@@ -326,7 +326,7 @@ message TraceBytes {
 // can't encode a slice directly so we use this wrapper to generate the required
 // marshalling/unmarshalling functions.
 message LinkSlice {
-  repeated tempopb.trace.v1.Span.Link links = 1 [(wiresmith.options.pointer) = true];
+  repeated tempopb.trace.v1.Span.Link links = 1;
 }
 
 message QueryInstantRequest {

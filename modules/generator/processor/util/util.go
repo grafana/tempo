@@ -12,23 +12,23 @@ import (
 	tempo_util "github.com/grafana/tempo/pkg/util"
 )
 
-func FindServiceName(attributes []*v1_common.KeyValue) (string, bool) {
+func FindServiceName(attributes []v1_common.KeyValue) (string, bool) {
 	return FindAttributeValue(string(semconv.ServiceNameKey), attributes)
 }
 
-func FindServiceNamespace(attributes []*v1_common.KeyValue) (string, bool) {
+func FindServiceNamespace(attributes []v1_common.KeyValue) (string, bool) {
 	return FindAttributeValue(string(semconv.ServiceNamespaceKey), attributes)
 }
 
-func FindInstanceID(attributes []*v1_common.KeyValue) (string, bool) {
+func FindInstanceID(attributes []v1_common.KeyValue) (string, bool) {
 	return FindAttributeValue(string(semconv.ServiceInstanceIDKey), attributes)
 }
 
-func FindAttributeValue(key string, attributes ...[]*v1_common.KeyValue) (string, bool) {
+func FindAttributeValue(key string, attributes ...[]v1_common.KeyValue) (string, bool) {
 	for _, attrs := range attributes {
-		for _, kv := range attrs {
-			if key == kv.Key {
-				return tempo_util.StringifyAnyValue(kv.Value), true
+		for i := range attrs {
+			if key == attrs[i].Key {
+				return tempo_util.StringifyAnyValue(attrs[i].Value), true
 			}
 		}
 	}
@@ -107,7 +107,7 @@ func extractOpenTelemetryTraceState(traceState string) string {
 	}
 }
 
-func GetJobValue(attributes []*v1_common.KeyValue) string {
+func GetJobValue(attributes []v1_common.KeyValue) string {
 	svName, _ := FindServiceName(attributes)
 	// if service name is not present, consider job value empty
 	if svName == "" {
