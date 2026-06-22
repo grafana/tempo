@@ -2,6 +2,7 @@ package registry
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 	"sync"
 	"testing"
@@ -517,4 +518,33 @@ func Test_histogram_demandVsActiveSeries(t *testing.T) {
 	expectedDemand := 20 * int(h.activeSeriesPerHistogramSerie())
 	assert.Greater(t, demand, expectedDemand-20, "demand should track all attempted series")
 	assert.Greater(t, demand, h.countActiveSeries(), "demand should exceed active series")
+}
+
+// TestNewHistogram_SortsUnsortedBuckets verifies newHistogram sorts the buckets
+// it is given. updateSeries counts buckets with sort.SearchFloat64s, which is
+// only correct on ascending buckets, and classic histograms require monotonic
+// le buckets. A static histogram_buckets config is not validated upstream, so
+// the registry must be robust to unsorted input.
+func TestNewHistogram_SortsUnsortedBuckets(t *testing.T) {
+	h := newHistogram("my_histogram", []float64{5, 0.5, 2, 1}, noopLimiter, "trace_id", nil, 15*time.Minute)
+
+	// Buckets are sorted ascending, with the synthetic +Inf bucket last, and
+	// bucketLabels stay aligned with them.
+	assert.Equal(t, []float64{0.5, 1, 2, 5, math.Inf(1)}, h.buckets)
+	assert.Equal(t, []string{"0.5", "1", "2", "5", "+Inf"}, h.bucketLabels)
+
+	// Observe a value in (0.5, 1]: every bucket whose le >= value is incremented
+	// cumulatively, so le=0.5 stays 0 and all higher buckets become 1.
+	lbls := buildTestLabels([]string{"label"}, []string{"value-1"})
+	h.ObserveWithExemplar(lbls, 0.75, "trace-1", 1.0)
+
+	s := h.series[lbls.Hash()]
+	if s == nil {
+		t.Fatalf("series not found for %s", lbls.String())
+	}
+	got := make([]float64, len(s.buckets))
+	for i := range s.buckets {
+		got[i] = s.buckets[i].Load()
+	}
+	assert.Equal(t, []float64{0, 1, 1, 1, 1}, got)
 }
