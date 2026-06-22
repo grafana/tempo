@@ -129,7 +129,6 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	}, []string{"op"})
 
 	adjustEndWareSeconds := pipeline.NewAdjustStartEndWare(cfg.Search.Sharder.QueryBackendAfter, cfg.QueryEndCutoff, false)
-	adjustEndWareNanos := pipeline.NewAdjustStartEndWare(cfg.Metrics.Sharder.QueryBackendAfter, cfg.QueryEndCutoff, true) // metrics queries work in nanoseconds
 	retryWare := pipeline.NewRetryWare(cfg.MaxRetries, cfg.Weights.RetryWithWeights, registerer)
 	cacheWare := pipeline.NewCachingWare(cacheProvider, cache.RoleFrontendSearch, logger)
 	statusCodeWare := pipeline.NewStatusCodeAdjustWare()
@@ -208,9 +207,6 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	queryRangePipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			headerStripWare,
-			// due to alignments and combiner, it needs to be done in handler
-			// TODO: initialise combiner after middlewares and uncomment
-			// adjustEndWareNanos,
 			urlDenyListWare,
 			queryValidatorWare,
 			pipeline.NewWeightRequestWare(pipeline.TraceQLMetrics, cfg.Weights),
@@ -224,7 +220,6 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	queryInstantPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			headerStripWare,
-			adjustEndWareNanos,
 			urlDenyListWare,
 			queryValidatorWare,
 			pipeline.NewWeightRequestWare(pipeline.TraceQLMetrics, cfg.Weights),
@@ -242,8 +237,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	searchTagsV2 := newTagsV2HTTPHandler(cfg, searchTagsPipeline, o, logger, dataAccessController)
 	searchTagValues := newTagValuesHTTPHandler(cfg, searchTagValuesPipeline, o, logger, dataAccessController)
 	searchTagValuesV2 := newTagValuesV2HTTPHandler(cfg, searchTagValuesV2Pipeline, o, logger, dataAccessController)
-	queryInstant := newMetricsQueryInstantHTTPHandler(cfg, queryInstantPipeline, logger, dataAccessController) // Reuses the same pipeline
-	queryRange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, logger, dataAccessController)
+	queryInstant := newMetricsQueryInstantHTTPHandler(cfg, queryInstantPipeline, o, logger, dataAccessController) // Reuses the same pipeline
+	queryRange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, o, logger, dataAccessController)
 
 	f := &QueryFrontend{
 		// http/discrete
@@ -263,8 +258,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		streamingTagsV2:       newTagsV2StreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger, dataAccessController),
 		streamingTagValues:    newTagValuesStreamingGRPCHandler(cfg, searchTagValuesPipeline, apiPrefix, o, logger, dataAccessController),
 		streamingTagValuesV2:  newTagValuesV2StreamingGRPCHandler(cfg, searchTagValuesV2Pipeline, apiPrefix, o, logger, dataAccessController),
-		streamingQueryRange:   newQueryRangeStreamingGRPCHandler(cfg, queryRangePipeline, apiPrefix, logger, dataAccessController),
-		streamingQueryInstant: newQueryInstantStreamingGRPCHandler(cfg, queryRangePipeline, apiPrefix, logger, dataAccessController), // Reuses the same pipeline
+		streamingQueryRange:   newQueryRangeStreamingGRPCHandler(cfg, queryRangePipeline, o, apiPrefix, logger, dataAccessController),
+		streamingQueryInstant: newQueryInstantStreamingGRPCHandler(cfg, queryRangePipeline, o, apiPrefix, logger, dataAccessController), // Reuses the same pipeline
 
 		cacheProvider: cacheProvider,
 		logger:        logger,
