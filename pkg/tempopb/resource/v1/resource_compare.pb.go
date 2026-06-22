@@ -45,10 +45,7 @@ func (this *Resource) Equal(that interface{}) bool {
 		return false
 	}
 	for i := range this.Attributes {
-		if (this.Attributes[i] == nil) != (that1.Attributes[i] == nil) {
-			return false
-		}
-		if this.Attributes[i] != nil && !this.Attributes[i].Equal(that1.Attributes[i]) {
+		if !this.Attributes[i].Equal(that1.Attributes[i]) {
 			return false
 		}
 	}
@@ -90,16 +87,8 @@ func (this *Resource) Compare(that interface{}) int {
 		return 1
 	}
 	for i := range this.Attributes {
-		if (this.Attributes[i] == nil) != (that1.Attributes[i] == nil) {
-			if this.Attributes[i] == nil {
-				return -1
-			}
-			return 1
-		}
-		if this.Attributes[i] != nil {
-			if c := this.Attributes[i].Compare(that1.Attributes[i]); c != 0 {
-				return c
-			}
+		if c := this.Attributes[i].Compare(that1.Attributes[i]); c != 0 {
+			return c
 		}
 	}
 	if this.DroppedAttributesCount != that1.DroppedAttributesCount {

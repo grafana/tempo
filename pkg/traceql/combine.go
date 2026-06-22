@@ -265,28 +265,28 @@ func combineSearchResults(existing *tempopb.TraceSearchMetadata, incoming *tempo
 		existing.ServiceStats[service] = existingStats
 	}
 
-	// make a map of existing Spansets
-	existingSS := make(map[string]*tempopb.SpanSet)
-	for _, ss := range existing.SpanSets {
-		existingSS[spansetID(ss)] = ss
+	// make a map of existing SpanSet indices by identity
+	existingSS := make(map[string]int)
+	for i := range existing.SpanSets {
+		existingSS[spansetID(&existing.SpanSets[i])] = i
 	}
 
 	// add any new spansets
-	for _, ss := range incoming.SpanSets {
-		id := spansetID(ss)
+	for i := range incoming.SpanSets {
+		id := spansetID(&incoming.SpanSets[i])
 		// if not found just add directly
 		if _, ok := existingSS[id]; !ok {
-			existing.SpanSets = append(existing.SpanSets, ss)
+			existing.SpanSets = append(existing.SpanSets, incoming.SpanSets[i])
 			continue
 		}
 
-		// otherwise combine with existing
-		combineSpansets(existingSS[id], ss)
+		// otherwise combine with existing (update in-place via index)
+		combineSpansets(&existing.SpanSets[existingSS[id]], &incoming.SpanSets[i])
 	}
 
 	// choose an arbitrary spanset to be the "main" one. this field is deprecated
 	if len(existing.SpanSets) > 0 {
-		existing.SpanSet = existing.SpanSets[0]
+		existing.SpanSet = &existing.SpanSets[0]
 	}
 }
 

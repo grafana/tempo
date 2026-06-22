@@ -732,7 +732,7 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 				ils.Scope = &v1.InstrumentationScope{
 					Name:       "scope-name",
 					Version:    "scope-version",
-					Attributes: []*v1.KeyValue{kv},
+					Attributes: []v1.KeyValue{*kv},
 				}
 				for _, span := range ils.Spans {
 					span.Name = spanName
@@ -741,12 +741,12 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 				}
 			}
 		}
-		testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes = append(testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes, kv)
+		testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes = append(testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes, *kv)
 		// add link and event
-		event := &trace_v1.Span_Event{Name: "event-name", Attributes: []*v1.KeyValue{eventKv}}
-		link := &trace_v1.Span_Link{TraceId: id, SpanId: id, Attributes: []*v1.KeyValue{linkKv}}
-		testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Events = append(testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Events, event)
-		testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Links = append(testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Links, link)
+		event := &trace_v1.Span_Event{Name: "event-name", Attributes: []v1.KeyValue{*eventKv}}
+		link := &trace_v1.Span_Link{TraceId: id, SpanId: id, Attributes: []v1.KeyValue{*linkKv}}
+		testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Events = append(testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Events, *event)
+		testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Links = append(testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Links, *link)
 
 		trace.SortTrace(testTrace)
 
@@ -1231,11 +1231,11 @@ func TestLiveStoreQueryRange(t *testing.T) {
 
 	// Create traces from spans
 	trace1 := &tempopb.Trace{
-		ResourceSpans: []*trace_v1.ResourceSpans{
+		ResourceSpans: []trace_v1.ResourceSpans{
 			{
-				ScopeSpans: []*trace_v1.ScopeSpans{
+				ScopeSpans: []trace_v1.ScopeSpans{
 					{
-						Spans: []*trace_v1.Span{sp},
+						Spans: []trace_v1.Span{*sp},
 					},
 				},
 			},
@@ -1243,11 +1243,11 @@ func TestLiveStoreQueryRange(t *testing.T) {
 	}
 
 	trace2 := &tempopb.Trace{
-		ResourceSpans: []*trace_v1.ResourceSpans{
+		ResourceSpans: []trace_v1.ResourceSpans{
 			{
-				ScopeSpans: []*trace_v1.ScopeSpans{
+				ScopeSpans: []trace_v1.ScopeSpans{
 					{
-						Spans: []*trace_v1.Span{sp2},
+						Spans: []trace_v1.Span{*sp2},
 					},
 				},
 			},

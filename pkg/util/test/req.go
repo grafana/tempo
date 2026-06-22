@@ -83,9 +83,9 @@ func anyValueForDedicatedColumn(col backend.DedicatedColumn, idx int) *v1_common
 }
 
 func makeSpanWithAttributeCount(traceID []byte, count int, startTime uint64, endTime uint64) *v1_trace.Span {
-	attributes := make([]*v1_common.KeyValue, 0, count)
+	attributes := make([]v1_common.KeyValue, 0, count)
 	for range count {
-		attributes = append(attributes, &v1_common.KeyValue{
+		attributes = append(attributes, v1_common.KeyValue{
 			Key:   RandomString(),
 			Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: RandomString()}},
 		})
@@ -113,11 +113,11 @@ func makeSpanWithAttributeCount(traceID []byte, count int, startTime uint64, end
 
 	// add link
 	if rand.Intn(5) == 0 { // nolint:gosec // G404: Use of weak random number generator
-		s.Links = append(s.Links, &v1_trace.Span_Link{
+		s.Links = append(s.Links, v1_trace.Span_Link{
 			TraceId:    traceID,
 			SpanId:     make([]byte, 8),
 			TraceState: "state",
-			Attributes: []*v1_common.KeyValue{
+			Attributes: []v1_common.KeyValue{
 				{
 					Key: "linkkey",
 					Value: &v1_common.AnyValue{
@@ -132,7 +132,7 @@ func makeSpanWithAttributeCount(traceID []byte, count int, startTime uint64, end
 
 	// add attr
 	if rand.Intn(2) == 0 { // nolint:gosec // G404: Use of weak random number generator
-		s.Attributes = append(s.Attributes, &v1_common.KeyValue{
+		s.Attributes = append(s.Attributes, v1_common.KeyValue{
 			Key: "key",
 			Value: &v1_common.AnyValue{
 				Value: &v1_common.AnyValue_StringValue{
@@ -144,11 +144,11 @@ func makeSpanWithAttributeCount(traceID []byte, count int, startTime uint64, end
 
 	// add event
 	if rand.Intn(3) == 0 { // nolint:gosec // G404: Use of weak random number generator
-		s.Events = append(s.Events, &v1_trace.Span_Event{
+		s.Events = append(s.Events, v1_trace.Span_Event{
 			TimeUnixNano:           s.StartTimeUnixNano + uint64(rand.Intn(1*1000*1000)), // 1ms
 			Name:                   "event",
 			DroppedAttributesCount: rand.Uint32(), // nolint:gosec // G404: Use of weak random number generator
-			Attributes: []*v1_common.KeyValue{
+			Attributes: []v1_common.KeyValue{
 				{
 					Key: "eventkey",
 					Value: &v1_common.AnyValue{
@@ -168,7 +168,7 @@ func MakeBatch(spans int, traceID []byte) *v1_trace.ResourceSpans {
 	return makeBatchWithTimeRange(spans, traceID, nil, nil)
 }
 
-func MakeBatchWithAttributes(spans int, traceID []byte, resAttributes []*v1_common.KeyValue) *v1_trace.ResourceSpans {
+func MakeBatchWithAttributes(spans int, traceID []byte, resAttributes []v1_common.KeyValue) *v1_trace.ResourceSpans {
 	return makeBatchWithTimeRange(spans, traceID, nil, resAttributes)
 }
 
@@ -177,12 +177,12 @@ type batchTimeRange struct {
 	end   uint64
 }
 
-func makeBatchWithTimeRange(spans int, traceID []byte, timeRange *batchTimeRange, resAttributes []*v1_common.KeyValue) *v1_trace.ResourceSpans {
+func makeBatchWithTimeRange(spans int, traceID []byte, timeRange *batchTimeRange, resAttributes []v1_common.KeyValue) *v1_trace.ResourceSpans {
 	traceID = ValidTraceID(traceID)
 
 	batch := &v1_trace.ResourceSpans{
 		Resource: &v1_resource.Resource{
-			Attributes: []*v1_common.KeyValue{
+			Attributes: []v1_common.KeyValue{
 				{
 					Key: "random.res.attr",
 					Value: &v1_common.AnyValue{
@@ -207,29 +207,28 @@ func makeBatchWithTimeRange(spans int, traceID []byte, timeRange *batchTimeRange
 		batch.Resource.Attributes = append(batch.Resource.Attributes, resAttributes...)
 	}
 
-	var (
-		ss      *v1_trace.ScopeSpans
-		ssCount int
-	)
+	// ssIdx tracks the index of the current ScopeSpans in batch.ScopeSpans so we
+	// can append Spans to it by address after the slice may have grown.
+	ssIdx := -1
 
+	ssCount := 0
 	for range spans {
 		// occasionally make a new ss
-		if ss == nil || rand.Int()%3 == 0 { // nolint:gosec // G404: Use of weak random number generator
+		if ssIdx == -1 || rand.Int()%3 == 0 { // nolint:gosec // G404: Use of weak random number generator
 			ssCount++
-			ss = &v1_trace.ScopeSpans{
+			batch.ScopeSpans = append(batch.ScopeSpans, v1_trace.ScopeSpans{
 				Scope: &v1_common.InstrumentationScope{
 					Name:    "super library",
 					Version: fmt.Sprintf("1.0.%d", ssCount),
 				},
-			}
-
-			batch.ScopeSpans = append(batch.ScopeSpans, ss)
+			})
+			ssIdx = len(batch.ScopeSpans) - 1
 		}
 
 		if timeRange == nil {
-			ss.Spans = append(ss.Spans, MakeSpan(traceID))
+			batch.ScopeSpans[ssIdx].Spans = append(batch.ScopeSpans[ssIdx].Spans, *MakeSpan(traceID))
 		} else {
-			ss.Spans = append(ss.Spans, MakeSpanWithTimeWindow(traceID, timeRange.start, timeRange.end))
+			batch.ScopeSpans[ssIdx].Spans = append(batch.ScopeSpans[ssIdx].Spans, *MakeSpanWithTimeWindow(traceID, timeRange.start, timeRange.end))
 		}
 	}
 	return batch
@@ -239,11 +238,11 @@ func MakeTrace(requests int, traceID []byte) *tempopb.Trace {
 	traceID = ValidTraceID(traceID)
 
 	trace := &tempopb.Trace{
-		ResourceSpans: make([]*v1_trace.ResourceSpans, 0),
+		ResourceSpans: make([]v1_trace.ResourceSpans, 0),
 	}
 
 	for range requests {
-		trace.ResourceSpans = append(trace.ResourceSpans, MakeBatch(rand.Int()%20+1, traceID)) // nolint:gosec // G404: Use of weak random number generator
+		trace.ResourceSpans = append(trace.ResourceSpans, *MakeBatch(rand.Int()%20+1, traceID)) // nolint:gosec // G404: Use of weak random number generator
 	}
 
 	return trace
@@ -253,12 +252,12 @@ func MakeTraceWithTimeRange(requests int, traceID []byte, startTime, endTime uin
 	traceID = ValidTraceID(traceID)
 
 	trace := &tempopb.Trace{
-		ResourceSpans: make([]*v1_trace.ResourceSpans, 0),
+		ResourceSpans: make([]v1_trace.ResourceSpans, 0),
 	}
 
 	for range requests {
 		timeRange := &batchTimeRange{start: startTime, end: endTime}
-		trace.ResourceSpans = append(trace.ResourceSpans, makeBatchWithTimeRange(rand.Int()%20+1, traceID, timeRange, nil)) // nolint:gosec // G404: Use of weak random number generator
+		trace.ResourceSpans = append(trace.ResourceSpans, *makeBatchWithTimeRange(rand.Int()%20+1, traceID, timeRange, nil)) // nolint:gosec // G404: Use of weak random number generator
 	}
 
 	return trace
@@ -266,11 +265,11 @@ func MakeTraceWithTimeRange(requests int, traceID []byte, startTime, endTime uin
 
 func MakeTraceWithSpanCount(requests int, spansEach int, traceID []byte) *tempopb.Trace {
 	trace := &tempopb.Trace{
-		ResourceSpans: make([]*v1_trace.ResourceSpans, 0),
+		ResourceSpans: make([]v1_trace.ResourceSpans, 0),
 	}
 
 	for range requests {
-		trace.ResourceSpans = append(trace.ResourceSpans, MakeBatch(spansEach, traceID))
+		trace.ResourceSpans = append(trace.ResourceSpans, *MakeBatch(spansEach, traceID))
 	}
 
 	return trace
@@ -330,41 +329,45 @@ func AddDedicatedAttributes(trace *tempopb.Trace) *tempopb.Trace {
 		}
 	}
 
-	spanAttrs := make([]*v1_common.KeyValue, 0, len(dedicatedColumnsSpan))
+	spanAttrs := make([]v1_common.KeyValue, 0, len(dedicatedColumnsSpan))
 	for i, c := range dedicatedColumnsSpan {
-		spanAttrs = append(spanAttrs, &v1_common.KeyValue{
+		spanAttrs = append(spanAttrs, v1_common.KeyValue{
 			Key:   c.Name,
 			Value: makeVal(c, i),
 		})
 	}
-	resourceAttrs := make([]*v1_common.KeyValue, 0, len(dedicatedColumnsResource))
+	resourceAttrs := make([]v1_common.KeyValue, 0, len(dedicatedColumnsResource))
 	for i, c := range dedicatedColumnsResource {
-		resourceAttrs = append(resourceAttrs, &v1_common.KeyValue{
+		resourceAttrs = append(resourceAttrs, v1_common.KeyValue{
 			Key:   c.Name,
 			Value: makeVal(c, i),
 		})
 	}
-	eventAttrs := make([]*v1_common.KeyValue, 0, len(dedicatedColumnsEvent))
+	eventAttrs := make([]v1_common.KeyValue, 0, len(dedicatedColumnsEvent))
 	for i, c := range dedicatedColumnsEvent {
-		eventAttrs = append(eventAttrs, &v1_common.KeyValue{
+		eventAttrs = append(eventAttrs, v1_common.KeyValue{
 			Key:   c.Name,
 			Value: makeVal(c, i),
 		})
 	}
 
-	for _, batch := range trace.ResourceSpans {
-		attr := make([]*v1_common.KeyValue, 0, len(resourceAttrs)+len(batch.Resource.Attributes))
+	for i := range trace.ResourceSpans {
+		batch := &trace.ResourceSpans[i]
+		attr := make([]v1_common.KeyValue, 0, len(resourceAttrs)+len(batch.Resource.Attributes))
 		attr = append(attr, resourceAttrs...)
 		batch.Resource.Attributes = append(attr, batch.Resource.Attributes...)
 
-		for _, ss := range batch.ScopeSpans {
-			for _, span := range ss.Spans {
-				attr = make([]*v1_common.KeyValue, 0, len(spanAttrs)+len(span.Attributes))
+		for j := range batch.ScopeSpans {
+			ss := &batch.ScopeSpans[j]
+			for k := range ss.Spans {
+				span := &ss.Spans[k]
+				attr = make([]v1_common.KeyValue, 0, len(spanAttrs)+len(span.Attributes))
 				attr = append(attr, spanAttrs...)
 				span.Attributes = append(attr, span.Attributes...)
 
-				for _, e := range span.Events {
-					attr = make([]*v1_common.KeyValue, 0, len(eventAttrs)+len(e.Attributes))
+				for l := range span.Events {
+					e := &span.Events[l]
+					attr = make([]v1_common.KeyValue, 0, len(eventAttrs)+len(e.Attributes))
 					attr = append(attr, eventAttrs...)
 					e.Attributes = append(attr, e.Attributes...)
 				}
@@ -383,42 +386,40 @@ func AddDedicatedAttributes(trace *tempopb.Trace) *tempopb.Trace {
 // Parquet round-trips may reorder attributes; use model/trace.SortTraceAndAttributes before
 // proto.Equal when comparing decoded traces.
 func AddRandomDedicatedAttributes(trace *tempopb.Trace) *tempopb.Trace {
-	for _, batch := range trace.ResourceSpans {
+	for bi := range trace.ResourceSpans {
+		batch := &trace.ResourceSpans[bi]
 		if batch.Resource != nil {
 			for i, col := range dedicatedColumnsResource {
 				if rand.Intn(2) != 0 { // nolint:gosec // G404: 50% each column
 					continue
 				}
-				batch.Resource.Attributes = append(batch.Resource.Attributes, &v1_common.KeyValue{
+				batch.Resource.Attributes = append(batch.Resource.Attributes, v1_common.KeyValue{
 					Key:   col.Name,
 					Value: anyValueForDedicatedColumn(col, i),
 				})
 			}
 		}
-		for _, ss := range batch.ScopeSpans {
-			for _, span := range ss.Spans {
-				if span == nil {
-					continue
-				}
+		for si := range batch.ScopeSpans {
+			ss := &batch.ScopeSpans[si]
+			for ki := range ss.Spans {
+				span := &ss.Spans[ki]
 				for i, col := range dedicatedColumnsSpan {
 					if rand.Intn(2) != 0 { // nolint:gosec // G404
 						continue
 					}
-					span.Attributes = append(span.Attributes, &v1_common.KeyValue{
+					span.Attributes = append(span.Attributes, v1_common.KeyValue{
 						Key:   col.Name,
 						Value: anyValueForDedicatedColumn(col, i),
 					})
 				}
 
-				for _, e := range span.Events {
-					if e == nil {
-						continue
-					}
+				for ei := range span.Events {
+					e := &span.Events[ei]
 					for i, col := range dedicatedColumnsEvent {
 						if rand.Intn(2) != 0 { // nolint:gosec // G404
 							continue
 						}
-						e.Attributes = append(e.Attributes, &v1_common.KeyValue{
+						e.Attributes = append(e.Attributes, v1_common.KeyValue{
 							Key:   col.Name,
 							Value: anyValueForDedicatedColumn(col, i),
 						})
@@ -436,12 +437,12 @@ func MakeReqWithMultipleTraceWithSpanCount(spanCounts []int, traceIDs [][]byte) 
 		panic("spanCounts and traceIDs lengths do not match")
 	}
 	trace := &tempopb.Trace{
-		ResourceSpans: make([]*v1_trace.ResourceSpans, 0),
+		ResourceSpans: make([]v1_trace.ResourceSpans, 0),
 	}
 
 	for index, traceID := range traceIDs {
 		traceID = ValidTraceID(traceID)
-		trace.ResourceSpans = append(trace.ResourceSpans, MakeBatch(spanCounts[index], traceID))
+		trace.ResourceSpans = append(trace.ResourceSpans, *MakeBatch(spanCounts[index], traceID))
 	}
 
 	return trace
@@ -537,23 +538,23 @@ func MakeTraceWithTags(traceID []byte, service string, intValue int64) *tempopb.
 	traceID = ValidTraceID(traceID)
 
 	trace := &tempopb.Trace{
-		ResourceSpans: make([]*v1_trace.ResourceSpans, 0),
+		ResourceSpans: make([]v1_trace.ResourceSpans, 0),
 	}
 
-	attributes := make([]*v1_common.KeyValue, 0, 2)
-	attributes = append(attributes, &v1_common.KeyValue{
+	attributes := make([]v1_common.KeyValue, 0, 2)
+	attributes = append(attributes, v1_common.KeyValue{
 		Key:   "stringTag",
 		Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "value1"}},
 	})
 
-	attributes = append(attributes, &v1_common.KeyValue{
+	attributes = append(attributes, v1_common.KeyValue{
 		Key:   "intTag",
 		Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: intValue}},
 	})
 
-	trace.ResourceSpans = append(trace.ResourceSpans, &v1_trace.ResourceSpans{
+	trace.ResourceSpans = append(trace.ResourceSpans, v1_trace.ResourceSpans{
 		Resource: &v1_resource.Resource{
-			Attributes: []*v1_common.KeyValue{
+			Attributes: []v1_common.KeyValue{
 				{
 					Key: "service.name",
 					Value: &v1_common.AnyValue{
@@ -572,9 +573,9 @@ func MakeTraceWithTags(traceID []byte, service string, intValue int64) *tempopb.
 				},
 			},
 		},
-		ScopeSpans: []*v1_trace.ScopeSpans{
+		ScopeSpans: []v1_trace.ScopeSpans{
 			{
-				Spans: []*v1_trace.Span{
+				Spans: []v1_trace.Span{
 					{
 						Name:         "test",
 						TraceId:      traceID,

@@ -54,7 +54,7 @@ func TestStringifyAnyValue(t *testing.T) {
 			v: &v1common.AnyValue{
 				Value: &v1common.AnyValue_ArrayValue{
 					ArrayValue: v1common.ArrayValue{
-						Values: []*v1common.AnyValue{
+						Values: []v1common.AnyValue{
 							{
 								Value: &v1common.AnyValue_StringValue{
 									StringValue: "test",
@@ -71,7 +71,7 @@ func TestStringifyAnyValue(t *testing.T) {
 			v: &v1common.AnyValue{
 				Value: &v1common.AnyValue_KvlistValue{
 					KvlistValue: v1common.KeyValueList{
-						Values: []*v1common.KeyValue{
+						Values: []v1common.KeyValue{
 							{
 								Key:   "key",
 								Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "value"}},

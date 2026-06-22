@@ -3,6 +3,7 @@ package traceql
 import (
 	"fmt"
 	"math/rand/v2"
+	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -24,7 +25,7 @@ func TestCombineResults(t *testing.T) {
 			name: "overwrite nothing",
 			existing: &tempopb.TraceSearchMetadata{
 				SpanSet:  &tempopb.SpanSet{},
-				SpanSets: []*tempopb.SpanSet{},
+				SpanSets: []tempopb.SpanSet{},
 			},
 			new: &tempopb.TraceSearchMetadata{
 				TraceID:           "trace-1",
@@ -32,7 +33,7 @@ func TestCombineResults(t *testing.T) {
 				RootTraceName:     "root-trace-1",
 				StartTimeUnixNano: 123,
 				DurationMs:        100,
-				SpanSets:          []*tempopb.SpanSet{},
+				SpanSets:          []tempopb.SpanSet{},
 			},
 			expected: &tempopb.TraceSearchMetadata{
 				TraceID:           "trace-1",
@@ -40,7 +41,7 @@ func TestCombineResults(t *testing.T) {
 				RootTraceName:     "root-trace-1",
 				StartTimeUnixNano: 123,
 				DurationMs:        100,
-				SpanSets:          []*tempopb.SpanSet{},
+				SpanSets:          []tempopb.SpanSet{},
 			},
 		},
 		{
@@ -51,7 +52,7 @@ func TestCombineResults(t *testing.T) {
 				RootTraceName:     "existing-root-trace",
 				StartTimeUnixNano: 100,
 				DurationMs:        200,
-				SpanSets:          []*tempopb.SpanSet{},
+				SpanSets:          []tempopb.SpanSet{},
 			},
 			new: &tempopb.TraceSearchMetadata{
 				TraceID:           "new-trace",
@@ -59,7 +60,7 @@ func TestCombineResults(t *testing.T) {
 				RootTraceName:     "new-root-trace",
 				StartTimeUnixNano: 150,
 				DurationMs:        300,
-				SpanSets:          []*tempopb.SpanSet{},
+				SpanSets:          []tempopb.SpanSet{},
 			},
 			expected: &tempopb.TraceSearchMetadata{
 				TraceID:           "existing-trace",
@@ -67,30 +68,30 @@ func TestCombineResults(t *testing.T) {
 				RootTraceName:     "existing-root-trace",
 				StartTimeUnixNano: 100,
 				DurationMs:        300,
-				SpanSets:          []*tempopb.SpanSet{},
+				SpanSets:          []tempopb.SpanSet{},
 			},
 		},
 		{
 			name: "copy in spansets",
 			existing: &tempopb.TraceSearchMetadata{
 				SpanSet:  &tempopb.SpanSet{},
-				SpanSets: []*tempopb.SpanSet{},
+				SpanSets: []tempopb.SpanSet{},
 			},
 			new: &tempopb.TraceSearchMetadata{
-				SpanSets: []*tempopb.SpanSet{
+				SpanSets: []tempopb.SpanSet{
 					{
 						Matched:    3,
-						Spans:      []*tempopb.Span{{SpanID: "span-1"}},
-						Attributes: []*v1.KeyValue{{Key: "avg(test)", Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 1}}}},
+						Spans:      []tempopb.Span{{SpanID: "span-1"}},
+						Attributes: []v1.KeyValue{{Key: "avg(test)", Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 1}}}},
 					},
 				},
 			},
 			expected: &tempopb.TraceSearchMetadata{
-				SpanSets: []*tempopb.SpanSet{
+				SpanSets: []tempopb.SpanSet{
 					{
 						Matched:    3,
-						Spans:      []*tempopb.Span{{SpanID: "span-1"}},
-						Attributes: []*v1.KeyValue{{Key: "avg(test)", Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 1}}}},
+						Spans:      []tempopb.Span{{SpanID: "span-1"}},
+						Attributes: []v1.KeyValue{{Key: "avg(test)", Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 1}}}},
 					},
 				},
 			},
@@ -99,29 +100,29 @@ func TestCombineResults(t *testing.T) {
 			name: "take higher matches",
 			existing: &tempopb.TraceSearchMetadata{
 				SpanSet: &tempopb.SpanSet{},
-				SpanSets: []*tempopb.SpanSet{
+				SpanSets: []tempopb.SpanSet{
 					{
 						Matched:    3,
-						Spans:      []*tempopb.Span{{SpanID: "span-1"}},
-						Attributes: []*v1.KeyValue{{Key: "avg(test)", Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 1}}}},
+						Spans:      []tempopb.Span{{SpanID: "span-1"}},
+						Attributes: []v1.KeyValue{{Key: "avg(test)", Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 1}}}},
 					},
 				},
 			},
 			new: &tempopb.TraceSearchMetadata{
-				SpanSets: []*tempopb.SpanSet{
+				SpanSets: []tempopb.SpanSet{
 					{
 						Matched:    5,
-						Spans:      []*tempopb.Span{{SpanID: "span-2"}},
-						Attributes: []*v1.KeyValue{{Key: "avg(test)", Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 3}}}},
+						Spans:      []tempopb.Span{{SpanID: "span-2"}},
+						Attributes: []v1.KeyValue{{Key: "avg(test)", Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 3}}}},
 					},
 				},
 			},
 			expected: &tempopb.TraceSearchMetadata{
-				SpanSets: []*tempopb.SpanSet{
+				SpanSets: []tempopb.SpanSet{
 					{
 						Matched:    5,
-						Spans:      []*tempopb.Span{{SpanID: "span-2"}},
-						Attributes: []*v1.KeyValue{{Key: "avg(test)", Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 3}}}},
+						Spans:      []tempopb.Span{{SpanID: "span-2"}},
+						Attributes: []v1.KeyValue{{Key: "avg(test)", Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 3}}}},
 					},
 				},
 			},
@@ -130,29 +131,29 @@ func TestCombineResults(t *testing.T) {
 			name: "keep higher matches",
 			existing: &tempopb.TraceSearchMetadata{
 				SpanSet: &tempopb.SpanSet{},
-				SpanSets: []*tempopb.SpanSet{
+				SpanSets: []tempopb.SpanSet{
 					{
 						Matched:    7,
-						Spans:      []*tempopb.Span{{SpanID: "span-1"}},
-						Attributes: []*v1.KeyValue{{Key: "avg(test)", Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 1}}}},
+						Spans:      []tempopb.Span{{SpanID: "span-1"}},
+						Attributes: []v1.KeyValue{{Key: "avg(test)", Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 1}}}},
 					},
 				},
 			},
 			new: &tempopb.TraceSearchMetadata{
-				SpanSets: []*tempopb.SpanSet{
+				SpanSets: []tempopb.SpanSet{
 					{
 						Matched:    5,
-						Spans:      []*tempopb.Span{{SpanID: "span-2"}},
-						Attributes: []*v1.KeyValue{{Key: "avg(test)", Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 3}}}},
+						Spans:      []tempopb.Span{{SpanID: "span-2"}},
+						Attributes: []v1.KeyValue{{Key: "avg(test)", Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 3}}}},
 					},
 				},
 			},
 			expected: &tempopb.TraceSearchMetadata{
-				SpanSets: []*tempopb.SpanSet{
+				SpanSets: []tempopb.SpanSet{
 					{
 						Matched:    7,
-						Spans:      []*tempopb.Span{{SpanID: "span-1"}},
-						Attributes: []*v1.KeyValue{{Key: "avg(test)", Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 1}}}},
+						Spans:      []tempopb.Span{{SpanID: "span-1"}},
+						Attributes: []v1.KeyValue{{Key: "avg(test)", Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 1}}}},
 					},
 				},
 			},
@@ -161,39 +162,39 @@ func TestCombineResults(t *testing.T) {
 			name: "respect by()",
 			existing: &tempopb.TraceSearchMetadata{
 				SpanSet: &tempopb.SpanSet{},
-				SpanSets: []*tempopb.SpanSet{
+				SpanSets: []tempopb.SpanSet{
 					{
 						Matched:    7,
-						Spans:      []*tempopb.Span{{SpanID: "span-1"}},
-						Attributes: []*v1.KeyValue{{Key: "by(name)", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "a"}}}},
+						Spans:      []tempopb.Span{{SpanID: "span-1"}},
+						Attributes: []v1.KeyValue{{Key: "by(name)", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "a"}}}},
 					},
 					{
 						Matched:    3,
-						Spans:      []*tempopb.Span{{SpanID: "span-1"}},
-						Attributes: []*v1.KeyValue{{Key: "by(duration)", Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 1.1}}}},
+						Spans:      []tempopb.Span{{SpanID: "span-1"}},
+						Attributes: []v1.KeyValue{{Key: "by(duration)", Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 1.1}}}},
 					},
 				},
 			},
 			new: &tempopb.TraceSearchMetadata{
-				SpanSets: []*tempopb.SpanSet{
+				SpanSets: []tempopb.SpanSet{
 					{
 						Matched:    5,
-						Spans:      []*tempopb.Span{{SpanID: "span-2"}},
-						Attributes: []*v1.KeyValue{{Key: "by(name)", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "a"}}}},
+						Spans:      []tempopb.Span{{SpanID: "span-2"}},
+						Attributes: []v1.KeyValue{{Key: "by(name)", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "a"}}}},
 					},
 				},
 			},
 			expected: &tempopb.TraceSearchMetadata{
-				SpanSets: []*tempopb.SpanSet{
+				SpanSets: []tempopb.SpanSet{
 					{
 						Matched:    7,
-						Spans:      []*tempopb.Span{{SpanID: "span-1"}},
-						Attributes: []*v1.KeyValue{{Key: "by(name)", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "a"}}}},
+						Spans:      []tempopb.Span{{SpanID: "span-1"}},
+						Attributes: []v1.KeyValue{{Key: "by(name)", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "a"}}}},
 					},
 					{
 						Matched:    3,
-						Spans:      []*tempopb.Span{{SpanID: "span-1"}},
-						Attributes: []*v1.KeyValue{{Key: "by(duration)", Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 1.1}}}},
+						Spans:      []tempopb.Span{{SpanID: "span-1"}},
+						Attributes: []v1.KeyValue{{Key: "by(duration)", Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 1.1}}}},
 					},
 				},
 			},
@@ -253,9 +254,10 @@ func TestCombineResults(t *testing.T) {
 
 			// confirm that the SpanSet on tc.existing is contained in the slice of SpanSets
 			// then nil out. the actual spanset chosen is based on map iteration order
-			found := len(tc.existing.SpanSets) == 0
-			for _, ss := range tc.existing.SpanSets {
-				if ss == tc.existing.SpanSet {
+			// SpanSet contains slices so == is not allowed; use reflect.DeepEqual for containment check.
+			found := len(tc.existing.SpanSets) == 0 || tc.existing.SpanSet == nil
+			for i := range tc.existing.SpanSets {
+				if tc.existing.SpanSet != nil && reflect.DeepEqual(tc.existing.SpanSets[i], *tc.existing.SpanSet) {
 					found = true
 					break
 				}

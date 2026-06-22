@@ -12,7 +12,7 @@ import (
 
 func TestMarshalToJSONV1(t *testing.T) {
 	trace := &Trace{
-		ResourceSpans: make([]*v1.ResourceSpans, 0),
+		ResourceSpans: make([]v1.ResourceSpans, 0),
 	}
 	jsonBytes, err := MarshalToJSONV1(trace)
 

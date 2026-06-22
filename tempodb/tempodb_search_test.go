@@ -407,16 +407,16 @@ func groupTraceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceS
 			req: &tempopb.SearchRequest{Query: "{} | by(span.foo) | count() = 2"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
-					SpanSets: []*tempopb.SpanSet{
+					SpanSets: []tempopb.SpanSet{
 						// Spanset for value
 						{
-							Spans: []*tempopb.Span{
+							Spans: []tempopb.Span{
 								{
 									SpanID:            "0000000000010203",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     1000000000,
 									Name:              "",
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "foo", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "Bar"}}},
 									},
 								},
@@ -425,20 +425,20 @@ func groupTraceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceS
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     2000000000,
 									Name:              "",
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "foo", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "Bar"}}},
 									},
 								},
 							},
 							Matched: 2,
-							Attributes: []*v1_common.KeyValue{
+							Attributes: []v1_common.KeyValue{
 								{Key: "by(span.foo)", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "Bar"}}},
 								{Key: "count()", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 2}}},
 							},
 						},
 						// Spanset for nil
 						{
-							Spans: []*tempopb.Span{
+							Spans: []tempopb.Span{
 								{
 									SpanID:            "0000000000070809",
 									StartTimeUnixNano: 1000000000000,
@@ -455,7 +455,7 @@ func groupTraceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceS
 								},
 							},
 							Matched: 2,
-							Attributes: []*v1_common.KeyValue{
+							Attributes: []v1_common.KeyValue{
 								{Key: "by(span.foo)", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "nil"}}},
 								{Key: "count()", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 2}}},
 							},
@@ -468,75 +468,75 @@ func groupTraceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceS
 			req: &tempopb.SearchRequest{Query: "{} | by(resource.service.name) | count() = 1"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
-					SpanSets: []*tempopb.SpanSet{
+					SpanSets: []tempopb.SpanSet{
 						{
-							Spans: []*tempopb.Span{
+							Spans: []tempopb.Span{
 								{
 									SpanID:            "0000000000010203",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     1000000000,
 									Name:              "",
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "service.name", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "MyService"}}},
 									},
 								},
 							},
 							Matched: 1,
-							Attributes: []*v1_common.KeyValue{
+							Attributes: []v1_common.KeyValue{
 								{Key: "by(resource.service.name)", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "MyService"}}},
 								{Key: "count()", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 1}}},
 							},
 						},
 						{
-							Spans: []*tempopb.Span{
+							Spans: []tempopb.Span{
 								{
 									SpanID:            "0000000000040506",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     2000000000,
 									Name:              "",
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "service.name", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "RootService"}}},
 									},
 								},
 							},
 							Matched: 1,
-							Attributes: []*v1_common.KeyValue{
+							Attributes: []v1_common.KeyValue{
 								{Key: "by(resource.service.name)", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "RootService"}}},
 								{Key: "count()", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 1}}},
 							},
 						},
 						{
-							Spans: []*tempopb.Span{
+							Spans: []tempopb.Span{
 								{
 									SpanID:            "0000000000070809",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     1000000000,
 									Name:              "",
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "service.name", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "Service3"}}},
 									},
 								},
 							},
 							Matched: 1,
-							Attributes: []*v1_common.KeyValue{
+							Attributes: []v1_common.KeyValue{
 								{Key: "by(resource.service.name)", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "Service3"}}},
 								{Key: "count()", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 1}}},
 							},
 						},
 						{
-							Spans: []*tempopb.Span{
+							Spans: []tempopb.Span{
 								{
 									SpanID:            "0000000000000000",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     1000000000,
 									Name:              "",
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "service.name", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "BrokenService"}}},
 									},
 								},
 							},
 							Matched: 1,
-							Attributes: []*v1_common.KeyValue{
+							Attributes: []v1_common.KeyValue{
 								{Key: "by(resource.service.name)", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "BrokenService"}}},
 								{Key: "count()", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 1}}},
 							},
@@ -604,15 +604,15 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			req: &tempopb.SearchRequest{Query: "{ .parent } >> { .child }"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
-					SpanSets: []*tempopb.SpanSet{
+					SpanSets: []tempopb.SpanSet{
 						{
-							Spans: []*tempopb.Span{
+							Spans: []tempopb.Span{
 								{
 									SpanID:            "0000000000010203",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     1000000000,
 									Name:              "",
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "child", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
 									},
 								},
@@ -627,15 +627,15 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			req: &tempopb.SearchRequest{Query: "{ .child } << { .parent }"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
-					SpanSets: []*tempopb.SpanSet{
+					SpanSets: []tempopb.SpanSet{
 						{
-							Spans: []*tempopb.Span{
+							Spans: []tempopb.Span{
 								{
 									SpanID:            "0000000000040506",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     2000000000,
 									Name:              "",
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "parent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
 									},
 								},
@@ -650,14 +650,14 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			req: &tempopb.SearchRequest{Query: "{ .parent } > { .child }"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
-					SpanSets: []*tempopb.SpanSet{
+					SpanSets: []tempopb.SpanSet{
 						{
-							Spans: []*tempopb.Span{
+							Spans: []tempopb.Span{
 								{
 									SpanID:            "0000000000010203",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     1000000000,
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "child", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
 									},
 								},
@@ -672,15 +672,15 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			req: &tempopb.SearchRequest{Query: "{ .child } < { .parent }"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
-					SpanSets: []*tempopb.SpanSet{
+					SpanSets: []tempopb.SpanSet{
 						{
-							Spans: []*tempopb.Span{
+							Spans: []tempopb.Span{
 								{
 									SpanID:            "0000000000040506",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     2000000000,
 									Name:              "",
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "parent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
 									},
 								},
@@ -695,14 +695,14 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			req: &tempopb.SearchRequest{Query: "{ .child } !> { .parent }"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
-					SpanSets: []*tempopb.SpanSet{
+					SpanSets: []tempopb.SpanSet{
 						{
-							Spans: []*tempopb.Span{
+							Spans: []tempopb.Span{
 								{
 									SpanID:            "0000000000040506",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     2000000000,
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "parent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
 									},
 								},
@@ -717,14 +717,14 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			req: &tempopb.SearchRequest{Query: "{ .child } !>> { .parent }"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
-					SpanSets: []*tempopb.SpanSet{
+					SpanSets: []tempopb.SpanSet{
 						{
-							Spans: []*tempopb.Span{
+							Spans: []tempopb.Span{
 								{
 									SpanID:            "0000000000040506",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     2000000000,
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "parent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
 									},
 								},
@@ -739,14 +739,14 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			req: &tempopb.SearchRequest{Query: "{ .child } !~ { .parent }"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
-					SpanSets: []*tempopb.SpanSet{
+					SpanSets: []tempopb.SpanSet{
 						{
-							Spans: []*tempopb.Span{
+							Spans: []tempopb.Span{
 								{
 									SpanID:            "0000000000040506",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     2000000000,
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "parent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
 									},
 								},
@@ -761,15 +761,15 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			req: &tempopb.SearchRequest{Query: "{ .parent } &>> { .child }"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
-					SpanSets: []*tempopb.SpanSet{
+					SpanSets: []tempopb.SpanSet{
 						{
-							Spans: []*tempopb.Span{
+							Spans: []tempopb.Span{
 								{
 									SpanID:            "0000000000010203",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     1000000000,
 									Name:              "",
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "child", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
 									},
 								},
@@ -778,7 +778,7 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     2000000000,
 									Name:              "",
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "parent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
 									},
 								},
@@ -793,15 +793,15 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			req: &tempopb.SearchRequest{Query: "{ .child } &<< { .parent }"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
-					SpanSets: []*tempopb.SpanSet{
+					SpanSets: []tempopb.SpanSet{
 						{
-							Spans: []*tempopb.Span{
+							Spans: []tempopb.Span{
 								{
 									SpanID:            "0000000000010203",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     1000000000,
 									Name:              "",
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "child", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
 									},
 								},
@@ -810,7 +810,7 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     2000000000,
 									Name:              "",
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "parent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
 									},
 								},
@@ -825,15 +825,15 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			req: &tempopb.SearchRequest{Query: "{ .parent } &> { .child }"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
-					SpanSets: []*tempopb.SpanSet{
+					SpanSets: []tempopb.SpanSet{
 						{
-							Spans: []*tempopb.Span{
+							Spans: []tempopb.Span{
 								{
 									SpanID:            "0000000000010203",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     1000000000,
 									Name:              "",
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "child", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
 									},
 								},
@@ -842,7 +842,7 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     2000000000,
 									Name:              "",
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "parent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
 									},
 								},
@@ -857,15 +857,15 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			req: &tempopb.SearchRequest{Query: "{ .child } &< { .parent }"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
-					SpanSets: []*tempopb.SpanSet{
+					SpanSets: []tempopb.SpanSet{
 						{
-							Spans: []*tempopb.Span{
+							Spans: []tempopb.Span{
 								{
 									SpanID:            "0000000000010203",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     1000000000,
 									Name:              "",
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "child", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
 									},
 								},
@@ -874,7 +874,7 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     2000000000,
 									Name:              "",
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "parent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
 									},
 								},
@@ -889,9 +889,9 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			req: &tempopb.SearchRequest{Query: "{  } !~ {  }"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
-					SpanSets: []*tempopb.SpanSet{
+					SpanSets: []tempopb.SpanSet{
 						{
-							Spans: []*tempopb.Span{
+							Spans: []tempopb.Span{
 								{
 									SpanID:            "0000000000040506",
 									StartTimeUnixNano: 1000000000000,
@@ -909,14 +909,14 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			req: &tempopb.SearchRequest{Query: "{ .parent } !< { .child }"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
-					SpanSets: []*tempopb.SpanSet{
+					SpanSets: []tempopb.SpanSet{
 						{
-							Spans: []*tempopb.Span{
+							Spans: []tempopb.Span{
 								{
 									SpanID:            "0000000000010203",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     1000000000,
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "child", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
 									},
 								},
@@ -931,14 +931,14 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			req: &tempopb.SearchRequest{Query: "{ .parent } !<< { .child }"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
-					SpanSets: []*tempopb.SpanSet{
+					SpanSets: []tempopb.SpanSet{
 						{
-							Spans: []*tempopb.Span{
+							Spans: []tempopb.Span{
 								{
 									SpanID:            "0000000000010203",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     1000000000,
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "child", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
 									},
 								},
@@ -953,14 +953,14 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			req: &tempopb.SearchRequest{Query: "{ .child } ~ { .child2 }"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
-					SpanSets: []*tempopb.SpanSet{
+					SpanSets: []tempopb.SpanSet{
 						{
-							Spans: []*tempopb.Span{
+							Spans: []tempopb.Span{
 								{
 									SpanID:            "0000000000070809",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     1000000000,
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "child2", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
 									},
 								},
@@ -975,14 +975,14 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			req: &tempopb.SearchRequest{Query: "{ .child } &~ { .child2 }"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
-					SpanSets: []*tempopb.SpanSet{
+					SpanSets: []tempopb.SpanSet{
 						{
-							Spans: []*tempopb.Span{
+							Spans: []tempopb.Span{
 								{
 									SpanID:            "0000000000010203",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     1000000000,
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "child", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
 									},
 								},
@@ -990,7 +990,7 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 									SpanID:            "0000000000070809",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     1000000000,
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "child2", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
 									},
 								},
@@ -1005,9 +1005,9 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			req: &tempopb.SearchRequest{Query: "{ .parent } >> {}"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
-					SpanSets: []*tempopb.SpanSet{
+					SpanSets: []tempopb.SpanSet{
 						{
-							Spans: []*tempopb.Span{
+							Spans: []tempopb.Span{
 								{
 									SpanID:            "0000000000010203",
 									StartTimeUnixNano: 1000000000000,
@@ -1029,15 +1029,15 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			req: &tempopb.SearchRequest{Query: "{} >> { span.foo != `baz` }"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
-					SpanSets: []*tempopb.SpanSet{
+					SpanSets: []tempopb.SpanSet{
 						{
-							Spans: []*tempopb.Span{
+							Spans: []tempopb.Span{
 								{
 									SpanID:            "0000000000010203",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     1000000000,
 									Name:              "",
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "foo", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "Bar"}}},
 									},
 								},
@@ -1052,9 +1052,9 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			req: &tempopb.SearchRequest{Query: "{ name = `does-not-exist` } !< { name = `MySpan` }"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
-					SpanSets: []*tempopb.SpanSet{
+					SpanSets: []tempopb.SpanSet{
 						{
-							Spans: []*tempopb.Span{
+							Spans: []tempopb.Span{
 								{
 									SpanID:            "0000000000010203",
 									StartTimeUnixNano: 1000000000000,
@@ -1072,9 +1072,9 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			req: &tempopb.SearchRequest{Query: "{ name = `does-not-exist` } !> { name = `MySpan` }"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
-					SpanSets: []*tempopb.SpanSet{
+					SpanSets: []tempopb.SpanSet{
 						{
-							Spans: []*tempopb.Span{
+							Spans: []tempopb.Span{
 								{
 									SpanID:            "0000000000010203",
 									StartTimeUnixNano: 1000000000000,
@@ -1177,15 +1177,15 @@ func nestedSet(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchMeta
 			req: &tempopb.SearchRequest{Query: "{ .parent } | select(nestedSetLeft)"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
-					SpanSets: []*tempopb.SpanSet{
+					SpanSets: []tempopb.SpanSet{
 						{
-							Spans: []*tempopb.Span{
+							Spans: []tempopb.Span{
 								{
 									SpanID:            "0000000000040506",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     2000000000,
 									Name:              "",
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "nestedSetLeft", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 1}}},
 										{Key: "parent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
 									},
@@ -1201,15 +1201,15 @@ func nestedSet(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchMeta
 			req: &tempopb.SearchRequest{Query: "{ name = `BrokenSpan` } | select(nestedSetRight, nestedSetLeft, nestedSetParent)"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
-					SpanSets: []*tempopb.SpanSet{
+					SpanSets: []tempopb.SpanSet{
 						{
-							Spans: []*tempopb.Span{
+							Spans: []tempopb.Span{
 								{
 									SpanID:            "0000000000000000",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     1000000000,
 									Name:              "BrokenSpan",
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "nestedSetLeft", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 0}}},
 										{Key: "nestedSetParent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 0}}},
 										{Key: "nestedSetRight", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 0}}},
@@ -1227,15 +1227,15 @@ func nestedSet(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchMeta
 			req: &tempopb.SearchRequest{Query: "{ nestedSetParent = -1 } | select(name)"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
-					SpanSets: []*tempopb.SpanSet{
+					SpanSets: []tempopb.SpanSet{
 						{
-							Spans: []*tempopb.Span{
+							Spans: []tempopb.Span{
 								{
 									SpanID:            "0000000000040506",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     2000000000,
 									Name:              "RootSpan",
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "nestedSetParent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: -1}}},
 									},
 								},
@@ -1250,15 +1250,15 @@ func nestedSet(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchMeta
 			req: &tempopb.SearchRequest{Query: "{nestedSetParent = -1} > {} | select(name)"}, // should select every span except root and disconnected spans
 			expected: []*tempopb.TraceSearchMetadata{
 				{
-					SpanSets: []*tempopb.SpanSet{
+					SpanSets: []tempopb.SpanSet{
 						{
-							Spans: []*tempopb.Span{
+							Spans: []tempopb.Span{
 								{
 									SpanID:            "0000000000010203",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     1000000000,
 									Name:              "MySpan",
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "nestedSetParent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 1}}},
 									},
 								},
@@ -1267,7 +1267,7 @@ func nestedSet(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchMeta
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     1000000000,
 									Name:              "",
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "nestedSetParent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 1}}},
 									},
 								},
@@ -1282,15 +1282,15 @@ func nestedSet(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchMeta
 			req: &tempopb.SearchRequest{Query: "{nestedSetLeft = 1} >> {} | select(name, nestedSetRight)"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
-					SpanSets: []*tempopb.SpanSet{
+					SpanSets: []tempopb.SpanSet{
 						{
-							Spans: []*tempopb.Span{
+							Spans: []tempopb.Span{
 								{
 									SpanID:            "0000000000010203",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     1000000000,
 									Name:              "MySpan",
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										// including the nestedSetLeft value may be a bug, but this occurs for all attributes and not just nested set attributes
 										{Key: "nestedSetLeft", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 2}}},
 										{Key: "nestedSetRight", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 3}}},
@@ -1301,7 +1301,7 @@ func nestedSet(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchMeta
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     1000000000,
 									Name:              "",
-									Attributes: []*v1_common.KeyValue{
+									Attributes: []v1_common.KeyValue{
 										{Key: "nestedSetLeft", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 4}}},
 										{Key: "nestedSetRight", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 5}}},
 									},
@@ -1883,7 +1883,7 @@ func traceQLDuration(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSear
 // 	}
 // }
 
-func conditionsForAttributes(atts []*v1_common.KeyValue, scope string) ([]string, []string) {
+func conditionsForAttributes(atts []v1_common.KeyValue, scope string) ([]string, []string) {
 	trueConditions := []string{}
 	falseConditions := []string{}
 
@@ -2145,22 +2145,22 @@ func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
 	}
 }
 
-func stringKV(k, v string) *v1_common.KeyValue {
-	return &v1_common.KeyValue{
+func stringKV(k, v string) v1_common.KeyValue {
+	return v1_common.KeyValue{
 		Key:   k,
 		Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: v}},
 	}
 }
 
-func intKV(k string, v int) *v1_common.KeyValue {
-	return &v1_common.KeyValue{
+func intKV(k string, v int) v1_common.KeyValue {
+	return v1_common.KeyValue{
 		Key:   k,
 		Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: int64(v)}},
 	}
 }
 
-func boolKV(k string) *v1_common.KeyValue {
-	return &v1_common.KeyValue{
+func boolKV(k string) v1_common.KeyValue {
+	return v1_common.KeyValue{
 		Key:   k,
 		Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}},
 	}
@@ -2241,10 +2241,10 @@ func makeExpectedTrace(traceID []byte) (
 	end = 1001
 
 	tr = &tempopb.Trace{
-		ResourceSpans: []*v1.ResourceSpans{
+		ResourceSpans: []v1.ResourceSpans{
 			{
 				Resource: &v1_resource.Resource{
-					Attributes: []*v1_common.KeyValue{
+					Attributes: []v1_common.KeyValue{
 						stringKV("service.name", "MyService"),
 						stringKV("cluster", "MyCluster"),
 						stringKV("namespace", "MyNamespace"),
@@ -2260,17 +2260,17 @@ func makeExpectedTrace(traceID []byte) (
 						stringKV(attributeWithTerminalChars, "foobar"),
 					},
 				},
-				ScopeSpans: []*v1.ScopeSpans{
+				ScopeSpans: []v1.ScopeSpans{
 					{
 						Scope: &v1_common.InstrumentationScope{
 							Name:                   "scope-1",
 							Version:                "version-1",
 							DroppedAttributesCount: 1,
-							Attributes: []*v1_common.KeyValue{
+							Attributes: []v1_common.KeyValue{
 								stringKV("scope-attr-str", "scope-attr-1"),
 							},
 						},
-						Spans: []*v1.Span{
+						Spans: []v1.Span{
 							{
 								TraceId:           id,
 								Name:              "MySpan",
@@ -2281,7 +2281,7 @@ func makeExpectedTrace(traceID []byte) (
 								Status: &v1.Status{
 									Code: v1.Status_STATUS_CODE_ERROR,
 								},
-								Attributes: []*v1_common.KeyValue{
+								Attributes: []v1_common.KeyValue{
 									stringKV("http.method", "Get"),
 									stringKV("http.url", "url/Hello/World"),
 									intKV("http.status_code", 500),
@@ -2291,21 +2291,21 @@ func makeExpectedTrace(traceID []byte) (
 									stringKV("span-dedicated.02", "span-2a"),
 									stringKV("numericString", "123"),
 								},
-								Events: []*v1.Span_Event{
+								Events: []v1.Span_Event{
 									{
 										TimeUnixNano: uint64(1000*time.Second) + uint64(500*time.Millisecond),
 										Name:         "event name",
-										Attributes: []*v1_common.KeyValue{
+										Attributes: []v1_common.KeyValue{
 											stringKV("exception.message", "random error"),
 											stringKV("event-dedicated.01", "event-1a"),
 										},
 									},
 								},
-								Links: []*v1.Span_Link{
+								Links: []v1.Span_Link{
 									{
 										TraceId: id,
 										SpanId:  []byte{4, 5, 6},
-										Attributes: []*v1_common.KeyValue{
+										Attributes: []v1_common.KeyValue{
 											stringKV("relation", "child-of"),
 										},
 									},
@@ -2317,15 +2317,15 @@ func makeExpectedTrace(traceID []byte) (
 			},
 			{
 				Resource: &v1_resource.Resource{
-					Attributes: []*v1_common.KeyValue{
+					Attributes: []v1_common.KeyValue{
 						stringKV("service.name", "RootService"),
 						stringKV("res-dedicated.01", "res-1b"),
 						stringKV("res-dedicated.02", "res-2b"),
 					},
 				},
-				ScopeSpans: []*v1.ScopeSpans{
+				ScopeSpans: []v1.ScopeSpans{
 					{
-						Spans: []*v1.Span{
+						Spans: []v1.Span{
 							{
 								TraceId:           id,
 								Name:              "RootSpan",
@@ -2334,7 +2334,7 @@ func makeExpectedTrace(traceID []byte) (
 								EndTimeUnixNano:   uint64(1002 * time.Second),
 								Status:            &v1.Status{},
 								Kind:              v1.Span_SPAN_KIND_CLIENT,
-								Attributes: []*v1_common.KeyValue{
+								Attributes: []v1_common.KeyValue{
 									stringKV("foo", "Bar"),
 									boolKV("parent"),
 									stringKV("span-dedicated.01", "span-1b"),
@@ -2348,13 +2348,13 @@ func makeExpectedTrace(traceID []byte) (
 			},
 			{
 				Resource: &v1_resource.Resource{
-					Attributes: []*v1_common.KeyValue{
+					Attributes: []v1_common.KeyValue{
 						stringKV("service.name", "Service3"),
 					},
 				},
-				ScopeSpans: []*v1.ScopeSpans{
+				ScopeSpans: []v1.ScopeSpans{
 					{
-						Spans: []*v1.Span{
+						Spans: []v1.Span{
 							{
 								TraceId:           id,
 								SpanId:            []byte{7, 8, 9},
@@ -2363,7 +2363,7 @@ func makeExpectedTrace(traceID []byte) (
 								EndTimeUnixNano:   uint64(1001 * time.Second),
 								Kind:              v1.Span_SPAN_KIND_PRODUCER,
 								Status:            &v1.Status{Code: v1.Status_STATUS_CODE_OK},
-								Attributes: []*v1_common.KeyValue{
+								Attributes: []v1_common.KeyValue{
 									boolKV("child2"),
 								},
 							},
@@ -2373,13 +2373,13 @@ func makeExpectedTrace(traceID []byte) (
 			},
 			{
 				Resource: &v1_resource.Resource{
-					Attributes: []*v1_common.KeyValue{
+					Attributes: []v1_common.KeyValue{
 						stringKV("service.name", "BrokenService"),
 					},
 				},
-				ScopeSpans: []*v1.ScopeSpans{
+				ScopeSpans: []v1.ScopeSpans{
 					{
-						Spans: []*v1.Span{
+						Spans: []v1.Span{
 							{
 								Name:              "BrokenSpan",
 								TraceId:           id,
@@ -2388,7 +2388,7 @@ func makeExpectedTrace(traceID []byte) (
 								StartTimeUnixNano: uint64(1000 * time.Second),
 								EndTimeUnixNano:   uint64(1001 * time.Second),
 								Status:            &v1.Status{Code: v1.Status_STATUS_CODE_OK},
-								Attributes: []*v1_common.KeyValue{
+								Attributes: []v1_common.KeyValue{
 									boolKV("broken"),
 								},
 							},

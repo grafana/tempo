@@ -29,14 +29,14 @@ func TestHostInfo(t *testing.T) {
 	defer p.Shutdown(context.TODO())
 
 	req := &tempopb.PushSpansRequest{
-		Batches: []*trace_v1.ResourceSpans{
-			test.MakeBatch(10, nil),
-			test.MakeBatch(10, nil),
+		Batches: []trace_v1.ResourceSpans{
+			*test.MakeBatch(10, nil),
+			*test.MakeBatch(10, nil),
 		},
 	}
 
-	for i, b := range req.Batches {
-		b.Resource.Attributes = append(b.Resource.Attributes, []*common_v1.KeyValue{
+	for i := range req.Batches {
+		req.Batches[i].Resource.Attributes = append(req.Batches[i].Resource.Attributes, []common_v1.KeyValue{
 			{Key: "host.id", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
 		}...)
 	}
@@ -67,19 +67,19 @@ func TestHostInfoHostSource(t *testing.T) {
 	defer p.Shutdown(context.TODO())
 
 	req := &tempopb.PushSpansRequest{
-		Batches: []*trace_v1.ResourceSpans{
-			test.MakeBatch(10, nil),
-			test.MakeBatch(10, nil),
+		Batches: []trace_v1.ResourceSpans{
+			*test.MakeBatch(10, nil),
+			*test.MakeBatch(10, nil),
 		},
 	}
 
-	for i, b := range req.Batches {
+	for i := range req.Batches {
 		if i%2 == 0 {
-			b.Resource.Attributes = append(b.Resource.Attributes, []*common_v1.KeyValue{
+			req.Batches[i].Resource.Attributes = append(req.Batches[i].Resource.Attributes, []common_v1.KeyValue{
 				{Key: "k8s.node.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
 			}...)
 		}
-		b.Resource.Attributes = append(b.Resource.Attributes, []*common_v1.KeyValue{
+		req.Batches[i].Resource.Attributes = append(req.Batches[i].Resource.Attributes, []common_v1.KeyValue{
 			{Key: "host.id", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
 		}...)
 	}

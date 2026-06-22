@@ -12,7 +12,7 @@ import (
 	tempo_util "github.com/grafana/tempo/pkg/util"
 )
 
-func FindServiceName(attributes []*v1_common.KeyValue) (string, bool) {
+func FindServiceName(attributes []v1_common.KeyValue) (string, bool) {
 	return FindAttributeValue(string(semconv.ServiceNameKey), attributes)
 }
 
@@ -21,7 +21,7 @@ func FindServiceName(attributes []*v1_common.KeyValue) (string, bool) {
 // "<service.namespace>/<service.name>" when the namespace is present and just
 // the service name otherwise; it is empty when service.name is absent. The
 // first occurrence of each attribute wins.
-func FindServiceLabels(attributes []*v1_common.KeyValue) (svcName, jobName, instanceID string) {
+func FindServiceLabels(attributes []v1_common.KeyValue) (svcName, jobName, instanceID string) {
 	var (
 		namespace       string
 		foundSvcName    bool
@@ -29,7 +29,8 @@ func FindServiceLabels(attributes []*v1_common.KeyValue) (svcName, jobName, inst
 		foundInstanceID bool
 	)
 
-	for _, kv := range attributes {
+	for i := range attributes {
+		kv := &attributes[i]
 		switch kv.Key {
 		case string(semconv.ServiceNameKey):
 			if !foundSvcName {
@@ -58,11 +59,11 @@ func FindServiceLabels(attributes []*v1_common.KeyValue) (svcName, jobName, inst
 	return svcName, namespace + "/" + svcName, instanceID
 }
 
-func FindAttributeValue(key string, attributes ...[]*v1_common.KeyValue) (string, bool) {
+func FindAttributeValue(key string, attributes ...[]v1_common.KeyValue) (string, bool) {
 	for _, attrs := range attributes {
-		for _, kv := range attrs {
-			if key == kv.Key {
-				return tempo_util.StringifyAnyValue(kv.Value), true
+		for i := range attrs {
+			if key == attrs[i].Key {
+				return tempo_util.StringifyAnyValue(attrs[i].Value), true
 			}
 		}
 	}

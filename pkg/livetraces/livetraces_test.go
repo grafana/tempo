@@ -34,9 +34,9 @@ func TestLiveTracesSizesAndLen(t *testing.T) {
 
 		// add some traces and confirm size/len
 		expectedLen++
-		for _, rs := range tr.ResourceSpans {
-			expectedSz += uint64(rs.Size())
-			lt.Push(id, rs, 0)
+		for i := range tr.ResourceSpans {
+			expectedSz += uint64(tr.ResourceSpans[i].Size())
+			lt.Push(id, &tr.ResourceSpans[i], 0)
 		}
 
 		require.Equal(t, expectedSz, lt.Size())
@@ -63,7 +63,7 @@ func TestCutIdleDueToIdleTime(t *testing.T) {
 
 	rootTime := time.Unix(0, 0)
 
-	err := lt.PushWithTimestampAndLimits(rootTime, id, tr.ResourceSpans[0], 0, 0)
+	err := lt.PushWithTimestampAndLimits(rootTime, id, &tr.ResourceSpans[0], 0, 0)
 	require.NoError(t, err)
 
 	// cut at 500 ms, should cut nothing
@@ -71,7 +71,7 @@ func TestCutIdleDueToIdleTime(t *testing.T) {
 	require.Equal(t, 0, len(cutTraces))
 
 	// push at 1 second
-	err = lt.PushWithTimestampAndLimits(rootTime.Add(1000*time.Millisecond), id, tr.ResourceSpans[0], 0, 0)
+	err = lt.PushWithTimestampAndLimits(rootTime.Add(1000*time.Millisecond), id, &tr.ResourceSpans[0], 0, 0)
 	require.NoError(t, err)
 
 	// cut at 1.5 seconds, should cut nothing
@@ -94,7 +94,7 @@ func TestCutIdleDueToLiveTime(t *testing.T) {
 
 	rootTime := time.Unix(0, 0)
 
-	err := lt.PushWithTimestampAndLimits(rootTime, id, tr.ResourceSpans[0], 0, 0)
+	err := lt.PushWithTimestampAndLimits(rootTime, id, &tr.ResourceSpans[0], 0, 0)
 	require.NoError(t, err)
 
 	// cut at 500 ms, should cut nothing
@@ -102,7 +102,7 @@ func TestCutIdleDueToLiveTime(t *testing.T) {
 	require.Equal(t, 0, len(cutTraces))
 
 	// push at 1 second
-	err = lt.PushWithTimestampAndLimits(rootTime.Add(1000*time.Millisecond), id, tr.ResourceSpans[0], 0, 0)
+	err = lt.PushWithTimestampAndLimits(rootTime.Add(1000*time.Millisecond), id, &tr.ResourceSpans[0], 0, 0)
 	require.NoError(t, err)
 
 	// cut at 1.5 seconds, should cut the trace b/c it's been live for 1.5 seconds!
@@ -136,10 +136,10 @@ func TestMaxTraceSizeExceededWithAccumulation(t *testing.T) {
 	tr := test.MakeTrace(1, id)
 
 	// First push should succeed
-	lt.Push(id, tr.ResourceSpans[0], 0)
+	lt.Push(id, &tr.ResourceSpans[0], 0)
 
 	// Second push should fail: batchSize + batchSize > maxTraceSize
-	err := lt.PushWithTimestampAndLimits(time.Now(), id, tr.ResourceSpans[0], 0, maxTraceSize)
+	err := lt.PushWithTimestampAndLimits(time.Now(), id, &tr.ResourceSpans[0], 0, maxTraceSize)
 
 	require.Equal(t, ErrMaxTraceSizeExceeded, err)
 
@@ -162,7 +162,7 @@ func BenchmarkLiveTracesWrite(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		for _, tr := range traces {
-			lt.Push(tr.ResourceSpans[0].ScopeSpans[0].Spans[0].TraceId, tr.ResourceSpans[0], 0)
+			lt.Push(tr.ResourceSpans[0].ScopeSpans[0].Spans[0].TraceId, &tr.ResourceSpans[0], 0)
 		}
 	}
 }
@@ -172,7 +172,7 @@ func BenchmarkLiveTracesRead(b *testing.B) {
 
 	for i := 0; i < 100_000; i++ {
 		tr := test.MakeTrace(1, nil)
-		lt.Push(tr.ResourceSpans[0].ScopeSpans[0].Spans[0].TraceId, tr.ResourceSpans[0], 0)
+		lt.Push(tr.ResourceSpans[0].ScopeSpans[0].Spans[0].TraceId, &tr.ResourceSpans[0], 0)
 	}
 
 	b.ResetTimer()

@@ -796,7 +796,7 @@ func TestSegmentSearchResponse(t *testing.T) {
 			{
 				TraceID: "a",
 				SpanSet: &tempopb.SpanSet{
-					Spans: []*tempopb.Span{
+					Spans: []tempopb.Span{
 						{SpanID: "1", Name: "span1", StartTimeUnixNano: 1000, DurationNanos: 100},
 						{SpanID: "2", Name: "span2", StartTimeUnixNano: 2000, DurationNanos: 200},
 						{SpanID: "3", Name: "span3", StartTimeUnixNano: 3000, DurationNanos: 300},
@@ -806,7 +806,7 @@ func TestSegmentSearchResponse(t *testing.T) {
 			{
 				TraceID: "b",
 				SpanSet: &tempopb.SpanSet{
-					Spans: []*tempopb.Span{
+					Spans: []tempopb.Span{
 						{SpanID: "4", Name: "span4", StartTimeUnixNano: 4000, DurationNanos: 400},
 					},
 				},
@@ -814,7 +814,7 @@ func TestSegmentSearchResponse(t *testing.T) {
 			{
 				TraceID: "c",
 				SpanSet: &tempopb.SpanSet{
-					Spans: []*tempopb.Span{
+					Spans: []tempopb.Span{
 						{SpanID: "5", Name: "span5", StartTimeUnixNano: 5000, DurationNanos: 500},
 					},
 				},

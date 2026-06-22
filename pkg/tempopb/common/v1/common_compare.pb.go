@@ -137,10 +137,7 @@ func (this *ArrayValue) Equal(that interface{}) bool {
 		return false
 	}
 	for i := range this.Values {
-		if (this.Values[i] == nil) != (that1.Values[i] == nil) {
-			return false
-		}
-		if this.Values[i] != nil && !this.Values[i].Equal(that1.Values[i]) {
+		if !this.Values[i].Equal(that1.Values[i]) {
 			return false
 		}
 	}
@@ -170,10 +167,7 @@ func (this *KeyValueList) Equal(that interface{}) bool {
 		return false
 	}
 	for i := range this.Values {
-		if (this.Values[i] == nil) != (that1.Values[i] == nil) {
-			return false
-		}
-		if this.Values[i] != nil && !this.Values[i].Equal(that1.Values[i]) {
+		if !this.Values[i].Equal(that1.Values[i]) {
 			return false
 		}
 	}
@@ -240,10 +234,7 @@ func (this *InstrumentationScope) Equal(that interface{}) bool {
 		return false
 	}
 	for i := range this.Attributes {
-		if (this.Attributes[i] == nil) != (that1.Attributes[i] == nil) {
-			return false
-		}
-		if this.Attributes[i] != nil && !this.Attributes[i].Equal(that1.Attributes[i]) {
+		if !this.Attributes[i].Equal(that1.Attributes[i]) {
 			return false
 		}
 	}
@@ -413,16 +404,8 @@ func (this *ArrayValue) Compare(that interface{}) int {
 		return 1
 	}
 	for i := range this.Values {
-		if (this.Values[i] == nil) != (that1.Values[i] == nil) {
-			if this.Values[i] == nil {
-				return -1
-			}
-			return 1
-		}
-		if this.Values[i] != nil {
-			if c := this.Values[i].Compare(that1.Values[i]); c != 0 {
-				return c
-			}
+		if c := this.Values[i].Compare(that1.Values[i]); c != 0 {
+			return c
 		}
 	}
 	return 0
@@ -460,16 +443,8 @@ func (this *KeyValueList) Compare(that interface{}) int {
 		return 1
 	}
 	for i := range this.Values {
-		if (this.Values[i] == nil) != (that1.Values[i] == nil) {
-			if this.Values[i] == nil {
-				return -1
-			}
-			return 1
-		}
-		if this.Values[i] != nil {
-			if c := this.Values[i].Compare(that1.Values[i]); c != 0 {
-				return c
-			}
+		if c := this.Values[i].Compare(that1.Values[i]); c != 0 {
+			return c
 		}
 	}
 	return 0
@@ -564,16 +539,8 @@ func (this *InstrumentationScope) Compare(that interface{}) int {
 		return 1
 	}
 	for i := range this.Attributes {
-		if (this.Attributes[i] == nil) != (that1.Attributes[i] == nil) {
-			if this.Attributes[i] == nil {
-				return -1
-			}
-			return 1
-		}
-		if this.Attributes[i] != nil {
-			if c := this.Attributes[i].Compare(that1.Attributes[i]); c != 0 {
-				return c
-			}
+		if c := this.Attributes[i].Compare(that1.Attributes[i]); c != 0 {
+			return c
 		}
 	}
 	if this.DroppedAttributesCount != that1.DroppedAttributesCount {

@@ -348,13 +348,13 @@ func TestDiffReportsSpanAttributeChanges(t *testing.T) {
 	traceID := []byte("trace-id-0000001")
 	baseSpan := spanForNormalizeTest(traceID, "root", "", "checkout", "POST /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK)
 	baseSpan.Attributes = append(baseSpan.Attributes,
-		stringAttribute("removed.attr", "gone"),
-		stringAttribute("version", "v1"),
+		*stringAttribute("removed.attr", "gone"),
+		*stringAttribute("version", "v1"),
 	)
 	compareSpan := spanForNormalizeTest(traceID, "root", "", "checkout", "POST /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK)
 	compareSpan.Attributes = append(compareSpan.Attributes,
-		stringAttribute("added.attr", "new"),
-		stringAttribute("version", "v2"),
+		*stringAttribute("added.attr", "new"),
+		*stringAttribute("version", "v2"),
 	)
 
 	got, err := Diff(traceWithNamedSpans(baseSpan), traceWithNamedSpans(compareSpan), FormatTracePatchV0)
@@ -394,11 +394,11 @@ func TestDiffReportsArraySpanAttributeChanges(t *testing.T) {
 	traceID := []byte("trace-id-0000001")
 	baseSpan := spanForNormalizeTest(traceID, "root", "", "checkout", "POST /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK)
 	baseSpan.Attributes = append(baseSpan.Attributes,
-		stringArrayAttribute("feature.flags", "a", "b"),
+		*stringArrayAttribute("feature.flags", "a", "b"),
 	)
 	compareSpan := spanForNormalizeTest(traceID, "root", "", "checkout", "POST /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK)
 	compareSpan.Attributes = append(compareSpan.Attributes,
-		stringArrayAttribute("feature.flags", "a", "c"),
+		*stringArrayAttribute("feature.flags", "a", "c"),
 	)
 
 	got, err := Diff(traceWithNamedSpans(baseSpan), traceWithNamedSpans(compareSpan), FormatTracePatchV0)
@@ -423,9 +423,9 @@ func TestDiffReportsArraySpanAttributeChanges(t *testing.T) {
 }
 
 func traceWithSpans(traceID []byte, spanIDs ...[]byte) *tempopb.Trace {
-	spans := make([]*tracev1.Span, 0, len(spanIDs))
+	spans := make([]tracev1.Span, 0, len(spanIDs))
 	for _, spanID := range spanIDs {
-		spans = append(spans, &tracev1.Span{
+		spans = append(spans, tracev1.Span{
 			TraceId: traceID,
 			SpanId:  spanID,
 		})
@@ -434,11 +434,11 @@ func traceWithSpans(traceID []byte, spanIDs ...[]byte) *tempopb.Trace {
 	return traceWithNamedSpans(spans...)
 }
 
-func traceWithNamedSpans(spans ...*tracev1.Span) *tempopb.Trace {
+func traceWithNamedSpans(spans ...tracev1.Span) *tempopb.Trace {
 	return &tempopb.Trace{
-		ResourceSpans: []*tracev1.ResourceSpans{
+		ResourceSpans: []tracev1.ResourceSpans{
 			{
-				ScopeSpans: []*tracev1.ScopeSpans{
+				ScopeSpans: []tracev1.ScopeSpans{
 					{Spans: spans},
 				},
 			},
@@ -451,9 +451,9 @@ func intPtr(v int) *int {
 }
 
 func stringArrayAttribute(key string, values ...string) *commonv1.KeyValue {
-	arrayValues := make([]*commonv1.AnyValue, 0, len(values))
+	arrayValues := make([]commonv1.AnyValue, 0, len(values))
 	for _, value := range values {
-		arrayValues = append(arrayValues, &commonv1.AnyValue{
+		arrayValues = append(arrayValues, commonv1.AnyValue{
 			Value: &commonv1.AnyValue_StringValue{StringValue: value},
 		})
 	}
@@ -461,7 +461,7 @@ func stringArrayAttribute(key string, values ...string) *commonv1.KeyValue {
 		Key: key,
 		Value: &commonv1.AnyValue{
 			Value: &commonv1.AnyValue_ArrayValue{
-				ArrayValue: &commonv1.ArrayValue{Values: arrayValues},
+				ArrayValue: commonv1.ArrayValue{Values: arrayValues},
 			},
 		},
 	}

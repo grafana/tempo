@@ -15,21 +15,21 @@ import (
 func TestTraceByIDResponseToSimplifiedJSON(t *testing.T) {
 	// Create a comprehensive trace with various patterns
 	trace := &tempopb.Trace{
-		ResourceSpans: []*tracev1.ResourceSpans{
+		ResourceSpans: []tracev1.ResourceSpans{
 			{
 				Resource: &resourcev1.Resource{
-					Attributes: []*commonv1.KeyValue{
+					Attributes: []commonv1.KeyValue{
 						{Key: "service.name", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "test-service"}}},
 						{Key: "host.name", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "localhost"}}},
 					},
 				},
-				ScopeSpans: []*tracev1.ScopeSpans{
+				ScopeSpans: []tracev1.ScopeSpans{
 					{
 						Scope: &commonv1.InstrumentationScope{
 							Name:    "test-scope",
 							Version: "1.0.0",
 						},
-						Spans: []*tracev1.Span{
+						Spans: []tracev1.Span{
 							{
 								TraceId:           []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10},
 								SpanId:            []byte{0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18},
@@ -38,25 +38,25 @@ func TestTraceByIDResponseToSimplifiedJSON(t *testing.T) {
 								Kind:              tracev1.Span_SPAN_KIND_SERVER,
 								StartTimeUnixNano: 1000000000,
 								EndTimeUnixNano:   2000000000,
-								Attributes: []*commonv1.KeyValue{
+								Attributes: []commonv1.KeyValue{
 									{Key: "http.method", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "GET"}}},
 									{Key: "http.status_code", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_IntValue{IntValue: 200}}},
 									{Key: "error", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_BoolValue{BoolValue: false}}},
 								},
-								Events: []*tracev1.Span_Event{
+								Events: []tracev1.Span_Event{
 									{
 										Name:         "test-event",
 										TimeUnixNano: 1500000000,
-										Attributes: []*commonv1.KeyValue{
+										Attributes: []commonv1.KeyValue{
 											{Key: "event.type", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "log"}}},
 										},
 									},
 								},
-								Links: []*tracev1.Span_Link{
+								Links: []tracev1.Span_Link{
 									{
 										TraceId: []byte{0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa8, 0xa9, 0xaa, 0xab, 0xac, 0xad, 0xae, 0xaf, 0xb0},
 										SpanId:  []byte{0xb1, 0xb2, 0xb3, 0xb4, 0xb5, 0xb6, 0xb7, 0xb8},
-										Attributes: []*commonv1.KeyValue{
+										Attributes: []commonv1.KeyValue{
 											{Key: "link.type", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "parent"}}},
 										},
 									},
@@ -158,11 +158,11 @@ func TestTraceByIDResponseToSimplifiedJSON(t *testing.T) {
 func TestTraceByIDResponseToSimplifiedJSONIncludesStatus(t *testing.T) {
 	traceResponse := &tempopb.TraceByIDResponse{
 		Trace: &tempopb.Trace{
-			ResourceSpans: []*tracev1.ResourceSpans{
+			ResourceSpans: []tracev1.ResourceSpans{
 				{
-					ScopeSpans: []*tracev1.ScopeSpans{
+					ScopeSpans: []tracev1.ScopeSpans{
 						{
-							Spans: []*tracev1.Span{
+							Spans: []tracev1.Span{
 								{
 									TraceId: []byte{0x01, 0x02, 0x03, 0x04},
 									SpanId:  []byte{0x11, 0x12, 0x13, 0x14},

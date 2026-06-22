@@ -751,9 +751,6 @@ func queryMetrics(client httpclient.TempoHTTPClient, seed time.Time, config vult
 			continue
 		}
 		for _, spanSet := range trace.SpanSets {
-			if spanSet == nil {
-				continue
-			}
 			spansCount += int(spanSet.Matched)
 		}
 	}

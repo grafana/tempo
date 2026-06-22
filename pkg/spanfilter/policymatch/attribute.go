@@ -19,7 +19,7 @@ func NewAttributePolicyMatch(filters []AttributeFilter) *AttributePolicyMatch {
 }
 
 // Matches returns true if the given span matches the policy.
-func (p *AttributePolicyMatch) Matches(attrs []*commonv1.KeyValue) bool {
+func (p *AttributePolicyMatch) Matches(attrs []commonv1.KeyValue) bool {
 	// If there are no filters, then the span matches.
 	if len(p.filters) == 0 {
 		return true
@@ -39,8 +39,9 @@ func (p *AttributePolicyMatch) Matches(attrs []*commonv1.KeyValue) bool {
 	return true
 }
 
-func matchesAnyFilter(pa AttributeFilter, attrs []*commonv1.KeyValue) bool {
-	for _, attr := range attrs {
+func matchesAnyFilter(pa AttributeFilter, attrs []commonv1.KeyValue) bool {
+	for i := range attrs {
+		attr := &attrs[i]
 		// If the attribute key does not match, then it cannot match the policy.
 		if pa.key != attr.Key {
 			continue

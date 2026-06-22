@@ -139,8 +139,8 @@ func traceByIDResponseToSimplifiedJSON(t *tempopb.TraceByIDResponse) (string, er
 
 			// Build spans array
 			spans := make([]LLMSpan, 0, len(ss.Spans))
-			for _, span := range ss.Spans {
-				simplifiedSpan := simplifySpan(span)
+			for i := range ss.Spans {
+				simplifiedSpan := simplifySpan(&ss.Spans[i])
 				spans = append(spans, simplifiedSpan)
 			}
 
@@ -277,12 +277,12 @@ func simplifySpan(span *tracev1.Span) LLMSpan {
 	return result
 }
 
-// flattenAttributes converts []*KeyValue to a flat map[string]interface{}
-func flattenAttributes(attrs []*commonv1.KeyValue) map[string]interface{} {
+// flattenAttributes converts []KeyValue to a flat map[string]interface{}
+func flattenAttributes(attrs []commonv1.KeyValue) map[string]interface{} {
 	result := make(map[string]interface{})
-	for _, attr := range attrs {
-		if attr.Value != nil {
-			result[attr.Key] = extractAnyValue(attr.Value)
+	for i := range attrs {
+		if attrs[i].Value != nil {
+			result[attrs[i].Key] = extractAnyValue(attrs[i].Value)
 		}
 	}
 	return result
@@ -303,8 +303,8 @@ func extractAnyValue(av *commonv1.AnyValue) interface{} {
 		return hex.EncodeToString(v.BytesValue)
 	case *commonv1.AnyValue_ArrayValue:
 		arr := make([]interface{}, 0, len(v.ArrayValue.Values))
-		for _, item := range v.ArrayValue.Values {
-			arr = append(arr, extractAnyValue(item))
+		for i := range v.ArrayValue.Values {
+			arr = append(arr, extractAnyValue(&v.ArrayValue.Values[i]))
 		}
 		return arr
 	case *commonv1.AnyValue_KvlistValue:
