@@ -43,7 +43,7 @@ func TestTraceByIDResponseToSimplifiedJSON(t *testing.T) {
 									{Key: "http.status_code", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_IntValue{IntValue: 200}}},
 									{Key: "error", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_BoolValue{BoolValue: false}}},
 								},
-								Events: []tracev1.Span_Event{
+								Events: []*tracev1.Span_Event{
 									{
 										Name:         "test-event",
 										TimeUnixNano: 1500000000,
@@ -52,7 +52,7 @@ func TestTraceByIDResponseToSimplifiedJSON(t *testing.T) {
 										},
 									},
 								},
-								Links: []tracev1.Span_Link{
+								Links: []*tracev1.Span_Link{
 									{
 										TraceId: []byte{0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa8, 0xa9, 0xaa, 0xab, 0xac, 0xad, 0xae, 0xaf, 0xb0},
 										SpanId:  []byte{0xb1, 0xb2, 0xb3, 0xb4, 0xb5, 0xb6, 0xb7, 0xb8},

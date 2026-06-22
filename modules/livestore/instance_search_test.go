@@ -745,8 +745,8 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 		// add link and event
 		event := &trace_v1.Span_Event{Name: "event-name", Attributes: []v1.KeyValue{*eventKv}}
 		link := &trace_v1.Span_Link{TraceId: id, SpanId: id, Attributes: []v1.KeyValue{*linkKv}}
-		testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Events = append(testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Events, *event)
-		testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Links = append(testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Links, *link)
+		testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Events = append(testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Events, event)
+		testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Links = append(testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Links, link)
 
 		trace.SortTrace(testTrace)
 
