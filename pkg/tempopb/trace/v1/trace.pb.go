@@ -166,7 +166,7 @@ type TracesData struct {
 	// one element. Intermediary nodes that receive data from multiple origins
 	// typically batch the data before forwarding further and in that case this
 	// array will contain multiple elements.
-	ResourceSpans []ResourceSpans `protobuf:"bytes,1,rep,name=resource_spans,json=resourceSpans,proto3" json:"resource_spans,omitempty"`
+	ResourceSpans []*ResourceSpans `protobuf:"bytes,1,rep,name=resource_spans,json=resourceSpans,proto3" json:"resource_spans,omitempty"`
 }
 
 // A collection of ScopeSpans from a Resource.
@@ -350,13 +350,13 @@ type Span struct {
 	// attributes. If this value is 0, then no attributes were dropped.
 	DroppedAttributesCount uint32 `protobuf:"varint,10,opt,name=dropped_attributes_count,json=droppedAttributesCount,proto3" json:"dropped_attributes_count,omitempty"`
 	// events is a collection of Event items.
-	Events []Span_Event `protobuf:"bytes,11,rep,name=events,proto3" json:"events,omitempty"`
+	Events []*Span_Event `protobuf:"bytes,11,rep,name=events,proto3" json:"events,omitempty"`
 	// dropped_events_count is the number of dropped events. If the value is 0, then no
 	// events were dropped.
 	DroppedEventsCount uint32 `protobuf:"varint,12,opt,name=dropped_events_count,json=droppedEventsCount,proto3" json:"dropped_events_count,omitempty"`
 	// links is a collection of Links, which are references from this span to a span
 	// in the same or different trace.
-	Links []Span_Link `protobuf:"bytes,13,rep,name=links,proto3" json:"links,omitempty"`
+	Links []*Span_Link `protobuf:"bytes,13,rep,name=links,proto3" json:"links,omitempty"`
 	// dropped_links_count is the number of dropped links after the maximum size was
 	// enforced. If this value is 0, then no links were dropped.
 	DroppedLinksCount uint32 `protobuf:"varint,14,opt,name=dropped_links_count,json=droppedLinksCount,proto3" json:"dropped_links_count,omitempty"`
@@ -430,7 +430,7 @@ func (m *Status) Reset() {
 }
 func (*Status) ProtoMessage() {}
 
-func (m *TracesData) GetResourceSpans() []ResourceSpans {
+func (m *TracesData) GetResourceSpans() []*ResourceSpans {
 	if m != nil {
 		return m.ResourceSpans
 	}
@@ -626,7 +626,7 @@ func (m *Span) GetDroppedAttributesCount() uint32 {
 	return 0
 }
 
-func (m *Span) GetEvents() []Span_Event {
+func (m *Span) GetEvents() []*Span_Event {
 	if m != nil {
 		return m.Events
 	}
@@ -640,7 +640,7 @@ func (m *Span) GetDroppedEventsCount() uint32 {
 	return 0
 }
 
-func (m *Span) GetLinks() []Span_Link {
+func (m *Span) GetLinks() []*Span_Link {
 	if m != nil {
 		return m.Links
 	}
@@ -681,7 +681,10 @@ func (m *TracesData) Size() int {
 	}
 	var n int
 	for i := range m.ResourceSpans {
-		s := m.ResourceSpans[i].Size()
+		if m.ResourceSpans[i] == nil {
+			continue
+		}
+		s := (*m.ResourceSpans[i]).Size()
 		n += 1 + protowire.SizeVarint(uint64(s)) + s
 	}
 	return n
@@ -813,14 +816,20 @@ func (m *Span) Size() int {
 		n += 1 + protowire.SizeVarint(uint64(m.DroppedAttributesCount))
 	}
 	for i := range m.Events {
-		s := m.Events[i].Size()
+		if m.Events[i] == nil {
+			continue
+		}
+		s := (*m.Events[i]).Size()
 		n += 1 + protowire.SizeVarint(uint64(s)) + s
 	}
 	if m.DroppedEventsCount != 0 {
 		n += 1 + protowire.SizeVarint(uint64(m.DroppedEventsCount))
 	}
 	for i := range m.Links {
-		s := m.Links[i].Size()
+		if m.Links[i] == nil {
+			continue
+		}
+		s := (*m.Links[i]).Size()
 		n += 1 + protowire.SizeVarint(uint64(s)) + s
 	}
 	if m.DroppedLinksCount != 0 {
@@ -877,7 +886,10 @@ func (m *TracesData) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	}
 	i := len(dAtA)
 	for iNdEx := len(m.ResourceSpans) - 1; iNdEx >= 0; iNdEx-- {
-		size, err := m.ResourceSpans[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+		if m.ResourceSpans[iNdEx] == nil {
+			continue
+		}
+		size, err := (*m.ResourceSpans[iNdEx]).MarshalToSizedBuffer(dAtA[:i])
 		if err != nil {
 			return 0, err
 		}
@@ -1264,7 +1276,10 @@ func (m *Span) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		dAtA[i] = 0x70
 	}
 	for iNdEx := len(m.Links) - 1; iNdEx >= 0; iNdEx-- {
-		size, err := m.Links[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+		if m.Links[iNdEx] == nil {
+			continue
+		}
+		size, err := (*m.Links[iNdEx]).MarshalToSizedBuffer(dAtA[:i])
 		if err != nil {
 			return 0, err
 		}
@@ -1284,7 +1299,10 @@ func (m *Span) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		dAtA[i] = 0x60
 	}
 	for iNdEx := len(m.Events) - 1; iNdEx >= 0; iNdEx-- {
-		size, err := m.Events[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+		if m.Events[iNdEx] == nil {
+			continue
+		}
+		size, err := (*m.Events[iNdEx]).MarshalToSizedBuffer(dAtA[:i])
 		if err != nil {
 			return 0, err
 		}
@@ -1525,7 +1543,7 @@ func (m *TracesData) unmarshal(dAtA []byte, depth int) error {
 				c = preCapMax
 			}
 			if len(m.ResourceSpans) == 0 && cap(m.ResourceSpans) < c {
-				m.ResourceSpans = make([]ResourceSpans, 0, c)
+				m.ResourceSpans = make([]*ResourceSpans, 0, c)
 			}
 		}
 	}
@@ -1599,7 +1617,7 @@ func (m *TracesData) unmarshal(dAtA []byte, depth int) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.ResourceSpans = append(m.ResourceSpans, ResourceSpans{})
+			m.ResourceSpans = append(m.ResourceSpans, &ResourceSpans{})
 			if err := m.ResourceSpans[len(m.ResourceSpans)-1].unmarshal(dAtA[iNdEx:postIndex], depth+1); err != nil {
 				return err
 			}
@@ -2870,7 +2888,7 @@ func (m *Span) unmarshal(dAtA []byte, depth int) error {
 				c = preCapMax
 			}
 			if len(m.Events) == 0 && cap(m.Events) < c {
-				m.Events = make([]Span_Event, 0, c)
+				m.Events = make([]*Span_Event, 0, c)
 			}
 		}
 		if c := field13count; c > 0 {
@@ -2878,7 +2896,7 @@ func (m *Span) unmarshal(dAtA []byte, depth int) error {
 				c = preCapMax
 			}
 			if len(m.Links) == 0 && cap(m.Links) < c {
-				m.Links = make([]Span_Link, 0, c)
+				m.Links = make([]*Span_Link, 0, c)
 			}
 		}
 	}
@@ -3326,7 +3344,7 @@ func (m *Span) unmarshal(dAtA []byte, depth int) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Events = append(m.Events, Span_Event{})
+			m.Events = append(m.Events, &Span_Event{})
 			if err := m.Events[len(m.Events)-1].unmarshal(dAtA[iNdEx:postIndex], depth+1); err != nil {
 				return err
 			}
@@ -3402,7 +3420,7 @@ func (m *Span) unmarshal(dAtA []byte, depth int) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Links = append(m.Links, Span_Link{})
+			m.Links = append(m.Links, &Span_Link{})
 			if err := m.Links[len(m.Links)-1].unmarshal(dAtA[iNdEx:postIndex], depth+1); err != nil {
 				return err
 			}

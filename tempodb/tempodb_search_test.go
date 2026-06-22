@@ -2291,7 +2291,7 @@ func makeExpectedTrace(traceID []byte) (
 									stringKV("span-dedicated.02", "span-2a"),
 									stringKV("numericString", "123"),
 								},
-								Events: []v1.Span_Event{
+								Events: []*v1.Span_Event{
 									{
 										TimeUnixNano: uint64(1000*time.Second) + uint64(500*time.Millisecond),
 										Name:         "event name",
@@ -2301,7 +2301,7 @@ func makeExpectedTrace(traceID []byte) (
 										},
 									},
 								},
-								Links: []v1.Span_Link{
+								Links: []*v1.Span_Link{
 									{
 										TraceId: id,
 										SpanId:  []byte{4, 5, 6},

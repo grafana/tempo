@@ -113,7 +113,7 @@ func makeSpanWithAttributeCount(traceID []byte, count int, startTime uint64, end
 
 	// add link
 	if rand.Intn(5) == 0 { // nolint:gosec // G404: Use of weak random number generator
-		s.Links = append(s.Links, v1_trace.Span_Link{
+		s.Links = append(s.Links, &v1_trace.Span_Link{
 			TraceId:    traceID,
 			SpanId:     make([]byte, 8),
 			TraceState: "state",
@@ -144,7 +144,7 @@ func makeSpanWithAttributeCount(traceID []byte, count int, startTime uint64, end
 
 	// add event
 	if rand.Intn(3) == 0 { // nolint:gosec // G404: Use of weak random number generator
-		s.Events = append(s.Events, v1_trace.Span_Event{
+		s.Events = append(s.Events, &v1_trace.Span_Event{
 			TimeUnixNano:           s.StartTimeUnixNano + uint64(rand.Intn(1*1000*1000)), // 1ms
 			Name:                   "event",
 			DroppedAttributesCount: rand.Uint32(), // nolint:gosec // G404: Use of weak random number generator
@@ -366,7 +366,7 @@ func AddDedicatedAttributes(trace *tempopb.Trace) *tempopb.Trace {
 				span.Attributes = append(attr, span.Attributes...)
 
 				for l := range span.Events {
-					e := &span.Events[l]
+					e := span.Events[l]
 					attr = make([]v1_common.KeyValue, 0, len(eventAttrs)+len(e.Attributes))
 					attr = append(attr, eventAttrs...)
 					e.Attributes = append(attr, e.Attributes...)
@@ -414,7 +414,7 @@ func AddRandomDedicatedAttributes(trace *tempopb.Trace) *tempopb.Trace {
 				}
 
 				for ei := range span.Events {
-					e := &span.Events[ei]
+					e := span.Events[ei]
 					for i, col := range dedicatedColumnsEvent {
 						if rand.Intn(2) != 0 { // nolint:gosec // G404
 							continue

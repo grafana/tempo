@@ -510,12 +510,12 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 
 				ss.Events = extendReuseSlice(len(s.Events), ss.Events)
 				for ie, e := range s.Events {
-					eventToParquet(&e, &ss.Events[ie], s.StartTimeUnixNano, dedicatedEventAttributes)
+					eventToParquet(e, &ss.Events[ie], s.StartTimeUnixNano, dedicatedEventAttributes)
 				}
 
 				ss.Links = extendReuseSlice(len(s.Links), ss.Links)
 				for ie, e := range s.Links {
-					linkToParquet(&e, &ss.Links[ie])
+					linkToParquet(e, &ss.Links[ie])
 				}
 
 				ss.DroppedLinksCount = int32(s.DroppedLinksCount)
@@ -693,13 +693,13 @@ func parquetToProtoInstrumentationScope(parquetScope *InstrumentationScope) *v1.
 	return &scope
 }
 
-func parquetToProtoLinks(parquetLinks []Link) []v1_trace.Span_Link {
-	var protoLinks []v1_trace.Span_Link
+func parquetToProtoLinks(parquetLinks []Link) []*v1_trace.Span_Link {
+	var protoLinks []*v1_trace.Span_Link
 
 	if len(parquetLinks) > 0 {
-		protoLinks = make([]v1_trace.Span_Link, 0, len(parquetLinks))
+		protoLinks = make([]*v1_trace.Span_Link, 0, len(parquetLinks))
 		for _, l := range parquetLinks {
-			protoLink := v1_trace.Span_Link{
+			protoLink := &v1_trace.Span_Link{
 				TraceId:                l.TraceID,
 				SpanId:                 l.SpanID,
 				TraceState:             l.TraceState,
@@ -718,15 +718,15 @@ func parquetToProtoLinks(parquetLinks []Link) []v1_trace.Span_Link {
 	return protoLinks
 }
 
-func parquetToProtoEvents(parquetEvents []Event, spanStartTimeNano uint64, dedicatedAttributes dedicatedColumnMapping) []v1_trace.Span_Event {
-	var protoEvents []v1_trace.Span_Event
+func parquetToProtoEvents(parquetEvents []Event, spanStartTimeNano uint64, dedicatedAttributes dedicatedColumnMapping) []*v1_trace.Span_Event {
+	var protoEvents []*v1_trace.Span_Event
 
 	if len(parquetEvents) > 0 {
-		protoEvents = make([]v1_trace.Span_Event, 0, len(parquetEvents))
+		protoEvents = make([]*v1_trace.Span_Event, 0, len(parquetEvents))
 
 		for _, e := range parquetEvents {
 
-			protoEvent := v1_trace.Span_Event{
+			protoEvent := &v1_trace.Span_Event{
 				TimeUnixNano:           e.TimeSinceStartNano + spanStartTimeNano,
 				Name:                   e.Name,
 				Attributes:             nil,

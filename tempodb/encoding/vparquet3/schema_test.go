@@ -94,7 +94,7 @@ func TestFieldsAreCleared(t *testing.T) {
 										},
 									},
 								},
-								Events: []v1_trace.Span_Event{
+								Events: []*v1_trace.Span_Event{
 									{
 										// An attribute of every type
 										Attributes: []v1.KeyValue{
@@ -542,7 +542,7 @@ func TestTraceToParquetRootSpanWithChildOfLink(t *testing.T) {
 									{
 										Name:   "not-root-span",
 										SpanId: []byte{0x02},
-										Links: []v1_trace.Span_Link{
+										Links: []*v1_trace.Span_Link{
 											{
 												Attributes: []v1.KeyValue{
 													{
@@ -613,7 +613,7 @@ func TestTraceToParquetRootSpanWithChildOfLink(t *testing.T) {
 										Name:    "not-root-span",
 										TraceId: traceID,
 										SpanId:  []byte{0x02},
-										Links: []v1_trace.Span_Link{
+										Links: []*v1_trace.Span_Link{
 											{
 												TraceId: []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
 												Attributes: []v1.KeyValue{
