@@ -6,21 +6,22 @@ Wire format is unchanged (standard protobuf, binary-compatible with gogo);
 only the generated Go API shape changes.
 
 Toolchain: `wiresmith` CLI built from the public `github.com/grafana/wiresmith`
-`databases` branch (`v0.0.0-20260612130815-854b4c6268c2`, commit 854b4c6 —
+`main` branch (`v0.0.0-20260618160438-f15959a1e4e7`, commit f15959a —
 the `UnmarshalNoPrescan` compiler, see the §`UnmarshalNoPrescan` adoption
 below), invoked from `make gen-proto` (the buf+docker+gogofaster pipeline is
 gone). The repo is public and go-installable: `go.mod` carries `require
 github.com/grafana/wiresmith` (runtime `protohelpers` package) pinned to that
-published `databases` pseudo-version — no `replace` and no private-module env
+published `main` pseudo-version — no `replace` and no private-module env
 needed. `make gen-proto` reproduces the committed output byte-identically
 (regen-vs-pinned now consistent: install the pinned binary with
-`go install github.com/grafana/wiresmith/cmd/wiresmith@v0.0.0-20260612130815-854b4c6268c2`
+`go install github.com/grafana/wiresmith/cmd/wiresmith@v0.0.0-20260618160438-f15959a1e4e7`
 and the generated `.pb.go` are byte-for-byte unchanged).
 
-Remaining toolchain step: once the `databases` branch merges into wiresmith
-`main`, bump go.mod to the resulting `main` pseudo-version. The merge will be a
-squash, which orphans commit 854b4c6, but the Go module proxy keeps the orphaned
-pseudo-version fetchable, so the pin stays installable until the bump lands.
+The former `databases` branch was squash-merged to wiresmith `main` as commit
+f15959a (#142). The orphaned `databases` pseudo-versions (edd3e465d382, etc.)
+remain fetchable via the Go module proxy, but the canonical pin is now
+`v0.0.0-20260618160438-f15959a1e4e7`. The compiler in `compiler/`,
+`protohelpers/`, and `proto/` is byte-identical between edd3e46 and f15959a.
 
 Note: `(wiresmith.options.enum_no_prefix)` (gogo goproto_enum_prefix=false
 parity) exists since @698587a but is not needed — Tempo's gogo protos all
@@ -247,13 +248,12 @@ feature, severity.
 - ~~Benchmark the hot paths~~ — done for the ingest decode path, see
   **Benchmarks** below.
 - ~~Replace the local `replace github.com/grafana/wiresmith => ...` with a
-  published module version.~~ Done — pinned to the public `databases`
-  pseudo-version `v0.0.0-20260612130815-854b4c6268c2` (854b4c6, the
-  `UnmarshalNoPrescan` compiler); no `replace` remains. Regen-vs-pinned is
-  consistent (committed `.pb.go` byte-identical to a fresh regen with that
-  binary). Remaining: bump to the `main` pseudo-version once `databases` merges
-  to wiresmith `main` (squash orphans 854b4c6; the module proxy keeps it
-  fetchable in the meantime).
+  published module version.~~ Done — now pinned to the public `main`
+  pseudo-version `v0.0.0-20260618160438-f15959a1e4e7` (f15959a), which is the
+  squash-merge of the `databases` branch (#142). No `replace` remains.
+  Regen-vs-pinned is consistent (committed `.pb.go` byte-identical to a fresh
+  regen with the `f15959a` binary, which is byte-identical to edd3e46 in
+  `compiler/`/`protohelpers/`/`proto/`).
 - `vendor/modules.txt` pins vtprotobuf one rev newer (pulled transitively
   via the wiresmith module) — sanity-checked, but worth a second look.
 - Old gogo annotations are gone from the protos; consider dropping the
