@@ -384,33 +384,37 @@ merge-by-unmarshal (kept byte-identical to upstream) and
 `livestore/instance.go`'s `[:0]`-reset `Trace` decode are candidates left for a
 separate decision.
 
-## Performance: pointer-drop on OTLP type tree (value slices)
+## Performance: pointer-drop (profile-selected fields)
 
-Dropped `(wiresmith.options.pointer) = true` from all repeated message fields in
-the OTLP type tree (`trace/v1`, `common/v1`, `resource/v1`) and from the
-container fields in `tempo.proto` that hold OTLP values (`Trace.resourceSpans`,
-`PushSpansRequest.batches`, `SpanSet.spans`, `SpanSet.attributes`, etc.).
+Profile-driven selection: ran `BenchmarkGeneratorDecoderOTLP` with
+`-memprofile` and ranked by `go tool pprof -alloc_objects` to identify the
+highest-allocation repeated message fields:
 
-Wire format is unchanged. The Go API changes from `[]*T` to `[]T` (value slices),
-eliminating per-element heap allocation for every span, attribute, event, and link.
-All mutation loops were updated to index-based form (`for i := range s { s[i].F = x }`)
-and pointer-identity maps were changed to store indices instead of pointers.
+| allocs/op | % total | field (type at baseline) |
+|-----------|---------|--------------------------|
+| 733 778 | 29.6% | `ScopeSpans.spans []*Span` → **converted** |
+| 703 783 | 28.4% | `Span.attributes []*KeyValue` → **converted** (affects Span_Event.Attributes and Span_Link.Attributes too — same generated type) |
+|  99 160 |  4.0% | `ResourceSpans.scope_spans []*ScopeSpans` → **converted** |
+|  42 880 |  1.7% | `Span.events []*Span_Event` → left as `[]*T` |
+|  35 378 |  1.4% | `Span.links []*Span_Link` → left as `[]*T` |
 
-An additional bug was found and fixed in `engine.go`: after `SpanSets =
-[]SpanSet{*SpanSet}` (the copy), subsequent mutations via `SpanSet` were not
-reflected in `SpanSets[0]`. Fixed by re-pointing `SpanSet = &SpanSets[0]`
-immediately after the copy.
+Five proto fields dropped `(wiresmith.options.pointer) = true`:
+`ResourceSpans.scope_spans`, `ScopeSpans.spans`, `Span.attributes`,
+`Span_Event.attributes`, `Span_Link.attributes`. Events and links are kept as
+pointer slices (below threshold; converting links adds `LinkSlice` serialization
+friction in vparquet3).
 
-Benchmarks (n=20, alternated binaries, Apple M4 Pro):
+Wire format unchanged. Call sites updated for value-slice semantics.
+`vparquet3/4/5/schema.go` write paths removed superfluous `&e` (range over
+`[]*T` already yields `*T`); read-path `parquetToProtoEvents`/`parquetToProtoLinks`
+return `[]*T` matching `Span.Events`/`Span.Links`.
 
-| Benchmark                              | sec/op    | B/op      | allocs/op |
-|----------------------------------------|-----------|-----------|-----------|
-| GeneratorDecoderOTLP (OTLP ingest)    | −12.14%** | −3.56%*   | −19.36%** |
-| GeneratorDecoderPushBytes (ingest)    | ~         | ~         | ~         |
-| SortTraceAndAttributes (model/trace)  | ~         | ~         | ~         |
-| BenchmarkDeduper{100..100000} (dedup) | ~         | —         | —         |
+Benchstat (alternated `go test -c` binaries, n=20, Apple M4 Pro,
+baseline = commit b11996fd1):
 
-`**` p<0.001 n=20, `*` p<0.01 n=20, `~` not significant
+| Benchmark          | sec/op    | B/op    | allocs/op |
+|--------------------|-----------|---------|-----------|
+| GeneratorDecoderOTLP | −11.03% (p=0.000) | −1.82% (p=0.045) | −16.62% (p=0.000) |
 
-Win is concentrated in the OTLP decode path (`GeneratorDecoderOTLP`): −12% time,
-−19% allocs — the primary hot path. Sorting and deduplication are unaffected.
+Win is concentrated in the OTLP decode path: −11% time, −17% allocs.
+Sorting and deduplication benchmarks are unaffected (unchanged paths).
