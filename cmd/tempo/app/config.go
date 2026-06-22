@@ -35,8 +35,8 @@ const defaultGRPCCompression = "snappy"
 
 // MemoryConfig configures memory management settings
 type MemoryConfig struct {
-	AutoMemLimitEnabled         bool          `yaml:"automemlimit_enabled"`
-	AutoMemLimitRatio           float64       `yaml:"automemlimit_ratio"`
+	AutoMemLimitEnabled bool    `yaml:"automemlimit_enabled"`
+	AutoMemLimitRatio   float64 `yaml:"automemlimit_ratio"`
 	AutoMemLimitRefreshInterval time.Duration `yaml:"automemlimit_refresh_interval"`
 }
 
