@@ -48,7 +48,7 @@ message TracesData {
   // one element. Intermediary nodes that receive data from multiple origins
   // typically batch the data before forwarding further and in that case this
   // array will contain multiple elements.
-  repeated ResourceSpans resource_spans = 1;
+  repeated ResourceSpans resource_spans = 1 [(wiresmith.options.pointer) = true];
 }
 
 // A collection of ScopeSpans from a Resource.
@@ -243,7 +243,7 @@ message Span {
   }
 
   // events is a collection of Event items.
-  repeated Event events = 11;
+  repeated Event events = 11 [(wiresmith.options.pointer) = true];
 
   // dropped_events_count is the number of dropped events. If the value is 0, then no
   // events were dropped.
@@ -295,7 +295,7 @@ message Span {
 
   // links is a collection of Links, which are references from this span to a span
   // in the same or different trace.
-  repeated Link links = 13;
+  repeated Link links = 13 [(wiresmith.options.pointer) = true];
 
   // dropped_links_count is the number of dropped links after the maximum size was
   // enforced. If this value is 0, then no links were dropped.

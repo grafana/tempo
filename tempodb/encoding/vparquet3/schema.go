@@ -391,7 +391,7 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 
 				ss.Events = extendReuseSlice(len(s.Events), ss.Events)
 				for ie, e := range s.Events {
-					eventToParquet(&e, &ss.Events[ie])
+					eventToParquet(e, &ss.Events[ie])
 				}
 
 				// nested set values do not come from the proto, they are calculated
@@ -421,9 +421,12 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 				ss.HttpStatusCode = nil
 				ss.DedicatedAttributes = DedicatedAttributes{}
 				if len(s.Links) > 0 {
-					links := tempopb.LinkSlice{
-						Links: s.Links,
+					// s.Links is []*Span_Link; LinkSlice.Links is []Span_Link — dereference
+					flatLinks := make([]v1_trace.Span_Link, len(s.Links))
+					for i, l := range s.Links {
+						flatLinks[i] = *l
 					}
+					links := tempopb.LinkSlice{Links: flatLinks}
 					ss.Links = extendReuseSlice(links.Size(), ss.Links)
 					_, _ = links.MarshalToSizedBuffer(ss.Links)
 				} else {
@@ -546,15 +549,15 @@ func parquetToProtoAttrs(parquetAttrs []Attribute) []v1.KeyValue {
 	return protoAttrs
 }
 
-func parquetToProtoEvents(parquetEvents []Event) []v1_trace.Span_Event {
-	var protoEvents []v1_trace.Span_Event
+func parquetToProtoEvents(parquetEvents []Event) []*v1_trace.Span_Event {
+	var protoEvents []*v1_trace.Span_Event
 
 	if len(parquetEvents) > 0 {
-		protoEvents = make([]v1_trace.Span_Event, 0, len(parquetEvents))
+		protoEvents = make([]*v1_trace.Span_Event, 0, len(parquetEvents))
 
 		for _, e := range parquetEvents {
 
-			protoEvent := v1_trace.Span_Event{
+			protoEvent := &v1_trace.Span_Event{
 				TimeUnixNano:           e.TimeUnixNano,
 				Name:                   e.Name,
 				Attributes:             nil,
@@ -686,7 +689,11 @@ func ParquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace) *t
 				if len(span.Links) > 0 {
 					links := tempopb.LinkSlice{}
 					_ = links.Unmarshal(span.Links) // todo: bubble these errors up
-					protoSpan.Links = links.Links
+					// LinkSlice.Links is []Span_Link (value slice); Span.Links is []*Span_Link
+					protoSpan.Links = make([]*v1_trace.Span_Link, len(links.Links))
+					for i := range links.Links {
+						protoSpan.Links[i] = &links.Links[i]
+					}
 				}
 
 				// dynamically assigned dedicated resource attribute columns

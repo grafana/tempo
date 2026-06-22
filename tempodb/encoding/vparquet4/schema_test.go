@@ -103,14 +103,14 @@ func TestFieldsAreCleared(t *testing.T) {
 									{Key: "c", Value: &v1.AnyValue{Value: &v1.AnyValue_BoolValue{BoolValue: true}}},
 									{Key: "d", Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 111.11}}},
 								},
-								Events: []v1_trace.Span_Event{
+								Events: []*v1_trace.Span_Event{
 									{
 										Attributes: []v1.KeyValue{
 											{Key: "event-attr", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 123}}},
 										},
 									},
 								},
-								Links: []v1_trace.Span_Link{
+								Links: []*v1_trace.Span_Link{
 									{
 										Attributes: []v1.KeyValue{
 											{Key: "link-attr", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 123}}},
@@ -640,7 +640,7 @@ func TestTraceToParquet(t *testing.T) {
 								SpanId:            common.ID{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01}, // 01
 								StartTimeUnixNano: 1500,
 								EndTimeUnixNano:   3000,
-								Links: []v1_trace.Span_Link{{
+								Links: []*v1_trace.Span_Link{{
 									TraceId: traceID,
 									SpanId:  common.ID{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02}, // 02
 									Attributes: []v1.KeyValue{
@@ -654,7 +654,7 @@ func TestTraceToParquet(t *testing.T) {
 								SpanId:            common.ID{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02}, // 02
 								StartTimeUnixNano: 1000,
 								EndTimeUnixNano:   4000,
-								Events: []v1_trace.Span_Event{{
+								Events: []*v1_trace.Span_Event{{
 									TimeUnixNano: 2000,
 									Name:         "event name",
 									Attributes: []v1.KeyValue{
@@ -1035,7 +1035,7 @@ func TestTraceToParquetRootSpanWithChildOfLink(t *testing.T) {
 									{
 										Name:   "not-root-span",
 										SpanId: []byte{0x02},
-										Links: []v1_trace.Span_Link{
+										Links: []*v1_trace.Span_Link{
 											{
 												Attributes: []v1.KeyValue{
 													{
@@ -1106,7 +1106,7 @@ func TestTraceToParquetRootSpanWithChildOfLink(t *testing.T) {
 										Name:    "not-root-span",
 										TraceId: traceID,
 										SpanId:  []byte{0x02},
-										Links: []v1_trace.Span_Link{
+										Links: []*v1_trace.Span_Link{
 											{
 												TraceId: []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
 												Attributes: []v1.KeyValue{

@@ -46,7 +46,7 @@ func TestSortTrace(t *testing.T) {
 											{Key: "a", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VA"}}},
 											{Key: "b", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VB"}}},
 										},
-										Events: []tracev1.Span_Event{
+										Events: []*tracev1.Span_Event{
 											{
 												TimeUnixNano: 11,
 												Name:         "eventA2",
@@ -64,7 +64,7 @@ func TestSortTrace(t *testing.T) {
 												},
 											},
 										},
-										Links: []tracev1.Span_Link{
+										Links: []*tracev1.Span_Link{
 											{
 												TraceId: []byte{0x11},
 												SpanId:  []byte{0x11},
@@ -105,7 +105,7 @@ func TestSortTrace(t *testing.T) {
 											{Key: "a", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "va"}}},
 											{Key: "b", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "vb"}}},
 										},
-										Events: []tracev1.Span_Event{
+										Events: []*tracev1.Span_Event{
 											{
 												TimeUnixNano: 10,
 												Name:         "eventA",
@@ -123,7 +123,7 @@ func TestSortTrace(t *testing.T) {
 												},
 											},
 										},
-										Links: []tracev1.Span_Link{
+										Links: []*tracev1.Span_Link{
 											{
 												TraceId: []byte{0x01},
 												SpanId:  []byte{0x01},
@@ -178,7 +178,7 @@ func testTraceForSorting() *tempopb.Trace {
 									{Key: "b", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "vb"}}},
 									{Key: "a", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "va"}}},
 								},
-								Events: []tracev1.Span_Event{
+								Events: []*tracev1.Span_Event{
 									{
 										TimeUnixNano: 20,
 										Name:         "eventB",
@@ -196,7 +196,7 @@ func testTraceForSorting() *tempopb.Trace {
 										},
 									},
 								},
-								Links: []tracev1.Span_Link{
+								Links: []*tracev1.Span_Link{
 									{
 										TraceId: []byte{0x02},
 										SpanId:  []byte{0x02},
@@ -242,7 +242,7 @@ func testTraceForSorting() *tempopb.Trace {
 									{Key: "b", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VB"}}},
 									{Key: "a", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VA"}}},
 								},
-								Events: []tracev1.Span_Event{
+								Events: []*tracev1.Span_Event{
 									{
 										TimeUnixNano: 21,
 										Name:         "eventB2",
@@ -260,7 +260,7 @@ func testTraceForSorting() *tempopb.Trace {
 										},
 									},
 								},
-								Links: []tracev1.Span_Link{
+								Links: []*tracev1.Span_Link{
 									{
 										TraceId: []byte{0x12},
 										SpanId:  []byte{0x12},
