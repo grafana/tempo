@@ -54,12 +54,19 @@ func TestSearchFetchSpansOnly(t *testing.T) {
 				if span == nil {
 					break
 				}
+
+				// Ensure that every attribute returned is present in the list of conditions.
+				span.AllAttributesFunc(func(a traceql.Attribute, _ traceql.Static) {
+					if !req.HasAttribute(a) {
+						t.Errorf("attribute %v not found in conditions", a)
+					}
+				})
+
 				traceID, ok := span.AttributeFor(traceql.IntrinsicTraceIDAttribute)
 				if !ok {
 					continue
 				}
 				traceIDString := traceID.EncodeToString(false)
-				// fmt.Println("got:", traceIDString, "want:", traceIDText)
 				found = (traceIDString == traceIDText)
 				if found {
 					break
