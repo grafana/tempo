@@ -118,7 +118,7 @@ func (f *FetchSpansRequest) appendCondition(c ...Condition) {
 	f.Conditions = append(f.Conditions, c...)
 }
 
-func (_ FetchSpansRequest) match(cc, a Attribute) bool {
+func (FetchSpansRequest) match(cc, a Attribute) bool {
 	if cc == a {
 		return true
 	}
