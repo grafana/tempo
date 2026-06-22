@@ -22,8 +22,10 @@ type TraceFilter interface {
 type TraceByIDV2Options struct {
 	// TraceFilter is applied first (e.g. a TraceQL spanset filter). nil = no filtering.
 	TraceFilter TraceFilter
-	// SpanPruningConfig is applied after TraceFilter. nil = no pruning.
+	// SpanPruningConfig holds processor configuration when span pruning is active. nil = off.
 	SpanPruningConfig *spanpruningprocessor.Config
+	// SpanPruningMode controls how pruning is applied. Ignored when SpanPruningConfig is nil.
+	SpanPruningMode api.SpanPruningMode
 	// Logger is used to log non-fatal errors such as pruning failures.
 	Logger log.Logger
 }
@@ -88,9 +90,16 @@ func NewTraceByIDV2WithMetrics(maxBytes int, marshalingFormat api.MarshallingFor
 				traceResult = filtered
 			}
 
-			// Span pruning runs last: it collapses repetitive leaf spans in whatever trace remains.
+			// Span pruning runs last: it operates on whatever trace remains after filtering.
 			if opts.SpanPruningConfig != nil {
-				pruned, err := spanpruning.PruneTrace(opts.SpanPruningConfig, traceResult)
+				var pruned *tempopb.Trace
+				var err error
+				switch opts.SpanPruningMode {
+				case api.SpanPruningModeSummaryOnly:
+					pruned, err = spanpruning.SummaryOnlyTrace(opts.SpanPruningConfig, traceResult)
+				default: // SpanPruningModePrune (and any unrecognised value)
+					pruned, err = spanpruning.PruneTrace(opts.SpanPruningConfig, traceResult)
+				}
 				if err != nil {
 					if opts.Logger != nil {
 						level.Error(opts.Logger).Log("msg", "span pruning failed, returning unpruned trace", "err", err)

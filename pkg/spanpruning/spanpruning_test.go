@@ -1063,3 +1063,129 @@ func TestPruneTrace_SummaryAttributesPresent(t *testing.T) {
 	assert.Contains(t, keys, "aggregation.span_count")
 	assert.Contains(t, keys, "aggregation.is_summary")
 }
+
+// ---------------------------------------------------------------------------
+// SummaryOnlyTrace tests
+// ---------------------------------------------------------------------------
+
+func TestSummaryOnlyTrace_KeepsAllOriginalSpans(t *testing.T) {
+	cfg := defaultCfg(2)
+	cfg.MaxParentDepth = 0
+
+	parent := newSpan(sid(1, 0), nil, "parent", 0, 1000)
+	spans := []*tracev1.Span{parent}
+	for i := byte(0); i < 3; i++ {
+		spans = append(spans, newSpan(sid(2, i), sid(1, 0), "child", 0, 100))
+	}
+	trace := wrapTrace(spans...)
+
+	result, err := SummaryOnlyTrace(cfg, trace)
+	require.NoError(t, err)
+
+	// Original spans are all present.
+	require.Equal(t, 4, countSpans(trace), "original unchanged")
+	// Result has all originals + 1 summary = 5 spans.
+	assert.Equal(t, 5, countSpans(result))
+}
+
+func TestSummaryOnlyTrace_SummarySpanHasAggregationAttrs(t *testing.T) {
+	cfg := defaultCfg(2)
+	cfg.MaxParentDepth = 0
+
+	parent := newSpan(sid(1, 0), nil, "parent", 0, 1000)
+	spans := []*tracev1.Span{parent}
+	for i := byte(0); i < 3; i++ {
+		spans = append(spans, newSpan(sid(2, i), sid(1, 0), "child", 0, 100))
+	}
+
+	result, err := SummaryOnlyTrace(cfg, wrapTrace(spans...))
+	require.NoError(t, err)
+
+	sum, found := findSummary(result)
+	require.True(t, found, "summary span should be present")
+	assert.Equal(t, int64(3), attrInt(sum, "aggregation.span_count"))
+	assert.NotNil(t, getAttr(sum, "aggregation.duration_min_ns"))
+	assert.NotNil(t, getAttr(sum, "aggregation.is_summary"))
+}
+
+func TestSummaryOnlyTrace_SummarySpanIDDiffersFromOriginals(t *testing.T) {
+	cfg := defaultCfg(2)
+	cfg.MaxParentDepth = 0
+
+	parent := newSpan(sid(1, 0), nil, "parent", 0, 1000)
+	spans := []*tracev1.Span{parent}
+	for i := byte(0); i < 3; i++ {
+		spans = append(spans, newSpan(sid(2, i), sid(1, 0), "child", 0, 100))
+	}
+
+	result, err := SummaryOnlyTrace(cfg, wrapTrace(spans...))
+	require.NoError(t, err)
+
+	sum, found := findSummary(result)
+	require.True(t, found)
+
+	// Collect all original span IDs.
+	originalIDs := map[string]struct{}{}
+	for _, s := range spans {
+		originalIDs[string(s.SpanId)] = struct{}{}
+	}
+
+	_, collides := originalIDs[string(sum.SpanId)]
+	assert.False(t, collides, "summary SpanID must not collide with any original span")
+}
+
+func TestSummaryOnlyTrace_SummaryPlacedUnderCorrectParent(t *testing.T) {
+	cfg := defaultCfg(2)
+	cfg.MaxParentDepth = 0
+
+	parent := newSpan(sid(1, 0), nil, "parent", 0, 1000)
+	spans := []*tracev1.Span{parent}
+	for i := byte(0); i < 3; i++ {
+		spans = append(spans, newSpan(sid(2, i), sid(1, 0), "child", 0, 100))
+	}
+
+	result, err := SummaryOnlyTrace(cfg, wrapTrace(spans...))
+	require.NoError(t, err)
+
+	sum, found := findSummary(result)
+	require.True(t, found)
+
+	// The summary span's parent is the original parent span.
+	assert.Equal(t, string(sid(1, 0)), string(sum.ParentSpanId))
+}
+
+func TestSummaryOnlyTrace_NoPruningBelowThreshold(t *testing.T) {
+	cfg := defaultCfg(5)
+	cfg.MaxParentDepth = 0
+
+	parent := newSpan(sid(1, 0), nil, "parent", 0, 1000)
+	// Only 3 children — below min=5, so nothing is pruned and no summary is added.
+	spans := []*tracev1.Span{parent}
+	for i := byte(0); i < 3; i++ {
+		spans = append(spans, newSpan(sid(2, i), sid(1, 0), "child", 0, 100))
+	}
+
+	result, err := SummaryOnlyTrace(cfg, wrapTrace(spans...))
+	require.NoError(t, err)
+	// No summary added; result equals original.
+	assert.Equal(t, 4, countSpans(result))
+	_, found := findSummary(result)
+	assert.False(t, found)
+}
+
+func TestSummaryOnlyTrace_DoesNotMutateInput(t *testing.T) {
+	cfg := defaultCfg(2)
+	cfg.MaxParentDepth = 0
+
+	parent := newSpan(sid(1, 0), nil, "parent", 0, 1000)
+	spans := []*tracev1.Span{parent}
+	for i := byte(0); i < 3; i++ {
+		spans = append(spans, newSpan(sid(2, i), sid(1, 0), "child", 0, 100))
+	}
+	trace := wrapTrace(spans...)
+	originalCount := countSpans(trace)
+
+	_, err := SummaryOnlyTrace(cfg, trace)
+	require.NoError(t, err)
+	assert.Equal(t, originalCount, countSpans(trace), "input trace must not be mutated")
+}

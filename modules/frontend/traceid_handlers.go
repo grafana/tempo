@@ -137,13 +137,14 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			traceFilter = filter
 		}
 
-		spanPruningCfg, err := api.ParseSpanPruningConfig(req)
+		pruningMode, spanPruningCfg, err := api.ParseSpanPruningRequest(req)
 		if err != nil {
 			return httpInvalidRequest(err), nil
 		}
 		opts := combiner.TraceByIDV2Options{
 			TraceFilter:       traceFilter,
 			SpanPruningConfig: spanPruningCfg,
+			SpanPruningMode:   pruningMode,
 			Logger:            logger,
 		}
 		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat, traceRedactor, opts)

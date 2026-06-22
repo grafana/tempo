@@ -56,9 +56,9 @@ const (
 	urlParamSkipASTTransformations = "skip_ast_transformations"
 
 	// span pruning
-	urlParamSpanPruning              = "span_pruning"
-	urlParamSpanPruningGroupBy       = "span_pruning_group_by"
-	urlParamSpanPruningMinSpans      = "span_pruning_min_spans"
+	urlParamSpanPruning               = "span_pruning"
+	urlParamSpanPruningGroupBy        = "span_pruning_group_by"
+	urlParamSpanPruningMinSpans       = "span_pruning_min_spans"
 	urlParamSpanPruningMaxParentDepth = "span_pruning_max_parent_depth"
 
 	// search tags
@@ -887,20 +887,36 @@ func ReadBodyToBuffer(resp *http.Response) (*bytes.Buffer, error) {
 	return buffer, nil
 }
 
-// DefaultSpanPruningConfig returns the processor's built-in defaults.
-// Used when span pruning is enabled globally via config but the caller sent no query params.
-func DefaultSpanPruningConfig() *spanpruningprocessor.Config {
-	return spanpruningprocessor.NewFactory().CreateDefaultConfig().(*spanpruningprocessor.Config)
-}
+// SpanPruningMode controls how span pruning is applied to a trace-by-id v2 response.
+type SpanPruningMode string
 
-// ParseSpanPruningConfig returns a spanpruningprocessor.Config if span_pruning=true is set,
-// otherwise (nil, nil). Optional params span_pruning_group_by (comma-separated glob patterns),
-// span_pruning_min_spans (int), and span_pruning_max_parent_depth (int) override defaults.
-// Returns (nil, error) if any supplied parameter fails validation.
-func ParseSpanPruningConfig(r *http.Request) (*spanpruningprocessor.Config, error) {
-	enabled, err := strconv.ParseBool(r.URL.Query().Get(urlParamSpanPruning))
-	if err != nil || !enabled {
-		return nil, nil
+const (
+	// SpanPruningModeOff disables span pruning (default when the parameter is absent).
+	SpanPruningModeOff SpanPruningMode = ""
+	// SpanPruningModePrune collapses similar leaf spans into a single summary span.
+	SpanPruningModePrune SpanPruningMode = "prune"
+	// SpanPruningModeSummaryOnly keeps all original spans and appends a synthetic summary
+	// span alongside each group rather than replacing the originals.
+	SpanPruningModeSummaryOnly SpanPruningMode = "summary_only"
+)
+
+// ParseSpanPruningRequest returns the pruning mode and processor config derived from the
+// span_pruning query parameter. Mode is SpanPruningModeOff (empty string) when the parameter
+// is absent or empty, and an error is returned for an unrecognised value.
+// Optional params span_pruning_group_by, span_pruning_min_spans, and
+// span_pruning_max_parent_depth override processor defaults when a mode is active.
+func ParseSpanPruningRequest(r *http.Request) (SpanPruningMode, *spanpruningprocessor.Config, error) {
+	raw := r.URL.Query().Get(urlParamSpanPruning)
+	mode := SpanPruningMode(raw)
+
+	switch mode {
+	case SpanPruningModeOff:
+		return SpanPruningModeOff, nil, nil
+	case SpanPruningModePrune, SpanPruningModeSummaryOnly:
+		// valid — fall through to build config
+	default:
+		return SpanPruningModeOff, nil, fmt.Errorf("invalid %s value %q: must be %q or %q",
+			urlParamSpanPruning, raw, SpanPruningModePrune, SpanPruningModeSummaryOnly)
 	}
 
 	cfg := spanpruningprocessor.NewFactory().CreateDefaultConfig().(*spanpruningprocessor.Config)
@@ -924,8 +940,8 @@ func ParseSpanPruningConfig(r *http.Request) (*spanpruningprocessor.Config, erro
 	}
 
 	if err := cfg.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid span pruning config: %w", err)
+		return SpanPruningModeOff, nil, fmt.Errorf("invalid span pruning config: %w", err)
 	}
 
-	return cfg, nil
+	return mode, cfg, nil
 }
