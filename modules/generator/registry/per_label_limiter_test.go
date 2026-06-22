@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/require"
@@ -447,4 +448,101 @@ func triggerPrune(s *PerLabelLimiter) {
 	s.pruneChan = ch
 	ch <- time.Now()
 	s.doPeriodicMaintenance()
+}
+
+// TestPerLabelLimiter_BorrowedLabelNameNotRetained verifies that Limit does not
+// retain a label-name string that aliases a reusable scratch buffer. Limit
+// stores each newly seen label name as a key in labelsState; if it kept the
+// aliased string, a later borrow that overwrites the same buffer (as the pooled
+// scratch in CloseAndBorrowLabels does) would mutate that key in place and
+// corrupt the per-label cardinality tracking.
+func TestPerLabelLimiter_BorrowedLabelNameNotRetained(t *testing.T) {
+	s := NewPerLabelLimiter("test", testMaxCardinality(1000), 15*time.Minute)
+
+	// A single ScratchBuilder reuses one internal buffer across Overwrite calls
+	// (in place when the encoded size fits its cap), exactly like the pooled
+	// scratch handed out by CloseAndBorrowLabels.
+	scratch := labels.NewScratchBuilder(1)
+
+	// First series: the label name aliases the scratch buffer.
+	scratch.Reset()
+	scratch.Add("name_aaaa", "v")
+	var first labels.Labels
+	scratch.Overwrite(&first)
+	s.Limit(first)
+
+	// Reuse the SAME scratch buffer with a different, same-length label name.
+	// This overwrites the bytes that "name_aaaa" pointed at with "name_bbbb".
+	scratch.Reset()
+	scratch.Add("name_bbbb", "v")
+	var second labels.Labels
+	scratch.Overwrite(&second)
+	s.Limit(second)
+
+	s.mtx.Lock()
+	keys := make([]string, 0, len(s.labelsState))
+	for k := range s.labelsState {
+		keys = append(keys, k)
+	}
+	_, hasFirst := s.labelsState["name_aaaa"]
+	_, hasSecond := s.labelsState["name_bbbb"]
+	s.mtx.Unlock()
+
+	// Both keys must survive as independent, owned strings. Before the fix the
+	// first key aliased the scratch buffer, so overwriting it to "name_bbbb"
+	// made both Limit calls collapse onto the same corrupted key and
+	// "name_aaaa" disappeared.
+	require.True(t, hasFirst, "label name from the first borrow was not retained as an owned key; got keys %v", keys)
+	require.True(t, hasSecond, "label name from the second borrow is missing; got keys %v", keys)
+	require.Len(t, keys, 2, "expected exactly two distinct label-name keys, got %v", keys)
+}
+
+// TestPerLabelLimiter_BorrowedLabelNameNotRetainedInOverflowMetric verifies the
+// overflow path does not hand a borrowed label name to
+// metricLabelValuesLimited.WithLabelValues, which retains the string. A borrowed
+// alias would be corrupted once the scratch buffer is reused, exporting a
+// garbage label_name and leaking a fresh child series on every later overflow.
+var overflowMetricTestSeq atomic.Uint64
+
+func TestPerLabelLimiter_BorrowedLabelNameNotRetainedInOverflowMetric(t *testing.T) {
+	// metricLabelValuesLimited is a process-global CounterVec, so use a unique
+	// tenant per invocation; otherwise the asserted value would accumulate
+	// across repeated runs (e.g. go test -count=2).
+	tenant := fmt.Sprintf("test-overflow-metric-retention-%d", overflowMetricTestSeq.Add(1))
+	const labelName = "name_aaaa"
+	s := NewPerLabelLimiter(tenant, testMaxCardinality(2), 15*time.Minute)
+
+	// Drive the label over its limit, then refresh overLimit via the demand tick.
+	for i := 0; i < 50; i++ {
+		s.Limit(labels.FromStrings(labelName, fmt.Sprintf("v-%d", i)))
+	}
+	triggerDemandUpdate(s)
+	s.mtx.Lock()
+	overLimit := s.labelsState[labelName].overLimit
+	s.mtx.Unlock()
+	require.True(t, overLimit, "label should be over its limit after the demand update")
+
+	// Drive an overflow through a BORROWED label set whose name aliases a
+	// reusable scratch buffer, exactly like CloseAndBorrowLabels.
+	scratch := labels.NewScratchBuilder(1)
+	scratch.Reset()
+	scratch.Add(labelName, "overflowing")
+	var borrowed labels.Labels
+	scratch.Overwrite(&borrowed)
+	require.Equal(t, overflowValue, s.Limit(borrowed).Get(labelName), "overflow branch should have replaced the value")
+
+	// Reuse the SAME scratch buffer with a different, same-length label name to
+	// overwrite the bytes the overflow metric could have aliased.
+	scratch.Reset()
+	scratch.Add("name_bbbb", "overflowing")
+	var reused labels.Labels
+	scratch.Overwrite(&reused)
+	require.Equal(t, "overflowing", reused.Get("name_bbbb"))
+
+	// The exported metric must still carry the intact, owned label_name with the
+	// single increment from the overflow above. Before the fix the retained
+	// alias was overwritten, so this child read garbage and the lookup here
+	// would create a fresh 0-valued child (the leak).
+	got := testutil.ToFloat64(metricLabelValuesLimited.WithLabelValues(tenant, labelName))
+	require.Equal(t, 1.0, got, "overflow counter for %q was corrupted by scratch-buffer reuse", labelName)
 }
