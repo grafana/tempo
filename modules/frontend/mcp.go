@@ -54,10 +54,12 @@ type MCPServer struct {
 
 	pathPrefix  string
 	httpHandler http.Handler
+
+	maxQueryExpressionSizeBytes int
 }
 
 // NewMCPServer creates a new MCP server instance
-func NewMCPServer(frontend *QueryFrontend, pathPrefix string, logger log.Logger, authMiddleware middleware.Interface) *MCPServer {
+func NewMCPServer(frontend *QueryFrontend, pathPrefix string, logger log.Logger, authMiddleware middleware.Interface, maxQueryExpressionSizeBytes int) *MCPServer {
 	// Create the underlying MCP server
 	mcpServer := server.NewMCPServer(
 		"tempo",
@@ -72,11 +74,12 @@ func NewMCPServer(frontend *QueryFrontend, pathPrefix string, logger log.Logger,
 	httpServer := server.NewStreamableHTTPServer(mcpServer)
 
 	s := &MCPServer{
-		logger:     logger,
-		frontend:   frontend,
-		mcpServer:  mcpServer,
-		httpServer: httpServer,
-		pathPrefix: pathPrefix,
+		logger:                      logger,
+		frontend:                    frontend,
+		mcpServer:                   mcpServer,
+		httpServer:                  httpServer,
+		pathPrefix:                  pathPrefix,
+		maxQueryExpressionSizeBytes: maxQueryExpressionSizeBytes,
 	}
 
 	// Set up auth middleware
