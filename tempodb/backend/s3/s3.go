@@ -58,7 +58,8 @@ type appendTracker struct {
 	objectName string
 	parts      []minio.ObjectPart
 	partNum    int
-	buffer     []byte // buffer to accumulate data for R2-compliant fixed-size chunks
+	buffer     []byte   // buffer to accumulate data for R2-compliant fixed-size chunks
+	tmpFile    *os.File // buffers the object on disk when multipart upload is disabled
 }
 
 type overrideSignatureVersion struct {
@@ -230,6 +231,28 @@ func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	objectName := backend.ObjectFileName(keypath, name)
 
+	if rw.cfg.DisableMultipartUpload {
+		// Buffer the object to a temporary file and write it with a single PutObject in
+		// CloseAppend, for S3-compatible stores that do not implement the multipart upload API.
+		if tracker != nil {
+			a = tracker.(appendTracker)
+		}
+		a.objectName = objectName
+		if a.tmpFile == nil {
+			f, err := os.CreateTemp("", "tempo-s3-block-")
+			if err != nil {
+				return nil, fmt.Errorf("error creating temp file for s3 upload: %w", err)
+			}
+			a.tmpFile = f
+		}
+		if _, err := a.tmpFile.Write(buffer); err != nil {
+			_ = a.tmpFile.Close()
+			_ = os.Remove(a.tmpFile.Name())
+			return nil, fmt.Errorf("error buffering object for s3 upload: %w", err)
+		}
+		return a, nil
+	}
+
 	putObjOptions := getPutObjectOptions(rw)
 	if tracker != nil {
 		a = tracker.(appendTracker)
@@ -308,6 +331,36 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 	}
 
 	a := tracker.(appendTracker)
+
+	if rw.cfg.DisableMultipartUpload {
+		f := a.tmpFile
+		if f == nil {
+			return nil
+		}
+		defer func() {
+			_ = f.Close()
+			_ = os.Remove(f.Name())
+		}()
+		size, err := f.Seek(0, io.SeekEnd)
+		if err != nil {
+			return fmt.Errorf("error sizing buffered object %s: %w", a.objectName, err)
+		}
+		// A single PutObject is limited to 5 GiB by S3; objects above that need multipart,
+		// which this option disables. Fail loudly rather than send a doomed request.
+		const maxSinglePutObjectSize = 5 * 1024 * 1024 * 1024
+		if size > maxSinglePutObjectSize {
+			return fmt.Errorf("object %s is %d bytes; disable_multipart_upload writes it as a single PutObject, which S3 limits to 5 GiB", a.objectName, size)
+		}
+		if _, err := f.Seek(0, io.SeekStart); err != nil {
+			return fmt.Errorf("error rewinding buffered object %s: %w", a.objectName, err)
+		}
+		options := getPutObjectOptions(rw)
+		options.DisableMultipart = true
+		if _, err := rw.core.Client.PutObject(ctx, rw.cfg.Bucket, a.objectName, f, size, options); err != nil {
+			return fmt.Errorf("error writing object to s3 backend, object %s: %w", a.objectName, err)
+		}
+		return nil
+	}
 
 	// Only flush buffer if using new chunking behavior (PartSize > 0)
 	if rw.cfg.PartSize > 0 && len(a.buffer) > 0 {
