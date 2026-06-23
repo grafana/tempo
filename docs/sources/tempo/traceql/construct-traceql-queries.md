@@ -150,6 +150,33 @@ This query finds spans where no element of the `Accept` header matches the patte
 { span.http.request.header.Accept !~ "application.*" }
 ```
 
+### Filter spans by IP range with cidr()
+
+The `cidr()` function returns true when an IP-valued span attribute falls within one or more CIDR ranges.
+It supports IPv4, IPv6, and IPv4-mapped IPv6 addresses, and a single call may list multiple prefixes.
+When multiple prefixes are provided they are OR-ed: the function returns true if the attribute matches any of them.
+
+Find spans whose destination address is inside a specific external network:
+
+```traceql
+{ cidr(span.destination.address, "203.0.113.0/24") }
+```
+
+Match spans from any of several private or unique-local ranges in one clause:
+
+```traceql
+{ cidr(span.client.address, "10.0.0.0/8", "192.168.0.0/16", "fc00::/7") }
+```
+
+Negate the function with `!` to find spans that go outside a given range - useful for detecting traffic leaving internal networks:
+
+```traceql
+{ !cidr(span.destination.address, "10.0.0.0/8") }
+```
+
+The attribute value must be a bare IP address.
+Values that include a port (for example `10.1.2.3:8080`) or that are not valid IP addresses do not match.
+
 ### Use structural operators
 
 Find traces that include the `frontend` service, where either that service or a downstream service includes a span where an error is set.

@@ -1,0 +1,20 @@
+# Changelog entry. Generate a copy with `make chlog-new`, then fill in the fields.
+
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: enhancement
+
+# Component or area of the change. Must be one of the components in .chloggen/config.yaml,
+# e.g. distributor, querier, query-frontend, storage, operations.
+component: traceql
+
+# A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
+note: "Add a native `cidr()` function to filter spans by IPv4/IPv6 CIDR range."
+
+# One or more PR or issue numbers, e.g. [1234].
+issues: [0000]
+
+# (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
+subtext:
+
+# The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
+user: zalegrala
