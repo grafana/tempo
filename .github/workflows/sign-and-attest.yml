@@ -70,13 +70,14 @@ jobs:
           project_id: grafanalabs-workload-identity
           workload_identity_provider: projects/304398677251/locations/global/workloadIdentityPools/github/providers/github-provider
           create_credentials_file: false # must never be set to true: keeps the WIF creds file out of the workspace
+          token_format: access_token # request a short-lived OAuth2 access token for Docker auth
 
       - name: Log in to GAR (static docker auth)
         uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: ${{ inputs.registry }}
           username: oauth2accesstoken
-          password: ${{ steps.gar_auth.outputs.auth_token }}
+          password: ${{ steps.gar_auth.outputs.access_token }}
 
       - name: Install cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
