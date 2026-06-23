@@ -1,4 +1,4 @@
-change_type: bug_fix
+change_type: enhancement
 component: operations
 note: Fix GAR authentication for tempo-vulture attestation push and add missing attestations permission in release-tag workflow.
 issues: [7499]
