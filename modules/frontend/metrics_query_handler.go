@@ -14,15 +14,18 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/status"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/tracing"
+	"google.golang.org/grpc/codes"
 )
 
-func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, logger log.Logger, dataAccessController DataAccessController) streamingQueryInstantHandler {
+func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, apiPrefix string, logger log.Logger, dataAccessController DataAccessController) streamingQueryInstantHandler {
 	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
 	downstreamPath := path.Join(apiPrefix, api.PathMetricsQueryRange)
 
@@ -35,6 +38,9 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 		}
 
 		headers := headersFromGrpcContext(ctx)
+		if err := pipeline.ValidateTraceQLQuerySize(req.Query, cfg.MaxQueryExpressionSizeBytes); err != nil {
+			return status.Error(codes.InvalidArgument, err.Error())
+		}
 		if dataAccessController != nil {
 			err = dataAccessController.HandleGRPCQueryInstantReq(ctx, req)
 			if err != nil {
@@ -42,7 +48,6 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 				return err
 			}
 		}
-
 		// --------------------------------------------------
 		// Rewrite into a query_range request.
 		// --------------------------------------------------
@@ -53,6 +58,15 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 			Step:  req.End - req.Start,
 		}
 		qr.SetInstant(true)
+
+		if err := clampQueryEndForValidation(cfg, qr); err != nil {
+			return status.Error(codes.InvalidArgument, err.Error())
+		}
+		qr.Step = qr.End - qr.Start // keep Step == End-Start for instant
+
+		if err := validateQueryRangeReq(ctx, cfg, o, qr); err != nil {
+			return status.Error(codes.InvalidArgument, err.Error())
+		}
 
 		httpReq := api.BuildQueryRangeRequest(&http.Request{
 			URL:    &url.URL{Path: downstreamPath},
@@ -90,7 +104,7 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 
 // newMetricsQueryInstantHTTPHandler handles instant queries.  Internally these are rewritten as query_range with single step
 // to make use of the existing pipeline.
-func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
+func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -100,13 +114,15 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 		}
 		start := time.Now()
 
+		if err := pipeline.ValidateTraceQLQueryParamsSize(req.URL.Query(), cfg.MaxQueryExpressionSizeBytes); err != nil {
+			return httpInvalidRequest(err), nil
+		}
 		if dataAccessController != nil {
 			if err := dataAccessController.HandleHTTPQueryInstantReq(req); err != nil {
 				level.Error(logger).Log("msg", "http instant query: access control handling failed", "err", err)
 				return httpInvalidRequest(err), nil
 			}
 		}
-
 		// Parse request
 		i, err := api.ParseQueryInstantRequest(req)
 		if err != nil {
@@ -126,6 +142,15 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 			Step:  i.End - i.Start,
 		}
 		qr.SetInstant(true)
+
+		if err := clampQueryEndForValidation(cfg, qr); err != nil {
+			return httpInvalidRequest(err), nil
+		}
+		qr.Step = qr.End - qr.Start // keep Step == End-Start for instant
+
+		if err := validateQueryRangeReq(req.Context(), cfg, o, qr); err != nil {
+			return httpInvalidRequest(err), nil
+		}
 
 		// Clone existing to keep it unaltered.
 		req = req.Clone(req.Context())
