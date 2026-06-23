@@ -71,9 +71,14 @@ type Config struct {
 	Metadata         map[string]string `yaml:"metadata"`
 	// Deprecated
 	// See https://github.com/grafana/tempo/pull/3006 for more details
-	NativeAWSAuthEnabled  bool      `yaml:"native_aws_auth_enabled"`
-	ListBlocksConcurrency int       `yaml:"list_blocks_concurrency"`
-	SSE                   SSEConfig `yaml:"sse"`
+	NativeAWSAuthEnabled  bool `yaml:"native_aws_auth_enabled"`
+	ListBlocksConcurrency int  `yaml:"list_blocks_concurrency"`
+	// DisableMultipartUpload writes objects with a single PutObject instead of a multipart
+	// upload, for S3-compatible stores that do not implement the multipart upload API.
+	// The object is buffered to a temporary file (os.TempDir) while it is written, so it
+	// cannot exceed the 5 GiB single-PutObject limit, and part_size has no effect.
+	DisableMultipartUpload bool      `yaml:"disable_multipart_upload"`
+	SSE                    SSEConfig `yaml:"sse"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
