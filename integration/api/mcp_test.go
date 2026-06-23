@@ -63,6 +63,7 @@ func TestMCP(t *testing.T) {
 			"get-attribute-names",
 			"get-attribute-values",
 			"docs-traceql",
+			"docs-config",
 		}
 
 		actualTools := make([]string, len(tools))
