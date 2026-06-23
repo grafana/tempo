@@ -168,7 +168,7 @@ Match spans from any of several private or unique-local ranges in one clause:
 { cidr(span.client.address, "10.0.0.0/8", "192.168.0.0/16", "fc00::/7") }
 ```
 
-Negate the function with `!` to find spans that go outside a given range - useful for detecting traffic leaving internal networks:
+Negate the function with `!` to find spans that go outside a given range. This is useful for detecting traffic that leaves an internal network:
 
 ```traceql
 { !cidr(span.destination.address, "10.0.0.0/8") }
