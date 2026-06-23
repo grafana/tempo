@@ -119,7 +119,7 @@ func (r *readerWriter) Read(ctx context.Context, name string, keypath backend.Ke
 		if found {
 			cacheRequests.WithLabelValues(role, cacheOutcomeHit).Inc()
 			cacheRequestBytes.WithLabelValues(role, cacheOutcomeHit).Add(float64(len(b)))
-			return io.NopCloser(bytes.NewReader(b)), int64(len(b)), nil
+			return &cacheReadCloser{Reader: bytes.NewReader(b), buf: b, cache: cache}, int64(len(b)), nil
 		}
 		cacheRequests.WithLabelValues(role, cacheOutcomeMiss).Inc()
 	}
@@ -281,4 +281,22 @@ func store(ctx context.Context, cache cache.Cache, role cache.Role, key string, 
 // todo: should this be signalled through cacheinfo instead?
 func needsCopy(role cache.Role) bool {
 	return role == cache.RoleParquetPage // parquet pages are reused by the library. if we don't copy them then the buffer may be reused before written to cache
+}
+
+// cacheReadCloser releases the underlying buffer back to the cache on Close
+// so pooled allocators (e.g. memcached) can reuse it on the next cache hit.
+type cacheReadCloser struct {
+	*bytes.Reader
+	buf    []byte
+	cache  cache.Cache
+	closed bool
+}
+
+func (c *cacheReadCloser) Close() error {
+	if c.closed {
+		return nil
+	}
+	c.closed = true
+	c.cache.Release(c.buf)
+	return nil
 }
