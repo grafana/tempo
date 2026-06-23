@@ -32,17 +32,6 @@ query_frontend:
   mcp_server:
     enabled: true
 
-cache:
-  caches:
-    - roles:
-        - parquet-page
-        - parquet-footer
-        - parquet-column-idx
-        - bloom
-        - trace-id-index
-      memcached:
-        addresses: dns+memcached:11211
-
 storage:
   trace:
     backend: local
