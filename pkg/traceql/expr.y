@@ -48,6 +48,7 @@ import (
     staticFloat float64
     staticDuration time.Duration
     numericList []float64
+    stringList  []string
 
     hint *Hint
     hintList []*Hint
@@ -89,6 +90,7 @@ import (
 %type <attribute> attribute
 
 %type <numericList> numericList
+%type <stringList> stringList
 %type <static> scalar
 
 %type <hint> hint
@@ -113,6 +115,7 @@ import (
                         RATE COUNT_OVER_TIME MIN_OVER_TIME MAX_OVER_TIME AVG_OVER_TIME SUM_OVER_TIME QUANTILE_OVER_TIME HISTOGRAM_OVER_TIME COMPARE
                         TOPK BOTTOMK
                         WITH
+                        CIDR
 
 // Operators are listed with increasing precedence.
 %left <binOp> PIPE
@@ -210,6 +213,12 @@ numericList:
   | INTEGER                   { $$ = []float64{float64($1)}}
   | numericList COMMA FLOAT   { $$ = append($1, $3) }
   | numericList COMMA INTEGER { $$ = append($1, float64($3))}
+  ;
+
+// Comma-separated list of string values.
+stringList:
+    STRING                   { $$ = []string{$1} }
+  | stringList COMMA STRING  { $$ = append($1, $3) }
   ;
 
 spansetExpression: // shares the same operators as scalarPipelineExpression. split out for readability
@@ -482,6 +491,7 @@ fieldExpression:
   // Unary operations
   | SUB fieldExpression                      { $$ = newUnaryOperation(OpSub, $2) }
   | NOT fieldExpression                      { $$ = newUnaryOperation(OpNot, $2) }
+  | CIDR OPEN_PARENS fieldExpression COMMA stringList CLOSE_PARENS { $$ = newCIDR($3, $5) }
   | static                                   { $$ = $1 }
   | intrinsicField                           { $$ = $1 }
   | attributeField                           { $$ = $1 }

@@ -309,6 +309,10 @@ valid:
   - '{ nil = nil }'
   - '{ .foo != nil }'
   - '{ name != nil }'
+  # cidr function
+  - '{ cidr(span.destination.address, "203.0.113.0/24") }'
+  - '{ cidr(.addr, "10.0.0.0/8", "192.168.0.0/16", "fc00::/7") }'
+  - '{ !cidr(span.addr, "10.0.0.0/8") }'
 
 # parse_fails throw an error when parsing
 parse_fails:
@@ -415,6 +419,10 @@ parse_fails:
   - '({} | rate()) * (10s * 2)'
   - '({} | rate()) * 10s * 2'
   - '({} | rate()) * 10s'
+  # cidr function parse failures
+  - '{ cidr() }'
+  - '{ cidr(.addr) }'
+  - '{ cidr("10.0.0.0/8") }'
 
 # validate_fails parse correctly and return an error **besides unsupported** when calling .validate()
 validate_fails:
@@ -498,6 +506,8 @@ validate_fails:
   - '({} | compare({status=error})) - ({} | compare({status=error}))'
   - '({} | compare({status=error})) / ({} | compare({status=error}))'
   - '({} | compare({status=error})) * ({} | compare({status=error}))'
+  # cidr function validate failures
+  - '{ cidr(.addr, "not-a-cidr") }'
 
 
 # unsupported parse correctly and return an unsupported error when calling .validate()

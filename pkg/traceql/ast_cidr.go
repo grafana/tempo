@@ -6,11 +6,11 @@ import (
 	"strings"
 )
 
-// CIDR is a span-filter function: cidr(<field>, "<prefix>"[, "<prefix>"...]).
+// CIDRFilter is a span-filter function: cidr(<field>, "<prefix>"[, "<prefix>"...]).
 // It returns true when the field's value parses as an IP address contained in
 // any of the listed CIDR prefixes. IPv4 and IPv6 are both supported and may be
 // mixed in a single call.
-type CIDR struct {
+type CIDRFilter struct {
 	Field    FieldExpression
 	Prefixes []string
 
@@ -18,26 +18,26 @@ type CIDR struct {
 }
 
 func newCIDR(field FieldExpression, prefixes []string) FieldExpression {
-	return &CIDR{
+	return &CIDRFilter{
 		Field:    field,
 		Prefixes: prefixes,
 	}
 }
 
 // nolint: revive
-func (*CIDR) __fieldExpression() {}
+func (*CIDRFilter) __fieldExpression() {}
 
-func (c *CIDR) impliedType() StaticType {
+func (c *CIDRFilter) impliedType() StaticType {
 	return TypeBoolean
 }
 
-func (c *CIDR) referencesSpan() bool {
+func (c *CIDRFilter) referencesSpan() bool {
 	return c.Field.referencesSpan()
 }
 
 // compile parses all prefix literals once and caches them. It is idempotent and
 // returns an error on the first unparseable prefix.
-func (c *CIDR) compile() error {
+func (c *CIDRFilter) compile() error {
 	if c.parsed != nil {
 		return nil
 	}
@@ -53,7 +53,7 @@ func (c *CIDR) compile() error {
 	return nil
 }
 
-func (c *CIDR) validate() error {
+func (c *CIDRFilter) validate() error {
 	if err := c.Field.validate(); err != nil {
 		return err
 	}
@@ -67,13 +67,13 @@ func (c *CIDR) validate() error {
 	return c.compile()
 }
 
-func (c *CIDR) extractConditions(request *FetchSpansRequest) {
+func (c *CIDRFilter) extractConditions(request *FetchSpansRequest) {
 	// CIDR containment cannot be pushed to storage; fetch spans that have the
 	// attribute (OpNone via the field) and let the engine filter.
 	c.Field.extractConditions(request)
 }
 
-func (c *CIDR) execute(span Span) (Static, error) {
+func (c *CIDRFilter) execute(span Span) (Static, error) {
 	if err := c.compile(); err != nil {
 		return NewStaticNil(), err
 	}
@@ -97,7 +97,7 @@ func (c *CIDR) execute(span Span) (Static, error) {
 	return StaticFalse, nil
 }
 
-func (c *CIDR) String() string {
+func (c *CIDRFilter) String() string {
 	var sb strings.Builder
 	sb.WriteString("cidr(")
 	sb.WriteString(c.Field.String())

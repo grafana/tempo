@@ -275,6 +275,12 @@ func TestContainsNonAttributeRune(t *testing.T) {
 	}
 }
 
+func TestLexerCIDR(t *testing.T) {
+	testLexer(t, ([]lexerTestCase{
+		{`cidr`, []int{CIDR}},
+	}))
+}
+
 func BenchmarkIsAttributeRune(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		isAttributeRune('=')
