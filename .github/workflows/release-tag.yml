@@ -99,6 +99,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      attestations: write # nested sign-and-attest.yml writes a SLSA provenance attestation
     uses: ./.github/workflows/docker.yml
     with:
       tag: ${{ needs.guard-and-tag.outputs.tag }}
