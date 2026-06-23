@@ -343,6 +343,7 @@ func TestCacheRequestCounters(t *testing.T) {
 		// First read: miss (cache empty) then populate.
 		r1, _, err := rw.Read(ctx, "foo", keypath, &backend.CacheInfo{Role: role})
 		require.NoError(t, err)
+		defer r1.Close()
 		_, _ = io.ReadAll(r1)
 
 		assert.Equal(t, missesBefore+1, misses(roleStr), "miss counter incremented")
@@ -353,6 +354,7 @@ func TestCacheRequestCounters(t *testing.T) {
 		mockR.R = nil
 		r2, _, err := rw.Read(ctx, "foo", keypath, &backend.CacheInfo{Role: role})
 		require.NoError(t, err)
+		defer r2.Close()
 		_, _ = io.ReadAll(r2)
 
 		assert.Equal(t, hitsBefore+1, hits(roleStr), "hit counter incremented")
@@ -405,10 +407,12 @@ func TestCacheRequestCounters(t *testing.T) {
 		// Drive a miss then a hit on hitRole.
 		r1, _, err := rw.Read(ctx, "foo", keypath, &backend.CacheInfo{Role: hitRole})
 		require.NoError(t, err)
+		defer r1.Close()
 		_, _ = io.ReadAll(r1)
 		mockR.R = nil
 		r2, _, err := rw.Read(ctx, "foo", keypath, &backend.CacheInfo{Role: hitRole})
 		require.NoError(t, err)
+		defer r2.Close()
 		_, _ = io.ReadAll(r2)
 
 		// otherRole's counters are unchanged.
@@ -432,6 +436,7 @@ func TestCacheRequestCounters(t *testing.T) {
 
 		reader, _, err := rw.Read(ctx, "foo", keypath, &backend.CacheInfo{Role: role})
 		require.NoError(t, err)
+		defer reader.Close()
 		_, _ = io.ReadAll(reader)
 
 		assert.Equal(t, hitsBefore, hits(roleStr))
