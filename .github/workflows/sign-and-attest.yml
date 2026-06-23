@@ -76,7 +76,7 @@ jobs:
         uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: ${{ inputs.registry }}
-          username: oauth2accesstoken
+          username: oauth2accesstoken # literal magic string required by GAR; not a secret — tells GAR the password is an OAuth2 access token
           password: ${{ steps.gar_auth.outputs.access_token }}
 
       - name: Install cosign
