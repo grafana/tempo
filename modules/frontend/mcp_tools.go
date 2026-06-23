@@ -55,6 +55,22 @@ func (s *MCPServer) handleTraceQLDocs(_ context.Context, request mcp.CallToolReq
 	return toolResult(content, MetaTypeDocumentation, "markdown", "1"), nil
 }
 
+func (s *MCPServer) handleConfigDocs(_ context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	metricMCPToolCalls.WithLabelValues(toolDocsConfig).Inc()
+
+	docType, err := request.RequireString("name")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	level.Info(s.logger).Log("msg", "config docs requested", "doc_type", docType)
+
+	// Get the appropriate configuration documentation based on the requested type
+	content := docs.GetConfigDocsContent(docType)
+
+	return toolResult(content, MetaTypeDocumentation, "markdown", "1"), nil
+}
+
 // handleSearch handles the traceql-search tool
 func (s *MCPServer) handleSearch(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	metricMCPToolCalls.WithLabelValues(toolTraceQLSearch).Inc()
