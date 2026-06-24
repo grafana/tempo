@@ -1046,3 +1046,68 @@ func collectDemandEstimateLabels(t *testing.T, tenant string) map[string]float64
 	}
 	return result
 }
+
+// TestManagedRegistry_borrowedLabelsSurviveScratchReuse verifies the
+// BorrowedLabels contract from the metric side: counter, histogram, and gauge
+// updates must copy everything they need synchronously, so that after Release
+// aggressive reuse of the pooled builder and scratch storage cannot corrupt
+// previously created series or exemplars.
+func TestManagedRegistry_borrowedLabelsSurviveScratchReuse(t *testing.T) {
+	appender := &capturingAppender{}
+
+	registry := New(&Config{}, &mockOverrides{}, "test", appender, log.NewNopLogger(), noopLimiter)
+	defer registry.Close()
+
+	counter := registry.NewCounter("my_counter")
+	histogram := registry.NewHistogram("my_histogram", []float64{1.0}, HistogramModeClassic)
+	gauge := registry.NewGauge("my_gauge")
+
+	builder := registry.NewLabelBuilder()
+	builder.Add("label", "value-1")
+	borrowed, valid := builder.CloseAndBorrowLabels()
+	require.True(t, valid)
+
+	timeMs := time.Now().UnixMilli()
+	traceID := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}
+	counter.IncWithHashAt(borrowed.Labels, borrowed.Hash, 1.0, timeMs)
+	histogram.ObserveWithExemplarTraceIDBytesWithHashAt(borrowed.Labels, borrowed.Hash, 1.0, traceID, 1.0, timeMs)
+	gauge.SetForTargetInfoWithHashAt(borrowed.Labels, borrowed.Hash, 1.0, timeMs)
+	borrowed.Release()
+
+	// Overwrite the caller-owned trace ID slice: the histogram must have
+	// copied the bytes synchronously.
+	for i := range traceID {
+		traceID[i] = 0xff
+	}
+
+	// Churn the pooled builders and scratch buffers with other label values to
+	// overwrite the storage the borrowed labels were built in.
+	for i := 0; i < 100; i++ {
+		b := registry.NewLabelBuilder()
+		b.Add("label", fmt.Sprintf("scratch-%042d", i))
+		bl, ok := b.CloseAndBorrowLabels()
+		require.True(t, ok)
+		bl.Release()
+	}
+
+	expectedSamples := []sample{
+		newSample(map[string]string{"__name__": "my_counter", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 0),
+		newSample(map[string]string{"__name__": "my_counter", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1),
+		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 0),
+		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1),
+		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "__metrics_gen_instance": mustGetHostname(), "le": "1"}, 0, 0),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "__metrics_gen_instance": mustGetHostname(), "le": "1"}, 0, 1),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "__metrics_gen_instance": mustGetHostname(), "le": "+Inf"}, 0, 0),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "__metrics_gen_instance": mustGetHostname(), "le": "+Inf"}, 0, 1),
+		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1),
+	}
+	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
+
+	// The exemplar's trace ID bytes must have been copied out of the borrowed
+	// slice, and the exemplar series labels must be intact. Note
+	// TraceIDToHexString strips leading zeros.
+	require.Len(t, appender.exemplars, 1)
+	assert.Equal(t, "102030405060708090a0b0c0d0e0f10", appender.exemplars[0].e.Labels.Get("traceID"))
+	assert.Equal(t, "value-1", appender.exemplars[0].l.Get("label"))
+}

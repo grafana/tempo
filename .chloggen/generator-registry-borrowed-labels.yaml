@@ -1,0 +1,6 @@
+change_type: enhancement
+component: metrics-generator
+note: The registry can build series labels into reusable, borrowable buffers and update metrics with a precomputed hash, reducing per-series allocations once the processors adopt it. Pooling is process-global (unchanged ownership model from today's builder pool).
+issues: [7124]
+subtext:
+user: carles-grafana

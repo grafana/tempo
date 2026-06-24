@@ -1,0 +1,6 @@
+change_type: enhancement
+component: metrics-generator
+note: The span-metrics and service-graphs processors build series labels through the registry's borrowed-label buffers and reuse the precomputed hash, and build target_info once per resource instead of once per span. This reduces per-span CPU and allocations on the generator hot path with no change to metric names, labels, or values.
+issues: [7124]
+subtext:
+user: carles-grafana
