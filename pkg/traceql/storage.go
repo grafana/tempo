@@ -118,14 +118,28 @@ func (f *FetchSpansRequest) appendCondition(c ...Condition) {
 	f.Conditions = append(f.Conditions, c...)
 }
 
+func (FetchSpansRequest) match(cc, a Attribute) bool {
+	if cc == a {
+		return true
+	}
+
+	// An unscoped condition like .foo, can be matched by the
+	// more-restrictive span and resource conditions like resource.foo.
+	return cc.Scope == AttributeScopeNone &&
+		(a.Scope == AttributeScopeResource || a.Scope == AttributeScopeSpan) &&
+		cc.Parent == a.Parent &&
+		cc.Name == a.Name &&
+		cc.Intrinsic == a.Intrinsic
+}
+
 func (f *FetchSpansRequest) HasAttribute(a Attribute) bool {
 	for _, cc := range f.Conditions {
-		if cc.Attribute == a {
+		if f.match(cc.Attribute, a) {
 			return true
 		}
 	}
 	for _, cc := range f.SecondPassConditions {
-		if cc.Attribute == a {
+		if f.match(cc.Attribute, a) {
 			return true
 		}
 	}
@@ -135,7 +149,7 @@ func (f *FetchSpansRequest) HasAttribute(a Attribute) bool {
 
 func (f *FetchSpansRequest) SecondPassHasAttribute(a Attribute) bool {
 	for _, cc := range f.SecondPassConditions {
-		if cc.Attribute == a {
+		if f.match(cc.Attribute, a) {
 			return true
 		}
 	}
@@ -145,13 +159,13 @@ func (f *FetchSpansRequest) SecondPassHasAttribute(a Attribute) bool {
 
 func (f *FetchSpansRequest) HasAttributeWithOp(a Attribute, o Operator) bool {
 	for _, cc := range f.Conditions {
-		if cc.Attribute == a && cc.Op == o {
+		if f.match(cc.Attribute, a) && cc.Op == o {
 			return true
 		}
 	}
 
 	for _, cc := range f.SecondPassConditions {
-		if cc.Attribute == a && cc.Op == o {
+		if f.match(cc.Attribute, a) && cc.Op == o {
 			return true
 		}
 	}

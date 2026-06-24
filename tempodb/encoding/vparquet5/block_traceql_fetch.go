@@ -181,10 +181,10 @@ func create(makeIter, makeNilIter makeIterFn,
 		options = append(options, parquetquery.WithIterator(DefinitionLevelResourceSpansILSSpan, iter, false, traceql.AttributeScopeSpan))
 	}
 	for _, iter := range eventIters {
-		options = append(options, parquetquery.WithIterator(DefinitionLevelResourceSpansILSSpan, iter, true, traceql.AttributeScopeEvent))
+		options = append(options, parquetquery.WithIterator(DefinitionLevelResourceSpansILSSpan, iter, false, traceql.AttributeScopeEvent))
 	}
 	for _, iter := range linkIters {
-		options = append(options, parquetquery.WithIterator(DefinitionLevelResourceSpansILSSpan, iter, true, traceql.AttributeScopeLink))
+		options = append(options, parquetquery.WithIterator(DefinitionLevelResourceSpansILSSpan, iter, false, traceql.AttributeScopeLink))
 	}
 
 	for _, iter := range traceOptional {
@@ -1296,6 +1296,8 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 				sp.addSpanAttr(newSpanAttr(e.Key), v)
 			case res.RowNumber[DefinitionLevelResourceSpans] >= 0:
 				sp.resourceAttrs = append(sp.resourceAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, e.Key), v})
+			default:
+				panic("unhandled static value: " + e.Key)
 			}
 		case *event:
 			sp.setEventAttrs(v.attrs)
@@ -1408,6 +1410,34 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 				traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "service.name"),
 				traceql.NewStaticString(unsafeToString(kv.Value.Bytes())),
 			})
+		// --------------------
+		// Event-level columns:
+		// --------------------
+		case ColumnPathEventName:
+			sp.eventAttrs = append(sp.eventAttrs, attrVal{
+				traceql.NewIntrinsic(traceql.IntrinsicEventName),
+				traceql.NewStaticString(unsafeToString(kv.Value.Bytes())),
+			})
+		case columnPathEventTimeSinceStart:
+			sp.eventAttrs = append(sp.eventAttrs, attrVal{
+				a: traceql.IntrinsicEventTimeSinceStartAttribute,
+				s: traceql.NewStaticDuration(time.Duration(kv.Value.Int64())),
+			})
+		// --------------------
+		// Link-level columns:
+		// --------------------
+		case columnPathLinkTraceID:
+			sp.linkAttrs = append(sp.linkAttrs, attrVal{
+				a: traceql.NewIntrinsic(traceql.IntrinsicLinkTraceID),
+				s: traceql.NewStaticString(util.TraceIDToHexString(kv.Value.Bytes())),
+			})
+		case columnPathLinkSpanID:
+			sp.linkAttrs = append(sp.linkAttrs, attrVal{
+				a: traceql.NewIntrinsic(traceql.IntrinsicLinkSpanID),
+				s: traceql.NewStaticString(util.SpanIDToHexString(kv.Value.Bytes())),
+			})
+		// --------------------
+		// --------------------
 		default:
 			// Decomposed attributes from dedicated columns.
 			scope := param.(traceql.AttributeScope)
