@@ -1,6 +1,7 @@
 ---
 name: docs-pr-check
 description: Assess documentation status for PRs — classify gaps, identify existing docs that need updating, and flag UI changes that may affect screenshots. Use when the user asks to check docs coverage for PRs, triage documentation needs, audit PRs for missing docs, assess whether a set of changes needs documentation, or check what recently merged PRs need docs.
+allowed-tools: Bash Read Grep
 metadata:
   use_case: write-or-update
   workflow: evaluate

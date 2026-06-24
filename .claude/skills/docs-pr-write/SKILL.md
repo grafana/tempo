@@ -10,6 +10,7 @@ description: >-
   This skill writes and updates docs only; it does not triage PRs
   (use docs-pr-check), review existing docs (use docs-review), or
   generate release notes.
+allowed-tools: Bash Read Grep Write
 metadata:
   use_case: write-or-update
   workflow: create
