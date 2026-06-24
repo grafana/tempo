@@ -102,8 +102,9 @@ func (c *CIDRFilter) String() string {
 	sb.WriteString("cidr(")
 	sb.WriteString(c.Field.String())
 	for _, p := range c.Prefixes {
-		sb.WriteString(", ")
-		sb.WriteString(NewStaticString(p).String())
+		sb.WriteString(", `")
+		sb.WriteString(p)
+		sb.WriteByte('`')
 	}
 	sb.WriteString(")")
 	return sb.String()

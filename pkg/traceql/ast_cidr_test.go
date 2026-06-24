@@ -52,10 +52,26 @@ func TestCIDRExecuteMissingAttribute(t *testing.T) {
 }
 
 func TestCIDRValidate(t *testing.T) {
-	require.NoError(t, newCIDR(NewAttribute("addr"), []string{"10.0.0.0/8", "fc00::/7"}).validate())
-	require.Error(t, newCIDR(NewAttribute("addr"), []string{"not-a-cidr"}).validate())
-	// non-string first argument (int literal) is invalid
-	require.Error(t, newCIDR(NewStaticInt(5), []string{"10.0.0.0/8"}).validate())
+	tests := []struct {
+		name     string
+		field    FieldExpression
+		prefixes []string
+		wantErr  bool
+	}{
+		{"valid ipv4 and ipv6 prefixes", NewAttribute("addr"), []string{"10.0.0.0/8", "fc00::/7"}, false},
+		{"invalid prefix literal", NewAttribute("addr"), []string{"not-a-cidr"}, true},
+		{"non-string first argument", NewStaticInt(5), []string{"10.0.0.0/8"}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := newCIDR(tt.field, tt.prefixes).validate()
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestCIDRImpliedTypeAndString(t *testing.T) {

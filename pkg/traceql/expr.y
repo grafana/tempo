@@ -491,6 +491,11 @@ fieldExpression:
   // Unary operations
   | SUB fieldExpression                      { $$ = newUnaryOperation(OpSub, $2) }
   | NOT fieldExpression                      { $$ = newUnaryOperation(OpNot, $2) }
+  // cidr() is the first function callable inside a span filter. Future span-filter
+  // functions should follow this pattern: a dedicated token plus its own production,
+  // matching the aggregate/metrics functions. Do not introduce a generic
+  // IDENTIFIER-based function-call production - it would break LALR(1) or force a
+  // separate semantic-analysis phase.
   | CIDR OPEN_PARENS fieldExpression COMMA stringList CLOSE_PARENS { $$ = newCIDR($3, $5) }
   | static                                   { $$ = $1 }
   | intrinsicField                           { $$ = $1 }
