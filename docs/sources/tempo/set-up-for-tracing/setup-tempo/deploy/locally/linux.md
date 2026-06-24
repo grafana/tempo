@@ -79,6 +79,8 @@ You need administrator privileges to do this by running as the `root` user or vi
 
 Be sure to [download the correct package](https://github.com/grafana/tempo/releases/) for your OS and architecture. Replace `<TEMPO_VERSION_NUMBER>` with the version you want to install, for example `3.0.0`.
 
+Tempo publishes release binaries for the AMD64 (`amd64`) and 64-bit ARM (`arm64`) architectures. It doesn't publish 32-bit ARM (`arm`) binaries. To run Tempo on 32-bit ARM hardware, build it from source.
+
 1. Download the Tempo binary. The following example downloads Tempo for the AMD64 (x86_64) processor architecture on a Linux distribution supporting deb packages:
 
    ```bash

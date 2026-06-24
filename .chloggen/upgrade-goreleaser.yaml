@@ -1,0 +1,6 @@
+change_type: change
+component: deps
+note: Upgrade goreleaser from v1.25.1 to v2.16.0
+issues: []
+subtext:
+user: mapno

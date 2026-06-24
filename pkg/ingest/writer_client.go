@@ -20,6 +20,8 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/atomic"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // NewWriterClient returns the kgo.Client that should be used by the Writer.
@@ -334,6 +336,19 @@ func (c *Producer) ProduceSync(ctx context.Context, records []*kgo.Record) kgo.P
 		// Once we're done, it's guaranteed that no more results will be appended, so we can safely return it.
 		return res
 	}
+}
+
+func StatusFromProduceErr(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, context.Canceled) {
+		return status.Error(codes.Canceled, err.Error())
+	}
+	if errors.Is(err, kerr.MessageTooLarge) {
+		return status.Error(codes.InvalidArgument, err.Error())
+	}
+	return status.Error(codes.Unavailable, err.Error())
 }
 
 func produceErrReason(err error) string {

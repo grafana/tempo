@@ -23,7 +23,7 @@ jobs:
       tag: ${{ steps.get-tag.outputs.tag }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
 
@@ -45,12 +45,12 @@ jobs:
       TAG: ${{ needs.get-image-tag.outputs.tag }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
 
       - name: Login to GAR
-        uses: grafana/shared-workflows/actions/login-to-gar@12c87e5aa323694c820c1ff3d8e47e8237e05136 # login-to-gar/v1.0.2
+        uses: grafana/shared-workflows/actions/login-to-gar@1f541877ceb22c7be7667d8a8df04984aeac9f9d # login-to-gar/v1.0.3
         with:
           registry: us-docker.pkg.dev
 
@@ -71,12 +71,12 @@ jobs:
       TAG: ${{ needs.get-image-tag.outputs.tag }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
 
       - name: Login to GAR
-        uses: grafana/shared-workflows/actions/login-to-gar@12c87e5aa323694c820c1ff3d8e47e8237e05136 # login-to-gar/v1.0.2
+        uses: grafana/shared-workflows/actions/login-to-gar@1f541877ceb22c7be7667d8a8df04984aeac9f9d # login-to-gar/v1.0.3
         with:
           registry: us-docker.pkg.dev
 

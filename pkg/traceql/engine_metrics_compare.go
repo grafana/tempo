@@ -18,6 +18,7 @@ const (
 	// internalLabelBaseline      = "__baseline"
 	internalLabelError         = "__meta_error"
 	internalErrorTooManyValues = "__too_many_values__"
+	maxCompareTopN             = 1000
 )
 
 var (
@@ -322,8 +323,8 @@ func (m *MetricsCompare) validate() error {
 		return err
 	}
 
-	if m.topN <= 0 {
-		return fmt.Errorf("compare() top number of values must be integer greater than 0")
+	if m.topN <= 0 || m.topN > maxCompareTopN {
+		return fmt.Errorf("compare() top number of values must be an integer between 1 and %d", maxCompareTopN)
 	}
 
 	if m.start == 0 && m.end == 0 {

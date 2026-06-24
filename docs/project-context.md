@@ -28,6 +28,8 @@
 
 ## Documentation tree
 
+> **Maintenance note:** The section table below lists the major sections as of the last update. If a new top-level directory is added under `docs/sources/tempo/`, add a row to the table. The table is not auto-generated — update it manually when the section structure changes.
+
 The published docs live under `docs/sources/tempo/`. Major sections:
 
 | Section path | Title | Covers |
@@ -48,6 +50,8 @@ The published docs live under `docs/sources/tempo/`. Major sections:
 | `community/` | Community | Community content |
 
 Helm chart docs under `docs/sources/helm-charts/tempo-distributed/`:
+
+> **Note:** The `tempo-distributed` Helm chart is now community-maintained at [grafana-community/helm-charts](https://github.com/grafana-community/helm-charts/tree/main/charts/tempo-distributed). The docs below reflect the last Grafana-maintained state and may have drifted. Verify against the community chart before updating or referencing these pages.
 
 | Section path | Title |
 |-------------|-------|
@@ -101,7 +105,7 @@ Paths the agent should check when validating documentation claims against code.
 
 ## Frontmatter and site conventions
 
-- **Frontmatter fields:** `title`, `menuTitle`, `description`, `keywords`, `weight`, `aliases`, `topicType`
+- **Frontmatter fields:** `title`, `menuTitle`, `description`, `keywords`, `weight`, `aliases`, `topicType`, `versionDate` (optional; ISO date string indicating when the page was last reviewed or updated, for example `2026-03-20`)
 - **`topicType` values:** `concept` (reference/explanatory pages), `task` (procedural pages), `introduction` (section landing pages)
 - **Weight / ordering:** lower `weight` values appear first in navigation
 - **Internal link style:** relative paths ending in `/` (not `.md`)
@@ -138,7 +142,7 @@ Paths the agent should check when validating documentation claims against code.
 
 ## Subsystem knowledge
 
-- **Metrics-generator:** `.agents/doc-agents/shared/` contains metrics-generator knowledge; code in `modules/generator/`
+- **Metrics-generator:** code in `modules/generator/`; docs in `docs/sources/tempo/metrics-from-traces/metrics-generator/` and `docs/sources/tempo/reference-tempo-architecture/components/metrics-generator.md`; config validation in `modules/generator/processor/spanmetrics/`, `modules/generator/processor/servicegraphs/`, and `modules/generator/validation/fields.go`
 - **TraceQL engine:** `pkg/traceql/` — AST, parser, lexer, metrics engine
 - **Storage / tempodb:** `tempodb/` — block format, compaction, encoding; docs in `reference-tempo-architecture/`
 - **Components:** `modules/` subdirectories map to `reference-tempo-architecture/components/` doc pages

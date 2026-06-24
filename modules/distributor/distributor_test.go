@@ -23,8 +23,6 @@ import (
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/modules/generator"
-	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,6 +31,9 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+
+	"github.com/grafana/tempo/modules/generator"
+	"github.com/grafana/tempo/pkg/ingest"
 
 	"github.com/grafana/tempo/modules/distributor/receiver"
 	"github.com/grafana/tempo/modules/overrides"
@@ -1610,6 +1611,49 @@ func TestPushTracesSkipMetricsGenerationIngestStorage(t *testing.T) {
 		// Expect that we've fetched at least one record.
 		require.True(t, recordProcessed)
 	})
+}
+
+func TestPushTracesKafkaWriteErrorReturnsRetryableStatus(t *testing.T) {
+	const topic = "test-topic"
+
+	kafka, err := kfake.NewCluster(kfake.NumBrokers(1), kfake.AllowAutoTopicCreation())
+	require.NoError(t, err)
+	t.Cleanup(kafka.Close)
+
+	limitCfg := overrides.Config{}
+	limitCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+
+	distributorCfg, overridesSvc, loggingLevel, middleware := setupDependencies(t, limitCfg)
+
+	distributorCfg.PushSpansToKafka = true
+	distributorCfg.KafkaConfig = ingest.KafkaConfig{}
+	distributorCfg.KafkaConfig.RegisterFlags(&flag.FlagSet{})
+	distributorCfg.KafkaConfig.Address = kafka.ListenAddrs()[0]
+	distributorCfg.KafkaConfig.Topic = topic
+	distributorCfg.KafkaConfig.WriteTimeout = time.Second
+
+	d, err := New(
+		distributorCfg,
+		LocalPushTargets{},
+		singlePartitionRingReader{},
+		overridesSvc,
+		middleware,
+		kitlog.NewLogfmtLogger(os.Stdout),
+		loggingLevel,
+		prometheus.NewRegistry(),
+	)
+	require.NoError(t, err)
+
+	kafka.Close()
+
+	traces := batchesToTraces(t, []*v1.ResourceSpans{test.MakeBatch(10, nil)})
+
+	_, err = d.PushTraces(ctx, traces)
+	require.Error(t, err)
+
+	st, ok := status.FromError(err)
+	require.True(t, ok, "kafka write error must carry a gRPC status, got %T: %v", err, err)
+	require.Equal(t, codes.Unavailable, st.Code())
 }
 
 func TestPushTracesToLocalLiveStore(t *testing.T) {
