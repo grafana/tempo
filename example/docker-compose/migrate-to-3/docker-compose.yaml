@@ -314,7 +314,7 @@ services:
   # confirming tempo_vulture_trace_error_total stays at 0.
   # Independent of the k6+alloy traffic above, which represents real app traces.
   vulture:
-    image: grafana/tempo-vulture:3.0.0
+    image: grafana/tempo-vulture:3.0.2@sha256:c57058b7c1fda4d4461dd0c43dae06c6a3cbcc4359c66c08c373736302c6b6b6
     profiles: ["v3"]
     restart: always
     hostname: vulture

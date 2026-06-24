@@ -19,11 +19,18 @@ const (
 	docsTraceQLAggregatesURI = "docs://traceql/aggregates"
 	docsTraceQLStructuralURI = "docs://traceql/structural"
 
+	docsConfigOverviewURI  = "docs://config/overview"
+	docsConfigReferenceURI = "docs://config/reference"
+
 	docsTraceQLQueryDescription      = "Documentation on TraceQL search. Best for retrieval of traces. This covers basic attributes all the way through aggregates, pipelining, structural queries, and more. Includes examples."
 	docsTraceQLMetricsDescription    = "Documentation on TraceQL metrics. Best for aggregating traces into metrics to understand patterns and trends. This covers how to use TraceQL to generate metrics from tracing data."
 	docsTraceQLBasicDescription      = "Basic TraceQL documentation covering intrinsics, operators, and attribute syntaxes. Includes overview of other doc types."
 	docsTraceQLAggregatesDescription = "TraceQL aggregates documentation covering count, sum, and other aggregation functions."
 	docsTraceQLStructuralDescription = "TraceQL structural queries documentation covering advanced query patterns and structural operations."
+
+	docsConfigDescription          = "Documentation on Tempo configuration. Best for questions about how to configure or operate Tempo. Request the overview to learn which configuration block does what, or the reference for the complete list of options and their defaults."
+	docsConfigOverviewDescription  = "Orientation map of Tempo configuration. Describes what each top-level configuration block controls. Start here to find the right area."
+	docsConfigReferenceDescription = "Complete reference of every Tempo configuration option and its default value, generated from the default configuration."
 
 	docsTraceQLMimeType = "text/markdown"
 
@@ -35,6 +42,7 @@ const (
 	toolGetAttributeNames     = "get-attribute-names"
 	toolGetAttributeValues    = "get-attribute-values"
 	toolDocsTraceQL           = "docs-traceql"
+	toolDocsConfig            = "docs-config"
 )
 
 // fakeHTTPAuthMiddleware is a middleware that does nothing, used when multitenancy is disabled
@@ -54,10 +62,12 @@ type MCPServer struct {
 
 	pathPrefix  string
 	httpHandler http.Handler
+
+	maxQueryExpressionSizeBytes int
 }
 
 // NewMCPServer creates a new MCP server instance
-func NewMCPServer(frontend *QueryFrontend, pathPrefix string, logger log.Logger, authMiddleware middleware.Interface) *MCPServer {
+func NewMCPServer(frontend *QueryFrontend, pathPrefix string, logger log.Logger, authMiddleware middleware.Interface, maxQueryExpressionSizeBytes int) *MCPServer {
 	// Create the underlying MCP server
 	mcpServer := server.NewMCPServer(
 		"tempo",
@@ -72,11 +82,12 @@ func NewMCPServer(frontend *QueryFrontend, pathPrefix string, logger log.Logger,
 	httpServer := server.NewStreamableHTTPServer(mcpServer)
 
 	s := &MCPServer{
-		logger:     logger,
-		frontend:   frontend,
-		mcpServer:  mcpServer,
-		httpServer: httpServer,
-		pathPrefix: pathPrefix,
+		logger:                      logger,
+		frontend:                    frontend,
+		mcpServer:                   mcpServer,
+		httpServer:                  httpServer,
+		pathPrefix:                  pathPrefix,
+		maxQueryExpressionSizeBytes: maxQueryExpressionSizeBytes,
 	}
 
 	// Set up auth middleware
@@ -197,6 +208,46 @@ func (s *MCPServer) setupResources() {
 			},
 		}, nil
 	})
+
+	// Configuration overview docs
+	configOverview := mcp.NewResource(
+		docsConfigOverviewURI,
+		"Tempo Config Overview",
+		mcp.WithResourceDescription(docsConfigOverviewDescription),
+		mcp.WithMIMEType(docsTraceQLMimeType),
+	)
+
+	s.mcpServer.AddResource(configOverview, func(_ context.Context, _ mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+		level.Info(s.logger).Log("msg", "config overview resource requested")
+
+		return []mcp.ResourceContents{
+			mcp.TextResourceContents{
+				URI:      docsConfigOverviewURI,
+				MIMEType: docsTraceQLMimeType,
+				Text:     frontendDocs.GetConfigDocsContent(frontendDocs.DocsTypeConfigOverview),
+			},
+		}, nil
+	})
+
+	// Configuration reference docs
+	configReference := mcp.NewResource(
+		docsConfigReferenceURI,
+		"Tempo Config Reference",
+		mcp.WithResourceDescription(docsConfigReferenceDescription),
+		mcp.WithMIMEType(docsTraceQLMimeType),
+	)
+
+	s.mcpServer.AddResource(configReference, func(_ context.Context, _ mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+		level.Info(s.logger).Log("msg", "config reference resource requested")
+
+		return []mcp.ResourceContents{
+			mcp.TextResourceContents{
+				URI:      docsConfigReferenceURI,
+				MIMEType: docsTraceQLMimeType,
+				Text:     frontendDocs.GetConfigDocsContent(frontendDocs.DocsTypeConfigReference),
+			},
+		}, nil
+	})
 }
 
 // setupTools registers MCP tools for trace operations
@@ -295,6 +346,17 @@ func (s *MCPServer) setupTools() {
 		mcp.WithDestructiveHintAnnotation(false),
 	)
 	s.mcpServer.AddTool(traceQLDocs, s.handleTraceQLDocs)
+
+	configDocs := newReadOnlyTool(toolDocsConfig,
+		mcp.WithDescription(docsConfigDescription),
+		mcp.WithString("name",
+			mcp.Required(),
+			mcp.Description("The type of Tempo configuration documentation to retrieve"),
+			mcp.Enum(frontendDocs.DocsTypeConfigOverview, frontendDocs.DocsTypeConfigReference),
+		),
+		mcp.WithDestructiveHintAnnotation(false),
+	)
+	s.mcpServer.AddTool(configDocs, s.handleConfigDocs)
 }
 
 func newReadOnlyTool(name string, opts ...mcp.ToolOption) mcp.Tool {

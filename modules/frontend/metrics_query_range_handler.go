@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -14,18 +13,23 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level" //nolint:all //deprecated
+	"github.com/gogo/status"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/util/tracing"
+	"google.golang.org/grpc/codes"
 
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 )
 
+var errQueryWindowWithinEndCutoff = errors.New("query window falls entirely within query_end_cutoff")
+
 // newQueryRangeStreamingGRPCHandler returns a handler that streams results from the HTTP handler
-func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, logger log.Logger, dataAccessController DataAccessController) streamingQueryRangeHandler {
+func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, apiPrefix string, logger log.Logger, dataAccessController DataAccessController) streamingQueryRangeHandler {
 	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
 	downstreamPath := path.Join(apiPrefix, api.PathMetricsQueryRange)
 
@@ -34,6 +38,9 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 		var err error
 
 		headers := headersFromGrpcContext(ctx)
+		if err := pipeline.ValidateTraceQLQuerySize(req.Query, cfg.MaxQueryExpressionSizeBytes); err != nil {
+			return status.Error(codes.InvalidArgument, err.Error())
+		}
 		if dataAccessController != nil {
 			err = dataAccessController.HandleGRPCQueryRangeReq(ctx, req)
 			if err != nil {
@@ -41,7 +48,6 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 				return err
 			}
 		}
-
 		// default step if not set
 		if req.Step == 0 {
 			req.Step = traceql.DefaultQueryRangeStep(req.Start, req.End)
@@ -49,8 +55,13 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 		if !req.HasInstant() { // if not found, set it explicitly
 			req.SetInstant(false)
 		}
-		if err := validateQueryRangeReq(cfg, req); err != nil {
-			return err
+
+		if err := clampQueryEndForValidation(cfg, req); err != nil {
+			return status.Error(codes.InvalidArgument, err.Error())
+		}
+
+		if err := validateQueryRangeReq(ctx, cfg, o, req); err != nil {
+			return status.Error(codes.InvalidArgument, err.Error())
 		}
 
 		if err := normalizeRequestExemplars(req, cfg.Metrics.Sharder.MaxExemplars); err != nil {
@@ -58,18 +69,10 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 		}
 
 		traceql.AlignRequest(req)
-
-		// the end time cutoff is applied here because it has to be done before combiner creation
-		// TODO: this is a copy of ClampDateRangeReq and needs to be removed after a proper fix
-		if cfg.QueryEndCutoff > 0 {
-			now := time.Now()
-			maxEnd := now.Add(-cfg.QueryEndCutoff)
-			reqEnd := time.Unix(0, int64(req.End))
-			if maxEnd.Before(reqEnd) {
-				req.End = uint64(maxEnd.UnixNano())
-				traceql.AlignEndToLeft(req) // realign, but always to the left
-			}
-		}
+		// AlignRequest's alignEnd rounds end up to the next step boundary, which
+		// can push it past now-QueryEndCutoff. Re-clamp to preserve the cutoff
+		// invariant and round range-query ends back down to a step boundary.
+		clampQueryEnd(cfg, req)
 
 		httpReq := api.BuildQueryRangeRequest(&http.Request{
 			URL:    &url.URL{Path: downstreamPath},
@@ -107,7 +110,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 }
 
 // newMetricsQueryRangeHTTPHandler returns a handler that returns a single response from the HTTP handler
-func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
+func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -117,13 +120,15 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 		}
 		start := time.Now()
 
+		if err := pipeline.ValidateTraceQLQueryParamsSize(req.URL.Query(), cfg.MaxQueryExpressionSizeBytes); err != nil {
+			return httpInvalidRequest(err), nil
+		}
 		if dataAccessController != nil {
 			if err := dataAccessController.HandleHTTPQueryRangeReq(req); err != nil {
 				level.Error(logger).Log("msg", "http query range: access control handling failed", "err", err)
 				return httpInvalidRequest(err), nil
 			}
 		}
-
 		// parse request
 		queryRangeReq, err := api.ParseQueryRangeRequest(req)
 		if err != nil {
@@ -135,7 +140,12 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 		}
 		logQueryRangeRequest(logger, tenant, queryRangeReq)
 
-		if err := validateQueryRangeReq(cfg, queryRangeReq); err != nil {
+		// Clamp end before validation so the cap is checked against the effective range.
+		if err := clampQueryEndForValidation(cfg, queryRangeReq); err != nil {
+			return httpInvalidRequest(err), nil
+		}
+
+		if err := validateQueryRangeReq(req.Context(), cfg, o, queryRangeReq); err != nil {
 			return httpInvalidRequest(err), nil
 		}
 
@@ -144,18 +154,10 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 		}
 
 		traceql.AlignRequest(queryRangeReq)
-
-		// the end time cutoff is applied here because it has to be done before combiner creation
-		// TODO: this is a copy of ClampDateRangeReq and needs to be removed after a proper fix
-		if cfg.QueryEndCutoff > 0 {
-			now := time.Now()
-			maxEnd := now.Add(-cfg.QueryEndCutoff)
-			reqEnd := time.Unix(0, int64(queryRangeReq.End))
-			if maxEnd.Before(reqEnd) {
-				queryRangeReq.End = uint64(maxEnd.UnixNano())
-				traceql.AlignEndToLeft(queryRangeReq) // realign, but always to the left
-			}
-		}
+		// AlignRequest's alignEnd rounds end up to the next step boundary, which
+		// can push it past now-QueryEndCutoff. Re-clamp to preserve the cutoff
+		// invariant and round range-query ends back down to a step boundary.
+		clampQueryEnd(cfg, queryRangeReq)
 		req = api.BuildQueryRangeRequest(req, queryRangeReq, "")
 
 		// build and use roundtripper
@@ -181,6 +183,42 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 		logQueryRangeResult(req.Context(), logger, tenant, duration.Seconds(), queryRangeReq, queryRangeResp, err)
 		return resp, err
 	})
+}
+
+// clampQueryEndForValidation clamps req.End to now-QueryEndCutoff without
+// step-aligning it, so validation sees the effective user range instead of an
+// internally aligned range. If the cutoff removes the whole query window, it
+// returns a cutoff-specific error instead of the generic start/end error.
+func clampQueryEndForValidation(cfg Config, req *tempopb.QueryRangeRequest) error {
+	if req.Start > req.End {
+		return nil
+	}
+
+	clamped := clampQueryEndToCutoff(cfg, req)
+	if clamped && req.Start > req.End {
+		return errQueryWindowWithinEndCutoff
+	}
+	return nil
+}
+
+// clampQueryEnd clamps req.End to now-QueryEndCutoff when end is past that
+// horizon, then rounds down to a step boundary for non-instant queries. When
+// cutoff is 0 the clamp horizon is now, so clock-skewed future ends are still
+// pulled back to the current frontend time.
+func clampQueryEnd(cfg Config, req *tempopb.QueryRangeRequest) {
+	if clampQueryEndToCutoff(cfg, req) {
+		traceql.AlignEndToLeft(req)
+	}
+}
+
+func clampQueryEndToCutoff(cfg Config, req *tempopb.QueryRangeRequest) bool {
+	maxEnd := time.Now().Add(-cfg.QueryEndCutoff)
+	reqEnd := time.Unix(0, int64(req.End))
+	if reqEnd.After(maxEnd) {
+		req.End = uint64(maxEnd.UnixNano())
+		return true
+	}
+	return false
 }
 
 // normalizeRequestExemplars resolves the final exemplar limit for a query range request.
@@ -269,19 +307,4 @@ func httpInvalidRequest(err error) *http.Response {
 		Status:     http.StatusText(http.StatusBadRequest),
 		Body:       io.NopCloser(strings.NewReader(err.Error())),
 	}
-}
-
-func validateQueryRangeReq(cfg Config, req *tempopb.QueryRangeRequest) error {
-	if req.Start > req.End {
-		return errors.New("end must be greater than start")
-	}
-	if cfg.Metrics.MaxIntervals != 0 && (req.Step == 0 || (req.End-req.Start)/req.Step > cfg.Metrics.MaxIntervals) {
-		minimumStep := (req.End - req.Start) / cfg.Metrics.MaxIntervals
-		return fmt.Errorf(
-			"step of %s is too small, minimum step for given range is %s",
-			time.Duration(req.Step).String(),
-			time.Duration(minimumStep).String(),
-		)
-	}
-	return nil
 }

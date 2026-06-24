@@ -236,3 +236,60 @@ func BenchmarkScopedDistinctStringCollect(b *testing.B) {
 		})
 	}
 }
+
+// BenchmarkScopedDistinctStringCollectParallel simulates the SearchTagsV2 hot
+// path: many block goroutines (iterateBlocks fan-out) concurrently collect into
+// one shared collector, and the parquet dictionary scan re-emits the same tag
+// keys from every row group/block, so the overwhelming majority of Collect
+// calls are duplicates. This is the contended workload the production CPU
+// profile showed serializing on the collector mutex.
+//
+// The limits are varied because they change which work the duplicate hot path
+// does: a stale-value threshold makes every duplicate increment a shared atomic
+// counter, which reintroduces cache-line contention that the unlimited case
+// avoids. Limits are sized large so they never trip during the run - we want to
+// measure the cost of the checks, not the early-stop path.
+func BenchmarkScopedDistinctStringCollectParallel(b *testing.B) {
+	scopeTypes := []string{"resource", "span", "event", "instrumentation"}
+	// A realistic-ish set of distinct tag keys per scope. These repeat across
+	// every block, so after warm-up nearly every Collect is a duplicate.
+	const numTagsPerScope = 200
+	tagsByScope := make(map[string][]string, len(scopeTypes))
+	for _, scope := range scopeTypes {
+		tags := make([]string, numTagsPerScope)
+		for j := 0; j < numTagsPerScope; j++ {
+			tags[j] = fmt.Sprintf("%s.tag.key.number.%d", scope, j)
+		}
+		tagsByScope[scope] = tags
+	}
+
+	configs := []struct {
+		name                string
+		maxDataSize         int
+		maxTagsPerScope     uint32
+		staleValueThreshold uint32
+	}{
+		{"no_limits", 0, 0, 0},
+		{"data_size_limit", 1 << 30, 0, 0},
+		{"tags_per_scope_limit", 0, 1 << 20, 0},
+		{"stale_value_threshold", 0, 0, 1 << 30},
+		{"all_limits", 1 << 30, 1 << 20, 1 << 30},
+	}
+
+	for _, cfg := range configs {
+		b.Run(cfg.name, func(b *testing.B) {
+			scopedDistinctStrings := NewScopedDistinctString(cfg.maxDataSize, cfg.maxTagsPerScope, cfg.staleValueThreshold)
+
+			b.ResetTimer()
+			b.RunParallel(func(pb *testing.PB) {
+				i := 0
+				for pb.Next() {
+					scope := scopeTypes[i%len(scopeTypes)]
+					tags := tagsByScope[scope]
+					scopedDistinctStrings.Collect(scope, tags[i%numTagsPerScope])
+					i++
+				}
+			})
+		})
+	}
+}

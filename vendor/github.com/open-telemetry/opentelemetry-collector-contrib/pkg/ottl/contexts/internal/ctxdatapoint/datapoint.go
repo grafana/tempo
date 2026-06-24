@@ -5,6 +5,7 @@ package ctxdatapoint // import "github.com/open-telemetry/opentelemetry-collecto
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -111,8 +112,9 @@ func accessAttributes[K Context]() ottl.StandardGetSetter[K] {
 				return ctxutil.SetMap(dp.Attributes(), val)
 			case pmetric.SummaryDataPoint:
 				return ctxutil.SetMap(dp.Attributes(), val)
+			default:
+				return fmt.Errorf("unsupported data point type: %T", dp)
 			}
-			return nil
 		},
 	}
 }
@@ -142,8 +144,9 @@ func accessAttributesKey[K Context](key []ottl.Key[K]) ottl.StandardGetSetter[K]
 				return ctxutil.SetMapValue(ctx, tCtx, dp.Attributes(), key, val)
 			case pmetric.SummaryDataPoint:
 				return ctxutil.SetMapValue(ctx, tCtx, dp.Attributes(), key, val)
+			default:
+				return fmt.Errorf("unsupported data point type: %T", dp)
 			}
-			return nil
 		},
 	}
 }
@@ -177,6 +180,8 @@ func accessStartTimeUnixNano[K Context]() ottl.StandardGetSetter[K] {
 				dp.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, newTime)))
 			case pmetric.SummaryDataPoint:
 				dp.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, newTime)))
+			default:
+				return fmt.Errorf("unsupported data point type: %T", dp)
 			}
 			return nil
 		},
@@ -212,6 +217,8 @@ func accessStartTime[K Context]() ottl.StandardGetSetter[K] {
 				dp.SetStartTimestamp(pcommon.NewTimestampFromTime(newTime))
 			case pmetric.SummaryDataPoint:
 				dp.SetStartTimestamp(pcommon.NewTimestampFromTime(newTime))
+			default:
+				return fmt.Errorf("unsupported data point type: %T", dp)
 			}
 			return nil
 		},
@@ -247,6 +254,8 @@ func accessTimeUnixNano[K Context]() ottl.StandardGetSetter[K] {
 				dp.SetTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, newTime)))
 			case pmetric.SummaryDataPoint:
 				dp.SetTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, newTime)))
+			default:
+				return fmt.Errorf("unsupported data point type: %T", dp)
 			}
 			return nil
 		},
@@ -282,6 +291,8 @@ func accessTime[K Context]() ottl.StandardGetSetter[K] {
 				dp.SetTimestamp(pcommon.NewTimestampFromTime(newTime))
 			case pmetric.SummaryDataPoint:
 				dp.SetTimestamp(pcommon.NewTimestampFromTime(newTime))
+			default:
+				return fmt.Errorf("unsupported data point type: %T", dp)
 			}
 			return nil
 		},
@@ -301,9 +312,11 @@ func accessDoubleValue[K Context]() ottl.StandardGetSetter[K] {
 			if err != nil {
 				return err
 			}
-			if numberDataPoint, ok := tCtx.GetDataPoint().(pmetric.NumberDataPoint); ok {
-				numberDataPoint.SetDoubleValue(newDouble)
+			numberDataPoint, err := ctxutil.ExpectType[pmetric.NumberDataPoint](tCtx.GetDataPoint())
+			if err != nil {
+				return err
 			}
+			numberDataPoint.SetDoubleValue(newDouble)
 			return nil
 		},
 	}
@@ -322,9 +335,11 @@ func accessIntValue[K Context]() ottl.StandardGetSetter[K] {
 			if err != nil {
 				return err
 			}
-			if numberDataPoint, ok := tCtx.GetDataPoint().(pmetric.NumberDataPoint); ok {
-				numberDataPoint.SetIntValue(newInt)
+			numberDataPoint, err := ctxutil.ExpectType[pmetric.NumberDataPoint](tCtx.GetDataPoint())
+			if err != nil {
+				return err
 			}
+			numberDataPoint.SetIntValue(newInt)
 			return nil
 		},
 	}
@@ -355,6 +370,8 @@ func accessExemplars[K Context]() ottl.StandardGetSetter[K] {
 				newExemplars.CopyTo(dp.Exemplars())
 			case pmetric.ExponentialHistogramDataPoint:
 				newExemplars.CopyTo(dp.Exemplars())
+			default:
+				return fmt.Errorf("unsupported data point type: %T", dp)
 			}
 			return nil
 		},
@@ -390,6 +407,8 @@ func accessFlags[K Context]() ottl.StandardGetSetter[K] {
 				dp.SetFlags(pmetric.DataPointFlags(newFlags))
 			case pmetric.SummaryDataPoint:
 				dp.SetFlags(pmetric.DataPointFlags(newFlags))
+			default:
+				return fmt.Errorf("unsupported data point type: %T", dp)
 			}
 			return nil
 		},
@@ -421,6 +440,8 @@ func accessCount[K Context]() ottl.StandardGetSetter[K] {
 				dp.SetCount(uint64(newCount))
 			case pmetric.SummaryDataPoint:
 				dp.SetCount(uint64(newCount))
+			default:
+				return fmt.Errorf("unsupported data point type: %T", dp)
 			}
 			return nil
 		},
@@ -452,6 +473,8 @@ func accessSum[K Context]() ottl.StandardGetSetter[K] {
 				dp.SetSum(newSum)
 			case pmetric.SummaryDataPoint:
 				dp.SetSum(newSum)
+			default:
+				return fmt.Errorf("unsupported data point type: %T", dp)
 			}
 			return nil
 		},
@@ -467,10 +490,11 @@ func accessExplicitBounds[K Context]() ottl.StandardGetSetter[K] {
 			return nil, nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if histogramDataPoint, ok := tCtx.GetDataPoint().(pmetric.HistogramDataPoint); ok {
-				return ctxutil.SetCommonTypedSliceValues[float64](histogramDataPoint.ExplicitBounds(), val)
+			histogramDataPoint, err := ctxutil.ExpectType[pmetric.HistogramDataPoint](tCtx.GetDataPoint())
+			if err != nil {
+				return err
 			}
-			return nil
+			return ctxutil.SetCommonTypedSliceValues[float64](histogramDataPoint.ExplicitBounds(), val)
 		},
 	}
 }
@@ -484,10 +508,11 @@ func accessBucketCounts[K Context]() ottl.StandardGetSetter[K] {
 			return nil, nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if histogramDataPoint, ok := tCtx.GetDataPoint().(pmetric.HistogramDataPoint); ok {
-				return ctxutil.SetCommonIntSliceValues[uint64](histogramDataPoint.BucketCounts(), val)
+			histogramDataPoint, err := ctxutil.ExpectType[pmetric.HistogramDataPoint](tCtx.GetDataPoint())
+			if err != nil {
+				return err
 			}
-			return nil
+			return ctxutil.SetCommonIntSliceValues[uint64](histogramDataPoint.BucketCounts(), val)
 		},
 	}
 }
@@ -505,9 +530,11 @@ func accessScale[K Context]() ottl.StandardGetSetter[K] {
 			if err != nil {
 				return err
 			}
-			if expoHistogramDataPoint, ok := tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint); ok {
-				expoHistogramDataPoint.SetScale(int32(newScale))
+			expoHistogramDataPoint, err := ctxutil.ExpectType[pmetric.ExponentialHistogramDataPoint](tCtx.GetDataPoint())
+			if err != nil {
+				return err
 			}
+			expoHistogramDataPoint.SetScale(int32(newScale))
 			return nil
 		},
 	}
@@ -526,9 +553,11 @@ func accessZeroCount[K Context]() ottl.StandardGetSetter[K] {
 			if err != nil {
 				return err
 			}
-			if expoHistogramDataPoint, ok := tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint); ok {
-				expoHistogramDataPoint.SetZeroCount(uint64(newZeroCount))
+			expoHistogramDataPoint, err := ctxutil.ExpectType[pmetric.ExponentialHistogramDataPoint](tCtx.GetDataPoint())
+			if err != nil {
+				return err
 			}
+			expoHistogramDataPoint.SetZeroCount(uint64(newZeroCount))
 			return nil
 		},
 	}
@@ -547,9 +576,11 @@ func accessPositive[K Context]() ottl.StandardGetSetter[K] {
 			if err != nil {
 				return err
 			}
-			if expoHistogramDataPoint, ok := tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint); ok {
-				newPositive.CopyTo(expoHistogramDataPoint.Positive())
+			expoHistogramDataPoint, err := ctxutil.ExpectType[pmetric.ExponentialHistogramDataPoint](tCtx.GetDataPoint())
+			if err != nil {
+				return err
 			}
+			newPositive.CopyTo(expoHistogramDataPoint.Positive())
 			return nil
 		},
 	}
@@ -568,9 +599,11 @@ func accessPositiveOffset[K Context]() ottl.StandardGetSetter[K] {
 			if err != nil {
 				return err
 			}
-			if expoHistogramDataPoint, ok := tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint); ok {
-				expoHistogramDataPoint.Positive().SetOffset(int32(newPositiveOffset))
+			expoHistogramDataPoint, err := ctxutil.ExpectType[pmetric.ExponentialHistogramDataPoint](tCtx.GetDataPoint())
+			if err != nil {
+				return err
 			}
+			expoHistogramDataPoint.Positive().SetOffset(int32(newPositiveOffset))
 			return nil
 		},
 	}
@@ -585,10 +618,11 @@ func accessPositiveBucketCounts[K Context]() ottl.StandardGetSetter[K] {
 			return nil, nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if expoHistogramDataPoint, ok := tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint); ok {
-				return ctxutil.SetCommonIntSliceValues[uint64](expoHistogramDataPoint.Positive().BucketCounts(), val)
+			expoHistogramDataPoint, err := ctxutil.ExpectType[pmetric.ExponentialHistogramDataPoint](tCtx.GetDataPoint())
+			if err != nil {
+				return err
 			}
-			return nil
+			return ctxutil.SetCommonIntSliceValues[uint64](expoHistogramDataPoint.Positive().BucketCounts(), val)
 		},
 	}
 }
@@ -606,9 +640,11 @@ func accessNegative[K Context]() ottl.StandardGetSetter[K] {
 			if err != nil {
 				return err
 			}
-			if expoHistogramDataPoint, ok := tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint); ok {
-				newNegative.CopyTo(expoHistogramDataPoint.Negative())
+			expoHistogramDataPoint, err := ctxutil.ExpectType[pmetric.ExponentialHistogramDataPoint](tCtx.GetDataPoint())
+			if err != nil {
+				return err
 			}
+			newNegative.CopyTo(expoHistogramDataPoint.Negative())
 			return nil
 		},
 	}
@@ -627,9 +663,11 @@ func accessNegativeOffset[K Context]() ottl.StandardGetSetter[K] {
 			if err != nil {
 				return err
 			}
-			if expoHistogramDataPoint, ok := tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint); ok {
-				expoHistogramDataPoint.Negative().SetOffset(int32(newNegativeOffset))
+			expoHistogramDataPoint, err := ctxutil.ExpectType[pmetric.ExponentialHistogramDataPoint](tCtx.GetDataPoint())
+			if err != nil {
+				return err
 			}
+			expoHistogramDataPoint.Negative().SetOffset(int32(newNegativeOffset))
 			return nil
 		},
 	}
@@ -644,10 +682,11 @@ func accessNegativeBucketCounts[K Context]() ottl.StandardGetSetter[K] {
 			return nil, nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			if expoHistogramDataPoint, ok := tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint); ok {
-				return ctxutil.SetCommonIntSliceValues[uint64](expoHistogramDataPoint.Negative().BucketCounts(), val)
+			expoHistogramDataPoint, err := ctxutil.ExpectType[pmetric.ExponentialHistogramDataPoint](tCtx.GetDataPoint())
+			if err != nil {
+				return err
 			}
-			return nil
+			return ctxutil.SetCommonIntSliceValues[uint64](expoHistogramDataPoint.Negative().BucketCounts(), val)
 		},
 	}
 }
@@ -665,9 +704,11 @@ func accessQuantileValues[K Context]() ottl.StandardGetSetter[K] {
 			if err != nil {
 				return err
 			}
-			if summaryDataPoint, ok := tCtx.GetDataPoint().(pmetric.SummaryDataPoint); ok {
-				newQuantileValues.CopyTo(summaryDataPoint.QuantileValues())
+			summaryDataPoint, err := ctxutil.ExpectType[pmetric.SummaryDataPoint](tCtx.GetDataPoint())
+			if err != nil {
+				return err
 			}
+			newQuantileValues.CopyTo(summaryDataPoint.QuantileValues())
 			return nil
 		},
 	}

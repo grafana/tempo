@@ -657,7 +657,7 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 
 		_ = level.Debug(d.logger).Log("msg", "kafka write success stats", "count", count, "size_bytes", sizeBytes, "partition", partitionLabel)
 
-		return produceResults.FirstErr()
+		return ingest.StatusFromProduceErr(produceResults.FirstErr())
 	}, ring.DoBatchOptions{})
 }
 

@@ -38,6 +38,7 @@ type IntrinsicFilter struct {
 	statusCode tracev1.Status_StatusCode
 	kind       tracev1.Span_SpanKind
 	regex      *regexp.Regexp
+	kindMask   uint8
 }
 
 // NewStrictIntrinsicFilter returns a new IntrinsicFilter that matches spans based on the given intrinsic and value.
@@ -98,7 +99,12 @@ func NewRegexpIntrinsicFilter(intrinsic traceql.Intrinsic, value interface{}) (I
 		return IntrinsicFilter{}, fmt.Errorf("invalid intrinsic filter regex: %v", err)
 	}
 	switch intrinsic {
-	case traceql.IntrinsicName, traceql.IntrinsicStatus, traceql.IntrinsicKind:
+	case traceql.IntrinsicName, traceql.IntrinsicStatus:
+		return IntrinsicFilter{intrinsic: intrinsic, regex: r}, nil
+	case traceql.IntrinsicKind:
+		if mask := kindRegexMask(stringValue); mask != 0 {
+			return IntrinsicFilter{intrinsic: intrinsic, kindMask: mask}, nil
+		}
 		return IntrinsicFilter{intrinsic: intrinsic, regex: r}, nil
 	default:
 		return IntrinsicFilter{}, fmt.Errorf("intrinsic not supported %s", intrinsic)
@@ -119,11 +125,52 @@ func (a *IntrinsicFilter) Matches(span *tracev1.Span) bool {
 		}
 		return a.statusCode == span.GetStatus().GetCode()
 	case traceql.IntrinsicKind:
+		if a.kindMask != 0 {
+			return a.kindMask&spanKindMask(span.Kind) != 0
+		}
 		if a.regex != nil {
 			return a.regex.MatchString(span.Kind.String())
 		}
 		return a.kind == span.Kind
 	default:
 		return false
+	}
+}
+
+const (
+	spanKindServerBit uint8 = 1 << iota
+	spanKindClientBit
+	spanKindProducerBit
+	spanKindConsumerBit
+)
+
+// kindRegexMask returns a bitmask for the regex if the regex is one of the
+// hard-coded canonical alternations matching all real span kinds. Any other
+// regex (including semantically equivalent ones with different ordering,
+// anchors, or whitespace) returns 0 and forces a fallback to the regexp engine.
+// This is intentionally narrow: it accelerates only the default service-graph
+// filter shipped in pkg/spanfilter/config defaults. Operators who customize the
+// kind filter will silently lose this fast path.
+func kindRegexMask(regex string) uint8 {
+	switch regex {
+	case "SPAN_KIND_(SERVER|CONSUMER|CLIENT|PRODUCER)":
+		return spanKindServerBit | spanKindConsumerBit | spanKindClientBit | spanKindProducerBit
+	default:
+		return 0
+	}
+}
+
+func spanKindMask(kind tracev1.Span_SpanKind) uint8 {
+	switch kind {
+	case tracev1.Span_SPAN_KIND_SERVER:
+		return spanKindServerBit
+	case tracev1.Span_SPAN_KIND_CLIENT:
+		return spanKindClientBit
+	case tracev1.Span_SPAN_KIND_PRODUCER:
+		return spanKindProducerBit
+	case tracev1.Span_SPAN_KIND_CONSUMER:
+		return spanKindConsumerBit
+	default:
+		return 0
 	}
 }

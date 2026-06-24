@@ -192,6 +192,10 @@ func FindNodesWithoutDeserializingWithTimeout(node *yaml.Node, jsonPath string, 
 // Behavior can be customized using JSONPathLookupOptions.
 func FindNodesWithoutDeserializingWithOptions(node *yaml.Node, jsonPath string, options JSONPathLookupOptions) ([]*yaml.Node, error) {
 	options = normalizeJSONPathLookupOptions(options)
+	if results, handled := findNodesWithoutDeserializingFastPath(node, jsonPath); handled {
+		return results, nil
+	}
+
 	path, err := getJSONPathWithOptions(jsonPath, options)
 	if err != nil {
 		return nil, err
@@ -321,14 +325,138 @@ func ExtractValueFromInterfaceMap(name string, raw interface{}) interface{} {
 	return nil
 }
 
+// leadingMergeContent unwraps a leading YAML merge key when it has a corresponding value node.
+// Malformed YAML can produce a bare `<<` node with no value; in that case we leave the original
+// node slice intact and let higher-level validation return an error instead of panicking.
+func leadingMergeContent(nodes []*yaml.Node) []*yaml.Node {
+	if len(nodes) < 2 || nodes[0] == nil || nodes[0].Tag != "!!merge" {
+		return nodes
+	}
+	expanded := expandMergeContent(&yaml.Node{
+		Kind:    yaml.MappingNode,
+		Tag:     "!!map",
+		Content: nodes,
+	}, make(map[*yaml.Node]struct{}))
+	if len(expanded) == 0 {
+		return nodes
+	}
+	return expanded
+}
+
+func hasMergeKeys(nodes []*yaml.Node) bool {
+	for i := 0; i < len(nodes); i += 2 {
+		if nodes[i] != nil && nodes[i].Tag == "!!merge" {
+			return true
+		}
+	}
+	return false
+}
+
+func expandMergeContent(node *yaml.Node, visited map[*yaml.Node]struct{}) []*yaml.Node {
+	if node == nil {
+		return nil
+	}
+	node = NodeAlias(node)
+	if node == nil || node.Kind != yaml.MappingNode && node.Tag != "!!map" {
+		return nil
+	}
+	if _, ok := visited[node]; ok {
+		return nil
+	}
+	visited[node] = struct{}{}
+	defer delete(visited, node)
+
+	if !hasMergeKeys(node.Content) {
+		return node.Content
+	}
+
+	var mergedValues []*yaml.Node
+	expanded := make([]*yaml.Node, 0, len(node.Content))
+	seenKeys := make(map[string]struct{}, len(node.Content)/2)
+
+	for i := 0; i < len(node.Content); i += 2 {
+		key := node.Content[i]
+		if key == nil {
+			continue
+		}
+		if key.Tag == "!!merge" {
+			if i+1 < len(node.Content) {
+				mergedValues = append(mergedValues, node.Content[i+1])
+			}
+			continue
+		}
+		value := key
+		if i+1 < len(node.Content) {
+			value = node.Content[i+1]
+		}
+		expanded = append(expanded, key, value)
+		seenKeys[key.Value] = struct{}{}
+	}
+
+	for _, mergeValue := range mergedValues {
+		expanded = appendExpandedMergeContent(expanded, seenKeys, mergeValue, visited)
+	}
+	return expanded
+}
+
+func appendExpandedMergeContent(
+	target []*yaml.Node,
+	seenKeys map[string]struct{},
+	mergeValue *yaml.Node,
+	visited map[*yaml.Node]struct{},
+) []*yaml.Node {
+	mergeValue = NodeAlias(mergeValue)
+	if mergeValue == nil {
+		return target
+	}
+
+	if mergeValue.Kind == yaml.SequenceNode {
+		for _, item := range mergeValue.Content {
+			target = appendExpandedMergeContent(target, seenKeys, item, visited)
+		}
+		return target
+	}
+
+	content := expandMergeContent(mergeValue, visited)
+	for i := 0; i < len(content); i += 2 {
+		key := content[i]
+		if key == nil {
+			continue
+		}
+		if _, ok := seenKeys[key.Value]; ok {
+			continue
+		}
+		value := key
+		if i+1 < len(content) {
+			value = content[i+1]
+		}
+		target = append(target, key, value)
+		seenKeys[key.Value] = struct{}{}
+	}
+	return target
+}
+
+func mergedNodeContent(node *yaml.Node) []*yaml.Node {
+	if node == nil {
+		return nil
+	}
+	node = NodeAlias(node)
+	if node == nil || !hasMergeKeys(node.Content) {
+		return node.Content
+	}
+	expanded := expandMergeContent(node, make(map[*yaml.Node]struct{}))
+	if len(expanded) == 0 {
+		return node.Content
+	}
+	return expanded
+}
+
 // FindFirstKeyNode will locate the first key and value yaml.Node based on a key.
 func FindFirstKeyNode(key string, nodes []*yaml.Node, depth int) (keyNode *yaml.Node, valueNode *yaml.Node) {
 	if depth > 40 {
 		return nil, nil
 	}
-	if nodes != nil && len(nodes) > 0 && nodes[0].Tag == "!!merge" {
-		nodes = NodeAlias(nodes[1]).Content
-	}
+	nodes = leadingMergeContent(nodes)
 	for i, v := range nodes {
 		if key != "" && key == v.Value {
 			if i+1 >= len(nodes) {
@@ -366,9 +494,7 @@ type KeyNodeSearch struct {
 // FindKeyNodeTop is a non-recursive search of top level nodes for a key, will not look at content.
 // Returns the key and value
 func FindKeyNodeTop(key string, nodes []*yaml.Node) (keyNode *yaml.Node, valueNode *yaml.Node) {
-	if nodes != nil && len(nodes) > 0 && nodes[0].Tag == "!!merge" {
-		nodes = NodeAlias(nodes[1]).Content
-	}
+	nodes = leadingMergeContent(nodes)
 	for i := 0; i < len(nodes); i++ {
 		v := nodes[i]
 		if i%2 != 0 {
@@ -387,9 +513,7 @@ func FindKeyNodeTop(key string, nodes []*yaml.Node) (keyNode *yaml.Node, valueNo
 // FindKeyNode is a non-recursive search of a *yaml.Node Content for a child node with a key.
 // Returns the key and value
 func FindKeyNode(key string, nodes []*yaml.Node) (keyNode *yaml.Node, valueNode *yaml.Node) {
-	if nodes != nil && len(nodes) > 0 && nodes[0].Tag == "!!merge" {
-		nodes = NodeAlias(nodes[1]).Content
-	}
+	nodes = leadingMergeContent(nodes)
 	for i, v := range nodes {
 		if i%2 == 0 && key == v.Value {
 			if len(nodes) <= i+1 {
@@ -397,17 +521,18 @@ func FindKeyNode(key string, nodes []*yaml.Node) (keyNode *yaml.Node, valueNode 
 			}
 			return NodeAlias(v), NodeAlias(nodes[i+1]) // next node is what we need.
 		}
-		for x, j := range v.Content {
+		for x, j := range mergedNodeContent(v) {
 			if key == j.Value {
 				if IsNodeMap(v) {
-					if x+1 == len(v.Content) {
-						return NodeAlias(v), NodeAlias(v.Content[x])
+					content := mergedNodeContent(v)
+					if x+1 == len(content) {
+						return NodeAlias(v), NodeAlias(content[x])
 					}
-					return NodeAlias(v), NodeAlias(v.Content[x+1]) // next node is what we need.
+					return NodeAlias(v), NodeAlias(content[x+1]) // next node is what we need.
 
 				}
 				if IsNodeArray(v) {
-					return NodeAlias(v), NodeAlias(v.Content[x])
+					return NodeAlias(v), NodeAlias(mergedNodeContent(v)[x])
 				}
 			}
 		}
@@ -419,9 +544,7 @@ func FindKeyNode(key string, nodes []*yaml.Node) (keyNode *yaml.Node, valueNode 
 // generally different things are required from different node trees, so depending on what this function is looking at
 // it will return different things.
 func FindKeyNodeFull(key string, nodes []*yaml.Node) (keyNode *yaml.Node, labelNode *yaml.Node, valueNode *yaml.Node) {
-	if nodes != nil && len(nodes) > 0 && nodes[0].Tag == "!!merge" {
-		nodes = NodeAlias(nodes[1]).Content
-	}
+	nodes = leadingMergeContent(nodes)
 	for i := 0; i < len(nodes); i++ {
 		if i%2 == 0 && key == nodes[i].Value {
 			if i+1 >= len(nodes) {
@@ -431,25 +554,17 @@ func FindKeyNodeFull(key string, nodes []*yaml.Node) (keyNode *yaml.Node, labelN
 		}
 	}
 	for _, v := range nodes {
-		for x := 0; x < len(v.Content); x++ {
-			r := v.Content[x]
-			if x%2 == 0 {
-				if r.Tag == "!!merge" {
-					if len(nodes) > x+1 {
-						v = NodeAlias(nodes[x+1])
-					}
-				}
-			}
-
-			if len(v.Content) > 0 && key == v.Content[x].Value {
+		content := mergedNodeContent(v)
+		for x := 0; x < len(content); x++ {
+			if len(content) > 0 && key == content[x].Value {
 				if IsNodeMap(v) {
-					if x+1 == len(v.Content) {
-						return v, v.Content[x], NodeAlias(v.Content[x])
+					if x+1 == len(content) {
+						return v, content[x], NodeAlias(content[x])
 					}
-					return NodeAlias(v), NodeAlias(v.Content[x]), NodeAlias(v.Content[x+1])
+					return NodeAlias(v), NodeAlias(content[x]), NodeAlias(content[x+1])
 				}
 				if IsNodeArray(v) {
-					return NodeAlias(v), NodeAlias(v.Content[x]), NodeAlias(v.Content[x])
+					return NodeAlias(v), NodeAlias(content[x]), NodeAlias(content[x])
 				}
 			}
 		}
@@ -460,9 +575,7 @@ func FindKeyNodeFull(key string, nodes []*yaml.Node) (keyNode *yaml.Node, labelN
 // FindKeyNodeFullTop is an overloaded version of FindKeyNodeFull. This version only looks at the top
 // level of the node and not the children.
 func FindKeyNodeFullTop(key string, nodes []*yaml.Node) (keyNode *yaml.Node, labelNode *yaml.Node, valueNode *yaml.Node) {
-	if nodes != nil && len(nodes) >= 0 && nodes[0].Tag == "!!merge" {
-		nodes = NodeAlias(nodes[1]).Content
-	}
+	nodes = leadingMergeContent(nodes)
 	for i := 0; i < len(nodes); i++ {
 		v := nodes[i]
 		if i%2 == 0 {
@@ -479,6 +592,9 @@ func FindKeyNodeFullTop(key string, nodes []*yaml.Node) (keyNode *yaml.Node, lab
 			continue
 		}
 		if i%2 == 0 && key == nodes[i].Value {
+			if i+1 >= len(nodes) {
+				return NodeAlias(nodes[i]), NodeAlias(nodes[i]), NodeAlias(nodes[i])
+			}
 			return NodeAlias(nodes[i]), NodeAlias(nodes[i]), NodeAlias(nodes[i+1]) // next node is what we need.
 		}
 	}
@@ -574,14 +690,31 @@ func NodeMerge(nodes []*yaml.Node) *yaml.Node {
 	for i, v := range nodes {
 		if v.Tag == "!!merge" {
 			if i+1 < len(nodes) {
-				return NodeAlias(nodes[i+1])
+				return resolvedMergeNode(nodes[i+1])
 			}
 		}
 	}
 	if len(nodes) > 0 {
-		return NodeAlias(nodes[0])
+		return resolvedMergeNode(nodes[0])
 	}
 	return nil
+}
+
+func resolvedMergeNode(node *yaml.Node) *yaml.Node {
+	node = NodeAlias(node)
+	if node == nil {
+		return nil
+	}
+	if !hasMergeKeys(node.Content) {
+		return node
+	}
+	expanded := expandMergeContent(node, make(map[*yaml.Node]struct{}))
+	if len(expanded) == 0 {
+		return node
+	}
+	clone := *node
+	clone.Content = expanded
+	return &clone
 }
 
 // NodeAlias checks if the node is an alias, and lifts out the anchor
@@ -589,23 +722,6 @@ func NodeAlias(node *yaml.Node) *yaml.Node {
 	if node == nil {
 		return nil
 	}
-
-	content := node.Content
-	if node.Kind == yaml.AliasNode {
-		content = node.Alias.Content
-	}
-
-	for i, n := range content {
-		if i%2 == 0 {
-			if n.Tag == "!!merge" {
-				g := NodeMerge(content[i+1:])
-				if g != nil {
-					node = g
-				}
-			}
-		}
-	}
-
 	if node.Kind == yaml.AliasNode {
 		node = node.Alias
 		return node
@@ -1226,26 +1342,20 @@ func DetermineWhitespaceLength(input string) int {
 }
 
 // CheckForMergeNodes will check the top level of the schema for merge nodes. If any are found, then the merged nodes
-// will be appended to the end of the rest of the nodes in the schema.
+// will be expanded into the current mapping while preserving local-key precedence.
 // Note: this is a destructive operation, so the in-memory node structure will be modified
 func CheckForMergeNodes(node *yaml.Node) {
 	if node == nil {
 		return
 	}
-	total := len(node.Content)
-	for i := 0; i < total; i++ {
-		mn := node.Content[i]
-		if i%2 == 0 {
-			if mn.Tag == "!!merge" {
-				an := node.Content[i+1].Alias
-				if an != nil {
-					node.Content = append(node.Content, an.Content...) // append the merged nodes
-					total = len(node.Content)
-					i += 2
-				}
-			}
-		}
+	if !hasMergeKeys(node.Content) {
+		return
 	}
+	expanded := expandMergeContent(node, make(map[*yaml.Node]struct{}))
+	if len(expanded) == 0 {
+		return
+	}
+	node.Content = expanded
 }
 
 // IsExternalRef returns true if the reference string points to an external resource

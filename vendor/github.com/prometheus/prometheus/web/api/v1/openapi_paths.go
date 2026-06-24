@@ -30,8 +30,8 @@ func (*OpenAPIBuilder) queryPath() *v3.PathItem {
 		queryParamWithExample("limit", "The maximum number of metrics to return.", false, integerSchema(), []example{{"example", 100}}),
 		queryParamWithExample("time", "The evaluation timestamp (optional, defaults to current time).", false, timestampSchema(), timestampExamples(exampleTime)),
 		queryParamWithExample("query", "The PromQL query to execute.", true, stringSchema(), []example{{"example", "up"}}),
-		queryParamWithExample("timeout", "Evaluation timeout. Optional. Defaults to and is capped by the value of the -query.timeout flag.", false, stringSchema(), []example{{"example", "30s"}}),
-		queryParamWithExample("lookback_delta", "Override the lookback period for this query. Optional.", false, stringSchema(), []example{{"example", "5m"}}),
+		queryParamWithExample("timeout", "Evaluation timeout. Optional. Defaults to and is capped by the value of the -query.timeout flag.", false, durationSchema(), []example{{"duration", "1m30s"}, {"number", "90"}}),
+		queryParamWithExample("lookback_delta", "Override the lookback period for this query. Optional.", false, durationSchema(), []example{{"duration", "5m"}, {"number", "300"}}),
 		queryParamWithExample("stats", "When provided, include query statistics in the response. The special value 'all' enables more comprehensive statistics.", false, stringSchema(), []example{{"example", "all"}}),
 	}
 	return &v3.PathItem{
@@ -57,10 +57,10 @@ func (*OpenAPIBuilder) queryRangePath() *v3.PathItem {
 		queryParamWithExample("limit", "The maximum number of metrics to return.", false, integerSchema(), []example{{"example", 100}}),
 		queryParamWithExample("start", "The start time of the query.", true, timestampSchema(), timestampExamples(exampleTime.Add(-1*time.Hour))),
 		queryParamWithExample("end", "The end time of the query.", true, timestampSchema(), timestampExamples(exampleTime)),
-		queryParamWithExample("step", "The step size of the query.", true, stringSchema(), []example{{"example", "15s"}}),
+		queryParamWithExample("step", "The step size of the query.", true, durationSchema(), []example{{"duration", "15s"}, {"number", "15"}}),
 		queryParamWithExample("query", "The query to execute.", true, stringSchema(), []example{{"example", "rate(prometheus_http_requests_total{handler=\"/api/v1/query\"}[5m])"}}),
-		queryParamWithExample("timeout", "Evaluation timeout. Optional. Defaults to and is capped by the value of the -query.timeout flag.", false, stringSchema(), []example{{"example", "30s"}}),
-		queryParamWithExample("lookback_delta", "Override the lookback period for this query. Optional.", false, stringSchema(), []example{{"example", "5m"}}),
+		queryParamWithExample("timeout", "Evaluation timeout. Optional. Defaults to and is capped by the value of the -query.timeout flag.", false, durationSchema(), []example{{"duration", "1m30s"}, {"number", "90"}}),
+		queryParamWithExample("lookback_delta", "Override the lookback period for this query. Optional.", false, durationSchema(), []example{{"duration", "5m"}, {"number", "300"}}),
 		queryParamWithExample("stats", "When provided, include query statistics in the response. The special value 'all' enables more comprehensive statistics.", false, stringSchema(), []example{{"example", "all"}}),
 	}
 	return &v3.PathItem{
@@ -223,13 +223,6 @@ func (*OpenAPIBuilder) seriesPath() *v3.PathItem {
 			Tags:        []string{"series"},
 			RequestBody: formRequestBodyWithExamples("SeriesPostInputBody", seriesPostExamples(), "Submit a series query. This endpoint accepts the same parameters as the GET version."),
 			Responses:   responsesWithErrorExamples("SeriesOutputBody", seriesResponseExamples(), errorResponseExamples(), "Series returned matching the provided label matchers via POST.", "Error retrieving series via POST."),
-		},
-		Delete: &v3.Operation{
-			OperationId: "delete-series",
-			Summary:     "Delete series",
-			Description: "Delete series matching selectors. Note: This is deprecated, use POST /admin/tsdb/delete_series instead.",
-			Tags:        []string{"series"},
-			Responses:   responsesWithErrorExamples("SeriesDeleteOutputBody", seriesDeleteResponseExamples(), errorResponseExamples(), "Series marked for deletion.", "Error deleting series."),
 		},
 	}
 }
@@ -444,6 +437,22 @@ func (*OpenAPIBuilder) statusWALReplayPath() *v3.PathItem {
 			Summary:     "Get status walreplay",
 			Tags:        []string{"status"},
 			Responses:   responsesWithErrorExamples("StatusWALReplayOutputBody", statusWALReplayResponseExamples(), errorResponseExamples(), "WAL replay status retrieved successfully.", "Error retrieving WAL replay status."),
+		},
+	}
+}
+
+func (*OpenAPIBuilder) statusSelfMetricsPath() *v3.PathItem {
+	params := []*v3.Parameter{
+		queryParamWithExample("metric_name_pattern", "Regular expression filter for metric names (fully anchored, like PromQL label matchers). Only metric families whose names fully match the pattern are returned.", false, stringSchema(), []example{{"example", "prometheus_tsdb_.*"}}),
+	}
+	return &v3.PathItem{
+		Get: &v3.Operation{
+			OperationId: "get-status-self-metrics",
+			Summary:     "Get Prometheus self-instrumentation metrics",
+			Description: "Returns Prometheus' own instrumentation metrics from its internal client registry, as structured JSON. Supports optional regex filtering via the metric_name_pattern parameter.",
+			Tags:        []string{"status"},
+			Parameters:  params,
+			Responses:   responsesWithErrorExamples("StatusSelfMetricsOutputBody", statusSelfMetricsResponseExamples(), errorResponseExamples(), "Self metrics retrieved successfully.", "Error retrieving self metrics."),
 		},
 	}
 }
