@@ -10,3 +10,18 @@ status:
     active: [TylerHelmuth, evan-bradley, edmocosta, bogdandrutu]
     emeritus: [anuraaga, kentquirk]
     seeking_new: true
+
+feature_gates:
+  - id: "ottl.PanicDuplicateName"
+    description: When enabled, the CreateFactoryMap panics if the name is duplicated.
+    stage: beta
+    from_version: v0.141.0
+    reference_url: https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/44630
+    skip_strict_validation: true
+
+  - id: "ottl.contexts.enableOTelColContext"
+    description: Enable the `otelcol` context for OTTL. This allows users using `otelcol.*` paths in their OTTL statements and conditions.
+    stage: beta
+    from_version: v0.147.0
+    reference_url: https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/46437
+    skip_strict_validation: true

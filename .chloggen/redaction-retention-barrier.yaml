@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: backend-scheduler
+note: retention now gates on the redaction batch barrier (`TenantPending`) instead of only in-flight redaction jobs, so retention cannot mark a block compacted while a redaction batch is awaiting its rescan.
+issues: [7358]
+subtext:
+user: zalegrala

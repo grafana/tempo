@@ -1,0 +1,6 @@
+change_type: enhancement
+component: live-store
+note: reduce mutex contention in tag search by making the scoped distinct string collector lock-free
+issues: []
+subtext:
+user: zhxiaogg

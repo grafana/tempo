@@ -136,10 +136,12 @@ func TestMetricsCompareObserveExemplarLimit(t *testing.T) {
 	}
 
 	a := newMetricsCompare(newSpansetFilter(
-		newBinaryOperation(OpEqual,
+		newBinaryOperation(
+			OpEqual,
 			NewAttribute("service"),
 			NewStaticString("selected"),
-		)), 10, 0, 0)
+		),
+	), 10, 0, 0)
 	a.init(req, AggregateModeRaw)
 
 	// Alternate baseline and selection spans so both slices fill up.
@@ -167,10 +169,12 @@ func TestCompareScalesResults(t *testing.T) {
 	}
 
 	a := newMetricsCompare(newSpansetFilter(
-		newBinaryOperation(OpEqual,
+		newBinaryOperation(
+			OpEqual,
 			NewAttribute("service"),
 			NewStaticString("selected"),
-		)), 10, 0, 0)
+		),
+	), 10, 0, 0)
 	a.init(req, AggregateModeRaw)
 
 	// Test data with clear baseline vs selection distinction
@@ -278,4 +282,30 @@ func TestCompareScalesResults(t *testing.T) {
 	}
 
 	requireEqualSeriesSets(t, expected, ss)
+}
+
+// TestCompareTopNValidation asserts the topN argument is bounded server-side so
+// an attacker cannot pass an arbitrarily large value.
+func TestCompareTopNValidation(t *testing.T) {
+	mkReq := func(query string) *tempopb.QueryRangeRequest {
+		return &tempopb.QueryRangeRequest{
+			Start: 1,
+			End:   uint64(2 * time.Second),
+			Step:  uint64(time.Second),
+			Query: query,
+		}
+	}
+	e := NewEngine()
+
+	// Over the cap: rejected at compile (validate()).
+	_, err := e.CompileMetricsQueryRangeNonRaw(mkReq(`{ } | compare({ .service="x" }, 1000000000)`), AggregateModeFinal)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "compare() top number of values must be an integer")
+
+	// Within the cap: compiles fine.
+	_, err = e.CompileMetricsQueryRangeNonRaw(mkReq(`{ } | compare({ .service="x" }, 10)`), AggregateModeFinal)
+	require.NoError(t, err)
+
+	_, err = e.CompileMetricsQueryRangeNonRaw(mkReq(`{ } | compare({ .service="x" })`), AggregateModeFinal)
+	require.NoError(t, err)
 }

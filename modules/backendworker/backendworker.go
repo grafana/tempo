@@ -381,8 +381,13 @@ func (w *BackendWorker) processRedactionJob(ctx context.Context, resp *tempopb.N
 		}
 	}
 	if meta == nil {
-		// Block no longer present (e.g. already compacted away); treat as clean.
-		level.Debug(log.Logger).Log("msg", "redaction block not found, completing as no-op", "job_id", resp.JobId, "block_id", blockIDStr)
+		// Block absent from the live blocklist (e.g. compacted or retained away).
+		// Completing as a no-op is correct only because the scheduler re-targets a
+		// moved trace via the batch's coverage logic; surface it so a genuine
+		// coverage gap is visible rather than a silent "successful" redaction.
+		metricRedactionBlockMissing.WithLabelValues(tenantID).Inc()
+		level.Warn(log.Logger).Log("msg", "redaction block not found in live blocklist, completing as no-op",
+			"job_id", resp.JobId, "block_id", blockIDStr, "tenant", tenantID)
 		return w.completeRedactionJob(ctx, resp.JobId, 0)
 	}
 

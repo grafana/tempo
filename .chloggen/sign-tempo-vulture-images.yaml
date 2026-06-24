@@ -1,0 +1,21 @@
+# Changelog entry. Generate a copy with `make chlog-new`, then fill in the fields.
+
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: security
+
+# Component or area of the change. Must be one of the components in .chloggen/config.yaml,
+# e.g. distributor, querier, query-frontend, storage, operations.
+component: tempo-vulture
+
+# A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
+note: keyless-sign published images with cosign and attach SLSA build provenance.
+
+# (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
+# .chloggen/README.md.
+issues: [7493]
+
+# (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
+subtext:
+
+# The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
+user: mattdurham

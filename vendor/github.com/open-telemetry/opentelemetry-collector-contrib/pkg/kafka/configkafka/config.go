@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/IBM/sarama"
+	"github.com/twmb/franz-go/pkg/kversion"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configcompression"
 	"go.opentelemetry.io/collector/config/configtls"
@@ -38,10 +38,12 @@ type ClientConfig struct {
 	// Brokers holds the list of Kafka bootstrap servers (default localhost:9092).
 	Brokers []string `mapstructure:"brokers"`
 
-	// ResolveCanonicalBootstrapServersOnly configures the Kafka client to perform
-	// a DNS lookup on each of the provided brokers, and then perform a reverse
-	// lookup on the resulting IPs to obtain the canonical hostnames to use as the
-	// bootstrap servers. This can be required in SASL environments.
+	// ResolveCanonicalBootstrapServersOnly is ignored, and exists for
+	// backwards compatibility in config parsing.
+	//
+	// Deprecated [v0.153.0]: this field is a no-op since the migration to franz-go,
+	// which has no direct equivalent to the associated Sarama config. This config
+	// will be removed in a future release.
 	ResolveCanonicalBootstrapServersOnly bool `mapstructure:"resolve_canonical_bootstrap_servers_only"`
 
 	// ProtocolVersion defines the Kafka protocol version that the client will
@@ -97,8 +99,8 @@ func (c ClientConfig) Validate() error {
 		return errors.New("brokers must be specified")
 	}
 	if c.ProtocolVersion != "" {
-		if _, err := sarama.ParseKafkaVersion(c.ProtocolVersion); err != nil {
-			return fmt.Errorf("invalid protocol version: %w", err)
+		if kversion.FromString(c.ProtocolVersion) == nil {
+			return fmt.Errorf("invalid protocol version: %q", c.ProtocolVersion)
 		}
 	}
 	if c.ConnIdleTimeout <= 0 {
@@ -416,7 +418,11 @@ type SASLConfig struct {
 	// SASL Mechanism to be used, possible values are: (PLAIN, AWS_MSK_IAM_OAUTHBEARER, OAUTHBEARER,
 	// SCRAM-SHA-256 or SCRAM-SHA-512).
 	Mechanism string `mapstructure:"mechanism"`
-	// SASL Protocol Version to be used, possible values are: (0, 1). Defaults to 0.
+	// Version is ignored, and exists for backwards compatibility in config parsing.
+	//
+	// Deprecated [v0.153.0]: this field is a no-op since the migration to franz-go,
+	// which negotiates the SASL handshake version automatically. This config will be
+	// removed in a future release.
 	Version int `mapstructure:"version"`
 	// AWSMSK holds configuration specific to AWS MSK.
 	AWSMSK AWSMSKConfig `mapstructure:"aws_msk"`

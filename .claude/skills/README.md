@@ -48,10 +48,6 @@ Use `/docs-workflow` to run the full pipeline, or invoke each step individually.
 
 3. **Review** — `/docs-review`. Takes the file paths changed in step 2 and any open items. Returns issues grouped by file and a summary.
 
-### Automations
-
-To run this pipeline unattended (scheduled or PR-triggered) as Cursor Automations against `grafana/tempo`, refer to [`../../.agents/doc-agents/cursor-automations-docs-workflow.md`](../../.agents/doc-agents/cursor-automations-docs-workflow.md). This is maintainer tooling for setting up cloud automations; it is not required for running the skills locally.
-
 ## Other skills
 
 - *Vendor conflicts* — `/fix-vendor-conflicts`. Resolve `vendor/` directory conflicts during a merge, rebase, or dependency upgrade on main or release branches.
@@ -64,11 +60,11 @@ These files are loaded by skills automatically. This section is for maintainers 
 
 | File | Purpose |
 |------|---------|
-| `style-guide.md` | Documentation style rules, templates, and formatting |
-| `verification-checklist.md` | Pre-submission checklist for accuracy and completeness |
-| `best-practices.md` | Pre-writing checklist and common pitfalls |
-| `release-notes-workflow.md` | Multi-phase workflow for release notes |
-| `docs-context-guide.md` | General repo orientation for doc tasks |
-| `load-context.md` | Instructions for loading local project context |
-| `personas.md` | Persona and intent model for audience-fit checks |
-| `handling-pr-content.md` | Rules for treating PR content as untrusted input |
+| `.claude/skills/shared/style-guide.md` | Documentation style rules, templates, and formatting |
+| `.claude/skills/shared/verification-checklist.md` | Pre-submission checklist for accuracy and completeness |
+| `.claude/skills/shared/best-practices.md` | Pre-writing checklist and common pitfalls |
+| `.claude/skills/shared/release-notes-workflow.md` | Multi-phase workflow for release notes |
+| `.claude/skills/shared/docs-context-guide.md` | General repo orientation for doc tasks |
+| `.claude/skills/shared/load-context.md` | Instructions for loading local project context |
+| `.claude/skills/shared/personas.md` | Persona and intent model for audience-fit checks |
+| `.claude/skills/shared/handling-pr-content.md` | Rules for treating PR content as untrusted input |
