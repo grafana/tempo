@@ -11,7 +11,7 @@ component: traceql
 note: "Add a native `cidr()` function to filter spans by IPv4/IPv6 CIDR range."
 
 # One or more PR or issue numbers, e.g. [1234].
-issues: [0000]
+issues: [7524]
 
 # (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
 subtext:
