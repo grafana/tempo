@@ -47,6 +47,22 @@ var metricMetricsLiveStoreClients = promauto.NewGauge(prometheus.GaugeOpts{
 	Help:      "The current number of livestore clients.",
 })
 
+// metricBlockProcessingDuration times how long the querier spends processing one
+// backend block (scan + interleaved object-store I/O), by operation.
+var metricBlockProcessingDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	Namespace:                       "tempo",
+	Name:                            "querier_block_processing_duration_seconds",
+	Help:                            "Time the querier spends processing one backend block request (scan + interleaved object-store I/O), by operation.",
+	Buckets:                         prometheus.ExponentialBuckets(0.005, 4, 6),
+	NativeHistogramBucketFactor:     1.1,
+	NativeHistogramMaxBucketNumber:  100,
+	NativeHistogramMinResetDuration: time.Hour,
+}, []string{"operation"})
+
+func observeBlockProcessing(operation string, start time.Time) {
+	metricBlockProcessingDuration.WithLabelValues(operation).Observe(time.Since(start).Seconds())
+}
+
 type (
 	forEachFn        func(ctx context.Context, client tempopb.QuerierClient) (any, error)
 	forEachMetricsFn func(ctx context.Context, client tempopb.MetricsClient) (any, error)
@@ -246,7 +262,9 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 		opts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
 
+		findStart := time.Now()
 		partialTraces, blockErrs, err := q.store.Find(ctx, userID, req.TraceID, req.BlockStart, req.BlockEnd, timeStart, timeEnd, opts)
+		observeBlockProcessing("trace-by-id", findStart)
 		if err != nil {
 			retErr := fmt.Errorf("error querying store in Querier.FindTraceByID: %w", err)
 			span.RecordError(retErr)
@@ -614,6 +632,8 @@ func valuesToV2Response(distinctValues *collector.DistinctValue[tempopb.TagValue
 
 // SearchBlock searches the specified subset of the block for the passed tags.
 func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
+	defer observeBlockProcessing("search", time.Now())
+
 	tenantID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
@@ -669,6 +689,8 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 }
 
 func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.SearchTagsBlockRequest) (*tempopb.SearchTagsV2Response, error) {
+	defer observeBlockProcessing("search-tags", time.Now())
+
 	// For the intrinsic scope there is nothing to do in the querier,
 	// these are always added by the frontend.
 	if req.SearchReq.Scope == api.ParamScopeIntrinsic {
@@ -755,6 +777,8 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 }
 
 func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb.SearchTagValuesBlockRequest) (*tempopb.SearchTagValuesResponse, error) {
+	defer observeBlockProcessing("search-tag-values", time.Now())
+
 	tenantID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return &tempopb.SearchTagValuesResponse{}, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
@@ -794,6 +818,8 @@ func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb
 }
 
 func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempopb.SearchTagValuesBlockRequest) (*tempopb.SearchTagValuesV2Response, error) {
+	defer observeBlockProcessing("search-tag-values", time.Now())
+
 	tenantID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return &tempopb.SearchTagValuesV2Response{}, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
