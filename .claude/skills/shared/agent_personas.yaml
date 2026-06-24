@@ -103,9 +103,9 @@ content_selection:
       - conceptual_overview
       - scenarios
     execution:
-      - walkthrough
+      - walkthroughs
   Practitioner:
-    - task_guide
+    - task_guides
     - examples
   Expert:
     - reference
