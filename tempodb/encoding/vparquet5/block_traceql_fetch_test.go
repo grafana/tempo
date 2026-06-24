@@ -46,6 +46,7 @@ func TestSearchFetchSpansOnly(t *testing.T) {
 
 			resp, err := b.FetchSpans(ctx, req, common.DefaultSearchOptions())
 			require.NoError(t, err, "search request:%v", req)
+			defer resp.Results.Close()
 
 			found := false
 			for {
@@ -86,6 +87,7 @@ func TestSearchFetchSpansOnly(t *testing.T) {
 
 			resp, err := b.FetchSpans(ctx, req, common.DefaultSearchOptions())
 			require.NoError(t, err, "search request:%v", req)
+			defer resp.Results.Close()
 
 			for {
 				span, err := resp.Results.Next(ctx)
