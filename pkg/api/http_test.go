@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strconv"
+	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/cmd/tempo-query/tempo"
+	"github.com/grafana/tempo/pkg/model/tracediff"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
@@ -516,6 +518,102 @@ func TestBuildSearchBlockRequest(t *testing.T) {
 		actualURL, err := BuildSearchBlockRequest(tc.httpReq, tc.req, string(jsonBytes))
 		assert.NoError(t, err)
 		assert.Equal(t, tc.query, actualURL.URL.String())
+	}
+}
+
+func TestParseTraceDiffRequest(t *testing.T) {
+	tests := []struct {
+		name        string
+		body        string
+		expectedErr string
+		assertReq   func(t *testing.T, req *TraceDiffRequest)
+	}{
+		{
+			name: "valid minimal request defaults format",
+			body: `{"base":{"traceId":"abc123"},"compare":{"traceId":"def456"}}`,
+			assertReq: func(t *testing.T, req *TraceDiffRequest) {
+				t.Helper()
+				assert.Equal(t, tracediff.VersionTracePatchV0, req.Format)
+				assert.Equal(t, "abc123", req.Base.TraceID)
+				assert.Equal(t, "def456", req.Compare.TraceID)
+				assert.Len(t, req.Base.TraceIDBytes, 16)
+				assert.Len(t, req.Compare.TraceIDBytes, 16)
+				assert.True(t, req.Base.StartTime.IsZero())
+				assert.True(t, req.Base.EndTime.IsZero())
+				assert.True(t, req.Compare.StartTime.IsZero())
+				assert.True(t, req.Compare.EndTime.IsZero())
+			},
+		},
+		{
+			name: "valid request with independent windows",
+			body: `{"base":{"traceId":"abc123","start":10,"end":20},"compare":{"traceId":"def456","start":100,"end":200}}`,
+			assertReq: func(t *testing.T, req *TraceDiffRequest) {
+				t.Helper()
+				assert.Equal(t, tracediff.VersionTracePatchV0, req.Format)
+				assert.Equal(t, time.Unix(10, 0), req.Base.StartTime)
+				assert.Equal(t, time.Unix(20, 0), req.Base.EndTime)
+				assert.Equal(t, time.Unix(100, 0), req.Compare.StartTime)
+				assert.Equal(t, time.Unix(200, 0), req.Compare.EndTime)
+			},
+		},
+		{
+			name:        "empty body",
+			body:        "",
+			expectedErr: "invalid trace diff request body",
+		},
+		{
+			name:        "malformed json",
+			body:        `{"base":`,
+			expectedErr: "invalid trace diff request body",
+		},
+		{
+			name:        "missing base",
+			body:        `{"compare":{"traceId":"def456"}}`,
+			expectedErr: "base.traceId is required",
+		},
+		{
+			name:        "missing compare",
+			body:        `{"base":{"traceId":"abc123"}}`,
+			expectedErr: "compare.traceId is required",
+		},
+		{
+			name:        "missing base trace ID",
+			body:        `{"base":{},"compare":{"traceId":"def456"}}`,
+			expectedErr: "base.traceId is required",
+		},
+		{
+			name:        "invalid trace ID",
+			body:        `{"base":{"traceId":"not-hex"},"compare":{"traceId":"def456"}}`,
+			expectedErr: "invalid base.traceId",
+		},
+		{
+			name:        "base end equals start",
+			body:        `{"base":{"traceId":"abc123","start":10,"end":10},"compare":{"traceId":"def456"}}`,
+			expectedErr: "base.start must be before base.end. received start=10 end=10",
+		},
+		{
+			name:        "compare end before start",
+			body:        `{"base":{"traceId":"abc123"},"compare":{"traceId":"def456","start":20,"end":10}}`,
+			expectedErr: "compare.start must be before compare.end. received start=20 end=10",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, PathTraceDiffV2, strings.NewReader(tt.body))
+
+			actual, err := ParseTraceDiffRequest(req)
+			if tt.expectedErr != "" {
+				require.ErrorContains(t, err, tt.expectedErr)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, actual)
+			if tt.assertReq != nil {
+				tt.assertReq(t, actual)
+			}
+		})
 	}
 }
 
