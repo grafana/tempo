@@ -1276,7 +1276,7 @@ func (d *distinctAttrCollector) Result() *parquetquery.IteratorResult {
 	}
 
 	// Else we are in value mode so make sure we got a unique key and value.
-	if d.val.Type != traceql.TypeNil {
+	if d.val.Type == traceql.TypeNil {
 		// No value was found.
 		return nil
 	}
