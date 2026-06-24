@@ -93,7 +93,8 @@ type Processor struct {
 	serviceGraphRequestClientSecondsHistogram          registry.Histogram
 	serviceGraphRequestMessagingSystemSecondsHistogram registry.Histogram
 	serviceGraphConnectionInfo                         registry.Gauge
-	sanitizeCache                                      reclaimable.Cache[string, string]
+	dimensionLabels                                    []dimensionLabel
+	usesSpanMultiplier                                 bool
 	filter                                             *spanfilter.SpanFilter
 
 	filteredSpansCounter                prometheus.Counter
@@ -106,12 +107,37 @@ type Processor struct {
 	logger                              log.Logger
 }
 
+// dimensionLabel holds the precomputed label names for a dimension so the
+// per-edge path does not sanitize them on every span.
+type dimensionLabel struct {
+	name        string
+	label       string
+	clientName  string
+	clientLabel string
+	serverName  string
+	serverLabel string
+}
+
 func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, filteredSpansCounter, invalidUTF8Counter prometheus.Counter) (gen.Processor, error) {
 	if cfg.EnableVirtualNodeLabel {
 		cfg.Dimensions = append(cfg.Dimensions, virtualNodeLabel)
 	}
 
 	sanitizeCache := reclaimable.New(validation.SanitizeLabelName, 10000)
+	dimensionLabels := make([]dimensionLabel, len(cfg.Dimensions))
+	for i, dim := range cfg.Dimensions {
+		clientName := "client_" + dim
+		serverName := "server_" + dim
+		dimensionLabels[i] = dimensionLabel{
+			name:        dim,
+			label:       sanitizeCache.Get(dim),
+			clientName:  clientName,
+			clientLabel: sanitizeCache.Get(clientName),
+			serverName:  serverName,
+			serverLabel: sanitizeCache.Get(serverName),
+		}
+	}
+
 	filter, err := spanfilter.NewSpanFilter(cfg.FilterPolicies)
 	if err != nil {
 		return nil, err
@@ -122,8 +148,9 @@ func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, fi
 		registry: reg,
 		closeCh:  make(chan struct{}, 1),
 
-		sanitizeCache: sanitizeCache,
-		filter:        filter,
+		dimensionLabels:    dimensionLabels,
+		usesSpanMultiplier: cfg.SpanMultiplierKey != "" || cfg.EnableTraceStateSpanMultiplier,
+		filter:             filter,
 
 		filteredSpansCounter:                filteredSpansCounter,
 		metricDroppedSpans:                  metricDroppedSpans.WithLabelValues(tenant),
@@ -212,14 +239,17 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 				}
 
 				connectionType := store.Unknown
-				spanMultiplier := processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span, rs.Resource, p.Cfg.EnableTraceStateSpanMultiplier)
+				spanMultiplier := 1.0
+				if p.usesSpanMultiplier {
+					spanMultiplier = processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span, rs.Resource, p.Cfg.EnableTraceStateSpanMultiplier)
+				}
 				switch span.Kind {
 				case v1_trace.Span_SPAN_KIND_PRODUCER:
 					// override connection type and continue processing as span kind client
 					connectionType = store.MessagingSystem
 					fallthrough
 				case v1_trace.Span_SPAN_KIND_CLIENT:
-					key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.SpanId))
+					key := buildKeyFromBytes(span.TraceId, span.SpanId)
 					isNew, err = p.store.UpsertEdge(key, store.Client, func(e *store.Edge) {
 						e.TraceID = tempo_util.TraceIDToHexString(span.TraceId)
 						e.ConnectionType = connectionType
@@ -238,7 +268,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 					connectionType = store.MessagingSystem
 					fallthrough
 				case v1_trace.Span_SPAN_KIND_SERVER:
-					key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.ParentSpanId))
+					key := buildKeyFromBytes(span.TraceId, span.ParentSpanId)
 					isNew, err = p.store.UpsertEdge(key, store.Server, func(e *store.Edge) {
 						e.TraceID = tempo_util.TraceIDToHexString(span.TraceId)
 						e.ConnectionType = connectionType
@@ -281,12 +311,16 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 }
 
 func (p *Processor) upsertDimensions(prefix string, m map[string]string, resourceAttr, spanAttr []*v1_common.KeyValue) {
-	for _, dim := range p.Cfg.Dimensions {
-		if v, ok := processor_util.FindAttributeValue(dim, resourceAttr, spanAttr); ok {
+	for _, dim := range p.dimensionLabels {
+		if v, ok := processor_util.FindAttributeValue(dim.name, resourceAttr, spanAttr); ok {
 			if p.Cfg.EnableClientServerPrefix {
-				m[prefix+dim] = v
+				if prefix == "client_" {
+					m[dim.clientName] = v
+				} else {
+					m[dim.serverName] = v
+				}
 			} else {
-				m[dim] = v
+				m[dim.name] = v
 			}
 		}
 	}
@@ -372,19 +406,19 @@ func (p *Processor) onComplete(e *store.Edge) {
 	builder.Add("server", e.ServerService)
 	builder.Add("connection_type", string(e.ConnectionType))
 
-	for _, dimension := range p.Cfg.Dimensions {
+	for _, dimension := range p.dimensionLabels {
 		if p.Cfg.EnableClientServerPrefix {
 			if p.Cfg.EnableVirtualNodeLabel {
 				// leave the extra label for this feature as-is
-				if dimension == virtualNodeLabel {
-					builder.Add(virtualNodeLabel, e.Dimensions[dimension])
+				if dimension.name == virtualNodeLabel {
+					builder.Add(virtualNodeLabel, e.Dimensions[dimension.name])
 					continue
 				}
 			}
-			builder.Add(p.sanitizeCache.Get("client_"+dimension), e.Dimensions["client_"+dimension])
-			builder.Add(p.sanitizeCache.Get("server_"+dimension), e.Dimensions["server_"+dimension])
+			builder.Add(dimension.clientLabel, e.Dimensions[dimension.clientName])
+			builder.Add(dimension.serverLabel, e.Dimensions[dimension.serverName])
 		} else {
-			builder.Add(p.sanitizeCache.Get(dimension), e.Dimensions[dimension])
+			builder.Add(dimension.label, e.Dimensions[dimension.name])
 		}
 	}
 
@@ -471,7 +505,7 @@ func (p *Processor) onExpire(e *store.Edge) {
 
 func (p *Processor) addDroppedSpanSide(span *v1_trace.Span) {
 	if isClient(span.Kind) {
-		key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.SpanId))
+		key := buildKeyFromBytes(span.TraceId, span.SpanId)
 		if p.store.AddDroppedSpanSide(key, store.Client) {
 			p.metricDroppedEdges.Inc()
 		}
@@ -484,7 +518,7 @@ func (p *Processor) addDroppedSpanSide(span *v1_trace.Span) {
 			return
 		}
 
-		key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.ParentSpanId))
+		key := buildKeyFromBytes(span.TraceId, span.ParentSpanId)
 		if p.store.AddDroppedSpanSide(key, store.Server) {
 			p.metricDroppedEdges.Inc()
 		}
@@ -514,6 +548,17 @@ func unixNanosDiffSec(unixNanoStart uint64, unixNanoEnd uint64) float64 {
 
 func spanDurationSec(span *v1_trace.Span) float64 {
 	return unixNanosDiffSec(span.StartTimeUnixNano, span.EndTimeUnixNano)
+}
+
+// buildKeyFromBytes hex-encodes both IDs straight into the key, avoiding the
+// intermediate string allocations of buildKey(hex(...), hex(...)).
+func buildKeyFromBytes(k1, k2 []byte) string {
+	k1Len := hex.EncodedLen(len(k1))
+	buf := make([]byte, k1Len+1+hex.EncodedLen(len(k2)))
+	hex.Encode(buf[:k1Len], k1)
+	buf[k1Len] = '-'
+	hex.Encode(buf[k1Len+1:], k2)
+	return string(buf)
 }
 
 func buildKey(k1, k2 string) string {

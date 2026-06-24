@@ -1,0 +1,6 @@
+change_type: enhancement
+component: metrics-generator
+note: Reduce the per-span CPU and memory overhead of the span-metrics and service-graphs processors.
+issues: [7462]
+subtext:
+user: carles-grafana
