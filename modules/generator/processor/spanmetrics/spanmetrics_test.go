@@ -12,10 +12,12 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	gen "github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
@@ -1872,4 +1874,273 @@ func TestSpanMetricsTraceStateMultiplier(t *testing.T) {
 
 	// With 50% sampling (th:8), span multiplier is 2, so 1 span → count of 2
 	assert.Equal(t, 2.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
+}
+
+// recordingRegistry wraps a TestRegistry and records the order of every metric
+// series update. The production registry limiter grants active-series and
+// entity capacity in call order, so tests use this to pin the relative
+// ordering of span metric and target_info updates.
+type recordingRegistry struct {
+	*registry.TestRegistry
+	calls []string
+}
+
+func newRecordingRegistry() *recordingRegistry {
+	return &recordingRegistry{TestRegistry: registry.NewTestRegistry()}
+}
+
+func (r *recordingRegistry) NewCounter(name string) registry.Counter {
+	return &recordingCounter{Counter: r.TestRegistry.NewCounter(name), name: name, calls: &r.calls}
+}
+
+func (r *recordingRegistry) NewGauge(name string) registry.Gauge {
+	return &recordingGauge{Gauge: r.TestRegistry.NewGauge(name), name: name, calls: &r.calls}
+}
+
+func (r *recordingRegistry) NewHistogram(name string, buckets []float64, mode registry.HistogramMode) registry.Histogram {
+	return &recordingHistogram{Histogram: r.TestRegistry.NewHistogram(name, buckets, mode), name: name, calls: &r.calls}
+}
+
+type recordingCounter struct {
+	registry.Counter
+	name  string
+	calls *[]string
+}
+
+func (c *recordingCounter) Inc(lbls labels.Labels, value float64) {
+	*c.calls = append(*c.calls, c.name)
+	c.Counter.Inc(lbls, value)
+}
+
+func (c *recordingCounter) IncWithHash(lbls labels.Labels, hash uint64, value float64) {
+	*c.calls = append(*c.calls, c.name)
+	c.Counter.IncWithHash(lbls, hash, value)
+}
+
+func (c *recordingCounter) IncWithHashAt(lbls labels.Labels, hash uint64, value float64, timeMs int64) {
+	*c.calls = append(*c.calls, c.name)
+	c.Counter.IncWithHashAt(lbls, hash, value, timeMs)
+}
+
+type recordingGauge struct {
+	registry.Gauge
+	name  string
+	calls *[]string
+}
+
+func (g *recordingGauge) Set(lbls labels.Labels, value float64) {
+	*g.calls = append(*g.calls, g.name)
+	g.Gauge.Set(lbls, value)
+}
+
+func (g *recordingGauge) Inc(lbls labels.Labels, value float64) {
+	*g.calls = append(*g.calls, g.name)
+	g.Gauge.Inc(lbls, value)
+}
+
+func (g *recordingGauge) SetForTargetInfo(lbls labels.Labels, value float64) {
+	*g.calls = append(*g.calls, g.name)
+	g.Gauge.SetForTargetInfo(lbls, value)
+}
+
+func (g *recordingGauge) SetForTargetInfoWithHash(lbls labels.Labels, hash uint64, value float64) {
+	*g.calls = append(*g.calls, g.name)
+	g.Gauge.SetForTargetInfoWithHash(lbls, hash, value)
+}
+
+func (g *recordingGauge) SetForTargetInfoWithHashAt(lbls labels.Labels, hash uint64, value float64, timeMs int64) {
+	*g.calls = append(*g.calls, g.name)
+	g.Gauge.SetForTargetInfoWithHashAt(lbls, hash, value, timeMs)
+}
+
+type recordingHistogram struct {
+	registry.Histogram
+	name  string
+	calls *[]string
+}
+
+func (h *recordingHistogram) ObserveWithExemplar(lbls labels.Labels, value float64, traceID string, multiplier float64) {
+	*h.calls = append(*h.calls, h.name)
+	h.Histogram.ObserveWithExemplar(lbls, value, traceID, multiplier)
+}
+
+func (h *recordingHistogram) ObserveWithExemplarWithHash(lbls labels.Labels, hash uint64, value float64, traceID string, multiplier float64) {
+	*h.calls = append(*h.calls, h.name)
+	h.Histogram.ObserveWithExemplarWithHash(lbls, hash, value, traceID, multiplier)
+}
+
+func (h *recordingHistogram) ObserveWithExemplarWithHashAt(lbls labels.Labels, hash uint64, value float64, traceID string, multiplier float64, timeMs int64) {
+	*h.calls = append(*h.calls, h.name)
+	h.Histogram.ObserveWithExemplarWithHashAt(lbls, hash, value, traceID, multiplier, timeMs)
+}
+
+func (h *recordingHistogram) ObserveWithExemplarTraceIDBytesWithHashAt(lbls labels.Labels, hash uint64, value float64, traceID []byte, multiplier float64, timeMs int64) {
+	*h.calls = append(*h.calls, h.name)
+	h.Histogram.ObserveWithExemplarTraceIDBytesWithHashAt(lbls, hash, value, traceID, multiplier, timeMs)
+}
+
+// TestSpanMetricsTargetInfoRegisteredAfterSpanMetrics pins the order in which
+// series are updated when target_info is enabled. The registry limiter grants
+// active-series and entity capacity in call order, so near the limit the span
+// metrics must claim the remaining capacity before target_info — not the
+// other way around. It also pins that target_info is registered exactly once
+// per resource batch.
+func TestSpanMetricsTargetInfoRegisteredAfterSpanMetrics(t *testing.T) {
+	recReg := newRecordingRegistry()
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.HistogramBuckets = []float64{0.5, 1}
+	cfg.EnableTargetInfo = true
+
+	p, err := New(cfg, recReg, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, err)
+	defer p.Shutdown(context.Background())
+
+	batch := test.MakeBatch(2, nil)
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+
+	expected := []string{
+		// First accepted span updates its own series before target_info.
+		"traces_spanmetrics_calls_total",
+		"traces_spanmetrics_latency",
+		"traces_spanmetrics_size_total",
+		"traces_target_info",
+		// Subsequent spans of the same resource do not re-register target_info.
+		"traces_spanmetrics_calls_total",
+		"traces_spanmetrics_latency",
+		"traces_spanmetrics_size_total",
+	}
+	assert.Equal(t, expected, recReg.calls)
+}
+
+// TestSpanMetricsTargetInfoInvalidUTF8Spans verifies that target_info follows
+// the pre-optimization contract: it is registered only once a span's primary
+// labels validate, so a resource whose accepted spans all carry invalid UTF-8
+// labels emits no target_info at all.
+func TestSpanMetricsTargetInfoInvalidUTF8Spans(t *testing.T) {
+	newProcessor := func(t *testing.T) (*registry.TestRegistry, prometheus.Counter, gen.Processor) {
+		t.Helper()
+		testRegistry := registry.NewTestRegistry()
+		filteredSpansCounter := prometheus.NewCounter(prometheus.CounterOpts{Name: "test_filtered_spans_total"})
+		invalidUTF8Counter := prometheus.NewCounter(prometheus.CounterOpts{Name: "test_invalid_utf8_spans_total"})
+
+		cfg := Config{}
+		cfg.RegisterFlagsAndApplyDefaults("", nil)
+		cfg.HistogramBuckets = []float64{0.5, 1}
+		cfg.EnableTargetInfo = true
+
+		p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8Counter)
+		require.NoError(t, err)
+		return testRegistry, invalidUTF8Counter, p
+	}
+
+	t.Run("all spans invalid emits no target_info", func(t *testing.T) {
+		testRegistry, invalidUTF8Counter, p := newProcessor(t)
+		defer p.Shutdown(context.Background())
+
+		batch := test.MakeBatch(2, nil)
+		for _, ss := range batch.ScopeSpans {
+			for _, span := range ss.Spans {
+				span.Name = "invalid-\xff-utf8"
+			}
+		}
+
+		p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+
+		assert.NotContains(t, testRegistry.String(), "traces_target_info")
+		assert.NotContains(t, testRegistry.String(), "traces_spanmetrics_calls_total")
+		assert.Equal(t, 2.0, testutil.ToFloat64(invalidUTF8Counter))
+	})
+
+	t.Run("target_info registered after first valid span", func(t *testing.T) {
+		testRegistry, invalidUTF8Counter, p := newProcessor(t)
+		defer p.Shutdown(context.Background())
+
+		batch := test.MakeBatch(2, nil)
+		batch.ScopeSpans[0].Spans[0].Name = "invalid-\xff-utf8"
+
+		p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+
+		assert.Contains(t, testRegistry.String(), "traces_target_info")
+		lbls := labels.FromMap(map[string]string{
+			"service":     "test-service",
+			"span_name":   "test",
+			"span_kind":   "SPAN_KIND_CLIENT",
+			"status_code": "STATUS_CODE_OK",
+			"job":         "test-service",
+		})
+		assert.Equal(t, 1.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
+		assert.Equal(t, 1.0, testutil.ToFloat64(invalidUTF8Counter))
+	})
+
+	t.Run("invalid target_info labels still emit span metrics", func(t *testing.T) {
+		testRegistry, invalidUTF8Counter, p := newProcessor(t)
+		defer p.Shutdown(context.Background())
+
+		// Valid spans, but a resource attribute with an invalid UTF-8 value
+		// poisons the target_info label set only.
+		batch := test.MakeBatchWithAttributes(2, nil, []*common_v1.KeyValue{
+			{
+				Key: "res.attr",
+				Value: &common_v1.AnyValue{
+					Value: &common_v1.AnyValue_StringValue{StringValue: "invalid-\xff-utf8"},
+				},
+			},
+		})
+
+		p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+
+		// Span metrics still emit for both spans; target_info is rejected and
+		// counted once per accepted span (pre-optimization contract).
+		lbls := labels.FromMap(map[string]string{
+			"service":     "test-service",
+			"span_name":   "test",
+			"span_kind":   "SPAN_KIND_CLIENT",
+			"status_code": "STATUS_CODE_OK",
+			"job":         "test-service",
+		})
+		assert.Equal(t, 2.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
+		assert.NotContains(t, testRegistry.String(), "traces_target_info")
+		assert.Equal(t, 2.0, testutil.ToFloat64(invalidUTF8Counter))
+	})
+}
+
+// TestSpanMetricsTargetInfoWithDisabledSubprocessors pins that target_info
+// registration only depends on the span's primary labels being valid UTF-8,
+// not on any span metric series actually being updated.
+func TestSpanMetricsTargetInfoWithDisabledSubprocessors(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+	filteredSpansCounter := prometheus.NewCounter(prometheus.CounterOpts{Name: "test_filtered_spans_total"})
+	invalidUTF8Counter := prometheus.NewCounter(prometheus.CounterOpts{Name: "test_invalid_utf8_spans_total"})
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.EnableTargetInfo = true
+	cfg.Subprocessors[Count] = false
+	cfg.Subprocessors[Latency] = false
+	cfg.Subprocessors[Size] = false
+
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8Counter)
+	require.NoError(t, err)
+	defer p.Shutdown(context.Background())
+
+	batch := test.MakeBatch(1, nil)
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+
+	var resAttr string
+	for _, kv := range batch.Resource.Attributes {
+		if kv.Key == "random.res.attr" {
+			resAttr = kv.Value.GetStringValue()
+		}
+	}
+	targetInfoLabels := labels.FromMap(map[string]string{
+		"job":             "test-service",
+		"random_res_attr": resAttr,
+	})
+	assert.Equal(t, 1.0, testRegistry.Query("traces_target_info", targetInfoLabels))
+	assert.NotContains(t, testRegistry.String(), "traces_spanmetrics_calls_total")
+	assert.Equal(t, 0.0, testutil.ToFloat64(invalidUTF8Counter))
 }
