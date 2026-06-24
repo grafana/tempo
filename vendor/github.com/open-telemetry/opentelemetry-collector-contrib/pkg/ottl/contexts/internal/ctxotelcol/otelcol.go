@@ -7,26 +7,18 @@ import (
 	"context"
 	"errors"
 
-	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal/ctxerror"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal/ctxutil"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/internal/metadata"
 )
 
-var (
-	enableOTelColContext = featuregate.GlobalRegistry().MustRegister(
-		"ottl.contexts.enableOTelColContext",
-		featuregate.StageBeta,
-		featuregate.WithRegisterDescription("Enable the `otelcol` context for OTTL. This allows users using `otelcol.*` paths in their OTTL statements and conditions."),
-		featuregate.WithRegisterReferenceURL("https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/46437"),
-		featuregate.WithRegisterFromVersion("v0.147.0"))
-	errOTelColContextDisabled = errors.New("OTTL `otelcol` context requires the `ottl.contexts.enableOTelColContext` feature gate to be enabled")
-)
+var errOTelColContextDisabled = errors.New("OTTL `otelcol` context requires the `ottl.contexts.enableOTelColContext` feature gate to be enabled")
 
 func PathGetSetter[K any](path ottl.Path[K]) (ottl.GetSetter[K], error) {
-	if !enableOTelColContext.IsEnabled() {
+	if !metadata.OttlContextsEnableOTelColContextFeatureGate.IsEnabled() {
 		return nil, errOTelColContextDisabled
 	}
 	switch path.Name() {

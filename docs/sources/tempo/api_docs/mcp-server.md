@@ -44,17 +44,20 @@ The MCP server exposes the following tools that AI assistants can use to interac
 | `get-attribute-names`     | Get available attribute names for use in TraceQL queries                |
 | `get-attribute-values`    | Get values for a specific scoped attribute name                         |
 | `docs-traceql`            | Retrieve TraceQL documentation (basic, aggregates, structural, metrics) |
+| `docs-config`             | Retrieve Tempo configuration documentation (overview, reference)        |
 
 ## Available resources
 
-The MCP server also provides the following resources containing TraceQL documentation:
+The MCP server also provides the following resources containing TraceQL and configuration documentation:
 
-| Resource URI                | Description                                                 |
-| --------------------------- | ----------------------------------------------------------- |
-| `docs://traceql/basic`      | Basic TraceQL syntax, intrinsics, operators, and attributes |
-| `docs://traceql/aggregates` | TraceQL aggregate functions (count, sum, etc.)              |
-| `docs://traceql/structural` | Advanced structural query patterns                          |
-| `docs://traceql/metrics`    | Generating metrics from tracing data with TraceQL           |
+| Resource URI                | Description                                                          |
+| --------------------------- | -------------------------------------------------------------------- |
+| `docs://traceql/basic`      | Basic TraceQL syntax, intrinsics, operators, and attributes          |
+| `docs://traceql/aggregates` | TraceQL aggregate functions (count, sum, etc.)                       |
+| `docs://traceql/structural` | Advanced structural query patterns                                   |
+| `docs://traceql/metrics`    | Generating metrics from tracing data with TraceQL                    |
+| `docs://config/overview`    | Orientation map of what each top-level configuration block controls  |
+| `docs://config/reference`   | Complete reference of all configuration options and their defaults   |
 
 ## Quick start
 

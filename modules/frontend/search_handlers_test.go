@@ -26,6 +26,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 
+	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
@@ -119,6 +120,67 @@ func newMockStreamingServer[T proto.Message](orgID string, cb func(int, T)) *moc
 		ctx: ctx,
 		cb:  cb,
 	}
+}
+
+type countingDataAccessController struct {
+	httpSearchCalls int
+	grpcSearchCalls int
+}
+
+func (c *countingDataAccessController) HandleHTTPSearchReq(_ *http.Request) error {
+	c.httpSearchCalls++
+	return nil
+}
+
+func (c *countingDataAccessController) HandleHTTPTagsReq(_ *http.Request) error { return nil }
+
+func (c *countingDataAccessController) HandleHTTPTagsV2Req(_ *http.Request) error { return nil }
+
+func (c *countingDataAccessController) HandleHTTPTagValuesReq(_ *http.Request) error { return nil }
+
+func (c *countingDataAccessController) HandleHTTPTagValuesV2Req(_ *http.Request) error {
+	return nil
+}
+
+func (c *countingDataAccessController) HandleHTTPQueryRangeReq(_ *http.Request) error { return nil }
+
+func (c *countingDataAccessController) HandleHTTPQueryInstantReq(_ *http.Request) error { return nil }
+
+func (c *countingDataAccessController) HandleHTTPTraceByIDReq(_ *http.Request) (combiner.TraceRedactor, error) {
+	return nil, nil
+}
+
+func (c *countingDataAccessController) HandleGRPCSearchReq(_ context.Context, _ *tempopb.SearchRequest) error {
+	c.grpcSearchCalls++
+	return nil
+}
+
+func (c *countingDataAccessController) HandleGRPCTagsReq(_ context.Context, _ *tempopb.SearchTagsRequest) error {
+	return nil
+}
+
+func (c *countingDataAccessController) HandleGRPCTagsV2Req(_ context.Context, _ *tempopb.SearchTagsRequest) error {
+	return nil
+}
+
+func (c *countingDataAccessController) HandleGRPCTagValuesReq(_ context.Context, _ *tempopb.SearchTagValuesRequest) error {
+	return nil
+}
+
+func (c *countingDataAccessController) HandleGRPCTagValuesV2Req(_ context.Context, _ *tempopb.SearchTagValuesRequest) error {
+	return nil
+}
+
+func (c *countingDataAccessController) HandleGRPCQueryRangeReq(_ context.Context, _ *tempopb.QueryRangeRequest) error {
+	return nil
+}
+
+func (c *countingDataAccessController) HandleGRPCQueryInstantReq(_ context.Context, _ *tempopb.QueryInstantRequest) error {
+	return nil
+}
+
+func oversizedTraceQLQuery() string {
+	return "{ " + strings.Repeat(".foo = 1 && ", 10)
 }
 
 // these are integration tests against the search http and streaming pipelines. they could be extended to handle all
@@ -422,6 +484,83 @@ func TestSearchLimitHonored(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSearchRejectsOversizedQueryBeforeParsing(t *testing.T) {
+	f := frontendWithSettings(t, nil, nil, nil, nil, func(c *Config, _ *overrides.Config) {
+		c.MaxQueryExpressionSizeBytes = 10
+	})
+	query := oversizedTraceQLQuery()
+
+	t.Run("http", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, api.PathSearch, nil)
+		var err error
+		req, err = api.BuildSearchRequest(req, &tempopb.SearchRequest{Query: query, Start: 1, End: 2})
+		require.NoError(t, err)
+		req = req.WithContext(user.InjectOrgID(req.Context(), "tenant"))
+		resp := httptest.NewRecorder()
+
+		f.SearchHandler.ServeHTTP(resp, req)
+
+		require.Equal(t, http.StatusBadRequest, resp.Code)
+		require.Contains(t, resp.Body.String(), "TraceQL expression exceeds the configured maximum size")
+		require.NotContains(t, resp.Body.String(), "parse error")
+	})
+
+	t.Run("http rejects q when query alias is safe", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, api.PathSearch, nil)
+		params := req.URL.Query()
+		params.Set("query", "{}")
+		params.Set("q", query)
+		params.Set("start", "1")
+		params.Set("end", "2")
+		req.URL.RawQuery = params.Encode()
+		req = req.WithContext(user.InjectOrgID(req.Context(), "tenant"))
+		resp := httptest.NewRecorder()
+
+		f.SearchHandler.ServeHTTP(resp, req)
+
+		require.Equal(t, http.StatusBadRequest, resp.Code)
+		require.Contains(t, resp.Body.String(), "TraceQL expression exceeds the configured maximum size")
+		require.NotContains(t, resp.Body.String(), "parse error")
+	})
+
+	t.Run("grpc", func(t *testing.T) {
+		err := f.streamingSearch(&tempopb.SearchRequest{Query: query, Start: 1, End: 2}, newMockStreamingServer[*tempopb.SearchResponse]("tenant", nil))
+
+		require.Equal(t, codes.InvalidArgument, status.Code(err))
+		require.Contains(t, err.Error(), "TraceQL expression exceeds the configured maximum size")
+		require.NotContains(t, err.Error(), "parse error")
+	})
+}
+
+func TestSearchRejectsOversizedQueryBeforeDataAccessController(t *testing.T) {
+	dataAccessController := &countingDataAccessController{}
+	f := frontendWithSettingsAndDataAccessController(t, nil, nil, nil, nil, dataAccessController, func(c *Config, _ *overrides.Config) {
+		c.MaxQueryExpressionSizeBytes = 10
+	})
+	query := oversizedTraceQLQuery()
+
+	t.Run("http", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, api.PathSearch, nil)
+		var err error
+		req, err = api.BuildSearchRequest(req, &tempopb.SearchRequest{Query: query, Start: 1, End: 2})
+		require.NoError(t, err)
+		req = req.WithContext(user.InjectOrgID(req.Context(), "tenant"))
+		resp := httptest.NewRecorder()
+
+		f.SearchHandler.ServeHTTP(resp, req)
+
+		require.Equal(t, http.StatusBadRequest, resp.Code)
+		require.Zero(t, dataAccessController.httpSearchCalls)
+	})
+
+	t.Run("grpc", func(t *testing.T) {
+		err := f.streamingSearch(&tempopb.SearchRequest{Query: query, Start: 1, End: 2}, newMockStreamingServer[*tempopb.SearchResponse]("tenant", nil))
+
+		require.Equal(t, codes.InvalidArgument, status.Code(err))
+		require.Zero(t, dataAccessController.grpcSearchCalls)
+	})
 }
 
 func TestSearchFailurePropagatesFromQueriers(t *testing.T) {
@@ -809,6 +948,12 @@ func BenchmarkSearchPipeline(b *testing.B) {
 func frontendWithSettings(t require.TestingT, next pipeline.RoundTripper, rdr tempodb.Reader, cfg *Config, cacheProvider cache.Provider,
 	opts ...func(*Config, *overrides.Config),
 ) *QueryFrontend {
+	return frontendWithSettingsAndDataAccessController(t, next, rdr, cfg, cacheProvider, nil, opts...)
+}
+
+func frontendWithSettingsAndDataAccessController(t require.TestingT, next pipeline.RoundTripper, rdr tempodb.Reader, cfg *Config, cacheProvider cache.Provider, dataAccessController DataAccessController,
+	opts ...func(*Config, *overrides.Config),
+) *QueryFrontend {
 	if next == nil {
 		next = &mockRoundTripper{
 			responseFn: func() proto.Message {
@@ -905,7 +1050,7 @@ func frontendWithSettings(t require.TestingT, next pipeline.RoundTripper, rdr te
 	o, err := overrides.NewOverrides(*overridesCfg, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
-	f, err := New(*cfg, next, o, rdr, cacheProvider, "", fakeHTTPAuthMiddleware, nil, log.NewNopLogger(), nil)
+	f, err := New(*cfg, next, o, rdr, cacheProvider, "", fakeHTTPAuthMiddleware, dataAccessController, log.NewNopLogger(), nil)
 	require.NoError(t, err)
 
 	return f

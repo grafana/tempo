@@ -8,7 +8,7 @@ import (
 
 var ProcessorFilterDefaultErrorModeIgnoreFeatureGate = featuregate.GlobalRegistry().MustRegister(
 	"processor.filter.defaultErrorModeIgnore",
-	featuregate.StageAlpha,
+	featuregate.StageBeta,
 	featuregate.WithRegisterDescription("Changes the default error_mode of the filter processor from propagate to ignore"),
 	featuregate.WithRegisterReferenceURL("https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/47232"),
 	featuregate.WithRegisterFromVersion("v0.150.0"),

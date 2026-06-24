@@ -88,8 +88,13 @@ func (p *RetentionProvider) emitRetentionJobs(ctx context.Context, jobs chan<- *
 		if p.sched.HasJobsForTenant(tenantID, tempopb.JobType_JOB_TYPE_RETENTION) {
 			continue
 		}
-		if p.sched.HasJobsForTenant(tenantID, tempopb.JobType_JOB_TYPE_REDACTION) {
-			level.Debug(p.logger).Log("msg", "skipping retention for tenant with pending redaction", "tenant", tenantID)
+		// Gate on the redaction batch barrier, not just in-flight redaction jobs.
+		// A batch in its rescan-wait window has no jobs in flight but must still
+		// block retention: otherwise retention can mark the skipped compaction
+		// output block compacted before the rescan covers it. This matches the
+		// compaction provider, which already gates on TenantPending.
+		if p.sched.TenantPending(tenantID) {
+			level.Debug(p.logger).Log("msg", "skipping retention for tenant with active redaction batch", "tenant", tenantID)
 			continue
 		}
 

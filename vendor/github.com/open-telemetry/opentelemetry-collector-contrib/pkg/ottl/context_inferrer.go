@@ -7,12 +7,12 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"slices"
 
 	"go.opentelemetry.io/collector/component"
 	"go.uber.org/zap"
-	"golang.org/x/exp/maps"
 )
 
 var defaultContextInferPriority = []string{
@@ -124,7 +124,7 @@ func (s *priorityContextInferrer) infer(statements, conditions, valueExprs []str
 	}
 	if s.telemetrySettings.Logger.Core().Enabled(zap.DebugLevel) {
 		s.telemetrySettings.Logger.Debug("Inferring OTTL context",
-			zap.Strings("candidates", maps.Keys(s.contextCandidate)),
+			zap.Strings("candidates", slices.Collect(maps.Keys(s.contextCandidate))),
 			zap.Any("priority", s.contextPriority),
 			zap.Strings("statements", statements),
 			zap.Strings("conditions", conditions),

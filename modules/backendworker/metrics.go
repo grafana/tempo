@@ -21,4 +21,9 @@ var (
 		Name:      "backend_worker_call_retries_total",
 		Help:      "Total number of retries for calls",
 	}, []string{})
+	metricRedactionBlockMissing = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "backend_worker_redaction_block_missing_total",
+		Help:      "Redaction jobs whose target block was absent from the live blocklist (potential redaction coverage gap).",
+	}, []string{"tenant"})
 )
