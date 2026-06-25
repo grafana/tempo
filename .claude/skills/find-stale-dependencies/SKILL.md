@@ -149,7 +149,7 @@ Report **replacement already in go.mod** (migration effort only) vs **replacemen
 Search the codebase for direct call sites:
 
 ```bash
-grep -rn "\"<import-path>" --include='*.go' . | head
+grep -rnF "\"<import-path>\"" --include='*.go' . | head
 ```
 
 Classify the usage as one of:

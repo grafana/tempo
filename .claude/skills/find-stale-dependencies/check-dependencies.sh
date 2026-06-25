@@ -260,7 +260,7 @@ process_dep() {
 }
 
 main() {
-    require_cmd go jq gh curl awk
+    require_cmd go jq gh curl awk grep sort wc tr mktemp date
 
     local project_dir=${1:-.}
     cd "$project_dir"
