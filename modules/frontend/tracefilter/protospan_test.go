@@ -9,6 +9,7 @@ import (
 	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util"
 )
 
 func TestProtoSpanAttributeResolution(t *testing.T) {
@@ -43,7 +44,7 @@ func TestProtoSpanAttributeResolution(t *testing.T) {
 		traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "service.name"): traceql.NewStaticString("checkout"),
 	}, nil, scope)
 
-	assert.Equal(t, []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, ps.ID())
+	assert.Equal(t, span.SpanId, ps.ID())
 	assert.Equal(t, uint64(500), ps.DurationNanos())
 
 	// span attribute by explicit span scope.
@@ -81,15 +82,15 @@ func TestProtoSpanAttributeResolution(t *testing.T) {
 	// id intrinsics are hex strings, matching the storage layer.
 	v, ok = ps.AttributeFor(traceql.IntrinsicSpanIDAttribute)
 	require.True(t, ok)
-	assert.Equal(t, traceql.NewStaticString("0102030405060708"), v)
+	assert.Equal(t, traceql.NewStaticString(util.SpanIDToHexString(span.SpanId)), v)
 
 	v, ok = ps.AttributeFor(traceql.IntrinsicParentIDAttribute)
 	require.True(t, ok)
-	assert.Equal(t, traceql.NewStaticString("1112131415161718"), v)
+	assert.Equal(t, traceql.NewStaticString(util.SpanIDToHexString(span.ParentSpanId)), v)
 
 	v, ok = ps.AttributeFor(traceql.IntrinsicTraceIDAttribute)
 	require.True(t, ok)
-	assert.Equal(t, traceql.NewStaticString("aabbccddeeff00112233445566778899"), v)
+	assert.Equal(t, traceql.NewStaticString(util.TraceIDToHexString(span.TraceId)), v)
 
 	// instrumentation scope intrinsics.
 	v, ok = ps.AttributeFor(traceql.IntrinsicInstrumentationNameAttribute)
@@ -112,11 +113,11 @@ func TestProtoSpanAttributeResolution(t *testing.T) {
 	// link intrinsics from the first link.
 	v, ok = ps.AttributeFor(traceql.IntrinsicLinkTraceIDAttribute)
 	require.True(t, ok)
-	assert.Equal(t, traceql.NewStaticString("a1a2a3a4a5a6a7a8a9aaabacadaeafb0"), v)
+	assert.Equal(t, traceql.NewStaticString(util.TraceIDToHexString(span.Links[0].TraceId)), v)
 
 	v, ok = ps.AttributeFor(traceql.IntrinsicLinkSpanIDAttribute)
 	require.True(t, ok)
-	assert.Equal(t, traceql.NewStaticString("b1b2b3b4b5b6b7b8"), v)
+	assert.Equal(t, traceql.NewStaticString(util.SpanIDToHexString(span.Links[0].SpanId)), v)
 }
 
 func TestSpanKindMapping(t *testing.T) {

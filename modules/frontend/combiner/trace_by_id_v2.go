@@ -8,7 +8,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-// TraceFilter filters an assembled trace; Process must not mutate its input, which may be cached.
+// TraceFilter filters runs on a complete trace and applies filters on it.
 type TraceFilter interface {
 	Process(t *tempopb.Trace) (*tempopb.Trace, error)
 }
@@ -48,7 +48,7 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceR
 				}
 			}
 
-			// filter after redaction so it runs on the fully-assembled, redacted trace.
+			// filter after redaction so it runs on the final, fully redacted trace.
 			if traceFilter != nil {
 				filtered, err := traceFilter.Process(traceResult)
 				if err != nil {

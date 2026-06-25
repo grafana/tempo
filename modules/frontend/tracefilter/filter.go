@@ -1,5 +1,3 @@
-// Package tracefilter shapes an assembled trace-by-id response via the `q` spanset filter and the
-// `keep_hierarchy` option.
 package tracefilter
 
 import (

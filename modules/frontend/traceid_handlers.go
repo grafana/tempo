@@ -108,7 +108,7 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			return httpInvalidRequest(reqErr), nil
 		}
 
-		// compile up front so a malformed filter fails fast as a 400, before any backend work.
+		// compile filter params and query up front so a malformed filter can fail-fast as HTTP 4xx.
 		filter, err := tracefilter.NewFilterFromValues(req.URL.Query())
 		if err != nil {
 			return httpInvalidRequest(err), nil
@@ -118,7 +118,7 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 		if filter != nil {
 			traceFilter = filter
 		}
-		// filter runs in finalize so it always applies after caching.
+		// filter runs in finalize() so filtering is always applied after caching (if any).
 
 		// check marshalling format
 		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header)
