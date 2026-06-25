@@ -145,7 +145,7 @@ func TestWeightMiddlewareForTraceQLRequest(t *testing.T) {
 			// Two sub-queries
 			query: "({ span.http.status_code >= 200 || span.http.status_code < 300 } | count_over_time()) + " +
 				"({ span.http.status_code >= 200 || span.http.status_code < 300 } | rate())",
-			expected: TraceQLSearchWeight*2 + 1, // +1 for OR operation
+			expected: TraceQLSearchWeight + 3, // +2 for OR in each sub-query, +1 for fan-out
 		},
 		{
 			// Aggregate requiring full trace
@@ -215,9 +215,95 @@ func TestWeightMiddlewareForTraceQLRequestURL(t *testing.T) {
 
 func DoWeightedRequest(t *testing.T, url string, rt AsyncRoundTripper[combiner.PipelineResponse]) *HTTPRequest {
 	req, _ := http.NewRequest(http.MethodGet, url, nil)
+	req = req.WithContext(WithQueryShapeCell(req.Context()))
 	request := NewHTTPRequest(req)
 	resp, _ := rt.RoundTrip(request)
 	_, _, err := resp.Next(context.Background())
 	require.NoError(t, err)
 	return request
+}
+
+func TestWeightMiddlewareStampsQueryShape(t *testing.T) {
+	config := WeightsConfig{
+		RequestWithWeights:   true,
+		MaxTraceQLConditions: 4,
+		MaxRegexConditions:   1,
+	}
+
+	t.Run("trace-by-id stamps Type=traces", func(t *testing.T) {
+		rt := NewWeightRequestWare(TraceByID, config).Wrap(nextRequest)
+		req := DoWeightedRequest(t, "http://localhost:8080/api/v2/traces/123345", rt)
+		qs := req.QueryShape()
+		assert.Equal(t, QueryTypeTraces, qs.Type)
+		assert.Equal(t, TraceByIDWeight, qs.Weight)
+		assert.False(t, qs.HasOr)
+		assert.False(t, qs.NeedsFullTrace)
+		assert.False(t, qs.SelectAll)
+		// Context carries the shape too.
+		ctxShape, ok := QueryShapeFromContext(req.Context())
+		require.True(t, ok)
+		assert.Equal(t, qs, ctxShape)
+	})
+
+	t.Run("default tag-search stamps Type=metadata", func(t *testing.T) {
+		rt := NewWeightRequestWare(Default, config).Wrap(nextRequest)
+		req := DoWeightedRequest(t, "http://localhost:8080/api/v2/search/tags", rt)
+		qs := req.QueryShape()
+		assert.Equal(t, QueryTypeMetadata, qs.Type)
+		assert.Equal(t, DefaultWeight, qs.Weight)
+	})
+
+	t.Run("traceql search records condition counts and flags", func(t *testing.T) {
+		rt := NewWeightRequestWare(TraceQLSearch, config).Wrap(nextRequest)
+		// An OR-bearing query that also has a regex condition.
+		query := `{ span.http.status_code = 200 || span.http.status_code =~ "5.." }`
+		req := DoWeightedRequest(t, fmt.Sprintf("http://localhost:8080/api/search?q=%s", url.QueryEscape(query)), rt)
+		qs := req.QueryShape()
+		assert.Equal(t, QueryTypeSearch, qs.Type)
+		assert.True(t, qs.HasOr, "expected HasOr from OR-bearing query")
+		assert.GreaterOrEqual(t, qs.RegexConditions, 1)
+		assert.GreaterOrEqual(t, qs.Conditions, 2)
+		ctxShape, ok := QueryShapeFromContext(req.Context())
+		require.True(t, ok)
+		assert.Equal(t, qs, ctxShape)
+	})
+
+	t.Run("metrics math query stamps SubQueries and fan-out weight", func(t *testing.T) {
+		rt := NewWeightRequestWare(TraceQLMetrics, config).Wrap(nextRequest)
+		query := `({} | rate()) / ({span.status = "error"} | rate())`
+		req := DoWeightedRequest(t, fmt.Sprintf("http://localhost:8080/api/metrics/query_range?q=%s", url.QueryEscape(query)), rt)
+		qs := req.QueryShape()
+		assert.Equal(t, QueryTypeMetrics, qs.Type)
+		assert.Equal(t, 2, qs.SubQueries)
+		assert.Equal(t, TraceQLSearchWeight+1, qs.Weight) // base + fan-out for 2 sub-queries
+	})
+
+	t.Run("empty query still stamps Type and Weight", func(t *testing.T) {
+		rt := NewWeightRequestWare(TraceQLSearch, config).Wrap(nextRequest)
+		req := DoWeightedRequest(t, "http://localhost:8080/api/search", rt)
+		qs := req.QueryShape()
+		assert.Equal(t, QueryTypeSearch, qs.Type)
+		assert.Equal(t, TraceQLSearchWeight, qs.Weight)
+	})
+
+	// This is the regression test for the cell-based propagation: handlers keep
+	// a reference to the *http.Request they passed into the pipeline, and that
+	// reference must see the populated cell after RoundTrip returns.
+	t.Run("outer *http.Request sees stamped shape after RoundTrip", func(t *testing.T) {
+		rt := NewWeightRequestWare(TraceByID, config).Wrap(nextRequest)
+		outer, _ := http.NewRequest(http.MethodGet, "http://localhost:8080/api/v2/traces/abc", nil)
+		outer = outer.WithContext(WithQueryShapeCell(outer.Context()))
+
+		resp, err := rt.RoundTrip(NewHTTPRequest(outer))
+		require.NoError(t, err)
+		_, _, err = resp.Next(context.Background())
+		require.NoError(t, err)
+
+		// Read from the outer http.Request the caller still holds (NOT the wrapped
+		// *HTTPRequest). This is what the handler-side log functions see.
+		qs, ok := QueryShapeFromContext(outer.Context())
+		require.True(t, ok, "cell should be populated on outer context")
+		assert.Equal(t, QueryTypeTraces, qs.Type)
+		assert.Equal(t, TraceByIDWeight, qs.Weight)
+	})
 }

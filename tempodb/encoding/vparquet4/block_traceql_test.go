@@ -1657,9 +1657,9 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 
 			_ = eval.Results()
 
-			bytes, spansTotal, _ := eval.Metrics()
-			b.ReportMetric(float64(bytes)/float64(b.N)/1024.0/1024.0, "MB_io/op")
-			b.ReportMetric(float64(spansTotal)/float64(b.N), "spans/op")
+			em := eval.Metrics()
+			b.ReportMetric(float64(em.Bytes)/float64(b.N)/1024.0/1024.0, "MB_io/op")
+			b.ReportMetric(float64(em.SpansTotal)/float64(b.N), "spans/op")
 		})
 	}
 }
@@ -1729,9 +1729,9 @@ func TestSamplingError(t *testing.T) {
 		err = eval.Do(ctx, f, st, end, int(req.MaxSeries))
 		require.NoError(t, err)
 
-		_, spansTotal, _ := eval.Metrics()
+		em := eval.Metrics()
 
-		return eval.Results(), int(spansTotal)
+		return eval.Results(), int(em.SpansTotal)
 	}
 
 	for _, query := range testQueries {

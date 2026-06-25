@@ -128,7 +128,7 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 
 	res := eval.Results()
 
-	inspectedBytes, spansTotal, _ := eval.Metrics()
+	em := eval.Metrics()
 
 	if req.MaxSeries > 0 && len(res) > int(req.MaxSeries) {
 		limitedRes := make(traceql.SeriesSet)
@@ -146,8 +146,11 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 	response := &tempopb.QueryRangeResponse{
 		Series: res.ToProto(req),
 		Metrics: &tempopb.SearchMetrics{
-			InspectedBytes: inspectedBytes,
-			InspectedSpans: spansTotal,
+			InspectedBytes:    em.Bytes,
+			InspectedSpans:    em.SpansTotal,
+			BackendReads:      em.BackendReads,
+			BackendBytes:      em.BackendBytes,
+			AdditionalMetrics: em.AdditionalMetrics,
 		},
 	}
 

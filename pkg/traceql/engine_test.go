@@ -419,8 +419,8 @@ func (m *MockSpanSetFetcher) Fetch(_ context.Context, request FetchSpansRequest)
 	m.iterator.(*MockSpanSetIterator).filter = request.SecondPass
 	return FetchSpansResponse{
 		Results: m.iterator,
-		Bytes: func() uint64 {
-			return 100_00 // hardcoded in tests
+		Stats: func() FetchSpansStats {
+			return FetchSpansStats{Bytes: 100_00} // hardcoded in tests
 		},
 	}, nil
 }

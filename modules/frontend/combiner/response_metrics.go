@@ -6,6 +6,21 @@ import (
 
 // These structs combine response metrics in a single place
 
+// mergeAdditionalMetrics performs an in-place key-by-key sum of src into dst,
+// allocating dst lazily. Both maps may be nil.
+func mergeAdditionalMetrics(dst, src map[string]int64) map[string]int64 {
+	if len(src) == 0 {
+		return dst
+	}
+	if dst == nil {
+		dst = make(map[string]int64, len(src))
+	}
+	for k, v := range src {
+		dst[k] += v
+	}
+	return dst
+}
+
 type SearchMetricsCombiner struct {
 	Metrics *tempopb.SearchMetrics
 }
@@ -22,6 +37,9 @@ func (mc *SearchMetricsCombiner) Combine(newMetrics *tempopb.SearchMetrics, resp
 		if !IsCacheHit(resp.HTTPResponse()) {
 			mc.Metrics.InspectedTraces += newMetrics.InspectedTraces
 			mc.Metrics.InspectedBytes += newMetrics.InspectedBytes
+			mc.Metrics.BackendReads += newMetrics.BackendReads
+			mc.Metrics.BackendBytes += newMetrics.BackendBytes
+			mc.Metrics.AdditionalMetrics = mergeAdditionalMetrics(mc.Metrics.AdditionalMetrics, newMetrics.AdditionalMetrics)
 		}
 	}
 }
@@ -50,6 +68,9 @@ func NewTraceByIDMetricsCombiner() *TraceByIDMetricsCombiner {
 func (mc *TraceByIDMetricsCombiner) Combine(newMetrics *tempopb.TraceByIDMetrics, resp PipelineResponse) {
 	if newMetrics != nil && !IsCacheHit(resp.HTTPResponse()) {
 		mc.Metrics.InspectedBytes += newMetrics.InspectedBytes
+		mc.Metrics.BackendReads += newMetrics.BackendReads
+		mc.Metrics.BackendBytes += newMetrics.BackendBytes
+		mc.Metrics.AdditionalMetrics = mergeAdditionalMetrics(mc.Metrics.AdditionalMetrics, newMetrics.AdditionalMetrics)
 	}
 }
 
@@ -66,6 +87,9 @@ func NewMetadataMetricsCombiner() *MetadataMetricsCombiner {
 func (mc *MetadataMetricsCombiner) Combine(newMetrics *tempopb.MetadataMetrics, resp PipelineResponse) {
 	if newMetrics != nil && !IsCacheHit(resp.HTTPResponse()) {
 		mc.Metrics.InspectedBytes += newMetrics.InspectedBytes
+		mc.Metrics.BackendReads += newMetrics.BackendReads
+		mc.Metrics.BackendBytes += newMetrics.BackendBytes
+		mc.Metrics.AdditionalMetrics = mergeAdditionalMetrics(mc.Metrics.AdditionalMetrics, newMetrics.AdditionalMetrics)
 	}
 }
 
@@ -95,6 +119,9 @@ func (mc *QueryRangeMetricsCombiner) Combine(newMetrics *tempopb.SearchMetrics, 
 			mc.Metrics.InspectedBytes += newMetrics.InspectedBytes
 			mc.Metrics.InspectedTraces += newMetrics.InspectedTraces
 			mc.Metrics.InspectedSpans += newMetrics.InspectedSpans
+			mc.Metrics.BackendReads += newMetrics.BackendReads
+			mc.Metrics.BackendBytes += newMetrics.BackendBytes
+			mc.Metrics.AdditionalMetrics = mergeAdditionalMetrics(mc.Metrics.AdditionalMetrics, newMetrics.AdditionalMetrics)
 		}
 	}
 }

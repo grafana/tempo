@@ -1273,7 +1273,7 @@ func lookup(needles []Attribute, haystack Span) Static {
 type MetricsEvaluator interface {
 	Do(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error
 	Length() int
-	Metrics() (uint64, uint64, uint64)
+	Metrics() EvaluatorMetrics
 	Results() SeriesSet
 }
 
@@ -1300,15 +1300,23 @@ func (e batchMetricsEvaluator) Length() int {
 	return total
 }
 
-func (e batchMetricsEvaluator) Metrics() (uint64, uint64, uint64) {
-	var bytes, spansTotal, spansDeduped uint64
+func (e batchMetricsEvaluator) Metrics() EvaluatorMetrics {
+	var combined EvaluatorMetrics
 	for _, eval := range e {
-		b, st, sd := eval.Metrics()
-		bytes += b
-		spansTotal += st
-		spansDeduped += sd
+		m := eval.Metrics()
+		combined.Bytes += m.Bytes
+		combined.SpansTotal += m.SpansTotal
+		combined.SpansDeduped += m.SpansDeduped
+		combined.BackendReads += m.BackendReads
+		combined.BackendBytes += m.BackendBytes
+		for k, v := range m.AdditionalMetrics {
+			if combined.AdditionalMetrics == nil {
+				combined.AdditionalMetrics = make(map[string]int64, len(m.AdditionalMetrics))
+			}
+			combined.AdditionalMetrics[k] += v
+		}
 	}
-	return bytes, spansTotal, spansDeduped
+	return combined
 }
 
 func (e batchMetricsEvaluator) Results() SeriesSet {
@@ -1339,7 +1347,22 @@ type metricsEvaluator struct {
 	storageReq                      *FetchSpansRequest
 	metricsPipeline                 spanProcessor
 	spansTotal, spansDeduped, bytes uint64
-	mtx                             sync.Mutex
+	// Accumulated FetchSpansStats across all blocks fetched by this evaluator.
+	// Per-role maps are flattened into scalars.
+	backendReads      uint64
+	backendBytes      uint64
+	additionalMetrics map[string]int64
+	mtx               sync.Mutex
+}
+
+// EvaluatorMetrics is the snapshot returned by MetricsEvaluator.Metrics().
+type EvaluatorMetrics struct {
+	Bytes             uint64
+	SpansTotal        uint64
+	SpansDeduped      uint64
+	BackendReads      uint64
+	BackendBytes      uint64
+	AdditionalMetrics map[string]int64
 }
 
 var _ = (MetricsEvaluator)(&metricsEvaluator{})
@@ -1476,7 +1499,9 @@ func (e *metricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
-	e.bytes += fetch.Bytes()
+	if fetch.Stats != nil {
+		e.accumulateFetchStats(fetch.Stats())
+	}
 
 	return nil
 }
@@ -1572,7 +1597,9 @@ func (e *metricsEvaluator) DoSpansOnly(ctx context.Context, f SpansetFetcher, fe
 
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
-	e.bytes += fetch.Bytes()
+	if fetch.Stats != nil {
+		e.accumulateFetchStats(fetch.Stats())
+	}
 
 	return nil
 }
@@ -1581,11 +1608,67 @@ func (e *metricsEvaluator) Length() int {
 	return e.metricsPipeline.length()
 }
 
-func (e *metricsEvaluator) Metrics() (uint64, uint64, uint64) {
+// Metrics returns a snapshot of the accumulated read-side stats from every
+// fetch this evaluator has consumed. Callers MUST hold no locks on e.mtx.
+func (e *metricsEvaluator) Metrics() EvaluatorMetrics {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 
-	return e.bytes, e.spansTotal, e.spansDeduped
+	var additional map[string]int64
+	if len(e.additionalMetrics) > 0 {
+		additional = make(map[string]int64, len(e.additionalMetrics))
+		for k, v := range e.additionalMetrics {
+			additional[k] = v
+		}
+	}
+	return EvaluatorMetrics{
+		Bytes:             e.bytes,
+		SpansTotal:        e.spansTotal,
+		SpansDeduped:      e.spansDeduped,
+		BackendReads:      e.backendReads,
+		BackendBytes:      e.backendBytes,
+		AdditionalMetrics: additional,
+	}
+}
+
+// accumulateFetchStats merges one fetch's stats into the evaluator. Caller
+// must hold e.mtx.
+func (e *metricsEvaluator) accumulateFetchStats(s FetchSpansStats) {
+	e.bytes += s.Bytes
+	for _, v := range s.BackendReadsByRole {
+		e.backendReads += v
+	}
+	for _, v := range s.BackendBytesByRole {
+		e.backendBytes += v
+	}
+
+	var cacheHits, cacheMisses, cacheBytes uint64
+	for _, v := range s.CacheHitsByRole {
+		cacheHits += v
+	}
+	for _, v := range s.CacheMissesByRole {
+		cacheMisses += v
+	}
+	for _, v := range s.CacheBytesByRole {
+		cacheBytes += v
+	}
+
+	addIfNonZero := func(key string, v uint64) {
+		if v == 0 {
+			return
+		}
+		if e.additionalMetrics == nil {
+			e.additionalMetrics = map[string]int64{}
+		}
+		e.additionalMetrics[key] += int64(v)
+	}
+	addIfNonZero(tempopb.AdditionalMetricRowGroupsInspected, uint64(s.RowGroupsInspected))
+	addIfNonZero(tempopb.AdditionalMetricRowGroupsSkipped, uint64(s.RowGroupsSkipped))
+	addIfNonZero(tempopb.AdditionalMetricPagesInspected, uint64(s.PagesInspected))
+	addIfNonZero(tempopb.AdditionalMetricPagesSkipped, uint64(s.PagesSkipped))
+	addIfNonZero(tempopb.AdditionalMetricCacheHits, cacheHits)
+	addIfNonZero(tempopb.AdditionalMetricCacheMisses, cacheMisses)
+	addIfNonZero(tempopb.AdditionalMetricCacheBytes, cacheBytes)
 }
 
 func (e *metricsEvaluator) Results() SeriesSet {

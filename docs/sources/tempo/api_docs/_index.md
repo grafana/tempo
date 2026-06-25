@@ -328,10 +328,25 @@ curl -G -s http://localhost:3200/api/search --data-urlencode 'tags=service.name=
   "metrics": {
     "inspectedTraces": 3100,
     "inspectedBytes": "3811736",
-    "totalBlocks": 3
+    "totalBlocks": 3,
+    "backendReads": "47",
+    "backendBytes": "2415680",
+    "additionalMetrics": {
+      "cacheHits": "124",
+      "cacheMisses": "18",
+      "cacheBytes": "1396224"
+    }
   }
 }
 ```
+
+The `metrics` object on search responses includes read-side counters that help explain query cost:
+
+- `backendReads` is the number of read operations issued against object storage.
+- `backendBytes` is the bytes read from object storage, excluding cache hits.
+- `additionalMetrics` is an open-ended map keyed by stable strings (today: `cacheHits`, `cacheMisses`, `cacheBytes`, plus row-group and page inspection counters as they are populated).
+
+The keys in `additionalMetrics` are stable and additive: clients should treat unknown keys as forward compatible.
 
 ### Search tags
 

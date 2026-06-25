@@ -34,7 +34,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 	downstreamPath := path.Join(apiPrefix, api.PathMetricsQueryRange)
 
 	return func(req *tempopb.QueryRangeRequest, srv tempopb.StreamingQuerier_MetricsQueryRangeServer) error {
-		ctx := srv.Context()
+		ctx := pipeline.WithQueryShapeCell(srv.Context())
 		var err error
 
 		headers := headersFromGrpcContext(ctx)
@@ -247,29 +247,30 @@ func logQueryRangeResult(ctx context.Context, logger log.Logger, tenantID string
 	traceID, _ := tracing.ExtractTraceID(ctx)
 
 	if resp == nil {
-		level.Info(logger).Log(
+		logWithShape(level.Info(logger), ctx,
 			"msg", "query range response - no resp",
 			"tenant", tenantID,
 			"traceID", traceID,
 			"duration_seconds", durationSeconds,
-			"error", err)
-
+			"error", err,
+		)
 		return
 	}
 
 	if resp.Metrics == nil {
-		level.Info(logger).Log(
+		logWithShape(level.Info(logger), ctx,
 			"msg", "query range response - no metrics",
 			"tenant", tenantID,
 			"traceID", traceID,
 			"query", req.Query,
 			"range_nanos", req.End-req.Start,
 			"duration_seconds", durationSeconds,
-			"error", err)
+			"error", err,
+		)
 		return
 	}
 
-	level.Info(logger).Log(
+	logWithShape(level.Info(logger), ctx,
 		"msg", "query range response",
 		"tenant", tenantID,
 		"traceID", traceID,
@@ -288,7 +289,8 @@ func logQueryRangeResult(ctx context.Context, logger log.Logger, tenantID string
 		"partial_status", resp.Status,
 		"partial_message", resp.Message,
 		"num_response_series", len(resp.Series),
-		"error", err)
+		"error", err,
+	)
 }
 
 func logQueryRangeRequest(logger log.Logger, tenantID string, req *tempopb.QueryRangeRequest) {

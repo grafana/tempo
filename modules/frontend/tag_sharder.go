@@ -213,6 +213,7 @@ func (s searchTagSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.
 	ctx, span := tracer.Start(ctx, "frontend.ShardSearchTags")
 	defer span.End()
 	pipelineRequest.SetContext(ctx)
+	setQueryShapeSpanAttrs(span, pipelineRequest.QueryShape())
 
 	// calculate and enforce max search duration
 	maxDuration := s.maxDuration(tenantID)

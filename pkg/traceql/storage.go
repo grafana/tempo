@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/grafana/tempo/pkg/cache"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 )
 
@@ -263,10 +265,28 @@ type SpansetIterator interface {
 	CommonIterator[*Spanset]
 }
 
+// FetchSpansStats carries cumulative read-side counters reported by a storage
+// Fetch / FetchSpans call. Implementations populate the fields they can
+// measure; counters not yet wired through the iterator remain zero.
+type FetchSpansStats struct {
+	Bytes              uint64
+	RowGroupsInspected uint32
+	RowGroupsSkipped   uint32
+	PagesInspected     uint32
+	PagesSkipped       uint32
+	ValuesMatched      uint64
+	// Per-role breakdowns, keyed by cache.Role (see pkg/cache/cache.go).
+	CacheHitsByRole    map[cache.Role]uint64
+	CacheMissesByRole  map[cache.Role]uint64
+	CacheBytesByRole   map[cache.Role]uint64
+	BackendReadsByRole map[cache.Role]uint64
+	BackendBytesByRole map[cache.Role]uint64
+}
+
 type FetchSpansResponse struct {
 	Results SpansetIterator
-	// callback to get the size of data read during Fetch
-	Bytes func() uint64
+	// callback to get the cumulative read stats during Fetch
+	Stats func() FetchSpansStats
 }
 
 type SpanIterator interface {
@@ -275,8 +295,52 @@ type SpanIterator interface {
 
 type FetchSpansOnlyResponse struct {
 	Results SpanIterator
-	// callback to get the size of data read during Fetch
-	Bytes func() uint64
+	// callback to get the cumulative read stats during Fetch
+	Stats func() FetchSpansStats
+}
+
+// populateMetricsFromFetchStats writes the per-query counters from a
+// FetchSpansStats into the matching fields of a SearchMetrics. The per-role
+// maps are summed into the scalar BackendReads/BackendBytes fields; per-role
+// detail is left on the spans (and on the FetchSpansStats struct).
+func populateMetricsFromFetchStats(metrics *tempopb.SearchMetrics, stats FetchSpansStats) {
+	if metrics == nil {
+		return
+	}
+	for _, v := range stats.BackendReadsByRole {
+		metrics.BackendReads += v
+	}
+	for _, v := range stats.BackendBytesByRole {
+		metrics.BackendBytes += v
+	}
+
+	var cacheHits, cacheMisses, cacheBytes uint64
+	for _, v := range stats.CacheHitsByRole {
+		cacheHits += v
+	}
+	for _, v := range stats.CacheMissesByRole {
+		cacheMisses += v
+	}
+	for _, v := range stats.CacheBytesByRole {
+		cacheBytes += v
+	}
+
+	addIfNonZero := func(key string, v uint64) {
+		if v == 0 {
+			return
+		}
+		if metrics.AdditionalMetrics == nil {
+			metrics.AdditionalMetrics = map[string]int64{}
+		}
+		metrics.AdditionalMetrics[key] += int64(v)
+	}
+	addIfNonZero(tempopb.AdditionalMetricRowGroupsInspected, uint64(stats.RowGroupsInspected))
+	addIfNonZero(tempopb.AdditionalMetricRowGroupsSkipped, uint64(stats.RowGroupsSkipped))
+	addIfNonZero(tempopb.AdditionalMetricPagesInspected, uint64(stats.PagesInspected))
+	addIfNonZero(tempopb.AdditionalMetricPagesSkipped, uint64(stats.PagesSkipped))
+	addIfNonZero(tempopb.AdditionalMetricCacheHits, cacheHits)
+	addIfNonZero(tempopb.AdditionalMetricCacheMisses, cacheMisses)
+	addIfNonZero(tempopb.AdditionalMetricCacheBytes, cacheBytes)
 }
 
 type SpansetFetcher interface {

@@ -31,7 +31,7 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 
 	return func(req *tempopb.QueryInstantRequest, srv tempopb.StreamingQuerier_MetricsQueryInstantServer) error {
 		start := time.Now()
-		ctx := srv.Context()
+		ctx := pipeline.WithQueryShapeCell(srv.Context())
 		tenant, err := user.ExtractOrgID(ctx)
 		if err != nil {
 			return err
@@ -232,29 +232,30 @@ func logQueryInstantResult(ctx context.Context, logger log.Logger, tenantID stri
 	traceID, _ := tracing.ExtractTraceID(ctx)
 
 	if resp == nil {
-		level.Info(logger).Log(
+		logWithShape(level.Info(logger), ctx,
 			"msg", "query instant results - no resp",
 			"tenant", tenantID,
 			"traceID", traceID,
 			"duration_seconds", durationSeconds,
-			"error", err)
-
+			"error", err,
+		)
 		return
 	}
 
 	if resp.Metrics == nil {
-		level.Info(logger).Log(
+		logWithShape(level.Info(logger), ctx,
 			"msg", "query instant results - no metrics",
 			"tenant", tenantID,
 			"traceID", traceID,
 			"query", req.Query,
 			"range_nanos", req.End-req.Start,
 			"duration_seconds", durationSeconds,
-			"error", err)
+			"error", err,
+		)
 		return
 	}
 
-	level.Info(logger).Log(
+	logWithShape(level.Info(logger), ctx,
 		"msg", "query instant results",
 		"tenant", tenantID,
 		"traceID", traceID,
@@ -272,7 +273,8 @@ func logQueryInstantResult(ctx context.Context, logger log.Logger, tenantID stri
 		"partial_status", resp.Status,
 		"partial_message", resp.Message,
 		"num_response_series", len(resp.Series),
-		"error", err)
+		"error", err,
+	)
 }
 
 func logQueryInstantRequest(logger log.Logger, tenantID string, req *tempopb.QueryInstantRequest) {
