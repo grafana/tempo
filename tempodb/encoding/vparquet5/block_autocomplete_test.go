@@ -1201,6 +1201,14 @@ func BenchmarkFetchTagValues(b *testing.B) {
 			tag:   "resource.namespace",
 			query: `{span.http.status_code=200}`,
 		},
+		{
+			tag:   "span.gen_ai.provider.name",
+			query: `{ span.gen_ai.agent.name = "fe-grafana-assistant" && span.gen_ai.operation.name = "execute_tool" && span.gen_ai.provider.name != "" }`,
+		},
+		{
+			tag:   "span.gen_ai.provider.name",
+			query: `{ span.gen_ai.agent.name = "fe-grafana-assistant"}`,
+		},
 		// pathologic cases
 		/*
 			{
@@ -1252,6 +1260,9 @@ func BenchmarkFetchTagValues(b *testing.B) {
 				err := block.FetchTagValues(ctx, autocompleteReq, traceql.MakeCollectTagValueFunc(distinctValues.Collect), mc.Add, opts)
 				require.NoError(b, err)
 			}
+
+			b.SetBytes(int64(mc.TotalValue()) / int64(b.N))
+			b.ReportMetric(float64(mc.TotalValue())/float64(b.N)/1024.0/1024.0, "MB_IO/op")
 		})
 	}
 }
@@ -1314,6 +1325,9 @@ func BenchmarkFetchTags(b *testing.B) {
 					}, mc.Add, opts)
 					require.NoError(b, err)
 				}
+
+				b.SetBytes(int64(mc.TotalValue()) / int64(b.N))
+				b.ReportMetric(float64(mc.TotalValue())/float64(b.N)/1024.0/1024.0, "MB_IO/op")
 			})
 		}
 	}

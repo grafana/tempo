@@ -393,6 +393,27 @@ func traceQLNilRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSea
 	}
 }
 
+func sortSearchResultsForTesting(traces []*tempopb.TraceSearchMetadata) {
+	for _, tr := range traces {
+		for _, ss := range tr.SpanSets {
+			sort.Slice(ss.Spans, func(i, j int) bool {
+				return ss.Spans[i].SpanID < ss.Spans[j].SpanID
+			})
+		}
+		sort.Slice(tr.SpanSets, func(i, j int) bool {
+			left := tr.SpanSets[i].Spans
+			right := tr.SpanSets[j].Spans
+			if len(left) == 0 {
+				return len(right) > 0
+			}
+			if len(right) == 0 {
+				return false
+			}
+			return left[0].SpanID < right[0].SpanID
+		})
+	}
+}
+
 func groupTraceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, meta *backend.BlockMeta, r Reader, _ common.BackendBlock) {
 	ctx := context.Background()
 	e := traceql.NewEngine()
@@ -576,6 +597,8 @@ func groupTraceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceS
 		}
 
 		require.NotNil(t, res, "search request: %v", tc)
+		sortSearchResultsForTesting(tc.expected)
+		sortSearchResultsForTesting(res.Traces)
 		require.Equal(t, tc.expected, res.Traces, "search request", tc.req)
 	}
 
