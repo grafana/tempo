@@ -170,6 +170,8 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			"inspected_bytes", bytesProcessed,
 			"request_throughput", float64(bytesProcessed)/elapsed.Seconds(),
 			"duration_seconds", elapsed.Seconds(),
+			"span_pruning_mode", pruningMode,
+			"span_pruning_enabled", spanPruningCfg != nil,
 			"err", err)
 
 		return resp, err
