@@ -2,6 +2,7 @@ package vparquet5
 
 import (
 	"bytes"
+	"sort"
 	"strings"
 
 	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
@@ -569,7 +570,29 @@ func writeAttrs(input []*v1.KeyValue, generic *[]Attribute, dedicated *Dedicated
 // as a boolean indicating whether the trace is a connected graph.
 func finalizeTrace(trace *Trace) (*Trace, bool) {
 	rebatchTrace(trace)
+	sortTrace(trace)
 	return trace, assignNestedSetModelBoundsAndServiceStats(trace)
+}
+
+func sortTrace(trace *Trace) {
+	// Sort bottom up, spans by name then status, resources by service name
+	sort.Slice(trace.ResourceSpans, func(i, j int) bool {
+		return trace.ResourceSpans[i].Resource.ServiceName < trace.ResourceSpans[j].Resource.ServiceName
+	})
+	for _, rs := range trace.ResourceSpans {
+		sort.Slice(rs.ScopeSpans, func(i, j int) bool {
+			return rs.ScopeSpans[i].Scope.Name < rs.ScopeSpans[j].Scope.Name
+		})
+		for _, ss := range rs.ScopeSpans {
+			sort.Slice(ss.Spans, func(i, j int) bool {
+				a, b := ss.Spans[i], ss.Spans[j]
+				if a.Name != b.Name {
+					return a.Name < b.Name
+				}
+				return a.StatusCode < b.StatusCode
+			})
+		}
+	}
 }
 
 func instrumentationScopeToParquet(s *v1.InstrumentationScope, ss *InstrumentationScope) {
