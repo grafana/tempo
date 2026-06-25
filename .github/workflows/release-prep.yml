@@ -150,23 +150,15 @@ jobs:
             exit 1
           fi
 
-      - name: Open release prep PR
+      - name: Build release prep PR body
         if: ${{ ! inputs.validate_only }}
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           TAG: ${{ steps.vars.outputs.tag }}
-          PREP_BRANCH: ${{ steps.vars.outputs.prep_branch }}
           BASE_BRANCH: ${{ steps.vars.outputs.base_branch }}
           IMAGE_TAG: ${{ steps.vars.outputs.image_tag }}
           BUMP: ${{ steps.vars.outputs.bump }}
         run: |
           set -euo pipefail
-          git config user.name "tempo-ci-app[bot]"
-          git config user.email "209701675+tempo-ci-app[bot]@users.noreply.github.com"
-          git checkout -b "$PREP_BRANCH"
-          git add -A
-          git commit -m "chore: prepare release ${TAG}"
-          git push --force-with-lease origin "$PREP_BRANCH"
           {
             echo "Automated release prep for **${TAG}** (base: \`${BASE_BRANCH}\`)."
             echo
@@ -186,9 +178,20 @@ jobs:
             cat /tmp/commits.txt
             echo '```'
           } > /tmp/pr-body.md
-          gh pr create \
-            --base "$BASE_BRANCH" \
-            --head "$PREP_BRANCH" \
-            --title "chore: prepare release ${TAG}" \
-            --body-file /tmp/pr-body.md \
-            --label "release-prep"
+
+      # Commits are created through the GitHub API (sign-commits: true) so they
+      # carry a verified signature, as required by the repo's "Signed Commits"
+      # ruleset. The app token must have contents:write + pull-requests:write.
+      - name: Open release prep PR
+        if: ${{ ! inputs.validate_only }}
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          sign-commits: true
+          branch: ${{ steps.vars.outputs.prep_branch }}
+          base: ${{ steps.vars.outputs.base_branch }}
+          commit-message: "chore: prepare release ${{ steps.vars.outputs.tag }}"
+          title: "chore: prepare release ${{ steps.vars.outputs.tag }}"
+          body-path: /tmp/pr-body.md
+          labels: release-prep
+          delete-branch: true
