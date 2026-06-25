@@ -13,7 +13,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-// TraceFilter filters an assembled trace; Process must not mutate its input, which may be cached.
+// TraceFilter filters runs on a complete trace and applies filters on it.
 type TraceFilter interface {
 	Process(t *tempopb.Trace) (*tempopb.Trace, error)
 }
