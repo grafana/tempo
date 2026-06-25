@@ -3,4 +3,4 @@ component: distributor
 note: 'Auto-forget unhealthy instances from the distributor ring after `2 × distributor.ring.heartbeat-timeout`, removing the need to manually click "Forget" on `/distributor/ring` after non-graceful pod terminations.'
 issues: []
 subtext:
-user: oleg-kozliuk
+user: oleg-kozlyuk-grafana
