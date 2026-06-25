@@ -3,7 +3,6 @@ package traceql
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -51,7 +50,7 @@ func TestSpansetFilterMatchSpans(t *testing.T) {
 	matched, err := f.MatchSpans([]Span{matching, nonMatching})
 	require.NoError(t, err)
 	require.Len(t, matched, 1)
-	assert.Equal(t, []byte{0x01}, matched[0].ID())
+	require.Equal(t, []byte{0x01}, matched[0].ID())
 }
 
 func TestSpansetFilterMatchSpansEmptyInput(t *testing.T) {

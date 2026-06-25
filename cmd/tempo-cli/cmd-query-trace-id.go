@@ -14,11 +14,13 @@ type queryTraceIDCmd struct {
 	APIEndpoint string `arg:"" help:"tempo api endpoint"`
 	TraceID     string `arg:"" help:"trace ID to retrieve"`
 
-	V1            bool     `name:"v1" help:"Use v1 API /api/traces endpoint"`
-	Q             string   `name:"q" help:"V2-only TraceQL spanset filter; only matching spans are returned"`
-	KeepHierarchy bool     `name:"keep-hierarchy" default:"true" help:"include ancestor path to the root for each matched span (V2 only)"`
-	OrgID         string   `help:"optional orgID"`
-	Headers       []string `help:"extra HTTP header in key=value format" name:"header"`
+	V1      bool     `name:"v1" help:"Use v1 API /api/traces endpoint"`
+	OrgID   string   `help:"optional orgID"`
+	Headers []string `help:"extra HTTP header in key=value format" name:"header"`
+
+	// Trace By ID V2 filtering and selection params
+	Q             string `name:"q" help:"TraceQL spanset filter, only matching spans are returned (V2 only)"`
+	KeepHierarchy bool   `name:"keep-hierarchy" default:"true" help:"include ancestor path to the root for each matched span (V2 only)"`
 }
 
 func (cmd *queryTraceIDCmd) Run(_ *globalOptions) error {
@@ -28,7 +30,7 @@ func (cmd *queryTraceIDCmd) Run(_ *globalOptions) error {
 
 	// the v1 endpoint does not support spanset filtering
 	if cmd.Q != "" && cmd.V1 {
-		return fmt.Errorf("--q filtering is only supported on the v2 API, remove --v1")
+		return fmt.Errorf("--q filtering is only supported on the v2 API, remove --v1 to call v2 endpoint")
 	}
 
 	// use v1 API if specified, we default to v2
@@ -48,6 +50,7 @@ func (cmd *queryTraceIDCmd) Run(_ *globalOptions) error {
 	} else {
 		traceResp, err = client.QueryTraceV2(cmd.TraceID)
 	}
+
 	if err != nil {
 		return err
 	}
