@@ -3,6 +3,7 @@ package frontend
 import (
 	"bytes"
 	"context"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
 	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
@@ -25,6 +27,7 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1477,4 +1480,66 @@ func (m *mockRoundTripperWithCapture) RoundTrip(req pipeline.Request) (*http.Res
 
 	res, err := m.rt.RoundTrip(req)
 	return res, err
+}
+
+// recordingLogger records log lines so tests can assert on what was logged. It
+// satisfies the go-kit log.Logger interface (Log(...) error) without importing it.
+type recordingLogger struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (l *recordingLogger) Log(keyvals ...interface{}) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	fmt.Fprintln(&l.buf, keyvals...)
+	return nil
+}
+
+func (l *recordingLogger) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.buf.String()
+}
+
+// TestQueryRangeHandlerLogsErrorReason is a regression test for the HTTP metrics
+// query-range handler dropping the failure reason. When the pipeline returns an
+// error response in-band (a frontend-generated 4xx carried on the http.Response
+// with a nil Go error, e.g. from the URL deny list or a sharder), the result log
+// must record why the request failed. Previously the handler discarded the
+// combiner's error and logged "query range response - no resp" with a nil error,
+// making frontend 4xx/5xx undiagnosable from query-frontend logs.
+func TestQueryRangeHandlerLogsErrorReason(t *testing.T) {
+	const reason = "this query has been identified as one that destabilizes our system"
+
+	var cfg Config
+	cfg.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.PanicOnError))
+
+	// next stands in for the rest of the pipeline and returns a frontend 400 with a
+	// nil Go error, exactly how NewBadRequest surfaces deny-list / sharder rejections.
+	next := pipeline.AsyncRoundTripperFunc[combiner.PipelineResponse](func(_ pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
+		return pipeline.NewBadRequest(fmt.Errorf("%s", reason)), nil
+	})
+
+	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
+	require.NoError(t, err)
+
+	logger := &recordingLogger{}
+	handler := newMetricsQueryRangeHTTPHandler(cfg, next, o, logger, nil)
+
+	httpReq := httptest.NewRequest("GET", api.PathMetricsQueryRange, nil)
+	httpReq = api.BuildQueryRangeRequest(httpReq, &tempopb.QueryRangeRequest{
+		Query: "{} | rate()",
+		Start: uint64(1100 * time.Second),
+		End:   uint64(1300 * time.Second),
+		Step:  uint64(100 * time.Second),
+	}, "")
+	httpReq = httpReq.WithContext(user.InjectOrgID(httpReq.Context(), "foo"))
+
+	resp, err := handler.RoundTrip(httpReq)
+	require.NoError(t, err) // the 400 is carried in-band on resp, not as a Go error
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+	// the result log must record WHY the request failed, not a nil error
+	require.Contains(t, logger.String(), reason)
 }

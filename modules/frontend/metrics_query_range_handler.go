@@ -173,14 +173,23 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 		// ask for the typed diff and use that for the SLO hook. it will have up to date metrics
 		// todo: is there a way to remove this? it can be costly for large responses
 		var bytesProcessed uint64
-		queryRangeResp, _ := combiner.GRPCFinal()
+		queryRangeResp, finalErr := combiner.GRPCFinal()
 		if queryRangeResp != nil && queryRangeResp.Metrics != nil {
 			bytesProcessed = queryRangeResp.Metrics.InspectedBytes
 		}
 
 		duration := time.Since(start)
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
-		logQueryRangeResult(req.Context(), logger, tenant, duration.Seconds(), queryRangeReq, queryRangeResp, err)
+		// When the pipeline returns an error response in-band (a frontend-generated
+		// 4xx/5xx, e.g. from a sharder or the URL deny list), resp carries the status
+		// code and RoundTrip's err is nil while GRPCFinal returns the reason. Fall back
+		// to it for logging so the result log records why the query failed; otherwise it
+		// logs "query range response - no resp" with error=null and the reason is lost.
+		logErr := err
+		if logErr == nil {
+			logErr = finalErr
+		}
+		logQueryRangeResult(req.Context(), logger, tenant, duration.Seconds(), queryRangeReq, queryRangeResp, logErr)
 		return resp, err
 	})
 }
