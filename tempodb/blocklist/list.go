@@ -14,7 +14,7 @@ type PerTenantCompacted map[string][]*backend.CompactedBlockMeta
 
 // List controls access to a per tenant blocklist and compacted blocklist
 type List struct {
-	mtx            sync.Mutex
+	mtx            sync.RWMutex
 	metas          PerTenant
 	compactedMetas PerTenantCompacted
 
@@ -39,8 +39,8 @@ func New() *List {
 
 // Tenants returns a slice of tenant ids with metas (compacted metas are ignored.)
 func (l *List) Tenants() []string {
-	l.mtx.Lock()
-	defer l.mtx.Unlock()
+	l.mtx.RLock()
+	defer l.mtx.RUnlock()
 
 	tenants := make([]string, 0, len(l.metas))
 	for tenant := range l.metas {
@@ -55,8 +55,8 @@ func (l *List) Metas(tenantID string) []*backend.BlockMeta {
 		return nil
 	}
 
-	l.mtx.Lock()
-	defer l.mtx.Unlock()
+	l.mtx.RLock()
+	defer l.mtx.RUnlock()
 
 	copiedBlocklist := make([]*backend.BlockMeta, 0, len(l.metas[tenantID]))
 	copiedBlocklist = append(copiedBlocklist, l.metas[tenantID]...)
@@ -68,8 +68,8 @@ func (l *List) CompactedMetas(tenantID string) []*backend.CompactedBlockMeta {
 		return nil
 	}
 
-	l.mtx.Lock()
-	defer l.mtx.Unlock()
+	l.mtx.RLock()
+	defer l.mtx.RUnlock()
 
 	copiedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(l.compactedMetas[tenantID]))
 	copiedBlocklist = append(copiedBlocklist, l.compactedMetas[tenantID]...)
