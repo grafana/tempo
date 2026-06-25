@@ -277,6 +277,14 @@ main() {
     total=$(wc -l <"$WORK/deps.tsv" | tr -d ' ')
     log "found $total direct deps"
 
+    if [ "$total" -eq 0 ]; then
+        log "no direct dependencies to check"
+        jq -n --arg module "$(go list -m 2>/dev/null || echo "")" \
+            --arg generated_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{generated_at: $generated_at, module: $module, deps: []}'
+        return 0
+    fi
+
     log "computing go mod graph"
     go mod graph >"$WORK/graph.txt"
 
