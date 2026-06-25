@@ -1,11 +1,6 @@
 change_type: bug_fix
-
 component: query-frontend
-
-note: "Log the reason when a metrics query-range request fails with a frontend-generated error response (e.g. deny-list or sharder rejections). Previously the query-frontend logged `query range response - no resp` with a nil error, dropping the HTTP status code and the reason."
-
+note: Correctly log failure reason if query is rejected by query-frontend
 issues: []
-
 subtext:
-
 user: oleg-kozlyuk-grafana
