@@ -575,24 +575,35 @@ func finalizeTrace(trace *Trace) (*Trace, bool) {
 }
 
 func sortTrace(trace *Trace) {
-	// Sort bottom up, spans by name then status, resources by service name
-	sort.Slice(trace.ResourceSpans, func(i, j int) bool {
-		return trace.ResourceSpans[i].Resource.ServiceName < trace.ResourceSpans[j].Resource.ServiceName
-	})
 	for _, rs := range trace.ResourceSpans {
-		sort.Slice(rs.ScopeSpans, func(i, j int) bool {
+		sort.SliceStable(rs.ScopeSpans, func(i, j int) bool {
 			return rs.ScopeSpans[i].Scope.Name < rs.ScopeSpans[j].Scope.Name
 		})
 		for _, ss := range rs.ScopeSpans {
-			sort.Slice(ss.Spans, func(i, j int) bool {
-				a, b := ss.Spans[i], ss.Spans[j]
-				if a.Name != b.Name {
-					return a.Name < b.Name
+			sort.SliceStable(ss.Spans, func(i, j int) bool {
+				left, right := ss.Spans[i], ss.Spans[j]
+				if left.Name != right.Name {
+					return left.Name < right.Name
 				}
-				return a.StatusCode < b.StatusCode
+				return left.StatusCode < right.StatusCode
 			})
 		}
 	}
+	sort.SliceStable(trace.ResourceSpans, func(i, j int) bool {
+		left, right := trace.ResourceSpans[i], trace.ResourceSpans[j]
+		if left.Resource.ServiceName != right.Resource.ServiceName {
+			return left.Resource.ServiceName < right.Resource.ServiceName
+		}
+
+		// Identical services, sort by first span name.
+		if len(left.ScopeSpans[0].Spans) == 0 {
+			return true
+		}
+		if len(right.ScopeSpans[0].Spans) == 0 {
+			return false
+		}
+		return left.ScopeSpans[0].Spans[0].Name < right.ScopeSpans[0].Spans[0].Name
+	})
 }
 
 func instrumentationScopeToParquet(s *v1.InstrumentationScope, ss *InstrumentationScope) {
