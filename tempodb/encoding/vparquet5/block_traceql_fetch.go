@@ -1304,6 +1304,7 @@ func (c *spanCollector2) Reset(rowNumber parquetquery.RowNumber) {
 		// New trace
 		c.at.traceAttrs = c.at.traceAttrs[:0]
 		clear(c.spansetBuffer.ServiceStats)
+		c.spansetBuffer.StartTimeUnixNanos = 0
 		fallthrough
 	case rowNumber[DefinitionLevelResourceSpans] != c.at.rowNum[DefinitionLevelResourceSpans]:
 		// New batch
