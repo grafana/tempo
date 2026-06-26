@@ -3,6 +3,8 @@ package parquetquery
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"math/rand"
 	"testing"
 
 	"github.com/google/uuid"
@@ -466,5 +468,75 @@ func TestIntNotInPredicate(t *testing.T) {
 		t.Run(tC.testName, func(t *testing.T) {
 			testPredicate(t, tC)
 		})
+	}
+}
+
+const benchByteInLetters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-"
+
+func randStringN(r *rand.Rand, n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = benchByteInLetters[r.Intn(len(benchByteInLetters))]
+	}
+	return string(b)
+}
+
+// benchByteInData builds the predicate needles plus a 1000-value workload that
+// is ~50% hits and ~50% misses, so both the matching and non-matching paths are
+// exercised.
+func benchByteInData(numNeedles, keyLen int) (needles []string, values []parquet.Value) {
+	r := rand.New(rand.NewSource(int64(numNeedles*1000 + keyLen)))
+
+	needles = make([]string, numNeedles)
+	for i := range needles {
+		needles[i] = randStringN(r, keyLen)
+	}
+
+	values = make([]parquet.Value, 1000)
+	for i := range values {
+		if i%2 == 0 {
+			values[i] = parquet.ValueOf(needles[i%numNeedles])
+		} else {
+			values[i] = parquet.ValueOf(randStringN(r, keyLen))
+		}
+	}
+	return needles, values
+}
+
+// BenchmarkByteInPredicate exercises the production constructor, which picks the
+// slice or map implementation based on byteInMapThreshold.
+func BenchmarkByteInPredicate(b *testing.B) {
+	for _, numNeedles := range []int{1, 4, 8, 16, 64, 256} {
+		for _, keyLen := range []int{8, 36} {
+			needles, values := benchByteInData(numNeedles, keyLen)
+			p := NewStringInPredicate(needles)
+
+			b.Run(fmt.Sprintf("needles=%d/keyLen=%d", numNeedles, keyLen), func(b *testing.B) {
+				b.ReportAllocs()
+				for i := 0; i < b.N; i++ {
+					for _, v := range values {
+						p.KeepValue(v)
+					}
+				}
+			})
+		}
+	}
+}
+
+func BenchmarkByteNotInPredicate(b *testing.B) {
+	for _, numNeedles := range []int{1, 4, 8, 16, 64, 256} {
+		for _, keyLen := range []int{8, 36} {
+			needles, values := benchByteInData(numNeedles, keyLen)
+			p := NewStringNotInPredicate(needles)
+
+			b.Run(fmt.Sprintf("needles=%d/keyLen=%d", numNeedles, keyLen), func(b *testing.B) {
+				b.ReportAllocs()
+				for i := 0; i < b.N; i++ {
+					for _, v := range values {
+						p.KeepValue(v)
+					}
+				}
+			})
+		}
 	}
 }

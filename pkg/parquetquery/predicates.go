@@ -30,27 +30,35 @@ func NewStringNotEqualPredicate(s string) Predicate {
 	return NewByteNotEqualPredicate([]byte(s))
 }
 
+// byteInMapThreshold is the number of values at or above which KeepValue uses a
+// map lookup instead of a linear scan. Below it the scan is faster (lower overhead).
+const byteInMapThreshold = 8
+
 // ByteInPredicate checks for any of the given strings. Case-sensitive exact byte matching
 type ByteInPredicate struct {
-	values [][]byte
+	values    [][]byte
+	valuesMap map[string]struct{} // set when len(values) >= byteInMapThreshold
 }
 
 var _ Predicate = (*ByteInPredicate)(nil)
 
 func NewStringInPredicate(ss []string) Predicate {
-	p := &ByteInPredicate{
-		values: make([][]byte, len(ss)),
-	}
+	bb := make([][]byte, len(ss))
 	for i := range ss {
-		p.values[i] = []byte(ss[i])
+		bb[i] = []byte(ss[i])
 	}
-	return p
+	return NewByteInPredicate(bb)
 }
 
 func NewByteInPredicate(bb [][]byte) Predicate {
-	return &ByteInPredicate{
-		values: bb,
+	p := &ByteInPredicate{values: bb}
+	if len(bb) >= byteInMapThreshold {
+		p.valuesMap = make(map[string]struct{}, len(bb))
+		for _, b := range bb {
+			p.valuesMap[string(b)] = struct{}{}
+		}
 	}
+	return p
 }
 
 func (p *ByteInPredicate) String() string {
@@ -90,6 +98,10 @@ func (p *ByteInPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
 
 func (p *ByteInPredicate) KeepValue(v pq.Value) bool {
 	ba := v.ByteArray()
+	if p.valuesMap != nil {
+		_, ok := p.valuesMap[string(ba)]
+		return ok
+	}
 	for _, ss := range p.values {
 		if bytes.Equal(ba, ss) {
 			return true
@@ -105,25 +117,29 @@ func (p *ByteInPredicate) KeepPage(pq.Page) bool {
 
 // ByteNotInPredicate checks for any of the given strings. Case-sensitive exact byte matching
 type ByteNotInPredicate struct {
-	values [][]byte
+	values    [][]byte
+	valuesMap map[string]struct{} // set when len(values) >= byteInMapThreshold
 }
 
 var _ Predicate = (*ByteNotInPredicate)(nil)
 
 func NewStringNotInPredicate(ss []string) Predicate {
-	p := &ByteNotInPredicate{
-		values: make([][]byte, len(ss)),
-	}
+	bb := make([][]byte, len(ss))
 	for i := range ss {
-		p.values[i] = []byte(ss[i])
+		bb[i] = []byte(ss[i])
 	}
-	return p
+	return NewByteNotInPredicate(bb)
 }
 
 func NewByteNotInPredicate(bb [][]byte) Predicate {
-	return &ByteNotInPredicate{
-		values: bb,
+	p := &ByteNotInPredicate{values: bb}
+	if len(bb) >= byteInMapThreshold {
+		p.valuesMap = make(map[string]struct{}, len(bb))
+		for _, b := range bb {
+			p.valuesMap[string(b)] = struct{}{}
+		}
 	}
+	return p
 }
 
 func (p *ByteNotInPredicate) String() string {
@@ -147,6 +163,10 @@ func (p *ByteNotInPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
 
 func (p *ByteNotInPredicate) KeepValue(v pq.Value) bool {
 	ba := v.ByteArray()
+	if p.valuesMap != nil {
+		_, ok := p.valuesMap[string(ba)]
+		return !ok
+	}
 	for _, ss := range p.values {
 		if bytes.Equal(ba, ss) {
 			return false
