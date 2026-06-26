@@ -119,7 +119,10 @@ func create(makeIter, makeNilIter makeIterFn,
 	// anywhere, except in the case of the empty query: {}
 	batchRequireAtLeastOneMatchOverall := len(conditions) > 0 && len(catConditions.trace) == 0
 
-	traceIters, traceOptional := createTraceIterators(makeIter, catConditions.trace, start, end, allConditions, dedicatedColumns, selectAll)
+	traceIters, traceOptional, err := createTraceIterators(makeIter, catConditions.trace, start, end, allConditions, dedicatedColumns, selectAll)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	resIters, resOptional, err := createResourceIterators(makeIter, makeNilIter, catConditions.resource, allConditions, dedicatedColumns, selectAll)
 	if err != nil {
@@ -243,7 +246,7 @@ func createTraceIterators(
 	allConditions bool,
 	_ backend.DedicatedColumns,
 	selectAll bool,
-) (required, optional []parquetquery.Iterator) {
+) (required, optional []parquetquery.Iterator, err error) {
 	var alwaysOptional []parquetquery.Iterator
 
 	for _, cond := range conditions {
@@ -253,13 +256,36 @@ func createTraceIterators(
 				// This is expected to quit early, so it is always optional below.
 				alwaysOptional = append(alwaysOptional, makeIter(columnPathTraceID, parquetquery.NewCallbackPredicate(cond.CallBack), columnPathTraceID))
 			} else {
-				// This starts as optional but can be moved to required for better performance.
-				optional = append(optional, makeIter(columnPathTraceID, nil, columnPathTraceID))
+				pred, err := createBytesPredicate(cond.Op, cond.Operands, false)
+				if err != nil {
+					return nil, nil, err
+				}
+				optional = append(optional, makeIter(columnPathTraceID, pred, columnPathTraceID))
 			}
+		case traceql.IntrinsicTraceRootService:
+			pred, err := createStringPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, nil, err
+			}
+			optional = append(optional, makeIter(columnPathRootServiceName, pred, columnPathRootServiceName))
+		case traceql.IntrinsicTraceRootSpan:
+			pred, err := createStringPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, nil, err
+			}
+			optional = append(optional, makeIter(columnPathRootSpanName, pred, columnPathRootSpanName))
 		case traceql.IntrinsicTraceDuration:
-			optional = append(optional, makeIter(columnPathDurationNanos, nil, columnPathDurationNanos))
+			pred, err := createDurationPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, nil, err
+			}
+			optional = append(optional, makeIter(columnPathDurationNanos, pred, columnPathDurationNanos))
 		case traceql.IntrinsicTraceStartTime:
-			optional = append(optional, makeIter(columnPathStartTimeUnixNano, nil, columnPathStartTimeUnixNano))
+			if start == 0 && end == 0 {
+				optional = append(optional, makeIter(columnPathStartTimeUnixNano, nil, columnPathStartTimeUnixNano))
+			}
+		case traceql.IntrinsicServiceStats:
+			optional = append(optional, createServiceStatsIterator(makeIter))
 		}
 	}
 
@@ -301,7 +327,7 @@ func createTraceIterators(
 
 	optional = append(optional, alwaysOptional...)
 
-	return required, optional
+	return required, optional, nil
 }
 
 func createResourceIterators(
@@ -351,7 +377,7 @@ func createResourceIterators(
 			}
 
 			// Compatible type?
-			if entry.typ == operandType(cond.Operands) {
+			if isMatchingColumnType(entry.typ, operandType(cond.Operands)) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
 					return nil, nil, fmt.Errorf("creating predicate: %w", err)
@@ -369,7 +395,7 @@ func createResourceIterators(
 
 			// Compatible type?
 			typ, _ := c.Type.ToStaticType()
-			if typ == operandType(cond.Operands) {
+			if isMatchingColumnType(typ, operandType(cond.Operands)) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
 					return nil, nil, fmt.Errorf("creating predicate: %w", err)
@@ -639,6 +665,14 @@ func createSpanIterators(
 			addPredicate(columnPathSpanParentID, pred)
 			columnSelectAs[columnPathSpanParentID] = columnPathSpanParentID
 			continue
+		case traceql.IntrinsicChildCount:
+			pred, err := createIntPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			addPredicate(columnPathSpanChildCount, pred)
+			columnSelectAs[columnPathSpanChildCount] = columnPathSpanChildCount
+			continue
 		default:
 			panic("unhandled intrinsic: " + cond.Attribute.String())
 		}
@@ -651,7 +685,7 @@ func createSpanIterators(
 
 			// Compatible type?
 			typ, _ := c.Type.ToStaticType()
-			if typ == operandType(cond.Operands) {
+			if isMatchingColumnType(typ, operandType(cond.Operands)) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
 					return nil, nil, nil, fmt.Errorf("creating predicate: %w", err)
@@ -852,6 +886,10 @@ func createEventIterators(
 		}
 
 		genericConditions = append(genericConditions, cond)
+	}
+
+	for columnPath, predicates := range columnPredicates {
+		optional = append(optional, makeIter(columnPath, orIfNeeded(predicates), columnSelectAs[columnPath]))
 	}
 
 	attrIter, err := createScopedAttributeIterator(
@@ -1265,6 +1303,7 @@ func (c *spanCollector2) Reset(rowNumber parquetquery.RowNumber) {
 	case rowNumber[DefinitionLevelTrace] != c.at.rowNum[DefinitionLevelTrace]:
 		// New trace
 		c.at.traceAttrs = c.at.traceAttrs[:0]
+		clear(c.spansetBuffer.ServiceStats)
 		fallthrough
 	case rowNumber[DefinitionLevelResourceSpans] != c.at.rowNum[DefinitionLevelResourceSpans]:
 		// New batch
@@ -1344,6 +1383,11 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 			default:
 				panic("unhandled scopedAttribute: " + v.a.Scope.String())
 			}
+		case traceql.ServiceStats:
+			if c.spansetBuffer.ServiceStats == nil {
+				c.spansetBuffer.ServiceStats = map[string]traceql.ServiceStats{}
+			}
+			c.spansetBuffer.ServiceStats[e.Key] = v
 		default:
 			panic("unhandled other entry value type: " + "key:" + e.Key)
 		}
@@ -1367,7 +1411,9 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 			sp.traceAttrs = append(sp.traceAttrs, attrVal{traceql.IntrinsicTraceIDAttribute, traceql.NewStaticString(util.TraceIDToHexString(kv.Value.ByteArray()))})
 		case columnPathDurationNanos:
 			sp.traceAttrs = append(sp.traceAttrs, attrVal{traceql.IntrinsicTraceDurationAttribute, traceql.NewStaticDuration(time.Duration(kv.Value.Uint64()))})
-		case columnPathStartTimeUnixNano, columnPathEndTimeUnixNano:
+		case columnPathStartTimeUnixNano:
+			c.spansetBuffer.StartTimeUnixNanos = kv.Value.Uint64()
+		case columnPathEndTimeUnixNano:
 			// TODO
 			return
 		// --------------------
