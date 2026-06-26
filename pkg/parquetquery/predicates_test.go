@@ -118,6 +118,21 @@ func TestNewStringInPredicate(t *testing.T) {
 				require.NoError(t, w.Write(&testDictString{"abc"}))
 			},
 		},
+		{
+			testName: "map path (>= byteInMapThreshold needles)",
+			predicate: func() Predicate {
+				// >= byteInMapThreshold needles forces the map-backed KeepValue path
+				return NewStringInPredicate([]string{"abc", "acd", "n0", "n1", "n2", "n3", "n4", "n5"})
+			}(),
+			keptChunks: 1,
+			keptPages:  1,
+			keptValues: 2,
+			writeData: func(w *parquet.Writer) { //nolint:all
+				require.NoError(t, w.Write(&testDictString{"abc"})) // kept
+				require.NoError(t, w.Write(&testDictString{"acd"})) // kept
+				require.NoError(t, w.Write(&testDictString{"cde"})) // skipped
+			},
+		},
 	}
 
 	for _, tC := range testCases {
@@ -199,6 +214,22 @@ func TestNewStringNotInPredicate(t *testing.T) {
 			writeData: func(w *parquet.Writer) { //nolint:all
 				require.NoError(t, w.Write(&testDictString{"xyz"}))
 				require.NoError(t, w.Write(&testDictString{"xyz"}))
+			},
+		},
+		{
+			testName: "map path (>= byteInMapThreshold needles)",
+			predicate: func() Predicate {
+				// >= byteInMapThreshold needles forces the map-backed KeepValue path
+				return NewStringNotInPredicate([]string{"abc", "acd", "n0", "n1", "n2", "n3", "n4", "n5"})
+			}(),
+			keptChunks: 1,
+			keptPages:  1,
+			keptValues: 2,
+			writeData: func(w *parquet.Writer) { //nolint:all
+				require.NoError(t, w.Write(&testDictString{"abc"})) // skipped
+				require.NoError(t, w.Write(&testDictString{"acd"})) // skipped
+				require.NoError(t, w.Write(&testDictString{"cde"})) // kept
+				require.NoError(t, w.Write(&testDictString{"xde"})) // kept
 			},
 		},
 	}
