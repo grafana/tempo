@@ -734,7 +734,7 @@ GET /api/metrics/query?q={status=error}|count_over_time()by(resource.service.nam
 ### Trace diff
 
 {{< admonition type="warning" >}}
-This endpoint is EXPERIMENTAL. The request format and behavior may change in future releases. The diff computation isn't implemented yet; the endpoint currently returns `501 Not Implemented` for valid requests.
+This endpoint is experimental. The request format and behavior may change in future releases. The diff computation isn't implemented yet; the endpoint currently returns `501 Not Implemented` for valid requests.
 {{< /admonition >}}
 
 Compare two traces and produce a structural diff. Send a `POST` request with a JSON body that identifies both traces by their IDs.

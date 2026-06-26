@@ -863,7 +863,7 @@ tempo-cli gen attr-index --add-intrinsics ./path/to/block
 ## Experimental trace diff
 
 {{< admonition type="warning" >}}
-This command is EXPERIMENTAL. The output format and behavior may change in future releases.
+This command is experimental. The output format and behavior may change in future releases.
 {{< /admonition >}}
 
 Compare two local trace JSON files and produce a structural diff in `trace-patch-v0` format. The diff output identifies spans that were added, removed, or modified between a baseline trace and a comparison trace.
