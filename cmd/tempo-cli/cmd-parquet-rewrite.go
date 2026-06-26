@@ -209,16 +209,17 @@ func (i *parquetIterator5) Next(_ context.Context) (common.ID, *tempopb.Trace, e
 		fmt.Println(i.i)
 	}
 
-	_, err := i.r.Read(traces)
-	if errors.Is(err, io.EOF) {
-		return nil, nil, io.EOF
-	}
-	if err != nil {
+	n, err := i.r.Read(traces)
+	if err != nil && !errors.Is(err, io.EOF) {
 		return nil, nil, err
+	}
+	if n == 0 {
+		return nil, nil, io.EOF
 	}
 
 	pqTrace := traces[0]
 	pbTrace := vparquet5.ParquetTraceToTempopbTrace(i.m, pqTrace)
+
 	return pqTrace.TraceID, pbTrace, nil
 }
 
