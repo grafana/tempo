@@ -23,11 +23,12 @@ const (
 	HintDebugDataFactor        = "debug_data_factor"        // performance testing hint to control the possibility of non-empty fake data
 	HintSkipASTTransformations = "skip_ast_transformations" // list of AST transformation names to skip; unsafe hint
 	HintNewFetch               = "spanonly_fetch"           // metrics: new fetch layer (only in vParquet5)
+	HintReportIsSummary        = "report_is_summary"
 )
 
 func isUnsafe(h string) bool {
 	switch h {
-	case HintSample, HintTraceSample, HintSpanSample, HintExemplars, HintMostRecent:
+	case HintSample, HintTraceSample, HintSpanSample, HintExemplars, HintMostRecent, HintReportIsSummary:
 		return false
 	default:
 		return true
