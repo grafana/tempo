@@ -438,6 +438,20 @@ func SyncIteratorOptMaxDefinitionLevel(maxDefinitionLevel int) SyncIteratorOpt {
 	}
 }
 
+// SyncIteratorOptDisableDictPushdown turns off the dictionary fast path, forcing
+// per-row predicate evaluation. Primarily useful for testing and benchmarking.
+func SyncIteratorOptDisableDictPushdown() SyncIteratorOpt {
+	return func(i *SyncIterator) {
+		i.dict.disabled = true
+	}
+}
+
+// DictFastPathPages reports how many pages were served via the dictionary fast
+// path. Used by tests to confirm the optimization engaged.
+func (c *SyncIterator) DictFastPathPages() int {
+	return c.dict.pagesUsed
+}
+
 // SyncIterator is a synchronous column iterator. It scans through the given row
 // groups and column, and applies the optional predicate to each chunk, page, and value.
 // Results are read by calling Next() until it returns nil.
@@ -470,11 +484,103 @@ type SyncIterator struct {
 
 	maxDefinitionLevel int
 
+	// Dictionary fast path state. See dictScan.
+	dict dictScan
+
 	interner   *intern.Interner
 	makeResult func(t RowNumber, v *pq.Value) *IteratorResult
 }
 
 var _ Iterator = (*SyncIterator)(nil)
+
+// dictScan holds the dictionary fast-path state. When the filter is a
+// DictionaryPredicate and the current page is dictionary-encoded, the predicate
+// is resolved once over the dictionary into keep, and rows are matched by their
+// integer dictionary index instead of being materialized and byte-compared per
+// row. State has three lifetimes, made explicit by reset methods:
+//   - whole iterator: disabled (config), pagesUsed (observability)
+//   - per column chunk (resetChunk): checked, keep, dict
+//   - per page (resetPage): everything else
+type dictScan struct {
+	disabled  bool // config: force the per-row path
+	pagesUsed int  // pages served via the fast path (observability/tests)
+
+	// per chunk
+	checked bool          // whether keep was resolved for the current chunk
+	keep    []bool        // keep bitmap indexed by dictionary index; nil => pushdown declined
+	dict    pq.Dictionary // the dictionary keep was built against
+
+	// per page
+	active     bool    // fast path engaged for the current page
+	indices    []int32 // present-value dictionary indexes for the current page
+	defLevels  []byte  // nil for required columns
+	repLevels  []byte  // nil for non-repeated columns
+	pageMaxDef byte    // definition level of a present (non-null) value
+	slotN      int     // cursor over level slots (present + null)
+	valueN     int     // cursor over indices (present only)
+
+	value pq.Value // reused return buffer for matched values
+}
+
+// resetChunk clears the per-chunk keep bitmap. Called when the iterator advances
+// to a new column chunk (all pages in a chunk share one dictionary).
+func (d *dictScan) resetChunk() {
+	d.checked = false
+	d.keep = nil
+	d.dict = nil
+}
+
+// resetPage clears the per-page cursors. The per-chunk keep bitmap is preserved.
+func (d *dictScan) resetPage() {
+	d.active = false
+	d.indices = nil
+	d.defLevels = nil
+	d.repLevels = nil
+	d.pageMaxDef = 0
+	d.slotN = 0
+	d.valueN = 0
+}
+
+// setupPage enables the fast path for pg when filter can be resolved against the
+// chunk dictionary. The keep bitmap is computed once per chunk and reused across
+// the chunk's pages; only the per-page cursors are refreshed here. When pushdown
+// does not apply, active stays false and the caller uses the per-row path.
+func (d *dictScan) setupPage(filter Predicate, pg pq.Page) {
+	if d.disabled {
+		return
+	}
+	dp, ok := filter.(DictionaryPredicate)
+	if !ok {
+		return
+	}
+	dict := pg.Dictionary()
+	if dict == nil {
+		return // page is not dictionary-encoded
+	}
+
+	// Resolve the predicate against the dictionary once per chunk.
+	if !d.checked {
+		d.checked = true
+		d.keep = dp.KeepIndexes(dict)
+		d.dict = dict
+	}
+	if d.keep == nil {
+		return // predicate declined dictionary pushdown for this chunk
+	}
+
+	d.defLevels = pg.DefinitionLevels()
+	d.repLevels = pg.RepetitionLevels()
+	data := pg.Data()
+	d.indices = data.Int32()
+	// A present (non-null) leaf carries the maximum definition level seen on the
+	// page. Required columns have no definition levels and every index is present.
+	d.pageMaxDef = maxByte(d.defLevels)
+
+	d.slotN = 0
+	d.valueN = 0
+	d.active = true
+	d.pagesUsed++
+}
 
 // NewSyncIterator iterates values in a column of a parquet file. Required values
 // are the numeric column index and the row groups to iterate over.  The column index
@@ -739,6 +845,13 @@ func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 		return
 	}
 
+	// The dictionary fast path tracks its cursor against the whole page; reslicing
+	// would require rebuilding that state, so we let next() advance to the target
+	// instead. Correctness is unaffected, only the large-skip shortcut is skipped.
+	if c.dict.active {
+		return
+	}
+
 	const magicThreshold = 1000
 	shouldSkip := false
 
@@ -841,6 +954,17 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 			c.setPage(pg)
 		}
 
+		// Dictionary fast path: match rows by integer dictionary index.
+		if c.dict.active {
+			rn, v, ok := c.nextDict()
+			if !ok {
+				// Page exhausted, move on.
+				c.setPage(nil)
+				continue
+			}
+			return rn, v, nil
+		}
+
 		// Read next batch of values if needed
 		if c.currBuf == nil {
 			c.currBuf = syncIteratorPoolGet(c.readSize, 0)
@@ -886,6 +1010,10 @@ func (c *SyncIterator) setRowGroup(rg pq.RowGroup, min, max RowNumber, cc *Colum
 	c.currRowGroupMin = min
 	c.currRowGroupMax = max
 	c.currChunk = cc
+
+	// The dictionary keep bitmap is resolved once per column chunk (all data pages
+	// in a chunk share the same dictionary) and reset when the chunk changes.
+	c.dict.resetChunk()
 }
 
 func (c *SyncIterator) setPage(pg pq.Page) {
@@ -902,6 +1030,7 @@ func (c *SyncIterator) setPage(pg pq.Page) {
 	c.currPageMin = EmptyRowNumber()
 	c.currBufN = 0
 	c.currPageN = 0
+	c.dict.resetPage()
 
 	// If we don't immediately have a new incoming page
 	// then return the buffer to the pool.
@@ -918,7 +1047,67 @@ func (c *SyncIterator) setPage(pg pq.Page) {
 		c.currPageMin = c.curr
 		c.currPageMax = rn
 		c.currValues = pg.Values()
+		c.dict.setupPage(c.filter, pg)
 	}
+}
+
+func maxByte(b []byte) byte {
+	var m byte
+	for _, v := range b {
+		if v > m {
+			m = v
+		}
+	}
+	return m
+}
+
+// nextDict advances the dictionary fast path by one matching row in the current
+// page. ok is false when the page is exhausted. Row numbers are tracked across
+// every slot (including nulls) exactly as the per-row path does, but only present
+// values consume a dictionary index and only matching indexes are materialized.
+func (c *SyncIterator) nextDict() (RowNumber, *pq.Value, bool) {
+	d := &c.dict
+
+	numSlots := len(d.indices)
+	if d.defLevels != nil {
+		numSlots = len(d.defLevels)
+	}
+
+	for d.slotN < numSlots {
+		repLvl := 0
+		if d.repLevels != nil {
+			repLvl = int(d.repLevels[d.slotN])
+		}
+		// Required columns have no definition levels; every value is present at the
+		// page's (possibly zero) definition level.
+		defLvl := int(d.pageMaxDef)
+		if d.defLevels != nil {
+			defLvl = int(d.defLevels[d.slotN])
+		}
+
+		c.curr.Next(repLvl, defLvl, c.maxDefinitionLevel)
+		d.slotN++
+		c.currPageN++
+
+		// Null slot: no value present and no dictionary index consumed. The gated
+		// predicates never keep nulls, matching the per-row path.
+		if d.defLevels != nil && byte(defLvl) != d.pageMaxDef {
+			continue
+		}
+
+		idx := d.indices[d.valueN]
+		d.valueN++
+
+		if !d.keep[idx] {
+			continue
+		}
+
+		// Materialize only matching values, stamping the page levels and column so
+		// the result is indistinguishable from the per-row path.
+		d.value = d.dict.Index(idx).Level(repLvl, defLvl, c.currPage.Column())
+		return c.curr, &d.value, true
+	}
+	return EmptyRowNumber(), nil, false
 }
 
 func (c *SyncIterator) closeCurrRowGroup() {
