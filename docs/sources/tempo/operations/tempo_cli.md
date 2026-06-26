@@ -860,6 +860,45 @@ Example with intrinsic attributes:
 tempo-cli gen attr-index --add-intrinsics ./path/to/block
 ```
 
+## Experimental trace diff
+
+{{< admonition type="warning" >}}
+This command is EXPERIMENTAL. The output format and behavior may change in future releases.
+{{< /admonition >}}
+
+Compare two local trace JSON files and produce a structural diff in `trace-patch-v0` format. The diff output identifies spans that were added, removed, or modified between a baseline trace and a comparison trace.
+
+Use this command to compare traces captured at different times or from different environments, for example, to understand how a deployment changed trace structure.
+
+```bash
+tempo-cli experimental trace-diff --trace-a <BASELINE_PATH> --trace-b <COMPARISON_PATH>
+```
+
+Arguments:
+
+- `--trace-a <path>` (required) Path to the baseline trace JSON file.
+- `--trace-b <path>` (required) Path to the comparison trace JSON file.
+
+Options:
+
+- `--format <value>` Output format (default: `trace-patch-v0`).
+- `-o, --out <path>` File to write output to. If not specified, output is printed to `stdout`.
+- `--pretty` Pretty-print JSON output.
+
+The input files can be either raw OpenTelemetry JSON traces or Tempo `TraceByIDResponse` JSON responses.
+
+Example:
+
+```bash
+tempo-cli experimental trace-diff --trace-a baseline.json --trace-b compare.json --pretty
+```
+
+Example writing output to a file:
+
+```bash
+tempo-cli experimental trace-diff --trace-a baseline.json --trace-b compare.json -o diff-output.json
+```
+
 ## Drop traces by ID
 
 Rewrites all blocks for a tenant that contain specific trace IDs. The traces are dropped from
