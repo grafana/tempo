@@ -232,7 +232,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 
 	traces := newTraceIDHandler(cfg, tracePipeline, o, combiner.NewTypedTraceByID, logger, dataAccessController)
 	tracesV2 := newTraceIDV2Handler(cfg, tracePipeline, o, combiner.NewTypedTraceByIDV2, logger, dataAccessController)
-	traceDiff := newTraceDiffHandler(logger)
+	traceDiff := newTraceDiffHandler(cfg, apiPrefix, tracePipeline, o, combiner.NewTypedTraceByIDV2, cacheProvider, logger, dataAccessController)
 	search := newSearchHTTPHandler(cfg, searchPipeline, o, logger, dataAccessController)
 	searchTags := newTagsHTTPHandler(cfg, searchTagsPipeline, o, logger, dataAccessController)
 	searchTagsV2 := newTagsV2HTTPHandler(cfg, searchTagsPipeline, o, logger, dataAccessController)
