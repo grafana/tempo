@@ -63,31 +63,37 @@ func BenchmarkBackendBlockMetricsQuery(b *testing.B) {
 		Exemplars: uint32(intEnv("VP5_BENCH_EXEMPLARS", 0)),
 	}
 
+	var em traceql.EvaluatorMetrics
 	b.ResetTimer()
 	for b.Loop() {
 		eval, err := e.CompileMetricsQueryRange(req, traceql.WithUnsafeHints(true))
 		require.NoError(b, err)
 		require.NoError(b, eval.Do(ctx, f, st, end, int(req.MaxSeries)))
 		_ = eval.Results()
-
-		em := eval.Metrics()
-		b.ReportMetric(float64(em.Bytes)/1024.0/1024.0, "MB_io/op")
-		b.ReportMetric(float64(em.SpansTotal), "spans/op")
+		em = eval.Metrics()
 	}
+	// Report once after the loop: ReportMetric overwrites, so calling it per
+	// iteration only adds overhead and keeps the last iteration's values anyway.
+	b.ReportMetric(float64(em.Bytes)/1024.0/1024.0, "MB_io/op")
+	b.ReportMetric(float64(em.SpansTotal), "spans/op")
 }
 
+// durationEnv reads a duration from name, falling back to def when unset, invalid,
+// or non-positive (a negative step would overflow the uint64 request field).
 func durationEnv(name string, def time.Duration) time.Duration {
 	if v := os.Getenv(name); v != "" {
-		if d, err := time.ParseDuration(v); err == nil {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
 			return d
 		}
 	}
 	return def
 }
 
+// intEnv reads a non-negative int from name, falling back to def when unset,
+// invalid, or negative (a negative value would overflow the uint32 request field).
 func intEnv(name string, def int) int {
 	if v := os.Getenv(name); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
 			return n
 		}
 	}
