@@ -8,7 +8,7 @@ change_type: feature
 component: query-frontend
 
 # A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
-note: Implements the diff endpoint. No cache or extra protection mechanimsn yet
+note: Implements the diff endpoint. No cache or extra protection mechanisms yet
 
 # (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
 # .chloggen/README.md.
