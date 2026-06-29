@@ -40,6 +40,7 @@ func CompileSpansetFilter(query string) (*SpansetFilter, error) {
 
 // matchSpansSupportedIntrinsics is the set MatchSpans can resolve from a single proto span plus its
 // whole-trace context; anything else would silently match nothing, so it is rejected at compile time.
+// TODO: hand-rolled allowlist; unify with a shared per-span/full-trace intrinsic classification.
 var matchSpansSupportedIntrinsics = map[Intrinsic]struct{}{
 	IntrinsicDuration:               {},
 	IntrinsicName:                   {},

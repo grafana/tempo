@@ -1,6 +1,7 @@
 package tracefilter
 
 import (
+	"bytes"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -34,6 +35,11 @@ func OptionsFromValues(vals url.Values) (Options, error) {
 	opts := Options{
 		Query:         vals.Get(QueryParam),
 		KeepHierarchy: true,
+	}
+
+	// keep_hierarchy is ignored without a query, so don't parse/reject it then.
+	if opts.Query == "" {
+		return opts, nil
 	}
 
 	if raw := vals.Get(KeepHierarchyParam); raw != "" {
@@ -146,7 +152,7 @@ func newSpanIndex(trace *tempopb.Trace) *spanIndex {
 		for _, ss := range rs.ScopeSpans {
 			for _, span := range ss.Spans {
 				idx.spans = append(idx.spans, newProtoSpan(span, resourceAttrs, traceAttrs, ss.Scope))
-				// FIXME: duplicate span ids collapse here (last writer wins); the ancestor walk assumes unique ids.
+				// FIXME: duplicate span ids collapse here (last writer wins), so keep_hierarchy may walk the wrong parent; matching and output are unaffected.
 				idx.parentOf[string(span.SpanId)] = string(span.ParentSpanId)
 			}
 		}
@@ -171,8 +177,8 @@ func traceAttributes(trace *tempopb.Trace) map[traceql.Attribute]traceql.Static 
 				if span.EndTimeUnixNano > traceEnd {
 					traceEnd = span.EndTimeUnixNano
 				}
-				// a span with no parent is the trace root, matching the storage layer's definition.
-				if len(span.ParentSpanId) == 0 {
+				// mirror storage's root definition: parentless and no intra-trace child_of link.
+				if len(span.ParentSpanId) == 0 && !hasChildOfLink(span) {
 					rootSpan = span
 					rootResource = rs.Resource
 				}
@@ -186,11 +192,31 @@ func traceAttributes(trace *tempopb.Trace) map[traceql.Attribute]traceql.Static 
 		duration = traceEnd - traceStart
 	}
 	attrs[traceql.IntrinsicTraceDurationAttribute] = traceql.NewStaticDuration(time.Duration(duration))
+	// set both root intrinsics together so a rootless trace resolves them identically, as storage does.
 	if rootSpan != nil {
 		attrs[traceql.IntrinsicTraceRootSpanAttribute] = traceql.NewStaticString(rootSpan.Name)
+		attrs[traceql.IntrinsicTraceRootServiceAttribute] = traceql.NewStaticString(rootServiceName(rootResource))
+	} else {
+		attrs[traceql.IntrinsicTraceRootSpanAttribute] = traceql.NewStaticString("")
+		attrs[traceql.IntrinsicTraceRootServiceAttribute] = traceql.NewStaticString("")
 	}
-	attrs[traceql.IntrinsicTraceRootServiceAttribute] = traceql.NewStaticString(rootServiceName(rootResource))
 	return attrs
+}
+
+// hasChildOfLink reports whether the span has an intra-trace OpenTracing child_of link, which
+// storage treats as disqualifying a parentless span from being the trace root.
+func hasChildOfLink(span *tracev1.Span) bool {
+	for _, link := range span.Links {
+		if !bytes.Equal(span.TraceId, link.TraceId) {
+			continue
+		}
+		for _, attr := range link.GetAttributes() {
+			if attr.Key == "opentracing.ref_type" && attr.GetValue().GetStringValue() == "child_of" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // rootServiceName extracts service.name from the root span's resource; empty when absent.

@@ -196,9 +196,9 @@ Parameters:
   Optional. Overrides how many ancestor levels above the aggregated leaf spans can also be aggregated. Use `0` to aggregate only leaves, or `-1` for unlimited depth. Only used when `span_pruning=true`.
   Default = `1`
 - `q = (TraceQL filter)`
-  Optional. A single TraceQL filter, for example `{ .http.status_code = 500 }`, it selects which spans of the trace are returned. Only spans matching the filter are included. NOTE: Only a single spanset filter `{ ... }` is supported, full TraceQL pipelines, structural operators, and metrics queries are rejected with a `400`. An absent `q`, an empty `q`, `{}`, and `{ true }` will return the full trace.
+  Optional. A single TraceQL filter, for example `{ .http.status_code = 500 }`, it selects which spans of the trace are returned. By default, matching spans plus their ancestor path are returned (see `keep_hierarchy`); set `keep_hierarchy=false` for only the matching spans. NOTE: Only a single spanset filter `{ ... }` is supported, full TraceQL pipelines, structural operators, and metrics queries are rejected with a `400`. An absent `q`, an empty `q`, `{}`, and `{ true }` will return the full trace. Only the first event and first link of each span are matched against `event:` and `link:` conditions.
 - `keep_hierarchy = (bool)`
-  Optional. When `true` (default), the response also includes the ancestor path from the root spans to each matched span, so the result is still a complete hierarchy that can be rendered as a waterfall. Set to `false` to return only the spans matching `q`. Ignored when `q` isn't set
+  Optional. When `true` (default), the response also includes the ancestor path from the root spans to each matched span, so the result is still a complete hierarchy that can be rendered as a waterfall. Set to `false` to return only the spans matching `q`. Ignored when `q` isn't set.
 
 The following query API is also provided on the querier service for _debugging_ purposes.
 
