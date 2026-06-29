@@ -37,8 +37,9 @@ func newProtoSpan(span *tracev1.Span, resourceAttrs, traceAttrs map[traceql.Attr
 		attrs[traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, kv.Key)] = staticFromKeyValue(kv)
 	}
 
-	// HACK: this hand-maps each proto field to a traceql intrinsic, duplicating value extraction the
-	// engine already does for parquet spans. TODO: refactor to reuse the engine's intrinsic resolution.
+	// each storage layer maps its own source values to intrinsics (parquet does the same from column
+	// values in tempodb/encoding/vparquetN); the engine owns no shared resolver, it only reads them
+	// back via AttributeFor. TODO: extract a shared proto->Static mapper once a second proto consumer exists.
 	attrs[traceql.IntrinsicNameAttribute] = traceql.NewStaticString(span.Name)
 	attrs[traceql.IntrinsicDurationAttribute] = traceql.NewStaticDuration(time.Duration(duration))
 	attrs[traceql.IntrinsicKindAttribute] = traceql.NewStaticKind(spanKindToTraceql(span.Kind))
