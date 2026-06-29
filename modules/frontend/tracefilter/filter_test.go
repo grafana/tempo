@@ -220,6 +220,24 @@ func TestApplyKeepHierarchyMultipleBranches(t *testing.T) {
 	assert.ElementsMatch(t, []byte{1, 2, 4}, keptIDs(out))
 }
 
+func TestApplyKeepHierarchyFollowsAllParentsOfDuplicateID(t *testing.T) {
+	// two spans share id 3 but have different parents (1 and 2); a match on id 3 must keep both
+	// ancestor branches, not an arbitrary last-writer one.
+	trace := buildTrace([]testSpan{
+		{id: 1},
+		{id: 2},
+		{id: 3, parent: 1, attrs: map[string]any{"match": true}},
+		{id: 3, parent: 2, attrs: map[string]any{"match": true}},
+	}, nil)
+
+	f, err := Options{Query: `{ .match = true }`, KeepHierarchy: true}.Compile()
+	require.NoError(t, err)
+
+	out, err := f.Process(trace)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []byte{1, 2, 3, 3}, keptIDs(out))
+}
+
 func TestApplyNoMatchReturnsEmptyTrace(t *testing.T) {
 	trace := buildTrace([]testSpan{{id: 1, attrs: map[string]any{"http.status_code": 200}}}, nil)
 
