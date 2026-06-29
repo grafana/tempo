@@ -9,9 +9,9 @@ import (
 )
 
 // collectStringResults drains an iterator returning (rowNumber, value-as-string)
-// pairs so that the dictionary fast path and the per-row slow path can be compared
-// for exact equivalence.
-func collectStringResults(t *testing.T, iter Iterator, selectAs string) []string {
+// pairs (the value is read from the "S" select, which every test here uses) so the
+// dictionary fast path and the per-row slow path can be compared for equivalence.
+func collectStringResults(t *testing.T, iter Iterator) []string {
 	t.Helper()
 	var out []string
 	for {
@@ -20,7 +20,7 @@ func collectStringResults(t *testing.T, iter Iterator, selectAs string) []string
 		if res == nil {
 			break
 		}
-		vals := res.ToMap()[selectAs]
+		vals := res.ToMap()["S"]
 		require.Len(t, vals, 1)
 		out = append(out, fmt.Sprintf("%v=%s", res.RowNumber, vals[0].String()))
 	}
@@ -52,8 +52,8 @@ func runDictEquivalence[T any](t *testing.T, rows []T, colPath string, makePred 
 	slow := newIter(true)
 	defer slow.Close()
 
-	fastRes := collectStringResults(t, fast, "S")
-	slowRes := collectStringResults(t, slow, "S")
+	fastRes := collectStringResults(t, fast)
+	slowRes := collectStringResults(t, slow)
 
 	require.Equal(t, slowRes, fastRes, "dictionary fast path must match per-row results")
 	require.Greater(t, fast.dictFastPathPages(), 0, "fast path should have engaged")
@@ -165,7 +165,7 @@ func TestSyncIteratorDictPushdownFallsBackForNonDictPredicate(t *testing.T) {
 	)
 	defer iter.Close()
 
-	got := collectStringResults(t, iter, "S")
+	got := collectStringResults(t, iter)
 	require.NotEmpty(t, got)
 	require.Equal(t, 0, iter.dictFastPathPages(), "non-dictionary predicate must not use dict fast path")
 }
@@ -214,4 +214,60 @@ func TestIndexValueReaderNoPresentValues(t *testing.T) {
 			})
 		})
 	}
+}
+
+// TestSyncIteratorDictPushdownOr drives the fast path through OrPredicate, whose
+// KeepIndexes ORs its dictionary-pushable children's bitmaps.
+func TestSyncIteratorDictPushdownOr(t *testing.T) {
+	type row struct {
+		S string `parquet:",dict"`
+	}
+	alphabet := []string{"alpha", "bravo", "charlie", "delta", "echo"}
+	var rows []row
+	for i := 0; i < 5000; i++ {
+		rows = append(rows, row{S: alphabet[i%len(alphabet)]})
+	}
+	runDictEquivalence(t, rows, "S", func() Predicate {
+		return NewOrPredicate(
+			NewByteEqualPredicate([]byte("alpha")),
+			NewByteEqualPredicate([]byte("delta")),
+		)
+	})
+}
+
+// TestSyncIteratorDictPushdownSkipsChunkWithNoMatch covers the chunk-skip path:
+// when no dictionary entry matches, the whole chunk is skipped before any page is
+// read, so the fast path serves zero pages while still returning correct (empty)
+// results identical to the per-row path.
+func TestSyncIteratorDictPushdownSkipsChunkWithNoMatch(t *testing.T) {
+	type row struct {
+		S string `parquet:",dict"`
+	}
+	alphabet := []string{"alpha", "bravo", "charlie"}
+	var rows []row
+	for i := 0; i < 4000; i++ {
+		rows = append(rows, row{S: alphabet[i%len(alphabet)]})
+	}
+	ctx := context.Background()
+	pf := createFileWith(t, ctx, rows)
+	idx, _, _ := GetColumnIndexByPath(pf, "S")
+
+	newIter := func(disable bool) *SyncIterator {
+		it := NewSyncIterator(ctx, pf.RowGroups(), idx,
+			SyncIteratorOptSelectAs("S"),
+			SyncIteratorOptPredicate(NewStringInPredicate([]string{"no-such-value"})),
+			SyncIteratorOptMaxDefinitionLevel(MaxDefinitionLevel),
+		)
+		it.indexReaderDisabled = disable
+		return it
+	}
+
+	fast := newIter(false)
+	defer fast.Close()
+	slow := newIter(true)
+	defer slow.Close()
+
+	require.Empty(t, collectStringResults(t, fast))
+	require.Empty(t, collectStringResults(t, slow))
+	require.Equal(t, 0, fast.dictFastPathPages(), "a chunk with no matching dict entry should be skipped, not scanned")
 }

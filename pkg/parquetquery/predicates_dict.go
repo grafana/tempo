@@ -45,14 +45,10 @@ func (p ByteEqualPredicate) KeepIndexes(dict pq.Dictionary) []bool {
 }
 
 // regex and substring matching are pure functions of the value and reject nulls,
-// so they resolve against the dictionary just like exact matches. This is an even
-// bigger win for them because the per-row cost (regex / bytes.Contains) is far
-// higher than a byte comparison.
-//
-// These predicates memoize per-value match results and rely on a per-chunk reset
-// to keep that memoization bounded. The dictionary fast path resolves the bitmap
-// via KeepIndexes instead of KeepColumnChunk, so the reset lives here too - one
-// KeepIndexes call per column chunk - keeping the cache bounded over a long scan.
+// so they push down like exact matches (an even bigger win, since the per-row cost
+// is a regex / bytes.Contains rather than a byte compare). They memoize per value
+// and rely on a per-chunk reset to stay bounded; the fast path calls KeepIndexes
+// rather than KeepColumnChunk, so the reset lives here too — once per chunk.
 func (p *regexPredicate) KeepIndexes(dict pq.Dictionary) []bool {
 	p.matcher.Reset()
 	return dictionaryKeepIndexes(dict, p.KeepValue)
@@ -63,19 +59,15 @@ func (p *SubstringPredicate) KeepIndexes(dict pq.Dictionary) []bool {
 	return dictionaryKeepIndexes(dict, p.KeepValue)
 }
 
-// KeepIndexes supports dictionary pushdown only when every child is itself
-// dictionary-pushable. A nil child means "match all" and a non-dictionary child
-// (e.g. regex on a value the dictionary doesn't narrow) would require per-row
-// evaluation, so in both cases we return nil to disable the optimization.
-//
-// The bitmap is the OR of the children's bitmaps rather than a scan over the OR's
-// KeepValue, so each child's own KeepIndexes runs (resetting its memoization) and
-// the per-chunk bound is preserved for substring/regex children.
+// KeepIndexes pushes down only when every child does. It ORs the children's bitmaps
+// (rather than scanning the OR's KeepValue) so each child's own KeepIndexes runs,
+// preserving the per-chunk reset for substring/regex children. A nil child ("match
+// all") or a non-pushable child disables the optimization.
 func (p *OrPredicate) KeepIndexes(dict pq.Dictionary) []bool {
 	var out []bool
 	for _, child := range p.preds {
 		if child == nil {
-			return nil // nil child means "match all" - not pushable
+			return nil
 		}
 		dp, ok := child.(DictionaryPredicate)
 		if !ok {
@@ -83,7 +75,7 @@ func (p *OrPredicate) KeepIndexes(dict pq.Dictionary) []bool {
 		}
 		keep := dp.KeepIndexes(dict)
 		if keep == nil {
-			return nil // child declined pushdown for this dictionary
+			return nil // child declined for this dictionary
 		}
 		if out == nil {
 			out = keep
