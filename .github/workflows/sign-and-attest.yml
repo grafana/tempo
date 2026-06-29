@@ -79,6 +79,32 @@ jobs:
           username: oauth2accesstoken # literal magic string required by GAR; not a secret — tells GAR the password is an OAuth2 access token
           password: ${{ steps.gar_auth.outputs.access_token }}
 
+      - name: Add static registry credentials
+        # login-to-gar configures a gcloud docker *credential helper*. cosign
+        # understands credential helpers, but actions/attest (push-to-registry)
+        # only reads static `auths` from the docker config and does not invoke
+        # helpers — so without this it fails with "No credentials found for
+        # registry ...". Write a static auth entry (additive; cosign still works)
+        # using a short-lived GAR access token from the gcloud auth above.
+        # Note: oauth2accesstoken is a magic literal string required by GAR —
+        # not a secret. It tells GAR the password field is an OAuth2 access token.
+        env:
+          REGISTRY: ${{ inputs.registry }}
+        run: |
+          token="$(gcloud auth print-access-token)"
+          if [[ -z "$token" ]]; then
+            echo "::error::gcloud auth print-access-token returned an empty token"
+            exit 1
+          fi
+          enc="$(printf 'oauth2accesstoken:%s' "$token" | base64 -w0)"
+          cfg="${HOME}/.docker/config.json"
+          mkdir -p "${HOME}/.docker"
+          [ -f "$cfg" ] || echo '{}' > "$cfg"
+          tmp="$(mktemp)"
+          jq --arg reg "$REGISTRY" --arg a "$enc" '.auths[$reg] = {auth: $a}' "$cfg" > "$tmp"
+          mv "$tmp" "$cfg"
+          chmod 0600 "$cfg"
+
       - name: Install cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
         with:
