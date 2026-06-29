@@ -264,10 +264,10 @@ func TestDiffMatchesDuplicateSpanIdentityByParent(t *testing.T) {
 	removedDBDurations := make([]int64, 0, 1)
 	for _, removed := range got.Removed {
 		if removed.Span.Service == "db" && removed.Span.Name == "SELECT users" {
-			removedDBDurations = append(removedDBDurations, removed.Span.DurationMs)
+			removedDBDurations = append(removedDBDurations, removed.Span.DurationNanos)
 		}
 	}
-	assert.Equal(t, []int64{10}, removedDBDurations)
+	assert.Equal(t, []int64{10_000_000}, removedDBDurations)
 }
 
 func TestDiffWarnsAndUsesRawHighCardinalitySpanName(t *testing.T) {
@@ -331,9 +331,9 @@ func TestDiffReportsModifiedSpanFields(t *testing.T) {
 	assert.Equal(t, []Change{
 		{
 			Op:     OperationModify,
-			Target: Target{Type: TargetField, Name: "duration_ms"},
-			Before: int64(100),
-			After:  int64(250),
+			Target: Target{Type: TargetField, Name: "duration_nanos"},
+			Before: int64(100_000_000),
+			After:  int64(250_000_000),
 		},
 		{
 			Op:     OperationModify,
