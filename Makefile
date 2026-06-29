@@ -460,7 +460,7 @@ chlog-new: $(CHLOGGEN) ## Create a new changelog entry under .chloggen/ (default
 	status=$$?; \
 	[ -z "$$output" ] || printf '%s\n' "$$output"; \
 	if [ $$status -ne 0 ]; then exit $$status; fi; \
-	entry="$$(printf '%s\n' "$$output" | sed -n 's/^Changelog entry template copied to: //p')"; \
+	entry="$$(printf '%s\n' "$$output" | awk '/^Changelog entry template copied to: /{sub(/^Changelog entry template copied to: /, ""); print; exit}')"; \
 	if [ -z "$$entry" ]; then echo "Could not determine changelog entry path." >&2; exit 1; fi; \
 	if [ "$(CHLOG_EDIT)" != "0" ] && [ -t 0 ] && [ -t 1 ]; then \
 	  $(CHLOG_EDITOR) "$$entry"; \
