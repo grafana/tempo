@@ -11,7 +11,31 @@ import (
 	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	resourcev1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/traceql"
 )
+
+// spanWithChildOfLink builds a parentless span carrying a child_of link to linkTraceID.
+func spanWithChildOfLink(id byte, spanTraceID, linkTraceID []byte) *tracev1.Span {
+	return &tracev1.Span{
+		SpanId:  []byte{id},
+		TraceId: spanTraceID,
+		Name:    "span-" + string(rune('A'+id)),
+		Links: []*tracev1.Span_Link{{
+			TraceId: linkTraceID,
+			Attributes: []*commonv1.KeyValue{{
+				Key:   "opentracing.ref_type",
+				Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "child_of"}},
+			}},
+		}},
+	}
+}
+
+func traceFromSpans(serviceName string, spans ...*tracev1.Span) *tempopb.Trace {
+	return &tempopb.Trace{ResourceSpans: []*tracev1.ResourceSpans{{
+		Resource:   &resourcev1.Resource{Attributes: keyValues(map[string]any{"service.name": serviceName})},
+		ScopeSpans: []*tracev1.ScopeSpans{{Spans: spans}},
+	}}}
+}
 
 // testSpan is a compact span spec for building test traces.
 type testSpan struct {
@@ -102,7 +126,16 @@ func TestOptionsFromValues(t *testing.T) {
 			vals: url.Values{"q": {"{ .a = 1 }"}, "keep_hierarchy": {"false"}},
 			want: Options{Query: "{ .a = 1 }", KeepHierarchy: false},
 		},
-		{name: "invalid keep_hierarchy", vals: url.Values{"keep_hierarchy": {"yes-please"}}, wantErr: true},
+		{
+			name:    "invalid keep_hierarchy with query",
+			vals:    url.Values{"q": {"{ .a = 1 }"}, "keep_hierarchy": {"yes-please"}},
+			wantErr: true,
+		},
+		{
+			name: "invalid keep_hierarchy ignored without query",
+			vals: url.Values{"keep_hierarchy": {"yes-please"}},
+			want: Options{KeepHierarchy: true},
+		},
 	}
 
 	for _, tt := range tests {
@@ -204,14 +237,39 @@ func TestApplyDoesNotMutateInput(t *testing.T) {
 		{id: 1, attrs: map[string]any{"http.status_code": 200}},
 		{id: 2, parent: 1, attrs: map[string]any{"http.status_code": 500}},
 	}, nil)
-	originalSpanCount := len(trace.ResourceSpans[0].ScopeSpans[0].Spans)
+	// snapshot the full wire encoding so any field mutation, not just a dropped span, is caught.
+	before, err := trace.Marshal()
+	require.NoError(t, err)
 
 	f, err := Options{Query: `{ .http.status_code = 500 }`}.Compile()
 	require.NoError(t, err)
 
 	_, err = f.Process(trace)
 	require.NoError(t, err)
-	assert.Len(t, trace.ResourceSpans[0].ScopeSpans[0].Spans, originalSpanCount, "input trace must be untouched")
+
+	after, err := trace.Marshal()
+	require.NoError(t, err)
+	assert.Equal(t, before, after, "input trace must be untouched")
+}
+
+func TestTraceAttributesRootExcludesChildOfLinkedSpan(t *testing.T) {
+	// a parentless span with an intra-trace child_of link is not the root (matching storage); with
+	// no other root, trace:root* resolve empty - same as storage's rootless trace.
+	traceID := []byte{0xab, 0xcd}
+	trace := traceFromSpans("checkout", spanWithChildOfLink(1, traceID, traceID))
+
+	attrs := traceAttributes(trace)
+	assert.Equal(t, traceql.NewStaticString(""), attrs[traceql.IntrinsicTraceRootSpanAttribute])
+	assert.Equal(t, traceql.NewStaticString(""), attrs[traceql.IntrinsicTraceRootServiceAttribute])
+}
+
+func TestTraceAttributesCrossTraceChildOfLinkDoesNotExcludeRoot(t *testing.T) {
+	// a child_of link to a different trace must not disqualify the root.
+	trace := traceFromSpans("checkout", spanWithChildOfLink(1, []byte{0xab, 0xcd}, []byte{0x99}))
+
+	attrs := traceAttributes(trace)
+	assert.Equal(t, traceql.NewStaticString("span-B"), attrs[traceql.IntrinsicTraceRootSpanAttribute])
+	assert.Equal(t, traceql.NewStaticString("checkout"), attrs[traceql.IntrinsicTraceRootServiceAttribute])
 }
 
 func TestApplyMatchesOnResourceAttribute(t *testing.T) {
