@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"net/url"
+	"slices"
 	"strconv"
 	"time"
 
@@ -111,40 +112,41 @@ func (f *Filter) Process(trace *tempopb.Trace) (*tempopb.Trace, error) {
 	return rebuildTrace(trace, kept), nil
 }
 
-// addAncestors adds each matched span's parent chain to kept.
+// addAncestors adds every matched span's ancestor path to kept. Walking is a BFS because duplicate
+// span ids may have multiple parents; kept doubles as the visited set so cycles terminate.
 func (f *Filter) addAncestors(idx *spanIndex, kept map[string]struct{}) {
-	// snapshot the ids first: we mutate kept while iterating.
-	matchedIDs := make([]string, 0, len(kept))
+	// snapshot the starting ids: we mutate kept while walking.
+	queue := make([]string, 0, len(kept))
 	for id := range kept {
-		matchedIDs = append(matchedIDs, id)
+		queue = append(queue, id)
 	}
 
-	for _, id := range matchedIDs {
-		current := id
-		for {
-			parentID, ok := idx.parentOf[current]
-			if !ok || parentID == "" {
-				break // reached a root.
+	for len(queue) > 0 {
+		current := queue[len(queue)-1]
+		queue = queue[:len(queue)-1]
+		for _, parentID := range idx.parentsByID[current] {
+			if parentID == "" {
+				continue // reached a root.
 			}
 			if _, seen := kept[parentID]; seen {
-				break // chain already kept; also breaks cycles.
+				continue // already kept; also breaks cycles.
 			}
 			// a dangling parentID is harmless: rebuildTrace only emits spans that exist.
 			kept[parentID] = struct{}{}
-			current = parentID
+			queue = append(queue, parentID)
 		}
 	}
 }
 
 // spanIndex is a flattened view of a trace for matching and ancestor walks.
 type spanIndex struct {
-	spans    []traceql.Span    // proto-backed spans for the engine.
-	parentOf map[string]string // span id -> parent span id (both string(bytes)).
+	spans       []traceql.Span      // proto-backed spans for the engine.
+	parentsByID map[string][]string // span id -> distinct parent span ids of all spans sharing that id.
 }
 
 func newSpanIndex(trace *tempopb.Trace) *spanIndex {
 	idx := &spanIndex{
-		parentOf: make(map[string]string),
+		parentsByID: make(map[string][]string),
 	}
 	traceAttrs := traceAttributes(trace)
 	for _, rs := range trace.ResourceSpans {
@@ -152,12 +154,20 @@ func newSpanIndex(trace *tempopb.Trace) *spanIndex {
 		for _, ss := range rs.ScopeSpans {
 			for _, span := range ss.Spans {
 				idx.spans = append(idx.spans, newProtoSpan(span, resourceAttrs, traceAttrs, ss.Scope))
-				// FIXME: duplicate span ids collapse here (last writer wins), so keep_hierarchy may walk the wrong parent; matching and output are unaffected.
-				idx.parentOf[string(span.SpanId)] = string(span.ParentSpanId)
+				idx.addParent(string(span.SpanId), string(span.ParentSpanId))
 			}
 		}
 	}
 	return idx
+}
+
+// addParent records a distinct parent id for a span id; duplicate span ids accumulate every parent
+// so the ancestor walk follows all branches instead of an arbitrary last-writer one.
+func (idx *spanIndex) addParent(spanID, parentID string) {
+	if slices.Contains(idx.parentsByID[spanID], parentID) {
+		return
+	}
+	idx.parentsByID[spanID] = append(idx.parentsByID[spanID], parentID)
 }
 
 // traceAttributes computes the trace-level intrinsics (trace:rootName, trace:rootService,
