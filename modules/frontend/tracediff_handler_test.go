@@ -184,8 +184,8 @@ func (traceDiffHidingRedactor) RedactTraceAttributes(_ *tempopb.Trace) error {
 
 func TestTraceDiffHandlerReturnsDiff(t *testing.T) {
 	tracePipeline := traceDiffTestPipeline(t, map[string]*tempopb.TraceByIDResponse{
-		"abc123": &tempopb.TraceByIDResponse{Trace: tempotest.MakeTrace(1, []byte{0xab, 0xc1, 0x23})},
-		"def456": &tempopb.TraceByIDResponse{Trace: tempotest.MakeTrace(1, []byte{0xde, 0xf4, 0x56})},
+		"abc123": {Trace: tempotest.MakeTrace(1, []byte{0xab, 0xc1, 0x23})},
+		"def456": {Trace: tempotest.MakeTrace(1, []byte{0xde, 0xf4, 0x56})},
 	})
 	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
@@ -204,8 +204,8 @@ func TestTraceDiffHandlerReturnsDiff(t *testing.T) {
 
 func TestTraceDiffHandlerAppliesTraceRedactor(t *testing.T) {
 	tracePipeline := traceDiffTestPipeline(t, map[string]*tempopb.TraceByIDResponse{
-		"abc123": &tempopb.TraceByIDResponse{Trace: tempotest.MakeTrace(1, []byte{0xab, 0xc1, 0x23})},
-		"def456": &tempopb.TraceByIDResponse{Trace: tempotest.MakeTrace(1, []byte{0xde, 0xf4, 0x56})},
+		"abc123": {Trace: tempotest.MakeTrace(1, []byte{0xab, 0xc1, 0x23})},
+		"def456": {Trace: tempotest.MakeTrace(1, []byte{0xde, 0xf4, 0x56})},
 	})
 	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
@@ -225,7 +225,7 @@ func TestTraceDiffHandlerAppliesTraceRedactor(t *testing.T) {
 
 func TestTraceDiffHandlerMapsWrappedTraceFetchStatus(t *testing.T) {
 	tracePipeline := traceDiffTestPipeline(t, map[string]*tempopb.TraceByIDResponse{
-		"abc123": &tempopb.TraceByIDResponse{Trace: tempotest.MakeTrace(1, []byte{0xab, 0xc1, 0x23})},
+		"abc123": {Trace: tempotest.MakeTrace(1, []byte{0xab, 0xc1, 0x23})},
 	})
 	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
@@ -243,8 +243,8 @@ func TestTraceDiffHandlerMapsWrappedTraceFetchStatus(t *testing.T) {
 
 func TestTraceDiffHandlerDataAccessErrorReturnsBadRequest(t *testing.T) {
 	tracePipeline := traceDiffTestPipeline(t, map[string]*tempopb.TraceByIDResponse{
-		"abc123": &tempopb.TraceByIDResponse{Trace: tempotest.MakeTrace(1, []byte{0xab, 0xc1, 0x23})},
-		"def456": &tempopb.TraceByIDResponse{Trace: tempotest.MakeTrace(1, []byte{0xde, 0xf4, 0x56})},
+		"abc123": {Trace: tempotest.MakeTrace(1, []byte{0xab, 0xc1, 0x23})},
+		"def456": {Trace: tempotest.MakeTrace(1, []byte{0xde, 0xf4, 0x56})},
 	})
 	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
@@ -264,8 +264,8 @@ func TestTraceDiffHandlerDataAccessErrorReturnsBadRequest(t *testing.T) {
 
 func TestTraceDiffHandlerRejectsPartialTraces(t *testing.T) {
 	tracePipeline := traceDiffTestPipeline(t, map[string]*tempopb.TraceByIDResponse{
-		"abc123": &tempopb.TraceByIDResponse{Trace: tempotest.MakeTrace(1, []byte{0xab, 0xc1, 0x23})},
-		"def456": &tempopb.TraceByIDResponse{
+		"abc123": {Trace: tempotest.MakeTrace(1, []byte{0xab, 0xc1, 0x23})},
+		"def456": {
 			Trace:  tempotest.MakeTrace(1, []byte{0xde, 0xf4, 0x56}),
 			Status: tempopb.PartialStatus_PARTIAL,
 		},
