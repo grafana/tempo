@@ -462,8 +462,10 @@ chlog-new: $(CHLOGGEN) ## Create a new changelog entry under .chloggen/ (default
 	if [ $$status -ne 0 ]; then exit $$status; fi; \
 	entry="$$(printf '%s\n' "$$output" | sed -n 's/^Changelog entry template copied to: //p')"; \
 	if [ -z "$$entry" ]; then echo "Could not determine changelog entry path." >&2; exit 1; fi; \
-	if [ "$(CHLOG_EDIT)" != "0" ]; then \
+	if [ "$(CHLOG_EDIT)" != "0" ] && [ -t 0 ] && [ -t 1 ]; then \
 	  $(CHLOG_EDITOR) "$$entry"; \
+	else \
+	  echo "Edit $$entry manually."; \
 	fi
 
 .PHONY: chlog-validate
