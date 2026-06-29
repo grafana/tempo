@@ -48,11 +48,18 @@ func (p ByteEqualPredicate) KeepIndexes(dict pq.Dictionary) []bool {
 // so they resolve against the dictionary just like exact matches. This is an even
 // bigger win for them because the per-row cost (regex / bytes.Contains) is far
 // higher than a byte comparison.
+//
+// These predicates memoize per-value match results and rely on a per-chunk reset
+// to keep that memoization bounded. The dictionary fast path resolves the bitmap
+// via KeepIndexes instead of KeepColumnChunk, so the reset lives here too - one
+// KeepIndexes call per column chunk - keeping the cache bounded over a long scan.
 func (p *regexPredicate) KeepIndexes(dict pq.Dictionary) []bool {
+	p.matcher.Reset()
 	return dictionaryKeepIndexes(dict, p.KeepValue)
 }
 
 func (p *SubstringPredicate) KeepIndexes(dict pq.Dictionary) []bool {
+	p.matches = make(map[string]bool, len(p.matches))
 	return dictionaryKeepIndexes(dict, p.KeepValue)
 }
 
@@ -60,14 +67,31 @@ func (p *SubstringPredicate) KeepIndexes(dict pq.Dictionary) []bool {
 // dictionary-pushable. A nil child means "match all" and a non-dictionary child
 // (e.g. regex on a value the dictionary doesn't narrow) would require per-row
 // evaluation, so in both cases we return nil to disable the optimization.
+//
+// The bitmap is the OR of the children's bitmaps rather than a scan over the OR's
+// KeepValue, so each child's own KeepIndexes runs (resetting its memoization) and
+// the per-chunk bound is preserved for substring/regex children.
 func (p *OrPredicate) KeepIndexes(dict pq.Dictionary) []bool {
+	var out []bool
 	for _, child := range p.preds {
 		if child == nil {
+			return nil // nil child means "match all" - not pushable
+		}
+		dp, ok := child.(DictionaryPredicate)
+		if !ok {
 			return nil
 		}
-		if _, ok := child.(DictionaryPredicate); !ok {
-			return nil
+		keep := dp.KeepIndexes(dict)
+		if keep == nil {
+			return nil // child declined pushdown for this dictionary
+		}
+		if out == nil {
+			out = keep
+			continue
+		}
+		for i := range keep {
+			out[i] = out[i] || keep[i]
 		}
 	}
-	return dictionaryKeepIndexes(dict, p.KeepValue)
+	return out
 }
