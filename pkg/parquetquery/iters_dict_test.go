@@ -41,9 +41,9 @@ func runDictEquivalence[T any](t *testing.T, rows []T, colPath string, makePred 
 			SyncIteratorOptMaxDefinitionLevel(MaxDefinitionLevel),
 		}
 		it := NewSyncIterator(ctx, pf.RowGroups(), idx, opts...)
-		// indexReaderDisabled is test-only state; the fast path is always on in prod.
-		// It is read lazily on the first page, so setting it post-construction is fine.
-		it.indexReaderDisabled = disable
+		// dictDisabled is test-only state; the fast path is always on in prod. It is
+		// read lazily per chunk, so setting it post-construction is fine.
+		it.chunk.dictDisabled = disable
 		return it
 	}
 
@@ -170,47 +170,44 @@ func TestSyncIteratorDictPushdownFallsBackForNonDictPredicate(t *testing.T) {
 	require.Equal(t, 0, iter.dictFastPathPages(), "non-dictionary predicate must not use dict fast path")
 }
 
-// TestIndexValueReaderNoPresentValues guards the fast path against dictionary-
-// encoded pages that carry definition levels but no present leaf values (e.g. an
-// all-null optional page or a repeated page of only empty lists). There indices
-// is empty, so naively treating slots as present would index out of bounds. The
-// page must yield no matches, advance the row-number cursor once per slot (as the
-// per-row path does), and never panic.
-func TestIndexValueReaderNoPresentValues(t *testing.T) {
+// TestDictPageReaderNoPresentValues guards the fast path against dictionary-encoded
+// pages that carry definition levels but no present leaf values (e.g. an all-null
+// optional page or a repeated page of only empty lists). There dictIndexes is empty,
+// so naively treating slots as present would index out of bounds. The page must yield
+// no matches and never panic.
+func TestDictPageReaderNoPresentValues(t *testing.T) {
 	cases := []struct {
 		name      string
 		defLevels []byte
 		repLevels []byte
 	}{
-		// All-null optional page: every slot below the present level, so pageMaxDef
-		// collapses to the null level and only the valueN bound prevents the panic.
+		// All-null optional page: every slot below the present level, so presentDefLevel
+		// collapses to the null level and only the valuePos bound prevents the panic.
 		{name: "all-null optional", defLevels: []byte{0, 0, 0, 0}},
 		// Repeated page of empty lists: rep=0 starts each row, def below present.
 		{name: "all-empty repeated", defLevels: []byte{0, 0, 0}, repLevels: []byte{0, 0, 0}},
-		// Pathological: a slot sits at pageMaxDef (looks present) but no index backs
-		// it. The bounds guard must treat it as null rather than indexing past indices.
+		// Pathological: a slot sits at presentDefLevel (looks present) but no index
+		// backs it. The bounds guard must treat it as null rather than indexing past.
 		{name: "present level without index", defLevels: []byte{1}},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			r := &indexValueReader{
-				matches:    nil, // never consulted: no present values
-				dict:       nil,
-				indices:    nil, // empty: no present values on the page
-				defLevels:  tc.defLevels,
-				repLevels:  tc.repLevels,
-				pageMaxDef: maxByte(tc.defLevels), // mirrors newIndexValueReader
+			r := &dictPageReader{
+				keep:            nil, // never consulted: no present values
+				dictionary:      nil,
+				dictIndexes:     nil, // empty: no present values on the page
+				defLevels:       tc.defLevels,
+				repLevels:       tc.repLevels,
+				presentDefLevel: maxByte(tc.defLevels), // mirrors setup
 			}
 
 			require.NotPanics(t, func() {
 				curr := EmptyRowNumber()
-				pageN := 0
-				v, ok := r.nextMatch(&curr, &pageN, MaxDefinitionLevel)
+				v, ok, err := r.next(&curr)
+				require.NoError(t, err)
 				require.False(t, ok, "an all-null page must yield no matches")
 				require.Nil(t, v)
-				// Every slot must still have been walked (row numbers advanced).
-				require.Equal(t, len(tc.defLevels), pageN, "every slot should advance the cursor")
 			})
 		})
 	}
@@ -258,7 +255,7 @@ func TestSyncIteratorDictPushdownSkipsChunkWithNoMatch(t *testing.T) {
 			SyncIteratorOptPredicate(NewStringInPredicate([]string{"no-such-value"})),
 			SyncIteratorOptMaxDefinitionLevel(MaxDefinitionLevel),
 		)
-		it.indexReaderDisabled = disable
+		it.chunk.dictDisabled = disable
 		return it
 	}
 

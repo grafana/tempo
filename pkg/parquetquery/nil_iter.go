@@ -2,9 +2,7 @@ package parquetquery
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io"
 
 	pq "github.com/parquet-go/parquet-go"
 )
@@ -25,6 +23,9 @@ func NewNilSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, opts
 		SyncIterator:          *syncIterator,
 		lastRowNumberReturned: EmptyRowNumber(),
 	}
+	// The nil iterator must see every value (it tracks scope across the whole page),
+	// so it always uses the per-row buffered reader, never the dictionary fast path.
+	i.chunk.dictDisabled = true
 
 	return i
 }
@@ -102,17 +103,18 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 		if valueFound || !scopeHasValues || !scopeRow.Valid() {
 			return RowNumber{}, false
 		}
-		if EqualRowNumber(c.maxDefinitionLevel, c.lastRowNumberReturned, c.curr) {
+		if EqualRowNumber(c.chunk.maxDef, c.lastRowNumberReturned, c.curr) {
 			return RowNumber{}, false
 		}
 		c.lastRowNumberReturned = scopeRow
 		return scopeRow, true
 	}
 
+	// advanceValue consumes the peeked value and advances the row number, exactly as
+	// the per-row path does - tracking scope membership and whether the filter matched.
 	advanceValue := func(v *pq.Value) {
-		c.curr.Next(v.RepetitionLevel(), v.DefinitionLevel(), c.maxDefinitionLevel)
-		c.currBufN++
-		c.currPageN++
+		c.chunk.bufferedReader.consume()
+		c.curr.Next(v.RepetitionLevel(), v.DefinitionLevel(), c.chunk.maxDef)
 
 		if !v.IsNull() {
 			scopeHasValues = true
@@ -134,93 +136,73 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 			}
 
 			cc := &ColumnChunkHelper{ColumnChunk: rg.ColumnChunks()[c.column]}
-			if c.filter != nil && !c.filter.KeepColumnChunk(cc) {
+			// dictDisabled is set, so admitChunk reduces to the filter's KeepColumnChunk.
+			if !c.chunk.admitChunk(cc) {
 				cc.Close()
 				continue
 			}
-
 			c.setRowGroup(rg, minRN, maxRN, cc)
 		}
 
-		if c.currPage == nil {
-			pg, err := c.currChunk.NextPage()
-			if err != nil && !errors.Is(err, io.EOF) {
+		if !c.chunk.hasPage() {
+			ok, err := c.chunk.loadPage(&c.curr, nil, 0)
+			if err != nil {
 				return EmptyRowNumber(), nil, err
 			}
-			if pg == nil || errors.Is(err, io.EOF) {
-				// This row group is exhausted
+			if !ok {
+				// This row group is exhausted.
 				c.closeCurrRowGroup()
 				continue
 			}
-			if c.filter != nil && !c.filter.KeepPage(pg) {
-				// This page filtered out
-				c.curr.Skip(pg.NumRows())
-				pq.Release(pg)
-				continue
-			}
-			c.setPage(pg)
 		}
 
-		// Read next batch of values if needed
-		if c.currBuf == nil {
-			c.currBuf = syncIteratorPoolGet(c.readSize, 0)
+		// Peek at the next value (no filtering); dictDisabled guarantees the buffered
+		// reader is the active one. advanceValue consumes it; on a scope-exit emission
+		// we return without consuming, so the value is re-peeked on the next call.
+		v, ok, err := c.chunk.bufferedReader.peek()
+		if err != nil {
+			return EmptyRowNumber(), nil, err
+		}
+		if !ok {
+			// This page is exhausted.
+			c.chunk.setPage(&c.curr, nil)
+			continue
 		}
 
-		if c.currBufN >= len(c.currBuf) || len(c.currBuf) == 0 {
-			c.currBuf = c.currBuf[:cap(c.currBuf)]
-			n, err := c.currValues.ReadValues(c.currBuf)
-			if err != nil && !errors.Is(err, io.EOF) {
-				return EmptyRowNumber(), nil, err
-			}
-			c.currBuf = c.currBuf[:n]
-			c.currBufN = 0
-			if n == 0 {
-				// This value reader and page are exhausted.
-				c.setPage(nil)
-				continue
-			}
-		}
+		r := v.RepetitionLevel()
+		d := v.DefinitionLevel()
+		maxD := c.chunk.maxDef
 
-		// Consume current buffer until empty
-		for c.currBufN < len(c.currBuf) {
-			var (
-				v    = &c.currBuf[c.currBufN]
-				r    = v.RepetitionLevel()
-				d    = v.DefinitionLevel()
-				maxD = c.maxDefinitionLevel
-			)
-
-			if r < maxD {
-				// This means we are moving on to the next row.
-				// Before doing so, see if we need to emit a response for the row we are exiting.
-				if rn, ok := tryEmitNilOnScopeExit(); ok {
-					return rn, &emptyNilValue, nil
-				}
-
-				// new level reset
-				valueFound = false
-				scopeHasValues = false
-				advanceValue(v)
-				scopeRow = c.curr
-
-				if r <= d && d == maxD-1 && v.IsNull() {
-					// Empty repeated values for this level, which means the value doesn't exist.
-					// However because we checking that we are the second to last level, it means
-					// we are also ensuring there is an owning row defined at this level.
-					// In this case we emit a nil immediately upon entering the scope
-					// because this is the only row for it.
-					c.lastRowNumberReturned = c.curr
-					return c.curr, &emptyNilValue, nil
-				}
-
-				// Neither of the above cases matched,
-				// so we are just entering a new row
-				continue
+		if r < maxD {
+			// This means we are moving on to the next row.
+			// Before doing so, see if we need to emit a response for the row we are exiting.
+			if rn, ok := tryEmitNilOnScopeExit(); ok {
+				return rn, &emptyNilValue, nil
 			}
 
-			// Inspect all values to track the current row number,
-			// even if the value is filtered out next.
+			// new level reset
+			valueFound = false
+			scopeHasValues = false
 			advanceValue(v)
+			scopeRow = c.curr
+
+			if r <= d && d == maxD-1 && v.IsNull() {
+				// Empty repeated values for this level, which means the value doesn't exist.
+				// However because we checking that we are the second to last level, it means
+				// we are also ensuring there is an owning row defined at this level.
+				// In this case we emit a nil immediately upon entering the scope
+				// because this is the only row for it.
+				c.lastRowNumberReturned = c.curr
+				return c.curr, &emptyNilValue, nil
+			}
+
+			// Neither of the above cases matched,
+			// so we are just entering a new row
+			continue
 		}
+
+		// Inspect all values to track the current row number,
+		// even if the value is filtered out next.
+		advanceValue(v)
 	}
 }

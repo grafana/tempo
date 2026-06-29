@@ -37,7 +37,7 @@ func BenchmarkSyncIteratorDictPushdown(b *testing.B) {
 				SyncIteratorOptPredicate(NewStringInPredicate(targets)),
 			}
 			iter := NewSyncIterator(ctx, pf.RowGroups(), idx, opts...)
-			iter.indexReaderDisabled = disable // test-only: force the per-row baseline
+			iter.chunk.dictDisabled = disable // test-only: force the per-row baseline
 			var count int
 			for {
 				res, err := iter.Next()

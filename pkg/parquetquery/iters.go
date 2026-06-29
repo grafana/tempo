@@ -3,9 +3,7 @@ package parquetquery
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
-	"io"
 	"math"
 	"slices"
 	"sync"
@@ -425,7 +423,7 @@ func SyncIteratorOptSelectAs(selectAs string) SyncIteratorOpt {
 // values are unpacked from the column on each read.
 func SyncIteratorOptBufferSize(bufferSize int) SyncIteratorOpt {
 	return func(i *SyncIterator) {
-		i.readSize = bufferSize
+		i.chunk.bufferedReader.readSize = bufferSize
 	}
 }
 
@@ -434,14 +432,8 @@ func SyncIteratorOptBufferSize(bufferSize int) SyncIteratorOpt {
 // required for correct behavior.
 func SyncIteratorOptMaxDefinitionLevel(maxDefinitionLevel int) SyncIteratorOpt {
 	return func(i *SyncIterator) {
-		i.maxDefinitionLevel = maxDefinitionLevel
+		i.chunk.maxDef = maxDefinitionLevel
 	}
-}
-
-// dictFastPathPages reports how many pages were served via the dictionary fast
-// path. Used by in-package tests to confirm the optimization engaged.
-func (c *SyncIterator) dictFastPathPages() int {
-	return c.indexReaderPagesUsed
 }
 
 // SyncIterator is a synchronous column iterator. It scans through the given row
@@ -455,7 +447,6 @@ type SyncIterator struct {
 	rgs        []pq.RowGroup
 	rgsMin     []RowNumber
 	rgsMax     []RowNumber // Exclusive, row number of next one past the row group
-	readSize   int
 	filter     Predicate
 
 	// Status
@@ -464,175 +455,18 @@ type SyncIterator struct {
 	currRowGroup    pq.RowGroup
 	currRowGroupMin RowNumber
 	currRowGroupMax RowNumber
-	currChunk       *ColumnChunkHelper
-	currPage        pq.Page
-	currPageMin     RowNumber
-	currPageMax     RowNumber
-	currValues      pq.ValueReader
-	currBuf         []pq.Value
-	currBufN        int
-	currPageN       int
 	at              IteratorResult // Current value pointed at by iterator. Returned by call Next and SeekTo, valid until next call.
 
-	maxDefinitionLevel int
-
-	// Dictionary fast-path state: when the filter is a DictionaryPredicate over a
-	// dictionary-encoded chunk, the predicate is resolved once into a per-index match
-	// bitmap and rows match by integer index instead of per-row materialization.
-	indexReaderDisabled  bool              // test-only: force the per-row path
-	indexReaderPagesUsed int               // pages served via the fast path (tests/observability)
-	indexReaderChecked   bool              // match bitmap resolved for the current chunk?
-	indexReaderMatches   []bool            // match bitmap by dictionary index; nil => no pushdown
-	indexReader          *indexValueReader // current page's reader; nil on the per-row path
+	// chunk scans the current column chunk: dictionary resolution, page navigation,
+	// seek, and dispatch to a per-row or dictionary-index page reader. The iterator
+	// owns curr and hands it in by pointer so the scan can advance it.
+	chunk chunkReader
 
 	interner   *intern.Interner
 	makeResult func(t RowNumber, v *pq.Value) *IteratorResult
 }
 
 var _ Iterator = (*SyncIterator)(nil)
-
-// enterColumnChunk applies the column-chunk filter and makes the chunk current,
-// returning false if it can be skipped. For a dictionary-pushable predicate the
-// match bitmap is resolved here so the per-page readers reuse it.
-func (c *SyncIterator) enterColumnChunk(rg pq.RowGroup, minRN, maxRN RowNumber, cc *ColumnChunkHelper) bool {
-	keep, matches := c.keepColumnChunk(cc)
-	if !keep {
-		cc.Close()
-		return false
-	}
-	c.setRowGroup(rg, minRN, maxRN, cc)
-	if matches != nil { // reinstate the bitmap setRowGroup cleared, so indexReaderFor reuses it
-		c.indexReaderChecked = true
-		c.indexReaderMatches = matches
-	}
-	return true
-}
-
-// keepColumnChunk reports whether cc can match. For a dictionary-pushable predicate
-// it resolves the per-index match bitmap once (the scan KeepColumnChunk would do
-// anyway to test for any match) and returns it for the per-page readers; the chunk
-// is skipped when no entry matches. This bypasses KeepColumnChunk's per-chunk cache
-// reset for substring/regex, which is safe because KeepIndexes resets them instead.
-func (c *SyncIterator) keepColumnChunk(cc *ColumnChunkHelper) (keep bool, matches []bool) {
-	if c.filter == nil {
-		return true, nil
-	}
-	if dp, ok := c.filter.(DictionaryPredicate); ok && !c.indexReaderDisabled {
-		if dict := cc.Dictionary(); dict != nil {
-			if m := dp.KeepIndexes(dict); m != nil {
-				return slices.Contains(m, true), m
-			}
-		}
-	}
-	return c.filter.KeepColumnChunk(cc), nil
-}
-
-// indexReaderFor returns a fast-path reader for pg, or nil when pushdown doesn't
-// apply (disabled, non-dictionary predicate/page, or the predicate declined). The
-// match bitmap is resolved once per chunk and reused across its pages.
-func (c *SyncIterator) indexReaderFor(pg pq.Page) *indexValueReader {
-	if c.indexReaderDisabled {
-		return nil
-	}
-	dp, ok := c.filter.(DictionaryPredicate)
-	if !ok {
-		return nil
-	}
-	dict := pg.Dictionary()
-	if dict == nil {
-		return nil // page is not dictionary-encoded
-	}
-
-	// Resolve the predicate against the dictionary once per chunk.
-	if !c.indexReaderChecked {
-		c.indexReaderChecked = true
-		c.indexReaderMatches = dp.KeepIndexes(dict)
-	}
-	if c.indexReaderMatches == nil {
-		return nil // predicate declined dictionary pushdown for this chunk
-	}
-
-	c.indexReaderPagesUsed++
-	return newIndexValueReader(c.indexReaderMatches, pg)
-}
-
-// indexValueReader serves one dictionary-encoded page on the fast path, matching
-// each row by its integer dictionary index against the chunk's match bitmap.
-type indexValueReader struct {
-	matches []bool        // match bitmap indexed by dictionary index (chunk-scoped)
-	dict    pq.Dictionary // dictionary the matches were built against
-	col     int           // column index, stamped onto materialized values
-
-	indices    []int32 // present-value dictionary indexes for this page
-	defLevels  []byte  // nil for required columns
-	repLevels  []byte  // nil for non-repeated columns
-	pageMaxDef byte    // definition level of a present (non-null) leaf value on this page
-	slotN      int     // cursor over level slots (present + null)
-	valueN     int     // cursor over indices (present only)
-
-	value pq.Value // reused return buffer for matched values
-}
-
-func newIndexValueReader(matches []bool, pg pq.Page) *indexValueReader {
-	defLevels := pg.DefinitionLevels()
-	data := pg.Data()
-	return &indexValueReader{
-		matches:   matches,
-		dict:      pg.Dictionary(),
-		col:       pg.Column(),
-		indices:   data.Int32(),
-		defLevels: defLevels,
-		repLevels: pg.RepetitionLevels(),
-		// Present (non-null) leaves sit at the page's max definition level. (We derive
-		// it from the page, not the iterator's maxDefinitionLevel, which is a row-number
-		// cap rather than this leaf's level.)
-		pageMaxDef: maxByte(defLevels),
-	}
-}
-
-// nextMatch advances over slots until it materializes a matching value or the page
-// is exhausted (ok=false). It owns the per-slot loop (one tight loop, not a method
-// call per slot) and advances the caller's row number over every slot — present,
-// null, or filtered — via curr/pageN. The returned value points at a reused buffer,
-// valid until the next call.
-func (r *indexValueReader) nextMatch(curr *RowNumber, pageN *int, maxDefLevel int) (*pq.Value, bool) {
-	numSlots := len(r.indices)
-	if r.defLevels != nil {
-		numSlots = len(r.defLevels)
-	}
-
-	for r.slotN < numSlots {
-		repLvl := 0
-		if r.repLevels != nil {
-			repLvl = int(r.repLevels[r.slotN])
-		}
-		defLvl := int(r.pageMaxDef) // required columns have no levels; every slot is present
-		if r.defLevels != nil {
-			defLvl = int(r.defLevels[r.slotN])
-		}
-		curr.Next(repLvl, defLvl, maxDefLevel)
-		r.slotN++
-		(*pageN)++
-
-		// Null/empty slot consumes no index. The valueN bound also covers a page with
-		// definition levels but no present values (all-null page, empty indices), so we
-		// never index past indices/matches.
-		if (r.defLevels != nil && byte(defLvl) != r.pageMaxDef) || r.valueN >= len(r.indices) {
-			continue
-		}
-
-		idx := r.indices[r.valueN]
-		r.valueN++
-		if !r.matches[idx] {
-			continue
-		}
-
-		// Stamp page levels + column so the result matches the per-row path.
-		r.value = r.dict.Index(idx).Level(repLvl, defLvl, r.col)
-		return &r.value, true
-	}
-	return nil, false
-}
 
 // NewSyncIterator iterates values in a column of a parquet file. Required values
 // are the numeric column index and the row groups to iterate over.  The column index
@@ -657,20 +491,25 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, opts ..
 
 	// Create the iterator
 	i := &SyncIterator{
-		column:             column,
-		rgs:                rgs,
-		readSize:           1000, // default value
-		rgsMin:             rgsMin,
-		rgsMax:             rgsMax,
-		curr:               EmptyRowNumber(),
-		at:                 IteratorResult{},
-		maxDefinitionLevel: MaxDefinitionLevel, // default value
+		column: column,
+		rgs:    rgs,
+		rgsMin: rgsMin,
+		rgsMax: rgsMax,
+		curr:   EmptyRowNumber(),
+		at:     IteratorResult{},
 	}
+	i.chunk.maxDef = MaxDefinitionLevel    // default value
+	i.chunk.bufferedReader.readSize = 1000 // default value
 
 	// Apply options
 	for _, opt := range opts {
 		opt(i)
 	}
+
+	// The predicate lives on the iterator but is applied by the chunk reader (chunk,
+	// page) and the buffered page reader (per value); share it down.
+	i.chunk.filter = i.filter
+	i.chunk.bufferedReader.filter = i.filter
 
 	// Default value, always clone results until we have
 	// checked the column type and determined it isn't needed.
@@ -815,9 +654,11 @@ func (c *SyncIterator) seekRowGroup(seekTo RowNumber, definitionLevel int) (done
 
 		cc := &ColumnChunkHelper{ColumnChunk: rg.ColumnChunks()[c.column]}
 		// This row group matches the row number; check the filter.
-		if !c.enterColumnChunk(rg, minRN, maxRN, cc) {
+		if !c.chunk.admitChunk(cc) {
+			cc.Close()
 			continue
 		}
+		c.setRowGroup(rg, minRN, maxRN, cc)
 	}
 
 	return c.currRowGroup == nil
@@ -826,139 +667,30 @@ func (c *SyncIterator) seekRowGroup(seekTo RowNumber, definitionLevel int) (done
 // seekPages skips ahead in the current row group to the page that could contain the value at
 // the desired row number. Does nothing if the current page is already the correct one.
 func (c *SyncIterator) seekPages(seekTo RowNumber, definitionLevel int) (done bool, err error) {
-	if c.currPage != nil && CompareRowNumbers(definitionLevel, seekTo, c.currPageMax) >= 0 {
-		// Value not in this page
-		c.setPage(nil)
+	if c.chunk.hasPage() && c.chunk.pastPage(seekTo, definitionLevel) {
+		// Value not in this page.
+		c.chunk.setPage(&c.curr, nil)
 	}
 
-	if c.currPage == nil {
-		// TODO (mdisibio)   :((((((((
-		//    pages.SeekToRow is more costly than expected.  It doesn't reuse existing i/o
-		// so it can't be called naively every time we swap pages. We need to figure out
-		// a way to determine when it is worth calling here.
-		/*
-			// Seek into the pages. This is relative to the start of the row group
-			if seekTo[0] > 0 {
-				// Determine row delta. We subtract 1 because curr points at the previous row
-				skip := seekTo[0] - c.currRowGroupMin[0] - 1
-				if skip > 0 {
-					if err := c.currPages.SeekToRow(skip); err != nil {
-						return true, err
-					}
-					c.curr.Skip(skip)
-				}
-			}*/
-
-		for c.currPage == nil {
-			pg, err := c.currChunk.NextPage()
-			if pg == nil || err != nil {
-				// No more pages in this column chunk,
-				// cleanup and exit.
-				if errors.Is(err, io.EOF) {
-					err = nil
-				}
-				pq.Release(pg)
-				c.closeCurrRowGroup()
-				return true, err
-			}
-
-			// Skip based on row number?
-			newRN := c.curr
-			newRN.Skip(pg.NumRows() + 1)
-			if CompareRowNumbers(definitionLevel, seekTo, newRN) >= 0 {
-				c.curr.Skip(pg.NumRows())
-				pq.Release(pg)
-				continue
-			}
-
-			// Skip based on filter?
-			if c.filter != nil && !c.filter.KeepPage(pg) {
-				c.curr.Skip(pg.NumRows())
-				pq.Release(pg)
-				continue
-			}
-
-			c.setPage(pg)
+	if !c.chunk.hasPage() {
+		ok, err := c.chunk.loadPage(&c.curr, &seekTo, definitionLevel)
+		if err != nil {
+			return true, err
+		}
+		if !ok {
+			// No more pages in this column chunk; clean up and exit.
+			c.closeCurrRowGroup()
+			return true, nil
 		}
 	}
 
 	return false, nil
 }
 
-// seekWithinPage decides if it should reslice the current page to jump directly to the desired row number
-// or allow the iterator to call Next() until it finds the desired row number. it uses the magicThreshold
-// as its balance point. if the number of Next()s to skip is less than the magicThreshold, it will not reslice
+// seekWithinPage moves toward the desired row number within the current page,
+// reslicing straight to it for a large skip (delegated to the chunk reader).
 func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
-	rowSkipRelative := int(to[0] - c.curr[0])
-	if rowSkipRelative == 0 {
-		return
-	}
-
-	// The fast path's cursor tracks the whole page, so skip the reslice shortcut and
-	// let nextMatch advance to the target (correct, just not the large-skip fast path).
-	if c.indexReader != nil {
-		return
-	}
-
-	const magicThreshold = 1000
-	shouldSkip := false
-
-	if definitionLevel == 0 {
-		// if definition level is 0 there is always a 1:1 ratio between Next()s and rows. it's only deeper
-		// levels of nesting we have to manually count
-		shouldSkip = rowSkipRelative > magicThreshold
-	} else {
-		// this is a nested iterator, let's count the Next()s required to get to the desired row number
-		// and decide if we should skip or not
-		replvls := c.currPage.RepetitionLevels()
-		nextsRequired := 0
-
-		for i := c.currPageN; i < len(replvls); i++ {
-			nextsRequired++
-
-			if nextsRequired > magicThreshold {
-				shouldSkip = true
-				break
-			}
-
-			if replvls[i] == 0 { // 0 rep lvl indicates a new row
-				rowSkipRelative-- // decrement the number of rows we need to skip
-				if rowSkipRelative <= 0 {
-					// if we hit here we skipped all rows and did not exceed the magic threshold, so we're leaving shouldSkip false
-					break
-				}
-			}
-		}
-	}
-
-	if !shouldSkip {
-		return
-	}
-
-	// skips are calculated off the start of the page
-	rowSkip := to[0] - c.currPageMin[0]
-	if rowSkip < 1 {
-		return
-	}
-	if rowSkip > int32(c.currPage.NumRows()) {
-		return
-	}
-
-	// reslice the page to jump directly to the desired row number
-	pg := c.currPage.Slice(int64(rowSkip-1), c.currPage.NumRows())
-
-	// remove all detail below the row number
-	c.curr = TruncateRowNumber(0, to)
-	c.curr = c.curr.Preceding()
-
-	// reset buffers and other vars
-	pq.Release(c.currPage)
-	c.currPage = pg
-	c.currPageMin = c.curr
-	c.currValues = pg.Values()
-	c.currPageN = 0
-	syncIteratorPoolPut(c.currBuf)
-	c.currBuf = nil
+	c.chunk.seekWithinPage(&c.curr, to, definitionLevel)
 }
 
 // next is the core functionality of this iterator and returns the next matching result. This
@@ -975,75 +707,34 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 			}
 
 			cc := &ColumnChunkHelper{ColumnChunk: rg.ColumnChunks()[c.column]}
-			if !c.enterColumnChunk(rg, minRN, maxRN, cc) {
+			if !c.chunk.admitChunk(cc) {
+				cc.Close()
 				continue
 			}
+			c.setRowGroup(rg, minRN, maxRN, cc)
 		}
 
-		if c.currPage == nil {
-			pg, err := c.currChunk.NextPage()
-			if err != nil && !errors.Is(err, io.EOF) {
+		if !c.chunk.hasPage() {
+			ok, err := c.chunk.loadPage(&c.curr, nil, 0)
+			if err != nil {
 				return EmptyRowNumber(), nil, err
 			}
-			if pg == nil || errors.Is(err, io.EOF) {
-				// This row group is exhausted
+			if !ok {
+				// This row group is exhausted.
 				c.closeCurrRowGroup()
 				continue
 			}
-			if c.filter != nil && !c.filter.KeepPage(pg) {
-				// This page filtered out
-				c.curr.Skip(pg.NumRows())
-				pq.Release(pg)
-				continue
-			}
-			c.setPage(pg)
 		}
 
-		// Dictionary fast path: match rows by integer dictionary index.
-		if c.indexReader != nil {
-			v, ok := c.indexReader.nextMatch(&c.curr, &c.currPageN, c.maxDefinitionLevel)
-			if !ok {
-				c.setPage(nil) // page exhausted
-				continue
-			}
-			return c.curr, v, nil
+		v, ok, err := c.chunk.next(&c.curr)
+		if err != nil {
+			return EmptyRowNumber(), nil, err
 		}
-
-		// Read next batch of values if needed
-		if c.currBuf == nil {
-			c.currBuf = syncIteratorPoolGet(c.readSize, 0)
+		if !ok {
+			c.chunk.setPage(&c.curr, nil) // page exhausted; load the next on the next loop
+			continue
 		}
-		if c.currBufN >= len(c.currBuf) || len(c.currBuf) == 0 {
-			c.currBuf = c.currBuf[:cap(c.currBuf)]
-			n, err := c.currValues.ReadValues(c.currBuf)
-			if err != nil && !errors.Is(err, io.EOF) {
-				return EmptyRowNumber(), nil, err
-			}
-			c.currBuf = c.currBuf[:n]
-			c.currBufN = 0
-			if n == 0 {
-				// This value reader and page are exhausted.
-				c.setPage(nil)
-				continue
-			}
-		}
-
-		// Consume current buffer until empty
-		for c.currBufN < len(c.currBuf) {
-			v := &c.currBuf[c.currBufN]
-
-			// Inspect all values to track the current row number,
-			// even if the value is filtered out next.
-			c.curr.Next(v.RepetitionLevel(), v.DefinitionLevel(), c.maxDefinitionLevel)
-			c.currBufN++
-			c.currPageN++
-
-			if c.filter != nil && !c.filter.KeepValue(*v) {
-				continue
-			}
-
-			return c.curr, v, nil
-		}
+		return c.curr, v, nil
 	}
 }
 
@@ -1053,69 +744,14 @@ func (c *SyncIterator) setRowGroup(rg pq.RowGroup, min, max RowNumber, cc *Colum
 	c.currRowGroup = rg
 	c.currRowGroupMin = min
 	c.currRowGroupMax = max
-	c.currChunk = cc
-
-	// Reset the per-chunk match bitmap; each chunk has its own dictionary.
-	c.indexReaderChecked = false
-	c.indexReaderMatches = nil
-}
-
-func (c *SyncIterator) setPage(pg pq.Page) {
-	// Handle an outgoing page
-	if c.currPage != nil {
-		c.curr = c.currPageMax.Preceding() // Reposition current row number to end of this page.
-		pq.Release(c.currPage)
-		c.currPage = nil
-	}
-
-	// Reset value buffers
-	c.currValues = nil
-	c.currPageMax = EmptyRowNumber()
-	c.currPageMin = EmptyRowNumber()
-	c.currBufN = 0
-	c.currPageN = 0
-	c.indexReader = nil
-
-	// If we don't immediately have a new incoming page
-	// then return the buffer to the pool.
-	if pg == nil && c.currBuf != nil {
-		syncIteratorPoolPut(c.currBuf)
-		c.currBuf = nil
-	}
-
-	// Handle an incoming page
-	if pg != nil {
-		rn := c.curr
-		rn.Skip(pg.NumRows() + 1) // Exclusive upper bound, points at the first rownumber in the next page
-		c.currPage = pg
-		c.currPageMin = c.curr
-		c.currPageMax = rn
-		c.currValues = pg.Values()
-		c.indexReader = c.indexReaderFor(pg)
-	}
-}
-
-// maxByte returns the largest byte in b, or 0 when b is empty (so a required
-// column with no definition levels yields a present level of 0). slices.Max is
-// not used because it panics on an empty slice.
-func maxByte(b []byte) byte {
-	var m byte
-	for _, v := range b {
-		m = max(m, v)
-	}
-	return m
+	c.chunk.setChunk(cc)
 }
 
 func (c *SyncIterator) closeCurrRowGroup() {
-	if c.currChunk != nil {
-		c.currChunk.Close()
-	}
-
+	c.chunk.closeChunk(&c.curr)
 	c.currRowGroup = nil
 	c.currRowGroupMin = EmptyRowNumber()
 	c.currRowGroupMax = EmptyRowNumber()
-	c.currChunk = nil
-	c.setPage(nil)
 }
 
 // Several variations of optimized makeResult functions:
