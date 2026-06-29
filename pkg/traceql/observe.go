@@ -28,14 +28,16 @@ var _ SpanObserver = (*attrPresenceObserver)(nil)
 type attrPresenceObserver struct {
 	attr      Attribute
 	metricKey string
-	present   atomic.Bool
+	active   atomic.Bool
 }
 
 // NewAttributePresenceObserver returns an observer that records whether any
 // observed span carries attr. When the attribute is seen, Stats reports a count
 // of 1 under metricKey.
 func NewAttributePresenceObserver(attr Attribute, metricKey string) SpanObserver {
-	return &attrPresenceObserver{attr: attr, metricKey: metricKey}
+	o := &attrPresenceObserver{attr: attr, metricKey: metricKey}
+	o.active.Store(true)
+	return o
 }
 
 // NewIsSummaryObserver returns the observer used to count queries that match a
@@ -46,26 +48,26 @@ func NewIsSummaryObserver() SpanObserver {
 }
 
 func (a *attrPresenceObserver) Conditions() []Condition {
-	return []Condition{{Attribute: a.attr, Op: OpNone}}
+	return []Condition{{Attribute: a.attr, Op: OpNone, CallBack: a.active.Load }}
 }
 
 func (a *attrPresenceObserver) ObserveSpan(span Span) bool {
-	if a.present.Load() {
+	if !a.active.Load() {
 		return false // already found; no longer interested
 	}
 	if _, ok := span.AttributeFor(a.attr); ok {
-		a.present.Store(true)
+		a.active.Store(false)
 		return false // found it; done
 	}
 	return true // keep looking
 }
 
 func (a *attrPresenceObserver) Active() bool {
-	return !a.present.Load()
+	return a.active.Load()
 }
 
 func (a *attrPresenceObserver) Stats() map[string]int64 {
-	if !a.present.Load() {
+	if a.active.Load() {
 		return nil
 	}
 	return map[string]int64{a.metricKey: 1}

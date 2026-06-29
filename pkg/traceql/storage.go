@@ -16,7 +16,8 @@ type Condition struct {
 	Op        Operator
 	Operands  Operands
 	// Callback is used in the parquetquery.CallbackPredicate to determine if the iterator should be stopped.
-	// It's used to limit the overhead of fetching exemplars by stopping the iterator early.
+	// It's used to limit the overhead of fetching by stopping the iterator early.
+	// Return true to continue iterating.
 	CallBack func() bool
 
 	// Hints
