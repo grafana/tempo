@@ -1,0 +1,6 @@
+change_type: enhancement
+component: storage
+note: speed up `ByteInPredicate`/`ByteNotInPredicate` by using a map lookup instead of a linear scan for large value sets.
+issues: []
+subtext:
+user: mapno
