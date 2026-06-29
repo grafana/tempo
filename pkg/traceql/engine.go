@@ -144,15 +144,7 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 		}
 
 		if observers.Active() {
-		outer:
-			for _, ss := range evalSS {
-				for _, s := range ss.Spans {
-					if !observers.ObserveSpan(s) {
-						// No active observers remaining
-						break outer
-					}
-				}
-			}
+			observers.ObserveSpans(evalSS)
 		}
 
 		// reduce all evalSS to their max length to reduce meta data lookups

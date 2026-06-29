@@ -28,7 +28,7 @@ var _ SpanObserver = (*attrPresenceObserver)(nil)
 type attrPresenceObserver struct {
 	attr      Attribute
 	metricKey string
-	active   atomic.Bool
+	active    atomic.Bool
 }
 
 // NewAttributePresenceObserver returns an observer that records whether any
@@ -48,7 +48,7 @@ func NewIsSummaryObserver() SpanObserver {
 }
 
 func (a *attrPresenceObserver) Conditions() []Condition {
-	return []Condition{{Attribute: a.attr, Op: OpNone, CallBack: a.active.Load }}
+	return []Condition{{Attribute: a.attr, Op: OpNone, CallBack: a.active.Load}}
 }
 
 func (a *attrPresenceObserver) ObserveSpan(span Span) bool {
@@ -76,7 +76,7 @@ func (a *attrPresenceObserver) Stats() map[string]int64 {
 // spanObservers keeps all observers but partitions them:
 // (1) obs[:active] are still active
 // (2) obs[active:] have gone inactive.
-// Inactive observers are never dropped, only moved past the boundary, so ObserveSpan only walks the active prefix.
+// Inactive observers are never dropped, only moved past the boundary, so ObserveSpans only walks the active prefix.
 type spanObservers struct {
 	mtx    sync.Mutex
 	obs    []SpanObserver
@@ -107,24 +107,28 @@ func (s *spanObservers) Conditions() []Condition {
 	return conds
 }
 
-func (s *spanObservers) ObserveSpan(span Span) bool {
+func (s *spanObservers) ObserveSpans(spans []*Spanset) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
 	// Only iterate the active prefix. When an observer goes inactive, swap it
 	// past the boundary so it's retained but skipped on future calls.
-	for i := 0; i < s.active; {
-		o := s.obs[i]
-		if o.ObserveSpan(span) {
-			i++
-			continue
+outer:
+	for _, ss := range spans {
+		for _, span := range ss.Spans {
+			for i := 0; i < s.active; {
+				if s.obs[i].ObserveSpan(span) {
+					i++
+					continue
+				}
+				s.active--
+				s.obs[i], s.obs[s.active] = s.obs[s.active], s.obs[i]
+			}
+			if s.active == 0 {
+				break outer
+			}
 		}
-		s.active--
-		s.obs[i], s.obs[s.active] = s.obs[s.active], s.obs[i]
-		// don't advance i: re-check the observer swapped into position i
 	}
-
-	return s.active > 0
 }
 
 func (s *spanObservers) Active() bool {

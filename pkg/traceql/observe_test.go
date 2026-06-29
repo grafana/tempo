@@ -46,7 +46,13 @@ func TestAttrPresenceObserver(t *testing.T) {
 
 	t.Run("conditions request the attribute", func(t *testing.T) {
 		o := NewAttributePresenceObserver(attr, metricKey)
-		assert.Equal(t, []Condition{{Attribute: attr, Op: OpNone}}, o.Conditions())
+		conds := o.Conditions()
+		require.Len(t, conds, 1)
+		assert.Equal(t, attr, conds[0].Attribute)
+		assert.Equal(t, OpNone, conds[0].Op)
+		// The condition carries a CallBack so the fetch layer can stop loading the
+		// attribute once the observer goes inactive.
+		assert.NotNil(t, conds[0].CallBack)
 	})
 }
 
@@ -77,13 +83,19 @@ func (o *testObserver) Active() bool { return o.active }
 
 func (o *testObserver) Stats() map[string]int64 { return o.stats }
 
+// spansetOf wraps spans into a single spanset for feeding spanObservers.ObserveSpans.
+func spansetOf(spans ...Span) []*Spanset {
+	return []*Spanset{{Spans: spans}}
+}
+
 func TestSpanObservers_ZeroValueUsable(t *testing.T) {
 	var s spanObservers
 	assert.False(t, s.Active())
 	assert.Empty(t, s.Conditions())
 	assert.Empty(t, s.Stats())
-	// ObserveSpan on an empty set reports no active observers.
-	assert.False(t, s.ObserveSpan(newMockSpan([]byte{1})))
+	// Observing on an empty set is a no-op and leaves no active observers.
+	s.ObserveSpans(spansetOf(newMockSpan([]byte{1})))
+	assert.False(t, s.Active())
 }
 
 func TestSpanObservers_ConditionsCoverActivePrefixOnly(t *testing.T) {
@@ -98,7 +110,7 @@ func TestSpanObservers_ConditionsCoverActivePrefixOnly(t *testing.T) {
 
 	assert.ElementsMatch(t, []Condition{condA, condB}, s.Conditions(), "both observers active up front")
 
-	s.ObserveSpan(newMockSpan([]byte{1}))
+	s.ObserveSpans(spansetOf(newMockSpan([]byte{1})))
 
 	assert.Equal(t, []Condition{condB}, s.Conditions(), "inactive observer no longer contributes conditions")
 }
@@ -112,11 +124,11 @@ func TestSpanObservers_ObserveSpanPartitioning(t *testing.T) {
 	s.Add(a, b, c)
 
 	// First span: a goes inactive, b and c still active.
-	assert.True(t, s.ObserveSpan(newMockSpan([]byte{1})))
+	s.ObserveSpans(spansetOf(newMockSpan([]byte{1})))
 	assert.True(t, s.Active())
 
 	// Second span: b goes inactive (a is skipped, only the active prefix is walked).
-	assert.True(t, s.ObserveSpan(newMockSpan([]byte{2})))
+	s.ObserveSpans(spansetOf(newMockSpan([]byte{2})))
 	assert.True(t, s.Active())
 
 	// Every active observer was visited exactly once per span it was active for,
@@ -130,8 +142,8 @@ func TestSpanObservers_ObserveSpanReturnsFalseWhenAllInactive(t *testing.T) {
 	var s spanObservers
 	s.Add(newTestObserver(1, nil))
 
-	assert.False(t, s.ObserveSpan(newMockSpan([]byte{1})), "no active observers remain")
-	assert.False(t, s.Active())
+	s.ObserveSpans(spansetOf(newMockSpan([]byte{1})))
+	assert.False(t, s.Active(), "no active observers remain")
 }
 
 func TestSpanObservers_StatsAggregatesAllObservers(t *testing.T) {
