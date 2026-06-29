@@ -2,14 +2,14 @@ name: docker
 on:
   push:
     branches:
-      - 'main'
-      - 'r[0-9]+'
+      - "main"
+      - "r[0-9]+"
     tags:
-      - 'v*'
+      - "v*"
   workflow_call:
     inputs:
       tag:
-        description: 'Release tag to build (e.g. v2.10.6)'
+        description: "Release tag to build (e.g. v2.10.6)"
         type: string
         required: true
 
@@ -21,9 +21,8 @@ env:
   DOCKERHUB_MIRROR_REPOSITORY: us-docker.pkg.dev/grafanalabs-global/dockerhub-tempo-prod-mirror
 
 jobs:
-
   get-tag:
-    if: github.repository == 'grafana/tempo'  # skip in forks
+    if: github.repository == 'grafana/tempo' # skip in forks
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -69,8 +68,12 @@ jobs:
     needs: get-tag
     strategy:
       matrix:
-        component: [ tempo, tempo-vulture, tempo-query, tempo-cli ]
-        runner_arch: [ { runner: ubuntu-24.04, arch: amd64 }, { runner: github-hosted-ubuntu-arm64, arch: arm64 } ]
+        component: [tempo, tempo-vulture, tempo-query, tempo-cli]
+        runner_arch:
+          [
+            { runner: ubuntu-24.04, arch: amd64 },
+            { runner: github-hosted-ubuntu-arm64, arch: arm64 },
+          ]
     runs-on: ${{ matrix.runner_arch.runner }}
     permissions:
       contents: read
@@ -108,13 +111,13 @@ jobs:
 
   manifest:
     if: github.repository == 'grafana/tempo'
-    needs: ['get-tag', 'docker']
+    needs: ["get-tag", "docker"]
     permissions:
       contents: read
       id-token: write
     strategy:
       matrix:
-        component: [ tempo, tempo-vulture, tempo-query, tempo-cli ]
+        component: [tempo, tempo-vulture, tempo-query, tempo-cli]
     runs-on: ubuntu-24.04
     env:
       TAG: ${{ needs.get-tag.outputs.tag }}
@@ -139,18 +142,20 @@ jobs:
           	--amend "$IMAGE_NAME:$TAG-arm64"
           docker manifest push "$IMAGE_NAME:$TAG"
 
-  # Resolve the digest of the pushed tempo-vulture multi-arch manifest so it can
-  # be signed by digest (not by tag). Scoped to tempo-vulture for now; extend
-  # the matrix to the other components once this is proven out.
-  resolve-vulture-digest:
+  # Resolve the digest of each pushed multi-arch manifest so it can be signed by
+  # digest (not by tag). Covers tempo-vulture, tempo-query, and tempo-cli — the
+  # main `tempo` image is deliberately excluded for now (it's the most impactful
+  # and is rolled out separately). Emits a JSON map of component -> digest-pinned
+  # image ref that the matrixed sign job below looks up via fromJSON.
+  resolve-digests:
     if: github.repository == 'grafana/tempo'
-    needs: ['get-tag', 'manifest']
+    needs: ["get-tag", "manifest"]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
       id-token: write
     outputs:
-      image: ${{ steps.resolve.outputs.image }}
+      images: ${{ steps.resolve.outputs.images }}
     env:
       TAG: ${{ needs.get-tag.outputs.tag }}
     steps:
@@ -159,41 +164,52 @@ jobs:
         with:
           registry: us-docker.pkg.dev
 
-      - name: Resolve digest
+      - name: Resolve digests
         id: resolve
         run: |
           # IMAGE_NAME is derived from the workflow-level DOCKERHUB_MIRROR_REPOSITORY
           # (exported into the step env) so it can't drift from the build/manifest
-          # jobs when this is extended to the other components.
-          IMAGE_NAME="${DOCKERHUB_MIRROR_REPOSITORY}/tempo-vulture"
-          DIGEST="$(docker buildx imagetools inspect "$IMAGE_NAME:$TAG" --format '{{.Manifest.Digest}}')"
-          if [[ "$DIGEST" != sha256:* ]]; then
-            echo "::error::failed to resolve digest for $IMAGE_NAME:$TAG, got: $DIGEST"
-            exit 1
-          fi
-          echo "image=$IMAGE_NAME@$DIGEST" >> "$GITHUB_OUTPUT"
+          # jobs. Build a JSON object mapping each component to its digest-pinned
+          # image reference, consumed by the matrixed sign job via fromJSON.
+          images='{}'
+          for component in tempo-vulture tempo-query tempo-cli; do
+            IMAGE_NAME="${DOCKERHUB_MIRROR_REPOSITORY}/${component}"
+            DIGEST="$(docker buildx imagetools inspect "$IMAGE_NAME:$TAG" --format '{{.Manifest.Digest}}')"
+            if [[ "$DIGEST" != sha256:* ]]; then
+              echo "::error::failed to resolve digest for $IMAGE_NAME:$TAG, got: $DIGEST"
+              exit 1
+            fi
+            images="$(echo "$images" | jq -c --arg c "$component" --arg i "$IMAGE_NAME@$DIGEST" '.[$c] = $i')"
+          done
+          echo "images=$images" >> "$GITHUB_OUTPUT"
 
   # Signing/attestation runs after publish and is intentionally NOT a gate on
   # the release or on cd-to-dev-env: the image is immutable once pushed and
   # can't be re-signed, so we sign best-effort and rely on this job's own
   # verify steps (plus alerting on failures) to catch a bad signature. A
   # failure here surfaces as a failed check on the run without blocking deploy.
-  sign-vulture:
-    needs: resolve-vulture-digest
-    if: needs.resolve-vulture-digest.outputs.image != ''
+  sign:
+    needs: resolve-digests
+    if: needs.resolve-digests.outputs.images != ''
+    strategy:
+      # Don't let one component's signing failure cancel the others; each image
+      # is independent and signed best-effort.
+      fail-fast: false
+      matrix:
+        component: [tempo-vulture, tempo-query, tempo-cli]
     uses: ./.github/workflows/sign-and-attest.yml
     permissions:
       contents: read
       id-token: write
       attestations: write
     with:
-      image: ${{ needs.resolve-vulture-digest.outputs.image }}
+      image: ${{ fromJSON(needs.resolve-digests.outputs.images)[matrix.component] }}
 
   cd-to-dev-env:
     # This job deploys the latest main commit to the dev environment
     if: github.repository == 'grafana/tempo' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    needs: ['manifest', 'get-tag']
+    needs: ["manifest", "get-tag"]
     permissions:
       id-token: write
     steps:
