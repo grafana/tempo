@@ -158,7 +158,7 @@ func mergeWarnings(warningGroups ...[]Warning) []Warning {
 
 func fieldChanges(base, compare normalizedSpan) []Change {
 	changes := make([]Change, 0, 2)
-	if !numericClose(float64(base.snapshot.DurationNanos), float64(compare.snapshot.DurationNanos), durationRelTol, durationAbsTolNano) {
+	if !numericClose(float64(base.snapshot.DurationNanos), float64(compare.snapshot.DurationNanos), durationRelTolerance, durationAbsTolerance) {
 		changes = append(changes, Change{
 			Op:     OperationModify,
 			Target: Target{Type: TargetField, Name: FieldDurationNanos},
@@ -204,10 +204,10 @@ func attributeChanges(base, compare normalizedSpan) []Change {
 // everything else is compared exactly.
 func attributeChanged(key string, before, after any) bool {
 	if isNumericFuzzyAttribute(key) {
-		if a, aok := numericValue(before); aok {
-			if b, bok := numericValue(after); bok {
-				return !numericClose(a, b, attrRelTol, attrAbsTol)
-			}
+		a, aOK := numericValue(before)
+		b, bOK := numericValue(after)
+		if aOK && bOK {
+			return !numericClose(a, b, attrRelTolerance, attrAbsTolerance)
 		}
 	}
 	return !valuesEqual(before, after)

@@ -2,38 +2,28 @@ package tracediff
 
 import "math"
 
-// Fixed tolerances for trace-patch-v0 numeric comparison. Two values are
+// Fixed tolerances for numeric comparisons in trace diffs. Two values are
 // considered unchanged when |a-b| <= absTol + relTol*max(|a|, |b|).
 const (
-	// durationRelTol is intentionally loose: a single pair of traces cannot
-	// separate a real regression from run-to-run jitter, so span duration diffs
-	// are advisory and only large (roughly first-significant-digit) changes are
-	// reported.
-	durationRelTol = 0.25
-	// durationAbsTolNano is a 1ms floor (in nanoseconds) that suppresses
-	// sub-millisecond jitter on short spans.
-	durationAbsTolNano = 1_000_000.0
+	// durationRelTolerance is intentionally loose in order to separate a real regression from run-to-run
+	// jitter, so span duration diffs only report large and significant changes.
+	durationRelTolerance = 0.20
+	// durationAbsTolerance is a 1ms floor (in nanoseconds) that suppresses
+	// sub-millisecond jitter on very short spans.
+	durationAbsTolerance = 1_000_000.0
 
-	// attrRelTol is stricter: allow-listed numeric attributes (sizes, token
-	// counts, durations) are usually deterministic for the same operation, so a
-	// roughly second-significant-digit change is reported.
-	attrRelTol = 0.05
-	// attrAbsTol is zero: allow-listed values are magnitudes where the relative
-	// term scales correctly. As a result any change to or from exactly zero is
-	// reported.
-	attrAbsTol = 0.0
+	// attrRelTolerance is the default relative tolerance for allow-listed numeric attributes
+	// like sizes, token counts, durations.
+	attrRelTolerance = 0.05
+	// attrAbsTolerance is zero: allow-listed values are magnitudes where the relative
+	// tolerance scales correctly.
+	attrAbsTolerance = 0.0
 )
 
 // numericFuzzyAttributes are OpenTelemetry semantic-convention numeric
 // attributes that represent magnitudes (byte sizes, token counts, durations)
 // where small relative differences are noise. Values for these keys are compared
 // with a relative tolerance; every other numeric attribute is compared exactly.
-//
-// Curated from open-telemetry/semantic-conventions (commit b51e2a6, 2026-06-25).
-// Deprecated attribute names are included alongside their current counterparts
-// because a trace carries only one. Identifiers, codes, ports, indices, epoch
-// timestamps, configuration parameters, small discrete counts, and vendor
-// product-specific attributes are intentionally excluded.
 var numericFuzzyAttributes = map[string]struct{}{
 	// Byte / payload sizes.
 	"http.request.body.size":                    {},
