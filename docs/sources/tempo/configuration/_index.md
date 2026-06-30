@@ -2359,8 +2359,7 @@ overrides:
 
       # Per-user max duration for metrics queries. If this value is set to 0 (default), then metrics max_duration
       #  in the front-end configuration is used. This limit is enforced against the user-provided time range,
-      #  not the post-alignment range. Queries whose entire window falls within query_end_cutoff are rejected
-      #  with a 400 error.
+      #  not the post-alignment range. Queries whose entire window falls within query_end_cutoff are rejected.
       [max_metrics_duration: <duration> | default = 0s]
 
       # Per-user option to left-pad trace IDs with zeros to 32 hex characters in search API responses.

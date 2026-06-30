@@ -737,7 +737,7 @@ GET /api/metrics/query?q={status=error}|count_over_time()by(resource.service.nam
 This endpoint is experimental. The request format and behavior may change in future releases. The diff computation isn't implemented yet; the endpoint currently returns `501 Not Implemented` for valid requests.
 {{< /admonition >}}
 
-Compare two traces and produce a structural diff. Send a `POST` request with a JSON body that identifies both traces by their IDs.
+This endpoint will compare two traces and produce a structural diff. Send a `POST` request with a JSON body that identifies both traces by their IDs.
 
 ```
 POST /api/v2/traces/diff
@@ -763,19 +763,19 @@ Request body:
 Parameters:
 
 - `base.traceId`
-   Trace ID for the baseline trace, as a hexadecimal string.
+  Trace ID for the baseline trace, as a hexadecimal string.
 - `base.start`
-   Optional. Start of the time range to search for the baseline trace (unix epoch seconds).
+  Optional. Start of the time range to search for the baseline trace (UNIX epoch seconds).
 - `base.end`
-   Optional. End of the time range to search for the baseline trace (unix epoch seconds).
+  Optional. End of the time range to search for the baseline trace (UNIX epoch seconds).
 - `compare.traceId`
-   Trace ID for the comparison trace, as a hexadecimal string.
+  Trace ID for the comparison trace, as a hexadecimal string.
 - `compare.start`
-   Optional. Start of the time range to search for the comparison trace (unix epoch seconds).
+  Optional. Start of the time range to search for the comparison trace (UNIX epoch seconds).
 - `compare.end`
-   Optional. End of the time range to search for the comparison trace (unix epoch seconds).
+  Optional. End of the time range to search for the comparison trace (UNIX epoch seconds).
 
-When `start` and `end` are provided for a trace, Tempo only searches blocks within that time range. If omitted, Tempo searches across all blocks.
+When `start` and `end` are provided, the request validates that `start` is before `end`. When the endpoint is fully implemented, these fields will limit block search to that time range. If omitted, Tempo will search across all blocks.
 
 Only `POST` is allowed. Other methods return `405 Method Not Allowed`.
 

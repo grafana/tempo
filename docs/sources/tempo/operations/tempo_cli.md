@@ -881,7 +881,7 @@ Arguments:
 
 Options:
 
-- `--format <value>` Output format (default: `trace-patch-v0`).
+- `--format <value>` Output format. Currently only `trace-patch-v0` is supported (default).
 - `-o, --out <path>` File to write output to. If not specified, output is printed to `stdout`.
 - `--pretty` Pretty-print JSON output.
 
