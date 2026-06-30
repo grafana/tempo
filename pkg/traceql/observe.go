@@ -163,7 +163,6 @@ func (s *spanObservers) ObserveSpan(span Span) {
 // observe walks the active prefix for a single span.
 // When an observer goes inactive,
 // swap it past the boundary so it's retained but skipped on future calls.
-
 // Caller must hold s.mtx.
 func (s *spanObservers) observe(span Span) {
 	for i := 0; i < s.active; {
