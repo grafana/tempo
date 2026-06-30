@@ -442,6 +442,8 @@ CHLOGGEN_CONFIG := .chloggen/config.yaml
 CHLOGGEN_CONFIG_ARG := $(if $(wildcard $(CHLOGGEN_CONFIG)),--config $(CHLOGGEN_CONFIG),)
 CHLOG_BRANCH := $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null)
 CHLOG_FILENAME := $(if $(FILENAME),$(FILENAME),$(CHLOG_BRANCH))
+CHLOG_EDITOR ?= $${VISUAL:-$${EDITOR:-vi}}
+CHLOG_EDIT ?= 1
 
 .PHONY: $(CHLOGGEN)
 $(CHLOGGEN):
@@ -454,7 +456,17 @@ chlog-new: $(CHLOGGEN) ## Create a new changelog entry under .chloggen/ (default
 	  echo "Cannot default the changelog filename from branch '$(CHLOG_BRANCH)'; pass FILENAME=<name>."; \
 	  exit 1; \
 	fi
-	$(CHLOGGEN) new $(CHLOGGEN_CONFIG_ARG) --filename "$(CHLOG_FILENAME)"
+	@output="$$( $(CHLOGGEN) new $(CHLOGGEN_CONFIG_ARG) --filename "$(CHLOG_FILENAME)" )"; \
+	status=$$?; \
+	[ -z "$$output" ] || printf '%s\n' "$$output"; \
+	if [ $$status -ne 0 ]; then exit $$status; fi; \
+	entry="$$(printf '%s\n' "$$output" | awk '/^Changelog entry template copied to: /{sub(/^Changelog entry template copied to: /, ""); print; exit}')"; \
+	if [ -z "$$entry" ]; then echo "Could not determine changelog entry path." >&2; exit 1; fi; \
+	if [ "$(CHLOG_EDIT)" != "0" ] && [ -t 0 ] && [ -t 1 ]; then \
+	  $(CHLOG_EDITOR) "$$entry"; \
+	else \
+	  echo "Edit $$entry manually."; \
+	fi
 
 .PHONY: chlog-validate
 chlog-validate: $(CHLOGGEN) ## Validate the pending changelog entries
