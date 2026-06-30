@@ -28,6 +28,7 @@ func newProtoSpan(span *tracev1.Span, resourceAttrs, traceAttrs map[traceql.Attr
 		duration = span.EndTimeUnixNano - span.StartTimeUnixNano
 	}
 
+	// TODO(perf): builds the whole attribute map per span though the engine reads only a few via AttributeFor; make AttributeFor resolve lazily.
 	attrs := make(map[traceql.Attribute]traceql.Static, len(span.Attributes)+len(resourceAttrs)+len(traceAttrs)+10)
 
 	// resource attributes first so a same-named span attribute wins, matching TraceQL precedence.
