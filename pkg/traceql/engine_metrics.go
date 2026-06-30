@@ -1029,15 +1029,15 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 		exemplars = 1 // at least one per sub-query when exemplars are requested
 	}
 
-	// Observers are request-scoped: build them once and share them across every
+	// Watchers are request-scoped: build them once and share them across every
 	// sub-pipeline evaluator. batchMetricsEvaluator reports their stats once.
-	// They're config-driven and supplied via WithObservers.
-	observers := &spanObservers{}
-	observers.Add(cfg.observers...)
+	// They're config-driven and supplied via WithWatchers.
+	watchers := &spanWatchers{}
+	watchers.Add(cfg.watchers...)
 
 	bme := &batchMetricsEvaluator{
-		evals:     make(map[string]*metricsEvaluator, len(expr.Pipeline)),
-		observers: observers,
+		evals:    make(map[string]*metricsEvaluator, len(expr.Pipeline)),
+		watchers: watchers,
 	}
 	for key, pipeline := range expr.Pipeline {
 		sp := expr.BatchSpanProcessor[key]
@@ -1124,12 +1124,12 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 			storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, meta...)
 		}
 
-		// Share the request's observers and load their attributes via the second pass, exactly as search does.
-		// This keeps optimize() from eliminating the second pass while an observer is active.
-		// Observation happens in Do/DoSpansOnly on the final matched spans (search observes in its SecondPass, before truncation).
-		me.observers = observers
-		if observers.Active() {
-			storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, observers.Conditions()...)
+		// Share the request's watchers and load their attributes via the second pass, exactly as search does.
+		// This keeps optimize() from eliminating the second pass while an watcher is active.
+		// Watching happens in Do/DoSpansOnly on the final matched spans (search watches in its SecondPass, before truncation).
+		me.watchers = watchers
+		if watchers.Active() {
+			storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, watchers.Conditions()...)
 		}
 
 		// Setup second pass callback.  It might be optimized away
@@ -1299,9 +1299,9 @@ type MetricsEvaluator interface {
 // and is itself the request-scoped object returned by CompileMetricsQueryRange.
 type batchMetricsEvaluator struct {
 	evals map[string]*metricsEvaluator
-	// observers collect extra on-demand metrics for the whole request.
+	// watchers collect extra on-demand metrics for the whole request.
 	// A single shared instance is fed every matched span from every sub-pipeline
-	observers *spanObservers
+	watchers *spanWatchers
 }
 
 var _ MetricsEvaluator = (*batchMetricsEvaluator)(nil)
@@ -1343,7 +1343,7 @@ func (e *batchMetricsEvaluator) Metrics() EvaluatorMetrics {
 		}
 	}
 
-	for k, v := range e.observers.Stats() {
+	for k, v := range e.watchers.Stats() {
 		addMetric(k, v)
 	}
 	return combined
@@ -1382,10 +1382,10 @@ type metricsEvaluator struct {
 	backendReads      uint64
 	backendBytes      uint64
 	additionalMetrics map[string]int64
-	// observers inspect matched result spans (independent of the second pass) to collect extra on-demand metrics.
+	// watchers inspect matched result spans (independent of the second pass) to collect extra on-demand metrics.
 	// Shared across all sub-pipeline evaluators of a request; owned and reported by batchMetricsEvaluator.
-	observers *spanObservers
-	mtx       sync.Mutex
+	watchers *spanWatchers
+	mtx      sync.Mutex
 }
 
 // EvaluatorMetrics is the snapshot returned by MetricsEvaluator.Metrics().
@@ -1467,7 +1467,7 @@ func (e *metricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 	defer fetch.Results.Close()
 
 	seriesCount := 0
-	observe := e.observers.Active()
+	watch := e.watchers.Active()
 
 	for {
 		ss, err := fetch.Results.Next(ctx)
@@ -1504,8 +1504,8 @@ func (e *metricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 
 			validSpansCount++
 			e.metricsPipeline.observe(s)
-			if observe {
-				e.observers.ObserveSpan(s)
+			if watch {
+				e.watchers.WatchSpan(s)
 			}
 
 			if !needExemplar {
@@ -1578,7 +1578,7 @@ func (e *metricsEvaluator) DoSpansOnly(ctx context.Context, f SpansetFetcher, fe
 
 	defer fetch.Results.Close()
 
-	observe := e.observers.Active()
+	watch := e.watchers.Active()
 
 	for {
 		done, err := func() (done bool, err error) {
@@ -1610,8 +1610,8 @@ func (e *metricsEvaluator) DoSpansOnly(ctx context.Context, f SpansetFetcher, fe
 			}
 
 			e.metricsPipeline.observe(s)
-			if observe {
-				e.observers.ObserveSpan(s)
+			if watch {
+				e.watchers.WatchSpan(s)
 			}
 			e.spansTotal++
 

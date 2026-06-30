@@ -2382,10 +2382,10 @@ overrides:
       # attribute, queries that match a span carrying it report a metric keyed by the
       # attribute name. Applies to search and metrics queries. Operator-controlled and
       # not exposed to query authors.
-      report_attributes:
+      watch_attributes:
         [
           attribute: <string>, # TraceQL attribute identifier, e.g. aggregation.is_summary or span.http.status_code
-          type: <string> # observer behavior. options: presence (default)
+          type: <string> # watcher behavior. options: presence (default)
         ]
 
     # Compaction related overrides

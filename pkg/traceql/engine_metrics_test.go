@@ -3701,15 +3701,15 @@ func (f *fakeSpanFetcher) FetchSpans(_ context.Context, _ FetchSpansRequest) (Fe
 	return FetchSpansOnlyResponse{}, util.ErrUnsupported
 }
 
-func TestCompileMetricsQueryRange_IsSummaryObserver(t *testing.T) {
+func TestCompileMetricsQueryRange_IsSummaryWatcher(t *testing.T) {
 	ctx := context.Background()
 	const summaryKey = "aggregation.is_summary"
 
-	summaryObserver := func(t *testing.T) CompileOption {
+	summaryWatcher := func(t *testing.T) CompileOption {
 		t.Helper()
-		o, err := NewObserver(ObserverSpec{Attribute: summaryKey})
+		o, err := NewWatcher(WatcherSpec{Attribute: summaryKey})
 		require.NoError(t, err)
-		return WithObservers(o)
+		return WithWatchers(o)
 	}
 
 	withSummary := func() []Span {
@@ -3740,30 +3740,30 @@ func TestCompileMetricsQueryRange_IsSummaryObserver(t *testing.T) {
 		return eval, eval.Metrics().AdditionalMetrics
 	}
 
-	t.Run("observer installed and summary span present", func(t *testing.T) {
-		_, got := run(t, `{} | rate()`, uint64(time.Second), withSummary, summaryObserver(t))
+	t.Run("watcher installed and summary span present", func(t *testing.T) {
+		_, got := run(t, `{} | rate()`, uint64(time.Second), withSummary, summaryWatcher(t))
 		require.Equal(t, int64(1), got[summaryKey])
 	})
 
-	t.Run("observer installed but no summary span", func(t *testing.T) {
-		_, got := run(t, `{} | rate()`, uint64(time.Second), withoutSummary, summaryObserver(t))
+	t.Run("watcher installed but no summary span", func(t *testing.T) {
+		_, got := run(t, `{} | rate()`, uint64(time.Second), withoutSummary, summaryWatcher(t))
 		_, ok := got[summaryKey]
 		require.False(t, ok, "no summary metric when no matched span carries the attribute")
 	})
 
-	t.Run("no observer installed", func(t *testing.T) {
+	t.Run("no watcher installed", func(t *testing.T) {
 		_, got := run(t, `{} | rate()`, uint64(time.Second), withSummary)
 		_, ok := got[summaryKey]
-		require.False(t, ok, "no metric when no observer is installed")
+		require.False(t, ok, "no metric when no watcher is installed")
 	})
 
 	// Metric math produces multiple sub-pipeline evaluators that share one
-	// request-scoped observer. Both operands here match the summary span, so the
+	// request-scoped watcher. Both operands here match the summary span, so the
 	// old per-pipeline design would count it twice; it must be counted once.
 	// Guards the batchMetricsEvaluator request-scoping fix.
 	t.Run("math counts summary once across sub-pipelines", func(t *testing.T) {
 		query := `({} | count_over_time()) / ({ .service="selected" } | count_over_time())`
-		eval, got := run(t, query, uint64(2*time.Second), withSummary, summaryObserver(t))
+		eval, got := run(t, query, uint64(2*time.Second), withSummary, summaryWatcher(t))
 
 		batch, ok := eval.(*batchMetricsEvaluator)
 		require.True(t, ok)

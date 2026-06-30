@@ -98,10 +98,10 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 		mostRecent = false
 	}
 
-	// Observers are config-driven and supplied via WithObservers (see the
-	// per-tenant report_attributes override).
-	var observers spanObservers
-	observers.Add(cfg.observers...)
+	// Watchers are config-driven and supplied via WithWatchers (see the
+	// per-tenant watch_attributes override).
+	var watchers spanWatchers
+	watchers.Add(cfg.watchers...)
 
 	if rootExpr.IsNoop() {
 		return &tempopb.SearchResponse{
@@ -120,8 +120,8 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 	meta := SearchMetaConditionsWithout(fetchSpansRequest.Conditions, fetchSpansRequest.AllConditions)
 	fetchSpansRequest.SecondPassConditions = append(fetchSpansRequest.SecondPassConditions, meta...)
 
-	if observers.Active() {
-		fetchSpansRequest.SecondPassConditions = append(fetchSpansRequest.SecondPassConditions, observers.Conditions()...)
+	if watchers.Active() {
+		fetchSpansRequest.SecondPassConditions = append(fetchSpansRequest.SecondPassConditions, watchers.Conditions()...)
 	}
 
 	spansetsEvaluated := 0
@@ -142,8 +142,8 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 			return nil, nil
 		}
 
-		if observers.Active() {
-			observers.ObserveSpans(evalSS)
+		if watchers.Active() {
+			watchers.WatchSpans(evalSS)
 		}
 
 		// reduce all evalSS to their max length to reduce meta data lookups
@@ -211,8 +211,8 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 		span.SetAttributes(attribute.Int64("inspectedBytes", int64(stats.Bytes)))
 	}
 
-	// Populate extra metrics from observers
-	for k, v := range observers.Stats() {
+	// Populate extra metrics from watchers
+	for k, v := range watchers.Stats() {
 		if res.Metrics.AdditionalMetrics == nil {
 			res.Metrics.AdditionalMetrics = make(map[string]int64)
 		}

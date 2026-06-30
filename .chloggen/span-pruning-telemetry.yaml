@@ -8,14 +8,14 @@ change_type: enhancement
 component: traceql
 
 # A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
-note: Add a span-observer framework to the TraceQL engine for collecting extra query metrics on-demand
+note: Add a span-watcher framework to the TraceQL engine for collecting extra query metrics on-demand
 
 # (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
 # .chloggen/README.md.
 issues: []
 
 # (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
-subtext: Configured via the per-tenant `report_attributes` override, it reports whether matched spans carry the given attributes. Applies to search and metrics queries.
+subtext: Configured via the per-tenant `watch_attributes` override, it reports whether matched spans carry the given attributes. Applies to search and metrics queries.
 
 # The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
 user: mapno
