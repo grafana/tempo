@@ -13,7 +13,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-// TraceFilter filters runs on a complete trace and applies filters on it.
+// TraceFilter runs on a complete trace and applies a filter to it.
 type TraceFilter interface {
 	Process(t *tempopb.Trace) (*tempopb.Trace, error)
 }
