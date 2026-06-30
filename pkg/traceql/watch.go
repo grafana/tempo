@@ -16,6 +16,9 @@ type WatcherSpec struct {
 // NewWatcher builds a SpanWatcher from a spec, parsing the attribute
 // identifier and selecting the watcher type.
 func NewWatcher(spec WatcherSpec) (SpanWatcher, error) {
+	if spec.Attribute == "" {
+		return nil, fmt.Errorf("watch attribute must not be empty")
+	}
 	attr, err := ParseIdentifier(spec.Attribute)
 	if err != nil {
 		// Not a scoped/intrinsic identifier (e.g. a synthetic attribute name such
@@ -102,6 +105,11 @@ func (s *spanWatchers) Add(watchers ...SpanWatcher) {
 	for _, o := range watchers {
 		s.obs = append(s.obs, o)
 		if o.Active() {
+			// Swap the newly-added active watcher into the active boundary so the
+			// obs[:active] partition holds regardless of add order or whether any
+			// already-added watcher has gone inactive.
+			last := len(s.obs) - 1
+			s.obs[s.active], s.obs[last] = s.obs[last], s.obs[s.active]
 			s.active++
 		}
 	}
