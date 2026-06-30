@@ -111,23 +111,48 @@ func (s *spanObservers) ObserveSpans(spans []*Spanset) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	// Only iterate the active prefix. When an observer goes inactive, swap it
-	// past the boundary so it's retained but skipped on future calls.
+	if s.active == 0 {
+		return // done, exit early
+	}
+
 outer:
 	for _, ss := range spans {
 		for _, span := range ss.Spans {
-			for i := 0; i < s.active; {
-				if s.obs[i].ObserveSpan(span) {
-					i++
-					continue
-				}
-				s.active--
-				s.obs[i], s.obs[s.active] = s.obs[s.active], s.obs[i]
-			}
+			s.observe(span)
 			if s.active == 0 {
 				break outer
 			}
 		}
+	}
+}
+
+// ObserveSpan feeds a single span to the active observers.
+// It's the per-span equivalent of ObserveSpans,
+// used by hot paths that already iterate spans individually (e.g. the span-only metrics fetch) to avoid allocating a Spanset.
+func (s *spanObservers) ObserveSpan(span Span) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	if s.active == 0 {
+		return // done, exit early
+	}
+
+	s.observe(span)
+}
+
+// observe walks the active prefix for a single span.
+// When an observer goes inactive,
+// swap it past the boundary so it's retained but skipped on future calls.
+// Caller must hold s.mtx.
+func (s *spanObservers) observe(span Span) {
+	for i := 0; i < s.active; {
+		if s.obs[i].ObserveSpan(span) {
+			i++
+			continue
+		}
+		s.active--
+		s.obs[i], s.obs[s.active] = s.obs[s.active], s.obs[i]
+		// don't advance i: re-check the observer swapped into position i
 	}
 }
 
