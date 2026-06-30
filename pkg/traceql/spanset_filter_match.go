@@ -38,11 +38,10 @@ func CompileSpansetFilter(query string) (*SpansetFilter, error) {
 	return filter, nil
 }
 
-// matchSpansSupportedIntrinsics is the set the proto-span adapter resolves: per-span intrinsics plus
-// the trace-level ones the caller precomputes (trace:root*, trace:duration). It is not the same as
-// "not full-trace", so a RequiresFullTrace classifier can't replace it. Unsupported intrinsics are
-// rejected at compile time rather than silently matching nothing.
-// TODO: add adapter support for the rejected intrinsics, or unify this with a shared classifier.
+// matchSpansSupportedIntrinsics is the set the proto-span adapter resolves (per-span plus the
+// precomputed trace:root*/trace:duration). It is not the inverse of full-trace, so a RequiresFullTrace
+// check can't replace it. Unknown intrinsics are rejected at compile time, not silently dropped.
+// TODO: add adapter support for rejected intrinsics, or unify with a shared classifier.
 var matchSpansSupportedIntrinsics = map[Intrinsic]struct{}{
 	IntrinsicDuration:               {},
 	IntrinsicName:                   {},
