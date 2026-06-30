@@ -21,14 +21,13 @@ Grafana also provides command-line tools that connect agents to the broader obse
 
 ## Model Context Protocol server
 
-The [MCP server](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/mcp-server/) at `/api/mcp` gives agents access to tools and documentation resources.
-Agents can search for traces with TraceQL, retrieve a trace by ID, compute metrics from span data, and discover available attributes, all without manual query construction.
-The server also serves TraceQL documentation as MCP resources, so agents can look up query syntax on demand instead of relying on training data.
+The [MCP server](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/mcp-server/) at `/api/mcp` lets agents search for traces with TraceQL, retrieve a trace by ID, compute metrics from span data, and discover available attributes.
+The server also serves TraceQL syntax documentation as MCP resources, so agents can look up query syntax on demand instead of relying on training data.
 
 The MCP server uses the `streamable-http` transport and supports the same authentication and [multi-tenancy](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/multitenancy/) as other Tempo API endpoints.
 
 {{< admonition type="warning" >}}
-Be aware that using this feature may cause tracing data to be passed to an LLM or LLM provider. Consider the content of your tracing data and organizational policies when enabling this feature.
+The MCP server returns tracing data to the calling agent, which may forward it to an LLM provider. Consider the content of your tracing data and your organization's policies before connecting agents to this endpoint.
 {{< /admonition >}}
 
 To try it locally, refer to the [MCP server quick start](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/mcp-server/#quick-start).
