@@ -2,14 +2,14 @@ name: docker
 on:
   push:
     branches:
-      - "main"
-      - "r[0-9]+"
+      - 'main'
+      - 'r[0-9]+'
     tags:
-      - "v*"
+      - 'v*'
   workflow_call:
     inputs:
       tag:
-        description: "Release tag to build (e.g. v2.10.6)"
+        description: 'Release tag to build (e.g. v2.10.6)'
         type: string
         required: true
 
@@ -21,8 +21,9 @@ env:
   DOCKERHUB_MIRROR_REPOSITORY: us-docker.pkg.dev/grafanalabs-global/dockerhub-tempo-prod-mirror
 
 jobs:
+
   get-tag:
-    if: github.repository == 'grafana/tempo' # skip in forks
+    if: github.repository == 'grafana/tempo'  # skip in forks
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -68,12 +69,8 @@ jobs:
     needs: get-tag
     strategy:
       matrix:
-        component: [tempo, tempo-vulture, tempo-query, tempo-cli]
-        runner_arch:
-          [
-            { runner: ubuntu-24.04, arch: amd64 },
-            { runner: github-hosted-ubuntu-arm64, arch: arm64 },
-          ]
+        component: [ tempo, tempo-vulture, tempo-query, tempo-cli ]
+        runner_arch: [ { runner: ubuntu-24.04, arch: amd64 }, { runner: github-hosted-ubuntu-arm64, arch: arm64 } ]
     runs-on: ${{ matrix.runner_arch.runner }}
     permissions:
       contents: read
@@ -111,13 +108,13 @@ jobs:
 
   manifest:
     if: github.repository == 'grafana/tempo'
-    needs: ["get-tag", "docker"]
+    needs: ['get-tag', 'docker']
     permissions:
       contents: read
       id-token: write
     strategy:
       matrix:
-        component: [tempo, tempo-vulture, tempo-query, tempo-cli]
+        component: [ tempo, tempo-vulture, tempo-query, tempo-cli ]
     runs-on: ubuntu-24.04
     env:
       TAG: ${{ needs.get-tag.outputs.tag }}
@@ -149,7 +146,7 @@ jobs:
   # image ref that the matrixed sign job below looks up via fromJSON.
   resolve-digests:
     if: github.repository == 'grafana/tempo'
-    needs: ["get-tag", "manifest"]
+    needs: ['get-tag', 'manifest']
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -196,7 +193,7 @@ jobs:
       # is independent and signed best-effort.
       fail-fast: false
       matrix:
-        component: [tempo-vulture, tempo-query, tempo-cli]
+        component: [ tempo-vulture, tempo-query, tempo-cli ]
     uses: ./.github/workflows/sign-and-attest.yml
     permissions:
       contents: read
@@ -209,7 +206,7 @@ jobs:
     # This job deploys the latest main commit to the dev environment
     if: github.repository == 'grafana/tempo' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    needs: ["manifest", "get-tag"]
+    needs: ['manifest', 'get-tag']
     permissions:
       id-token: write
     steps:
