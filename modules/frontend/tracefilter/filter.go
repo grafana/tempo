@@ -112,8 +112,8 @@ func (f *Filter) Process(trace *tempopb.Trace) (*tempopb.Trace, error) {
 	return rebuildTrace(trace, kept), nil
 }
 
-// addAncestors adds every matched span's ancestor path to kept. Walking is a BFS because duplicate
-// span ids may have multiple parents; kept doubles as the visited set so cycles terminate.
+// addAncestors adds each matched span's ancestors to kept. A duplicate span id may have multiple
+// parents, so all are followed, and kept is the visited set so cycles terminate.
 func (f *Filter) addAncestors(idx *spanIndex, kept map[string]struct{}) {
 	// snapshot the starting ids: we mutate kept while walking.
 	queue := make([]string, 0, len(kept))
@@ -229,7 +229,6 @@ func hasChildOfLink(span *tracev1.Span) bool {
 	return false
 }
 
-// rootServiceName extracts service.name from the root span's resource; empty when absent.
 func rootServiceName(resource *resourcev1.Resource) string {
 	if resource == nil {
 		return ""

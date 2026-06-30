@@ -37,9 +37,8 @@ func newProtoSpan(span *tracev1.Span, resourceAttrs, traceAttrs map[traceql.Attr
 		attrs[traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, kv.Key)] = staticFromKeyValue(kv)
 	}
 
-	// each storage layer maps its own source values to intrinsics (parquet does the same from column
-	// values in tempodb/encoding/vparquetN); the engine owns no shared resolver, it only reads them
-	// back via AttributeFor. TODO: extract a shared proto->Static mapper once a second proto consumer exists.
+	// hand-mapped because the engine exposes no shared intrinsic resolver to reuse (parquet maps from
+	// its own columns). TODO: share a proto->Static mapper once a second proto consumer appears.
 	attrs[traceql.IntrinsicNameAttribute] = traceql.NewStaticString(span.Name)
 	attrs[traceql.IntrinsicDurationAttribute] = traceql.NewStaticDuration(time.Duration(duration))
 	attrs[traceql.IntrinsicKindAttribute] = traceql.NewStaticKind(spanKindToTraceql(span.Kind))
@@ -61,11 +60,11 @@ func newProtoSpan(span *tracev1.Span, resourceAttrs, traceAttrs map[traceql.Attr
 		attrs[traceql.IntrinsicInstrumentationVersionAttribute] = traceql.NewStaticString(scope.Version)
 	}
 
-	// the map holds one value per intrinsic, so only the first event/link is queryable; the storage
-	// layer's AttributeFor likewise returns the first match.
+	// single-value map, so only the first event/link is queryable, matching storage's first-match resolution.
 	if len(span.Events) > 0 {
 		e := span.Events[0]
 		attrs[traceql.IntrinsicEventNameAttribute] = traceql.NewStaticString(e.Name)
+		// unguarded subtraction mirrors storage's eventToParquet; guarding here would diverge from search on skewed events.
 		attrs[traceql.IntrinsicEventTimeSinceStartAttribute] = traceql.NewStaticDuration(time.Duration(e.TimeUnixNano - span.StartTimeUnixNano))
 	}
 	if len(span.Links) > 0 {
