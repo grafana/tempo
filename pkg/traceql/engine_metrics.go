@@ -1029,9 +1029,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 		exemplars = 1 // at least one per sub-query when exemplars are requested
 	}
 
-	// Watchers are request-scoped: build them once and share them across every
-	// sub-pipeline evaluator. batchMetricsEvaluator reports their stats once.
-	// They're config-driven and supplied via WithWatchers.
+	// Watchers are request-scoped.
 	watchers := &spanWatchers{}
 	watchers.Add(cfg.watchers...)
 
@@ -1124,9 +1122,9 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 			storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, meta...)
 		}
 
-		// Share the request's watchers and load their attributes via the second pass, exactly as search does.
-		// This keeps optimize() from eliminating the second pass while an watcher is active.
-		// Watching happens in Do/DoSpansOnly on the final matched spans (search watches in its SecondPass, before truncation).
+		// Share the request's watchers and load their attributes via the second pass.
+		// This keeps optimize() from eliminating the second pass while a watcher is active.
+		// Watching happens in Do/DoSpansOnly on the final matched spans.
 		me.watchers = watchers
 		if watchers.Active() {
 			storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, watchers.Conditions()...)
@@ -1891,7 +1889,7 @@ func (b *SimpleAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing *
 		if b.exemplarBuckets.testTotal() {
 			break
 		}
-		if b.exemplarBuckets.addAndTest(uint64(exemplar.TimestampMs)) { //nolint: gosec // G115
+		if b.exemplarBuckets.addAndTest(uint64(exemplar.TimestampMs)) { // nolint: gosec // G115
 			continue // Skip this exemplar and continue, next exemplar might fit in a different bucket
 		}
 		labels, _ := convertProtoLabelsToTraceQL(exemplar.Labels, false)

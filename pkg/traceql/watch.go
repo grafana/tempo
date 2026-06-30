@@ -6,16 +6,10 @@ import (
 	"sync/atomic"
 )
 
-// WatcherSpec describes a span watcher to install, typically sourced from
-// per-tenant configuration. The gathered metric is keyed by the attribute
-// identifier.
 type WatcherSpec struct {
-	// Attribute is the TraceQL attribute identifier to watch, e.g.
-	// "aggregation.is_summary", "span.http.status_code", or ".foo".
+	// Attribute is the TraceQL attribute identifier to watch
 	Attribute string
-	// Type selects the watcher behavior. "" and "presence" install a presence
-	// watcher; further types (e.g. "count") can be added without changing the
-	// config shape.
+	// Type selects the watcher behavior.
 	Type string
 }
 
@@ -38,11 +32,10 @@ func NewWatcher(spec WatcherSpec) (SpanWatcher, error) {
 
 // SpanWatcher inspects spans as they flow through the TraceQL engine and records something about them.
 type SpanWatcher interface {
-	// Conditions returns the fetch conditions the watcher needs so the
-	// attributes it cares about are loaded onto watched spans.
+	// Conditions returns the fetch conditions the watcher needs so the attributes it cares about are loaded onto watched spans.
 	Conditions() []Condition
 	// WatchSpan inspects a single span.
-	// It returns true while the watcher is still interested in further spans and false once it has what it needs.
+	// It returns true while the watcher is still interested in further spans.
 	WatchSpan(Span) bool
 	// Active reports whether the watcher still wants to see spans.
 	Active() bool
@@ -58,9 +51,8 @@ type attrPresenceWatcher struct {
 	active    atomic.Bool
 }
 
-// NewAttributePresenceWatcher returns an watcher that records whether any
-// watched span carries attr. When the attribute is seen, Stats reports a count
-// of 1 under metricKey.
+// NewAttributePresenceWatcher returns an watcher that records whether any watched span carries attr.
+// When the attribute is seen, Stats reports a count of 1 under metricKey.
 func NewAttributePresenceWatcher(attr Attribute, metricKey string) SpanWatcher {
 	o := &attrPresenceWatcher{attr: attr, metricKey: metricKey}
 	o.active.Store(true)
@@ -161,8 +153,7 @@ func (s *spanWatchers) WatchSpan(span Span) {
 }
 
 // watch walks the active prefix for a single span.
-// When an watcher goes inactive,
-// swap it past the boundary so it's retained but skipped on future calls.
+// When a watcher goes inactive, swap it past the boundary so it's retained but skipped on future calls.
 // Caller must hold s.mtx.
 func (s *spanWatchers) watch(span Span) {
 	for i := 0; i < s.active; {
