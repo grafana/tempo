@@ -2378,6 +2378,16 @@ overrides:
       # When not set, the default behavior is used. May be overridden by query hints.
       [metrics_spanonly_fetch: <bool>]
 
+      # Span attributes to report as additional query metrics. For each configured
+      # attribute, queries that match a span carrying it report a metric keyed by the
+      # attribute name. Applies to search and metrics queries. Operator-controlled and
+      # not exposed to query authors.
+      report_attributes:
+        [
+          attribute: <string>, # TraceQL attribute identifier, e.g. aggregation.is_summary or span.http.status_code
+          type: <string> # observer behavior. options: presence (default)
+        ]
+
     # Compaction related overrides
     compaction:
       # Per-user block retention. If this value is set to 0 (default),

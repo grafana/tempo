@@ -11,6 +11,9 @@ type compileOptions struct {
 	// metrics query only
 	spanOnlyFetch     *bool
 	timeOverlapCutoff float64
+
+	// observers to install on the query (config-driven, see WithObservers).
+	observers []SpanObserver
 }
 
 func applyCompileOptions(opts ...CompileOption) compileOptions {
@@ -51,5 +54,14 @@ func WithSpanOnlyFetch(v bool) CompileOption {
 func WithTimeOverlapCutoff(v float64) CompileOption {
 	return func(o *compileOptions) {
 		o.timeOverlapCutoff = v
+	}
+}
+
+// WithObservers installs span observers on the query. Observers inspect matched
+// spans to gather extra on-demand metrics. They are typically built from
+// per-tenant config via NewObserver and shared across a request's sub-queries.
+func WithObservers(observers ...SpanObserver) CompileOption {
+	return func(o *compileOptions) {
+		o.observers = append(o.observers, observers...)
 	}
 }

@@ -82,6 +82,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		UnsafeQueryHints:              c.Read.UnsafeQueryHints,
 		LeftPadTraceIDs:               c.Read.LeftPadTraceIDs,
 		MetricsSpanOnlyFetch:          c.Read.MetricsSpanOnlyFetch,
+		ReportAttributes:              c.Read.ReportAttributes,
 
 		MaxBytesPerTrace: c.Global.MaxBytesPerTrace,
 
@@ -164,11 +165,12 @@ type LegacyOverrides struct {
 	MaxConditionGroupsPerTagQuery int `yaml:"max_condition_groups_per_tag_query" json:"max_condition_groups_per_tag_query"`
 
 	// QueryFrontend enforced limits
-	MaxSearchDuration    model.Duration `yaml:"max_search_duration" json:"max_search_duration"`
-	MaxMetricsDuration   model.Duration `yaml:"max_metrics_duration" json:"max_metrics_duration"`
-	UnsafeQueryHints     bool           `yaml:"unsafe_query_hints" json:"unsafe_query_hints"`
-	LeftPadTraceIDs      bool           `yaml:"left_pad_trace_ids" json:"left_pad_trace_ids"`
-	MetricsSpanOnlyFetch *bool          `yaml:"metrics_spanonly_fetch,omitempty" json:"metrics_spanonly_fetch,omitempty"`
+	MaxSearchDuration    model.Duration    `yaml:"max_search_duration" json:"max_search_duration"`
+	MaxMetricsDuration   model.Duration    `yaml:"max_metrics_duration" json:"max_metrics_duration"`
+	UnsafeQueryHints     bool              `yaml:"unsafe_query_hints" json:"unsafe_query_hints"`
+	LeftPadTraceIDs      bool              `yaml:"left_pad_trace_ids" json:"left_pad_trace_ids"`
+	MetricsSpanOnlyFetch *bool             `yaml:"metrics_spanonly_fetch,omitempty" json:"metrics_spanonly_fetch,omitempty"`
+	ReportAttributes     []ReportAttribute `yaml:"report_attributes,omitempty" json:"report_attributes,omitempty"`
 
 	// MaxBytesPerTrace is enforced in the Ingester, Compactor, Querier (Search). It
 	//  is not used when doing a trace by id lookup.
@@ -324,6 +326,7 @@ func (l *LegacyOverrides) toNewLimits() *Overrides {
 			UnsafeQueryHints:              l.UnsafeQueryHints,
 			LeftPadTraceIDs:               l.LeftPadTraceIDs,
 			MetricsSpanOnlyFetch:          l.MetricsSpanOnlyFetch,
+			ReportAttributes:              l.ReportAttributes,
 		},
 		Compaction: CompactionOverrides{
 			BlockRetention:     l.BlockRetention,

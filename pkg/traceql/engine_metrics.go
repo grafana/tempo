@@ -1031,10 +1031,9 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 
 	// Observers are request-scoped: build them once and share them across every
 	// sub-pipeline evaluator. batchMetricsEvaluator reports their stats once.
+	// They're config-driven and supplied via WithObservers.
 	observers := &spanObservers{}
-	if reportIsSummary, ok := expr.Hints.GetBool(HintReportIsSummary, cfg.allowUnsafeHints); ok && reportIsSummary {
-		observers.Add(NewIsSummaryObserver())
-	}
+	observers.Add(cfg.observers...)
 
 	bme := &batchMetricsEvaluator{
 		evals:     make(map[string]*metricsEvaluator, len(expr.Pipeline)),

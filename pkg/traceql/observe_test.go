@@ -176,37 +176,34 @@ func TestEngineExecuteSearch_IsSummaryObserver(t *testing.T) {
 		return s
 	}
 
-	const wantAbsent = int64(-1)
+	const (
+		summaryKey = "aggregation.is_summary"
+		wantAbsent = int64(-1)
+	)
 
 	tests := []struct {
-		name  string
-		query string
-		spans []*mockSpan
-		want  int64 // expected metric value, or wantAbsent if the key should be missing
+		name            string
+		installObserver bool
+		spans           []*mockSpan
+		want            int64 // expected metric value, or wantAbsent if the key should be missing
 	}{
 		{
-			name:  "hint set and summary span present",
-			query: `{ .foo = "value" } with(report_is_summary=true)`,
-			spans: []*mockSpan{plainSpan(1), summarySpan(2)},
-			want:  1,
+			name:            "observer installed and summary span present",
+			installObserver: true,
+			spans:           []*mockSpan{plainSpan(1), summarySpan(2)},
+			want:            1,
 		},
 		{
-			name:  "hint set but no summary span",
-			query: `{ .foo = "value" } with(report_is_summary=true)`,
-			spans: []*mockSpan{plainSpan(1)},
-			want:  wantAbsent,
+			name:            "observer installed but no summary span",
+			installObserver: true,
+			spans:           []*mockSpan{plainSpan(1)},
+			want:            wantAbsent,
 		},
 		{
-			name:  "hint absent",
-			query: `{ .foo = "value" }`,
-			spans: []*mockSpan{summarySpan(2)},
-			want:  wantAbsent,
-		},
-		{
-			name:  "hint explicitly false",
-			query: `{ .foo = "value" } with(report_is_summary=false)`,
-			spans: []*mockSpan{summarySpan(2)},
-			want:  wantAbsent,
+			name:            "no observer installed",
+			installObserver: false,
+			spans:           []*mockSpan{summarySpan(2)},
+			want:            wantAbsent,
 		},
 	}
 
@@ -229,17 +226,24 @@ func TestEngineExecuteSearch_IsSummaryObserver(t *testing.T) {
 				},
 			}
 
-			req := &tempopb.SearchRequest{Query: tt.query, SpansPerSpanSet: 10, Limit: 10}
-			resp, err := NewEngine().ExecuteSearch(context.Background(), req, fetcher)
+			var opts []CompileOption
+			if tt.installObserver {
+				obs, err := NewObserver(ObserverSpec{Attribute: summaryKey})
+				require.NoError(t, err)
+				opts = append(opts, WithObservers(obs))
+			}
+
+			req := &tempopb.SearchRequest{Query: `{ .foo = "value" }`, SpansPerSpanSet: 10, Limit: 10}
+			resp, err := NewEngine().ExecuteSearch(context.Background(), req, fetcher, opts...)
 			require.NoError(t, err)
 			require.NotNil(t, resp.Metrics)
 
-			got, ok := resp.Metrics.AdditionalMetrics[tempopb.AdditionalMetricAggregationIsSummary]
+			got, ok := resp.Metrics.AdditionalMetrics[summaryKey]
 			if tt.want == wantAbsent {
-				assert.False(t, ok, "expected no aggregationIsSummary metric, got %d", got)
+				assert.False(t, ok, "expected no summary metric, got %d", got)
 				return
 			}
-			assert.True(t, ok, "expected aggregationIsSummary metric to be present")
+			assert.True(t, ok, "expected summary metric to be present")
 			assert.Equal(t, tt.want, got)
 		})
 	}

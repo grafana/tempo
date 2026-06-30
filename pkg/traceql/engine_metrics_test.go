@@ -3703,7 +3703,14 @@ func (f *fakeSpanFetcher) FetchSpans(_ context.Context, _ FetchSpansRequest) (Fe
 
 func TestCompileMetricsQueryRange_IsSummaryObserver(t *testing.T) {
 	ctx := context.Background()
-	summaryKey := tempopb.AdditionalMetricAggregationIsSummary
+	const summaryKey = "aggregation.is_summary"
+
+	summaryObserver := func(t *testing.T) CompileOption {
+		t.Helper()
+		o, err := NewObserver(ObserverSpec{Attribute: summaryKey})
+		require.NoError(t, err)
+		return WithObservers(o)
+	}
 
 	withSummary := func() []Span {
 		return []Span{
@@ -3719,7 +3726,7 @@ func TestCompileMetricsQueryRange_IsSummaryObserver(t *testing.T) {
 		}
 	}
 
-	run := func(t *testing.T, query string, step uint64, makeSpans func() []Span) (MetricsEvaluator, map[string]int64) {
+	run := func(t *testing.T, query string, step uint64, makeSpans func() []Span, opts ...CompileOption) (MetricsEvaluator, map[string]int64) {
 		t.Helper()
 		req := &tempopb.QueryRangeRequest{
 			Start: 1,
@@ -3727,27 +3734,27 @@ func TestCompileMetricsQueryRange_IsSummaryObserver(t *testing.T) {
 			Step:  step,
 			Query: query,
 		}
-		eval, err := NewEngine().CompileMetricsQueryRange(req)
+		eval, err := NewEngine().CompileMetricsQueryRange(req, opts...)
 		require.NoError(t, err)
 		require.NoError(t, eval.Do(ctx, &fakeSpanFetcher{makeSpans}, 0, 0, 0))
 		return eval, eval.Metrics().AdditionalMetrics
 	}
 
-	t.Run("hint set and summary span present", func(t *testing.T) {
-		_, got := run(t, `{} | rate() with(report_is_summary=true)`, uint64(time.Second), withSummary)
+	t.Run("observer installed and summary span present", func(t *testing.T) {
+		_, got := run(t, `{} | rate()`, uint64(time.Second), withSummary, summaryObserver(t))
 		require.Equal(t, int64(1), got[summaryKey])
 	})
 
-	t.Run("hint set but no summary span", func(t *testing.T) {
-		_, got := run(t, `{} | rate() with(report_is_summary=true)`, uint64(time.Second), withoutSummary)
+	t.Run("observer installed but no summary span", func(t *testing.T) {
+		_, got := run(t, `{} | rate()`, uint64(time.Second), withoutSummary, summaryObserver(t))
 		_, ok := got[summaryKey]
 		require.False(t, ok, "no summary metric when no matched span carries the attribute")
 	})
 
-	t.Run("hint absent", func(t *testing.T) {
+	t.Run("no observer installed", func(t *testing.T) {
 		_, got := run(t, `{} | rate()`, uint64(time.Second), withSummary)
 		_, ok := got[summaryKey]
-		require.False(t, ok, "observer not installed without the hint")
+		require.False(t, ok, "no metric when no observer is installed")
 	})
 
 	// Metric math produces multiple sub-pipeline evaluators that share one
@@ -3755,8 +3762,8 @@ func TestCompileMetricsQueryRange_IsSummaryObserver(t *testing.T) {
 	// old per-pipeline design would count it twice; it must be counted once.
 	// Guards the batchMetricsEvaluator request-scoping fix.
 	t.Run("math counts summary once across sub-pipelines", func(t *testing.T) {
-		query := `({} | count_over_time()) / ({ .service="selected" } | count_over_time()) with(report_is_summary=true)`
-		eval, got := run(t, query, uint64(2*time.Second), withSummary)
+		query := `({} | count_over_time()) / ({ .service="selected" } | count_over_time())`
+		eval, got := run(t, query, uint64(2*time.Second), withSummary, summaryObserver(t))
 
 		batch, ok := eval.(*batchMetricsEvaluator)
 		require.True(t, ok)

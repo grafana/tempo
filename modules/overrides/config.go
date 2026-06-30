@@ -179,6 +179,22 @@ type ReadOverrides struct {
 	// MetricsSpanOnlyFetch, when set, enables or disables the new fetch layer by default for TraceQL metrics queries
 	// for this tenant.  When not set, then the default behavior is used. Maybe be overridden by query hints.
 	MetricsSpanOnlyFetch *bool `yaml:"metrics_spanonly_fetch,omitempty" json:"metrics_spanonly_fetch,omitempty"`
+
+	// ReportAttributes installs span observers that report, as additional query
+	// metrics, information about matched spans (e.g. presence of an attribute).
+	// Operator-controlled; not user-facing.
+	ReportAttributes []ReportAttribute `yaml:"report_attributes,omitempty" json:"report_attributes,omitempty"`
+}
+
+// ReportAttribute configures a single span observer. The gathered metric is
+// keyed by Attribute.
+type ReportAttribute struct {
+	// Attribute is the TraceQL attribute identifier to observe, e.g.
+	// "aggregation.is_summary" or "span.http.status_code".
+	Attribute string `yaml:"attribute" json:"attribute"`
+	// Type selects the observer behavior. Empty or "presence" reports whether any
+	// matched span carried the attribute.
+	Type string `yaml:"type,omitempty" json:"type,omitempty"`
 }
 
 type CompactionOverrides struct {

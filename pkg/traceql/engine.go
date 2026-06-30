@@ -98,11 +98,10 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 		mostRecent = false
 	}
 
+	// Observers are config-driven and supplied via WithObservers (see the
+	// per-tenant report_attributes override).
 	var observers spanObservers
-	if reportIsSummary, ok := rootExpr.Hints.GetBool(HintReportIsSummary, cfg.allowUnsafeHints); ok && reportIsSummary {
-		observers.Add(NewIsSummaryObserver())
-	}
-	// TODO: Add the ability to add observers through the request call, or the engine itself.
+	observers.Add(cfg.observers...)
 
 	if rootExpr.IsNoop() {
 		return &tempopb.SearchResponse{

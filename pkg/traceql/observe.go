@@ -1,13 +1,40 @@
 package traceql
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
-
-	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-var aggregationIsSummaryAttribute = NewAttribute("aggregation.is_summary")
+// ObserverSpec describes a span observer to install, typically sourced from
+// per-tenant configuration. The gathered metric is keyed by the attribute
+// identifier.
+type ObserverSpec struct {
+	// Attribute is the TraceQL attribute identifier to observe, e.g.
+	// "aggregation.is_summary", "span.http.status_code", or ".foo".
+	Attribute string
+	// Type selects the observer behavior. "" and "presence" install a presence
+	// observer; further types (e.g. "count") can be added without changing the
+	// config shape.
+	Type string
+}
+
+// NewObserver builds a SpanObserver from a spec, parsing the attribute
+// identifier and selecting the observer type.
+func NewObserver(spec ObserverSpec) (SpanObserver, error) {
+	attr, err := ParseIdentifier(spec.Attribute)
+	if err != nil {
+		// Not a scoped/intrinsic identifier (e.g. a synthetic attribute name such
+		// as "aggregation.is_summary"); treat it as an unscoped attribute name.
+		attr = NewAttribute(spec.Attribute)
+	}
+	switch spec.Type {
+	case "", "presence":
+		return NewAttributePresenceObserver(attr, spec.Attribute), nil
+	default:
+		return nil, fmt.Errorf("unknown observer type %q for attribute %q", spec.Type, spec.Attribute)
+	}
+}
 
 // SpanObserver inspects spans as they flow through the TraceQL engine and records something about them.
 type SpanObserver interface {
@@ -38,13 +65,6 @@ func NewAttributePresenceObserver(attr Attribute, metricKey string) SpanObserver
 	o := &attrPresenceObserver{attr: attr, metricKey: metricKey}
 	o.active.Store(true)
 	return o
-}
-
-// NewIsSummaryObserver returns the observer used to count queries that match a
-// span carrying the aggregation.is_summary attribute. The engine decides when
-// to install it (see the report_is_summary hint).
-func NewIsSummaryObserver() SpanObserver {
-	return NewAttributePresenceObserver(aggregationIsSummaryAttribute, tempopb.AdditionalMetricAggregationIsSummary)
 }
 
 func (a *attrPresenceObserver) Conditions() []Condition {
@@ -143,6 +163,7 @@ func (s *spanObservers) ObserveSpan(span Span) {
 // observe walks the active prefix for a single span.
 // When an observer goes inactive,
 // swap it past the boundary so it's retained but skipped on future calls.
+
 // Caller must hold s.mtx.
 func (s *spanObservers) observe(span Span) {
 	for i := 0; i < s.active; {

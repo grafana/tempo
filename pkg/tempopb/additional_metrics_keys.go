@@ -8,12 +8,11 @@ package tempopb
 // Key naming follows lowerCamelCase to match the existing JSON shape produced
 // by tempo.pb.go for related fields (e.g. "inspectedBytes", "totalJobs").
 const (
-	AdditionalMetricRowGroupsInspected   = "rowGroupsInspected"
-	AdditionalMetricRowGroupsSkipped     = "rowGroupsSkipped"
-	AdditionalMetricPagesInspected       = "pagesInspected"
-	AdditionalMetricPagesSkipped         = "pagesSkipped"
-	AdditionalMetricCacheHits            = "cacheHits"
-	AdditionalMetricCacheMisses          = "cacheMisses"
-	AdditionalMetricCacheBytes           = "cacheBytes"
-	AdditionalMetricAggregationIsSummary = "aggregationIsSummary"
+	AdditionalMetricRowGroupsInspected = "rowGroupsInspected"
+	AdditionalMetricRowGroupsSkipped   = "rowGroupsSkipped"
+	AdditionalMetricPagesInspected     = "pagesInspected"
+	AdditionalMetricPagesSkipped       = "pagesSkipped"
+	AdditionalMetricCacheHits          = "cacheHits"
+	AdditionalMetricCacheMisses        = "cacheMisses"
+	AdditionalMetricCacheBytes         = "cacheBytes"
 )
