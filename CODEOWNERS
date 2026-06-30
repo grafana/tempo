@@ -14,6 +14,7 @@
 * @mdisibio @mapno @yvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar @carles-grafana @ruslan-mikhailov @mattdurham @oleg-kozlyuk-grafana @zhxiaogg
 
 /docs/ @knylander-grafana @mdisibio @mapno @yvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar @carles-grafana @ruslan-mikhailov @mattdurham @oleg-kozlyuk-grafana @zhxiaogg
+/.chloggen/ @knylander-grafana @mdisibio @mapno @yvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar @carles-grafana @ruslan-mikhailov @mattdurham @oleg-kozlyuk-grafana @zhxiaogg
 
 /.github/backport.yml           @jdbaldry @mdisibio @mapno @yvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar @carles-grafana @ruslan-mikhailov @mattdurham @zhxiaogg
 /.github/update-make-docs.yml   @jdbaldry @mdisibio @mapno @yvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar @carles-grafana @ruslan-mikhailov @mattdurham @zhxiaogg
@@ -23,3 +24,4 @@
 /docs/make-docs                 @jdbaldry @knylander-grafana @mdisibio @mapno @yvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar @carles-grafana @ruslan-mikhailov @mattdurham @zhxiaogg
 /docs/Makefile                  @jdbaldry @knylander-grafana @mdisibio @mapno @yvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar @carles-grafana @ruslan-mikhailov @mattdurham @zhxiaogg
 /docs/variables.mk              @jdbaldry @knylander-grafana @mdisibio @mapno @yvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar @carles-grafana @ruslan-mikhailov @mattdurham @zhxiaogg
+/modules/frontend/docs/         @knylander-grafana @mdisibio @mapno @yvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar @carles-grafana @ruslan-mikhailov @mattdurham @oleg-kozlyuk-grafana @zhxiaogg
