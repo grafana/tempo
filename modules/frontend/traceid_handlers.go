@@ -108,6 +108,11 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			return httpInvalidRequest(reqErr), nil
 		}
 
+		// bound q size before parsing, as the other TraceQL handlers do, to avoid a parse-time DoS.
+		if err := pipeline.ValidateTraceQLQueryParamsSize(req.URL.Query(), cfg.MaxQueryExpressionSizeBytes); err != nil {
+			return httpInvalidRequest(err), nil
+		}
+
 		// compile filter params and query up front so a malformed filter can fail-fast as HTTP 4xx.
 		filter, err := tracefilter.NewFilterFromValues(req.URL.Query())
 		if err != nil {
