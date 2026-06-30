@@ -291,6 +291,9 @@ func (c *Client) QueryTraceV2(id string) (*tempopb.TraceByIDResponse, error) {
 }
 
 func (c *Client) QueryTraceV2WithQueryParams(id string, queryParams map[string]string) (*tempopb.TraceByIDResponse, error) {
+	if len(queryParams) == 0 {
+		return c.QueryTraceV2(id)
+	}
 	m := &tempopb.TraceByIDResponse{}
 	resp, err := c.getFor(c.getURLWithQueryParams(QueryTraceV2Endpoint+"/"+id, queryParams), m)
 	if err != nil {
