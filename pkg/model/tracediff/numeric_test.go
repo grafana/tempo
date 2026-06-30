@@ -100,6 +100,7 @@ func TestAttributeChanged(t *testing.T) {
 		{name: "allow-listed int vs float equal", key: testAttrInputTokens, before: int64(100), after: 100.0, want: false},
 		{name: "allow-listed non-numeric falls back to exact", key: testAttrBodySize, before: "a", after: "b", want: true},
 		{name: "non-allow-listed numeric compared exactly", key: "custom.count", before: int64(1000), after: int64(1001), want: true},
+		{name: "non-allow-listed int vs float equal value", key: "custom.count", before: int64(80), after: 80.0, want: false},
 		{name: "status code compared exactly", key: "http.response.status_code", before: int64(200), after: int64(201), want: true},
 	}
 	for _, tt := range tests {

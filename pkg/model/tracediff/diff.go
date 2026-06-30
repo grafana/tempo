@@ -223,12 +223,16 @@ func valuesEqual(a, b any) bool {
 	case bool:
 		bv, ok := b.(bool)
 		return ok && av == bv
-	case int64:
-		bv, ok := b.(int64)
-		return ok && av == bv
-	case float64:
-		bv, ok := b.(float64)
-		return ok && av == bv
+	case int64, float64:
+		// if both a and b are int64 do exact comparison, otherwise use numericValue() to convert to float64
+		if ai, ok := a.(int64); ok {
+			if bi, ok := b.(int64); ok {
+				return ai == bi
+			}
+		}
+		af, _ := numericValue(a)
+		bf, ok := numericValue(b)
+		return ok && af == bf
 	case []byte:
 		bv, ok := b.([]byte)
 		if !ok || len(av) != len(bv) {

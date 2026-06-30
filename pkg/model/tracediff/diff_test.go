@@ -466,3 +466,42 @@ func stringArrayAttribute(key string, values ...string) *commonv1.KeyValue {
 		},
 	}
 }
+
+func TestValuesEqual(t *testing.T) {
+	// 2^53 is the largest integer float64 represents exactly; 2^53 and 2^53+1
+	// collapse to the same float64, so comparing int64s as float would miss the
+	// difference.
+	const maxExactFloat = int64(1) << 53
+
+	tests := []struct {
+		name string
+		a, b any
+		want bool
+	}{
+		{name: "nil equal", a: nil, b: nil, want: true},
+		{name: "nil vs value", a: nil, b: int64(0), want: false},
+		{name: "string equal", a: "x", b: "x", want: true},
+		{name: "string unequal", a: "x", b: "y", want: false},
+		{name: "bool equal", a: true, b: true, want: true},
+		{name: "int64 equal", a: int64(5), b: int64(5), want: true},
+		{name: "int64 unequal", a: int64(5), b: int64(6), want: false},
+		{name: "float64 equal", a: 2.5, b: 2.5, want: true},
+		{name: "float64 unequal", a: 2.5, b: 2.6, want: false},
+		{name: "int64 vs float64 same value", a: int64(80), b: 80.0, want: true},
+		{name: "float64 vs int64 same value", a: 80.0, b: int64(80), want: true},
+		{name: "int64 vs float64 different value", a: int64(80), b: 81.0, want: false},
+		{name: "large near-equal int64 stays exact", a: maxExactFloat, b: maxExactFloat + 1, want: false},
+		{name: "numeric vs string", a: int64(80), b: "80", want: false},
+		{name: "bytes equal", a: []byte{1, 2}, b: []byte{1, 2}, want: true},
+		{name: "bytes unequal", a: []byte{1, 2}, b: []byte{1, 3}, want: false},
+		{name: "array with cross-type numeric equal", a: []any{int64(1), "x"}, b: []any{1.0, "x"}, want: true},
+		{name: "array unequal", a: []any{int64(1)}, b: []any{int64(2)}, want: false},
+		{name: "map with cross-type numeric equal", a: map[string]any{"k": int64(3)}, b: map[string]any{"k": 3.0}, want: true},
+		{name: "map unequal", a: map[string]any{"k": int64(3)}, b: map[string]any{"k": int64(4)}, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, valuesEqual(tt.a, tt.b))
+		})
+	}
+}
