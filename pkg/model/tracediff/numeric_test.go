@@ -111,32 +111,44 @@ func TestAttributeChanged(t *testing.T) {
 
 func TestDiffDurationTolerance(t *testing.T) {
 	traceID := []byte("trace-id-0000001")
+	tests := []struct {
+		name       string
+		baseEnd    uint64
+		compareEnd uint64
+		wantChange bool
+	}{
+		{name: "below tolerance", baseEnd: 100, compareEnd: 110, wantChange: false},
+		{name: "just within relative tolerance", baseEnd: 100, compareEnd: 126, wantChange: false},
+		{name: "just beyond relative tolerance", baseEnd: 100, compareEnd: 127, wantChange: true},
+		{name: "well beyond tolerance", baseEnd: 100, compareEnd: 250, wantChange: true},
+		{name: "within absolute floor on short spans", baseEnd: 0, compareEnd: 1, wantChange: false},
+		{name: "beyond absolute floor on short spans", baseEnd: 0, compareEnd: 2, wantChange: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			base := traceWithNamedSpans(
+				spanForNormalizeTest(traceID, "root", "", "checkout", "POST /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, tt.baseEnd, tracev1.Status_STATUS_CODE_OK),
+			)
+			compare := traceWithNamedSpans(
+				spanForNormalizeTest(traceID, "root", "", "checkout", "POST /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, tt.compareEnd, tracev1.Status_STATUS_CODE_OK),
+			)
 
-	// 100ms vs 110ms: within tolerance, so no duration change is reported and
-	// the span is not modified.
-	base := traceWithNamedSpans(
-		spanForNormalizeTest(traceID, "root", "", "checkout", "POST /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK),
-	)
-	compare := traceWithNamedSpans(
-		spanForNormalizeTest(traceID, "root", "", "checkout", "POST /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 110, tracev1.Status_STATUS_CODE_OK),
-	)
+			got, err := Diff(base, compare, FormatTracePatchV0)
+			require.NoError(t, err)
+			require.Equal(t, 1, got.Stats.MatchedSpans)
 
-	got, err := Diff(base, compare, FormatTracePatchV0)
-	require.NoError(t, err)
-	assert.Equal(t, 1, got.Stats.MatchedSpans)
-	assert.Zero(t, got.Stats.FieldChanges)
-	assert.Empty(t, got.Modified)
+			if !tt.wantChange {
+				assert.Zero(t, got.Stats.FieldChanges)
+				assert.Empty(t, got.Modified)
+				return
+			}
 
-	// 100ms vs 250ms: beyond tolerance, duration change reported in raw ns.
-	compareBeyond := traceWithNamedSpans(
-		spanForNormalizeTest(traceID, "root", "", "checkout", "POST /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 250, tracev1.Status_STATUS_CODE_OK),
-	)
-	got, err = Diff(base, compareBeyond, FormatTracePatchV0)
-	require.NoError(t, err)
-	require.Len(t, got.Modified, 1)
-	require.Len(t, got.Modified[0].Changes, 1)
-	change := got.Modified[0].Changes[0]
-	assert.Equal(t, FieldDurationNanos, change.Target.Name)
-	assert.Equal(t, int64(100_000_000), change.Before)
-	assert.Equal(t, int64(250_000_000), change.After)
+			require.Len(t, got.Modified, 1)
+			require.Len(t, got.Modified[0].Changes, 1)
+			change := got.Modified[0].Changes[0]
+			assert.Equal(t, FieldDurationNanos, change.Target.Name)
+			assert.Equal(t, int64(tt.baseEnd*1_000_000), change.Before)
+			assert.Equal(t, int64(tt.compareEnd*1_000_000), change.After)
+		})
+	}
 }
