@@ -1157,6 +1157,7 @@ func TestTraceByIDV2Filtering(t *testing.T) {
 		// recent-data path.
 		assertFiltering(t, apiClient)
 		assertBadFilterRejected(t, apiClient, hexID)
+		assertOversizedFilterRejected(t, apiClient, hexID)
 
 		// backend path.
 		h.WaitTracesWrittenToBackend(t, 1)
@@ -1164,6 +1165,7 @@ func TestTraceByIDV2Filtering(t *testing.T) {
 		apiClient = h.APIClientHTTP("")
 		assertFiltering(t, apiClient)
 		assertBadFilterRejected(t, apiClient, hexID)
+		assertOversizedFilterRejected(t, apiClient, hexID)
 	})
 }
 
@@ -1171,6 +1173,19 @@ func TestTraceByIDV2Filtering(t *testing.T) {
 func assertBadFilterRejected(t *testing.T, apiClient *httpclient.Client, hexID string) {
 	t.Helper()
 	req, err := http.NewRequest(http.MethodGet, apiClient.BaseURL+"/api/v2/traces/"+hexID+"?q="+url.QueryEscape("{ .a = }"), nil)
+	require.NoError(t, err)
+	resp, err := apiClient.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+// assertOversizedFilterRejected confirms a q over the TraceQL size cap is rejected with 400 before parsing.
+// The query is valid TraceQL, so only the size check (not the parser) can reject it.
+func assertOversizedFilterRejected(t *testing.T, apiClient *httpclient.Client, hexID string) {
+	t.Helper()
+	oversized := `{ span.foo = "` + strings.Repeat("x", 150*1024) + `" }`
+	req, err := http.NewRequest(http.MethodGet, apiClient.BaseURL+"/api/v2/traces/"+hexID+"?q="+url.QueryEscape(oversized), nil)
 	require.NoError(t, err)
 	resp, err := apiClient.Do(req)
 	require.NoError(t, err)
