@@ -23,7 +23,7 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
-// AnyValue is used to represent any type of attribute value. AnyValue may contain a
+// Represents any type of attribute value. AnyValue may contain a
 // primitive value such as a string or integer or it may contain an arbitrary nested
 // object containing arrays, key-value lists and primitives.
 type AnyValue struct {
@@ -39,6 +39,7 @@ type AnyValue struct {
 	//	*AnyValue_ArrayValue
 	//	*AnyValue_KvlistValue
 	//	*AnyValue_BytesValue
+	//	*AnyValue_StringValueStrindex
 	Value isAnyValue_Value `protobuf_oneof:"value"`
 }
 
@@ -102,14 +103,18 @@ type AnyValue_KvlistValue struct {
 type AnyValue_BytesValue struct {
 	BytesValue []byte `protobuf:"bytes,7,opt,name=bytes_value,json=bytesValue,proto3,oneof" json:"bytes_value,omitempty"`
 }
+type AnyValue_StringValueStrindex struct {
+	StringValueStrindex int32 `protobuf:"varint,8,opt,name=string_value_strindex,json=stringValueStrindex,proto3,oneof" json:"string_value_strindex,omitempty"`
+}
 
-func (*AnyValue_StringValue) isAnyValue_Value() {}
-func (*AnyValue_BoolValue) isAnyValue_Value()   {}
-func (*AnyValue_IntValue) isAnyValue_Value()    {}
-func (*AnyValue_DoubleValue) isAnyValue_Value() {}
-func (*AnyValue_ArrayValue) isAnyValue_Value()  {}
-func (*AnyValue_KvlistValue) isAnyValue_Value() {}
-func (*AnyValue_BytesValue) isAnyValue_Value()  {}
+func (*AnyValue_StringValue) isAnyValue_Value()         {}
+func (*AnyValue_BoolValue) isAnyValue_Value()           {}
+func (*AnyValue_IntValue) isAnyValue_Value()            {}
+func (*AnyValue_DoubleValue) isAnyValue_Value()         {}
+func (*AnyValue_ArrayValue) isAnyValue_Value()          {}
+func (*AnyValue_KvlistValue) isAnyValue_Value()         {}
+func (*AnyValue_BytesValue) isAnyValue_Value()          {}
+func (*AnyValue_StringValueStrindex) isAnyValue_Value() {}
 
 func (m *AnyValue) GetValue() isAnyValue_Value {
 	if m != nil {
@@ -167,6 +172,13 @@ func (m *AnyValue) GetBytesValue() []byte {
 	return nil
 }
 
+func (m *AnyValue) GetStringValueStrindex() int32 {
+	if x, ok := m.GetValue().(*AnyValue_StringValueStrindex); ok {
+		return x.StringValueStrindex
+	}
+	return 0
+}
+
 // XXX_OneofWrappers is for the internal use of the proto package.
 func (*AnyValue) XXX_OneofWrappers() []interface{} {
 	return []interface{}{
@@ -177,6 +189,7 @@ func (*AnyValue) XXX_OneofWrappers() []interface{} {
 		(*AnyValue_ArrayValue)(nil),
 		(*AnyValue_KvlistValue)(nil),
 		(*AnyValue_BytesValue)(nil),
+		(*AnyValue_StringValueStrindex)(nil),
 	}
 }
 
@@ -235,8 +248,10 @@ func (m *ArrayValue) GetValues() []*AnyValue {
 type KeyValueList struct {
 	// A collection of key/value pairs of key-value pairs. The list may be empty (may
 	// contain 0 elements).
+	//
 	// The keys MUST be unique (it is not allowed to have more than one
 	// value with the same key).
+	// The behavior of software that receives duplicated keys can be unpredictable.
 	Values []*KeyValue `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
 }
 
@@ -280,11 +295,26 @@ func (m *KeyValueList) GetValues() []*KeyValue {
 	return nil
 }
 
-// KeyValue is a key-value pair that is used to store Span attributes, Link
+// Represents a key-value pair that is used to store Span attributes, Link
 // attributes, etc.
 type KeyValue struct {
-	Key   string    `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	// The key name of the pair.
+	// key_strindex MUST NOT be set if key is used.
+	Key string `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	// The value of the pair.
 	Value *AnyValue `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	// Reference to the string key in ProfilesDictionary.string_table.
+	// key MUST NOT be set if key_strindex is used.
+	//
+	// Note: This is currently used exclusively in the Profiling signal.
+	// Implementers of OTLP receivers for signals other than Profiling should
+	// treat the presence of this key as a non-fatal issue.
+	// Log an error or warning indicating an unexpected field intended for the
+	// Profiling signal and process the data as if this value were absent or
+	// empty, ignoring its semantic content for the non-Profiling signal.
+	//
+	// Status: [Alpha]
+	KeyStrindex int32 `protobuf:"varint,3,opt,name=key_strindex,json=keyStrindex,proto3" json:"key_strindex,omitempty"`
 }
 
 func (m *KeyValue) Reset()         { *m = KeyValue{} }
@@ -334,17 +364,31 @@ func (m *KeyValue) GetValue() *AnyValue {
 	return nil
 }
 
+func (m *KeyValue) GetKeyStrindex() int32 {
+	if m != nil {
+		return m.KeyStrindex
+	}
+	return 0
+}
+
 // InstrumentationScope is a message representing the instrumentation scope information
 // such as the fully qualified name and version.
 type InstrumentationScope struct {
+	// A name denoting the Instrumentation scope.
 	// An empty instrumentation scope name means the name is unknown.
-	Name    string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Defines the version of the instrumentation scope.
+	// An empty instrumentation scope version means the version is unknown.
 	Version string `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
 	// Additional attributes that describe the scope. [Optional].
 	// Attribute keys MUST be unique (it is not allowed to have more than one
 	// attribute with the same key).
-	Attributes             []*KeyValue `protobuf:"bytes,3,rep,name=attributes,proto3" json:"attributes,omitempty"`
-	DroppedAttributesCount uint32      `protobuf:"varint,4,opt,name=dropped_attributes_count,json=droppedAttributesCount,proto3" json:"dropped_attributes_count,omitempty"`
+	// The behavior of software that receives duplicated keys can be unpredictable.
+	Attributes []*KeyValue `protobuf:"bytes,3,rep,name=attributes,proto3" json:"attributes,omitempty"`
+	// The number of attributes that were discarded. Attributes
+	// can be discarded because their keys are too long or because there are too many
+	// attributes. If this value is 0, then no attributes were dropped.
+	DroppedAttributesCount uint32 `protobuf:"varint,4,opt,name=dropped_attributes_count,json=droppedAttributesCount,proto3" json:"dropped_attributes_count,omitempty"`
 }
 
 func (m *InstrumentationScope) Reset()         { *m = InstrumentationScope{} }
@@ -408,50 +452,151 @@ func (m *InstrumentationScope) GetDroppedAttributesCount() uint32 {
 	return 0
 }
 
+// A reference to an Entity.
+// Entity represents an object of interest associated with produced telemetry: e.g spans, metrics, profiles, or logs.
+//
+// Status: [Development]
+type EntityRef struct {
+	// The Schema URL, if known. This is the identifier of the Schema that the entity data
+	// is recorded in. To learn more about Schema URL see
+	// https://opentelemetry.io/docs/specs/otel/schemas/#schema-url
+	//
+	// This schema_url applies to the data in this message and to the Resource attributes
+	// referenced by id_keys and description_keys.
+	// TODO: discuss if we are happy with this somewhat complicated definition of what
+	// the schema_url applies to.
+	//
+	// This field obsoletes the schema_url field in ResourceMetrics/ResourceSpans/ResourceLogs.
+	SchemaUrl string `protobuf:"bytes,1,opt,name=schema_url,json=schemaUrl,proto3" json:"schema_url,omitempty"`
+	// Defines the type of the entity. MUST not change during the lifetime of the entity.
+	// For example: "service" or "host". This field is required and MUST not be empty
+	// for valid entities.
+	Type string `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
+	// Attribute Keys that identify the entity.
+	// MUST not change during the lifetime of the entity. The Id must contain at least one attribute.
+	// These keys MUST exist in the containing {message}.attributes.
+	IdKeys []string `protobuf:"bytes,3,rep,name=id_keys,json=idKeys,proto3" json:"id_keys,omitempty"`
+	// Descriptive (non-identifying) attribute keys of the entity.
+	// MAY change over the lifetime of the entity. MAY be empty.
+	// These attribute keys are not part of entity's identity.
+	// These keys MUST exist in the containing {message}.attributes.
+	DescriptionKeys []string `protobuf:"bytes,4,rep,name=description_keys,json=descriptionKeys,proto3" json:"description_keys,omitempty"`
+}
+
+func (m *EntityRef) Reset()         { *m = EntityRef{} }
+func (m *EntityRef) String() string { return proto.CompactTextString(m) }
+func (*EntityRef) ProtoMessage()    {}
+func (*EntityRef) Descriptor() ([]byte, []int) {
+	return fileDescriptor_92d5df4519b8f2e3, []int{5}
+}
+func (m *EntityRef) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *EntityRef) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_EntityRef.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *EntityRef) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_EntityRef.Merge(m, src)
+}
+func (m *EntityRef) XXX_Size() int {
+	return m.Size()
+}
+func (m *EntityRef) XXX_DiscardUnknown() {
+	xxx_messageInfo_EntityRef.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_EntityRef proto.InternalMessageInfo
+
+func (m *EntityRef) GetSchemaUrl() string {
+	if m != nil {
+		return m.SchemaUrl
+	}
+	return ""
+}
+
+func (m *EntityRef) GetType() string {
+	if m != nil {
+		return m.Type
+	}
+	return ""
+}
+
+func (m *EntityRef) GetIdKeys() []string {
+	if m != nil {
+		return m.IdKeys
+	}
+	return nil
+}
+
+func (m *EntityRef) GetDescriptionKeys() []string {
+	if m != nil {
+		return m.DescriptionKeys
+	}
+	return nil
+}
+
 func init() {
 	proto.RegisterType((*AnyValue)(nil), "tempopb.common.v1.AnyValue")
 	proto.RegisterType((*ArrayValue)(nil), "tempopb.common.v1.ArrayValue")
 	proto.RegisterType((*KeyValueList)(nil), "tempopb.common.v1.KeyValueList")
 	proto.RegisterType((*KeyValue)(nil), "tempopb.common.v1.KeyValue")
 	proto.RegisterType((*InstrumentationScope)(nil), "tempopb.common.v1.InstrumentationScope")
+	proto.RegisterType((*EntityRef)(nil), "tempopb.common.v1.EntityRef")
 }
 
 func init() { proto.RegisterFile("common/v1/common.proto", fileDescriptor_92d5df4519b8f2e3) }
 
 var fileDescriptor_92d5df4519b8f2e3 = []byte{
-	// 510 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x53, 0xcd, 0x6e, 0xd3, 0x40,
-	0x10, 0xf6, 0x26, 0x6d, 0x7e, 0xc6, 0x41, 0x82, 0x15, 0xaa, 0x22, 0xa1, 0xb8, 0x26, 0x5c, 0x7c,
-	0xb2, 0x95, 0xf6, 0x82, 0xc4, 0x85, 0x24, 0x1c, 0x82, 0x40, 0x6a, 0x65, 0x50, 0x0f, 0x5c, 0xa2,
-	0x75, 0xb2, 0x84, 0x55, 0xe2, 0x5d, 0x6b, 0xbd, 0x8e, 0xe4, 0xb7, 0xe0, 0xca, 0x2b, 0xf0, 0x0a,
-	0xbc, 0x40, 0x8f, 0x3d, 0x72, 0x44, 0xc9, 0x8b, 0x20, 0xef, 0x6e, 0x9c, 0x4a, 0x54, 0x2a, 0xb7,
-	0x99, 0x6f, 0xbe, 0xf9, 0xe6, 0x9b, 0xfd, 0x81, 0xb3, 0x85, 0x48, 0x53, 0xc1, 0xa3, 0xed, 0x28,
-	0x32, 0x51, 0x98, 0x49, 0xa1, 0x04, 0x7e, 0xa6, 0x68, 0x9a, 0x89, 0x2c, 0x09, 0x2d, 0xba, 0x1d,
-	0x0d, 0x6f, 0x1b, 0xd0, 0x19, 0xf3, 0xf2, 0x86, 0x6c, 0x0a, 0x8a, 0x5f, 0x41, 0x2f, 0x57, 0x92,
-	0xf1, 0xd5, 0x7c, 0x5b, 0xe5, 0x7d, 0xe4, 0xa3, 0xa0, 0x3b, 0x73, 0x62, 0xd7, 0xa0, 0x86, 0x74,
-	0x0e, 0x90, 0x08, 0xb1, 0xb1, 0x94, 0x86, 0x8f, 0x82, 0xce, 0xcc, 0x89, 0xbb, 0x15, 0x66, 0x08,
-	0x03, 0xe8, 0x32, 0xae, 0x6c, 0xbd, 0xe9, 0xa3, 0xa0, 0x39, 0x73, 0xe2, 0x0e, 0xe3, 0xaa, 0x1e,
-	0xb2, 0x14, 0x45, 0xb2, 0xa1, 0x96, 0x71, 0xe2, 0xa3, 0x00, 0x55, 0x43, 0x0c, 0x6a, 0x48, 0x6f,
-	0xc1, 0x25, 0x52, 0x92, 0xd2, 0x72, 0x4e, 0x7d, 0x14, 0xb8, 0x17, 0x83, 0xf0, 0x1f, 0xff, 0xe1,
-	0xb8, 0x62, 0xe9, 0x9e, 0x99, 0x13, 0x03, 0xa9, 0x33, 0xfc, 0x0e, 0x7a, 0xeb, 0xed, 0x86, 0xe5,
-	0x07, 0x23, 0x2d, 0x2d, 0x71, 0xfe, 0x80, 0xc4, 0x07, 0x6a, 0x5a, 0x3e, 0xb2, 0x5c, 0x55, 0x3e,
-	0x4c, 0x9b, 0x51, 0x79, 0x09, 0x6e, 0x52, 0x2a, 0x9a, 0x5b, 0x91, 0xb6, 0x8f, 0x82, 0x5e, 0x35,
-	0x48, 0x83, 0x9a, 0x32, 0x69, 0xc3, 0xa9, 0x2e, 0x0e, 0xc7, 0x00, 0x47, 0x37, 0xf8, 0x12, 0x5a,
-	0x1a, 0xce, 0xfb, 0xc8, 0x6f, 0x06, 0xee, 0xc5, 0x8b, 0x87, 0xcc, 0xdb, 0x83, 0x8f, 0x2d, 0x75,
-	0x38, 0x85, 0xde, 0x7d, 0x37, 0xff, 0x25, 0x72, 0x68, 0xa8, 0x45, 0xae, 0xa0, 0x73, 0xc0, 0xf0,
-	0x53, 0x68, 0xae, 0x69, 0x69, 0x2e, 0x32, 0xae, 0x42, 0x3c, 0xb2, 0x76, 0xf5, 0xcd, 0x3d, 0x62,
-	0xcb, 0x2e, 0xf6, 0x0b, 0xc1, 0xf3, 0xf7, 0x3c, 0x57, 0xb2, 0x48, 0x29, 0x57, 0x44, 0x31, 0xc1,
-	0x3f, 0x2d, 0x44, 0x46, 0x31, 0x86, 0x13, 0x4e, 0x52, 0xfb, 0x4e, 0x62, 0x1d, 0xe3, 0x3e, 0xb4,
-	0xb7, 0x54, 0xe6, 0x4c, 0x70, 0x3d, 0xa1, 0x1b, 0x1f, 0x52, 0xfc, 0x06, 0x80, 0x28, 0x25, 0x59,
-	0x52, 0x28, 0x9a, 0xf7, 0x9b, 0x8f, 0x2f, 0x74, 0x8f, 0x8e, 0x5f, 0x43, 0x7f, 0x29, 0x45, 0x96,
-	0xd1, 0xe5, 0xfc, 0x88, 0xce, 0x17, 0xa2, 0xe0, 0x4a, 0xbf, 0xa0, 0x27, 0xf1, 0x99, 0xad, 0x8f,
-	0xeb, 0xf2, 0xb4, 0xaa, 0x4e, 0x7e, 0xa0, 0xdb, 0x9d, 0x87, 0xee, 0x76, 0x1e, 0xfa, 0xb3, 0xf3,
-	0xd0, 0xf7, 0xbd, 0xe7, 0xdc, 0xed, 0x3d, 0xe7, 0xf7, 0xde, 0x73, 0xc0, 0x67, 0x22, 0x14, 0x19,
-	0xe5, 0x8a, 0x6e, 0x68, 0x4a, 0x95, 0x2c, 0xcd, 0x3f, 0x39, 0x7a, 0x99, 0xb8, 0x53, 0x1d, 0x5e,
-	0x57, 0xf0, 0x35, 0xfa, 0x12, 0xae, 0x98, 0xfa, 0x56, 0x68, 0xb3, 0xd1, 0x4a, 0x92, 0xaf, 0x84,
-	0x93, 0x48, 0x2f, 0x10, 0x65, 0xeb, 0x55, 0x64, 0x57, 0x89, 0xea, 0xdf, 0xf7, 0xb3, 0x31, 0xb8,
-	0xca, 0x28, 0xff, 0x5c, 0xcb, 0x6b, 0x9d, 0xd0, 0x68, 0x86, 0x37, 0xa3, 0xa4, 0xa5, 0xe7, 0x5d,
-	0xfe, 0x0d, 0x00, 0x00, 0xff, 0xff, 0x48, 0x7a, 0x86, 0xd2, 0xb1, 0x03, 0x00, 0x00,
+	// 629 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x54, 0xcd, 0x6e, 0xd3, 0x4c,
+	0x14, 0xf5, 0x34, 0xcd, 0x8f, 0xaf, 0xf3, 0xe9, 0x2b, 0x03, 0x94, 0x48, 0x28, 0xa9, 0x1b, 0x36,
+	0x66, 0x63, 0x2b, 0x2d, 0x0b, 0x24, 0x36, 0xa4, 0x05, 0x29, 0xa8, 0x48, 0x54, 0x2e, 0x74, 0xc1,
+	0x26, 0x72, 0xe2, 0x69, 0x3a, 0x8a, 0x3d, 0x63, 0x8d, 0xc7, 0x11, 0xde, 0xf2, 0x04, 0x6c, 0x79,
+	0x05, 0x5e, 0x81, 0x17, 0x60, 0xd9, 0x25, 0x4b, 0xd4, 0xbe, 0x07, 0x42, 0x9e, 0x99, 0xfc, 0x48,
+	0x54, 0x2a, 0xbb, 0x3b, 0xe7, 0x9e, 0x39, 0x73, 0xee, 0x99, 0xd1, 0xc0, 0xee, 0x94, 0xa7, 0x29,
+	0x67, 0xc1, 0x62, 0x10, 0xe8, 0xca, 0xcf, 0x04, 0x97, 0x1c, 0xdf, 0x93, 0x24, 0xcd, 0x78, 0x36,
+	0xf1, 0x0d, 0xba, 0x18, 0xf4, 0x7f, 0x6f, 0x41, 0x6b, 0xc8, 0xca, 0xf3, 0x28, 0x29, 0x08, 0x7e,
+	0x02, 0xed, 0x5c, 0x0a, 0xca, 0x66, 0xe3, 0x45, 0xb5, 0xee, 0x20, 0x17, 0x79, 0xf6, 0xc8, 0x0a,
+	0x1d, 0x8d, 0x6a, 0xd2, 0x1e, 0xc0, 0x84, 0xf3, 0xc4, 0x50, 0xb6, 0x5c, 0xe4, 0xb5, 0x46, 0x56,
+	0x68, 0x57, 0x98, 0x26, 0x74, 0xc1, 0xa6, 0x4c, 0x9a, 0x7e, 0xcd, 0x45, 0x5e, 0x6d, 0x64, 0x85,
+	0x2d, 0xca, 0xe4, 0xea, 0x90, 0x98, 0x17, 0x93, 0x84, 0x18, 0xc6, 0xb6, 0x8b, 0x3c, 0x54, 0x1d,
+	0xa2, 0x51, 0x4d, 0x7a, 0x09, 0x4e, 0x24, 0x44, 0x54, 0x1a, 0x4e, 0xdd, 0x45, 0x9e, 0x73, 0xd0,
+	0xf5, 0xff, 0xf2, 0xef, 0x0f, 0x2b, 0x96, 0xda, 0x33, 0xb2, 0x42, 0x88, 0x56, 0x2b, 0xfc, 0x0a,
+	0xda, 0xf3, 0x45, 0x42, 0xf3, 0xa5, 0x91, 0x86, 0x92, 0xd8, 0xbb, 0x45, 0xe2, 0x84, 0xe8, 0x2d,
+	0x6f, 0x69, 0x2e, 0x2b, 0x1f, 0x7a, 0x9b, 0x56, 0xd9, 0x07, 0x67, 0x52, 0x4a, 0x92, 0x1b, 0x91,
+	0xa6, 0x8b, 0xbc, 0x76, 0x75, 0x90, 0x02, 0x35, 0xe5, 0x19, 0x3c, 0xdc, 0x0c, 0x6d, 0xac, 0x16,
+	0x31, 0xf9, 0xd4, 0x69, 0xb9, 0xc8, 0xab, 0x8f, 0xac, 0xf0, 0xfe, 0x46, 0x7a, 0x67, 0xa6, 0x79,
+	0xd4, 0x84, 0xba, 0xa2, 0xf7, 0x87, 0x00, 0xeb, 0x19, 0xf0, 0x21, 0x34, 0x14, 0x9c, 0x77, 0x90,
+	0x5b, 0xf3, 0x9c, 0x83, 0xc7, 0xb7, 0x8d, 0x6c, 0xae, 0x2b, 0x34, 0xd4, 0xfe, 0x31, 0xb4, 0x37,
+	0x67, 0xf8, 0x27, 0x91, 0xe5, 0x86, 0x95, 0x88, 0x80, 0xd6, 0x12, 0xc3, 0x3b, 0x50, 0x9b, 0x93,
+	0x52, 0x5f, 0x7f, 0x58, 0x95, 0x78, 0x60, 0xec, 0xaa, 0xfb, 0xbe, 0xc3, 0x96, 0x66, 0xe2, 0x7d,
+	0x68, 0xcf, 0x49, 0xb9, 0x8e, 0xa3, 0x7a, 0x09, 0xf5, 0xd0, 0x99, 0x93, 0x72, 0x19, 0x42, 0xff,
+	0x3b, 0x82, 0x07, 0x6f, 0x58, 0x2e, 0x45, 0x91, 0x12, 0x26, 0x23, 0x49, 0x39, 0x3b, 0x9b, 0xf2,
+	0x8c, 0x60, 0x0c, 0xdb, 0x2c, 0x4a, 0xcd, 0x03, 0x0c, 0x55, 0x8d, 0x3b, 0xd0, 0x5c, 0x10, 0x91,
+	0x53, 0xce, 0x94, 0x09, 0x3b, 0x5c, 0x2e, 0xf1, 0x0b, 0x80, 0x48, 0x4a, 0x41, 0x27, 0x85, 0x24,
+	0x79, 0xa7, 0x76, 0xf7, 0xcc, 0x1b, 0x74, 0xfc, 0x1c, 0x3a, 0xb1, 0xe0, 0x59, 0x46, 0xe2, 0xf1,
+	0x1a, 0x1d, 0x4f, 0x79, 0xc1, 0xa4, 0x7a, 0x9a, 0xff, 0x85, 0xbb, 0xa6, 0x3f, 0x5c, 0xb5, 0x8f,
+	0xab, 0x6e, 0xff, 0x33, 0x02, 0xfb, 0x35, 0x93, 0x54, 0x96, 0x21, 0xb9, 0xc0, 0x5d, 0x80, 0x7c,
+	0x7a, 0x49, 0xd2, 0x68, 0x5c, 0x88, 0xc4, 0x18, 0xb7, 0x35, 0xf2, 0x41, 0x24, 0xd5, 0x44, 0xb2,
+	0xcc, 0x88, 0xb1, 0xae, 0x6a, 0xfc, 0x08, 0x9a, 0x34, 0x1e, 0xcf, 0x49, 0xa9, 0x4d, 0xdb, 0x61,
+	0x83, 0xc6, 0x27, 0xa4, 0xcc, 0xf1, 0x53, 0xd8, 0x89, 0x49, 0x3e, 0x15, 0x34, 0xab, 0x22, 0xd1,
+	0x8c, 0x6d, 0xc5, 0xf8, 0x7f, 0x03, 0xaf, 0xa8, 0x47, 0x5f, 0xd1, 0x8f, 0xeb, 0x1e, 0xba, 0xba,
+	0xee, 0xa1, 0x5f, 0xd7, 0x3d, 0xf4, 0xe5, 0xa6, 0x67, 0x5d, 0xdd, 0xf4, 0xac, 0x9f, 0x37, 0x3d,
+	0x0b, 0x5c, 0xca, 0x7d, 0x9e, 0x11, 0x26, 0x49, 0x42, 0x52, 0x22, 0x45, 0xa9, 0x7f, 0x81, 0x75,
+	0x20, 0x47, 0xce, 0xb1, 0x2a, 0x4f, 0x2b, 0xf8, 0x14, 0x7d, 0xf4, 0x67, 0x54, 0x5e, 0x16, 0x2a,
+	0xb1, 0x60, 0x26, 0xa2, 0x8b, 0x88, 0x45, 0x81, 0x4a, 0x31, 0xc8, 0xe6, 0xb3, 0xc0, 0xe4, 0x19,
+	0xac, 0xfe, 0x96, 0x6f, 0x5b, 0xdd, 0x77, 0x19, 0x61, 0xef, 0x57, 0xf2, 0x4a, 0xc7, 0xd7, 0x9a,
+	0xfe, 0xf9, 0x60, 0xd2, 0x50, 0xe7, 0x1d, 0xfe, 0x09, 0x00, 0x00, 0xff, 0xff, 0x4d, 0x12, 0x4d,
+	0xfd, 0x8f, 0x04, 0x00, 0x00,
 }
 
 func (m *AnyValue) Marshal() (dAtA []byte, err error) {
@@ -600,6 +745,18 @@ func (m *AnyValue_BytesValue) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	}
 	return len(dAtA) - i, nil
 }
+func (m *AnyValue_StringValueStrindex) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *AnyValue_StringValueStrindex) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	i = encodeVarintCommon(dAtA, i, uint64(m.StringValueStrindex))
+	i--
+	dAtA[i] = 0x40
+	return len(dAtA) - i, nil
+}
 func (m *ArrayValue) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -694,6 +851,11 @@ func (m *KeyValue) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
+	if m.KeyStrindex != 0 {
+		i = encodeVarintCommon(dAtA, i, uint64(m.KeyStrindex))
+		i--
+		dAtA[i] = 0x18
+	}
 	if m.Value != nil {
 		{
 			size, err := m.Value.MarshalToSizedBuffer(dAtA[:i])
@@ -766,6 +928,61 @@ func (m *InstrumentationScope) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.Name)
 		copy(dAtA[i:], m.Name)
 		i = encodeVarintCommon(dAtA, i, uint64(len(m.Name)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *EntityRef) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *EntityRef) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *EntityRef) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.DescriptionKeys) > 0 {
+		for iNdEx := len(m.DescriptionKeys) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.DescriptionKeys[iNdEx])
+			copy(dAtA[i:], m.DescriptionKeys[iNdEx])
+			i = encodeVarintCommon(dAtA, i, uint64(len(m.DescriptionKeys[iNdEx])))
+			i--
+			dAtA[i] = 0x22
+		}
+	}
+	if len(m.IdKeys) > 0 {
+		for iNdEx := len(m.IdKeys) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.IdKeys[iNdEx])
+			copy(dAtA[i:], m.IdKeys[iNdEx])
+			i = encodeVarintCommon(dAtA, i, uint64(len(m.IdKeys[iNdEx])))
+			i--
+			dAtA[i] = 0x1a
+		}
+	}
+	if len(m.Type) > 0 {
+		i -= len(m.Type)
+		copy(dAtA[i:], m.Type)
+		i = encodeVarintCommon(dAtA, i, uint64(len(m.Type)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.SchemaUrl) > 0 {
+		i -= len(m.SchemaUrl)
+		copy(dAtA[i:], m.SchemaUrl)
+		i = encodeVarintCommon(dAtA, i, uint64(len(m.SchemaUrl)))
 		i--
 		dAtA[i] = 0xa
 	}
@@ -868,6 +1085,15 @@ func (m *AnyValue_BytesValue) Size() (n int) {
 	}
 	return n
 }
+func (m *AnyValue_StringValueStrindex) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	n += 1 + sovCommon(uint64(m.StringValueStrindex))
+	return n
+}
 func (m *ArrayValue) Size() (n int) {
 	if m == nil {
 		return 0
@@ -912,6 +1138,9 @@ func (m *KeyValue) Size() (n int) {
 		l = m.Value.Size()
 		n += 1 + l + sovCommon(uint64(l))
 	}
+	if m.KeyStrindex != 0 {
+		n += 1 + sovCommon(uint64(m.KeyStrindex))
+	}
 	return n
 }
 
@@ -937,6 +1166,35 @@ func (m *InstrumentationScope) Size() (n int) {
 	}
 	if m.DroppedAttributesCount != 0 {
 		n += 1 + sovCommon(uint64(m.DroppedAttributesCount))
+	}
+	return n
+}
+
+func (m *EntityRef) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.SchemaUrl)
+	if l > 0 {
+		n += 1 + l + sovCommon(uint64(l))
+	}
+	l = len(m.Type)
+	if l > 0 {
+		n += 1 + l + sovCommon(uint64(l))
+	}
+	if len(m.IdKeys) > 0 {
+		for _, s := range m.IdKeys {
+			l = len(s)
+			n += 1 + l + sovCommon(uint64(l))
+		}
+	}
+	if len(m.DescriptionKeys) > 0 {
+		for _, s := range m.DescriptionKeys {
+			l = len(s)
+			n += 1 + l + sovCommon(uint64(l))
+		}
 	}
 	return n
 }
@@ -1163,6 +1421,26 @@ func (m *AnyValue) Unmarshal(dAtA []byte) error {
 			copy(v, dAtA[iNdEx:postIndex])
 			m.Value = &AnyValue_BytesValue{v}
 			iNdEx = postIndex
+		case 8:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StringValueStrindex", wireType)
+			}
+			var v int32
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCommon
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.Value = &AnyValue_StringValueStrindex{v}
 		default:
 			iNdEx = preIndex
 			skippy, err := skipCommon(dAtA[iNdEx:])
@@ -1449,6 +1727,25 @@ func (m *KeyValue) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field KeyStrindex", wireType)
+			}
+			m.KeyStrindex = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCommon
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.KeyStrindex |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skipCommon(dAtA[iNdEx:])
@@ -1616,6 +1913,184 @@ func (m *InstrumentationScope) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipCommon(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthCommon
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *EntityRef) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowCommon
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: EntityRef: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: EntityRef: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SchemaUrl", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCommon
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthCommon
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthCommon
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SchemaUrl = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Type", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCommon
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthCommon
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthCommon
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Type = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field IdKeys", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCommon
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthCommon
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthCommon
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.IdKeys = append(m.IdKeys, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DescriptionKeys", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCommon
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthCommon
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthCommon
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.DescriptionKeys = append(m.DescriptionKeys, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipCommon(dAtA[iNdEx:])
