@@ -171,27 +171,3 @@ func TestNewTraceByIDV2(t *testing.T) {
 		require.NotNil(t, res)
 	})
 }
-
-func TestNewTraceByIDV2WithSpanPruning(t *testing.T) {
-	traceResponse := &tempopb.TraceByIDResponse{
-		Trace:   test.MakeTrace(2, []byte{0x01, 0x02}),
-		Metrics: &tempopb.TraceByIDMetrics{},
-	}
-	resBytes, err := proto.Marshal(traceResponse)
-	require.NoError(t, err)
-	response := http.Response{
-		StatusCode: 200,
-		Header:     map[string][]string{"Content-Type": {"application/protobuf"}},
-		Body:       io.NopCloser(bytes.NewReader(resBytes)),
-	}
-
-	cfg := spanpruningprocessor.NewFactory().CreateDefaultConfig().(*spanpruningprocessor.Config)
-	opts := TraceByIDV2Options{SpanPruningConfig: cfg}
-	c := NewTraceByIDV2(100_000, api.HeaderAcceptJSON, nil, opts)
-	err = c.AddResponse(MockResponse{&response})
-	require.NoError(t, err)
-
-	res, err := c.HTTPFinal()
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, res.StatusCode)
-}

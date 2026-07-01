@@ -127,14 +127,18 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			}
 		}
 
-		pruningMode, spanPruningCfg, err := api.ParseSpanPruningRequest(req)
+		reqPruneEnabled, spanPruningCfg, err := api.ParseSpanPruningRequest(req)
 		if err != nil {
 			return httpInvalidRequest(err), nil
 		}
-		opts := combiner.TraceByIDV2Options{
-			SpanPruningConfig: spanPruningCfg,
-			Logger:            logger,
+
+		spanPruningEnabled := cfg.TraceByID.SpanPruningEnabled && reqPruneEnabled
+		opts := combiner.TraceByIDV2Options{}
+		if spanPruningEnabled && spanPruningCfg != nil {
+			opts.SpanPruningConfig = spanPruningCfg
+			opts.Logger = logger
 		}
+
 		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat, traceRedactor, opts)
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 
@@ -159,7 +163,7 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			"inspected_bytes", bytesProcessed,
 			"request_throughput", float64(bytesProcessed)/elapsed.Seconds(),
 			"duration_seconds", elapsed.Seconds(),
-			"span_pruning_mode", pruningMode,
+			"span_pruning_enabled", spanPruningEnabled,
 			"span_pruning_enabled", spanPruningCfg != nil,
 			"err", err,
 		)

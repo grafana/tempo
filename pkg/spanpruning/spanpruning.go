@@ -25,7 +25,7 @@ func PruneTrace(cfg *spanpruningprocessor.Config, trace *tempopb.Trace) (*tempop
 		return nil, err
 	}
 
-	sink := &tracesSink{}
+	sink := &next{}
 	p, err := newProcessor(cfg, sink)
 	if err != nil {
 		return nil, err
@@ -35,13 +35,10 @@ func PruneTrace(cfg *spanpruningprocessor.Config, trace *tempopb.Trace) (*tempop
 		return nil, err
 	}
 
-	if !sink.set {
-		return trace, nil
-	}
 	return tracesToTempopb(sink.traces)
 }
 
-func newProcessor(cfg *spanpruningprocessor.Config, sink *tracesSink) (interface {
+func newProcessor(cfg *spanpruningprocessor.Config, sink *next) (interface {
 	ConsumeTraces(context.Context, ptrace.Traces) error
 }, error) {
 	settings := processor.Settings{
@@ -75,17 +72,15 @@ func tracesToTempopb(td ptrace.Traces) (*tempopb.Trace, error) {
 	return &result, nil
 }
 
-type tracesSink struct {
+type next struct {
 	traces ptrace.Traces
-	set    bool
 }
 
-func (s *tracesSink) ConsumeTraces(_ context.Context, td ptrace.Traces) error {
+func (s *next) ConsumeTraces(_ context.Context, td ptrace.Traces) error {
 	s.traces = td
-	s.set = true
 	return nil
 }
 
-func (s *tracesSink) Capabilities() consumer.Capabilities {
+func (s *next) Capabilities() consumer.Capabilities {
 	return consumer.Capabilities{MutatesData: false}
 }
