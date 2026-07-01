@@ -20,6 +20,7 @@ import (
 // attribute patterns) when a group exceeds MinSpansToAggregate, replacing them with a single
 // summary span annotated with aggregation statistics.
 func PruneTrace(cfg *spanpruningprocessor.Config, trace *tempopb.Trace) (*tempopb.Trace, error) {
+	ctx := context.Background()
 	td, err := tempopbToTraces(trace)
 	if err != nil {
 		return nil, err
@@ -30,9 +31,12 @@ func PruneTrace(cfg *spanpruningprocessor.Config, trace *tempopb.Trace) (*tempop
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = p.Shutdown(context.Background()) }()
 
-	if err := p.ConsumeTraces(context.Background(), td); err != nil {
+	if c, ok := p.(component.Component); ok {
+ 		defer func() { _ = c.Shutdown(ctx) }()
+ 	}
+
+	if err := p.ConsumeTraces(ctx, td); err != nil {
 		return nil, err
 	}
 
