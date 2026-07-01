@@ -49,12 +49,12 @@ func TestNormalizeTraceBuildsSpanRefsAndSnapshots(t *testing.T) {
 		Kind:    "client",
 	}, reserve.ref)
 	assert.Equal(t, SpanSnapshot{
-		Path:       []int{0, 1, 0},
-		Service:    "inventory",
-		Name:       "reserve",
-		Kind:       "client",
-		DurationMs: 25,
-		Status:     "error",
+		Path:          []int{0, 1, 0},
+		Service:       "inventory",
+		Name:          "reserve",
+		Kind:          "client",
+		DurationNanos: 25_000_000,
+		Status:        "error",
 	}, reserve.snapshot)
 }
 

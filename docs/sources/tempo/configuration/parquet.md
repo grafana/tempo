@@ -23,13 +23,16 @@ As soon as a block format version is enabled, Tempo starts writing data in that 
 
 {{< admonition type="warning" >}}
 The `v2` and `vParquet3` block formats have been removed in Tempo 3.0.
-Use `vParquet4` (default) or `vParquet5`.
+Use `vParquet4` (default) or `vParquet5`. 
 {{< /admonition >}}
 
-### vParquet4 (default)
+Only Parquet-based formats are supported. 
 
-`vParquet4` is the default block format in Tempo 3.0.
-It introduces columns that support querying array attributes, events, and links.
+### vParquet4 
+
+The default block format is `vParquet4`.
+
+`vParquet4` introduces columns that enable querying for data in array attributes as well as events and links.
 For more information, refer to [Dedicated attribute columns](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/dedicated_columns/).
 
 ### vParquet5

@@ -6,6 +6,7 @@ import (
 
 	"github.com/gogo/status"
 	"github.com/grafana/dskit/grpcutil"
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -13,10 +14,10 @@ import (
 )
 
 const (
-	traceByIDOp = "traces"
-	searchOp    = "search"
-	metadataOp  = "metadata"
-	metricsOp   = "metrics"
+	traceByIDOp = api.OpTraceByID
+	searchOp    = api.OpSearch
+	metadataOp  = api.OpMetadata
+	metricsOp   = api.OpMetrics
 
 	resultCompleted = "completed"
 	resultCanceled  = "canceled"

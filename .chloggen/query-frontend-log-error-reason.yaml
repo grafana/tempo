@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: query-frontend
+note: Correctly log failure reason if query is rejected by query-frontend
+issues: []
+subtext:
+user: oleg-kozlyuk-grafana

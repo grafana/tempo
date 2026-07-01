@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util/log"
@@ -53,6 +54,7 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.queryBlock: %w", err)
 	}
+	defer observeBackendProcessing(api.OpMetrics, tenantID, time.Now())
 
 	blockID, err := backend.ParseUUID(req.BlockID)
 	if err != nil {
@@ -128,7 +130,7 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 
 	res := eval.Results()
 
-	inspectedBytes, spansTotal, _ := eval.Metrics()
+	em := eval.Metrics()
 
 	if req.MaxSeries > 0 && len(res) > int(req.MaxSeries) {
 		limitedRes := make(traceql.SeriesSet)
@@ -146,8 +148,11 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 	response := &tempopb.QueryRangeResponse{
 		Series: res.ToProto(req),
 		Metrics: &tempopb.SearchMetrics{
-			InspectedBytes: inspectedBytes,
-			InspectedSpans: spansTotal,
+			InspectedBytes:    em.Bytes,
+			InspectedSpans:    em.SpansTotal,
+			BackendReads:      em.BackendReads,
+			BackendBytes:      em.BackendBytes,
+			AdditionalMetrics: em.AdditionalMetrics,
 		},
 	}
 

@@ -48,7 +48,7 @@ type (
 
 type QueryFrontend struct {
 	tempopb.UnimplementedStreamingQuerierServer
-	TraceByIDHandler, TraceByIDHandlerV2, SearchHandler                                        http.Handler
+	TraceByIDHandler, TraceByIDHandlerV2, TraceDiffHandler, SearchHandler                      http.Handler
 	SearchTagsHandler, SearchTagsV2Handler, SearchTagsValuesHandler, SearchTagsValuesV2Handler http.Handler
 	MetricsQueryInstantHandler, MetricsQueryRangeHandler                                       http.Handler
 	MCPHandler                                                                                 http.Handler
@@ -130,13 +130,12 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	}, []string{"op"})
 
 	adjustEndWareSeconds := pipeline.NewAdjustStartEndWare(cfg.Search.Sharder.QueryBackendAfter, cfg.QueryEndCutoff, false)
-	adjustEndWareNanos := pipeline.NewAdjustStartEndWare(cfg.Metrics.Sharder.QueryBackendAfter, cfg.QueryEndCutoff, true) // metrics queries work in nanoseconds
 	retryWare := pipeline.NewRetryWare(cfg.MaxRetries, cfg.Weights.RetryWithWeights, registerer)
 	cacheWare := pipeline.NewCachingWare(cacheProvider, cache.RoleFrontendSearch, logger)
 	statusCodeWare := pipeline.NewStatusCodeAdjustWare()
 	traceIDStatusCodeWare := pipeline.NewStatusCodeAdjustWareWithAllowedCode(http.StatusNotFound)
 	urlDenyListWare := pipeline.NewURLDenyListWare(cfg.URLDenyList)
-	queryValidatorWare := pipeline.NewQueryValidatorWare(cfg.MaxQueryExpressionSizeBytes)
+	queryValidatorWare := pipeline.NewQueryValidatorWare()
 	headerStripWare := pipeline.NewStripHeadersWare(cfg.AllowedHeaders)
 	tenantValidatorWare := pipeline.NewTenantValidatorMiddleware()
 
@@ -209,9 +208,6 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	queryRangePipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			headerStripWare,
-			// due to alignments and combiner, it needs to be done in handler
-			// TODO: initialise combiner after middlewares and uncomment
-			// adjustEndWareNanos,
 			urlDenyListWare,
 			queryValidatorWare,
 			pipeline.NewWeightRequestWare(pipeline.TraceQLMetrics, cfg.Weights),
@@ -225,7 +221,6 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	queryInstantPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			headerStripWare,
-			adjustEndWareNanos,
 			urlDenyListWare,
 			queryValidatorWare,
 			pipeline.NewWeightRequestWare(pipeline.TraceQLMetrics, cfg.Weights),
@@ -238,18 +233,20 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 
 	traces := newTraceIDHandler(cfg, tracePipeline, o, combiner.NewTypedTraceByID, logger, dataAccessController)
 	tracesV2 := newTraceIDV2Handler(cfg, tracePipeline, o, combiner.NewTypedTraceByIDV2, logger, dataAccessController)
+	traceDiff := newTraceDiffHandler(cfg, apiPrefix, tracePipeline, o, combiner.NewTypedTraceByIDV2, cacheProvider, logger, dataAccessController)
 	search := newSearchHTTPHandler(cfg, searchPipeline, o, logger, dataAccessController)
 	searchTags := newTagsHTTPHandler(cfg, searchTagsPipeline, o, logger, dataAccessController)
 	searchTagsV2 := newTagsV2HTTPHandler(cfg, searchTagsPipeline, o, logger, dataAccessController)
 	searchTagValues := newTagValuesHTTPHandler(cfg, searchTagValuesPipeline, o, logger, dataAccessController)
 	searchTagValuesV2 := newTagValuesV2HTTPHandler(cfg, searchTagValuesV2Pipeline, o, logger, dataAccessController)
-	queryInstant := newMetricsQueryInstantHTTPHandler(cfg, queryInstantPipeline, logger, dataAccessController) // Reuses the same pipeline
-	queryRange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, logger, dataAccessController)
+	queryInstant := newMetricsQueryInstantHTTPHandler(cfg, queryInstantPipeline, o, logger, dataAccessController) // Reuses the same pipeline
+	queryRange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, o, logger, dataAccessController)
 
 	f := &QueryFrontend{
 		// http/discrete
 		TraceByIDHandler:           newHandler(cfg.Config.LogQueryRequestHeaders, traces, logger),
 		TraceByIDHandlerV2:         newHandler(cfg.Config.LogQueryRequestHeaders, tracesV2, logger),
+		TraceDiffHandler:           newHandler(cfg.Config.LogQueryRequestHeaders, traceDiff, logger),
 		SearchHandler:              newHandler(cfg.Config.LogQueryRequestHeaders, search, logger),
 		SearchTagsHandler:          newHandler(cfg.Config.LogQueryRequestHeaders, searchTags, logger),
 		SearchTagsV2Handler:        newHandler(cfg.Config.LogQueryRequestHeaders, searchTagsV2, logger),
@@ -264,8 +261,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		streamingTagsV2:       newTagsV2StreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger, dataAccessController),
 		streamingTagValues:    newTagValuesStreamingGRPCHandler(cfg, searchTagValuesPipeline, apiPrefix, o, logger, dataAccessController),
 		streamingTagValuesV2:  newTagValuesV2StreamingGRPCHandler(cfg, searchTagValuesV2Pipeline, apiPrefix, o, logger, dataAccessController),
-		streamingQueryRange:   newQueryRangeStreamingGRPCHandler(cfg, queryRangePipeline, apiPrefix, logger, dataAccessController),
-		streamingQueryInstant: newQueryInstantStreamingGRPCHandler(cfg, queryRangePipeline, apiPrefix, logger, dataAccessController), // Reuses the same pipeline
+		streamingQueryRange:   newQueryRangeStreamingGRPCHandler(cfg, queryRangePipeline, o, apiPrefix, logger, dataAccessController),
+		streamingQueryInstant: newQueryInstantStreamingGRPCHandler(cfg, queryRangePipeline, o, apiPrefix, logger, dataAccessController), // Reuses the same pipeline
 
 		cacheProvider: cacheProvider,
 		logger:        logger,
@@ -273,7 +270,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 
 	if cfg.MCPServer.Enabled {
 		// Initialize MCP server
-		mcpServer := NewMCPServer(f, apiPrefix, logger, authMiddleware)
+		mcpServer := NewMCPServer(f, apiPrefix, logger, authMiddleware, cfg.MaxQueryExpressionSizeBytes)
 		f.MCPHandler = mcpServer
 	} else {
 		f.MCPHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

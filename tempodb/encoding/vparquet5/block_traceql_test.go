@@ -654,7 +654,10 @@ func searchesThatMatch(t *testing.T, traceIDText string) []struct {
 		// Events
 		{"event:name", traceql.MustExtractFetchSpansRequestWithMetadata(`{event:name = "e1"}`)},
 		{"event:timeSinceStart", traceql.MustExtractFetchSpansRequestWithMetadata(`{event:timeSinceStart > 2ms}`)},
-		{"event.message", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.message =~ "exception"}`)},
+		{"event:message", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.message =~ "exception"}`)},
+		// Event dedicated attributes
+		{"event.dedicated.event.1", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.dedicated.event.1 = "dedicated-event-attr-value-1"}`)},
+		{"event.dedicated.event.2", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.dedicated.event.2 = "dedicated-event-attr-value-2"}`)},
 		// Links
 		{"link:spanID", traceql.MustExtractFetchSpansRequestWithMetadata(`{link:spanID = "1234567890abcdef"}`)},
 		{"link:traceID", traceql.MustExtractFetchSpansRequestWithMetadata(`{link:traceID = "1234567890abcdef1234567890abcdef"}`)},
@@ -806,6 +809,8 @@ func searchesThatDontMatch(t *testing.T) []struct {
 		{"Matches neither condition", traceql.MustExtractFetchSpansRequestWithMetadata(`{.foo = "xyz" || .` + LabelHTTPStatusCode + " = 1000}")},
 		{"Resource dedicated attributes does not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.dedicated.resource.3 = "dedicated-resource-attr-value-4"}`)},
 		{"Resource dedicated attributes does not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.2 = "dedicated-span-attr-value-5"}`)},
+		{"Event dedicated attributes does not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.dedicated.event.1 = "dedicated-event-attr-value-2"}`)},
+		{"Event dedicated attributes does not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.dedicated.event.2 = "dedicated-event-attr-value-1"}`)},
 		{"Blob test 1", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 = "dedicated-span-attr-value-asdf"}`)},
 		{"Blob test 2", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 =~ "dedicated-span-attr-value-asdf"}`)},
 		{"Blob test 3", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 = ""}`)},
@@ -1858,10 +1863,10 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 			// Always call results to include the final series processing in the benchmark.
 			_ = eval.Results()
 
-			bytes, spansTotal, _ := eval.Metrics()
-			b.ReportMetric(float64(bytes)/float64(b.N)/1024.0/1024.0, "MB_io/op")
-			b.ReportMetric(float64(spansTotal)/float64(b.N), "spans/op")
-			b.ReportMetric(float64(spansTotal)/float64(b.Elapsed().Seconds()), "spans/s")
+			em := eval.Metrics()
+			b.ReportMetric(float64(em.Bytes)/float64(b.N)/1024.0/1024.0, "MB_io/op")
+			b.ReportMetric(float64(em.SpansTotal)/float64(b.N), "spans/op")
+			b.ReportMetric(float64(em.SpansTotal)/float64(b.Elapsed().Seconds()), "spans/s")
 		})
 	}
 }
@@ -1984,9 +1989,9 @@ func TestSamplingError(t *testing.T) {
 		err = eval.Do(ctx, f, st, end, int(req.MaxSeries))
 		require.NoError(t, err)
 
-		_, spansTotal, _ := eval.Metrics()
+		em := eval.Metrics()
 
-		return eval.Results(), int(spansTotal)
+		return eval.Results(), int(em.SpansTotal)
 	}
 
 	for _, query := range testQueries {

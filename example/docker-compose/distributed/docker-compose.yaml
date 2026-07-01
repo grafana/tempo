@@ -2,6 +2,8 @@ services:
   # tempo, backend and kafka
   distributor:
     image: &tempoImage "grafana/tempo:${TEMPO_IMAGE_TAG:-3.0.0}"
+    environment: &tempoEnvironment
+     - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
     depends_on:
       - redpanda
     command: "-target=distributor -config.file=/etc/tempo.yaml"
@@ -15,6 +17,7 @@ services:
 
   live-store-zone-a-0:
     image: *tempoImage
+    environment: *tempoEnvironment
     depends_on:
       - distributor
     command: "-target=live-store -config.file=/etc/tempo.yaml -live-store.instance-availability-zone=zone-a"
@@ -27,6 +30,7 @@ services:
 
   live-store-zone-a-1:
     image: *tempoImage
+    environment: *tempoEnvironment
     depends_on:
       - distributor
     command: "-target=live-store -config.file=/etc/tempo.yaml -live-store.instance-availability-zone=zone-a"
@@ -39,6 +43,7 @@ services:
 
   live-store-zone-b-0:
     image: *tempoImage
+    environment: *tempoEnvironment
     depends_on:
       - distributor
     command: "-target=live-store -config.file=/etc/tempo.yaml -live-store.instance-availability-zone=zone-b"
@@ -51,6 +56,7 @@ services:
 
   live-store-zone-b-1:
     image: *tempoImage
+    environment: *tempoEnvironment
     depends_on:
       - distributor
     command: "-target=live-store -config.file=/etc/tempo.yaml -live-store.instance-availability-zone=zone-b"
@@ -63,6 +69,7 @@ services:
 
   query-frontend:
     image: *tempoImage
+    environment: *tempoEnvironment
     command: "-target=query-frontend -config.file=/etc/tempo.yaml -log.level=debug"
     restart: always
     volumes:
@@ -72,6 +79,7 @@ services:
 
   querier:
     image: *tempoImage
+    environment: *tempoEnvironment
     command: "-target=querier -config.file=/etc/tempo.yaml -log.level=debug"
     restart: always
     volumes:
@@ -81,6 +89,7 @@ services:
 
   backend-scheduler:
     image: *tempoImage
+    environment: *tempoEnvironment
     depends_on:
       - minio
     command: "-target=backend-scheduler -config.file=/etc/tempo.yaml"
@@ -92,6 +101,7 @@ services:
 
   backend-worker-0:
     image: *tempoImage
+    environment: *tempoEnvironment
     depends_on:
       - backend-scheduler
     hostname: backend-worker-0
@@ -104,6 +114,7 @@ services:
 
   metrics-generator-0:
     image: *tempoImage
+    environment: *tempoEnvironment
     depends_on:
       - distributor
     command: "-target=metrics-generator -config.file=/etc/tempo.yaml"
@@ -116,6 +127,7 @@ services:
 
   metrics-generator-1:
     image: *tempoImage
+    environment: *tempoEnvironment
     depends_on:
       - distributor
     command: "-target=metrics-generator -config.file=/etc/tempo.yaml"
@@ -128,6 +140,7 @@ services:
 
   block-builder-0:
     image: *tempoImage
+    environment: *tempoEnvironment
     depends_on:
       - distributor
     command: "-target=block-builder -config.file=/etc/tempo.yaml"
@@ -140,6 +153,7 @@ services:
 
   block-builder-1:
     image: *tempoImage
+    environment: *tempoEnvironment
     depends_on:
       - distributor
     command: "-target=block-builder -config.file=/etc/tempo.yaml"
@@ -214,7 +228,7 @@ services:
       - alloy
 
   alloy:
-    image: grafana/alloy:v1.16.1@sha256:51aeb9d829239345070619dad3edd6873186f913c84f45b365b74574fcb38ec0
+    image: grafana/alloy:v1.17.0@sha256:41c41849989b7e054ccbadc17938ee1e5592fe26bfbc56ef3ffc109c0b0b2739
     volumes:
       - ./config.alloy:/etc/alloy/config.alloy
     command:
@@ -265,3 +279,8 @@ services:
       ]
     depends_on:
       - distributor
+
+  memcached:
+    image: memcached:1.6
+    ports:
+      - "11211:11211"

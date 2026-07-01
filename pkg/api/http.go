@@ -18,6 +18,7 @@ import (
 	"github.com/grafana/dskit/httpgrpc"
 	"github.com/prometheus/common/model"
 
+	"github.com/grafana/tempo/pkg/model/tracediff"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
@@ -82,6 +83,7 @@ const (
 
 	PathSearchTagValuesV2 = "/api/v2/search/tag/" + MuxVarTagInPath + "/values"
 	PathSearchTagsV2      = "/api/v2/search/tags"
+	PathTraceDiffV2       = "/api/v2/traces/diff"
 	PathTracesV2          = "/api/v2/traces/{traceID}"
 
 	QueryModeKey       = "mode"
@@ -105,6 +107,24 @@ const (
 	MarshallingFormatJSON     MarshallingFormat = HeaderAcceptJSON
 	MarshallingFormatLLM      MarshallingFormat = HeaderAcceptLLM
 )
+
+// TraceDiffRequest is the request body for the trace diff API.
+type TraceDiffRequest struct {
+	Base    TraceDiffTraceRequest `json:"base"`
+	Compare TraceDiffTraceRequest `json:"compare"`
+	Format  string                `json:"-"`
+}
+
+// TraceDiffTraceRequest identifies one side of a trace diff request.
+type TraceDiffTraceRequest struct {
+	TraceID string `json:"traceId"`
+	Start   *int64 `json:"start,omitempty"`
+	End     *int64 `json:"end,omitempty"`
+
+	TraceIDBytes []byte    `json:"-"`
+	StartTime    time.Time `json:"-"`
+	EndTime      time.Time `json:"-"`
+}
 
 // MarshalingFormatFromAcceptHeader extracts the marshaling format from the Accept header
 // It properly handles multiple media types and quality values
@@ -782,6 +802,49 @@ func extractDateRangeParams(vals url.Values) (start, end, since string) {
 	end, _ = extractQueryParam(vals, urlParamEnd)
 	since, _ = extractQueryParam(vals, urlParamSince)
 	return
+}
+
+// ParseTraceDiffRequest parses and validates the trace diff API request body.
+func ParseTraceDiffRequest(r *http.Request) (*TraceDiffRequest, error) {
+	var req TraceDiffRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return nil, fmt.Errorf("invalid trace diff request body: %w", err)
+	}
+
+	req.Format = tracediff.VersionTracePatchV0
+
+	if err := parseTraceDiffTraceRequest("base", &req.Base); err != nil {
+		return nil, err
+	}
+	if err := parseTraceDiffTraceRequest("compare", &req.Compare); err != nil {
+		return nil, err
+	}
+
+	return &req, nil
+}
+
+func parseTraceDiffTraceRequest(name string, traceReq *TraceDiffTraceRequest) error {
+	if traceReq.TraceID == "" {
+		return fmt.Errorf("%s.traceId is required", name)
+	}
+
+	traceID, err := util.HexStringToTraceID(traceReq.TraceID)
+	if err != nil {
+		return fmt.Errorf("invalid %s.traceId: %w", name, err)
+	}
+	traceReq.TraceIDBytes = traceID
+
+	if traceReq.Start != nil {
+		traceReq.StartTime = time.Unix(*traceReq.Start, 0)
+	}
+	if traceReq.End != nil {
+		traceReq.EndTime = time.Unix(*traceReq.End, 0)
+	}
+	if traceReq.Start != nil && traceReq.End != nil && *traceReq.End <= *traceReq.Start {
+		return fmt.Errorf("%s.start must be before %s.end. received start=%d end=%d", name, name, *traceReq.Start, *traceReq.End)
+	}
+
+	return nil
 }
 
 // ParseTraceByIDRequest parses and validates params for the trace by id API.

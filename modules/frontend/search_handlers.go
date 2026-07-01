@@ -31,8 +31,11 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 	downstreamPath := path.Join(apiPrefix, api.PathSearch)
 
 	return func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error {
-		ctx := srv.Context()
+		ctx := pipeline.WithQueryShapeCell(srv.Context())
 
+		if err := pipeline.ValidateTraceQLQuerySize(req.Query, cfg.MaxQueryExpressionSizeBytes); err != nil {
+			return status.Error(codes.InvalidArgument, err.Error())
+		}
 		if dataAccessController != nil {
 			err := dataAccessController.HandleGRPCSearchReq(ctx, req)
 			if err != nil {
@@ -40,7 +43,6 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 				return err
 			}
 		}
-
 		headers := headersFromGrpcContext(ctx)
 
 		httpReq, err := api.BuildSearchRequest(&http.Request{
@@ -95,13 +97,15 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 		}
 		start := time.Now()
 
+		if err := pipeline.ValidateTraceQLQueryParamsSize(req.URL.Query(), cfg.MaxQueryExpressionSizeBytes); err != nil {
+			return httpInvalidRequest(err), nil
+		}
 		if dataAccessController != nil {
 			if err := dataAccessController.HandleHTTPSearchReq(req); err != nil {
 				level.Error(logger).Log("msg", "http search: access control handling failed", "err", err)
 				return httpInvalidRequest(err), nil
 			}
 		}
-
 		// parse request
 		searchReq, err := api.ParseSearchRequest(req)
 		if err != nil {
@@ -185,19 +189,19 @@ func logResult(ctx context.Context, logger log.Logger, tenantID string, duration
 	}
 
 	if resp == nil {
-		level.Info(logger).Log(
+		logWithShape(level.Info(logger), ctx,
 			"msg", "search response - no resp",
 			"tenant", tenantID,
 			"traceID", traceID,
 			"duration_seconds", durationSeconds,
 			"status_code", statusCode,
-			"error", err)
-
+			"error", err,
+		)
 		return
 	}
 
 	if resp.Metrics == nil {
-		level.Info(logger).Log(
+		logWithShape(level.Info(logger), ctx,
 			"msg", "search response - no metrics",
 			"tenant", tenantID,
 			"traceID", traceID,
@@ -205,11 +209,12 @@ func logResult(ctx context.Context, logger log.Logger, tenantID string, duration
 			"range_seconds", req.End-req.Start,
 			"duration_seconds", durationSeconds,
 			"status_code", statusCode,
-			"error", err)
+			"error", err,
+		)
 		return
 	}
 
-	level.Info(logger).Log(
+	logWithShape(level.Info(logger), ctx,
 		"msg", "search response",
 		"tenant", tenantID,
 		"traceID", traceID,
@@ -225,7 +230,8 @@ func logResult(ctx context.Context, logger log.Logger, tenantID string, duration
 		"inspected_traces", resp.Metrics.InspectedTraces,
 		"inspected_spans", resp.Metrics.InspectedSpans,
 		"status_code", statusCode,
-		"error", err)
+		"error", err,
+	)
 }
 
 func logRequest(logger log.Logger, tenantID string, req *tempopb.SearchRequest) {

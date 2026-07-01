@@ -122,6 +122,54 @@ func TestHandleSearch(t *testing.T) {
 	}
 }
 
+func TestMCPRejectsOversizedQueryBeforeParsing(t *testing.T) {
+	server, callAndTestResults := testFrontend()
+	server.maxQueryExpressionSizeBytes = 10
+	tests := []struct {
+		name    string
+		request mcp.CallToolRequest
+		handler func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error)
+	}{
+		{
+			name: "search",
+			request: callToolRequest(map[string]any{
+				"query": oversizedTraceQLQuery(),
+			}),
+			handler: server.handleSearch,
+		},
+		{
+			name: "instant metrics",
+			request: callToolRequest(map[string]any{
+				"query": oversizedTraceQLQuery(),
+			}),
+			handler: server.handleInstantQuery,
+		},
+		{
+			name: "range metrics",
+			request: callToolRequest(map[string]any{
+				"query": oversizedTraceQLQuery(),
+			}),
+			handler: server.handleRangeQuery,
+		},
+		{
+			name: "attribute values filter query",
+			request: callToolRequest(map[string]any{
+				"name":         "span.name",
+				"filter-query": oversizedTraceQLQuery(),
+			}),
+			handler: server.handleGetAttributeValues,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			callAndTestResults(t, tt.request, tt.handler, expectedResult{
+				err: "TraceQL expression exceeds the configured maximum size of 10 bytes, reduce the query expression size or contact your system administrator",
+			})
+		})
+	}
+}
+
 func TestHandleInstantQuery(t *testing.T) {
 	server, callAndTestResults := testFrontend()
 
@@ -511,8 +559,9 @@ func TestAcceptHeaderIsSet(t *testing.T) {
 					MetricsQueryInstantHandler: mockHandler,
 					MetricsQueryRangeHandler:   mockHandler,
 				},
-				logger:     log.NewNopLogger(),
-				pathPrefix: "",
+				logger:                      log.NewNopLogger(),
+				pathPrefix:                  "",
+				maxQueryExpressionSizeBytes: 100000,
 			}
 
 			ctx := context.Background()
@@ -571,8 +620,9 @@ func testFrontend() (*MCPServer, func(t *testing.T, req mcp.CallToolRequest, han
 			MetricsQueryInstantHandler: mockHandler,
 			MetricsQueryRangeHandler:   mockHandler,
 		},
-		logger:     log.NewNopLogger(),
-		pathPrefix: "",
+		logger:                      log.NewNopLogger(),
+		pathPrefix:                  "",
+		maxQueryExpressionSizeBytes: 100000,
 	}
 
 	callAndTestResults := func(t *testing.T, req mcp.CallToolRequest, handler func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error), expected expectedResult) {

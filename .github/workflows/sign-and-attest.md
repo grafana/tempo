@@ -54,6 +54,13 @@ attestations store.
 | `image` | yes | — | Digest-pinned image ref, e.g. `us-docker.pkg.dev/.../tempo-vulture@sha256:...`. The workflow fails fast if it is not digest-pinned. |
 | `registry` | no | `us-docker.pkg.dev` | GAR (Artifact Registry) hostname to authenticate against when writing the signature and attestation. |
 
+## Coverage
+
+`docker.yml` invokes this workflow (matrixed) for **`tempo-vulture`, `tempo-query`,
+and `tempo-cli`**. The main **`tempo`** image is deliberately not signed here yet —
+it's the most impactful image and is rolled out separately once the rest are proven
+out in production.
+
 ## Step flow
 
 ```

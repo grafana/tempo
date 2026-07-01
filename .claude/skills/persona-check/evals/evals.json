@@ -1,0 +1,106 @@
+{
+  "skill_name": "persona-check",
+  "usage_modes": [
+    "standalone: invoked directly on one or more docs files",
+    "pr: invoked on a PR to check persona fit across changed docs files"
+  ],
+  "file_selection": {
+    "note": "Select files from docs/sources/tempo/ that match the description in each test case's file_selection_guidance field. See .claude/skills/evals/README.md for the eval running process."
+  },
+  "evals": [
+    {
+      "id": 1,
+      "mode": "standalone",
+      "check_type": "A single getting-started, overview, or conceptual page that targets Learners — the kind of page that explains what something is and helps users get oriented.",
+      "file_selection_guidance": "Choose a page from docs/sources/tempo/ that introduces a product, feature, or concept (for example, under introduction/). Look for pages with titles like 'Overview', 'Introduction', 'Get started', or 'What is X'.",
+      "prompt": "Run persona-check on {FILE_1}. Who is this page for and what's missing?",
+      "expected_output": "The skill identifies the page as targeting Learners (or a Learner-primary layered page). It infers the use case (likely Understand or Implement) and entry state (likely unknown_goal or known_task). The report includes 'What's missing' and 'Suggestions' sections with actionable items.",
+      "expectations": [
+        "Output identifies persona as Learner (or Learner-primary if layered)",
+        "Output identifies a use case from the five defined use cases",
+        "Output identifies an entry state",
+        "Output includes a 'What's missing' section with specific gaps",
+        "Output includes a 'Suggestions' section with 1-3 actionable items",
+        "Output does not just identify the persona without analyzing gaps",
+        "Output uses the report template format from the skill"
+      ]
+    },
+    {
+      "id": 2,
+      "mode": "standalone",
+      "check_type": "A configuration reference or API reference page that targets Experts — precise, detailed, with minimal conceptual introduction.",
+      "file_selection_guidance": "Choose a reference page from docs/sources/tempo/ that documents configuration fields, API endpoints, or syntax. Pages under configuration/, api_docs/, or traceql/ are good candidates.",
+      "prompt": "Check persona fit for {FILE_1}. Is this content at the right level for its audience?",
+      "expected_output": "The skill identifies the page as targeting Experts. It does NOT flag the lack of conceptual intros as a problem (the skill's gotchas section says reference pages for Experts should not be flagged for this). Gaps identified should be Expert-relevant: missing edge cases, constraints, or reference details.",
+      "expectations": [
+        "Output identifies persona as Expert",
+        "Output does NOT flag lack of conceptual introduction as a problem",
+        "Output identifies use case as Implement or a similar match",
+        "Output identifies entry state as need_precision",
+        "If gaps are found, they relate to Expert needs (missing edge cases, constraints, defaults, precision)",
+        "Output uses the report template format from the skill"
+      ]
+    },
+    {
+      "id": 3,
+      "mode": "standalone",
+      "check_type": "An operations, deployment, or monitoring page that targets Operators — covers architecture, setup, scaling, or failure modes.",
+      "file_selection_guidance": "Choose a page from docs/sources/tempo/ that covers deployment, operations, monitoring, or infrastructure. Pages under operations/ or set-up-for-tracing/ are good candidates.",
+      "prompt": "Run persona-check on {FILE_1}. Does this content serve operators well?",
+      "expected_output": "The skill identifies the page as targeting Operators. It infers the use case (likely Operate or Implement) and entry state (likely system_level). If the page only covers the happy path with no failure modes or troubleshooting, the skill flags this using Operator red flags.",
+      "expectations": [
+        "Output identifies persona as Operator",
+        "Output identifies use case as Operate, Implement, or a similar match",
+        "Output checks for Operator red flags (happy-path-only, missing failure modes, missing system-level context)",
+        "Output includes 'What's missing' and 'Suggestions' sections",
+        "Output uses the report template format from the skill"
+      ]
+    },
+    {
+      "id": 4,
+      "mode": "standalone",
+      "check_type": "A page that layers multiple persona levels — starts with conceptual explanation (Learner) and transitions to detailed reference or advanced usage (Expert). The skill should recognize layered content rather than forcing a single persona.",
+      "file_selection_guidance": "Choose a page from docs/sources/tempo/ that begins with a 'what is X' or 'how it works' section and then moves into configuration fields, advanced options, or detailed syntax. Feature landing pages often have this structure.",
+      "prompt": "Who is {FILE_1} written for? Does it serve that audience well?",
+      "expected_output": "The skill detects layered content and reports both the primary and secondary personas rather than forcing a single classification. The report notes the layered structure and evaluates whether the transitions work for both audiences.",
+      "expectations": [
+        "Output identifies the content as layered with primary and secondary personas",
+        "Output does NOT treat layered content as a mismatch",
+        "Output evaluates whether each layer serves its respective persona",
+        "Output includes 'What's missing' and 'Suggestions' sections",
+        "Output uses the report template format from the skill"
+      ]
+    },
+    {
+      "id": 5,
+      "mode": "pr",
+      "check_type": "Multiple docs files changed in a single PR, covering different persona levels. The skill should produce per-file reports and a summary.",
+      "file_selection_guidance": "Choose a merged PR that changed 2-4 docs files. Ideally the files cover different topic types (for example, one overview page and one configuration page). If no single PR fits, select 2-3 files manually.",
+      "pr_selection_command": "gh pr list --repo grafana/tempo --state merged --limit 100 --json number,title,labels,files | jq '[.[] | select(.files | map(.path) | map(select(startswith(\"docs/\"))) | length >= 2)] | .[0:10]'",
+      "prompt": "Run persona-check on the docs files changed in PR #{PR_1}. Are they all targeting the right audience?",
+      "expected_output": "The skill produces one report per file using the report template, then a summary section. The summary lists file count, personas detected, most common gaps, and which files need attention.",
+      "expectations": [
+        "Output includes a separate report for each docs file in the PR",
+        "Each report identifies persona, use case, and entry state",
+        "Each report includes 'What's missing' and 'Suggestions'",
+        "Output ends with a summary section listing file count, personas detected, common gaps, and files needing attention",
+        "Summary uses the multi-file report format from the skill"
+      ]
+    },
+    {
+      "id": 6,
+      "mode": "standalone",
+      "check_type": "A task or tutorial page that targets Practitioners — step-by-step instructions for users who know what they want to do but need the specific how-to.",
+      "file_selection_guidance": "Choose a task-oriented page from docs/sources/tempo/ that walks through a specific procedure. Look for pages with titles like 'Configure X', 'Set up Y', or 'Create a Z'. Avoid getting-started guides (those target Learners) and pure reference pages (those target Experts).",
+      "prompt": "Check {FILE_1} — is this at the right level for someone who already knows the product but needs to do this specific task?",
+      "expected_output": "The skill identifies the page as targeting Practitioners. It infers the use case (likely Implement) and entry state (likely known_task). Practitioner red flags are checked: too abstract without examples, steps not translatable to action, missing connection between steps and outcomes.",
+      "expectations": [
+        "Output identifies persona as Practitioner",
+        "Output identifies entry state as known_task or similar",
+        "Output checks for Practitioner red flags (too abstract, missing examples, unclear outcomes)",
+        "Output includes 'What's missing' and 'Suggestions' sections with actionable items",
+        "Output uses the report template format from the skill"
+      ]
+    }
+  ]
+}

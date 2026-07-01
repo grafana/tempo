@@ -17,6 +17,7 @@ import (
 	resource_v1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -25,6 +26,9 @@ import (
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/stretchr/testify/require"
 )
+
+// queryRangeTestCasesTraceIDHex is the trace ID for span 30 in TestTempoDBQueryRange and the rate_with_traceid_filter case in queryRangeTestCases.
+const queryRangeTestCasesTraceIDHex = "0102030405060708090a0b0c0d0e0f10"
 
 func requestWithDefaultRange(q string) *tempopb.QueryRangeRequest {
 	return &tempopb.QueryRangeRequest{
@@ -105,6 +109,158 @@ var queryRangeTestCases = []struct {
 					{TimestampMs: 30_000, Value: 2 * 8.0 / 15.0},
 					{TimestampMs: 45_000, Value: 2 * 7.0 / 15.0},
 					{TimestampMs: 60_000, Value: 2 * 3.0 / 15.0},
+				},
+			},
+		},
+	},
+	{
+		name: "rate_with_rootservice_filter",
+		req:  requestWithDefaultRange(`{ rootServiceName="even" } | rate()`),
+		expectedL1: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "rate"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 7.0 / 15.0}, // Interval (0, 15], 7 spans at 2, 4, 6, 8, 10, 12, 14
+					{TimestampMs: 30_000, Value: 8.0 / 15.0}, // Interval (15, 30], 8 spans at 16, 18, 20, 22, 24, 26, 28, 30
+					{TimestampMs: 45_000, Value: 7.0 / 15.0}, // Interval (30, 45], 7 spans at 32, 34, 36, 38, 40, 42, 44
+					{TimestampMs: 60_000, Value: 3.0 / 15.0}, // Interval (45, 50], 3 spans at 46, 48, 50
+				},
+			},
+		},
+		expectedL2: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "rate"),
+				},
+				// with two sources rate will be doubled
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 2 * 7.0 / 15.0},
+					{TimestampMs: 30_000, Value: 2 * 8.0 / 15.0},
+					{TimestampMs: 45_000, Value: 2 * 7.0 / 15.0},
+					{TimestampMs: 60_000, Value: 2 * 3.0 / 15.0},
+				},
+			},
+		},
+	},
+	{
+		name: "rate_with_rootname_filter",
+		req:  requestWithDefaultRange(`{ rootName="test" } | rate()`),
+		expectedL1: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "rate"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 1.0},        // Interval (0, 15], 15 spans at 1-15
+					{TimestampMs: 30_000, Value: 1.0},        // Interval (15, 30], 15 spans
+					{TimestampMs: 45_000, Value: 1.0},        // Interval (30, 45], 15 spans
+					{TimestampMs: 60_000, Value: 5.0 / 15.0}, // Interval (45, 50], 5 spans
+				},
+			},
+		},
+		expectedL2: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "rate"),
+				},
+				// with two sources rate will be doubled
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 2 * 15.0 / 15.0},
+					{TimestampMs: 30_000, Value: 2 * 1.0},
+					{TimestampMs: 45_000, Value: 2 * 1.0},
+					{TimestampMs: 60_000, Value: 2 * 5.0 / 15.0},
+				},
+			},
+		},
+	},
+	{
+		name: "rate_with_traceduration_filter",
+		req:  requestWithDefaultRange(`{ traceDuration > 25s } | rate()`),
+		expectedL1: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "rate"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 0},          // Interval (0, 15], no spans with duration > 25s
+					{TimestampMs: 30_000, Value: 5.0 / 15.0}, // Interval (15, 30], spans 26-30
+					{TimestampMs: 45_000, Value: 1.0},        // Interval (30, 45], spans 31-45
+					{TimestampMs: 60_000, Value: 5.0 / 15.0}, // Interval (45, 50], spans 46-50
+				},
+			},
+		},
+		expectedL2: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "rate"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 0},
+					{TimestampMs: 30_000, Value: 2 * 5.0 / 15.0},
+					{TimestampMs: 45_000, Value: 2 * 1.0},
+					{TimestampMs: 60_000, Value: 2 * 5.0 / 15.0},
+				},
+			},
+		},
+	},
+	{
+		name: "rate_with_traceid_filter",
+		req:  requestWithDefaultRange(`{ trace:id="` + queryRangeTestCasesTraceIDHex + `" } | rate()`),
+		expectedL1: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "rate"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 0},
+					{TimestampMs: 30_000, Value: 1.0 / 15.0}, // span 30 starts at 30s
+					{TimestampMs: 45_000, Value: 0},
+					{TimestampMs: 60_000, Value: 0},
+				},
+			},
+		},
+		expectedL2: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "rate"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 0},
+					{TimestampMs: 30_000, Value: 2.0 / 15.0},
+					{TimestampMs: 45_000, Value: 0},
+					{TimestampMs: 60_000, Value: 0},
+				},
+			},
+		},
+	},
+	{
+		name: "rate_with_childcount_filter",
+		req:  requestWithDefaultRange(`{ span:childCount = 0 } | rate()`),
+		expectedL1: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "rate"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 1.0},        // Interval (0, 15], 15 spans at 1-15
+					{TimestampMs: 30_000, Value: 1.0},        // Interval (15, 30], 15 spans
+					{TimestampMs: 45_000, Value: 1.0},        // Interval (30, 45], 15 spans
+					{TimestampMs: 60_000, Value: 5.0 / 15.0}, // Interval (45, 50], 5 spans
+				},
+			},
+		},
+		expectedL2: []*tempopb.TimeSeries{
+			{
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "rate"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 15_000, Value: 2 * 15.0 / 15.0},
+					{TimestampMs: 30_000, Value: 2 * 1.0},
+					{TimestampMs: 45_000, Value: 2 * 1.0},
+					{TimestampMs: 60_000, Value: 2 * 5.0 / 15.0},
 				},
 			},
 		},
@@ -2615,11 +2771,18 @@ func TestTempoDBQueryRange(t *testing.T) {
 	require.NoError(t, err)
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
+	knownTraceID, err := util.HexStringToTraceID(queryRangeTestCasesTraceIDHex)
+	require.NoError(t, err)
+
 	totalSpans := 100
 	for i := 1; i <= totalSpans; i++ {
 		tid := test.ValidTraceID(nil)
+		if i == 30 {
+			tid = knownTraceID
+		}
 
 		sp := test.MakeSpan(tid)
+		sp.ParentSpanId = nil // ensure root span/service names are populated
 
 		// Start time is i seconds
 		sp.StartTimeUnixNano = uint64(i * int(time.Second))

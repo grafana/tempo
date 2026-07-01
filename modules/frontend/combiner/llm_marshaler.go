@@ -72,11 +72,14 @@ type LLMStatus struct {
 }
 
 type LLMMetrics struct {
-	InspectedBytes  uint64 `json:"inspectedBytes,omitempty"`
-	TotalJobs       uint32 `json:"totalJobs,omitempty"`
-	CompletedJobs   uint32 `json:"completedJobs,omitempty"`
-	TotalBlocks     uint32 `json:"totalBlocks,omitempty"`
-	TotalBlockBytes uint64 `json:"totalBlockBytes,omitempty"`
+	InspectedBytes    uint64           `json:"inspectedBytes,omitempty"`
+	TotalJobs         uint32           `json:"totalJobs,omitempty"`
+	CompletedJobs     uint32           `json:"completedJobs,omitempty"`
+	TotalBlocks       uint32           `json:"totalBlocks,omitempty"`
+	TotalBlockBytes   uint64           `json:"totalBlockBytes,omitempty"`
+	BackendReads      uint64           `json:"backendReads,omitempty"`
+	BackendBytes      uint64           `json:"backendBytes,omitempty"`
+	AdditionalMetrics map[string]int64 `json:"additionalMetrics,omitempty"`
 }
 
 type LLMSearchTagValuesV2Response struct {
@@ -162,9 +165,18 @@ func traceByIDResponseToSimplifiedJSON(t *tempopb.TraceByIDResponse) (string, er
 	}
 
 	// Add metrics if present
-	if t.Metrics != nil && t.Metrics.InspectedBytes > 0 {
-		result.Metrics = &LLMMetrics{
-			InspectedBytes: t.Metrics.InspectedBytes,
+	if t.Metrics != nil {
+		hasMetrics := t.Metrics.InspectedBytes > 0 ||
+			t.Metrics.BackendReads > 0 ||
+			t.Metrics.BackendBytes > 0 ||
+			len(t.Metrics.AdditionalMetrics) > 0
+		if hasMetrics {
+			result.Metrics = &LLMMetrics{
+				InspectedBytes:    t.Metrics.InspectedBytes,
+				BackendReads:      t.Metrics.BackendReads,
+				BackendBytes:      t.Metrics.BackendBytes,
+				AdditionalMetrics: t.Metrics.AdditionalMetrics,
+			}
 		}
 	}
 
@@ -325,15 +337,20 @@ func searchTagValuesV2ResponseToSimplifiedJSON(t *tempopb.SearchTagValuesV2Respo
 	// Add metrics if present
 	if t.Metrics != nil {
 		hasMetrics := t.Metrics.InspectedBytes > 0 || t.Metrics.TotalJobs > 0 ||
-			t.Metrics.CompletedJobs > 0 || t.Metrics.TotalBlocks > 0 || t.Metrics.TotalBlockBytes > 0
+			t.Metrics.CompletedJobs > 0 || t.Metrics.TotalBlocks > 0 || t.Metrics.TotalBlockBytes > 0 ||
+			t.Metrics.BackendReads > 0 || t.Metrics.BackendBytes > 0 ||
+			len(t.Metrics.AdditionalMetrics) > 0
 
 		if hasMetrics {
 			result.Metrics = &LLMMetrics{
-				InspectedBytes:  t.Metrics.InspectedBytes,
-				TotalJobs:       t.Metrics.TotalJobs,
-				CompletedJobs:   t.Metrics.CompletedJobs,
-				TotalBlocks:     t.Metrics.TotalBlocks,
-				TotalBlockBytes: t.Metrics.TotalBlockBytes,
+				InspectedBytes:    t.Metrics.InspectedBytes,
+				TotalJobs:         t.Metrics.TotalJobs,
+				CompletedJobs:     t.Metrics.CompletedJobs,
+				TotalBlocks:       t.Metrics.TotalBlocks,
+				TotalBlockBytes:   t.Metrics.TotalBlockBytes,
+				BackendReads:      t.Metrics.BackendReads,
+				BackendBytes:      t.Metrics.BackendBytes,
+				AdditionalMetrics: t.Metrics.AdditionalMetrics,
 			}
 		}
 	}

@@ -25,3 +25,4 @@
 /docs/make-docs                 @jdbaldry @knylander-grafana @mdisibio @mapno @yvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar @carles-grafana @ruslan-mikhailov @mattdurham @zhxiaogg
 /docs/Makefile                  @jdbaldry @knylander-grafana @mdisibio @mapno @yvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar @carles-grafana @ruslan-mikhailov @mattdurham @zhxiaogg
 /docs/variables.mk              @jdbaldry @knylander-grafana @mdisibio @mapno @yvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar @carles-grafana @ruslan-mikhailov @mattdurham @zhxiaogg
+/modules/frontend/docs/         @knylander-grafana @mdisibio @mapno @yvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar @carles-grafana @ruslan-mikhailov @mattdurham @oleg-kozlyuk-grafana @zhxiaogg

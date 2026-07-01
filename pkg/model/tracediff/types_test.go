@@ -45,10 +45,10 @@ func TestTracePatchV0JSONShape(t *testing.T) {
 						Op: OperationModify,
 						Target: Target{
 							Type: TargetField,
-							Name: "duration_ms",
+							Name: "duration_nanos",
 						},
-						Before: float64(80),
-						After:  float64(390),
+						Before: int64(80),
+						After:  int64(390),
 					},
 					{
 						Op: OperationModify,
@@ -100,12 +100,12 @@ func TestTracePatchV0JSONShape(t *testing.T) {
 					Index:      &idx,
 				},
 				Span: SpanSnapshot{
-					Path:       []int{0, 1, 0},
-					Service:    "inventory",
-					Name:       "retry reserve",
-					Kind:       "client",
-					DurationMs: 120,
-					Status:     "ok",
+					Path:          []int{0, 1, 0},
+					Service:       "inventory",
+					Name:          "retry reserve",
+					Kind:          "client",
+					DurationNanos: 120,
+					Status:        "ok",
 				},
 			},
 		},
@@ -116,12 +116,12 @@ func TestTracePatchV0JSONShape(t *testing.T) {
 					Path: []int{0, 2},
 				},
 				Span: SpanSnapshot{
-					Path:       []int{0, 2},
-					Service:    "fraud",
-					Name:       "check_risk",
-					Kind:       "client",
-					DurationMs: 35,
-					Status:     "ok",
+					Path:          []int{0, 2},
+					Service:       "fraud",
+					Name:          "check_risk",
+					Kind:          "client",
+					DurationNanos: 35,
+					Status:        "ok",
 				},
 			},
 		},
@@ -156,7 +156,7 @@ func TestTracePatchV0JSONShape(t *testing.T) {
 			{
 				"span": {"path": [0, 1], "service": "inventory", "name": "reserve", "kind": "client"},
 				"changes": [
-					{"op": "modify", "target": {"type": "field", "name": "duration_ms"}, "before": 80, "after": 390},
+					{"op": "modify", "target": {"type": "field", "name": "duration_nanos"}, "before": 80, "after": 390},
 					{"op": "modify", "target": {"type": "field", "name": "status"}, "before": "ok", "after": "error"},
 					{"op": "add", "target": {"type": "attribute", "scope": "span", "key": "error.type"}, "before": null, "after": "timeout"},
 					{"op": "modify", "target": {"type": "attribute", "scope": "span", "key": "http.request.header.accept"}, "before": ["text/html", "application/json"], "after": ["application/json", "image/webp"]},
@@ -167,13 +167,13 @@ func TestTracePatchV0JSONShape(t *testing.T) {
 		"added": [
 			{
 				"target": {"type": "span", "parentPath": [0, 1], "index": 0},
-				"span": {"path": [0, 1, 0], "service": "inventory", "name": "retry reserve", "kind": "client", "duration_ms": 120, "status": "ok"}
+				"span": {"path": [0, 1, 0], "service": "inventory", "name": "retry reserve", "kind": "client", "duration_nanos": 120, "status": "ok"}
 			}
 		],
 		"removed": [
 			{
 				"target": {"type": "span", "path": [0, 2]},
-				"span": {"path": [0, 2], "service": "fraud", "name": "check_risk", "kind": "client", "duration_ms": 35, "status": "ok"}
+				"span": {"path": [0, 2], "service": "fraud", "name": "check_risk", "kind": "client", "duration_nanos": 35, "status": "ok"}
 			}
 		],
 		"warnings": [

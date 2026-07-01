@@ -158,12 +158,12 @@ func mergeWarnings(warningGroups ...[]Warning) []Warning {
 
 func fieldChanges(base, compare normalizedSpan) []Change {
 	changes := make([]Change, 0, 2)
-	if base.snapshot.DurationMs != compare.snapshot.DurationMs {
+	if !numericClose(float64(base.snapshot.DurationNanos), float64(compare.snapshot.DurationNanos), durationRelTolerance, durationAbsTolerance) {
 		changes = append(changes, Change{
 			Op:     OperationModify,
-			Target: Target{Type: TargetField, Name: FieldDurationMs},
-			Before: base.snapshot.DurationMs,
-			After:  compare.snapshot.DurationMs,
+			Target: Target{Type: TargetField, Name: FieldDurationNanos},
+			Before: base.snapshot.DurationNanos,
+			After:  compare.snapshot.DurationNanos,
 		})
 	}
 	if base.snapshot.Status != compare.snapshot.Status {
@@ -192,11 +192,25 @@ func attributeChanges(base, compare normalizedSpan) []Change {
 			changes = append(changes, Change{Op: OperationAdd, Target: target, Before: nil, After: after})
 		case !inCompare:
 			changes = append(changes, Change{Op: OperationRemove, Target: target, Before: before, After: nil})
-		case !valuesEqual(before, after):
+		case attributeChanged(key, before, after):
 			changes = append(changes, Change{Op: OperationModify, Target: target, Before: before, After: after})
 		}
 	}
 	return changes
+}
+
+// attributeChanged reports whether before and after differ. Allow-listed numeric
+// magnitude attributes use a relative tolerance when both values are numeric;
+// everything else is compared exactly.
+func attributeChanged(key string, before, after any) bool {
+	if isNumericFuzzyAttribute(key) {
+		a, aOK := numericValue(before)
+		b, bOK := numericValue(after)
+		if aOK && bOK {
+			return !numericClose(a, b, attrRelTolerance, attrAbsTolerance)
+		}
+	}
+	return !valuesEqual(before, after)
 }
 
 func valuesEqual(a, b any) bool {
@@ -209,12 +223,16 @@ func valuesEqual(a, b any) bool {
 	case bool:
 		bv, ok := b.(bool)
 		return ok && av == bv
-	case int64:
-		bv, ok := b.(int64)
-		return ok && av == bv
-	case float64:
-		bv, ok := b.(float64)
-		return ok && av == bv
+	case int64, float64:
+		// if both a and b are int64 do exact comparison, otherwise use numericValue() to convert to float64
+		if ai, ok := a.(int64); ok {
+			if bi, ok := b.(int64); ok {
+				return ai == bi
+			}
+		}
+		af, _ := numericValue(a)
+		bf, ok := numericValue(b)
+		return ok && af == bf
 	case []byte:
 		bv, ok := b.([]byte)
 		if !ok || len(av) != len(bv) {

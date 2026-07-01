@@ -1,0 +1,5 @@
+change_type: enhancement
+component: operations
+note: Sign and attest the tempo-query and tempo-cli container images (in addition to tempo-vulture). The main tempo image is not yet signed.
+issues: []
+user: mattdurham

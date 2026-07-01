@@ -639,6 +639,9 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 }
 
 func (i *instance) FindByTraceID(ctx context.Context, traceID []byte, allowPartialTrace bool) (*tempopb.TraceByIDResponse, error) {
+	// TODO(issue/1274): populate metrics.BackendReads / BackendBytes / AdditionalMetrics
+	// from per-block FetchSpansStats. The new proto fields exist (Task B) but the
+	// trace-by-ID path here still only reports InspectedBytes.
 	var (
 		metricsMtx sync.Mutex
 		metrics    = tempopb.TraceByIDMetrics{}
@@ -810,12 +813,17 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 	r := jobEval.Results()
 	rr := r.ToProto(req)
 
-	rawBytes, _, _ := rawEval.Metrics()
-	inspectedBytes.Add(rawBytes)
+	rawEm := rawEval.Metrics()
+	inspectedBytes.Add(rawEm.Bytes)
 	totalBytes := inspectedBytes.Load()
 	metricQueryInspectedBytesTotal.WithLabelValues(i.tenantID, queryOpQueryRange).Add(float64(totalBytes))
 
-	respMetrics := &tempopb.SearchMetrics{InspectedBytes: totalBytes}
+	respMetrics := &tempopb.SearchMetrics{
+		InspectedBytes:    totalBytes,
+		BackendReads:      rawEm.BackendReads,
+		BackendBytes:      rawEm.BackendBytes,
+		AdditionalMetrics: rawEm.AdditionalMetrics,
+	}
 
 	if maxSeriesReached.Load() {
 		return &tempopb.QueryRangeResponse{
@@ -902,7 +910,7 @@ func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *LocalBlock, r
 	}
 
 	results := eval.Results().ToProto(&req)
-	inspectedBytes, _, _ := eval.Metrics()
+	inspectedBytes := eval.Metrics().Bytes
 
 	if err := i.queryRangeCacheSet(ctx, m, name, &tempopb.QueryRangeResponse{
 		Series: results,

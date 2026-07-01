@@ -130,6 +130,24 @@ func (this *TraceByIDMetrics) Equal(that interface{}) bool {
 	if this.InspectedBytes != that1.InspectedBytes {
 		return false
 	}
+	if this.BackendReads != that1.BackendReads {
+		return false
+	}
+	if this.BackendBytes != that1.BackendBytes {
+		return false
+	}
+	if len(this.AdditionalMetrics) != len(that1.AdditionalMetrics) {
+		return false
+	}
+	for k, v := range this.AdditionalMetrics {
+		v2, ok := that1.AdditionalMetrics[k]
+		if !ok {
+			return false
+		}
+		if v != v2 {
+			return false
+		}
+	}
 	return true
 }
 
@@ -548,6 +566,24 @@ func (this *SearchMetrics) Equal(that interface{}) bool {
 	}
 	if this.InspectedSpans != that1.InspectedSpans {
 		return false
+	}
+	if this.BackendReads != that1.BackendReads {
+		return false
+	}
+	if this.BackendBytes != that1.BackendBytes {
+		return false
+	}
+	if len(this.AdditionalMetrics) != len(that1.AdditionalMetrics) {
+		return false
+	}
+	for k, v := range this.AdditionalMetrics {
+		v2, ok := that1.AdditionalMetrics[k]
+		if !ok {
+			return false
+		}
+		if v != v2 {
+			return false
+		}
 	}
 	return true
 }
@@ -1014,6 +1050,24 @@ func (this *MetadataMetrics) Equal(that interface{}) bool {
 	}
 	if this.TotalBlockBytes != that1.TotalBlockBytes {
 		return false
+	}
+	if this.BackendReads != that1.BackendReads {
+		return false
+	}
+	if this.BackendBytes != that1.BackendBytes {
+		return false
+	}
+	if len(this.AdditionalMetrics) != len(that1.AdditionalMetrics) {
+		return false
+	}
+	for k, v := range this.AdditionalMetrics {
+		v2, ok := that1.AdditionalMetrics[k]
+		if !ok {
+			return false
+		}
+		if v != v2 {
+			return false
+		}
 	}
 	return true
 }
@@ -1715,6 +1769,52 @@ func (this *TraceByIDMetrics) Compare(that interface{}) int {
 		}
 		return 1
 	}
+	if this.BackendReads != that1.BackendReads {
+		if this.BackendReads < that1.BackendReads {
+			return -1
+		}
+		return 1
+	}
+	if this.BackendBytes != that1.BackendBytes {
+		if this.BackendBytes < that1.BackendBytes {
+			return -1
+		}
+		return 1
+	}
+	if len(this.AdditionalMetrics) != len(that1.AdditionalMetrics) {
+		if len(this.AdditionalMetrics) < len(that1.AdditionalMetrics) {
+			return -1
+		}
+		return 1
+	}
+	{
+		ks1 := make([]string, 0, len(this.AdditionalMetrics))
+		for k := range this.AdditionalMetrics {
+			ks1 = append(ks1, k)
+		}
+		sort.Slice(ks1, func(i, j int) bool { return ks1[i] < ks1[j] })
+		ks2 := make([]string, 0, len(that1.AdditionalMetrics))
+		for k := range that1.AdditionalMetrics {
+			ks2 = append(ks2, k)
+		}
+		sort.Slice(ks2, func(i, j int) bool { return ks2[i] < ks2[j] })
+		for i := range ks1 {
+			if ks1[i] != ks2[i] {
+				if ks1[i] < ks2[i] {
+					return -1
+				}
+				return 1
+			}
+			v1 := this.AdditionalMetrics[ks1[i]]
+			v2 := that1.AdditionalMetrics[ks2[i]]
+			if v1 != v2 {
+				if v1 < v2 {
+					return -1
+				}
+				return 1
+			}
+		}
+	}
 	return 0
 }
 
@@ -2391,6 +2491,52 @@ func (this *SearchMetrics) Compare(that interface{}) int {
 			return -1
 		}
 		return 1
+	}
+	if this.BackendReads != that1.BackendReads {
+		if this.BackendReads < that1.BackendReads {
+			return -1
+		}
+		return 1
+	}
+	if this.BackendBytes != that1.BackendBytes {
+		if this.BackendBytes < that1.BackendBytes {
+			return -1
+		}
+		return 1
+	}
+	if len(this.AdditionalMetrics) != len(that1.AdditionalMetrics) {
+		if len(this.AdditionalMetrics) < len(that1.AdditionalMetrics) {
+			return -1
+		}
+		return 1
+	}
+	{
+		ks1 := make([]string, 0, len(this.AdditionalMetrics))
+		for k := range this.AdditionalMetrics {
+			ks1 = append(ks1, k)
+		}
+		sort.Slice(ks1, func(i, j int) bool { return ks1[i] < ks1[j] })
+		ks2 := make([]string, 0, len(that1.AdditionalMetrics))
+		for k := range that1.AdditionalMetrics {
+			ks2 = append(ks2, k)
+		}
+		sort.Slice(ks2, func(i, j int) bool { return ks2[i] < ks2[j] })
+		for i := range ks1 {
+			if ks1[i] != ks2[i] {
+				if ks1[i] < ks2[i] {
+					return -1
+				}
+				return 1
+			}
+			v1 := this.AdditionalMetrics[ks1[i]]
+			v2 := that1.AdditionalMetrics[ks2[i]]
+			if v1 != v2 {
+				if v1 < v2 {
+					return -1
+				}
+				return 1
+			}
+		}
 	}
 	return 0
 }
@@ -3117,6 +3263,52 @@ func (this *MetadataMetrics) Compare(that interface{}) int {
 			return -1
 		}
 		return 1
+	}
+	if this.BackendReads != that1.BackendReads {
+		if this.BackendReads < that1.BackendReads {
+			return -1
+		}
+		return 1
+	}
+	if this.BackendBytes != that1.BackendBytes {
+		if this.BackendBytes < that1.BackendBytes {
+			return -1
+		}
+		return 1
+	}
+	if len(this.AdditionalMetrics) != len(that1.AdditionalMetrics) {
+		if len(this.AdditionalMetrics) < len(that1.AdditionalMetrics) {
+			return -1
+		}
+		return 1
+	}
+	{
+		ks1 := make([]string, 0, len(this.AdditionalMetrics))
+		for k := range this.AdditionalMetrics {
+			ks1 = append(ks1, k)
+		}
+		sort.Slice(ks1, func(i, j int) bool { return ks1[i] < ks1[j] })
+		ks2 := make([]string, 0, len(that1.AdditionalMetrics))
+		for k := range that1.AdditionalMetrics {
+			ks2 = append(ks2, k)
+		}
+		sort.Slice(ks2, func(i, j int) bool { return ks2[i] < ks2[j] })
+		for i := range ks1 {
+			if ks1[i] != ks2[i] {
+				if ks1[i] < ks2[i] {
+					return -1
+				}
+				return 1
+			}
+			v1 := this.AdditionalMetrics[ks1[i]]
+			v2 := that1.AdditionalMetrics[ks2[i]]
+			if v1 != v2 {
+				if v1 < v2 {
+					return -1
+				}
+				return 1
+			}
+		}
 	}
 	return 0
 }
