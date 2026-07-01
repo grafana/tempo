@@ -2329,6 +2329,29 @@ func TestMetricsFilter(t *testing.T) {
 	}
 }
 
+func TestParseCIDR(t *testing.T) {
+	tests := []struct {
+		in       string
+		expected FieldExpression
+	}{
+		{
+			in:       `{ cidr(span.addr, "10.0.0.0/8") }`,
+			expected: newCIDR(NewScopedAttribute(AttributeScopeSpan, false, "addr"), []string{"10.0.0.0/8"}),
+		},
+		{
+			in:       `{ cidr(.addr, "10.0.0.0/8", "fc00::/7") }`,
+			expected: newCIDR(NewAttribute("addr"), []string{"10.0.0.0/8", "fc00::/7"}),
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			actual, err := Parse(tc.in)
+			require.NoError(t, err)
+			require.Equal(t, newRootExpr(newPipeline(newSpansetFilter(tc.expected))), actual)
+		})
+	}
+}
+
 func newMetricsFilter(op Operator, value float64, separator string) *MetricsFilter { //nolint:unparam
 	return &MetricsFilter{op: op, value: value, sep: separator}
 }

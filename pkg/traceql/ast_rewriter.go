@@ -249,6 +249,10 @@ func (f *fieldExpressionRewriter) rewriteFieldExpression(fe FieldExpression) (Fi
 		exp, n := f.rewriteFieldExpression(e.Expression)
 		rwCount += n
 		fe = newUnaryOperation(e.Op, exp)
+	case *CIDRFilter:
+		field, n := f.rewriteFieldExpression(e.Field)
+		rwCount += n
+		fe = newCIDR(field, e.Prefixes)
 	}
 
 	for _, fn := range f.rewriteFunctions {
