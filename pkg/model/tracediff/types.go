@@ -1,8 +1,13 @@
 package tracediff
 
-const VersionTracePatchV0 = "trace-patch-v0"
+const (
+	VersionTracePatchV0            = "trace-patch-v0"
+	VersionTraceSummaryV0Aggregate = "trace-summary-v0-aggregate"
+	VersionTraceSummaryV0Ranked    = "trace-summary-v0-ranked"
+	VersionTraceSummaryV0Grouped   = "trace-summary-v0-grouped"
+)
 
-// Format selects the output representation.
+// Format selects a diff format implemented directly by Diff.
 type Format string
 
 const (
@@ -35,9 +40,11 @@ const (
 	ScopeSpan          = "span"
 )
 
-// Warning codes in the trace-patch-v0 vocabulary.
+// Warning codes emitted by trace diff and trace-diff CLI outputs.
 const (
 	WarningHighCardinalitySpanName = "high_cardinality_span_name"
+	WarningPartialTrace            = "partial_trace"
+	WarningInvalidDuration         = "invalid_duration"
 )
 
 // Result is the trace-patch-v0 diff document.

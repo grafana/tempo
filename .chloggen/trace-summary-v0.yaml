@@ -1,0 +1,6 @@
+change_type: feature
+component: tempo-cli
+note: Add experimental trace-summary-v0 aggregate, ranked, and grouped output formats to the trace diff command.
+issues: []
+subtext:
+user: carles-grafana
