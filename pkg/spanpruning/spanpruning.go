@@ -30,6 +30,7 @@ func PruneTrace(cfg *spanpruningprocessor.Config, trace *tempopb.Trace) (*tempop
 	if err != nil {
 		return nil, err
 	}
+	defer func() { _ = p.Shutdown(context.Background()) }()
 
 	if err := p.ConsumeTraces(context.Background(), td); err != nil {
 		return nil, err
@@ -39,6 +40,7 @@ func PruneTrace(cfg *spanpruningprocessor.Config, trace *tempopb.Trace) (*tempop
 }
 
 func newProcessor(cfg *spanpruningprocessor.Config, next *next) (interface {
+	component.Component
 	ConsumeTraces(context.Context, ptrace.Traces) error
 }, error,
 ) {

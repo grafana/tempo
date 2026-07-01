@@ -971,9 +971,11 @@ func ParseSpanPruningRequest(r *http.Request) (bool, *spanpruningprocessor.Confi
 	cfg := spanpruningprocessor.NewFactory().CreateDefaultConfig().(*spanpruningprocessor.Config)
 
 	if v := r.URL.Query().Get(urlParamSpanPruningGroupBy); v != "" {
-		patterns := strings.Split(v, ",")
-		for i, p := range patterns {
-			patterns[i] = strings.TrimSpace(p)
+		var patterns []string
+		for _, p := range strings.Split(v, ",") {
+			if p = strings.TrimSpace(p); p != "" {
+				patterns = append(patterns, p)
+			}
 		}
 		cfg.GroupByAttributes = patterns
 	}
