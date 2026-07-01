@@ -478,35 +478,6 @@ func spanExtrapolation(s Span) float64 {
 	return f
 }
 
-// stochasticRoundExtrapolation returns floor(m) with probability 1 - frac, or
-// ceil(m) with probability frac, where frac = m - floor(m). E[result] == m, so
-// large-sample averages converge to the deterministic-multiplier value but
-// each per-span contribution stays integer. Use this for count-style
-// aggregators (count_over_time, rate, histogram buckets, compare) where the
-// integer-ness of per-bucket values is part of the contract.
-//
-// The random bit source is derived from the span ID (OTel SDKs generate
-// random 64-bit span IDs uniformly, per the spec), so the decision is
-// deterministic per span — repeated queries against the same data return
-// the same counts, and one span's outcome is independent of others.
-func stochasticRoundExtrapolation(s Span) float64 {
-	m := spanExtrapolation(s)
-	i := math.Floor(m)
-	frac := m - i
-	if frac == 0 {
-		return i
-	}
-
-	// Top 53 bits of the span ID as a uniform float64 in [0, 1). Span IDs
-	// are uniformly-random 64-bit values from the SDK, and util.SpanIDToUint64
-	// zero-pads shorter IDs (only relevant for synthetic test spans).
-	r := float64(util.SpanIDToUint64(s.ID())>>11) / (1 << 53)
-	if r < frac {
-		return i + 1
-	}
-	return i
-}
-
 // CountOverTimeAggregator counts the number of spans. It can also
 // calculate the rate when given a multiplier.
 // TODO - Rewrite me to be []float64 which is more efficient
@@ -538,9 +509,11 @@ func (c *CountOverTimeAggregator) SetExtrapolate(extrapolate bool) {
 
 func (c *CountOverTimeAggregator) Observe(s Span) {
 	if c.extrapolate {
-		// Stochastic rounding keeps per-span contributions integer (so the
-		// emitted count is also an integer) while preserving expected value.
-		c.count += stochasticRoundExtrapolation(s)
+		// The value returned by spanExtrapolation is already stochastically
+		// rounded at storage decode time when the tracestate carries an
+		// OTEP-235 R-value, so the per-span contribution is integer whenever
+		// the SDK gave us the randomness to make that decision.
+		c.count += spanExtrapolation(s)
 		return
 	}
 	c.count++

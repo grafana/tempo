@@ -3224,11 +3224,14 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 				sp.addSpanAttr(traceql.IntrinsicNestedSetRightAttribute, traceql.NewStaticInt(int(kv.Value.Int32())))
 			}
 		case columnPathSpanTraceState:
-			// Parse OTel probability sampling threshold once per span. Surface
-			// as a span attribute (falling back to 1.0 when the tracestate is
-			// absent or unparseable) — the engine reads it via AttributeFor,
-			// and it also counts toward attributesMatched() so the higher
-			// minAttributes threshold from the extra condition is satisfied.
+			// Parse OTel probability sampling threshold once per span. When
+			// the tracestate carries an OTEP-235 R-value (`rv:` field), we
+			// use it to stochastically round the multiplier to an integer
+			// so count-style aggregates emit whole-number contributions.
+			// Falls back to the raw float multiplier when no R-value is
+			// present, and to 1.0 when the tracestate is absent or
+			// unparseable. Also surfaced as a span attribute so the engine
+			// reads it via AttributeFor and it counts toward attributesMatched().
 			m := sampling.MultiplierFromTraceState(unsafeToString(kv.Value.Bytes()))
 			if m <= 0 {
 				m = 1.0

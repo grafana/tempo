@@ -1,10 +1,14 @@
 package sampling
 
 import (
+	"fmt"
+	"math"
+	"strings"
 	"testing"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMultiplierFromTraceState(t *testing.T) {
@@ -101,6 +105,44 @@ func TestMultiplierFromTraceState(t *testing.T) {
 			assert.InDelta(t, tc.expected, result, 0.001, "tracestate: %s", tc.traceState)
 		})
 	}
+
+	// Integer multipliers with an R-value stay integer (frac == 0, no
+	// rounding decision needed).
+	t.Run("integer multiplier with rv is unchanged", func(t *testing.T) {
+		require.InDelta(t, 2.0, MultiplierFromTraceState("ot=th:8;rv:12345678901234"), 0.001)
+		require.InDelta(t, 4.0, MultiplierFromTraceState("ot=th:c;rv:12345678901234"), 0.001)
+	})
+
+	// For non-integer multipliers with an R-value present, verify each
+	// result is floor/ceil and E[result] converges to the raw multiplier.
+	t.Run("fractional multiplier is stochastically rounded and unbiased", func(t *testing.T) {
+		// th:4 → probability = (2^56 - 4*2^52) / 2^56 = 0.75 → multiplier = 1.333...
+		raw := MultiplierFromTraceState("ot=th:4")
+		require.InDelta(t, 4.0/3.0, raw, 1e-9)
+
+		const n = 4096
+		var sum float64
+		for i := 0; i < n; i++ {
+			// Vary the low bits of the R-value across the full 56-bit range.
+			rv := uint64(i) * (1 << 44)
+			ts := fmt.Sprintf("ot=th:4;rv:%014x", rv&((1<<56)-1))
+			r := MultiplierFromTraceState(ts)
+			// Every result must be either floor(4/3)=1 or ceil(4/3)=2.
+			require.True(t, r == 1 || r == 2, "expected 1 or 2, got %v for ts=%q", r, ts)
+			sum += r
+		}
+		mean := sum / float64(n)
+		require.InDelta(t, raw, mean, 0.02, "mean over %d samples should track the raw multiplier", n)
+	})
+
+	// Same R-value → same rounding decision.
+	t.Run("deterministic for a given rv", func(t *testing.T) {
+		ts := "ot=th:4;rv:0123456789abcd"
+		first := MultiplierFromTraceState(ts)
+		for i := 0; i < 10; i++ {
+			require.Equal(t, first, MultiplierFromTraceState(ts))
+		}
+	})
 }
 
 func BenchmarkMultiplierFromTraceState(b *testing.B) {
@@ -140,8 +182,28 @@ func FuzzMultiplierFromTraceState(f *testing.F) {
 	f.Fuzz(func(t *testing.T, traceState string) {
 		result := MultiplierFromTraceState(traceState)
 		w3c, err := sampling.NewW3CTraceState(traceState)
-		if err == nil {
-			assert.Equal(t, w3c.OTelValue().AdjustedCount(), result, "traceState: %s", traceState)
+		if err != nil {
+			return
 		}
+		// Our fast path finds the first `ot=` key; the strict parser applies
+		// list-vendor semantics. When multiple `ot=` entries exist the two
+		// paths can pick different values — skip cross-validation there.
+		if strings.Count(traceState, "ot=") > 1 {
+			return
+		}
+		raw := w3c.OTelValue().AdjustedCount()
+		// When there's no R-value, our result equals the raw AdjustedCount.
+		// When an R-value is present, our result is stochastically rounded
+		// and must be floor(raw) or ceil(raw). E[result] still equals raw
+		// but each individual call may differ.
+		if _, ok := w3c.OTelValue().RValueRandomness(); !ok {
+			assert.Equal(t, raw, result, "traceState: %s", traceState)
+			return
+		}
+		floor, ceil := math.Floor(raw), math.Floor(raw)
+		if raw > floor {
+			ceil = floor + 1
+		}
+		assert.True(t, result == floor || result == ceil, "traceState: %s — expected %v or %v, got %v", traceState, floor, ceil, result)
 	})
 }
