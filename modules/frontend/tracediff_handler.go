@@ -117,7 +117,7 @@ func validateTraceDiffInputSize(base, compare *tempopb.Trace, maxBytes int) erro
 		return nil
 	}
 
-	return status.Errorf(codes.ResourceExhausted, "trace diff input too large: combined trace size %d bytes exceeds limit %d bytes; reduce the time range", inputBytes, maxBytes64)
+	return status.Errorf(codes.ResourceExhausted, "trace diff input too large: combined trace size %d bytes exceeds limit %d bytes", inputBytes, maxBytes64)
 }
 
 func traceDiffInputSize(trace *tempopb.Trace) int64 {
