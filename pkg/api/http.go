@@ -955,6 +955,10 @@ type SpanPruningMode string
 
 func ParseSpanPruningRequest(r *http.Request) (bool, *spanpruningprocessor.Config, error) {
 	raw := r.URL.Query().Get(urlParamSpanPruning)
+	if raw == "" {
+		return false, nil, nil
+	}
+
 	spanPruningEnabled, err := strconv.ParseBool(raw)
 	if err != nil {
 		return false, nil, fmt.Errorf("invalid %s value %q: must be a boolean", urlParamSpanPruning, raw)
