@@ -1,10 +1,14 @@
 package distributor
 
 import (
+	"errors"
 	"flag"
+	"net"
 	"os"
+	"strconv"
 	"time"
 
+	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/kv"
@@ -43,8 +47,8 @@ func (cfg *RingConfig) RegisterFlags(f *flag.FlagSet) {
 
 	// Ring flags
 	cfg.KVStore.RegisterFlagsWithPrefix("distributor.ring.", "collectors/", f)
-	f.DurationVar(&cfg.HeartbeatPeriod, "distributor.ring.heartbeat-period", 5*time.Second, "Period at which to heartbeat to the ring. 0 = disabled.")
-	f.DurationVar(&cfg.HeartbeatTimeout, "distributor.ring.heartbeat-timeout", time.Minute, "The heartbeat timeout after which distributors are considered unhealthy within the ring. 0 = never (timeout disabled).")
+	f.DurationVar(&cfg.HeartbeatPeriod, "distributor.ring.heartbeat-period", 5*time.Second, "Period at which to heartbeat to the ring. Must be greater than 0 when the global ingestion rate strategy is enabled.")
+	f.DurationVar(&cfg.HeartbeatTimeout, "distributor.ring.heartbeat-timeout", time.Minute, "The heartbeat timeout after which distributors are considered unhealthy within the ring. Must be greater than 0 when the global ingestion rate strategy is enabled.")
 
 	// Instance flags
 	cfg.InstanceInterfaceNames = []string{"eth0", "en0"}
@@ -52,6 +56,86 @@ func (cfg *RingConfig) RegisterFlags(f *flag.FlagSet) {
 	f.StringVar(&cfg.InstanceAddr, "distributor.ring.instance-addr", "", "IP address to advertise in the ring.")
 	f.IntVar(&cfg.InstancePort, "distributor.ring.instance-port", 0, "Port to advertise in the ring (defaults to server.grpc-listen-port).")
 	f.StringVar(&cfg.InstanceID, "distributor.ring.instance-id", hostname, "Instance ID to register in the ring.")
+}
+
+// distributorLifecyclerDelegate implements ring.BasicLifecyclerDelegate for
+// the distributor. The distributor's ring entry is purely a presence record
+// (healthy-instance count for the global ingestion-rate divisor), so all
+// callbacks except register are no-ops.
+type distributorLifecyclerDelegate struct{}
+
+// OnRingInstanceRegister returns the initial state and tokens to register.
+// Distributors register as ACTIVE immediately (matching legacy JoinAfter=0).
+func (d *distributorLifecyclerDelegate) OnRingInstanceRegister(_ *ring.BasicLifecycler, ringDesc ring.Desc, instanceExists bool, _ string, instanceDesc ring.InstanceDesc) (ring.InstanceState, ring.Tokens) {
+	var tokens []uint32
+	if instanceExists {
+		tokens = instanceDesc.GetTokens()
+	}
+
+	takenTokens := ringDesc.GetTokens()
+	gen := ring.NewRandomTokenGenerator()
+	newTokens := gen.GenerateTokens(ringNumTokens-len(tokens), takenTokens)
+	tokens = append(tokens, newTokens...)
+
+	return ring.ACTIVE, tokens
+}
+
+func (d *distributorLifecyclerDelegate) OnRingInstanceTokens(*ring.BasicLifecycler, ring.Tokens) {
+}
+
+func (d *distributorLifecyclerDelegate) OnRingInstanceStopping(*ring.BasicLifecycler) {}
+
+func (d *distributorLifecyclerDelegate) OnRingInstanceHeartbeat(*ring.BasicLifecycler, *ring.Desc, *ring.InstanceDesc) {
+}
+
+// ringHealthyCounter adapts a *ring.Ring to the ReadLifecycler interface
+// expected by globalStrategy. BasicLifecycler does not expose
+// HealthyInstancesCount directly; the ring reader does the equivalent count.
+type ringHealthyCounter struct {
+	r *ring.Ring
+}
+
+func (c ringHealthyCounter) HealthyInstancesCount() int {
+	rs, err := c.r.GetAllHealthy(ringOp)
+	if err != nil {
+		return 0
+	}
+	return len(rs.Instances)
+}
+
+// toBasicLifecyclerConfig builds a BasicLifecyclerConfig from the distributor
+// ring config. Mirrors modules/backendworker/config.go: only the fields the
+// distributor needs are populated.
+func toBasicLifecyclerConfig(cfg RingConfig, logger log.Logger) (ring.BasicLifecyclerConfig, error) {
+	// The legacy ring.Lifecycler rejected a zero heartbeat period/timeout via
+	// LifecyclerConfig.Validate(); BasicLifecycler does not, so re-check here to
+	// preserve fail-fast on this (global-strategy-only) path. A zero period
+	// disables heartbeating entirely, and a zero timeout makes the auto-forget
+	// period zero so every peer is evicted on the next heartbeat — both leave
+	// the ring broken. (<=0 also rejects negative values, which would panic the
+	// heartbeat ticker.)
+	if cfg.HeartbeatPeriod <= 0 {
+		return ring.BasicLifecyclerConfig{}, errors.New("distributor.ring.heartbeat-period must be greater than 0")
+	}
+	if cfg.HeartbeatTimeout <= 0 {
+		return ring.BasicLifecyclerConfig{}, errors.New("distributor.ring.heartbeat-timeout must be greater than 0")
+	}
+
+	instanceAddr, err := ring.GetInstanceAddr(cfg.InstanceAddr, cfg.InstanceInterfaceNames, logger, cfg.EnableInet6)
+	if err != nil {
+		return ring.BasicLifecyclerConfig{}, err
+	}
+
+	instancePort := ring.GetInstancePort(cfg.InstancePort, cfg.ListenPort)
+	instanceAddrPort := net.JoinHostPort(instanceAddr, strconv.Itoa(instancePort))
+
+	return ring.BasicLifecyclerConfig{
+		ID:               cfg.InstanceID,
+		Addr:             instanceAddrPort,
+		HeartbeatPeriod:  cfg.HeartbeatPeriod,
+		HeartbeatTimeout: cfg.HeartbeatTimeout,
+		NumTokens:        ringNumTokens,
+	}, nil
 }
 
 // ToLifecyclerConfig returns a LifecyclerConfig based on the distributor
