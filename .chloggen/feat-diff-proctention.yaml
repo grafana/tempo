@@ -8,7 +8,7 @@ change_type: enhancement
 component: query-frontend
 
 # A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
-note: Added hard input protection for the trace diff handler: the combined size of both traces must not exceed MaxBytesPerTrace.
+note: Added hard input protection for the trace diff handler, the combined size of both traces must not exceed MaxBytesPerTrace.
 
 # (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
 # .chloggen/README.md.
