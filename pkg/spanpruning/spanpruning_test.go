@@ -4,13 +4,13 @@ import (
 	"testing"
 	"time"
 
+	spanpruningprocessor "github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanpruningprocessor"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	spanpruningprocessor "github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanpruningprocessor"
 
+	"github.com/grafana/tempo/pkg/tempopb"
 	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 // ---------------------------------------------------------------------------
