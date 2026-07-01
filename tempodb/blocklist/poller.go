@@ -435,6 +435,7 @@ func (p *Poller) pollUnknown(
 				case <-jitter.C:
 				case <-derivedCtx.Done():
 					jitter.Stop()
+					errs = append(errs, derivedCtx.Err())
 					return
 				}
 			}

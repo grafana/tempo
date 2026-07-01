@@ -65,7 +65,7 @@ func (s *store) starting(_ context.Context) error {
 // EnablePolling overrides the embedded method to capture a cancellable context
 // so that the polling goroutine exits promptly when the store service stops.
 func (s *store) EnablePolling(ctx context.Context, sharder blocklist.JobSharder, skipNoCompact bool) {
-	pollingCtx, cancel := context.WithCancel(context.Background())
+	pollingCtx, cancel := context.WithCancel(ctx)
 	s.pollingCancel = cancel
 	s.Reader.EnablePolling(pollingCtx, sharder, skipNoCompact)
 }
