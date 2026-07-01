@@ -130,12 +130,12 @@ func normalizeSpan(span spanWithResource, path []int, logicalKey spanLogicalKey,
 		ref:            ref,
 		spanAttrs:      attributesMap(span.span.GetAttributes()),
 		snapshot: SpanSnapshot{
-			Path:       path,
-			Service:    ref.Service,
-			Name:       ref.Name,
-			Kind:       ref.Kind,
-			DurationMs: durationMs(span.span),
-			Status:     statusToString(span.span.GetStatus()),
+			Path:          path,
+			Service:       ref.Service,
+			Name:          ref.Name,
+			Kind:          ref.Kind,
+			DurationNanos: durationNanos(span.span),
+			Status:        statusToString(span.span.GetStatus()),
 		},
 	}
 }
@@ -242,11 +242,11 @@ func anyValue(value *commonv1.AnyValue) any {
 	}
 }
 
-func durationMs(span *tracev1.Span) int64 {
+func durationNanos(span *tracev1.Span) int64 {
 	if span.GetEndTimeUnixNano() < span.GetStartTimeUnixNano() {
 		return 0
 	}
-	return int64((span.GetEndTimeUnixNano() - span.GetStartTimeUnixNano()) / 1_000_000)
+	return int64(span.GetEndTimeUnixNano() - span.GetStartTimeUnixNano())
 }
 
 func statusToString(status *tracev1.Status) string {

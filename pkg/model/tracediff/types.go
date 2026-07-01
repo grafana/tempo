@@ -30,9 +30,9 @@ const (
 // Field names (Target.Name) and attribute scopes (Target.Scope) in the
 // trace-patch-v0 vocabulary.
 const (
-	FieldDurationMs = "duration_ms"
-	FieldStatus     = "status"
-	ScopeSpan       = "span"
+	FieldDurationNanos = "duration_nanos"
+	FieldStatus        = "status"
+	ScopeSpan          = "span"
 )
 
 // Warning codes in the trace-patch-v0 vocabulary.
@@ -119,12 +119,12 @@ type SpanTarget struct {
 
 // SpanSnapshot is the minimal span data needed to render an add/remove.
 type SpanSnapshot struct {
-	Path       []int  `json:"path"`
-	Service    string `json:"service"`
-	Name       string `json:"name"`
-	Kind       string `json:"kind"`
-	DurationMs int64  `json:"duration_ms"`
-	Status     string `json:"status"`
+	Path          []int  `json:"path"`
+	Service       string `json:"service"`
+	Name          string `json:"name"`
+	Kind          string `json:"kind"`
+	DurationNanos int64  `json:"duration_nanos"`
+	Status        string `json:"status"`
 }
 
 // Warning reports non-fatal limits or matcher caveats.
