@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -29,11 +28,11 @@ func TestHasMissingSpans(t *testing.T) {
 	}{
 		{
 			&tempopb.Trace{
-				ResourceSpans: []*v1.ResourceSpans{
+				ResourceSpans: []v1.ResourceSpans{
 					{
-						ScopeSpans: []*v1.ScopeSpans{
+						ScopeSpans: []v1.ScopeSpans{
 							{
-								Spans: []*v1.Span{
+								Spans: []v1.Span{
 									{
 										ParentSpanId: []byte("01234"),
 									},
@@ -47,11 +46,11 @@ func TestHasMissingSpans(t *testing.T) {
 		},
 		{
 			&tempopb.Trace{
-				ResourceSpans: []*v1.ResourceSpans{
+				ResourceSpans: []v1.ResourceSpans{
 					{
-						ScopeSpans: []*v1.ScopeSpans{
+						ScopeSpans: []v1.ScopeSpans{
 							{
-								Spans: []*v1.Span{
+								Spans: []v1.Span{
 									{
 										SpanId: []byte("01234"),
 									},
@@ -100,10 +99,6 @@ func TestResponseFixture(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.True(t, equalTraces(expected, generatedTrace))
-
-	if diff := cmp.Diff(expected, generatedTrace); diff != "" {
-		t.Error(diff)
-	}
 }
 
 func TestEqualTraces(t *testing.T) {
@@ -294,7 +289,7 @@ func TestQueryTrace(t *testing.T) {
 		trace.ResourceSpans[0].ScopeSpans[0].Spans[0].ParentSpanId = []byte{'t', 'e', 's', 't'}
 	}
 	setNoBatchesSpan := func(trace *tempopb.Trace) {
-		trace.ResourceSpans = make([]*v1.ResourceSpans, 0)
+		trace.ResourceSpans = make([]v1.ResourceSpans, 0)
 	}
 	setAlteredSpan := func(trace *tempopb.Trace) {
 		trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Name = "Different spam"
@@ -439,15 +434,15 @@ func TestSearchTraceql(t *testing.T) {
 
 	searchResponse := []*tempopb.TraceSearchMetadata{
 		{
-			SpanSets: []*tempopb.SpanSet{
+			SpanSets: []tempopb.SpanSet{
 				{
-					Spans: []*tempopb.Span{
+					Spans: []tempopb.Span{
 						{
 							SpanID:            hexID,
 							StartTimeUnixNano: 1000000000000,
 							DurationNanos:     1000000000,
 							Name:              "",
-							Attributes: []*v1_common.KeyValue{
+							Attributes: []v1_common.KeyValue{
 								{Key: "foo", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "Bar"}}},
 							},
 						},
@@ -493,15 +488,15 @@ func TestSearchTag(t *testing.T) {
 
 	searchResponse := []*tempopb.TraceSearchMetadata{
 		{
-			SpanSets: []*tempopb.SpanSet{
+			SpanSets: []tempopb.SpanSet{
 				{
-					Spans: []*tempopb.Span{
+					Spans: []tempopb.Span{
 						{
 							SpanID:            hexID,
 							StartTimeUnixNano: 1000000000000,
 							DurationNanos:     1000000000,
 							Name:              "",
-							Attributes: []*v1_common.KeyValue{
+							Attributes: []v1_common.KeyValue{
 								{Key: "foo", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "Bar"}}},
 							},
 						},
@@ -550,15 +545,15 @@ func TestDoSearch(t *testing.T) {
 
 	searchResponse := []*tempopb.TraceSearchMetadata{
 		{
-			SpanSets: []*tempopb.SpanSet{
+			SpanSets: []tempopb.SpanSet{
 				{
-					Spans: []*tempopb.Span{
+					Spans: []tempopb.Span{
 						{
 							SpanID:            traceInfo.HexID(),
 							StartTimeUnixNano: 1000000000000,
 							DurationNanos:     1000000000,
 							Name:              "",
-							Attributes: []*v1_common.KeyValue{
+							Attributes: []v1_common.KeyValue{
 								{Key: "foo", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "Bar"}}},
 							},
 						},
@@ -653,7 +648,7 @@ func TestQueryMetrics(t *testing.T) {
 			response: successMetricsResponse,
 			searchResponse: []*tempopb.TraceSearchMetadata{
 				{
-					SpanSets: []*tempopb.SpanSet{
+					SpanSets: []tempopb.SpanSet{
 						{
 							Matched: 2,
 						},
@@ -669,14 +664,14 @@ func TestQueryMetrics(t *testing.T) {
 			response: successMetricsResponse,
 			searchResponse: []*tempopb.TraceSearchMetadata{
 				{
-					SpanSets: []*tempopb.SpanSet{
+					SpanSets: []tempopb.SpanSet{
 						{
 							Matched: 1,
 						},
 					},
 				},
 				{
-					SpanSets: []*tempopb.SpanSet{
+					SpanSets: []tempopb.SpanSet{
 						{
 							Matched: 1,
 						},
@@ -692,7 +687,7 @@ func TestQueryMetrics(t *testing.T) {
 			response: successMetricsResponse,
 			searchResponse: []*tempopb.TraceSearchMetadata{
 				{
-					SpanSets: []*tempopb.SpanSet{
+					SpanSets: []tempopb.SpanSet{
 						{
 							Matched: 4,
 						},

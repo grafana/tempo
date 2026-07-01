@@ -62,7 +62,7 @@ func TestFixtures(t *testing.T) {
 		m, e := rc.CompactedBlockMeta(u, tenant)
 		assert.NoError(t, e)
 		compactedBlockMetas = append(compactedBlockMetas, m)
-		assert.Equal(t, tenant, m.TenantID)
+		assert.Equal(t, tenant, m.BlockMeta.TenantID)
 	}
 
 	nonZeroMeta(t, blockMetas)
@@ -143,13 +143,13 @@ func TestOriginalFixtures(t *testing.T) {
 
 	nonZeroCompactedMeta(t, i.CompactedMeta)
 	for _, v := range i.CompactedMeta {
-		assert.Equal(t, "vParquet4", v.Version)
-		assert.Equal(t, tenant, v.TenantID)
+		assert.Equal(t, "vParquet4", v.BlockMeta.Version)
+		assert.Equal(t, tenant, v.BlockMeta.TenantID)
 		assert.NotZero(t, v.CompactedTime)
-		assert.NotZero(t, v.StartTime)
-		assert.NotZero(t, v.EndTime)
-		assert.Equal(t, 20, len(v.DedicatedColumns))
-		assert.Equal(t, expectedDedicatedColumns, v.DedicatedColumns)
+		assert.NotZero(t, v.BlockMeta.StartTime)
+		assert.NotZero(t, v.BlockMeta.EndTime)
+		assert.Equal(t, 20, len(v.BlockMeta.DedicatedColumns))
+		assert.Equal(t, expectedDedicatedColumns, v.BlockMeta.DedicatedColumns)
 	}
 }
 
@@ -161,6 +161,6 @@ func nonZeroMeta(t *testing.T, m []*backend.BlockMeta) {
 
 func nonZeroCompactedMeta(t *testing.T, m []*backend.CompactedBlockMeta) {
 	for _, v := range m {
-		assert.NotZero(t, v.BlockID, "blockid is zero, id: %v", v.BlockID)
+		assert.NotZero(t, v.BlockMeta.BlockID, "blockid is zero, id: %v", v.BlockMeta.BlockID)
 	}
 }

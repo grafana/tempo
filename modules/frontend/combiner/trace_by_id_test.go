@@ -74,7 +74,7 @@ func TestTraceByIDHonorsContentType(t *testing.T) {
 	bodyBytes, _ := io.ReadAll(resp.Body)
 	err = tempopb.UnmarshalFromJSONV1(bodyBytes, actual)
 	require.NoError(t, err)
-	require.Equal(t, expected, actual)
+	test.RequireProtoEqual(t, expected, actual)
 
 	// proto
 	c = NewTraceByID(0, api.HeaderAcceptProtobuf, nil)
@@ -89,7 +89,7 @@ func TestTraceByIDHonorsContentType(t *testing.T) {
 	require.NoError(t, err)
 	err = proto.Unmarshal(buff, actual)
 	require.NoError(t, err)
-	require.Equal(t, expected, actual)
+	require.True(t, proto.Equal(expected, actual), "expected and actual traces are not equal")
 }
 
 // hidingRedactor is a TraceRedactor stub that always returns ErrTraceHidden,

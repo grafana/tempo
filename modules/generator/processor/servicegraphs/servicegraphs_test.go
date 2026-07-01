@@ -493,10 +493,10 @@ func TestServiceGraphs_droppedEdgesMetric(t *testing.T) {
 	p.(*Processor).store.AddDroppedSpanSide(key, store.Server)
 
 	request := &tempopb.PushSpansRequest{
-		Batches: []*tracev1.ResourceSpans{
+		Batches: []tracev1.ResourceSpans{
 			{
 				Resource: &resourcev1.Resource{
-					Attributes: []*v1.KeyValue{
+					Attributes: []v1.KeyValue{
 						{
 							Key: "service.name",
 							Value: &v1.AnyValue{
@@ -505,9 +505,9 @@ func TestServiceGraphs_droppedEdgesMetric(t *testing.T) {
 						},
 					},
 				},
-				ScopeSpans: []*tracev1.ScopeSpans{
+				ScopeSpans: []tracev1.ScopeSpans{
 					{
-						Spans: []*tracev1.Span{
+						Spans: []tracev1.Span{
 							{
 								TraceId:           traceID,
 								SpanId:            spanID,
@@ -555,10 +555,10 @@ func TestServiceGraphs_droppedEdgesMetric_fromFilteredCounterpart(t *testing.T) 
 	clientSpanID := []byte{0x02}
 
 	request := &tempopb.PushSpansRequest{
-		Batches: []*tracev1.ResourceSpans{
+		Batches: []tracev1.ResourceSpans{
 			{
 				Resource: &resourcev1.Resource{
-					Attributes: []*v1.KeyValue{
+					Attributes: []v1.KeyValue{
 						{
 							Key: "service.name",
 							Value: &v1.AnyValue{
@@ -567,9 +567,9 @@ func TestServiceGraphs_droppedEdgesMetric_fromFilteredCounterpart(t *testing.T) 
 						},
 					},
 				},
-				ScopeSpans: []*tracev1.ScopeSpans{
+				ScopeSpans: []tracev1.ScopeSpans{
 					{
-						Spans: []*tracev1.Span{
+						Spans: []tracev1.Span{
 							{
 								TraceId:           traceID,
 								SpanId:            clientSpanID,
@@ -583,7 +583,7 @@ func TestServiceGraphs_droppedEdgesMetric_fromFilteredCounterpart(t *testing.T) 
 			},
 			{
 				Resource: &resourcev1.Resource{
-					Attributes: []*v1.KeyValue{
+					Attributes: []v1.KeyValue{
 						{
 							Key: "service.name",
 							Value: &v1.AnyValue{
@@ -592,9 +592,9 @@ func TestServiceGraphs_droppedEdgesMetric_fromFilteredCounterpart(t *testing.T) 
 						},
 					},
 				},
-				ScopeSpans: []*tracev1.ScopeSpans{
+				ScopeSpans: []tracev1.ScopeSpans{
 					{
-						Spans: []*tracev1.Span{
+						Spans: []tracev1.Span{
 							{
 								TraceId:           traceID,
 								ParentSpanId:      clientSpanID,
@@ -643,10 +643,10 @@ func TestServiceGraphs_droppedEdgesMetric_whenFilteredSpanDropsBufferedCounterpa
 	clientSpanID := []byte{0x22}
 
 	request := &tempopb.PushSpansRequest{
-		Batches: []*tracev1.ResourceSpans{
+		Batches: []tracev1.ResourceSpans{
 			{
 				Resource: &resourcev1.Resource{
-					Attributes: []*v1.KeyValue{
+					Attributes: []v1.KeyValue{
 						{
 							Key: "service.name",
 							Value: &v1.AnyValue{
@@ -655,9 +655,9 @@ func TestServiceGraphs_droppedEdgesMetric_whenFilteredSpanDropsBufferedCounterpa
 						},
 					},
 				},
-				ScopeSpans: []*tracev1.ScopeSpans{
+				ScopeSpans: []tracev1.ScopeSpans{
 					{
-						Spans: []*tracev1.Span{
+						Spans: []tracev1.Span{
 							{
 								TraceId:           traceID,
 								ParentSpanId:      clientSpanID,
@@ -672,7 +672,7 @@ func TestServiceGraphs_droppedEdgesMetric_whenFilteredSpanDropsBufferedCounterpa
 			},
 			{
 				Resource: &resourcev1.Resource{
-					Attributes: []*v1.KeyValue{
+					Attributes: []v1.KeyValue{
 						{
 							Key: "service.name",
 							Value: &v1.AnyValue{
@@ -681,9 +681,9 @@ func TestServiceGraphs_droppedEdgesMetric_whenFilteredSpanDropsBufferedCounterpa
 						},
 					},
 				},
-				ScopeSpans: []*tracev1.ScopeSpans{
+				ScopeSpans: []tracev1.ScopeSpans{
 					{
-						Spans: []*tracev1.Span{
+						Spans: []tracev1.Span{
 							{
 								TraceId:           traceID,
 								SpanId:            clientSpanID,
@@ -727,10 +727,10 @@ func TestServiceGraphs_filteredRootServerSpanDoesNotAddDroppedCounterpart(t *tes
 
 	traceID := []byte{0x01}
 	request := &tempopb.PushSpansRequest{
-		Batches: []*tracev1.ResourceSpans{
+		Batches: []tracev1.ResourceSpans{
 			{
 				Resource: &resourcev1.Resource{
-					Attributes: []*v1.KeyValue{
+					Attributes: []v1.KeyValue{
 						{
 							Key: "service.name",
 							Value: &v1.AnyValue{
@@ -739,9 +739,9 @@ func TestServiceGraphs_filteredRootServerSpanDoesNotAddDroppedCounterpart(t *tes
 						},
 					},
 				},
-				ScopeSpans: []*tracev1.ScopeSpans{
+				ScopeSpans: []tracev1.ScopeSpans{
 					{
-						Spans: []*tracev1.Span{
+						Spans: []tracev1.Span{
 							{
 								TraceId:           traceID,
 								Kind:              tracev1.Span_SPAN_KIND_SERVER,
@@ -1060,10 +1060,10 @@ func TestServiceGraphs_connectionInfo(t *testing.T) {
 		request, err := loadTestData("testdata/trace-with-queue-database.json")
 		require.NoError(t, err)
 		// Attach sampler.param=0.5 to every span so the multiplier resolves to 2.
-		for _, rs := range request.Batches {
-			for _, ils := range rs.ScopeSpans {
-				for _, span := range ils.Spans {
-					span.Attributes = append(span.Attributes, &v1.KeyValue{
+		for bi := range request.Batches {
+			for si := range request.Batches[bi].ScopeSpans {
+				for spi := range request.Batches[bi].ScopeSpans[si].Spans {
+					request.Batches[bi].ScopeSpans[si].Spans[spi].Attributes = append(request.Batches[bi].ScopeSpans[si].Spans[spi].Attributes, v1.KeyValue{
 						Key:   "sampler.param",
 						Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 0.5}},
 					})

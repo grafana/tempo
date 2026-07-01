@@ -142,7 +142,7 @@ func TestRetentionUpdatesBlocklistImmediately(t *testing.T) {
 
 	// Immediately compacted
 	require.Empty(t, rw.blocklist.Metas(testTenantID))
-	require.Equal(t, blockID, rw.blocklist.CompactedMetas(testTenantID)[0].BlockID)
+	require.Equal(t, blockID, rw.blocklist.CompactedMetas(testTenantID)[0].BlockMeta.BlockID)
 
 	// Now delete it permanently
 	r.(*readerWriter).compactorCfg.BlockRetention = time.Hour

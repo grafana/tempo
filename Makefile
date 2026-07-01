@@ -284,7 +284,9 @@ endif
 ##@ Code Generation
 
 PROTO_INTERMEDIATE_DIR = pkg/.patched-proto
-BUF = docker run --rm -u ${shell id -u} -v${PWD}:/tempo -w/tempo -e HOME=/tempo --entrypoint /usr/local/bin/buf ${TEMPO_CI_TOOLS_IMAGE}
+# wiresmith protobuf compiler (https://github.com/grafana/wiresmith). Build it
+# from a checkout with `go install ./cmd/wiresmith` — see WIRESMITH_MIGRATION.md.
+WIRESMITH = wiresmith
 
 .PHONY: gen-proto
 gen-proto:  ## Generate proto files
@@ -295,7 +297,8 @@ gen-proto:  ## Generate proto files
 	rm -rf $(PROTO_INTERMEDIATE_DIR)
 	find pkg/tempopb -name *.pb.go | xargs -L 1 -I rm
 	# Here we avoid removing our tempo.proto and our frontend.proto due to reliance on the gogoproto bits.
-	find pkg/tempopb -name *.proto | grep -v tempo.proto | grep -v frontend.proto | grep -v backendwork.proto | xargs -L 1 -I rm
+	# .wiresmith-proto holds the wiresmith-annotated OTel proto sources (checked in) and must survive.
+	find pkg/tempopb -name *.proto | grep -v tempo.proto | grep -v frontend.proto | grep -v backendwork.proto | grep -v .wiresmith-proto | xargs -L 1 -I rm
 
 	@echo --
 	@echo -- Copying to $(PROTO_INTERMEDIATE_DIR)
@@ -322,20 +325,44 @@ gen-proto:  ## Generate proto files
 	@echo --
 	@echo -- Gen proto --
 	@echo --
-	@# Generate patched OpenTelemetry protos (output to pkg/tempopb/)
-	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.otel.yaml --path $(PROTO_INTERMEDIATE_DIR)/common/v1/common.proto
-	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.otel.yaml --path $(PROTO_INTERMEDIATE_DIR)/resource/v1/resource.proto
-	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.otel.yaml --path $(PROTO_INTERMEDIATE_DIR)/trace/v1/trace.proto
+	@# Generate patched OpenTelemetry protos (output to pkg/tempopb/) with wiresmith.
+	@# Source of truth is pkg/tempopb/.wiresmith-proto: the .patched-proto output
+	@# above plus wiresmith field annotations (pointer=true on repeated message
+	@# fields to keep the gogo []*T shapes). When the OTel submodule changes,
+	@# diff $(PROTO_INTERMEDIATE_DIR) against .wiresmith-proto and port the changes.
+	$(WIRESMITH) --proto_path=pkg/tempopb/.wiresmith-proto --out=pkg/tempopb --module=github.com/grafana/tempo
 
-	@# Generate Tempo protos
-	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.tempopb.yaml --path pkg/tempopb/tempo.proto
-	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.tempopb.yaml --path pkg/tempopb/backendwork.proto
+	@# Generate Tempo protos with wiresmith. tempo.proto/backendwork.proto import
+	@# the patched OTel protos, so a combined tree is assembled first. --out=pkg
+	@# because files at the proto_path root get a package-derived import key
+	@# (tempopb/tempo.proto), which places the output in pkg/tempopb/.
+	rm -rf pkg/.wiresmith-build
+	mkdir -p pkg/.wiresmith-build
+	cp -R pkg/tempopb/.wiresmith-proto/* pkg/.wiresmith-build/
+	cp pkg/tempopb/tempo.proto pkg/tempopb/backendwork.proto pkg/.wiresmith-build/
+	$(WIRESMITH) --proto_path=pkg/.wiresmith-build --out=pkg --module=github.com/grafana/tempo pkg/.wiresmith-build/tempo.proto pkg/.wiresmith-build/backendwork.proto
+	rm -rf pkg/.wiresmith-build
 
-	@# Generate backend proto (uses go_package for output path)
-	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.backend.yaml --path tempodb/backend/v1/v1.proto
+	@# Generate backend proto with wiresmith. The file is staged as
+	@# backend/v1.proto so the source-relative output lands at
+	@# tempodb/backend/v1.pb.go (package backend), matching the old layout.
+	rm -rf pkg/.wiresmith-build
+	mkdir -p pkg/.wiresmith-build/backend
+	cp tempodb/backend/v1/v1.proto pkg/.wiresmith-build/backend/v1.proto
+	$(WIRESMITH) --proto_path=pkg/.wiresmith-build --out=tempodb --module=github.com/grafana/tempo -M "backend/v1.proto=github.com/grafana/tempo/tempodb/backend" pkg/.wiresmith-build/backend/v1.proto
+	rm -rf pkg/.wiresmith-build
 
-	@# Generate frontend proto
-	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.frontend.yaml --path modules/frontend/v1/frontendv1pb/frontend.proto
+	@# Generate frontend proto with wiresmith. The dskit httpgrpc import is
+	@# copied from vendor with its gogoproto lines stripped (wiresmith does not
+	@# parse gogo options); the httpgrpc-typed fields ride through codegen via
+	@# (wiresmith.options.customtype) envelopes, see
+	@# modules/frontend/v1/frontendv1pb/httpgrpc_envelope.go.
+	rm -rf pkg/.wiresmith-build
+	mkdir -p pkg/.wiresmith-build/frontendv1pb pkg/.wiresmith-build/github.com/grafana/dskit/httpgrpc
+	cp modules/frontend/v1/frontendv1pb/frontend.proto pkg/.wiresmith-build/frontendv1pb/
+	sed '/gogoproto/d' vendor/github.com/grafana/dskit/httpgrpc/httpgrpc.proto > pkg/.wiresmith-build/github.com/grafana/dskit/httpgrpc/httpgrpc.proto
+	$(WIRESMITH) --proto_path=pkg/.wiresmith-build --out=modules/frontend/v1 --module=github.com/grafana/tempo -M "frontendv1pb/frontend.proto=github.com/grafana/tempo/modules/frontend/v1/frontendv1pb" -M "github.com/grafana/dskit/httpgrpc/httpgrpc.proto=github.com/grafana/dskit/httpgrpc" pkg/.wiresmith-build/frontendv1pb/frontend.proto
+	rm -rf pkg/.wiresmith-build
 
 	rm -rf $(PROTO_INTERMEDIATE_DIR)
 

@@ -22,27 +22,27 @@ func TestSortTrace(t *testing.T) {
 		{
 			input: testTraceForSorting(),
 			expected: &tempopb.Trace{
-				ResourceSpans: []*tracev1.ResourceSpans{
+				ResourceSpans: []tracev1.ResourceSpans{
 					{
 						Resource: &resourcev1.Resource{
-							Attributes: []*commonv1.KeyValue{
+							Attributes: []commonv1.KeyValue{
 								{Key: "a", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VA"}}},
 								{Key: "b", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VB"}}},
 							},
 						},
-						ScopeSpans: []*tracev1.ScopeSpans{
+						ScopeSpans: []tracev1.ScopeSpans{
 							{
 								Scope: &commonv1.InstrumentationScope{
 									Name: "scope2",
-									Attributes: []*commonv1.KeyValue{
+									Attributes: []commonv1.KeyValue{
 										{Key: "a", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VA"}}},
 										{Key: "b", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VB"}}},
 									},
 								},
-								Spans: []*tracev1.Span{
+								Spans: []tracev1.Span{
 									{
 										StartTimeUnixNano: 1,
-										Attributes: []*commonv1.KeyValue{
+										Attributes: []commonv1.KeyValue{
 											{Key: "a", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VA"}}},
 											{Key: "b", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VB"}}},
 										},
@@ -50,7 +50,7 @@ func TestSortTrace(t *testing.T) {
 											{
 												TimeUnixNano: 11,
 												Name:         "eventA2",
-												Attributes: []*commonv1.KeyValue{
+												Attributes: []commonv1.KeyValue{
 													{Key: "a", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VA"}}},
 													{Key: "b", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VB"}}},
 												},
@@ -58,7 +58,7 @@ func TestSortTrace(t *testing.T) {
 											{
 												TimeUnixNano: 21,
 												Name:         "eventB2",
-												Attributes: []*commonv1.KeyValue{
+												Attributes: []commonv1.KeyValue{
 													{Key: "a", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VA"}}},
 													{Key: "b", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VB"}}},
 												},
@@ -68,7 +68,7 @@ func TestSortTrace(t *testing.T) {
 											{
 												TraceId: []byte{0x11},
 												SpanId:  []byte{0x11},
-												Attributes: []*commonv1.KeyValue{
+												Attributes: []commonv1.KeyValue{
 													{Key: "a", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VA"}}},
 													{Key: "b", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VB"}}},
 												},
@@ -76,7 +76,7 @@ func TestSortTrace(t *testing.T) {
 											{
 												TraceId: []byte{0x12},
 												SpanId:  []byte{0x12},
-												Attributes: []*commonv1.KeyValue{
+												Attributes: []commonv1.KeyValue{
 													{Key: "a", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VA"}}},
 													{Key: "b", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VB"}}},
 												},
@@ -89,19 +89,19 @@ func TestSortTrace(t *testing.T) {
 					},
 					{
 						Resource: nil, // For testing of nil resource handling.
-						ScopeSpans: []*tracev1.ScopeSpans{
+						ScopeSpans: []tracev1.ScopeSpans{
 							{
 								Scope: &commonv1.InstrumentationScope{
 									Name: "scope1",
-									Attributes: []*commonv1.KeyValue{
+									Attributes: []commonv1.KeyValue{
 										{Key: "a", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "va"}}},
 										{Key: "b", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "vb"}}},
 									},
 								},
-								Spans: []*tracev1.Span{
+								Spans: []tracev1.Span{
 									{
 										StartTimeUnixNano: 2,
-										Attributes: []*commonv1.KeyValue{
+										Attributes: []commonv1.KeyValue{
 											{Key: "a", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "va"}}},
 											{Key: "b", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "vb"}}},
 										},
@@ -109,7 +109,7 @@ func TestSortTrace(t *testing.T) {
 											{
 												TimeUnixNano: 10,
 												Name:         "eventA",
-												Attributes: []*commonv1.KeyValue{
+												Attributes: []commonv1.KeyValue{
 													{Key: "a", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "va"}}},
 													{Key: "b", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "vb"}}},
 												},
@@ -117,7 +117,7 @@ func TestSortTrace(t *testing.T) {
 											{
 												TimeUnixNano: 20,
 												Name:         "eventB",
-												Attributes: []*commonv1.KeyValue{
+												Attributes: []commonv1.KeyValue{
 													{Key: "a", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "va"}}},
 													{Key: "b", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "vb"}}},
 												},
@@ -127,7 +127,7 @@ func TestSortTrace(t *testing.T) {
 											{
 												TraceId: []byte{0x01},
 												SpanId:  []byte{0x01},
-												Attributes: []*commonv1.KeyValue{
+												Attributes: []commonv1.KeyValue{
 													{Key: "a", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "va"}}},
 													{Key: "b", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "vb"}}},
 												},
@@ -135,7 +135,7 @@ func TestSortTrace(t *testing.T) {
 											{
 												TraceId: []byte{0x02},
 												SpanId:  []byte{0x02},
-												Attributes: []*commonv1.KeyValue{
+												Attributes: []commonv1.KeyValue{
 													{Key: "a", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "va"}}},
 													{Key: "b", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "vb"}}},
 												},
@@ -159,22 +159,22 @@ func TestSortTrace(t *testing.T) {
 
 func testTraceForSorting() *tempopb.Trace {
 	return &tempopb.Trace{
-		ResourceSpans: []*tracev1.ResourceSpans{
+		ResourceSpans: []tracev1.ResourceSpans{
 			{
 				Resource: nil, // For testing of nil resource handling.
-				ScopeSpans: []*tracev1.ScopeSpans{
+				ScopeSpans: []tracev1.ScopeSpans{
 					{
 						Scope: &commonv1.InstrumentationScope{
 							Name: "scope1",
-							Attributes: []*commonv1.KeyValue{
+							Attributes: []commonv1.KeyValue{
 								{Key: "b", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "vb"}}},
 								{Key: "a", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "va"}}},
 							},
 						},
-						Spans: []*tracev1.Span{
+						Spans: []tracev1.Span{
 							{
 								StartTimeUnixNano: 2,
-								Attributes: []*commonv1.KeyValue{
+								Attributes: []commonv1.KeyValue{
 									{Key: "b", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "vb"}}},
 									{Key: "a", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "va"}}},
 								},
@@ -182,7 +182,7 @@ func testTraceForSorting() *tempopb.Trace {
 									{
 										TimeUnixNano: 20,
 										Name:         "eventB",
-										Attributes: []*commonv1.KeyValue{
+										Attributes: []commonv1.KeyValue{
 											{Key: "b", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "vb"}}},
 											{Key: "a", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "va"}}},
 										},
@@ -190,7 +190,7 @@ func testTraceForSorting() *tempopb.Trace {
 									{
 										TimeUnixNano: 10,
 										Name:         "eventA",
-										Attributes: []*commonv1.KeyValue{
+										Attributes: []commonv1.KeyValue{
 											{Key: "b", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "vb"}}},
 											{Key: "a", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "va"}}},
 										},
@@ -200,7 +200,7 @@ func testTraceForSorting() *tempopb.Trace {
 									{
 										TraceId: []byte{0x02},
 										SpanId:  []byte{0x02},
-										Attributes: []*commonv1.KeyValue{
+										Attributes: []commonv1.KeyValue{
 											{Key: "b", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "vb"}}},
 											{Key: "a", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "va"}}},
 										},
@@ -208,7 +208,7 @@ func testTraceForSorting() *tempopb.Trace {
 									{
 										TraceId: []byte{0x01},
 										SpanId:  []byte{0x01},
-										Attributes: []*commonv1.KeyValue{
+										Attributes: []commonv1.KeyValue{
 											{Key: "b", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "vb"}}},
 											{Key: "a", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "va"}}},
 										},
@@ -221,24 +221,24 @@ func testTraceForSorting() *tempopb.Trace {
 			},
 			{
 				Resource: &resourcev1.Resource{
-					Attributes: []*commonv1.KeyValue{
+					Attributes: []commonv1.KeyValue{
 						{Key: "b", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VB"}}},
 						{Key: "a", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VA"}}},
 					},
 				},
-				ScopeSpans: []*tracev1.ScopeSpans{
+				ScopeSpans: []tracev1.ScopeSpans{
 					{
 						Scope: &commonv1.InstrumentationScope{
 							Name: "scope2",
-							Attributes: []*commonv1.KeyValue{
+							Attributes: []commonv1.KeyValue{
 								{Key: "b", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VB"}}},
 								{Key: "a", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VA"}}},
 							},
 						},
-						Spans: []*tracev1.Span{
+						Spans: []tracev1.Span{
 							{
 								StartTimeUnixNano: 1,
-								Attributes: []*commonv1.KeyValue{
+								Attributes: []commonv1.KeyValue{
 									{Key: "b", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VB"}}},
 									{Key: "a", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VA"}}},
 								},
@@ -246,7 +246,7 @@ func testTraceForSorting() *tempopb.Trace {
 									{
 										TimeUnixNano: 21,
 										Name:         "eventB2",
-										Attributes: []*commonv1.KeyValue{
+										Attributes: []commonv1.KeyValue{
 											{Key: "b", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VB"}}},
 											{Key: "a", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VA"}}},
 										},
@@ -254,7 +254,7 @@ func testTraceForSorting() *tempopb.Trace {
 									{
 										TimeUnixNano: 11,
 										Name:         "eventA2",
-										Attributes: []*commonv1.KeyValue{
+										Attributes: []commonv1.KeyValue{
 											{Key: "b", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VB"}}},
 											{Key: "a", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VA"}}},
 										},
@@ -264,7 +264,7 @@ func testTraceForSorting() *tempopb.Trace {
 									{
 										TraceId: []byte{0x12},
 										SpanId:  []byte{0x12},
-										Attributes: []*commonv1.KeyValue{
+										Attributes: []commonv1.KeyValue{
 											{Key: "b", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VB"}}},
 											{Key: "a", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VA"}}},
 										},
@@ -272,7 +272,7 @@ func testTraceForSorting() *tempopb.Trace {
 									{
 										TraceId: []byte{0x11},
 										SpanId:  []byte{0x11},
-										Attributes: []*commonv1.KeyValue{
+										Attributes: []commonv1.KeyValue{
 											{Key: "b", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VB"}}},
 											{Key: "a", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "VA"}}},
 										},

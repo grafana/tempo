@@ -39,7 +39,7 @@ func NewRandomBatcher() (*RandomBatcher, context.CancelFunc) {
 func (r *RandomBatcher) GenerateBatch(spanCount int64) *v1_trace.ResourceSpans {
 	batch := &v1_trace.ResourceSpans{
 		Resource: &v1_resource.Resource{
-			Attributes: []*v1_common.KeyValue{
+			Attributes: []v1_common.KeyValue{
 				{
 					Key: "service.name",
 					Value: &v1_common.AnyValue{
@@ -54,13 +54,13 @@ func (r *RandomBatcher) GenerateBatch(spanCount int64) *v1_trace.ResourceSpans {
 
 	for i := int64(0); i < spanCount; i++ {
 		s := <-r.spanReceiverChan
-		batch.ScopeSpans = append(batch.ScopeSpans, &v1_trace.ScopeSpans{
+		batch.ScopeSpans = append(batch.ScopeSpans, v1_trace.ScopeSpans{
 			Scope: &v1_common.InstrumentationScope{
 				Name:    "super library",
 				Version: "0.0.1",
 			},
-			Spans: []*v1_trace.Span{
-				s,
+			Spans: []v1_trace.Span{
+				*s,
 			},
 		})
 	}
@@ -83,10 +83,10 @@ func (r *RandomBatcher) randomSpanGenerator(ctx context.Context) {
 			return
 		default:
 
-			attributes := []*v1_common.KeyValue{}
+			attributes := []v1_common.KeyValue{}
 
 			for i := 0; i < length; i++ {
-				attributes = append(attributes, <-r.attributeReceiverChan)
+				attributes = append(attributes, *(<-r.attributeReceiverChan))
 			}
 
 			now := time.Now()

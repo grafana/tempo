@@ -266,22 +266,22 @@ func TestSearchLegacyTagsHTTPStatusCode(t *testing.T) {
 
 	meta := &backend.BlockMeta{DedicatedColumns: backend.DefaultDedicatedColumns()}
 	pbTrace := &tempopb.Trace{
-		ResourceSpans: []*tracev1.ResourceSpans{{
+		ResourceSpans: []tracev1.ResourceSpans{{
 			Resource: &resourcev1.Resource{
-				Attributes: []*commonv1.KeyValue{{
+				Attributes: []commonv1.KeyValue{{
 					Key: LabelServiceName,
 					Value: &commonv1.AnyValue{
 						Value: &commonv1.AnyValue_StringValue{StringValue: "foo"},
 					},
 				}},
 			},
-			ScopeSpans: []*tracev1.ScopeSpans{{
-				Spans: []*tracev1.Span{{
+			ScopeSpans: []tracev1.ScopeSpans{{
+				Spans: []tracev1.Span{{
 					Name:              "span",
 					SpanId:            []byte("spanid01"),
 					StartTimeUnixNano: uint64(time.Second),
 					EndTimeUnixNano:   uint64(2 * time.Second),
-					Attributes: []*commonv1.KeyValue{{
+					Attributes: []commonv1.KeyValue{{
 						Key: LabelHTTPStatusCode,
 						Value: &commonv1.AnyValue{
 							Value: &commonv1.AnyValue_IntValue{IntValue: 500},

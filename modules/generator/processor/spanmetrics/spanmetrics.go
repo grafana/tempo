@@ -112,10 +112,11 @@ func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) 
 func (p *Processor) Shutdown(_ context.Context) {
 }
 
-func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
+func (p *Processor) aggregateMetrics(resourceSpans []v1_trace.ResourceSpans) {
 	resourceLabels := make([]string, 0)
 	resourceValues := make([]string, 0)
-	for _, rs := range resourceSpans {
+	for i := range resourceSpans {
+		rs := &resourceSpans[i]
 		// already extract job name & instance id, so we only have to do it once per batch of spans
 		svcName, _ := processor_util.FindServiceName(rs.Resource.Attributes)
 		jobName := processor_util.GetJobValue(rs.Resource.Attributes)
@@ -124,7 +125,8 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 			getTargetInfoAttributesValues(&resourceLabels, &resourceValues, rs.Resource.Attributes, p.Cfg.TargetInfoExcludedDimensions, p.sanitizeCache.Get)
 		}
 		for _, ils := range rs.ScopeSpans {
-			for _, span := range ils.Spans {
+			for j := range ils.Spans {
+				span := &ils.Spans[j]
 				if p.filter.ApplyFilterPolicy(rs.Resource, span) {
 					p.aggregateMetricsForSpan(svcName, jobName, instanceID, rs.Resource, span, resourceLabels, resourceValues)
 					continue
@@ -249,7 +251,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 	}
 }
 
-func getTargetInfoAttributesValues(keys, values *[]string, attributes []*v1_common.KeyValue, exclude []string, sanitizeFn validation.SanitizeFn) {
+func getTargetInfoAttributesValues(keys, values *[]string, attributes []v1_common.KeyValue, exclude []string, sanitizeFn validation.SanitizeFn) {
 	// TODO allocate with known length, or take new params for existing buffers
 	*keys = (*keys)[:0]
 	*values = (*values)[:0]

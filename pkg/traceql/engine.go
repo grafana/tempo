@@ -315,12 +315,12 @@ func asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMetadata {
 		RootTraceName:     spanset.RootSpanName,
 		StartTimeUnixNano: spanset.StartTimeUnixNanos,
 		DurationMs:        uint32(spanset.DurationNanos / 1_000_000),
-		ServiceStats:      make(map[string]*tempopb.ServiceStats, len(spanset.ServiceStats)),
+		ServiceStats:      make(map[string]tempopb.ServiceStats, len(spanset.ServiceStats)),
 		SpanSet:           &tempopb.SpanSet{},
 	}
 
 	for service, stats := range spanset.ServiceStats {
-		metadata.ServiceStats[service] = &tempopb.ServiceStats{
+		metadata.ServiceStats[service] = tempopb.ServiceStats{
 			SpanCount:  stats.SpanCount,
 			ErrorCount: stats.ErrorCount,
 		}
@@ -359,10 +359,10 @@ func asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMetadata {
 				Value: staticAnyValue,
 			}
 
-			tempopbSpan.Attributes = append(tempopbSpan.Attributes, keyValue)
+			tempopbSpan.Attributes = append(tempopbSpan.Attributes, *keyValue)
 		}
 
-		metadata.SpanSet.Spans = append(metadata.SpanSet.Spans, tempopbSpan)
+		metadata.SpanSet.Spans = append(metadata.SpanSet.Spans, *tempopbSpan)
 	}
 
 	// create a new slice and add the spanset to it. eventually we will deprecate
@@ -370,7 +370,9 @@ func asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMetadata {
 	//  backwards compatibility with Grafana. since this method only translates one
 	//  spanset into a TraceSearchMetadata Spansets[0] == Spanset. Higher up the chain
 	//  we will combine Spansets with the same trace id.
-	metadata.SpanSets = []*tempopb.SpanSet{metadata.SpanSet}
+	metadata.SpanSets = []tempopb.SpanSet{*metadata.SpanSet}
+	// point SpanSet at SpanSets[0] so subsequent mutations via SpanSet also update the slice element
+	metadata.SpanSet = &metadata.SpanSets[0]
 
 	// add attributes
 	for _, att := range spanset.Attributes {
@@ -386,7 +388,7 @@ func asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMetadata {
 			Key:   att.Name,
 			Value: staticAnyValue,
 		}
-		metadata.SpanSet.Attributes = append(metadata.SpanSet.Attributes, keyValue)
+		metadata.SpanSet.Attributes = append(metadata.SpanSet.Attributes, *keyValue)
 	}
 
 	return metadata
@@ -435,62 +437,54 @@ func (s Static) AsAnyValue() *common_v1.AnyValue {
 		ints, _ := s.IntArray()
 
 		anyInts := make([]common_v1.AnyValue_IntValue, len(ints))
-		anyVals := make([]common_v1.AnyValue, len(ints))
 		anyArray := common_v1.ArrayValue{
-			Values: make([]*common_v1.AnyValue, len(ints)),
+			Values: make([]common_v1.AnyValue, len(ints)),
 		}
 		for i, n := range ints {
 			anyInts[i].IntValue = int64(n)
-			anyVals[i].Value = &anyInts[i]
-			anyArray.Values[i] = &anyVals[i]
+			anyArray.Values[i].Value = &anyInts[i]
 		}
 
-		return &common_v1.AnyValue{Value: &common_v1.AnyValue_ArrayValue{ArrayValue: &anyArray}}
+		return &common_v1.AnyValue{Value: &common_v1.AnyValue_ArrayValue{ArrayValue: anyArray}}
 	case TypeFloatArray:
 		floats, _ := s.FloatArray()
 
 		anyDouble := make([]common_v1.AnyValue_DoubleValue, len(floats))
-		anyVals := make([]common_v1.AnyValue, len(floats))
 		anyArray := common_v1.ArrayValue{
-			Values: make([]*common_v1.AnyValue, len(floats)),
+			Values: make([]common_v1.AnyValue, len(floats)),
 		}
 		for i, f := range floats {
 			anyDouble[i].DoubleValue = f
-			anyVals[i].Value = &anyDouble[i]
-			anyArray.Values[i] = &anyVals[i]
+			anyArray.Values[i].Value = &anyDouble[i]
 		}
 
-		return &common_v1.AnyValue{Value: &common_v1.AnyValue_ArrayValue{ArrayValue: &anyArray}}
+		return &common_v1.AnyValue{Value: &common_v1.AnyValue_ArrayValue{ArrayValue: anyArray}}
 	case TypeStringArray:
 		strs, _ := s.StringArray()
 
 		anyStrs := make([]common_v1.AnyValue_StringValue, len(strs))
-		anyVals := make([]common_v1.AnyValue, len(strs))
 		anyArray := common_v1.ArrayValue{
-			Values: make([]*common_v1.AnyValue, len(strs)),
+			Values: make([]common_v1.AnyValue, len(strs)),
 		}
 		for i, str := range strs {
 			anyStrs[i].StringValue = str
-			anyVals[i].Value = &anyStrs[i]
-			anyArray.Values[i] = &anyVals[i]
+			anyArray.Values[i].Value = &anyStrs[i]
 		}
 
-		return &common_v1.AnyValue{Value: &common_v1.AnyValue_ArrayValue{ArrayValue: &anyArray}}
+		return &common_v1.AnyValue{Value: &common_v1.AnyValue_ArrayValue{ArrayValue: anyArray}}
 	case TypeBooleanArray:
 		bools, _ := s.BooleanArray()
 
 		anyBools := make([]common_v1.AnyValue_BoolValue, len(bools))
-		anyVals := make([]common_v1.AnyValue, len(bools))
 		anyArray := common_v1.ArrayValue{
-			Values: make([]*common_v1.AnyValue, len(bools)),
+			Values: make([]common_v1.AnyValue, len(bools)),
 		}
 		for i, b := range bools {
 			anyBools[i].BoolValue = b
-			anyVals[i].Value = &anyBools[i]
-			anyArray.Values[i] = &anyVals[i]
+			anyArray.Values[i].Value = &anyBools[i]
 		}
 
-		return &common_v1.AnyValue{Value: &common_v1.AnyValue_ArrayValue{ArrayValue: &anyArray}}
+		return &common_v1.AnyValue{Value: &common_v1.AnyValue_ArrayValue{ArrayValue: anyArray}}
 	default:
 		return &common_v1.AnyValue{
 			Value: &common_v1.AnyValue_StringValue{

@@ -22,11 +22,11 @@ func TestClient_TraceByID(t *testing.T) {
 
 	// Create a test trace to return
 	testTrace := &tempopb.Trace{
-		ResourceSpans: []*v1_trace.ResourceSpans{
+		ResourceSpans: []v1_trace.ResourceSpans{
 			{
-				ScopeSpans: []*v1_trace.ScopeSpans{
+				ScopeSpans: []v1_trace.ScopeSpans{
 					{
-						Spans: []*v1_trace.Span{
+						Spans: []v1_trace.Span{
 							{
 								TraceId: traceID,
 								SpanId:  []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08},
