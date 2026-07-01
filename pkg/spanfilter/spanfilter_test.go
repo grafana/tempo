@@ -719,6 +719,114 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 	}
 }
 
+// reproduces a representative span_metrics filter_policies config to prove a typical instrumented
+// HTTP service's span shape is not excluded by it.
+func TestSpanFilter_serviceTraceShapeNotExcluded(t *testing.T) {
+	policies := []config.FilterPolicy{
+		{
+			Include: &config.PolicyMatch{
+				MatchType: config.Regex,
+				Attributes: []config.MatchPolicyAttribute{
+					{Key: "kind", Value: "SPAN_KIND_(SERVER|CONSUMER|CLIENT|PRODUCER)"},
+				},
+			},
+		},
+		{
+			Exclude: &config.PolicyMatch{
+				MatchType: config.Strict,
+				Attributes: []config.MatchPolicyAttribute{
+					{Key: "kind", Value: "SPAN_KIND_SERVER"},
+					{Key: "span.url.path", Value: "/healthz"},
+				},
+			},
+		},
+		{
+			Exclude: &config.PolicyMatch{
+				MatchType: config.Strict,
+				Attributes: []config.MatchPolicyAttribute{
+					{Key: "kind", Value: "SPAN_KIND_SERVER"},
+					{Key: "span.url.path", Value: "/health"},
+				},
+			},
+		},
+		{
+			Exclude: &config.PolicyMatch{
+				MatchType: config.Strict,
+				Attributes: []config.MatchPolicyAttribute{
+					{Key: "resource.span.metrics.skip", Value: true},
+				},
+			},
+		},
+	}
+
+	sf, err := NewSpanFilter(policies)
+	require.NoError(t, err)
+
+	// representative HTTP service span: clean service identity, a malformed deployment.environment,
+	// and old-style http.* attributes (no span.url.path).
+	resource := &v1.Resource{
+		Attributes: []*commonv1.KeyValue{
+			strAttr("service.name", "checkout-service"),
+			strAttr("service.namespace", "shop"),
+			strAttr("deployment.environment", "deployment.environment=production"),
+		},
+	}
+
+	httpServerAttrs := []*commonv1.KeyValue{
+		strAttr("http.method", "POST"),
+		strAttr("http.target", "/v1/checkout"),
+		strAttr("http.route", "/v1/checkout"),
+	}
+
+	cases := []struct {
+		name   string
+		span   *tracev1.Span
+		expect bool
+	}{
+		{
+			name:   "server root span on a non-health path passes",
+			span:   &tracev1.Span{Kind: tracev1.Span_SPAN_KIND_SERVER, Name: "POST /v1/checkout", Attributes: httpServerAttrs},
+			expect: true,
+		},
+		{
+			name:   "client span passes",
+			span:   &tracev1.Span{Kind: tracev1.Span_SPAN_KIND_CLIENT, Name: "grpc.example.OrderService/Commit"},
+			expect: true,
+		},
+		{
+			name:   "internal span is dropped by the include policy",
+			span:   &tracev1.Span{Kind: tracev1.Span_SPAN_KIND_INTERNAL, Name: "middleware - corsMiddleware"},
+			expect: false,
+		},
+		{
+			// the health excludes key on span.url.path, which this service never emits, so even
+			// its /health endpoint would not be excluded.
+			name:   "server span with http.target=/health still passes (excludes key on span.url.path)",
+			span:   &tracev1.Span{Kind: tracev1.Span_SPAN_KIND_SERVER, Name: "GET /health", Attributes: []*commonv1.KeyValue{strAttr("http.target", "/health")}},
+			expect: true,
+		},
+		{
+			// sanity: a span that does set span.url.path=/health is correctly excluded.
+			name:   "server span with span.url.path=/health is excluded",
+			span:   &tracev1.Span{Kind: tracev1.Span_SPAN_KIND_SERVER, Name: "GET /health", Attributes: []*commonv1.KeyValue{strAttr("url.path", "/health")}},
+			expect: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expect, sf.ApplyFilterPolicy(resource, tc.span))
+		})
+	}
+}
+
+func strAttr(key, value string) *commonv1.KeyValue {
+	return &commonv1.KeyValue{
+		Key:   key,
+		Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: value}},
+	}
+}
+
 func BenchmarkSpanFilter_applyFilterPolicyNone(b *testing.B) {
 	// Read the file generated above
 	data, err := os.ReadFile("testbatch100k")

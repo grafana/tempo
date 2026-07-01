@@ -214,6 +214,24 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 				"foo_bar":        "",
 			},
 		},
+		{
+			// a malformed attribute value must not drop the metric series.
+			name:          "Dimension with malformed key=value value is preserved",
+			dimensions:    []string{"deployment.environment"},
+			expectedCount: 10.0,
+			expectedBuckets: map[float64]float64{
+				0.5:         0.0,
+				1.0:         10.0,
+				math.Inf(1): 10.0,
+			},
+			labels: map[string]string{
+				"service":                "test-service",
+				"span_name":              "test",
+				"status_code":            "STATUS_CODE_OK",
+				"status_message":         "OK",
+				"deployment_environment": "deployment.environment=production",
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -244,6 +262,11 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 					s.Attributes = append(s.Attributes, &common_v1.KeyValue{
 						Key:   "bar",
 						Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "bar-value"}},
+					})
+					// malformed value; only used by the malformed-value case.
+					s.Attributes = append(s.Attributes, &common_v1.KeyValue{
+						Key:   "deployment.environment",
+						Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "deployment.environment=production"}},
 					})
 				}
 			}
@@ -685,6 +708,48 @@ func TestTargetInfoEnabled(t *testing.T) {
 		"instance": "abc-instance-id-test-def",
 		"cluster":  "eu-west-0",
 		"ip":       "1.1.1.1",
+	})
+
+	assert.Equal(t, 1.0, testRegistry.Query("traces_target_info", lbls))
+}
+
+func TestTargetInfoWithMalformedAttributeValue(t *testing.T) {
+	// a malformed attribute value must not drop target_info.
+	testRegistry := registry.NewTestRegistry()
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.EnableTargetInfo = true
+	cfg.HistogramBuckets = []float64{0.5, 1}
+
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, err)
+	defer p.Shutdown(context.Background())
+
+	batch := test.MakeBatch(10, nil)
+	batch.Resource.Attributes = []*common_v1.KeyValue{
+		{
+			Key:   "service.name",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test-service"}},
+		},
+		{
+			Key:   "service.instance.id",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "abc-instance-id-test-def"}},
+		},
+		{
+			Key:   "deployment.environment",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "deployment.environment=production"}},
+		},
+	}
+
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+
+	lbls := labels.FromMap(map[string]string{
+		"job":                    "test-service",
+		"instance":               "abc-instance-id-test-def",
+		"deployment_environment": "deployment.environment=production",
 	})
 
 	assert.Equal(t, 1.0, testRegistry.Query("traces_target_info", lbls))
