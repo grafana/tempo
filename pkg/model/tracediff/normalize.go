@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strings"
 
 	modeltrace "github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -26,6 +27,9 @@ type normalizedSpan struct {
 	hasParent      bool
 	ref            SpanRef
 	snapshot       SpanSnapshot
+	startUnixNano  uint64
+	endUnixNano    uint64
+	durationValid  bool
 	spanAttrs      map[string]any
 }
 
@@ -41,12 +45,17 @@ type spanWithResource struct {
 }
 
 func normalizeTrace(trace *tempopb.Trace) (normalizedTrace, []Warning) {
+	return normalizeTraceForSide(trace, "")
+}
+
+func normalizeTraceForSide(trace *tempopb.Trace, side string) (normalizedTrace, []Warning) {
 	if trace == nil {
 		return normalizedTrace{}, nil
 	}
 
 	spans, meta := flattenSpans(trace)
 	warnings := highCardinalitySpanNameWarnings(spans)
+	warnings = append(warnings, invalidDurationWarnings(spans, side)...)
 	byID := make(map[string]spanWithResource, len(spans))
 	children := map[string][]spanWithResource{}
 	for _, span := range spans {
@@ -70,7 +79,9 @@ func normalizeTrace(trace *tempopb.Trace) (normalizedTrace, []Warning) {
 	// First assign paths from normal roots and orphans.
 	rootIndex := assignPaths(&out, children, children[""], nil, spanLogicalKey{}, false, 0, visited)
 	// Then assign remaining cycle-only/disconnected spans as extra roots.
-	assignPaths(&out, children, spans, nil, spanLogicalKey{}, false, rootIndex, visited)
+	remaining := append([]spanWithResource(nil), spans...)
+	sortSpans(remaining)
+	assignPaths(&out, children, remaining, nil, spanLogicalKey{}, false, rootIndex, visited)
 	return out, warnings
 }
 
@@ -128,6 +139,9 @@ func normalizeSpan(span spanWithResource, path []int, logicalKey spanLogicalKey,
 		parentIdentity: parentIdentity,
 		hasParent:      hasParent,
 		ref:            ref,
+		startUnixNano:  span.span.GetStartTimeUnixNano(),
+		endUnixNano:    span.span.GetEndTimeUnixNano(),
+		durationValid:  hasValidDuration(span.span),
 		spanAttrs:      attributesMap(span.span.GetAttributes()),
 		snapshot: SpanSnapshot{
 			Path:          path,
@@ -138,6 +152,46 @@ func normalizeSpan(span spanWithResource, path []int, logicalKey spanLogicalKey,
 			Status:        statusToString(span.span.GetStatus()),
 		},
 	}
+}
+
+func invalidDurationWarnings(spans []spanWithResource, side string) []Warning {
+	invalid := make([]spanLogicalKey, 0)
+	for _, span := range spans {
+		if hasValidDuration(span.span) {
+			continue
+		}
+		invalid = append(invalid, logicalKey(span))
+	}
+	if len(invalid) == 0 {
+		return nil
+	}
+
+	traceLabel := "trace"
+	if side != "" {
+		traceLabel = side + " trace"
+	}
+	examples := invalidDurationExamples(invalid, 3)
+	message := fmt.Sprintf(
+		"%s has %d span(s) with unset or invalid duration; duration changes involving those spans are reported with null on the invalid side and aggregate duration/work signals may be incomplete; examples: %s",
+		traceLabel,
+		len(invalid),
+		examples,
+	)
+	return []Warning{{Code: WarningInvalidDuration, Message: message}}
+}
+
+func invalidDurationExamples(invalid []spanLogicalKey, limit int) string {
+	if len(invalid) < limit {
+		limit = len(invalid)
+	}
+	examples := make([]string, 0, limit)
+	for _, key := range invalid[:limit] {
+		examples = append(examples, fmt.Sprintf("%q service %q kind %q", key.name, key.service, key.kind))
+	}
+	if len(invalid) > limit {
+		examples = append(examples, fmt.Sprintf("and %d more", len(invalid)-limit))
+	}
+	return fmt.Sprintf("[%s]", strings.Join(examples, "; "))
 }
 
 func logicalKey(span spanWithResource) spanLogicalKey {
@@ -243,10 +297,19 @@ func anyValue(value *commonv1.AnyValue) any {
 }
 
 func durationNanos(span *tracev1.Span) int64 {
-	if span.GetEndTimeUnixNano() < span.GetStartTimeUnixNano() {
+	if !hasValidDuration(span) {
 		return 0
 	}
 	return int64(span.GetEndTimeUnixNano() - span.GetStartTimeUnixNano())
+}
+
+func hasValidDuration(span *tracev1.Span) bool {
+	start := span.GetStartTimeUnixNano()
+	end := span.GetEndTimeUnixNano()
+	// A start of 0 is unset (OTLP starts are non-zero); treating it as the epoch
+	// would report a multi-decade duration against a real end. An end before the
+	// start is likewise unusable.
+	return start > 0 && end >= start
 }
 
 func statusToString(status *tracev1.Status) string {
