@@ -557,6 +557,27 @@ Samples a fixed percentage of traces for trace-level aggregations.
 { } | count_over_time() by (resource.service.name) with(trace_sample=0.05)
 ```
 
+## Extrapolation from ingest-time sampling: `with(extrapolate=true)`
+
+If your traces were sampled at ingest time by an OpenTelemetry probability
+sampler (for example, an OTel Collector `probabilistic_sampler` in
+`proportional` mode), each surviving span carries a W3C tracestate value that
+encodes the sampling probability. `with(extrapolate=true)` scales each matched
+span's contribution by `1 / sampling_probability` so the emitted metric
+represents the un-sampled population rather than what actually reached storage.
+
+For example, at 15% ingest sampling, the extrapolated rate is roughly 6.7 times
+the stored rate:
+
+```traceql
+{ resource.service.name="api" } | rate() with(extrapolate=true)
+```
+
+Applies to `rate`, `count_over_time`, `sum_over_time`, `avg_over_time`,
+`histogram_over_time`, `quantile_over_time`, and `compare`. `min_over_time`
+and `max_over_time` are intentionally unaffected because extremes don't
+scale with sampling.
+
 ## The `compare` function
 
 {{< admonition type="note">}}
