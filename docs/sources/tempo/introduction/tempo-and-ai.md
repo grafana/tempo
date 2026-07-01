@@ -84,8 +84,8 @@ For example, after identifying a latency issue, the agent could query related Pr
 
 ### Grafana Assistant CLI
 
-[Grafana Assistant](https://grafana.com/docs/grafana-cloud/machine-learning/assistant/) is an LLM-powered tool built into Grafana Cloud that queries data, builds dashboards, and helps you understand errors using natural language.
-It requires a Grafana Cloud stack, including when used with self-hosted Grafana (v13 or later).
+Grafana Assistant is an LLM-powered tool built into Grafana Cloud that queries data, builds dashboards, and helps you understand errors using natural language.
+It requires a Grafana instance where Grafana Assistant is enabled (for example, a Grafana Cloud stack).
 
 The [assistant-cli](https://github.com/grafana/assistant-cli) connects agents to Grafana Assistant through the Agent-to-Agent (A2A) API.
 This lets an agent chain investigations across observability signals from the terminal.
