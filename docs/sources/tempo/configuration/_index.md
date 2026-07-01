@@ -1193,9 +1193,9 @@ When set to `0`, there is no maximum and users can request any number of spans, 
 
 You can set the maximum length of a query using `query_frontend.max_query_expression_size_bytes` configuration parameter for the query-frontend. The default value is 128 KB.
 
-This limit is used to protect the system’s stability from potential abuse or mistakes, when running a large potentially expensive query.
+This limit protects system stability from potential abuse or mistakes when running large, potentially expensive queries. Tempo enforces this limit before parsing the TraceQL expression, so queries that exceed the configured size are rejected immediately with a clear error message.
 
-You can set the value lower of higher by setting it in the `query_frontend` configuration section, for example:
+You can set the value lower or higher in the `query_frontend` configuration section, for example:
 
 ```
 query_frontend:
@@ -2358,7 +2358,8 @@ overrides:
       [max_search_duration: <duration> | default = 0s]
 
       # Per-user max duration for metrics queries. If this value is set to 0 (default), then metrics max_duration
-      #  in the front-end configuration is used.
+      #  in the front-end configuration is used. This limit is enforced against the user-provided time range,
+      #  not the post-alignment range. Queries whose entire window falls within query_end_cutoff are rejected.
       [max_metrics_duration: <duration> | default = 0s]
 
       # Per-user option to left-pad trace IDs with zeros to 32 hex characters in search API responses.
