@@ -3,9 +3,35 @@ package lh
 import (
 	"io"
 	"sync"
+	"sync/atomic"
 
 	"github.com/olekukonko/ll/lx"
 )
+
+// trackingWriter wraps an io.WriteCloser to keep an in-memory count of bytes written.
+// This prevents the rotator from having to query the filesystem (via os.Stat)
+// on every single log entry, which would cause severe performance bottlenecks.
+type trackingWriter struct {
+	io.WriteCloser
+	written int64 // Atomic: use atomic.LoadInt64/AddInt64
+}
+
+// Write intercepts the write operation, counts the bytes, and passes them to the underlying writer.
+func (t *trackingWriter) Write(p []byte) (n int, err error) {
+	n, err = t.WriteCloser.Write(p)
+	if n > 0 {
+		atomic.AddInt64(&t.written, int64(n))
+	}
+	return
+}
+
+// writtenBytes returns the current byte count atomically.
+func (t *trackingWriter) writtenBytes() int64 {
+	if t == nil {
+		return 0
+	}
+	return atomic.LoadInt64(&t.written)
+}
 
 // RotateSource defines the callbacks needed to implement log rotation.
 // It abstracts the destination lifecycle: opening, sizing, and rotating.
@@ -23,21 +49,23 @@ import (
 //			return 0, nil // File doesn't exist yet
 //		},
 //		Rotate: func() error {
-//			// Rename current log before creating new one
+//			// Close and rename the current log before creating a new one.
 //			return os.Rename("app.log", "app.log."+time.Now().Format("20060102-150405"))
 //		},
 //	}
 type RotateSource struct {
 	// Open returns a fresh destination for log output.
-	// Called on initialization and after rotation.
+	// Called on initialization and after each rotation.
 	Open func() (io.WriteCloser, error)
 
 	// Size returns the current size in bytes of the active destination.
 	// Return an error if size cannot be determined (rotation will be skipped).
 	Size func() (int64, error)
 
-	// Rotate performs cleanup/rotation actions before opening a new destination.
-	// For files: rename or move the current log. Optional for other destinations.
+	// Rotate performs all cleanup/rotation actions before a new destination is
+	// opened, including closing or renaming the previous writer when required.
+	// Rotating will NOT close the old writer itself; that is the responsibility
+	// of this callback.  May be nil if no pre-open actions are needed.
 	Rotate func() error
 }
 
@@ -60,7 +88,7 @@ type Rotating[H interface {
 	maxSize int64
 	src     RotateSource
 
-	out     io.WriteCloser
+	out     *trackingWriter // Uses the tracking wrapper to count bytes in memory
 	handler H
 }
 
@@ -83,6 +111,11 @@ func NewRotating[H interface {
 	lx.Handler
 	lx.Outputter
 }](handler H, maxSizeBytes int64, src RotateSource) (*Rotating[H], error) {
+	// Validate that Open callback is provided
+	if src.Open == nil {
+		return nil, io.ErrClosedPipe
+	}
+
 	r := &Rotating[H]{
 		maxSize: maxSizeBytes,
 		src:     src,
@@ -130,29 +163,42 @@ func (r *Rotating[H]) Close() error {
 	return nil
 }
 
+// Written returns the total bytes written to the current output destination.
+// Useful for metrics and monitoring.
+func (r *Rotating[H]) Written() int64 {
+	r.mu.Lock()
+	out := r.out
+	r.mu.Unlock()
+	return out.writtenBytes()
+}
+
 // rotateIfNeededLocked checks current size and rotates if maxSize exceeded.
 // Called with mu already held.
+//
+// The old trackingWriter is simply dereferenced (not closed) because ownership
+// of the underlying io.WriteCloser belongs to the src.Rotate callback.  That
+// callback is responsible for closing, renaming, or otherwise finishing with
+// the old destination before src.Open is called to provide a fresh one.  This
+// design avoids double-closes on shared writers (e.g. test mocks, pipes) and
+// correctly models real file-rotation where the OS rename is done before the
+// old fd is released.
 func (r *Rotating[H]) rotateIfNeededLocked() error {
-	if r.maxSize <= 0 || r.src.Size == nil || r.src.Open == nil {
+	if r.maxSize <= 0 || r.src.Open == nil {
 		return nil
 	}
 
-	size, err := r.src.Size()
-	if err != nil {
-		// Size unknown - skip rotation
-		return nil
-	}
-	if size < r.maxSize {
+	// PERFORMANCE OPTIMIZATION:
+	// Instead of calling r.src.Size() (which executes a slow os.Stat filesystem call),
+	// we simply check our fast, in-memory integer counter.
+	if r.out != nil && r.out.writtenBytes() < r.maxSize {
 		return nil
 	}
 
-	// Close current output
-	if r.out != nil {
-		_ = r.out.Close()
-		r.out = nil
-	}
+	// Drop the reference to the old trackingWriter without closing the underlying
+	// WriteCloser.  Closing/renaming is the responsibility of src.Rotate (see doc above).
+	r.out = nil
 
-	// Run rotation hook (rename/move/commit)
+	// Run rotation hook (rename/move/compress/close old file, etc.)
 	if r.src.Rotate != nil {
 		if err := r.src.Rotate(); err != nil {
 			return err
@@ -170,7 +216,20 @@ func (r *Rotating[H]) reopenLocked() error {
 	if err != nil {
 		return err
 	}
-	r.out = out
-	r.handler.Output(out)
+
+	// We only ask the filesystem for the true file size ONCE when we first open the file.
+	// This is necessary to know the starting size if we are appending to an existing log file.
+	var initialSize int64
+	if r.src.Size != nil {
+		initialSize, _ = r.src.Size()
+	}
+
+	// Wrap the returned io.WriteCloser so we can track all future bytes written in memory.
+	r.out = &trackingWriter{
+		WriteCloser: out,
+		written:     initialSize,
+	}
+
+	r.handler.Output(r.out)
 	return nil
 }
