@@ -1,0 +1,70 @@
+display_name: Span Pruning Processor
+type: spanpruning
+
+status:
+  class: processor
+  stability:
+    alpha: [traces]
+  distributions: [contrib]
+  codeowners:
+    active: [portertech, csmarchbanks]
+
+telemetry:
+  metrics:
+    processor_spanpruning_aggregation_group_size:
+      enabled: true
+      description: Distribution of spans per aggregation group
+      unit: "{spans}"
+      stability: development
+      histogram:
+        value_type: int
+
+    processor_spanpruning_aggregations_created:
+      enabled: true
+      description: Total aggregation summary spans created
+      unit: "{spans}"
+      stability: development
+      sum:
+        value_type: int
+        monotonic: true
+
+    processor_spanpruning_processing_duration:
+      enabled: true
+      description: Time to process each batch of traces
+      unit: s
+      stability: development
+      histogram:
+        value_type: double
+
+    processor_spanpruning_spans_pruned:
+      enabled: true
+      description: Total spans pruned/removed by aggregation
+      unit: "{spans}"
+      stability: development
+      sum:
+        value_type: int
+        monotonic: true
+
+    processor_spanpruning_spans_received:
+      enabled: true
+      description: Total spans received by the processor
+      unit: "{spans}"
+      stability: development
+      sum:
+        value_type: int
+        monotonic: true
+
+    processor_spanpruning_traces_processed:
+      enabled: true
+      description: Total traces processed
+      unit: "{traces}"
+      stability: development
+      sum:
+        value_type: int
+        monotonic: true
+
+tests:
+  config:
+    group_by_attributes:
+      - "db.operation"
+    min_spans_to_aggregate: 2

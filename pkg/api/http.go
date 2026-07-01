@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/grafana/dskit/httpgrpc"
+	spanpruningprocessor "github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanpruningprocessor"
 	"github.com/prometheus/common/model"
 
 	"github.com/grafana/tempo/pkg/model/tracediff"
@@ -54,6 +55,12 @@ const (
 	urlParamDedicatedColumns = "dc"
 
 	urlParamSkipASTTransformations = "skip_ast_transformations"
+
+	// span pruning
+	urlParamSpanPruning               = "span_pruning"
+	urlParamSpanPruningGroupBy        = "span_pruning_group_by"
+	urlParamSpanPruningMinSpans       = "span_pruning_min_spans"
+	urlParamSpanPruningMaxParentDepth = "span_pruning_max_parent_depth"
 
 	// search tags
 	urlParamScope = "scope"
@@ -941,4 +948,63 @@ func ReadBodyToBuffer(resp *http.Response) (*bytes.Buffer, error) {
 	}
 
 	return buffer, nil
+}
+
+// SpanPruningMode controls how span pruning is applied to a trace-by-id v2 response.
+type SpanPruningMode string
+
+const (
+	// SpanPruningModeOff disables span pruning (default when the parameter is absent).
+	SpanPruningModeOff SpanPruningMode = ""
+	// SpanPruningModePrune collapses similar leaf spans into a single summary span.
+	SpanPruningModePrune SpanPruningMode = "prune"
+	// SpanPruningModeSummaryOnly keeps all original spans and appends a synthetic summary
+	// span alongside each group rather than replacing the originals.
+	SpanPruningModeSummaryOnly SpanPruningMode = "summary_only"
+)
+
+// ParseSpanPruningRequest returns the pruning mode and processor config derived from the
+// span_pruning query parameter. Mode is SpanPruningModeOff (empty string) when the parameter
+// is absent or empty, and an error is returned for an unrecognised value.
+// Optional params span_pruning_group_by, span_pruning_min_spans, and
+// span_pruning_max_parent_depth override processor defaults when a mode is active.
+func ParseSpanPruningRequest(r *http.Request) (SpanPruningMode, *spanpruningprocessor.Config, error) {
+	raw := r.URL.Query().Get(urlParamSpanPruning)
+	mode := SpanPruningMode(raw)
+
+	switch mode {
+	case SpanPruningModeOff:
+		return SpanPruningModeOff, nil, nil
+	case SpanPruningModePrune, SpanPruningModeSummaryOnly:
+		// valid — fall through to build config
+	default:
+		return SpanPruningModeOff, nil, fmt.Errorf("invalid %s value %q: must be %q or %q",
+			urlParamSpanPruning, raw, SpanPruningModePrune, SpanPruningModeSummaryOnly)
+	}
+
+	cfg := spanpruningprocessor.NewFactory().CreateDefaultConfig().(*spanpruningprocessor.Config)
+
+	if v := r.URL.Query().Get(urlParamSpanPruningGroupBy); v != "" {
+		patterns := strings.Split(v, ",")
+		for i, p := range patterns {
+			patterns[i] = strings.TrimSpace(p)
+		}
+		cfg.GroupByAttributes = patterns
+	}
+	if v := r.URL.Query().Get(urlParamSpanPruningMinSpans); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.MinSpansToAggregate = n
+		}
+	}
+	if v := r.URL.Query().Get(urlParamSpanPruningMaxParentDepth); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.MaxParentDepth = n
+		}
+	}
+
+	if err := cfg.Validate(); err != nil {
+		return SpanPruningModeOff, nil, fmt.Errorf("invalid span pruning config: %w", err)
+	}
+
+	return mode, cfg, nil
 }
