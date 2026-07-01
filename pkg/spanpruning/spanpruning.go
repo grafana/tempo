@@ -38,9 +38,10 @@ func PruneTrace(cfg *spanpruningprocessor.Config, trace *tempopb.Trace) (*tempop
 	return tracesToTempopb(sink.traces)
 }
 
-func newProcessor(cfg *spanpruningprocessor.Config, sink *next) (interface {
+func newProcessor(cfg *spanpruningprocessor.Config, next *next) (interface {
 	ConsumeTraces(context.Context, ptrace.Traces) error
-}, error) {
+}, error,
+) {
 	settings := processor.Settings{
 		ID: component.MustNewID("spanpruning"),
 		TelemetrySettings: component.TelemetrySettings{
@@ -49,7 +50,7 @@ func newProcessor(cfg *spanpruningprocessor.Config, sink *next) (interface {
 			TracerProvider: nooptrace.NewTracerProvider(),
 		},
 	}
-	return spanpruningprocessor.NewFactory().CreateTraces(context.Background(), settings, cfg, sink)
+	return spanpruningprocessor.NewFactory().CreateTraces(context.Background(), settings, cfg, next)
 }
 
 func tempopbToTraces(trace *tempopb.Trace) (ptrace.Traces, error) {
