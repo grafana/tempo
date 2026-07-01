@@ -340,7 +340,6 @@ query_frontend:
         max_spans_per_span_set: 100
     trace_by_id:
         query_shards: 50
-        blocks_per_shard: 30
     metrics:
         concurrent_jobs: 1000
         target_bytes_per_job: 104857600
@@ -459,6 +458,10 @@ metrics_generator:
             enable_target_info: false
             span_multiplier_key: ""
             enable_tracestate_span_multiplier: false
+            subprocessors:
+                0: true
+                1: true
+                2: true
             filter_policies: []
             target_info_excluded_dimensions: []
             enable_instance_label: true
