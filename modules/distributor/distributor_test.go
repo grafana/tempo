@@ -1646,7 +1646,7 @@ func TestPushTracesKafkaWriteErrorReturnsRetryableStatus(t *testing.T) {
 
 	kafka.Close()
 
-	traces := batchesToTraces(t, []*v1.ResourceSpans{test.MakeBatch(10, nil)})
+	traces := batchesToTraces(t, []v1.ResourceSpans{*test.MakeBatch(10, nil)})
 
 	_, err = d.PushTraces(ctx, traces)
 	require.Error(t, err)
