@@ -15,11 +15,12 @@ import (
 	e2edb "github.com/grafana/e2e/db"
 	"github.com/grafana/tempo/cmd/tempo/app"
 	"github.com/grafana/tempo/modules/overrides"
+	tempoutil "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/require"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 )
 
 const (
@@ -331,7 +332,7 @@ func (h *TempoHarness) GetConfig() (app.Config, error) {
 	}
 
 	var cfg app.Config
-	err = yaml.UnmarshalStrict(buff, &cfg)
+	err = tempoutil.YAMLUnmarshalStrict(buff, &cfg)
 	if err != nil {
 		return app.Config{}, fmt.Errorf("failed to unmarshal config: %w", err)
 	}

@@ -4,15 +4,15 @@ metrics_generator:
   processor:
     service_graphs:
       dimensions:
-      - service.namespace
+        - service.namespace
 overrides:
   defaults:
     compaction:
       compaction_disabled: true
     metrics_generator:
       processors:
-      - service-graphs
-      - span-metrics
+        - service-graphs
+        - span-metrics
 server:
   http_listen_port: 3200
 storage:

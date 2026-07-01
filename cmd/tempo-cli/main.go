@@ -8,9 +8,9 @@ import (
 	"github.com/grafana/dskit/flagext"
 
 	"github.com/alecthomas/kong"
-	"go.yaml.in/yaml/v2"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
@@ -123,7 +123,7 @@ func loadBackend(b *backendOptions, g *globalOptions) (backend.Reader, backend.W
 			return nil, nil, nil, fmt.Errorf("failed to read configFile %s: %w", g.ConfigFile, err)
 		}
 
-		err = yaml.UnmarshalStrict(buff, &cfg)
+		err = util.YAMLUnmarshalStrict(buff, &cfg)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("failed to parse configFile %s: %w", g.ConfigFile, err)
 		}
