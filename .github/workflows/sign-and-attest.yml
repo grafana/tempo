@@ -56,36 +56,27 @@ jobs:
           echo "name=${IMAGE%@*}" >> "$GITHUB_OUTPUT"
           echo "digest=${IMAGE##*@}" >> "$GITHUB_OUTPUT"
 
-      # We deliberately do NOT use grafana/shared-workflows/login-to-gar here:
-      # it configures a gcloud docker *credential helper*, and actions/attest
-      # (push-to-registry) reads only static `auths` from the docker config and
-      # does not invoke helpers — so it fails with "No credentials found for
-      # registry ...". Instead authenticate via WIF directly and write a static
-      # auth entry with docker/login-action (the same pattern as
-      # grafana/grafana-image-renderer). cosign works with static auths too.
-      - name: Authenticate to GAR (WIF)
-        id: gar_auth
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-        with:
-          project_id: grafanalabs-workload-identity
-          workload_identity_provider: projects/304398677251/locations/global/workloadIdentityPools/github/providers/github-provider
-          create_credentials_file: false # must never be set to true: keeps the WIF creds file out of the workspace
-          token_format: access_token # request a short-lived OAuth2 access token for Docker auth
-
-      - name: Log in to GAR (static docker auth)
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+      # Use the shared login-to-gar action for GAR auth — the same proven path
+      # every other GAR-authenticating job in this repo uses (docker.yml,
+      # docker-ci-tools.yml). It runs WIF auth via the repo's service account
+      # (so we don't have to specify/maintain a service_account input) and sets
+      # up gcloud + a gcloud docker *credential helper*. cosign is
+      # credential-helper-aware so it authenticates off this directly. The
+      # "Add static registry credentials" step below then adds a static auths
+      # entry for actions/attest, which does NOT understand credential helpers.
+      - name: Login to GAR
+        uses: grafana/shared-workflows/actions/login-to-gar@1f541877ceb22c7be7667d8a8df04984aeac9f9d # login-to-gar/v1.0.3
         with:
           registry: ${{ inputs.registry }}
-          username: oauth2accesstoken # literal magic string required by GAR; not a secret — tells GAR the password is an OAuth2 access token
-          password: ${{ steps.gar_auth.outputs.access_token }}
 
       - name: Add static registry credentials
-        # login-to-gar configures a gcloud docker *credential helper*. cosign
-        # understands credential helpers, but actions/attest (push-to-registry)
-        # only reads static `auths` from the docker config and does not invoke
-        # helpers — so without this it fails with "No credentials found for
-        # registry ...". Write a static auth entry (additive; cosign still works)
-        # using a short-lived GAR access token from the gcloud auth above.
+        # login-to-gar (above) configures a gcloud docker *credential helper*.
+        # cosign understands credential helpers, but actions/attest
+        # (push-to-registry) only reads static `auths` from the docker config and
+        # does not invoke helpers — so without this it fails with "No credentials
+        # found for registry ...". Write a static auth entry (additive; cosign
+        # still works) using a short-lived GAR access token from the gcloud auth
+        # that login-to-gar set up.
         # Note: oauth2accesstoken is a magic literal string required by GAR —
         # not a secret. It tells GAR the password field is an OAuth2 access token.
         env:

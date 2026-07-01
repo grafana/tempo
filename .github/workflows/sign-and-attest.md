@@ -70,7 +70,8 @@ out in production.
 │ 1. Parse & validate image                                    │
 │    - require "@sha256:" (digest-pinned)                      │
 │    - split into subject-name (repo) + subject-digest         │
-│ 2. Login to GAR (OIDC workload identity)                     │
+│ 2. Login to GAR (shared login-to-gar; WIF + cred helper)     │
+│    + add a static `auths` entry for actions/attest           │
 │ 3. Install cosign                                            │
 │ 4. cosign sign      ──▶ keyless signature, logged to Rekor   │
 │ 5. attest-build-provenance ──▶ signed SLSA provenance,       │
