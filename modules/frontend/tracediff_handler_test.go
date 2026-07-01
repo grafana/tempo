@@ -202,6 +202,39 @@ func TestTraceDiffHandlerReturnsDiff(t *testing.T) {
 	require.Contains(t, resp.Body.String(), `"version":"trace-patch-v0"`)
 }
 
+func TestTraceDiffHandlerRejectsOversizedCombinedInput(t *testing.T) {
+	baseTrace := tempotest.MakeTrace(1, []byte{0xab, 0xc1, 0x23})
+	compareTrace := tempotest.MakeTrace(1, []byte{0xde, 0xf4, 0x56})
+	maxBytes := baseTrace.Size()
+	if compareTrace.Size() > maxBytes {
+		maxBytes = compareTrace.Size()
+	}
+	require.Less(t, maxBytes, baseTrace.Size()+compareTrace.Size())
+
+	tracePipeline := traceDiffTestPipeline(t, map[string]*tempopb.TraceByIDResponse{
+		"abc123": {Trace: baseTrace},
+		"def456": {Trace: compareTrace},
+	})
+	o, err := overrides.NewOverrides(overrides.Config{
+		Defaults: overrides.Overrides{
+			Global: overrides.GlobalOverrides{
+				MaxBytesPerTrace: maxBytes,
+			},
+		},
+	}, nil, prometheus.NewRegistry())
+	require.NoError(t, err)
+	handler := newHandler(nil, newTraceDiffHandler(Config{}, "", tracePipeline, o, combiner.NewTypedTraceByIDV2, nil, log.NewNopLogger(), nil), log.NewNopLogger())
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v2/traces/diff", strings.NewReader(`{"base":{"traceId":"abc123"},"compare":{"traceId":"def456"}}`))
+	req = req.WithContext(user.InjectOrgID(req.Context(), "test-tenant"))
+	resp := httptest.NewRecorder()
+
+	handler.ServeHTTP(resp, req)
+
+	require.Equal(t, http.StatusTooManyRequests, resp.Code)
+	require.Contains(t, resp.Body.String(), "trace diff input too large")
+}
+
 func TestTraceDiffHandlerAppliesTraceRedactor(t *testing.T) {
 	tracePipeline := traceDiffTestPipeline(t, map[string]*tempopb.TraceByIDResponse{
 		"abc123": {Trace: tempotest.MakeTrace(1, []byte{0xab, 0xc1, 0x23})},

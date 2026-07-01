@@ -79,6 +79,9 @@ func newTraceDiffHandler(_ Config, apiPrefix string, tracePipeline pipeline.Asyn
 		if err != nil {
 			return traceDiffErrorResponse(err), nil
 		}
+		if err := validateTraceDiffInputSize(baseResp.Trace, compareResp.Trace, o.MaxBytesPerTrace(tenant)); err != nil {
+			return traceDiffErrorResponse(err), nil
+		}
 
 		result, err := tracediff.Diff(baseResp.Trace, compareResp.Trace, tracediff.Format(diffReq.Format))
 		if err != nil {
@@ -98,6 +101,26 @@ func traceDiffTimeParam(v *int64) any {
 		return ""
 	}
 	return *v
+}
+
+func validateTraceDiffInputSize(base, compare *tempopb.Trace, maxBytes int) error {
+	if maxBytes <= 0 {
+		return nil
+	}
+
+	inputBytes := traceDiffInputSize(base) + traceDiffInputSize(compare)
+	if inputBytes <= maxBytes {
+		return nil
+	}
+
+	return status.Errorf(codes.ResourceExhausted, "trace diff input too large: combined trace size %d bytes exceeds limit %d bytes; reduce the time range", inputBytes, maxBytes)
+}
+
+func traceDiffInputSize(trace *tempopb.Trace) int {
+	if trace == nil {
+		return 0
+	}
+	return trace.Size()
 }
 
 // It builds an http request to pass to the TraceByIdHandler
