@@ -58,6 +58,7 @@ Refer to the [Plan your Tempo deployment](../plan/) documentation for informatio
 | --- | --- | --- |
 | `--multitenancy.enabled` | Set to true to enable multitenancy | `false` |
 | `--auth.enabled` | **Deprecated. Use `--multitenancy.enabled` instead.** Set to true to enable auth. This flag will be removed in a future release. | `false` |
+| `--auth.no-auth-tenant` | Tenant ID to use when multitenancy is disabled. | `single-tenant` |
 
 ## HTTP and API settings
 
@@ -196,4 +197,3 @@ Run a health check against a custom URL:
 ```bash
 tempo --health --health.url=http://localhost:3200/ready
 ```
-
