@@ -37,6 +37,7 @@ const defaultGRPCCompression = "snappy"
 type MemoryConfig struct {
 	AutoMemLimitEnabled bool    `yaml:"automemlimit_enabled"`
 	AutoMemLimitRatio   float64 `yaml:"automemlimit_ratio"`
+	AutoMemLimitRefreshInterval time.Duration `yaml:"automemlimit_refresh_interval"`
 }
 
 // Config is the root config for App.
@@ -88,6 +89,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.Memory = MemoryConfig{
 		AutoMemLimitEnabled: false,
 		AutoMemLimitRatio:   0.8,
+		AutoMemLimitRefreshInterval: 15 * time.Second,
 	}
 
 	// global settings
@@ -98,6 +100,11 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.BoolVar(&c.EnableGoRuntimeMetrics, "enable-go-runtime-metrics", false, "Set to true to enable all Go runtime metrics")
 	f.DurationVar(&c.ShutdownDelay, "shutdown-delay", 0, "How long to wait between SIGTERM and shutdown. After receiving SIGTERM, Tempo will report not-ready status via /ready endpoint.")
 	f.BoolVar(&c.SpanProfiling, "span-profiling", false, "Set to true to enable span profiling (pyroscope pprof labels on OTel spans).")
+
+	// Memory settings flags
+	f.BoolVar(&c.Memory.AutoMemLimitEnabled, "memory.automemlimit-enabled", c.Memory.AutoMemLimitEnabled, "Set to true to enable automatic memory limit calculation.")
+	f.Float64Var(&c.Memory.AutoMemLimitRatio, "memory.automemlimit-ratio", c.Memory.AutoMemLimitRatio, "Ratio of system memory to use as the Go memory limit.")
+	f.DurationVar(&c.Memory.AutoMemLimitRefreshInterval, "memory.automemlimit-refresh-interval", c.Memory.AutoMemLimitRefreshInterval, "Interval at which to refresh the Go memory limit.")
 
 	// Server settings
 	flagext.DefaultValues(&c.Server)

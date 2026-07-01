@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"time"
 
 	"github.com/KimMachineGun/automemlimit/memlimit"
 )
@@ -26,7 +25,7 @@ func InitAutoMemLimit(config *Config) {
 				memlimit.FromSystem,
 			),
 		),
-		memlimit.WithRefreshInterval(15*time.Second),
+		memlimit.WithRefreshInterval(config.Memory.AutoMemLimitRefreshInterval),
 		memlimit.WithLogger(logger),
 	)
 	if err != nil {
