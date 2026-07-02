@@ -2,7 +2,6 @@ package lh
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"strings"
 	"sync"
@@ -171,7 +170,7 @@ func (h *TextHandler) handleRegularOutput(e *lx.Entry) error {
 			}
 			buf.WriteString(pair.Key)
 			buf.WriteString("=")
-			fmt.Fprint(buf, pair.Value)
+			writeFieldValue(buf, pair.Value)
 		}
 		buf.WriteString(lx.RightBracket)
 	}
