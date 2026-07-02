@@ -10,8 +10,10 @@ import (
 
 	"github.com/prometheus/prometheus/model/exemplar"
 	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/model/value"
 	"github.com/prometheus/prometheus/storage"
 	"go.uber.org/atomic"
+	"go.uber.org/multierr"
 )
 
 var _ metric = (*histogram)(nil)
@@ -258,17 +260,39 @@ func (h *histogram) countSeriesDemand() int {
 	return int(est) * int(h.activeSeriesPerHistogramSerie())
 }
 
-func (h *histogram) removeStaleSeries(staleTimeMs int64) {
+func (h *histogram) removeStaleSeries(appender storage.Appender, timeMs, staleTimeMs int64) error {
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
 
+	errs := []error{}
 	for hash, s := range h.series {
 		if s.lastUpdated.Load() < staleTimeMs {
+			if appender != nil {
+				_, err := appender.Append(0, s.countLabels, timeMs, math.Float64frombits(value.StaleNaN))
+				if err != nil {
+					errs = append(errs, err)
+				}
+				_, err = appender.Append(0, s.sumLabels, timeMs, math.Float64frombits(value.StaleNaN))
+				if err != nil {
+					errs = append(errs, err)
+				}
+				for _, l := range s.bucketLabels {
+					_, err = appender.Append(0, l, timeMs, math.Float64frombits(value.StaleNaN))
+					if err != nil {
+						errs = append(errs, err)
+					}
+				}
+			}
 			delete(h.series, hash)
 			h.lifecycler.OnDelete(hash, h.activeSeriesPerHistogramSerie())
 		}
 	}
 	h.seriesDemand.Advance()
+
+	if len(errs) > 0 {
+		return multierr.Combine(errs...)
+	}
+	return nil
 }
 
 func (h *histogram) activeSeriesPerHistogramSerie() uint32 {

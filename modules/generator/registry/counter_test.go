@@ -146,7 +146,8 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 	c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
 	c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.0)
 
-	c.removeStaleSeries(timeMs)
+	appender := noopAppender{}
+	_ = c.removeStaleSeries(appender, 0, timeMs)
 
 	assert.Equal(t, 0, removedSeries)
 
@@ -166,7 +167,7 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 	// update value-2 series
 	c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.0)
 
-	c.removeStaleSeries(timeMs)
+	_ = c.removeStaleSeries(appender, 0, timeMs)
 
 	assert.Equal(t, 1, removedSeries)
 
@@ -175,6 +176,28 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, collectionTimeMs, 4),
 	}
 	collectMetricAndAssert(t, c, collectionTimeMs, 1, expectedSamples, nil)
+}
+
+func Test_counter_removeStaleSeries_appenderError(t *testing.T) {
+	var removedSeries int
+	lifecycler := &mockLimiter{
+		onDeleteFunc: func(_ uint64, count uint32) {
+			assert.Equal(t, uint32(1), count)
+			removedSeries++
+		},
+	}
+
+	c := newCounter("my_counter", lifecycler, map[string]string{}, 15*time.Minute)
+
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.0)
+
+	appender := errorAppender{}
+	timeMs := time.Now().Add(1 * time.Hour).UnixMilli()
+	err := c.removeStaleSeries(appender, 0, timeMs)
+
+	assert.Error(t, err)
+	assert.Equal(t, removedSeries, 2)
 }
 
 func Test_counter_externalLabels(t *testing.T) {
@@ -233,7 +256,8 @@ func Test_counter_concurrencyDataRace(t *testing.T) {
 	})
 
 	go accessor(func() {
-		c.removeStaleSeries(time.Now().UnixMilli())
+		appender := noopAppender{}
+		_ = c.removeStaleSeries(appender, 0, time.Now().UnixMilli())
 	})
 
 	time.Sleep(200 * time.Millisecond)
@@ -373,8 +397,9 @@ func Test_counter_demandDecay(t *testing.T) {
 	assert.Greater(t, initialDemand, 0)
 
 	// Advance the cardinality tracker enough times to clear the window
+	appender := noopAppender{}
 	for i := 0; i < 5; i++ {
-		c.removeStaleSeries(time.Now().UnixMilli())
+		_ = c.removeStaleSeries(appender, 0, time.Now().UnixMilli())
 	}
 
 	// Demand should have decreased or be zero
