@@ -194,7 +194,7 @@ func (q *Querier) stopping(_ error) error {
 }
 
 // FindTraceByID implements tempopb.Querier.
-func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest, timeStart, timeEnd time.Time) (*tempopb.TraceByIDResponse, error) {
+func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest, timeStart, timeEnd time.Time) (resp *tempopb.TraceByIDResponse, err error) {
 	if !validation.ValidTraceID(req.TraceID) {
 		return nil, errors.New("invalid trace id")
 	}
@@ -204,10 +204,8 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		return nil, fmt.Errorf("error extracting org id in Querier.FindTraceByID: %w", err)
 	}
 
-	ctx, span := tracer.Start(ctx, "Querier.FindTraceByID")
-	defer span.End()
-
-	span.SetAttributes(attribute.String("queryMode", req.QueryMode))
+	ctx, span := startTraceByIDSpan(ctx, "Querier.FindTraceByID", req, timeStart, timeEnd)
+	defer func() { finishQuerierSpan(span, err, resp.GetMetrics()) }()
 
 	maxBytes := q.limits.MaxBytesPerTrace(userID)
 	combiner := trace.NewCombiner(maxBytes, req.AllowPartialTrace)
@@ -264,9 +262,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		partialTraces, blockErrs, err := q.store.Find(ctx, userID, req.TraceID, req.BlockStart, req.BlockEnd, timeStart, timeEnd, opts)
 		observeBackendProcessing(api.OpTraceByID, userID, findStart)
 		if err != nil {
-			retErr := fmt.Errorf("error querying store in Querier.FindTraceByID: %w", err)
-			span.RecordError(retErr)
-			return nil, retErr
+			return nil, fmt.Errorf("error querying store in Querier.FindTraceByID: %w", err)
 		}
 
 		if len(blockErrs) > 0 {
@@ -297,9 +293,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			))
 			externalResp, err := q.externalClient.TraceByID(ctx, userID, req.TraceID, timeStart, timeEnd)
 			if err != nil {
-				retErr := fmt.Errorf("error querying external in Querier.FindTraceByID: %w", err)
-				span.RecordError(retErr)
-				return nil, retErr
+				return nil, fmt.Errorf("error querying external in Querier.FindTraceByID: %w", err)
 			}
 			span.AddEvent("done searching external", oteltrace.WithAttributes(
 				attribute.Int("spansFound", countSpans(externalResp.Trace)),
@@ -314,7 +308,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	}
 
 	completeTrace, _ := combiner.Result()
-	resp := &tempopb.TraceByIDResponse{
+	resp = &tempopb.TraceByIDResponse{
 		Trace:   completeTrace,
 		Metrics: metrics,
 	}
@@ -368,10 +362,13 @@ func (q *Querier) forLiveStoreMetricsRing(ctx context.Context, f forEachMetricsF
 	return forPartitionRingReplicaSets(ctx, q, rs, f)
 }
 
-func (q *Querier) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
+func (q *Querier) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (resp *tempopb.SearchResponse, err error) {
 	if _, err := validation.ExtractValidTenantID(ctx); err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.SearchRecent: %w", err)
 	}
+
+	ctx, span := startSearchRequestSpan(ctx, "Querier.SearchRecent", req)
+	defer func() { finishQuerierSpan(span, err, resp.GetMetrics()) }()
 
 	results, err := q.forLiveStoreRing(ctx, func(ctx context.Context, client tempopb.QuerierClient) (any, error) {
 		return client.SearchRecent(ctx, req)
@@ -383,7 +380,10 @@ func (q *Querier) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) 
 	return q.postProcessIngesterSearchResults(req, results), nil
 }
 
-func (q *Querier) SearchTagsBlocks(ctx context.Context, req *tempopb.SearchTagsBlockRequest) (*tempopb.SearchTagsResponse, error) {
+func (q *Querier) SearchTagsBlocks(ctx context.Context, req *tempopb.SearchTagsBlockRequest) (resp *tempopb.SearchTagsResponse, err error) {
+	ctx, span := startTagsBlockSpan(ctx, "Querier.SearchTagsBlocks", req)
+	defer func() { finishQuerierSpan(span, err, nil) }()
+
 	v2Response, err := q.internalTagsSearchBlockV2(ctx, req)
 	if err != nil {
 		return nil, err
@@ -407,23 +407,32 @@ func (q *Querier) SearchTagsBlocks(ctx context.Context, req *tempopb.SearchTagsB
 	}, nil
 }
 
-func (q *Querier) SearchTagValuesBlocks(ctx context.Context, req *tempopb.SearchTagValuesBlockRequest) (*tempopb.SearchTagValuesResponse, error) {
+func (q *Querier) SearchTagValuesBlocks(ctx context.Context, req *tempopb.SearchTagValuesBlockRequest) (resp *tempopb.SearchTagValuesResponse, err error) {
+	ctx, span := startTagValuesBlockSpan(ctx, "Querier.SearchTagValuesBlocks", req)
+	defer func() { finishQuerierSpan(span, err, nil) }()
 	return q.internalTagValuesSearchBlock(ctx, req)
 }
 
-func (q *Querier) SearchTagsBlocksV2(ctx context.Context, req *tempopb.SearchTagsBlockRequest) (*tempopb.SearchTagsV2Response, error) {
+func (q *Querier) SearchTagsBlocksV2(ctx context.Context, req *tempopb.SearchTagsBlockRequest) (resp *tempopb.SearchTagsV2Response, err error) {
+	ctx, span := startTagsBlockSpan(ctx, "Querier.SearchTagsBlocksV2", req)
+	defer func() { finishQuerierSpan(span, err, nil) }()
 	return q.internalTagsSearchBlockV2(ctx, req)
 }
 
-func (q *Querier) SearchTagValuesBlocksV2(ctx context.Context, req *tempopb.SearchTagValuesBlockRequest) (*tempopb.SearchTagValuesV2Response, error) {
+func (q *Querier) SearchTagValuesBlocksV2(ctx context.Context, req *tempopb.SearchTagValuesBlockRequest) (resp *tempopb.SearchTagValuesV2Response, err error) {
+	ctx, span := startTagValuesBlockSpan(ctx, "Querier.SearchTagValuesBlocksV2", req)
+	defer func() { finishQuerierSpan(span, err, nil) }()
 	return q.internalTagValuesSearchBlockV2(ctx, req)
 }
 
-func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsResponse, error) {
+func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest) (resp *tempopb.SearchTagsResponse, err error) {
 	userID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.SearchTags: %w", err)
 	}
+
+	ctx, span := startTagsRequestSpan(ctx, "Querier.SearchTags", req)
+	defer func() { finishQuerierSpan(span, err, resp.GetMetrics()) }()
 
 	maxDataSize := q.limits.MaxBytesPerTagValuesQuery(userID)
 	distinctValues := collector.NewDistinctString(maxDataSize, req.MaxTagsPerScope, req.StaleValuesThreshold)
@@ -459,11 +468,14 @@ outer:
 	}, nil
 }
 
-func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsV2Response, error) {
+func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequest) (resp *tempopb.SearchTagsV2Response, err error) {
 	orgID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.SearchTags: %w", err)
 	}
+
+	ctx, span := startTagsRequestSpan(ctx, "Querier.SearchTagsV2", req)
+	defer func() { finishQuerierSpan(span, err, resp.GetMetrics()) }()
 
 	maxBytesPerTag := q.limits.MaxBytesPerTagValuesQuery(orgID)
 	distinctValues := collector.NewScopedDistinctString(maxBytesPerTag, req.MaxTagsPerScope, req.StaleValuesThreshold)
@@ -496,7 +508,7 @@ outer:
 	}
 
 	collected := distinctValues.Strings()
-	resp := &tempopb.SearchTagsV2Response{
+	resp = &tempopb.SearchTagsV2Response{
 		Scopes:  make([]*tempopb.SearchTagsV2Scope, 0, len(collected)),
 		Metrics: metrics,
 	}
@@ -510,11 +522,14 @@ outer:
 	return resp, nil
 }
 
-func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesResponse, error) {
+func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagValuesRequest) (resp *tempopb.SearchTagValuesResponse, err error) {
 	userID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.SearchTagValues: %w", err)
 	}
+
+	ctx, span := startTagValuesRequestSpan(ctx, "Querier.SearchTagValues", req)
+	defer func() { finishQuerierSpan(span, err, resp.GetMetrics()) }()
 
 	maxDataSize := q.limits.MaxBytesPerTagValuesQuery(userID)
 	distinctValues := collector.NewDistinctString(maxDataSize, req.MaxTagValues, req.StaleValueThreshold)
@@ -556,11 +571,14 @@ outer:
 	}, nil
 }
 
-func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesV2Response, error) {
+func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagValuesRequest) (resp *tempopb.SearchTagValuesV2Response, err error) {
 	userID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.SearchTagValues: %w", err)
 	}
+
+	ctx, span := startTagValuesRequestSpan(ctx, "Querier.SearchTagValuesV2", req)
+	defer func() { finishQuerierSpan(span, err, resp.GetMetrics()) }()
 
 	maxDataSize := q.limits.MaxBytesPerTagValuesQuery(userID)
 	distinctValues := collector.NewDistinctValue(maxDataSize, req.MaxTagValues, req.StaleValueThreshold, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
@@ -623,12 +641,15 @@ func valuesToV2Response(distinctValues *collector.DistinctValue[tempopb.TagValue
 }
 
 // SearchBlock searches the specified subset of the block for the passed tags.
-func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
+func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (resp *tempopb.SearchResponse, err error) {
 	tenantID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
 	}
 	defer observeBackendProcessing(api.OpSearch, tenantID, time.Now())
+
+	ctx, span := startSearchBlockSpan(ctx, "Querier.SearchBlock", req)
+	defer func() { finishQuerierSpan(span, err, resp.GetMetrics()) }()
 
 	blockID, err := backend.ParseUUID(req.BlockID)
 	if err != nil {
@@ -679,7 +700,10 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 	return q.store.Search(ctx, meta, req.SearchReq, opts)
 }
 
-func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.SearchTagsBlockRequest) (*tempopb.SearchTagsV2Response, error) {
+func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.SearchTagsBlockRequest) (resp *tempopb.SearchTagsV2Response, err error) {
+	ctx, span := startTagsBlockSpan(ctx, "Querier.internalTagsSearchBlockV2", req)
+	defer func() { finishQuerierSpan(span, err, resp.GetMetrics()) }()
+
 	// For the intrinsic scope there is nothing to do in the querier,
 	// these are always added by the frontend. Return before timing.
 	if req.SearchReq.Scope == api.ParamScopeIntrinsic {
@@ -752,7 +776,7 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 	}
 
 	scopedVals := valueCollector.Strings()
-	resp := &tempopb.SearchTagsV2Response{
+	resp = &tempopb.SearchTagsV2Response{
 		Scopes:  make([]*tempopb.SearchTagsV2Scope, 0, len(scopedVals)),
 		Metrics: &tempopb.MetadataMetrics{InspectedBytes: inspectedBytes},
 	}
@@ -766,7 +790,10 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 	return resp, nil
 }
 
-func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb.SearchTagValuesBlockRequest) (*tempopb.SearchTagValuesResponse, error) {
+func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb.SearchTagValuesBlockRequest) (resp *tempopb.SearchTagValuesResponse, err error) {
+	ctx, span := startTagValuesBlockSpan(ctx, "Querier.internalTagValuesSearchBlock", req)
+	defer func() { finishQuerierSpan(span, err, resp.GetMetrics()) }()
+
 	tenantID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return &tempopb.SearchTagValuesResponse{}, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
@@ -798,7 +825,7 @@ func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb
 	opts.StartPage = int(req.StartPage)
 	opts.TotalPages = int(req.PagesToSearch)
 
-	resp, err := q.store.SearchTagValues(ctx, meta, req, opts)
+	resp, err = q.store.SearchTagValues(ctx, meta, req, opts)
 	if err != nil {
 		return &tempopb.SearchTagValuesResponse{}, err
 	}
@@ -806,7 +833,10 @@ func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb
 	return resp, nil
 }
 
-func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempopb.SearchTagValuesBlockRequest) (*tempopb.SearchTagValuesV2Response, error) {
+func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempopb.SearchTagValuesBlockRequest) (resp *tempopb.SearchTagValuesV2Response, err error) {
+	ctx, span := startTagValuesBlockSpan(ctx, "Querier.internalTagValuesSearchBlockV2", req)
+	defer func() { finishQuerierSpan(span, err, resp.GetMetrics()) }()
+
 	tenantID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return &tempopb.SearchTagValuesV2Response{}, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)

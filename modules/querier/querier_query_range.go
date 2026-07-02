@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
+
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -15,7 +16,10 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-func (q *Querier) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
+func (q *Querier) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (resp *tempopb.QueryRangeResponse, err error) {
+	ctx, span := startQueryRangeSpan(ctx, "Querier.QueryRange", req)
+	defer func() { finishQuerierSpan(span, err, nil) }()
+
 	if req.QueryMode == QueryModeRecent {
 		return q.queryRangeRecent(ctx, req)
 	}
@@ -23,7 +27,10 @@ func (q *Querier) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest
 	return q.queryBlock(ctx, req)
 }
 
-func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
+func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeRequest) (resp *tempopb.QueryRangeResponse, err error) {
+	ctx, span := startQueryRangeSpan(ctx, "Querier.queryRangeRecent", req)
+	defer func() { finishQuerierSpan(span, err, resp.GetMetrics()) }()
+
 	// correct max series limit logic should've been set by the query-frontend sharder
 	c, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeSum, int(req.MaxSeries))
 	if err != nil {
@@ -49,7 +56,10 @@ func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeR
 	return c.Response(), nil
 }
 
-func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
+func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest) (resp *tempopb.QueryRangeResponse, err error) {
+	ctx, span := startQueryRangeBlockSpan(ctx, "Querier.queryBlock", req)
+	defer func() { finishQuerierSpan(span, err, resp.GetMetrics()) }()
+
 	tenantID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.queryBlock: %w", err)
