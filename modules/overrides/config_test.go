@@ -474,6 +474,7 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MaxMetricsDuration:   model.Duration(30 * time.Minute),
 		UnsafeQueryHints:     true,
 		MetricsSpanOnlyFetch: boolPtr(true),
+		WatchAttributes:      []WatchAttribute{{Attribute: "aggregation.is_summary", Type: "presence"}},
 
 		MaxBytesPerTrace: 10 * 1024 * 1024,
 

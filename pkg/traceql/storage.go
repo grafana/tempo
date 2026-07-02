@@ -15,8 +15,10 @@ type Condition struct {
 	Attribute Attribute
 	Op        Operator
 	Operands  Operands
-	// Callback is used in the parquetquery.CallbackPredicate to determine if the iterator should be stopped.
-	// It's used to limit the overhead of fetching exemplars by stopping the iterator early.
+	// CallBack is invoked by parquetquery.CallbackPredicate to gate whether the
+	// predicate's column is read at the column-chunk/page/value level. Returning
+	// false skips reading that column (e.g. once a watcher no longer needs the
+	// attribute); it does not terminate the overall spanset fetch.
 	CallBack func() bool
 
 	// Hints
