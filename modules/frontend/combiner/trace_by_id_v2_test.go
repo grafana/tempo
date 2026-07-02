@@ -47,7 +47,7 @@ func TestNewTraceByIdV2ReturnsAPartialTrace(t *testing.T) {
 		},
 		Body: io.NopCloser(bytes.NewReader(resBytes)),
 	}
-	combiner := NewTraceByIDV2(10, api.HeaderAcceptJSON, nil)
+	combiner := NewTraceByIDV2(10, api.HeaderAcceptJSON, nil, TraceByIDV2Options{})
 	err = combiner.AddResponse(MockResponse{&response})
 	require.NoError(t, err)
 
@@ -75,7 +75,7 @@ func TestNewTraceByIdV2ReturnsAPartialTraceOnPartialTraceReturnedByQuerier(t *te
 		},
 		Body: io.NopCloser(bytes.NewReader(resBytes)),
 	}
-	combiner := NewTraceByIDV2(10, api.HeaderAcceptJSON, nil)
+	combiner := NewTraceByIDV2(10, api.HeaderAcceptJSON, nil, TraceByIDV2Options{})
 	err = combiner.AddResponse(MockResponse{&response})
 	require.NoError(t, err)
 
@@ -105,7 +105,7 @@ func TestTraceByIDV2RedactorHidesTrace(t *testing.T) {
 	}
 
 	t.Run("HTTPFinal returns 404 with empty body", func(t *testing.T) {
-		c := NewTraceByIDV2(100_000, api.HeaderAcceptJSON, hidingRedactor{})
+		c := NewTraceByIDV2(100_000, api.HeaderAcceptJSON, hidingRedactor{}, TraceByIDV2Options{})
 		err := c.AddResponse(newMockResponse(t))
 		require.NoError(t, err)
 
@@ -118,7 +118,7 @@ func TestTraceByIDV2RedactorHidesTrace(t *testing.T) {
 	})
 
 	t.Run("GRPCFinal returns codes.NotFound", func(t *testing.T) {
-		c := NewTypedTraceByIDV2(100_000, api.HeaderAcceptJSON, hidingRedactor{})
+		c := NewTypedTraceByIDV2(100_000, api.HeaderAcceptJSON, hidingRedactor{}, TraceByIDV2Options{})
 		err := c.AddResponse(newMockResponse(t))
 		require.NoError(t, err)
 
@@ -148,7 +148,7 @@ func TestNewTraceByIDV2(t *testing.T) {
 	}
 
 	t.Run("returns a combined trace response as JSON", func(t *testing.T) {
-		combiner := NewTraceByIDV2(100_000, api.HeaderAcceptJSON, nil)
+		combiner := NewTraceByIDV2(100_000, api.HeaderAcceptJSON, nil, TraceByIDV2Options{})
 		err = combiner.AddResponse(MockResponse{&response})
 		require.NoError(t, err)
 
@@ -161,7 +161,7 @@ func TestNewTraceByIDV2(t *testing.T) {
 		require.NoError(t, err)
 	})
 	t.Run("returns a combined trace response as protobuff", func(t *testing.T) {
-		combiner := NewTraceByIDV2(100_000, api.HeaderAcceptProtobuf, nil)
+		combiner := NewTraceByIDV2(100_000, api.HeaderAcceptProtobuf, nil, TraceByIDV2Options{})
 		err = combiner.AddResponse(MockResponse{&response})
 		require.NoError(t, err)
 

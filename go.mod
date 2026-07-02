@@ -82,6 +82,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.153.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.153.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.153.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanpruningprocessor v0.153.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.153.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.153.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.153.0
