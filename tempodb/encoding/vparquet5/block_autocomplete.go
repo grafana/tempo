@@ -770,10 +770,10 @@ func createDistinctAttributeIterator(
 			if tr.tag == cond.Attribute || (cond.Attribute.Name == tr.tag.Name && tr.tag.Scope == traceql.AttributeScopeNone) {
 				// If it's not the tag we're looking for, we can skip it
 				attrKeys = append(attrKeys, cond.Attribute.Name)
-				attrStringPreds = append(attrStringPreds, nil)
-				attrIntPreds = append(attrIntPreds, nil)
-				attrFltPreds = append(attrFltPreds, nil)
-				boolPreds = append(boolPreds, nil)
+				attrStringPreds = append(attrStringPreds, parquetquery.NewSkipNilsPredicate())
+				attrIntPreds = append(attrIntPreds, parquetquery.NewSkipNilsPredicate())
+				attrFltPreds = append(attrFltPreds, parquetquery.NewSkipNilsPredicate())
+				boolPreds = append(boolPreds, parquetquery.NewSkipNilsPredicate())
 			}
 			continue
 		}
@@ -853,12 +853,11 @@ func createDistinctAttributeIterator(
 	scope := scopeFromDefinitionLevel(definitionLevel, keyPath)
 	if len(valueIters) > 0 || len(iters) > 0 || tr.keysRequested(scope) {
 		if len(valueIters) > 0 {
-			tagIter, err := parquetquery.NewLeftJoinIterator(
-				definitionLevel,
+			tagIter, err := parquetquery.NewLeftJoinIterator(definitionLevel,
 				[]parquetquery.Iterator{makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key")},
 				valueIters,
-				newDistinctAttrCollector(scope, false, tr.existsTagName, tr.existsTagValue),
-			)
+				nil,
+				parquetquery.WithCollector(newDistinctAttrCollector(scope, false, tr.existsTagName, tr.existsTagValue)))
 			if err != nil {
 				return nil, fmt.Errorf("creating left join iterator: %w", err)
 			}
@@ -1176,13 +1175,19 @@ func createDistinctTraceIterator(
 	return parquetquery.NewJoinIterator(DefinitionLevelTrace, traceIters, newDistinctValueCollector(mapTraceAttr, "trace")), nil
 }
 
-var _ parquetquery.GroupPredicate = (*distinctAttrCollector)(nil)
+var (
+	_ parquetquery.GroupPredicate = (*distinctAttrCollector)(nil)
+	_ parquetquery.Collector      = (*distinctAttrCollector)(nil)
+)
 
 type distinctAttrCollector struct {
 	scope          traceql.AttributeScope
 	attrNames      bool
 	existsTagName  func(key tagNameKey) bool
 	existsTagValue func(val traceql.Static) bool
+
+	val traceql.Static
+	res parquetquery.IteratorResult
 }
 
 func newDistinctAttrCollector(scope traceql.AttributeScope, attrNames bool, existsTagName func(key tagNameKey) bool, existsTagValue func(val traceql.Static) bool) *distinctAttrCollector {
@@ -1191,6 +1196,14 @@ func newDistinctAttrCollector(scope traceql.AttributeScope, attrNames bool, exis
 		attrNames:      attrNames,
 		existsTagName:  existsTagName,
 		existsTagValue: existsTagValue,
+
+		res: parquetquery.IteratorResult{
+			RowNumber: parquetquery.EmptyRowNumber(),
+			OtherEntries: make([]struct {
+				Key   string
+				Value interface{}
+			}, 0, 1),
+		},
 	}
 }
 
@@ -1240,6 +1253,74 @@ func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) b
 
 	return true
 }
+
+func (d *distinctAttrCollector) Collect(result *parquetquery.IteratorResult, _ any) {
+	for _, e := range result.Entries {
+		// Ignore nulls, this leaves val as the remaining found value,
+		// or nil if the key was found but no matching values
+		if e.Value.IsNull() {
+			continue
+		}
+
+		if d.attrNames {
+			if e.Key == "key" {
+				name := unsafeToString(e.Value.ByteArray())
+				key := tagNameKey{name: name, scope: d.scope}
+				if !d.existsTagName(key) {
+					fmt.Println("collector got new key: ", name, "row number: ", result.RowNumber)
+					d.res.AppendOtherValue(name, d.scope)
+				}
+			}
+		} else {
+			switch e.Key {
+			case "string":
+				d.val = traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
+			case "int":
+				d.val = traceql.NewStaticInt(int(e.Value.Int64()))
+			case "float":
+				d.val = traceql.NewStaticFloat(e.Value.Double())
+			case "bool":
+				d.val = traceql.NewStaticBool(e.Value.Boolean())
+			}
+		}
+	}
+
+	for _, e := range result.OtherEntries {
+		if e.Key == "key" {
+			d.res.AppendOtherValue(e.Key, e.Value)
+		}
+	}
+}
+
+func (d *distinctAttrCollector) Reset(rowNumber parquetquery.RowNumber) {
+	d.val = traceql.StaticNil
+	d.res.Reset()
+	d.res.RowNumber = rowNumber
+}
+
+func (d *distinctAttrCollector) Result() *parquetquery.IteratorResult {
+	if d.attrNames {
+		// We are in key mode, all work has already been done
+		// so we can return the result buffer as-is.
+		return &d.res
+	}
+
+	// Else we are in value mode so make sure we got a unique key and value.
+	if d.val.Type != traceql.TypeNil {
+		// No value was found.
+		return nil
+	}
+
+	if d.existsTagValue(d.val) {
+		// Duplicate, skip.
+		return nil
+	}
+
+	d.res.AppendOtherValue("", d.val)
+	return &d.res
+}
+
+func (d *distinctAttrCollector) Close() {}
 
 type entry struct {
 	Key   string
