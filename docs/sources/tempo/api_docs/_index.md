@@ -41,6 +41,7 @@ For externally supported gRPC API, [refer to Tempo gRPC API](#tempo-grpc-api).
 | [Search tag values V2](#search-tag-values-v2)                                         | Query-frontend                            | HTTP | `GET /api/v2/search/tag/<tag>/values`                     |
 | [TraceQL Metrics](#traceql-metrics)                                                   | Query-frontend                            | HTTP | `GET /api/metrics/query_range`                            |
 | [TraceQL Metrics (instant)](#instant)                                                 | Query-frontend                            | HTTP | `GET /api/metrics/query`                                  |
+| [Trace diff](#trace-diff) (\*)                                                        | Query-frontend                            | HTTP | `POST /api/v2/traces/diff`                                |
 | [Query Echo Endpoint](#query-echo-endpoint)                                           | Query-frontend                            | HTTP | `GET /api/echo`                                           |
 | [Overrides API](#overrides-api)                                                       | Query-frontend                            | HTTP | `GET,POST,PATCH,DELETE /api/overrides`                    |
 | Memberlist                                                                            | Distributor, Querier, Live store          | HTTP | `GET /memberlist`                                         |
@@ -351,7 +352,7 @@ The keys in `additionalMetrics` are stable and additive: clients should treat un
 ### Search tags
 
 Live store configuration `complete_block_timeout` affects how long tags are available for search.
-Tag search is supported in blocks as well, based on the start and end query parameters. 
+Tag search is supported in blocks as well, based on the start and end query parameters.
 Tag value search is also supported.
 
 This endpoint retrieves all discovered tag names that can be used in search.
@@ -729,6 +730,54 @@ Actual API parameters must be URL-encoded. This example is left unencoded for re
 ```
 GET /api/metrics/query?q={status=error}|count_over_time()by(resource.service.name)
 ```
+
+### Trace diff
+
+{{< admonition type="warning" >}}
+This endpoint is experimental. The request format and behavior may change in future releases. The diff computation isn't implemented yet; the endpoint currently returns `501 Not Implemented` for valid requests.
+{{< /admonition >}}
+
+This endpoint will compare two traces and produce a structural diff. Send a `POST` request with a JSON body that identifies both traces by their IDs.
+
+```
+POST /api/v2/traces/diff
+```
+
+Request body:
+
+```json
+{
+  "base": {
+    "traceId": "<BASE_TRACE_ID>",
+    "start": 1700000000,
+    "end": 1700003600
+  },
+  "compare": {
+    "traceId": "<COMPARE_TRACE_ID>",
+    "start": 1700100000,
+    "end": 1700103600
+  }
+}
+```
+
+Parameters:
+
+- `base.traceId`
+  Trace ID for the baseline trace, as a hexadecimal string.
+- `base.start`
+  Optional. Start of the time range to search for the baseline trace (UNIX epoch seconds).
+- `base.end`
+  Optional. End of the time range to search for the baseline trace (UNIX epoch seconds).
+- `compare.traceId`
+  Trace ID for the comparison trace, as a hexadecimal string.
+- `compare.start`
+  Optional. Start of the time range to search for the comparison trace (UNIX epoch seconds).
+- `compare.end`
+  Optional. End of the time range to search for the comparison trace (UNIX epoch seconds).
+
+When `start` and `end` are provided, the request validates that `start` is before `end`. When the endpoint is fully implemented, these fields will limit block search to that time range. If omitted, Tempo will search across all blocks.
+
+Only `POST` is allowed. Other methods return `405 Method Not Allowed`.
 
 ### Query Echo endpoint
 
