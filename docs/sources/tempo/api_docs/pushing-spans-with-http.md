@@ -9,7 +9,7 @@ aliases:
 # Push spans with HTTP
 
 Sometimes using a tracing system is intimidating because it seems like you need complex application instrumentation
-or a span ingestion pipeline in order to push spans. This guide aims to show an extremely basic technique for
+or a span ingestion pipeline to push spans. This guide shows a basic technique for
 pushing spans with HTTP/JSON or gRPC using the [OpenTelemetry](https://opentelemetry.io/docs/specs/otlp/) receiver.
 
 ## Before you begin
@@ -21,7 +21,7 @@ To use this procedure, you need:
 - Docker and `docker compose` installed
 - (Optional) [OpenTelemetry `telemetrygen`](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/cmd/telemetrygen) installed for the gRPC examples
 
-## Start Tempo using the quick start
+## Start Tempo using the quickstart
 
 Use the instructions in the [Quick start for Tempo documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/getting-started/docker-example/) to start a local instance of Tempo and Grafana.
 
@@ -127,9 +127,9 @@ You can use [OpenTelemetry `telemetrygen`](https://github.com/open-telemetry/ope
    curl -G -s http://localhost:3200/api/search --data-urlencode 'q={ resource.service.name = "telemetrygen" }' | jq .
    ```
 
-### Multitenancy
+### Multi-tenancy
 
-If you've enabled multitenancy (`multitenancy_enabled: true`), pass the tenant ID using the `X-Scope-OrgID` header in gRPC metadata:
+If you've enabled multi-tenancy (`multitenancy_enabled: true`), pass the tenant ID using the `X-Scope-OrgID` header in gRPC metadata:
 
 ```bash
 telemetrygen traces --otlp-insecure --rate 20 --duration 5s \
@@ -141,9 +141,9 @@ For more information about configuring OpenTelemetry SDKs to export traces over 
 
 ## Retrieve traces
 
-The easiest way to get the trace is to execute a simple curl command to Tempo. The returned format is [OTLP](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/trace/v1/trace.proto).
+You can retrieve the trace by running a `curl` command against Tempo. The returned format is [OTLP](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/trace/v1/trace.proto).
 
-1. Replace the trace ID in the `curl` command with the trace ID that was generated from the push. This information is in the data that's sent with the `curl`. You could use Grafana’s Explorer page to find this, as shown in the previous section.
+1. Replace the trace ID in the `curl` command with the trace ID that was generated from the push. This information is in the data that's sent with the `curl`. You can use the Grafana **Explore** page to find this, as shown in the previous section.
 
    ```bash
    curl http://localhost:3200/api/v2/traces/5b8efff798038103d269b633813fc700
