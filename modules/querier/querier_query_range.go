@@ -20,7 +20,7 @@ func (q *Querier) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.QueryRange: %w", err)
 	}
-	defer func() { finishQuerierSpan(span, err, nil) }()
+	defer func() { finishQuerierSpan(span, err, resp.GetMetrics()) }()
 
 	if req.QueryMode == QueryModeRecent {
 		return q.queryRangeRecent(ctx, req)

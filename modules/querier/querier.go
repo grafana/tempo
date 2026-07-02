@@ -382,7 +382,7 @@ func (q *Querier) SearchTagsBlocks(ctx context.Context, req *tempopb.SearchTagsB
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.SearchTagsBlocks: %w", err)
 	}
-	defer func() { finishQuerierSpan(span, err, nil) }()
+	defer func() { finishQuerierSpan(span, err, resp.GetMetrics()) }()
 
 	v2Response, err := q.internalTagsSearchBlockV2(ctx, req)
 	if err != nil {
@@ -412,7 +412,7 @@ func (q *Querier) SearchTagValuesBlocks(ctx context.Context, req *tempopb.Search
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.SearchTagValuesBlocks: %w", err)
 	}
-	defer func() { finishQuerierSpan(span, err, nil) }()
+	defer func() { finishQuerierSpan(span, err, resp.GetMetrics()) }()
 	return q.internalTagValuesSearchBlock(ctx, req)
 }
 
@@ -421,7 +421,7 @@ func (q *Querier) SearchTagsBlocksV2(ctx context.Context, req *tempopb.SearchTag
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.SearchTagsBlocksV2: %w", err)
 	}
-	defer func() { finishQuerierSpan(span, err, nil) }()
+	defer func() { finishQuerierSpan(span, err, resp.GetMetrics()) }()
 	return q.internalTagsSearchBlockV2(ctx, req)
 }
 
@@ -430,7 +430,7 @@ func (q *Querier) SearchTagValuesBlocksV2(ctx context.Context, req *tempopb.Sear
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.SearchTagValuesBlocksV2: %w", err)
 	}
-	defer func() { finishQuerierSpan(span, err, nil) }()
+	defer func() { finishQuerierSpan(span, err, resp.GetMetrics()) }()
 	return q.internalTagValuesSearchBlockV2(ctx, req)
 }
 
