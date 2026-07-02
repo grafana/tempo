@@ -68,13 +68,14 @@ func TestTraceByIDSpanAttributesAndMetrics(t *testing.T) {
 	start := time.Unix(123, 0)
 	end := time.Unix(456, 0)
 	ctx := user.InjectOrgID(context.Background(), "tenant-a")
-	_, span := startTraceByIDSpan(ctx, "Querier.FindTraceByID", &tempopb.TraceByIDRequest{
+	_, span, _, err := startTraceByIDSpan(ctx, "Querier.FindTraceByID", &tempopb.TraceByIDRequest{
 		TraceID:           []byte{0x01, 0x02, 0x03},
 		BlockStart:        "block-start",
 		BlockEnd:          "block-end",
 		QueryMode:         QueryModeAll,
 		AllowPartialTrace: true,
 	}, start, end)
+	require.NoError(t, err)
 	finishQuerierSpan(span, nil, &tempopb.TraceByIDMetrics{
 		InspectedBytes: 11,
 		BackendReads:   12,

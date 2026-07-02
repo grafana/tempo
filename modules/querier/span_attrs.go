@@ -6,23 +6,29 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/validation"
 )
 
-func startQuerierSpan(ctx context.Context, name, query string, attrs ...attribute.KeyValue) (context.Context, oteltrace.Span) {
+func startQuerierSpan(ctx context.Context, name, query string, attrs ...attribute.KeyValue) (context.Context, oteltrace.Span, string, error) {
+	tenantID, err := validation.ExtractValidTenantID(ctx)
+	if err != nil {
+		return ctx, nil, "", err
+	}
+
 	ctx, span := tracer.Start(ctx, name)
-	tenantID, _ := validation.ExtractValidTenantID(ctx)
 	setQuerierSpanAttributes(span, tenantID, query, attrs...)
-	return ctx, span
+	return ctx, span, tenantID, nil
 }
 
 func finishQuerierSpan(span oteltrace.Span, err error, metrics any) {
 	setQuerierSpanMetrics(span, metrics)
 	if err != nil {
 		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 	}
 	span.End()
 }
@@ -39,7 +45,7 @@ func setQuerierSpanAttributes(span oteltrace.Span, tenantID, query string, attrs
 	}
 }
 
-func startTraceByIDSpan(ctx context.Context, name string, req *tempopb.TraceByIDRequest, timeStart, timeEnd time.Time) (context.Context, oteltrace.Span) {
+func startTraceByIDSpan(ctx context.Context, name string, req *tempopb.TraceByIDRequest, timeStart, timeEnd time.Time) (context.Context, oteltrace.Span, string, error) {
 	attrs := []attribute.KeyValue{
 		attribute.String("traceID", hex.EncodeToString(req.TraceID)),
 		attribute.String("queryMode", req.QueryMode),
@@ -62,7 +68,7 @@ func startTraceByIDSpan(ctx context.Context, name string, req *tempopb.TraceByID
 	return startQuerierSpan(ctx, name, "", attrs...)
 }
 
-func startSearchRequestSpan(ctx context.Context, name string, req *tempopb.SearchRequest) (context.Context, oteltrace.Span) {
+func startSearchRequestSpan(ctx context.Context, name string, req *tempopb.SearchRequest) (context.Context, oteltrace.Span, string, error) {
 	return startQuerierSpan(ctx, name, req.Query,
 		attribute.Int64("startUnixSeconds", int64(req.Start)),
 		attribute.Int64("endUnixSeconds", int64(req.End)),
@@ -70,7 +76,7 @@ func startSearchRequestSpan(ctx context.Context, name string, req *tempopb.Searc
 	)
 }
 
-func startTagsRequestSpan(ctx context.Context, name string, req *tempopb.SearchTagsRequest) (context.Context, oteltrace.Span) {
+func startTagsRequestSpan(ctx context.Context, name string, req *tempopb.SearchTagsRequest) (context.Context, oteltrace.Span, string, error) {
 	return startQuerierSpan(ctx, name, req.Query,
 		attribute.String("scope", req.Scope),
 		attribute.Int64("startUnixSeconds", int64(req.Start)),
@@ -79,7 +85,7 @@ func startTagsRequestSpan(ctx context.Context, name string, req *tempopb.SearchT
 	)
 }
 
-func startTagValuesRequestSpan(ctx context.Context, name string, req *tempopb.SearchTagValuesRequest) (context.Context, oteltrace.Span) {
+func startTagValuesRequestSpan(ctx context.Context, name string, req *tempopb.SearchTagValuesRequest) (context.Context, oteltrace.Span, string, error) {
 	return startQuerierSpan(ctx, name, req.Query,
 		attribute.String("tagName", req.TagName),
 		attribute.Int64("startUnixSeconds", int64(req.Start)),
@@ -88,7 +94,7 @@ func startTagValuesRequestSpan(ctx context.Context, name string, req *tempopb.Se
 	)
 }
 
-func startSearchBlockSpan(ctx context.Context, name string, req *tempopb.SearchBlockRequest) (context.Context, oteltrace.Span) {
+func startSearchBlockSpan(ctx context.Context, name string, req *tempopb.SearchBlockRequest) (context.Context, oteltrace.Span, string, error) {
 	return startQuerierSpan(ctx, name, req.SearchReq.Query,
 		attribute.Int64("startUnixSeconds", int64(req.SearchReq.Start)),
 		attribute.Int64("endUnixSeconds", int64(req.SearchReq.End)),
@@ -103,7 +109,7 @@ func startSearchBlockSpan(ctx context.Context, name string, req *tempopb.SearchB
 	)
 }
 
-func startTagsBlockSpan(ctx context.Context, name string, req *tempopb.SearchTagsBlockRequest) (context.Context, oteltrace.Span) {
+func startTagsBlockSpan(ctx context.Context, name string, req *tempopb.SearchTagsBlockRequest) (context.Context, oteltrace.Span, string, error) {
 	return startQuerierSpan(ctx, name, req.SearchReq.Query,
 		attribute.String("scope", req.SearchReq.Scope),
 		attribute.Int64("startUnixSeconds", int64(req.SearchReq.Start)),
@@ -119,7 +125,7 @@ func startTagsBlockSpan(ctx context.Context, name string, req *tempopb.SearchTag
 	)
 }
 
-func startTagValuesBlockSpan(ctx context.Context, name string, req *tempopb.SearchTagValuesBlockRequest) (context.Context, oteltrace.Span) {
+func startTagValuesBlockSpan(ctx context.Context, name string, req *tempopb.SearchTagValuesBlockRequest) (context.Context, oteltrace.Span, string, error) {
 	return startQuerierSpan(ctx, name, req.SearchReq.Query,
 		attribute.String("tagName", req.SearchReq.TagName),
 		attribute.Int64("startUnixSeconds", int64(req.SearchReq.Start)),
@@ -135,7 +141,7 @@ func startTagValuesBlockSpan(ctx context.Context, name string, req *tempopb.Sear
 	)
 }
 
-func startQueryRangeSpan(ctx context.Context, name string, req *tempopb.QueryRangeRequest) (context.Context, oteltrace.Span) {
+func startQueryRangeSpan(ctx context.Context, name string, req *tempopb.QueryRangeRequest) (context.Context, oteltrace.Span, string, error) {
 	return startQuerierSpan(ctx, name, req.Query,
 		attribute.String("queryMode", req.QueryMode),
 		attribute.Int64("startUnixNanos", int64(req.Start)),
@@ -145,7 +151,7 @@ func startQueryRangeSpan(ctx context.Context, name string, req *tempopb.QueryRan
 	)
 }
 
-func startQueryRangeBlockSpan(ctx context.Context, name string, req *tempopb.QueryRangeRequest) (context.Context, oteltrace.Span) {
+func startQueryRangeBlockSpan(ctx context.Context, name string, req *tempopb.QueryRangeRequest) (context.Context, oteltrace.Span, string, error) {
 	return startQuerierSpan(ctx, name, req.Query,
 		attribute.String("queryMode", req.QueryMode),
 		attribute.Int64("startUnixNanos", int64(req.Start)),

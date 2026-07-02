@@ -11,13 +11,15 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 func (q *Querier) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (resp *tempopb.QueryRangeResponse, err error) {
-	ctx, span := startQueryRangeSpan(ctx, "Querier.QueryRange", req)
+	ctx, span, _, err := startQueryRangeSpan(ctx, "Querier.QueryRange", req)
+	if err != nil {
+		return nil, fmt.Errorf("error extracting org id in Querier.QueryRange: %w", err)
+	}
 	defer func() { finishQuerierSpan(span, err, nil) }()
 
 	if req.QueryMode == QueryModeRecent {
@@ -28,7 +30,10 @@ func (q *Querier) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest
 }
 
 func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeRequest) (resp *tempopb.QueryRangeResponse, err error) {
-	ctx, span := startQueryRangeSpan(ctx, "Querier.queryRangeRecent", req)
+	ctx, span, _, err := startQueryRangeSpan(ctx, "Querier.queryRangeRecent", req)
+	if err != nil {
+		return nil, fmt.Errorf("error extracting org id in Querier.queryRangeRecent: %w", err)
+	}
 	defer func() { finishQuerierSpan(span, err, resp.GetMetrics()) }()
 
 	// correct max series limit logic should've been set by the query-frontend sharder
@@ -57,13 +62,11 @@ func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeR
 }
 
 func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest) (resp *tempopb.QueryRangeResponse, err error) {
-	ctx, span := startQueryRangeBlockSpan(ctx, "Querier.queryBlock", req)
-	defer func() { finishQuerierSpan(span, err, resp.GetMetrics()) }()
-
-	tenantID, err := validation.ExtractValidTenantID(ctx)
+	ctx, span, tenantID, err := startQueryRangeBlockSpan(ctx, "Querier.queryBlock", req)
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.queryBlock: %w", err)
 	}
+	defer func() { finishQuerierSpan(span, err, resp.GetMetrics()) }()
 	defer observeBackendProcessing(api.OpMetrics, tenantID, time.Now())
 
 	blockID, err := backend.ParseUUID(req.BlockID)
