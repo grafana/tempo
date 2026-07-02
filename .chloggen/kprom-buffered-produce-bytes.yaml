@@ -1,0 +1,6 @@
+change_type: breaking
+component: distributor
+note: "`tempo_distributor_buffered_produce_bytes` is now a gauge instead of a summary."
+issues: [7384]
+subtext:
+user: mapno

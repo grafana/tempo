@@ -189,7 +189,8 @@ type Producer struct {
 	maxBufferedBytes int64
 
 	// Custom metrics.
-	bufferedProduceBytes        prometheus.Summary
+	// Note: buffered produce bytes are exported by the kprom client metrics as
+	// tempo_distributor_buffered_produce_bytes, so we don't register our own metric here.
 	bufferedProduceBytesLimit   prometheus.Gauge
 	produceRecordsFailuresTotal *prometheus.CounterVec
 }
@@ -207,16 +208,6 @@ func NewProducer(client *kgo.Client, maxBufferedBytes int64, reg prometheus.Regi
 		maxBufferedBytes: maxBufferedBytes,
 
 		// Metrics.
-		bufferedProduceBytes: promauto.With(reg).NewSummary(
-			prometheus.SummaryOpts{
-				Namespace:  "tempo",
-				Subsystem:  "distributor",
-				Name:       "buffered_produce_bytes",
-				Help:       "The buffered produce records in bytes. Quantile buckets keep track of buffered records size over the last 60s.",
-				Objectives: map[float64]float64{0.5: 0.05, 0.99: 0.001, 1: 0.001},
-				MaxAge:     time.Minute,
-				AgeBuckets: 6,
-			}),
 		bufferedProduceBytesLimit: promauto.With(reg).NewGauge(
 			prometheus.GaugeOpts{
 				Namespace: "tempo",
@@ -235,8 +226,6 @@ func NewProducer(client *kgo.Client, maxBufferedBytes int64, reg prometheus.Regi
 
 	producer.bufferedProduceBytesLimit.Set(float64(maxBufferedBytes))
 
-	go producer.updateMetricsLoop()
-
 	return producer
 }
 
@@ -246,22 +235,6 @@ func (c *Producer) Close() {
 	})
 
 	c.Client.Close()
-}
-
-func (c *Producer) updateMetricsLoop() {
-	// We observe buffered produce bytes and at regular intervals, to have a good
-	// approximation of the peak value reached over the observation period.
-	ticker := time.NewTicker(250 * time.Millisecond)
-
-	for {
-		select {
-		case <-ticker.C:
-			c.bufferedProduceBytes.Observe(float64(c.BufferedProduceBytes()))
-
-		case <-c.closed:
-			return
-		}
-	}
 }
 
 // ProduceSync produces records to Kafka and returns once all records have been successfully committed,
