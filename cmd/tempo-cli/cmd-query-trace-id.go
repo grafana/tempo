@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/tempo/pkg/httpclient"
@@ -16,12 +17,21 @@ type queryTraceIDCmd struct {
 	V1      bool     `name:"v1" help:"Use v1 API /api/traces endpoint"`
 	OrgID   string   `help:"optional orgID"`
 	Headers []string `help:"extra HTTP header in key=value format" name:"header"`
+
+	// Trace By ID V2 filtering and selection params
+	Q             string `name:"q" help:"TraceQL spanset filter, only matching spans are returned (V2 only)"`
+	KeepHierarchy bool   `name:"keep-hierarchy" default:"true" help:"include ancestor path to the root for each matched span (V2 only)"`
 }
 
 func (cmd *queryTraceIDCmd) Run(_ *globalOptions) error {
 	client := httpclient.New(cmd.APIEndpoint, cmd.OrgID)
 	applyHeaders(client, cmd.Headers)
 	// util.QueryTrace will only add orgID header if len(orgID) > 0
+
+	// the v1 endpoint does not support spanset filtering
+	if cmd.Q != "" && cmd.V1 {
+		return fmt.Errorf("--q filtering is only supported on the v2 API, remove --v1 to call v2 endpoint")
+	}
 
 	// use v1 API if specified, we default to v2
 	if cmd.V1 {
@@ -32,7 +42,15 @@ func (cmd *queryTraceIDCmd) Run(_ *globalOptions) error {
 		return printTrace(trace)
 	}
 
-	traceResp, err := client.QueryTraceV2(cmd.TraceID)
+	var traceResp *tempopb.TraceByIDResponse
+	var err error
+	if cmd.Q != "" {
+		params := map[string]string{"q": cmd.Q, "keep_hierarchy": strconv.FormatBool(cmd.KeepHierarchy)}
+		traceResp, err = client.QueryTraceV2WithQueryParams(cmd.TraceID, params)
+	} else {
+		traceResp, err = client.QueryTraceV2(cmd.TraceID)
+	}
+
 	if err != nil {
 		return err
 	}

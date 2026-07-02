@@ -121,3 +121,45 @@ func TestQueryTraceWithRange(t *testing.T) {
 		assert.Nil(t, response)
 	})
 }
+
+func TestQueryTraceV2WithQueryParams(t *testing.T) {
+	resp := &tempopb.TraceByIDResponse{}
+
+	tests := []struct {
+		name        string
+		params      map[string]string
+		expectedURL string
+	}{
+		{
+			// no params must match QueryTraceV2 exactly, with no forced trailing ?.
+			name:        "no params yields the same URL as QueryTraceV2",
+			params:      nil,
+			expectedURL: "www.tempo.com/api/v2/traces/100",
+		},
+		{
+			name:        "encodes the provided query params",
+			params:      map[string]string{"keep_hierarchy": "false"},
+			expectedURL: "www.tempo.com/api/v2/traces/100?keep_hierarchy=false",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockTransport := MockRoundTripper(func(req *http.Request) *http.Response {
+				assert.Equal(t, tt.expectedURL, fmt.Sprint(req.URL))
+				body, _ := proto.Marshal(resp)
+				return &http.Response{
+					StatusCode: 200,
+					Body:       io.NopCloser(bytes.NewReader(body)),
+				}
+			})
+
+			client := New("www.tempo.com", "1000")
+			client.WithTransport(mockTransport)
+			response, err := client.QueryTraceV2WithQueryParams("100", tt.params)
+
+			assert.NoError(t, err)
+			assert.True(t, proto.Equal(resp, response))
+		})
+	}
+}

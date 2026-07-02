@@ -8,11 +8,16 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-func NewTypedTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceRedactor TraceRedactor) GRPCCombiner[*tempopb.TraceByIDResponse] {
-	return NewTraceByIDV2(maxBytes, marshalingFormat, traceRedactor).(GRPCCombiner[*tempopb.TraceByIDResponse])
+// TraceFilter runs on a complete trace and applies a filter to it.
+type TraceFilter interface {
+	Process(t *tempopb.Trace) (*tempopb.Trace, error)
 }
 
-func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceRedactor TraceRedactor) Combiner {
+func NewTypedTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceRedactor TraceRedactor, traceFilter TraceFilter) GRPCCombiner[*tempopb.TraceByIDResponse] {
+	return NewTraceByIDV2(maxBytes, marshalingFormat, traceRedactor, traceFilter).(GRPCCombiner[*tempopb.TraceByIDResponse])
+}
+
+func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceRedactor TraceRedactor, traceFilter TraceFilter) Combiner {
 	combiner := trace.NewCombiner(maxBytes, true)
 	var partialTrace bool
 	metricsCombiner := NewTraceByIDMetricsCombiner()
@@ -42,7 +47,18 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceR
 					return nil, err
 				}
 			}
+
+			// filter after redaction so it runs on the final, fully redacted trace.
+			if traceFilter != nil {
+				filtered, err := traceFilter.Process(traceResult)
+				if err != nil {
+					return nil, err
+				}
+				traceResult = filtered
+			}
+
 			resp.Trace = traceResult
+			// metrics report bytes inspected to pull the whole trace; filtering only trims output, so they are unchanged.
 			resp.Metrics = metricsCombiner.Metrics
 
 			if partialTrace || combiner.IsPartialTrace() {
