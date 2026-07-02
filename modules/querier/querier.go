@@ -478,7 +478,7 @@ outer:
 func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequest) (resp *tempopb.SearchTagsV2Response, err error) {
 	ctx, span, orgID, err := startTagsRequestSpan(ctx, "Querier.SearchTagsV2", req)
 	if err != nil {
-		return nil, fmt.Errorf("error extracting org id in Querier.SearchTags: %w", err)
+		return nil, fmt.Errorf("error extracting org id in Querier.SearchTagsV2: %w", err)
 	}
 	defer func() { finishQuerierSpan(span, err, resp.GetMetrics()) }()
 
