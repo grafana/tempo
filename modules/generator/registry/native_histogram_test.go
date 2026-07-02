@@ -962,3 +962,20 @@ func Test_nativeHistogram_leadingZero(t *testing.T) {
 		}
 	})
 }
+
+// TestNewNativeHistogram_SortsUnsortedBuckets verifies newNativeHistogram
+// normalizes its classic buckets (matching newHistogram). In hybrid/both mode
+// the buckets reach prometheus.NewHistogram on first series creation, which
+// panics on non-monotonic input; a static histogram_buckets config is not
+// validated upstream.
+func TestNewNativeHistogram_SortsUnsortedBuckets(t *testing.T) {
+	require.NotPanics(t, func() {
+		h := newNativeHistogram("test_native_histogram", []float64{5, 0.5, 2, 1}, noopLimiter, "trace_id", HistogramModeBoth, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+		assert.Equal(t, []float64{0.5, 1, 2, 5}, h.buckets)
+
+		// Observing builds the per-series prometheus.Histogram from the buckets;
+		// this is where unsorted buckets would have panicked.
+		lbls := buildTestLabels([]string{"label"}, []string{"value-1"})
+		h.ObserveWithExemplar(lbls, 1.5, "trace-1", 1.0)
+	})
+}
