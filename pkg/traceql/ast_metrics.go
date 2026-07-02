@@ -112,6 +112,16 @@ type MetricsAggregate struct {
 	exemplarFn getExemplar
 	// Type of operation for simple aggregatation in layers 2 and 3
 	simpleAggregationOp SimpleAggregationOp
+	// When true, each observed span contributes its IntrinsicSpanMultiplier
+	// (= 1 / sampling probability) to count/sum aggregates instead of 1. Must
+	// be set before init() so the constructed inner aggregators see it.
+	extrapolate bool
+}
+
+// SetExtrapolate enables per-span sampling extrapolation. Must be called
+// before init().
+func (a *MetricsAggregate) SetExtrapolate(extrapolate bool) {
+	a.extrapolate = extrapolate
 }
 
 func newMetricsAggregate(agg MetricsAggregateOp, by []Attribute) *MetricsAggregate {
@@ -177,9 +187,16 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 	var byFunc func(Span) (Static, bool)
 	var byFuncLabel string
 
+	extrapolate := a.extrapolate
+	newCount := func() VectorAggregator {
+		agg := NewCountOverTimeAggregator()
+		agg.SetExtrapolate(extrapolate)
+		return agg
+	}
+
 	switch a.op {
 	case metricsAggregateCountOverTime:
-		innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
+		innerAgg = newCount
 		a.simpleAggregationOp = sumAggregation
 		a.exemplarFn = exemplarNaN
 
@@ -194,24 +211,33 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 		a.exemplarFn = exemplarFnFor(a.attr)
 
 	case metricsAggregateSumOverTime:
-		innerAgg = func() VectorAggregator { return NewOverTimeAggregator(a.attr, sumOverTimeAggregation) }
+		innerAgg = func() VectorAggregator {
+			agg := NewOverTimeAggregator(a.attr, sumOverTimeAggregation)
+			agg.SetExtrapolate(extrapolate)
+			return agg
+		}
 		a.simpleAggregationOp = sumOverTimeAggregation
 		a.exemplarFn = exemplarFnFor(a.attr)
 
 	case metricsAggregateRate:
-		innerAgg = func() VectorAggregator { return NewRateAggregator(1.0 / time.Duration(q.Step).Seconds()) }
+		rateMult := 1.0 / time.Duration(q.Step).Seconds()
+		innerAgg = func() VectorAggregator {
+			agg := NewRateAggregator(rateMult)
+			agg.SetExtrapolate(extrapolate)
+			return agg
+		}
 		a.simpleAggregationOp = sumAggregation
 		a.exemplarFn = exemplarNaN
 
 	case metricsAggregateHistogramOverTime:
-		innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
+		innerAgg = newCount
 		byFunc = bucketizeFnFor(a.attr)
 		byFuncLabel = internalLabelBucket
 		a.simpleAggregationOp = sumAggregation
 		a.exemplarFn = exemplarNaN // Histogram final series are counts so exemplars are placeholders
 
 	case metricsAggregateQuantileOverTime:
-		innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
+		innerAgg = newCount
 		byFunc = bucketizeFnFor(a.attr)
 		byFuncLabel = internalLabelBucket
 		a.simpleAggregationOp = sumAggregation

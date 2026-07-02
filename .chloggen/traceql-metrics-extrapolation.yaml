@@ -1,0 +1,24 @@
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: feature
+
+# Component or area of the change.
+component: traceql
+
+# A brief description of the change.
+note: TraceQL metrics queries can extrapolate counts from the W3C tracestate sampling probability. Opt in per query via the `with(extrapolate=true)` hint.
+
+# (Optional) PR number(s). Leave blank to auto-fill at release.
+issues: []
+
+# (Optional) Additional lines rendered under the note.
+subtext: |
+  When a span carries an OpenTelemetry probability threshold in its tracestate
+  (`ot=th:...`), each matched span contributes `1 / sampling_probability` to
+  `rate`, `count_over_time`, `sum_over_time`, `avg_over_time`,
+  `histogram_over_time`, `quantile_over_time`, and `compare` aggregates —
+  matching the metrics generator's existing per-span multiplier behaviour.
+  `min_over_time` and `max_over_time` are unaffected. Only supported on
+  vparquet5 blocks.
+
+# The GitHub handle (without the leading @) of the change's author.
+user: csmarchbanks
