@@ -120,6 +120,41 @@ func TestProtoSpanAttributeResolution(t *testing.T) {
 	assert.Equal(t, traceql.NewStaticString(util.SpanIDToHexString(span.Links[0].SpanId)), v)
 }
 
+func TestProtoSpanAllAttributesMergesSharedMaps(t *testing.T) {
+	// span-local, resource, and trace maps are stored separately; AllAttributes/AllAttributesFunc must
+	// present the merged union, and the two methods must agree.
+	resourceAttrs := map[traceql.Attribute]traceql.Static{
+		traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "service.name"): traceql.NewStaticString("checkout"),
+	}
+	traceAttrs := map[traceql.Attribute]traceql.Static{
+		traceql.IntrinsicTraceRootSpanAttribute: traceql.NewStaticString("span-A"),
+	}
+	span := &tracev1.Span{
+		SpanId: []byte{0x01},
+		Name:   "GET /api",
+		Attributes: []*commonv1.KeyValue{
+			{Key: "http.method", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "GET"}}},
+		},
+	}
+	ps := newProtoSpan(span, resourceAttrs, traceAttrs, nil)
+
+	// trace intrinsic resolves via the shared trace map (the unit resolution test uses a nil trace map).
+	v, ok := ps.AttributeFor(traceql.IntrinsicTraceRootSpanAttribute)
+	require.True(t, ok)
+	require.Equal(t, traceql.NewStaticString("span-A"), v)
+
+	all := ps.AllAttributes()
+	require.Equal(t, traceql.NewStaticString("GET"), all[traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "http.method")], "span attr present")
+	require.Equal(t, traceql.NewStaticString("checkout"), all[traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "service.name")], "resource attr present")
+	require.Equal(t, traceql.NewStaticString("span-A"), all[traceql.IntrinsicTraceRootSpanAttribute], "trace intrinsic present")
+	require.Equal(t, traceql.NewStaticString("GET /api"), all[traceql.IntrinsicNameAttribute], "per-span intrinsic present")
+
+	// AllAttributesFunc must visit exactly the same set AllAttributes returns.
+	seen := make(map[traceql.Attribute]traceql.Static)
+	ps.AllAttributesFunc(func(a traceql.Attribute, s traceql.Static) { seen[a] = s })
+	require.Equal(t, all, seen)
+}
+
 func TestSpanKindMapping(t *testing.T) {
 	cases := map[tracev1.Span_SpanKind]traceql.Kind{
 		tracev1.Span_SPAN_KIND_UNSPECIFIED: traceql.KindUnspecified,

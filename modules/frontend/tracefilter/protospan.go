@@ -17,7 +17,11 @@ type protoSpan struct {
 	span               *tracev1.Span
 	startTimeUnixNanos uint64
 	durationNanos      uint64
-	attributes         map[traceql.Attribute]traceql.Static
+	// spanAttrs holds only span-local attributes and per-span intrinsics. resourceAttrs and traceAttrs
+	// are shared by reference across the batch/trace and consulted by AttributeFor, not copied per span.
+	spanAttrs     map[traceql.Attribute]traceql.Static
+	resourceAttrs map[traceql.Attribute]traceql.Static
+	traceAttrs    map[traceql.Attribute]traceql.Static
 }
 
 // newProtoSpan builds a protoSpan. resourceAttrs and traceAttrs are shared across the batch/trace;
@@ -28,18 +32,15 @@ func newProtoSpan(span *tracev1.Span, resourceAttrs, traceAttrs map[traceql.Attr
 		duration = span.EndTimeUnixNano - span.StartTimeUnixNano
 	}
 
-	// TODO(perf): builds the whole attribute map per span though the engine reads only a few via AttributeFor; make AttributeFor resolve lazily.
-	attrs := make(map[traceql.Attribute]traceql.Static, len(span.Attributes)+len(resourceAttrs)+len(traceAttrs)+10)
-
-	// resource attributes first so a same-named span attribute wins, matching TraceQL precedence.
-	maps.Copy(attrs, resourceAttrs)
-	maps.Copy(attrs, traceAttrs)
+	// only span-local attrs/intrinsics. resource/trace maps stay shared to avoid an
+	// O(spans x resourceAttrs) copy of the same data.
+	attrs := make(map[traceql.Attribute]traceql.Static, len(span.Attributes)+16)
 	for _, kv := range span.Attributes {
 		attrs[traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, kv.Key)] = staticFromKeyValue(kv)
 	}
 
 	// hand-mapped because the engine exposes no shared intrinsic resolver to reuse (parquet maps from
-	// its own columns). TODO: share a proto->Static mapper once a second proto consumer appears.
+	// its own columns).
 	attrs[traceql.IntrinsicNameAttribute] = traceql.NewStaticString(span.Name)
 	attrs[traceql.IntrinsicDurationAttribute] = traceql.NewStaticDuration(time.Duration(duration))
 	attrs[traceql.IntrinsicKindAttribute] = traceql.NewStaticKind(spanKindToTraceql(span.Kind))
@@ -78,7 +79,9 @@ func newProtoSpan(span *tracev1.Span, resourceAttrs, traceAttrs map[traceql.Attr
 		span:               span,
 		startTimeUnixNanos: span.StartTimeUnixNano,
 		durationNanos:      duration,
-		attributes:         attrs,
+		spanAttrs:          attrs,
+		resourceAttrs:      resourceAttrs,
+		traceAttrs:         traceAttrs,
 	}
 }
 
@@ -103,31 +106,50 @@ func staticFromKeyValue(kv *commonv1.KeyValue) traceql.Static {
 }
 
 func (s *protoSpan) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
-	if v, ok := s.attributes[a]; ok {
+	// keys are disjoint across the three maps, so layered lookup equals the old merged map.
+	if v, ok := s.spanAttrs[a]; ok {
+		return v, true
+	}
+	if v, ok := s.resourceAttrs[a]; ok {
+		return v, true
+	}
+	if v, ok := s.traceAttrs[a]; ok {
 		return v, true
 	}
 	// unscoped lookups fall back to span then resource scope, matching the engine.
 	if a.Scope == traceql.AttributeScopeNone && a.Intrinsic == traceql.IntrinsicNone {
 		aSpan := a
 		aSpan.Scope = traceql.AttributeScopeSpan
-		if v, ok := s.attributes[aSpan]; ok {
+		if v, ok := s.spanAttrs[aSpan]; ok {
 			return v, true
 		}
 		aRes := a
 		aRes.Scope = traceql.AttributeScopeResource
-		if v, ok := s.attributes[aRes]; ok {
+		if v, ok := s.resourceAttrs[aRes]; ok {
 			return v, true
 		}
 	}
 	return traceql.NewStaticNil(), false
 }
 
+// AllAttributes merges the shared maps on demand; unused on the bare-filter path (only metrics/select
+// call it, and CompileSpansetFilter rejects those), kept correct as defense in depth.
 func (s *protoSpan) AllAttributes() map[traceql.Attribute]traceql.Static {
-	return s.attributes
+	all := make(map[traceql.Attribute]traceql.Static, len(s.resourceAttrs)+len(s.traceAttrs)+len(s.spanAttrs))
+	maps.Copy(all, s.resourceAttrs)
+	maps.Copy(all, s.traceAttrs)
+	maps.Copy(all, s.spanAttrs)
+	return all
 }
 
 func (s *protoSpan) AllAttributesFunc(cb func(traceql.Attribute, traceql.Static)) {
-	for k, v := range s.attributes {
+	for k, v := range s.resourceAttrs {
+		cb(k, v)
+	}
+	for k, v := range s.traceAttrs {
+		cb(k, v)
+	}
+	for k, v := range s.spanAttrs {
 		cb(k, v)
 	}
 }
