@@ -16,8 +16,8 @@ type Condition struct {
 	Op        Operator
 	Operands  Operands
 	// CallBack is invoked by parquetquery.CallbackPredicate to gate whether the
-	// predicate's column is read at the column-chunk/page/value level. Returning
-	// false skips reading that column (e.g. once a watcher no longer needs the
+	// column scan continues going. Returning
+	// false ends the column scan early (e.g. once a watcher no longer needs the
 	// attribute); it does not terminate the overall spanset fetch.
 	CallBack func() bool
 
