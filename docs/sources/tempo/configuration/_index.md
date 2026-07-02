@@ -2671,6 +2671,13 @@ overrides:
         [max_traces_per_user: <int>]
       global:
         [max_bytes_per_trace: <int>]
+      metrics_generator:
+        # Enable metrics-generator processors for this tenant. For all available fields,
+        # refer to the metrics_generator block in the overrides defaults above.
+        [processors: <list of strings>]
+        # Optional per-tenant remote write headers, for example for per-tenant authentication.
+        remote_write_headers:
+          [<header-name>: <string>]
 
   # A "wildcard" override can be used that will apply to all tenants if a match is not found otherwise.
   "*":
@@ -2681,6 +2688,10 @@ overrides:
     global:
       [max_bytes_per_trace: <int>]
 ```
+
+When a tenant matches a per-tenant override entry, Tempo doesn't merge that entry field-by-field with `defaults`. Most fields require you to set every value a tenant needs within its own block (some settings, such as `ingestion.rate_strategy`, always use `defaults`). A few metrics-generator fields fall back to `defaults` when unset, but most, including `processors` and `remote_write_headers`, don't.
+
+For a complete per-tenant `metrics_generator` example, including `remote_write_headers` for per-tenant authentication and environment variable expansion, refer to [Multi-tenancy support](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/multitenancy/).
 
 ##### User-configurable overrides
 
