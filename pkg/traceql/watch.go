@@ -1,36 +1,15 @@
 package traceql
 
 import (
-	"fmt"
 	"sync"
 	"sync/atomic"
 )
 
-type WatcherSpec struct {
-	// Attribute is the TraceQL attribute identifier to watch
-	Attribute string
-	// Type selects the watcher behavior.
-	Type string
-}
+const SpanPruningAttribute = "aggregation.is_summary"
 
-// NewWatcher builds a SpanWatcher from a spec, parsing the attribute
-// identifier and selecting the watcher type.
-func NewWatcher(spec WatcherSpec) (SpanWatcher, error) {
-	if spec.Attribute == "" {
-		return nil, fmt.Errorf("watch attribute must not be empty")
-	}
-	attr, err := ParseIdentifier(spec.Attribute)
-	if err != nil {
-		// Not a scoped/intrinsic identifier (e.g. a synthetic attribute name such
-		// as "aggregation.is_summary"); treat it as an unscoped attribute name.
-		attr = NewAttribute(spec.Attribute)
-	}
-	switch spec.Type {
-	case "", "presence":
-		return NewAttributePresenceWatcher(attr, spec.Attribute), nil
-	default:
-		return nil, fmt.Errorf("unknown watcher type %q for attribute %q", spec.Type, spec.Attribute)
-	}
+// NewSpanPruningWatcher returns a watcher that reports whether any matched span is a span-pruning summary span.
+func NewSpanPruningWatcher() SpanWatcher {
+	return NewAttributePresenceWatcher(NewAttribute(SpanPruningAttribute), SpanPruningAttribute)
 }
 
 // SpanWatcher inspects spans as they flow through the TraceQL engine and records something about them.

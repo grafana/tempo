@@ -15,7 +15,7 @@ note: Add a span-watcher framework to the TraceQL engine for collecting extra qu
 issues: []
 
 # (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
-subtext: Configured via the per-tenant `watch_attributes` override, it reports whether matched spans carry the given attributes. Applies to search and metrics queries.
+subtext: Enabled via the experimental per-tenant `span_pruning_awareness` override, it reports whether matched spans include span-pruning summary spans. Applies to search and metrics queries.
 
 # The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
 user: mapno

@@ -421,8 +421,8 @@ func (o *runtimeConfigOverridesManager) MetricsSpanOnlyFetch(userID string) *boo
 	return o.getOverridesForUser(userID).Read.MetricsSpanOnlyFetch
 }
 
-func (o *runtimeConfigOverridesManager) WatchAttributes(userID string) []WatchAttribute {
-	return o.getOverridesForUser(userID).Read.WatchAttributes
+func (o *runtimeConfigOverridesManager) SpanPruningAwareness(userID string) bool {
+	return o.getOverridesForUser(userID).Read.SpanPruningAwareness
 }
 
 func (o *runtimeConfigOverridesManager) CostAttributionMaxCardinality(userID string) uint64 {

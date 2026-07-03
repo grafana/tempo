@@ -250,7 +250,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 			for _, name := range req.SkipASTTransformations {
 				searchOpts = append(searchOpts, traceql.WithSkipOptimization(name))
 			}
-			searchOpts = append(searchOpts, overrides.WatchAttributeCompileOptions(i.overrides.WatchAttributes(i.tenantID), i.logger)...)
+			searchOpts = append(searchOpts, overrides.SpanPruningAwarenessCompileOptions(i.overrides.SpanPruningAwareness(i.tenantID))...)
 			resp, err = traceql.NewEngine().ExecuteSearch(ctx, req, f, searchOpts...)
 		} else {
 			resp, err = b.Search(ctx, req, opts)
@@ -742,7 +742,7 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 		compileOpts = append(compileOpts, traceql.WithSpanOnlyFetch(*p))
 	}
 
-	compileOpts = append(compileOpts, overrides.WatchAttributeCompileOptions(i.overrides.WatchAttributes(i.tenantID), i.logger)...)
+	compileOpts = append(compileOpts, overrides.SpanPruningAwarenessCompileOptions(i.overrides.SpanPruningAwareness(i.tenantID))...)
 
 	// Compile the raw version of the query for head and wal blocks
 	// These aren't cached and we put them all into the same evaluator

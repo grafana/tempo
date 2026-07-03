@@ -3707,9 +3707,7 @@ func TestCompileMetricsQueryRange_IsSummaryWatcher(t *testing.T) {
 
 	summaryWatcher := func(t *testing.T) CompileOption {
 		t.Helper()
-		o, err := NewWatcher(WatcherSpec{Attribute: summaryKey})
-		require.NoError(t, err)
-		return WithWatchers(o)
+		return WithWatchers(NewSpanPruningWatcher())
 	}
 
 	withSummary := func() []Span {

@@ -228,9 +228,7 @@ func TestEngineExecuteSearch_IsSummaryWatcher(t *testing.T) {
 
 			var opts []CompileOption
 			if tt.installWatcher {
-				obs, err := NewWatcher(WatcherSpec{Attribute: summaryKey})
-				require.NoError(t, err)
-				opts = append(opts, WithWatchers(obs))
+				opts = append(opts, WithWatchers(NewSpanPruningWatcher()))
 			}
 
 			req := &tempopb.SearchRequest{Query: `{ .foo = "value" }`, SpansPerSpanSet: 10, Limit: 10}

@@ -98,8 +98,7 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 		mostRecent = false
 	}
 
-	// Watchers are config-driven and supplied via WithWatchers (see the
-	// per-tenant watch_attributes override).
+	// Watchers are config-driven and supplied via WithWatchers
 	var watchers spanWatchers
 	watchers.Add(cfg.watchers...)
 

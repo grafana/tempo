@@ -180,19 +180,10 @@ type ReadOverrides struct {
 	// for this tenant.  When not set, then the default behavior is used. Maybe be overridden by query hints.
 	MetricsSpanOnlyFetch *bool `yaml:"metrics_spanonly_fetch,omitempty" json:"metrics_spanonly_fetch,omitempty"`
 
-	// WatchAttributes installs span watchers that report, as additional query
-	// metrics, information about matched spans (e.g. presence of an attribute).
-	WatchAttributes []WatchAttribute `yaml:"watch_attributes,omitempty" json:"watch_attributes,omitempty"`
-}
-
-// WatchAttribute configures a single span watcher.
-// The gathered metric is keyed by Attribute.
-type WatchAttribute struct {
-	// Attribute is the TraceQL attribute identifier to observe
-	Attribute string `yaml:"attribute" json:"attribute"`
-	// Type selects the watcher behavior.
-	// * presence: reports whether any matched span carried the attribute
-	Type string `yaml:"type,omitempty" json:"type,omitempty"`
+	// SpanPruningAwareness is experimental. When enabled, queries report an
+	// additional metric indicating whether the matched spans include
+	// span-pruning summary spans (spans carrying aggregation.is_summary).
+	SpanPruningAwareness bool `yaml:"span_pruning_awareness,omitempty" json:"span_pruning_awareness,omitempty"`
 }
 
 type CompactionOverrides struct {

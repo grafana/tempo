@@ -110,7 +110,7 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 		compileOpts = append(compileOpts, traceql.WithSpanOnlyFetch(*p))
 	}
 
-	compileOpts = append(compileOpts, overrides.WatchAttributeCompileOptions(q.limits.WatchAttributes(tenantID), log.WithUserID(tenantID, log.Logger))...)
+	compileOpts = append(compileOpts, overrides.SpanPruningAwarenessCompileOptions(q.limits.SpanPruningAwareness(tenantID))...)
 
 	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, compileOpts...)
 	if err != nil {
