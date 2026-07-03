@@ -149,15 +149,18 @@ outer:
 // WatchSpan feeds a single span to the active watchers.
 // It's the per-span equivalent of WatchSpans,
 // used by hot paths that already iterate spans individually (e.g. the span-only metrics fetch) to avoid allocating a Spanset.
-func (s *spanWatchers) WatchSpan(span Span) {
+// It returns whether any watchers remain active, so callers can stop
+// calling (and paying for the mutex) once all watchers are done.
+func (s *spanWatchers) WatchSpan(span Span) bool {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
 	if s.active == 0 {
-		return // done, exit early
+		return false // done, exit early
 	}
 
 	s.watch(span)
+	return s.active > 0
 }
 
 // watch walks the active prefix for a single span.
