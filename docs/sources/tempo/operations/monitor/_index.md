@@ -46,6 +46,15 @@ To enable tracing, set one of the following: `OTEL_EXPORTER_OTLP_ENDPOINT` or `O
 
 The OpenTelemetry SDK uses OTLP/HTTP by default, which can be configured with `OTEL_EXPORTER_OTLP_PROTOCOL`.
 
+You can control sampling with the standard [`OTEL_TRACES_SAMPLER` and `OTEL_TRACES_SAMPLER_ARG`](https://opentelemetry.io/docs/languages/sdk-configuration/general/) environment variables.
+In addition to the samplers built into the OpenTelemetry SDK, Tempo supports the `jaeger_remote` and `parentbased_jaeger_remote` samplers.
+For example:
+
+```
+OTEL_TRACES_SAMPLER=parentbased_jaeger_remote
+OTEL_TRACES_SAMPLER_ARG=endpoint=http://localhost:5778/sampling,pollingIntervalMs=5000,initialSamplingRate=0.25
+```
+
 ## Polling
 
 Tempo maintains knowledge of the state of the backend by polling it on regular intervals.
