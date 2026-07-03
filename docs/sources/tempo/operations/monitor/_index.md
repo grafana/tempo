@@ -41,34 +41,8 @@ Tempo emits logs in the `key=value` ([logfmt](https://brandur.org/logfmt)) forma
 Tempo uses the [OpenTelemetry SDK](https://github.com/open-telemetry/opentelemetry-go) for tracing instrumentation.
 The complete read path and some parts of the write path of Tempo are instrumented for tracing.
 
-You can configure the tracer [using environment variables](https://opentelemetry.io/docs/languages/sdk-configuration/otlp-exporter/).
-To enable tracing, set one of the following: `OTEL_EXPORTER_OTLP_ENDPOINT` or `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`.
-
-The OpenTelemetry SDK uses OTLP/HTTP by default, which can be configured with `OTEL_EXPORTER_OTLP_PROTOCOL`.
-
-Alternatively, you can enable tracing with the Jaeger environment variables.
-Set `JAEGER_AGENT_HOST`, `JAEGER_ENDPOINT`, or `JAEGER_SAMPLER_MANAGER_HOST_PORT` to report traces to a Jaeger endpoint.
-When both Jaeger and OpenTelemetry variables are set, the Jaeger variables take precedence.
-
-You can control sampling with the standard [`OTEL_TRACES_SAMPLER` and `OTEL_TRACES_SAMPLER_ARG`](https://opentelemetry.io/docs/languages/sdk-configuration/general/) environment variables.
-In addition to the samplers built into the OpenTelemetry SDK, Tempo supports the `jaeger_remote` and `parentbased_jaeger_remote` samplers.
-For example:
-
-```
-OTEL_TRACES_SAMPLER=parentbased_jaeger_remote
-OTEL_TRACES_SAMPLER_ARG=endpoint=http://localhost:5778/sampling,pollingIntervalMs=5000,initialSamplingRate=0.25
-```
-
-Tempo reports traces with the service name `tempo-<target>`, where `<target>` is the value of the `-target` flag.
-Set `OTEL_SERVICE_NAME` or `JAEGER_SERVICE_NAME` to override the service name.
-`OTEL_SERVICE_NAME` takes precedence when both are set.
-
-Use `OTEL_RESOURCE_ATTRIBUTES` to add custom resource attributes to the reported traces.
-
-Use `OTEL_PROPAGATORS` to configure trace context propagation.
-By default, Tempo uses the `tracecontext`, `baggage`, and `jaeger` propagation formats.
-To force sampling of a single request, set the `Jaeger-Debug-Id` HTTP header on the request.
-Tempo samples the request regardless of the sampler configuration and adds the header value as the `jaeger-debug-id` span attribute.
+You can configure the tracer using OpenTelemetry or Jaeger environment variables.
+Refer to [Configure Tempo self-tracing](self-tracing/) for the supported environment variables, sampling, propagation, and examples.
 
 ## Polling
 
