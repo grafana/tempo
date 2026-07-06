@@ -6,21 +6,23 @@ Wire format is unchanged (standard protobuf, binary-compatible with gogo);
 only the generated Go API shape changes.
 
 Toolchain: `wiresmith` CLI built from the public `github.com/grafana/wiresmith`
-`main` branch (`v0.0.0-20260618160438-f15959a1e4e7`, commit f15959a —
-the `UnmarshalNoPrescan` compiler, see the §`UnmarshalNoPrescan` adoption
-below), invoked from `make gen-proto` (the buf+docker+gogofaster pipeline is
+`main` branch (`v0.0.0-20260706094138-fc34fadb1d56`, commit fc34fad — the
+`UnmarshalNoPrescan` compiler, now with flat-file import keying at protoc/buf
+parity; see §`UnmarshalNoPrescan` adoption and §Import-keying brush-up below),
+invoked from `make gen-proto` (the buf+docker+gogofaster pipeline is
 gone). The repo is public and go-installable: `go.mod` carries `require
 github.com/grafana/wiresmith` (runtime `protohelpers` package) pinned to that
 published `main` pseudo-version — no `replace` and no private-module env
 needed. `make gen-proto` reproduces the committed output byte-identically
 (regen-vs-pinned now consistent: install the pinned binary with
-`go install github.com/grafana/wiresmith/cmd/wiresmith@v0.0.0-20260618160438-f15959a1e4e7`
+`go install github.com/grafana/wiresmith/cmd/wiresmith@v0.0.0-20260706094138-fc34fadb1d56`
 and the generated `.pb.go` are byte-for-byte unchanged).
 
 The former `databases` branch was squash-merged to wiresmith `main` as commit
 f15959a (#142). The orphaned `databases` pseudo-versions (edd3e465d382, etc.)
 remain fetchable via the Go module proxy, but the canonical pin is now
-`v0.0.0-20260618160438-f15959a1e4e7`. The compiler in `compiler/`,
+`v0.0.0-20260706094138-fc34fadb1d56` (commit fc34fad; f15959a was the prior
+pin — see §Import-keying brush-up). The compiler in `compiler/`,
 `protohelpers/`, and `proto/` is byte-identical between edd3e46 and f15959a.
 
 Note: `(wiresmith.options.enum_no_prefix)` (gogo goproto_enum_prefix=false
@@ -93,6 +95,42 @@ generated `HasInstant`) or tied to a deliberate decision / open gap:
   (`TestBlockMetaJSON*`, fixture-based `TestFixtures`/`TestOriginalFixtures`
   against stored tenant indexes) pass; generated struct json tags were
   diffed against gogo's and match exactly.
+
+## Import-keying brush-up (2026-07-06)
+
+Re-pinned go.mod from `v0.0.0-20260618160438-f15959a1e4e7` (f15959a) to the
+public `v0.0.0-20260706094138-fc34fadb1d56` (fc34fad) and re-ran `make
+gen-proto`. Between the two pins the only codegen-affecting change is
+wiresmith's **flat-file import-keying flip** (`wiresmith-ze92`): a `.proto`
+sitting directly at a `--proto_path` root is now keyed by its bare
+source-relative path (protoc/buf parity), not by its proto package as before.
+The other commits are a `go`-directive lowering (the wiresmith module now
+declares `go 1.25.0`; Tempo's own `go 1.26.4` directive is untouched) and
+metadata; the vendored `protohelpers` runtime is byte-identical between the pins.
+
+Tempo exploited the old package-derived keying in the `tempo.proto` +
+`backendwork.proto` gen step: both files (package `tempopb`) were staged flat at
+the `--proto_path` root so the package-derived key `tempopb/tempo.proto` placed
+their output in `pkg/tempopb/`. Under path-parity a flat file keys as
+`tempo.proto` and would emit at `pkg/tempo.pb.go` with a `tempopb/`-less
+`// source:` header. Adaptation (Makefile `gen-proto`): stage the two files
+under a `tempopb/` subdir of the build tree (`pkg/.wiresmith-build/tempopb/`) so
+their path-relative key is again `tempopb/tempo.proto`; with `--out=pkg` the
+source-relative output lands back in `pkg/tempopb/`. The three other gen steps
+already stage their protos in subdirs (`common/v1/…`, `backend/v1.proto`,
+`frontendv1pb/frontend.proto`), so their keys were path-derived even before
+fc34fad and needed no change. No vendored `wiresmith/options.proto` exists on
+disk, so fc34fad's byte-identical-vendored-copy tolerance does not apply here.
+
+Regen is byte-identical to the committed `.pb.go` — all `// source:` headers,
+rawDesc path bytes, and `file_*_proto` identifiers are unchanged
+(`tempopb/tempo.proto`, `tempopb/backendwork.proto`) — and byte-stable across
+two consecutive `make gen-proto` runs. The only tree changes are the Makefile
+staging, go.mod/go.sum, and vendor/modules.txt. `go build ./...` and the
+proto-consuming test packages (tempopb, ingest, tempodb/backend, frontend,
+distributor, generator, querier) pass; `go vet ./...` is unchanged (its one
+pre-existing finding in `modules/distributor/forwarder/manager_test.go` is
+present on the base commit too).
 
 ## Migration notes
 
@@ -249,11 +287,10 @@ feature, severity.
   **Benchmarks** below.
 - ~~Replace the local `replace github.com/grafana/wiresmith => ...` with a
   published module version.~~ Done — now pinned to the public `main`
-  pseudo-version `v0.0.0-20260618160438-f15959a1e4e7` (f15959a), which is the
-  squash-merge of the `databases` branch (#142). No `replace` remains.
-  Regen-vs-pinned is consistent (committed `.pb.go` byte-identical to a fresh
-  regen with the `f15959a` binary, which is byte-identical to edd3e46 in
-  `compiler/`/`protohelpers/`/`proto/`).
+  pseudo-version `v0.0.0-20260706094138-fc34fadb1d56` (fc34fad; bumped from the
+  #142 squash-merge f15959a for the import-keying flip, see §Import-keying
+  brush-up). No `replace` remains. Regen-vs-pinned is consistent (committed
+  `.pb.go` byte-identical to a fresh regen with the pinned binary).
 - `vendor/modules.txt` pins vtprotobuf one rev newer (pulled transitively
   via the wiresmith module) — sanity-checked, but worth a second look.
 - Old gogo annotations are gone from the protos; consider dropping the

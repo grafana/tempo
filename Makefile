@@ -333,14 +333,15 @@ gen-proto:  ## Generate proto files
 	$(WIRESMITH) --proto_path=pkg/tempopb/.wiresmith-proto --out=pkg/tempopb --module=github.com/grafana/tempo
 
 	@# Generate Tempo protos with wiresmith. tempo.proto/backendwork.proto import
-	@# the patched OTel protos, so a combined tree is assembled first. --out=pkg
-	@# because files at the proto_path root get a package-derived import key
-	@# (tempopb/tempo.proto), which places the output in pkg/tempopb/.
+	@# the patched OTel protos, so a combined tree is assembled first. The two
+	@# files are staged under a tempopb/ subdir so their path-relative import key
+	@# is tempopb/tempo.proto (protoc/buf keying); with --out=pkg the
+	@# source-relative output then lands in pkg/tempopb/.
 	rm -rf pkg/.wiresmith-build
-	mkdir -p pkg/.wiresmith-build
+	mkdir -p pkg/.wiresmith-build/tempopb
 	cp -R pkg/tempopb/.wiresmith-proto/* pkg/.wiresmith-build/
-	cp pkg/tempopb/tempo.proto pkg/tempopb/backendwork.proto pkg/.wiresmith-build/
-	$(WIRESMITH) --proto_path=pkg/.wiresmith-build --out=pkg --module=github.com/grafana/tempo pkg/.wiresmith-build/tempo.proto pkg/.wiresmith-build/backendwork.proto
+	cp pkg/tempopb/tempo.proto pkg/tempopb/backendwork.proto pkg/.wiresmith-build/tempopb/
+	$(WIRESMITH) --proto_path=pkg/.wiresmith-build --out=pkg --module=github.com/grafana/tempo pkg/.wiresmith-build/tempopb/tempo.proto pkg/.wiresmith-build/tempopb/backendwork.proto
 	rm -rf pkg/.wiresmith-build
 
 	@# Generate backend proto with wiresmith. The file is staged as
