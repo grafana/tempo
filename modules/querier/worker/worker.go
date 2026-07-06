@@ -90,6 +90,9 @@ type querierWorker struct {
 	mu sync.Mutex
 	// Set to nil when stop is called... no more managers are created afterwards.
 	managers map[string]*processorManager
+
+	// connectFunc overrides connect; set in tests to simulate slow or failing dials.
+	connectFunc func(ctx context.Context, address string) (*grpc.ClientConn, error)
 }
 
 func NewQuerierWorker(cfg Config, handler RequestHandler, log log.Logger, _ prometheus.Registerer) (services.Service, error) {
@@ -175,16 +178,37 @@ func (w *querierWorker) AddressAdded(address string) {
 	}
 
 	w.mu.Lock()
-	defer w.mu.Unlock()
-
 	if m := w.managers[address]; m != nil {
+		w.mu.Unlock()
+		return
+	}
+	w.mu.Unlock()
+
+	level.Info(w.log).Log("msg", "adding connection", "addr", address)
+	connectFn := w.connect
+	if w.connectFunc != nil {
+		connectFn = w.connectFunc
+	}
+	conn, err := connectFn(ctx, address)
+	if err != nil {
+		level.Error(w.log).Log("msg", "error connecting", "addr", address, "err", err)
 		return
 	}
 
-	level.Info(w.log).Log("msg", "adding connection", "addr", address)
-	conn, err := w.connect(context.Background(), address)
-	if err != nil {
-		level.Error(w.log).Log("msg", "error connecting", "addr", address, "err", err)
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	// Double-check if the service was stopped or the address was added in the meantime.
+	if ctx.Err() != nil {
+		if err := conn.Close(); err != nil {
+			level.Error(w.log).Log("msg", "error closing connection on service stop", "addr", address, "err", err)
+		}
+		return
+	}
+	if m := w.managers[address]; m != nil {
+		if err := conn.Close(); err != nil {
+			level.Error(w.log).Log("msg", "error closing duplicate connection", "addr", address, "err", err)
+		}
 		return
 	}
 
