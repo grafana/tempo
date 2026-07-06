@@ -191,6 +191,10 @@ func (w *querierWorker) AddressAdded(address string) {
 	}
 	conn, err := connectFn(ctx, address)
 	if err != nil {
+		if ctx.Err() != nil {
+			level.Debug(w.log).Log("msg", "connection attempt canceled", "addr", address, "err", err)
+			return
+		}
 		level.Error(w.log).Log("msg", "error connecting", "addr", address, "err", err)
 		return
 	}

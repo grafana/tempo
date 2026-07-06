@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/grpcclient"
@@ -85,8 +86,8 @@ func TestQuerierWorker_ShutdownDuringHangingDial(t *testing.T) {
 
 	dialStarted := make(chan struct{})
 	w.connectFunc = func(ctx context.Context, _ string) (*grpc.ClientConn, error) {
-		close(dialStarted)  // signal that we are inside the blocking dial
-		<-ctx.Done()        // block until the service context is cancelled
+		close(dialStarted) // signal that we are inside the blocking dial
+		<-ctx.Done()       // block until the service context is cancelled
 		return nil, ctx.Err()
 	}
 
@@ -94,12 +95,21 @@ func TestQuerierWorker_ShutdownDuringHangingDial(t *testing.T) {
 	require.NoError(t, w.AwaitRunning(context.Background()))
 
 	go w.AddressAdded("127.0.0.1:9999")
-	<-dialStarted // wait until AddressAdded is blocked inside the injected dialer
+
+	select {
+	case <-dialStarted:
+		// OK
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for dial to start")
+	}
 
 	// Without the fix, StopAsync would block forever because the mutex was held
 	// during the dial and stopping() could never acquire it.
 	w.StopAsync()
-	require.NoError(t, w.AwaitTerminated(context.Background()))
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	require.NoError(t, w.AwaitTerminated(shutdownCtx))
 
 	// The dial was cancelled; no manager should have been installed.
 	w.mu.Lock()
