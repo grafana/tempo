@@ -6,7 +6,7 @@ aliases:
   - /docs/tempo/latest/guides/pushing-spans-with-http/
 ---
 
-# Push spans with HTTP
+# Push spans with HTTP or gRPC
 
 Sometimes using a tracing system is intimidating because it seems like you need complex application instrumentation
 or a span ingestion pipeline to push spans. This guide shows a basic technique for
