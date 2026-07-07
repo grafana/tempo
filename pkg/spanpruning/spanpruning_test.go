@@ -453,12 +453,18 @@ func TestPruneTrace_GroupByNonStringAttributes(t *testing.T) {
 		newSpanWithAttrs(sid(3, 0), sid(1, 0), "db_query", 0, 100, intAttr(2), boolAttr(true)),
 		newSpanWithAttrs(sid(3, 1), sid(1, 0), "db_query", 0, 100, intAttr(2), boolAttr(true)),
 	)
+	// 2 spans: retries=1, cached=false — same retries as the first group, but must not merge
+	// with it, or grouping isn't actually keying on the bool attribute.
+	spans = append(spans,
+		newSpanWithAttrs(sid(4, 0), sid(1, 0), "db_query", 0, 100, intAttr(1), boolAttr(false)),
+		newSpanWithAttrs(sid(4, 1), sid(1, 0), "db_query", 0, 100, intAttr(1), boolAttr(false)),
+	)
 
 	result, err := PruneTrace(cfg, wrapTrace(spans...))
 	require.NoError(t, err)
-	// parent + 2 summaries (one per group)
-	assert.Equal(t, 3, countSpans(result))
-	assert.Len(t, findAllSummaries(result), 2)
+	// parent + 3 summaries (one per group)
+	assert.Equal(t, 4, countSpans(result))
+	assert.Len(t, findAllSummaries(result), 3)
 }
 
 func TestPruneTrace_DifferentGroups(t *testing.T) {
