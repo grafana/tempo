@@ -21,6 +21,8 @@ import (
 // summary span annotated with aggregation statistics.
 func PruneTrace(cfg *spanpruningprocessor.Config, trace *tempopb.Trace) (*tempopb.Trace, error) {
 	ctx := context.Background()
+	// TODO: this marshal/unmarshal round trip through ptrace is an opt-in-feature-only cost for
+	// now; if span pruning becomes hot enough to matter, work on the otel trace format directly.
 	td, err := tempopbToTraces(trace)
 	if err != nil {
 		return nil, err
@@ -32,9 +34,7 @@ func PruneTrace(cfg *spanpruningprocessor.Config, trace *tempopb.Trace) (*tempop
 		return nil, err
 	}
 
-	if c, ok := p.(component.Component); ok {
- 		defer func() { _ = c.Shutdown(ctx) }()
- 	}
+	defer func() { _ = p.Shutdown(ctx) }()
 
 	if err := p.ConsumeTraces(ctx, td); err != nil {
 		return nil, err
@@ -43,11 +43,14 @@ func PruneTrace(cfg *spanpruningprocessor.Config, trace *tempopb.Trace) (*tempop
 	return tracesToTempopb(sink.traces)
 }
 
-func newProcessor(cfg *spanpruningprocessor.Config, next *next) (interface {
+// tracesProcessor is the subset of the OTel Collector traces processor interface this package
+// drives directly: consuming traces and, if present, shutting down cleanly.
+type tracesProcessor interface {
 	component.Component
 	ConsumeTraces(context.Context, ptrace.Traces) error
-}, error,
-) {
+}
+
+func newProcessor(cfg *spanpruningprocessor.Config, next *next) (tracesProcessor, error) {
 	settings := processor.Settings{
 		ID: component.MustNewID("spanpruning"),
 		TelemetrySettings: component.TelemetrySettings{

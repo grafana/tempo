@@ -12,6 +12,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	spanpruningprocessor "github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanpruningprocessor"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -698,6 +699,104 @@ func TestParseTraceByIDRequest(t *testing.T) {
 		assert.Equal(t, tc.blockEnd, blockEnd)
 		assert.Equal(t, tc.startTime, startTime)
 		assert.Equal(t, tc.endTime, endTime)
+	}
+}
+
+func TestParseSpanPruningRequest(t *testing.T) {
+	defaultCfg := func() *spanpruningprocessor.Config {
+		return spanpruningprocessor.NewFactory().CreateDefaultConfig().(*spanpruningprocessor.Config)
+	}
+
+	tests := []struct {
+		name          string
+		query         string
+		expectEnabled bool
+		expectCfg     *spanpruningprocessor.Config
+		expectedError string
+	}{
+		{
+			name:          "absent param disables pruning",
+			query:         "",
+			expectEnabled: false,
+			expectCfg:     nil,
+		},
+		{
+			name:          "explicit false disables pruning",
+			query:         "span_pruning=false",
+			expectEnabled: false,
+			expectCfg:     nil,
+		},
+		{
+			name:          "invalid bool value",
+			query:         "span_pruning=maybe",
+			expectedError: `invalid span_pruning value "maybe": must be a boolean`,
+		},
+		{
+			name:          "true with defaults",
+			query:         "span_pruning=true",
+			expectEnabled: true,
+			expectCfg:     defaultCfg(),
+		},
+		{
+			name:          "group_by trims whitespace and drops empty entries",
+			query:         "span_pruning=true&span_pruning_group_by=" + url.QueryEscape("http.route, , db.statement,"),
+			expectEnabled: true,
+			expectCfg: func() *spanpruningprocessor.Config {
+				cfg := defaultCfg()
+				cfg.GroupByAttributes = []string{"http.route", "db.statement"}
+				return cfg
+			}(),
+		},
+		{
+			name:          "min_spans override",
+			query:         "span_pruning=true&span_pruning_min_spans=10",
+			expectEnabled: true,
+			expectCfg: func() *spanpruningprocessor.Config {
+				cfg := defaultCfg()
+				cfg.MinSpansToAggregate = 10
+				return cfg
+			}(),
+		},
+		{
+			name:          "min_spans invalid integer",
+			query:         "span_pruning=true&span_pruning_min_spans=nope",
+			expectedError: `invalid span_pruning_min_spans value "nope": strconv.Atoi: parsing "nope": invalid syntax`,
+		},
+		{
+			name:          "min_spans below processor minimum fails validation",
+			query:         "span_pruning=true&span_pruning_min_spans=1",
+			expectedError: "invalid span pruning config",
+		},
+		{
+			name:          "max_parent_depth override",
+			query:         "span_pruning=true&span_pruning_max_parent_depth=2",
+			expectEnabled: true,
+			expectCfg: func() *spanpruningprocessor.Config {
+				cfg := defaultCfg()
+				cfg.MaxParentDepth = 2
+				return cfg
+			}(),
+		},
+		{
+			name:          "max_parent_depth invalid integer",
+			query:         "span_pruning=true&span_pruning_max_parent_depth=nope",
+			expectedError: `invalid span_pruning_max_parent_depth value "nope": strconv.Atoi: parsing "nope": invalid syntax`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/api/v2/traces/1234?"+tc.query, nil)
+			enabled, cfg, err := ParseSpanPruningRequest(req)
+			if tc.expectedError != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedError)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectEnabled, enabled)
+			assert.Equal(t, tc.expectCfg, cfg)
+		})
 	}
 }
 

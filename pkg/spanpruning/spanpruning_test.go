@@ -628,7 +628,7 @@ func TestPruneTrace_LongestDurationTemplate(t *testing.T) {
 	require.NotNil(t, id)
 	assert.Equal(t, "longest", id.GetStringValue())
 	assert.Equal(t, int64(100), attrInt(sum, "aggregation.duration_min_ns"))
-	assert.Equal(t, int64(500), attrInt(sum, "aggregation.duration_max_ns"))
+	require.Equal(t, int64(500), attrInt(sum, "aggregation.duration_max_ns"))
 }
 
 // ---------------------------------------------------------------------------

@@ -950,9 +950,6 @@ func ReadBodyToBuffer(resp *http.Response) (*bytes.Buffer, error) {
 	return buffer, nil
 }
 
-// SpanPruningMode controls how span pruning is applied to a trace-by-id v2 response.
-type SpanPruningMode string
-
 func ParseSpanPruningRequest(r *http.Request) (bool, *spanpruningprocessor.Config, error) {
 	raw := r.URL.Query().Get(urlParamSpanPruning)
 	if raw == "" {
