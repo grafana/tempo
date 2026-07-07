@@ -56,10 +56,13 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceR
 				}
 			}
 
-			// skip pruning on a partial trace: the upstream processor's leaf detection assumes a
-			// complete trace, and pruning a partial one can produce misleading summaries.
-			if opts.SpanPruningConfig != nil && !partialTrace && !combiner.IsPartialTrace() {
-				pruned, err := spanpruning.PruneTrace(opts.SpanPruningConfig, traceResult)
+			// Pruning runs even on a partial trace (see partialTrace/combiner.IsPartialTrace below):
+			// reducing the size of an already-oversized partial trace is still valuable, and the
+			// resulting summary spans are simply scoped to whatever spans made it into the partial result.
+			if opts.SpanPruningConfig != nil {
+				var pruned *tempopb.Trace
+				var err error
+				pruned, err = spanpruning.PruneTrace(opts.SpanPruningConfig, traceResult)
 				if err != nil {
 					if opts.Logger != nil {
 						level.Error(opts.Logger).Log("msg", "span pruning failed, returning unpruned trace", "err", err)

@@ -184,7 +184,7 @@ Parameters:
 - `end = (unix epoch seconds)`
   Optional. Along with `start` define a time range from which traces should be returned. Providing both `start` and `end` includes traces for the specified time range only. If the parameters aren't provided then Tempo checks for the trace across all blocks in backend. If the parameters are provided, it only checks in the blocks within the specified time range, this can result in trace not being found or partial results if it doesn't fall in the specified time range.
 - `span_pruning = (boolean)`
-  Optional. Enables span pruning post-processing on the returned trace, collapsing similar leaf spans into a single summary span. Only takes effect when the query-frontend also has `span_pruning_enabled: true` set under `trace_by_id`; otherwise this parameter is ignored.
+  Optional. Enables span pruning post-processing on the returned trace, collapsing similar leaf spans into a single summary span. Only takes effect when the query-frontend also has `span_pruning_enabled: true` set under `trace_by_id`; otherwise this parameter is ignored. Pruning is applied even if the returned trace is partial (for example, because it exceeds the maximum trace size); the resulting summary spans reflect only the spans present in the partial trace.
   Default = `false`
 - `span_pruning_group_by = (comma-separated list of attribute glob patterns)`
   Optional. Overrides the attribute patterns used to decide which leaf spans belong in the same aggregation group, for example `db.*,http.method`. Spans must share the span name and have identical values for every matched attribute to be grouped. Only used when `span_pruning=true`.

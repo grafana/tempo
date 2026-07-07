@@ -9,12 +9,16 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util/test"
+	spanpruningprocessor "github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanpruningprocessor"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+
+	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/tempopb"
+	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/util/test"
 )
 
 type MockResponse struct {
@@ -169,4 +173,87 @@ func TestNewTraceByIDV2(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, res)
 	})
+}
+
+// TestNewTraceByIDV2WithSpanPruning mimics TestPruneTrace_BasicAggregation from
+// pkg/spanpruning to verify that the combiner actually invokes span pruning: 3 identical
+// leaf spans below a parent should collapse into a single summary span.
+func TestNewTraceByIDV2WithSpanPruning(t *testing.T) {
+	traceID := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	parent := &tracev1.Span{
+		TraceId: traceID,
+		SpanId:  []byte{1, 0, 0, 0, 0, 0, 0, 0},
+		Name:    "parent",
+	}
+	spans := []*tracev1.Span{parent}
+	for i := byte(0); i < 3; i++ {
+		spans = append(spans, &tracev1.Span{
+			TraceId:      traceID,
+			SpanId:       []byte{2, i, 0, 0, 0, 0, 0, 0},
+			ParentSpanId: parent.SpanId,
+			Name:         "SELECT",
+			Attributes: []*commonv1.KeyValue{
+				{Key: "db.operation", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "select"}}},
+			},
+		})
+	}
+
+	traceResponse := &tempopb.TraceByIDResponse{
+		Trace: &tempopb.Trace{
+			ResourceSpans: []*tracev1.ResourceSpans{
+				{ScopeSpans: []*tracev1.ScopeSpans{{Spans: spans}}},
+			},
+		},
+		Metrics: &tempopb.TraceByIDMetrics{},
+	}
+	resBytes, err := proto.Marshal(traceResponse)
+	require.NoError(t, err)
+	response := http.Response{
+		StatusCode: 200,
+		Header:     map[string][]string{"Content-Type": {"application/protobuf"}},
+		Body:       io.NopCloser(bytes.NewReader(resBytes)),
+	}
+
+	cfg := spanpruningprocessor.NewFactory().CreateDefaultConfig().(*spanpruningprocessor.Config)
+	cfg.MinSpansToAggregate = 2
+	cfg.MaxParentDepth = 0
+
+	c := NewTraceByIDV2(100_000, api.HeaderAcceptProtobuf, nil, TraceByIDV2Options{SpanPruningConfig: cfg})
+	err = c.AddResponse(MockResponse{&response})
+	require.NoError(t, err)
+
+	res, err := c.HTTPFinal()
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, res.StatusCode)
+
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	actualResp := &tempopb.TraceByIDResponse{}
+	require.NoError(t, proto.Unmarshal(body, actualResp))
+
+	var (
+		spanCount int
+		summary   *tracev1.Span
+	)
+	for _, rs := range actualResp.Trace.ResourceSpans {
+		for _, ss := range rs.ScopeSpans {
+			spanCount += len(ss.Spans)
+			for _, s := range ss.Spans {
+				for _, kv := range s.Attributes {
+					if kv.Key == "aggregation.is_summary" && kv.Value.GetBoolValue() {
+						summary = s
+					}
+				}
+			}
+		}
+	}
+
+	// parent + 1 summary replacing the 3 aggregated SELECT spans
+	assert.Equal(t, 2, spanCount)
+	require.NotNil(t, summary, "expected a pruned summary span")
+	for _, kv := range summary.Attributes {
+		if kv.Key == "aggregation.span_count" {
+			assert.Equal(t, int64(3), kv.Value.GetIntValue())
+		}
+	}
 }

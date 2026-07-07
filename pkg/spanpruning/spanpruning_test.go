@@ -32,8 +32,8 @@ func newSpan(id, parentID []byte, name string, startNs, endNs uint64) *tracev1.S
 	}
 }
 
-func newSpanWithStatus(id, parentID []byte, name string, startNs, endNs uint64, code tracev1.Status_StatusCode) *tracev1.Span {
-	s := newSpan(id, parentID, name, startNs, endNs)
+func newSpanWithStatus(id, parentID []byte, name string, endNs uint64, code tracev1.Status_StatusCode) *tracev1.Span {
+	s := newSpan(id, parentID, name, 0, endNs)
 	s.Status = &tracev1.Status{Code: code}
 	return s
 }
@@ -48,12 +48,12 @@ func strAttr(k, v string) *commonv1.KeyValue {
 	return &commonv1.KeyValue{Key: k, Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: v}}}
 }
 
-func intAttr(k string, v int64) *commonv1.KeyValue {
-	return &commonv1.KeyValue{Key: k, Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_IntValue{IntValue: v}}}
+func intAttr(v int64) *commonv1.KeyValue {
+	return &commonv1.KeyValue{Key: "db.retries", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_IntValue{IntValue: v}}}
 }
 
-func boolAttr(k string, v bool) *commonv1.KeyValue {
-	return &commonv1.KeyValue{Key: k, Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_BoolValue{BoolValue: v}}}
+func boolAttr(v bool) *commonv1.KeyValue {
+	return &commonv1.KeyValue{Key: "db.cached", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_BoolValue{BoolValue: v}}}
 }
 
 func wrapTrace(spans ...*tracev1.Span) *tempopb.Trace {
@@ -64,9 +64,9 @@ func wrapTrace(spans ...*tracev1.Span) *tempopb.Trace {
 	}
 }
 
-func defaultCfg(min int) *spanpruningprocessor.Config {
+func defaultCfg(minSpans int) *spanpruningprocessor.Config {
 	cfg := spanpruningprocessor.NewFactory().CreateDefaultConfig().(*spanpruningprocessor.Config)
-	cfg.MinSpansToAggregate = min
+	cfg.MinSpansToAggregate = minSpans
 	return cfg
 }
 
@@ -162,15 +162,6 @@ func allByName(t *tempopb.Trace, name string) []*tracev1.Span {
 		}
 	}
 	return out
-}
-
-func findByID(t *tempopb.Trace, id []byte) *tracev1.Span {
-	for _, s := range allSpans(t) {
-		if string(s.SpanId) == string(id) {
-			return s
-		}
-	}
-	return nil
 }
 
 // attrIntVal returns the int64 value of an attribute, panics if missing/wrong type.
@@ -296,10 +287,10 @@ func TestPruneTrace_StatusAggregation(t *testing.T) {
 	parent := newSpan(sid(1, 0), nil, "parent", 0, 1000)
 	spans := []*tracev1.Span{parent}
 	for i := byte(0); i < 4; i++ {
-		spans = append(spans, newSpanWithStatus(sid(2, i), sid(1, 0), "SELECT", 0, 100, tracev1.Status_STATUS_CODE_OK))
+		spans = append(spans, newSpanWithStatus(sid(2, i), sid(1, 0), "SELECT", 100, tracev1.Status_STATUS_CODE_OK))
 	}
 	for i := byte(0); i < 2; i++ {
-		spans = append(spans, newSpanWithStatus(sid(3, i), sid(1, 0), "SELECT", 0, 100, tracev1.Status_STATUS_CODE_ERROR))
+		spans = append(spans, newSpanWithStatus(sid(3, i), sid(1, 0), "SELECT", 100, tracev1.Status_STATUS_CODE_ERROR))
 	}
 
 	result, err := PruneTrace(cfg, wrapTrace(spans...))
@@ -321,8 +312,8 @@ func TestPruneTrace_StatusBelowThreshold(t *testing.T) {
 	cfg.MaxParentDepth = 0
 
 	parent := newSpan(sid(1, 0), nil, "parent", 0, 1000)
-	ok := newSpanWithStatus(sid(2, 0), sid(1, 0), "SELECT", 0, 100, tracev1.Status_STATUS_CODE_OK)
-	er := newSpanWithStatus(sid(2, 1), sid(1, 0), "SELECT", 0, 100, tracev1.Status_STATUS_CODE_ERROR)
+	ok := newSpanWithStatus(sid(2, 0), sid(1, 0), "SELECT", 100, tracev1.Status_STATUS_CODE_OK)
+	er := newSpanWithStatus(sid(2, 1), sid(1, 0), "SELECT", 100, tracev1.Status_STATUS_CODE_ERROR)
 
 	result, err := PruneTrace(cfg, wrapTrace(parent, ok, er))
 	require.NoError(t, err)
@@ -454,13 +445,13 @@ func TestPruneTrace_GroupByNonStringAttributes(t *testing.T) {
 	spans := []*tracev1.Span{parent}
 	// 2 spans: retries=1, cached=true
 	spans = append(spans,
-		newSpanWithAttrs(sid(2, 0), sid(1, 0), "db_query", 0, 100, intAttr("db.retries", 1), boolAttr("db.cached", true)),
-		newSpanWithAttrs(sid(2, 1), sid(1, 0), "db_query", 0, 100, intAttr("db.retries", 1), boolAttr("db.cached", true)),
+		newSpanWithAttrs(sid(2, 0), sid(1, 0), "db_query", 0, 100, intAttr(1), boolAttr(true)),
+		newSpanWithAttrs(sid(2, 1), sid(1, 0), "db_query", 0, 100, intAttr(1), boolAttr(true)),
 	)
 	// 2 spans: retries=2, cached=true
 	spans = append(spans,
-		newSpanWithAttrs(sid(3, 0), sid(1, 0), "db_query", 0, 100, intAttr("db.retries", 2), boolAttr("db.cached", true)),
-		newSpanWithAttrs(sid(3, 1), sid(1, 0), "db_query", 0, 100, intAttr("db.retries", 2), boolAttr("db.cached", true)),
+		newSpanWithAttrs(sid(3, 0), sid(1, 0), "db_query", 0, 100, intAttr(2), boolAttr(true)),
+		newSpanWithAttrs(sid(3, 1), sid(1, 0), "db_query", 0, 100, intAttr(2), boolAttr(true)),
 	)
 
 	result, err := PruneTrace(cfg, wrapTrace(spans...))
@@ -745,7 +736,7 @@ func TestPruneTrace_RecursiveParentAggregation(t *testing.T) {
 	// 3× handler(OK) → SELECT(OK)
 	for i := byte(0); i < 3; i++ {
 		hID := sid(2, i)
-		h := newSpanWithStatus(hID, rootID, "handler", 0, 500, tracev1.Status_STATUS_CODE_OK)
+		h := newSpanWithStatus(hID, rootID, "handler", 500, tracev1.Status_STATUS_CODE_OK)
 		s := newSpanWithAttrs(sid(3, i), hID, "SELECT", 0, 100, strAttr("db.op", "select"))
 		s.Status = &tracev1.Status{Code: tracev1.Status_STATUS_CODE_OK}
 		spans = append(spans, h, s)
@@ -753,14 +744,14 @@ func TestPruneTrace_RecursiveParentAggregation(t *testing.T) {
 	// 2× handler(Error) → SELECT(Error)
 	for i := byte(0); i < 2; i++ {
 		hID := sid(4, i)
-		h := newSpanWithStatus(hID, rootID, "handler", 0, 500, tracev1.Status_STATUS_CODE_ERROR)
+		h := newSpanWithStatus(hID, rootID, "handler", 500, tracev1.Status_STATUS_CODE_ERROR)
 		s := newSpanWithAttrs(sid(5, i), hID, "SELECT", 0, 100, strAttr("db.op", "select"))
 		s.Status = &tracev1.Status{Code: tracev1.Status_STATUS_CODE_ERROR}
 		spans = append(spans, h, s)
 	}
 	// 1× handler(OK) → INSERT
 	hID := sid(6, 0)
-	spans = append(spans, newSpanWithStatus(hID, rootID, "handler", 0, 500, tracev1.Status_STATUS_CODE_OK))
+	spans = append(spans, newSpanWithStatus(hID, rootID, "handler", 500, tracev1.Status_STATUS_CODE_OK))
 	spans = append(spans, newSpanWithAttrs(sid(7, 0), hID, "INSERT", 0, 100, strAttr("db.op", "insert")))
 	// 1× worker → SELECT (different parent name, won't merge with handler groups)
 	wID := sid(8, 0)
@@ -811,13 +802,13 @@ func TestPruneTrace_ThreeLevelAggregation(t *testing.T) {
 	for i := byte(0); i < 2; i++ {
 		mwID := sid(n, 0)
 		n++
-		spans = append(spans, newSpanWithStatus(mwID, rootID, "middleware", 0, 1000, tracev1.Status_STATUS_CODE_OK))
+		spans = append(spans, newSpanWithStatus(mwID, rootID, "middleware", 1000, tracev1.Status_STATUS_CODE_OK))
 		for j := byte(0); j < 2; j++ {
 			hID := sid(n, 0)
 			n++
-			spans = append(spans, newSpanWithStatus(hID, mwID, "handler", 0, 500, tracev1.Status_STATUS_CODE_OK))
+			spans = append(spans, newSpanWithStatus(hID, mwID, "handler", 500, tracev1.Status_STATUS_CODE_OK))
 			for k := byte(0); k < 2; k++ {
-				spans = append(spans, newSpanWithStatus(sid(n, k), hID, "SELECT", 0, 100, tracev1.Status_STATUS_CODE_OK))
+				spans = append(spans, newSpanWithStatus(sid(n, k), hID, "SELECT", 100, tracev1.Status_STATUS_CODE_OK))
 			}
 			n++
 		}
@@ -984,12 +975,12 @@ func TestPruneTrace_ParentKeyCollisionRegression(t *testing.T) {
 
 	for i := 0; i < 3; i++ {
 		outerID := nextID()
-		spans = append(spans, newSpanWithStatus(outerID, rootID, "svc", 0, 1000, tracev1.Status_STATUS_CODE_OK))
+		spans = append(spans, newSpanWithStatus(outerID, rootID, "svc", 1000, tracev1.Status_STATUS_CODE_OK))
 		for j := 0; j < 2; j++ {
 			innerID := nextID()
-			spans = append(spans, newSpanWithStatus(innerID, outerID, "svc", 0, 500, tracev1.Status_STATUS_CODE_OK))
+			spans = append(spans, newSpanWithStatus(innerID, outerID, "svc", 500, tracev1.Status_STATUS_CODE_OK))
 			for k := 0; k < 2; k++ {
-				spans = append(spans, newSpanWithStatus(nextID(), innerID, "SELECT", 0, 100, tracev1.Status_STATUS_CODE_OK))
+				spans = append(spans, newSpanWithStatus(nextID(), innerID, "SELECT", 100, tracev1.Status_STATUS_CODE_OK))
 			}
 		}
 	}

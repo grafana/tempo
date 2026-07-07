@@ -134,11 +134,10 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 		// only parse span_pruning_* params when the feature is enabled cluster-wide, so a
 		// malformed param doesn't 400 a request for a feature that's actually turned off.
 		if cfg.TraceByID.SpanPruningEnabled {
-			reqPruneEnabled, spanPruningCfg, perr := api.ParseSpanPruningRequest(req)
-			if perr != nil {
-				return httpInvalidRequest(perr), nil
+			spanPruningEnabled, spanPruningCfg, pErr := api.ParseSpanPruningRequest(req)
+			if pErr != nil {
+				return httpInvalidRequest(pErr), nil
 			}
-			spanPruningEnabled = reqPruneEnabled
 			if spanPruningEnabled && spanPruningCfg != nil {
 				opts.SpanPruningConfig = spanPruningCfg
 				opts.Logger = logger
