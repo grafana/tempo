@@ -12,10 +12,10 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 )
 
-// InstallOpenTelemetryTracer initialises the global OpenTelemetry tracer from OTel or Jaeger
-// environment variables, and is a no-op when neither is configured. Delegation to dskit keeps
-// sampler support (incl. jaeger_remote) consistent with Mimir.
-func InstallOpenTelemetryTracer(appName, target string, spanProfiling bool) (func(), error) {
+// InstallOTelOrJaegerFromEnv initialises the global OpenTelemetry tracer from OTel or Jaeger
+// environment variables, and is a no-op when neither is configured.
+// Delegation to dskit keeps tracing support (including jaeger_remote) consistent with Mimir.
+func InstallOTelOrJaegerFromEnv(appName, target string, spanProfiling bool) (func(), error) {
 	name := serviceName(appName, target)
 
 	opts := []dstracing.OTelOption{
@@ -46,12 +46,12 @@ func InstallOpenTelemetryTracer(appName, target string, spanProfiling bool) (fun
 	return shutdown, nil
 }
 
-// serviceName lets the standard env vars override the default tempo-<target> name, as Mimir does.
+// serviceName lets env vars override the default tempo-<target> name.
 func serviceName(appName, target string) string {
-	if name := os.Getenv("OTEL_SERVICE_NAME"); name != "" {
+	if name := os.Getenv("JAEGER_SERVICE_NAME"); name != "" {
 		return name
 	}
-	if name := os.Getenv("JAEGER_SERVICE_NAME"); name != "" {
+	if name := os.Getenv("OTEL_SERVICE_NAME"); name != "" {
 		return name
 	}
 	return fmt.Sprintf("%s-%s", appName, target)

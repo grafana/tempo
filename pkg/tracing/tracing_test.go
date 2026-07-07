@@ -16,12 +16,13 @@ func clearTracingEnv(t *testing.T) {
 		"OTEL_TRACES_EXPORTER", "OTEL_EXPORTER_OTLP_ENDPOINT", "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
 		"JAEGER_AGENT_HOST", "JAEGER_ENDPOINT", "JAEGER_SAMPLER_MANAGER_HOST_PORT",
 		"OTEL_SERVICE_NAME", "JAEGER_SERVICE_NAME",
+		"OTEL_TRACES_SAMPLER", "OTEL_TRACES_SAMPLER_ARG", "OTEL_PROPAGATORS", "OTEL_RESOURCE_ATTRIBUTES",
 	} {
 		t.Setenv(v, "")
 	}
 }
 
-func TestInstallOpenTelemetryTracerHonorsSamplerEnvVars(t *testing.T) {
+func TestInstallOTelOrJaegerFromEnvHonorsSamplerEnvVars(t *testing.T) {
 	testCases := []struct {
 		name        string
 		sampler     string
@@ -68,7 +69,7 @@ func TestInstallOpenTelemetryTracerHonorsSamplerEnvVars(t *testing.T) {
 				t.Setenv("OTEL_TRACES_SAMPLER_ARG", tc.samplerArg)
 			}
 
-			shutdown, err := InstallOpenTelemetryTracer("tempo", "test", false)
+			shutdown, err := InstallOTelOrJaegerFromEnv("tempo", "test", false)
 			require.NoError(t, err)
 			t.Cleanup(shutdown)
 
@@ -79,21 +80,21 @@ func TestInstallOpenTelemetryTracerHonorsSamplerEnvVars(t *testing.T) {
 	}
 }
 
-func TestInstallOpenTelemetryTracerRejectsInvalidJaegerRemoteSamplerArg(t *testing.T) {
+func TestInstallOTelOrJaegerFromEnvRejectsInvalidJaegerRemoteSamplerArg(t *testing.T) {
 	clearTracingEnv(t)
 	t.Setenv("OTEL_TRACES_EXPORTER", "none")
 	t.Setenv("OTEL_TRACES_SAMPLER", "parentbased_jaeger_remote")
 	// missing the required endpoint
 	t.Setenv("OTEL_TRACES_SAMPLER_ARG", "pollingIntervalMs=5000,initialSamplingRate=0.0")
 
-	_, err := InstallOpenTelemetryTracer("tempo", "test", false)
+	_, err := InstallOTelOrJaegerFromEnv("tempo", "test", false)
 	require.ErrorContains(t, err, "endpoint")
 }
 
-func TestInstallOpenTelemetryTracerIsNoopWithoutEnvVars(t *testing.T) {
+func TestInstallOTelOrJaegerFromEnvIsNoopWithoutEnvVars(t *testing.T) {
 	clearTracingEnv(t)
 
-	shutdown, err := InstallOpenTelemetryTracer("tempo", "test", false)
+	shutdown, err := InstallOTelOrJaegerFromEnv("tempo", "test", false)
 	require.NoError(t, err)
 	shutdown()
 }
@@ -110,20 +111,20 @@ func TestServiceName(t *testing.T) {
 			want: "tempo-test",
 		},
 		{
-			name:     "OTEL_SERVICE_NAME wins",
+			name:     "OTEL_SERVICE_NAME used when JAEGER_SERVICE_NAME is unset",
 			otelName: "custom-otel",
 			want:     "custom-otel",
 		},
 		{
-			name:       "JAEGER_SERVICE_NAME used when OTEL_SERVICE_NAME is unset",
+			name:       "JAEGER_SERVICE_NAME wins",
 			jaegerName: "custom-jaeger",
 			want:       "custom-jaeger",
 		},
 		{
-			name:       "OTEL_SERVICE_NAME wins over JAEGER_SERVICE_NAME",
+			name:       "JAEGER_SERVICE_NAME wins over OTEL_SERVICE_NAME",
 			otelName:   "custom-otel",
 			jaegerName: "custom-jaeger",
-			want:       "custom-otel",
+			want:       "custom-jaeger",
 		},
 	}
 

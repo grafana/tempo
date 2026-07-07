@@ -86,7 +86,7 @@ func main() {
 	}
 
 	// Init tracer, no-op unless enabled via OTel or Jaeger env vars
-	shutdownTracer, err := tracing.InstallOpenTelemetryTracer(appName, config.Target, config.SpanProfiling)
+	shutdownTracer, err := tracing.InstallOTelOrJaegerFromEnv(appName, config.Target, config.SpanProfiling)
 	if err != nil {
 		level.Error(log.Logger).Log("msg", "error initialising tracer", "err", err)
 		os.Exit(1)

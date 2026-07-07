@@ -38,11 +38,9 @@ Tempo emits logs in the `key=value` ([logfmt](https://brandur.org/logfmt)) forma
 
 ### Traces
 
-Tempo uses the [OpenTelemetry SDK](https://github.com/open-telemetry/opentelemetry-go) for tracing instrumentation.
-The complete read path and some parts of the write path of Tempo are instrumented for tracing.
+You can configure the self-tracing for tempo using OpenTelemetry or Jaeger environment variables.
 
-You can configure the tracer using OpenTelemetry or Jaeger environment variables.
-Refer to [Configure Tempo self-tracing](self-tracing/) for the supported environment variables, sampling, propagation, and examples.
+Refer to [Configure Tempo self-tracing](self-tracing/) for the supported config, environment variables, sampling, propagation, and more details.
 
 ## Polling
 
