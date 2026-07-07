@@ -212,8 +212,10 @@ func applyBinaryOp(op Operator, lhs, rhs SeriesSet) SeriesSet {
 
 		n := min(len(r.Values), len(l.Values))
 		values := buf[offset : offset+n]
-		for j := 0; j < n; j++ {
-			values[j] = applyArithmeticOp(op, l.Values[j], r.Values[j])
+		if !applyArithmeticOpVec(op, l.Values, r.Values, values) {
+			for j := 0; j < n; j++ {
+				values[j] = applyArithmeticOp(op, l.Values[j], r.Values[j])
+			}
 		}
 
 		result[k] = TimeSeries{
@@ -337,16 +339,20 @@ func (m *MetricsScalarOp) process(input SeriesSet) SeriesSet {
 		values := make([]float64, len(series.Values))
 		exemplars := make([]Exemplar, len(series.Exemplars))
 		if m.scalarOnLeft {
-			for i, v := range series.Values {
-				values[i] = applyArithmeticOp(m.op, m.value, v)
+			if !applyArithmeticOpScalarVec(m.op, m.value, true, series.Values, values) {
+				for i, v := range series.Values {
+					values[i] = applyArithmeticOp(m.op, m.value, v)
+				}
 			}
 			for i, v := range series.Exemplars {
 				exemplars[i] = v
 				exemplars[i].Value = applyArithmeticOp(m.op, m.value, v.Value)
 			}
 		} else {
-			for i, v := range series.Values {
-				values[i] = applyArithmeticOp(m.op, v, m.value)
+			if !applyArithmeticOpScalarVec(m.op, m.value, false, series.Values, values) {
+				for i, v := range series.Values {
+					values[i] = applyArithmeticOp(m.op, v, m.value)
+				}
 			}
 			for i, v := range series.Exemplars {
 				exemplars[i] = v
