@@ -12,7 +12,7 @@ note: Stop attaching empty traceID exemplars to native histograms for spans with
 
 # (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
 # .chloggen/README.md.
-issues: [7124]
+issues: [7584]
 
 # (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
 subtext: In `native` and `both` histogram modes, observations for spans with a missing or all-zero trace ID attached an exemplar with an empty traceID label; they now carry no exemplar, matching classic histograms.
