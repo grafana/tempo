@@ -668,7 +668,6 @@ github.com/golang/groupcache/lru
 github.com/golang/protobuf/jsonpb
 github.com/golang/protobuf/proto
 github.com/golang/protobuf/ptypes/any
-github.com/golang/protobuf/ptypes/empty
 # github.com/golang/snappy v1.0.0
 ## explicit
 github.com/golang/snappy
@@ -737,7 +736,7 @@ github.com/googleapis/gax-go/v2/iterator
 # github.com/gorilla/mux v1.8.1
 ## explicit; go 1.20
 github.com/gorilla/mux
-# github.com/grafana/dskit v0.0.0-20260427162712-0457a92dacc3
+# github.com/grafana/dskit v0.0.0-20260703122047-de1ec7541c44
 ## explicit; go 1.25.8
 github.com/grafana/dskit/backoff
 github.com/grafana/dskit/cancellation
@@ -788,8 +787,8 @@ github.com/grafana/e2e/images
 # github.com/grafana/gomemcache v0.0.0-20251127154401-74f93547077b
 ## explicit; go 1.21
 github.com/grafana/gomemcache/memcache
-# github.com/grafana/otel-profiling-go v0.5.1
-## explicit; go 1.16
+# github.com/grafana/otel-profiling-go v0.6.0
+## explicit; go 1.25.0
 github.com/grafana/otel-profiling-go
 # github.com/grafana/pyroscope-go/godeltaprof v0.1.9
 ## explicit; go 1.18

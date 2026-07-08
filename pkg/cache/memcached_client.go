@@ -148,7 +148,8 @@ func NewMemcachedClient(cfg MemcachedClientConfig, name string, r prometheus.Reg
 		hostname:    cfg.Host,
 		service:     cfg.Service,
 		logger:      logger,
-		provider:    dns.NewProvider(logger, dnsProviderRegisterer, dns.GolangResolverType),
+		// maxIdleConnections only applies to the miekgdns resolver, unused with GolangResolverType
+		provider:    dns.NewProvider(dns.GolangResolverType, 0, logger, dnsProviderRegisterer),
 		cbs:         make(map[string]*gobreaker.CircuitBreaker),
 		cbFailures:  cfg.CBFailures,
 		cbInterval:  cfg.CBInterval,
