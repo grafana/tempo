@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unsafe"
 
@@ -15,6 +16,37 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/redis/go-redis/v9"
 )
+
+const (
+	// redisScanCount is the COUNT hint passed to SCAN while evicting a block's
+	// keys by prefix. A large value minimizes the number of round trips; SCAN
+	// only ever does O(count) work per call, so it never blocks the server.
+	redisScanCount = 20000
+	// redisDeleteBatch caps how many keys are sent in a single DEL while draining
+	// a scan, bounding command size on large blocks.
+	redisDeleteBatch = 1000
+)
+
+// globPrefixReplacer escapes the glob metacharacters that Redis SCAN MATCH
+// interprets (* ? [ ] and the \ escape itself), so a prefix built from a tenant
+// ID is matched literally rather than as a pattern. strings.Replacer performs a
+// single non-overlapping pass, so the backslashes it inserts are not re-escaped.
+var globPrefixReplacer = strings.NewReplacer(
+	`\`, `\\`,
+	`*`, `\*`,
+	`?`, `\?`,
+	`[`, `\[`,
+	`]`, `\]`,
+)
+
+// redisScanner is the subset of redis commands needed to enumerate and delete
+// keys. It is satisfied by *redis.Client, *redis.ClusterClient, and the wrapped
+// UniversalClient, so the same loop runs per-node on a cluster and directly on a
+// single node.
+type redisScanner interface {
+	Scan(ctx context.Context, cursor uint64, match string, count int64) *redis.ScanCmd
+	Del(ctx context.Context, keys ...string) *redis.IntCmd
+}
 
 // RedisConfig defines how a RedisCache should be constructed.
 type RedisConfig struct {
@@ -260,6 +292,88 @@ func (c *RedisClient) Del(ctx context.Context, keys []string) error {
 	}
 
 	return c.rdb.Del(ctx, keys...).Err()
+}
+
+// RemoveByPrefix deletes every key whose name begins with prefix and returns the
+// number of keys deleted. On a Redis Cluster the scan runs on each master node —
+// a block's keys are spread across slots because the whole key (not just the
+// block ID) is hashed — so ForEachMaster covers the entire keyspace; on a single
+// node it runs once. Unlike the other operations this is not bounded by
+// c.timeout as a whole (a scan may legitimately take much longer than a single
+// request); each underlying SCAN/DEL is still bounded by the client's socket
+// timeouts, and the caller's context cancels the loop.
+func (c *RedisClient) RemoveByPrefix(ctx context.Context, prefix string) (int, error) {
+	pattern := globPrefixReplacer.Replace(prefix) + "*"
+
+	if cc, ok := c.rdb.(*redis.ClusterClient); ok {
+		var total atomic.Int64
+		// ForEachMaster runs the callback concurrently across masters.
+		err := cc.ForEachMaster(ctx, func(ctx context.Context, node *redis.Client) error {
+			n, err := scanAndDelete(ctx, node, pattern)
+			total.Add(int64(n))
+			return err
+		})
+		return int(total.Load()), err
+	}
+
+	return scanAndDelete(ctx, c.rdb, pattern)
+}
+
+// scanAndDelete iterates a single node's keyspace with SCAN and deletes every key
+// matching pattern. It always drives the cursor to completion: SCAN returns an
+// opaque cursor alongside a best-effort batch, so an empty batch paired with a
+// non-zero cursor is normal (MATCH filters after COUNT elements are examined) and
+// iteration must continue until the cursor returns to 0.
+func scanAndDelete(ctx context.Context, s redisScanner, pattern string) (int, error) {
+	var (
+		cursor  uint64
+		pending []string
+		deleted int
+	)
+
+	// flush drains pending in DEL commands of at most redisDeleteBatch keys, so a
+	// block with many cached ranges does not produce one oversized command.
+	flush := func() error {
+		for len(pending) > 0 {
+			n := min(redisDeleteBatch, len(pending))
+			cnt, err := s.Del(ctx, pending[:n]...).Result()
+			deleted += int(cnt)
+			pending = pending[n:]
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	for {
+		if err := ctx.Err(); err != nil {
+			return deleted, err
+		}
+
+		var (
+			keys []string
+			err  error
+		)
+		keys, cursor, err = s.Scan(ctx, cursor, pattern, redisScanCount).Result()
+		if err != nil {
+			return deleted, err
+		}
+
+		pending = append(pending, keys...)
+		if len(pending) >= redisDeleteBatch {
+			if err := flush(); err != nil {
+				return deleted, err
+			}
+		}
+
+		// Only a zero cursor signals the end of iteration; an empty batch does not.
+		if cursor == 0 {
+			break
+		}
+	}
+
+	return deleted, flush()
 }
 
 func (c *RedisClient) Close() error {

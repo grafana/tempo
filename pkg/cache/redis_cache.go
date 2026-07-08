@@ -146,6 +146,20 @@ func (c *RedisCache) Remove(ctx context.Context, keys []string) {
 	})
 }
 
+// RemoveByPrefix evicts every cached key beginning with prefix. Like the other
+// mutating operations it is best-effort: failures are logged, not returned.
+func (c *RedisCache) RemoveByPrefix(ctx context.Context, prefix string) {
+	_ = measureRequest(ctx, "RedisCache.RemoveByPrefix", c.requestDuration, redisStatusCode, func(ctx context.Context) error {
+		deleted, err := c.redis.RemoveByPrefix(ctx, prefix)
+		if err != nil {
+			level.Error(c.logger).Log("msg", "failed to remove keys by prefix from redis", "name", c.name, "prefix", prefix, "err", err)
+			return err
+		}
+		level.Debug(c.logger).Log("msg", "removed keys by prefix from redis", "name", c.name, "prefix", prefix, "deleted", deleted)
+		return nil
+	})
+}
+
 // Stop stops the redis client.
 func (c *RedisCache) Stop() {
 	_ = c.redis.Close()

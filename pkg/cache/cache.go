@@ -53,6 +53,17 @@ type Cache interface {
 	Stop()
 }
 
+// PrefixEvictor is an optional capability a Cache may implement: deleting every
+// key that shares a given prefix. The compactor uses it to evict all cache
+// entries for a block that has been compacted away, including the offset-keyed
+// parquet entries whose exact keys are not tracked in the block meta and so
+// cannot be reconstructed for a targeted Remove. Backends that cannot enumerate
+// keys (e.g. memcached) do not implement it, and such entries there continue to
+// rely on TTL or LRU eviction.
+type PrefixEvictor interface {
+	RemoveByPrefix(ctx context.Context, prefix string)
+}
+
 func measureRequest(ctx context.Context, method string, col instr.Collector, toStatusCode func(error) string, f func(context.Context) error) error {
 	start := time.Now()
 	col.Before(ctx, method, start)
