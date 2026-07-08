@@ -2,6 +2,7 @@ package distributor
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -196,9 +197,13 @@ func newRingReader(t *testing.T, store kv.Client, ringKey string, heartbeatTimeo
 
 func healthyIDs(t *testing.T, r *ring.Ring) map[string]bool {
 	t.Helper()
-	rs, err := r.GetAllHealthy(ringOp)
-	require.NoError(t, err)
 	out := map[string]bool{}
+	rs, err := r.GetAllHealthy(ringOp)
+	// Transiently empty until the reader syncs from KV. Let require.Eventually retry.
+	if errors.Is(err, ring.ErrEmptyRing) {
+		return out
+	}
+	require.NoError(t, err)
 	for _, ing := range rs.Instances {
 		out[ing.Id] = true
 	}
