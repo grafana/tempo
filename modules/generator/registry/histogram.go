@@ -11,7 +11,6 @@ import (
 	"github.com/prometheus/prometheus/model/exemplar"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
-	"go.uber.org/atomic"
 
 	tempo_util "github.com/grafana/tempo/pkg/util"
 )
@@ -37,21 +36,22 @@ type histogram struct {
 }
 
 // histogramSeries state is serialized by histogram.seriesMtx: the observe,
-// collect, and stale-removal paths all take the full mutex.
+// collect, and stale-removal paths all take the full mutex, so all fields are
+// plain values.
 type histogramSeries struct {
 	countLabels  labels.Labels
 	sumLabels    labels.Labels
 	bucketLabels []labels.Labels
 
-	count *atomic.Float64
-	sum   *atomic.Float64
+	count float64
+	sum   float64
 	// buckets includes the +Inf bucket
-	buckets []*atomic.Float64
+	buckets []float64
 	// exemplars stores either a hex-encoded string traceID or a raw <=16 byte
 	// traceID per bucket.
 	exemplars      []histogramExemplar
 	exemplarValues []float64
-	lastUpdated    *atomic.Int64
+	lastUpdated    int64
 	// firstSeries is used to track if this series is new to the counter.  This
 	// is used to ensure that new counters being with 0, and then are incremented
 	// to the desired value.  This avoids Prometheus throwing away the first
@@ -165,16 +165,10 @@ func (h *histogram) observeWithExemplarWithHashAt(lbls labels.Labels, hash uint6
 
 func (h *histogram) newSeries(lbls labels.Labels, hash uint64, value float64, ex histogramExemplar, multiplier float64, timeMs int64) *histogramSeries {
 	newSeries := &histogramSeries{
-		count:          atomic.NewFloat64(0),
-		sum:            atomic.NewFloat64(0),
-		buckets:        make([]*atomic.Float64, 0, len(h.buckets)),
+		buckets:        make([]float64, len(h.buckets)),
 		exemplars:      make([]histogramExemplar, len(h.buckets)),
 		exemplarValues: make([]float64, len(h.buckets)),
-		lastUpdated:    atomic.NewInt64(0),
 		firstSeries:    true,
-	}
-	for i := 0; i < len(h.buckets); i++ {
-		newSeries.buckets = append(newSeries.buckets, atomic.NewFloat64(0))
 	}
 
 	// Precompute all labels for all sub-metrics upfront
@@ -203,18 +197,18 @@ func (h *histogram) newSeries(lbls labels.Labels, hash uint64, value float64, ex
 }
 
 func (h *histogram) updateSeries(hash uint64, s *histogramSeries, value float64, ex histogramExemplar, multiplier float64, timeMs int64) {
-	s.count.Add(multiplier)
-	s.sum.Add(value * multiplier)
+	s.count += multiplier
+	s.sum += value * multiplier
 
 	bucket := sort.SearchFloat64s(h.buckets, value)
 	for i := bucket; i < len(h.buckets); i++ {
-		s.buckets[i].Add(multiplier)
+		s.buckets[i] += multiplier
 	}
 
 	s.exemplars[bucket] = ex
 	s.exemplarValues[bucket] = value
 
-	s.lastUpdated.Store(timeMs)
+	s.lastUpdated = timeMs
 	h.lifecycler.OnUpdate(hash, h.activeSeriesPerHistogramSerie())
 }
 
@@ -240,13 +234,13 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) erro
 		}
 
 		// sum
-		_, err := appender.Append(0, s.sumLabels, timeMs, s.sum.Load())
+		_, err := appender.Append(0, s.sumLabels, timeMs, s.sum)
 		if err != nil {
 			return err
 		}
 
 		// count
-		_, err = appender.Append(0, s.countLabels, timeMs, s.count.Load())
+		_, err = appender.Append(0, s.countLabels, timeMs, s.count)
 		if err != nil {
 			return err
 		}
@@ -260,7 +254,7 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) erro
 					return err
 				}
 			}
-			ref, err := appender.Append(0, s.bucketLabels[i], timeMs, s.buckets[i].Load())
+			ref, err := appender.Append(0, s.bucketLabels[i], timeMs, s.buckets[i])
 			if err != nil {
 				return err
 			}
@@ -312,7 +306,7 @@ func (h *histogram) removeStaleSeries(staleTimeMs int64) {
 	defer h.seriesMtx.Unlock()
 
 	for hash, s := range h.series {
-		if s.lastUpdated.Load() < staleTimeMs {
+		if s.lastUpdated < staleTimeMs {
 			delete(h.series, hash)
 			h.lifecycler.OnDelete(hash, h.activeSeriesPerHistogramSerie())
 		}

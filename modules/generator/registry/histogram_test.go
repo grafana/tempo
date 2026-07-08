@@ -542,9 +542,5 @@ func TestNewHistogram_SortsUnsortedBuckets(t *testing.T) {
 	if s == nil {
 		t.Fatalf("series not found for %s", lbls.String())
 	}
-	got := make([]float64, len(s.buckets))
-	for i := range s.buckets {
-		got[i] = s.buckets[i].Load()
-	}
-	assert.Equal(t, []float64{0, 1, 1, 1, 1}, got)
+	assert.Equal(t, []float64{0, 1, 1, 1, 1}, s.buckets)
 }
