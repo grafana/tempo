@@ -90,7 +90,7 @@ After sending traces, you can verify them directly using the Tempo HTTP API. No 
 
 If both commands return trace data, your Tempo installation is ingesting, storing, and serving traces correctly.
 
-Refer to the [Tempo HTTP API documentation](/docs/tempo/<TEMPO_VERSION>/api_docs/) for the full API reference and [Push spans with HTTP](/docs/tempo/<TEMPO_VERSION>/api_docs/pushing-spans-with-http/) for an alternative approach using `curl` to send traces.
+Refer to the [Tempo HTTP API documentation](/docs/tempo/<TEMPO_VERSION>/api_docs/) for the full API reference and [Push spans](/docs/tempo/<TEMPO_VERSION>/api_docs/pushing-spans-with-http/) for alternative approaches using `curl` (HTTP) or `telemetrygen` (gRPC) to send traces.
 
 ## Verify traces in Grafana
 

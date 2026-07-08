@@ -111,7 +111,7 @@ These APIs are meant to be consumed by the corresponding client SDK or pipeline 
 | Jaeger        | gRPC           | [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis) |
 | Zipkin        | HTTP           | [Link](https://zipkin.io/zipkin-api/)                                      |
 
-For information on how to use the OTLP endpoint with curl (for debugging purposes), refer to [Pushing spans with HTTP](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/pushing-spans-with-http/).
+For information on how to push spans using OTLP/HTTP or OTLP/gRPC (for debugging purposes), refer to [Push spans](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/pushing-spans-with-http/).
 
 If you are using Grafana Enterprise Traces (GET), then it only supports OpenTelemetry (OTLP):
 
