@@ -248,7 +248,9 @@ jobs:
       # from a push to grafana/tempo main, which this branch can't trigger), so
       # install the compiler at the version pinned in go.mod directly on the runner.
       - name: Install wiresmith
-        run: go install github.com/grafana/wiresmith/cmd/wiresmith@$(go list -m -f '{{.Version}}' github.com/grafana/wiresmith)
+        run: |
+          version=$(go list -m -f '{{.Version}}' github.com/grafana/wiresmith)
+          go install "github.com/grafana/wiresmith/cmd/wiresmith@${version}"
 
       - name: Check vendor
         run: make vendor-check
