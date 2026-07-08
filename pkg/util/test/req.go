@@ -1,7 +1,6 @@
 package test
 
 import (
-	"bytes"
 	crand "crypto/rand"
 	"encoding/json"
 	"fmt"
@@ -484,33 +483,31 @@ func RandomString() string {
 	return string(s)
 }
 
-// ProtoMarshaler is satisfied by both gogo- and wiresmith-generated messages.
-type ProtoMarshaler interface {
-	Marshal() ([]byte, error)
+// ProtoComparable is satisfied by any generated message with a structural
+// Equal method (gogo- and wiresmith-generated messages both qualify; `any`
+// and `interface{}` are identical types, so `Equal(that any) bool` also
+// satisfies this).
+type ProtoComparable interface {
+	Equal(that interface{}) bool
 }
 
-// ProtoEqual reports whether two protobuf messages marshal to identical wire
-// bytes. Repeated field order matters, same as with proto.Equal. Prefer this
-// (or RequireProtoEqual) over require.Equal for proto structs: struct-literal
-// expectations differ from unmarshaled values in the wiresmith
-// XXX_fieldsPresent bitmap even when semantically equal.
-func ProtoEqual(a, b ProtoMarshaler) bool {
-	ab, err := a.Marshal()
-	if err != nil {
-		return false
-	}
-	bb, err := b.Marshal()
-	if err != nil {
-		return false
-	}
-	return bytes.Equal(ab, bb)
+// ProtoEqual reports whether two protobuf messages are structurally equal via
+// their generated Equal method. Repeated field order matters, same as with
+// proto.Equal (Equal is just proto.Equal's logic, generated onto the type
+// itself). Prefer this (or RequireProtoEqual) over require.Equal for proto
+// structs: require.Equal does a field-by-field reflect.DeepEqual, which is
+// sensitive to incidental representation differences (e.g. nil vs empty
+// slices) that Equal correctly treats as equivalent.
+func ProtoEqual(a, b ProtoComparable) bool {
+	return a.Equal(b)
 }
 
-// RequireProtoEqual asserts wire-level equality of two protobuf messages and
-// prints a JSON diff on mismatch. Use instead of require.Equal for proto
-// structs: struct-literal expectations differ from unmarshaled values in the
-// wiresmith-internal presence bitmap even when semantically equal.
-func RequireProtoEqual(t require.TestingT, want, got ProtoMarshaler) {
+// RequireProtoEqual asserts structural equality of two protobuf messages
+// (see ProtoEqual) and prints a JSON diff on mismatch: equality is decided
+// via the generated Equal method, JSON is only used to render a readable
+// diff once we already know the two differ (same decide/render split as
+// TracesEqual below).
+func RequireProtoEqual(t require.TestingT, want, got ProtoComparable) {
 	if h, ok := t.(interface{ Helper() }); ok {
 		h.Helper()
 	}
@@ -520,7 +517,7 @@ func RequireProtoEqual(t require.TestingT, want, got ProtoMarshaler) {
 	wantJSON, _ := json.MarshalIndent(want, "", "  ")
 	gotJSON, _ := json.MarshalIndent(got, "", "  ")
 	require.Equal(t, string(wantJSON), string(gotJSON), "protos differ")
-	require.Fail(t, "protos differ on the wire but share a JSON form")
+	require.Fail(t, "protos differ structurally but share a JSON form")
 }
 
 func TracesEqual(t *testing.T, t1 *tempopb.Trace, t2 *tempopb.Trace) {

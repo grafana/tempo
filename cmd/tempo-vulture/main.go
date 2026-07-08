@@ -773,18 +773,7 @@ func equalTraces(a, b *tempopb.Trace) bool {
 	trace.SortTraceAndAttributes(a)
 	trace.SortTraceAndAttributes(b)
 
-	// Compare wire bytes: gogo's reflection-based proto.Equal cannot traverse
-	// wiresmith-generated structs (unexported presence bitmap), and after
-	// sorting equal traces marshal to identical bytes.
-	ab, err := a.Marshal()
-	if err != nil {
-		return false
-	}
-	bb, err := b.Marshal()
-	if err != nil {
-		return false
-	}
-	return bytes.Equal(ab, bb)
+	return a.Equal(b)
 }
 
 func hasMissingSpans(t *tempopb.Trace) bool {

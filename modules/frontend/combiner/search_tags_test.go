@@ -233,7 +233,7 @@ func testTagsCombiner(t *testing.T, marshalingFormat api.MarshallingFormat) {
 			fromHTTPResponse(t, res, tc.actualResult)
 			tc.sort(tc.expectedResult)
 			tc.sort(tc.actualResult)
-			test.RequireProtoEqual(t, tc.expectedResult.(test.ProtoMarshaler), tc.actualResult.(test.ProtoMarshaler))
+			test.RequireProtoEqual(t, tc.expectedResult.(test.ProtoComparable), tc.actualResult.(test.ProtoComparable))
 
 			test.RequireProtoEqual(t, metrics(tc.expectedResult), metrics(tc.actualResult))
 		})
@@ -337,14 +337,14 @@ func testTagValuesV2GRPCCombiner(t *testing.T, format api.MarshallingFormat) {
 	}, format)
 }
 
-func testGRPCCombiner[T proto.Message](t *testing.T, combiner GRPCCombiner[T], result1 T, result2 T, diff1 T, diff2 T, expectedFinal T, sort func(T), format api.MarshallingFormat) {
+func testGRPCCombiner[T TResponse[T]](t *testing.T, combiner GRPCCombiner[T], result1 T, result2 T, diff1 T, diff2 T, expectedFinal T, sort func(T), format api.MarshallingFormat) {
 	err := combiner.AddResponse(toHTTPResponseWithFormat(t, result1, 200, nil, format))
 	require.NoError(t, err)
 
 	actualDiff1, err := combiner.GRPCDiff()
 	require.NoError(t, err)
 	sort(actualDiff1)
-	test.RequireProtoEqual(t, any(diff1).(test.ProtoMarshaler), any(actualDiff1).(test.ProtoMarshaler))
+	test.RequireProtoEqual(t, any(diff1).(test.ProtoComparable), any(actualDiff1).(test.ProtoComparable))
 
 	err = combiner.AddResponse(toHTTPResponseWithFormat(t, result2, 200, nil, format))
 	assert.NoError(t, err)
@@ -352,13 +352,13 @@ func testGRPCCombiner[T proto.Message](t *testing.T, combiner GRPCCombiner[T], r
 	actualDiff2, err := combiner.GRPCDiff()
 	require.NoError(t, err)
 	sort(actualDiff2)
-	test.RequireProtoEqual(t, any(diff2).(test.ProtoMarshaler), any(actualDiff2).(test.ProtoMarshaler))
+	test.RequireProtoEqual(t, any(diff2).(test.ProtoComparable), any(actualDiff2).(test.ProtoComparable))
 
 	actualFinal, err := combiner.GRPCFinal()
 	require.NoError(t, err)
 
 	sort(actualFinal)
-	test.RequireProtoEqual(t, any(expectedFinal).(test.ProtoMarshaler), any(actualFinal).(test.ProtoMarshaler))
+	test.RequireProtoEqual(t, any(expectedFinal).(test.ProtoComparable), any(actualFinal).(test.ProtoComparable))
 }
 
 func TestSegmentSearchTagsResponse(t *testing.T) {

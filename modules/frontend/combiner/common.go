@@ -22,8 +22,9 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-type TResponse interface {
+type TResponse[T any] interface {
 	proto.Message
+	Clone() T
 }
 
 type PipelineResponse interface {
@@ -33,7 +34,7 @@ type PipelineResponse interface {
 	IsMetadata() bool // todo: search and query range pass back metadata responses through a normal http response. update to use this instead.
 }
 
-type genericCombiner[T TResponse] struct {
+type genericCombiner[T TResponse[T]] struct {
 	mu sync.Mutex
 
 	current T // todo: state mgmt is mixed between the combiner and the various implementations. put it in one spot.
@@ -56,7 +57,7 @@ type genericCombiner[T TResponse] struct {
 }
 
 // Init an HTTP combiner with default values. The marshaling format dictates how the response will be marshaled, including the Content-type header.
-func initHTTPCombiner[T TResponse](c *genericCombiner[T], marshalingFormat api.MarshallingFormat) {
+func initHTTPCombiner[T TResponse[T]](c *genericCombiner[T], marshalingFormat api.MarshallingFormat) {
 	c.httpStatusCode = 200
 	c.httpMarshalingFormat = marshalingFormat
 }
@@ -212,38 +213,7 @@ func (c *genericCombiner[T]) GRPCFinal() (T, error) {
 	}
 
 	// clone the final response to prevent race conditions with marshalling this data
-	finalClone, err := cloneProto(c.new, final)
-	if err != nil {
-		return empty, err
-	}
-	return finalClone, nil
-}
-
-// cloneProto deep-copies a response by round-tripping it through the wire
-// format. gogo's reflection-based proto.Clone cannot traverse
-// wiresmith-generated structs (it drops the unexported presence bitmap and
-// logs "proto: don't know how to copy" per field), so cloning goes through
-// the generated Marshal/Unmarshal pair, which both gogo and wiresmith
-// messages implement.
-func cloneProto[T TResponse](newT func() T, in T) (T, error) {
-	var empty T
-	m, ok := any(in).(interface{ Marshal() ([]byte, error) })
-	if !ok {
-		return empty, fmt.Errorf("response type %T does not implement Marshal", in)
-	}
-	b, err := m.Marshal()
-	if err != nil {
-		return empty, err
-	}
-	out := newT()
-	u, ok := any(out).(interface{ Unmarshal([]byte) error })
-	if !ok {
-		return empty, fmt.Errorf("response type %T does not implement Unmarshal", out)
-	}
-	if err := u.Unmarshal(b); err != nil {
-		return empty, err
-	}
-	return out, nil
+	return final.Clone(), nil
 }
 
 func (c *genericCombiner[T]) GRPCDiff() (T, error) {
@@ -262,11 +232,7 @@ func (c *genericCombiner[T]) GRPCDiff() (T, error) {
 	}
 
 	// clone the diff to prevent race conditions with marshalling this data
-	diffClone, err := cloneProto(c.new, diff)
-	if err != nil {
-		return empty, err
-	}
-	return diffClone, nil
+	return diff.Clone(), nil
 }
 
 func (c *genericCombiner[T]) GRPCSegment(response T, maxSize int) ([]T, error) {

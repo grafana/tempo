@@ -139,18 +139,15 @@ present on the base commit too).
   to limit call-site churn. gogo `nullable=false` fields map to wiresmith's
   value-type default (annotation deleted). Oneof wrappers hold values
   (`AnyValue_ArrayValue{ArrayValue: v}` not `&v`).
-- **gogo reflection interop**: restored on the databases branch — the
-  presence bitmap is `XXX_fieldsPresent`, which gogo's reflection-based
-  `proto.Equal/Clone/Merge` skip. The ~25 call sites that had been switched
-  to wire-bytes comparison are back on gogo `proto.Equal` (upstream form).
-  Note the field is exported: testify `require.Equal` and `cmp.Diff` DO see
-  it, so struct-literal vs unmarshaled comparisons still need
-  `test.RequireProtoEqual` (wire-bytes), the generated `Equal()`, or
-  `cmpopts.IgnoreFields(T{}, "XXX_fieldsPresent")` / a `cmp.FilterPath`
-  (tempodb/backend/cmp_test.go). Kept on purpose (better, not workarounds):
-  `cloneProto` in modules/frontend/combiner/common.go (generated
-  marshal/unmarshal round trip instead of reflection Clone; normalizes
-  empty top-level slices to nil) and vulture's wire-bytes `equalTraces`.
+- **gogo reflection interop**: the presence bitmap (`XXX_fieldsPresent`)
+  broke gogo's reflection-based `proto.Equal`/`Clone`/`Merge`, so ~25 call
+  sites were temporarily switched to comparing/copying via marshaled wire
+  bytes as a stand-in for structural equality/deep-copy. The bitmap is
+  fully gone now (see **no_presence_all** below), and every one of those
+  call sites — including `cloneProto` in
+  modules/frontend/combiner/common.go and vulture's `equalTraces` — is
+  back on the generated `Equal()`/`Clone()` (upstream-equivalent forms);
+  no wire-bytes workarounds remain anywhere in the tree.
 - **cmp.Diff uses generated Equal on pointers**: `*TimeSeries` etc. now have
   `Equal(any) bool`, which cmp prefers — float comparisons become bit-exact.
   Tests needing tolerance must supply an explicit `cmp.Comparer`
