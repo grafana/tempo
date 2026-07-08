@@ -39,12 +39,24 @@ var globPrefixReplacer = strings.NewReplacer(
 	`]`, `\]`,
 )
 
-// redisScanner is the subset of redis commands needed to enumerate and delete
-// keys. It is satisfied by *redis.Client, *redis.ClusterClient, and the wrapped
-// UniversalClient, so the same loop runs per-node on a cluster and directly on a
-// single node.
+// redisScanner enumerates keys with SCAN. On a cluster it is a single master node
+// (SCAN has no cluster-wide form); on a single node it is the client itself.
+// Satisfied by *redis.Client, *redis.ClusterClient, and the wrapped
+// UniversalClient.
 type redisScanner interface {
 	Scan(ctx context.Context, cursor uint64, match string, count int64) *redis.ScanCmd
+}
+
+// redisDeleter deletes keys with DEL. On a cluster this MUST be the
+// *redis.ClusterClient, never a per-master node client: DEL is a multi-key
+// command and a Redis Cluster node rejects a single DEL whose keys span more than
+// one hash slot with CROSSSLOT. The cluster client splits a multi-key DEL into
+// per-slot subcommands (osscluster: executeMultiShard); a node client sends it
+// as-is. A block's keys are spread across every slot a master owns — the whole
+// key, not just the block ID, is hashed — so deleting a scanned batch through a
+// node client would fail. Satisfied by both *redis.Client and
+// *redis.ClusterClient.
+type redisDeleter interface {
 	Del(ctx context.Context, keys ...string) *redis.IntCmd
 }
 
@@ -295,36 +307,44 @@ func (c *RedisClient) Del(ctx context.Context, keys []string) error {
 }
 
 // RemoveByPrefix deletes every key whose name begins with prefix and returns the
-// number of keys deleted. On a Redis Cluster the scan runs on each master node —
-// a block's keys are spread across slots because the whole key (not just the
-// block ID) is hashed — so ForEachMaster covers the entire keyspace; on a single
-// node it runs once. Unlike the other operations this is not bounded by
-// c.timeout as a whole (a scan may legitimately take much longer than a single
-// request); each underlying SCAN/DEL is still bounded by the client's socket
-// timeouts, and the caller's context cancels the loop.
+// number of keys deleted. On a Redis Cluster the keyspace is enumerated on each
+// master (SCAN has no cluster-wide form, and a block's keys are spread across
+// slots because the whole key — not just the block ID — is hashed, so
+// ForEachMaster covers the entire keyspace), while deletion is routed through the
+// cluster client, which splits each multi-key DEL across slots; deleting through
+// the per-master node client instead would fail with CROSSSLOT (see
+// redisDeleter). On a single node both run on the one client. Unlike the other
+// operations this is not bounded by c.timeout as a whole (a scan may legitimately
+// take much longer than a single request); each underlying SCAN/DEL is still
+// bounded by the client's socket timeouts, and the caller's context cancels the
+// loop.
 func (c *RedisClient) RemoveByPrefix(ctx context.Context, prefix string) (int, error) {
 	pattern := globPrefixReplacer.Replace(prefix) + "*"
 
 	if cc, ok := c.rdb.(*redis.ClusterClient); ok {
 		var total atomic.Int64
-		// ForEachMaster runs the callback concurrently across masters.
+		// ForEachMaster runs the callback concurrently across masters. Enumerate
+		// on the node, but delete through cc so each DEL is split per slot.
 		err := cc.ForEachMaster(ctx, func(ctx context.Context, node *redis.Client) error {
-			n, err := scanAndDelete(ctx, node, pattern)
+			n, err := scanAndDelete(ctx, node, cc, pattern)
 			total.Add(int64(n))
 			return err
 		})
 		return int(total.Load()), err
 	}
 
-	return scanAndDelete(ctx, c.rdb, pattern)
+	return scanAndDelete(ctx, c.rdb, c.rdb, pattern)
 }
 
-// scanAndDelete iterates a single node's keyspace with SCAN and deletes every key
-// matching pattern. It always drives the cursor to completion: SCAN returns an
-// opaque cursor alongside a best-effort batch, so an empty batch paired with a
-// non-zero cursor is normal (MATCH filters after COUNT elements are examined) and
-// iteration must continue until the cursor returns to 0.
-func scanAndDelete(ctx context.Context, s redisScanner, pattern string) (int, error) {
+// scanAndDelete iterates a single node's keyspace with SCAN (via scanner) and
+// deletes every key matching pattern (via deleter). It always drives the cursor
+// to completion: SCAN returns an opaque cursor alongside a best-effort batch, so
+// an empty batch paired with a non-zero cursor is normal (MATCH filters after
+// COUNT elements are examined) and iteration must continue until the cursor
+// returns to 0. Scanning and deletion are separate interfaces because on a
+// cluster the scanner is a single master node while the deleter must be the
+// slot-splitting cluster client (see redisDeleter).
+func scanAndDelete(ctx context.Context, scanner redisScanner, deleter redisDeleter, pattern string) (int, error) {
 	var (
 		cursor  uint64
 		pending []string
@@ -336,7 +356,7 @@ func scanAndDelete(ctx context.Context, s redisScanner, pattern string) (int, er
 	flush := func() error {
 		for len(pending) > 0 {
 			n := min(redisDeleteBatch, len(pending))
-			cnt, err := s.Del(ctx, pending[:n]...).Result()
+			cnt, err := deleter.Del(ctx, pending[:n]...).Result()
 			deleted += int(cnt)
 			pending = pending[n:]
 			if err != nil {
@@ -355,7 +375,7 @@ func scanAndDelete(ctx context.Context, s redisScanner, pattern string) (int, er
 			keys []string
 			err  error
 		)
-		keys, cursor, err = s.Scan(ctx, cursor, pattern, redisScanCount).Result()
+		keys, cursor, err = scanner.Scan(ctx, cursor, pattern, redisScanCount).Result()
 		if err != nil {
 			return deleted, err
 		}
