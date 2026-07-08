@@ -1980,7 +1980,7 @@ func TestSpanMetricsTargetInfoRegisteredAfterSpanMetrics(t *testing.T) {
 	defer p.Shutdown(context.Background())
 
 	batch := test.MakeBatch(2, nil)
-	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []trace_v1.ResourceSpans{*batch}})
 
 	expected := []string{
 		// First accepted span updates its own series before target_info.
@@ -2023,12 +2023,12 @@ func TestSpanMetricsTargetInfoInvalidUTF8Spans(t *testing.T) {
 
 		batch := test.MakeBatch(2, nil)
 		for _, ss := range batch.ScopeSpans {
-			for _, span := range ss.Spans {
-				span.Name = "invalid-\xff-utf8"
+			for i := range ss.Spans {
+				ss.Spans[i].Name = "invalid-\xff-utf8"
 			}
 		}
 
-		p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+		p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []trace_v1.ResourceSpans{*batch}})
 
 		assert.NotContains(t, testRegistry.String(), "traces_target_info")
 		assert.NotContains(t, testRegistry.String(), "traces_spanmetrics_calls_total")
@@ -2042,7 +2042,7 @@ func TestSpanMetricsTargetInfoInvalidUTF8Spans(t *testing.T) {
 		batch := test.MakeBatch(2, nil)
 		batch.ScopeSpans[0].Spans[0].Name = "invalid-\xff-utf8"
 
-		p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+		p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []trace_v1.ResourceSpans{*batch}})
 
 		assert.Contains(t, testRegistry.String(), "traces_target_info")
 		lbls := labels.FromMap(map[string]string{
@@ -2062,7 +2062,7 @@ func TestSpanMetricsTargetInfoInvalidUTF8Spans(t *testing.T) {
 
 		// Valid spans, but a resource attribute with an invalid UTF-8 value
 		// poisons the target_info label set only.
-		batch := test.MakeBatchWithAttributes(2, nil, []*common_v1.KeyValue{
+		batch := test.MakeBatchWithAttributes(2, nil, []common_v1.KeyValue{
 			{
 				Key: "res.attr",
 				Value: &common_v1.AnyValue{
@@ -2071,7 +2071,7 @@ func TestSpanMetricsTargetInfoInvalidUTF8Spans(t *testing.T) {
 			},
 		})
 
-		p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+		p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []trace_v1.ResourceSpans{*batch}})
 
 		// Span metrics still emit for both spans; target_info is rejected and
 		// counted once per accepted span (pre-optimization contract).
@@ -2108,7 +2108,7 @@ func TestSpanMetricsTargetInfoWithDisabledSubprocessors(t *testing.T) {
 	defer p.Shutdown(context.Background())
 
 	batch := test.MakeBatch(1, nil)
-	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []trace_v1.ResourceSpans{*batch}})
 
 	var resAttr string
 	for _, kv := range batch.Resource.Attributes {
