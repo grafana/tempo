@@ -19,8 +19,11 @@ import (
 
 const (
 	// redisScanCount is the COUNT hint passed to SCAN while evicting a block's
-	// keys by prefix. A large value minimizes the number of round trips; SCAN
-	// only ever does O(count) work per call, so it never blocks the server.
+	// keys by prefix. COUNT is only a hint for how many keys SCAN examines per
+	// call, not a cap on the result; a larger value trades fewer round trips for
+	// more work — and, since Redis is single-threaded, higher latency for other
+	// clients — per call. 20000 favors throughput for this low-frequency,
+	// compaction-driven scan.
 	redisScanCount = 20000
 	// redisDeleteBatch caps how many keys are sent in a single DEL while draining
 	// a scan, bounding command size on large blocks.
@@ -357,11 +360,11 @@ func scanAndDelete(ctx context.Context, scanner redisScanner, deleter redisDelet
 		for len(pending) > 0 {
 			n := min(redisDeleteBatch, len(pending))
 			cnt, err := deleter.Del(ctx, pending[:n]...).Result()
-			deleted += int(cnt)
-			pending = pending[n:]
 			if err != nil {
 				return err
 			}
+			deleted += int(cnt)
+			pending = pending[n:]
 		}
 		return nil
 	}
