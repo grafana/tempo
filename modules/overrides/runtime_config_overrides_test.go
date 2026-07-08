@@ -18,9 +18,10 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/grafana/tempo/pkg/sharedconfig"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
@@ -566,7 +567,7 @@ func TestRemoteWriteHeaders(t *testing.T) {
 		Defaults           Overrides          `yaml:"defaults"`
 		PerTenantOverrides perTenantOverrides `yaml:",inline"`
 	}
-	require.NoError(t, yaml.UnmarshalStrict(buff.Bytes(), &runtimeConfig))
+	require.NoError(t, util.YAMLUnmarshalStrict(buff.Bytes(), &runtimeConfig))
 
 	assert.Equal(t, "<secret>", string(runtimeConfig.Defaults.MetricsGenerator.RemoteWriteHeaders["Authorization"]))
 
