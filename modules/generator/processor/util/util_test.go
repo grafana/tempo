@@ -103,6 +103,92 @@ func TestFindServiceName(t *testing.T) {
 	}
 }
 
+func TestFindServiceLabels(t *testing.T) {
+	strAttr := func(key, value string) *v1_common.KeyValue {
+		return &v1_common.KeyValue{
+			Key: key,
+			Value: &v1_common.AnyValue{
+				Value: &v1_common.AnyValue_StringValue{StringValue: value},
+			},
+		}
+	}
+
+	testCases := []struct {
+		name               string
+		attributes         []*v1_common.KeyValue
+		expectedSvcName    string
+		expectedJobName    string
+		expectedInstanceID string
+	}{
+		{
+			name: "empty attributes",
+		},
+		{
+			name:            "service name only",
+			attributes:      []*v1_common.KeyValue{strAttr("service.name", "my-service")},
+			expectedSvcName: "my-service",
+			expectedJobName: "my-service",
+		},
+		{
+			name: "service name and namespace",
+			attributes: []*v1_common.KeyValue{
+				strAttr("service.namespace", "my-namespace"),
+				strAttr("service.name", "my-service"),
+			},
+			expectedSvcName: "my-service",
+			expectedJobName: "my-namespace/my-service",
+		},
+		{
+			name:       "namespace without service name yields empty job",
+			attributes: []*v1_common.KeyValue{strAttr("service.namespace", "my-namespace")},
+		},
+		{
+			name: "instance id",
+			attributes: []*v1_common.KeyValue{
+				strAttr("service.name", "my-service"),
+				strAttr("service.instance.id", "instance-1"),
+			},
+			expectedSvcName:    "my-service",
+			expectedJobName:    "my-service",
+			expectedInstanceID: "instance-1",
+		},
+		{
+			name: "first occurrence wins",
+			attributes: []*v1_common.KeyValue{
+				strAttr("service.name", "first"),
+				strAttr("service.name", "second"),
+				strAttr("service.instance.id", "instance-1"),
+				strAttr("service.instance.id", "instance-2"),
+			},
+			expectedSvcName:    "first",
+			expectedJobName:    "first",
+			expectedInstanceID: "instance-1",
+		},
+		{
+			name: "non-string values are stringified",
+			attributes: []*v1_common.KeyValue{
+				{
+					Key: "service.name",
+					Value: &v1_common.AnyValue{
+						Value: &v1_common.AnyValue_BoolValue{BoolValue: false},
+					},
+				},
+			},
+			expectedSvcName: "false",
+			expectedJobName: "false",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			svcName, jobName, instanceID := FindServiceLabels(tc.attributes)
+
+			assert.Equal(t, tc.expectedSvcName, svcName)
+			assert.Equal(t, tc.expectedJobName, jobName)
+			assert.Equal(t, tc.expectedInstanceID, instanceID)
+		})
+	}
+}
+
 func TestGetSpanMultiplierFromTraceState(t *testing.T) {
 	tests := []struct {
 		name       string
