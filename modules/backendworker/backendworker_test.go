@@ -40,15 +40,9 @@ func TestWorker(t *testing.T) {
 	limitCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
 
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	workerCfg, schedulerClientCfg, overridesSvc, scheduler, store := setupDependencies(ctx, t, limitCfg)
-
-	defer func() {
-		cancel()
-		// Explicitly stop the store to avoid race condition on test fixture shutdown
-		store.StopAsync()
-		_ = store.AwaitTerminated(context.Background())
-	}()
 
 	w, err := New(workerCfg, schedulerClientCfg, store, overridesSvc, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
@@ -198,11 +192,13 @@ func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger, tmpDi
 	}, nil, log)
 	require.NoError(t, err)
 
+	// The store service is never started, so only cancel + Shutdown joins the poller.
+	ctx, cancel := context.WithCancel(ctx)
 	s.EnablePolling(ctx, &ownsEverythingSharder{}, false)
 
 	t.Cleanup(func() {
-		s.StopAsync()
-		require.NoError(t, s.AwaitTerminated(context.Background()))
+		cancel()
+		s.Shutdown()
 	})
 	return s
 }
@@ -260,12 +256,8 @@ func TestProcessRedactionJobMissingBlockObservable(t *testing.T) {
 	limitCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
 
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	workerCfg, schedulerClientCfg, overridesSvc, _, store := setupDependencies(ctx, t, limitCfg)
-	defer func() {
-		cancel()
-		store.StopAsync()
-		_ = store.AwaitTerminated(context.Background())
-	}()
 
 	w, err := New(workerCfg, schedulerClientCfg, store, overridesSvc, prometheus.NewRegistry())
 	require.NoError(t, err)
