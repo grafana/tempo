@@ -147,13 +147,13 @@ func UnwrapHTTPResponses(envs []HTTPResponseEnvelope) []*httpgrpc.HTTPResponse {
 // Compare methods may hand us.
 func envelopeValue[T any](other any) (*T, bool) {
 	switch v := other.(type) {
-	case T:
-		return &v, true
 	case *T:
 		if v == nil {
 			return nil, false
 		}
 		return v, true
+	case T:
+		return &v, true
 	default:
 		return nil, false
 	}

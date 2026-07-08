@@ -16,6 +16,8 @@ import (
 
 // XXX_OneofWrappers exposes the AnyValue oneof variants so gogo's
 // proto.GetProperties can build the OneofTypes map.
+//
+//nolint:revive // name is dictated by gogo's reflection lookup, see file doc comment above.
 func (*AnyValue) XXX_OneofWrappers() []interface{} {
 	return []interface{}{
 		(*AnyValue_StringValue)(nil),
