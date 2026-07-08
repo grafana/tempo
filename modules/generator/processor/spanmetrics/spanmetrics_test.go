@@ -2124,3 +2124,30 @@ func TestSpanMetricsTargetInfoWithDisabledSubprocessors(t *testing.T) {
 	assert.NotContains(t, testRegistry.String(), "traces_spanmetrics_calls_total")
 	assert.Equal(t, 0.0, testutil.ToFloat64(invalidUTF8Counter))
 }
+
+// TestEnumStringFastPathsMatchProto guards the hand-rolled switches in
+// spanKindString / statusCodeString against enum drift: for every known value
+// they must return exactly what the generated proto String() returns, and
+// unknown values must fall back to the generated String(). Correctness cannot
+// drift for an added enum value — the switch's default returns String() — but
+// the new value would silently take the slow map-lookup path, so the Len pins
+// fail on any enum change to force the switches to be extended in step.
+func TestEnumStringFastPathsMatchProto(t *testing.T) {
+	require.Len(t, trace_v1.Span_SpanKind_name, 6, "Span_SpanKind enum changed: extend spanKindString and update this count")
+	require.Len(t, trace_v1.Status_StatusCode_name, 3, "Status_StatusCode enum changed: extend statusCodeString and update this count")
+
+	for value := range trace_v1.Span_SpanKind_name {
+		kind := trace_v1.Span_SpanKind(value)
+		require.Equal(t, kind.String(), spanKindString(kind))
+	}
+	for value := range trace_v1.Status_StatusCode_name {
+		code := trace_v1.Status_StatusCode(value)
+		require.Equal(t, code.String(), statusCodeString(code))
+	}
+
+	// Unknown values must fall back to the generated String().
+	unknownKind := trace_v1.Span_SpanKind(math.MaxInt32)
+	require.Equal(t, unknownKind.String(), spanKindString(unknownKind))
+	unknownCode := trace_v1.Status_StatusCode(math.MaxInt32)
+	require.Equal(t, unknownCode.String(), statusCodeString(unknownCode))
+}

@@ -186,3 +186,47 @@ func benchmarkStringAttr(key, value string) *common_v1.KeyValue {
 		}},
 	}
 }
+
+// benchmarkEnumSink defeats dead-code elimination in the enum-string benchmarks.
+var benchmarkEnumSink int
+
+// BenchmarkEnumStringFastPaths quantifies why spanKindString / statusCodeString
+// exist: the generated proto String() resolves names through proto.EnumName's
+// map[int32]string on every call, which the hand-rolled switches avoid on the
+// per-span hot path (two lookups per span).
+func BenchmarkEnumStringFastPaths(b *testing.B) {
+	kinds := []trace_v1.Span_SpanKind{
+		trace_v1.Span_SPAN_KIND_UNSPECIFIED,
+		trace_v1.Span_SPAN_KIND_INTERNAL,
+		trace_v1.Span_SPAN_KIND_SERVER,
+		trace_v1.Span_SPAN_KIND_CLIENT,
+		trace_v1.Span_SPAN_KIND_PRODUCER,
+		trace_v1.Span_SPAN_KIND_CONSUMER,
+	}
+	codes := []trace_v1.Status_StatusCode{
+		trace_v1.Status_STATUS_CODE_UNSET,
+		trace_v1.Status_STATUS_CODE_OK,
+		trace_v1.Status_STATUS_CODE_ERROR,
+	}
+
+	b.Run("kind_switch", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			benchmarkEnumSink += len(spanKindString(kinds[i%len(kinds)]))
+		}
+	})
+	b.Run("kind_proto_String", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			benchmarkEnumSink += len(kinds[i%len(kinds)].String())
+		}
+	})
+	b.Run("code_switch", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			benchmarkEnumSink += len(statusCodeString(codes[i%len(codes)]))
+		}
+	})
+	b.Run("code_proto_String", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			benchmarkEnumSink += len(codes[i%len(codes)].String())
+		}
+	})
+}
