@@ -1,0 +1,21 @@
+# Changelog entry. Generate a copy with `make chlog-new`, then fill in the fields.
+
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: bug_fix
+
+# Component or area of the change. Must be one of the components in .chloggen/config.yaml,
+# e.g. distributor, querier, query-frontend, storage, operations.
+component: metrics-generator
+
+# A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
+note: Stop attaching empty traceID exemplars to native histograms for spans without a trace ID.
+
+# (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
+# .chloggen/README.md.
+issues: [7124]
+
+# (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
+subtext: In `native` and `both` histogram modes, observations for spans with a missing or all-zero trace ID attached an exemplar with an empty traceID label; they now carry no exemplar, matching classic histograms.
+
+# The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
+user: carles-grafana

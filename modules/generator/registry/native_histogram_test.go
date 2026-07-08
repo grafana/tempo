@@ -979,3 +979,37 @@ func TestNewNativeHistogram_SortsUnsortedBuckets(t *testing.T) {
 		h.ObserveWithExemplar(lbls, 1.5, "trace-1", 1.0)
 	})
 }
+
+// TestNativeHistogram_EmptyTraceIDEmitsNoExemplar verifies the Histogram
+// interface contract (empty trace ID = no exemplar) on the native
+// implementation: spans without a trace ID — or with an all-zero one, which
+// TraceIDToHexString renders as "" — must not attach a traceID="" exemplar to
+// the observation, matching the classic histogram, which drops empty
+// exemplars at collect time.
+func TestNativeHistogram_EmptyTraceIDEmitsNoExemplar(t *testing.T) {
+	for _, mode := range []HistogramMode{HistogramModeNative, HistogramModeBoth} {
+		t.Run(HistogramModeToString[mode], func(t *testing.T) {
+			overrides := &mockOverrides{
+				nativeHistogramBucketFactor:     1.5,
+				nativeHistogramMaxBucketNumber:  100,
+				nativeHistogramMinResetDuration: 15 * time.Minute,
+			}
+			h := newNativeHistogram("test_histogram", []float64{1, 2}, noopLimiter, "trace_id", mode, nil, testTenant, overrides, 15*time.Minute)
+
+			// Owned path: empty trace ID string.
+			h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
+
+			// Borrowed path: an all-zero trace ID hex-encodes to "" and must
+			// behave the same. Hand-constructed BorrowedLabels from owned
+			// labels, as documented on the type.
+			lbls := buildTestLabels([]string{"label"}, []string{"value-2"})
+			borrowed := &BorrowedLabels{Labels: lbls, Hash: lbls.Hash()}
+			h.ObserveBorrowed(borrowed, 1.0, make([]byte, 16), 1.0, time.Now().UnixMilli())
+
+			appender := &capturingAppender{}
+			require.NoError(t, h.collectMetrics(appender, time.Now().UnixMilli()))
+			require.NotEmpty(t, appender.histograms, "observations must still be collected")
+			require.Empty(t, appender.exemplars, "empty trace IDs must not produce exemplars")
+		})
+	}
+}
