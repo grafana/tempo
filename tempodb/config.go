@@ -133,6 +133,13 @@ type CompactorConfig struct {
 	RetentionConcurrency    uint          `yaml:"retention_concurrency"`
 	MaxTimePerTenant        time.Duration `yaml:"max_time_per_tenant"`
 	CompactionCycle         time.Duration `yaml:"compaction_cycle"`
+
+	// PrefixCacheEviction, when enabled, makes the compactor scan the configured
+	// caches on block deletion and remove every entry sharing the block's key
+	// prefix. This reclaims the offset-keyed parquet entries (footer, indexes,
+	// pages) that cannot be removed by exact key; when disabled they are left to
+	// expire via TTL or LRU. Only caches that can enumerate keys (Redis) honor it.
+	PrefixCacheEviction bool `yaml:"prefix_cache_eviction"`
 }
 
 func (cfg *CompactorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -146,6 +153,7 @@ func (cfg *CompactorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag
 	f.IntVar(&cfg.MaxCompactionObjects, util.PrefixConfig(prefix, "max-objects-per-block"), 6000000, "Maximum number of traces in a compacted block.")
 	f.Uint64Var(&cfg.MaxBlockBytes, util.PrefixConfig(prefix, "max-block-bytes"), 100*1024*1024*1024 /* 100GB */, "Maximum size of a compacted block.")
 	f.DurationVar(&cfg.MaxCompactionRange, util.PrefixConfig(prefix, "compaction-window"), time.Hour, "Maximum time window across which to compact blocks.")
+	f.BoolVar(&cfg.PrefixCacheEviction, util.PrefixConfig(prefix, "prefix-cache-eviction"), false, "On block deletion, scan the caches and remove every entry sharing the block's key prefix. Reclaims offset-keyed parquet cache entries that cannot be removed by exact key; only caches that can enumerate keys (Redis) honor it. Disabled by default.")
 }
 
 func (cfg *CompactorConfig) validate() error {

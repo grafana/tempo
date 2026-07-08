@@ -587,7 +587,7 @@ func TestRemoveCachedBlockEvictsParquetRolesByPrefix(t *testing.T) {
 	cacheA.Store(ctx, []string{footerKey, pageKey, decoyKey}, [][]byte{{3}, {4}, {5}})
 	cacheB.Store(ctx, []string{colKey}, [][]byte{{6}})
 
-	rw.removeCachedBlock(ctx, testTenantID, blockID, 1)
+	rw.removeCachedBlock(ctx, testTenantID, blockID, 1, true)
 
 	// Exact-key roles evicted.
 	_, found := bloom.FetchKey(ctx, bloomKey)
@@ -610,4 +610,40 @@ func TestRemoveCachedBlockEvictsParquetRolesByPrefix(t *testing.T) {
 	// Each distinct backing cache is scanned exactly once (dedup).
 	require.Equal(t, []string{prefix}, cacheA.recordedPrefixes())
 	require.Equal(t, []string{prefix}, cacheB.recordedPrefixes())
+}
+
+// TestRemoveCachedBlockPrefixEvictionDisabled verifies that with prefix eviction
+// off (the default), bloom and trace-id index entries are still removed exactly
+// but the parquet roles are left in place and no prefix scan is issued.
+func TestRemoveCachedBlockPrefixEvictionDisabled(t *testing.T) {
+	parquet := newRecordingPrefixCache()
+	bloom := testutil.NewMockClient()
+
+	provider := &perRoleMockProvider{caches: map[cache.Role]cache.Cache{
+		cache.RoleBloom:         bloom,
+		cache.RoleParquetFooter: parquet,
+		cache.RoleParquetPage:   parquet,
+	}}
+
+	rw := &readerWriter{cacheProvider: provider}
+
+	ctx := context.Background()
+	blockID := uuid.New()
+	prefix := backend_cache.BlockKeyPrefix(blockID, testTenantID)
+
+	bloomKey := prefix + common.BloomName(0)
+	parquetKey := prefix + "data.parquet:0:100"
+	bloom.Store(ctx, []string{bloomKey}, [][]byte{{1}})
+	parquet.Store(ctx, []string{parquetKey}, [][]byte{{2}})
+
+	rw.removeCachedBlock(ctx, testTenantID, blockID, 1, false)
+
+	// Exact-key removal still happens regardless of the flag.
+	_, found := bloom.FetchKey(ctx, bloomKey)
+	require.False(t, found, "bloom key must still be removed exactly when prefix eviction is disabled")
+
+	// The parquet entry survives and no prefix scan was issued.
+	_, found = parquet.FetchKey(ctx, parquetKey)
+	require.True(t, found, "parquet key must be left to TTL/LRU when prefix eviction is disabled")
+	require.Empty(t, parquet.recordedPrefixes(), "no prefix eviction should be issued when disabled")
 }
