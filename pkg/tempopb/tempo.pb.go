@@ -167,6 +167,12 @@ type TraceByIDResponse struct {
 
 type TraceByIDMetrics struct {
 	InspectedBytes uint64 `protobuf:"varint,1,opt,name=inspectedBytes,proto3" json:"inspectedBytes,omitempty"`
+	// Number of backend read operations. TODO(issue/1274): populated by storage producers.
+	BackendReads uint64 `protobuf:"varint,2,opt,name=backendReads,proto3" json:"backendReads,omitempty"`
+	// Number of bytes read from the backend, excluding cache hits. TODO(issue/1274): populated by storage producers.
+	BackendBytes uint64 `protobuf:"varint,3,opt,name=backendBytes,proto3" json:"backendBytes,omitempty"`
+	// Open-ended counters keyed by constants in additional_metrics_keys.go. TODO(issue/1274): populated by storage producers.
+	AdditionalMetrics map[string]int64 `protobuf:"bytes,4,rep,name=additionalMetrics,proto3" json:"additionalMetrics,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
 }
 
 // SearchRequest takes no block parameters and implies a "recent traces" search
@@ -254,6 +260,12 @@ type SearchMetrics struct {
 	TotalJobs       uint32 `protobuf:"varint,5,opt,name=totalJobs,proto3" json:"totalJobs,omitempty"`
 	TotalBlockBytes uint64 `protobuf:"varint,6,opt,name=totalBlockBytes,proto3" json:"totalBlockBytes,omitempty"`
 	InspectedSpans  uint64 `protobuf:"varint,7,opt,name=inspectedSpans,proto3" json:"inspectedSpans,omitempty"`
+	// Number of backend read operations.
+	BackendReads uint64 `protobuf:"varint,8,opt,name=backendReads,proto3" json:"backendReads,omitempty"`
+	// Number of bytes read from the backend, excluding cache hits.
+	BackendBytes uint64 `protobuf:"varint,9,opt,name=backendBytes,proto3" json:"backendBytes,omitempty"`
+	// Open-ended counters keyed by constants in additional_metrics_keys.go.
+	AdditionalMetrics map[string]int64 `protobuf:"bytes,10,rep,name=additionalMetrics,proto3" json:"additionalMetrics,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
 }
 
 type SearchTagsRequest struct {
@@ -346,6 +358,12 @@ type MetadataMetrics struct {
 	CompletedJobs   uint32 `protobuf:"varint,3,opt,name=completedJobs,proto3" json:"completedJobs,omitempty"`
 	TotalBlocks     uint32 `protobuf:"varint,4,opt,name=totalBlocks,proto3" json:"totalBlocks,omitempty"`
 	TotalBlockBytes uint64 `protobuf:"varint,5,opt,name=totalBlockBytes,proto3" json:"totalBlockBytes,omitempty"`
+	// Number of backend read operations. TODO(issue/1274): populated by storage producers.
+	BackendReads uint64 `protobuf:"varint,6,opt,name=backendReads,proto3" json:"backendReads,omitempty"`
+	// Number of bytes read from the backend, excluding cache hits. TODO(issue/1274): populated by storage producers.
+	BackendBytes uint64 `protobuf:"varint,7,opt,name=backendBytes,proto3" json:"backendBytes,omitempty"`
+	// Open-ended counters keyed by constants in additional_metrics_keys.go. TODO(issue/1274): populated by storage producers.
+	AdditionalMetrics map[string]int64 `protobuf:"bytes,8,rep,name=additionalMetrics,proto3" json:"additionalMetrics,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
 }
 
 type Trace struct {
@@ -842,6 +860,27 @@ func (m *TraceByIDMetrics) GetInspectedBytes() uint64 {
 	return 0
 }
 
+func (m *TraceByIDMetrics) GetBackendReads() uint64 {
+	if m != nil {
+		return m.BackendReads
+	}
+	return 0
+}
+
+func (m *TraceByIDMetrics) GetBackendBytes() uint64 {
+	if m != nil {
+		return m.BackendBytes
+	}
+	return 0
+}
+
+func (m *TraceByIDMetrics) GetAdditionalMetrics() map[string]int64 {
+	if m != nil {
+		return m.AdditionalMetrics
+	}
+	return nil
+}
+
 func (m *SearchRequest) GetTags() map[string]string {
 	if m != nil {
 		return m.Tags
@@ -1197,6 +1236,27 @@ func (m *SearchMetrics) GetInspectedSpans() uint64 {
 		return m.InspectedSpans
 	}
 	return 0
+}
+
+func (m *SearchMetrics) GetBackendReads() uint64 {
+	if m != nil {
+		return m.BackendReads
+	}
+	return 0
+}
+
+func (m *SearchMetrics) GetBackendBytes() uint64 {
+	if m != nil {
+		return m.BackendBytes
+	}
+	return 0
+}
+
+func (m *SearchMetrics) GetAdditionalMetrics() map[string]int64 {
+	if m != nil {
+		return m.AdditionalMetrics
+	}
+	return nil
 }
 
 func (m *SearchTagsRequest) GetScope() string {
@@ -1568,6 +1628,27 @@ func (m *MetadataMetrics) GetTotalBlockBytes() uint64 {
 		return m.TotalBlockBytes
 	}
 	return 0
+}
+
+func (m *MetadataMetrics) GetBackendReads() uint64 {
+	if m != nil {
+		return m.BackendReads
+	}
+	return 0
+}
+
+func (m *MetadataMetrics) GetBackendBytes() uint64 {
+	if m != nil {
+		return m.BackendBytes
+	}
+	return 0
+}
+
+func (m *MetadataMetrics) GetAdditionalMetrics() map[string]int64 {
+	if m != nil {
+		return m.AdditionalMetrics
+	}
+	return nil
 }
 
 func (m *Trace) GetResourceSpans() []tracev1.ResourceSpans {
@@ -1949,6 +2030,18 @@ func (m *TraceByIDMetrics) Size() int {
 	if m.InspectedBytes != 0 {
 		n += 1 + protowire.SizeVarint(uint64(m.InspectedBytes))
 	}
+	if m.BackendReads != 0 {
+		n += 1 + protowire.SizeVarint(uint64(m.BackendReads))
+	}
+	if m.BackendBytes != 0 {
+		n += 1 + protowire.SizeVarint(uint64(m.BackendBytes))
+	}
+	for k, v := range m.AdditionalMetrics {
+		entrySize := 0
+		entrySize += 1 + protowire.SizeVarint(uint64(len(k))) + len(k)
+		entrySize += 1 + protowire.SizeVarint(uint64(v))
+		n += 1 + protowire.SizeVarint(uint64(entrySize)) + entrySize
+	}
 	return n
 }
 
@@ -2196,6 +2289,18 @@ func (m *SearchMetrics) Size() int {
 	}
 	if m.InspectedSpans != 0 {
 		n += 1 + protowire.SizeVarint(uint64(m.InspectedSpans))
+	}
+	if m.BackendReads != 0 {
+		n += 1 + protowire.SizeVarint(uint64(m.BackendReads))
+	}
+	if m.BackendBytes != 0 {
+		n += 1 + protowire.SizeVarint(uint64(m.BackendBytes))
+	}
+	for k, v := range m.AdditionalMetrics {
+		entrySize := 0
+		entrySize += 1 + protowire.SizeVarint(uint64(len(k))) + len(k)
+		entrySize += 1 + protowire.SizeVarint(uint64(v))
+		n += 1 + protowire.SizeVarint(uint64(entrySize)) + entrySize
 	}
 	return n
 }
@@ -2467,6 +2572,18 @@ func (m *MetadataMetrics) Size() int {
 	}
 	if m.TotalBlockBytes != 0 {
 		n += 1 + protowire.SizeVarint(uint64(m.TotalBlockBytes))
+	}
+	if m.BackendReads != 0 {
+		n += 1 + protowire.SizeVarint(uint64(m.BackendReads))
+	}
+	if m.BackendBytes != 0 {
+		n += 1 + protowire.SizeVarint(uint64(m.BackendBytes))
+	}
+	for k, v := range m.AdditionalMetrics {
+		entrySize := 0
+		entrySize += 1 + protowire.SizeVarint(uint64(len(k))) + len(k)
+		entrySize += 1 + protowire.SizeVarint(uint64(v))
+		n += 1 + protowire.SizeVarint(uint64(entrySize)) + entrySize
 	}
 	return n
 }
@@ -2954,6 +3071,40 @@ func (m *TraceByIDMetrics) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		return 0, nil
 	}
 	i := len(dAtA)
+	for k, v := range m.AdditionalMetrics {
+		baseI := i
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(v))
+		i--
+		dAtA[i] = 0x10
+		i -= len(k)
+		copy(dAtA[i:], k)
+		if len(k) <= 0x7F {
+			dAtA[i-1] = uint8(len(k))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(k)))
+		}
+		i--
+		dAtA[i] = 0x0a
+		if baseI-i <= 0x7F {
+			dAtA[i-1] = uint8(baseI - i)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(baseI-i))
+		}
+		i--
+		dAtA[i] = 0x22
+	}
+	if m.BackendBytes != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.BackendBytes))
+		i--
+		dAtA[i] = 0x18
+	}
+	if m.BackendReads != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.BackendReads))
+		i--
+		dAtA[i] = 0x10
+	}
 	if m.InspectedBytes != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.InspectedBytes))
 		i--
@@ -3691,6 +3842,40 @@ func (m *SearchMetrics) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		return 0, nil
 	}
 	i := len(dAtA)
+	for k, v := range m.AdditionalMetrics {
+		baseI := i
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(v))
+		i--
+		dAtA[i] = 0x10
+		i -= len(k)
+		copy(dAtA[i:], k)
+		if len(k) <= 0x7F {
+			dAtA[i-1] = uint8(len(k))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(k)))
+		}
+		i--
+		dAtA[i] = 0x0a
+		if baseI-i <= 0x7F {
+			dAtA[i-1] = uint8(baseI - i)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(baseI-i))
+		}
+		i--
+		dAtA[i] = 0x52
+	}
+	if m.BackendBytes != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.BackendBytes))
+		i--
+		dAtA[i] = 0x48
+	}
+	if m.BackendReads != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.BackendReads))
+		i--
+		dAtA[i] = 0x40
+	}
 	if m.InspectedSpans != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.InspectedSpans))
 		i--
@@ -4534,6 +4719,40 @@ func (m *MetadataMetrics) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		return 0, nil
 	}
 	i := len(dAtA)
+	for k, v := range m.AdditionalMetrics {
+		baseI := i
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(v))
+		i--
+		dAtA[i] = 0x10
+		i -= len(k)
+		copy(dAtA[i:], k)
+		if len(k) <= 0x7F {
+			dAtA[i-1] = uint8(len(k))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(k)))
+		}
+		i--
+		dAtA[i] = 0x0a
+		if baseI-i <= 0x7F {
+			dAtA[i-1] = uint8(baseI - i)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(baseI-i))
+		}
+		i--
+		dAtA[i] = 0x42
+	}
+	if m.BackendBytes != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.BackendBytes))
+		i--
+		dAtA[i] = 0x38
+	}
+	if m.BackendReads != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.BackendReads))
+		i--
+		dAtA[i] = 0x30
+	}
 	if m.TotalBlockBytes != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.TotalBlockBytes))
 		i--
@@ -6059,6 +6278,71 @@ func (m *TraceByIDMetrics) unmarshal(dAtA []byte, depth int) error {
 	}
 	l := len(dAtA)
 	iNdEx := 0
+	if l >= 256 && depth >= 0 {
+		var preIdx int
+		var field4count int
+		for preIdx < l {
+			var preWire uint64
+			for shift := uint(0); ; shift += 7 {
+				if preIdx >= l {
+					break
+				}
+				b := dAtA[preIdx]
+				preIdx++
+				preWire |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			preNum := int32(preWire >> 3)
+			preTyp := int(preWire & 0x7)
+			switch preNum {
+			case 4:
+				field4count++
+			}
+			switch preTyp {
+			case 0:
+				for preIdx < l {
+					preIdx++
+					if dAtA[preIdx-1] < 0x80 {
+						break
+					}
+				}
+			case 1:
+				preIdx += 8
+			case 2:
+				var preLen uint64
+				for shift := uint(0); ; shift += 7 {
+					if preIdx >= l {
+						break
+					}
+					b := dAtA[preIdx]
+					preIdx++
+					preLen |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				preIdx += int(preLen)
+			case 5:
+				preIdx += 4
+			default:
+				preIdx = -1
+			}
+			if preIdx < 0 || preIdx > l {
+				break
+			}
+		}
+		preCapMax := l / 2
+		if c := field4count; c > 0 {
+			if c > preCapMax {
+				c = preCapMax
+			}
+			if m.AdditionalMetrics == nil {
+				m.AdditionalMetrics = make(map[string]int64, c)
+			}
+		}
+	}
 	for iNdEx < l {
 		var wire uint64
 		if iNdEx < l && dAtA[iNdEx] < 0x80 {
@@ -6114,6 +6398,218 @@ func (m *TraceByIDMetrics) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.InspectedBytes = v
+		case 2: // backendReads
+			if wireType != 0 {
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
+				if err != nil {
+					return err
+				}
+				iNdEx += n
+				continue
+			}
+			var v uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return fmt.Errorf("proto: integer overflow")
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					if shift == 63 && b > 1 {
+						return fmt.Errorf("proto: varint overflow")
+					}
+					break
+				}
+			}
+			m.BackendReads = v
+		case 3: // backendBytes
+			if wireType != 0 {
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
+				if err != nil {
+					return err
+				}
+				iNdEx += n
+				continue
+			}
+			var v uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return fmt.Errorf("proto: integer overflow")
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					if shift == 63 && b > 1 {
+						return fmt.Errorf("proto: varint overflow")
+					}
+					break
+				}
+			}
+			m.BackendBytes = v
+		case 4: // additionalMetrics
+			if wireType != 2 {
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
+				if err != nil {
+					return err
+				}
+				iNdEx += n
+				continue
+			}
+			var byteLen uint64
+			if iNdEx < l && dAtA[iNdEx] < 0x80 {
+				byteLen = uint64(dAtA[iNdEx])
+				iNdEx++
+			} else {
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return fmt.Errorf("proto: integer overflow")
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					byteLen |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						if shift == 63 && b > 1 {
+							return fmt.Errorf("proto: varint overflow")
+						}
+						break
+					}
+				}
+			}
+			if byteLen > uint64(math.MaxInt) {
+				return io.ErrUnexpectedEOF
+			}
+			intByteLen := int(byteLen)
+			postIndex := iNdEx + intByteLen
+			if postIndex < 0 {
+				return fmt.Errorf("proto: negative length")
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.AdditionalMetrics == nil {
+				m.AdditionalMetrics = make(map[string]int64)
+			}
+			var mapkey string
+			var mapvalue int64
+			for iNdEx < postIndex {
+				var entryWire uint64
+				if iNdEx < l && dAtA[iNdEx] < 0x80 {
+					entryWire = uint64(dAtA[iNdEx])
+					iNdEx++
+				} else {
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 35 {
+							return fmt.Errorf("proto: integer overflow")
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						entryWire |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+				}
+				if entryWire>>3 < 1 || entryWire>>3 > 0x1FFFFFFF {
+					return fmt.Errorf("invalid field number")
+				}
+				switch int32(entryWire >> 3) {
+				case 1:
+					if int(entryWire&0x7) != int(protowire.BytesType) {
+						n, err := protohelpers.SkipValue(dAtA[iNdEx:], int(entryWire&0x7), int32(entryWire>>3))
+						if err != nil {
+							return err
+						}
+						iNdEx += n
+						continue
+					}
+					var byteLen uint64
+					if iNdEx < l && dAtA[iNdEx] < 0x80 {
+						byteLen = uint64(dAtA[iNdEx])
+						iNdEx++
+					} else {
+						for shift := uint(0); ; shift += 7 {
+							if shift >= 64 {
+								return fmt.Errorf("proto: integer overflow")
+							}
+							if iNdEx >= l {
+								return io.ErrUnexpectedEOF
+							}
+							b := dAtA[iNdEx]
+							iNdEx++
+							byteLen |= uint64(b&0x7F) << shift
+							if b < 0x80 {
+								if shift == 63 && b > 1 {
+									return fmt.Errorf("proto: varint overflow")
+								}
+								break
+							}
+						}
+					}
+					if byteLen > uint64(math.MaxInt) {
+						return io.ErrUnexpectedEOF
+					}
+					intByteLen := int(byteLen)
+					postIndex := iNdEx + intByteLen
+					if postIndex < 0 {
+						return fmt.Errorf("proto: negative length")
+					}
+					if postIndex > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapkey = string(dAtA[iNdEx:postIndex])
+					iNdEx = postIndex
+				case 2:
+					if int(entryWire&0x7) != int(protowire.VarintType) {
+						n, err := protohelpers.SkipValue(dAtA[iNdEx:], int(entryWire&0x7), int32(entryWire>>3))
+						if err != nil {
+							return err
+						}
+						iNdEx += n
+						continue
+					}
+					var v uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return fmt.Errorf("proto: integer overflow")
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						v |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							if shift == 63 && b > 1 {
+								return fmt.Errorf("proto: varint overflow")
+							}
+							break
+						}
+					}
+					mapvalue = int64(v)
+				default:
+					n, err := protohelpers.SkipValue(dAtA[iNdEx:], int(entryWire&0x7), int32(entryWire>>3))
+					if err != nil {
+						return err
+					}
+					iNdEx += n
+				}
+			}
+			m.AdditionalMetrics[mapkey] = mapvalue
+			iNdEx = postIndex
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
@@ -6126,6 +6622,10 @@ func (m *TraceByIDMetrics) unmarshal(dAtA []byte, depth int) error {
 		return io.ErrUnexpectedEOF
 	}
 	return nil
+}
+
+func (m *TraceByIDMetrics) UnmarshalNoPrescan(dAtA []byte) error {
+	return m.unmarshal(dAtA, -1)
 }
 
 func (m *SearchRequest) Unmarshal(b []byte) error {
@@ -8957,6 +9457,71 @@ func (m *SearchMetrics) unmarshal(dAtA []byte, depth int) error {
 	}
 	l := len(dAtA)
 	iNdEx := 0
+	if l >= 256 && depth >= 0 {
+		var preIdx int
+		var field10count int
+		for preIdx < l {
+			var preWire uint64
+			for shift := uint(0); ; shift += 7 {
+				if preIdx >= l {
+					break
+				}
+				b := dAtA[preIdx]
+				preIdx++
+				preWire |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			preNum := int32(preWire >> 3)
+			preTyp := int(preWire & 0x7)
+			switch preNum {
+			case 10:
+				field10count++
+			}
+			switch preTyp {
+			case 0:
+				for preIdx < l {
+					preIdx++
+					if dAtA[preIdx-1] < 0x80 {
+						break
+					}
+				}
+			case 1:
+				preIdx += 8
+			case 2:
+				var preLen uint64
+				for shift := uint(0); ; shift += 7 {
+					if preIdx >= l {
+						break
+					}
+					b := dAtA[preIdx]
+					preIdx++
+					preLen |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				preIdx += int(preLen)
+			case 5:
+				preIdx += 4
+			default:
+				preIdx = -1
+			}
+			if preIdx < 0 || preIdx > l {
+				break
+			}
+		}
+		preCapMax := l / 2
+		if c := field10count; c > 0 {
+			if c > preCapMax {
+				c = preCapMax
+			}
+			if m.AdditionalMetrics == nil {
+				m.AdditionalMetrics = make(map[string]int64, c)
+			}
+		}
+	}
 	for iNdEx < l {
 		var wire uint64
 		if iNdEx < l && dAtA[iNdEx] < 0x80 {
@@ -9180,6 +9745,218 @@ func (m *SearchMetrics) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.InspectedSpans = v
+		case 8: // backendReads
+			if wireType != 0 {
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
+				if err != nil {
+					return err
+				}
+				iNdEx += n
+				continue
+			}
+			var v uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return fmt.Errorf("proto: integer overflow")
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					if shift == 63 && b > 1 {
+						return fmt.Errorf("proto: varint overflow")
+					}
+					break
+				}
+			}
+			m.BackendReads = v
+		case 9: // backendBytes
+			if wireType != 0 {
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
+				if err != nil {
+					return err
+				}
+				iNdEx += n
+				continue
+			}
+			var v uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return fmt.Errorf("proto: integer overflow")
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					if shift == 63 && b > 1 {
+						return fmt.Errorf("proto: varint overflow")
+					}
+					break
+				}
+			}
+			m.BackendBytes = v
+		case 10: // additionalMetrics
+			if wireType != 2 {
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
+				if err != nil {
+					return err
+				}
+				iNdEx += n
+				continue
+			}
+			var byteLen uint64
+			if iNdEx < l && dAtA[iNdEx] < 0x80 {
+				byteLen = uint64(dAtA[iNdEx])
+				iNdEx++
+			} else {
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return fmt.Errorf("proto: integer overflow")
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					byteLen |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						if shift == 63 && b > 1 {
+							return fmt.Errorf("proto: varint overflow")
+						}
+						break
+					}
+				}
+			}
+			if byteLen > uint64(math.MaxInt) {
+				return io.ErrUnexpectedEOF
+			}
+			intByteLen := int(byteLen)
+			postIndex := iNdEx + intByteLen
+			if postIndex < 0 {
+				return fmt.Errorf("proto: negative length")
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.AdditionalMetrics == nil {
+				m.AdditionalMetrics = make(map[string]int64)
+			}
+			var mapkey string
+			var mapvalue int64
+			for iNdEx < postIndex {
+				var entryWire uint64
+				if iNdEx < l && dAtA[iNdEx] < 0x80 {
+					entryWire = uint64(dAtA[iNdEx])
+					iNdEx++
+				} else {
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 35 {
+							return fmt.Errorf("proto: integer overflow")
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						entryWire |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+				}
+				if entryWire>>3 < 1 || entryWire>>3 > 0x1FFFFFFF {
+					return fmt.Errorf("invalid field number")
+				}
+				switch int32(entryWire >> 3) {
+				case 1:
+					if int(entryWire&0x7) != int(protowire.BytesType) {
+						n, err := protohelpers.SkipValue(dAtA[iNdEx:], int(entryWire&0x7), int32(entryWire>>3))
+						if err != nil {
+							return err
+						}
+						iNdEx += n
+						continue
+					}
+					var byteLen uint64
+					if iNdEx < l && dAtA[iNdEx] < 0x80 {
+						byteLen = uint64(dAtA[iNdEx])
+						iNdEx++
+					} else {
+						for shift := uint(0); ; shift += 7 {
+							if shift >= 64 {
+								return fmt.Errorf("proto: integer overflow")
+							}
+							if iNdEx >= l {
+								return io.ErrUnexpectedEOF
+							}
+							b := dAtA[iNdEx]
+							iNdEx++
+							byteLen |= uint64(b&0x7F) << shift
+							if b < 0x80 {
+								if shift == 63 && b > 1 {
+									return fmt.Errorf("proto: varint overflow")
+								}
+								break
+							}
+						}
+					}
+					if byteLen > uint64(math.MaxInt) {
+						return io.ErrUnexpectedEOF
+					}
+					intByteLen := int(byteLen)
+					postIndex := iNdEx + intByteLen
+					if postIndex < 0 {
+						return fmt.Errorf("proto: negative length")
+					}
+					if postIndex > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapkey = string(dAtA[iNdEx:postIndex])
+					iNdEx = postIndex
+				case 2:
+					if int(entryWire&0x7) != int(protowire.VarintType) {
+						n, err := protohelpers.SkipValue(dAtA[iNdEx:], int(entryWire&0x7), int32(entryWire>>3))
+						if err != nil {
+							return err
+						}
+						iNdEx += n
+						continue
+					}
+					var v uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return fmt.Errorf("proto: integer overflow")
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						v |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							if shift == 63 && b > 1 {
+								return fmt.Errorf("proto: varint overflow")
+							}
+							break
+						}
+					}
+					mapvalue = int64(v)
+				default:
+					n, err := protohelpers.SkipValue(dAtA[iNdEx:], int(entryWire&0x7), int32(entryWire>>3))
+					if err != nil {
+						return err
+					}
+					iNdEx += n
+				}
+			}
+			m.AdditionalMetrics[mapkey] = mapvalue
+			iNdEx = postIndex
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
@@ -9192,6 +9969,10 @@ func (m *SearchMetrics) unmarshal(dAtA []byte, depth int) error {
 		return io.ErrUnexpectedEOF
 	}
 	return nil
+}
+
+func (m *SearchMetrics) UnmarshalNoPrescan(dAtA []byte) error {
+	return m.unmarshal(dAtA, -1)
 }
 
 func (m *SearchTagsRequest) Unmarshal(b []byte) error {
@@ -12110,6 +12891,71 @@ func (m *MetadataMetrics) unmarshal(dAtA []byte, depth int) error {
 	}
 	l := len(dAtA)
 	iNdEx := 0
+	if l >= 256 && depth >= 0 {
+		var preIdx int
+		var field8count int
+		for preIdx < l {
+			var preWire uint64
+			for shift := uint(0); ; shift += 7 {
+				if preIdx >= l {
+					break
+				}
+				b := dAtA[preIdx]
+				preIdx++
+				preWire |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			preNum := int32(preWire >> 3)
+			preTyp := int(preWire & 0x7)
+			switch preNum {
+			case 8:
+				field8count++
+			}
+			switch preTyp {
+			case 0:
+				for preIdx < l {
+					preIdx++
+					if dAtA[preIdx-1] < 0x80 {
+						break
+					}
+				}
+			case 1:
+				preIdx += 8
+			case 2:
+				var preLen uint64
+				for shift := uint(0); ; shift += 7 {
+					if preIdx >= l {
+						break
+					}
+					b := dAtA[preIdx]
+					preIdx++
+					preLen |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				preIdx += int(preLen)
+			case 5:
+				preIdx += 4
+			default:
+				preIdx = -1
+			}
+			if preIdx < 0 || preIdx > l {
+				break
+			}
+		}
+		preCapMax := l / 2
+		if c := field8count; c > 0 {
+			if c > preCapMax {
+				c = preCapMax
+			}
+			if m.AdditionalMetrics == nil {
+				m.AdditionalMetrics = make(map[string]int64, c)
+			}
+		}
+	}
 	for iNdEx < l {
 		var wire uint64
 		if iNdEx < l && dAtA[iNdEx] < 0x80 {
@@ -12277,6 +13123,218 @@ func (m *MetadataMetrics) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.TotalBlockBytes = v
+		case 6: // backendReads
+			if wireType != 0 {
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
+				if err != nil {
+					return err
+				}
+				iNdEx += n
+				continue
+			}
+			var v uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return fmt.Errorf("proto: integer overflow")
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					if shift == 63 && b > 1 {
+						return fmt.Errorf("proto: varint overflow")
+					}
+					break
+				}
+			}
+			m.BackendReads = v
+		case 7: // backendBytes
+			if wireType != 0 {
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
+				if err != nil {
+					return err
+				}
+				iNdEx += n
+				continue
+			}
+			var v uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return fmt.Errorf("proto: integer overflow")
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					if shift == 63 && b > 1 {
+						return fmt.Errorf("proto: varint overflow")
+					}
+					break
+				}
+			}
+			m.BackendBytes = v
+		case 8: // additionalMetrics
+			if wireType != 2 {
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
+				if err != nil {
+					return err
+				}
+				iNdEx += n
+				continue
+			}
+			var byteLen uint64
+			if iNdEx < l && dAtA[iNdEx] < 0x80 {
+				byteLen = uint64(dAtA[iNdEx])
+				iNdEx++
+			} else {
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return fmt.Errorf("proto: integer overflow")
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					byteLen |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						if shift == 63 && b > 1 {
+							return fmt.Errorf("proto: varint overflow")
+						}
+						break
+					}
+				}
+			}
+			if byteLen > uint64(math.MaxInt) {
+				return io.ErrUnexpectedEOF
+			}
+			intByteLen := int(byteLen)
+			postIndex := iNdEx + intByteLen
+			if postIndex < 0 {
+				return fmt.Errorf("proto: negative length")
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.AdditionalMetrics == nil {
+				m.AdditionalMetrics = make(map[string]int64)
+			}
+			var mapkey string
+			var mapvalue int64
+			for iNdEx < postIndex {
+				var entryWire uint64
+				if iNdEx < l && dAtA[iNdEx] < 0x80 {
+					entryWire = uint64(dAtA[iNdEx])
+					iNdEx++
+				} else {
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 35 {
+							return fmt.Errorf("proto: integer overflow")
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						entryWire |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+				}
+				if entryWire>>3 < 1 || entryWire>>3 > 0x1FFFFFFF {
+					return fmt.Errorf("invalid field number")
+				}
+				switch int32(entryWire >> 3) {
+				case 1:
+					if int(entryWire&0x7) != int(protowire.BytesType) {
+						n, err := protohelpers.SkipValue(dAtA[iNdEx:], int(entryWire&0x7), int32(entryWire>>3))
+						if err != nil {
+							return err
+						}
+						iNdEx += n
+						continue
+					}
+					var byteLen uint64
+					if iNdEx < l && dAtA[iNdEx] < 0x80 {
+						byteLen = uint64(dAtA[iNdEx])
+						iNdEx++
+					} else {
+						for shift := uint(0); ; shift += 7 {
+							if shift >= 64 {
+								return fmt.Errorf("proto: integer overflow")
+							}
+							if iNdEx >= l {
+								return io.ErrUnexpectedEOF
+							}
+							b := dAtA[iNdEx]
+							iNdEx++
+							byteLen |= uint64(b&0x7F) << shift
+							if b < 0x80 {
+								if shift == 63 && b > 1 {
+									return fmt.Errorf("proto: varint overflow")
+								}
+								break
+							}
+						}
+					}
+					if byteLen > uint64(math.MaxInt) {
+						return io.ErrUnexpectedEOF
+					}
+					intByteLen := int(byteLen)
+					postIndex := iNdEx + intByteLen
+					if postIndex < 0 {
+						return fmt.Errorf("proto: negative length")
+					}
+					if postIndex > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapkey = string(dAtA[iNdEx:postIndex])
+					iNdEx = postIndex
+				case 2:
+					if int(entryWire&0x7) != int(protowire.VarintType) {
+						n, err := protohelpers.SkipValue(dAtA[iNdEx:], int(entryWire&0x7), int32(entryWire>>3))
+						if err != nil {
+							return err
+						}
+						iNdEx += n
+						continue
+					}
+					var v uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return fmt.Errorf("proto: integer overflow")
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						v |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							if shift == 63 && b > 1 {
+								return fmt.Errorf("proto: varint overflow")
+							}
+							break
+						}
+					}
+					mapvalue = int64(v)
+				default:
+					n, err := protohelpers.SkipValue(dAtA[iNdEx:], int(entryWire&0x7), int32(entryWire>>3))
+					if err != nil {
+						return err
+					}
+					iNdEx += n
+				}
+			}
+			m.AdditionalMetrics[mapkey] = mapvalue
+			iNdEx = postIndex
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
@@ -12289,6 +13347,10 @@ func (m *MetadataMetrics) unmarshal(dAtA []byte, depth int) error {
 		return io.ErrUnexpectedEOF
 	}
 	return nil
+}
+
+func (m *MetadataMetrics) UnmarshalNoPrescan(dAtA []byte) error {
+	return m.unmarshal(dAtA, -1)
 }
 
 func (m *Trace) Unmarshal(b []byte) error {
