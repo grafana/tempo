@@ -242,7 +242,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 	defer registryLabelValues.Release()
 
 	if p.Cfg.Subprocessors[Count] {
-		p.spanMetricsCallsTotal.IncWithHashAt(registryLabelValues.Labels, registryLabelValues.Hash, 1*spanMultiplier, updateTimeMs)
+		p.spanMetricsCallsTotal.IncBorrowed(registryLabelValues, 1*spanMultiplier, updateTimeMs)
 	}
 
 	if p.Cfg.Subprocessors[Latency] {
@@ -251,11 +251,11 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 		if start, end := span.GetStartTimeUnixNano(), span.GetEndTimeUnixNano(); start < end {
 			latencySeconds = float64(end-start) / float64(time.Second.Nanoseconds())
 		}
-		p.spanMetricsDurationSeconds.ObserveWithExemplarTraceIDBytesWithHashAt(registryLabelValues.Labels, registryLabelValues.Hash, latencySeconds, span.TraceId, spanMultiplier, updateTimeMs)
+		p.spanMetricsDurationSeconds.ObserveBorrowed(registryLabelValues, latencySeconds, span.TraceId, spanMultiplier, updateTimeMs)
 	}
 
 	if p.Cfg.Subprocessors[Size] {
-		p.spanMetricsSizeTotal.IncWithHashAt(registryLabelValues.Labels, registryLabelValues.Hash, float64(span.Size()), updateTimeMs)
+		p.spanMetricsSizeTotal.IncBorrowed(registryLabelValues, float64(span.Size()), updateTimeMs)
 	}
 
 	return true
@@ -306,7 +306,7 @@ func (p *Processor) buildAndSetTargetInfoLabels(attributes []*v1_common.KeyValue
 	// resource attribute in the built label set. We count from the built set because
 	// the registry label builder drops empty-valued labels (Add(name, "") deletes name).
 	if identifyingLabels > 0 && targetInfoLabels.Labels.Len() > identifyingLabels {
-		p.spanMetricsTargetInfo.SetForTargetInfoWithHashAt(targetInfoLabels.Labels, targetInfoLabels.Hash, 1, updateTimeMs)
+		p.spanMetricsTargetInfo.SetForTargetInfoBorrowed(targetInfoLabels, 1, updateTimeMs)
 	}
 	return true
 }

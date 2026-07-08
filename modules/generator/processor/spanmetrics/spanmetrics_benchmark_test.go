@@ -17,9 +17,9 @@ import (
 )
 
 // BenchmarkSpanMetricsPushSpans measures the processor end to end against
-// registry.TestRegistry, which stringifies labels into a map and discards the
-// precomputed hash, so absolute numbers include test-registry scaffolding that
-// production does not pay. Treat results as before/after comparisons of
+// registry.TestRegistry, which stringifies labels into a map instead of using
+// the precomputed hash, so absolute numbers include test-registry scaffolding
+// that production does not pay. Treat results as before/after comparisons of
 // processor-side changes only; the production label-building path is measured
 // by BenchmarkManagedRegistryBorrowPath in the registry package.
 func BenchmarkSpanMetricsPushSpans(b *testing.B) {

@@ -132,8 +132,8 @@ func (h *nativeHistogram) ObserveWithExemplar(lbls labels.Labels, value float64,
 	h.observeWithExemplarWithHashAt(lbls, lbls.Hash(), value, traceID, multiplier, time.Now().UnixMilli())
 }
 
-func (h *nativeHistogram) ObserveWithExemplarTraceIDBytesWithHashAt(lbls labels.Labels, hash uint64, value float64, traceID []byte, multiplier float64, timeMs int64) {
-	h.observeWithExemplarWithHashAt(lbls, hash, value, tempo_util.TraceIDToHexString(traceID), multiplier, timeMs)
+func (h *nativeHistogram) ObserveBorrowed(lbls *BorrowedLabels, value float64, traceID []byte, multiplier float64, timeMs int64) {
+	h.observeWithExemplarWithHashAt(lbls.Labels, lbls.Hash, value, tempo_util.TraceIDToHexString(traceID), multiplier, timeMs)
 }
 
 func (h *nativeHistogram) observeWithExemplarWithHashAt(lbls labels.Labels, hash uint64, value float64, traceID string, multiplier float64, timeMs int64) {
@@ -226,6 +226,10 @@ func (h *nativeHistogram) updateSeries(hash uint64, s *nativeHistogramSeries, va
 		exemplarObserver.ObserveWithExemplar(value, h.exemplarLabels)
 	}
 
+	// lastUpdated rides the observation call (timeMs is supplied by the
+	// caller: the batch timestamp on the borrowed path, time.Now() on the
+	// owned path) instead of a per-observation time.Now(); removeStaleSeries
+	// compares against it under the same seriesMtx.
 	s.lastUpdated = timeMs
 	h.lifecycler.OnUpdate(hash, h.activeSeriesPerHistogramSerie())
 }

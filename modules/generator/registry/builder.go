@@ -15,6 +15,11 @@ type labelBuilder struct {
 	labels          []labels.Label
 	pools           *labelBuilderPools
 
+	// borrowed is the value handed out by CloseAndBorrowLabels; it lives on
+	// the pooled builder so borrowing allocates nothing. Release clears it
+	// before the builder is returned to the pool.
+	borrowed BorrowedLabels
+
 	maxLabelNameLength  int
 	maxLabelValueLength int
 	closed              bool
@@ -31,15 +36,22 @@ type labelBuilderPools struct {
 	scratchBuilderPool sync.Pool
 }
 
+// initialLabelCapacity sizes pooled builders for the common case: the
+// intrinsic span-metrics labels (~9) plus a few configured dimensions fit
+// without growing. Builders that grow past it keep their larger capacity
+// when returned to the pool, so exceeding it costs one grow per builder,
+// not per series.
+const initialLabelCapacity = 16
+
 func newLabelBuilderPools() *labelBuilderPools {
 	p := &labelBuilderPools{}
 	p.labelBuilderPool.New = func() interface{} {
 		return &labelBuilder{
-			labels: make([]labels.Label, 0, 16),
+			labels: make([]labels.Label, 0, initialLabelCapacity),
 		}
 	}
 	p.scratchBuilderPool.New = func() interface{} {
-		b := labels.NewScratchBuilder(16)
+		b := labels.NewScratchBuilder(initialLabelCapacity)
 		return &b
 	}
 	return p
@@ -112,7 +124,7 @@ func (b *labelBuilder) CloseAndBuildLabels() (labels.Labels, bool) {
 	return lbls, lbls.IsValid(model.UTF8Validation)
 }
 
-func (b *labelBuilder) CloseAndBorrowLabels() (BorrowedLabels, bool) {
+func (b *labelBuilder) CloseAndBorrowLabels() (*BorrowedLabels, bool) {
 	if b.closed {
 		// Closing twice would borrow a second value backed by this same builder
 		// and scratch, and releasing both double-Puts them into the pools
@@ -132,15 +144,14 @@ func (b *labelBuilder) CloseAndBorrowLabels() (BorrowedLabels, bool) {
 	lbls = b.perLabelLimiter.Limit(lbls)
 	if !lbls.IsValid(model.UTF8Validation) {
 		b.releaseBorrowedLabels(scratch)
-		return BorrowedLabels{}, false
+		return nil, false
 	}
 
-	return BorrowedLabels{
-		Labels:  lbls,
-		Hash:    lbls.Hash(),
-		builder: b,
-		scratch: scratch,
-	}, true
+	b.borrowed.Labels = lbls
+	b.borrowed.Hash = lbls.Hash()
+	b.borrowed.builder = b
+	b.borrowed.scratch = scratch
+	return &b.borrowed, true
 }
 
 // releaseBorrowedLabels resets the builder and returns it and the scratch

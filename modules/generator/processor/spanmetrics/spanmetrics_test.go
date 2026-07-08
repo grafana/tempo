@@ -1912,9 +1912,9 @@ func (c *recordingCounter) Inc(lbls labels.Labels, value float64) {
 	c.Counter.Inc(lbls, value)
 }
 
-func (c *recordingCounter) IncWithHashAt(lbls labels.Labels, hash uint64, value float64, timeMs int64) {
+func (c *recordingCounter) IncBorrowed(lbls *registry.BorrowedLabels, value float64, timeMs int64) {
 	*c.calls = append(*c.calls, c.name)
-	c.Counter.IncWithHashAt(lbls, hash, value, timeMs)
+	c.Counter.IncBorrowed(lbls, value, timeMs)
 }
 
 type recordingGauge struct {
@@ -1938,9 +1938,9 @@ func (g *recordingGauge) SetForTargetInfo(lbls labels.Labels, value float64) {
 	g.Gauge.SetForTargetInfo(lbls, value)
 }
 
-func (g *recordingGauge) SetForTargetInfoWithHashAt(lbls labels.Labels, hash uint64, value float64, timeMs int64) {
+func (g *recordingGauge) SetForTargetInfoBorrowed(lbls *registry.BorrowedLabels, value float64, timeMs int64) {
 	*g.calls = append(*g.calls, g.name)
-	g.Gauge.SetForTargetInfoWithHashAt(lbls, hash, value, timeMs)
+	g.Gauge.SetForTargetInfoBorrowed(lbls, value, timeMs)
 }
 
 type recordingHistogram struct {
@@ -1954,9 +1954,9 @@ func (h *recordingHistogram) ObserveWithExemplar(lbls labels.Labels, value float
 	h.Histogram.ObserveWithExemplar(lbls, value, traceID, multiplier)
 }
 
-func (h *recordingHistogram) ObserveWithExemplarTraceIDBytesWithHashAt(lbls labels.Labels, hash uint64, value float64, traceID []byte, multiplier float64, timeMs int64) {
+func (h *recordingHistogram) ObserveBorrowed(lbls *registry.BorrowedLabels, value float64, traceID []byte, multiplier float64, timeMs int64) {
 	*h.calls = append(*h.calls, h.name)
-	h.Histogram.ObserveWithExemplarTraceIDBytesWithHashAt(lbls, hash, value, traceID, multiplier, timeMs)
+	h.Histogram.ObserveBorrowed(lbls, value, traceID, multiplier, timeMs)
 }
 
 // TestSpanMetricsTargetInfoRegisteredAfterSpanMetrics pins the order in which

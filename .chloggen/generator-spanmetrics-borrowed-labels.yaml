@@ -1,6 +1,7 @@
 change_type: enhancement
 component: metrics-generator
-note: The span-metrics processor builds series labels through the registry's borrowed-label buffers and updates metrics with a precomputed hash, building target_info once per resource instead of once per span. This reduces per-span CPU and allocations on the generator hot path with no change to metric names, labels, or values for valid configurations. Histogram buckets (classic and native) are now normalized (sorted) when the histogram is built, which only affects misconfigured non-monotonic histogram_buckets — correcting classic exemplar bucket placement and avoiding a panic when native histograms are enabled. Label-builder pools are now owned per-tenant.
+note: Reduce per-span CPU and allocations in the span-metrics processor by building series labels through the registry's pooled borrowed-label path.
 issues: [7124]
-subtext:
+subtext: |
+  The span-metrics processor now builds series labels in registry-owned pooled buffers, updates metrics with a precomputed label hash, and builds target_info once per resource instead of once per span. Metric names, labels, and values are unchanged.
 user: carles-grafana

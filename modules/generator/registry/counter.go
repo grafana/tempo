@@ -59,10 +59,14 @@ func newCounter(name string, lifecycler Limiter, externalLabels map[string]strin
 }
 
 func (c *counter) Inc(lbls labels.Labels, value float64) {
-	c.IncWithHashAt(lbls, lbls.Hash(), value, time.Now().UnixMilli())
+	c.incAt(lbls, lbls.Hash(), value, time.Now().UnixMilli())
 }
 
-func (c *counter) IncWithHashAt(lbls labels.Labels, hash uint64, value float64, timeMs int64) {
+func (c *counter) IncBorrowed(lbls *BorrowedLabels, value float64, timeMs int64) {
+	c.incAt(lbls.Labels, lbls.Hash, value, timeMs)
+}
+
+func (c *counter) incAt(lbls labels.Labels, hash uint64, value float64, timeMs int64) {
 	if value < 0 {
 		panic("counter can only increase")
 	}
