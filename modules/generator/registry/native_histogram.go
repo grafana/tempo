@@ -132,8 +132,8 @@ func (h *nativeHistogram) ObserveWithExemplar(lbls labels.Labels, value float64,
 	h.observeWithExemplarWithHashAt(lbls, lbls.Hash(), value, traceID, multiplier, time.Now().UnixMilli())
 }
 
-func (h *nativeHistogram) ObserveWithExemplarTraceIDBytesWithHashAt(lbls labels.Labels, hash uint64, value float64, traceID []byte, multiplier float64, timeMs int64) {
-	h.observeWithExemplarWithHashAt(lbls, hash, value, tempo_util.TraceIDToHexString(traceID), multiplier, timeMs)
+func (h *nativeHistogram) ObserveBorrowed(lbls *BorrowedLabels, value float64, traceID []byte, multiplier float64, timeMs int64) {
+	h.observeWithExemplarWithHashAt(lbls.Labels, lbls.Hash, value, tempo_util.TraceIDToHexString(traceID), multiplier, timeMs)
 }
 
 func (h *nativeHistogram) observeWithExemplarWithHashAt(lbls labels.Labels, hash uint64, value float64, traceID string, multiplier float64, timeMs int64) {
@@ -214,18 +214,29 @@ func (h *nativeHistogram) newSeries(lbls labels.Labels, hash uint64, value float
 }
 
 func (h *nativeHistogram) updateSeries(hash uint64, s *nativeHistogramSeries, value float64, traceID string, multiplier float64, timeMs int64) {
-	// Use Prometheus native exemplar handling
-	exemplarObserver := s.promHistogram.(prometheus.ExemplarObserver)
-
-	// ObserveWithExemplar copies the labels synchronously; seriesMtx serializes reuse.
-	h.exemplarLabels[h.traceIDLabelName] = traceID
-
-	// multiplier is 1 on the common path, so this loop runs exactly once.
-	for i := 0.0; i < multiplier; i++ {
-		// Let Prometheus handle exemplars natively
-		exemplarObserver.ObserveWithExemplar(value, h.exemplarLabels)
+	// multiplier is 1 on the common path, so these loops run exactly once.
+	if traceID == "" {
+		// Interface contract: empty trace ID (including all-zero IDs, which
+		// hex-encode to "") means no exemplar. Observing with an empty label
+		// value would attach a junk traceID="" exemplar; the classic histogram
+		// instead drops empty exemplars at collect time.
+		for i := 0.0; i < multiplier; i++ {
+			s.promHistogram.Observe(value)
+		}
+	} else {
+		// Use Prometheus native exemplar handling.
+		exemplarObserver := s.promHistogram.(prometheus.ExemplarObserver)
+		// ObserveWithExemplar copies the labels synchronously; seriesMtx serializes reuse.
+		h.exemplarLabels[h.traceIDLabelName] = traceID
+		for i := 0.0; i < multiplier; i++ {
+			exemplarObserver.ObserveWithExemplar(value, h.exemplarLabels)
+		}
 	}
 
+	// lastUpdated rides the observation call (timeMs is supplied by the
+	// caller: the batch timestamp on the borrowed path, time.Now() on the
+	// owned path) instead of a per-observation time.Now(); removeStaleSeries
+	// compares against it under the same seriesMtx.
 	s.lastUpdated = timeMs
 	h.lifecycler.OnUpdate(hash, h.activeSeriesPerHistogramSerie())
 }

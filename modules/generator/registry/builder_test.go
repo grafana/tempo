@@ -96,10 +96,9 @@ func TestBorrowedLabels_AppliesSanitizerAndLimiter(t *testing.T) {
 	borrowed, ok := builder.CloseAndBorrowLabels()
 	assert.True(t, ok)
 	assert.Equal(t, "sanitized", borrowed.Labels.Get("name"))
-	// Hash must be computed on the post-sanitize/post-limit labels — it is the
-	// documented precondition for every *WithHash* metric method. A regression
-	// that hashed the pre-transform labels would silently split or collide
-	// series.
+	// Hash must be computed on the post-sanitize/post-limit labels — the
+	// *Borrowed metric methods trust it as the series key. A regression that
+	// hashed the pre-transform labels would silently split or collide series.
 	assert.Equal(t, borrowed.Labels.Hash(), borrowed.Hash, "Hash must match the transformed labels")
 	borrowed.Release()
 }
@@ -125,13 +124,16 @@ func TestBorrowedLabels_SequentialReuseDoesNotLeak(t *testing.T) {
 	}
 }
 
-func TestBorrowedLabels_ReleaseIsIdempotent(t *testing.T) {
+func TestBorrowedLabels_DoubleReleaseBeforeReuseIsNoOp(t *testing.T) {
 	// Release must not double-Put the builder/scratch into their pools when
-	// called more than once on the same struct value. This only protects
-	// repeated Release on the same value — Release on a copy of BorrowedLabels
-	// is documented as forbidden because each copy retains independent
-	// non-nil builder/scratch pointers and the second Release on the copy
-	// would still double-Put.
+	// called twice through the same pointer. This is best-effort misuse
+	// mitigation, not a guarantee: it only holds until the pooled builder is
+	// re-issued by a future CloseAndBorrowLabels — the same *BorrowedLabels is
+	// then live again, and a stale Release would clear the new borrower's
+	// fields and still double-Put. Release is documented as call-exactly-once.
+	// Release on a dereferenced copy of BorrowedLabels is likewise forbidden:
+	// the copy retains independent non-nil builder/scratch pointers, so
+	// releasing both double-Puts.
 	builder := NewLabelBuilder(0, 0, newTestDrainSanitizer(SpanNameSanitizationDisabled), newTestLabelLimiter())
 	builder.Add("name", "value")
 
@@ -143,6 +145,20 @@ func TestBorrowedLabels_ReleaseIsIdempotent(t *testing.T) {
 	// second release is a no-op; would otherwise corrupt the sync.Pool.
 	borrowed.Release()
 	assert.Equal(t, labels.EmptyLabels(), borrowed.Labels)
+}
+
+func TestBorrowedLabels_ReleaseOnFailedBorrowIsNoOp(t *testing.T) {
+	// CloseAndBorrowLabels returns (nil, false) for an invalid label set.
+	// Release on that nil must be a no-op so a caller that defers Release
+	// before checking ok cannot be panicked by remote-controlled input (span
+	// attributes with invalid UTF-8).
+	builder := NewLabelBuilder(0, 0, newTestDrainSanitizer(SpanNameSanitizationDisabled), newTestLabelLimiter())
+	builder.Add("name", "svc-\xc3\x28") // invalid UTF-8
+
+	borrowed, ok := builder.CloseAndBorrowLabels()
+	require.False(t, ok)
+	require.Nil(t, borrowed)
+	require.NotPanics(t, func() { borrowed.Release() })
 }
 
 func TestLabelBuilder_Sanitizer(t *testing.T) {
@@ -198,7 +214,7 @@ func TestBorrowedLabels_CollapsedLabelsProduceSingleSeries(t *testing.T) {
 		borrowed, ok := builder.CloseAndBorrowLabels()
 		require.True(t, ok)
 		require.Equal(t, borrowed.Labels.Hash(), borrowed.Hash)
-		c.IncWithHashAt(borrowed.Labels, borrowed.Hash, 1, time.Now().UnixMilli())
+		c.IncBorrowed(borrowed, 1, time.Now().UnixMilli())
 		borrowed.Release()
 	}
 
@@ -206,9 +222,10 @@ func TestBorrowedLabels_CollapsedLabelsProduceSingleSeries(t *testing.T) {
 }
 
 // TestLabelBuilder_DoubleClosePanics verifies both close methods reject a second
-// close on the same builder. Without the guard the second close would build a
-// value backed by the same pooled builder/scratch, and releasing both would
-// double-Put them into the pools, handing one instance to two future callers.
+// close on the same builder. Without the guard the second close would hand out
+// a second borrow backed by the same pooled builder/scratch, and releasing both
+// would double-Put them into the pools, handing one instance to two future
+// callers.
 func TestLabelBuilder_DoubleClosePanics(t *testing.T) {
 	t.Run("CloseAndBuildLabels", func(t *testing.T) {
 		b := NewLabelBuilder(0, 0, newTestDrainSanitizer(SpanNameSanitizationDisabled), newTestLabelLimiter())

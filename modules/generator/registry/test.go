@@ -121,8 +121,8 @@ func (t *testCounter) Inc(lbls labels.Labels, value float64) {
 	t.registry.addToMetric(t.n, lbls, value)
 }
 
-func (t *testCounter) IncWithHashAt(lbls labels.Labels, _ uint64, value float64, _ int64) {
-	t.Inc(lbls, value)
+func (t *testCounter) IncBorrowed(lbls *BorrowedLabels, value float64, _ int64) {
+	t.Inc(lbls.Labels, value)
 }
 
 func (t *testCounter) name() string {
@@ -168,8 +168,8 @@ func (t *testGauge) SetForTargetInfo(lbls labels.Labels, value float64) {
 	t.Set(lbls, value)
 }
 
-func (t *testGauge) SetForTargetInfoWithHashAt(lbls labels.Labels, _ uint64, value float64, _ int64) {
-	t.SetForTargetInfo(lbls, value)
+func (t *testGauge) SetForTargetInfoBorrowed(lbls *BorrowedLabels, value float64, _ int64) {
+	t.SetForTargetInfo(lbls.Labels, value)
 }
 
 func (t *testGauge) name() string {
@@ -218,10 +218,10 @@ func (t *testHistogram) ObserveWithExemplar(lbls labels.Labels, value float64, _
 	t.registry.addToMetric(t.nameBucket, withLe(lbls, math.Inf(1)), 1*multiplier)
 }
 
-func (t *testHistogram) ObserveWithExemplarTraceIDBytesWithHashAt(lbls labels.Labels, _ uint64, value float64, _ []byte, multiplier float64, _ int64) {
+func (t *testHistogram) ObserveBorrowed(lbls *BorrowedLabels, value float64, _ []byte, multiplier float64, _ int64) {
 	// testHistogram discards the trace ID (ObserveWithExemplar ignores it), so
 	// skip hex-encoding it — that allocation only inflated benchmark allocs.
-	t.ObserveWithExemplar(lbls, value, "", multiplier)
+	t.ObserveWithExemplar(lbls.Labels, value, "", multiplier)
 }
 
 func (t *testHistogram) name() string {

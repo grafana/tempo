@@ -12,7 +12,7 @@ import (
 // sanitize + per-label limit + hash + utf8 check) -> hash-keyed metric update
 // -> Release, against a real ManagedRegistry with its per-tenant pools. This is
 // the path spanmetrics drives per span and the one the borrow API optimizes.
-// BenchmarkSpanMetricsPushSpans uses registry.TestRegistry, which discards the
+// BenchmarkSpanMetricsPushSpans uses registry.TestRegistry, which ignores the
 // precomputed hash and stringifies labels, so it does not exercise this path.
 //
 // The variants toggle the sanitizer and per-label limiter so their per-span
@@ -61,8 +61,8 @@ func BenchmarkManagedRegistryBorrowPath(b *testing.B) {
 				if !ok {
 					b.Fatal("expected valid labels")
 				}
-				counter.IncWithHashAt(borrowed.Labels, borrowed.Hash, 1, ts)
-				histogram.ObserveWithExemplarTraceIDBytesWithHashAt(borrowed.Labels, borrowed.Hash, 0.42, traceID, 1, ts)
+				counter.IncBorrowed(borrowed, 1, ts)
+				histogram.ObserveBorrowed(borrowed, 0.42, traceID, 1, ts)
 				borrowed.Release()
 			}
 		})

@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"os"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -1069,9 +1070,9 @@ func TestManagedRegistry_borrowedLabelsSurviveScratchReuse(t *testing.T) {
 
 	timeMs := time.Now().UnixMilli()
 	traceID := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}
-	counter.IncWithHashAt(borrowed.Labels, borrowed.Hash, 1.0, timeMs)
-	histogram.ObserveWithExemplarTraceIDBytesWithHashAt(borrowed.Labels, borrowed.Hash, 1.0, traceID, 1.0, timeMs)
-	gauge.SetForTargetInfoWithHashAt(borrowed.Labels, borrowed.Hash, 1.0, timeMs)
+	counter.IncBorrowed(borrowed, 1.0, timeMs)
+	histogram.ObserveBorrowed(borrowed, 1.0, traceID, 1.0, timeMs)
+	gauge.SetForTargetInfoBorrowed(borrowed, 1.0, timeMs)
 	borrowed.Release()
 
 	// Overwrite the caller-owned trace ID slice: the histogram must have
@@ -1145,7 +1146,7 @@ func TestManagedRegistry_borrowedLabelsSurviveSanitizerAndLimiter(t *testing.T) 
 		builder.Add("route", fmt.Sprintf("/u/%0*d", i%37, i))
 		borrowed, ok := builder.CloseAndBorrowLabels()
 		require.True(t, ok)
-		counter.IncWithHashAt(borrowed.Labels, borrowed.Hash, 1, time.Now().UnixMilli())
+		counter.IncBorrowed(borrowed, 1, time.Now().UnixMilli())
 		borrowed.Release()
 	}
 
@@ -1188,7 +1189,7 @@ func TestManagedRegistry_retainingLimiterDoesNotCorruptSeries(t *testing.T) {
 	builder.Add("label", "value-1")
 	borrowed, ok := builder.CloseAndBorrowLabels()
 	require.True(t, ok)
-	counter.IncWithHashAt(borrowed.Labels, borrowed.Hash, 1, time.Now().UnixMilli())
+	counter.IncBorrowed(borrowed, 1, time.Now().UnixMilli())
 	borrowed.Release()
 
 	// Churn the pools so anything the limiter wrongly retained is overwritten.
@@ -1242,7 +1243,7 @@ func TestManagedRegistry_nativeBorrowedLabelsSurviveScratchReuse(t *testing.T) {
 			builder.Add("label", "value-1")
 			borrowed, valid := builder.CloseAndBorrowLabels()
 			require.True(t, valid)
-			histogram.ObserveWithExemplarTraceIDBytesWithHashAt(borrowed.Labels, borrowed.Hash, 1.5, traceID, 1.0, time.Now().UnixMilli())
+			histogram.ObserveBorrowed(borrowed, 1.5, traceID, 1.0, time.Now().UnixMilli())
 			borrowed.Release()
 
 			// Churn the pooled builders/scratch so any retained borrowed label
@@ -1314,4 +1315,53 @@ func TestManagedRegistryPerTenantPools(t *testing.T) {
 		assert.Equal(t, "b", lb.Labels.Get("k"))
 		lb.Release()
 	}
+}
+
+// TestManagedRegistry_concurrentBorrowRelease exercises the full borrow path —
+// NewLabelBuilder → Add → CloseAndBorrowLabels → *Borrowed update → Release —
+// from many goroutines sharing one registry, as production does (a tenant's
+// pools are shared across ingest_concurrency consumers). Run under -race it
+// pins the Release ordering invariant that fields are cleared before the
+// builder is pooled: a regression that Puts the builder first would let the
+// next borrower's writes race Release's clears across goroutines.
+func TestManagedRegistry_concurrentBorrowRelease(t *testing.T) {
+	registry := New(&Config{}, &mockOverrides{}, "test", &noopAppender{}, log.NewNopLogger(), noopLimiter)
+	defer registry.Close()
+
+	counter := registry.NewCounter("my_counter")
+	histogram := registry.NewHistogram("my_histogram", []float64{1}, HistogramModeClassic)
+	gauge := registry.NewGauge("my_gauge")
+
+	const (
+		goroutines = 8
+		iterations = 500
+	)
+	traceID := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}
+
+	var wg sync.WaitGroup
+	for g := 0; g < goroutines; g++ {
+		wg.Add(1)
+		go func(g int) {
+			defer wg.Done()
+			for i := 0; i < iterations; i++ {
+				timeMs := time.Now().UnixMilli()
+
+				builder := registry.NewLabelBuilder()
+				builder.Add("service", "svc")
+				// A small set of distinct values keeps the series count
+				// bounded while still churning the pooled scratch buffers
+				// with different content between borrows.
+				builder.Add("span_name", fmt.Sprintf("GET /g/%d/%d", g, i%5))
+				borrowed, ok := builder.CloseAndBorrowLabels()
+				if !assert.True(t, ok) {
+					continue
+				}
+				counter.IncBorrowed(borrowed, 1, timeMs)
+				histogram.ObserveBorrowed(borrowed, 0.5, traceID, 1, timeMs)
+				gauge.SetForTargetInfoBorrowed(borrowed, 1, timeMs)
+				borrowed.Release()
+			}
+		}(g)
+	}
+	wg.Wait()
 }

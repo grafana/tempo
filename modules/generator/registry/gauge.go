@@ -63,11 +63,11 @@ func (g *gauge) Inc(lbls labels.Labels, value float64) {
 }
 
 func (g *gauge) SetForTargetInfo(lbls labels.Labels, value float64) {
-	g.SetForTargetInfoWithHashAt(lbls, lbls.Hash(), value, time.Now().UnixMilli())
+	g.updateSeries(lbls, lbls.Hash(), value, set, false, time.Now().UnixMilli())
 }
 
-func (g *gauge) SetForTargetInfoWithHashAt(lbls labels.Labels, hash uint64, value float64, timeMs int64) {
-	g.updateSeries(lbls, hash, value, set, false, timeMs)
+func (g *gauge) SetForTargetInfoBorrowed(lbls *BorrowedLabels, value float64, timeMs int64) {
+	g.updateSeries(lbls.Labels, lbls.Hash, value, set, false, timeMs)
 }
 
 func (g *gauge) updateSeries(lbls labels.Labels, hash uint64, value float64, operation string, updateIfAlreadyExist bool, timeMs int64) {
