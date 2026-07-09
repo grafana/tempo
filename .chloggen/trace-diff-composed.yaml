@@ -1,0 +1,6 @@
+change_type: feature
+component: query-frontend
+note: Add trace-summary-v0-composed as an optional experimental trace diff API and tempo-cli format. Responses always include a compact summary and include the full patch up to 64 KiB; larger patches report that the patch was omitted. The default remains trace-patch-v0.
+issues: [7593]
+subtext:
+user: carles-grafana

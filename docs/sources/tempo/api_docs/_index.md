@@ -745,10 +745,11 @@ GET /api/metrics/query?q={status=error}|count_over_time()by(resource.service.nam
 ### Trace diff
 
 {{< admonition type="warning" >}}
-This endpoint is experimental. The request format and behavior may change in future releases. The diff computation isn't implemented yet; the endpoint currently returns `501 Not Implemented` for valid requests.
+This endpoint is experimental. The request and response formats may change in future releases.
 {{< /admonition >}}
 
-This endpoint will compare two traces and produce a structural diff. Send a `POST` request with a JSON body that identifies both traces by their IDs.
+This endpoint compares two complete traces. Send a `POST` request with a JSON
+body that identifies both traces by their IDs. Partial traces are rejected.
 
 ```
 POST /api/v2/traces/diff
@@ -767,7 +768,8 @@ Request body:
     "traceId": "<COMPARE_TRACE_ID>",
     "start": 1700100000,
     "end": 1700103600
-  }
+  },
+  "format": "trace-summary-v0-composed"
 }
 ```
 
@@ -785,8 +787,19 @@ Parameters:
   Optional. Start of the time range to search for the comparison trace (UNIX epoch seconds).
 - `compare.end`
   Optional. End of the time range to search for the comparison trace (UNIX epoch seconds).
+- `format`
+  Optional. Output format. The default is `trace-patch-v0`. Use
+  `trace-summary-v0-native` for only the compact summary or
+  `trace-summary-v0-composed` for the summary with a size-bounded patch.
 
-When `start` and `end` are provided, the request validates that `start` is before `end`. When the endpoint is fully implemented, these fields will limit block search to that time range. If omitted, Tempo will search across all blocks.
+The composed response always includes a native summary. It includes the full
+patch when the serialized patch is no larger than 64 KiB. Otherwise,
+`patchOmitted` reports the patch size and the reason `over_budget`; send another
+request with `format` set to `trace-patch-v0` to retrieve it.
+
+When `start` and `end` are provided, the request validates that `start` is
+before `end` and limits the block search to that time range. If omitted, Tempo
+searches across all blocks.
 
 Only `POST` is allowed. Other methods return `405 Method Not Allowed`.
 

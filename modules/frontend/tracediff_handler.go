@@ -68,6 +68,7 @@ func newTraceDiffHandler(_ Config, apiPrefix string, tracePipeline pipeline.Asyn
 			"msg", "trace diff request",
 			"tenant", tenant,
 			"path", req.URL.Path,
+			"format", diffReq.Format,
 			"base_trace_id", diffReq.Base.TraceID,
 			"base_start", traceDiffTimeParam(diffReq.Base.Start),
 			"base_end", traceDiffTimeParam(diffReq.Base.End),
@@ -86,7 +87,7 @@ func newTraceDiffHandler(_ Config, apiPrefix string, tracePipeline pipeline.Asyn
 			return traceDiffErrorResponse(err), nil
 		}
 
-		result, err := tracediff.Diff(baseResp.Trace, compareResp.Trace, tracediff.Format(diffReq.Format))
+		result, err := buildTraceDiffResponse(baseResp.Trace, compareResp.Trace, diffReq.Format)
 		if err != nil {
 			return traceDiffErrorResponse(err), nil
 		}
@@ -97,6 +98,21 @@ func newTraceDiffHandler(_ Config, apiPrefix string, tracePipeline pipeline.Asyn
 		}
 		return traceDiffJSONResponse(body), nil
 	})
+}
+
+// buildTraceDiffResponse dispatches the already-validated request format to
+// the tracediff builder for that format.
+func buildTraceDiffResponse(base, compare *tempopb.Trace, format string) (any, error) {
+	switch format {
+	case tracediff.VersionTraceSummaryV0Composed:
+		return tracediff.Compose(base, compare, tracediff.DefaultPatchBudgetBytes, nil)
+	case tracediff.VersionTracePatchV0:
+		return tracediff.Diff(base, compare, tracediff.FormatTracePatchV0)
+	case tracediff.VersionTraceSummaryV0Native:
+		return tracediff.Summarize(base, compare)
+	default:
+		return nil, fmt.Errorf("%q: %w", format, tracediff.ErrUnsupportedFormat)
+	}
 }
 
 func traceDiffTimeParam(v *int64) any {

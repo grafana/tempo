@@ -594,8 +594,33 @@ func TestTraceDiff(t *testing.T) {
 func callTraceDiffAndAssert(t *testing.T, h *util.TempoHarness, base, compare *tempoUtil.TraceInfo) {
 	t.Helper()
 
-	body := strings.NewReader(fmt.Sprintf(`{"base":{"traceId":"%s"},"compare":{"traceId":"%s"}}`, base.HexID(), compare.HexID()))
-	req, err := http.NewRequest(http.MethodPost, h.BaseURL()+"/api/v2/traces/diff", body)
+	// Default request (no format): the bare trace-patch-v0 document.
+	respBody := postTraceDiff(t, h, fmt.Sprintf(`{"base":{"traceId":"%s"},"compare":{"traceId":"%s"}}`, base.HexID(), compare.HexID()))
+
+	var patch tracediff.Result
+	require.NoError(t, json.Unmarshal(respBody, &patch))
+	assertTraceDiffPatch(t, &patch, base, compare)
+
+	// Explicit composed request: the summary with the full patch embedded
+	// because the vulture traces fit the patch budget.
+	respBody = postTraceDiff(t, h, fmt.Sprintf(`{"base":{"traceId":"%s"},"compare":{"traceId":"%s"},"format":"trace-summary-v0-composed"}`, base.HexID(), compare.HexID()))
+
+	var composed tracediff.ComposedResult
+	require.NoError(t, json.Unmarshal(respBody, &composed))
+	require.Equal(t, tracediff.VersionTraceSummaryV0Composed, composed.Version)
+	require.NotNil(t, composed.Summary)
+	require.Equal(t, tracediff.VersionTraceSummaryV0Native, composed.Summary.Version)
+	require.Nil(t, composed.PatchOmitted)
+
+	var embeddedPatch tracediff.Result
+	require.NoError(t, json.Unmarshal(composed.Patch, &embeddedPatch))
+	assertTraceDiffPatch(t, &embeddedPatch, base, compare)
+}
+
+func postTraceDiff(t *testing.T, h *util.TempoHarness, body string) []byte {
+	t.Helper()
+
+	req, err := http.NewRequest(http.MethodPost, h.BaseURL()+"/api/v2/traces/diff", strings.NewReader(body))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 
@@ -606,9 +631,12 @@ func callTraceDiffAndAssert(t *testing.T, h *util.TempoHarness, base, compare *t
 	respBody, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode, string(respBody))
+	return respBody
+}
 
-	var result tracediff.Result
-	require.NoError(t, json.Unmarshal(respBody, &result))
+func assertTraceDiffPatch(t *testing.T, result *tracediff.Result, base, compare *tempoUtil.TraceInfo) {
+	t.Helper()
+
 	require.Equal(t, tracediff.VersionTracePatchV0, result.Version)
 	require.Equal(t, base.HexID(), result.Base.TraceID)
 	require.Equal(t, compare.HexID(), result.Compare.TraceID)
