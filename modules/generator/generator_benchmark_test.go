@@ -510,8 +510,8 @@ func benchmarkGeneratorSpanCount(req *tempopb.PushSpansRequest) int {
 }
 
 type (
-	benchmarkGeneratorResourceFunc func(service string, idx int) *trace_v1.ResourceSpans
-	benchmarkGeneratorSpanFunc     func(traceID, spanID, parentSpanID []byte, kind trace_v1.Span_SpanKind, start uint64) *trace_v1.Span
+	benchmarkGeneratorResourceFunc func(service string, idx int) trace_v1.ResourceSpans
+	benchmarkGeneratorSpanFunc     func(traceID, spanID, parentSpanID []byte, kind trace_v1.Span_SpanKind, start uint64) trace_v1.Span
 )
 
 // benchmarkGeneratorSpanmetricsRequest builds 4 resource batches of 100 server
@@ -523,7 +523,7 @@ func benchmarkGeneratorSpanmetricsRequest(resource benchmarkGeneratorResourceFun
 	)
 
 	req := &tempopb.PushSpansRequest{
-		Batches: make([]*trace_v1.ResourceSpans, 0, resources),
+		Batches: make([]trace_v1.ResourceSpans, 0, resources),
 	}
 	now := uint64(time.Now().UnixNano())
 	for r := 0; r < resources; r++ {
@@ -564,7 +564,7 @@ func benchmarkGeneratorServiceGraphRequest(edges int, spanMultiplier bool, resou
 		client.ScopeSpans[0].Spans = append(client.ScopeSpans[0].Spans, clientSpan)
 		server.ScopeSpans[0].Spans = append(server.ScopeSpans[0].Spans, serverSpan)
 	}
-	return &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{client, server}}
+	return &tempopb.PushSpansRequest{Batches: []trace_v1.ResourceSpans{client, server}}
 }
 
 func benchmarkGeneratorSeedHighCardinalitySpanmetrics(ctx context.Context, inst *instance, resources int) {
@@ -583,7 +583,7 @@ func benchmarkGeneratorSeedHighCardinalityServiceGraph(ctx context.Context, inst
 
 func benchmarkGeneratorProdHighCardinalitySpanmetricsRequest(startResource, resources int) *tempopb.PushSpansRequest {
 	req := &tempopb.PushSpansRequest{
-		Batches: make([]*trace_v1.ResourceSpans, 0, resources),
+		Batches: make([]trace_v1.ResourceSpans, 0, resources),
 	}
 	now := uint64(time.Now().UnixNano())
 	for r := 0; r < resources; r++ {
@@ -603,7 +603,7 @@ func benchmarkGeneratorProdHighCardinalitySpanmetricsRequest(startResource, reso
 
 func benchmarkGeneratorProdHighCardinalityServiceGraphRequest(startEdge, edges int) *tempopb.PushSpansRequest {
 	req := &tempopb.PushSpansRequest{
-		Batches: make([]*trace_v1.ResourceSpans, 0, edges*2),
+		Batches: make([]trace_v1.ResourceSpans, 0, edges*2),
 	}
 	now := uint64(time.Now().UnixNano())
 	for i := 0; i < edges; i++ {
@@ -634,40 +634,40 @@ func benchmarkGeneratorProdHighCardinalityServiceGraphRequest(startEdge, edges i
 	return req
 }
 
-func benchmarkGeneratorResource(service string, idx int) *trace_v1.ResourceSpans {
-	rs := &trace_v1.ResourceSpans{
+func benchmarkGeneratorResource(service string, idx int) trace_v1.ResourceSpans {
+	rs := trace_v1.ResourceSpans{
 		Resource: &resource_v1.Resource{
 			Attributes: benchmarkGeneratorCommonResourceAttrs(service, idx),
 		},
-		ScopeSpans: []*trace_v1.ScopeSpans{{}},
+		ScopeSpans: []trace_v1.ScopeSpans{{}},
 	}
 	rs.Resource.Attributes = append(rs.Resource.Attributes,
-		test.MakeAttribute("excluded", "drop-me"),
+		*test.MakeAttribute("excluded", "drop-me"),
 	)
 	return rs
 }
 
-func benchmarkGeneratorProdResource(service string, idx int) *trace_v1.ResourceSpans {
-	rs := &trace_v1.ResourceSpans{
+func benchmarkGeneratorProdResource(service string, idx int) trace_v1.ResourceSpans {
+	rs := trace_v1.ResourceSpans{
 		Resource: &resource_v1.Resource{
 			Attributes: benchmarkGeneratorCommonResourceAttrs(service, idx),
 		},
-		ScopeSpans: []*trace_v1.ScopeSpans{{}},
+		ScopeSpans: []trace_v1.ScopeSpans{{}},
 	}
 	rs.Resource.Attributes = append(rs.Resource.Attributes,
-		test.MakeAttribute("service.version", "1."+strconv.Itoa(idx%10)+".0"),
-		test.MakeAttribute("cloud.availability_zone", "zone-"+strconv.Itoa(idx%3)),
-		test.MakeAttribute("cloud.region", "region-"+strconv.Itoa(idx%4)),
-		test.MakeAttribute("deployment.environment", "prod"),
-		test.MakeAttribute("k8s.pod.start_time", "2026-05-07T00:00:00Z"),
-		test.MakeAttribute("os.description", "linux"),
-		test.MakeAttribute("os.type", "linux"),
-		test.MakeAttribute("process.command_args", "tempo"),
-		test.MakeAttribute("process.executable.path", "/tempo"),
-		test.MakeAttribute("process.pid", strconv.Itoa(1000+idx)),
-		test.MakeAttribute("process.runtime.description", "go"),
-		test.MakeAttribute("process.runtime.name", "go"),
-		test.MakeAttribute("process.runtime.version", "go1.24"),
+		*test.MakeAttribute("service.version", "1."+strconv.Itoa(idx%10)+".0"),
+		*test.MakeAttribute("cloud.availability_zone", "zone-"+strconv.Itoa(idx%3)),
+		*test.MakeAttribute("cloud.region", "region-"+strconv.Itoa(idx%4)),
+		*test.MakeAttribute("deployment.environment", "prod"),
+		*test.MakeAttribute("k8s.pod.start_time", "2026-05-07T00:00:00Z"),
+		*test.MakeAttribute("os.description", "linux"),
+		*test.MakeAttribute("os.type", "linux"),
+		*test.MakeAttribute("process.command_args", "tempo"),
+		*test.MakeAttribute("process.executable.path", "/tempo"),
+		*test.MakeAttribute("process.pid", strconv.Itoa(1000+idx)),
+		*test.MakeAttribute("process.runtime.description", "go"),
+		*test.MakeAttribute("process.runtime.name", "go"),
+		*test.MakeAttribute("process.runtime.version", "go1.24"),
 		// Matched by the resource.span.metrics.skip exclude policy after its
 		// resource. prefix is stripped; false keeps the spans included.
 		benchmarkGeneratorBoolAttr("span.metrics.skip", false),
@@ -675,22 +675,22 @@ func benchmarkGeneratorProdResource(service string, idx int) *trace_v1.ResourceS
 	return rs
 }
 
-func benchmarkGeneratorCommonResourceAttrs(service string, idx int) []*common_v1.KeyValue {
-	return []*common_v1.KeyValue{
-		test.MakeAttribute("service.name", service),
-		test.MakeAttribute("service.namespace", "ns-"+strconv.Itoa(idx%2)),
-		test.MakeAttribute("service.instance.id", "instance-"+strconv.Itoa(idx)),
-		test.MakeAttribute("k8s.cluster.name", "cluster-a"),
-		test.MakeAttribute("k8s.namespace.name", "namespace-"+strconv.Itoa(idx%4)),
-		test.MakeAttribute("k8s.pod.name", "pod-"+strconv.Itoa(idx)),
-		test.MakeAttribute("k8s.node.name", "node-"+strconv.Itoa(idx%8)),
-		test.MakeAttribute("telemetry.sdk.language", "go"),
-		test.MakeAttribute("telemetry.sdk.version", "1.0.0"),
+func benchmarkGeneratorCommonResourceAttrs(service string, idx int) []common_v1.KeyValue {
+	return []common_v1.KeyValue{
+		*test.MakeAttribute("service.name", service),
+		*test.MakeAttribute("service.namespace", "ns-"+strconv.Itoa(idx%2)),
+		*test.MakeAttribute("service.instance.id", "instance-"+strconv.Itoa(idx)),
+		*test.MakeAttribute("k8s.cluster.name", "cluster-a"),
+		*test.MakeAttribute("k8s.namespace.name", "namespace-"+strconv.Itoa(idx%4)),
+		*test.MakeAttribute("k8s.pod.name", "pod-"+strconv.Itoa(idx)),
+		*test.MakeAttribute("k8s.node.name", "node-"+strconv.Itoa(idx%8)),
+		*test.MakeAttribute("telemetry.sdk.language", "go"),
+		*test.MakeAttribute("telemetry.sdk.version", "1.0.0"),
 	}
 }
 
-func benchmarkGeneratorSpan(traceID, spanID, parentSpanID []byte, kind trace_v1.Span_SpanKind, start uint64) *trace_v1.Span {
-	return &trace_v1.Span{
+func benchmarkGeneratorSpan(traceID, spanID, parentSpanID []byte, kind trace_v1.Span_SpanKind, start uint64) trace_v1.Span {
+	return trace_v1.Span{
 		TraceId:           traceID,
 		SpanId:            spanID,
 		ParentSpanId:      parentSpanID,
@@ -699,25 +699,25 @@ func benchmarkGeneratorSpan(traceID, spanID, parentSpanID []byte, kind trace_v1.
 		StartTimeUnixNano: start,
 		EndTimeUnixNano:   start + uint64(benchmarkGeneratorSpanDuration(spanID)),
 		Status:            &trace_v1.Status{Code: trace_v1.Status_STATUS_CODE_OK},
-		Attributes: []*common_v1.KeyValue{
-			test.MakeAttribute("http.method", "GET"),
-			test.MakeAttribute("http.route", "/api/:id"),
-			test.MakeAttribute("http.status_code", "200"),
-			test.MakeAttribute("span.attr.1", "one"),
-			test.MakeAttribute("span.attr.2", "two"),
-			test.MakeAttribute("peer.service", "server"),
+		Attributes: []common_v1.KeyValue{
+			*test.MakeAttribute("http.method", "GET"),
+			*test.MakeAttribute("http.route", "/api/:id"),
+			*test.MakeAttribute("http.status_code", "200"),
+			*test.MakeAttribute("span.attr.1", "one"),
+			*test.MakeAttribute("span.attr.2", "two"),
+			*test.MakeAttribute("peer.service", "server"),
 		},
 	}
 }
 
-func benchmarkGeneratorProdSpan(traceID, spanID, parentSpanID []byte, kind trace_v1.Span_SpanKind, start uint64) *trace_v1.Span {
+func benchmarkGeneratorProdSpan(traceID, spanID, parentSpanID []byte, kind trace_v1.Span_SpanKind, start uint64) trace_v1.Span {
 	span := benchmarkGeneratorSpan(traceID, spanID, parentSpanID, kind, start)
 	span.Attributes = append(span.Attributes,
 		// Matched by the span.url.path exclude policies after their span.
 		// prefix is stripped; /api/:id keeps the spans included.
-		test.MakeAttribute("url.path", "/api/:id"),
-		test.MakeAttribute("server.address", "server"),
-		test.MakeAttribute("net.peer.name", "server"),
+		*test.MakeAttribute("url.path", "/api/:id"),
+		*test.MakeAttribute("server.address", "server"),
+		*test.MakeAttribute("net.peer.name", "server"),
 	)
 	return span
 }
@@ -752,8 +752,8 @@ func benchmarkGeneratorSpanID(i int) []byte {
 	return id[:]
 }
 
-func benchmarkGeneratorBoolAttr(key string, value bool) *common_v1.KeyValue {
-	return &common_v1.KeyValue{
+func benchmarkGeneratorBoolAttr(key string, value bool) common_v1.KeyValue {
+	return common_v1.KeyValue{
 		Key: key,
 		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_BoolValue{
 			BoolValue: value,
@@ -761,8 +761,8 @@ func benchmarkGeneratorBoolAttr(key string, value bool) *common_v1.KeyValue {
 	}
 }
 
-func benchmarkGeneratorDoubleAttr(key string, value float64) *common_v1.KeyValue {
-	return &common_v1.KeyValue{
+func benchmarkGeneratorDoubleAttr(key string, value float64) common_v1.KeyValue {
+	return common_v1.KeyValue{
 		Key: key,
 		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_DoubleValue{
 			DoubleValue: value,
