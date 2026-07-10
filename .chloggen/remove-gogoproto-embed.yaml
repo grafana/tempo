@@ -1,0 +1,6 @@
+change_type: change
+component: storage
+note: Remove `gogoproto.embed` from `CompactedBlockMeta` in preparation for the protobuf library migration. On-disk tenant index formats (JSON and protobuf) are unchanged.
+issues: [7595]
+subtext:
+user: oleg-kozlyuk-grafana
