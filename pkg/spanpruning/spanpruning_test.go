@@ -5,48 +5,23 @@ import (
 	"time"
 
 	spanpruningprocessor "github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanpruningprocessor"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/util/test"
 )
 
 // ---------------------------------------------------------------------------
 // helpers: constructors
+//
+// Span/trace construction and summary-inspection helpers live in pkg/util/test
+// (test.MakeSpanPruningSpan, test.FindSpanPruningSummary, etc.) so they can be
+// shared with modules/frontend/combiner and the integration/api span pruning tests.
 // ---------------------------------------------------------------------------
 
 var fixedTraceID = []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
-
-func sid(a, b byte) []byte { return []byte{a, b, 0, 0, 0, 0, 0, 0} }
-
-func newSpan(id, parentID []byte, name string, startNs, endNs uint64) *tracev1.Span {
-	return &tracev1.Span{
-		TraceId:           fixedTraceID,
-		SpanId:            id,
-		ParentSpanId:      parentID,
-		Name:              name,
-		StartTimeUnixNano: startNs,
-		EndTimeUnixNano:   endNs,
-	}
-}
-
-func newSpanWithStatus(id, parentID []byte, name string, endNs uint64, code tracev1.Status_StatusCode) *tracev1.Span {
-	s := newSpan(id, parentID, name, 0, endNs)
-	s.Status = &tracev1.Status{Code: code}
-	return s
-}
-
-func newSpanWithAttrs(id, parentID []byte, name string, startNs, endNs uint64, attrs ...*commonv1.KeyValue) *tracev1.Span {
-	s := newSpan(id, parentID, name, startNs, endNs)
-	s.Attributes = attrs
-	return s
-}
-
-func strAttr(k, v string) *commonv1.KeyValue {
-	return &commonv1.KeyValue{Key: k, Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: v}}}
-}
 
 func intAttr(v int64) *commonv1.KeyValue {
 	return &commonv1.KeyValue{Key: "db.retries", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_IntValue{IntValue: v}}}
@@ -56,155 +31,10 @@ func boolAttr(v bool) *commonv1.KeyValue {
 	return &commonv1.KeyValue{Key: "db.cached", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_BoolValue{BoolValue: v}}}
 }
 
-func wrapTrace(spans ...*tracev1.Span) *tempopb.Trace {
-	return &tempopb.Trace{
-		ResourceSpans: []*tracev1.ResourceSpans{
-			{ScopeSpans: []*tracev1.ScopeSpans{{Spans: spans}}},
-		},
-	}
-}
-
 func defaultCfg(minSpans int) *spanpruningprocessor.Config {
 	cfg := spanpruningprocessor.NewFactory().CreateDefaultConfig().(*spanpruningprocessor.Config)
 	cfg.MinSpansToAggregate = minSpans
 	return cfg
-}
-
-// ---------------------------------------------------------------------------
-// helpers: inspection
-// ---------------------------------------------------------------------------
-
-func countSpans(t *tempopb.Trace) int {
-	n := 0
-	for _, rs := range t.ResourceSpans {
-		for _, ss := range rs.ScopeSpans {
-			n += len(ss.Spans)
-		}
-	}
-	return n
-}
-
-func allSpans(t *tempopb.Trace) []*tracev1.Span {
-	var out []*tracev1.Span
-	for _, rs := range t.ResourceSpans {
-		for _, ss := range rs.ScopeSpans {
-			out = append(out, ss.Spans...)
-		}
-	}
-	return out
-}
-
-func getAttr(s *tracev1.Span, key string) *commonv1.AnyValue {
-	for _, kv := range s.Attributes {
-		if kv.Key == key {
-			return kv.Value
-		}
-	}
-	return nil
-}
-
-func isSummary(s *tracev1.Span) bool {
-	v := getAttr(s, "aggregation.is_summary")
-	return v != nil && v.GetBoolValue()
-}
-
-func findSummary(t *tempopb.Trace) (*tracev1.Span, bool) {
-	for _, s := range allSpans(t) {
-		if isSummary(s) {
-			return s, true
-		}
-	}
-	return nil, false
-}
-
-func findAllSummaries(t *tempopb.Trace) []*tracev1.Span {
-	var out []*tracev1.Span
-	for _, s := range allSpans(t) {
-		if isSummary(s) {
-			out = append(out, s)
-		}
-	}
-	return out
-}
-
-func findSummaryByName(t *tempopb.Trace, name string) (*tracev1.Span, bool) {
-	for _, s := range allSpans(t) {
-		if isSummary(s) && s.Name == name {
-			return s, true
-		}
-	}
-	return nil, false
-}
-
-func findSummaryByNameStatus(t *tempopb.Trace, name string, code tracev1.Status_StatusCode) (*tracev1.Span, bool) {
-	for _, s := range allSpans(t) {
-		if isSummary(s) && s.Name == name && s.Status != nil && s.Status.Code == code {
-			return s, true
-		}
-	}
-	return nil, false
-}
-
-func existsByName(t *tempopb.Trace, name string) bool {
-	for _, s := range allSpans(t) {
-		if s.Name == name {
-			return true
-		}
-	}
-	return false
-}
-
-func allByName(t *tempopb.Trace, name string) []*tracev1.Span {
-	var out []*tracev1.Span
-	for _, s := range allSpans(t) {
-		if s.Name == name {
-			out = append(out, s)
-		}
-	}
-	return out
-}
-
-// attrIntVal returns the int64 value of an attribute, panics if missing/wrong type.
-func attrInt(s *tracev1.Span, key string) int64 {
-	v := getAttr(s, key)
-	if v == nil {
-		return -1
-	}
-	return v.GetIntValue()
-}
-
-// sliceDoubles returns the double values of an ArrayValue attribute.
-func sliceDoubles(s *tracev1.Span, key string) []float64 {
-	v := getAttr(s, key)
-	if v == nil {
-		return nil
-	}
-	arr := v.GetArrayValue()
-	if arr == nil {
-		return nil
-	}
-	out := make([]float64, len(arr.Values))
-	for i, elem := range arr.Values {
-		out[i] = elem.GetDoubleValue()
-	}
-	return out
-}
-
-// sliceInts returns the int64 values of an ArrayValue attribute.
-func sliceInts(s *tracev1.Span, key string) []int64 {
-	v := getAttr(s, key)
-	if v == nil {
-		return nil
-	}
-	arr := v.GetArrayValue()
-	if arr == nil {
-		return nil
-	}
-	out := make([]int64, len(arr.Values))
-	for i, elem := range arr.Values {
-		out[i] = elem.GetIntValue()
-	}
-	return out
 }
 
 // ---------------------------------------------------------------------------
@@ -215,7 +45,7 @@ func TestPruneTrace_EmptyTrace(t *testing.T) {
 	result, err := PruneTrace(defaultCfg(2), &tempopb.Trace{})
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	assert.Equal(t, 0, countSpans(result))
+	require.Equal(t, 0, test.CountSpans(result))
 }
 
 func TestPruneTrace_BasicAggregation(t *testing.T) {
@@ -223,56 +53,56 @@ func TestPruneTrace_BasicAggregation(t *testing.T) {
 	cfg := defaultCfg(2)
 	cfg.MaxParentDepth = 0
 
-	parent := newSpan(sid(1, 0), nil, "parent", 0, 1000)
+	parent := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "parent", 0, 1000)
 	spans := []*tracev1.Span{parent}
 	for i := byte(0); i < 3; i++ {
-		spans = append(spans, newSpanWithAttrs(sid(2, i), sid(1, 0), "SELECT", 1_000_000_000+uint64(i)*100, 1_000_000_100+uint64(i)*100, strAttr("db.operation", "select")))
+		spans = append(spans, test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(2, i), test.MakeSpanPruningSpanID(1, 0), "SELECT", 1_000_000_000+uint64(i)*100, 1_000_000_100+uint64(i)*100, test.MakeAttribute("db.operation", "select")))
 	}
 
-	result, err := PruneTrace(cfg, wrapTrace(spans...))
+	result, err := PruneTrace(cfg, test.WrapSpansAsTrace(spans...))
 	require.NoError(t, err)
-	assert.Equal(t, 2, countSpans(result))
+	require.Equal(t, 2, test.CountSpans(result))
 
-	sum, found := findSummary(result)
+	sum, found := test.FindSpanPruningSummary(result)
 	require.True(t, found)
-	assert.Equal(t, int64(3), attrInt(sum, "aggregation.span_count"))
+	require.Equal(t, int64(3), test.SpanAttrInt(sum, "aggregation.span_count"))
 }
 
 func TestPruneTrace_BelowThreshold(t *testing.T) {
 	cfg := defaultCfg(2)
 	cfg.MaxParentDepth = 0
 
-	parent := newSpan(sid(1, 0), nil, "parent", 0, 1000)
+	parent := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "parent", 0, 1000)
 	// 1 child — below min=2
-	child := newSpanWithAttrs(sid(2, 0), sid(1, 0), "SELECT", 0, 100, strAttr("db.operation", "select"))
+	child := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(2, 0), test.MakeSpanPruningSpanID(1, 0), "SELECT", 0, 100, test.MakeAttribute("db.operation", "select"))
 
-	result, err := PruneTrace(cfg, wrapTrace(parent, child))
+	result, err := PruneTrace(cfg, test.WrapSpansAsTrace(parent, child))
 	require.NoError(t, err)
-	assert.Equal(t, 2, countSpans(result))
+	require.Equal(t, 2, test.CountSpans(result))
 }
 
 func TestPruneTrace_MixedLeafAndNonLeaf(t *testing.T) {
 	// root → intermediate → 3 leaf spans: only leaves should be aggregated
 	cfg := defaultCfg(2)
 
-	root := newSpan(sid(1, 0), nil, "root", 0, 1000)
-	inter := newSpan(sid(2, 0), sid(1, 0), "intermediate", 0, 500)
+	root := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "root", 0, 1000)
+	inter := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(2, 0), test.MakeSpanPruningSpanID(1, 0), "intermediate", 0, 500)
 	spans := []*tracev1.Span{root, inter}
 	for i := byte(0); i < 3; i++ {
-		spans = append(spans, newSpan(sid(3, i), sid(2, 0), "SELECT", 0, 100))
+		spans = append(spans, test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(3, i), test.MakeSpanPruningSpanID(2, 0), "SELECT", 0, 100))
 	}
 
-	result, err := PruneTrace(cfg, wrapTrace(spans...))
+	result, err := PruneTrace(cfg, test.WrapSpansAsTrace(spans...))
 	require.NoError(t, err)
 	// root + intermediate + 1 summary
-	assert.Equal(t, 3, countSpans(result))
+	require.Equal(t, 3, test.CountSpans(result))
 }
 
 func TestPruneTrace_SingleSpanTrace(t *testing.T) {
-	root := newSpan(sid(1, 0), nil, "root", 0, 100)
-	result, err := PruneTrace(defaultCfg(2), wrapTrace(root))
+	root := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "root", 0, 100)
+	result, err := PruneTrace(defaultCfg(2), test.WrapSpansAsTrace(root))
 	require.NoError(t, err)
-	assert.Equal(t, 1, countSpans(result))
+	require.Equal(t, 1, test.CountSpans(result))
 }
 
 // ---------------------------------------------------------------------------
@@ -284,26 +114,26 @@ func TestPruneTrace_StatusAggregation(t *testing.T) {
 	cfg := defaultCfg(2)
 	cfg.MaxParentDepth = 0
 
-	parent := newSpan(sid(1, 0), nil, "parent", 0, 1000)
+	parent := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "parent", 0, 1000)
 	spans := []*tracev1.Span{parent}
 	for i := byte(0); i < 4; i++ {
-		spans = append(spans, newSpanWithStatus(sid(2, i), sid(1, 0), "SELECT", 100, tracev1.Status_STATUS_CODE_OK))
+		spans = append(spans, test.MakeSpanPruningSpanWithStatus(fixedTraceID, test.MakeSpanPruningSpanID(2, i), test.MakeSpanPruningSpanID(1, 0), "SELECT", 100, tracev1.Status_STATUS_CODE_OK))
 	}
 	for i := byte(0); i < 2; i++ {
-		spans = append(spans, newSpanWithStatus(sid(3, i), sid(1, 0), "SELECT", 100, tracev1.Status_STATUS_CODE_ERROR))
+		spans = append(spans, test.MakeSpanPruningSpanWithStatus(fixedTraceID, test.MakeSpanPruningSpanID(3, i), test.MakeSpanPruningSpanID(1, 0), "SELECT", 100, tracev1.Status_STATUS_CODE_ERROR))
 	}
 
-	result, err := PruneTrace(cfg, wrapTrace(spans...))
+	result, err := PruneTrace(cfg, test.WrapSpansAsTrace(spans...))
 	require.NoError(t, err)
-	assert.Equal(t, 3, countSpans(result)) // parent + ok summary + err summary
+	require.Equal(t, 3, test.CountSpans(result)) // parent + ok summary + err summary
 
-	okSum, found := findSummaryByNameStatus(result, "SELECT", tracev1.Status_STATUS_CODE_OK)
+	okSum, found := test.FindSpanPruningSummaryByNameAndStatus(result, "SELECT", tracev1.Status_STATUS_CODE_OK)
 	require.True(t, found)
-	assert.Equal(t, int64(4), attrInt(okSum, "aggregation.span_count"))
+	require.Equal(t, int64(4), test.SpanAttrInt(okSum, "aggregation.span_count"))
 
-	errSum, found := findSummaryByNameStatus(result, "SELECT", tracev1.Status_STATUS_CODE_ERROR)
+	errSum, found := test.FindSpanPruningSummaryByNameAndStatus(result, "SELECT", tracev1.Status_STATUS_CODE_ERROR)
 	require.True(t, found)
-	assert.Equal(t, int64(2), attrInt(errSum, "aggregation.span_count"))
+	require.Equal(t, int64(2), test.SpanAttrInt(errSum, "aggregation.span_count"))
 }
 
 func TestPruneTrace_StatusBelowThreshold(t *testing.T) {
@@ -311,13 +141,13 @@ func TestPruneTrace_StatusBelowThreshold(t *testing.T) {
 	cfg := defaultCfg(2)
 	cfg.MaxParentDepth = 0
 
-	parent := newSpan(sid(1, 0), nil, "parent", 0, 1000)
-	ok := newSpanWithStatus(sid(2, 0), sid(1, 0), "SELECT", 100, tracev1.Status_STATUS_CODE_OK)
-	er := newSpanWithStatus(sid(2, 1), sid(1, 0), "SELECT", 100, tracev1.Status_STATUS_CODE_ERROR)
+	parent := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "parent", 0, 1000)
+	ok := test.MakeSpanPruningSpanWithStatus(fixedTraceID, test.MakeSpanPruningSpanID(2, 0), test.MakeSpanPruningSpanID(1, 0), "SELECT", 100, tracev1.Status_STATUS_CODE_OK)
+	er := test.MakeSpanPruningSpanWithStatus(fixedTraceID, test.MakeSpanPruningSpanID(2, 1), test.MakeSpanPruningSpanID(1, 0), "SELECT", 100, tracev1.Status_STATUS_CODE_ERROR)
 
-	result, err := PruneTrace(cfg, wrapTrace(parent, ok, er))
+	result, err := PruneTrace(cfg, test.WrapSpansAsTrace(parent, ok, er))
 	require.NoError(t, err)
-	assert.Equal(t, 3, countSpans(result))
+	require.Equal(t, 3, test.CountSpans(result))
 }
 
 // ---------------------------------------------------------------------------
@@ -328,22 +158,22 @@ func TestPruneTrace_DurationStats(t *testing.T) {
 	cfg := defaultCfg(2)
 	cfg.MaxParentDepth = 0
 
-	parent := newSpan(sid(1, 0), nil, "parent", 0, 10_000)
+	parent := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "parent", 0, 10_000)
 	spans := []*tracev1.Span{parent}
 	base := uint64(1_000_000_000)
 	for i, dur := range []uint64{100, 200, 300} {
-		spans = append(spans, newSpan(sid(2, byte(i)), sid(1, 0), "SELECT", base, base+dur))
+		spans = append(spans, test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(2, byte(i)), test.MakeSpanPruningSpanID(1, 0), "SELECT", base, base+dur))
 	}
 
-	result, err := PruneTrace(cfg, wrapTrace(spans...))
+	result, err := PruneTrace(cfg, test.WrapSpansAsTrace(spans...))
 	require.NoError(t, err)
 
-	sum, found := findSummary(result)
+	sum, found := test.FindSpanPruningSummary(result)
 	require.True(t, found)
-	assert.Equal(t, int64(100), attrInt(sum, "aggregation.duration_min_ns"))
-	assert.Equal(t, int64(300), attrInt(sum, "aggregation.duration_max_ns"))
-	assert.Equal(t, int64(200), attrInt(sum, "aggregation.duration_avg_ns")) // (100+200+300)/3 = 200
-	assert.Equal(t, int64(600), attrInt(sum, "aggregation.duration_total_ns"))
+	require.Equal(t, int64(100), test.SpanAttrInt(sum, "aggregation.duration_min_ns"))
+	require.Equal(t, int64(300), test.SpanAttrInt(sum, "aggregation.duration_max_ns"))
+	require.Equal(t, int64(200), test.SpanAttrInt(sum, "aggregation.duration_avg_ns")) // (100+200+300)/3 = 200
+	require.Equal(t, int64(600), test.SpanAttrInt(sum, "aggregation.duration_total_ns"))
 }
 
 // ---------------------------------------------------------------------------
@@ -366,29 +196,29 @@ func TestPruneTrace_HistogramEnabled(t *testing.T) {
 		uint64(75 * time.Millisecond),
 		uint64(150 * time.Millisecond),
 	}
-	parent := newSpan(sid(1, 0), nil, "parent", 0, 1_000_000_000)
+	parent := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "parent", 0, 1_000_000_000)
 	spans := []*tracev1.Span{parent}
 	base := uint64(1_000_000_000)
 	for i, d := range durations {
-		spans = append(spans, newSpan(sid(2, byte(i)), sid(1, 0), "SELECT", base, base+d))
+		spans = append(spans, test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(2, byte(i)), test.MakeSpanPruningSpanID(1, 0), "SELECT", base, base+d))
 	}
 
-	result, err := PruneTrace(cfg, wrapTrace(spans...))
+	result, err := PruneTrace(cfg, test.WrapSpansAsTrace(spans...))
 	require.NoError(t, err)
-	assert.Equal(t, 2, countSpans(result))
+	require.Equal(t, 2, test.CountSpans(result))
 
-	sum, found := findSummary(result)
+	sum, found := test.FindSpanPruningSummary(result)
 	require.True(t, found)
 
-	bounds := sliceDoubles(sum, "aggregation.histogram_bucket_bounds_s")
+	bounds := test.SpanAttrDoubleSlice(sum, "aggregation.histogram_bucket_bounds_s")
 	require.Len(t, bounds, 3)
-	assert.InDelta(t, 0.01, bounds[0], 1e-9)
-	assert.InDelta(t, 0.05, bounds[1], 1e-9)
-	assert.InDelta(t, 0.10, bounds[2], 1e-9)
+	require.InDelta(t, 0.01, bounds[0], 1e-9)
+	require.InDelta(t, 0.05, bounds[1], 1e-9)
+	require.InDelta(t, 0.10, bounds[2], 1e-9)
 
-	counts := sliceInts(sum, "aggregation.histogram_bucket_counts")
+	counts := test.SpanAttrIntSlice(sum, "aggregation.histogram_bucket_counts")
 	require.Len(t, counts, 4) // len(buckets)+1 (overflow)
-	assert.Equal(t, []int64{1, 3, 4, 5}, counts)
+	require.Equal(t, []int64{1, 3, 4, 5}, counts)
 }
 
 func TestPruneTrace_HistogramDisabled(t *testing.T) {
@@ -396,19 +226,19 @@ func TestPruneTrace_HistogramDisabled(t *testing.T) {
 	cfg.MaxParentDepth = 0
 	cfg.AggregationHistogramBuckets = []time.Duration{} // disabled
 
-	parent := newSpan(sid(1, 0), nil, "parent", 0, 1_000_000_000)
+	parent := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "parent", 0, 1_000_000_000)
 	spans := []*tracev1.Span{parent}
 	for i := byte(0); i < 5; i++ {
-		spans = append(spans, newSpan(sid(2, i), sid(1, 0), "SELECT", 0, 100))
+		spans = append(spans, test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(2, i), test.MakeSpanPruningSpanID(1, 0), "SELECT", 0, 100))
 	}
 
-	result, err := PruneTrace(cfg, wrapTrace(spans...))
+	result, err := PruneTrace(cfg, test.WrapSpansAsTrace(spans...))
 	require.NoError(t, err)
 
-	sum, found := findSummary(result)
+	sum, found := test.FindSpanPruningSummary(result)
 	require.True(t, found)
-	assert.Nil(t, getAttr(sum, "aggregation.histogram_bucket_bounds_s"))
-	assert.Nil(t, getAttr(sum, "aggregation.histogram_bucket_counts"))
+	require.Nil(t, test.SpanAttr(sum, "aggregation.histogram_bucket_bounds_s"))
+	require.Nil(t, test.SpanAttr(sum, "aggregation.histogram_bucket_counts"))
 }
 
 // ---------------------------------------------------------------------------
@@ -421,18 +251,18 @@ func TestPruneTrace_GroupByAttributes(t *testing.T) {
 	cfg.GroupByAttributes = []string{"db.system"}
 	cfg.MaxParentDepth = 0
 
-	parent := newSpan(sid(1, 0), nil, "parent", 0, 1000)
+	parent := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "parent", 0, 1000)
 	spans := []*tracev1.Span{parent}
 	for i := byte(0); i < 5; i++ {
-		spans = append(spans, newSpanWithAttrs(sid(2, i), sid(1, 0), "db.query", 0, 100, strAttr("db.system", "mysql")))
+		spans = append(spans, test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(2, i), test.MakeSpanPruningSpanID(1, 0), "db.query", 0, 100, test.MakeAttribute("db.system", "mysql")))
 	}
 	for i := byte(0); i < 5; i++ {
-		spans = append(spans, newSpanWithAttrs(sid(3, i), sid(1, 0), "db.query", 0, 100, strAttr("db.system", "postgres")))
+		spans = append(spans, test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(3, i), test.MakeSpanPruningSpanID(1, 0), "db.query", 0, 100, test.MakeAttribute("db.system", "postgres")))
 	}
 
-	result, err := PruneTrace(cfg, wrapTrace(spans...))
+	result, err := PruneTrace(cfg, test.WrapSpansAsTrace(spans...))
 	require.NoError(t, err)
-	assert.Equal(t, 3, countSpans(result)) // parent + 2 summaries
+	require.Equal(t, 3, test.CountSpans(result)) // parent + 2 summaries
 }
 
 func TestPruneTrace_GroupByNonStringAttributes(t *testing.T) {
@@ -441,30 +271,30 @@ func TestPruneTrace_GroupByNonStringAttributes(t *testing.T) {
 	cfg.GroupByAttributes = []string{"db.retries", "db.cached"}
 	cfg.MaxParentDepth = 0
 
-	parent := newSpan(sid(1, 0), nil, "parent", 0, 1000)
+	parent := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "parent", 0, 1000)
 	spans := []*tracev1.Span{parent}
 	// 2 spans: retries=1, cached=true
 	spans = append(spans,
-		newSpanWithAttrs(sid(2, 0), sid(1, 0), "db_query", 0, 100, intAttr(1), boolAttr(true)),
-		newSpanWithAttrs(sid(2, 1), sid(1, 0), "db_query", 0, 100, intAttr(1), boolAttr(true)),
+		test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(2, 0), test.MakeSpanPruningSpanID(1, 0), "db_query", 0, 100, intAttr(1), boolAttr(true)),
+		test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(2, 1), test.MakeSpanPruningSpanID(1, 0), "db_query", 0, 100, intAttr(1), boolAttr(true)),
 	)
 	// 2 spans: retries=2, cached=true
 	spans = append(spans,
-		newSpanWithAttrs(sid(3, 0), sid(1, 0), "db_query", 0, 100, intAttr(2), boolAttr(true)),
-		newSpanWithAttrs(sid(3, 1), sid(1, 0), "db_query", 0, 100, intAttr(2), boolAttr(true)),
+		test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(3, 0), test.MakeSpanPruningSpanID(1, 0), "db_query", 0, 100, intAttr(2), boolAttr(true)),
+		test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(3, 1), test.MakeSpanPruningSpanID(1, 0), "db_query", 0, 100, intAttr(2), boolAttr(true)),
 	)
 	// 2 spans: retries=1, cached=false — same retries as the first group, but must not merge
 	// with it, or grouping isn't actually keying on the bool attribute.
 	spans = append(spans,
-		newSpanWithAttrs(sid(4, 0), sid(1, 0), "db_query", 0, 100, intAttr(1), boolAttr(false)),
-		newSpanWithAttrs(sid(4, 1), sid(1, 0), "db_query", 0, 100, intAttr(1), boolAttr(false)),
+		test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(4, 0), test.MakeSpanPruningSpanID(1, 0), "db_query", 0, 100, intAttr(1), boolAttr(false)),
+		test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(4, 1), test.MakeSpanPruningSpanID(1, 0), "db_query", 0, 100, intAttr(1), boolAttr(false)),
 	)
 
-	result, err := PruneTrace(cfg, wrapTrace(spans...))
+	result, err := PruneTrace(cfg, test.WrapSpansAsTrace(spans...))
 	require.NoError(t, err)
 	// parent + 3 summaries (one per group)
-	assert.Equal(t, 4, countSpans(result))
-	assert.Len(t, findAllSummaries(result), 3)
+	require.Equal(t, 4, test.CountSpans(result))
+	require.Len(t, test.SpanPruningSummaries(result), 3)
 }
 
 func TestPruneTrace_DifferentGroups(t *testing.T) {
@@ -473,18 +303,18 @@ func TestPruneTrace_DifferentGroups(t *testing.T) {
 	cfg.GroupByAttributes = []string{"db.operation"}
 	cfg.MaxParentDepth = 0
 
-	parent := newSpan(sid(1, 0), nil, "parent", 0, 1000)
+	parent := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "parent", 0, 1000)
 	spans := []*tracev1.Span{parent}
 	for i := byte(0); i < 3; i++ {
-		spans = append(spans, newSpanWithAttrs(sid(2, i), sid(1, 0), "db_query", 0, 100, strAttr("db.operation", "select")))
+		spans = append(spans, test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(2, i), test.MakeSpanPruningSpanID(1, 0), "db_query", 0, 100, test.MakeAttribute("db.operation", "select")))
 	}
 	for i := byte(0); i < 2; i++ {
-		spans = append(spans, newSpanWithAttrs(sid(3, i), sid(1, 0), "db_query", 0, 100, strAttr("db.operation", "insert")))
+		spans = append(spans, test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(3, i), test.MakeSpanPruningSpanID(1, 0), "db_query", 0, 100, test.MakeAttribute("db.operation", "insert")))
 	}
 
-	result, err := PruneTrace(cfg, wrapTrace(spans...))
+	result, err := PruneTrace(cfg, test.WrapSpansAsTrace(spans...))
 	require.NoError(t, err)
-	assert.Equal(t, 3, countSpans(result)) // parent + select summary + insert summary
+	require.Equal(t, 3, test.CountSpans(result)) // parent + select summary + insert summary
 }
 
 // ---------------------------------------------------------------------------
@@ -497,23 +327,23 @@ func TestPruneTrace_GlobPatternWildcard(t *testing.T) {
 	cfg.GroupByAttributes = []string{"db.*"}
 	cfg.MaxParentDepth = 0
 
-	parent := newSpan(sid(1, 0), nil, "parent", 0, 1000)
+	parent := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "parent", 0, 1000)
 	spans := []*tracev1.Span{parent}
 	for i := byte(0); i < 3; i++ {
-		spans = append(spans, newSpanWithAttrs(sid(2, i), sid(1, 0), "db_query", 0, 100,
-			strAttr("db.operation", "select"),
-			strAttr("db.name", "users"),
-			strAttr("db.system", "postgresql"),
+		spans = append(spans, test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(2, i), test.MakeSpanPruningSpanID(1, 0), "db_query", 0, 100,
+			test.MakeAttribute("db.operation", "select"),
+			test.MakeAttribute("db.name", "users"),
+			test.MakeAttribute("db.system", "postgresql"),
 		))
 	}
 
-	result, err := PruneTrace(cfg, wrapTrace(spans...))
+	result, err := PruneTrace(cfg, test.WrapSpansAsTrace(spans...))
 	require.NoError(t, err)
 	// All 3 have identical db.* attrs → 1 summary
-	assert.Equal(t, 2, countSpans(result))
-	sum, found := findSummary(result)
+	require.Equal(t, 2, test.CountSpans(result))
+	sum, found := test.FindSpanPruningSummary(result)
 	require.True(t, found)
-	assert.Equal(t, int64(3), attrInt(sum, "aggregation.span_count"))
+	require.Equal(t, int64(3), test.SpanAttrInt(sum, "aggregation.span_count"))
 }
 
 func TestPruneTrace_GlobPatternSeparatesGroups(t *testing.T) {
@@ -522,20 +352,20 @@ func TestPruneTrace_GlobPatternSeparatesGroups(t *testing.T) {
 	cfg.GroupByAttributes = []string{"db.*"}
 	cfg.MaxParentDepth = 0
 
-	parent := newSpan(sid(1, 0), nil, "parent", 0, 1000)
+	parent := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "parent", 0, 1000)
 	spans := []*tracev1.Span{parent}
 	for i := byte(0); i < 2; i++ {
-		spans = append(spans, newSpanWithAttrs(sid(2, i), sid(1, 0), "db_query", 0, 100,
-			strAttr("db.operation", "select"), strAttr("db.name", "users")))
+		spans = append(spans, test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(2, i), test.MakeSpanPruningSpanID(1, 0), "db_query", 0, 100,
+			test.MakeAttribute("db.operation", "select"), test.MakeAttribute("db.name", "users")))
 	}
 	for i := byte(0); i < 2; i++ {
-		spans = append(spans, newSpanWithAttrs(sid(3, i), sid(1, 0), "db_query", 0, 100,
-			strAttr("db.operation", "insert"), strAttr("db.name", "users")))
+		spans = append(spans, test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(3, i), test.MakeSpanPruningSpanID(1, 0), "db_query", 0, 100,
+			test.MakeAttribute("db.operation", "insert"), test.MakeAttribute("db.name", "users")))
 	}
 
-	result, err := PruneTrace(cfg, wrapTrace(spans...))
+	result, err := PruneTrace(cfg, test.WrapSpansAsTrace(spans...))
 	require.NoError(t, err)
-	assert.Equal(t, 3, countSpans(result)) // parent + 2 summaries
+	require.Equal(t, 3, test.CountSpans(result)) // parent + 2 summaries
 }
 
 func TestPruneTrace_GlobPatternMultiplePatterns(t *testing.T) {
@@ -544,20 +374,20 @@ func TestPruneTrace_GlobPatternMultiplePatterns(t *testing.T) {
 	cfg.GroupByAttributes = []string{"db.*", "http.*"}
 	cfg.MaxParentDepth = 0
 
-	parent := newSpan(sid(1, 0), nil, "parent", 0, 1000)
+	parent := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "parent", 0, 1000)
 	spans := []*tracev1.Span{parent}
 	for i := byte(0); i < 3; i++ {
-		spans = append(spans, newSpanWithAttrs(sid(2, i), sid(1, 0), "api_call", 0, 100,
-			strAttr("db.operation", "select"),
-			strAttr("db.name", "users"),
-			strAttr("http.method", "GET"),
-			strAttr("http.route", "/api/users"),
+		spans = append(spans, test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(2, i), test.MakeSpanPruningSpanID(1, 0), "api_call", 0, 100,
+			test.MakeAttribute("db.operation", "select"),
+			test.MakeAttribute("db.name", "users"),
+			test.MakeAttribute("http.method", "GET"),
+			test.MakeAttribute("http.route", "/api/users"),
 		))
 	}
 
-	result, err := PruneTrace(cfg, wrapTrace(spans...))
+	result, err := PruneTrace(cfg, test.WrapSpansAsTrace(spans...))
 	require.NoError(t, err)
-	assert.Equal(t, 2, countSpans(result))
+	require.Equal(t, 2, test.CountSpans(result))
 }
 
 func TestPruneTrace_GlobPatternExactMatch(t *testing.T) {
@@ -566,28 +396,28 @@ func TestPruneTrace_GlobPatternExactMatch(t *testing.T) {
 	cfg.GroupByAttributes = []string{"db.operation"}
 	cfg.MaxParentDepth = 0
 
-	parent := newSpan(sid(1, 0), nil, "parent", 0, 1000)
+	parent := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "parent", 0, 1000)
 	spans := []*tracev1.Span{parent}
 	for i := byte(0); i < 3; i++ {
-		spans = append(spans, newSpanWithAttrs(sid(2, i), sid(1, 0), "db_query", 0, 100,
-			strAttr("db.operation", "select"),
-			strAttr("db.name", "users"),
-			strAttr("db.system", "postgresql"),
+		spans = append(spans, test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(2, i), test.MakeSpanPruningSpanID(1, 0), "db_query", 0, 100,
+			test.MakeAttribute("db.operation", "select"),
+			test.MakeAttribute("db.name", "users"),
+			test.MakeAttribute("db.system", "postgresql"),
 		))
 	}
 
-	result, err := PruneTrace(cfg, wrapTrace(spans...))
+	result, err := PruneTrace(cfg, test.WrapSpansAsTrace(spans...))
 	require.NoError(t, err)
-	assert.Equal(t, 2, countSpans(result))
+	require.Equal(t, 2, test.CountSpans(result))
 }
 
 func TestPruneTrace_InvalidGlobPattern(t *testing.T) {
 	cfg := defaultCfg(2)
 	cfg.GroupByAttributes = []string{"[invalid"}
 
-	_, err := PruneTrace(cfg, wrapTrace(newSpan(sid(1, 0), nil, "root", 0, 100)))
+	_, err := PruneTrace(cfg, test.WrapSpansAsTrace(test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "root", 0, 100)))
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid glob pattern")
+	require.Contains(t, err.Error(), "invalid glob pattern")
 }
 
 // ---------------------------------------------------------------------------
@@ -599,7 +429,7 @@ func TestPruneTrace_LongestDurationTemplate(t *testing.T) {
 	cfg.GroupByAttributes = []string{"db.operation"}
 	cfg.MaxParentDepth = 0
 
-	parent := newSpan(sid(1, 0), nil, "parent", 0, 10_000)
+	parent := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "parent", 0, 10_000)
 	base := uint64(1_000_000_000)
 
 	// durations 100, 500, 200 → the 500ns span should become template
@@ -609,23 +439,23 @@ func TestPruneTrace_LongestDurationTemplate(t *testing.T) {
 		ident string
 	}
 	for i, d := range []spanDef{{100, "short"}, {500, "longest"}, {200, "medium"}} {
-		s := newSpanWithAttrs(sid(2, byte(i)), sid(1, 0), "db_query", base, base+d.dur,
-			strAttr("db.operation", "select"),
-			strAttr("span.identifier", d.ident),
+		s := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(2, byte(i)), test.MakeSpanPruningSpanID(1, 0), "db_query", base, base+d.dur,
+			test.MakeAttribute("db.operation", "select"),
+			test.MakeAttribute("span.identifier", d.ident),
 		)
 		spans = append(spans, s)
 	}
 
-	result, err := PruneTrace(cfg, wrapTrace(spans...))
+	result, err := PruneTrace(cfg, test.WrapSpansAsTrace(spans...))
 	require.NoError(t, err)
 
-	sum, found := findSummary(result)
+	sum, found := test.FindSpanPruningSummary(result)
 	require.True(t, found)
-	id := getAttr(sum, "span.identifier")
+	id := test.SpanAttr(sum, "span.identifier")
 	require.NotNil(t, id)
-	assert.Equal(t, "longest", id.GetStringValue())
-	assert.Equal(t, int64(100), attrInt(sum, "aggregation.duration_min_ns"))
-	require.Equal(t, int64(500), attrInt(sum, "aggregation.duration_max_ns"))
+	require.Equal(t, "longest", id.GetStringValue())
+	require.Equal(t, int64(100), test.SpanAttrInt(sum, "aggregation.duration_min_ns"))
+	require.Equal(t, int64(500), test.SpanAttrInt(sum, "aggregation.duration_max_ns"))
 }
 
 // ---------------------------------------------------------------------------
@@ -636,32 +466,32 @@ func TestPruneTrace_TemplateEventsAndLinksPreserved(t *testing.T) {
 	cfg := defaultCfg(2)
 	cfg.MaxParentDepth = 0
 
-	parent := newSpan(sid(1, 0), nil, "parent", 0, 1000)
+	parent := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "parent", 0, 1000)
 
 	// Template span: longer duration → becomes template
-	template := newSpanWithAttrs(sid(2, 0), sid(1, 0), "SELECT", 0, 500, strAttr("db.operation", "select"))
+	template := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(2, 0), test.MakeSpanPruningSpanID(1, 0), "SELECT", 0, 500, test.MakeAttribute("db.operation", "select"))
 	template.Events = []*tracev1.Span_Event{
-		{Name: "template_event", Attributes: []*commonv1.KeyValue{strAttr("event.attr", "value")}},
+		{Name: "template_event", Attributes: []*commonv1.KeyValue{test.MakeAttribute("event.attr", "value")}},
 	}
 	template.Links = []*tracev1.Span_Link{
 		{
 			TraceId:    []byte{9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9},
 			SpanId:     []byte{9, 9, 9, 9, 9, 9, 9, 9},
-			Attributes: []*commonv1.KeyValue{strAttr("link.kind", "template")},
+			Attributes: []*commonv1.KeyValue{test.MakeAttribute("link.kind", "template")},
 		},
 	}
 
 	// Shorter span
-	other := newSpanWithAttrs(sid(2, 1), sid(1, 0), "SELECT", 0, 100, strAttr("db.operation", "select"))
+	other := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(2, 1), test.MakeSpanPruningSpanID(1, 0), "SELECT", 0, 100, test.MakeAttribute("db.operation", "select"))
 
-	result, err := PruneTrace(cfg, wrapTrace(parent, template, other))
+	result, err := PruneTrace(cfg, test.WrapSpansAsTrace(parent, template, other))
 	require.NoError(t, err)
 
-	sum, found := findSummary(result)
+	sum, found := test.FindSpanPruningSummary(result)
 	require.True(t, found)
 
 	require.Len(t, sum.Events, 1)
-	assert.Equal(t, "template_event", sum.Events[0].Name)
+	require.Equal(t, "template_event", sum.Events[0].Name)
 
 	require.Len(t, sum.Links, 1)
 	linkAttr := func() *commonv1.AnyValue {
@@ -673,7 +503,7 @@ func TestPruneTrace_TemplateEventsAndLinksPreserved(t *testing.T) {
 		return nil
 	}()
 	require.NotNil(t, linkAttr)
-	assert.Equal(t, "template", linkAttr.GetStringValue())
+	require.Equal(t, "template", linkAttr.GetStringValue())
 }
 
 // ---------------------------------------------------------------------------
@@ -685,25 +515,25 @@ func TestPruneTrace_ParentNotAggregatedIfChildrenMixed(t *testing.T) {
 	// → handlers cannot be aggregated (mixed children)
 	cfg := defaultCfg(2)
 
-	root := newSpan(sid(1, 0), nil, "root", 0, 1000)
-	h1 := newSpan(sid(2, 0), sid(1, 0), "handler", 0, 500)
-	h2 := newSpan(sid(2, 1), sid(1, 0), "handler", 0, 500)
+	root := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "root", 0, 1000)
+	h1 := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(2, 0), test.MakeSpanPruningSpanID(1, 0), "handler", 0, 500)
+	h2 := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(2, 1), test.MakeSpanPruningSpanID(1, 0), "handler", 0, 500)
 
 	spans := []*tracev1.Span{root, h1, h2}
 	for i := byte(0); i < 3; i++ {
-		spans = append(spans, newSpan(sid(3, i), sid(2, 0), "SELECT", 0, 100))
+		spans = append(spans, test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(3, i), test.MakeSpanPruningSpanID(2, 0), "SELECT", 0, 100))
 	}
-	spans = append(spans, newSpan(sid(4, 0), sid(2, 1), "INSERT", 0, 100))
+	spans = append(spans, test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(4, 0), test.MakeSpanPruningSpanID(2, 1), "INSERT", 0, 100))
 
-	result, err := PruneTrace(cfg, wrapTrace(spans...))
+	result, err := PruneTrace(cfg, test.WrapSpansAsTrace(spans...))
 	require.NoError(t, err)
 	// root + h1 + h2 + SELECT summary + INSERT = 5
-	assert.Equal(t, 5, countSpans(result))
-	_, found := findSummaryByName(result, "handler")
-	assert.False(t, found, "handler should NOT be aggregated")
-	_, found = findSummaryByName(result, "SELECT")
-	assert.True(t, found)
-	assert.Len(t, allByName(result, "handler"), 2)
+	require.Equal(t, 5, test.CountSpans(result))
+	_, found := test.FindSpanPruningSummaryByName(result, "handler")
+	require.False(t, found, "handler should NOT be aggregated")
+	_, found = test.FindSpanPruningSummaryByName(result, "SELECT")
+	require.True(t, found)
+	require.Len(t, test.SpansByName(result, "handler"), 2)
 }
 
 func TestPruneTrace_RootSpansNotAggregated(t *testing.T) {
@@ -712,21 +542,21 @@ func TestPruneTrace_RootSpansNotAggregated(t *testing.T) {
 
 	spans := []*tracev1.Span{}
 	for i := byte(0); i < 3; i++ {
-		rootID := sid(i+1, 0)
-		spans = append(spans, newSpan(rootID, nil, "root", 0, 1000))
+		rootID := test.MakeSpanPruningSpanID(i+1, 0)
+		spans = append(spans, test.MakeSpanPruningSpan(fixedTraceID, rootID, nil, "root", 0, 1000))
 		for j := byte(0); j < 2; j++ {
-			spans = append(spans, newSpan(sid(i+4, j), rootID, "SELECT", 0, 100))
+			spans = append(spans, test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(i+4, j), rootID, "SELECT", 0, 100))
 		}
 	}
 
-	result, err := PruneTrace(cfg, wrapTrace(spans...))
+	result, err := PruneTrace(cfg, test.WrapSpansAsTrace(spans...))
 	require.NoError(t, err)
 	// 3 roots + 1 SELECT summary = 4
-	assert.Equal(t, 4, countSpans(result))
-	assert.Len(t, allByName(result, "root"), 3)
-	sum, found := findSummaryByName(result, "SELECT")
+	require.Equal(t, 4, test.CountSpans(result))
+	require.Len(t, test.SpansByName(result, "root"), 3)
+	sum, found := test.FindSpanPruningSummaryByName(result, "SELECT")
 	require.True(t, found)
-	assert.Equal(t, int64(6), attrInt(sum, "aggregation.span_count"))
+	require.Equal(t, int64(6), test.SpanAttrInt(sum, "aggregation.span_count"))
 }
 
 func TestPruneTrace_RecursiveParentAggregation(t *testing.T) {
@@ -735,63 +565,63 @@ func TestPruneTrace_RecursiveParentAggregation(t *testing.T) {
 	cfg := defaultCfg(2)
 	cfg.GroupByAttributes = []string{"db.op"}
 
-	rootID := sid(1, 0)
-	root := newSpan(rootID, nil, "root", 0, 10_000)
+	rootID := test.MakeSpanPruningSpanID(1, 0)
+	root := test.MakeSpanPruningSpan(fixedTraceID, rootID, nil, "root", 0, 10_000)
 	spans := []*tracev1.Span{root}
 
 	// 3× handler(OK) → SELECT(OK)
 	for i := byte(0); i < 3; i++ {
-		hID := sid(2, i)
-		h := newSpanWithStatus(hID, rootID, "handler", 500, tracev1.Status_STATUS_CODE_OK)
-		s := newSpanWithAttrs(sid(3, i), hID, "SELECT", 0, 100, strAttr("db.op", "select"))
+		hID := test.MakeSpanPruningSpanID(2, i)
+		h := test.MakeSpanPruningSpanWithStatus(fixedTraceID, hID, rootID, "handler", 500, tracev1.Status_STATUS_CODE_OK)
+		s := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(3, i), hID, "SELECT", 0, 100, test.MakeAttribute("db.op", "select"))
 		s.Status = &tracev1.Status{Code: tracev1.Status_STATUS_CODE_OK}
 		spans = append(spans, h, s)
 	}
 	// 2× handler(Error) → SELECT(Error)
 	for i := byte(0); i < 2; i++ {
-		hID := sid(4, i)
-		h := newSpanWithStatus(hID, rootID, "handler", 500, tracev1.Status_STATUS_CODE_ERROR)
-		s := newSpanWithAttrs(sid(5, i), hID, "SELECT", 0, 100, strAttr("db.op", "select"))
+		hID := test.MakeSpanPruningSpanID(4, i)
+		h := test.MakeSpanPruningSpanWithStatus(fixedTraceID, hID, rootID, "handler", 500, tracev1.Status_STATUS_CODE_ERROR)
+		s := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(5, i), hID, "SELECT", 0, 100, test.MakeAttribute("db.op", "select"))
 		s.Status = &tracev1.Status{Code: tracev1.Status_STATUS_CODE_ERROR}
 		spans = append(spans, h, s)
 	}
 	// 1× handler(OK) → INSERT
-	hID := sid(6, 0)
-	spans = append(spans, newSpanWithStatus(hID, rootID, "handler", 500, tracev1.Status_STATUS_CODE_OK))
-	spans = append(spans, newSpanWithAttrs(sid(7, 0), hID, "INSERT", 0, 100, strAttr("db.op", "insert")))
+	hID := test.MakeSpanPruningSpanID(6, 0)
+	spans = append(spans, test.MakeSpanPruningSpanWithStatus(fixedTraceID, hID, rootID, "handler", 500, tracev1.Status_STATUS_CODE_OK))
+	spans = append(spans, test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(7, 0), hID, "INSERT", 0, 100, test.MakeAttribute("db.op", "insert")))
 	// 1× worker → SELECT (different parent name, won't merge with handler groups)
-	wID := sid(8, 0)
-	spans = append(spans, newSpan(wID, rootID, "worker", 0, 500))
-	spans = append(spans, newSpanWithAttrs(sid(9, 0), wID, "SELECT", 0, 100, strAttr("db.op", "select")))
+	wID := test.MakeSpanPruningSpanID(8, 0)
+	spans = append(spans, test.MakeSpanPruningSpan(fixedTraceID, wID, rootID, "worker", 0, 500))
+	spans = append(spans, test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(9, 0), wID, "SELECT", 0, 100, test.MakeAttribute("db.op", "select")))
 
-	assert.Equal(t, 15, len(spans))
+	require.Equal(t, 15, len(spans))
 
-	result, err := PruneTrace(cfg, wrapTrace(spans...))
+	result, err := PruneTrace(cfg, test.WrapSpansAsTrace(spans...))
 	require.NoError(t, err)
-	assert.Equal(t, 9, countSpans(result))
+	require.Equal(t, 9, test.CountSpans(result))
 
-	hOK, found := findSummaryByNameStatus(result, "handler", tracev1.Status_STATUS_CODE_OK)
+	hOK, found := test.FindSpanPruningSummaryByNameAndStatus(result, "handler", tracev1.Status_STATUS_CODE_OK)
 	require.True(t, found)
-	assert.Equal(t, int64(3), attrInt(hOK, "aggregation.span_count"))
+	require.Equal(t, int64(3), test.SpanAttrInt(hOK, "aggregation.span_count"))
 
-	hErr, found := findSummaryByNameStatus(result, "handler", tracev1.Status_STATUS_CODE_ERROR)
+	hErr, found := test.FindSpanPruningSummaryByNameAndStatus(result, "handler", tracev1.Status_STATUS_CODE_ERROR)
 	require.True(t, found)
-	assert.Equal(t, int64(2), attrInt(hErr, "aggregation.span_count"))
+	require.Equal(t, int64(2), test.SpanAttrInt(hErr, "aggregation.span_count"))
 
-	sOK, found := findSummaryByNameStatus(result, "SELECT", tracev1.Status_STATUS_CODE_OK)
+	sOK, found := test.FindSpanPruningSummaryByNameAndStatus(result, "SELECT", tracev1.Status_STATUS_CODE_OK)
 	require.True(t, found)
-	assert.Equal(t, int64(3), attrInt(sOK, "aggregation.span_count"))
+	require.Equal(t, int64(3), test.SpanAttrInt(sOK, "aggregation.span_count"))
 
-	sErr, found := findSummaryByNameStatus(result, "SELECT", tracev1.Status_STATUS_CODE_ERROR)
+	sErr, found := test.FindSpanPruningSummaryByNameAndStatus(result, "SELECT", tracev1.Status_STATUS_CODE_ERROR)
 	require.True(t, found)
-	assert.Equal(t, int64(2), attrInt(sErr, "aggregation.span_count"))
+	require.Equal(t, int64(2), test.SpanAttrInt(sErr, "aggregation.span_count"))
 
 	// SELECT(OK) summary should be a child of handler(OK) summary
-	assert.Equal(t, string(hOK.SpanId), string(sOK.ParentSpanId))
-	assert.Equal(t, string(hErr.SpanId), string(sErr.ParentSpanId))
+	require.Equal(t, string(hOK.SpanId), string(sOK.ParentSpanId))
+	require.Equal(t, string(hErr.SpanId), string(sErr.ParentSpanId))
 
-	assert.True(t, existsByName(result, "INSERT"))
-	assert.True(t, existsByName(result, "worker"))
+	require.True(t, test.SpanExistsWithName(result, "INSERT"))
+	require.True(t, test.SpanExistsWithName(result, "worker"))
 }
 
 func TestPruneTrace_ThreeLevelAggregation(t *testing.T) {
@@ -800,47 +630,47 @@ func TestPruneTrace_ThreeLevelAggregation(t *testing.T) {
 	cfg := defaultCfg(2)
 	cfg.MaxParentDepth = -1
 
-	rootID := sid(1, 0)
-	root := newSpan(rootID, nil, "root", 0, 10_000)
+	rootID := test.MakeSpanPruningSpanID(1, 0)
+	root := test.MakeSpanPruningSpan(fixedTraceID, rootID, nil, "root", 0, 10_000)
 	spans := []*tracev1.Span{root}
 
 	n := byte(2)
 	for i := byte(0); i < 2; i++ {
-		mwID := sid(n, 0)
+		mwID := test.MakeSpanPruningSpanID(n, 0)
 		n++
-		spans = append(spans, newSpanWithStatus(mwID, rootID, "middleware", 1000, tracev1.Status_STATUS_CODE_OK))
+		spans = append(spans, test.MakeSpanPruningSpanWithStatus(fixedTraceID, mwID, rootID, "middleware", 1000, tracev1.Status_STATUS_CODE_OK))
 		for j := byte(0); j < 2; j++ {
-			hID := sid(n, 0)
+			hID := test.MakeSpanPruningSpanID(n, 0)
 			n++
-			spans = append(spans, newSpanWithStatus(hID, mwID, "handler", 500, tracev1.Status_STATUS_CODE_OK))
+			spans = append(spans, test.MakeSpanPruningSpanWithStatus(fixedTraceID, hID, mwID, "handler", 500, tracev1.Status_STATUS_CODE_OK))
 			for k := byte(0); k < 2; k++ {
-				spans = append(spans, newSpanWithStatus(sid(n, k), hID, "SELECT", 100, tracev1.Status_STATUS_CODE_OK))
+				spans = append(spans, test.MakeSpanPruningSpanWithStatus(fixedTraceID, test.MakeSpanPruningSpanID(n, k), hID, "SELECT", 100, tracev1.Status_STATUS_CODE_OK))
 			}
 			n++
 		}
 	}
 
-	assert.Equal(t, 15, len(spans))
+	require.Equal(t, 15, len(spans))
 
-	result, err := PruneTrace(cfg, wrapTrace(spans...))
+	result, err := PruneTrace(cfg, test.WrapSpansAsTrace(spans...))
 	require.NoError(t, err)
 	// root + middleware summary + handler summary + SELECT summary = 4
-	assert.Equal(t, 4, countSpans(result))
+	require.Equal(t, 4, test.CountSpans(result))
 
-	mwSum, found := findSummaryByName(result, "middleware")
+	mwSum, found := test.FindSpanPruningSummaryByName(result, "middleware")
 	require.True(t, found)
-	hSum, found := findSummaryByName(result, "handler")
+	hSum, found := test.FindSpanPruningSummaryByName(result, "handler")
 	require.True(t, found)
-	sSum, found := findSummaryByName(result, "SELECT")
+	sSum, found := test.FindSpanPruningSummaryByName(result, "SELECT")
 	require.True(t, found)
 
 	// Parent-child chain: root → middleware_summary → handler_summary → SELECT_summary
-	assert.Equal(t, string(mwSum.SpanId), string(hSum.ParentSpanId))
-	assert.Equal(t, string(hSum.SpanId), string(sSum.ParentSpanId))
+	require.Equal(t, string(mwSum.SpanId), string(hSum.ParentSpanId))
+	require.Equal(t, string(hSum.SpanId), string(sSum.ParentSpanId))
 
-	assert.Equal(t, int64(2), attrInt(mwSum, "aggregation.span_count"))
-	assert.Equal(t, int64(4), attrInt(hSum, "aggregation.span_count"))
-	assert.Equal(t, int64(8), attrInt(sSum, "aggregation.span_count"))
+	require.Equal(t, int64(2), test.SpanAttrInt(mwSum, "aggregation.span_count"))
+	require.Equal(t, int64(4), test.SpanAttrInt(hSum, "aggregation.span_count"))
+	require.Equal(t, int64(8), test.SpanAttrInt(sSum, "aggregation.span_count"))
 }
 
 // ---------------------------------------------------------------------------
@@ -853,22 +683,22 @@ func TestPruneTrace_TraceState_SameGrouped(t *testing.T) {
 	cfg.MaxParentDepth = 0
 	ts := "ot=th:fd70a4;rv:12345"
 
-	parent := newSpan(sid(1, 0), nil, "parent", 0, 1000)
+	parent := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "parent", 0, 1000)
 	spans := []*tracev1.Span{parent}
 	for i := byte(0); i < 3; i++ {
-		s := newSpan(sid(2, i), sid(1, 0), "SELECT", 0, 100)
+		s := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(2, i), test.MakeSpanPruningSpanID(1, 0), "SELECT", 0, 100)
 		s.TraceState = ts
 		spans = append(spans, s)
 	}
 
-	result, err := PruneTrace(cfg, wrapTrace(spans...))
+	result, err := PruneTrace(cfg, test.WrapSpansAsTrace(spans...))
 	require.NoError(t, err)
-	assert.Equal(t, 2, countSpans(result))
+	require.Equal(t, 2, test.CountSpans(result))
 
-	sum, found := findSummary(result)
+	sum, found := test.FindSpanPruningSummary(result)
 	require.True(t, found)
-	assert.Equal(t, int64(3), attrInt(sum, "aggregation.span_count"))
-	assert.Equal(t, ts, sum.TraceState)
+	require.Equal(t, int64(3), test.SpanAttrInt(sum, "aggregation.span_count"))
+	require.Equal(t, ts, sum.TraceState)
 }
 
 func TestPruneTrace_TraceState_DifferentSeparated(t *testing.T) {
@@ -876,31 +706,31 @@ func TestPruneTrace_TraceState_DifferentSeparated(t *testing.T) {
 	cfg := defaultCfg(2)
 	cfg.MaxParentDepth = 0
 
-	parent := newSpan(sid(1, 0), nil, "parent", 0, 1000)
+	parent := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "parent", 0, 1000)
 	spans := []*tracev1.Span{parent}
 	for i := byte(0); i < 3; i++ {
-		s := newSpan(sid(2, i), sid(1, 0), "SELECT", 0, 100)
+		s := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(2, i), test.MakeSpanPruningSpanID(1, 0), "SELECT", 0, 100)
 		s.TraceState = "ot=th:fd70a4;rv:12345"
 		spans = append(spans, s)
 	}
 	for i := byte(0); i < 2; i++ {
-		s := newSpan(sid(3, i), sid(1, 0), "SELECT", 0, 100)
+		s := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(3, i), test.MakeSpanPruningSpanID(1, 0), "SELECT", 0, 100)
 		s.TraceState = "ot=th:fa00;rv:12345"
 		spans = append(spans, s)
 	}
 
-	result, err := PruneTrace(cfg, wrapTrace(spans...))
+	result, err := PruneTrace(cfg, test.WrapSpansAsTrace(spans...))
 	require.NoError(t, err)
-	assert.Equal(t, 3, countSpans(result)) // parent + 2 summaries
+	require.Equal(t, 3, test.CountSpans(result)) // parent + 2 summaries
 
-	sums := findAllSummaries(result)
+	sums := test.SpanPruningSummaries(result)
 	require.Len(t, sums, 2)
 	tsCounts := map[string]int64{}
 	for _, s := range sums {
-		tsCounts[s.TraceState] = attrInt(s, "aggregation.span_count")
+		tsCounts[s.TraceState] = test.SpanAttrInt(s, "aggregation.span_count")
 	}
-	assert.Equal(t, int64(3), tsCounts["ot=th:fd70a4;rv:12345"])
-	assert.Equal(t, int64(2), tsCounts["ot=th:fa00;rv:12345"])
+	require.Equal(t, int64(3), tsCounts["ot=th:fd70a4;rv:12345"])
+	require.Equal(t, int64(2), tsCounts["ot=th:fa00;rv:12345"])
 }
 
 func TestPruneTrace_TraceState_MixedWithEmpty(t *testing.T) {
@@ -908,22 +738,22 @@ func TestPruneTrace_TraceState_MixedWithEmpty(t *testing.T) {
 	cfg := defaultCfg(2)
 	cfg.MaxParentDepth = 0
 
-	parent := newSpan(sid(1, 0), nil, "parent", 0, 1000)
+	parent := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "parent", 0, 1000)
 	spans := []*tracev1.Span{parent}
 	for i := byte(0); i < 3; i++ {
-		s := newSpan(sid(2, i), sid(1, 0), "SELECT", 0, 100)
+		s := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(2, i), test.MakeSpanPruningSpanID(1, 0), "SELECT", 0, 100)
 		s.TraceState = "ot=th:fd70a4;rv:12345"
 		spans = append(spans, s)
 	}
 	for i := byte(0); i < 2; i++ {
-		spans = append(spans, newSpan(sid(3, i), sid(1, 0), "SELECT", 0, 100))
+		spans = append(spans, test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(3, i), test.MakeSpanPruningSpanID(1, 0), "SELECT", 0, 100))
 	}
 
-	result, err := PruneTrace(cfg, wrapTrace(spans...))
+	result, err := PruneTrace(cfg, test.WrapSpansAsTrace(spans...))
 	require.NoError(t, err)
-	assert.Equal(t, 3, countSpans(result))
+	require.Equal(t, 3, test.CountSpans(result))
 
-	sums := findAllSummaries(result)
+	sums := test.SpanPruningSummaries(result)
 	require.Len(t, sums, 2)
 	var withTS, withoutTS *tracev1.Span
 	for _, s := range sums {
@@ -935,9 +765,9 @@ func TestPruneTrace_TraceState_MixedWithEmpty(t *testing.T) {
 	}
 	require.NotNil(t, withTS)
 	require.NotNil(t, withoutTS)
-	assert.Equal(t, "ot=th:fd70a4;rv:12345", withTS.TraceState)
-	assert.Equal(t, int64(3), attrInt(withTS, "aggregation.span_count"))
-	assert.Equal(t, int64(2), attrInt(withoutTS, "aggregation.span_count"))
+	require.Equal(t, "ot=th:fd70a4;rv:12345", withTS.TraceState)
+	require.Equal(t, int64(3), test.SpanAttrInt(withTS, "aggregation.span_count"))
+	require.Equal(t, int64(2), test.SpanAttrInt(withoutTS, "aggregation.span_count"))
 }
 
 func TestPruneTrace_TraceState_Empty(t *testing.T) {
@@ -945,18 +775,18 @@ func TestPruneTrace_TraceState_Empty(t *testing.T) {
 	cfg := defaultCfg(2)
 	cfg.MaxParentDepth = 0
 
-	parent := newSpan(sid(1, 0), nil, "parent", 0, 1000)
+	parent := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "parent", 0, 1000)
 	spans := []*tracev1.Span{parent}
 	for i := byte(0); i < 3; i++ {
-		spans = append(spans, newSpan(sid(2, i), sid(1, 0), "SELECT", 0, 100))
+		spans = append(spans, test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(2, i), test.MakeSpanPruningSpanID(1, 0), "SELECT", 0, 100))
 	}
 
-	result, err := PruneTrace(cfg, wrapTrace(spans...))
+	result, err := PruneTrace(cfg, test.WrapSpansAsTrace(spans...))
 	require.NoError(t, err)
-	assert.Equal(t, 2, countSpans(result))
-	sum, found := findSummary(result)
+	require.Equal(t, 2, test.CountSpans(result))
+	sum, found := test.FindSpanPruningSummary(result)
 	require.True(t, found)
-	assert.Empty(t, sum.TraceState)
+	require.Empty(t, sum.TraceState)
 }
 
 // ---------------------------------------------------------------------------
@@ -972,45 +802,45 @@ func TestPruneTrace_ParentKeyCollisionRegression(t *testing.T) {
 	cfg := defaultCfg(2)
 	cfg.MaxParentDepth = -1
 
-	rootID := sid(1, 0)
-	root := newSpan(rootID, nil, "root", 0, 10_000)
+	rootID := test.MakeSpanPruningSpanID(1, 0)
+	root := test.MakeSpanPruningSpan(fixedTraceID, rootID, nil, "root", 0, 10_000)
 	spans := []*tracev1.Span{root}
 
 	n := byte(2)
-	nextID := func() []byte { id := sid(n, 0); n++; return id }
+	nextID := func() []byte { id := test.MakeSpanPruningSpanID(n, 0); n++; return id }
 
 	for i := 0; i < 3; i++ {
 		outerID := nextID()
-		spans = append(spans, newSpanWithStatus(outerID, rootID, "svc", 1000, tracev1.Status_STATUS_CODE_OK))
+		spans = append(spans, test.MakeSpanPruningSpanWithStatus(fixedTraceID, outerID, rootID, "svc", 1000, tracev1.Status_STATUS_CODE_OK))
 		for j := 0; j < 2; j++ {
 			innerID := nextID()
-			spans = append(spans, newSpanWithStatus(innerID, outerID, "svc", 500, tracev1.Status_STATUS_CODE_OK))
+			spans = append(spans, test.MakeSpanPruningSpanWithStatus(fixedTraceID, innerID, outerID, "svc", 500, tracev1.Status_STATUS_CODE_OK))
 			for k := 0; k < 2; k++ {
-				spans = append(spans, newSpanWithStatus(nextID(), innerID, "SELECT", 100, tracev1.Status_STATUS_CODE_OK))
+				spans = append(spans, test.MakeSpanPruningSpanWithStatus(fixedTraceID, nextID(), innerID, "SELECT", 100, tracev1.Status_STATUS_CODE_OK))
 			}
 		}
 	}
 
-	assert.Equal(t, 22, len(spans)) // 1 root + 3 outer + 6 inner + 12 leaf
+	require.Equal(t, 22, len(spans)) // 1 root + 3 outer + 6 inner + 12 leaf
 
-	result, err := PruneTrace(cfg, wrapTrace(spans...))
+	result, err := PruneTrace(cfg, test.WrapSpansAsTrace(spans...))
 	require.NoError(t, err)
 
 	// No dangling parents: every non-root span must have its parent in the result.
 	byID := map[string]*tracev1.Span{}
-	for _, s := range allSpans(result) {
+	for _, s := range test.AllSpansInTrace(result) {
 		byID[string(s.SpanId)] = s
 	}
-	for _, s := range allSpans(result) {
+	for _, s := range test.AllSpansInTrace(result) {
 		if len(s.ParentSpanId) == 0 {
 			continue
 		}
 		_, ok := byID[string(s.ParentSpanId)]
-		assert.True(t, ok, "span %q has dangling parent", s.Name)
+		require.True(t, ok, "span %q has dangling parent", s.Name)
 	}
 
 	// Expected: root + 3 summaries (outer-svc, inner-svc, SELECT)
-	assert.Equal(t, 4, countSpans(result))
+	require.Equal(t, 4, test.CountSpans(result))
 }
 
 // ---------------------------------------------------------------------------
@@ -1018,10 +848,10 @@ func TestPruneTrace_ParentKeyCollisionRegression(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestPruneTrace_ConversionRoundtrip(t *testing.T) {
-	s := newSpanWithAttrs(sid(1, 0), nil, "root", 100, 200,
-		strAttr("service.name", "my-service"),
+	s := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "root", 100, 200,
+		test.MakeAttribute("service.name", "my-service"),
 	)
-	trace := wrapTrace(s)
+	trace := test.WrapSpansAsTrace(s)
 
 	td, err := tempopbToTraces(trace)
 	require.NoError(t, err)
@@ -1029,8 +859,8 @@ func TestPruneTrace_ConversionRoundtrip(t *testing.T) {
 
 	back, err := tracesToTempopb(td)
 	require.NoError(t, err)
-	require.Equal(t, 1, countSpans(back))
-	assert.Equal(t, "root", back.ResourceSpans[0].ScopeSpans[0].Spans[0].Name)
+	require.Equal(t, 1, test.CountSpans(back))
+	require.Equal(t, "root", back.ResourceSpans[0].ScopeSpans[0].Spans[0].Name)
 }
 
 // ---------------------------------------------------------------------------
@@ -1041,22 +871,22 @@ func TestPruneTrace_SummaryAttributesPresent(t *testing.T) {
 	cfg := defaultCfg(2)
 	cfg.MaxParentDepth = 0
 
-	parent := newSpan(sid(1, 0), nil, "parent", 0, 1000)
+	parent := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "parent", 0, 1000)
 	spans := []*tracev1.Span{parent}
 	for i := byte(0); i < 3; i++ {
-		spans = append(spans, newSpan(sid(2, i), sid(1, 0), "child", 0, 100))
+		spans = append(spans, test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(2, i), test.MakeSpanPruningSpanID(1, 0), "child", 0, 100))
 	}
 
-	result, err := PruneTrace(cfg, wrapTrace(spans...))
+	result, err := PruneTrace(cfg, test.WrapSpansAsTrace(spans...))
 	require.NoError(t, err)
 
-	sum, found := findSummary(result)
+	sum, found := test.FindSpanPruningSummary(result)
 	require.True(t, found)
 
 	keys := map[string]struct{}{}
 	for _, kv := range sum.Attributes {
 		keys[kv.Key] = struct{}{}
 	}
-	assert.Contains(t, keys, "aggregation.span_count")
-	assert.Contains(t, keys, "aggregation.is_summary")
+	require.Contains(t, keys, "aggregation.span_count")
+	require.Contains(t, keys, "aggregation.is_summary")
 }

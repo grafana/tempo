@@ -16,7 +16,6 @@ import (
 
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
-	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
 )
@@ -180,30 +179,15 @@ func TestNewTraceByIDV2(t *testing.T) {
 // leaf spans below a parent should collapse into a single summary span.
 func TestNewTraceByIDV2WithSpanPruning(t *testing.T) {
 	traceID := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
-	parent := &tracev1.Span{
-		TraceId: traceID,
-		SpanId:  []byte{1, 0, 0, 0, 0, 0, 0, 0},
-		Name:    "parent",
-	}
+	parent := test.MakeSpanPruningSpan(traceID, test.MakeSpanPruningSpanID(1, 0), nil, "parent", 0, 0)
 	spans := []*tracev1.Span{parent}
 	for i := byte(0); i < 3; i++ {
-		spans = append(spans, &tracev1.Span{
-			TraceId:      traceID,
-			SpanId:       []byte{2, i, 0, 0, 0, 0, 0, 0},
-			ParentSpanId: parent.SpanId,
-			Name:         "SELECT",
-			Attributes: []*commonv1.KeyValue{
-				{Key: "db.operation", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "select"}}},
-			},
-		})
+		spans = append(spans, test.MakeSpanPruningSpan(traceID, test.MakeSpanPruningSpanID(2, i), parent.SpanId, "SELECT", 0, 0,
+			test.MakeAttribute("db.operation", "select")))
 	}
 
 	traceResponse := &tempopb.TraceByIDResponse{
-		Trace: &tempopb.Trace{
-			ResourceSpans: []*tracev1.ResourceSpans{
-				{ScopeSpans: []*tracev1.ScopeSpans{{Spans: spans}}},
-			},
-		},
+		Trace:   test.WrapSpansAsTrace(spans...),
 		Metrics: &tempopb.TraceByIDMetrics{},
 	}
 	resBytes, err := proto.Marshal(traceResponse)
@@ -231,29 +215,10 @@ func TestNewTraceByIDV2WithSpanPruning(t *testing.T) {
 	actualResp := &tempopb.TraceByIDResponse{}
 	require.NoError(t, proto.Unmarshal(body, actualResp))
 
-	var (
-		spanCount int
-		summary   *tracev1.Span
-	)
-	for _, rs := range actualResp.Trace.ResourceSpans {
-		for _, ss := range rs.ScopeSpans {
-			spanCount += len(ss.Spans)
-			for _, s := range ss.Spans {
-				for _, kv := range s.Attributes {
-					if kv.Key == "aggregation.is_summary" && kv.Value.GetBoolValue() {
-						summary = s
-					}
-				}
-			}
-		}
-	}
-
 	// parent + 1 summary replacing the 3 aggregated SELECT spans
-	assert.Equal(t, 2, spanCount)
-	require.NotNil(t, summary, "expected a pruned summary span")
-	for _, kv := range summary.Attributes {
-		if kv.Key == "aggregation.span_count" {
-			assert.Equal(t, int64(3), kv.Value.GetIntValue())
-		}
-	}
+	require.Equal(t, 2, test.CountSpans(actualResp.Trace))
+
+	summary, found := test.FindSpanPruningSummary(actualResp.Trace)
+	require.True(t, found, "expected a pruned summary span")
+	require.Equal(t, int64(3), test.SpanAttrInt(summary, "aggregation.span_count"))
 }

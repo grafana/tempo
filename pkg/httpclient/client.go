@@ -290,6 +290,21 @@ func (c *Client) QueryTraceV2(id string) (*tempopb.TraceByIDResponse, error) {
 	return m, nil
 }
 
+// QueryTraceV2WithQueryParams calls the /api/v2/traces/{id} endpoint with additional query
+// parameters merged on top of any set via SetQueryParam, e.g. for span_pruning* params.
+func (c *Client) QueryTraceV2WithQueryParams(id string, queryParams map[string]string) (*tempopb.TraceByIDResponse, error) {
+	m := &tempopb.TraceByIDResponse{}
+	url := c.getURLWithQueryParams(QueryTraceV2Endpoint+"/"+id, mergeMaps(c.queryParams, queryParams))
+	resp, err := c.getFor(url, m)
+	if err != nil {
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			return nil, util.ErrTraceNotFound
+		}
+		return nil, err
+	}
+	return m, nil
+}
+
 func (c *Client) QueryTraceWithRange(ctx context.Context, id string, start int64, end int64) (*tempopb.Trace, error) {
 	m := &tempopb.Trace{}
 	if start > end {
