@@ -1,6 +1,6 @@
-change_type: change
+change_type: enhancement
 component: deps
-note: Generate Tempo's own protobuf Go code with the wiresmith compiler instead of protoc-gen-gogofaster. The protobuf wire format is unchanged (binary-compatible with the previous gogo output); only the generated Go API and the `make gen-proto` toolchain change.
+note: Migrate protobuf code generation from protoc-gen-gogofaster to the wiresmith compiler. Wire format and JSON shapes unchanged; OTLP ingest decode is faster and allocates less.
 issues: [7466]
 subtext:
 user: oleg-kozlyuk

@@ -284,8 +284,8 @@ endif
 ##@ Code Generation
 
 PROTO_INTERMEDIATE_DIR = pkg/.patched-proto
-# wiresmith protobuf compiler (https://github.com/grafana/wiresmith). Build it
-# from a checkout with `go install ./cmd/wiresmith` — see WIRESMITH_MIGRATION.md.
+# wiresmith protobuf compiler (https://github.com/grafana/wiresmith). Install
+# the version matching go.mod: `go install github.com/grafana/wiresmith/cmd/wiresmith@$(go list -m -f '{{.Version}}' github.com/grafana/wiresmith)`.
 WIRESMITH = wiresmith
 
 .PHONY: gen-proto
