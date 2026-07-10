@@ -28,7 +28,7 @@ message BlockMeta {
 }
 
 message CompactedBlockMeta {
-    BlockMeta block_meta = 1[(gogoproto.embed) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = ""];
+    BlockMeta block_meta = 1[(gogoproto.nullable) = false, (gogoproto.jsontag) = ""];
     google.protobuf.Timestamp compacted_time = 2[(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "compactedTime"];
 }
 
