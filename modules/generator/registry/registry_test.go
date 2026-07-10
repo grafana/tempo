@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/grafana/tempo/modules/overrides/histograms"
+	tempo_util "github.com/grafana/tempo/pkg/util"
 	"github.com/prometheus/client_golang/prometheus"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/model/labels"
@@ -1072,7 +1073,7 @@ func TestManagedRegistry_borrowedLabelsSurviveScratchReuse(t *testing.T) {
 	traceID := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}
 	counter.IncBorrowed(borrowed, 1.0, timeMs)
 	histogram.ObserveBorrowed(borrowed, 1.0, traceID, 1.0, timeMs)
-	gauge.SetForTargetInfoBorrowed(borrowed, 1.0, timeMs)
+	gauge.SetBorrowed(borrowed, 1.0, timeMs)
 	borrowed.Release()
 
 	// Overwrite the caller-owned trace ID slice: the histogram must have
@@ -1243,7 +1244,7 @@ func TestManagedRegistry_nativeBorrowedLabelsSurviveScratchReuse(t *testing.T) {
 			builder.Add("label", "value-1")
 			borrowed, valid := builder.CloseAndBorrowLabels()
 			require.True(t, valid)
-			histogram.ObserveBorrowed(borrowed, 1.5, traceID, 1.0, time.Now().UnixMilli())
+			histogram.ObserveBorrowedWithEncodedTraceID(borrowed, 1.5, tempo_util.TraceIDToHexString(traceID), 1.0, time.Now().UnixMilli())
 			borrowed.Release()
 
 			// Churn the pooled builders/scratch so any retained borrowed label
@@ -1272,8 +1273,10 @@ func TestManagedRegistry_nativeBorrowedLabelsSurviveScratchReuse(t *testing.T) {
 			for _, h := range appender.histograms {
 				seriesLabels = append(seriesLabels, h.l)
 			}
+			require.NotEmpty(t, appender.exemplars, "encoded trace ID produced no exemplar")
 			for _, ex := range appender.exemplars {
 				seriesLabels = append(seriesLabels, ex.l)
+				assert.Equal(t, tempo_util.TraceIDToHexString(traceID), ex.e.Labels.Get("traceID"))
 			}
 			require.NotEmpty(t, seriesLabels, "native histogram emitted no series")
 			for _, l := range seriesLabels {
