@@ -1112,6 +1112,12 @@ query_frontend:
         # configured in the querier.
         [external_enabled: <bool> | default = false]
 
+        # Enable span pruning support for trace-by-ID v2 requests. When enabled, requests
+        # to the v2 endpoint can opt in to span pruning post-processing via the
+        # `span_pruning` query parameter. When disabled, the query parameter is ignored
+        # and no pruning occurs regardless of the request.
+        [span_pruning_enabled: <bool> | default = false]
+
         # If set to a non-zero value, it's value will be used to decide if metadata query is within SLO or not.
         # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
         # NOTE: Requires `duration_slo` AND `throughput_bytes_slo` to be configured.

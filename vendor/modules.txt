@@ -1194,6 +1194,10 @@ github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumul
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor/internal/condition
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor/internal/metadata
+# github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanpruningprocessor v0.153.0
+## explicit; go 1.25.0
+github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanpruningprocessor
+github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanpruningprocessor/internal/metadata
 # github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.153.0
 ## explicit; go 1.25.0
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver

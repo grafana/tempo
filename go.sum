@@ -632,6 +632,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumul
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor v0.153.0/go.mod h1:0lEaZGCEjzb4R5J6F0NR1jF1KKc18IkvPRwLpQuyyjY=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.153.0 h1:BJgrgLXGJDR/yEmmUwwSVp4XfDj4+yqjRnRZubfBP2s=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.153.0/go.mod h1:gBxrMc3s9mPSKGFqPqMDwS+q3FUm3o47+kBPbp2Vuo4=
+github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanpruningprocessor v0.153.0 h1:DmPBNbYYNJfBk9DT2zc15sX9trmXcXc2JVEOw4Udkr0=
+github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanpruningprocessor v0.153.0/go.mod h1:bO/tyCGGDMxAVCajug5eeBodrQ2a8FR5l44aTpoD6RM=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.153.0 h1:60alDpIpi6/sl7VK6xaUbggf4Jy/6UvJaW6uYOW2e+I=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.153.0/go.mod h1:xYem/1ZCP1APB7kqs0XHZcnnWVBfg1GTiYO/eAh/ugg=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.153.0 h1:gpJPe9cjdXkuKyjrSRJGrs+1gK4SX8lMXSfyOT6QS8s=
