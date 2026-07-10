@@ -58,3 +58,11 @@ func (v Encoding) CreateWALBlock(meta *backend.BlockMeta, filepath, dataEncoding
 func (v Encoding) OwnsWALBlock(entry fs.DirEntry) bool {
 	return ownsWALBlock(entry)
 }
+
+// OpenTraceIDReader opens a column-projected reader over the block's
+// TraceID column, satisfying encoding.TraceIDProjector. Unlike OpenBlock
+// (whose Iterator decodes every column of every row), this never decodes
+// anything else.
+func (v Encoding) OpenTraceIDReader(meta *backend.BlockMeta, r backend.Reader) (common.TraceIDIterator, error) {
+	return newBackendBlock(meta, r).openTraceIDReader(context.Background())
+}
