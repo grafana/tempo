@@ -457,6 +457,11 @@ ingest:
         # The Kafka client ID.
         [client_id: <string>]
 
+        # The rack identifier for this Kafka client. Corresponds to the Kafka client.rack
+        # setting and enables fetching from the closest replica (KIP-392). Set this to the
+        # instance's availability zone to reduce cross-zone Kafka traffic.
+        [client_rack: <string>]
+
         # The maximum time allowed to open a connection to a Kafka broker.
         [dial_timeout: <duration> | default = 2s]
 
