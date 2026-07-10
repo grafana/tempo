@@ -727,20 +727,31 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 
 		testTrace := test.MakeTrace(10, id)
 		// add the time
-		for _, batch := range testTrace.ResourceSpans {
-			for _, ils := range batch.ScopeSpans {
+		// ResourceSpans/ScopeSpans/Spans are value-type slices, so a range-copy
+		// variable's fields don't alias the original element; index and mutate
+		// in place.
+		for bi := range testTrace.ResourceSpans {
+			batch := &testTrace.ResourceSpans[bi]
+			for si := range batch.ScopeSpans {
+				ils := &batch.ScopeSpans[si]
 				ils.Scope = &v1.InstrumentationScope{
 					Name:       "scope-name",
 					Version:    "scope-version",
 					Attributes: []v1.KeyValue{*kv},
 				}
-				for _, span := range ils.Spans {
+				for spi := range ils.Spans {
+					span := &ils.Spans[spi]
 					span.Name = spanName
 					span.StartTimeUnixNano = uint64(now.UnixNano())
 					span.EndTimeUnixNano = uint64(now.UnixNano())
 				}
 			}
 		}
+		require.NotEmpty(t, testTrace.ResourceSpans)
+		require.NotEmpty(t, testTrace.ResourceSpans[0].ScopeSpans)
+		require.Equal(t, "scope-name", testTrace.ResourceSpans[0].ScopeSpans[0].Scope.GetName())
+		require.NotEmpty(t, testTrace.ResourceSpans[0].ScopeSpans[0].Spans)
+		require.Equal(t, spanName, testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Name)
 		testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes = append(testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes, *kv)
 		// add link and event
 		event := &trace_v1.Span_Event{Name: "event-name", Attributes: []v1.KeyValue{*eventKv}}

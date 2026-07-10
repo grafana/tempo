@@ -328,9 +328,15 @@ func (t *TraceInfo) ConstructTraceFromEpoch() (*tempopb.Trace, error) {
 			// get the parentSpanID to match.  In the case of an empty []byte in place
 			// for the ParentSpanId, we set to nil here to ensure that the final result
 			// matches the json.Unmarshal value when tempo is queried.
-			for _, b := range t.ResourceSpans {
-				for _, l := range b.ScopeSpans {
-					for _, s := range l.Spans {
+			// ResourceSpans/ScopeSpans/Spans are value-type slices, so a range-copy
+			// variable's fields don't alias the original element; index and mutate
+			// in place.
+			for bi := range t.ResourceSpans {
+				b := &t.ResourceSpans[bi]
+				for li := range b.ScopeSpans {
+					l := &b.ScopeSpans[li]
+					for si := range l.Spans {
+						s := &l.Spans[si]
 						if len(s.GetParentSpanId()) == 0 {
 							s.ParentSpanId = nil
 						}
