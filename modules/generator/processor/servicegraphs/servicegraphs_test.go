@@ -2,7 +2,6 @@ package servicegraphs
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"math"
 	"os"
@@ -489,8 +488,7 @@ func TestServiceGraphs_droppedEdgesMetric(t *testing.T) {
 
 	traceID := []byte{0x01}
 	spanID := []byte{0x02}
-	key := buildKey(hex.EncodeToString(traceID), hex.EncodeToString(spanID))
-	p.(*Processor).store.AddDroppedSpanSide(key, store.Server)
+	p.(*Processor).store.AddDroppedSpanSideFromBytes(traceID, spanID, store.Server)
 
 	request := &tempopb.PushSpansRequest{
 		Batches: []*tracev1.ResourceSpans{
@@ -757,8 +755,7 @@ func TestServiceGraphs_filteredRootServerSpanDoesNotAddDroppedCounterpart(t *tes
 
 	p.PushSpans(context.Background(), request)
 
-	emptyParentKey := buildKey(hex.EncodeToString(traceID), "")
-	assert.False(t, p.(*Processor).store.HasDroppedSpanSide(emptyParentKey, store.Server))
+	assert.False(t, p.(*Processor).store.HasDroppedSpanSideFromBytes(traceID, nil, store.Server))
 }
 
 func TestServiceGraphs_databaseVirtualNodes(t *testing.T) {

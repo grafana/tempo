@@ -1,8 +1,9 @@
 package store
 
 import (
-	"container/list"
+	"encoding/hex"
 	"errors"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,13 +15,14 @@ var (
 	ErrDroppedSpanSide = errors.New("dropped span side")
 )
 
-var _ Store = (*store)(nil)
-
-type store struct {
-	l   *list.List
+// Store builds service graph edges from paired client/server spans.
+type Store struct {
 	mtx sync.Mutex
-	m   map[string]*list.Element
+	m   map[edgeKey]*Edge
 	d   map[droppedSpanSideKey]int64
+
+	head *Edge
+	tail *Edge
 
 	onComplete Callback
 	onExpire   Callback
@@ -32,17 +34,63 @@ type store struct {
 }
 
 type droppedSpanSideKey struct {
-	key  string
+	key  edgeKey
 	side Side
+}
+
+const (
+	maxTraceIDLen = 16
+	maxSpanIDLen  = 8
+)
+
+// edgeKey keeps valid OTLP IDs inline. Oversized malformed IDs use an encoded
+// fallback so their full contents still participate in matching.
+type edgeKey struct {
+	traceID  [maxTraceIDLen]byte
+	spanID   [maxSpanIDLen]byte
+	fallback string
+
+	traceIDLen uint8
+	spanIDLen  uint8
+	root       bool
+	fromString bool
+}
+
+func edgeKeyFromString(key string) edgeKey {
+	return edgeKey{
+		fallback:   key,
+		root:       strings.HasSuffix(key, "-"),
+		fromString: true,
+	}
+}
+
+func edgeKeyFromBytes(traceID, spanID []byte) edgeKey {
+	key := edgeKey{root: len(spanID) == 0}
+	if len(traceID) > maxTraceIDLen || len(spanID) > maxSpanIDLen {
+		key.fallback = encodeKey(traceID, spanID)
+		return key
+	}
+
+	key.traceIDLen = uint8(len(traceID))
+	key.spanIDLen = uint8(len(spanID))
+	copy(key.traceID[:], traceID)
+	copy(key.spanID[:], spanID)
+	return key
+}
+
+func (k edgeKey) String() string {
+	if k.fallback != "" || k.fromString {
+		return k.fallback
+	}
+	return encodeKey(k.traceID[:k.traceIDLen], k.spanID[:k.spanIDLen])
 }
 
 // NewStore creates a Store to build service graphs. The store caches edges, each representing a
 // request between two services. Once an edge is complete its metrics can be collected. Edges that
 // have not found their pair are deleted after ttl time.
-func NewStore(ttl time.Duration, maxItems int, onComplete, onExpire Callback, droppedSpanSideOverflowCounter prometheus.Counter) Store {
-	s := &store{
-		l: list.New(),
-		m: make(map[string]*list.Element),
+func NewStore(ttl time.Duration, maxItems int, onComplete, onExpire Callback, droppedSpanSideOverflowCounter prometheus.Counter) *Store {
+	s := &Store{
+		m: make(map[edgeKey]*Edge),
 		d: make(map[droppedSpanSideKey]int64),
 
 		onComplete: onComplete,
@@ -57,58 +105,63 @@ func NewStore(ttl time.Duration, maxItems int, onComplete, onExpire Callback, dr
 	return s
 }
 
-func (s *store) len() int {
+func (s *Store) len() int {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	return s.l.Len()
+	return len(s.m)
 }
 
 // tryEvictHead checks if the oldest item (head of list) can be evicted and will delete it if so.
 // Returns true if the head was evicted.
 //
 // Must be called holding lock.
-func (s *store) tryEvictHead() bool {
-	head := s.l.Front()
-	if head == nil {
+func (s *Store) tryEvictHead() bool {
+	if s.head == nil {
 		// list is empty
 		return false
 	}
 
-	headEdge := head.Value.(*Edge)
-	if !headEdge.isExpired() {
+	if !s.head.isExpired() {
 		return false
 	}
 
-	s.onExpire(headEdge)
-	s.deleteEdge(head)
+	s.onExpire(s.head)
+	s.deleteEdge(s.head)
 
 	return true
 }
 
 // deleteEdge removes an edge from the map/list and returns it to the pool.
 // Must be called holding lock.
-func (s *store) deleteEdge(ele *list.Element) {
-	edge := ele.Value.(*Edge)
+func (s *Store) deleteEdge(edge *Edge) {
 	delete(s.m, edge.key)
-	s.l.Remove(ele)
+	s.removeEdge(edge)
 	s.returnEdge(edge)
 }
 
 // UpsertEdge fetches an Edge from the store and updates it using the given callback. If the Edge
 // doesn't exist yet, it creates a new one with the default TTL.
 // If the Edge is complete after applying the callback, it's completed and removed.
-func (s *store) UpsertEdge(key string, side Side, update Callback) (isNew bool, err error) {
+func (s *Store) UpsertEdge(key string, side Side, update Callback) (isNew bool, err error) {
+	return s.upsertEdge(edgeKeyFromString(key), side, update)
+}
+
+// UpsertEdgeFromBytes is the byte-keyed form of UpsertEdge.
+func (s *Store) UpsertEdgeFromBytes(traceID, spanID []byte, side Side, update Callback) (isNew bool, err error) {
+	return s.upsertEdge(edgeKeyFromBytes(traceID, spanID), side, update)
+}
+
+func (s *Store) upsertEdge(key edgeKey, side Side, update Callback) (isNew bool, err error) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	if storedEdge, ok := s.m[key]; ok {
-		edge := storedEdge.Value.(*Edge)
+	if edge, ok := s.m[key]; ok {
 		update(edge)
 
 		if edge.isComplete() {
 			s.onComplete(edge)
-			s.deleteEdge(storedEdge)
+			s.deleteEdge(edge)
 		}
 
 		return false, nil
@@ -128,20 +181,59 @@ func (s *store) UpsertEdge(key string, side Side, update Callback) (isNew bool, 
 	}
 
 	// Check we can add new edges
-	if s.l.Len() >= s.maxItems {
+	if len(s.m) >= s.maxItems {
 		// todo: try to evict expired items
 		s.returnEdge(edge)
 		return false, ErrTooManyItems
 	}
 
-	ele := s.l.PushBack(edge)
-	s.m[key] = ele
+	s.pushBack(edge)
+	s.m[key] = edge
 
 	return true, nil
 }
 
+func (s *Store) pushBack(edge *Edge) {
+	edge.prev = s.tail
+	edge.next = nil
+	if s.tail != nil {
+		s.tail.next = edge
+	} else {
+		s.head = edge
+	}
+	s.tail = edge
+}
+
+func (s *Store) removeEdge(edge *Edge) {
+	if edge.prev != nil {
+		edge.prev.next = edge.next
+	} else {
+		s.head = edge.next
+	}
+	if edge.next != nil {
+		edge.next.prev = edge.prev
+	} else {
+		s.tail = edge.prev
+	}
+	edge.prev = nil
+	edge.next = nil
+}
+
+func encodedKeyLen(k1, k2 []byte) int {
+	return hex.EncodedLen(len(k1)) + 1 + hex.EncodedLen(len(k2))
+}
+
+func encodeKey(k1, k2 []byte) string {
+	buf := make([]byte, encodedKeyLen(k1, k2))
+	k1Len := hex.EncodedLen(len(k1))
+	hex.Encode(buf[:k1Len], k1)
+	buf[k1Len] = '-'
+	hex.Encode(buf[k1Len+1:], k2)
+	return string(buf)
+}
+
 // Expire evicts all expired items in the store.
-func (s *store) Expire() {
+func (s *Store) Expire() {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
@@ -152,17 +244,25 @@ func (s *store) Expire() {
 }
 
 // This cache is best-effort metadata for dropped-span correlation.
-func (s *store) AddDroppedSpanSide(key string, side Side) bool {
+func (s *Store) AddDroppedSpanSide(key string, side Side) bool {
+	return s.addDroppedSpanSide(edgeKeyFromString(key), side)
+}
+
+// AddDroppedSpanSideFromBytes records a filtered edge side using trace/span ID bytes.
+func (s *Store) AddDroppedSpanSideFromBytes(traceID, spanID []byte, side Side) bool {
+	return s.addDroppedSpanSide(edgeKeyFromBytes(traceID, spanID), side)
+}
+
+func (s *Store) addDroppedSpanSide(key edgeKey, side Side) bool {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
 	droppedCounterpartEdge := false
-	if storedEdge, ok := s.m[key]; ok {
-		edge := storedEdge.Value.(*Edge)
+	if edge, ok := s.m[key]; ok {
 		// If a counterpart edge is already buffered, drop it immediately instead of
 		// waiting for TTL expiration.
 		if !edge.isComplete() && getEdgeSide(edge) != side {
-			s.deleteEdge(storedEdge)
+			s.deleteEdge(edge)
 			droppedCounterpartEdge = true
 		}
 	}
@@ -187,7 +287,16 @@ func (s *store) AddDroppedSpanSide(key string, side Side) bool {
 	return droppedCounterpartEdge
 }
 
-func (s *store) HasDroppedSpanSide(key string, side Side) bool {
+func (s *Store) HasDroppedSpanSide(key string, side Side) bool {
+	return s.hasDroppedSpanSide(edgeKeyFromString(key), side)
+}
+
+// HasDroppedSpanSideFromBytes reports whether a trace/span ID side is recorded as dropped.
+func (s *Store) HasDroppedSpanSideFromBytes(traceID, spanID []byte, side Side) bool {
+	return s.hasDroppedSpanSide(edgeKeyFromBytes(traceID, spanID), side)
+}
+
+func (s *Store) hasDroppedSpanSide(key edgeKey, side Side) bool {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
@@ -198,7 +307,7 @@ func (s *store) HasDroppedSpanSide(key string, side Side) bool {
 	return ok
 }
 
-func (s *store) expireDroppedSpanSides() {
+func (s *Store) expireDroppedSpanSides() {
 	now := time.Now().UnixNano()
 	for k, expiration := range s.d {
 		if now >= expiration {
@@ -207,7 +316,7 @@ func (s *store) expireDroppedSpanSides() {
 	}
 }
 
-func (s *store) hasDroppedCounterpart(key string, side Side) bool {
+func (s *Store) hasDroppedCounterpart(key edgeKey, side Side) bool {
 	counterpart := Client
 	if side == Client {
 		counterpart = Server
@@ -226,7 +335,7 @@ var edgePool = sync.Pool{
 }
 
 // grabEdge returns a new Edge from the pool, clearing its state and setting the key and expiration.
-func (s *store) grabEdge(key string) *Edge {
+func (s *Store) grabEdge(key edgeKey) *Edge {
 	edge := edgePool.Get().(*Edge)
 	resetEdge(edge)
 	edge.key = key
@@ -235,7 +344,7 @@ func (s *store) grabEdge(key string) *Edge {
 }
 
 // returnEdge returns an Edge to the pool.
-func (s *store) returnEdge(e *Edge) {
+func (s *Store) returnEdge(e *Edge) {
 	edgePool.Put(e)
 }
 

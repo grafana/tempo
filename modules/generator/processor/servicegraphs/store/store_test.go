@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"reflect"
+	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -22,9 +23,7 @@ func TestStoreUpsertEdge(t *testing.T) {
 	var onCompletedCount int
 	var onExpireCount int
 
-	storeInterface := NewStore(time.Hour, 1, countingCallback(&onCompletedCount), countingCallback(&onExpireCount), newTestCounter())
-
-	s := storeInterface.(*store)
+	s := NewStore(time.Hour, 1, countingCallback(&onCompletedCount), countingCallback(&onExpireCount), newTestCounter())
 	assert.Equal(t, 0, s.len())
 
 	// Insert first half of an edge
@@ -73,9 +72,7 @@ func TestStoreUpsertEdge(t *testing.T) {
 func TestStoreUpsertEdge_errTooManyItems(t *testing.T) {
 	var onCallbackCounter int
 
-	storeInterface := NewStore(time.Hour, 1, countingCallback(&onCallbackCounter), countingCallback(&onCallbackCounter), newTestCounter())
-
-	s := storeInterface.(*store)
+	s := NewStore(time.Hour, 1, countingCallback(&onCallbackCounter), countingCallback(&onCallbackCounter), newTestCounter())
 	assert.Equal(t, 0, s.len())
 
 	isNew, err := s.UpsertEdge("key-1", Client, func(e *Edge) {
@@ -114,11 +111,10 @@ func TestStoreExpire(t *testing.T) {
 
 	onComplete := func(e *Edge) {
 		onCompletedCount++
-		assert.True(t, keys[e.key])
+		assert.True(t, keys[e.Key()])
 	}
 	// New edges are immediately expired
-	storeInterface := NewStore(-time.Second, testSize, onComplete, countingCallback(&onExpireCount), newTestCounter())
-	s := storeInterface.(*store)
+	s := NewStore(-time.Second, testSize, onComplete, countingCallback(&onExpireCount), newTestCounter())
 
 	for key := range keys {
 		isNew, err := s.UpsertEdge(key, Client, noopCallback)
@@ -136,8 +132,10 @@ func TestStore_concurrency(t *testing.T) {
 	s := NewStore(10*time.Millisecond, 100000, noopCallback, noopCallback, newTestCounter())
 
 	end := make(chan struct{})
+	var wg sync.WaitGroup
 
 	accessor := func(f func()) {
+		defer wg.Done()
 		for {
 			select {
 			case <-end:
@@ -148,16 +146,18 @@ func TestStore_concurrency(t *testing.T) {
 		}
 	}
 
-	letters := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	letters := []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
+	wg.Add(2)
 	go accessor(func() {
-		key := make([]rune, 6)
+		key := make([]byte, 24)
 		for i := range key {
 			key[i] = letters[rand.Intn(len(letters))]
 		}
 
-		_, err := s.UpsertEdge(string(key), Client, func(e *Edge) {
-			e.ClientService = string(key)
+		service := string(key)
+		_, err := s.UpsertEdgeFromBytes(key[:16], key[16:], Client, func(e *Edge) {
+			e.ClientService = service
 		})
 		assert.NoError(t, err)
 	})
@@ -168,6 +168,7 @@ func TestStore_concurrency(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 	close(end)
+	wg.Wait()
 }
 
 func TestStore_AddDroppedSpanSide(t *testing.T) {
@@ -235,8 +236,7 @@ func TestStore_AddDroppedSpanSide_sidesAreIndependent(t *testing.T) {
 }
 
 func TestStore_AddDroppedSpanSide_dropsExistingCounterpartEdge(t *testing.T) {
-	si := NewStore(time.Hour, 10, noopCallback, noopCallback, newTestCounter())
-	s := si.(*store)
+	s := NewStore(time.Hour, 10, noopCallback, noopCallback, newTestCounter())
 
 	_, err := s.UpsertEdge("k1", Client, func(e *Edge) {
 		e.ClientService = clientService
@@ -255,9 +255,9 @@ func TestStore_AddDroppedSpanSide_dropsExistingCounterpartEdge(t *testing.T) {
 	assert.True(t, droppedCounterpart)
 
 	assert.Equal(t, 1, s.len())
-	_, foundK1 := s.m["k1"]
+	_, foundK1 := s.m[edgeKeyFromString("k1")]
 	assert.False(t, foundK1)
-	_, foundK2 := s.m["k2"]
+	_, foundK2 := s.m[edgeKeyFromString("k2")]
 	assert.True(t, foundK2)
 }
 
@@ -323,8 +323,7 @@ func TestStore_ExpireDroppedSpanSide_mixedTTL(t *testing.T) {
 
 func TestStore_ExpireDroppedSpanSide_doesNotAffectEdges(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		si := NewStore(time.Second, 10, noopCallback, noopCallback, newTestCounter())
-		s := si.(*store)
+		s := NewStore(time.Second, 10, noopCallback, noopCallback, newTestCounter())
 
 		s.AddDroppedSpanSide("d1", Client)
 		_, err := s.UpsertEdge("e1", Client, func(e *Edge) {
@@ -343,8 +342,7 @@ func TestStore_ExpireDroppedSpanSide_doesNotAffectEdges(t *testing.T) {
 }
 
 func TestStore_UpsertEdge_newEdgeWithDroppedCounterpart_returnsErrDroppedSpanSide(t *testing.T) {
-	si := NewStore(time.Hour, 10, noopCallback, noopCallback, newTestCounter())
-	s := si.(*store)
+	s := NewStore(time.Hour, 10, noopCallback, noopCallback, newTestCounter())
 
 	const key = "trace-span"
 	s.AddDroppedSpanSide(key, Server)
@@ -359,17 +357,130 @@ func TestStore_UpsertEdge_newEdgeWithDroppedCounterpart_returnsErrDroppedSpanSid
 }
 
 func BenchmarkStoreUpsertEdge(b *testing.B) {
-	// Benchmark the performance of UpsertEdge with edge pooling enabled
-	s := NewStore(10*time.Millisecond, 1e10, noopCallback, noopCallback, newTestCounter())
+	s := NewStore(10*time.Millisecond, 1, noopCallback, noopCallback, newTestCounter())
+	traceID := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}
+	spanID := []byte{0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa8}
 
+	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		key := fmt.Sprintf("key-%d", i)
-		_, err := s.UpsertEdge(key, Client, func(e *Edge) {
-			e.ClientService = clientService
-		})
-		require.NoError(b, err)
+		if _, err := s.UpsertEdgeFromBytes(traceID, spanID, Client, benchmarkUpdateClientEdge); err != nil {
+			b.Fatal(err)
+		}
+		if _, err := s.UpsertEdgeFromBytes(traceID, spanID, Server, benchmarkUpdateServerEdge); err != nil {
+			b.Fatal(err)
+		}
 	}
+}
+
+func benchmarkUpdateClientEdge(e *Edge) {
+	e.ClientService = clientService
+}
+
+func benchmarkUpdateServerEdge(e *Edge) {
+	e.ServerService = "server"
+}
+
+func TestStoreUpsertEdgeFromBytes_ValidIDs(t *testing.T) {
+	// Verify the callback runs and the edge pairs correctly across two calls.
+	s := NewStore(time.Hour, 1, noopCallback, noopCallback, newTestCounter())
+
+	traceID := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}
+	spanID := []byte{0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa8}
+
+	isNew, err := s.UpsertEdgeFromBytes(traceID, spanID, Client, func(e *Edge) {
+		e.ClientService = clientService
+	})
+	require.NoError(t, err)
+	require.True(t, isNew)
+	assert.Equal(t, 1, s.len())
+
+	isNew, err = s.UpsertEdgeFromBytes(traceID, spanID, Server, func(e *Edge) {
+		assert.Equal(t, clientService, e.ClientService)
+		e.ServerService = "server"
+	})
+	require.NoError(t, err)
+	require.False(t, isNew)
+	// Edge completed and removed.
+	assert.Equal(t, 0, s.len())
+}
+
+func TestStoreUpsertEdgeFromBytes_OversizedIDs(t *testing.T) {
+	// Malformed oversized IDs use an encoded fallback without truncating their
+	// contents or changing pairing behavior.
+	s := NewStore(time.Hour, 1, noopCallback, noopCallback, newTestCounter())
+
+	bigTraceID := make([]byte, 33)
+	bigSpanID := make([]byte, 33)
+	for i := range bigTraceID {
+		bigTraceID[i] = byte(i + 1)
+		bigSpanID[i] = byte(i + 100)
+	}
+
+	isNew, err := s.UpsertEdgeFromBytes(bigTraceID, bigSpanID, Client, func(e *Edge) {
+		e.ClientService = clientService
+	})
+	require.NoError(t, err)
+	require.True(t, isNew)
+	assert.Equal(t, 1, s.len())
+
+	// The same oversized key must hit the existing edge.
+	isNew, err = s.UpsertEdgeFromBytes(bigTraceID, bigSpanID, Server, func(e *Edge) {
+		assert.Equal(t, clientService, e.ClientService)
+		e.ServerService = "server"
+	})
+	require.NoError(t, err)
+	require.False(t, isNew)
+	assert.Equal(t, 0, s.len())
+}
+
+func TestEdgeKeyFromBytes(t *testing.T) {
+	tests := []struct {
+		name    string
+		traceID []byte
+		spanID  []byte
+		root    bool
+	}{
+		{
+			name:    "valid IDs",
+			traceID: make([]byte, maxTraceIDLen),
+			spanID:  make([]byte, maxSpanIDLen),
+		},
+		{
+			name:    "short IDs",
+			traceID: []byte{0x01},
+			spanID:  []byte{0x02},
+		},
+		{
+			name:    "oversized IDs",
+			traceID: make([]byte, maxTraceIDLen+1),
+			spanID:  make([]byte, maxSpanIDLen+1),
+		},
+		{
+			name:    "root span",
+			traceID: []byte{0x01},
+			root:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			key := edgeKeyFromBytes(tt.traceID, tt.spanID)
+			assert.Equal(t, encodeKey(tt.traceID, tt.spanID), key.String())
+			assert.Equal(t, tt.root, key.root)
+		})
+	}
+
+	assert.NotEqual(t,
+		edgeKeyFromBytes([]byte{0x01}, []byte{0x02}),
+		edgeKeyFromBytes([]byte{0x01, 0x00}, []byte{0x02}),
+		"ID lengths must participate in key equality",
+	)
+
+	traceID := []byte{0x01}
+	key := edgeKeyFromBytes(traceID, []byte{0x02})
+	traceID[0] = 0xff
+	assert.Equal(t, edgeKeyFromBytes([]byte{0x01}, []byte{0x02}), key)
 }
 
 func noopCallback(_ *Edge) {
@@ -389,8 +500,8 @@ func TestResetEdge(t *testing.T) {
 	// Create an edge with all fields set to non-zero values
 	dimensions := map[string]string{"key1": "value1", "key2": "value2"}
 	e := &Edge{
-		key:                     "test-key",
-		TraceID:                 "trace-123",
+		key:                     edgeKeyFromString("test-key"),
+		traceID:                 []byte("trace-123"),
 		ConnectionType:          Database,
 		ServerService:           "server-svc",
 		ClientService:           "client-svc",
@@ -409,8 +520,8 @@ func TestResetEdge(t *testing.T) {
 	resetEdge(e)
 
 	// Verify all fields are properly reset
-	assert.Equal(t, "", e.key, "key should be preserved")
-	assert.Equal(t, "", e.TraceID, "TraceID should be reset")
+	assert.Equal(t, edgeKey{}, e.key, "key should be reset")
+	assert.Empty(t, e.traceID, "traceID should be reset (buffer retained, length zero)")
 	assert.Equal(t, Unknown, e.ConnectionType, "ConnectionType should be reset to Unknown")
 	assert.Equal(t, "", e.ServerService, "ServerService should be reset")
 	assert.Equal(t, "", e.ClientService, "ClientService should be reset")
@@ -429,4 +540,86 @@ func TestResetEdge(t *testing.T) {
 	originalPtr := reflect.ValueOf(dimensions).Pointer()
 	newPtr := reflect.ValueOf(e.Dimensions).Pointer()
 	assert.Equal(t, originalPtr, newPtr, "Dimensions map should be the exact same instance, not reallocated")
+}
+
+func TestStoreUpsertEdgeFromBytes_droppedCounterpart(t *testing.T) {
+	s := NewStore(time.Hour, 10, noopCallback, noopCallback, newTestCounter())
+
+	traceID := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}
+	spanID := []byte{0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa8}
+
+	s.AddDroppedSpanSideFromBytes(traceID, spanID, Server)
+
+	isNew, err := s.UpsertEdgeFromBytes(traceID, spanID, Client, func(e *Edge) {
+		e.ClientService = clientService
+	})
+	require.ErrorIs(t, err, ErrDroppedSpanSide)
+	assert.True(t, isNew)
+	assert.Equal(t, 0, s.len())
+}
+
+func TestStore_interiorEdgeRemovalKeepsListIntact(t *testing.T) {
+	var onCompleteCount, onExpireCount int
+	s := NewStore(time.Hour, 10, countingCallback(&onCompleteCount), countingCallback(&onExpireCount), newTestCounter())
+
+	for _, key := range []string{"key-a", "key-b", "key-c"} {
+		isNew, err := s.UpsertEdge(key, Client, func(e *Edge) {
+			e.ClientService = clientService
+		})
+		require.NoError(t, err)
+		require.True(t, isNew)
+	}
+	require.Equal(t, 3, s.len())
+
+	// Complete the middle edge: interior removal, prev and next both non-nil.
+	isNew, err := s.UpsertEdge("key-b", Server, func(e *Edge) {
+		e.ServerService = "server"
+	})
+	require.NoError(t, err)
+	require.False(t, isNew)
+	require.Equal(t, 1, onCompleteCount)
+	require.Equal(t, 2, s.len())
+
+	require.Same(t, s.m[edgeKeyFromString("key-a")], s.head)
+	require.Same(t, s.m[edgeKeyFromString("key-c")], s.tail)
+	require.Same(t, s.tail, s.head.next)
+	require.Same(t, s.head, s.tail.prev)
+
+	// Expire only the head: Expire must evict key-a and stop at unexpired key-c.
+	_, err = s.UpsertEdge("key-a", Client, func(e *Edge) {
+		e.expiration = 0
+	})
+	require.NoError(t, err)
+	s.Expire()
+	require.Equal(t, 1, onExpireCount)
+	require.Equal(t, 1, s.len())
+
+	// The surviving tail must still be addressable and completable.
+	isNew, err = s.UpsertEdge("key-c", Server, func(e *Edge) {
+		e.ServerService = "server"
+	})
+	require.NoError(t, err)
+	require.False(t, isNew)
+	require.Equal(t, 2, onCompleteCount)
+	require.Equal(t, 1, onExpireCount)
+	require.Equal(t, 0, s.len())
+}
+
+func TestSetTraceID_copiesSourceAndReusesBuffer(t *testing.T) {
+	e := &Edge{}
+
+	src := []byte{0x01, 0x02, 0x03, 0x04}
+	e.SetTraceID(src)
+	src[0] = 0xFF
+	assert.Equal(t, []byte{0x01, 0x02, 0x03, 0x04}, e.TraceID(), "mutating the source must not affect the edge's copy")
+
+	bufPtr := &e.traceID[0]
+	resetEdge(e)
+	assert.Empty(t, e.TraceID())
+
+	// A shorter ID after recycling must not expose stale bytes of the previous
+	// ID and must reuse the retained backing array.
+	e.SetTraceID([]byte{0xAA})
+	assert.Equal(t, []byte{0xAA}, e.TraceID())
+	assert.Same(t, bufPtr, &e.traceID[0], "backing array should be reused across recycles")
 }

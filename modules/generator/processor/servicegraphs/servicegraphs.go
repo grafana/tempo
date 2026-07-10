@@ -2,10 +2,8 @@ package servicegraphs
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/go-kit/log"
@@ -83,7 +81,7 @@ type Processor struct {
 	Cfg Config
 
 	registry registry.Registry
-	store    store.Store
+	store    *store.Store
 
 	closeCh chan struct{}
 
@@ -219,9 +217,8 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 					connectionType = store.MessagingSystem
 					fallthrough
 				case v1_trace.Span_SPAN_KIND_CLIENT:
-					key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.SpanId))
-					isNew, err = p.store.UpsertEdge(key, store.Client, func(e *store.Edge) {
-						e.TraceID = tempo_util.TraceIDToHexString(span.TraceId)
+					isNew, err = p.store.UpsertEdgeFromBytes(span.TraceId, span.SpanId, store.Client, func(e *store.Edge) {
+						e.SetTraceID(span.TraceId)
 						e.ConnectionType = connectionType
 						e.ClientService = svcName
 						e.ClientLatencySec = spanDurationSec(span)
@@ -238,9 +235,12 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 					connectionType = store.MessagingSystem
 					fallthrough
 				case v1_trace.Span_SPAN_KIND_SERVER:
-					key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.ParentSpanId))
-					isNew, err = p.store.UpsertEdge(key, store.Server, func(e *store.Edge) {
-						e.TraceID = tempo_util.TraceIDToHexString(span.TraceId)
+					isNew, err = p.store.UpsertEdgeFromBytes(span.TraceId, span.ParentSpanId, store.Server, func(e *store.Edge) {
+						// Non-root server spans cannot produce metrics without a client
+						// update, which supplies the same trace ID.
+						if len(span.ParentSpanId) == 0 {
+							e.SetTraceID(span.TraceId)
+						}
 						e.ConnectionType = connectionType
 						e.ServerService = svcName
 						e.ServerLatencySec = spanDurationSec(span)
@@ -402,15 +402,16 @@ func (p *Processor) onComplete(e *store.Edge) {
 	}
 
 	if p.Cfg.Subprocessors[Latency] {
-		p.serviceGraphRequestServerSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ServerLatencySec, e.TraceID, e.SpanMultiplier)
-		p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ClientLatencySec, e.TraceID, e.SpanMultiplier)
+		traceID := tempo_util.TraceIDToHexString(e.TraceID())
+		p.serviceGraphRequestServerSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ServerLatencySec, traceID, e.SpanMultiplier)
+		p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ClientLatencySec, traceID, e.SpanMultiplier)
 
 		if p.Cfg.EnableMessagingSystemLatencyHistogram && e.ConnectionType == store.MessagingSystem {
 			messagingSystemLatencySec := unixNanosDiffSec(e.ClientEndTimeUnixNano, e.ServerStartTimeUnixNano)
 			if messagingSystemLatencySec == 0 {
-				level.Warn(p.logger).Log("msg", "producerSpanEndTime must be smaller than consumerSpanStartTime. maybe the peers clocks are not synced", "messagingSystemLatencySec", messagingSystemLatencySec, "traceID", e.TraceID)
+				level.Warn(p.logger).Log("msg", "producerSpanEndTime must be smaller than consumerSpanStartTime. maybe the peers clocks are not synced", "messagingSystemLatencySec", messagingSystemLatencySec, "traceID", traceID)
 			} else {
-				p.serviceGraphRequestMessagingSystemSecondsHistogram.ObserveWithExemplar(registryLabelValues, messagingSystemLatencySec, e.TraceID, e.SpanMultiplier)
+				p.serviceGraphRequestMessagingSystemSecondsHistogram.ObserveWithExemplar(registryLabelValues, messagingSystemLatencySec, traceID, e.SpanMultiplier)
 			}
 		}
 	}
@@ -433,7 +434,7 @@ func (p *Processor) onExpire(e *store.Edge) {
 		// If the client service is not set, it means that the span could have been initiated by an external system,
 		// like a frontend application or an engineer via `curl`.
 		// We check if the span we have is the root span, and if so, we set the client service appropriately.
-		if _, parentSpan := parseKey(e.Key()); len(parentSpan) == 0 {
+		if e.IsRoot() {
 
 			// If a peer attribute is present, it is used to name the external client service.
 			if len(e.PeerNode) > 0 {
@@ -471,8 +472,7 @@ func (p *Processor) onExpire(e *store.Edge) {
 
 func (p *Processor) addDroppedSpanSide(span *v1_trace.Span) {
 	if isClient(span.Kind) {
-		key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.SpanId))
-		if p.store.AddDroppedSpanSide(key, store.Client) {
+		if p.store.AddDroppedSpanSideFromBytes(span.TraceId, span.SpanId, store.Client) {
 			p.metricDroppedEdges.Inc()
 		}
 		return
@@ -484,8 +484,7 @@ func (p *Processor) addDroppedSpanSide(span *v1_trace.Span) {
 			return
 		}
 
-		key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.ParentSpanId))
-		if p.store.AddDroppedSpanSide(key, store.Server) {
+		if p.store.AddDroppedSpanSideFromBytes(span.TraceId, span.ParentSpanId, store.Server) {
 			p.metricDroppedEdges.Inc()
 		}
 	}
@@ -514,13 +513,4 @@ func unixNanosDiffSec(unixNanoStart uint64, unixNanoEnd uint64) float64 {
 
 func spanDurationSec(span *v1_trace.Span) float64 {
 	return unixNanosDiffSec(span.StartTimeUnixNano, span.EndTimeUnixNano)
-}
-
-func buildKey(k1, k2 string) string {
-	return fmt.Sprintf("%s-%s", k1, k2)
-}
-
-func parseKey(key string) (string, string) {
-	parts := strings.Split(key, "-")
-	return parts[0], parts[1]
 }
