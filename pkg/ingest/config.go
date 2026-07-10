@@ -61,6 +61,7 @@ type KafkaConfig struct {
 	Address      string        `yaml:"address"`
 	Topic        string        `yaml:"topic"`
 	ClientID     string        `yaml:"client_id"`
+	ClientRack   string        `yaml:"client_rack"`
 	DialTimeout  time.Duration `yaml:"dial_timeout"`
 	WriteTimeout time.Duration `yaml:"write_timeout"`
 
@@ -98,6 +99,7 @@ func (cfg *KafkaConfig) RegisterFlagsWithPrefix(prefix string, f *flag.FlagSet) 
 	f.StringVar(&cfg.Address, prefix+".address", "localhost:9092", "The Kafka backend address.")
 	f.StringVar(&cfg.Topic, prefix+".topic", "", "The Kafka topic name.")
 	f.StringVar(&cfg.ClientID, prefix+".client-id", "", "The Kafka client ID.")
+	f.StringVar(&cfg.ClientRack, prefix+".client-rack", "", "The rack identifier for this Kafka client. Corresponds to the Kafka client.rack setting and enables fetching from the closest replica (KIP-392). Set this to the instance's availability zone to reduce cross-zone Kafka traffic.")
 	f.DurationVar(&cfg.DialTimeout, prefix+".dial-timeout", 2*time.Second, "The maximum time allowed to open a connection to a Kafka broker.")
 	f.DurationVar(&cfg.WriteTimeout, prefix+".write-timeout", 10*time.Second, "How long to wait for an incoming write request to be successfully committed to the Kafka backend.")
 

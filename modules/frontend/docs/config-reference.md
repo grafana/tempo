@@ -221,6 +221,7 @@ distributor:
         address: ""
         topic: ""
         client_id: ""
+        client_rack: ""
         dial_timeout: 0s
         write_timeout: 0s
         sasl_username: ""
@@ -497,6 +498,7 @@ ingest:
         address: localhost:9092
         topic: ""
         client_id: ""
+        client_rack: ""
         dial_timeout: 2s
         write_timeout: 10s
         sasl_username: ""

@@ -140,6 +140,11 @@ func commonKafkaClientOptions(cfg KafkaConfig, metrics *kprom.Metrics, logger lo
 		}),
 	}
 
+	// Enable rack-aware fetching (KIP-392) so consumers can fetch from the closest replica.
+	if cfg.ClientRack != "" {
+		opts = append(opts, kgo.Rack(cfg.ClientRack))
+	}
+
 	// Disable client metrics if explicitly disabled to reduce noise.
 	if cfg.DisableKafkaTelemetry {
 		opts = append(opts, kgo.DisableClientMetrics())
