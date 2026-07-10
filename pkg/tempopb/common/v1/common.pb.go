@@ -58,6 +58,12 @@ type AnyValue_BytesValue struct {
 
 func (*AnyValue_BytesValue) isAnyValue_Value() {}
 
+type AnyValue_StringValueStrindex struct {
+	StringValueStrindex int32 `protobuf:"varint,8,opt,name=string_value_strindex,json=stringValueStrindex,proto3,oneof" json:"string_value_strindex,omitempty"`
+}
+
+func (*AnyValue_StringValueStrindex) isAnyValue_Value() {}
+
 // AnyValue is used to represent any type of attribute value. AnyValue may contain a
 // primitive value such as a string or integer or it may contain an arbitrary nested
 // object containing arrays, key-value lists and primitives.
@@ -92,6 +98,18 @@ type KeyValueList struct {
 type KeyValue struct {
 	Key   string    `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
 	Value *AnyValue `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	// Reference to the string key in ProfilesDictionary.string_table.
+	// key MUST NOT be set if key_strindex is used.
+	//
+	// Note: This is currently used exclusively in the Profiling signal.
+	// Implementers of OTLP receivers for signals other than Profiling should
+	// treat the presence of this key as a non-fatal issue.
+	// Log an error or warning indicating an unexpected field intended for the
+	// Profiling signal and process the data as if this value were absent or
+	// empty, ignoring its semantic content for the non-Profiling signal.
+	//
+	// Status: [Alpha]
+	KeyStrindex int32 `protobuf:"varint,3,opt,name=key_strindex,json=keyStrindex,proto3" json:"key_strindex,omitempty"`
 }
 
 // InstrumentationScope is a message representing the instrumentation scope information
@@ -105,6 +123,37 @@ type InstrumentationScope struct {
 	// attribute with the same key).
 	Attributes             []KeyValue `protobuf:"bytes,3,rep,name=attributes,proto3" json:"attributes,omitempty"`
 	DroppedAttributesCount uint32     `protobuf:"varint,4,opt,name=dropped_attributes_count,json=droppedAttributesCount,proto3" json:"dropped_attributes_count,omitempty"`
+}
+
+// A reference to an Entity.
+// Entity represents an object of interest associated with produced telemetry: e.g spans, metrics, profiles, or logs.
+//
+// Status: [Development]
+type EntityRef struct {
+	// The Schema URL, if known. This is the identifier of the Schema that the entity data
+	// is recorded in. To learn more about Schema URL see
+	// https://opentelemetry.io/docs/specs/otel/schemas/#schema-url
+	//
+	// This schema_url applies to the data in this message and to the Resource attributes
+	// referenced by id_keys and description_keys.
+	// TODO: discuss if we are happy with this somewhat complicated definition of what
+	// the schema_url applies to.
+	//
+	// This field obsoletes the schema_url field in ResourceMetrics/ResourceSpans/ResourceLogs.
+	SchemaUrl string `protobuf:"bytes,1,opt,name=schema_url,json=schemaUrl,proto3" json:"schema_url,omitempty"`
+	// Defines the type of the entity. MUST not change during the lifetime of the entity.
+	// For example: "service" or "host". This field is required and MUST not be empty
+	// for valid entities.
+	Type string `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
+	// Attribute Keys that identify the entity.
+	// MUST not change during the lifetime of the entity. The Id must contain at least one attribute.
+	// These keys MUST exist in the containing {message}.attributes.
+	IdKeys []string `protobuf:"bytes,3,rep,name=id_keys,json=idKeys,proto3" json:"id_keys,omitempty"`
+	// Descriptive (non-identifying) attribute keys of the entity.
+	// MAY change over the lifetime of the entity. MAY be empty.
+	// These attribute keys are not part of entity's identity.
+	// These keys MUST exist in the containing {message}.attributes.
+	DescriptionKeys []string `protobuf:"bytes,4,rep,name=description_keys,json=descriptionKeys,proto3" json:"description_keys,omitempty"`
 }
 
 func (m *AnyValue) Reset() {
@@ -146,6 +195,14 @@ func (m *InstrumentationScope) Reset() {
 	*m = InstrumentationScope{}
 }
 func (*InstrumentationScope) ProtoMessage() {}
+
+func (m *EntityRef) Reset() {
+	if m == nil {
+		return
+	}
+	*m = EntityRef{}
+}
+func (*EntityRef) ProtoMessage() {}
 
 func (m *AnyValue) GetValue() AnyValue_Value {
 	if m != nil {
@@ -203,6 +260,13 @@ func (m *AnyValue) GetBytesValue() []byte {
 	return nil
 }
 
+func (m *AnyValue) GetStringValueStrindex() int32 {
+	if x, ok := m.GetValue().(*AnyValue_StringValueStrindex); ok {
+		return x.StringValueStrindex
+	}
+	return 0
+}
+
 func (m *ArrayValue) GetValues() []AnyValue {
 	if m != nil {
 		return m.Values
@@ -229,6 +293,13 @@ func (m *KeyValue) GetValue() *AnyValue {
 		return m.Value
 	}
 	return nil
+}
+
+func (m *KeyValue) GetKeyStrindex() int32 {
+	if m != nil {
+		return m.KeyStrindex
+	}
+	return 0
 }
 
 func (m *InstrumentationScope) GetName() string {
@@ -259,6 +330,34 @@ func (m *InstrumentationScope) GetDroppedAttributesCount() uint32 {
 	return 0
 }
 
+func (m *EntityRef) GetSchemaUrl() string {
+	if m != nil {
+		return m.SchemaUrl
+	}
+	return ""
+}
+
+func (m *EntityRef) GetType() string {
+	if m != nil {
+		return m.Type
+	}
+	return ""
+}
+
+func (m *EntityRef) GetIdKeys() []string {
+	if m != nil {
+		return m.IdKeys
+	}
+	return nil
+}
+
+func (m *EntityRef) GetDescriptionKeys() []string {
+	if m != nil {
+		return m.DescriptionKeys
+	}
+	return nil
+}
+
 func (m *AnyValue) Size() int {
 	if m == nil {
 		return 0
@@ -285,6 +384,8 @@ func (m *AnyValue) Size() int {
 	case *AnyValue_BytesValue:
 		l := len(v.BytesValue)
 		n += 1 + protowire.SizeVarint(uint64(l)) + l
+	case *AnyValue_StringValueStrindex:
+		n += 1 + protowire.SizeVarint(uint64(v.StringValueStrindex))
 	}
 	return n
 }
@@ -325,6 +426,9 @@ func (m *KeyValue) Size() int {
 		s := (*m.Value).Size()
 		n += 1 + protowire.SizeVarint(uint64(s)) + s
 	}
+	if m.KeyStrindex != 0 {
+		n += 1 + protowire.SizeVarint(uint64(m.KeyStrindex))
+	}
 	return n
 }
 
@@ -345,6 +449,26 @@ func (m *InstrumentationScope) Size() int {
 	}
 	if m.DroppedAttributesCount != 0 {
 		n += 1 + protowire.SizeVarint(uint64(m.DroppedAttributesCount))
+	}
+	return n
+}
+
+func (m *EntityRef) Size() int {
+	if m == nil {
+		return 0
+	}
+	var n int
+	if len(m.SchemaUrl) > 0 {
+		n += 1 + protowire.SizeVarint(uint64(len(m.SchemaUrl))) + len(m.SchemaUrl)
+	}
+	if len(m.Type) > 0 {
+		n += 1 + protowire.SizeVarint(uint64(len(m.Type))) + len(m.Type)
+	}
+	for _, v := range m.IdKeys {
+		n += 1 + protowire.SizeVarint(uint64(len(v))) + len(v)
+	}
+	for _, v := range m.DescriptionKeys {
+		n += 1 + protowire.SizeVarint(uint64(len(v))) + len(v)
 	}
 	return n
 }
@@ -379,6 +503,10 @@ func (m *AnyValue) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	}
 	i := len(dAtA)
 	switch v := m.Value.(type) {
+	case *AnyValue_StringValueStrindex:
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(v.StringValueStrindex))
+		i--
+		dAtA[i] = 0x40
 	case *AnyValue_BytesValue:
 		i -= len(v.BytesValue)
 		copy(dAtA[i:], v.BytesValue)
@@ -574,6 +702,11 @@ func (m *KeyValue) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		return 0, nil
 	}
 	i := len(dAtA)
+	if m.KeyStrindex != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.KeyStrindex))
+		i--
+		dAtA[i] = 0x18
+	}
 	if m.Value != nil {
 		size, err := (*m.Value).MarshalToSizedBuffer(dAtA[:i])
 		if err != nil {
@@ -673,6 +806,86 @@ func (m *InstrumentationScope) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			i--
 		} else {
 			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Name)))
+		}
+		i--
+		dAtA[i] = 0x0a
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *EntityRef) Marshal() (dAtA []byte, err error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.Size()
+	dAtA = make([]byte, size)
+	if size == 0 {
+		return dAtA, nil
+	}
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *EntityRef) MarshalTo(dAtA []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *EntityRef) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	i := len(dAtA)
+	for iNdEx := len(m.DescriptionKeys) - 1; iNdEx >= 0; iNdEx-- {
+		i -= len(m.DescriptionKeys[iNdEx])
+		copy(dAtA[i:], m.DescriptionKeys[iNdEx])
+		if len(m.DescriptionKeys[iNdEx]) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.DescriptionKeys[iNdEx]))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.DescriptionKeys[iNdEx])))
+		}
+		i--
+		dAtA[i] = 0x22
+	}
+	for iNdEx := len(m.IdKeys) - 1; iNdEx >= 0; iNdEx-- {
+		i -= len(m.IdKeys[iNdEx])
+		copy(dAtA[i:], m.IdKeys[iNdEx])
+		if len(m.IdKeys[iNdEx]) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.IdKeys[iNdEx]))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.IdKeys[iNdEx])))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.Type) > 0 {
+		i -= len(m.Type)
+		copy(dAtA[i:], m.Type)
+		if len(m.Type) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.Type))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Type)))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.SchemaUrl) > 0 {
+		i -= len(m.SchemaUrl)
+		copy(dAtA[i:], m.SchemaUrl)
+		if len(m.SchemaUrl) <= 0x7F {
+			dAtA[i-1] = uint8(len(m.SchemaUrl))
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.SchemaUrl)))
 		}
 		i--
 		dAtA[i] = 0x0a
@@ -989,6 +1202,34 @@ func (m *AnyValue) unmarshal(dAtA []byte, depth int) error {
 			}
 			m.Value = &AnyValue_BytesValue{BytesValue: append([]byte(nil), dAtA[iNdEx:postIndex]...)}
 			iNdEx = postIndex
+		case 8: // string_value_strindex
+			if wireType != 0 {
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
+				if err != nil {
+					return err
+				}
+				iNdEx += n
+				continue
+			}
+			var v uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return fmt.Errorf("proto: integer overflow")
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					if shift == 63 && b > 1 {
+						return fmt.Errorf("proto: varint overflow")
+					}
+					break
+				}
+			}
+			m.Value = &AnyValue_StringValueStrindex{StringValueStrindex: int32(v)}
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
@@ -1492,6 +1733,34 @@ func (m *KeyValue) unmarshal(dAtA []byte, depth int) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 3: // key_strindex
+			if wireType != 0 {
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
+				if err != nil {
+					return err
+				}
+				iNdEx += n
+				continue
+			}
+			var v uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return fmt.Errorf("proto: integer overflow")
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					if shift == 63 && b > 1 {
+						return fmt.Errorf("proto: varint overflow")
+					}
+					break
+				}
+			}
+			m.KeyStrindex = int32(v)
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {
@@ -1796,5 +2065,323 @@ func (m *InstrumentationScope) unmarshal(dAtA []byte, depth int) error {
 }
 
 func (m *InstrumentationScope) UnmarshalNoPrescan(dAtA []byte) error {
+	return m.unmarshal(dAtA, -1)
+}
+
+func (m *EntityRef) Unmarshal(b []byte) error {
+	return m.unmarshal(b, 0)
+}
+
+func (m *EntityRef) UnmarshalWithDepth(b []byte, depth int) error {
+	if depth < 0 {
+		depth = 0
+	}
+	return m.unmarshal(b, depth)
+}
+
+func (m *EntityRef) unmarshal(dAtA []byte, depth int) error {
+	if depth > protohelpers.MaxUnmarshalDepth {
+		return fmt.Errorf("exceeded max recursion depth")
+	}
+	l := len(dAtA)
+	iNdEx := 0
+	if l >= 256 && depth >= 0 {
+		var preIdx int
+		var field3count int
+		var field4count int
+		for preIdx < l {
+			var preWire uint64
+			for shift := uint(0); ; shift += 7 {
+				if preIdx >= l {
+					break
+				}
+				b := dAtA[preIdx]
+				preIdx++
+				preWire |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			preNum := int32(preWire >> 3)
+			preTyp := int(preWire & 0x7)
+			switch preNum {
+			case 3:
+				field3count++
+			case 4:
+				field4count++
+			}
+			switch preTyp {
+			case 0:
+				for preIdx < l {
+					preIdx++
+					if dAtA[preIdx-1] < 0x80 {
+						break
+					}
+				}
+			case 1:
+				preIdx += 8
+			case 2:
+				var preLen uint64
+				for shift := uint(0); ; shift += 7 {
+					if preIdx >= l {
+						break
+					}
+					b := dAtA[preIdx]
+					preIdx++
+					preLen |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				preIdx += int(preLen)
+			case 5:
+				preIdx += 4
+			default:
+				preIdx = -1
+			}
+			if preIdx < 0 || preIdx > l {
+				break
+			}
+		}
+		preCapMax := l / 2
+		if c := field3count; c > 0 {
+			if c > preCapMax {
+				c = preCapMax
+			}
+			if len(m.IdKeys) == 0 && cap(m.IdKeys) < c {
+				m.IdKeys = make([]string, 0, c)
+			}
+		}
+		if c := field4count; c > 0 {
+			if c > preCapMax {
+				c = preCapMax
+			}
+			if len(m.DescriptionKeys) == 0 && cap(m.DescriptionKeys) < c {
+				m.DescriptionKeys = make([]string, 0, c)
+			}
+		}
+	}
+	for iNdEx < l {
+		var wire uint64
+		if iNdEx < l && dAtA[iNdEx] < 0x80 {
+			wire = uint64(dAtA[iNdEx])
+			iNdEx++
+		} else {
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 35 {
+					return fmt.Errorf("proto: integer overflow")
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				wire |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		}
+		if wire>>3 < 1 || wire>>3 > 0x1FFFFFFF {
+			return fmt.Errorf("invalid field number")
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		switch fieldNum {
+		case 1: // schema_url
+			if wireType != 2 {
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
+				if err != nil {
+					return err
+				}
+				iNdEx += n
+				continue
+			}
+			var byteLen uint64
+			if iNdEx < l && dAtA[iNdEx] < 0x80 {
+				byteLen = uint64(dAtA[iNdEx])
+				iNdEx++
+			} else {
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return fmt.Errorf("proto: integer overflow")
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					byteLen |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						if shift == 63 && b > 1 {
+							return fmt.Errorf("proto: varint overflow")
+						}
+						break
+					}
+				}
+			}
+			if byteLen > uint64(math.MaxInt) {
+				return io.ErrUnexpectedEOF
+			}
+			intByteLen := int(byteLen)
+			postIndex := iNdEx + intByteLen
+			if postIndex < 0 {
+				return fmt.Errorf("proto: negative length")
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SchemaUrl = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2: // type
+			if wireType != 2 {
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
+				if err != nil {
+					return err
+				}
+				iNdEx += n
+				continue
+			}
+			var byteLen uint64
+			if iNdEx < l && dAtA[iNdEx] < 0x80 {
+				byteLen = uint64(dAtA[iNdEx])
+				iNdEx++
+			} else {
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return fmt.Errorf("proto: integer overflow")
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					byteLen |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						if shift == 63 && b > 1 {
+							return fmt.Errorf("proto: varint overflow")
+						}
+						break
+					}
+				}
+			}
+			if byteLen > uint64(math.MaxInt) {
+				return io.ErrUnexpectedEOF
+			}
+			intByteLen := int(byteLen)
+			postIndex := iNdEx + intByteLen
+			if postIndex < 0 {
+				return fmt.Errorf("proto: negative length")
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Type = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3: // id_keys
+			if wireType != 2 {
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
+				if err != nil {
+					return err
+				}
+				iNdEx += n
+				continue
+			}
+			var byteLen uint64
+			if iNdEx < l && dAtA[iNdEx] < 0x80 {
+				byteLen = uint64(dAtA[iNdEx])
+				iNdEx++
+			} else {
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return fmt.Errorf("proto: integer overflow")
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					byteLen |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						if shift == 63 && b > 1 {
+							return fmt.Errorf("proto: varint overflow")
+						}
+						break
+					}
+				}
+			}
+			if byteLen > uint64(math.MaxInt) {
+				return io.ErrUnexpectedEOF
+			}
+			intByteLen := int(byteLen)
+			postIndex := iNdEx + intByteLen
+			if postIndex < 0 {
+				return fmt.Errorf("proto: negative length")
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.IdKeys = append(m.IdKeys, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 4: // description_keys
+			if wireType != 2 {
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
+				if err != nil {
+					return err
+				}
+				iNdEx += n
+				continue
+			}
+			var byteLen uint64
+			if iNdEx < l && dAtA[iNdEx] < 0x80 {
+				byteLen = uint64(dAtA[iNdEx])
+				iNdEx++
+			} else {
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return fmt.Errorf("proto: integer overflow")
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					byteLen |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						if shift == 63 && b > 1 {
+							return fmt.Errorf("proto: varint overflow")
+						}
+						break
+					}
+				}
+			}
+			if byteLen > uint64(math.MaxInt) {
+				return io.ErrUnexpectedEOF
+			}
+			intByteLen := int(byteLen)
+			postIndex := iNdEx + intByteLen
+			if postIndex < 0 {
+				return fmt.Errorf("proto: negative length")
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.DescriptionKeys = append(m.DescriptionKeys, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		default:
+			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
+			if err != nil {
+				return err
+			}
+			iNdEx += n
+		}
+	}
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+
+func (m *EntityRef) UnmarshalNoPrescan(dAtA []byte) error {
 	return m.unmarshal(dAtA, -1)
 }

@@ -21,6 +21,12 @@ type Resource struct {
 	// dropped_attributes_count is the number of dropped attributes. If the value is 0, then
 	// no attributes were dropped.
 	DroppedAttributesCount uint32 `protobuf:"varint,2,opt,name=dropped_attributes_count,json=droppedAttributesCount,proto3" json:"dropped_attributes_count,omitempty"`
+	// Set of entities that participate in this Resource.
+	//
+	// Note: keys in the references MUST exist in attributes of this message.
+	//
+	// Status: [Development]
+	EntityRefs []*commonv1.EntityRef `protobuf:"bytes,3,rep,name=entity_refs,json=entityRefs,proto3" json:"entity_refs,omitempty"`
 }
 
 func (m *Resource) Reset() {
@@ -45,6 +51,13 @@ func (m *Resource) GetDroppedAttributesCount() uint32 {
 	return 0
 }
 
+func (m *Resource) GetEntityRefs() []*commonv1.EntityRef {
+	if m != nil {
+		return m.EntityRefs
+	}
+	return nil
+}
+
 func (m *Resource) Size() int {
 	if m == nil {
 		return 0
@@ -56,6 +69,13 @@ func (m *Resource) Size() int {
 	}
 	if m.DroppedAttributesCount != 0 {
 		n += 1 + protowire.SizeVarint(uint64(m.DroppedAttributesCount))
+	}
+	for i := range m.EntityRefs {
+		if m.EntityRefs[i] == nil {
+			continue
+		}
+		s := (*m.EntityRefs[i]).Size()
+		n += 1 + protowire.SizeVarint(uint64(s)) + s
 	}
 	return n
 }
@@ -89,6 +109,24 @@ func (m *Resource) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		return 0, nil
 	}
 	i := len(dAtA)
+	for iNdEx := len(m.EntityRefs) - 1; iNdEx >= 0; iNdEx-- {
+		if m.EntityRefs[iNdEx] == nil {
+			continue
+		}
+		size, err := (*m.EntityRefs[iNdEx]).MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		if size <= 0x7F {
+			dAtA[i-1] = uint8(size)
+			i--
+		} else {
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
 	if m.DroppedAttributesCount != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.DroppedAttributesCount))
 		i--
@@ -132,6 +170,7 @@ func (m *Resource) unmarshal(dAtA []byte, depth int) error {
 	if l >= 256 && depth >= 0 {
 		var preIdx int
 		var field1count int
+		var field3count int
 		for preIdx < l {
 			var preWire uint64
 			for shift := uint(0); ; shift += 7 {
@@ -150,6 +189,8 @@ func (m *Resource) unmarshal(dAtA []byte, depth int) error {
 			switch preNum {
 			case 1:
 				field1count++
+			case 3:
+				field3count++
 			}
 			switch preTyp {
 			case 0:
@@ -191,6 +232,14 @@ func (m *Resource) unmarshal(dAtA []byte, depth int) error {
 			}
 			if len(m.Attributes) == 0 && cap(m.Attributes) < c {
 				m.Attributes = make([]commonv1.KeyValue, 0, c)
+			}
+		}
+		if c := field3count; c > 0 {
+			if c > preCapMax {
+				c = preCapMax
+			}
+			if len(m.EntityRefs) == 0 && cap(m.EntityRefs) < c {
+				m.EntityRefs = make([]*commonv1.EntityRef, 0, c)
 			}
 		}
 	}
@@ -297,6 +346,54 @@ func (m *Resource) unmarshal(dAtA []byte, depth int) error {
 				}
 			}
 			m.DroppedAttributesCount = uint32(v)
+		case 3: // entity_refs
+			if wireType != 2 {
+				n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
+				if err != nil {
+					return err
+				}
+				iNdEx += n
+				continue
+			}
+			var byteLen uint64
+			if iNdEx < l && dAtA[iNdEx] < 0x80 {
+				byteLen = uint64(dAtA[iNdEx])
+				iNdEx++
+			} else {
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return fmt.Errorf("proto: integer overflow")
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					byteLen |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						if shift == 63 && b > 1 {
+							return fmt.Errorf("proto: varint overflow")
+						}
+						break
+					}
+				}
+			}
+			if byteLen > uint64(math.MaxInt) {
+				return io.ErrUnexpectedEOF
+			}
+			intByteLen := int(byteLen)
+			postIndex := iNdEx + intByteLen
+			if postIndex < 0 {
+				return fmt.Errorf("proto: negative length")
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.EntityRefs = append(m.EntityRefs, &commonv1.EntityRef{})
+			if err := m.EntityRefs[len(m.EntityRefs)-1].UnmarshalWithDepth(dAtA[iNdEx:postIndex], depth+1); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			n, err := protohelpers.SkipValue(dAtA[iNdEx:], wireType, fieldNum)
 			if err != nil {

@@ -52,6 +52,17 @@ func (this *Resource) Equal(that interface{}) bool {
 	if this.DroppedAttributesCount != that1.DroppedAttributesCount {
 		return false
 	}
+	if len(this.EntityRefs) != len(that1.EntityRefs) {
+		return false
+	}
+	for i := range this.EntityRefs {
+		if (this.EntityRefs[i] == nil) != (that1.EntityRefs[i] == nil) {
+			return false
+		}
+		if this.EntityRefs[i] != nil && !this.EntityRefs[i].Equal(that1.EntityRefs[i]) {
+			return false
+		}
+	}
 	return true
 }
 
@@ -96,6 +107,25 @@ func (this *Resource) Compare(that interface{}) int {
 			return -1
 		}
 		return 1
+	}
+	if len(this.EntityRefs) != len(that1.EntityRefs) {
+		if len(this.EntityRefs) < len(that1.EntityRefs) {
+			return -1
+		}
+		return 1
+	}
+	for i := range this.EntityRefs {
+		if (this.EntityRefs[i] == nil) != (that1.EntityRefs[i] == nil) {
+			if this.EntityRefs[i] == nil {
+				return -1
+			}
+			return 1
+		}
+		if this.EntityRefs[i] != nil {
+			if c := this.EntityRefs[i].Compare(that1.EntityRefs[i]); c != 0 {
+				return c
+			}
+		}
 	}
 	return 0
 }

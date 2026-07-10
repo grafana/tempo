@@ -107,6 +107,14 @@ func (this *AnyValue) Equal(that interface{}) bool {
 			if !bytes.Equal(v.BytesValue, v2.BytesValue) {
 				return false
 			}
+		case *AnyValue_StringValueStrindex:
+			v2, ok := that1.Value.(*AnyValue_StringValueStrindex)
+			if !ok {
+				return false
+			}
+			if v.StringValueStrindex != v2.StringValueStrindex {
+				return false
+			}
 		default:
 			return false
 		}
@@ -202,6 +210,9 @@ func (this *KeyValue) Equal(that interface{}) bool {
 	if this.Value != nil && !this.Value.Equal(that1.Value) {
 		return false
 	}
+	if this.KeyStrindex != that1.KeyStrindex {
+		return false
+	}
 	return true
 }
 
@@ -240,6 +251,50 @@ func (this *InstrumentationScope) Equal(that interface{}) bool {
 	}
 	if this.DroppedAttributesCount != that1.DroppedAttributesCount {
 		return false
+	}
+	return true
+}
+
+func (this *EntityRef) Equal(that interface{}) bool {
+	if that == nil {
+		return this == nil
+	}
+
+	that1, ok := that.(*EntityRef)
+	if !ok {
+		that2, ok := that.(EntityRef)
+		if ok {
+			that1 = &that2
+		} else {
+			return false
+		}
+	}
+	if that1 == nil {
+		return this == nil
+	} else if this == nil {
+		return false
+	}
+	if this.SchemaUrl != that1.SchemaUrl {
+		return false
+	}
+	if this.Type != that1.Type {
+		return false
+	}
+	if len(this.IdKeys) != len(that1.IdKeys) {
+		return false
+	}
+	for i := range this.IdKeys {
+		if this.IdKeys[i] != that1.IdKeys[i] {
+			return false
+		}
+	}
+	if len(this.DescriptionKeys) != len(that1.DescriptionKeys) {
+		return false
+	}
+	for i := range this.DescriptionKeys {
+		if this.DescriptionKeys[i] != that1.DescriptionKeys[i] {
+			return false
+		}
 	}
 	return true
 }
@@ -286,6 +341,8 @@ func (this *AnyValue) Compare(that interface{}) int {
 			thisIdx = 5
 		case *AnyValue_BytesValue:
 			thisIdx = 6
+		case *AnyValue_StringValueStrindex:
+			thisIdx = 7
 		}
 		thatIdx := -1
 		switch that1.Value.(type) {
@@ -303,6 +360,8 @@ func (this *AnyValue) Compare(that interface{}) int {
 			thatIdx = 5
 		case *AnyValue_BytesValue:
 			thatIdx = 6
+		case *AnyValue_StringValueStrindex:
+			thatIdx = 7
 		}
 		if thisIdx != thatIdx {
 			if thisIdx < thatIdx {
@@ -365,6 +424,15 @@ func (this *AnyValue) Compare(that interface{}) int {
 				_ = v2
 				if c := bytes.Compare(v.BytesValue, v2.BytesValue); c != 0 {
 					return c
+				}
+			case *AnyValue_StringValueStrindex:
+				v2 := that1.Value.(*AnyValue_StringValueStrindex)
+				_ = v2
+				if v.StringValueStrindex != v2.StringValueStrindex {
+					if v.StringValueStrindex < v2.StringValueStrindex {
+						return -1
+					}
+					return 1
 				}
 			}
 		}
@@ -492,6 +560,12 @@ func (this *KeyValue) Compare(that interface{}) int {
 			return c
 		}
 	}
+	if this.KeyStrindex != that1.KeyStrindex {
+		if this.KeyStrindex < that1.KeyStrindex {
+			return -1
+		}
+		return 1
+	}
 	return 0
 }
 
@@ -548,6 +622,74 @@ func (this *InstrumentationScope) Compare(that interface{}) int {
 			return -1
 		}
 		return 1
+	}
+	return 0
+}
+
+func (this *EntityRef) Compare(that interface{}) int {
+	if that == nil {
+		if this == nil {
+			return 0
+		}
+		return 1
+	}
+
+	that1, ok := that.(*EntityRef)
+	if !ok {
+		that2, ok := that.(EntityRef)
+		if ok {
+			that1 = &that2
+		} else {
+			return 1
+		}
+	}
+	if that1 == nil {
+		if this == nil {
+			return 0
+		}
+		return 1
+	} else if this == nil {
+		return -1
+	}
+	if this.SchemaUrl != that1.SchemaUrl {
+		if this.SchemaUrl < that1.SchemaUrl {
+			return -1
+		}
+		return 1
+	}
+	if this.Type != that1.Type {
+		if this.Type < that1.Type {
+			return -1
+		}
+		return 1
+	}
+	if len(this.IdKeys) != len(that1.IdKeys) {
+		if len(this.IdKeys) < len(that1.IdKeys) {
+			return -1
+		}
+		return 1
+	}
+	for i := range this.IdKeys {
+		if this.IdKeys[i] != that1.IdKeys[i] {
+			if this.IdKeys[i] < that1.IdKeys[i] {
+				return -1
+			}
+			return 1
+		}
+	}
+	if len(this.DescriptionKeys) != len(that1.DescriptionKeys) {
+		if len(this.DescriptionKeys) < len(that1.DescriptionKeys) {
+			return -1
+		}
+		return 1
+	}
+	for i := range this.DescriptionKeys {
+		if this.DescriptionKeys[i] != that1.DescriptionKeys[i] {
+			if this.DescriptionKeys[i] < that1.DescriptionKeys[i] {
+				return -1
+			}
+			return 1
+		}
 	}
 	return 0
 }

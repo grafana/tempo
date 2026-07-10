@@ -44,6 +44,17 @@ message AnyValue {
     ArrayValue array_value = 5;
     KeyValueList kvlist_value = 6;
     bytes bytes_value = 7;
+    // Reference to the string value in ProfilesDictionary.string_table.
+    //
+    // Note: This is currently used exclusively in the Profiling signal.
+    // Implementers of OTLP receivers for signals other than Profiling should
+    // treat the presence of this value as a non-fatal issue.
+    // Log an error or warning indicating an unexpected field intended for the
+    // Profiling signal and process the data as if this value were absent or
+    // empty, ignoring its semantic content for the non-Profiling signal.
+    //
+    // Status: [Alpha]
+    int32 string_value_strindex = 8;
   }
 }
 
@@ -72,6 +83,19 @@ message KeyValueList {
 message KeyValue {
   string key = 1;
   AnyValue value = 2 [(wiresmith.options.pointer) = true];
+
+  // Reference to the string key in ProfilesDictionary.string_table.
+  // key MUST NOT be set if key_strindex is used.
+  //
+  // Note: This is currently used exclusively in the Profiling signal.
+  // Implementers of OTLP receivers for signals other than Profiling should
+  // treat the presence of this key as a non-fatal issue.
+  // Log an error or warning indicating an unexpected field intended for the
+  // Profiling signal and process the data as if this value were absent or
+  // empty, ignoring its semantic content for the non-Profiling signal.
+  //
+  // Status: [Alpha]
+  int32 key_strindex = 3;
 }
 
 // InstrumentationScope is a message representing the instrumentation scope information
@@ -86,4 +110,38 @@ message InstrumentationScope {
   // attribute with the same key).
   repeated KeyValue attributes = 3;
   uint32 dropped_attributes_count = 4;
+}
+
+// A reference to an Entity.
+// Entity represents an object of interest associated with produced telemetry: e.g spans, metrics, profiles, or logs.
+//
+// Status: [Development]
+message EntityRef {
+  // The Schema URL, if known. This is the identifier of the Schema that the entity data
+  // is recorded in. To learn more about Schema URL see
+  // https://opentelemetry.io/docs/specs/otel/schemas/#schema-url
+  //
+  // This schema_url applies to the data in this message and to the Resource attributes
+  // referenced by id_keys and description_keys.
+  // TODO: discuss if we are happy with this somewhat complicated definition of what
+  // the schema_url applies to.
+  //
+  // This field obsoletes the schema_url field in ResourceMetrics/ResourceSpans/ResourceLogs.
+  string schema_url = 1;
+
+  // Defines the type of the entity. MUST not change during the lifetime of the entity.
+  // For example: "service" or "host". This field is required and MUST not be empty
+  // for valid entities.
+  string type = 2;
+
+  // Attribute Keys that identify the entity.
+  // MUST not change during the lifetime of the entity. The Id must contain at least one attribute.
+  // These keys MUST exist in the containing {message}.attributes.
+  repeated string id_keys = 3;
+
+  // Descriptive (non-identifying) attribute keys of the entity.
+  // MAY change over the lifetime of the entity. MAY be empty.
+  // These attribute keys are not part of entity's identity.
+  // These keys MUST exist in the containing {message}.attributes.
+  repeated string description_keys = 4;
 }
