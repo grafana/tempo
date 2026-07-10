@@ -19,7 +19,7 @@ import (
 // goldenFixture builds the value those fixtures were generated from. It must stay in sync
 // with the generator; regenerate the files (not this function) if the schema changes in a
 // backward-compatible way.
-func goldenFixture() (BlockMeta, CompactedBlockMeta, TenantIndex) {
+func goldenFixture() (CompactedBlockMeta, TenantIndex) {
 	bm := BlockMeta{
 		Version:           "vParquet4",
 		BlockID:           MustParse("11111111-2222-3333-4444-555555555555"),
@@ -49,11 +49,11 @@ func goldenFixture() (BlockMeta, CompactedBlockMeta, TenantIndex) {
 		Meta:          []*BlockMeta{&bm},
 		CompactedMeta: []*CompactedBlockMeta{&cbm},
 	}
-	return bm, cbm, ti
+	return cbm, ti
 }
 
 func TestCompactedBlockMetaGoldenSerde(t *testing.T) {
-	_, cbm, _ := goldenFixture()
+	cbm, _ := goldenFixture()
 
 	t.Run("json", func(t *testing.T) {
 		want, err := os.ReadFile("testdata/golden/compacted_block_meta.json")
@@ -87,7 +87,7 @@ func TestCompactedBlockMetaGoldenSerde(t *testing.T) {
 }
 
 func TestTenantIndexGoldenSerde(t *testing.T) {
-	_, _, ti := goldenFixture()
+	_, ti := goldenFixture()
 
 	t.Run("json", func(t *testing.T) {
 		want, err := os.ReadFile("testdata/golden/tenant_index.json")
