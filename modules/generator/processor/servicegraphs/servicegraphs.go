@@ -18,7 +18,6 @@ import (
 	processor_util "github.com/grafana/tempo/modules/generator/processor/util"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/modules/generator/validation"
-	"github.com/grafana/tempo/pkg/cache/reclaimable"
 	"github.com/grafana/tempo/pkg/spanfilter"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
@@ -91,8 +90,10 @@ type Processor struct {
 	serviceGraphRequestClientSecondsHistogram          registry.Histogram
 	serviceGraphRequestMessagingSystemSecondsHistogram registry.Histogram
 	serviceGraphConnectionInfo                         registry.Gauge
-	sanitizeCache                                      reclaimable.Cache[string, string]
+	dimensionLabels                                    []dimensionLabel
 	filter                                             *spanfilter.SpanFilter
+	usesSpanMultiplier                                 bool
+	usesNativeHistograms                               bool
 
 	filteredSpansCounter                prometheus.Counter
 	metricDroppedSpans                  prometheus.Counter
@@ -104,12 +105,34 @@ type Processor struct {
 	logger                              log.Logger
 }
 
+type dimensionLabel struct {
+	name        string
+	label       string
+	clientName  string
+	clientLabel string
+	serverName  string
+	serverLabel string
+}
+
 func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, filteredSpansCounter, invalidUTF8Counter prometheus.Counter) (gen.Processor, error) {
 	if cfg.EnableVirtualNodeLabel {
 		cfg.Dimensions = append(cfg.Dimensions, virtualNodeLabel)
 	}
 
-	sanitizeCache := reclaimable.New(validation.SanitizeLabelName, 10000)
+	dimensionLabels := make([]dimensionLabel, len(cfg.Dimensions))
+	for i, dim := range cfg.Dimensions {
+		clientName := "client_" + dim
+		serverName := "server_" + dim
+		dimensionLabels[i] = dimensionLabel{
+			name:        dim,
+			label:       validation.SanitizeLabelName(dim),
+			clientName:  clientName,
+			clientLabel: validation.SanitizeLabelName(clientName),
+			serverName:  serverName,
+			serverLabel: validation.SanitizeLabelName(serverName),
+		}
+	}
+
 	filter, err := spanfilter.NewSpanFilter(cfg.FilterPolicies)
 	if err != nil {
 		return nil, err
@@ -120,8 +143,11 @@ func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, fi
 		registry: reg,
 		closeCh:  make(chan struct{}, 1),
 
-		sanitizeCache: sanitizeCache,
-		filter:        filter,
+		dimensionLabels:    dimensionLabels,
+		filter:             filter,
+		usesSpanMultiplier: cfg.SpanMultiplierKey != "" || cfg.EnableTraceStateSpanMultiplier,
+		usesNativeHistograms: cfg.HistogramOverride == registry.HistogramModeNative ||
+			cfg.HistogramOverride == registry.HistogramModeBoth,
 
 		filteredSpansCounter:                filteredSpansCounter,
 		metricDroppedSpans:                  metricDroppedSpans.WithLabelValues(tenant),
@@ -210,7 +236,10 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 				}
 
 				connectionType := store.Unknown
-				spanMultiplier := processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span, rs.Resource, p.Cfg.EnableTraceStateSpanMultiplier)
+				spanMultiplier := 1.0
+				if p.usesSpanMultiplier {
+					spanMultiplier = processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span, rs.Resource, p.Cfg.EnableTraceStateSpanMultiplier)
+				}
 				switch span.Kind {
 				case v1_trace.Span_SPAN_KIND_PRODUCER:
 					// override connection type and continue processing as span kind client
@@ -224,7 +253,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 						e.ClientLatencySec = spanDurationSec(span)
 						e.ClientEndTimeUnixNano = span.EndTimeUnixNano
 						e.Failed = e.Failed || p.spanFailed(span)
-						p.upsertDimensions("client_", e.Dimensions, rs.Resource.Attributes, span.Attributes)
+						p.upsertDimensions(true, e.Dimensions, rs.Resource.Attributes, span.Attributes)
 						e.SpanMultiplier = spanMultiplier
 						p.upsertPeerNode(e, span.Attributes)
 						p.upsertDatabaseRequest(e, rs.Resource.Attributes, span)
@@ -246,7 +275,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 						e.ServerLatencySec = spanDurationSec(span)
 						e.ServerStartTimeUnixNano = span.StartTimeUnixNano
 						e.Failed = e.Failed || p.spanFailed(span)
-						p.upsertDimensions("server_", e.Dimensions, rs.Resource.Attributes, span.Attributes)
+						p.upsertDimensions(false, e.Dimensions, rs.Resource.Attributes, span.Attributes)
 						e.SpanMultiplier = spanMultiplier
 						p.upsertPeerNode(e, span.Attributes)
 					})
@@ -280,13 +309,17 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 	return nil
 }
 
-func (p *Processor) upsertDimensions(prefix string, m map[string]string, resourceAttr, spanAttr []*v1_common.KeyValue) {
-	for _, dim := range p.Cfg.Dimensions {
-		if v, ok := processor_util.FindAttributeValue(dim, resourceAttr, spanAttr); ok {
+func (p *Processor) upsertDimensions(client bool, m map[string]string, resourceAttr, spanAttr []*v1_common.KeyValue) {
+	for _, dim := range p.dimensionLabels {
+		if v, ok := processor_util.FindAttributeValue(dim.name, resourceAttr, spanAttr); ok {
 			if p.Cfg.EnableClientServerPrefix {
-				m[prefix+dim] = v
+				if client {
+					m[dim.clientName] = v
+				} else {
+					m[dim.serverName] = v
+				}
 			} else {
-				m[dim] = v
+				m[dim.name] = v
 			}
 		}
 	}
@@ -349,7 +382,7 @@ func (p *Processor) upsertDatabaseRequest(e *store.Edge, resourceAttr []*v1_comm
 	// Check for network.peer.address and network.peer.port.  Use port if it is present.
 	if host, ok := processor_util.FindAttributeValue(string(semconv.NetworkPeerAddressKey), resourceAttr, span.Attributes); ok {
 		if port, ok := processor_util.FindAttributeValue(string(semconv.NetworkPeerPortKey), resourceAttr, span.Attributes); ok {
-			e.ServerService = fmt.Sprintf("%s:%s", host, port)
+			e.ServerService = host + ":" + port
 			return
 		}
 		e.ServerService = host
@@ -372,54 +405,69 @@ func (p *Processor) onComplete(e *store.Edge) {
 	builder.Add("server", e.ServerService)
 	builder.Add("connection_type", string(e.ConnectionType))
 
-	for _, dimension := range p.Cfg.Dimensions {
+	for _, dimension := range p.dimensionLabels {
 		if p.Cfg.EnableClientServerPrefix {
 			if p.Cfg.EnableVirtualNodeLabel {
 				// leave the extra label for this feature as-is
-				if dimension == virtualNodeLabel {
-					builder.Add(virtualNodeLabel, e.Dimensions[dimension])
+				if dimension.name == virtualNodeLabel {
+					builder.Add(virtualNodeLabel, e.Dimensions[dimension.name])
 					continue
 				}
 			}
-			builder.Add(p.sanitizeCache.Get("client_"+dimension), e.Dimensions["client_"+dimension])
-			builder.Add(p.sanitizeCache.Get("server_"+dimension), e.Dimensions["server_"+dimension])
+			builder.Add(dimension.clientLabel, e.Dimensions[dimension.clientName])
+			builder.Add(dimension.serverLabel, e.Dimensions[dimension.serverName])
 		} else {
-			builder.Add(p.sanitizeCache.Get(dimension), e.Dimensions[dimension])
+			builder.Add(dimension.label, e.Dimensions[dimension.name])
 		}
 	}
 
-	registryLabelValues, validUTF8 := builder.CloseAndBuildLabels()
+	registryLabelValues, validUTF8 := builder.CloseAndBorrowLabels()
 	if !validUTF8 {
 		p.invalidUTF8Counter.Inc()
 		return
 	}
+	defer registryLabelValues.Release()
+	updateTimeMs := time.Now().UnixMilli()
 
 	if p.Cfg.Subprocessors[Request] {
-		p.serviceGraphRequestTotal.Inc(registryLabelValues, 1*e.SpanMultiplier)
+		p.serviceGraphRequestTotal.IncBorrowed(registryLabelValues, 1*e.SpanMultiplier, updateTimeMs)
 		if e.Failed {
-			p.serviceGraphRequestFailedTotal.Inc(registryLabelValues, 1*e.SpanMultiplier)
+			p.serviceGraphRequestFailedTotal.IncBorrowed(registryLabelValues, 1*e.SpanMultiplier, updateTimeMs)
 		}
 	}
 
 	if p.Cfg.Subprocessors[Latency] {
-		traceID := tempo_util.TraceIDToHexString(e.TraceID())
-		p.serviceGraphRequestServerSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ServerLatencySec, traceID, e.SpanMultiplier)
-		p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ClientLatencySec, traceID, e.SpanMultiplier)
+		traceID := e.TraceID()
+		encodedTraceID := ""
+		if p.usesNativeHistograms {
+			encodedTraceID = tempo_util.TraceIDToHexString(traceID)
+		}
+		observe := func(histogram registry.Histogram, value float64) {
+			if p.usesNativeHistograms {
+				histogram.ObserveBorrowedWithEncodedTraceID(registryLabelValues, value, encodedTraceID, e.SpanMultiplier, updateTimeMs)
+				return
+			}
+			histogram.ObserveBorrowed(registryLabelValues, value, traceID, e.SpanMultiplier, updateTimeMs)
+		}
+
+		observe(p.serviceGraphRequestServerSecondsHistogram, e.ServerLatencySec)
+		observe(p.serviceGraphRequestClientSecondsHistogram, e.ClientLatencySec)
 
 		if p.Cfg.EnableMessagingSystemLatencyHistogram && e.ConnectionType == store.MessagingSystem {
 			messagingSystemLatencySec := unixNanosDiffSec(e.ClientEndTimeUnixNano, e.ServerStartTimeUnixNano)
 			if messagingSystemLatencySec == 0 {
-				level.Warn(p.logger).Log("msg", "producerSpanEndTime must be smaller than consumerSpanStartTime. maybe the peers clocks are not synced", "messagingSystemLatencySec", messagingSystemLatencySec, "traceID", traceID)
+				level.Warn(p.logger).Log("msg", "producerSpanEndTime must be smaller than consumerSpanStartTime. maybe the peers clocks are not synced", "messagingSystemLatencySec", messagingSystemLatencySec, "traceID", tempo_util.TraceIDToHexString(e.TraceID()))
 			} else {
-				p.serviceGraphRequestMessagingSystemSecondsHistogram.ObserveWithExemplar(registryLabelValues, messagingSystemLatencySec, traceID, e.SpanMultiplier)
+				observe(p.serviceGraphRequestMessagingSystemSecondsHistogram, messagingSystemLatencySec)
 			}
 		}
 	}
 
 	if p.Cfg.Subprocessors[ConnectionInfo] {
 		// Presence-only info metric: held at 1 while the edge is being observed.
-		// The series goes stale and is pruned once edges stop completing for this label set.
-		p.serviceGraphConnectionInfo.Set(registryLabelValues, 1)
+		// The series goes stale and is pruned once edges stop completing for
+		// this label set.
+		p.serviceGraphConnectionInfo.SetBorrowed(registryLabelValues, 1, updateTimeMs)
 	}
 }
 
