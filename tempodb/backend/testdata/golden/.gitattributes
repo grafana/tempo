@@ -1,0 +1,3 @@
+# Serialized protobuf fixtures: never apply EOL/text normalization (they contain 0x0a
+# bytes that git's text=auto heuristic otherwise mistakes for line endings).
+*.pb binary
