@@ -3282,11 +3282,11 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		case ColumnPathSpanName:
 			sp.addSpanAttr(traceql.IntrinsicNameAttribute, traceql.NewStaticString(unsafeToString(kv.Value.Bytes())))
 		case columnPathSpanStatusCode:
-			sp.addSpanAttr(traceql.IntrinsicStatusAttribute, traceql.NewStaticStatus(otlpStatusToTraceqlStatus(kv.Value.Uint64())))
+			sp.addSpanAttr(traceql.IntrinsicStatusAttribute, traceql.NewStaticStatus(traceql.StatusFromOTLP(v1.Status_StatusCode(kv.Value.Uint64()))))
 		case columnPathSpanStatusMessage:
 			sp.addSpanAttr(traceql.IntrinsicStatusMessageAttribute, traceql.NewStaticString(unsafeToString(kv.Value.Bytes())))
 		case columnPathSpanKind:
-			sp.addSpanAttr(traceql.IntrinsicKindAttribute, traceql.NewStaticKind(otlpKindToTraceqlKind(kv.Value.Uint64())))
+			sp.addSpanAttr(traceql.IntrinsicKindAttribute, traceql.NewStaticKind(traceql.KindFromOTLP(v1.Span_SpanKind(kv.Value.Uint64()))))
 		case columnPathSpanParentID:
 			sp.nestedSetParent = kv.Value.Int32()
 			if c.nestedSetParentExplicit {
@@ -3973,40 +3973,6 @@ func unsafeToString(b []byte) string {
 		return ""
 	}
 	return unsafe.String(unsafe.SliceData(b), len(b))
-}
-
-func otlpStatusToTraceqlStatus(v uint64) traceql.Status {
-	// Map OTLP status code back to TraceQL enum.
-	// For other values, use the raw integer.
-	switch v {
-	case uint64(v1.Status_STATUS_CODE_UNSET):
-		return traceql.StatusUnset
-	case uint64(v1.Status_STATUS_CODE_OK):
-		return traceql.StatusOk
-	case uint64(v1.Status_STATUS_CODE_ERROR):
-		return traceql.StatusError
-	default:
-		return traceql.Status(v)
-	}
-}
-
-func otlpKindToTraceqlKind(v uint64) traceql.Kind {
-	switch v {
-	case uint64(v1.Span_SPAN_KIND_UNSPECIFIED):
-		return traceql.KindUnspecified
-	case uint64(v1.Span_SPAN_KIND_INTERNAL):
-		return traceql.KindInternal
-	case uint64(v1.Span_SPAN_KIND_SERVER):
-		return traceql.KindServer
-	case uint64(v1.Span_SPAN_KIND_CLIENT):
-		return traceql.KindClient
-	case uint64(v1.Span_SPAN_KIND_PRODUCER):
-		return traceql.KindProducer
-	case uint64(v1.Span_SPAN_KIND_CONSUMER):
-		return traceql.KindConsumer
-	default:
-		return traceql.Kind(v)
-	}
 }
 
 type samplingPredicate struct {
