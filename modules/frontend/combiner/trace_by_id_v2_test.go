@@ -240,6 +240,11 @@ func (errorFilter) Process(_ *tempopb.Trace) (*tempopb.Trace, error) {
 	return nil, assert.AnError
 }
 
+// nilFilter returns a nil trace; the combiner must treat it as empty, not panic.
+type nilFilter struct{}
+
+func (nilFilter) Process(_ *tempopb.Trace) (*tempopb.Trace, error) { return nil, nil }
+
 func TestTraceByIDV2AppliesTraceFilter(t *testing.T) {
 	traceResponse := &tempopb.TraceByIDResponse{
 		Trace:   test.MakeTrace(2, []byte{0x01, 0x02}),
@@ -286,6 +291,20 @@ func TestTraceByIDV2AppliesTraceFilter(t *testing.T) {
 		require.Empty(t, res.Trace.ResourceSpans, "filtered trace must be reflected in the grpc response")
 		require.Equal(t, tempopb.PartialStatus_PARTIAL, res.Status, "a filtered subset must be flagged partial")
 		require.Contains(t, res.Message, "only a subset of spans matching the filter", "message must explain the trace was filtered")
+	})
+
+	t.Run("nil filtered trace treated as empty, not a panic", func(t *testing.T) {
+		c := NewTraceByIDV2(100_000, api.HeaderAcceptProtobuf, nil, TraceByIDV2Options{TraceFilter: nilFilter{}})
+		response := newResp()
+		require.NoError(t, c.AddResponse(MockResponse{&response}))
+
+		res, err := c.HTTPFinal()
+		require.NoError(t, err)
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		actual := &tempopb.TraceByIDResponse{}
+		require.NoError(t, proto.Unmarshal(body, actual))
+		require.Empty(t, actual.Trace.ResourceSpans)
 	})
 
 	t.Run("filter error surfaces", func(t *testing.T) {

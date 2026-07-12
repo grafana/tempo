@@ -71,6 +71,9 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceR
 				if err != nil {
 					return nil, err
 				}
+				if filtered == nil {
+					filtered = &tempopb.Trace{} // a TraceFilter may return nil; treat it as empty.
+				}
 				// a q filter that dropped spans returns a subset, not the full trace - flag it for the status below.
 				traceFiltered = countTraceSpans(filtered) < before
 				traceResult = filtered
