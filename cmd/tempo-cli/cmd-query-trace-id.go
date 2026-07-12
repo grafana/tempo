@@ -20,7 +20,7 @@ type queryTraceIDCmd struct {
 
 	// Trace By ID V2 filtering and selection params
 	Q             string `name:"q" help:"TraceQL spanset filter, only matching spans are returned (V2 only)"`
-	KeepHierarchy bool   `name:"keep-hierarchy" default:"true" help:"include ancestor path to the root for each matched span (V2 only)"`
+	KeepHierarchy bool   `name:"keep-hierarchy" default:"false" help:"include ancestor path to the root for each matched span (V2 only)"`
 }
 
 func (cmd *queryTraceIDCmd) Run(_ *globalOptions) error {
