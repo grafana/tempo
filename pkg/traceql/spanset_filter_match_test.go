@@ -10,28 +10,37 @@ func TestCompileSpansetFilter(t *testing.T) {
 	tests := []struct {
 		name    string
 		query   string
-		wantErr bool
+		wantErr error
 	}{
 		{name: "single attribute filter", query: `{ .http.status_code = 500 }`},
 		{name: "intrinsic filter", query: `{ status = error }`},
 		{name: "empty filter matches all", query: `{}`},
 		{name: "boolean expression", query: `{ .a = 1 && .b = 2 }`},
-		{name: "structural operator rejected", query: `{ .a } >> { .b }`, wantErr: true},
-		{name: "pipeline with aggregate rejected", query: `{ .a } | count() > 1`, wantErr: true},
-		{name: "metrics query rejected", query: `{ .a } | rate()`, wantErr: true},
-		{name: "invalid syntax rejected", query: `{ .a = }`, wantErr: true},
+		{name: "structural operator rejected", query: `{ .a } >> { .b }`, wantErr: errUnsupportedQuery},
+		{name: "pipeline with aggregate rejected", query: `{ .a } | count() > 1`, wantErr: errUnsupportedQuery},
+		{name: "multi-element spanset pipeline rejected", query: `{ .a } | { .b }`, wantErr: errUnsupportedQuery},
+		{name: "metrics query rejected", query: `{ .a } | rate()`, wantErr: errUnsupportedQuery},
+		{name: "invalid syntax rejected", query: `{ .a = }`, wantErr: errParseFilter},
 		{name: "span:id intrinsic supported", query: `{ span:id = "0102" }`},
-		{name: "trace:rootName intrinsic supported", query: `{ trace:rootName = "foo" }`},
 		{name: "event intrinsic supported", query: `{ event:name = "exception" }`},
-		{name: "childCount intrinsic rejected", query: `{ span:childCount > 0 }`, wantErr: true},
-		{name: "nestedSetLeft intrinsic rejected", query: `{ nestedSetLeft > 0 }`, wantErr: true},
+		{name: "event-scoped attribute supported", query: `{ event.exception.message = "boom" }`},
+		{name: "link-scoped attribute supported", query: `{ link.foo = "x" }`},
+		{name: "link intrinsic supported", query: `{ link:spanID = "0102" }`},
+		{name: "instrumentation-scoped attribute supported", query: `{ instrumentation.foo = "x" }`},
+		{name: "attribute = nil supported (not-exists)", query: `{ span.foo = nil }`},
+		{name: "attribute != nil supported (exists)", query: `{ span.foo != nil }`},
+		{name: "childCount intrinsic rejected", query: `{ span:childCount > 0 }`, wantErr: errUnsupportedIntrinsic},
+		{name: "nestedSetLeft intrinsic rejected", query: `{ nestedSetLeft > 0 }`, wantErr: errUnsupportedIntrinsic},
+		{name: "trace:rootName intrinsic rejected", query: `{ trace:rootName = "foo" }`, wantErr: errUnsupportedIntrinsic},
+		{name: "trace:duration intrinsic rejected", query: `{ trace:duration > 1s }`, wantErr: errUnsupportedIntrinsic},
+		{name: "trace:id intrinsic rejected", query: `{ trace:id = "abcd" }`, wantErr: errUnsupportedIntrinsic},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f, err := CompileSpansetFilter(tt.query)
-			if tt.wantErr {
-				require.Error(t, err)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
 				return
 			}
 			require.NoError(t, err)
