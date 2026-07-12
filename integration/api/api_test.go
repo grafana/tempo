@@ -1136,20 +1136,25 @@ func TestTraceByIDV2Filtering(t *testing.T) {
 		hexID := tempoUtil.TraceIDToHexString(traceID)
 
 		assertFiltering := func(t *testing.T, apiClient *httpclient.Client) {
-			// no params: full trace, all four spans.
+			// no params: full trace, all four spans, and a complete (not partial) status.
 			full, err := apiClient.QueryTraceV2WithQueryParams(hexID, nil)
 			require.NoError(t, err)
 			require.ElementsMatch(t, []byte{1, 2, 3, 4}, spanLastBytes(full.Trace))
+			require.Equal(t, tempopb.PartialStatus_COMPLETE, full.Status, "an unfiltered trace is complete")
 
-			// q only: keep_hierarchy defaults to true, so the match plus its ancestor path (A,B,C).
-			withHierarchy, err := apiClient.QueryTraceV2WithQueryParams(hexID, map[string]string{"q": "{ .http.status_code = 500 }"})
+			// q only: keep_hierarchy defaults to false, so only the matched span (C).
+			matchedOnly, err := apiClient.QueryTraceV2WithQueryParams(hexID, map[string]string{"q": "{ .http.status_code = 500 }"})
+			require.NoError(t, err)
+			require.ElementsMatch(t, []byte{3}, spanLastBytes(matchedOnly.Trace))
+			// a filter that dropped spans marks the response partial so a client knows it is a subset.
+			require.Equal(t, tempopb.PartialStatus_PARTIAL, matchedOnly.Status)
+			require.Contains(t, matchedOnly.Message, "only a subset of spans matching the filter")
+
+			// keep_hierarchy=true: the match plus its ancestor path (A,B,C), still a subset of the full trace.
+			withHierarchy, err := apiClient.QueryTraceV2WithQueryParams(hexID, map[string]string{"q": "{ .http.status_code = 500 }", "keep_hierarchy": "true"})
 			require.NoError(t, err)
 			require.ElementsMatch(t, []byte{1, 2, 3}, spanLastBytes(withHierarchy.Trace))
-
-			// keep_hierarchy=false: only the matched span (C).
-			flat, err := apiClient.QueryTraceV2WithQueryParams(hexID, map[string]string{"q": "{ .http.status_code = 500 }", "keep_hierarchy": "false"})
-			require.NoError(t, err)
-			require.ElementsMatch(t, []byte{3}, spanLastBytes(flat.Trace))
+			require.Equal(t, tempopb.PartialStatus_PARTIAL, withHierarchy.Status, "a filtered subset is partial even with ancestors")
 		}
 
 		apiClient := h.APIClientHTTP("")
