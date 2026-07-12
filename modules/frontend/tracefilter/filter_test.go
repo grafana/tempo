@@ -1,41 +1,17 @@
 package tracefilter
 
 import (
+	"encoding/binary"
 	"net/url"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	resourcev1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/traceql"
 )
-
-// spanWithChildOfLink builds a parentless span carrying a child_of link to linkTraceID.
-func spanWithChildOfLink(id byte, spanTraceID, linkTraceID []byte) *tracev1.Span {
-	return &tracev1.Span{
-		SpanId:  []byte{id},
-		TraceId: spanTraceID,
-		Name:    "span-" + string(rune('A'+id)),
-		Links: []*tracev1.Span_Link{{
-			TraceId: linkTraceID,
-			Attributes: []*commonv1.KeyValue{{
-				Key:   "opentracing.ref_type",
-				Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "child_of"}},
-			}},
-		}},
-	}
-}
-
-func traceFromSpans(serviceName string, spans ...*tracev1.Span) *tempopb.Trace {
-	return &tempopb.Trace{ResourceSpans: []*tracev1.ResourceSpans{{
-		Resource:   &resourcev1.Resource{Attributes: keyValues(map[string]any{"service.name": serviceName})},
-		ScopeSpans: []*tracev1.ScopeSpans{{Spans: spans}},
-	}}}
-}
 
 // testSpan is a compact span spec for building test traces.
 type testSpan struct {
@@ -114,8 +90,12 @@ func TestOptionsFromValues(t *testing.T) {
 		want    Options
 		wantErr bool
 	}{
-		{name: "empty defaults keep_hierarchy true", vals: url.Values{}, want: Options{KeepHierarchy: true}},
-		{name: "query only defaults keep_hierarchy true", vals: url.Values{"q": {"{ .a = 1 }"}}, want: Options{Query: "{ .a = 1 }", KeepHierarchy: true}},
+		{name: "empty defaults keep_hierarchy false", vals: url.Values{}, want: Options{}},
+		{name: "query only defaults keep_hierarchy false", vals: url.Values{"q": {"{ .a = 1 }"}}, want: Options{Query: "{ .a = 1 }"}},
+		// a whitespace-only q is trimmed to empty, so it is treated as no filter and keep_hierarchy is ignored.
+		{name: "whitespace-only q is treated as empty", vals: url.Values{"q": {"   "}, "keep_hierarchy": {"true"}}, want: Options{}},
+		// surrounding whitespace on a real query is trimmed, not passed to the parser.
+		{name: "surrounding whitespace on q is trimmed", vals: url.Values{"q": {"  { .a = 1 }  "}}, want: Options{Query: "{ .a = 1 }"}},
 		{
 			name: "query and explicit keep_hierarchy true",
 			vals: url.Values{"q": {"{ .a = 1 }"}, "keep_hierarchy": {"true"}},
@@ -134,7 +114,7 @@ func TestOptionsFromValues(t *testing.T) {
 		{
 			name: "invalid keep_hierarchy ignored without query",
 			vals: url.Values{"keep_hierarchy": {"yes-please"}},
-			want: Options{KeepHierarchy: true},
+			want: Options{},
 		},
 	}
 
@@ -146,7 +126,7 @@ func TestOptionsFromValues(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, tt.want, got)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -167,7 +147,7 @@ func TestApplyNilFilterReturnsInput(t *testing.T) {
 	var f *Filter
 	out, err := f.Process(trace)
 	require.NoError(t, err)
-	assert.Same(t, trace, out)
+	require.Same(t, trace, out)
 }
 
 func TestApplyQueryOnlyReturnsMatchedSpans(t *testing.T) {
@@ -183,7 +163,7 @@ func TestApplyQueryOnlyReturnsMatchedSpans(t *testing.T) {
 
 	out, err := f.Process(trace)
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []byte{3}, keptIDs(out), "only the matching span is returned without keep_hierarchy")
+	require.ElementsMatch(t, []byte{3}, keptIDs(out), "only the matching span is returned without keep_hierarchy")
 }
 
 func TestApplyKeepHierarchyAddsAncestors(t *testing.T) {
@@ -199,7 +179,7 @@ func TestApplyKeepHierarchyAddsAncestors(t *testing.T) {
 
 	out, err := f.Process(trace)
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []byte{1, 2, 3}, keptIDs(out), "matched span plus its full ancestor path is returned")
+	require.ElementsMatch(t, []byte{1, 2, 3}, keptIDs(out), "matched span plus its full ancestor path is returned")
 }
 
 func TestApplyKeepHierarchyMultipleBranches(t *testing.T) {
@@ -217,7 +197,7 @@ func TestApplyKeepHierarchyMultipleBranches(t *testing.T) {
 
 	out, err := f.Process(trace)
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []byte{1, 2, 4}, keptIDs(out))
+	require.ElementsMatch(t, []byte{1, 2, 4}, keptIDs(out))
 }
 
 func TestApplyKeepHierarchyFollowsAllParentsOfDuplicateID(t *testing.T) {
@@ -235,7 +215,7 @@ func TestApplyKeepHierarchyFollowsAllParentsOfDuplicateID(t *testing.T) {
 
 	out, err := f.Process(trace)
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []byte{1, 2, 3, 3}, keptIDs(out))
+	require.ElementsMatch(t, []byte{1, 2, 3, 3}, keptIDs(out))
 }
 
 func TestApplyNoMatchReturnsEmptyTrace(t *testing.T) {
@@ -247,7 +227,7 @@ func TestApplyNoMatchReturnsEmptyTrace(t *testing.T) {
 	out, err := f.Process(trace)
 	require.NoError(t, err)
 	require.NotNil(t, out)
-	assert.Empty(t, keptIDs(out))
+	require.Empty(t, keptIDs(out))
 }
 
 func TestApplyDoesNotMutateInput(t *testing.T) {
@@ -267,27 +247,7 @@ func TestApplyDoesNotMutateInput(t *testing.T) {
 
 	after, err := trace.Marshal()
 	require.NoError(t, err)
-	assert.Equal(t, before, after, "input trace must be untouched")
-}
-
-func TestTraceAttributesRootExcludesChildOfLinkedSpan(t *testing.T) {
-	// a parentless span with an intra-trace child_of link is not the root (matching storage); with
-	// no other root, trace:root* resolve empty - same as storage's rootless trace.
-	traceID := []byte{0xab, 0xcd}
-	trace := traceFromSpans("checkout", spanWithChildOfLink(1, traceID, traceID))
-
-	attrs := traceAttributes(trace)
-	assert.Equal(t, traceql.NewStaticString(""), attrs[traceql.IntrinsicTraceRootSpanAttribute])
-	assert.Equal(t, traceql.NewStaticString(""), attrs[traceql.IntrinsicTraceRootServiceAttribute])
-}
-
-func TestTraceAttributesCrossTraceChildOfLinkDoesNotExcludeRoot(t *testing.T) {
-	// a child_of link to a different trace must not disqualify the root.
-	trace := traceFromSpans("checkout", spanWithChildOfLink(1, []byte{0xab, 0xcd}, []byte{0x99}))
-
-	attrs := traceAttributes(trace)
-	assert.Equal(t, traceql.NewStaticString("span-B"), attrs[traceql.IntrinsicTraceRootSpanAttribute])
-	assert.Equal(t, traceql.NewStaticString("checkout"), attrs[traceql.IntrinsicTraceRootServiceAttribute])
+	require.Equal(t, before, after, "input trace must be untouched")
 }
 
 func TestApplyMatchesOnResourceAttribute(t *testing.T) {
@@ -298,7 +258,7 @@ func TestApplyMatchesOnResourceAttribute(t *testing.T) {
 
 	out, err := f.Process(trace)
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []byte{1}, keptIDs(out))
+	require.ElementsMatch(t, []byte{1}, keptIDs(out))
 }
 
 func TestApplyMatchesOnIntrinsicStatus(t *testing.T) {
@@ -312,7 +272,7 @@ func TestApplyMatchesOnIntrinsicStatus(t *testing.T) {
 
 	out, err := f.Process(trace)
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []byte{2}, keptIDs(out))
+	require.ElementsMatch(t, []byte{2}, keptIDs(out))
 }
 
 func TestApplyKeepHierarchyToleratesMissingParent(t *testing.T) {
@@ -326,7 +286,7 @@ func TestApplyKeepHierarchyToleratesMissingParent(t *testing.T) {
 
 	out, err := f.Process(trace)
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []byte{2}, keptIDs(out))
+	require.ElementsMatch(t, []byte{2}, keptIDs(out))
 }
 
 func TestApplyKeepHierarchyTerminatesOnCycle(t *testing.T) {
@@ -341,7 +301,7 @@ func TestApplyKeepHierarchyTerminatesOnCycle(t *testing.T) {
 
 	out, err := f.Process(trace)
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []byte{1, 2}, keptIDs(out))
+	require.ElementsMatch(t, []byte{1, 2}, keptIDs(out))
 }
 
 func TestApplyToleratesNilAttributeValue(t *testing.T) {
@@ -364,23 +324,16 @@ func TestApplyToleratesNilAttributeValue(t *testing.T) {
 
 	out, err := f.Process(trace)
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []byte{1}, keptIDs(out))
+	require.ElementsMatch(t, []byte{1}, keptIDs(out))
 }
 
-func TestApplyTraceLevelIntrinsic(t *testing.T) {
-	// root span (id 1) is "span-B" (rune 'A'+1); rootService comes from the resource.
-	trace := buildTrace([]testSpan{
-		{id: 1},
-		{id: 2, parent: 1},
-	}, map[string]any{"service.name": "checkout"})
-
-	f, err := Options{Query: `{ trace:rootName = "span-B" && trace:rootService = "checkout" }`}.Compile()
-	require.NoError(t, err)
-
-	out, err := f.Process(trace)
-	require.NoError(t, err)
-	// trace-level intrinsics resolve identically for every span, so both match.
-	assert.ElementsMatch(t, []byte{1, 2}, keptIDs(out))
+func TestApplyTraceLevelIntrinsicRejected(t *testing.T) {
+	// trace-level intrinsics need a whole-trace pass the per-span filter does not do, so they are
+	// rejected at compile rather than silently matching nothing.
+	for _, q := range []string{`{ trace:rootName = "span-B" }`, `{ trace:rootService = "checkout" }`, `{ trace:duration > 1s }`} {
+		_, err := Options{Query: q}.Compile()
+		require.Error(t, err, q)
+	}
 }
 
 func TestApplySpanIDIntrinsic(t *testing.T) {
@@ -405,7 +358,7 @@ func TestApplySpanIDIntrinsic(t *testing.T) {
 	require.Len(t, out.ResourceSpans, 1)
 	require.Len(t, out.ResourceSpans[0].ScopeSpans, 1)
 	require.Len(t, out.ResourceSpans[0].ScopeSpans[0].Spans, 1)
-	assert.Equal(t, []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, out.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanId)
+	require.Equal(t, []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, out.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanId)
 }
 
 func TestApplyEmptyOrMatchAllReturnsFullTrace(t *testing.T) {
@@ -421,7 +374,7 @@ func TestApplyEmptyOrMatchAllReturnsFullTrace(t *testing.T) {
 		require.NoError(t, err)
 		out, err := f.Process(trace) // Process is nil-safe, covering the empty-q passthrough.
 		require.NoError(t, err)
-		assert.ElementsMatch(t, []byte{1, 2, 3}, keptIDs(out), "query %q should return the full trace", q)
+		require.ElementsMatch(t, []byte{1, 2, 3}, keptIDs(out), "query %q should return the full trace", q)
 	}
 }
 
@@ -438,5 +391,67 @@ func TestKeepHierarchyIgnoredWhenQueryAbsent(t *testing.T) {
 
 	out, err := f.Process(trace)
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []byte{1, 2, 3}, keptIDs(out))
+	require.ElementsMatch(t, []byte{1, 2, 3}, keptIDs(out))
+}
+
+// benchSpanID encodes i into an 8-byte span id so a large trace has unique ids.
+func benchSpanID(i int) []byte {
+	b := make([]byte, 8)
+	binary.BigEndian.PutUint64(b, uint64(i)+1)
+	return b
+}
+
+// buildBenchTrace builds an n-span trace: one root with n-1 children, every 10th child matching.
+func buildBenchTrace(n int) *tempopb.Trace {
+	spans := make([]*tracev1.Span, 0, n)
+	spans = append(spans, &tracev1.Span{
+		SpanId: benchSpanID(0), Name: "root", StartTimeUnixNano: 1000, EndTimeUnixNano: 2000,
+	})
+	for i := 1; i < n; i++ {
+		code := int64(200)
+		if i%10 == 0 {
+			code = 500
+		}
+		spans = append(spans, &tracev1.Span{
+			SpanId:            benchSpanID(i),
+			ParentSpanId:      benchSpanID(0),
+			Name:              "child",
+			StartTimeUnixNano: 1000,
+			EndTimeUnixNano:   2000,
+			Attributes: []*commonv1.KeyValue{{
+				Key:   "http.status_code",
+				Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_IntValue{IntValue: code}},
+			}},
+		})
+	}
+	return &tempopb.Trace{ResourceSpans: []*tracev1.ResourceSpans{{
+		Resource:   &resourcev1.Resource{Attributes: keyValues(map[string]any{"service.name": "bench"})},
+		ScopeSpans: []*tracev1.ScopeSpans{{Spans: spans}},
+	}}}
+}
+
+func BenchmarkProcess(b *testing.B) {
+	trace := buildBenchTrace(2000)
+
+	keep, err := Options{Query: `{ .http.status_code = 500 }`, KeepHierarchy: true}.Compile()
+	require.NoError(b, err)
+	flat, err := Options{Query: `{ .http.status_code = 500 }`, KeepHierarchy: false}.Compile()
+	require.NoError(b, err)
+
+	b.Run("keep_hierarchy=true", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			if _, err := keep.Process(trace); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+	b.Run("keep_hierarchy=false", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			if _, err := flat.Process(trace); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
 }
