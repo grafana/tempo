@@ -127,6 +127,7 @@ func TestQueryTraceV2WithQueryParams(t *testing.T) {
 
 	tests := []struct {
 		name        string
+		global      map[string]string
 		params      map[string]string
 		expectedURL string
 	}{
@@ -140,6 +141,13 @@ func TestQueryTraceV2WithQueryParams(t *testing.T) {
 			name:        "encodes the provided query params",
 			params:      map[string]string{"keep_hierarchy": "false"},
 			expectedURL: "www.tempo.com/api/v2/traces/100?keep_hierarchy=false",
+		},
+		{
+			// client-wide params (SetQueryParam) must not be dropped for this endpoint.
+			name:        "merges client-wide params",
+			global:      map[string]string{"mode": "recent"},
+			params:      map[string]string{"keep_hierarchy": "false"},
+			expectedURL: "www.tempo.com/api/v2/traces/100?keep_hierarchy=false&mode=recent",
 		},
 	}
 
@@ -156,6 +164,9 @@ func TestQueryTraceV2WithQueryParams(t *testing.T) {
 
 			client := New("www.tempo.com", "1000")
 			client.WithTransport(mockTransport)
+			for k, v := range tt.global {
+				client.SetQueryParam(k, v)
+			}
 			response, err := client.QueryTraceV2WithQueryParams("100", tt.params)
 
 			assert.NoError(t, err)
