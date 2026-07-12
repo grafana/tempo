@@ -268,8 +268,10 @@ func TestTraceByIDV2AppliesTraceFilter(t *testing.T) {
 		require.NoError(t, err)
 		actual := &tempopb.TraceByIDResponse{}
 		require.NoError(t, proto.Unmarshal(body, actual))
-		assert.True(t, filter.called, "filter must be invoked")
-		assert.Empty(t, actual.Trace.ResourceSpans, "filtered trace must be reflected in the response")
+		require.True(t, filter.called, "filter must be invoked")
+		require.Empty(t, actual.Trace.ResourceSpans, "filtered trace must be reflected in the response")
+		require.Equal(t, tempopb.PartialStatus_PARTIAL, actual.Status, "a filtered subset must be flagged partial")
+		require.Contains(t, actual.Message, "only a subset of spans matching the filter", "message must explain the trace was filtered")
 	})
 
 	t.Run("GRPCFinal", func(t *testing.T) {
@@ -280,8 +282,10 @@ func TestTraceByIDV2AppliesTraceFilter(t *testing.T) {
 
 		res, err := c.GRPCFinal()
 		require.NoError(t, err)
-		assert.True(t, filter.called, "filter must be invoked")
-		assert.Empty(t, res.Trace.ResourceSpans, "filtered trace must be reflected in the grpc response")
+		require.True(t, filter.called, "filter must be invoked")
+		require.Empty(t, res.Trace.ResourceSpans, "filtered trace must be reflected in the grpc response")
+		require.Equal(t, tempopb.PartialStatus_PARTIAL, res.Status, "a filtered subset must be flagged partial")
+		require.Contains(t, res.Message, "only a subset of spans matching the filter", "message must explain the trace was filtered")
 	})
 
 	t.Run("filter error surfaces", func(t *testing.T) {

@@ -123,7 +123,7 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 		if filter != nil {
 			traceFilter = filter
 		}
-		// filter runs in finalize() so filtering is always applied after caching (if any).
+		// filter runs in finalize(), after combine and redaction.
 
 		// check marshalling format
 		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header)
