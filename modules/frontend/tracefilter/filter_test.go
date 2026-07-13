@@ -1,10 +1,12 @@
 package tracefilter
 
 import (
+	"bytes"
 	"encoding/binary"
 	"net/url"
 	"testing"
 
+	"github.com/go-kit/log"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -81,6 +83,23 @@ func keptIDs(trace *tempopb.Trace) []byte {
 		}
 	}
 	return ids
+}
+
+// stringAttrValues returns the string values of an attr key across all spans in a trace.
+func stringAttrValues(trace *tempopb.Trace, key string) []string {
+	var vals []string
+	for _, rs := range trace.ResourceSpans {
+		for _, ss := range rs.ScopeSpans {
+			for _, s := range ss.Spans {
+				for _, kv := range s.Attributes {
+					if kv.Key == key {
+						vals = append(vals, kv.Value.GetStringValue())
+					}
+				}
+			}
+		}
+	}
+	return vals
 }
 
 func TestOptionsFromValues(t *testing.T) {
@@ -216,6 +235,23 @@ func TestApplyKeepHierarchyFollowsAllParentsOfDuplicateID(t *testing.T) {
 	out, err := f.Process(trace)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []byte{1, 2, 3, 3}, keptIDs(out))
+}
+
+func TestApplyDuplicateIDKeepsOnlyMatchingSpan(t *testing.T) {
+	// two spans share id 3, but only one matches.
+	// keying the match set by span id would keep both, so it is keyed by a pointer instead.
+	trace := buildTrace([]testSpan{
+		{id: 3, attrs: map[string]any{"match": true, "which": "keep"}},
+		{id: 3, attrs: map[string]any{"match": false, "which": "drop"}},
+	}, nil)
+
+	f, err := Options{Query: `{ .match = true }`}.Compile()
+	require.NoError(t, err)
+
+	out, err := f.Process(trace)
+	require.NoError(t, err)
+	require.Equal(t, []byte{3}, keptIDs(out), "only the matching span survives, not both duplicates")
+	require.Equal(t, []string{"keep"}, stringAttrValues(out, "which"))
 }
 
 func TestApplyNoMatchReturnsEmptyTrace(t *testing.T) {
@@ -454,4 +490,31 @@ func BenchmarkProcess(b *testing.B) {
 			}
 		}
 	})
+}
+
+func TestApplyLogsWarningWhenFanoutTruncated(t *testing.T) {
+	// a span whose event x link fan-out exceeds maxBindingsPerSpan is truncated and silently under-matches,
+	// so Process must emit a warning.
+	span := &tracev1.Span{SpanId: []byte{1}, Name: "s"}
+	for range 1000 {
+		span.Events = append(span.Events, &tracev1.Span_Event{Name: "e"})
+	}
+	for range 101 {
+		span.Links = append(span.Links, &tracev1.Span_Link{})
+	}
+	trace := &tempopb.Trace{
+		ResourceSpans: []*tracev1.ResourceSpans{
+			{ScopeSpans: []*tracev1.ScopeSpans{{Spans: []*tracev1.Span{span}}}},
+		},
+	}
+
+	var buf bytes.Buffer
+	// event:name forces element expansion, so the fan-out cap is exercised.
+	f, err := NewFilterFromValues(url.Values{"q": {`{ event:name = "e" }`}}, log.NewLogfmtLogger(&buf))
+	require.NoError(t, err)
+	require.NotNil(t, f)
+
+	_, err = f.Process(trace)
+	require.NoError(t, err)
+	require.Contains(t, buf.String(), "fan-out hit the cap", "expected a truncation warning")
 }

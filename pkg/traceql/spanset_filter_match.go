@@ -124,6 +124,24 @@ func checkIfSupported(expr *RootExpr) (*SpansetFilter, error) {
 	return filter, nil
 }
 
+// ReferencesEventOrLink reports whether the filter reads any event: or link: scoped attribute or
+// intrinsic. When it doesn't, the caller can skip the per-span event x link expansion.
+func (f *SpansetFilter) ReferencesEventOrLink() bool {
+	var req FetchSpansRequest
+	f.Expression.extractConditions(&req)
+	for _, c := range req.Conditions {
+		switch c.Attribute.Scope {
+		case AttributeScopeEvent, AttributeScopeLink:
+			return true
+		}
+		switch c.Attribute.Intrinsic {
+		case IntrinsicEventName, IntrinsicEventTimeSinceStart, IntrinsicLinkTraceID, IntrinsicLinkSpanID:
+			return true
+		}
+	}
+	return false
+}
+
 // MatchSpans returns the subset of spans matching the filter, reusing the engine's evaluate() so
 // semantics match a normal TraceQL search.
 func (f *SpansetFilter) MatchSpans(spans []Span) ([]Span, error) {
