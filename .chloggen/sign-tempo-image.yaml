@@ -1,0 +1,5 @@
+change_type: enhancement
+component: operations
+note: Sign and attest the main tempo container image, completing signing coverage across all published images (tempo, tempo-vulture, tempo-query, tempo-cli).
+issues: []
+user: mattdurham
