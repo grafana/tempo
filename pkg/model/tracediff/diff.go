@@ -3,6 +3,7 @@ package tracediff
 import (
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -15,20 +16,31 @@ var (
 
 // Diff compares base and compare and returns the requested diff format.
 func Diff(base, compare *tempopb.Trace, format Format) (*Result, error) {
-	if base == nil {
-		return nil, fmt.Errorf("base: %w", ErrNilTrace)
-	}
-	if compare == nil {
-		return nil, fmt.Errorf("compare: %w", ErrNilTrace)
-	}
 	if format != FormatTracePatchV0 {
 		return nil, fmt.Errorf("%q: %w", format, ErrUnsupportedFormat)
 	}
+	result, _, _, err := diffTraceInputs(base, compare)
+	return result, err
+}
 
-	baseTrace, baseWarnings := normalizeTrace(base)
-	compareTrace, compareWarnings := normalizeTrace(compare)
+func diffTraceInputs(base, compare *tempopb.Trace) (*Result, normalizedTrace, normalizedTrace, error) {
+	if base == nil {
+		return nil, normalizedTrace{}, normalizedTrace{}, fmt.Errorf("base: %w", ErrNilTrace)
+	}
+	if compare == nil {
+		return nil, normalizedTrace{}, normalizedTrace{}, fmt.Errorf("compare: %w", ErrNilTrace)
+	}
+
+	baseTrace, baseWarnings := normalizeTraceForSide(base, "base")
+	compareTrace, compareWarnings := normalizeTraceForSide(compare, "compare")
 	matched, modified, added, removed := computeDiff(baseTrace, compareTrace)
 	warnings := mergeWarnings(baseWarnings, compareWarnings)
+	if ambiguousGroups := ambiguousSpanGroupCount(baseTrace, compareTrace); ambiguousGroups > 0 {
+		warnings = append(warnings, Warning{
+			Code:    WarningAmbiguousSpanMatch,
+			Message: fmt.Sprintf("%d duplicate logical span group(s) may match ambiguously; matching minimizes changes, but instance-level transitions may not identify the same physical operation", ambiguousGroups),
+		})
+	}
 
 	return &Result{
 		Version: VersionTracePatchV0,
@@ -48,7 +60,7 @@ func Diff(base, compare *tempopb.Trace, format Format) (*Result, error) {
 		Added:    added,
 		Removed:  removed,
 		Warnings: warnings,
-	}, nil
+	}, baseTrace, compareTrace, nil
 }
 
 func computeDiff(base, compare normalizedTrace) (int, []ModifiedSpan, []SpanChange, []SpanChange) {
@@ -90,45 +102,74 @@ func computeDiff(base, compare normalizedTrace) (int, []ModifiedSpan, []SpanChan
 // matchSpans decides which base span, if any, matches each compare span.
 func matchSpans(base, compare normalizedTrace) map[string]normalizedSpan {
 	baseSpanByCompareSpanID := make(map[string]normalizedSpan)
-	usedBaseSpanIDs := make(map[string]struct{})
 	baseByID := bucketByIdentity(base)
-
-	for _, compareSpan := range compare.spans {
-		baseSpan, ok := findMatch(baseByID[compareSpan.identity()], compareSpan, usedBaseSpanIDs)
-		if !ok {
-			continue
+	compareByID := bucketByIdentity(compare)
+	for identity, compareCandidates := range compareByID {
+		for compareSpanID, baseSpan := range matchSpanGroup(baseByID[identity], compareCandidates) {
+			baseSpanByCompareSpanID[compareSpanID] = baseSpan
 		}
-		baseSpanByCompareSpanID[compareSpan.spanID] = baseSpan
-		usedBaseSpanIDs[baseSpan.spanID] = struct{}{}
 	}
 	return baseSpanByCompareSpanID
 }
 
-// findMatch receives base spans with the same identity as compareSpan. Parent
-// identity is only a duplicate tie-breaker: if it cannot disambiguate, the first
-// unused candidate preserves the ancestor-insert behavior.
-func findMatch(baseCandidates []normalizedSpan, compareSpan normalizedSpan, usedBaseSpanIDs map[string]struct{}) (normalizedSpan, bool) {
-	var fallback normalizedSpan
-	fallbackSet := false
-	for _, baseSpan := range baseCandidates {
-		if _, ok := usedBaseSpanIDs[baseSpan.spanID]; ok {
-			continue
-		}
-		// Both spans share the same parent identity
-		if sameParentIdentity(baseSpan, compareSpan) {
-			return baseSpan, true
-		}
-		// If not we choose the first one as a fallback
-		if !fallbackSet {
-			fallback = baseSpan
-			fallbackSet = true
+// matchSpanGroup pairs a logical-identity bucket in phases. Matching all
+// unchanged spans before changed spans makes the result independent of sibling
+// order while parent-first phases preserve branch identity where it is known.
+func matchSpanGroup(baseCandidates, compareCandidates []normalizedSpan) map[string]normalizedSpan {
+	matchCount := min(len(baseCandidates), len(compareCandidates))
+	matches := make(map[string]normalizedSpan, matchCount)
+	usedBaseSpanIDs := make(map[string]struct{}, matchCount)
+
+	pair := func(eligible func(normalizedSpan, normalizedSpan) bool) {
+		for _, compareSpan := range compareCandidates {
+			if _, ok := matches[compareSpan.spanID]; ok {
+				continue
+			}
+			for _, baseSpan := range baseCandidates {
+				if _, ok := usedBaseSpanIDs[baseSpan.spanID]; ok || !eligible(baseSpan, compareSpan) {
+					continue
+				}
+				matches[compareSpan.spanID] = baseSpan
+				usedBaseSpanIDs[baseSpan.spanID] = struct{}{}
+				break
+			}
 		}
 	}
-	return fallback, fallbackSet
+
+	pair(func(base, compare normalizedSpan) bool {
+		return sameParentIdentity(base, compare) && spansEquivalentForMatching(base, compare)
+	})
+	pair(func(base, compare normalizedSpan) bool {
+		return sameParentIdentity(base, compare) && base.snapshot.Status == compare.snapshot.Status
+	})
+	pair(sameParentIdentity)
+	pair(spansEquivalentForMatching)
+	pair(func(base, compare normalizedSpan) bool {
+		return base.snapshot.Status == compare.snapshot.Status
+	})
+	pair(func(normalizedSpan, normalizedSpan) bool { return true })
+	return matches
 }
 
 func sameParentIdentity(a, b normalizedSpan) bool {
-	return a.hasParent && b.hasParent && a.parentIdentity == b.parentIdentity
+	return a.hasParent == b.hasParent && (!a.hasParent || a.parentIdentity == b.parentIdentity)
+}
+
+func spansEquivalentForMatching(base, compare normalizedSpan) bool {
+	baseDuration, compareDuration := durationChangeValues(base, compare)
+	if durationChanged(baseDuration, compareDuration) || base.snapshot.Status != compare.snapshot.Status {
+		return false
+	}
+	if len(base.spanAttrs) != len(compare.spanAttrs) {
+		return false
+	}
+	for key, before := range base.spanAttrs {
+		after, ok := compare.spanAttrs[key]
+		if !ok || attributeChanged(key, before, after) {
+			return false
+		}
+	}
+	return true
 }
 
 // bucketByIdentity groups spans by their flat identity.
@@ -141,29 +182,107 @@ func bucketByIdentity(trace normalizedTrace) map[spanLogicalKey][]normalizedSpan
 	return out
 }
 
+type spanParentIdentity struct {
+	identity  spanLogicalKey
+	hasParent bool
+}
+
+// ambiguousSpanGroupCount counts logical identities whose spans cannot be
+// paired uniquely using parent identity. Exact-content matching still avoids
+// spurious changes where possible, but consumers must not treat the remaining
+// pairings as certain instance-to-instance transitions.
+func ambiguousSpanGroupCount(base, compare normalizedTrace) int {
+	baseCounts := spanParentCounts(base)
+	compareCounts := spanParentCounts(compare)
+
+	identities := make(map[spanLogicalKey]struct{}, len(baseCounts)+len(compareCounts))
+	for identity := range baseCounts {
+		identities[identity] = struct{}{}
+	}
+	for identity := range compareCounts {
+		identities[identity] = struct{}{}
+	}
+
+	ambiguous := 0
+	for identity := range identities {
+		baseParents := baseCounts[identity]
+		compareParents := compareCounts[identity]
+		remainingBase := 0
+		remainingCompare := 0
+		isAmbiguous := false
+		for parent, baseCount := range baseParents {
+			compareCount := compareParents[parent]
+			paired := min(baseCount, compareCount)
+			if paired > 0 && (baseCount > 1 || compareCount > 1) {
+				isAmbiguous = true
+			}
+			remainingBase += baseCount - paired
+			remainingCompare += compareCount - paired
+		}
+		for parent, compareCount := range compareParents {
+			if _, ok := baseParents[parent]; !ok {
+				remainingCompare += compareCount
+			}
+		}
+		if remainingBase > 0 && remainingCompare > 0 && (remainingBase > 1 || remainingCompare > 1) {
+			isAmbiguous = true
+		}
+		if isAmbiguous {
+			ambiguous++
+		}
+	}
+	return ambiguous
+}
+
+func spanParentCounts(trace normalizedTrace) map[spanLogicalKey]map[spanParentIdentity]int {
+	counts := make(map[spanLogicalKey]map[spanParentIdentity]int)
+	for _, span := range trace.spans {
+		identity := span.identity()
+		parents := counts[identity]
+		if parents == nil {
+			parents = make(map[spanParentIdentity]int)
+			counts[identity] = parents
+		}
+		parents[spanParentIdentity{identity: span.parentIdentity, hasParent: span.hasParent}]++
+	}
+	return counts
+}
+
 func mergeWarnings(warningGroups ...[]Warning) []Warning {
 	out := make([]Warning, 0)
 	seen := make(map[string]struct{})
 	for _, group := range warningGroups {
 		for _, warning := range group {
-			if _, ok := seen[warning.Code]; ok {
+			key := warningDedupKey(warning)
+			if _, ok := seen[key]; ok {
 				continue
 			}
-			seen[warning.Code] = struct{}{}
+			seen[key] = struct{}{}
 			out = append(out, warning)
 		}
 	}
 	return out
 }
 
+func warningDedupKey(warning Warning) string {
+	switch warning.Code {
+	case WarningInvalidDuration, WarningZeroSpanTrace, WarningDuplicateSpanID:
+		// The message carries the side; keying on it keeps both sides visible.
+		return warning.Code + "\x00" + warning.Message
+	default:
+		return warning.Code
+	}
+}
+
 func fieldChanges(base, compare normalizedSpan) []Change {
 	changes := make([]Change, 0, 2)
-	if !numericClose(float64(base.snapshot.DurationNanos), float64(compare.snapshot.DurationNanos), durationRelTolerance, durationAbsTolerance) {
+	baseDuration, compareDuration := durationChangeValues(base, compare)
+	if durationChanged(baseDuration, compareDuration) {
 		changes = append(changes, Change{
 			Op:     OperationModify,
 			Target: Target{Type: TargetField, Name: FieldDurationNanos},
-			Before: base.snapshot.DurationNanos,
-			After:  compare.snapshot.DurationNanos,
+			Before: baseDuration,
+			After:  compareDuration,
 		})
 	}
 	if base.snapshot.Status != compare.snapshot.Status {
@@ -175,6 +294,30 @@ func fieldChanges(base, compare normalizedSpan) []Change {
 		})
 	}
 	return changes
+}
+
+func durationChangeValues(base, compare normalizedSpan) (any, any) {
+	if !base.durationValid && !compare.durationValid {
+		return nil, nil
+	}
+	var before any
+	if base.durationValid {
+		before = base.snapshot.DurationNanos
+	}
+	var after any
+	if compare.durationValid {
+		after = compare.snapshot.DurationNanos
+	}
+	return before, after
+}
+
+func durationChanged(before, after any) bool {
+	beforeNanos, beforeOK := before.(int64)
+	afterNanos, afterOK := after.(int64)
+	if beforeOK && afterOK {
+		return !numericClose(float64(beforeNanos), float64(afterNanos), durationRelTolerance, durationAbsTolerance)
+	}
+	return !valuesEqual(before, after)
 }
 
 func attributeChanges(base, compare normalizedSpan) []Change {
@@ -189,11 +332,11 @@ func attributeChanges(base, compare normalizedSpan) []Change {
 
 		switch {
 		case !inBase:
-			changes = append(changes, Change{Op: OperationAdd, Target: target, Before: nil, After: after})
+			changes = append(changes, Change{Op: OperationAdd, Target: target, Before: nil, After: sanitizeJSONValue(after)})
 		case !inCompare:
-			changes = append(changes, Change{Op: OperationRemove, Target: target, Before: before, After: nil})
+			changes = append(changes, Change{Op: OperationRemove, Target: target, Before: sanitizeJSONValue(before), After: nil})
 		case attributeChanged(key, before, after):
-			changes = append(changes, Change{Op: OperationModify, Target: target, Before: before, After: after})
+			changes = append(changes, Change{Op: OperationModify, Target: target, Before: sanitizeJSONValue(before), After: sanitizeJSONValue(after)})
 		}
 	}
 	return changes
@@ -230,9 +373,17 @@ func valuesEqual(a, b any) bool {
 				return ai == bi
 			}
 		}
-		af, _ := numericValue(a)
-		bf, ok := numericValue(b)
-		return ok && af == bf
+		af, aOK := numericValue(a)
+		bf, bOK := numericValue(b)
+		if !aOK || !bOK {
+			return false
+		}
+		// NaN != NaN under ==, but two attributes that are both NaN should be
+		// treated as unchanged rather than reported as a spurious modification.
+		if math.IsNaN(af) && math.IsNaN(bf) {
+			return true
+		}
+		return af == bf
 	case []byte:
 		bv, ok := b.([]byte)
 		if !ok || len(av) != len(bv) {

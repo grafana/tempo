@@ -1,8 +1,15 @@
 package tracediff
 
-const VersionTracePatchV0 = "trace-patch-v0"
+const (
+	VersionTracePatchV0 = "trace-patch-v0"
+	// VersionTraceSummaryV0Native is the single summary format: a compact
+	// triage/localization document computed from normalized traces and matcher
+	// results, with complete changed-service enumeration, uncapped rollups, and
+	// capped patterns.
+	VersionTraceSummaryV0Native = "trace-summary-v0-native"
+)
 
-// Format selects the output representation.
+// Format selects a diff format implemented directly by Diff.
 type Format string
 
 const (
@@ -35,9 +42,14 @@ const (
 	ScopeSpan          = "span"
 )
 
-// Warning codes in the trace-patch-v0 vocabulary.
+// Warning codes emitted by trace diff and trace-diff CLI outputs.
 const (
 	WarningHighCardinalitySpanName = "high_cardinality_span_name"
+	WarningPartialTrace            = "partial_trace"
+	WarningInvalidDuration         = "invalid_duration"
+	WarningZeroSpanTrace           = "zero_span_trace"
+	WarningDuplicateSpanID         = "duplicate_span_id"
+	WarningAmbiguousSpanMatch      = "ambiguous_span_match"
 )
 
 // Result is the trace-patch-v0 diff document.

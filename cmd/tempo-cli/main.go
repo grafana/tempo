@@ -94,7 +94,7 @@ var cli struct {
 	} `cmd:""`
 
 	Experimental struct {
-		TraceDiff experimentalTraceDiffCmd `cmd:"" help:"Compare two local trace JSON files and emit an experimental trace-aware patch"`
+		TraceDiff experimentalTraceDiffCmd `cmd:"" help:"Compare two local trace JSON files and emit an experimental trace-aware diff or summary"`
 	} `cmd:""`
 
 	Redact redactCmd `cmd:"" help:"Submit a redaction request to the backend scheduler"`

@@ -1,6 +1,7 @@
 package tracediff
 
 import (
+	"math"
 	"testing"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -113,6 +114,8 @@ func traceForNormalizeTest() *tempopb.Trace {
 	}
 }
 
+const normalizeTestTimeOffsetMs = uint64(1_700_000_000_000)
+
 func spanForNormalizeTest(traceID []byte, spanID, parentID, service, name string, kind tracev1.Span_SpanKind, start, end uint64, status tracev1.Status_StatusCode) *tracev1.Span {
 	return &tracev1.Span{
 		TraceId:           traceID,
@@ -120,8 +123,8 @@ func spanForNormalizeTest(traceID []byte, spanID, parentID, service, name string
 		ParentSpanId:      []byte(parentID),
 		Name:              name,
 		Kind:              kind,
-		StartTimeUnixNano: start * 1_000_000,
-		EndTimeUnixNano:   end * 1_000_000,
+		StartTimeUnixNano: (normalizeTestTimeOffsetMs + start) * 1_000_000,
+		EndTimeUnixNano:   (normalizeTestTimeOffsetMs + end) * 1_000_000,
 		Attributes: []*commonv1.KeyValue{
 			stringAttribute("service.name", service),
 		},
@@ -157,6 +160,48 @@ func TestSpanNameHasHighCardinalityToken(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			assert.Equal(t, tc.want, spanNameHasHighCardinalityToken(tc.in))
+		})
+	}
+}
+
+func TestInvalidDurationExamplesAreDeterministic(t *testing.T) {
+	invalid := []spanLogicalKey{
+		{service: "z", name: "beta", kind: "client"},
+		{service: "a", name: "zeta", kind: "server"},
+		{service: "a", name: "alpha", kind: "producer"},
+		{service: "a", name: "alpha", kind: "consumer"},
+	}
+
+	assert.Equal(
+		t,
+		`["alpha" service "a" kind "consumer"; "alpha" service "a" kind "producer"; "zeta" service "a" kind "server"; and 1 more]`,
+		invalidDurationExamples(invalid, 3),
+	)
+}
+
+func TestDurationNanos(t *testing.T) {
+	// A realistic (~2023) start in unix nanos; an unset (0) start against an end
+	// this large would report ~decades if not guarded.
+	const realisticStart = uint64(1_700_000_000_000_000_000)
+	tests := []struct {
+		name  string
+		start uint64
+		end   uint64
+		want  int64
+	}{
+		{name: "normal span", start: realisticStart, end: realisticStart + 100_000_000, want: 100_000_000},
+		{name: "zero-length span", start: realisticStart, end: realisticStart, want: 0},
+		{name: "unset start with realistic end", start: 0, end: realisticStart, want: 0},
+		{name: "unset start with small end", start: 0, end: 90_000_000, want: 0},
+		{name: "both unset", start: 0, end: 0, want: 0},
+		{name: "end before start", start: realisticStart + 100, end: realisticStart, want: 0},
+		{name: "maximum int64 duration", start: 1, end: uint64(math.MaxInt64) + 1, want: math.MaxInt64},
+		{name: "duration exceeds int64", start: 1, end: uint64(math.MaxInt64) + 2, want: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			span := &tracev1.Span{StartTimeUnixNano: tt.start, EndTimeUnixNano: tt.end}
+			assert.Equal(t, tt.want, durationNanos(span))
 		})
 	}
 }

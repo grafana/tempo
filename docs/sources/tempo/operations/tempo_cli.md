@@ -866,7 +866,9 @@ tempo-cli gen attr-index --add-intrinsics ./path/to/block
 This command is experimental. The output format and behavior may change in future releases.
 {{< /admonition >}}
 
-Compare two local trace JSON files and produce a structural diff in `trace-patch-v0` format. The diff output identifies spans that were added, removed, or modified between a baseline trace and a comparison trace.
+Compare two local trace JSON files. Use the default `trace-patch-v0` format for
+an exact mechanical change list, or `trace-summary-v0-native` for a compact
+triage and service-localization view.
 
 Use this command to compare traces captured at different times or from different environments, for example, to understand how a deployment changed trace structure.
 
@@ -881,7 +883,7 @@ Arguments:
 
 Options:
 
-- `--format <value>` Output format. Currently only `trace-patch-v0` is supported (default).
+- `--format <value>` Output format: `trace-patch-v0` (default) or `trace-summary-v0-native`.
 - `-o, --out <path>` File to write output to. If not specified, output is printed to `stdout`.
 - `--pretty` Pretty-print JSON output.
 
@@ -898,6 +900,28 @@ Example writing output to a file:
 ```bash
 tempo-cli experimental trace-diff --trace-a baseline.json --trace-b compare.json -o diff-output.json
 ```
+
+Example producing the native summary:
+
+```bash
+tempo-cli experimental trace-diff \
+  --trace-a baseline.json \
+  --trace-b compare.json \
+  --format trace-summary-v0-native \
+  --pretty
+```
+
+The native summary calculates latency, span-work, topology, and significant
+per-service drift from the normalized traces. It combines those values with
+matcher-derived change and error counts. `changedServices` and service rollups
+cover all matcher changes and significant work drift; `changedServices` also
+includes structure-only changes, which do not have service rollups. Repeated
+change patterns are ranked by frequency and capped at 20; `patternsTruncated`
+reports exact omitted pattern and span counts.
+
+Warnings report partial inputs, high-cardinality span names, duplicate span
+IDs, ambiguous duplicate-span matching, empty traces, and invalid durations.
+Invalid spans contribute zero to summary duration aggregates.
 
 ## Drop traces by ID
 
