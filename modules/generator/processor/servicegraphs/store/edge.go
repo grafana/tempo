@@ -88,8 +88,3 @@ func (e *Edge) isExpired() bool {
 func (e *Edge) IsRoot() bool {
 	return e.key.root
 }
-
-// Key returns an encoded key that remains valid after the Edge is recycled.
-func (e *Edge) Key() string {
-	return e.key.String()
-}

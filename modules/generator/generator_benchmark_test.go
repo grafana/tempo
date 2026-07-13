@@ -242,6 +242,20 @@ func BenchmarkInstancePushSpansProductionCardinality(b *testing.B) {
 			request:    benchmarkGeneratorProdHighCardinalityServiceGraphRequest(0, benchmarkGeneratorHighCardinalityTimedEdges),
 		},
 		{
+			name: "combined_prod_7dims_500k_series_native_steady",
+			overrides: func(o *mockOverrides) {
+				o.processors = map[string]struct{}{processor.SpanMetricsName: {}, processor.ServiceGraphsName: {}}
+				benchmarkGeneratorProdOverrides(o)
+				o.nativeHistograms = histograms.HistogramMethodBoth
+			},
+			seed: func(ctx context.Context, inst *instance) {
+				benchmarkGeneratorSeedHighCardinalityServiceGraph(ctx, inst, benchmarkGeneratorProdCombinedNative500kEdges)
+			},
+			wantSeries: benchmarkGeneratorProdCombinedNative500kEdges * 79,
+			request:    benchmarkGeneratorProdHighCardinalityServiceGraphRequest(0, benchmarkGeneratorHighCardinalityTimedEdges),
+			requireEnv: "TEMPO_GENERATOR_BENCH_1M",
+		},
+		{
 			name: "combined_prod_7dims_1m_series_steady",
 			overrides: func(o *mockOverrides) {
 				o.processors = map[string]struct{}{processor.SpanMetricsName: {}, processor.ServiceGraphsName: {}}
@@ -338,6 +352,7 @@ const (
 	benchmarkGeneratorProdServiceGraphs100kEdges      = 2858  // x 35 series = 100_030
 	benchmarkGeneratorProdCombined100kEdges           = 1334  // x 75 series = 100_050
 	benchmarkGeneratorProdCombinedNative100kEdges     = 1266  // x 79 series = 100_014
+	benchmarkGeneratorProdCombinedNative500kEdges     = 6329  // x 79 series = 499_991
 	benchmarkGeneratorProdCombined1MEdges             = 13334 // x 75 series = 1_000_050
 	benchmarkGeneratorHighCardinalityTimedResources   = 400
 	benchmarkGeneratorHighCardinalityTimedEdges       = 200
@@ -484,8 +499,8 @@ func benchmarkGeneratorSeed(ctx context.Context, b *testing.B, inst *instance, s
 		b.Fatalf("seeding discarded %.0f spans as outside the ingestion slack, series were not seeded as intended", d)
 	}
 	seeded := benchmarkGeneratorActiveSeries(ctx, inst, st)
-	if tolerance := wantSeries / 50; seeded < wantSeries-tolerance || seeded > wantSeries+tolerance {
-		b.Fatalf("seeded %d active series, want %d (±2%%); revisit the seed constants and their per-unit series math", seeded, wantSeries)
+	if seeded != wantSeries {
+		b.Fatalf("seeded %d active series, want %d; revisit the seed constants and their per-unit series math", seeded, wantSeries)
 	}
 }
 

@@ -3,7 +3,6 @@ package store
 import (
 	"encoding/hex"
 	"errors"
-	"strings"
 	"sync"
 	"time"
 
@@ -53,15 +52,6 @@ type edgeKey struct {
 	traceIDLen uint8
 	spanIDLen  uint8
 	root       bool
-	fromString bool
-}
-
-func edgeKeyFromString(key string) edgeKey {
-	return edgeKey{
-		fallback:   key,
-		root:       strings.HasSuffix(key, "-"),
-		fromString: true,
-	}
 }
 
 func edgeKeyFromBytes(traceID, spanID []byte) edgeKey {
@@ -79,7 +69,7 @@ func edgeKeyFromBytes(traceID, spanID []byte) edgeKey {
 }
 
 func (k edgeKey) String() string {
-	if k.fallback != "" || k.fromString {
+	if k.fallback != "" {
 		return k.fallback
 	}
 	return encodeKey(k.traceID[:k.traceIDLen], k.spanID[:k.spanIDLen])
@@ -140,14 +130,10 @@ func (s *Store) deleteEdge(edge *Edge) {
 	s.returnEdge(edge)
 }
 
-// UpsertEdge fetches an Edge from the store and updates it using the given callback. If the Edge
-// doesn't exist yet, it creates a new one with the default TTL.
-// If the Edge is complete after applying the callback, it's completed and removed.
-func (s *Store) UpsertEdge(key string, side Side, update Callback) (isNew bool, err error) {
-	return s.upsertEdge(edgeKeyFromString(key), side, update)
-}
-
-// UpsertEdgeFromBytes is the byte-keyed form of UpsertEdge.
+// UpsertEdgeFromBytes fetches an Edge from the store and updates it using the
+// given callback. If the Edge doesn't exist yet, it creates a new one with the
+// default TTL. If the Edge is complete after applying the callback, it's
+// completed and removed.
 func (s *Store) UpsertEdgeFromBytes(traceID, spanID []byte, side Side, update Callback) (isNew bool, err error) {
 	return s.upsertEdge(edgeKeyFromBytes(traceID, spanID), side, update)
 }
@@ -243,11 +229,6 @@ func (s *Store) Expire() {
 	s.expireDroppedSpanSides()
 }
 
-// This cache is best-effort metadata for dropped-span correlation.
-func (s *Store) AddDroppedSpanSide(key string, side Side) bool {
-	return s.addDroppedSpanSide(edgeKeyFromString(key), side)
-}
-
 // AddDroppedSpanSideFromBytes records a filtered edge side using trace/span ID bytes.
 func (s *Store) AddDroppedSpanSideFromBytes(traceID, spanID []byte, side Side) bool {
 	return s.addDroppedSpanSide(edgeKeyFromBytes(traceID, spanID), side)
@@ -285,10 +266,6 @@ func (s *Store) addDroppedSpanSide(key edgeKey, side Side) bool {
 
 	s.d[k] = time.Now().Add(s.ttl).UnixNano()
 	return droppedCounterpartEdge
-}
-
-func (s *Store) HasDroppedSpanSide(key string, side Side) bool {
-	return s.hasDroppedSpanSide(edgeKeyFromString(key), side)
 }
 
 // HasDroppedSpanSideFromBytes reports whether a trace/span ID side is recorded as dropped.
@@ -345,6 +322,12 @@ func (s *Store) grabEdge(key edgeKey) *Edge {
 
 // returnEdge returns an Edge to the pool.
 func (s *Store) returnEdge(e *Edge) {
+	// Do not retain request-owned keys or malformed request-sized trace IDs in
+	// the global pool while an edge is idle.
+	e.key = edgeKey{}
+	if cap(e.traceID) > maxTraceIDLen {
+		e.traceID = nil
+	}
 	edgePool.Put(e)
 }
 

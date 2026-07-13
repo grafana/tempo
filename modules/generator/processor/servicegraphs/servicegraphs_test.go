@@ -458,6 +458,119 @@ func TestServiceGraphs_exemplarsCarryTraceID(t *testing.T) {
 	}
 }
 
+func TestServiceGraphs_histogramModesEmitValuesAndExemplars(t *testing.T) {
+	tests := []struct {
+		name        string
+		mode        registry.HistogramMode
+		wantClassic bool
+		wantNative  bool
+	}{
+		{name: "classic", mode: registry.HistogramModeClassic, wantClassic: true},
+		{name: "native", mode: registry.HistogramModeNative, wantNative: true},
+		{name: "both", mode: registry.HistogramModeBoth, wantClassic: true, wantNative: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			appender := &serviceGraphCapturingAppender{}
+			managedRegistry := registry.New(&registry.Config{
+				CollectionInterval: time.Hour,
+				StaleDuration:      time.Hour,
+			}, serviceGraphRegistryOverrides{
+				nativeHistogramBucketFactor:     1.1,
+				nativeHistogramMaxBucketNumber:  100,
+				nativeHistogramMinResetDuration: 15 * time.Minute,
+			}, "test", appender, log.NewNopLogger(), serviceGraphNoopLimiter{})
+			defer managedRegistry.Close()
+
+			cfg := Config{}
+			cfg.RegisterFlagsAndApplyDefaults("", nil)
+			cfg.HistogramBuckets = []float64{0.04}
+			cfg.HistogramOverride = tt.mode
+			cfg.EnableMessagingSystemLatencyHistogram = true
+			cfg.Workers = 0
+
+			p, err := New(cfg, "test", managedRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
+			require.NoError(t, err)
+			defer p.Shutdown(context.Background())
+
+			request := benchmarkServiceGraphRequestForKind(1, false, benchmarkServiceGraphMessagingEdge)
+			p.PushSpans(context.Background(), request)
+			managedRegistry.CollectMetrics(context.Background())
+
+			seriesLabels := func(metricName, bucket string) labels.Labels {
+				m := map[string]string{
+					model.MetricNameLabel: metricName,
+					"client":              "client",
+					"server":              "server",
+					"connection_type":     "messaging_system",
+				}
+				if bucket != "" {
+					m[labels.BucketLabel] = bucket
+				}
+				return labels.FromMap(m)
+			}
+
+			requestSample := requireLatestServiceGraphSample(t, appender, seriesLabels(metricRequestTotal, ""))
+			assert.Equal(t, 1.0, requestSample.v)
+
+			traceID := request.Batches[0].ScopeSpans[0].Spans[0].TraceId
+			wantTraceID := tempo_util.TraceIDToHexString(traceID)
+			histograms := []struct {
+				name              string
+				sum               float64
+				finiteBucketCount float64
+				exemplarBucket    string
+			}{
+				{name: metricRequestClientSeconds, sum: 0.05, finiteBucketCount: 0, exemplarBucket: "+Inf"},
+				{name: metricRequestServerSeconds, sum: 0.03, finiteBucketCount: 1, exemplarBucket: "0.04"},
+				{name: metricRequestMessagingSystemSeconds, sum: 0.01, finiteBucketCount: 1, exemplarBucket: "0.04"},
+			}
+
+			for _, histogram := range histograms {
+				if tt.wantClassic {
+					assert.Equal(t, 1.0, requireLatestServiceGraphSample(t, appender, seriesLabels(histogram.name+"_count", "")).v)
+					assert.InDelta(t, histogram.sum, requireLatestServiceGraphSample(t, appender, seriesLabels(histogram.name+"_sum", "")).v, 1e-9)
+					assert.Equal(t, histogram.finiteBucketCount, requireLatestServiceGraphSample(t, appender, seriesLabels(histogram.name+"_bucket", "0.04")).v)
+					assert.Equal(t, 1.0, requireLatestServiceGraphSample(t, appender, seriesLabels(histogram.name+"_bucket", "+Inf")).v)
+				} else {
+					assertServiceGraphMetricAbsent(t, appender, histogram.name+"_count")
+					assertServiceGraphMetricAbsent(t, appender, histogram.name+"_sum")
+					assertServiceGraphMetricAbsent(t, appender, histogram.name+"_bucket")
+				}
+
+				if tt.wantNative {
+					native := requireLatestServiceGraphHistogram(t, appender, seriesLabels(histogram.name, ""))
+					assert.Equal(t, uint64(1), native.h.Count)
+					assert.InDelta(t, histogram.sum, native.h.Sum, 1e-9)
+				} else {
+					assertServiceGraphHistogramAbsent(t, appender, histogram.name)
+				}
+
+				exemplarMetric := histogram.name
+				exemplarBucket := ""
+				if tt.wantClassic {
+					exemplarMetric += "_bucket"
+					exemplarBucket = histogram.exemplarBucket
+				}
+				assertServiceGraphExemplar(t, appender, seriesLabels(exemplarMetric, exemplarBucket), wantTraceID, histogram.sum)
+			}
+
+			wantSamples := 2 // request counter initialization and current value
+			if tt.wantClassic {
+				wantSamples = 23
+			}
+			wantHistograms := 0
+			if tt.wantNative {
+				wantHistograms = 6 // zero and current native sample for three histograms
+			}
+			require.Len(t, appender.samples, wantSamples)
+			require.Len(t, appender.histograms, wantHistograms)
+			require.Len(t, appender.exemplars, len(histograms))
+		})
+	}
+}
+
 func TestServiceGraphs_virtualNodesExtraLabelsForUninstrumentedServices(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 
@@ -1254,8 +1367,22 @@ type serviceGraphExemplarSample struct {
 	e exemplar.Exemplar
 }
 
+type serviceGraphSample struct {
+	l labels.Labels
+	t int64
+	v float64
+}
+
+type serviceGraphHistogramSample struct {
+	l labels.Labels
+	t int64
+	h *prom_histogram.Histogram
+}
+
 type serviceGraphCapturingAppender struct {
-	exemplars []serviceGraphExemplarSample
+	samples    []serviceGraphSample
+	histograms []serviceGraphHistogramSample
+	exemplars  []serviceGraphExemplarSample
 }
 
 var (
@@ -1267,7 +1394,8 @@ func (c *serviceGraphCapturingAppender) Appender(context.Context) storage.Append
 	return c
 }
 
-func (c *serviceGraphCapturingAppender) Append(ref storage.SeriesRef, _ labels.Labels, _ int64, _ float64) (storage.SeriesRef, error) {
+func (c *serviceGraphCapturingAppender) Append(ref storage.SeriesRef, lbls labels.Labels, timeMs int64, value float64) (storage.SeriesRef, error) {
+	c.samples = append(c.samples, serviceGraphSample{l: lbls.Copy(), t: timeMs, v: value})
 	return ref, nil
 }
 
@@ -1283,7 +1411,10 @@ func (c *serviceGraphCapturingAppender) AppendExemplar(ref storage.SeriesRef, lb
 	return ref, nil
 }
 
-func (c *serviceGraphCapturingAppender) AppendHistogram(ref storage.SeriesRef, _ labels.Labels, _ int64, _ *prom_histogram.Histogram, _ *prom_histogram.FloatHistogram) (storage.SeriesRef, error) {
+func (c *serviceGraphCapturingAppender) AppendHistogram(ref storage.SeriesRef, lbls labels.Labels, timeMs int64, h *prom_histogram.Histogram, _ *prom_histogram.FloatHistogram) (storage.SeriesRef, error) {
+	if h != nil {
+		c.histograms = append(c.histograms, serviceGraphHistogramSample{l: lbls.Copy(), t: timeMs, h: h.Copy()})
+	}
 	return ref, nil
 }
 
@@ -1381,6 +1512,77 @@ func assertServiceGraphExemplarTraceID(t *testing.T, appender *serviceGraphCaptu
 	}
 
 	require.Failf(t, "missing exemplar", "metric %s with traceID %s not found in %#v", metricName, traceID, appender.exemplars)
+}
+
+func requireLatestServiceGraphSample(t *testing.T, appender *serviceGraphCapturingAppender, wantLabels labels.Labels) serviceGraphSample {
+	t.Helper()
+
+	var latest serviceGraphSample
+	found := false
+	for _, sample := range appender.samples {
+		if !labels.Equal(serviceGraphLabelsWithoutInstance(sample.l), wantLabels) {
+			continue
+		}
+		if !found || sample.t > latest.t {
+			latest = sample
+			found = true
+		}
+	}
+	require.Truef(t, found, "sample %s not found in %#v", wantLabels, appender.samples)
+	return latest
+}
+
+func requireLatestServiceGraphHistogram(t *testing.T, appender *serviceGraphCapturingAppender, wantLabels labels.Labels) serviceGraphHistogramSample {
+	t.Helper()
+
+	var latest serviceGraphHistogramSample
+	found := false
+	for _, sample := range appender.histograms {
+		if !labels.Equal(serviceGraphLabelsWithoutInstance(sample.l), wantLabels) {
+			continue
+		}
+		if !found || sample.t > latest.t {
+			latest = sample
+			found = true
+		}
+	}
+	require.Truef(t, found, "histogram %s not found in %#v", wantLabels, appender.histograms)
+	return latest
+}
+
+func assertServiceGraphMetricAbsent(t *testing.T, appender *serviceGraphCapturingAppender, metricName string) {
+	t.Helper()
+	for _, sample := range appender.samples {
+		assert.NotEqual(t, metricName, sample.l.Get(model.MetricNameLabel))
+	}
+}
+
+func assertServiceGraphHistogramAbsent(t *testing.T, appender *serviceGraphCapturingAppender, metricName string) {
+	t.Helper()
+	for _, sample := range appender.histograms {
+		assert.NotEqual(t, metricName, sample.l.Get(model.MetricNameLabel))
+	}
+}
+
+func assertServiceGraphExemplar(t *testing.T, appender *serviceGraphCapturingAppender, wantLabels labels.Labels, traceID string, value float64) {
+	t.Helper()
+
+	matches := 0
+	for _, sample := range appender.exemplars {
+		if !labels.Equal(serviceGraphLabelsWithoutInstance(sample.l), wantLabels) {
+			continue
+		}
+		matches++
+		assert.Equal(t, traceID, sample.e.Labels.Get("traceID"))
+		assert.InDelta(t, value, sample.e.Value, 1e-9)
+	}
+	require.Equalf(t, 1, matches, "exemplar %s with traceID %s not found exactly once in %#v", wantLabels, traceID, appender.exemplars)
+}
+
+func serviceGraphLabelsWithoutInstance(lbls labels.Labels) labels.Labels {
+	lb := labels.NewBuilder(lbls)
+	lb.Del("__metrics_gen_instance")
+	return lb.Labels()
 }
 
 func makeServiceGraphBatch(svcName string, kind tracev1.Span_SpanKind, traceID, spanID, parentSpanID []byte, spanAttrs ...*v1.KeyValue) *tracev1.ResourceSpans {

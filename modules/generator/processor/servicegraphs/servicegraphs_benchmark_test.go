@@ -47,6 +47,14 @@ func BenchmarkServiceGraphsPushSpansSteadyState(b *testing.B) {
 			},
 			spanMultiplier: true,
 		},
+		{
+			name: "connection_info_only",
+			tune: func(cfg *Config) {
+				cfg.Subprocessors[Request] = false
+				cfg.Subprocessors[Latency] = false
+				cfg.Subprocessors[ConnectionInfo] = true
+			},
+		},
 		{name: "native/database", histogramMode: registry.HistogramModeNative, edgeKind: benchmarkServiceGraphDatabaseEdge},
 		{name: "both/database", histogramMode: registry.HistogramModeBoth, edgeKind: benchmarkServiceGraphDatabaseEdge},
 		{name: "native/messaging", histogramMode: registry.HistogramModeNative, edgeKind: benchmarkServiceGraphMessagingEdge},

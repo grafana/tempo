@@ -1068,6 +1068,7 @@ func TestManagedRegistry_borrowedLabelsSurviveScratchReuse(t *testing.T) {
 	builder.Add("label", "value-1")
 	borrowed, valid := builder.CloseAndBorrowLabels()
 	require.True(t, valid)
+	scratch := borrowed.scratch
 
 	timeMs := time.Now().UnixMilli()
 	traceID := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}
@@ -1082,18 +1083,7 @@ func TestManagedRegistry_borrowedLabelsSurviveScratchReuse(t *testing.T) {
 		traceID[i] = 0xff
 	}
 
-	// Churn the pooled builders and scratch buffers to overwrite the storage
-	// the borrowed labels were built in. Use the same label name and a shorter
-	// value so each borrow overwrites the original scratch buffer in place (a
-	// longer value would reallocate and leave the original bytes intact,
-	// hiding a retention bug).
-	for i := 0; i < 100; i++ {
-		b := registry.NewLabelBuilder()
-		b.Add("label", "x")
-		bl, ok := b.CloseAndBorrowLabels()
-		require.True(t, ok)
-		bl.Release()
-	}
+	overwriteBorrowedScratch(t, scratch)
 
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 0),
@@ -1115,6 +1105,32 @@ func TestManagedRegistry_borrowedLabelsSurviveScratchReuse(t *testing.T) {
 	require.Len(t, appender.exemplars, 1)
 	assert.Equal(t, "102030405060708090a0b0c0d0e0f10", appender.exemplars[0].e.Labels.Get("traceID"))
 	assert.Equal(t, "value-1", appender.exemplars[0].l.Get("label"))
+}
+
+func TestManagedRegistry_targetInfoBorrowedLabelsSurviveScratchReuse(t *testing.T) {
+	appender := &capturingAppender{}
+	registry := New(&Config{}, &mockOverrides{}, "test", appender, log.NewNopLogger(), noopLimiter)
+	defer registry.Close()
+
+	targetInfo := registry.NewGauge("my_target_info")
+	setTargetInfo := func(value float64) {
+		builder := registry.NewInfoMetricLabelBuilder()
+		builder.Add("resource", "resource-1")
+		borrowed, valid := builder.CloseAndBorrowLabels()
+		require.True(t, valid)
+		scratch := borrowed.scratch
+		targetInfo.SetForTargetInfoBorrowed(borrowed, value, time.Now().UnixMilli())
+		borrowed.Release()
+		overwriteBorrowedScratch(t, scratch)
+	}
+
+	setTargetInfo(1)
+	setTargetInfo(2) // Existing target_info series are presence-only and stay at 1.
+
+	expected := []sample{
+		newSample(map[string]string{"__name__": "my_target_info", "resource": "resource-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1),
+	}
+	collectRegistryMetricsAndAssert(t, registry, appender, expected)
 }
 
 // TestManagedRegistry_borrowedLabelsSurviveSanitizerAndLimiter is the
@@ -1190,20 +1206,13 @@ func TestManagedRegistry_retainingLimiterDoesNotCorruptSeries(t *testing.T) {
 	builder.Add("label", "value-1")
 	borrowed, ok := builder.CloseAndBorrowLabels()
 	require.True(t, ok)
+	scratch := borrowed.scratch
 	counter.IncBorrowed(borrowed, 1, time.Now().UnixMilli())
 	borrowed.Release()
 
-	// Churn the pools so anything the limiter wrongly retained is overwritten.
-	// Use the same label name and a shorter value so each borrow overwrites the
-	// original scratch buffer in place (a longer value would reallocate and
-	// leave the original bytes intact, hiding a retention bug).
-	for i := 0; i < 100; i++ {
-		b := registry.NewLabelBuilder()
-		b.Add("label", "x")
-		bl, ok := b.CloseAndBorrowLabels()
-		require.True(t, ok)
-		bl.Release()
-	}
+	// Deterministically overwrite the released scratch so anything the
+	// limiter incorrectly retained now aliases different bytes.
+	overwriteBorrowedScratch(t, scratch)
 
 	require.NotEmpty(t, retained)
 	expected := []sample{
@@ -1213,77 +1222,108 @@ func TestManagedRegistry_retainingLimiterDoesNotCorruptSeries(t *testing.T) {
 	collectRegistryMetricsAndAssert(t, registry, appender, expected)
 }
 
-// TestManagedRegistry_nativeBorrowedLabelsSurviveScratchReuse covers the native
-// and both-mode histogram borrow path, which is production-reachable
-// (HistogramOverride native/both) but exercised by no other borrow/scratch-reuse
-// test. The native series re-bases its reusable bucket-label builder onto owned
-// labels (native_histogram.go: lb.Reset(newSeries.labels)); a regression there
-// would corrupt the emitted series labels once the pooled scratch is reused.
+// TestManagedRegistry_nativeBorrowedLabelsSurviveScratchReuse covers both raw
+// and pre-encoded trace IDs in native and both-mode histograms. The native
+// series re-bases its reusable bucket-label builder onto owned labels
+// (native_histogram.go: lb.Reset(newSeries.labels)); a regression there would
+// corrupt emitted labels once pooled scratch is reused.
 func TestManagedRegistry_nativeBorrowedLabelsSurviveScratchReuse(t *testing.T) {
-	for _, tc := range []struct {
+	modes := []struct {
 		name string
 		mode HistogramMode
 	}{
 		{"native", HistogramModeNative},
 		{"both", HistogramModeBoth},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			appender := &capturingAppender{}
-			overrides := &mockOverrides{
-				nativeHistogramBucketFactor:     1.5,
-				nativeHistogramMaxBucketNumber:  10,
-				nativeHistogramMinResetDuration: time.Minute,
-			}
-			registry := New(&Config{}, overrides, "test", appender, log.NewNopLogger(), noopLimiter)
-			defer registry.Close()
-
-			histogram := registry.NewHistogram("my_histogram", []float64{1.0}, tc.mode)
-
-			traceID := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}
-			builder := registry.NewLabelBuilder()
-			builder.Add("label", "value-1")
-			borrowed, valid := builder.CloseAndBorrowLabels()
-			require.True(t, valid)
-			histogram.ObserveBorrowedWithEncodedTraceID(borrowed, 1.5, tempo_util.TraceIDToHexString(traceID), 1.0, time.Now().UnixMilli())
-			borrowed.Release()
-
-			// Churn the pooled builders/scratch so any retained borrowed label
-			// would now read overwritten bytes. Use the same label name and a
-			// shorter value so the next borrow overwrites the original scratch
-			// buffer in place (a longer value would reallocate and leave the
-			// original bytes intact, hiding a retention bug).
-			for i := 0; i < 100; i++ {
-				b := registry.NewLabelBuilder()
-				b.Add("label", "x")
-				bl, ok := b.CloseAndBorrowLabels()
-				require.True(t, ok)
-				bl.Release()
-			}
-
-			require.NoError(t, histogram.collectMetrics(appender, time.Now().UnixMilli()))
-
-			// Gather the labels of every emitted series. Native-only mode emits
-			// native histograms (AppendHistogram) plus exemplars; both-mode also
-			// emits classic float samples. Each must carry the intact owned
-			// label, never corrupted bytes from the churned scratch buffers.
-			var seriesLabels []labels.Labels
-			for _, s := range appender.samples {
-				seriesLabels = append(seriesLabels, s.l)
-			}
-			for _, h := range appender.histograms {
-				seriesLabels = append(seriesLabels, h.l)
-			}
-			require.NotEmpty(t, appender.exemplars, "encoded trace ID produced no exemplar")
-			for _, ex := range appender.exemplars {
-				seriesLabels = append(seriesLabels, ex.l)
-				assert.Equal(t, tempo_util.TraceIDToHexString(traceID), ex.e.Labels.Get("traceID"))
-			}
-			require.NotEmpty(t, seriesLabels, "native histogram emitted no series")
-			for _, l := range seriesLabels {
-				assert.Equal(t, "value-1", l.Get("label"), "series labels corrupted after scratch reuse: %s", l.String())
-			}
-		})
 	}
+	paths := []struct {
+		name          string
+		mutateTraceID bool
+		observe       func(Histogram, *BorrowedLabels, []byte, int64)
+	}{
+		{
+			name:          "raw trace ID",
+			mutateTraceID: true,
+			observe: func(histogram Histogram, borrowed *BorrowedLabels, traceID []byte, timeMs int64) {
+				histogram.ObserveBorrowed(borrowed, 1.5, traceID, 1.0, timeMs)
+			},
+		},
+		{
+			name: "encoded trace ID",
+			observe: func(histogram Histogram, borrowed *BorrowedLabels, traceID []byte, timeMs int64) {
+				histogram.ObserveBorrowedWithEncodedTraceID(borrowed, 1.5, tempo_util.TraceIDToHexString(traceID), 1.0, timeMs)
+			},
+		},
+	}
+
+	for _, mode := range modes {
+		for _, path := range paths {
+			t.Run(mode.name+"/"+path.name, func(t *testing.T) {
+				appender := &capturingAppender{}
+				overrides := &mockOverrides{
+					nativeHistogramBucketFactor:     1.5,
+					nativeHistogramMaxBucketNumber:  10,
+					nativeHistogramMinResetDuration: time.Minute,
+				}
+				registry := New(&Config{}, overrides, "test", appender, log.NewNopLogger(), noopLimiter)
+				defer registry.Close()
+
+				histogram := registry.NewHistogram("my_histogram", []float64{1.0}, mode.mode)
+
+				traceID := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}
+				wantTraceID := tempo_util.TraceIDToHexString(traceID)
+				builder := registry.NewLabelBuilder()
+				builder.Add("label", "value-1")
+				borrowed, valid := builder.CloseAndBorrowLabels()
+				require.True(t, valid)
+				scratch := borrowed.scratch
+				path.observe(histogram, borrowed, traceID, time.Now().UnixMilli())
+				borrowed.Release()
+
+				// The raw path must copy or encode the caller-owned bytes before
+				// returning. Mutating the slice must not change the exemplar.
+				if path.mutateTraceID {
+					for i := range traceID {
+						traceID[i] = 0xff
+					}
+				}
+
+				overwriteBorrowedScratch(t, scratch)
+
+				require.NoError(t, histogram.collectMetrics(appender, time.Now().UnixMilli()))
+
+				// Gather the labels of every emitted series. Native-only mode emits
+				// native histograms (AppendHistogram) plus exemplars; both-mode also
+				// emits classic float samples. Each must carry the intact owned
+				// label, never corrupted bytes from the churned scratch buffers.
+				var seriesLabels []labels.Labels
+				for _, s := range appender.samples {
+					seriesLabels = append(seriesLabels, s.l)
+				}
+				for _, h := range appender.histograms {
+					seriesLabels = append(seriesLabels, h.l)
+				}
+				require.NotEmpty(t, appender.exemplars, "trace ID produced no exemplar")
+				for _, ex := range appender.exemplars {
+					seriesLabels = append(seriesLabels, ex.l)
+					assert.Equal(t, wantTraceID, ex.e.Labels.Get("traceID"))
+				}
+				require.NotEmpty(t, seriesLabels, "native histogram emitted no series")
+				for _, l := range seriesLabels {
+					assert.Equal(t, "value-1", l.Get("label"), "series labels corrupted after scratch reuse: %s", l.String())
+				}
+			})
+		}
+	}
+}
+
+func overwriteBorrowedScratch(t *testing.T, scratch *labels.ScratchBuilder) {
+	t.Helper()
+
+	scratch.Reset()
+	scratch.Add("label", "x")
+	var overwritten labels.Labels
+	scratch.Overwrite(&overwritten)
+	require.Equal(t, "x", overwritten.Get("label"))
 }
 
 // TestManagedRegistryPerTenantPools verifies that each ManagedRegistry owns its
