@@ -42,27 +42,27 @@ func TestFilterParityWithNormalSearch(t *testing.T) {
 		wantSearch []string
 		wantFilter []string
 	}{
-		{name: "span attr eq", query: `{ .http.status_code = 500 }`},
-		{name: "resource attr eq", query: `{ resource.service.name = "checkout" }`},
-		{name: "span scoped attr eq", query: `{ span.http.method = "GET" }`},
-		{name: "intrinsic name", query: `{ name = "db-query" }`},
-		{name: "intrinsic kind", query: `{ kind = client }`},
-		{name: "intrinsic status", query: `{ status = error }`},
-		{name: "intrinsic duration gt", query: `{ duration > 500ms }`},
-		{name: "intrinsic duration gte", query: `{ duration >= 1s }`},
-		{name: "span attr gte", query: `{ .http.status_code >= 400 }`},
-		{name: "int less than", query: `{ .http.status_code < 500 }`},
-		{name: "int greater than", query: `{ .http.status_code > 450 }`},
-		{name: "string regex", query: `{ span.http.method =~ "G.*" }`},
-		{name: "array string contains", query: `{ span.tags = "b" }`},
-		{name: "array string no match", query: `{ span.tags = "zzz" }`},
-		{name: "array int contains", query: `{ span.ports = 443 }`},
+		{name: "matches equality on a span attribute", query: `{ .http.status_code = 500 }`},
+		{name: "matches a resource attribute", query: `{ resource.service.name = "checkout" }`},
+		{name: "matches a span-scoped attribute", query: `{ span.http.method = "GET" }`},
+		{name: "matches the name intrinsic", query: `{ name = "db-query" }`},
+		{name: "matches the kind intrinsic", query: `{ kind = client }`},
+		{name: "matches the status intrinsic", query: `{ status = error }`},
+		{name: "matches duration greater-than", query: `{ duration > 500ms }`},
+		{name: "matches duration greater-or-equal", query: `{ duration >= 1s }`},
+		{name: "matches a span attribute greater-or-equal", query: `{ .http.status_code >= 400 }`},
+		{name: "matches an int attribute less-than", query: `{ .http.status_code < 500 }`},
+		{name: "matches an int attribute greater-than", query: `{ .http.status_code > 450 }`},
+		{name: "matches a string attribute by regex", query: `{ span.http.method =~ "G.*" }`},
+		{name: "matches a member of a string array", query: `{ span.tags = "b" }`},
+		{name: "no match on a string-array non-member", query: `{ span.tags = "zzz" }`},
+		{name: "matches a member of an int array", query: `{ span.ports = 443 }`},
 		{name: "single-element array collapses to scalar", query: `{ span.zone = "z1" }`},
-		{name: "event attr eq", query: `{ event.exception.message = "boom" }`},
-		{name: "event intrinsic name", query: `{ event:name = "cache-miss" }`},
-		{name: "link attr eq", query: `{ link.rel = "child" }`},
-		{name: "instrumentation attr eq", query: `{ instrumentation.telemetry.sdk = "otel" }`},
-		{name: "instrumentation intrinsic name", query: `{ instrumentation:name = "authz-scope" }`},
+		{name: "matches an event attribute", query: `{ event.exception.message = "boom" }`},
+		{name: "matches the event:name intrinsic", query: `{ event:name = "cache-miss" }`},
+		{name: "matches a link attribute", query: `{ link.rel = "child" }`},
+		{name: "matches an instrumentation attribute", query: `{ instrumentation.telemetry.sdk = "otel" }`},
+		{name: "matches the instrumentation:name intrinsic", query: `{ instrumentation:name = "authz-scope" }`},
 		{name: "same-event AND", query: `{ event.exception.message = "boom" && event:name = "exception" }`},
 		{name: "cross-event AND no match", query: `{ event.exception.message = "boom" && event.level = "error" }`},
 		{name: "event dup key second value", query: `{ event.cache.key = "user:2" }`},
@@ -195,7 +195,7 @@ func TestFilterNilExistsMatrix(t *testing.T) {
 }
 
 // TestFilterUnscopedNilExistsMatrix covers unscoped `.abc = nil` / `.abc != nil` over the present/absent
-// matrix (abc present on B,C; absent on root,D). Exists (`!= nil`) matches a real vp5 search. Not-exists
+// matrix (abc present on B,C, absent on root,D). Exists (`!= nil`) matches a real vp5 search. Not-exists
 // (`= nil`) is a documented divergence: vp5 dispatches an unscoped attribute to span+resource and its
 // not-exists there matches EVERY span (a storage quirk), while the in-memory filter returns only the
 // spans actually missing abc. Both behaviors are pinned so a change to either is caught.

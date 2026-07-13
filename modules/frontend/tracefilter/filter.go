@@ -162,10 +162,10 @@ func ancestorIDs(idx *spanIndex, matched map[*tracev1.Span]struct{}) map[string]
 
 // spanIndex is a flattened view of a trace for matching and ancestor walks.
 type spanIndex struct {
-	spans []traceql.Span // proto-backed spans for the engine.
-	// Hierarchy is keyed by span id, so identical ids across batches merge parents and can over-include
+	spans []traceql.Span
+	// hierarchy is keyed by span id, so identical ids across batches merge parents and can over-include
 	// ancestors (rare, bad instrumentation). Matching is pointer-keyed, so matches stay exact.
-	parentsByID map[string][]string // span id -> distinct parent span ids of all spans sharing that id.
+	parentsByID map[string][]string
 	// truncatedSpans counts spans whose event x link fan-out hit maxBindingsPerSpan and was cut short.
 	truncatedSpans int
 }

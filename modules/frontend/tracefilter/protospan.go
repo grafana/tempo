@@ -11,14 +11,14 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 )
 
-// protoSpan is a proto-backed traceql.Span.
-// A span is presented to the engine as one protoSpan per (event, link) combination.
+// protoSpan adapts a span to traceql.Span. A span becomes one protoSpan per (event, link) pair so
+// event:/link: conditions correlate on a single element rather than a first-match across all of them.
 type protoSpan struct {
 	span            *tracev1.Span
 	resource        *resourcev1.Resource
 	instrumentation *commonv1.InstrumentationScope
-	event           *tracev1.Span_Event // nil when the span has no events.
-	link            *tracev1.Span_Link  // nil when the span has no links.
+	event           *tracev1.Span_Event
+	link            *tracev1.Span_Link
 }
 
 var _ traceql.Span = (*protoSpan)(nil)
@@ -146,8 +146,7 @@ func boundIntrinsicFor(span *tracev1.Span, scope *commonv1.InstrumentationScope,
 	}
 }
 
-// kindFromOTLP maps an OTLP span kind to the TraceQL Kind, mirroring the vparquet read path. Unknown
-// values fall through to the raw integer.
+// kindFromOTLP mirrors the vparquet read path's kind mapping so the filter and a real search agree.
 func kindFromOTLP(k tracev1.Span_SpanKind) traceql.Kind {
 	switch k {
 	case tracev1.Span_SPAN_KIND_UNSPECIFIED:
@@ -167,7 +166,7 @@ func kindFromOTLP(k tracev1.Span_SpanKind) traceql.Kind {
 	}
 }
 
-// statusFromOTLP maps an OTLP status code to the TraceQL Status, mirroring the vparquet read path.
+// statusFromOTLP mirrors the vparquet read path's status mapping so the filter and a real search agree.
 func statusFromOTLP(c tracev1.Status_StatusCode) traceql.Status {
 	switch c {
 	case tracev1.Status_STATUS_CODE_UNSET:
@@ -234,7 +233,6 @@ func countSpans(trace *tempopb.Trace) int {
 	return n
 }
 
-// findKV linearly scans kvs for name, staticFromKeyValue handles nil/array collapsing.
 func findKV(kvs []*commonv1.KeyValue, name string) (traceql.Static, bool) {
 	for _, kv := range kvs {
 		if kv.Key == name {

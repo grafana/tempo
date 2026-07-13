@@ -202,7 +202,7 @@ func TestApplyKeepHierarchyAddsAncestors(t *testing.T) {
 }
 
 func TestApplyKeepHierarchyMultipleBranches(t *testing.T) {
-	// A(root) -> {B -> D(match), C -> E}; expect A, B, D (C and E dropped).
+	// A(root) -> {B -> D(match), C -> E}. Expect A, B, D (C and E dropped).
 	trace := buildTrace([]testSpan{
 		{id: 1},
 		{id: 2, parent: 1},
@@ -220,7 +220,7 @@ func TestApplyKeepHierarchyMultipleBranches(t *testing.T) {
 }
 
 func TestApplyKeepHierarchyFollowsAllParentsOfDuplicateID(t *testing.T) {
-	// two spans share id 3 but have different parents (1 and 2); a match on id 3 must keep both
+	// two spans share id 3 but have different parents (1 and 2), so a match on id 3 must keep both
 	// ancestor branches, not an arbitrary last-writer one.
 	trace := buildTrace([]testSpan{
 		{id: 1},
@@ -312,7 +312,7 @@ func TestApplyMatchesOnIntrinsicStatus(t *testing.T) {
 }
 
 func TestApplyKeepHierarchyToleratesMissingParent(t *testing.T) {
-	// parent id 9 is absent; the walk must terminate and the phantom parent must not be emitted.
+	// parent id 9 is absent, so the walk must terminate and the phantom parent must not be emitted.
 	trace := buildTrace([]testSpan{
 		{id: 2, parent: 9, attrs: map[string]any{"match": true}},
 	}, nil)
@@ -341,7 +341,7 @@ func TestApplyKeepHierarchyTerminatesOnCycle(t *testing.T) {
 }
 
 func TestApplyToleratesNilAttributeValue(t *testing.T) {
-	// a span attribute with a nil Value is representable OTLP; it must not panic.
+	// a span attribute with a nil Value is representable OTLP, so it must not panic.
 	trace := &tempopb.Trace{
 		ResourceSpans: []*tracev1.ResourceSpans{
 			{

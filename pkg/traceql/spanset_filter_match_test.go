@@ -12,10 +12,10 @@ func TestCompileSpansetFilter(t *testing.T) {
 		query   string
 		wantErr error
 	}{
-		{name: "single attribute filter", query: `{ .http.status_code = 500 }`},
-		{name: "intrinsic filter", query: `{ status = error }`},
+		{name: "compiles a single span-attribute filter", query: `{ .http.status_code = 500 }`},
+		{name: "compiles an intrinsic filter", query: `{ status = error }`},
 		{name: "empty filter matches all", query: `{}`},
-		{name: "boolean expression", query: `{ .a = 1 && .b = 2 }`},
+		{name: "compiles a boolean AND", query: `{ .a = 1 && .b = 2 }`},
 		{name: "structural operator rejected", query: `{ .a } >> { .b }`, wantErr: errUnsupportedQuery},
 		{name: "pipeline with aggregate rejected", query: `{ .a } | count() > 1`, wantErr: errUnsupportedQuery},
 		{name: "multi-element spanset pipeline rejected", query: `{ .a } | { .b }`, wantErr: errUnsupportedQuery},
