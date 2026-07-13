@@ -72,7 +72,8 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceR
 					return nil, err
 				}
 				if filtered == nil {
-					filtered = &tempopb.Trace{} // a TraceFilter may return nil; treat it as empty.
+					// a TraceFilter may return nil, treat it as empty.
+					filtered = &tempopb.Trace{}
 				}
 				// a q filter that dropped spans returns a subset, not the full trace - flag it for the status below.
 				traceFiltered = countTraceSpans(filtered) < before
@@ -96,7 +97,7 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceR
 			}
 
 			resp.Trace = traceResult
-			// metrics report bytes inspected to pull the whole trace; filtering only trims output, so they are unchanged.
+			// metrics count bytes inspected to pull the whole trace, which filtering only trims from the response.
 			resp.Metrics = metricsCombiner.Metrics
 
 			switch {

@@ -313,7 +313,7 @@ func (errorFilter) Process(_ *tempopb.Trace) (*tempopb.Trace, error) {
 	return nil, assert.AnError
 }
 
-// nilFilter returns a nil trace; the combiner must treat it as empty, not panic.
+// nilFilter returns a nil trace, which the combiner must treat as empty rather than panic.
 type nilFilter struct{}
 
 func (nilFilter) Process(_ *tempopb.Trace) (*tempopb.Trace, error) { return nil, nil }
