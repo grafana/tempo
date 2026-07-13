@@ -1410,9 +1410,9 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 				newS.setResourceAttrs(rsAttrs)
 				newS.setInstrumentationAttrs(instrumentationAttrs)
 				newS.addSpanAttr(traceql.IntrinsicDurationAttribute, traceql.NewStaticDuration(time.Duration(s.DurationNano)))
-				newS.addSpanAttr(traceql.IntrinsicKindAttribute, traceql.NewStaticKind(traceql.KindFromOTLP(v1.Span_SpanKind(s.Kind))))
+				newS.addSpanAttr(traceql.IntrinsicKindAttribute, traceql.NewStaticKind(otlpKindToTraceqlKind(uint64(s.Kind))))
 				newS.addSpanAttr(traceql.IntrinsicNameAttribute, traceql.NewStaticString(s.Name))
-				newS.addSpanAttr(traceql.IntrinsicStatusAttribute, traceql.NewStaticStatus(traceql.StatusFromOTLP(v1.Status_StatusCode(s.StatusCode))))
+				newS.addSpanAttr(traceql.IntrinsicStatusAttribute, traceql.NewStaticStatus(otlpStatusToTraceqlStatus(uint64(s.StatusCode))))
 				newS.addSpanAttr(traceql.IntrinsicStatusMessageAttribute, traceql.NewStaticString(s.StatusMessage))
 
 				if s.HttpStatusCode != nil {

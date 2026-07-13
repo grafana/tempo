@@ -95,7 +95,7 @@ func boundIntrinsicFor(span *tracev1.Span, scope *commonv1.InstrumentationScope,
 		// unguarded like storage's DurationNano: on a skewed span (end<start) the uint64 subtraction wraps, same as a real search.
 		return traceql.NewStaticDuration(time.Duration(span.EndTimeUnixNano - span.StartTimeUnixNano)), true
 	case traceql.IntrinsicKind:
-		return traceql.NewStaticKind(traceql.KindFromOTLP(span.Kind)), true
+		return traceql.NewStaticKind(kindFromOTLP(span.Kind)), true
 	case traceql.IntrinsicSpanID:
 		return traceql.NewStaticString(util.SpanIDToHexString(span.SpanId)), true
 	case traceql.IntrinsicParentID:
@@ -104,7 +104,7 @@ func boundIntrinsicFor(span *tracev1.Span, scope *commonv1.InstrumentationScope,
 		if span.Status == nil {
 			return traceql.NewStaticStatus(traceql.StatusUnset), true
 		}
-		return traceql.NewStaticStatus(traceql.StatusFromOTLP(span.Status.Code)), true
+		return traceql.NewStaticStatus(statusFromOTLP(span.Status.Code)), true
 	case traceql.IntrinsicStatusMessage:
 		if span.Status == nil {
 			return traceql.NewStaticString(""), true
@@ -143,6 +143,41 @@ func boundIntrinsicFor(span *tracev1.Span, scope *commonv1.InstrumentationScope,
 		return traceql.NewStaticString(util.SpanIDToHexString(link.SpanId)), true
 	default:
 		return traceql.NewStaticNil(), false
+	}
+}
+
+// kindFromOTLP maps an OTLP span kind to the TraceQL Kind, mirroring the vparquet read path. Unknown
+// values fall through to the raw integer.
+func kindFromOTLP(k tracev1.Span_SpanKind) traceql.Kind {
+	switch k {
+	case tracev1.Span_SPAN_KIND_UNSPECIFIED:
+		return traceql.KindUnspecified
+	case tracev1.Span_SPAN_KIND_INTERNAL:
+		return traceql.KindInternal
+	case tracev1.Span_SPAN_KIND_SERVER:
+		return traceql.KindServer
+	case tracev1.Span_SPAN_KIND_CLIENT:
+		return traceql.KindClient
+	case tracev1.Span_SPAN_KIND_PRODUCER:
+		return traceql.KindProducer
+	case tracev1.Span_SPAN_KIND_CONSUMER:
+		return traceql.KindConsumer
+	default:
+		return traceql.Kind(k)
+	}
+}
+
+// statusFromOTLP maps an OTLP status code to the TraceQL Status, mirroring the vparquet read path.
+func statusFromOTLP(c tracev1.Status_StatusCode) traceql.Status {
+	switch c {
+	case tracev1.Status_STATUS_CODE_UNSET:
+		return traceql.StatusUnset
+	case tracev1.Status_STATUS_CODE_OK:
+		return traceql.StatusOk
+	case tracev1.Status_STATUS_CODE_ERROR:
+		return traceql.StatusError
+	default:
+		return traceql.Status(c)
 	}
 }
 
