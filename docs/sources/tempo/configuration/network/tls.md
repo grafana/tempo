@@ -179,6 +179,31 @@ otelcol.exporter.otlp "tempo" {
 }
 ```
 
+## Kafka client TLS
+
+Tempo uses Kafka as a durable write-ahead log in microservices mode. The distributor, block-builder, live-store, and metrics-generator all connect to Kafka as clients. To encrypt these connections, enable TLS on the Kafka client under `ingest.kafka`:
+
+```yaml
+ingest:
+  kafka:
+    address: kafka.example.com:9093
+    topic: tempo-traces
+    tls_enabled: true
+    tls:
+      tls_ca_path: /tls/ca.crt
+      tls_cert_path: /tls/tls.crt
+      tls_key_path: /tls/tls.key
+      tls_server_name: kafka.example.com
+      tls_insecure_skip_verify: false
+      tls_min_version: VersionTLS12
+```
+
+All fields in the `tls` block are optional. When `tls_ca_path` is omitted, the system root CA pool is used. Set `tls_cert_path` and `tls_key_path` together to send a client certificate (mTLS). If `tls_enabled` is `true` but the TLS configuration is invalid (for example, a CA file that doesn't exist), Tempo fails at startup rather than connecting without TLS.
+
+{{< admonition type="note" >}}
+`ingest.kafka.tls` configures TLS for the Kafka **client** used by Tempo's internal components. This is separate from `distributor.receivers.kafka.tls`, which configures TLS for the Kafka **receiver** (when traces are ingested from Kafka via the OpenTelemetry receiver).
+{{< /admonition >}}
+
 ## Storage and cache TLS
 
 ### S3 and S3-compatible storage

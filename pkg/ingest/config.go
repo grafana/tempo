@@ -12,6 +12,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/backoff"
+	dstls "github.com/grafana/dskit/crypto/tls"
 	"github.com/grafana/dskit/flagext"
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -42,6 +43,7 @@ var (
 	ErrInvalidMaxConsumerLagAtStartup    = errors.New("the configured max consumer lag at startup must greater or equal than the configured target consumer lag")
 	ErrInvalidProducerMaxRecordSizeBytes = fmt.Errorf("the configured producer max record size bytes must be a value between %d and %d", minProducerRecordDataBytesLimit, maxProducerRecordDataBytesLimit)
 	ErrInconsistentSASLCredentials       = errors.New("the SASL username and password must be both configured to enable SASL authentication")
+	ErrInvalidTLSConfig                  = errors.New("invalid Kafka TLS configuration")
 )
 
 type Config struct {
@@ -66,6 +68,9 @@ type KafkaConfig struct {
 
 	SASLUsername string         `yaml:"sasl_username"`
 	SASLPassword flagext.Secret `yaml:"sasl_password"`
+
+	TLSEnabled bool             `yaml:"tls_enabled"`
+	TLS        dstls.ClientConfig `yaml:"tls"`
 
 	ConsumerGroup                     string        `yaml:"consumer_group"`
 	ConsumerGroupOffsetCommitInterval time.Duration `yaml:"consumer_group_offset_commit_interval"`
@@ -103,6 +108,9 @@ func (cfg *KafkaConfig) RegisterFlagsWithPrefix(prefix string, f *flag.FlagSet) 
 
 	f.StringVar(&cfg.SASLUsername, prefix+".sasl-username", "", "The SASL username for authentication.")
 	f.Var(&cfg.SASLPassword, prefix+".sasl-password", "The SASL password for authentication.")
+
+	f.BoolVar(&cfg.TLSEnabled, prefix+".tls-enabled", false, "Enable TLS for connecting to the Kafka backend.")
+	cfg.TLS.RegisterFlagsWithPrefix(prefix, f)
 
 	f.StringVar(&cfg.ConsumerGroup, prefix+".consumer-group", "", "The consumer group used by the consumer to track the last consumed offset. The consumer group must be different for each ingester. If the configured consumer group contains the '<partition>' placeholder, it is replaced with the actual partition ID owned by the ingester. When empty (recommended), Tempo uses the ingester instance ID to guarantee uniqueness.")
 	f.DurationVar(&cfg.ConsumerGroupOffsetCommitInterval, prefix+".consumer-group-offset-commit-interval", time.Second, "How frequently a consumer should commit the consumed offset to Kafka. The last committed offset is used at startup to continue the consumption from where it was left.")
@@ -143,6 +151,12 @@ func (cfg *KafkaConfig) Validate() error {
 
 	if (cfg.SASLUsername == "") != (cfg.SASLPassword.String() == "") {
 		return ErrInconsistentSASLCredentials
+	}
+
+	if cfg.TLSEnabled {
+		if _, err := cfg.TLS.GetTLSConfig(); err != nil {
+			return fmt.Errorf("%w: %s", ErrInvalidTLSConfig, err)
+		}
 	}
 
 	return nil
