@@ -15,6 +15,18 @@ import (
 
 const serviceNameAttribute = "service.name"
 
+// maxSpanTreeDepth bounds how deep assignPaths recurses into the span
+// parent/child tree. That tree is built from attacker-controllable
+// parent_span_id values, so a trace shaped as a deep chain (each span's parent
+// is the previous span) would otherwise recurse one stack frame per span and
+// exhaust the goroutine stack, which is a fatal, unrecoverable runtime error
+// that crashes the whole process rather than failing the single request.
+// Legitimate traces nest far shallower than this cap, so it does not change
+// their output; spans below the cap are simply re-seeded as additional roots
+// by the second assignPaths pass in normalizeTrace, keeping every span
+// accounted for while bounding the recursion depth.
+const maxSpanTreeDepth = 10000
+
 type normalizedTrace struct {
 	meta  TraceMeta
 	spans []normalizedSpan
@@ -68,9 +80,10 @@ func normalizeTrace(trace *tempopb.Trace) (normalizedTrace, []Warning) {
 	out := normalizedTrace{meta: meta, spans: make([]normalizedSpan, 0, len(spans))}
 	visited := make(map[string]struct{}, len(spans))
 	// First assign paths from normal roots and orphans.
-	rootIndex := assignPaths(&out, children, children[""], nil, spanLogicalKey{}, false, 0, visited)
-	// Then assign remaining cycle-only/disconnected spans as extra roots.
-	assignPaths(&out, children, spans, nil, spanLogicalKey{}, false, rootIndex, visited)
+	rootIndex := assignPaths(&out, children, children[""], nil, spanLogicalKey{}, false, 0, visited, 0)
+	// Then assign remaining cycle-only/disconnected spans (including any left
+	// unvisited by the depth cap below) as extra roots.
+	assignPaths(&out, children, spans, nil, spanLogicalKey{}, false, rootIndex, visited, 0)
 	return out, warnings
 }
 
@@ -95,7 +108,7 @@ func flattenSpans(trace *tempopb.Trace) ([]spanWithResource, TraceMeta) {
 	return spans, meta
 }
 
-func assignPaths(out *normalizedTrace, children map[string][]spanWithResource, spans []spanWithResource, parentPath []int, parentIdentity spanLogicalKey, hasParent bool, startIndex int, visited map[string]struct{}) int {
+func assignPaths(out *normalizedTrace, children map[string][]spanWithResource, spans []spanWithResource, parentPath []int, parentIdentity spanLogicalKey, hasParent bool, startIndex int, visited map[string]struct{}, depth int) int {
 	nextIndex := startIndex
 	for _, span := range spans {
 		spanID := spanIDKey(span.span.GetSpanId())
@@ -111,7 +124,12 @@ func assignPaths(out *normalizedTrace, children map[string][]spanWithResource, s
 		logicalKey := logicalKey(span)
 		out.spans = append(out.spans, normalizeSpan(span, path, logicalKey, parentIdentity, hasParent))
 		visited[spanID] = struct{}{}
-		assignPaths(out, children, children[spanID], path, logicalKey, true, 0, visited)
+		// Bound recursion depth so an adversarially deep parent chain cannot
+		// blow the goroutine stack. Children left unvisited here are picked up
+		// as additional roots by the second assignPaths pass in normalizeTrace.
+		if depth+1 < maxSpanTreeDepth {
+			assignPaths(out, children, children[spanID], path, logicalKey, true, 0, visited, depth+1)
+		}
 	}
 	return nextIndex
 }
