@@ -51,7 +51,7 @@ func BenchmarkTraceFilterMatrix(b *testing.B) {
 				b.ReportAllocs()
 				b.ResetTimer()
 				for i := 0; i < b.N; i++ {
-					_ = vp5Search(b, trace, benchQuery)
+					_ = searchVp5Block(b, buildVp5Block(b, trace), benchQuery)
 				}
 			})
 		})

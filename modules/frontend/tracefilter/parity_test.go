@@ -30,6 +30,7 @@ import (
 //     (unscoped `.abc = nil` matching every span, array-member negation) which no evaluate path mirrors.
 func TestFilterParityWithNormalSearch(t *testing.T) {
 	trace, ids := makeParityTrace()
+	block := buildVp5Block(t, trace) // build once, reused across every case below
 
 	cases := []struct {
 		name       string
@@ -117,7 +118,7 @@ func TestFilterParityWithNormalSearch(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			// ground truth: a real vp5 search over an in-memory block (see vp5_search_test.go).
-			gt := vp5Search(t, trace, tc.query)
+			gt := searchVp5Block(t, block, tc.query)
 
 			f, err := Options{Query: tc.query}.Compile()
 			if tc.structural {
@@ -150,9 +151,10 @@ func TestFilterParityWithNormalSearch(t *testing.T) {
 // into the parity table and delete this test.
 func TestArrayNegationDivergesFromSearch(t *testing.T) {
 	trace, _ := makeParityTrace() // D has tags=[a,b,c], ports=[80,443]
+	block := buildVp5Block(t, trace)
 	for _, q := range []string{`{ span.tags != "a" }`, `{ span.ports != 80 }`, `{ span.tags !~ "a.*" }`} {
 		t.Run(q, func(t *testing.T) {
-			gt := vp5Search(t, trace, q)
+			gt := searchVp5Block(t, block, q)
 			f, err := Options{Query: q}.Compile()
 			require.NoError(t, err)
 			out, err := f.Process(trace)
@@ -167,6 +169,7 @@ func TestArrayNegationDivergesFromSearch(t *testing.T) {
 // assertions confirm each operator both includes the right spans and excludes the others.
 func TestFilterNilExistsMatrix(t *testing.T) {
 	trace, ids := makeParityTrace()
+	block := buildVp5Block(t, trace)
 	present := hexIDs(ids, "B", "C")   // spans that have span.abc
 	absent := hexIDs(ids, "root", "D") // spans that do not
 
@@ -180,7 +183,7 @@ func TestFilterNilExistsMatrix(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			gt := vp5Search(t, trace, tc.query)
+			gt := searchVp5Block(t, block, tc.query)
 			require.Equal(t, tc.want, gt, "ground-truth vp5 search disagrees with the present/absent matrix")
 			f, err := Options{Query: tc.query}.Compile()
 			require.NoError(t, err)
@@ -198,12 +201,13 @@ func TestFilterNilExistsMatrix(t *testing.T) {
 // spans actually missing abc. Both behaviors are pinned so a change to either is caught.
 func TestFilterUnscopedNilExistsMatrix(t *testing.T) {
 	trace, ids := makeParityTrace()
+	block := buildVp5Block(t, trace)
 	present := hexIDs(ids, "B", "C")   // spans that have abc
 	absent := hexIDs(ids, "root", "D") // spans that do not
 	all := hexIDs(ids, "root", "B", "C", "D")
 
 	t.Run("!= nil matches vp5 (present in, absent out)", func(t *testing.T) {
-		gt := vp5Search(t, trace, `{ .abc != nil }`)
+		gt := searchVp5Block(t, block, `{ .abc != nil }`)
 		require.Equal(t, present, gt, "vp5 unscoped exists returns the present spans")
 		f, err := Options{Query: `{ .abc != nil }`}.Compile()
 		require.NoError(t, err)
@@ -213,7 +217,7 @@ func TestFilterUnscopedNilExistsMatrix(t *testing.T) {
 	})
 
 	t.Run("= nil diverges: vp5 matches all, the filter matches only the absent", func(t *testing.T) {
-		gt := vp5Search(t, trace, `{ .abc = nil }`)
+		gt := searchVp5Block(t, block, `{ .abc = nil }`)
 		require.Equal(t, all, gt, "vp5 unscoped not-exists quirk matches every span")
 		f, err := Options{Query: `{ .abc = nil }`}.Compile()
 		require.NoError(t, err)

@@ -29,10 +29,8 @@ import (
 // high enough that ExecuteSearch never truncates: trace-by-id must return every matched span.
 const blockFilterMaxResults = 1_000_000
 
-// vp5Search builds an in-memory vparquet5 block from trace and runs traceql.Engine.ExecuteSearch, the
-// standard search path, returning the sorted matched hex span ids. Works with both *testing.T (parity)
-// and *testing.B (benchmark) via testing.TB.
-func vp5Search(tb testing.TB, trace *tempopb.Trace, query string) []string {
+// buildVp5Block builds and opens an in-memory vparquet5 block from trace. you can query it with searchVp5Block.
+func buildVp5Block(tb testing.TB, trace *tempopb.Trace) common.BackendBlock {
 	tb.Helper()
 	ctx := context.Background()
 
@@ -58,6 +56,15 @@ func vp5Search(tb testing.TB, trace *tempopb.Trace, query string) []string {
 
 	block, err := encoding.OpenBlock(newMeta, r)
 	require.NoError(tb, err)
+
+	return block
+}
+
+// searchVp5Block runs traceql.Engine.ExecuteSearch (the standard search path) against a prebuilt block
+// and returns the sorted matched hex span ids.
+func searchVp5Block(tb testing.TB, block common.BackendBlock, query string) []string {
+	tb.Helper()
+	ctx := context.Background()
 
 	fetcher := traceql.NewSpansetFetcherWrapperBoth(
 		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
