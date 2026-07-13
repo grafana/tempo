@@ -29,6 +29,8 @@ func TestCompileSpansetFilter(t *testing.T) {
 		{name: "instrumentation-scoped attribute supported", query: `{ instrumentation.foo = "x" }`},
 		{name: "attribute = nil supported (not-exists)", query: `{ span.foo = nil }`},
 		{name: "attribute != nil supported (exists)", query: `{ span.foo != nil }`},
+		{name: "invalid regex rejected", query: `{ span.foo =~ "[" }`, wantErr: errParseFilter},
+		{name: "intrinsic = nil rejected", query: `{ status = nil }`, wantErr: errParseFilter},
 		{name: "childCount intrinsic rejected", query: `{ span:childCount > 0 }`, wantErr: errUnsupportedIntrinsic},
 		{name: "nestedSetLeft intrinsic rejected", query: `{ nestedSetLeft > 0 }`, wantErr: errUnsupportedIntrinsic},
 		{name: "trace:rootName intrinsic rejected", query: `{ trace:rootName = "foo" }`, wantErr: errUnsupportedIntrinsic},
