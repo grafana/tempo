@@ -108,9 +108,9 @@ type Processor struct {
 type dimensionLabel struct {
 	name        string
 	label       string
-	clientName  string
+	clientKey   string
 	clientLabel string
-	serverName  string
+	serverKey   string
 	serverLabel string
 }
 
@@ -121,15 +121,22 @@ func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, fi
 
 	dimensionLabels := make([]dimensionLabel, len(cfg.Dimensions))
 	for i, dim := range cfg.Dimensions {
-		clientName := "client_" + dim
-		serverName := "server_" + dim
+		label := validation.SanitizeLabelName(dim)
+		clientKey, serverKey := dim, dim
+		clientLabel, serverLabel := label, label
+		if cfg.EnableClientServerPrefix {
+			clientKey = "client_" + dim
+			serverKey = "server_" + dim
+			clientLabel = validation.SanitizeLabelName(clientKey)
+			serverLabel = validation.SanitizeLabelName(serverKey)
+		}
 		dimensionLabels[i] = dimensionLabel{
 			name:        dim,
-			label:       validation.SanitizeLabelName(dim),
-			clientName:  clientName,
-			clientLabel: validation.SanitizeLabelName(clientName),
-			serverName:  serverName,
-			serverLabel: validation.SanitizeLabelName(serverName),
+			label:       label,
+			clientKey:   clientKey,
+			clientLabel: clientLabel,
+			serverKey:   serverKey,
+			serverLabel: serverLabel,
 		}
 	}
 
@@ -312,14 +319,10 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 func (p *Processor) upsertDimensions(client bool, m map[string]string, resourceAttr, spanAttr []*v1_common.KeyValue) {
 	for _, dim := range p.dimensionLabels {
 		if v, ok := processor_util.FindAttributeValue(dim.name, resourceAttr, spanAttr); ok {
-			if p.Cfg.EnableClientServerPrefix {
-				if client {
-					m[dim.clientName] = v
-				} else {
-					m[dim.serverName] = v
-				}
+			if client {
+				m[dim.clientKey] = v
 			} else {
-				m[dim.name] = v
+				m[dim.serverKey] = v
 			}
 		}
 	}
@@ -414,8 +417,8 @@ func (p *Processor) onComplete(e *store.Edge) {
 					continue
 				}
 			}
-			builder.Add(dimension.clientLabel, e.Dimensions[dimension.clientName])
-			builder.Add(dimension.serverLabel, e.Dimensions[dimension.serverName])
+			builder.Add(dimension.clientLabel, e.Dimensions[dimension.clientKey])
+			builder.Add(dimension.serverLabel, e.Dimensions[dimension.serverKey])
 		} else {
 			builder.Add(dimension.label, e.Dimensions[dimension.name])
 		}
