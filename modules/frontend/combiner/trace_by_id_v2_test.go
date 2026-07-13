@@ -223,6 +223,79 @@ func TestNewTraceByIDV2WithSpanPruning(t *testing.T) {
 	require.Equal(t, int64(3), test.SpanAttrInt(summary, "aggregation.span_count"))
 }
 
+// dropByNameFilter keeps every span except those named drop, standing in for a real q filter.
+type dropByNameFilter struct{ drop string }
+
+func (f dropByNameFilter) Process(tr *tempopb.Trace) (*tempopb.Trace, error) {
+	out := &tempopb.Trace{}
+	for _, rs := range tr.ResourceSpans {
+		var scopes []*tracev1.ScopeSpans
+		for _, ss := range rs.ScopeSpans {
+			var spans []*tracev1.Span
+			for _, s := range ss.Spans {
+				if s.Name != f.drop {
+					spans = append(spans, s)
+				}
+			}
+			if len(spans) > 0 {
+				scopes = append(scopes, &tracev1.ScopeSpans{Scope: ss.Scope, SchemaUrl: ss.SchemaUrl, Spans: spans})
+			}
+		}
+		if len(scopes) > 0 {
+			out.ResourceSpans = append(out.ResourceSpans, &tracev1.ResourceSpans{Resource: rs.Resource, SchemaUrl: rs.SchemaUrl, ScopeSpans: scopes})
+		}
+	}
+	return out, nil
+}
+
+// TestNewTraceByIDV2FilterThenPruning exercises TraceFilter and SpanPruningConfig together: the filter
+// runs first and drops the noise span, then pruning collapses the surviving SELECT leaves into a summary.
+func TestNewTraceByIDV2FilterThenPruning(t *testing.T) {
+	traceID := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	parent := test.MakeSpanPruningSpan(traceID, test.MakeSpanPruningSpanID(1, 0), nil, "parent", 0, 0)
+	spans := []*tracev1.Span{parent}
+	for i := byte(0); i < 3; i++ {
+		spans = append(spans, test.MakeSpanPruningSpan(traceID, test.MakeSpanPruningSpanID(2, i), parent.SpanId, "SELECT", 0, 0,
+			test.MakeAttribute("db.operation", "select")))
+	}
+	spans = append(spans, test.MakeSpanPruningSpan(traceID, test.MakeSpanPruningSpanID(3, 0), parent.SpanId, "noise", 0, 0))
+
+	traceResponse := &tempopb.TraceByIDResponse{
+		Trace:   test.WrapSpansAsTrace(spans...),
+		Metrics: &tempopb.TraceByIDMetrics{},
+	}
+	resBytes, err := proto.Marshal(traceResponse)
+	require.NoError(t, err)
+	response := http.Response{
+		StatusCode: 200,
+		Header:     map[string][]string{"Content-Type": {"application/protobuf"}},
+		Body:       io.NopCloser(bytes.NewReader(resBytes)),
+	}
+
+	cfg := spanpruningprocessor.NewFactory().CreateDefaultConfig().(*spanpruningprocessor.Config)
+	cfg.MinSpansToAggregate = 2
+	cfg.MaxParentDepth = 0
+
+	c := NewTraceByIDV2(100_000, api.HeaderAcceptProtobuf, nil, TraceByIDV2Options{
+		TraceFilter:       dropByNameFilter{drop: "noise"},
+		SpanPruningConfig: cfg,
+	})
+	require.NoError(t, c.AddResponse(MockResponse{&response}))
+
+	res, err := c.HTTPFinal()
+	require.NoError(t, err)
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	actual := &tempopb.TraceByIDResponse{}
+	require.NoError(t, proto.Unmarshal(body, actual))
+
+	// filter dropped "noise" (parent + 3 SELECT remain), pruning then collapsed the SELECTs: parent + summary.
+	require.Equal(t, 2, test.CountSpans(actual.Trace))
+	_, found := test.FindSpanPruningSummary(actual.Trace)
+	require.True(t, found, "surviving leaves must be pruned into a summary")
+	require.Equal(t, tempopb.PartialStatus_PARTIAL, actual.Status, "filter dropped a span, so PARTIAL")
+}
+
 // dropAllFilter drops every span and records whether it ran.
 type dropAllFilter struct {
 	called bool
@@ -305,6 +378,7 @@ func TestTraceByIDV2AppliesTraceFilter(t *testing.T) {
 		actual := &tempopb.TraceByIDResponse{}
 		require.NoError(t, proto.Unmarshal(body, actual))
 		require.Empty(t, actual.Trace.ResourceSpans)
+		require.Equal(t, tempopb.PartialStatus_PARTIAL, actual.Status, "nil-to-empty drops spans, so PARTIAL")
 	})
 
 	t.Run("filter error surfaces", func(t *testing.T) {
