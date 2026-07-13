@@ -140,10 +140,9 @@ jobs:
           docker manifest push "$IMAGE_NAME:$TAG"
 
   # Resolve the digest of each pushed multi-arch manifest so it can be signed by
-  # digest (not by tag). Covers tempo-vulture, tempo-query, and tempo-cli — the
-  # main `tempo` image is deliberately excluded for now (it's the most impactful
-  # and is rolled out separately). Emits a JSON map of component -> digest-pinned
-  # image ref that the matrixed sign job below looks up via fromJSON.
+  # digest (not by tag). Covers all published components. Emits a JSON map of
+  # component -> digest-pinned image ref that the matrixed sign job below looks
+  # up via fromJSON.
   resolve-digests:
     if: github.repository == 'grafana/tempo'
     needs: ['get-tag', 'manifest']
@@ -169,7 +168,7 @@ jobs:
           # jobs. Build a JSON object mapping each component to its digest-pinned
           # image reference, consumed by the matrixed sign job via fromJSON.
           images='{}'
-          for component in tempo-vulture tempo-query tempo-cli; do
+          for component in tempo tempo-vulture tempo-query tempo-cli; do
             IMAGE_NAME="${DOCKERHUB_MIRROR_REPOSITORY}/${component}"
             DIGEST="$(docker buildx imagetools inspect "$IMAGE_NAME:$TAG" --format '{{.Manifest.Digest}}')"
             if [[ "$DIGEST" != sha256:* ]]; then
@@ -193,7 +192,7 @@ jobs:
       # is independent and signed best-effort.
       fail-fast: false
       matrix:
-        component: [ tempo-vulture, tempo-query, tempo-cli ]
+        component: [ tempo, tempo-vulture, tempo-query, tempo-cli ]
     uses: ./.github/workflows/sign-and-attest.yml
     permissions:
       contents: read

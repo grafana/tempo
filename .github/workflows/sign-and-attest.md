@@ -56,10 +56,8 @@ attestations store.
 
 ## Coverage
 
-`docker.yml` invokes this workflow (matrixed) for **`tempo-vulture`, `tempo-query`,
-and `tempo-cli`**. The main **`tempo`** image is deliberately not signed here yet —
-it's the most impactful image and is rolled out separately once the rest are proven
-out in production.
+`docker.yml` invokes this workflow (matrixed) for every published component:
+**`tempo`, `tempo-vulture`, `tempo-query`, and `tempo-cli`**.
 
 ## Step flow
 
