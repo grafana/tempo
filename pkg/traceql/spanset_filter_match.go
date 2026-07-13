@@ -7,7 +7,7 @@ import (
 
 var (
 	errParseFilter               = errors.New("failed to parse TraceQL spanset filter")
-	errUnsupportedQuery          = errors.New("only a single TraceQL spanset filter is supported")
+	errUnsupportedQuery          = errors.New("only a single TraceQL filter is supported")
 	errUnsupportedIntrinsic      = errors.New("intrinsic is not supported by this filter")
 	errUnsupportedAttributeScope = errors.New("attribute scope is not supported by this filter")
 )
@@ -78,18 +78,18 @@ var matchSpansSupportedIntrinsics = map[Intrinsic]struct{}{
 func checkIfSupported(expr *RootExpr) (*SpansetFilter, error) {
 	pipeline, ok := expr.SinglePipeline()
 	if !ok {
-		return nil, fmt.Errorf("%w: not a full pipeline or metrics query", errUnsupportedQuery)
+		return nil, fmt.Errorf("%w: got a multi-stage pipeline or metrics query", errUnsupportedQuery)
 	}
 
 	// SinglePipeline allows one series/batch processor (e.g. rate()), so reject those explicitly.
 	if len(expr.SeriesProcessor) > 0 || len(expr.BatchSpanProcessor) > 0 {
-		return nil, fmt.Errorf("%w: not a metrics query", errUnsupportedQuery)
+		return nil, fmt.Errorf("%w: got a metrics query", errUnsupportedQuery)
 	}
 
 	// NeedsFullTrace flags structural operators and aggregates ({} >> {}, {} | count()). It does not
 	// inspect intrinsics inside the filter, so the allowlist below is still needed.
 	if NeedsFullTrace(pipeline) {
-		return nil, fmt.Errorf("%w: not structural operators or aggregates", errUnsupportedQuery)
+		return nil, fmt.Errorf("%w: got a structural or aggregate query", errUnsupportedQuery)
 	}
 
 	if len(pipeline.Elements) != 1 {

@@ -90,7 +90,7 @@ func (o Options) Compile() (*Filter, error) {
 
 	sf, err := traceql.CompileSpansetFilter(o.Query)
 	if err != nil {
-		return nil, fmt.Errorf("invalid %s filter: %w", QueryParam, err)
+		return nil, fmt.Errorf("invalid TraceQL filter: %w", err)
 	}
 
 	return &Filter{
