@@ -151,8 +151,14 @@ func boundIntrinsicFor(span *tracev1.Span, scope *commonv1.InstrumentationScope,
 // A span past the cap is truncated and may under-match, the safe trade against unbounded allocation on the read path.
 const maxBindingsPerSpan = 100_000
 
-// expandSpanBindings appends one protoSpan per (event, link) combination of span.
-func expandSpanBindings(dst []traceql.Span, span *tracev1.Span, resource *resourcev1.Resource, scope *commonv1.InstrumentationScope) []traceql.Span {
+// expandSpanBindings appends one protoSpan per (event, link) combination of span. When expandElements
+// is false (the filter reads no event/link scope) it appends a single binding, skipping the fan-out.
+// The bool return reports whether the fan-out was truncated at maxBindingsPerSpan.
+func expandSpanBindings(dst []traceql.Span, span *tracev1.Span, resource *resourcev1.Resource, scope *commonv1.InstrumentationScope, expandElements bool) ([]traceql.Span, bool) {
+	if !expandElements {
+		return append(dst, &protoSpan{span: span, resource: resource, instrumentation: scope}), false
+	}
+
 	eventCount := len(span.Events)
 	if eventCount == 0 {
 		eventCount = 1
@@ -169,7 +175,7 @@ func expandSpanBindings(dst []traceql.Span, span *tracev1.Span, resource *resour
 		}
 		for li := 0; li < linkCount; li++ {
 			if emitted >= maxBindingsPerSpan {
-				return dst // truncate pathological fan-out - may under-match this span, but bounds memory.
+				return dst, true // truncate pathological fan-out - may under-match this span, but bounds memory.
 			}
 			var l *tracev1.Span_Link
 			if len(span.Links) > 0 {
@@ -179,7 +185,7 @@ func expandSpanBindings(dst []traceql.Span, span *tracev1.Span, resource *resour
 			emitted++
 		}
 	}
-	return dst
+	return dst, false
 }
 
 // countSpans returns the total span count so newSpanIndex can pre-size idx.spans in one pass.
