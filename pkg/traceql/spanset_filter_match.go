@@ -20,6 +20,10 @@ func CompileSpansetFilter(query string) (*SpansetFilter, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", errParseFilter, err)
 	}
+	// validate before rewriteNotExists, like a normal search, so bad regexes and intrinsic=nil are a 400.
+	if err := Validate(expr); err != nil {
+		return nil, fmt.Errorf("%w: %w", errParseFilter, err)
+	}
 	filter, err := checkIfSupported(expr)
 	if err != nil {
 		return nil, err
