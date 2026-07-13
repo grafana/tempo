@@ -196,7 +196,7 @@ Parameters:
   Optional. Overrides how many ancestor levels above the aggregated leaf spans can also be aggregated. Use `0` to aggregate only leaves, or `-1` for unlimited depth. Only used when `span_pruning=true`.
   Default = `1`
 - `q = (TraceQL filter)`
-  Optional. A single TraceQL spanset filter (for example `{ .http.status_code = 500 }`) that returns only the matching spans, with the response status set to `PARTIAL` to signal a subset. Only a single `{ ... }` filter is supported: pipelines, structural operators, and metrics queries return a `400`, and an absent or empty `q` returns the full trace.
+  Optional. A single TraceQL spanset filter (for example `{ .http.status_code = 500 }`) that returns only the matching spans. When it drops spans, the response status is `PARTIAL` to signal a subset. Only a single `{ ... }` filter is supported: pipelines, structural operators, and metrics queries return a `400`, and an absent or empty `q` returns the full trace.
 - `keep_hierarchy = (bool)`
   Optional. When `true`, the response also includes the ancestor path from the root spans to each matched span, so the result is still a complete hierarchy that can be rendered as a waterfall. Defaults to `false` (only the spans matching `q`). Ignored when `q` isn't set.
 
