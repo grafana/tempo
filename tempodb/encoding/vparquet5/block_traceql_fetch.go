@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -1445,11 +1444,11 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 		case ColumnPathSpanName:
 			sp.addSpanAttr(traceql.IntrinsicNameAttribute, traceql.NewStaticString(unsafeToString(kv.Value.Bytes())))
 		case columnPathSpanStatusCode:
-			sp.addSpanAttr(traceql.IntrinsicStatusAttribute, traceql.NewStaticStatus(traceql.StatusFromOTLP(v1.Status_StatusCode(kv.Value.Uint64()))))
+			sp.addSpanAttr(traceql.IntrinsicStatusAttribute, traceql.NewStaticStatus(otlpStatusToTraceqlStatus(kv.Value.Uint64())))
 		case columnPathSpanStatusMessage:
 			sp.addSpanAttr(traceql.IntrinsicStatusMessageAttribute, traceql.NewStaticString(unsafeToString(kv.Value.Bytes())))
 		case columnPathSpanKind:
-			sp.addSpanAttr(traceql.IntrinsicKindAttribute, traceql.NewStaticKind(traceql.KindFromOTLP(v1.Span_SpanKind(kv.Value.Uint64()))))
+			sp.addSpanAttr(traceql.IntrinsicKindAttribute, traceql.NewStaticKind(otlpKindToTraceqlKind(kv.Value.Uint64())))
 		case columnPathSpanParentID:
 			sp.nestedSetParent = kv.Value.Int32()
 			if c.nestedSetParentExplicit {
