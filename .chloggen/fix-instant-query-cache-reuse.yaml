@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: traceql
+note: Instant metrics queries now correctly reuse the per-block job results cache.
+issues: [7602]
+subtext:
+user: mdisibio
