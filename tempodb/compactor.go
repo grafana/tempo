@@ -318,6 +318,21 @@ func (rw *readerWriter) CompactWithConfig(ctx context.Context, blockMetas []*bac
 		},
 	}
 
+	if rw.compactionNotifier != nil {
+		// capturedIDs is scoped to this one job's closure: a failed job's partial capture
+		// dies with the job instead of leaking into the next one, and concurrent jobs on
+		// this readerWriter can't interleave each other's state.
+		var capturedIDs [][]byte
+		opts.ObjectIDWritten = func(id common.ID) {
+			// Copy: the encoding layer's iterator buffers are pooled/reused.
+			capturedIDs = append(capturedIDs, append([]byte(nil), id...))
+		}
+		opts.OutputBlockCompleted = func(meta *backend.BlockMeta) {
+			rw.compactionNotifier.BlockCompacted(meta, capturedIDs) // hand off ownership
+			capturedIDs = nil                                       // reset for the next output block
+		}
+	}
+
 	compactor := enc.NewCompactor(opts)
 
 	// Compact selected blocks into a larger one

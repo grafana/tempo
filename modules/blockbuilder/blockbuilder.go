@@ -15,6 +15,7 @@ import (
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/pkg/bloomgatewayevents"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/encoding"
@@ -116,6 +117,8 @@ type BlockBuilder struct {
 	writer    tempodb.Writer
 	compactor tempodb.Compactor
 
+	publisher *bloomgatewayevents.Publisher
+
 	consumeStopped chan struct{}
 }
 
@@ -159,8 +162,21 @@ func New(
 	partitionRing ring.PartitionRingReader,
 	overrides Overrides,
 	store storage.Store,
+	reg prometheus.Registerer,
 ) (*BlockBuilder, error) {
 	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+
+	// Constructed once here, not per-tenant: every tenant's flush shares
+	// one Kafka client and partitioning scheme (DESIGN.md § Write path).
+	// Takes reg as a parameter (mirroring modules/backendworker.New) rather
+	// than reaching for prometheus.DefaultRegisterer directly, so this
+	// package's own tests can each pass a fresh prometheus.NewRegistry()
+	// instead of sharing one registry across every BlockBuilder constructed
+	// within the test binary.
+	publisher, err := bloomgatewayevents.New(cfg.Producer, logger, reg, bloomgatewayevents.WithTenantLimits(overrides.BloomGatewayPublishesPerSecond))
+	if err != nil {
 		return nil, err
 	}
 
@@ -173,6 +189,7 @@ func New(
 		reader:         store,
 		writer:         store,
 		compactor:      store,
+		publisher:      publisher,
 		consumeStopped: make(chan struct{}),
 	}
 
@@ -425,7 +442,8 @@ outer:
 					b.cfg.BlockConfig,
 					b.overrides,
 					b.wal,
-					b.enc)
+					b.enc,
+					b.publisher)
 				init = true
 
 				// TODO(mapno): This call creates a link to the parent span in this trace.
@@ -628,6 +646,7 @@ func (b *BlockBuilder) stopping(err error) error {
 		// 60s is the default terminationGracePeriod for the BlockBuilder's statefulSet
 		level.Error(b.logger).Log("msg", "failed to gracefully stop", "err", err)
 	}
+	b.publisher.Close()
 	if b.kafkaClient != nil {
 		b.kafkaClient.Close()
 	}

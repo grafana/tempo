@@ -17,6 +17,7 @@ import (
 type Overrides interface {
 	MaxBytesPerTrace(string) int
 	DedicatedColumns(string) backend.DedicatedColumns
+	BloomGatewayPublishesPerSecond(string) float64
 }
 
 const nameFlushed = "flushed"

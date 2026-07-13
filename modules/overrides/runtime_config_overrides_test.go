@@ -684,6 +684,55 @@ func TestNativeHistogramOverrides(t *testing.T) {
 	}
 }
 
+func TestBloomGatewayPublishesPerSecondOverride(t *testing.T) {
+	tests := []struct {
+		name                           string
+		defaultLimits                  Overrides
+		perTenantOverrides             *perTenantOverrides
+		bloomGatewayPublishesPerSecond float64
+	}{
+		{
+			name: "defaults only",
+			defaultLimits: Overrides{
+				Global: GlobalOverrides{
+					BloomGatewayPublishesPerSecond: 5,
+				},
+			},
+			bloomGatewayPublishesPerSecond: 5,
+		},
+		{
+			name: "per-tenant override wins over default",
+			defaultLimits: Overrides{
+				Global: GlobalOverrides{
+					BloomGatewayPublishesPerSecond: 5,
+				},
+			},
+			perTenantOverrides: &perTenantOverrides{
+				TenantLimits: map[string]*Overrides{
+					"user1": {
+						Global: GlobalOverrides{
+							BloomGatewayPublishesPerSecond: 20,
+						},
+					},
+				},
+			},
+			bloomGatewayPublishesPerSecond: 20,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			overrides, cleanup := createAndInitializeRuntimeOverridesManager(t, tt.defaultLimits, toYamlBytes(t, tt.perTenantOverrides))
+			defer cleanup()
+
+			assert.Equal(t, tt.bloomGatewayPublishesPerSecond, overrides.BloomGatewayPublishesPerSecond("user1"))
+
+			err := services.StopAndAwaitTerminated(context.TODO(), overrides)
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestMetricsGeneratorMaxCardinalityPerLabel(t *testing.T) {
 	tests := []struct {
 		name               string

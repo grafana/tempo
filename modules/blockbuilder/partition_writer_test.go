@@ -29,7 +29,7 @@ func getPartitionWriter(t *testing.T) *writer {
 	})
 	require.NoError(t, err)
 
-	return newPartitionSectionWriter(logger, partition, startOffset, startTime, cycleDuration, slackDuration, blockCfg, &mockOverrides{}, w, encoding.DefaultEncoding())
+	return newPartitionSectionWriter(logger, partition, startOffset, startTime, cycleDuration, slackDuration, blockCfg, &mockOverrides{}, w, encoding.DefaultEncoding(), &recordingPublisher{})
 }
 
 func TestPushBytes(t *testing.T) {

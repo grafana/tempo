@@ -84,6 +84,13 @@ type CompactionOptions struct {
 	DisconnectedTrace func()
 	RootlessTrace     func()
 	DedupedSpans      func(replFactor, dedupedSpans int)
+
+	// ObjectIDWritten fires after each object is successfully written to the current output block.
+	// Nil means no observer is attached; callers must nil-check before invoking.
+	ObjectIDWritten func(id ID)
+	// OutputBlockCompleted fires after an output block is durably completed (meta.json written).
+	// Nil means no observer is attached; callers must nil-check before invoking.
+	OutputBlockCompleted func(meta *backend.BlockMeta)
 }
 
 type Iterator interface {

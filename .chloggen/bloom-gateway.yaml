@@ -16,7 +16,7 @@ issues: []
 
 # (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
 subtext: |
-  This lands only the gateway service itself: block-builder/compactor producer hooks, the query-frontend client that would actually filter trace-by-id fan-out, and vulture shadow-mode validation are not yet wired up, so the gateway does not affect the read path until those follow. See `modules/bloomgateway/DESIGN.md` for the full design.
+  This lands the gateway service plus its producer hooks: block-builder, backend-worker (compaction output), and retention now publish AddChunk/Delete events into it, gated by a default-disabled `bloom_gateway_producer` config. The query-frontend client that would actually filter trace-by-id fan-out using the gateway's answers, and vulture shadow-mode validation, are not yet wired up, so the read path's behavior does not change until those follow. See `modules/bloomgateway/DESIGN.md` for the full design.
 
 # The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
 user: oleg-kozlyuk-grafana

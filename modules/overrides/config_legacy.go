@@ -84,7 +84,8 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsSpanOnlyFetch:          c.Read.MetricsSpanOnlyFetch,
 		SpanPruningAwareness:          c.Read.SpanPruningAwareness,
 
-		MaxBytesPerTrace: c.Global.MaxBytesPerTrace,
+		MaxBytesPerTrace:               c.Global.MaxBytesPerTrace,
+		BloomGatewayPublishesPerSecond: c.Global.BloomGatewayPublishesPerSecond,
 
 		DedicatedColumns: c.Storage.DedicatedColumns,
 		CostAttribution: CostAttributionOverrides{
@@ -175,6 +176,10 @@ type LegacyOverrides struct {
 	// MaxBytesPerTrace is enforced in the Ingester, Compactor, Querier (Search). It
 	//  is not used when doing a trace by id lookup.
 	MaxBytesPerTrace int `yaml:"max_bytes_per_trace" json:"max_bytes_per_trace"`
+
+	// BloomGatewayPublishesPerSecond mirrors Overrides.Global's field of the
+	// same name -- see its doc comment in config.go.
+	BloomGatewayPublishesPerSecond float64 `yaml:"bloom_gateway_publishes_per_second,omitempty" json:"bloom_gateway_publishes_per_second,omitempty"`
 
 	CostAttribution CostAttributionOverrides `yaml:"cost_attribution" json:"cost_attribution"`
 
@@ -385,7 +390,8 @@ func (l *LegacyOverrides) toNewLimits() *Overrides {
 		},
 		Forwarders: l.Forwarders,
 		Global: GlobalOverrides{
-			MaxBytesPerTrace: l.MaxBytesPerTrace,
+			MaxBytesPerTrace:               l.MaxBytesPerTrace,
+			BloomGatewayPublishesPerSecond: l.BloomGatewayPublishesPerSecond,
 		},
 		Storage: StorageOverrides{
 			DedicatedColumns: l.DedicatedColumns,

@@ -385,6 +385,7 @@ func (t *App) initGeneratorRingWatcher() (services.Service, error) {
 func (t *App) initBlockBuilder() (services.Service, error) {
 	t.cfg.BlockBuilder.IngestStorageConfig = t.cfg.Ingest
 	t.cfg.BlockBuilder.IngestStorageConfig.Kafka.ConsumerGroup = blockbuilder.ConsumerGroup
+	t.cfg.BlockBuilder.Producer = t.cfg.BloomGatewayProducer
 	// Block config and WAL version are always sourced from storage.trace.block.
 	t.cfg.BlockBuilder.BlockConfig.BlockConfig = *t.cfg.StorageConfig.Trace.Block
 	t.cfg.BlockBuilder.WAL.Version = t.cfg.StorageConfig.Trace.Block.Version
@@ -394,7 +395,7 @@ func (t *App) initBlockBuilder() (services.Service, error) {
 		t.cfg.BlockBuilder.AssignedPartitionsMap = map[string][]int32{t.cfg.BlockBuilder.InstanceID: {0}}
 	}
 
-	bb, err := blockbuilder.New(t.cfg.BlockBuilder, log.Logger, t.partitionRing, t.Overrides, t.store)
+	bb, err := blockbuilder.New(t.cfg.BlockBuilder, log.Logger, t.partitionRing, t.Overrides, t.store, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create block-builder: %w", err)
 	}
@@ -688,6 +689,8 @@ func (t *App) initBackendWorker() (services.Service, error) {
 		t.cfg.BackendWorker.BackendSchedulerAddr = fmt.Sprintf("127.0.0.1:%d", t.cfg.Server.GRPCListenPort)
 		level.Warn(log.Logger).Log("msg", "Scheduler address is empty in single binary mode. Attempting automatic worker configuration.", "address", t.cfg.BackendWorker.BackendSchedulerAddr)
 	}
+
+	t.cfg.BackendWorker.Producer = t.cfg.BloomGatewayProducer
 
 	worker, err := backendworker.New(t.cfg.BackendWorker, t.cfg.BackenSchedulerClient, t.store, t.Overrides, prometheus.DefaultRegisterer)
 	if err != nil {

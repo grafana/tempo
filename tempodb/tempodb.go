@@ -124,6 +124,10 @@ type Compactor interface {
 	RetainTenantWithConfig(ctx context.Context, tenantID string, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides)
 
 	RedactBlock(ctx context.Context, meta *backend.BlockMeta, tenantID string, traceIDs []common.ID) (rewrote bool, found int, newMeta *backend.BlockMeta, err error)
+
+	// SetCompactionNotifier registers a single observer for compaction/deletion events.
+	// Pass nil to detach. Not safe to call concurrently with a running compaction/retention cycle.
+	SetCompactionNotifier(n CompactionNotifier)
 }
 
 type CompactorSharder interface {
@@ -136,6 +140,16 @@ type CompactorOverrides interface {
 	CompactionDisabledForTenant(tenantID string) bool
 	MaxBytesPerTraceForTenant(tenantID string) int
 	MaxCompactionRangeForTenant(tenantID string) time.Duration
+}
+
+// CompactionNotifier lets a caller observe compaction output and physical block deletion
+// without tempodb depending on that caller's package (e.g. bloom gateway producer hooks).
+type CompactionNotifier interface {
+	// BlockCompacted delivers a completed compaction output block plus every trace ID written into it.
+	// The traceIDs slice and its contents are owned by the callee after the call.
+	BlockCompacted(meta *backend.BlockMeta, traceIDs [][]byte)
+	// BlockDeleted fires strictly after a successful physical ClearBlock.
+	BlockDeleted(meta *backend.CompactedBlockMeta)
 }
 
 type WriteableBlock interface {
@@ -165,6 +179,7 @@ type readerWriter struct {
 	compactorSharder      CompactorSharder
 	compactorOverrides    CompactorOverrides
 	compactorTenantOffset uint
+	compactionNotifier    CompactionNotifier
 
 	pollerShutdownCh chan struct{}
 
@@ -617,6 +632,11 @@ func (rw *readerWriter) EnableCompaction(ctx context.Context, cfg *CompactorConf
 
 func (rw *readerWriter) MarkBlockCompacted(tenantID string, blockID backend.UUID) error {
 	return rw.c.MarkBlockCompacted((uuid.UUID)(blockID), tenantID)
+}
+
+// SetCompactionNotifier implements Compactor.
+func (rw *readerWriter) SetCompactionNotifier(n CompactionNotifier) {
+	rw.compactionNotifier = n
 }
 
 // RedactBlock rewrites a block excluding the given trace IDs. If none of the trace IDs

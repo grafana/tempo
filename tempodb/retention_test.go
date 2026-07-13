@@ -2,6 +2,7 @@ package tempodb
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path"
 	"testing"
@@ -337,6 +338,9 @@ func testRetainWithConfig(t *testing.T, targetBlockVersion string) {
 	require.Len(t, preM, 10)
 	require.Len(t, preCm, 0)
 
+	notifier := &recordingNotifier{}
+	c.SetCompactionNotifier(notifier)
+
 	_, err = c.CompactWithConfig(ctx, metas, testTenantID, compactorCfg, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
@@ -353,6 +357,9 @@ func testRetainWithConfig(t *testing.T, targetBlockVersion string) {
 	require.Len(t, rw.blocklist.Metas(testTenantID), 1)
 	require.Len(t, rw.blocklist.CompactedMetas(testTenantID), 10)
 
+	// Marking blocks compacted (no physical deletion yet) must never fire BlockDeleted.
+	require.Empty(t, notifier.BlockDeletedCalls(), "marking blocks compacted must not fire BlockDeleted")
+
 	c.RetainWithConfig(ctx,
 		compactorCfg,
 		&mockSharder{},
@@ -363,6 +370,113 @@ func testRetainWithConfig(t *testing.T, targetBlockVersion string) {
 
 	require.Empty(t, rw.blocklist.Metas(testTenantID))
 	require.Empty(t, rw.blocklist.CompactedMetas(testTenantID))
+
+	// Every block that ever existed -- the 10 originals plus the 1 compacted output -- must
+	// end up physically cleared, and BlockDeleted must fire exactly once each, matching by ID.
+	expectedDeletedIDs := make(map[string]bool, len(preM)+1)
+	for _, m := range preM {
+		expectedDeletedIDs[m.BlockID.String()] = true
+	}
+	expectedDeletedIDs[postM[0].BlockID.String()] = true
+
+	deleted := notifier.BlockDeletedCalls()
+	require.Len(t, deleted, len(expectedDeletedIDs), "BlockDeleted must fire exactly once per physically cleared block")
+
+	gotDeletedIDs := make(map[string]bool, len(deleted))
+	for _, m := range deleted {
+		gotDeletedIDs[m.BlockID.String()] = true
+	}
+	require.Equal(t, expectedDeletedIDs, gotDeletedIDs)
+}
+
+// failingClearBlockCompactor wraps a backend.Compactor and makes ClearBlock fail for one
+// specific block ID, delegating everything else -- including ClearBlock for other blocks --
+// to the wrapped implementation.
+type failingClearBlockCompactor struct {
+	backend.Compactor
+	failBlockID uuid.UUID
+}
+
+func (f *failingClearBlockCompactor) ClearBlock(blockID uuid.UUID, tenantID string) error {
+	if blockID == f.failBlockID {
+		return errors.New("synthetic ClearBlock failure for test")
+	}
+	return f.Compactor.ClearBlock(blockID, tenantID)
+}
+
+// TestRetention_BlockDeleted_SkipsFailedClearBlock verifies that when ClearBlock fails for
+// one compacted block, BlockDeleted does not fire for it (and it stays in the compacted
+// blocklist for a future retry), while the other blocks are still cleared and notified
+// normally.
+func TestRetention_BlockDeleted_SkipsFailedClearBlock(t *testing.T) {
+	tempDir := t.TempDir()
+
+	r, w, c, err := New(&Config{
+		Backend: backend.Local,
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		Block: &common.BlockConfig{
+			BloomFP:             0.01,
+			BloomShardSizeBytes: 100_000,
+			Version:             encoding.DefaultEncoding().Version(),
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
+		},
+		BlocklistPoll: 0,
+	}, nil, log.NewNopLogger())
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	// EnableCompaction with BlocklistPoll: 0 just sets compactorCfg/Sharder/Overrides on rw
+	// without starting the background loops, so the explicit doRetention call below is the
+	// only retention pass that runs.
+	err = c.EnableCompaction(ctx, &CompactorConfig{
+		MaxCompactionRange:      time.Hour,
+		BlockRetention:          time.Hour,
+		CompactedBlockRetention: time.Hour,
+		RetentionConcurrency:    1,
+	}, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
+
+	r.EnablePolling(ctx, &mockJobSharder{}, false)
+
+	blocks := cutTestBlocks(t, w, testTenantID, 3, 10)
+	require.Len(t, blocks, 3)
+	failBlockID := (uuid.UUID)(blocks[1].BlockMeta().BlockID)
+
+	// The test spans are 1 second long; sleep so EndTime/CompactedTime fall before any
+	// nanosecond-scale retention cutoff below.
+	time.Sleep(time.Second)
+
+	rw := r.(*readerWriter)
+	rw.pollBlocklist(ctx)
+	require.Len(t, rw.blocklist.Metas(testTenantID), 3)
+
+	rw.c = &failingClearBlockCompactor{Compactor: rw.c, failBlockID: failBlockID}
+
+	notifier := &recordingNotifier{}
+	c.SetCompactionNotifier(notifier)
+
+	// A single retention pass both marks (BlockRetention) and physically clears
+	// (CompactedBlockRetention) at effectively-zero thresholds, matching TestRetainWithConfig.
+	rw.compactorCfg.BlockRetention = time.Nanosecond
+	rw.compactorCfg.CompactedBlockRetention = time.Nanosecond
+	rw.doRetention(ctx)
+
+	// The two healthy blocks are cleared and notified; the failing one is not.
+	deleted := notifier.BlockDeletedCalls()
+	require.Len(t, deleted, 2, "BlockDeleted must not fire for the block whose ClearBlock failed")
+	for _, m := range deleted {
+		require.NotEqual(t, failBlockID, (uuid.UUID)(m.BlockID), "the failed block must not be reported as deleted")
+	}
+
+	// The failed block remains in the compacted blocklist for a future retry.
+	compacted := rw.blocklist.CompactedMetas(testTenantID)
+	require.Len(t, compacted, 1)
+	require.Equal(t, failBlockID, (uuid.UUID)(compacted[0].BlockID))
 }
 
 // perRoleMockProvider wraps a separate mock cache per role so tests can verify

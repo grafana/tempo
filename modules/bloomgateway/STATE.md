@@ -5,19 +5,23 @@ remains the authoritative design; this file records only **what exists in the
 tree today**, how it was verified, and what is deliberately not done yet.
 
 - **Branch:** `bloom-gateway`
-- **Last updated:** 2026-07-10
-- **Committed?** No. Everything below is uncommitted in the working tree.
+- **Last updated:** 2026-07-13
+- **Committed?** Yes — core: `01000b97b`; producer hooks: follow-up commit on `bloom-gateway` (this file rides it).
 - **Build/test status (verified directly, not inferred):**
   - `go build ./...` — clean
-  - `go test -race -count=1 ./modules/bloomgateway/...` — pass (~10s)
+  - `go test -race -count=1 ./modules/bloomgateway/... ./pkg/bloomgatewayevents/...` — pass (~10s)
   - `go vet`, `gofmt -l`, `golangci-lint run --new-from-rev=$(git merge-base main HEAD)` — all clean (0 issues)
   - `pkg/deltauuid`, `tempodb/encoding/...` (incl. vparquet5 `-run TraceID`), `cmd/tempo/...` — pass
 
 ## Scope delivered (this iteration)
 
-The **core gateway service only** — the read/consume/maintain half of the
-design. It builds and runs (`-target=bloom-gateway`) but cannot see real data
-until the producer side (out of scope, below) publishes events.
+The **core gateway service** — the read/consume/maintain half of the design —
+plus this run's **producer hooks**, which publish real events into it from
+block-builder and backend-worker. The gateway builds and runs
+(`-target=bloom-gateway`) and, once `bloom_gateway_producer.enabled` is
+turned on (default off), sees real data. Nothing in the read path acts on
+that data yet, though: query-frontend integration (out of scope, below) is
+what would actually filter trace-by-id lookups using the gateway's answers.
 
 Implemented, mapped to DESIGN.md:
 
@@ -36,6 +40,18 @@ Implemented, mapped to DESIGN.md:
 - vparquet5-only trace-ID projection reader (`tempodb/encoding/...`).
 - Protobuf schema for both Kafka events and the query RPC.
 - `.chloggen/bloom-gateway.yaml` + allowlist entry.
+- **Producer hooks** (write path, DESIGN.md § Write path): the
+  `pkg/bloomgatewayevents` package (`config.go`/`chunk.go`/`publisher.go`/
+  `notifier.go`) turns a durable block's trace IDs into versioned
+  AddChunk/Delete events and publishes them. Block-builder tee-captures
+  trace IDs in `tenant_store.go`'s Flush path; backend-worker's compactor
+  bridges per-job `common.CompactionOptions` callbacks (`ObjectIDWritten` +
+  `OutputBlockCompleted`) through a closure into `tempodb`'s new
+  `CompactionNotifier`; `tempodb/retention.go`'s block-deletion path calls
+  the same notifier's `BlockDeleted`. Config surface:
+  `bloom_gateway_producer` / `bloom-gateway-producer.*`, default-disabled.
+  Metrics: `tempo_bloom_gateway_publishes_total{result="ok|dropped"}`,
+  `publish_duration_seconds`, `invalid_trace_ids_total`.
 
 ## Where things live
 
@@ -129,12 +145,6 @@ Two independent Opus review passes on top of the coding:
 The gateway is inert until these land; the proto/API is shaped so they need
 **no schema change**.
 
-- **Producer hooks.** Publish `AddChunk` after a block is durable
-  (block-builder `tenant_store.go` `WriteBlock`; compaction output in
-  backend-worker) and `Delete` after `ClearBlock` (`tempodb/retention.go`).
-  Reuse `pkg/ingest` writer plumbing; enforce K=16 partitions and a
-  broker-side `message.max.bytes` ≥ 4 MiB (the client 16 MB batch limit is not
-  enough). Until this lands, every test synthesizes events by hand.
 - **Query-frontend integration.** Ring-pooled client
   (`modules/livestore/client` is the template) + circuit breaker
   (`sony/gobreaker`, already vendored), rejection-set filtering in the
@@ -145,7 +155,11 @@ The gateway is inert until these land; the proto/API is shaped so they need
 - **vparquet3/vparquet4** trace-ID projection readers (v5-only today; other
   encodings ride the always-searched `LiveUnsupportedEncoding` path).
 - **Per-tenant guardrails/overrides** (rate limits, block-count ceilings) —
-  producer/QF-side, unbuildable without those halves.
+  producer-side publish rate limiting is now implemented (override
+  `bloom_gateway_publishes_per_second`, per-tenant, default unlimited; one
+  token per publish operation — one Add per block, one Delete — never per
+  record/chunk). QF-side query limits remain not done — unbuildable without
+  query-frontend integration (above).
 - **docker/e2e** under `integration/`.
 
 ### Deferred should-fixes (safe to ship without; cheap follow-ups)
@@ -173,7 +187,7 @@ compression. None are needed for correctness.
 
 ```
 go build ./...
-go test -race -count=1 ./modules/bloomgateway/... ./pkg/deltauuid/...
+go test -race -count=1 ./modules/bloomgateway/... ./pkg/bloomgatewayevents/... ./pkg/deltauuid/...
 go test -race -count=1 -run TraceID ./tempodb/encoding/...
 make gen-proto && make vendor-check        # proto/vendor drift (docker-based)
 go run ./cmd/tempo -target=bloom-gateway -config.file=<cfg>   # smoke

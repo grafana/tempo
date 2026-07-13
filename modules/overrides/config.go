@@ -197,6 +197,13 @@ type GlobalOverrides struct {
 	// MaxBytesPerTrace is enforced in the Ingester, Compactor, Querier (Search). It
 	//  is not used when doing a trace by id lookup.
 	MaxBytesPerTrace int `yaml:"max_bytes_per_trace,omitempty" json:"max_bytes_per_trace,omitempty"`
+
+	// BloomGatewayPublishesPerSecond caps how many bloom-gateway publish
+	// operations this tenant's producers (block-builder, backend-worker) may
+	// perform per second. One operation is one Add for an entire block
+	// (regardless of chunk count) or one Delete -- never a per-record/chunk
+	// count (pkg/bloomgatewayevents/ratelimit.go). 0 disables the limit.
+	BloomGatewayPublishesPerSecond float64 `yaml:"bloom_gateway_publishes_per_second,omitempty" json:"bloom_gateway_publishes_per_second,omitempty"`
 }
 
 type StorageOverrides struct {
@@ -391,6 +398,11 @@ func (c *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 	f.IntVar(&c.Defaults.Ingestion.MaxLocalTracesPerUser, "ingester.max-traces-per-user", 10e3, "Maximum number of active traces per user, per ingester. 0 to disable.")
 	f.IntVar(&c.Defaults.Ingestion.MaxGlobalTracesPerUser, "ingester.max-global-traces-per-user", 0, "Maximum number of active traces per user, across the cluster. 0 to disable.")
 	f.IntVar(&c.Defaults.Global.MaxBytesPerTrace, "ingester.max-bytes-per-trace", 50e5, "Maximum size of a trace in bytes.  0 to disable.")
+
+	// Bloom-gateway producer-side per-tenant guardrail (DESIGN.md § Multi-tenant
+	// cells): limits publish OPERATIONS -- one Add per block, one Delete --
+	// never records/chunks (pkg/bloomgatewayevents/ratelimit.go).
+	f.Float64Var(&c.Defaults.Global.BloomGatewayPublishesPerSecond, "bloom-gateway.publishes-per-second", 0, "Maximum bloom-gateway publish operations per second per tenant (one Add per block, one Delete; never per record/chunk). 0 to disable.")
 
 	// Querier limits
 	f.IntVar(&c.Defaults.Read.MaxBytesPerTagValuesQuery, "querier.max-bytes-per-tag-values-query", 10e5, "Maximum size of response for a tag-values query. Used mainly to limit large the number of values associated with a particular tag")

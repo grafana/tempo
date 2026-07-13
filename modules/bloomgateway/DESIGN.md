@@ -425,7 +425,7 @@ Gateway histograms/counters: `query_duration_seconds`, `query_candidates`, `resp
 
 Query-frontend (client-side): `bloom_gateway_client_requests_total{outcome="ok|timeout|error|circuit_open|not_active"}`, `bloom_gateway_client_duration_seconds`, `blocks_filtered_total` vs `blocks_searched_total` (measured pruning), and shadow-mode pruning/response-size stats. The completeness canary lives in vulture: `tempo_vulture_bloom_gateway_mismatch_total` (§ Rollout) — nonzero pages.
 
-Producer-side: `bloom_gateway_publishes_total{result="ok|retry|dropped"}`, `bloom_gateway_publish_duration_seconds`.
+Producer-side: `bloom_gateway_publishes_total{result="ok|dropped|rate_limited"}` (retries occur inside the client's bounded delivery budget and are not separately observable), `bloom_gateway_publish_duration_seconds`.
 
 ## Rollout and validation
 

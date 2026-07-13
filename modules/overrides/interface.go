@@ -34,6 +34,7 @@ type Interface interface {
 	MaxLocalTracesPerUser(userID string) int
 	MaxGlobalTracesPerUser(userID string) int
 	MaxBytesPerTrace(userID string) int
+	BloomGatewayPublishesPerSecond(userID string) float64
 	IngestionArtificialDelay(userID string) (time.Duration, bool)
 	IngestionRetryInfoEnabled(userID string) bool
 	MaxCompactionRange(userID string) time.Duration

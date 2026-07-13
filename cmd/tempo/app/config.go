@@ -23,6 +23,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/pkg/bloomgatewayevents"
 	"github.com/grafana/tempo/pkg/ingest"
 	internalserver "github.com/grafana/tempo/pkg/server"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -72,6 +73,7 @@ type Config struct {
 	BackendWorker          backendworker.Config           `yaml:"backend_worker,omitempty"`
 	LiveStore              livestore.Config               `yaml:"live_store,omitempty"`
 	BloomGateway           bloomgateway.Config            `yaml:"bloom_gateway,omitempty"`
+	BloomGatewayProducer   bloomgatewayevents.Config      `yaml:"bloom_gateway_producer,omitempty"`
 }
 
 func NewDefaultConfig() *Config {
@@ -160,6 +162,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.BackendWorker.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "backend-worker"), f)
 	c.LiveStore.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "live-store"), f)
 	c.BloomGateway.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "bloom-gateway"), f)
+	c.BloomGatewayProducer.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "bloom-gateway-producer"), f)
 }
 
 // MultitenancyIsEnabled checks if multitenancy is enabled
