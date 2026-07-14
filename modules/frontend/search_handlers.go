@@ -189,7 +189,7 @@ func logResult(ctx context.Context, logger log.Logger, tenantID string, duration
 	}
 
 	if resp == nil {
-		logWithShape(level.Info(logger), ctx,
+		recordResult(level.Info(logger), ctx,
 			"msg", "search response - no resp",
 			"tenant", tenantID,
 			"traceID", traceID,
@@ -201,7 +201,7 @@ func logResult(ctx context.Context, logger log.Logger, tenantID string, duration
 	}
 
 	if resp.Metrics == nil {
-		logWithShape(level.Info(logger), ctx,
+		recordResult(level.Info(logger), ctx,
 			"msg", "search response - no metrics",
 			"tenant", tenantID,
 			"traceID", traceID,
@@ -214,7 +214,7 @@ func logResult(ctx context.Context, logger log.Logger, tenantID string, duration
 		return
 	}
 
-	logWithShape(level.Info(logger), ctx,
+	recordResult(level.Info(logger), ctx,
 		"msg", "search response",
 		"tenant", tenantID,
 		"traceID", traceID,

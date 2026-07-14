@@ -2,6 +2,7 @@ package frontend
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -35,15 +36,74 @@ func acceptAllBlocks(_ *backend.BlockMeta) bool { return true }
 // Called from each sharder after starting its span.
 func setQueryShapeSpanAttrs(span trace.Span, qs pipeline.QueryShape) {
 	span.SetAttributes(
-		attribute.String("queryType", qs.Type),
-		attribute.Int("queryWeight", qs.Weight),
-		attribute.Int("querySubQueries", qs.SubQueries),
-		attribute.Int("queryConditions", qs.Conditions),
-		attribute.Int("queryRegexConditions", qs.RegexConditions),
-		attribute.Bool("queryHasOr", qs.HasOr),
-		attribute.Bool("queryNeedsFullTrace", qs.NeedsFullTrace),
-		attribute.Bool("querySelectAll", qs.SelectAll),
+		attribute.String("query_type", qs.Type),
+		attribute.Int("query_weight", qs.Weight),
+		attribute.Int("query_sub_queries", qs.SubQueries),
+		attribute.Int("query_conditions", qs.Conditions),
+		attribute.Int("query_regex_conditions", qs.RegexConditions),
+		attribute.Bool("query_has_or", qs.HasOr),
+		attribute.Bool("query_needs_full_trace", qs.NeedsFullTrace),
+		attribute.Bool("query_select_all", qs.SelectAll),
 	)
+}
+
+// recordResult logs the response fields and mirrors them as span attributes.
+//
+//nolint:revive // logger first to match logWithShape's calling convention: recordResult(level.Info(logger), ctx, ...)
+func recordResult(logger log.Logger, ctx context.Context, fields ...any) {
+	logWithShape(logger, ctx, fields...)
+	setSpanAttrsWithShape(ctx, fields...)
+}
+
+// setSpanAttrsWithShape mirrors response log fields plus query-shape fields as
+// attributes on the span in ctx, if one is recording.
+func setSpanAttrsWithShape(ctx context.Context, fields ...any) {
+	span := trace.SpanFromContext(ctx)
+	if !span.IsRecording() {
+		return
+	}
+
+	attrs := make([]attribute.KeyValue, 0, len(fields)/2)
+	for i := 0; i+1 < len(fields); i += 2 {
+		key, ok := fields[i].(string)
+		if !ok || key == "msg" || key == "traceID" { // log field keys that are redundant on a span
+			continue
+		}
+		if attr, ok := spanAttr(key, fields[i+1]); ok {
+			attrs = append(attrs, attr)
+		}
+	}
+	span.SetAttributes(attrs...)
+
+	if qs, ok := pipeline.QueryShapeFromContext(ctx); ok {
+		setQueryShapeSpanAttrs(span, qs)
+	}
+}
+
+// spanAttr converts one log field value to a span attribute. ok=false for nil values.
+func spanAttr(key string, val any) (attribute.KeyValue, bool) {
+	switch v := val.(type) {
+	case nil:
+		return attribute.KeyValue{}, false
+	case string:
+		return attribute.String(key, v), true
+	case bool:
+		return attribute.Bool(key, v), true
+	case int:
+		return attribute.Int(key, v), true
+	case int64:
+		return attribute.Int64(key, v), true
+	case uint32:
+		return attribute.Int64(key, int64(v)), true
+	case uint64:
+		return attribute.Int64(key, int64(v)), true
+	case float64:
+		return attribute.Float64(key, v), true
+	case error:
+		return attribute.String(key, v.Error()), true
+	default:
+		return attribute.String(key, fmt.Sprint(v)), true
+	}
 }
 
 // logWithShape emits a per-query response log line with query-shape fields
