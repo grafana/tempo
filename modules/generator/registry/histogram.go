@@ -149,6 +149,10 @@ func (h *histogram) ObserveBorrowed(lbls *BorrowedLabels, value float64, traceID
 	h.observeWithExemplarWithHashAt(lbls.Labels, lbls.Hash, value, newHistogramTraceIDBytesExemplar(traceID), multiplier, timeMs)
 }
 
+func (h *histogram) ObserveBorrowedWithEncodedTraceID(lbls *BorrowedLabels, value float64, traceID string, multiplier float64, timeMs int64) {
+	h.observeWithExemplarWithHashAt(lbls.Labels, lbls.Hash, value, newHistogramStringExemplar(traceID), multiplier, timeMs)
+}
+
 func (h *histogram) observeWithExemplarWithHashAt(lbls labels.Labels, hash uint64, value float64, ex histogramExemplar, multiplier float64, timeMs int64) {
 	h.seriesDemand.Insert(hash)
 
