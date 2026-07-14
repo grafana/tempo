@@ -3,6 +3,7 @@ package bloomgateway
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/grafana/tempo/tempodb/backend"
@@ -65,6 +66,14 @@ type Registry struct {
 	// Representation notes) — so a handle value, once handed out, is
 	// never handed out again for the lifetime of this Registry.
 	nextHandle Handle
+
+	// liveCount backs the blocks_live gauge (metrics.go): the number of
+	// blocks currently in the registry's "live" view (BlockLive or
+	// BlockLiveUnsupportedEncoding). Maintained incrementally at CommitLive's
+	// and MarkDeleted's own exactly-once state-transition points (see their
+	// doc comments) rather than derived from a Range walk over the
+	// ~100k-block registry on every scrape.
+	liveCount atomic.Int64
 }
 
 // NewRegistry returns an empty registry. nextHandle starts at
@@ -165,6 +174,16 @@ func (r *Registry) CommitLive(uuid backend.UUID, unsupportedEncoding bool) error
 		} else {
 			b.State = BlockLive
 		}
+		// blocks_live's exactly-once increment point. BlockPending is
+		// BlockState's zero value, set only once (GetOrCreate), and this
+		// switch has no branch that ever sets a block back to BlockPending
+		// -- so this case fires at most once per block's lifetime, entering
+		// the registry's "live" view (BlockLive or
+		// BlockLiveUnsupportedEncoding, blocksLive's Help text) exactly
+		// once. The Live<->LiveUnsupportedEncoding branches below only ever
+		// move BETWEEN the two already-"live" states, so they must not
+		// touch this counter.
+		r.liveCount.Add(1)
 		return nil
 
 	case BlockLive:
@@ -205,9 +224,31 @@ func (r *Registry) MarkDeleted(uuid backend.UUID) error {
 		return nil
 	}
 
+	// blocks_live's exactly-once decrement point, gated by the guard just
+	// above (b.State == BlockDeleted -> return nil): this assignment runs at
+	// most once per block's lifetime, matching CommitLive's own exactly-once
+	// increment. wasLive must be captured before the state is overwritten
+	// below, and must only trigger the decrement if the block was actually
+	// counted live in the first place -- a block deleted while still
+	// BlockPending (a Delete racing ahead of a still-chunking Add, § Event
+	// processing) was never counted, and decrementing here would underflow
+	// the gauge.
+	wasLive := b.State == BlockLive || b.State == BlockLiveUnsupportedEncoding
+
 	b.State = BlockDeleted
 	b.DeletedAt = time.Now()
+	if wasLive {
+		r.liveCount.Add(-1)
+	}
 	return nil
+}
+
+// LiveCount returns the current number of registry blocks in the "live"
+// view (BlockLive or BlockLiveUnsupportedEncoding) -- the blocks_live
+// gauge's source (metrics.go), maintained incrementally by CommitLive and
+// MarkDeleted rather than derived from a Range walk over the registry.
+func (r *Registry) LiveCount() int64 {
+	return r.liveCount.Load()
 }
 
 // LookupHandle returns the block h was interned for, if any.
@@ -308,6 +349,7 @@ func (r *Registry) Import(blocks []Block) error {
 	byUUID := make(map[backend.UUID]*Block, len(blocks))
 	byHandle := make(map[Handle]*Block, len(blocks))
 	nextHandle := InvalidHandle + 1
+	var liveCount int64
 
 	for i := range blocks {
 		b := blocks[i]
@@ -327,6 +369,13 @@ func (r *Registry) Import(blocks []Block) error {
 		if b.Handle >= nextHandle {
 			nextHandle = b.Handle + 1
 		}
+		// liveCount is recomputed wholesale here rather than incrementally:
+		// Import bulk-replaces state built outside CommitLive/MarkDeleted's
+		// own exactly-once transition points (a snapshot's Blocks already
+		// carry their final State), so there is nothing to increment from.
+		if b.State == BlockLive || b.State == BlockLiveUnsupportedEncoding {
+			liveCount++
+		}
 	}
 
 	r.mu.Lock()
@@ -334,6 +383,7 @@ func (r *Registry) Import(blocks []Block) error {
 	r.byUUID = byUUID
 	r.byHandle = byHandle
 	r.nextHandle = nextHandle
+	r.liveCount.Store(liveCount)
 	return nil
 }
 

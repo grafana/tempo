@@ -45,6 +45,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -105,6 +106,17 @@ const (
 	// doc comment below for why this is computed on demand rather than
 	// tracked by a background loop).
 	consumerLagCheckTimeout = 10 * time.Second
+
+	// statsRefreshInterval paces runStatsLoop (below), which populates the
+	// state gauges (blocks_live, entries_total, owned_leaves, snapshot_age_
+	// seconds, miss_fp_rate_estimate) from cheap, already-maintained
+	// sources -- atomic counters on Directory/Registry and the last-
+	// snapshot timestamp -- never a directory walk. Not exposed via
+	// Config: neither DESIGN.md nor the plan calls for a knob here, and
+	// this loop's cost is independent of cell size (see refreshStats), so
+	// a fixed cadence is enough, matching this file's own
+	// ownershipReconcileInterval precedent.
+	statsRefreshInterval = 15 * time.Second
 )
 
 // ownershipReconcileInterval paces runOwnershipWatch (see the package doc
@@ -126,6 +138,7 @@ type BloomGateway struct {
 	cfg        Config
 	instanceID string
 	logger     log.Logger
+	metrics    *metrics
 
 	seed            []byte
 	seedFingerprint uint64
@@ -152,6 +165,22 @@ type BloomGateway struct {
 	// seeded once by reconcileStartup) -- touched only from that one
 	// goroutine, so it needs no lock of its own.
 	lastOwnedRanges []LeafRange
+
+	// lastSnapshotUnixNano is the UnixNano of this instance's most recent
+	// successful snapshot Load (reconcileStartup) or Save (saveSnapshot) --
+	// the snapshot_age_seconds gauge's source (§ Metrics: "age of the most
+	// recently loaded or saved snapshot"). Zero is a sentinel for "no
+	// snapshot yet this process" (matches Handle's InvalidHandle=0 and
+	// BlockState's BlockPending-is-zero-value conventions elsewhere in this
+	// package): a real UnixNano timestamp for "now" is never legitimately
+	// zero, so the two cases are unambiguous. refreshStats reports NaN for
+	// the zero case rather than 0 -- 0 would read as "just snapshotted",
+	// the opposite of the truth, and would also make a naive `snapshot_age_
+	// seconds > threshold` alert wrongly stay quiet forever on an instance
+	// that has NEVER produced a snapshot (e.g. snapshotting disabled via
+	// Config.Snapshot.Interval <= 0) instead of the intended "no data yet"
+	// treatment a NaN gives that same alert expression.
+	lastSnapshotUnixNano atomic.Int64
 
 	// ctx/cancel is this instance's own long-lived background context
 	// (live-store's own New()-time context.WithCancel pattern), decoupled
@@ -233,6 +262,7 @@ func New(cfg Config, instanceID string, backendReader backend.Reader, logger log
 		cfg:                 cfg,
 		instanceID:          instanceID,
 		logger:              logger,
+		metrics:             m,
 		seed:                seed,
 		seedFingerprint:     seedFingerprint,
 		ringManager:         ringManager,
@@ -328,6 +358,7 @@ func (g *BloomGateway) starting(ctx context.Context) (err error) {
 		g.runReconciliationLoop,
 		g.runOwnershipWatch,
 		g.runSnapshotTicker,
+		g.runStatsLoop,
 	} {
 		loop := loop
 		g.bgWG.Add(1)
@@ -377,6 +408,11 @@ func (g *BloomGateway) reconcileStartup() (map[int32]int64, error) {
 	}
 
 	level.Info(g.logger).Log("msg", "bloomgateway: loaded snapshot", "path", g.cfg.Snapshot.Path, "complete_leaves", len(state.CompleteLeaves), "constructing_ranges", len(state.ConstructingRanges))
+	// snapshot_age_seconds' age is measured from this instant, not from
+	// whatever the snapshot's own on-disk contents claim (the format has no
+	// "saved at" field at all) -- DESIGN.md's own "loaded OR saved" wording,
+	// § Metrics.
+	g.lastSnapshotUnixNano.Store(time.Now().UnixNano())
 
 	if err := g.reg.Import(state.Blocks); err != nil {
 		return nil, fmt.Errorf("importing registry from snapshot: %w", err)
@@ -763,6 +799,10 @@ func (g *BloomGateway) saveSnapshot() error {
 		level.Warn(g.logger).Log("msg", "bloomgateway: snapshot: save failed", "err", err)
 		return err
 	}
+	// snapshot_age_seconds' other update point (see reconcileStartup's Load
+	// counterpart above) -- DESIGN.md's own "age of the most recently
+	// loaded OR saved snapshot" wording, § Metrics.
+	g.lastSnapshotUnixNano.Store(time.Now().UnixNano())
 	level.Info(g.logger).Log("msg", "bloomgateway: snapshot saved", "path", g.cfg.Snapshot.Path)
 	return nil
 }
@@ -837,6 +877,76 @@ func coalesceConsecutive(idxs []uint32) []LeafRange {
 		start, prev = idx, idx
 	}
 	return append(out, LeafRange{Start: start, End: prev + 1})
+}
+
+// runStatsLoop periodically populates the state gauges that were previously
+// declared in metrics.go but never populated by any production code:
+// blocks_live, entries_total, owned_leaves{state}, snapshot_age_seconds,
+// miss_fp_rate_estimate. Every source refreshStats reads is either an
+// atomic counter (Directory.EntryTotal/LeafStateCounts, Registry.LiveCount)
+// or a plain field (lastSnapshotUnixNano) -- NEVER a directory walk. That
+// distinction is load-bearing, not a style preference: a prior defect
+// (Phase C #5, STATE.md) was exactly an O(2^D) directory walk on a
+// 1-second ticker (runOwnershipWatch, before its fix); this loop must not
+// reintroduce that shape on ITS tick, so every value it reads has to
+// already be maintained incrementally elsewhere (directory.go, registry.go)
+// before this loop can simply read it.
+func (g *BloomGateway) runStatsLoop(ctx context.Context) {
+	g.refreshStats() // populate immediately, not just after the first tick
+	ticker := time.NewTicker(statsRefreshInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			g.refreshStats()
+		}
+	}
+}
+
+// refreshStats sets every gauge runStatsLoop is responsible for from its
+// cheap, already-maintained source. See each gauge's own comment below for
+// why its particular source is safe to read on a 15s cadence.
+func (g *BloomGateway) refreshStats() {
+	// blocks_live: Registry's own incrementally-maintained live-block
+	// counter (registry.go's CommitLive/MarkDeleted exactly-once
+	// transition points), not a Range walk over the ~100k-block registry.
+	g.metrics.blocksLive.Set(float64(g.reg.LiveCount()))
+
+	// entries_total: Directory's atomic counter, self-healed once per
+	// complete Sweeper.Pass (sweep.go) against any incremental-accounting
+	// drift -- see Directory.EntryTotal's own doc comment.
+	entries := g.dir.EntryTotal()
+	g.metrics.entriesTotal.Set(float64(entries))
+
+	// owned_leaves{state}: Directory's own leaf-state transition counters
+	// (BeginConstructing/Complete/Shed/Abandon), the same bookkeeping
+	// CheckReady's readiness gate already relies on existing per-leaf
+	// (dir.State), just aggregated instead of scanned.
+	constructing, complete := g.dir.LeafStateCounts()
+	g.metrics.ownedLeaves.WithLabelValues("constructing").Set(float64(constructing))
+	g.metrics.ownedLeaves.WithLabelValues("complete").Set(float64(complete))
+
+	// snapshot_age_seconds: NaN before this process has ever loaded or
+	// saved a snapshot (lastSnapshotUnixNano's documented zero sentinel,
+	// see its field comment) rather than 0 -- 0 would misreport "just
+	// snapshotted" and would make a naive `snapshot_age_seconds >
+	// threshold` alert wrongly silent on an instance that has produced no
+	// snapshot at all (including one with snapshotting disabled via
+	// Config.Snapshot.Interval <= 0), instead of correctly reporting "no
+	// data".
+	if nanos := g.lastSnapshotUnixNano.Load(); nanos == 0 {
+		g.metrics.snapshotAgeSeconds.Set(math.NaN())
+	} else {
+		g.metrics.snapshotAgeSeconds.Set(time.Since(time.Unix(0, nanos)).Seconds())
+	}
+
+	// miss_fp_rate_estimate: DESIGN.md § Sizing's own closed-form estimate,
+	// pairs / 2^(d+f) -- entries_total already IS this instance's pair
+	// count (one leaf entry per (trace, live block) pair, leaf.go), so this
+	// is a single derived line, free after the sources above.
+	g.metrics.missFPRateEstimate.Set(float64(entries) / math.Pow(2, float64(g.cfg.D)+float64(g.cfg.F)))
 }
 
 // consumerLagFn adapts consumerLag to reconciliation.go's lagFn func()

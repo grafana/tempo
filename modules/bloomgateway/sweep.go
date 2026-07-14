@@ -138,6 +138,11 @@ func (s *Sweeper) Pass(ctx context.Context) PassStats {
 	}
 
 	var stats PassStats
+	// recount independently re-derives entries_total's true value from this
+	// same walk (see the SetEntryTotal call below for why): every leaf this
+	// walk visits contributes its POST-compaction length exactly once,
+	// whether or not it was actually compacted this pass.
+	var recount int64
 	walkComplete := true
 	s.dir.Range(func(idx uint32, _ LeafState) bool {
 		if ctx.Err() != nil {
@@ -157,10 +162,20 @@ func (s *Sweeper) Pass(ctx context.Context) PassStats {
 		// before or fully after this compaction, never lost across it.
 		visited, removed, compacted := s.dir.CompactLeaf(idx, keep)
 		if !compacted {
-			return true // nil/constructing slot: left for a later pass
+			// nil (never reached; Range skips LeafNil) or constructing: left
+			// for a later pass to compact, but its current length still
+			// needs to feed the recount below -- CompactLeaf only reports a
+			// length for leaves it actually compacted. EntryLen re-locks the
+			// stripe to read it safely (Directory.Leaf's returned pointer is
+			// not safe to call .Len() on after its own lock is released,
+			// since a concurrent InsertLive could be appending to it).
+			n, _ := s.dir.EntryLen(idx)
+			recount += int64(n)
+			return true
 		}
 		stats.EntriesVisited += visited
 		stats.EntriesRemoved += removed
+		recount += int64(visited - removed)
 		return true
 	})
 
@@ -171,11 +186,26 @@ func (s *Sweeper) Pass(ctx context.Context) PassStats {
 	// entries for a deleted block may still be present; reclaiming the
 	// registry tombstone now would reopen the resurrection-by-replay hole
 	// (§7 invariant #9). Defer all reclamation to a future, complete pass.
+	//
+	// The same incompleteness disqualifies recount: it only reflects the
+	// leaves actually visited before cancellation, so applying it now would
+	// UNDERCOUNT entries_total for every leaf past the cut-off point. Only a
+	// pass that walked every leaf is a trustworthy full recount.
 	if !walkComplete {
 		s.metrics.sweepPassDurationSeconds.Observe(time.Since(passStart).Seconds())
 		s.metrics.sweepEntriesRemovedTotal.Add(float64(stats.EntriesRemoved))
 		return stats
 	}
+
+	// Self-heal entries_total against any drift the incremental
+	// Directory-level accounting (InsertLive/Complete/Shed/Abandon/
+	// CompactLeaf/Swap) might have accumulated from a missed accounting
+	// path: this pass just walked every owned leaf and independently summed
+	// its true current length above, so it is authoritative for this
+	// instant, regardless of what the atomic counter separately tracked.
+	// Deliberately a Set, not an Add: a full recount replaces the estimate
+	// rather than nudging it.
+	s.dir.SetEntryTotal(recount)
 
 	now := time.Now()
 	for _, ts := range tombstones {

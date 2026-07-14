@@ -421,3 +421,93 @@ func TestRegistry_ImportReplacesWholesale(t *testing.T) {
 	_, ok = r.LookupHandle(pre.Handle)
 	assert.False(t, ok, "pre's handle must not survive Import either, since it belonged to a block Import discarded")
 }
+
+// TestRegistry_LiveCount_TracksCommitAndDelete is the named test for
+// blocks_live's exactly-once transition points (CommitLive's BlockPending
+// branch, MarkDeleted's wasLive-gated decrement).
+func TestRegistry_LiveCount_TracksCommitAndDelete(t *testing.T) {
+	r := NewRegistry()
+	uuid := testUUID(t, 1)
+	assert.Zero(t, r.LiveCount())
+
+	r.GetOrCreate(uuid, "tenant-a", time.Now(), time.Now())
+	assert.Zero(t, r.LiveCount(), "a still-Pending block must not be counted live")
+
+	require.NoError(t, r.CommitLive(uuid, false))
+	assert.EqualValues(t, 1, r.LiveCount())
+
+	require.NoError(t, r.MarkDeleted(uuid))
+	assert.Zero(t, r.LiveCount(), "deleting a live block must give back its count")
+}
+
+// TestRegistry_LiveCount_DemotionDoesNotDoubleCountOrDrop covers AMENDMENT
+// A1's Live -> LiveUnsupportedEncoding demotion edge: it moves BETWEEN two
+// states blocksLive already counts as "live" (see the gauge's Help text in
+// metrics.go), so it must neither increment (double-count) nor decrement
+// (undercount) LiveCount.
+func TestRegistry_LiveCount_DemotionDoesNotDoubleCountOrDrop(t *testing.T) {
+	r := NewRegistry()
+	uuid := testUUID(t, 1)
+	r.GetOrCreate(uuid, "tenant-a", time.Now(), time.Now())
+
+	require.NoError(t, r.CommitLive(uuid, false))
+	require.EqualValues(t, 1, r.LiveCount())
+
+	require.NoError(t, r.CommitLive(uuid, true)) // demotion
+	assert.EqualValues(t, 1, r.LiveCount(), "demoting Live -> LiveUnsupportedEncoding must not change the live count")
+
+	require.NoError(t, r.CommitLive(uuid, true)) // no-op redelivery
+	assert.EqualValues(t, 1, r.LiveCount())
+}
+
+// TestRegistry_LiveCount_PendingDeleteNeverCounted covers the case
+// MarkDeleted's wasLive check exists for: a Delete racing ahead of a
+// still-chunking (still-Pending) block's remaining chunks must not
+// decrement LiveCount, since CommitLive never incremented it in the first
+// place -- decrementing anyway would silently underflow the gauge.
+func TestRegistry_LiveCount_PendingDeleteNeverCounted(t *testing.T) {
+	r := NewRegistry()
+	uuid := testUUID(t, 1)
+	r.GetOrCreate(uuid, "tenant-a", time.Now(), time.Now())
+	assert.Zero(t, r.LiveCount())
+
+	require.NoError(t, r.MarkDeleted(uuid))
+	assert.Zero(t, r.LiveCount(), "deleting a still-Pending block must not decrement an already-zero count")
+}
+
+// TestRegistry_LiveCount_RedeliveredMarkDeletedIsIdempotent covers
+// MarkDeleted's own guard (b.State == BlockDeleted -> no-op): redelivery of
+// the same Delete must decrement LiveCount exactly once, never per call.
+func TestRegistry_LiveCount_RedeliveredMarkDeletedIsIdempotent(t *testing.T) {
+	r := NewRegistry()
+	uuid := testUUID(t, 1)
+	r.GetOrCreate(uuid, "tenant-a", time.Now(), time.Now())
+	require.NoError(t, r.CommitLive(uuid, false))
+
+	require.NoError(t, r.MarkDeleted(uuid))
+	require.NoError(t, r.MarkDeleted(uuid))
+	require.NoError(t, r.MarkDeleted(uuid))
+	assert.Zero(t, r.LiveCount(), "redelivered Delete must decrement exactly once, never go negative")
+}
+
+// TestRegistry_LiveCount_ImportRecomputesFromImportedState covers Import's
+// bulk-replace path: liveCount must reflect exactly the imported blocks'
+// State (Live and LiveUnsupportedEncoding count; Pending and Deleted do
+// not), since imported blocks bypass CommitLive/MarkDeleted entirely.
+func TestRegistry_LiveCount_ImportRecomputesFromImportedState(t *testing.T) {
+	r := NewRegistry()
+	uuid := testUUID(t, 1)
+	r.GetOrCreate(uuid, "tenant-a", time.Now(), time.Now())
+	require.NoError(t, r.CommitLive(uuid, false))
+	require.EqualValues(t, 1, r.LiveCount(), "test sanity: pre-import state must not leak into the post-import count")
+
+	start := time.Now()
+	require.NoError(t, r.Import([]Block{
+		{UUID: testUUID(t, 10), Handle: Handle(1), State: BlockPending, StartTime: start, EndTime: start},
+		{UUID: testUUID(t, 11), Handle: Handle(2), State: BlockLive, StartTime: start, EndTime: start},
+		{UUID: testUUID(t, 12), Handle: Handle(3), State: BlockLiveUnsupportedEncoding, StartTime: start, EndTime: start},
+		{UUID: testUUID(t, 13), Handle: Handle(4), State: BlockDeleted, StartTime: start, EndTime: start, DeletedAt: start},
+	}))
+
+	assert.EqualValues(t, 2, r.LiveCount(), "only the imported Live and LiveUnsupportedEncoding blocks count as live")
+}

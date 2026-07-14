@@ -196,6 +196,71 @@ func TestSweep_Run_StopsPromptlyOnContextCancellation(t *testing.T) {
 	goleak.VerifyNone(t, opts)
 }
 
+// TestSweep_Pass_RecountsEntriesAtEndOfCompletePass is the named test for
+// entries_total's self-healing design (directory.go's own doc comment on
+// Directory.SetEntryTotal): a complete pass must independently recompute the
+// TRUE entry total from the leaves it just walked and OVERWRITE whatever the
+// incremental atomic counter held -- correcting drift injected here to
+// simulate a hypothetical missed-accounting bug elsewhere, not merely
+// confirming the counter already agreed with itself.
+func TestSweep_Pass_RecountsEntriesAtEndOfCompletePass(t *testing.T) {
+	sweeper, dir, _, _ := newTestSweeper(t, time.Hour, time.Hour)
+
+	const completeIdx = uint32(3)
+	completeLeaf(t, dir, completeIdx)
+	require.True(t, dir.InsertLive(completeIdx, 1, Handle(1)))
+	require.True(t, dir.InsertLive(completeIdx, 2, Handle(2)))
+	require.True(t, dir.InsertLive(completeIdx, 3, Handle(3)))
+
+	// A constructing leaf's entries must also feed the recount (via
+	// EntryLen, since CompactLeaf only reports complete leaves) -- otherwise
+	// a pass would systematically undercount by every constructing leaf's
+	// contribution.
+	const constructingIdx = uint32(5)
+	_, started := dir.BeginConstructing(constructingIdx)
+	require.True(t, started)
+	require.True(t, dir.InsertLive(constructingIdx, 9, Handle(9)))
+	require.True(t, dir.InsertLive(constructingIdx, 10, Handle(10)))
+
+	const trueTotal = 5 // 3 complete + 2 constructing
+	require.EqualValues(t, trueTotal, dir.EntryTotal(), "test sanity: incremental accounting must already agree before injecting drift")
+
+	// Inject drift: simulate a hypothetical bug in some OTHER accounting
+	// path having lost track of reality.
+	dir.SetEntryTotal(trueTotal + 1000)
+	require.EqualValues(t, trueTotal+1000, dir.EntryTotal(), "test sanity: drift injection must have taken effect")
+
+	stats := sweeper.Pass(context.Background())
+	assert.Zero(t, stats.EntriesRemoved, "nothing was deleted in this test; the recount, not compaction, is under test")
+	assert.EqualValues(t, trueTotal, dir.EntryTotal(), "a complete pass must self-heal entries_total to the recomputed truth, discarding the drifted value")
+}
+
+// TestSweep_Pass_IncompleteWalkDoesNotOverwriteEntryTotal is
+// TestSweep_CancelledPassDoesNotReclaimTombstones' entries_total analogue
+// (regression_phasec_test.go): a pass whose directory walk was cut short by
+// ctx cancellation only observed a PARTIAL subset of leaves, so applying its
+// recount would undercount entries_total for every leaf past the cutoff --
+// the same "only a COMPLETE pass is authoritative" rule that already gates
+// tombstone reclamation must also gate the recount.
+func TestSweep_Pass_IncompleteWalkDoesNotOverwriteEntryTotal(t *testing.T) {
+	sweeper, dir, _, _ := newTestSweeper(t, time.Hour, time.Hour)
+
+	const idx = uint32(3)
+	completeLeaf(t, dir, idx)
+	require.True(t, dir.InsertLive(idx, 1, Handle(1)))
+	require.True(t, dir.InsertLive(idx, 2, Handle(2)))
+
+	const drifted = 999
+	dir.SetEntryTotal(drifted)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // already cancelled: the walk aborts at the first non-nil leaf
+
+	stats := sweeper.Pass(ctx)
+	assert.Zero(t, stats.EntriesRemoved)
+	assert.EqualValues(t, drifted, dir.EntryTotal(), "an incomplete walk must leave entries_total untouched, not overwrite it with a partial recount")
+}
+
 // TestSweep_ConcurrentPassWithLiveWrites is the plan's own "concurrent Pass
 // + live writes under -race" test plan item (§ Concurrency: "the sweep
 // runs continuously in production, never quiesced"): one goroutine hammers

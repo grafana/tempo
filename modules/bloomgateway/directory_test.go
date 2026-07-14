@@ -525,3 +525,197 @@ func (f *boolFlag) get() bool {
 	defer f.mu.Unlock()
 	return f.v
 }
+
+// TestDirectory_EntryTotal_CountsAppliedInsertsOnly is the named test for
+// InsertLive's hot-path accounting contract (directory.go's own doc
+// comment): EntryTotal must grow by exactly one per ACTUALLY-inserted (fp,
+// h) pair, and redelivery of an already-present pair (InsertIfAbsent
+// returning false) must not double-count.
+func TestDirectory_EntryTotal_CountsAppliedInsertsOnly(t *testing.T) {
+	dir := NewDirectory(4)
+	idx := uint32(1)
+	completeLeaf(t, dir, idx)
+	assert.Zero(t, dir.EntryTotal())
+
+	require.True(t, dir.InsertLive(idx, 1, Handle(1)))
+	assert.EqualValues(t, 1, dir.EntryTotal())
+
+	require.True(t, dir.InsertLive(idx, 2, Handle(2)))
+	assert.EqualValues(t, 2, dir.EntryTotal())
+
+	// Redelivery of the exact same (fp, handle) pair must not increment --
+	// InsertIfAbsent itself reports no insert happened.
+	require.True(t, dir.InsertLive(idx, 1, Handle(1)))
+	assert.EqualValues(t, 2, dir.EntryTotal(), "redelivered (fp, handle) pair must not be double-counted")
+
+	// A different leaf's inserts accumulate onto the same instance-wide total.
+	otherIdx := uint32(2)
+	completeLeaf(t, dir, otherIdx)
+	require.True(t, dir.InsertLive(otherIdx, 5, Handle(5)))
+	assert.EqualValues(t, 3, dir.EntryTotal())
+
+	// A drop (nil slot) must not be counted at all.
+	nilIdx := uint32(3)
+	require.False(t, dir.InsertLive(nilIdx, 9, Handle(9)))
+	assert.EqualValues(t, 3, dir.EntryTotal())
+}
+
+// TestDirectory_EntryTotal_CompactLeafDecrementsByRemoved covers CompactLeaf's
+// entries_total bookkeeping: the counter must drop by exactly the number of
+// entries RemoveWhere actually removed, never by visited (which includes
+// surviving entries).
+func TestDirectory_EntryTotal_CompactLeafDecrementsByRemoved(t *testing.T) {
+	dir := NewDirectory(4)
+	idx := uint32(1)
+	completeLeaf(t, dir, idx)
+
+	for i := uint16(0); i < 5; i++ {
+		require.True(t, dir.InsertLive(idx, i, Handle(i)+1))
+	}
+	require.EqualValues(t, 5, dir.EntryTotal())
+
+	// Keep only even handles (1, 3, 5 survive as odd Handle values below);
+	// this removes handles 2 and 4 (Handle(i)+1 for i=1,3) -- 2 of 5.
+	visited, removed, compacted := dir.CompactLeaf(idx, func(h Handle) bool { return h%2 == 1 })
+	require.True(t, compacted)
+	assert.Equal(t, 5, visited)
+	assert.Equal(t, 2, removed)
+	assert.EqualValues(t, 3, dir.EntryTotal(), "entries_total must drop by exactly removed, not visited")
+}
+
+// TestDirectory_EntryTotal_ShedDiscardsLeafEntries covers Shed's accounting:
+// discarding ownership of a complete leaf must subtract every entry it held.
+func TestDirectory_EntryTotal_ShedDiscardsLeafEntries(t *testing.T) {
+	dir := NewDirectory(4)
+	idx := uint32(1)
+	completeLeaf(t, dir, idx)
+	require.True(t, dir.InsertLive(idx, 1, Handle(1)))
+	require.True(t, dir.InsertLive(idx, 2, Handle(2)))
+	require.EqualValues(t, 2, dir.EntryTotal())
+
+	dir.Shed(idx)
+	assert.Zero(t, dir.EntryTotal(), "shedding a leaf must give back every entry it held")
+}
+
+// TestDirectory_EntryTotal_AbandonDiscardsAccumulatedLiveWrites covers
+// Abandon's accounting: a failed reconstruction batch's constructing leaf
+// may have already accumulated live writes (reconstruction never pauses
+// live application) before the batch fails; Abandon must give those entries
+// back, not leave them stranded in the total forever.
+func TestDirectory_EntryTotal_AbandonDiscardsAccumulatedLiveWrites(t *testing.T) {
+	dir := NewDirectory(4)
+	idx := uint32(1)
+
+	_, started := dir.BeginConstructing(idx)
+	require.True(t, started)
+	require.True(t, dir.InsertLive(idx, 1, Handle(1)))
+	require.True(t, dir.InsertLive(idx, 2, Handle(2)))
+	require.EqualValues(t, 2, dir.EntryTotal())
+
+	require.True(t, dir.Abandon(idx))
+	assert.Zero(t, dir.EntryTotal(), "abandoning a constructing leaf must give back its accumulated entries")
+}
+
+// TestDirectory_EntryTotal_CompleteAccountsDeltaNotDoubleCounting covers
+// Complete's two distinct shapes (directory.go's own doc comment):
+//  1. the reconstruction queue's normal path, completing with the SAME
+//     *Leaf object BeginConstructing handed back -- already fully counted
+//     via InsertLive, so this must be a zero-delta no-op; and
+//  2. bloomgateway.go's snapshot-restore path, completing with a DIFFERENT,
+//     already-populated *Leaf that was never counted via InsertLive at
+//     all -- this must add exactly that leaf's length, once.
+func TestDirectory_EntryTotal_CompleteAccountsDeltaNotDoubleCounting(t *testing.T) {
+	t.Run("same object as BeginConstructing: zero-delta", func(t *testing.T) {
+		dir := NewDirectory(4)
+		idx := uint32(1)
+
+		leaf, started := dir.BeginConstructing(idx)
+		require.True(t, started)
+		require.True(t, dir.InsertLive(idx, 1, Handle(1)))
+		require.True(t, dir.InsertLive(idx, 2, Handle(2)))
+		require.EqualValues(t, 2, dir.EntryTotal())
+
+		require.NoError(t, dir.Complete(idx, leaf))
+		assert.EqualValues(t, 2, dir.EntryTotal(), "completing with the same already-counted object must not change the total")
+	})
+
+	t.Run("different, pre-populated object (snapshot restore): adds its length once", func(t *testing.T) {
+		dir := NewDirectory(4)
+		idx := uint32(1)
+
+		_, started := dir.BeginConstructing(idx)
+		require.True(t, started)
+		assert.Zero(t, dir.EntryTotal())
+
+		restored := NewLeaf()
+		require.True(t, restored.InsertIfAbsent(1, Handle(1)))
+		require.True(t, restored.InsertIfAbsent(2, Handle(2)))
+		require.True(t, restored.InsertIfAbsent(3, Handle(3)))
+
+		require.NoError(t, dir.Complete(idx, restored))
+		assert.EqualValues(t, 3, dir.EntryTotal(), "completing with a pre-populated snapshot-loaded leaf must add its full length exactly once")
+	})
+}
+
+// TestDirectory_LeafStateCounts_TransitionsOnConstructCompleteShedAbandon is
+// the named test for owned_leaves{state}'s bookkeeping: LeafStateCounts must
+// track BeginConstructing/Complete/Shed/Abandon exactly, without a Range
+// walk.
+func TestDirectory_LeafStateCounts_TransitionsOnConstructCompleteShedAbandon(t *testing.T) {
+	dir := NewDirectory(4)
+
+	constructing, complete := dir.LeafStateCounts()
+	assert.Zero(t, constructing)
+	assert.Zero(t, complete)
+
+	leafA, started := dir.BeginConstructing(uint32(1))
+	require.True(t, started)
+	constructing, complete = dir.LeafStateCounts()
+	assert.EqualValues(t, 1, constructing)
+	assert.Zero(t, complete)
+
+	_, started = dir.BeginConstructing(uint32(2))
+	require.True(t, started)
+	constructing, complete = dir.LeafStateCounts()
+	assert.EqualValues(t, 2, constructing)
+	assert.Zero(t, complete)
+
+	require.NoError(t, dir.Complete(uint32(1), leafA))
+	constructing, complete = dir.LeafStateCounts()
+	assert.EqualValues(t, 1, constructing, "completing idx 1 must not affect idx 2's constructing count")
+	assert.EqualValues(t, 1, complete)
+
+	// Abandon idx 2 (still constructing): constructing count drops, complete
+	// stays untouched.
+	require.True(t, dir.Abandon(uint32(2)))
+	constructing, complete = dir.LeafStateCounts()
+	assert.Zero(t, constructing)
+	assert.EqualValues(t, 1, complete)
+
+	// Shed idx 1 (complete): complete count drops back to zero.
+	dir.Shed(uint32(1))
+	constructing, complete = dir.LeafStateCounts()
+	assert.Zero(t, constructing)
+	assert.Zero(t, complete)
+}
+
+// TestDirectory_EntryLen_SafelyReadsConstructingLeafLength covers the
+// accessor sweep.go's end-of-pass recount uses for constructing leaves
+// (CompactLeaf only reports complete leaves' lengths).
+func TestDirectory_EntryLen_SafelyReadsConstructingLeafLength(t *testing.T) {
+	dir := NewDirectory(4)
+	idx := uint32(1)
+
+	n, state := dir.EntryLen(idx)
+	assert.Zero(t, n)
+	assert.Equal(t, LeafNil, state)
+
+	_, started := dir.BeginConstructing(idx)
+	require.True(t, started)
+	require.True(t, dir.InsertLive(idx, 1, Handle(1)))
+	require.True(t, dir.InsertLive(idx, 2, Handle(2)))
+
+	n, state = dir.EntryLen(idx)
+	assert.Equal(t, 2, n)
+	assert.Equal(t, LeafConstructing, state)
+}

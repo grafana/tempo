@@ -5,8 +5,8 @@ remains the authoritative design; this file records only **what exists in the
 tree today**, how it was verified, and what is deliberately not done yet.
 
 - **Branch:** `bloom-gateway`
-- **Last updated:** 2026-07-13
-- **Committed?** Yes — core: `01000b97b`; producer hooks: follow-up commit on `bloom-gateway` (this file rides it).
+- **Last updated:** 2026-07-14
+- **Committed?** Yes — core: `01000b97b`; producer hooks + this file: follow-up commits on `bloom-gateway` (this file rides the state-gauges commit).
 - **Build/test status (verified directly, not inferred):**
   - `go build ./...` — clean
   - `go test -race -count=1 ./modules/bloomgateway/... ./pkg/bloomgatewayevents/...` — pass (~10s)
@@ -52,6 +52,21 @@ Implemented, mapped to DESIGN.md:
   `bloom_gateway_producer` / `bloom-gateway-producer.*`, default-disabled.
   Metrics: `tempo_bloom_gateway_publishes_total{result="ok|dropped"}`,
   `publish_duration_seconds`, `invalid_trace_ids_total`.
+- **State gauges** (metrics.go's gauges were declared but never populated
+  before this commit): `blocks_live` (Registry's own incremental live-block
+  counter, `Registry.CommitLive`/`MarkDeleted`'s exactly-once transition
+  points), `entries_total` (an atomic counter on `Directory`, updated at
+  every insert/compact/shed/abandon/complete/swap point, self-healed by a
+  full recount at the end of every complete `Sweeper.Pass`),
+  `owned_leaves{state}` (`Directory`'s own construct/complete/shed/abandon
+  transition counters), `snapshot_age_seconds` (timestamped on successful
+  snapshot load and save; NaN, not 0, before either has ever happened — see
+  `refreshStats`'s doc comment for why NaN is the correct sentinel for an
+  alerting `>` comparison), and `miss_fp_rate_estimate` (the trivial
+  `entries_total / 2^(D+F)` derivation). All five are read/set by a new 15s
+  `runStatsLoop` (`bloomgateway.go`) that touches only these already-
+  maintained sources — never a directory walk (the sweep's own full walk
+  is the only place that cost is paid, once per `FullPassPeriod`).
 
 ## Where things live
 
@@ -161,6 +176,30 @@ The gateway is inert until these land; the proto/API is shaped so they need
   record/chunk). QF-side query limits remain not done — unbuildable without
   query-frontend integration (above).
 - **docker/e2e** under `integration/`.
+
+### Still-dead metrics gauges
+
+Declared in metrics.go, deliberately left unpopulated by the state-gauges
+work above — do not assume any of these are observable yet:
+
+- **`steady_state_memory_bytes` — the § Autoscaling HPA signal.** Needs
+  designed memory estimators (entries + directory + registry + `A_T` +
+  garbage, § Sizing) before it can be wired; **autoscaling does not work
+  until this lands.**
+- `memory_bytes{structure}` — same estimator dependency as above, broken
+  out per structure.
+- `garbage_entries_estimate` — needs a cheap (non-full-walk) estimate of
+  entries referencing deleted-but-not-yet-swept blocks.
+- `tenant_blocks{tenant}` — needs a per-tenant `A_T` cardinality accessor on
+  `TenantSet` (none exists today; `TenantSet.Window` returns a merged
+  bitmap, not a per-tenant live count).
+- `topic_lag_messages` / `topic_lag_bytes` — needs broker end-offsets
+  (`consumerLag` in bloomgateway.go only derives a boolean "behind or not"
+  signal for the reconciliation lag gate, not an actual lag magnitude) —
+  a separate follow-up.
+- `unsupported_encoding_blocks{tenant}` is the one exception: it **is**
+  wired, from the producer-hooks commit (`events.go`'s
+  `CommitUnsupportedEncoding`), predating this state-gauges work.
 
 ### Deferred should-fixes (safe to ship without; cheap follow-ups)
 

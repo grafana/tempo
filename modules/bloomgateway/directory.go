@@ -3,6 +3,7 @@ package bloomgateway
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 )
 
 // LeafState is a leaf directory slot's lifecycle state (DESIGN.md § Leaf
@@ -63,9 +64,27 @@ type directorySlot struct {
 // to be concurrency-aware — every exported method here takes the
 // appropriate stripe lock before touching a slot, and Leaf's own methods
 // are only ever called from inside one of those critical sections.
+//
+// entries/constructing/complete back the entries_total and owned_leaves
+// {state} gauges (metrics.go). They are maintained incrementally at this
+// file's own centralized state-transition points (BeginConstructing,
+// Complete, Shed, Abandon, CompactLeaf, Swap, InsertLive) rather than
+// derived by walking the directory on every scrape — the walk this package
+// must never reintroduce on a hot cadence (a prior defect, Phase C #5,
+// was exactly an O(2^D) walk on a 1s ticker; see bloomgateway.go's
+// runOwnershipWatch doc comment). entries is deliberately self-healed by a
+// full recount at the end of every complete Sweeper.Pass (sweep.go) against
+// any drift a missed accounting path might introduce; the leaf-state
+// counters have no analogous recount because every transition between the
+// three LeafState values is already centralized in this file with no other
+// mutation path, so there is nothing left to drift from.
 type Directory struct {
 	slots   []directorySlot
 	stripes [directoryStripes]sync.RWMutex
+
+	entries      atomic.Int64
+	constructing atomic.Int64
+	complete     atomic.Int64
 }
 
 // NewDirectory allocates a directory with 2^d slots, every one starting in
@@ -111,6 +130,11 @@ func (dir *Directory) Lookup(idx uint32, fp uint16) (handles []Handle, ok bool) 
 // nil, drop it"); a constructing or complete slot inserts under the stripe
 // lock (insert-if-absent), which is exactly what lets a constructing leaf
 // "accumulate every live write" while its backfill runs concurrently.
+//
+// entries_total's hot-path budget is one atomic Add per APPLIED entry, never
+// per call: InsertIfAbsent's own return value gates it, so redelivery of an
+// already-present (fp, h) pair -- the common case under at-least-once
+// replay -- costs no atomic operation at all here.
 func (dir *Directory) InsertLive(idx uint32, fp uint16, h Handle) (applied bool) {
 	stripe := &dir.stripes[stripeFor(idx)]
 	stripe.Lock()
@@ -120,7 +144,9 @@ func (dir *Directory) InsertLive(idx uint32, fp uint16, h Handle) (applied bool)
 	if slot.state == LeafNil {
 		return false
 	}
-	slot.leaf.InsertIfAbsent(fp, h)
+	if slot.leaf.InsertIfAbsent(fp, h) {
+		dir.entries.Add(1)
+	}
 	return true
 }
 
@@ -141,6 +167,7 @@ func (dir *Directory) BeginConstructing(idx uint32) (leaf *Leaf, started bool) {
 	}
 	slot.state = LeafConstructing
 	slot.leaf = NewLeaf()
+	dir.constructing.Add(1)
 	return slot.leaf, true
 }
 
@@ -156,6 +183,17 @@ func (dir *Directory) BeginConstructing(idx uint32) (leaf *Leaf, started bool) {
 // pass is done and topic replay has caught up past the backfill's capture
 // point" rule from DESIGN.md § Leaf lifecycle. Complete itself has no way
 // to verify this; it only performs the state-and-reference swap.
+//
+// entries_total accounting: leaf is usually the SAME object BeginConstructing
+// handed back (the reconstruction queue's normal path, processBatch in
+// reconstruction.go), already fully counted via InsertLive as it accumulated
+// -- in that case old and new length are equal and this is a zero-cost no-op
+// delta. The one caller that passes a DIFFERENT object is
+// bloomgateway.go's reconcileStartup, swapping in a snapshot-loaded leaf
+// whose entries were never counted via InsertLive at all (they existed
+// before this process's atomic counter did); the delta below is what
+// accounts for them, exactly once, without needing reconcileStartup itself
+// to know anything about entries_total.
 func (dir *Directory) Complete(idx uint32, leaf *Leaf) error {
 	stripe := &dir.stripes[stripeFor(idx)]
 	stripe.Lock()
@@ -165,8 +203,22 @@ func (dir *Directory) Complete(idx uint32, leaf *Leaf) error {
 	if slot.state != LeafConstructing {
 		return fmt.Errorf("bloomgateway: Complete called on leaf %d in state %v, want %v (LeafConstructing)", idx, slot.state, LeafConstructing)
 	}
+
+	var oldLen, newLen int
+	if slot.leaf != nil {
+		oldLen = slot.leaf.Len()
+	}
+	if leaf != nil {
+		newLen = leaf.Len()
+	}
+	if delta := int64(newLen) - int64(oldLen); delta != 0 {
+		dir.entries.Add(delta)
+	}
+
 	slot.state = LeafComplete
 	slot.leaf = leaf
+	dir.constructing.Add(-1)
+	dir.complete.Add(1)
 	return nil
 }
 
@@ -179,12 +231,30 @@ func (dir *Directory) Complete(idx uint32, leaf *Leaf) error {
 // constructing, e.g. an in-flight backfill abandoned by an ownership
 // change — dropping it is always safe, nothing was ever served from it).
 // A no-op if idx is already nil.
+//
+// entries_total/owned_leaves accounting: whichever counter the PREVIOUS
+// state belongs to (constructing or complete) is decremented, and any
+// entries the discarded leaf held are subtracted -- ownership loss discards
+// the leaf's memory outright, so it must leave both gauges exactly as it
+// left the live structures.
 func (dir *Directory) Shed(idx uint32) {
 	stripe := &dir.stripes[stripeFor(idx)]
 	stripe.Lock()
 	defer stripe.Unlock()
 
 	slot := &dir.slots[idx]
+	switch slot.state {
+	case LeafConstructing:
+		dir.constructing.Add(-1)
+	case LeafComplete:
+		dir.complete.Add(-1)
+	case LeafNil:
+		// Already nil: no-op, per this method's own documented contract.
+	}
+	if slot.leaf != nil {
+		dir.entries.Add(-int64(slot.leaf.Len()))
+	}
+
 	slot.state = LeafNil
 	slot.leaf = nil
 }
@@ -202,10 +272,27 @@ func (dir *Directory) Shed(idx uint32) {
 // reach (both gate on state, not on leaf != nil) until a later
 // BeginConstructing overwrites it — inert, but not a real intended use.
 // Callers in this package only ever call Swap on an already-owned slot.
+//
+// entries_total accounting mirrors Complete's: the delta between the
+// outgoing and incoming leaf's lengths is applied once, under the same
+// stripe lock as the swap itself, so entries_total stays correct regardless
+// of whether the replacement leaf shares no entries, all entries, or some
+// entries with the one it replaces.
 func (dir *Directory) Swap(idx uint32, leaf *Leaf) {
 	stripe := &dir.stripes[stripeFor(idx)]
 	stripe.Lock()
 	defer stripe.Unlock()
+
+	var oldLen, newLen int
+	if dir.slots[idx].leaf != nil {
+		oldLen = dir.slots[idx].leaf.Len()
+	}
+	if leaf != nil {
+		newLen = leaf.Len()
+	}
+	if delta := int64(newLen) - int64(oldLen); delta != 0 {
+		dir.entries.Add(delta)
+	}
 
 	dir.slots[idx].leaf = leaf
 }
@@ -319,6 +406,12 @@ func (dir *Directory) CloneLeaf(idx uint32) (*Leaf, LeafState) {
 // per-leaf filter is O(entries) over the reference ~596-entry leaf — tens of
 // microseconds — a proportionate cost to hold the stripe lock for, and the
 // sweep is background work.
+//
+// entries_total is decremented by removed under this same lock -- the sweep
+// is also entries_total's self-healing recount point (sweep.go's Pass), so
+// this incremental decrement and that pass's own end-of-walk recount are
+// deliberately redundant, not in tension: the decrement keeps the gauge
+// accurate between passes, and the recount corrects it if it ever drifts.
 func (dir *Directory) CompactLeaf(idx uint32, keep func(Handle) bool) (visited, removed int, compacted bool) {
 	stripe := &dir.stripes[stripeFor(idx)]
 	stripe.Lock()
@@ -330,6 +423,9 @@ func (dir *Directory) CompactLeaf(idx uint32, keep func(Handle) bool) (visited, 
 	}
 	visited = slot.leaf.Len()
 	removed = slot.leaf.RemoveWhere(keep)
+	if removed > 0 {
+		dir.entries.Add(-int64(removed))
+	}
 	return visited, removed, true
 }
 
@@ -342,6 +438,13 @@ func (dir *Directory) CompactLeaf(idx uint32, keep func(Handle) bool) (visited, 
 // that some other path finished in the meantime. Without this, a failed batch
 // would strand its leaves in constructing forever, and the readiness gate
 // (which requires zero constructing leaves) would never open.
+//
+// entries_total/owned_leaves accounting: a failed batch's constructing leaf
+// may already have accumulated live writes via InsertLive before the
+// failure (reconstruction never pauses live application, DESIGN.md § Leaf
+// lifecycle); Abandon discards that leaf outright, so its entries and its
+// constructing-count contribution must both be given back here, exactly as
+// Shed does for an ownership change.
 func (dir *Directory) Abandon(idx uint32) (abandoned bool) {
 	stripe := &dir.stripes[stripeFor(idx)]
 	stripe.Lock()
@@ -351,7 +454,62 @@ func (dir *Directory) Abandon(idx uint32) (abandoned bool) {
 	if slot.state != LeafConstructing {
 		return false
 	}
+	if slot.leaf != nil {
+		dir.entries.Add(-int64(slot.leaf.Len()))
+	}
 	slot.state = LeafNil
 	slot.leaf = nil
+	dir.constructing.Add(-1)
 	return true
+}
+
+// EntryTotal returns the current total leaf-entry count across every leaf
+// this instance owns (complete or constructing), including any garbage
+// awaiting the sweep -- the entries_total gauge's source (metrics.go),
+// maintained incrementally by every mutation method above and self-healed
+// once per complete Sweeper.Pass (sweep.go's own end-of-walk recount, via
+// SetEntryTotal below).
+func (dir *Directory) EntryTotal() int64 {
+	return dir.entries.Load()
+}
+
+// SetEntryTotal overwrites the entries counter -- used exactly once per
+// complete background sweep pass (sweep.go's Pass) to self-heal any drift
+// the incremental accounting above might have accumulated, from a full,
+// authoritative recount taken during that same pass's own directory walk.
+// Not for use outside that one call site: every other caller should be
+// adjusting the counter via a mutation above, not replacing it wholesale.
+func (dir *Directory) SetEntryTotal(n int64) {
+	dir.entries.Store(n)
+}
+
+// LeafStateCounts returns the current number of leaves this instance owns
+// in LeafConstructing and LeafComplete respectively -- the owned_leaves
+// {state="constructing|complete"} gauge's source, maintained incrementally
+// at BeginConstructing/Complete/Shed/Abandon (the only places a leaf's
+// state ever changes) rather than derived by a Range walk.
+func (dir *Directory) LeafStateCounts() (constructing, complete int64) {
+	return dir.constructing.Load(), dir.complete.Load()
+}
+
+// EntryLen returns idx's current leaf's entry count and lifecycle state,
+// read together under the stripe's read lock so a concurrent InsertLive (or
+// any other mutator, all of which take the write lock) can never be
+// observed mid-mutation. This exists for the sweep's end-of-pass recount
+// (sweep.go's Pass): CompactLeaf reports visited/removed only for COMPLETE
+// leaves, so a constructing leaf's current length -- accumulating live
+// writes throughout the pass -- needs this separate, still lock-safe read
+// instead. Calling Leaf(idx) and then this leaf's own Len() would NOT be
+// safe here: Leaf's own doc comment is explicit that the lock is released
+// before it returns, so a concurrent InsertLive could be appending to the
+// same backing slice this call would then read without synchronization.
+func (dir *Directory) EntryLen(idx uint32) (int, LeafState) {
+	stripe := &dir.stripes[stripeFor(idx)]
+	stripe.RLock()
+	defer stripe.RUnlock()
+	slot := &dir.slots[idx]
+	if slot.leaf == nil {
+		return 0, slot.state
+	}
+	return slot.leaf.Len(), slot.state
 }
