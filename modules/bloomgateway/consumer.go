@@ -219,7 +219,7 @@ func (c *Consumer) Start(ctx context.Context, offsets map[int32]int64) error {
 	level.Info(c.logger).Log("msg", "bloomgateway: starting kafka consumer", "topic", c.cfg.Topic, "partitions", len(partitions), "resume_offsets_known", len(offsets))
 	c.client.AddConsumePartitions(map[string]map[int32]kgo.Offset{c.cfg.Topic: assign})
 
-	runCtx, cancel := context.WithCancel(ctx)
+	runCtx, cancel := context.WithCancel(ctx) //nolint:gosec // G118 false positive: cancel is stored on c.cancel and invoked in Stop.
 	c.cancel = cancel
 	c.wg.Add(1)
 	go func() {
