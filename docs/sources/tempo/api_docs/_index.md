@@ -669,13 +669,13 @@ Queries must use a single spanset selector `{}`. Both `&&` and `||` operators ar
 
 Unscoped attributes are supported for filtered tag values. When you use an unscoped attribute name, Tempo looks for matches in both span and resource scopes.
 
-The following request returns all discovered service names on spans with `span.http.method=GET`:
+The following request returns all discovered service names on spans with `span.http.request.method=GET`:
 
 ```
-GET /api/v2/search/tag/resource.service.name/values?q="{span.http.method='GET'}"
+GET /api/v2/search/tag/resource.service.name/values?q="{span.http.request.method='GET'}"
 ```
 
-If a particular service name (for example, `shopping-cart`) is only present on spans with `span.http.method=POST`, it won't be included in the list of values returned.
+If a particular service name (for example, `shopping-cart`) is only present on spans with `span.http.request.method=POST`, it won't be included in the list of values returned.
 
 ### TraceQL Metrics
 

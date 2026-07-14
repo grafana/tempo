@@ -30,19 +30,19 @@ For example, to match spans with a non‑200 status code on a specific path, use
 The following query returns a single span where the HTTP status code is not `200` and the URL is `/api`:
 
 ```traceql
-{ span.http.status_code != 200 && span.http.url = "/api" }
+{ span.http.response.status_code != 200 && span.url.full = "/api" }
 ```
 
 Also avoid splitting these conditions across multiple selectors joined by `&&`, which matches them on different spans and changes semantics:
 
 ```traceql
-{ span.http.url = "/api" } && { span.http.status_code != 200 }
+{ span.url.full = "/api" } && { span.http.response.status_code != 200 }
 ```
 
 Use a single selector when you want both conditions to be true on the same span.
 
 ```traceql
-{ span.http.url = "/api" && span.http.status_code != 200 }
+{ span.url.full = "/api" && span.http.response.status_code != 200 }
 ```
 
 ## Prefer scoped attributes over attributes without a scope
@@ -54,13 +54,13 @@ To find spans by HTTP status code, prefer a scoped attribute:
 The following query scopes the attribute to the span and runs faster than an equivalent without a scope:
 
 ```traceql
-{ span.http.status_code = 500 }
+{ span.http.response.status_code = 500 }
 ```
 
 Avoid forms without a scope that force extra lookups:
 
 ```traceql
-{ .http.status_code = 500 }
+{ .http.response.status_code = 500 }
 ```
 
 ## Access as few attributes as possible
@@ -72,13 +72,13 @@ For example, if filtering by status code already identifies error spans in your 
 This query filters on both an HTTP status and an explicit status:
 
 ```traceql
-{ span.http.status_code = 500 && status = error }
+{ span.http.response.status_code = 500 && status = error }
 ```
 
 If the status code alone is sufficient, prefer the simpler form:
 
 ```traceql
-{ span.http.status_code = 500 }
+{ span.http.response.status_code = 500 }
 ```
 
 ## Filter by trace‑ and resource‑level attributes
@@ -104,7 +104,7 @@ Tempo exposes many frequently used fields as dedicated columns in Parquet to acc
 For example, the following queries benefit from dedicated columns and scope:
 
 ```traceql
-{ span.http.method = "GET" }
+{ span.http.request.method = "GET" }
 { span.db.system = "postgresql" }
 { resource.cloud.region =~ "us-east-1|us-west-1" }
 ```
