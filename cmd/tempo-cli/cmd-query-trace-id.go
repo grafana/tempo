@@ -20,7 +20,7 @@ type queryTraceIDCmd struct {
 
 	// Trace By ID V2 filtering and selection params
 	Q             string `name:"q" help:"TraceQL spanset filter, only matching spans are returned (V2 only)"`
-	KeepHierarchy bool   `name:"keep-hierarchy" default:"false" help:"include ancestor path to the root for each matched span (V2 only)"`
+	KeepHierarchy bool   `name:"keep-hierarchy" default:"false" help:"include ancestor path to the root for each matched span, requires --q (V2 only)"`
 }
 
 func (cmd *queryTraceIDCmd) Run(_ *globalOptions) error {
@@ -31,6 +31,11 @@ func (cmd *queryTraceIDCmd) Run(_ *globalOptions) error {
 	// the v1 endpoint does not support spanset filtering
 	if cmd.Q != "" && cmd.V1 {
 		return fmt.Errorf("--q filtering is only supported on the v2 API, remove --v1 to call v2 endpoint")
+	}
+
+	// keep_hierarchy only shapes the filtered result, so it is meaningless without --q.
+	if cmd.KeepHierarchy && cmd.Q == "" {
+		return fmt.Errorf("--keep-hierarchy only applies with --q")
 	}
 
 	// use v1 API if specified, we default to v2

@@ -20,3 +20,16 @@ func TestQueryTraceIDCmdRejectsQWithV1(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "only supported on the v2 API")
 }
+
+func TestQueryTraceIDCmdRejectsKeepHierarchyWithoutQ(t *testing.T) {
+	// --keep-hierarchy only shapes a filtered result, so it must fail fast without --q.
+	cmd := &queryTraceIDCmd{
+		APIEndpoint:   "http://localhost:0",
+		TraceID:       "1234",
+		KeepHierarchy: true,
+	}
+
+	err := cmd.Run(nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "--keep-hierarchy only applies with --q")
+}
