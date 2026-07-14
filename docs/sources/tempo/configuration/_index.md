@@ -2385,6 +2385,13 @@ overrides:
       # When not set, the default behavior is used. May be overridden by query hints.
       [metrics_spanonly_fetch: <bool>]
 
+      # EXPERIMENTAL
+      # When enabled, queries report an additional metric indicating whether the
+      # matched spans include span-pruning summary spans (spans carrying the
+      # aggregation.is_summary attribute). Applies to search and metrics queries.
+      # Operator-controlled and not exposed to query authors.
+      [span_pruning_awareness: <bool> | default = false]
+
     # Compaction related overrides
     compaction:
       # Per-user block retention. If this value is set to 0 (default),

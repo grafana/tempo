@@ -673,6 +673,7 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 		for _, name := range req.SearchReq.SkipASTTransformations {
 			compileOpts = append(compileOpts, traceql.WithSkipOptimization(name))
 		}
+		compileOpts = append(compileOpts, overrides.SpanPruningAwarenessCompileOptions(q.limits.SpanPruningAwareness(tenantID))...)
 		return q.engine.ExecuteSearch(ctx, req.SearchReq, fetcher, compileOpts...)
 	}
 
