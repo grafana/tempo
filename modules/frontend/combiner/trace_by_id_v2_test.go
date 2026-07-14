@@ -273,6 +273,38 @@ func TestNewTraceByIDV2WithSpanPruning_AlreadyPrunedOnWrite(t *testing.T) {
 	require.Contains(t, actualResp.Message, "already pruned before it reached Tempo")
 }
 
+func TestNewTraceByIDV2SizeAndFilterPartialMessage(t *testing.T) {
+	// a trace that is both size-truncated and filtered must surface both reasons in the message.
+	traceResponse := &tempopb.TraceByIDResponse{
+		Trace:   test.MakeTrace(2, []byte{0x01, 0x02}),
+		Metrics: &tempopb.TraceByIDMetrics{},
+	}
+	resBytes, err := proto.Marshal(traceResponse)
+	require.NoError(t, err)
+	response := http.Response{
+		StatusCode: 200,
+		Header:     map[string][]string{"Content-Type": {"application/protobuf"}},
+		Body:       io.NopCloser(bytes.NewReader(resBytes)),
+	}
+
+	// maxBytes=10 forces a size-limited partial; dropAllFilter forces a filtered subset.
+	c := NewTraceByIDV2(10, api.HeaderAcceptProtobuf, nil, TraceByIDV2Options{TraceFilter: &dropAllFilter{}})
+	require.NoError(t, c.AddResponse(MockResponse{&response}))
+
+	res, err := c.HTTPFinal()
+	require.NoError(t, err)
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	actual := &tempopb.TraceByIDResponse{}
+	require.NoError(t, proto.Unmarshal(body, actual))
+
+	require.Equal(t, tempopb.PartialStatus_PARTIAL, actual.Status)
+	// exact match pins both reasons and the "; " join order (size before filter).
+	require.Equal(t,
+		"Trace exceeds maximum size of 10 bytes, a partial trace is returned; Trace filtered, only a subset of spans matching the filter is returned",
+		actual.Message)
+}
+
 // dropByNameFilter keeps every span except those named drop, standing in for a real q filter.
 type dropByNameFilter struct{ drop string }
 
