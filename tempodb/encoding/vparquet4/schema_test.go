@@ -972,7 +972,7 @@ func sortAttributesTempopb(t *tempopb.Trace) {
 	for _, rs := range t.ResourceSpans {
 		sort.Slice(rs.Resource.Attributes, func(i, j int) bool {
 			if rs.Resource.Attributes[i].Key == rs.Resource.Attributes[j].Key {
-				return rs.Resource.Attributes[i].Value.StableString() < rs.Resource.Attributes[j].Value.StableString()
+				return rs.Resource.Attributes[i].Value.String() < rs.Resource.Attributes[j].Value.String()
 			}
 
 			return rs.Resource.Attributes[i].Key < rs.Resource.Attributes[j].Key
@@ -980,7 +980,7 @@ func sortAttributesTempopb(t *tempopb.Trace) {
 		for _, ss := range rs.ScopeSpans {
 			sort.Slice(ss.Scope.Attributes, func(i, j int) bool {
 				if rs.Resource.Attributes[i].Key == rs.Resource.Attributes[j].Key {
-					return rs.Resource.Attributes[i].Value.StableString() < rs.Resource.Attributes[j].Value.StableString()
+					return rs.Resource.Attributes[i].Value.String() < rs.Resource.Attributes[j].Value.String()
 				}
 
 				return ss.Scope.Attributes[i].Key < ss.Scope.Attributes[j].Key

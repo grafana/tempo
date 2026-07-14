@@ -308,7 +308,7 @@ func spansetID(ss *tempopb.SpanSet) string {
 	for _, s := range ss.Attributes {
 		// any attributes that start with "by" are considered to be part of the spanset identity
 		if strings.HasPrefix(s.Key, "by") {
-			id += s.Key + s.Value.StableString()
+			id += s.Key + s.Value.String()
 		}
 	}
 

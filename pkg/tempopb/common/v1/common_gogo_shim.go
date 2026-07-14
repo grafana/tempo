@@ -1,10 +1,5 @@
 package v1
 
-import (
-	"fmt"
-	"strconv"
-)
-
 // Hand-written compatibility shims for gogo/protobuf's jsonpb and proto
 // reflection paths. The wiresmith generator emits the wire-format
 // Marshal/Unmarshal/Size methods and Google's protoreflect.Message, but
@@ -27,34 +22,6 @@ func (*AnyValue) XXX_OneofWrappers() []interface{} {
 		(*AnyValue_ArrayValue)(nil),
 		(*AnyValue_KvlistValue)(nil),
 		(*AnyValue_BytesValue)(nil),
+		(*AnyValue_StringValueStrindex)(nil),
 	}
-}
-
-// StableString returns a deterministic representation of an AnyValue.
-// wiresmith's generated String() emits fmt.Sprintf("%v", *m) which, for
-// oneof fields, prints the interface's underlying pointer address (and
-// can't be overridden — the generator emits String() itself). Tempo relies
-// on a stable AnyValue identity for sort keys and span-set IDs, so callers
-// that need determinism use this helper instead of String().
-func (m *AnyValue) StableString() string {
-	if m == nil {
-		return "<nil>"
-	}
-	switch x := m.Value.(type) {
-	case *AnyValue_StringValue:
-		return x.StringValue
-	case *AnyValue_BoolValue:
-		return strconv.FormatBool(x.BoolValue)
-	case *AnyValue_IntValue:
-		return strconv.FormatInt(x.IntValue, 10)
-	case *AnyValue_DoubleValue:
-		return strconv.FormatFloat(x.DoubleValue, 'g', -1, 64)
-	case *AnyValue_BytesValue:
-		return string(x.BytesValue)
-	case *AnyValue_ArrayValue:
-		return fmt.Sprintf("%v", x.ArrayValue.Values)
-	case *AnyValue_KvlistValue:
-		return fmt.Sprintf("%v", x.KvlistValue.Values)
-	}
-	return ""
 }
