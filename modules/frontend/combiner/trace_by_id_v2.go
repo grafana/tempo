@@ -100,12 +100,17 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceR
 			// metrics count bytes inspected to pull the whole trace, which filtering only trims from the response.
 			resp.Metrics = metricsCombiner.Metrics
 
+			// PARTIAL doubles as "not the full trace": the size limit truncated it, the q filter dropped
+			// spans, or both, so surface every reason that applies.
+			sizeLimited := partialTrace || combiner.IsPartialTrace()
 			switch {
-			case partialTrace || combiner.IsPartialTrace():
+			case sizeLimited && traceFiltered:
+				resp.Status = tempopb.PartialStatus_PARTIAL
+				resp.Message = fmt.Sprintf("Trace exceeds maximum size of %d bytes and was filtered, only a subset of spans is returned", maxBytes)
+			case sizeLimited:
 				resp.Status = tempopb.PartialStatus_PARTIAL
 				resp.Message = fmt.Sprintf("Trace exceeds maximum size of %d bytes, a partial trace is returned", maxBytes)
 			case traceFiltered:
-				// PARTIAL doubles as "not the full trace" - the q filter removed spans.
 				resp.Status = tempopb.PartialStatus_PARTIAL
 				resp.Message = "Trace filtered, only a subset of spans matching the filter is returned"
 			}
