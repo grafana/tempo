@@ -35,6 +35,13 @@ const (
 	minProducerRecordDataBytesLimit = 1024 * 1024
 )
 
+// Supported SASL authentication mechanisms.
+const (
+	SASLMechanismPlain       = "PLAIN"
+	SASLMechanismScramSHA256 = "SCRAM-SHA-256"
+	SASLMechanismScramSHA512 = "SCRAM-SHA-512"
+)
+
 var (
 	ErrMissingKafkaAddress               = errors.New("the Kafka address has not been configured")
 	ErrMissingKafkaTopic                 = errors.New("the Kafka topic has not been configured")
@@ -42,6 +49,7 @@ var (
 	ErrInvalidMaxConsumerLagAtStartup    = errors.New("the configured max consumer lag at startup must greater or equal than the configured target consumer lag")
 	ErrInvalidProducerMaxRecordSizeBytes = fmt.Errorf("the configured producer max record size bytes must be a value between %d and %d", minProducerRecordDataBytesLimit, maxProducerRecordDataBytesLimit)
 	ErrInconsistentSASLCredentials       = errors.New("the SASL username and password must be both configured to enable SASL authentication")
+	ErrUnsupportedSASLMechanism          = fmt.Errorf("the SASL mechanism is not supported, must be one of %s, %s or %s", SASLMechanismPlain, SASLMechanismScramSHA256, SASLMechanismScramSHA512)
 )
 
 type Config struct {
@@ -64,8 +72,9 @@ type KafkaConfig struct {
 	DialTimeout  time.Duration `yaml:"dial_timeout"`
 	WriteTimeout time.Duration `yaml:"write_timeout"`
 
-	SASLUsername string         `yaml:"sasl_username"`
-	SASLPassword flagext.Secret `yaml:"sasl_password"`
+	SASLUsername  string         `yaml:"sasl_username"`
+	SASLPassword  flagext.Secret `yaml:"sasl_password"`
+	SASLMechanism string         `yaml:"sasl_mechanism"`
 
 	ConsumerGroup                     string        `yaml:"consumer_group"`
 	ConsumerGroupOffsetCommitInterval time.Duration `yaml:"consumer_group_offset_commit_interval"`
@@ -103,6 +112,7 @@ func (cfg *KafkaConfig) RegisterFlagsWithPrefix(prefix string, f *flag.FlagSet) 
 
 	f.StringVar(&cfg.SASLUsername, prefix+".sasl-username", "", "The SASL username for authentication.")
 	f.Var(&cfg.SASLPassword, prefix+".sasl-password", "The SASL password for authentication.")
+	f.StringVar(&cfg.SASLMechanism, prefix+".sasl-mechanism", SASLMechanismPlain, fmt.Sprintf("The SASL mechanism used for authentication. Supported values are %s, %s and %s.", SASLMechanismPlain, SASLMechanismScramSHA256, SASLMechanismScramSHA512))
 
 	f.StringVar(&cfg.ConsumerGroup, prefix+".consumer-group", "", "The consumer group used by the consumer to track the last consumed offset. The consumer group must be different for each ingester. If the configured consumer group contains the '<partition>' placeholder, it is replaced with the actual partition ID owned by the ingester. When empty (recommended), Tempo uses the ingester instance ID to guarantee uniqueness.")
 	f.DurationVar(&cfg.ConsumerGroupOffsetCommitInterval, prefix+".consumer-group-offset-commit-interval", time.Second, "How frequently a consumer should commit the consumed offset to Kafka. The last committed offset is used at startup to continue the consumption from where it was left.")
@@ -145,6 +155,12 @@ func (cfg *KafkaConfig) Validate() error {
 		return ErrInconsistentSASLCredentials
 	}
 
+	switch cfg.SASLMechanism {
+	case "", SASLMechanismPlain, SASLMechanismScramSHA256, SASLMechanismScramSHA512:
+	default:
+		return ErrUnsupportedSASLMechanism
+	}
+
 	return nil
 }
 
@@ -164,7 +180,13 @@ func (cfg KafkaConfig) SetDefaultNumberOfPartitionsForAutocreatedTopics(logger l
 		return
 	}
 
-	cl, err := kgo.NewClient(commonKafkaClientOptions(cfg, nil, logger)...)
+	opts, err := commonKafkaClientOptions(cfg, nil, logger)
+	if err != nil {
+		level.Error(logger).Log("msg", "failed to build kafka client options", "err", err)
+		return
+	}
+
+	cl, err := kgo.NewClient(opts...)
 	if err != nil {
 		level.Error(logger).Log("msg", "failed to create kafka client", "err", err)
 		return

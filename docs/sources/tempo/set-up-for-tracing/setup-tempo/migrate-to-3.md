@@ -166,6 +166,9 @@ ingest:
     topic: <KAFKA_TOPIC>
     sasl_username: <USERNAME>
     sasl_password: <PASSWORD>
+    # Optional. Defaults to PLAIN. Set to SCRAM-SHA-256 or SCRAM-SHA-512 if your
+    # Kafka cluster uses SASL/SCRAM authentication.
+    sasl_mechanism: PLAIN
 ```
 
 For the full list of options, refer to the [Ingest](/docs/tempo/<TEMPO_VERSION>/configuration/#ingest), [Block-builder](/docs/tempo/<TEMPO_VERSION>/configuration/#block-builder), and [Live-store](/docs/tempo/<TEMPO_VERSION>/configuration/#live-store) configuration reference.

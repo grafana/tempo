@@ -6,12 +6,93 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/grafana/dskit/flagext"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+func TestSASLMechanism(t *testing.T) {
+	tests := []struct {
+		name         string
+		username     string
+		password     string
+		mechanism    string
+		expectedName string // empty string means we expect a nil mechanism
+		expectedErr  error
+	}{
+		{
+			name:         "no credentials disables SASL",
+			username:     "",
+			password:     "",
+			mechanism:    SASLMechanismPlain,
+			expectedName: "",
+		},
+		{
+			name:         "empty mechanism defaults to plain",
+			username:     "user",
+			password:     "pass",
+			mechanism:    "",
+			expectedName: SASLMechanismPlain,
+		},
+		{
+			name:         "plain",
+			username:     "user",
+			password:     "pass",
+			mechanism:    SASLMechanismPlain,
+			expectedName: SASLMechanismPlain,
+		},
+		{
+			name:         "scram-sha-256",
+			username:     "user",
+			password:     "pass",
+			mechanism:    SASLMechanismScramSHA256,
+			expectedName: SASLMechanismScramSHA256,
+		},
+		{
+			name:         "scram-sha-512",
+			username:     "user",
+			password:     "pass",
+			mechanism:    SASLMechanismScramSHA512,
+			expectedName: SASLMechanismScramSHA512,
+		},
+		{
+			name:        "unsupported mechanism returns an error",
+			username:    "user",
+			password:    "pass",
+			mechanism:   "SCRAM-SHA-1",
+			expectedErr: ErrUnsupportedSASLMechanism,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := KafkaConfig{
+				SASLUsername:  tt.username,
+				SASLPassword:  flagext.SecretWithValue(tt.password),
+				SASLMechanism: tt.mechanism,
+			}
+
+			mechanism, err := saslMechanism(cfg)
+			if tt.expectedErr != nil {
+				require.ErrorIs(t, err, tt.expectedErr)
+				require.Nil(t, mechanism)
+				return
+			}
+
+			require.NoError(t, err)
+			if tt.expectedName == "" {
+				require.Nil(t, mechanism)
+				return
+			}
+
+			require.NotNil(t, mechanism)
+			require.Equal(t, tt.expectedName, mechanism.Name())
+		})
+	}
+}
 
 func TestStatusFromProduceErr(t *testing.T) {
 	tests := []struct {

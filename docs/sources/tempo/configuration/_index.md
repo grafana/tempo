@@ -469,6 +469,10 @@ ingest:
         # The SASL password for authentication.
         [sasl_password: <string>]
 
+        # The SASL mechanism used for authentication.
+        # Supported values are PLAIN, SCRAM-SHA-256 and SCRAM-SHA-512.
+        [sasl_mechanism: <string> | default = "PLAIN"]
+
         # Enable auto-creation of Kafka topic if it doesn't exist.
         [auto_create_topic_enabled: <bool> | default = true]
 

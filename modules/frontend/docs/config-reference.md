@@ -225,6 +225,7 @@ distributor:
         write_timeout: 0s
         sasl_username: ""
         sasl_password: ""
+        sasl_mechanism: ""
         consumer_group: ""
         consumer_group_offset_commit_interval: 0s
         last_produced_offset_retry_timeout: 0s
@@ -501,6 +502,7 @@ ingest:
         write_timeout: 10s
         sasl_username: ""
         sasl_password: ""
+        sasl_mechanism: PLAIN
         consumer_group: ""
         consumer_group_offset_commit_interval: 1s
         last_produced_offset_retry_timeout: 10s
