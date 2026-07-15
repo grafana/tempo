@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"path"
@@ -59,7 +60,7 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 		}
 		qr.SetInstant(true)
 
-		if err := clampQueryEndForValidation(cfg, qr); err != nil {
+		if err := clampInstantQueryEnd(cfg, qr); err != nil {
 			return status.Error(codes.InvalidArgument, err.Error())
 		}
 		qr.Step = qr.End - qr.Start // keep Step == End-Start for instant
@@ -143,7 +144,7 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 		}
 		qr.SetInstant(true)
 
-		if err := clampQueryEndForValidation(cfg, qr); err != nil {
+		if err := clampInstantQueryEnd(cfg, qr); err != nil {
 			return httpInvalidRequest(err), nil
 		}
 		qr.Step = qr.End - qr.Start // keep Step == End-Start for instant
@@ -207,6 +208,41 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 
 		return resp, nil
 	})
+}
+
+// clampInstantQueryEnd pulls an instant query's ending timestamp to within the
+// cutoff range. This is different from range queries because we don't align it to a step. Another
+// special case is we also do it in a way as to not break caching. Instead of doing a hard overwrite
+// of the end timestamp, we subtract just the right number of whole seconds to get it in range.
+// For example if we query `Last 6 Hours` multiple times, we get random clock skew and network latency
+// milliseconds across each run, so the naive cutoff ends up as `Last 5h59m30.xyzs` and xyz vary
+// every time. This breaks caching and is unnecessarily precise. The cutoff range just provides some buffer
+// and is not a hard cutoff. Subtracting in whole seconds eliminates all of the xyz ms jitter,
+// and even though final range can still vary, predominantly it falls into repeated values and caches much better.
+func clampInstantQueryEnd(cfg Config, req *tempopb.QueryRangeRequest) error {
+	var (
+		cutoff = time.Now().Add(-cfg.QueryEndCutoff)
+		start  = time.Unix(0, int64(req.Start))
+		end    = time.Unix(0, int64(req.End))
+	)
+
+	if !end.After(start) {
+		return errEndMustBeGreaterThanStart
+	}
+	if end.Before(cutoff) {
+		return nil
+	}
+
+	// Fewest whole seconds that land the end at or before the cutoff.
+	reduce := time.Duration(math.Ceil(end.Sub(cutoff).Seconds())) * time.Second
+	end = end.Add(-reduce)
+
+	if !end.After(start) {
+		return errQueryWindowWithinEndCutoff
+	}
+
+	req.End = uint64(end.UnixNano())
+	return nil
 }
 
 func translateQueryRangeToInstant(input tempopb.QueryRangeResponse) tempopb.QueryInstantResponse {
