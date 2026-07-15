@@ -438,6 +438,21 @@ func SyncIteratorOptMaxDefinitionLevel(maxDefinitionLevel int) SyncIteratorOpt {
 	}
 }
 
+// Sampler thins values during iteration. It is intentionally narrower than
+// traceql.Sampler so this package takes no dependency on traceql.
+type Sampler interface {
+	// Expect reports an accepted page's value count: the population to sample from.
+	Expect(count uint64)
+	Sample() bool
+}
+
+// SyncIteratorOptSampler applies a sampler to values that pass the predicate.
+func SyncIteratorOptSampler(s Sampler) SyncIteratorOpt {
+	return func(i *SyncIterator) {
+		i.sampler = s
+	}
+}
+
 // SyncIterator is a synchronous column iterator. It scans through the given row
 // groups and column, and applies the optional predicate to each chunk, page, and value.
 // Results are read by calling Next() until it returns nil.
@@ -451,6 +466,7 @@ type SyncIterator struct {
 	rgsMax     []RowNumber // Exclusive, row number of next one past the row group
 	readSize   int
 	filter     Predicate
+	sampler    Sampler
 
 	// Status
 	span            trace.Span
@@ -874,6 +890,10 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 				continue
 			}
 
+			if c.sampler != nil && !c.sampler.Sample() {
+				continue
+			}
+
 			return c.curr, v, nil
 		}
 	}
@@ -918,6 +938,10 @@ func (c *SyncIterator) setPage(pg pq.Page) {
 		c.currPageMin = c.curr
 		c.currPageMax = rn
 		c.currValues = pg.Values()
+
+		if c.sampler != nil {
+			c.sampler.Expect(uint64(pg.NumValues()))
+		}
 	}
 }
 

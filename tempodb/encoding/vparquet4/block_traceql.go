@@ -1940,6 +1940,9 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 		nestedSetLeftExplicit   = false
 		nestedSetRightExplicit  = false
 		nestedSetParentExplicit = false
+		// The sampler attaches to this column's iterator in the build loop, not where
+		// it's set below, because that iterator isn't built yet.
+		samplerColumn string
 	)
 
 	// todo: improve these methods. if addPredicate gets a nil predicate shouldn't it just wipe out the existing predicates instead of appending?
@@ -2012,14 +2015,12 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 				return nil, err
 			}
 
-			if sampler != nil {
-				pred = newSamplingPredicate(sampler, pred)
-				// Removed so that it's not used down below.
-				sampler = nil
-			}
-
 			addPredicate(columnPathSpanStartTime, pred)
 			columnSelectAs[columnPathSpanStartTime] = columnPathSpanStartTime
+
+			if sampler != nil {
+				samplerColumn = columnPathSpanStartTime
+			}
 			continue
 
 		case traceql.IntrinsicName:
@@ -2197,7 +2198,11 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 	}
 
 	for columnPath, predicates := range columnPredicates {
-		iters = append(iters, makeIter(columnPath, orIfNeeded(predicates), columnSelectAs[columnPath]))
+		var s []parquetquery.Sampler
+		if columnPath == samplerColumn && sampler != nil {
+			s = []parquetquery.Sampler{sampler}
+		}
+		iters = append(iters, makeIter(columnPath, orIfNeeded(predicates), columnSelectAs[columnPath], s...))
 	}
 
 	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceSpansILSSpanAttrs,
@@ -2247,11 +2252,11 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 	// Also note that this breaks optimizations related to requireAtLeastOneMatch and requireAtLeastOneMatchOverall b/c it will add a kind attribute
 	//  to the span attributes map in spanCollector
 	if len(required) == 0 {
-		var pred parquetquery.Predicate
-		if sampler != nil {
-			pred = newSamplingPredicate(sampler, nil)
+		var s []parquetquery.Sampler
+		if sampler != nil && samplerColumn == "" {
+			s = []parquetquery.Sampler{sampler}
 		}
-		required = []parquetquery.Iterator{makeIter(columnPathSpanStatusCode, pred, "")}
+		required = []parquetquery.Iterator{makeIter(columnPathSpanStatusCode, nil, "", s...)}
 	}
 
 	// Left join here means the span id/start/end iterators + 1 are required,
@@ -2596,8 +2601,7 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 		// TODO: We might be able to do this without loading a real column, by using
 		// the fact that every trace is a top-level row and there are no gaps. We could
 		// inspect the number of rows in the given row groups and generate virtual row numbers.
-		pred := newSamplingPredicate(sampler, nil)
-		i := makeIter(columnPathRootServiceName, pred, "")
+		i := makeIter(columnPathRootServiceName, nil, "", sampler)
 		required = append([]parquetquery.Iterator{i}, required...)
 	}
 
@@ -3896,50 +3900,4 @@ func otlpKindToTraceqlKind(v uint64) traceql.Kind {
 	default:
 		return traceql.Kind(v)
 	}
-}
-
-type samplingPredicate struct {
-	sampler traceql.Sampler
-	inner   parquetquery.Predicate
-}
-
-var _ parquetquery.Predicate = (*samplingPredicate)(nil)
-
-func newSamplingPredicate(sampler traceql.Sampler, inner parquetquery.Predicate) *samplingPredicate {
-	return &samplingPredicate{
-		sampler: sampler,
-		inner:   inner,
-	}
-}
-
-func (p *samplingPredicate) String() string {
-	return "samplingPredicate{}"
-}
-
-func (p *samplingPredicate) KeepColumnChunk(chunk *parquetquery.ColumnChunkHelper) bool {
-	if p.inner != nil {
-		return p.inner.KeepColumnChunk(chunk)
-	}
-	return true
-}
-
-func (p *samplingPredicate) KeepPage(page parquet.Page) bool {
-	if p.inner != nil && !p.inner.KeepPage(page) {
-		return false
-	}
-
-	// We call Expect() on page because it is closer to the actual data
-	// to be processed.  We could call it earlier in KeepColumnChunk()
-	// but it reduces effectiveness of the sampler because we may
-	// skip around or exit early due to any other conditions.
-	p.sampler.Expect(uint64(page.NumValues()))
-	return true
-}
-
-func (p *samplingPredicate) KeepValue(value parquet.Value) bool {
-	if p.inner != nil && !p.inner.KeepValue(value) {
-		return false
-	}
-
-	return p.sampler.Sample()
 }
