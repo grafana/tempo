@@ -391,7 +391,11 @@ gen-parquet-query:  ## Generate Parquet query
 ### Check vendored and generated files are up to date
 .PHONY: vendor-check
 vendor-check: check-otel-proto-pin check-otel-proto-sync gen-proto update-mod gen-traceql gen-parquet-query ## Keep up to date vendorized files
-	git diff --exit-code -- **/go.sum **/go.mod vendor/ pkg/tempopb/ pkg/traceql/
+	# pkg/tempopb/, tempodb/backend/, and modules/frontend/v1/frontendv1pb/ are
+	# the full set of gen-proto's Go output directories (see its four wiresmith
+	# invocations in the "Gen proto" section above) - keep this pathspec in sync
+	# with that target so a stale generated file always fails this check.
+	git diff --exit-code -- **/go.sum **/go.mod vendor/ pkg/tempopb/ pkg/traceql/ tempodb/backend/ modules/frontend/v1/frontendv1pb/
 
 
 ### Tidy dependencies for tempo modules
