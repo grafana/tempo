@@ -466,7 +466,12 @@ type SyncIterator struct {
 	rgsMax     []RowNumber // Exclusive, row number of next one past the row group
 	readSize   int
 	filter     Predicate
-	sampler    Sampler
+	// pred is the predicate used for chunk/page skipping. It is filter unwrapped of
+	// any InstrumentedPredicate so the helpers' dictionary/null KeepValue calls do not
+	// inflate the wrapper's value counters; those chunk/page counts go through stats.
+	pred    Predicate
+	stats   *predicateStats
+	sampler Sampler
 
 	// Status
 	span            trace.Span
@@ -528,6 +533,15 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, opts ..
 	// Apply options
 	for _, opt := range opts {
 		opt(i)
+	}
+
+	// Resolve the predicate used for chunk/page skipping. Unwrap InstrumentedPredicate
+	// so the helpers count chunk/page decisions via stats and leave its value counters
+	// to the per-row loop.
+	i.pred = i.filter
+	if ip, ok := i.filter.(*InstrumentedPredicate); ok {
+		i.pred = ip.Pred
+		i.stats = &ip.predicateStats
 	}
 
 	// Default value, always clone results until we have
@@ -602,11 +616,11 @@ func (c *SyncIterator) Next() (*IteratorResult, error) {
 // or equal to the given row number (and based on the given definition level)
 func (c *SyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResult, error) {
 	for {
-		if done := c.seekRowGroup(to, definitionLevel); done {
+		if done := c.seekRowGroup(to, definitionLevel, true); done {
 			return nil, nil
 		}
 
-		done, err := c.seekPages(to, definitionLevel)
+		done, err := c.seekPages(to, definitionLevel, true)
 		if err != nil {
 			return nil, err
 		}
@@ -654,7 +668,7 @@ func (c *SyncIterator) popRowGroup() (pq.RowGroup, RowNumber, RowNumber) {
 
 // seekRowGroup skips ahead to the row group that could contain the value at the
 // desired row number. Does nothing if the current row group is already the correct one.
-func (c *SyncIterator) seekRowGroup(seekTo RowNumber, definitionLevel int) (done bool) {
+func (c *SyncIterator) seekRowGroup(seekTo RowNumber, definitionLevel int, prune bool) (done bool) {
 	if c.currRowGroup != nil && CompareRowNumbers(definitionLevel, seekTo, c.currRowGroupMax) >= 0 {
 		// Done with this row group
 		c.closeCurrRowGroup()
@@ -672,7 +686,7 @@ func (c *SyncIterator) seekRowGroup(seekTo RowNumber, definitionLevel int) (done
 		}
 
 		cc := &ColumnChunkHelper{ColumnChunk: rg.ColumnChunks()[c.column]}
-		if c.filter != nil && !c.filter.KeepColumnChunk(cc) {
+		if prune && !c.keepColumnChunk(cc) {
 			cc.Close()
 			continue
 		}
@@ -686,7 +700,7 @@ func (c *SyncIterator) seekRowGroup(seekTo RowNumber, definitionLevel int) (done
 
 // seekPages skips ahead in the current row group to the page that could contain the value at
 // the desired row number. Does nothing if the current page is already the correct one.
-func (c *SyncIterator) seekPages(seekTo RowNumber, definitionLevel int) (done bool, err error) {
+func (c *SyncIterator) seekPages(seekTo RowNumber, definitionLevel int, prune bool) (done bool, err error) {
 	if c.currPage != nil && CompareRowNumbers(definitionLevel, seekTo, c.currPageMax) >= 0 {
 		// Value not in this page
 		c.setPage(nil)
@@ -733,7 +747,7 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, definitionLevel int) (done bo
 			}
 
 			// Skip based on filter?
-			if c.filter != nil && !c.filter.KeepPage(pg) {
+			if prune && c.filter != nil && !c.keepPage(pg) {
 				c.curr.Skip(pg.NumRows())
 				pq.Release(pg)
 				continue
@@ -830,7 +844,7 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 			}
 
 			cc := &ColumnChunkHelper{ColumnChunk: rg.ColumnChunks()[c.column]}
-			if c.filter != nil && !c.filter.KeepColumnChunk(cc) {
+			if !c.keepColumnChunk(cc) {
 				cc.Close()
 				continue
 			}
@@ -848,7 +862,7 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 				c.closeCurrRowGroup()
 				continue
 			}
-			if c.filter != nil && !c.filter.KeepPage(pg) {
+			if c.filter != nil && !c.keepPage(pg) {
 				// This page filtered out
 				c.curr.Skip(pg.NumRows())
 				pq.Release(pg)
@@ -906,6 +920,13 @@ func (c *SyncIterator) setRowGroup(rg pq.RowGroup, min, max RowNumber, cc *Colum
 	c.currRowGroupMin = min
 	c.currRowGroupMax = max
 	c.currChunk = cc
+
+	// TEMPORARY: reset per-chunk regex/substring memoization at each chunk boundary (both
+	// iterators enter here). c.filter is the full tree, so resets cascade. Removed with
+	// predicate memoization once dictionary-index pushdown lands.
+	if r, ok := c.filter.(chunkResetter); ok {
+		r.resetForChunk()
+	}
 }
 
 func (c *SyncIterator) setPage(pg pq.Page) {
