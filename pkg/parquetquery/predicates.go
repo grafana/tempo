@@ -18,8 +18,8 @@ type Predicate interface {
 	fmt.Stringer
 
 	KeepValue(pq.Value) bool
-	// KeepRange reports whether any value in the inclusive [min,max] range could match.
-	KeepRange(min, max pq.Value) bool
+	// KeepRange reports whether any value in the inclusive [minV,maxV] range could match.
+	KeepRange(minV, maxV pq.Value) bool
 }
 
 // NewStringEqualPredicate is just an alias for the equivalent byte predicate
@@ -88,8 +88,8 @@ func (p *ByteInPredicate) KeepValue(v pq.Value) bool {
 	return false
 }
 
-func (p *ByteInPredicate) KeepRange(min, max pq.Value) bool {
-	lo, hi := min.ByteArray(), max.ByteArray()
+func (p *ByteInPredicate) KeepRange(minV, maxV pq.Value) bool {
+	lo, hi := minV.ByteArray(), maxV.ByteArray()
 	for _, s := range p.values {
 		if bytes.Compare(lo, s) <= 0 && bytes.Compare(hi, s) >= 0 {
 			return true
@@ -255,8 +255,8 @@ func (p *IntBetweenPredicate) KeepValue(v pq.Value) bool {
 	return p.min <= vv && vv <= p.max
 }
 
-func (p *IntBetweenPredicate) KeepRange(min, max pq.Value) bool {
-	return p.max >= min.Int64() && p.min <= max.Int64()
+func (p *IntBetweenPredicate) KeepRange(minV, maxV pq.Value) bool {
+	return p.max >= minV.Int64() && p.min <= maxV.Int64()
 }
 
 // GenericPredicate with callbacks to evaluate data of type T
@@ -286,11 +286,11 @@ func (p *GenericPredicate[T]) KeepValue(v pq.Value) bool {
 	return p.Fn(p.Extract(v))
 }
 
-func (p *GenericPredicate[T]) KeepRange(min, max pq.Value) bool {
+func (p *GenericPredicate[T]) KeepRange(minV, maxV pq.Value) bool {
 	if p.RangeFn == nil {
 		return true
 	}
-	return p.RangeFn(p.Extract(min), p.Extract(max))
+	return p.RangeFn(p.Extract(minV), p.Extract(maxV))
 }
 
 type OrPredicate struct {
@@ -331,51 +331,14 @@ func (p *OrPredicate) KeepValue(v pq.Value) bool {
 	return false
 }
 
-func (p *OrPredicate) KeepRange(min, max pq.Value) bool {
+func (p *OrPredicate) KeepRange(minV, maxV pq.Value) bool {
 	for _, sub := range p.preds {
-		if sub == nil || sub.KeepRange(min, max) {
+		if sub == nil || sub.KeepRange(minV, maxV) {
 			// Nil means all values are returned
 			return true
 		}
 	}
 	return false
-}
-
-type InstrumentedPredicate struct {
-	Pred Predicate // Optional, if missing then just keeps metrics with no filtering
-	// predicateStats holds the chunk/page counters (InspectedColumnChunks,
-	// KeptColumnChunks, InspectedPages, KeptPages), incremented by the iterator's
-	// keep* helpers which take &predicateStats. Promoted fields keep the public API.
-	predicateStats
-	InspectedValues int64
-	KeptValues      int64
-}
-
-var _ Predicate = (*InstrumentedPredicate)(nil)
-
-func (p *InstrumentedPredicate) String() string {
-	if p.Pred == nil {
-		return fmt.Sprintf("InstrumentedPredicate{%d, nil}", p.InspectedValues)
-	}
-	return fmt.Sprintf("InstrumentedPredicate{%d, %s}", p.InspectedValues, p.Pred)
-}
-
-func (p *InstrumentedPredicate) KeepValue(v pq.Value) bool {
-	p.InspectedValues++
-
-	if p.Pred == nil || p.Pred.KeepValue(v) {
-		p.KeptValues++
-		return true
-	}
-
-	return false
-}
-
-func (p *InstrumentedPredicate) KeepRange(min, max pq.Value) bool {
-	if p.Pred == nil {
-		return true
-	}
-	return p.Pred.KeepRange(min, max)
 }
 
 type SkipNilsPredicate struct{}

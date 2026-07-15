@@ -402,6 +402,14 @@ func SyncIteratorOptPredicate(p Predicate) SyncIteratorOpt {
 	}
 }
 
+// SyncIteratorOptStats collects chunk/page/value inspected/kept counts into s as the
+// iterator runs. The caller owns s and reads it after iteration; nil disables counting.
+func SyncIteratorOptStats(s *PredicateStats) SyncIteratorOpt {
+	return func(i *SyncIterator) {
+		i.stats = s
+	}
+}
+
 // SyncIteratorOptColumnName sets the column name for the iterator.
 // This is used for tracing and debugging only. All work is done
 // using the column index which is a required parameter on creation.
@@ -466,12 +474,8 @@ type SyncIterator struct {
 	rgsMax     []RowNumber // Exclusive, row number of next one past the row group
 	readSize   int
 	filter     Predicate
-	// pred is the predicate used for chunk/page skipping. It is filter unwrapped of
-	// any InstrumentedPredicate so the helpers' dictionary/null KeepValue calls do not
-	// inflate the wrapper's value counters; those chunk/page counts go through stats.
-	pred    Predicate
-	stats   *predicateStats
-	sampler Sampler
+	stats      *PredicateStats // optional; counts chunk/page/value decisions (SyncIteratorOptStats)
+	sampler    Sampler
 
 	// Status
 	span            trace.Span
@@ -533,15 +537,6 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, opts ..
 	// Apply options
 	for _, opt := range opts {
 		opt(i)
-	}
-
-	// Resolve the predicate used for chunk/page skipping. Unwrap InstrumentedPredicate
-	// so the helpers count chunk/page decisions via stats and leave its value counters
-	// to the per-row loop.
-	i.pred = i.filter
-	if ip, ok := i.filter.(*InstrumentedPredicate); ok {
-		i.pred = ip.Pred
-		i.stats = &ip.predicateStats
 	}
 
 	// Default value, always clone results until we have
@@ -900,8 +895,16 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 			c.currBufN++
 			c.currPageN++
 
-			if c.filter != nil && !c.filter.KeepValue(*v) {
-				continue
+			if c.filter != nil {
+				if c.stats != nil {
+					c.stats.InspectedValues++
+				}
+				if !c.filter.KeepValue(*v) {
+					continue
+				}
+				if c.stats != nil {
+					c.stats.KeptValues++
+				}
 			}
 
 			if c.sampler != nil && !c.sampler.Sample() {
