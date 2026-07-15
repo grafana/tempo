@@ -367,6 +367,14 @@ gen-proto:  ## Generate proto files
 
 	rm -rf $(PROTO_INTERMEDIATE_DIR)
 
+.PHONY: check-otel-proto-pin
+check-otel-proto-pin: ## Verify the opentelemetry-proto submodule pin matches pkg/tempopb/.wiresmith-proto/OTEL_PROTO_PIN (no submodule checkout, no network)
+	./tools/check-otel-proto-pin.sh
+
+.PHONY: check-otel-proto-sync
+check-otel-proto-sync: ## Verify pkg/tempopb/.wiresmith-proto/*.proto match the opentelemetry-proto submodule content, modulo wiresmith annotations (requires submodule checkout)
+	./tools/check-otel-proto-sync.sh
+
 .PHONY: gen-traceql 
 gen-traceql: tools-image ## Generate traceql
 	$(TOOLS_CMD) make gen-traceql-local
@@ -382,7 +390,7 @@ gen-parquet-query:  ## Generate Parquet query
 ##@ Tempo tools
 ### Check vendored and generated files are up to date
 .PHONY: vendor-check
-vendor-check: gen-proto update-mod gen-traceql gen-parquet-query ## Keep up to date vendorized files
+vendor-check: check-otel-proto-pin check-otel-proto-sync gen-proto update-mod gen-traceql gen-parquet-query ## Keep up to date vendorized files
 	git diff --exit-code -- **/go.sum **/go.mod vendor/ pkg/tempopb/ pkg/traceql/
 
 
