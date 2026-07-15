@@ -570,12 +570,9 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 				_ = level.Warn(i.logger).Log("msg", "GetDiskCache unmarshal failed", "err", err)
 			} else {
 				span.SetAttributes(attribute.Bool("cached", true))
-				// Instead of the reporting the InspectedBytes of the cached response.
-				// we report the size of cacheData as the Inspected bytes in case we hit disk cache.
-				// we do this because, because it's incorrect and misleading to report the metrics of cachedResponse
-				// we report the size of the cacheData as the amount of data was read to search this block.
-				// this can skew our metrics because this will be lower than the data read to search the block.
-				// we can remove this if this becomes an issue but leave it in for now to more accurate.
+				// On a cache hit we only read the cache file, so report its size as the
+				// inspected bytes for this block. The cached payload stores only TagValues
+				// (not Metrics), so the original scan's byte count isn't available here.
 				mCollector.Add(uint64(len(cacheData)))
 
 				for _, v := range resp.TagValues {
