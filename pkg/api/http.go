@@ -33,6 +33,7 @@ const (
 	urlParamMinDuration     = "minDuration"
 	urlParamMaxDuration     = "maxDuration"
 	urlParamLimit           = "limit"
+	urlParamMaxStaleValues  = "maxStaleValues"
 	urlParamStart           = "start"
 	urlParamEnd             = "end"
 	urlParamSpansPerSpanSet = "spss"
