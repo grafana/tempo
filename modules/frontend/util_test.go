@@ -96,9 +96,10 @@ func TestSpanAttr(t *testing.T) {
 		{"int64", int64(-7), attribute.Int64("k", -7), true},
 		{"uint32", uint32(3600), attribute.Int64("k", 3600), true},
 		{"uint64", uint64(123456), attribute.Int64("k", 123456), true},
+		{"uint64_overflow", ^uint64(0), attribute.String("k", "18446744073709551615"), true},
 		{"float64", 1.5, attribute.Float64("k", 1.5), true},
 		{"error", errors.New("boom"), attribute.String("k", "boom"), true},
-		{"fallback", time.Second, attribute.String("k", "1s"), true},
+		{"fallback", time.Second, attribute.String("k", "1s"), true}
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
