@@ -182,9 +182,9 @@ func TestColumnIteratorSeekToFilter(t *testing.T) {
 		count := 10_000
 		pf := createTestFile(t, count)
 
-		pred := &InstrumentedPredicate{}
+		var stats PredicateStats
 		idx, _, _ := GetColumnIndexByPath(pf, "A")
-		iter := NewSyncIterator(context.TODO(), pf.RowGroups(), idx, SyncIteratorOptSelectAs("A"), SyncIteratorOptPredicate(pred), SyncIteratorOptMaxDefinitionLevel(MaxDefinitionLevel))
+		iter := NewSyncIterator(context.TODO(), pf.RowGroups(), idx, SyncIteratorOptSelectAs("A"), SyncIteratorOptPredicate(NewSkipNilsPredicate()), SyncIteratorOptStats(&stats), SyncIteratorOptMaxDefinitionLevel(MaxDefinitionLevel))
 		defer iter.Close()
 
 		// Seek in steps below the page-reslice threshold so the iterator
@@ -199,8 +199,8 @@ func TestColumnIteratorSeekToFilter(t *testing.T) {
 			require.Equal(t, RowNumber{seekTo, -1, -1, -1, -1, -1, -1, -1}, res.RowNumber)
 			require.Equal(t, seekTo, res.ToMap()["A"][0].Int32())
 
-			require.Equal(t, int64(1), pred.InspectedValues-inspectedBefore, "only the value at the seek target should be inspected by the filter")
-			inspectedBefore = pred.InspectedValues
+			require.Equal(t, int64(1), stats.InspectedValues-inspectedBefore, "only the value at the seek target should be inspected by the filter")
+			inspectedBefore = stats.InspectedValues
 		}
 	})
 
@@ -241,8 +241,8 @@ func TestColumnIteratorSeekToFilter(t *testing.T) {
 		}
 		pf := createFileWith(t, context.Background(), traces)
 
-		pred := &InstrumentedPredicate{}
-		iter := NewSyncIterator(context.TODO(), pf.RowGroups(), 0, SyncIteratorOptSelectAs("ID"), SyncIteratorOptPredicate(pred), SyncIteratorOptMaxDefinitionLevel(1))
+		var stats PredicateStats
+		iter := NewSyncIterator(context.TODO(), pf.RowGroups(), 0, SyncIteratorOptSelectAs("ID"), SyncIteratorOptPredicate(NewSkipNilsPredicate()), SyncIteratorOptStats(&stats), SyncIteratorOptMaxDefinitionLevel(1))
 		defer iter.Close()
 
 		// Seek to trace 5, span 50 at definition level 1.
@@ -253,7 +253,7 @@ func TestColumnIteratorSeekToFilter(t *testing.T) {
 		require.NotNil(t, res)
 		require.Equal(t, RowNumber{5, 50, -1, -1, -1, -1, -1, -1}, res.RowNumber)
 		require.Equal(t, int64(5*1000+50), res.ToMap()["ID"][0].Int64())
-		require.Equal(t, int64(1), pred.InspectedValues, "only the value at the seek target should be inspected by the filter")
+		require.Equal(t, int64(1), stats.InspectedValues, "only the value at the seek target should be inspected by the filter")
 	})
 }
 
