@@ -58,6 +58,10 @@ func (g *gauge) Set(lbls labels.Labels, value float64) {
 	g.updateSeries(lbls, lbls.Hash(), value, set, true, time.Now().UnixMilli())
 }
 
+func (g *gauge) SetBorrowed(lbls *BorrowedLabels, value float64, timeMs int64) {
+	g.updateSeries(lbls.Labels, lbls.Hash, value, set, true, timeMs)
+}
+
 func (g *gauge) Inc(lbls labels.Labels, value float64) {
 	g.updateSeries(lbls, lbls.Hash(), value, add, true, time.Now().UnixMilli())
 }

@@ -121,6 +121,10 @@ type Histogram interface {
 	// trace ID bytes and label data it needs before returning, so the caller
 	// may Release lbls and reuse the slice afterwards.
 	ObserveBorrowed(lbls *BorrowedLabels, value float64, traceID []byte, multiplier float64, timeMs int64)
+	// ObserveBorrowedWithEncodedTraceID is like ObserveBorrowed but accepts an
+	// already hex-encoded trace ID. It lets callers share one encoding across
+	// multiple native histogram observations.
+	ObserveBorrowedWithEncodedTraceID(lbls *BorrowedLabels, value float64, traceID string, multiplier float64, timeMs int64)
 }
 
 // Gauge
@@ -131,6 +135,10 @@ type Gauge interface {
 
 	// Set sets the Gauge to an arbitrary value.
 	Set(lbls labels.Labels, value float64)
+	// SetBorrowed is like Set but keys the series by the precomputed lbls.Hash
+	// and uses timeMs as the lastUpdated stamp. It copies what it needs before
+	// returning, so the caller may Release lbls afterwards.
+	SetBorrowed(lbls *BorrowedLabels, value float64, timeMs int64)
 	Inc(lbls labels.Labels, value float64)
 	SetForTargetInfo(lbls labels.Labels, value float64)
 	// SetForTargetInfoBorrowed is like SetForTargetInfo but keys the series by

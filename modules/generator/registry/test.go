@@ -164,6 +164,10 @@ func (t *testGauge) Set(lbls labels.Labels, value float64) {
 	t.registry.setMetric(t.n, lbls, value)
 }
 
+func (t *testGauge) SetBorrowed(lbls *BorrowedLabels, value float64, _ int64) {
+	t.Set(lbls.Labels, value)
+}
+
 func (t *testGauge) SetForTargetInfo(lbls labels.Labels, value float64) {
 	t.Set(lbls, value)
 }
@@ -221,6 +225,10 @@ func (t *testHistogram) ObserveWithExemplar(lbls labels.Labels, value float64, _
 func (t *testHistogram) ObserveBorrowed(lbls *BorrowedLabels, value float64, _ []byte, multiplier float64, _ int64) {
 	// testHistogram discards the trace ID (ObserveWithExemplar ignores it), so
 	// skip hex-encoding it — that allocation only inflated benchmark allocs.
+	t.ObserveWithExemplar(lbls.Labels, value, "", multiplier)
+}
+
+func (t *testHistogram) ObserveBorrowedWithEncodedTraceID(lbls *BorrowedLabels, value float64, _ string, multiplier float64, _ int64) {
 	t.ObserveWithExemplar(lbls.Labels, value, "", multiplier)
 }
 

@@ -1928,6 +1928,11 @@ func (g *recordingGauge) Set(lbls labels.Labels, value float64) {
 	g.Gauge.Set(lbls, value)
 }
 
+func (g *recordingGauge) SetBorrowed(lbls *registry.BorrowedLabels, value float64, timeMs int64) {
+	*g.calls = append(*g.calls, g.name)
+	g.Gauge.SetBorrowed(lbls, value, timeMs)
+}
+
 func (g *recordingGauge) Inc(lbls labels.Labels, value float64) {
 	*g.calls = append(*g.calls, g.name)
 	g.Gauge.Inc(lbls, value)
