@@ -13,6 +13,12 @@ type testOptString struct {
 	S *string `parquet:",dict,optional"`
 }
 
+// testPlainInt is deliberately not dict-encoded, so pruning falls to the column index
+// and page bounds rather than the dictionary.
+type testPlainInt struct {
+	N int64
+}
+
 func TestPredicateNullValueIsNull(t *testing.T) {
 	require.True(t, predicateNullValue().IsNull())
 }
@@ -139,24 +145,88 @@ func TestKeepStatsCounters(t *testing.T) {
 		require.NoError(t, w.Write(&testDictString{"abc"}))
 	})
 
-	// An InstrumentedPredicate sets c.stats, so keepColumnChunk counts into it.
-	keepIP := &InstrumentedPredicate{Pred: NewStringInPredicate([]string{"abc"})}
-	keepIt := NewSyncIterator(context.TODO(), r.RowGroups(), 0, SyncIteratorOptPredicate(keepIP))
+	// SyncIteratorOptStats attaches a PredicateStats, so keepColumnChunk counts into it.
+	var keepStats PredicateStats
+	keepIt := NewSyncIterator(context.TODO(), r.RowGroups(), 0,
+		SyncIteratorOptPredicate(NewStringInPredicate([]string{"abc"})), SyncIteratorOptStats(&keepStats))
 	defer keepIt.Close()
 	ccKeep := &ColumnChunkHelper{ColumnChunk: r.RowGroups()[0].ColumnChunks()[0]}
 	defer ccKeep.Close()
 	require.True(t, keepIt.keepColumnChunk(ccKeep))
-	require.Equal(t, int64(1), keepIP.InspectedColumnChunks)
-	require.Equal(t, int64(1), keepIP.KeptColumnChunks)
+	require.Equal(t, int64(1), keepStats.InspectedColumnChunks)
+	require.Equal(t, int64(1), keepStats.KeptColumnChunks)
 
-	skipIP := &InstrumentedPredicate{Pred: NewStringInPredicate([]string{"zzz"})}
-	skipIt := NewSyncIterator(context.TODO(), r.RowGroups(), 0, SyncIteratorOptPredicate(skipIP))
+	var skipStats PredicateStats
+	skipIt := NewSyncIterator(context.TODO(), r.RowGroups(), 0,
+		SyncIteratorOptPredicate(NewStringInPredicate([]string{"zzz"})), SyncIteratorOptStats(&skipStats))
 	defer skipIt.Close()
 	ccSkip := &ColumnChunkHelper{ColumnChunk: r.RowGroups()[0].ColumnChunks()[0]}
 	defer ccSkip.Close()
 	require.False(t, skipIt.keepColumnChunk(ccSkip))
-	require.Equal(t, int64(1), skipIP.InspectedColumnChunks)
-	require.Equal(t, int64(0), skipIP.KeptColumnChunks) // chunk skipped
+	require.Equal(t, int64(1), skipStats.InspectedColumnChunks)
+	require.Equal(t, int64(0), skipStats.KeptColumnChunks) // chunk skipped
+}
+
+// TestKeepPagePrunesByBounds covers page-level KeepRange pruning on a plain (non-dict)
+// column, where the chunk is kept but individual pages are skippable by their bounds.
+// Dict-encoded columns skip at the chunk level instead, so they never reach this path.
+func TestKeepPagePrunesByBounds(t *testing.T) {
+	const rows = 2000
+
+	buf := new(bytes.Buffer)
+	w := parquet.NewWriter(buf, parquet.PageBufferSize(1024))
+	for i := 0; i < rows; i++ {
+		require.NoError(t, w.Write(&testPlainInt{int64(i)}))
+	}
+	require.NoError(t, w.Flush())
+	require.NoError(t, w.Close())
+	r, err := parquet.OpenFile(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	require.NoError(t, err)
+
+	// Matches only the tail of an ascending column, so the leading pages are out of range.
+	var stats PredicateStats
+	it := NewSyncIterator(context.TODO(), r.RowGroups(), 0,
+		SyncIteratorOptPredicate(NewIntBetweenPredicate(rows-5, rows)), SyncIteratorOptStats(&stats))
+	defer it.Close()
+	drain(t, it)
+
+	require.Equal(t, int64(1), stats.KeptColumnChunks, "chunk holds matching values, must be kept")
+	require.Greater(t, stats.InspectedPages, int64(1), "need multiple pages to exercise pruning")
+	require.Less(t, stats.KeptPages, stats.InspectedPages, "out-of-range pages must be pruned")
+	require.Equal(t, int64(5), stats.KeptValues)
+}
+
+// TestStatsCountOnlyRowValues pins the invariant that replaced InstrumentedPredicate's
+// inner-predicate unwrap: the null and dictionary KeepValue probes issued by
+// keepColumnChunk / keepPage must not inflate the value counters, which count rows only.
+func TestStatsCountOnlyRowValues(t *testing.T) {
+	r := buildFile(t, func(w *parquet.Writer) { //nolint:all
+		require.NoError(t, w.Write(&testDictString{"abc"}))
+		require.NoError(t, w.Write(&testDictString{"bcd"}))
+		require.NoError(t, w.Write(&testDictString{"cde"}))
+	})
+
+	var stats PredicateStats
+	it := NewSyncIterator(context.TODO(), r.RowGroups(), 0,
+		SyncIteratorOptPredicate(NewStringInPredicate([]string{"abc"})), SyncIteratorOptStats(&stats))
+	defer it.Close()
+	drain(t, it)
+
+	// Exactly one inspection per row: the 3-entry dictionary scan and the null probe
+	// that keepColumnChunk performed are not counted.
+	require.Equal(t, int64(3), stats.InspectedValues)
+	require.Equal(t, int64(1), stats.KeptValues)
+}
+
+func drain(t *testing.T, it Iterator) {
+	t.Helper()
+	for {
+		res, err := it.Next()
+		require.NoError(t, err)
+		if res == nil {
+			return
+		}
+	}
 }
 
 func buildFile(t *testing.T, writeData func(w *parquet.Writer)) *parquet.File { //nolint:all
