@@ -285,6 +285,7 @@ jobs:
   coverage-annotations:
     name: Coverage Annotations
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     needs: [unit-tests]
     permissions:
       contents: read
