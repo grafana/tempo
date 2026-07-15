@@ -97,7 +97,7 @@ func spanAttr(key string, val any) (attribute.KeyValue, bool) {
 		return attribute.Int64(key, int64(v)), true
 	case uint64:
 		// OTel attributes don't support uint64; cast to int64 when safe, otherwise fall back to string.
-		if v > uint64(^uint64(0)>>1) {
+		if v > ^uint64(0)>>1 {
 			return attribute.String(key, fmt.Sprint(v)), true
 		}
 		return attribute.Int64(key, int64(v)), true //nolint:gosec // G115
