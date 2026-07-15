@@ -33,7 +33,6 @@ func extractTenant(req *http.Request, logger log.Logger) (string, *http.Response
 func acceptAllBlocks(_ *backend.BlockMeta) bool { return true }
 
 // setQueryShapeSpanAttrs stamps the query-shape attributes on the given span.
-// Called from each sharder after starting its span.
 func setQueryShapeSpanAttrs(span trace.Span, qs pipeline.QueryShape) {
 	span.SetAttributes(
 		attribute.String("query_type", qs.Type),
@@ -66,7 +65,11 @@ func setSpanAttrsWithShape(ctx context.Context, fields ...any) {
 	attrs := make([]attribute.KeyValue, 0, len(fields)/2)
 	for i := 0; i+1 < len(fields); i += 2 {
 		key, ok := fields[i].(string)
-		if !ok || key == "msg" || key == "traceID" { // log field keys that are redundant on a span
+		// skip log field keys that are redundant on a span: the span has its own
+		// name, trace ID and duration, and the server middleware records the
+		// tenant, status code and path.
+		if !ok || key == "msg" || key == "traceID" || key == "tenant" ||
+			key == "duration_seconds" || key == "status_code" || key == "path" {
 			continue
 		}
 		if attr, ok := spanAttr(key, fields[i+1]); ok {

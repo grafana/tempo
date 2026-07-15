@@ -122,7 +122,7 @@ func TestSetSpanAttrsWithShape(t *testing.T) {
 		return out
 	}
 
-	t.Run("mirrors fields, skips msg, traceID and nil values", func(t *testing.T) {
+	t.Run("mirrors fields, skips nil values and redundant keys", func(t *testing.T) {
 		rec := tracetest.NewSpanRecorder()
 		tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(rec))
 		ctx, span := tp.Tracer("test").Start(context.Background(), "test")
@@ -130,10 +130,12 @@ func TestSetSpanAttrsWithShape(t *testing.T) {
 		setSpanAttrsWithShape(ctx,
 			"msg", "search response",
 			"traceID", "abcd",
-			"query", "{}",
+			"tenant", "test-tenant",
 			"duration_seconds", 1.5,
-			"inspected_bytes", uint64(1024),
 			"status_code", 200,
+			"path", "/api/search",
+			"query", "{}",
+			"inspected_bytes", uint64(1024),
 			"error", nil,
 		)
 		span.End()
@@ -141,11 +143,13 @@ func TestSetSpanAttrsWithShape(t *testing.T) {
 		attrs := attrsOf(rec)
 		assert.NotContains(t, attrs, attribute.Key("msg"))
 		assert.NotContains(t, attrs, attribute.Key("traceID"))
+		assert.NotContains(t, attrs, attribute.Key("tenant"))
+		assert.NotContains(t, attrs, attribute.Key("duration_seconds"))
+		assert.NotContains(t, attrs, attribute.Key("status_code"))
+		assert.NotContains(t, attrs, attribute.Key("path"))
 		assert.NotContains(t, attrs, attribute.Key("error"))
 		assert.Equal(t, "{}", attrs["query"].AsString())
-		assert.Equal(t, 1.5, attrs["duration_seconds"].AsFloat64())
 		assert.Equal(t, int64(1024), attrs["inspected_bytes"].AsInt64())
-		assert.Equal(t, int64(200), attrs["status_code"].AsInt64())
 		// no shape stamped on ctx -> no shape attrs
 		assert.NotContains(t, attrs, attribute.Key("query_type"))
 	})
