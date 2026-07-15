@@ -3,6 +3,7 @@ package bloomgateway
 import (
 	"flag"
 	"testing"
+	"time"
 
 	"github.com/grafana/dskit/flagext"
 	"github.com/stretchr/testify/assert"
@@ -138,6 +139,36 @@ func TestConfig_Validate(t *testing.T) {
 			},
 			wantErr: "kafka:",
 		},
+		{
+			name: "ring_stability_window zero",
+			mutate: func(cfg *Config) {
+				cfg.RingStabilityWindow = 0
+			},
+			wantErr: "ring_stability_window must be greater than 0",
+		},
+		{
+			name: "ring_stability_window negative",
+			mutate: func(cfg *Config) {
+				cfg.RingStabilityWindow = -time.Second
+			},
+			wantErr: "ring_stability_window must be greater than 0",
+		},
+		{
+			name: "ring_stability_timeout shorter than ring_stability_window",
+			mutate: func(cfg *Config) {
+				cfg.RingStabilityWindow = 30 * time.Second
+				cfg.RingStabilityTimeout = 15 * time.Second
+			},
+			wantErr: "ring_stability_timeout",
+		},
+		{
+			name: "ring_stability_timeout exactly equal to ring_stability_window is valid",
+			mutate: func(cfg *Config) {
+				cfg.RingStabilityWindow = 15 * time.Second
+				cfg.RingStabilityTimeout = 15 * time.Second
+			},
+			wantErr: "",
+		},
 	}
 
 	for _, tt := range tests {
@@ -154,6 +185,17 @@ func TestConfig_Validate(t *testing.T) {
 			assert.Contains(t, err.Error(), tt.wantErr)
 		})
 	}
+}
+
+// TestConfig_RingStabilityDefaults pins down the bug report's own suggested
+// starting point (window ~15s, timeout ~1m) so a future default change is
+// deliberate, not accidental -- and that the defaults RegisterFlags
+// AndApplyDefaults applies satisfy Validate on their own.
+func TestConfig_RingStabilityDefaults(t *testing.T) {
+	cfg := validConfig(t)
+	assert.Equal(t, 15*time.Second, cfg.RingStabilityWindow)
+	assert.Equal(t, time.Minute, cfg.RingStabilityTimeout)
+	assert.NoError(t, cfg.Validate())
 }
 
 // TestConfig_RegisterFlagsAndApplyDefaults_Idempotent guards the module-

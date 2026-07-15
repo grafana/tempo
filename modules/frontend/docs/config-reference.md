@@ -1065,6 +1065,8 @@ bloom_gateway:
     f: 16
     seed: ""
     num_tokens: 512
+    ring_stability_window: 15s
+    ring_stability_timeout: 1m0s
     ring:
         kvstore:
             store: memberlist

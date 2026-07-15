@@ -92,15 +92,6 @@ const (
 	// where the plan doesn't ask for one.
 	ringActiveWaitTimeout = 30 * time.Second
 
-	// ringStabilityMinDuration/MaxWaiting bound WaitRingStability's
-	// cold-start settle window (DESIGN.md § Availability model's readiness
-	// gate; backend-worker's own precedent: "in the event of a cluster cold
-	// start... it's better to just wait the ring stability for a short
-	// time"). A timeout here is logged and starting() proceeds anyway
-	// (matching backend-worker), not treated as fatal.
-	ringStabilityMinDuration = 500 * time.Millisecond
-	ringStabilityMaxWaiting  = 5 * time.Second
-
 	// consumerLagCheckTimeout bounds the on-demand broker round-trip
 	// consumerLag makes on behalf of the Reconciler's lagFn (see its own
 	// doc comment below for why this is computed on demand rather than
@@ -127,6 +118,27 @@ const (
 // plan-specified knob.
 var ownershipReconcileInterval = time.Second
 
+// selfHealCheckEvery paces runOwnershipWatch's coarser self-heal pass
+// (selfHealOwnership, below) relative to its hot, per-tick reconcileOwnership
+// call. Live incident, reported prominently per the harness's own
+// instructions: reconcileOwnership's newlyOwned detection is a pure
+// incremental diff against g.lastOwnedRanges, which assumes that baseline
+// accurately reflects what the directory currently holds. It does not,
+// whenever something OTHER than this watch's own Shed calls removes an
+// owned leaf from the directory without the ring's view of ownership itself
+// moving -- observed directly: an instance whose startup claim, computed
+// against a still-converging ring, ended up disjoint from its eventual fair
+// share sat with that fair share permanently unserved, because
+// g.lastOwnedRanges never captured the gap and the ring-reported owned set
+// never looked "newly owned" against it. selfHealOwnership closes this by
+// comparing the ring's current answer DIRECTLY against directory state
+// (authoritative, not an incremental diff) instead. An O(owned leaves)
+// directory walk is too expensive to repeat every ownershipReconcileInterval
+// tick (owned leaves can be in the millions at reference D/N), but cheap
+// enough every half-minute-ish -- this constant is that coarser cadence,
+// keeping the hot tick itself O(ranges).
+const selfHealCheckEvery = 30
+
 // BloomGateway is the top-level bloom gateway service (DESIGN.md throughout).
 // It embeds services.Service (assigned in New(), matching every other
 // module in this repo: module-wiring report convention "services.Service is
@@ -144,6 +156,19 @@ type BloomGateway struct {
 	seedFingerprint uint64
 
 	ringManager *RingManager
+
+	// waitRingStabilityFn is starting()'s ring-stability call (Bug B fix),
+	// defaulting to ring.WaitRingStability itself in New(). Kept as a field
+	// (rather than calling ring.WaitRingStability directly) purely so a
+	// test can prove cfg.RingStabilityWindow/RingStabilityTimeout actually
+	// reach it, without depending on dskit's own hardcoded 1s poll floor
+	// (vendor/.../dskit/ring/util.go's waitStability: "const
+	// pollingFrequency = time.Second") for either correctness or timing --
+	// a real WaitRingStability call, however small its configured window,
+	// still costs at least one real second, which is no way to assert
+	// "did the right numbers get passed in". Production never overrides
+	// this; it is exactly ring.WaitRingStability, called exactly as before.
+	waitRingStabilityFn func(ctx context.Context, r ring.ReadRing, op ring.Operation, minStability, maxWaiting time.Duration) error
 
 	dir     *Directory
 	reg     *Registry
@@ -253,7 +278,6 @@ func New(cfg Config, instanceID string, backendReader backend.Reader, logger log
 	}
 	limiter := rate.NewLimiter(rate.Limit(cfg.Reconstruction.RateLimitBytesPerSecond), burst)
 
-	reconstructionQueue := NewReconstructionQueue(dir, applier, consumer, backendReader, cfg.Reconstruction, limiter, m, logger)
 	server := NewServer(dir, registry, tenants, seed, cfg.D, cfg.F, m)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -266,6 +290,7 @@ func New(cfg Config, instanceID string, backendReader backend.Reader, logger log
 		seed:                seed,
 		seedFingerprint:     seedFingerprint,
 		ringManager:         ringManager,
+		waitRingStabilityFn: ring.WaitRingStability,
 		dir:                 dir,
 		reg:                 registry,
 		tenants:             tenants,
@@ -274,16 +299,17 @@ func New(cfg Config, instanceID string, backendReader backend.Reader, logger log
 		workerPool:          workerPool,
 		sweeper:             sweeper,
 		snapshotter:         snapshotter,
-		reconstructionQueue: reconstructionQueue,
 		server:              server,
 		backendReader:       backendReader,
 		limiter:             limiter,
 		ctx:                 ctx,
 		cancel:              cancel,
 	}
-	// NewReconciler's lagFn needs a method value on g, so g must already
-	// exist -- reconciler is therefore constructed after, and assigned onto
-	// g directly, rather than via the struct literal above.
+	// NewReconstructionQueue's ownedRangesFn and NewReconciler's lagFn both
+	// need a method value on g, so g must already exist -- both are
+	// therefore constructed after, and assigned onto g directly, rather
+	// than via the struct literal above.
+	g.reconstructionQueue = NewReconstructionQueue(dir, applier, consumer, backendReader, cfg.Reconstruction, g.currentOwnedRanges, limiter, m, logger)
 	g.reconciler = NewReconciler(registry, applier, backendReader, cfg.Reconciliation, g.consumerLagFn, limiter, m, logger)
 
 	g.readyErr.Store(&ErrStarting)
@@ -335,8 +361,32 @@ func (g *BloomGateway) starting(ctx context.Context) (err error) {
 	}
 	level.Info(g.logger).Log("msg", "bloomgateway: instance is ACTIVE in the ring", "instance", g.instanceID)
 
-	stabilityCtx, stabilityCancel := context.WithTimeout(ctx, ringStabilityMaxWaiting)
-	stabilityErr := ring.WaitRingStability(stabilityCtx, g.ringManager.Ring, ringOp, ringStabilityMinDuration, ringStabilityMaxWaiting)
+	// Ring-stability gate (DESIGN.md § Availability model's readiness gate;
+	// backend-worker's own precedent: "in the event of a cluster cold
+	// start... it's better to just wait the ring stability for a short
+	// time"): wait until ring membership (instance set + states) has been
+	// unchanged for cfg.RingStabilityWindow before this instance's first
+	// reconstruction enqueue/claim (reconcileStartup, below). Live
+	// incident, reported prominently per the harness's own instructions:
+	// this used to be a fixed 500ms/5s pair, which a staggered 16-instance
+	// cold start showed is nowhere near enough -- an instance joining ~1s
+	// into that rollout computed its owned ranges against a ring only a
+	// couple of members deep and claimed ~82% of the keyspace. The window
+	// and timeout are now operator-tunable (config.go's
+	// RingStabilityWindow/RingStabilityTimeout) rather than fixed
+	// constants. A timeout here is logged and starting() proceeds anyway
+	// (matching backend-worker), not treated as fatal -- a genuinely
+	// single-instance cell must still start. Bug A's own fix
+	// (reconstruction.go's ownership re-scoping, both at claim time and at
+	// flip-to-complete) already bounds the worst case of an oversized claim
+	// bought by a timeout here; this gate is about not doing the wasted
+	// reconstruction work in the first place. Called through g.
+	// waitRingStabilityFn (defaults to ring.WaitRingStability itself, see
+	// its own field doc comment) rather than the package function directly,
+	// purely so a test can verify these two config values actually reach
+	// this call.
+	stabilityCtx, stabilityCancel := context.WithTimeout(ctx, g.cfg.RingStabilityTimeout)
+	stabilityErr := g.waitRingStabilityFn(stabilityCtx, g.ringManager.Ring, ringOp, g.cfg.RingStabilityWindow, g.cfg.RingStabilityTimeout)
 	stabilityCancel()
 	if stabilityErr != nil {
 		level.Warn(g.logger).Log("msg", "bloomgateway: ring topology did not stabilize within the max wait; proceeding anyway", "err", stabilityErr)
@@ -671,6 +721,33 @@ func rangeSetDifference(a, b []LeafRange) []LeafRange {
 	return out
 }
 
+// rangeSetIntersection returns the portions of a covered by some range in b
+// -- a intersect b, as a coalesced range list. Both inputs are expected
+// sorted and non-overlapping (OwnedLeafRanges' own contract).
+// reconstruction.go's own doc comment on its use of this explains why: a
+// claimed reconstruction batch must be re-scoped down to whatever this
+// instance CURRENTLY owns before touching the directory, and this is the
+// O(len(a)*len(b)) range-level primitive that does it without an O(2^D)
+// per-leaf walk -- mirroring rangeSetDifference's own shape and cost bound.
+func rangeSetIntersection(a, b []LeafRange) []LeafRange {
+	var out []LeafRange
+	for _, ra := range a {
+		for _, rb := range b {
+			start, end := ra.Start, ra.End
+			if rb.Start > start {
+				start = rb.Start
+			}
+			if rb.End < end {
+				end = rb.End
+			}
+			if start < end {
+				out = append(out, LeafRange{Start: start, End: end})
+			}
+		}
+	}
+	return out
+}
+
 // runOwnershipWatch is this file's own addition (package doc comment
 // above): periodically recomputes this instance's owned leaf ranges against
 // the live ring and reacts to any change -- shedding leaves no longer
@@ -682,12 +759,17 @@ func rangeSetDifference(a, b []LeafRange) []LeafRange {
 func (g *BloomGateway) runOwnershipWatch(ctx context.Context) {
 	ticker := time.NewTicker(ownershipReconcileInterval)
 	defer ticker.Stop()
+	ticks := 0
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
 			g.reconcileOwnership()
+			ticks++
+			if ticks%selfHealCheckEvery == 0 {
+				g.selfHealOwnership()
+			}
 		}
 	}
 }
@@ -702,6 +784,13 @@ func (g *BloomGateway) runOwnershipWatch(ctx context.Context) {
 // O(ranges) for the diff -- never enqueuing (and therefore never
 // perturbing CheckReady's PendingRanges() check) when nothing has actually
 // changed since the last tick.
+//
+// This diff is only as good as g.lastOwnedRanges' own accuracy: it detects
+// "the ring's answer changed since last tick", not "the directory disagrees
+// with the ring's answer right now". Those are the same thing only if
+// nothing but this method's own Shed/Enqueue calls ever moves a leaf's
+// directory state -- selfHealOwnership (below) is the coarser-cadence
+// backstop for when that assumption doesn't hold.
 func (g *BloomGateway) reconcileOwnership() {
 	ownedRanges, err := g.currentOwnedRanges()
 	if err != nil {
@@ -734,6 +823,53 @@ func (g *BloomGateway) reconcileOwnership() {
 	if len(newlyOwned) > 0 {
 		level.Info(g.logger).Log("msg", "bloomgateway: ownership reconcile: enqueuing newly owned ranges", "ranges", len(newlyOwned))
 		g.reconstructionQueue.Enqueue(newlyOwned)
+	}
+}
+
+// selfHealOwnership is runOwnershipWatch's coarse-cadence backstop
+// (selfHealCheckEvery's own doc comment explains the incident and the
+// cadence trade-off). Unlike reconcileOwnership's incremental diff against
+// g.lastOwnedRanges, this asks the authoritative question directly: for
+// every leaf the ring currently assigns to this instance, does the
+// directory actually hold it (constructing or complete)? A leaf that is
+// ring-owned but LeafNil -- shed by something other than this watch's own
+// bookkeeping noticing a ring change, or never claimed in the first place --
+// is re-enqueued here regardless of what g.lastOwnedRanges says, so a gap
+// the hot tick's diff cannot see (because the ring's answer never looked
+// "new" against a stale baseline) still gets repaired without a manual
+// restart. Re-enqueuing a range that is already constructing/complete or
+// already pending is harmless: BeginConstructing no-ops on anything not
+// LeafNil (directory.go), so redundant self-heal enqueues cost nothing
+// beyond a wasted (small, ring-bounded) queue entry.
+func (g *BloomGateway) selfHealOwnership() {
+	ownedRanges, err := g.currentOwnedRanges()
+	if err != nil {
+		level.Warn(g.logger).Log("msg", "bloomgateway: ownership self-heal: resolving owned ranges failed; will retry next pass", "err", err)
+		return
+	}
+
+	var missing []LeafRange
+	for _, r := range ownedRanges {
+		var start uint32
+		open := false
+		for idx := r.Start; idx < r.End; idx++ {
+			isNil := g.dir.State(idx) == LeafNil
+			switch {
+			case isNil && !open:
+				start, open = idx, true
+			case !isNil && open:
+				missing = append(missing, LeafRange{Start: start, End: idx})
+				open = false
+			}
+		}
+		if open {
+			missing = append(missing, LeafRange{Start: start, End: r.End})
+		}
+	}
+
+	if len(missing) > 0 {
+		level.Warn(g.logger).Log("msg", "bloomgateway: ownership self-heal: re-enqueuing ring-owned ranges missing from the directory", "ranges", len(missing))
+		g.reconstructionQueue.Enqueue(missing)
 	}
 }
 

@@ -98,6 +98,15 @@ type ReconstructionQueue struct {
 	rewinder      PositionRewinder
 	backendReader backend.Reader
 	cfg           ReconstructionConfig
+	// ownedRangesFn resolves this instance's CURRENT ring-owned leaf
+	// ranges (bloomgateway.go's currentOwnedRanges, passed as a method
+	// value since g must already exist -- see New()'s own comment on
+	// this). processBatch calls it twice per batch (claim time and
+	// flip-to-complete time) to make the directory's ownership state
+	// authoritative over whatever a claimed batch's own `ranges` argument
+	// says -- see processBatch's own doc comment for the incident this
+	// closes.
+	ownedRangesFn func() ([]LeafRange, error)
 	limiter       *rate.Limiter
 	metrics       *metrics
 	logger        log.Logger
@@ -110,13 +119,14 @@ type ReconstructionQueue struct {
 // NewReconstructionQueue builds a ReconstructionQueue. Enqueue must be
 // called (by the ring/ownership-change wiring, out of this WP's scope) to
 // give it work; Run then drains it continuously.
-func NewReconstructionQueue(dir *Directory, applier *Applier, rewinder PositionRewinder, backendReader backend.Reader, cfg ReconstructionConfig, limiter *rate.Limiter, m *metrics, logger log.Logger) *ReconstructionQueue {
+func NewReconstructionQueue(dir *Directory, applier *Applier, rewinder PositionRewinder, backendReader backend.Reader, cfg ReconstructionConfig, ownedRangesFn func() ([]LeafRange, error), limiter *rate.Limiter, m *metrics, logger log.Logger) *ReconstructionQueue {
 	return &ReconstructionQueue{
 		dir:           dir,
 		applier:       applier,
 		rewinder:      rewinder,
 		backendReader: backendReader,
 		cfg:           cfg,
+		ownedRangesFn: ownedRangesFn,
 		limiter:       limiter,
 		metrics:       m,
 		logger:        logger,
@@ -231,16 +241,52 @@ func (q *ReconstructionQueue) RunBatch(ctx context.Context) (BatchStats, error) 
 }
 
 // processBatch runs the exact Run sequence from DESIGN.md § Reconstruction /
-// the implementation plan: (1) BeginConstructing every range's leaves; (2)
-// enumerate every tenant's TenantIndex, tracking the oldest CreatedAt and
+// the implementation plan: (0) re-scope ranges to what this instance
+// CURRENTLY owns; (1) BeginConstructing every (re-scoped) range's leaves;
+// (2) enumerate every tenant's TenantIndex, tracking the oldest CreatedAt and
 // every live block; (3) rewind the consumer to (oldest CreatedAt - margin);
 // (4) fetch+apply every block's trace-ID column, bounded by cfg.Concurrency
 // and the shared rate limiter; (5) block until the consumer has caught back
 // up past the pre-rewind position; (6) flip every leaf this batch started
-// to complete.
+// to complete, re-scoped to current ownership again.
+//
+// Steps 0 and 6's ownership re-checks are this file's fix for a live
+// incident, reported prominently per the harness's own instructions:
+// `ranges` reflects ownership at ENQUEUE time, which can be stale by the
+// time this batch actually runs, in at least two ways this package's own
+// design produces routinely, not just under some rare fault. (a) RunBatch
+// re-enqueues this exact slice, unmodified, when a batch fails (see
+// RunBatch) -- a retry after backoff must not blindly re-claim whatever the
+// FIRST attempt was given, or a leaf runOwnershipWatch already Shed in the
+// meantime gets silently re-marked constructing on the retry, resurrecting
+// exactly the state Shed was supposed to release. (b) Run drains and
+// processes one batch at a time (never concurrently), so a range that sat
+// queued behind a long-running predecessor -- the common case for an
+// oversized claim, since DESIGN.md's own cost model makes a batch's
+// duration independent of how many ranges it covers -- can be stale by the
+// time its turn finally comes, even with no failure involved. Either way,
+// BeginConstructing itself has no notion of ownership: it transitions any
+// nil slot to constructing unconditionally, trusting its caller to ask only
+// for what it currently owns. Directory.InsertLive already makes the LIVE
+// write path just another thing that stops the instant a leaf is Shed (nil
+// drops); steps 0 and 6 are what make THIS path -- claiming and completing
+// -- respect the same authority instead of trusting a `ranges` argument
+// that can outlive the ownership it was computed from.
 func (q *ReconstructionQueue) processBatch(ctx context.Context, ranges []LeafRange) (stats BatchStats, err error) {
 	start := time.Now()
 	stats = BatchStats{Ranges: len(ranges)}
+
+	// Step 0. Re-scope down to current ownership before touching the
+	// directory at all -- see this method's own doc comment above for why
+	// `ranges` cannot be trusted as-is.
+	owned, oerr := q.ownedRangesFn()
+	if oerr != nil {
+		return stats, fmt.Errorf("bloomgateway: reconstruction: resolving current owned ranges: %w", oerr)
+	}
+	ranges = rangeSetIntersection(ranges, owned)
+	if len(ranges) == 0 {
+		return stats, nil
+	}
 
 	// Step 1. A leaf this batch does NOT observe transitioning nil ->
 	// constructing (BeginConstructing returns started=false: already
@@ -335,8 +381,44 @@ func (q *ReconstructionQueue) processBatch(ctx context.Context, ranges []LeafRan
 		return stats, fmt.Errorf("bloomgateway: reconstruction: wait for catch-up: %w", err)
 	}
 
-	// Step 6. Flip every leaf this batch started to complete.
+	// Step 6. Flip every leaf this batch started to complete -- but only
+	// the ones that are BOTH still constructing (Directory.Complete's own
+	// check) AND still within this instance's CURRENT owned ranges.
+	// Ownership can move on during the minutes this pass took (the column
+	// pass is the same cost regardless of range width, so a claim that
+	// started small can easily outlive several ring changes);
+	// runOwnershipWatch's Shed already reverts a no-longer-owned leaf to
+	// nil, which Complete's own state check alone would refuse -- but the
+	// watch ticks on its own up-to-ownershipReconcileInterval cadence, not
+	// synchronously with the ring change. Re-querying ownership here closes
+	// that narrow window: a leaf can never be served as complete from a
+	// pass that ran after this instance stopped owning it, even if the
+	// watch hasn't caught up to Shed it yet. A leaf that fails the
+	// ownership check is Abandoned instead of left constructing forever,
+	// which would starve the zero-constructing readiness gate.
+	//
+	// If the ownership query itself fails (below), the fallback -- complete
+	// based on Directory.Complete's state check alone, the pre-fix behavior
+	// -- widens that window from "one watch tick" to "however long the ring
+	// read keeps failing", which could be a real outage, not just a
+	// transient blip. That window stays SAFE regardless of its length, not
+	// just tolerable: DESIGN.md § Leaf lifecycle's "duplicate ownership
+	// under ring disagreement is harmless" invariant means completing a
+	// leaf this instance may have just lost is, at worst, a second correct
+	// server for it (consumption is global; every complete leaf answers
+	// correctly no matter who else also serves it) -- never a wrong
+	// rejection, which is the one failure mode this design actually
+	// forbids.
+	ownedAtFlip, oerr := q.ownedRangesFn()
+	checkOwnershipAtFlip := oerr == nil
+	if oerr != nil {
+		level.Warn(q.logger).Log("msg", "bloomgateway: reconstruction: resolving owned ranges at flip time failed; completing based on directory state alone", "err", oerr)
+	}
 	for idx, leaf := range started {
+		if checkOwnershipAtFlip && !leafRangesContain(ownedAtFlip, idx) {
+			q.dir.Abandon(idx)
+			continue
+		}
 		if cerr := q.dir.Complete(idx, leaf); cerr != nil {
 			level.Warn(q.logger).Log("msg", "bloomgateway: reconstruction: complete failed", "leaf", idx, "err", cerr)
 		}

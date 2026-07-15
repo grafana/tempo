@@ -249,6 +249,44 @@ func cloneOffsets(m map[int32]int64) map[int32]int64 {
 
 var _ PositionRewinder = (*fakeRewinder)(nil)
 
+// ownsEverything returns an ownedRangesFn (ReconstructionQueue's own
+// ownership-check dependency, bloomgateway.go's currentOwnedRanges in
+// production) reporting the full [0, 2^d) range as owned, always -- the
+// ownership fixture for tests exercising reconstruction mechanics unrelated
+// to ownership races, so the claim-time/flip-time ownership scoping added
+// for the ring-churn resurrection fix never trims what these tests enqueue.
+func ownsEverything(d uint8) func() ([]LeafRange, error) {
+	total := uint32(1) << d
+	return func() ([]LeafRange, error) {
+		return []LeafRange{{Start: 0, End: total}}, nil
+	}
+}
+
+// dynamicOwnership is a test fixture giving direct, mutable, concurrency-safe
+// control over what a ReconstructionQueue's ownedRangesFn reports -- used to
+// simulate runOwnershipWatch's ring-driven ownership changing mid-batch (or
+// between a failed batch and its retry) without standing up a real ring.
+type dynamicOwnership struct {
+	mu     sync.Mutex
+	ranges []LeafRange
+}
+
+func newDynamicOwnership(initial []LeafRange) *dynamicOwnership {
+	return &dynamicOwnership{ranges: append([]LeafRange(nil), initial...)}
+}
+
+func (d *dynamicOwnership) set(ranges []LeafRange) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.ranges = append([]LeafRange(nil), ranges...)
+}
+
+func (d *dynamicOwnership) fn() ([]LeafRange, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return append([]LeafRange(nil), d.ranges...), nil
+}
+
 // blockMetaFixture builds a minimal *backend.BlockMeta covering exactly
 // the fields FetchAndApplyBlockColumn/traceIDProjectorFor read: Version
 // (the encoding-lookup key), BlockID/TenantID, and the block's time range.
@@ -379,7 +417,7 @@ func TestReconstruction_BatchFailureRevertsConstructingLeaves(t *testing.T) {
 	reader.tenantsErr = errors.New("simulated object-store outage")
 
 	rewinder := newFakeRewinder(map[int32]int64{0: 0})
-	q := NewReconstructionQueue(dir, applier, rewinder, reader, ReconstructionConfig{Concurrency: 2}, rate.NewLimiter(rate.Inf, 0), applier.metrics, log.NewNopLogger())
+	q := NewReconstructionQueue(dir, applier, rewinder, reader, ReconstructionConfig{Concurrency: 2}, ownsEverything(testD), rate.NewLimiter(rate.Inf, 0), applier.metrics, log.NewNopLogger())
 
 	total := uint32(1) << testD
 	q.Enqueue([]LeafRange{{Start: 0, End: total}})
@@ -392,6 +430,170 @@ func TestReconstruction_BatchFailureRevertsConstructingLeaves(t *testing.T) {
 	for idx := uint32(0); idx < total; idx++ {
 		require.Equalf(t, LeafNil, dir.State(idx), "leaf %d must be reverted to nil after a failed batch, not stranded constructing", idx)
 	}
+}
+
+// TestReconstruction_ShedMidBatchNeverResurrectsOrCompletesShedLeaves is the
+// bug report's own "Shed-mid-batch" test, for a live incident (tempo-dev-02,
+// 2026-07-15): a reconstruction batch claimed at startup kept re-marking
+// already-shed leaves constructing and inserting into them, because the
+// batch trusted its own claimed `ranges` for the whole pass instead of
+// re-checking ownership as it went. This drives one batch over range R,
+// changes ownership mid-pass in the two distinct ways runOwnershipWatch
+// (bloomgateway.go) can leave a leaf behind, and asserts neither sub-range
+// is ever re-marked constructing or served as complete:
+//
+//   - shedDirectly: Directory.Shed is called AND the leaf drops out of
+//     ownedRangesFn -- the ordinary path once runOwnershipWatch's own tick
+//     has caught up to a ring change. Directory.InsertLive's existing
+//     nil-check alone already stops accumulation the instant this fires;
+//     this sub-range mainly confirms processBatch does not undo that.
+//   - unownedNotYetShed: the leaf drops out of ownedRangesFn but Shed is
+//     deliberately NOT called -- the narrow window between a ring change
+//     and the next ownership tick actually observing it. The leaf is
+//     still genuinely LeafConstructing here, so Directory.Complete's own
+//     state check cannot refuse it; only this fix's flip-time ownership
+//     re-check (processBatch step 6) can.
+func TestReconstruction_ShedMidBatchNeverResurrectsOrCompletesShedLeaves(t *testing.T) {
+	applier, dir, _, _ := newTestApplier(t, false /* leaves start nil */)
+
+	tr := testTimeRange()
+	total := uint32(1) << testD // 16 leaves
+
+	keepOwned := LeafRange{Start: 12, End: 16}
+	shedDirectly := LeafRange{Start: 0, End: 4}
+	unownedNotYetShed := LeafRange{Start: 4, End: 12}
+
+	reader := newFakeBackendReader()
+	// One (unsupported-encoding) block, purely so there is a TenantIndex
+	// call this test can gate to hold the batch open mid-pass -- its
+	// content is irrelevant here, since the accumulation assertions below
+	// drive Directory.InsertLive directly (TestReconstruction_
+	// LiveWritesAccumulateDuringConstructing's own pattern), not block
+	// application.
+	reader.setTenantIndex("tenant-a", &backend.TenantIndex{
+		CreatedAt: tr.start,
+		Meta: []*backend.BlockMeta{
+			blockMetaFixture(testUUID(t, 1), "tenant-a", tr, vparquet3.VersionString),
+		},
+	})
+	gate := make(chan struct{})
+	reader.blockTenantIndexOn(gate)
+
+	rewinder := newFakeRewinder(map[int32]int64{0: 0})
+	rewinder.setAtOrBefore(map[int32]int64{0: 0})
+
+	own := newDynamicOwnership([]LeafRange{{Start: 0, End: total}}) // claim time: all of R owned
+	q := NewReconstructionQueue(dir, applier, rewinder, reader, ReconstructionConfig{Concurrency: 2}, own.fn, rate.NewLimiter(rate.Inf, 0), applier.metrics, log.NewNopLogger())
+	q.Enqueue([]LeafRange{{Start: 0, End: total}})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	done := make(chan struct{})
+	var stats BatchStats
+	var runErr error
+	go func() {
+		stats, runErr = q.RunBatch(ctx)
+		close(done)
+	}()
+
+	require.Eventually(t, func() bool {
+		for idx := range total {
+			if dir.State(idx) != LeafConstructing {
+				return false
+			}
+		}
+		return true
+	}, 2*time.Second, 5*time.Millisecond, "step 1 must claim the whole batch before step 2 blocks on the gate")
+
+	// While still constructing, shedDirectly accepts live writes exactly
+	// like any other constructing leaf (DESIGN.md § Leaf lifecycle).
+	require.True(t, dir.InsertLive(shedDirectly.Start, 1, Handle(1)), "a constructing leaf must accumulate live writes")
+
+	// Simulate ownership moving on mid-pass, exactly as runOwnershipWatch
+	// would across two different points in its own tick cadence.
+	for idx := shedDirectly.Start; idx < shedDirectly.End; idx++ {
+		dir.Shed(idx)
+	}
+	own.set([]LeafRange{keepOwned}) // both shedDirectly and unownedNotYetShed are now un-owned per the ring
+
+	// The instant it is Shed, the leaf must stop accumulating -- a write
+	// that would have grown it is dropped, not merely ignored later.
+	assert.False(t, dir.InsertLive(shedDirectly.Start, 2, Handle(2)), "a shed leaf must drop writes immediately, not just at flip time")
+
+	close(gate) // let the column pass proceed
+
+	<-done
+	require.NoError(t, runErr)
+
+	for idx := shedDirectly.Start; idx < shedDirectly.End; idx++ {
+		assert.Equal(t, LeafNil, dir.State(idx), "leaf %d was Shed mid-batch; must never be re-marked constructing or completed", idx)
+	}
+	for idx := unownedNotYetShed.Start; idx < unownedNotYetShed.End; idx++ {
+		assert.Equal(t, LeafNil, dir.State(idx), "leaf %d lost ring ownership mid-batch even though never directly Shed; the flip-time re-check must Abandon it, not complete it", idx)
+	}
+	for idx := keepOwned.Start; idx < keepOwned.End; idx++ {
+		assert.Equal(t, LeafComplete, dir.State(idx), "leaf %d was never shed; must complete normally", idx)
+	}
+	assert.EqualValues(t, total, stats.LeavesStarted, "step 1 claimed the whole original batch before ownership changed mid-pass")
+}
+
+// TestReconstruction_RetryAfterOwnershipChangeDoesNotResurrectShedLeaves
+// pins down the OTHER half of the same incident: a batch that fails and is
+// retried (RunBatch's own re-enqueue of its unmodified input, see Run) must
+// re-scope its retry to whatever is CURRENTLY owned, not blindly re-claim
+// the stale superset it started with. Without processBatch's claim-time
+// ownership filter, the retry's own step 1 would call BeginConstructing
+// again on leaves that ownership had since moved away from -- silently
+// resurrecting them into constructing, and (absent a second failure) all
+// the way to complete, serving leaves this instance no longer owns.
+func TestReconstruction_RetryAfterOwnershipChangeDoesNotResurrectShedLeaves(t *testing.T) {
+	applier, dir, _, _ := newTestApplier(t, false /* leaves start nil */)
+
+	total := uint32(1) << testD // 16 leaves
+	fullRange := []LeafRange{{Start: 0, End: total}}
+	noLongerOwned := LeafRange{Start: 0, End: 8}
+	stillOwned := LeafRange{Start: 8, End: 16}
+
+	reader := newFakeBackendReader()
+	reader.tenantsErr = errors.New("simulated object-store outage")
+
+	rewinder := newFakeRewinder(map[int32]int64{0: 0})
+	rewinder.setAtOrBefore(map[int32]int64{0: 0})
+
+	own := newDynamicOwnership(fullRange) // claim time: everything owned
+	q := NewReconstructionQueue(dir, applier, rewinder, reader, ReconstructionConfig{Concurrency: 2}, own.fn, rate.NewLimiter(rate.Inf, 0), applier.metrics, log.NewNopLogger())
+	q.Enqueue(fullRange)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// First attempt: step 1 claims all 16 leaves, then Tenants() fails --
+	// the deferred cleanup Abandons all 16 back to nil, and RunBatch
+	// re-enqueues the ORIGINAL, now-stale full range (see RunBatch).
+	_, err := q.RunBatch(ctx)
+	require.Error(t, err, "first attempt must surface the simulated Tenants() failure")
+	for idx := range total {
+		require.Equalf(t, LeafNil, dir.State(idx), "leaf %d must be back to nil after the first attempt's failure", idx)
+	}
+	require.Equal(t, 1, q.PendingRanges(), "RunBatch must re-enqueue the failed attempt's original range for retry")
+
+	// Ownership moves on before the retry: only stillOwned remains this
+	// instance's. Also clear the simulated outage and give the batch a
+	// real (empty) tenant index so the retry can actually succeed.
+	own.set([]LeafRange{stillOwned})
+	reader.tenantsErr = nil
+
+	stats, err := q.RunBatch(ctx)
+	require.NoError(t, err, "second attempt must succeed now that Tenants() no longer fails")
+
+	for idx := noLongerOwned.Start; idx < noLongerOwned.End; idx++ {
+		assert.Equal(t, LeafNil, dir.State(idx), "leaf %d is no longer owned; the retry must not have resurrected it via the stale full-range re-enqueue", idx)
+	}
+	for idx := stillOwned.Start; idx < stillOwned.End; idx++ {
+		assert.Equal(t, LeafComplete, dir.State(idx), "leaf %d is still owned; the retry must claim and complete it", idx)
+	}
+	assert.EqualValues(t, stillOwned.End-stillOwned.Start, stats.LeavesStarted, "the retry must only claim the still-owned half, not the stale full range it was re-enqueued with")
 }
 
 func TestReconstruction_CoalescesBatchIntoOneColumnPass(t *testing.T) {
@@ -410,7 +612,7 @@ func TestReconstruction_CoalescesBatchIntoOneColumnPass(t *testing.T) {
 	rewinder := newFakeRewinder(map[int32]int64{0: 3}) // simulateLag left off: Rewind won't disturb current, so catch-up is trivially satisfied
 	rewinder.setAtOrBefore(map[int32]int64{0: 0})
 
-	q := NewReconstructionQueue(dir, applier, rewinder, reader, ReconstructionConfig{Concurrency: 4}, rate.NewLimiter(rate.Inf, 0), applier.metrics, log.NewNopLogger())
+	q := NewReconstructionQueue(dir, applier, rewinder, reader, ReconstructionConfig{Concurrency: 4}, ownsEverything(testD), rate.NewLimiter(rate.Inf, 0), applier.metrics, log.NewNopLogger())
 
 	// Several separate Enqueue calls, deliberately covering every leaf
 	// between them.
@@ -465,7 +667,7 @@ func TestReconstruction_LiveWritesAccumulateDuringConstructing(t *testing.T) {
 	rewinder.enableSimulatedLag()
 	rewinder.setAtOrBefore(map[int32]int64{0: 1})
 
-	q := NewReconstructionQueue(dir, applier, rewinder, reader, ReconstructionConfig{Concurrency: 2}, rate.NewLimiter(rate.Inf, 0), applier.metrics, log.NewNopLogger())
+	q := NewReconstructionQueue(dir, applier, rewinder, reader, ReconstructionConfig{Concurrency: 2}, ownsEverything(testD), rate.NewLimiter(rate.Inf, 0), applier.metrics, log.NewNopLogger())
 
 	const leafIdx = uint32(3)
 	q.Enqueue([]LeafRange{{Start: leafIdx, End: leafIdx + 1}})

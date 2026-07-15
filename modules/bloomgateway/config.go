@@ -127,6 +127,23 @@ const (
 	// defaultQueueWorkers is DESIGN.md § Event processing's reference
 	// worker-pool size ("A worker pool (16 at reference sizing)").
 	defaultQueueWorkers = 16
+
+	// defaultRingStabilityWindow/Timeout gate this instance's FIRST
+	// reconstruction enqueue/claim (bloomgateway.go's starting()) on ring
+	// membership (instance set + states) having stayed unchanged for at
+	// least Window, up to a hard cap of Timeout. Added after a live
+	// incident (tempo-dev-02, 2026-07-15): a cold bring-up with staggered
+	// pod starts let an instance that came up early compute its owned
+	// ranges against a ring that had barely begun converging, handing it
+	// a keyspace-sized reconstruction batch. This used to be a fixed
+	// 500ms/5s pair; that window is nowhere near enough for a
+	// multi-minute staggered StatefulSet rollout, hence these being
+	// operator-tunable rather than fixed constants. A genuinely
+	// single-instance cell is not held up by either value (its own
+	// membership is trivially stable from the first tick); Timeout exists
+	// purely so a cell that never fully stabilizes still starts.
+	defaultRingStabilityWindow  = 15 * time.Second
+	defaultRingStabilityTimeout = time.Minute
 )
 
 // Config is the top-level bloom gateway configuration.
@@ -154,6 +171,15 @@ type Config struct {
 	// about it, and because tests need a small value to keep multi-
 	// instance ring math legible. Must be in [1, 512].
 	NumTokens int `yaml:"num_tokens"`
+
+	// RingStabilityWindow/RingStabilityTimeout gate this instance's first
+	// reconstruction enqueue/claim on startup against a still-converging
+	// ring (see defaultRingStabilityWindow's doc comment for the incident
+	// that motivated this). Not nested under Ring: Ring is tempo_ring.
+	// Config, a type shared with every other ring-backed module in this
+	// repo, so a bloom-gateway-specific field cannot live there.
+	RingStabilityWindow  time.Duration `yaml:"ring_stability_window"`
+	RingStabilityTimeout time.Duration `yaml:"ring_stability_timeout"`
 
 	Ring  tempo_ring.Config  `yaml:"ring"`
 	Kafka ingest.KafkaConfig `yaml:"kafka"`
@@ -244,6 +270,9 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 
 	f.IntVar(&cfg.NumTokens, prefix+".num-tokens", defaultNumTokens, fmt.Sprintf("Number of tokens this instance registers in the ring. Must be <= %d (dskit SpreadMinimizingTokenGenerator's hard cap).", maxRingTokens))
 
+	f.DurationVar(&cfg.RingStabilityWindow, prefix+".ring-stability-window", defaultRingStabilityWindow, "How long ring membership (instance set and states) must stay unchanged before this instance's first reconstruction enqueue/claim on startup. Bounds early-joiner over-claims during a staggered cold start.")
+	f.DurationVar(&cfg.RingStabilityTimeout, prefix+".ring-stability-timeout", defaultRingStabilityTimeout, "Hard cap on how long to wait for ring-stability-window to be satisfied before proceeding anyway, so a genuinely single-instance cell is never held up.")
+
 	cfg.Ring.RegisterFlagsAndApplyDefaults(prefix, f)
 
 	cfg.Kafka.RegisterFlagsWithPrefix(prefix+".kafka", f)
@@ -319,6 +348,13 @@ func (cfg *Config) Validate() error {
 
 	if cfg.NumTokens <= 0 || cfg.NumTokens > maxRingTokens {
 		return fmt.Errorf("bloom gateway: num_tokens must be between 1 and %d, got %d", maxRingTokens, cfg.NumTokens)
+	}
+
+	if cfg.RingStabilityWindow <= 0 {
+		return fmt.Errorf("bloom gateway: ring_stability_window must be greater than 0, got %s", cfg.RingStabilityWindow)
+	}
+	if cfg.RingStabilityTimeout < cfg.RingStabilityWindow {
+		return fmt.Errorf("bloom gateway: ring_stability_timeout (%s) must be >= ring_stability_window (%s)", cfg.RingStabilityTimeout, cfg.RingStabilityWindow)
 	}
 
 	if cfg.Snapshot.Interval > 0 && cfg.Snapshot.Path == "" {

@@ -71,7 +71,7 @@ func TestReconstruction_KfakeEndToEnd_RewindReplayFlip(t *testing.T) {
 		},
 	})
 
-	q := NewReconstructionQueue(dir, applier, consumer, reader, ReconstructionConfig{Concurrency: 2}, rate.NewLimiter(rate.Inf, 0), applier.metrics, log.NewNopLogger())
+	q := NewReconstructionQueue(dir, applier, consumer, reader, ReconstructionConfig{Concurrency: 2}, ownsEverything(testD), rate.NewLimiter(rate.Inf, 0), applier.metrics, log.NewNopLogger())
 	q.Enqueue([]LeafRange{{Start: leafIdx, End: leafIdx + 1}})
 
 	batchCtx, batchCancel := context.WithTimeout(ctx, 30*time.Second)

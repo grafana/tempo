@@ -3,7 +3,9 @@ package bloomgateway
 import (
 	"context"
 	"flag"
+	"fmt"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -66,6 +68,32 @@ func newTestGatewayConfig(t *testing.T, ringStore kv.Client, kafkaAddr, kafkaTop
 	// it lives here and not in bloomgateway_ring.go.
 	cfg.Ring.HeartbeatPeriod = 100 * time.Millisecond
 	cfg.Ring.HeartbeatTimeout = 3 * time.Second
+
+	// Override the production-sized ring-stability gate (config.go's
+	// RingStabilityWindow/RingStabilityTimeout defaults, 15s/1m -- added
+	// for the staggered-cold-start incident, Bug B) down to test speed:
+	// left at their defaults, every test that starts a real instance
+	// through starting() would need up to 15 REAL, consecutive seconds of
+	// unchanged ring state before the gate is satisfied, for no reason --
+	// these fixtures are single- and few-instance, in-memory-KV,
+	// kfake-backed, and converge fast. This override does NOT make the
+	// gate itself millisecond-fast, though: dskit's WaitRingStability
+	// polls its own ring-state comparison on a HARDCODED 1s ticker
+	// (vendor/.../dskit/ring/util.go's waitStability: "const
+	// pollingFrequency = time.Second"), independent of minStability/
+	// maxWaiting, so every starting() call that reaches this gate still
+	// costs at least one real second (the first poll tick) regardless of
+	// how small the configured window is -- this override only avoids
+	// needing MULTIPLE consecutive 1s ticks of unchanged ring state to
+	// satisfy a much longer window, not the 1s floor itself. Tests that
+	// specifically want to exercise staggered-join timing (TestBloomGateway_
+	// StaggeredColdStart...) override these again on their own copy; the
+	// one test that needs to bypass the poll floor ENTIRELY
+	// (TestBloomGateway_StartingPassesConfiguredRingStabilityToWaitRing
+	// Stability) does so via g.waitRingStabilityFn instead of via these
+	// values.
+	cfg.RingStabilityWindow = 20 * time.Millisecond
+	cfg.RingStabilityTimeout = 2 * time.Second
 
 	cfg.Kafka = newTestKafkaConfig(kafkaAddr, kafkaTopic)
 
@@ -453,4 +481,209 @@ func TestBloomGateway_MultiInstanceScaleOut(t *testing.T) {
 	assert.EqualValues(t, total, leaves0+leaves1, "every leaf must be served by exactly one instance")
 	assert.Positive(t, leaves1, "instance 1 must actually be serving its share")
 	assert.Less(t, leaves0, int(total), "instance 0 must have shed at least one leaf it no longer owns")
+}
+
+// TestBloomGateway_StaggeredColdStartConvergesWithoutManualIntervention is
+// the bug report's own "Staggered join" test: several instances join with
+// overlapping, staggered start times -- the shape of a StatefulSet cold
+// start where pods do not all reach ACTIVE simultaneously (the live
+// incident this guards against had two waves of 8, ~4 minutes apart) -- and
+// must all converge to their fair share and reach ready, with every leaf
+// served by exactly one instance and none left permanently unserved, with
+// no manual restart or intervention.
+//
+// What this exercises, precisely: Bug A's in-flight-batch re-scoping (an
+// early joiner's oversized claim shrinks instead of resurrecting shed
+// leaves) plus runOwnershipWatch's steady-state convergence (shed +
+// newlyOwned, and the self-heal backstop). It deliberately does NOT
+// validate Bug B's ring-stability gate itself -- dskit's WaitRingStability
+// polls its own ring-state comparison on a HARDCODED 1s ticker (vendor/
+// .../dskit/ring/util.go's waitStability: "const pollingFrequency =
+// time.Second"), independent of the configured minStability/maxWaiting
+// values, so this test's config (RingStabilityWindow/Timeout overridden to
+// 20ms/2s in newTestGatewayConfig, for every OTHER test's sake) can neither
+// exercise nor rule out the gate's real behavior: proved empirically in
+// review -- neutering the gate entirely (window/timeout=1ms, i.e. an
+// instant, always-fired timeout that skips waiting altogether) leaves this
+// test passing unchanged, because Bug A's re-scoping and the ownership
+// watch converge correctly regardless of how oversized the initial claim
+// was. See TestBloomGateway_StartingPassesConfiguredRingStabilityToWaitRing
+// Stability below for the gate's own wiring proof, which does not depend on
+// dskit's poll cadence at all.
+func TestBloomGateway_StaggeredColdStartConvergesWithoutManualIntervention(t *testing.T) {
+	// Fast ownership-reconcile ticks (matching TestBloomGateway_
+	// MultiInstanceScaleOut's own override) so convergence, and the
+	// self-heal pass riding the same ticker, don't have to wait out
+	// production-sized intervals.
+	prevInterval := ownershipReconcileInterval
+	ownershipReconcileInterval = 20 * time.Millisecond
+	t.Cleanup(func() { ownershipReconcileInterval = prevInterval })
+
+	const n = 4
+	store, addr := newTestGatewayCluster(t, "bg-staggered")
+	reader := newFakeBackendReader() // no tenants: every instance's reconstruction completes trivially fast
+
+	gateways := make([]*BloomGateway, n)
+	for i := range n {
+		cfg := newTestGatewayConfig(t, store, addr, "bg-staggered", filepath.Join(t.TempDir(), fmt.Sprintf("g%d.bin", i)))
+		gateways[i] = mustNewTestGateway(t, cfg, fmt.Sprintf("bloom-gateway-%d", i), reader)
+	}
+	t.Cleanup(func() {
+		for _, g := range gateways {
+			_ = services.StopAndAwaitTerminated(context.Background(), g)
+		}
+	})
+
+	// Start every instance concurrently, staggered by a small, overlapping
+	// delay -- unlike sequential start+waitReady (every other multi-
+	// instance test here), this deliberately lets later joiners register
+	// while earlier ones are still mid-startup, the exact race Bug A/B
+	// guard against.
+	var wg sync.WaitGroup
+	for i, g := range gateways {
+		delay := time.Duration(i) * 60 * time.Millisecond
+		wg.Go(func() {
+			time.Sleep(delay)
+			require.NoError(t, services.StartAndAwaitRunning(context.Background(), g))
+		})
+	}
+	wg.Wait()
+
+	for _, g := range gateways {
+		waitReady(t, g)
+	}
+
+	total := uint32(1) << gateways[0].cfg.D
+
+	// Convergence: every leaf ends up LeafComplete on EXACTLY one
+	// instance -- no gap (an early or late joiner permanently missing its
+	// fair share, Bug C's failure mode) and no double-service, once every
+	// instance reports ready. This is "total constructing across
+	// instances converges to 2^D" in its strongest form: fully complete,
+	// not merely accounted for.
+	owner := make([]int, total)
+	for idx := range owner {
+		owner[idx] = -1
+	}
+	for gi, g := range gateways {
+		for idx := range total {
+			if g.dir.State(idx) == LeafComplete {
+				require.Equalf(t, -1, owner[idx], "leaf %d double-served by instance %d and %d", idx, owner[idx], gi)
+				owner[idx] = gi
+			}
+		}
+	}
+	for idx, gi := range owner {
+		assert.NotEqualf(t, -1, gi, "leaf %d has no owner: some instance's fair share was never reconstructed", idx)
+	}
+}
+
+// TestBloomGateway_StartingPassesConfiguredRingStabilityToWaitRingStability
+// is Bug B's deterministic wiring proof: it asserts cfg.RingStabilityWindow/
+// RingStabilityTimeout actually reach starting()'s ring-stability call, byte
+// for byte, with no dependency on dskit's own hardcoded 1s poll floor
+// (util.go's waitStability, see the staggered-join test's doc comment
+// above) for either correctness or timing. g.waitRingStabilityFn (its own
+// field doc comment) is overridden to record the arguments it was called
+// with and return nil immediately -- skipping dskit's real polling loop
+// entirely, so this test costs no more than an ordinary single-instance
+// startup and asserts nothing about real time.
+func TestBloomGateway_StartingPassesConfiguredRingStabilityToWaitRingStability(t *testing.T) {
+	store, addr := newTestGatewayCluster(t, "bg-stability-wiring")
+	reader := newFakeBackendReader()
+
+	cfg := newTestGatewayConfig(t, store, addr, "bg-stability-wiring", filepath.Join(t.TempDir(), "snapshot.bin"))
+	cfg.RingStabilityWindow = 7 * time.Second
+	cfg.RingStabilityTimeout = 42 * time.Second
+
+	g := mustNewTestGateway(t, cfg, "bloom-gateway-0", reader)
+
+	var mu sync.Mutex
+	var calls int
+	var gotOp ring.Operation
+	var gotMinStability, gotMaxWaiting time.Duration
+	g.waitRingStabilityFn = func(_ context.Context, r ring.ReadRing, op ring.Operation, minStability, maxWaiting time.Duration) error {
+		mu.Lock()
+		defer mu.Unlock()
+		calls++
+		assert.Same(t, g.ringManager.Ring, r, "starting() must pass its own ring manager's Ring")
+		gotOp = op
+		gotMinStability = minStability
+		gotMaxWaiting = maxWaiting
+		return nil // skip dskit's real polling loop entirely -- no dependency on its 1s poll floor
+	}
+
+	startAndCleanup(t, g)
+	waitReady(t, g)
+
+	mu.Lock()
+	defer mu.Unlock()
+	assert.Equal(t, 1, calls, "starting() must call the ring-stability gate exactly once")
+	assert.Equal(t, ringOp, gotOp, "must gate on this package's own ringOp (ACTIVE-only, RF=1)")
+	assert.Equal(t, cfg.RingStabilityWindow, gotMinStability, "cfg.RingStabilityWindow must reach WaitRingStability's minStability argument")
+	assert.Equal(t, cfg.RingStabilityTimeout, gotMaxWaiting, "cfg.RingStabilityTimeout must reach WaitRingStability's maxWaiting argument")
+}
+
+// TestBloomGateway_SelfHealRecoversRingOwnedLeafMissingFromDirectory is the
+// bug report's own "Pod-7 scenario" test: reconcileOwnership's per-tick diff
+// assumes g.lastOwnedRanges accurately reflects what the directory currently
+// holds. If something else (a failed reconstruction batch's Abandon cleanup
+// discarding a still-owned leaf alongside genuinely-shed ones, or any other
+// path with the same shape) reverts a ring-owned leaf to nil WITHOUT the
+// ring's own view of ownership moving, the hot tick's diff sees nothing new
+// -- forever, since lastOwnedRanges already "contains" what the ring
+// reports every subsequent tick. Only the coarser self-heal pass, which
+// compares the ring's current answer directly against directory state
+// rather than against an incremental diff baseline, can notice and repair
+// this without a manual restart.
+func TestBloomGateway_SelfHealRecoversRingOwnedLeafMissingFromDirectory(t *testing.T) {
+	prevInterval := ownershipReconcileInterval
+	ownershipReconcileInterval = 20 * time.Millisecond
+	t.Cleanup(func() { ownershipReconcileInterval = prevInterval })
+
+	store, addr := newTestGatewayCluster(t, "bg-selfheal")
+	reader := newFakeBackendReader()
+
+	cfg := newTestGatewayConfig(t, store, addr, "bg-selfheal", filepath.Join(t.TempDir(), "snapshot.bin"))
+
+	g := mustNewTestGateway(t, cfg, "bloom-gateway-0", reader)
+	startAndCleanup(t, g)
+	waitReady(t, g)
+	allLeavesComplete(t, g.dir, cfg.D)
+
+	// Simulate the incident directly: a sub-range this instance still
+	// legitimately owns per the ring (ring membership never changes in
+	// this test) is reverted to nil by something OTHER than an ownership
+	// change -- exactly what a failed batch's overly-broad Abandon cleanup
+	// does to a leaf that was never actually shed. lastOwnedRanges is
+	// deliberately left untouched: the ring's own answer never looks
+	// different, so the hot tick's incremental diff has nothing to react
+	// to -- this IS the gap selfHealOwnership exists to close.
+	const goneEnd = uint32(4) // leaves [0, goneEnd) are the simulated gap
+	for idx := range goneEnd {
+		g.dir.Shed(idx)
+	}
+
+	// Documents the gap directly: several hot ticks alone must NOT repair
+	// this (reconcileOwnership's own diff has no way to).
+	time.Sleep(10 * ownershipReconcileInterval)
+	for idx := range goneEnd {
+		require.Equal(t, LeafNil, g.dir.State(idx), "sanity: the hot-tick diff alone cannot see this gap")
+	}
+
+	// The self-heal pass, running at selfHealCheckEvery's coarser cadence
+	// alongside the same watch loop, must notice the ring still assigns
+	// these leaves to this instance and re-enqueue + reconstruct them --
+	// no manual restart, no other intervention.
+	require.Eventually(t, func() bool {
+		for idx := range goneEnd {
+			if g.dir.State(idx) != LeafComplete {
+				return false
+			}
+		}
+		return true
+	}, 30*time.Second, 20*time.Millisecond,
+		"the self-heal pass must re-enqueue and reconstruct a ring-owned leaf missing from the directory")
+
+	allLeavesComplete(t, g.dir, cfg.D)
 }
