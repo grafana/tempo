@@ -487,6 +487,54 @@ func TestSearchTagValuesV2ToleratesCorruptDiskCache(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestSearchTagValuesV2CachesEmptyResults ensures a block that yields no values
+// for the requested tag still writes a cache entry, so tag-less blocks aren't
+// re-scanned on every query (tempo-squad#1359).
+func TestSearchTagValuesV2CachesEmptyResults(t *testing.T) {
+	i, ls := defaultInstance(t)
+
+	// block contains foo=bar* but not the tag we will query
+	_, _, _, _ = writeTracesForSearch(t, i, "", foo, bar, true, false)
+
+	blockID, err := i.cutBlocks(t.Context(), true)
+	require.NoError(t, err)
+	require.NotEqual(t, uuid.Nil, blockID)
+	_, err = i.completeBlock(t.Context(), blockID)
+	require.NoError(t, err)
+
+	userCtx := user.InjectOrgID(t.Context(), testTenantID)
+	req := &tempopb.SearchTagValuesRequest{TagName: "span.does_not_exist"}
+
+	// first query: cache miss, scans the block and finds nothing
+	resp1, err := i.SearchTagValuesV2(userCtx, req)
+	require.NoError(t, err)
+	require.Empty(t, resp1.TagValues, "tag is absent from the block")
+
+	// a cache entry (sentinel) should have been written for the tag-less block
+	var block *LocalBlock
+	for _, b := range i.blocks.Load().completeBlocks {
+		block = b
+		break
+	}
+	require.NotNil(t, block)
+	limit := i.overrides.MaxBytesPerTagValuesQuery(testTenantID)
+	cacheKey := searchTagValuesV2CacheKey(req, limit, "cache_search_tagvaluesv2")
+	cacheData, err := block.GetDiskCache(t.Context(), cacheKey)
+	require.NoError(t, err)
+	require.NotEmpty(t, cacheData, "an empty tag-value result should still be cached so the block isn't re-scanned next time")
+
+	// second query: must be a negative-cache hit -- still empty, and inspecting far
+	// fewer bytes than the initial scan (it reads only the sentinel, not the block)
+	resp2, err := i.SearchTagValuesV2(userCtx, req)
+	require.NoError(t, err)
+	require.Empty(t, resp2.TagValues)
+	require.Less(t, resp2.Metrics.InspectedBytes, resp1.Metrics.InspectedBytes,
+		"negative-cache hit should inspect fewer bytes than the initial block scan")
+
+	err = services.StopAndAwaitTerminated(t.Context(), ls)
+	require.NoError(t, err)
+}
+
 // nolint:revive,unparam
 func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tagName string, expectedTagValues []string) {
 	checkSearchTags := func(scope string, contains bool) {
