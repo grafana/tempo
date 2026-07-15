@@ -405,6 +405,17 @@ func TestReadError(t *testing.T) {
 	wups := fmt.Errorf("wups")
 	errB = readError(wups)
 	assert.Equal(t, wups, errB)
+
+	// readRange wraps the minio error before ReadRange calls readError; the
+	// mapping must survive the wrap (it didn't when readError used
+	// minio.ToErrorResponse, which cannot unwrap).
+	wrapped := fmt.Errorf("error in range read from s3 backend, bucket: b, objName: o: %w", errA)
+	errB = readError(wrapped)
+	assert.Equal(t, backend.ErrDoesNotExist, errB)
+
+	wrappedOther := fmt.Errorf("wrap: %w", minio.ErrorResponse{Code: "AccessDenied"})
+	errB = readError(wrappedOther)
+	assert.Equal(t, wrappedOther, errB)
 }
 
 func fakeServerWithHeader(t *testing.T, httpHeader *http.Header) *httptest.Server {
