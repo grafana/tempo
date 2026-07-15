@@ -20,9 +20,3 @@ func (p *OrPredicate) resetForChunk() {
 		}
 	}
 }
-
-func (p *InstrumentedPredicate) resetForChunk() {
-	if r, ok := p.Pred.(chunkResetter); ok {
-		r.resetForChunk()
-	}
-}
