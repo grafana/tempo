@@ -137,15 +137,17 @@ func benchmarkServiceGraphRequestForKind(edges int, spanMultiplier bool, kind be
 
 	switch kind {
 	case benchmarkServiceGraphDatabaseEdge:
-		for _, span := range req.Batches[0].ScopeSpans[0].Spans {
-			span.Attributes = append(span.Attributes, tempopb.MakeKeyValueStringPtr("db.namespace", "orders"))
+		for i := range req.Batches[0].ScopeSpans[0].Spans {
+			span := &req.Batches[0].ScopeSpans[0].Spans[i]
+			span.Attributes = append(span.Attributes, tempopb.MakeKeyValueString("db.namespace", "orders"))
 		}
 		req.Batches = req.Batches[:1]
 	case benchmarkServiceGraphMessagingEdge:
-		for _, span := range req.Batches[0].ScopeSpans[0].Spans {
-			span.Kind = trace_v1.Span_SPAN_KIND_PRODUCER
+		for i := range req.Batches[0].ScopeSpans[0].Spans {
+			req.Batches[0].ScopeSpans[0].Spans[i].Kind = trace_v1.Span_SPAN_KIND_PRODUCER
 		}
-		for _, span := range req.Batches[1].ScopeSpans[0].Spans {
+		for i := range req.Batches[1].ScopeSpans[0].Spans {
+			span := &req.Batches[1].ScopeSpans[0].Spans[i]
 			span.Kind = trace_v1.Span_SPAN_KIND_CONSUMER
 			span.StartTimeUnixNano += 50_000_000
 			span.EndTimeUnixNano += 50_000_000
@@ -158,25 +160,25 @@ func benchmarkServiceGraphRequestForKind(edges int, spanMultiplier bool, kind be
 }
 
 func benchmarkServiceGraphRequest(edges int, spanMultiplier bool) *tempopb.PushSpansRequest {
-	client := &trace_v1.ResourceSpans{
-		Resource: &resource_v1.Resource{Attributes: []*common_v1.KeyValue{
-			tempopb.MakeKeyValueStringPtr("service.name", "client"),
-			tempopb.MakeKeyValueStringPtr("beast", "manticore"),
+	client := trace_v1.ResourceSpans{
+		Resource: &resource_v1.Resource{Attributes: []common_v1.KeyValue{
+			tempopb.MakeKeyValueString("service.name", "client"),
+			tempopb.MakeKeyValueString("beast", "manticore"),
 		}},
-		ScopeSpans: []*trace_v1.ScopeSpans{{}},
+		ScopeSpans: []trace_v1.ScopeSpans{{}},
 	}
-	server := &trace_v1.ResourceSpans{
-		Resource: &resource_v1.Resource{Attributes: []*common_v1.KeyValue{
-			tempopb.MakeKeyValueStringPtr("service.name", "server"),
-			tempopb.MakeKeyValueStringPtr("god", "athena"),
+	server := trace_v1.ResourceSpans{
+		Resource: &resource_v1.Resource{Attributes: []common_v1.KeyValue{
+			tempopb.MakeKeyValueString("service.name", "server"),
+			tempopb.MakeKeyValueString("god", "athena"),
 		}},
-		ScopeSpans: []*trace_v1.ScopeSpans{{}},
+		ScopeSpans: []trace_v1.ScopeSpans{{}},
 	}
 
 	for i := 0; i < edges; i++ {
 		traceID := benchmarkSGTraceID(i)
 		clientSpanID := benchmarkSGSpanID(i*2 + 1)
-		client.ScopeSpans[0].Spans = append(client.ScopeSpans[0].Spans, &trace_v1.Span{
+		client.ScopeSpans[0].Spans = append(client.ScopeSpans[0].Spans, trace_v1.Span{
 			TraceId:           traceID,
 			SpanId:            clientSpanID,
 			Name:              "GET /api/:id",
@@ -184,9 +186,9 @@ func benchmarkServiceGraphRequest(edges int, spanMultiplier bool) *tempopb.PushS
 			StartTimeUnixNano: uint64(1_700_000_000_000_000_000 + i),
 			EndTimeUnixNano:   uint64(1_700_000_000_050_000_000 + i),
 			Status:            &trace_v1.Status{Code: trace_v1.Status_STATUS_CODE_OK},
-			Attributes: []*common_v1.KeyValue{
-				tempopb.MakeKeyValueStringPtr("peer.service", "server"),
-				tempopb.MakeKeyValueStringPtr("beast", "client-"+strconv.Itoa(i%4)),
+			Attributes: []common_v1.KeyValue{
+				tempopb.MakeKeyValueString("peer.service", "server"),
+				tempopb.MakeKeyValueString("beast", "client-"+strconv.Itoa(i%4)),
 			},
 		})
 		if spanMultiplier {
@@ -196,7 +198,7 @@ func benchmarkServiceGraphRequest(edges int, spanMultiplier bool) *tempopb.PushS
 			)
 		}
 
-		server.ScopeSpans[0].Spans = append(server.ScopeSpans[0].Spans, &trace_v1.Span{
+		server.ScopeSpans[0].Spans = append(server.ScopeSpans[0].Spans, trace_v1.Span{
 			TraceId:           traceID,
 			SpanId:            benchmarkSGSpanID(i*2 + 2),
 			ParentSpanId:      clientSpanID,
@@ -205,8 +207,8 @@ func benchmarkServiceGraphRequest(edges int, spanMultiplier bool) *tempopb.PushS
 			StartTimeUnixNano: uint64(1_700_000_000_010_000_000 + i),
 			EndTimeUnixNano:   uint64(1_700_000_000_040_000_000 + i),
 			Status:            &trace_v1.Status{Code: trace_v1.Status_STATUS_CODE_OK},
-			Attributes: []*common_v1.KeyValue{
-				tempopb.MakeKeyValueStringPtr("god", "server-"+strconv.Itoa(i%4)),
+			Attributes: []common_v1.KeyValue{
+				tempopb.MakeKeyValueString("god", "server-"+strconv.Itoa(i%4)),
 			},
 		})
 		if spanMultiplier {
@@ -217,7 +219,7 @@ func benchmarkServiceGraphRequest(edges int, spanMultiplier bool) *tempopb.PushS
 		}
 	}
 
-	return &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{client, server}}
+	return &tempopb.PushSpansRequest{Batches: []trace_v1.ResourceSpans{client, server}}
 }
 
 func benchmarkSGTraceID(i int) []byte {
@@ -233,7 +235,6 @@ func benchmarkSGSpanID(i int) []byte {
 	return id[:]
 }
 
-func benchmarkSGDoubleAttr(key string, value float64) *common_v1.KeyValue {
-	kv := tempopb.MakeKeyValueDouble(key, value)
-	return &kv
+func benchmarkSGDoubleAttr(key string, value float64) common_v1.KeyValue {
+	return tempopb.MakeKeyValueDouble(key, value)
 }
