@@ -1008,6 +1008,8 @@ func searchTagValuesV2CacheKey(req *tempopb.SearchTagValuesRequest, limit int, p
 	h := fnv1a.HashString64(req.TagName)
 	h = fnv1a.AddString64(h, cacheKey)
 	h = fnv1a.AddUint64(h, uint64(limit))
+	h = fnv1a.AddUint64(h, uint64(req.MaxTagValues))
+	h = fnv1a.AddUint64(h, uint64(req.StaleValueThreshold))
 
 	return fmt.Sprintf("%s_%v.buf", prefix, h)
 }
