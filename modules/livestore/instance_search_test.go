@@ -439,6 +439,54 @@ func BenchmarkLocalBlockSearchTagValuesV2Limit(b *testing.B) {
 	}
 }
 
+// TestSearchTagValuesV2ToleratesCorruptDiskCache ensures a block whose disk-cache
+// entry is unreadable/corrupt is still searched, rather than silently skipped and
+// dropped from the response (tempo-squad#1358).
+func TestSearchTagValuesV2ToleratesCorruptDiskCache(t *testing.T) {
+	i, ls := defaultInstance(t)
+
+	tagKey := foo
+	tagValue := bar
+
+	_, expectedTagValues, _, _ := writeTracesForSearch(t, i, "", tagKey, tagValue, true, false)
+
+	blockID, err := i.cutBlocks(t.Context(), true)
+	require.NoError(t, err)
+	require.NotEqual(t, uuid.Nil, blockID)
+	_, err = i.completeBlock(t.Context(), blockID)
+	require.NoError(t, err)
+
+	userCtx := user.InjectOrgID(t.Context(), testTenantID)
+	req := &tempopb.SearchTagValuesRequest{TagName: "." + tagKey}
+
+	// seed a corrupt (non-unmarshalable) cache entry on the complete block
+	var block *LocalBlock
+	for _, b := range i.blocks.Load().completeBlocks {
+		block = b
+		break
+	}
+	require.NotNil(t, block)
+	limit := i.overrides.MaxBytesPerTagValuesQuery(testTenantID)
+	cacheKey := searchTagValuesV2CacheKey(req, limit, "cache_search_tagvaluesv2")
+	// field 1, length-delimited, claims 10 bytes but supplies none -> proto.Unmarshal fails
+	require.NoError(t, block.SetDiskCache(userCtx, cacheKey, []byte{0x0a, 0x0a}))
+
+	// the block must still be searched despite the corrupt entry
+	resp, err := i.SearchTagValuesV2(userCtx, req)
+	require.NoError(t, err)
+
+	got := make([]string, 0, len(resp.TagValues))
+	for _, v := range resp.TagValues {
+		got = append(got, v.Value)
+	}
+	for _, want := range expectedTagValues {
+		require.Contains(t, got, want, "corrupt cache must not drop the block's values")
+	}
+
+	err = services.StopAndAwaitTerminated(t.Context(), ls)
+	require.NoError(t, err)
+}
+
 // nolint:revive,unparam
 func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tagName string, expectedTagValues []string) {
 	checkSearchTags := func(scope string, contains bool) {

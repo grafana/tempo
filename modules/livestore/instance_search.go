@@ -553,41 +553,38 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		// pulled from context to add attrs below
 		span := oteltrace.SpanFromContext(ctx)
 
-		// check the cache first
+		// check the cache first. GetDiskCache maps a cache miss to (nil, nil), so a
+		// non-nil error here is a real read failure. Either way we fall through to
+		// search the block rather than dropping its values from the response.
 		cacheData, err := localB.GetDiskCache(ctx, cacheKey)
 		if err != nil {
-			// just log the error and move on...we will search the block
 			_ = level.Warn(i.logger).Log("msg", "GetDiskCache failed", "err", err)
-			return nil
+			cacheData = nil
 		}
 
 		// we got data...unmarshall, and add values to central collector and add bytesRead
 		if len(cacheData) > 0 {
 			resp := &tempopb.SearchTagValuesV2Response{}
-			err = proto.Unmarshal(cacheData, resp)
-			if err != nil {
+			if err := proto.Unmarshal(cacheData, resp); err != nil {
+				// corrupt cache entry: log and fall through to search the block below
 				_ = level.Warn(i.logger).Log("msg", "GetDiskCache unmarshal failed", "err", err)
+			} else {
+				span.SetAttributes(attribute.Bool("cached", true))
+				// On a cache hit we only read the cache file, so report its size as the
+				// inspected bytes for this block. The cached payload stores only TagValues
+				// (not Metrics), so the original scan's byte count isn't available here.
+				mCollector.Add(uint64(len(cacheData)))
+
+				for _, v := range resp.TagValues {
+					if vCollector.Collect(*v) {
+						return errComplete
+					}
+				}
 				return nil
 			}
-
-			span.SetAttributes(attribute.Bool("cached", true))
-			// Instead of the reporting the InspectedBytes of the cached response.
-			// we report the size of cacheData as the Inspected bytes in case we hit disk cache.
-			// we do this because, because it's incorrect and misleading to report the metrics of cachedResponse
-			// we report the size of the cacheData as the amount of data was read to search this block.
-			// this can skew our metrics because this will be lower than the data read to search the block.
-			// we can remove this if this becomes an issue but leave it in for now to more accurate.
-			mCollector.Add(uint64(len(cacheData)))
-
-			for _, v := range resp.TagValues {
-				if vCollector.Collect(*v) {
-					return errComplete
-				}
-			}
-			return nil
 		}
 
-		// cache miss, search the block. We will cache the results if we find any.
+		// cache miss or unusable cache entry, search the block. We will cache the results if we find any.
 		span.SetAttributes(attribute.Bool("cached", false))
 		// using local collector to collect values from the block and cache them.
 		localCol := collector.NewDistinctValue[tempopb.TagValue](limit, req.MaxTagValues, req.StaleValueThreshold, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })

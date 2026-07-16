@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: live-store
+note: Tag value queries no longer silently drop a block's values when its disk-cache entry is unreadable or fails to unmarshal; the block is re-searched instead of being skipped.
+issues: []
+subtext:
+user: zalegrala
