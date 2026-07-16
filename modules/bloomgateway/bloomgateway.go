@@ -241,7 +241,7 @@ func New(cfg Config, instanceID string, backendReader backend.Reader, logger log
 
 	m := newMetrics(reg)
 
-	ringManager, err := NewRingManager(cfg.Ring, instanceID, cfg.Ring.InstanceZone, cfg.NumTokens, logger, reg)
+	ringManager, err := NewRingManager(cfg.Ring, instanceID, cfg.Ring.InstanceZone, cfg.NumTokens, cfg.UnregisterOnShutdown, cfg.RingAutoForgetTimeout, logger, reg)
 	if err != nil {
 		return nil, fmt.Errorf("bloomgateway: %w", err)
 	}
@@ -341,6 +341,20 @@ func (g *BloomGateway) starting(ctx context.Context) (err error) {
 			}
 		}
 	}()
+
+	// Re-arm prepare-downscale BEFORE the ring lifecycler even starts
+	// (2026-07-16 shutdown-semantics redesign, DESIGN.md § Availability
+	// model amendment): mirrors live-store's own "check the shutdown
+	// marker first thing, because it may change startup behavior"
+	// ordering (modules/livestore/live_store.go). Covers the case where an
+	// operator's prepare-downscale POST landed, then this instance
+	// restarted for an unrelated reason before the operator's actual
+	// removal -- without this, the restarted process would come back up
+	// with today's safe "keep in ring" default and silently forget it was
+	// marked for removal.
+	if err := g.checkShutdownMarker(); err != nil {
+		return fmt.Errorf("bloomgateway: checking shutdown marker: %w", err)
+	}
 
 	g.subservices, err = services.NewManager(g.ringManager.Services()...)
 	if err != nil {

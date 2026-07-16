@@ -144,6 +144,60 @@ const (
 	// purely so a cell that never fully stabilizes still starts.
 	defaultRingStabilityWindow  = 15 * time.Second
 	defaultRingStabilityTimeout = time.Minute
+
+	// defaultHeartbeatTimeout overrides pkg/ring.Config's own shared
+	// 1-minute default (pkg/ring/config.go) for the bloom-gateway ring
+	// specifically -- NOT a change to that shared default itself, which
+	// backend-worker/distributor/live-store's read ring also use.
+	// 2026-07-16 shutdown-semantics redesign (DESIGN.md § Availability
+	// model amendment): a graceful SIGTERM no longer unregisters this
+	// instance from the ring (bloomgateway_ring.go's conditional
+	// leave-on-stopping delegate) -- it stays ACTIVE with the same tokens
+	// so ordinary pod reschedules cost survivors nothing. But ownership is
+	// computed from GetAllHealthy, which ALSO requires a fresh heartbeat
+	// (vendor/.../dskit/ring/model.go's InstanceDesc.IsHealthy), so a
+	// too-short timeout would reassign ranges anyway the moment heartbeats
+	// stop, defeating the whole point. 15 minutes comfortably exceeds
+	// every documented restart cost (§ Availability model: ~2-4 min
+	// snapshot-backed, ~6-10 min reconstruction) and the slowest observed
+	// node-move/EBS-reattach case (~5-10 min). Overshoot is bounded and
+	// safe: HeartbeatTimeout is a per-reader, in-process config value,
+	// never replicated via the KV store itself, so widening it here has
+	// zero effect on any other ring reader (a future query-frontend
+	// routing client must keep its OWN short timeout for routing health --
+	// DESIGN.md § Query path) -- and at RF=1 a genuinely dead instance's
+	// keyspace only degrades to fallback (fail-open), never a wrong
+	// answer, for the overshoot window.
+	defaultHeartbeatTimeout = 15 * time.Minute
+
+	// defaultRingAutoForgetTimeout is how long a heartbeat-unhealthy ring
+	// entry survives before AutoForgetDelegate purges it from the KV store
+	// outright. Deliberately decoupled from HeartbeatTimeout (dropping the
+	// ringAutoForgetUnhealthyPeriods*HeartbeatTimeout derivation every
+	// other Tempo ring still uses): ownership reassignment is already
+	// driven entirely by HeartbeatTimeout above (GetAllHealthy excludes
+	// the instance the moment it elapses); auto-forget only matters for
+	// KV/ring-page/metrics hygiene on a permanently dead instance
+	// afterward, a different concern that widening HeartbeatTimeout for
+	// restart tolerance should not silently drag along for the ride.
+	// Validate enforces the ordering that actually matters (must be >
+	// HeartbeatTimeout); the exact margin here is an operational call, not
+	// a derived constant.
+	defaultRingAutoForgetTimeout = time.Hour
+
+	// defaultShutdownMarkerDir is a sibling of defaultSnapshotPath's own
+	// directory: the prepare-downscale marker (downscale.go,
+	// pkg/util/shutdownmarker) must survive a restart that lands between
+	// an operator's POST and their actual stop, exactly like
+	// defaultSnapshotPath must survive one -- both require the same
+	// persistent volume (live-store precedent: modules/livestore/
+	// config.go's own ShutdownMarkerDir default sits beside its WAL path
+	// default the same way). If an operator overrides Snapshot.Path to a
+	// different volume, ShutdownMarkerDir must be overridden to match;
+	// Validate only checks the field is non-empty (see its own comment on
+	// why a real same-volume check does not belong in a documented
+	// zero-I/O Validate).
+	defaultShutdownMarkerDir = "/var/lib/tempo/bloom-gateway/shutdown-marker"
 )
 
 // Config is the top-level bloom gateway configuration.
@@ -180,6 +234,38 @@ type Config struct {
 	// repo, so a bloom-gateway-specific field cannot live there.
 	RingStabilityWindow  time.Duration `yaml:"ring_stability_window"`
 	RingStabilityTimeout time.Duration `yaml:"ring_stability_timeout"`
+
+	// UnregisterOnShutdown controls whether THIS instance's lifecycler
+	// starts with KeepInstanceInTheRingOnShutdown enabled -- the process's
+	// own static default, distinct from the runtime toggle the
+	// prepare-downscale endpoint flips (downscale.go). false (default): an
+	// ordinary graceful stop keeps this instance's ring entry ACTIVE, same
+	// tokens, unchanged -- the 2026-07-16 redesign's whole point (§
+	// Availability model amendment). true: reverts to this package's
+	// original behavior (every graceful stop unregisters), for an operator
+	// who wants the old semantics unconditionally. Not nested under Ring:
+	// Ring is tempo_ring.Config, a type shared with every other
+	// ring-backed module in this repo (RingStabilityWindow's own comment
+	// above explains why a bloom-gateway-specific field cannot live
+	// there).
+	UnregisterOnShutdown bool `yaml:"unregister_on_shutdown"`
+
+	// RingAutoForgetTimeout is how long a heartbeat-unhealthy ring entry
+	// survives before being purged from the KV store outright -- KV/
+	// ring-page/metrics hygiene, NOT the ownership-reassignment trigger
+	// (that is Ring.HeartbeatTimeout; see defaultHeartbeatTimeout's own
+	// comment and bloomgateway_ring.go). Must be > Ring.HeartbeatTimeout
+	// (Validate): forgetting no later than that would race reassignment
+	// instead of following it.
+	RingAutoForgetTimeout time.Duration `yaml:"ring_auto_forget_timeout"`
+
+	// ShutdownMarkerDir is where the prepare-downscale marker file lives
+	// (downscale.go, pkg/util/shutdownmarker) -- must be on the same
+	// persistent volume as Snapshot.Path (see defaultShutdownMarkerDir's
+	// own comment) so a prepared-for-removal instance remembers that
+	// intent across a restart that lands before the operator's actual
+	// removal.
+	ShutdownMarkerDir string `yaml:"shutdown_marker_dir"`
 
 	Ring  tempo_ring.Config  `yaml:"ring"`
 	Kafka ingest.KafkaConfig `yaml:"kafka"`
@@ -274,6 +360,17 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.DurationVar(&cfg.RingStabilityTimeout, prefix+".ring-stability-timeout", defaultRingStabilityTimeout, "Hard cap on how long to wait for ring-stability-window to be satisfied before proceeding anyway, so a genuinely single-instance cell is never held up.")
 
 	cfg.Ring.RegisterFlagsAndApplyDefaults(prefix, f)
+	// Bloom-gateway-specific override of the shared default set just
+	// above -- see defaultHeartbeatTimeout's own comment. Deliberately not
+	// a new flag: pkg/ring.Config's HeartbeatTimeout has no dedicated flag
+	// of its own (only a yaml tag) in any Tempo ring; an operator needing
+	// a different value can still set ring.heartbeat_timeout via YAML,
+	// exactly as for every other ring-backed module.
+	cfg.Ring.HeartbeatTimeout = defaultHeartbeatTimeout
+
+	f.BoolVar(&cfg.UnregisterOnShutdown, prefix+".unregister-on-shutdown", false, "Unregister this instance from the ring on every graceful stop (pre-2026-07-16 behavior). Default false: a graceful stop keeps the instance ACTIVE in the ring so ordinary pod reschedules cost nothing; use the prepare-downscale endpoint for an intentional, one-time removal instead of flipping this.")
+	f.DurationVar(&cfg.RingAutoForgetTimeout, prefix+".ring.auto-forget-timeout", defaultRingAutoForgetTimeout, "How long a heartbeat-unhealthy ring entry survives before being purged outright. Must be greater than the (bloom-gateway-widened) ring heartbeat timeout: ownership already reassigns at that point, so this only governs KV/ring-page cleanup for a permanently dead instance afterward.")
+	f.StringVar(&cfg.ShutdownMarkerDir, prefix+".shutdown-marker-dir", defaultShutdownMarkerDir, "Directory for the prepare-downscale marker file. Must be on the same persistent volume as snapshot.path so a prepared-for-removal instance remembers that across a restart landing before the operator's actual removal.")
 
 	cfg.Kafka.RegisterFlagsWithPrefix(prefix+".kafka", f)
 	cfg.Kafka.Topic = defaultKafkaTopic
@@ -355,6 +452,24 @@ func (cfg *Config) Validate() error {
 	}
 	if cfg.RingStabilityTimeout < cfg.RingStabilityWindow {
 		return fmt.Errorf("bloom gateway: ring_stability_timeout (%s) must be >= ring_stability_window (%s)", cfg.RingStabilityTimeout, cfg.RingStabilityWindow)
+	}
+
+	// Ordering, not magnitude, is the correctness constraint (2026-07-16
+	// shutdown-semantics redesign, DESIGN.md § Availability model
+	// amendment): ownership already reassigns when Ring.HeartbeatTimeout
+	// elapses (GetAllHealthy), so forgetting the ring entry no later than
+	// that would race reassignment instead of following it -- see
+	// defaultRingAutoForgetTimeout's own comment.
+	if cfg.RingAutoForgetTimeout <= cfg.Ring.HeartbeatTimeout {
+		return fmt.Errorf("bloom gateway: ring_auto_forget_timeout (%s) must be greater than ring.heartbeat_timeout (%s): ownership already reassigns at heartbeat_timeout, so forgetting no later than that would race reassignment instead of following it", cfg.RingAutoForgetTimeout, cfg.Ring.HeartbeatTimeout)
+	}
+
+	// Not a same-volume check against Snapshot.Path (see
+	// defaultShutdownMarkerDir's own comment for why that doesn't belong
+	// in a documented zero-I/O Validate) -- just the same "must be set"
+	// bar Snapshot.Path itself is held to below.
+	if cfg.ShutdownMarkerDir == "" {
+		return errors.New("bloom gateway: shutdown_marker_dir is required")
 	}
 
 	if cfg.Snapshot.Interval > 0 && cfg.Snapshot.Path == "" {

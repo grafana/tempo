@@ -3,6 +3,7 @@ package bloomgateway
 import (
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/kv"
@@ -18,11 +19,6 @@ const (
 	// store and in dskit's own per-ring metric ConstLabels.
 	RingName = "bloom-gateway"
 	RingKey  = "bloom-gateway"
-
-	// ringAutoForgetUnhealthyPeriods matches every other Tempo ring
-	// (backend-worker, distributor, live-store): an instance that has
-	// missed this many consecutive heartbeat timeouts is auto-forgotten.
-	ringAutoForgetUnhealthyPeriods = 2
 
 	// MaxNumTokens is dskit's SpreadMinimizingTokenGenerator hard cap
 	// (optimalTokensPerInstance = 512, unexported in vendor/.../ring).
@@ -63,6 +59,17 @@ type RingManager struct {
 // on a mismatch rather than surfacing an unrelated startup failure later
 // (ring-lifecycler report gotcha #5).
 //
+// unregisterOnShutdown and autoForgetTimeout are threaded through as their
+// own parameters, not read off cfg, because both are bloom-gateway-
+// specific (Config.UnregisterOnShutdown/RingAutoForgetTimeout) and cfg
+// here is the type shared with every other ring-backed module in this
+// repo (RingStabilityWindow's own doc comment in config.go explains why a
+// bloom-gateway-specific field cannot live on tempo_ring.Config itself).
+// unregisterOnShutdown sets only this lifecycler's STARTING value of
+// KeepInstanceInTheRingOnShutdown (downscale.go's PrepareDownscaleHandler
+// flips it at runtime independent of this default, via the exported
+// SetKeepInstanceInTheRingOnShutdown).
+//
 // Deviation from the implementation plan's sketch, noted here because it
 // changes the exported signature: the plan's NewRingManager had no way to
 // supply the instance's own dial address (ring.BasicLifecyclerConfig.Addr
@@ -72,7 +79,7 @@ type RingManager struct {
 // pkg/ring.Config rather than the bare dskit ring.Config the plan's sketch
 // otherwise reads as intending (dskit's ring.Config has neither instance
 // identity nor an address/interface-resolution story).
-func NewRingManager(cfg tempo_ring.Config, instanceID, zone string, numTokens int, logger log.Logger, reg prometheus.Registerer) (*RingManager, error) {
+func NewRingManager(cfg tempo_ring.Config, instanceID, zone string, numTokens int, unregisterOnShutdown bool, autoForgetTimeout time.Duration, logger log.Logger, reg prometheus.Registerer) (*RingManager, error) {
 	if cfg.HeartbeatTimeout <= 0 {
 		return nil, fmt.Errorf("bloom gateway ring: heartbeat timeout must be greater than 0, got %s", cfg.HeartbeatTimeout)
 	}
@@ -111,6 +118,16 @@ func NewRingManager(cfg tempo_ring.Config, instanceID, zone string, numTokens in
 	// default to zero/RandomTokenGenerator.
 	lifecyclerCfg.HeartbeatTimeout = cfg.HeartbeatTimeout
 	lifecyclerCfg.RingTokenGenerator = tokenGenerator
+	// KeepInstanceInTheRingOnShutdown's STARTING value (2026-07-16
+	// shutdown-semantics redesign, DESIGN.md § Availability model
+	// amendment) — !unregisterOnShutdown, so this defaults to true (keep)
+	// unless the operator has asked for the pre-redesign behavior
+	// unconditionally. downscale.go's PrepareDownscaleHandler flips the
+	// lifecycler's own runtime copy of this (SetKeepInstanceInTheRingOnShutdown)
+	// independent of whatever this static default was, for one intentional
+	// removal — this field only matters for a process that never sees a
+	// prepare-downscale POST at all.
+	lifecyclerCfg.KeepInstanceInTheRingOnShutdown = !unregisterOnShutdown
 
 	// Every existing Tempo ring re-wraps with this prefix before creating
 	// dskit ring/lifecycler metrics (module-wiring report convention); it
@@ -132,9 +149,43 @@ func NewRingManager(cfg tempo_ring.Config, instanceID, zone string, numTokens in
 	// RingTokenGenerator entirely and generates tokens its own way; do
 	// not copy those as a starting point (ring-lifecycler report gotcha
 	// #2 — this is the single most important gotcha for this file).
+	//
+	// ring.NewLeaveOnStoppingDelegate is deliberately NOT used here, and
+	// (2026-07-16 shutdown-semantics redesign, second pass) NO delegate is
+	// substituted in its place at all -- reported prominently per the
+	// harness's own instructions, since the first pass got this wrong. That
+	// first pass tried a conditionalLeaveOnStoppingDelegate wrapper, gating
+	// a changeState(LEAVING) call on KeepInstanceInTheRingOnShutdown; it was
+	// provably dead code. dskit's services.Service guarantees RunningFn
+	// happens-before StoppingFn (vendor/.../dskit/services/basic_service.go),
+	// so by the time OnRingInstanceStopping runs, BasicLifecycler.running()
+	// -- the ONLY reader of the lifecycler's actorChan -- has already
+	// exited. Any call reaching the exported ChangeState (which goes
+	// through run() -> actorChan, basic_lifecycler.go) therefore ALWAYS
+	// returns "lifecycler not running" at that point; only the vendored
+	// delegate's own UNEXPORTED changeState (a direct CAS, no actorChan
+	// involved) can actually reach LEAVING from inside stopping(), and this
+	// package, outside the ring package, cannot call it. Confirmed
+	// empirically: every prepared stop logged that failure and unregistered
+	// anyway.
+	//
+	// No delegate is needed here at all, it turns out: BasicLifecycler.
+	// stopping() (basic_lifecycler.go) reads ShouldKeepInstanceInTheRingOn
+	// Shutdown() DIRECTLY -- independent of whatever the delegate's own
+	// OnRingInstanceStopping does -- to decide keep-vs-unregister; that is
+	// the actual mechanism this file's KeepInstanceInTheRingOnShutdown
+	// wiring above relies on, and it works with zero delegate involvement.
+	// The LEAVING stopover itself was never load-bearing for US
+	// specifically, either: this package's own ringOp={ACTIVE}
+	// (bloomgateway.go) treats LEAVING identically to absent, so "briefly
+	// LEAVING then removed" and "removed directly" are indistinguishable to
+	// GetAllHealthy. Omitting a stopping delegate entirely --
+	// InstanceRegisterDelegate's own OnRingInstanceStopping is already a
+	// no-op -- is therefore strictly simpler than, and (unlike its
+	// predecessor) actually correct in achieving, what a conditional
+	// wrapper was trying to do.
 	delegate := ring.BasicLifecyclerDelegate(ring.NewInstanceRegisterDelegate(ring.ACTIVE, numTokens))
-	delegate = ring.NewLeaveOnStoppingDelegate(delegate, logger)
-	delegate = ring.NewAutoForgetDelegate(ringAutoForgetUnhealthyPeriods*cfg.HeartbeatTimeout, delegate, logger)
+	delegate = ring.NewAutoForgetDelegate(autoForgetTimeout, delegate, logger)
 
 	lifecycler, err := ring.NewBasicLifecycler(lifecyclerCfg, RingName, RingKey, store, delegate, logger, reg)
 	if err != nil {

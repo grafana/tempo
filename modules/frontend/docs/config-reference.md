@@ -1067,6 +1067,9 @@ bloom_gateway:
     num_tokens: 512
     ring_stability_window: 15s
     ring_stability_timeout: 1m0s
+    unregister_on_shutdown: false
+    ring_auto_forget_timeout: 1h0m0s
+    shutdown_marker_dir: /var/lib/tempo/bloom-gateway/shutdown-marker
     ring:
         kvstore:
             store: memberlist
@@ -1099,7 +1102,7 @@ bloom_gateway:
                 mirror_enabled: false
                 mirror_timeout: 2s
         heartbeat_period: 5s
-        heartbeat_timeout: 1m0s
+        heartbeat_timeout: 15m0s
         instance_id: hostname
         instance_interface_names:
             - eth0

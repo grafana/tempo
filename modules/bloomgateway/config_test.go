@@ -169,6 +169,40 @@ func TestConfig_Validate(t *testing.T) {
 			},
 			wantErr: "",
 		},
+		{
+			name: "ring_auto_forget_timeout less than ring heartbeat timeout",
+			mutate: func(cfg *Config) {
+				cfg.Ring.HeartbeatTimeout = time.Minute
+				cfg.RingAutoForgetTimeout = 30 * time.Second
+			},
+			wantErr: "ring_auto_forget_timeout",
+		},
+		{
+			// The boundary itself: == is rejected, not just <, since
+			// forgetting no later than reassignment races it rather than
+			// following it (defaultRingAutoForgetTimeout's own comment).
+			name: "ring_auto_forget_timeout exactly equal to ring heartbeat timeout is rejected",
+			mutate: func(cfg *Config) {
+				cfg.Ring.HeartbeatTimeout = time.Minute
+				cfg.RingAutoForgetTimeout = time.Minute
+			},
+			wantErr: "ring_auto_forget_timeout",
+		},
+		{
+			name: "ring_auto_forget_timeout just above ring heartbeat timeout is valid",
+			mutate: func(cfg *Config) {
+				cfg.Ring.HeartbeatTimeout = time.Minute
+				cfg.RingAutoForgetTimeout = time.Minute + time.Second
+			},
+			wantErr: "",
+		},
+		{
+			name: "shutdown_marker_dir empty",
+			mutate: func(cfg *Config) {
+				cfg.ShutdownMarkerDir = ""
+			},
+			wantErr: "shutdown_marker_dir is required",
+		},
 	}
 
 	for _, tt := range tests {
@@ -195,6 +229,23 @@ func TestConfig_RingStabilityDefaults(t *testing.T) {
 	cfg := validConfig(t)
 	assert.Equal(t, 15*time.Second, cfg.RingStabilityWindow)
 	assert.Equal(t, time.Minute, cfg.RingStabilityTimeout)
+	assert.NoError(t, cfg.Validate())
+}
+
+// TestConfig_ShutdownDefaults pins down the 2026-07-16 shutdown-semantics
+// redesign's own defaults (DESIGN.md § Availability model amendment) so a
+// future change to any of them is deliberate, not accidental: the ring
+// heartbeat timeout is widened well past pkg/ring.Config's own shared
+// 1-minute default (bloom-gateway-specific override, config.go), the
+// auto-forget timeout is independently defaulted rather than derived from
+// it, a graceful stop keeps the instance in the ring by default, and the
+// shutdown marker has a real, non-empty default directory.
+func TestConfig_ShutdownDefaults(t *testing.T) {
+	cfg := validConfig(t)
+	assert.Equal(t, 15*time.Minute, cfg.Ring.HeartbeatTimeout)
+	assert.Equal(t, time.Hour, cfg.RingAutoForgetTimeout)
+	assert.False(t, cfg.UnregisterOnShutdown)
+	assert.Equal(t, defaultShutdownMarkerDir, cfg.ShutdownMarkerDir)
 	assert.NoError(t, cfg.Validate())
 }
 

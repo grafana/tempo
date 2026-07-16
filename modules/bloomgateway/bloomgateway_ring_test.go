@@ -76,7 +76,7 @@ func newTestRingManagers(t *testing.T, n, numTokens int) []*RingManager {
 
 	rms := make([]*RingManager, n)
 	for i := 0; i < n; i++ {
-		rm, err := NewRingManager(cfg, fmt.Sprintf("bloom-gateway-%d", i), "", numTokens, logger, prometheus.NewRegistry())
+		rm, err := NewRingManager(cfg, fmt.Sprintf("bloom-gateway-%d", i), "", numTokens, false, time.Hour, logger, prometheus.NewRegistry())
 		require.NoError(t, err)
 		rms[i] = rm
 	}
@@ -146,28 +146,28 @@ func TestNewRingManager_FailsFast(t *testing.T) {
 	t.Run("zero heartbeat timeout", func(t *testing.T) {
 		cfg := newTestRingConfig(t, store)
 		cfg.HeartbeatTimeout = 0
-		_, err := NewRingManager(cfg, "bloom-gateway-0", "", 16, logger, prometheus.NewRegistry())
+		_, err := NewRingManager(cfg, "bloom-gateway-0", "", 16, false, time.Hour, logger, prometheus.NewRegistry())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "heartbeat timeout")
 	})
 
 	t.Run("num tokens exceeds dskit's hard cap", func(t *testing.T) {
 		cfg := newTestRingConfig(t, store)
-		_, err := NewRingManager(cfg, "bloom-gateway-0", "", MaxNumTokens+1, logger, prometheus.NewRegistry())
+		_, err := NewRingManager(cfg, "bloom-gateway-0", "", MaxNumTokens+1, false, time.Hour, logger, prometheus.NewRegistry())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "num tokens")
 	})
 
 	t.Run("num tokens zero", func(t *testing.T) {
 		cfg := newTestRingConfig(t, store)
-		_, err := NewRingManager(cfg, "bloom-gateway-0", "", 0, logger, prometheus.NewRegistry())
+		_, err := NewRingManager(cfg, "bloom-gateway-0", "", 0, false, time.Hour, logger, prometheus.NewRegistry())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "num tokens")
 	})
 
 	t.Run("instance ID does not match name-N", func(t *testing.T) {
 		cfg := newTestRingConfig(t, store)
-		_, err := NewRingManager(cfg, "not-a-statefulset-name", "", 16, logger, prometheus.NewRegistry())
+		_, err := NewRingManager(cfg, "not-a-statefulset-name", "", 16, false, time.Hour, logger, prometheus.NewRegistry())
 		require.Error(t, err, "a bare hostname without a numeric ordinal suffix must fail construction, not some later unrelated-looking error")
 		assert.Contains(t, err.Error(), "name-N")
 	})
@@ -188,7 +188,7 @@ func TestNewRingManager_TokensAreDeterministic(t *testing.T) {
 		t.Cleanup(func() { _ = closer.Close() })
 
 		cfg := newTestRingConfig(t, store)
-		rm, err := NewRingManager(cfg, "bloom-gateway-3", "", 32, logger, prometheus.NewRegistry())
+		rm, err := NewRingManager(cfg, "bloom-gateway-3", "", 32, false, time.Hour, logger, prometheus.NewRegistry())
 		require.NoError(t, err)
 
 		ctx := context.Background()

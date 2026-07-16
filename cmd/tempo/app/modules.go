@@ -775,6 +775,9 @@ func (t *App) initBloomGateway() (services.Service, error) {
 
 	tempopb.RegisterBloomGatewayServer(t.Server.GRPC(), t.bloomGateway)
 	t.Server.HTTPRouter().Handle("/bloom-gateway/ring", t.bloomGateway.Ring())
+	t.Server.HTTPRouter().Methods(http.MethodGet, http.MethodPost, http.MethodDelete).
+		Path("/bloom-gateway/prepare-downscale").
+		Handler(http.HandlerFunc(t.bloomGateway.PrepareDownscaleHandler))
 
 	return gateway, nil
 }

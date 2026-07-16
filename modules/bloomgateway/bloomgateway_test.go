@@ -100,6 +100,14 @@ func newTestGatewayConfig(t *testing.T, ringStore kv.Client, kafkaAddr, kafkaTop
 	cfg.Snapshot.Path = snapshotPath
 	cfg.Snapshot.Interval = 0 // ticker disabled by default; tests that need a save call saveSnapshot directly
 
+	// Overrides the production default (a fixed /var/lib/tempo/... path) --
+	// starting() creates this directory unconditionally on every real
+	// startup (checkShutdownMarker, downscale.go), so every test driving a
+	// full BloomGateway through services.StartAndAwaitRunning needs its own
+	// scoped, writable directory instead of touching the real machine's
+	// filesystem.
+	cfg.ShutdownMarkerDir = filepath.Join(t.TempDir(), "shutdown-marker")
+
 	cfg.Reconstruction.Concurrency = 4
 	cfg.Reconstruction.RateLimitBytesPerSecond = 1 << 30 // effectively unthrottled for tests
 
