@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
-
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -121,6 +121,8 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 	if p := q.limits.MetricsSpanOnlyFetch(tenantID); p != nil {
 		compileOpts = append(compileOpts, traceql.WithSpanOnlyFetch(*p))
 	}
+
+	compileOpts = append(compileOpts, overrides.SpanPruningAwarenessCompileOptions(q.limits.SpanPruningAwareness(tenantID))...)
 
 	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, compileOpts...)
 	if err != nil {

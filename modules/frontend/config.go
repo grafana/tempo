@@ -70,11 +70,12 @@ type SearchConfig struct {
 }
 
 type TraceByIDConfig struct {
-	QueryShards      int       `yaml:"query_shards,omitempty"`
-	ConcurrentShards int       `yaml:"concurrent_shards,omitempty"`
-	BlocksPerShard   uint      `yaml:"blocks_per_shard,omitempty"` // BlocksPerShard is used to dynamically create shards based on the number of blocks instead of the fixed amount in QueryShards. Set to 0 to disable and fall back to QueryShards.
-	SLO              SLOConfig `yaml:",inline"`
-	ExternalEnabled  bool      `yaml:"external_enabled,omitempty"`
+	QueryShards        int       `yaml:"query_shards,omitempty"`
+	ConcurrentShards   int       `yaml:"concurrent_shards,omitempty"`
+	BlocksPerShard     uint      `yaml:"blocks_per_shard,omitempty"` // BlocksPerShard is used to dynamically create shards based on the number of blocks instead of the fixed amount in QueryShards. Set to 0 to disable and fall back to QueryShards.
+	SLO                SLOConfig `yaml:",inline"`
+	ExternalEnabled    bool      `yaml:"external_enabled,omitempty"`
+	SpanPruningEnabled bool      `yaml:"span_pruning_enabled,omitempty"`
 }
 
 type MetricsConfig struct {

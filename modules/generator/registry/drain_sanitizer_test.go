@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -248,4 +249,52 @@ func TestDrainSanitizer_FullSanitizedOutput(t *testing.T) {
 			require.Equal(t, tc.expectedOutput, result.Get("span_name"))
 		})
 	}
+}
+
+// TestDrainSanitizer_BorrowedSpanNameNotRetained verifies that Sanitize does not
+// let drain retain token substrings that alias a reusable scratch buffer. drain
+// clones the token slice headers when it creates a cluster, but the bytes those
+// headers point at belong to the span name; if the span name aliases a pooled
+// scratch buffer (as CloseAndBorrowLabels produces) a later borrow that reuses
+// the buffer would corrupt the retained cluster tokens.
+func TestDrainSanitizer_BorrowedSpanNameNotRetained(t *testing.T) {
+	s := newTestDrainSanitizer(SpanNameSanitizationEnabled)
+
+	// A single ScratchBuilder reuses one internal buffer across Overwrite calls,
+	// exactly like the pooled scratch handed out by CloseAndBorrowLabels.
+	scratch := labels.NewScratchBuilder(1)
+
+	// span_name aliases the scratch buffer; this Sanitize call creates the drain
+	// cluster, which is the only place drain retains substrings of the input.
+	scratch.Reset()
+	scratch.Add("span_name", "GET /alpha/bravo")
+	var borrowed labels.Labels
+	scratch.Overwrite(&borrowed)
+	s.Sanitize(borrowed)
+
+	// Snapshot (owning a copy of) every token drain retained from the borrowed
+	// span name, so the comparison below is against the original bytes.
+	var snapshot []string
+	for _, c := range s.drain.Clusters() {
+		for _, tok := range c.Tokens {
+			snapshot = append(snapshot, strings.Clone(tok))
+		}
+	}
+	require.NotEmpty(t, snapshot, "expected drain to create a cluster and retain tokens")
+
+	// Reuse the SAME scratch buffer with a different span name of identical
+	// length, overwriting the bytes the retained tokens alias.
+	scratch.Reset()
+	scratch.Add("span_name", "PUT /xray0/yanke")
+	var reused labels.Labels
+	scratch.Overwrite(&reused)
+	require.Equal(t, "PUT /xray0/yanke", reused.Get("span_name"))
+
+	// The tokens drain retained must be unchanged: they must have been cloned
+	// from owned memory rather than left aliasing the borrowed scratch buffer.
+	var after []string
+	for _, c := range s.drain.Clusters() {
+		after = append(after, c.Tokens...)
+	}
+	require.Equal(t, snapshot, after, "drain retained tokens were corrupted by scratch-buffer reuse")
 }

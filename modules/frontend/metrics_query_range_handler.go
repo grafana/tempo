@@ -199,12 +199,12 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 // internally aligned range. If the cutoff removes the whole query window, it
 // returns a cutoff-specific error instead of the generic start/end error.
 func clampQueryEndForValidation(cfg Config, req *tempopb.QueryRangeRequest) error {
-	if req.Start > req.End {
-		return nil
+	if req.Start >= req.End {
+		return errEndMustBeGreaterThanStart
 	}
 
 	clamped := clampQueryEndToCutoff(cfg, req)
-	if clamped && req.Start > req.End {
+	if clamped && req.Start >= req.End {
 		return errQueryWindowWithinEndCutoff
 	}
 	return nil

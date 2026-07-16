@@ -1029,7 +1029,14 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 		exemplars = 1 // at least one per sub-query when exemplars are requested
 	}
 
-	bme := make(batchMetricsEvaluator, len(expr.Pipeline))
+	// Watchers are request-scoped.
+	watchers := &spanWatchers{}
+	watchers.Add(cfg.watchers...)
+
+	bme := &batchMetricsEvaluator{
+		evals:    make(map[string]*metricsEvaluator, len(expr.Pipeline)),
+		watchers: watchers,
+	}
 	for key, pipeline := range expr.Pipeline {
 		sp := expr.BatchSpanProcessor[key]
 		if sp == nil {
@@ -1114,6 +1121,15 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 			meta := ExemplarMetaConditionsWithout(cb, storageReq.SecondPassConditions, storageReq.AllConditions)
 			storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, meta...)
 		}
+
+		// Share the request's watchers and load their attributes via the second pass.
+		// This keeps optimize() from eliminating the second pass while a watcher is active.
+		// Watching happens in Do/DoSpansOnly on the final matched spans.
+		me.watchers = watchers
+		if watchers.Active() {
+			storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, watchers.Conditions()...)
+		}
+
 		// Setup second pass callback.  It might be optimized away
 		storageReq.SecondPass = func(s *Spanset) ([]*Spanset, error) {
 			if s == nil || len(s.Spans) == 0 {
@@ -1128,7 +1144,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 		}
 
 		optimize(&storageReq)
-		bme[key] = me
+		bme.evals[key] = me
 	}
 
 	return bme, nil
@@ -1277,32 +1293,43 @@ type MetricsEvaluator interface {
 	Results() SeriesSet
 }
 
-type batchMetricsEvaluator map[string]MetricsEvaluator
+// batchMetricsEvaluator runs one metricsEvaluator per sub-pipeline of a query
+// and is itself the request-scoped object returned by CompileMetricsQueryRange.
+type batchMetricsEvaluator struct {
+	evals map[string]*metricsEvaluator
+	// watchers collect extra on-demand metrics for the whole request.
+	// A single shared instance is fed every matched span from every sub-pipeline
+	watchers *spanWatchers
+}
 
-var _ = (MetricsEvaluator)(batchMetricsEvaluator(nil))
+var _ MetricsEvaluator = (*batchMetricsEvaluator)(nil)
 
-func (e batchMetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error {
-	var err error
-	for _, eval := range e {
-		err = eval.Do(ctx, f, fetcherStart, fetcherEnd, maxSeries)
-		if err != nil {
+func (e *batchMetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error {
+	for _, eval := range e.evals {
+		if err := eval.Do(ctx, f, fetcherStart, fetcherEnd, maxSeries); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (e batchMetricsEvaluator) Length() int {
+func (e *batchMetricsEvaluator) Length() int {
 	var total int
-	for _, eval := range e {
+	for _, eval := range e.evals {
 		total += eval.Length()
 	}
 	return total
 }
 
-func (e batchMetricsEvaluator) Metrics() EvaluatorMetrics {
+func (e *batchMetricsEvaluator) Metrics() EvaluatorMetrics {
 	var combined EvaluatorMetrics
-	for _, eval := range e {
+	addMetric := func(k string, v int64) {
+		if combined.AdditionalMetrics == nil {
+			combined.AdditionalMetrics = make(map[string]int64)
+		}
+		combined.AdditionalMetrics[k] += v
+	}
+	for _, eval := range e.evals {
 		m := eval.Metrics()
 		combined.Bytes += m.Bytes
 		combined.SpansTotal += m.SpansTotal
@@ -1310,24 +1337,25 @@ func (e batchMetricsEvaluator) Metrics() EvaluatorMetrics {
 		combined.BackendReads += m.BackendReads
 		combined.BackendBytes += m.BackendBytes
 		for k, v := range m.AdditionalMetrics {
-			if combined.AdditionalMetrics == nil {
-				combined.AdditionalMetrics = make(map[string]int64, len(m.AdditionalMetrics))
-			}
-			combined.AdditionalMetrics[k] += v
+			addMetric(k, v)
 		}
+	}
+
+	for k, v := range e.watchers.Stats() {
+		addMetric(k, v)
 	}
 	return combined
 }
 
-func (e batchMetricsEvaluator) Results() SeriesSet {
-	if len(e) == 1 {
-		for _, eval := range e {
+func (e *batchMetricsEvaluator) Results() SeriesSet {
+	if len(e.evals) == 1 {
+		for _, eval := range e.evals {
 			return eval.Results()
 		}
 	}
 
 	merged := make(SeriesSet)
-	for q, eval := range e {
+	for q, eval := range e.evals {
 		for _, v := range eval.Results() {
 			v.Labels = v.Labels.Add(Label{Name: internalLabelQueryFragment, Value: NewStaticString(q)})
 			merged[v.Labels.MapKey()] = v
@@ -1352,7 +1380,10 @@ type metricsEvaluator struct {
 	backendReads      uint64
 	backendBytes      uint64
 	additionalMetrics map[string]int64
-	mtx               sync.Mutex
+	// watchers inspect matched result spans (independent of the second pass) to collect extra on-demand metrics.
+	// Shared across all sub-pipeline evaluators of a request; owned and reported by batchMetricsEvaluator.
+	watchers *spanWatchers
+	mtx      sync.Mutex
 }
 
 // EvaluatorMetrics is the snapshot returned by MetricsEvaluator.Metrics().
@@ -1434,6 +1465,7 @@ func (e *metricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 	defer fetch.Results.Close()
 
 	seriesCount := 0
+	watch := e.watchers.Active()
 
 	for {
 		ss, err := fetch.Results.Next(ctx)
@@ -1470,6 +1502,9 @@ func (e *metricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 
 			validSpansCount++
 			e.metricsPipeline.observe(s)
+			if watch {
+				watch = e.watchers.WatchSpan(s)
+			}
 
 			if !needExemplar {
 				continue
@@ -1541,6 +1576,8 @@ func (e *metricsEvaluator) DoSpansOnly(ctx context.Context, f SpansetFetcher, fe
 
 	defer fetch.Results.Close()
 
+	watch := e.watchers.Active()
+
 	for {
 		done, err := func() (done bool, err error) {
 			s, err := fetch.Results.Next(ctx)
@@ -1571,6 +1608,9 @@ func (e *metricsEvaluator) DoSpansOnly(ctx context.Context, f SpansetFetcher, fe
 			}
 
 			e.metricsPipeline.observe(s)
+			if watch {
+				watch = e.watchers.WatchSpan(s)
+			}
 			e.spansTotal++
 
 			if e.maxExemplars > 0 && e.exemplarCount < e.maxExemplars {
@@ -1849,7 +1889,7 @@ func (b *SimpleAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing *
 		if b.exemplarBuckets.testTotal() {
 			break
 		}
-		if b.exemplarBuckets.addAndTest(uint64(exemplar.TimestampMs)) { //nolint: gosec // G115
+		if b.exemplarBuckets.addAndTest(uint64(exemplar.TimestampMs)) { // nolint: gosec // G115
 			continue // Skip this exemplar and continue, next exemplar might fit in a different bucket
 		}
 		labels, _ := convertProtoLabelsToTraceQL(exemplar.Labels, false)

@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: query-frontend
+note: Tag value queries now propagate the `limit` and `maxStaleValues` parameters to the queriers and live-store, bounding per-block scans and enabling the stale-value early-exit. Previously these were only applied at the query-frontend, so each block was scanned without a count limit.
+issues: []
+subtext:
+user: zalegrala

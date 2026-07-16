@@ -652,13 +652,24 @@ func TestQueryRangeMaxSeriesDisabled(t *testing.T) {
 		// Wait for traces to be flushed to blocks. spanCount happens to make traces count
 		h.WaitTracesQueryable(t, spanCount)
 
-		callQueryRange(t, h, queryRangeRequest{
+		req := queryRangeRequest{
 			Query:     "{} | rate() by (span:id)",
 			Start:     time.Now().Add(-5 * time.Minute),
 			End:       time.Now(),
 			Step:      "5s",
 			Exemplars: 100,
-		}, func(queryRangeRes *tempopb.QueryRangeResponse, err error) {
+		}
+
+		// The traces_created_total barrier doesn't guarantee metrics-query
+		// visibility, so poll until every span:id series is returned.
+		apiClient := h.APIClientHTTP("")
+		require.Eventually(t, func() bool {
+			res, err := apiClient.MetricsQueryRange(req.Query, req.Start.UnixNano(), req.End.UnixNano(), req.Step, req.Exemplars)
+			require.NoError(t, err)
+			return len(res.GetSeries()) == spanCount
+		}, 30*time.Second, time.Second, "all %d series should become queryable", spanCount)
+
+		callQueryRange(t, h, req, func(queryRangeRes *tempopb.QueryRangeResponse, err error) {
 			require.NoError(t, err)
 			require.NotNil(t, queryRangeRes)
 			require.Equal(t, tempopb.PartialStatus_COMPLETE, queryRangeRes.GetStatus())

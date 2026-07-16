@@ -110,6 +110,42 @@ func Test_gaugeSet(t *testing.T) {
 	collectMetricAndAssert(t, c, collectionTimeMs, 3, expectedSamples, nil)
 }
 
+func Test_gaugeSetBorrowed_refreshesExistingSeries(t *testing.T) {
+	var seriesUpdated, seriesDeleted int
+	lifecycler := &mockLimiter{
+		onUpdateFunc: func(_ uint64, count uint32) {
+			assert.Equal(t, uint32(1), count)
+			seriesUpdated++
+		},
+		onDeleteFunc: func(_ uint64, count uint32) {
+			assert.Equal(t, uint32(1), count)
+			seriesDeleted++
+		},
+	}
+	g := newGauge("my_gauge", lifecycler, map[string]string{}, 15*time.Minute)
+	lbls := buildTestLabels([]string{"label"}, []string{"value"})
+	hash := lbls.Hash()
+	borrowed := &BorrowedLabels{Labels: lbls, Hash: hash}
+
+	g.SetBorrowed(borrowed, 1, 100)
+	assert.Equal(t, 1.0, g.series[hash].value.Load())
+	assert.Equal(t, int64(100), g.series[hash].lastUpdated.Load())
+	assert.Equal(t, 0, seriesUpdated)
+
+	g.SetBorrowed(borrowed, 2, 200)
+	assert.Equal(t, 2.0, g.series[hash].value.Load())
+	assert.Equal(t, int64(200), g.series[hash].lastUpdated.Load())
+	assert.Equal(t, 1, seriesUpdated)
+
+	g.removeStaleSeries(150)
+	assert.Len(t, g.series, 1)
+	assert.Equal(t, 0, seriesDeleted)
+
+	g.removeStaleSeries(201)
+	assert.Empty(t, g.series)
+	assert.Equal(t, 1, seriesDeleted)
+}
+
 func Test_gauge_cantAdd(t *testing.T) {
 	canAdd := false
 	overflowLabels := labels.FromStrings("metric_overflow", "true")

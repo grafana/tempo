@@ -16,12 +16,46 @@ func FindServiceName(attributes []*v1_common.KeyValue) (string, bool) {
 	return FindAttributeValue(string(semconv.ServiceNameKey), attributes)
 }
 
-func FindServiceNamespace(attributes []*v1_common.KeyValue) (string, bool) {
-	return FindAttributeValue(string(semconv.ServiceNamespaceKey), attributes)
-}
+// FindServiceLabels extracts the service.name, job, and service.instance.id
+// label values from resource attributes in a single pass. The job value is
+// "<service.namespace>/<service.name>" when the namespace is present and just
+// the service name otherwise; it is empty when service.name is absent. The
+// first occurrence of each attribute wins.
+func FindServiceLabels(attributes []*v1_common.KeyValue) (svcName, jobName, instanceID string) {
+	var (
+		namespace       string
+		foundSvcName    bool
+		foundNamespace  bool
+		foundInstanceID bool
+	)
 
-func FindInstanceID(attributes []*v1_common.KeyValue) (string, bool) {
-	return FindAttributeValue(string(semconv.ServiceInstanceIDKey), attributes)
+	for _, kv := range attributes {
+		switch kv.Key {
+		case string(semconv.ServiceNameKey):
+			if !foundSvcName {
+				svcName = tempo_util.StringifyAnyValue(kv.Value)
+				foundSvcName = true
+			}
+		case string(semconv.ServiceNamespaceKey):
+			if !foundNamespace {
+				namespace = tempo_util.StringifyAnyValue(kv.Value)
+				foundNamespace = true
+			}
+		case string(semconv.ServiceInstanceIDKey):
+			if !foundInstanceID {
+				instanceID = tempo_util.StringifyAnyValue(kv.Value)
+				foundInstanceID = true
+			}
+		}
+	}
+
+	if svcName == "" {
+		return svcName, "", instanceID
+	}
+	if namespace == "" {
+		return svcName, svcName, instanceID
+	}
+	return svcName, namespace + "/" + svcName, instanceID
 }
 
 func FindAttributeValue(key string, attributes ...[]*v1_common.KeyValue) (string, bool) {
@@ -105,17 +139,4 @@ func extractOpenTelemetryTraceState(traceState string) string {
 		}
 		traceState = strings.TrimSpace(traceState[nextComma+1:])
 	}
-}
-
-func GetJobValue(attributes []*v1_common.KeyValue) string {
-	svName, _ := FindServiceName(attributes)
-	// if service name is not present, consider job value empty
-	if svName == "" {
-		return ""
-	}
-	namespace, _ := FindServiceNamespace(attributes)
-	if namespace == "" {
-		return svName
-	}
-	return namespace + "/" + svName
 }

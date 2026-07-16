@@ -1,0 +1,7 @@
+change_type: enhancement
+component: metrics-generator
+note: Reduce per-span CPU and allocations in the span-metrics processor by building series labels through the registry's pooled borrowed-label path.
+issues: [7584]
+subtext: |
+  The span-metrics processor now builds series labels in registry-owned pooled buffers, updates metrics with a precomputed label hash, and builds target_info once per resource instead of once per span. Metric names, labels, and values are unchanged.
+user: carles-grafana

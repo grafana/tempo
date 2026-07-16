@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/grafana/dskit/httpgrpc"
+	spanpruningprocessor "github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanpruningprocessor"
 	"github.com/prometheus/common/model"
 
 	"github.com/grafana/tempo/pkg/model/tracediff"
@@ -33,6 +34,7 @@ const (
 	urlParamMinDuration     = "minDuration"
 	urlParamMaxDuration     = "maxDuration"
 	urlParamLimit           = "limit"
+	urlParamMaxStaleValues  = "maxStaleValues"
 	urlParamStart           = "start"
 	urlParamEnd             = "end"
 	urlParamSpansPerSpanSet = "spss"
@@ -54,6 +56,12 @@ const (
 	urlParamDedicatedColumns = "dc"
 
 	urlParamSkipASTTransformations = "skip_ast_transformations"
+
+	// span pruning
+	urlParamSpanPruning               = "span_pruning"
+	urlParamSpanPruningGroupBy        = "span_pruning_group_by"
+	urlParamSpanPruningMinSpans       = "span_pruning_min_spans"
+	urlParamSpanPruningMaxParentDepth = "span_pruning_max_parent_depth"
 
 	// search tags
 	urlParamScope = "scope"
@@ -941,4 +949,52 @@ func ReadBodyToBuffer(resp *http.Response) (*bytes.Buffer, error) {
 	}
 
 	return buffer, nil
+}
+
+func ParseSpanPruningRequest(r *http.Request) (bool, *spanpruningprocessor.Config, error) {
+	raw := r.URL.Query().Get(urlParamSpanPruning)
+	if raw == "" {
+		return false, nil, nil
+	}
+
+	spanPruningEnabled, err := strconv.ParseBool(raw)
+	if err != nil {
+		return false, nil, fmt.Errorf("invalid %s value %q: must be a boolean", urlParamSpanPruning, raw)
+	}
+
+	if !spanPruningEnabled {
+		return false, nil, nil
+	}
+
+	cfg := spanpruningprocessor.NewFactory().CreateDefaultConfig().(*spanpruningprocessor.Config)
+
+	if v := r.URL.Query().Get(urlParamSpanPruningGroupBy); v != "" {
+		var patterns []string
+		for _, p := range strings.Split(v, ",") {
+			if p = strings.TrimSpace(p); p != "" {
+				patterns = append(patterns, p)
+			}
+		}
+		cfg.GroupByAttributes = patterns
+	}
+	if v := r.URL.Query().Get(urlParamSpanPruningMinSpans); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return false, nil, fmt.Errorf("invalid %s value %q: %w", urlParamSpanPruningMinSpans, v, err)
+		}
+		cfg.MinSpansToAggregate = n
+	}
+	if v := r.URL.Query().Get(urlParamSpanPruningMaxParentDepth); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return false, nil, fmt.Errorf("invalid %s value %q: %w", urlParamSpanPruningMaxParentDepth, v, err)
+		}
+		cfg.MaxParentDepth = n
+	}
+
+	if err := cfg.Validate(); err != nil {
+		return false, nil, fmt.Errorf("invalid span pruning config: %w", err)
+	}
+
+	return true, cfg, nil
 }

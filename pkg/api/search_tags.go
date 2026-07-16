@@ -380,6 +380,22 @@ func parseSearchTagValuesRequest(r *http.Request, enforceTraceQL bool) (*tempopb
 		req.End = uint32(end)
 	}
 
+	if s, ok := extractQueryParam(vals, urlParamLimit); ok {
+		limit, err := strconv.ParseUint(s, 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid limit: %w", err)
+		}
+		req.MaxTagValues = uint32(limit)
+	}
+
+	if s, ok := extractQueryParam(vals, urlParamMaxStaleValues); ok {
+		staleValues, err := strconv.ParseUint(s, 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid maxStaleValues: %w", err)
+		}
+		req.StaleValueThreshold = uint32(staleValues)
+	}
+
 	return req, nil
 }
 
@@ -490,6 +506,12 @@ func BuildSearchTagValuesRequest(req *http.Request, searchReq *tempopb.SearchTag
 		qb.addParam(urlParamEnd, strconv.FormatUint(uint64(searchReq.End), 10))
 	}
 	qb.addParam(urlParamQuery, searchReq.Query)
+	if searchReq.MaxTagValues != 0 {
+		qb.addParam(urlParamLimit, strconv.FormatUint(uint64(searchReq.MaxTagValues), 10))
+	}
+	if searchReq.StaleValueThreshold != 0 {
+		qb.addParam(urlParamMaxStaleValues, strconv.FormatUint(uint64(searchReq.StaleValueThreshold), 10))
+	}
 
 	req.URL.RawQuery = qb.query()
 

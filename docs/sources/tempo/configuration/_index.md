@@ -1112,6 +1112,12 @@ query_frontend:
         # configured in the querier.
         [external_enabled: <bool> | default = false]
 
+        # Enable span pruning support for trace-by-ID v2 requests. When enabled, requests
+        # to the v2 endpoint can opt in to span pruning post-processing via the
+        # `span_pruning` query parameter. When disabled, the query parameter is ignored
+        # and no pruning occurs regardless of the request.
+        [span_pruning_enabled: <bool> | default = false]
+
         # If set to a non-zero value, it's value will be used to decide if metadata query is within SLO or not.
         # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
         # NOTE: Requires `duration_slo` AND `throughput_bytes_slo` to be configured.
@@ -1193,9 +1199,9 @@ When set to `0`, there is no maximum and users can request any number of spans, 
 
 You can set the maximum length of a query using `query_frontend.max_query_expression_size_bytes` configuration parameter for the query-frontend. The default value is 128 KB.
 
-This limit is used to protect the system’s stability from potential abuse or mistakes, when running a large potentially expensive query.
+This limit protects system stability from potential abuse or mistakes when running large, potentially expensive queries. Tempo enforces this limit before parsing the TraceQL expression, so queries that exceed the configured size are rejected immediately with a clear error message.
 
-You can set the value lower of higher by setting it in the `query_frontend` configuration section, for example:
+You can set the value lower or higher in the `query_frontend` configuration section, for example:
 
 ```
 query_frontend:
@@ -2358,7 +2364,8 @@ overrides:
       [max_search_duration: <duration> | default = 0s]
 
       # Per-user max duration for metrics queries. If this value is set to 0 (default), then metrics max_duration
-      #  in the front-end configuration is used.
+      #  in the front-end configuration is used. This limit is enforced against the user-provided time range,
+      #  not the post-alignment range. Queries whose entire window falls within query_end_cutoff are rejected.
       [max_metrics_duration: <duration> | default = 0s]
 
       # Per-user option to left-pad trace IDs with zeros to 32 hex characters in search API responses.
@@ -2377,6 +2384,13 @@ overrides:
       # Per-user toggle for the span-only fetch layer for TraceQL metrics queries.
       # When not set, the default behavior is used. May be overridden by query hints.
       [metrics_spanonly_fetch: <bool>]
+
+      # EXPERIMENTAL
+      # When enabled, queries report an additional metric indicating whether the
+      # matched spans include span-pruning summary spans (spans carrying the
+      # aggregation.is_summary attribute). Applies to search and metrics queries.
+      # Operator-controlled and not exposed to query authors.
+      [span_pruning_awareness: <bool> | default = false]
 
     # Compaction related overrides
     compaction:
@@ -2670,6 +2684,13 @@ overrides:
         [max_traces_per_user: <int>]
       global:
         [max_bytes_per_trace: <int>]
+      metrics_generator:
+        # Enable metrics-generator processors for this tenant. For all available fields,
+        # refer to the metrics_generator block in the overrides defaults above.
+        [processors: <list of strings>]
+        # Optional per-tenant remote write headers, for example for per-tenant authentication.
+        remote_write_headers:
+          [<header-name>: <string>]
 
   # A "wildcard" override can be used that will apply to all tenants if a match is not found otherwise.
   "*":
@@ -2680,6 +2701,10 @@ overrides:
     global:
       [max_bytes_per_trace: <int>]
 ```
+
+When a tenant matches a per-tenant override entry, Tempo doesn't merge that entry field-by-field with `defaults`. Most fields require you to set every value a tenant needs within its own block (some settings, such as `ingestion.rate_strategy`, always use `defaults`). A few metrics-generator fields fall back to `defaults` when unset, but most, including `processors` and `remote_write_headers`, don't.
+
+For a complete per-tenant `metrics_generator` example, including `remote_write_headers` for per-tenant authentication and environment variable expansion, refer to [Multi-tenancy support](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/multitenancy/).
 
 ##### User-configurable overrides
 

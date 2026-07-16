@@ -179,6 +179,11 @@ type ReadOverrides struct {
 	// MetricsSpanOnlyFetch, when set, enables or disables the new fetch layer by default for TraceQL metrics queries
 	// for this tenant.  When not set, then the default behavior is used. Maybe be overridden by query hints.
 	MetricsSpanOnlyFetch *bool `yaml:"metrics_spanonly_fetch,omitempty" json:"metrics_spanonly_fetch,omitempty"`
+
+	// SpanPruningAwareness is experimental. When enabled, queries report an
+	// additional metric indicating whether the matched spans include
+	// span-pruning summary spans (spans carrying aggregation.is_summary).
+	SpanPruningAwareness bool `yaml:"span_pruning_awareness,omitempty" json:"span_pruning_awareness,omitempty"`
 }
 
 type CompactionOverrides struct {

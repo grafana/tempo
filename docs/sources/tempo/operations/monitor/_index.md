@@ -38,13 +38,9 @@ Tempo emits logs in the `key=value` ([logfmt](https://brandur.org/logfmt)) forma
 
 ### Traces
 
-Tempo uses the [OpenTelemetry SDK](https://github.com/open-telemetry/opentelemetry-go) for tracing instrumentation.
-The complete read path and some parts of the write path of Tempo are instrumented for tracing.
+You can configure the self-tracing for tempo using OpenTelemetry or Jaeger environment variables.
 
-You can configure the tracer [using environment variables](https://opentelemetry.io/docs/languages/sdk-configuration/otlp-exporter/).
-To enable tracing, set one of the following: `OTEL_EXPORTER_OTLP_ENDPOINT` or `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`.
-
-The OpenTelemetry SDK uses OTLP/HTTP by default, which can be configured with `OTEL_EXPORTER_OTLP_PROTOCOL`.
+Refer to [Configure Tempo self-tracing](self-tracing/) for the supported config, environment variables, sampling, propagation, and more details.
 
 ## Polling
 

@@ -98,6 +98,10 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 		mostRecent = false
 	}
 
+	// Watchers are config-driven and supplied via WithWatchers
+	var watchers spanWatchers
+	watchers.Add(cfg.watchers...)
+
 	if rootExpr.IsNoop() {
 		return &tempopb.SearchResponse{
 			Traces:  nil,
@@ -115,6 +119,10 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 	meta := SearchMetaConditionsWithout(fetchSpansRequest.Conditions, fetchSpansRequest.AllConditions)
 	fetchSpansRequest.SecondPassConditions = append(fetchSpansRequest.SecondPassConditions, meta...)
 
+	if watchers.Active() {
+		fetchSpansRequest.SecondPassConditions = append(fetchSpansRequest.SecondPassConditions, watchers.Conditions()...)
+	}
+
 	spansetsEvaluated := 0
 	// set up the expression evaluation as a filter to reduce data pulled
 	fetchSpansRequest.SecondPass = func(inSS *Spanset) ([]*Spanset, error) {
@@ -131,6 +139,10 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 		spansetsEvaluated++
 		if len(evalSS) == 0 {
 			return nil, nil
+		}
+
+		if watchers.Active() {
+			watchers.WatchSpans(evalSS)
 		}
 
 		// reduce all evalSS to their max length to reduce meta data lookups
@@ -196,6 +208,14 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 		res.Metrics.InspectedBytes = stats.Bytes
 		populateMetricsFromFetchStats(res.Metrics, stats)
 		span.SetAttributes(attribute.Int64("inspectedBytes", int64(stats.Bytes)))
+	}
+
+	// Populate extra metrics from watchers
+	for k, v := range watchers.Stats() {
+		if res.Metrics.AdditionalMetrics == nil {
+			res.Metrics.AdditionalMetrics = make(map[string]int64)
+		}
+		res.Metrics.AdditionalMetrics[k] += v
 	}
 
 	return res, nil

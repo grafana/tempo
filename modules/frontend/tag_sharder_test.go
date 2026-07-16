@@ -23,8 +23,29 @@ import (
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
 )
+
+// TestTagValueSearchRequestHashIncludesLimits ensures the frontend cache hash
+// distinguishes requests that differ only by MaxTagValues / StaleValueThreshold.
+// Without this, propagating those params (tempo-squad#1355) would let a request
+// with a small limit serve its truncated cached response to a request with a
+// larger limit.
+func TestTagValueSearchRequestHashIncludesLimits(t *testing.T) {
+	newReq := func(mut func(*tempopb.SearchTagValuesRequest)) *tagValueSearchRequest {
+		r := tempopb.SearchTagValuesRequest{TagName: "span.foo", Query: "{ span.bar = `baz` }"}
+		mut(&r)
+		return &tagValueSearchRequest{request: r}
+	}
+
+	base := newReq(func(*tempopb.SearchTagValuesRequest) {})
+	withLimit := newReq(func(r *tempopb.SearchTagValuesRequest) { r.MaxTagValues = 100 })
+	withStale := newReq(func(r *tempopb.SearchTagValuesRequest) { r.StaleValueThreshold = 50 })
+
+	require.NotEqual(t, base.hash(), withLimit.hash(), "hash must vary with MaxTagValues")
+	require.NotEqual(t, base.hash(), withStale.hash(), "hash must vary with StaleValueThreshold")
+}
 
 type fakeReq struct {
 	startValue uint32

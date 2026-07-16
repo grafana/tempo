@@ -1,0 +1,6 @@
+change_type: feature
+component: query-frontend
+note: Added span pruning support to the trace-by-id v2 endpoint.
+issues: []
+subtext:
+user: ie-pham

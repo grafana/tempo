@@ -794,6 +794,8 @@ memberlist:
     compression_enabled: false
     notify_interval: 0s
     received_messages_queue_size: 1024
+    processed_messages_queue_size: 1024
+    compression_algorithm: lzw
     advertise_addr: ""
     advertise_port: 7946
     cluster_label: ""

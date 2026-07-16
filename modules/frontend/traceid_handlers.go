@@ -86,7 +86,7 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 }
 
 // newTraceIDV2Handler creates a http.handler for trace by id requests
-func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
+func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor, combiner.TraceByIDV2Options) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	postSLOHook := traceByIDSLOPostHook(cfg.TraceByID.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -127,7 +127,24 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			}
 		}
 
-		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat, traceRedactor)
+		var (
+			opts               combiner.TraceByIDV2Options
+			spanPruningEnabled bool
+		)
+		// only parse span_pruning_* params when the feature is enabled cluster-wide, so a
+		// malformed param doesn't 400 a request for a feature that's actually turned off.
+		if cfg.TraceByID.SpanPruningEnabled {
+			spanPruningEnabled, spanPruningCfg, pErr := api.ParseSpanPruningRequest(req)
+			if pErr != nil {
+				return httpInvalidRequest(pErr), nil
+			}
+			if spanPruningEnabled && spanPruningCfg != nil {
+				opts.SpanPruningConfig = spanPruningCfg
+				opts.Logger = logger
+			}
+		}
+
+		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat, traceRedactor, opts)
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 
 		start := time.Now()
@@ -151,6 +168,7 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			"inspected_bytes", bytesProcessed,
 			"request_throughput", float64(bytesProcessed)/elapsed.Seconds(),
 			"duration_seconds", elapsed.Seconds(),
+			"span_pruning_enabled", spanPruningEnabled,
 			"err", err,
 		)
 

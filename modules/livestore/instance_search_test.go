@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/ingest/testkafka"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -41,6 +42,7 @@ import (
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -307,6 +309,134 @@ func TestSearchTagValuesV2DiskCache(t *testing.T) {
 
 	err = services.StopAndAwaitTerminated(t.Context(), ls)
 	require.NoError(t, err)
+}
+
+// TestSearchTagValuesV2CacheKeyIncludesLimits ensures the disk-cache key varies
+// with MaxTagValues / StaleValueThreshold. Since the cached per-block values are
+// truncated at these limits, sharing one entry across differing limits would
+// serve a truncated set as complete once those params propagate (tempo-squad#1355).
+func TestSearchTagValuesV2CacheKeyIncludesLimits(t *testing.T) {
+	const limit = 500000
+	newReq := func(mut func(*tempopb.SearchTagValuesRequest)) *tempopb.SearchTagValuesRequest {
+		r := &tempopb.SearchTagValuesRequest{TagName: "span.foo", Query: "{ span.bar = `baz` }"}
+		mut(r)
+		return r
+	}
+
+	base := searchTagValuesV2CacheKey(newReq(func(*tempopb.SearchTagValuesRequest) {}), limit, "p")
+	withLimit := searchTagValuesV2CacheKey(newReq(func(r *tempopb.SearchTagValuesRequest) { r.MaxTagValues = 100 }), limit, "p")
+	withStale := searchTagValuesV2CacheKey(newReq(func(r *tempopb.SearchTagValuesRequest) { r.StaleValueThreshold = 50 }), limit, "p")
+
+	require.NotEqual(t, base, withLimit, "cache key must vary with MaxTagValues")
+	require.NotEqual(t, base, withStale, "cache key must vary with StaleValueThreshold")
+}
+
+// BenchmarkLocalBlockSearchTagValuesV2Limit measures the block scan cost saved
+// by the per-request count limit (MaxTagValues) and stale-value threshold on the
+// unfiltered tag-value path. The "unlimited" case reflects production behavior
+// before tempo-squad#1355 (limits never reached the block); the limited/stale
+// cases are what the fix enables. Runs at the block level to isolate scan cost
+// from the instance disk cache.
+func BenchmarkLocalBlockSearchTagValuesV2Limit(b *testing.B) {
+	const (
+		numTraces = 4000
+		hcTag     = "bench_hc" // unique value per trace (high cardinality)
+		lcTag     = "bench_lc" // 10 distinct values, many repeats (low cardinality)
+	)
+
+	i, ls := defaultInstance(b)
+	b.Cleanup(func() { _ = services.StopAndAwaitTerminated(context.Background(), ls) })
+
+	ctx := user.InjectOrgID(context.Background(), testTenantID)
+	now := time.Now()
+	for j := 0; j < numTraces; j++ {
+		id := make([]byte, 16)
+		_, err := crand.Read(id)
+		require.NoError(b, err)
+
+		tt := test.MakeTrace(1, id)
+		hcKV := &v1.KeyValue{Key: hcTag, Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "hc-" + strconv.Itoa(j)}}}
+		lcKV := &v1.KeyValue{Key: lcTag, Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "lc-" + strconv.Itoa(j%10)}}}
+		for _, batch := range tt.ResourceSpans {
+			for _, ils := range batch.ScopeSpans {
+				for _, span := range ils.Spans {
+					span.StartTimeUnixNano = uint64(now.UnixNano())
+					span.EndTimeUnixNano = uint64(now.UnixNano())
+					span.Attributes = append(span.Attributes, hcKV, lcKV)
+				}
+			}
+		}
+		trace.SortTrace(tt)
+		traceBytes, err := tt.Marshal()
+		require.NoError(b, err)
+		i.pushBytes(ctx, now, &tempopb.PushBytesRequest{
+			Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
+			Ids:    [][]byte{id},
+		})
+	}
+
+	// Move live traces -> head -> WAL -> complete block. cutIdleTraces cuts the
+	// head early when it reaches MaxBlockBytes, so loop until all live traces are drained.
+	for {
+		drained, err := i.cutIdleTraces(ctx, true)
+		require.NoError(b, err)
+		blockID, err := i.cutBlocks(ctx, true)
+		require.NoError(b, err)
+		if blockID != uuid.Nil {
+			_, err = i.completeBlock(ctx, blockID)
+			require.NoError(b, err)
+		}
+		if drained {
+			break
+		}
+	}
+
+	// pick the largest complete block so the scan has meaningful cardinality
+	var block *LocalBlock
+	for _, bl := range i.blocks.Load().completeBlocks {
+		if block == nil || bl.BlockMeta().TotalRecords > block.BlockMeta().TotalRecords {
+			block = bl
+		}
+	}
+	require.NotNil(b, block)
+	b.Logf("benchmark block: %d records, %d bytes", block.BlockMeta().TotalRecords, block.BlockMeta().Size_)
+
+	opts := common.DefaultSearchOptions()
+	lenFn := func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) }
+
+	cases := []struct {
+		tag       string
+		name      string
+		maxValues uint32
+		stale     uint32
+	}{
+		{"span." + hcTag, "highcard/unlimited", 0, 0},
+		{"span." + hcTag, "highcard/limit_100", 100, 0},
+		{"span." + hcTag, "highcard/limit_1000", 1000, 0},
+		{"span." + lcTag, "lowcard/unlimited", 0, 0},
+		{"span." + lcTag, "lowcard/stale_50", 0, 50},
+	}
+
+	for _, tc := range cases {
+		tag, err := traceql.ParseIdentifier(tc.tag)
+		require.NoError(b, err)
+
+		// Time (ns/op) and -benchmem (B/op, allocs/op) capture the win: the count
+		// limit and stale threshold stop the scan early, so fewer values are
+		// materialized. Block-level BytesRead() is page-granular and does not drop
+		// on an already-open block, so it is not reported here; the cross-block
+		// byte savings come from Exceeded() skipping whole blocks at the instance layer.
+		b.Run(tc.name, func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for n := 0; n < b.N; n++ {
+				d := collector.NewDistinctValue(500_000, tc.maxValues, tc.stale, lenFn)
+				mc := collector.NewMetricsCollector()
+				err := block.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(d.Collect), mc.Add, opts)
+				require.NoError(b, err)
+			}
+		})
+	}
 }
 
 // nolint:revive,unparam
