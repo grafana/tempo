@@ -914,15 +914,25 @@ func (g *BloomGateway) runSnapshotTicker(ctx context.Context) {
 // saveSnapshot performs exactly one Pause -> Save -> Resume cycle. Pause
 // quiesces the live Kafka apply path, reducing churn during the pass; it is
 // NOT relied on for correctness of the leaf reads, because it does not stop
-// the sweep/reconstruction/reconciliation writers. buildSnapshotState
-// therefore takes consistent under-lock copies of each leaf via CloneLeaf
-// (see there), so a concurrent writer on any of those paths cannot corrupt or
-// tear the serialized state.
+// the sweep/reconstruction/reconciliation writers. buildSnapshotState's
+// streaming leaf source therefore takes a consistent under-lock copy of
+// each leaf via CloneLeaf immediately before it is serialized (see
+// directoryLeafSource.Clone), so a concurrent writer on any of those paths
+// cannot corrupt or tear the serialized state.
 // saveSnapshot returns any error encountered (tests assert on it directly);
 // runSnapshotTicker's own call site discards it, having already logged
 // internally below -- there is nothing more a periodic ticker can usefully
 // do with it beyond trying again next cycle.
 func (g *BloomGateway) saveSnapshot() error {
+	// Logged BEFORE state assembly starts (2026-07-16 OOM incident,
+	// DESIGN.md § Snapshots amendment): the previous bulk-clone assembly
+	// could die mid-buildSnapshotState with no log line anywhere near it,
+	// making a pod's disappearance impossible to attribute to a snapshot
+	// cycle after the fact. This line, plus the existing "snapshot saved"
+	// success line below, brackets the whole cycle -- a future death
+	// between the two is now directly attributable.
+	level.Info(g.logger).Log("msg", "bloomgateway: snapshot: starting save")
+
 	g.workerPool.Pause()
 	defer g.workerPool.Resume()
 
@@ -946,22 +956,33 @@ func (g *BloomGateway) saveSnapshot() error {
 // buildSnapshotState assembles a snapshot.State from the live structures.
 // Must only be called while the worker pool is paused (saveSnapshot's own
 // contract) -- see its doc comment for why.
+//
+// 2026-07-16 OOM incident, reported prominently per the harness's own
+// instructions: this used to CloneLeaf every owned leaf into a map
+// (complete[idx] = CloneLeaf(idx)) right here, inside the dir.Range walk,
+// before saveSnapshot/Snapshotter.Save ever got a chance to write a single
+// byte. At production scale (~2.1M owned leaves, ~1.2B entries, roughly
+// 7.3 GiB of cloned leaf data) that clone set landed on top of an already
+// ~11.9 GiB live heap and blew the pod's 13.74 GiB GOMEMLIMIT / 16 GiB
+// cgroup limit mid-assembly, on every snapshot tick -- observed as an
+// exact +5h lattice of OOMKills across the fleet, with no snapshot file
+// ever produced. This method now collects only the (cheap, uint32)
+// INDEXES of complete and constructing leaves; the actual CloneLeaf call
+// happens one index at a time, OUTSIDE this walk, interleaved with
+// serialization (directoryLeafSource below, consumed by snapshot.go's
+// streamCompleteLeaves) -- so Save's peak ADDITIONAL memory is one leaf,
+// never all of them. See DESIGN.md § Snapshots' amendment for the
+// production numbers, and LeafSource's own doc comment (snapshot.go) for
+// the race-window contract this split introduces (an index collected as
+// complete here can flip away from complete before directoryLeafSource.
+// Clone actually reaches it; that index is simply skipped, not a bug).
 func (g *BloomGateway) buildSnapshotState() (*State, error) {
-	complete := make(map[uint32]*Leaf)
+	var completeIdx []uint32
 	var constructingIdx []uint32
-	g.dir.Range(func(idx uint32, _ LeafState) bool {
-		// CloneLeaf, not Leaf: the worker-pool Pause() around this only stops
-		// the live Kafka apply path, NOT the sweep, reconstruction, or
-		// reconciliation goroutines, which also write leaves. Leaf() hands
-		// back the live *Leaf with the stripe lock already released, so
-		// serializing it would race those writers (a data race on the
-		// leaf's backing slices, and a torn snapshot). CloneLeaf takes a
-		// consistent deep copy under the stripe lock, so what we serialize is
-		// an atomic point-in-time view no concurrent writer can corrupt.
-		leaf, state := g.dir.CloneLeaf(idx)
+	g.dir.Range(func(idx uint32, state LeafState) bool {
 		switch state {
 		case LeafComplete:
-			complete[idx] = leaf
+			completeIdx = append(completeIdx, idx)
 		case LeafConstructing:
 			constructingIdx = append(constructingIdx, idx)
 		case LeafNil:
@@ -988,11 +1009,53 @@ func (g *BloomGateway) buildSnapshotState() (*State, error) {
 		SeedFingerprint:    g.seedFingerprint,
 		Tokens:             g.ringManager.Lifecycler.GetTokens(),
 		Offsets:            g.workerPool.AppliedOffsets(),
-		CompleteLeaves:     complete,
+		Leaves:             &directoryLeafSource{dir: g.dir, indexes: completeIdx},
 		ConstructingRanges: coalesceConsecutive(constructingIdx),
 		Blocks:             blocks,
 		Tenants:            tenantSnap,
 	}, nil
+}
+
+// directoryLeafSource adapts Directory to snapshot.go's LeafSource,
+// letting Save stream buildSnapshotState's complete leaves one at a time
+// straight from the live directory instead of requiring every owned leaf
+// to be pre-cloned into a map before Save is even called -- see
+// buildSnapshotState's own doc comment for the OOM this replaces, and
+// LeafSource's for the general streaming contract.
+type directoryLeafSource struct {
+	dir *Directory
+	// indexes is collected once, by buildSnapshotState's own dir.Range
+	// pass, in ascending order (Range's own "increasing idx order"
+	// guarantee) -- never touched again after construction, so no lock of
+	// its own is needed here.
+	indexes []uint32
+}
+
+func (s *directoryLeafSource) Indexes() []uint32 { return s.indexes }
+
+// Clone fetches idx's CURRENT leaf under its stripe lock, immediately
+// before Save serializes it -- CloneLeaf, not Leaf: the worker-pool
+// Pause() around saveSnapshot only stops the live Kafka apply path, NOT
+// the sweep, reconstruction, or reconciliation goroutines, which also
+// write leaves. Leaf() would hand back the live *Leaf with the stripe
+// lock already released, so serializing it would race those writers (a
+// data race on the leaf's backing slices, and a torn snapshot). CloneLeaf
+// takes a consistent deep copy under the stripe lock, so what gets
+// serialized is an atomic point-in-time view no concurrent writer can
+// corrupt.
+//
+// If idx is no longer LeafComplete right now -- shed by an ownership
+// change, most plausibly, since Shed is the only transition that ever
+// takes a complete leaf back off of complete (directory.go:
+// BeginConstructing/Complete never touch an already-complete slot) -- ok
+// is false and the caller skips this index entirely. This is always
+// safe: an owned leaf simply missing from a snapshot is re-enqueued for
+// reconstruction on the next load (reconcileStartup), and this instance
+// never served -- or claimed to have saved -- a leaf from anything but
+// complete state (DESIGN.md § Leaf lifecycle's completeness invariant).
+func (s *directoryLeafSource) Clone(idx uint32) (*Leaf, bool) {
+	leaf, state := s.dir.CloneLeaf(idx)
+	return leaf, state == LeafComplete
 }
 
 // coalesceConsecutive turns a strictly ascending (Directory.Range's own

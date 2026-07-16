@@ -341,6 +341,79 @@ func TestSnapshot_Save_UpdatesMetrics(t *testing.T) {
 	assert.Equal(t, float64(info.Size()), gotBytes)
 }
 
+// flippingLeafSource is a LeafSource test double that reports a chosen
+// subset of indexes as no-longer-complete when Clone is called --
+// deterministically reproducing the race window streamCompleteLeaves must
+// handle (an index buildSnapshotState's own dir.Range pass collected as
+// complete, but shed -- or otherwise no longer complete -- by the time
+// Save's LeafSource actually clones it) without depending on real
+// goroutine timing.
+type flippingLeafSource struct {
+	indexes []uint32
+	leaves  map[uint32]*Leaf
+	flipped map[uint32]bool // indexes to report as no-longer-complete
+}
+
+func (s *flippingLeafSource) Indexes() []uint32 { return s.indexes }
+
+func (s *flippingLeafSource) Clone(idx uint32) (*Leaf, bool) {
+	if s.flipped[idx] {
+		return nil, false
+	}
+	return s.leaves[idx], true
+}
+
+// TestSnapshot_Save_SkipsLeafThatFlipsAwayFromCompleteBeforeClone is the
+// named test plan item for the 2026-07-16 streaming-save fix (DESIGN.md §
+// Snapshots amendment): an index collected as complete must be skipped --
+// never serialized under stale or zeroed content -- if it is no longer
+// complete by the time Save's LeafSource actually clones it, and the
+// resulting snapshot must still load cleanly. This doubles as the
+// regression test for the leaf-count placeholder/patch and the
+// re-derived-from-disk checksum (writeSnapshot's own doc comment): if
+// either were wrong, either Load would fail outright on this file, or the
+// skipped index's absence wouldn't be reflected correctly.
+func TestSnapshot_Save_SkipsLeafThatFlipsAwayFromCompleteBeforeClone(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "snapshot.bin")
+
+	leafA := NewLeaf()
+	leafA.InsertIfAbsent(10, Handle(1))
+	leafB := NewLeaf()
+	leafB.InsertIfAbsent(20, Handle(2))
+
+	src := &flippingLeafSource{
+		indexes: []uint32{3, 7, 12},
+		leaves:  map[uint32]*Leaf{3: leafA, 7: leafB, 12: NewLeaf()},
+		flipped: map[uint32]bool{7: true}, // simulates idx 7 being shed between collection and clone
+	}
+
+	state := &State{
+		D: testD, F: testF, SeedFingerprint: 4242,
+		Offsets: map[int32]int64{},
+		Leaves:  src,
+		Tenants: TenantSetSnapshot{Buckets: map[string]map[bucketKey][]byte{}},
+	}
+
+	sn := NewSnapshotter(newMetrics(prometheus.NewRegistry()))
+	require.NoError(t, sn.Save(path, state))
+
+	got, err := sn.Load(path, state.D, state.F, state.SeedFingerprint)
+	require.NoError(t, err, "a skipped index must not corrupt the leaf count or checksum")
+
+	require.Len(t, got.CompleteLeaves, 2, "only the two non-flipped indexes must be present")
+	gotA, ok := got.CompleteLeaves[3]
+	require.True(t, ok)
+	assert.Equal(t, leafA.fps, gotA.fps)
+	assert.Equal(t, leafA.handles, gotA.handles)
+
+	gotEmpty, ok := got.CompleteLeaves[12]
+	require.True(t, ok)
+	assert.Empty(t, gotEmpty.fps)
+
+	_, stillThere := got.CompleteLeaves[7]
+	assert.False(t, stillThere, "index 7 flipped away from complete before Clone and must be entirely absent from the loaded snapshot")
+}
+
 // TestSnapshot_LargeStateSaveLoadTiming builds a CI-budget-friendly (not
 // DESIGN.md's reference ~15-20 GiB/instance) but non-trivial State,
 // exercises a real Save/Load round trip, and logs the actual wall time and

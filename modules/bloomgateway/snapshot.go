@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"time"
 
@@ -51,6 +52,74 @@ var ErrSnapshotMismatch = errors.New("bloomgateway: snapshot format/d/f/seed-fin
 // disk/volume problem worth a more alarming one.
 var ErrSnapshotCorrupt = errors.New("bloomgateway: snapshot corrupt or truncated")
 
+// LeafSource lets Save stream a snapshot's complete-leaf section one leaf
+// at a time, instead of requiring every complete leaf to already be cloned
+// into an in-memory map before Save is even called. This exists
+// specifically because of a 2026-07-16 production incident (DESIGN.md §
+// Snapshots amendment): buildSnapshotState (bloomgateway.go) used to
+// CloneLeaf every owned leaf into a map up front, and at production scale
+// (~2.1M owned leaves) that doubled live heap and OOM-killed the pod
+// mid-assembly, on every snapshot tick, before Save ever got a chance to
+// write anything. bloomgateway.go's directoryLeafSource is the production
+// implementation (streaming straight from the live Directory); this
+// file's own mapLeafSource (below) is the trivial adapter for callers that
+// already hold every leaf in memory (State.CompleteLeaves -- Load's own
+// return shape, and every State this file's tests build by hand).
+type LeafSource interface {
+	// Indexes returns the sorted, ascending leaf indexes that were
+	// LeafComplete at collection time -- cheap to gather (a Directory.
+	// Range pass over indexes only, no cloning).
+	Indexes() []uint32
+	// Clone returns idx's leaf, deep-copied and safe to serialize
+	// independently of any concurrent writer, plus whether idx is STILL
+	// complete right now. Save calls this exactly once per index,
+	// immediately before serializing that leaf, and discards the result
+	// immediately after -- peak additional memory is one leaf, never all
+	// of them. ok=false (an index that flipped away from LeafComplete
+	// between collection and this call -- an ownership change shedding it,
+	// most plausibly) means Save skips idx entirely: safe by the
+	// completeness invariant (DESIGN.md § Leaf lifecycle) -- an owned leaf
+	// simply missing from the snapshot is re-enqueued for reconstruction
+	// on the next load (reconcileStartup), and nothing was ever served, or
+	// claimed to have been saved, from anything but complete state.
+	Clone(idx uint32) (leaf *Leaf, ok bool)
+}
+
+// mapLeafSource adapts a plain, already-hydrated map[uint32]*Leaf --
+// State.CompleteLeaves' own shape -- to LeafSource, for every Save caller
+// that isn't buildSnapshotState (this file's own tests, chiefly). Clone
+// never actually re-clones: a caller that already holds a private map has
+// no concurrent writer to race, and every index Indexes() returns came
+// from this exact map, so ok is unconditionally true.
+type mapLeafSource map[uint32]*Leaf
+
+func (m mapLeafSource) Indexes() []uint32 {
+	idxs := make([]uint32, 0, len(m))
+	for idx := range m {
+		idxs = append(idxs, idx)
+	}
+	slices.Sort(idxs)
+	return idxs
+}
+
+func (m mapLeafSource) Clone(idx uint32) (*Leaf, bool) {
+	leaf, ok := m[idx]
+	return leaf, ok
+}
+
+// leavesSource resolves state's leaf data to the single LeafSource
+// encodeBody actually iterates, regardless of which of State's two
+// mutually-exclusive representations the caller populated (see their own
+// field comments on State): Leaves, if set, is preferred -- it is the more
+// memory-conscious of the two, and buildSnapshotState never sets
+// CompleteLeaves alongside it, so in practice there is no real ambiguity.
+func leavesSource(state *State) LeafSource {
+	if state.Leaves != nil {
+		return state.Leaves
+	}
+	return mapLeafSource(state.CompleteLeaves)
+}
+
 // State is the caller-assembled snapshot payload (DESIGN.md § Snapshots).
 // Only complete leaves are included, matching "the leaf directory with
 // leaf payloads for complete leaves"; ConstructingRanges round-trip as
@@ -78,11 +147,22 @@ var ErrSnapshotCorrupt = errors.New("bloomgateway: snapshot corrupt or truncated
 // amount of avoided re-fetching, which is reconciliation's normal job
 // already, not a new failure mode this file introduces.
 type State struct {
-	D, F               uint8
-	SeedFingerprint    uint64
-	Tokens             []uint32
-	Offsets            map[int32]int64
-	CompleteLeaves     map[uint32]*Leaf
+	D, F            uint8
+	SeedFingerprint uint64
+	Tokens          []uint32
+	Offsets         map[int32]int64
+	// CompleteLeaves is Load's own return shape (decodeBody populates it
+	// directly) and the shape every hand-built State in this package's
+	// tests uses. A Save caller that already holds every complete leaf in
+	// memory (nothing production-sized ever does -- see Leaves below) can
+	// populate this directly instead of Leaves.
+	CompleteLeaves map[uint32]*Leaf
+	// Leaves is buildSnapshotState's own streaming alternative to
+	// CompleteLeaves -- see LeafSource's own doc comment for why it
+	// exists. Load never populates this (decodeBody only ever fills
+	// CompleteLeaves), and no hand-built test State in this package needs
+	// it either.
+	Leaves             LeafSource
 	ConstructingRanges []LeafRange
 	Blocks             []Block
 	Tenants            TenantSetSnapshot
@@ -109,7 +189,11 @@ func NewSnapshotter(m *metrics) *Snapshotter {
 // "v1 pauses the worker pool between events for the duration of the
 // serialization"). Save itself does not know about or touch the worker
 // pool -- it only serializes whatever state it's handed, trusting the
-// caller's pause.
+// caller's pause. The one exception is state.Leaves (see LeafSource's own
+// doc comment): the worker-pool pause does NOT stop the sweep,
+// reconstruction, or reconciliation writers, so a leaf Save is about to
+// stream can still change out from under it -- handled per-index at
+// stream time, not here.
 func (sn *Snapshotter) Save(path string, state *State) error {
 	start := time.Now()
 
@@ -146,14 +230,30 @@ func (sn *Snapshotter) Save(path string, state *State) error {
 //
 // f must support Seek (Save always passes a real *os.File): bodyLength is
 // written as an 8-byte placeholder and fixed up once the body's actual
-// length is known, and the body itself streams DIRECTLY to f (through an
-// io.MultiWriter that also feeds a running CRC32) rather than being
-// buffered whole in memory first. This is deliberate, not an
-// over-optimization: State's structures (leaves, registry, tenant sets)
-// are already the live, in-memory serving state at DESIGN.md's reference
-// ~15-20 GiB/instance scale (§ Sizing) -- buffering a second full copy
-// just to learn its length before writing the header would transiently
-// double this instance's memory footprint on every snapshot.
+// length is known, and the body itself streams DIRECTLY to f (through a
+// buffered writer, coalescing millions of small field writes into large
+// syscalls) rather than being buffered whole in memory first. This is
+// deliberate, not an over-optimization: State's structures (leaves,
+// registry, tenant sets) are already the live, in-memory serving state at
+// DESIGN.md's reference ~15-20 GiB/instance scale (§ Sizing) -- buffering
+// a second full copy just to learn its length before writing the header
+// would transiently double this instance's memory footprint on every
+// snapshot.
+//
+// 2026-07-16 amendment (DESIGN.md § Snapshots): the body's checksum is
+// deliberately NOT computed incrementally alongside this write anymore (an
+// earlier revision did, via io.MultiWriter). The leaf-entry count inside
+// the body (encodeBody's own leaf section, streamCompleteLeaves below) is
+// itself a placeholder patched in place once every collected index has
+// actually been streamed -- a LeafSource can skip an index that flipped
+// away from complete since collection, so the true count isn't known
+// until that loop finishes. Patching bytes an incremental hash has
+// ALREADY summed would desync the hash from what actually ends up on
+// disk. Computing the checksum in one pass AFTER every patch is applied
+// -- by reading the finalized body back from f rather than hashing it as
+// it's written -- sidesteps that entirely, at the cost of one extra
+// sequential disk read no larger than the body itself (bounded, constant
+// extra memory: io.CopyN's own internal buffer, not a State-sized one).
 func writeSnapshot(f *os.File, state *State) error {
 	hw := &snapshotWriter{w: f}
 	hw.writeUint32(snapshotMagic)
@@ -181,15 +281,15 @@ func writeSnapshot(f *os.File, state *State) error {
 	// (encodeBody calls snapshotWriter's primitives once per token,
 	// offset, leaf entry, ...). Writing each one straight to f would cost
 	// one syscall per field; bufio.Writer coalesces them into large
-	// writes. The checksum still sees EXACTLY the same bytes f does,
-	// since bufio's underlying writer here is the MultiWriter, not f
-	// directly -- Flush below is what guarantees f's own Seek-observed
-	// position matches what's actually landed on disk, before this
-	// function relies on that position for the length fixup.
-	checksum := crc32.NewIEEE()
-	buffered := bufio.NewWriter(io.MultiWriter(f, checksum))
+	// writes. buffered and f are threaded through encodeBody (rather than
+	// just the sw wrapper) purely so streamCompleteLeaves can Flush and
+	// Seek f directly for its own leaf-count fixup -- see its own doc
+	// comment.
+	buffered := bufio.NewWriter(f)
 	bw := &snapshotWriter{w: buffered}
-	encodeBody(bw, state)
+	if err := encodeBody(bw, buffered, f, state); err != nil {
+		return fmt.Errorf("bloomgateway: snapshot: encoding body: %w", err)
+	}
 	if bw.err != nil {
 		return fmt.Errorf("bloomgateway: snapshot: encoding body: %w", bw.err)
 	}
@@ -209,6 +309,17 @@ func writeSnapshot(f *os.File, state *State) error {
 	fixup.writeUint64(uint64(bodyEnd - bodyStart))
 	if fixup.err != nil {
 		return fmt.Errorf("bloomgateway: snapshot: fixing up body length: %w", fixup.err)
+	}
+
+	// Checksum: computed fresh from the finalized on-disk body (bodyStart
+	// through bodyEnd), never from an incremental hash -- see this
+	// function's own doc comment for why.
+	if _, err := f.Seek(bodyStart, io.SeekStart); err != nil {
+		return fmt.Errorf("bloomgateway: snapshot: seeking to body start for checksum: %w", err)
+	}
+	checksum := crc32.NewIEEE()
+	if _, err := io.CopyN(checksum, f, bodyEnd-bodyStart); err != nil {
+		return fmt.Errorf("bloomgateway: snapshot: computing checksum: %w", err)
 	}
 
 	if _, err := f.Seek(bodyEnd, io.SeekStart); err != nil {
@@ -296,10 +407,15 @@ func (sn *Snapshotter) Load(path string, wantD, wantF uint8, wantSeedFingerprint
 
 // encodeBody writes every State field below the header, in a fixed order
 // decodeBody must mirror exactly. Map-keyed fields (Offsets,
-// CompleteLeaves, Tenants.Buckets) are written in a stable sorted order
-// purely so two Save calls over equal input produce byte-identical
-// output; decodeBody does not depend on that order in any way.
-func encodeBody(sw *snapshotWriter, state *State) {
+// Tenants.Buckets) are written in a stable sorted order purely so two Save
+// calls over equal input produce byte-identical output; decodeBody does
+// not depend on that order in any way.
+//
+// buffered and f are needed alongside sw purely so streamCompleteLeaves
+// (the leaf section, below) can Flush and Seek f directly for its own
+// leaf-count fixup; every other field here goes through sw exactly as
+// every earlier revision of this function did.
+func encodeBody(sw *snapshotWriter, buffered *bufio.Writer, f *os.File, state *State) error {
 	sw.writeUint32(uint32(len(state.Tokens)))
 	for _, tok := range state.Tokens {
 		sw.writeUint32(tok)
@@ -336,27 +452,8 @@ func encodeBody(sw *snapshotWriter, state *State) {
 		sw.writeTime(b.DeletedAt)
 	}
 
-	leafIndexes := make([]uint32, 0, len(state.CompleteLeaves))
-	for idx := range state.CompleteLeaves {
-		leafIndexes = append(leafIndexes, idx)
-	}
-	sort.Slice(leafIndexes, func(i, j int) bool { return leafIndexes[i] < leafIndexes[j] })
-	sw.writeUint32(uint32(len(leafIndexes)))
-	for _, idx := range leafIndexes {
-		leaf := state.CompleteLeaves[idx]
-		sw.writeUint32(idx)
-		// fps/handles: same-package direct field access (leaf.go's own
-		// type doc only restricts CONCURRENT access without the
-		// directory's stripe lock; Save's own documented precondition --
-		// the caller has already paused all mutation -- makes this a
-		// safe, single-threaded, already-quiesced read, exactly like
-		// Directory.Leaf's "safe for a caller that already knows no
-		// concurrent mutation is possible" case).
-		sw.writeUint32(uint32(len(leaf.fps)))
-		for i := range leaf.fps {
-			sw.writeUint16(leaf.fps[i])
-			sw.writeUint32(uint32(leaf.handles[i]))
-		}
+	if err := streamCompleteLeaves(sw, buffered, f, leavesSource(state)); err != nil {
+		return err
 	}
 
 	tenantIDs := make([]string, 0, len(state.Tenants.Buckets))
@@ -380,6 +477,104 @@ func encodeBody(sw *snapshotWriter, state *State) {
 			sw.writeBlob(buckets[k])
 		}
 	}
+	return nil
+}
+
+// streamCompleteLeaves writes the on-disk complete-leaf section -- a count
+// followed by (idx, entries...) per leaf, byte-for-byte the same shape
+// this file always used -- but sources each leaf from src ONE AT A TIME
+// (LeafSource's own doc comment), so Save never needs more than one
+// leaf's worth of additional memory regardless of how many complete
+// leaves this instance owns (the 2026-07-16 OOM this streaming save
+// replaces, DESIGN.md § Snapshots amendment).
+//
+// Unlike every other section in encodeBody, this one's count cannot be
+// written correctly up front: src.Clone may report an index src.Indexes()
+// already collected as no longer complete (the documented race window --
+// see LeafSource's own comment), and a skipped index must not be counted.
+// The count is therefore written as a zero placeholder and patched in
+// place once the real count is known: buffered.Flush so f's Seek-observed
+// position is accurate (nothing buffered-but-unflushed left to skew it),
+// f.Seek back to the placeholder, rewrite it, f.Seek forward again to
+// resume the buffered stream exactly where it left off. Safe because
+// nothing else writes to f concurrently during one Save call
+// (os.CreateTemp's own private, unshared temp file) -- see writeSnapshot's
+// own doc comment for why the checksum is computed separately, after this
+// patch, rather than incrementally alongside it.
+func streamCompleteLeaves(sw *snapshotWriter, buffered *bufio.Writer, f *os.File, src LeafSource) error {
+	if sw.err != nil {
+		return nil // already broken; writeSnapshot's own bw.err check surfaces it
+	}
+
+	if err := buffered.Flush(); err != nil {
+		return fmt.Errorf("flushing before leaf count placeholder: %w", err)
+	}
+	countOffset, err := f.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return fmt.Errorf("seeking to leaf count placeholder: %w", err)
+	}
+	sw.writeUint32(0) // placeholder; patched below once every collected index has been attempted
+
+	indexes := src.Indexes()
+	written := uint32(0)
+	for _, idx := range indexes {
+		if sw.err != nil {
+			break
+		}
+		leaf, ok := src.Clone(idx)
+		if !ok || leaf == nil {
+			// !ok: race window -- idx flipped away from LeafComplete
+			// between collection and this Clone call. Safe to skip
+			// outright -- see LeafSource's own doc comment.
+			//
+			// leaf == nil (with ok true): only reachable via a buggy
+			// LeafSource implementation, or the theoretically-constructible
+			// nil-complete Directory slot (Directory.Complete never
+			// nil-checks its own reference before reporting complete).
+			// Must degrade the same way as the race window -- leaf absent
+			// from the snapshot, reconstructed on restore per the
+			// completeness invariant (§ Leaf lifecycle) -- rather than a
+			// nil-deref panic mid-save.
+			continue
+		}
+		sw.writeUint32(idx)
+		// fps/handles: same-package direct field access (leaf.go's own
+		// type doc only restricts CONCURRENT access without the
+		// directory's stripe lock; src.Clone already returned an
+		// independent deep copy under that lock, so this read is safe
+		// with no further synchronization).
+		sw.writeUint32(uint32(len(leaf.fps)))
+		for i := range leaf.fps {
+			sw.writeUint16(leaf.fps[i])
+			sw.writeUint32(uint32(leaf.handles[i]))
+		}
+		written++
+	}
+	if sw.err != nil {
+		return nil // surfaced by writeSnapshot's own bw.err check, as above
+	}
+
+	if err := buffered.Flush(); err != nil {
+		return fmt.Errorf("flushing leaf section: %w", err)
+	}
+	resumeOffset, err := f.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return fmt.Errorf("seeking to leaf section end: %w", err)
+	}
+
+	if _, err := f.Seek(countOffset, io.SeekStart); err != nil {
+		return fmt.Errorf("seeking back to fix up leaf count: %w", err)
+	}
+	fixup := &snapshotWriter{w: f}
+	fixup.writeUint32(written)
+	if fixup.err != nil {
+		return fmt.Errorf("fixing up leaf count: %w", fixup.err)
+	}
+
+	if _, err := f.Seek(resumeOffset, io.SeekStart); err != nil {
+		return fmt.Errorf("seeking back to resume after leaf count fixup: %w", err)
+	}
+	return nil
 }
 
 // decodeBody is encodeBody's exact inverse. d/f/seedFingerprint come from

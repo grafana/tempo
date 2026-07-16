@@ -409,6 +409,77 @@ func TestBloomGateway_ReconcileStartup_PartialSnapshotCoverageReconstructsTheRes
 	}
 }
 
+// TestBloomGateway_SaveSnapshot_ConcurrentWithDirectoryWrites is the save
+// path's own concurrent-writes-under-race test plan item (2026-07-16 OOM
+// fix, DESIGN.md § Snapshots amendment): buildSnapshotState no longer
+// clones every owned leaf up front while holding the directory's own
+// iteration state -- this exercises the new streaming shape by hammering
+// saveSnapshot in a tight loop on one goroutine while another concurrently
+// mutates (and reshuffles the lifecycle state of) the very same directory
+// saveSnapshot is streaming from, mirroring sweep_test.go's own
+// TestSweep_ConcurrentPassWithLiveWrites. There is no precise before/after
+// assertion -- the point is that -race catches nothing and the LAST
+// successful save still loads cleanly despite the concurrent churn.
+func TestBloomGateway_SaveSnapshot_ConcurrentWithDirectoryWrites(t *testing.T) {
+	store, addr := newTestGatewayCluster(t, "bg-save-concurrency")
+	reader := newFakeBackendReader()
+	snapshotPath := filepath.Join(t.TempDir(), "snapshot.bin")
+	cfg := newTestGatewayConfig(t, store, addr, "bg-save-concurrency", snapshotPath)
+
+	g := mustNewTestGateway(t, cfg, "bloom-gateway-0", reader)
+	t.Cleanup(func() { _ = g.consumer.Close() })
+	startRingOnly(t, g)
+
+	total := uint32(1) << cfg.D
+	for idx := uint32(0); idx < total; idx++ {
+		leaf, started := g.dir.BeginConstructing(idx)
+		require.True(t, started)
+		require.NoError(t, g.dir.Complete(idx, leaf))
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for ctx.Err() == nil {
+			if !assert.NoError(t, g.saveSnapshot()) {
+				return
+			}
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		var i uint16
+		for ctx.Err() == nil {
+			idx := uint32(i) % total
+			g.dir.InsertLive(idx, i, Handle(i)+1)
+			if i%7 == 0 {
+				// Ownership churn: shed the leaf saveSnapshot may be
+				// mid-clone on, then immediately reconstruct it -- exactly
+				// the "flips away from complete and back" pattern
+				// directoryLeafSource.Clone's ok=false branch exists for.
+				g.dir.Shed(idx)
+				if leaf, started := g.dir.BeginConstructing(idx); started {
+					_ = g.dir.Complete(idx, leaf)
+				}
+			}
+			i++
+		}
+	}()
+
+	time.Sleep(150 * time.Millisecond)
+	cancel()
+	wg.Wait()
+
+	got, err := g.snapshotter.Load(snapshotPath, cfg.D, cfg.F, g.seedFingerprint)
+	require.NoError(t, err, "the last successful save must still load cleanly despite concurrent directory writers")
+	assert.LessOrEqual(t, len(got.CompleteLeaves), int(total))
+}
+
 // TestBloomGateway_MultiInstanceScaleOut is this WP's own named
 // first-class deliverable: a real topology change (2-3 gateways sharing
 // one in-memory KV ring and one kfake cluster) exercised end-to-end -- a
