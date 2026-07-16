@@ -18,6 +18,10 @@ The `tempo-distributed` Helm chart is now maintained by the community.
 The chart has moved to the [grafana-community/helm-charts](https://github.com/grafana-community/helm-charts/tree/main/charts/tempo-distributed) repository.
 {{< /admonition >}}
 
+{{< admonition type="note" >}}
+Grafana Enterprise Traces (GET) is no longer maintained in this chart. The enterprise templates (`admin-api`, `enterprise-gateway`, `enterprise-federation-frontend`, `provisioner`, and `tokengen`) have been removed. For enterprise deployments, use the [grafana/helm-charts](https://github.com/grafana/helm-charts) repository.
+{{< /admonition >}}
+
 The `tempo-distributed` Helm chart allows you to configure, install, and upgrade Grafana Tempo within a Kubernetes cluster.
 Tempo 3.0 uses a Kafka-based architecture: distributors write spans to a Kafka-compatible broker, block-builders consume from Kafka to write blocks to object storage, and live-stores serve recent-data queries.
 As a result, this procedure requires an external Kafka-compatible broker and an external S3-compatible object store, neither of which the chart deploys for you.
@@ -45,7 +49,7 @@ This procedure is primarily aimed at local or development setups.
 
 The Tempo 3.0 microservices deployment runs more components than earlier versions, including block-builders, live-stores, and a backend-scheduler and backend-worker, alongside an external Kafka broker and object store.
 
-- For local testing with the single-partition footprint used in this guide (one block-builder and one live-store replica), use a Kubernetes node with a minimum of 6 cores and 16 GB RAM.
+- The main example uses the chart default of three Kafka partitions, which runs three block-builder and three live-store replicas. For a smaller single-partition footprint suitable for a single node (one block-builder and one live-store replica), use the [Optional: Quick test with a local S3-compatible store and Kafka](#optional-quick-test-with-a-local-s3-compatible-store-and-kafka) section and a Kubernetes node with a minimum of 6 cores and 16 GB RAM.
 - Production deployments scale block-builders and live-stores with your Kafka partition count and require significantly more resources. Refer to [Plan your deployment](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/plan/) for sizing guidance.
 
 ### Software requirements
@@ -70,24 +74,14 @@ Verify that you have:
 If you want to access Tempo from outside of the Kubernetes cluster, you may need an ingress.
 Ingress-related procedures are optional.
 
-Note that [ingress-nginx](https://github.com/kubernetes/ingress-nginx) is being retired and should not be used in production environments.
+Note that [ingress-nginx](https://github.com/kubernetes/ingress-nginx) is being retired and shouldn't be used in production environments.
 {{< /admonition >}}
-<!-- This section should be verified before being made visible. It's from Mimir and might need to be updated for Tempo.
-
-## Security setup
-
-This installation will not succeed if you have enabled the [PodSecurityPolicy](https://v1-23.docs.kubernetes.io/docs/reference/access-authn-authz/admission-controllers/#podsecuritypolicy) admission controller or if you are enforcing the Restricted policy with [Pod Security](https://v1-24.docs.kubernetes.io/docs/concepts/security/pod-security-admission/#pod-security-admission-labels-for-namespaces) admission controller. The reason is that the installation includes a deployment of MinIO. The [minio/minio chart](https://github.com/minio/minio/tree/master/helm/minio) is not compatible with running under a Restricted policy or the PodSecurityPolicy that the mimir-distributed chart provides.
-
-If you are using the PodSecurityPolicy admission controller, then it is not possible to deploy the mimir-distributed chart with MinIO. Refer to Run Grafana Mimir in production using the Helm chart for instructions on setting up an external object storage and disable the built-in MinIO deployment with minio.enabled: false in the Helm values file.
-
-If you are using the Pod Security admission controller, then MinIO and the tempo-distributed chart can successfully deploy under the baseline pod security level.
--->
 
 ## Create a custom namespace and add the Helm repository
 
 Using a custom namespace solves problems later on because you don't have to overwrite the default namespace.
 
-1. Create a unique Kubernetes namespace, for example `tempo-test`:
+1. Create a unique Kubernetes namespace, for example, `tempo-test`:
 
    ```bash
    kubectl create namespace tempo-test
@@ -151,14 +145,16 @@ ingest:
     address: "<kafka-broker>:9092"
     topic: tempo-traces
     auto_create_topic_enabled: true
-    # Block-builder and live-store replica counts must match this value.
-    auto_create_topic_default_partitions: 1
+    # Number of partitions for the auto-created topic. This example uses the chart
+    # default. The block-builder and live-store replica counts must equal this value.
+    # Tune this value up for production based on your throughput requirements.
+    auto_create_topic_default_partitions: 3
 # One block-builder replica per Kafka partition.
 blockBuilder:
-  replicas: 1
+  replicas: 3
 # One live-store replica per Kafka partition.
 liveStore:
-  replicas: 1
+  replicas: 3
 # Specifies which trace protocols the distributor accepts.
 traces:
   otlp:
@@ -274,7 +270,7 @@ Neither is suitable for production.
          targetPort: 9092
    ```
 
-1. Set `ingest.kafka.address` in your `custom.yaml` to `kafka.kafka-test.svc.cluster.local:9092`, and keep `blockBuilder.replicas`, `liveStore.replicas`, and `ingest.kafka.auto_create_topic_default_partitions` all set to `1`.
+1. Set `ingest.kafka.address` in your `custom.yaml` to `kafka.kafka-test.svc.cluster.local:9092`. For this single-node local test, set `blockBuilder.replicas`, `liveStore.replicas`, and `ingest.kafka.auto_create_topic_default_partitions` all to `1` to reduce the resource footprint. For production, use the chart default of `3` partitions or higher, and keep the block-builder and live-store replica counts equal to the partition count.
 
 #### Optional: Other storage options
 
@@ -492,8 +488,12 @@ NAME                                    READY   STATUS    RESTARTS   AGE
 tempo-backend-scheduler-0               1/1     Running   0          22h
 tempo-backend-worker-0                  1/1     Running   0          22h
 tempo-block-builder-0                   1/1     Running   0          22h
+tempo-block-builder-1                   1/1     Running   0          22h
+tempo-block-builder-2                   1/1     Running   0          22h
 tempo-distributor-bbf4889db-v8l8r       1/1     Running   0          22h
 tempo-live-store-0                      1/1     Running   0          22h
+tempo-live-store-1                      1/1     Running   0          22h
+tempo-live-store-2                      1/1     Running   0          22h
 tempo-memcached-0                       1/1     Running   0          8d
 tempo-querier-777c8dcf54-fqz45          1/1     Running   0          22h
 tempo-query-frontend-7f7f686d55-xsnq5   1/1     Running   0          22h
@@ -504,7 +504,7 @@ Wait until all of the pods have a status of Running or Completed, which might ta
 ## Test your installation
 
 The next step is to test your Tempo installation by sending trace data to Grafana.
-You can use the [Set up a test application for a Tempo cluster](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/test/set-up-test-app) document for step-by-step instructions.
+You can use the [Set up a test application for a Tempo cluster](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/test/set-up-test-app/) document for step-by-step instructions.
 
 If you already have Grafana available, you can add a Tempo data source using the URL fitting to your environment, for example:
 `http://tempo-query-frontend.tempo-test.svc.cluster.local:3200`
@@ -607,7 +607,7 @@ To configure metamonitoring, you need to create a `metamonitoring-values.yaml` f
 
 Verify that metamonitoring is working correctly by checking metrics and logs in Grafana.
 
-1. Navigate to your Grafana instance (Grafana Cloud or self-hosted).
+1. Navigate to your Grafana instance (Grafana Cloud or self-managed).
 
 1. Check that metrics are being collected:
 
