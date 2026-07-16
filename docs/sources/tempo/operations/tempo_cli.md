@@ -911,13 +911,12 @@ tempo-cli experimental trace-diff \
   --pretty
 ```
 
-The native summary calculates latency, span-work, topology, and significant
-per-service drift from the normalized traces. It combines those values with
-matcher-derived change and error counts. `changedServices` and service rollups
-cover all matcher changes and significant work drift; `changedServices` also
-includes structure-only changes, which do not have service rollups. Repeated
-change patterns are ranked by frequency and capped at 20; `patternsTruncated`
-reports exact omitted pattern and span counts.
+The native summary calculates latency, the sum of inclusive span durations,
+topology, and significant per-service duration drift from the normalized traces.
+It combines those values with matcher-derived change and error counts.
+`changedServices` and service rollups cover all matcher changes and significant
+duration drift; `changedServices` also includes structure-only changes, which do
+not have service rollups.
 
 Warnings report partial inputs, high-cardinality span names, duplicate span
 IDs, ambiguous duplicate-span matching, empty traces, and invalid durations.

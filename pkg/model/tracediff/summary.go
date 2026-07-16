@@ -1,10 +1,6 @@
 package tracediff
 
 import (
-	"crypto/sha256"
-	"encoding/binary"
-	"fmt"
-	"hash"
 	"maps"
 	"math"
 	"sort"
@@ -13,23 +9,12 @@ import (
 )
 
 const (
-	signalIncreased      = "increased"
-	signalDecreased      = "decreased"
-	signalUnchanged      = "unchanged"
-	patternStateAdded    = "added"
-	patternStateRemoved  = "removed"
-	patternStateModified = "modified"
-
-	// patternCap bounds the patterns section. Overflow is disclosed in
-	// patternsTruncated instead of silently dropped: a bounded section must
-	// never be the only carrier of a fact class, and truncation without
-	// disclosure lies by omission.
-	patternCap = 20
-	// patternSampleSpans bounds the sample span refs carried per pattern.
-	patternSampleSpans = 3
+	signalIncreased = "increased"
+	signalDecreased = "decreased"
+	signalUnchanged = "unchanged"
 	// Aggregate drift significance: a service counts as drifted when the
-	// absolute per-service span-work delta is at least
-	// max(driftMinNanos, 5% of base work). This is what lets the
+	// absolute per-service sum-of-span-durations delta is at least
+	// max(driftMinNanos, 5% of the base sum). This is what lets the
 	// summary attribute systemic sub-tolerance drift (every span slightly
 	// slower) that the per-span patch tolerance filters out entirely.
 	driftMinNanos      = int64(1_000_000)
@@ -38,7 +23,7 @@ const (
 
 // SummaryResult is the trace-summary-v0-native document: a compact
 // triage/localization summary of a trace diff. The envelope, signals, and
-// per-service work deltas are computed from the normalized traces — not from
+// per-service summed-duration deltas are computed from the normalized traces — not from
 // the patch — because whole-trace facts (the latency envelope, the topology
 // signature, sub-tolerance drift) are not derivable from the change list.
 // Matcher-derived counts complement them: net-zero churn on unambiguous spans
@@ -52,26 +37,22 @@ type SummaryResult struct {
 	Stats    SummaryStats `json:"stats"`
 	Warnings []Warning    `json:"warnings,omitempty"`
 	// ChangedServices contains all services with matcher changes, significant
-	// span-work drift, or structural changes.
+	// sum-of-span-durations drift, or structural changes.
 	ChangedServices []string `json:"changedServices"`
 	// Services contains rollups for services with matcher changes or significant
-	// span-work drift. Structure-only services remain in ChangedServices.
+	// sum-of-span-durations drift. Structure-only services remain in ChangedServices.
 	Services []ServiceRollup `json:"services"`
-	// Patterns groups identical span changes into exemplars, capped at
-	// patternCap with explicit truncation disclosure.
-	Patterns          []Pattern          `json:"patterns"`
-	PatternsTruncated *PatternsTruncated `json:"patternsTruncated,omitempty"`
 }
 
 // Signals are factual direction labels. They intentionally avoid declaring that
 // a change is good or bad; callers and LLMs can interpret the directions in
 // context.
 type Signals struct {
-	TraceLatency string `json:"traceLatency"`
-	SpanWork     string `json:"spanWork"`
-	Errors       string `json:"errors"`
-	SpanCount    string `json:"spanCount"`
-	Structure    string `json:"structure"`
+	TraceLatency    string `json:"traceLatency"`
+	SumSpanDuration string `json:"sumSpanDuration"`
+	Errors          string `json:"errors"`
+	SpanCount       string `json:"spanCount"`
+	Structure       string `json:"structure"`
 }
 
 // TraceSummary describes one side of the comparison.
@@ -86,9 +67,9 @@ type TraceSummary struct {
 	// end >= start). It is a proxy for end-to-end latency and is 0 when no span
 	// has a valid duration.
 	DurationMs int64 `json:"durationMs"`
-	// SpanWorkMs is the sum of every span's individual duration, which can exceed
+	// SumSpanDurationMs is the sum of every span's individual duration, which can exceed
 	// DurationMs when spans run concurrently. Invalid spans contribute zero.
-	SpanWorkMs int64 `json:"spanWorkMs"`
+	SumSpanDurationMs int64 `json:"sumSpanDurationMs"`
 }
 
 // TrustSummary reports span matching coverage. It does not measure whether
@@ -107,71 +88,30 @@ type TrustSummary struct {
 type SummaryStats struct {
 	// TraceLatencyDeltaMs is the difference in the wall-clock envelope (see
 	// TraceSummary.DurationMs), not the difference in any single root span.
-	TraceLatencyDeltaMs int64 `json:"traceLatencyDeltaMs"`
-	SpanWorkDeltaMs     int64 `json:"spanWorkDeltaMs"`
-	SpanCountDelta      int   `json:"spanCountDelta"`
-	ErrorSpanDelta      int   `json:"errorSpanDelta"`
-	MatchedSpans        int   `json:"matchedSpans"`
-	ModifiedSpans       int   `json:"modifiedSpans"`
-	AddedSpans          int   `json:"addedSpans"`
-	RemovedSpans        int   `json:"removedSpans"`
-	FieldChanges        int   `json:"fieldChanges"`
-	AttributeChanges    int   `json:"attributeChanges"`
+	TraceLatencyDeltaMs    int64 `json:"traceLatencyDeltaMs"`
+	SumSpanDurationDeltaMs int64 `json:"sumSpanDurationDeltaMs"`
+	SpanCountDelta         int   `json:"spanCountDelta"`
+	ErrorSpanDelta         int   `json:"errorSpanDelta"`
+	MatchedSpans           int   `json:"matchedSpans"`
+	ModifiedSpans          int   `json:"modifiedSpans"`
+	AddedSpans             int   `json:"addedSpans"`
+	RemovedSpans           int   `json:"removedSpans"`
+	FieldChanges           int   `json:"fieldChanges"`
+	AttributeChanges       int   `json:"attributeChanges"`
 }
 
-// ServiceRollup summarizes one changed service. SpanWorkDeltaMs is computed
+// ServiceRollup summarizes one changed service. SumSpanDurationDeltaMs is computed
 // from raw nanoseconds before final millisecond conversion; count columns come
 // from the matcher so unambiguous net-zero churn remains visible.
 type ServiceRollup struct {
-	Name            string `json:"name"`
-	SpanWorkDeltaMs int64  `json:"spanWorkDeltaMs"`
-	Modified        int    `json:"modified"`
-	Added           int    `json:"added"`
-	Removed         int    `json:"removed"`
-	NewErrors       int    `json:"newErrors"`
-	ResolvedErrors  int    `json:"resolvedErrors"`
+	Name                   string `json:"name"`
+	SumSpanDurationDeltaMs int64  `json:"sumSpanDurationDeltaMs"`
+	Modified               int    `json:"modified"`
+	Added                  int    `json:"added"`
+	Removed                int    `json:"removed"`
+	NewErrors              int    `json:"newErrors"`
+	ResolvedErrors         int    `json:"resolvedErrors"`
 }
-
-// PatternSpan is the logical identity a pattern groups by.
-type PatternSpan struct {
-	Service string `json:"service"`
-	Name    string `json:"name"`
-	Kind    string `json:"kind"`
-}
-
-// Pattern is an exemplar of one repeated change shape: identical changes on
-// spans with the same logical identity collapse into a single entry with a
-// count, a bounded set of sample refs, and the exemplar's rendered changes.
-// Duration changes group by direction, not exact values, so per-span jitter
-// does not defeat the compression.
-type Pattern struct {
-	State       string      `json:"state"`
-	Span        PatternSpan `json:"span"`
-	Count       int         `json:"count"`
-	SampleSpans []SpanRef   `json:"sampleSpans"`
-	// Changes is the exemplar span's rendered change list; durations are
-	// rendered in milliseconds for readability.
-	Changes         []Change            `json:"changes,omitempty"`
-	DurationDeltaMs *DurationDeltaStats `json:"durationDeltaMs,omitempty"`
-}
-
-// DurationDeltaStats summarizes the duration deltas across all spans grouped
-// into one pattern.
-type DurationDeltaStats struct {
-	Min   int64 `json:"min"`
-	Max   int64 `json:"max"`
-	Total int64 `json:"total"`
-}
-
-// PatternsTruncated discloses how much the pattern cap dropped.
-type PatternsTruncated struct {
-	Patterns int `json:"patterns"`
-	Spans    int `json:"spans"`
-}
-
-// fieldDurationMs is the rendered Target.Name for duration changes inside
-// patterns (the patch itself always uses FieldDurationNanos).
-const fieldDurationMs = "duration_ms"
 
 // Summarize compares base and compare and returns the trace-summary-v0-native
 // document built from the normalized traces plus the trace-patch-v0 diff.
@@ -205,22 +145,21 @@ func Summarize(base, compare *tempopb.Trace) (*SummaryResult, error) {
 		},
 	}
 	result.Stats.TraceLatencyDeltaMs = deltaUint64Millis(compareDurations.envelopeNanos, baseDurations.envelopeNanos)
-	result.Stats.SpanWorkDeltaMs = nanosToMillis(compareDurations.workNanos - baseDurations.workNanos)
+	result.Stats.SumSpanDurationDeltaMs = nanosToMillis(compareDurations.sumSpanDurationNanos - baseDurations.sumSpanDurationNanos)
 	result.Signals = summarySignals(result.Stats, len(structureChanged) > 0)
 	result.ChangedServices, result.Services = buildServiceSections(
 		patch,
-		serviceWorkNanos(baseTrace),
-		serviceWorkNanos(compareTrace),
+		serviceSumSpanDurationNanos(baseTrace),
+		serviceSumSpanDurationNanos(compareTrace),
 		structureChanged,
 	)
-	result.Patterns, result.PatternsTruncated = buildPatterns(patch)
 	result.Warnings = patch.Warnings
 	return result, nil
 }
 
 type traceDurationAggregate struct {
-	envelopeNanos uint64
-	workNanos     int64
+	envelopeNanos        uint64
+	sumSpanDurationNanos int64
 }
 
 // summarizeNormalizedTrace keeps nanoseconds until cross-trace deltas have been
@@ -246,7 +185,7 @@ func summarizeNormalizedTrace(trace normalizedTrace) (TraceSummary, traceDuratio
 		if span.durationValid && end > lastEnd {
 			lastEnd = end
 		}
-		durations.workNanos += span.snapshot.DurationNanos
+		durations.sumSpanDurationNanos += span.snapshot.DurationNanos
 		if isErrorStatus(span.snapshot.Status) {
 			summary.ErrorSpanCount++
 		}
@@ -254,7 +193,7 @@ func summarizeNormalizedTrace(trace normalizedTrace) (TraceSummary, traceDuratio
 	if haveStart && lastEnd >= firstStart {
 		durations.envelopeNanos = lastEnd - firstStart
 	}
-	summary.SpanWorkMs = nanosToMillis(durations.workNanos)
+	summary.SumSpanDurationMs = nanosToMillis(durations.sumSpanDurationNanos)
 	summary.DurationMs = int64(durations.envelopeNanos / 1_000_000)
 	if len(trace.spans) > 0 {
 		summary.RootService = trace.spans[0].ref.Service
@@ -318,11 +257,11 @@ func summarySignals(stats SummaryStats, structureChanged bool) Signals {
 		structure = "changed"
 	}
 	return Signals{
-		TraceLatency: signalFromDelta(stats.TraceLatencyDeltaMs),
-		SpanWork:     signalFromDelta(stats.SpanWorkDeltaMs),
-		Errors:       signalFromDelta(int64(stats.ErrorSpanDelta)),
-		SpanCount:    signalFromDelta(int64(stats.SpanCountDelta)),
-		Structure:    structure,
+		TraceLatency:    signalFromDelta(stats.TraceLatencyDeltaMs),
+		SumSpanDuration: signalFromDelta(stats.SumSpanDurationDeltaMs),
+		Errors:          signalFromDelta(int64(stats.ErrorSpanDelta)),
+		SpanCount:       signalFromDelta(int64(stats.SpanCountDelta)),
+		Structure:       structure,
 	}
 }
 
@@ -337,15 +276,15 @@ func signalFromDelta(delta int64) string {
 	}
 }
 
-// serviceWorkNanos sums span durations per service over a whole normalized
+// serviceSumSpanDurationNanos sums span durations per service over a whole normalized
 // trace. Unlike the patch, this sees every span, so systemic drift below the
 // per-span tolerance still accumulates here.
-func serviceWorkNanos(trace normalizedTrace) map[string]int64 {
-	work := make(map[string]int64)
+func serviceSumSpanDurationNanos(trace normalizedTrace) map[string]int64 {
+	sums := make(map[string]int64)
 	for _, span := range trace.spans {
-		work[serviceOrUnknown(span.ref.Service)] += span.snapshot.DurationNanos
+		sums[serviceOrUnknown(span.ref.Service)] += span.snapshot.DurationNanos
 	}
-	return work
+	return sums
 }
 
 type rankedServiceRollup struct {
@@ -355,14 +294,14 @@ type rankedServiceRollup struct {
 // buildServiceSections follows the native reference contract: changedServices
 // is complete, while service rollups contain matcher churn and significant
 // trace-derived drift. Structure-only changes remain in changedServices.
-func buildServiceSections(patch *Result, baseWork, compareWork map[string]int64, structureChanged map[string]struct{}) ([]string, []ServiceRollup) {
+func buildServiceSections(patch *Result, baseDurationSums, compareDurationSums map[string]int64, structureChanged map[string]struct{}) ([]string, []ServiceRollup) {
 	counts := matcherRollupCounts(patch)
 
-	services := make(map[string]struct{}, len(baseWork)+len(compareWork))
-	for service := range baseWork {
+	services := make(map[string]struct{}, len(baseDurationSums)+len(compareDurationSums))
+	for service := range baseDurationSums {
 		services[service] = struct{}{}
 	}
-	for service := range compareWork {
+	for service := range compareDurationSums {
 		services[service] = struct{}{}
 	}
 
@@ -376,16 +315,16 @@ func buildServiceSections(patch *Result, baseWork, compareWork map[string]int64,
 
 	rollups := make([]rankedServiceRollup, 0, len(services))
 	for service := range services {
-		deltaNanos := compareWork[service] - baseWork[service]
+		deltaNanos := compareDurationSums[service] - baseDurationSums[service]
 		count := counts[service]
-		drifted := driftSignificant(baseWork[service], deltaNanos)
+		drifted := driftSignificant(baseDurationSums[service], deltaNanos)
 		if drifted {
 			changed[service] = struct{}{}
 		} else if count == nil {
 			continue
 		}
 		rollup := ServiceRollup{Name: service}
-		rollup.SpanWorkDeltaMs = nanosToMillis(deltaNanos)
+		rollup.SumSpanDurationDeltaMs = nanosToMillis(deltaNanos)
 		if count != nil {
 			rollup.Modified = count.Modified
 			rollup.Added = count.Added
@@ -397,8 +336,8 @@ func buildServiceSections(patch *Result, baseWork, compareWork map[string]int64,
 	}
 	sort.SliceStable(rollups, func(i, j int) bool {
 		a, b := rollups[i].rollup, rollups[j].rollup
-		if absInt64(a.SpanWorkDeltaMs) != absInt64(b.SpanWorkDeltaMs) {
-			return absInt64(a.SpanWorkDeltaMs) > absInt64(b.SpanWorkDeltaMs)
+		if absInt64(a.SumSpanDurationDeltaMs) != absInt64(b.SumSpanDurationDeltaMs) {
+			return absInt64(a.SumSpanDurationDeltaMs) > absInt64(b.SumSpanDurationDeltaMs)
 		}
 		if a.NewErrors != b.NewErrors {
 			return a.NewErrors > b.NewErrors
@@ -481,266 +420,6 @@ func matcherRollupCounts(patch *Result) map[string]*ServiceRollup {
 	return counts
 }
 
-type patternInput struct {
-	state   string
-	ref     SpanRef
-	changes []Change
-}
-
-type patternAccumulator struct {
-	input           patternInput
-	count           int
-	samples         []SpanRef
-	durationSet     bool
-	durationMinMs   int64
-	durationMaxMs   int64
-	durationTotalNs int64
-}
-
-// buildPatterns follows the native reference: collect exact pattern counts,
-// rank by frequency, and cap only the rendered pattern section.
-func buildPatterns(patch *Result) ([]Pattern, *PatternsTruncated) {
-	accumulators := make(map[[sha256.Size]byte]*patternAccumulator)
-	order := make([][sha256.Size]byte, 0, len(patch.Modified)+len(patch.Added)+len(patch.Removed))
-	forEachPatternInput(patch, func(input patternInput) {
-		key := patternKey(input)
-		acc := accumulators[key]
-		if acc == nil {
-			acc = &patternAccumulator{input: input, samples: make([]SpanRef, 0, patternSampleSpans)}
-			accumulators[key] = acc
-			order = append(order, key)
-		}
-		acc.count++
-		if len(acc.samples) < patternSampleSpans {
-			acc.samples = append(acc.samples, input.ref)
-		}
-		if delta, ok := patternDurationDeltaNanos(input); ok {
-			deltaMs := nanosToMillis(delta)
-			if !acc.durationSet {
-				acc.durationSet = true
-				acc.durationMinMs = deltaMs
-				acc.durationMaxMs = deltaMs
-			}
-			acc.durationMinMs = min(acc.durationMinMs, deltaMs)
-			acc.durationMaxMs = max(acc.durationMaxMs, deltaMs)
-			acc.durationTotalNs += delta
-		}
-	})
-
-	ranked := make([]*patternAccumulator, 0, len(order))
-	for _, key := range order {
-		ranked = append(ranked, accumulators[key])
-	}
-	sort.SliceStable(ranked, func(i, j int) bool {
-		a, b := ranked[i], ranked[j]
-		if a.count != b.count {
-			return a.count > b.count
-		}
-		if a.input.state != b.input.state {
-			return a.input.state < b.input.state
-		}
-		if a.input.ref.Service != b.input.ref.Service {
-			return a.input.ref.Service < b.input.ref.Service
-		}
-		if a.input.ref.Name != b.input.ref.Name {
-			return a.input.ref.Name < b.input.ref.Name
-		}
-		return false
-	})
-
-	var patternTruncated *PatternsTruncated
-	if len(ranked) > patternCap {
-		patternTruncated = &PatternsTruncated{Patterns: len(ranked) - patternCap}
-		for _, acc := range ranked[patternCap:] {
-			patternTruncated.Spans += acc.count
-		}
-		ranked = ranked[:patternCap]
-	}
-
-	patterns := make([]Pattern, 0, len(ranked))
-	for _, acc := range ranked {
-		pattern := Pattern{
-			State: acc.input.state,
-			Span: PatternSpan{
-				Service: acc.input.ref.Service,
-				Name:    acc.input.ref.Name,
-				Kind:    acc.input.ref.Kind,
-			},
-			Count:       acc.count,
-			SampleSpans: append([]SpanRef(nil), acc.samples...),
-			Changes:     renderPatternChanges(acc.input.changes),
-		}
-		if acc.durationSet {
-			pattern.DurationDeltaMs = &DurationDeltaStats{
-				Min:   acc.durationMinMs,
-				Max:   acc.durationMaxMs,
-				Total: nanosToMillis(acc.durationTotalNs),
-			}
-		}
-		patterns = append(patterns, pattern)
-	}
-	return patterns, patternTruncated
-}
-
-func forEachPatternInput(patch *Result, visit func(patternInput)) {
-	for _, modified := range patch.Modified {
-		visit(patternInput{state: patternStateModified, ref: modified.Span, changes: modified.Changes})
-	}
-	for _, added := range patch.Added {
-		visit(patternInput{state: patternStateAdded, ref: spanRefFromSnapshot(added.Span)})
-	}
-	for _, removed := range patch.Removed {
-		visit(patternInput{state: patternStateRemoved, ref: spanRefFromSnapshot(removed.Span)})
-	}
-}
-
-// patternKey uses a length-prefixed typed hash, so legal control characters in
-// names or values cannot merge otherwise distinct patterns.
-func patternKey(input patternInput) [sha256.Size]byte {
-	hasher := sha256.New()
-	hashString(hasher, input.state)
-	hashString(hasher, input.ref.Service)
-	hashString(hasher, input.ref.Name)
-	hashString(hasher, input.ref.Kind)
-	hashUint64(hasher, uint64(len(input.changes)))
-	for _, change := range input.changes {
-		hashString(hasher, "change")
-		hashString(hasher, string(change.Op))
-		if isDurationChange(change) {
-			hashString(hasher, fieldDurationMs)
-			hashString(hasher, durationChangeDirection(change))
-			continue
-		}
-		hashString(hasher, string(change.Target.Type))
-		hashString(hasher, change.Target.Name)
-		hashString(hasher, change.Target.Scope)
-		hashString(hasher, change.Target.Key)
-		hashValue(hasher, change.Before)
-		hashValue(hasher, change.After)
-	}
-	var key [sha256.Size]byte
-	copy(key[:], hasher.Sum(nil))
-	return key
-}
-
-func hashString(hasher hash.Hash, value string) {
-	hashUint64(hasher, uint64(len(value)))
-	_, _ = hasher.Write([]byte(value))
-}
-
-func hashUint64(hasher hash.Hash, value uint64) {
-	var encoded [8]byte
-	binary.BigEndian.PutUint64(encoded[:], value)
-	_, _ = hasher.Write(encoded[:])
-}
-
-func hashValue(hasher hash.Hash, value any) {
-	switch typed := value.(type) {
-	case nil:
-		hashString(hasher, "nil")
-	case string:
-		hashString(hasher, "string")
-		hashString(hasher, typed)
-	case bool:
-		hashString(hasher, fmt.Sprintf("bool:%t", typed))
-	case int64:
-		hashString(hasher, "int64")
-		var encoded [8]byte
-		binary.BigEndian.PutUint64(encoded[:], uint64(typed))
-		_, _ = hasher.Write(encoded[:])
-	case float64:
-		hashString(hasher, "float64")
-		var encoded [8]byte
-		binary.BigEndian.PutUint64(encoded[:], math.Float64bits(typed))
-		_, _ = hasher.Write(encoded[:])
-	case []byte:
-		hashString(hasher, "bytes")
-		hashUint64(hasher, uint64(len(typed)))
-		_, _ = hasher.Write(typed)
-	case []any:
-		hashString(hasher, "array")
-		hashUint64(hasher, uint64(len(typed)))
-		for _, item := range typed {
-			hashValue(hasher, item)
-		}
-	case map[string]any:
-		hashString(hasher, "map")
-		hashUint64(hasher, uint64(len(typed)))
-		keys := make([]string, 0, len(typed))
-		for key := range typed {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
-		for _, key := range keys {
-			hashString(hasher, key)
-			hashValue(hasher, typed[key])
-		}
-	default:
-		hashString(hasher, fmt.Sprintf("%T:%v", value, value))
-	}
-}
-
-// renderPatternChanges converts duration values to milliseconds.
-func renderPatternChanges(changes []Change) []Change {
-	if len(changes) == 0 {
-		return nil
-	}
-	out := make([]Change, 0, len(changes))
-	for _, change := range changes {
-		rendered := change
-		if isDurationChange(change) {
-			rendered.Target.Name = fieldDurationMs
-			rendered.Before = renderDurationMs(change.Before)
-			rendered.After = renderDurationMs(change.After)
-		}
-		out = append(out, rendered)
-	}
-	return out
-}
-
-func renderDurationMs(value any) any {
-	if nanos, ok := value.(int64); ok {
-		return nanosToMillis(nanos)
-	}
-	return value
-}
-
-func isDurationChange(change Change) bool {
-	return change.Target.Type == TargetField && change.Target.Name == FieldDurationNanos
-}
-
-// durationChangeDeltaNanos returns the raw delta of a duration change. ok is
-// false when either side is not a valid duration.
-func durationChangeDeltaNanos(change Change) (int64, bool) {
-	if !isDurationChange(change) {
-		return 0, false
-	}
-	before, beforeOK := change.Before.(int64)
-	after, afterOK := change.After.(int64)
-	if !beforeOK || !afterOK {
-		return 0, false
-	}
-	return after - before, true
-}
-
-func durationChangeDirection(change Change) string {
-	before, beforeOK := change.Before.(int64)
-	after, afterOK := change.After.(int64)
-	if !beforeOK || !afterOK {
-		return "invalid"
-	}
-	return signalFromDelta(nanosToMillis(after - before))
-}
-
-func patternDurationDeltaNanos(input patternInput) (int64, bool) {
-	for _, change := range input.changes {
-		if delta, ok := durationChangeDeltaNanos(change); ok {
-			return delta, true
-		}
-	}
-	return 0, false
-}
-
 func serviceOrUnknown(service string) string {
 	if service == "" {
 		return unknownServiceName
@@ -749,10 +428,6 @@ func serviceOrUnknown(service string) string {
 }
 
 const unknownServiceName = "<unknown>"
-
-func spanRefFromSnapshot(snapshot SpanSnapshot) SpanRef {
-	return SpanRef{Path: snapshot.Path, Service: snapshot.Service, Name: snapshot.Name, Kind: snapshot.Kind}
-}
 
 // matchedSpanRatio divides matched spans by the larger span count, so it stays
 // low whenever either trace has many unmatched spans.

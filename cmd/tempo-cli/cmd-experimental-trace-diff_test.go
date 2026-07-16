@@ -96,9 +96,9 @@ func TestExperimentalTraceDiffWritesTraceSummary(t *testing.T) {
 	require.Equal(t, tracediff.VersionTraceSummaryV0Native, result.Version)
 	require.Equal(t, "increased", result.Signals.TraceLatency)
 	require.Equal(t, int64(50), result.Stats.TraceLatencyDeltaMs)
+	require.Equal(t, "increased", result.Signals.SumSpanDuration)
 	require.Equal(t, "checkout", result.Base.RootService)
 	require.Len(t, result.Services, 1)
-	require.Len(t, result.Patterns, 1)
 }
 
 func TestExperimentalTraceDiffSummaryWarnsOnPartialTraceFile(t *testing.T) {

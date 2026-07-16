@@ -4,8 +4,7 @@ const (
 	VersionTracePatchV0 = "trace-patch-v0"
 	// VersionTraceSummaryV0Native is the single summary format: a compact
 	// triage/localization document computed from normalized traces and matcher
-	// results, with complete changed-service enumeration, uncapped rollups, and
-	// capped patterns.
+	// results, with complete changed-service enumeration and uncapped rollups.
 	VersionTraceSummaryV0Native = "trace-summary-v0-native"
 )
 
