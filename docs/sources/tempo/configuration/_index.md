@@ -1004,7 +1004,7 @@ query_frontend:
     # This is separate from the process-wide gRPC server response size because downstream clients
     # might need smaller streamed responses.
     # Set to 0 to disable segmentation.
-    # (default: 2097152)
+    # (default: 1048576)
     [max_grpc_streaming_packet_size: <int>]
 
     # Excludes the most recent portion of the time range from queries to avoid returning

@@ -1000,7 +1000,7 @@ stream_over_http_enabled: true
 ```
 
 The query frontend segments streamed diffs and final responses into smaller packets.
-The default packet size is 2 MiB.
+The default packet size is 1 MiB.
 To change the packet size, configure `query_frontend.max_grpc_streaming_packet_size`.
 For details, refer to the [query frontend configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#query-frontend).
 
