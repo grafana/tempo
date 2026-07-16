@@ -8,22 +8,26 @@ keywords:
   - Kubernetes
   - Grafana Tempo
 topicType: task
-versionDate: 2026-02-04
+versionDate: 2026-07-15
 ---
 
 # Get started with Grafana Tempo using the Helm chart
 
 {{< admonition type="note" >}}
-The `tempo-distributed` Helm chart is now maintained by the community. 
+The `tempo-distributed` Helm chart is now maintained by the community.
 The chart has moved to the [grafana-community/helm-charts](https://github.com/grafana-community/helm-charts/tree/main/charts/tempo-distributed) repository.
 {{< /admonition >}}
 
 The `tempo-distributed` Helm chart allows you to configure, install, and upgrade Grafana Tempo within a Kubernetes cluster.
+Tempo 3.0 uses a Kafka-based architecture: distributors write spans to a Kafka-compatible broker, block-builders consume from Kafka to write blocks to object storage, and live-stores serve recent-data queries.
+As a result, this procedure requires an external Kafka-compatible broker and an external S3-compatible object store, neither of which the chart deploys for you.
+
 Using this procedure, you need to:
 
 - Create a custom namespace within your Kubernetes cluster
 - Install Helm and the Grafana Community `helm-charts` repository
-- Configure a storage option for traces
+- Provide an external S3-compatible object store for traces
+- Provide a Kafka-compatible broker for the ingest path
 - Install Tempo using Helm
 
 To learn more about Helm, read the [Helm documentation](https://helm.sh/).
@@ -39,13 +43,17 @@ This procedure is primarily aimed at local or development setups.
 
 ### Hardware requirements
 
-- A single Kubernetes node with a minimum of 6 cores and 16 GB RAM
+The Tempo 3.0 microservices deployment runs more components than earlier versions, including block-builders, live-stores, and a backend-scheduler and backend-worker, alongside an external Kafka broker and object store.
+
+- For local testing with the single-partition footprint used in this guide (one block-builder and one live-store replica), use a Kubernetes node with a minimum of 6 cores and 16 GB RAM.
+- Production deployments scale block-builders and live-stores with your Kafka partition count and require significantly more resources. Refer to [Plan your deployment](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/plan/) for sizing guidance.
 
 ### Software requirements
 
-- Kubernetes 1.29 or later (refer to [Kubernetes installation documentation](https://kubernetes.io/docs/setup/))
+- Kubernetes 1.25 or later (refer to [Kubernetes installation documentation](https://kubernetes.io/docs/setup/))
 - The `kubectl` command for your version of Kubernetes
 - Helm 3 or later (refer to [Helm installation documentation](https://helm.sh/docs/intro/install/))
+- A Kafka-compatible broker reachable from the cluster (for example, Apache Kafka, Redpanda, or WarpStream). The chart doesn't deploy Kafka.
 
 ### Additional requirements
 
@@ -53,14 +61,11 @@ Verify that you have:
 
 - Access to the Kubernetes cluster.
 - Enabled persistent storage in the Kubernetes cluster, which has a default storage class setup.
-- Access to a local storage option (like MinIO) or a storage bucket like Amazon S3, Azure Blob Storage, or Google Cloud Platform. Refer to the [Optional: Other storage options](#optional-other-storage-options) section for more information.
+- Access to an external S3-compatible object store, such as Amazon S3, Azure Blob Storage, or Google Cloud Platform. The chart no longer bundles MinIO. For local testing, you can run an S3-compatible store yourself using one of the options in [S3-compatible local stores for testing](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/hosted-storage/s3/#s3-compatible-local-stores-for-testing). Refer to the [Optional: Other storage options](#optional-other-storage-options) section for more information.
+- A reachable Kafka-compatible broker for the ingest path.
 - DNS service works in the Kubernetes cluster. Refer to [Debugging DNS resolution](https://kubernetes.io/docs/tasks/administer-cluster/dns-debugging-resolution/) in the Kubernetes documentation.
 - Optional: Set up an ingress controller in the Kubernetes cluster, for example [ingress-nginx](https://kubernetes.github.io/ingress-nginx/).
 
-{{< admonition type="note" >}}
-If you want to access Tempo from outside of the Kubernetes cluster, you may need an ingress.
-Ingress-related procedures are optional.
-{{< /admonition >}}
 {{< admonition type="note" >}}
 If you want to access Tempo from outside of the Kubernetes cluster, you may need an ingress.
 Ingress-related procedures are optional.
@@ -88,7 +93,7 @@ Using a custom namespace solves problems later on because you don't have to over
    kubectl create namespace tempo-test
    ```
 
-For more details, refer to the Kubernetes documentation about [Creating a namespace](https://kubernetes.io/docs/tasks/administer-cluster/namespaces/#creating-a-new-namespace).
+   For more details, refer to the Kubernetes documentation about [Creating a namespace](https://kubernetes.io/docs/tasks/administer-cluster/namespaces/#creating-a-new-namespace).
 
 1. Set up a Helm repository using the following commands:
 
@@ -98,7 +103,7 @@ For more details, refer to the Kubernetes documentation about [Creating a namesp
    ```
 
    {{< admonition type="note" >}}
-   The Helm chart at [https://grafana-community.github.io/helm-charts](https://grafana-community.github.io/helm-charts) is maintained by the community. The chart source code is available at [grafana-community/helm-charts](https://github.com/grafana-community/helm-charts).
+   The Helm chart at [https://grafana-community.github.io/helm-charts](https://grafana-community.github.io/helm-charts) is maintained by the community.
    {{< /admonition >}}
 
 ## Set Helm chart values
@@ -107,8 +112,8 @@ The Helm chart for Tempo includes a file called `values.yaml`, which contains de
 In this procedure, you create a local file called `custom.yaml` in a working directory.
 
 When you use Helm to deploy the chart, you can specify that Helm uses your `custom.yaml` to augment the default `values.yaml` file.
-The `custom.yaml` file sets the storage and traces options, enables the gateway, and sets the cluster to main.
-The traces section configures the distributor's receiver protocols.
+The `custom.yaml` file sets the storage, ingest, and traces options.
+The `storage` section points Tempo at your object store, the `ingest` section connects Tempo to your Kafka broker, and the `traces` section configures the distributor's receiver protocols.
 
 After creating the file, you have the option to make changes in that file as needed for your deployment environment.
 
@@ -117,7 +122,8 @@ To customize your Helm chart values:
 1. Create a `custom.yaml` file in your working directory.
 1. From the example below, copy and paste the Tempo Helm chart values into your file.
 1. Save your `custom.yaml` file.
-1. For simple deployments, use the default `storage` and `minio` sections. The Helm chart deploys MinIO. Tempo uses it to store traces. Further down this page are instructions for customizing your trace storage configuration options.
+1. Set the `storage` section to point at your external S3-compatible object store. Further down this page are instructions for customizing your trace storage configuration options.
+1. Set the `ingest.kafka` section to point at your Kafka broker, and set `blockBuilder.replicas` and `liveStore.replicas` to match your Kafka partition count.
 1. Set your traces values to configure the receivers on the Tempo distributor.
 1. Save the changes to your file.
 
@@ -129,6 +135,7 @@ This sample file contains example values for installing Tempo using Helm.
 
 ```yaml
 ---
+# Point Tempo at your external S3-compatible object store.
 storage:
   trace:
     backend: s3
@@ -136,21 +143,23 @@ storage:
       access_key: "grafana-tempo"
       secret_key: "supersecret"
       bucket: "tempo-traces"
-      endpoint: "tempo-minio:9000"
-      insecure: true
-# MinIO storage configuration
-# Note: MinIO should not be used for production environments. This is for demonstration purposes only.
-minio:
-  enabled: true
-  mode: standalone
-  rootUser: grafana-tempo
-  rootPassword: supersecret
-  buckets:
-    # Default Tempo storage bucket
-    - name: tempo-traces
-      policy: none
-      purge: false
-# Specifies which trace protocols to accept by the gateway.
+      endpoint: "<s3-endpoint>:9000"
+      insecure: true # remove once TLS is configured
+# Connect Tempo to your Kafka-compatible broker.
+ingest:
+  kafka:
+    address: "<kafka-broker>:9092"
+    topic: tempo-traces
+    auto_create_topic_enabled: true
+    # Block-builder and live-store replica counts must match this value.
+    auto_create_topic_default_partitions: 1
+# One block-builder replica per Kafka partition.
+blockBuilder:
+  replicas: 1
+# One live-store replica per Kafka partition.
+liveStore:
+  replicas: 1
+# Specifies which trace protocols the distributor accepts.
 traces:
   otlp:
     grpc:
@@ -162,7 +171,7 @@ traces:
   jaeger:
     thriftHttp:
       enabled: false
- ```
+```
 
 {{< /collapse >}}
 
@@ -172,63 +181,115 @@ Before you run the Helm chart, you need to configure where to store trace data.
 
 The `storage` block defined in the `values.yaml` file configures the storage that Tempo uses for trace storage.
 
-The procedure below configures MinIO as the local storage option managed by the Helm chart.
-However, you can use another storage provider.
-Refer to the [Optional: Other storage options](#optional-other-storage-options) section.
-
-{{< admonition type="note" >}}
-
-The MinIO installation included with this Helm chart is for demonstration purposes only. MinIO is deprecated and in maintenance mode.
-This configuration sets up a maximum storage size of 5GiB.
-This MinIO installation isn't suitable for production environments and should only be used for example purposes.
-For production, use performant, production-grade object storage.
-
+{{< admonition type="warning" >}}
+The chart no longer bundles MinIO. Setting `minio.enabled: true` now fails the install.
+You must point Tempo at an externally managed S3-compatible object store through the `storage.trace.s3` block.
 {{< /admonition >}}
 
-The Helm chart values provided include the basic MinIO set up values.
-If you need to customize them, the steps below walk you through which sections to update.
-If you don't need to change the values, you can skip this section.
+Configure the `storage.trace.s3` block in your `custom.yaml` to point at your object store:
 
-1. Optional: Update the configuration options in `custom.yaml` for your configuration.
+```yaml
+---
+storage:
+  trace:
+    backend: s3
+    s3:
+      access_key: "grafana-tempo"
+      secret_key: "supersecret"
+      bucket: "tempo-traces"
+      endpoint: "<s3-endpoint>:9000"
+      insecure: true # remove once TLS is configured
+```
+
+The Amazon S3 example is identical, except the `endpoint` and `insecure` options are dropped.
+For other providers, refer to the [Optional: Other storage options](#optional-other-storage-options) section.
+
+#### Optional: Quick test with a local S3-compatible store and Kafka
+
+For local testing only, you can run an S3-compatible object store and a Kafka broker yourself, then point Tempo at them.
+Neither is suitable for production.
+
+1. Stand up a local S3-compatible object store using one of the options in [S3-compatible local stores for testing](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/hosted-storage/s3/#s3-compatible-local-stores-for-testing). SeaweedFS is the recommended option. Create a bucket named `tempo-traces`, then set `storage.trace.s3.endpoint`, `access_key`, and `secret_key` in your `custom.yaml` to match.
+
+1. Run a single-node Kafka broker in the cluster. The following manifest deploys a plain Kafka broker in a `kafka-test` namespace, suitable for evaluation:
 
    ```yaml
+   apiVersion: v1
+   kind: Namespace
+   metadata:
+     name: kafka-test
    ---
-   storage:
-     trace:
-       backend: s3
-       s3:
-         access_key: "grafana-tempo"
-         secret_key: "supersecret"
-         bucket: "tempo-traces"
-         endpoint: "tempo-minio:9000"
-         insecure: true
+   apiVersion: apps/v1
+   kind: Deployment
+   metadata:
+     name: kafka
+     namespace: kafka-test
+   spec:
+     replicas: 1
+     selector:
+       matchLabels:
+         app: kafka
+     template:
+       metadata:
+         labels:
+           app: kafka
+       spec:
+         containers:
+           - name: kafka
+             image: apache/kafka:4.0.0
+             ports:
+               - containerPort: 9092
+                 name: plaintext
+             env:
+               - name: KAFKA_NODE_ID
+                 value: "1"
+               - name: KAFKA_PROCESS_ROLES
+                 value: "broker,controller"
+               - name: KAFKA_LISTENERS
+                 value: "PLAINTEXT://:9092,CONTROLLER://:9093"
+               - name: KAFKA_ADVERTISED_LISTENERS
+                 value: "PLAINTEXT://kafka.kafka-test.svc.cluster.local:9092"
+               - name: KAFKA_CONTROLLER_LISTENER_NAMES
+                 value: "CONTROLLER"
+               - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
+                 value: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+               - name: KAFKA_CONTROLLER_QUORUM_VOTERS
+                 value: "1@localhost:9093"
+               - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
+                 value: "1"
+               - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
+                 value: "true"
+   ---
+   apiVersion: v1
+   kind: Service
+   metadata:
+     name: kafka
+     namespace: kafka-test
+   spec:
+     selector:
+       app: kafka
+     ports:
+       - name: plaintext
+         port: 9092
+         targetPort: 9092
    ```
 
-1. Optional: If you need to change the defaults for MinIO, locate the MinIO section and change the relevant fields. The following example shows the username and password. Ensure that you update any `trace` storage sections appropriately.
-
-   ```yaml
-   minio:
-     enabled: true
-     mode: standalone
-     rootUser: minio
-     rootPassword: minio123
-   ```
+1. Set `ingest.kafka.address` in your `custom.yaml` to `kafka.kafka-test.svc.cluster.local:9092`, and keep `blockBuilder.replicas`, `liveStore.replicas`, and `ingest.kafka.auto_create_topic_default_partitions` all set to `1`.
 
 #### Optional: Other storage options
 
 You can enable persistent storage in the Kubernetes cluster, which has a default storage class setup.
 To change the default, refer to the [StorageClass using Kubernetes documentation](https://kubernetes.io/docs/tasks/administer-cluster/change-default-storage-class/).
 
-This Helm chart guide defaults to using MinIO as a simple solution to get you started.
-However, you can use a storage bucket like Amazon S3, Azure Blob Storage, or Google Cloud Platform.
+You can use any S3-compatible store, or a bucket like Amazon S3, Azure Blob Storage, or Google Cloud Platform.
 
 Each storage provider has a different configuration stanza.
-You need to update your configuration based upon you storage provider.
+You need to update your configuration based upon your storage provider.
 Refer to the [`storage` configuration block](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration#storage) for information on storage options.
 
 Update the `storage` configuration options based upon your requirements:
 
-- [Amazon S3 configuration documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/hosted-storage/s3). The Amazon S3 example is identical to the MinIO configuration, except the two last options, `endpoint` and `insecure`, are dropped.
+- [Amazon S3 configuration documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/hosted-storage/s3). The Amazon S3 example is identical to the S3-compatible example above, except the `endpoint` and `insecure` options are dropped.
 
 - [Azure Blob Storage configuration documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/hosted-storage/azure)
 
@@ -297,7 +358,8 @@ If you are using a Linux system and it's not possible for you set up local DNS r
 1. Add the following configuration to the file:
 
    ```yaml
-   nginx:
+   gateway:
+     enabled: true
      ingress:
        enabled: true
        ingressClassName: nginx
@@ -357,14 +419,18 @@ per_tenant_overrides:
 This configuration:
 
 - Enables the Span Metrics and Service Graph metrics-generator processors for all tenants
-- An ingestion rate and burst size limit of 5MB/s, a maximum trace size of 10MB and a maximum of 1000 live traces in an ingester for all tenants
-- Overrides the '1234' tenant with a rate and burst size limit of 2MB/s, a maximum trace size of 5MB and a maximum of 400 live traces in an ingester
+- An ingestion rate and burst size limit of 5MB/s, a maximum trace size of 10MB and a maximum of 1000 live traces per tenant for all tenants
+- Overrides the '1234' tenant with a rate and burst size limit of 2MB/s, a maximum trace size of 5MB and a maximum of 400 live traces per tenant
 
 {{< admonition type="note" >}}
 Runtime configurations should include all options for a specific tenant.
 {{< /admonition >}}
 
-## Install Grafana Tempo using the Helm chart
+{{< admonition type="note" >}}
+The `local-blocks` processor was removed in Tempo 3.0. Block building is handled by the block-builder component, so you can no longer enable `local-blocks` through `metrics_generator.processors`.
+{{< /admonition >}}
+
+## Install Tempo using the Helm chart
 
 Use the following command to install Tempo using the configuration options you've specified in the `custom.yaml` file:
 
@@ -383,13 +449,8 @@ If the installation is successful, the output should be similar to this:
 ```bash
 >  helm -n tempo-test install tempo grafana-community/tempo-distributed -f custom.yaml
 
-W0210 15:02:09.901064    8613 warnings.go:70] spec.template.spec.topologySpreadConstraints[0].topologyKey: failure-domain.beta.kubernetes.io/zone is deprecated since v1.17; use "topology.kubernetes.io/zone" instead
-W0210 15:02:09.904082    8613 warnings.go:70] spec.template.spec.topologySpreadConstraints[0].topologyKey: failure-domain.beta.kubernetes.io/zone is deprecated since v1.17; use "topology.kubernetes.io/zone" instead
-W0210 15:02:09.906932    8613 warnings.go:70] spec.template.spec.topologySpreadConstraints[0].topologyKey: failure-domain.beta.kubernetes.io/zone is deprecated since v1.17; use "topology.kubernetes.io/zone" instead
-W0210 15:02:09.929946    8613 warnings.go:70] spec.template.spec.topologySpreadConstraints[0].topologyKey: failure-domain.beta.kubernetes.io/zone is deprecated since v1.17; use "topology.kubernetes.io/zone" instead
-W0210 15:02:09.930379    8613 warnings.go:70] spec.template.spec.topologySpreadConstraints[0].topologyKey: failure-domain.beta.kubernetes.io/zone is deprecated since v1.17; use "topology.kubernetes.io/zone" instead
 NAME: tempo
-LAST DEPLOYED: Fri May 31 15:02:08 2024
+LAST DEPLOYED: Fri May 31 15:02:08 2026
 NAMESPACE: tempo-test
 STATUS: deployed
 REVISION: 1
@@ -397,16 +458,18 @@ TEST SUITE: None
 NOTES:
 ***********************************************************************
  Welcome to Grafana Tempo
- Chart version: 1.10.1
- Tempo version: 2.6.1
+ Chart version: 3.0.5
+ Tempo version: 3.0.2
 ***********************************************************************
 
 Installed components:
-* ingester
 * distributor
 * querier
 * query-frontend
-* compactor
+* backend-scheduler
+* backend-worker
+* block-builder
+* live-store
 * memcached
 ```
 
@@ -426,13 +489,12 @@ The results look similar to this:
 
 ```bash
 NAME                                    READY   STATUS    RESTARTS   AGE
-tempo-compactor-86cd974cf-8qrk2         1/1     Running   0          22h
+tempo-backend-scheduler-0               1/1     Running   0          22h
+tempo-backend-worker-0                  1/1     Running   0          22h
+tempo-block-builder-0                   1/1     Running   0          22h
 tempo-distributor-bbf4889db-v8l8r       1/1     Running   0          22h
-tempo-ingester-0                        1/1     Running   0          22h
-tempo-ingester-1                        1/1     Running   0          22h
-tempo-ingester-2                        1/1     Running   0          22h
+tempo-live-store-0                      1/1     Running   0          22h
 tempo-memcached-0                       1/1     Running   0          8d
-tempo-minio-6c4b66cb77-sgm8z            1/1     Running   0          26h
 tempo-querier-777c8dcf54-fqz45          1/1     Running   0          22h
 tempo-query-frontend-7f7f686d55-xsnq5   1/1     Running   0          22h
 ```
@@ -442,10 +504,14 @@ Wait until all of the pods have a status of Running or Completed, which might ta
 ## Test your installation
 
 The next step is to test your Tempo installation by sending trace data to Grafana.
-You can use the [Set up a test application for a Tempo cluster](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/set-up-test-app) document for step-by-step instructions.
+You can use the [Set up a test application for a Tempo cluster](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/test/set-up-test-app) document for step-by-step instructions.
 
 If you already have Grafana available, you can add a Tempo data source using the URL fitting to your environment, for example:
-`http://tempo-query-frontend.trace-test.svc.cluster.local:3100`
+`http://tempo-query-frontend.tempo-test.svc.cluster.local:3200`
+
+{{< admonition type="note" >}}
+If you enable the gateway (`gateway.enabled: true`), point the data source at the gateway service instead of the query-frontend.
+{{< /admonition >}}
 
 ## Set up metamonitoring
 
