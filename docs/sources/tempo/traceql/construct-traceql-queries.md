@@ -510,7 +510,7 @@ An unanchored query, such as: { span.foo =~ "bar" } is now treated as: { span.fo
 
 If you use TraceQL with regular expressions in your Grafana dashboards and you want the unanchored behavior, update the queries to use the unanchored version, such as { span.foo =~ "._bar._"}.
 
-For example, to find all traces where an `http.response.status_code` attribute in a span are greater than `400` but less than equal to `500`:
+For example, to find all traces where an `http.response.status_code` attribute in a span is greater than or equal to `400` but less than `500`:
 
 ```
 { span.http.response.status_code >= 400 && span.http.response.status_code < 500 }
@@ -631,7 +631,7 @@ Structural operators ALWAYS return matches from the right side of the operator.
 For example, to find a trace where a specific HTTP API interacted with a specific database:
 
 ```
-{ span.url.full = "/path/of/api" } >> { span.db.name = "db-shard-001" }
+{ span.url.full = "https://example.com/path/of/api" } >> { span.db.name = "db-shard-001" }
 ```
 
 ### Union structural
@@ -648,7 +648,7 @@ return spans that match on both sides of the operator.
 For example, to get a failing endpoint AND all descendant failing spans in one query:
 
 ```
-{ span.url.full = "/path/of/api" && status = error } &>> { status = error }
+{ span.url.full = "https://example.com/path/of/api" && status = error } &>> { status = error }
 ```
 
 ### Experimental structural

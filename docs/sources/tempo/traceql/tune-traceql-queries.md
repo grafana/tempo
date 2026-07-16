@@ -30,19 +30,19 @@ For example, to match spans with a non‑200 status code on a specific path, use
 The following query returns a single span where the HTTP status code is not `200` and the URL is `/api`:
 
 ```traceql
-{ span.http.response.status_code != 200 && span.url.full = "/api" }
+{ span.http.response.status_code != 200 && span.url.full = "https://example.com/api" }
 ```
 
 Also avoid splitting these conditions across multiple selectors joined by `&&`, which matches them on different spans and changes semantics:
 
 ```traceql
-{ span.url.full = "/api" } && { span.http.response.status_code != 200 }
+{ span.url.full = "https://example.com/api" } && { span.http.response.status_code != 200 }
 ```
 
 Use a single selector when you want both conditions to be true on the same span.
 
 ```traceql
-{ span.url.full = "/api" && span.http.response.status_code != 200 }
+{ span.url.full = "https://example.com/api" && span.http.response.status_code != 200 }
 ```
 
 ## Prefer scoped attributes over attributes without a scope
