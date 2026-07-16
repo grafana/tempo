@@ -11,6 +11,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
@@ -54,6 +55,82 @@ func TestQuerierSpanAttributesAndMetrics(t *testing.T) {
 	require.Equal(t, int64(4), attrs["backendReads"].AsInt64())
 	require.Equal(t, int64(567), attrs["backendBytes"].AsInt64())
 	require.Equal(t, int64(10), attrs["additionalMetrics.cacheHits"].AsInt64())
+}
+
+func TestBlockSearchMethodsCreateSinglePublicSpan(t *testing.T) {
+	tests := []struct {
+		name     string
+		spanName string
+		wantErr  bool
+		call     func(context.Context, *Querier) error
+	}{
+		{
+			name:     "search tags",
+			spanName: "Querier.SearchTagsBlocks",
+			call: func(ctx context.Context, q *Querier) error {
+				_, err := q.SearchTagsBlocks(ctx, &tempopb.SearchTagsBlockRequest{
+					SearchReq: &tempopb.SearchTagsRequest{Scope: api.ParamScopeIntrinsic},
+				})
+				return err
+			},
+		},
+		{
+			name:     "search tag values",
+			spanName: "Querier.SearchTagValuesBlocks",
+			wantErr:  true,
+			call: func(ctx context.Context, q *Querier) error {
+				_, err := q.SearchTagValuesBlocks(ctx, &tempopb.SearchTagValuesBlockRequest{
+					SearchReq: &tempopb.SearchTagValuesRequest{},
+				})
+				return err
+			},
+		},
+		{
+			name:     "search tags v2",
+			spanName: "Querier.SearchTagsBlocksV2",
+			call: func(ctx context.Context, q *Querier) error {
+				_, err := q.SearchTagsBlocksV2(ctx, &tempopb.SearchTagsBlockRequest{
+					SearchReq: &tempopb.SearchTagsRequest{Scope: api.ParamScopeIntrinsic},
+				})
+				return err
+			},
+		},
+		{
+			name:     "search tag values v2",
+			spanName: "Querier.SearchTagValuesBlocksV2",
+			wantErr:  true,
+			call: func(ctx context.Context, q *Querier) error {
+				_, err := q.SearchTagValuesBlocksV2(ctx, &tempopb.SearchTagValuesBlockRequest{
+					SearchReq: &tempopb.SearchTagValuesRequest{},
+				})
+				return err
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder := tracetest.NewSpanRecorder()
+			tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+			defer func() { require.NoError(t, tp.Shutdown(context.Background())) }()
+
+			oldTracer := tracer
+			tracer = tp.Tracer("test")
+			defer func() { tracer = oldTracer }()
+
+			ctx := user.InjectOrgID(context.Background(), "tenant-a")
+			err := tt.call(ctx, &Querier{})
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			spans := recorder.Ended()
+			require.Len(t, spans, 1)
+			require.Equal(t, tt.spanName, spans[0].Name())
+		})
+	}
 }
 
 func TestTraceByIDSpanAttributesAndMetrics(t *testing.T) {
