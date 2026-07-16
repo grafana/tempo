@@ -88,6 +88,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.153.0
 	github.com/parquet-go/parquet-go v0.30.1
 	github.com/redis/go-redis/v9 v9.20.0
+	github.com/tjhop/slog-gokit v0.1.4
 	github.com/twmb/franz-go v1.21.2
 	github.com/twmb/franz-go/pkg/kadm v1.18.0
 	github.com/twmb/franz-go/pkg/kfake v0.0.0-20260421215025-4e7a1e1569ac
