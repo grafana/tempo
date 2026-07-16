@@ -605,19 +605,14 @@ func (c *SyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResul
 
 	// The row group and page have been selected to where this value is possibly
 	// located. Now scan through the page and look for it.
-	for {
-		rn, v, err := c.next()
-		if err != nil {
-			return nil, err
-		}
-		if !rn.Valid() {
-			return nil, nil
-		}
-
-		if CompareRowNumbers(definitionLevel, rn, to) >= 0 {
-			return c.makeResult(rn, v), nil
-		}
+	rn, v, err := c.nextSeek(to, definitionLevel)
+	if err != nil {
+		return nil, err
 	}
+	if !rn.Valid() {
+		return nil, nil
+	}
+	return c.makeResult(rn, v), nil
 }
 
 func (c *SyncIterator) popRowGroup() (pq.RowGroup, RowNumber, RowNumber) {
@@ -807,10 +802,75 @@ func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 // when being called multiple times and throwing away the results like in SeekTo().
 func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 	for {
+		// Consume current buffer until empty
+		for c.currBufN < len(c.currBuf) {
+			v := &c.currBuf[c.currBufN]
+
+			// Inspect all values to track the current row number,
+			// even if the value is filtered out next.
+			c.curr.Next(v.RepetitionLevel(), v.DefinitionLevel(), c.maxDefinitionLevel)
+			c.currBufN++
+			c.currPageN++
+
+			if c.filter != nil && !c.filter.KeepValue(*v) {
+				continue
+			}
+
+			return c.curr, v, nil
+		}
+
+		// Buffer exhausted, refill it, advancing pages and row groups as needed.
+		ok, err := c.fill()
+		if !ok || err != nil {
+			return EmptyRowNumber(), nil, err
+		}
+	}
+}
+
+// nextSeek is like next but for use while seeking: values before the seek
+// target are discarded without evaluating the filter, since SeekTo drops
+// them regardless of the filter's decision. Values at or past the target are
+// filtered as usual.
+func (c *SyncIterator) nextSeek(to RowNumber, definitionLevel int) (RowNumber, *pq.Value, error) {
+	for {
+		// Consume current buffer until empty
+		for c.currBufN < len(c.currBuf) {
+			v := &c.currBuf[c.currBufN]
+
+			// Inspect all values to track the current row number,
+			// even if the value is filtered out next.
+			c.curr.Next(v.RepetitionLevel(), v.DefinitionLevel(), c.maxDefinitionLevel)
+			c.currBufN++
+			c.currPageN++
+
+			if CompareRowNumbers(definitionLevel, c.curr, to) < 0 {
+				continue
+			}
+
+			if c.filter != nil && !c.filter.KeepValue(*v) {
+				continue
+			}
+
+			return c.curr, v, nil
+		}
+
+		// Buffer exhausted, refill it, advancing pages and row groups as needed.
+		ok, err := c.fill()
+		if !ok || err != nil {
+			return EmptyRowNumber(), nil, err
+		}
+	}
+}
+
+// fill ensures the current buffer contains unconsumed values, advancing to
+// the next page and row group as needed. It returns false when the iterator
+// is exhausted.
+func (c *SyncIterator) fill() (bool, error) {
+	for c.currBuf == nil || c.currBufN >= len(c.currBuf) {
 		if c.currRowGroup == nil {
 			rg, minRN, maxRN := c.popRowGroup()
 			if rg == nil {
-				return EmptyRowNumber(), nil, nil
+				return false, nil
 			}
 
 			cc := &ColumnChunkHelper{ColumnChunk: rg.ColumnChunks()[c.column]}
@@ -825,7 +885,7 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 		if c.currPage == nil {
 			pg, err := c.currChunk.NextPage()
 			if err != nil && !errors.Is(err, io.EOF) {
-				return EmptyRowNumber(), nil, err
+				return false, err
 			}
 			if pg == nil || errors.Is(err, io.EOF) {
 				// This row group is exhausted
@@ -845,38 +905,21 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 		if c.currBuf == nil {
 			c.currBuf = syncIteratorPoolGet(c.readSize, 0)
 		}
-		if c.currBufN >= len(c.currBuf) || len(c.currBuf) == 0 {
-			c.currBuf = c.currBuf[:cap(c.currBuf)]
-			n, err := c.currValues.ReadValues(c.currBuf)
-			if err != nil && !errors.Is(err, io.EOF) {
-				return EmptyRowNumber(), nil, err
-			}
-			c.currBuf = c.currBuf[:n]
-			c.currBufN = 0
-			if n == 0 {
-				// This value reader and page are exhausted.
-				c.setPage(nil)
-				continue
-			}
+		c.currBuf = c.currBuf[:cap(c.currBuf)]
+		n, err := c.currValues.ReadValues(c.currBuf)
+		if err != nil && !errors.Is(err, io.EOF) {
+			return false, err
 		}
-
-		// Consume current buffer until empty
-		for c.currBufN < len(c.currBuf) {
-			v := &c.currBuf[c.currBufN]
-
-			// Inspect all values to track the current row number,
-			// even if the value is filtered out next.
-			c.curr.Next(v.RepetitionLevel(), v.DefinitionLevel(), c.maxDefinitionLevel)
-			c.currBufN++
-			c.currPageN++
-
-			if c.filter != nil && !c.filter.KeepValue(*v) {
-				continue
-			}
-
-			return c.curr, v, nil
+		c.currBuf = c.currBuf[:n]
+		c.currBufN = 0
+		if n == 0 {
+			// This value reader and page are exhausted.
+			c.setPage(nil)
+			continue
 		}
 	}
+
+	return true, nil
 }
 
 func (c *SyncIterator) setRowGroup(rg pq.RowGroup, min, max RowNumber, cc *ColumnChunkHelper) {

@@ -2,6 +2,7 @@ package parquetquery
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"math"
 	"os"
@@ -172,6 +173,90 @@ func testColumnIteratorSeek(t *testing.T, makeIter makeTestIterFn) {
 	}
 }
 
+// TestColumnIteratorSeekToFilter verifies how SeekTo interacts with the
+// column predicate: values scanned past on the way to the seek target are
+// discarded regardless of the filter's decision and must not be evaluated,
+// while values at/after the target are still filtered.
+func TestColumnIteratorSeekToFilter(t *testing.T) {
+	t.Run("filter not evaluated before target", func(t *testing.T) {
+		count := 10_000
+		pf := createTestFile(t, count)
+
+		pred := &InstrumentedPredicate{}
+		idx, _, _ := GetColumnIndexByPath(pf, "A")
+		iter := NewSyncIterator(context.TODO(), pf.RowGroups(), idx, SyncIteratorOptSelectAs("A"), SyncIteratorOptPredicate(pred), SyncIteratorOptMaxDefinitionLevel(MaxDefinitionLevel))
+		defer iter.Close()
+
+		// Seek in steps below the page-reslice threshold so the iterator
+		// scans value-by-value toward each target.
+		var inspectedBefore int64
+		for _, seekTo := range []int32{900, 1800, 2700} {
+			rn := EmptyRowNumber()
+			rn[0] = seekTo
+			res, err := iter.SeekTo(rn, 0)
+			require.NoError(t, err)
+			require.NotNil(t, res)
+			require.Equal(t, RowNumber{seekTo, -1, -1, -1, -1, -1, -1, -1}, res.RowNumber)
+			require.Equal(t, seekTo, res.ToMap()["A"][0].Int32())
+
+			require.Equal(t, int64(1), pred.InspectedValues-inspectedBefore, "only the value at the seek target should be inspected by the filter")
+			inspectedBefore = pred.InspectedValues
+		}
+	})
+
+	t.Run("filter applies at and after target", func(t *testing.T) {
+		count := 10_000
+		pf := createTestFile(t, count)
+
+		pred := NewIntBetweenPredicate(5000, 5010)
+		idx, _, _ := GetColumnIndexByPath(pf, "A")
+		iter := NewSyncIterator(context.TODO(), pf.RowGroups(), idx, SyncIteratorOptSelectAs("A"), SyncIteratorOptPredicate(pred), SyncIteratorOptMaxDefinitionLevel(MaxDefinitionLevel))
+		defer iter.Close()
+
+		// The value at the seek target fails the filter; the result must be
+		// the first value at/after the target that passes it.
+		rn := EmptyRowNumber()
+		rn[0] = 900
+		res, err := iter.SeekTo(rn, 0)
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		require.Equal(t, RowNumber{5000, -1, -1, -1, -1, -1, -1, -1}, res.RowNumber)
+		require.Equal(t, int32(5000), res.ToMap()["A"][0].Int32())
+	})
+
+	t.Run("nested column", func(t *testing.T) {
+		type testSpan struct {
+			ID int64
+		}
+		type testTrace struct {
+			Spans []testSpan `parquet:",list"`
+		}
+
+		traces := make([]testTrace, 100)
+		for i := range traces {
+			traces[i].Spans = make([]testSpan, 100)
+			for j := range traces[i].Spans {
+				traces[i].Spans[j].ID = int64(i*1000 + j)
+			}
+		}
+		pf := createFileWith(t, context.Background(), traces)
+
+		pred := &InstrumentedPredicate{}
+		iter := NewSyncIterator(context.TODO(), pf.RowGroups(), 0, SyncIteratorOptSelectAs("ID"), SyncIteratorOptPredicate(pred), SyncIteratorOptMaxDefinitionLevel(1))
+		defer iter.Close()
+
+		// Seek to trace 5, span 50 at definition level 1.
+		to := EmptyRowNumber()
+		to[0], to[1] = 5, 50
+		res, err := iter.SeekTo(to, 1)
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		require.Equal(t, RowNumber{5, 50, -1, -1, -1, -1, -1, -1}, res.RowNumber)
+		require.Equal(t, int64(5*1000+50), res.ToMap()["ID"][0].Int64())
+		require.Equal(t, int64(1), pred.InspectedValues, "only the value at the seek target should be inspected by the filter")
+	})
+}
+
 func TestColumnIteratorPredicate(t *testing.T) {
 	for _, tc := range iterTestCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -202,6 +287,64 @@ func testColumnIteratorPredicate(t *testing.T, makeIter makeTestIterFn) {
 		require.NotNil(t, res)
 		require.Equal(t, RowNumber{expectedResult, -1, -1, -1, -1, -1, -1, -1}, res.RowNumber)
 		require.Equal(t, expectedResult, res.ToMap()["A"][0].Int32())
+	}
+}
+
+// BenchmarkSyncIteratorSeekTo models the join-iterator access pattern:
+// repeated forward seeks with strides below the page-reslice threshold, so
+// the iterator scans values toward each target.
+func BenchmarkSyncIteratorSeekTo(b *testing.B) {
+	count := 100_000
+	type T struct {
+		A int64  `parquet:",delta"`
+		S string `parquet:",dict"`
+	}
+	rows := make([]T, count)
+	for i := range rows {
+		rows[i] = T{A: int64(i), S: fmt.Sprintf("span-name-%d", i%100)}
+	}
+	pf := createFileWith(b, context.Background(), rows)
+
+	aIdx, _, _ := GetColumnIndexByPath(pf, "A")
+	sIdx, _, _ := GetColumnIndexByPath(pf, "S")
+
+	testCases := []struct {
+		name     string
+		column   int
+		makePred func() Predicate
+	}{
+		{"int/nopred", aIdx, func() Predicate { return nil }},
+		{"int/between", aIdx, func() Predicate { return NewIntBetweenPredicate(0, int64(count)) }},
+		{"string/regex", sIdx, func() Predicate {
+			pred, err := NewRegexInPredicate([]string{"span-name-[0-4].*"})
+			require.NoError(b, err)
+			return pred
+		}},
+	}
+
+	for _, tc := range testCases {
+		for _, stride := range []int32{10, 500} {
+			b.Run(fmt.Sprintf("%s/stride=%d", tc.name, stride), func(b *testing.B) {
+				for i := 0; i < b.N; i++ {
+					iter := NewSyncIterator(context.TODO(), pf.RowGroups(), tc.column,
+						SyncIteratorOptSelectAs("v"), SyncIteratorOptPredicate(tc.makePred()), SyncIteratorOptMaxDefinitionLevel(MaxDefinitionLevel))
+					pos := int32(0)
+					for {
+						rn := EmptyRowNumber()
+						rn[0] = pos
+						res, err := iter.SeekTo(rn, 0)
+						if err != nil {
+							b.Fatal(err)
+						}
+						if res == nil {
+							break
+						}
+						pos = res.RowNumber[0] + stride
+					}
+					iter.Close()
+				}
+			})
+		}
 	}
 }
 
