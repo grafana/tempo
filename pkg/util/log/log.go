@@ -13,16 +13,21 @@ import (
 // Prefer accepting a non-global logger as an argument.
 var Logger = kitlog.NewNopLogger()
 
+// logLevel tracks the configured level for slog adapters (see SlogFromGoKit).
+var logLevel = "info"
+
 // InitLogger initialises the global gokit logger and overrides the
 // default logger for the server.
 func InitLogger(cfg *server.Config) {
+	logLevel = cfg.LogLevel.String()
+
 	logger := kitlog.NewLogfmtLogger(kitlog.NewSyncWriter(os.Stderr))
 	if cfg.LogFormat == "json" {
 		logger = kitlog.NewJSONLogger(kitlog.NewSyncWriter(os.Stderr))
 	}
 
 	// add support for level based logging
-	logger = level.NewFilter(logger, LevelFilter(cfg.LogLevel.String()))
+	logger = level.NewFilter(logger, LevelFilter(logLevel))
 
 	// use UTC timestamps
 	logger = kitlog.With(logger, "ts", kitlog.DefaultTimestampUTC)
