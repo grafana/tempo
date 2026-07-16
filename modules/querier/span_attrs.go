@@ -168,6 +168,9 @@ func startQueryRangeBlockSpan(ctx context.Context, name string, req *tempopb.Que
 }
 
 func setQuerierSpanMetrics(span oteltrace.Span, metrics any) {
+	if metrics == nil {
+		return
+	}
 	switch m := metrics.(type) {
 	case *tempopb.SearchMetrics:
 		if m == nil {
