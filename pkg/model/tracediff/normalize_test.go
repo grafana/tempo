@@ -1,6 +1,7 @@
 package tracediff
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -85,6 +86,42 @@ func TestNormalizeTraceHandlesCyclicParents(t *testing.T) {
 	require.Len(t, paths, 2)
 	assert.NotEmpty(t, paths["a"])
 	assert.NotEmpty(t, paths["b"])
+}
+
+// TestNormalizeTraceHandlesDeepParentChain builds a span parent chain deeper
+// than maxSpanTreeDepth (each span's parent is the previous span). Before the
+// depth cap, assignPaths recursed one frame per span and a chain this deep
+// would risk exhausting the goroutine stack. The cap keeps recursion bounded
+// while still accounting for every span.
+func TestNormalizeTraceHandlesDeepParentChain(t *testing.T) {
+	traceID := []byte("trace-id-0000001")
+	const depth = maxSpanTreeDepth + 50
+
+	spans := make([]*tracev1.Span, 0, depth)
+	for i := 0; i < depth; i++ {
+		spanID := fmt.Sprintf("span-%d", i)
+		parentID := ""
+		if i > 0 {
+			parentID = fmt.Sprintf("span-%d", i-1)
+		}
+		spans = append(spans, spanForNormalizeTest(traceID, spanID, parentID, "svc", "op", tracev1.Span_SPAN_KIND_CLIENT, uint64(i), uint64(i+1), tracev1.Status_STATUS_CODE_OK))
+	}
+
+	trace := &tempopb.Trace{
+		ResourceSpans: []*tracev1.ResourceSpans{
+			{ScopeSpans: []*tracev1.ScopeSpans{{Spans: spans}}},
+		},
+	}
+
+	got, _ := normalizeTrace(trace)
+
+	// Every span must still be present exactly once in the normalized output.
+	seen := map[string]struct{}{}
+	for _, span := range got.spans {
+		seen[span.spanID] = struct{}{}
+	}
+	require.Len(t, seen, depth)
+	require.Equal(t, depth, got.meta.SpanCount)
 }
 
 func traceForNormalizeTest() *tempopb.Trace {
