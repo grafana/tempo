@@ -1100,6 +1100,17 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 	watchers := &spanWatchers{}
 	watchers.Add(cfg.watchers...)
 
+	// Per-span sampling extrapolation. Hint in the query takes precedence
+	// over the default passed in via WithExtrapolation. Must apply before
+	// sp.init() so inner aggregators capture the flag.
+	extrapolate := false
+	if cfg.extrapolate != nil {
+		extrapolate = *cfg.extrapolate
+	}
+	if b, ok := expr.Hints.GetBool(HintExtrapolate, cfg.allowUnsafeHints); ok {
+		extrapolate = b
+	}
+
 	bme := &batchMetricsEvaluator{
 		evals:    make(map[string]*metricsEvaluator, len(expr.Pipeline)),
 		watchers: watchers,
@@ -1112,16 +1123,6 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 
 		storageReq := storageReqs[key]
 
-		// Per-span sampling extrapolation. Hint in the query takes precedence
-		// over the default passed in via WithExtrapolation. Must apply before
-		// sp.init() so inner aggregators capture the flag.
-		extrapolate := false
-		if cfg.extrapolate != nil {
-			extrapolate = *cfg.extrapolate
-		}
-		if b, ok := expr.Hints.GetBool(HintExtrapolate, cfg.allowUnsafeHints); ok {
-			extrapolate = b
-		}
 		if extrapolate {
 			applyExtrapolation(sp, &storageReq)
 		}

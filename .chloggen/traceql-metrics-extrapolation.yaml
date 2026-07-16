@@ -18,7 +18,7 @@ subtext: |
   `histogram_over_time`, `quantile_over_time`, and `compare` aggregates —
   matching the metrics generator's existing per-span multiplier behaviour.
   `min_over_time` and `max_over_time` are unaffected. Only supported on
-  vparquet5 blocks.
+  vparquet4 and later.
 
 # The GitHub handle (without the leading @) of the change's author.
 user: csmarchbanks

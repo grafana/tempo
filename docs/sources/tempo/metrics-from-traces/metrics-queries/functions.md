@@ -557,7 +557,9 @@ Samples a fixed percentage of traces for trace-level aggregations.
 { } | count_over_time() by (resource.service.name) with(trace_sample=0.05)
 ```
 
-## Extrapolation from ingest-time sampling: `with(extrapolate=true)`
+## Extrapolation from ingest-time sampling: `with(extrapolate=true)` (experimental)
+
+{{< docs/experimental product="Tempo" >}}
 
 If your traces were sampled at ingest time by an OpenTelemetry probability
 sampler (for example, an OTel Collector `probabilistic_sampler` in
