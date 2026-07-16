@@ -645,7 +645,7 @@ func valuesToV2Response(distinctValues *collector.DistinctValue[tempopb.TagValue
 func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (resp *tempopb.SearchResponse, err error) {
 	ctx, span, tenantID, err := startSearchBlockSpan(ctx, "Querier.SearchBlock", req)
 	if err != nil {
-		return nil, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
+		return nil, fmt.Errorf("error extracting org id in Querier.SearchBlock: %w", err)
 	}
 	defer observeBackendProcessing(api.OpSearch, tenantID, time.Now())
 	defer func() { finishQuerierSpan(span, err, resp.GetMetrics()) }()
