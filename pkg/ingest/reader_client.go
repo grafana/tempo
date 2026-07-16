@@ -16,11 +16,27 @@ import (
 )
 
 // NewReaderClient returns the kgo.Client that should be used by the Reader.
+//
+// Caller-supplied opts are applied AFTER this function's own defaults
+// below, letting a caller override any of them for its own workload
+// profile -- kgo.Opt has "last one wins" semantics (vendor/.../kgo/
+// client.go's validateCfg calls opt.apply(&cfg) for each opt in order, and
+// every Fetch*/BrokerMaxReadBytes opt's own apply unconditionally
+// overwrites the same cfg field, e.g. FetchMaxBytes's fn does
+// `cfg.maxBytes = ...` with no merge), so this ordering is load-bearing,
+// not stylistic. Added 2026-07-16 for a bloom-gateway restore-side OOM
+// incident: it consumes ALL of its topic's partitions on every instance
+// (no partition-ring sharding the way block-builder/live-store have), so
+// the same per-partition/per-broker fetch ceiling that's fine for them can
+// let a many-partition replay burst buffer far more inside kgo itself --
+// ahead of, and in addition to, whatever the caller's own admission queue
+// already bounds -- than intended. No existing caller passes any of the
+// options this function sets below, so this reordering changes nothing
+// for them.
 func NewReaderClient(kafkaCfg KafkaConfig, metrics *kprom.Metrics, logger log.Logger, opts ...kgo.Opt) (*kgo.Client, error) {
 	const fetchMaxBytes = 100_000_000
 
-	opts = append(opts, commonKafkaClientOptions(kafkaCfg, metrics, logger)...)
-	opts = append(opts,
+	own := append(commonKafkaClientOptions(kafkaCfg, metrics, logger),
 		kgo.FetchMinBytes(1),
 		kgo.FetchMaxBytes(fetchMaxBytes),
 		kgo.FetchMaxWait(5*time.Second),
@@ -31,7 +47,7 @@ func NewReaderClient(kafkaCfg KafkaConfig, metrics *kprom.Metrics, logger log.Lo
 		// franz-go recommendation is to set it 2x FetchMaxBytes.
 		kgo.BrokerMaxReadBytes(2*fetchMaxBytes),
 	)
-	client, err := kgo.NewClient(opts...)
+	client, err := kgo.NewClient(append(own, opts...)...)
 	if err != nil {
 		return nil, fmt.Errorf("creating kafka client: %w", err)
 	}

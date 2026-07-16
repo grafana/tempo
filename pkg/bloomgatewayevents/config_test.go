@@ -82,6 +82,20 @@ func TestConfig_Validate(t *testing.T) {
 			wantErr: "chunk_size must be > 0",
 		},
 		{
+			name: "enabled, chunk size at the upper bound is valid",
+			mutate: func(cfg *Config) {
+				cfg.ChunkSize = maxChunkSize
+			},
+			wantErr: "",
+		},
+		{
+			name: "enabled, chunk size one over the upper bound",
+			mutate: func(cfg *Config) {
+				cfg.ChunkSize = maxChunkSize + 1
+			},
+			wantErr: "chunk_size must be <=",
+		},
+		{
 			name: "enabled, invalid kafka sub-config surfaces through Validate",
 			mutate: func(cfg *Config) {
 				cfg.Kafka.Topic = ""

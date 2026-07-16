@@ -3,9 +3,11 @@ package bloomgateway
 import (
 	"encoding/binary"
 	"errors"
+	"hash/crc32"
 	"math/rand"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -14,6 +16,31 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// loadForTest adapts Load's new sink-based streaming API back to the
+// "just give me the whole State, CompleteLeaves included" shape this
+// file's own tests are written against -- symmetric to the save side's own
+// mapLeafSource (snapshot.go): most of this file's assertions only care
+// about Load's error, or about the returned *State's non-leaf fields, or
+// want to assert on the full decoded leaf set at once
+// (assertStatesEqual), none of which needs streaming's one-at-a-time
+// memory discipline at this file's own tiny test scale. Collects every
+// decoded leaf into an ordinary map and hangs it off the returned
+// *State.CompleteLeaves (nil on a Load error, matching Load's own
+// contract), so every existing call site here only needed its bare
+// "sn.Load(...)" call rewritten to "loadForTest(t, sn, ...)" -- the rest
+// of each test is unchanged.
+func loadForTest(t *testing.T, sn *Snapshotter, path string, wantD, wantF uint8, wantSeedFingerprint uint64) (*State, error) {
+	t.Helper()
+	leaves := make(map[uint32]*Leaf)
+	state, err := sn.Load(path, wantD, wantF, wantSeedFingerprint, func(idx uint32, leaf *Leaf) {
+		leaves[idx] = leaf
+	})
+	if state != nil {
+		state.CompleteLeaves = leaves
+	}
+	return state, err
+}
 
 // newTestState builds a small but representative State exercising every
 // field: multiple tokens, offsets (including a large one, to catch any
@@ -130,7 +157,7 @@ func TestSnapshot_Load_MismatchTable(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := sn.Load(path, tt.d, tt.f, tt.seedFingerprint)
+			_, err := loadForTest(t, sn, path, tt.d, tt.f, tt.seedFingerprint)
 			require.Error(t, err)
 			assert.ErrorIs(t, err, ErrSnapshotMismatch)
 			assert.False(t, errors.Is(err, ErrSnapshotCorrupt), "a mismatch must never also look like corruption")
@@ -149,7 +176,7 @@ func TestSnapshot_Load_MismatchTable(t *testing.T) {
 		bumpedPath := filepath.Join(dir, "bumped.bin")
 		require.NoError(t, os.WriteFile(bumpedPath, bumped, 0o600))
 
-		_, err = sn.Load(bumpedPath, wantD, wantF, wantSeedFingerprint)
+		_, err = loadForTest(t, sn, bumpedPath, wantD, wantF, wantSeedFingerprint)
 		require.Error(t, err)
 		assert.ErrorIs(t, err, ErrSnapshotMismatch)
 	})
@@ -181,14 +208,14 @@ func TestSnapshot_Load_CorruptionDistinctFromMismatch(t *testing.T) {
 	}
 
 	t.Run("missing file", func(t *testing.T) {
-		_, err := sn.Load(filepath.Join(dir, "does-not-exist.bin"), state.D, state.F, state.SeedFingerprint)
+		_, err := loadForTest(t, sn, filepath.Join(dir, "does-not-exist.bin"), state.D, state.F, state.SeedFingerprint)
 		assertCorruptNotMismatch(t, err)
 	})
 
 	t.Run("empty file", func(t *testing.T) {
 		path := filepath.Join(dir, "empty.bin")
 		require.NoError(t, os.WriteFile(path, nil, 0o600))
-		_, err := sn.Load(path, state.D, state.F, state.SeedFingerprint)
+		_, err := loadForTest(t, sn, path, state.D, state.F, state.SeedFingerprint)
 		assertCorruptNotMismatch(t, err)
 	})
 
@@ -201,7 +228,7 @@ func TestSnapshot_Load_CorruptionDistinctFromMismatch(t *testing.T) {
 		truncPath := filepath.Join(dir, "truncated.bin")
 		require.NoError(t, os.WriteFile(truncPath, raw[:len(raw)-4], 0o600))
 
-		_, err = sn.Load(truncPath, state.D, state.F, state.SeedFingerprint)
+		_, err = loadForTest(t, sn, truncPath, state.D, state.F, state.SeedFingerprint)
 		assertCorruptNotMismatch(t, err)
 	})
 
@@ -214,7 +241,7 @@ func TestSnapshot_Load_CorruptionDistinctFromMismatch(t *testing.T) {
 		corruptPath := filepath.Join(dir, "bad-magic.bin")
 		require.NoError(t, os.WriteFile(corruptPath, corrupted, 0o600))
 
-		_, err = sn.Load(corruptPath, state.D, state.F, state.SeedFingerprint)
+		_, err = loadForTest(t, sn, corruptPath, state.D, state.F, state.SeedFingerprint)
 		assertCorruptNotMismatch(t, err)
 	})
 
@@ -227,7 +254,7 @@ func TestSnapshot_Load_CorruptionDistinctFromMismatch(t *testing.T) {
 		corruptPath := filepath.Join(dir, "bad-checksum.bin")
 		require.NoError(t, os.WriteFile(corruptPath, corrupted, 0o600))
 
-		_, err = sn.Load(corruptPath, state.D, state.F, state.SeedFingerprint)
+		_, err = loadForTest(t, sn, corruptPath, state.D, state.F, state.SeedFingerprint)
 		assertCorruptNotMismatch(t, err)
 	})
 
@@ -240,9 +267,148 @@ func TestSnapshot_Load_CorruptionDistinctFromMismatch(t *testing.T) {
 		corruptPath := filepath.Join(dir, "bad-body.bin")
 		require.NoError(t, os.WriteFile(corruptPath, corrupted, 0o600))
 
-		_, err = sn.Load(corruptPath, state.D, state.F, state.SeedFingerprint)
+		_, err = loadForTest(t, sn, corruptPath, state.D, state.F, state.SeedFingerprint)
 		assertCorruptNotMismatch(t, err)
 	})
+}
+
+// bodyLengthHeaderOffset mirrors writeSnapshot's own header field order
+// (magic, version, D, F, seedFingerprint, THEN bodyLength) -- the same
+// arithmetic snapshotHeaderSize itself uses (snapshot.go), one field (8
+// bytes) short of it.
+const bodyLengthHeaderOffset = 4 + 4 + 1 + 1 + 8
+
+// buildOversizedCountSnapshot legitimately saves precursor (the real Save
+// path, so its body's layout is exactly what the real encoder produces --
+// nothing hand-rolled to keep in sync by hand), then overwrites the count
+// field byteOffset bytes into the body with absurdCount and TRUNCATES the
+// body immediately after that field. Nothing legitimate needs to follow
+// it: once checkCount's guard fires, sr.err short-circuits every
+// subsequent read as a free no-op (snapshotReader's own sticky-error
+// discipline), so bytes beyond this point can never be observed
+// regardless of whether they exist. bodyLength and the trailing checksum
+// are recomputed to match the shorter, corrupted body, so the file stays
+// checksum-valid and reaches decodeBody at all -- this test's target is
+// the allocation-bounds guard inside decodeBody/streamCompleteLeavesIn,
+// not the checksum guard TestSnapshot_Load_CorruptionDistinctFromMismatch
+// already covers.
+func buildOversizedCountSnapshot(t *testing.T, sn *Snapshotter, precursor *State, byteOffset int, absurdCount uint32) string {
+	t.Helper()
+	dir := t.TempDir()
+	validPath := filepath.Join(dir, "valid.bin")
+	require.NoError(t, sn.Save(validPath, precursor))
+
+	raw, err := os.ReadFile(validPath)
+	require.NoError(t, err)
+	require.Greater(t, len(raw), snapshotHeaderSize+4)
+	body := raw[snapshotHeaderSize : len(raw)-4]
+	require.GreaterOrEqual(t, len(body), byteOffset+4, "precursor's real body isn't long enough to contain the target count field at the expected offset")
+
+	truncatedBody := append([]byte(nil), body[:byteOffset]...)
+	var countBuf [4]byte
+	binary.BigEndian.PutUint32(countBuf[:], absurdCount)
+	truncatedBody = append(truncatedBody, countBuf[:]...)
+
+	crafted := make([]byte, snapshotHeaderSize+len(truncatedBody)+4)
+	copy(crafted, raw[:snapshotHeaderSize])
+	binary.BigEndian.PutUint64(crafted[bodyLengthHeaderOffset:snapshotHeaderSize], uint64(len(truncatedBody)))
+	copy(crafted[snapshotHeaderSize:], truncatedBody)
+	binary.BigEndian.PutUint32(crafted[snapshotHeaderSize+len(truncatedBody):], crc32.ChecksumIEEE(truncatedBody))
+
+	craftedPath := filepath.Join(dir, "crafted.bin")
+	require.NoError(t, os.WriteFile(craftedPath, crafted, 0o600))
+	return craftedPath
+}
+
+// TestSnapshot_Load_OversizedCountRejectedBeforeAllocating is this review
+// round's own regression test (2026-07-16, MAJOR finding): decodeBody and
+// streamCompleteLeavesIn each read an untrusted count off the wire and
+// then make() a slice or map sized DIRECTLY by it (tokens, offsets,
+// constructing ranges, blocks, leaf entries, tenants, tenant buckets) --
+// readBytes's own before-allocating check (its doc comment) only guards a
+// single length-prefixed byte blob, not a count that sizes a LATER make()
+// of many elements. Reproduces the reviewer's own finding directly: a
+// legitimately-saved, otherwise-minimal snapshot with exactly ONE count
+// field overwritten to an absurd value must be rejected as
+// ErrSnapshotCorrupt WITHOUT the process growing anywhere near
+// proportionally to the claimed count -- verified both by the returned
+// error and, directly, by the process's own cumulative allocation during
+// the call (runtime.MemStats.TotalAlloc, which only ever grows and is
+// therefore immune to GC-timing flakiness, unlike HeapAlloc).
+func TestSnapshot_Load_OversizedCountRejectedBeforeAllocating(t *testing.T) {
+	sn := NewSnapshotter(newMetrics(prometheus.NewRegistry()))
+	seed := SeedFingerprint([]byte("snapshot-test-seed"))
+
+	// emptyState's body is exactly 24 bytes: six top-level uint32 counts
+	// (tokens, offsets, constructing ranges, blocks, leaves, tenants),
+	// each legitimately zero, encodeBody's own field order -- so each
+	// sits at a fixed, independently-derived offset (a multiple of 4)
+	// with nothing variable-length before it to shift its position.
+	emptyState := &State{
+		D: testD, F: testF, SeedFingerprint: seed,
+		Offsets: map[int32]int64{},
+		Tenants: TenantSetSnapshot{Buckets: map[string]map[bucketKey][]byte{}},
+	}
+	// oneLeafState has exactly one complete leaf with zero real entries,
+	// so its own numEntries count field exists (nested inside the leaf
+	// section, unlike the six above) at a fixed offset: right after
+	// tokens/offsets/ranges/blocks/numLeaves=1/idx.
+	oneLeafState := &State{
+		D: testD, F: testF, SeedFingerprint: seed,
+		Offsets:        map[int32]int64{},
+		CompleteLeaves: map[uint32]*Leaf{0: NewLeaf()},
+		Tenants:        TenantSetSnapshot{Buckets: map[string]map[bucketKey][]byte{}},
+	}
+	// oneEmptyTenantState has exactly one tenant (empty ID) with zero
+	// buckets, so numBuckets -- otherwise per-tenant and variably placed
+	// -- exists at a fixed offset: an empty tenant ID encodes as a bare
+	// 4-byte zero length prefix (no content bytes), immediately after
+	// numTenants=1's own 4 bytes, followed by this tenant's numBuckets.
+	oneEmptyTenantState := &State{
+		D: testD, F: testF, SeedFingerprint: seed,
+		Offsets: map[int32]int64{},
+		Tenants: TenantSetSnapshot{Buckets: map[string]map[bucketKey][]byte{"": {}}},
+	}
+
+	const absurdCount = 50_000_000 // the reviewer's own reproduction figure
+
+	tests := []struct {
+		name       string
+		precursor  *State
+		byteOffset int // offset of the target count field within the body
+	}{
+		{"tokens", emptyState, 0},
+		{"offsets", emptyState, 4},
+		{"constructing ranges", emptyState, 8},
+		{"blocks", emptyState, 12},
+		{"tenants", emptyState, 20},
+		{"leaf entries", oneLeafState, 24},
+		{"tenant buckets", oneEmptyTenantState, 28},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			path := buildOversizedCountSnapshot(t, sn, tc.precursor, tc.byteOffset, absurdCount)
+
+			var before, after runtime.MemStats
+			runtime.ReadMemStats(&before)
+			_, err := loadForTest(t, sn, path, testD, testF, seed)
+			runtime.ReadMemStats(&after)
+
+			require.Error(t, err)
+			assert.ErrorIs(t, err, ErrSnapshotCorrupt)
+
+			// A real (unguarded) allocation for 50,000,000 elements, at
+			// any of this test's field strides (4-28 bytes/element), is
+			// hundreds of MB at minimum -- bounding observed growth to a
+			// few MiB leaves huge margin above ordinary test/runtime
+			// noise while remaining utterly incompatible with that
+			// allocation having been attempted.
+			const maxAllowedGrowth = 8 << 20 // 8 MiB
+			grew := after.TotalAlloc - before.TotalAlloc
+			assert.Less(t, grew, uint64(maxAllowedGrowth), "Load allocated %d bytes rejecting an absurd %q count -- the bound must reject BEFORE allocating, not after", grew, tc.name)
+		})
+	}
 }
 
 // TestSnapshot_SaveLoad_RoundTrip is the happy path -- deliberately placed
@@ -256,7 +422,7 @@ func TestSnapshot_SaveLoad_RoundTrip(t *testing.T) {
 	sn := NewSnapshotter(newMetrics(prometheus.NewRegistry()))
 	require.NoError(t, sn.Save(path, want))
 
-	got, err := sn.Load(path, want.D, want.F, want.SeedFingerprint)
+	got, err := loadForTest(t, sn, path, want.D, want.F, want.SeedFingerprint)
 	require.NoError(t, err)
 	assertStatesEqual(t, want, got)
 }
@@ -282,7 +448,7 @@ func TestSnapshot_ConstructingRangesRoundTripAsRangesOnly(t *testing.T) {
 	sn := NewSnapshotter(newMetrics(prometheus.NewRegistry()))
 	require.NoError(t, sn.Save(path, want))
 
-	got, err := sn.Load(path, want.D, want.F, want.SeedFingerprint)
+	got, err := loadForTest(t, sn, path, want.D, want.F, want.SeedFingerprint)
 	require.NoError(t, err)
 	assert.Equal(t, want.ConstructingRanges, got.ConstructingRanges)
 	assert.Empty(t, got.CompleteLeaves, "no leaf payload must appear for a range that was only ever constructing")
@@ -307,7 +473,7 @@ func TestSnapshot_Save_AtomicallyReplacesExistingFile(t *testing.T) {
 	second := newTestState(t)
 	require.NoError(t, sn.Save(path, second))
 
-	got, err := sn.Load(path, second.D, second.F, second.SeedFingerprint)
+	got, err := loadForTest(t, sn, path, second.D, second.F, second.SeedFingerprint)
 	require.NoError(t, err)
 	assertStatesEqual(t, second, got)
 
@@ -397,7 +563,7 @@ func TestSnapshot_Save_SkipsLeafThatFlipsAwayFromCompleteBeforeClone(t *testing.
 	sn := NewSnapshotter(newMetrics(prometheus.NewRegistry()))
 	require.NoError(t, sn.Save(path, state))
 
-	got, err := sn.Load(path, state.D, state.F, state.SeedFingerprint)
+	got, err := loadForTest(t, sn, path, state.D, state.F, state.SeedFingerprint)
 	require.NoError(t, err, "a skipped index must not corrupt the leaf count or checksum")
 
 	require.Len(t, got.CompleteLeaves, 2, "only the two non-flipped indexes must be present")
@@ -468,7 +634,7 @@ func TestSnapshot_LargeStateSaveLoadTiming(t *testing.T) {
 	require.NoError(t, err)
 
 	loadStart := time.Now()
-	got, err := sn.Load(path, state.D, state.F, state.SeedFingerprint)
+	got, err := loadForTest(t, sn, path, state.D, state.F, state.SeedFingerprint)
 	loadElapsed := time.Since(loadStart)
 	require.NoError(t, err)
 

@@ -453,13 +453,60 @@ func (g *BloomGateway) starting(ctx context.Context) (err error) {
 // wholesale, unconditionally. Only the Directory (leaf-address-partitioned
 // by construction) and the snapshot's ConstructingRanges are filtered by
 // current ownership.
+//
+// 2026-07-16 restore-side streaming amendment (DESIGN.md § Snapshots):
+// this method used to range over a fully-decoded state.CompleteLeaves map
+// AFTER Load returned it -- Load now hands each decoded leaf to the sink
+// closure below AS IT DECODES the snapshot, so the ownership filter and
+// the Directory import happen inline, one leaf at a time, instead of in a
+// second pass over an already-materialized map. The filtering/import
+// LOGIC is otherwise unchanged: a leaf outside ownedRanges is discarded,
+// never imported (a freshly constructed Directory starts every slot at
+// LeafNil, so simply not importing it IS the shed); an owned leaf is
+// completed via BeginConstructing+Complete exactly as before.
 func (g *BloomGateway) reconcileStartup() (map[int32]int64, error) {
 	ownedRanges, err := g.currentOwnedRanges()
 	if err != nil {
 		return nil, fmt.Errorf("resolving owned leaf ranges: %w", err)
 	}
+	ownedIdx := func(idx uint32) bool { return leafRangesContain(ownedRanges, idx) }
 
-	state, loadErr := g.snapshotter.Load(g.cfg.Snapshot.Path, g.cfg.D, g.cfg.F, g.seedFingerprint)
+	// totalLeaves/importedLeaves back the "loaded snapshot" log line below.
+	// 2026-07-16 review finding: both only increment once a leaf actually
+	// imports (BeginConstructing started + Complete succeeded), NOT once
+	// per sink call -- counting every call, as an earlier version of this
+	// method did, let a crafted file with a repeated (duplicate) idx
+	// inflate complete_leaves arbitrarily above the true, at-most-2^D
+	// number of distinct leaves the file could legitimately contain (only
+	// the FIRST occurrence of a given idx can ever successfully
+	// BeginConstructing; every repeat is a no-op below, by construction).
+	// The two counters are therefore always equal in practice today --
+	// there is no remaining code path where an owned leaf imports without
+	// also being "in the file" by this method's own counting -- kept as
+	// two fields regardless since complete_leaves predates this method's
+	// import_leaves addition and a dashboards/alerting consumer may
+	// already exist for the former name specifically.
+	var totalLeaves, importedLeaves int
+	sink := func(idx uint32, leaf *Leaf) {
+		if !ownedIdx(idx) {
+			// No longer owned by this instance: never imported. A freshly
+			// constructed Directory starts every slot at LeafNil, so
+			// simply not importing it IS the shed (Directory.Shed on an
+			// already-nil slot is documented as a no-op) -- there is
+			// nothing to Shed away here.
+			return
+		}
+		if _, started := g.dir.BeginConstructing(idx); started {
+			if cerr := g.dir.Complete(idx, leaf); cerr != nil {
+				level.Warn(g.logger).Log("msg", "bloomgateway: completing snapshot-loaded leaf failed", "leaf", idx, "err", cerr)
+				return
+			}
+			totalLeaves++
+			importedLeaves++
+		}
+	}
+
+	state, loadErr := g.snapshotter.Load(g.cfg.Snapshot.Path, g.cfg.D, g.cfg.F, g.seedFingerprint, sink)
 	if loadErr != nil {
 		if errors.Is(loadErr, ErrSnapshotMismatch) {
 			level.Warn(g.logger).Log("msg", "bloomgateway: snapshot mismatch; discarding and reconstructing", "err", loadErr)
@@ -471,7 +518,7 @@ func (g *BloomGateway) reconcileStartup() (map[int32]int64, error) {
 		return nil, nil
 	}
 
-	level.Info(g.logger).Log("msg", "bloomgateway: loaded snapshot", "path", g.cfg.Snapshot.Path, "complete_leaves", len(state.CompleteLeaves), "constructing_ranges", len(state.ConstructingRanges))
+	level.Info(g.logger).Log("msg", "bloomgateway: loaded snapshot", "path", g.cfg.Snapshot.Path, "complete_leaves", totalLeaves, "imported_leaves", importedLeaves, "constructing_ranges", len(state.ConstructingRanges))
 	// snapshot_age_seconds' age is measured from this instant, not from
 	// whatever the snapshot's own on-disk contents claim (the format has no
 	// "saved at" field at all) -- DESIGN.md's own "loaded OR saved" wording,
@@ -485,28 +532,12 @@ func (g *BloomGateway) reconcileStartup() (map[int32]int64, error) {
 		return nil, fmt.Errorf("importing tenant state from snapshot: %w", err)
 	}
 
-	ownedIdx := func(idx uint32) bool { return leafRangesContain(ownedRanges, idx) }
-	for idx, leaf := range state.CompleteLeaves {
-		if !ownedIdx(idx) {
-			// No longer owned by this instance: never loaded. A freshly
-			// constructed Directory starts every slot at LeafNil, so
-			// simply not loading it IS the shed (Directory.Shed on an
-			// already-nil slot is documented as a no-op) -- there is
-			// nothing to Shed away here.
-			continue
-		}
-		if _, started := g.dir.BeginConstructing(idx); started {
-			if cerr := g.dir.Complete(idx, leaf); cerr != nil {
-				level.Warn(g.logger).Log("msg", "bloomgateway: completing snapshot-loaded leaf failed", "leaf", idx, "err", cerr)
-			}
-		}
-	}
-
 	// Owned ranges absent from (or only partially covered by) the
-	// snapshot's CompleteLeaves need a real reconstruction pass;
+	// snapshot's complete leaves need a real reconstruction pass;
 	// BeginConstructing no-ops (Enqueue/RunBatch's own documented contract)
-	// for every index just loaded above, so enqueuing the FULL owned range
-	// set here costs nothing extra for those and correctly queues the rest.
+	// for every index the sink above already imported, so enqueuing the
+	// FULL owned range set here costs nothing extra for those and
+	// correctly queues the rest.
 	g.reconstructionQueue.Enqueue(ownedRanges)
 	// Ranges that were still mid-flight at snapshot-save time never
 	// persisted their (necessarily partial) leaf content -- only the bare

@@ -40,6 +40,36 @@ import (
 // item-count bottleneck below the intended byte bound.
 const recordsChannelBuffer = 4096
 
+// consumerFetchMaxPartitionBytes/consumerFetchMaxBytes override pkg/ingest.
+// NewReaderClient's own shared defaults (50 MB/partition, 100 MB/broker,
+// reader_client.go) specifically for this consumer -- see that function's
+// own doc comment for the general mechanism (caller opts now win) and why
+// bloom-gateway in particular needs a tighter ceiling than block-builder/
+// live-store's shared default: every instance consumes ALL K partitions of
+// its topic (DESIGN.md § Write path "Consumers": "every gateway instance
+// is an independent consumer of all K partitions"), not a partition-ring-
+// sharded subset, so a replay burst across all of them at once can buffer
+// far more inside kgo itself than this consumer's own queueMaxBytes
+// admission control ever sees -- that queue only bounds what's already
+// been handed to Records() (enqueue's own byte semaphore), not what kgo is
+// still holding internally ahead of it. 2026-07-16 incident: a restored
+// instance's 16-partition catch-up (~37 min of buffered events, right
+// after a snapshot restore already near the memory limit) contributed to
+// an OOM within seconds of startup completing.
+//
+// Sized against DESIGN.md § Write path's own AddChunk payload figure (~3.2
+// MiB per chunk, chunked at ~200k trace IDs): a handful of chunks' worth
+// per partition is enough headroom for healthy batching without letting
+// one partition alone approach the shared 50 MB ceiling, and the overall
+// per-broker cap is kept at the franz-go-recommended 2x multiple of the
+// (now tighter) per-request ceiling, matching NewReaderClient's own
+// BrokerMaxReadBytes relationship instead of leaving it at the shared
+// default's larger, no-longer-proportional value.
+const (
+	consumerFetchMaxPartitionBytes = 8 << 20  // 8 MiB
+	consumerFetchMaxBytes          = 64 << 20 // 64 MiB
+)
+
 // Record is one not-yet-applied Kafka record, handed from Consumer's fetch
 // loop to WorkerPool (worker.go). Value is the raw, still-encoded
 // BloomGatewayEvent payload -- decoding happens in the worker, off the
@@ -149,7 +179,16 @@ type Consumer struct {
 // lag-observability commits (cfg.GetConsumerGroup), never for resume.
 func NewConsumer(cfg ingest.KafkaConfig, instanceID string, queueMaxBytes int64, logger log.Logger, reg prometheus.Registerer) (*Consumer, error) {
 	kpromMetrics := ingest.NewReaderClientMetrics("bloom-gateway", reg)
-	client, err := ingest.NewReaderClient(cfg, kpromMetrics, logger)
+	// consumerFetchMax{PartitionBytes,Bytes} override NewReaderClient's own
+	// shared defaults -- see those constants' doc comment for why this
+	// consumer specifically needs a tighter ceiling. metaClient below is
+	// deliberately excluded: it never calls PollFetches (kadm-only, see
+	// metaAdm's field doc comment), so it carries no replay-burst risk.
+	client, err := ingest.NewReaderClient(cfg, kpromMetrics, logger,
+		kgo.FetchMaxPartitionBytes(consumerFetchMaxPartitionBytes),
+		kgo.FetchMaxBytes(consumerFetchMaxBytes),
+		kgo.BrokerMaxReadBytes(2*consumerFetchMaxBytes),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("bloomgateway: new kafka reader client: %w", err)
 	}

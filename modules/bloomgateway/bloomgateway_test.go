@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -417,6 +418,158 @@ func TestBloomGateway_ReconcileStartup_PartialSnapshotCoverageReconstructsTheRes
 	}
 }
 
+// TestBloomGateway_ReconcileStartup_CorruptSnapshotLeavesDirectoryUntouched
+// is the streaming restore's own new-hazard regression test (2026-07-16
+// amendment, DESIGN.md § Snapshots "Restore memory"): decoding straight
+// into the Directory raises the risk that a corruption caught only at EOF
+// could, in a naive single-pass design, leave the Directory partially
+// populated from an invalid file -- a hazard the old whole-map-then-import
+// shape never had, since Load fully validated before returning anything to
+// import. Load's two-pass verify-then-decode design (verify the whole
+// body's checksum BEFORE decoding or importing any of it) is what prevents
+// that; TestSnapshot_Load_CorruptionDistinctFromMismatch already proves
+// Load itself rejects the file, but not that nothing leaked into a live
+// Directory before the rejection. This test closes that gap end to end:
+// the same partial-coverage snapshot as the sibling test above, corrupted,
+// must leave every one of its leaves LeafNil (never even BeginConstructing)
+// and behave exactly like a snapshotless cold start.
+func TestBloomGateway_ReconcileStartup_CorruptSnapshotLeavesDirectoryUntouched(t *testing.T) {
+	store, addr := newTestGatewayCluster(t, "bg-corrupt-snapshot")
+	reader := newFakeBackendReader()
+
+	snapshotPath := filepath.Join(t.TempDir(), "snapshot.bin")
+	cfg := newTestGatewayConfig(t, store, addr, "bg-corrupt-snapshot", snapshotPath)
+	total := uint32(1) << cfg.D
+	half := total / 2
+
+	seed := []byte(cfg.Seed.String())
+	completeLeaves := make(map[uint32]*Leaf, half)
+	for idx := uint32(0); idx < half; idx++ {
+		leaf := NewLeaf()
+		leaf.InsertIfAbsent(uint16(idx), Handle(1))
+		completeLeaves[idx] = leaf
+	}
+	state := &State{
+		D:               cfg.D,
+		F:               cfg.F,
+		SeedFingerprint: SeedFingerprint(seed),
+		Tokens:          []uint32{0},
+		Offsets:         map[int32]int64{},
+		CompleteLeaves:  completeLeaves,
+		Tenants:         TenantSetSnapshot{Buckets: map[string]map[bucketKey][]byte{}},
+	}
+	sn := NewSnapshotter(newMetrics(prometheus.NewRegistry()))
+	require.NoError(t, sn.Save(snapshotPath, state))
+
+	// Flip the file's last byte: inside the trailing CRC32 trailer, same
+	// technique as TestSnapshot_Load_CorruptionDistinctFromMismatch's
+	// "corrupted trailing checksum" case -- passes every length/format
+	// check (header fields, including D/F/seed, are untouched), fails only
+	// the checksum comparison. This deliberately exercises ErrSnapshotCorrupt,
+	// not ErrSnapshotMismatch -- ownership/mismatch handling already has its
+	// own coverage elsewhere.
+	raw, err := os.ReadFile(snapshotPath)
+	require.NoError(t, err)
+	raw[len(raw)-1] ^= 0xff
+	require.NoError(t, os.WriteFile(snapshotPath, raw, 0o600))
+
+	g := mustNewTestGateway(t, cfg, "bloom-gateway-0", reader)
+	startRingOnly(t, g)
+
+	offsets, err := g.reconcileStartup()
+	require.NoError(t, err, "a corrupt snapshot is absorbed like a missing one, never propagated as a startup error")
+	assert.Nil(t, offsets, "a corrupt snapshot must behave exactly like a snapshotless cold start")
+
+	require.Positive(t, g.reconstructionQueue.PendingRanges(), "the full owned range must be enqueued, exactly as if no snapshot existed")
+
+	// The crux: NONE of the corrupted file's "complete" leaves may have
+	// reached the Directory. If verification ran after decode-and-import
+	// (the hazard this design avoids), these would already be LeafComplete
+	// by now -- decoded and imported before the corrupt checksum was ever
+	// noticed.
+	for idx := uint32(0); idx < total; idx++ {
+		assert.Equal(t, LeafNil, g.dir.State(idx), "leaf %d must be untouched: a corrupt snapshot must not partially populate the directory", idx)
+	}
+}
+
+// TestBloomGateway_ReconcileStartup_DiscardsSnapshotLeavesOutsideCurrentOwnership
+// covers the streaming sink's ownership filter directly (bloomgateway.go's
+// reconcileStartup: "leaf outside owned ranges -> discarded, not imported"),
+// a gap in existing coverage found while auditing the 2026-07-16 streaming-
+// restore change: TestBloomGateway_ReconcileStartup_PartialSnapshotCoverage
+// ReconstructsTheRest exercises leaves ABSENT from the file (reconstructed),
+// and TestBloomGateway_MultiInstanceScaleOut exercises the LIVE ownership-
+// watch shedding an already-running instance's leaves -- neither exercises
+// a leaf PRESENT in the file as complete that this instance's CURRENT
+// ownership (at the moment of THIS load, before any watch loop has run at
+// all) no longer includes. Simulates a stale snapshot: saved back when this
+// instance owned the entire ring alone, now loaded with a second instance
+// already sharing it, so the file's coverage is a strict superset of what
+// reconcileStartup may actually import.
+func TestBloomGateway_ReconcileStartup_DiscardsSnapshotLeavesOutsideCurrentOwnership(t *testing.T) {
+	store, addr := newTestGatewayCluster(t, "bg-ownership-filter")
+	reader := newFakeBackendReader()
+
+	snapshotPath := filepath.Join(t.TempDir(), "g0.bin")
+	cfg0 := newTestGatewayConfig(t, store, addr, "bg-ownership-filter", snapshotPath)
+	total := uint32(1) << cfg0.D
+
+	seed := []byte(cfg0.Seed.String())
+	completeLeaves := make(map[uint32]*Leaf, total)
+	for idx := uint32(0); idx < total; idx++ {
+		leaf := NewLeaf()
+		leaf.InsertIfAbsent(uint16(idx), Handle(1))
+		completeLeaves[idx] = leaf
+	}
+	state := &State{
+		D:               cfg0.D,
+		F:               cfg0.F,
+		SeedFingerprint: SeedFingerprint(seed),
+		Tokens:          []uint32{0},
+		Offsets:         map[int32]int64{},
+		CompleteLeaves:  completeLeaves,
+		Tenants:         TenantSetSnapshot{Buckets: map[string]map[bucketKey][]byte{}},
+	}
+	sn := NewSnapshotter(newMetrics(prometheus.NewRegistry()))
+	require.NoError(t, sn.Save(snapshotPath, state))
+
+	// Register instance 1 in the ring FIRST, before instance 0 even exists,
+	// so instance 0's very first reconcileStartup call already sees a
+	// shrunk owned range -- isolating the snapshot-load-time filter from
+	// the separate live ownership-watch mechanism that would otherwise also
+	// eventually converge to the same end state and confound which
+	// mechanism actually did the discarding.
+	cfg1 := newTestGatewayConfig(t, store, addr, "bg-ownership-filter", filepath.Join(t.TempDir(), "g1.bin"))
+	g1 := mustNewTestGateway(t, cfg1, "bloom-gateway-1", reader)
+	startRingOnly(t, g1)
+
+	g0 := mustNewTestGateway(t, cfg0, "bloom-gateway-0", reader)
+	startRingOnly(t, g0)
+
+	offsets, err := g0.reconcileStartup()
+	require.NoError(t, err)
+	assert.NotNil(t, offsets, "the snapshot covers every leaf this instance could own, so this is a fully-loaded restart, not a cold start")
+
+	rs, err := g0.ringManager.Ring.GetAllHealthy(ringOp)
+	require.NoError(t, err)
+	require.Len(t, rs.Instances, 2, "both instances must be visible in the shared ring")
+	ranges0 := OwnedLeafRanges(rs.Instances, "bloom-gateway-0", cfg0.D)
+	require.NotEmpty(t, ranges0, "instance 0 must still own a non-trivial share")
+
+	var owned, discarded int
+	for idx := uint32(0); idx < total; idx++ {
+		if leafRangesContain(ranges0, idx) {
+			owned++
+			assert.Equal(t, LeafComplete, g0.dir.State(idx), "leaf %d is within current ownership and was in the file: must be imported", idx)
+		} else {
+			discarded++
+			assert.Equal(t, LeafNil, g0.dir.State(idx), "leaf %d is outside current ownership despite being complete in the file: must be discarded, not imported", idx)
+		}
+	}
+	assert.Positive(t, owned, "the test must exercise at least one owned (imported) leaf")
+	assert.Positive(t, discarded, "the test must exercise at least one unowned (discarded) leaf -- otherwise this test cannot distinguish the filter from a no-op")
+}
+
 // TestBloomGateway_SaveSnapshot_ConcurrentWithDirectoryWrites is the save
 // path's own concurrent-writes-under-race test plan item (2026-07-16 OOM
 // fix, DESIGN.md § Snapshots amendment): buildSnapshotState no longer
@@ -483,7 +636,7 @@ func TestBloomGateway_SaveSnapshot_ConcurrentWithDirectoryWrites(t *testing.T) {
 	cancel()
 	wg.Wait()
 
-	got, err := g.snapshotter.Load(snapshotPath, cfg.D, cfg.F, g.seedFingerprint)
+	got, err := loadForTest(t, g.snapshotter, snapshotPath, cfg.D, cfg.F, g.seedFingerprint)
 	require.NoError(t, err, "the last successful save must still load cleanly despite concurrent directory writers")
 	assert.LessOrEqual(t, len(got.CompleteLeaves), int(total))
 }

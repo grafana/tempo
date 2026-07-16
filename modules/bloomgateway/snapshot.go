@@ -2,6 +2,7 @@ package bloomgateway
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -120,6 +121,23 @@ func leavesSource(state *State) LeafSource {
 	return mapLeafSource(state.CompleteLeaves)
 }
 
+// LeafSink receives each complete leaf Load decodes, immediately after
+// decoding it -- Load's streaming restore counterpart to Save's own
+// LeafSource above (2026-07-16 restore-side amendment; see Load's own doc
+// comment for the production incident this responds to: a 7.44 GiB
+// snapshot's ENTIRE complete-leaf section used to be decoded into one
+// map -- doubling live heap right as the restored instance's Kafka replay
+// burst and reconciliation startup also ramped up -- before reconcile
+// Startup ever got a chance to import a single leaf). Called once per
+// (idx, leaf) pair in the snapshot's complete-leaf section, in ascending
+// idx order (encodeBody's own sorted-write contract) though a caller must
+// not rely on that ordering. The leaf handed to Sink is never referenced
+// by Load again afterward, so an implementation that stores the pointer
+// directly (bloomgateway.go's reconcileStartup, via Directory.Complete) is
+// safe -- no copy needed on the way in, mirroring how CloneLeaf's own copy
+// on the way OUT (save side) is what makes THAT direction safe instead.
+type LeafSink func(idx uint32, leaf *Leaf)
+
 // State is the caller-assembled snapshot payload (DESIGN.md § Snapshots).
 // Only complete leaves are included, matching "the leaf directory with
 // leaf payloads for complete leaves"; ConstructingRanges round-trip as
@@ -151,11 +169,13 @@ type State struct {
 	SeedFingerprint uint64
 	Tokens          []uint32
 	Offsets         map[int32]int64
-	// CompleteLeaves is Load's own return shape (decodeBody populates it
-	// directly) and the shape every hand-built State in this package's
-	// tests uses. A Save caller that already holds every complete leaf in
-	// memory (nothing production-sized ever does -- see Leaves below) can
-	// populate this directly instead of Leaves.
+	// CompleteLeaves is populated only by Save callers that already hold
+	// every complete leaf in memory (nothing production-sized ever does --
+	// see Leaves below) and by this package's own hand-built test States.
+	// Load (2026-07-16 restore-side streaming amendment) never populates
+	// this anymore -- decodeBody hands each decoded leaf to the caller's
+	// LeafSink one at a time instead, for the exact memory reason Leaves
+	// exists on the save side (see LeafSink's own doc comment).
 	CompleteLeaves map[uint32]*Leaf
 	// Leaves is buildSnapshotState's own streaming alternative to
 	// CompleteLeaves -- see LeafSource's own doc comment for why it
@@ -333,15 +353,52 @@ func writeSnapshot(f *os.File, state *State) error {
 	return nil
 }
 
-// Load decodes path. Returns ErrSnapshotMismatch (format version, D, F, or
-// seed fingerprint) after reading ONLY the small fixed header -- WITHOUT
-// reading the (potentially many-GiB) body at all, so a mismatch is always
-// cheap to detect and never risks a partial/corrupt read of state that's
-// about to be discarded anyway (mismatch table tested first in
-// snapshot_test.go, before the happy-path round-trip). Any other failure
-// (missing file, bad magic, truncated body, checksum mismatch, malformed
-// field) wraps ErrSnapshotCorrupt instead, distinguishable via errors.Is.
-func (sn *Snapshotter) Load(path string, wantD, wantF uint8, wantSeedFingerprint uint64) (*State, error) {
+// Load decodes path, streaming each complete leaf to sink as it is decoded
+// rather than materializing all of them in one map first -- 2026-07-16
+// restore-side amendment (DESIGN.md § Snapshots), mirroring Save's own
+// streaming redesign (LeafSource's doc comment above tells that half of
+// the story). Production incident this responds to: a 7.44 GiB snapshot's
+// entire complete-leaf section (2,098,208 leaves) used to be decoded into
+// one map before reconcileStartup ever imported a single leaf into the
+// live Directory -- on top of the map itself, every decoded leaf's fps/
+// handles were FRESH allocations distinct from the map's own bucket
+// overhead, so the transient peak during Load was never just "the file's
+// size again", it was closer to double the eventual steady-state leaf data.
+// Worse, that garbage does not vanish the instant Load returns: it is
+// merely unreferenced, waiting for the next GC cycle, and stays physically
+// resident for however long that takes -- which is exactly when the
+// restored instance's Kafka consumer (16 partitions, tens of minutes of
+// buffered replay) and reconciliation startup ALSO ramp up their own
+// allocations. Streaming removes the transient entirely: a leaf is
+// decoded, handed to sink, and immediately eligible for collection with
+// nothing else of comparable size competing for the same headroom.
+//
+// Returns ErrSnapshotMismatch (format version, D, F, or seed fingerprint)
+// after reading ONLY the small fixed header -- WITHOUT reading the
+// (potentially many-GiB) body at all, so a mismatch is always cheap to
+// detect. Any other failure (missing file, bad magic, truncated body,
+// checksum mismatch, malformed field) wraps ErrSnapshotCorrupt instead,
+// distinguishable via errors.Is.
+//
+// Two sequential passes over the body, both bounded, constant-memory:
+//  1. verifyBodyChecksum hashes the body as it streams past (io.CopyN into
+//     a running CRC32), never buffering it whole, and compares against the
+//     trailing checksum.
+//  2. Only if that passes, Load seeks back to the body's start and decodes
+//     the SAME bytes, calling sink once per complete leaf as it's decoded.
+//
+// This ordering is load-bearing, not incidental. A single pass that
+// decoded-and-called-sink WHILE ALSO computing the checksum would not
+// discover the file was corrupt until EOF -- by which point sink may
+// already have handed millions of leaves to a caller that imports them
+// directly into a live, already-serving Directory (reconcileStartup's own
+// production sink). The RETIRED, non-streaming Load avoided this for free
+// by buffering the whole body before decoding anything, so corruption was
+// always caught before a single field was ever interpreted; streaming
+// loses that "buffer first" safety net, so this method re-earns the same
+// guarantee explicitly, at the cost of one extra sequential read over the
+// body, rather than silently trading it away for the memory win.
+func (sn *Snapshotter) Load(path string, wantD, wantF uint8, wantSeedFingerprint uint64, sink LeafSink) (*State, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("%w: opening %s: %v", ErrSnapshotCorrupt, path, err)
@@ -352,7 +409,7 @@ func (sn *Snapshotter) Load(path string, wantD, wantF uint8, wantSeedFingerprint
 	if _, err := io.ReadFull(f, headerBuf); err != nil {
 		return nil, fmt.Errorf("%w: reading header: %v", ErrSnapshotCorrupt, err)
 	}
-	hr := &snapshotReader{b: headerBuf}
+	hr := &snapshotReader{r: &io.LimitedReader{R: bytes.NewReader(headerBuf), N: int64(len(headerBuf))}}
 
 	magic := hr.readUint32()
 	version := hr.readUint32()
@@ -373,36 +430,63 @@ func (sn *Snapshotter) Load(path string, wantD, wantF uint8, wantSeedFingerprint
 			ErrSnapshotMismatch, version, gotD, gotF, gotSeedFingerprint, snapshotFormatVersion, wantD, wantF, wantSeedFingerprint)
 	}
 
-	// Only now -- format/D/F/seed confirmed compatible -- read the rest of
-	// the file, bounded by bodyLength+4 (our OWN trusted header field, not
-	// any nested/corrupted value): io.LimitReader guarantees this read
-	// never pulls in more bytes than the header itself already claims,
-	// regardless of what garbage might follow on disk.
-	rest, err := io.ReadAll(io.LimitReader(f, int64(bodyLength)+4))
+	bodyStart, err := f.Seek(0, io.SeekCurrent)
 	if err != nil {
-		return nil, fmt.Errorf("%w: reading body: %v", ErrSnapshotCorrupt, err)
-	}
-	if uint64(len(rest)) < bodyLength+4 {
-		return nil, fmt.Errorf("%w: truncated: want %d body+checksum bytes, got %d", ErrSnapshotCorrupt, bodyLength+4, len(rest))
+		return nil, fmt.Errorf("%w: seeking to body start: %v", ErrSnapshotCorrupt, err)
 	}
 
-	body := rest[:bodyLength]
-	wantChecksum := binary.BigEndian.Uint32(rest[bodyLength : bodyLength+4])
-	if gotChecksum := crc32.ChecksumIEEE(body); gotChecksum != wantChecksum {
-		return nil, fmt.Errorf("%w: checksum mismatch: want %#x, got %#x", ErrSnapshotCorrupt, wantChecksum, gotChecksum)
+	// Pass 1: verify, in full, before any decoding is attempted -- see this
+	// method's own doc comment for why.
+	if err := verifyBodyChecksum(f, bodyLength); err != nil {
+		return nil, err
 	}
 
-	// Every subsequent length-prefixed read below is bounds-checked against
-	// len(body) BEFORE ever slicing (snapshotReader.readBytes) -- a
-	// corrupted inner length (e.g. a bogus "4 billion trace IDs" claim)
-	// therefore fails fast as ErrSnapshotCorrupt rather than attempting an
-	// allocation sized by untrusted input.
-	sr := &snapshotReader{b: body}
-	state := decodeBody(sr, gotD, gotF, gotSeedFingerprint)
+	// Pass 2: decode + stream, only now that the body is confirmed
+	// byte-for-byte intact. bufio coalesces the same many-small-reads
+	// pattern encodeBody's writer side already documented needing to
+	// coalesce on the way out; io.LimitedReader bounds the total to
+	// bodyLength (our OWN trusted header field, not any nested/corrupted
+	// value) regardless of what garbage might follow on disk, and exposes
+	// its own remaining-bytes count so snapshotReader.readBytes can keep
+	// bounds-checking every length-prefixed field before allocating (see
+	// its own doc comment) even without a single in-memory buffer to check
+	// a slice length against anymore.
+	if _, err := f.Seek(bodyStart, io.SeekStart); err != nil {
+		return nil, fmt.Errorf("%w: seeking back to body start for decode: %v", ErrSnapshotCorrupt, err)
+	}
+	sr := &snapshotReader{r: &io.LimitedReader{R: bufio.NewReader(f), N: int64(bodyLength)}}
+	state := decodeBody(sr, gotD, gotF, gotSeedFingerprint, sink)
 	if sr.err != nil {
 		return nil, fmt.Errorf("%w: decoding body: %v", ErrSnapshotCorrupt, sr.err)
 	}
 	return state, nil
+}
+
+// verifyBodyChecksum reads exactly bodyLength body bytes plus the trailing
+// 4-byte CRC32 from f, starting at f's current position, hashing the body
+// as it streams past (io.CopyN's own internal buffer -- fixed-size,
+// unrelated to bodyLength) rather than buffering it whole, then compares
+// the result against the stored trailer. See Load's own doc comment for
+// why this whole pass exists as a separate, first step before any
+// decoding: it is what lets Load keep its "never interpret a byte of a
+// corrupt snapshot" guarantee while still never holding the body in memory
+// twice (or even once) the way the retired implementation did.
+func verifyBodyChecksum(f *os.File, bodyLength uint64) error {
+	checksum := crc32.NewIEEE()
+	if _, err := io.CopyN(checksum, f, int64(bodyLength)); err != nil {
+		return fmt.Errorf("%w: reading body for checksum verification: %v", ErrSnapshotCorrupt, err)
+	}
+
+	var trailerBuf [4]byte
+	if _, err := io.ReadFull(f, trailerBuf[:]); err != nil {
+		return fmt.Errorf("%w: reading checksum trailer: %v", ErrSnapshotCorrupt, err)
+	}
+
+	wantChecksum := binary.BigEndian.Uint32(trailerBuf[:])
+	if gotChecksum := checksum.Sum32(); gotChecksum != wantChecksum {
+		return fmt.Errorf("%w: checksum mismatch: want %#x, got %#x", ErrSnapshotCorrupt, wantChecksum, gotChecksum)
+	}
+	return nil
 }
 
 // encodeBody writes every State field below the header, in a fixed order
@@ -577,19 +661,36 @@ func streamCompleteLeaves(sw *snapshotWriter, buffered *bufio.Writer, f *os.File
 	return nil
 }
 
-// decodeBody is encodeBody's exact inverse. d/f/seedFingerprint come from
-// the already-validated header (Load), not from the body itself -- there
-// is no redundant copy of them in the body encoding.
-func decodeBody(sr *snapshotReader, d, f uint8, seedFingerprint uint64) *State {
+// decodeBody is encodeBody's exact inverse, reading incrementally from sr
+// (an io.Reader-backed snapshotReader, 2026-07-16 restore-side streaming
+// amendment -- see Load's own doc comment) rather than an in-memory byte
+// slice. d/f/seedFingerprint come from the already-validated header
+// (Load), not from the body itself -- there is no redundant copy of them
+// in the body encoding.
+//
+// Every field EXCEPT the complete-leaf section is still decoded into an
+// ordinary State field, exactly as before streaming: tokens, offsets,
+// constructing ranges, blocks, and tenant sets are all small relative to
+// leaf data (DESIGN.md § Sizing) and stay fully materialized. The
+// complete-leaf section is the one exception -- streamCompleteLeavesIn
+// (below) calls sink once per decoded leaf instead of building a map, and
+// state.CompleteLeaves is left nil (see its own field comment on State).
+func decodeBody(sr *snapshotReader, d, f uint8, seedFingerprint uint64, sink LeafSink) *State {
 	state := &State{D: d, F: f, SeedFingerprint: seedFingerprint}
 
 	numTokens := sr.readUint32()
+	if !sr.checkCount(numTokens, 4, "tokens") { // 4 bytes/token: one uint32 each
+		return state
+	}
 	state.Tokens = make([]uint32, numTokens)
 	for i := range state.Tokens {
 		state.Tokens[i] = sr.readUint32()
 	}
 
 	numOffsets := sr.readUint32()
+	if !sr.checkCount(numOffsets, 12, "offsets") { // 12 bytes/entry: uint32 partition + int64 offset
+		return state
+	}
 	state.Offsets = make(map[int32]int64, numOffsets)
 	for i := uint32(0); i < numOffsets && sr.err == nil; i++ {
 		p := int32(sr.readUint32())
@@ -597,12 +698,25 @@ func decodeBody(sr *snapshotReader, d, f uint8, seedFingerprint uint64) *State {
 	}
 
 	numRanges := sr.readUint32()
+	if !sr.checkCount(numRanges, 8, "constructing ranges") { // 8 bytes/range: two uint32s
+		return state
+	}
 	state.ConstructingRanges = make([]LeafRange, numRanges)
 	for i := range state.ConstructingRanges {
 		state.ConstructingRanges[i] = LeafRange{Start: sr.readUint32(), End: sr.readUint32()}
 	}
 
 	numBlocks := sr.readUint32()
+	// 28 bytes/block MINIMUM (not exact -- Block's own encoding is
+	// variable-length, see checkCount's own doc comment): 16 (UUID) + 4
+	// (TenantID's own blob length prefix, an empty string's smallest
+	// legal encoding) + 1 (StartTime, smallest legal encoding is the
+	// zero-time tag alone) + 1 (EndTime, same) + 1 (State) + 4 (Handle) +
+	// 1 (DeletedAt, same as Start/EndTime) = 28; matches encodeBody's own
+	// per-block field sequence below exactly.
+	if !sr.checkCount(numBlocks, 28, "blocks") {
+		return state
+	}
 	state.Blocks = make([]Block, numBlocks)
 	for i := range state.Blocks {
 		uuidBytes := sr.readBytes(16)
@@ -623,11 +737,64 @@ func decodeBody(sr *snapshotReader, d, f uint8, seedFingerprint uint64) *State {
 		}
 	}
 
+	streamCompleteLeavesIn(sr, sink)
+
+	numTenants := sr.readUint32()
+	// 8 bytes/tenant MINIMUM: tenantID's own blob length prefix (4, an
+	// empty string's smallest legal encoding) + numBuckets's own 4-byte
+	// field, present unconditionally regardless of its value -- the
+	// buckets a tenant claims are bounded separately, immediately below.
+	if !sr.checkCount(numTenants, 8, "tenants") {
+		return state
+	}
+	state.Tenants = TenantSetSnapshot{Buckets: make(map[string]map[bucketKey][]byte, numTenants)}
+	for i := uint32(0); i < numTenants && sr.err == nil; i++ {
+		tenantID := sr.readString()
+		numBuckets := sr.readUint32()
+		// 12 bytes/bucket MINIMUM: bucketKey (8, int64) + the bucket
+		// blob's own length prefix (4, an empty blob's smallest legal
+		// encoding).
+		if !sr.checkCount(numBuckets, 12, "tenant buckets") {
+			return state
+		}
+		buckets := make(map[bucketKey][]byte, numBuckets)
+		for j := uint32(0); j < numBuckets; j++ {
+			k := bucketKey(sr.readInt64())
+			// readBlob alone is enough here (no separate "copy" variant
+			// needed, unlike before streaming): every read now allocates
+			// independently -- see readBlob's own doc comment.
+			buckets[k] = sr.readBlob()
+		}
+		state.Tenants.Buckets[tenantID] = buckets
+	}
+
+	return state
+}
+
+// streamCompleteLeavesIn decodes the complete-leaf section directly from
+// sr, calling sink once per (idx, leaf) pair immediately after decoding it
+// -- Load's streaming counterpart to Save's own streamCompleteLeaves.
+// Never holds more than one leaf's worth of additional memory: fps/handles
+// are allocated fresh per leaf (there is no shared backing buffer to slice
+// into anymore, unlike the retired in-memory design), handed to sink, and
+// then go out of scope from this function's own point of view -- what
+// sink does with them afterward (reconcileStartup's own production sink
+// imports owned ones straight into the Directory via Directory.Complete,
+// pointer-shared, and silently discards the rest) is entirely its own
+// business; see LeafSink's own doc comment.
+func streamCompleteLeavesIn(sr *snapshotReader, sink LeafSink) {
 	numLeaves := sr.readUint32()
-	state.CompleteLeaves = make(map[uint32]*Leaf, numLeaves)
 	for i := uint32(0); i < numLeaves && sr.err == nil; i++ {
 		idx := sr.readUint32()
 		numEntries := sr.readUint32()
+		// 6 bytes/entry: uint16 fingerprint + uint32 handle. 2026-07-16
+		// review finding: this was the reviewer's own directly-reproduced
+		// case -- a 54-byte crafted file claiming 50,000,000 entries drove
+		// a large allocation below before ever failing; see checkCount's
+		// own doc comment.
+		if !sr.checkCount(numEntries, 6, "leaf entries") {
+			return
+		}
 		// nil, not an allocated empty slice, for numEntries == 0: matches
 		// NewLeaf()'s own zero-value convention (leaf.go) exactly, so an
 		// empty leaf round-trips identically regardless of whether it was
@@ -643,30 +810,11 @@ func decodeBody(sr *snapshotReader, d, f uint8, seedFingerprint uint64) *State {
 			fps[j] = sr.readUint16()
 			handles[j] = Handle(sr.readUint32())
 		}
-		state.CompleteLeaves[idx] = &Leaf{fps: fps, handles: handles}
-	}
-
-	numTenants := sr.readUint32()
-	state.Tenants = TenantSetSnapshot{Buckets: make(map[string]map[bucketKey][]byte, numTenants)}
-	for i := uint32(0); i < numTenants && sr.err == nil; i++ {
-		tenantID := sr.readString()
-		numBuckets := sr.readUint32()
-		buckets := make(map[bucketKey][]byte, numBuckets)
-		for j := uint32(0); j < numBuckets; j++ {
-			k := bucketKey(sr.readInt64())
-			// readBlobCopy (not readBlob) is load-bearing: readBlob would
-			// return a slice INTO the shared body buffer, which would
-			// then pin that entire (potentially many-GiB) buffer in
-			// memory for as long as this one small bucket blob stays
-			// reachable inside the returned State -- an explicit copy is
-			// what lets the raw body buffer actually be garbage
-			// collected once decode finishes.
-			buckets[k] = sr.readBlobCopy()
+		if sr.err != nil {
+			return
 		}
-		state.Tenants.Buckets[tenantID] = buckets
+		sink(idx, &Leaf{fps: fps, handles: handles})
 	}
-
-	return state
 }
 
 // snapshotWriter is a small sticky-error binary writer: once a write
@@ -733,31 +881,95 @@ func (sw *snapshotWriter) writeTime(t time.Time) {
 	sw.writeInt64(t.UnixNano())
 }
 
-// snapshotReader is snapshotWriter's inverse: a sticky-error binary reader
-// over an in-memory body. Every read is bounds-checked against len(b)
-// BEFORE any slice operation (readBytes), so a corrupted length-prefixed
-// field fails fast as an error rather than ever attempting to slice past
-// the buffer.
+// snapshotReader is snapshotWriter's inverse: a sticky-error binary reader,
+// streaming over an io.Reader (2026-07-16 restore-side amendment -- see
+// decodeBody's own doc comment for why: Load must never materialize the
+// whole, potentially many-GiB body in memory just to decode it, mirroring
+// the save side's own streaming redesign). r is always an *io.LimitedReader
+// bounding the total remaining body bytes (Load's own construction, for
+// both the small fixed header and the body proper) -- every length-
+// prefixed BYTE read (readBytes) checks the requested length against r.N
+// BEFORE allocating, so a corrupted inner length (e.g. a bogus "4 billion
+// trace IDs" claim on a single blob) still fails fast as ErrSnapshotCorrupt
+// rather than attempting an allocation sized by untrusted input, exactly
+// as the retired in-memory design's own bounds check did against a slice
+// length instead. A COUNT read separately from any single blob -- sizing a
+// make([]T, count) or make(map[K]V, count) of many small elements, rather
+// than one length-prefixed byte read -- is a distinct hazard readBytes
+// alone cannot cover (its check is against the ONE read it performs, not
+// against a count some LATER, unrelated make() call will use); every such
+// count is instead checked by checkCount below, immediately after being
+// read and always before the make() it sizes.
 type snapshotReader struct {
-	b   []byte
-	pos int
+	r   *io.LimitedReader
 	err error
 }
 
-// readBytes returns a slice INTO sr.b (no copy) -- callers that retain the
-// result beyond the current decode step (i.e. anywhere in the returned
-// *State) must copy it explicitly; see readBlobCopy.
+// readBytes allocates and reads exactly n fresh bytes. Every field this
+// file decodes now allocates independently -- there is no shared backing
+// buffer to slice into anymore, unlike the retired in-memory design -- so
+// a caller never needs to worry about a returned slice pinning anything
+// beyond itself; see readBlob's own doc comment for what this replaces.
 func (sr *snapshotReader) readBytes(n int) []byte {
 	if sr.err != nil {
 		return nil
 	}
-	if n < 0 || sr.pos+n > len(sr.b) {
-		sr.err = fmt.Errorf("%w: need %d bytes at offset %d, only %d remain", ErrSnapshotCorrupt, n, sr.pos, len(sr.b)-sr.pos)
+	if n < 0 || int64(n) > sr.r.N {
+		sr.err = fmt.Errorf("%w: need %d bytes, only %d remain in the body", ErrSnapshotCorrupt, n, sr.r.N)
 		return nil
 	}
-	out := sr.b[sr.pos : sr.pos+n]
-	sr.pos += n
-	return out
+	buf := make([]byte, n)
+	if _, err := io.ReadFull(sr.r, buf); err != nil {
+		sr.err = fmt.Errorf("%w: %v", ErrSnapshotCorrupt, err)
+		return nil
+	}
+	return buf
+}
+
+// checkCount reports whether count elements, each requiring at least
+// minStride bytes on disk, could possibly be backed by the bytes sr has
+// left -- and sets sr.err (returning false) if not. 2026-07-16 review
+// finding: decodeBody/streamCompleteLeavesIn each read an untrusted count
+// and then make() a slice or map sized DIRECTLY by it (tokens, offsets,
+// constructing ranges, blocks, leaf entries, tenants, tenant buckets) --
+// readBytes's own before-allocating check (its doc comment) only guards
+// a single length-prefixed byte blob, not a count that sizes a LATER
+// make() of many elements; without this check, a corrupt or crafted file
+// can force an allocation proportional to any uint32 value regardless of
+// the file's real size (reproduced directly in review: a 54-byte crafted
+// file claiming 50,000,000 entries drove a large allocation before ever
+// failing -- at uint32's actual max that scales to tens of GB in one
+// make() call, the exact OOM class this whole streaming rewrite exists to
+// eliminate). Every call site below invokes this immediately after
+// reading its count and always before the corresponding make(), mirroring
+// readBytes's own check-before-allocate discipline for the one shape it
+// cannot itself cover.
+//
+// minStride is each element's SMALLEST possible on-disk size, not
+// necessarily its exact size: callers whose element encoding is fixed-
+// width (tokens, offsets, ranges, leaf entries) pass the exact per-element
+// byte count, but callers whose encoding is variable-length (blocks embed
+// a string and three optional timestamps; tenants and tenant buckets embed
+// a string or blob) pass the minimum any single element could ever
+// consume -- every optional/variable part at its smallest legal encoding.
+// Either way the check stays sound: a legitimate file can never be
+// rejected (every real element consumes at least minStride bytes), while
+// a count too large for the remaining body to possibly back, even at the
+// most generous minimum, is caught before the allocation. The comparison
+// divides rather than multiplies specifically to avoid any risk of the
+// bound check's own arithmetic overflowing for a large count.
+func (sr *snapshotReader) checkCount(count uint32, minStride int64, what string) bool {
+	if sr.err != nil {
+		return false
+	}
+	if minStride <= 0 { // defensive: every real call site passes a positive literal
+		return true
+	}
+	if int64(count) > sr.r.N/minStride {
+		sr.err = fmt.Errorf("%w: %s count %d implausible: only %d bytes remain in the body", ErrSnapshotCorrupt, what, count, sr.r.N)
+		return false
+	}
+	return true
 }
 
 func (sr *snapshotReader) readUint8() uint8 {
@@ -794,31 +1006,23 @@ func (sr *snapshotReader) readUint64() uint64 {
 
 func (sr *snapshotReader) readInt64() int64 { return int64(sr.readUint64()) }
 
-// readBlob reads a uint32 length prefix and returns that many bytes AS A
-// SLICE INTO sr.b (no copy) -- fine for a value consumed immediately and
-// not retained (e.g. UUID.Unmarshal, which copies internally; string(b),
-// which always copies per the language spec), but NOT fine for a raw
-// []byte retained long-term; see readBlobCopy for that case.
+// readBlob reads a uint32 length prefix and returns that many freshly
+// allocated bytes -- safe to retain indefinitely, unlike before streaming.
+// The retired in-memory design's readBlob returned a slice INTO the
+// shared body buffer (no copy), which was fine for a value consumed
+// immediately (e.g. UUID.Unmarshal, which copies internally) but NOT for
+// one retained long-term (tenant bucket blobs, the one raw []byte this
+// file keeps inside the returned *State) without a separate readBlobCopy
+// that made an explicit copy. There is no shared buffer to alias anymore
+// -- every read already allocates independently -- so that distinction,
+// and the second method, are both gone: readBlob alone is enough now for
+// every caller, retained or not.
 func (sr *snapshotReader) readBlob() []byte {
 	n := sr.readUint32()
 	if sr.err != nil {
 		return nil
 	}
 	return sr.readBytes(int(n))
-}
-
-// readBlobCopy is readBlob plus an explicit copy, for the one field this
-// file retains as a raw []byte inside the returned *State (tenant bucket
-// blobs) -- see its call site's comment in decodeBody for why the copy is
-// load-bearing, not defensive-programming boilerplate.
-func (sr *snapshotReader) readBlobCopy() []byte {
-	b := sr.readBlob()
-	if b == nil {
-		return nil
-	}
-	out := make([]byte, len(b))
-	copy(out, b)
-	return out
 }
 
 func (sr *snapshotReader) readString() string {
