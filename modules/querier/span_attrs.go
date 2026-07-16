@@ -151,13 +151,8 @@ func startQueryRangeSpan(ctx context.Context, name string, req *tempopb.QueryRan
 	)
 }
 
-func startQueryRangeBlockSpan(ctx context.Context, name string, req *tempopb.QueryRangeRequest) (context.Context, oteltrace.Span, string, error) {
-	return startQuerierSpan(ctx, name, req.Query,
-		attribute.String("queryMode", req.QueryMode),
-		attribute.Int64("startUnixNanos", int64(req.Start)),
-		attribute.Int64("endUnixNanos", int64(req.End)),
-		attribute.Int64("rangeNanos", int64(req.End)-int64(req.Start)),
-		attribute.Int64("step", int64(req.Step)),
+func setQueryRangeBlockSpanAttributes(span oteltrace.Span, req *tempopb.QueryRangeRequest) {
+	span.SetAttributes(
 		attribute.String("blockID", req.BlockID),
 		attribute.String("version", req.Version),
 		attribute.Int64("startPage", int64(req.StartPage)),

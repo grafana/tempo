@@ -133,6 +133,73 @@ func TestBlockSearchMethodsCreateSinglePublicSpan(t *testing.T) {
 	}
 }
 
+func TestQueryRangeCreatesOnlyPublicQueryRangeSpan(t *testing.T) {
+	tests := []struct {
+		name      string
+		req       *tempopb.QueryRangeRequest
+		spanCount int
+	}{
+		{
+			name: "recent",
+			req: &tempopb.QueryRangeRequest{
+				Query:     "{} | rate()",
+				QueryMode: QueryModeRecent,
+				Start:     1,
+				End:       2,
+				Step:      1,
+			},
+			spanCount: 2, // QueryRange and forLiveStoreMetricsRing.
+		},
+		{
+			name: "block",
+			req: &tempopb.QueryRangeRequest{
+				BlockID: "invalid",
+				Version: "vParquet4",
+			},
+			spanCount: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder := tracetest.NewSpanRecorder()
+			tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+			defer func() { require.NoError(t, tp.Shutdown(context.Background())) }()
+
+			oldTracer := tracer
+			tracer = tp.Tracer("test")
+			defer func() { tracer = oldTracer }()
+
+			ctx := user.InjectOrgID(context.Background(), "tenant-a")
+			_, err := (&Querier{}).QueryRange(ctx, tt.req)
+			require.Error(t, err)
+
+			spans := recorder.Ended()
+			require.Len(t, spans, tt.spanCount)
+
+			var queryRangeSpan sdktrace.ReadOnlySpan
+			for _, span := range spans {
+				require.NotEqual(t, "Querier.queryRangeRecent", span.Name())
+				require.NotEqual(t, "Querier.queryBlock", span.Name())
+				if span.Name() == "Querier.QueryRange" {
+					require.Nil(t, queryRangeSpan)
+					queryRangeSpan = span
+				}
+			}
+			require.NotNil(t, queryRangeSpan)
+
+			if tt.name == "block" {
+				attrs := map[string]attribute.Value{}
+				for _, attr := range queryRangeSpan.Attributes() {
+					attrs[string(attr.Key)] = attr.Value
+				}
+				require.Equal(t, tt.req.BlockID, attrs["blockID"].AsString())
+				require.Equal(t, tt.req.Version, attrs["version"].AsString())
+			}
+		})
+	}
+}
+
 func TestTraceByIDSpanAttributesAndMetrics(t *testing.T) {
 	recorder := tracetest.NewSpanRecorder()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))

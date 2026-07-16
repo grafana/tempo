@@ -16,7 +16,7 @@ import (
 )
 
 func (q *Querier) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (resp *tempopb.QueryRangeResponse, err error) {
-	ctx, span, _, err := startQueryRangeSpan(ctx, "Querier.QueryRange", req)
+	ctx, span, tenantID, err := startQueryRangeSpan(ctx, "Querier.QueryRange", req)
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.QueryRange: %w", err)
 	}
@@ -26,16 +26,11 @@ func (q *Querier) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest
 		return q.queryRangeRecent(ctx, req)
 	}
 
-	return q.queryBlock(ctx, req)
+	setQueryRangeBlockSpanAttributes(span, req)
+	return q.queryBlock(ctx, req, tenantID)
 }
 
 func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeRequest) (resp *tempopb.QueryRangeResponse, err error) {
-	ctx, span, _, err := startQueryRangeSpan(ctx, "Querier.queryRangeRecent", req)
-	if err != nil {
-		return nil, fmt.Errorf("error extracting org id in Querier.queryRangeRecent: %w", err)
-	}
-	defer func() { finishQuerierSpan(span, err, resp.GetMetrics()) }()
-
 	// correct max series limit logic should've been set by the query-frontend sharder
 	c, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeSum, int(req.MaxSeries))
 	if err != nil {
@@ -61,12 +56,7 @@ func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeR
 	return c.Response(), nil
 }
 
-func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest) (resp *tempopb.QueryRangeResponse, err error) {
-	ctx, span, tenantID, err := startQueryRangeBlockSpan(ctx, "Querier.queryBlock", req)
-	if err != nil {
-		return nil, fmt.Errorf("error extracting org id in Querier.queryBlock: %w", err)
-	}
-	defer func() { finishQuerierSpan(span, err, resp.GetMetrics()) }()
+func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest, tenantID string) (resp *tempopb.QueryRangeResponse, err error) {
 	defer observeBackendProcessing(api.OpMetrics, tenantID, time.Now())
 
 	blockID, err := backend.ParseUUID(req.BlockID)
