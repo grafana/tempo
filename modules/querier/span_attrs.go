@@ -215,5 +215,7 @@ func setQuerierSpanMetrics(span oteltrace.Span, metrics any) {
 		for k, v := range m.AdditionalMetrics {
 			span.SetAttributes(attribute.Int64("additionalMetrics."+k, v))
 		}
+	default:
+		span.AddEvent("unsupported querier span metrics type")
 	}
 }
