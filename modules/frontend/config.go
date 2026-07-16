@@ -99,7 +99,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Config.MaxBatchSize = 7
 	cfg.MaxRetries = 2
 	cfg.ResponseConsumers = 10
-	cfg.MaxGRPCStreamingPacketSize = 2 * 1024 * 1024 // 2MB
+	cfg.MaxGRPCStreamingPacketSize = 1 * 1024 * 1024 // 1MB
 	cfg.Search = SearchConfig{
 		Sharder: SearchSharderConfig{
 			QueryBackendAfter:      15 * time.Minute,
