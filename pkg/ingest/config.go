@@ -400,7 +400,7 @@ func (e *oauthbearerExtensions) UnmarshalYAML(unmarshal func(interface{}) error)
 	if err := unmarshal(&raw); err != nil {
 		return err
 	}
-	if !e.LimitsMap.IsInitialized() {
+	if !e.IsInitialized() {
 		e.LimitsMap = flagext.NewLimitsMap[string](nil)
 	}
 	data := e.LimitsMap.Read()
