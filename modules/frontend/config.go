@@ -76,6 +76,8 @@ type TraceByIDConfig struct {
 	SLO                SLOConfig `yaml:",inline"`
 	ExternalEnabled    bool      `yaml:"external_enabled,omitempty"`
 	SpanPruningEnabled bool      `yaml:"span_pruning_enabled,omitempty"`
+	// SpanPruningAlwaysEnabled forces span pruning on for every trace-by-id v2 request
+	SpanPruningAlwaysEnabled bool `yaml:"span_pruning_always_enabled,omitempty"`
 }
 
 type MetricsConfig struct {

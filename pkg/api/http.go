@@ -950,6 +950,11 @@ func ReadBodyToBuffer(resp *http.Response) (*bytes.Buffer, error) {
 	return buffer, nil
 }
 
+// DefaultSpanPruningConfig returns the span pruning processor's default configuration.
+func DefaultSpanPruningConfig() *spanpruningprocessor.Config {
+	return spanpruningprocessor.NewFactory().CreateDefaultConfig().(*spanpruningprocessor.Config)
+}
+
 func ParseSpanPruningRequest(r *http.Request) (bool, *spanpruningprocessor.Config, error) {
 	raw := r.URL.Query().Get(urlParamSpanPruning)
 	if raw == "" {
@@ -965,7 +970,7 @@ func ParseSpanPruningRequest(r *http.Request) (bool, *spanpruningprocessor.Confi
 		return false, nil, nil
 	}
 
-	cfg := spanpruningprocessor.NewFactory().CreateDefaultConfig().(*spanpruningprocessor.Config)
+	cfg := DefaultSpanPruningConfig()
 
 	if v := r.URL.Query().Get(urlParamSpanPruningGroupBy); v != "" {
 		var patterns []string

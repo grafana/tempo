@@ -126,6 +126,44 @@ func TestSpanPruning(t *testing.T) {
 	})
 }
 
+// TestSpanPruningAlwaysEnabled verifies that query_frontend.trace_by_id.span_pruning_always_enabled
+// forces pruning on for every request even without the span_pruning request param, while still
+// honoring the request's own span_pruning* params when it supplies them.
+func TestSpanPruningAlwaysEnabled(t *testing.T) {
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
+		ConfigOverlay: "config-span-pruning-always-enabled.yaml",
+	}, func(h *util.TempoHarness) {
+		h.WaitTracesWritable(t)
+
+		basicTraceID := []byte{0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0x00}
+		require.NoError(t, h.WriteTempoProtoTraces(buildSpanPruningTrace(basicTraceID, 6, 2, nil), ""))
+		h.WaitTracesQueryable(t, 1)
+
+		client := h.APIClientHTTP("")
+		basicHexID := hex.EncodeToString(basicTraceID)
+
+		t.Run("without span_pruning param the trace is pruned anyway", func(t *testing.T) {
+			resp, err := client.QueryTraceV2(basicHexID)
+			require.NoError(t, err)
+			require.Len(t, test.AllSpansInTrace(resp.Trace), 2) // root + 1 summary
+
+			summaries := test.SpanPruningSummaries(resp.Trace)
+			require.Len(t, summaries, 1)
+			require.Equal(t, int64(6), test.SpanAttrInt(summaries[0], "aggregation.span_count"))
+		})
+
+		t.Run("request-supplied span_pruning_min_spans is still honored", func(t *testing.T) {
+			resp, err := client.QueryTraceV2WithQueryParams(basicHexID, map[string]string{
+				"span_pruning":           "true",
+				"span_pruning_min_spans": "10",
+			})
+			require.NoError(t, err)
+			require.Len(t, test.AllSpansInTrace(resp.Trace), 7) // 6 < 10, nothing aggregated
+			require.Empty(t, test.SpanPruningSummaries(resp.Trace))
+		})
+	})
+}
+
 // TestSpanPruningDisabledByConfig verifies that when span_pruning_enabled is left at its
 // default (false), span_pruning* request params are silently ignored and the trace is
 // returned unpruned - the config flag is the master switch, not just a request-side hint.
