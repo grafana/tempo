@@ -32,9 +32,9 @@ func CompileSpansetFilter(query string) (*SpansetFilter, error) {
 	return filter, nil
 }
 
-// rewriteNotExists replaces `attr = nil` (which the parser lowers to OpNotExists) with `!(attr exists)`.
-// The engine's OpNotExists evaluate path is broken - it compares the value to the literal string "nil" -
-// while OpExists and OpNot evaluate correctly. So this makes `{ .x = nil }` match spans missing x.
+// rewriteNotExists replaces `attr = nil` (which the parser lowers to OpNotExists) with `!(attr exists)`
+// so it evaluates correctly on this filter's true-nil statics.
+// TODO: OpNotExists evaluate pairs with vparquet materializing missing attrs as StaticString("nil") - fix both layers together, then drop this rewrite.
 func rewriteNotExists(e FieldExpression) FieldExpression {
 	switch x := e.(type) {
 	case *BinaryOperation:
