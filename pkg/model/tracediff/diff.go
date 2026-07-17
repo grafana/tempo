@@ -3,6 +3,7 @@ package tracediff
 import (
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -15,18 +16,23 @@ var (
 
 // Diff compares base and compare and returns the requested diff format.
 func Diff(base, compare *tempopb.Trace, format Format) (*Result, error) {
-	if base == nil {
-		return nil, fmt.Errorf("base: %w", ErrNilTrace)
-	}
-	if compare == nil {
-		return nil, fmt.Errorf("compare: %w", ErrNilTrace)
-	}
 	if format != FormatTracePatchV0 {
 		return nil, fmt.Errorf("%q: %w", format, ErrUnsupportedFormat)
 	}
+	result, _, _, err := diffTraceInputs(base, compare)
+	return result, err
+}
 
-	baseTrace, baseWarnings := normalizeTrace(base)
-	compareTrace, compareWarnings := normalizeTrace(compare)
+func diffTraceInputs(base, compare *tempopb.Trace) (*Result, normalizedTrace, normalizedTrace, error) {
+	if base == nil {
+		return nil, normalizedTrace{}, normalizedTrace{}, fmt.Errorf("base: %w", ErrNilTrace)
+	}
+	if compare == nil {
+		return nil, normalizedTrace{}, normalizedTrace{}, fmt.Errorf("compare: %w", ErrNilTrace)
+	}
+
+	baseTrace, baseWarnings := normalizeTraceForSide(base, "base")
+	compareTrace, compareWarnings := normalizeTraceForSide(compare, "compare")
 	matched, modified, added, removed := computeDiff(baseTrace, compareTrace)
 	warnings := mergeWarnings(baseWarnings, compareWarnings)
 
@@ -48,7 +54,7 @@ func Diff(base, compare *tempopb.Trace, format Format) (*Result, error) {
 		Added:    added,
 		Removed:  removed,
 		Warnings: warnings,
-	}, nil
+	}, baseTrace, compareTrace, nil
 }
 
 func computeDiff(base, compare normalizedTrace) (int, []ModifiedSpan, []SpanChange, []SpanChange) {
@@ -146,24 +152,36 @@ func mergeWarnings(warningGroups ...[]Warning) []Warning {
 	seen := make(map[string]struct{})
 	for _, group := range warningGroups {
 		for _, warning := range group {
-			if _, ok := seen[warning.Code]; ok {
+			key := warningDedupKey(warning)
+			if _, ok := seen[key]; ok {
 				continue
 			}
-			seen[warning.Code] = struct{}{}
+			seen[key] = struct{}{}
 			out = append(out, warning)
 		}
 	}
 	return out
 }
 
+func warningDedupKey(warning Warning) string {
+	switch warning.Code {
+	case WarningInvalidDuration, WarningZeroSpanTrace, WarningDuplicateSpanID:
+		// The message carries the side; keying on it keeps both sides visible.
+		return warning.Code + "\x00" + warning.Message
+	default:
+		return warning.Code
+	}
+}
+
 func fieldChanges(base, compare normalizedSpan) []Change {
 	changes := make([]Change, 0, 2)
-	if !numericClose(float64(base.snapshot.DurationNanos), float64(compare.snapshot.DurationNanos), durationRelTolerance, durationAbsTolerance) {
+	baseDuration, compareDuration := durationChangeValues(base, compare)
+	if durationChanged(baseDuration, compareDuration) {
 		changes = append(changes, Change{
 			Op:     OperationModify,
 			Target: Target{Type: TargetField, Name: FieldDurationNanos},
-			Before: base.snapshot.DurationNanos,
-			After:  compare.snapshot.DurationNanos,
+			Before: baseDuration,
+			After:  compareDuration,
 		})
 	}
 	if base.snapshot.Status != compare.snapshot.Status {
@@ -175,6 +193,30 @@ func fieldChanges(base, compare normalizedSpan) []Change {
 		})
 	}
 	return changes
+}
+
+func durationChangeValues(base, compare normalizedSpan) (any, any) {
+	if !base.durationValid && !compare.durationValid {
+		return nil, nil
+	}
+	var before any
+	if base.durationValid {
+		before = base.snapshot.DurationNanos
+	}
+	var after any
+	if compare.durationValid {
+		after = compare.snapshot.DurationNanos
+	}
+	return before, after
+}
+
+func durationChanged(before, after any) bool {
+	beforeNanos, beforeOK := before.(int64)
+	afterNanos, afterOK := after.(int64)
+	if beforeOK && afterOK {
+		return !numericClose(float64(beforeNanos), float64(afterNanos), durationRelTolerance, durationAbsTolerance)
+	}
+	return !valuesEqual(before, after)
 }
 
 func attributeChanges(base, compare normalizedSpan) []Change {
@@ -189,11 +231,11 @@ func attributeChanges(base, compare normalizedSpan) []Change {
 
 		switch {
 		case !inBase:
-			changes = append(changes, Change{Op: OperationAdd, Target: target, Before: nil, After: after})
+			changes = append(changes, Change{Op: OperationAdd, Target: target, Before: nil, After: sanitizeJSONValue(after)})
 		case !inCompare:
-			changes = append(changes, Change{Op: OperationRemove, Target: target, Before: before, After: nil})
+			changes = append(changes, Change{Op: OperationRemove, Target: target, Before: sanitizeJSONValue(before), After: nil})
 		case attributeChanged(key, before, after):
-			changes = append(changes, Change{Op: OperationModify, Target: target, Before: before, After: after})
+			changes = append(changes, Change{Op: OperationModify, Target: target, Before: sanitizeJSONValue(before), After: sanitizeJSONValue(after)})
 		}
 	}
 	return changes
@@ -230,9 +272,17 @@ func valuesEqual(a, b any) bool {
 				return ai == bi
 			}
 		}
-		af, _ := numericValue(a)
-		bf, ok := numericValue(b)
-		return ok && af == bf
+		af, aOK := numericValue(a)
+		bf, bOK := numericValue(b)
+		if !aOK || !bOK {
+			return false
+		}
+		// NaN != NaN under ==, but two attributes that are both NaN should be
+		// treated as unchanged rather than reported as a spurious modification.
+		if math.IsNaN(af) && math.IsNaN(bf) {
+			return true
+		}
+		return af == bf
 	case []byte:
 		bv, ok := b.([]byte)
 		if !ok || len(av) != len(bv) {
