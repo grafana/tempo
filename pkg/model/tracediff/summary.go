@@ -26,8 +26,8 @@ const (
 // per-service summed-duration deltas are computed from the normalized traces — not from
 // the patch — because whole-trace facts (the latency envelope, the topology
 // signature, sub-tolerance drift) are not derivable from the change list.
-// Matcher-derived counts complement them: net-zero churn on unambiguous spans
-// cancels out of aggregates but stays visible in counts.
+// Matcher-derived counts complement them: net-zero churn that cancels out of
+// aggregates stays visible in counts.
 type SummaryResult struct {
 	Version  string       `json:"version"`
 	Base     TraceSummary `json:"base"`
@@ -373,9 +373,7 @@ func driftSignificant(baseNanos, deltaNanos int64) bool {
 
 // matcherRollupCounts extracts the per-service count columns from the patch.
 // Status changes are never tolerance-filtered, so matcher-derived error
-// transitions on unambiguous spans preserve simultaneous churn even when the
-// net error delta is 0. Ambiguous duplicate groups use minimum-change multiset
-// matching and carry a warning instead of inventing instance identity.
+// transitions preserve simultaneous churn even when the net error delta is 0.
 func matcherRollupCounts(patch *Result) map[string]*ServiceRollup {
 	counts := map[string]*ServiceRollup{}
 	get := func(service string) *ServiceRollup {

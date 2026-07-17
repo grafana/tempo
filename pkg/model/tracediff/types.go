@@ -48,7 +48,6 @@ const (
 	WarningInvalidDuration         = "invalid_duration"
 	WarningZeroSpanTrace           = "zero_span_trace"
 	WarningDuplicateSpanID         = "duplicate_span_id"
-	WarningAmbiguousSpanMatch      = "ambiguous_span_match"
 )
 
 // Result is the trace-patch-v0 diff document.

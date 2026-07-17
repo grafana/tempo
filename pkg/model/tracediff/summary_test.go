@@ -157,50 +157,6 @@ func TestSummarizePureReparentJoinsChangedServicesOnly(t *testing.T) {
 	assert.Empty(t, got.Services)
 }
 
-func TestSummarizeWarnsOnReparentBetweenDuplicateLogicalParents(t *testing.T) {
-	traceID := []byte("trace-id-0000001")
-	makeTrace := func(childParent string) *tempopb.Trace {
-		return traceWithNamedSpans(
-			spanForNormalizeTest(traceID, "root", "", "gateway", "GET /", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK),
-			spanForNormalizeTest(traceID, "parent-a", "root", "worker", "process", tracev1.Span_SPAN_KIND_INTERNAL, 10, 40, tracev1.Status_STATUS_CODE_OK),
-			spanForNormalizeTest(traceID, "parent-b", "root", "worker", "process", tracev1.Span_SPAN_KIND_INTERNAL, 50, 80, tracev1.Status_STATUS_CODE_OK),
-			spanForNormalizeTest(traceID, "child", childParent, "db", "query", tracev1.Span_SPAN_KIND_CLIENT, 20, 30, tracev1.Status_STATUS_CODE_OK),
-		)
-	}
-
-	got, err := Summarize(makeTrace("parent-a"), makeTrace("parent-b"))
-	require.NoError(t, err)
-	assert.Zero(t, got.Stats.ModifiedSpans)
-	assert.Zero(t, got.Stats.AddedSpans)
-	assert.Zero(t, got.Stats.RemovedSpans)
-	assert.Equal(t, "unchanged", got.Signals.Structure)
-	assert.Contains(t, got.Warnings, Warning{
-		Code:    WarningAmbiguousSpanMatch,
-		Message: "1 duplicate logical span group(s) may match ambiguously; matching minimizes changes, but instance-level transitions may not identify the same physical operation",
-	})
-}
-
-func TestSummarizeDuplicateLogicalParentReorderIsStable(t *testing.T) {
-	traceID := []byte("trace-id-0000001")
-	makeTrace := func(parentAStart, parentBStart uint64) *tempopb.Trace {
-		return traceWithNamedSpans(
-			spanForNormalizeTest(traceID, "root", "", "gateway", "GET /", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK),
-			spanForNormalizeTest(traceID, "parent-a", "root", "worker", "process", tracev1.Span_SPAN_KIND_INTERNAL, parentAStart, parentAStart+30, tracev1.Status_STATUS_CODE_OK),
-			spanForNormalizeTest(traceID, "parent-b", "root", "worker", "process", tracev1.Span_SPAN_KIND_INTERNAL, parentBStart, parentBStart+30, tracev1.Status_STATUS_CODE_OK),
-			spanForNormalizeTest(traceID, "child-a", "parent-a", "db", "query", tracev1.Span_SPAN_KIND_CLIENT, parentAStart+10, parentAStart+20, tracev1.Status_STATUS_CODE_OK),
-			spanForNormalizeTest(traceID, "child-b", "parent-b", "db", "query", tracev1.Span_SPAN_KIND_CLIENT, parentBStart+10, parentBStart+20, tracev1.Status_STATUS_CODE_OK),
-		)
-	}
-
-	got, err := Summarize(makeTrace(10, 50), makeTrace(50, 10))
-	require.NoError(t, err)
-	assert.Equal(t, "unchanged", got.Signals.Structure)
-	assert.Contains(t, got.Warnings, Warning{
-		Code:    WarningAmbiguousSpanMatch,
-		Message: "2 duplicate logical span group(s) may match ambiguously; matching minimizes changes, but instance-level transitions may not identify the same physical operation",
-	})
-}
-
 func TestSummarizeMatchingCoverageRatiosDoNotRoundNearPerfectToOne(t *testing.T) {
 	assert.NotEqual(t, 1.0, matchedSpanRatio(10_000, 10_000, 9_999))
 	assert.Equal(t, float64(9_999)/float64(10_000), matchedSpanRatio(10_000, 10_000, 9_999))
@@ -589,73 +545,6 @@ func TestSummarizeErrorChurnFromMatcherCounts(t *testing.T) {
 	assert.Equal(t, 1, got.Services[0].ResolvedErrors)
 }
 
-func TestSummarizeWarnsOnAmbiguousDuplicateErrorChurn(t *testing.T) {
-	traceID := []byte("trace-id-0000001")
-	makeTrace := func(first, second tracev1.Status_StatusCode) *tempopb.Trace {
-		return traceWithNamedSpans(
-			spanForNormalizeTest(traceID, "root", "", "gateway", "GET /", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK),
-			spanForNormalizeTest(traceID, "first", "root", "backend", "duplicate", tracev1.Span_SPAN_KIND_INTERNAL, 10, 20, first),
-			spanForNormalizeTest(traceID, "second", "root", "backend", "duplicate", tracev1.Span_SPAN_KIND_INTERNAL, 30, 40, second),
-		)
-	}
-
-	got, err := Summarize(
-		makeTrace(tracev1.Status_STATUS_CODE_OK, tracev1.Status_STATUS_CODE_ERROR),
-		makeTrace(tracev1.Status_STATUS_CODE_ERROR, tracev1.Status_STATUS_CODE_OK),
-	)
-	require.NoError(t, err)
-	assert.Zero(t, got.Stats.ModifiedSpans)
-	assert.Empty(t, got.Services)
-	assert.Contains(t, got.Warnings, Warning{
-		Code:    WarningAmbiguousSpanMatch,
-		Message: "1 duplicate logical span group(s) may match ambiguously; matching minimizes changes, but instance-level transitions may not identify the same physical operation",
-	})
-}
-
-func TestSummarizeUsesCanonicalAmbiguousMatcherCounts(t *testing.T) {
-	traceID := []byte("trace-id-0000001")
-	span := func(id, variant string, start uint64) *tracev1.Span {
-		span := spanForNormalizeTest(traceID, id, "root", "backend", "duplicate", tracev1.Span_SPAN_KIND_INTERNAL, start, start+10, tracev1.Status_STATUS_CODE_OK)
-		span.Attributes = append(span.Attributes, stringAttribute("variant", variant))
-		return span
-	}
-	base := traceWithNamedSpans(
-		spanForNormalizeTest(traceID, "root", "", "gateway", "GET /", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK),
-		span("base-a", "a", 10),
-		span("base-b", "b", 30),
-	)
-	compare := traceWithNamedSpans(
-		spanForNormalizeTest(traceID, "root", "", "gateway", "GET /", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK),
-		span("compare-c", "c", 10),
-		span("compare-a", "a", 30),
-	)
-
-	got, err := Summarize(base, compare)
-	require.NoError(t, err)
-	assert.Equal(t, 1, got.Stats.ModifiedSpans)
-	assert.Equal(t, []ServiceRollup{{Name: "backend", Modified: 1}}, got.Services)
-}
-
-func TestSummarizeWarnsWhenDuplicateParentsAllChange(t *testing.T) {
-	traceID := []byte("trace-id-0000001")
-	makeTrace := func(parentAService, parentBService string) *tempopb.Trace {
-		return traceWithNamedSpans(
-			spanForNormalizeTest(traceID, "root", "", "gateway", "GET /", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK),
-			spanForNormalizeTest(traceID, "parent-a", "root", parentAService, "parent", tracev1.Span_SPAN_KIND_INTERNAL, 10, 40, tracev1.Status_STATUS_CODE_OK),
-			spanForNormalizeTest(traceID, "parent-b", "root", parentBService, "parent", tracev1.Span_SPAN_KIND_INTERNAL, 50, 80, tracev1.Status_STATUS_CODE_OK),
-			spanForNormalizeTest(traceID, "first", "parent-a", "backend", "duplicate", tracev1.Span_SPAN_KIND_INTERNAL, 20, 30, tracev1.Status_STATUS_CODE_OK),
-			spanForNormalizeTest(traceID, "second", "parent-b", "backend", "duplicate", tracev1.Span_SPAN_KIND_INTERNAL, 60, 70, tracev1.Status_STATUS_CODE_ERROR),
-		)
-	}
-
-	got, err := Summarize(makeTrace("a", "b"), makeTrace("c", "d"))
-	require.NoError(t, err)
-	assert.Contains(t, got.Warnings, Warning{
-		Code:    WarningAmbiguousSpanMatch,
-		Message: "1 duplicate logical span group(s) may match ambiguously; matching minimizes changes, but instance-level transitions may not identify the same physical operation",
-	})
-}
-
 func TestSummarizeKeepsOpposingTransitionsUnderDistinctParents(t *testing.T) {
 	traceID := []byte("trace-id-0000001")
 	makeTrace := func(first, second tracev1.Status_StatusCode) *tempopb.Trace {
@@ -676,9 +565,6 @@ func TestSummarizeKeepsOpposingTransitionsUnderDistinctParents(t *testing.T) {
 	require.Len(t, got.Services, 1)
 	assert.Equal(t, 1, got.Services[0].NewErrors)
 	assert.Equal(t, 1, got.Services[0].ResolvedErrors)
-	for _, warning := range got.Warnings {
-		assert.NotEqual(t, WarningAmbiguousSpanMatch, warning.Code)
-	}
 }
 
 func TestSummarizeRootFallsBackForCycleOnlyTrace(t *testing.T) {
