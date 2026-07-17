@@ -70,13 +70,17 @@ type SearchConfig struct {
 }
 
 type TraceByIDConfig struct {
-	QueryShards        int       `yaml:"query_shards,omitempty"`
-	ConcurrentShards   int       `yaml:"concurrent_shards,omitempty"`
-	BlocksPerShard     uint      `yaml:"blocks_per_shard,omitempty"` // BlocksPerShard is used to dynamically create shards based on the number of blocks instead of the fixed amount in QueryShards. Set to 0 to disable and fall back to QueryShards.
-	SLO                SLOConfig `yaml:",inline"`
-	ExternalEnabled    bool      `yaml:"external_enabled,omitempty"`
-	SpanPruningEnabled bool      `yaml:"span_pruning_enabled,omitempty"`
-	// SpanPruningAlwaysEnabled forces span pruning on for every trace-by-id v2 request
+	QueryShards      int       `yaml:"query_shards,omitempty"`
+	ConcurrentShards int       `yaml:"concurrent_shards,omitempty"`
+	BlocksPerShard   uint      `yaml:"blocks_per_shard,omitempty"` // BlocksPerShard is used to dynamically create shards based on the number of blocks instead of the fixed amount in QueryShards. Set to 0 to disable and fall back to QueryShards.
+	SLO              SLOConfig `yaml:",inline"`
+	ExternalEnabled  bool      `yaml:"external_enabled,omitempty"`
+
+	// EXPERIMENTAL: span pruning is not yet a stable feature; config and behavior may change.
+	SpanPruningEnabled bool `yaml:"span_pruning_enabled,omitempty"`
+	// SpanPruningAlwaysEnabled forces span pruning on for every trace-by-id v2 request,
+	// regardless of the request's own span_pruning* params. Implies SpanPruningEnabled.
+	// EXPERIMENTAL: span pruning is not yet a stable feature; config and behavior may change.
 	SpanPruningAlwaysEnabled bool `yaml:"span_pruning_always_enabled,omitempty"`
 }
 

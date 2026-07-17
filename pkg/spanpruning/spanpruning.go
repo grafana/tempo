@@ -1,3 +1,7 @@
+// Package spanpruning collapses similar leaf spans in a trace into a single summary span.
+//
+// EXPERIMENTAL: this package is not yet a stable API; config, behavior, and the shape of the
+// summary spans it produces may change in future releases.
 package spanpruning
 
 import (

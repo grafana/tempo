@@ -184,6 +184,11 @@ Parameters:
   Optional. Along with `end` define a time range from which traces should be returned.
 - `end = (unix epoch seconds)`
   Optional. Along with `start` define a time range from which traces should be returned. Providing both `start` and `end` includes traces for the specified time range only. If the parameters aren't provided then Tempo checks for the trace across all blocks in backend. If the parameters are provided, it only checks in the blocks within the specified time range, this can result in trace not being found or partial results if it doesn't fall in the specified time range.
+
+{{< admonition type="warning" >}}
+Span pruning is experimental. The `span_pruning*` parameters, their behavior, and the response format may change in future releases.
+{{< /admonition >}}
+
 - `span_pruning = (boolean)`
   Optional. Enables span pruning post-processing on the returned trace, collapsing similar leaf spans into a single summary span. Only takes effect when the query-frontend also has `span_pruning_enabled: true` set under `trace_by_id`; otherwise this parameter is ignored. If the query-frontend has `span_pruning_always_enabled: true` set instead, pruning is applied regardless of this parameter. Pruning is applied even if the returned trace is partial (for example, because it exceeds the maximum trace size); the resulting summary spans reflect only the spans present in the partial trace.
   Default = `false`

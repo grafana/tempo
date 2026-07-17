@@ -1116,12 +1116,14 @@ query_frontend:
         # to the v2 endpoint can opt in to span pruning post-processing via the
         # `span_pruning` query parameter. When disabled, the query parameter is ignored
         # and no pruning occurs regardless of the request.
+        # EXPERIMENTAL
         [span_pruning_enabled: <bool> | default = false]
 
         # Force span pruning on for every trace-by-ID v2 request, regardless of the
         # request's own `span_pruning` query parameter. Implies span_pruning_enabled.
         # The request's span pruning parameters (group by, min spans, max parent depth)
         # are still honored if provided; otherwise the processor's default config is used.
+        # EXPERIMENTAL
         [span_pruning_always_enabled: <bool> | default = false]
 
         # If set to a non-zero value, it's value will be used to decide if metadata query is within SLO or not.
