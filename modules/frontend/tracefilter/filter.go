@@ -5,10 +5,7 @@ package tracefilter
 
 import (
 	"fmt"
-	"net/url"
 	"slices"
-	"strconv"
-	"strings"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level" //nolint:all //deprecated
@@ -18,44 +15,12 @@ import (
 	"github.com/grafana/tempo/pkg/traceql"
 )
 
-const (
-	// QueryParam carries the single TraceQL spanset filter.
-	QueryParam = "q"
-	// KeepHierarchyParam also returns each matched span's ancestor path to the root.
-	KeepHierarchyParam = "keep_hierarchy"
-)
-
-// Options holds the parsed filtering options from a request.
+// Options holds a request's filtering options, parsed by api.ParseTraceByIDFilterParams.
 type Options struct {
 	// Query is a single TraceQL spanset filter. Empty means no filtering.
 	Query string
 	// KeepHierarchy includes each matched span's ancestor path. Ignored when Query is empty.
 	KeepHierarchy bool
-}
-
-// OptionsFromValues parses filtering options from URL query parameters. It does not validate the
-// TraceQL itself (call Compile for that).
-func OptionsFromValues(vals url.Values) (Options, error) {
-	// keep_hierarchy defaults to false: return only the matched spans unless the caller opts into ancestors.
-	// trim so a blank or whitespace-only q is treated as no filter (full trace), matching the docs.
-	opts := Options{
-		Query: strings.TrimSpace(vals.Get(QueryParam)),
-	}
-
-	// keep_hierarchy is ignored without a query, so don't parse/reject it then.
-	if opts.Query == "" {
-		return opts, nil
-	}
-
-	if raw := vals.Get(KeepHierarchyParam); raw != "" {
-		keep, err := strconv.ParseBool(raw)
-		if err != nil {
-			return Options{}, fmt.Errorf("invalid value for %s: %w", KeepHierarchyParam, err)
-		}
-		opts.KeepHierarchy = keep
-	}
-
-	return opts, nil
 }
 
 // Filter is a compiled, ready-to-apply trace filter.
@@ -68,13 +33,9 @@ type Filter struct {
 	logger log.Logger
 }
 
-// NewFilterFromValues parses and compiles filtering options in one step. Returns (nil, nil) when no
+// NewFilter compiles the options into a Filter that logs with logger. Returns (nil, nil) when no
 // filtering is requested. Errors are the caller's to map to a 400.
-func NewFilterFromValues(vals url.Values, logger log.Logger) (*Filter, error) {
-	opts, err := OptionsFromValues(vals)
-	if err != nil {
-		return nil, err
-	}
+func NewFilter(opts Options, logger log.Logger) (*Filter, error) {
 	f, err := opts.Compile()
 	if f != nil && logger != nil {
 		f.logger = logger

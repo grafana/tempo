@@ -63,6 +63,9 @@ const (
 	urlParamSpanPruningMinSpans       = "span_pruning_min_spans"
 	urlParamSpanPruningMaxParentDepth = "span_pruning_max_parent_depth"
 
+	// trace by id v2 filtering (q reuses urlParamQuery)
+	urlParamKeepHierarchy = "keep_hierarchy"
+
 	// search tags
 	urlParamScope = "scope"
 
@@ -929,6 +932,30 @@ func ParseTraceByIDRequest(r *http.Request) (string, string, string, time.Time, 
 	}
 
 	return blockStart, blockEnd, queryMode, startTime, endTime, nil
+}
+
+// ParseTraceByIDFilterParams parses the q spanset filter params for the trace by id v2 API.
+// It returns (query, keepHierarchy, error). keep_hierarchy is only parsed when q is set: it is
+// documented as ignored without a query, so a malformed value must not fail an unfiltered request.
+func ParseTraceByIDFilterParams(r *http.Request) (string, bool, error) {
+	vals := r.URL.Query()
+
+	// trim so a blank or whitespace-only q means no filter (full trace), matching the docs.
+	query := strings.TrimSpace(vals.Get(urlParamQuery))
+	if query == "" {
+		return "", false, nil
+	}
+
+	keepHierarchy := false
+	if raw := vals.Get(urlParamKeepHierarchy); raw != "" {
+		keep, err := strconv.ParseBool(raw)
+		if err != nil {
+			return "", false, fmt.Errorf("invalid value for %s: %w", urlParamKeepHierarchy, err)
+		}
+		keepHierarchy = keep
+	}
+
+	return query, keepHierarchy, nil
 }
 
 func ReadBodyToBuffer(resp *http.Response) (*bytes.Buffer, error) {
