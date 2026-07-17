@@ -1,0 +1,4 @@
+interface:
+  display_name: "Reformat with SemBr"
+  short_description: "Reformat prose using Semantic Line Breaks."
+  default_prompt: "Reformat selected prose according to the Semantic Line Breaks specification at sembr.org while preserving meaning and rendered output."
