@@ -47,6 +47,25 @@ func TestStaticFromArray(t *testing.T) {
 	}
 }
 
+// TestBoundIntrinsicForCoversCompileAllowlist catches drift between the compile allowlist and
+// boundIntrinsicFor's switch in CI, before the switch's unreachable panic can fire in production.
+func TestBoundIntrinsicForCoversCompileAllowlist(t *testing.T) {
+	span := &tracev1.Span{
+		SpanId:       []byte{1},
+		ParentSpanId: []byte{2},
+		Name:         "s",
+		Status:       &tracev1.Status{Code: tracev1.Status_STATUS_CODE_OK, Message: "ok"},
+	}
+	scope := &commonv1.InstrumentationScope{Name: "lib", Version: "v1"}
+	event := &tracev1.Span_Event{Name: "e"}
+	link := &tracev1.Span_Link{TraceId: []byte{3}, SpanId: []byte{4}}
+
+	for _, ic := range traceql.MatchSpansSupportedIntrinsics() {
+		_, ok := boundIntrinsicFor(span, scope, event, link, ic)
+		require.True(t, ok, "intrinsic %s is allowlisted but not resolved by boundIntrinsicFor", ic)
+	}
+}
+
 func TestExpandSpanBindingsCapsFanout(t *testing.T) {
 	// events x links beyond maxBindingsPerSpan must truncate, not allocate unbounded or panic.
 	span := &tracev1.Span{SpanId: []byte{1}}

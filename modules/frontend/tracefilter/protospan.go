@@ -1,6 +1,7 @@
 package tracefilter
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -66,23 +67,27 @@ func (s *protoSpan) DurationNanos() uint64 {
 	return s.span.EndTimeUnixNano - s.span.StartTimeUnixNano
 }
 
-// AllAttributes / AllAttributesFunc satisfy traceql.Span but are unreachable on the MatchSpans path.
-func (s *protoSpan) AllAttributes() map[traceql.Attribute]traceql.Static { return nil }
+// The stubs below satisfy traceql.Span but panic: CompileSpansetFilter rejects the metrics and
+// structural queries that call them, so reaching one means that compile gate has drifted.
 
-func (s *protoSpan) AllAttributesFunc(func(traceql.Attribute, traceql.Static)) {}
+func (s *protoSpan) AllAttributes() map[traceql.Attribute]traceql.Static {
+	panic("unreachable: protoSpan.AllAttributes, CompileSpansetFilter rejects metrics queries")
+}
 
-// Stubs for the traceql.Span interface. Structural operators are rejected at compile, so these are unreachable.
+func (s *protoSpan) AllAttributesFunc(func(traceql.Attribute, traceql.Static)) {
+	panic("unreachable: protoSpan.AllAttributesFunc, CompileSpansetFilter rejects metrics queries")
+}
 
 func (s *protoSpan) DescendantOf(_, _ []traceql.Span, _, _, _ bool, _ []traceql.Span) []traceql.Span {
-	return nil
+	panic("unreachable: protoSpan.DescendantOf, CompileSpansetFilter rejects structural operators")
 }
 
 func (s *protoSpan) SiblingOf(_, _ []traceql.Span, _, _ bool, _ []traceql.Span) []traceql.Span {
-	return nil
+	panic("unreachable: protoSpan.SiblingOf, CompileSpansetFilter rejects structural operators")
 }
 
 func (s *protoSpan) ChildOf(_, _ []traceql.Span, _, _, _ bool, _ []traceql.Span) []traceql.Span {
-	return nil
+	panic("unreachable: protoSpan.ChildOf, CompileSpansetFilter rejects structural operators")
 }
 
 // boundIntrinsicFor resolves an intrinsic against the bound event/link, not a first-match across all of
@@ -142,7 +147,8 @@ func boundIntrinsicFor(span *tracev1.Span, scope *commonv1.InstrumentationScope,
 		}
 		return traceql.NewStaticString(util.SpanIDToHexString(link.SpanId)), true
 	default:
-		return traceql.NewStaticNil(), false
+		// only allowlisted intrinsics get here, so a miss means the allowlist and this switch drifted.
+		panic(fmt.Sprintf("unreachable: intrinsic %s passed the compile allowlist without a case here", ic))
 	}
 }
 
