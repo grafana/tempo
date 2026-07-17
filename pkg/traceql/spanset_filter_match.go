@@ -73,6 +73,16 @@ var matchSpansSupportedIntrinsics = map[Intrinsic]struct{}{
 	IntrinsicInstrumentationVersion: {},
 }
 
+// MatchSpansSupportedIntrinsics returns the intrinsics CompileSpansetFilter accepts, so adapter tests
+// can assert they resolve every one of them and catch drift before the adapter's unreachable panic.
+func MatchSpansSupportedIntrinsics() []Intrinsic {
+	out := make([]Intrinsic, 0, len(matchSpansSupportedIntrinsics))
+	for ic := range matchSpansSupportedIntrinsics {
+		out = append(out, ic)
+	}
+	return out
+}
+
 // checkIfSupported returns q's sole spanset filter when q is a single { ... } whose intrinsics the
 // proto-span adapter can resolve, else errUnsupportedQuery or errUnsupportedIntrinsic.
 func checkIfSupported(expr *RootExpr) (*SpansetFilter, error) {
