@@ -113,8 +113,12 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			return httpInvalidRequest(err), nil
 		}
 
-		// compile filter params and query up front so a malformed filter can fail-fast as HTTP 4xx.
-		filter, err := tracefilter.NewFilterFromValues(req.URL.Query(), logger)
+		// parse and compile filter params up front so a malformed filter can fail-fast as HTTP 4xx.
+		query, keepHierarchy, err := api.ParseTraceByIDFilterParams(req)
+		if err != nil {
+			return httpInvalidRequest(err), nil
+		}
+		filter, err := tracefilter.NewFilter(tracefilter.Options{Query: query, KeepHierarchy: keepHierarchy}, logger)
 		if err != nil {
 			return httpInvalidRequest(err), nil
 		}

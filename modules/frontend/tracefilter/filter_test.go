@@ -3,7 +3,6 @@ package tracefilter
 import (
 	"bytes"
 	"encoding/binary"
-	"net/url"
 	"testing"
 
 	"github.com/go-kit/log"
@@ -100,54 +99,6 @@ func stringAttrValues(trace *tempopb.Trace, key string) []string {
 		}
 	}
 	return vals
-}
-
-func TestOptionsFromValues(t *testing.T) {
-	tests := []struct {
-		name    string
-		vals    url.Values
-		want    Options
-		wantErr bool
-	}{
-		{name: "empty defaults keep_hierarchy false", vals: url.Values{}, want: Options{}},
-		{name: "query only defaults keep_hierarchy false", vals: url.Values{"q": {"{ .a = 1 }"}}, want: Options{Query: "{ .a = 1 }"}},
-		// a whitespace-only q is trimmed to empty, so it is treated as no filter and keep_hierarchy is ignored.
-		{name: "whitespace-only q is treated as empty", vals: url.Values{"q": {"   "}, "keep_hierarchy": {"true"}}, want: Options{}},
-		// surrounding whitespace on a real query is trimmed, not passed to the parser.
-		{name: "surrounding whitespace on q is trimmed", vals: url.Values{"q": {"  { .a = 1 }  "}}, want: Options{Query: "{ .a = 1 }"}},
-		{
-			name: "query and explicit keep_hierarchy true",
-			vals: url.Values{"q": {"{ .a = 1 }"}, "keep_hierarchy": {"true"}},
-			want: Options{Query: "{ .a = 1 }", KeepHierarchy: true},
-		},
-		{
-			name: "explicit keep_hierarchy false overrides default",
-			vals: url.Values{"q": {"{ .a = 1 }"}, "keep_hierarchy": {"false"}},
-			want: Options{Query: "{ .a = 1 }", KeepHierarchy: false},
-		},
-		{
-			name:    "invalid keep_hierarchy with query",
-			vals:    url.Values{"q": {"{ .a = 1 }"}, "keep_hierarchy": {"yes-please"}},
-			wantErr: true,
-		},
-		{
-			name: "invalid keep_hierarchy ignored without query",
-			vals: url.Values{"keep_hierarchy": {"yes-please"}},
-			want: Options{},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := OptionsFromValues(tt.vals)
-			if tt.wantErr {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			require.Equal(t, tt.want, got)
-		})
-	}
 }
 
 func TestCompileEmptyQueryIsPassthrough(t *testing.T) {
@@ -510,7 +461,7 @@ func TestApplyLogsWarningWhenFanoutTruncated(t *testing.T) {
 
 	var buf bytes.Buffer
 	// event:name forces element expansion, so the fan-out cap is exercised.
-	f, err := NewFilterFromValues(url.Values{"q": {`{ event:name = "e" }`}}, log.NewLogfmtLogger(&buf))
+	f, err := NewFilter(Options{Query: `{ event:name = "e" }`}, log.NewLogfmtLogger(&buf))
 	require.NoError(t, err)
 	require.NotNil(t, f)
 
