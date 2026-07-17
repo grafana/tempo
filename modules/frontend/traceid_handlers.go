@@ -115,7 +115,6 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 
 		// compile filter params and query up front so a malformed filter can fail-fast as HTTP 4xx.
 		filter, err := tracefilter.NewFilterFromValues(req.URL.Query(), logger)
-		traceFilterEnabled := false
 		if err != nil {
 			return httpInvalidRequest(err), nil
 		}
@@ -123,7 +122,6 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 		var traceFilter combiner.TraceFilter
 		if filter != nil {
 			traceFilter = filter
-			traceFilterEnabled = true
 		}
 		// filter runs in finalize(), after combine and redaction.
 
@@ -190,7 +188,7 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			"request_throughput", float64(bytesProcessed)/elapsed.Seconds(),
 			"duration_seconds", elapsed.Seconds(),
 			"span_pruning_enabled", spanPruningEnabled,
-			"trace_filter_enabled", traceFilterEnabled,
+			"trace_filter_enabled", traceFilter != nil,
 			"err", err,
 		)
 
