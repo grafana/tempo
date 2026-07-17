@@ -74,6 +74,42 @@ func TestFinishQuerierSpanHandlesTypedNilTraceByIDMetrics(t *testing.T) {
 	require.Empty(t, spans[0].Events())
 }
 
+func TestStartSearchBlockSpanWithoutSearchRequest(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	defer func() { require.NoError(t, tp.Shutdown(context.Background())) }()
+
+	oldTracer := tracer
+	tracer = tp.Tracer("test")
+	defer func() { tracer = oldTracer }()
+
+	ctx := user.InjectOrgID(context.Background(), "tenant-a")
+	_, span, _, err := startSearchBlockSpan(ctx, "Querier.SearchBlock", &tempopb.SearchBlockRequest{
+		BlockID:       "block-a",
+		Version:       "vParquet4",
+		StartPage:     2,
+		PagesToSearch: 3,
+	})
+	require.NoError(t, err)
+	span.End()
+
+	spans := recorder.Ended()
+	require.Len(t, spans, 1)
+
+	attrs := map[string]attribute.Value{}
+	for _, attr := range spans[0].Attributes() {
+		attrs[string(attr.Key)] = attr.Value
+	}
+	require.Equal(t, "block-a", attrs["blockID"].AsString())
+	require.Equal(t, "vParquet4", attrs["version"].AsString())
+	require.Equal(t, int64(2), attrs["startPage"].AsInt64())
+	require.Equal(t, int64(3), attrs["pagesToSearch"].AsInt64())
+	require.NotContains(t, attrs, "query")
+	require.NotContains(t, attrs, "startUnixSeconds")
+	require.NotContains(t, attrs, "endUnixSeconds")
+	require.NotContains(t, attrs, "rangeSeconds")
+}
+
 func TestBlockSearchMethodsCreateSinglePublicSpan(t *testing.T) {
 	tests := []struct {
 		name     string
