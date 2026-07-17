@@ -510,8 +510,8 @@ github.com/facette/natsort
 # github.com/fatih/color v1.19.0
 ## explicit; go 1.25.0
 github.com/fatih/color
-# github.com/felixge/httpsnoop v1.0.4
-## explicit; go 1.13
+# github.com/felixge/httpsnoop v1.1.0
+## explicit; go 1.25
 github.com/felixge/httpsnoop
 # github.com/foxboron/go-tpm-keyfiles v0.0.0-20251226215517-609e4778396f
 ## explicit; go 1.22.0
