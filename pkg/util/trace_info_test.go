@@ -109,6 +109,32 @@ func TestConstructTraceFromEpoch(t *testing.T) {
 	require.Equal(t, result, result2)
 }
 
+// TestConstructTraceFromEpochNormalizesEmptyParentSpanID guards the manual
+// mangling in ConstructTraceFromEpoch that sets a zero-length ParentSpanId to
+// nil: it must land on the actual span, not a range-loop copy, or root spans
+// silently keep the non-nil empty []byte from the jaeger/OTLP conversion and
+// diverge from the json.Unmarshal shape tempo returns on query.
+func TestConstructTraceFromEpochNormalizesEmptyParentSpanID(t *testing.T) {
+	seed := time.Unix(0, testSeed)
+	info := NewTraceInfo(seed, "")
+
+	result, err := info.ConstructTraceFromEpoch()
+	require.NoError(t, err)
+
+	sawRootSpan := false
+	for _, b := range result.ResourceSpans {
+		for _, l := range b.ScopeSpans {
+			for _, s := range l.Spans {
+				if len(s.ParentSpanId) == 0 {
+					sawRootSpan = true
+					require.Nil(t, s.ParentSpanId, "zero-length ParentSpanId must be normalized to nil, not left as an empty non-nil slice")
+				}
+			}
+		}
+	}
+	require.True(t, sawRootSpan, "expected at least one root span with an empty ParentSpanId")
+}
+
 // assertStandardVultureKey checks that a tag has the expected type and value constraints.
 // All vulture-generated keys use a "vulture" prefix (e.g. vulture-0, vulture-process-string-01, vulture-event-blob-01).
 func assertStandardVultureKey(t *testing.T, tag *thrift.Tag) {

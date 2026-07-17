@@ -239,11 +239,27 @@ jobs:
         with:
           persist-credentials: false
 
+      # Fails fast, before Go/wiresmith setup: reads the opentelemetry-proto
+      # gitlink straight out of the git tree, so it needs no submodule
+      # checkout and no network access.
+      - name: Check OTel proto submodule pin
+        run: make check-otel-proto-pin
+
       - name: Set up Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
           go-version-file: 'go.mod'
 
+      # wiresmith isn't in the shared tools image yet (that image is only rebuilt
+      # from a push to grafana/tempo main, which this branch can't trigger), so
+      # install the compiler at the version pinned in go.mod directly on the runner.
+      - name: Install wiresmith
+        run: |
+          version=$(go list -m -f '{{.Version}}' github.com/grafana/wiresmith)
+          go install "github.com/grafana/wiresmith/cmd/wiresmith@${version}"
+
+      # make vendor-check also runs check-otel-proto-sync (submodule-content
+      # drift, not just the pin) ahead of gen-proto/update-mod/gen-traceql/gen-parquet-query.
       - name: Check vendor
         run: make vendor-check
 

@@ -706,7 +706,7 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 // requestsByTraceID groups ResourceSpans by trace ID, producing hash-ring tokens and
 // rebatched traces for downstream write-path processing. It truncates oversized attributes
 // and returns the first truncation example (if any) for diagnostic logging.
-func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, maxSpanAttrSize int) ([]uint32, []*rebatchedTrace, truncatedAttributesCount, *truncatedAttrInfo, error) {
+func requestsByTraceID(batches []v1.ResourceSpans, userID string, spanCount, maxSpanAttrSize int) ([]uint32, []*rebatchedTrace, truncatedAttributesCount, *truncatedAttrInfo, error) {
 	const tracesPerBatch = 20 // map size hint and per-trace prealloc divisor
 	tracesByID := make(map[uint64]*rebatchedTrace, tracesPerBatch)
 	truncatedCount := truncatedAttributesCount{}
@@ -724,33 +724,45 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 	// truncationExample captures one example of a truncated attribute for rate-limited logging.
 	var truncationExample truncatedAttrInfo
 
+	// ilsPlacement tracks where each ILS (keyed by ilsKey) was stored in a trace's
+	// ResourceSpans slice, so we can write back the final accumulated Spans after
+	// all spans for the batch have been processed.
+	type ilsPlacement struct {
+		traceKey uint64
+		rsIdx    int
+	}
+
 	currentTime := uint32(time.Now().Unix())
-	for _, b := range batches {
+	for i := range batches {
+		b := &batches[i]
 		spansByILS := make(map[uint64]*v1.ScopeSpans)
+		ilsPlacements := make(map[uint64]ilsPlacement)
 		// check resource for large attributes
 		if maxSpanAttrSize > 0 && b.Resource != nil {
 			truncatedCount.Resource += processAttributes(b.Resource.Attributes, maxSpanAttrSize, &truncationExample, "resource")
 		}
 
-		for _, ils := range b.ScopeSpans {
+		for si := range b.ScopeSpans {
+			ils := &b.ScopeSpans[si]
 
 			// check instrumentation for large attributes
 			if maxSpanAttrSize > 0 && ils.Scope != nil {
 				truncatedCount.Scope += processAttributes(ils.Scope.Attributes, maxSpanAttrSize, &truncationExample, "scope")
 			}
 
-			for _, span := range ils.Spans {
+			for spi := range ils.Spans {
+				span := &ils.Spans[spi]
 				// check spans for large attributes
 				if maxSpanAttrSize > 0 {
 					truncatedCount.Span += processAttributes(span.Attributes, maxSpanAttrSize, &truncationExample, "span")
 
 					// check large attributes for events and links
-					for _, event := range span.Events {
-						truncatedCount.Event += processAttributes(event.Attributes, maxSpanAttrSize, &truncationExample, "event")
+					for ei := range span.Events {
+						truncatedCount.Event += processAttributes(span.Events[ei].Attributes, maxSpanAttrSize, &truncationExample, "event")
 					}
 
-					for _, link := range span.Links {
-						truncatedCount.Link += processAttributes(link.Attributes, maxSpanAttrSize, &truncationExample, "link")
+					for li := range span.Links {
+						truncatedCount.Link += processAttributes(span.Links[li].Attributes, maxSpanAttrSize, &truncationExample, "link")
 					}
 				}
 				traceID := span.TraceId
@@ -775,11 +787,11 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 				if !ilsAdded {
 					existingILS = &v1.ScopeSpans{
 						Scope: ils.Scope,
-						Spans: make([]*v1.Span, 0, perTracePrealloc),
+						Spans: make([]v1.Span, 0, perTracePrealloc),
 					}
 					spansByILS[ilsKey] = existingILS
 				}
-				existingILS.Spans = append(existingILS.Spans, span)
+				existingILS.Spans = append(existingILS.Spans, *span)
 
 				// now find and update the rebatchedTrace with a new start and end
 				existingTrace, ok := tracesByID[traceKey]
@@ -787,7 +799,7 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 					existingTrace = &rebatchedTrace{
 						id: traceID,
 						trace: &tempopb.Trace{
-							ResourceSpans: make([]*v1.ResourceSpans, 0, perTracePrealloc),
+							ResourceSpans: make([]v1.ResourceSpans, 0, perTracePrealloc),
 						},
 						start:     math.MaxUint32,
 						end:       0,
@@ -805,10 +817,12 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 					existingTrace.start = start
 				}
 				if !ilsAdded {
-					existingTrace.trace.ResourceSpans = append(existingTrace.trace.ResourceSpans, &v1.ResourceSpans{
+					rsIdx := len(existingTrace.trace.ResourceSpans)
+					existingTrace.trace.ResourceSpans = append(existingTrace.trace.ResourceSpans, v1.ResourceSpans{
 						Resource:   b.Resource,
-						ScopeSpans: []*v1.ScopeSpans{existingILS},
+						ScopeSpans: []v1.ScopeSpans{{}}, // placeholder; written back below
 					})
+					ilsPlacements[ilsKey] = ilsPlacement{traceKey: traceKey, rsIdx: rsIdx}
 				}
 
 				// increase span count for trace
@@ -821,6 +835,13 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 					dataquality.MetricSpanInPast.WithLabelValues(userID).Observe(float64(currentTime - end))
 				}
 			}
+		}
+
+		// Write back the final accumulated Spans for each ILS. We deferred this
+		// because append may reallocate the Spans slice after the initial copy.
+		for ilsKey, placement := range ilsPlacements {
+			tr := tracesByID[placement.traceKey]
+			tr.trace.ResourceSpans[placement.rsIdx].ScopeSpans[0] = *spansByILS[ilsKey]
 		}
 	}
 
@@ -841,9 +862,10 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 }
 
 // processAttributes finds and truncates attribute keys/values that exceed maxAttrSize.
-func processAttributes(attributes []*v1_common.KeyValue, maxAttrSize int, truncationExample *truncatedAttrInfo, scope string) int {
+func processAttributes(attributes []v1_common.KeyValue, maxAttrSize int, truncationExample *truncatedAttrInfo, scope string) int {
 	count := 0
-	for _, attr := range attributes {
+	for i := range attributes {
+		attr := &attributes[i]
 		if len(attr.Key) > maxAttrSize {
 			origSize := len(attr.Key)
 			attr.Key = attr.Key[:maxAttrSize]
@@ -871,7 +893,7 @@ func processAttributes(attributes []*v1_common.KeyValue, maxAttrSize int, trunca
 	return count
 }
 
-func metricSpans(batches []*v1.ResourceSpans, tenantID string, cfg *MetricReceivedSpansConfig) {
+func metricSpans(batches []v1.ResourceSpans, tenantID string, cfg *MetricReceivedSpansConfig) {
 	for _, b := range batches {
 		serviceName := ""
 		if b.Resource != nil {
@@ -895,7 +917,7 @@ func metricSpans(batches []*v1.ResourceSpans, tenantID string, cfg *MetricReceiv
 	}
 }
 
-func logDiscardedResourceSpans(batches []*v1.ResourceSpans, userID string, cfg *LogSpansConfig, logger log.Logger) {
+func logDiscardedResourceSpans(batches []v1.ResourceSpans, userID string, cfg *LogSpansConfig, logger log.Logger) {
 	if !cfg.Enabled {
 		return
 	}
@@ -908,7 +930,7 @@ func logDiscardedResourceSpans(batches []*v1.ResourceSpans, userID string, cfg *
 	logSpans(batches, cfg, loggerWithAtts)
 }
 
-func logReceivedSpans(batches []*v1.ResourceSpans, cfg *LogSpansConfig, logger log.Logger) {
+func logReceivedSpans(batches []v1.ResourceSpans, cfg *LogSpansConfig, logger log.Logger) {
 	if !cfg.Enabled {
 		return
 	}
@@ -920,7 +942,7 @@ func logReceivedSpans(batches []*v1.ResourceSpans, cfg *LogSpansConfig, logger l
 	logSpans(batches, cfg, loggerWithAtts)
 }
 
-func logSpans(batches []*v1.ResourceSpans, cfg *LogSpansConfig, logger log.Logger) {
+func logSpans(batches []v1.ResourceSpans, cfg *LogSpansConfig, logger log.Logger) {
 	for _, b := range batches {
 		loggerWithAtts := logger
 
@@ -934,7 +956,8 @@ func logSpans(batches []*v1.ResourceSpans, cfg *LogSpansConfig, logger log.Logge
 		}
 
 		for _, ils := range b.ScopeSpans {
-			for _, s := range ils.Spans {
+			for i := range ils.Spans {
+				s := &ils.Spans[i]
 				if cfg.FilterByStatusError && s.Status.Code != v1.Status_STATUS_CODE_ERROR {
 					continue
 				}

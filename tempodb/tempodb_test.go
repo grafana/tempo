@@ -11,11 +11,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+
 	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet5"
 
 	"github.com/go-kit/log"
-	"github.com/golang/protobuf/proto" //nolint:all
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
@@ -252,7 +253,7 @@ func checkBlocklists(ctx context.Context, t *testing.T, expectedID uuid.UUID, ex
 	compactedBlocklist := rw.blocklist.CompactedMetas(testTenantID)
 	require.Len(t, compactedBlocklist, expectedCB)
 	if expectedCB > 0 && expectedID != uuid.Nil {
-		require.Equal(t, expectedID, (uuid.UUID)(compactedBlocklist[0].BlockID))
+		require.Equal(t, expectedID, (uuid.UUID)(compactedBlocklist[0].BlockMeta.BlockID))
 	}
 }
 
@@ -536,7 +537,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 	// make sure the block is compacted
 	compactedBlocks := rw.blocklist.CompactedMetas(testTenantID)
 	require.Len(t, compactedBlocks, 1)
-	require.Equal(t, compactedBlocks[0].BlockID.String(), blockID)
+	require.Equal(t, compactedBlocks[0].BlockMeta.BlockID.String(), blockID)
 	blocks := rw.blocklist.Metas(testTenantID)
 	require.Len(t, blocks, 1)
 	require.NotEqual(t, blocks[0].BlockID.String(), blockID)

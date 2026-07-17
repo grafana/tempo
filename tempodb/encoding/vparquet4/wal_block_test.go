@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
+
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/model"

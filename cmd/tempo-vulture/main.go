@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"reflect"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -752,9 +751,6 @@ func queryMetrics(client httpclient.TempoHTTPClient, seed time.Time, config vult
 			continue
 		}
 		for _, spanSet := range trace.SpanSets {
-			if spanSet == nil {
-				continue
-			}
 			spansCount += int(spanSet.Matched)
 		}
 	}
@@ -777,7 +773,7 @@ func equalTraces(a, b *tempopb.Trace) bool {
 	trace.SortTraceAndAttributes(a)
 	trace.SortTraceAndAttributes(b)
 
-	return reflect.DeepEqual(a, b)
+	return a.Equal(b)
 }
 
 func hasMissingSpans(t *tempopb.Trace) bool {

@@ -257,6 +257,8 @@ func sortResponse(res *tempopb.QueryRangeResponse) {
 				return ki < kj
 			}
 
+			// String() is a deterministic proto-text rendering, so it's safe
+			// to use as a stable tie-breaker for this sort.
 			si := res.Series[i].Labels[k].Value.String()
 			sj := res.Series[j].Labels[k].Value.String()
 			if si != sj {

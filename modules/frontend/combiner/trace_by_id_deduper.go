@@ -42,16 +42,12 @@ func (s *spanIDDeduper) dedupe(trace *tempopb.Trace) *tempopb.Trace {
 // groupSpansByID groups spans with the same ID returning a map id -> []Span
 func (s *spanIDDeduper) groupSpansByID() {
 	spansByID := make(map[uint64][]*v1.Span)
-	for _, batch := range s.trace.ResourceSpans {
-		for _, ils := range batch.ScopeSpans {
-			for _, span := range ils.Spans {
-				id := binary.BigEndian.Uint64(span.SpanId)
-				if spans, ok := spansByID[id]; ok {
-					// TODO maybe return an error if more than 2 spans found
-					spansByID[id] = append(spans, span)
-				} else {
-					spansByID[id] = []*v1.Span{span}
-				}
+	for bi := range s.trace.ResourceSpans {
+		for si := range s.trace.ResourceSpans[bi].ScopeSpans {
+			spans := s.trace.ResourceSpans[bi].ScopeSpans[si].Spans
+			for i := range spans {
+				id := binary.BigEndian.Uint64(spans[i].SpanId)
+				spansByID[id] = append(spansByID[id], &spans[i])
 			}
 		}
 	}
@@ -69,9 +65,11 @@ func (s *spanIDDeduper) isSharedWithClientSpan(spanID uint64) bool {
 
 func (s *spanIDDeduper) dedupeSpanIDs() {
 	oldToNewSpanIDs := make(map[uint64]uint64)
-	for _, batch := range s.trace.ResourceSpans {
-		for _, ils := range batch.ScopeSpans {
-			for _, span := range ils.Spans {
+	for bi := range s.trace.ResourceSpans {
+		for si := range s.trace.ResourceSpans[bi].ScopeSpans {
+			spans := s.trace.ResourceSpans[bi].ScopeSpans[si].Spans
+			for i := range spans {
+				span := &spans[i]
 				id := binary.BigEndian.Uint64(span.SpanId)
 				// only replace span IDs for server-side spans that share the ID with something else
 				if span.GetKind() == v1.Span_SPAN_KIND_SERVER && s.isSharedWithClientSpan(id) {
@@ -99,9 +97,11 @@ func (s *spanIDDeduper) swapParentIDs(oldToNewSpanIDs map[uint64]uint64) {
 	if len(oldToNewSpanIDs) == 0 {
 		return
 	}
-	for _, batch := range s.trace.ResourceSpans {
-		for _, ils := range batch.ScopeSpans {
-			for _, span := range ils.Spans {
+	for bi := range s.trace.ResourceSpans {
+		for si := range s.trace.ResourceSpans[bi].ScopeSpans {
+			spans := s.trace.ResourceSpans[bi].ScopeSpans[si].Spans
+			for i := range spans {
+				span := &spans[i]
 				if len(span.GetParentSpanId()) > 0 {
 					parentSpanID := binary.BigEndian.Uint64(span.GetParentSpanId())
 					if newParentID, ok := oldToNewSpanIDs[parentSpanID]; ok {

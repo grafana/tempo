@@ -1,0 +1,13 @@
+# Full commit SHA of the open-telemetry/opentelemetry-proto submodule that
+# common/v1/common.proto, resource/v1/resource.proto, and trace/v1/trace.proto
+# in this directory were last manually re-derived from. Checked by
+# tools/check-otel-proto-pin.sh (wired into the vendor-check CI job) against
+# the submodule's actual pin (`git submodule status` / the opentelemetry-proto
+# gitlink), so the two can't silently drift apart.
+#
+# Bump this ONLY together with a snapshot re-sync: diff these .proto files
+# against the new submodule content (see the "Gen proto" section of
+# `make gen-proto` in the Makefile for the copy/sed steps to reproduce that
+# diff), port any real message/field changes, run `make gen-proto`, then set
+# this to the new submodule commit.
+7c63f7b8b69e83bdda071a70898cd8a9f4ec77a2

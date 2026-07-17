@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -157,7 +158,7 @@ func TestCombines(t *testing.T) {
 				if tt.expected != nil {
 					actual, err := d.PrepareForRead(actualBytes)
 					require.NoError(t, err)
-					assert.Equal(t, tt.expected, actual)
+					assert.True(t, proto.Equal(tt.expected, actual))
 
 					start, end, err := d.FastRange(actualBytes)
 					if errors.Is(err, decoder.ErrUnsupported) {

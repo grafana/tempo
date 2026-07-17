@@ -13,8 +13,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/golang/protobuf/jsonpb" //nolint:all
-	"github.com/golang/protobuf/proto"  //nolint:all
+	// gogo jsonpb/proto: the golang/protobuf shims route through protoreflect
+	// field-level reflection, which wiresmith-generated messages do not support.
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/proto"
 
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/pkg/api"

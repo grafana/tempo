@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
+
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/model/decoder"

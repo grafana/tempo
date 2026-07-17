@@ -328,9 +328,15 @@ func (t *TraceInfo) ConstructTraceFromEpoch() (*tempopb.Trace, error) {
 			// get the parentSpanID to match.  In the case of an empty []byte in place
 			// for the ParentSpanId, we set to nil here to ensure that the final result
 			// matches the json.Unmarshal value when tempo is queried.
-			for _, b := range t.ResourceSpans {
-				for _, l := range b.ScopeSpans {
-					for _, s := range l.Spans {
+			// ResourceSpans/ScopeSpans/Spans are value-type slices, so a range-copy
+			// variable's fields don't alias the original element; index and mutate
+			// in place.
+			for bi := range t.ResourceSpans {
+				b := &t.ResourceSpans[bi]
+				for li := range b.ScopeSpans {
+					l := &b.ScopeSpans[li]
+					for si := range l.Spans {
+						s := &l.Spans[si]
 						if len(s.GetParentSpanId()) == 0 {
 							s.ParentSpanId = nil
 						}
@@ -373,7 +379,8 @@ func RandomAttrFromTrace(t *tempopb.Trace) *v1common.KeyValue {
 	// maybe choose resource attribute
 	res := batch.Resource
 	if len(res.Attributes) > 0 && r.Int()%2 == 1 {
-		attr := randFrom(r, res.Attributes)
+		idx := r.Intn(len(res.Attributes))
+		attr := &res.Attributes[idx]
 		// skip service.name because service names have low cardinality and produce queries with
 		// too many results in tempo-vulture
 		if attr.Key != "service.name" {
@@ -401,18 +408,18 @@ func RandomAttrFromTrace(t *tempopb.Trace) *v1common.KeyValue {
 	}
 
 	// Pick only from non-integer attributes (integers are not unique enough for search).
-	nonIntAttrs := make([]*v1common.KeyValue, 0, len(span.Attributes))
-	for _, a := range span.Attributes {
+	nonIntIdxs := make([]int, 0, len(span.Attributes))
+	for i, a := range span.Attributes {
 		if a.Value == nil {
-			nonIntAttrs = append(nonIntAttrs, a)
+			nonIntIdxs = append(nonIntIdxs, i)
 		} else if _, ok := a.Value.Value.(*v1common.AnyValue_IntValue); !ok {
-			nonIntAttrs = append(nonIntAttrs, a)
+			nonIntIdxs = append(nonIntIdxs, i)
 		}
 	}
-	if len(nonIntAttrs) == 0 {
+	if len(nonIntIdxs) == 0 {
 		return nil
 	}
-	return randFrom(r, nonIntAttrs)
+	return &span.Attributes[nonIntIdxs[r.Intn(len(nonIntIdxs))]]
 }
 
 func randFrom[T any](r *rand.Rand, s []T) T {

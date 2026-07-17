@@ -311,8 +311,14 @@ func (i *instance) pushBytes(ctx context.Context, ts time.Time, req *tempopb.Pus
 		}
 
 		i.liveTracesMtx.Lock()
-		// Push each batch in the trace to live traces
-		for _, batch := range trace.ResourceSpans {
+		// Push each batch in the trace to live traces.
+		// Each ResourceSpans value is copied to the heap before being handed off because
+		// the backing array of trace.ResourceSpans is reused across iterations (cleared
+		// by the clear() call at the top of the outer loop).
+		for idx := range trace.ResourceSpans {
+			// Copy to heap so the liveTrace pointer survives clear() on the next outer iteration.
+			batchCopy := trace.ResourceSpans[idx]
+			batch := &batchCopy
 			if len(batch.ScopeSpans) == 0 || len(batch.ScopeSpans[0].Spans) == 0 {
 				continue
 			}
@@ -432,8 +438,13 @@ func (i *instance) writeHeadBlock(id []byte, liveTrace *livetraces.LiveTrace[*v1
 		hb = i.blocks.Load().headBlock
 	}
 
+	// liveTrace.Batches holds pointers; dereference into a value slice for tempopb.Trace.
+	resourceSpans := make([]v1.ResourceSpans, len(liveTrace.Batches))
+	for i, b := range liveTrace.Batches {
+		resourceSpans[i] = *b
+	}
 	tr := &tempopb.Trace{
-		ResourceSpans: liveTrace.Batches,
+		ResourceSpans: resourceSpans,
 	}
 
 	// Get trace timestamp bounds

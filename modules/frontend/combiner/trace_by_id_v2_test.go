@@ -183,7 +183,7 @@ func TestNewTraceByIDV2WithSpanPruning(t *testing.T) {
 	spans := []*tracev1.Span{parent}
 	for i := byte(0); i < 3; i++ {
 		spans = append(spans, test.MakeSpanPruningSpan(traceID, test.MakeSpanPruningSpanID(2, i), parent.SpanId, "SELECT", 0, 0,
-			test.MakeAttribute("db.operation", "select")))
+			*test.MakeAttribute("db.operation", "select")))
 	}
 
 	traceResponse := &tempopb.TraceByIDResponse{

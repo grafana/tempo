@@ -217,20 +217,22 @@ func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) 
 	}
 }
 
-func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error) {
+func (p *Processor) consume(resourceSpans []v1_trace.ResourceSpans) (err error) {
 	var (
 		isNew             bool
 		totalDroppedSpans int
 	)
 
-	for _, rs := range resourceSpans {
+	for i := range resourceSpans {
+		rs := &resourceSpans[i]
 		svcName, ok := processor_util.FindServiceName(rs.Resource.Attributes)
 		if !ok {
 			continue
 		}
 
 		for _, ils := range rs.ScopeSpans {
-			for _, span := range ils.Spans {
+			for j := range ils.Spans {
+				span := &ils.Spans[j]
 				// Non-edge spans are ignored by this processor, so skip filter evaluation too.
 				if !isClient(span.Kind) && !isServer(span.Kind) {
 					continue
@@ -316,7 +318,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 	return nil
 }
 
-func (p *Processor) upsertDimensions(client bool, m map[string]string, resourceAttr, spanAttr []*v1_common.KeyValue) {
+func (p *Processor) upsertDimensions(client bool, m map[string]string, resourceAttr, spanAttr []v1_common.KeyValue) {
 	for _, dim := range p.dimensionLabels {
 		if v, ok := processor_util.FindAttributeValue(dim.name, resourceAttr, spanAttr); ok {
 			if client {
@@ -328,7 +330,7 @@ func (p *Processor) upsertDimensions(client bool, m map[string]string, resourceA
 	}
 }
 
-func (p *Processor) upsertPeerNode(e *store.Edge, spanAttr []*v1_common.KeyValue) {
+func (p *Processor) upsertPeerNode(e *store.Edge, spanAttr []v1_common.KeyValue) {
 	for _, peerKey := range p.Cfg.PeerAttributes {
 		if v, ok := processor_util.FindAttributeValue(peerKey, spanAttr); ok {
 			e.PeerNode = v
@@ -346,7 +348,7 @@ func (p *Processor) upsertPeerNode(e *store.Edge, spanAttr []*v1_common.KeyValue
 //	if we have a server.address, use it as the database ServerService
 //	if we have a network.peer.address, use it as the database ServerService.  Include :port if network.peer.port is present
 //	if we have a db.name, use it as the database ServerService, which is the backwards-compatible behavior
-func (p *Processor) upsertDatabaseRequest(e *store.Edge, resourceAttr []*v1_common.KeyValue, span *v1_trace.Span) {
+func (p *Processor) upsertDatabaseRequest(e *store.Edge, resourceAttr []v1_common.KeyValue, span *v1_trace.Span) {
 	var (
 		isDatabase bool
 
