@@ -268,7 +268,7 @@ func logQueryInstantResult(ctx context.Context, logger log.Logger, tenantID stri
 	traceID, _ := tracing.ExtractTraceID(ctx)
 
 	if resp == nil {
-		logWithShape(level.Info(logger), ctx,
+		recordResult(level.Info(logger), ctx,
 			"msg", "query instant results - no resp",
 			"tenant", tenantID,
 			"traceID", traceID,
@@ -279,7 +279,7 @@ func logQueryInstantResult(ctx context.Context, logger log.Logger, tenantID stri
 	}
 
 	if resp.Metrics == nil {
-		logWithShape(level.Info(logger), ctx,
+		recordResult(level.Info(logger), ctx,
 			"msg", "query instant results - no metrics",
 			"tenant", tenantID,
 			"traceID", traceID,
@@ -291,7 +291,7 @@ func logQueryInstantResult(ctx context.Context, logger log.Logger, tenantID stri
 		return
 	}
 
-	logWithShape(level.Info(logger), ctx,
+	recordResult(level.Info(logger), ctx,
 		"msg", "query instant results",
 		"tenant", tenantID,
 		"traceID", traceID,

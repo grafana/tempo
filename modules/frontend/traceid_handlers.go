@@ -70,7 +70,7 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 		postSLOHook(resp, tenant, inspectBytes, elapsed, err)
 
 		traceID, _ := tracing.ExtractTraceID(req.Context())
-		logWithShape(level.Info(logger), req.Context(),
+		recordResult(level.Info(logger), req.Context(),
 			"msg", "trace id response",
 			"tenant", tenant,
 			"traceID", traceID,
@@ -160,7 +160,7 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 		postSLOHook(resp, tenant, bytesProcessed, elapsed, err)
 
 		traceID, _ := tracing.ExtractTraceID(req.Context())
-		logWithShape(level.Info(logger), req.Context(),
+		recordResult(level.Info(logger), req.Context(),
 			"msg", "trace id response",
 			"tenant", tenant,
 			"traceID", traceID,
