@@ -118,35 +118,53 @@ func startSearchBlockSpan(ctx context.Context, name string, req *tempopb.SearchB
 }
 
 func startTagsBlockSpan(ctx context.Context, name string, req *tempopb.SearchTagsBlockRequest) (context.Context, oteltrace.Span, string, error) {
-	return startQuerierSpan(ctx, name, req.SearchReq.Query,
-		attribute.String("scope", req.SearchReq.Scope),
-		attribute.Int64("startUnixSeconds", int64(req.SearchReq.Start)),
-		attribute.Int64("endUnixSeconds", int64(req.SearchReq.End)),
-		attribute.Int64("rangeSeconds", int64(req.SearchReq.End)-int64(req.SearchReq.Start)),
-		attribute.String("blockID", req.BlockID),
-		attribute.String("version", req.Version),
-		attribute.Int64("startPage", int64(req.StartPage)),
-		attribute.Int64("pagesToSearch", int64(req.PagesToSearch)),
-		attribute.Int64("blockSize", int64(req.Size_)),
-		attribute.Int64("footerSize", int64(req.FooterSize)),
-		attribute.Int64("totalRecords", int64(req.TotalRecords)),
-	)
+	attrs := []attribute.KeyValue{
+		attribute.String("blockID", req.GetBlockID()),
+		attribute.String("version", req.GetVersion()),
+		attribute.Int64("startPage", int64(req.GetStartPage())),
+		attribute.Int64("pagesToSearch", int64(req.GetPagesToSearch())),
+		attribute.Int64("blockSize", int64(req.GetSize_())),
+		attribute.Int64("footerSize", int64(req.GetFooterSize())),
+		attribute.Int64("totalRecords", int64(req.GetTotalRecords())),
+	}
+
+	query := ""
+	if searchReq := req.GetSearchReq(); searchReq != nil {
+		query = searchReq.Query
+		attrs = append(attrs,
+			attribute.String("scope", searchReq.Scope),
+			attribute.Int64("startUnixSeconds", int64(searchReq.Start)),
+			attribute.Int64("endUnixSeconds", int64(searchReq.End)),
+			attribute.Int64("rangeSeconds", int64(searchReq.End)-int64(searchReq.Start)),
+		)
+	}
+
+	return startQuerierSpan(ctx, name, query, attrs...)
 }
 
 func startTagValuesBlockSpan(ctx context.Context, name string, req *tempopb.SearchTagValuesBlockRequest) (context.Context, oteltrace.Span, string, error) {
-	return startQuerierSpan(ctx, name, req.SearchReq.Query,
-		attribute.String("tagName", req.SearchReq.TagName),
-		attribute.Int64("startUnixSeconds", int64(req.SearchReq.Start)),
-		attribute.Int64("endUnixSeconds", int64(req.SearchReq.End)),
-		attribute.Int64("rangeSeconds", int64(req.SearchReq.End)-int64(req.SearchReq.Start)),
-		attribute.String("blockID", req.BlockID),
-		attribute.String("version", req.Version),
-		attribute.Int64("startPage", int64(req.StartPage)),
-		attribute.Int64("pagesToSearch", int64(req.PagesToSearch)),
-		attribute.Int64("blockSize", int64(req.Size_)),
-		attribute.Int64("footerSize", int64(req.FooterSize)),
-		attribute.Int64("totalRecords", int64(req.TotalRecords)),
-	)
+	attrs := []attribute.KeyValue{
+		attribute.String("blockID", req.GetBlockID()),
+		attribute.String("version", req.GetVersion()),
+		attribute.Int64("startPage", int64(req.GetStartPage())),
+		attribute.Int64("pagesToSearch", int64(req.GetPagesToSearch())),
+		attribute.Int64("blockSize", int64(req.GetSize_())),
+		attribute.Int64("footerSize", int64(req.GetFooterSize())),
+		attribute.Int64("totalRecords", int64(req.GetTotalRecords())),
+	}
+
+	query := ""
+	if searchReq := req.GetSearchReq(); searchReq != nil {
+		query = searchReq.Query
+		attrs = append(attrs,
+			attribute.String("tagName", searchReq.TagName),
+			attribute.Int64("startUnixSeconds", int64(searchReq.Start)),
+			attribute.Int64("endUnixSeconds", int64(searchReq.End)),
+			attribute.Int64("rangeSeconds", int64(searchReq.End)-int64(searchReq.Start)),
+		)
+	}
+
+	return startQuerierSpan(ctx, name, query, attrs...)
 }
 
 func startQueryRangeSpan(ctx context.Context, name string, req *tempopb.QueryRangeRequest) (context.Context, oteltrace.Span, string, error) {

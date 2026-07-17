@@ -74,40 +74,90 @@ func TestFinishQuerierSpanHandlesTypedNilTraceByIDMetrics(t *testing.T) {
 	require.Empty(t, spans[0].Events())
 }
 
-func TestStartSearchBlockSpanWithoutSearchRequest(t *testing.T) {
-	recorder := tracetest.NewSpanRecorder()
-	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
-	defer func() { require.NoError(t, tp.Shutdown(context.Background())) }()
-
-	oldTracer := tracer
-	tracer = tp.Tracer("test")
-	defer func() { tracer = oldTracer }()
-
-	ctx := user.InjectOrgID(context.Background(), "tenant-a")
-	_, span, _, err := startSearchBlockSpan(ctx, "Querier.SearchBlock", &tempopb.SearchBlockRequest{
-		BlockID:       "block-a",
-		Version:       "vParquet4",
-		StartPage:     2,
-		PagesToSearch: 3,
-	})
-	require.NoError(t, err)
-	span.End()
-
-	spans := recorder.Ended()
-	require.Len(t, spans, 1)
-
-	attrs := map[string]attribute.Value{}
-	for _, attr := range spans[0].Attributes() {
-		attrs[string(attr.Key)] = attr.Value
+func TestStartBlockSpanWithoutSearchRequest(t *testing.T) {
+	tests := []struct {
+		name  string
+		start func(context.Context) error
+	}{
+		{
+			name: "search block",
+			start: func(ctx context.Context) error {
+				_, span, _, err := startSearchBlockSpan(ctx, "Querier.SearchBlock", &tempopb.SearchBlockRequest{
+					BlockID:       "block-a",
+					Version:       "vParquet4",
+					StartPage:     2,
+					PagesToSearch: 3,
+				})
+				if err == nil {
+					span.End()
+				}
+				return err
+			},
+		},
+		{
+			name: "search tags block",
+			start: func(ctx context.Context) error {
+				_, span, _, err := startTagsBlockSpan(ctx, "Querier.SearchTagsBlocks", &tempopb.SearchTagsBlockRequest{
+					BlockID:       "block-a",
+					Version:       "vParquet4",
+					StartPage:     2,
+					PagesToSearch: 3,
+				})
+				if err == nil {
+					span.End()
+				}
+				return err
+			},
+		},
+		{
+			name: "search tag values block",
+			start: func(ctx context.Context) error {
+				_, span, _, err := startTagValuesBlockSpan(ctx, "Querier.SearchTagValuesBlocks", &tempopb.SearchTagValuesBlockRequest{
+					BlockID:       "block-a",
+					Version:       "vParquet4",
+					StartPage:     2,
+					PagesToSearch: 3,
+				})
+				if err == nil {
+					span.End()
+				}
+				return err
+			},
+		},
 	}
-	require.Equal(t, "block-a", attrs["blockID"].AsString())
-	require.Equal(t, "vParquet4", attrs["version"].AsString())
-	require.Equal(t, int64(2), attrs["startPage"].AsInt64())
-	require.Equal(t, int64(3), attrs["pagesToSearch"].AsInt64())
-	require.NotContains(t, attrs, "query")
-	require.NotContains(t, attrs, "startUnixSeconds")
-	require.NotContains(t, attrs, "endUnixSeconds")
-	require.NotContains(t, attrs, "rangeSeconds")
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder := tracetest.NewSpanRecorder()
+			tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+			defer func() { require.NoError(t, tp.Shutdown(context.Background())) }()
+
+			oldTracer := tracer
+			tracer = tp.Tracer("test")
+			defer func() { tracer = oldTracer }()
+
+			ctx := user.InjectOrgID(context.Background(), "tenant-a")
+			require.NoError(t, tt.start(ctx))
+
+			spans := recorder.Ended()
+			require.Len(t, spans, 1)
+
+			attrs := map[string]attribute.Value{}
+			for _, attr := range spans[0].Attributes() {
+				attrs[string(attr.Key)] = attr.Value
+			}
+			require.Equal(t, "block-a", attrs["blockID"].AsString())
+			require.Equal(t, "vParquet4", attrs["version"].AsString())
+			require.Equal(t, int64(2), attrs["startPage"].AsInt64())
+			require.Equal(t, int64(3), attrs["pagesToSearch"].AsInt64())
+			require.NotContains(t, attrs, "query")
+			require.NotContains(t, attrs, "scope")
+			require.NotContains(t, attrs, "tagName")
+			require.NotContains(t, attrs, "startUnixSeconds")
+			require.NotContains(t, attrs, "endUnixSeconds")
+			require.NotContains(t, attrs, "rangeSeconds")
+		})
+	}
 }
 
 func TestBlockSearchMethodsCreateSinglePublicSpan(t *testing.T) {
@@ -132,9 +182,7 @@ func TestBlockSearchMethodsCreateSinglePublicSpan(t *testing.T) {
 			spanName: "Querier.SearchTagValuesBlocks",
 			wantErr:  true,
 			call: func(ctx context.Context, q *Querier) error {
-				_, err := q.SearchTagValuesBlocks(ctx, &tempopb.SearchTagValuesBlockRequest{
-					SearchReq: &tempopb.SearchTagValuesRequest{},
-				})
+				_, err := q.SearchTagValuesBlocks(ctx, &tempopb.SearchTagValuesBlockRequest{})
 				return err
 			},
 		},
@@ -153,9 +201,7 @@ func TestBlockSearchMethodsCreateSinglePublicSpan(t *testing.T) {
 			spanName: "Querier.SearchTagValuesBlocksV2",
 			wantErr:  true,
 			call: func(ctx context.Context, q *Querier) error {
-				_, err := q.SearchTagValuesBlocksV2(ctx, &tempopb.SearchTagValuesBlockRequest{
-					SearchReq: &tempopb.SearchTagValuesRequest{},
-				})
+				_, err := q.SearchTagValuesBlocksV2(ctx, &tempopb.SearchTagValuesBlockRequest{})
 				return err
 			},
 		},
