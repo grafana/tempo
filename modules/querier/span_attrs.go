@@ -28,7 +28,9 @@ func finishQuerierSpan(span oteltrace.Span, err error, metrics any) {
 	setQuerierSpanMetrics(span, metrics)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		if err != context.Canceled {
+			span.SetStatus(codes.Error, err.Error())
+		}
 	}
 	span.End()
 }
