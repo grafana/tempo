@@ -57,6 +57,23 @@ func TestQuerierSpanAttributesAndMetrics(t *testing.T) {
 	require.Equal(t, int64(10), attrs["additionalMetrics.cacheHits"].AsInt64())
 }
 
+func TestFinishQuerierSpanHandlesTypedNilTraceByIDMetrics(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	defer func() { require.NoError(t, tp.Shutdown(context.Background())) }()
+
+	_, span := tp.Tracer("test").Start(context.Background(), "test-span")
+	var resp *tempopb.TraceByIDResponse
+	require.NotPanics(t, func() {
+		finishQuerierSpan(span, nil, resp.GetMetrics())
+	})
+
+	spans := recorder.Ended()
+	require.Len(t, spans, 1)
+	require.Empty(t, spans[0].Attributes())
+	require.Empty(t, spans[0].Events())
+}
+
 func TestBlockSearchMethodsCreateSinglePublicSpan(t *testing.T) {
 	tests := []struct {
 		name     string

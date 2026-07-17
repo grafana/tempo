@@ -52,14 +52,13 @@ func startTraceByIDSpan(ctx context.Context, name string, req *tempopb.TraceByID
 		attribute.String("blockStart", req.BlockStart),
 		attribute.String("blockEnd", req.BlockEnd),
 		attribute.Bool("allowPartialTrace", req.AllowPartialTrace),
-		attribute.String("timeStart", timeStart.String()),
-		attribute.String("timeEnd", timeEnd.String()),
 	}
+
 	if !timeStart.IsZero() {
-		attrs = append(attrs, attribute.Int64("startUnixNanos", timeStart.UnixNano()))
+		attrs = append(attrs, attribute.Int64("startUnixNanos", timeStart.UnixNano()), attribute.String("timeStart", timeStart.String()))
 	}
 	if !timeEnd.IsZero() {
-		attrs = append(attrs, attribute.Int64("endUnixNanos", timeEnd.UnixNano()))
+		attrs = append(attrs, attribute.Int64("endUnixNanos", timeEnd.UnixNano()), attribute.String("timeEnd", timeEnd.String()))
 	}
 	if !timeStart.IsZero() && !timeEnd.IsZero() {
 		attrs = append(attrs, attribute.Int64("rangeNanos", timeEnd.Sub(timeStart).Nanoseconds()))
