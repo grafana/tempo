@@ -81,7 +81,7 @@ func TestPerTenantLegacyOverridesDisabledByDefault(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			loader := loadPerTenantOverrides(&mockValidator{}, ConfigTypeNew, false, tc.enableLegacy)
+			loader := loadPerTenantOverrides(nil, &mockValidator{}, ConfigTypeNew, false, tc.enableLegacy)
 			result, err := loader(bytes.NewReader(buff))
 			if tc.expectErr != "" {
 				require.Error(t, err)

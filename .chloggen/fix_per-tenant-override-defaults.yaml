@@ -1,0 +1,24 @@
+# Changelog entry. Generate a copy with `make chlog-new`, then fill in the fields.
+
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: bug_fix
+
+# Component or area of the change. Must be one of the components in .chloggen/config.yaml,
+# e.g. distributor, querier, query-frontend, storage, operations.
+component: overrides
+
+# A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
+note: per-tenant runtime overrides that set only one top-level section (e.g. `compaction`) no longer reset every other section for that tenant to zero instead of inheriting `overrides.defaults`
+
+# (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
+# .chloggen/README.md.
+issues: []
+
+# (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
+subtext: |
+  Per-tenant overrides now merge with defaults at the top-level section granularity (ingestion,
+  read, compaction, metrics_generator, global, storage, cost_attribution, forwarders): a section
+  a tenant's block doesn't mention now inherits fully from `overrides.defaults`.
+
+# The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
+user: elinacse
