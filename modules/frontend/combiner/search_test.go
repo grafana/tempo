@@ -26,33 +26,33 @@ func TestSearchProgressShouldQuitAnyProtobuf(t *testing.T) {
 
 func testSearchProgressShouldQuitAny(t *testing.T, marshalingFormat api.MarshallingFormat) {
 	// new combiner should not quit
-	c := NewSearch(0, false, marshalingFormat, false)
+	c := NewSearch(0, false, marshalingFormat, false, nil, 0)
 	should := c.ShouldQuit()
 	require.False(t, should)
 
 	// 500 response should quit
-	c = NewSearch(0, false, marshalingFormat, false)
+	c = NewSearch(0, false, marshalingFormat, false, nil, 0)
 	err := c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{}, 500, nil, marshalingFormat))
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.True(t, should)
 
 	// 429 response should quit
-	c = NewSearch(0, false, marshalingFormat, false)
+	c = NewSearch(0, false, marshalingFormat, false, nil, 0)
 	err = c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{}, 429, nil, marshalingFormat))
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.True(t, should)
 
 	// unparseable body should not quit, but should return an error
-	c = NewSearch(0, false, marshalingFormat, false)
+	c = NewSearch(0, false, marshalingFormat, false, nil, 0)
 	err = c.AddResponse(&testPipelineResponse{r: &http.Response{Body: io.NopCloser(strings.NewReader("foo")), StatusCode: 200}})
 	require.Error(t, err)
 	should = c.ShouldQuit()
 	require.False(t, should)
 
 	// under limit should not quit
-	c = NewSearch(2, false, marshalingFormat, false)
+	c = NewSearch(2, false, marshalingFormat, false, nil, 0)
 	err = c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
@@ -65,7 +65,7 @@ func testSearchProgressShouldQuitAny(t *testing.T, marshalingFormat api.Marshall
 	require.False(t, should)
 
 	// over limit should quit
-	c = NewSearch(1, false, marshalingFormat, false)
+	c = NewSearch(1, false, marshalingFormat, false, nil, 0)
 	err = c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
@@ -91,33 +91,33 @@ func TestSearchProgressShouldQuitMostRecentProtobuf(t *testing.T) {
 
 func testSearchProgressShouldQuitMostRecent(t *testing.T, marshalingFormat api.MarshallingFormat) {
 	// new combiner should not quit
-	c := NewSearch(0, true, marshalingFormat, false)
+	c := NewSearch(0, true, marshalingFormat, false, nil, 0)
 	should := c.ShouldQuit()
 	require.False(t, should)
 
 	// 500 response should quit
-	c = NewSearch(0, true, marshalingFormat, false)
+	c = NewSearch(0, true, marshalingFormat, false, nil, 0)
 	err := c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{}, 500, nil, marshalingFormat))
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.True(t, should)
 
 	// 429 response should quit
-	c = NewSearch(0, true, marshalingFormat, false)
+	c = NewSearch(0, true, marshalingFormat, false, nil, 0)
 	err = c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{}, 429, nil, marshalingFormat))
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.True(t, should)
 
 	// unparseable body should not quit, but should return an error
-	c = NewSearch(0, true, marshalingFormat, false)
+	c = NewSearch(0, true, marshalingFormat, false, nil, 0)
 	err = c.AddResponse(&testPipelineResponse{r: &http.Response{Body: io.NopCloser(strings.NewReader("foo")), StatusCode: 200}})
 	require.Error(t, err)
 	should = c.ShouldQuit()
 	require.False(t, should)
 
 	// under limit should not quit
-	c = NewSearch(2, true, marshalingFormat, false)
+	c = NewSearch(2, true, marshalingFormat, false, nil, 0)
 	err = c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
@@ -130,7 +130,7 @@ func testSearchProgressShouldQuitMostRecent(t *testing.T, marshalingFormat api.M
 	require.False(t, should)
 
 	// over limit but no search job response, should not quit
-	c = NewSearch(1, true, marshalingFormat, false)
+	c = NewSearch(1, true, marshalingFormat, false, nil, 0)
 	err = c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
@@ -198,7 +198,7 @@ func testSearchCombinesResults(t *testing.T, marshalingFormat api.MarshallingFor
 		start := time.Date(1, 2, 3, 4, 5, 6, 7, time.UTC)
 		traceID := "traceID"
 
-		c := NewSearch(10, keepMostRecent, marshalingFormat, false)
+		c := NewSearch(10, keepMostRecent, marshalingFormat, false, nil, 0)
 		sr := toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
 			Traces: []*tempopb.TraceSearchMetadata{
 				{
@@ -420,7 +420,7 @@ func testSearchResponseCombiner(t *testing.T, marshalingFormat api.MarshallingFo
 
 		for _, tc := range tests {
 			t.Run(tc.name, func(t *testing.T) {
-				combiner := NewTypedSearch(20, keepMostRecent, marshalingFormat, false)
+				combiner := NewTypedSearch(20, keepMostRecent, marshalingFormat, false, nil, 0)
 
 				err := combiner.AddResponse(tc.response1)
 				require.NoError(t, err)
@@ -691,7 +691,7 @@ func testCombinerShards(t *testing.T, marshalingFormat api.MarshallingFormat) {
 
 	// apply tests one at a time to the combiner and check expected results
 
-	combiner := NewTypedSearch(5, true, marshalingFormat, false)
+	combiner := NewTypedSearch(5, true, marshalingFormat, false, nil, 0)
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.pipelineResponse != nil {
@@ -767,7 +767,7 @@ func TestSearchCombinerPadTraceIDs(t *testing.T) {
 				traces = append(traces, &tempopb.TraceSearchMetadata{TraceID: id})
 			}
 
-			c := NewTypedSearch(10, false, tc.marshalingFmt, tc.padTraceIDs)
+			c := NewTypedSearch(10, false, tc.marshalingFmt, tc.padTraceIDs, nil, 0)
 			err := c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{Traces: traces}, 200, nil, tc.marshalingFmt))
 			require.NoError(t, err)
 
@@ -855,5 +855,113 @@ func TestSegmentSearchResponse(t *testing.T) {
 		require.Equal(t, input.Metrics, out[0].Metrics)
 		require.Equal(t, input.Metrics, out[1].Metrics)
 		require.Equal(t, input.Metrics, out[2].Metrics)
+	})
+}
+
+func TestSearchRootSpanRepair(t *testing.T) {
+	marshalingFormat := api.MarshallingFormatJSON
+
+	t.Run("repairs traces missing root service name", func(t *testing.T) {
+		var repairedIDs []string
+		repair := func(traceID string) (string, string, bool) {
+			repairedIDs = append(repairedIDs, traceID)
+			return "envoy", "ingress", true
+		}
+
+		c := NewTypedSearch(0, false, marshalingFormat, false, repair, 5)
+		err := c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
+			Traces: []*tempopb.TraceSearchMetadata{
+				{TraceID: "1234"}, // RootServiceName intentionally empty
+			},
+		}, 200, nil, marshalingFormat))
+		require.NoError(t, err)
+
+		resp, err := c.GRPCFinal()
+		require.NoError(t, err)
+		require.Equal(t, []string{"1234"}, repairedIDs)
+		require.Equal(t, "envoy", resp.Traces[0].RootServiceName)
+		require.Equal(t, "ingress", resp.Traces[0].RootTraceName)
+	})
+
+	t.Run("falls back to placeholder text when repair can't help", func(t *testing.T) {
+		repair := func(_ string) (string, string, bool) { return "", "", false }
+
+		c := NewTypedSearch(0, false, marshalingFormat, false, repair, 5)
+		err := c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
+			Traces: []*tempopb.TraceSearchMetadata{
+				{TraceID: "1234"},
+			},
+		}, 200, nil, marshalingFormat))
+		require.NoError(t, err)
+
+		resp, err := c.GRPCFinal()
+		require.NoError(t, err)
+		require.Equal(t, search.RootSpanNotYetReceivedText, resp.Traces[0].RootServiceName)
+	})
+
+	t.Run("nil repair func is a no-op", func(t *testing.T) {
+		c := NewTypedSearch(0, false, marshalingFormat, false, nil, 5)
+		err := c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
+			Traces: []*tempopb.TraceSearchMetadata{
+				{TraceID: "1234"},
+			},
+		}, 200, nil, marshalingFormat))
+		require.NoError(t, err)
+
+		resp, err := c.GRPCFinal()
+		require.NoError(t, err)
+		require.Equal(t, search.RootSpanNotYetReceivedText, resp.Traces[0].RootServiceName)
+	})
+
+	t.Run("does not repair traces that already have a root service name", func(t *testing.T) {
+		repair := func(_ string) (string, string, bool) {
+			t.Fatal("repair should not be called for traces that already have root info")
+			return "", "", false
+		}
+
+		c := NewTypedSearch(0, false, marshalingFormat, false, repair, 5)
+		err := c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
+			Traces: []*tempopb.TraceSearchMetadata{
+				{TraceID: "1234", RootServiceName: "app"},
+			},
+		}, 200, nil, marshalingFormat))
+		require.NoError(t, err)
+
+		resp, err := c.GRPCFinal()
+		require.NoError(t, err)
+		require.Equal(t, "app", resp.Traces[0].RootServiceName)
+	})
+
+	t.Run("bounded by maxRepairs", func(t *testing.T) {
+		attempts := 0
+		repair := func(_ string) (string, string, bool) {
+			attempts++
+			return "svc", "span", true
+		}
+
+		c := NewTypedSearch(0, false, marshalingFormat, false, repair, 2)
+		err := c.AddResponse(toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
+			Traces: []*tempopb.TraceSearchMetadata{
+				{TraceID: "1"},
+				{TraceID: "2"},
+				{TraceID: "3"},
+			},
+		}, 200, nil, marshalingFormat))
+		require.NoError(t, err)
+
+		resp, err := c.GRPCFinal()
+		require.NoError(t, err)
+		require.Equal(t, 2, attempts)
+
+		var repaired, unrepaired int
+		for _, tr := range resp.Traces {
+			if tr.RootServiceName == "svc" {
+				repaired++
+			} else if tr.RootServiceName == search.RootSpanNotYetReceivedText {
+				unrepaired++
+			}
+		}
+		require.Equal(t, 2, repaired)
+		require.Equal(t, 1, unrepaired)
 	})
 }

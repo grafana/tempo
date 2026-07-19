@@ -32,8 +32,14 @@ var _ PipelineResponse = (*SearchJobResponse)(nil)
 
 var _ GRPCCombiner[*tempopb.SearchResponse] = (*genericCombiner[*tempopb.SearchResponse])(nil)
 
+// RootSpanRepairFunc attempts to resolve the root service and span name for a trace whose
+// search metadata is missing that information, most commonly because the block fragment that
+// matched the search filter was written before the trace's root span arrived and was never
+// compacted together with the fragment that holds it. It returns ok=false if it can't help.
+type RootSpanRepairFunc func(traceID string) (serviceName, spanName string, ok bool)
+
 // NewSearch returns a search combiner
-func NewSearch(limit int, keepMostRecent bool, marshalingFormat api.MarshallingFormat, padTraceIDs bool) Combiner {
+func NewSearch(limit int, keepMostRecent bool, marshalingFormat api.MarshallingFormat, padTraceIDs bool, repair RootSpanRepairFunc, maxRepairs int) Combiner {
 	metadataCombiner := traceql.NewMetadataCombiner(limit, keepMostRecent)
 	diffTraces := map[string]struct{}{}
 	completedThroughTracker := &shardtracker.CompletionTracker{}
@@ -80,6 +86,9 @@ func NewSearch(limit int, keepMostRecent bool, marshalingFormat api.MarshallingF
 			// metrics are already combined on the passed in final
 			final.Traces = metadataCombiner.Metadata()
 			final.Metrics = metricsCombiner.Metrics
+			// only attempt repair once, on the complete response. repairing on every streaming
+			// diff would repeat the same lookups as more shards complete.
+			repairMissingRootSpans(final.Traces, repair, maxRepairs)
 			addRootSpanNotReceivedText(final.Traces)
 			if padTraceIDs {
 				padTraceIDsInResponse(final.Traces)
@@ -146,8 +155,33 @@ func addRootSpanNotReceivedText(results []*tempopb.TraceSearchMetadata) {
 	}
 }
 
-func NewTypedSearch(limit int, keepMostRecent bool, marshalingFormat api.MarshallingFormat, padTraceIDs bool) GRPCCombiner[*tempopb.SearchResponse] {
-	return NewSearch(limit, keepMostRecent, marshalingFormat, padTraceIDs).(GRPCCombiner[*tempopb.SearchResponse])
+// repairMissingRootSpans attempts, via repair, to resolve root service/span name for traces
+// still missing it after combining all shard results. Bounded by maxRepairs since each attempt
+// is a network round trip; a search page with many broken traces only pays for the first few.
+func repairMissingRootSpans(results []*tempopb.TraceSearchMetadata, repair RootSpanRepairFunc, maxRepairs int) {
+	if repair == nil {
+		return
+	}
+
+	attempted := 0
+	for _, tr := range results {
+		if tr.RootServiceName != "" {
+			continue
+		}
+		if attempted >= maxRepairs {
+			return
+		}
+		attempted++
+
+		if serviceName, spanName, ok := repair(tr.TraceID); ok {
+			tr.RootServiceName = serviceName
+			tr.RootTraceName = spanName
+		}
+	}
+}
+
+func NewTypedSearch(limit int, keepMostRecent bool, marshalingFormat api.MarshallingFormat, padTraceIDs bool, repair RootSpanRepairFunc, maxRepairs int) GRPCCombiner[*tempopb.SearchResponse] {
+	return NewSearch(limit, keepMostRecent, marshalingFormat, padTraceIDs, repair, maxRepairs).(GRPCCombiner[*tempopb.SearchResponse])
 }
 
 // padTraceIDsInResponse left-pads all trace IDs in the given search metadata to 32 hex characters.
