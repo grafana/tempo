@@ -31,7 +31,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
-	semconvnew "go.opentelemetry.io/otel/semconv/v1.34.0"
+	semconvnew "go.opentelemetry.io/otel/semconv/v1.40.0"
 )
 
 // NOTE: This is a way to know if the contents of the semconv package have changed.
@@ -46,6 +46,7 @@ func TestSemconvKeys(t *testing.T) {
 	require.Equal(t, string(semconv.NetworkPeerPortKey), "network.peer.port")
 	require.Equal(t, string(semconv.ServerAddressKey), "server.address")
 	require.Equal(t, string(semconvnew.DBNamespaceKey), "db.namespace")
+	require.Equal(t, string(semconvnew.ServicePeerNameKey), "service.peer.name")
 }
 
 func TestServiceGraphs(t *testing.T) {
@@ -1040,6 +1041,28 @@ func TestServiceGraphs_databaseVirtualNodes(t *testing.T) {
 			databaseLabels: labels.FromMap(map[string]string{
 				"client":          "mythical-server",
 				"server":          "priority-db",
+				"connection_type": "database",
+			}),
+			total:  1.0,
+			errors: 0.0,
+		},
+		{
+			name:        "servicePeerName",
+			fixturePath: "testdata/trace-with-service-peer-name.json",
+			databaseLabels: labels.FromMap(map[string]string{
+				"client":          "mythical-server",
+				"server":          "mythical-database",
+				"connection_type": "database",
+			}),
+			total:  1.0,
+			errors: 0.0,
+		},
+		{
+			name:        "servicePeerNameTakesPrecedenceOverDeprecatedPeerService",
+			fixturePath: "testdata/trace-with-peer-service-and-service-peer-name.json",
+			databaseLabels: labels.FromMap(map[string]string{
+				"client":          "mythical-server",
+				"server":          "mythical-database",
 				"connection_type": "database",
 			}),
 			total:  1.0,

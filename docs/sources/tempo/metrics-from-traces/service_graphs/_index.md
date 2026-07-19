@@ -61,12 +61,14 @@ The processor detects virtual nodes in two ways:
   - In the Tempo metrics-generator, the processor checks the configured `peer_attributes` on the server span first. If it finds a matching attribute, it uses that value as the client node name. Otherwise, the client node name defaults to `user`.
   - In Grafana Alloy and the OpenTelemetry Collector `servicegraph` connector, the connector doesn't evaluate peer attributes for this case. The client node name always defaults to `user` and you can't override it. An [upstream feature request](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/45397) exists to add this capability.
 - **Uninstrumented server (missing server span):** A `client` span doesn't have its matching `server` span, but has a peer attribute present. In this case, the client called an external service that doesn't send spans. The processor uses the peer attribute value as the virtual server node name.
-  - The default peer attributes are `peer.service`, `db.name`, and `db.system`.
+  - The default peer attributes are `service.peer.name`, `peer.service`, `db.name`, and `db.system`.
   - The processor searches the attributes in order and uses the first match as the virtual node name.
 
 The processor identifies a database node when the span has at least one `db.namespace`, `db.name`, or `db.system` attribute.
 
-The processor determines the database node name using the following span attributes in order of precedence: `peer.service`, `server.address`, `network.peer.address:network.peer.port`, `db.namespace`, `db.name`.
+The processor determines the database node name using the following span attributes in order of precedence: `service.peer.name`, `peer.service`, `server.address`, `network.peer.address:network.peer.port`, `db.namespace`, `db.name`.
+
+`peer.service` is deprecated in the [OpenTelemetry semantic conventions](https://opentelemetry.io/docs/specs/semconv/registry/attributes/peer/) in favor of `service.peer.name`. Tempo checks `service.peer.name` first and falls back to `peer.service` for backwards compatibility.
 
 ### Enabling specific metrics (subprocessors)
 
