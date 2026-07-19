@@ -426,6 +426,7 @@ metrics_generator:
             enable_client_server_prefix: false
             enable_messaging_system_latency_histogram: false
             peer_attributes:
+                - service.peer.name
                 - peer.service
                 - db.name
                 - db.system
