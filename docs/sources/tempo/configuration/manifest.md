@@ -342,6 +342,8 @@ query_frontend:
         most_recent_shards: 200
         default_spans_per_span_set: 3
         max_spans_per_span_set: 100
+        repair_root_span: true
+        repair_root_span_max_traces: 5
     trace_by_id:
         query_shards: 50
         blocks_per_shard: 30
