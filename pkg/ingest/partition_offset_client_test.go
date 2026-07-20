@@ -246,3 +246,50 @@ func RecordVersionHeader(version int) kgo.RecordHeader {
 		Value: b[:],
 	}
 }
+
+func produceRecordAt(ctx context.Context, t *testing.T, writeClient *kgo.Client, partitionID int32, ts time.Time, content []byte) {
+	rec := &kgo.Record{
+		Value:     content,
+		Topic:     topicName,
+		Partition: partitionID,
+		Timestamp: ts,
+	}
+	require.NoError(t, writeClient.ProduceSync(ctx, rec).FirstErr())
+}
+
+// TestPartitionOffsetClient_FetchPartitionsOffsetsAfterMilli verifies the
+// timestamp lookup: it returns the first offset at/after the given millisecond
+// timestamp, offset 0 when the timestamp precedes all records, and -1 when no
+// record is at/after the timestamp.
+func TestPartitionOffsetClient_FetchPartitionsOffsetsAfterMilli(t *testing.T) {
+	ctx := context.Background()
+	_, clusterAddr := testkafka.CreateCluster(t, 1, topicName)
+	client := createTestKafkaClient(t, createTestKafkaConfig(clusterAddr))
+	reader := NewPartitionOffsetClient(client, topicName)
+
+	base := time.Now().Add(-time.Hour).Truncate(time.Millisecond)
+	produceRecordAt(ctx, t, client, 0, base, []byte("r0"))
+	produceRecordAt(ctx, t, client, 0, base.Add(10*time.Minute), []byte("r1"))
+	produceRecordAt(ctx, t, client, 0, base.Add(20*time.Minute), []byte("r2"))
+
+	// Before all records -> first offset (0).
+	offsets, err := reader.FetchPartitionsOffsetsAfterMilli(ctx, base.Add(-time.Minute).UnixMilli(), []int32{0})
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), getPartitionsOffsets(offsets)[0])
+
+	// At/after the second record's timestamp -> offset 1.
+	offsets, err = reader.FetchPartitionsOffsetsAfterMilli(ctx, base.Add(10*time.Minute).UnixMilli(), []int32{0})
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), getPartitionsOffsets(offsets)[0])
+
+	// After all records -> -1 (no record at/after the timestamp).
+	offsets, err = reader.FetchPartitionsOffsetsAfterMilli(ctx, base.Add(time.Hour).UnixMilli(), []int32{0})
+	require.NoError(t, err)
+	assert.Equal(t, int64(-1), getPartitionsOffsets(offsets)[0])
+
+	// A negative timestamp is clamped to 0 (earliest) rather than colliding with
+	// Kafka's reserved ListOffsets values (-1 = end, -2 = start).
+	offsets, err = reader.FetchPartitionsOffsetsAfterMilli(ctx, -1, []int32{0})
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), getPartitionsOffsets(offsets)[0])
+}

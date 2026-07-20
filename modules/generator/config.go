@@ -78,6 +78,13 @@ type Config struct {
 	// explicitly; set to true when deploying as a Deployment (random pod names) to avoid
 	// the session-timeout delay on partition reassignment. Requires Kafka ingest enabled.
 	LeaveConsumerGroupOnShutdown bool `yaml:"leave_consumer_group_on_shutdown" category:"advanced"`
+
+	// SkipStaleBacklogOnStartup, when true, seeks each partition forward to
+	// now-metrics_ingestion_time_range_slack on startup instead of replaying from
+	// the committed offset. This avoids fetching and decoding backlog that the
+	// metrics ingestion slack would discard anyway, and keeps the partition-lag
+	// metric honest on restart. Requires Kafka ingest enabled.
+	SkipStaleBacklogOnStartup bool `yaml:"skip_stale_backlog_on_startup" category:"advanced"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
@@ -103,6 +110,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	}
 	f.StringVar(&cfg.InstanceID, prefix+".instance-id", hostname, "Instance id.")
 	f.BoolVar(&cfg.LeaveConsumerGroupOnShutdown, prefix+".leave-consumer-group-on-shutdown", false, "If true, send LeaveGroup to Kafka on shutdown for immediate partition reassignment. Default false; set to true for Deployment rollouts where pod names change on each restart.")
+	f.BoolVar(&cfg.SkipStaleBacklogOnStartup, prefix+".skip-stale-backlog-on-startup", false, "If true, on startup seek partitions forward to now-metrics_ingestion_time_range_slack instead of replaying from the committed offset, skipping backlog the slack would drop. Requires Kafka ingest.")
 }
 
 func (cfg *Config) Validate() error {

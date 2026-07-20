@@ -56,6 +56,22 @@ func (p *PartitionOffsetClient) FetchPartitionsStartProducedOffsets(ctx context.
 	return p.fetchPartitionsOffsets(ctx, kafkaOffsetStart, partitionIDs)
 }
 
+// FetchPartitionsOffsetsAfterMilli fetches, for each input partition, the offset of the
+// first record whose timestamp is at or after the given millisecond timestamp, or -1 if
+// no such record exists (all records are older than the timestamp). Used to skip stale
+// backlog on startup. A negative milli is clamped to 0 (earliest) so it can never collide
+// with Kafka's reserved ListOffsets timestamps (-1 = end, -2 = start).
+func (p *PartitionOffsetClient) FetchPartitionsOffsetsAfterMilli(ctx context.Context, milli int64, partitionIDs []int32) (kadm.ListedOffsets, error) {
+	if len(partitionIDs) == 0 {
+		return nil, nil
+	}
+	if milli < 0 {
+		milli = 0
+	}
+
+	return p.fetchPartitionsOffsets(ctx, milli, partitionIDs)
+}
+
 // fetchPartitionsOffsets fetches and returns offsets for the specified partitions using Kafka's ListOffsets API.
 // The fetchOffset parameter determines which offsets to retrieve:
 //   - kafkaOffsetStart (-2): earliest available offset in each partition

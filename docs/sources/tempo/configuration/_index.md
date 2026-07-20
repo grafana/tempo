@@ -898,6 +898,12 @@ metrics_generator:
     # This is to filter out spans that are outdated.
     [metrics_ingestion_time_range_slack: <duration> | default = 30s]
 
+    # When true, on startup the metrics-generator seeks each Kafka partition forward to
+    # (now - metrics_ingestion_time_range_slack) instead of replaying from the committed
+    # offset. This skips backlog that the slack would discard anyway, avoiding wasted work
+    # and a misleading partition-lag spike on restart. Requires Kafka ingest.
+    [skip_stale_backlog_on_startup: <bool> | default = false]
+
     # Overrides the key used to register the metrics-generator in the ring.
     [override_ring_key: <string> | default = "metrics-generator"]
 ```
