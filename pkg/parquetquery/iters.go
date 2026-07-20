@@ -806,8 +806,8 @@ func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 // Next() is because it doesn't wrap the results in an IteratorResult, which is more efficient
 // when being called multiple times and throwing away the results like in SeekTo().
 //
-// If seekTo is non-nil, values before it are discarded without evaluating
-// the filter, since SeekTo drops them regardless of the filter's decision.
+// If seekTo is non-nil, values before it are discarded without evaluating the filter,
+// since SeekTo drops them regardless of the filter's decision.
 func (c *SyncIterator) next(seekTo *RowNumber, definitionLevel int) (RowNumber, *pq.Value, error) {
 	seeking := seekTo != nil
 	if seeking {
@@ -892,8 +892,8 @@ func (c *SyncIterator) next(seekTo *RowNumber, definitionLevel int) (RowNumber, 
 	}
 }
 
-// beforeSeekTarget returns true if the iterator's current position is before
-// the seek target. It compares the row numbers in place and is inlineable,
+// beforeSeekTarget returns true if the iterator's current position is before the seek target.
+// It compares the row numbers in place and is inlineable,
 // which keeps the hot loop in next() free of 32-byte RowNumber copies.
 func (c *SyncIterator) beforeSeekTarget() bool {
 	for i := 0; i <= c.seekDefinitionLevel; i++ {
