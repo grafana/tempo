@@ -1,5 +1,7 @@
 <!-- next version -->
 
+* [ENHANCEMENT] Publish linux/riscv64 release artifacts (tar.gz, deb, rpm) for `tempo`, `tempo-query`, and `tempo-cli`. [#7201](https://github.com/grafana/tempo/pull/7201) (@gounthar)
+
 # v3.0.2
 
 * [CHANGE] Upgrade Tempo to Go 1.26.3 [#7423](https://github.com/grafana/tempo/pull/7423) (@ie-pham)
