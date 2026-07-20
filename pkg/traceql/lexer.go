@@ -113,6 +113,7 @@ var tokenMap = map[string]int{
 	"topk":                TOPK,
 	"bottomk":             BOTTOMK,
 	"with":                WITH,
+	"cidr":                CIDR,
 }
 
 type lexer struct {

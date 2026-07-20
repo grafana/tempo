@@ -637,6 +637,8 @@ func searchesThatMatch(t *testing.T, traceIDText string) []struct {
 		{"span.http.status_code", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.` + LabelHTTPStatusCode + ` = 500}`)},
 		{"span.http.method", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.` + LabelHTTPMethod + ` = "get"}`)},
 		{"span.http.url", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.` + LabelHTTPUrl + ` = "url/hello/world"}`)},
+		// cidr() function - must use real pipeline eval because cidr() is not pushable to storage
+		{"cidr match ipv4", mustCompileWithEval(`{ cidr(span.net.peer.ip, "10.0.0.0/8") }`)},
 		// Span dedicated attributes
 		{"span.dedicated.span.2", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.2 = "dedicated-span-attr-value-2"}`)},
 		{"span.dedicated.span.4", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.4 = "dedicated-span-attr-value-4"}`)},
@@ -814,6 +816,8 @@ func searchesThatDontMatch(t *testing.T) []struct {
 		{"Blob test 1", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 = "dedicated-span-attr-value-asdf"}`)},
 		{"Blob test 2", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 =~ "dedicated-span-attr-value-asdf"}`)},
 		{"Blob test 3", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 = ""}`)},
+		// cidr() function - must use real pipeline eval because cidr() is not pushable to storage
+		{"cidr no match ipv4", mustCompileWithEval(`{ cidr(span.net.peer.ip, "192.168.0.0/16") }`)},
 		{
 			name: "Time range after trace",
 			req: traceql.FetchSpansRequest{
@@ -1035,6 +1039,21 @@ func makeReq(conditions ...traceql.Condition) traceql.FetchSpansRequest {
 	}
 }
 
+// mustCompileWithEval compiles a TraceQL query and wires up the real pipeline
+// evaluator as SecondPass. Use this for filter functions like cidr() that cannot
+// be pushed down to the storage layer and must be evaluated after attribute fetch.
+func mustCompileWithEval(query string) traceql.FetchSpansRequest {
+	_, _, eval, req, err := traceql.Compile(query)
+	if err != nil {
+		panic(err)
+	}
+	req.SecondPass = func(inSS *traceql.Spanset) ([]*traceql.Spanset, error) {
+		return eval([]*traceql.Spanset{inSS})
+	}
+	req.SecondPassConditions = traceql.SearchMetaConditions()
+	return *req
+}
+
 func parse(t *testing.T, q string) traceql.Condition {
 	req, err := traceql.ExtractFetchSpansRequest(q)
 	require.NoError(t, err, "query:", q)
@@ -1165,6 +1184,7 @@ func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 									attr("http.method", "get"),
 									attr("http.url", "url/hello/world"),
 									attr("http.status_code", 500),
+									attr("net.peer.ip", "10.20.30.40"),
 									// Edge-cases
 									attr(LabelName, "Bob"),                    // Conflicts with intrinsic but still looked up by .name
 									attr(LabelServiceName, "spanservicename"), // Overrides resource-level dedicated column
