@@ -151,6 +151,53 @@ func TestDuplicateAttributeKeyMixedTypeFallsBackToGenericWithoutLosingDedicatedV
 	require.Equal(t, []int64{42}, event.Attrs[0].ValueInt)
 }
 
+// The OTel spec does not promise attributes are ordered or that duplicate keys (where
+// they occur at all) are adjacent -- attribute collections are unordered by spec.
+// Accumulation must not depend on duplicate occurrences of a key being contiguous in
+// the input list.
+func TestDuplicateAttributeKeyAccumulatesRegardlessOfContiguity(t *testing.T) {
+	meta := backend.BlockMeta{DedicatedColumns: test.MakeDedicatedColumns()}
+	traceID := common.ID{0x01}
+
+	trace := &tempopb.Trace{
+		ResourceSpans: []*v1_trace.ResourceSpans{{
+			Resource: &v1_resource.Resource{
+				Attributes: []*v1.KeyValue{stringAttr("service.name", "service-a")},
+			},
+			ScopeSpans: []*v1_trace.ScopeSpans{{
+				Spans: []*v1_trace.Span{{
+					Name:   "span-a",
+					SpanId: common.ID{0x01},
+					Events: []*v1_trace.Span_Event{{
+						Name: "lookup_plan_predicate",
+						Attributes: []*v1.KeyValue{
+							// "dedicated.event.1" occurrences are scattered, interleaved
+							// with a different dedicated column ("dedicated.event.2")
+							// and a plain, non-dedicated attribute.
+							stringAttr("dedicated.event.1", "matcher-a"),
+							stringAttr("dedicated.event.2", "other-value"),
+							stringAttr("dedicated.event.1", "matcher-b"),
+							stringAttr("plain.attr", "unrelated"),
+							stringAttr("dedicated.event.1", "matcher-c"),
+						},
+					}},
+				}},
+			}},
+		}},
+	}
+
+	out, connected := traceToParquet(&meta, traceID, trace, nil)
+	require.True(t, connected)
+	event := out.ResourceSpans[0].ScopeSpans[0].Spans[0].Events[0]
+
+	require.Equal(t, []string{"matcher-a", "matcher-b", "matcher-c"}, event.DedicatedAttributes.String01,
+		"scattered occurrences of the same key must still accumulate in encounter order")
+	require.Equal(t, []string{"other-value"}, event.DedicatedAttributes.String02,
+		"an unrelated dedicated column interleaved between occurrences must be unaffected")
+	require.Len(t, event.Attrs, 1, "the non-dedicated attribute must land in generic attrs, untouched")
+	require.Equal(t, "plain.attr", event.Attrs[0].Key)
+}
+
 // End-to-end: a TraceQL equality query for a value that only exists because it was
 // accumulated from a duplicate key (i.e. not the first occurrence) must still find it.
 func TestDuplicateEventAttributeKeyIsSearchable(t *testing.T) {
