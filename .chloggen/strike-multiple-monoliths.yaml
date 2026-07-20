@@ -1,0 +1,6 @@
+change_type: change
+component: docs
+note: remove guidance on running multiple monolithic instances.
+issues: [7636]
+subtext:
+user: mattdurham
