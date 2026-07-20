@@ -191,6 +191,7 @@ func TestDuplicateEventAttributeKeyIsSearchable(t *testing.T) {
 
 	resp, err := block.Fetch(ctx, req, opts)
 	require.NoError(t, err)
+	defer resp.Results.Close()
 
 	found := false
 	for {
