@@ -23,6 +23,7 @@ Use monolithic mode when:
 Monolithic mode has some trade-offs to be aware of.
 All components share the same resource pool, so a spike in query load can affect write throughput and vice versa.
 There is no independent scaling: you can scale vertically, but you cannot scale individual components separately.
+Running more than one `target=all` instance isn't supported because the backend scheduler is a singleton; use microservices mode for high availability.
 At higher volumes, memory pressure from collocated components can cause issues.
 
 ## Microservices mode
