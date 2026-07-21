@@ -116,11 +116,7 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 
 func (g *Generator) starting(ctx context.Context) error {
 	if g.cfg.ConsumeFromKafka {
-		kafkaClient, err := ingest.NewGroupReaderClient(
-			g.cfg.Ingest.Kafka,
-			g.partitionRing,
-			ingest.NewReaderClientMetrics("generator", prometheus.DefaultRegisterer),
-			g.logger,
+		opts := []kgo.Opt{
 			kgo.InstanceID(g.cfg.InstanceID),
 			kgo.OnPartitionsAssigned(func(_ context.Context, _ *kgo.Client, m map[string][]int32) {
 				g.handlePartitionsAssigned(m)
@@ -128,6 +124,19 @@ func (g *Generator) starting(ctx context.Context) error {
 			kgo.OnPartitionsRevoked(func(_ context.Context, _ *kgo.Client, m map[string][]int32) {
 				g.handlePartitionsRevoked(m)
 			}),
+		}
+		// When enabled, seek past stale backlog on startup instead of replaying
+		// from the committed offset (see adjustStartupOffsets).
+		if g.cfg.SkipStaleBacklogOnStartup {
+			opts = append(opts, kgo.AdjustFetchOffsetsFn(g.adjustStartupOffsets))
+		}
+
+		kafkaClient, err := ingest.NewGroupReaderClient(
+			g.cfg.Ingest.Kafka,
+			g.partitionRing,
+			ingest.NewReaderClientMetrics("generator", prometheus.DefaultRegisterer),
+			g.logger,
+			opts...,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to create kafka reader client: %w", err)

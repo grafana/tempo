@@ -13,6 +13,7 @@ import (
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
@@ -259,4 +260,104 @@ func revokePartitions(assigned, revoked []int32) []int32 {
 
 	// Resize assigned to only include retained elements
 	return assigned[:k]
+}
+
+// kafkaOffsetNone marks the absence of a committed group offset for a partition.
+const kafkaOffsetNone = int64(-1)
+
+// startupSeekOffset decides which offset to resume a partition from at startup
+// when skip_stale_backlog_on_startup is enabled. It never rewinds behind the
+// committed offset, but skips forward to horizonOffset (the offset of the first
+// record at/after now-horizon) when the committed offset is behind that horizon
+// or absent. The returned bool reports whether an explicit seek is needed;
+// false means resume from the committed offset as usual.
+func startupSeekOffset(committed, horizonOffset int64) (int64, bool) {
+	if committed != kafkaOffsetNone && committed >= horizonOffset {
+		return committed, false
+	}
+	return horizonOffset, true
+}
+
+// startupSeekOffsets builds the set of offsets to seek to for the given
+// partitions, applying startupSeekOffset per partition. A partition is included
+// only when it has a known horizon offset and its committed offset is behind
+// that horizon (or absent); partitions already at/ahead of the horizon are
+// omitted so consumption resumes from the committed offset as usual.
+func startupSeekOffsets(partitions []int32, committed, horizon map[int32]int64) map[int32]int64 {
+	out := make(map[int32]int64)
+	for _, p := range partitions {
+		h, ok := horizon[p]
+		if !ok {
+			continue
+		}
+		c, ok := committed[p]
+		if !ok {
+			c = kafkaOffsetNone
+		}
+		if target, seek := startupSeekOffset(c, h); seek {
+			out[p] = target
+		}
+	}
+	return out
+}
+
+// adjustStartupOffsets is the franz-go AdjustFetchOffsetsFn hook. When
+// skip_stale_backlog_on_startup is enabled it rewrites the fetch offsets for the
+// joining partitions to skip forward past backlog older than
+// metrics_ingestion_time_range_slack, so the generator does not replay spans the
+// slack would discard and its partition-lag metric stays honest on restart.
+// Partitions already at/ahead of the slack horizon keep their committed offset.
+func (g *Generator) adjustStartupOffsets(ctx context.Context, offsets map[string]map[int32]kgo.Offset) (map[string]map[int32]kgo.Offset, error) {
+	topic := g.cfg.Ingest.Kafka.Topic
+	parts := offsets[topic]
+	if len(parts) == 0 {
+		return offsets, nil
+	}
+
+	partitionIDs := make([]int32, 0, len(parts))
+	committed := make(map[int32]int64, len(parts))
+	for p, off := range parts {
+		partitionIDs = append(partitionIDs, p)
+		committed[p] = off.EpochOffset().Offset
+	}
+
+	horizonMs := time.Now().Add(-g.cfg.MetricsIngestionSlack).UnixMilli()
+	horizonOffsets, err := g.partitionClient.FetchPartitionsOffsetsAfterMilli(ctx, horizonMs, partitionIDs)
+	if err != nil {
+		// Best-effort optimization: on lookup failure, fall back to replaying
+		// from the committed offset rather than blocking startup.
+		level.Warn(g.logger).Log("msg", "skip stale backlog on startup: horizon offset lookup failed, replaying from committed offset", "err", err)
+		return offsets, nil
+	}
+
+	// Resolve the seek target per partition. A horizon offset of -1 means no
+	// record is at/after the horizon (all backlog is stale), so seek to the end.
+	var endOffsets kadm.ListedOffsets
+	horizon := make(map[int32]int64, len(partitionIDs))
+	for _, p := range partitionIDs {
+		o, ok := horizonOffsets[topic][p]
+		if !ok {
+			continue
+		}
+		if o.Offset >= 0 {
+			horizon[p] = o.Offset
+			continue
+		}
+		if endOffsets == nil {
+			if endOffsets, err = g.partitionClient.FetchPartitionsLastProducedOffsets(ctx, partitionIDs); err != nil {
+				level.Warn(g.logger).Log("msg", "skip stale backlog on startup: end offset lookup failed, replaying from committed offset", "err", err)
+				return offsets, nil
+			}
+		}
+		if eo, ok := endOffsets[topic][p]; ok {
+			horizon[p] = eo.Offset
+		}
+	}
+
+	for p, target := range startupSeekOffsets(partitionIDs, committed, horizon) {
+		parts[p] = kgo.NewOffset().At(target).WithEpoch(-1)
+		level.Info(g.logger).Log("msg", "skipping stale backlog on startup",
+			"partition", p, "committed", committed[p], "seek_to", target)
+	}
+	return offsets, nil
 }
