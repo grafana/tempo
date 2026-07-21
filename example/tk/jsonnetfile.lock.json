@@ -8,7 +8,7 @@
           "subdir": "grafana"
         }
       },
-      "version": "7090c8d94f40e452ad906966c7de9add8c707eff",
+      "version": "08dd6a95dfc7384236f4f331d72d4b37cb59669a",
       "sum": "3M7sG0jR2K2L4Y8GCD+dEOjhzvAhtERr5TRRAE+DrhI="
     },
     {
@@ -18,7 +18,7 @@
           "subdir": "grafana-builder"
         }
       },
-      "version": "7090c8d94f40e452ad906966c7de9add8c707eff",
+      "version": "08dd6a95dfc7384236f4f331d72d4b37cb59669a",
       "sum": "TWpxm5vPO23V3hoF3pdwGs1NvR+PQce9baN716mJq+4="
     },
     {
@@ -28,7 +28,7 @@
           "subdir": "ksonnet-util"
         }
       },
-      "version": "7090c8d94f40e452ad906966c7de9add8c707eff",
+      "version": "08dd6a95dfc7384236f4f331d72d4b37cb59669a",
       "sum": "0y3AFX9LQSpfWTxWKSwoLgbt0Wc9nnCwhMH2szKzHv0="
     },
     {
@@ -38,7 +38,7 @@
           "subdir": "kube-state-metrics/"
         }
       },
-      "version": "7090c8d94f40e452ad906966c7de9add8c707eff",
+      "version": "08dd6a95dfc7384236f4f331d72d4b37cb59669a",
       "sum": "q1YzD+I4InDdfQP6k93W9Lw5U1jpll3gVaS9rUzLR7U="
     },
     {
@@ -48,7 +48,7 @@
           "subdir": "memcached"
         }
       },
-      "version": "7090c8d94f40e452ad906966c7de9add8c707eff",
+      "version": "08dd6a95dfc7384236f4f331d72d4b37cb59669a",
       "sum": "zNTCDRaCqJUHjQSQRsxGR3jLrMP9tU7YNQb13dbm1bU="
     },
     {
@@ -58,7 +58,7 @@
           "subdir": "mixin-utils"
         }
       },
-      "version": "7090c8d94f40e452ad906966c7de9add8c707eff",
+      "version": "08dd6a95dfc7384236f4f331d72d4b37cb59669a",
       "sum": "zVkvwae4zHP6xeIoDvde/wldI6ClprFjnk50mMD9/z4="
     },
     {
@@ -68,8 +68,8 @@
           "subdir": "prometheus"
         }
       },
-      "version": "7090c8d94f40e452ad906966c7de9add8c707eff",
-      "sum": "kodkOiyJMjsaEsQCIfBhJPknBZayEj0yQJq50ad9VWo="
+      "version": "08dd6a95dfc7384236f4f331d72d4b37cb59669a",
+      "sum": "V9RJDeAyUBJxSstPAWqIAdV+seaN2eCJLRKTbL3S5CA="
     },
     {
       "source": {
@@ -78,7 +78,7 @@
           "subdir": "tanka-util"
         }
       },
-      "version": "7090c8d94f40e452ad906966c7de9add8c707eff",
+      "version": "08dd6a95dfc7384236f4f331d72d4b37cb59669a",
       "sum": "ShSIissXdvCy1izTCDZX6tY7qxCoepE5L+WJ52Hw7ZQ="
     },
     {
@@ -108,8 +108,8 @@
           "subdir": "1.32"
         }
       },
-      "version": "55380470fb7979e6ce0c4316cb9c27a266caf298",
-      "sum": "L70C3SiMFOsNCuIGOxRKAzd6wUBuabAoEGrgvCyeCBc="
+      "version": "ee5c4c5ee02571eaf82f1170c60af47eee5496be",
+      "sum": "DGibNpxoMxZQ1ZilgUWk4+fh7MiPihkehtjp1CnLtQo="
     },
     {
       "source": {
@@ -118,8 +118,8 @@
           "subdir": "1.0.0"
         }
       },
-      "version": "5d16cd466d12489e6ffba5b17813a0203016e68d",
-      "sum": "ksOv5A0fQkz4fRz4KMCHloLUiD7BPwGKvUn2sHIAB7s="
+      "version": "c134bafc39a51bc92e4099b1b17e5d11eca7121b",
+      "sum": "RzEwGx69ki17S4JaodFzZqD4mNKZzL2zDGXAP3oHoO8="
     }
   ],
   "legacyImports": false
