@@ -72,6 +72,11 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceR
 				}
 			}
 
+			if metricsCombiner.Metrics.AdditionalMetrics == nil {
+				metricsCombiner.Metrics.AdditionalMetrics = map[string]int64{}
+			}
+			metricsCombiner.Metrics.AdditionalMetrics[tempopb.AdditionalMetricReturnedBytes] = int64(traceResult.Size())
+
 			resp.Trace = traceResult
 			resp.Metrics = metricsCombiner.Metrics
 

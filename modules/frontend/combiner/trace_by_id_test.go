@@ -115,6 +115,75 @@ func TestTraceByIDRedactorHidesTrace(t *testing.T) {
 	require.Empty(t, body)
 }
 
+func TestTraceByIDReturnedBytes(t *testing.T) {
+	trace1 := test.MakeTrace(2, []byte{0x21, 0x22})
+
+	c := NewTypedTraceByID(0, api.HeaderAcceptProtobuf, nil)
+	err := c.AddResponse(toHTTPProtoResponse(t, &tempopb.TraceByIDResponse{
+		Trace:   trace1,
+		Metrics: &tempopb.TraceByIDMetrics{},
+	}, 200))
+	require.NoError(t, err)
+
+	_, err = c.HTTPFinal()
+	require.NoError(t, err)
+
+	require.Equal(t, int64(trace1.Size()), c.MetricsCombiner.Metrics.AdditionalMetrics[tempopb.AdditionalMetricReturnedBytes])
+}
+
+func TestTraceByIDReturnedBytesDedupesOverlappingShards(t *testing.T) {
+	trace1 := test.MakeTrace(2, []byte{0x23, 0x24})
+
+	c := NewTypedTraceByID(0, api.HeaderAcceptProtobuf, nil)
+	// two shards return the exact same trace, simulating live-store/backend overlap.
+	// each AddResponse call marshals/unmarshals its own independent copy.
+	for i := 0; i < 2; i++ {
+		err := c.AddResponse(toHTTPProtoResponse(t, &tempopb.TraceByIDResponse{
+			Trace:   trace1,
+			Metrics: &tempopb.TraceByIDMetrics{},
+		}, 200))
+		require.NoError(t, err)
+	}
+
+	resp, err := c.HTTPFinal()
+	require.NoError(t, err)
+
+	actual := &tempopb.Trace{}
+	buff, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.NoError(t, proto.Unmarshal(buff, actual))
+
+	returnedBytes := c.MetricsCombiner.Metrics.AdditionalMetrics[tempopb.AdditionalMetricReturnedBytes]
+	require.Equal(t, int64(actual.Size()), returnedBytes)
+	// proves dedup happened: two identical shards must not double the byte count
+	require.Less(t, returnedBytes, int64(2*trace1.Size()))
+}
+
+func TestTraceByIDReturnedBytesComputedOnCacheHit(t *testing.T) {
+	trace1 := test.MakeTrace(2, []byte{0x2b, 0x2c})
+	body, err := proto.Marshal(&tempopb.TraceByIDResponse{
+		Trace:   trace1,
+		Metrics: &tempopb.TraceByIDMetrics{},
+	})
+	require.NoError(t, err)
+
+	c := NewTypedTraceByID(0, api.HeaderAcceptProtobuf, nil)
+	err = c.AddResponse(&testPipelineResponse{r: &http.Response{
+		Body:       io.NopCloser(bytes.NewReader(body)),
+		StatusCode: 200,
+		Header:     http.Header{TempoCacheHeader: {TempoCacheHit}},
+	}})
+	require.NoError(t, err)
+
+	_, err = c.HTTPFinal()
+	require.NoError(t, err)
+
+	// returnedBytes must be populated even though the per-job response was a cache
+	// hit (unlike InspectedBytes/other AdditionalMetrics, which skip cache hits in
+	// Combine()) — the bytes returned to the client are the same either way.
+	require.Equal(t, int64(trace1.Size()), c.MetricsCombiner.Metrics.AdditionalMetrics[tempopb.AdditionalMetricReturnedBytes])
+}
+
 func toHTTPProtoResponse(t *testing.T, pb proto.Message, statusCode int) PipelineResponse {
 	var body []byte
 

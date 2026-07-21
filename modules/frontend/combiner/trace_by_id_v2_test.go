@@ -174,6 +174,28 @@ func TestNewTraceByIDV2(t *testing.T) {
 	})
 }
 
+func TestTraceByIDV2ReturnedBytes(t *testing.T) {
+	testTrace := test.MakeTrace(2, []byte{0x25, 0x26})
+	resBytes, err := proto.Marshal(&tempopb.TraceByIDResponse{
+		Trace:   testTrace,
+		Metrics: &tempopb.TraceByIDMetrics{},
+	})
+	require.NoError(t, err)
+	response := http.Response{
+		StatusCode: 200,
+		Header:     map[string][]string{"Content-Type": {"application/protobuf"}},
+		Body:       io.NopCloser(bytes.NewReader(resBytes)),
+	}
+
+	combiner := NewTypedTraceByIDV2(100_000, api.HeaderAcceptProtobuf, nil, TraceByIDV2Options{})
+	require.NoError(t, combiner.AddResponse(MockResponse{&response}))
+
+	resp, err := combiner.GRPCFinal()
+	require.NoError(t, err)
+
+	require.Equal(t, int64(resp.Trace.Size()), resp.Metrics.AdditionalMetrics[tempopb.AdditionalMetricReturnedBytes])
+}
+
 // TestNewTraceByIDV2WithSpanPruning mimics TestPruneTrace_BasicAggregation from
 // pkg/spanpruning to verify that the combiner actually invokes span pruning: 3 identical
 // leaf spans below a parent should collapse into a single summary span.

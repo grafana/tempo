@@ -65,8 +65,10 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 		elapsed := time.Since(start)
 
 		var inspectBytes uint64
+		var returnedBytes int64
 		if comb.MetricsCombiner != nil && comb.MetricsCombiner.Metrics != nil {
 			inspectBytes = comb.MetricsCombiner.Metrics.InspectedBytes
+			returnedBytes = comb.MetricsCombiner.Metrics.AdditionalMetrics[tempopb.AdditionalMetricReturnedBytes]
 		}
 		postSLOHook(resp, tenant, inspectBytes, elapsed, err)
 
@@ -79,6 +81,7 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 			"path", req.URL.Path,
 			"duration_seconds", elapsed.Seconds(),
 			"inspected_bytes", inspectBytes,
+			"returned_bytes", returnedBytes,
 			"request_throughput", float64(inspectBytes)/elapsed.Seconds(),
 			"err", err,
 		)
@@ -155,9 +158,11 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 		elapsed := time.Since(start)
 
 		var bytesProcessed uint64
+		var returnedBytes int64
 		findResp, _ := comb.GRPCFinal()
 		if findResp != nil && findResp.Metrics != nil {
 			bytesProcessed = findResp.Metrics.InspectedBytes
+			returnedBytes = findResp.Metrics.AdditionalMetrics[tempopb.AdditionalMetricReturnedBytes]
 		}
 
 		postSLOHook(resp, tenant, bytesProcessed, elapsed, err)
@@ -170,6 +175,7 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			"traceID", traceID,
 			"path", req.URL.Path,
 			"inspected_bytes", bytesProcessed,
+			"returned_bytes", returnedBytes,
 			"request_throughput", float64(bytesProcessed)/elapsed.Seconds(),
 			"duration_seconds", elapsed.Seconds(),
 			"span_pruning_enabled", spanPruningEnabled,
