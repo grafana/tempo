@@ -95,7 +95,7 @@ This data helps you locate problem areas, often in places you never would have a
 
 ## Learn more
 
-To continue learning about traces and Tempo, the following pages follow a natural reading order:
+To continue learning about traces and Tempo, refer to:
 
 - [Traces and telemetry](./telemetry): how traces relate to metrics, logs, and profiles.
 - [Trace structure](./trace-structure): the parts of a span and the attributes you can query.
