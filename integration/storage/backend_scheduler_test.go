@@ -116,7 +116,8 @@ func TestBackendScheduler(t *testing.T) {
 
 					t.Logf("Waiting for %d blocks in the blocklist for tenant: %s", expectedBlocks, tenantID)
 
-					require.NoError(t, scheduler.WaitSumMetricsWithOptions(e2e.Equals(float64(expectedBlocks)), []string{"tempodb_blocklist_length"},
+					require.NoError(t, scheduler.WaitSumMetricsWithOptions(
+						e2e.Equals(float64(expectedBlocks)), []string{"tempodb_blocklist_length"},
 						e2e.WaitMissingMetrics,
 						tenantMatcher,
 						printMetricValue(t, fmt.Sprintf("%d", expectedBlocks), "tempodb_blocklist_length"),
@@ -150,10 +151,12 @@ func TestBackendScheduler(t *testing.T) {
 		expectedTotalOutstandingMax := totalOutstanding - 8
 
 		// Wait for total blocklist length and outstanding blocks metrics to stabilize.
-		require.NoError(t, scheduler.WaitSumMetricsWithOptions(e2e.Equals(float64(totalBlocksWritten)), []string{"tempodb_blocklist_length"},
+		require.NoError(t, scheduler.WaitSumMetricsWithOptions(
+			e2e.Equals(float64(totalBlocksWritten)), []string{"tempodb_blocklist_length"},
 			e2e.WaitMissingMetrics,
 		))
-		require.NoError(t, scheduler.WaitSumMetricsWithOptions(e2e.Between(float64(expectedTotalOutstandingMin), float64(expectedTotalOutstandingMax)), []string{"tempodb_compaction_outstanding_blocks"},
+		require.NoError(t, scheduler.WaitSumMetricsWithOptions(
+			e2e.Between(float64(expectedTotalOutstandingMin), float64(expectedTotalOutstandingMax)), []string{"tempodb_compaction_outstanding_blocks"},
 			e2e.WaitMissingMetrics,
 		))
 
@@ -197,7 +200,8 @@ func TestBackendScheduler(t *testing.T) {
 
 				t.Logf("Waiting for blocklist metric: %s: %d-%d", tenantID, expectedMin.blocks, expectedMax.blocks)
 
-				require.NoError(t, scheduler.WaitSumMetricsWithOptions(e2e.Between(float64(expectedMin.blocks), float64(expectedMax.blocks)), []string{"tempodb_blocklist_length"},
+				require.NoError(t, scheduler.WaitSumMetricsWithOptions(
+					e2e.Between(float64(expectedMin.blocks), float64(expectedMax.blocks)), []string{"tempodb_blocklist_length"},
 					e2e.WaitMissingMetrics,
 					tenantMatcher,
 					printMetricValue(t, fmt.Sprintf("%d-%d", expectedMin.blocks, expectedMax.blocks), "tempodb_blocklist_length"),
@@ -229,7 +233,8 @@ func TestBackendScheduler(t *testing.T) {
 
 				t.Logf("Waiting for blocklist metric: %s: %d-%d", tenantID, expectedMin.blocks, expectedMax.blocks)
 
-				require.NoError(t, scheduler.WaitSumMetricsWithOptions(e2e.Between(float64(expectedMin.blocks), float64(expectedMax.blocks)), []string{"tempodb_blocklist_length"},
+				require.NoError(t, scheduler.WaitSumMetricsWithOptions(
+					e2e.Between(float64(expectedMin.blocks), float64(expectedMax.blocks)), []string{"tempodb_blocklist_length"},
 					e2e.WaitMissingMetrics,
 					tenantMatcher,
 					printMetricValue(t, fmt.Sprintf("%d-%d", expectedMin.blocks, expectedMax.blocks), "tempodb_blocklist_length"),
@@ -237,7 +242,8 @@ func TestBackendScheduler(t *testing.T) {
 
 				t.Logf("Waiting for outstanding blocks metric: %s: %d-%d", tenantID, expectedMin.outstanding, expectedMax.outstanding)
 
-				require.NoError(t, scheduler.WaitSumMetricsWithOptions(e2e.Between(float64(expectedMin.outstanding), float64(expectedMax.outstanding)), []string{"tempodb_compaction_outstanding_blocks"},
+				require.NoError(t, scheduler.WaitSumMetricsWithOptions(
+					e2e.Between(float64(expectedMin.outstanding), float64(expectedMax.outstanding)), []string{"tempodb_compaction_outstanding_blocks"},
 					e2e.WaitMissingMetrics,
 					tenantMatcher,
 					printMetricValue(t, fmt.Sprintf("%d-%d", expectedMin.outstanding, expectedMax.outstanding), "tempodb_compaction_outstanding_blocks"),

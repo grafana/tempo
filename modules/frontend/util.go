@@ -126,7 +126,8 @@ func logWithShape(logger log.Logger, ctx context.Context, fields ...any) {
 	}
 	out := make([]any, 0, len(fields)+16)
 	out = append(out, fields...)
-	out = append(out,
+	out = append(
+		out,
 		"query_type", qs.Type,
 		"query_weight", qs.Weight,
 		"query_sub_queries", qs.SubQueries,

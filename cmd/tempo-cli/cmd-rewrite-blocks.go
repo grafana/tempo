@@ -88,7 +88,7 @@ func (cmd *dropTracesCmd) Run(opts *globalOptions) error {
 		}
 
 		level.Info(logger).Log("msg", "marking block compacted", "block", block.BlockID)
-		err = c.MarkBlockCompacted((uuid.UUID)(block.BlockID), block.TenantID)
+		err = c.MarkBlockCompacted(uuid.UUID(block.BlockID), block.TenantID)
 		if err != nil {
 			level.Error(logger).Log("msg", "error marking block compacted", "block", block.BlockID, "err", err)
 		}

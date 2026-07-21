@@ -299,7 +299,7 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block comm
 }
 
 func (rw *readerWriter) DeleteNoCompactFlag(ctx context.Context, tenantID string, blockID backend.UUID) error {
-	return rw.w.DeleteNoCompactFlag(ctx, (uuid.UUID)(blockID), tenantID)
+	return rw.w.DeleteNoCompactFlag(ctx, uuid.UUID(blockID), tenantID)
 }
 
 func (rw *readerWriter) WAL() *wal.WAL {
@@ -307,7 +307,7 @@ func (rw *readerWriter) WAL() *wal.WAL {
 }
 
 func (rw *readerWriter) BlockMeta(ctx context.Context, tenantID string, blockID backend.UUID) (*backend.BlockMeta, *backend.CompactedBlockMeta, error) {
-	meta, err := rw.r.BlockMeta(ctx, (uuid.UUID)(blockID), tenantID)
+	meta, err := rw.r.BlockMeta(ctx, uuid.UUID(blockID), tenantID)
 	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 		return nil, nil, err
 	}
@@ -316,7 +316,7 @@ func (rw *readerWriter) BlockMeta(ctx context.Context, tenantID string, blockID 
 		return meta, nil, nil
 	}
 
-	compactedMeta, err := rw.c.CompactedBlockMeta((uuid.UUID)(blockID), tenantID)
+	compactedMeta, err := rw.c.CompactedBlockMeta(uuid.UUID(blockID), tenantID)
 	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 		return nil, nil, err
 	}
@@ -616,7 +616,7 @@ func (rw *readerWriter) EnableCompaction(ctx context.Context, cfg *CompactorConf
 }
 
 func (rw *readerWriter) MarkBlockCompacted(tenantID string, blockID backend.UUID) error {
-	return rw.c.MarkBlockCompacted((uuid.UUID)(blockID), tenantID)
+	return rw.c.MarkBlockCompacted(uuid.UUID(blockID), tenantID)
 }
 
 // RedactBlock rewrites a block excluding the given trace IDs. If none of the trace IDs
@@ -688,7 +688,7 @@ func (rw *readerWriter) RedactBlock(ctx context.Context, meta *backend.BlockMeta
 	}
 
 	if len(out) == 0 {
-		err = rw.c.MarkBlockCompacted((uuid.UUID)(meta.BlockID), tenantID)
+		err = rw.c.MarkBlockCompacted(uuid.UUID(meta.BlockID), tenantID)
 		if err != nil {
 			return false, 0, nil, fmt.Errorf("error marking block compacted, blockID: %s: %w", meta.BlockID.String(), err)
 		}
@@ -697,7 +697,7 @@ func (rw *readerWriter) RedactBlock(ctx context.Context, meta *backend.BlockMeta
 
 	if len(out) != 1 {
 		if meta.TotalObjects == int64(nFound) {
-			err = rw.c.MarkBlockCompacted((uuid.UUID)(meta.BlockID), tenantID)
+			err = rw.c.MarkBlockCompacted(uuid.UUID(meta.BlockID), tenantID)
 			if err != nil {
 				return false, 0, nil, fmt.Errorf("error marking block compacted, blockID: %s: %w", meta.BlockID.String(), err)
 			}
@@ -706,7 +706,7 @@ func (rw *readerWriter) RedactBlock(ctx context.Context, meta *backend.BlockMeta
 		return false, 0, nil, fmt.Errorf("expected 1 output block, got %d", len(out))
 	}
 
-	err = rw.c.MarkBlockCompacted((uuid.UUID)(meta.BlockID), tenantID)
+	err = rw.c.MarkBlockCompacted(uuid.UUID(meta.BlockID), tenantID)
 	if err != nil {
 		return false, 0, nil, fmt.Errorf("error marking block compacted, blockID: %s: %w", meta.BlockID.String(), err)
 	}

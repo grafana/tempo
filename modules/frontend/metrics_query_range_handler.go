@@ -256,7 +256,8 @@ func logQueryRangeResult(ctx context.Context, logger log.Logger, tenantID string
 	traceID, _ := tracing.ExtractTraceID(ctx)
 
 	if resp == nil {
-		recordResult(level.Info(logger), ctx,
+		recordResult(
+			level.Info(logger), ctx,
 			"msg", "query range response - no resp",
 			"tenant", tenantID,
 			"traceID", traceID,
@@ -267,7 +268,8 @@ func logQueryRangeResult(ctx context.Context, logger log.Logger, tenantID string
 	}
 
 	if resp.Metrics == nil {
-		recordResult(level.Info(logger), ctx,
+		recordResult(
+			level.Info(logger), ctx,
 			"msg", "query range response - no metrics",
 			"tenant", tenantID,
 			"traceID", traceID,
@@ -279,7 +281,8 @@ func logQueryRangeResult(ctx context.Context, logger log.Logger, tenantID string
 		return
 	}
 
-	recordResult(level.Info(logger), ctx,
+	recordResult(
+		level.Info(logger), ctx,
 		"msg", "query range response",
 		"tenant", tenantID,
 		"traceID", traceID,
@@ -309,7 +312,8 @@ func logQueryRangeRequest(logger log.Logger, tenantID string, req *tempopb.Query
 		"query", req.Query,
 		"range_nanos", req.End-req.Start,
 		"mode", req.QueryMode,
-		"step", req.Step)
+		"step", req.Step,
+	)
 }
 
 func httpInvalidRequest(err error) *http.Response {

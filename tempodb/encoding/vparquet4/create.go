@@ -140,7 +140,7 @@ type streamingBlock struct {
 }
 
 func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, r backend.Reader, to backend.Writer, createBufferedWriter func(w io.Writer) tempo_io.BufferedWriteFlusher) (*streamingBlock, *backend.BlockMeta) {
-	newMeta := backend.NewBlockMeta(meta.TenantID, (uuid.UUID)(meta.BlockID), VersionString)
+	newMeta := backend.NewBlockMeta(meta.TenantID, uuid.UUID(meta.BlockID), VersionString)
 	newMeta.StartTime = meta.StartTime
 	newMeta.EndTime = meta.EndTime
 	newMeta.ReplicationFactor = meta.ReplicationFactor
@@ -151,7 +151,7 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 	// The real number of objects is tracked below.
 	bloom := common.NewBloom(cfg.BloomFP, uint(cfg.BloomShardSizeBytes), uint(meta.TotalObjects))
 
-	w := &backendWriter{ctx, to, DataFileName, (uuid.UUID)(meta.BlockID), meta.TenantID, nil}
+	w := &backendWriter{ctx, to, DataFileName, uuid.UUID(meta.BlockID), meta.TenantID, nil}
 	bw := createBufferedWriter(w)
 	pw := parquet.NewGenericWriter[*Trace](bw)
 
@@ -262,7 +262,7 @@ func (b *streamingBlock) Complete() (int, error) {
 
 	// Read the footer size out of the parquet footer
 	buf := make([]byte, 8)
-	err = b.r.ReadRange(b.ctx, DataFileName, (uuid.UUID)(b.meta.BlockID), b.meta.TenantID, b.meta.Size_-8, buf, nil)
+	err = b.r.ReadRange(b.ctx, DataFileName, uuid.UUID(b.meta.BlockID), b.meta.TenantID, b.meta.Size_-8, buf, nil)
 	if err != nil {
 		return 0, fmt.Errorf("error reading parquet file footer: %w", err)
 	}
@@ -275,7 +275,7 @@ func (b *streamingBlock) Complete() (int, error) {
 
 	if b.withNoCompactFlag {
 		// write nocompact flag first to prevent compaction before completion
-		err := b.to.WriteNoCompactFlag(b.ctx, (uuid.UUID)(b.meta.BlockID), b.meta.TenantID)
+		err := b.to.WriteNoCompactFlag(b.ctx, uuid.UUID(b.meta.BlockID), b.meta.TenantID)
 		if err != nil {
 			return 0, fmt.Errorf("unexpected error writing nocompact flag: %w", err)
 		}

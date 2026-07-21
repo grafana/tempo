@@ -573,12 +573,14 @@ func logTagsRequest(logger log.Logger, tenantID, handler, scope string, rangeSec
 		"tenant", tenantID,
 		"handler", handler,
 		"scope", scope,
-		"range_seconds", rangeSeconds)
+		"range_seconds", rangeSeconds,
+	)
 }
 
 func logTagsResult(ctx context.Context, logger log.Logger, tenantID, handler, scope string, rangeSeconds uint32, durationSeconds float64, inspectedBytes uint64, err error) {
 	traceID, _ := tracing.ExtractTraceID(ctx)
-	recordResult(level.Info(logger), ctx,
+	recordResult(
+		level.Info(logger), ctx,
 		"msg", "search tag response",
 		"tenant", tenantID,
 		"traceID", traceID,
@@ -599,12 +601,14 @@ func logTagValuesRequest(logger log.Logger, tenantID, handler, tagName, query st
 		"handler", handler,
 		"tag", tagName,
 		"query", query,
-		"range_seconds", rangeSeconds)
+		"range_seconds", rangeSeconds,
+	)
 }
 
 func logTagValuesResult(ctx context.Context, logger log.Logger, tenantID, handler, tagName, query string, rangeSeconds uint32, durationSeconds float64, inspectedBytes uint64, err error) {
 	traceID, _ := tracing.ExtractTraceID(ctx)
-	recordResult(level.Info(logger), ctx,
+	recordResult(
+		level.Info(logger), ctx,
 		"msg", "search tag values response",
 		"tenant", tenantID,
 		"traceID", traceID,

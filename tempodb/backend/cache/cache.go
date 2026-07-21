@@ -81,7 +81,8 @@ func NewCache(cfgBloom *BloomConfig, nextReader backend.RawReader, nextWriter ba
 		nextWriter: nextWriter,
 	}
 
-	level.Info(logger).Log("msg", "caches available to storage backend",
+	level.Info(logger).Log(
+		"msg", "caches available to storage backend",
 		cache.RoleParquetFooter, rw.footerCache != nil,
 		cache.RoleBloom, rw.bloomCache != nil,
 		cache.RoleParquetOffsetIdx, rw.offsetIdxCache != nil,

@@ -189,7 +189,8 @@ func logResult(ctx context.Context, logger log.Logger, tenantID string, duration
 	}
 
 	if resp == nil {
-		recordResult(level.Info(logger), ctx,
+		recordResult(
+			level.Info(logger), ctx,
 			"msg", "search response - no resp",
 			"tenant", tenantID,
 			"traceID", traceID,
@@ -201,7 +202,8 @@ func logResult(ctx context.Context, logger log.Logger, tenantID string, duration
 	}
 
 	if resp.Metrics == nil {
-		recordResult(level.Info(logger), ctx,
+		recordResult(
+			level.Info(logger), ctx,
 			"msg", "search response - no metrics",
 			"tenant", tenantID,
 			"traceID", traceID,
@@ -214,7 +216,8 @@ func logResult(ctx context.Context, logger log.Logger, tenantID string, duration
 		return
 	}
 
-	recordResult(level.Info(logger), ctx,
+	recordResult(
+		level.Info(logger), ctx,
 		"msg", "search response",
 		"tenant", tenantID,
 		"traceID", traceID,
@@ -241,5 +244,6 @@ func logRequest(logger log.Logger, tenantID string, req *tempopb.SearchRequest) 
 		"query", req.Query,
 		"range_seconds", req.End-req.Start,
 		"limit", req.Limit,
-		"spans_per_spanset", req.SpansPerSpanSet)
+		"spans_per_spanset", req.SpansPerSpanSet,
+	)
 }

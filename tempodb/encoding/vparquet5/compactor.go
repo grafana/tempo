@@ -271,7 +271,8 @@ func (c *Compactor) finishBlock(ctx context.Context, block *streamingBlock, l lo
 		return fmt.Errorf("error completing block: %w", err)
 	}
 
-	level.Info(l).Log("msg", "wrote compacted block",
+	level.Info(l).Log(
+		"msg", "wrote compacted block",
 		"version", block.meta.Version,
 		"tenantID", block.meta.TenantID,
 		"blockID", block.meta.BlockID.String(),
