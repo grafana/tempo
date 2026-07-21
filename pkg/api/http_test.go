@@ -710,6 +710,7 @@ func TestParseSpanPruningRequest(t *testing.T) {
 	tests := []struct {
 		name          string
 		query         string
+		alwaysEnabled bool
 		expectEnabled bool
 		expectCfg     *spanpruningprocessor.Config
 		expectedError string
@@ -725,6 +726,31 @@ func TestParseSpanPruningRequest(t *testing.T) {
 			query:         "span_pruning=false",
 			expectEnabled: false,
 			expectCfg:     nil,
+		},
+		{
+			name:          "alwaysEnabled forces pruning on with defaults even without the param",
+			query:         "",
+			alwaysEnabled: true,
+			expectEnabled: true,
+			expectCfg:     defaultCfg(),
+		},
+		{
+			name:          "alwaysEnabled overrides an explicit false",
+			query:         "span_pruning=false",
+			alwaysEnabled: true,
+			expectEnabled: true,
+			expectCfg:     defaultCfg(),
+		},
+		{
+			name:          "alwaysEnabled still honors request overrides",
+			query:         "span_pruning_min_spans=10",
+			alwaysEnabled: true,
+			expectEnabled: true,
+			expectCfg: func() *spanpruningprocessor.Config {
+				cfg := defaultCfg()
+				cfg.MinSpansToAggregate = 10
+				return cfg
+			}(),
 		},
 		{
 			name:          "invalid bool value",
@@ -787,7 +813,7 @@ func TestParseSpanPruningRequest(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest("GET", "/api/v2/traces/1234?"+tc.query, nil)
-			enabled, cfg, err := ParseSpanPruningRequest(req)
+			enabled, cfg, err := ParseSpanPruningRequest(req, tc.alwaysEnabled)
 			if tc.expectedError != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tc.expectedError)
