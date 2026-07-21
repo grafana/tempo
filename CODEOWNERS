@@ -21,6 +21,7 @@
 /.github/update-make-docs.yml   @jdbaldry @mdisibio @mapno @yvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar @carles-grafana @ruslan-mikhailov @mattdurham @zhxiaogg
 /.github/website-next.yml       @jdbaldry @mdisibio @mapno @yvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar @carles-grafana @ruslan-mikhailov @mattdurham @zhxiaogg
 /.github/website-versioned.yml  @jdbaldry @mdisibio @mapno @yvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar @carles-grafana @ruslan-mikhailov @mattdurham @zhxiaogg
+/.github/workflows/sbom-on-release.yml @grafana/security
 /docs/docs.mk                   @jdbaldry @knylander-grafana @mdisibio @mapno @yvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar @carles-grafana @ruslan-mikhailov @mattdurham @zhxiaogg
 /docs/make-docs                 @jdbaldry @knylander-grafana @mdisibio @mapno @yvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar @carles-grafana @ruslan-mikhailov @mattdurham @zhxiaogg
 /docs/Makefile                  @jdbaldry @knylander-grafana @mdisibio @mapno @yvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar @carles-grafana @ruslan-mikhailov @mattdurham @zhxiaogg
