@@ -1,0 +1,6 @@
+change_type: change
+component: operations
+note: Add a 15m `for` duration to the `TempoUserConfigurableOverridesReloadFailing` alert so brief transient failures don't page, and fix its runbook link.
+issues: []
+subtext:
+user: zhxiaogg
