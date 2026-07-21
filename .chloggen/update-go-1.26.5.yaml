@@ -1,0 +1,11 @@
+change_type: security
+
+component: operations
+
+note: Update Go to 1.26.5 and bump vendored golang.org/x/net and golang.org/x/text to fix CVE-2026-39822, CVE-2026-42504, CVE-2026-27145, CVE-2026-42505, CVE-2026-42507, CVE-2026-46600, and CVE-2026-56852
+
+issues: []
+
+subtext:
+
+user: mattdurham
