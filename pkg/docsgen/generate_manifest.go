@@ -67,6 +67,7 @@ func main() {
 	newConfig.BlockBuilder.InstanceID = hostname
 	newConfig.LiveStore.Ring.InstanceID = hostname
 	newConfig.LiveStore.Ring.InstanceInterfaceNames = []string{"eth0"}
+	newConfig.BloomGateway.Ring.InstanceID = hostname
 
 	newConfigBytes, err := yaml.Marshal(newConfig)
 	if err != nil {

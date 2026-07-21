@@ -23,6 +23,7 @@ import (
 	"github.com/grafana/dskit/signals"
 	"github.com/grafana/tempo/modules/backendworker"
 	"github.com/grafana/tempo/modules/blockbuilder"
+	"github.com/grafana/tempo/modules/bloomgateway"
 	"github.com/grafana/tempo/modules/frontend"
 	"github.com/grafana/tempo/modules/livestore"
 	"github.com/jedib0t/go-pretty/v6/table"
@@ -83,6 +84,7 @@ type App struct {
 	backendScheduler     *backendscheduler.BackendScheduler
 	backendWorker        *backendworker.BackendWorker
 	liveStore            *livestore.LiveStore
+	bloomGateway         *bloomgateway.BloomGateway
 	signalsHandler       *signals.Handler
 
 	HTTPAuthMiddleware       middleware.Interface
@@ -366,6 +368,16 @@ func (t *App) readyHandler(sm *services.Manager, shutdownRequested *atomic.Bool)
 		if t.liveStore != nil {
 			if err := t.liveStore.CheckReady(r.Context()); err != nil {
 				http.Error(w, "LiveStore not ready: "+err.Error(), http.StatusServiceUnavailable)
+				return
+			}
+		}
+
+		// BloomGateway has a special check that makes sure it is ACTIVE in its
+		// ring and has no leaf ranges left to reconstruct before serving
+		// queries (DESIGN.md § Availability model's readiness gate).
+		if t.bloomGateway != nil {
+			if err := t.bloomGateway.CheckReady(r.Context()); err != nil {
+				http.Error(w, "BloomGateway not ready: "+err.Error(), http.StatusServiceUnavailable)
 				return
 			}
 		}

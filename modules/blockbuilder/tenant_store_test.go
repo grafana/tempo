@@ -1,7 +1,9 @@
 package blockbuilder
 
 import (
+	"context"
 	"flag"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func getTenantStore(t *testing.T, startTime time.Time, cycleDuration, slackDuration time.Duration) (*tenantStore, error) {
+func getTenantStore(t *testing.T, startTime time.Time, cycleDuration, slackDuration time.Duration, publisher addPublisher) (*tenantStore, error) {
 	var (
 		logger      = log.NewNopLogger()
 		tmpDir      = t.TempDir()
@@ -33,7 +35,61 @@ func getTenantStore(t *testing.T, startTime time.Time, cycleDuration, slackDurat
 		Version:        encoding.DefaultEncoding().Version(),
 	})
 	require.NoError(t, err)
-	return newTenantStore("test-tenant", partition, startOffset, startTime, cycleDuration, slackDuration, blockCfg, logger, w, encoding.DefaultEncoding(), &mockOverrides{})
+	return newTenantStore("test-tenant", partition, startOffset, startTime, cycleDuration, slackDuration, blockCfg, logger, w, encoding.DefaultEncoding(), &mockOverrides{}, publisher)
+}
+
+// recordingPublisher is a test fake for addPublisher: it records every
+// PublishAdd call's arguments so tests can assert exactly what Flush
+// captured, without constructing a real Kafka-backed Publisher. The zero
+// value is disabled, matching addPublisher's real-world default
+// (bloomgatewayevents.Config.Enabled defaults to false).
+type recordingPublisher struct {
+	mu      sync.Mutex
+	enabled bool
+	adds    []recordedAdd
+}
+
+type recordedAdd struct {
+	blockID  backend.UUID
+	tenantID string
+	start    time.Time
+	end      time.Time
+	traceIDs [][]byte
+}
+
+func (p *recordingPublisher) Enabled() bool {
+	return p.enabled
+}
+
+func (p *recordingPublisher) PublishAdd(_ context.Context, blockID backend.UUID, tenantID string, start, end time.Time, traceIDs [][]byte) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.adds = append(p.adds, recordedAdd{blockID: blockID, tenantID: tenantID, start: start, end: end, traceIDs: traceIDs})
+}
+
+// snapshotAdds returns a copy of the calls recorded so far, safe to
+// inspect after Flush returns.
+func (p *recordingPublisher) snapshotAdds() []recordedAdd {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]recordedAdd(nil), p.adds...)
+}
+
+var _ addPublisher = (*recordingPublisher)(nil)
+
+// pushTraces appends n traces with distinct random IDs to ts and returns
+// the IDs pushed.
+func pushTraces(t *testing.T, ts *tenantStore, n int, start, end time.Time) [][]byte {
+	t.Helper()
+	ids := make([][]byte, 0, n)
+	for i := 0; i < n; i++ {
+		req := test.MakePushBytesRequest(t, 3, nil, uint64(start.UnixNano()), uint64(end.UnixNano()))
+		for j := range req.Traces {
+			require.NoError(t, ts.AppendTrace(req.Ids[j], req.Traces[j].Slice, start))
+			ids = append(ids, req.Ids[j])
+		}
+	}
+	return ids
 }
 
 func TestTenantStoreAdjustTimeRangeForSlack(t *testing.T) {
@@ -43,7 +99,7 @@ func TestTenantStoreAdjustTimeRangeForSlack(t *testing.T) {
 		slackDuration  = 3 * time.Minute
 	)
 
-	store, err := getTenantStore(t, startCycleTime, cycleDuration, slackDuration)
+	store, err := getTenantStore(t, startCycleTime, cycleDuration, slackDuration, &recordingPublisher{})
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -167,7 +223,7 @@ func writeHistoricalData(t *testing.T, count int, startTime time.Time, cycleDura
 		store = newStoreWithLogger(ctx, t, log, false)
 	)
 
-	ts, err := getTenantStore(t, startTime, cycleDuration, slackDuration)
+	ts, err := getTenantStore(t, startTime, cycleDuration, slackDuration, &recordingPublisher{})
 	require.NoError(t, err)
 
 	for i := 0; i < count; i++ {
@@ -204,7 +260,7 @@ func TestTenantStoreNoCompactFlag(t *testing.T) {
 		store = newStoreWithLogger(ctx, t, log, true)
 	)
 
-	ts, err := getTenantStore(t, startTime, cycleDuration, slackDuration)
+	ts, err := getTenantStore(t, startTime, cycleDuration, slackDuration, &recordingPublisher{})
 	require.NoError(t, err)
 
 	for range count {
@@ -236,4 +292,112 @@ func TestTenantStoreNoCompactFlag(t *testing.T) {
 	require.EqualValues(t, count, actualMeta.TotalObjects)
 	require.EqualValues(t, 1, actualMeta.TotalRecords)
 	require.Greater(t, actualMeta.Size_, uint64(0))
+}
+
+func TestFlush_PublishesCapturedIDs(t *testing.T) {
+	var (
+		ctx           = t.Context()
+		startTime     = time.Now().Add(-24 * time.Hour)
+		cycleDuration = 5 * time.Minute
+		slackDuration = 5 * time.Minute
+		publisher     = &recordingPublisher{enabled: true}
+		store         = newStoreWithLogger(ctx, t, log.NewNopLogger(), false)
+	)
+
+	ts, err := getTenantStore(t, startTime, cycleDuration, slackDuration, publisher)
+	require.NoError(t, err)
+
+	wantIDs := pushTraces(t, ts, 5, startTime, startTime.Add(time.Minute))
+
+	require.NoError(t, ts.Flush(ctx, store, store, store))
+
+	adds := publisher.snapshotAdds()
+	require.Len(t, adds, 1)
+	require.ElementsMatch(t, wantIDs, adds[0].traceIDs)
+	require.Equal(t, ts.tenantID, adds[0].tenantID)
+
+	// Compare against the block Flush actually produced.
+	require.NoError(t, ts.AllowCompaction(ctx, store))
+	store.PollNow(ctx)
+	metas := store.BlockMetas(ts.tenantID)
+	require.Len(t, metas, 1)
+	meta := metas[0]
+
+	require.Equal(t, meta.BlockID, adds[0].blockID)
+	require.True(t, meta.StartTime.Equal(adds[0].start))
+	require.True(t, meta.EndTime.Equal(adds[0].end))
+}
+
+func TestFlush_NoLiveTraces_NoPublish(t *testing.T) {
+	var (
+		ctx           = t.Context()
+		startTime     = time.Now()
+		cycleDuration = 5 * time.Minute
+		slackDuration = 5 * time.Minute
+		publisher     = &recordingPublisher{enabled: true}
+	)
+
+	ts, err := getTenantStore(t, startTime, cycleDuration, slackDuration, publisher)
+	require.NoError(t, err)
+
+	// Nothing appended -- Flush must take its early-return path (no live
+	// traces) without ever touching the store, let alone publishing.
+	require.NoError(t, ts.Flush(ctx, nil, nil, nil))
+	require.Empty(t, publisher.snapshotAdds())
+}
+
+func TestFlush_DisabledPublisher_NoCaptureNoPublish(t *testing.T) {
+	var (
+		ctx           = t.Context()
+		startTime     = time.Now().Add(-24 * time.Hour)
+		cycleDuration = 5 * time.Minute
+		slackDuration = 5 * time.Minute
+		publisher     = &recordingPublisher{enabled: false}
+		store         = newStoreWithLogger(ctx, t, log.NewNopLogger(), false)
+	)
+
+	ts, err := getTenantStore(t, startTime, cycleDuration, slackDuration, publisher)
+	require.NoError(t, err)
+
+	pushTraces(t, ts, 3, startTime, startTime.Add(time.Minute))
+
+	require.NoError(t, ts.Flush(ctx, store, store, store))
+
+	// Enabled() == false means Flush never wraps the iterator in a tee: the
+	// only externally observable evidence, since the tee is internal to
+	// Flush, is that no PublishAdd call happens at all, at zero cost.
+	require.Empty(t, publisher.snapshotAdds())
+
+	// Flush's own behavior must be unaffected by the disabled publisher.
+	require.NoError(t, ts.AllowCompaction(ctx, store))
+	store.PollNow(ctx)
+	metas := store.BlockMetas(ts.tenantID)
+	require.Len(t, metas, 1)
+	require.EqualValues(t, 3, metas[0].TotalObjects)
+}
+
+func TestFlush_MultipleFlushCycles_NoCrossContamination(t *testing.T) {
+	var (
+		ctx           = t.Context()
+		startTime     = time.Now().Add(-24 * time.Hour)
+		cycleDuration = 5 * time.Minute
+		slackDuration = 5 * time.Minute
+		publisher     = &recordingPublisher{enabled: true}
+		store         = newStoreWithLogger(ctx, t, log.NewNopLogger(), false)
+	)
+
+	ts, err := getTenantStore(t, startTime, cycleDuration, slackDuration, publisher)
+	require.NoError(t, err)
+
+	firstIDs := pushTraces(t, ts, 4, startTime, startTime.Add(time.Minute))
+	require.NoError(t, ts.Flush(ctx, store, store, store))
+
+	secondIDs := pushTraces(t, ts, 2, startTime, startTime.Add(time.Minute))
+	require.NoError(t, ts.Flush(ctx, store, store, store))
+
+	adds := publisher.snapshotAdds()
+	require.Len(t, adds, 2)
+	require.ElementsMatch(t, firstIDs, adds[0].traceIDs)
+	require.ElementsMatch(t, secondIDs, adds[1].traceIDs)
+	require.NotEqual(t, adds[0].blockID, adds[1].blockID)
 }

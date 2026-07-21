@@ -17,6 +17,7 @@ import (
 	backendscheduler_client "github.com/grafana/tempo/modules/backendscheduler/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/pkg/bloomgatewayevents"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb"
@@ -40,6 +41,11 @@ const (
 
 var ringOp = ring.NewOp([]ring.InstanceState{ring.ACTIVE}, nil)
 
+// bloomgatewayevents deliberately does not import tempodb (see its
+// notifier.go), so this structural-satisfaction assertion lives here
+// instead, in the one package that already imports both.
+var _ tempodb.CompactionNotifier = (*bloomgatewayevents.Notifier)(nil)
+
 type BackendWorker struct {
 	services.Service
 
@@ -47,6 +53,11 @@ type BackendWorker struct {
 	store            storage.Store
 	overrides        overrides.Interface
 	backendScheduler tempopb.BackendSchedulerClient
+
+	// publisher is this worker's bloom-gateway event producer. Always
+	// non-nil (bloomgatewayevents.New's contract); a no-op when
+	// cfg.Producer.Enabled is false.
+	publisher *bloomgatewayevents.Publisher
 
 	workerID string
 
@@ -85,6 +96,23 @@ func New(cfg Config, schedulerClientCfg backendscheduler_client.Config, store st
 		return nil, fmt.Errorf("failed to create backend scheduler client: %w", err)
 	}
 	w.backendScheduler = schedulerClient
+
+	// Built against reg as received here, before the sharded-mode prefix
+	// wrapping below -- pkg/bloomgatewayevents/metrics.go's own
+	// "tempo_bloom_gateway_..." names must not be double-prefixed.
+	publisher, err := bloomgatewayevents.New(cfg.Producer, log.Logger, reg, bloomgatewayevents.WithTenantLimits(overrides.BloomGatewayPublishesPerSecond))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create bloom-gateway event publisher: %w", err)
+	}
+	w.publisher = publisher
+	// w.store is already set above (struct literal at the top of New);
+	// installing a notifier only when enabled keeps tempodb's per-job
+	// bridge nil (compactor.go's CompactWithConfig checks
+	// rw.compactionNotifier != nil), so a disabled producer costs
+	// compaction nothing.
+	if publisher.Enabled() {
+		w.store.SetCompactionNotifier(bloomgatewayevents.NewNotifier(publisher))
+	}
 
 	if w.isSharded() {
 		reg = prometheus.WrapRegistererWithPrefix("tempo_", reg)
@@ -426,6 +454,8 @@ func (w *BackendWorker) completeRedactionJob(ctx context.Context, jobID string, 
 }
 
 func (w *BackendWorker) stopping(_ error) error {
+	w.publisher.Close()
+
 	if w.subservices != nil {
 		return services.StopManagerAndAwaitStopped(context.Background(), w.subservices)
 	}

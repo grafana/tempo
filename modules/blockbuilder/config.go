@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
+	"github.com/grafana/tempo/pkg/bloomgatewayevents"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -41,6 +42,9 @@ type Config struct {
 
 	// This config is dynamically injected because defined outside the ingester config.
 	IngestStorageConfig ingest.Config `yaml:"-"`
+
+	// This config is dynamically injected because it is shared across every bloom-gateway event producer.
+	Producer bloomgatewayevents.Config `yaml:"-"`
 }
 
 func (c *Config) AssignedPartitions() []int32 {

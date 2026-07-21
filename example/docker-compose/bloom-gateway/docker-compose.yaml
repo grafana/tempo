@@ -1,0 +1,191 @@
+services:
+  # --- kafka ---
+  redpanda:
+    image: redpandadata/redpanda:latest
+    ports:
+      - "19092:9092" # Kafka API, exposed for debugging with rpk/kcat from the host
+    command: >
+      redpanda start --overprovisioned
+      --mode=dev-container
+      --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      --advertise-kafka-addr=PLAINTEXT://redpanda:9092
+
+  # Pre-creates both Kafka topics with explicit partition counts (and a
+  # raised max.message.bytes on the bloom-gateway events topic) before any
+  # producer or consumer touches them. Without this, whichever service's
+  # kafka client races to auto-create a topic first wins its partition
+  # count via the *broker-wide* num.partitions default (see
+  # pkg/ingest/config.go's SetDefaultNumberOfPartitionsForAutocreatedTopics)
+  # -- the same race distributed/docker-compose.yaml's redpanda-init works
+  # around with a "probably" partition-count hack. Every service below that
+  # touches Kafka depends on this completing successfully first, so the
+  # race can't happen here.
+  kafka-init:
+    image: redpandadata/redpanda:latest
+    depends_on:
+      - redpanda
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -e
+        until rpk cluster info -X brokers=redpanda:9092 2>/dev/null; do
+          echo "kafka-init: waiting for redpanda..."
+          sleep 2
+        done
+
+        # Belt-and-suspenders broker-wide default. The topic-level override
+        # below is what actually matters for the bloom-gateway events topic
+        # (verified to take precedence over this as DYNAMIC_TOPIC_CONFIG).
+        rpk cluster config set kafka_batch_max_bytes 8388608 -X admin.hosts=redpanda:9644 --no-confirm
+
+        # Single partition: this example runs one block-builder instance, so
+        # tempo.yaml's block_builder.assigned_partitions only names partition 0.
+        rpk topic create tempo-ingest -p 1 --if-not-exists -X brokers=redpanda:9092
+
+        # K=16 matches modules/bloomgateway/config.go's and
+        # pkg/bloomgatewayevents/config.go's shared default partition count --
+        # producer and gateway agree on this by construction, not because rpk
+        # created it with this number. max.message.bytes is raised because a
+        # default-chunk_size AddChunk message (200k trace IDs, ~3.2 MiB) is
+        # bigger than redpanda's 1 MiB default.
+        rpk topic create tempo.bloom-gateway.events -p 16 \
+          -c max.message.bytes=8388608 --if-not-exists -X brokers=redpanda:9092
+
+        echo "kafka-init: topics ready"
+
+  minio:
+    image: minio/minio:latest
+    environment:
+      - MINIO_ACCESS_KEY=tempo
+      - MINIO_SECRET_KEY=supersecret
+    ports:
+      - "19001:9001"
+    entrypoint:
+      - sh
+      - -euc
+      - mkdir -p /data/tempo && minio server /data --console-address ':9001'
+
+  # --- ingest path (Kafka-based; mirrors ../distributed's service set) ---
+  distributor:
+    image: &tempoImage "grafana/tempo:${TEMPO_IMAGE_TAG:-latest}"
+    environment: &tempoEnvironment
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      live-store-0:
+        condition: service_started
+    command: "-target=distributor -config.file=/etc/tempo.yaml"
+    restart: always
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+    ports:
+      - "13200:3200"
+      - "14317:4317"
+      - "14318:4318"
+
+  alloy:
+    image: grafana/alloy:v1.17.0@sha256:41c41849989b7e054ccbadc17938ee1e5592fe26bfbc56ef3ffc109c0b0b2739
+    volumes:
+      - ./config.alloy:/etc/alloy/config.alloy
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy/data
+      - --server.http.listen-addr=0.0.0.0:12345
+    environment:
+      - ALLOY_OTLP_UPSTREAM=distributor:4317
+    depends_on:
+      - distributor
+
+  k6-tracing:
+    image: ghcr.io/grafana/xk6-client-tracing:v0.0.9
+    environment:
+      - ENDPOINT=alloy:4317
+    restart: always
+    depends_on:
+      - alloy
+
+  # Kafka partition ownership for the ingest topic lives on live-store's
+  # partition ring -- the distributor can't write to Kafka at all without at
+  # least one instance registered here, even though this example has no
+  # query path (see tempo.yaml's live_store comment).
+  live-store-0:
+    image: *tempoImage
+    environment: *tempoEnvironment
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    hostname: live-store-0
+    command: "-target=live-store -config.file=/etc/tempo.yaml"
+    restart: always
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+    ports:
+      - "13205:3200"
+
+  block-builder-0:
+    image: *tempoImage
+    environment: *tempoEnvironment
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      distributor:
+        condition: service_started
+    command: "-target=block-builder -config.file=/etc/tempo.yaml"
+    hostname: block-builder-0
+    restart: always
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+    ports:
+      - "13210:3200"
+
+  # --- backend (compaction / retention) ---
+  backend-scheduler:
+    image: *tempoImage
+    environment: *tempoEnvironment
+    depends_on:
+      - minio
+    command: "-target=backend-scheduler -config.file=/etc/tempo.yaml"
+    restart: always
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+    ports:
+      - "13220:3200"
+
+  backend-worker-0:
+    image: *tempoImage
+    environment: *tempoEnvironment
+    depends_on:
+      backend-scheduler:
+        condition: service_started
+      kafka-init:
+        condition: service_completed_successfully
+    hostname: backend-worker-0
+    command: "-target=backend-worker -config.file=/etc/tempo.yaml"
+    restart: always
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+    ports:
+      - "13230:3200"
+
+  # --- bloom gateway ---
+  bloom-gateway-0:
+    image: *tempoImage
+    environment: *tempoEnvironment
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      minio:
+        condition: service_started
+    hostname: bloom-gateway-0
+    command: "-target=bloom-gateway -config.file=/etc/tempo.yaml"
+    restart: always
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+      - bloom-gateway-data:/var/tempo
+    ports:
+      - "13240:3200"
+
+volumes:
+  bloom-gateway-data:

@@ -25,6 +25,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kadm"
@@ -62,7 +63,7 @@ func TestBlockbuilder_lookbackOnNoCommit(t *testing.T) {
 	store := newStore(ctx, t)
 	cfg := blockbuilderConfig(t, address, []int32{0})
 
-	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store, prometheus.NewRegistry())
 	require.NoError(t, err)
 	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
 	t.Cleanup(func() {
@@ -101,7 +102,7 @@ func TestBlockbuilder_without_partitions_assigned_returns_an_error(t *testing.T)
 	store := newStore(ctx, t)
 	cfg := blockbuilderConfig(t, address, []int32{})
 
-	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store, prometheus.NewRegistry())
 	require.NoError(t, err)
 	_, err = b.consume(ctx)
 	require.ErrorIs(t, err, errNoPartitionsAssigned)
@@ -119,7 +120,7 @@ func TestBlockbuilder_getAssignedPartitions(t *testing.T) {
 		20: {Id: 20, State: ring.PartitionActive},
 	})
 
-	b, err := New(cfg, testLogger(t), partitionRing, &mockOverrides{}, nil)
+	b, err := New(cfg, testLogger(t), partitionRing, &mockOverrides{}, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
 	partitions := b.getAssignedPartitions()
 	assert.Equal(t, []int32{0, 2}, partitions)
@@ -144,7 +145,7 @@ func TestBlockbuilder_fetchMetricsIncrement(t *testing.T) {
 	bytesStart, err := test.GetCounterVecValue(metricFetchBytesTotal, "0")
 	require.NoError(t, err)
 
-	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store, prometheus.NewRegistry())
 	require.NoError(t, err)
 	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
 	t.Cleanup(func() {
@@ -199,7 +200,7 @@ func TestBlockbuilder_startWithCommit(t *testing.T) {
 	admClient := kadm.NewClient(client)
 	require.NoError(t, admClient.CommitAllOffsets(ctx, cfg.IngestStorageConfig.Kafka.ConsumerGroup, offsets))
 
-	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store, prometheus.NewRegistry())
 	require.NoError(t, err)
 	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
 	t.Cleanup(func() {
@@ -249,7 +250,7 @@ func TestBlockbuilder_flushingFails(t *testing.T) {
 	client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
 	producedRecords := testkafka.SendTracesFor(t, ctx, client, time.Second, 100*time.Millisecond, ingest.Encode) // Send for 1 second, <1 consumption cycles
 
-	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store, prometheus.NewRegistry())
 	require.NoError(t, err)
 	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
 	t.Cleanup(func() {
@@ -285,7 +286,7 @@ func TestBlockbuilder_receivesOldRecords(t *testing.T) {
 	store := newStore(ctx, t)
 	cfg := blockbuilderConfig(t, address, []int32{0})
 
-	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store, prometheus.NewRegistry())
 	require.NoError(t, err)
 	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
 	t.Cleanup(func() {
@@ -375,7 +376,7 @@ func TestBlockbuilder_committingFails(t *testing.T) {
 	client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
 	producedRecords := testkafka.SendTracesFor(t, ctx, client, time.Second, 100*time.Millisecond, ingest.Encode) // Send for 1 second, <1 consumption cycle
 
-	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store, prometheus.NewRegistry())
 	require.NoError(t, err)
 	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
 	t.Cleanup(func() {
@@ -434,7 +435,7 @@ func TestBlockbuilder_retries_on_retriable_commit_error(t *testing.T) {
 	producedRecords := testkafka.SendReq(ctx, t, client, ingest.Encode, util.FakeTenantID)
 	lastRecordOffset := producedRecords[len(producedRecords)-1].Offset
 
-	b, err := New(cfg, logger, newPartitionRingReader(), &mockOverrides{}, store)
+	b, err := New(cfg, logger, newPartitionRingReader(), &mockOverrides{}, store, prometheus.NewRegistry())
 	require.NoError(t, err)
 
 	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
@@ -491,7 +492,7 @@ func TestBlockbuilder_retries_on_commit_error(t *testing.T) {
 	producedRecords := testkafka.SendReq(ctx, t, client, ingest.Encode, util.FakeTenantID)
 	lastRecordOffset := producedRecords[len(producedRecords)-1].Offset
 
-	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store, prometheus.NewRegistry())
 	require.NoError(t, err)
 
 	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
@@ -539,7 +540,7 @@ func TestBlockbuilder_noDoubleConsumption(t *testing.T) {
 	lastRecordOffset := producedRecords[len(producedRecords)-1].Offset
 
 	// Create the block builder
-	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store, prometheus.NewRegistry())
 	require.NoError(t, err)
 	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
 	t.Cleanup(func() {
@@ -623,7 +624,7 @@ func TestBlockBuilder_honor_maxBytesPerCycle(t *testing.T) {
 			cfg := blockbuilderConfig(t, address, []int32{0})
 			cfg.MaxBytesPerCycle = uint64(tc.maxBytesPerCycle)
 
-			b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+			b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store, prometheus.NewRegistry())
 			require.NoError(t, err)
 			require.NoError(t, services.StartAndAwaitRunning(ctx, b))
 			t.Cleanup(func() {
@@ -725,7 +726,7 @@ func TestBlockbuilder_usesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 			res := client.ProduceSync(ctx, records...)
 			require.NoError(t, res.FirstErr())
 
-			b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+			b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store, prometheus.NewRegistry())
 			require.NoError(t, err)
 			require.NoError(t, services.StartAndAwaitRunning(ctx, b))
 			t.Cleanup(func() {
@@ -807,7 +808,7 @@ func TestBlockbuilder_marksOldBlocksCompacted(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, services.StopAndAwaitTerminated(context.Background(), store)) })
 
 	// Create the block builder
-	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store, prometheus.NewRegistry())
 	require.NoError(t, err)
 	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
 	t.Cleanup(func() {
@@ -878,7 +879,7 @@ func TestBlockbuilder_gracefulShutdown(t *testing.T) {
 		testkafka.SendTracesFor(t, ctx, client, 60*time.Second, time.Second, ingest.Encode)
 	}()
 
-	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store, prometheus.NewRegistry())
 	require.NoError(t, err)
 	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
 
@@ -1050,6 +1051,7 @@ type mockOverrides struct {
 
 func (m *mockOverrides) MaxBytesPerTrace(_ string) int                      { return 0 }
 func (m *mockOverrides) DedicatedColumns(_ string) backend.DedicatedColumns { return m.dc }
+func (m *mockOverrides) BloomGatewayPublishesPerSecond(_ string) float64    { return 0 }
 
 func countFlushedTraces(store storage.Store) int {
 	count := 0
@@ -1111,7 +1113,7 @@ func BenchmarkBlockBuilder(b *testing.B) {
 
 	cfg.ConsumeCycleDuration = 1 * time.Hour
 
-	bb, err := New(cfg, logger, newPartitionRingReader(), o, store)
+	bb, err := New(cfg, logger, newPartitionRingReader(), o, store, prometheus.NewRegistry())
 	require.NoError(b, err)
 	defer func() { require.NoError(b, bb.stopping(nil)) }()
 
@@ -1194,7 +1196,7 @@ func TestBlockbuilder_twoPartitions_secondEmpty(t *testing.T) {
 	testkafka.SendReqWithOpts(ctx, t, client, ingest.Encode, testkafka.ReqOpts{Partition: 0, Time: reqTime, TenantID: util.FakeTenantID})
 
 	// And only then create block builder
-	b, err := New(cfg, testLogger(t), partitionRing, &mockOverrides{}, store)
+	b, err := New(cfg, testLogger(t), partitionRing, &mockOverrides{}, store, prometheus.NewRegistry())
 	require.NoError(t, err)
 
 	// Verify builder is listening to both partitions
@@ -1288,7 +1290,7 @@ func TestBlockbuilder_PartitionWithNoLag(t *testing.T) {
 	require.NoError(t, admClient.CommitAllOffsets(ctx, cfg.IngestStorageConfig.Kafka.ConsumerGroup, offsets))
 
 	// Create and start the block builder
-	b, err := New(cfg, testLogger(t), partitionRing, &mockOverrides{}, store)
+	b, err := New(cfg, testLogger(t), partitionRing, &mockOverrides{}, store, prometheus.NewRegistry())
 	require.NoError(t, err)
 
 	// Verify builder is listening to all partitions

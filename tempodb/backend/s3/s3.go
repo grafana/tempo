@@ -783,7 +783,14 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 }
 
 func readError(err error) error {
-	if err != nil && minio.ToErrorResponse(err).Code == minio.NoSuchKey {
+	// errors.As, not minio.ToErrorResponse: ToErrorResponse type-asserts and
+	// cannot see through wrapped errors, but readRange wraps the minio error
+	// in fmt.Errorf before ReadRange passes it here — a NoSuchKey on the
+	// range-read path (e.g. a parquet footer read of a block deleted
+	// mid-operation) would otherwise never map to ErrDoesNotExist, defeating
+	// every errors.Is-based deleted-block skip downstream.
+	var errResp minio.ErrorResponse
+	if err != nil && errors.As(err, &errResp) && errResp.Code == minio.NoSuchKey {
 		return backend.ErrDoesNotExist
 	}
 	return err

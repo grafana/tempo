@@ -9,12 +9,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/modules/blockbuilder/util"
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/bloomgatewayevents"
 	"github.com/grafana/tempo/pkg/dataquality"
 	"github.com/grafana/tempo/pkg/livetraces"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -30,6 +32,16 @@ var metricBlockBuilderFlushedBlocks = promauto.NewCounterVec(
 	}, []string{"tenant"},
 )
 
+// addPublisher is the subset of *bloomgatewayevents.Publisher that Flush
+// needs. Defined here, at the point of use, so tests can substitute a fake
+// without constructing a real Kafka-backed Publisher.
+type addPublisher interface {
+	Enabled() bool
+	PublishAdd(ctx context.Context, blockID backend.UUID, tenantID string, start, end time.Time, traceIDs [][]byte)
+}
+
+var _ addPublisher = (*bloomgatewayevents.Publisher)(nil)
+
 type tenantStore struct {
 	tenantID         string
 	idGenerator      util.IDGenerator
@@ -42,11 +54,12 @@ type tenantStore struct {
 	enc              encoding.VersionedEncoding
 	wal              *wal.WAL
 	noCompactBlockID *backend.UUID
+	publisher        addPublisher
 
 	liveTraces *livetraces.LiveTraces[[]byte]
 }
 
-func newTenantStore(tenantID string, partitionID, startOffset uint64, startTime time.Time, cycleDuration, slackDuration time.Duration, cfg BlockConfig, logger log.Logger, wal *wal.WAL, enc encoding.VersionedEncoding, o Overrides) (*tenantStore, error) {
+func newTenantStore(tenantID string, partitionID, startOffset uint64, startTime time.Time, cycleDuration, slackDuration time.Duration, cfg BlockConfig, logger log.Logger, wal *wal.WAL, enc encoding.VersionedEncoding, o Overrides, publisher addPublisher) (*tenantStore, error) {
 	cfg.CreateWithNoCompactFlag = true // blockbuilder creates blocks with the nocompact flag set by default
 
 	s := &tenantStore{
@@ -60,6 +73,7 @@ func newTenantStore(tenantID string, partitionID, startOffset uint64, startTime 
 		overrides:     o,
 		wal:           wal,
 		enc:           enc,
+		publisher:     publisher,
 		liveTraces:    livetraces.New(func(b []byte) uint64 { return uint64(len(b)) }, 0, 0, tenantID), // passing 0s for max idle and live time b/c block builder doesn't cut idle traces
 	}
 
@@ -100,6 +114,36 @@ func (s *tenantStore) AppendTrace(traceID []byte, tr []byte, ts time.Time) error
 
 	return nil
 }
+
+// traceIDCaptureIterator tees a common.Iterator, recording a copy of every
+// ID it yields. It must wrap the exact iterator handed to CreateBlock:
+// liveTracesIter's background goroutine deletes live-traces map entries as
+// it drains them (live_traces_iter.go), so there is no safe way to read
+// that map before or after the fact instead. Teeing guarantees the
+// captured set is a superset of what CreateBlock actually wrote, by
+// construction -- a missing ID would make the gateway wrongly reject a
+// block that contains the trace (DESIGN.md § Failure handling), whereas an
+// extra one is only a harmless false positive.
+type traceIDCaptureIterator struct {
+	inner common.Iterator
+	ids   [][]byte
+}
+
+func (t *traceIDCaptureIterator) Next(ctx context.Context) (common.ID, *tempopb.Trace, error) {
+	id, tr, err := t.inner.Next(ctx)
+	if id != nil {
+		// Copy: nothing guarantees id is stable once the inner iterator is
+		// advanced again (e.g. liveTracesIter reuses its channel buffer).
+		t.ids = append(t.ids, append([]byte(nil), id...))
+	}
+	return id, tr, err
+}
+
+func (t *traceIDCaptureIterator) Close() {
+	t.inner.Close()
+}
+
+var _ common.Iterator = (*traceIDCaptureIterator)(nil)
 
 func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Writer, c tempodb.Compactor) error {
 	ctx, span := tracer.Start(ctx, "tenantStore.Flush", trace.WithAttributes(attribute.String("tenant", s.tenantID)))
@@ -154,7 +198,19 @@ func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Wri
 		"meta", meta,
 	)
 
-	newMeta, err := s.enc.CreateBlock(ctx, &s.cfg.BlockConfig, meta, iter, reader, writer)
+	// blockIter is what CreateBlock actually drains. It's teed through
+	// traceIDCaptureIterator only when publishing is enabled, so a disabled
+	// publisher costs nothing beyond the Enabled() check. The tee is
+	// constructed fresh per Flush -- never stored on tenantStore -- so
+	// nothing can leak across flush cycles.
+	var tee *traceIDCaptureIterator
+	blockIter := common.Iterator(iter)
+	if s.publisher.Enabled() {
+		tee = &traceIDCaptureIterator{inner: iter}
+		blockIter = tee
+	}
+
+	newMeta, err := s.enc.CreateBlock(ctx, &s.cfg.BlockConfig, meta, blockIter, reader, writer)
 	if err != nil {
 		return err
 	}
@@ -183,6 +239,14 @@ func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Wri
 	span.AddEvent("wrote block to backend", trace.WithAttributes(attribute.String("block_id", newMeta.BlockID.String())))
 
 	metricBlockBuilderFlushedBlocks.WithLabelValues(s.tenantID).Inc()
+
+	if tee != nil {
+		// PublishAdd never returns an error and is internally bounded: a
+		// dropped Add is healed later by reconciliation, never a
+		// correctness loss (DESIGN.md § Publish policy), so there is
+		// nothing to retry or handle here.
+		s.publisher.PublishAdd(ctx, newMeta.BlockID, s.tenantID, newMeta.StartTime, newMeta.EndTime, tee.ids)
+	}
 
 	if err := s.wal.LocalBackend().ClearBlock((uuid.UUID)(newMeta.BlockID), s.tenantID); err != nil {
 		return err

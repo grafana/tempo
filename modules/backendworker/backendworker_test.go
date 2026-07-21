@@ -29,6 +29,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/twmb/franz-go/pkg/kfake"
+	"github.com/twmb/franz-go/pkg/kgo"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
@@ -44,7 +46,12 @@ func TestWorker(t *testing.T) {
 
 	workerCfg, schedulerClientCfg, overridesSvc, scheduler, store := setupDependencies(ctx, t, limitCfg)
 
-	w, err := New(workerCfg, schedulerClientCfg, store, overridesSvc, prometheus.DefaultRegisterer)
+	// A fresh registry, not prometheus.DefaultRegisterer: New now
+	// unconditionally registers bloomgatewayevents metrics (even when the
+	// producer is disabled, as it is here), and DefaultRegisterer is a
+	// process-global singleton that a repeat run (e.g. go test -count=2)
+	// would hit twice, panicking on duplicate registration.
+	w, err := New(workerCfg, schedulerClientCfg, store, overridesSvc, prometheus.NewRegistry())
 	require.NoError(t, err)
 	require.NotNil(t, w)
 
@@ -323,4 +330,169 @@ func TestIsSharded(t *testing.T) {
 			assert.Equal(t, tc.expected, w.isSharded())
 		})
 	}
+}
+
+// recordingStore wraps a real storage.Store and records whether/what
+// SetCompactionNotifier was called with, so New's enabled/disabled wiring
+// can be asserted without driving a full compaction.
+type recordingStore struct {
+	storage.Store
+	notifierSet bool
+	notifier    tempodb.CompactionNotifier
+}
+
+func (r *recordingStore) SetCompactionNotifier(n tempodb.CompactionNotifier) {
+	r.notifierSet = true
+	r.notifier = n
+	r.Store.SetCompactionNotifier(n)
+}
+
+// newBloomGatewayKfakeCluster starts a real in-process Kafka broker seeded
+// with topic at numPartitions, mirroring
+// pkg/bloomgatewayevents/publisher_test.go's newKfakeCluster (unexported in
+// that package, so duplicated here rather than imported).
+func newBloomGatewayKfakeCluster(t testing.TB, numPartitions int32, topic string) string {
+	t.Helper()
+	cluster, err := kfake.NewCluster(kfake.NumBrokers(1), kfake.SeedTopics(numPartitions, topic))
+	require.NoError(t, err)
+	t.Cleanup(cluster.Close)
+	addrs := cluster.ListenAddrs()
+	require.Len(t, addrs, 1)
+	return addrs[0]
+}
+
+// pollBloomGatewayRecords polls reader until at least want records arrive
+// or timeout elapses, mirroring
+// pkg/bloomgatewayevents/publisher_test.go's pollRecords.
+func pollBloomGatewayRecords(t testing.TB, reader *kgo.Client, want int, timeout time.Duration) []*kgo.Record {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	var got []*kgo.Record
+	for len(got) < want && ctx.Err() == nil {
+		fetches := reader.PollFetches(ctx)
+		fetches.EachRecord(func(r *kgo.Record) { got = append(got, r) })
+	}
+	return got
+}
+
+// TestBackendWorker_NotifierInstalledWhenEnabled proves New installs a
+// notifier on the store when the producer is enabled. The Kafka address is
+// never dialed synchronously (bloomgatewayevents.New / ingest.NewWriterClient
+// connect lazily, per pkg/bloomgatewayevents's own
+// TestPublisher_PublishAdd_UnreachableBroker_DropsSilently), so this needs
+// no real broker.
+func TestBackendWorker_NotifierInstalledWhenEnabled(t *testing.T) {
+	limitCfg := overrides.Config{}
+	limitCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	workerCfg, schedulerClientCfg, overridesSvc, _, store := setupDependencies(ctx, t, limitCfg)
+
+	workerCfg.Producer.RegisterFlagsAndApplyDefaults("producer", flag.NewFlagSet("test", flag.ContinueOnError))
+	workerCfg.Producer.Enabled = true
+
+	rs := &recordingStore{Store: store}
+	w, err := New(workerCfg, schedulerClientCfg, rs, overridesSvc, prometheus.NewRegistry())
+	require.NoError(t, err)
+	require.NotNil(t, w)
+	t.Cleanup(w.publisher.Close)
+
+	assert.True(t, rs.notifierSet, "an enabled producer must install a notifier on the store")
+	assert.NotNil(t, rs.notifier)
+}
+
+// TestBackendWorker_NotifierNotInstalledWhenDisabled proves the converse:
+// a disabled producer (the zero-value default) must leave the store's
+// notifier unset, so compaction pays no bloom-gateway overhead.
+func TestBackendWorker_NotifierNotInstalledWhenDisabled(t *testing.T) {
+	limitCfg := overrides.Config{}
+	limitCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	workerCfg, schedulerClientCfg, overridesSvc, _, store := setupDependencies(ctx, t, limitCfg)
+	// workerCfg.Producer is left at its zero value: Enabled defaults to
+	// false, which Validate() always accepts, so no Kafka setup is needed
+	// to prove the disabled path installs nothing.
+
+	rs := &recordingStore{Store: store}
+	w, err := New(workerCfg, schedulerClientCfg, rs, overridesSvc, prometheus.NewRegistry())
+	require.NoError(t, err)
+	require.NotNil(t, w)
+	t.Cleanup(w.publisher.Close)
+
+	assert.False(t, rs.notifierSet, "a disabled producer must not install a notifier on the store")
+}
+
+// TestBackendWorker_CompactionPublishesAdds drives one real compaction job
+// end to end -- BackendWorker.processCompactionJob -> tempodb's
+// CompactWithConfig -> the installed Notifier -> Publisher -- against a
+// real (fake) Kafka broker, proving the full chain rather than just the
+// wiring.
+func TestBackendWorker_CompactionPublishesAdds(t *testing.T) {
+	limitCfg := overrides.Config{}
+	limitCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	workerCfg, schedulerClientCfg, overridesSvc, _, store := setupDependencies(ctx, t, limitCfg)
+
+	const topic = "backendworker-compaction"
+	const numPartitions = int32(4)
+	addr := newBloomGatewayKfakeCluster(t, numPartitions, topic)
+
+	reader, err := kgo.NewClient(kgo.SeedBrokers(addr), kgo.ConsumeTopics(topic))
+	require.NoError(t, err)
+	defer reader.Close()
+
+	workerCfg.Producer.RegisterFlagsAndApplyDefaults("producer", flag.NewFlagSet("test", flag.ContinueOnError))
+	workerCfg.Producer.Enabled = true
+	workerCfg.Producer.Kafka.Address = addr
+	workerCfg.Producer.Kafka.Topic = topic
+	workerCfg.Producer.Kafka.AutoCreateTopicDefaultPartitions = int(numPartitions)
+	// The topic is already seeded at exactly numPartitions; auto-create
+	// must stay off or kfake's old-style AlterConfigs wipes the broker
+	// config set on seed (same quirk documented in
+	// pkg/bloomgatewayevents/publisher_test.go's newTestConfig).
+	workerCfg.Producer.Kafka.AutoCreateTopicEnabled = false
+
+	w, err := New(workerCfg, schedulerClientCfg, store, overridesSvc, prometheus.NewRegistry())
+	require.NoError(t, err)
+	defer w.publisher.Close()
+
+	var gotOutput []string
+	w.backendScheduler = &mockScheduler{
+		next: nextFuncWithJob(store, tenant),
+		updateJob: func(_ context.Context, req *tempopb.UpdateJobStatusRequest, _ ...grpc.CallOption) (*tempopb.UpdateJobStatusResponse, error) {
+			if req.Compaction != nil {
+				gotOutput = req.Compaction.Output
+			}
+			return &tempopb.UpdateJobStatusResponse{}, nil
+		},
+	}
+
+	err = w.processJobs(ctx)
+	require.NoError(t, err)
+	require.NotEmpty(t, gotOutput, "compaction must have produced at least one output block")
+
+	recs := pollBloomGatewayRecords(t, reader, len(gotOutput), 10*time.Second)
+	require.NotEmpty(t, recs)
+
+	var gotBlockIDs []string
+	for _, r := range recs {
+		event := &tempopb.BloomGatewayEvent{}
+		require.NoError(t, event.Unmarshal(r.Value))
+		require.Equal(t, tempopb.BloomGatewayEventType_BLOOM_GATEWAY_EVENT_TYPE_ADD_CHUNK, event.Type)
+		require.NotNil(t, event.AddChunk)
+		assert.Equal(t, tenant, event.AddChunk.TenantId)
+		assert.EqualValues(t, 1, event.AddChunk.ChunkCount, "a handful of trace IDs is far under ChunkSize, so each output block must be exactly one chunk")
+		gotBlockIDs = append(gotBlockIDs, event.AddChunk.BlockId)
+	}
+	assert.ElementsMatch(t, gotOutput, gotBlockIDs)
 }

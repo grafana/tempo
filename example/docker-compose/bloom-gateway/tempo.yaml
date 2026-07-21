@@ -1,0 +1,141 @@
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "distributor:4317"
+        http:
+          endpoint: "distributor:4318"
+
+# Shared gossip ring used by live_store (partition ring), backend_worker
+# (sharded tenant-index writing), and bloom_gateway (read-sharding ring,
+# always memberlist by default -- pkg/ring.Config.RegisterFlagsAndApplyDefaults
+# hardcodes this). All three services below also set hostname: to match an
+# entry here.
+memberlist:
+  abort_if_cluster_join_fails: false
+  bind_port: 7946
+  join_members:
+    - live-store-0:7946
+    - backend-worker-0:7946
+    - bloom-gateway-0:7946
+
+ingest:
+  kafka:
+    address: redpanda:9092
+    topic: tempo-ingest
+
+# Kafka partition selection for the ingest topic is driven by the live-store
+# partition ring, NOT a static config value (distributor.go's sendToKafka
+# shuffle-shards ring.DoBatch across it) -- so a live-store instance is
+# required even though this example has no query path. A single instance is
+# enough: PartitionRingConfig's defaults (min_partition_owners_count=1,
+# min_partition_owners_duration=10s) flip the one partition PENDING->ACTIVE
+# ~10s after live-store registers.
+live_store:
+  ring:
+    kvstore:
+      store: memberlist
+  partition_ring:
+    kvstore:
+      store: memberlist
+
+block_builder:
+  # Short cycle so the smoke sees a new durable block (and therefore a new
+  # bloom-gateway AddChunk publish) every ~10s instead of every 5m.
+  consume_cycle_duration: 10s
+  assigned_partitions:
+    block-builder-0: [0] # tempo-ingest is pre-created with exactly 1 partition, see kafka-init
+
+backend_scheduler:
+  provider:
+    compaction:
+      # Default min_input_blocks/max_input_blocks (2/4) are already what the
+      # smoke needs; only the cycle needs to be fast enough to notice new
+      # blocks within the smoke's time budget.
+      min_cycle_interval: 15s
+    retention:
+      interval: 20s # frequent, so compacted blocks clear quickly once past compacted_block_retention
+
+backend_worker:
+  # NOT :3200 (that's the HTTP port -- see server.go's "grpc=[::]:9095" log
+  # line on every service). backend_scheduler_client.New dials this address
+  # with a plain grpc.NewClient, no port rewriting, so the wrong port here
+  # fails opaquely ("frame too large, ... looked like an HTTP/1.1 header")
+  # rather than with a clear "wrong port" error. ../distributed/tempo.yaml
+  # uses :3200 here too -- out of scope to fix since that's a pre-existing,
+  # already-merged example this branch doesn't touch.
+  backend_scheduler_addr: backend-scheduler:9095
+  compaction:
+    # block_retention is intentionally long -- comfortably longer than the
+    # smoke's own run -- so retention never marks a fresh, not-yet-compacted
+    # block for deletion out from under compaction. compacted_block_retention
+    # is what actually drives the smoke's Delete events: once backend-worker
+    # compacts >=2 blocks (publishing a bloom-gateway Add for the output
+    # block), its *input* blocks are marked compacted immediately, and are
+    # physically cleared (BlockDeleted -> bloom-gateway Delete) ~1m later.
+    block_retention: 10m
+    compacted_block_retention: 1m
+  ring:
+    kvstore:
+      store: memberlist
+
+# Producer hooks: block-builder and backend-worker each build their own
+# Publisher from this shared config (cmd/tempo/app/modules.go wires
+# BlockBuilder.Producer / BackendWorker.Producer = BloomGatewayProducer).
+# Topic and partition count are left at their package defaults (both
+# pkg/bloomgatewayevents/config.go and modules/bloomgateway/config.go
+# hardcode the same tempo.bloom-gateway.events / K=16 after registering
+# flags), so producer and gateway agree by construction -- not repeated here.
+bloom_gateway_producer:
+  enabled: true
+  kafka:
+    address: redpanda:9092
+
+bloom_gateway:
+  # Dev-only literal seed. Never reuse this value outside a throwaway smoke
+  # stack -- modules/bloomgateway/config.go requires every gateway instance
+  # (and, eventually, every query-frontend) to share this byte-for-byte.
+  seed: "docker-compose-smoke-test-dev-seed-do-not-reuse"
+  kafka:
+    address: redpanda:9092
+  ring:
+    kvstore:
+      store: memberlist
+  snapshot:
+    # Deliberately NOT a subdirectory: Snapshotter.Save (modules/bloomgateway/
+    # snapshot.go) creates its temp file directly in filepath.Dir(path) and
+    # never MkdirAll's it, so path's parent must already exist. /var/tempo
+    # itself is pre-created (and chowned to the tempo image's non-root user)
+    # by cmd/tempo/Dockerfile; a subdirectory under it would not be.
+    path: /var/tempo/snapshot.bin
+    interval: 1m
+  reconciliation:
+    period: 30s
+
+usage_report:
+  reporting_enabled: false
+
+storage:
+  trace:
+    backend: s3
+    s3:
+      bucket: tempo
+      endpoint: minio:9000
+      access_key: tempo
+      secret_key: supersecret
+      insecure: true
+    wal:
+      path: /var/tempo/wal
+    block:
+      # The repo-wide default (encoding.DefaultEncoding()) is still vParquet4;
+      # the bloom gateway's trace-ID projection reader
+      # (tempodb/encoding/vparquet5/block_traceid_projection.go) is
+      # vparquet5-only (STATE.md). Pinning this explicitly is what lets
+      # reconstruction/reconciliation actually read blocks as Live rather than
+      # BlockLiveUnsupportedEncoding (always-searched, never-rejectable).
+      version: vParquet5
+    blocklist_poll: 15s # backend_scheduler and backend_worker each poll this independently

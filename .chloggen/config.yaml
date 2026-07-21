@@ -47,6 +47,7 @@ components:
   - live-store
   - backend-scheduler
   - backend-worker
+  - bloom-gateway
   - overrides
   - cache
   # storage / core

@@ -1,0 +1,22 @@
+# Changelog entry. Generate a copy with `make chlog-new`, then fill in the fields.
+
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: feature
+
+# Component or area of the change. Must be one of the components in .chloggen/config.yaml,
+# e.g. distributor, querier, query-frontend, storage, operations.
+component: bloom-gateway
+
+# A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
+note: add the bloom gateway core module (new `bloom-gateway` target) — a stateful, ring-partitioned service that indexes (trace, block) pairs from a Kafka topic and answers block-rejection queries for trace-by-id lookups, with snapshotting, background sweep/garbage-collection, reconstruction, and reconciliation against the tenant index.
+
+# (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
+# .chloggen/README.md.
+issues: []
+
+# (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
+subtext: |
+  This lands the gateway service plus its producer hooks: block-builder, backend-worker (compaction output), and retention now publish AddChunk/Delete events into it, gated by a default-disabled `bloom_gateway_producer` config. The query-frontend client that would actually filter trace-by-id fan-out using the gateway's answers, and vulture shadow-mode validation, are not yet wired up, so the read path's behavior does not change until those follow. See `modules/bloomgateway/DESIGN.md` for the full design.
+
+# The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
+user: oleg-kozlyuk-grafana

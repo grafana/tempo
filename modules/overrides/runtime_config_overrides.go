@@ -389,6 +389,13 @@ func (o *runtimeConfigOverridesManager) MaxBytesPerTrace(userID string) int {
 	return o.getOverridesForUser(userID).Global.MaxBytesPerTrace
 }
 
+// BloomGatewayPublishesPerSecond returns the maximum number of bloom-gateway
+// publish operations (DESIGN.md § Multi-tenant cells) this tenant's
+// producers may perform per second. 0 disables the limit.
+func (o *runtimeConfigOverridesManager) BloomGatewayPublishesPerSecond(userID string) float64 {
+	return o.getOverridesForUser(userID).Global.BloomGatewayPublishesPerSecond
+}
+
 // Forwarders returns the list of forwarder IDs for a user.
 func (o *runtimeConfigOverridesManager) Forwarders(userID string) []string {
 	return o.getOverridesForUser(userID).Forwarders

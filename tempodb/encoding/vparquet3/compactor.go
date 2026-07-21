@@ -185,6 +185,10 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			return nil, err
 		}
 
+		if c.opts.ObjectIDWritten != nil {
+			c.opts.ObjectIDWritten(lowestID)
+		}
+
 		// Flush again if block is already full.
 		if currentBlock.EstimatedBufferedBytes() > c.opts.BlockConfig.RowGroupSizeBytes {
 			runtime.GC()
@@ -279,6 +283,13 @@ func (c *Compactor) finishBlock(ctx context.Context, block *streamingBlock, l lo
 	if c.opts.BytesWritten != nil {
 		c.opts.BytesWritten(compactionLevel, bytesFlushed)
 	}
+
+	// block.Complete() succeeded above, so meta.json is durably written -- safe to
+	// announce this output block as complete.
+	if c.opts.OutputBlockCompleted != nil {
+		c.opts.OutputBlockCompleted(block.meta)
+	}
+
 	return nil
 }
 

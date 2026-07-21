@@ -476,7 +476,8 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MetricsSpanOnlyFetch: boolPtr(true),
 		SpanPruningAwareness: true,
 
-		MaxBytesPerTrace: 10 * 1024 * 1024,
+		MaxBytesPerTrace:               10 * 1024 * 1024,
+		BloomGatewayPublishesPerSecond: 50,
 
 		CostAttribution: CostAttributionOverrides{
 			MaxCardinality: 1000,

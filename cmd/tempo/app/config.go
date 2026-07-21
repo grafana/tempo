@@ -13,6 +13,7 @@ import (
 	backendscheduler_client "github.com/grafana/tempo/modules/backendscheduler/client"
 	"github.com/grafana/tempo/modules/backendworker"
 	"github.com/grafana/tempo/modules/blockbuilder"
+	"github.com/grafana/tempo/modules/bloomgateway"
 	"github.com/grafana/tempo/modules/cache"
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/frontend"
@@ -22,6 +23,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/pkg/bloomgatewayevents"
 	"github.com/grafana/tempo/pkg/ingest"
 	internalserver "github.com/grafana/tempo/pkg/server"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -70,6 +72,8 @@ type Config struct {
 	BackenSchedulerClient  backendscheduler_client.Config `yaml:"backend_scheduler_client,omitempty"`
 	BackendWorker          backendworker.Config           `yaml:"backend_worker,omitempty"`
 	LiveStore              livestore.Config               `yaml:"live_store,omitempty"`
+	BloomGateway           bloomgateway.Config            `yaml:"bloom_gateway,omitempty"`
+	BloomGatewayProducer   bloomgatewayevents.Config      `yaml:"bloom_gateway_producer,omitempty"`
 }
 
 func NewDefaultConfig() *Config {
@@ -157,6 +161,8 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.BackendScheduler.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "backend-scheduler"), f)
 	c.BackendWorker.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "backend-worker"), f)
 	c.LiveStore.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "live-store"), f)
+	c.BloomGateway.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "bloom-gateway"), f)
+	c.BloomGatewayProducer.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "bloom-gateway-producer"), f)
 }
 
 // MultitenancyIsEnabled checks if multitenancy is enabled
@@ -257,7 +263,29 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		})
 	}
 
+	// Snapshots are what bound routine restarts to minutes (DESIGN.md §
+	// Snapshots); on ephemeral disk every pod reschedule is a full
+	// reconstruction (~6-10 min per instance) instead. Best-effort only --
+	// there is no portable way to ask the OS whether a path is backed by a
+	// persistent volume, so this only catches the common container-ephemeral
+	// mount points.
+	if c.BloomGateway.Snapshot.Interval > 0 && bloomGatewaySnapshotPathLooksEphemeral(c.BloomGateway.Snapshot.Path) {
+		warnings = append(warnings, warnBloomGatewaySnapshotPathEphemeral)
+	}
+
 	return warnings
+}
+
+// bloomGatewaySnapshotPathLooksEphemeral reports whether p looks like it is
+// under a common container-ephemeral storage mount, per the CheckConfig
+// warning above.
+func bloomGatewaySnapshotPathLooksEphemeral(p string) bool {
+	for _, prefix := range []string{"/tmp", "/var/tmp", "/dev/shm"} {
+		if p == prefix || strings.HasPrefix(p, prefix+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 // ConfigWarning bundles message and explanation strings in one structure.
@@ -329,6 +357,11 @@ var (
 	warnPartitionAssigmentCollision = ConfigWarning{
 		Message: "Block-builder partition assigment is configured by c.BlockBuilder.PartitionAssigment and c.BlockBuilder.PartitionsPerInstance",
 		Explain: "When both parameters are used c.BlockBuilder.PartitionAssigment takes precedence over c.BlockBuilder.PartitionsPerInstance",
+	}
+
+	warnBloomGatewaySnapshotPathEphemeral = ConfigWarning{
+		Message: "bloom_gateway.snapshot.path looks like it is on ephemeral storage",
+		Explain: "A persistent volume is strongly recommended for the bloom gateway snapshot path; on ephemeral disk, every pod reschedule becomes a full reconstruction (minutes, not seconds) instead of a snapshot restore.",
 	}
 )
 

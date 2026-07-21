@@ -21,6 +21,7 @@ import (
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/server"
 	"github.com/grafana/dskit/services"
+	"github.com/grafana/tempo/modules/bloomgateway"
 	"github.com/grafana/tempo/modules/livestore"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
@@ -78,6 +79,7 @@ const (
 	BackendScheduler              string = "backend-scheduler"
 	BackendWorker                 string = "backend-worker"
 	LiveStore                     string = "live-store"
+	BloomGateway                  string = "bloom-gateway"
 
 	// composite targets
 	SingleBinary string = "all"
@@ -383,6 +385,7 @@ func (t *App) initGeneratorRingWatcher() (services.Service, error) {
 func (t *App) initBlockBuilder() (services.Service, error) {
 	t.cfg.BlockBuilder.IngestStorageConfig = t.cfg.Ingest
 	t.cfg.BlockBuilder.IngestStorageConfig.Kafka.ConsumerGroup = blockbuilder.ConsumerGroup
+	t.cfg.BlockBuilder.Producer = t.cfg.BloomGatewayProducer
 	// Block config and WAL version are always sourced from storage.trace.block.
 	t.cfg.BlockBuilder.BlockConfig.BlockConfig = *t.cfg.StorageConfig.Trace.Block
 	t.cfg.BlockBuilder.WAL.Version = t.cfg.StorageConfig.Trace.Block.Version
@@ -392,7 +395,7 @@ func (t *App) initBlockBuilder() (services.Service, error) {
 		t.cfg.BlockBuilder.AssignedPartitionsMap = map[string][]int32{t.cfg.BlockBuilder.InstanceID: {0}}
 	}
 
-	bb, err := blockbuilder.New(t.cfg.BlockBuilder, log.Logger, t.partitionRing, t.Overrides, t.store)
+	bb, err := blockbuilder.New(t.cfg.BlockBuilder, log.Logger, t.partitionRing, t.Overrides, t.store, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create block-builder: %w", err)
 	}
@@ -576,6 +579,7 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	t.cfg.BackendWorker.Ring.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.LiveStore.PartitionRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.LiveStore.Ring.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
+	t.cfg.BloomGateway.Ring.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 
 	// Only the memberlist endpoint uses static files currently
 	t.Server.HTTPRouter().PathPrefix("/static/").HandlerFunc(http.FileServer(http.FS(staticFiles)).ServeHTTP).Methods("GET")
@@ -686,6 +690,8 @@ func (t *App) initBackendWorker() (services.Service, error) {
 		level.Warn(log.Logger).Log("msg", "Scheduler address is empty in single binary mode. Attempting automatic worker configuration.", "address", t.cfg.BackendWorker.BackendSchedulerAddr)
 	}
 
+	t.cfg.BackendWorker.Producer = t.cfg.BloomGatewayProducer
+
 	worker, err := backendworker.New(t.cfg.BackendWorker, t.cfg.BackenSchedulerClient, t.store, t.Overrides, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create backend scheduler: %w", err)
@@ -730,6 +736,52 @@ func (t *App) initLiveStore() (services.Service, error) {
 	return t.liveStore, nil
 }
 
+func (t *App) initBloomGateway() (services.Service, error) {
+	t.cfg.BloomGateway.Ring.ListenPort = t.cfg.Server.GRPCListenPort
+
+	// The gateway reads trace-ID columns directly off object-store blocks
+	// during reconstruction/reconciliation (DESIGN.md § Reconstruction), via
+	// its own raw backend.Reader -- not t.store's higher-level tempodb.Reader
+	// (whose interface has no column-projection or raw-block-meta primitives
+	// bloomgateway.New needs). Built the same way initBackendScheduler's and
+	// initUsageReport's own raw reader/writer are, minus the writer this
+	// module never needs.
+	var (
+		err    error
+		reader backend.RawReader
+	)
+
+	switch t.cfg.StorageConfig.Trace.Backend {
+	case backend.Local:
+		reader, _, _, err = local.New(t.cfg.StorageConfig.Trace.Local)
+	case backend.GCS:
+		reader, _, _, err = gcs.New(t.cfg.StorageConfig.Trace.GCS)
+	case backend.S3:
+		reader, _, _, err = s3.New(t.cfg.StorageConfig.Trace.S3)
+	case backend.Azure:
+		reader, _, _, err = azure.New(t.cfg.StorageConfig.Trace.Azure)
+	default:
+		err = fmt.Errorf("unknown backend %s", t.cfg.StorageConfig.Trace.Backend)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize bloom gateway backend reader: %w", err)
+	}
+
+	gateway, err := bloomgateway.New(t.cfg.BloomGateway, t.cfg.BloomGateway.Ring.InstanceID, backend.NewReader(reader), log.Logger, prometheus.DefaultRegisterer)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create bloom gateway: %w", err)
+	}
+	t.bloomGateway = gateway
+
+	tempopb.RegisterBloomGatewayServer(t.Server.GRPC(), t.bloomGateway)
+	t.Server.HTTPRouter().Handle("/bloom-gateway/ring", t.bloomGateway.Ring())
+	t.Server.HTTPRouter().Methods(http.MethodGet, http.MethodPost, http.MethodDelete).
+		Path("/bloom-gateway/prepare-downscale").
+		Handler(http.HandlerFunc(t.bloomGateway.PrepareDownscaleHandler))
+
+	return gateway, nil
+}
+
 func (t *App) setupModuleManager() error {
 	mm := modules.NewManager(log.Logger)
 
@@ -759,6 +811,7 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(BackendScheduler, t.initBackendScheduler)
 	mm.RegisterModule(BackendWorker, t.initBackendWorker)
 	mm.RegisterModule(LiveStore, t.initLiveStore)
+	mm.RegisterModule(BloomGateway, t.initBloomGateway)
 
 	mm.RegisterModule(SingleBinary, nil)
 
@@ -800,6 +853,7 @@ func (t *App) setupModuleManager() error {
 		BlockBuilder:                  {Common, Store, MemberlistKV, PartitionRing},
 		BackendScheduler:              {Common, Store},
 		BackendWorker:                 {Common, Store, MemberlistKV},
+		BloomGateway:                  {Common, Store, MemberlistKV},
 		// composite targets
 		SingleBinary: {BackendScheduler, BackendWorker, QueryFrontend, Querier, Distributor, MetricsGenerator, LiveStore},
 	}

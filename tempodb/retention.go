@@ -124,6 +124,9 @@ func (rw *readerWriter) retainTenant(ctx context.Context, tenantID string, compa
 					metricRetentionErrors.Inc()
 				} else {
 					metricDeleted.Inc()
+					if rw.compactionNotifier != nil {
+						rw.compactionNotifier.BlockDeleted(b)
+					}
 					rw.removeCachedBlock(ctx, tenantID, (uuid.UUID)(b.BlockID), int(b.BloomShardCount))
 					rw.blocklist.Update(tenantID, nil, nil, nil, []*backend.CompactedBlockMeta{b})
 				}

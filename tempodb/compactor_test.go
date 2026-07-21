@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math/rand"
 	"path"
+	"sync"
 	"testing"
 	"time"
 
@@ -827,6 +828,193 @@ func testCompactWithConfig(t *testing.T, targetBlockVersion string) {
 		&mockOverrides{},
 	)
 	require.NoError(t, err)
+}
+
+// blockCompactedCall captures a single CompactionNotifier.BlockCompacted invocation.
+type blockCompactedCall struct {
+	meta     *backend.BlockMeta
+	traceIDs [][]byte
+}
+
+// recordingNotifier is a CompactionNotifier test double that records every call it
+// receives, guarded by a mutex since compaction/retention can run concurrently across
+// tenants. Shared by compactor_test.go and retention_test.go.
+type recordingNotifier struct {
+	mu             sync.Mutex
+	blockCompacted []blockCompactedCall
+	blockDeleted   []*backend.CompactedBlockMeta
+}
+
+func (n *recordingNotifier) BlockCompacted(meta *backend.BlockMeta, traceIDs [][]byte) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.blockCompacted = append(n.blockCompacted, blockCompactedCall{meta: meta, traceIDs: traceIDs})
+}
+
+func (n *recordingNotifier) BlockDeleted(meta *backend.CompactedBlockMeta) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.blockDeleted = append(n.blockDeleted, meta)
+}
+
+func (n *recordingNotifier) BlockCompactedCalls() []blockCompactedCall {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return append([]blockCompactedCall(nil), n.blockCompacted...)
+}
+
+func (n *recordingNotifier) BlockDeletedCalls() []*backend.CompactedBlockMeta {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return append([]*backend.CompactedBlockMeta(nil), n.blockDeleted...)
+}
+
+// TestCompactWithConfig_NotifiesPerOutputBlock installs a recording CompactionNotifier and
+// verifies BlockCompacted fires exactly once per returned output block, with a trace ID set
+// that (a) exactly matches TotalObjects for that block and (b) is uncorrupted after the full
+// compaction completes -- proving the per-job closure bridge in CompactWithConfig copies IDs
+// rather than aliasing the encoding layer's pooled/reused buffers.
+func TestCompactWithConfig_NotifiesPerOutputBlock(t *testing.T) {
+	for _, enc := range encoding.AllEncodingsForWrites() {
+		t.Run(enc.Version(), func(t *testing.T) {
+			t.Parallel()
+			testCompactWithConfigNotifiesPerOutputBlock(t, enc.Version())
+		})
+	}
+}
+
+func testCompactWithConfigNotifiesPerOutputBlock(t *testing.T, targetBlockVersion string) {
+	tempDir := t.TempDir()
+
+	_, w, c, err := New(&Config{
+		Backend: backend.Local,
+		Pool: &pool.Config{
+			MaxWorkers: 10,
+			QueueDepth: 100,
+		},
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		Block: &common.BlockConfig{
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             targetBlockVersion,
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
+		},
+		BlocklistPoll: 0,
+	}, nil, log.NewNopLogger())
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	const blockCount, recordCount = 10, 10
+	blocks := cutTestBlocks(t, w, testTenantID, blockCount, recordCount)
+	metas := make([]*backend.BlockMeta, 0)
+	for _, b := range blocks {
+		metas = append(metas, b.BlockMeta())
+	}
+
+	notifier := &recordingNotifier{}
+	c.SetCompactionNotifier(notifier)
+
+	newMetas, err := c.CompactWithConfig(
+		ctx,
+		metas,
+		testTenantID,
+		&CompactorConfig{
+			MaxCompactionRange:      24 * time.Hour,
+			BlockRetention:          0,
+			CompactedBlockRetention: 0,
+			MaxCompactionObjects:    1000,
+			MaxBlockBytes:           100_000_000, // Needs to be sized appropriately for the test data
+		},
+		&mockSharder{},
+		&mockOverrides{},
+	)
+	require.NoError(t, err)
+	require.NotEmpty(t, newMetas)
+
+	calls := notifier.BlockCompactedCalls()
+	require.Len(t, calls, len(newMetas), "BlockCompacted must fire exactly once per output block")
+
+	returned := make(map[*backend.BlockMeta]bool, len(newMetas))
+	for _, m := range newMetas {
+		returned[m] = true
+	}
+
+	var gotIDs []common.ID
+	for _, call := range calls {
+		require.True(t, returned[call.meta], "notified meta must be one of the blocks returned by CompactWithConfig")
+		require.Len(t, call.traceIDs, int(call.meta.TotalObjects), "ID count must exactly match the block's object count")
+		for _, id := range call.traceIDs {
+			gotIDs = append(gotIDs, common.ID(id))
+		}
+	}
+
+	expectedIDs := make([]common.ID, 0, blockCount*recordCount)
+	for i := 0; i < blockCount; i++ {
+		for j := 0; j < recordCount; j++ {
+			expectedIDs = append(expectedIDs, makeTraceID(i, j))
+		}
+	}
+	require.ElementsMatch(t, expectedIDs, gotIDs, "captured IDs must exactly match input IDs, uncorrupted after compaction completes")
+}
+
+// TestCompactWithConfig_NilNotifier_Unchanged is a regression guard: compaction behaves
+// exactly as before when no notifier is ever installed (the default for all existing
+// callers).
+func TestCompactWithConfig_NilNotifier_Unchanged(t *testing.T) {
+	tempDir := t.TempDir()
+
+	_, w, c, err := New(&Config{
+		Backend: backend.Local,
+		Pool: &pool.Config{
+			MaxWorkers: 10,
+			QueueDepth: 100,
+		},
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		Block: &common.BlockConfig{
+			BloomFP:             .01,
+			BloomShardSizeBytes: 100_000,
+			Version:             encoding.DefaultEncoding().Version(),
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
+		},
+		BlocklistPoll: 0,
+	}, nil, log.NewNopLogger())
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	blocks := cutTestBlocks(t, w, testTenantID, 10, 10)
+	metas := make([]*backend.BlockMeta, 0)
+	for _, b := range blocks {
+		metas = append(metas, b.BlockMeta())
+	}
+
+	// SetCompactionNotifier is intentionally never called here.
+	newMetas, err := c.CompactWithConfig(
+		ctx,
+		metas,
+		testTenantID,
+		&CompactorConfig{
+			MaxCompactionRange:      24 * time.Hour,
+			BlockRetention:          0,
+			CompactedBlockRetention: 0,
+			MaxCompactionObjects:    1000,
+			MaxBlockBytes:           100_000_000,
+		},
+		&mockSharder{},
+		&mockOverrides{},
+	)
+	require.NoError(t, err)
+	require.Len(t, newMetas, 1)
+	require.Equal(t, int64(100), newMetas[0].TotalObjects)
 }
 
 type testData struct {

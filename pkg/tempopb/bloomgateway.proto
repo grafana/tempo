@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package tempopb;
+
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+
+// ---- Query RPC: query-frontend -> gateway. Only the server side (this
+// plan) is built; the QF caller is out of scope (§6). ----
+
+service BloomGateway {
+  rpc Query(BloomGatewayQueryRequest) returns (BloomGatewayQueryResponse) {}
+}
+
+message BloomGatewayQueryRequest {
+  string tenant_id = 1;
+  bytes trace_id = 2;  // raw bytes; server re-canonicalizes via util.PadTraceIDTo16Bytes
+  int64 start_time_unix_nano = 3;  // 0 == unbounded
+  int64 end_time_unix_nano = 4;  // 0 == unbounded
+}
+
+message BloomGatewayQueryResponse {
+  uint32 version = 1;  // wire-shape version, currently 1
+  // bit 0 = FLAG_LEAF_UNAVAILABLE (nil or constructing leaf: this response is
+  // an abstention, not a computation); bits 1-31 reserved, must be 0
+  uint32 flags = 2;
+  fixed64 seed_fingerprint = 3;  // xxhash64(seed); drift detection
+  bytes rejected = 4;  // opaque: pkg/deltauuid-encoded sorted block UUIDs (§0 D13)
+}
+
+// ---- Kafka event envelope: block-builder/backend-worker -> gateway. Only
+// the consumer/decoder side (this plan) is built; producers are out of
+// scope (§6). Explicit version discipline: `version` is checked before any
+// dispatch on `type`; an unrecognized version is dropped and counted, never
+// applied (same policy as a payload that fails validation). ----
+
+enum BloomGatewayEventType {
+  BLOOM_GATEWAY_EVENT_TYPE_UNSPECIFIED = 0;
+  BLOOM_GATEWAY_EVENT_TYPE_ADD_CHUNK = 1;
+  BLOOM_GATEWAY_EVENT_TYPE_DELETE = 2;
+}
+
+message BloomGatewayEvent {
+  uint32 version = 1;  // envelope-shape version, currently 1
+  BloomGatewayEventType type = 2;
+  BloomGatewayAddChunk add_chunk = 3;  // set iff type == ADD_CHUNK
+  BloomGatewayDelete delete = 4;  // set iff type == DELETE
+  // Deliberately no `oneof`: this repo's idiom for polymorphic event/job
+  // messages is an enum discriminator + parallel optional fields (see
+  // backendwork.proto's JobDetail), not proto3 oneof (unused elsewhere).
+}
+
+message BloomGatewayAddChunk {
+  string block_id = 1;  // canonical UUID string form
+  string tenant_id = 2;
+  int64 start_time_unix_nano = 3;
+  int64 end_time_unix_nano = 4;
+  uint32 chunk_index = 5;  // 0-based
+  uint32 chunk_count = 6;  // total chunks for this block_id
+  // raw bytes as produced; gateway re-canonicalizes via util.PadTraceIDTo16Bytes
+  repeated bytes trace_ids = 7;
+}
+
+message BloomGatewayDelete {
+  string block_id = 1;  // canonical UUID string form; tenant is resolved from the registry
+}

@@ -1,0 +1,484 @@
+package bloomgateway
+
+import (
+	"errors"
+	"flag"
+	"fmt"
+	"strconv"
+	"time"
+
+	"github.com/grafana/dskit/flagext"
+
+	"github.com/grafana/tempo/pkg/ingest"
+	tempo_ring "github.com/grafana/tempo/pkg/ring"
+)
+
+// Defaults. Values mostly come from DESIGN.md's reference sizing (§ Sizing)
+// and § Write path; where DESIGN.md doesn't pin a number down, the default
+// is a documented, reasonable starting point rather than a value the
+// design mandates.
+const (
+	// defaultD and defaultF are DESIGN.md's reference sizing (§ Sizing):
+	// D=25, F=16 -> ~0.9% miss-path false-positive rate at the 100k-block/
+	// 20e9-pair reference tenant.
+	defaultD uint8 = 25
+	defaultF uint8 = 16
+
+	// maxFingerprintBits is the v1 leaf encoding's fixed fingerprint
+	// storage width (leaf.go, WP9: parallel fps []uint16 / handles
+	// []Handle slices). Widening F past 16 needs a storage-width change,
+	// which DESIGN.md already frames as a rare, reshard-like operation (§
+	// Changing D, F, or the seed) — this is not a new operational
+	// constraint, just an explicit one.
+	maxFingerprintBits uint8 = 16
+
+	// maxLeafAddressBits ties D to the ring's token space: a leaf address
+	// is routed via LeafRingToken(leafIdx, d) = leafIdx << (32-d) (§ Hash
+	// ring), a uint32 ring position, so d must leave room for a real
+	// position: d in [1, 32].
+	maxLeafAddressBits uint8 = 32
+
+	// maxHashBits is the width of h = xxhash64(trace_id, seed): d and f
+	// are disjoint, consecutive slices of it from the top, so d+f must
+	// not exceed 64 (§ Sizing: "D + F is the false-positive knob").
+	maxHashBits uint8 = 64
+
+	// maxRingTokens is dskit's SpreadMinimizingTokenGenerator hard cap
+	// (optimalTokensPerInstance = 512): GenerateTokens silently truncates
+	// above it with no error (ring-lifecycler report gotcha #4), so
+	// Validate fails fast here instead of leaving an instance silently
+	// under-provisioned with no signal.
+	maxRingTokens = 512
+
+	// defaultNumTokens matches DESIGN.md's "Tokens are derived
+	// deterministically... [dskit's] SpreadMinimizingTokenGenerator" and
+	// dskit's own hardcoded optimum.
+	defaultNumTokens = maxRingTokens
+
+	// defaultKafkaTopic mirrors DESIGN.md's `tempo.bloom-gateway.events.
+	// <cell>` naming (§ Write path), minus the deployment-specific <cell>
+	// suffix — multi-cell operators are expected to override this via
+	// config, matching how every other topic name in this design is
+	// operator-supplied.
+	defaultKafkaTopic = "tempo.bloom-gateway.events"
+
+	// defaultAutoCreateTopicDefaultPartitions is K in DESIGN.md § Write
+	// path ("K = 16 covers reference sizing"), overriding ingest.
+	// KafkaConfig's own default of 1000 (sized for the block-builder's
+	// very different partitioning needs).
+	defaultAutoCreateTopicDefaultPartitions = 16
+
+	// defaultSnapshotPath is a static default (no per-instance token: in
+	// production each instance/pod already has its own isolated
+	// filesystem/volume, the same reasoning live-store's WAL path default
+	// uses). DESIGN.md's own path format is
+	// /var/lib/tempo/bloom-gateway/<instance>/snapshot.bin; the <instance>
+	// subdirectory is a deployment/orchestrator concern, not Config's.
+	defaultSnapshotPath = "/var/lib/tempo/bloom-gateway/snapshot.bin"
+
+	// defaultSnapshotInterval is DESIGN.md § Snapshots' cadence ("every
+	// 4-6h, well inside the 24h topic retention"). Snapshotting defaults
+	// ON (paired with defaultSnapshotPath above) because § Availability
+	// model's restart-cost story assumes it; "a persistent volume is
+	// strongly recommended" (§ Snapshots) but not required for Validate
+	// to accept the defaults.
+	defaultSnapshotInterval = 5 * time.Hour
+
+	// defaultSweepFullPassPeriod is DESIGN.md § Garbage collection's
+	// stated cadence ("full-pass period of ~1-2h").
+	defaultSweepFullPassPeriod = 90 * time.Minute
+
+	// defaultTopicRetention/defaultReplayHorizonSlack back
+	// defaultSweepReplayHorizon: the sweep must not reclaim a tombstone
+	// until its Delete is older than "topic retention + slack" (§ Garbage
+	// collection), so resurrection-by-replay stays impossible.
+	defaultTopicRetention     = 24 * time.Hour
+	defaultReplayHorizonSlack = 30 * time.Minute
+	defaultSweepReplayHorizon = defaultTopicRetention + defaultReplayHorizonSlack
+
+	// defaultReconstructionConcurrency is DESIGN.md § Reconstruction's
+	// reference fetch concurrency ("~6 min at fetch concurrency 16").
+	defaultReconstructionConcurrency = 16
+
+	// defaultReconstructionRateLimitBytesPerSecond is a per-instance slice
+	// of DESIGN.md's cell-wide object-store budget for reconstruction/
+	// reconciliation reads (§ Scale-in: "a 2-3 GB/s cell budget"; § Sizing
+	// reference: 8 instances) — NOT a number DESIGN.md pins down
+	// per-instance; documented here as a reasonable starting point subject
+	// to tuning, not a mandated value.
+	defaultReconstructionRateLimitBytesPerSecond = 256 << 20 // 256 MiB/s
+
+	// defaultReconciliationPeriod is DESIGN.md § Reconciliation's stated
+	// cadence ("every few blocklist_poll cycles"; § Operational summary:
+	// "every ~15 min").
+	defaultReconciliationPeriod = 15 * time.Minute
+
+	// defaultReconciliationLagGate is the consumer-lag threshold above
+	// which repair-Adds are suppressed (§ Reconciliation: "lag-gated...
+	// skips repair-Adds until lag is back under threshold"). DESIGN.md
+	// doesn't pin an exact number down; this default is conservative
+	// relative to the reconciliation period above.
+	defaultReconciliationLagGate = 5 * time.Minute
+
+	// defaultQueueMaxBytes is DESIGN.md § Sizing's "Event-queue bound +
+	// transients ~0.5 GiB" line.
+	defaultQueueMaxBytes = 512 << 20 // 512 MiB
+
+	// defaultQueueWorkers is DESIGN.md § Event processing's reference
+	// worker-pool size ("A worker pool (16 at reference sizing)").
+	defaultQueueWorkers = 16
+
+	// defaultRingStabilityWindow/Timeout gate this instance's FIRST
+	// reconstruction enqueue/claim (bloomgateway.go's starting()) on ring
+	// membership (instance set + states) having stayed unchanged for at
+	// least Window, up to a hard cap of Timeout. Added after a live
+	// incident (tempo-dev-02, 2026-07-15): a cold bring-up with staggered
+	// pod starts let an instance that came up early compute its owned
+	// ranges against a ring that had barely begun converging, handing it
+	// a keyspace-sized reconstruction batch. This used to be a fixed
+	// 500ms/5s pair; that window is nowhere near enough for a
+	// multi-minute staggered StatefulSet rollout, hence these being
+	// operator-tunable rather than fixed constants. A genuinely
+	// single-instance cell is not held up by either value (its own
+	// membership is trivially stable from the first tick); Timeout exists
+	// purely so a cell that never fully stabilizes still starts.
+	defaultRingStabilityWindow  = 15 * time.Second
+	defaultRingStabilityTimeout = time.Minute
+
+	// defaultHeartbeatTimeout overrides pkg/ring.Config's own shared
+	// 1-minute default (pkg/ring/config.go) for the bloom-gateway ring
+	// specifically -- NOT a change to that shared default itself, which
+	// backend-worker/distributor/live-store's read ring also use.
+	// 2026-07-16 shutdown-semantics redesign (DESIGN.md § Availability
+	// model amendment): a graceful SIGTERM no longer unregisters this
+	// instance from the ring (bloomgateway_ring.go's conditional
+	// leave-on-stopping delegate) -- it stays ACTIVE with the same tokens
+	// so ordinary pod reschedules cost survivors nothing. But ownership is
+	// computed from GetAllHealthy, which ALSO requires a fresh heartbeat
+	// (vendor/.../dskit/ring/model.go's InstanceDesc.IsHealthy), so a
+	// too-short timeout would reassign ranges anyway the moment heartbeats
+	// stop, defeating the whole point. 15 minutes comfortably exceeds
+	// every documented restart cost (§ Availability model: ~2-4 min
+	// snapshot-backed, ~6-10 min reconstruction) and the slowest observed
+	// node-move/EBS-reattach case (~5-10 min). Overshoot is bounded and
+	// safe: HeartbeatTimeout is a per-reader, in-process config value,
+	// never replicated via the KV store itself, so widening it here has
+	// zero effect on any other ring reader (a future query-frontend
+	// routing client must keep its OWN short timeout for routing health --
+	// DESIGN.md § Query path) -- and at RF=1 a genuinely dead instance's
+	// keyspace only degrades to fallback (fail-open), never a wrong
+	// answer, for the overshoot window.
+	defaultHeartbeatTimeout = 15 * time.Minute
+
+	// defaultRingAutoForgetTimeout is how long a heartbeat-unhealthy ring
+	// entry survives before AutoForgetDelegate purges it from the KV store
+	// outright. Deliberately decoupled from HeartbeatTimeout (dropping the
+	// ringAutoForgetUnhealthyPeriods*HeartbeatTimeout derivation every
+	// other Tempo ring still uses): ownership reassignment is already
+	// driven entirely by HeartbeatTimeout above (GetAllHealthy excludes
+	// the instance the moment it elapses); auto-forget only matters for
+	// KV/ring-page/metrics hygiene on a permanently dead instance
+	// afterward, a different concern that widening HeartbeatTimeout for
+	// restart tolerance should not silently drag along for the ride.
+	// Validate enforces the ordering that actually matters (must be >
+	// HeartbeatTimeout); the exact margin here is an operational call, not
+	// a derived constant.
+	defaultRingAutoForgetTimeout = time.Hour
+
+	// defaultShutdownMarkerDir is a sibling of defaultSnapshotPath's own
+	// directory: the prepare-downscale marker (downscale.go,
+	// pkg/util/shutdownmarker) must survive a restart that lands between
+	// an operator's POST and their actual stop, exactly like
+	// defaultSnapshotPath must survive one -- both require the same
+	// persistent volume (live-store precedent: modules/livestore/
+	// config.go's own ShutdownMarkerDir default sits beside its WAL path
+	// default the same way). If an operator overrides Snapshot.Path to a
+	// different volume, ShutdownMarkerDir must be overridden to match;
+	// Validate only checks the field is non-empty (see its own comment on
+	// why a real same-volume check does not belong in a documented
+	// zero-I/O Validate).
+	defaultShutdownMarkerDir = "/var/lib/tempo/bloom-gateway/shutdown-marker"
+)
+
+// Config is the top-level bloom gateway configuration.
+type Config struct {
+	// D is the number of top bits of the trace-ID hash used as the leaf
+	// address (leaf count = 2^D). Immutable without a reshard (§ Changing
+	// D, F, or the seed).
+	D uint8 `yaml:"d"`
+
+	// F is the number of hash bits used as the per-leaf fingerprint width,
+	// directly below D's bits. Immutable without a reshard; see
+	// maxFingerprintBits for the v1 storage-width restriction.
+	F uint8 `yaml:"f"`
+
+	// Seed is the per-cell secret mixed into every trace-ID hash (§ Design
+	// constraints). Required; there is deliberately no well-known
+	// fallback seed. Shared byte-for-byte across every gateway instance
+	// and, later, every query-frontend.
+	Seed flagext.Secret `yaml:"seed"`
+
+	// NumTokens is the number of ring tokens this instance registers.
+	// DESIGN.md frames this as always dskit's hardcoded optimum (512, §
+	// Hash ring); exposed as a field (rather than a hardcoded value)
+	// because Validate() and the ring wiring (WP6) both need to reason
+	// about it, and because tests need a small value to keep multi-
+	// instance ring math legible. Must be in [1, 512].
+	NumTokens int `yaml:"num_tokens"`
+
+	// RingStabilityWindow/RingStabilityTimeout gate this instance's first
+	// reconstruction enqueue/claim on startup against a still-converging
+	// ring (see defaultRingStabilityWindow's doc comment for the incident
+	// that motivated this). Not nested under Ring: Ring is tempo_ring.
+	// Config, a type shared with every other ring-backed module in this
+	// repo, so a bloom-gateway-specific field cannot live there.
+	RingStabilityWindow  time.Duration `yaml:"ring_stability_window"`
+	RingStabilityTimeout time.Duration `yaml:"ring_stability_timeout"`
+
+	// UnregisterOnShutdown controls whether THIS instance's lifecycler
+	// starts with KeepInstanceInTheRingOnShutdown enabled -- the process's
+	// own static default, distinct from the runtime toggle the
+	// prepare-downscale endpoint flips (downscale.go). false (default): an
+	// ordinary graceful stop keeps this instance's ring entry ACTIVE, same
+	// tokens, unchanged -- the 2026-07-16 redesign's whole point (§
+	// Availability model amendment). true: reverts to this package's
+	// original behavior (every graceful stop unregisters), for an operator
+	// who wants the old semantics unconditionally. Not nested under Ring:
+	// Ring is tempo_ring.Config, a type shared with every other
+	// ring-backed module in this repo (RingStabilityWindow's own comment
+	// above explains why a bloom-gateway-specific field cannot live
+	// there).
+	UnregisterOnShutdown bool `yaml:"unregister_on_shutdown"`
+
+	// RingAutoForgetTimeout is how long a heartbeat-unhealthy ring entry
+	// survives before being purged from the KV store outright -- KV/
+	// ring-page/metrics hygiene, NOT the ownership-reassignment trigger
+	// (that is Ring.HeartbeatTimeout; see defaultHeartbeatTimeout's own
+	// comment and bloomgateway_ring.go). Must be > Ring.HeartbeatTimeout
+	// (Validate): forgetting no later than that would race reassignment
+	// instead of following it.
+	RingAutoForgetTimeout time.Duration `yaml:"ring_auto_forget_timeout"`
+
+	// ShutdownMarkerDir is where the prepare-downscale marker file lives
+	// (downscale.go, pkg/util/shutdownmarker) -- must be on the same
+	// persistent volume as Snapshot.Path (see defaultShutdownMarkerDir's
+	// own comment) so a prepared-for-removal instance remembers that
+	// intent across a restart that lands before the operator's actual
+	// removal.
+	ShutdownMarkerDir string `yaml:"shutdown_marker_dir"`
+
+	Ring  tempo_ring.Config  `yaml:"ring"`
+	Kafka ingest.KafkaConfig `yaml:"kafka"`
+
+	Snapshot       SnapshotConfig       `yaml:"snapshot"`
+	Sweep          SweepConfig          `yaml:"sweep"`
+	Reconstruction ReconstructionConfig `yaml:"reconstruction"`
+	Reconciliation ReconciliationConfig `yaml:"reconciliation"`
+	Queue          QueueConfig          `yaml:"queue"`
+}
+
+// SnapshotConfig configures local-disk snapshotting (§ Snapshots).
+type SnapshotConfig struct {
+	// Path is the local-disk snapshot file path. Required if Interval > 0.
+	Path string `yaml:"path"`
+
+	// Interval is the snapshot cadence. 0 disables snapshotting (every
+	// restart becomes a full reconstruction).
+	Interval time.Duration `yaml:"interval"`
+}
+
+// SweepConfig configures the background garbage-collection sweep (§
+// Garbage collection).
+type SweepConfig struct {
+	// FullPassPeriod is the target wall-clock time for one full pass over
+	// the leaf directory.
+	FullPassPeriod time.Duration `yaml:"full_pass_period"`
+
+	// ReplayHorizon bounds tombstone reclamation: a deleted block's
+	// registry entry is only reclaimed once its Delete is older than this
+	// (topic retention + slack, operator-set — not introspected from the
+	// broker, §7 invariant #9). Reclaiming earlier would reopen
+	// resurrection-by-replay.
+	ReplayHorizon time.Duration `yaml:"replay_horizon"`
+}
+
+// ReconstructionConfig configures the reconstruction queue (§
+// Reconstruction).
+type ReconstructionConfig struct {
+	// Concurrency bounds parallel object-store column fetches.
+	Concurrency int `yaml:"concurrency"`
+
+	// RateLimitBytesPerSecond bounds this instance's share of the
+	// cell-wide object-store read budget shared with reconciliation (§
+	// Reconstruction, § Reconciliation: "repair fetches share the
+	// cell-wide reconstruction rate limit").
+	RateLimitBytesPerSecond int64 `yaml:"rate_limit_bytes_per_second"`
+}
+
+// ReconciliationConfig configures the periodic tenant-index-vs-registry
+// diff loop (§ Reconciliation).
+type ReconciliationConfig struct {
+	// Period is how often the reconciliation loop runs, per tenant.
+	Period time.Duration `yaml:"period"`
+
+	// LagGate is the consumer-lag threshold above which repair-Adds are
+	// suppressed (Delete synthesis is unaffected, § Reconciliation).
+	LagGate time.Duration `yaml:"lag_gate"`
+}
+
+// QueueConfig configures the bounded in-memory event queue between the
+// Kafka consumer and the apply worker pool (§ Event processing, §
+// Backpressure and memory pressure).
+type QueueConfig struct {
+	// MaxBytes bounds the queue by bytes, not message count (§
+	// Backpressure: "bounded (bytes)").
+	MaxBytes int64 `yaml:"max_bytes"`
+
+	// Workers is the fixed size of the apply worker pool.
+	Workers int `yaml:"workers"`
+}
+
+// RegisterFlagsAndApplyDefaults registers this Config's flags under prefix
+// and applies every default documented above. Must be side-effect-free
+// beyond mutating cfg: it is called a second time, on a throwaway Config,
+// to compute /status/config?mode=defaults|diff (module-wiring report
+// convention #9).
+func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
+	cfg.D = defaultD
+	cfg.F = defaultF
+	// flag.FlagSet has no native uint8 Var; flag.Func parses+validates the
+	// string form directly into the uint8 field without an intermediate
+	// int variable (which would need its own separate range check anyway).
+	f.Func(prefix+".d", fmt.Sprintf("Number of top trace-ID-hash bits used as the leaf address; leaf count is 2^d. Immutable without a reshard. (default %d)", defaultD), cfg.setD)
+	f.Func(prefix+".f", fmt.Sprintf("Number of trace-ID-hash bits used as the per-leaf fingerprint width, max %d. Immutable without a reshard. (default %d)", maxFingerprintBits, defaultF), cfg.setF)
+
+	f.Var(&cfg.Seed, prefix+".seed", "Secret seed mixed into the trace-ID hash. Required; must be identical, byte-for-byte, across every gateway instance (and, later, every query-frontend).")
+
+	f.IntVar(&cfg.NumTokens, prefix+".num-tokens", defaultNumTokens, fmt.Sprintf("Number of tokens this instance registers in the ring. Must be <= %d (dskit SpreadMinimizingTokenGenerator's hard cap).", maxRingTokens))
+
+	f.DurationVar(&cfg.RingStabilityWindow, prefix+".ring-stability-window", defaultRingStabilityWindow, "How long ring membership (instance set and states) must stay unchanged before this instance's first reconstruction enqueue/claim on startup. Bounds early-joiner over-claims during a staggered cold start.")
+	f.DurationVar(&cfg.RingStabilityTimeout, prefix+".ring-stability-timeout", defaultRingStabilityTimeout, "Hard cap on how long to wait for ring-stability-window to be satisfied before proceeding anyway, so a genuinely single-instance cell is never held up.")
+
+	cfg.Ring.RegisterFlagsAndApplyDefaults(prefix, f)
+	// Bloom-gateway-specific override of the shared default set just
+	// above -- see defaultHeartbeatTimeout's own comment. Deliberately not
+	// a new flag: pkg/ring.Config's HeartbeatTimeout has no dedicated flag
+	// of its own (only a yaml tag) in any Tempo ring; an operator needing
+	// a different value can still set ring.heartbeat_timeout via YAML,
+	// exactly as for every other ring-backed module.
+	cfg.Ring.HeartbeatTimeout = defaultHeartbeatTimeout
+
+	f.BoolVar(&cfg.UnregisterOnShutdown, prefix+".unregister-on-shutdown", false, "Unregister this instance from the ring on every graceful stop (pre-2026-07-16 behavior). Default false: a graceful stop keeps the instance ACTIVE in the ring so ordinary pod reschedules cost nothing; use the prepare-downscale endpoint for an intentional, one-time removal instead of flipping this.")
+	f.DurationVar(&cfg.RingAutoForgetTimeout, prefix+".ring.auto-forget-timeout", defaultRingAutoForgetTimeout, "How long a heartbeat-unhealthy ring entry survives before being purged outright. Must be greater than the (bloom-gateway-widened) ring heartbeat timeout: ownership already reassigns at that point, so this only governs KV/ring-page cleanup for a permanently dead instance afterward.")
+	f.StringVar(&cfg.ShutdownMarkerDir, prefix+".shutdown-marker-dir", defaultShutdownMarkerDir, "Directory for the prepare-downscale marker file. Must be on the same persistent volume as snapshot.path so a prepared-for-removal instance remembers that across a restart landing before the operator's actual removal.")
+
+	cfg.Kafka.RegisterFlagsWithPrefix(prefix+".kafka", f)
+	cfg.Kafka.Topic = defaultKafkaTopic
+	cfg.Kafka.AutoCreateTopicDefaultPartitions = defaultAutoCreateTopicDefaultPartitions
+
+	f.StringVar(&cfg.Snapshot.Path, prefix+".snapshot.path", defaultSnapshotPath, "Local-disk path for the snapshot file. Required if snapshot.interval > 0. A persistent volume is strongly recommended (§ Snapshots).")
+	f.DurationVar(&cfg.Snapshot.Interval, prefix+".snapshot.interval", defaultSnapshotInterval, "Snapshot cadence. 0 disables snapshotting, making every restart a full reconstruction.")
+
+	f.DurationVar(&cfg.Sweep.FullPassPeriod, prefix+".sweep.full-pass-period", defaultSweepFullPassPeriod, "Target wall-clock time for one full background sweep pass over the leaf directory.")
+	f.DurationVar(&cfg.Sweep.ReplayHorizon, prefix+".sweep.replay-horizon", defaultSweepReplayHorizon, "Minimum age of a block's Delete, past the Kafka topic's retention, before its tombstone is reclaimed. Must exceed the topic retention or resurrection-by-replay becomes possible.")
+
+	f.IntVar(&cfg.Reconstruction.Concurrency, prefix+".reconstruction.concurrency", defaultReconstructionConcurrency, "Bounded concurrency for object-store trace-ID column fetches during reconstruction.")
+	f.Int64Var(&cfg.Reconstruction.RateLimitBytesPerSecond, prefix+".reconstruction.rate-limit-bytes-per-second", defaultReconstructionRateLimitBytesPerSecond, "This instance's share of the cell-wide object-store read-rate budget, shared between reconstruction and reconciliation repair fetches.")
+
+	f.DurationVar(&cfg.Reconciliation.Period, prefix+".reconciliation.period", defaultReconciliationPeriod, "How often the reconciliation loop diffs the tenant index against the block registry, per tenant.")
+	f.DurationVar(&cfg.Reconciliation.LagGate, prefix+".reconciliation.lag-gate", defaultReconciliationLagGate, "Consumer-lag threshold above which reconciliation repair-Adds (not Delete synthesis) are suppressed.")
+
+	f.Int64Var(&cfg.Queue.MaxBytes, prefix+".queue.max-bytes", defaultQueueMaxBytes, "Byte bound on the in-memory queue between the Kafka consumer and the apply worker pool.")
+	f.IntVar(&cfg.Queue.Workers, prefix+".queue.workers", defaultQueueWorkers, "Fixed size of the apply worker pool.")
+}
+
+// setD and setF back the -<prefix>.d / -<prefix>.f flag.Func registrations.
+func (cfg *Config) setD(s string) error {
+	v, err := strconv.ParseUint(s, 10, 8)
+	if err != nil {
+		return fmt.Errorf("invalid d %q: %w", s, err)
+	}
+	cfg.D = uint8(v)
+	return nil
+}
+
+func (cfg *Config) setF(s string) error {
+	v, err := strconv.ParseUint(s, 10, 8)
+	if err != nil {
+		return fmt.Errorf("invalid f %q: %w", s, err)
+	}
+	cfg.F = uint8(v)
+	return nil
+}
+
+// Validate checks the parts of Config that Go's type system can't. It does
+// not construct anything (no KV clients, no files opened) — the flag-
+// registration-idempotency constraint doesn't apply to Validate directly,
+// but keeping it a pure check makes it trivially safe to call repeatedly
+// (e.g. from a config-reload path, if one is ever added).
+func (cfg *Config) Validate() error {
+	if cfg.Seed.String() == "" {
+		return errors.New("bloom gateway: seed is required")
+	}
+
+	// Order matters for error clarity: d's own bound, then d+f, then f's
+	// own bound. With today's constants (d<=32, f<=16) the sum can never
+	// exceed 48, so the d+f<=64 check can currently only be reached (and
+	// only ever fire) when d's bound already failed to save it — i.e. it
+	// is not independently triggerable by an F-only violation today. It
+	// is kept anyway, and checked before the f bound, as defense-in-depth
+	// against widening maxFingerprintBits later (§ Changing D, F, or the
+	// seed's "packed encoding" escape hatch discusses widening F): at that
+	// point d+f<=64 becomes the binding constraint again, and it must
+	// already be correct rather than newly added under pressure.
+	if cfg.D == 0 || cfg.D > maxLeafAddressBits {
+		return fmt.Errorf("bloom gateway: d must be between 1 and %d (top bits of the trace-ID hash must address a real position in the ring's 32-bit token space), got %d", maxLeafAddressBits, cfg.D)
+	}
+
+	if int(cfg.D)+int(cfg.F) > int(maxHashBits) {
+		return fmt.Errorf("bloom gateway: d+f must be <= %d (the trace-ID hash is %d bits wide), got d=%d f=%d (sum %d)", maxHashBits, maxHashBits, cfg.D, cfg.F, int(cfg.D)+int(cfg.F))
+	}
+
+	if cfg.F > maxFingerprintBits {
+		return fmt.Errorf("bloom gateway: f must be <= %d (the v1 fixed-width leaf encoding's fingerprint storage width), got %d", maxFingerprintBits, cfg.F)
+	}
+
+	if cfg.NumTokens <= 0 || cfg.NumTokens > maxRingTokens {
+		return fmt.Errorf("bloom gateway: num_tokens must be between 1 and %d, got %d", maxRingTokens, cfg.NumTokens)
+	}
+
+	if cfg.RingStabilityWindow <= 0 {
+		return fmt.Errorf("bloom gateway: ring_stability_window must be greater than 0, got %s", cfg.RingStabilityWindow)
+	}
+	if cfg.RingStabilityTimeout < cfg.RingStabilityWindow {
+		return fmt.Errorf("bloom gateway: ring_stability_timeout (%s) must be >= ring_stability_window (%s)", cfg.RingStabilityTimeout, cfg.RingStabilityWindow)
+	}
+
+	// Ordering, not magnitude, is the correctness constraint (2026-07-16
+	// shutdown-semantics redesign, DESIGN.md § Availability model
+	// amendment): ownership already reassigns when Ring.HeartbeatTimeout
+	// elapses (GetAllHealthy), so forgetting the ring entry no later than
+	// that would race reassignment instead of following it -- see
+	// defaultRingAutoForgetTimeout's own comment.
+	if cfg.RingAutoForgetTimeout <= cfg.Ring.HeartbeatTimeout {
+		return fmt.Errorf("bloom gateway: ring_auto_forget_timeout (%s) must be greater than ring.heartbeat_timeout (%s): ownership already reassigns at heartbeat_timeout, so forgetting no later than that would race reassignment instead of following it", cfg.RingAutoForgetTimeout, cfg.Ring.HeartbeatTimeout)
+	}
+
+	// Not a same-volume check against Snapshot.Path (see
+	// defaultShutdownMarkerDir's own comment for why that doesn't belong
+	// in a documented zero-I/O Validate) -- just the same "must be set"
+	// bar Snapshot.Path itself is held to below.
+	if cfg.ShutdownMarkerDir == "" {
+		return errors.New("bloom gateway: shutdown_marker_dir is required")
+	}
+
+	if cfg.Snapshot.Interval > 0 && cfg.Snapshot.Path == "" {
+		return errors.New("bloom gateway: snapshot.path is required when snapshot.interval > 0")
+	}
+
+	if err := cfg.Kafka.Validate(); err != nil {
+		return fmt.Errorf("bloom gateway: kafka: %w", err)
+	}
+
+	return nil
+}

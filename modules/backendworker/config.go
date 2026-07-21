@@ -11,6 +11,7 @@ import (
 	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/ring"
+	"github.com/grafana/tempo/pkg/bloomgatewayevents"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
 )
@@ -22,6 +23,9 @@ type Config struct {
 	OverrideRingKey         string                  `yaml:"override_ring_key"`
 	Ring                    RingConfig              `yaml:"ring,omitempty"`
 	FinishOnShutdownTimeout time.Duration           `yaml:"finish_on_shutdown_timeout"`
+
+	// This config is dynamically injected because it is shared across every bloom-gateway event producer.
+	Producer bloomgatewayevents.Config `yaml:"-"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
