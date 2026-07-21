@@ -268,7 +268,8 @@ func logQueryInstantResult(ctx context.Context, logger log.Logger, tenantID stri
 	traceID, _ := tracing.ExtractTraceID(ctx)
 
 	if resp == nil {
-		recordResult(level.Info(logger), ctx,
+		recordResult(
+			level.Info(logger), ctx,
 			"msg", "query instant results - no resp",
 			"tenant", tenantID,
 			"traceID", traceID,
@@ -279,7 +280,8 @@ func logQueryInstantResult(ctx context.Context, logger log.Logger, tenantID stri
 	}
 
 	if resp.Metrics == nil {
-		recordResult(level.Info(logger), ctx,
+		recordResult(
+			level.Info(logger), ctx,
 			"msg", "query instant results - no metrics",
 			"tenant", tenantID,
 			"traceID", traceID,
@@ -291,7 +293,8 @@ func logQueryInstantResult(ctx context.Context, logger log.Logger, tenantID stri
 		return
 	}
 
-	recordResult(level.Info(logger), ctx,
+	recordResult(
+		level.Info(logger), ctx,
 		"msg", "query instant results",
 		"tenant", tenantID,
 		"traceID", traceID,
@@ -318,5 +321,6 @@ func logQueryInstantRequest(logger log.Logger, tenantID string, req *tempopb.Que
 		"msg", "query instant request",
 		"tenant", tenantID,
 		"query", req.Query,
-		"range_seconds", req.End-req.Start)
+		"range_seconds", req.End-req.Start,
+	)
 }

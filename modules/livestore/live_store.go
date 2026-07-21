@@ -228,7 +228,8 @@ func New(cfg Config, overridesService overrides.Interface, completeBlockFlusher 
 		PartitionRingKey,
 		partitionRingKV,
 		logger,
-		prometheus.WrapRegistererWithPrefix("tempo_", reg))
+		prometheus.WrapRegistererWithPrefix("tempo_", reg),
+	)
 
 	// setup live store read ring
 	ringStore := cfg.Ring.KVStore.Mock
@@ -605,7 +606,8 @@ func (s *LiveStore) calculateTimeLag(lagShortcutThreshold int64) *time.Duration 
 	if lagShortcutThreshold >= 0 && lag <= lagShortcutThreshold {
 		level.Debug(s.logger).Log(
 			"msg", "At or close to partition end",
-			"lag", lag)
+			"lag", lag,
+		)
 		return new(time.Duration(0))
 	}
 

@@ -351,13 +351,13 @@ func isScopeToken(typ int) bool {
 		typ == SPAN_COLON || typ == INSTRUMENTATION_COLON
 }
 
-var reverseTokenMap = (func() map[int]string {
+var reverseTokenMap = func() map[int]string {
 	m := make(map[int]string, len(tokenMap))
 	for str, tok := range tokenMap {
 		m[tok] = str
 	}
 	return m
-})()
+}()
 
 // tokenRepr returns the string representation of a token for query rebuilding.
 // Explicit mappings are needed for multi-character tokens where scanner.TokenText()

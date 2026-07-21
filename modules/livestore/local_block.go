@@ -41,7 +41,7 @@ func NewLocalBlock(ctx context.Context, existingBlock common.BackendBlock, l *lo
 		writer:       backend.NewWriter(l),
 	}
 
-	flushedBytes, err := c.reader.Read(ctx, nameFlushed, (uuid.UUID)(c.BlockMeta().BlockID), c.BlockMeta().TenantID, nil)
+	flushedBytes, err := c.reader.Read(ctx, nameFlushed, uuid.UUID(c.BlockMeta().BlockID), c.BlockMeta().TenantID, nil)
 	if err == nil {
 		flushedTime := time.Time{}
 		if err := flushedTime.UnmarshalText(flushedBytes); err == nil {
@@ -122,7 +122,7 @@ func (c *LocalBlock) SetFlushed(ctx context.Context) error {
 		return fmt.Errorf("error marshalling flush time to text: %w", err)
 	}
 
-	err = c.writer.Write(ctx, nameFlushed, (uuid.UUID)(c.BlockMeta().BlockID), c.BlockMeta().TenantID, flushedBytes, nil)
+	err = c.writer.Write(ctx, nameFlushed, uuid.UUID(c.BlockMeta().BlockID), c.BlockMeta().TenantID, flushedBytes, nil)
 	if err != nil {
 		return fmt.Errorf("error writing local block flushed file: %w", err)
 	}
@@ -140,11 +140,11 @@ func (c *LocalBlock) Write(ctx context.Context, w backend.Writer) error {
 }
 
 func (c *LocalBlock) SetDiskCache(ctx context.Context, cacheKey string, data []byte) error {
-	return c.writer.Write(ctx, cacheKey, (uuid.UUID)(c.BlockMeta().BlockID), c.BlockMeta().TenantID, data, nil)
+	return c.writer.Write(ctx, cacheKey, uuid.UUID(c.BlockMeta().BlockID), c.BlockMeta().TenantID, data, nil)
 }
 
 func (c *LocalBlock) GetDiskCache(ctx context.Context, cacheKey string) ([]byte, error) {
-	data, err := c.reader.Read(ctx, cacheKey, (uuid.UUID)(c.BlockMeta().BlockID), c.BlockMeta().TenantID, nil)
+	data, err := c.reader.Read(ctx, cacheKey, uuid.UUID(c.BlockMeta().BlockID), c.BlockMeta().TenantID, nil)
 	if errors.Is(err, backend.ErrDoesNotExist) {
 		return nil, nil
 	}

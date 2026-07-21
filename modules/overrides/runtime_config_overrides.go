@@ -122,7 +122,8 @@ func loadPerTenantOverrides(validator Validator, typ ConfigType, expandEnv bool,
 			if !enableLegacy {
 				return nil, fmt.Errorf(
 					"DEPRECATED: legacy overrides config format is in use. per-tenant overrides file uses the legacy format but legacy overrides are disabled by default. " +
-						"Migrate your per-tenant overrides to the new scoped format, or set -config.enable-legacy-overrides=true (or enable_legacy_overrides: true in YAML) to continue using legacy overrides temporarily")
+						"Migrate your per-tenant overrides to the new scoped format, or set -config.enable-legacy-overrides=true (or enable_legacy_overrides: true in YAML) to continue using legacy overrides temporarily",
+				)
 			}
 		}
 

@@ -274,18 +274,21 @@ func TestPruneTrace_GroupByNonStringAttributes(t *testing.T) {
 	parent := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "parent", 0, 1000)
 	spans := []*tracev1.Span{parent}
 	// 2 spans: retries=1, cached=true
-	spans = append(spans,
+	spans = append(
+		spans,
 		test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(2, 0), test.MakeSpanPruningSpanID(1, 0), "db_query", 0, 100, intAttr(1), boolAttr(true)),
 		test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(2, 1), test.MakeSpanPruningSpanID(1, 0), "db_query", 0, 100, intAttr(1), boolAttr(true)),
 	)
 	// 2 spans: retries=2, cached=true
-	spans = append(spans,
+	spans = append(
+		spans,
 		test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(3, 0), test.MakeSpanPruningSpanID(1, 0), "db_query", 0, 100, intAttr(2), boolAttr(true)),
 		test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(3, 1), test.MakeSpanPruningSpanID(1, 0), "db_query", 0, 100, intAttr(2), boolAttr(true)),
 	)
 	// 2 spans: retries=1, cached=false — same retries as the first group, but must not merge
 	// with it, or grouping isn't actually keying on the bool attribute.
-	spans = append(spans,
+	spans = append(
+		spans,
 		test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(4, 0), test.MakeSpanPruningSpanID(1, 0), "db_query", 0, 100, intAttr(1), boolAttr(false)),
 		test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(4, 1), test.MakeSpanPruningSpanID(1, 0), "db_query", 0, 100, intAttr(1), boolAttr(false)),
 	)
@@ -330,7 +333,8 @@ func TestPruneTrace_GlobPatternWildcard(t *testing.T) {
 	parent := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "parent", 0, 1000)
 	spans := []*tracev1.Span{parent}
 	for i := byte(0); i < 3; i++ {
-		spans = append(spans, test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(2, i), test.MakeSpanPruningSpanID(1, 0), "db_query", 0, 100,
+		spans = append(spans, test.MakeSpanPruningSpan(
+			fixedTraceID, test.MakeSpanPruningSpanID(2, i), test.MakeSpanPruningSpanID(1, 0), "db_query", 0, 100,
 			test.MakeAttribute("db.operation", "select"),
 			test.MakeAttribute("db.name", "users"),
 			test.MakeAttribute("db.system", "postgresql"),
@@ -377,7 +381,8 @@ func TestPruneTrace_GlobPatternMultiplePatterns(t *testing.T) {
 	parent := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "parent", 0, 1000)
 	spans := []*tracev1.Span{parent}
 	for i := byte(0); i < 3; i++ {
-		spans = append(spans, test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(2, i), test.MakeSpanPruningSpanID(1, 0), "api_call", 0, 100,
+		spans = append(spans, test.MakeSpanPruningSpan(
+			fixedTraceID, test.MakeSpanPruningSpanID(2, i), test.MakeSpanPruningSpanID(1, 0), "api_call", 0, 100,
 			test.MakeAttribute("db.operation", "select"),
 			test.MakeAttribute("db.name", "users"),
 			test.MakeAttribute("http.method", "GET"),
@@ -399,7 +404,8 @@ func TestPruneTrace_GlobPatternExactMatch(t *testing.T) {
 	parent := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "parent", 0, 1000)
 	spans := []*tracev1.Span{parent}
 	for i := byte(0); i < 3; i++ {
-		spans = append(spans, test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(2, i), test.MakeSpanPruningSpanID(1, 0), "db_query", 0, 100,
+		spans = append(spans, test.MakeSpanPruningSpan(
+			fixedTraceID, test.MakeSpanPruningSpanID(2, i), test.MakeSpanPruningSpanID(1, 0), "db_query", 0, 100,
 			test.MakeAttribute("db.operation", "select"),
 			test.MakeAttribute("db.name", "users"),
 			test.MakeAttribute("db.system", "postgresql"),
@@ -439,7 +445,8 @@ func TestPruneTrace_LongestDurationTemplate(t *testing.T) {
 		ident string
 	}
 	for i, d := range []spanDef{{100, "short"}, {500, "longest"}, {200, "medium"}} {
-		s := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(2, byte(i)), test.MakeSpanPruningSpanID(1, 0), "db_query", base, base+d.dur,
+		s := test.MakeSpanPruningSpan(
+			fixedTraceID, test.MakeSpanPruningSpanID(2, byte(i)), test.MakeSpanPruningSpanID(1, 0), "db_query", base, base+d.dur,
 			test.MakeAttribute("db.operation", "select"),
 			test.MakeAttribute("span.identifier", d.ident),
 		)
@@ -848,7 +855,8 @@ func TestPruneTrace_ParentKeyCollisionRegression(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestPruneTrace_ConversionRoundtrip(t *testing.T) {
-	s := test.MakeSpanPruningSpan(fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "root", 100, 200,
+	s := test.MakeSpanPruningSpan(
+		fixedTraceID, test.MakeSpanPruningSpanID(1, 0), nil, "root", 100, 200,
 		test.MakeAttribute("service.name", "my-service"),
 	)
 	trace := test.WrapSpansAsTrace(s)

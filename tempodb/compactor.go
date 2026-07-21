@@ -123,7 +123,8 @@ func (rw *readerWriter) compactOneTenant(ctx context.Context) {
 	//   Favoring lower compaction levels, and compacting blocks only from the same tenant.
 	//  2. If blocks are outside the active window, they're grouped only by windows, ignoring compaction level.
 	//   It picks more recent windows first, and compacting blocks only from the same tenant.
-	blockSelector := blockselector.NewTimeWindowBlockSelector(blocklist,
+	blockSelector := blockselector.NewTimeWindowBlockSelector(
+		blocklist,
 		window,
 		rw.compactorCfg.MaxCompactionObjects,
 		rw.compactorCfg.MaxBlockBytes,
@@ -273,7 +274,7 @@ func (rw *readerWriter) CompactWithConfig(ctx context.Context, blockMetas []*bac
 		totalRecords += int(blockMeta.TotalObjects)
 
 		// Make sure block still exists
-		_, err = rw.r.BlockMeta(ctx, (uuid.UUID)(blockMeta.BlockID), tenantID)
+		_, err = rw.r.BlockMeta(ctx, uuid.UUID(blockMeta.BlockID), tenantID)
 		if err != nil {
 			return nil, err
 		}
@@ -368,7 +369,7 @@ func markCompacted(rw *readerWriter, tenantID string, oldBlocks, newBlocks []*ba
 	var errCount int
 	for _, meta := range oldBlocks {
 		// Mark in the backend
-		if err := rw.c.MarkBlockCompacted((uuid.UUID)(meta.BlockID), tenantID); err != nil {
+		if err := rw.c.MarkBlockCompacted(uuid.UUID(meta.BlockID), tenantID); err != nil {
 			errCount++
 			level.Error(rw.logger).Log("msg", "unable to mark block compacted", "blockID", meta.BlockID, "tenantID", tenantID, "err", err)
 			metricCompactionErrors.Inc()

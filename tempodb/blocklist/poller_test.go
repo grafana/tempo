@@ -375,7 +375,7 @@ func TestPollBlock(t *testing.T) {
 				PollFallback:          testPollFallback,
 				TenantIndexBuilders:   testBuilders,
 			}, &mockJobSharder{}, r, c, w, log.NewNopLogger())
-			actualMeta, actualCompactedMeta, err := poller.pollBlock(context.Background(), tc.pollTenantID, (uuid.UUID)(tc.pollBlockID), false)
+			actualMeta, actualCompactedMeta, err := poller.pollBlock(context.Background(), tc.pollTenantID, uuid.UUID(tc.pollBlockID), false)
 
 			assert.Equal(t, tc.expectedMeta, actualMeta)
 			assert.Equal(t, tc.expectedCompactedMeta, actualCompactedMeta)
@@ -823,12 +823,12 @@ func TestPollComparePreviousResults(t *testing.T) {
 			},
 			expectedBlockMetaCalls: map[string]map[uuid.UUID]int{
 				"test": {
-					(uuid.UUID)(zero): 1,
+					uuid.UUID(zero): 1,
 				},
 			},
 			expectedCompactedBlockMetaCalls: map[string]map[uuid.UUID]int{
 				"test": {
-					(uuid.UUID)(eff): 1,
+					uuid.UUID(eff): 1,
 				},
 			},
 		},
@@ -892,7 +892,7 @@ func TestPollComparePreviousResults(t *testing.T) {
 			},
 			expectedBlockMetaCalls: map[string]map[uuid.UUID]int{
 				"test": {
-					(uuid.UUID)(eff): 1,
+					uuid.UUID(eff): 1,
 				},
 			},
 			// zero and aaa were previously known as live blocks, so their CompactedBlockMeta
@@ -1431,7 +1431,7 @@ func newMockCompactor(list PerTenantCompacted, expectsError bool) backend.Compac
 			}
 
 			for _, m := range l {
-				if (uuid.UUID)(m.BlockID) == blockID {
+				if uuid.UUID(m.BlockID) == blockID {
 					return m, nil
 				}
 			}
@@ -1466,11 +1466,11 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 			uuids := []uuid.UUID{}
 			compactedUUIDs := []uuid.UUID{}
 			for _, b := range blocks {
-				uuids = append(uuids, (uuid.UUID)(b.BlockID))
+				uuids = append(uuids, uuid.UUID(b.BlockID))
 			}
 			compactedBlocks := compactedList[tenantID]
 			for _, b := range compactedBlocks {
-				compactedUUIDs = append(compactedUUIDs, (uuid.UUID)(b.BlockID))
+				compactedUUIDs = append(compactedUUIDs, uuid.UUID(b.BlockID))
 			}
 
 			return uuids, compactedUUIDs, nil
@@ -1487,7 +1487,7 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 			}
 
 			for _, m := range l {
-				if (uuid.UUID)(m.BlockID) == blockID {
+				if uuid.UUID(m.BlockID) == blockID {
 					return m, nil
 				}
 			}

@@ -370,7 +370,8 @@ func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest) []*tempopb.TimeSeri
 	for _, s := range set {
 		labels := make([]commonv1proto.KeyValue, 0, len(s.Labels))
 		for _, label := range s.Labels {
-			labels = append(labels,
+			labels = append(
+				labels,
 				commonv1proto.KeyValue{
 					Key:   label.Name,
 					Value: label.Value.AsAnyValue(),
@@ -411,7 +412,8 @@ func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest) []*tempopb.TimeSeri
 
 			labels := make([]commonv1proto.KeyValue, 0, len(e.Labels))
 			for _, label := range e.Labels {
-				labels = append(labels,
+				labels = append(
+					labels,
 					commonv1proto.KeyValue{
 						Key:   label.Name,
 						Value: label.Value.AsAnyValue(),
@@ -1480,7 +1482,7 @@ type EvaluatorMetrics struct {
 	AdditionalMetrics map[string]int64
 }
 
-var _ = (MetricsEvaluator)(&metricsEvaluator{})
+var _ = MetricsEvaluator(&metricsEvaluator{})
 
 func (e *metricsEvaluator) FetchSpansRequest() FetchSpansRequest {
 	return *e.storageReq
@@ -2280,7 +2282,7 @@ func (h *HistogramAggregator) Results() SeriesSet {
 		// For each input series, we create a new series for each quantile.
 		for qIdx, q := range h.qs {
 			// Append label for the quantile
-			labels := append((Labels)(nil), in.labels...)
+			labels := append(Labels(nil), in.labels...)
 			labels = append(labels, Label{"p", NewStaticFloat(q)})
 
 			ts := TimeSeries{

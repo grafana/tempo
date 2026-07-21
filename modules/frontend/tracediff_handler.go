@@ -73,7 +73,8 @@ func newTraceDiffHandler(_ Config, apiPrefix string, tracePipeline pipeline.Asyn
 			"base_end", traceDiffTimeParam(diffReq.Base.End),
 			"compare_trace_id", diffReq.Compare.TraceID,
 			"compare_start", traceDiffTimeParam(diffReq.Compare.Start),
-			"compare_end", traceDiffTimeParam(diffReq.Compare.End))
+			"compare_end", traceDiffTimeParam(diffReq.Compare.End),
+		)
 
 		baseResp, compareResp, err := fetchTracesForDiff(req.Context(), tenant, diffReq, req.Header, fetchTrace)
 		if err != nil {

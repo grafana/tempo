@@ -51,7 +51,8 @@ func TestWriteMetrics(t *testing.T) {
 		assertMetricEquals(t, livestore, "tempo_live_store_partition_owned", float64(1), nil)
 
 		// we may not have yet completed a block so wait for this one
-		err = livestore.WaitSumMetricsWithOptions(e2e.Greater(0),
+		err = livestore.WaitSumMetricsWithOptions(
+			e2e.Greater(0),
 			[]string{"tempo_live_store_blocks_completed_total"},
 			e2e.WaitMissingMetrics,
 		)

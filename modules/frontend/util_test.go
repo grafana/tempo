@@ -128,7 +128,8 @@ func TestSetSpanAttrsWithShape(t *testing.T) {
 		tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(rec))
 		ctx, span := tp.Tracer("test").Start(context.Background(), "test")
 
-		setSpanAttrsWithShape(ctx,
+		setSpanAttrsWithShape(
+			ctx,
 			"msg", "search response",
 			"traceID", "abcd",
 			"tenant", "test-tenant",

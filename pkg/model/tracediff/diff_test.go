@@ -407,12 +407,14 @@ func TestDiffKeepsInvalidAddedSpanDurationCompatible(t *testing.T) {
 func TestDiffReportsSpanAttributeChanges(t *testing.T) {
 	traceID := []byte("trace-id-0000001")
 	baseSpan := spanForNormalizeTest(traceID, "root", "", "checkout", "POST /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK)
-	baseSpan.Attributes = append(baseSpan.Attributes,
+	baseSpan.Attributes = append(
+		baseSpan.Attributes,
 		stringAttribute("removed.attr", "gone"),
 		stringAttribute("version", "v1"),
 	)
 	compareSpan := spanForNormalizeTest(traceID, "root", "", "checkout", "POST /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK)
-	compareSpan.Attributes = append(compareSpan.Attributes,
+	compareSpan.Attributes = append(
+		compareSpan.Attributes,
 		stringAttribute("added.attr", "new"),
 		stringAttribute("version", "v2"),
 	)
@@ -453,11 +455,13 @@ func TestDiffReportsSpanAttributeChanges(t *testing.T) {
 func TestDiffReportsArraySpanAttributeChanges(t *testing.T) {
 	traceID := []byte("trace-id-0000001")
 	baseSpan := spanForNormalizeTest(traceID, "root", "", "checkout", "POST /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK)
-	baseSpan.Attributes = append(baseSpan.Attributes,
+	baseSpan.Attributes = append(
+		baseSpan.Attributes,
 		stringArrayAttribute("feature.flags", "a", "b"),
 	)
 	compareSpan := spanForNormalizeTest(traceID, "root", "", "checkout", "POST /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK)
-	compareSpan.Attributes = append(compareSpan.Attributes,
+	compareSpan.Attributes = append(
+		compareSpan.Attributes,
 		stringArrayAttribute("feature.flags", "a", "c"),
 	)
 
