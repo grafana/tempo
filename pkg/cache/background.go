@@ -108,6 +108,18 @@ func (c *backgroundCache) Store(ctx context.Context, keys []string, bufs [][]byt
 	}
 }
 
+// RemoveByPrefix forwards prefix eviction to the wrapped cache when it supports
+// it (Redis), and is a no-op otherwise (e.g. memcached). It runs synchronously
+// rather than through the write-back queue: it is a low-frequency,
+// compaction-driven operation, not on the read/write hot path. This makes
+// *backgroundCache satisfy PrefixEvictor regardless of the underlying backend, so
+// callers can assert the capability once against the wrapper.
+func (c *backgroundCache) RemoveByPrefix(ctx context.Context, prefix string) {
+	if e, ok := c.Cache.(PrefixEvictor); ok {
+		e.RemoveByPrefix(ctx, prefix)
+	}
+}
+
 func (c *backgroundCache) writeBackLoop() {
 	defer c.wg.Done()
 

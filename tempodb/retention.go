@@ -124,7 +124,7 @@ func (rw *readerWriter) retainTenant(ctx context.Context, tenantID string, compa
 					metricRetentionErrors.Inc()
 				} else {
 					metricDeleted.Inc()
-					rw.removeCachedBlock(ctx, tenantID, (uuid.UUID)(b.BlockID), int(b.BloomShardCount))
+					rw.removeCachedBlock(ctx, tenantID, (uuid.UUID)(b.BlockID), int(b.BloomShardCount), compactorCfg.PrefixCacheEviction)
 					rw.blocklist.Update(tenantID, nil, nil, nil, []*backend.CompactedBlockMeta{b})
 				}
 			}
@@ -132,11 +132,22 @@ func (rw *readerWriter) retainTenant(ctx context.Context, tenantID string, compa
 	}
 }
 
-// removeCachedBlock evicts bloom filter shards and the trace-id index for a deleted block
-// from all configured caches. Cache entries for other roles (parquet pages, footer, etc.)
-// use byte offsets in their keys that are not tracked in the block meta, so those are left
-// to expire via TTL or LRU eviction.
-func (rw *readerWriter) removeCachedBlock(ctx context.Context, tenantID string, blockID uuid.UUID, bloomShardCount int) {
+// removeCachedBlock evicts a deleted block's entries from all configured caches.
+//
+// Bloom filter shards and the trace-id index have whole-object keys that can be
+// reconstructed from the block meta, so they are removed exactly. This is also
+// the only eviction path available on caches that cannot enumerate keys
+// (e.g. memcached).
+//
+// When prefixEviction is enabled, the parquet roles (footer, column index, offset
+// index, pages) are also evicted. They are read via offset-keyed range requests
+// whose keys embed byte offsets not tracked in the block meta, so they cannot be
+// reconstructed; instead they are removed by prefix on caches that support it
+// (Redis). A single prefix covers every role sharing an instance, so the backing
+// caches are deduplicated and each is scanned at most once. When prefixEviction is
+// disabled, or on caches that cannot enumerate keys, these entries rely on TTL or
+// LRU.
+func (rw *readerWriter) removeCachedBlock(ctx context.Context, tenantID string, blockID uuid.UUID, bloomShardCount int, prefixEviction bool) {
 	if rw.cacheProvider == nil {
 		return
 	}
@@ -153,5 +164,30 @@ func (rw *readerWriter) removeCachedBlock(ctx context.Context, tenantID string, 
 
 	if c := rw.cacheProvider.CacheFor(cache.RoleTraceIDIdx); c != nil {
 		c.Remove(ctx, []string{keyPrefix + common.NameIndex})
+	}
+
+	if !prefixEviction {
+		return
+	}
+
+	seen := map[cache.Cache]struct{}{}
+	for _, role := range []cache.Role{
+		cache.RoleParquetFooter,
+		cache.RoleParquetColumnIdx,
+		cache.RoleParquetOffsetIdx,
+		cache.RoleParquetPage,
+	} {
+		c := rw.cacheProvider.CacheFor(role)
+		if c == nil {
+			continue
+		}
+		if _, ok := seen[c]; ok {
+			continue
+		}
+		seen[c] = struct{}{}
+
+		if e, ok := c.(cache.PrefixEvictor); ok {
+			e.RemoveByPrefix(ctx, keyPrefix)
+		}
 	}
 }

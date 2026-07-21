@@ -4,6 +4,8 @@ import (
 	"context"
 	"os"
 	"path"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -468,4 +470,180 @@ func TestRetentionCacheEviction(t *testing.T) {
 	require.False(t, found, "bloom key should be evicted from bloom cache after block deletion")
 	_, found = idxCache.FetchKey(ctx, idxKey)
 	require.False(t, found, "index key should be evicted from trace-id-index cache after block deletion")
+}
+
+// recordingPrefixCache is a map-backed mock cache that also implements
+// cache.PrefixEvictor, like a Redis-backed cache. It records RemoveByPrefix calls
+// so tests can assert the compactor issues exactly one prefix eviction per
+// distinct backing cache instance.
+type recordingPrefixCache struct {
+	mu       sync.Mutex
+	data     map[string][]byte
+	prefixes []string
+}
+
+func newRecordingPrefixCache() *recordingPrefixCache {
+	return &recordingPrefixCache{data: map[string][]byte{}}
+}
+
+func (c *recordingPrefixCache) Store(_ context.Context, keys []string, bufs [][]byte) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for i := range keys {
+		c.data[keys[i]] = bufs[i]
+	}
+}
+
+func (c *recordingPrefixCache) FetchKey(_ context.Context, key string) ([]byte, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	b, ok := c.data[key]
+	return b, ok
+}
+
+func (c *recordingPrefixCache) Fetch(_ context.Context, keys []string) (found []string, bufs [][]byte, missing []string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, k := range keys {
+		if b, ok := c.data[k]; ok {
+			found = append(found, k)
+			bufs = append(bufs, b)
+		} else {
+			missing = append(missing, k)
+		}
+	}
+	return
+}
+
+func (c *recordingPrefixCache) Remove(_ context.Context, keys []string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, k := range keys {
+		delete(c.data, k)
+	}
+}
+
+func (c *recordingPrefixCache) RemoveByPrefix(_ context.Context, prefix string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.prefixes = append(c.prefixes, prefix)
+	for k := range c.data {
+		if strings.HasPrefix(k, prefix) {
+			delete(c.data, k)
+		}
+	}
+}
+
+func (c *recordingPrefixCache) recordedPrefixes() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]string(nil), c.prefixes...)
+}
+
+func (c *recordingPrefixCache) MaxItemSize() int { return 0 }
+func (c *recordingPrefixCache) Stop()            {}
+func (c *recordingPrefixCache) Release([]byte)   {}
+
+// TestRemoveCachedBlockEvictsParquetRolesByPrefix verifies that deleting a block
+// evicts the offset-keyed parquet roles by prefix (on caches that support it),
+// scans each distinct backing cache at most once, still removes bloom and
+// trace-id-index entries exactly (covering prefix-incapable backends), and
+// leaves other blocks' entries intact.
+func TestRemoveCachedBlockEvictsParquetRolesByPrefix(t *testing.T) {
+	// footer+page share cacheA and column+offset share cacheB, so each must be
+	// evicted by prefix exactly once despite backing two roles.
+	cacheA := newRecordingPrefixCache()
+	cacheB := newRecordingPrefixCache()
+	// bloom and trace-id index use a prefix-incapable mock (like memcached).
+	bloom := testutil.NewMockClient()
+	idx := testutil.NewMockClient()
+
+	provider := &perRoleMockProvider{caches: map[cache.Role]cache.Cache{
+		cache.RoleBloom:            bloom,
+		cache.RoleTraceIDIdx:       idx,
+		cache.RoleParquetFooter:    cacheA,
+		cache.RoleParquetPage:      cacheA,
+		cache.RoleParquetColumnIdx: cacheB,
+		cache.RoleParquetOffsetIdx: cacheB,
+	}}
+
+	rw := &readerWriter{cacheProvider: provider}
+
+	ctx := context.Background()
+	blockID := uuid.New()
+	prefix := backend_cache.BlockKeyPrefix(blockID, testTenantID)
+	decoy := backend_cache.BlockKeyPrefix(uuid.New(), testTenantID)
+
+	bloomKey := prefix + common.BloomName(0)
+	idxKey := prefix + common.NameIndex
+	bloom.Store(ctx, []string{bloomKey}, [][]byte{{1}})
+	idx.Store(ctx, []string{idxKey}, [][]byte{{2}})
+
+	// Offset-keyed parquet entries (not reconstructable) plus a decoy block's key.
+	footerKey := prefix + "data.parquet:0:100"
+	pageKey := prefix + "data.parquet:100:250"
+	colKey := prefix + "data.parquet:250:300"
+	decoyKey := decoy + "data.parquet:0:100"
+	cacheA.Store(ctx, []string{footerKey, pageKey, decoyKey}, [][]byte{{3}, {4}, {5}})
+	cacheB.Store(ctx, []string{colKey}, [][]byte{{6}})
+
+	rw.removeCachedBlock(ctx, testTenantID, blockID, 1, true)
+
+	// Exact-key roles evicted.
+	_, found := bloom.FetchKey(ctx, bloomKey)
+	require.False(t, found, "bloom key must be removed exactly")
+	_, found = idx.FetchKey(ctx, idxKey)
+	require.False(t, found, "trace-id index key must be removed exactly")
+
+	// Parquet roles evicted by prefix on both instances.
+	for _, k := range []string{footerKey, pageKey} {
+		_, found = cacheA.FetchKey(ctx, k)
+		require.False(t, found, "parquet key %q must be evicted by prefix", k)
+	}
+	_, found = cacheB.FetchKey(ctx, colKey)
+	require.False(t, found, "parquet key %q must be evicted by prefix", colKey)
+
+	// Another block's entry in the same cache is untouched.
+	_, found = cacheA.FetchKey(ctx, decoyKey)
+	require.True(t, found, "a different block's key must not be evicted")
+
+	// Each distinct backing cache is scanned exactly once (dedup).
+	require.Equal(t, []string{prefix}, cacheA.recordedPrefixes())
+	require.Equal(t, []string{prefix}, cacheB.recordedPrefixes())
+}
+
+// TestRemoveCachedBlockPrefixEvictionDisabled verifies that with prefix eviction
+// off (the default), bloom and trace-id index entries are still removed exactly
+// but the parquet roles are left in place and no prefix scan is issued.
+func TestRemoveCachedBlockPrefixEvictionDisabled(t *testing.T) {
+	parquet := newRecordingPrefixCache()
+	bloom := testutil.NewMockClient()
+
+	provider := &perRoleMockProvider{caches: map[cache.Role]cache.Cache{
+		cache.RoleBloom:         bloom,
+		cache.RoleParquetFooter: parquet,
+		cache.RoleParquetPage:   parquet,
+	}}
+
+	rw := &readerWriter{cacheProvider: provider}
+
+	ctx := context.Background()
+	blockID := uuid.New()
+	prefix := backend_cache.BlockKeyPrefix(blockID, testTenantID)
+
+	bloomKey := prefix + common.BloomName(0)
+	parquetKey := prefix + "data.parquet:0:100"
+	bloom.Store(ctx, []string{bloomKey}, [][]byte{{1}})
+	parquet.Store(ctx, []string{parquetKey}, [][]byte{{2}})
+
+	rw.removeCachedBlock(ctx, testTenantID, blockID, 1, false)
+
+	// Exact-key removal still happens regardless of the flag.
+	_, found := bloom.FetchKey(ctx, bloomKey)
+	require.False(t, found, "bloom key must still be removed exactly when prefix eviction is disabled")
+
+	// The parquet entry survives and no prefix scan was issued.
+	_, found = parquet.FetchKey(ctx, parquetKey)
+	require.True(t, found, "parquet key must be left to TTL/LRU when prefix eviction is disabled")
+	require.Empty(t, parquet.recordedPrefixes(), "no prefix eviction should be issued when disabled")
 }

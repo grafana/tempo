@@ -1,0 +1,20 @@
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: enhancement
+
+# Component or area of the change. Must be one of the components in .chloggen/config.yaml,
+# e.g. distributor, querier, query-frontend, storage, operations.
+component: cache
+
+# A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
+note: on block deletion, optionally evict the block's parquet footer, index, and page entries from Redis by key prefix. Opt-in via the `prefix_cache_eviction` compaction option, disabled by default.
+
+# (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
+# .chloggen/README.md.
+issues: []
+
+# (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
+subtext: |
+  Previously only bloom filter and trace-id index entries were removed when the backend worker deleted a block; the offset-keyed parquet entries were left to expire via TTL or LRU. Applies to Redis-backed caches, which can enumerate keys by prefix; memcached is unaffected.
+
+# The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
+user: oleg-kozlyuk-grafana

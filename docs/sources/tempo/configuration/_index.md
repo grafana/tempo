@@ -2089,6 +2089,12 @@ The `compaction` configuration block is used by the scheduler and worker.
 # The time between compaction cycles.
 # Note: The default will be used if the value is set to 0.
 [compaction_cycle: <duration> | default=30s]
+
+# Optional
+# On block deletion, scan the caches and remove every entry sharing the block's key prefix.
+# Reclaims offset-keyed parquet cache entries (footer, indexes, pages) that cannot be removed by
+# exact key. Only caches that can enumerate keys (Redis) honor it; others rely on TTL or LRU.
+[prefix_cache_eviction: <bool> | default=false]
 ```
 
 ### Filter policies
