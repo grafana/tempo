@@ -1,7 +1,4 @@
 ---
-aliases:
-  - /docs/tempo/getting-started/traces
-  - /docs/tempo/traces
 description: "Traces and telemetry"
 keywords:
   - Grafana
@@ -36,7 +33,7 @@ Logs let you know what's happening to your application.
 
 ## Traces
 
-Traces add further to the observability picture by telling you what happens at each step or action in a data pathway. Traces provide the map--the where--something is going wrong.
+Traces add further to the observability picture by telling you what happens at each step or action in a data pathway. Traces provide the map to where something is going wrong.
 A trace provides a graphic representation of how long each step in the data flow pathway takes to complete. For example, how long a HTTP request, a database lookup, or a call to a third party service takes.
 It can show where requests initiate and finish, as well as how your system responds.
 This data helps you locate problem areas and assess their impact, often in places you never would have anticipated or found without this ability to trace the request flow.
@@ -50,7 +47,7 @@ This helps identify specific lines of code or functions to optimize and improve 
 
 Metrics in themselves aren't sufficient to find the root cause and solve complex issues.
 The same can be said for logs, which can contain a significant amount of information but lack the context of the interactions and dependencies between the different components of your complex environment.
-Each pillar of observability&mdash;metrics, logs, traces, profiles&mdash;has its own unique strength when it comes to root causing issues.
+Each pillar of observability has its own unique strength when it comes to root causing issues.
 To get the most value of your observability strategy, you need to be able to correlate them.
 
 Traces have the unique ability to show relationships between services.

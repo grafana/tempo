@@ -73,7 +73,7 @@ That same trace ID applies to every span as the request and response generate ac
 The trace ID lets you trace, or follow, a request as it flows from node to node, service to microservice to lambda function to wherever it goes in your chaotic, cloud computing system and back again.
 This is recorded and displayed as spans.
 
-Here's an example showing two pages in Grafana Cloud.
+Here's an example showing two pages in Grafana.
 The first, numbered 1, shows a query using the **Explore** feature.
 In the query results, you can see a **TraceID** field that was added to an application.
 That field contains a **Tempo** trace ID.
@@ -95,8 +95,12 @@ This data helps you locate problem areas, often in places you never would have a
 
 ## Learn more
 
-For more information about traces, refer to:
+To continue learning about traces and Tempo, the following pages follow a natural reading order:
 
-- [Traces and telemetry](./telemetry)
-- [User journeys: How tracing can help you](../solutions-with-traces)
-- [Glossary](./glossary)
+- [Traces and telemetry](./telemetry): how traces relate to metrics, logs, and profiles.
+- [Trace structure](./trace-structure): the parts of a span and the attributes you can query.
+- [Tempo architecture](./architecture): how Tempo ingests, stores, and queries traces.
+- [Tempo and AI](./tempo-and-ai): query traces with AI agents through the MCP server and LLM-optimized APIs.
+- [Glossary](./glossary): definitions of common tracing terms.
+
+For real-world examples, refer to [User journeys: How tracing can help you](../solutions-with-traces) elsewhere in the Tempo documentation.
