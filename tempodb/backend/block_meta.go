@@ -449,6 +449,15 @@ func (dcs *DedicatedColumns) Unmarshal(data []byte) error {
 	return sonic.Unmarshal(data, &dcs)
 }
 
+// MarshalJSON flattens the embedded-style BlockMeta fields to the top level, alongside
+// compactedTime, to preserve the historical on-disk format that gogoproto.embed produced.
+func (b *CompactedBlockMeta) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		BlockMeta
+		CompactedTime time.Time `json:"compactedTime"`
+	}{b.BlockMeta, b.CompactedTime})
+}
+
 func (b *CompactedBlockMeta) UnmarshalJSON(data []byte) error {
 	var msg interface{}
 	err := json.Unmarshal(data, &msg)

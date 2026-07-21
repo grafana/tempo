@@ -116,7 +116,7 @@ func makeTestTenantIndex(numBlocks int) *TenantIndex {
 			BlockMeta:     *NewBlockMeta("test-tenant", uuid.New(), "vParquet4"),
 			CompactedTime: time.Now(),
 		}
-		compactedMeta.DedicatedColumns = dedicatedCols[i%numDistinctDedicatedCols]
+		compactedMeta.BlockMeta.DedicatedColumns = dedicatedCols[i%numDistinctDedicatedCols]
 		compactedBlocks = append(compactedBlocks, compactedMeta)
 	}
 
