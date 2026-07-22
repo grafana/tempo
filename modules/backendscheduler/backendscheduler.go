@@ -444,8 +444,21 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		}
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
-	if len(req.TraceIds) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "trace_ids must not be empty")
+	// Exactly one selector: an explicit trace ID list or a TraceQL query, never both.
+	// (The proto reserves a single-member oneof for query; XOR is enforced here until
+	// trace_ids is migrated into the oneof.)
+	querySel := req.GetQuery()
+	hasIDs := len(req.TraceIds) > 0
+	hasQuery := querySel != nil && querySel.Query != ""
+	switch {
+	case hasIDs && hasQuery:
+		return nil, status.Error(codes.InvalidArgument, "trace_ids and query are mutually exclusive")
+	case !hasIDs && !hasQuery:
+		return nil, status.Error(codes.InvalidArgument, "one of trace_ids or query must be set")
+	case hasQuery:
+		if err := validateRedactionQuery(querySel.Query); err != nil {
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		}
 	}
 	if s.overrides.CompactionDisabled(tenant) {
 		return nil, status.Error(codes.FailedPrecondition, "compaction is disabled for this tenant")
@@ -517,6 +530,8 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		BatchId:           batchID,
 		TenantId:          tenant,
 		TraceIds:          req.TraceIds,
+		Query:             querySel,
+		Mode:              req.Mode,
 		CreatedAtUnixNano: time.Now().UnixNano(),
 	}
 	if len(skippedJobSet) > 0 {
