@@ -382,7 +382,15 @@ func (o *runtimeConfigOverridesManager) IngestionArtificialDelay(userID string) 
 }
 
 func (o *runtimeConfigOverridesManager) IngestionRetryInfoEnabled(userID string) bool {
-	return o.getOverridesForUser(userID).Ingestion.RetryInfoEnabled
+	if v := o.getOverridesForUser(userID).Ingestion.RetryInfoEnabled; v != nil {
+		return *v
+	}
+	// Tenant override exists but doesn't mention this field: fall back to the
+	// cluster default instead of the bool zero-value.
+	if v := o.defaultLimits.Ingestion.RetryInfoEnabled; v != nil {
+		return *v
+	}
+	return false
 }
 
 // MaxBytesPerTrace returns the maximum size of a single trace in bytes allowed for a user.

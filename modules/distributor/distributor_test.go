@@ -2190,7 +2190,7 @@ func TestRetryInfoEnabled(t *testing.T) {
 			limits := overrides.Config{
 				Defaults: overrides.Overrides{
 					Ingestion: overrides.IngestionOverrides{
-						RetryInfoEnabled: tt.overrideRetryInfoEnabled,
+						RetryInfoEnabled: boolPtr(tt.overrideRetryInfoEnabled),
 					},
 				},
 			}
@@ -2288,4 +2288,8 @@ func TestTracePushMiddlewareFailsOpen(t *testing.T) {
 	// Call PushTraces - should succeed despite middleware error (fail open)
 	_, err = d.PushTraces(ctx, traces)
 	require.NoError(t, err, "PushTraces should succeed even when middleware returns an error")
+}
+
+func boolPtr(b bool) *bool {
+	return &b
 }

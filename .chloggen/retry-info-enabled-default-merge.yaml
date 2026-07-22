@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: overrides
+note: fix `retry_info_enabled` per-tenant override silently overriding the cluster default when unset
+issues: []
+subtext:
+user: zhxiaogg
