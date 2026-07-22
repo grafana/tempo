@@ -1,0 +1,11 @@
+change_type: bug_fix
+
+component: query-frontend
+
+note: Fix a data race in the frontend v1 `Process` loop where the reused `requestBatch` was rewritten (`clear()`/`add()`) while the `doneChan` watcher goroutine still ranged over its backing array, and a secondary write/write race on `err` when the send/recv goroutine outlived `reportResponseUpstream`. Only affected batched queriers (`max_batch_size > 1`).
+
+issues: []
+
+subtext:
+
+user: aldernero

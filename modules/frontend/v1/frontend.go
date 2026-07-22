@@ -269,6 +269,13 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 		resps := make(chan *frontendv1pb.ClientToFrontend, 1)
 		errs := make(chan error, 1)
 		go func() {
+			// Use a local err rather than the outer one: this goroutine can outlive
+			// reportResponseUpstream (e.g. still blocked in Send/Recv when the batch's
+			// contexts cancel), and writing the captured outer err would then race with
+			// the main loop's `err = reportResponseUpstream(...)`. Errors are handed back
+			// via the errs channel instead.
+			var err error
+
 			// todo: we are still sending the old Type_HTTP_REQUEST for backwards compat
 			// with queriers that don't support the new Type_HTTP_REQUEST_BATCH. this feature
 			// was introduced in 2.2. We should remove this in a few versions
