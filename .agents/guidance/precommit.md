@@ -81,6 +81,8 @@ make test-e2e-clean
 2. `make lint base=origin/main` — no new lint errors
 3. `make test` — all unit tests pass
 4. `go test -race ./...` (or `make test-with-cover`) — no races in changed packages
+5. `make chlog-validate` — a `.chloggen/` entry exists for user-facing changes
+   (never edit `CHANGELOG.md` directly; see `.chloggen/README.md`)
 
 ---
 
