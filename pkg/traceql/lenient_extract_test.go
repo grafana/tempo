@@ -33,7 +33,7 @@ func TestCanonicalQuery(t *testing.T) {
 		{
 			name:     "incomplete query",
 			query:    `{ .http.status_code = 200 && .http.method = }`,
-			expected: "{(.http.status_code = 200) && .http.method}",
+			expected: "{(.http.status_code = 200) && true}",
 		},
 		{
 			name:     "reversed operands with missing closing bracket",
@@ -43,12 +43,12 @@ func TestCanonicalQuery(t *testing.T) {
 		{
 			name:     "long query",
 			query:    `{.service_name = "foo" && .http.status_code = 200 && .http.method = "GET" && .cluster = }`,
-			expected: `{(((.service_name = "foo") && (.http.status_code = 200)) && (.http.method = "GET")) && .cluster}`,
+			expected: `{(((.service_name = "foo") && (.http.status_code = 200)) && (.http.method = "GET")) && true}`,
 		},
 		{
 			name:     "query with duration a boolean",
 			query:    `{ duration > 5s && .success = true && .cluster = }`,
-			expected: `{((duration > 5s) && (.success = true)) && .cluster}`,
+			expected: `{((duration > 5s) && (.success = true)) && true}`,
 		},
 		{
 			name:     "query with three selectors with AND",
@@ -83,12 +83,12 @@ func TestCanonicalQuery(t *testing.T) {
 		{
 			name:     "query with missing closing bracket",
 			query:    `{resource.service_name = "foo" && span.http.target=`,
-			expected: `{(resource.service_name = "foo") && span.http.target}`,
+			expected: `{(resource.service_name = "foo") && true}`,
 		},
 		{
 			name:     "uncommon characters",
 			query:    `{ span.foo = "<>:b5[]" && resource.service.name = }`,
-			expected: `{(span.foo = "<>:b5[]") && resource.service.name}`,
+			expected: `{(span.foo = "<>:b5[]") && true}`,
 		},
 		{
 			name:     "kind",
@@ -138,7 +138,7 @@ func TestCanonicalQuery(t *testing.T) {
 		{
 			name:     "structural operators with incomplete in first matcher",
 			query:    `{ .foo = "bar" && .baaz = } >> { .bar = "foo" }`,
-			expected: `({ (.foo = "bar") && .baaz }) >> ({ .bar = "foo" })`,
+			expected: `({ (.foo = "bar") && true }) >> ({ .bar = "foo" })`,
 		},
 		{
 			name:     "structural operators with incomplete in second matcher",
@@ -148,22 +148,22 @@ func TestCanonicalQuery(t *testing.T) {
 		{
 			name:     "metrics query",
 			query:    `{.service_name = "foo" && .foo=} | rate() by (.bar)`,
-			expected: `{(.service_name = "foo") && .foo} | rate() by (.bar)`,
+			expected: `{(.service_name = "foo") && true} | rate() by (.bar)`,
 		},
 		{
 			name:     "query with select",
 			query:    `{.service_name = "foo" && .foo=} | select(.bar, .baz)`,
-			expected: `{(.service_name = "foo") && .foo} | select(.bar, .baz)`,
+			expected: `{(.service_name = "foo") && true} | select(.bar, .baz)`,
 		},
 		{
 			name:     "query with parentheses and incomplete matcher",
 			query:    `{ (resource.foo = "bar" && .baz = ) && .qux = "quux" }`,
-			expected: `{((resource.foo = "bar") && .baz) && (.qux = "quux")}`,
+			expected: `{((resource.foo = "bar") && true) && (.qux = "quux")}`,
 		},
 		{
 			name:     "query with parentheses containing all incomplete matchers",
 			query:    `{ (resource.foo =  && .baz = ) && .qux = "quux" }`,
-			expected: `{(resource.foo && .baz) && (.qux = "quux")}`,
+			expected: `{true && (.qux = "quux")}`,
 		},
 	}
 	for _, tc := range testCases {
@@ -192,6 +192,13 @@ func TestExtractConditionGroups(t *testing.T) {
 		{name: "OR conditions", query: `{ (.foo = "bar" || .baz = "qux") }`, count: 2},
 		{name: "structural", query: `{ .foo = "bar" } >> { .bar = "baz" }`, count: 0},
 		{name: "multiple conditions", query: `{.a = 1 && .b = "two" && .c > 3}`, count: 1},
+		// Regression: an incomplete intrinsic matcher must not discard the other
+		// AND conditions (it used to fail validation and return zero groups).
+		{name: "incomplete intrinsic", query: `{.a = 1 && .b = "two" && name = }`, count: 1},
+		// An OR branch with an incomplete matcher matches anything, so the whole
+		// query is match-all (no groups).
+		{name: "incomplete OR branch", query: `{ .foo = "bar" || .baz = }`, count: 0},
+		{name: "explicit true OR branch", query: `{ .foo = "bar" || true }`, count: 0},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -323,6 +330,20 @@ func TestSplitReqConditionGroups(t *testing.T) {
 		{
 			name:     "one OR is opnone query",
 			query:    `{.attr || .foo = "bar" }`,
+			expected: nil,
+		},
+		{
+			name:  "incomplete intrinsic matcher keeps other conditions",
+			query: `{ .service = "b" && name = }`,
+			expected: [][]Condition{
+				{
+					newCondition(NewAttribute("service"), OpEqual, NewStaticString("b")),
+				},
+			},
+		},
+		{
+			name:     "incomplete matcher in OR branch is match-all",
+			query:    `{ .service = "b" || .env = }`,
 			expected: nil,
 		},
 		{

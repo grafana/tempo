@@ -42,9 +42,11 @@ func TestParseLenient(t *testing.T) {
 			expected: "{ true }",
 		},
 
-		// Incomplete matchers: operator removed, bare attribute replaced with true.
-		// A single bare attribute as the entire filter becomes { true } (match all).
-		// When part of a larger expression (e.g. && .b), it stays as-is.
+		// Incomplete matchers are replaced with `true`. A lone incomplete
+		// matcher becomes { true } (match all); inside a larger expression the
+		// `true` placeholder keeps the rest of the expression intact. The
+		// strict re-parse may constant-fold static booleans (e.g.
+		// `true && true` → `true`, `!true` → `false`).
 		{
 			name:     "single incomplete matcher",
 			in:       `{ .foo = }`,
@@ -53,22 +55,22 @@ func TestParseLenient(t *testing.T) {
 		{
 			name:     "incomplete after complete",
 			in:       `{ .a = 1 && .b = }`,
-			expected: "{ (.a = 1) && .b }",
+			expected: "{ (.a = 1) && true }",
 		},
 		{
 			name:     "incomplete before complete",
 			in:       `{ .a = && .b = 1 }`,
-			expected: "{ .a && (.b = 1) }",
+			expected: "{ true && (.b = 1) }",
 		},
 		{
 			name:     "multiple incomplete matchers",
 			in:       `{ .a = && .b = && .c = 1 }`,
-			expected: "{ (.a && .b) && (.c = 1) }",
+			expected: "{ true && (.c = 1) }",
 		},
 		{
 			name:     "all matchers incomplete",
 			in:       `{ .a = && .b = }`,
-			expected: "{ .a && .b }",
+			expected: "{ true }",
 		},
 		{
 			name:     "incomplete not-equal",
@@ -78,7 +80,7 @@ func TestParseLenient(t *testing.T) {
 		{
 			name:     "incomplete with negation",
 			in:       `{ !.foo = }`,
-			expected: "{ !.foo }",
+			expected: "{ false }",
 		},
 
 		// Scoped attributes.
@@ -90,7 +92,7 @@ func TestParseLenient(t *testing.T) {
 		{
 			name:     "mixed scopes incomplete",
 			in:       `{ span.foo = "bar" && resource.baz = }`,
-			expected: "{ (span.foo = `bar`) && resource.baz }",
+			expected: "{ (span.foo = `bar`) && true }",
 		},
 		{
 			name:     "parent scoped incomplete",
@@ -218,17 +220,17 @@ func TestParseLenient(t *testing.T) {
 		{
 			name:     "all comparison ops incomplete",
 			in:       `{ .a > && .b < }`,
-			expected: "{ .a && .b }",
+			expected: "{ true }",
 		},
 		{
 			name:     "all comparison ops incomplete gte lte",
 			in:       `{ .a >= && .b <= }`,
-			expected: "{ .a && .b }",
+			expected: "{ true }",
 		},
 		{
 			name:     "all comparison ops incomplete regex",
 			in:       `{ .a =~ && .b !~ }`,
-			expected: "{ .a && .b }",
+			expected: "{ true }",
 		},
 
 		// Value types preserved in complete matchers.
@@ -265,53 +267,53 @@ func TestParseLenient(t *testing.T) {
 		{
 			name:     "nil value with incomplete",
 			in:       `{ .foo = nil && .bar = }`,
-			expected: "{ (.foo = nil) && .bar }",
+			expected: "{ (.foo = nil) && true }",
 		},
 		{
 			name:     "multiple nil values with incomplete",
 			in:       `{ .a = nil && .b = nil && .c = }`,
-			expected: "{ ((.a = nil) && (.b = nil)) && .c }",
+			expected: "{ ((.a = nil) && (.b = nil)) && true }",
 		},
 		{
 			name:     "existence check with incomplete",
 			in:       `{ .foo != nil && .bar = }`,
-			expected: "{ (.foo != nil) && .bar }",
+			expected: "{ (.foo != nil) && true }",
 		},
 
 		// OR with incomplete.
 		{
 			name:     "OR with incomplete",
 			in:       `{ .a = "foo" || .b = }`,
-			expected: "{ (.a = `foo`) || .b }",
+			expected: "{ (.a = `foo`) || true }",
 		},
 
 		// Parentheses cleanup.
 		{
 			name:     "parenthesized incomplete",
 			in:       `{ (.a = ) && .b = 1 }`,
-			expected: "{ .a && (.b = 1) }",
+			expected: "{ true && (.b = 1) }",
 		},
 		{
 			name:     "all incomplete inside parens",
 			in:       `{ (.a = && .b = ) && .c = 1 }`,
-			expected: "{ (.a && .b) && (.c = 1) }",
+			expected: "{ true && (.c = 1) }",
 		},
 		{
 			name:     "nested parens with incomplete",
 			in:       `{ ((.a = ) && .b = 1) || .c = 2 }`,
-			expected: "{ (.a && (.b = 1)) || (.c = 2) }",
+			expected: "{ (true && (.b = 1)) || (.c = 2) }",
 		},
 		{
 			name:     "inner parens incomplete",
 			in:       `{ (.a = 1 && (.b = )) && .c = 2 }`,
-			expected: "{ ((.a = 1) && .b) && (.c = 2) }",
+			expected: "{ ((.a = 1) && true) && (.c = 2) }",
 		},
 
 		// Missing closing brace.
 		{
 			name:     "missing closing brace with incomplete",
 			in:       `{ .a = 1 && .b =`,
-			expected: "{ (.a = 1) && .b }",
+			expected: "{ (.a = 1) && true }",
 		},
 		{
 			name:     "missing closing brace valid",
@@ -321,19 +323,19 @@ func TestParseLenient(t *testing.T) {
 		{
 			name:     "missing closing brace gte incomplete",
 			in:       `{ .a = 1 && .b >=`,
-			expected: "{ (.a = 1) && .b }",
+			expected: "{ (.a = 1) && true }",
 		},
 		{
 			name:     "missing closing brace nre incomplete",
 			in:       `{ .a = 1 && .b !~`,
-			expected: "{ (.a = 1) && .b }",
+			expected: "{ (.a = 1) && true }",
 		},
 
 		// Structural operators preserved.
 		{
 			name:     "structural with incomplete in first",
 			in:       `{ .foo = "bar" && .baz = } >> { .bar = "qux" }`,
-			expected: "({ (.foo = `bar`) && .baz }) >> ({ .bar = `qux` })",
+			expected: "({ (.foo = `bar`) && true }) >> ({ .bar = `qux` })",
 		},
 		{
 			name:     "structural with incomplete in second",
@@ -360,12 +362,12 @@ func TestParseLenient(t *testing.T) {
 		{
 			name:     "incomplete with rate pipeline",
 			in:       `{ .foo = "bar" && .baz = } | rate() by (.qux)`,
-			expected: "{ (.foo = `bar`) && .baz } | rate()by(.qux)",
+			expected: "{ (.foo = `bar`) && true } | rate()by(.qux)",
 		},
 		{
 			name:     "incomplete with select pipeline",
 			in:       `{ .foo = && .bar = "baz" } | select(.qux)`,
-			expected: "{ .foo && (.bar = `baz`) }|select(.qux)",
+			expected: "{ true && (.bar = `baz`) }|select(.qux)",
 		},
 		{
 			name:     "incomplete with count pipeline",
@@ -395,8 +397,8 @@ func TestParseLenient(t *testing.T) {
 			expected: "{ (.foo = `bar`) || (.baz = `qux`) }",
 		},
 
-		// Quoted attributes — complete matchers pass through, incomplete ones resolve to { true }
-		// or leave the bare quoted attribute in place when combined with other matchers.
+		// Quoted attributes — complete matchers pass through, incomplete ones
+		// are replaced with `true`.
 		{
 			name:     "quoted attribute name",
 			in:       `{ span."foo bar" = "baz" }`,
@@ -405,7 +407,7 @@ func TestParseLenient(t *testing.T) {
 		{
 			name:     "quoted attributes with incomplete",
 			in:       `{ span."foo bar" = "baz" && resource."service name" = }`,
-			expected: "{ (span.\"foo bar\" = `baz`) && resource.\"service name\" }",
+			expected: "{ (span.\"foo bar\" = `baz`) && true }",
 		},
 		{
 			name:     "quoted attribute incomplete",
@@ -432,21 +434,51 @@ func TestParseLenient(t *testing.T) {
 		{
 			name:     "mixed regex and incomplete",
 			in:       `{ .foo =~ "(a|b)" && .bar = }`,
-			expected: "{ (.foo =~ `(a|b)`) && .bar }",
+			expected: "{ (.foo =~ `(a|b)`) && true }",
 		},
 
 		// Reversed operands.
 		{
 			name:     "reversed operands with incomplete",
 			in:       `{ 200 = .status_code && .method = }`,
-			expected: "{ (200 = .status_code) && .method }",
+			expected: "{ (200 = .status_code) && true }",
 		},
 
 		// Arithmetic in matchers.
 		{
 			name:     "arithmetic expression with incomplete",
 			in:       `{ .a + .b = 3 && .c = }`,
-			expected: "{ ((.a + .b) = 3) && .c }",
+			expected: "{ ((.a + .b) = 3) && true }",
+		},
+
+		// Typed intrinsics with incomplete matchers combined with other
+		// conditions. Regression tests: these used to leave a bare intrinsic
+		// behind (e.g. `{ ... && name }`), which failed type validation and
+		// made tag-value autocomplete fall back to unfiltered results.
+		{
+			name:     "incomplete name intrinsic after conditions",
+			in:       `{ resource.k8s.namespace.name = "tempo-ops-01" && resource.k8s.container.name = "query-frontend" && name = }`,
+			expected: "{ ((resource.k8s.namespace.name = `tempo-ops-01`) && (resource.k8s.container.name = `query-frontend`)) && true }",
+		},
+		{
+			name:     "incomplete status intrinsic after condition",
+			in:       `{ .a = 1 && status = }`,
+			expected: "{ (.a = 1) && true }",
+		},
+		{
+			name:     "incomplete kind intrinsic after condition",
+			in:       `{ .a = 1 && kind = }`,
+			expected: "{ (.a = 1) && true }",
+		},
+		{
+			name:     "incomplete duration intrinsic after condition",
+			in:       `{ .a = 1 && duration > }`,
+			expected: "{ (.a = 1) && true }",
+		},
+		{
+			name:     "incomplete scoped intrinsic after condition",
+			in:       `{ .a = 1 && event:name = }`,
+			expected: "{ (.a = 1) && true }",
 		},
 	}
 
@@ -505,7 +537,7 @@ func TestParseLenientKnownFailures(t *testing.T) {
 	}
 }
 
-func TestRemoveIncompleteMatchers(t *testing.T) {
+func TestReplaceIncompleteMatchers(t *testing.T) {
 	tests := []struct {
 		name     string
 		in       string
@@ -519,37 +551,37 @@ func TestRemoveIncompleteMatchers(t *testing.T) {
 		{
 			name:     "single incomplete",
 			in:       `{ .a = }`,
-			expected: `{ .a }`,
+			expected: `{ true }`,
 		},
 		{
 			name:     "trailing incomplete",
 			in:       `{ .a = 1 && .b = }`,
-			expected: `{ .a = 1 && .b }`,
+			expected: `{ .a = 1 && true }`,
 		},
 		{
 			name:     "leading incomplete",
 			in:       `{ .a = && .b = 1 }`,
-			expected: `{ .a && .b = 1 }`,
+			expected: `{ true && .b = 1 }`,
 		},
 		{
-			name:     "all incomplete removes connectors",
+			name:     "all incomplete",
 			in:       `{ .a = && .b = }`,
-			expected: `{ .a && .b }`,
+			expected: `{ true && true }`,
 		},
 		{
 			name:     "missing closing brace auto-closed",
 			in:       `{ .a = 1 && .b =`,
-			expected: `{ .a = 1 && .b }`,
+			expected: `{ .a = 1 && true }`,
 		},
 		{
 			name:     "pipeline preserved",
 			in:       `{ .a = } | rate ( ) by ( .b )`,
-			expected: `{ .a } | rate ( ) by ( .b )`,
+			expected: `{ true } | rate ( ) by ( .b )`,
 		},
 		{
-			name:     "parens with incomplete keep attribute",
+			name:     "parens with incomplete",
 			in:       `{ (.a = ) && .b = 1 }`,
-			expected: `{ ( .a ) && .b = 1 }`,
+			expected: `{ ( true ) && .b = 1 }`,
 		},
 		{
 			name:     "empty input",
@@ -559,23 +591,28 @@ func TestRemoveIncompleteMatchers(t *testing.T) {
 		{
 			name:     "scoped attribute",
 			in:       `{ resource.service.name = && span.foo = "bar" }`,
-			expected: `{ resource.service.name && span.foo = "bar" }`,
+			expected: `{ true && span.foo = "bar" }`,
+		},
+		{
+			name:     "incomplete intrinsic after complete matcher",
+			in:       `{ .a = 1 && name = }`,
+			expected: `{ .a = 1 && true }`,
 		},
 		{
 			name:     "structural operator passes through",
 			in:       `{ .a = } >> { .b = "foo" }`,
-			expected: `{ .a } >> { .b = "foo" }`,
+			expected: `{ true } >> { .b = "foo" }`,
 		},
 		{
 			name:     "OR connector preserved",
 			in:       `{ .a = "foo" || .b = }`,
-			expected: `{ .a = "foo" || .b }`,
+			expected: `{ .a = "foo" || true }`,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			actual := removeIncompleteMatchers(tc.in)
+			actual := replaceIncompleteMatchers(tc.in)
 			require.Equal(t, tc.expected, actual)
 		})
 	}
