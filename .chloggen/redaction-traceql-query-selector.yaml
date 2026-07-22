@@ -1,0 +1,6 @@
+change_type: feature
+component: backend-scheduler
+note: redaction jobs can be submitted with a TraceQL query selector instead of an explicit trace ID list, so large deletions can be expressed as a query. The query is restricted to a single spanset filter (`=`/`!=` on `resource.*`/`span.*` joined by `&&`/`||`). A dry-run mode reports how many traces would be redacted without rewriting any blocks.
+issues: []
+subtext:
+user: zalegrala

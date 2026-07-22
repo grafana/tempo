@@ -47,15 +47,34 @@ message RetentionDetail {
   option (gogoproto.compare) = true;
 }
 
+// RedactionMode selects whether a redaction applies (rewrites blocks) or is a dry run
+// (evaluates and counts matches without modifying storage).
+enum RedactionMode {
+  REDACTION_MODE_APPLY = 0;    // default: rewrite blocks, removing matched traces
+  REDACTION_MODE_DRY_RUN = 1;  // evaluate and count matches, never rewrite
+}
+
+// TraceQLSelector carries a TraceQL expression that selects the traces to redact,
+// as an alternative to an explicit trace ID list. Restricted at submission to a single
+// spanset filter (=, != on resource.*/span.* joined by && / ||).
+message TraceQLSelector {
+  option (gogoproto.equal) = true;
+  option (gogoproto.compare) = true;
+
+  string query = 1;  // TraceQL expression
+}
+
 // RedactionDetail contains fields for redaction jobs (one job per block).
-// TraceIds are the trace IDs to redact from the block. Future extension may add
-// traceql/attribute-based redaction.
+// TraceIds are the trace IDs to redact from the block; alternatively query selects
+// them via a TraceQL expression evaluated against the block.
 message RedactionDetail {
   option (gogoproto.equal) = true;
   option (gogoproto.compare) = true;
 
   string block_id = 1;       // block to redact
   repeated bytes trace_ids = 2;  // trace IDs to remove from the block
+  TraceQLSelector query = 3;     // when set, select traces via TraceQL instead of trace_ids
+  RedactionMode mode = 4;        // apply vs dry-run for this job
 }
 
 // JobDetail contains the specific details for each job type
@@ -103,6 +122,13 @@ message UpdateJobStatusResponse {
 message SubmitRedactionRequest {
   string tenant_id = 1 [deprecated = true]; // ignored by the server; tenant is read from the request header
   repeated bytes trace_ids = 2;
+  // selector is a single-member oneof for now, reserving room to migrate trace_ids into
+  // it later without an API break. It carries the TraceQL query selector; query and
+  // trace_ids are mutually exclusive, enforced at submission.
+  oneof selector {
+    TraceQLSelector query = 3;
+  }
+  RedactionMode mode = 4;  // apply (default) vs dry-run
 }
 
 message SubmitRedactionResponse {
@@ -140,6 +166,12 @@ message RedactionBatch {
   // rescan_after_unix_nano is the earliest time at which the scheduler should
   // perform the rescan described above. Zero means no rescan is pending.
   int64 rescan_after_unix_nano = 6;
+  // query, when set, selects traces via a TraceQL expression instead of trace_ids.
+  // Stored in the manifest for the lifetime of the redaction and injected into each
+  // per-block job.
+  TraceQLSelector query = 7;
+  // mode selects apply (default) vs dry-run for the whole batch.
+  RedactionMode mode = 8;
 }
 
 // RedactionBatches is the top-level container written to batches.pb.
