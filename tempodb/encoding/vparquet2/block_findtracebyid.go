@@ -46,7 +46,7 @@ func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool
 	nameBloom := common.BloomName(shardKey)
 	span.SetAttributes(attribute.String("bloom", nameBloom))
 
-	bloomBytes, err := b.r.Read(derivedCtx, nameBloom, (uuid.UUID)(b.meta.BlockID), b.meta.TenantID, &backend.CacheInfo{
+	bloomBytes, err := b.r.Read(derivedCtx, nameBloom, uuid.UUID(b.meta.BlockID), b.meta.TenantID, &backend.CacheInfo{
 		Meta: b.meta,
 		Role: cache.RoleBloom,
 	})
@@ -76,7 +76,7 @@ func (b *backendBlock) checkIndex(ctx context.Context, id common.ID) (bool, int,
 		))
 	defer span.End()
 
-	indexBytes, err := b.r.Read(derivedCtx, common.NameIndex, (uuid.UUID)(b.meta.BlockID), b.meta.TenantID, &backend.CacheInfo{
+	indexBytes, err := b.r.Read(derivedCtx, common.NameIndex, uuid.UUID(b.meta.BlockID), b.meta.TenantID, &backend.CacheInfo{
 		Meta: b.meta,
 		Role: cache.RoleTraceIDIdx,
 	})
@@ -227,7 +227,8 @@ func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMe
 	}
 
 	// Now iterate the matching row group
-	iter := parquetquery.NewSyncIterator(ctx, pf.RowGroups()[rowGroup:rowGroup+1], colIndex,
+	iter := parquetquery.NewSyncIterator(
+		ctx, pf.RowGroups()[rowGroup:rowGroup+1], colIndex,
 		parquetquery.SyncIteratorOptPredicate(parquetquery.NewStringInPredicate([]string{string(traceID)})),
 		parquetquery.SyncIteratorOptMaxDefinitionLevel(maxDef),
 	)

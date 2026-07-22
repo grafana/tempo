@@ -7,4 +7,4 @@ type Overrides interface {
 	MetricsGeneratorGenerateNativeHistograms(userID string) overrides.HistogramMethod
 }
 
-var _ Overrides = (overrides.Interface)(nil)
+var _ Overrides = overrides.Interface(nil)

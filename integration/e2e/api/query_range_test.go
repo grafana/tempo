@@ -83,21 +83,24 @@ sendLoop:
 	for {
 		select {
 		case <-ticker.C:
-			require.NoError(t, jaegerClient.EmitBatch(context.Background(),
+			require.NoError(t, jaegerClient.EmitBatch(
+				context.Background(),
 				util.MakeThriftBatchWithSpanCountAttributeAndName(
 					1, "my operation",
 					"res_val", "span_val",
 					"res_attr", "span_attr",
 				),
 			))
-			require.NoError(t, jaegerClient.EmitBatch(context.Background(),
+			require.NoError(t, jaegerClient.EmitBatch(
+				context.Background(),
 				util.MakeThriftBatchWithSpanCountAttributeAndName(
 					1, "my operation",
 					"res_val2", "span_val2",
 					"res_attr", "span_attr",
 				),
 			))
-			require.NoError(t, jaegerClient.EmitBatch(context.Background(),
+			require.NoError(t, jaegerClient.EmitBatch(
+				context.Background(),
 				util.MakeThriftBatchWithSpanCountAttributeAndName(
 					1, "operation with high cardinality",
 					uuid.New().String(), uuid.New().String(),

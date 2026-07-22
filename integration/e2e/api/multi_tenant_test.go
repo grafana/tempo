@@ -208,7 +208,8 @@ func testSearch(t *testing.T, tenant string, tenantSize int) {
 func assertRequestCountMetric(t *testing.T, s *e2e.HTTPService, route string, reqCount int) {
 	fmt.Printf("==== %s, assertRequestCountMetric route: %v, rt.reqCount: %v \n", t.Name(), route, reqCount)
 
-	err := s.WaitSumMetricsWithOptions(e2e.Equals(float64(reqCount)),
+	err := s.WaitSumMetricsWithOptions(
+		e2e.Equals(float64(reqCount)),
 		[]string{"tempo_request_duration_seconds"},
 		e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "route", route)),
 		e2e.WithMetricCount, // get count from histogram metric

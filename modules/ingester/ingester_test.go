@@ -411,7 +411,8 @@ func TestIngesterStartingReadOnly(t *testing.T) {
 		defaultIngesterStore(t, t.TempDir()),
 		limits,
 		prometheus.NewPedanticRegistry(),
-		false)
+		false,
+	)
 	require.NoError(t, err)
 
 	_, err = ingester.PushBytesV2(ctx, &tempopb.PushBytesRequest{})

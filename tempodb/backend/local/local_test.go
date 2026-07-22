@@ -49,12 +49,12 @@ func TestReadWrite(t *testing.T) {
 	ctx := context.Background()
 	for _, id := range tenantIDs {
 		fakeMeta.TenantID = id
-		err = w.Write(ctx, objectName, backend.KeyPathForBlock((uuid.UUID)(fakeMeta.BlockID), id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
+		err = w.Write(ctx, objectName, backend.KeyPathForBlock(uuid.UUID(fakeMeta.BlockID), id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
 		assert.NoError(t, err, "unexpected error writing")
 
-		err = w.Write(ctx, backend.MetaName, backend.KeyPathForBlock((uuid.UUID)(fakeMeta.BlockID), id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
+		err = w.Write(ctx, backend.MetaName, backend.KeyPathForBlock(uuid.UUID(fakeMeta.BlockID), id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
 		assert.NoError(t, err, "unexpected error meta.json")
-		err = w.Write(ctx, backend.CompactedMetaName, backend.KeyPathForBlock((uuid.UUID)(fakeMeta.BlockID), id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
+		err = w.Write(ctx, backend.CompactedMetaName, backend.KeyPathForBlock(uuid.UUID(fakeMeta.BlockID), id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
 		assert.NoError(t, err, "unexpected error meta.compacted.json")
 	}
 
@@ -92,7 +92,7 @@ func TestShutdownLeavesTenantsWithBlocks(t *testing.T) {
 	tenant := "fake"
 
 	// write a "block"
-	err = w.Write(ctx, "test", backend.KeyPathForBlock((uuid.UUID)(blockID), tenant), contents, contents.Size(), nil)
+	err = w.Write(ctx, "test", backend.KeyPathForBlock(uuid.UUID(blockID), tenant), contents, contents.Size(), nil)
 	require.NoError(t, err)
 
 	tenantExists(t, tenant, r)
@@ -117,14 +117,14 @@ func TestShutdownRemovesTenantsWithoutBlocks(t *testing.T) {
 	tenant := "tenant"
 
 	// write a "block"
-	err = w.Write(ctx, "test", backend.KeyPathForBlock((uuid.UUID)(blockID), tenant), contents, contents.Size(), nil)
+	err = w.Write(ctx, "test", backend.KeyPathForBlock(uuid.UUID(blockID), tenant), contents, contents.Size(), nil)
 	require.NoError(t, err)
 
 	tenantExists(t, tenant, r)
 	blockExists(t, blockID, tenant, r)
 
 	// clear the block
-	err = c.ClearBlock((uuid.UUID)(blockID), tenant)
+	err = c.ClearBlock(uuid.UUID(blockID), tenant)
 	require.NoError(t, err)
 
 	tenantExists(t, tenant, r)

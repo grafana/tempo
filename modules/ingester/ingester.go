@@ -142,7 +142,8 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reg pro
 			PartitionRingKey,
 			partitionRingKV,
 			log.Logger,
-			prometheus.WrapRegistererWithPrefix("cortex_", reg))
+			prometheus.WrapRegistererWithPrefix("cortex_", reg),
+		)
 	}
 
 	// Now that the lifecycler has been created, we can create the limiter
@@ -435,7 +436,7 @@ func (i *Ingester) replayWal() error {
 		// deleted (because it was rescanned above). This can happen for reasons
 		// such as a crash or restart. In this situation we err on the side of
 		// caution and replay the wal block.
-		err = instance.local.ClearBlock((uuid.UUID)(b.BlockMeta().BlockID), tenantID)
+		err = instance.local.ClearBlock(uuid.UUID(b.BlockMeta().BlockID), tenantID)
 		if err != nil {
 			return err
 		}
@@ -444,7 +445,7 @@ func (i *Ingester) replayWal() error {
 		i.enqueue(&flushOp{
 			kind:    opKindComplete,
 			userID:  tenantID,
-			blockID: (uuid.UUID)(b.BlockMeta().BlockID),
+			blockID: uuid.UUID(b.BlockMeta().BlockID),
 		}, i.replayJitter)
 	}
 
@@ -492,7 +493,7 @@ func (i *Ingester) rediscoverLocalBlocks() error {
 					i.enqueue(&flushOp{
 						kind:    opKindFlush,
 						userID:  t,
-						blockID: (uuid.UUID)(b.BlockMeta().BlockID),
+						blockID: uuid.UUID(b.BlockMeta().BlockID),
 					}, i.replayJitter)
 				}
 			}

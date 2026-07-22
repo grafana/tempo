@@ -18,7 +18,7 @@ func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMe
 	}
 
 	// index
-	err = w.Write(ctx, common.NameIndex, (uuid.UUID)(meta.BlockID), meta.TenantID, indexBytes, nil)
+	err = w.Write(ctx, common.NameIndex, uuid.UUID(meta.BlockID), meta.TenantID, indexBytes, nil)
 	if err != nil {
 		return fmt.Errorf("unexpected error writing index: %w", err)
 	}
@@ -30,7 +30,7 @@ func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMe
 	// bloom
 	for i, bloom := range blooms {
 		nameBloom := common.BloomName(i)
-		err := w.Write(ctx, nameBloom, (uuid.UUID)(meta.BlockID), meta.TenantID, bloom, cacheInfo)
+		err := w.Write(ctx, nameBloom, uuid.UUID(meta.BlockID), meta.TenantID, bloom, cacheInfo)
 		if err != nil {
 			return fmt.Errorf("unexpected error writing bloom-%d: %w", i, err)
 		}
@@ -47,20 +47,20 @@ func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMe
 
 // appendBlockData appends the bytes passed to the block data
 func appendBlockData(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
-	return w.Append(ctx, common.NameObjects, (uuid.UUID)(meta.BlockID), meta.TenantID, tracker, buffer)
+	return w.Append(ctx, common.NameObjects, uuid.UUID(meta.BlockID), meta.TenantID, tracker, buffer)
 }
 
 // CopyBlock copies a block from one backend to another.   It is done at a low level, all encoding/formatting is preserved.
 func CopyBlock(ctx context.Context, srcMeta, destMeta *backend.BlockMeta, src backend.Reader, dest backend.Writer) error {
 	// Copy streams, efficient but can't cache.
 	copyStream := func(name string) error {
-		reader, size, err := src.StreamReader(ctx, name, (uuid.UUID)(srcMeta.BlockID), srcMeta.TenantID)
+		reader, size, err := src.StreamReader(ctx, name, uuid.UUID(srcMeta.BlockID), srcMeta.TenantID)
 		if err != nil {
 			return fmt.Errorf("error reading %s: %w", name, err)
 		}
 		defer reader.Close()
 
-		return dest.StreamWriter(ctx, name, (uuid.UUID)(destMeta.BlockID), destMeta.TenantID, reader, size)
+		return dest.StreamWriter(ctx, name, uuid.UUID(destMeta.BlockID), destMeta.TenantID, reader, size)
 	}
 
 	cacheInfo := &backend.CacheInfo{
@@ -70,13 +70,13 @@ func CopyBlock(ctx context.Context, srcMeta, destMeta *backend.BlockMeta, src ba
 	// Read entire object and attempt to cache
 	cpyBloom := func(name string) error {
 		cacheInfo.Meta = srcMeta
-		b, err := src.Read(ctx, name, (uuid.UUID)(srcMeta.BlockID), srcMeta.TenantID, cacheInfo)
+		b, err := src.Read(ctx, name, uuid.UUID(srcMeta.BlockID), srcMeta.TenantID, cacheInfo)
 		if err != nil {
 			return fmt.Errorf("error reading %s: %w", name, err)
 		}
 
 		cacheInfo.Meta = destMeta
-		return dest.Write(ctx, name, (uuid.UUID)(destMeta.BlockID), destMeta.TenantID, b, cacheInfo)
+		return dest.Write(ctx, name, uuid.UUID(destMeta.BlockID), destMeta.TenantID, b, cacheInfo)
 	}
 
 	// Data
@@ -100,10 +100,10 @@ func CopyBlock(ctx context.Context, srcMeta, destMeta *backend.BlockMeta, src ba
 	}
 
 	// no-compact flag
-	if hasNoCompactFlag, err := src.HasNoCompactFlag(ctx, (uuid.UUID)(srcMeta.BlockID), srcMeta.TenantID); err != nil {
+	if hasNoCompactFlag, err := src.HasNoCompactFlag(ctx, uuid.UUID(srcMeta.BlockID), srcMeta.TenantID); err != nil {
 		return err
 	} else if hasNoCompactFlag {
-		err = dest.WriteNoCompactFlag(ctx, (uuid.UUID)(destMeta.BlockID), destMeta.TenantID)
+		err = dest.WriteNoCompactFlag(ctx, uuid.UUID(destMeta.BlockID), destMeta.TenantID)
 		if err != nil {
 			return err
 		}

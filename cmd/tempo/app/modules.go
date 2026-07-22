@@ -639,7 +639,8 @@ func (t *App) initStore() (services.Service, error) {
 func (t *App) initMemberlistKV() (services.Service, error) {
 	reg := prometheus.DefaultRegisterer
 	t.cfg.MemberlistKV.MetricsNamespace = metricsNamespace
-	t.cfg.MemberlistKV.Codecs = append(t.cfg.MemberlistKV.Codecs,
+	t.cfg.MemberlistKV.Codecs = append(
+		t.cfg.MemberlistKV.Codecs,
 		ring.GetCodec(),
 		ring.GetPartitionRingCodec(),
 		usagestats.JSONCodec,

@@ -71,17 +71,17 @@ func TestRetention(t *testing.T) {
 
 	rw := r.(*readerWriter)
 	// poll
-	checkBlocklists(ctx, t, (uuid.UUID)(blockID), 1, 0, rw)
+	checkBlocklists(ctx, t, uuid.UUID(blockID), 1, 0, rw)
 
 	// retention should mark it compacted
 	rw.compactorCfg.BlockRetention = 0
 	r.(*readerWriter).doRetention(ctx)
-	checkBlocklists(ctx, t, (uuid.UUID)(blockID), 0, 1, rw)
+	checkBlocklists(ctx, t, uuid.UUID(blockID), 0, 1, rw)
 
 	// retention again should clear it
 	rw.compactorCfg.CompactedBlockRetention = 0
 	r.(*readerWriter).doRetention(ctx)
-	checkBlocklists(ctx, t, (uuid.UUID)(blockID), 0, 0, rw)
+	checkBlocklists(ctx, t, uuid.UUID(blockID), 0, 0, rw)
 }
 
 func TestRetentionUpdatesBlocklistImmediately(t *testing.T) {
@@ -374,7 +374,8 @@ func testRetainWithConfig(t *testing.T, targetBlockVersion string) {
 	require.Len(t, rw.blocklist.Metas(testTenantID), 1)
 	require.Len(t, rw.blocklist.CompactedMetas(testTenantID), 10)
 
-	c.RetainWithConfig(ctx,
+	c.RetainWithConfig(
+		ctx,
 		compactorCfg,
 		&mockSharder{},
 		&mockOverrides{},

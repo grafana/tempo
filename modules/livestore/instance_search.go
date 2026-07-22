@@ -815,7 +815,7 @@ func (i *instance) queryRangeCacheGet(ctx context.Context, m *backend.BlockMeta,
 
 	name := fmt.Sprintf("cache_query_range_%v.buf", hash)
 
-	keyPath := backend.KeyPathForBlock((uuid.UUID)(m.BlockID), m.TenantID)
+	keyPath := backend.KeyPathForBlock(uuid.UUID(m.BlockID), m.TenantID)
 	reader, size, err := i.wal.LocalBackend().Read(ctx, name, keyPath, nil)
 	if err != nil {
 		if errors.Is(err, backend.ErrDoesNotExist) {
@@ -846,7 +846,7 @@ func (i *instance) queryRangeCacheSet(ctx context.Context, m *backend.BlockMeta,
 		return err
 	}
 
-	keyPath := backend.KeyPathForBlock((uuid.UUID)(m.BlockID), m.TenantID)
+	keyPath := backend.KeyPathForBlock(uuid.UUID(m.BlockID), m.TenantID)
 	return i.wal.LocalBackend().Write(ctx, name, keyPath, bytes.NewReader(data), int64(len(data)), nil)
 }
 

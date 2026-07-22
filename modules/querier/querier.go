@@ -341,7 +341,8 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		}
 
 		span.AddEvent("done searching store", oteltrace.WithAttributes(
-			attribute.Int("foundPartialTraces", len(partialTraces))))
+			attribute.Int("foundPartialTraces", len(partialTraces)),
+		))
 
 		for _, partialTrace := range partialTraces {
 			if partialTrace == nil {

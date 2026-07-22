@@ -35,7 +35,8 @@ func TestEntry(t *testing.T) {
 			New("summary.tmpl").
 			Funcs(TemplateFuncMap()).
 			Option("missingkey=error").
-			Parse(string(defaultTmpl)))
+			Parse(string(defaultTmpl)),
+	)
 
 	testCases := []struct {
 		name             string

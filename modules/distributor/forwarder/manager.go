@@ -26,7 +26,7 @@ type Overrides interface {
 	Forwarders(tenantID string) []string
 }
 
-var _ Overrides = (overrides.Interface)(nil)
+var _ Overrides = overrides.Interface(nil)
 
 type Manager struct {
 	services.Service

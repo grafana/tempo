@@ -458,7 +458,7 @@ func (p *Processor) completeBlock(id uuid.UUID) error {
 
 	// Queue for flushing
 	if p.Cfg.FlushToStorage {
-		if _, err := p.flushqueue.Enqueue(newFlushOp((uuid.UUID)(newMeta.BlockID))); err != nil {
+		if _, err := p.flushqueue.Enqueue(newFlushOp(uuid.UUID(newMeta.BlockID))); err != nil {
 			_ = level.Error(p.logger).Log("msg", "local blocks processor failed to enqueue block for flushing", "err", err)
 		}
 	}
@@ -467,7 +467,7 @@ func (p *Processor) completeBlock(id uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	delete(p.walBlocks, (uuid.UUID)(b.BlockMeta().BlockID))
+	delete(p.walBlocks, uuid.UUID(b.BlockMeta().BlockID))
 
 	return nil
 }
@@ -782,7 +782,7 @@ func (p *Processor) cutBlocks(immediate bool) error {
 		return fmt.Errorf("failed to flush head block: %w", err)
 	}
 
-	id := (uuid.UUID)(p.headBlock.BlockMeta().BlockID)
+	id := uuid.UUID(p.headBlock.BlockMeta().BlockID)
 	p.walBlocks[id] = p.headBlock
 	metricCutBlocks.WithLabelValues(p.tenant).Inc()
 
@@ -826,7 +826,7 @@ func (p *Processor) reloadBlocks() error {
 		meta := blk.BlockMeta()
 		if meta.TenantID == p.tenant {
 			level.Info(p.logger).Log("msg", "reloading wal block", "block", meta.BlockID.String())
-			p.walBlocks[(uuid.UUID)(meta.BlockID)] = blk
+			p.walBlocks[uuid.UUID(meta.BlockID)] = blk
 
 			level.Info(p.logger).Log("msg", "queueing replayed wal block for completion", "block", meta.BlockID.String())
 			if err := enqueueCompleteOp(p.ctx, p, uuid.UUID(meta.BlockID)); err != nil {

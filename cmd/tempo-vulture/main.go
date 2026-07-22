@@ -339,7 +339,8 @@ func queueFutureBatches(client util.JaegerClient, info *util.TraceInfo, config v
 
 		err := info.EmitBatches(client)
 		if err != nil {
-			logger.Error("failed to queue batches",
+			logger.Error(
+				"failed to queue batches",
 				zap.Error(err),
 			)
 		}
@@ -388,7 +389,8 @@ func doRead(httpClient httpclient.TempoHTTPClient, _ vultureConfiguration, info 
 	queryMetrics, err := queryTrace(httpClient, info, l)
 	if err != nil {
 		metricErrorTotal.Inc()
-		logger.Error("query for metrics failed",
+		logger.Error(
+			"query for metrics failed",
 			zap.Error(err),
 		)
 	}
@@ -400,7 +402,8 @@ func doSearch(httpClient httpclient.TempoHTTPClient, config vultureConfiguration
 	searchMetrics, err := searchTag(httpClient, info.Timestamp(), config, l)
 	if err != nil {
 		metricErrorTotal.Inc()
-		logger.Error("search tag for metrics failed",
+		logger.Error(
+			"search tag for metrics failed",
 			zap.Error(err),
 		)
 	}
@@ -410,7 +413,8 @@ func doSearch(httpClient httpclient.TempoHTTPClient, config vultureConfiguration
 	traceqlSearchMetrics, err := searchTraceql(httpClient, info.Timestamp(), config, l)
 	if err != nil {
 		metricErrorTotal.Inc()
-		logger.Error("traceql query for metrics failed",
+		logger.Error(
+			"traceql query for metrics failed",
 			zap.Error(err),
 		)
 	}
@@ -629,7 +633,8 @@ func queryTrace(client httpclient.TempoHTTPClient, info *util.TraceInfo, l *zap.
 		tm.incorrectResult++
 		if diff := deep.Equal(expected, trace); diff != nil {
 			for _, d := range diff {
-				logger.Error("incorrect result",
+				logger.Error(
+					"incorrect result",
 					zap.String("expected -> response", d),
 				)
 			}

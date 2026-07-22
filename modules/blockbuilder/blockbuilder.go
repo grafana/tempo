@@ -213,7 +213,8 @@ func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 		b.logger,
 		b.cfg.IngestStorageConfig,
 		b.getAssignedPartitions,
-		b.kafkaClient.ForceMetadataRefresh)
+		b.kafkaClient.ForceMetadataRefresh,
+	)
 
 	return nil
 }
@@ -403,7 +404,8 @@ outer:
 					b.cfg.BlockConfig,
 					b.overrides,
 					b.wal,
-					b.enc)
+					b.enc,
+				)
 				init = true
 
 				// TODO(mapno): This call creates a link to the parent span in this trace.
@@ -431,9 +433,11 @@ outer:
 					"partition", ps.partition,
 					"timestamp", rec.Timestamp,
 				)
-				span.AddEvent("max bytes per cycle reached", trace.WithAttributes(
-					attribute.Int64("maxBytesPerCycle", int64(maxBytesPerCycle)),
-					attribute.Int64("consumedBytes", int64(consumedBytes))),
+				span.AddEvent(
+					"max bytes per cycle reached", trace.WithAttributes(
+						attribute.Int64("maxBytesPerCycle", int64(maxBytesPerCycle)),
+						attribute.Int64("consumedBytes", int64(consumedBytes)),
+					),
 				)
 				break outer
 			}

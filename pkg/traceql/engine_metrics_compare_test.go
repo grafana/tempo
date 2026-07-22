@@ -136,10 +136,12 @@ func TestCompareScalesResults(t *testing.T) {
 	}
 
 	a := newMetricsCompare(newSpansetFilter(
-		newBinaryOperation(OpEqual,
+		newBinaryOperation(
+			OpEqual,
 			NewAttribute("service"),
 			NewStaticString("selected"),
-		)), 10, 0, 0)
+		),
+	), 10, 0, 0)
 	a.init(req, AggregateModeRaw)
 
 	// Test data with clear baseline vs selection distinction
