@@ -451,6 +451,24 @@ func TestParseLenient(t *testing.T) {
 			expected: "{ ((.a + .b) = 3) && true }",
 		},
 
+		// Comparisons whose RHS is not a literal value: the operand may be an
+		// attribute, a parenthesized expression, or start with a unary operator.
+		{
+			name:     "attribute-to-attribute comparison with incomplete",
+			in:       `{ .a = .b && .c = }`,
+			expected: "{ (.a = .b) && true }",
+		},
+		{
+			name:     "parenthesized RHS with incomplete",
+			in:       `{ .a = (.b + .c) && .d = }`,
+			expected: "{ (.a = (.b + .c)) && true }",
+		},
+		{
+			name:     "negative value with incomplete",
+			in:       `{ .a = -1 && .b = }`,
+			expected: "{ (.a = -1) && true }",
+		},
+
 		// Typed intrinsics with incomplete matchers combined with other
 		// conditions. Regression tests: these used to leave a bare intrinsic
 		// behind (e.g. `{ ... && name }`), which failed type validation and
@@ -597,6 +615,11 @@ func TestReplaceIncompleteMatchers(t *testing.T) {
 			name:     "incomplete intrinsic after complete matcher",
 			in:       `{ .a = 1 && name = }`,
 			expected: `{ .a = 1 && true }`,
+		},
+		{
+			name:     "attribute-to-attribute comparison preserved",
+			in:       `{ .a = .b && .c = }`,
+			expected: `{ .a = .b && true }`,
 		},
 		{
 			name:     "structural operator passes through",

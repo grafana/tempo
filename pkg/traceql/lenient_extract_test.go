@@ -198,6 +198,10 @@ func TestExtractConditionGroups(t *testing.T) {
 		// An OR branch with an incomplete matcher matches anything, so the whole
 		// query is match-all (no groups).
 		{name: "incomplete OR branch", query: `{ .foo = "bar" || .baz = }`, count: 0},
+		// Attribute-to-attribute comparisons extract only OpNone fetch hints,
+		// so the group collapses to match-all.
+		{name: "attribute comparison with incomplete", query: `{ .a = .b && .c = }`, count: 0},
+		{name: "attribute comparison plus condition with incomplete", query: `{ .a = .b && .service = "x" && .c = }`, count: 1},
 		{name: "explicit true OR branch", query: `{ .foo = "bar" || true }`, count: 0},
 	}
 	for _, tc := range testCases {

@@ -14,8 +14,8 @@ import (
 // The approach is deliberately a single string-level transformation:
 //
 //  1. Tokenize the query with the regular TraceQL lexer.
-//  2. Replace each incomplete matcher (attribute + comparison operator with no value, e.g. `name =`)
-//     with the literal `true`.
+//  2. Replace each incomplete matcher (attribute + comparison operator with nothing
+//     after it, e.g. `name =`; see isTerminator) with the literal `true`.
 //  3. Rebuild the query string (balancing unclosed braces) and re-parse it with the strict parser.
 //
 // Replacing incomplete matchers with `true` — rather than deleting tokens —
@@ -88,16 +88,18 @@ func replaceIncompleteMatchers(s string) string {
 		attrStart := i
 		skipAttribute(tokens, &i)
 
-		// Complete matcher: attr + op + value → keep as-is.
-		if i+2 < len(tokens) && isComparisonOperator(tokens[i+1].typ) && isValueToken(tokens[i+2].typ) {
-			out = append(out, tokens[attrStart:i+3]...)
-			i += 3
-			continue
-		}
-
-		// Incomplete matcher: attr + op but no value → replace with `true`.
+		// Matcher: attr + comparison operator. It is incomplete only when
+		// nothing follows the operator: end of input or a structural
+		// terminator. Anything else may be the RHS — keep it and let the
+		// strict re-parse decide whether it's valid.
 		if i+1 < len(tokens) && isComparisonOperator(tokens[i+1].typ) {
-			out = append(out, token{typ: TRUE, str: "true"})
+			if i+2 >= len(tokens) || isTerminator(tokens[i+2].typ) {
+				// Incomplete: no RHS → replace with `true`. tokenRepr renders
+				// the TRUE token via reverseTokenMap, so no str is needed.
+				out = append(out, token{typ: TRUE})
+			} else {
+				out = append(out, tokens[attrStart:i+2]...)
+			}
 			i += 2
 			continue
 		}
@@ -248,13 +250,13 @@ func isComparisonOperator(typ int) bool {
 		typ == GT || typ == GTE || typ == RE || typ == NRE
 }
 
-func isValueToken(typ int) bool {
-	return typ == STRING || typ == INTEGER || typ == FLOAT ||
-		typ == DURATION || typ == TRUE || typ == FALSE || typ == NIL ||
-		typ == STATUS_OK || typ == STATUS_ERROR || typ == STATUS_UNSET ||
-		typ == KIND_UNSPECIFIED || typ == KIND_INTERNAL || typ == KIND_SERVER ||
-		typ == KIND_CLIENT || typ == KIND_PRODUCER || typ == KIND_CONSUMER ||
-		typ == IDENTIFIER
+// isTerminator reports whether a token closes a matcher's slot in a filter:
+// a closing brace/paren or a connector. A comparison operator followed by one
+// of these (or by end of input) has no RHS, i.e. the matcher is incomplete.
+// This is deliberately a closed set: the pass only knows what "nothing" looks
+// like, so it needs no updates as the expression grammar grows.
+func isTerminator(typ int) bool {
+	return typ == CLOSE_BRACE || typ == CLOSE_PARENS || typ == AND || typ == OR
 }
 
 // lenientLexer is a lexer that doesn't stop on errors.
