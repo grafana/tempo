@@ -108,7 +108,7 @@ func TestCompactionProvider_EmptyStart(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	var (
-		ctx, cancel  = context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel  = context.WithTimeout(context.Background(), 30*time.Second)
 		store, _, ww = newStore(ctx, t, tmpDir)
 	)
 
@@ -144,10 +144,13 @@ func TestCompactionProvider_EmptyStart(t *testing.T) {
 	require.Nil(t, p.curSelector, "a block selector should not be set")
 
 	writeTenantBlocks(ctx, t, backend.NewWriter(ww), tenant, 1)
-	time.Sleep(150 * time.Millisecond)
 
-	b = p.prepareNextTenant(ctx, false)
-	require.True(t, b, "tenant with two blocks should be found")
+	// The provider only sees the newly written blocks after the store's next
+	// blocklist poll, which can lag under load. Retry until the second block is
+	// picked up rather than relying on a fixed sleep.
+	require.Eventually(t, func() bool {
+		return p.prepareNextTenant(ctx, false)
+	}, 3*time.Second, 50*time.Millisecond, "tenant with two blocks should be found")
 	require.NotNil(t, p.curTenant, "a tenant should be set")
 	require.NotNil(t, p.curSelector, "a block selector should be set")
 
