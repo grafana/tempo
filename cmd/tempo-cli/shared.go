@@ -108,14 +108,14 @@ func loadBlock(r backend.Reader, c backend.Compactor, tenantID string, id backen
 		fmt.Print(strconv.Itoa(blockNum))
 	}
 
-	meta, err := r.BlockMeta(context.Background(), (uuid.UUID)(id), tenantID)
+	meta, err := r.BlockMeta(context.Background(), uuid.UUID(id), tenantID)
 	if errors.Is(err, backend.ErrDoesNotExist) && !includeCompacted {
 		return nil, nil
 	} else if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 		return nil, err
 	}
 
-	compactedMeta, err := c.CompactedBlockMeta((uuid.UUID)(id), tenantID)
+	compactedMeta, err := c.CompactedBlockMeta(uuid.UUID(id), tenantID)
 	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 		return nil, err
 	}

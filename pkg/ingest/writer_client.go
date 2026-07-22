@@ -31,7 +31,8 @@ func NewWriterClient(kafkaCfg KafkaConfig, maxInflightProduceRequests int, logge
 	metrics := kprom.NewMetrics(
 		"", // No prefix. We expect the input prometheus.Registered to be wrapped with a prefix.
 		kprom.Registerer(reg),
-		kprom.FetchAndProduceDetail(kprom.Batches, kprom.Records, kprom.CompressedBytes, kprom.UncompressedBytes))
+		kprom.FetchAndProduceDetail(kprom.Batches, kprom.Records, kprom.CompressedBytes, kprom.UncompressedBytes),
+	)
 
 	opts := append(
 		commonKafkaClientOptions(kafkaCfg, metrics, logger),
@@ -130,7 +131,7 @@ func commonKafkaClientOptions(cfg KafkaConfig, metrics *kprom.Metrics, logger lo
 
 		kgo.RetryTimeoutFn(func(key int16) time.Duration {
 			switch key {
-			case ((*kmsg.ListOffsetsRequest)(nil)).Key():
+			case (*kmsg.ListOffsetsRequest)(nil).Key():
 				return cfg.LastProducedOffsetRetryTimeout
 			}
 
@@ -210,14 +211,16 @@ func NewProducer(client *kgo.Client, maxBufferedBytes int64, reg prometheus.Regi
 				Objectives: map[float64]float64{0.5: 0.05, 0.99: 0.001, 1: 0.001},
 				MaxAge:     time.Minute,
 				AgeBuckets: 6,
-			}),
+			},
+		),
 		bufferedProduceBytesLimit: promauto.With(reg).NewGauge(
 			prometheus.GaugeOpts{
 				Namespace: "tempo",
 				Subsystem: "distributor",
 				Name:      "buffered_produce_bytes_limit",
 				Help:      "The bytes limit on buffered produce records. Produce requests fail once this limit is reached.",
-			}),
+			},
+		),
 
 		produceRecordsFailuresTotal: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 			Namespace: "tempo",

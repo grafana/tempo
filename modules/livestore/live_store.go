@@ -175,7 +175,8 @@ func New(cfg Config, overridesService overrides.Interface, logger log.Logger, re
 		PartitionRingKey,
 		partitionRingKV,
 		logger,
-		prometheus.WrapRegistererWithPrefix("tempo_", reg))
+		prometheus.WrapRegistererWithPrefix("tempo_", reg),
+	)
 
 	// setup live store read ring
 	ringStore := cfg.Ring.KVStore.Mock

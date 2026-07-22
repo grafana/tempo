@@ -297,7 +297,7 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block comm
 }
 
 func (rw *readerWriter) DeleteNoCompactFlag(ctx context.Context, tenantID string, blockID backend.UUID) error {
-	return rw.w.DeleteNoCompactFlag(ctx, (uuid.UUID)(blockID), tenantID)
+	return rw.w.DeleteNoCompactFlag(ctx, uuid.UUID(blockID), tenantID)
 }
 
 func (rw *readerWriter) WAL() *wal.WAL {
@@ -305,7 +305,7 @@ func (rw *readerWriter) WAL() *wal.WAL {
 }
 
 func (rw *readerWriter) BlockMeta(ctx context.Context, tenantID string, blockID backend.UUID) (*backend.BlockMeta, *backend.CompactedBlockMeta, error) {
-	meta, err := rw.r.BlockMeta(ctx, (uuid.UUID)(blockID), tenantID)
+	meta, err := rw.r.BlockMeta(ctx, uuid.UUID(blockID), tenantID)
 	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 		return nil, nil, err
 	}
@@ -314,7 +314,7 @@ func (rw *readerWriter) BlockMeta(ctx context.Context, tenantID string, blockID 
 		return meta, nil, nil
 	}
 
-	compactedMeta, err := rw.c.CompactedBlockMeta((uuid.UUID)(blockID), tenantID)
+	compactedMeta, err := rw.c.CompactedBlockMeta(uuid.UUID(blockID), tenantID)
 	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 		return nil, nil, err
 	}
@@ -604,7 +604,7 @@ func (rw *readerWriter) EnableCompaction(ctx context.Context, cfg *CompactorConf
 }
 
 func (rw *readerWriter) MarkBlockCompacted(tenantID string, blockID backend.UUID) error {
-	return rw.c.MarkBlockCompacted((uuid.UUID)(blockID), tenantID)
+	return rw.c.MarkBlockCompacted(uuid.UUID(blockID), tenantID)
 }
 
 // EnablePolling activates the polling loop. Pass nil if this component

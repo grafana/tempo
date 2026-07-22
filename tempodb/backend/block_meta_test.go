@@ -25,7 +25,7 @@ func TestNewBlockMeta(t *testing.T) {
 	id := uuid.New()
 	b := NewBlockMeta(testTenantID, id, testVersion, testEncoding, testDataEncoding)
 
-	assert.Equal(t, id, (uuid.UUID)(b.BlockID))
+	assert.Equal(t, id, uuid.UUID(b.BlockID))
 	assert.Equal(t, testTenantID, b.TenantID)
 	assert.Equal(t, testVersion, b.Version)
 	assert.Equal(t, testEncoding, b.Encoding)

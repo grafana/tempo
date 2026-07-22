@@ -12,4 +12,4 @@ type ingesterOverrides interface {
 	DedicatedColumns(userID string) backend.DedicatedColumns
 }
 
-var _ ingesterOverrides = (overrides.Interface)(nil)
+var _ ingesterOverrides = overrides.Interface(nil)

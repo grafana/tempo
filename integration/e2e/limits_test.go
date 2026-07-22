@@ -85,17 +85,20 @@ func TestLimits(t *testing.T) {
 	require.True(t, foundRetryInfo)
 
 	// test limit metrics
-	err = tempo.WaitSumMetricsWithOptions(e2e.Equals(2),
+	err = tempo.WaitSumMetricsWithOptions(
+		e2e.Equals(2),
 		[]string{"tempo_discarded_spans_total"},
 		e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "trace_too_large")),
 	)
 	require.NoError(t, err)
-	err = tempo.WaitSumMetricsWithOptions(e2e.Equals(1),
+	err = tempo.WaitSumMetricsWithOptions(
+		e2e.Equals(1),
 		[]string{"tempo_discarded_spans_total"},
 		e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "live_traces_exceeded")),
 	)
 	require.NoError(t, err)
-	err = tempo.WaitSumMetricsWithOptions(e2e.Equals(10),
+	err = tempo.WaitSumMetricsWithOptions(
+		e2e.Equals(10),
 		[]string{"tempo_discarded_spans_total"},
 		e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "rate_limited")),
 	)
@@ -318,14 +321,16 @@ func TestLimitsPartialSuccess(t *testing.T) {
 
 	// test metrics
 	// 3 traces with trace_too_large each with 4+5+6 spans
-	err = tempo.WaitSumMetricsWithOptions(e2e.Equals(15),
+	err = tempo.WaitSumMetricsWithOptions(
+		e2e.Equals(15),
 		[]string{"tempo_discarded_spans_total"},
 		e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "trace_too_large")),
 	)
 	require.NoError(t, err)
 
 	// this metric should never exist
-	err = tempo.WaitSumMetricsWithOptions(e2e.Equals(0),
+	err = tempo.WaitSumMetricsWithOptions(
+		e2e.Equals(0),
 		[]string{"tempo_discarded_spans_total"},
 		e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "unknown_error")),
 	)

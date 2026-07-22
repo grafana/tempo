@@ -61,7 +61,7 @@ func (b *WriteableBlock) setFlushed(ctx context.Context) error {
 		return fmt.Errorf("error marshalling flush time to text: %w", err)
 	}
 
-	err = b.writer.Write(ctx, nameFlushed, (uuid.UUID)(b.BlockMeta().BlockID), b.BlockMeta().TenantID, flushedBytes, nil)
+	err = b.writer.Write(ctx, nameFlushed, uuid.UUID(b.BlockMeta().BlockID), b.BlockMeta().TenantID, flushedBytes, nil)
 	if err != nil {
 		return fmt.Errorf("error writing ingester block flushed file: %w", err)
 	}

@@ -58,7 +58,8 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 		level.Info(logger).Log(
 			"msg", "trace id request",
 			"tenant", tenant,
-			"path", req.URL.Path)
+			"path", req.URL.Path,
+		)
 
 		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat)
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
@@ -80,7 +81,8 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 			"duration_seconds", elapsed.Seconds(),
 			"inspected_bytes", inspectBytes,
 			"request_throughput", float64(inspectBytes)/elapsed.Seconds(),
-			"err", err)
+			"err", err,
+		)
 
 		return resp, err
 	})
@@ -128,7 +130,8 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 		level.Info(logger).Log(
 			"msg", "trace id request",
 			"tenant", tenant,
-			"path", req.URL.Path)
+			"path", req.URL.Path,
+		)
 
 		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat)
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
@@ -152,7 +155,8 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			"inspected_bytes", bytesProcessed,
 			"request_throughput", float64(bytesProcessed)/elapsed.Seconds(),
 			"duration_seconds", elapsed.Seconds(),
-			"err", err)
+			"err", err,
+		)
 
 		return resp, err
 	})

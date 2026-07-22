@@ -162,7 +162,7 @@ func (i *instance) watchOverrides() {
 func (i *instance) updateSubprocessors(desiredProcessors map[string]struct{}, desiredCfg ProcessorConfig) (map[string]struct{}, ProcessorConfig) {
 	desiredProcessorsFound := false
 	for d := range desiredProcessors {
-		if (d == spanmetrics.Name) || (spanmetrics.ParseSubprocessor(d)) {
+		if (d == spanmetrics.Name) || spanmetrics.ParseSubprocessor(d) {
 			desiredProcessorsFound = true
 		}
 	}

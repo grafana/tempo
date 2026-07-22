@@ -17,4 +17,4 @@ type Overrides interface {
 	MetricsGeneratorNativeHistogramMinResetDuration(userID string) time.Duration
 }
 
-var _ Overrides = (overrides.Interface)(nil)
+var _ Overrides = overrides.Interface(nil)

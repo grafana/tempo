@@ -50,7 +50,7 @@ blocks:
 	for _, sourceBlockMeta := range sourceTenantIndex.Meta {
 		// check for collisions
 		for _, uuidDest := range blocksDest {
-			if (uuid.UUID)(sourceBlockMeta.BlockID) == uuidDest {
+			if uuid.UUID(sourceBlockMeta.BlockID) == uuidDest {
 				fmt.Printf("UUID %s exists in source and destination, skipping block\n", sourceBlockMeta.BlockID)
 				continue blocks
 			}

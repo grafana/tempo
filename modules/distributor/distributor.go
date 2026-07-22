@@ -994,7 +994,8 @@ func logSpans(batches []*v1.ResourceSpans, cfg *LogSpansConfig, logger log.Logge
 				loggerWithAtts = log.With(
 					loggerWithAtts,
 					"span_"+strutil.SanitizeLabelName(a.GetKey()),
-					util.StringifyAnyValue(a.GetValue()))
+					util.StringifyAnyValue(a.GetValue()),
+				)
 			}
 		}
 
@@ -1016,7 +1017,8 @@ func logSpan(s *v1.Span, allAttributes bool, logger log.Logger) {
 			logger = log.With(
 				logger,
 				"span_"+strutil.SanitizeLabelName(a.GetKey()),
-				util.StringifyAnyValue(a.GetValue()))
+				util.StringifyAnyValue(a.GetValue()),
+			)
 		}
 
 		latencySeconds := float64(s.GetEndTimeUnixNano()-s.GetStartTimeUnixNano()) / float64(time.Second.Nanoseconds())
@@ -1025,7 +1027,8 @@ func logSpan(s *v1.Span, allAttributes bool, logger log.Logger) {
 			"span_name", s.Name,
 			"span_duration_seconds", latencySeconds,
 			"span_kind", s.GetKind().String(),
-			"span_status", s.GetStatus().GetCode().String())
+			"span_status", s.GetStatus().GetCode().String(),
+		)
 	}
 
 	level.Info(logger).Log("spanid", hex.EncodeToString(s.SpanId), "traceid", hex.EncodeToString(s.TraceId))
