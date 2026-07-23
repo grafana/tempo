@@ -11,6 +11,10 @@ import (
 // used by the tag-name and tag-value autocomplete endpoints
 // where clients (e.g. Grafana) send partially-typed queries such as `{ .foo = "bar" && name = }`.
 //
+// Anything else (e.g. a dangling connector like `{ .a = 1 && }`) intentionally returns the original parse error,
+// and callers degrade to unfiltered results.
+// This is not a general TraceQL repair tool; do not widen the shape.
+//
 // The approach is deliberately a single string-level transformation:
 //
 //  1. Tokenize the query with the regular TraceQL lexer.
@@ -25,14 +29,6 @@ import (
 // it contributes no conditions in an AND chain,
 // and as an OR branch it correctly collapses the query to match-all
 // (see ExtractConditionGroups in lenient_extract.go).
-//
-// Scope: the only supported input shape is a valid query except for
-// incomplete matchers and a not-yet-typed closing brace —
-// exactly what completion requests produce.
-// Anything else (e.g. a dangling connector like `{ .a = 1 && }`)
-// intentionally returns the original parse error,
-// and callers degrade to unfiltered results.
-// This is not a general TraceQL repair tool; do not widen the shape.
 
 // ParseLenient attempts to parse a query string.
 // If parsing succeeds, the result is returned as-is.
