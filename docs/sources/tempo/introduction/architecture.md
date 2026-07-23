@@ -187,7 +187,7 @@ There are three fundamentally important things to keep in mind with traces:
 
 - There's no concept of the 'end' of a trace. A trace can start with any span which holds a unique trace ID that hasn't been seen by Tempo previously. However, spans can be continually added at any point in the future.
 - When a trace ID is queried in Tempo, it returns all of the currently stored/ingested spans that belong to that trace and presents them in a mapped response (that is, a graph of parent/child/sibling relationships between spans) that allows, for example, Grafana to then visually render those traces.
-- TraceQL queries return all matching traces from Tempo for the filters presented to it. This doesn't necessarily mean in chronological order, as some queriers may return results more promptly than others. When the maximum trace limit for a TraceQL query has been hit, the query frontend returns a response with all the current traces and their spans at that point and ignores the outstanding queriers.
+- TraceQL queries return all matching traces from Tempo for the filters presented to it. This doesn't necessarily mean in chronological order, as some queriers may return results more promptly than others. When the maximum trace limit for a TraceQL query has been hit, the query frontend returns a response with the traces and spans it has collected so far and stops waiting for outstanding queriers.
 
 ## Next steps
 
