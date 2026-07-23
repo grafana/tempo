@@ -51,6 +51,21 @@ func TestHandlePartitionsRevoked_RemovesOnlyRevokedPartitions(t *testing.T) {
 	assert.Equal(t, []int32{0, 2, 4}, g.assignedPartitions)
 }
 
+// TestHandlePartitionsLost_RemovesLostPartitions verifies that partitions lost (e.g. after a
+// session timeout or fence) are removed from the assigned set, matching the revoke path. Without
+// wiring OnPartitionsLost their lag metrics would otherwise never be cleaned up.
+func TestHandlePartitionsLost_RemovesLostPartitions(t *testing.T) {
+	g := minimalGeneratorForKafkaTest()
+	g.assignedPartitions = []int32{0, 1, 2, 3, 4, 5}
+
+	g.handlePartitionsLost(map[string][]int32{"test-topic": {1, 3, 5}})
+	assert.Equal(t, []int32{0, 2, 4}, g.assignedPartitions)
+
+	// Partitions for an unrelated topic must not affect the tracked set.
+	g.handlePartitionsLost(map[string][]int32{"other-topic": {0, 2}})
+	assert.Equal(t, []int32{0, 2, 4}, g.assignedPartitions)
+}
+
 // TestHandlePartitionsAssigned_UnknownTopicIsIgnored verifies that assignment
 // callbacks for a different topic do not affect the tracked partitions.
 func TestHandlePartitionsAssigned_UnknownTopicIsIgnored(t *testing.T) {

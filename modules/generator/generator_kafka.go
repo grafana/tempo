@@ -201,15 +201,31 @@ func (g *Generator) handlePartitionsAssigned(m map[string][]int32) {
 func (g *Generator) handlePartitionsRevoked(partitions map[string][]int32) {
 	revoked := partitions[g.cfg.Ingest.Kafka.Topic]
 	level.Info(g.logger).Log("msg", "partitions revoked", "partitions", formatInt32Slice(revoked))
+	g.dropPartitions(revoked)
+}
+
+// handlePartitionsLost is the OnPartitionsLost counterpart to handlePartitionsRevoked. Lost
+// partitions (e.g. after a session timeout or the member being fenced) do not go through the
+// cooperative revoke path, so without this callback their lag metrics would never be cleaned up
+// and would keep exporting stale, ever-growing values. The cleanup is identical to a revoke; we
+// deliberately do not commit offsets here (kgo warns against committing in OnPartitionsLost).
+func (g *Generator) handlePartitionsLost(partitions map[string][]int32) {
+	lost := partitions[g.cfg.Ingest.Kafka.Topic]
+	level.Warn(g.logger).Log("msg", "partitions lost", "partitions", formatInt32Slice(lost))
+	g.dropPartitions(lost)
+}
+
+// dropPartitions removes partitions from the assigned set and clears their exported lag metrics.
+// Shared by the revoke and lost callbacks.
+func (g *Generator) dropPartitions(partitions []int32) {
 	g.partitionMtx.Lock()
 	defer g.partitionMtx.Unlock()
 
-	sort.Slice(revoked, func(i, j int) bool { return revoked[i] < revoked[j] })
-	// Remove revoked partitions
-	g.assignedPartitions = revokePartitions(g.assignedPartitions, revoked)
+	sort.Slice(partitions, func(i, j int) bool { return partitions[i] < partitions[j] })
+	g.assignedPartitions = revokePartitions(g.assignedPartitions, partitions)
 	metricAssignedPartitions.Set(float64(len(g.assignedPartitions)))
 
-	ingest.ResetLagMetricsForRevokedPartitions(g.cfg.Ingest.Kafka.ConsumerGroup, revoked)
+	ingest.ResetLagMetricsForRevokedPartitions(g.cfg.Ingest.Kafka.ConsumerGroup, partitions)
 }
 
 // Helper function to format []int32 slice

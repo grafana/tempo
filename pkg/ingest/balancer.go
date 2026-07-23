@@ -10,9 +10,24 @@ import (
 	"github.com/twmb/franz-go/pkg/kmsg"
 )
 
+// topicPartition identifies a partition within a topic. Partition IDs are only unique per
+// topic, so inactive-owner tracking is keyed by both to avoid cross-topic collisions.
+type topicPartition struct {
+	topic     string
+	partition int32
+}
+
 type cooperativeActiveStickyBalancer struct {
 	kgo.GroupBalancer
 	partitionRing ring.PartitionRingReader
+
+	// prevInactiveOwners maps an inactive (topic, partition) to the member that owned it in the
+	// previous assignment. It is captured in MemberBalancer (before inactive partitions are
+	// filtered out of the member metadata) and consumed by Balance so that inactive partitions
+	// stay on their previous owner instead of being reshuffled round-robin on every rebalance.
+	// Keeping inactive partitions sticky avoids the churn that otherwise leaves stale
+	// per-partition metrics (and reader state) on former owners after a handoff.
+	prevInactiveOwners map[topicPartition]string
 }
 
 // NewCooperativeActiveStickyBalancer creates a balancer that combines Kafka's cooperative sticky balancing
@@ -23,10 +38,12 @@ type cooperativeActiveStickyBalancer struct {
 // 3. Applying cooperative sticky balancing only to the active partitions
 //
 // This ensures that:
-// - Active partitions are balanced evenly across consumers using sticky assignment for optimal processing
-// - Inactive partitions are still assigned and consumed in a round-robin fashion, but without sticky assignment
-// - All partitions are monitored even if inactive, allowing quick activation when needed
-// - Partition handoff happens cooperatively to avoid stop-the-world rebalances
+//   - Active partitions are balanced evenly across consumers using sticky assignment for optimal processing
+//   - Inactive partitions are still assigned and consumed; each is kept on its previous owner when that
+//     member is still present (sticky), falling back to round-robin only for partitions with no prior owner,
+//     so they are not reshuffled on every rebalance
+//   - All partitions are monitored even if inactive, allowing quick activation when needed
+//   - Partition handoff happens cooperatively to avoid stop-the-world rebalances
 //
 // This balancer should be used with [NewGroupClient] which monitors the partition ring and triggers
 // rebalancing when the set of active partitions changes. This ensures optimal partition distribution
@@ -49,6 +66,10 @@ func (b *cooperativeActiveStickyBalancer) MemberBalancer(members []kmsg.JoinGrou
 		activePartitions[id] = struct{}{}
 	}
 
+	// Record who currently owns each inactive partition, so Balance can keep it there
+	// (sticky) rather than reshuffling it round-robin. Rebuilt fresh every rebalance.
+	b.prevInactiveOwners = make(map[topicPartition]string)
+
 	// Filter member metadata to only include active partitions
 	filteredMembers := make([]kmsg.JoinGroupResponseMember, len(members))
 	for i, member := range members {
@@ -56,6 +77,15 @@ func (b *cooperativeActiveStickyBalancer) MemberBalancer(members []kmsg.JoinGrou
 		err := meta.ReadFrom(member.ProtocolMetadata)
 		if err != nil {
 			continue
+		}
+
+		// Remember inactive owned partitions before we strip them below.
+		for _, owned := range meta.OwnedPartitions {
+			for _, p := range owned.Partitions {
+				if _, isActive := activePartitions[p]; !isActive {
+					b.prevInactiveOwners[topicPartition{owned.Topic, p}] = member.MemberID
+				}
+			}
 		}
 
 		// Filter owned partitions to only include active ones
@@ -120,40 +150,69 @@ func (b *cooperativeActiveStickyBalancer) Balance(balancer *kgo.ConsumerBalancer
 	}
 	sort.Strings(members)
 
-	// Distribute inactive partitions round-robin
-	memberIdx := 0
+	// Nothing to assign to; return the active plan as-is.
+	if len(members) == 0 {
+		return syncAssignments(plan)
+	}
+
+	memberSet := make(map[string]struct{}, len(members))
+	for _, m := range members {
+		memberSet[m] = struct{}{}
+	}
+
+	// planIdx lets us append an inactive partition to a member's assignment by member ID.
+	planIdx := make(map[string]int, len(plan))
+	for i, m := range plan {
+		planIdx[m.MemberID] = i
+	}
+
+	assignInactive := func(topic string, memberID string, p int32) {
+		i, ok := planIdx[memberID]
+		if !ok {
+			return
+		}
+		var meta kmsg.ConsumerMemberAssignment
+		// A member with no active partitions may have an empty assignment; treat that as an
+		// empty ConsumerMemberAssignment rather than dropping the inactive partition. Only a
+		// genuinely malformed (non-empty) assignment is skipped.
+		if len(plan[i].MemberAssignment) > 0 {
+			if err := meta.ReadFrom(plan[i].MemberAssignment); err != nil {
+				return
+			}
+		}
+		found := false
+		for j := range meta.Topics {
+			if meta.Topics[j].Topic == topic {
+				meta.Topics[j].Partitions = append(meta.Topics[j].Partitions, p)
+				found = true
+				break
+			}
+		}
+		if !found {
+			meta.Topics = append(meta.Topics, kmsg.ConsumerMemberAssignmentTopic{
+				Topic:      topic,
+				Partitions: []int32{p},
+			})
+		}
+		plan[i].MemberAssignment = meta.AppendTo(nil)
+	}
+
+	// Distribute inactive partitions, keeping each on its previous owner when that member is
+	// still present (sticky). Partitions with no valid previous owner fall back to round-robin.
+	fallbackIdx := 0
 	for topic, numInactive := range inactiveTopics {
 		for p := int32(actives); p < int32(actives)+numInactive; p++ {
-			// Find the member's assignment
-			for i, m := range plan {
-				if m.MemberID == members[memberIdx] {
-					var meta kmsg.ConsumerMemberAssignment
-					err := meta.ReadFrom(m.MemberAssignment)
-					if err != nil {
-						continue
-					}
-
-					// Find or create topic assignment
-					found := false
-					for j, t := range meta.Topics {
-						if t.Topic == topic {
-							meta.Topics[j].Partitions = append(t.Partitions, p)
-							found = true
-							break
-						}
-					}
-					if !found {
-						meta.Topics = append(meta.Topics, kmsg.ConsumerMemberAssignmentTopic{
-							Topic:      topic,
-							Partitions: []int32{p},
-						})
-					}
-
-					plan[i].MemberAssignment = meta.AppendTo(nil)
-					break
+			target := ""
+			if owner, ok := b.prevInactiveOwners[topicPartition{topic, p}]; ok {
+				if _, stillMember := memberSet[owner]; stillMember {
+					target = owner
 				}
 			}
-			memberIdx = (memberIdx + 1) % len(members)
+			if target == "" {
+				target = members[fallbackIdx]
+				fallbackIdx = (fallbackIdx + 1) % len(members)
+			}
+			assignInactive(topic, target, p)
 		}
 	}
 
