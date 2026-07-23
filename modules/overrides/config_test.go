@@ -395,7 +395,7 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		IngestionTenantShardSize:   3,
 		IngestionMaxAttributeBytes: 1000,
 		IngestionArtificialDelay:   durationPtr(5 * time.Minute),
-		IngestionRetryInfoEnabled:  boolPtr(true),
+		IngestionRetryInfoEnabled:  new(true),
 
 		MaxLocalTracesPerUser:  1000,
 		MaxGlobalTracesPerUser: 2000,

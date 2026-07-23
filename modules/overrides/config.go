@@ -82,13 +82,6 @@ type IngestionOverrides struct {
 	RetryInfoEnabled  *bool          `yaml:"retry_info_enabled,omitempty" json:"retry_info_enabled,omitempty"`
 }
 
-// boolPtr is a helper to distinguish "not set" (nil) from an explicit false
-// on *bool override fields, so per-tenant overrides can fall back to the
-// cluster default when the tenant doesn't mention the field at all.
-func boolPtr(b bool) *bool {
-	return &b
-}
-
 type ForwarderOverrides struct {
 	QueueSize int `yaml:"queue_size,omitempty" json:"queue_size,omitempty"`
 	Workers   int `yaml:"workers,omitempty" json:"workers,omitempty"`
@@ -389,7 +382,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 	// Distributor LegacyOverrides
 	// enabled in overrides by default, only takes effect when
 	// distributor.retry_after_on_resource_exhausted is greater than 0.cluster level default is 5s.
-	c.Defaults.Ingestion.RetryInfoEnabled = boolPtr(true)
+	c.Defaults.Ingestion.RetryInfoEnabled = new(true)
 	f.StringVar(&c.Defaults.Ingestion.RateStrategy, "distributor.rate-limit-strategy", "local", "Whether the various ingestion rate limits should be applied individually to each distributor instance (local), or evenly shared across the cluster (global).")
 	f.IntVar(&c.Defaults.Ingestion.RateLimitBytes, "distributor.ingestion-rate-limit-bytes", 30e6, "Per-user ingestion rate limit in bytes per second.")
 	f.IntVar(&c.Defaults.Ingestion.BurstSizeBytes, "distributor.ingestion-burst-size-bytes", 30e6, "Per-user ingestion burst size in bytes. Should be set to the expected size (in bytes) of a single push request.")

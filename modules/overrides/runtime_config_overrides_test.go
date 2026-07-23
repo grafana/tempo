@@ -694,18 +694,18 @@ func TestIngestionRetryInfoEnabled(t *testing.T) {
 		{
 			name: "no tenant override: cluster default wins",
 			defaultLimits: Overrides{
-				Ingestion: IngestionOverrides{RetryInfoEnabled: boolPtr(true)},
+				Ingestion: IngestionOverrides{RetryInfoEnabled: new(true)},
 			},
 			expected: true,
 		},
 		{
 			name: "tenant override explicitly disables it",
 			defaultLimits: Overrides{
-				Ingestion: IngestionOverrides{RetryInfoEnabled: boolPtr(true)},
+				Ingestion: IngestionOverrides{RetryInfoEnabled: new(true)},
 			},
 			perTenantOverrides: &perTenantOverrides{
 				TenantLimits: map[string]*Overrides{
-					"user1": {Ingestion: IngestionOverrides{RetryInfoEnabled: boolPtr(false)}},
+					"user1": {Ingestion: IngestionOverrides{RetryInfoEnabled: new(false)}},
 				},
 			},
 			expected: false,
@@ -713,7 +713,7 @@ func TestIngestionRetryInfoEnabled(t *testing.T) {
 		{
 			name: "tenant override exists but doesn't mention retry info: falls back to cluster default",
 			defaultLimits: Overrides{
-				Ingestion: IngestionOverrides{RetryInfoEnabled: boolPtr(true)},
+				Ingestion: IngestionOverrides{RetryInfoEnabled: new(true)},
 			},
 			perTenantOverrides: &perTenantOverrides{
 				TenantLimits: map[string]*Overrides{
@@ -726,7 +726,14 @@ func TestIngestionRetryInfoEnabled(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			overrides, cleanup := createAndInitializeRuntimeOverridesManager(t, tt.defaultLimits, toYamlBytes(t, tt.perTenantOverrides))
+			// A nil perTenantOverrides marshals to a literal "null" document; writing that as
+			// the runtime overrides file makes the loader decode a nil *perTenantOverrides and
+			// panic. Pass a nil []byte instead so no runtime overrides file is created at all.
+			var perTenantBytes []byte
+			if tt.perTenantOverrides != nil {
+				perTenantBytes = toYamlBytes(t, tt.perTenantOverrides)
+			}
+			overrides, cleanup := createAndInitializeRuntimeOverridesManager(t, tt.defaultLimits, perTenantBytes)
 			defer cleanup()
 
 			assert.Equal(t, tt.expected, overrides.IngestionRetryInfoEnabled("user1"))

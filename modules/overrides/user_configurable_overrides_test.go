@@ -479,6 +479,10 @@ func (b *badClient) Delete(context.Context, string, backend.Version) error {
 func (b badClient) Shutdown() {
 }
 
+func boolPtr(b bool) *bool {
+	return &b
+}
+
 func mapBoolPtr(m map[string]bool) *map[string]bool {
 	return &m
 }
