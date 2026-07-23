@@ -97,10 +97,10 @@ This data helps you locate problem areas, often in places you never would have a
 
 To continue learning about traces and Tempo, refer to:
 
-- [Traces and telemetry](./telemetry): how traces relate to metrics, logs, and profiles.
-- [Trace structure](./trace-structure): the parts of a span and the attributes you can query.
-- [Tempo architecture](./architecture): how Tempo ingests, stores, and queries traces.
-- [Tempo and AI](./tempo-and-ai): query traces with AI agents through the MCP server and LLM-optimized APIs.
-- [Glossary](./glossary): definitions of common tracing terms.
+- [Traces and telemetry](./telemetry/): how traces relate to metrics, logs, and profiles.
+- [Trace structure](./trace-structure/): the parts of a span and the attributes you can query.
+- [Tempo architecture](./architecture/): how Tempo ingests, stores, and queries traces.
+- [Tempo and AI](./tempo-and-ai/): query traces with AI agents through the MCP server and LLM-optimized APIs.
+- [Glossary](./glossary/): definitions of common tracing terms.
 
-For real-world examples, refer to [User journeys: How tracing can help you](../solutions-with-traces) elsewhere in the Tempo documentation.
+For real-world examples, refer to [User journeys: How tracing can help you](../solutions-with-traces/) elsewhere in the Tempo documentation.

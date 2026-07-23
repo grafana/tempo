@@ -30,7 +30,7 @@ For in-depth operational detail, refer to the [Tempo architecture reference](htt
 
 The Tempo architecture is built around a few goals that shape how it ingests, stores, and queries traces.
 
-- Cost-efficient storage: Tempo stores all trace data in object storage and doesn't require a separate database or index tier.
+- Cost-efficient storage: Tempo stores all trace data in object storage.
 - Independent scaling: In microservices mode, Tempo separates the write path from the read path, so you can scale ingestion and query capacity independently.
 - Durability without extra replication: In microservices mode, a Kafka-compatible queue acts as a write-ahead log (WAL). After Kafka acknowledges a write, the data is durable, so Tempo doesn't replicate data across instances on the write path and can operate with a replication factor of 1 (RF1), which reduces cost.
 - Efficient attribute queries: Tempo stores blocks in Apache Parquet, a columnar format, so a query reads only the columns it needs instead of scanning entire traces.
@@ -65,6 +65,7 @@ The following steps describe the write path in microservices mode. In monolithic
 
 4. **Live-stores** consume from Kafka and make data available for recent queries.
 5. **Block-builders** consume from Kafka and build blocks for long-term object storage.
+6. **Metrics-generators** (optional) consume from Kafka to derive metrics from traces.
 
 ### Lifecycle of a read
 
