@@ -1,6 +1,0 @@
-change_type: change
-component: tempo
-note: Stop publishing 32-bit ARM binary archives. Release artifacts continue to include amd64 and arm64 binaries.
-issues: [7106]
-subtext:
-user: javiermolinar

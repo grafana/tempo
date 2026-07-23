@@ -1,14 +1,14 @@
 <!-- next version -->
 
-# v2.9.3
+# v2.9.4
 
 ## 🔒 Security 🔒
 
+- `operations`: Update Go to 1.26.5 and bump vendored golang.org/x/net and golang.org/x/text to fix CVE-2026-39822, CVE-2026-42504, CVE-2026-27145, CVE-2026-42505, CVE-2026-42507, CVE-2026-46600, and CVE-2026-56852 ([#7641](https://github.com/grafana/tempo/issues/7641)) (@mattdurham)
 - `deps`: Update github.com/apache/thrift to v0.23.0 to pick up upstream security fixes. ([#7119](https://github.com/grafana/tempo/issues/7119)) (@renovate)
 - `deps`: Update golang.org/x/crypto to v0.52.0 to pick up upstream security fixes. ([#7258](https://github.com/grafana/tempo/issues/7258), [#7343](https://github.com/grafana/tempo/issues/7343)) (@renovate)
 - `deps`: Update golang.org/x/net to v0.55.0 to pick up upstream security fixes. ([#7128](https://github.com/grafana/tempo/issues/7128), [#7259](https://github.com/grafana/tempo/issues/7259), [#7371](https://github.com/grafana/tempo/issues/7371)) (@renovate)
 - `deps`: Update golang.org/x/sys to v0.44.0 to pick up upstream security fixes. ([#7260](https://github.com/grafana/tempo/issues/7260)) (@renovate)
-- `deps`: Build Tempo with Go 1.26.3, which includes upstream security and bug fixes. ([#7421](https://github.com/grafana/tempo/issues/7421)) (@ie-pham)
 
 ## 🛑 Breaking changes 🛑
 
@@ -20,6 +20,7 @@
 
 ## 🔧 Changes 🔧
 
+- `tempo`: Stop publishing 32-bit ARM binary archives. Release artifacts continue to include amd64 and arm64 binaries. ([#7106](https://github.com/grafana/tempo/issues/7106)) (@javiermolinar)
 - `deps`: Updated Prometheus to v0.311.3 and the OpenTelemetry Collector dependencies to v1.52, along with related transitive dependencies (dskit and others). ([#7338](https://github.com/grafana/tempo/issues/7338)) (@zhxiaogg)
 - `tempo`: Remove busybox from Tempo image to make it more minimal and prevent future vulnerabilities. ([#5717](https://github.com/grafana/tempo/issues/5717)) (@carles-grafana)
 
