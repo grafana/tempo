@@ -86,6 +86,20 @@ make test-e2e-clean
 
 ---
 
+## PR Description
+
+When opening a PR,
+read [`.github/pull_request_template.md`](../../.github/pull_request_template.md)
+and use it as the structure for the PR body,
+filling in each section and checklist item.
+
+Note for non-interactive tooling:
+passing an explicit body to `gh pr create` (`--body` / `--body-file`)
+bypasses GitHub's template auto-fill,
+so the template must be applied manually.
+
+---
+
 ## Pushing to a PR Under Review
 
 Once a PR has received a review,
