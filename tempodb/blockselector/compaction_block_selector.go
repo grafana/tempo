@@ -49,6 +49,17 @@ type timeWindowBlockEntry struct {
 var _ (CompactionBlockSelector) = (*timeWindowBlockSelector)(nil)
 
 func NewTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRange time.Duration, maxCompactionObjects int, maxBlockBytes uint64, minInputBlocks, maxInputBlocks, maxCompactionLevel int) CompactionBlockSelector {
+	return newTimeWindowBlockSelector(blocklist, maxCompactionRange, maxCompactionObjects, maxBlockBytes, minInputBlocks, maxInputBlocks, maxCompactionLevel, time.Now())
+}
+
+// newTimeWindowBlockSelector takes "now" as an explicit parameter (rather than calling time.Now()
+// itself) so tests can pass a fixed value. Blocks are windowed relative to now, so if a caller
+// computed its own "now" for building expectations and this function computed a second,
+// independent time.Now(), the two could land in different windows whenever real time ticks over
+// a window boundary between the two calls — flaky by construction, especially with the small
+// window sizes tests use. NewTimeWindowBlockSelector's production callers are unaffected: they
+// only ever call it once and don't compare against a separately-captured "now".
+func newTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRange time.Duration, maxCompactionObjects int, maxBlockBytes uint64, minInputBlocks, maxInputBlocks, maxCompactionLevel int, now time.Time) CompactionBlockSelector {
 	twbs := &timeWindowBlockSelector{
 		MinInputBlocks:       minInputBlocks,
 		MaxInputBlocks:       maxInputBlocks,
@@ -58,7 +69,6 @@ func NewTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRan
 		MaxCompactionLevel:   uint32(maxCompactionLevel),
 	}
 
-	now := time.Now()
 	currWindow := twbs.windowForTime(now)
 	activeWindow := twbs.windowForTime(now.Add(-activeWindowDuration))
 

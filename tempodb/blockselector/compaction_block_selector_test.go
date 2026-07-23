@@ -915,7 +915,11 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 				maxLevel = tt.maxCompactionLevel
 			}
 
-			selector := NewTimeWindowBlockSelector(tt.blocklist, time.Second, 100, maxSize, minBlocks, maxBlocks, maxLevel)
+			// Use the same "now" the test fixtures above were built from (rather than
+			// NewTimeWindowBlockSelector's own time.Now()) so windowing is deterministic: with
+			// a 1-second window, two independent time.Now() calls can straddle a window
+			// boundary and flake, particularly for the "last active window" cutoff case.
+			selector := newTimeWindowBlockSelector(tt.blocklist, time.Second, 100, maxSize, minBlocks, maxBlocks, maxLevel, now)
 
 			actual, hash := selector.BlocksToCompact()
 			assert.Equal(t, tt.expected, actual)
