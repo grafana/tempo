@@ -78,10 +78,11 @@ type TraceByIDConfig struct {
 
 	// EXPERIMENTAL: span pruning is not yet a stable feature; config and behavior may change.
 	SpanPruningEnabled bool `yaml:"span_pruning_enabled,omitempty"`
-	// SpanPruningAlwaysEnabled forces span pruning on for every trace-by-id v2 request,
-	// regardless of the request's own span_pruning* params. Implies SpanPruningEnabled.
+	// SpanPruningEnabledByDefault makes span pruning default to enabled for trace-by-id v2
+	// requests that don't set their own span_pruning param. An explicit span_pruning value in
+	// the request, true or false, always takes precedence over this default.
 	// EXPERIMENTAL: span pruning is not yet a stable feature; config and behavior may change.
-	SpanPruningAlwaysEnabled bool `yaml:"span_pruning_always_enabled,omitempty"`
+	SpanPruningEnabledByDefault bool `yaml:"span_pruning_enabled_by_default,omitempty"`
 }
 
 type MetricsConfig struct {

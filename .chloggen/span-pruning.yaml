@@ -1,6 +1,6 @@
 change_type: feature
 component: query-frontend
-note: Added experimental span pruning support to the trace-by-id v2 endpoint, including a `span_pruning_always_enabled` option to force it on for every request and detection of traces already pruned on the write path (to avoid re-pruning them).
+note: Added span pruning support to the trace-by-id v2 endpoint.
 issues: []
 subtext:
 user: ie-pham

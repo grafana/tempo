@@ -126,12 +126,13 @@ func TestSpanPruning(t *testing.T) {
 	})
 }
 
-// TestSpanPruningAlwaysEnabled verifies that query_frontend.trace_by_id.span_pruning_always_enabled
-// forces pruning on for every request even without the span_pruning request param, while still
-// honoring the request's own span_pruning* params when it supplies them.
-func TestSpanPruningAlwaysEnabled(t *testing.T) {
+// TestSpanPruningEnabledByDefault verifies that
+// query_frontend.trace_by_id.span_pruning_enabled_by_default makes pruning the default for
+// requests that don't set their own span_pruning param, while an explicit span_pruning value in
+// the request (true or false) still takes precedence.
+func TestSpanPruningEnabledByDefault(t *testing.T) {
 	util.RunIntegrationTests(t, util.TestHarnessConfig{
-		ConfigOverlay: "config-span-pruning-always-enabled.yaml",
+		ConfigOverlay: "config-span-pruning-enabled-by-default.yaml",
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
 
@@ -142,7 +143,7 @@ func TestSpanPruningAlwaysEnabled(t *testing.T) {
 		client := h.APIClientHTTP("")
 		basicHexID := hex.EncodeToString(basicTraceID)
 
-		t.Run("without span_pruning param the trace is pruned anyway", func(t *testing.T) {
+		t.Run("without span_pruning param the trace is pruned by default", func(t *testing.T) {
 			resp, err := client.QueryTraceV2(basicHexID)
 			require.NoError(t, err)
 			require.Len(t, test.AllSpansInTrace(resp.Trace), 2) // root + 1 summary
@@ -152,9 +153,15 @@ func TestSpanPruningAlwaysEnabled(t *testing.T) {
 			require.Equal(t, int64(6), test.SpanAttrInt(summaries[0], "aggregation.span_count"))
 		})
 
-		t.Run("request-supplied span_pruning_min_spans is still honored", func(t *testing.T) {
+		t.Run("explicit span_pruning=false is respected", func(t *testing.T) {
+			resp, err := client.QueryTraceV2WithQueryParams(basicHexID, map[string]string{"span_pruning": "false"})
+			require.NoError(t, err)
+			require.Len(t, test.AllSpansInTrace(resp.Trace), 7) // param respected, trace unpruned
+			require.Empty(t, test.SpanPruningSummaries(resp.Trace))
+		})
+
+		t.Run("request-supplied span_pruning_min_spans is honored without span_pruning=true", func(t *testing.T) {
 			resp, err := client.QueryTraceV2WithQueryParams(basicHexID, map[string]string{
-				"span_pruning":           "true",
 				"span_pruning_min_spans": "10",
 			})
 			require.NoError(t, err)

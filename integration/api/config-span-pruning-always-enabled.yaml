@@ -1,3 +1,0 @@
-query_frontend:
-  trace_by_id:
-    span_pruning_always_enabled: true

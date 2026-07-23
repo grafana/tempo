@@ -958,23 +958,18 @@ func DefaultSpanPruningConfig() *spanpruningprocessor.Config {
 // ParseSpanPruningRequest parses span_pruning* query parameters into a *spanpruningprocessor.Config
 // and reports whether span pruning should be applied to the response.
 //
-// If alwaysEnabled is true, span pruning is applied regardless of the request's own span_pruning
-// param, even if that param is absent or set to false. Any span_pruning_* overrides the request
-// does supply are still parsed and applied on top of the processor's default config.
-func ParseSpanPruningRequest(r *http.Request, alwaysEnabled bool) (bool, *spanpruningprocessor.Config, error) {
+// If enabledByDefault is true, span pruning is enabled when the request's own span_pruning param
+// is absent. An explicit span_pruning value in the request, true or false, always takes precedence.
+func ParseSpanPruningRequest(r *http.Request, enabledByDefault bool) (bool, *spanpruningprocessor.Config, error) {
 	raw := r.URL.Query().Get(urlParamSpanPruning)
 
-	spanPruningEnabled := false
+	spanPruningEnabled := enabledByDefault
 	if raw != "" {
 		var err error
 		spanPruningEnabled, err = strconv.ParseBool(raw)
 		if err != nil {
 			return false, nil, fmt.Errorf("invalid %s value %q: must be a boolean", urlParamSpanPruning, raw)
 		}
-	}
-
-	if alwaysEnabled {
-		spanPruningEnabled = true
 	}
 
 	if !spanPruningEnabled {
