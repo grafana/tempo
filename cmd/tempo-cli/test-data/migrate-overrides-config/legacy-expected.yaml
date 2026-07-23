@@ -20,6 +20,7 @@ overrides:
       max_traces_per_user: 50000
       rate_limit_bytes: 5000000
       rate_strategy: global
+      retry_info_enabled: false
       tenant_shard_size: 3
     metrics_generator:
       collection_interval: 30s
