@@ -12,7 +12,7 @@ services:
       - ./tempo-data:/var/tempo
 
   distributor:
-    image: &tempoImage grafana/tempo:2.9.3
+    image: &tempoImage grafana/tempo:2.9.4
     depends_on:
       - kafka
     command: "-target=distributor -config.file=/etc/tempo.yaml"
