@@ -1,6 +1,7 @@
 package ingest
 
 import (
+	"flag"
 	"testing"
 
 	"github.com/go-kit/log"
@@ -8,6 +9,22 @@ import (
 	"github.com/twmb/franz-go/pkg/kfake"
 	"github.com/twmb/franz-go/pkg/kmsg"
 )
+
+func TestKafkaConfig_ClientRackFlag(t *testing.T) {
+	var cfg KafkaConfig
+	f := flag.NewFlagSet("test", flag.PanicOnError)
+	cfg.RegisterFlags(f)
+
+	// Defaults to empty so rack-aware fetching is opt-in.
+	require.Empty(t, cfg.ClientRack)
+
+	fl := f.Lookup("kafka.client-rack")
+	require.NotNil(t, fl, "kafka.client-rack flag should be registered")
+	require.Equal(t, "", fl.DefValue)
+
+	require.NoError(t, f.Parse([]string{"-kafka.client-rack=us-east-1a"}))
+	require.Equal(t, "us-east-1a", cfg.ClientRack)
+}
 
 func TestSetDefaultNumberOfPartitionsForAutocreatedTopics(t *testing.T) {
 	cluster, err := kfake.NewCluster(kfake.NumBrokers(1))
