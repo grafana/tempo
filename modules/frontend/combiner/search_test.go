@@ -955,9 +955,10 @@ func TestSearchRootSpanRepair(t *testing.T) {
 
 		var repaired, unrepaired int
 		for _, tr := range resp.Traces {
-			if tr.RootServiceName == "svc" {
+			switch tr.RootServiceName {
+			case "svc":
 				repaired++
-			} else if tr.RootServiceName == search.RootSpanNotYetReceivedText {
+			case search.RootSpanNotYetReceivedText:
 				unrepaired++
 			}
 		}
