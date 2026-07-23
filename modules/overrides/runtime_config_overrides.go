@@ -8,6 +8,7 @@ import (
 	"maps"
 	"net/http"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/drone/envsubst"
@@ -34,6 +35,13 @@ type perTenantOverrides struct {
 	TenantLimits map[string]*Overrides `yaml:"overrides"`
 
 	ConfigType ConfigType `yaml:"-"` // ConfigType is the type of overrides config we are using: legacy or new
+
+	// defaults, when set, seeds each tenant's Overrides before applying whatever fields are
+	// explicitly present in that tenant's YAML block, so fields the tenant doesn't mention
+	// inherit the global default value instead of the Go zero value. nil seeds with a zero
+	// Overrides{}, matching the previous behavior — used by UnmarshalPerTenantOverrides, which
+	// has no live default limits to merge against (it's a format-conversion helper for tempo-cli).
+	defaults *Overrides `yaml:"-"`
 }
 
 func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -46,6 +54,11 @@ func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) er
 	err := unmarshal((*rawConfig)(o))
 	if err == nil {
 		o.ConfigType = ConfigTypeNew
+		if o.defaults != nil {
+			if err := o.applyDefaults(unmarshal); err != nil {
+				return err
+			}
+		}
 		return nil
 	}
 	if isExtensionError(err) || !isLegacyExtensionKeyError(err) {
@@ -60,6 +73,108 @@ func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) er
 	*o = legacyConfig.toNewOverrides()
 	o.ConfigType = ConfigTypeLegacy
 	return nil
+}
+
+// applyDefaults fills in, for every tenant already decoded into o.TenantLimits, whichever
+// top-level sections that tenant's YAML block didn't explicitly mention, using o.defaults for
+// those. Without this, a tenant that overrides e.g. only "compaction" would otherwise have every
+// other section (ingestion, read, ...) reset to the Go zero value instead of inheriting the
+// configured global default — see https://github.com/grafana/tempo/issues/7238.
+//
+// Section presence is determined by re-decoding the same document (the unmarshal closure decodes
+// the same underlying YAML node each time it's called, same as the legacy-format fallback above)
+// into a raw key-only shape, since by the time a tenant's block is fully decoded into *Overrides
+// there's no way to distinguish "explicitly set to the zero value" from "not mentioned at all".
+func (o *perTenantOverrides) applyDefaults(unmarshal func(interface{}) error) error {
+	var raw struct {
+		TenantLimits map[string]map[string]interface{} `yaml:"overrides"`
+	}
+	if err := unmarshal(&raw); err != nil {
+		return err
+	}
+
+	for tenant, decoded := range o.TenantLimits {
+		if decoded == nil {
+			// an empty/null tenant block (e.g. "user1:" with nothing under it) is handled by
+			// forUser's nil check, which falls back to the full default limits already.
+			continue
+		}
+		o.TenantLimits[tenant] = mergeOverridesSections(decoded, o.defaults, raw.TenantLimits[tenant])
+	}
+	return nil
+}
+
+// overridesSectionKeys are the top-level YAML keys of the Overrides struct, used to verify
+// mergeOverridesSections stays in sync with the struct — see the assertion in its test.
+var overridesSectionKeys = sync.OnceValue(func() map[string]struct{} {
+	return fieldNamesFor(Overrides{}, "yaml")
+})
+
+// mergeOverridesSections returns a new *Overrides built section by section: for each top-level
+// section present in the tenant's raw block (present), it keeps decoded's value (what the tenant
+// explicitly set); for every other section, it takes defaults' value instead of decoded's Go zero
+// value. This intentionally merges at section (struct-field) granularity, not per leaf field —
+// overriding one field within e.g. "compaction" takes over the whole compaction section, matching
+// how per-tenant overrides files are conventionally written (a full sub-block per changed area).
+//
+// Sections are copied by value assignment, never by mutating defaults in place, so it's safe even
+// though multiple tenants and reloads share the same *o.defaults instance.
+func mergeOverridesSections(decoded, defaults *Overrides, present map[string]interface{}) *Overrides {
+	merged := &Overrides{}
+
+	if _, ok := present["ingestion"]; ok {
+		merged.Ingestion = decoded.Ingestion
+	} else {
+		merged.Ingestion = defaults.Ingestion
+	}
+	if _, ok := present["read"]; ok {
+		merged.Read = decoded.Read
+	} else {
+		merged.Read = defaults.Read
+	}
+	if _, ok := present["compaction"]; ok {
+		merged.Compaction = decoded.Compaction
+	} else {
+		merged.Compaction = defaults.Compaction
+	}
+	if _, ok := present["metrics_generator"]; ok {
+		merged.MetricsGenerator = decoded.MetricsGenerator
+	} else {
+		merged.MetricsGenerator = defaults.MetricsGenerator
+	}
+	if _, ok := present["forwarders"]; ok {
+		merged.Forwarders = decoded.Forwarders
+	} else {
+		merged.Forwarders = defaults.Forwarders
+	}
+	if _, ok := present["global"]; ok {
+		merged.Global = decoded.Global
+	} else {
+		merged.Global = defaults.Global
+	}
+	if _, ok := present["storage"]; ok {
+		merged.Storage = decoded.Storage
+	} else {
+		merged.Storage = defaults.Storage
+	}
+	if _, ok := present["cost_attribution"]; ok {
+		merged.CostAttribution = decoded.CostAttribution
+	} else {
+		merged.CostAttribution = defaults.CostAttribution
+	}
+
+	// Extensions are keyed catch-all entries (yaml:",inline"), not a single named section, so
+	// they're merged key by key: the tenant's own entries win, everything else comes from
+	// defaults. maps.Clone gives merged its own map so nothing writes back into defaults.Extensions.
+	merged.Extensions = maps.Clone(defaults.Extensions)
+	for k, v := range decoded.Extensions {
+		if merged.Extensions == nil {
+			merged.Extensions = make(map[string]any, len(decoded.Extensions))
+		}
+		merged.Extensions[k] = v
+	}
+
+	return merged
 }
 
 // UnmarshalPerTenantOverrides parses a per-tenant overrides file, handling both legacy
@@ -82,11 +197,11 @@ func (o *perTenantOverrides) forUser(userID string) *Overrides {
 }
 
 // loadPerTenantOverrides is of type runtimeconfig.Loader
-func loadPerTenantOverrides(validator Validator, typ ConfigType, expandEnv bool, enableLegacy bool) func(r io.Reader) (interface{}, error) {
+func loadPerTenantOverrides(defaults *Overrides, validator Validator, typ ConfigType, expandEnv bool, enableLegacy bool) func(r io.Reader) (interface{}, error) {
 	// var is outside closure to ensure it's not recreated on each call
 	var lastLegacyWarn time.Time
 	return func(r io.Reader) (interface{}, error) {
-		overrides := &perTenantOverrides{}
+		overrides := &perTenantOverrides{defaults: defaults}
 
 		if expandEnv {
 			rr := r.(*bytes.Reader)
@@ -176,7 +291,7 @@ func newRuntimeConfigOverrides(cfg Config, validator Validator, registerer prome
 		runtimeCfg := runtimeconfig.Config{
 			LoadPath:     []string{cfg.PerTenantOverrideConfig},
 			ReloadPeriod: time.Duration(cfg.PerTenantOverridePeriod),
-			Loader:       loadPerTenantOverrides(validator, cfg.ConfigType, cfg.ExpandEnv, cfg.EnableLegacyOverrides),
+			Loader:       loadPerTenantOverrides(&cfg.Defaults, validator, cfg.ConfigType, cfg.ExpandEnv, cfg.EnableLegacyOverrides),
 		}
 		runtimeCfgMgr, err := runtimeconfig.New(runtimeCfg, "overrides", prometheus.WrapRegistererWithPrefix("tempo_", registerer), log.Logger)
 		if err != nil {

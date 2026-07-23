@@ -2708,7 +2708,10 @@ overrides:
       [max_bytes_per_trace: <int>]
 ```
 
-When a tenant matches a per-tenant override entry, Tempo doesn't merge that entry field-by-field with `defaults`. Most fields require you to set every value a tenant needs within its own block (some settings, such as `ingestion.rate_strategy`, always use `defaults`). A few metrics-generator fields fall back to `defaults` when unset, but most, including `processors` and `remote_write_headers`, don't.
+When a tenant matches a per-tenant override entry, Tempo merges it with `defaults` one top-level section at a time (`ingestion`, `read`, `compaction`, `metrics_generator`, `global`, `storage`, `cost_attribution`, and `forwarders`). A section the tenant's block doesn't mention at all inherits entirely from `defaults`. 
+For example, overriding only `compaction.block_retention` for a tenant doesn't affect that tenant's `ingestion` limits, which continue to come from `defaults`.
+
+Within a section the tenant's block *does* mention, however, you still need to set every field that section needs: fields left out of an explicitly-set section reset to their zero value rather than falling back to `defaults` (some settings, such as `ingestion.rate_strategy`, always use `defaults` regardless). A few `metrics_generator` fields are further exceptions and always fall back to `defaults` when zero: `native_histogram_bucket_factor`, `native_histogram_max_bucket_number`, `native_histogram_min_reset_duration`, and `span_name_sanitization`.
 
 For a complete per-tenant `metrics_generator` example, including `remote_write_headers` for per-tenant authentication and environment variable expansion, refer to [Multi-tenancy support](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/multitenancy/).
 

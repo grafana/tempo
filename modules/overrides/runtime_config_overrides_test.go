@@ -27,7 +27,7 @@ import (
 func TestRuntimeConfigOverrides_loadPerTenantOverrides(t *testing.T) {
 	validator := &mockValidator{}
 
-	loader := loadPerTenantOverrides(validator, ConfigTypeNew, false, false)
+	loader := loadPerTenantOverrides(nil, validator, ConfigTypeNew, false, false)
 
 	perTenantOverrides := perTenantOverrides{
 		TenantLimits: map[string]*Overrides{
@@ -685,10 +685,15 @@ func TestNativeHistogramOverrides(t *testing.T) {
 }
 
 func TestMetricsGeneratorMaxCardinalityPerLabel(t *testing.T) {
+	// Fixtures use raw YAML text rather than a *perTenantOverrides Go value marshaled through
+	// toYamlBytes: MaxCardinalityPerLabel (and its enclosing MetricsGenerator section) both carry
+	// `omitempty`, so marshaling a struct that explicitly sets it to 0 would silently drop the
+	// field/section — indistinguishable from not setting it at all. Raw text preserves the
+	// explicit "0" in the input Tempo actually parses.
 	tests := []struct {
 		name               string
 		defaultLimits      Overrides
-		perTenantOverrides *perTenantOverrides
+		perTenantOverrides string
 		expected           map[string]uint64
 	}{
 		{
@@ -703,15 +708,12 @@ func TestMetricsGeneratorMaxCardinalityPerLabel(t *testing.T) {
 		{
 			name:          "default disabled, tenant enables",
 			defaultLimits: Overrides{},
-			perTenantOverrides: &perTenantOverrides{
-				TenantLimits: map[string]*Overrides{
-					"user1": {
-						MetricsGenerator: MetricsGeneratorOverrides{
-							MaxCardinalityPerLabel: 50,
-						},
-					},
-				},
-			},
+			perTenantOverrides: `
+overrides:
+  user1:
+    metrics_generator:
+      max_cardinality_per_label: 50
+`,
 			expected: map[string]uint64{"user1": 50, "user2": 0},
 		},
 		{
@@ -721,15 +723,12 @@ func TestMetricsGeneratorMaxCardinalityPerLabel(t *testing.T) {
 					MaxCardinalityPerLabel: 100,
 				},
 			},
-			perTenantOverrides: &perTenantOverrides{
-				TenantLimits: map[string]*Overrides{
-					"user1": {
-						MetricsGenerator: MetricsGeneratorOverrides{
-							MaxCardinalityPerLabel: 0,
-						},
-					},
-				},
-			},
+			perTenantOverrides: `
+overrides:
+  user1:
+    metrics_generator:
+      max_cardinality_per_label: 0
+`,
 			expected: map[string]uint64{"user1": 0, "user2": 100},
 		},
 		{
@@ -739,22 +738,23 @@ func TestMetricsGeneratorMaxCardinalityPerLabel(t *testing.T) {
 					MaxCardinalityPerLabel: 100,
 				},
 			},
-			perTenantOverrides: &perTenantOverrides{
-				TenantLimits: map[string]*Overrides{
-					"user1": {
-						MetricsGenerator: MetricsGeneratorOverrides{
-							MaxCardinalityPerLabel: 500,
-						},
-					},
-				},
-			},
+			perTenantOverrides: `
+overrides:
+  user1:
+    metrics_generator:
+      max_cardinality_per_label: 500
+`,
 			expected: map[string]uint64{"user1": 500, "user2": 100},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			overrides, cleanup := createAndInitializeRuntimeOverridesManager(t, tt.defaultLimits, toYamlBytes(t, tt.perTenantOverrides))
+			var perTenantBytes []byte
+			if tt.perTenantOverrides != "" {
+				perTenantBytes = []byte(tt.perTenantOverrides)
+			}
+			overrides, cleanup := createAndInitializeRuntimeOverridesManager(t, tt.defaultLimits, perTenantBytes)
 			defer cleanup()
 
 			for user, expected := range tt.expected {
@@ -762,6 +762,64 @@ func TestMetricsGeneratorMaxCardinalityPerLabel(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestPerTenantOverridesInheritUnsetSections reproduces
+// https://github.com/grafana/tempo/issues/7238: a tenant overriding one section (compaction)
+// must still inherit every other section (ingestion, global, ...) from the configured global
+// defaults, instead of those sections silently resetting to the Go zero value.
+func TestPerTenantOverridesInheritUnsetSections(t *testing.T) {
+	defaultLimits := Overrides{
+		Global: GlobalOverrides{
+			MaxBytesPerTrace: 20_000_000,
+		},
+		Ingestion: IngestionOverrides{
+			RateStrategy:   GlobalIngestionRateStrategy,
+			BurstSizeBytes: 70_000_000,
+			RateLimitBytes: 60_000_000,
+		},
+	}
+
+	perTenant := `
+overrides:
+  productteam-xxx-team1:
+    compaction:
+      block_retention: 48h
+`
+
+	overrides, cleanup := createAndInitializeRuntimeOverridesManager(t, defaultLimits, []byte(perTenant))
+	defer cleanup()
+
+	const tenant = "productteam-xxx-team1"
+
+	// explicitly overridden
+	require.Equal(t, 48*time.Hour, overrides.BlockRetention(tenant))
+
+	// everything else must still come from the global defaults, not reset to zero
+	require.Equal(t, 70_000_000, overrides.IngestionBurstSizeBytes(tenant))
+	require.Equal(t, float64(60_000_000), overrides.IngestionRateLimitBytes(tenant))
+	require.Equal(t, 20_000_000, overrides.MaxBytesPerTrace(tenant))
+}
+
+// TestOverridesSectionKeysKnown guards mergeOverridesSections against silently ignoring a
+// newly-added top-level field on Overrides: if a new yaml-tagged field is added to Overrides
+// without also adding a case for it in mergeOverridesSections, that field would always take the
+// default value for every tenant regardless of what the tenant's override file says. This test
+// fails the moment overridesSectionKeys() (derived by reflection from Overrides' yaml tags) drifts
+// from this hardcoded list, which mergeOverridesSections' if-chain must be kept in sync with.
+func TestOverridesSectionKeysKnown(t *testing.T) {
+	knownSections := map[string]struct{}{
+		"ingestion":         {},
+		"read":              {},
+		"compaction":        {},
+		"metrics_generator": {},
+		"forwarders":        {},
+		"global":            {},
+		"storage":           {},
+		"cost_attribution":  {},
+	}
+
+	require.Equal(t, knownSections, overridesSectionKeys())
 }
 
 func createAndInitializeRuntimeOverridesManager(t *testing.T, defaultLimits Overrides, perTenantOverrides []byte) (Service, func()) {
