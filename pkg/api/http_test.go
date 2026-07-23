@@ -558,6 +558,35 @@ func TestParseTraceDiffRequest(t *testing.T) {
 			},
 		},
 		{
+			name: "explicit composed format",
+			body: `{"base":{"traceId":"abc123"},"compare":{"traceId":"def456"},"format":"trace-summary-v0-composed"}`,
+			assertReq: func(t *testing.T, req *TraceDiffRequest) {
+				t.Helper()
+				assert.Equal(t, tracediff.VersionTraceSummaryV0Composed, req.Format)
+			},
+		},
+		{
+			name: "explicit patch format",
+			body: `{"base":{"traceId":"abc123"},"compare":{"traceId":"def456"},"format":"trace-patch-v0"}`,
+			assertReq: func(t *testing.T, req *TraceDiffRequest) {
+				t.Helper()
+				assert.Equal(t, tracediff.VersionTracePatchV0, req.Format)
+			},
+		},
+		{
+			name: "explicit native summary format",
+			body: `{"base":{"traceId":"abc123"},"compare":{"traceId":"def456"},"format":"trace-summary-v0-native"}`,
+			assertReq: func(t *testing.T, req *TraceDiffRequest) {
+				t.Helper()
+				assert.Equal(t, tracediff.VersionTraceSummaryV0Native, req.Format)
+			},
+		},
+		{
+			name:        "unknown format",
+			body:        `{"base":{"traceId":"abc123"},"compare":{"traceId":"def456"},"format":"trace-summary-v1"}`,
+			expectedErr: `invalid format "trace-summary-v1": must be one of "trace-summary-v0-composed", "trace-patch-v0", "trace-summary-v0-native"`,
+		},
+		{
 			name:        "empty body",
 			body:        "",
 			expectedErr: "invalid trace diff request body",
