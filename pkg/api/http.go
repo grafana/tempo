@@ -951,22 +951,33 @@ func ReadBodyToBuffer(resp *http.Response) (*bytes.Buffer, error) {
 	return buffer, nil
 }
 
-func ParseSpanPruningRequest(r *http.Request) (bool, *spanpruningprocessor.Config, error) {
-	raw := r.URL.Query().Get(urlParamSpanPruning)
-	if raw == "" {
-		return false, nil, nil
-	}
+// DefaultSpanPruningConfig returns the span pruning processor's default configuration.
+func DefaultSpanPruningConfig() *spanpruningprocessor.Config {
+	return spanpruningprocessor.NewFactory().CreateDefaultConfig().(*spanpruningprocessor.Config)
+}
 
-	spanPruningEnabled, err := strconv.ParseBool(raw)
-	if err != nil {
-		return false, nil, fmt.Errorf("invalid %s value %q: must be a boolean", urlParamSpanPruning, raw)
+// ParseSpanPruningRequest parses span_pruning* query parameters into a *spanpruningprocessor.Config
+// and reports whether span pruning should be applied to the response.
+//
+// If enabledByDefault is true, span pruning is enabled when the request's own span_pruning param
+// is absent. An explicit span_pruning value in the request, true or false, always takes precedence.
+func ParseSpanPruningRequest(r *http.Request, enabledByDefault bool) (bool, *spanpruningprocessor.Config, error) {
+	raw := r.URL.Query().Get(urlParamSpanPruning)
+
+	spanPruningEnabled := enabledByDefault
+	if raw != "" {
+		var err error
+		spanPruningEnabled, err = strconv.ParseBool(raw)
+		if err != nil {
+			return false, nil, fmt.Errorf("invalid %s value %q: must be a boolean", urlParamSpanPruning, raw)
+		}
 	}
 
 	if !spanPruningEnabled {
 		return false, nil, nil
 	}
 
-	cfg := spanpruningprocessor.NewFactory().CreateDefaultConfig().(*spanpruningprocessor.Config)
+	cfg := DefaultSpanPruningConfig()
 
 	if v := r.URL.Query().Get(urlParamSpanPruningGroupBy); v != "" {
 		var patterns []string

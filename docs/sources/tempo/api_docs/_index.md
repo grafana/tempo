@@ -184,16 +184,21 @@ Parameters:
   Optional. Along with `end` define a time range from which traces should be returned.
 - `end = (unix epoch seconds)`
   Optional. Along with `start` define a time range from which traces should be returned. Providing both `start` and `end` includes traces for the specified time range only. If the parameters aren't provided then Tempo checks for the trace across all blocks in backend. If the parameters are provided, it only checks in the blocks within the specified time range, this can result in trace not being found or partial results if it doesn't fall in the specified time range.
+
+{{< admonition type="warning" >}}
+Span pruning is experimental. The `span_pruning*` parameters, their behavior, and the response format may change in future releases.
+{{< /admonition >}}
+
 - `span_pruning = (boolean)`
-  Optional. Enables span pruning post-processing on the returned trace, collapsing similar leaf spans into a single summary span. Only takes effect when the query-frontend also has `span_pruning_enabled: true` set under `trace_by_id`; otherwise this parameter is ignored. Pruning is applied even if the returned trace is partial (for example, because it exceeds the maximum trace size); the resulting summary spans reflect only the spans present in the partial trace.
+  Optional. Enables span pruning post-processing on the returned trace, collapsing similar leaf spans into a single summary span. Only takes effect when the query-frontend also has `span_pruning_enabled: true` set under `trace_by_id`; otherwise this parameter is ignored. If the query-frontend also has `span_pruning_enabled_by_default: true` set, pruning defaults to enabled when this parameter is omitted, but an explicit `span_pruning` value in the request (true or false) always takes precedence. Pruning is applied even if the returned trace is partial (for example, because it exceeds the maximum trace size); the resulting summary spans reflect only the spans present in the partial trace.
   Default = `false`
 - `span_pruning_group_by = (comma-separated list of attribute glob patterns)`
-  Optional. Overrides the attribute patterns used to decide which leaf spans belong in the same aggregation group, for example `db.*,http.method`. Spans must share the span name and have identical values for every matched attribute to be grouped. Only used when `span_pruning=true`.
+  Optional. Overrides the attribute patterns used to decide which leaf spans belong in the same aggregation group, for example `db.*,http.method`. Spans must share the span name and have identical values for every matched attribute to be grouped. Only used when pruning is enabled for the request, either via `span_pruning=true` or `span_pruning_enabled_by_default`.
 - `span_pruning_min_spans = (integer)`
-  Optional. Overrides the minimum number of similar spans required in a group before they're aggregated into a single summary span. Groups smaller than this threshold are left unpruned. Only used when `span_pruning=true`.
+  Optional. Overrides the minimum number of similar spans required in a group before they're aggregated into a single summary span. Groups smaller than this threshold are left unpruned. Only used when pruning is enabled for the request, either via `span_pruning=true` or `span_pruning_enabled_by_default`.
   Default = `5`
 - `span_pruning_max_parent_depth = (integer)`
-  Optional. Overrides how many ancestor levels above the aggregated leaf spans can also be aggregated. Use `0` to aggregate only leaves, or `-1` for unlimited depth. Only used when `span_pruning=true`.
+  Optional. Overrides how many ancestor levels above the aggregated leaf spans can also be aggregated. Use `0` to aggregate only leaves, or `-1` for unlimited depth. Only used when pruning is enabled for the request, either via `span_pruning=true` or `span_pruning_enabled_by_default`.
   Default = `1`
 
 The following query API is also provided on the querier service for _debugging_ purposes.

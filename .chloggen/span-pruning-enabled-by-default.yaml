@@ -1,0 +1,6 @@
+change_type: feature
+component: query-frontend
+note: Added an experimental `span_pruning_enabled_by_default` option to enable span pruning by default for trace-by-id v2 requests that don't specify `span_pruning`, and detection of traces already pruned on the write path to avoid re-pruning them.
+issues: []
+subtext:
+user: ie-pham
