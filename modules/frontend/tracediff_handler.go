@@ -173,6 +173,7 @@ func fetchTraceForDiff(ctx context.Context, tenant string, traceReq api.TraceDif
 		return nil, fmt.Errorf("fetch trace %s: %w", traceReq.TraceID, err)
 	}
 
+	// diff works on full traces, so no spanset filter.
 	comb := combinerFn(o.MaxBytesPerTrace(tenant), api.MarshallingFormatProtobuf, traceRedactor, combiner.TraceByIDV2Options{})
 	for {
 		resp, done, err := resps.Next(ctx)

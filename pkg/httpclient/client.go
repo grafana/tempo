@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"path"
@@ -293,9 +294,15 @@ func (c *Client) QueryTraceV2(id string) (*tempopb.TraceByIDResponse, error) {
 // QueryTraceV2WithQueryParams calls the /api/v2/traces/{id} endpoint with additional query
 // parameters merged on top of any set via SetQueryParam, e.g. for span_pruning* params.
 func (c *Client) QueryTraceV2WithQueryParams(id string, queryParams map[string]string) (*tempopb.TraceByIDResponse, error) {
+	// merge client-wide params (SetQueryParam) with per-call ones, as the other endpoints do.
+	merged := make(map[string]string, len(c.queryParams)+len(queryParams))
+	maps.Copy(merged, c.queryParams)
+	maps.Copy(merged, queryParams)
+	if len(merged) == 0 {
+		return c.QueryTraceV2(id)
+	}
 	m := &tempopb.TraceByIDResponse{}
-	url := c.getURLWithQueryParams(QueryTraceV2Endpoint+"/"+id, mergeMaps(c.queryParams, queryParams))
-	resp, err := c.getFor(url, m)
+	resp, err := c.getFor(c.getURLWithQueryParams(QueryTraceV2Endpoint+"/"+id, merged), m)
 	if err != nil {
 		if resp != nil && resp.StatusCode == http.StatusNotFound {
 			return nil, util.ErrTraceNotFound
@@ -310,10 +317,10 @@ func (c *Client) QueryTraceWithRange(ctx context.Context, id string, start int64
 	if start > end {
 		return nil, errors.New("start time can not be greater than end time")
 	}
-	queryParams := mergeMaps(c.queryParams, map[string]string{
-		"start": strconv.FormatInt(start, 10),
-		"end":   strconv.FormatInt(end, 10),
-	})
+	queryParams := make(map[string]string, len(c.queryParams)+2)
+	maps.Copy(queryParams, c.queryParams)
+	queryParams["start"] = strconv.FormatInt(start, 10)
+	queryParams["end"] = strconv.FormatInt(end, 10)
 	url := c.getURLWithQueryParams(QueryTraceEndpoint+"/"+id, queryParams)
 	resp, err := c.getForWithContext(ctx, url, m)
 	if err != nil {
@@ -571,17 +578,4 @@ func (c *Client) getURLWithQueryParams(endpoint string, queryParams map[string]s
 	joinURL.RawQuery = q.Encode()
 
 	return fmt.Sprint(joinURL)
-}
-
-// merge combines two maps of the same key and value types into a new map.
-// Values from the second map overwrite duplicates.
-func mergeMaps[K comparable, V any](a, b map[K]V) map[K]V {
-	newMap := make(map[K]V, len(a)+len(b))
-	for k, v := range a {
-		newMap[k] = v
-	}
-	for k, v := range b {
-		newMap[k] = v
-	}
-	return newMap
 }

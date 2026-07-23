@@ -702,6 +702,54 @@ func TestParseTraceByIDRequest(t *testing.T) {
 	}
 }
 
+func TestParseTraceByIDFilterParams(t *testing.T) {
+	tests := []struct {
+		name              string
+		urlQuery          string
+		wantQuery         string
+		wantKeepHierarchy bool
+		wantErr           bool
+	}{
+		{name: "no params means no filter", urlQuery: ""},
+		{name: "query only defaults keep_hierarchy false", urlQuery: "q=" + url.QueryEscape("{ .a = 1 }"), wantQuery: "{ .a = 1 }"},
+		// a whitespace-only q is trimmed to empty, so it is treated as no filter and keep_hierarchy is ignored.
+		{name: "whitespace-only q is treated as empty", urlQuery: "q=" + url.QueryEscape("   ") + "&keep_hierarchy=true"},
+		// surrounding whitespace on a real query is trimmed, not passed to the parser.
+		{name: "surrounding whitespace on q is trimmed", urlQuery: "q=" + url.QueryEscape("  { .a = 1 }  "), wantQuery: "{ .a = 1 }"},
+		{
+			name:              "query and explicit keep_hierarchy true",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=true",
+			wantQuery:         "{ .a = 1 }",
+			wantKeepHierarchy: true,
+		},
+		{
+			name:      "explicit keep_hierarchy false overrides default",
+			urlQuery:  "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=false",
+			wantQuery: "{ .a = 1 }",
+		},
+		{
+			name:     "invalid keep_hierarchy with query",
+			urlQuery: "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=yes-please",
+			wantErr:  true,
+		},
+		{name: "invalid keep_hierarchy ignored without query", urlQuery: "keep_hierarchy=yes-please"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := httptest.NewRequest("GET", "/api/v2/traces/1234?"+tt.urlQuery, nil)
+			query, keepHierarchy, err := ParseTraceByIDFilterParams(r)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.wantQuery, query)
+			require.Equal(t, tt.wantKeepHierarchy, keepHierarchy)
+		})
+	}
+}
+
 func TestParseSpanPruningRequest(t *testing.T) {
 	defaultCfg := func() *spanpruningprocessor.Config {
 		return spanpruningprocessor.NewFactory().CreateDefaultConfig().(*spanpruningprocessor.Config)

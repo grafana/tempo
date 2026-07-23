@@ -8,6 +8,7 @@ import (
 	"github.com/go-kit/log/level" //nolint:all //deprecated
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
+	"github.com/grafana/tempo/modules/frontend/tracefilter"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -109,6 +110,27 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			return httpInvalidRequest(reqErr), nil
 		}
 
+		// bound q size before parsing, as the other TraceQL handlers do, to avoid a parse-time DoS.
+		if err := pipeline.ValidateTraceQLQueryParamsSize(req.URL.Query(), cfg.MaxQueryExpressionSizeBytes); err != nil {
+			return httpInvalidRequest(err), nil
+		}
+
+		// parse and compile filter params up front so a malformed filter can fail-fast as HTTP 4xx.
+		query, keepHierarchy, err := api.ParseTraceByIDFilterParams(req)
+		if err != nil {
+			return httpInvalidRequest(err), nil
+		}
+		filter, err := tracefilter.NewFilter(tracefilter.Options{Query: query, KeepHierarchy: keepHierarchy}, logger)
+		if err != nil {
+			return httpInvalidRequest(err), nil
+		}
+		// assign only when non-nil, else the interface holds a typed-nil and reads as non-nil.
+		var traceFilter combiner.TraceFilter
+		if filter != nil {
+			traceFilter = filter
+		}
+		// filter runs in finalize(), after combine and redaction.
+
 		// check marshalling format
 		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header)
 
@@ -146,6 +168,7 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 				opts.Logger = logger
 			}
 		}
+		opts.TraceFilter = traceFilter
 
 		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat, traceRedactor, opts)
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
@@ -173,6 +196,7 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			"request_throughput", float64(bytesProcessed)/elapsed.Seconds(),
 			"duration_seconds", elapsed.Seconds(),
 			"span_pruning_enabled", spanPruningEnabled,
+			"trace_filter_enabled", traceFilter != nil,
 			"err", err,
 		)
 
