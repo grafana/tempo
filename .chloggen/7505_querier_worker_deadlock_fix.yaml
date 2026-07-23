@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: querier
+note: Fix mutex deadlock and resource leak in querier worker when gRPC dial to query-frontend hangs during shutdown.
+issues: []
+subtext:
+user: shayannab
