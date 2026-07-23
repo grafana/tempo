@@ -19,8 +19,11 @@ builds:
     goarch:
       - amd64
       - arm64
+      - riscv64
     ignore:
       - goarch: arm64
+        goos: windows
+      - goarch: riscv64
         goos: windows
     flags:
       - -v
@@ -44,8 +47,11 @@ builds:
     goarch:
       - amd64
       - arm64
+      - riscv64
     ignore:
       - goarch: arm64
+        goos: windows
+      - goarch: riscv64
         goos: windows
     flags:
       - -v
@@ -69,8 +75,11 @@ builds:
     goarch:
       - amd64
       - arm64
+      - riscv64
     ignore:
       - goarch: arm64
+        goos: windows
+      - goarch: riscv64
         goos: windows
     flags:
       - -v
