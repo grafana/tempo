@@ -27,6 +27,9 @@ const rootSpanServiceNameKey = "service.name"
 // fetch can't hold up an otherwise-complete search response.
 const rootSpanRepairTimeout = 2 * time.Second
 
+// urlParamTraceID is the mux var / log key name used for a trace ID, matching api.urlParamTraceID.
+const urlParamTraceID = "traceID"
+
 // newRootSpanRepairFunc builds a combiner.RootSpanRepairFunc that resolves a trace's root
 // service/span name by fetching it by ID through the same trace pipeline used to serve
 // /api/v2/traces/{traceID}. That path combines every block containing the trace ID regardless
@@ -50,7 +53,7 @@ func newRootSpanRepairFunc(ctx context.Context, tenant string, headers http.Head
 
 		resps, err := tracePipeline.RoundTrip(pipeline.NewHTTPRequest(req))
 		if err != nil {
-			level.Warn(logger).Log("msg", "search: root span repair failed to fetch trace", "traceID", traceID, "err", err)
+			level.Warn(logger).Log("msg", "search: root span repair failed to fetch trace", urlParamTraceID, traceID, "err", err)
 			return "", "", false
 		}
 
@@ -58,12 +61,12 @@ func newRootSpanRepairFunc(ctx context.Context, tenant string, headers http.Head
 		for {
 			resp, done, err := resps.Next(repairCtx)
 			if err != nil {
-				level.Warn(logger).Log("msg", "search: root span repair failed to read trace response", "traceID", traceID, "err", err)
+				level.Warn(logger).Log("msg", "search: root span repair failed to read trace response", urlParamTraceID, traceID, "err", err)
 				return "", "", false
 			}
 			if resp != nil {
 				if err := comb.AddResponse(resp); err != nil {
-					level.Warn(logger).Log("msg", "search: root span repair failed to combine trace response", "traceID", traceID, "err", err)
+					level.Warn(logger).Log("msg", "search: root span repair failed to combine trace response", urlParamTraceID, traceID, "err", err)
 					return "", "", false
 				}
 			}
@@ -99,7 +102,7 @@ func buildRootSpanRepairRequest(ctx context.Context, apiPrefix string, traceID s
 	}).WithContext(ctx)
 	req.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)
 
-	return mux.SetURLVars(req, map[string]string{"traceID": traceID})
+	return mux.SetURLVars(req, map[string]string{urlParamTraceID: traceID})
 }
 
 // rootSpanFromTrace finds the span with no parent and the earliest start time, mirroring how
