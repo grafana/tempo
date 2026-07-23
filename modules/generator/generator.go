@@ -124,6 +124,9 @@ func (g *Generator) starting(ctx context.Context) error {
 			kgo.OnPartitionsRevoked(func(_ context.Context, _ *kgo.Client, m map[string][]int32) {
 				g.handlePartitionsRevoked(m)
 			}),
+			kgo.OnPartitionsLost(func(_ context.Context, _ *kgo.Client, m map[string][]int32) {
+				g.handlePartitionsLost(m)
+			}),
 		}
 		// When enabled, seek past stale backlog on startup instead of replaying
 		// from the committed offset (see adjustStartupOffsets).
