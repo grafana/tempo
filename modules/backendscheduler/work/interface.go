@@ -30,6 +30,11 @@ type Interface interface {
 	// visible to other components. Cleared automatically by AddJob when promoted to active.
 	RegisterJob(job *Job)
 
+	// TryRegisterJob registers job (like RegisterJob) only if no redaction batch is
+	// active for its tenant, atomically with respect to ClaimRedactionBatch. Returns
+	// false without registering when a batch is active.
+	TryRegisterJob(job *Job) bool
+
 	// HasJobsForTenant returns true if there are any jobs of the given type in any
 	// state (pending queue, in-flight channel, or active map) for the tenant.
 	HasJobsForTenant(tenantID string, jobType tempopb.JobType) bool
@@ -52,6 +57,13 @@ type Interface interface {
 
 	// Batch management -- shared trace ID list for redaction jobs to avoid per-job copies.
 	AddBatch(batch *tempopb.RedactionBatch) error
+
+	// ClaimRedactionBatch atomically installs batch for its tenant and classifies the
+	// candidate block IDs against the tenant's busy blocks under one critical section,
+	// so no provider can register a block for the tenant between the snapshot and the
+	// barrier becoming active. Returns the block IDs free to redact and the busy
+	// compaction job IDs to rescan; ok=false (nothing installed) if a batch exists.
+	ClaimRedactionBatch(batch *tempopb.RedactionBatch, candidateBlockIDs []string, rescanAfter int64) (free []string, skipped []string, ok bool)
 	GetBatch(tenantID string) *tempopb.RedactionBatch
 	RemoveBatch(tenantID string)
 	ListBatches() []*tempopb.RedactionBatch
