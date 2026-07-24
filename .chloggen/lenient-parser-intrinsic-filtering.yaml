@@ -1,0 +1,21 @@
+# Changelog entry. Generate a copy with `make chlog-new`, then fill in the fields.
+
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: bug_fix
+
+# Component or area of the change. Must be one of the components in .chloggen/config.yaml,
+# e.g. distributor, querier, query-frontend, storage, operations.
+component: traceql
+
+# A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
+note: Fix tag-value autocomplete ignoring query filters when the incomplete matcher targets an intrinsic (e.g. `{ resource.service.name = "foo" && name = }`)
+
+# (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
+# .chloggen/README.md.
+issues: []
+
+# (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
+subtext:
+
+# The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
+user: mapno
