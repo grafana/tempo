@@ -684,6 +684,66 @@ func TestNativeHistogramOverrides(t *testing.T) {
 	}
 }
 
+func TestIngestionRetryInfoEnabled(t *testing.T) {
+	tests := []struct {
+		name               string
+		defaultLimits      Overrides
+		perTenantOverrides *perTenantOverrides
+		expected           bool
+	}{
+		{
+			name: "no tenant override: cluster default wins",
+			defaultLimits: Overrides{
+				Ingestion: IngestionOverrides{RetryInfoEnabled: new(true)},
+			},
+			expected: true,
+		},
+		{
+			name: "tenant override explicitly disables it",
+			defaultLimits: Overrides{
+				Ingestion: IngestionOverrides{RetryInfoEnabled: new(true)},
+			},
+			perTenantOverrides: &perTenantOverrides{
+				TenantLimits: map[string]*Overrides{
+					"user1": {Ingestion: IngestionOverrides{RetryInfoEnabled: new(false)}},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "tenant override exists but doesn't mention retry info: falls back to cluster default",
+			defaultLimits: Overrides{
+				Ingestion: IngestionOverrides{RetryInfoEnabled: new(true)},
+			},
+			perTenantOverrides: &perTenantOverrides{
+				TenantLimits: map[string]*Overrides{
+					"user1": {Ingestion: IngestionOverrides{RateLimitBytes: 600_000_000}},
+				},
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// A nil perTenantOverrides marshals to a literal "null" document; writing that as
+			// the runtime overrides file makes the loader decode a nil *perTenantOverrides and
+			// panic. Pass a nil []byte instead so no runtime overrides file is created at all.
+			var perTenantBytes []byte
+			if tt.perTenantOverrides != nil {
+				perTenantBytes = toYamlBytes(t, tt.perTenantOverrides)
+			}
+			overrides, cleanup := createAndInitializeRuntimeOverridesManager(t, tt.defaultLimits, perTenantBytes)
+			defer cleanup()
+
+			assert.Equal(t, tt.expected, overrides.IngestionRetryInfoEnabled("user1"))
+
+			err := services.StopAndAwaitTerminated(context.TODO(), overrides)
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestMetricsGeneratorMaxCardinalityPerLabel(t *testing.T) {
 	tests := []struct {
 		name               string

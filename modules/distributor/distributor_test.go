@@ -2190,7 +2190,7 @@ func TestRetryInfoEnabled(t *testing.T) {
 			limits := overrides.Config{
 				Defaults: overrides.Overrides{
 					Ingestion: overrides.IngestionOverrides{
-						RetryInfoEnabled: tt.overrideRetryInfoEnabled,
+						RetryInfoEnabled: new(tt.overrideRetryInfoEnabled),
 					},
 				},
 			}
