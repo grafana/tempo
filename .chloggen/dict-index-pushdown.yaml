@@ -1,0 +1,6 @@
+change_type: enhancement
+component: storage
+note: speed up dictionary-resolvable string filters (equality, `IN`, regex, substring) by resolving the predicate against the column-chunk dictionary once and matching rows by dictionary index instead of materializing and re-evaluating the predicate per value.
+issues: []
+subtext:
+user: zhxiaogg
