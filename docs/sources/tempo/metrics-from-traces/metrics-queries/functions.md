@@ -53,8 +53,8 @@ These functions can be added as an operator at the end of any TraceQL query.
 | [`avg_over_time()`](#the-avg_over_time-function)             | Returns the average value for the specified attribute across all matching spans per time interval. | `{ span:name = "GET /:endpoint" } \| avg_over_time(span:duration)`              |
 | [`quantile_over_time()`](#the-quantile_over_time-function)   | The quantile of the values in the specified interval.                                              | `{ span:name = "GET /:endpoint" } \| quantile_over_time(span:duration, .99)`    |
 | [`histogram_over_time()`](#the-histogram_over_time-function) | Evaluate frequency distribution over time.                                                         | `{ } \| histogram_over_time(span:duration) by (span.http.target)`               |
-| [`topk()`](#the-topk-function)                               | Returns only the top `k` results from a metrics query.                                             | `{ resource.service.name = "foo" } \| rate() by (span.http.url) \| topk(10)`    |
-| [`bottomk()`](#the-bottomk-function)                         | Returns only the bottom `k` results from a metrics query.                                          | `{ resource.service.name = "foo" } \| rate() by (span.http.url) \| bottomk(10)` |
+| [`topk()`](#the-topk-function)                               | Returns only the top `k` results from a metrics query.                                             | `{ resource.service.name = "foo" } \| rate() by (span.url.full) \| topk(10)`    |
+| [`bottomk()`](#the-bottomk-function)                         | Returns only the bottom `k` results from a metrics query.                                          | `{ resource.service.name = "foo" } \| rate() by (span.url.full) \| bottomk(10)` |
 | [Comparison operators](#comparison-operators)                 | Filters metric data points that don't meet a threshold condition.                                  | `{ } \| rate() > 10`                                                            |
 | [Arithmetic expressions](#arithmetic-expressions)            | Combines two or more metrics queries with `+`, `-`, `*`, `/`.                                      | `({status=error} \| rate()) / ({} \| rate())`                                   |
 
@@ -135,7 +135,7 @@ This example counts the number of spans with name `"GET /:endpoint"` broken down
 there are 10 `"GET /:endpoint"` spans with status code 200 and 15 `"GET /:endpoint"` spans with status code 400.
 
 ```traceql
-{ span:name = "GET /:endpoint" } | count_over_time() by (span.http.status_code)
+{ span:name = "GET /:endpoint" } | count_over_time() by (span.http.response.status_code)
 
 ```
 
@@ -170,7 +170,7 @@ Any numerical attribute on the span is fair game.
 This example computes the minimum status code value of all spans named `"GET /:endpoint"`.
 
 ```traceql
-{ span:name = "GET /:endpoint" } | min_over_time(span.http.status_code)
+{ span:name = "GET /:endpoint" } | min_over_time(span.http.response.status_code)
 ```
 
 ### The `max_over_time` function
@@ -195,10 +195,10 @@ The `avg_over_time()` function lets you aggregate numerical values by computing 
 important span duration.
 The time interval that the average is computed over is set by the `step` parameter.
 
-This example computes the average duration for each `http.status_code` of all spans named `"GET /:endpoint"`.
+This example computes the average duration for each `http.response.status_code` of all spans named `"GET /:endpoint"`.
 
 ```traceql
-{ span:name = "GET /:endpoint" } | avg_over_time(span:duration) by (span.http.status_code)
+{ span:name = "GET /:endpoint" } | avg_over_time(span:duration) by (span.http.response.status_code)
 ```
 
 ```traceql
@@ -225,10 +225,10 @@ You can group by any span or resource attribute.
 
 Quantiles aren't limited to span duration.
 Any numerical attribute on the span is fair game.
-To demonstrate this flexibility, consider this nonsensical quantile on `span.http.status_code`:
+To demonstrate this flexibility, consider this nonsensical quantile on `span.http.response.status_code`:
 
 ```traceql
-{ span:name = "GET /:endpoint" } | quantile_over_time(span.http.status_code, .99, .9, .5)
+{ span:name = "GET /:endpoint" } | quantile_over_time(span.http.response.status_code, .99, .9, .5)
 ```
 
 This computes the 99th, 90th, and 50th percentile of the values of the `status_code` attribute for all spans named
@@ -417,7 +417,7 @@ from 1 through `k` of the top results.
 For example:
 
 ```traceql
-{ resource.service.name = "foo" } | rate() by (span.http.url)  | topk(10)
+{ resource.service.name = "foo" } | rate() by (span.url.full)  | topk(10)
 ```
 
 The first part, `{ resource.service.name = "foo" }`, takes all spans in the service `foo`.
@@ -444,7 +444,7 @@ from 1 through `k` of the bottom results.
 For example:
 
 ```traceql
-{ resource.service.name = "foo" } | rate() by (span.http.url)  | bottomk(10)
+{ resource.service.name = "foo" } | rate() by (span.url.full)  | bottomk(10)
 ```
 
 The first part, `{ resource.service.name = "foo" }`, takes all spans in the service `foo`.
@@ -502,13 +502,13 @@ Each operation is applied in sequence from left to right.
 For example, you can first select the top 5 series and then filter to only those above a threshold:
 
 ```traceql
-{} | rate() by (span.http.url) | topk(5) > 10
+{} | rate() by (span.url.full) | topk(5) > 10
 ```
 
 Or filter first, then select the top results from what remains:
 
 ```traceql
-{} | rate() by (span.http.url) > 0 | topk(5)
+{} | rate() by (span.url.full) > 0 | topk(5)
 ```
 
 Sampling hints work alongside comparison operators:
