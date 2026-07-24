@@ -39,7 +39,8 @@ local d = import 'doc-util/main.libsonnet';
             for envvar in env
           ]),
 
-        '#withEnvMap': d.fn(|||
+        '#withEnvMap': d.fn(
+          |||
 
             `withEnvMap` works like `withEnvMixin` but accepts a key/value map,
             this map is converted a list of core.v1.envVar(key, value)`.
@@ -234,19 +235,19 @@ local d = import 'doc-util/main.libsonnet';
         ]),
         fromSecret(name, secretName)::
           super.withName(name) + super.secret.withSecretName(secretName),
-        
+
         '#fromCsi': d.fn('Creates a new volume of type `csi`', [
           d.arg('name', d.T.string),
           d.arg('driver', d.T.string),
           d.arg('volumeAttributes', d.T.object, {}),
         ]),
         fromCsi(name, driver, volumeAttributes={})::
-          super.withName(name) + { 
+          super.withName(name) + {
             csi: {
               driver: driver,
               readOnly: true,
-              volumeAttributes: volumeAttributes
-            }
+              volumeAttributes: volumeAttributes,
+            },
           },
       },
 
