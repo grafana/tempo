@@ -3,13 +3,36 @@ package cache
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/grafana/tempo/modules/cache/memcached"
 	"github.com/grafana/tempo/modules/cache/redis"
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/stretchr/testify/require"
+	"go.yaml.in/yaml/v2"
 )
+
+func TestConfigUnmarshalAppliesMemcachedDefaults(t *testing.T) {
+	yamlCfg := `
+caches:
+- roles:
+  - bloom
+  memcached:
+    host: memcached.example.com
+`
+
+	cfg := &Config{}
+	require.NoError(t, yaml.UnmarshalStrict([]byte(yamlCfg), cfg))
+
+	require.Len(t, cfg.Caches, 1)
+	clientCfg := cfg.Caches[0].MemcachedConfig.ClientConfig
+	require.Equal(t, "memcached.example.com", clientCfg.Host)
+	require.Equal(t, 100, clientCfg.MaxIdleConns)
+	require.Equal(t, float64(-1), clientCfg.MinIdleConnsHeadroomPercentage)
+	require.Equal(t, 100*time.Millisecond, clientCfg.Timeout)
+	require.Equal(t, time.Minute, clientCfg.UpdateInterval)
+}
 
 func TestConfigValidation(t *testing.T) {
 	tcs := []struct {
