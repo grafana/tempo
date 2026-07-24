@@ -9,7 +9,6 @@ import (
 	encasn1 "encoding/asn1"
 	"fmt"
 
-	"github.com/foxboron/go-tpm-keyfiles/template"
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/transport"
 )
@@ -110,7 +109,7 @@ func (t *TPMKey) Bytes() []byte {
 
 // PublicKey returns the ecdsa.Publickey or rsa.Publickey of the TPMKey
 func (t *TPMKey) PublicKey() (crypto.PublicKey, error) {
-	return template.FromTPMPublicToPubkey(t.contents())
+	return tpm2.Pub(*t.contents())
 }
 
 // Wraps TPMSigner with some sane defaults

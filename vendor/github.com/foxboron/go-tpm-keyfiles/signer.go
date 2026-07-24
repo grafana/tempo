@@ -52,6 +52,18 @@ func (t *TPMKeySigner) Sign(_ io.Reader, digest []byte, opts crypto.SignerOpts) 
 	}
 
 	switch opts.HashFunc() {
+	case 0:
+		// p11-kit sends us hashfunc 0 but we can infer from length the correct hash
+		switch len(digest) {
+		case 32:
+			digestalg = tpm2.TPMAlgSHA256
+		case 48:
+			digestalg = tpm2.TPMAlgSHA384
+		case 64:
+			digestalg = tpm2.TPMAlgSHA512
+		default:
+			return nil, fmt.Errorf("%s is not a supported hashing algorithm", opts.HashFunc())
+		}
 	case crypto.SHA256:
 		digestalg = tpm2.TPMAlgSHA256
 	case crypto.SHA384:
@@ -65,7 +77,7 @@ func (t *TPMKeySigner) Sign(_ io.Reader, digest []byte, opts crypto.SignerOpts) 
 	signalg = t.key.KeyAlgo()
 	if _, ok := opts.(*rsa.PSSOptions); ok {
 		if signalg != tpm2.TPMAlgRSA {
-			return nil, fmt.Errorf("Attempting to use PSSOptions with non-RSA (alg %x) key", signalg)
+			return nil, fmt.Errorf("attempting to use PSSOptions with non-RSA (alg %x) key", signalg)
 		}
 		signalg = tpm2.TPMAlgRSAPSS
 	}
@@ -128,7 +140,7 @@ func (t *TPMHandleSigner) Sign(_ io.Reader, digest []byte, opts crypto.SignerOpt
 	signalg = t.keyAlgo
 	if _, ok := opts.(*rsa.PSSOptions); ok {
 		if signalg != tpm2.TPMAlgRSA {
-			return nil, fmt.Errorf("Attempting to use PSSOptions with non-RSA (alg %x) key", signalg)
+			return nil, fmt.Errorf("attempting to use PSSOptions with non-RSA (alg %x) key", signalg)
 		}
 		signalg = tpm2.TPMAlgRSAPSS
 	}
