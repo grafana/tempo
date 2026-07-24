@@ -1,0 +1,25 @@
+# Changelog entry. Generate a copy with `make chlog-new`, then fill in the fields.
+
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: change
+
+# Component or area of the change. Must be one of the components in .chloggen/config.yaml,
+# e.g. distributor, querier, query-frontend, storage, operations.
+component: cache
+
+# A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
+note: Keep memcached connection pools warm to reduce tail latency under bursty read load. Idle connections are no longer closed by default and the default `max_idle_conns` was raised from 16 to 100.
+
+# (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
+# .chloggen/README.md.
+issues: []
+
+# (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
+subtext: |
+  Previously, connections idle for more than 2 minutes were always closed, so every burst of
+  reads (e.g. trace-by-ID lookups) began with a storm of new dials that inflated p99 latency
+  and produced client-side timeouts. Set `min_idle_conns_headroom_percentage` to a positive
+  value to re-enable idle connection reaping.
+
+# The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
+user: mapno
