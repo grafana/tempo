@@ -468,6 +468,11 @@ type SyncIterator struct {
 	currPageN       int
 	at              IteratorResult // Current value pointed at by iterator. Returned by call Next and SeekTo, valid until next call.
 
+	// Seek scratch state owned by next(). Copied from its arguments so the
+	// hot loop can compare in place without growing next's stack frame.
+	seekTo              RowNumber
+	seekDefinitionLevel int
+
 	maxDefinitionLevel int
 
 	interner   *intern.Interner
@@ -572,7 +577,7 @@ func (c *SyncIterator) String() string {
 }
 
 func (c *SyncIterator) Next() (*IteratorResult, error) {
-	rn, v, err := c.next()
+	rn, v, err := c.next(nil, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -605,19 +610,14 @@ func (c *SyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResul
 
 	// The row group and page have been selected to where this value is possibly
 	// located. Now scan through the page and look for it.
-	for {
-		rn, v, err := c.next()
-		if err != nil {
-			return nil, err
-		}
-		if !rn.Valid() {
-			return nil, nil
-		}
-
-		if CompareRowNumbers(definitionLevel, rn, to) >= 0 {
-			return c.makeResult(rn, v), nil
-		}
+	rn, v, err := c.next(&to, definitionLevel)
+	if err != nil {
+		return nil, err
 	}
+	if !rn.Valid() {
+		return nil, nil
+	}
+	return c.makeResult(rn, v), nil
 }
 
 func (c *SyncIterator) popRowGroup() (pq.RowGroup, RowNumber, RowNumber) {
@@ -805,7 +805,16 @@ func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 // we run out of things to inspect, it returns nil. The reason this method is distinct from
 // Next() is because it doesn't wrap the results in an IteratorResult, which is more efficient
 // when being called multiple times and throwing away the results like in SeekTo().
-func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
+//
+// If seekTo is non-nil, values before it are discarded without evaluating the filter,
+// since SeekTo drops them regardless of the filter's decision.
+func (c *SyncIterator) next(seekTo *RowNumber, definitionLevel int) (RowNumber, *pq.Value, error) {
+	seeking := seekTo != nil
+	if seeking {
+		c.seekTo = *seekTo
+		c.seekDefinitionLevel = definitionLevel
+	}
+
 	for {
 		if c.currRowGroup == nil {
 			rg, minRN, maxRN := c.popRowGroup()
@@ -870,6 +879,10 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 			c.currBufN++
 			c.currPageN++
 
+			if seeking && c.beforeSeekTarget() {
+				continue
+			}
+
 			if c.filter != nil && !c.filter.KeepValue(*v) {
 				continue
 			}
@@ -877,6 +890,21 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 			return c.curr, v, nil
 		}
 	}
+}
+
+// beforeSeekTarget returns true if the iterator's current position is before the seek target.
+// It compares the row numbers in place and is inlineable,
+// which keeps the hot loop in next() free of 32-byte RowNumber copies.
+func (c *SyncIterator) beforeSeekTarget() bool {
+	for i := 0; i <= c.seekDefinitionLevel; i++ {
+		if c.curr[i] < c.seekTo[i] {
+			return true
+		}
+		if c.curr[i] > c.seekTo[i] {
+			return false
+		}
+	}
+	return false
 }
 
 func (c *SyncIterator) setRowGroup(rg pq.RowGroup, min, max RowNumber, cc *ColumnChunkHelper) {
