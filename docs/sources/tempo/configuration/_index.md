@@ -463,11 +463,57 @@ ingest:
         # How long to wait for an incoming write request to be successfully committed to the Kafka backend.
         [write_timeout: <duration> | default = 10s]
 
-        # The SASL username for authentication.
+        # The SASL mechanism used to authenticate to Kafka. Supported values:
+        # PLAIN, SCRAM-SHA-256, SCRAM-SHA-512, OAUTHBEARER, AWS_MSK_IAM.
+        # For backwards-compatibility, PLAIN with no username nor password disables SASL.
+        [sasl_mechanism: <string> | default = "PLAIN"]
+
+        # The username used to authenticate to Kafka using SASL (PLAIN and SCRAM-SHA-* mechanisms).
+        # To enable SASL, configure both the username and password.
         [sasl_username: <string>]
 
-        # The SASL password for authentication.
+        # The password used to authenticate to Kafka using SASL (PLAIN and SCRAM-SHA-* mechanisms).
         [sasl_password: <string>]
+
+        # OAUTHBEARER mechanism: exactly one token source must be configured.
+        # The OAuth token to use to authenticate to Kafka.
+        [sasl_oauthbearer_token: <string>]
+        # Optional authorization ID to use when authenticating.
+        [sasl_oauthbearer_zid: <string>]
+        # Optional additional OAuth extensions, as a map of string to string.
+        [sasl_oauthbearer_extensions: <map<string,string>>]
+        # Path to a file containing a JSON-encoded OAuth token (read on every reauthentication).
+        [sasl_oauthbearer_file_path: <string>]
+        # Path to a Unix domain socket to fetch a JSON-encoded OAuth token from via HTTP.
+        [sasl_oauthbearer_http_socket_path: <string>]
+        # Timeout for requesting the token from the HTTP socket.
+        [sasl_oauthbearer_http_socket_timeout: <duration> | default = 10s]
+
+        # AWS_MSK_IAM mechanism: exactly one credentials source must be configured.
+        # The AWS access key ID.
+        [sasl_msk_iam_access_key: <string>]
+        # The AWS secret access key.
+        [sasl_msk_iam_secret_key: <string>]
+        # Optional AWS session token.
+        [sasl_msk_iam_session_token: <string>]
+        # Optional user agent to send when authenticating.
+        [sasl_msk_iam_user_agent: <string>]
+        # Path to a file containing JSON-encoded AWS credentials (read on every reauthentication).
+        [sasl_msk_iam_file_path: <string>]
+        # Path to a Unix domain socket to fetch JSON-encoded AWS credentials from via HTTP.
+        [sasl_msk_iam_http_socket_path: <string>]
+        # Timeout for requesting AWS credentials from the HTTP socket.
+        [sasl_msk_iam_http_socket_timeout: <duration> | default = 10s]
+
+        # Enable TLS for the Kafka client connection. When enabled, the tls_* options below apply.
+        [tls_enabled: <bool> | default = false]
+        [tls_cert_path: <string>]
+        [tls_key_path: <string>]
+        [tls_ca_path: <string>]
+        [tls_server_name: <string>]
+        [tls_insecure_skip_verify: <bool> | default = false]
+        [tls_cipher_suites: <string>]
+        [tls_min_version: <string>]
 
         # Enable auto-creation of Kafka topic if it doesn't exist.
         [auto_create_topic_enabled: <bool> | default = true]

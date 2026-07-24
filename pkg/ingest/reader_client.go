@@ -19,7 +19,11 @@ import (
 func NewReaderClient(kafkaCfg KafkaConfig, metrics *kprom.Metrics, logger log.Logger, opts ...kgo.Opt) (*kgo.Client, error) {
 	const fetchMaxBytes = 100_000_000
 
-	opts = append(opts, commonKafkaClientOptions(kafkaCfg, metrics, logger)...)
+	commonOpts, err := commonKafkaClientOptions(kafkaCfg, metrics, logger)
+	if err != nil {
+		return nil, fmt.Errorf("creating kafka reader client options: %w", err)
+	}
+	opts = append(opts, commonOpts...)
 	opts = append(
 		opts,
 		kgo.FetchMinBytes(1),

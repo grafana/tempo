@@ -14,7 +14,6 @@ import (
 	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kmsg"
-	"github.com/twmb/franz-go/pkg/sasl/plain"
 	"github.com/twmb/franz-go/plugin/kotel"
 	"github.com/twmb/franz-go/plugin/kprom"
 	"go.opentelemetry.io/otel/propagation"
@@ -36,8 +35,13 @@ func NewWriterClient(kafkaCfg KafkaConfig, maxInflightProduceRequests int, logge
 		kprom.FetchAndProduceDetail(kprom.Batches, kprom.Records, kprom.CompressedBytes, kprom.UncompressedBytes),
 	)
 
+	commonOpts, err := commonKafkaClientOptions(kafkaCfg, metrics, logger)
+	if err != nil {
+		return nil, fmt.Errorf("creating kafka writer client options: %w", err)
+	}
+
 	opts := append(
-		commonKafkaClientOptions(kafkaCfg, metrics, logger),
+		commonOpts,
 		kgo.RequiredAcks(kgo.AllISRAcks()),
 		kgo.DefaultProduceTopic(kafkaCfg.Topic),
 
@@ -102,7 +106,7 @@ func (o onlySampledTraces) Inject(ctx context.Context, carrier propagation.TextM
 	o.TextMapPropagator.Inject(ctx, carrier)
 }
 
-func commonKafkaClientOptions(cfg KafkaConfig, metrics *kprom.Metrics, logger log.Logger) []kgo.Opt {
+func commonKafkaClientOptions(cfg KafkaConfig, metrics *kprom.Metrics, logger log.Logger) ([]kgo.Opt, error) {
 	opts := []kgo.Opt{
 		kgo.ClientID(cfg.ClientID),
 		kgo.SeedBrokers(cfg.Address),
@@ -150,14 +154,20 @@ func commonKafkaClientOptions(cfg KafkaConfig, metrics *kprom.Metrics, logger lo
 		opts = append(opts, kgo.AllowAutoTopicCreation())
 	}
 
-	// SASL plain auth.
-	if cfg.SASLUsername != "" && cfg.SASLPassword.String() != "" {
-		opts = append(opts, kgo.SASL(plain.Plain(func(_ context.Context) (plain.Auth, error) {
-			return plain.Auth{
-				User: cfg.SASLUsername,
-				Pass: cfg.SASLPassword.String(),
-			}, nil
-		})))
+	// SASL auth. The configured mechanism determines how credentials are
+	// exchanged; kafkaAuthOptions returns nil options when SASL is disabled.
+	authOpts, err := kafkaAuthOptions(cfg.SASL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid Kafka SASL config: %w", err)
+	}
+	opts = append(opts, authOpts...)
+
+	if cfg.TLSEnabled {
+		tlsConfig, err := cfg.TLS.GetTLSConfig()
+		if err != nil {
+			return nil, fmt.Errorf("failed to build Kafka TLS config: %w", err)
+		}
+		opts = append(opts, kgo.DialTLSConfig(tlsConfig))
 	}
 
 	tracer := kotel.NewTracer(
@@ -172,7 +182,7 @@ func commonKafkaClientOptions(cfg KafkaConfig, metrics *kprom.Metrics, logger lo
 		opts = append(opts, kgo.WithHooks(metrics))
 	}
 
-	return opts
+	return opts, nil
 }
 
 // Producer is a kgo.Client wrapper exposing some higher level features and metrics useful for producers.

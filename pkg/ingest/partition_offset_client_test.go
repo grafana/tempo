@@ -201,7 +201,8 @@ func createTestKafkaConfig(clusterAddr string) KafkaConfig {
 
 func createTestKafkaClient(t *testing.T, cfg KafkaConfig) *kgo.Client {
 	metrics := kprom.NewMetrics("", kprom.Registerer(prometheus.NewPedanticRegistry()))
-	opts := commonKafkaClientOptions(cfg, metrics, test.NewTestingLogger(t))
+	opts, err := commonKafkaClientOptions(cfg, metrics, test.NewTestingLogger(t))
+	require.NoError(t, err)
 
 	// Use the manual partitioner because produceRecord() utility explicitly specifies
 	// the partition to write to in the kgo.Record itself.
