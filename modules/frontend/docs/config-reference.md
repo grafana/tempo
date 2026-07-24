@@ -660,6 +660,7 @@ storage:
             metadata: {}
             native_aws_auth_enabled: false
             list_blocks_concurrency: 3
+            list_objects_version: v2
             sse:
                 type: ""
                 kms_key_id: ""
@@ -757,6 +758,7 @@ overrides:
                 metadata: {}
                 native_aws_auth_enabled: false
                 list_blocks_concurrency: 3
+                list_objects_version: v2
                 sse:
                     type: ""
                     kms_key_id: ""
