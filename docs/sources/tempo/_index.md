@@ -40,6 +40,16 @@ cards:
 
 ---
 
+{{< admonition type="caution" >}}
+Tempo 2.9 is approaching end of life (EOL).
+
+Tempo 2.9 continues to receive bug fixes and security patches through December 31, 2026.
+After that date, Tempo 2.9 reaches EOL and no longer receives any updates, including security patches.
+
+Upgrade to a recommended version, such as Tempo 2.10 or 3.0, before the end of 2026.
+For upgrade steps, refer to the [upgrade guide](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/upgrade/).
+{{< /admonition >}}
+
 ## Overview
 
 Distributed tracing visualizes the lifecycle of a request as it passes through a set of applications.
