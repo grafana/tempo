@@ -595,3 +595,43 @@ func TestTraceByIDHandlerV2CachedMetrics(t *testing.T) {
 	// Verify the backend was called again (callCount should be 4)
 	require.Equal(t, 4, callCount)
 }
+
+func TestTraceIDHandlerV2ReturnedBytes(t *testing.T) {
+	testTrace := test.MakeTrace(2, []byte{0x27, 0x28})
+
+	next := pipeline.RoundTripperFunc(func(_ pipeline.Request) (*http.Response, error) {
+		resBytes, err := proto.Marshal(&tempopb.TraceByIDResponse{
+			Trace:   testTrace,
+			Metrics: &tempopb.TraceByIDMetrics{},
+		})
+		require.NoError(t, err)
+		return &http.Response{
+			Body:       io.NopCloser(bytes.NewReader(resBytes)),
+			StatusCode: 200,
+			Header:     map[string][]string{"Content-Type": {"application/protobuf"}},
+		}, nil
+	})
+
+	f := frontendWithSettings(t, next, nil, config, nil)
+
+	req := httptest.NewRequest("GET", "/api/v2/traces/1234", nil)
+	ctx := user.InjectOrgID(req.Context(), "blerg")
+	req = req.WithContext(ctx)
+	req = mux.SetURLVars(req, map[string]string{"traceID": "1234"})
+	req.Header.Set("Accept", "application/protobuf")
+
+	httpResp := httptest.NewRecorder()
+	f.TraceByIDHandlerV2.ServeHTTP(httpResp, req)
+	resp := httpResp.Result()
+	require.Equal(t, 200, resp.StatusCode)
+
+	actualResp := &tempopb.TraceByIDResponse{}
+	bytesTrace, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.NoError(t, proto.Unmarshal(bytesTrace, actualResp))
+
+	// config.TraceByID.QueryShards == 2; both shards return the same trace, so the
+	// response must reflect the single deduped copy, not the sum of both shards.
+	require.Equal(t, int64(actualResp.Trace.Size()), actualResp.Metrics.AdditionalMetrics[tempopb.AdditionalMetricReturnedBytes])
+	require.Less(t, actualResp.Metrics.AdditionalMetrics[tempopb.AdditionalMetricReturnedBytes], int64(2*testTrace.Size()))
+}
