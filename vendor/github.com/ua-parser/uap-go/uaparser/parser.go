@@ -266,11 +266,12 @@ func New(options ...Option) (*Parser, error) {
 	}
 
 	if parser.RegexDefinitions == nil {
+		// Clone the cached default so the per-parser mustCompile() writes
+		// to its own pointer set instead of the shared sync.OnceValue
+		// slice elements.
 		regexesDefinitions := defaultRegexesDefinitions()
-		parser.RegexDefinitions = &regexesDefinitions
-	}
-
-	if parser.config.UseSort {
+		parser.RegexDefinitions = regexesDefinitions.Clone()
+	} else if parser.config.UseSort {
 		parser.RegexDefinitions = parser.RegexDefinitions.Clone()
 	}
 
