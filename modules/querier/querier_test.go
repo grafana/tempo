@@ -18,6 +18,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -229,4 +230,74 @@ func TestFindTraceByID_ExternalMode(t *testing.T) {
 	require.Len(t, resp.Trace.ResourceSpans[0].ScopeSpans, 1)
 	require.Len(t, resp.Trace.ResourceSpans[0].ScopeSpans[0].Spans, 1)
 	require.Equal(t, "external-span", resp.Trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Name)
+}
+
+func TestFindTraceByID_RecordsBytesReturnedMetric(t *testing.T) {
+	traceID := []byte{0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20}
+	userID := "test-tenant-bytes-returned"
+
+	externalTrace := &tempopb.Trace{
+		ResourceSpans: []*v1_trace.ResourceSpans{
+			{
+				ScopeSpans: []*v1_trace.ScopeSpans{
+					{
+						Spans: []*v1_trace.Span{
+							{
+								TraceId: traceID,
+								SpanId:  []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08},
+								Name:    "external-span",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	startTime := int64(1000)
+	endTime := int64(2000)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		traceBytes, err := externalTrace.Marshal()
+		require.NoError(t, err)
+
+		w.Header().Set("Content-Type", api.HeaderAcceptProtobuf)
+		w.WriteHeader(http.StatusOK)
+		_, err = w.Write(traceBytes)
+		require.NoError(t, err)
+	}))
+	defer server.Close()
+
+	cfg := Config{
+		TraceByID: TraceByIDConfig{
+			External: ExternalConfig{
+				Endpoint: server.URL,
+				Timeout:  10 * time.Second,
+			},
+		},
+		Worker: worker.Config{
+			GRPCClientConfig: grpcclient.Config{
+				MaxSendMsgSize: 16 * 1024 * 1024,
+			},
+		},
+	}
+
+	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+
+	q, err := New(cfg, nil, livestore_client.Config{}, nil, true, nil, o)
+	require.NoError(t, err)
+
+	ctx := user.InjectOrgID(context.Background(), userID)
+
+	before := testutil.ToFloat64(metricBytesReturned.WithLabelValues(api.OpTraceByID, userID))
+
+	resp, err := q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
+		TraceID:   traceID,
+		QueryMode: QueryModeExternal,
+	}, time.Unix(startTime, 0), time.Unix(endTime, 0))
+	require.NoError(t, err)
+	require.NotNil(t, resp.Trace)
+
+	after := testutil.ToFloat64(metricBytesReturned.WithLabelValues(api.OpTraceByID, userID))
+	require.Equal(t, float64(resp.Trace.Size()), after-before)
 }

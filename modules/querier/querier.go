@@ -63,6 +63,17 @@ func observeBackendProcessing(operation, tenant string, start time.Time) {
 	metricBackendProcessingDuration.WithLabelValues(operation, tenant).Observe(time.Since(start).Seconds())
 }
 
+// metricBytesReturned records the size of the trace this querier assembled
+// and handed back to its caller (frontend or another querier), independent
+// of InspectedBytes (which measures storage bytes read). It is a
+// per-request/per-job value, not summed or reconciled with any
+// frontend-level metric.
+var metricBytesReturned = promauto.NewCounterVec(prometheus.CounterOpts{
+	Namespace: "tempo",
+	Name:      "querier_bytes_returned_total",
+	Help:      "Bytes of trace/span data this querier assembled and returned to its caller, by operation and tenant.",
+}, []string{"operation", "tenant"})
+
 type (
 	forEachFn        func(ctx context.Context, client tempopb.QuerierClient) (any, error)
 	forEachMetricsFn func(ctx context.Context, client tempopb.MetricsClient) (any, error)
@@ -315,6 +326,9 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	}
 
 	completeTrace, _ := combiner.Result()
+	if completeTrace != nil {
+		metricBytesReturned.WithLabelValues(api.OpTraceByID, userID).Add(float64(completeTrace.Size()))
+	}
 	resp := &tempopb.TraceByIDResponse{
 		Trace:   completeTrace,
 		Metrics: metrics,
