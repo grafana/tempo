@@ -2051,14 +2051,14 @@ Defines re-used configuration blocks.
 
 # Configures attributes to be stored in dedicated columns within the parquet file, rather than in the
 # generic attribute key-value list. This allows for more efficient searching of these attributes.
-# Up to 10 span attributes and 10 resource attributes can be configured as dedicated columns.
+# Up to 20 string and 5 int attributes can be configured per scope (span, resource, event).
 # Requires vParquet4 or later.
 parquet_dedicated_columns: <list of columns>
 
       # name of the attribute
     - [name: <string>]
 
-      # type of the attribute. options: string
+      # type of the attribute. options: string, int
       [type: <string>]
 
       # scope of the attribute.
@@ -2608,12 +2608,12 @@ overrides:
     storage:
       # Configures attributes to be stored in dedicated columns within the parquet file, rather than in the
       # generic attribute key-value list. This allows for more efficient searching of these attributes.
-      # Up to 10 span attributes and 10 resource attributes can be configured as dedicated columns.
+      # Up to 20 string and 5 int attributes can be configured per scope (span, resource, event).
       # Requires vParquet4 or later.
       parquet_dedicated_columns:
         [
           name: <string>, # name of the attribute
-          type: <string>, # type of the attribute. options: string
+          type: <string>, # type of the attribute. options: string, int
           scope: <string> # scope of the attribute. options: resource, span
         ]
 

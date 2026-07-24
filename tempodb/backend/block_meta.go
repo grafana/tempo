@@ -13,7 +13,7 @@ import (
 	"github.com/grafana/tempo/pkg/traceql"
 )
 
-// DedicatedColumnType is the type of the values in the dedicated attribute column. Only 'string' is supported.
+// DedicatedColumnType is the type of the values in the dedicated attribute column. Supported values are 'string' and 'int'.
 type DedicatedColumnType string
 
 // DedicatedColumnScope is the scope of the attribute that is stored in a dedicated column. Possible values are
