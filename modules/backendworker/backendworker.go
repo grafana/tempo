@@ -531,8 +531,15 @@ func (w *BackendWorker) callSchedulerWithBackoff(ctx context.Context, f func(con
 					return nil
 				}
 
-				level.Error(log.Logger).Log("msg", "error calling scheduler", "err", err, "backoff", b.NextDelay())
-				metricWorkerCallRetries.WithLabelValues().Inc()
+				if errStatus, ok := status.FromError(err); ok && errStatus.Code() == codes.NotFound {
+					// An empty job queue is the scheduler's normal answer to a long poll, not a
+					// failure — log it quietly and don't count it as a retry, so error logs and
+					// metricWorkerCallRetries stay meaningful for actual scheduler problems.
+					level.Debug(log.Logger).Log("msg", "no job available from scheduler", "err", err, "backoff", b.NextDelay())
+				} else {
+					level.Error(log.Logger).Log("msg", "error calling scheduler", "err", err, "backoff", b.NextDelay())
+					metricWorkerCallRetries.WithLabelValues().Inc()
+				}
 				// Add jitter so all workers don't all retry at once and cause a thundering herd.
 				time.Sleep(time.Duration(rand.Float32() * float32(1*time.Second)))
 				b.Wait()

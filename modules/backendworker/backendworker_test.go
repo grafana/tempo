@@ -3,13 +3,16 @@ package backendworker
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"flag"
 	"net"
 	"testing"
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/gogo/status"
 	"github.com/google/uuid"
+	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/services"
@@ -30,6 +33,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
@@ -274,6 +278,63 @@ func TestProcessRedactionJobMissingBlockObservable(t *testing.T) {
 	require.NoError(t, err, "a missing block must complete as a non-fatal no-op")
 	after := testutil.ToFloat64(metricRedactionBlockMissing.WithLabelValues(tenant))
 	require.Equal(t, before+1, after, "a missing redaction block must be counted, not silently dropped")
+}
+
+// TestCallSchedulerWithBackoff_NotFoundIsNotARetry verifies that an idle scheduler answering
+// "no jobs found" (codes.NotFound) doesn't get counted as a retry: an empty queue is the
+// scheduler's expected long-poll response, not a failure, so alerting on the retry metric should
+// stay meaningful for genuine scheduler problems.
+func TestCallSchedulerWithBackoff_NotFoundIsNotARetry(t *testing.T) {
+	w := &BackendWorker{
+		cfg: Config{
+			Backoff: backoff.Config{
+				MinBackoff: time.Millisecond,
+				MaxBackoff: time.Millisecond,
+				MaxRetries: 3,
+			},
+		},
+	}
+
+	before := testutil.ToFloat64(metricWorkerCallRetries.WithLabelValues())
+
+	var calls int
+	err := w.callSchedulerWithBackoff(context.Background(), func(context.Context) error {
+		calls++
+		return status.Error(codes.NotFound, "no jobs found")
+	})
+	require.Error(t, err, "exhausting retries on a persistently empty queue should still surface an error to the caller")
+	require.Positive(t, calls, "the callback should have run at least once")
+
+	after := testutil.ToFloat64(metricWorkerCallRetries.WithLabelValues())
+	require.Equal(t, before, after, "a NotFound response must not be counted as a retry")
+}
+
+// TestCallSchedulerWithBackoff_GenuineErrorIsARetry is the counterpart to
+// TestCallSchedulerWithBackoff_NotFoundIsNotARetry: real scheduler failures must still increment
+// the retry metric.
+func TestCallSchedulerWithBackoff_GenuineErrorIsARetry(t *testing.T) {
+	w := &BackendWorker{
+		cfg: Config{
+			Backoff: backoff.Config{
+				MinBackoff: time.Millisecond,
+				MaxBackoff: time.Millisecond,
+				MaxRetries: 3,
+			},
+		},
+	}
+
+	before := testutil.ToFloat64(metricWorkerCallRetries.WithLabelValues())
+
+	var calls int
+	err := w.callSchedulerWithBackoff(context.Background(), func(context.Context) error {
+		calls++
+		return errors.New("scheduler unavailable")
+	})
+	require.Error(t, err)
+	require.Positive(t, calls)
+
+	after := testutil.ToFloat64(metricWorkerCallRetries.WithLabelValues())
+	require.Equal(t, before+float64(calls), after, "every genuine failure must still be counted as a retry")
 }
 
 func TestIsSharded(t *testing.T) {
