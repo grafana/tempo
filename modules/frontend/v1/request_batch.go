@@ -82,13 +82,19 @@ func (b *requestBatch) doneChan(stop <-chan struct{}) <-chan struct{} {
 		return b.pipelineRequests[0].OriginalContext().Done()
 	}
 
+	// Snapshot the requests before spawning the watcher. The watcher outlives this
+	// call, and Process reuses this requestBatch across iterations (clear()+add()
+	// rewrite the same backing array), so ranging over b.pipelineRequests directly
+	// would race with the next iteration. The copy keeps the watcher on its own array.
+	reqs := append([]*request(nil), b.pipelineRequests...)
+
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
 		// tests each request context and only closes done if all are done.
 		// technically it is only testing one a time, but the loop will only complete
 		// if all are done.
-		for _, r := range b.pipelineRequests {
+		for _, r := range reqs {
 			select {
 			case <-r.OriginalContext().Done():
 			case <-stop:
