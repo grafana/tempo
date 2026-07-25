@@ -8,7 +8,7 @@
           "subdir": "ksonnet-util"
         }
       },
-      "version": "3b8056670048416f5fb660dc039e473eb20a40b2",
+      "version": "438843982d666cf50967a41922db4456b2c51d4c",
       "sum": "0y3AFX9LQSpfWTxWKSwoLgbt0Wc9nnCwhMH2szKzHv0="
     },
     {
@@ -18,7 +18,7 @@
           "subdir": "memcached"
         }
       },
-      "version": "3b8056670048416f5fb660dc039e473eb20a40b2",
+      "version": "438843982d666cf50967a41922db4456b2c51d4c",
       "sum": "zNTCDRaCqJUHjQSQRsxGR3jLrMP9tU7YNQb13dbm1bU="
     },
     {
@@ -38,8 +38,8 @@
           "subdir": "operations/jsonnet/microservices"
         }
       },
-      "version": "e3b17b794d3721cefea2753a70af5d811e154174",
-      "sum": "xqWjOjKjpkReLBFESDgejQI+rPq9dGpNd2s+SGiSNNo="
+      "version": "406f7654aff51c93466e2c52f2dd5f2a88877bc3",
+      "sum": "5Z1fp5uRBtC5m3BtAoRKnDt7kPSXmpPjK7QhqccnPc0="
     },
     {
       "source": {
@@ -48,8 +48,8 @@
           "subdir": "1.32"
         }
       },
-      "version": "55380470fb7979e6ce0c4316cb9c27a266caf298",
-      "sum": "L70C3SiMFOsNCuIGOxRKAzd6wUBuabAoEGrgvCyeCBc="
+      "version": "ee5c4c5ee02571eaf82f1170c60af47eee5496be",
+      "sum": "DGibNpxoMxZQ1ZilgUWk4+fh7MiPihkehtjp1CnLtQo="
     },
     {
       "source": {
@@ -68,8 +68,8 @@
           "subdir": "1.0.0"
         }
       },
-      "version": "5d16cd466d12489e6ffba5b17813a0203016e68d",
-      "sum": "ksOv5A0fQkz4fRz4KMCHloLUiD7BPwGKvUn2sHIAB7s="
+      "version": "c134bafc39a51bc92e4099b1b17e5d11eca7121b",
+      "sum": "RzEwGx69ki17S4JaodFzZqD4mNKZzL2zDGXAP3oHoO8="
     }
   ],
   "legacyImports": false
