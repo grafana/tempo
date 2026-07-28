@@ -2879,9 +2879,25 @@ cache:
             [timeout: <duration>]
 
             # Optional
-            # Maximum number of idle connections in pool.
-            # (default: 16)
+            # Maximum time to wait for a connection to a memcached server to be
+            # established. If 0, the value of timeout is used.
+            # (default: 0s)
+            [connect_timeout: <duration>]
+
+            # Optional
+            # Maximum number of idle connections to keep open in the pool per
+            # memcached server. Set higher than the peak number of parallel
+            # requests to keep connections warm across request bursts.
+            # (default: 100)
             [max_idle_conns: <int>]
+
+            # Optional
+            # Percentage of idle connections to keep open when reaping idle
+            # connections, relative to the number of recently used connections.
+            # If negative, idle connections are never closed. If 0, connections
+            # idle for longer than two minutes are closed.
+            # (default: -1)
+            [min_idle_conns_headroom_percentage: <float>]
 
             # Optional
             # Period with which to poll DNS for memcache servers.
