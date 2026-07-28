@@ -257,7 +257,7 @@ func logQueryRangeResult(ctx context.Context, logger log.Logger, tenantID string
 
 	if resp == nil {
 		recordResult(
-			level.Info(logger), ctx,
+			level.Info(logger), ctx, nil,
 			"msg", "query range response - no resp",
 			"tenant", tenantID,
 			"traceID", traceID,
@@ -269,7 +269,7 @@ func logQueryRangeResult(ctx context.Context, logger log.Logger, tenantID string
 
 	if resp.Metrics == nil {
 		recordResult(
-			level.Info(logger), ctx,
+			level.Info(logger), ctx, nil,
 			"msg", "query range response - no metrics",
 			"tenant", tenantID,
 			"traceID", traceID,
@@ -282,7 +282,7 @@ func logQueryRangeResult(ctx context.Context, logger log.Logger, tenantID string
 	}
 
 	recordResult(
-		level.Info(logger), ctx,
+		level.Info(logger), ctx, resp.Metrics.AdditionalMetrics,
 		"msg", "query range response",
 		"tenant", tenantID,
 		"traceID", traceID,
@@ -298,8 +298,6 @@ func logQueryRangeResult(ctx context.Context, logger log.Logger, tenantID string
 		"inspected_bytes", resp.Metrics.InspectedBytes,
 		"inspected_traces", resp.Metrics.InspectedTraces,
 		"inspected_spans", resp.Metrics.InspectedSpans,
-		// summed across shards by QueryRangeMetricsCombiner; zero when absent
-		tempopb.AdditionalMetricEngineBytes, resp.Metrics.AdditionalMetrics[tempopb.AdditionalMetricEngineBytes],
 		"partial_status", resp.Status,
 		"partial_message", resp.Message,
 		"num_response_series", len(resp.Series),

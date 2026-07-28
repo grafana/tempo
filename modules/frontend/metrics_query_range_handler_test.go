@@ -1512,7 +1512,7 @@ func (l *recordingLogger) String() string {
 	return l.buf.String()
 }
 
-func TestLogQueryRangeResult_IncludesEngineBytes(t *testing.T) {
+func TestLogQueryRangeResult_IncludesAdditionalMetrics(t *testing.T) {
 	logger := &recordingLogger{}
 	req := &tempopb.QueryRangeRequest{Query: "{} | rate()", Start: 1, End: 2}
 	resp := &tempopb.QueryRangeResponse{
@@ -1520,14 +1520,18 @@ func TestLogQueryRangeResult_IncludesEngineBytes(t *testing.T) {
 			InspectedBytes: 100,
 			AdditionalMetrics: map[string]int64{
 				tempopb.AdditionalMetricEngineBytes: 42,
+				"otherMetric":                       7,
 			},
 		},
 	}
 
 	logQueryRangeResult(context.Background(), logger, "tenant", 1.0, req, resp, nil)
 
-	require.Contains(t, logger.String(), tempopb.AdditionalMetricEngineBytes)
-	require.Contains(t, logger.String(), "42")
+	got := logger.String()
+	require.Contains(t, got, tempopb.AdditionalMetricEngineBytes)
+	require.Contains(t, got, "42")
+	require.Contains(t, got, "otherMetric")
+	require.Contains(t, got, "7")
 }
 
 // TestQueryRangeHandlerLogsErrorReason is a regression test for the HTTP metrics

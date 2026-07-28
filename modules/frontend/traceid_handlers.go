@@ -71,8 +71,14 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 		postSLOHook(resp, tenant, inspectBytes, elapsed, err)
 
 		traceID, _ := tracing.ExtractTraceID(req.Context())
+		m := comb.MetricsCombiner.Metrics
+		if m.AdditionalMetrics == nil {
+			m.AdditionalMetrics = map[string]int64{}
+		}
+		// no TraceQL engine on this path; use protobuf payload size as engineBytes
+		m.AdditionalMetrics[tempopb.AdditionalMetricEngineBytes] = int64(comb.Result().Size())
 		recordResult(
-			level.Info(logger), req.Context(),
+			level.Info(logger), req.Context(), m.AdditionalMetrics,
 			"msg", "trace id response",
 			"tenant", tenant,
 			"traceID", traceID,
@@ -80,8 +86,6 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 			"duration_seconds", elapsed.Seconds(),
 			"inspected_bytes", inspectBytes,
 			"request_throughput", float64(inspectBytes)/elapsed.Seconds(),
-			// no TraceQL engine on this path; use protobuf payload size
-			tempopb.AdditionalMetricEngineBytes, comb.Result().Size(),
 			"err", err,
 		)
 
@@ -162,13 +166,18 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 		findResp, _ := comb.GRPCFinal()
 		if findResp != nil && findResp.Metrics != nil {
 			bytesProcessed = findResp.Metrics.InspectedBytes
+			if findResp.Metrics.AdditionalMetrics == nil {
+				findResp.Metrics.AdditionalMetrics = map[string]int64{}
+			}
+			// no TraceQL engine on this path; use protobuf payload size as engineBytes
+			findResp.Metrics.AdditionalMetrics[tempopb.AdditionalMetricEngineBytes] = int64(findResp.Size())
 		}
 
 		postSLOHook(resp, tenant, bytesProcessed, elapsed, err)
 
 		traceID, _ := tracing.ExtractTraceID(req.Context())
 		recordResult(
-			level.Info(logger), req.Context(),
+			level.Info(logger), req.Context(), findResp.GetMetrics().GetAdditionalMetrics(),
 			"msg", "trace id response",
 			"tenant", tenant,
 			"traceID", traceID,
@@ -177,8 +186,6 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			"request_throughput", float64(bytesProcessed)/elapsed.Seconds(),
 			"duration_seconds", elapsed.Seconds(),
 			"span_pruning_enabled", spanPruningEnabled,
-			// no TraceQL engine on this path; use protobuf payload size
-			tempopb.AdditionalMetricEngineBytes, findResp.Size(),
 			"err", err,
 		)
 
