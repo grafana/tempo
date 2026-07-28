@@ -401,7 +401,9 @@ func (w *BackendWorker) processRedactionJob(ctx context.Context, resp *tempopb.N
 	query := resp.Detail.Redaction.GetQuery().GetQuery() // nil-safe: "" when no query selector
 	mode := resp.Detail.Redaction.GetMode()
 
-	level.Debug(log.Logger).Log("msg", "processing redaction job", "job_id", resp.JobId, "block_id", blockIDStr, "trace_ids_count", len(traceIDs), "query", query, "mode", mode.String())
+	// Log only whether a query selector is present, not the query text: for a
+	// privacy-motivated feature the query can embed sensitive attribute values.
+	level.Debug(log.Logger).Log("msg", "processing redaction job", "job_id", resp.JobId, "block_id", blockIDStr, "trace_ids_count", len(traceIDs), "has_query", query != "", "mode", mode.String())
 
 	_, tracesFound, _, err := w.store.RedactBlock(ctx, meta, tenantID, traceIDs, query, mode)
 	if err != nil {
