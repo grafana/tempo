@@ -489,6 +489,13 @@ func TestSubmitRedactionQuerySelector(t *testing.T) {
 			},
 		},
 		{
+			name: "unknown mode",
+			req: &tempopb.SubmitRedactionRequest{
+				Selector: &tempopb.SubmitRedactionRequest_Query{Query: &tempopb.TraceQLSelector{Query: query}},
+				Mode:     tempopb.RedactionMode(99),
+			},
+		},
+		{
 			name: "neither trace_ids nor query",
 			req:  &tempopb.SubmitRedactionRequest{},
 		},

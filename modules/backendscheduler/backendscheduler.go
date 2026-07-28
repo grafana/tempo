@@ -464,6 +464,16 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 			return nil, status.Error(codes.InvalidArgument, err.Error())
 		}
 	}
+
+	// Reject unknown modes rather than defaulting them to APPLY: since only DRY_RUN is
+	// checked downstream, an unrecognized value would otherwise fall through to a
+	// destructive rewrite. Fail closed.
+	switch req.Mode {
+	case tempopb.RedactionMode_REDACTION_MODE_APPLY, tempopb.RedactionMode_REDACTION_MODE_DRY_RUN:
+	default:
+		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("unknown redaction mode %d", int32(req.Mode)))
+	}
+
 	if s.overrides.CompactionDisabled(tenant) {
 		return nil, status.Error(codes.FailedPrecondition, "compaction is disabled for this tenant")
 	}
