@@ -59,7 +59,7 @@ func (cmd *redactCmd) Run(_ *globalOptions) error {
 
 	fmt.Printf("batch_id:     %s\njobs_created: %d\n", resp.BatchId, resp.JobsCreated)
 	if cmd.DryRun {
-		fmt.Println("mode:         dry-run (no blocks were rewritten)")
+		fmt.Println("mode:         dry-run (jobs will report match counts; no blocks will be rewritten)")
 	}
 	return nil
 }
