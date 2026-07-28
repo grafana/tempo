@@ -22,7 +22,9 @@ type redactCmd struct {
 	SchedulerAddr string `arg:"" help:"backend scheduler gRPC address (host:port)"`
 
 	TenantID string   `name:"tenant" required:"" help:"tenant ID"`
-	TraceIDs []string `name:"trace-id" required:"" help:"trace ID to redact (may be repeated)"`
+	TraceIDs []string `name:"trace-id" help:"trace ID to redact (may be repeated; mutually exclusive with --query)"`
+	Query    string   `name:"query" help:"TraceQL query selecting traces to redact (mutually exclusive with --trace-id)"`
+	DryRun   bool     `name:"dry-run" default:"false" help:"evaluate and report match counts without rewriting any blocks"`
 
 	TLS           bool   `name:"tls" help:"use TLS transport" default:"false"`
 	TLSServerName string `name:"tls-server-name" help:"override the TLS server name (SNI)"`
@@ -30,6 +32,10 @@ type redactCmd struct {
 }
 
 func (cmd *redactCmd) Run(_ *globalOptions) error {
+	if err := cmd.validate(); err != nil {
+		return err
+	}
+
 	traceIDs, err := parseTraceIDs(cmd.TraceIDs)
 	if err != nil {
 		return err
@@ -52,6 +58,24 @@ func (cmd *redactCmd) Run(_ *globalOptions) error {
 	}
 
 	fmt.Printf("batch_id:     %s\njobs_created: %d\n", resp.BatchId, resp.JobsCreated)
+	if cmd.DryRun {
+		fmt.Println("mode:         dry-run (no blocks were rewritten)")
+	}
+	return nil
+}
+
+// validate enforces that exactly one selector is provided: an explicit trace ID list or a
+// TraceQL query, never both and never neither. The server enforces the same, but checking
+// here fails fast before dialing.
+func (cmd *redactCmd) validate() error {
+	hasIDs := len(cmd.TraceIDs) > 0
+	hasQuery := cmd.Query != ""
+	switch {
+	case hasIDs && hasQuery:
+		return fmt.Errorf("--trace-id and --query are mutually exclusive")
+	case !hasIDs && !hasQuery:
+		return fmt.Errorf("one of --trace-id or --query must be provided")
+	}
 	return nil
 }
 
@@ -65,9 +89,19 @@ func (cmd *redactCmd) submit(ctx context.Context, c tempopb.BackendSchedulerClie
 		return nil, fmt.Errorf("injecting tenant ID into gRPC request: %w", err)
 	}
 
-	resp, err := c.SubmitRedaction(ctx, &tempopb.SubmitRedactionRequest{
-		TraceIds: traceIDs,
-	})
+	req := &tempopb.SubmitRedactionRequest{}
+	if cmd.Query != "" {
+		req.Selector = &tempopb.SubmitRedactionRequest_Query{
+			Query: &tempopb.TraceQLSelector{Query: cmd.Query},
+		}
+	} else {
+		req.TraceIds = traceIDs
+	}
+	if cmd.DryRun {
+		req.Mode = tempopb.RedactionMode_REDACTION_MODE_DRY_RUN
+	}
+
+	resp, err := c.SubmitRedaction(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("submitting redaction: %w", err)
 	}
