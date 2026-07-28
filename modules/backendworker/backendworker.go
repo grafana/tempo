@@ -398,9 +398,15 @@ func (w *BackendWorker) processRedactionJob(ctx context.Context, resp *tempopb.N
 		}
 	}
 
-	level.Debug(log.Logger).Log("msg", "processing redaction job", "job_id", resp.JobId, "block_id", blockIDStr, "trace_ids_count", len(traceIDs))
+	var query string
+	if q := resp.Detail.Redaction.GetQuery(); q != nil {
+		query = q.GetQuery()
+	}
+	dryRun := resp.Detail.Redaction.GetMode() == tempopb.RedactionMode_REDACTION_MODE_DRY_RUN
 
-	_, tracesFound, _, err := w.store.RedactBlock(ctx, meta, tenantID, traceIDs)
+	level.Debug(log.Logger).Log("msg", "processing redaction job", "job_id", resp.JobId, "block_id", blockIDStr, "trace_ids_count", len(traceIDs), "query", query, "dry_run", dryRun)
+
+	_, tracesFound, _, err := w.store.RedactBlock(ctx, meta, tenantID, traceIDs, query, dryRun)
 	if err != nil {
 		return w.failJob(ctx, resp.JobId, fmt.Sprintf("redact block: %v", err))
 	}

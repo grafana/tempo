@@ -123,7 +123,7 @@ type Compactor interface {
 	RetainWithConfig(ctx context.Context, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides)
 	RetainTenantWithConfig(ctx context.Context, tenantID string, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides)
 
-	RedactBlock(ctx context.Context, meta *backend.BlockMeta, tenantID string, traceIDs []common.ID) (rewrote bool, found int, newMeta *backend.BlockMeta, err error)
+	RedactBlock(ctx context.Context, meta *backend.BlockMeta, tenantID string, traceIDs []common.ID, query string, dryRun bool) (rewrote bool, found int, newMeta *backend.BlockMeta, err error)
 }
 
 type CompactorSharder interface {
@@ -621,7 +621,60 @@ func (rw *readerWriter) MarkBlockCompacted(tenantID string, blockID backend.UUID
 
 // RedactBlock rewrites a block excluding the given trace IDs. If none of the trace IDs
 // are in the block, no rewrite is performed.
-func (rw *readerWriter) RedactBlock(ctx context.Context, meta *backend.BlockMeta, tenantID string, traceIDs []common.ID) (rewrote bool, found int, newMeta *backend.BlockMeta, err error) {
+// redactionIDsFromQuery evaluates a TraceQL query against a single open block and returns
+// the unique trace IDs whose spans satisfy it. The full boolean expression is applied as
+// the fetch second pass, so only truly-matching spansets are returned — a trace is never
+// selected (and therefore never dropped) unless it actually matches the query. Iterating
+// the spanset stream directly avoids the search result-cap that ExecuteSearch imposes.
+//
+// The query must already be validated to the redaction subset (see validateRedactionQuery).
+func redactionIDsFromQuery(ctx context.Context, block common.BackendBlock, query string, opts common.SearchOptions) ([]common.ID, error) {
+	// filter is the compiled TraceQL boolean expression (a SpansetFilterFunc), not a
+	// code-eval primitive; it decides whether a spanset satisfies the query.
+	_, _, filter, req, err := traceql.Compile(query)
+	if err != nil {
+		return nil, fmt.Errorf("compiling redaction query: %w", err)
+	}
+
+	// Request trace-level metadata in the second pass so each returned spanset carries its
+	// TraceID (the first pass only fetches the columns needed to satisfy the conditions).
+	req.SecondPassConditions = traceql.SearchMetaConditionsWithout(req.Conditions, req.AllConditions)
+	req.SecondPass = func(inSS *traceql.Spanset) ([]*traceql.Spanset, error) {
+		if inSS == nil || len(inSS.Spans) == 0 {
+			return nil, nil
+		}
+		return filter([]*traceql.Spanset{inSS})
+	}
+
+	resp, err := block.Fetch(ctx, *req, opts)
+	if err != nil {
+		return nil, fmt.Errorf("fetching spans: %w", err)
+	}
+	defer resp.Results.Close()
+
+	seen := make(map[string]struct{})
+	var ids []common.ID
+	for {
+		ss, err := resp.Results.Next(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("iterating results: %w", err)
+		}
+		if ss == nil {
+			break
+		}
+		if _, ok := seen[string(ss.TraceID)]; !ok {
+			seen[string(ss.TraceID)] = struct{}{}
+			// copy: the iterator may reuse the underlying buffer after release.
+			ids = append(ids, common.ID(append([]byte(nil), ss.TraceID...)))
+		}
+		if ss.ReleaseFn != nil {
+			ss.ReleaseFn(ss)
+		}
+	}
+	return ids, nil
+}
+
+func (rw *readerWriter) RedactBlock(ctx context.Context, meta *backend.BlockMeta, tenantID string, traceIDs []common.ID, query string, dryRun bool) (rewrote bool, found int, newMeta *backend.BlockMeta, err error) {
 	block, err := encoding.OpenBlock(meta, rw.r)
 	if err != nil {
 		return false, 0, nil, fmt.Errorf("error opening block for redaction, blockID: %s: %w", meta.BlockID.String(), err)
@@ -632,18 +685,32 @@ func (rw *readerWriter) RedactBlock(ctx context.Context, meta *backend.BlockMeta
 		rw.cfg.Search.ApplyToOptions(&searchOpts)
 	}
 
+	// The selector is either an explicit trace ID list or a TraceQL query, never both
+	// (enforced at submission). Resolve it to the set of trace IDs present in this block.
 	var idsToDrop []common.ID
-	for _, traceID := range traceIDs {
-		result, err := block.FindTraceByID(ctx, traceID, searchOpts)
+	if query != "" {
+		idsToDrop, err = redactionIDsFromQuery(ctx, block, query, searchOpts)
 		if err != nil {
-			return false, 0, nil, fmt.Errorf("error finding trace in block, blockID: %s: %w", meta.BlockID.String(), err)
+			return false, 0, nil, fmt.Errorf("error selecting traces by query in block %s: %w", meta.BlockID.String(), err)
 		}
-		if result != nil && result.Trace != nil {
-			idsToDrop = append(idsToDrop, traceID)
+	} else {
+		for _, traceID := range traceIDs {
+			result, err := block.FindTraceByID(ctx, traceID, searchOpts)
+			if err != nil {
+				return false, 0, nil, fmt.Errorf("error finding trace in block, blockID: %s: %w", meta.BlockID.String(), err)
+			}
+			if result != nil && result.Trace != nil {
+				idsToDrop = append(idsToDrop, traceID)
+			}
 		}
 	}
 	if len(idsToDrop) == 0 {
 		return false, 0, nil, nil
+	}
+
+	// Dry-run: report how many traces would be dropped without rewriting the block.
+	if dryRun {
+		return false, len(idsToDrop), nil, nil
 	}
 
 	enc, err := encoding.FromVersion(meta.Version)

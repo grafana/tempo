@@ -313,7 +313,11 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 						metricJobsDropped.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
 						drop = true
 					} else if j.JobDetail.Redaction != nil {
+						// Inject the batch's selector (trace IDs or query) and mode so the
+						// worker can resolve and act on the block without re-reading the batch.
 						j.JobDetail.Redaction.TraceIds = batch.TraceIds
+						j.JobDetail.Redaction.Query = batch.Query
+						j.JobDetail.Redaction.Mode = batch.Mode
 					}
 				}
 				if drop {
