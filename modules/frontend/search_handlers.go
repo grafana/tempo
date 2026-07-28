@@ -232,6 +232,8 @@ func logResult(ctx context.Context, logger log.Logger, tenantID string, duration
 		"inspected_bytes", resp.Metrics.InspectedBytes,
 		"inspected_traces", resp.Metrics.InspectedTraces,
 		"inspected_spans", resp.Metrics.InspectedSpans,
+		// summed across shards by SearchMetricsCombiner; zero when absent
+		tempopb.AdditionalMetricEngineBytes, resp.Metrics.AdditionalMetrics[tempopb.AdditionalMetricEngineBytes],
 		"status_code", statusCode,
 		"error", err,
 	)

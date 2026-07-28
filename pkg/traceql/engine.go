@@ -98,8 +98,10 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 		mostRecent = false
 	}
 
-	// Watchers are config-driven and supplied via WithWatchers
+	// Watchers are request-scoped. EngineBytesWatcher is always installed for search;
+	// additional watchers come from WithWatchers (e.g. per-tenant overrides).
 	var watchers spanWatchers
+	watchers.Add(NewEngineBytesWatcher())
 	watchers.Add(cfg.watchers...)
 
 	if rootExpr.IsNoop() {

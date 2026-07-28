@@ -246,3 +246,35 @@ func TestEngineExecuteSearch_IsSummaryWatcher(t *testing.T) {
 		})
 	}
 }
+
+func TestEngineExecuteSearch_EngineBytesWatcher(t *testing.T) {
+	now := time.Now()
+	fetcher := &MockSpanSetFetcher{
+		iterator: &MockSpanSetIterator{
+			results: []*Spanset{
+				{
+					TraceID:         []byte{1},
+					RootSpanName:    "HTTP GET",
+					RootServiceName: "my-service",
+					Spans: []Span{
+						&mockSpan{
+							id:                 []byte{1},
+							startTimeUnixNanos: uint64(now.UnixNano()),
+							durationNanos:      uint64(100 * time.Millisecond),
+							attributes: map[Attribute]Static{
+								NewAttribute("foo"): NewStaticString("value"),
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	req := &tempopb.SearchRequest{Query: `{ .foo = "value" }`, SpansPerSpanSet: 10, Limit: 10}
+	resp, err := NewEngine().ExecuteSearch(context.Background(), req, fetcher)
+	require.NoError(t, err)
+	require.NotNil(t, resp.Metrics)
+	require.Greater(t, resp.Metrics.AdditionalMetrics[tempopb.AdditionalMetricEngineBytes], int64(0),
+		"EngineBytesWatcher should be installed for search by default")
+}

@@ -298,6 +298,8 @@ func logQueryRangeResult(ctx context.Context, logger log.Logger, tenantID string
 		"inspected_bytes", resp.Metrics.InspectedBytes,
 		"inspected_traces", resp.Metrics.InspectedTraces,
 		"inspected_spans", resp.Metrics.InspectedSpans,
+		// summed across shards by QueryRangeMetricsCombiner; zero when absent
+		tempopb.AdditionalMetricEngineBytes, resp.Metrics.AdditionalMetrics[tempopb.AdditionalMetricEngineBytes],
 		"partial_status", resp.Status,
 		"partial_message", resp.Message,
 		"num_response_series", len(resp.Series),

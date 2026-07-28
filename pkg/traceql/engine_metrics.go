@@ -1098,8 +1098,10 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 		exemplars = 1 // at least one per sub-query when exemplars are requested
 	}
 
-	// Watchers are request-scoped.
+	// Watchers are request-scoped. EngineBytesWatcher is always installed for metrics queries;
+	// additional watchers come from WithWatchers (e.g. per-tenant overrides).
 	watchers := &spanWatchers{}
+	watchers.Add(NewEngineBytesWatcher())
 	watchers.Add(cfg.watchers...)
 
 	// Per-span sampling extrapolation. Hint in the query takes precedence
