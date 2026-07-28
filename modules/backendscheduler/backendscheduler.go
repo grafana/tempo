@@ -453,7 +453,7 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 	// trace_ids is migrated into the oneof.)
 	querySel := req.GetQuery()
 	hasIDs := len(req.TraceIds) > 0
-	hasQuery := querySel != nil && querySel.Query != ""
+	hasQuery := querySel.GetQuery() != "" // nil-safe
 	switch {
 	case hasIDs && hasQuery:
 		return nil, status.Error(codes.InvalidArgument, "trace_ids and query are mutually exclusive")

@@ -123,7 +123,7 @@ type Compactor interface {
 	RetainWithConfig(ctx context.Context, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides)
 	RetainTenantWithConfig(ctx context.Context, tenantID string, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides)
 
-	RedactBlock(ctx context.Context, meta *backend.BlockMeta, tenantID string, traceIDs []common.ID, query string, dryRun bool) (rewrote bool, found int, newMeta *backend.BlockMeta, err error)
+	RedactBlock(ctx context.Context, meta *backend.BlockMeta, tenantID string, traceIDs []common.ID, query string, mode tempopb.RedactionMode) (rewrote bool, found int, newMeta *backend.BlockMeta, err error)
 }
 
 type CompactorSharder interface {
@@ -619,8 +619,6 @@ func (rw *readerWriter) MarkBlockCompacted(tenantID string, blockID backend.UUID
 	return rw.c.MarkBlockCompacted(uuid.UUID(blockID), tenantID)
 }
 
-// RedactBlock rewrites a block excluding the given trace IDs. If none of the trace IDs
-// are in the block, no rewrite is performed.
 // redactionIDsFromQuery evaluates a TraceQL query against a single open block and returns
 // the unique trace IDs whose spans satisfy it. The full boolean expression is applied as
 // the fetch second pass, so only truly-matching spansets are returned — a trace is never
@@ -674,7 +672,10 @@ func redactionIDsFromQuery(ctx context.Context, block common.BackendBlock, query
 	return ids, nil
 }
 
-func (rw *readerWriter) RedactBlock(ctx context.Context, meta *backend.BlockMeta, tenantID string, traceIDs []common.ID, query string, dryRun bool) (rewrote bool, found int, newMeta *backend.BlockMeta, err error) {
+// RedactBlock rewrites a block excluding the traces selected by either an explicit trace
+// ID list or a TraceQL query (never both). If none are present in the block, no rewrite is
+// performed. In dry-run mode it reports the match count without rewriting.
+func (rw *readerWriter) RedactBlock(ctx context.Context, meta *backend.BlockMeta, tenantID string, traceIDs []common.ID, query string, mode tempopb.RedactionMode) (rewrote bool, found int, newMeta *backend.BlockMeta, err error) {
 	block, err := encoding.OpenBlock(meta, rw.r)
 	if err != nil {
 		return false, 0, nil, fmt.Errorf("error opening block for redaction, blockID: %s: %w", meta.BlockID.String(), err)
@@ -709,13 +710,21 @@ func (rw *readerWriter) RedactBlock(ctx context.Context, meta *backend.BlockMeta
 	}
 
 	// Dry-run: report how many traces would be dropped without rewriting the block.
-	if dryRun {
+	if mode == tempopb.RedactionMode_REDACTION_MODE_DRY_RUN {
 		return false, len(idsToDrop), nil, nil
 	}
 
 	enc, err := encoding.FromVersion(meta.Version)
 	if err != nil {
 		return false, 0, nil, fmt.Errorf("error getting encoding for version %s: %w", meta.Version, err)
+	}
+
+	// Index the drop set for O(1) membership checks in DropObject. The query selector can
+	// match a large fraction of a block's traces, so a linear scan per object would make
+	// the rewrite O(objects × matches).
+	dropSet := make(map[string]struct{}, len(idsToDrop))
+	for _, id := range idsToDrop {
+		dropSet[string(id)] = struct{}{}
 	}
 
 	opts := common.CompactionOptions{
@@ -729,11 +738,9 @@ func (rw *readerWriter) RedactBlock(ctx context.Context, meta *backend.BlockMeta
 		OutputBlocks:     1,
 		MaxBytesPerTrace: 0,
 		DropObject: func(id common.ID) bool {
-			for _, tid := range idsToDrop {
-				if bytes.Equal(id, tid) {
-					level.Debug(rw.logger).Log("msg", "redact dropping trace", "traceID", hex.EncodeToString(id))
-					return true
-				}
+			if _, ok := dropSet[string(id)]; ok {
+				level.Debug(rw.logger).Log("msg", "redact dropping trace", "traceID", hex.EncodeToString(id))
+				return true
 			}
 			return false
 		},
