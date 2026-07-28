@@ -13,6 +13,8 @@ import (
 	"github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -359,6 +361,135 @@ func TestBackendSchedulerRedaction(t *testing.T) {
 			return err == nil && len(trs) == 0
 		}, 60*time.Second, 2*time.Second, "trace must not be findable in any block after redaction")
 	})
+}
+
+// TestBackendSchedulerRedactionQuery verifies the end-to-end redaction flow driven by a TraceQL
+// query selector rather than an explicit trace ID list:
+//   - SubmitRedaction with a query fans out one pending job per block
+//   - After the worker processes all jobs, traces matching the query are no longer findable
+//   - Traces that do NOT match the query remain findable (no over-deletion)
+func TestBackendSchedulerRedactionQuery(t *testing.T) {
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
+		Components:    util.ComponentsBackendWork,
+		Backends:      util.BackendObjectStorageAll,
+		ConfigOverlay: "config-backend-scheduler-redaction.yaml",
+	}, func(h *util.TempoHarness) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		cfg, err := h.GetConfig()
+		require.NoError(t, err)
+
+		objStorage := h.Services[util.ServiceObjectStorage]
+		scheduler := h.Services[util.ServiceBackendScheduler]
+		worker := h.Services[util.ServiceBackendWorker]
+
+		// Stop the worker so pending redaction jobs are not drained before we assert.
+		require.NoError(t, h.TestScenario.Stop(worker))
+
+		// Each block carries a matching trace (namespace=secret) and a keeper (namespace=keep).
+		tempodbReader, tempodbWriter := setupBackendReaderWriterWithEndpoint(t, &cfg.StorageConfig.Trace, objStorage.HTTPEndpoint())
+		const blockCount = 3
+		testTenant := tenant + "0"
+		matchID := test.ValidTraceID(nil)
+		keepID := test.ValidTraceID(nil)
+		populateBackendWithNamespacedTraces(ctx, t, tempodbWriter, testTenant, blockCount, matchID, keepID)
+
+		tenantMatcher := e2e.WithLabelMatchers(&labels.Matcher{
+			Type: labels.MatchEqual, Name: "tenant", Value: testTenant,
+		})
+		require.NoError(t, scheduler.WaitSumMetricsWithOptions(
+			e2e.Equals(float64(blockCount)),
+			[]string{"tempodb_blocklist_length"},
+			e2e.WaitMissingMetrics,
+			tenantMatcher,
+			printMetricValue(t, fmt.Sprintf("%d", blockCount), "tempodb_blocklist_length"),
+		))
+
+		// Both traces must be findable before redaction.
+		tempodbReader.EnablePolling(ctx, nil, false)
+		for _, id := range []common.ID{matchID, keepID} {
+			trs, failedBlocks, err := tempodbReader.Find(ctx, testTenant, id, tempodb.BlockIDMin, tempodb.BlockIDMax, time.Time{}, time.Time{}, common.DefaultSearchOptions())
+			require.NoError(t, err)
+			require.Empty(t, failedBlocks)
+			require.NotEmpty(t, trs, "trace %x must be findable before redaction", id)
+		}
+
+		conn, err := grpc.NewClient(
+			scheduler.Endpoint(9095),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+		)
+		require.NoError(t, err)
+		defer conn.Close()
+		schedulerClient := tempopb.NewBackendSchedulerClient(conn)
+
+		tenantCtx := user.InjectOrgID(ctx, testTenant)
+		tenantCtx, err = user.InjectIntoGRPCRequest(tenantCtx)
+		require.NoError(t, err)
+
+		// Submit a query-selected redaction — one pending job per block.
+		resp, err := schedulerClient.SubmitRedaction(tenantCtx, &tempopb.SubmitRedactionRequest{
+			Selector: &tempopb.SubmitRedactionRequest_Query{
+				Query: &tempopb.TraceQLSelector{Query: `{resource.namespace = "secret"}`},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, int32(blockCount), resp.JobsCreated)
+
+		// Start the worker to process redaction jobs.
+		require.NoError(t, h.TestScenario.StartAndWaitReady(worker))
+
+		jobTypeMatcher := e2e.WithLabelMatchers(&labels.Matcher{
+			Type: labels.MatchEqual, Name: "job_type", Value: "JOB_TYPE_REDACTION",
+		})
+		require.NoError(t, scheduler.WaitSumMetricsWithOptions(
+			e2e.Equals(float64(blockCount)),
+			[]string{"tempo_backend_scheduler_jobs_completed_total"},
+			e2e.WaitMissingMetrics,
+			jobTypeMatcher,
+			printMetricValue(t, fmt.Sprintf("%d", blockCount), "tempo_backend_scheduler_jobs_completed_total"),
+		))
+
+		// The matching trace ages out of the lookback window; the keeper stays findable.
+		require.Eventually(t, func() bool {
+			tempodbReader.PollNow(ctx)
+			trs, _, err := tempodbReader.Find(ctx, testTenant, matchID, tempodb.BlockIDMin, tempodb.BlockIDMax, time.Time{}, time.Time{}, common.DefaultSearchOptions())
+			return err == nil && len(trs) == 0
+		}, 60*time.Second, 2*time.Second, "query-matched trace must not be findable after redaction")
+
+		keepTrs, _, err := tempodbReader.Find(ctx, testTenant, keepID, tempodb.BlockIDMin, tempodb.BlockIDMax, time.Time{}, time.Time{}, common.DefaultSearchOptions())
+		require.NoError(t, err)
+		require.NotEmpty(t, keepTrs, "non-matching trace must survive redaction")
+	})
+}
+
+// traceWithNamespace builds a trace whose resource carries a specific namespace attribute so a
+// TraceQL query can select it.
+func traceWithNamespace(id common.ID, ns string) *tempopb.Trace {
+	attrs := []*v1_common.KeyValue{{
+		Key:   "namespace",
+		Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: ns}},
+	}}
+	return &tempopb.Trace{ResourceSpans: []*v1_trace.ResourceSpans{test.MakeBatchWithAttributes(2, id, attrs)}}
+}
+
+// populateBackendWithNamespacedTraces writes blockCount blocks, each containing one matching
+// trace (namespace=secret) and one keeper (namespace=keep).
+func populateBackendWithNamespacedTraces(ctx context.Context, t testing.TB, w tempodb.Writer, tenantID string, blockCount int, matchID, keepID common.ID) {
+	walInstance := w.WAL()
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
+	for range blockCount {
+		meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: tenantID}
+		head, err := walInstance.NewBlock(meta, model.CurrentEncoding)
+		require.NoError(t, err)
+
+		writeTraceToWal(t, head, dec, matchID, traceWithNamespace(matchID, "secret"), 0, 0)
+		writeTraceToWal(t, head, dec, keepID, traceWithNamespace(keepID, "keep"), 0, 0)
+
+		_, err = w.CompleteBlock(ctx, head)
+		require.NoError(t, err)
+	}
 }
 
 func printValues(t *testing.T, expected string, metric string) e2e.GetMetricValueFunc {
