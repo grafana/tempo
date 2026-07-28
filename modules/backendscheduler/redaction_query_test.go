@@ -55,6 +55,18 @@ func TestValidateRedactionQuery(t *testing.T) {
 			query:   `{.service_name = "a"}`,
 			wantErr: true,
 		},
+		// --- rejected: parent-scoped attributes are structural (ancestor span), not the
+		// matched span's own resource/span attributes ---
+		{
+			name:    "parent resource attribute",
+			query:   `{parent.resource.service_name = "a"}`,
+			wantErr: true,
+		},
+		{
+			name:    "parent span attribute",
+			query:   `{parent.span.http.route = "/x"}`,
+			wantErr: true,
+		},
 		// --- rejected: unparseable ---
 		{
 			name:    "invalid syntax",

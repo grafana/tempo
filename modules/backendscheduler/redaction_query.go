@@ -82,5 +82,11 @@ func validateRedactionComparison(lhs, rhs traceql.FieldExpression) error {
 	if attr.Scope != traceql.AttributeScopeResource && attr.Scope != traceql.AttributeScopeSpan {
 		return fmt.Errorf("redaction query attributes must be scoped to resource. or span., got %q", attr.Name)
 	}
+	// Reject parent.resource.* / parent.span.*: these reference the ancestor span, i.e.
+	// structural filtering, which is outside the single-span subset and could select
+	// traces far beyond the operator's intent.
+	if attr.Parent {
+		return fmt.Errorf("redaction query attributes must not be parent-scoped (parent.), got %q", attr.Name)
+	}
 	return nil
 }
