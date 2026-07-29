@@ -25,7 +25,7 @@ require (
 	github.com/hashicorp/go-hclog v1.6.3 // indirect
 	github.com/jedib0t/go-pretty/v6 v6.7.10
 	github.com/jsternberg/zap-logfmt v1.3.0
-	github.com/klauspost/compress v1.18.6
+	github.com/klauspost/compress v1.18.7
 	github.com/minio/minio-go/v7 v7.2.0
 	github.com/olekukonko/tablewriter v1.1.4
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.153.0
