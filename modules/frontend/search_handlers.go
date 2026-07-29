@@ -82,6 +82,7 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 		}
 		postSLOHook(nil, tenant, bytesProcessed, duration, err)
 		logResult(ctx, logger, tenant, duration.Seconds(), req, finalResponse, nil, err)
+		recordQueryMetrics(tenant, searchOp, finalResponse.GetMetrics())
 		return err
 	}
 }
@@ -139,6 +140,7 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 		duration := time.Since(start)
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
 		logResult(req.Context(), logger, tenant, duration.Seconds(), searchReq, searchResp, resp, err)
+		recordQueryMetrics(tenant, searchOp, searchResp.GetMetrics())
 		return resp, err
 	})
 }

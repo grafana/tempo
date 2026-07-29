@@ -88,7 +88,7 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 			"request_throughput", float64(inspectBytes)/elapsed.Seconds(),
 			"err", err,
 		)
-
+		recordTraceByIDMetrics(tenant, m)
 		return resp, err
 	})
 }
@@ -188,7 +188,7 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			"span_pruning_enabled", spanPruningEnabled,
 			"err", err,
 		)
-
+		recordTraceByIDMetrics(tenant, findResp.GetMetrics())
 		return resp, err
 	})
 }

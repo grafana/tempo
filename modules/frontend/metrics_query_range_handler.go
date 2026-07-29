@@ -105,6 +105,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 		}
 		postSLOHook(nil, tenant, bytesProcessed, duration, err)
 		logQueryRangeResult(ctx, logger, tenant, duration.Seconds(), req, finalResponse, err)
+		recordQueryMetrics(tenant, metricsOp, finalResponse.GetMetrics())
 		return err
 	}
 }
@@ -190,6 +191,7 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 			logErr = finalErr
 		}
 		logQueryRangeResult(req.Context(), logger, tenant, duration.Seconds(), queryRangeReq, queryRangeResp, logErr)
+		recordQueryMetrics(tenant, metricsOp, queryRangeResp.GetMetrics())
 		return resp, err
 	})
 }

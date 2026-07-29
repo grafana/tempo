@@ -99,6 +99,7 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 		}
 		postSLOHook(nil, tenant, bytesProcessed, duration, err)
 		logQueryInstantResult(ctx, logger, tenant, duration.Seconds(), req, finalResponse, err)
+		recordQueryMetrics(tenant, metricsOp, finalResponse.GetMetrics())
 		return err
 	}
 }
@@ -205,6 +206,7 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 		}
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
 		logQueryInstantResult(req.Context(), logger, tenant, duration.Seconds(), i, &qiResp, err)
+		recordQueryMetrics(tenant, metricsOp, qiResp.GetMetrics())
 
 		return resp, nil
 	})
