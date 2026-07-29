@@ -212,7 +212,7 @@ func NewProducer(client *kgo.Client, maxBufferedBytes int64, reg prometheus.Regi
 			prometheus.SummaryOpts{
 				Namespace:  "tempo",
 				Subsystem:  "distributor",
-				Name:       "buffered_produce_bytes",
+				Name:       "buffered_produce_bytes_summary",
 				Help:       "The buffered produce records in bytes. Quantile buckets keep track of buffered records size over the last 60s.",
 				Objectives: map[float64]float64{0.5: 0.05, 0.99: 0.001, 1: 0.001},
 				MaxAge:     time.Minute,
