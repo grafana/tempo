@@ -31,7 +31,7 @@ var (
 		Namespace: metricNamespace,
 		Name:      "query_frontend_queries_within_slo_total",
 		Help:      "Total Queries within SLO per tenant",
-	}, []string{metricLabelTenant, metricLabelOp, "result"})
+	}, []string{metricLabelTenant, metricLabelOp, metricLabelResult})
 
 	sloTraceByIDCounter = sloQueriesPerTenant.MustCurryWith(prometheus.Labels{"op": traceByIDOp})
 	sloSearchCounter    = sloQueriesPerTenant.MustCurryWith(prometheus.Labels{"op": searchOp})
@@ -45,7 +45,7 @@ var (
 		Namespace: metricNamespace,
 		Name:      "query_frontend_queries_total",
 		Help:      "Total queries received per tenant.",
-	}, []string{metricLabelTenant, metricLabelOp, "result"})
+	}, []string{metricLabelTenant, metricLabelOp, metricLabelResult})
 
 	traceByIDCounter = queriesPerTenant.MustCurryWith(prometheus.Labels{"op": traceByIDOp})
 	searchCounter    = queriesPerTenant.MustCurryWith(prometheus.Labels{"op": searchOp})

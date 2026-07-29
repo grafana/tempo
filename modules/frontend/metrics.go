@@ -11,6 +11,7 @@ const (
 	metricNamespace   = "tempo"
 	metricLabelTenant = "tenant"
 	metricLabelOp     = "op"
+	metricLabelResult = "result"
 )
 
 var queryEngineBytes = promauto.NewCounterVec(prometheus.CounterOpts{

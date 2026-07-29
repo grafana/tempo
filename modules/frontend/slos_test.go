@@ -133,10 +133,10 @@ func TestSLOHook(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			allCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "all"}, []string{"tenant", "result"})
-			sloCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "slo"}, []string{"tenant", "result"})
-			throughputVec := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "throughput"}, []string{"tenant"})
-			inspectedBytesVec := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "inspected_bytes"}, []string{"tenant"})
+			allCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "all"}, []string{metricLabelTenant, metricLabelResult})
+			sloCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "slo"}, []string{metricLabelTenant, metricLabelResult})
+			throughputVec := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "throughput"}, []string{metricLabelTenant})
+			inspectedBytesVec := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "inspected_bytes"}, []string{metricLabelTenant})
 
 			hook := sloHook(allCounter, sloCounter, throughputVec, inspectedBytesVec, tc.cfg)
 
@@ -164,10 +164,10 @@ func TestSLOHook(t *testing.T) {
 }
 
 func TestBadRequest(t *testing.T) {
-	allCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "all"}, []string{"tenant", "result"})
-	sloCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "slo"}, []string{"tenant", "result"})
-	throughputVec := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "throughput"}, []string{"tenant"})
-	inspectedBytesVec := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "inspected_bytes"}, []string{"tenant"})
+	allCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "all"}, []string{metricLabelTenant, metricLabelResult})
+	sloCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "slo"}, []string{metricLabelTenant, metricLabelResult})
+	throughputVec := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "throughput"}, []string{metricLabelTenant})
+	inspectedBytesVec := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "inspected_bytes"}, []string{metricLabelTenant})
 
 	hook := sloHook(allCounter, sloCounter, throughputVec, inspectedBytesVec, SLOConfig{
 		DurationSLO:        10 * time.Second,
@@ -360,10 +360,10 @@ func TestCanceledRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			allCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "all"}, []string{"tenant", "result"})
-			sloCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "slo"}, []string{"tenant", "result"})
-			throughputVec := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "throughput"}, []string{"tenant"})
-			inspectedBytesVec := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "inspected_bytes"}, []string{"tenant"})
+			allCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "all"}, []string{metricLabelTenant, metricLabelResult})
+			sloCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "slo"}, []string{metricLabelTenant, metricLabelResult})
+			throughputVec := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "throughput"}, []string{metricLabelTenant})
+			inspectedBytesVec := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "inspected_bytes"}, []string{metricLabelTenant})
 
 			// anything over 10s is considered outside SLO
 			hook := sloHook(allCounter, sloCounter, throughputVec, inspectedBytesVec, SLOConfig{
