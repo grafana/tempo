@@ -11,11 +11,13 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
+var errEndMustBeGreaterThanStart = errors.New("end must be greater than start")
+
 // validateQueryRangeReq must run before traceql.AlignRequest, which inflates
 // the range by up to ~3*step and would cause valid requests to fail the cap.
 func validateQueryRangeReq(ctx context.Context, cfg Config, o overrides.Interface, req *tempopb.QueryRangeRequest) error {
-	if req.Start > req.End {
-		return errors.New("end must be greater than start")
+	if req.Start >= req.End {
+		return errEndMustBeGreaterThanStart
 	}
 	if err := validateMetricsQueryMaxDuration(ctx, o, cfg.Metrics.Sharder.MaxDuration, req); err != nil {
 		return err

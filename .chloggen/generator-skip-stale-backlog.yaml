@@ -1,0 +1,6 @@
+change_type: enhancement
+component: metrics-generator
+note: Add `skip_stale_backlog_on_startup` to seek partitions forward to the ingestion-slack horizon on startup instead of replaying backlog the slack would discard, keeping the partition-lag metric honest on restart.
+issues: [7611]
+subtext:
+user: zalegrala

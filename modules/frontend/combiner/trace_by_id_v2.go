@@ -2,6 +2,7 @@ package combiner
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level" //nolint:all //deprecated
@@ -59,25 +60,35 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceR
 			// Pruning runs even on a partial trace (see partialTrace/combiner.IsPartialTrace below):
 			// reducing the size of an already-oversized partial trace is still valuable, and the
 			// resulting summary spans are simply scoped to whatever spans made it into the partial result.
+			pruneStatus := spanpruning.StatusNotPruned
 			if opts.SpanPruningConfig != nil {
-				var pruned *tempopb.Trace
-				var err error
-				pruned, err = spanpruning.PruneTrace(opts.SpanPruningConfig, traceResult)
+				pruned, status, err := spanpruning.PruneTrace(opts.SpanPruningConfig, traceResult)
 				if err != nil {
 					if opts.Logger != nil {
 						level.Error(opts.Logger).Log("msg", "span pruning failed, returning unpruned trace", "err", err)
 					}
 				} else {
 					traceResult = pruned
+					pruneStatus = status
 				}
 			}
 
 			resp.Trace = traceResult
 			resp.Metrics = metricsCombiner.Metrics
 
+			var messages []string
 			if partialTrace || combiner.IsPartialTrace() {
+				messages = append(messages, fmt.Sprintf("Trace exceeds maximum size of %d bytes, a partial trace is returned", maxBytes))
+			}
+			switch pruneStatus {
+			case spanpruning.StatusPrunedOnWrite:
+				messages = append(messages, "Trace was already pruned before it reached Tempo; this is the complete trace Tempo has stored")
+			case spanpruning.StatusPrunedOnRead:
+				messages = append(messages, "Trace was pruned by Tempo while serving this request; the original spans remain in storage and can be retrieved by querying again with span pruning disabled")
+			}
+			if len(messages) > 0 {
 				resp.Status = tempopb.PartialStatus_PARTIAL
-				resp.Message = fmt.Sprintf("Trace exceeds maximum size of %d bytes, a partial trace is returned", maxBytes)
+				resp.Message = strings.Join(messages, "; ")
 			}
 
 			return resp, nil

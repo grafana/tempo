@@ -461,6 +461,17 @@ See `.chloggen/README.md` for details.
 
 Rebase your PR on `main` if it gets out of sync. Don't merge `main` into your branch.
 
+Once your PR has received a review,
+avoid force pushes — including `git push --force-with-lease`.
+Rewriting history breaks GitHub's "changes since your last review" view
+and forces reviewers to re-read the entire PR.
+Address review feedback by pushing new commits instead.
+If you need to rebase on `main` to resolve conflicts,
+push the rebase on its own with no other changes mixed in,
+and mention it in a PR comment.
+This applies doubly to AI coding agents,
+which tend to reach for `--force-with-lease` by default.
+
 ## Documentation
 
 Anyone can help with Tempo's documentation by writing new content, updating existing content, or creating an issue.

@@ -1,0 +1,6 @@
+change_type: feature
+component: tempo-cli
+note: Add an experimental trace-summary-v0-native format to tempo-cli trace diff. It provides a compact overview of latency, summed span duration, errors, structural changes, and affected services.
+issues: [7510]
+subtext:
+user: carles-grafana

@@ -21,4 +21,4 @@ type Overrides interface {
 	MetricsGeneratorMaxCardinalityPerLabel(userID string) uint64
 }
 
-var _ Overrides = (overrides.Interface)(nil)
+var _ Overrides = overrides.Interface(nil)

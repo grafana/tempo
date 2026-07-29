@@ -370,7 +370,8 @@ func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest) []*tempopb.TimeSeri
 	for _, s := range set {
 		labels := make([]commonv1proto.KeyValue, 0, len(s.Labels))
 		for _, label := range s.Labels {
-			labels = append(labels,
+			labels = append(
+				labels,
 				commonv1proto.KeyValue{
 					Key:   label.Name,
 					Value: label.Value.AsAnyValue(),
@@ -411,7 +412,8 @@ func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest) []*tempopb.TimeSeri
 
 			labels := make([]commonv1proto.KeyValue, 0, len(e.Labels))
 			for _, label := range e.Labels {
-				labels = append(labels,
+				labels = append(
+					labels,
 					commonv1proto.KeyValue{
 						Key:   label.Name,
 						Value: label.Value.AsAnyValue(),
@@ -462,12 +464,29 @@ type SpanAggregator interface {
 	Length() int
 }
 
+// spanExtrapolation returns the per-span sampling multiplier (= 1 / sampling
+// probability) surfaced by the storage layer as IntrinsicSpanMultiplier.
+// Falls back to 1.0 when the storage layer didn't expose a value or it is
+// invalid — callers may safely call this on every span.
+func spanExtrapolation(s Span) float64 {
+	v, ok := s.AttributeFor(IntrinsicSpanMultiplierAttribute)
+	if !ok {
+		return 1.0
+	}
+	f := v.Float()
+	if math.IsNaN(f) || f <= 0 {
+		return 1.0
+	}
+	return f
+}
+
 // CountOverTimeAggregator counts the number of spans. It can also
 // calculate the rate when given a multiplier.
 // TODO - Rewrite me to be []float64 which is more efficient
 type CountOverTimeAggregator struct {
-	count    float64
-	rateMult float64
+	count       float64
+	rateMult    float64
+	extrapolate bool
 }
 
 var _ VectorAggregator = (*CountOverTimeAggregator)(nil)
@@ -484,7 +503,21 @@ func NewRateAggregator(rateMult float64) *CountOverTimeAggregator {
 	}
 }
 
-func (c *CountOverTimeAggregator) Observe(_ Span) {
+// SetExtrapolate toggles per-span sampling extrapolation. When true, each
+// observed span contributes spanExtrapolation(span) instead of 1.
+func (c *CountOverTimeAggregator) SetExtrapolate(extrapolate bool) {
+	c.extrapolate = extrapolate
+}
+
+func (c *CountOverTimeAggregator) Observe(s Span) {
+	if c.extrapolate {
+		// The value returned by spanExtrapolation is already stochastically
+		// rounded at storage decode time when the tracestate carries an
+		// OTEP-235 R-value, so the per-span contribution is integer whenever
+		// the SDK gave us the randomness to make that decision.
+		c.count += spanExtrapolation(s)
+		return
+	}
 	c.count++
 }
 
@@ -498,6 +531,8 @@ type OverTimeAggregator struct {
 	getSpanAttValue func(s Span) float64
 	agg             func(current, n float64) float64
 	val             float64
+	op              SimpleAggregationOp
+	extrapolate     bool
 }
 
 var _ VectorAggregator = (*OverTimeAggregator)(nil)
@@ -534,11 +569,25 @@ func NewOverTimeAggregator(attr Attribute, op SimpleAggregationOp) *OverTimeAggr
 		getSpanAttValue: fn,
 		agg:             agg,
 		val:             math.Float64frombits(normalNaN),
+		op:              op,
+	}
+}
+
+// SetExtrapolate toggles per-span sampling extrapolation. Only applies to
+// sum_over_time; min/max remain unscaled (population extremes don't scale
+// with sampling).
+func (c *OverTimeAggregator) SetExtrapolate(extrapolate bool) {
+	if c.op == sumOverTimeAggregation {
+		c.extrapolate = extrapolate
 	}
 }
 
 func (c *OverTimeAggregator) Observe(s Span) {
-	c.val = c.agg(c.val, c.getSpanAttValue(s))
+	v := c.getSpanAttValue(s)
+	if c.extrapolate {
+		v *= spanExtrapolation(s)
+	}
+	c.val = c.agg(c.val, v)
 }
 
 func (c *OverTimeAggregator) Sample() float64 {
@@ -996,6 +1045,26 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 	}, nil
 }
 
+// metricsPipelineExtrapolator is implemented by metrics pipelines that
+// support per-span sampling extrapolation.
+type metricsPipelineExtrapolator interface {
+	SetExtrapolate(bool)
+}
+
+// applyExtrapolation toggles per-span extrapolation on the pipeline if it
+// supports it, and adds the multiplier intrinsic to the storage request so
+// the storage layer surfaces it. Must be called before sp.init().
+func applyExtrapolation(pipeline spanProcessor, req *FetchSpansRequest) {
+	if ext, ok := pipeline.(metricsPipelineExtrapolator); ok {
+		ext.SetExtrapolate(true)
+	}
+	if !req.HasAttribute(IntrinsicSpanMultiplierAttribute) {
+		req.SecondPassConditions = append(req.SecondPassConditions, Condition{
+			Attribute: IntrinsicSpanMultiplierAttribute,
+		})
+	}
+}
+
 // CompileMetricsQueryRange returns an evaluator that can be reused across multiple data sources.
 func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts ...CompileOption) (MetricsEvaluator, error) {
 	cfg := applyCompileOptions(opts...)
@@ -1033,6 +1102,17 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 	watchers := &spanWatchers{}
 	watchers.Add(cfg.watchers...)
 
+	// Per-span sampling extrapolation. Hint in the query takes precedence
+	// over the default passed in via WithExtrapolation. Must apply before
+	// sp.init() so inner aggregators capture the flag.
+	extrapolate := false
+	if cfg.extrapolate != nil {
+		extrapolate = *cfg.extrapolate
+	}
+	if b, ok := expr.Hints.GetBool(HintExtrapolate, cfg.allowUnsafeHints); ok {
+		extrapolate = b
+	}
+
 	bme := &batchMetricsEvaluator{
 		evals:    make(map[string]*metricsEvaluator, len(expr.Pipeline)),
 		watchers: watchers,
@@ -1042,10 +1122,16 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 		if sp == nil {
 			return nil, fmt.Errorf("not a metrics query")
 		}
+
+		storageReq := storageReqs[key]
+
+		if extrapolate {
+			applyExtrapolation(sp, &storageReq)
+		}
+
 		// This initializes all step buffers, counters, etc
 		sp.init(req, AggregateModeRaw)
 
-		storageReq := storageReqs[key]
 		e.applySampleHints(expr, pipeline, &storageReq, cfg.allowUnsafeHints)
 
 		exemplars := exemplars
@@ -1396,7 +1482,7 @@ type EvaluatorMetrics struct {
 	AdditionalMetrics map[string]int64
 }
 
-var _ = (MetricsEvaluator)(&metricsEvaluator{})
+var _ = MetricsEvaluator(&metricsEvaluator{})
 
 func (e *metricsEvaluator) FetchSpansRequest() FetchSpansRequest {
 	return *e.storageReq
@@ -2196,7 +2282,7 @@ func (h *HistogramAggregator) Results() SeriesSet {
 		// For each input series, we create a new series for each quantile.
 		for qIdx, q := range h.qs {
 			// Append label for the quantile
-			labels := append((Labels)(nil), in.labels...)
+			labels := append(Labels(nil), in.labels...)
 			labels = append(labels, Label{"p", NewStaticFloat(q)})
 
 			ts := TimeSeries{

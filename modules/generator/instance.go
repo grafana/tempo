@@ -161,7 +161,7 @@ func (i *instance) updateSubprocessors(desiredProcessors map[string]struct{}, de
 func (i *instance) updateSpanMetricsSubprocessors(desiredProcessors map[string]struct{}, desiredCfg ProcessorConfig) (map[string]struct{}, ProcessorConfig) {
 	desiredProcessorsFound := false
 	for d := range desiredProcessors {
-		if (d == processor.SpanMetricsName) || (spanmetrics.ParseSubprocessor(d)) {
+		if (d == processor.SpanMetricsName) || spanmetrics.ParseSubprocessor(d) {
 			desiredProcessorsFound = true
 		}
 	}
@@ -210,7 +210,7 @@ func (i *instance) updateSpanMetricsSubprocessors(desiredProcessors map[string]s
 func (i *instance) updateServiceGraphsSubprocessors(desiredProcessors map[string]struct{}, desiredCfg ProcessorConfig) (map[string]struct{}, ProcessorConfig) {
 	desiredProcessorsFound := false
 	for d := range desiredProcessors {
-		if (d == processor.ServiceGraphsName) || (servicegraphs.ParseSubprocessor(d)) {
+		if (d == processor.ServiceGraphsName) || servicegraphs.ParseSubprocessor(d) {
 			desiredProcessorsFound = true
 		}
 	}

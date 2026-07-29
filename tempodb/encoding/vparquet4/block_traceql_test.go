@@ -1760,7 +1760,8 @@ func TestSamplingError(t *testing.T) {
 					err = math.Log(err)
 				}
 
-				fmt.Fprintln(w,
+				fmt.Fprintln(
+					w,
 					query,
 					"\t"+option,
 					"\t"+fmt.Sprintf("%.2f", err),

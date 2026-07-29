@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
+	"github.com/grafana/tempo/pkg/sampling"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -449,7 +450,8 @@ func createResourceIterators(
 		columnPathResourceAttrBool,
 		allConditions,
 		selectAll,
-		traceql.AttributeScopeResource)
+		traceql.AttributeScopeResource,
+	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("creating span attribute iterator: %w", err)
 	}
@@ -673,6 +675,12 @@ func createSpanIterators(
 			addPredicate(columnPathSpanChildCount, pred)
 			columnSelectAs[columnPathSpanChildCount] = columnPathSpanChildCount
 			continue
+		case traceql.IntrinsicSpanMultiplier:
+			// Synthetic float intrinsic; the iterator reads the raw TraceState
+			// column and the collector parses it into a per-span multiplier.
+			addPredicate(columnPathSpanTraceState, nil)
+			columnSelectAs[columnPathSpanTraceState] = columnPathSpanTraceState
+			continue
 		default:
 			panic("unhandled intrinsic: " + cond.Attribute.String())
 		}
@@ -733,7 +741,8 @@ func createSpanIterators(
 				traceql.IntrinsicStructuralSibling,
 				traceql.IntrinsicNestedSetLeft,
 				traceql.IntrinsicNestedSetRight,
-				traceql.IntrinsicNestedSetParent:
+				traceql.IntrinsicNestedSetParent,
+				traceql.IntrinsicSpanMultiplier: // synthetic; explicitly requested by metrics queries
 				continue
 			}
 			addPredicate(entry.columnPath, nil)
@@ -761,7 +770,8 @@ func createSpanIterators(
 		columnPathSpanAttrBool,
 		allConditions,
 		selectAll,
-		traceql.AttributeScopeSpan)
+		traceql.AttributeScopeSpan,
+	)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("creating span attribute iterator: %w", err)
 	}
@@ -900,7 +910,8 @@ func createEventIterators(
 		columnPathEventAttrString,
 		columnPathEventAttrInt,
 		columnPathEventAttrDouble,
-		columnPathEventAttrBool, allConditions, selectAll, traceql.AttributeScopeEvent)
+		columnPathEventAttrBool, allConditions, selectAll, traceql.AttributeScopeEvent,
+	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("creating event attribute iterator: %w", err)
 	}
@@ -966,7 +977,8 @@ func createLinkIterators(makeIter, makeNilIter makeIterFn, conditions []traceql.
 		columnPathLinkAttrBool,
 		allConditions,
 		selectAll,
-		traceql.AttributeScopeLink)
+		traceql.AttributeScopeLink,
+	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("creating link attribute iterator: %w", err)
 	}
@@ -1035,7 +1047,8 @@ func createInstrumentationIterators(makeIter, makeNilIter makeIterFn, conditions
 		columnPathInstrumentationAttrBool,
 		allConditions,
 		selectAll,
-		traceql.AttributeScopeInstrumentation)
+		traceql.AttributeScopeInstrumentation,
+	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("creating instrumentation attribute iterator: %w", err)
 	}
@@ -1437,6 +1450,20 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 			sp.startTimeUnixNanos = intervalMapper3600Seconds.TimestampOf(int(kv.Value.Int64()))
 		case columnPathSpanChildCount:
 			sp.addSpanAttr(traceql.IntrinsicChildCountAttribute, traceql.NewStaticInt(int(kv.Value.Int32())))
+		case columnPathSpanTraceState:
+			// Parse OTel probability sampling threshold once per span. When
+			// the tracestate carries an OTEP-235 R-value (`rv:` field), we
+			// use it to stochastically round the multiplier to an integer
+			// so count-style aggregates emit whole-number contributions.
+			// Falls back to the raw float multiplier when no R-value is
+			// present, and to 1.0 when the tracestate is absent or
+			// unparseable. Also surfaced as a span attribute so the engine
+			// reads it via AttributeFor and it counts toward attributesMatched().
+			m := sampling.MultiplierFromTraceState(unsafeToString(kv.Value.Bytes()))
+			if m <= 0 {
+				m = 1.0
+			}
+			sp.addSpanAttr(traceql.IntrinsicSpanMultiplierAttribute, traceql.NewStaticFloat(m))
 		case columnPathSpanDuration:
 			durationNanos = kv.Value.Uint64()
 			sp.durationNanos = durationNanos

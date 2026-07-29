@@ -708,11 +708,12 @@ func TestParseSpanPruningRequest(t *testing.T) {
 	}
 
 	tests := []struct {
-		name          string
-		query         string
-		expectEnabled bool
-		expectCfg     *spanpruningprocessor.Config
-		expectedError string
+		name             string
+		query            string
+		enabledByDefault bool
+		expectEnabled    bool
+		expectCfg        *spanpruningprocessor.Config
+		expectedError    string
 	}{
 		{
 			name:          "absent param disables pruning",
@@ -725,6 +726,38 @@ func TestParseSpanPruningRequest(t *testing.T) {
 			query:         "span_pruning=false",
 			expectEnabled: false,
 			expectCfg:     nil,
+		},
+		{
+			name:             "enabledByDefault enables pruning with defaults when the param is absent",
+			query:            "",
+			enabledByDefault: true,
+			expectEnabled:    true,
+			expectCfg:        defaultCfg(),
+		},
+		{
+			name:             "explicit false is respected even when enabledByDefault is set",
+			query:            "span_pruning=false",
+			enabledByDefault: true,
+			expectEnabled:    false,
+			expectCfg:        nil,
+		},
+		{
+			name:             "explicit true is respected when enabledByDefault is set",
+			query:            "span_pruning=true",
+			enabledByDefault: true,
+			expectEnabled:    true,
+			expectCfg:        defaultCfg(),
+		},
+		{
+			name:             "enabledByDefault honors request overrides when span_pruning param is absent",
+			query:            "span_pruning_min_spans=10",
+			enabledByDefault: true,
+			expectEnabled:    true,
+			expectCfg: func() *spanpruningprocessor.Config {
+				cfg := defaultCfg()
+				cfg.MinSpansToAggregate = 10
+				return cfg
+			}(),
 		},
 		{
 			name:          "invalid bool value",
@@ -787,7 +820,7 @@ func TestParseSpanPruningRequest(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest("GET", "/api/v2/traces/1234?"+tc.query, nil)
-			enabled, cfg, err := ParseSpanPruningRequest(req)
+			enabled, cfg, err := ParseSpanPruningRequest(req, tc.enabledByDefault)
 			if tc.expectedError != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tc.expectedError)

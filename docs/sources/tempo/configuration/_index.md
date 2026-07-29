@@ -898,6 +898,12 @@ metrics_generator:
     # This is to filter out spans that are outdated.
     [metrics_ingestion_time_range_slack: <duration> | default = 30s]
 
+    # When true, on startup the metrics-generator seeks each Kafka partition forward to
+    # (now - metrics_ingestion_time_range_slack) instead of replaying from the committed
+    # offset. This skips backlog that the slack would discard anyway, avoiding wasted work
+    # and a misleading partition-lag spike on restart. Requires Kafka ingest.
+    [skip_stale_backlog_on_startup: <bool> | default = false]
+
     # Overrides the key used to register the metrics-generator in the ring.
     [override_ring_key: <string> | default = "metrics-generator"]
 ```
@@ -1004,7 +1010,7 @@ query_frontend:
     # This is separate from the process-wide gRPC server response size because downstream clients
     # might need smaller streamed responses.
     # Set to 0 to disable segmentation.
-    # (default: 2097152)
+    # (default: 1048576)
     [max_grpc_streaming_packet_size: <int>]
 
     # Excludes the most recent portion of the time range from queries to avoid returning
@@ -1116,7 +1122,15 @@ query_frontend:
         # to the v2 endpoint can opt in to span pruning post-processing via the
         # `span_pruning` query parameter. When disabled, the query parameter is ignored
         # and no pruning occurs regardless of the request.
+        # EXPERIMENTAL
         [span_pruning_enabled: <bool> | default = false]
+
+        # Make span pruning default to enabled for trace-by-ID v2 requests that don't set their
+        # own `span_pruning` query parameter. An explicit `span_pruning` value in the request,
+        # true or false, always takes precedence over this default. Only takes effect when
+        # span_pruning_enabled is also true.
+        # EXPERIMENTAL
+        [span_pruning_enabled_by_default: <bool> | default = false]
 
         # If set to a non-zero value, it's value will be used to decide if metadata query is within SLO or not.
         # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
@@ -2865,9 +2879,25 @@ cache:
             [timeout: <duration>]
 
             # Optional
-            # Maximum number of idle connections in pool.
-            # (default: 16)
+            # Maximum time to wait for a connection to a memcached server to be
+            # established. If 0, the value of timeout is used.
+            # (default: 0s)
+            [connect_timeout: <duration>]
+
+            # Optional
+            # Maximum number of idle connections to keep open in the pool per
+            # memcached server. Set higher than the peak number of parallel
+            # requests to keep connections warm across request bursts.
+            # (default: 100)
             [max_idle_conns: <int>]
+
+            # Optional
+            # Percentage of idle connections to keep open when reaping idle
+            # connections, relative to the number of recently used connections.
+            # If negative, idle connections are never closed. If 0, connections
+            # idle for longer than two minutes are closed.
+            # (default: -1)
+            [min_idle_conns_headroom_percentage: <float>]
 
             # Optional
             # Period with which to poll DNS for memcache servers.

@@ -587,7 +587,7 @@ func (i *instance) cutBlocks(ctx context.Context, immediate bool) (uuid.UUID, er
 		return uuid.Nil, err
 	}
 
-	id := (uuid.UUID)(hb.BlockMeta().BlockID)
+	id := uuid.UUID(hb.BlockMeta().BlockID)
 	blockSize := hb.DataLength()
 
 	// Move headBlock into walBlocks and clear head, in one published snapshot.
@@ -704,7 +704,7 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) (*LocalBlock
 		span.RecordError(err)
 	}
 
-	walID := (uuid.UUID)(walBlock.BlockMeta().BlockID)
+	walID := uuid.UUID(walBlock.BlockMeta().BlockID)
 	i.blocks.Store(snap.withCompleteBlockAdded(id, completeBlock).withWALBlockRemoved(walID))
 
 	// Defer file deletion past the grace window so readers on the previous

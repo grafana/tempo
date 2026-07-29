@@ -45,7 +45,8 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 		level.Info(logger).Log(
 			"msg", "trace id request",
 			"tenant", tenant,
-			"path", req.URL.Path)
+			"path", req.URL.Path,
+		)
 
 		var traceRedactor combiner.TraceRedactor
 		if dataAccessController != nil {
@@ -70,7 +71,8 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 		postSLOHook(resp, tenant, inspectBytes, elapsed, err)
 
 		traceID, _ := tracing.ExtractTraceID(req.Context())
-		logWithShape(level.Info(logger), req.Context(),
+		recordResult(
+			level.Info(logger), req.Context(),
 			"msg", "trace id response",
 			"tenant", tenant,
 			"traceID", traceID,
@@ -116,7 +118,8 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 		level.Info(logger).Log(
 			"msg", "trace id request",
 			"tenant", tenant,
-			"path", req.URL.Path)
+			"path", req.URL.Path,
+		)
 
 		var traceRedactor combiner.TraceRedactor
 		if dataAccessController != nil {
@@ -131,14 +134,16 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			opts               combiner.TraceByIDV2Options
 			spanPruningEnabled bool
 		)
-		// only parse span_pruning_* params when the feature is enabled cluster-wide, so a
-		// malformed param doesn't 400 a request for a feature that's actually turned off.
+		// EXPERIMENTAL: span pruning is not yet a stable feature; config, params, and behavior
+		// may change. Only parse span_pruning_* params when the feature is enabled cluster-wide,
+		// so a malformed param doesn't 400 a request for a feature that's actually turned off.
 		if cfg.TraceByID.SpanPruningEnabled {
-			spanPruningEnabled, spanPruningCfg, pErr := api.ParseSpanPruningRequest(req)
+			enabled, spanPruningCfg, pErr := api.ParseSpanPruningRequest(req, cfg.TraceByID.SpanPruningEnabledByDefault)
 			if pErr != nil {
 				return httpInvalidRequest(pErr), nil
 			}
-			if spanPruningEnabled && spanPruningCfg != nil {
+			spanPruningEnabled = enabled
+			if enabled && spanPruningCfg != nil {
 				opts.SpanPruningConfig = spanPruningCfg
 				opts.Logger = logger
 			}
@@ -160,7 +165,8 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 		postSLOHook(resp, tenant, bytesProcessed, elapsed, err)
 
 		traceID, _ := tracing.ExtractTraceID(req.Context())
-		logWithShape(level.Info(logger), req.Context(),
+		recordResult(
+			level.Info(logger), req.Context(),
 			"msg", "trace id response",
 			"tenant", tenant,
 			"traceID", traceID,

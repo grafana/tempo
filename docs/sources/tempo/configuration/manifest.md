@@ -363,7 +363,7 @@ query_frontend:
         max_regex_conditions: 1
     mcp_server:
         enabled: false
-    max_grpc_streaming_packet_size: 2097152
+    max_grpc_streaming_packet_size: 1048576
     max_query_expression_size_bytes: 131072
     query_end_cutoff: 30s
 metrics_generator:
@@ -496,6 +496,7 @@ metrics_generator:
     ingest_concurrency: 16
     instance_id: hostname
     leave_consumer_group_on_shutdown: false
+    skip_stale_backlog_on_startup: false
 ingest:
     kafka:
         address: localhost:9092

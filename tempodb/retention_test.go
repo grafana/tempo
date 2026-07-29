@@ -70,17 +70,17 @@ func TestRetention(t *testing.T) {
 
 	rw := r.(*readerWriter)
 	// poll
-	checkBlocklists(ctx, t, (uuid.UUID)(blockID), 1, 0, rw)
+	checkBlocklists(ctx, t, uuid.UUID(blockID), 1, 0, rw)
 
 	// retention should mark it compacted
 	rw.compactorCfg.BlockRetention = 0
 	r.(*readerWriter).doRetention(ctx)
-	checkBlocklists(ctx, t, (uuid.UUID)(blockID), 0, 1, rw)
+	checkBlocklists(ctx, t, uuid.UUID(blockID), 0, 1, rw)
 
 	// retention again should clear it
 	rw.compactorCfg.CompactedBlockRetention = 0
 	r.(*readerWriter).doRetention(ctx)
-	checkBlocklists(ctx, t, (uuid.UUID)(blockID), 0, 0, rw)
+	checkBlocklists(ctx, t, uuid.UUID(blockID), 0, 0, rw)
 }
 
 func TestRetentionUpdatesBlocklistImmediately(t *testing.T) {
@@ -353,7 +353,8 @@ func testRetainWithConfig(t *testing.T, targetBlockVersion string) {
 	require.Len(t, rw.blocklist.Metas(testTenantID), 1)
 	require.Len(t, rw.blocklist.CompactedMetas(testTenantID), 10)
 
-	c.RetainWithConfig(ctx,
+	c.RetainWithConfig(
+		ctx,
 		compactorCfg,
 		&mockSharder{},
 		&mockOverrides{},
@@ -439,7 +440,7 @@ func TestRetentionCacheEviction(t *testing.T) {
 	// Prime each role's cache separately so a wrong-role eviction is detectable.
 	bloomCache := provider.CacheFor(cache.RoleBloom)
 	idxCache := provider.CacheFor(cache.RoleTraceIDIdx)
-	keyPrefix := backend_cache.BlockKeyPrefix((uuid.UUID)(blockMeta.BlockID), testTenantID)
+	keyPrefix := backend_cache.BlockKeyPrefix(uuid.UUID(blockMeta.BlockID), testTenantID)
 	bloomKey := keyPrefix + common.BloomName(0)
 	idxKey := keyPrefix + common.NameIndex
 	bloomCache.Store(ctx, []string{bloomKey}, [][]byte{{1}})
@@ -454,7 +455,7 @@ func TestRetentionCacheEviction(t *testing.T) {
 	rw.compactorCfg.BlockRetention = 0
 	rw.compactorCfg.CompactedBlockRetention = time.Hour
 	rw.doRetention(ctx)
-	checkBlocklists(ctx, t, (uuid.UUID)(blockMeta.BlockID), 0, 1, rw)
+	checkBlocklists(ctx, t, uuid.UUID(blockMeta.BlockID), 0, 1, rw)
 
 	_, found = bloomCache.FetchKey(ctx, bloomKey)
 	require.True(t, found, "bloom key should remain cached after mark-compacted")
@@ -462,7 +463,7 @@ func TestRetentionCacheEviction(t *testing.T) {
 	// Delete the compacted block — each role's cache entry should be evicted
 	rw.compactorCfg.CompactedBlockRetention = 0
 	rw.doRetention(ctx)
-	checkBlocklists(ctx, t, (uuid.UUID)(blockMeta.BlockID), 0, 0, rw)
+	checkBlocklists(ctx, t, uuid.UUID(blockMeta.BlockID), 0, 0, rw)
 
 	_, found = bloomCache.FetchKey(ctx, bloomKey)
 	require.False(t, found, "bloom key should be evicted from bloom cache after block deletion")
