@@ -780,27 +780,19 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 		return nil, fmt.Errorf("time range must be within last %v", i.Cfg.CompleteBlockTimeout)
 	}
 
-	maxSeries := int(req.MaxSeries)
-	maxSeriesReached := atomic.Bool{}
-	maxSeriesReached.Store(false)
-	inspectedBytes := atomic.NewUint64(0)
-
 	var (
-		additionalMetricsMtx sync.Mutex
-		additionalMetrics    map[string]int64
+		maxSeries        = int(req.MaxSeries)
+		maxSeriesReached atomic.Bool
+		metricsMtx       sync.Mutex
+		metrics          = &tempopb.SearchMetrics{}
 	)
-	mergeAdditional := func(src map[string]int64) {
-		if len(src) == 0 {
+	mergeMetrics := func(src *tempopb.SearchMetrics) {
+		if src == nil {
 			return
 		}
-		additionalMetricsMtx.Lock()
-		defer additionalMetricsMtx.Unlock()
-		if additionalMetrics == nil {
-			additionalMetrics = make(map[string]int64, len(src))
-		}
-		for k, v := range src {
-			additionalMetrics[k] += v
-		}
+		metricsMtx.Lock()
+		defer metricsMtx.Unlock()
+		metrics = tempopb.MergeSearchMetrics(metrics, src)
 	}
 
 	search := func(ctx context.Context, _ *backend.BlockMeta, b block) error {
@@ -821,11 +813,8 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 			if err != nil {
 				return err
 			}
-			if resp != nil && resp.Metrics != nil {
-				inspectedBytes.Add(resp.Metrics.InspectedBytes)
-				mergeAdditional(resp.Metrics.AdditionalMetrics)
-			}
 			if resp != nil {
+				mergeMetrics(resp.Metrics)
 				jobEval.ObserveSeries(resp.Series)
 			}
 			if maxSeries > 0 && jobEval.Length() > maxSeries {
@@ -852,29 +841,25 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 	rr := r.ToProto(req)
 
 	rawEm := rawEval.Metrics()
-	inspectedBytes.Add(rawEm.Bytes)
-	mergeAdditional(rawEm.AdditionalMetrics)
-	totalBytes := inspectedBytes.Load()
-	metricQueryInspectedBytesTotal.WithLabelValues(i.tenantID, queryOpQueryRange).Add(float64(totalBytes))
-
-	respMetrics := &tempopb.SearchMetrics{
-		InspectedBytes:    totalBytes,
+	mergeMetrics(&tempopb.SearchMetrics{
+		InspectedBytes:    rawEm.Bytes,
 		BackendReads:      rawEm.BackendReads,
 		BackendBytes:      rawEm.BackendBytes,
-		AdditionalMetrics: additionalMetrics,
-	}
+		AdditionalMetrics: rawEm.AdditionalMetrics,
+	})
+	metricQueryInspectedBytesTotal.WithLabelValues(i.tenantID, queryOpQueryRange).Add(float64(metrics.InspectedBytes))
 
 	if maxSeriesReached.Load() {
 		return &tempopb.QueryRangeResponse{
 			Series:  rr[:maxSeries],
-			Metrics: respMetrics,
+			Metrics: metrics,
 			Status:  tempopb.PartialStatus_PARTIAL,
 		}, nil
 	}
 
 	return &tempopb.QueryRangeResponse{
 		Series:  rr,
-		Metrics: respMetrics,
+		Metrics: metrics,
 	}, nil
 }
 
