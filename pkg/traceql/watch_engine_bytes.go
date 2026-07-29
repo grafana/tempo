@@ -40,6 +40,8 @@ func (e *engineBytesWatcher) WatchSpan(span Span) bool {
 // Arrays: 1 type byte + length varint + element payloads (no per-element type byte).
 func (e *engineBytesWatcher) staticSize(v Static) int {
 	switch v.Type {
+	case TypeNil:
+		return 1
 	case TypeString:
 		l := len(v.valBytes)
 		return 1 + l + e.varIntSize(uint64(l))

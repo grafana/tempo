@@ -26,6 +26,12 @@ func TestEngineBytesWatcher(t *testing.T) {
 			want: 2,
 		},
 		{
+			// type byte only
+			name: "nil attribute is 1 byte",
+			span: spanWithAttr("missing", NewStaticNil()),
+			want: 1,
+		},
+		{
 			name: "http.status_code=200 is 3 bytes",
 			span: newMockSpan(nil).WithSpanInt("http.status_code", 200),
 			want: 3,
