@@ -7,11 +7,17 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
+const (
+	metricNamespace   = "tempo"
+	metricLabelTenant = "tenant"
+	metricLabelOp     = "op"
+)
+
 var queryEngineBytes = promauto.NewCounterVec(prometheus.CounterOpts{
-	Namespace: "tempo",
+	Namespace: metricNamespace,
 	Name:      "query_frontend_engine_bytes_total",
 	Help:      "Bytes processed by the query engine by query type per tenant",
-}, []string{"op", "tenant"})
+}, []string{metricLabelOp, metricLabelTenant})
 
 func recordQueryMetrics(tenant string, op string, metrics *tempopb.SearchMetrics) {
 	if metrics == nil {
