@@ -119,20 +119,27 @@ type Poller struct {
 
 	cfg *PollerConfig
 
-	sharder JobSharder
-	logger  log.Logger
+	sharder             JobSharder
+	logger              log.Logger
+	tenantIndexPrefixes []string // precomputed: ["build-tenant-index-0-", ...]
 }
 
 // NewPoller creates the Poller
 func NewPoller(cfg *PollerConfig, sharder JobSharder, reader backend.Reader, compactor backend.Compactor, writer backend.Writer, logger log.Logger) *Poller {
+	prefixes := make([]string, cfg.TenantIndexBuilders)
+	for i := range cfg.TenantIndexBuilders {
+		prefixes[i] = jobPrefix + strconv.Itoa(i) + "-"
+	}
+
 	return &Poller{
 		reader:    reader,
 		compactor: compactor,
 		writer:    writer,
 
-		cfg:     cfg,
-		sharder: sharder,
-		logger:  logger,
+		cfg:                 cfg,
+		sharder:             sharder,
+		logger:              logger,
+		tenantIndexPrefixes: prefixes,
 	}
 }
 
@@ -515,9 +522,8 @@ func (p *Poller) pollBlock(
 
 // tenantIndexBuilder returns true if this poller owns this tenant
 func (p *Poller) tenantIndexBuilder(tenant string) bool {
-	for i := 0; i < p.cfg.TenantIndexBuilders; i++ {
-		job := jobPrefix + strconv.Itoa(i) + "-" + tenant
-		if p.sharder.Owns(job) {
+	for _, prefix := range p.tenantIndexPrefixes {
+		if p.sharder.Owns(prefix + tenant) {
 			return true
 		}
 	}
