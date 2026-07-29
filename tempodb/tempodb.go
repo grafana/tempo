@@ -620,13 +620,13 @@ func (rw *readerWriter) MarkBlockCompacted(tenantID string, blockID backend.UUID
 }
 
 // redactionIDsFromQuery evaluates a TraceQL query against a single open block and returns
-// the unique trace IDs whose spans satisfy it. The full boolean expression is applied as
+// the set of trace IDs (keyed by raw ID bytes) whose spans satisfy it. The full boolean expression is applied as
 // the fetch second pass, so only truly-matching spansets are returned — a trace is never
 // selected (and therefore never dropped) unless it actually matches the query. Iterating
 // the spanset stream directly avoids the search result-cap that ExecuteSearch imposes.
 //
 // The query must already be validated to the redaction subset (see validateRedactionQuery).
-func redactionIDsFromQuery(ctx context.Context, block common.BackendBlock, query string, opts common.SearchOptions) ([]common.ID, error) {
+func redactionIDsFromQuery(ctx context.Context, block common.BackendBlock, query string, opts common.SearchOptions) (map[string]struct{}, error) {
 	// filter is the compiled TraceQL boolean expression (a SpansetFilterFunc), not a
 	// code-eval primitive; it decides whether a spanset satisfies the query.
 	_, _, filter, req, err := traceql.Compile(query)
@@ -650,8 +650,11 @@ func redactionIDsFromQuery(ctx context.Context, block common.BackendBlock, query
 	}
 	defer resp.Results.Close()
 
-	seen := make(map[string]struct{})
-	var ids []common.ID
+	// Collect matches into a single set keyed by the raw trace ID bytes. The map insert
+	// copies the key, so we neither retain a second ID slice nor rebuild a set later; the
+	// set also dedups a trace that appears in more than one spanset. In dry-run the caller
+	// reads len() only, so memory stays bounded to this one set.
+	dropSet := make(map[string]struct{})
 	for {
 		ss, err := resp.Results.Next(ctx)
 		if err != nil {
@@ -660,16 +663,12 @@ func redactionIDsFromQuery(ctx context.Context, block common.BackendBlock, query
 		if ss == nil {
 			break
 		}
-		if _, ok := seen[string(ss.TraceID)]; !ok {
-			seen[string(ss.TraceID)] = struct{}{}
-			// copy: the iterator may reuse the underlying buffer after release.
-			ids = append(ids, common.ID(append([]byte(nil), ss.TraceID...)))
-		}
+		dropSet[string(ss.TraceID)] = struct{}{}
 		if ss.ReleaseFn != nil {
 			ss.ReleaseFn(ss)
 		}
 	}
-	return ids, nil
+	return dropSet, nil
 }
 
 // RedactBlock rewrites a block excluding the traces selected by either an explicit trace
@@ -687,44 +686,39 @@ func (rw *readerWriter) RedactBlock(ctx context.Context, meta *backend.BlockMeta
 	}
 
 	// The selector is either an explicit trace ID list or a TraceQL query, never both
-	// (enforced at submission). Resolve it to the set of trace IDs present in this block.
-	var idsToDrop []common.ID
+	// (enforced at submission). Resolve it to the set of trace IDs present in this block,
+	// keyed by raw ID bytes: one structure that dedups, drives the dry-run count, and backs
+	// the O(1) DropObject membership check in the rewrite below.
+	var dropSet map[string]struct{}
 	if query != "" {
-		idsToDrop, err = redactionIDsFromQuery(ctx, block, query, searchOpts)
+		dropSet, err = redactionIDsFromQuery(ctx, block, query, searchOpts)
 		if err != nil {
 			return false, 0, nil, fmt.Errorf("error selecting traces by query in block %s: %w", meta.BlockID.String(), err)
 		}
 	} else {
+		dropSet = make(map[string]struct{}, len(traceIDs))
 		for _, traceID := range traceIDs {
 			result, err := block.FindTraceByID(ctx, traceID, searchOpts)
 			if err != nil {
 				return false, 0, nil, fmt.Errorf("error finding trace in block, blockID: %s: %w", meta.BlockID.String(), err)
 			}
 			if result != nil && result.Trace != nil {
-				idsToDrop = append(idsToDrop, traceID)
+				dropSet[string(traceID)] = struct{}{}
 			}
 		}
 	}
-	if len(idsToDrop) == 0 {
+	if len(dropSet) == 0 {
 		return false, 0, nil, nil
 	}
 
 	// Dry-run: report how many traces would be dropped without rewriting the block.
 	if mode == tempopb.RedactionMode_REDACTION_MODE_DRY_RUN {
-		return false, len(idsToDrop), nil, nil
+		return false, len(dropSet), nil, nil
 	}
 
 	enc, err := encoding.FromVersion(meta.Version)
 	if err != nil {
 		return false, 0, nil, fmt.Errorf("error getting encoding for version %s: %w", meta.Version, err)
-	}
-
-	// Index the drop set for O(1) membership checks in DropObject. The query selector can
-	// match a large fraction of a block's traces, so a linear scan per object would make
-	// the rewrite O(objects × matches).
-	dropSet := make(map[string]struct{}, len(idsToDrop))
-	for _, id := range idsToDrop {
-		dropSet[string(id)] = struct{}{}
 	}
 
 	opts := common.CompactionOptions{
@@ -753,7 +747,7 @@ func (rw *readerWriter) RedactBlock(ctx context.Context, meta *backend.BlockMeta
 		DedupedSpans:      func(_, _ int) {},
 	}
 
-	nFound := len(idsToDrop)
+	nFound := len(dropSet)
 
 	compactor := enc.NewCompactor(opts)
 	out, err := compactor.Compact(ctx, rw.logger, rw.r, rw.w, []*backend.BlockMeta{meta})
