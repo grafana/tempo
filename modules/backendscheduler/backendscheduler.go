@@ -313,7 +313,11 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 						metricJobsDropped.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
 						drop = true
 					} else if j.JobDetail.Redaction != nil {
+						// Inject the batch's selector (trace IDs or query) and mode so the
+						// worker can resolve and act on the block without re-reading the batch.
 						j.JobDetail.Redaction.TraceIds = batch.TraceIds
+						j.JobDetail.Redaction.Query = batch.Query
+						j.JobDetail.Redaction.Mode = batch.Mode
 					}
 				}
 				if drop {
@@ -444,9 +448,32 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		}
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
-	if len(req.TraceIds) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "trace_ids must not be empty")
+	// Exactly one selector: an explicit trace ID list or a TraceQL query, never both.
+	// (The proto reserves a single-member oneof for query; XOR is enforced here until
+	// trace_ids is migrated into the oneof.)
+	querySel := req.GetQuery()
+	hasIDs := len(req.TraceIds) > 0
+	hasQuery := querySel.GetQuery() != "" // nil-safe
+	switch {
+	case hasIDs && hasQuery:
+		return nil, status.Error(codes.InvalidArgument, "trace_ids and query are mutually exclusive")
+	case !hasIDs && !hasQuery:
+		return nil, status.Error(codes.InvalidArgument, "one of trace_ids or query must be set")
+	case hasQuery:
+		if err := validateRedactionQuery(querySel.Query); err != nil {
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		}
 	}
+
+	// Reject unknown modes rather than defaulting them to APPLY: since only DRY_RUN is
+	// checked downstream, an unrecognized value would otherwise fall through to a
+	// destructive rewrite. Fail closed.
+	switch req.Mode {
+	case tempopb.RedactionMode_REDACTION_MODE_APPLY, tempopb.RedactionMode_REDACTION_MODE_DRY_RUN:
+	default:
+		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("unknown redaction mode %d", int32(req.Mode)))
+	}
+
 	if s.overrides.CompactionDisabled(tenant) {
 		return nil, status.Error(codes.FailedPrecondition, "compaction is disabled for this tenant")
 	}
@@ -517,6 +544,8 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		BatchId:           batchID,
 		TenantId:          tenant,
 		TraceIds:          req.TraceIds,
+		Query:             querySel,
+		Mode:              req.Mode,
 		CreatedAtUnixNano: time.Now().UnixNano(),
 	}
 	if len(skippedJobSet) > 0 {

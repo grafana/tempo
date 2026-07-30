@@ -1,0 +1,6 @@
+change_type: feature
+component: backend-scheduler
+note: redaction jobs can be submitted with a TraceQL query selector instead of an explicit trace ID list, so large deletions can be expressed as a query.
+issues: []
+subtext:
+user: zalegrala
