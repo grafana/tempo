@@ -126,6 +126,8 @@ var (
 
 type LiveStore struct {
 	services.Service
+	tempopb.UnimplementedQuerierServer
+	tempopb.UnimplementedMetricsServer
 
 	cfg    Config
 	logger log.Logger

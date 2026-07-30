@@ -41,7 +41,7 @@ type spanLogicalKey struct {
 }
 
 type spanWithResource struct {
-	span            *tracev1.Span
+	span            tracev1.Span
 	resourceService string
 }
 
@@ -161,14 +161,14 @@ func normalizeSpan(span spanWithResource, path []int, logicalKey spanLogicalKey,
 		ref:            ref,
 		startUnixNano:  span.span.GetStartTimeUnixNano(),
 		endUnixNano:    span.span.GetEndTimeUnixNano(),
-		durationValid:  hasValidDuration(span.span),
+		durationValid:  hasValidDuration(&span.span),
 		spanAttrs:      attributesMap(span.span.GetAttributes()),
 		snapshot: SpanSnapshot{
 			Path:          path,
 			Service:       ref.Service,
 			Name:          ref.Name,
 			Kind:          ref.Kind,
-			DurationNanos: durationNanos(span.span),
+			DurationNanos: durationNanos(&span.span),
 			Status:        statusToString(span.span.GetStatus()),
 		},
 	}
@@ -177,7 +177,7 @@ func normalizeSpan(span spanWithResource, path []int, logicalKey spanLogicalKey,
 func invalidDurationWarnings(spans []spanWithResource, side string) []Warning {
 	invalid := make([]spanLogicalKey, 0)
 	for _, span := range spans {
-		if hasValidDuration(span.span) {
+		if hasValidDuration(&span.span) {
 			continue
 		}
 		invalid = append(invalid, logicalKey(span))
@@ -276,19 +276,19 @@ func spanIDKey(id []byte) string {
 	return string(id)
 }
 
-func attributeString(attrs []*commonv1.KeyValue, key string) string {
-	for _, attr := range attrs {
-		if attr.GetKey() == key {
-			return attr.GetValue().GetStringValue()
+func attributeString(attrs []commonv1.KeyValue, key string) string {
+	for i := range attrs {
+		if attrs[i].GetKey() == key {
+			return attrs[i].GetValue().GetStringValue()
 		}
 	}
 	return ""
 }
 
-func attributesMap(attrs []*commonv1.KeyValue) map[string]any {
+func attributesMap(attrs []commonv1.KeyValue) map[string]any {
 	out := make(map[string]any, len(attrs))
-	for _, attr := range attrs {
-		out[attr.GetKey()] = anyValue(attr.GetValue())
+	for i := range attrs {
+		out[attrs[i].GetKey()] = anyValue(attrs[i].GetValue())
 	}
 	return out
 }
@@ -309,8 +309,8 @@ func anyValue(value *commonv1.AnyValue) any {
 	case *commonv1.AnyValue_ArrayValue:
 		values := v.ArrayValue.GetValues()
 		out := make([]any, 0, len(values))
-		for _, item := range values {
-			out = append(out, anyValue(item))
+		for i := range values {
+			out = append(out, anyValue(&values[i]))
 		}
 		return out
 	case *commonv1.AnyValue_KvlistValue:

@@ -406,13 +406,13 @@ func TestServiceGraphs_exemplarsCarryTraceID(t *testing.T) {
 	tests := []struct {
 		name    string
 		traceID []byte
-		batches []*tracev1.ResourceSpans
+		batches []tracev1.ResourceSpans
 		expire  bool
 	}{
 		{
 			name:    "completed edge",
 			traceID: completedTraceID,
-			batches: []*tracev1.ResourceSpans{
+			batches: []tracev1.ResourceSpans{
 				makeServiceGraphBatch("svc-a", tracev1.Span_SPAN_KIND_CLIENT, completedTraceID, clientSpanID, nil),
 				makeServiceGraphBatch("svc-b", tracev1.Span_SPAN_KIND_SERVER, completedTraceID, []byte{0x09}, clientSpanID),
 			},
@@ -420,7 +420,7 @@ func TestServiceGraphs_exemplarsCarryTraceID(t *testing.T) {
 		{
 			name:    "expired root server edge",
 			traceID: rootServerTraceID,
-			batches: []*tracev1.ResourceSpans{
+			batches: []tracev1.ResourceSpans{
 				makeServiceGraphBatch("svc-b", tracev1.Span_SPAN_KIND_SERVER, rootServerTraceID, []byte{0x0a}, nil),
 			},
 			expire: true,
@@ -671,10 +671,10 @@ func TestServiceGraphs_droppedEdgesMetric(t *testing.T) {
 	p.(*Processor).store.AddDroppedSpanSideFromBytes(traceID, spanID, store.Server)
 
 	request := &tempopb.PushSpansRequest{
-		Batches: []*tracev1.ResourceSpans{
+		Batches: []tracev1.ResourceSpans{
 			{
 				Resource: &resourcev1.Resource{
-					Attributes: []*v1.KeyValue{
+					Attributes: []v1.KeyValue{
 						{
 							Key: "service.name",
 							Value: &v1.AnyValue{
@@ -683,9 +683,9 @@ func TestServiceGraphs_droppedEdgesMetric(t *testing.T) {
 						},
 					},
 				},
-				ScopeSpans: []*tracev1.ScopeSpans{
+				ScopeSpans: []tracev1.ScopeSpans{
 					{
-						Spans: []*tracev1.Span{
+						Spans: []tracev1.Span{
 							{
 								TraceId:           traceID,
 								SpanId:            spanID,
@@ -733,10 +733,10 @@ func TestServiceGraphs_droppedEdgesMetric_fromFilteredCounterpart(t *testing.T) 
 	clientSpanID := []byte{0x02}
 
 	request := &tempopb.PushSpansRequest{
-		Batches: []*tracev1.ResourceSpans{
+		Batches: []tracev1.ResourceSpans{
 			{
 				Resource: &resourcev1.Resource{
-					Attributes: []*v1.KeyValue{
+					Attributes: []v1.KeyValue{
 						{
 							Key: "service.name",
 							Value: &v1.AnyValue{
@@ -745,9 +745,9 @@ func TestServiceGraphs_droppedEdgesMetric_fromFilteredCounterpart(t *testing.T) 
 						},
 					},
 				},
-				ScopeSpans: []*tracev1.ScopeSpans{
+				ScopeSpans: []tracev1.ScopeSpans{
 					{
-						Spans: []*tracev1.Span{
+						Spans: []tracev1.Span{
 							{
 								TraceId:           traceID,
 								SpanId:            clientSpanID,
@@ -761,7 +761,7 @@ func TestServiceGraphs_droppedEdgesMetric_fromFilteredCounterpart(t *testing.T) 
 			},
 			{
 				Resource: &resourcev1.Resource{
-					Attributes: []*v1.KeyValue{
+					Attributes: []v1.KeyValue{
 						{
 							Key: "service.name",
 							Value: &v1.AnyValue{
@@ -770,9 +770,9 @@ func TestServiceGraphs_droppedEdgesMetric_fromFilteredCounterpart(t *testing.T) 
 						},
 					},
 				},
-				ScopeSpans: []*tracev1.ScopeSpans{
+				ScopeSpans: []tracev1.ScopeSpans{
 					{
-						Spans: []*tracev1.Span{
+						Spans: []tracev1.Span{
 							{
 								TraceId:           traceID,
 								ParentSpanId:      clientSpanID,
@@ -821,10 +821,10 @@ func TestServiceGraphs_droppedEdgesMetric_whenFilteredSpanDropsBufferedCounterpa
 	clientSpanID := []byte{0x22}
 
 	request := &tempopb.PushSpansRequest{
-		Batches: []*tracev1.ResourceSpans{
+		Batches: []tracev1.ResourceSpans{
 			{
 				Resource: &resourcev1.Resource{
-					Attributes: []*v1.KeyValue{
+					Attributes: []v1.KeyValue{
 						{
 							Key: "service.name",
 							Value: &v1.AnyValue{
@@ -833,9 +833,9 @@ func TestServiceGraphs_droppedEdgesMetric_whenFilteredSpanDropsBufferedCounterpa
 						},
 					},
 				},
-				ScopeSpans: []*tracev1.ScopeSpans{
+				ScopeSpans: []tracev1.ScopeSpans{
 					{
-						Spans: []*tracev1.Span{
+						Spans: []tracev1.Span{
 							{
 								TraceId:           traceID,
 								ParentSpanId:      clientSpanID,
@@ -850,7 +850,7 @@ func TestServiceGraphs_droppedEdgesMetric_whenFilteredSpanDropsBufferedCounterpa
 			},
 			{
 				Resource: &resourcev1.Resource{
-					Attributes: []*v1.KeyValue{
+					Attributes: []v1.KeyValue{
 						{
 							Key: "service.name",
 							Value: &v1.AnyValue{
@@ -859,9 +859,9 @@ func TestServiceGraphs_droppedEdgesMetric_whenFilteredSpanDropsBufferedCounterpa
 						},
 					},
 				},
-				ScopeSpans: []*tracev1.ScopeSpans{
+				ScopeSpans: []tracev1.ScopeSpans{
 					{
-						Spans: []*tracev1.Span{
+						Spans: []tracev1.Span{
 							{
 								TraceId:           traceID,
 								SpanId:            clientSpanID,
@@ -905,10 +905,10 @@ func TestServiceGraphs_filteredRootServerSpanDoesNotAddDroppedCounterpart(t *tes
 
 	traceID := []byte{0x01}
 	request := &tempopb.PushSpansRequest{
-		Batches: []*tracev1.ResourceSpans{
+		Batches: []tracev1.ResourceSpans{
 			{
 				Resource: &resourcev1.Resource{
-					Attributes: []*v1.KeyValue{
+					Attributes: []v1.KeyValue{
 						{
 							Key: "service.name",
 							Value: &v1.AnyValue{
@@ -917,9 +917,9 @@ func TestServiceGraphs_filteredRootServerSpanDoesNotAddDroppedCounterpart(t *tes
 						},
 					},
 				},
-				ScopeSpans: []*tracev1.ScopeSpans{
+				ScopeSpans: []tracev1.ScopeSpans{
 					{
-						Spans: []*tracev1.Span{
+						Spans: []tracev1.Span{
 							{
 								TraceId:           traceID,
 								Kind:              tracev1.Span_SPAN_KIND_SERVER,
@@ -1237,10 +1237,10 @@ func TestServiceGraphs_connectionInfo(t *testing.T) {
 		request, err := loadTestData("testdata/trace-with-queue-database.json")
 		require.NoError(t, err)
 		// Attach sampler.param=0.5 to every span so the multiplier resolves to 2.
-		for _, rs := range request.Batches {
-			for _, ils := range rs.ScopeSpans {
-				for _, span := range ils.Spans {
-					span.Attributes = append(span.Attributes, &v1.KeyValue{
+		for bi := range request.Batches {
+			for si := range request.Batches[bi].ScopeSpans {
+				for spi := range request.Batches[bi].ScopeSpans[si].Spans {
+					request.Batches[bi].ScopeSpans[si].Spans[spi].Attributes = append(request.Batches[bi].ScopeSpans[si].Spans[spi].Attributes, v1.KeyValue{
 						Key:   "sampler.param",
 						Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 0.5}},
 					})
@@ -1585,16 +1585,16 @@ func serviceGraphLabelsWithoutInstance(lbls labels.Labels) labels.Labels {
 	return lb.Labels()
 }
 
-func makeServiceGraphBatch(svcName string, kind tracev1.Span_SpanKind, traceID, spanID, parentSpanID []byte, spanAttrs ...*v1.KeyValue) *tracev1.ResourceSpans {
-	return &tracev1.ResourceSpans{
+func makeServiceGraphBatch(svcName string, kind tracev1.Span_SpanKind, traceID, spanID, parentSpanID []byte, spanAttrs ...v1.KeyValue) tracev1.ResourceSpans {
+	return tracev1.ResourceSpans{
 		Resource: &resourcev1.Resource{
-			Attributes: []*v1.KeyValue{
-				tempopb.MakeKeyValueStringPtr("service.name", svcName),
+			Attributes: []v1.KeyValue{
+				tempopb.MakeKeyValueString("service.name", svcName),
 			},
 		},
-		ScopeSpans: []*tracev1.ScopeSpans{
+		ScopeSpans: []tracev1.ScopeSpans{
 			{
-				Spans: []*tracev1.Span{
+				Spans: []tracev1.Span{
 					{
 						TraceId:           traceID,
 						SpanId:            spanID,
@@ -1628,7 +1628,7 @@ func TestServiceGraphs_nonRootServerSpanPeerAttributesDoNotChangeSeries(t *testi
 	traceID := []byte{0x0a}
 	clientSpanID := []byte{0x0b}
 
-	peerAttr := &v1.KeyValue{
+	peerAttr := v1.KeyValue{
 		Key: string(semconv.PeerServiceKey),
 		Value: &v1.AnyValue{
 			Value: &v1.AnyValue_StringValue{StringValue: "external-peer"},
@@ -1636,7 +1636,7 @@ func TestServiceGraphs_nonRootServerSpanPeerAttributesDoNotChangeSeries(t *testi
 	}
 
 	request := &tempopb.PushSpansRequest{
-		Batches: []*tracev1.ResourceSpans{
+		Batches: []tracev1.ResourceSpans{
 			makeServiceGraphBatch("svc-a", tracev1.Span_SPAN_KIND_CLIENT, traceID, clientSpanID, nil),
 			makeServiceGraphBatch("svc-b", tracev1.Span_SPAN_KIND_SERVER, traceID, []byte{0x0c}, clientSpanID, peerAttr),
 		},
@@ -1667,26 +1667,26 @@ func TestServiceGraphs_serverPeerSurvivesClientDatabaseUpdate(t *testing.T) {
 
 	traceID := []byte{0x2a}
 	clientSpanID := []byte{0x2b}
-	serverPeer := &v1.KeyValue{
+	serverPeer := v1.KeyValue{
 		Key: string(semconv.PeerServiceKey),
 		Value: &v1.AnyValue{
 			Value: &v1.AnyValue_StringValue{StringValue: "external-peer"},
 		},
 	}
-	databaseNamespace := &v1.KeyValue{
+	databaseNamespace := v1.KeyValue{
 		Key: string(semconvnew.DBNamespaceKey),
 		Value: &v1.AnyValue{
 			Value: &v1.AnyValue_StringValue{StringValue: "database"},
 		},
 	}
-	emptyServerAddress := &v1.KeyValue{
+	emptyServerAddress := v1.KeyValue{
 		Key: string(semconv.ServerAddressKey),
 		Value: &v1.AnyValue{
 			Value: &v1.AnyValue_StringValue{},
 		},
 	}
 
-	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*tracev1.ResourceSpans{
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []tracev1.ResourceSpans{
 		makeServiceGraphBatch("svc-b", tracev1.Span_SPAN_KIND_SERVER, traceID, []byte{0x2c}, clientSpanID, serverPeer),
 		makeServiceGraphBatch("svc-a", tracev1.Span_SPAN_KIND_CLIENT, traceID, clientSpanID, nil, databaseNamespace, emptyServerAddress),
 	}})
@@ -1709,7 +1709,7 @@ func TestServiceGraphs_serverPeerSurvivesClientDatabaseUpdate(t *testing.T) {
 // service.name: ServerService stays empty, the edge never completes, and on
 // expiry the server span's peer attribute names the external server service.
 func TestServiceGraphs_emptyServiceNameServerSpanInfersVirtualNodeFromPeer(t *testing.T) {
-	peerAttr := &v1.KeyValue{
+	peerAttr := v1.KeyValue{
 		Key: string(semconv.PeerServiceKey),
 		Value: &v1.AnyValue{
 			Value: &v1.AnyValue_StringValue{StringValue: "external-peer"},
@@ -1722,25 +1722,25 @@ func TestServiceGraphs_emptyServiceNameServerSpanInfersVirtualNodeFromPeer(t *te
 
 	tests := []struct {
 		name    string
-		batches []*tracev1.ResourceSpans
+		batches []tracev1.ResourceSpans
 	}{
 		{
 			name: "client before server",
-			batches: []*tracev1.ResourceSpans{
+			batches: []tracev1.ResourceSpans{
 				makeServiceGraphBatch("svc-a", tracev1.Span_SPAN_KIND_CLIENT, traceID, clientSpanID, nil),
 				makeServiceGraphBatch("", tracev1.Span_SPAN_KIND_SERVER, traceID, serverSpanID, clientSpanID, peerAttr),
 			},
 		},
 		{
 			name: "server before client",
-			batches: []*tracev1.ResourceSpans{
+			batches: []tracev1.ResourceSpans{
 				makeServiceGraphBatch("", tracev1.Span_SPAN_KIND_SERVER, traceID, serverSpanID, clientSpanID, peerAttr),
 				makeServiceGraphBatch("svc-a", tracev1.Span_SPAN_KIND_CLIENT, traceID, clientSpanID, nil),
 			},
 		},
 		{
 			name: "producer and consumer messaging spans",
-			batches: []*tracev1.ResourceSpans{
+			batches: []tracev1.ResourceSpans{
 				makeServiceGraphBatch("svc-a", tracev1.Span_SPAN_KIND_PRODUCER, traceID, clientSpanID, nil),
 				makeServiceGraphBatch("", tracev1.Span_SPAN_KIND_CONSUMER, traceID, serverSpanID, clientSpanID, peerAttr),
 			},

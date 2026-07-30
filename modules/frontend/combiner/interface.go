@@ -17,11 +17,11 @@ type Combiner interface {
 	HTTPFinal() (*http.Response, error)
 }
 
-type TypedCombiner[T TResponse] interface {
+type TypedCombiner[T TResponse[T]] interface {
 	AddTypedResponse(r T) error
 }
 
-type GRPCCombiner[T TResponse] interface {
+type GRPCCombiner[T TResponse[T]] interface {
 	Combiner
 	TypedCombiner[T]
 

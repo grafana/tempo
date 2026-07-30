@@ -15,7 +15,7 @@ func MakeSpanPruningSpanID(a, b byte) []byte {
 // MakeSpanPruningSpan builds a span with an explicit parent, name and time range. Unlike
 // MakeSpan, it doesn't randomize anything, so tests can construct precise trace shapes
 // (e.g. N identical leaf spans under one parent) to exercise span pruning/aggregation.
-func MakeSpanPruningSpan(traceID, spanID, parentID []byte, name string, startNs, endNs uint64, attrs ...*v1_common.KeyValue) *v1_trace.Span {
+func MakeSpanPruningSpan(traceID, spanID, parentID []byte, name string, startNs, endNs uint64, attrs ...v1_common.KeyValue) *v1_trace.Span {
 	return &v1_trace.Span{
 		TraceId:           traceID,
 		SpanId:            spanID,
@@ -37,9 +37,13 @@ func MakeSpanPruningSpanWithStatus(traceID, spanID, parentID []byte, name string
 
 // WrapSpansAsTrace nests the given spans into a single-batch tempopb.Trace.
 func WrapSpansAsTrace(spans ...*v1_trace.Span) *tempopb.Trace {
+	spanValues := make([]v1_trace.Span, 0, len(spans))
+	for _, s := range spans {
+		spanValues = append(spanValues, *s)
+	}
 	return &tempopb.Trace{
-		ResourceSpans: []*v1_trace.ResourceSpans{
-			{ScopeSpans: []*v1_trace.ScopeSpans{{Spans: spans}}},
+		ResourceSpans: []v1_trace.ResourceSpans{
+			{ScopeSpans: []v1_trace.ScopeSpans{{Spans: spanValues}}},
 		},
 	}
 }
@@ -49,7 +53,9 @@ func AllSpansInTrace(tr *tempopb.Trace) []*v1_trace.Span {
 	var out []*v1_trace.Span
 	for _, rs := range tr.ResourceSpans {
 		for _, ss := range rs.ScopeSpans {
-			out = append(out, ss.Spans...)
+			for i := range ss.Spans {
+				out = append(out, &ss.Spans[i])
+			}
 		}
 	}
 	return out

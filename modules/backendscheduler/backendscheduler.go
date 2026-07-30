@@ -37,6 +37,7 @@ var tracer = otel.Tracer("modules/backendscheduler")
 // BackendScheduler manages scheduling and execution of backend jobs
 type BackendScheduler struct {
 	services.Service
+	tempopb.UnimplementedBackendSchedulerServer
 
 	mtx sync.Mutex
 

@@ -167,7 +167,7 @@ func TestSummarizeTreatsIdenticalNonFiniteAttributesAsUnchanged(t *testing.T) {
 	traceID := []byte("trace-id-0000001")
 	makeTrace := func() *tempopb.Trace {
 		root := spanForNormalizeTest(traceID, "root", "", "checkout", "GET /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK)
-		root.Attributes = append(root.Attributes, doubleAttribute("score", math.NaN()))
+		root.Attributes = append(root.Attributes, *doubleAttribute("score", math.NaN()))
 		return traceWithNamedSpans(root)
 	}
 
@@ -204,7 +204,7 @@ func TestSummarizeIgnoresUnsetSpanStartInDuration(t *testing.T) {
 	makeTrace := func() *tempopb.Trace {
 		return traceWithNamedSpans(
 			spanForNormalizeTest(traceID, "root", "", "checkout", "GET /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK),
-			&tracev1.Span{
+			tracev1.Span{
 				TraceId:           traceID,
 				SpanId:            []byte("child"),
 				ParentSpanId:      []byte("root"),
@@ -212,7 +212,7 @@ func TestSummarizeIgnoresUnsetSpanStartInDuration(t *testing.T) {
 				Kind:              tracev1.Span_SPAN_KIND_CLIENT,
 				StartTimeUnixNano: 0, // unset
 				EndTimeUnixNano:   (normalizeTestTimeOffsetMs + 50) * 1_000_000,
-				Attributes:        []*commonv1.KeyValue{stringAttribute("service.name", "checkout")},
+				Attributes:        []commonv1.KeyValue{*stringAttribute("service.name", "checkout")},
 				Status:            &tracev1.Status{Code: tracev1.Status_STATUS_CODE_OK},
 			},
 		)
@@ -241,7 +241,7 @@ func TestSummarizeUnsetSpanStartDoesNotInflateSumSpanDuration(t *testing.T) {
 	// contributes zero work.
 	compare := traceWithNamedSpans(
 		spanForNormalizeTest(traceID, "root", "", "checkout", "GET /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK),
-		&tracev1.Span{
+		tracev1.Span{
 			TraceId:           traceID,
 			SpanId:            []byte("child"),
 			ParentSpanId:      []byte("root"),
@@ -249,7 +249,7 @@ func TestSummarizeUnsetSpanStartDoesNotInflateSumSpanDuration(t *testing.T) {
 			Kind:              tracev1.Span_SPAN_KIND_CLIENT,
 			StartTimeUnixNano: 0, // unset
 			EndTimeUnixNano:   (normalizeTestTimeOffsetMs + 60) * 1_000_000,
-			Attributes:        []*commonv1.KeyValue{stringAttribute("service.name", "checkout")},
+			Attributes:        []commonv1.KeyValue{*stringAttribute("service.name", "checkout")},
 			Status:            &tracev1.Status{Code: tracev1.Status_STATUS_CODE_OK},
 		},
 	)
@@ -292,7 +292,7 @@ func TestSummarizeInvalidDurationWarnsAndDoesNotInflateEnvelope(t *testing.T) {
 	makeTrace := func() *tempopb.Trace {
 		return traceWithNamedSpans(
 			spanForNormalizeTest(traceID, "root", "", "checkout", "GET /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK),
-			&tracev1.Span{
+			tracev1.Span{
 				TraceId:           traceID,
 				SpanId:            []byte("bad-child"),
 				ParentSpanId:      []byte("root"),
@@ -300,7 +300,7 @@ func TestSummarizeInvalidDurationWarnsAndDoesNotInflateEnvelope(t *testing.T) {
 				Kind:              tracev1.Span_SPAN_KIND_CLIENT,
 				StartTimeUnixNano: 0,
 				EndTimeUnixNano:   (normalizeTestTimeOffsetMs + 1000) * 1_000_000,
-				Attributes:        []*commonv1.KeyValue{stringAttribute("service.name", "checkout")},
+				Attributes:        []commonv1.KeyValue{*stringAttribute("service.name", "checkout")},
 				Status:            &tracev1.Status{Code: tracev1.Status_STATUS_CODE_OK},
 			},
 		)
@@ -320,14 +320,14 @@ func TestSummarizeInvalidDurationWarnsAndDoesNotInflateEnvelope(t *testing.T) {
 func TestSummarizeInvalidDurationOnlyServiceKeepsRollupCounts(t *testing.T) {
 	traceID := []byte("trace-id-0000001")
 	makeTrace := func(status tracev1.Status_StatusCode) *tempopb.Trace {
-		return traceWithNamedSpans(&tracev1.Span{
+		return traceWithNamedSpans(tracev1.Span{
 			TraceId:           traceID,
 			SpanId:            []byte("invalid"),
 			Name:              "invalid operation",
 			Kind:              tracev1.Span_SPAN_KIND_INTERNAL,
 			StartTimeUnixNano: 0,
 			EndTimeUnixNano:   100_000_000,
-			Attributes:        []*commonv1.KeyValue{stringAttribute("service.name", "broken")},
+			Attributes:        []commonv1.KeyValue{*stringAttribute("service.name", "broken")},
 			Status:            &tracev1.Status{Code: status},
 		})
 	}
@@ -507,8 +507,9 @@ func TestSummarizeSubMillisecondDriftAccumulatesInNanoseconds(t *testing.T) {
 	// Every span slows by 0.4ms. Nanosecond accumulation must preserve the full
 	// 1.2ms delta in both trace stats and the service rollup.
 	compare := makeTrace()
-	for _, span := range compare.ResourceSpans[0].ScopeSpans[0].Spans {
-		span.EndTimeUnixNano += 400_000
+	spans := compare.ResourceSpans[0].ScopeSpans[0].Spans
+	for i := range spans {
+		spans[i].EndTimeUnixNano += 400_000
 	}
 
 	got, err := Summarize(makeTrace(), compare)
@@ -645,7 +646,7 @@ func TestSummarizeKeepsCompleteServiceSections(t *testing.T) {
 	const serviceCount = 60
 	traceID := []byte("trace-id-0000001")
 	makeTrace := func(status tracev1.Status_StatusCode) *tempopb.Trace {
-		spans := make([]*tracev1.Span, 0, serviceCount)
+		spans := make([]tracev1.Span, 0, serviceCount)
 		for i := 0; i < serviceCount; i++ {
 			spans = append(spans, spanForNormalizeTest(
 				traceID,
@@ -737,9 +738,9 @@ func doubleAttribute(key string, value float64) *commonv1.KeyValue {
 func summaryFixtureTraces() (*tempopb.Trace, *tempopb.Trace) {
 	traceID := []byte("trace-id-0000001")
 	baseRoot := spanForNormalizeTest(traceID, "root", "", "checkout", "GET /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK)
-	baseRoot.Attributes = append(baseRoot.Attributes, stringAttribute("service.version", "v1"))
+	baseRoot.Attributes = append(baseRoot.Attributes, *stringAttribute("service.version", "v1"))
 	compareRoot := spanForNormalizeTest(traceID, "root2", "", "checkout", "GET /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 110, tracev1.Status_STATUS_CODE_OK)
-	compareRoot.Attributes = append(compareRoot.Attributes, stringAttribute("service.version", "v2"))
+	compareRoot.Attributes = append(compareRoot.Attributes, *stringAttribute("service.version", "v2"))
 
 	return traceWithNamedSpans(
 			baseRoot,

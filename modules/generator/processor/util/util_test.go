@@ -13,7 +13,7 @@ import (
 func TestFindServiceName(t *testing.T) {
 	testCases := []struct {
 		name                string
-		attributes          []*v1_common.KeyValue
+		attributes          []v1_common.KeyValue
 		expectedServiceName string
 		expectedOk          bool
 	}{
@@ -25,7 +25,7 @@ func TestFindServiceName(t *testing.T) {
 		},
 		{
 			"service name",
-			[]*v1_common.KeyValue{
+			[]v1_common.KeyValue{
 				{
 					Key: "cluster",
 					Value: &v1_common.AnyValue{
@@ -48,7 +48,7 @@ func TestFindServiceName(t *testing.T) {
 		},
 		{
 			"service name",
-			[]*v1_common.KeyValue{
+			[]v1_common.KeyValue{
 				{
 					Key: "service.name",
 					Value: &v1_common.AnyValue{
@@ -63,7 +63,7 @@ func TestFindServiceName(t *testing.T) {
 		},
 		{
 			"no service name",
-			[]*v1_common.KeyValue{
+			[]v1_common.KeyValue{
 				{
 					Key: "cluster",
 					Value: &v1_common.AnyValue{
@@ -78,7 +78,7 @@ func TestFindServiceName(t *testing.T) {
 		},
 		{
 			"service name is other type",
-			[]*v1_common.KeyValue{
+			[]v1_common.KeyValue{
 				{
 					Key: "service.name",
 					Value: &v1_common.AnyValue{
@@ -103,8 +103,8 @@ func TestFindServiceName(t *testing.T) {
 }
 
 func TestFindServiceLabels(t *testing.T) {
-	strAttr := func(key, value string) *v1_common.KeyValue {
-		return &v1_common.KeyValue{
+	strAttr := func(key, value string) v1_common.KeyValue {
+		return v1_common.KeyValue{
 			Key: key,
 			Value: &v1_common.AnyValue{
 				Value: &v1_common.AnyValue_StringValue{StringValue: value},
@@ -114,7 +114,7 @@ func TestFindServiceLabels(t *testing.T) {
 
 	testCases := []struct {
 		name               string
-		attributes         []*v1_common.KeyValue
+		attributes         []v1_common.KeyValue
 		expectedSvcName    string
 		expectedJobName    string
 		expectedInstanceID string
@@ -124,13 +124,13 @@ func TestFindServiceLabels(t *testing.T) {
 		},
 		{
 			name:            "service name only",
-			attributes:      []*v1_common.KeyValue{strAttr("service.name", "my-service")},
+			attributes:      []v1_common.KeyValue{strAttr("service.name", "my-service")},
 			expectedSvcName: "my-service",
 			expectedJobName: "my-service",
 		},
 		{
 			name: "service name and namespace",
-			attributes: []*v1_common.KeyValue{
+			attributes: []v1_common.KeyValue{
 				strAttr("service.namespace", "my-namespace"),
 				strAttr("service.name", "my-service"),
 			},
@@ -139,11 +139,11 @@ func TestFindServiceLabels(t *testing.T) {
 		},
 		{
 			name:       "namespace without service name yields empty job",
-			attributes: []*v1_common.KeyValue{strAttr("service.namespace", "my-namespace")},
+			attributes: []v1_common.KeyValue{strAttr("service.namespace", "my-namespace")},
 		},
 		{
 			name: "instance id",
-			attributes: []*v1_common.KeyValue{
+			attributes: []v1_common.KeyValue{
 				strAttr("service.name", "my-service"),
 				strAttr("service.instance.id", "instance-1"),
 			},
@@ -153,7 +153,7 @@ func TestFindServiceLabels(t *testing.T) {
 		},
 		{
 			name: "first occurrence wins",
-			attributes: []*v1_common.KeyValue{
+			attributes: []v1_common.KeyValue{
 				strAttr("service.name", "first"),
 				strAttr("service.name", "second"),
 				strAttr("service.instance.id", "instance-1"),
@@ -165,7 +165,7 @@ func TestFindServiceLabels(t *testing.T) {
 		},
 		{
 			name: "non-string values are stringified",
-			attributes: []*v1_common.KeyValue{
+			attributes: []v1_common.KeyValue{
 				{
 					Key: "service.name",
 					Value: &v1_common.AnyValue{
@@ -196,7 +196,7 @@ func BenchmarkGetSpanMultiplier(b *testing.B) {
 	}
 	spanWithoutTraceState := &v1.Span{
 		TraceState: "xx=yy:zz",
-		Attributes: []*v1_common.KeyValue{
+		Attributes: []v1_common.KeyValue{
 			{
 				Key: "sampling.ratio",
 				Value: &v1_common.AnyValue{
@@ -233,7 +233,7 @@ func TestGetSpanMultiplier_WithTraceState(t *testing.T) {
 			TraceState: traceState,
 		}
 		if attrVal > 0 {
-			s.Attributes = []*v1_common.KeyValue{
+			s.Attributes = []v1_common.KeyValue{
 				{
 					Key: ratioAttr,
 					Value: &v1_common.AnyValue{

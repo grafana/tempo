@@ -22,9 +22,9 @@ func buildSpanPruningTrace(traceID []byte, n int, leafIDPrefix byte, attr *commo
 	root := test.MakeSpanPruningSpan(traceID, test.MakeSpanPruningSpanID(1, 0), nil, "root", 0, 1_000_000)
 	spans := []*tracev1.Span{root}
 	for i := 0; i < n; i++ {
-		var attrs []*commonv1.KeyValue
+		var attrs []commonv1.KeyValue
 		if attr != nil {
-			attrs = []*commonv1.KeyValue{attr}
+			attrs = []commonv1.KeyValue{*attr}
 		}
 		spans = append(spans, test.MakeSpanPruningSpan(traceID, test.MakeSpanPruningSpanID(leafIDPrefix, byte(i)), root.SpanId, "leaf-op",
 			uint64(i*1_000), uint64(i*1_000+100), attrs...))

@@ -31,3 +31,9 @@ jobs:
 
       - name: Run version-tag tests
         run: ./tools/version-tag_test.sh
+
+      - name: Run check-otel-proto-pin tests
+        run: ./tools/check-otel-proto-pin_test.sh
+
+      - name: Run check-otel-proto-sync tests
+        run: ./tools/check-otel-proto-sync_test.sh

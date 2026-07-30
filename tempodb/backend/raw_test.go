@@ -71,7 +71,7 @@ func TestWriter(t *testing.T) {
 
 	// json
 	idxJ := &TenantIndex{}
-	err = idxJ.unmarshal(m.writeBuffer[tenantIndexPath])
+	err = idxJ.unmarshalJSONGz(m.writeBuffer[tenantIndexPath])
 	assert.NoError(t, err)
 
 	assert.Equal(t, []*BlockMeta{meta}, idxJ.Meta)

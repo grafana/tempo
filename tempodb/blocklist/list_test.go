@@ -299,7 +299,7 @@ func TestUpdateCompacted(t *testing.T) {
 			assert.Equal(t, len(tt.expected), len(l.compactedMetas[testTenantID]))
 
 			for i := range tt.expected {
-				assert.Equal(t, tt.expected[i].BlockID, l.compactedMetas[testTenantID][i].BlockID)
+				assert.Equal(t, tt.expected[i].BlockMeta.BlockID, l.compactedMetas[testTenantID][i].BlockMeta.BlockID)
 			}
 		})
 	}

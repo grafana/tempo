@@ -52,8 +52,9 @@ func (b *TenantIndex) marshal() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-// unmarshal decompresses and unmarshals the results from json
-func (b *TenantIndex) unmarshal(buffer []byte) error {
+// unmarshalJSONGz decompresses and unmarshals the results from json.
+// (named to avoid colliding with the wiresmith-generated unmarshal method)
+func (b *TenantIndex) unmarshalJSONGz(buffer []byte) error {
 	gzipReader, err := gzip.NewReader(bytes.NewReader(buffer))
 	if err != nil {
 		return err

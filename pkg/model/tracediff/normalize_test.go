@@ -62,11 +62,11 @@ func TestNormalizeTraceBuildsSpanRefsAndSnapshots(t *testing.T) {
 func TestNormalizeTraceHandlesCyclicParents(t *testing.T) {
 	traceID := []byte("trace-id-0000001")
 	trace := &tempopb.Trace{
-		ResourceSpans: []*tracev1.ResourceSpans{
+		ResourceSpans: []tracev1.ResourceSpans{
 			{
-				ScopeSpans: []*tracev1.ScopeSpans{
+				ScopeSpans: []tracev1.ScopeSpans{
 					{
-						Spans: []*tracev1.Span{
+						Spans: []tracev1.Span{
 							spanForNormalizeTest(traceID, "a", "b", "svc-a", "a", tracev1.Span_SPAN_KIND_CLIENT, 0, 10, tracev1.Status_STATUS_CODE_OK),
 							spanForNormalizeTest(traceID, "b", "a", "svc-b", "b", tracev1.Span_SPAN_KIND_CLIENT, 10, 20, tracev1.Status_STATUS_CODE_OK),
 						},
@@ -91,16 +91,16 @@ func TestNormalizeTraceHandlesCyclicParents(t *testing.T) {
 func traceForNormalizeTest() *tempopb.Trace {
 	traceID := []byte("trace-id-0000001")
 	return &tempopb.Trace{
-		ResourceSpans: []*tracev1.ResourceSpans{
+		ResourceSpans: []tracev1.ResourceSpans{
 			{
 				Resource: &resourcev1.Resource{
-					Attributes: []*commonv1.KeyValue{
-						stringAttribute("service.name", "checkout"),
+					Attributes: []commonv1.KeyValue{
+						*stringAttribute("service.name", "checkout"),
 					},
 				},
-				ScopeSpans: []*tracev1.ScopeSpans{
+				ScopeSpans: []tracev1.ScopeSpans{
 					{
-						Spans: []*tracev1.Span{
+						Spans: []tracev1.Span{
 							spanForNormalizeTest(traceID, "payment", "root", "payment", "charge", tracev1.Span_SPAN_KIND_CLIENT, 30, 45, tracev1.Status_STATUS_CODE_OK),
 							spanForNormalizeTest(traceID, "reserve", "inventory", "inventory", "reserve", tracev1.Span_SPAN_KIND_CLIENT, 20, 45, tracev1.Status_STATUS_CODE_ERROR),
 							spanForNormalizeTest(traceID, "root", "", "checkout", "POST /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK),
@@ -116,8 +116,8 @@ func traceForNormalizeTest() *tempopb.Trace {
 
 const normalizeTestTimeOffsetMs = uint64(1_700_000_000_000)
 
-func spanForNormalizeTest(traceID []byte, spanID, parentID, service, name string, kind tracev1.Span_SpanKind, start, end uint64, status tracev1.Status_StatusCode) *tracev1.Span {
-	return &tracev1.Span{
+func spanForNormalizeTest(traceID []byte, spanID, parentID, service, name string, kind tracev1.Span_SpanKind, start, end uint64, status tracev1.Status_StatusCode) tracev1.Span {
+	return tracev1.Span{
 		TraceId:           traceID,
 		SpanId:            []byte(spanID),
 		ParentSpanId:      []byte(parentID),
@@ -125,8 +125,8 @@ func spanForNormalizeTest(traceID []byte, spanID, parentID, service, name string
 		Kind:              kind,
 		StartTimeUnixNano: (normalizeTestTimeOffsetMs + start) * 1_000_000,
 		EndTimeUnixNano:   (normalizeTestTimeOffsetMs + end) * 1_000_000,
-		Attributes: []*commonv1.KeyValue{
-			stringAttribute("service.name", service),
+		Attributes: []commonv1.KeyValue{
+			*stringAttribute("service.name", service),
 		},
 		Status: &tracev1.Status{Code: status},
 	}

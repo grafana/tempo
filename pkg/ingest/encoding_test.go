@@ -178,10 +178,10 @@ func generateRandomString(length int) []byte {
 }
 
 func BenchmarkGeneratorDecoderOTLP(b *testing.B) {
-	traceBytes := marshalBatches(b, []*v1.ResourceSpans{
-		test.MakeBatch(15, []byte("test batch 1")),
-		test.MakeBatch(50, []byte("test batch 2")),
-		test.MakeBatch(42, []byte("test batch 3")),
+	traceBytes := marshalBatches(b, []v1.ResourceSpans{
+		*test.MakeBatch(15, []byte("test batch 1")),
+		*test.MakeBatch(50, []byte("test batch 2")),
+		*test.MakeBatch(42, []byte("test batch 3")),
 	})
 
 	b.ReportAllocs()
@@ -196,7 +196,7 @@ func BenchmarkGeneratorDecoderOTLP(b *testing.B) {
 	}
 }
 
-func marshalBatches(t testing.TB, batches []*v1.ResourceSpans) []byte {
+func marshalBatches(t testing.TB, batches []v1.ResourceSpans) []byte {
 	t.Helper()
 
 	trace := tempopb.Trace{ResourceSpans: batches}

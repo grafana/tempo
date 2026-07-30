@@ -1,0 +1,6 @@
+change_type: enhancement
+component: deps
+note: Migrate protobuf code generation from protoc-gen-gogofaster to the wiresmith compiler. Wire format and JSON shapes unchanged; OTLP ingest decode is faster and allocates less.
+issues: [7466]
+subtext:
+user: oleg-kozlyuk

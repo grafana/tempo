@@ -12,14 +12,17 @@ import (
 // data intrinsic like timestamp or id.
 func SortTrace(t *tempopb.Trace) {
 	// Sort bottom up by span start times
-	for _, b := range t.ResourceSpans {
-		for _, ss := range b.ScopeSpans {
-			for _, span := range ss.Spans {
+	for bi := range t.ResourceSpans {
+		b := &t.ResourceSpans[bi]
+		for si := range b.ScopeSpans {
+			ss := &b.ScopeSpans[si]
+			for spi := range ss.Spans {
+				span := &ss.Spans[spi]
 				sort.Slice(span.Events, func(i, j int) bool {
-					return compareEvents(span.Events[i], span.Events[j])
+					return compareEvents(*span.Events[i], *span.Events[j])
 				})
 				sort.Slice(span.Links, func(i, j int) bool {
-					return compareLinks(span.Links[i], span.Links[j])
+					return compareLinks(*span.Links[i], *span.Links[j])
 				})
 			}
 			sort.Slice(ss.Spans, func(i, j int) bool {
@@ -39,28 +42,33 @@ func SortTrace(t *tempopb.Trace) {
 // sorts all resource and span attributes by name.
 func SortTraceAndAttributes(t *tempopb.Trace) {
 	SortTrace(t)
-	for _, b := range t.ResourceSpans {
+	for bi := range t.ResourceSpans {
+		b := &t.ResourceSpans[bi]
 		if res := b.Resource; res != nil {
 			sort.Slice(res.Attributes, func(i, j int) bool {
 				return res.Attributes[i].Key < res.Attributes[j].Key
 			})
 		}
-		for _, ss := range b.ScopeSpans {
+		for si := range b.ScopeSpans {
+			ss := &b.ScopeSpans[si]
 			if ss.Scope != nil {
 				sort.Slice(ss.Scope.Attributes, func(i, j int) bool {
 					return ss.Scope.Attributes[i].Key < ss.Scope.Attributes[j].Key
 				})
 			}
-			for _, span := range ss.Spans {
+			for spi := range ss.Spans {
+				span := &ss.Spans[spi]
 				sort.Slice(span.Attributes, func(i, j int) bool {
 					return span.Attributes[i].Key < span.Attributes[j].Key
 				})
-				for _, event := range span.Events {
+				for ei := range span.Events {
+					event := span.Events[ei] // *Span_Event, not &*Span_Event
 					sort.Slice(event.Attributes, func(i, j int) bool {
 						return event.Attributes[i].Key < event.Attributes[j].Key
 					})
 				}
-				for _, link := range span.Links {
+				for li := range span.Links {
+					link := span.Links[li] // *Span_Link
 					sort.Slice(link.Attributes, func(i, j int) bool {
 						return link.Attributes[i].Key < link.Attributes[j].Key
 					})
@@ -70,21 +78,21 @@ func SortTraceAndAttributes(t *tempopb.Trace) {
 	}
 }
 
-func compareBatches(a, b *v1.ResourceSpans) bool {
+func compareBatches(a, b v1.ResourceSpans) bool {
 	if len(a.ScopeSpans) > 0 && len(b.ScopeSpans) > 0 {
 		return compareScopeSpans(a.ScopeSpans[0], b.ScopeSpans[0])
 	}
 	return false
 }
 
-func compareScopeSpans(a, b *v1.ScopeSpans) bool {
+func compareScopeSpans(a, b v1.ScopeSpans) bool {
 	if len(a.Spans) > 0 && len(b.Spans) > 0 {
 		return compareSpans(a.Spans[0], b.Spans[0])
 	}
 	return false
 }
 
-func compareSpans(a, b *v1.Span) bool {
+func compareSpans(a, b v1.Span) bool {
 	// Sort by start time, then id
 	if a.StartTimeUnixNano == b.StartTimeUnixNano {
 		return bytes.Compare(a.SpanId, b.SpanId) == -1
@@ -93,7 +101,7 @@ func compareSpans(a, b *v1.Span) bool {
 	return a.StartTimeUnixNano < b.StartTimeUnixNano
 }
 
-func compareEvents(a, b *v1.Span_Event) bool {
+func compareEvents(a, b v1.Span_Event) bool {
 	if a.TimeUnixNano == b.TimeUnixNano {
 		return a.Name < b.Name
 	}
@@ -101,7 +109,7 @@ func compareEvents(a, b *v1.Span_Event) bool {
 	return a.TimeUnixNano < b.TimeUnixNano
 }
 
-func compareLinks(a, b *v1.Span_Link) bool {
+func compareLinks(a, b v1.Span_Link) bool {
 	if bytes.Equal(a.TraceId, b.TraceId) {
 		return bytes.Compare(a.SpanId, b.SpanId) == -1
 	}

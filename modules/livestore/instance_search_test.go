@@ -355,11 +355,13 @@ func BenchmarkLocalBlockSearchTagValuesV2Limit(b *testing.B) {
 		require.NoError(b, err)
 
 		tt := test.MakeTrace(1, id)
-		hcKV := &v1.KeyValue{Key: hcTag, Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "hc-" + strconv.Itoa(j)}}}
-		lcKV := &v1.KeyValue{Key: lcTag, Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "lc-" + strconv.Itoa(j%10)}}}
+		hcKV := v1.KeyValue{Key: hcTag, Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "hc-" + strconv.Itoa(j)}}}
+		lcKV := v1.KeyValue{Key: lcTag, Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "lc-" + strconv.Itoa(j%10)}}}
 		for _, batch := range tt.ResourceSpans {
-			for _, ils := range batch.ScopeSpans {
-				for _, span := range ils.Spans {
+			for si := range batch.ScopeSpans {
+				ils := &batch.ScopeSpans[si]
+				for spi := range ils.Spans {
+					span := &ils.Spans[spi]
 					span.StartTimeUnixNano = uint64(now.UnixNano())
 					span.EndTimeUnixNano = uint64(now.UnixNano())
 					span.Attributes = append(span.Attributes, hcKV, lcKV)
@@ -953,24 +955,35 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 
 		testTrace := test.MakeTrace(10, id)
 		// add the time
-		for _, batch := range testTrace.ResourceSpans {
-			for _, ils := range batch.ScopeSpans {
+		// ResourceSpans/ScopeSpans/Spans are value-type slices, so a range-copy
+		// variable's fields don't alias the original element; index and mutate
+		// in place.
+		for bi := range testTrace.ResourceSpans {
+			batch := &testTrace.ResourceSpans[bi]
+			for si := range batch.ScopeSpans {
+				ils := &batch.ScopeSpans[si]
 				ils.Scope = &v1.InstrumentationScope{
 					Name:       "scope-name",
 					Version:    "scope-version",
-					Attributes: []*v1.KeyValue{kv},
+					Attributes: []v1.KeyValue{*kv},
 				}
-				for _, span := range ils.Spans {
+				for spi := range ils.Spans {
+					span := &ils.Spans[spi]
 					span.Name = spanName
 					span.StartTimeUnixNano = uint64(now.UnixNano())
 					span.EndTimeUnixNano = uint64(now.UnixNano())
 				}
 			}
 		}
-		testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes = append(testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes, kv)
+		require.NotEmpty(t, testTrace.ResourceSpans)
+		require.NotEmpty(t, testTrace.ResourceSpans[0].ScopeSpans)
+		require.Equal(t, "scope-name", testTrace.ResourceSpans[0].ScopeSpans[0].Scope.GetName())
+		require.NotEmpty(t, testTrace.ResourceSpans[0].ScopeSpans[0].Spans)
+		require.Equal(t, spanName, testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Name)
+		testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes = append(testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes, *kv)
 		// add link and event
-		event := &trace_v1.Span_Event{Name: "event-name", Attributes: []*v1.KeyValue{eventKv}}
-		link := &trace_v1.Span_Link{TraceId: id, SpanId: id, Attributes: []*v1.KeyValue{linkKv}}
+		event := &trace_v1.Span_Event{Name: "event-name", Attributes: []v1.KeyValue{*eventKv}}
+		link := &trace_v1.Span_Link{TraceId: id, SpanId: id, Attributes: []v1.KeyValue{*linkKv}}
 		testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Events = append(testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Events, event)
 		testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Links = append(testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Links, link)
 
@@ -1457,11 +1470,11 @@ func TestLiveStoreQueryRange(t *testing.T) {
 
 	// Create traces from spans
 	trace1 := &tempopb.Trace{
-		ResourceSpans: []*trace_v1.ResourceSpans{
+		ResourceSpans: []trace_v1.ResourceSpans{
 			{
-				ScopeSpans: []*trace_v1.ScopeSpans{
+				ScopeSpans: []trace_v1.ScopeSpans{
 					{
-						Spans: []*trace_v1.Span{sp},
+						Spans: []trace_v1.Span{*sp},
 					},
 				},
 			},
@@ -1469,11 +1482,11 @@ func TestLiveStoreQueryRange(t *testing.T) {
 	}
 
 	trace2 := &tempopb.Trace{
-		ResourceSpans: []*trace_v1.ResourceSpans{
+		ResourceSpans: []trace_v1.ResourceSpans{
 			{
-				ScopeSpans: []*trace_v1.ScopeSpans{
+				ScopeSpans: []trace_v1.ScopeSpans{
 					{
-						Spans: []*trace_v1.Span{sp2},
+						Spans: []trace_v1.Span{*sp2},
 					},
 				},
 			},

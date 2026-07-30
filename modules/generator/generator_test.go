@@ -184,17 +184,17 @@ func BenchmarkPushSpans(b *testing.B) {
 	defer inst.shutdown()
 
 	req := &tempopb.PushSpansRequest{
-		Batches: []*trace_v1.ResourceSpans{
-			test.MakeBatch(100, nil),
-			test.MakeBatch(100, nil),
-			test.MakeBatch(100, nil),
-			test.MakeBatch(100, nil),
-			test.MakeBatch(100, nil),
-			test.MakeBatch(100, nil),
-			test.MakeBatch(100, nil),
-			test.MakeBatch(100, nil),
-			test.MakeBatch(100, nil),
-			test.MakeBatch(100, nil),
+		Batches: []trace_v1.ResourceSpans{
+			*test.MakeBatch(100, nil),
+			*test.MakeBatch(100, nil),
+			*test.MakeBatch(100, nil),
+			*test.MakeBatch(100, nil),
+			*test.MakeBatch(100, nil),
+			*test.MakeBatch(100, nil),
+			*test.MakeBatch(100, nil),
+			*test.MakeBatch(100, nil),
+			*test.MakeBatch(100, nil),
+			*test.MakeBatch(100, nil),
 		},
 	}
 
@@ -202,8 +202,8 @@ func BenchmarkPushSpans(b *testing.B) {
 	// Add integer to increase cardinality.
 	// Currently this is about 80 active series
 	// TODO - Get more series
-	for i, b := range req.Batches {
-		b.Resource.Attributes = append(b.Resource.Attributes, []*common_v1.KeyValue{
+	for i := range req.Batches {
+		req.Batches[i].Resource.Attributes = append(req.Batches[i].Resource.Attributes, []common_v1.KeyValue{
 			{Key: "k8s.cluster.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
 			{Key: "k8s.namespace.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
 			{Key: "k8s.node.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
@@ -320,11 +320,11 @@ func BenchmarkCollect(b *testing.B) {
 	defer inst.shutdown()
 
 	req := &tempopb.PushSpansRequest{
-		Batches: []*trace_v1.ResourceSpans{
-			test.MakeBatch(100, nil),
-			test.MakeBatch(100, nil),
-			test.MakeBatch(100, nil),
-			test.MakeBatch(100, nil),
+		Batches: []trace_v1.ResourceSpans{
+			*test.MakeBatch(100, nil),
+			*test.MakeBatch(100, nil),
+			*test.MakeBatch(100, nil),
+			*test.MakeBatch(100, nil),
 		},
 	}
 
@@ -332,8 +332,8 @@ func BenchmarkCollect(b *testing.B) {
 	// Add integer to increase cardinality.
 	// Currently this is about 80 active series
 	// TODO - Get more series
-	for i, b := range req.Batches {
-		b.Resource.Attributes = append(b.Resource.Attributes, []*common_v1.KeyValue{
+	for i := range req.Batches {
+		req.Batches[i].Resource.Attributes = append(req.Batches[i].Resource.Attributes, []common_v1.KeyValue{
 			{Key: "k8s.cluster.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
 			{Key: "k8s.namespace.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
 			{Key: "k8s.node.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},

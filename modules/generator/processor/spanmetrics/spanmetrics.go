@@ -133,18 +133,20 @@ func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) 
 func (p *Processor) Shutdown(_ context.Context) {
 }
 
-func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
+func (p *Processor) aggregateMetrics(resourceSpans []v1_trace.ResourceSpans) {
 	// One timestamp per push keeps time.Now off the per-span path; lastUpdated
 	// feeds staleness checks on the order of minutes, so per-batch granularity
 	// is more than enough.
 	updateTimeMs := p.now().UnixMilli()
-	for _, rs := range resourceSpans {
+	for i := range resourceSpans {
+		rs := &resourceSpans[i]
 		// already extract job name & instance id, so we only have to do it once per batch of spans
 		svcName, jobName, instanceID := processor_util.FindServiceLabels(rs.Resource.Attributes)
 		targetInfoLabelsValid := true
 		targetInfoLabelsBuilt := false
 		for _, ils := range rs.ScopeSpans {
-			for _, span := range ils.Spans {
+			for j := range ils.Spans {
+				span := &ils.Spans[j]
 				if !p.filter.ApplyFilterPolicy(rs.Resource, span) {
 					p.filteredSpansCounter.Inc()
 					continue
@@ -261,9 +263,10 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 	return true
 }
 
-func (p *Processor) buildAndSetTargetInfoLabels(attributes []*v1_common.KeyValue, jobName string, instanceID string, updateTimeMs int64) bool {
+func (p *Processor) buildAndSetTargetInfoLabels(attributes []v1_common.KeyValue, jobName string, instanceID string, updateTimeMs int64) bool {
 	targetInfoBuilder := p.registry.NewInfoMetricLabelBuilder()
-	for _, attr := range attributes {
+	for i := range attributes {
+		attr := &attributes[i]
 		key := attr.Key
 		// Skip empty string keys, which are out of spec but technically
 		// possible in the proto, and keys starting with a digit. These will

@@ -61,12 +61,12 @@ func Test_instance_concurrency(t *testing.T) {
 
 	go accessor(func() {
 		req := test.MakeBatch(1, nil)
-		instance1.pushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*v1.ResourceSpans{req}})
+		instance1.pushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []v1.ResourceSpans{*req}})
 	})
 
 	go accessor(func() {
 		req := test.MakeBatch(1, nil)
-		instance2.pushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*v1.ResourceSpans{req}})
+		instance2.pushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []v1.ResourceSpans{*req}})
 	})
 
 	go accessor(func() {
@@ -107,7 +107,7 @@ func TestInstancePushSpansSkipProcessors(t *testing.T) {
 	_ = metricSkippedProcessorPushes.WithLabelValues(tenantID)
 
 	t.Run("use metrics-generating processors", func(t *testing.T) {
-		i.pushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*v1.ResourceSpans{req}})
+		i.pushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []v1.ResourceSpans{*req}})
 
 		expectMetrics := `
 # HELP tempo_metrics_generator_metrics_generation_skipped_processor_pushes_total The total number of processor pushes skipped because the request indicated that metrics should not be generated.
@@ -123,7 +123,7 @@ tempo_metrics_generator_metrics_generation_skipped_processor_pushes_total{tenant
 	})
 
 	t.Run("skip metrics-generating processors", func(t *testing.T) {
-		i.pushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*v1.ResourceSpans{req}, SkipMetricsGeneration: true})
+		i.pushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []v1.ResourceSpans{*req}, SkipMetricsGeneration: true})
 
 		expectMetrics := `
 # HELP tempo_metrics_generator_metrics_generation_skipped_processor_pushes_total The total number of processor pushes skipped because the request indicated that metrics should not be generated.

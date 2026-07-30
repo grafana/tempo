@@ -316,7 +316,7 @@ func runnerRequests(t *testing.T, f *QueryFrontend) {
 			if tc.expectedResponse != nil {
 				err := jsonpb.Unmarshal(httpResp.Body, actualResp)
 				require.NoError(t, err)
-				require.Equal(t, tc.expectedResponse, actualResp)
+				test.RequireProtoEqual(t, tc.expectedResponse, actualResp)
 			}
 			require.Equal(t, tc.expectedStatusCode, httpResp.Code)
 
@@ -327,7 +327,7 @@ func runnerRequests(t *testing.T, f *QueryFrontend) {
 			}))
 
 			require.Equal(t, tc.expectedErr, err)
-			require.Equal(t, tc.expectedResponse, actualResp)
+			test.RequireProtoEqual(t, tc.expectedResponse, actualResp)
 		})
 	}
 }

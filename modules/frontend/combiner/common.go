@@ -22,8 +22,9 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-type TResponse interface {
+type TResponse[T any] interface {
 	proto.Message
+	Clone() T
 }
 
 type PipelineResponse interface {
@@ -33,7 +34,7 @@ type PipelineResponse interface {
 	IsMetadata() bool // todo: search and query range pass back metadata responses through a normal http response. update to use this instead.
 }
 
-type genericCombiner[T TResponse] struct {
+type genericCombiner[T TResponse[T]] struct {
 	mu sync.Mutex
 
 	current T // todo: state mgmt is mixed between the combiner and the various implementations. put it in one spot.
@@ -56,7 +57,7 @@ type genericCombiner[T TResponse] struct {
 }
 
 // Init an HTTP combiner with default values. The marshaling format dictates how the response will be marshaled, including the Content-type header.
-func initHTTPCombiner[T TResponse](c *genericCombiner[T], marshalingFormat api.MarshallingFormat) {
+func initHTTPCombiner[T TResponse[T]](c *genericCombiner[T], marshalingFormat api.MarshallingFormat) {
 	c.httpStatusCode = 200
 	c.httpMarshalingFormat = marshalingFormat
 }
@@ -212,8 +213,7 @@ func (c *genericCombiner[T]) GRPCFinal() (T, error) {
 	}
 
 	// clone the final response to prevent race conditions with marshalling this data
-	finalClone := proto.Clone(final).(T)
-	return finalClone, nil
+	return final.Clone(), nil
 }
 
 func (c *genericCombiner[T]) GRPCDiff() (T, error) {
@@ -232,8 +232,7 @@ func (c *genericCombiner[T]) GRPCDiff() (T, error) {
 	}
 
 	// clone the diff to prevent race conditions with marshalling this data
-	diffClone := proto.Clone(diff)
-	return diffClone.(T), nil
+	return diff.Clone(), nil
 }
 
 func (c *genericCombiner[T]) GRPCSegment(response T, maxSize int) ([]T, error) {

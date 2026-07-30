@@ -45,7 +45,7 @@ func getMeta(meta *backend.BlockMeta, compactedMeta *backend.CompactedBlockMeta,
 		return unifiedBlockMeta{
 			BlockMeta:          compactedMeta.BlockMeta,
 			CompactedBlockMeta: *compactedMeta,
-			window:             compactedMeta.EndTime.Unix() / int64(windowRange/time.Second),
+			window:             compactedMeta.BlockMeta.EndTime.Unix() / int64(windowRange/time.Second),
 			compacted:          true,
 		}
 	}

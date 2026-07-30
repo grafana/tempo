@@ -476,12 +476,17 @@ func (i *instance) preprocessSpans(req *tempopb.PushSpansRequest) {
 	expiredSpanCount := 0
 	ingestionSlackNano := i.ingestionSlackOverride.Load()
 
-	for _, b := range req.Batches {
+	// Index-based iteration is required here: Batches/ScopeSpans are value-type
+	// slices, so a range-copy variable's fields don't alias the original element
+	// and assigning ss.Spans on a copy would be a no-op.
+	for bi := range req.Batches {
+		b := &req.Batches[bi]
 		size += b.Size()
-		for _, ss := range b.ScopeSpans {
+		for si := range b.ScopeSpans {
+			ss := &b.ScopeSpans[si]
 			spanCount += len(ss.Spans)
 			// filter spans that have end time > max_age and end time more than 5 days in the future
-			newSpansArr := make([]*v1.Span, len(ss.Spans))
+			newSpansArr := make([]v1.Span, len(ss.Spans))
 			timeNow := time.Now()
 			maxTimePast := uint64(timeNow.UnixNano() - ingestionSlackNano)
 			maxTimeFuture := uint64(timeNow.UnixNano() + ingestionSlackNano)

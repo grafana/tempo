@@ -51,9 +51,9 @@ func TestExperimentalTraceDiffPatchEncodesNonFiniteAttributes(t *testing.T) {
 	out := filepath.Join(dir, "diff.json")
 
 	base := experimentalTraceDiffTrace(1, 100_000_000)
-	base.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes = append(base.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes, experimentalTraceDiffDoubleKV("score", 1.5))
+	base.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes = append(base.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes, *experimentalTraceDiffDoubleKV("score", 1.5))
 	compare := experimentalTraceDiffTrace(1, 100_000_000)
-	compare.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes = append(compare.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes, experimentalTraceDiffDoubleKV("score", math.NaN()))
+	compare.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes = append(compare.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes, *experimentalTraceDiffDoubleKV("score", math.NaN()))
 	writeExperimentalTraceDiffTraceFile(t, traceA, base)
 	writeExperimentalTraceDiffTraceFile(t, traceB, compare)
 
@@ -151,13 +151,13 @@ func writeExperimentalTraceDiffResponseFile(t *testing.T, path string, resp *tem
 func experimentalTraceDiffTrace(traceID byte, durationNanos uint64) *tempopb.Trace {
 	const startNanos = uint64(1_700_000_000_000_000_000)
 	return &tempopb.Trace{
-		ResourceSpans: []*tracev1.ResourceSpans{
+		ResourceSpans: []tracev1.ResourceSpans{
 			{
 				Resource: &resourcev1.Resource{
-					Attributes: []*commonv1.KeyValue{experimentalTraceDiffStringKV("service.name", "checkout")},
+					Attributes: []commonv1.KeyValue{*experimentalTraceDiffStringKV("service.name", "checkout")},
 				},
-				ScopeSpans: []*tracev1.ScopeSpans{
-					{Spans: []*tracev1.Span{
+				ScopeSpans: []tracev1.ScopeSpans{
+					{Spans: []tracev1.Span{
 						{
 							TraceId:           experimentalTraceDiffTraceID(traceID),
 							SpanId:            []byte{traceID},

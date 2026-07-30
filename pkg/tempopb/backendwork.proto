@@ -2,10 +2,13 @@ syntax = "proto3";
 
 package tempopb;
 
-import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+import "wiresmith/options.proto";
 
-option (gogoproto.marshaler_all) = true;
-option (gogoproto.unmarshaler_all) = true;
+// Drop the XXX_fieldsPresent bitmap: gogo never generated Has methods or
+// presence tracking for these messages, the exported bitmap would leak
+// into encoding/json output, and the declared-fields-only layout matches
+// gogo's nullable=false structs.
+option (wiresmith.options.no_presence_all) = true;
 
 service BackendScheduler {
   // Get next available job
@@ -36,37 +39,26 @@ enum JobStatus {
 
 // CompactionDetail contains fields specific to compaction jobs
 message CompactionDetail {
-  option (gogoproto.equal) = true;
-  option (gogoproto.compare) = true;
-
   repeated string input = 1;  // block IDs for compaction
   repeated string output = 2;  // block IDs resulting from compaction
 }
-message RetentionDetail {
-  option (gogoproto.equal) = true;
-  option (gogoproto.compare) = true;
-}
+message RetentionDetail {}
 
 // RedactionDetail contains fields for redaction jobs (one job per block).
 // TraceIds are the trace IDs to redact from the block. Future extension may add
 // traceql/attribute-based redaction.
 message RedactionDetail {
-  option (gogoproto.equal) = true;
-  option (gogoproto.compare) = true;
-
   string block_id = 1;       // block to redact
   repeated bytes trace_ids = 2;  // trace IDs to remove from the block
 }
 
 // JobDetail contains the specific details for each job type
 message JobDetail {
-  option (gogoproto.equal) = true;  // Keep equal but remove compare
-
   string tenant = 1;
   // oneof detail {
-    CompactionDetail compaction = 2;
-    RetentionDetail retention = 3;
-    RedactionDetail redaction = 4;
+    CompactionDetail compaction = 2 [(wiresmith.options.pointer) = true];
+    RetentionDetail retention = 3 [(wiresmith.options.pointer) = true];
+    RedactionDetail redaction = 4 [(wiresmith.options.pointer) = true];
   // }
 
   // batch_id groups the pending jobs that were created from a single SubmitRedaction
@@ -81,15 +73,15 @@ message NextJobRequest {
 message NextJobResponse {
   string job_id = 1;
   JobType type = 2;
-  JobDetail detail = 3 [(gogoproto.nullable) = false];
+  JobDetail detail = 3;
 }
 
 message UpdateJobStatusRequest {
   string job_id = 1;
   JobStatus status = 2;
   string error = 3;  // populated if status is FAILED
-  CompactionDetail compaction = 4;
-  RedactionResult redaction = 5;
+  CompactionDetail compaction = 4 [(wiresmith.options.pointer) = true];
+  RedactionResult redaction = 5 [(wiresmith.options.pointer) = true];
 }
 
 message UpdateJobStatusResponse {
@@ -114,8 +106,6 @@ message SubmitRedactionResponse {
 
 // RedactionResult is reported by the worker when a redaction job completes.
 message RedactionResult {
-  option (gogoproto.equal) = true;
-
   // traces_found is the number of target trace IDs that were present and removed
   // from the block. Zero means the block was scanned and found clean.
   int32 traces_found = 1;
@@ -126,8 +116,6 @@ message RedactionResult {
 // list into every job (which could be millions of jobs for large tenants).
 // Persisted locally as batches.pb alongside the shard files.
 message RedactionBatch {
-  option (gogoproto.equal) = true;
-
   string batch_id = 1;
   string tenant_id = 2;
   repeated bytes trace_ids = 3;
@@ -144,5 +132,5 @@ message RedactionBatch {
 
 // RedactionBatches is the top-level container written to batches.pb.
 message RedactionBatches {
-  repeated RedactionBatch batches = 1;
+  repeated RedactionBatch batches = 1 [(wiresmith.options.pointer) = true];
 }

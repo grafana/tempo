@@ -6,11 +6,14 @@ package frontend;
 
 option go_package = "frontendv1pb";
 
-import "gogoproto/gogo.proto";
 import "github.com/grafana/dskit/httpgrpc/httpgrpc.proto";
+import "wiresmith/options.proto";
 
-option (gogoproto.marshaler_all) = true;
-option (gogoproto.unmarshaler_all) = true;
+// Drop the XXX_fieldsPresent bitmap: gogo never generated Has methods or
+// presence tracking for these messages, the exported bitmap would leak
+// into encoding/json output, and the declared-fields-only layout matches
+// gogo's nullable=false structs.
+option (wiresmith.options.no_presence_all) = true;
 
 service Frontend {
   // After calling this method, client enters a loop, in which it waits for
@@ -33,17 +36,19 @@ enum Feature {
 }
 
 message FrontendToClient {
-  httpgrpc.HTTPRequest httpRequest = 1;
+  // Envelopes carry the dskit (gogo-generated) httpgrpc types through
+  // wiresmith codegen; see httpgrpc_envelope.go.
+  httpgrpc.HTTPRequest httpRequest = 1 [(wiresmith.options.customtype) = "HTTPRequestEnvelope"];
   Type type = 2;
   // bool statsEnabled = 3; - removed in 2.2. reserved until we can cleanly reclaim it
-  repeated httpgrpc.HTTPRequest httpRequestBatch = 4;
+  repeated httpgrpc.HTTPRequest httpRequestBatch = 4 [(wiresmith.options.customtype) = "HTTPRequestEnvelope"];
 }
 
 message ClientToFrontend {
-  httpgrpc.HTTPResponse httpResponse = 1;
+  httpgrpc.HTTPResponse httpResponse = 1 [(wiresmith.options.customtype) = "HTTPResponseEnvelope"];
   string clientID = 2;
   // stats.Stats stats = 3; - removed in 2.2. reserved until we can cleanly reclaim it
-  repeated httpgrpc.HTTPResponse httpResponseBatch = 4;
+  repeated httpgrpc.HTTPResponse httpResponseBatch = 4 [(wiresmith.options.customtype) = "HTTPResponseEnvelope"];
   int32 features = 5; // used by the querier to indicate to the fronted that it supports
 }
 

@@ -152,10 +152,22 @@ func TestReceivers(t *testing.T) {
 				// zipkin doesn't support events and will 400 if you attempt to push one. just strip
 				// all events from the trace here
 				if tc.name == "zipkin" {
+					// ResourceSpans/ScopeSpans/Spans are value-type slices, so a
+					// range-copy variable's fields don't alias the original element;
+					// index and mutate in place.
+					for bi := range req.ResourceSpans {
+						b := &req.ResourceSpans[bi]
+						for si := range b.ScopeSpans {
+							ss := &b.ScopeSpans[si]
+							for spi := range ss.Spans {
+								ss.Spans[spi].Events = nil
+							}
+						}
+					}
 					for _, b := range req.ResourceSpans {
 						for _, ss := range b.ScopeSpans {
 							for _, s := range ss.Spans {
-								s.Events = nil
+								require.Nil(t, s.Events, "events should have been stripped for zipkin")
 							}
 						}
 					}

@@ -19,11 +19,11 @@ func TestDedupeSpanIDs(t *testing.T) {
 		{
 			name: "no duplicates",
 			trace: &tempopb.Trace{
-				ResourceSpans: []*v1.ResourceSpans{
+				ResourceSpans: []v1.ResourceSpans{
 					{
-						ScopeSpans: []*v1.ScopeSpans{
+						ScopeSpans: []v1.ScopeSpans{
 							{
-								Spans: []*v1.Span{
+								Spans: []v1.Span{
 									{
 										SpanId: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
 										Kind:   v1.Span_SPAN_KIND_CLIENT,
@@ -42,11 +42,11 @@ func TestDedupeSpanIDs(t *testing.T) {
 				},
 			},
 			expectedRes: &tempopb.Trace{
-				ResourceSpans: []*v1.ResourceSpans{
+				ResourceSpans: []v1.ResourceSpans{
 					{
-						ScopeSpans: []*v1.ScopeSpans{
+						ScopeSpans: []v1.ScopeSpans{
 							{
-								Spans: []*v1.Span{
+								Spans: []v1.Span{
 									{
 										SpanId: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
 										Kind:   v1.Span_SPAN_KIND_CLIENT,
@@ -68,11 +68,11 @@ func TestDedupeSpanIDs(t *testing.T) {
 		{
 			name: "duplicate span id",
 			trace: &tempopb.Trace{
-				ResourceSpans: []*v1.ResourceSpans{
+				ResourceSpans: []v1.ResourceSpans{
 					{
-						ScopeSpans: []*v1.ScopeSpans{
+						ScopeSpans: []v1.ScopeSpans{
 							{
-								Spans: []*v1.Span{
+								Spans: []v1.Span{
 									{
 										SpanId: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
 										Kind:   v1.Span_SPAN_KIND_CLIENT,
@@ -91,11 +91,11 @@ func TestDedupeSpanIDs(t *testing.T) {
 				},
 			},
 			expectedRes: &tempopb.Trace{
-				ResourceSpans: []*v1.ResourceSpans{
+				ResourceSpans: []v1.ResourceSpans{
 					{
-						ScopeSpans: []*v1.ScopeSpans{
+						ScopeSpans: []v1.ScopeSpans{
 							{
-								Spans: []*v1.Span{
+								Spans: []v1.Span{
 									{
 										SpanId: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
 										Kind:   v1.Span_SPAN_KIND_CLIENT,
@@ -118,11 +118,11 @@ func TestDedupeSpanIDs(t *testing.T) {
 		{
 			name: "duplicate multi level",
 			trace: &tempopb.Trace{
-				ResourceSpans: []*v1.ResourceSpans{
+				ResourceSpans: []v1.ResourceSpans{
 					{
-						ScopeSpans: []*v1.ScopeSpans{
+						ScopeSpans: []v1.ScopeSpans{
 							{
-								Spans: []*v1.Span{
+								Spans: []v1.Span{
 									{
 										SpanId: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
 										Kind:   v1.Span_SPAN_KIND_CLIENT,
@@ -151,11 +151,11 @@ func TestDedupeSpanIDs(t *testing.T) {
 				},
 			},
 			expectedRes: &tempopb.Trace{
-				ResourceSpans: []*v1.ResourceSpans{
+				ResourceSpans: []v1.ResourceSpans{
 					{
-						ScopeSpans: []*v1.ScopeSpans{
+						ScopeSpans: []v1.ScopeSpans{
 							{
-								Spans: []*v1.Span{
+								Spans: []v1.Span{
 									{
 										SpanId: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
 										Kind:   v1.Span_SPAN_KIND_CLIENT,

@@ -1016,7 +1016,7 @@ func requireTraceInLiveStore(t *testing.T, liveStore *LiveStore, traceID []byte,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, resp.Trace)
-	require.Equal(t, expectedTrace, resp.Trace)
+	require.True(t, proto.Equal(expectedTrace, resp.Trace), "trace not equal")
 }
 
 func requireTraceInBlock(t *testing.T, block common.BackendBlock, traceID []byte, expectedTrace *tempopb.Trace) {
@@ -1024,7 +1024,7 @@ func requireTraceInBlock(t *testing.T, block common.BackendBlock, traceID []byte
 	actualTrace, err := block.FindTraceByID(ctx, traceID, common.DefaultSearchOptions())
 	require.NoError(t, err)
 	require.NotNil(t, actualTrace)
-	require.Equal(t, expectedTrace, actualTrace.Trace)
+	require.True(t, proto.Equal(expectedTrace, actualTrace.Trace), "trace not equal")
 }
 
 func createValidPushRequest(t *testing.T) []byte {
@@ -1047,12 +1047,12 @@ func createValidPushRequest(t *testing.T) []byte {
 func createValidPushRequestStartEnd(t *testing.T, start, end time.Time) []byte {
 	id := test.ValidTraceID(nil)
 	tr := &tempopb.Trace{
-		ResourceSpans: []*v1_trace.ResourceSpans{
+		ResourceSpans: []v1_trace.ResourceSpans{
 			{
 				Resource: &v1_resource.Resource{},
-				ScopeSpans: []*v1_trace.ScopeSpans{
+				ScopeSpans: []v1_trace.ScopeSpans{
 					{
-						Spans: []*v1_trace.Span{
+						Spans: []v1_trace.Span{
 							{
 								TraceId:           id,
 								StartTimeUnixNano: uint64(start.UnixNano()),

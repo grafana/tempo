@@ -13,9 +13,9 @@ import (
 // makeRebatchRequest builds a single push request containing numTraces distinct
 // trace IDs, each with spansPerTrace spans, all under one resource+scope. It
 // returns the request batches and the total span count.
-func makeRebatchRequest(numTraces, spansPerTrace int) ([]*v1.ResourceSpans, int) {
+func makeRebatchRequest(numTraces, spansPerTrace int) ([]v1.ResourceSpans, int) {
 	spanCount := numTraces * spansPerTrace
-	spans := make([]*v1.Span, 0, spanCount)
+	spans := make([]v1.Span, 0, spanCount)
 	var seq uint64
 	for t := 0; t < numTraces; t++ {
 		traceID := make([]byte, 16)
@@ -24,17 +24,17 @@ func makeRebatchRequest(numTraces, spansPerTrace int) ([]*v1.ResourceSpans, int)
 			seq++
 			spanID := make([]byte, 8)
 			binary.BigEndian.PutUint64(spanID, seq)
-			spans = append(spans, &v1.Span{TraceId: traceID, SpanId: spanID})
+			spans = append(spans, v1.Span{TraceId: traceID, SpanId: spanID})
 		}
 	}
-	return []*v1.ResourceSpans{
+	return []v1.ResourceSpans{
 		{
 			Resource: &v1_resource.Resource{
-				Attributes: []*v1_common.KeyValue{
+				Attributes: []v1_common.KeyValue{
 					{Key: "service.name", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "svc"}}},
 				},
 			},
-			ScopeSpans: []*v1.ScopeSpans{
+			ScopeSpans: []v1.ScopeSpans{
 				{
 					Scope: &v1_common.InstrumentationScope{Name: "lib", Version: "1.0.0"},
 					Spans: spans,

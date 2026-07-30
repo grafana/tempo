@@ -119,12 +119,12 @@ func benchmarkSpanMetricsRequest(sameTracePerResource bool) *tempopb.PushSpansRe
 	)
 
 	req := &tempopb.PushSpansRequest{
-		Batches: make([]*trace_v1.ResourceSpans, 0, resources),
+		Batches: make([]trace_v1.ResourceSpans, 0, resources),
 	}
 	for r := 0; r < resources; r++ {
 		rs := &trace_v1.ResourceSpans{
 			Resource: &resource_v1.Resource{
-				Attributes: []*common_v1.KeyValue{
+				Attributes: []common_v1.KeyValue{
 					benchmarkStringAttr("service.name", "svc-"+strconv.Itoa(r)),
 					benchmarkStringAttr("service.namespace", "ns-"+strconv.Itoa(r%2)),
 					benchmarkStringAttr("service.instance.id", "instance-"+strconv.Itoa(r)),
@@ -137,14 +137,14 @@ func benchmarkSpanMetricsRequest(sameTracePerResource bool) *tempopb.PushSpansRe
 					benchmarkStringAttr("excluded", "drop-me"),
 				},
 			},
-			ScopeSpans: []*trace_v1.ScopeSpans{{}},
+			ScopeSpans: []trace_v1.ScopeSpans{{}},
 		}
 		for s := 0; s < spansPerResource; s++ {
 			traceID := benchmarkTraceID(r)
 			if !sameTracePerResource {
 				traceID = benchmarkTraceID(r*spansPerResource + s)
 			}
-			rs.ScopeSpans[0].Spans = append(rs.ScopeSpans[0].Spans, &trace_v1.Span{
+			rs.ScopeSpans[0].Spans = append(rs.ScopeSpans[0].Spans, trace_v1.Span{
 				TraceId:           traceID,
 				SpanId:            benchmarkSpanID(r*spansPerResource + s + 1),
 				Name:              "GET /api/:id",
@@ -152,7 +152,7 @@ func benchmarkSpanMetricsRequest(sameTracePerResource bool) *tempopb.PushSpansRe
 				StartTimeUnixNano: uint64(1_700_000_000_000_000_000 + s),
 				EndTimeUnixNano:   uint64(1_700_000_000_100_000_000 + s),
 				Status:            &trace_v1.Status{Code: trace_v1.Status_STATUS_CODE_OK},
-				Attributes: []*common_v1.KeyValue{
+				Attributes: []common_v1.KeyValue{
 					benchmarkStringAttr("http.method", "GET"),
 					benchmarkStringAttr("http.route", "/api/:id"),
 					benchmarkStringAttr("http.status_code", "200"),
@@ -161,7 +161,7 @@ func benchmarkSpanMetricsRequest(sameTracePerResource bool) *tempopb.PushSpansRe
 				},
 			})
 		}
-		req.Batches = append(req.Batches, rs)
+		req.Batches = append(req.Batches, *rs)
 	}
 	return req
 }
@@ -178,8 +178,8 @@ func benchmarkSpanID(i int) []byte {
 	return id[:]
 }
 
-func benchmarkStringAttr(key, value string) *common_v1.KeyValue {
-	return &common_v1.KeyValue{
+func benchmarkStringAttr(key, value string) common_v1.KeyValue {
+	return common_v1.KeyValue{
 		Key: key,
 		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{
 			StringValue: value,

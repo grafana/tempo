@@ -47,6 +47,7 @@ type (
 )
 
 type QueryFrontend struct {
+	tempopb.UnimplementedStreamingQuerierServer
 	TraceByIDHandler, TraceByIDHandlerV2, TraceDiffHandler, SearchHandler                      http.Handler
 	SearchTagsHandler, SearchTagsV2Handler, SearchTagsValuesHandler, SearchTagsValuesV2Handler http.Handler
 	MetricsQueryInstantHandler, MetricsQueryRangeHandler                                       http.Handler

@@ -111,9 +111,9 @@ func (fp *frontendProcessor) process(c frontendv1pb.Frontend_ProcessClient) erro
 			// here, as we're running in lock step with the server - each Recv is
 			// paired with a Send.
 			go func() {
-				resp := fp.runRequest(ctx, request.HttpRequest)
+				resp := fp.runRequest(ctx, request.HttpRequest.Req)
 				err := fp.handleSendError(c.Send(&frontendv1pb.ClientToFrontend{
-					HttpResponse: resp,
+					HttpResponse: frontendv1pb.HTTPResponseEnvelope{Resp: resp},
 				}))
 				if err != nil {
 					level.Error(fp.log).Log("msg", "error running requests", "err", err)
@@ -131,9 +131,9 @@ func (fp *frontendProcessor) process(c frontendv1pb.Frontend_ProcessClient) erro
 
 		case frontendv1pb.Type_HTTP_REQUEST_BATCH:
 			go func() {
-				resp := fp.runRequests(ctx, request.HttpRequestBatch)
+				resp := fp.runRequests(ctx, frontendv1pb.UnwrapHTTPRequests(request.HttpRequestBatch))
 				err := fp.handleSendError(c.Send(&frontendv1pb.ClientToFrontend{
-					HttpResponseBatch: resp,
+					HttpResponseBatch: frontendv1pb.WrapHTTPResponses(resp),
 				}))
 				if err != nil {
 					level.Error(fp.log).Log("msg", "error running  batched requests", "err", err)

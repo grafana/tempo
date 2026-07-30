@@ -184,7 +184,7 @@ func TestNewTraceByIDV2WithSpanPruning(t *testing.T) {
 	spans := []*tracev1.Span{parent}
 	for i := byte(0); i < 3; i++ {
 		spans = append(spans, test.MakeSpanPruningSpan(traceID, test.MakeSpanPruningSpanID(2, i), parent.SpanId, "SELECT", 0, 0,
-			test.MakeAttribute("db.operation", "select")))
+			*test.MakeAttribute("db.operation", "select")))
 	}
 
 	traceResponse := &tempopb.TraceByIDResponse{
@@ -237,7 +237,7 @@ func TestNewTraceByIDV2WithSpanPruning_AlreadyPrunedOnWrite(t *testing.T) {
 	traceID := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 	parent := test.MakeSpanPruningSpan(traceID, test.MakeSpanPruningSpanID(1, 0), nil, "parent", 0, 0)
 	summary := test.MakeSpanPruningSpan(traceID, test.MakeSpanPruningSpanID(2, 0), parent.SpanId, "SELECT", 0, 0,
-		&commonv1.KeyValue{Key: "aggregation.is_summary", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_BoolValue{BoolValue: true}}})
+		commonv1.KeyValue{Key: "aggregation.is_summary", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_BoolValue{BoolValue: true}}})
 
 	traceResponse := &tempopb.TraceByIDResponse{
 		Trace:   test.WrapSpansAsTrace(parent, summary),

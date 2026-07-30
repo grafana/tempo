@@ -132,11 +132,11 @@ func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove 
 		}
 		compactedAddIDs := make(map[backend.UUID]struct{}, len(compactedAdd))
 		for _, b := range compactedAdd {
-			compactedAddIDs[b.BlockID] = struct{}{}
+			compactedAddIDs[b.BlockMeta.BlockID] = struct{}{}
 		}
 		compactedRemoveIDs := make(map[backend.UUID]struct{}, len(compactedRemove))
 		for _, b := range compactedRemove {
-			compactedRemoveIDs[b.BlockID] = struct{}{}
+			compactedRemoveIDs[b.BlockMeta.BlockID] = struct{}{}
 		}
 
 		existing := l.metas[tenantID]
@@ -171,7 +171,7 @@ func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove 
 	if len(compactedAdd) > 0 || len(compactedRemove) > 0 {
 		compactedRemoveIDs := make(map[backend.UUID]struct{}, len(compactedRemove))
 		for _, b := range compactedRemove {
-			compactedRemoveIDs[b.BlockID] = struct{}{}
+			compactedRemoveIDs[b.BlockMeta.BlockID] = struct{}{}
 		}
 
 		existing := l.compactedMetas[tenantID]
@@ -180,16 +180,16 @@ func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove 
 		// rebuild dropping all removals
 		existingIDs := make(map[backend.UUID]struct{}, len(existing))
 		for _, b := range existing {
-			existingIDs[b.BlockID] = struct{}{}
-			if _, ok := compactedRemoveIDs[b.BlockID]; ok {
+			existingIDs[b.BlockMeta.BlockID] = struct{}{}
+			if _, ok := compactedRemoveIDs[b.BlockMeta.BlockID]; ok {
 				continue
 			}
 			final = append(final, b)
 		}
 		// add new if they don't already exist and weren't also removed
 		for _, b := range compactedAdd {
-			_, inExisting := existingIDs[b.BlockID]
-			_, inRemove := compactedRemoveIDs[b.BlockID]
+			_, inExisting := existingIDs[b.BlockMeta.BlockID]
+			_, inRemove := compactedRemoveIDs[b.BlockMeta.BlockID]
 			if inExisting || inRemove {
 				continue
 			}

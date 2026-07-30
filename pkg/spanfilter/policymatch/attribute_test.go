@@ -10,7 +10,7 @@ import (
 func Test_strictAttributeFilter_Matches(t *testing.T) {
 	cases := []struct {
 		policy *AttributePolicyMatch
-		attrs  []*commonv1.KeyValue
+		attrs  []commonv1.KeyValue
 		expect bool
 		name   string
 	}{
@@ -22,7 +22,7 @@ func Test_strictAttributeFilter_Matches(t *testing.T) {
 					must(NewStrictAttributeFilter("foo", "bar")),
 				},
 			},
-			attrs: []*commonv1.KeyValue{
+			attrs: []commonv1.KeyValue{
 				{
 					Key: "foo",
 					Value: &commonv1.AnyValue{
@@ -42,7 +42,7 @@ func Test_strictAttributeFilter_Matches(t *testing.T) {
 					must(NewStrictAttributeFilter("otherfoo", "notbar")),
 				},
 			},
-			attrs: []*commonv1.KeyValue{
+			attrs: []commonv1.KeyValue{
 				{
 					Key: "foo",
 					Value: &commonv1.AnyValue{
@@ -70,7 +70,7 @@ func Test_strictAttributeFilter_Matches(t *testing.T) {
 					must(NewStrictAttributeFilter("otherfoo", "nope")),
 				},
 			},
-			attrs: []*commonv1.KeyValue{
+			attrs: []commonv1.KeyValue{
 				{
 					Key: "foo",
 					Value: &commonv1.AnyValue{
@@ -100,7 +100,7 @@ func Test_strictAttributeFilter_Matches(t *testing.T) {
 					must(NewStrictAttributeFilter("matching", true)),
 				},
 			},
-			attrs: []*commonv1.KeyValue{
+			attrs: []commonv1.KeyValue{
 				{
 					Key: "one",
 					Value: &commonv1.AnyValue{
@@ -143,7 +143,7 @@ func Test_strictAttributeFilter_Matches(t *testing.T) {
 					must(NewRegexpAttributeFilter("dd", `\d\d\w{5}`)),
 				},
 			},
-			attrs: []*commonv1.KeyValue{
+			attrs: []commonv1.KeyValue{
 				{
 					Key: "dd",
 					Value: &commonv1.AnyValue{
@@ -162,7 +162,7 @@ func Test_strictAttributeFilter_Matches(t *testing.T) {
 					must(NewStrictAttributeFilter("dd", true)),
 				},
 			},
-			attrs: []*commonv1.KeyValue{
+			attrs: []commonv1.KeyValue{
 				{
 					Key: "dd",
 					Value: &commonv1.AnyValue{
@@ -181,7 +181,7 @@ func Test_strictAttributeFilter_Matches(t *testing.T) {
 					must(NewStrictAttributeFilter("dd", "value")),
 				},
 			},
-			attrs: []*commonv1.KeyValue{
+			attrs: []commonv1.KeyValue{
 				{
 					Key: "dd",
 					Value: &commonv1.AnyValue{
@@ -200,7 +200,7 @@ func Test_strictAttributeFilter_Matches(t *testing.T) {
 					must(NewStrictAttributeFilter("11", "eleven")),
 				},
 			},
-			attrs: []*commonv1.KeyValue{
+			attrs: []commonv1.KeyValue{
 				{
 					Key: "11",
 					Value: &commonv1.AnyValue{
@@ -219,7 +219,7 @@ func Test_strictAttributeFilter_Matches(t *testing.T) {
 					must(NewStrictAttributeFilter("11", "eleven")),
 				},
 			},
-			attrs: []*commonv1.KeyValue{
+			attrs: []commonv1.KeyValue{
 				{
 					Key: "11",
 					Value: &commonv1.AnyValue{
@@ -238,7 +238,7 @@ func Test_strictAttributeFilter_Matches(t *testing.T) {
 					must(NewStrictAttributeFilter("11", 11)),
 				},
 			},
-			attrs: []*commonv1.KeyValue{
+			attrs: []commonv1.KeyValue{
 				{
 					Key: "11",
 					Value: &commonv1.AnyValue{
@@ -257,7 +257,7 @@ func Test_strictAttributeFilter_Matches(t *testing.T) {
 					must(NewStrictAttributeFilter("11", 11)),
 				},
 			},
-			attrs: []*commonv1.KeyValue{
+			attrs: []commonv1.KeyValue{
 				{
 					Key: "11",
 					Value: &commonv1.AnyValue{
@@ -276,7 +276,7 @@ func Test_strictAttributeFilter_Matches(t *testing.T) {
 					must(NewStrictAttributeFilter("11", true)),
 				},
 			},
-			attrs: []*commonv1.KeyValue{
+			attrs: []commonv1.KeyValue{
 				{
 					Key: "11",
 					Value: &commonv1.AnyValue{
@@ -295,7 +295,7 @@ func Test_strictAttributeFilter_Matches(t *testing.T) {
 					must(NewStrictAttributeFilter("11", 11.0)),
 				},
 			},
-			attrs: []*commonv1.KeyValue{
+			attrs: []commonv1.KeyValue{
 				{
 					Key: "11",
 					Value: &commonv1.AnyValue{
@@ -336,7 +336,7 @@ func Test_regexpAttributeFilter_Matches(t *testing.T) {
 
 	for _, tc := range cases {
 		a := NewAttributePolicyMatch([]AttributeFilter{must(NewRegexpAttributeFilter("server", tc.pattern))})
-		r := a.Matches([]*commonv1.KeyValue{
+		r := a.Matches([]commonv1.KeyValue{
 			{
 				Key: "server",
 				Value: &commonv1.AnyValue{

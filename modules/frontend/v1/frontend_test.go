@@ -78,7 +78,7 @@ func (m *mockProcessServer) Recv() (*frontendv1pb.ClientToFrontend, error) {
 		m.cancel()
 	}
 
-	return &frontendv1pb.ClientToFrontend{HttpResponseBatch: batch}, nil
+	return &frontendv1pb.ClientToFrontend{HttpResponseBatch: frontendv1pb.WrapHTTPResponses(batch)}, nil
 }
 
 // TestProcessRequestBatchReuseRace exercises Process() with batching enabled and a

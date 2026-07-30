@@ -17,8 +17,8 @@ import (
 	"time"
 
 	kitlog "github.com/go-kit/log"
+	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
-	"github.com/golang/protobuf/proto" // nolint: all  //ProtoReflect
 	dslog "github.com/grafana/dskit/log"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
@@ -48,7 +48,7 @@ import (
 
 var ctx = user.InjectOrgID(context.Background(), "test")
 
-func batchesToTraces(t *testing.T, batches []*v1.ResourceSpans) ptrace.Traces {
+func batchesToTraces(t *testing.T, batches []v1.ResourceSpans) ptrace.Traces {
 	t.Helper()
 
 	trace := tempopb.Trace{ResourceSpans: batches}
@@ -73,7 +73,7 @@ func TestRequestsByTraceID(t *testing.T) {
 	tests := []struct {
 		name           string
 		emptyTenant    bool
-		batches        []*v1.ResourceSpans
+		batches        []v1.ResourceSpans
 		expectedKeys   []uint32
 		expectedTraces []*tempopb.Trace
 		expectedIDs    [][]byte
@@ -83,7 +83,7 @@ func TestRequestsByTraceID(t *testing.T) {
 	}{
 		{
 			name: "empty",
-			batches: []*v1.ResourceSpans{
+			batches: []v1.ResourceSpans{
 				{},
 				{},
 			},
@@ -95,11 +95,11 @@ func TestRequestsByTraceID(t *testing.T) {
 		},
 		{
 			name: "bad trace id",
-			batches: []*v1.ResourceSpans{
+			batches: []v1.ResourceSpans{
 				{
-					ScopeSpans: []*v1.ScopeSpans{
+					ScopeSpans: []v1.ScopeSpans{
 						{
-							Spans: []*v1.Span{
+							Spans: []v1.Span{
 								{
 									TraceId: []byte{0x01},
 								},
@@ -112,11 +112,11 @@ func TestRequestsByTraceID(t *testing.T) {
 		},
 		{
 			name: "empty trace id",
-			batches: []*v1.ResourceSpans{
+			batches: []v1.ResourceSpans{
 				{
-					ScopeSpans: []*v1.ScopeSpans{
+					ScopeSpans: []v1.ScopeSpans{
 						{
-							Spans: []*v1.Span{
+							Spans: []v1.Span{
 								{
 									TraceId: []byte{},
 								},
@@ -129,11 +129,11 @@ func TestRequestsByTraceID(t *testing.T) {
 		},
 		{
 			name: "one span",
-			batches: []*v1.ResourceSpans{
+			batches: []v1.ResourceSpans{
 				{
-					ScopeSpans: []*v1.ScopeSpans{
+					ScopeSpans: []v1.ScopeSpans{
 						{
-							Spans: []*v1.Span{
+							Spans: []v1.Span{
 								{
 									TraceId:           traceIDA,
 									SpanId:            spanID,
@@ -148,11 +148,11 @@ func TestRequestsByTraceID(t *testing.T) {
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA)},
 			expectedTraces: []*tempopb.Trace{
 				{
-					ResourceSpans: []*v1.ResourceSpans{
+					ResourceSpans: []v1.ResourceSpans{
 						{
-							ScopeSpans: []*v1.ScopeSpans{
+							ScopeSpans: []v1.ScopeSpans{
 								{
-									Spans: []*v1.Span{
+									Spans: []v1.Span{
 										{
 											TraceId:           traceIDA,
 											SpanId:            []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08},
@@ -174,11 +174,11 @@ func TestRequestsByTraceID(t *testing.T) {
 		},
 		{
 			name: "two traces, one batch",
-			batches: []*v1.ResourceSpans{
+			batches: []v1.ResourceSpans{
 				{
-					ScopeSpans: []*v1.ScopeSpans{
+					ScopeSpans: []v1.ScopeSpans{
 						{
-							Spans: []*v1.Span{
+							Spans: []v1.Span{
 								{
 									TraceId:           traceIDA,
 									SpanId:            spanID,
@@ -199,11 +199,11 @@ func TestRequestsByTraceID(t *testing.T) {
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
 			expectedTraces: []*tempopb.Trace{
 				{
-					ResourceSpans: []*v1.ResourceSpans{
+					ResourceSpans: []v1.ResourceSpans{
 						{
-							ScopeSpans: []*v1.ScopeSpans{
+							ScopeSpans: []v1.ScopeSpans{
 								{
-									Spans: []*v1.Span{
+									Spans: []v1.Span{
 										{
 											TraceId:           traceIDA,
 											SpanId:            spanID,
@@ -217,11 +217,11 @@ func TestRequestsByTraceID(t *testing.T) {
 					},
 				},
 				{
-					ResourceSpans: []*v1.ResourceSpans{
+					ResourceSpans: []v1.ResourceSpans{
 						{
-							ScopeSpans: []*v1.ScopeSpans{
+							ScopeSpans: []v1.ScopeSpans{
 								{
-									Spans: []*v1.Span{
+									Spans: []v1.Span{
 										{
 											TraceId:           traceIDB,
 											SpanId:            spanID,
@@ -244,14 +244,14 @@ func TestRequestsByTraceID(t *testing.T) {
 		},
 		{
 			name: "two traces, distinct batches",
-			batches: []*v1.ResourceSpans{
+			batches: []v1.ResourceSpans{
 				{
 					Resource: &v1_resource.Resource{
 						DroppedAttributesCount: 3,
 					},
-					ScopeSpans: []*v1.ScopeSpans{
+					ScopeSpans: []v1.ScopeSpans{
 						{
-							Spans: []*v1.Span{
+							Spans: []v1.Span{
 								{
 									TraceId:           traceIDA,
 									SpanId:            spanID,
@@ -266,9 +266,9 @@ func TestRequestsByTraceID(t *testing.T) {
 					Resource: &v1_resource.Resource{
 						DroppedAttributesCount: 4,
 					},
-					ScopeSpans: []*v1.ScopeSpans{
+					ScopeSpans: []v1.ScopeSpans{
 						{
-							Spans: []*v1.Span{
+							Spans: []v1.Span{
 								{
 									TraceId:           traceIDB,
 									SpanId:            spanID,
@@ -283,14 +283,14 @@ func TestRequestsByTraceID(t *testing.T) {
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
 			expectedTraces: []*tempopb.Trace{
 				{
-					ResourceSpans: []*v1.ResourceSpans{
+					ResourceSpans: []v1.ResourceSpans{
 						{
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 3,
 							},
-							ScopeSpans: []*v1.ScopeSpans{
+							ScopeSpans: []v1.ScopeSpans{
 								{
-									Spans: []*v1.Span{
+									Spans: []v1.Span{
 										{
 											TraceId:           traceIDA,
 											SpanId:            spanID,
@@ -304,14 +304,14 @@ func TestRequestsByTraceID(t *testing.T) {
 					},
 				},
 				{
-					ResourceSpans: []*v1.ResourceSpans{
+					ResourceSpans: []v1.ResourceSpans{
 						{
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 4,
 							},
-							ScopeSpans: []*v1.ScopeSpans{
+							ScopeSpans: []v1.ScopeSpans{
 								{
-									Spans: []*v1.Span{
+									Spans: []v1.Span{
 										{
 											TraceId:           traceIDB,
 											SpanId:            spanID,
@@ -334,14 +334,14 @@ func TestRequestsByTraceID(t *testing.T) {
 		},
 		{
 			name: "resource copied",
-			batches: []*v1.ResourceSpans{
+			batches: []v1.ResourceSpans{
 				{
 					Resource: &v1_resource.Resource{
 						DroppedAttributesCount: 1,
 					},
-					ScopeSpans: []*v1.ScopeSpans{
+					ScopeSpans: []v1.ScopeSpans{
 						{
-							Spans: []*v1.Span{
+							Spans: []v1.Span{
 								{
 									TraceId:           traceIDA,
 									SpanId:            spanID,
@@ -362,14 +362,14 @@ func TestRequestsByTraceID(t *testing.T) {
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
 			expectedTraces: []*tempopb.Trace{
 				{
-					ResourceSpans: []*v1.ResourceSpans{
+					ResourceSpans: []v1.ResourceSpans{
 						{
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 1,
 							},
-							ScopeSpans: []*v1.ScopeSpans{
+							ScopeSpans: []v1.ScopeSpans{
 								{
-									Spans: []*v1.Span{
+									Spans: []v1.Span{
 										{
 											TraceId:           traceIDA,
 											SpanId:            spanID,
@@ -383,14 +383,14 @@ func TestRequestsByTraceID(t *testing.T) {
 					},
 				},
 				{
-					ResourceSpans: []*v1.ResourceSpans{
+					ResourceSpans: []v1.ResourceSpans{
 						{
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 1,
 							},
-							ScopeSpans: []*v1.ScopeSpans{
+							ScopeSpans: []v1.ScopeSpans{
 								{
-									Spans: []*v1.Span{
+									Spans: []v1.Span{
 										{
 											TraceId:           traceIDB,
 											SpanId:            spanID,
@@ -413,14 +413,14 @@ func TestRequestsByTraceID(t *testing.T) {
 		},
 		{
 			name: "ils copied",
-			batches: []*v1.ResourceSpans{
+			batches: []v1.ResourceSpans{
 				{
-					ScopeSpans: []*v1.ScopeSpans{
+					ScopeSpans: []v1.ScopeSpans{
 						{
 							Scope: &v1_common.InstrumentationScope{
 								Name: "test",
 							},
-							Spans: []*v1.Span{
+							Spans: []v1.Span{
 								{
 									TraceId:           traceIDA,
 									SpanId:            spanID,
@@ -441,14 +441,14 @@ func TestRequestsByTraceID(t *testing.T) {
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
 			expectedTraces: []*tempopb.Trace{
 				{
-					ResourceSpans: []*v1.ResourceSpans{
+					ResourceSpans: []v1.ResourceSpans{
 						{
-							ScopeSpans: []*v1.ScopeSpans{
+							ScopeSpans: []v1.ScopeSpans{
 								{
 									Scope: &v1_common.InstrumentationScope{
 										Name: "test",
 									},
-									Spans: []*v1.Span{
+									Spans: []v1.Span{
 										{
 											TraceId:           traceIDA,
 											SpanId:            spanID,
@@ -462,14 +462,14 @@ func TestRequestsByTraceID(t *testing.T) {
 					},
 				},
 				{
-					ResourceSpans: []*v1.ResourceSpans{
+					ResourceSpans: []v1.ResourceSpans{
 						{
-							ScopeSpans: []*v1.ScopeSpans{
+							ScopeSpans: []v1.ScopeSpans{
 								{
 									Scope: &v1_common.InstrumentationScope{
 										Name: "test",
 									},
-									Spans: []*v1.Span{
+									Spans: []v1.Span{
 										{
 											TraceId:           traceIDB,
 											SpanId:            spanID,
@@ -492,17 +492,17 @@ func TestRequestsByTraceID(t *testing.T) {
 		},
 		{
 			name: "one trace",
-			batches: []*v1.ResourceSpans{
+			batches: []v1.ResourceSpans{
 				{
 					Resource: &v1_resource.Resource{
 						DroppedAttributesCount: 3,
 					},
-					ScopeSpans: []*v1.ScopeSpans{
+					ScopeSpans: []v1.ScopeSpans{
 						{
 							Scope: &v1_common.InstrumentationScope{
 								Name: "test",
 							},
-							Spans: []*v1.Span{
+							Spans: []v1.Span{
 								{
 									TraceId:           traceIDB,
 									Name:              "spanA",
@@ -525,17 +525,17 @@ func TestRequestsByTraceID(t *testing.T) {
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDB)},
 			expectedTraces: []*tempopb.Trace{
 				{
-					ResourceSpans: []*v1.ResourceSpans{
+					ResourceSpans: []v1.ResourceSpans{
 						{
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 3,
 							},
-							ScopeSpans: []*v1.ScopeSpans{
+							ScopeSpans: []v1.ScopeSpans{
 								{
 									Scope: &v1_common.InstrumentationScope{
 										Name: "test",
 									},
-									Spans: []*v1.Span{
+									Spans: []v1.Span{
 										{
 											TraceId:           traceIDB,
 											Name:              "spanA",
@@ -565,17 +565,17 @@ func TestRequestsByTraceID(t *testing.T) {
 		},
 		{
 			name: "two traces - two batches - don't combine across batches",
-			batches: []*v1.ResourceSpans{
+			batches: []v1.ResourceSpans{
 				{
 					Resource: &v1_resource.Resource{
 						DroppedAttributesCount: 3,
 					},
-					ScopeSpans: []*v1.ScopeSpans{
+					ScopeSpans: []v1.ScopeSpans{
 						{
 							Scope: &v1_common.InstrumentationScope{
 								Name: "test",
 							},
-							Spans: []*v1.Span{
+							Spans: []v1.Span{
 								{
 									TraceId:           traceIDB,
 									Name:              "spanA",
@@ -605,12 +605,12 @@ func TestRequestsByTraceID(t *testing.T) {
 					Resource: &v1_resource.Resource{
 						DroppedAttributesCount: 4,
 					},
-					ScopeSpans: []*v1.ScopeSpans{
+					ScopeSpans: []v1.ScopeSpans{
 						{
 							Scope: &v1_common.InstrumentationScope{
 								Name: "test2",
 							},
-							Spans: []*v1.Span{
+							Spans: []v1.Span{
 								{
 									TraceId:           traceIDB,
 									Name:              "spanB",
@@ -636,17 +636,17 @@ func TestRequestsByTraceID(t *testing.T) {
 			},
 			expectedTraces: []*tempopb.Trace{
 				{
-					ResourceSpans: []*v1.ResourceSpans{
+					ResourceSpans: []v1.ResourceSpans{
 						{
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 3,
 							},
-							ScopeSpans: []*v1.ScopeSpans{
+							ScopeSpans: []v1.ScopeSpans{
 								{
 									Scope: &v1_common.InstrumentationScope{
 										Name: "test",
 									},
-									Spans: []*v1.Span{
+									Spans: []v1.Span{
 										{
 											TraceId:           traceIDB,
 											SpanId:            spanID,
@@ -669,12 +669,12 @@ func TestRequestsByTraceID(t *testing.T) {
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 4,
 							},
-							ScopeSpans: []*v1.ScopeSpans{
+							ScopeSpans: []v1.ScopeSpans{
 								{
 									Scope: &v1_common.InstrumentationScope{
 										Name: "test2",
 									},
-									Spans: []*v1.Span{
+									Spans: []v1.Span{
 										{
 											TraceId:           traceIDB,
 											SpanId:            spanID,
@@ -689,17 +689,17 @@ func TestRequestsByTraceID(t *testing.T) {
 					},
 				},
 				{
-					ResourceSpans: []*v1.ResourceSpans{
+					ResourceSpans: []v1.ResourceSpans{
 						{
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 3,
 							},
-							ScopeSpans: []*v1.ScopeSpans{
+							ScopeSpans: []v1.ScopeSpans{
 								{
 									Scope: &v1_common.InstrumentationScope{
 										Name: "test",
 									},
-									Spans: []*v1.Span{
+									Spans: []v1.Span{
 										{
 											TraceId:           traceIDA,
 											SpanId:            spanID,
@@ -715,12 +715,12 @@ func TestRequestsByTraceID(t *testing.T) {
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 4,
 							},
-							ScopeSpans: []*v1.ScopeSpans{
+							ScopeSpans: []v1.ScopeSpans{
 								{
 									Scope: &v1_common.InstrumentationScope{
 										Name: "test2",
 									},
-									Spans: []*v1.Span{
+									Spans: []v1.Span{
 										{
 											TraceId:           traceIDA,
 											SpanId:            spanID,
@@ -746,17 +746,17 @@ func TestRequestsByTraceID(t *testing.T) {
 			// These 2 trace IDs are known to collide under fnv32
 			name:        "known collisions",
 			emptyTenant: true,
-			batches: []*v1.ResourceSpans{
+			batches: []v1.ResourceSpans{
 				{
 					Resource: &v1_resource.Resource{
 						DroppedAttributesCount: 3,
 					},
-					ScopeSpans: []*v1.ScopeSpans{
+					ScopeSpans: []v1.ScopeSpans{
 						{
 							Scope: &v1_common.InstrumentationScope{
 								Name: "test",
 							},
-							Spans: []*v1.Span{
+							Spans: []v1.Span{
 								{
 									TraceId:           collision2,
 									Name:              "spanA",
@@ -786,12 +786,12 @@ func TestRequestsByTraceID(t *testing.T) {
 					Resource: &v1_resource.Resource{
 						DroppedAttributesCount: 4,
 					},
-					ScopeSpans: []*v1.ScopeSpans{
+					ScopeSpans: []v1.ScopeSpans{
 						{
 							Scope: &v1_common.InstrumentationScope{
 								Name: "test2",
 							},
-							Spans: []*v1.Span{
+							Spans: []v1.Span{
 								{
 									TraceId:           collision2,
 									Name:              "spanB",
@@ -817,17 +817,17 @@ func TestRequestsByTraceID(t *testing.T) {
 			},
 			expectedTraces: []*tempopb.Trace{
 				{
-					ResourceSpans: []*v1.ResourceSpans{
+					ResourceSpans: []v1.ResourceSpans{
 						{
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 3,
 							},
-							ScopeSpans: []*v1.ScopeSpans{
+							ScopeSpans: []v1.ScopeSpans{
 								{
 									Scope: &v1_common.InstrumentationScope{
 										Name: "test",
 									},
-									Spans: []*v1.Span{
+									Spans: []v1.Span{
 										{
 											TraceId:           collision1,
 											SpanId:            spanID,
@@ -843,12 +843,12 @@ func TestRequestsByTraceID(t *testing.T) {
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 4,
 							},
-							ScopeSpans: []*v1.ScopeSpans{
+							ScopeSpans: []v1.ScopeSpans{
 								{
 									Scope: &v1_common.InstrumentationScope{
 										Name: "test2",
 									},
-									Spans: []*v1.Span{
+									Spans: []v1.Span{
 										{
 											TraceId:           collision1,
 											SpanId:            spanID,
@@ -863,17 +863,17 @@ func TestRequestsByTraceID(t *testing.T) {
 					},
 				},
 				{
-					ResourceSpans: []*v1.ResourceSpans{
+					ResourceSpans: []v1.ResourceSpans{
 						{
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 3,
 							},
-							ScopeSpans: []*v1.ScopeSpans{
+							ScopeSpans: []v1.ScopeSpans{
 								{
 									Scope: &v1_common.InstrumentationScope{
 										Name: "test",
 									},
-									Spans: []*v1.Span{
+									Spans: []v1.Span{
 										{
 											TraceId:           collision2,
 											SpanId:            spanID,
@@ -896,12 +896,12 @@ func TestRequestsByTraceID(t *testing.T) {
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 4,
 							},
-							ScopeSpans: []*v1.ScopeSpans{
+							ScopeSpans: []v1.ScopeSpans{
 								{
 									Scope: &v1_common.InstrumentationScope{
 										Name: "test2",
 									},
-									Spans: []*v1.Span{
+									Spans: []v1.Span{
 										{
 											TraceId:           collision2,
 											SpanId:            spanID,
@@ -958,20 +958,20 @@ func TestRequestsByTraceID(t *testing.T) {
 
 func TestRequestsByTraceIDDoesNotPreallocateEachTraceFromTotalSpanCount(t *testing.T) {
 	const spanCount = 1000
-	spans := make([]*v1.Span, 0, spanCount)
+	spans := make([]v1.Span, 0, spanCount)
 	for i := 0; i < spanCount; i++ {
 		traceID := make([]byte, 16)
 		spanID := make([]byte, 8)
 		binary.BigEndian.PutUint64(traceID[8:], uint64(i+1))
 		binary.BigEndian.PutUint64(spanID, uint64(i+1))
-		spans = append(spans, &v1.Span{
+		spans = append(spans, v1.Span{
 			TraceId: traceID,
 			SpanId:  spanID,
 		})
 	}
 
-	_, rebatchedTraces, _, _, err := requestsByTraceID([]*v1.ResourceSpans{{
-		ScopeSpans: []*v1.ScopeSpans{{Spans: spans}},
+	_, rebatchedTraces, _, _, err := requestsByTraceID([]v1.ResourceSpans{{
+		ScopeSpans: []v1.ScopeSpans{{Spans: spans}},
 	}}, "test", spanCount, 1000)
 	require.NoError(t, err)
 	require.Len(t, rebatchedTraces, spanCount)
@@ -1000,21 +1000,21 @@ func TestProcessAttributes(t *testing.T) {
 	// add long attributes to the resource level
 	trace.ResourceSpans[0].Resource.Attributes = append(
 		trace.ResourceSpans[0].Resource.Attributes,
-		test.MakeAttribute("long value", longString),
+		*test.MakeAttribute("long value", longString),
 	)
 	trace.ResourceSpans[0].Resource.Attributes = append(
 		trace.ResourceSpans[0].Resource.Attributes,
-		test.MakeAttribute(longString, "long key"),
+		*test.MakeAttribute(longString, "long key"),
 	)
 
 	// add long attributes to the span level
 	trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes = append(
 		trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes,
-		test.MakeAttribute("long value", longString),
+		*test.MakeAttribute("long value", longString),
 	)
 	trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes = append(
 		trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes,
-		test.MakeAttribute(longString, "long key"),
+		*test.MakeAttribute(longString, "long key"),
 	)
 
 	// add long attributes to the event level
@@ -1022,9 +1022,9 @@ func TestProcessAttributes(t *testing.T) {
 		trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Events,
 		&v1.Span_Event{
 			TimeUnixNano: 0,
-			Attributes: []*v1_common.KeyValue{
-				test.MakeAttribute("long value", longString),
-				test.MakeAttribute(longString, "long key"),
+			Attributes: []v1_common.KeyValue{
+				*test.MakeAttribute("long value", longString),
+				*test.MakeAttribute(longString, "long key"),
 			},
 		},
 	)
@@ -1035,9 +1035,9 @@ func TestProcessAttributes(t *testing.T) {
 		&v1.Span_Link{
 			TraceId: []byte{0x0A, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F},
 			SpanId:  []byte{0x0A, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F},
-			Attributes: []*v1_common.KeyValue{
-				test.MakeAttribute("long value", longString),
-				test.MakeAttribute(longString, "long key"),
+			Attributes: []v1_common.KeyValue{
+				*test.MakeAttribute("long value", longString),
+				*test.MakeAttribute(longString, "long key"),
 			},
 		},
 	)
@@ -1046,9 +1046,9 @@ func TestProcessAttributes(t *testing.T) {
 	trace.ResourceSpans[0].ScopeSpans[0].Scope = &v1_common.InstrumentationScope{
 		Name:    "scope scope",
 		Version: "1.0",
-		Attributes: []*v1_common.KeyValue{
-			test.MakeAttribute("long value", longString),
-			test.MakeAttribute(longString, "long key"),
+		Attributes: []v1_common.KeyValue{
+			*test.MakeAttribute("long value", longString),
+			*test.MakeAttribute(longString, "long key"),
 		},
 	}
 
@@ -1135,7 +1135,7 @@ func TestRequestsByTraceID_TruncationDetail(t *testing.T) {
 	// With truncation — detail is always populated
 	trace = test.MakeTraceWithSpanCount(1, 1, []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10})
 	trace.ResourceSpans[0].Resource.Attributes = append(trace.ResourceSpans[0].Resource.Attributes,
-		test.MakeAttribute("oversized", longString))
+		*test.MakeAttribute("oversized", longString))
 	_, _, truncatedCount, detail, err = requestsByTraceID(trace.ResourceSpans, "test", 1, maxAttrByte)
 	require.NoError(t, err)
 	assert.Greater(t, truncatedCount.Total(), 0)
@@ -1148,7 +1148,7 @@ func TestRequestsByTraceID_TruncationDetail(t *testing.T) {
 	// maxSpanAttrSize == 0 — no truncation, no detail
 	trace = test.MakeTraceWithSpanCount(1, 1, []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10})
 	trace.ResourceSpans[0].Resource.Attributes = append(trace.ResourceSpans[0].Resource.Attributes,
-		test.MakeAttribute("oversized", longString))
+		*test.MakeAttribute("oversized", longString))
 	_, _, truncatedCount, detail, err = requestsByTraceID(trace.ResourceSpans, "test", 1, 0)
 	require.NoError(t, err)
 	assert.Equal(t, 0, truncatedCount.Total())
@@ -1157,16 +1157,16 @@ func TestRequestsByTraceID_TruncationDetail(t *testing.T) {
 
 func TestProcessAttributesDetail(t *testing.T) {
 	// Without detail — nil detail, truncation still happens
-	attributes := []*v1_common.KeyValue{
-		test.MakeAttribute("key", strings.Repeat("v", 5000)),
+	attributes := []v1_common.KeyValue{
+		*test.MakeAttribute("key", strings.Repeat("v", 5000)),
 	}
 	count := processAttributes(attributes, 2048, nil, "span")
 	assert.Equal(t, 1, count)
 	assert.Equal(t, 2048, len(attributes[0].Value.GetStringValue()))
 
 	// Value truncation — detail captured deterministically
-	attributes = []*v1_common.KeyValue{
-		test.MakeAttribute("key", strings.Repeat("v", 5000)),
+	attributes = []v1_common.KeyValue{
+		*test.MakeAttribute("key", strings.Repeat("v", 5000)),
 	}
 	detail := truncatedAttrInfo{}
 	count = processAttributes(attributes, 2048, &detail, "span")
@@ -1177,8 +1177,8 @@ func TestProcessAttributesDetail(t *testing.T) {
 	assert.Equal(t, 5000, detail.origSize)
 
 	// Key truncation — detail captured deterministically
-	attributes = []*v1_common.KeyValue{
-		test.MakeAttribute(strings.Repeat("k", 5000), "short"),
+	attributes = []v1_common.KeyValue{
+		*test.MakeAttribute(strings.Repeat("k", 5000), "short"),
 	}
 	detail = truncatedAttrInfo{}
 	count = processAttributes(attributes, 2048, &detail, "resource")
@@ -1189,9 +1189,9 @@ func TestProcessAttributesDetail(t *testing.T) {
 	assert.Equal(t, strings.Repeat("k", 2048), detail.name) // truncated prefix, not full original
 
 	// Only the first truncation is captured (first of two values)
-	attributes = []*v1_common.KeyValue{
-		test.MakeAttribute("key1", strings.Repeat("v", 5000)),
-		test.MakeAttribute("key2", strings.Repeat("v", 6000)),
+	attributes = []v1_common.KeyValue{
+		*test.MakeAttribute("key1", strings.Repeat("v", 5000)),
+		*test.MakeAttribute("key2", strings.Repeat("v", 6000)),
 	}
 	detail = truncatedAttrInfo{}
 	count = processAttributes(attributes, 2048, &detail, "span")
@@ -1200,8 +1200,8 @@ func TestProcessAttributesDetail(t *testing.T) {
 	assert.Equal(t, 5000, detail.origSize)
 
 	// Both key AND value oversized — key wins (checked first)
-	attributes = []*v1_common.KeyValue{
-		test.MakeAttribute(strings.Repeat("k", 5000), strings.Repeat("v", 6000)),
+	attributes = []v1_common.KeyValue{
+		*test.MakeAttribute(strings.Repeat("k", 5000), strings.Repeat("v", 6000)),
 	}
 	detail = truncatedAttrInfo{}
 	count = processAttributes(attributes, 2048, &detail, "span")
@@ -1211,8 +1211,8 @@ func TestProcessAttributesDetail(t *testing.T) {
 
 	// Already-captured detail (origSize > 0) is not overwritten
 	detail = truncatedAttrInfo{scope: "resource", name: "first", field: "value", origSize: 3000}
-	attributes = []*v1_common.KeyValue{
-		test.MakeAttribute("key2", strings.Repeat("v", 6000)),
+	attributes = []v1_common.KeyValue{
+		*test.MakeAttribute("key2", strings.Repeat("v", 6000)),
 	}
 	count = processAttributes(attributes, 2048, &detail, "span")
 	assert.Equal(t, 1, count)
@@ -1229,7 +1229,7 @@ func BenchmarkTestsByRequestID(b *testing.B) {
 		test.MakeTraceWithSpanCount(batches, spansPer, []byte{0x0C, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}),
 		test.MakeTraceWithSpanCount(batches, spansPer, []byte{0x0D, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}),
 	}
-	ils := make([][]*v1.ScopeSpans, batches)
+	ils := make([][]v1.ScopeSpans, batches)
 
 	for i := 0; i < batches; i++ {
 		for _, t := range traces {
@@ -1242,7 +1242,7 @@ func BenchmarkTestsByRequestID(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		for _, blerg := range ils {
-			_, _, _, _, err := requestsByTraceID([]*v1.ResourceSpans{
+			_, _, _, _, err := requestsByTraceID([]v1.ResourceSpans{
 				{
 					ScopeSpans: blerg,
 				},
@@ -1275,7 +1275,7 @@ func TestDistributor(t *testing.T) {
 			d := prepare(t, limits, nil)
 
 			b := test.MakeBatch(tc.lines, []byte{})
-			traces := batchesToTraces(t, []*v1.ResourceSpans{b})
+			traces := batchesToTraces(t, []v1.ResourceSpans{*b})
 			response, err := d.PushTraces(ctx, traces)
 
 			assert.True(t, proto.Equal(tc.expectedResponse, response))
@@ -1289,14 +1289,14 @@ func TestLogReceivedSpans(t *testing.T) {
 		LogReceivedSpansEnabled bool
 		filterByStatusError     bool
 		includeAllAttributes    bool
-		batches                 []*v1.ResourceSpans
+		batches                 []v1.ResourceSpans
 		expectedLogsSpan        []testLogSpan
 	}{
 		{
 			LogReceivedSpansEnabled: false,
-			batches: []*v1.ResourceSpans{
-				makeResourceSpans("test", []*v1.ScopeSpans{
-					makeScope(
+			batches: []v1.ResourceSpans{
+				*makeResourceSpans("test", []v1.ScopeSpans{
+					*makeScope(
 						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span", nil),
 					),
 				}),
@@ -1306,18 +1306,18 @@ func TestLogReceivedSpans(t *testing.T) {
 		{
 			LogReceivedSpansEnabled: true,
 			filterByStatusError:     false,
-			batches: []*v1.ResourceSpans{
-				makeResourceSpans("test-service", []*v1.ScopeSpans{
-					makeScope(
+			batches: []v1.ResourceSpans{
+				*makeResourceSpans("test-service", []v1.ScopeSpans{
+					*makeScope(
 						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span1", nil),
 						makeSpan("e3210a2b38097332d1fe43083ea93d29", "6c21c48da4dbd1a7", "Test Span2", nil),
 					),
-					makeScope(
+					*makeScope(
 						makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", "Test Span3", nil),
 					),
 				}),
-				makeResourceSpans("test-service2", []*v1.ScopeSpans{
-					makeScope(
+				*makeResourceSpans("test-service2", []v1.ScopeSpans{
+					*makeScope(
 						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", "Test Span", nil),
 					),
 				}),
@@ -1352,18 +1352,18 @@ func TestLogReceivedSpans(t *testing.T) {
 		{
 			LogReceivedSpansEnabled: true,
 			filterByStatusError:     true,
-			batches: []*v1.ResourceSpans{
-				makeResourceSpans("test-service", []*v1.ScopeSpans{
-					makeScope(
+			batches: []v1.ResourceSpans{
+				*makeResourceSpans("test-service", []v1.ScopeSpans{
+					*makeScope(
 						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span1", nil),
 						makeSpan("e3210a2b38097332d1fe43083ea93d29", "6c21c48da4dbd1a7", "Test Span2", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR}),
 					),
-					makeScope(
+					*makeScope(
 						makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", "Test Span3", nil),
 					),
 				}),
-				makeResourceSpans("test-service2", []*v1.ScopeSpans{
-					makeScope(
+				*makeResourceSpans("test-service2", []v1.ScopeSpans{
+					*makeScope(
 						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", "Test Span", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR}),
 					),
 				}),
@@ -1387,21 +1387,21 @@ func TestLogReceivedSpans(t *testing.T) {
 			LogReceivedSpansEnabled: true,
 			filterByStatusError:     true,
 			includeAllAttributes:    true,
-			batches: []*v1.ResourceSpans{
-				makeResourceSpans("test-service", []*v1.ScopeSpans{
-					makeScope(
+			batches: []v1.ResourceSpans{
+				*makeResourceSpans("test-service", []v1.ScopeSpans{
+					*makeScope(
 						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span1", nil,
 							makeAttribute("tag1", "value1")),
 						makeSpan("e3210a2b38097332d1fe43083ea93d29", "6c21c48da4dbd1a7", "Test Span2", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR},
 							makeAttribute("tag1", "value1"),
 							makeAttribute("tag2", "value2")),
 					),
-					makeScope(
+					*makeScope(
 						makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", "Test Span3", nil),
 					),
 				}, makeAttribute("resource_attribute1", "value1")),
-				makeResourceSpans("test-service2", []*v1.ScopeSpans{
-					makeScope(
+				*makeResourceSpans("test-service2", []v1.ScopeSpans{
+					*makeScope(
 						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", "Test Span", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR}),
 					),
 				}, makeAttribute("resource_attribute2", "value2")),
@@ -1437,9 +1437,9 @@ func TestLogReceivedSpans(t *testing.T) {
 			LogReceivedSpansEnabled: true,
 			filterByStatusError:     false,
 			includeAllAttributes:    true,
-			batches: []*v1.ResourceSpans{
-				makeResourceSpans("test-service", []*v1.ScopeSpans{
-					makeScope(
+			batches: []v1.ResourceSpans{
+				*makeResourceSpans("test-service", []v1.ScopeSpans{
+					*makeScope(
 						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span", nil, makeAttribute("tag1", "value1")),
 					),
 				}),
@@ -1508,21 +1508,21 @@ func TestRateLimitRespected(t *testing.T) {
 	buf := &bytes.Buffer{}
 	logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(buf))
 	d := prepare(t, overridesConfig, logger)
-	batches := []*v1.ResourceSpans{
-		makeResourceSpans("test-service", []*v1.ScopeSpans{
-			makeScope(
+	batches := []v1.ResourceSpans{
+		*makeResourceSpans("test-service", []v1.ScopeSpans{
+			*makeScope(
 				makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span1", nil,
 					makeAttribute("tag1", "value1")),
 				makeSpan("e3210a2b38097332d1fe43083ea93d29", "6c21c48da4dbd1a7", "Test Span2", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR},
 					makeAttribute("tag1", "value1"),
 					makeAttribute("tag2", "value2")),
 			),
-			makeScope(
+			*makeScope(
 				makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", "Test Span3", nil),
 			),
 		}, makeAttribute("resource_attribute1", "value1")),
-		makeResourceSpans("test-service2", []*v1.ScopeSpans{
-			makeScope(
+		*makeResourceSpans("test-service2", []v1.ScopeSpans{
+			*makeScope(
 				makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", "Test Span", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR}),
 			),
 		}, makeAttribute("resource_attribute2", "value2")),
@@ -1571,7 +1571,7 @@ func TestPushTracesSkipMetricsGenerationIngestStorage(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	traces := batchesToTraces(t, []*v1.ResourceSpans{test.MakeBatch(10, nil)})
+	traces := batchesToTraces(t, []v1.ResourceSpans{*test.MakeBatch(10, nil)})
 
 	reader, err := kgo.NewClient(kgo.SeedBrokers(kafka.ListenAddrs()...), kgo.ConsumeTopics(topic))
 	require.NoError(t, err)
@@ -1666,7 +1666,7 @@ func TestPushTracesKafkaWriteErrorReturnsRetryableStatus(t *testing.T) {
 
 	kafka.Close()
 
-	traces := batchesToTraces(t, []*v1.ResourceSpans{test.MakeBatch(10, nil)})
+	traces := batchesToTraces(t, []v1.ResourceSpans{*test.MakeBatch(10, nil)})
 
 	_, err = d.PushTraces(ctx, traces)
 	require.Error(t, err)
@@ -1710,7 +1710,7 @@ func TestPushTracesToLocalLiveStore(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	traces := batchesToTraces(t, []*v1.ResourceSpans{test.MakeBatch(10, nil)})
+	traces := batchesToTraces(t, []v1.ResourceSpans{*test.MakeBatch(10, nil)})
 	_, err = d.PushTraces(ctx, traces)
 	require.NoError(t, err)
 
@@ -1748,7 +1748,7 @@ func TestPushTracesToLocalLiveStoreError(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	traces := batchesToTraces(t, []*v1.ResourceSpans{test.MakeBatch(10, nil)})
+	traces := batchesToTraces(t, []v1.ResourceSpans{*test.MakeBatch(10, nil)})
 	_, err = d.PushTraces(ctx, traces)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to push spans to local live-store")
@@ -1790,7 +1790,7 @@ func TestPushLocalSkipsGeneratorWhenLiveStoreFails(t *testing.T) {
 		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), d.generatorForwarder))
 	}()
 
-	traces := batchesToTraces(t, []*v1.ResourceSpans{test.MakeBatch(10, nil)})
+	traces := batchesToTraces(t, []v1.ResourceSpans{*test.MakeBatch(10, nil)})
 	_, err = d.PushTraces(ctx, traces)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to push spans to local live-store")
@@ -1813,12 +1813,12 @@ func TestArtificialLatency(t *testing.T) {
 	d := prepare(t, overridesConfig, logger)
 	d.cfg.ArtificialDelay = latency
 
-	batches := []*v1.ResourceSpans{
-		makeResourceSpans("test-service", []*v1.ScopeSpans{
-			makeScope(
+	batches := []v1.ResourceSpans{
+		*makeResourceSpans("test-service", []v1.ScopeSpans{
+			*makeScope(
 				makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span1", nil),
 			),
-			makeScope(
+			*makeScope(
 				makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", "Test Span3", nil),
 			),
 		}),
@@ -1846,8 +1846,8 @@ func TestArtificialLatencyIsAppliedOnError(t *testing.T) {
 	d := prepare(t, overridesConfig, logger)
 	d.cfg.ArtificialDelay = latency
 
-	batches := []*v1.ResourceSpans{
-		makeResourceSpans("test-service", []*v1.ScopeSpans{}),
+	batches := []v1.ResourceSpans{
+		*makeResourceSpans("test-service", []v1.ScopeSpans{}),
 	}
 
 	traces := batchesToTraces(t, batches)
@@ -1898,30 +1898,38 @@ func makeSpan(traceID, spanID, name string, status *v1.Status, attributes ...*v1
 		panic(err)
 	}
 
+	attrs := make([]v1_common.KeyValue, len(attributes))
+	for i, a := range attributes {
+		attrs[i] = *a
+	}
 	return &v1.Span{
 		Name:       name,
 		TraceId:    traceIDBytes,
 		SpanId:     spanIDBytes,
 		Status:     status,
 		Kind:       v1.Span_SPAN_KIND_SERVER,
-		Attributes: attributes,
+		Attributes: attrs,
 	}
 }
 
 func makeScope(spans ...*v1.Span) *v1.ScopeSpans {
+	ss := make([]v1.Span, len(spans))
+	for i, s := range spans {
+		ss[i] = *s
+	}
 	return &v1.ScopeSpans{
 		Scope: &v1_common.InstrumentationScope{
 			Name:    "super library",
 			Version: "0.0.1",
 		},
-		Spans: spans,
+		Spans: ss,
 	}
 }
 
-func makeResourceSpans(serviceName string, ils []*v1.ScopeSpans, attributes ...*v1_common.KeyValue) *v1.ResourceSpans {
+func makeResourceSpans(serviceName string, ils []v1.ScopeSpans, attributes ...*v1_common.KeyValue) *v1.ResourceSpans {
 	rs := &v1.ResourceSpans{
 		Resource: &v1_resource.Resource{
-			Attributes: []*v1_common.KeyValue{
+			Attributes: []v1_common.KeyValue{
 				{
 					Key: "service.name",
 					Value: &v1_common.AnyValue{
@@ -1935,7 +1943,9 @@ func makeResourceSpans(serviceName string, ils []*v1.ScopeSpans, attributes ...*
 		ScopeSpans: ils,
 	}
 
-	rs.Resource.Attributes = append(rs.Resource.Attributes, attributes...)
+	for _, a := range attributes {
+		rs.Resource.Attributes = append(rs.Resource.Attributes, *a)
+	}
 
 	return rs
 }
@@ -2088,11 +2098,11 @@ func TestRequestsByTraceID_SpanIDValidation(t *testing.T) {
 		{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09}, // 9 bytes
 	}
 	for _, spanID := range invalidSpanIDs {
-		batches := []*v1.ResourceSpans{
+		batches := []v1.ResourceSpans{
 			{
-				ScopeSpans: []*v1.ScopeSpans{
+				ScopeSpans: []v1.ScopeSpans{
 					{
-						Spans: []*v1.Span{
+						Spans: []v1.Span{
 							{
 								TraceId: validTraceID,
 								SpanId:  spanID,
@@ -2108,11 +2118,11 @@ func TestRequestsByTraceID_SpanIDValidation(t *testing.T) {
 	}
 	// Valid span id should not error
 	validSpanID := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
-	batches := []*v1.ResourceSpans{
+	batches := []v1.ResourceSpans{
 		{
-			ScopeSpans: []*v1.ScopeSpans{
+			ScopeSpans: []v1.ScopeSpans{
 				{
-					Spans: []*v1.Span{
+					Spans: []v1.Span{
 						{
 							TraceId: validTraceID,
 							SpanId:  validSpanID,
@@ -2243,7 +2253,7 @@ func TestTracePushMiddlewareCalled(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create test traces
-	traces := batchesToTraces(t, []*v1.ResourceSpans{test.MakeBatch(10, nil)})
+	traces := batchesToTraces(t, []v1.ResourceSpans{*test.MakeBatch(10, nil)})
 
 	// Call PushTraces
 	_, err = d.PushTraces(ctx, traces)
@@ -2283,7 +2293,7 @@ func TestTracePushMiddlewareFailsOpen(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create test traces
-	traces := batchesToTraces(t, []*v1.ResourceSpans{test.MakeBatch(10, nil)})
+	traces := batchesToTraces(t, []v1.ResourceSpans{*test.MakeBatch(10, nil)})
 
 	// Call PushTraces - should succeed despite middleware error (fail open)
 	_, err = d.PushTraces(ctx, traces)

@@ -11,7 +11,7 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-type GRPCCollector[T combiner.TResponse] struct {
+type GRPCCollector[T combiner.TResponse[T]] struct {
 	next           AsyncRoundTripper[combiner.PipelineResponse]
 	combiner       combiner.GRPCCombiner[T]
 	consumers      int
@@ -19,7 +19,7 @@ type GRPCCollector[T combiner.TResponse] struct {
 	send           func(T) error
 }
 
-func NewGRPCCollector[T combiner.TResponse](next AsyncRoundTripper[combiner.PipelineResponse], consumers int, maxSegmentSize int, combiner combiner.GRPCCombiner[T], send func(T) error) *GRPCCollector[T] {
+func NewGRPCCollector[T combiner.TResponse[T]](next AsyncRoundTripper[combiner.PipelineResponse], consumers int, maxSegmentSize int, combiner combiner.GRPCCombiner[T], send func(T) error) *GRPCCollector[T] {
 	return &GRPCCollector[T]{
 		next:           next,
 		combiner:       combiner,

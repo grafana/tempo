@@ -14,8 +14,8 @@ func StringifyAnyValue(anyValue *v1common.AnyValue) string {
 		return strconv.FormatInt(anyValue.GetIntValue(), 10)
 	case *v1common.AnyValue_ArrayValue:
 		arrStr := "["
-		for _, v := range anyValue.GetArrayValue().Values {
-			arrStr += StringifyAnyValue(v)
+		for i := range anyValue.GetArrayValue().Values {
+			arrStr += StringifyAnyValue(&anyValue.GetArrayValue().Values[i])
 		}
 		arrStr += "]"
 		return arrStr

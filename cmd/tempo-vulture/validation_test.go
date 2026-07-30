@@ -89,11 +89,11 @@ func TestValidateTraceRetrieval(t *testing.T) {
 			name: "successful retrieval",
 			// We'll create matching trace ID dynamically
 			traceResponse: &tempopb.Trace{
-				ResourceSpans: []*v1.ResourceSpans{
+				ResourceSpans: []v1.ResourceSpans{
 					{
-						ScopeSpans: []*v1.ScopeSpans{
+						ScopeSpans: []v1.ScopeSpans{
 							{
-								Spans: []*v1.Span{
+								Spans: []v1.Span{
 									{
 										// TraceId will be set dynamically to match
 										Name: "test-span",
@@ -114,7 +114,7 @@ func TestValidateTraceRetrieval(t *testing.T) {
 		{
 			name: "empty trace spans",
 			traceResponse: &tempopb.Trace{
-				ResourceSpans: []*v1.ResourceSpans{}, // Empty!
+				ResourceSpans: []v1.ResourceSpans{}, // Empty!
 			},
 			expectError: true,
 		},
@@ -243,11 +243,11 @@ func TestRunValidation(t *testing.T) {
 				SearchBackoffDuration: 0,                // Disable search
 			},
 			retrievalTrace: &tempopb.Trace{
-				ResourceSpans: []*v1.ResourceSpans{
+				ResourceSpans: []v1.ResourceSpans{
 					{
-						ScopeSpans: []*v1.ScopeSpans{
+						ScopeSpans: []v1.ScopeSpans{
 							{
-								Spans: []*v1.Span{
+								Spans: []v1.Span{
 									{Name: "test-span"},
 								},
 							},
@@ -295,7 +295,7 @@ func TestRunValidation(t *testing.T) {
 				SearchBackoffDuration: 0,
 			},
 			retrievalTrace: &tempopb.Trace{
-				ResourceSpans: []*v1.ResourceSpans{}, // Empty spans
+				ResourceSpans: []v1.ResourceSpans{}, // Empty spans
 			},
 			expectedFailures:    1,
 			expectedExitCode:    1,
@@ -334,10 +334,10 @@ func TestRunValidation(t *testing.T) {
 				traceIDBytes, _ := sampleTraceInfo.TraceID()
 
 				// Set the trace ID in all spans of the mock response
-				for _, resourceSpan := range tt.retrievalTrace.ResourceSpans {
-					for _, scopeSpan := range resourceSpan.ScopeSpans {
-						for _, span := range scopeSpan.Spans {
-							span.TraceId = traceIDBytes
+				for ri := range tt.retrievalTrace.ResourceSpans {
+					for si := range tt.retrievalTrace.ResourceSpans[ri].ScopeSpans {
+						for spi := range tt.retrievalTrace.ResourceSpans[ri].ScopeSpans[si].Spans {
+							tt.retrievalTrace.ResourceSpans[ri].ScopeSpans[si].Spans[spi].TraceId = traceIDBytes
 						}
 					}
 				}

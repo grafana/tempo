@@ -9,8 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
-	"github.com/golang/protobuf/proto"  //nolint:all //ProtoReflect
+	// gogo jsonpb/proto: the golang/protobuf shims route through protoreflect
+	// field-level reflection, which wiresmith-generated messages do not support.
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/proto"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 

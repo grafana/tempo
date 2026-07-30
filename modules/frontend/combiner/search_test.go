@@ -12,6 +12,7 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
@@ -242,7 +243,7 @@ func testSearchCombinesResults(t *testing.T, marshalingFormat api.MarshallingFor
 		actual := &tempopb.SearchResponse{}
 		fromHTTPResponse(t, resp, actual)
 
-		require.Equal(t, expected, actual)
+		test.RequireProtoEqual(t, expected, actual)
 	}
 }
 
@@ -272,7 +273,7 @@ func testSearchResponseCombiner(t *testing.T, marshalingFormat api.MarshallingFo
 				response2:      toHTTPResponseWithFormat(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200, nil, marshalingFormat),
 				expectedStatus: 200,
 				expectedResponse: &tempopb.SearchResponse{
-					Traces: []*tempopb.TraceSearchMetadata{},
+					Traces: nil, // wire round-trip clone in GRPCFinal/GRPCDiff normalizes empty slices to nil
 					Metrics: &tempopb.SearchMetrics{
 						CompletedJobs: 2,
 					},
@@ -433,7 +434,7 @@ func testSearchResponseCombiner(t *testing.T, marshalingFormat api.MarshallingFo
 
 				grpcresp, err := combiner.GRPCFinal()
 				require.Equal(t, tc.expectedGRPCError, err)
-				require.Equal(t, tc.expectedResponse, grpcresp)
+				test.RequireProtoEqual(t, tc.expectedResponse, grpcresp)
 			})
 		}
 	}
@@ -457,7 +458,7 @@ func testCombinerShards(t *testing.T, marshalingFormat api.MarshallingFormat) {
 			name:             "initial state",
 			pipelineResponse: nil,
 			expected: &tempopb.SearchResponse{
-				Traces:  []*tempopb.TraceSearchMetadata{},
+				Traces:  nil, // wire round-trip clone in GRPCDiff normalizes empty slices to nil
 				Metrics: &tempopb.SearchMetrics{},
 			},
 		},
@@ -493,7 +494,7 @@ func testCombinerShards(t *testing.T, marshalingFormat api.MarshallingFormat) {
 				},
 			},
 			expected: &tempopb.SearchResponse{
-				Traces: []*tempopb.TraceSearchMetadata{},
+				Traces: nil, // wire round-trip clone in GRPCFinal/GRPCDiff normalizes empty slices to nil
 				Metrics: &tempopb.SearchMetrics{
 					TotalBlocks:     5,
 					TotalJobs:       6,
@@ -522,7 +523,7 @@ func testCombinerShards(t *testing.T, marshalingFormat api.MarshallingFormat) {
 				},
 			}, 200, 0, marshalingFormat), // shard 0
 			expected: &tempopb.SearchResponse{
-				Traces: []*tempopb.TraceSearchMetadata{}, // no traces b/c only one job has finished and the first shard has 2 jobs
+				Traces: nil, // no traces b/c only one job has finished and the first shard has 2 jobs
 				Metrics: &tempopb.SearchMetrics{ // metadata is incrementing
 					CompletedJobs:   1,
 					InspectedTraces: 1,
@@ -622,7 +623,7 @@ func testCombinerShards(t *testing.T, marshalingFormat api.MarshallingFormat) {
 				},
 			}, 200, 3, marshalingFormat), // complete shard 3,
 			expected: &tempopb.SearchResponse{
-				Traces: []*tempopb.TraceSearchMetadata{}, // no traces b/c we skipped shard 2 and we can't include results from 3 until 2 is done
+				Traces: nil, // no traces b/c we skipped shard 2 and we can't include results from 3 until 2 is done
 				Metrics: &tempopb.SearchMetrics{ // metadata is incrementing
 					CompletedJobs:   4,
 					InspectedTraces: 4,
@@ -636,7 +637,7 @@ func testCombinerShards(t *testing.T, marshalingFormat api.MarshallingFormat) {
 		{
 			name: "fill in shard 2 and see results",
 			pipelineResponse: toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
-				Traces: []*tempopb.TraceSearchMetadata{},
+				Traces: nil, // wire round-trip clone in GRPCFinal/GRPCDiff normalizes empty slices to nil
 				Metrics: &tempopb.SearchMetrics{
 					InspectedTraces: 1,
 					InspectedBytes:  2,
@@ -663,7 +664,7 @@ func testCombinerShards(t *testing.T, marshalingFormat api.MarshallingFormat) {
 		{
 			name: "complete all shards which dumps all results",
 			pipelineResponse: toHTTPResponseWithFormat(t, &tempopb.SearchResponse{
-				Traces: []*tempopb.TraceSearchMetadata{},
+				Traces: nil, // wire round-trip clone in GRPCFinal/GRPCDiff normalizes empty slices to nil
 				Metrics: &tempopb.SearchMetrics{
 					InspectedTraces: 1,
 					InspectedBytes:  2,
@@ -701,7 +702,7 @@ func testCombinerShards(t *testing.T, marshalingFormat api.MarshallingFormat) {
 
 			resp, err := combiner.GRPCDiff()
 			require.NoError(t, err)
-			require.Equal(t, tc.expected, resp)
+			test.RequireProtoEqual(t, tc.expected, resp)
 		})
 	}
 }
@@ -795,7 +796,7 @@ func TestSegmentSearchResponse(t *testing.T) {
 			{
 				TraceID: "a",
 				SpanSet: &tempopb.SpanSet{
-					Spans: []*tempopb.Span{
+					Spans: []tempopb.Span{
 						{SpanID: "1", Name: "span1", StartTimeUnixNano: 1000, DurationNanos: 100},
 						{SpanID: "2", Name: "span2", StartTimeUnixNano: 2000, DurationNanos: 200},
 						{SpanID: "3", Name: "span3", StartTimeUnixNano: 3000, DurationNanos: 300},
@@ -805,7 +806,7 @@ func TestSegmentSearchResponse(t *testing.T) {
 			{
 				TraceID: "b",
 				SpanSet: &tempopb.SpanSet{
-					Spans: []*tempopb.Span{
+					Spans: []tempopb.Span{
 						{SpanID: "4", Name: "span4", StartTimeUnixNano: 4000, DurationNanos: 400},
 					},
 				},
@@ -813,7 +814,7 @@ func TestSegmentSearchResponse(t *testing.T) {
 			{
 				TraceID: "c",
 				SpanSet: &tempopb.SpanSet{
-					Spans: []*tempopb.Span{
+					Spans: []tempopb.Span{
 						{SpanID: "5", Name: "span5", StartTimeUnixNano: 5000, DurationNanos: 500},
 					},
 				},

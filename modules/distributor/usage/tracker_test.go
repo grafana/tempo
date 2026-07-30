@@ -34,37 +34,37 @@ func TestUsageTracker(t *testing.T) {
 	}
 
 	// Reused for all test cases
-	data := []*v1.ResourceSpans{
+	data := []v1.ResourceSpans{
 		{
 			Resource: &v1resource.Resource{
-				Attributes: []*v1common.KeyValue{
+				Attributes: []v1common.KeyValue{
 					{
 						Key:   "service.name",
 						Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "svc"}},
 					},
 				},
 			},
-			ScopeSpans: []*v1.ScopeSpans{
+			ScopeSpans: []v1.ScopeSpans{
 				{
-					Spans: []*v1.Span{
+					Spans: []v1.Span{
 						{
-							Attributes: []*v1common.KeyValue{
+							Attributes: []v1common.KeyValue{
 								{Key: "attr", Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "1"}}},
 								{Key: "attr2", Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "attr2Value"}}},
 							},
 						},
 						{
-							Attributes: []*v1common.KeyValue{
+							Attributes: []v1common.KeyValue{
 								{Key: "attr", Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "1"}}},
 							},
 						},
 						{
-							Attributes: []*v1common.KeyValue{
+							Attributes: []v1common.KeyValue{
 								{Key: "attr", Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "2"}}},
 							},
 						},
 						{
-							Attributes: []*v1common.KeyValue{
+							Attributes: []v1common.KeyValue{
 								{Key: "attr", Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "1"}}},
 							},
 						},
@@ -75,7 +75,7 @@ func TestUsageTracker(t *testing.T) {
 			SchemaUrl: "test",
 		},
 	}
-	nonSpanSize, _ := nonSpanDataLength(data[0])
+	nonSpanSize, _ := nonSpanDataLength(&data[0])
 
 	// Helper functions for dividing up data sizes
 	nonSpanRatio := func(r float64) uint64 {
@@ -308,21 +308,21 @@ func TestCollectDoesNotPanic(t *testing.T) {
 	}
 
 	// Minimal test data
-	data := []*v1.ResourceSpans{
+	data := []v1.ResourceSpans{
 		{
 			Resource: &v1resource.Resource{
-				Attributes: []*v1common.KeyValue{
+				Attributes: []v1common.KeyValue{
 					{
 						Key:   "service.name",
 						Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "svc"}},
 					},
 				},
 			},
-			ScopeSpans: []*v1.ScopeSpans{
+			ScopeSpans: []v1.ScopeSpans{
 				{
-					Spans: []*v1.Span{
+					Spans: []v1.Span{
 						{
-							Attributes: []*v1common.KeyValue{
+							Attributes: []v1common.KeyValue{
 								{Key: "attr", Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "1"}}},
 							},
 						},
@@ -375,10 +375,10 @@ func TestCollectDoesNotPanic(t *testing.T) {
 
 func TestScopeAwareAttributeMatching(t *testing.T) {
 	// Test data with both resource and span attributes having the same key
-	data := []*v1.ResourceSpans{
+	data := []v1.ResourceSpans{
 		{
 			Resource: &v1resource.Resource{
-				Attributes: []*v1common.KeyValue{
+				Attributes: []v1common.KeyValue{
 					{
 						Key:   "service.name",
 						Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "resource-service"}},
@@ -393,11 +393,11 @@ func TestScopeAwareAttributeMatching(t *testing.T) {
 					},
 				},
 			},
-			ScopeSpans: []*v1.ScopeSpans{
+			ScopeSpans: []v1.ScopeSpans{
 				{
-					Spans: []*v1.Span{
+					Spans: []v1.Span{
 						{
-							Attributes: []*v1common.KeyValue{
+							Attributes: []v1common.KeyValue{
 								{Key: "service.name", Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "span-service"}}},
 								{Key: "k8s.namespace.name", Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "span-namespace"}}},
 								{Key: "db.system", Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "postgresql"}}},

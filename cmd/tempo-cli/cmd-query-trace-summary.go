@@ -168,7 +168,9 @@ func queryBucketForSummary(ctx context.Context, percentage float32, r backend.Re
 						lastEndTime = span.EndTimeUnixNano
 					}
 					if len(span.ParentSpanId) == 0 {
-						rootSpan = span
+						// Copy span value to heap so rootSpan pointer is stable after the loop.
+						spanCopy := span
+						rootSpan = &spanCopy
 						rootSpanResource = b.Resource
 					}
 				}
