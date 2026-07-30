@@ -184,6 +184,12 @@ type ReadOverrides struct {
 	// additional metric indicating whether the matched spans include
 	// span-pruning summary spans (spans carrying aggregation.is_summary).
 	SpanPruningAwareness bool `yaml:"span_pruning_awareness,omitempty" json:"span_pruning_awareness,omitempty"`
+
+	// SpanPruningEnabledByDefault, when set, overrides frontend.TraceByIDConfig.SpanPruningEnabledByDefault
+	// per-tenant. When not set (nil), the cluster-wide config value is used. Only takes effect when span
+	// pruning is enabled cluster-wide (TraceByIDConfig.SpanPruningEnabled).
+	// EXPERIMENTAL: span pruning is not yet a stable feature; config and behavior may change.
+	SpanPruningEnabledByDefault *bool `yaml:"span_pruning_enabled_by_default,omitempty" json:"span_pruning_enabled_by_default,omitempty"`
 }
 
 type CompactionOverrides struct {

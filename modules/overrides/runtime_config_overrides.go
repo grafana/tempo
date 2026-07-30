@@ -434,6 +434,10 @@ func (o *runtimeConfigOverridesManager) SpanPruningAwareness(userID string) bool
 	return o.getOverridesForUser(userID).Read.SpanPruningAwareness
 }
 
+func (o *runtimeConfigOverridesManager) SpanPruningEnabledByDefault(userID string) *bool {
+	return o.getOverridesForUser(userID).Read.SpanPruningEnabledByDefault
+}
+
 func (o *runtimeConfigOverridesManager) CostAttributionMaxCardinality(userID string) uint64 {
 	return o.getOverridesForUser(userID).CostAttribution.MaxCardinality
 }

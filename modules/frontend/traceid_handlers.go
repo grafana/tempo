@@ -88,6 +88,15 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 	})
 }
 
+// resolveSpanPruningEnabledByDefault returns the tenant-specific span pruning default
+// if one is configured via overrides, else falls back to the cluster-wide default.
+func resolveSpanPruningEnabledByDefault(o overrides.Interface, tenant string, globalDefault bool) bool {
+	if p := o.SpanPruningEnabledByDefault(tenant); p != nil {
+		return *p
+	}
+	return globalDefault
+}
+
 // newTraceIDV2Handler creates a http.handler for trace by id requests
 func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor, combiner.TraceByIDV2Options) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	postSLOHook := traceByIDSLOPostHook(cfg.TraceByID.SLO)
@@ -160,7 +169,7 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 		// may change. Only parse span_pruning_* params when the feature is enabled cluster-wide,
 		// so a malformed param doesn't 400 a request for a feature that's actually turned off.
 		if cfg.TraceByID.SpanPruningEnabled {
-			enabled, spanPruningCfg, pErr := api.ParseSpanPruningRequest(req, cfg.TraceByID.SpanPruningEnabledByDefault)
+			enabled, spanPruningCfg, pErr := api.ParseSpanPruningRequest(req, resolveSpanPruningEnabledByDefault(o, tenant, cfg.TraceByID.SpanPruningEnabledByDefault))
 			if pErr != nil {
 				return httpInvalidRequest(pErr), nil
 			}
