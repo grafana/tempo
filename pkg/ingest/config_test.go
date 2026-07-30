@@ -39,3 +39,44 @@ func TestSetDefaultNumberOfPartitionsForAutocreatedTopics(t *testing.T) {
 
 	cfg.SetDefaultNumberOfPartitionsForAutocreatedTopics(log.NewNopLogger())
 }
+
+func TestParseProducerCompression(t *testing.T) {
+	tests := map[string]struct {
+		value     string
+		expectErr bool
+	}{
+		"empty is valid (leaves client default unchanged)": {value: ""},
+		"none is valid":             {value: compressionNone},
+		"gzip is valid":             {value: compressionGzip},
+		"snappy is valid":           {value: compressionSnappy},
+		"lz4 is valid":              {value: compressionLz4},
+		"zstd is valid":             {value: compressionZstd},
+		"is case-insensitive":       {value: "GZIP"},
+		"invalid value is rejected": {value: "unsupported", expectErr: true},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			_, err := parseProducerCompression(tc.value)
+			if tc.expectErr {
+				require.ErrorIs(t, err, ErrInvalidProducerCompression)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestKafkaConfig_Validate_ProducerCompression(t *testing.T) {
+	cfg := KafkaConfig{
+		Address:                    "localhost:9092",
+		Topic:                      "test",
+		ProducerMaxRecordSizeBytes: minProducerRecordDataBytesLimit,
+	}
+
+	cfg.ProducerCompression = compressionGzip
+	require.NoError(t, cfg.Validate())
+
+	cfg.ProducerCompression = "unsupported"
+	require.ErrorIs(t, cfg.Validate(), ErrInvalidProducerCompression)
+}
