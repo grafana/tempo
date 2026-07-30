@@ -6,6 +6,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kfake"
+	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kmsg"
 )
 
@@ -45,7 +46,8 @@ func TestParseProducerCompression(t *testing.T) {
 		value     string
 		expectErr bool
 	}{
-		"empty is valid (leaves client default unchanged)": {value: ""},
+		"empty is valid (leaves client default unchanged)":           {value: ""},
+		"whitespace-only is valid (leaves client default unchanged)": {value: "   "},
 		"none is valid":             {value: compressionNone},
 		"gzip is valid":             {value: compressionGzip},
 		"snappy is valid":           {value: compressionSnappy},
@@ -57,7 +59,7 @@ func TestParseProducerCompression(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			_, err := parseProducerCompression(tc.value)
+			_, _, err := parseProducerCompression(tc.value)
 			if tc.expectErr {
 				require.ErrorIs(t, err, ErrInvalidProducerCompression)
 			} else {
@@ -65,6 +67,22 @@ func TestParseProducerCompression(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestParseProducerCompression_UnsetVsExplicitNone(t *testing.T) {
+	// Empty and whitespace only values must return set=false, so callers know to leave the
+	// Kafka client's default codec preference unchanged rather than forcing no compression.
+	for _, value := range []string{"", "   "} {
+		_, set, err := parseProducerCompression(value)
+		require.NoError(t, err)
+		require.False(t, set, "value %q should be treated as unset", value)
+	}
+
+	// An explicit "none" must still return set=true so the caller applies it.
+	codec, set, err := parseProducerCompression(compressionNone)
+	require.NoError(t, err)
+	require.True(t, set)
+	require.Equal(t, kgo.NoCompression(), codec)
 }
 
 func TestKafkaConfig_Validate_ProducerCompression(t *testing.T) {
@@ -77,6 +95,12 @@ func TestKafkaConfig_Validate_ProducerCompression(t *testing.T) {
 	cfg.ProducerCompression = compressionGzip
 	require.NoError(t, cfg.Validate())
 
+	// validate that a whitespace only value is treated as unset rather than
+	// rejected or coerced into an explicit codec.
+	cfg.ProducerCompression = "   "
+	require.NoError(t, cfg.Validate())
+
+	// validate that an invalid value raises an error.
 	cfg.ProducerCompression = "unsupported"
 	require.ErrorIs(t, cfg.Validate(), ErrInvalidProducerCompression)
 }

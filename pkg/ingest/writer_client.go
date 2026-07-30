@@ -89,11 +89,11 @@ func NewWriterClient(kafkaCfg KafkaConfig, maxInflightProduceRequests int, logge
 		kgo.MaxBufferedBytes(0),
 	)
 
-	if kafkaCfg.ProducerCompression != "" {
-		codec, err := parseProducerCompression(kafkaCfg.ProducerCompression)
-		if err != nil {
-			return nil, err
-		}
+	codec, set, err := parseProducerCompression(kafkaCfg.ProducerCompression)
+	if err != nil {
+		return nil, err
+	}
+	if set {
 		opts = append(opts, kgo.ProducerBatchCompression(codec))
 	}
 

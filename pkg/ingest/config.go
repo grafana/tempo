@@ -202,7 +202,7 @@ func (cfg *KafkaConfig) Validate() error {
 		}
 	}
 
-	if _, err := parseProducerCompression(cfg.ProducerCompression); err != nil {
+	if _, _, err := parseProducerCompression(cfg.ProducerCompression); err != nil {
 		return err
 	}
 
@@ -219,23 +219,25 @@ const (
 )
 
 // parseProducerCompression parses the producer compression codec from the given string value into a kgo.CompressionCodec.
-// If the value is empty, the default codec preference of the Kafka client is used.
-func parseProducerCompression(value string) (kgo.CompressionCodec, error) {
+// If the value is empty (after trimming whitespace), it returns set=false so the caller can leave the Kafka
+// client's default codec preference unchanged, rather than forcing it to the zero-value codec, which franz-go
+// treats as an explicit "no compression".
+func parseProducerCompression(value string) (codec kgo.CompressionCodec, set bool, err error) {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "":
-		return kgo.CompressionCodec{}, nil
+		return kgo.CompressionCodec{}, false, nil
 	case compressionNone:
-		return kgo.NoCompression(), nil
+		return kgo.NoCompression(), true, nil
 	case compressionGzip:
-		return kgo.GzipCompression(), nil
+		return kgo.GzipCompression(), true, nil
 	case compressionSnappy:
-		return kgo.SnappyCompression(), nil
+		return kgo.SnappyCompression(), true, nil
 	case compressionLz4:
-		return kgo.Lz4Compression(), nil
+		return kgo.Lz4Compression(), true, nil
 	case compressionZstd:
-		return kgo.ZstdCompression(), nil
+		return kgo.ZstdCompression(), true, nil
 	default:
-		return kgo.CompressionCodec{}, ErrInvalidProducerCompression
+		return kgo.CompressionCodec{}, false, ErrInvalidProducerCompression
 	}
 }
 
