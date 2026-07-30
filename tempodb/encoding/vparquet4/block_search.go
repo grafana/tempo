@@ -344,10 +344,12 @@ func rawToResults(ctx context.Context, pf *parquet.File, rgs []parquet.RowGroup,
 }
 
 // makeIterFn is a helper to create an iterator, that abstracts away context like file and row groups.
-type makeIterFn func(columnName string, predicate pq.Predicate, selectAs string) pq.Iterator
+// moreOpts are appended after the standard options; nil entries are ignored and nil iterators
+// ignore them entirely.
+type makeIterFn func(columnName string, predicate pq.Predicate, selectAs string, moreOpts ...pq.SyncIteratorOpt) pq.Iterator
 
 func makeIterFunc(ctx context.Context, rgs []parquet.RowGroup, pf *parquet.File) makeIterFn {
-	return func(name string, predicate pq.Predicate, selectAs string) pq.Iterator {
+	return func(name string, predicate pq.Predicate, selectAs string, moreOpts ...pq.SyncIteratorOpt) pq.Iterator {
 		index, _, maxDef := pq.GetColumnIndexByPath(pf, name)
 		if index == -1 {
 			// TODO - don't panic, error instead
@@ -363,13 +365,18 @@ func makeIterFunc(ctx context.Context, rgs []parquet.RowGroup, pf *parquet.File)
 		if name != columnPathSpanID && name != columnPathTraceID {
 			opts = append(opts, pq.SyncIteratorOptIntern())
 		}
+		for _, o := range moreOpts {
+			if o != nil {
+				opts = append(opts, o)
+			}
+		}
 
 		return pq.NewSyncIterator(ctx, rgs, index, opts...)
 	}
 }
 
 func makeNilIterFunc(ctx context.Context, rgs []parquet.RowGroup, pf *parquet.File) makeIterFn {
-	return func(name string, predicate pq.Predicate, selectAs string) pq.Iterator {
+	return func(name string, predicate pq.Predicate, selectAs string, _ ...pq.SyncIteratorOpt) pq.Iterator {
 		index, _, maxDef := pq.GetColumnIndexByPath(pf, name)
 		if index == -1 {
 			// TODO - don't panic, error instead
