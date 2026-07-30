@@ -23,8 +23,8 @@ func TestValidateRedactionQuery(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "not-equal and AND combined",
-			query:   `{resource.namespace = "prod" && span.http.target != "/health"}`,
+			name:    "equality with AND",
+			query:   `{resource.namespace = "prod" && span.http.target = "/checkout"}`,
 			wantErr: false,
 		},
 		// --- rejected: operators outside the subset ---
@@ -36,6 +36,19 @@ func TestValidateRedactionQuery(t *testing.T) {
 		{
 			name:    "ordered comparison",
 			query:   `{span.http.status_code > 400}`,
+			wantErr: true,
+		},
+		// Negation is rejected: its blast radius is the complement of the match set
+		// (potentially all data), so a typo is as catastrophic as a bad regex on a
+		// delete path.
+		{
+			name:    "negation (complement blast radius)",
+			query:   `{span.http.target != "/health"}`,
+			wantErr: true,
+		},
+		{
+			name:    "negation within AND",
+			query:   `{resource.namespace = "prod" && span.http.target != "/health"}`,
 			wantErr: true,
 		},
 		// --- rejected: shape outside a single spanset filter ---

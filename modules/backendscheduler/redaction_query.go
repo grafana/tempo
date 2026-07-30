@@ -8,8 +8,8 @@ import (
 )
 
 // validateRedactionQuery enforces the redaction query subset: a single spanset filter
-// whose expression is = / != comparisons on resource.*/span.* attributes combined with
-// && / ||. Anything else (regex, ordered comparisons, unscoped attributes, pipelines,
+// whose expression is = comparisons on resource.*/span.* attributes combined with
+// && / ||. Anything else (negation, regex, ordered comparisons, unscoped attributes, pipelines,
 // aggregates, multiple/structural filters) is rejected at submission.
 //
 // Parsing uses ParseNoOptimizations so the optimizer does not fold an OR of equalities
@@ -41,11 +41,11 @@ func validateRedactionQuery(query string) error {
 }
 
 // validateRedactionExpr recursively checks that fe is built only from &&/|| combinators
-// over = / != comparisons on scoped attributes.
+// over = comparisons on scoped attributes.
 func validateRedactionExpr(fe traceql.FieldExpression) error {
 	bin, ok := fe.(*traceql.BinaryOperation)
 	if !ok {
-		return fmt.Errorf("redaction query supports only =, != comparisons joined by && / ||, got %T", fe)
+		return fmt.Errorf("redaction query supports only = comparisons joined by && / ||, got %T", fe)
 	}
 
 	switch bin.Op {
@@ -54,10 +54,13 @@ func validateRedactionExpr(fe traceql.FieldExpression) error {
 			return err
 		}
 		return validateRedactionExpr(bin.RHS)
-	case traceql.OpEqual, traceql.OpNotEqual:
+	case traceql.OpEqual:
 		return validateRedactionComparison(bin.LHS, bin.RHS)
 	default:
-		return fmt.Errorf("operator %v not allowed in redaction query; only =, != are supported", bin.Op)
+		// Only positive equality is allowed. Negation (!=) is excluded on purpose: its
+		// match set is the complement (potentially all data), so a typo is as catastrophic
+		// as a bad regex on an irreversible delete.
+		return fmt.Errorf("operator %v not allowed in redaction query; only = is supported", bin.Op)
 	}
 }
 
