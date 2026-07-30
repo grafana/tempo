@@ -9,17 +9,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// fakeSampler keeps every keepEvery-th value that passes the predicate and records
+// testSampler keeps every keepEvery-th value that passes the predicate and records
 // the population reported via Expect.
-type fakeSampler struct {
+type testSampler struct {
 	keepEvery int
 	seen      int
 	expected  uint64
 }
 
-func (s *fakeSampler) Expect(count uint64) { s.expected += count }
+func (s *testSampler) Expect(count uint64) { s.expected += count }
 
-func (s *fakeSampler) Sample() bool {
+func (s *testSampler) Sample() bool {
 	s.seen++
 	return s.seen%s.keepEvery == 1
 }
@@ -67,7 +67,7 @@ func TestSyncIteratorSampler(t *testing.T) {
 	const n = 6
 	rgs := writeInts(t, []int64{0, 1, 2, 3, 4, 5})
 
-	s := &fakeSampler{keepEvery: 2}
+	s := &testSampler{keepEvery: 2}
 	it := NewSyncIterator(context.TODO(), rgs, 0,
 		SyncIteratorOptSelectAs("v"),
 		SyncIteratorOptSampler(s))
@@ -92,7 +92,7 @@ func TestSyncIteratorSamplerAfterPredicate(t *testing.T) {
 	rgs := writeInts(t, []int64{0, 1, 2, 3, 4, 5, 6, 7})
 
 	// Predicate keeps [2,6] inclusive: 2,3,4,5,6 (5 values).
-	s := &fakeSampler{keepEvery: 2}
+	s := &testSampler{keepEvery: 2}
 	it := NewSyncIterator(context.TODO(), rgs, 0,
 		SyncIteratorOptSelectAs("v"),
 		SyncIteratorOptPredicate(NewIntBetweenPredicate(2, 6)),
@@ -118,7 +118,7 @@ func TestSyncIteratorSamplerMultiPage(t *testing.T) {
 	rgs := writeInts(t, []int64{0, 1, 2, 3, 4, 5}, 3)
 	require.Len(t, rgs, 2, "break should produce two row groups")
 
-	s := &fakeSampler{keepEvery: 2}
+	s := &testSampler{keepEvery: 2}
 	it := NewSyncIterator(context.TODO(), rgs, 0,
 		SyncIteratorOptSelectAs("v"),
 		SyncIteratorOptSampler(s))

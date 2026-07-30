@@ -483,9 +483,13 @@ func createSpanIterators(
 		columnPredicates  = map[string][]parquetquery.Predicate{}
 		genericConditions []traceql.Condition
 		columnMapping     = dedicatedColumnsToColumnMapping(dedicatedColumns, backend.DedicatedColumnScopeSpan)
-		// The sampler attaches to this column's iterator in the build loop, not where
-		// it's set below, because that iterator isn't built yet.
-		samplerColumn string
+		// columnSyncIterOpts folds extra SyncIterator options into a specific column's
+		// iterator when it is built below.
+		columnSyncIterOpts = map[string][]parquetquery.SyncIteratorOpt{}
+		// samplerPlaced records whether the sampler was attached to a real column; if
+		// not it falls back to the span-count iterator built when nothing else is
+		// required.
+		samplerPlaced bool
 	)
 
 	// todo: improve these methods. if addPredicate gets a nil predicate shouldn't it just wipe out the existing predicates instead of appending?
@@ -577,8 +581,9 @@ func createSpanIterators(
 			addPredicate(startCol, pred)
 			columnSelectAs[startCol] = startCol
 
-			if sampler != nil {
-				samplerColumn = startCol
+			if sampler != nil && !samplerPlaced {
+				columnSyncIterOpts[startCol] = append(columnSyncIterOpts[startCol], parquetquery.SyncIteratorOptSampler(sampler))
+				samplerPlaced = true
 			}
 			continue
 		case traceql.IntrinsicName:
@@ -755,11 +760,7 @@ func createSpanIterators(
 	}
 
 	for columnPath, predicates := range columnPredicates {
-		var s []parquetquery.Sampler
-		if columnPath == samplerColumn && sampler != nil {
-			s = []parquetquery.Sampler{sampler}
-		}
-		optional = append(optional, makeIter(columnPath, orIfNeeded(predicates), columnSelectAs[columnPath], s...))
+		optional = append(optional, makeIter(columnPath, orIfNeeded(predicates), columnSelectAs[columnPath], columnSyncIterOpts[columnPath]...))
 	}
 
 	attrIter, err := createScopedAttributeIterator(
@@ -795,11 +796,11 @@ func createSpanIterators(
 	// iterator for other cases.
 	if needDriver {
 		if len(required) == 0 {
-			var s []parquetquery.Sampler
-			if sampler != nil && samplerColumn == "" {
-				s = []parquetquery.Sampler{sampler}
+			var opt parquetquery.SyncIteratorOpt
+			if sampler != nil && !samplerPlaced {
+				opt = parquetquery.SyncIteratorOptSampler(sampler)
 			}
-			driver = newVirtualRowNumberIterator(makeIter(columnPathScopeSpansSpanCount, nil, "spanCount", s...), DefinitionLevelResourceSpansILSSpan)
+			driver = newVirtualRowNumberIterator(makeIter(columnPathScopeSpansSpanCount, nil, "spanCount", opt), DefinitionLevelResourceSpansILSSpan)
 		} else {
 			// use the first required iterator as the driver
 			driver = required[0]

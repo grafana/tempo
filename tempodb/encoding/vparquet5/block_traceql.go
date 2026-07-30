@@ -2023,9 +2023,13 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 		nestedSetLeftExplicit   = false
 		nestedSetRightExplicit  = false
 		nestedSetParentExplicit = false
-		// The sampler attaches to this column's iterator in the build loop, not where
-		// it's set below, because that iterator isn't built yet.
-		samplerColumn string
+		// columnSyncIterOpts folds extra SyncIterator options into a specific column's
+		// iterator when it is built below.
+		columnSyncIterOpts = map[string][]parquetquery.SyncIteratorOpt{}
+		// samplerPlaced records whether the sampler was attached to a real column; if
+		// not it falls back to the span-count iterator built when nothing else is
+		// required.
+		samplerPlaced bool
 	)
 
 	// todo: improve these methods. if addPredicate gets a nil predicate shouldn't it just wipe out the existing predicates instead of appending?
@@ -2117,8 +2121,9 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 			addPredicate(startCol, pred)
 			columnSelectAs[startCol] = startCol
 
-			if sampler != nil {
-				samplerColumn = startCol
+			if sampler != nil && !samplerPlaced {
+				columnSyncIterOpts[startCol] = append(columnSyncIterOpts[startCol], parquetquery.SyncIteratorOptSampler(sampler))
+				samplerPlaced = true
 			}
 			continue
 
@@ -2296,11 +2301,7 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 	}
 
 	for columnPath, predicates := range columnPredicates {
-		var s []parquetquery.Sampler
-		if columnPath == samplerColumn && sampler != nil {
-			s = []parquetquery.Sampler{sampler}
-		}
-		iters = append(iters, makeIter(columnPath, orIfNeeded(predicates), columnSelectAs[columnPath], s...))
+		iters = append(iters, makeIter(columnPath, orIfNeeded(predicates), columnSelectAs[columnPath], columnSyncIterOpts[columnPath]...))
 	}
 
 	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceSpansILSSpanAttrs,
@@ -2344,11 +2345,11 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 	// If there are no direct conditions imposed on the span level we are evaluating the SpanCount column to
 	// calculate all span row numbers.
 	if len(required) == 0 {
-		var s []parquetquery.Sampler
-		if sampler != nil && samplerColumn == "" {
-			s = []parquetquery.Sampler{sampler}
+		var opt parquetquery.SyncIteratorOpt
+		if sampler != nil && !samplerPlaced {
+			opt = parquetquery.SyncIteratorOptSampler(sampler)
 		}
-		required = []parquetquery.Iterator{newVirtualRowNumberIterator(makeIter(columnPathScopeSpansSpanCount, nil, "spanCount", s...), DefinitionLevelResourceSpansILSSpan)}
+		required = []parquetquery.Iterator{newVirtualRowNumberIterator(makeIter(columnPathScopeSpansSpanCount, nil, "spanCount", opt), DefinitionLevelResourceSpansILSSpan)}
 	}
 
 	// Left join here means the span id/start/end iterators + 1 are required,
@@ -2693,7 +2694,7 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 		// TODO: We might be able to do this without loading a real column, by using
 		// the fact that every trace is a top-level row and there are no gaps. We could
 		// inspect the number of rows in the given row groups and generate virtual row numbers.
-		i := makeIter(columnPathRootServiceName, nil, "", sampler)
+		i := makeIter(columnPathRootServiceName, nil, "", parquetquery.SyncIteratorOptSampler(sampler))
 		required = append([]parquetquery.Iterator{i}, required...)
 	}
 
