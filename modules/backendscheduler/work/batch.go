@@ -102,6 +102,14 @@ func (b *batchStore) setRescan(tenantID string, ids []string, afterNano int64) {
 	}
 }
 
+func (b *batchStore) setQuiescence(tenantID string, ticksRemaining int32) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if batch, ok := b.byTenant[tenantID]; ok {
+		batch.QuiescenceTicksRemaining = ticksRemaining
+	}
+}
+
 // load reads batches.pb from localPath. Missing file is not an error (clean start).
 func (b *batchStore) load(localPath string) error {
 	path := filepath.Join(localPath, batchesFileName)
@@ -159,4 +167,8 @@ func (w *Work) ListBatches() []*tempopb.RedactionBatch {
 
 func (w *Work) SetBatchRescan(tenantID string, skippedJobIDs []string, rescanAfterUnixNano int64) {
 	w.batches.setRescan(tenantID, skippedJobIDs, rescanAfterUnixNano)
+}
+
+func (w *Work) SetBatchQuiescence(tenantID string, ticksRemaining int32) {
+	w.batches.setQuiescence(tenantID, ticksRemaining)
 }

@@ -3,7 +3,7 @@ package backendscheduler
 import "testing"
 
 // The redaction query selector accepts only a single spanset filter restricted to
-// equality/inequality on resource.*/span.* attributes joined by && / ||. Everything
+// equality on resource.*/span.* attributes joined by && / ||. Everything
 // else is rejected at submission. See designDocRedactionTraceQLQuery.md "Query subset".
 func TestValidateRedactionQuery(t *testing.T) {
 	cases := []struct {

@@ -593,36 +593,92 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 	}, nil
 }
 
-// cleanupOrphanedBatches sweeps all active batches and removes any whose redaction
-// jobs have all finished. Called after each Prune tick because Prune transitions
-// timed-out running jobs to FAILED by calling j.Fail() directly, bypassing the
-// UpdateJob path that normally invokes cleanupBatchIfDone.
+// cleanupOrphanedBatches sweeps all active batches once per maintenance tick and advances
+// each batch's quiescence: a completed batch enters quiescence, a quiescing batch counts down
+// (and is removed at zero), and a re-activated batch leaves quiescence. Called after each Prune
+// tick because Prune transitions timed-out running jobs to FAILED by calling j.Fail() directly,
+// bypassing the UpdateJob path.
 func (s *BackendScheduler) cleanupOrphanedBatches(ctx context.Context) {
 	for _, batch := range s.work.ListBatches() {
-		s.cleanupBatchIfDone(ctx, batch.TenantId)
+		s.advanceQuiescence(ctx, batch.TenantId)
 	}
 }
 
-// cleanupBatchIfDone removes the batch manifest for a tenant once all of its redaction
-// jobs have completed or failed (no pending, no in-flight, no running) and no rescan
-// is pending. "In-flight" means a job has been popped from the pending queue and is
-// travelling through the provider channel pipeline but has not yet been promoted to
-// the active job map; we must not discard the batch while such jobs are outstanding
-// or they will be dropped by Next() when they find no batch to resolve trace IDs from.
+// quiescenceTicks is how many maintenance ticks a completed redaction batch is held before
+// removal. Holding the batch keeps the tenant's compaction disabled (TenantPending stays true)
+// long enough for the rescan to catch any block a compaction produced just as the last
+// redaction job finished, closing the cleanup-window race.
+const quiescenceTicks int32 = 2
+
+// cleanupBatchIfDone is called when a batch's redaction jobs may have all finished (e.g. on job
+// completion via UpdateJob). Rather than removing the batch immediately -- which would re-enable
+// compaction before the rescan can cover a late compaction output -- it enters quiescence; the
+// maintenance tick (advanceQuiescence) counts it down and removes it.
+//
+// "In-flight" jobs (popped from the pending queue, travelling the provider channel, not yet
+// promoted to the active map) still count via HasJobsForTenant, so the batch is not treated as
+// done while any are outstanding.
 func (s *BackendScheduler) cleanupBatchIfDone(ctx context.Context, tenantID string) {
 	if s.work.HasJobsForTenant(tenantID, tempopb.JobType_JOB_TYPE_REDACTION) {
 		return
 	}
-	// Do not remove the batch if a rescan is still pending; the maintenance tick
-	// will call checkPendingRescans which will add new pending jobs and clear the flag.
-	if batch := s.work.GetBatch(tenantID); batch != nil && batch.RescanAfterUnixNano > 0 {
+	batch := s.work.GetBatch(tenantID)
+	if batch == nil {
+		return
+	}
+	// Do not enter quiescence while a rescan is still pending; the maintenance tick runs
+	// checkPendingRescans first, which adds new pending jobs and clears the flag.
+	if batch.RescanAfterUnixNano > 0 {
+		return
+	}
+	if batch.QuiescenceTicksRemaining == 0 {
+		s.enterQuiescence(ctx, tenantID)
+	}
+}
+
+// enterQuiescence marks a completed batch as quiescing (leaving compaction disabled) instead of
+// removing it immediately.
+func (s *BackendScheduler) enterQuiescence(ctx context.Context, tenantID string) {
+	s.work.SetBatchQuiescence(tenantID, quiescenceTicks)
+	s.flushBatches(ctx, tenantID)
+	level.Info(log.Logger).Log("msg", "redaction batch complete, entering quiescence", "tenant", tenantID, "ticks", quiescenceTicks)
+}
+
+// advanceQuiescence runs once per maintenance tick per batch. A batch re-activated by new jobs
+// or a pending rescan leaves quiescence; a done batch not yet quiescing enters it; a quiescing
+// batch is decremented and removed when it reaches zero.
+func (s *BackendScheduler) advanceQuiescence(ctx context.Context, tenantID string) {
+	batch := s.work.GetBatch(tenantID)
+	if batch == nil {
+		return
+	}
+	if s.work.HasJobsForTenant(tenantID, tempopb.JobType_JOB_TYPE_REDACTION) || batch.RescanAfterUnixNano > 0 {
+		if batch.QuiescenceTicksRemaining != 0 {
+			s.work.SetBatchQuiescence(tenantID, 0)
+			s.flushBatches(ctx, tenantID)
+		}
+		return
+	}
+	if batch.QuiescenceTicksRemaining == 0 {
+		// Done but not yet counting down: enter this tick, decrement on the next.
+		s.enterQuiescence(ctx, tenantID)
+		return
+	}
+	if remaining := batch.QuiescenceTicksRemaining - 1; remaining > 0 {
+		s.work.SetBatchQuiescence(tenantID, remaining)
+		s.flushBatches(ctx, tenantID)
 		return
 	}
 	s.work.RemoveBatch(tenantID)
+	s.flushBatches(ctx, tenantID)
+	level.Info(log.Logger).Log("msg", "redaction batch quiescence complete, manifest removed", "tenant", tenantID)
+}
+
+// flushBatches persists the batch manifest, best-effort.
+func (s *BackendScheduler) flushBatches(ctx context.Context, tenantID string) {
 	if err := s.work.FlushBatchesToLocal(ctx, s.cfg.LocalWorkPath); err != nil {
-		level.Warn(log.Logger).Log("msg", "failed to flush batch manifest after cleanup", "tenant", tenantID, "err", err)
+		level.Warn(log.Logger).Log("msg", "failed to flush batch manifest", "tenant", tenantID, "err", err)
 	}
-	level.Info(log.Logger).Log("msg", "redaction batch completed, manifest removed", "tenant", tenantID)
 }
 
 // checkPendingRescans is called on each maintenance tick. It looks for batches whose

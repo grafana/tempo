@@ -56,7 +56,7 @@ enum RedactionMode {
 
 // TraceQLSelector carries a TraceQL expression that selects the traces to redact,
 // as an alternative to an explicit trace ID list. Restricted at submission to a single
-// spanset filter (=, != on resource.*/span.* joined by && / ||).
+// spanset filter (= on resource.*/span.* joined by && / ||).
 message TraceQLSelector {
   option (gogoproto.equal) = true;
   option (gogoproto.compare) = true;
@@ -172,6 +172,12 @@ message RedactionBatch {
   TraceQLSelector query = 7;
   // mode selects apply (default) vs dry-run for the whole batch.
   RedactionMode mode = 8;
+  // quiescence_ticks_remaining holds a completed batch open for a few maintenance ticks
+  // before removal, so compaction stays disabled long enough for the rescan to catch any
+  // block a compaction produced just as the last redaction job finished. 0 means the batch
+  // is not yet in quiescence (still in progress); it is set when all jobs complete and
+  // decremented each maintenance tick, with the batch removed when it reaches 0.
+  int32 quiescence_ticks_remaining = 9;
 }
 
 // RedactionBatches is the top-level container written to batches.pb.
