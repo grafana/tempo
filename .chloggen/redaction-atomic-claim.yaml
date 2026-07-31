@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: backend-scheduler
+note: close a redaction/compaction registration race where a compaction registered concurrently with a redaction submission could leave its output block without a redaction job; the busy-block snapshot and batch barrier install are now atomic via ClaimRedactionBatch/TryRegisterJob.
+issues: [7482]
+subtext:
+user: zalegrala
