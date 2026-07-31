@@ -91,7 +91,7 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 // resolveSpanPruningEnabledByDefault returns the tenant-specific span pruning default
 // if one is configured via overrides, else falls back to the cluster-wide default.
 func resolveSpanPruningEnabledByDefault(o overrides.Interface, tenant string, globalDefault bool) bool {
-	if p := o.SpanPruningEnabledByDefault(tenant); p != nil {
+	if p := o.SpanPruningEnabled(tenant); p != nil {
 		return *p
 	}
 	return globalDefault

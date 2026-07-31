@@ -605,7 +605,7 @@ func TestResolveSpanPruningEnabledByDefault(t *testing.T) {
 		o, err := overrides.NewOverrides(overrides.Config{
 			Defaults: overrides.Overrides{
 				Read: overrides.ReadOverrides{
-					SpanPruningEnabledByDefault: override,
+					SpanPruningEnabled: override,
 				},
 			},
 		}, nil, prometheus.NewRegistry())
