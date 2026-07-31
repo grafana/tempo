@@ -601,7 +601,8 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 func (s *BackendScheduler) cleanupOrphanedBatches(ctx context.Context) {
 	changed := false
 	for _, batch := range s.work.ListBatches() {
-		if s.advanceQuiescence(batch) {
+		// batch.TenantId is immutable; advanceQuiescence reads the mutable fields under lock.
+		if s.advanceQuiescence(batch.TenantId) {
 			changed = true
 		}
 	}
@@ -624,8 +625,10 @@ const quiescenceTicks int32 = 2
 // any state (pending/in-flight/active) or a pending rescan. A batch that is not active is a
 // candidate for quiescence. Both the job-completion path (cleanupBatchIfDone) and the tick path
 // (advanceQuiescence) share this one predicate so their notions of "done" cannot drift.
-func (s *BackendScheduler) redactionBatchActive(batch *tempopb.RedactionBatch) bool {
-	return s.work.HasJobsForTenant(batch.TenantId, tempopb.JobType_JOB_TYPE_REDACTION) || batch.RescanAfterUnixNano > 0
+// rescanPending is supplied by the caller from a locked batch-store snapshot; batch fields are
+// never read off a live pointer without the store lock (data race).
+func (s *BackendScheduler) redactionBatchActive(tenantID string, rescanPending bool) bool {
+	return s.work.HasJobsForTenant(tenantID, tempopb.JobType_JOB_TYPE_REDACTION) || rescanPending
 }
 
 // cleanupBatchIfDone is called when a batch's redaction jobs may have all finished (e.g. on job
@@ -637,11 +640,11 @@ func (s *BackendScheduler) redactionBatchActive(batch *tempopb.RedactionBatch) b
 // promoted to the active map) still count via redactionBatchActive, so the batch is not treated
 // as done while any are outstanding.
 func (s *BackendScheduler) cleanupBatchIfDone(ctx context.Context, tenantID string) {
-	batch := s.work.GetBatch(tenantID)
-	if batch == nil || s.redactionBatchActive(batch) {
+	ticksRemaining, rescanPending, ok := s.work.BatchQuiescenceState(tenantID)
+	if !ok || s.redactionBatchActive(tenantID, rescanPending) {
 		return
 	}
-	if batch.QuiescenceTicksRemaining == 0 {
+	if ticksRemaining == 0 {
 		s.enterQuiescence(tenantID)
 		s.flushBatches(ctx)
 	}
@@ -659,21 +662,24 @@ func (s *BackendScheduler) enterQuiescence(tenantID string) {
 // quiescing batch is decremented and removed when it reaches zero. It mutates in-memory state
 // only and reports whether it changed anything, so the caller can flush the manifest once per
 // tick.
-func (s *BackendScheduler) advanceQuiescence(batch *tempopb.RedactionBatch) (changed bool) {
-	tenantID := batch.TenantId
-	if s.redactionBatchActive(batch) {
-		if batch.QuiescenceTicksRemaining != 0 {
+func (s *BackendScheduler) advanceQuiescence(tenantID string) (changed bool) {
+	ticksRemaining, rescanPending, ok := s.work.BatchQuiescenceState(tenantID)
+	if !ok {
+		return false
+	}
+	if s.redactionBatchActive(tenantID, rescanPending) {
+		if ticksRemaining != 0 {
 			s.work.SetBatchQuiescence(tenantID, 0)
 			return true
 		}
 		return false
 	}
-	if batch.QuiescenceTicksRemaining == 0 {
+	if ticksRemaining == 0 {
 		// Done but not yet counting down: enter this tick, decrement on the next.
 		s.enterQuiescence(tenantID)
 		return true
 	}
-	if remaining := batch.QuiescenceTicksRemaining - 1; remaining > 0 {
+	if remaining := ticksRemaining - 1; remaining > 0 {
 		s.work.SetBatchQuiescence(tenantID, remaining)
 		return true
 	}

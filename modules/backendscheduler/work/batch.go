@@ -110,6 +110,18 @@ func (b *batchStore) setQuiescence(tenantID string, ticksRemaining int32) {
 	}
 }
 
+// quiescenceState reads a tenant's quiescence-relevant fields under the lock, returning a
+// snapshot so callers never touch the live batch pointer's mutable fields unsynchronized.
+func (b *batchStore) quiescenceState(tenantID string) (ticksRemaining int32, rescanPending, ok bool) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	batch, exists := b.byTenant[tenantID]
+	if !exists {
+		return 0, false, false
+	}
+	return batch.QuiescenceTicksRemaining, batch.RescanAfterUnixNano > 0, true
+}
+
 // load reads batches.pb from localPath. Missing file is not an error (clean start).
 func (b *batchStore) load(localPath string) error {
 	path := filepath.Join(localPath, batchesFileName)
@@ -171,4 +183,10 @@ func (w *Work) SetBatchRescan(tenantID string, skippedJobIDs []string, rescanAft
 
 func (w *Work) SetBatchQuiescence(tenantID string, ticksRemaining int32) {
 	w.batches.setQuiescence(tenantID, ticksRemaining)
+}
+
+// BatchQuiescenceState returns a locked snapshot of a tenant's quiescence ticks and whether a
+// rescan is pending; ok is false when no batch exists.
+func (w *Work) BatchQuiescenceState(tenantID string) (ticksRemaining int32, rescanPending, ok bool) {
+	return w.batches.quiescenceState(tenantID)
 }

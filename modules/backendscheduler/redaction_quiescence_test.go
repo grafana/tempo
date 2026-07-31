@@ -3,6 +3,7 @@ package backendscheduler
 import (
 	"context"
 	"flag"
+	"sync"
 	"testing"
 	"time"
 
@@ -66,6 +67,48 @@ func TestBatchQuiescence(t *testing.T) {
 	s.cleanupOrphanedBatches(ctx)
 	require.Nil(t, s.work.GetBatch(tenant), "batch must be removed once quiescence elapses")
 	require.False(t, s.work.TenantPending(tenant), "compaction must be re-enabled after quiescence")
+}
+
+// TestQuiescenceConcurrentAccess exercises the maintenance-tick quiescence sweep concurrently
+// with job-completion mutations. Run under -race, it guards against reading batch fields off a
+// live pointer without the batch-store lock (the tick and UpdateJob run on different goroutines
+// in production).
+func TestQuiescenceConcurrentAccess(t *testing.T) {
+	ctx, s := newQuiescenceScheduler(t)
+	tenant := "tenant-race"
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: "b", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+	}))
+
+	var wg sync.WaitGroup
+	stop := make(chan struct{})
+
+	// Maintenance-tick sweep (reads quiescence state, may decrement/remove).
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				s.cleanupOrphanedBatches(ctx)
+			}
+		}
+	}()
+
+	// Job-completion path mutating quiescence for the same tenant.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 2000; i++ {
+			s.cleanupBatchIfDone(ctx, tenant)
+			s.work.SetBatchQuiescence(tenant, int32(i%3))
+		}
+		close(stop)
+	}()
+
+	wg.Wait()
 }
 
 // TestBatchQuiescenceWaitsForRescan verifies a batch with a pending rescan does not enter
