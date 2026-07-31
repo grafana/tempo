@@ -869,17 +869,17 @@ func TestCleanupOrphanedBatchesAfterDeadJobTimeout(t *testing.T) {
 
 	// cleanupOrphanedBatches sweeps all batches on every maintenance tick. A done batch
 	// first enters quiescence (held so compaction stays blocked while the rescan settles),
-	// then is removed once quiescence elapses -- so the first sweep does not remove it.
+	// then is removed once the quiesce-until deadline passes -- so the first sweep does not
+	// remove it.
 	s.cleanupOrphanedBatches(ctx)
 	require.NotNil(t, s.work.GetBatch(testTenant),
 		"orphaned batch enters quiescence on the first sweep, not immediate removal")
 	require.True(t, s.work.TenantPending(testTenant),
 		"tenant stays blocked while the batch is quiescing")
 
-	// Subsequent sweeps count quiescence down and remove the batch.
-	for i := 0; i < int(quiescenceTicks)+1 && s.work.GetBatch(testTenant) != nil; i++ {
-		s.cleanupOrphanedBatches(ctx)
-	}
+	// Once the deadline passes, the next sweep removes the batch.
+	s.work.SetBatchQuiesceUntil(testTenant, time.Now().Add(-time.Second).UnixNano())
+	s.cleanupOrphanedBatches(ctx)
 
 	require.Nil(t, s.work.GetBatch(testTenant),
 		"batch must be removed after quiescence elapses")

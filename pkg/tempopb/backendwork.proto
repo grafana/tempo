@@ -172,12 +172,13 @@ message RedactionBatch {
   TraceQLSelector query = 7;
   // mode selects apply (default) vs dry-run for the whole batch.
   RedactionMode mode = 8;
-  // quiescence_ticks_remaining holds a completed batch open for a few maintenance ticks
-  // before removal, so compaction stays disabled long enough for the rescan to catch any
-  // block a compaction produced just as the last redaction job finished. 0 means the batch
-  // is not yet in quiescence (still in progress); it is set when all jobs complete and
-  // decremented each maintenance tick, with the batch removed when it reaches 0.
-  int32 quiescence_ticks_remaining = 9;
+  // quiesce_until_unix_nano holds a completed batch open until this deadline before removal,
+  // so compaction stays disabled long enough for the rescan to catch any block a compaction
+  // produced just as the last redaction job finished. 0 means the batch is not yet in
+  // quiescence (still in progress); it is set once when all jobs complete, and the batch is
+  // removed on the first maintenance tick at or after the deadline. An absolute timestamp is
+  // stable across pod restarts / work reloads and avoids rewriting the batch on every tick.
+  int64 quiesce_until_unix_nano = 9;
 }
 
 // RedactionBatches is the top-level container written to batches.pb.

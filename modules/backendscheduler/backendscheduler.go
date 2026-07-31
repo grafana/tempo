@@ -613,13 +613,14 @@ func (s *BackendScheduler) cleanupOrphanedBatches(ctx context.Context) {
 	}
 }
 
-// quiescenceTicks is how many maintenance ticks a completed redaction batch is held before
-// removal. Holding the batch keeps the tenant's compaction disabled (TenantPending stays true)
-// long enough for the rescan to catch any block a compaction produced just as the last
-// redaction job finished, closing the cleanup-window race. The effective hold is roughly
-// quiescenceTicks × MaintenanceInterval; 2 guarantees at least two full maintenance sweeps
-// (so checkPendingRescans re-arms) between "all jobs done" and "compaction re-enabled".
-const quiescenceTicks int32 = 2
+// quiescenceSweeps is how many maintenance sweeps' worth of time a completed redaction batch is
+// held before removal. Entry records a deadline of now + quiescenceSweeps × MaintenanceInterval;
+// the batch is removed on the first tick at or after it. Holding the batch keeps the tenant's
+// compaction disabled (TenantPending stays true) long enough for the rescan to catch any block a
+// compaction produced just as the last redaction job finished, closing the cleanup-window race.
+// A deadline (vs a decrementing counter) is static — stable across pod restarts / work reloads —
+// and lets the batch stay unwritten between entry and removal.
+const quiescenceSweeps = 2
 
 // redactionBatchActive reports whether a redaction batch still has outstanding work -- jobs in
 // any state (pending/in-flight/active) or a pending rescan. A batch that is not active is a
@@ -633,55 +634,55 @@ func (s *BackendScheduler) redactionBatchActive(tenantID string, rescanPending b
 
 // cleanupBatchIfDone is called when a batch's redaction jobs may have all finished (e.g. on job
 // completion via UpdateJob). Rather than removing the batch immediately -- which would re-enable
-// compaction before the rescan can cover a late compaction output -- it enters quiescence; the
-// maintenance tick (advanceQuiescence) counts it down and removes it.
+// compaction before the rescan can cover a late compaction output -- it enters quiescence by
+// recording a quiesce-until deadline; a later maintenance tick (advanceQuiescence) removes it.
 //
 // "In-flight" jobs (popped from the pending queue, travelling the provider channel, not yet
 // promoted to the active map) still count via redactionBatchActive, so the batch is not treated
 // as done while any are outstanding.
 func (s *BackendScheduler) cleanupBatchIfDone(ctx context.Context, tenantID string) {
-	ticksRemaining, rescanPending, ok := s.work.BatchQuiescenceState(tenantID)
+	quiesceUntil, rescanPending, ok := s.work.BatchQuiescenceState(tenantID)
 	if !ok || s.redactionBatchActive(tenantID, rescanPending) {
 		return
 	}
-	if ticksRemaining == 0 {
+	if quiesceUntil == 0 {
 		s.enterQuiescence(tenantID)
 		s.flushBatches(ctx)
 	}
 }
 
-// enterQuiescence marks a completed batch as quiescing (leaving compaction disabled) instead of
-// removing it immediately. It mutates in-memory state only; the caller flushes the manifest.
+// enterQuiescence records the quiesce-until deadline (now + quiescenceSweeps × MaintenanceInterval)
+// once, leaving compaction disabled until then. It mutates in-memory state only; the caller flushes.
 func (s *BackendScheduler) enterQuiescence(tenantID string) {
-	s.work.SetBatchQuiescence(tenantID, quiescenceTicks)
-	level.Info(log.Logger).Log("msg", "redaction batch complete, entering quiescence", "tenant", tenantID, "ticks", quiescenceTicks)
+	until := time.Now().Add(quiescenceSweeps * s.cfg.MaintenanceInterval)
+	s.work.SetBatchQuiesceUntil(tenantID, until.UnixNano())
+	level.Info(log.Logger).Log("msg", "redaction batch complete, entering quiescence", "tenant", tenantID, "quiesce_until", until.Format(time.RFC3339))
 }
 
 // advanceQuiescence advances one batch's quiescence on a maintenance tick: a batch re-activated
 // by new jobs or a pending rescan leaves quiescence; a done batch not yet quiescing enters it; a
-// quiescing batch is decremented and removed when it reaches zero. It mutates in-memory state
-// only and reports whether it changed anything, so the caller can flush the manifest once per
-// tick.
+// quiescing batch is removed once its deadline passes. Between entry and the deadline it makes no
+// change (returns false), so the manifest is not rewritten on every tick. The caller flushes once
+// per tick if anything changed.
 func (s *BackendScheduler) advanceQuiescence(tenantID string) (changed bool) {
-	ticksRemaining, rescanPending, ok := s.work.BatchQuiescenceState(tenantID)
+	quiesceUntil, rescanPending, ok := s.work.BatchQuiescenceState(tenantID)
 	if !ok {
 		return false
 	}
 	if s.redactionBatchActive(tenantID, rescanPending) {
-		if ticksRemaining != 0 {
-			s.work.SetBatchQuiescence(tenantID, 0)
+		if quiesceUntil != 0 {
+			s.work.SetBatchQuiesceUntil(tenantID, 0)
 			return true
 		}
 		return false
 	}
-	if ticksRemaining == 0 {
-		// Done but not yet counting down: enter this tick, decrement on the next.
+	if quiesceUntil == 0 {
 		s.enterQuiescence(tenantID)
 		return true
 	}
-	if remaining := ticksRemaining - 1; remaining > 0 {
-		s.work.SetBatchQuiescence(tenantID, remaining)
-		return true
+	if time.Now().UnixNano() < quiesceUntil {
+		// Still within the quiescence window; nothing to change this tick.
+		return false
 	}
 	s.work.RemoveBatch(tenantID)
 	level.Info(log.Logger).Log("msg", "redaction batch quiescence complete, manifest removed", "tenant", tenantID)
