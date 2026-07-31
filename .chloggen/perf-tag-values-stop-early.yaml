@@ -1,0 +1,21 @@
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: enhancement
+
+# Component or area of the change.
+component: storage
+
+# A brief description of the change.
+note: Stop scanning a block for tag values as soon as the caller's limit is reached
+
+# (Optional) PR number(s), e.g. [7339].
+issues: []
+
+# (Optional) Additional lines rendered under the note.
+subtext: |
+  SearchTagValues previously walked every row group of a block even after the response
+  limit had been hit, reporting values that were then discarded. It now abandons the scan
+  at the first row group where the limit is reached. On a 2.4GB block, collecting values
+  for a high-cardinality dedicated attribute drops from 67ms to 9ms.
+
+# The GitHub handle (without the leading @) of the change's author.
+user: zhxiaogg
