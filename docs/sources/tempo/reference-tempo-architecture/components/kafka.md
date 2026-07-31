@@ -69,6 +69,29 @@ ingest:
     topic: tempo-traces
 ```
 
+### TLS
+
+To enable TLS for Kafka broker connections, set `tls_enabled: true` and configure the `tls` block:
+
+```yaml
+ingest:
+  kafka:
+    address: kafka:9092
+    topic: tempo-traces
+    tls_enabled: true
+    tls:
+      tls_ca_path: /tls/ca.crt
+      tls_cert_path: /tls/tls.crt
+      tls_key_path: /tls/tls.key
+      tls_server_name: kafka.example.com
+      tls_insecure_skip_verify: false
+      tls_min_version: VersionTLS12
+```
+
+`tls_ca_path`, `tls_cert_path`, and `tls_key_path` are optional. When omitted, the system root CA pool is used and no client certificate is sent. Set `tls_cert_path` and `tls_key_path` together to enable mutual TLS (mTLS).
+
+Refer to [Configure TLS communication](../../../configuration/network/tls/) for the full set of TLS options.
+
 ## Related resources
 
 Refer to the [ingest configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#ingest) for Kafka connection settings.

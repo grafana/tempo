@@ -150,6 +150,15 @@ func commonKafkaClientOptions(cfg KafkaConfig, metrics *kprom.Metrics, logger lo
 		opts = append(opts, kgo.AllowAutoTopicCreation())
 	}
 
+	if cfg.TLSEnabled {
+		tlsCfg, err := cfg.TLS.GetTLSConfig()
+		if err != nil {
+			panic("must call Validate before trying to construct Kafka options")
+		} else {
+			opts = append(opts, kgo.DialTLSConfig(tlsCfg))
+		}
+	}
+
 	// SASL plain auth.
 	if cfg.SASLUsername != "" && cfg.SASLPassword.String() != "" {
 		opts = append(opts, kgo.SASL(plain.Plain(func(_ context.Context) (plain.Auth, error) {

@@ -1,0 +1,11 @@
+change_type: enhancement
+
+component: distributor
+
+note: Add TLS support for Kafka client connections via `ingest.kafka.tls_enabled` and `ingest.kafka.tls` configuration.
+
+issues: [7600]
+
+subtext:
+
+user:
