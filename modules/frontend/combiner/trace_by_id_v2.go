@@ -97,6 +97,11 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceR
 				}
 			}
 
+			if metricsCombiner.Metrics.AdditionalMetrics == nil {
+				metricsCombiner.Metrics.AdditionalMetrics = map[string]int64{}
+			}
+			metricsCombiner.Metrics.AdditionalMetrics[tempopb.AdditionalMetricReturnedBytes] = int64(traceResult.Size())
+
 			resp.Trace = traceResult
 			// metrics count bytes inspected to pull the whole trace, which filtering only trims from the response.
 			resp.Metrics = metricsCombiner.Metrics

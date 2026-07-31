@@ -142,6 +142,11 @@ func (c *TraceByIDCombiner) HTTPFinal() (*http.Response, error) {
 		}
 	}
 
+	if c.MetricsCombiner.Metrics.AdditionalMetrics == nil {
+		c.MetricsCombiner.Metrics.AdditionalMetrics = map[string]int64{}
+	}
+	c.MetricsCombiner.Metrics.AdditionalMetrics[tempopb.AdditionalMetricReturnedBytes] = int64(traceResult.Size())
+
 	// marshal in the requested format
 	var buff []byte
 	var err error
