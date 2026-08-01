@@ -38,7 +38,7 @@ It supports the following requests:
 
 - A direct request between two services where the outgoing and the incoming span must have [`span.kind`](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/api.md#spankind), `client`, and `server`, respectively.
 - A request across a messaging system where the outgoing and the incoming span must have `span.kind`, `producer`, and `consumer` respectively.
-- A database request; in this case the processor looks for spans containing attributes `span.kind`=`client` as well as one of `db.namespace`, `db.name` or `db.system`. You can customize which attributes identify a database span using the `database_name_attributes` [configuration option](/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generator). See below for how the name of the node is determined for a database request.
+- A database request; in this case the processor looks for spans containing attributes `span.kind`=`client` as well as one of `db.namespace`, `db.name`, `db.system`, or `db.system.name`. You can customize which attributes identify a database span using the `database_name_attributes` [configuration option](/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generator). See below for how the name of the node is determined for a database request.
 
 The processor keeps every span that can form a request pair in an in-memory store until the corresponding pair span arrives or the maximum waiting time passes.
 When either condition occurs, the processor records the request and removes it from the local store.
@@ -61,12 +61,12 @@ The processor detects virtual nodes in two ways:
   - In the Tempo metrics-generator, the processor checks the configured `peer_attributes` on the server span first. If it finds a matching attribute, it uses that value as the client node name. Otherwise, the client node name defaults to `user`.
   - In Grafana Alloy and the OpenTelemetry Collector `servicegraph` connector, the connector doesn't evaluate peer attributes for this case. The client node name always defaults to `user` and you can't override it. An [upstream feature request](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/45397) exists to add this capability.
 - **Uninstrumented server (missing server span):** A `client` span doesn't have its matching `server` span, but has a peer attribute present. In this case, the client called an external service that doesn't send spans. The processor uses the peer attribute value as the virtual server node name.
-  - The default peer attributes are `peer.service`, `db.name`, and `db.system`.
+  - The default peer attributes are `peer.service`, `db.name`, `db.system`, and `db.system.name`.
   - The processor searches the attributes in order and uses the first match as the virtual node name.
 
-The processor identifies a database node when the span has at least one `db.namespace`, `db.name`, or `db.system` attribute.
+The processor identifies a database node when the span has at least one `db.namespace`, `db.name`, `db.system`, or `db.system.name` attribute.
 
-The processor determines the database node name using the following span attributes in order of precedence: `peer.service`, `server.address`, `network.peer.address:network.peer.port`, `db.namespace`, `db.name`.
+The processor determines the database node name using the following span attributes in order of precedence: `peer.service`, `server.address`, `network.peer.address:network.peer.port`, and finally the first attribute from `database_name_attributes` that the span carries.
 
 ### Enabling specific metrics (subprocessors)
 
@@ -162,7 +162,9 @@ When enabled, the tracestate threshold takes priority over `span_multiplier_key`
 ### Database name attributes
 
 The `database_name_attributes` option controls which span attributes the processor uses to identify a span as a database request.
-The defaults are `db.namespace`, `db.name`, and `db.system`.
+The defaults are `db.namespace`, `db.name`, `db.system`, and `db.system.name`.
+The processor searches the list in order and uses the first attribute the span carries.
+Renamed OpenTelemetry attributes are listed after the attribute they replaced, so `db.namespace` (which replaced `db.name` in semantic conventions v1.26.0) and `db.system.name` (which replaced `db.system` in v1.30.0) don't change the node name for instrumentation that still emits the older attributes.
 You can override this list to match your instrumentation if it uses non-standard attribute names.
 
 ### Filter policies

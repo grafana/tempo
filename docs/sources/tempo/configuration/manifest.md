@@ -429,6 +429,7 @@ metrics_generator:
                 - peer.service
                 - db.name
                 - db.system
+                - db.system.name
             span_multiplier_key: ""
             enable_tracestate_span_multiplier: false
             enable_virtual_node_label: false
@@ -436,6 +437,7 @@ metrics_generator:
                 - db.namespace
                 - db.name
                 - db.system
+                - db.system.name
             filter_policies: []
         span_metrics:
             histogram_buckets:

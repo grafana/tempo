@@ -1,0 +1,14 @@
+change_type: enhancement
+component: metrics-generator
+note: Recognize the `db.system.name` attribute in service graphs, for database node detection and virtual node naming.
+issues: []
+subtext: |
+  OpenTelemetry semantic conventions v1.30.0 renamed `db.system` to `db.system.name`. Spans from
+  instrumentation that emits only the new attribute were no longer identified as database requests
+  and could not name a virtual node.
+
+  `db.system.name` is appended to the defaults for both `peer_attributes` and
+  `database_name_attributes`, after `db.system`. Because the lists are searched in order and the
+  older attribute is still listed first, spans that carry `db.system` keep producing the node names
+  they do today. Both defaults can still be overridden per tenant.
+user: iamrajiv

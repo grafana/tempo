@@ -46,6 +46,20 @@ func TestSemconvKeys(t *testing.T) {
 	require.Equal(t, string(semconv.NetworkPeerPortKey), "network.peer.port")
 	require.Equal(t, string(semconv.ServerAddressKey), "server.address")
 	require.Equal(t, string(semconvnew.DBNamespaceKey), "db.namespace")
+	require.Equal(t, string(semconvnew.DBSystemNameKey), "db.system.name")
+}
+
+// TestServiceGraphs_defaultDatabaseAttributeOrder locks in the order in which
+// database attributes are consulted. Renamed keys (db.namespace for db.name,
+// db.system.name for db.system) are always listed after the key they replace,
+// so adding support for a new semconv name never changes the node name an
+// existing pipeline produces.
+func TestServiceGraphs_defaultDatabaseAttributeOrder(t *testing.T) {
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+
+	require.Equal(t, []string{"peer.service", "db.name", "db.system", "db.system.name"}, cfg.PeerAttributes)
+	require.Equal(t, []string{"db.namespace", "db.name", "db.system", "db.system.name"}, cfg.DatabaseNameAttributes)
 }
 
 func TestServiceGraphs(t *testing.T) {
@@ -1045,6 +1059,33 @@ func TestServiceGraphs_databaseVirtualNodes(t *testing.T) {
 			total:  1.0,
 			errors: 0.0,
 		},
+		{
+			// db.system was renamed to db.system.name in semconv v1.30.0. A span
+			// carrying only the new name still has to be recognised as a database.
+			name:        "dbSystemNameAttribute",
+			fixturePath: "testdata/trace-with-db-system-name.json",
+			databaseLabels: labels.FromMap(map[string]string{
+				"client":          "mythical-server",
+				"server":          "postgresql",
+				"connection_type": "database",
+			}),
+			total:  1.0,
+			errors: 0.0,
+		},
+		{
+			// v1.30.0 also changed the recognised constants, so db.system and
+			// db.system.name can disagree on the same span. The older key keeps
+			// winning to preserve the node name existing pipelines already emit.
+			name:        "bothDbSystemAndSystemName",
+			fixturePath: "testdata/trace-with-db-system-and-system-name.json",
+			databaseLabels: labels.FromMap(map[string]string{
+				"client":          "mythical-server",
+				"server":          "mssql",
+				"connection_type": "database",
+			}),
+			total:  1.0,
+			errors: 0.0,
+		},
 	}
 
 	for _, tc := range cases {
@@ -1702,6 +1743,53 @@ func TestServiceGraphs_serverPeerSurvivesClientDatabaseUpdate(t *testing.T) {
 	expiredEdges, err := test.GetCounterVecValue(metricExpiredEdges, tenant)
 	require.NoError(t, err)
 	assert.Zero(t, expiredEdges)
+}
+
+// TestServiceGraphs_dbSystemNamePeerAttribute covers the virtual node path: a
+// client span with no server counterpart is named after the first matching peer
+// attribute. db.system.name has to work here exactly like the db.system key it
+// replaced in semconv v1.30.0.
+func TestServiceGraphs_dbSystemNamePeerAttribute(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		attrKey string
+	}{
+		{name: "db.system", attrKey: string(semconv.DBSystemKey)},
+		{name: "db.system.name", attrKey: string(semconvnew.DBSystemNameKey)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			testRegistry := registry.NewTestRegistry()
+
+			cfg := Config{}
+			cfg.RegisterFlagsAndApplyDefaults("", nil)
+			cfg.Wait = time.Nanosecond
+			// Isolate the peer attribute path. Left at its default, the same
+			// attribute would identify a database edge and name the server
+			// before the edge ever expires.
+			cfg.DatabaseNameAttributes = nil
+
+			p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
+			require.NoError(t, err)
+			defer p.Shutdown(context.Background())
+
+			dbAttr := &v1.KeyValue{
+				Key:   tc.attrKey,
+				Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "postgresql"}},
+			}
+
+			p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*tracev1.ResourceSpans{
+				makeServiceGraphBatch("svc-a", tracev1.Span_SPAN_KIND_CLIENT, []byte{0x3a}, []byte{0x3b}, nil, dbAttr),
+			}})
+			p.(*Processor).store.Expire()
+
+			virtualNodeLabels := labels.FromMap(map[string]string{
+				"client":          "svc-a",
+				"server":          "postgresql",
+				"connection_type": "virtual_node",
+			})
+			assert.Equal(t, 1.0, testRegistry.Query("traces_service_graph_request_total", virtualNodeLabels))
+		})
+	}
 }
 
 // TestServiceGraphs_emptyServiceNameServerSpanInfersVirtualNodeFromPeer covers

@@ -82,10 +82,14 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 
 	cfg.EnableMessagingSystemLatencyHistogram = false
 
+	// db.name was renamed to db.namespace in semconv v1.26.0 and db.system to
+	// db.system.name in v1.30.0. Each renamed key is listed after the one it
+	// replaced so that existing pipelines keep resolving the same database name.
 	cfg.DatabaseNameAttributes = []string{
 		string(semconvnew.DBNamespaceKey),
 		string(semconv.DBNameKey),
 		string(semconv.DBSystemKey),
+		string(semconvnew.DBSystemNameKey),
 	}
 
 	// Request and Latency are on for backwards compatibility with the bare "service-graphs"
