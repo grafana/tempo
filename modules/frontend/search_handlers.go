@@ -60,7 +60,7 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 		start := time.Now()
 
 		var repair combiner.RootSpanRepairFunc
-		if cfg.Search.RepairRootSpan {
+		if cfg.Search.RepairRootSpanMaxTraces > 0 {
 			repair = newRootSpanRepairFunc(ctx, tenant, headers, apiPrefix, tracePipeline, o, dataAccessController, logger)
 		}
 
@@ -122,7 +122,7 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header)
 
 		var repair combiner.RootSpanRepairFunc
-		if cfg.Search.RepairRootSpan {
+		if cfg.Search.RepairRootSpanMaxTraces > 0 {
 			repair = newRootSpanRepairFunc(req.Context(), tenant, req.Header, apiPrefix, tracePipeline, o, dataAccessController, logger)
 		}
 

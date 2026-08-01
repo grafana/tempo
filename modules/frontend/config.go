@@ -68,14 +68,14 @@ type SearchConfig struct {
 	SLO         SLOConfig           `yaml:",inline"`
 	MetadataSLO SLOConfig           `yaml:"metadata_slo,omitempty"`
 
-	// RepairRootSpan controls whether the frontend attempts to backfill the root service/span
-	// name for search results that are missing it (shown as "<root span not yet received>")
-	// by fetching the trace by ID, which combines fragments across all blocks regardless of
-	// whether they were ever compacted together. This can happen permanently for a trace whose
-	// root span fragment lands in a different compaction window than the rest of the trace.
-	RepairRootSpan bool `yaml:"repair_root_span,omitempty"`
-	// RepairRootSpanMaxTraces caps how many traces per search response get a repair attempt,
-	// since each attempt is an extra round trip to fetch the trace by ID.
+	// RepairRootSpanMaxTraces controls whether the frontend attempts to backfill the root
+	// service/span name for search results that are missing it (shown as
+	// "<root span not yet received>") by fetching the trace by ID, which combines fragments
+	// across all blocks regardless of whether they were ever compacted together. This can happen
+	// permanently for a trace whose root span fragment lands in a different compaction window
+	// than the rest of the trace. 0 disables repair; a positive value enables it and caps how
+	// many traces per search response get a repair attempt, since each attempt is an extra round
+	// trip to fetch the trace by ID.
 	RepairRootSpanMaxTraces int `yaml:"repair_root_span_max_traces,omitempty"`
 }
 
@@ -131,7 +131,6 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 			MaxSpansPerSpanSet:     100,
 		},
 		SLO:                     slo,
-		RepairRootSpan:          true,
 		RepairRootSpanMaxTraces: 5,
 	}
 	cfg.TraceByID = TraceByIDConfig{

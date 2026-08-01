@@ -17,8 +17,8 @@ issues: []
 # (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
 subtext: |
   This can happen when a trace's root span is written to a block that never gets compacted
-  together with the rest of the trace. Controlled by the new `repair_root_span` (default `true`)
-  and `repair_root_span_max_traces` (default `5`) options under `query_frontend.search`.
+  together with the rest of the trace. Controlled by the new `repair_root_span_max_traces`
+  option (default `5`) under `query_frontend.search`; set to `0` to disable.
 
 # The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
 user: elinacse

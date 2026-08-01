@@ -1090,11 +1090,8 @@ query_frontend:
         # This can resolve traces whose root span landed in a block that was never compacted
         # together with the rest of the trace, which trace-by-ID lookups already handle by
         # combining every block that contains the trace ID.
-        [repair_root_span: <bool> | default = true]
-
-        # The maximum number of traces per search response to attempt a root span repair for.
-        # Each attempt is an extra trace-by-ID round trip, so this bounds the added cost when
-        # many results in a page are missing root info.
+        # 0 disables repair. A positive value enables it and caps how many traces per search
+        # response get a repair attempt, since each attempt is an extra trace-by-ID round trip.
         [repair_root_span_max_traces: <int> | default = 5]
 
         # SLO configuration for Metadata (tags and tag values) endpoints.
