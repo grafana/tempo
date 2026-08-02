@@ -43,9 +43,12 @@ The block-builder uses this property to ensure atomicity during flushes.
 
 ## Schema
 
-Tempo uses a span-oriented heavily nested Parquet schema.
-Each row represents a span, with columns for intrinsic fields (trace ID, span ID, parent span ID, span name, span kind, span status, duration, start time, root service name, root span name),
+Tempo uses a heavily nested Parquet schema.
+Each row represents a trace, and rows are sorted by trace ID within the file.
+Spans are stored inside the row as nested, repeated groups that mirror the OpenTelemetry hierarchy: resource spans, scope spans, and spans.
+The schema has columns for intrinsic fields (trace ID, span ID, parent span ID, span name, span kind, span status, duration, start time, root service name, root span name),
 resource attributes (for example, `service.name`, `deployment.environment`), and span attributes (for example, `http.method`, `http.status_code`).
+Each span contributes one value to every span-level column, so a single trace row holds many values per column.
 
 ### Intrinsic fields vs generic attributes
 
