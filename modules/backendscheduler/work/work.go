@@ -914,9 +914,12 @@ func (w *Work) BusyBlocksForTenant(tenantID string) map[string]string {
 }
 
 // TenantPending returns true when an exclusive tenant operation exists whose
-// full scope is not yet reflected in the job queue. Delegates to the batch store.
+// full scope is not yet reflected in the job queue — i.e. an apply-mode redaction batch that
+// gates compaction and retention. A dry-run batch writes nothing and is not exclusive, so it does
+// not make a tenant pending (use GetBatch != nil for a mode-agnostic existence check). Delegates
+// to the batch store.
 func (w *Work) TenantPending(tenantID string) bool {
-	return w.batches.hasActive(tenantID)
+	return w.batches.hasBlockingBatch(tenantID)
 }
 
 // runningBlockKeys returns pendingBlockKey strings for every block referenced by j.

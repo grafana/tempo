@@ -45,19 +45,21 @@ type Interface interface {
 	BusyBlocksForTenant(tenantID string) map[string]string
 
 	// TenantPending returns true when an exclusive tenant operation exists whose
-	// full scope is not yet reflected in the job queue — e.g. a batch was just
-	// created or the system is in a rescan delay window. Distinct from
-	// CompactionDisabled; this reflects transient internal state.
+	// full scope is not yet reflected in the job queue — i.e. an apply-mode redaction batch
+	// (just created or in its rescan-wait window). Gates compaction and retention. A dry-run
+	// batch is not exclusive and does not make a tenant pending; use GetBatch != nil for a
+	// mode-agnostic existence check. Distinct from CompactionDisabled.
 	TenantPending(tenantID string) bool
 
 	// Batch management -- shared trace ID list for redaction jobs to avoid per-job copies.
+	// GetBatch doubles as the mode-agnostic existence check (one batch per tenant at submission).
 	AddBatch(batch *tempopb.RedactionBatch) error
 	GetBatch(tenantID string) *tempopb.RedactionBatch
 	RemoveBatch(tenantID string)
 	ListBatches() []*tempopb.RedactionBatch
 	SetBatchRescan(tenantID string, skippedJobIDs []string, rescanAfterUnixNano int64)
 	SetBatchQuiesceUntil(tenantID string, untilUnixNano int64)
-	BatchQuiescenceState(tenantID string) (quiesceUntilUnixNano int64, rescanPending, ok bool)
+	BatchQuiescenceState(tenantID string) (quiesceUntilUnixNano int64, rescanPending, dryRun, ok bool)
 	FlushBatchesToLocal(ctx context.Context, localPath string) error
 	LoadBatchesFromLocal(ctx context.Context, localPath string) error
 

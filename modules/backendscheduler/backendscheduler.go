@@ -479,7 +479,10 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		return nil, status.Error(codes.FailedPrecondition, "compaction is disabled for this tenant")
 	}
 
-	if s.work.TenantPending(tenant) {
+	// One batch per tenant, any mode. GetBatch is the mode-agnostic existence check; a dry-run
+	// does not make TenantPending true, so guarding on TenantPending here would wrongly admit a
+	// second submission over a running dry-run.
+	if s.work.GetBatch(tenant) != nil {
 		return nil, status.Error(codes.AlreadyExists, "a redaction is already in progress for this tenant")
 	}
 
@@ -502,8 +505,8 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 	// can process them — their contents will be merged into a new output block not
 	// yet covered by any pending redaction job. We record the job IDs so the
 	// maintenance loop can look up output blocks once compaction finishes.
-	// Since TenantPending returned false above, there are no active redaction jobs
-	// for this tenant, so busy blocks are exclusively from other providers.
+	// Since GetBatch returned nil above (no batch of any mode), there are no active redaction
+	// jobs for this tenant, so busy blocks are exclusively from other providers.
 	busyBlocks := s.work.BusyBlocksForTenant(tenant)
 
 	skippedJobSet := make(map[string]struct{})
@@ -549,7 +552,11 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		Mode:              req.Mode,
 		CreatedAtUnixNano: time.Now().UnixNano(),
 	}
-	if len(skippedJobSet) > 0 {
+	// Only apply-mode batches arm a rescan. A dry-run rewrites nothing, so there is no output
+	// block to re-cover once a skipped compaction finishes; a rescan would only re-count and
+	// inflate the dry-run metric. Blocks busy at submission simply go uncounted (a minor,
+	// documented preview undercount).
+	if len(skippedJobSet) > 0 && req.Mode != tempopb.RedactionMode_REDACTION_MODE_DRY_RUN {
 		skippedJobIDs := make([]string, 0, len(skippedJobSet))
 		for id := range skippedJobSet {
 			skippedJobIDs = append(skippedJobIDs, id)
@@ -642,8 +649,16 @@ func (s *BackendScheduler) redactionBatchActive(tenantID string, rescanPending b
 // promoted to the active map) still count via redactionBatchActive, so the batch is not treated
 // as done while any are outstanding.
 func (s *BackendScheduler) cleanupBatchIfDone(ctx context.Context, tenantID string) {
-	quiesceUntil, rescanPending, ok := s.work.BatchQuiescenceState(tenantID)
+	quiesceUntil, rescanPending, dryRun, ok := s.work.BatchQuiescenceState(tenantID)
 	if !ok || s.redactionBatchActive(tenantID, rescanPending) {
+		return
+	}
+	if dryRun {
+		// A dry-run writes nothing and never disabled compaction, so there is no cleanup-window
+		// race to hold open: remove the batch at once and free the tenant's slot.
+		s.work.RemoveBatch(tenantID)
+		s.flushBatches(ctx)
+		level.Info(log.Logger).Log("msg", "dry-run redaction batch complete, removed", "tenant", tenantID)
 		return
 	}
 	if quiesceUntil == 0 {
@@ -666,7 +681,7 @@ func (s *BackendScheduler) enterQuiescence(tenantID string) {
 // change (returns false), so the manifest is not rewritten on every tick. The caller flushes once
 // per tick if anything changed.
 func (s *BackendScheduler) advanceQuiescence(tenantID string) (changed bool) {
-	quiesceUntil, rescanPending, ok := s.work.BatchQuiescenceState(tenantID)
+	quiesceUntil, rescanPending, dryRun, ok := s.work.BatchQuiescenceState(tenantID)
 	if !ok {
 		return false
 	}
@@ -676,6 +691,14 @@ func (s *BackendScheduler) advanceQuiescence(tenantID string) (changed bool) {
 			return true
 		}
 		return false
+	}
+	if dryRun {
+		// Dry-run batches do not quiesce (nothing was written); remove on the tick that finds
+		// them done. Normally cleanupBatchIfDone already handled this on job completion; this
+		// covers a batch that went done without a completion callback (e.g. all jobs dropped).
+		s.work.RemoveBatch(tenantID)
+		level.Info(log.Logger).Log("msg", "dry-run redaction batch complete, removed", "tenant", tenantID)
+		return true
 	}
 	if quiesceUntil == 0 {
 		s.enterQuiescence(tenantID)
