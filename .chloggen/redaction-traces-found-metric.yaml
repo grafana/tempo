@@ -1,0 +1,6 @@
+change_type: enhancement
+component: backend-scheduler
+note: add the `tempo_backend_scheduler_redaction_traces_found_total{tenant, mode}` metric — traces matched by redaction jobs per tenant, with mode=apply counting traces actually removed and mode=dry_run counting a dry-run's previewed blast radius.
+issues: []
+subtext:
+user: zalegrala

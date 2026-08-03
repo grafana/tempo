@@ -389,6 +389,7 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 			}
 		case tempopb.JobType_JOB_TYPE_REDACTION:
 			if req.Redaction != nil {
+				recordRedactionResult(j.Tenant(), j.JobDetail.GetRedaction().GetMode(), req.Redaction.TracesFound)
 				level.Info(log.Logger).Log("msg", "redaction job result",
 					"job_id", req.JobId,
 					"tenant", j.Tenant(),
