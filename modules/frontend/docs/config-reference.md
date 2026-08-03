@@ -223,8 +223,30 @@ distributor:
         client_id: ""
         dial_timeout: 0s
         write_timeout: 0s
+        sasl_mechanism: ""
         sasl_username: ""
         sasl_password: ""
+        sasl_oauthbearer_token: ""
+        sasl_oauthbearer_zid: ""
+        sasl_oauthbearer_extensions: {}
+        sasl_oauthbearer_file_path: ""
+        sasl_oauthbearer_http_socket_path: ""
+        sasl_oauthbearer_http_socket_timeout: 0s
+        sasl_msk_iam_access_key: ""
+        sasl_msk_iam_secret_key: ""
+        sasl_msk_iam_session_token: ""
+        sasl_msk_iam_user_agent: ""
+        sasl_msk_iam_file_path: ""
+        sasl_msk_iam_http_socket_path: ""
+        sasl_msk_iam_http_socket_timeout: 0s
+        tls_enabled: false
+        tls_cert_path: ""
+        tls_key_path: ""
+        tls_ca_path: ""
+        tls_server_name: ""
+        tls_insecure_skip_verify: false
+        tls_cipher_suites: ""
+        tls_min_version: ""
         consumer_group: ""
         consumer_group_offset_commit_interval: 0s
         last_produced_offset_retry_timeout: 0s
@@ -500,8 +522,30 @@ ingest:
         client_id: ""
         dial_timeout: 2s
         write_timeout: 10s
+        sasl_mechanism: PLAIN
         sasl_username: ""
         sasl_password: ""
+        sasl_oauthbearer_token: ""
+        sasl_oauthbearer_zid: ""
+        sasl_oauthbearer_extensions: {}
+        sasl_oauthbearer_file_path: ""
+        sasl_oauthbearer_http_socket_path: ""
+        sasl_oauthbearer_http_socket_timeout: 10s
+        sasl_msk_iam_access_key: ""
+        sasl_msk_iam_secret_key: ""
+        sasl_msk_iam_session_token: ""
+        sasl_msk_iam_user_agent: ""
+        sasl_msk_iam_file_path: ""
+        sasl_msk_iam_http_socket_path: ""
+        sasl_msk_iam_http_socket_timeout: 10s
+        tls_enabled: false
+        tls_cert_path: ""
+        tls_key_path: ""
+        tls_ca_path: ""
+        tls_server_name: ""
+        tls_insecure_skip_verify: false
+        tls_cipher_suites: ""
+        tls_min_version: ""
         consumer_group: ""
         consumer_group_offset_commit_interval: 1s
         last_produced_offset_retry_timeout: 10s
