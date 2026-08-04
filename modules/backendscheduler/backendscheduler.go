@@ -657,25 +657,31 @@ func (s *BackendScheduler) CancelRedaction(ctx context.Context, _ *tempopb.Cance
 	}
 	batchID := batch.BatchId
 
-	// Mark cancelled and clear any armed rescan first, so a maintenance tick landing mid-cancel
-	// treats the batch as a drained cancel (not a quiescence/rescan candidate). Then purge the
-	// pending backlog. In-flight/running jobs are untouched and finish normally.
-	s.work.SetBatchCancelled(tenant)
+	// Mark the batch cancelled and persist that FIRST, before any irreversible change (clearing
+	// the rescan, purging the backlog). If the manifest flush fails, revert the flag — nothing
+	// else has changed yet, so this is a clean rollback — and fail the RPC. This keeps the
+	// in-memory cancelled state conditional on durability: a failed cancel never leaves the batch
+	// marked cancelled, so a later maintenance tick can't remove it before the cancel is durable.
+	s.work.SetBatchCancelled(tenant, true)
+	if err := s.work.FlushBatchesToLocal(ctx, s.cfg.LocalWorkPath); err != nil {
+		s.work.SetBatchCancelled(tenant, false)
+		level.Error(log.Logger).Log("msg", "failed to persist redaction cancel; batch left for retry", "tenant", tenant, "err", err)
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to persist redaction cancel; retry: %v", err))
+	}
+
+	// Cancelled is now durable. Clear any armed rescan and purge the pending backlog, then persist
+	// the shard removal. In-flight/running jobs are untouched and finish normally. A flush failure
+	// here still fails the RPC (retry re-purges), but the batch is already durably cancelled, so a
+	// maintenance tick removing it is correct rather than premature.
 	s.work.SetBatchRescan(tenant, nil, 0)
 	purged := s.work.PurgePendingRedactionJobs(tenant)
-
-	// Cancel is only durable once both the shard purge and the batch-state change (cancelled flag
-	// + cleared rescan) reach local storage. If either flush fails, fail the RPC and leave the
-	// batch in place (still cancelled) so the operator can retry — never report success, and never
-	// remove the batch, unless the cancel is durable. Otherwise a restart could reload the purged
-	// jobs, or reload an armed rescan that re-creates them, silently defeating the cancel.
 	if err := s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, nil); err != nil {
-		level.Error(log.Logger).Log("msg", "failed to persist redaction cancel purge; batch left for retry", "tenant", tenant, "err", err)
+		level.Error(log.Logger).Log("msg", "failed to persist redaction cancel purge; retry", "tenant", tenant, "err", err)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("cancel purged jobs in memory but failed to persist them; retry: %v", err))
 	}
 	if err := s.work.FlushBatchesToLocal(ctx, s.cfg.LocalWorkPath); err != nil {
-		level.Error(log.Logger).Log("msg", "failed to persist redaction cancel batch state; batch left for retry", "tenant", tenant, "err", err)
-		return nil, status.Error(codes.Internal, fmt.Sprintf("cancel updated batch state in memory but failed to persist it; retry: %v", err))
+		level.Error(log.Logger).Log("msg", "failed to persist redaction cancel rescan clear; retry", "tenant", tenant, "err", err)
+		return nil, status.Error(codes.Internal, fmt.Sprintf("cancel cleared rescan in memory but failed to persist it; retry: %v", err))
 	}
 
 	// If the batch had only pending work, it is now fully drained: remove it immediately (no

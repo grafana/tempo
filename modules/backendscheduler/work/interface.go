@@ -65,7 +65,7 @@ type Interface interface {
 	ListBatches() []*tempopb.RedactionBatch
 	SetBatchRescan(tenantID string, skippedJobIDs []string, rescanAfterUnixNano int64)
 	SetBatchQuiesceUntil(tenantID string, untilUnixNano int64)
-	SetBatchCancelled(tenantID string)
+	SetBatchCancelled(tenantID string, cancelled bool)
 	BatchQuiescenceState(tenantID string) (quiesceUntilUnixNano int64, rescanPending, dryRun, cancelled, ok bool)
 	FlushBatchesToLocal(ctx context.Context, localPath string) error
 	LoadBatchesFromLocal(ctx context.Context, localPath string) error

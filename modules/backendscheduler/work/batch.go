@@ -125,12 +125,13 @@ func (b *batchStore) quiescenceState(tenantID string) (quiesceUntilUnixNano int6
 	return batch.QuiesceUntilUnixNano, batch.RescanAfterUnixNano > 0, batch.Mode.IsDryRun(), batch.Cancelled, true
 }
 
-// setCancelled marks the tenant's batch cancelled under the write lock.
-func (b *batchStore) setCancelled(tenantID string) {
+// setCancelled sets the tenant's batch cancelled flag under the write lock. Takes an explicit
+// value so a failed cancel can revert the flag (leaving the batch as if never cancelled).
+func (b *batchStore) setCancelled(tenantID string, cancelled bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if batch, ok := b.byTenant[tenantID]; ok {
-		batch.Cancelled = true
+		batch.Cancelled = cancelled
 	}
 }
 
@@ -204,8 +205,9 @@ func (w *Work) BatchQuiescenceState(tenantID string) (quiesceUntilUnixNano int64
 	return w.batches.quiescenceState(tenantID)
 }
 
-// SetBatchCancelled marks the tenant's batch cancelled: its remaining pending jobs are purged
-// separately, in-flight jobs finish, then the batch is removed immediately (no quiescence).
-func (w *Work) SetBatchCancelled(tenantID string) {
-	w.batches.setCancelled(tenantID)
+// SetBatchCancelled sets the tenant's batch cancelled flag. A cancelled batch has its remaining
+// pending jobs purged separately; in-flight jobs finish, then it is removed immediately (no
+// quiescence). Pass false to revert (e.g. when a cancel could not be persisted).
+func (w *Work) SetBatchCancelled(tenantID string, cancelled bool) {
+	w.batches.setCancelled(tenantID, cancelled)
 }

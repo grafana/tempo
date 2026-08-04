@@ -35,7 +35,7 @@ func TestCancelledBatchRemovedImmediately(t *testing.T) {
 	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
 		BatchId: "b", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
 	}))
-	s.work.SetBatchCancelled(tenant)
+	s.work.SetBatchCancelled(tenant, true)
 
 	s.cleanupBatchIfDone(ctx, tenant)
 	require.Nil(t, s.work.GetBatch(tenant), "a cancelled batch is removed immediately once drained")
@@ -109,9 +109,12 @@ func TestCancelRedactionFailsIfPurgeNotPersisted(t *testing.T) {
 	require.NoError(t, s.work.AddPendingJobs([]*work.Job{pendingRedactionJob("j1", tenant, "blk1")}))
 
 	_, err := s.CancelRedaction(user.InjectOrgID(ctx, tenant), &tempopb.CancelRedactionRequest{})
-	require.Error(t, err, "cancel must fail if the purge could not be persisted")
+	require.Error(t, err, "cancel must fail if it could not be persisted")
 	require.Equal(t, codes.Internal, status.Code(err))
-	require.NotNil(t, s.work.GetBatch(tenant), "batch is left in place for retry when persistence failed")
+
+	b := s.work.GetBatch(tenant)
+	require.NotNil(t, b, "batch is left in place for retry when persistence failed")
+	require.False(t, b.Cancelled, "the cancelled flag is reverted on a persistence failure, so a maintenance tick can't remove the batch before the cancel is durable")
 }
 
 // TestCancelRedactionNoBatchReturnsNotFound verifies cancelling a tenant with no active redaction
