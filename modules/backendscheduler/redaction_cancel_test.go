@@ -1,6 +1,8 @@
 package backendscheduler
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -88,6 +90,28 @@ func TestCancelRedactionRemovesDrainedBatchImmediately(t *testing.T) {
 	require.Equal(t, int32(1), resp.PendingPurged)
 	require.Nil(t, s.work.GetBatch(tenant), "a cancel with only pending work removes the batch immediately")
 	require.False(t, s.work.TenantPending(tenant), "compaction resumes right away")
+}
+
+// TestCancelRedactionFailsIfPurgeNotPersisted verifies that if the purge can't be flushed to the
+// work cache, the RPC fails and the batch is left in place — so the operator can retry rather than
+// believe the backlog is stopped, and the batch isn't removed unless the purge is durable.
+func TestCancelRedactionFailsIfPurgeNotPersisted(t *testing.T) {
+	ctx, s := newQuiescenceScheduler(t)
+	// Point the work path at a child of a regular file so FlushToLocal's MkdirAll fails.
+	notADir := filepath.Join(t.TempDir(), "notadir")
+	require.NoError(t, os.WriteFile(notADir, []byte("x"), 0o600))
+	s.cfg.LocalWorkPath = filepath.Join(notADir, "sub")
+
+	tenant := "t-flushfail"
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: "b", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+	}))
+	require.NoError(t, s.work.AddPendingJobs([]*work.Job{pendingRedactionJob("j1", tenant, "blk1")}))
+
+	_, err := s.CancelRedaction(user.InjectOrgID(ctx, tenant), &tempopb.CancelRedactionRequest{})
+	require.Error(t, err, "cancel must fail if the purge could not be persisted")
+	require.Equal(t, codes.Internal, status.Code(err))
+	require.NotNil(t, s.work.GetBatch(tenant), "batch is left in place for retry when persistence failed")
 }
 
 // TestCancelRedactionNoBatchReturnsNotFound verifies cancelling a tenant with no active redaction

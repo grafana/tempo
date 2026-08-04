@@ -664,10 +664,13 @@ func (s *BackendScheduler) CancelRedaction(ctx context.Context, _ *tempopb.Cance
 	s.work.SetBatchRescan(tenant, nil, 0)
 	purged := s.work.PurgePendingRedactionJobs(tenant)
 
-	// Persist the purge to the work cache, or a scheduler restart before the next flush would
-	// reload the purged pending jobs from the shard files and re-dispatch them, defeating cancel.
+	// The purge must be durable before we report success or remove the batch: otherwise a restart
+	// reloads the purged jobs from the shard files and, with the batch possibly already gone,
+	// cancel is silently defeated. On a flush failure, fail the RPC and leave the batch in place
+	// (still cancelled) so the operator can retry — never remove a batch whose purge isn't durable.
 	if err := s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, nil); err != nil {
-		level.Warn(log.Logger).Log("msg", "failed to flush job shards after cancel", "err", err)
+		level.Error(log.Logger).Log("msg", "failed to persist redaction cancel; batch left for retry", "tenant", tenant, "err", err)
+		return nil, status.Error(codes.Internal, fmt.Sprintf("cancel purged jobs in memory but failed to persist them; retry: %v", err))
 	}
 	s.flushBatches(ctx)
 
