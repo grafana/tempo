@@ -18,10 +18,11 @@ type redactCancelCmd struct {
 	TLS           bool   `name:"tls" help:"use TLS transport" default:"false"`
 	TLSServerName string `name:"tls-server-name" help:"override the TLS server name (SNI)"`
 	TLSCA         string `name:"tls-ca" help:"path to a PEM-encoded CA certificate file"`
+	TLSMinVersion string `name:"tls-min-version" default:"VersionTLS13" help:"minimum TLS version. Allowed: VersionTLS10, VersionTLS11, VersionTLS12, VersionTLS13"`
 }
 
 func (cmd *redactCancelCmd) Run(_ *globalOptions) error {
-	transportCred, err := schedulerTransportCredentials(cmd.TLS, cmd.TLSServerName, cmd.TLSCA)
+	transportCred, err := schedulerTransportCredentials(cmd.TLS, cmd.TLSServerName, cmd.TLSCA, cmd.TLSMinVersion)
 	if err != nil {
 		return fmt.Errorf("building transport credentials: %w", err)
 	}

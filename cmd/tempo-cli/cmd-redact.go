@@ -29,6 +29,7 @@ type redactCmd struct {
 	TLS           bool   `name:"tls" help:"use TLS transport" default:"false"`
 	TLSServerName string `name:"tls-server-name" help:"override the TLS server name (SNI)"`
 	TLSCA         string `name:"tls-ca" help:"path to a PEM-encoded CA certificate file"`
+	TLSMinVersion string `name:"tls-min-version" default:"VersionTLS13" help:"minimum TLS version. Allowed: VersionTLS10, VersionTLS11, VersionTLS12, VersionTLS13"`
 }
 
 func (cmd *redactCmd) Run(_ *globalOptions) error {
@@ -109,14 +110,29 @@ func (cmd *redactCmd) submit(ctx context.Context, c tempopb.BackendSchedulerClie
 }
 
 func (cmd *redactCmd) buildTransportCredentials() (credentials.TransportCredentials, error) {
-	return schedulerTransportCredentials(cmd.TLS, cmd.TLSServerName, cmd.TLSCA)
+	return schedulerTransportCredentials(cmd.TLS, cmd.TLSServerName, cmd.TLSCA, cmd.TLSMinVersion)
+}
+
+// tlsMinVersions maps the dskit-style version names to their tls constants. Mirrors dskit's
+// crypto/tls config values so the CLI flag matches the server's tls_min_version.
+var tlsMinVersions = map[string]uint16{
+	"VersionTLS10": tls.VersionTLS10,
+	"VersionTLS11": tls.VersionTLS11,
+	"VersionTLS12": tls.VersionTLS12,
+	"VersionTLS13": tls.VersionTLS13,
 }
 
 // schedulerTransportCredentials builds gRPC transport credentials for the backend-scheduler
-// client, shared by the redact submit and cancel commands.
-func schedulerTransportCredentials(useTLS bool, serverName, ca string) (credentials.TransportCredentials, error) {
+// client, shared by the redact submit and cancel commands. minVersion is a dskit-style version
+// name (e.g. "VersionTLS13"); it is only consulted on the TLS path.
+func schedulerTransportCredentials(useTLS bool, serverName, ca, minVersion string) (credentials.TransportCredentials, error) {
 	if !useTLS {
 		return insecure.NewCredentials(), nil
+	}
+
+	minVer, ok := tlsMinVersions[minVersion]
+	if !ok {
+		return nil, fmt.Errorf("unknown minimum TLS version %q (allowed: VersionTLS10, VersionTLS11, VersionTLS12, VersionTLS13)", minVersion)
 	}
 
 	certPool, err := x509.SystemCertPool()
@@ -140,7 +156,7 @@ func schedulerTransportCredentials(useTLS bool, serverName, ca string) (credenti
 	return credentials.NewTLS(&tls.Config{
 		ServerName: serverName,
 		RootCAs:    certPool,
-		MinVersion: tls.VersionTLS13,
+		MinVersion: minVer,
 	}), nil
 }
 
