@@ -663,7 +663,18 @@ func (s *BackendScheduler) CancelRedaction(ctx context.Context, _ *tempopb.Cance
 	s.work.SetBatchCancelled(tenant)
 	s.work.SetBatchRescan(tenant, nil, 0)
 	purged := s.work.PurgePendingRedactionJobs(tenant)
+
+	// Persist the purge to the work cache, or a scheduler restart before the next flush would
+	// reload the purged pending jobs from the shard files and re-dispatch them, defeating cancel.
+	if err := s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, nil); err != nil {
+		level.Warn(log.Logger).Log("msg", "failed to flush job shards after cancel", "err", err)
+	}
 	s.flushBatches(ctx)
+
+	// If the batch had only pending work, it is now fully drained: remove it immediately (no
+	// quiescence) so compaction resumes without waiting for a maintenance tick. If in-flight jobs
+	// remain, this is a no-op and the maintenance loop removes the batch once they finish.
+	s.cleanupBatchIfDone(ctx, tenant)
 
 	span.SetAttributes(
 		attribute.String("batch_id", batchID),
