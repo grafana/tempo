@@ -115,14 +115,23 @@ func (b *batchStore) setQuiesceUntil(tenantID string, untilUnixNano int64) {
 
 // quiescenceState reads a tenant's quiescence-relevant fields under the lock, returning a
 // snapshot so callers never touch the live batch pointer's mutable fields unsynchronized.
-func (b *batchStore) quiescenceState(tenantID string) (quiesceUntilUnixNano int64, rescanPending, dryRun, ok bool) {
+func (b *batchStore) quiescenceState(tenantID string) (quiesceUntilUnixNano int64, rescanPending, dryRun, cancelled, ok bool) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	batch, exists := b.byTenant[tenantID]
 	if !exists {
-		return 0, false, false, false
+		return 0, false, false, false, false
 	}
-	return batch.QuiesceUntilUnixNano, batch.RescanAfterUnixNano > 0, batch.Mode.IsDryRun(), true
+	return batch.QuiesceUntilUnixNano, batch.RescanAfterUnixNano > 0, batch.Mode.IsDryRun(), batch.Cancelled, true
+}
+
+// setCancelled marks the tenant's batch cancelled under the write lock.
+func (b *batchStore) setCancelled(tenantID string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if batch, ok := b.byTenant[tenantID]; ok {
+		batch.Cancelled = true
+	}
 }
 
 // load reads batches.pb from localPath. Missing file is not an error (clean start).
@@ -189,7 +198,14 @@ func (w *Work) SetBatchQuiesceUntil(tenantID string, untilUnixNano int64) {
 }
 
 // BatchQuiescenceState returns a locked snapshot of a tenant's quiesce-until deadline, whether a
-// rescan is pending, and whether the batch is a dry-run; ok is false when no batch exists.
-func (w *Work) BatchQuiescenceState(tenantID string) (quiesceUntilUnixNano int64, rescanPending, dryRun, ok bool) {
+// rescan is pending, whether the batch is a dry-run, and whether it was cancelled; ok is false
+// when no batch exists.
+func (w *Work) BatchQuiescenceState(tenantID string) (quiesceUntilUnixNano int64, rescanPending, dryRun, cancelled, ok bool) {
 	return w.batches.quiescenceState(tenantID)
+}
+
+// SetBatchCancelled marks the tenant's batch cancelled: its remaining pending jobs are purged
+// separately, in-flight jobs finish, then the batch is removed immediately (no quiescence).
+func (w *Work) SetBatchCancelled(tenantID string) {
+	w.batches.setCancelled(tenantID)
 }

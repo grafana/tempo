@@ -109,7 +109,13 @@ func (cmd *redactCmd) submit(ctx context.Context, c tempopb.BackendSchedulerClie
 }
 
 func (cmd *redactCmd) buildTransportCredentials() (credentials.TransportCredentials, error) {
-	if !cmd.TLS {
+	return schedulerTransportCredentials(cmd.TLS, cmd.TLSServerName, cmd.TLSCA)
+}
+
+// schedulerTransportCredentials builds gRPC transport credentials for the backend-scheduler
+// client, shared by the redact submit and cancel commands.
+func schedulerTransportCredentials(useTLS bool, serverName, ca string) (credentials.TransportCredentials, error) {
+	if !useTLS {
 		return insecure.NewCredentials(), nil
 	}
 
@@ -121,18 +127,18 @@ func (cmd *redactCmd) buildTransportCredentials() (credentials.TransportCredenti
 		certPool = x509.NewCertPool()
 	}
 
-	if cmd.TLSCA != "" {
-		pem, err := os.ReadFile(cmd.TLSCA)
+	if ca != "" {
+		pem, err := os.ReadFile(ca)
 		if err != nil {
-			return nil, fmt.Errorf("reading CA cert %q: %w", cmd.TLSCA, err)
+			return nil, fmt.Errorf("reading CA cert %q: %w", ca, err)
 		}
 		if !certPool.AppendCertsFromPEM(pem) {
-			return nil, fmt.Errorf("no valid certificates found in %q", cmd.TLSCA)
+			return nil, fmt.Errorf("no valid certificates found in %q", ca)
 		}
 	}
 
 	return credentials.NewTLS(&tls.Config{
-		ServerName: cmd.TLSServerName,
+		ServerName: serverName,
 		RootCAs:    certPool,
 	}), nil
 }

@@ -29,6 +29,9 @@ type Interface interface {
 	// dropped rather than promoted to active (else the counter leaks and wedges the tenant).
 	ReleaseRedactionInFlight(tenantID string)
 
+	// PurgePendingRedactionJobs removes one tenant's not-yet-started redaction jobs (cancel).
+	PurgePendingRedactionJobs(tenantID string) int
+
 	// RegisterJob registers a job before it enters the channel pipeline, making it
 	// visible to other components. Cleared automatically by AddJob when promoted to active.
 	RegisterJob(job *Job)
@@ -62,7 +65,8 @@ type Interface interface {
 	ListBatches() []*tempopb.RedactionBatch
 	SetBatchRescan(tenantID string, skippedJobIDs []string, rescanAfterUnixNano int64)
 	SetBatchQuiesceUntil(tenantID string, untilUnixNano int64)
-	BatchQuiescenceState(tenantID string) (quiesceUntilUnixNano int64, rescanPending, dryRun, ok bool)
+	SetBatchCancelled(tenantID string)
+	BatchQuiescenceState(tenantID string) (quiesceUntilUnixNano int64, rescanPending, dryRun, cancelled, ok bool)
 	FlushBatchesToLocal(ctx context.Context, localPath string) error
 	LoadBatchesFromLocal(ctx context.Context, localPath string) error
 

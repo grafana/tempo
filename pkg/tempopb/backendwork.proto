@@ -18,6 +18,11 @@ service BackendScheduler {
   // The scheduler discovers all blocks for the tenant and fans out one internal pending
   // job per block.
   rpc SubmitRedaction(SubmitRedactionRequest) returns (SubmitRedactionResponse) {}
+
+  // Cancel an in-progress redaction for the authenticated tenant. Stops handing out the
+  // remaining pending jobs; jobs already in flight finish, so block in:out stays 1:1. The
+  // tenant is sourced exclusively from the X-Scope-OrgID header (never a body field).
+  rpc CancelRedaction(CancelRedactionRequest) returns (CancelRedactionResponse) {}
 }
 
 enum JobType {
@@ -138,6 +143,19 @@ message SubmitRedactionResponse {
   int32 jobs_created = 2;
 }
 
+// CancelRedactionRequest cancels the authenticated tenant's in-progress redaction. It carries
+// no tenant field on purpose: the tenant is read from the X-Scope-OrgID header so cancel rides
+// the same auth/tenant scoping as every other call and cannot cross tenants.
+message CancelRedactionRequest {}
+
+message CancelRedactionResponse {
+  // batch_id of the cancelled batch.
+  string batch_id = 1;
+  // pending_purged is the number of not-yet-started pending jobs removed by the cancel. Jobs
+  // already dispatched finish on their own, then the batch is removed.
+  int32 pending_purged = 2;
+}
+
 // RedactionResult is reported by the worker when a redaction job completes.
 message RedactionResult {
   option (gogoproto.equal) = true;
@@ -179,6 +197,10 @@ message RedactionBatch {
   // removed on the first maintenance tick at or after the deadline. An absolute timestamp is
   // stable across pod restarts / work reloads and avoids rewriting the batch on every tick.
   int64 quiesce_until_unix_nano = 9;
+  // cancelled marks a batch whose remaining pending jobs were purged by CancelRedaction.
+  // In-flight jobs finish, then the batch is removed immediately (no quiescence, no rescan),
+  // like a completed dry-run.
+  bool cancelled = 10;
 }
 
 // RedactionBatches is the top-level container written to batches.pb.
