@@ -556,7 +556,7 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 	// block to re-cover once a skipped compaction finishes; a rescan would only re-count and
 	// inflate the dry-run metric. Blocks busy at submission simply go uncounted (a minor,
 	// documented preview undercount).
-	if len(skippedJobSet) > 0 && req.Mode != tempopb.RedactionMode_REDACTION_MODE_DRY_RUN {
+	if len(skippedJobSet) > 0 && !req.Mode.IsDryRun() {
 		skippedJobIDs := make([]string, 0, len(skippedJobSet))
 		for id := range skippedJobSet {
 			skippedJobIDs = append(skippedJobIDs, id)

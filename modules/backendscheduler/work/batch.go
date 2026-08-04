@@ -56,7 +56,7 @@ func (b *batchStore) hasBlockingBatch(tenantID string) bool {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	batch, ok := b.byTenant[tenantID]
-	return ok && batch.Mode != tempopb.RedactionMode_REDACTION_MODE_DRY_RUN
+	return ok && !batch.Mode.IsDryRun()
 }
 
 // flush writes all active batches to batches.pb in localPath using proto encoding.
@@ -122,7 +122,7 @@ func (b *batchStore) quiescenceState(tenantID string) (quiesceUntilUnixNano int6
 	if !exists {
 		return 0, false, false, false
 	}
-	return batch.QuiesceUntilUnixNano, batch.RescanAfterUnixNano > 0, batch.Mode == tempopb.RedactionMode_REDACTION_MODE_DRY_RUN, true
+	return batch.QuiesceUntilUnixNano, batch.RescanAfterUnixNano > 0, batch.Mode.IsDryRun(), true
 }
 
 // load reads batches.pb from localPath. Missing file is not an error (clean start).
