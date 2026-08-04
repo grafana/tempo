@@ -140,6 +140,7 @@ func schedulerTransportCredentials(useTLS bool, serverName, ca string) (credenti
 	return credentials.NewTLS(&tls.Config{
 		ServerName: serverName,
 		RootCAs:    certPool,
+		MinVersion: tls.VersionTLS13,
 	}), nil
 }
 
