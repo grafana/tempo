@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: backend-scheduler
+note: a dry-run redaction (read-only preview) no longer disables the tenant's compaction/retention, enters quiescence, or arms a rescan — those only apply to an apply-mode redaction, which actually rewrites blocks.
+issues: []
+subtext:
+user: zalegrala

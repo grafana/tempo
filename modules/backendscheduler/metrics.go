@@ -96,7 +96,7 @@ func recordRedactionResult(tenant string, mode tempopb.RedactionMode, found int3
 
 // redactionModeLabel is a short, stable metric label for a redaction mode.
 func redactionModeLabel(mode tempopb.RedactionMode) string {
-	if mode == tempopb.RedactionMode_REDACTION_MODE_DRY_RUN {
+	if mode.IsDryRun() {
 		return "dry_run"
 	}
 	return "apply"
