@@ -14,7 +14,7 @@ import (
 var Logger = kitlog.NewNopLogger()
 
 // logLevel tracks the configured level for slog adapters (see SlogFromGoKit).
-var logLevel = "info"
+var logLevel = levelInfo
 
 // InitLogger initialises the global gokit logger and overrides the
 // default logger for the server.
@@ -46,13 +46,13 @@ func InitLogger(cfg *server.Config) {
 // -> we can then revert to using Level.Gokit
 func LevelFilter(l string) level.Option {
 	switch l {
-	case "debug":
+	case levelDebug:
 		return level.AllowDebug()
-	case "info":
+	case levelInfo:
 		return level.AllowInfo()
-	case "warn":
+	case levelWarn:
 		return level.AllowWarn()
-	case "error":
+	case levelError:
 		return level.AllowError()
 	default:
 		return level.AllowAll()

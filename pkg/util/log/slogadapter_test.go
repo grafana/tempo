@@ -12,7 +12,7 @@ import (
 func TestSlogFromGoKit(t *testing.T) {
 	var buf bytes.Buffer
 	kit := kitlog.NewLogfmtLogger(&buf)
-	logLevel = "info"
+	logLevel = levelInfo
 
 	logger := SlogFromGoKit(kit)
 	require.NotNil(t, logger)
