@@ -2452,6 +2452,15 @@ overrides:
       # Operator-controlled and not exposed to query authors.
       [span_pruning_awareness: <bool> | default = false]
 
+      # EXPERIMENTAL
+      # Per-tenant override for the query-frontend's span_pruning_enabled_by_default config.
+      # When set, overrides whether span pruning defaults to enabled for trace-by-id v2 requests
+      # that don't set their own span_pruning param. When not set, the cluster-wide config value
+      # is used. Only takes effect when span pruning is enabled cluster-wide (span_pruning_enabled).
+      # Note: this is a per-tenant default override, not a per-tenant kill switch — it has no effect
+      # unless span pruning is already enabled cluster-wide.
+      [span_pruning_enabled: <bool>]
+
     # Compaction related overrides
     compaction:
       # Per-user block retention. If this value is set to 0 (default),

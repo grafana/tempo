@@ -92,6 +92,7 @@ type Interface interface {
 	LeftPadTraceIDs(userID string) bool
 	MetricsSpanOnlyFetch(userID string) *bool
 	SpanPruningAwareness(userID string) bool
+	SpanPruningEnabled(userID string) *bool
 	CostAttributionMaxCardinality(userID string) uint64
 	CostAttributionDimensions(userID string) map[string]string
 
