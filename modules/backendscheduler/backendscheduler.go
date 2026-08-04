@@ -657,31 +657,28 @@ func (s *BackendScheduler) CancelRedaction(ctx context.Context, _ *tempopb.Cance
 	}
 	batchID := batch.BatchId
 
-	// Mark the batch cancelled and persist that FIRST, before any irreversible change (clearing
-	// the rescan, purging the backlog). If the manifest flush fails, revert the flag — nothing
-	// else has changed yet, so this is a clean rollback — and fail the RPC. This keeps the
-	// in-memory cancelled state conditional on durability: a failed cancel never leaves the batch
-	// marked cancelled, so a later maintenance tick can't remove it before the cancel is durable.
+	// Mark the batch cancelled AND clear any armed rescan, then persist both in one manifest flush
+	// — before the irreversible purge. Persisting them together is important: it never writes a
+	// durable {cancelled, rescan-armed} manifest that a restart's checkPendingRescans could act on
+	// to re-enqueue jobs for a batch meant to abandon its work. If the flush fails, revert the
+	// cancelled flag (clean rollback — nothing irreversible has happened yet) and fail the RPC, so
+	// a failed cancel never leaves the batch marked cancelled for a maintenance tick to remove.
 	s.work.SetBatchCancelled(tenant, true)
+	s.work.SetBatchRescan(tenant, nil, 0)
 	if err := s.work.FlushBatchesToLocal(ctx, s.cfg.LocalWorkPath); err != nil {
 		s.work.SetBatchCancelled(tenant, false)
 		level.Error(log.Logger).Log("msg", "failed to persist redaction cancel; batch left for retry", "tenant", tenant, "err", err)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to persist redaction cancel; retry: %v", err))
 	}
 
-	// Cancelled is now durable. Clear any armed rescan and purge the pending backlog, then persist
-	// the shard removal. In-flight/running jobs are untouched and finish normally. A flush failure
-	// here still fails the RPC (retry re-purges), but the batch is already durably cancelled, so a
-	// maintenance tick removing it is correct rather than premature.
-	s.work.SetBatchRescan(tenant, nil, 0)
+	// Cancelled + cleared-rescan are durable. Purge the pending backlog and persist the shard
+	// removal. In-flight/running jobs are untouched and finish normally. A flush failure here still
+	// fails the RPC (retry re-purges), but the batch is already durably cancelled, so a maintenance
+	// tick removing it is correct rather than premature.
 	purged := s.work.PurgePendingRedactionJobs(tenant)
 	if err := s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, nil); err != nil {
 		level.Error(log.Logger).Log("msg", "failed to persist redaction cancel purge; retry", "tenant", tenant, "err", err)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("cancel purged jobs in memory but failed to persist them; retry: %v", err))
-	}
-	if err := s.work.FlushBatchesToLocal(ctx, s.cfg.LocalWorkPath); err != nil {
-		level.Error(log.Logger).Log("msg", "failed to persist redaction cancel rescan clear; retry", "tenant", tenant, "err", err)
-		return nil, status.Error(codes.Internal, fmt.Sprintf("cancel cleared rescan in memory but failed to persist it; retry: %v", err))
 	}
 
 	// If the batch had only pending work, it is now fully drained: remove it immediately (no
@@ -838,11 +835,24 @@ func (s *BackendScheduler) flushBatches(ctx context.Context) {
 // jobs, and enqueues new pending redaction jobs for those blocks.
 func (s *BackendScheduler) checkPendingRescans(ctx context.Context) {
 	now := time.Now().UnixNano()
+	changed := false
 	for _, batch := range s.work.ListBatches() {
 		if batch.RescanAfterUnixNano == 0 || now < batch.RescanAfterUnixNano {
 			continue
 		}
+		// A cancelled batch never rescans — it is abandoning its remaining work. Defensively clear
+		// any stale armed rescan (e.g. one persisted before a crash, or reloaded from an older
+		// manifest) instead of running it, so it can't re-enqueue jobs; clearing also drops
+		// rescanPending so the batch drains and is removed on a later tick.
+		if batch.Cancelled {
+			s.work.SetBatchRescan(batch.TenantId, nil, 0)
+			changed = true
+			continue
+		}
 		s.performRescan(ctx, batch)
+	}
+	if changed {
+		s.flushBatches(ctx)
 	}
 }
 

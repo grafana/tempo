@@ -117,6 +117,30 @@ func TestCancelRedactionFailsIfPurgeNotPersisted(t *testing.T) {
 	require.False(t, b.Cancelled, "the cancelled flag is reverted on a persistence failure, so a maintenance tick can't remove the batch before the cancel is durable")
 }
 
+// TestCancelledBatchStaleRescanClearedNotRun verifies checkPendingRescans never rescans a
+// cancelled batch: it clears any stale armed rescan (e.g. reloaded from a manifest written before
+// the cancel cleared it) instead of enqueuing jobs, then the batch drains and is removed.
+func TestCancelledBatchStaleRescanClearedNotRun(t *testing.T) {
+	ctx, s := newQuiescenceScheduler(t)
+	tenant := "t-cancel-stale-rescan"
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: "b", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+		Cancelled:               true,
+		SkippedCompactionJobIds: []string{"stale-job"},
+		RescanAfterUnixNano:     time.Now().Add(-time.Hour).UnixNano(),
+	}))
+
+	s.checkPendingRescans(ctx)
+
+	b := s.work.GetBatch(tenant)
+	require.NotNil(t, b)
+	require.Zero(t, b.RescanAfterUnixNano, "a cancelled batch's stale rescan is cleared, not run")
+	require.False(t, s.work.HasJobsForTenant(tenant, tempopb.JobType_JOB_TYPE_REDACTION), "no redaction jobs are enqueued for a cancelled batch")
+
+	s.cleanupOrphanedBatches(ctx)
+	require.Nil(t, s.work.GetBatch(tenant), "cancelled batch drains once its stale rescan is cleared")
+}
+
 // TestCancelRedactionNoBatchReturnsNotFound verifies cancelling a tenant with no active redaction
 // is a clean NotFound.
 func TestCancelRedactionNoBatchReturnsNotFound(t *testing.T) {
