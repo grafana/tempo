@@ -639,6 +639,9 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 // resumes. The tenant is read from the request header, never a body field, so cancel cannot cross
 // tenants and concurrent per-tenant redactions stay isolated.
 func (s *BackendScheduler) CancelRedaction(ctx context.Context, _ *tempopb.CancelRedactionRequest) (*tempopb.CancelRedactionResponse, error) {
+	ctx, span := tracer.Start(ctx, "CancelRedaction")
+	defer span.End()
+
 	tenant, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		if errors.Is(err, user.ErrNoOrgID) {
@@ -646,6 +649,7 @@ func (s *BackendScheduler) CancelRedaction(ctx context.Context, _ *tempopb.Cance
 		}
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
+	span.SetAttributes(attribute.String("tenant", tenant))
 
 	batch := s.work.GetBatch(tenant)
 	if batch == nil {
@@ -661,6 +665,10 @@ func (s *BackendScheduler) CancelRedaction(ctx context.Context, _ *tempopb.Cance
 	purged := s.work.PurgePendingRedactionJobs(tenant)
 	s.flushBatches(ctx)
 
+	span.SetAttributes(
+		attribute.String("batch_id", batchID),
+		attribute.Int("pending_purged", purged),
+	)
 	level.Info(log.Logger).Log("msg", "redaction cancelled",
 		"tenant", tenant, "batch_id", batchID, "pending_purged", purged)
 
