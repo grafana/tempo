@@ -664,15 +664,19 @@ func (s *BackendScheduler) CancelRedaction(ctx context.Context, _ *tempopb.Cance
 	s.work.SetBatchRescan(tenant, nil, 0)
 	purged := s.work.PurgePendingRedactionJobs(tenant)
 
-	// The purge must be durable before we report success or remove the batch: otherwise a restart
-	// reloads the purged jobs from the shard files and, with the batch possibly already gone,
-	// cancel is silently defeated. On a flush failure, fail the RPC and leave the batch in place
-	// (still cancelled) so the operator can retry — never remove a batch whose purge isn't durable.
+	// Cancel is only durable once both the shard purge and the batch-state change (cancelled flag
+	// + cleared rescan) reach local storage. If either flush fails, fail the RPC and leave the
+	// batch in place (still cancelled) so the operator can retry — never report success, and never
+	// remove the batch, unless the cancel is durable. Otherwise a restart could reload the purged
+	// jobs, or reload an armed rescan that re-creates them, silently defeating the cancel.
 	if err := s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, nil); err != nil {
-		level.Error(log.Logger).Log("msg", "failed to persist redaction cancel; batch left for retry", "tenant", tenant, "err", err)
+		level.Error(log.Logger).Log("msg", "failed to persist redaction cancel purge; batch left for retry", "tenant", tenant, "err", err)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("cancel purged jobs in memory but failed to persist them; retry: %v", err))
 	}
-	s.flushBatches(ctx)
+	if err := s.work.FlushBatchesToLocal(ctx, s.cfg.LocalWorkPath); err != nil {
+		level.Error(log.Logger).Log("msg", "failed to persist redaction cancel batch state; batch left for retry", "tenant", tenant, "err", err)
+		return nil, status.Error(codes.Internal, fmt.Sprintf("cancel updated batch state in memory but failed to persist it; retry: %v", err))
+	}
 
 	// If the batch had only pending work, it is now fully drained: remove it immediately (no
 	// quiescence) so compaction resumes without waiting for a maintenance tick. If in-flight jobs
