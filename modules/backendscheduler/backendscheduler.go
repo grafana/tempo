@@ -657,24 +657,23 @@ func (s *BackendScheduler) CancelRedaction(ctx context.Context, _ *tempopb.Cance
 	}
 	batchID := batch.BatchId
 
-	// Mark the batch cancelled AND clear any armed rescan, then persist both in one manifest flush
-	// — before the irreversible purge. Persisting them together is important: it never writes a
-	// durable {cancelled, rescan-armed} manifest that a restart's checkPendingRescans could act on
-	// to re-enqueue jobs for a batch meant to abandon its work. If the flush fails, revert the
-	// cancelled flag (clean rollback — nothing irreversible has happened yet) and fail the RPC, so
-	// a failed cancel never leaves the batch marked cancelled for a maintenance tick to remove.
+	// Mark the batch cancelled and persist that FIRST — before touching anything else. On flush
+	// failure, revert only the flag: nothing else has changed (crucially the rescan is untouched),
+	// so this is a clean rollback that leaves the batch exactly as it was, and we fail the RPC so a
+	// failed cancel never leaves the batch marked cancelled for a maintenance tick to remove.
 	s.work.SetBatchCancelled(tenant, true)
-	s.work.SetBatchRescan(tenant, nil, 0)
 	if err := s.work.FlushBatchesToLocal(ctx, s.cfg.LocalWorkPath); err != nil {
 		s.work.SetBatchCancelled(tenant, false)
 		level.Error(log.Logger).Log("msg", "failed to persist redaction cancel; batch left for retry", "tenant", tenant, "err", err)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to persist redaction cancel; retry: %v", err))
 	}
 
-	// Cancelled + cleared-rescan are durable. Purge the pending backlog and persist the shard
-	// removal. In-flight/running jobs are untouched and finish normally. A flush failure here still
-	// fails the RPC (retry re-purges), but the batch is already durably cancelled, so a maintenance
-	// tick removing it is correct rather than premature.
+	// Cancelled is durable. Now clear any armed rescan and purge the pending backlog, then persist.
+	// Clearing the rescan only after the flag is durable keeps the rollback above clean. Between
+	// this point and the second manifest flush a durable {cancelled, rescan-armed} state can exist,
+	// but checkPendingRescans skips cancelled batches (clearing, never running, their rescan), so it
+	// can't re-enqueue work. In-flight/running jobs are untouched and finish normally.
+	s.work.SetBatchRescan(tenant, nil, 0)
 	purgedIDs := s.work.PurgePendingRedactionJobs(tenant)
 	if len(purgedIDs) > 0 {
 		// Flush only the shards that held the purged jobs, not all of them.
@@ -682,6 +681,10 @@ func (s *BackendScheduler) CancelRedaction(ctx context.Context, _ *tempopb.Cance
 			level.Error(log.Logger).Log("msg", "failed to persist redaction cancel purge; retry", "tenant", tenant, "err", err)
 			return nil, status.Error(codes.Internal, fmt.Sprintf("cancel purged jobs in memory but failed to persist them; retry: %v", err))
 		}
+	}
+	if err := s.work.FlushBatchesToLocal(ctx, s.cfg.LocalWorkPath); err != nil {
+		level.Error(log.Logger).Log("msg", "failed to persist redaction cancel rescan clear; retry", "tenant", tenant, "err", err)
+		return nil, status.Error(codes.Internal, fmt.Sprintf("cancel cleared rescan in memory but failed to persist it; retry: %v", err))
 	}
 
 	// If the batch had only pending work, it is now fully drained: remove it immediately (no
