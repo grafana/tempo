@@ -123,7 +123,7 @@ func TestSubmitRedactionQueryEndToEnd(t *testing.T) {
 		meta := metaByID[rd.BlockId]
 		require.NotNil(t, meta, "job references a discovered block")
 
-		rewrote, found, _, err := store.RedactBlock(ctx, meta, tenant, nil, rd.Query.GetQuery(), rd.Mode)
+		rewrote, found, _, err := store.RedactBlock(ctx, meta, tenant, nil, rd.Query.GetQuery(), rd.Mode, rd.StartTimeUnixNano, rd.EndTimeUnixNano)
 		require.NoError(t, err)
 		totalFound += found
 		if rewrote {

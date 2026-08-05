@@ -47,7 +47,7 @@ func TestRedactBlockQuerySelector(t *testing.T) {
 		meta := blk.BlockMeta()
 		require.Equal(t, int64(2), meta.TotalObjects)
 
-		rewrote, found, newMeta, err := c.RedactBlock(ctx, meta, testTenantID, nil, query, tempopb.RedactionMode_REDACTION_MODE_APPLY)
+		rewrote, found, newMeta, err := c.RedactBlock(ctx, meta, testTenantID, nil, query, tempopb.RedactionMode_REDACTION_MODE_APPLY, 0, 0)
 		require.NoError(t, err)
 		require.True(t, rewrote)
 		require.Equal(t, 1, found, "exactly one trace matches the query")
@@ -59,7 +59,7 @@ func TestRedactBlockQuerySelector(t *testing.T) {
 		blk := cutTestBlockWithTraces(t, w, data)
 		meta := blk.BlockMeta()
 
-		rewrote, found, newMeta, err := c.RedactBlock(ctx, meta, testTenantID, nil, query, tempopb.RedactionMode_REDACTION_MODE_DRY_RUN)
+		rewrote, found, newMeta, err := c.RedactBlock(ctx, meta, testTenantID, nil, query, tempopb.RedactionMode_REDACTION_MODE_DRY_RUN, 0, 0)
 		require.NoError(t, err)
 		require.False(t, rewrote, "dry-run must not rewrite")
 		require.Equal(t, 1, found, "dry-run still reports the match count")

@@ -1,0 +1,6 @@
+change_type: enhancement
+component: backend-scheduler
+note: redaction now accepts an optional `[start, end]` time window (`tempo-cli redact --start/--end`, Grafana-style `now-7d` or RFC3339). It scopes the batch to blocks whose data range overlaps the window and bounds each per-block scan, so operators can redact large tenants in time-sliced batches and let compaction recover between them. The window is resolved to absolute time by the client and frozen at submission; `0/0` (the default) is the whole tenant, unchanged.
+issues: []
+subtext:
+user: zalegrala
