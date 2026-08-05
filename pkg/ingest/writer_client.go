@@ -88,6 +88,15 @@ func NewWriterClient(kafkaCfg KafkaConfig, maxInflightProduceRequests int, logge
 		kgo.MaxBufferedRecords(math.MaxInt), // Use a high value to set it as unlimited, because the client doesn't support "0 as unlimited".
 		kgo.MaxBufferedBytes(0),
 	)
+
+	codec, set, err := parseProducerCompression(kafkaCfg.ProducerCompression)
+	if err != nil {
+		return nil, err
+	}
+	if set {
+		opts = append(opts, kgo.ProducerBatchCompression(codec))
+	}
+
 	if kafkaCfg.AutoCreateTopicEnabled {
 		kafkaCfg.SetDefaultNumberOfPartitionsForAutocreatedTopics(logger)
 	}

@@ -529,6 +529,11 @@ ingest:
         # The produce request fails once this limit is reached. This limit is per Kafka client. 0 to disable.
         [producer_max_buffered_bytes: <int> | default = 1073741824]
 
+        # Compression codec used by the Kafka producer.
+        # Supported values: none, gzip, snappy, lz4, zstd. If not set, the Kafka client's
+        # default codec preference is used.
+        [producer_compression: <string>]
+
         # The consumer group used by the consumer to track the last consumed offset.
         # If the value contains the '<partition>' placeholder, it is replaced with the partition ID.
         # When empty (recommended), Tempo uses the instance ID to guarantee uniqueness.
