@@ -799,14 +799,15 @@ func (w *Work) AddPendingJobs(jobs []*Job) error {
 }
 
 // PurgePendingRedactionJobs removes all not-yet-started (pending) redaction jobs for one tenant
-// and returns the number removed. Used by CancelRedaction to stop the remaining backlog; jobs
+// and returns the removed job IDs. Used by CancelRedaction to stop the remaining backlog; jobs
 // already dispatched (in-flight or running) are untouched and finish normally, so block in:out
-// stays 1:1. Tenant-scoped: a concurrent redaction on another tenant is unaffected.
+// stays 1:1. Tenant-scoped: a concurrent redaction on another tenant is unaffected. The returned
+// IDs let the caller flush only the affected shards rather than all of them.
 //
 // Mirrors NextPendingJob's lock discipline: dequeue from the per-tenant index under pendingMtx
 // (so the provider can no longer pop these jobs), then clear the shard entries and block index
 // outside the lock (removePendingBlockIndex takes pendingMtx itself).
-func (w *Work) PurgePendingRedactionJobs(tenantID string) int {
+func (w *Work) PurgePendingRedactionJobs(tenantID string) []string {
 	w.pendingMtx.Lock()
 	byType := w.pendingByTenant[tenantID]
 	ids := append([]string(nil), byType[tempopb.JobType_JOB_TYPE_REDACTION]...)
@@ -828,7 +829,7 @@ func (w *Work) PurgePendingRedactionJobs(tenantID string) int {
 			w.removePendingBlockIndex(j)
 		}
 	}
-	return len(ids)
+	return ids
 }
 
 // ListAllPendingJobs returns all pending jobs across all shards and tenants.

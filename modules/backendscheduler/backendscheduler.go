@@ -675,10 +675,13 @@ func (s *BackendScheduler) CancelRedaction(ctx context.Context, _ *tempopb.Cance
 	// removal. In-flight/running jobs are untouched and finish normally. A flush failure here still
 	// fails the RPC (retry re-purges), but the batch is already durably cancelled, so a maintenance
 	// tick removing it is correct rather than premature.
-	purged := s.work.PurgePendingRedactionJobs(tenant)
-	if err := s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, nil); err != nil {
-		level.Error(log.Logger).Log("msg", "failed to persist redaction cancel purge; retry", "tenant", tenant, "err", err)
-		return nil, status.Error(codes.Internal, fmt.Sprintf("cancel purged jobs in memory but failed to persist them; retry: %v", err))
+	purgedIDs := s.work.PurgePendingRedactionJobs(tenant)
+	if len(purgedIDs) > 0 {
+		// Flush only the shards that held the purged jobs, not all of them.
+		if err := s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, purgedIDs); err != nil {
+			level.Error(log.Logger).Log("msg", "failed to persist redaction cancel purge; retry", "tenant", tenant, "err", err)
+			return nil, status.Error(codes.Internal, fmt.Sprintf("cancel purged jobs in memory but failed to persist them; retry: %v", err))
+		}
 	}
 
 	// If the batch had only pending work, it is now fully drained: remove it immediately (no
@@ -688,14 +691,14 @@ func (s *BackendScheduler) CancelRedaction(ctx context.Context, _ *tempopb.Cance
 
 	span.SetAttributes(
 		attribute.String("batch_id", batchID),
-		attribute.Int("pending_purged", purged),
+		attribute.Int("pending_purged", len(purgedIDs)),
 	)
 	level.Info(log.Logger).Log("msg", "redaction cancelled",
-		"tenant", tenant, "batch_id", batchID, "pending_purged", purged)
+		"tenant", tenant, "batch_id", batchID, "pending_purged", len(purgedIDs))
 
 	return &tempopb.CancelRedactionResponse{
 		BatchId:       batchID,
-		PendingPurged: int32(purged),
+		PendingPurged: int32(len(purgedIDs)),
 	}, nil
 }
 
@@ -766,15 +769,13 @@ func (s *BackendScheduler) cleanupBatchIfDone(ctx context.Context, tenantID stri
 	}
 }
 
-// removalReason labels why a batch skipped quiescence, for logs.
-func removalReason(dryRun, cancelled bool) string {
+// removalReason labels why a batch skipped quiescence, for logs. Only called when one of the two
+// is set (dryRun or cancelled), so cancelled-first fully covers it.
+func removalReason(_, cancelled bool) string {
 	if cancelled {
 		return "cancelled"
 	}
-	if dryRun {
-		return "dry_run"
-	}
-	return "unknown"
+	return "dry_run"
 }
 
 // enterQuiescence records the quiesce-until deadline (now + quiescenceSweeps × MaintenanceInterval)

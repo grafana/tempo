@@ -24,7 +24,7 @@ func TestPurgePendingRedactionJobsIsTenantScoped(t *testing.T) {
 
 	purged := w.PurgePendingRedactionJobs("tenant-a")
 
-	require.Equal(t, 3, purged, "returns the number of pending jobs removed")
+	require.Len(t, purged, 3, "returns the IDs of the pending jobs removed")
 	require.Equal(t, 0, countPendingForTenant(w, "tenant-a"), "target tenant's pending redaction jobs are gone")
 	require.False(t, w.HasJobsForTenant("tenant-a", tempopb.JobType_JOB_TYPE_REDACTION))
 	require.Equal(t, 2, countPendingForTenant(w, "tenant-b"), "a concurrent tenant's redaction is untouched")

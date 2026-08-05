@@ -29,8 +29,9 @@ type Interface interface {
 	// dropped rather than promoted to active (else the counter leaks and wedges the tenant).
 	ReleaseRedactionInFlight(tenantID string)
 
-	// PurgePendingRedactionJobs removes one tenant's not-yet-started redaction jobs (cancel).
-	PurgePendingRedactionJobs(tenantID string) int
+	// PurgePendingRedactionJobs removes one tenant's not-yet-started redaction jobs (cancel),
+	// returning the removed job IDs so the caller can report how many were purged.
+	PurgePendingRedactionJobs(tenantID string) []string
 
 	// RegisterJob registers a job before it enters the channel pipeline, making it
 	// visible to other components. Cleared automatically by AddJob when promoted to active.
