@@ -153,8 +153,14 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 			var job *work.Job
 
 			for {
+				var ok bool
 				select {
-				case job = <-jobs:
+				case job, ok = <-jobs:
+					if !ok {
+						// Provider closed its channel (it has stopped); nothing more to forward.
+						level.Info(log.Logger).Log("msg", "provider channel closed", "provider", i)
+						return
+					}
 				case <-ctx.Done():
 					level.Info(log.Logger).Log("msg", "stopping provider", "provider", i)
 					return
@@ -167,7 +173,7 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 					level.Info(log.Logger).Log("msg", "stopping provider", "provider", i)
 					// This job was received but not forwarded; if it's a redaction job it was
 					// counted in-flight at dequeue and will never reach Next(), so release it.
-					if job.GetType() == tempopb.JobType_JOB_TYPE_REDACTION {
+					if job != nil && job.GetType() == tempopb.JobType_JOB_TYPE_REDACTION {
 						s.work.ReleaseRedactionInFlight(job.Tenant())
 					}
 					return
