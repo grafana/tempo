@@ -123,7 +123,7 @@ const (
 type TraceDiffRequest struct {
 	Base    TraceDiffTraceRequest `json:"base"`
 	Compare TraceDiffTraceRequest `json:"compare"`
-	Format  string                `json:"-"`
+	Format  string                `json:"format,omitempty"`
 }
 
 // TraceDiffTraceRequest identifies one side of a trace diff request.
@@ -822,7 +822,15 @@ func ParseTraceDiffRequest(r *http.Request) (*TraceDiffRequest, error) {
 		return nil, fmt.Errorf("invalid trace diff request body: %w", err)
 	}
 
-	req.Format = tracediff.VersionTracePatchV0
+	if req.Format == "" {
+		req.Format = tracediff.VersionTracePatchV0
+	}
+	switch req.Format {
+	case tracediff.VersionTraceSummaryV0Composed, tracediff.VersionTracePatchV0, tracediff.VersionTraceSummaryV0Native:
+	default:
+		return nil, fmt.Errorf("invalid format %q: must be one of %q, %q, %q",
+			req.Format, tracediff.VersionTraceSummaryV0Composed, tracediff.VersionTracePatchV0, tracediff.VersionTraceSummaryV0Native)
+	}
 
 	if err := parseTraceDiffTraceRequest("base", &req.Base); err != nil {
 		return nil, err

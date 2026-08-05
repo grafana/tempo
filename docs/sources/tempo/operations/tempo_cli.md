@@ -866,9 +866,9 @@ tempo-cli gen attr-index --add-intrinsics ./path/to/block
 This command is experimental. The output format and behavior may change in future releases.
 {{< /admonition >}}
 
-Compare two local trace JSON files. Use the default `trace-patch-v0` format for
-an exact mechanical change list, or `trace-summary-v0-native` for a compact
-triage and service-localization view.
+Compare two local trace JSON files. The default `trace-patch-v0` format returns
+the complete mechanical change list. You can instead request a compact native
+summary or a composed summary with a size-bounded patch.
 
 Use this command to compare traces captured at different times or from different environments, for example, to understand how a deployment changed trace structure.
 
@@ -883,11 +883,17 @@ Arguments:
 
 Options:
 
-- `--format <value>` Output format: `trace-patch-v0` (default) or `trace-summary-v0-native`.
+- `--format <value>` Output format: `trace-patch-v0` (default), `trace-summary-v0-native`, or `trace-summary-v0-composed`.
 - `-o, --out <path>` File to write output to. If not specified, output is printed to `stdout`.
 - `--pretty` Pretty-print JSON output.
 
 The input files can be either raw OpenTelemetry JSON traces or Tempo `TraceByIDResponse` JSON responses.
+
+The `trace-summary-v0-composed` format always includes a
+`trace-summary-v0-native` document. If
+the serialized `trace-patch-v0` document is no larger than 64 KiB, it is
+included in `patch`. Otherwise, `patchOmitted` reports its size and the reason
+`over_budget`; rerun with `--format trace-patch-v0` to retrieve the full patch.
 
 Example:
 
