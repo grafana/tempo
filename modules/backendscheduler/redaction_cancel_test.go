@@ -3,6 +3,7 @@ package backendscheduler
 import (
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -139,6 +140,48 @@ func TestCancelledBatchStaleRescanClearedNotRun(t *testing.T) {
 
 	s.cleanupOrphanedBatches(ctx)
 	require.Nil(t, s.work.GetBatch(tenant), "cancelled batch drains once its stale rescan is cleared")
+}
+
+// TestCheckPendingRescansConcurrentWithCancel runs the maintenance rescan sweep concurrently with
+// cancel-path mutations for the same tenant. Under -race it guards against reading batch fields
+// (RescanAfterUnixNano, Cancelled) off the live ListBatches pointer while the locked setters write
+// them — ListBatches must hand out a snapshot copy.
+func TestCheckPendingRescansConcurrentWithCancel(t *testing.T) {
+	ctx, s := newQuiescenceScheduler(t)
+	tenant := "t-rescan-race"
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: "b", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+		SkippedCompactionJobIds: []string{"j"},
+		RescanAfterUnixNano:     time.Now().Add(-time.Hour).UnixNano(),
+	}))
+
+	var wg sync.WaitGroup
+	stop := make(chan struct{})
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				s.checkPendingRescans(ctx)
+			}
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 2000; i++ {
+			s.work.SetBatchCancelled(tenant, i%2 == 0)
+			s.work.SetBatchRescan(tenant, []string{"j"}, time.Now().Add(-time.Hour).UnixNano())
+		}
+		close(stop)
+	}()
+
+	wg.Wait()
 }
 
 // TestCancelRedactionNoBatchReturnsNotFound verifies cancelling a tenant with no active redaction

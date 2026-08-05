@@ -89,7 +89,13 @@ func (b *batchStore) list() []*tempopb.RedactionBatch {
 	defer b.mu.RUnlock()
 	out := make([]*tempopb.RedactionBatch, 0, len(b.byTenant))
 	for _, batch := range b.byTenant {
-		out = append(out, batch)
+		// Return a shallow copy taken under the lock, not the live pointer: callers read mutable
+		// fields (RescanAfterUnixNano, Cancelled, ...) off tick, which would otherwise race the
+		// locked setters (SetBatchRescan/SetBatchCancelled). Scalars are snapshotted by value;
+		// slice fields (e.g. SkippedCompactionJobIds) are reassigned rather than mutated in place,
+		// so the copied header stays a consistent view. Cheap: no deep copy of trace IDs.
+		cp := *batch
+		out = append(out, &cp)
 	}
 	return out
 }
