@@ -165,6 +165,11 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 					metricProviderJobsMerged.WithLabelValues(strconv.Itoa(i)).Inc()
 				case <-ctx.Done():
 					level.Info(log.Logger).Log("msg", "stopping provider", "provider", i)
+					// This job was received but not forwarded; if it's a redaction job it was
+					// counted in-flight at dequeue and will never reach Next(), so release it.
+					if job.GetType() == tempopb.JobType_JOB_TYPE_REDACTION {
+						s.work.ReleaseRedactionInFlight(job.Tenant())
+					}
 					return
 				}
 			}
