@@ -163,7 +163,19 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 					}
 				case <-ctx.Done():
 					level.Info(log.Logger).Log("msg", "stopping provider", "provider", i)
-					return
+					// The provider channel is buffered: drain any job it already handed off but we
+					// never forwarded, releasing the in-flight count of redaction jobs so it does
+					// not leak on shutdown.
+					for {
+						select {
+						case j := <-jobs:
+							if j != nil && j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION {
+								s.work.ReleaseRedactionInFlight(j.Tenant())
+							}
+						default:
+							return
+						}
+					}
 				}
 
 				select {

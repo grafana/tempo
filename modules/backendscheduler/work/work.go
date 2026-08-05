@@ -139,6 +139,15 @@ func (w *Work) AddJob(j *Job) error {
 	defer shard.mtx.Unlock()
 
 	if _, ok := shard.Jobs[j.ID]; ok {
+		// This job is already active, so it will not be promoted here. If it was dequeued via
+		// NextPendingJob it was counted in-flight; release that count now — the promote-path
+		// decrement below is skipped by this early return, and without the release the counter
+		// leaks and HasJobsForTenant wedges the tenant permanently.
+		if j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION {
+			w.pendingMtx.Lock()
+			w.decRedactionInFlightLocked(j.Tenant())
+			w.pendingMtx.Unlock()
+		}
 		return ErrJobAlreadyExists
 	}
 
@@ -869,30 +878,23 @@ func (w *Work) decRedactionInFlightLocked(tenantID string) {
 // ReleaseRedactionInFlight decrements the tenant's in-flight redaction counter for a job that was
 // dequeued via NextPendingJob (and thus counted) but will NOT be promoted to active — e.g. dropped
 // at assignment because its batch is gone or cancelled. AddJob performs the same decrement on the
-// normal promote path; this covers the drop path so the counter can't leak and permanently wedge
-// the tenant's future redactions.
+// normal promote path; this releases the count on a drop path so it is not leaked there.
 func (w *Work) ReleaseRedactionInFlight(tenantID string) {
 	w.pendingMtx.Lock()
 	defer w.pendingMtx.Unlock()
 	w.decRedactionInFlightLocked(tenantID)
 }
 
-// hasRedactionInFlight returns true if there are redaction jobs for the tenant
-// that have been popped from the pending queue but not yet promoted to active.
-// Caller must hold pendingMtx.
-func (w *Work) hasRedactionInFlight(tenantID string) bool {
-	return w.redactionInFlight[tenantID] > 0
-}
-
-// HasJobsForTenant returns true if there are any jobs of the given type in any
-// state (pending queue, registered, or active map) for the tenant.
+// HasJobsForTenant returns true if there are any jobs of the given type for the tenant in any of
+// its tracked states: pending queue, in-flight (redaction jobs dequeued but not yet promoted),
+// registered, or active map.
 func (w *Work) HasJobsForTenant(tenantID string, jobType tempopb.JobType) bool {
 	w.pendingMtx.Lock()
 	hasPending := len(w.pendingByTenant[tenantID][jobType]) > 0
 	hasRunning := w.runningByTenant[tenantID][jobType] > 0
 	hasInFlight := false
 	if jobType == tempopb.JobType_JOB_TYPE_REDACTION {
-		hasInFlight = w.hasRedactionInFlight(tenantID)
+		hasInFlight = w.redactionInFlight[tenantID] > 0
 	}
 	if !hasInFlight && !hasRunning {
 		for _, j := range w.registeredJobs {
