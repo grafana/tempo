@@ -118,3 +118,34 @@ func TestRedactionInFlightAccountingNoLeakUnderRace(t *testing.T) {
 
 	require.False(t, w.HasJobsForTenant(tenant, tempopb.JobType_JOB_TYPE_REDACTION), "every dequeued job was released; in-flight count must be back to zero")
 }
+
+// TestAddJobAndAddPendingJobsConcurrent exercises AddJob and AddPendingJobs racing on the same shards
+// and tenant. AddPendingJobs locks pendingMtx then shard.mtx; AddJob must not hold shard.mtx while
+// taking pendingMtx or the two invert and can deadlock. This does not deterministically prove
+// deadlock-freedom (a reintroduced inversion would surface as a timeout, not a clean failure), but it
+// keeps the two lock orders under concurrent load and, with -race, guards the reordered access. It
+// also covers the AddJob-duplicate release path under contention.
+func TestAddJobAndAddPendingJobsConcurrent(t *testing.T) {
+	w := New(Config{}).(*Work)
+	tenant := "t"
+	const iters = 300
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < iters; i++ {
+			id := fmt.Sprintf("j%d", i%16) // small ID space => AddJob sees duplicates and hits the release path
+			_ = w.AddJob(createRedactionJob(id, tenant, fmt.Sprintf("blk%d", i)))
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for i := 0; i < iters; i++ {
+			id := fmt.Sprintf("j%d", i%16)
+			_ = w.AddPendingJobs([]*Job{createRedactionJob(id, tenant, fmt.Sprintf("pblk%d", i))})
+			w.NextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
+		}
+	}()
+	wg.Wait()
+}

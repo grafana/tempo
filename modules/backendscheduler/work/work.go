@@ -135,26 +135,27 @@ func (w *Work) AddJob(j *Job) error {
 	}
 
 	shard := w.getShard(j.ID)
-	shard.mtx.Lock()
-	defer shard.mtx.Unlock()
 
+	// Lock ordering: never hold shard.mtx while acquiring pendingMtx. AddPendingJobs takes them in
+	// the opposite order (pendingMtx then shard.mtx), so nesting the two here would be a lock-order
+	// inversion and could deadlock. We release shard.mtx before touching the pending-side maps.
+	shard.mtx.Lock()
 	if _, ok := shard.Jobs[j.ID]; ok {
+		shard.mtx.Unlock()
 		// This job is already active, so it will not be promoted here. If it was dequeued via
-		// NextPendingJob it was counted in-flight; release that count now — the promote-path
-		// decrement below is skipped by this early return, and without the release the counter
-		// leaks and HasJobsForTenant wedges the tenant permanently.
+		// NextPendingJob it was counted in-flight; release that count now — the promote path below
+		// is skipped by this early return, and without the release the counter leaks and
+		// HasJobsForTenant wedges the tenant permanently.
 		if j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION {
-			w.pendingMtx.Lock()
-			w.decRedactionInFlightLocked(j.Tenant())
-			w.pendingMtx.Unlock()
+			w.ReleaseRedactionInFlight(j.Tenant())
 		}
 		return ErrJobAlreadyExists
 	}
 
 	j.CreatedTime = time.Now()
 	j.Status = tempopb.JobStatus_JOB_STATUS_UNSPECIFIED
-
 	shard.Jobs[j.ID] = j
+	shard.mtx.Unlock()
 
 	w.pendingMtx.Lock()
 	// Clear registered job now that it is promoted to active.
