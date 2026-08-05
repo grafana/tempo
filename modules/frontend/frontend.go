@@ -47,7 +47,7 @@ type (
 )
 
 type QueryFrontend struct {
-	TraceByIDHandler, TraceByIDHandlerV2, TraceDiffHandler, SearchHandler                      http.Handler
+	TraceByIDHandler, TraceByIDHandlerV2, TraceDiffHandler, TraceSummaryHandler, SearchHandler http.Handler
 	SearchTagsHandler, SearchTagsV2Handler, SearchTagsValuesHandler, SearchTagsValuesV2Handler http.Handler
 	MetricsQueryInstantHandler, MetricsQueryRangeHandler                                       http.Handler
 	MCPHandler                                                                                 http.Handler
@@ -240,6 +240,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	traces := newTraceIDHandler(cfg, tracePipeline, o, combiner.NewTypedTraceByID, logger, dataAccessController)
 	tracesV2 := newTraceIDV2Handler(cfg, tracePipeline, o, combiner.NewTypedTraceByIDV2, logger, dataAccessController)
 	traceDiff := newTraceDiffHandler(cfg, apiPrefix, tracePipeline, o, combiner.NewTypedTraceByIDV2, cacheProvider, logger, dataAccessController)
+	traceSummary := newTraceSummaryHandler(cfg, apiPrefix, tracePipeline, o, combiner.NewTypedTraceByIDV2, logger, dataAccessController)
 	search := newSearchHTTPHandler(cfg, searchPipeline, o, logger, dataAccessController)
 	searchTags := newTagsHTTPHandler(cfg, searchTagsPipeline, o, logger, dataAccessController)
 	searchTagsV2 := newTagsV2HTTPHandler(cfg, searchTagsPipeline, o, logger, dataAccessController)
@@ -253,6 +254,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		TraceByIDHandler:           newHandler(cfg.Config.LogQueryRequestHeaders, traces, logger),
 		TraceByIDHandlerV2:         newHandler(cfg.Config.LogQueryRequestHeaders, tracesV2, logger),
 		TraceDiffHandler:           newHandler(cfg.Config.LogQueryRequestHeaders, traceDiff, logger),
+		TraceSummaryHandler:        newHandler(cfg.Config.LogQueryRequestHeaders, traceSummary, logger),
 		SearchHandler:              newHandler(cfg.Config.LogQueryRequestHeaders, search, logger),
 		SearchTagsHandler:          newHandler(cfg.Config.LogQueryRequestHeaders, searchTags, logger),
 		SearchTagsV2Handler:        newHandler(cfg.Config.LogQueryRequestHeaders, searchTagsV2, logger),

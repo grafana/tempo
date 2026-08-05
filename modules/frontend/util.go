@@ -1,6 +1,7 @@
 package frontend
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/tempodb/backend"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -31,6 +33,19 @@ func extractTenant(req *http.Request, logger log.Logger) (string, *http.Response
 }
 
 func acceptAllBlocks(_ *backend.BlockMeta) bool { return true }
+
+// jsonResponse builds a 200 OK http.Response wrapping body as a JSON payload.
+func jsonResponse(body []byte) *http.Response {
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Status:     http.StatusText(http.StatusOK),
+		Header: http.Header{
+			api.HeaderContentType: []string{api.HeaderAcceptJSON},
+		},
+		Body:          io.NopCloser(bytes.NewReader(body)),
+		ContentLength: int64(len(body)),
+	}
+}
 
 // setQueryShapeSpanAttrs stamps the query-shape attributes on the given span.
 func setQueryShapeSpanAttrs(span trace.Span, qs pipeline.QueryShape) {
