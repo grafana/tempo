@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -147,5 +148,14 @@ func TestAddJobAndAddPendingJobsConcurrent(t *testing.T) {
 			w.NextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
 		}
 	}()
-	wg.Wait()
+
+	// Completion is the assertion: a lock-order inversion would deadlock these two goroutines. Turn
+	// that into a clean failure instead of a CI hang.
+	done := make(chan struct{})
+	go func() { wg.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(30 * time.Second):
+		t.Fatal("AddJob/AddPendingJobs did not complete: likely a shard.mtx/pendingMtx lock-order inversion deadlock")
+	}
 }
