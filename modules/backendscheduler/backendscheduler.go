@@ -168,7 +168,12 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 					// not leak on shutdown.
 					for {
 						select {
-						case j := <-jobs:
+						case j, ok := <-jobs:
+							// A closed channel is always ready, so use the two-value receive and
+							// return on close; otherwise this loop would spin forever.
+							if !ok {
+								return
+							}
 							if j != nil && j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION {
 								s.work.ReleaseRedactionInFlight(j.Tenant())
 							}
