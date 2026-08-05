@@ -153,9 +153,7 @@ func (w *Work) AddJob(j *Job) error {
 	// If this redaction job was previously in-flight (popped from pending but not
 	// yet active), decrement the counter now that it has been promoted to active.
 	if j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION {
-		if w.redactionInFlight[j.Tenant()] > 0 {
-			w.redactionInFlight[j.Tenant()]--
-		}
+		w.decRedactionInFlightLocked(j.Tenant())
 	}
 	// Index the worker -> job assignment so GetJobForWorker is O(1).
 	if wid := j.GetWorkerID(); wid != "" {
@@ -828,6 +826,13 @@ func (w *Work) NextPendingJob(jobType tempopb.JobType) *Job {
 				break
 			}
 		}
+		// Count a redaction job as in-flight in the SAME critical section as the dequeue, so it is
+		// never dequeued-but-uncounted — a window in which HasJobsForTenant could misread the batch
+		// as done and remove it. If the shard lookup below shows the entry was stale, we undo this
+		// increment before retrying.
+		if tenantID != "" && jobType == tempopb.JobType_JOB_TYPE_REDACTION {
+			w.redactionInFlight[tenantID]++
+		}
 		w.pendingMtx.Unlock()
 
 		if tenantID == "" {
@@ -843,17 +848,33 @@ func (w *Work) NextPendingJob(jobType tempopb.JobType) *Job {
 
 		if j != nil {
 			w.removePendingBlockIndex(j)
-			// Track that this redaction job is now in-flight: it has been removed
-			// from the pending queue but not yet promoted to the active map.
-			if j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION {
-				w.pendingMtx.Lock()
-				w.redactionInFlight[j.Tenant()]++
-				w.pendingMtx.Unlock()
-			}
 			return j
 		}
-		// j is nil: stale index entry, skip and retry.
+		// Stale index entry (present in pendingByTenant but missing from the shard): undo the
+		// optimistic in-flight increment taken above, then retry.
+		if jobType == tempopb.JobType_JOB_TYPE_REDACTION {
+			w.ReleaseRedactionInFlight(tenantID)
+		}
 	}
+}
+
+// decRedactionInFlightLocked decrements a tenant's in-flight redaction counter, guarding against
+// underflow. Caller must hold pendingMtx.
+func (w *Work) decRedactionInFlightLocked(tenantID string) {
+	if w.redactionInFlight[tenantID] > 0 {
+		w.redactionInFlight[tenantID]--
+	}
+}
+
+// ReleaseRedactionInFlight decrements the tenant's in-flight redaction counter for a job that was
+// dequeued via NextPendingJob (and thus counted) but will NOT be promoted to active — e.g. dropped
+// at assignment because its batch is gone or cancelled. AddJob performs the same decrement on the
+// normal promote path; this covers the drop path so the counter can't leak and permanently wedge
+// the tenant's future redactions.
+func (w *Work) ReleaseRedactionInFlight(tenantID string) {
+	w.pendingMtx.Lock()
+	defer w.pendingMtx.Unlock()
+	w.decRedactionInFlightLocked(tenantID)
 }
 
 // hasRedactionInFlight returns true if there are redaction jobs for the tenant

@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: backend-scheduler
+note: fix a redaction in-flight job-accounting leak in the backend-scheduler — a redaction job dequeued from the pending queue but dropped at assignment (its batch already gone) leaked the per-tenant in-flight counter, which could make the tenant's batch look perpetually active and wedge future redaction submissions. The dequeue now counts the job in-flight atomically (closing a TOCTOU where a dequeued-but-not-yet-counted job could be misread as done), and the drop path releases the count.
+issues: []
+subtext:
+user: zalegrala
