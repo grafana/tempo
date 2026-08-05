@@ -27,22 +27,24 @@ var relUnitToDuration = map[string]time.Duration{
 //   - an absolute RFC3339 timestamp
 //
 // Relative forms are resolved client-side so the server only ever sees a frozen absolute window.
+const nowKeyword = "now"
+
 func parseTimeSpec(spec string, now time.Time) (int64, error) {
 	spec = strings.TrimSpace(spec)
 	if spec == "" {
 		return 0, nil
 	}
-	if spec == "now" {
+	if spec == nowKeyword {
 		return now.UnixNano(), nil
 	}
-	if rest, ok := strings.CutPrefix(spec, "now-"); ok {
+	if rest, ok := strings.CutPrefix(spec, nowKeyword+"-"); ok {
 		d, err := parseRelativeDuration(rest)
 		if err != nil {
 			return 0, err
 		}
 		return now.Add(-d).UnixNano(), nil
 	}
-	if rest, ok := strings.CutPrefix(spec, "now+"); ok {
+	if rest, ok := strings.CutPrefix(spec, nowKeyword+"+"); ok {
 		d, err := parseRelativeDuration(rest)
 		if err != nil {
 			return 0, err
@@ -51,7 +53,7 @@ func parseTimeSpec(spec string, now time.Time) (int64, error) {
 	}
 	t, err := time.Parse(time.RFC3339, spec)
 	if err != nil {
-		return 0, fmt.Errorf("invalid time %q: want 'now', 'now-<dur>' (e.g. now-7d), or an RFC3339 timestamp", spec)
+		return 0, fmt.Errorf("invalid time %q: want %q, a relative offset like %q, or an RFC3339 timestamp", spec, nowKeyword, nowKeyword+"-7d")
 	}
 	return t.UnixNano(), nil
 }
