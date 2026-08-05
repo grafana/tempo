@@ -318,6 +318,8 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 						j.JobDetail.Redaction.TraceIds = batch.TraceIds
 						j.JobDetail.Redaction.Query = batch.Query
 						j.JobDetail.Redaction.Mode = batch.Mode
+						j.JobDetail.Redaction.StartTimeUnixNano = batch.StartTimeUnixNano
+						j.JobDetail.Redaction.EndTimeUnixNano = batch.EndTimeUnixNano
 					}
 				}
 				if drop {
@@ -475,6 +477,12 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("unknown redaction mode %d", int32(req.Mode)))
 	}
 
+	// Optional [start, end] window: 0 means unbounded on that side. When both are set, require a
+	// valid range. The client resolves any relative form (e.g. now-7d) to absolute nanos first.
+	if req.StartTimeUnixNano != 0 && req.EndTimeUnixNano != 0 && req.StartTimeUnixNano >= req.EndTimeUnixNano {
+		return nil, status.Error(codes.InvalidArgument, "start_time_unix_nano must be before end_time_unix_nano")
+	}
+
 	if s.overrides.CompactionDisabled(tenant) {
 		return nil, status.Error(codes.FailedPrecondition, "compaction is disabled for this tenant")
 	}
@@ -512,6 +520,11 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 	skippedJobSet := make(map[string]struct{})
 	filtered := metas[:0:0]
 	for _, meta := range metas {
+		// Skip blocks whose data range falls outside the requested window (no job created). Keyed
+		// on the block's real StartTime/EndTime — see blockOverlapsWindow on why not CompactedTime.
+		if !blockOverlapsWindow(meta, req.StartTimeUnixNano, req.EndTimeUnixNano) {
+			continue
+		}
 		if jobID, busy := busyBlocks[meta.BlockID.String()]; busy {
 			skippedJobSet[jobID] = struct{}{}
 			continue
@@ -550,6 +563,8 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		TraceIds:          req.TraceIds,
 		Query:             querySel,
 		Mode:              req.Mode,
+		StartTimeUnixNano: req.StartTimeUnixNano,
+		EndTimeUnixNano:   req.EndTimeUnixNano,
 		CreatedAtUnixNano: time.Now().UnixNano(),
 	}
 	// Only apply-mode batches arm a rescan. A dry-run rewrites nothing, so there is no output

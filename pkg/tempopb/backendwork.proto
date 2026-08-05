@@ -75,6 +75,10 @@ message RedactionDetail {
   repeated bytes trace_ids = 2;  // trace IDs to remove from the block
   TraceQLSelector query = 3;     // when set, select traces via TraceQL instead of trace_ids
   RedactionMode mode = 4;        // apply vs dry-run for this job
+  // Absolute [start, end] window (unix nanoseconds), injected from the batch; bounds the per-block
+  // scan. 0 means unbounded on that side.
+  int64 start_time_unix_nano = 5;
+  int64 end_time_unix_nano = 6;
 }
 
 // JobDetail contains the specific details for each job type
@@ -129,6 +133,12 @@ message SubmitRedactionRequest {
     TraceQLSelector query = 3;
   }
   RedactionMode mode = 4;  // apply (default) vs dry-run
+  // Optional absolute [start, end] window (unix nanoseconds) that scopes the redaction to blocks
+  // overlapping it and bounds the per-block scan. 0 means unbounded on that side; 0/0 (default) is
+  // the whole tenant, matching prior behavior. The window is resolved to absolute time by the
+  // client (e.g. the CLI accepts Grafana-style now-7d) and frozen here, so it never chases ingest.
+  int64 start_time_unix_nano = 5;
+  int64 end_time_unix_nano = 6;
 }
 
 message SubmitRedactionResponse {
@@ -179,6 +189,10 @@ message RedactionBatch {
   // removed on the first maintenance tick at or after the deadline. An absolute timestamp is
   // stable across pod restarts / work reloads and avoids rewriting the batch on every tick.
   int64 quiesce_until_unix_nano = 9;
+  // Absolute [start, end] window (unix nanoseconds) for this redaction, frozen at submission.
+  // Stored on the batch and injected into each per-block job. 0 means unbounded on that side.
+  int64 start_time_unix_nano = 10;
+  int64 end_time_unix_nano = 11;
 }
 
 // RedactionBatches is the top-level container written to batches.pb.
