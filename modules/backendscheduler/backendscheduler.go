@@ -332,18 +332,30 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 						drop = true
 					}
 				case tempopb.JobType_JOB_TYPE_REDACTION:
-					// Resolve trace IDs from the batch manifest.
-					// Drop if the batch no longer exists (cancelled or already cleaned up).
+					// The batch carries the selector this job needs, and is resolved by tenant. Drop the
+					// job unless that batch is still the one it was created for and still wants the work.
+					// Dropping happens before any work begins, so no partial output exists and the 1:1
+					// block in:out invariant holds; jobs already running on a worker still finish.
 					batch := s.work.GetBatch(j.Tenant())
-					if batch == nil || batch.Cancelled {
-						// Drop if the batch is gone (already cleaned up) or cancelled. A cancel's purge
-						// only reaches jobs still in the pending queue, and the batch itself remains
-						// until in-flight work drains, so a job dequeued just before the cancel would
-						// otherwise be assigned and redact a block the operator asked to stop. Dropping
-						// happens before any work begins, so no partial output exists and the 1:1 block
-						// in:out invariant holds; jobs already running on a worker still finish.
+					dropReason := ""
+					switch {
+					case batch == nil:
+						dropReason = "batch_missing"
+					case batch.Cancelled:
+						// A cancel's purge only reaches jobs still in the pending queue, so a job dequeued
+						// just before the cancel would otherwise be assigned and redact a block the
+						// operator asked to stop.
+						dropReason = "batch_cancelled"
+					case j.JobDetail.BatchId != "" && j.JobDetail.BatchId != batch.BatchId:
+						// A job left over from an earlier batch, still travelling the provider channel when
+						// that batch was removed and a new one submitted. Without this check it would be
+						// handed the new batch's selector and mode, rewriting its block under a selector it
+						// was never scheduled for — possibly in apply mode when it belonged to a dry run.
+						dropReason = "batch_superseded"
+					}
+					if dropReason != "" {
 						level.Debug(log.Logger).Log("msg", "dropping redaction job",
-							"job_id", j.ID, "tenant", j.Tenant(), "reason", batchDropReason(batch))
+							"job_id", j.ID, "tenant", j.Tenant(), "reason", dropReason)
 						metricJobsDropped.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
 						// This job was counted in-flight when NextPendingJob dequeued it; since it is
 						// dropped rather than promoted via AddJob, release that count or it leaks.
@@ -749,14 +761,6 @@ const quiescenceSweeps = 2
 // never read off a live pointer without the store lock (data race).
 func (s *BackendScheduler) redactionBatchActive(tenantID string, rescanPending bool) bool {
 	return s.work.HasJobsForTenant(tenantID, tempopb.JobType_JOB_TYPE_REDACTION) || rescanPending
-}
-
-// batchDropReason describes why a redaction job was dropped at assignment, for logging.
-func batchDropReason(batch *tempopb.RedactionBatch) string {
-	if batch == nil {
-		return "batch no longer exists"
-	}
-	return "batch cancelled"
 }
 
 // cleanupBatchIfDone is called when a batch's redaction jobs may have all finished (e.g. on job

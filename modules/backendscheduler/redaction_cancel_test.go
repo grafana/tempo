@@ -248,6 +248,34 @@ func TestCancelledBatchFutureRescanCleared(t *testing.T) {
 	require.Empty(t, b.SkippedCompactionJobIds, "the abandoned skipped-job list is cleared with the rescan")
 }
 
+// TestNextDropsJobFromSupersededBatch verifies a job left over from an earlier batch is not executed
+// against a later one. Cancel is designed so the operator can stop and resubmit, and a job dequeued
+// before the cancel survives the purge (which only reaches the pending queue), so it can still arrive
+// at assignment after the old batch is gone and a new one exists. Because the batch is resolved by
+// tenant, such a job would be handed the NEW batch's selector and mode — rewriting a block under a
+// selector it was never scheduled for, and possibly in apply mode when it belonged to a dry run.
+func TestNextDropsJobFromSupersededBatch(t *testing.T) {
+	ctx, s := newQuiescenceScheduler(t)
+	s.cfg.JobTimeout = 200 * time.Millisecond
+	tenant := "t-superseded"
+
+	// A job belonging to the original batch, dequeued before that batch went away.
+	stale := pendingRedactionJob("s1", tenant, "blk1")
+	stale.JobDetail.BatchId = "batch-old"
+
+	// The operator has since resubmitted: a different batch, with a different selector.
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: "batch-new", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+		TraceIds: [][]byte{{0xAA}},
+	}))
+
+	s.mergedJobs <- stale
+
+	_, err := s.Next(ctx, &tempopb.NextJobRequest{WorkerId: "w1"})
+	require.Error(t, err, "a job from a superseded batch is not assigned")
+	require.Equal(t, codes.NotFound, status.Code(err))
+}
+
 // TestPerformRescanAbandonsCancelledBatch verifies a rescan already in progress does not re-arm itself
 // on a batch that was cancelled while it ran. The sweep scans from a snapshot and the scan is slow
 // (it walks every shard, possibly over several generations), so a cancel can land mid-scan. Committing
