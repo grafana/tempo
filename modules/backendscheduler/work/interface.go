@@ -29,6 +29,10 @@ type Interface interface {
 	// dropped rather than promoted to active (else the counter leaks and wedges the tenant).
 	ReleaseRedactionInFlight(tenantID string)
 
+	// ReleaseAllRedactionInFlight drops the tenant's whole in-flight count and reports how many were
+	// released, so a cancel is not left waiting on jobs that were dequeued but will never be dispatched.
+	ReleaseAllRedactionInFlight(tenantID string) int
+
 	// PurgePendingRedactionJobs removes one tenant's not-yet-started redaction jobs (cancel),
 	// returning the removed job IDs so the caller can report how many were purged.
 	PurgePendingRedactionJobs(tenantID string) []string

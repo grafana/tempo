@@ -66,10 +66,16 @@ func TestCancelledDryRunBatchRemovedImmediately(t *testing.T) {
 	require.Nil(t, s.work.GetBatch(tenant), "a cancelled dry-run batch is removed immediately once drained")
 }
 
-// TestCancelRedactionPurgesPendingAndMarksCancelled verifies the handler stops the backlog: it
-// marks the batch cancelled, purges the pending jobs, and — while an in-flight job is still
-// draining — leaves the batch in place (so that job finishes and in:out stays 1:1).
-func TestCancelRedactionPurgesPendingAndMarksCancelled(t *testing.T) {
+// TestCancelRedactionPurgesPendingAndReleasesDequeued verifies the handler stops the backlog: it marks
+// the batch cancelled, purges the queued jobs, and releases jobs that were already dequeued but never
+// dispatched.
+//
+// Releasing those matters because they will be dropped at assignment now the batch is cancelled, so
+// counting them as in-flight would keep the tenant looking busy and hold its compaction waiting on work
+// that will never start — indefinitely if the workers are down, which is exactly when an operator
+// reaches for cancel. The batch itself is still held, by quiescence rather than by the job count, so the
+// blocklist can catch up to anything already rewritten.
+func TestCancelRedactionPurgesPendingAndReleasesDequeued(t *testing.T) {
 	ctx, s := newQuiescenceScheduler(t)
 	tenant := "t-cancel2"
 	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
@@ -91,10 +97,12 @@ func TestCancelRedactionPurgesPendingAndMarksCancelled(t *testing.T) {
 	require.Equal(t, int32(2), resp.PendingPurged, "the two still-pending jobs are purged")
 
 	b := s.work.GetBatch(tenant)
-	require.NotNil(t, b, "batch remains while the in-flight job drains")
+	require.NotNil(t, b, "the batch is held through quiescence so the blocklist can catch up")
 	require.True(t, b.Cancelled, "batch is marked cancelled")
 	require.Zero(t, b.RescanAfterUnixNano, "cancel clears any armed rescan")
-	require.True(t, s.work.HasJobsForTenant(tenant, tempopb.JobType_JOB_TYPE_REDACTION), "the in-flight job keeps the batch active")
+	require.NotZero(t, b.QuiesceUntilUnixNano, "the batch is held by quiescence, not by the dequeued job")
+	require.False(t, s.work.HasJobsForTenant(tenant, tempopb.JobType_JOB_TYPE_REDACTION),
+		"the dequeued job is released: it will be dropped at assignment, so it must not hold the tenant's compaction")
 }
 
 // TestCancelRedactionQuiescesDrainedBatch verifies that a cancel which leaves no outstanding work
@@ -248,35 +256,64 @@ func TestCancelledBatchFutureRescanCleared(t *testing.T) {
 	require.Empty(t, b.SkippedCompactionJobIds, "the abandoned skipped-job list is cleared with the rescan")
 }
 
-// TestRedactionMutexIsPerTenant verifies the redaction lifecycle lock serializes calls for one tenant
-// without blocking others. Submit publishes a batch and its jobs in two steps; a cancel observing the
-// gap would act on a half-published submission, and the submitting operator would still be told the
-// jobs were created. Serializing the two RPCs per tenant closes that window, while keeping unrelated
-// tenants independent — cancel is an operational safety valve and must not queue behind another
-// tenant's submission.
-func TestRedactionMutexIsPerTenant(t *testing.T) {
-	_, s := newQuiescenceScheduler(t)
-	a := "tenant-a"
+// TestCancelUnblocksTenantWithNoWorkers verifies a cancel relieves the tenant even when nothing is
+// consuming jobs. Cancel exists because a running redaction holds the tenant's compaction open, so the
+// one case it must not fail is the one where work has stalled: jobs dequeued into the channels with no
+// worker to take them would otherwise count as in-flight forever, keeping the batch active, keeping
+// TenantPending true, and leaving compaction disabled after a cancel reported success.
+func TestCancelUnblocksTenantWithNoWorkers(t *testing.T) {
+	ctx, s := newQuiescenceScheduler(t)
+	tenant := "t-no-workers"
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: "batch-stalled", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+	}))
+	require.NoError(t, s.work.AddPendingJobs([]*work.Job{
+		pendingRedactionJob("w1", tenant, "blk1"),
+		pendingRedactionJob("w2", tenant, "blk2"),
+	}))
+	// Both jobs leave the queue but no worker ever calls Next(), so they sit parked and counted.
+	require.NotNil(t, s.work.NextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION))
+	require.NotNil(t, s.work.NextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION))
+	require.True(t, s.work.HasJobsForTenant(tenant, tempopb.JobType_JOB_TYPE_REDACTION))
 
-	// Find a tenant that maps to a different lock, so the independence assertion is meaningful.
-	var b string
-	for i := range 1000 {
-		cand := fmt.Sprintf("tenant-%d", i)
-		if s.redactionMutex(cand) != s.redactionMutex(a) {
-			b = cand
-			break
-		}
-	}
-	require.NotEmpty(t, b, "expected some tenant to map to a different lock")
+	_, err := s.CancelRedaction(user.InjectOrgID(ctx, tenant), &tempopb.CancelRedactionRequest{})
+	require.NoError(t, err)
 
-	s.redactionMutex(a).Lock()
-	require.False(t, s.redactionMutex(a).TryLock(), "the same tenant's lifecycle calls serialize")
-	require.True(t, s.redactionMutex(b).TryLock(), "a different tenant is not blocked")
-	s.redactionMutex(b).Unlock()
-	s.redactionMutex(a).Unlock()
+	require.False(t, s.work.HasJobsForTenant(tenant, tempopb.JobType_JOB_TYPE_REDACTION),
+		"parked jobs are released, so nothing keeps the batch active once the workers are gone")
 
-	require.True(t, s.redactionMutex(a).TryLock(), "the lock is released again")
-	s.redactionMutex(a).Unlock()
+	// The batch is still held for quiescence; once that elapses the sweep removes it and compaction
+	// resumes, which it never would if the parked jobs still counted.
+	s.work.SetBatchQuiesceUntil(tenant, time.Now().Add(-time.Hour).UnixNano())
+	s.cleanupOrphanedBatches(ctx)
+	require.Nil(t, s.work.GetBatch(tenant), "the batch is removable after quiescence")
+	require.False(t, s.work.TenantPending(tenant), "the tenant's compaction is no longer gated")
+}
+
+// TestSubmitReportsFailureIfCancelledWhilePublishing verifies a submission that is cancelled between
+// publishing its batch and publishing its jobs reports failure rather than success. The two stores
+// cannot be written atomically, so instead of locking the lifecycle the publisher checks afterwards
+// whether its batch is still the current one — and if not, discards the jobs it queued rather than
+// leaving them to be dropped one by one while making the tenant look busy.
+func TestSubmitReportsFailureIfCancelledWhilePublishing(t *testing.T) {
+	ctx, s := newQuiescenceScheduler(t)
+	tenant := "t-lost-submit"
+	batchID := "batch-lost"
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: batchID, TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+	}))
+	require.NoError(t, s.work.AddPendingJobs([]*work.Job{
+		pendingRedactionJob("p1", tenant, "blk1"),
+		pendingRedactionJob("p2", tenant, "blk2"),
+	}))
+
+	// The cancel lands after the jobs were queued.
+	s.work.SetBatchCancelled(tenant, true)
+
+	discarded, unchanged := s.discardIfBatchChanged(ctx, tenant, batchID)
+	require.False(t, unchanged, "the batch this submission published is no longer the live one")
+	require.Equal(t, 2, discarded, "the jobs it queued are discarded rather than left to be dropped")
+	require.False(t, s.work.HasJobsForTenant(tenant, tempopb.JobType_JOB_TYPE_REDACTION))
 }
 
 // TestNextDropsJobFromSupersededBatch verifies a job left over from an earlier batch is not executed

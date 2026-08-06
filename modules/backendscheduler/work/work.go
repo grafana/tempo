@@ -917,6 +917,20 @@ func (w *Work) decRedactionInFlightLocked(tenantID string) {
 // dequeued via NextPendingJob (and thus counted) but will NOT be promoted to active — e.g. dropped
 // at assignment because its batch is gone or cancelled. AddJob performs the same decrement on the
 // normal promote path; this releases the count on a drop path so it is not leaked there.
+// ReleaseAllRedactionInFlight drops a tenant's entire in-flight redaction count and reports how many
+// were released. Used by cancel: those jobs were dequeued but not dispatched, and a cancelled batch has
+// them dropped at assignment rather than run, so holding the count only keeps the batch — and the
+// tenant's compaction — alive waiting for work that will never start. Releasing is safe because the
+// count is what keeps a batch alive for jobs that might still be dispatched; quiescence, not this
+// count, is what holds the batch for blocks already rewritten.
+func (w *Work) ReleaseAllRedactionInFlight(tenantID string) int {
+	w.pendingMtx.Lock()
+	defer w.pendingMtx.Unlock()
+	n := w.redactionInFlight[tenantID]
+	delete(w.redactionInFlight, tenantID)
+	return n
+}
+
 func (w *Work) ReleaseRedactionInFlight(tenantID string) {
 	w.pendingMtx.Lock()
 	defer w.pendingMtx.Unlock()

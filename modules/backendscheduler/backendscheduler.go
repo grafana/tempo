@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"hash/fnv"
 	"io"
 	"net/http"
 	"sort"
@@ -56,23 +55,6 @@ type BackendScheduler struct {
 	}
 
 	mergedJobs chan *work.Job
-
-	// redactionLocks serializes a tenant's redaction lifecycle RPCs (submit, cancel) with each other.
-	// Submit publishes a batch and then its jobs; without this a cancel could act on the gap between
-	// them and the submitting operator would still be told the jobs were created. Fixed-size and keyed
-	// by tenant hash, mirroring the work store's sharding, so there is nothing to allocate or clean up.
-	// Distinct tenants may share a lock, which is harmless: these calls are rare and hold it briefly.
-	redactionLocks [redactionLockShards]sync.Mutex
-}
-
-// redactionLockShards is the number of locks used to serialize per-tenant redaction lifecycle calls.
-const redactionLockShards = 64
-
-// redactionMutex returns the lock guarding a tenant's redaction lifecycle transitions.
-func (s *BackendScheduler) redactionMutex(tenantID string) *sync.Mutex {
-	h := fnv.New32a()
-	_, _ = h.Write([]byte(tenantID))
-	return &s.redactionLocks[h.Sum32()%redactionLockShards]
 }
 
 // ListJobs returns all jobs in the work cache
@@ -632,25 +614,27 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		batch.RescanAfterUnixNano = time.Now().Add(s.cfg.ProviderConfig.Redaction.RescanDelay).UnixNano()
 	}
 
-	// Publish the batch and its jobs as one unit with respect to the tenant's other lifecycle calls.
-	// The batch is stored first so the jobs always have one to resolve, which leaves a gap in which the
-	// batch exists with no jobs; a cancel arriving there would see nothing to stop, act on a
-	// half-published submission, and this call would still report the jobs as created. The lock is held
-	// only for the publish, not for the block discovery above, so a cancel is never stuck behind a slow
-	// submission. On job failure the batch is rolled back so the tenant is not locked out of future
-	// submissions.
-	unlock := s.redactionMutex(tenant)
-	unlock.Lock()
+	// Store the batch first so the jobs always have one to resolve. That leaves a gap in which the
+	// batch exists with no jobs yet, during which a cancel can stop it, or the maintenance sweep can
+	// see nothing outstanding and remove it. Rather than lock the lifecycle against those, publish and
+	// then check whether the batch we published is still ours: if it is not, the submission lost and we
+	// must say so instead of reporting jobs that will never run. On job failure the batch is rolled back
+	// so the tenant is not locked out of future submissions.
 	if err := s.work.AddBatch(batch); err != nil {
-		unlock.Unlock()
+		if errors.Is(err, work.ErrBatchAlreadyExists) {
+			return nil, status.Error(codes.AlreadyExists, "a redaction is already in progress for this tenant")
+		}
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	if err := s.work.AddPendingJobs(jobs); err != nil {
 		s.work.RemoveBatch(tenant)
-		unlock.Unlock()
 		return nil, status.Error(codes.Internal, err.Error())
 	}
-	unlock.Unlock()
+	if discarded, ok := s.discardIfBatchChanged(ctx, tenant, batchID); !ok {
+		level.Warn(log.Logger).Log("msg", "redaction submission was cancelled or removed while it was being published",
+			"tenant", tenant, "batch_id", batchID, "jobs_discarded", discarded)
+		return nil, status.Error(codes.Aborted, "the redaction was cancelled or removed while it was being submitted; nothing was queued")
+	}
 
 	// Persist batch manifest and affected shards. Both are best-effort here;
 	// the data is safely in memory and will be flushed again on shutdown.
@@ -698,13 +682,6 @@ func (s *BackendScheduler) CancelRedaction(ctx context.Context, _ *tempopb.Cance
 	}
 	span.SetAttributes(attribute.String("tenant", tenant))
 
-	// Serialize against the tenant's other lifecycle calls, so a cancel never observes a submission
-	// that has published its batch but not yet its jobs. Held for the whole handler: everything below
-	// is in-memory work plus one manifest write.
-	lock := s.redactionMutex(tenant)
-	lock.Lock()
-	defer lock.Unlock()
-
 	batch := s.work.GetBatch(tenant)
 	if batch == nil {
 		return nil, status.Error(codes.NotFound, "no redaction in progress for this tenant")
@@ -739,6 +716,15 @@ func (s *BackendScheduler) CancelRedaction(ctx context.Context, _ *tempopb.Cance
 	// retry something already in effect.
 	s.work.SetBatchRescan(tenant, nil, 0)
 	purgedIDs := s.work.PurgePendingRedactionJobs(tenant)
+	// Release jobs that were already dequeued but never dispatched. They are parked in the provider and
+	// merged channels and will be dropped at assignment now the batch is cancelled, so counting them as
+	// in-flight only keeps the batch — and with it the tenant's compaction — waiting on work that will
+	// never start. Without this, a cancel issued while the workers are down or wedged leaves the tenant
+	// gated indefinitely, which is the opposite of what cancel is for.
+	if parked := s.work.ReleaseAllRedactionInFlight(tenant); parked > 0 {
+		level.Info(log.Logger).Log("msg", "released dequeued redaction jobs that will not be dispatched",
+			"tenant", tenant, "batch_id", batchID, "released", parked)
+	}
 	// Flush unconditionally, even when this call purged nothing: a retry finds the jobs already gone
 	// from memory and so gets no IDs back, while they are still on disk. With no IDs to target this
 	// flushes every shard, persisting whatever an earlier attempt removed.
@@ -803,6 +789,29 @@ const quiescenceSweeps = 2
 // never read off a live pointer without the store lock (data race).
 func (s *BackendScheduler) redactionBatchActive(tenantID string, rescanPending bool) bool {
 	return s.work.HasJobsForTenant(tenantID, tempopb.JobType_JOB_TYPE_REDACTION) || rescanPending
+}
+
+// discardIfBatchChanged reports whether the tenant's batch is still the one identified by batchID and
+// not cancelled. If it is not, the pending redaction jobs just enqueued for it belong to a submission
+// that lost, so they are purged and the count of discarded jobs is returned.
+//
+// This replaces locking the redaction lifecycle. The publish of a batch and its jobs cannot be made
+// atomic across the two stores, so instead of preventing a cancel or a maintenance sweep from acting on
+// the gap, the publisher checks afterwards whether it was acted upon. Leaving the jobs would be safe for
+// the data — Next() drops them — but they would keep the tenant looking busy and delay quiescence, and
+// the caller would report work that never runs.
+func (s *BackendScheduler) discardIfBatchChanged(ctx context.Context, tenantID, batchID string) (discarded int, unchanged bool) {
+	batch := s.work.GetBatch(tenantID)
+	if batch != nil && batch.BatchId == batchID && !batch.Cancelled {
+		return 0, true
+	}
+	purged := s.work.PurgePendingRedactionJobs(tenantID)
+	if len(purged) > 0 {
+		if err := s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, purged); err != nil {
+			level.Warn(log.Logger).Log("msg", "failed to persist discard of superseded redaction jobs", "tenant", tenantID, "err", err)
+		}
+	}
+	return len(purged), false
 }
 
 // cleanupBatchIfDone is called when a batch's redaction jobs may have all finished (e.g. on job
@@ -1048,6 +1057,13 @@ func (s *BackendScheduler) performRescan(ctx context.Context, batch *tempopb.Red
 	if len(allReadyJobs) > 0 {
 		if err := s.work.AddPendingJobs(allReadyJobs); err != nil {
 			level.Error(log.Logger).Log("msg", "redaction rescan: failed to add pending jobs", "tenant", tenantID, "err", err)
+			return
+		}
+		// The guard above only covered the rescan write; a cancel can still land between it and here, so
+		// check whether the batch these jobs were built for is still current and discard them if not.
+		if discarded, ok := s.discardIfBatchChanged(ctx, tenantID, batchID); !ok {
+			level.Info(log.Logger).Log("msg", "redaction rescan: batch cancelled or replaced after the rescan committed; enqueued jobs discarded",
+				"tenant", tenantID, "batch_id", batchID, "jobs_discarded", discarded)
 			return
 		}
 	}
