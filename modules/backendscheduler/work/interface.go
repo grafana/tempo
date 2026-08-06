@@ -29,6 +29,14 @@ type Interface interface {
 	// dropped rather than promoted to active (else the counter leaks and wedges the tenant).
 	ReleaseRedactionInFlight(tenantID string)
 
+	// ReleaseAllRedactionInFlight drops the tenant's whole in-flight count and reports how many were
+	// released, so a cancel is not left waiting on jobs that were dequeued but will never be dispatched.
+	ReleaseAllRedactionInFlight(tenantID string) int
+
+	// PurgePendingRedactionJobs removes one tenant's not-yet-started redaction jobs (cancel),
+	// returning the removed job IDs so the caller can report how many were purged.
+	PurgePendingRedactionJobs(tenantID string) []string
+
 	// RegisterJob registers a job before it enters the channel pipeline, making it
 	// visible to other components. Cleared automatically by AddJob when promoted to active.
 	RegisterJob(job *Job)
@@ -61,7 +69,23 @@ type Interface interface {
 	RemoveBatch(tenantID string)
 	ListBatches() []*tempopb.RedactionBatch
 	SetBatchRescan(tenantID string, skippedJobIDs []string, rescanAfterUnixNano int64)
+
+	// SetBatchRescanIfCurrent arms the rescan only if the tenant's batch is still the one identified
+	// by batchID and is not cancelled, reporting whether it applied. Use it to commit a rescan result
+	// computed from an earlier snapshot, so a cancel or a resubmission that landed in the meantime is
+	// not overwritten.
+	SetBatchRescanIfCurrent(tenantID, batchID string, skippedJobIDs []string, rescanAfterUnixNano int64) bool
 	SetBatchQuiesceUntil(tenantID string, untilUnixNano int64)
+	// SetBatchCancelled sets the tenant's cancelled flag, publishing it to readers, and reports the
+	// value it replaced so a retry can tell whether it made the change. Publish only after
+	// PersistBatchCancelled has made the cancel durable.
+	SetBatchCancelled(tenantID string, cancelled bool) (previous bool)
+
+	// CommitBatchCancel makes the tenant's cancel durable and then publishes it to readers as one
+	// operation: on success it is both on disk and visible, on failure neither, so a failed cancel is
+	// never observable and is safe to retry. Reports whether the batch was already cancelled (making a
+	// retry idempotent) and returns ErrBatchNotFound if the tenant has no batch.
+	CommitBatchCancel(ctx context.Context, tenantID, localPath string) (alreadyCancelled bool, err error)
 	BatchQuiescenceState(tenantID string) (quiesceUntilUnixNano int64, rescanPending, dryRun, ok bool)
 	FlushBatchesToLocal(ctx context.Context, localPath string) error
 	LoadBatchesFromLocal(ctx context.Context, localPath string) error

@@ -18,6 +18,12 @@ service BackendScheduler {
   // The scheduler discovers all blocks for the tenant and fans out one internal pending
   // job per block.
   rpc SubmitRedaction(SubmitRedactionRequest) returns (SubmitRedactionResponse) {}
+
+  // Cancel an in-progress redaction for the authenticated tenant. Stops handing out work:
+  // queued jobs are discarded, as are jobs already dequeued but not yet assigned. Jobs already
+  // running on a worker finish, so a block rewrite is never interrupted and block in:out stays
+  // 1:1. The tenant is sourced exclusively from the X-Scope-OrgID header (never a body field).
+  rpc CancelRedaction(CancelRedactionRequest) returns (CancelRedactionResponse) {}
 }
 
 enum JobType {
@@ -138,6 +144,22 @@ message SubmitRedactionResponse {
   int32 jobs_created = 2;
 }
 
+// CancelRedactionRequest cancels the authenticated tenant's in-progress redaction. It carries
+// no tenant field on purpose: the tenant is read from the X-Scope-OrgID header so cancel rides
+// the same auth/tenant scoping as every other call and cannot cross tenants.
+message CancelRedactionRequest {}
+
+message CancelRedactionResponse {
+  // batch_id of the cancelled batch.
+  string batch_id = 1;
+  // pending_purged counts the jobs removed from the tenant's pending queue by this call. It is
+  // not the total abandoned: jobs already dequeued for assignment are discarded too (at assignment
+  // time, so they cannot be counted here), and a retry of an interrupted cancel reports 0 because
+  // the queue was already emptied. Jobs already running on a worker are not abandoned at all --
+  // they finish.
+  int32 pending_purged = 2;
+}
+
 // RedactionResult is reported by the worker when a redaction job completes.
 message RedactionResult {
   option (gogoproto.equal) = true;
@@ -179,6 +201,11 @@ message RedactionBatch {
   // removed on the first maintenance tick at or after the deadline. An absolute timestamp is
   // stable across pod restarts / work reloads and avoids rewriting the batch on every tick.
   int64 quiesce_until_unix_nano = 9;
+  // cancelled marks a batch whose queued jobs were discarded by CancelRedaction. Jobs already
+  // running on a worker still finish, so an apply-mode batch may have rewritten blocks; it
+  // therefore still quiesces (only a dry-run, which rewrites nothing, skips that). No rescan is
+  // performed: the blocks a cancel abandons are deliberately left un-redacted.
+  bool cancelled = 10;
 }
 
 // RedactionBatches is the top-level container written to batches.pb.

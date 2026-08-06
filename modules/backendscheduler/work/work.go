@@ -798,6 +798,43 @@ func (w *Work) AddPendingJobs(jobs []*Job) error {
 	return nil
 }
 
+// PurgePendingRedactionJobs removes all not-yet-started (pending) redaction jobs for one tenant
+// and returns the removed job IDs. Used by CancelRedaction to stop the remaining backlog.
+//
+// It reaches only the pending queue. Jobs already dequeued are untouched here and dropped later at
+// assignment by Next(); jobs already running on a worker are untouched and finish, so a block rewrite
+// is never interrupted and block in:out stays 1:1. Tenant-scoped: a concurrent redaction on another
+// tenant is unaffected. The returned IDs both report how many were purged and let the caller flush
+// only the affected shards.
+//
+// Mirrors NextPendingJob's lock discipline: dequeue from the per-tenant index under pendingMtx
+// (so the provider can no longer pop these jobs), then clear the shard entries and block index
+// outside the lock (removePendingBlockIndex takes pendingMtx itself).
+func (w *Work) PurgePendingRedactionJobs(tenantID string) []string {
+	w.pendingMtx.Lock()
+	byType := w.pendingByTenant[tenantID]
+	ids := append([]string(nil), byType[tempopb.JobType_JOB_TYPE_REDACTION]...)
+	if len(ids) > 0 {
+		delete(byType, tempopb.JobType_JOB_TYPE_REDACTION)
+		if len(byType) == 0 {
+			delete(w.pendingByTenant, tenantID)
+		}
+	}
+	w.pendingMtx.Unlock()
+
+	for _, id := range ids {
+		shard := w.getShard(id)
+		shard.mtx.Lock()
+		j := shard.Pending[id]
+		delete(shard.Pending, id)
+		shard.mtx.Unlock()
+		if j != nil {
+			w.removePendingBlockIndex(j)
+		}
+	}
+	return ids
+}
+
 // ListAllPendingJobs returns all pending jobs across all shards and tenants.
 func (w *Work) ListAllPendingJobs() []*Job {
 	var out []*Job
@@ -880,6 +917,20 @@ func (w *Work) decRedactionInFlightLocked(tenantID string) {
 // dequeued via NextPendingJob (and thus counted) but will NOT be promoted to active — e.g. dropped
 // at assignment because its batch is gone or cancelled. AddJob performs the same decrement on the
 // normal promote path; this releases the count on a drop path so it is not leaked there.
+// ReleaseAllRedactionInFlight drops a tenant's entire in-flight redaction count and reports how many
+// were released. Used by cancel: those jobs were dequeued but not dispatched, and a cancelled batch has
+// them dropped at assignment rather than run, so holding the count only keeps the batch — and the
+// tenant's compaction — alive waiting for work that will never start. Releasing is safe because the
+// count is what keeps a batch alive for jobs that might still be dispatched; quiescence, not this
+// count, is what holds the batch for blocks already rewritten.
+func (w *Work) ReleaseAllRedactionInFlight(tenantID string) int {
+	w.pendingMtx.Lock()
+	defer w.pendingMtx.Unlock()
+	n := w.redactionInFlight[tenantID]
+	delete(w.redactionInFlight, tenantID)
+	return n
+}
+
 func (w *Work) ReleaseRedactionInFlight(tenantID string) {
 	w.pendingMtx.Lock()
 	defer w.pendingMtx.Unlock()
