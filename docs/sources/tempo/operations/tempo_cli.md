@@ -1068,7 +1068,9 @@ compaction for this tenant resumes shortly after, once the block list catches up
 
 `pending_purged` counts the jobs removed from the tenant's queue.
 It is not the total number of blocks left un-redacted: jobs already picked up for assignment are discarded as well but are not counted, and re-running the command after an interrupted cancel reports `0` because the queue was already emptied.
-Use a dry run (`tempo-cli redact --dry-run`) afterwards if you need to know which traces remain.
+
+A cancelled redaction is held briefly before it is cleared, so a new `redact` or `redact --dry-run` for the same tenant returns `AlreadyExists` until that finishes — a couple of minutes at the default maintenance interval.
+Wait for the hold to clear before submitting again; the blocks the cancel abandoned stay un-redacted until you do.
 
 If the tenant has no redaction in progress, the command reports a `NotFound` error.
 

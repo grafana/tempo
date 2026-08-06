@@ -82,7 +82,7 @@ type Interface interface {
 	// never observable and is safe to retry. Reports whether the batch was already cancelled (making a
 	// retry idempotent) and returns ErrBatchNotFound if the tenant has no batch.
 	CommitBatchCancel(ctx context.Context, tenantID, localPath string) (alreadyCancelled bool, err error)
-	BatchQuiescenceState(tenantID string) (quiesceUntilUnixNano int64, rescanPending, dryRun, cancelled, ok bool)
+	BatchQuiescenceState(tenantID string) (quiesceUntilUnixNano int64, rescanPending, dryRun, ok bool)
 	FlushBatchesToLocal(ctx context.Context, localPath string) error
 	LoadBatchesFromLocal(ctx context.Context, localPath string) error
 

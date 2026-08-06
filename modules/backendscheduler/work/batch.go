@@ -161,14 +161,14 @@ func (b *batchStore) setQuiesceUntil(tenantID string, untilUnixNano int64) {
 
 // quiescenceState reads a tenant's quiescence-relevant fields under the lock, returning a
 // snapshot so callers never touch the live batch pointer's mutable fields unsynchronized.
-func (b *batchStore) quiescenceState(tenantID string) (quiesceUntilUnixNano int64, rescanPending, dryRun, cancelled, ok bool) {
+func (b *batchStore) quiescenceState(tenantID string) (quiesceUntilUnixNano int64, rescanPending, dryRun, ok bool) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	batch, exists := b.byTenant[tenantID]
 	if !exists {
-		return 0, false, false, false, false
+		return 0, false, false, false
 	}
-	return batch.QuiesceUntilUnixNano, batch.RescanAfterUnixNano > 0, batch.Mode.IsDryRun(), batch.Cancelled, true
+	return batch.QuiesceUntilUnixNano, batch.RescanAfterUnixNano > 0, batch.Mode.IsDryRun(), true
 }
 
 // setCancelled sets the tenant's batch cancelled flag under the write lock and reports the value it
@@ -320,7 +320,7 @@ func (w *Work) SetBatchQuiesceUntil(tenantID string, untilUnixNano int64) {
 // BatchQuiescenceState returns a locked snapshot of a tenant's quiesce-until deadline, whether a
 // rescan is pending, whether the batch is a dry-run, and whether it was cancelled; ok is false
 // when no batch exists.
-func (w *Work) BatchQuiescenceState(tenantID string) (quiesceUntilUnixNano int64, rescanPending, dryRun, cancelled, ok bool) {
+func (w *Work) BatchQuiescenceState(tenantID string) (quiesceUntilUnixNano int64, rescanPending, dryRun, ok bool) {
 	return w.batches.quiescenceState(tenantID)
 }
 

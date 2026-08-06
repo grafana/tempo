@@ -799,10 +799,13 @@ func (w *Work) AddPendingJobs(jobs []*Job) error {
 }
 
 // PurgePendingRedactionJobs removes all not-yet-started (pending) redaction jobs for one tenant
-// and returns the removed job IDs. Used by CancelRedaction to stop the remaining backlog; jobs
-// already dispatched (in-flight or running) are untouched and finish normally, so block in:out
-// stays 1:1. Tenant-scoped: a concurrent redaction on another tenant is unaffected. The returned
-// IDs let the caller flush only the affected shards rather than all of them.
+// and returns the removed job IDs. Used by CancelRedaction to stop the remaining backlog.
+//
+// It reaches only the pending queue. Jobs already dequeued are untouched here and dropped later at
+// assignment by Next(); jobs already running on a worker are untouched and finish, so a block rewrite
+// is never interrupted and block in:out stays 1:1. Tenant-scoped: a concurrent redaction on another
+// tenant is unaffected. The returned IDs both report how many were purged and let the caller flush
+// only the affected shards.
 //
 // Mirrors NextPendingJob's lock discipline: dequeue from the per-tenant index under pendingMtx
 // (so the provider can no longer pop these jobs), then clear the shard entries and block index

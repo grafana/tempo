@@ -3,7 +3,7 @@ component: backend-scheduler
 note: add CancelRedaction — cancel an in-progress redaction for a tenant (`tempo-cli redact-cancel`).
 issues: []
 subtext: |
-  The cancel discards the queued job backlog so the tenant's compaction is no longer held open indefinitely. Jobs already running on a worker finish, so a block rewrite is never interrupted and block in:out stays 1:1 with no partially redacted block left behind. Blocks the cancel abandons are left un-redacted; re-submit to redact them.
+  The cancel discards the queued job backlog so the tenant's compaction is no longer held open indefinitely. Jobs already running on a worker finish, so a block rewrite is never interrupted and block in:out stays 1:1 with no partially redacted block left behind. Blocks the cancel abandons are left un-redacted; re-submitting redacts them, once the cancelled redaction has finished being cleared.
 
   The tenant is sourced from the request header, so a cancel is tenant-scoped and safe alongside concurrent per-tenant redactions.
 user: zalegrala

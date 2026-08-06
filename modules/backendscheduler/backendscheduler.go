@@ -814,7 +814,7 @@ func (s *BackendScheduler) redactionBatchActive(tenantID string, rescanPending b
 // promoted to the active map) still count via redactionBatchActive, so the batch is not treated
 // as done while any are outstanding.
 func (s *BackendScheduler) cleanupBatchIfDone(ctx context.Context, tenantID string) {
-	quiesceUntil, rescanPending, dryRun, _, ok := s.work.BatchQuiescenceState(tenantID)
+	quiesceUntil, rescanPending, dryRun, ok := s.work.BatchQuiescenceState(tenantID)
 	if !ok || s.redactionBatchActive(tenantID, rescanPending) {
 		return
 	}
@@ -851,7 +851,7 @@ func (s *BackendScheduler) enterQuiescence(tenantID string) {
 // change (returns false), so the manifest is not rewritten on every tick. The caller flushes once
 // per tick if anything changed.
 func (s *BackendScheduler) advanceQuiescence(tenantID string) (changed bool) {
-	quiesceUntil, rescanPending, dryRun, _, ok := s.work.BatchQuiescenceState(tenantID)
+	quiesceUntil, rescanPending, dryRun, ok := s.work.BatchQuiescenceState(tenantID)
 	if !ok {
 		return false
 	}
