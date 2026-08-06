@@ -857,16 +857,21 @@ func (s *BackendScheduler) checkPendingRescans(ctx context.Context) {
 	now := time.Now().UnixNano()
 	changed := false
 	for _, batch := range s.work.ListBatches() {
-		if batch.RescanAfterUnixNano == 0 || now < batch.RescanAfterUnixNano {
+		if batch.RescanAfterUnixNano == 0 {
 			continue
 		}
-		// A cancelled batch never rescans — it is abandoning its remaining work. Defensively clear
-		// any stale armed rescan (e.g. one persisted before a crash, or reloaded from an older
-		// manifest) instead of running it, so it can't re-enqueue jobs; clearing also drops
-		// rescanPending so the batch drains and is removed on a later tick.
+		// A cancelled batch never rescans — it is abandoning the blocks it skipped. Clear the armed
+		// rescan instead of running it, whatever its deadline: this check must precede the due-time
+		// gate below, because a rescan armed for the future is exactly what a crash between the
+		// cancel's two manifest flushes leaves behind. Leaving it armed keeps rescanPending — and so
+		// the batch, and so the tenant's compaction block — alive for the rest of the rescan delay
+		// with no work outstanding.
 		if batch.Cancelled {
 			s.work.SetBatchRescan(batch.TenantId, nil, 0)
 			changed = true
+			continue
+		}
+		if now < batch.RescanAfterUnixNano {
 			continue
 		}
 		s.performRescan(ctx, batch)

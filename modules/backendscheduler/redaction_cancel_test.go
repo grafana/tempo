@@ -193,6 +193,29 @@ func TestNextDropsJobFromCancelledBatch(t *testing.T) {
 		"the dropped job's in-flight count is released, so the cancelled batch can drain and be removed")
 }
 
+// TestCancelledBatchFutureRescanCleared verifies a cancelled batch's armed rescan is cleared even
+// when its deadline is still in the future. That is the state a crash between the cancel's two
+// manifest flushes leaves on disk, and it is self-inflicted deadlock otherwise: an armed rescan keeps
+// rescanPending true, which keeps the batch active, which keeps the tenant's compaction disabled for
+// the remainder of the rescan delay with no work outstanding.
+func TestCancelledBatchFutureRescanCleared(t *testing.T) {
+	ctx, s := newQuiescenceScheduler(t)
+	tenant := "t-cancel-future-rescan"
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: "batch-future", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+		Cancelled:               true,
+		SkippedCompactionJobIds: []string{"busy-job"},
+		RescanAfterUnixNano:     time.Now().Add(time.Hour).UnixNano(),
+	}))
+
+	s.checkPendingRescans(ctx)
+
+	b := s.work.GetBatch(tenant)
+	require.NotNil(t, b)
+	require.Zero(t, b.RescanAfterUnixNano, "a cancelled batch's rescan is cleared regardless of its deadline")
+	require.Empty(t, b.SkippedCompactionJobIds, "the abandoned skipped-job list is cleared with the rescan")
+}
+
 // TestNextConcurrentWithCancelNoRace drives job assignment against a concurrent cancel — the
 // feature's intended use: an operator cancels while workers are still polling for work. Next()
 // consults the tenant's batch to decide whether to assign or drop, and CancelRedaction mutates that
