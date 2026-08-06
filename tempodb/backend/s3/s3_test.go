@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"io"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -929,3 +930,78 @@ func metadataMockedHandler(t *testing.T) http.HandlerFunc {
 }
 
 func timeNow() time.Time { return time.Date(2024, 5, 12, 16, 21, 24, 42, time.UTC) }
+
+func TestDisableMultipartUpload(t *testing.T) {
+	const tenant = "single-tenant"
+
+	type capture struct {
+		sawUploads atomic.Bool
+		putCount   atomic.Int32
+		putBody    atomic.Value // string
+	}
+
+	// handler that drives both the multipart flow and a single PutObject, recording which
+	// path the backend took and the body of any single PUT.
+	handler := func(c *capture) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			q := r.URL.Query()
+			switch {
+			case q.Has("uploads"): // CreateMultipartUpload
+				c.sawUploads.Store(true)
+				_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?><InitiateMultipartUploadResult><Bucket>blerg</Bucket><Key>k</Key><UploadId>test-upload-id</UploadId></InitiateMultipartUploadResult>`))
+			case q.Get("uploadId") != "" && r.Method == http.MethodPut: // UploadPart
+				c.sawUploads.Store(true)
+				w.Header().Set("ETag", `"abc"`)
+				w.WriteHeader(http.StatusOK)
+			case q.Get("uploadId") != "" && r.Method == http.MethodPost: // CompleteMultipartUpload
+				c.sawUploads.Store(true)
+				_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?><CompleteMultipartUploadResult><Bucket>blerg</Bucket><Key>k</Key><ETag>"abc"</ETag></CompleteMultipartUploadResult>`))
+			case r.Method == http.MethodPut: // single PutObject
+				c.putCount.Add(1)
+				body, _ := io.ReadAll(r.Body)
+				c.putBody.Store(string(body))
+				w.Header().Set("ETag", `"abc"`)
+				w.WriteHeader(http.StatusOK)
+			default:
+				w.WriteHeader(http.StatusOK)
+			}
+		}
+	}
+
+	writeObject := func(t *testing.T, disable bool) *capture {
+		t.Helper()
+		c := &capture{}
+		server := testServer(t, handler(c))
+		_, w, _, err := NewNoConfirm(&Config{
+			Region:                 "blerg",
+			AccessKey:              "test",
+			SecretKey:              flagext.SecretWithValue("test"),
+			Bucket:                 "blerg",
+			Insecure:               true,
+			Endpoint:               server.URL[7:],
+			DisableMultipartUpload: disable,
+		})
+		require.NoError(t, err)
+		ctx := context.Background()
+		tracker, err := w.Append(ctx, "data", backend.KeyPath{tenant}, nil, []byte("hello "))
+		require.NoError(t, err)
+		tracker, err = w.Append(ctx, "data", backend.KeyPath{tenant}, tracker, []byte("world"))
+		require.NoError(t, err)
+		require.NoError(t, w.CloseAppend(ctx, tracker))
+		return c
+	}
+
+	t.Run("disabled writes a single PutObject with the full body", func(t *testing.T) {
+		c := writeObject(t, true)
+		require.False(t, c.sawUploads.Load(), "must not initiate a multipart upload when disable_multipart_upload is set")
+		require.Equal(t, int32(1), c.putCount.Load(), "object must be written with a single PutObject")
+		body, _ := c.putBody.Load().(string)
+		require.Contains(t, body, "hello world", "the single PutObject must carry the full buffered object in append order")
+	})
+
+	t.Run("default still uses multipart upload", func(t *testing.T) {
+		c := writeObject(t, false)
+		require.True(t, c.sawUploads.Load(), "default behavior must use a multipart upload")
+		require.Zero(t, c.putCount.Load(), "default must not take the single-PutObject path")
+	})
+}
