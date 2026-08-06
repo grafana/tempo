@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"net/http"
 	"sort"
@@ -55,6 +56,23 @@ type BackendScheduler struct {
 	}
 
 	mergedJobs chan *work.Job
+
+	// redactionLocks serializes a tenant's redaction lifecycle RPCs (submit, cancel) with each other.
+	// Submit publishes a batch and then its jobs; without this a cancel could act on the gap between
+	// them and the submitting operator would still be told the jobs were created. Fixed-size and keyed
+	// by tenant hash, mirroring the work store's sharding, so there is nothing to allocate or clean up.
+	// Distinct tenants may share a lock, which is harmless: these calls are rare and hold it briefly.
+	redactionLocks [redactionLockShards]sync.Mutex
+}
+
+// redactionLockShards is the number of locks used to serialize per-tenant redaction lifecycle calls.
+const redactionLockShards = 64
+
+// redactionMutex returns the lock guarding a tenant's redaction lifecycle transitions.
+func (s *BackendScheduler) redactionMutex(tenantID string) *sync.Mutex {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(tenantID))
+	return &s.redactionLocks[h.Sum32()%redactionLockShards]
 }
 
 // ListJobs returns all jobs in the work cache
@@ -614,15 +632,25 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		batch.RescanAfterUnixNano = time.Now().Add(s.cfg.ProviderConfig.Redaction.RescanDelay).UnixNano()
 	}
 
-	// Store batch first, then jobs. On job failure, roll back the batch so the
-	// tenant is not permanently locked out of future submissions.
+	// Publish the batch and its jobs as one unit with respect to the tenant's other lifecycle calls.
+	// The batch is stored first so the jobs always have one to resolve, which leaves a gap in which the
+	// batch exists with no jobs; a cancel arriving there would see nothing to stop, act on a
+	// half-published submission, and this call would still report the jobs as created. The lock is held
+	// only for the publish, not for the block discovery above, so a cancel is never stuck behind a slow
+	// submission. On job failure the batch is rolled back so the tenant is not locked out of future
+	// submissions.
+	unlock := s.redactionMutex(tenant)
+	unlock.Lock()
 	if err := s.work.AddBatch(batch); err != nil {
+		unlock.Unlock()
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	if err := s.work.AddPendingJobs(jobs); err != nil {
 		s.work.RemoveBatch(tenant)
+		unlock.Unlock()
 		return nil, status.Error(codes.Internal, err.Error())
 	}
+	unlock.Unlock()
 
 	// Persist batch manifest and affected shards. Both are best-effort here;
 	// the data is safely in memory and will be flushed again on shutdown.
@@ -669,6 +697,13 @@ func (s *BackendScheduler) CancelRedaction(ctx context.Context, _ *tempopb.Cance
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 	span.SetAttributes(attribute.String("tenant", tenant))
+
+	// Serialize against the tenant's other lifecycle calls, so a cancel never observes a submission
+	// that has published its batch but not yet its jobs. Held for the whole handler: everything below
+	// is in-memory work plus one manifest write.
+	lock := s.redactionMutex(tenant)
+	lock.Lock()
+	defer lock.Unlock()
 
 	batch := s.work.GetBatch(tenant)
 	if batch == nil {

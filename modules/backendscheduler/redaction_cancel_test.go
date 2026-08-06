@@ -248,6 +248,37 @@ func TestCancelledBatchFutureRescanCleared(t *testing.T) {
 	require.Empty(t, b.SkippedCompactionJobIds, "the abandoned skipped-job list is cleared with the rescan")
 }
 
+// TestRedactionMutexIsPerTenant verifies the redaction lifecycle lock serializes calls for one tenant
+// without blocking others. Submit publishes a batch and its jobs in two steps; a cancel observing the
+// gap would act on a half-published submission, and the submitting operator would still be told the
+// jobs were created. Serializing the two RPCs per tenant closes that window, while keeping unrelated
+// tenants independent — cancel is an operational safety valve and must not queue behind another
+// tenant's submission.
+func TestRedactionMutexIsPerTenant(t *testing.T) {
+	_, s := newQuiescenceScheduler(t)
+	a := "tenant-a"
+
+	// Find a tenant that maps to a different lock, so the independence assertion is meaningful.
+	var b string
+	for i := range 1000 {
+		cand := fmt.Sprintf("tenant-%d", i)
+		if s.redactionMutex(cand) != s.redactionMutex(a) {
+			b = cand
+			break
+		}
+	}
+	require.NotEmpty(t, b, "expected some tenant to map to a different lock")
+
+	s.redactionMutex(a).Lock()
+	require.False(t, s.redactionMutex(a).TryLock(), "the same tenant's lifecycle calls serialize")
+	require.True(t, s.redactionMutex(b).TryLock(), "a different tenant is not blocked")
+	s.redactionMutex(b).Unlock()
+	s.redactionMutex(a).Unlock()
+
+	require.True(t, s.redactionMutex(a).TryLock(), "the lock is released again")
+	s.redactionMutex(a).Unlock()
+}
+
 // TestNextDropsJobFromSupersededBatch verifies a job left over from an earlier batch is not executed
 // against a later one. Cancel is designed so the operator can stop and resubmit, and a job dequeued
 // before the cancel survives the purge (which only reaches the pending queue), so it can still arrive
