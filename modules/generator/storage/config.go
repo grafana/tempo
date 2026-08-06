@@ -23,6 +23,9 @@ type Config struct {
 	// Add X-Scope-OrgID header in remote write requests
 	RemoteWriteAddOrgIDHeader bool `yaml:"remote_write_add_org_id_header,omitempty"`
 
+	// NoAuthTenant is the tenant ID used when multitenancy is disabled.
+	NoAuthTenant string `yaml:"-"`
+
 	// Prometheus remote write config
 	// https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write
 	RemoteWrite []prometheus_config.RemoteWriteConfig `yaml:"remote_write,omitempty"`

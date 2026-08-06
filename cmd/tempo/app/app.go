@@ -157,14 +157,16 @@ func (t *App) setupAuthMiddleware() {
 		t.HTTPAuthMiddleware = middleware.AuthenticateUser
 		t.TracesConsumerMiddleware = receiver.MultiTenancyMiddleware()
 	} else {
+		noAuthTenant := t.cfg.NoAuthTenantID()
+		t.cfg.Generator.Storage.NoAuthTenant = noAuthTenant
 		t.cfg.Server.GRPCMiddleware = []grpc.UnaryServerInterceptor{
-			fakeGRPCAuthUniaryMiddleware,
+			fakeGRPCAuthUnaryMiddleware(noAuthTenant),
 		}
 		t.cfg.Server.GRPCStreamMiddleware = []grpc.StreamServerInterceptor{
-			fakeGRPCAuthStreamMiddleware,
+			fakeGRPCAuthStreamMiddleware(noAuthTenant),
 		}
-		t.HTTPAuthMiddleware = fakeHTTPAuthMiddleware
-		t.TracesConsumerMiddleware = receiver.FakeTenantMiddleware()
+		t.HTTPAuthMiddleware = fakeHTTPAuthMiddleware(noAuthTenant)
+		t.TracesConsumerMiddleware = receiver.FakeTenantMiddlewareFor(noAuthTenant)
 	}
 }
 
