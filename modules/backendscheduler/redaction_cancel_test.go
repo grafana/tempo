@@ -125,6 +125,73 @@ func TestCancelRedactionFailsIfPurgeNotPersisted(t *testing.T) {
 	require.Equal(t, []string{"busy-job"}, b.SkippedCompactionJobIds, "the rescan's skipped-job list is preserved on rollback")
 }
 
+// TestCancelRedactionRetryPersistsAlreadyPurgedJobs verifies a retried cancel still persists the
+// purge. If the first attempt purged the jobs in memory but failed to flush, the retry's purge finds
+// nothing left to remove and returns no IDs — the flush must not be skipped on that account, or the
+// RPC reports success while the pending jobs are still on disk and a scheduler restart would reload
+// them and resume redacting after a "successful" cancel.
+func TestCancelRedactionRetryPersistsAlreadyPurgedJobs(t *testing.T) {
+	ctx, s := newQuiescenceScheduler(t)
+	tenant := "t-cancel-retry"
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: "batch-retry", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+	}))
+	require.NoError(t, s.work.AddPendingJobs([]*work.Job{
+		pendingRedactionJob("r1", tenant, "blk1"),
+		pendingRedactionJob("r2", tenant, "blk2"),
+	}))
+	// Persist the pre-cancel state, so the pending jobs are on disk.
+	require.NoError(t, s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, nil))
+
+	// Simulate the first attempt: the purge applied in memory but its flush failed, so the jobs are
+	// gone from memory while still present on disk. The retry's purge therefore returns no IDs.
+	require.Len(t, s.work.PurgePendingRedactionJobs(tenant), 2)
+
+	resp, err := s.CancelRedaction(user.InjectOrgID(ctx, tenant), &tempopb.CancelRedactionRequest{})
+	require.NoError(t, err)
+	require.Zero(t, resp.PendingPurged, "nothing left to purge in memory on the retry")
+
+	// The retry must have persisted the purge: a fresh Work loading from disk sees no pending jobs.
+	reloaded := work.New(work.Config{})
+	require.NoError(t, reloaded.LoadFromLocal(ctx, s.cfg.LocalWorkPath))
+	require.Empty(t, reloaded.ListAllPendingJobs(), "a successful cancel must leave no pending redaction jobs on disk, even when the purge was already applied in memory by a failed attempt")
+}
+
+// TestNextDropsJobFromCancelledBatch verifies a job that left the pending queue just before a cancel
+// is not handed to a worker afterwards. The cancel's purge only reaches jobs still in the pending
+// queue, and the batch itself stays until in-flight work drains, so without an explicit check this
+// already-dequeued job would be assigned and would redact a block the operator asked to stop. It is
+// dropped at assignment — before any work begins, so no output block is orphaned and the 1:1 block
+// in:out invariant is unaffected — and its in-flight count is released so the batch can be cleaned up.
+func TestNextDropsJobFromCancelledBatch(t *testing.T) {
+	ctx, s := newQuiescenceScheduler(t)
+	// Keep the assignment wait short: the job under test is dropped, and no other job follows.
+	s.cfg.JobTimeout = 200 * time.Millisecond
+
+	tenant := "t-cancel-next"
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: "batch-next", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+		TraceIds: [][]byte{{0x01}},
+	}))
+	require.NoError(t, s.work.AddPendingJobs([]*work.Job{pendingRedactionJob("n1", tenant, "blk1")}))
+
+	// The job is dequeued (counted in-flight) and then the tenant's redaction is cancelled, so the
+	// purge cannot reach it.
+	j := s.work.NextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
+	require.NotNil(t, j)
+	s.work.SetBatchCancelled(tenant, true)
+	require.NotNil(t, s.work.GetBatch(tenant), "the batch is still present while in-flight work drains")
+
+	s.mergedJobs <- j
+
+	_, err := s.Next(ctx, &tempopb.NextJobRequest{WorkerId: "w1"})
+	require.Error(t, err, "no job is assigned from a cancelled batch")
+	require.Equal(t, codes.NotFound, status.Code(err))
+
+	require.False(t, s.work.HasJobsForTenant(tenant, tempopb.JobType_JOB_TYPE_REDACTION),
+		"the dropped job's in-flight count is released, so the cancelled batch can drain and be removed")
+}
+
 // TestCancelledBatchStaleRescanClearedNotRun verifies checkPendingRescans never rescans a
 // cancelled batch: it clears any stale armed rescan (e.g. reloaded from a manifest written before
 // the cancel cleared it) instead of enqueuing jobs, then the batch drains and is removed.

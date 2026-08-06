@@ -335,9 +335,15 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 					// Resolve trace IDs from the batch manifest.
 					// Drop if the batch no longer exists (cancelled or already cleaned up).
 					batch := s.work.GetBatch(j.Tenant())
-					if batch == nil {
-						level.Debug(log.Logger).Log("msg", "dropping redaction job: batch no longer exists",
-							"job_id", j.ID, "tenant", j.Tenant())
+					if batch == nil || batch.Cancelled {
+						// Drop if the batch is gone (already cleaned up) or cancelled. A cancel's purge
+						// only reaches jobs still in the pending queue, and the batch itself remains
+						// until in-flight work drains, so a job dequeued just before the cancel would
+						// otherwise be assigned and redact a block the operator asked to stop. Dropping
+						// happens before any work begins, so no partial output exists and the 1:1 block
+						// in:out invariant holds; jobs already running on a worker still finish.
+						level.Debug(log.Logger).Log("msg", "dropping redaction job",
+							"job_id", j.ID, "tenant", j.Tenant(), "reason", batchDropReason(batch))
 						metricJobsDropped.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
 						// This job was counted in-flight when NextPendingJob dequeued it; since it is
 						// dropped rather than promoted via AddJob, release that count or it leaks.
@@ -675,12 +681,14 @@ func (s *BackendScheduler) CancelRedaction(ctx context.Context, _ *tempopb.Cance
 	// can't re-enqueue work. In-flight/running jobs are untouched and finish normally.
 	s.work.SetBatchRescan(tenant, nil, 0)
 	purgedIDs := s.work.PurgePendingRedactionJobs(tenant)
-	if len(purgedIDs) > 0 {
-		// Flush only the shards that held the purged jobs, not all of them.
-		if err := s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, purgedIDs); err != nil {
-			level.Error(log.Logger).Log("msg", "failed to persist redaction cancel purge; retry", "tenant", tenant, "err", err)
-			return nil, status.Error(codes.Internal, fmt.Sprintf("cancel purged jobs in memory but failed to persist them; retry: %v", err))
-		}
+	// Flush unconditionally, even when this call purged nothing. A retry after a failed flush finds
+	// the jobs already gone from memory and so gets no IDs back, but they are still on disk; skipping
+	// the flush there would report a successful cancel while a restart could reload the backlog and
+	// resume redacting. With no IDs to target this flushes every shard, which persists whatever an
+	// earlier attempt removed in memory.
+	if err := s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, purgedIDs); err != nil {
+		level.Error(log.Logger).Log("msg", "failed to persist redaction cancel purge; retry", "tenant", tenant, "err", err)
+		return nil, status.Error(codes.Internal, fmt.Sprintf("cancel purged jobs in memory but failed to persist them; retry: %v", err))
 	}
 	if err := s.work.FlushBatchesToLocal(ctx, s.cfg.LocalWorkPath); err != nil {
 		level.Error(log.Logger).Log("msg", "failed to persist redaction cancel rescan clear; retry", "tenant", tenant, "err", err)
@@ -742,6 +750,14 @@ const quiescenceSweeps = 2
 // never read off a live pointer without the store lock (data race).
 func (s *BackendScheduler) redactionBatchActive(tenantID string, rescanPending bool) bool {
 	return s.work.HasJobsForTenant(tenantID, tempopb.JobType_JOB_TYPE_REDACTION) || rescanPending
+}
+
+// batchDropReason describes why a redaction job was dropped at assignment, for logging.
+func batchDropReason(batch *tempopb.RedactionBatch) string {
+	if batch == nil {
+		return "batch no longer exists"
+	}
+	return "batch cancelled"
 }
 
 // cleanupBatchIfDone is called when a batch's redaction jobs may have all finished (e.g. on job
