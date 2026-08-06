@@ -995,6 +995,67 @@ func makeReq(conditions ...traceql.Condition) traceql.FetchSpansRequest {
 	}
 }
 
+// testSampler is a keep-all traceql.Sampler that records how many values it
+// was offered (Sample) and the population reported to it (Expect). Keeping every
+// value means results are identical to running without a sampler, so any non-zero
+// count proves the sampler was wired into the fetch path.
+type testSampler struct {
+	sampled, expected uint64
+}
+
+var _ traceql.Sampler = (*testSampler)(nil)
+
+func (s *testSampler) Sample() bool                { s.sampled++; return true }
+func (s *testSampler) Measured()                   {}
+func (s *testSampler) Expect(count uint64)         { s.expected += count }
+func (s *testSampler) FinalScalingFactor() float64 { return 1 }
+
+// TestBackendBlockSearchTraceQLSamplerWiring checks that a sampler set on the
+// fetch request is actually attached to and driven by the storage iterators, for
+// both the span-level and trace-level sampler slots.
+func TestBackendBlockSearchTraceQLSamplerWiring(t *testing.T) {
+	wantTraceID := test.ValidTraceID(nil)
+	b := makeBackendBlockWithTraces(t, []*Trace{fullyPopulatedTestTrace(wantTraceID)})
+	ctx := context.Background()
+
+	countSpans := func(t *testing.T, mutate func(*traceql.FetchSpansRequest)) int {
+		t.Helper()
+		req := traceql.MustExtractFetchSpansRequestWithMetadata("{}")
+		mutate(&req)
+		resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
+		require.NoError(t, err)
+		n := 0
+		for {
+			ss, err := resp.Results.Next(ctx)
+			require.NoError(t, err)
+			if ss == nil {
+				break
+			}
+			n += len(ss.Spans)
+		}
+		return n
+	}
+
+	baseline := countSpans(t, func(*traceql.FetchSpansRequest) {})
+	require.Positive(t, baseline, "baseline query should return spans")
+
+	t.Run("span sampler", func(t *testing.T) {
+		s := &testSampler{}
+		got := countSpans(t, func(req *traceql.FetchSpansRequest) { req.SpanSampler = s })
+		require.Equal(t, baseline, got, "keep-all sampler returns the same spans")
+		require.Positive(t, s.sampled, "Sample() driven through the span iterator")
+		require.Positive(t, s.expected, "Expect() driven through the span iterator")
+	})
+
+	t.Run("trace sampler", func(t *testing.T) {
+		s := &testSampler{}
+		got := countSpans(t, func(req *traceql.FetchSpansRequest) { req.TraceSampler = s })
+		require.Equal(t, baseline, got, "keep-all sampler returns the same spans")
+		require.Positive(t, s.sampled, "Sample() driven through the trace iterator")
+		require.Positive(t, s.expected, "Expect() driven through the trace iterator")
+	})
+}
+
 func parse(t *testing.T, q string) traceql.Condition {
 	req, err := traceql.ExtractFetchSpansRequest(q)
 	require.NoError(t, err, "query:", q)
@@ -1757,7 +1818,8 @@ func TestSamplingError(t *testing.T) {
 					err = math.Log(err)
 				}
 
-				fmt.Fprintln(w,
+				fmt.Fprintln(
+					w,
 					query,
 					"\t"+option,
 					"\t"+fmt.Sprintf("%.2f", err),

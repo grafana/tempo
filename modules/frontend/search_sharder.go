@@ -98,7 +98,6 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 	}
 	ctx, span := tracer.Start(requestCtx, "frontend.ShardSearch")
 	defer span.End()
-	setQueryShapeSpanAttrs(span, pipelineRequest.QueryShape())
 
 	// calculate and enforce max search duration
 	maxDuration := s.maxDuration(tenantID)

@@ -243,7 +243,8 @@ func modifyOverrides(m map[string]interface{}, warnings *[]string) {
 	if perTenantPath, ok := ovr["per_tenant_override_config"]; ok {
 		if pathStr, ok := perTenantPath.(string); ok && pathStr != "" {
 			*warnings = append(*warnings, fmt.Sprintf(
-				"external per-tenant overrides file %q needs compaction_disabled: true added manually for each tenant", pathStr))
+				"external per-tenant overrides file %q needs compaction_disabled: true added manually for each tenant", pathStr,
+			))
 		}
 	}
 }

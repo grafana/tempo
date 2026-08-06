@@ -475,7 +475,8 @@ func TestEdgeKeyFromBytes(t *testing.T) {
 		})
 	}
 
-	assert.NotEqual(t,
+	assert.NotEqual(
+		t,
 		edgeKeyFromBytes([]byte{0x01}, []byte{0x02}),
 		edgeKeyFromBytes([]byte{0x01, 0x00}, []byte{0x02}),
 		"ID lengths must participate in key equality",

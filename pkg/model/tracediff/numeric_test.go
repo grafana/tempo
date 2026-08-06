@@ -1,6 +1,7 @@
 package tracediff
 
 import (
+	"math"
 	"testing"
 
 	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -35,6 +36,11 @@ func TestNumericClose(t *testing.T) {
 		{name: "sign flip", a: -100, b: 100, relTol: 0.05, want: false},
 		{name: "zero tolerances reduce to exact equal", a: 5, b: 5, want: true},
 		{name: "zero tolerances reduce to exact unequal", a: 5, b: 6, want: false},
+		{name: "NaNs are equal", a: math.NaN(), b: math.NaN(), relTol: 0.05, want: true},
+		{name: "NaN differs from finite", a: math.NaN(), b: 1, relTol: 0.05, want: false},
+		{name: "same infinities are equal", a: math.Inf(1), b: math.Inf(1), relTol: 0.05, want: true},
+		{name: "opposite infinities differ", a: math.Inf(1), b: math.Inf(-1), relTol: 0.05, want: false},
+		{name: "infinity differs from finite", a: math.Inf(1), b: 1, relTol: 0.05, want: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -102,6 +108,8 @@ func TestAttributeChanged(t *testing.T) {
 		{name: "non-allow-listed numeric compared exactly", key: "custom.count", before: int64(1000), after: int64(1001), want: true},
 		{name: "non-allow-listed int vs float equal value", key: "custom.count", before: int64(80), after: 80.0, want: false},
 		{name: "status code compared exactly", key: "http.response.status_code", before: int64(200), after: int64(201), want: true},
+		{name: "allow-listed NaNs are unchanged", key: testAttrFileSize, before: math.NaN(), after: math.NaN(), want: false},
+		{name: "allow-listed infinity to finite changes", key: testAttrFileSize, before: math.Inf(1), after: 100.0, want: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

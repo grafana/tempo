@@ -134,6 +134,16 @@ cache:
         min_idle_conns: 0       # Minimum idle connections to maintain in the pool.
 ```
 
+### Memcached cache connection defaults
+
+Tempo changes the default connection behavior of the memcached cache client to keep connection pools warm across request bursts. If you do not use the memcached cache, no action is needed. [[PR 7671](https://github.com/grafana/tempo/pull/7671)]
+
+- The default `max_idle_conns` increases from `16` to `100`. Size it above your peak number of parallel requests so connections stay warm between bursts.
+- Idle connections are no longer closed by default. The new `min_idle_conns_headroom_percentage` defaults to `-1`, which keeps idle connections open. Set it to `0` to restore the previous behavior of closing connections idle for longer than two minutes.
+- A new `connect_timeout` bounds connection establishment separately from `timeout`. When unset (`0s`), it falls back to the value of `timeout`.
+
+These defaults raise the steady-state number of open connections per memcached server. To keep the previous behavior, set `max_idle_conns: 16` and `min_idle_conns_headroom_percentage: 0` in your cache configuration.
+
 ## Upgrade to Tempo 3.0
 
 Tempo 3.0 is a major release that replaces the ingester-based architecture with a new design that separates the read and write paths.

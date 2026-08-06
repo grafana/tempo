@@ -656,7 +656,8 @@ func benchmarkGeneratorResource(service string, idx int) *trace_v1.ResourceSpans
 		},
 		ScopeSpans: []*trace_v1.ScopeSpans{{}},
 	}
-	rs.Resource.Attributes = append(rs.Resource.Attributes,
+	rs.Resource.Attributes = append(
+		rs.Resource.Attributes,
 		test.MakeAttribute("excluded", "drop-me"),
 	)
 	return rs
@@ -669,7 +670,8 @@ func benchmarkGeneratorProdResource(service string, idx int) *trace_v1.ResourceS
 		},
 		ScopeSpans: []*trace_v1.ScopeSpans{{}},
 	}
-	rs.Resource.Attributes = append(rs.Resource.Attributes,
+	rs.Resource.Attributes = append(
+		rs.Resource.Attributes,
 		test.MakeAttribute("service.version", "1."+strconv.Itoa(idx%10)+".0"),
 		test.MakeAttribute("cloud.availability_zone", "zone-"+strconv.Itoa(idx%3)),
 		test.MakeAttribute("cloud.region", "region-"+strconv.Itoa(idx%4)),
@@ -727,7 +729,8 @@ func benchmarkGeneratorSpan(traceID, spanID, parentSpanID []byte, kind trace_v1.
 
 func benchmarkGeneratorProdSpan(traceID, spanID, parentSpanID []byte, kind trace_v1.Span_SpanKind, start uint64) *trace_v1.Span {
 	span := benchmarkGeneratorSpan(traceID, spanID, parentSpanID, kind, start)
-	span.Attributes = append(span.Attributes,
+	span.Attributes = append(
+		span.Attributes,
 		// Matched by the span.url.path exclude policies after their span.
 		// prefix is stripped; /api/:id keeps the spans included.
 		test.MakeAttribute("url.path", "/api/:id"),

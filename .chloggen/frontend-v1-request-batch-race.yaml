@@ -1,0 +1,11 @@
+change_type: bug_fix
+
+component: query-frontend
+
+note: Fix a data race in the query frontend when dispatching request batches to queriers (`max_batch_size` > 1).
+
+issues: []
+
+subtext:
+
+user: aldernero

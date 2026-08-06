@@ -702,17 +702,66 @@ func TestParseTraceByIDRequest(t *testing.T) {
 	}
 }
 
+func TestParseTraceByIDFilterParams(t *testing.T) {
+	tests := []struct {
+		name              string
+		urlQuery          string
+		wantQuery         string
+		wantKeepHierarchy bool
+		wantErr           bool
+	}{
+		{name: "no params means no filter", urlQuery: ""},
+		{name: "query only defaults keep_hierarchy false", urlQuery: "q=" + url.QueryEscape("{ .a = 1 }"), wantQuery: "{ .a = 1 }"},
+		// a whitespace-only q is trimmed to empty, so it is treated as no filter and keep_hierarchy is ignored.
+		{name: "whitespace-only q is treated as empty", urlQuery: "q=" + url.QueryEscape("   ") + "&keep_hierarchy=true"},
+		// surrounding whitespace on a real query is trimmed, not passed to the parser.
+		{name: "surrounding whitespace on q is trimmed", urlQuery: "q=" + url.QueryEscape("  { .a = 1 }  "), wantQuery: "{ .a = 1 }"},
+		{
+			name:              "query and explicit keep_hierarchy true",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=true",
+			wantQuery:         "{ .a = 1 }",
+			wantKeepHierarchy: true,
+		},
+		{
+			name:      "explicit keep_hierarchy false overrides default",
+			urlQuery:  "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=false",
+			wantQuery: "{ .a = 1 }",
+		},
+		{
+			name:     "invalid keep_hierarchy with query",
+			urlQuery: "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=yes-please",
+			wantErr:  true,
+		},
+		{name: "invalid keep_hierarchy ignored without query", urlQuery: "keep_hierarchy=yes-please"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := httptest.NewRequest("GET", "/api/v2/traces/1234?"+tt.urlQuery, nil)
+			query, keepHierarchy, err := ParseTraceByIDFilterParams(r)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.wantQuery, query)
+			require.Equal(t, tt.wantKeepHierarchy, keepHierarchy)
+		})
+	}
+}
+
 func TestParseSpanPruningRequest(t *testing.T) {
 	defaultCfg := func() *spanpruningprocessor.Config {
 		return spanpruningprocessor.NewFactory().CreateDefaultConfig().(*spanpruningprocessor.Config)
 	}
 
 	tests := []struct {
-		name          string
-		query         string
-		expectEnabled bool
-		expectCfg     *spanpruningprocessor.Config
-		expectedError string
+		name             string
+		query            string
+		enabledByDefault bool
+		expectEnabled    bool
+		expectCfg        *spanpruningprocessor.Config
+		expectedError    string
 	}{
 		{
 			name:          "absent param disables pruning",
@@ -725,6 +774,38 @@ func TestParseSpanPruningRequest(t *testing.T) {
 			query:         "span_pruning=false",
 			expectEnabled: false,
 			expectCfg:     nil,
+		},
+		{
+			name:             "enabledByDefault enables pruning with defaults when the param is absent",
+			query:            "",
+			enabledByDefault: true,
+			expectEnabled:    true,
+			expectCfg:        defaultCfg(),
+		},
+		{
+			name:             "explicit false is respected even when enabledByDefault is set",
+			query:            "span_pruning=false",
+			enabledByDefault: true,
+			expectEnabled:    false,
+			expectCfg:        nil,
+		},
+		{
+			name:             "explicit true is respected when enabledByDefault is set",
+			query:            "span_pruning=true",
+			enabledByDefault: true,
+			expectEnabled:    true,
+			expectCfg:        defaultCfg(),
+		},
+		{
+			name:             "enabledByDefault honors request overrides when span_pruning param is absent",
+			query:            "span_pruning_min_spans=10",
+			enabledByDefault: true,
+			expectEnabled:    true,
+			expectCfg: func() *spanpruningprocessor.Config {
+				cfg := defaultCfg()
+				cfg.MinSpansToAggregate = 10
+				return cfg
+			}(),
 		},
 		{
 			name:          "invalid bool value",
@@ -787,7 +868,7 @@ func TestParseSpanPruningRequest(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest("GET", "/api/v2/traces/1234?"+tc.query, nil)
-			enabled, cfg, err := ParseSpanPruningRequest(req)
+			enabled, cfg, err := ParseSpanPruningRequest(req, tc.enabledByDefault)
 			if tc.expectedError != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tc.expectedError)

@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"regexp"
 	"sort"
+	"strings"
 
 	modeltrace "github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -26,6 +28,9 @@ type normalizedSpan struct {
 	hasParent      bool
 	ref            SpanRef
 	snapshot       SpanSnapshot
+	startUnixNano  uint64
+	endUnixNano    uint64
+	durationValid  bool
 	spanAttrs      map[string]any
 }
 
@@ -41,12 +46,23 @@ type spanWithResource struct {
 }
 
 func normalizeTrace(trace *tempopb.Trace) (normalizedTrace, []Warning) {
+	return normalizeTraceForSide(trace, "")
+}
+
+func normalizeTraceForSide(trace *tempopb.Trace, side string) (normalizedTrace, []Warning) {
 	if trace == nil {
 		return normalizedTrace{}, nil
 	}
 
 	spans, meta := flattenSpans(trace)
 	warnings := highCardinalitySpanNameWarnings(spans)
+	warnings = append(warnings, invalidDurationWarnings(spans, side)...)
+	if len(spans) == 0 {
+		warnings = append(warnings, Warning{
+			Code:    WarningZeroSpanTrace,
+			Message: fmt.Sprintf("%s contains no spans; comparison has no span matches", sideTraceLabel(side)),
+		})
+	}
 	byID := make(map[string]spanWithResource, len(spans))
 	children := map[string][]spanWithResource{}
 	for _, span := range spans {
@@ -70,8 +86,23 @@ func normalizeTrace(trace *tempopb.Trace) (normalizedTrace, []Warning) {
 	// First assign paths from normal roots and orphans.
 	rootIndex := assignPaths(&out, children, children[""], nil, spanLogicalKey{}, false, 0, visited)
 	// Then assign remaining cycle-only/disconnected spans as extra roots.
-	assignPaths(&out, children, spans, nil, spanLogicalKey{}, false, rootIndex, visited)
+	remaining := append([]spanWithResource(nil), spans...)
+	sortSpans(remaining)
+	assignPaths(&out, children, remaining, nil, spanLogicalKey{}, false, rootIndex, visited)
+	if dropped := meta.SpanCount - len(out.spans); dropped > 0 {
+		warnings = append(warnings, Warning{
+			Code:    WarningDuplicateSpanID,
+			Message: fmt.Sprintf("%s has %d span(s) with duplicate span IDs; duplicates are ignored by the diff and counts may disagree", sideTraceLabel(side), dropped),
+		})
+	}
 	return out, warnings
+}
+
+func sideTraceLabel(side string) string {
+	if side == "" {
+		return "trace"
+	}
+	return side + " trace"
 }
 
 func flattenSpans(trace *tempopb.Trace) ([]spanWithResource, TraceMeta) {
@@ -128,6 +159,9 @@ func normalizeSpan(span spanWithResource, path []int, logicalKey spanLogicalKey,
 		parentIdentity: parentIdentity,
 		hasParent:      hasParent,
 		ref:            ref,
+		startUnixNano:  span.span.GetStartTimeUnixNano(),
+		endUnixNano:    span.span.GetEndTimeUnixNano(),
+		durationValid:  hasValidDuration(span.span),
 		spanAttrs:      attributesMap(span.span.GetAttributes()),
 		snapshot: SpanSnapshot{
 			Path:          path,
@@ -138,6 +172,52 @@ func normalizeSpan(span spanWithResource, path []int, logicalKey spanLogicalKey,
 			Status:        statusToString(span.span.GetStatus()),
 		},
 	}
+}
+
+func invalidDurationWarnings(spans []spanWithResource, side string) []Warning {
+	invalid := make([]spanLogicalKey, 0)
+	for _, span := range spans {
+		if hasValidDuration(span.span) {
+			continue
+		}
+		invalid = append(invalid, logicalKey(span))
+	}
+	if len(invalid) == 0 {
+		return nil
+	}
+
+	examples := invalidDurationExamples(invalid, 3)
+	message := fmt.Sprintf(
+		"%s has %d span(s) with unset or invalid duration; matched duration changes use null on the invalid side; examples: %s",
+		sideTraceLabel(side),
+		len(invalid),
+		examples,
+	)
+	return []Warning{{Code: WarningInvalidDuration, Message: message}}
+}
+
+func invalidDurationExamples(invalid []spanLogicalKey, limit int) string {
+	invalid = append([]spanLogicalKey(nil), invalid...)
+	sort.Slice(invalid, func(i, j int) bool {
+		if invalid[i].service != invalid[j].service {
+			return invalid[i].service < invalid[j].service
+		}
+		if invalid[i].name != invalid[j].name {
+			return invalid[i].name < invalid[j].name
+		}
+		return invalid[i].kind < invalid[j].kind
+	})
+	if len(invalid) < limit {
+		limit = len(invalid)
+	}
+	examples := make([]string, 0, limit)
+	for _, key := range invalid[:limit] {
+		examples = append(examples, fmt.Sprintf("%q service %q kind %q", key.name, key.service, key.kind))
+	}
+	if len(invalid) > limit {
+		examples = append(examples, fmt.Sprintf("and %d more", len(invalid)-limit))
+	}
+	return fmt.Sprintf("[%s]", strings.Join(examples, "; "))
 }
 
 func logicalKey(span spanWithResource) spanLogicalKey {
@@ -243,10 +323,19 @@ func anyValue(value *commonv1.AnyValue) any {
 }
 
 func durationNanos(span *tracev1.Span) int64 {
-	if span.GetEndTimeUnixNano() < span.GetStartTimeUnixNano() {
+	if !hasValidDuration(span) {
 		return 0
 	}
 	return int64(span.GetEndTimeUnixNano() - span.GetStartTimeUnixNano())
+}
+
+func hasValidDuration(span *tracev1.Span) bool {
+	start := span.GetStartTimeUnixNano()
+	end := span.GetEndTimeUnixNano()
+	// A start of 0 is unset (OTLP starts are non-zero); treating it as the epoch
+	// would report a multi-decade duration against a real end. An end before the
+	// start or a duration that cannot fit in int64 is likewise unusable.
+	return start > 0 && end >= start && end-start <= math.MaxInt64
 }
 
 func statusToString(status *tracev1.Status) string {

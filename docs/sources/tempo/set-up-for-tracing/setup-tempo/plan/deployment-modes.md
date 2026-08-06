@@ -22,7 +22,8 @@ Use monolithic mode when:
 
 Monolithic mode has some trade-offs to be aware of.
 All components share the same resource pool, so a spike in query load can affect write throughput and vice versa.
-There is no independent scaling: you can scale vertically or run multiple identical instances, but you cannot scale individual components separately.
+There is no independent scaling: you can scale vertically, but you cannot scale individual components separately.
+Running more than one `-target=all` instance isn't supported because the backend scheduler is a singleton; use microservices mode for high availability.
 At higher volumes, memory pressure from collocated components can cause issues.
 
 ## Microservices mode
@@ -43,7 +44,7 @@ Microservices mode provides independent scaling for each component and isolated 
 | Consideration | Monolithic | Microservices |
 |---|---|---|
 | Kafka required | No | Yes |
-| Scaling | Single process; scale vertically or run multiple identical instances | Each component scales independently |
+| Scaling | Single process; scale vertically | Each component scales independently |
 | Failure isolation | All components share resources | Isolated failure domains per component |
 | Operational complexity | Low | Higher, with more processes to manage |
 | Best for | Getting started, development, up to 25-35 MB/s | Production, high volume, high availability |

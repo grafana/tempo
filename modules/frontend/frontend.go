@@ -148,7 +148,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			newAsyncTraceIDSharder(&cfg.TraceByID, cfg.Config.MaxOutstandingPerTenant, reader, jobsPerQuery, logger),
 		},
 		[]pipeline.Middleware{traceIDStatusCodeWare, retryWare},
-		next)
+		next,
+	)
 
 	searchPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
@@ -162,7 +163,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			newAsyncSearchSharder(reader, o, cfg.Search.Sharder, cfg.SkipASTTransformations, jobsPerQuery, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
-		next)
+		next,
+	)
 
 	searchTagsPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
@@ -175,7 +177,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagsRequest, jobsPerQuery, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
-		next)
+		next,
+	)
 
 	searchTagValuesPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
@@ -188,7 +191,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequest, jobsPerQuery, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
-		next)
+		next,
+	)
 
 	searchTagValuesV2Pipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
@@ -201,7 +205,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequestV2, jobsPerQuery, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
-		next)
+		next,
+	)
 
 	// traceql metrics
 	queryRangePipeline := pipeline.Build(
@@ -215,7 +220,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, cfg.SkipASTTransformations, false, jobsPerQuery, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
-		next)
+		next,
+	)
 
 	queryInstantPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
@@ -228,7 +234,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, cfg.SkipASTTransformations, true, jobsPerQuery, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
-		next)
+		next,
+	)
 
 	traces := newTraceIDHandler(cfg, tracePipeline, o, combiner.NewTypedTraceByID, logger, dataAccessController)
 	tracesV2 := newTraceIDV2Handler(cfg, tracePipeline, o, combiner.NewTypedTraceByIDV2, logger, dataAccessController)

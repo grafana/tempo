@@ -246,13 +246,13 @@ func checkBlocklists(ctx context.Context, t *testing.T, expectedID uuid.UUID, ex
 	blocklist := rw.blocklist.Metas(testTenantID)
 	require.Len(t, blocklist, expectedB)
 	if expectedB > 0 && expectedID != uuid.Nil {
-		require.Equal(t, expectedID, (uuid.UUID)(blocklist[0].BlockID))
+		require.Equal(t, expectedID, uuid.UUID(blocklist[0].BlockID))
 	}
 
 	compactedBlocklist := rw.blocklist.CompactedMetas(testTenantID)
 	require.Len(t, compactedBlocklist, expectedCB)
 	if expectedCB > 0 && expectedID != uuid.Nil {
-		require.Equal(t, expectedID, (uuid.UUID)(compactedBlocklist[0].BlockID))
+		require.Equal(t, expectedID, uuid.UUID(compactedBlocklist[0].BlockID))
 	}
 }
 
@@ -906,7 +906,7 @@ func TestNoCompactFlag(t *testing.T) {
 
 			// Verify the nocompact flag
 			rw := r.(*readerWriter)
-			hasFlag, err := rw.r.HasNoCompactFlag(ctx, (uuid.UUID)(completedBlockID), testTenantID)
+			hasFlag, err := rw.r.HasNoCompactFlag(ctx, uuid.UUID(completedBlockID), testTenantID)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectedNoCompactFlag, hasFlag, "nocompact flag should remain after successful writeBlockMeta")
 
@@ -922,7 +922,7 @@ func TestNoCompactFlag(t *testing.T) {
 			}
 
 			// Remove the nocompact flag
-			err = rw.w.DeleteNoCompactFlag(ctx, (uuid.UUID)(completedBlockID), testTenantID)
+			err = rw.w.DeleteNoCompactFlag(ctx, uuid.UUID(completedBlockID), testTenantID)
 			require.NoError(t, err)
 
 			// Poll blocklist again

@@ -102,6 +102,26 @@ func (b *batchStore) setRescan(tenantID string, ids []string, afterNano int64) {
 	}
 }
 
+func (b *batchStore) setQuiesceUntil(tenantID string, untilUnixNano int64) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if batch, ok := b.byTenant[tenantID]; ok {
+		batch.QuiesceUntilUnixNano = untilUnixNano
+	}
+}
+
+// quiescenceState reads a tenant's quiescence-relevant fields under the lock, returning a
+// snapshot so callers never touch the live batch pointer's mutable fields unsynchronized.
+func (b *batchStore) quiescenceState(tenantID string) (quiesceUntilUnixNano int64, rescanPending, ok bool) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	batch, exists := b.byTenant[tenantID]
+	if !exists {
+		return 0, false, false
+	}
+	return batch.QuiesceUntilUnixNano, batch.RescanAfterUnixNano > 0, true
+}
+
 // load reads batches.pb from localPath. Missing file is not an error (clean start).
 func (b *batchStore) load(localPath string) error {
 	path := filepath.Join(localPath, batchesFileName)
@@ -159,4 +179,14 @@ func (w *Work) ListBatches() []*tempopb.RedactionBatch {
 
 func (w *Work) SetBatchRescan(tenantID string, skippedJobIDs []string, rescanAfterUnixNano int64) {
 	w.batches.setRescan(tenantID, skippedJobIDs, rescanAfterUnixNano)
+}
+
+func (w *Work) SetBatchQuiesceUntil(tenantID string, untilUnixNano int64) {
+	w.batches.setQuiesceUntil(tenantID, untilUnixNano)
+}
+
+// BatchQuiescenceState returns a locked snapshot of a tenant's quiesce-until deadline and
+// whether a rescan is pending; ok is false when no batch exists.
+func (w *Work) BatchQuiescenceState(tenantID string) (quiesceUntilUnixNano int64, rescanPending, ok bool) {
+	return w.batches.quiescenceState(tenantID)
 }

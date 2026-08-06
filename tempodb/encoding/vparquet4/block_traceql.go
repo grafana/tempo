@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
+	"github.com/grafana/tempo/pkg/sampling"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
@@ -927,6 +928,7 @@ const (
 	columnPathInstrumentationAttrDouble = "rs.list.element.ss.list.element.Scope.Attrs.list.element.ValueDouble.list.element"
 	columnPathInstrumentationAttrBool   = "rs.list.element.ss.list.element.Scope.Attrs.list.element.ValueBool.list.element"
 
+	columnPathSpanTraceState      = "rs.list.element.ss.list.element.Spans.list.element.TraceState"
 	columnPathSpanID              = "rs.list.element.ss.list.element.Spans.list.element.SpanID"
 	ColumnPathSpanName            = "rs.list.element.ss.list.element.Spans.list.element.Name"
 	columnPathSpanStartTime       = "rs.list.element.ss.list.element.Spans.list.element.StartTimeUnixNano"
@@ -995,6 +997,7 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	traceql.IntrinsicNestedSetLeft:        {intrinsicScopeSpan, traceql.TypeInt, columnPathSpanNestedSetLeft},
 	traceql.IntrinsicNestedSetRight:       {intrinsicScopeSpan, traceql.TypeInt, columnPathSpanNestedSetRight},
 	traceql.IntrinsicNestedSetParent:      {intrinsicScopeSpan, traceql.TypeInt, columnPathSpanParentID},
+	traceql.IntrinsicSpanMultiplier:       {intrinsicScopeSpan, traceql.TypeFloat, columnPathSpanTraceState},
 
 	traceql.IntrinsicTraceRootService: {intrinsicScopeTrace, traceql.TypeString, columnPathRootServiceName},
 	traceql.IntrinsicTraceRootSpan:    {intrinsicScopeTrace, traceql.TypeString, columnPathRootSpanName},
@@ -1940,6 +1943,13 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 		nestedSetLeftExplicit   = false
 		nestedSetRightExplicit  = false
 		nestedSetParentExplicit = false
+		// columnSyncIterOpts folds extra SyncIterator options into a specific column's
+		// iterator when it is built below.
+		columnSyncIterOpts = map[string][]parquetquery.SyncIteratorOpt{}
+		// samplerPlaced records whether the sampler was attached to a real column; if
+		// not it falls back to the status-code iterator built when nothing else is
+		// required.
+		samplerPlaced bool
 	)
 
 	// todo: improve these methods. if addPredicate gets a nil predicate shouldn't it just wipe out the existing predicates instead of appending?
@@ -2012,14 +2022,13 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 				return nil, err
 			}
 
-			if sampler != nil {
-				pred = newSamplingPredicate(sampler, pred)
-				// Removed so that it's not used down below.
-				sampler = nil
-			}
-
 			addPredicate(columnPathSpanStartTime, pred)
 			columnSelectAs[columnPathSpanStartTime] = columnPathSpanStartTime
+
+			if sampler != nil && !samplerPlaced {
+				columnSyncIterOpts[columnPathSpanStartTime] = append(columnSyncIterOpts[columnPathSpanStartTime], parquetquery.SyncIteratorOptSampler(sampler))
+				samplerPlaced = true
+			}
 			continue
 
 		case traceql.IntrinsicName:
@@ -2107,6 +2116,13 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 			addPredicate(columnPathSpanParentID, pred)
 			columnSelectAs[columnPathSpanParentID] = columnPathSpanParentID
 			continue
+		case traceql.IntrinsicSpanMultiplier:
+			// Synthetic float intrinsic; the iterator reads the raw TraceState
+			// column and the collector parses it into a per-span multiplier.
+			// Only OpNone (projection) is supported.
+			addPredicate(columnPathSpanTraceState, nil)
+			columnSelectAs[columnPathSpanTraceState] = columnPathSpanTraceState
+			continue
 		}
 
 		// Well-known attribute?
@@ -2183,7 +2199,8 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 				traceql.IntrinsicStructuralSibling,
 				traceql.IntrinsicNestedSetLeft,
 				traceql.IntrinsicNestedSetRight,
-				traceql.IntrinsicNestedSetParent:
+				traceql.IntrinsicNestedSetParent,
+				traceql.IntrinsicSpanMultiplier: // synthetic; explicitly requested by metrics queries
 				continue
 			}
 			addPredicate(entry.columnPath, nil)
@@ -2197,7 +2214,7 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 	}
 
 	for columnPath, predicates := range columnPredicates {
-		iters = append(iters, makeIter(columnPath, orIfNeeded(predicates), columnSelectAs[columnPath]))
+		iters = append(iters, makeIter(columnPath, orIfNeeded(predicates), columnSelectAs[columnPath], columnSyncIterOpts[columnPath]...))
 	}
 
 	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceSpansILSSpanAttrs,
@@ -2247,11 +2264,11 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 	// Also note that this breaks optimizations related to requireAtLeastOneMatch and requireAtLeastOneMatchOverall b/c it will add a kind attribute
 	//  to the span attributes map in spanCollector
 	if len(required) == 0 {
-		var pred parquetquery.Predicate
-		if sampler != nil {
-			pred = newSamplingPredicate(sampler, nil)
+		var opt parquetquery.SyncIteratorOpt
+		if sampler != nil && !samplerPlaced {
+			opt = parquetquery.SyncIteratorOptSampler(sampler)
 		}
-		required = []parquetquery.Iterator{makeIter(columnPathSpanStatusCode, pred, "")}
+		required = []parquetquery.Iterator{makeIter(columnPathSpanStatusCode, nil, "", opt)}
 	}
 
 	// Left join here means the span id/start/end iterators + 1 are required,
@@ -2596,8 +2613,7 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 		// TODO: We might be able to do this without loading a real column, by using
 		// the fact that every trace is a top-level row and there are no gaps. We could
 		// inspect the number of rows in the given row groups and generate virtual row numbers.
-		pred := newSamplingPredicate(sampler, nil)
-		i := makeIter(columnPathRootServiceName, pred, "")
+		i := makeIter(columnPathRootServiceName, nil, "", parquetquery.SyncIteratorOptSampler(sampler))
 		required = append([]parquetquery.Iterator{i}, required...)
 	}
 
@@ -3212,6 +3228,20 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			if c.nestedSetRightExplicit {
 				sp.addSpanAttr(traceql.IntrinsicNestedSetRightAttribute, traceql.NewStaticInt(int(kv.Value.Int32())))
 			}
+		case columnPathSpanTraceState:
+			// Parse OTel probability sampling threshold once per span. When
+			// the tracestate carries an OTEP-235 R-value (`rv:` field), we
+			// use it to stochastically round the multiplier to an integer
+			// so count-style aggregates emit whole-number contributions.
+			// Falls back to the raw float multiplier when no R-value is
+			// present, and to 1.0 when the tracestate is absent or
+			// unparseable. Also surfaced as a span attribute so the engine
+			// reads it via AttributeFor and it counts toward attributesMatched().
+			m := sampling.MultiplierFromTraceState(unsafeToString(kv.Value.Bytes()))
+			if m <= 0 {
+				m = 1.0
+			}
+			sp.addSpanAttr(traceql.IntrinsicSpanMultiplierAttribute, traceql.NewStaticFloat(m))
 		default:
 			// TODO - This exists for span-level dedicated columns like http.status_code
 			// Are nils possible here?
@@ -3896,50 +3926,4 @@ func otlpKindToTraceqlKind(v uint64) traceql.Kind {
 	default:
 		return traceql.Kind(v)
 	}
-}
-
-type samplingPredicate struct {
-	sampler traceql.Sampler
-	inner   parquetquery.Predicate
-}
-
-var _ parquetquery.Predicate = (*samplingPredicate)(nil)
-
-func newSamplingPredicate(sampler traceql.Sampler, inner parquetquery.Predicate) *samplingPredicate {
-	return &samplingPredicate{
-		sampler: sampler,
-		inner:   inner,
-	}
-}
-
-func (p *samplingPredicate) String() string {
-	return "samplingPredicate{}"
-}
-
-func (p *samplingPredicate) KeepColumnChunk(chunk *parquetquery.ColumnChunkHelper) bool {
-	if p.inner != nil {
-		return p.inner.KeepColumnChunk(chunk)
-	}
-	return true
-}
-
-func (p *samplingPredicate) KeepPage(page parquet.Page) bool {
-	if p.inner != nil && !p.inner.KeepPage(page) {
-		return false
-	}
-
-	// We call Expect() on page because it is closer to the actual data
-	// to be processed.  We could call it earlier in KeepColumnChunk()
-	// but it reduces effectiveness of the sampler because we may
-	// skip around or exit early due to any other conditions.
-	p.sampler.Expect(uint64(page.NumValues()))
-	return true
-}
-
-func (p *samplingPredicate) KeepValue(value parquet.Value) bool {
-	if p.inner != nil && !p.inner.KeepValue(value) {
-		return false
-	}
-
-	return p.sampler.Sample()
 }

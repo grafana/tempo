@@ -427,6 +427,90 @@ func TestSubmitRedactionValidation(t *testing.T) {
 	}
 }
 
+// TestSubmitRedactionQuerySelector covers the TraceQL query selector path: a query-only
+// submission is accepted and its query + mode are stored in the batch; query is mutually
+// exclusive with trace_ids; and an out-of-subset query is rejected at submission.
+func TestSubmitRedactionQuerySelector(t *testing.T) {
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	tmpDir := t.TempDir()
+	cfg.LocalWorkPath = tmpDir
+
+	ctx, cancel := context.WithCancel(context.Background())
+	store, rr, ww := newStore(ctx, t, tmpDir)
+	defer func() {
+		cancel()
+		store.Shutdown()
+	}()
+
+	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.NewRegistry())
+	require.NoError(t, err)
+	s, err := New(cfg, store, limits, rr, ww)
+	require.NoError(t, err)
+
+	tenant := "tenant-query"
+	writeTenantBlocks(ctx, t, backend.NewWriter(ww), tenant, 1)
+	time.Sleep(300 * time.Millisecond)
+	tenantCtx := user.InjectOrgID(ctx, tenant)
+
+	query := `{resource.service_name = "checkout"}`
+
+	// query-only submission in dry-run mode is accepted; query + mode land in the batch.
+	resp, err := s.SubmitRedaction(tenantCtx, &tempopb.SubmitRedactionRequest{
+		Selector: &tempopb.SubmitRedactionRequest_Query{Query: &tempopb.TraceQLSelector{Query: query}},
+		Mode:     tempopb.RedactionMode_REDACTION_MODE_DRY_RUN,
+	})
+	require.NoError(t, err)
+	require.Positive(t, resp.JobsCreated)
+
+	batch := s.work.GetBatch(tenant)
+	require.NotNil(t, batch)
+	require.NotNil(t, batch.Query)
+	require.Equal(t, query, batch.Query.Query)
+	require.Equal(t, tempopb.RedactionMode_REDACTION_MODE_DRY_RUN, batch.Mode)
+	require.Empty(t, batch.TraceIds, "query-selected batch carries no explicit trace IDs")
+	s.work.RemoveBatch(tenant)
+
+	rejections := []struct {
+		name string
+		req  *tempopb.SubmitRedactionRequest
+	}{
+		{
+			name: "trace_ids and query both set",
+			req: &tempopb.SubmitRedactionRequest{
+				TraceIds: [][]byte{[]byte("t")},
+				Selector: &tempopb.SubmitRedactionRequest_Query{Query: &tempopb.TraceQLSelector{Query: query}},
+			},
+		},
+		{
+			name: "query outside subset",
+			req: &tempopb.SubmitRedactionRequest{
+				Selector: &tempopb.SubmitRedactionRequest_Query{Query: &tempopb.TraceQLSelector{Query: `{resource.service_name =~ "a.*"}`}},
+			},
+		},
+		{
+			name: "unknown mode",
+			req: &tempopb.SubmitRedactionRequest{
+				Selector: &tempopb.SubmitRedactionRequest_Query{Query: &tempopb.TraceQLSelector{Query: query}},
+				Mode:     tempopb.RedactionMode(99),
+			},
+		},
+		{
+			name: "neither trace_ids nor query",
+			req:  &tempopb.SubmitRedactionRequest{},
+		},
+	}
+	for _, tc := range rejections {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := s.SubmitRedaction(tenantCtx, tc.req)
+			require.Error(t, err)
+			st, ok := status.FromError(err)
+			require.True(t, ok)
+			require.Equal(t, codes.InvalidArgument, st.Code())
+		})
+	}
+}
+
 func TestSubmitRedactionAndRescan(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
@@ -783,12 +867,22 @@ func TestCleanupOrphanedBatchesAfterDeadJobTimeout(t *testing.T) {
 	require.NotNil(t, s.work.GetBatch(testTenant),
 		"batch must still exist after prune alone (orphaned batch bug)")
 
-	// cleanupOrphanedBatches is the fix: it sweeps all batches and removes any
-	// whose jobs have all finished. This is now called on every maintenance tick.
+	// cleanupOrphanedBatches sweeps all batches on every maintenance tick. A done batch
+	// first enters quiescence (held so compaction stays blocked while the rescan settles),
+	// then is removed once the quiesce-until deadline passes -- so the first sweep does not
+	// remove it.
+	s.cleanupOrphanedBatches(ctx)
+	require.NotNil(t, s.work.GetBatch(testTenant),
+		"orphaned batch enters quiescence on the first sweep, not immediate removal")
+	require.True(t, s.work.TenantPending(testTenant),
+		"tenant stays blocked while the batch is quiescing")
+
+	// Once the deadline passes, the next sweep removes the batch.
+	s.work.SetBatchQuiesceUntil(testTenant, time.Now().Add(-time.Second).UnixNano())
 	s.cleanupOrphanedBatches(ctx)
 
 	require.Nil(t, s.work.GetBatch(testTenant),
-		"batch must be removed after cleanupOrphanedBatches")
+		"batch must be removed after quiescence elapses")
 	require.False(t, s.work.TenantPending(testTenant),
 		"tenant must not be blocked after batch cleanup")
 

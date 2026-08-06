@@ -63,6 +63,9 @@ const (
 	urlParamSpanPruningMinSpans       = "span_pruning_min_spans"
 	urlParamSpanPruningMaxParentDepth = "span_pruning_max_parent_depth"
 
+	// trace by id v2 filtering (q reuses urlParamQuery)
+	urlParamKeepHierarchy = "keep_hierarchy"
+
 	// search tags
 	urlParamScope = "scope"
 
@@ -931,6 +934,30 @@ func ParseTraceByIDRequest(r *http.Request) (string, string, string, time.Time, 
 	return blockStart, blockEnd, queryMode, startTime, endTime, nil
 }
 
+// ParseTraceByIDFilterParams parses the q spanset filter params for the trace by id v2 API.
+// It returns (query, keepHierarchy, error). keep_hierarchy is only parsed when q is set: it is
+// documented as ignored without a query, so a malformed value must not fail an unfiltered request.
+func ParseTraceByIDFilterParams(r *http.Request) (string, bool, error) {
+	vals := r.URL.Query()
+
+	// trim so a blank or whitespace-only q means no filter (full trace), matching the docs.
+	query := strings.TrimSpace(vals.Get(urlParamQuery))
+	if query == "" {
+		return "", false, nil
+	}
+
+	keepHierarchy := false
+	if raw := vals.Get(urlParamKeepHierarchy); raw != "" {
+		keep, err := strconv.ParseBool(raw)
+		if err != nil {
+			return "", false, fmt.Errorf("invalid value for %s: %w", urlParamKeepHierarchy, err)
+		}
+		keepHierarchy = keep
+	}
+
+	return query, keepHierarchy, nil
+}
+
 func ReadBodyToBuffer(resp *http.Response) (*bytes.Buffer, error) {
 	length := resp.ContentLength
 	// if ContentLength is -1 if the length is unknown. default to bytes.MinRead (its what buffer.ReadFrom does)
@@ -951,22 +978,33 @@ func ReadBodyToBuffer(resp *http.Response) (*bytes.Buffer, error) {
 	return buffer, nil
 }
 
-func ParseSpanPruningRequest(r *http.Request) (bool, *spanpruningprocessor.Config, error) {
-	raw := r.URL.Query().Get(urlParamSpanPruning)
-	if raw == "" {
-		return false, nil, nil
-	}
+// DefaultSpanPruningConfig returns the span pruning processor's default configuration.
+func DefaultSpanPruningConfig() *spanpruningprocessor.Config {
+	return spanpruningprocessor.NewFactory().CreateDefaultConfig().(*spanpruningprocessor.Config)
+}
 
-	spanPruningEnabled, err := strconv.ParseBool(raw)
-	if err != nil {
-		return false, nil, fmt.Errorf("invalid %s value %q: must be a boolean", urlParamSpanPruning, raw)
+// ParseSpanPruningRequest parses span_pruning* query parameters into a *spanpruningprocessor.Config
+// and reports whether span pruning should be applied to the response.
+//
+// If enabledByDefault is true, span pruning is enabled when the request's own span_pruning param
+// is absent. An explicit span_pruning value in the request, true or false, always takes precedence.
+func ParseSpanPruningRequest(r *http.Request, enabledByDefault bool) (bool, *spanpruningprocessor.Config, error) {
+	raw := r.URL.Query().Get(urlParamSpanPruning)
+
+	spanPruningEnabled := enabledByDefault
+	if raw != "" {
+		var err error
+		spanPruningEnabled, err = strconv.ParseBool(raw)
+		if err != nil {
+			return false, nil, fmt.Errorf("invalid %s value %q: must be a boolean", urlParamSpanPruning, raw)
+		}
 	}
 
 	if !spanPruningEnabled {
 		return false, nil, nil
 	}
 
-	cfg := spanpruningprocessor.NewFactory().CreateDefaultConfig().(*spanpruningprocessor.Config)
+	cfg := DefaultSpanPruningConfig()
 
 	if v := r.URL.Query().Get(urlParamSpanPruningGroupBy); v != "" {
 		var patterns []string

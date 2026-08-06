@@ -59,6 +59,12 @@ var numericFuzzyAttributes = map[string]struct{}{
 // numericClose reports whether a and b are equal within the given relative and
 // absolute tolerances: |a-b| <= absTol + relTol*max(|a|, |b|).
 func numericClose(a, b, relTol, absTol float64) bool {
+	if math.IsNaN(a) || math.IsNaN(b) {
+		return math.IsNaN(a) && math.IsNaN(b)
+	}
+	if math.IsInf(a, 0) || math.IsInf(b, 0) {
+		return a == b
+	}
 	return math.Abs(a-b) <= absTol+relTol*math.Max(math.Abs(a), math.Abs(b))
 }
 

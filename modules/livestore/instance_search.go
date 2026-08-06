@@ -41,6 +41,12 @@ var (
 	tracer = otel.Tracer("modules/livestore")
 
 	errComplete = errors.New("complete")
+
+	// emptyTagValuesCacheEntry is a non-empty sentinel written to the tag-value disk
+	// cache when a block yields no values, so tag-less blocks aren't re-scanned on
+	// every query. 0x00 is not a valid protobuf tag (field 0), so it never collides
+	// with a marshaled SearchTagValuesV2Response.
+	emptyTagValuesCacheEntry = []byte{0x00}
 )
 
 const (
@@ -544,7 +550,11 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	}
 
 	searchWithCache := func(ctx context.Context, _ *backend.BlockMeta, b block) error {
-		// if not a local block, fall back to regular search
+		// Only complete (Local) blocks are cached. Complete blocks are immutable, so a
+		// cached result -- including a negative/empty one -- stays correct for the block's
+		// lifetime. The head and WAL blocks (which still receive appends before being cut)
+		// are always searched fresh here, so newly-arrived values can never be masked by a
+		// cache entry: new data lands in the head block and is searched directly.
 		localB, ok := b.(*LocalBlock)
 		if !ok {
 			return search(ctx, b, vCollector.Collect)
@@ -553,41 +563,45 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		// pulled from context to add attrs below
 		span := oteltrace.SpanFromContext(ctx)
 
-		// check the cache first
+		// check the cache first. GetDiskCache maps a cache miss to (nil, nil), so a
+		// non-nil error here is a real read failure. Either way we fall through to
+		// search the block rather than dropping its values from the response.
 		cacheData, err := localB.GetDiskCache(ctx, cacheKey)
 		if err != nil {
-			// just log the error and move on...we will search the block
 			_ = level.Warn(i.logger).Log("msg", "GetDiskCache failed", "err", err)
-			return nil
+			cacheData = nil
 		}
 
 		// we got data...unmarshall, and add values to central collector and add bytesRead
 		if len(cacheData) > 0 {
-			resp := &tempopb.SearchTagValuesV2Response{}
-			err = proto.Unmarshal(cacheData, resp)
-			if err != nil {
-				_ = level.Warn(i.logger).Log("msg", "GetDiskCache unmarshal failed", "err", err)
+			if bytes.Equal(cacheData, emptyTagValuesCacheEntry) {
+				// negative cache hit: this block has no values for the tag, so don't re-scan it
+				span.SetAttributes(attribute.Bool("cached", true))
+				mCollector.Add(uint64(len(cacheData)))
 				return nil
 			}
+			resp := &tempopb.SearchTagValuesV2Response{}
+			if err := proto.Unmarshal(cacheData, resp); err != nil {
+				// corrupt cache entry: log and fall through to search the block below
+				_ = level.Warn(i.logger).Log("msg", "GetDiskCache unmarshal failed", "err", err)
+			} else {
+				span.SetAttributes(attribute.Bool("cached", true))
+				// On a cache hit we only read the cache file, so report its size as the
+				// inspected bytes for this block. The cached payload stores only TagValues
+				// (not Metrics), so the original scan's byte count isn't available here.
+				mCollector.Add(uint64(len(cacheData)))
 
-			span.SetAttributes(attribute.Bool("cached", true))
-			// Instead of the reporting the InspectedBytes of the cached response.
-			// we report the size of cacheData as the Inspected bytes in case we hit disk cache.
-			// we do this because, because it's incorrect and misleading to report the metrics of cachedResponse
-			// we report the size of the cacheData as the amount of data was read to search this block.
-			// this can skew our metrics because this will be lower than the data read to search the block.
-			// we can remove this if this becomes an issue but leave it in for now to more accurate.
-			mCollector.Add(uint64(len(cacheData)))
-
-			for _, v := range resp.TagValues {
-				if vCollector.Collect(*v) {
-					return errComplete
+				for _, v := range resp.TagValues {
+					if vCollector.Collect(*v) {
+						return errComplete
+					}
 				}
+				return nil
 			}
-			return nil
 		}
 
-		// cache miss, search the block. We will cache the results if we find any.
+		// cache miss or unusable cache entry, search the block and cache the result
+		// (empty results are cached too, via a sentinel; see below).
 		span.SetAttributes(attribute.Bool("cached", false))
 		// using local collector to collect values from the block and cache them.
 		localCol := collector.NewDistinctValue[tempopb.TagValue](limit, req.MaxTagValues, req.StaleValueThreshold, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
@@ -599,9 +613,14 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		// marshal the values local collector and set the cache
 		values := localCol.Values()
 		v2RespProto, err := valuesToTagValuesV2RespProto(values)
-		if err == nil && len(v2RespProto) > 0 {
-			err2 := localB.SetDiskCache(ctx, cacheKey, v2RespProto)
-			if err2 != nil {
+		if err == nil {
+			// cache the result, using a sentinel for empty results so a tag-less
+			// block records a hit and isn't re-scanned on the next query.
+			cacheEntry := v2RespProto
+			if len(cacheEntry) == 0 {
+				cacheEntry = emptyTagValuesCacheEntry
+			}
+			if err2 := localB.SetDiskCache(ctx, cacheKey, cacheEntry); err2 != nil {
 				_ = level.Warn(i.logger).Log("msg", "SetDiskCache failed", "err", err2)
 			}
 		}
@@ -926,7 +945,7 @@ func queryRangeCacheName(req tempopb.QueryRangeRequest) string {
 }
 
 func (i *instance) queryRangeCacheGet(ctx context.Context, m *backend.BlockMeta, name string) (*tempopb.QueryRangeResponse, error) {
-	keyPath := backend.KeyPathForBlock((uuid.UUID)(m.BlockID), m.TenantID)
+	keyPath := backend.KeyPathForBlock(uuid.UUID(m.BlockID), m.TenantID)
 	reader, size, err := i.wal.LocalBackend().Read(ctx, name, keyPath, nil)
 	if err != nil {
 		if errors.Is(err, backend.ErrDoesNotExist) {
@@ -954,7 +973,7 @@ func (i *instance) queryRangeCacheSet(ctx context.Context, m *backend.BlockMeta,
 		return err
 	}
 
-	keyPath := backend.KeyPathForBlock((uuid.UUID)(m.BlockID), m.TenantID)
+	keyPath := backend.KeyPathForBlock(uuid.UUID(m.BlockID), m.TenantID)
 	return i.wal.LocalBackend().WriteAtomic(ctx, name, keyPath, bytes.NewReader(data), int64(len(data)))
 }
 

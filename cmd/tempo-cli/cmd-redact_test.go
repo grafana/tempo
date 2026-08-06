@@ -49,6 +49,53 @@ func TestRedactCmdSubmit(t *testing.T) {
 	require.Equal(t, [][]byte{traceIDBytes}, mock.capturedReq.TraceIds)
 }
 
+func TestRedactCmdSubmitQuery(t *testing.T) {
+	const query = `{resource.service_name = "checkout"}`
+
+	mock := &mockSchedulerClient{}
+	cmd := &redactCmd{TenantID: "test-tenant", Query: query}
+
+	_, err := cmd.submit(context.Background(), mock, nil)
+	require.NoError(t, err)
+
+	require.NotNil(t, mock.capturedReq.GetQuery(), "query selector must be set")
+	require.Equal(t, query, mock.capturedReq.GetQuery().GetQuery())
+	require.Empty(t, mock.capturedReq.TraceIds, "query submission carries no trace IDs")
+	require.Equal(t, tempopb.RedactionMode_REDACTION_MODE_APPLY, mock.capturedReq.Mode)
+}
+
+func TestRedactCmdSubmitDryRun(t *testing.T) {
+	mock := &mockSchedulerClient{}
+	cmd := &redactCmd{TenantID: "test-tenant", Query: `{resource.service_name = "x"}`, DryRun: true}
+
+	_, err := cmd.submit(context.Background(), mock, nil)
+	require.NoError(t, err)
+	require.Equal(t, tempopb.RedactionMode_REDACTION_MODE_DRY_RUN, mock.capturedReq.Mode)
+}
+
+func TestRedactCmdValidate(t *testing.T) {
+	cases := []struct {
+		name    string
+		cmd     redactCmd
+		wantErr bool
+	}{
+		{"trace-ids only", redactCmd{TraceIDs: []string{"abc"}}, false},
+		{"query only", redactCmd{Query: `{resource.service_name = "x"}`}, false},
+		{"both", redactCmd{TraceIDs: []string{"abc"}, Query: `{resource.service_name = "x"}`}, true},
+		{"neither", redactCmd{}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.cmd.validate()
+			if tc.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestParseTraceIDs(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		ids, err := parseTraceIDs([]string{

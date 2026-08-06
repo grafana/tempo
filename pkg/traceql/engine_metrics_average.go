@@ -18,9 +18,10 @@ type averageOverTimeAggregator struct {
 	// Average over time span aggregator
 	agg SpanAggregator
 	// Average over time series aggregator
-	seriesAgg  SeriesAggregator
-	exemplarFn getExemplar
-	mode       AggregateMode
+	seriesAgg   SeriesAggregator
+	exemplarFn  getExemplar
+	mode        AggregateMode
+	extrapolate bool
 }
 
 var (
@@ -36,6 +37,13 @@ func newAverageOverTimeMetricsAggregator(attr Attribute, by []Attribute) *averag
 	}
 }
 
+// SetExtrapolate toggles per-span sampling extrapolation. When true, each
+// observed value is weighted by spanExtrapolation(span) in the weighted-mean
+// accumulator so the count series reflects the un-sampled population.
+func (a *averageOverTimeAggregator) SetExtrapolate(extrapolate bool) {
+	a.extrapolate = extrapolate
+}
+
 func (a *averageOverTimeAggregator) init(q *tempopb.QueryRangeRequest, mode AggregateMode) {
 	intervalMapper := NewIntervalMapperFromReq(q)
 
@@ -47,7 +55,7 @@ func (a *averageOverTimeAggregator) init(q *tempopb.QueryRangeRequest, mode Aggr
 	}
 
 	if mode == AggregateModeRaw {
-		a.agg = newAvgOverTimeSpanAggregator(a.attr, a.by, q.Start, q.End, q.Step, IsInstant(q), q.Exemplars)
+		a.agg = newAvgOverTimeSpanAggregator(a.attr, a.by, q.Start, q.End, q.Step, IsInstant(q), q.Exemplars, a.extrapolate)
 	}
 
 	a.mode = mode
@@ -411,6 +419,7 @@ type avgOverTimeSpanAggregator[F FastStatic, S StaticVals] struct {
 	start, end, step uint64
 	instant          bool
 	exemplars        uint32
+	extrapolate      bool
 
 	// Data
 	series     map[F]avgOverTimeSeries[S]
@@ -421,7 +430,7 @@ type avgOverTimeSpanAggregator[F FastStatic, S StaticVals] struct {
 
 var _ SpanAggregator = (*avgOverTimeSpanAggregator[FastStatic1, StaticVals1])(nil)
 
-func newAvgOverTimeSpanAggregator(attr Attribute, by []Attribute, start, end, step uint64, instant bool, exemplars uint32) SpanAggregator {
+func newAvgOverTimeSpanAggregator(attr Attribute, by []Attribute, start, end, step uint64, instant bool, exemplars uint32, extrapolate bool) SpanAggregator {
 	lookups := make([][]Attribute, len(by))
 	for i, attr := range by {
 		if attr.Intrinsic == IntrinsicNone && attr.Scope == AttributeScopeNone {
@@ -440,19 +449,19 @@ func newAvgOverTimeSpanAggregator(attr Attribute, by []Attribute, start, end, st
 
 	switch aggNum {
 	case 2:
-		return newAvgAggregator[FastStatic2, StaticVals2](attr, by, lookups, start, end, step, instant, exemplars)
+		return newAvgAggregator[FastStatic2, StaticVals2](attr, by, lookups, start, end, step, instant, exemplars, extrapolate)
 	case 3:
-		return newAvgAggregator[FastStatic3, StaticVals3](attr, by, lookups, start, end, step, instant, exemplars)
+		return newAvgAggregator[FastStatic3, StaticVals3](attr, by, lookups, start, end, step, instant, exemplars, extrapolate)
 	case 4:
-		return newAvgAggregator[FastStatic4, StaticVals4](attr, by, lookups, start, end, step, instant, exemplars)
+		return newAvgAggregator[FastStatic4, StaticVals4](attr, by, lookups, start, end, step, instant, exemplars, extrapolate)
 	case 5:
-		return newAvgAggregator[FastStatic5, StaticVals5](attr, by, lookups, start, end, step, instant, exemplars)
+		return newAvgAggregator[FastStatic5, StaticVals5](attr, by, lookups, start, end, step, instant, exemplars, extrapolate)
 	default:
-		return newAvgAggregator[FastStatic1, StaticVals1](attr, by, lookups, start, end, step, instant, exemplars)
+		return newAvgAggregator[FastStatic1, StaticVals1](attr, by, lookups, start, end, step, instant, exemplars, extrapolate)
 	}
 }
 
-func newAvgAggregator[F FastStatic, S StaticVals](attr Attribute, by []Attribute, lookups [][]Attribute, start, end, step uint64, instant bool, exemplars uint32) SpanAggregator {
+func newAvgAggregator[F FastStatic, S StaticVals](attr Attribute, by []Attribute, lookups [][]Attribute, start, end, step uint64, instant bool, exemplars uint32, extrapolate bool) SpanAggregator {
 	var fn func(s Span) float64
 
 	switch attr {
@@ -481,6 +490,7 @@ func newAvgAggregator[F FastStatic, S StaticVals](attr Attribute, by []Attribute
 		step:            step,
 		instant:         instant,
 		exemplars:       exemplars,
+		extrapolate:     extrapolate,
 	}
 }
 
@@ -496,7 +506,11 @@ func (g *avgOverTimeSpanAggregator[F, S]) Observe(span Span) {
 	}
 
 	s := g.getSeries(span)
-	s.average.addIncrementMean(interval, inc)
+	if g.extrapolate {
+		s.average.addWeigthedMean(interval, inc, spanExtrapolation(span))
+	} else {
+		s.average.addIncrementMean(interval, inc)
+	}
 }
 
 func (g *avgOverTimeSpanAggregator[F, S]) ObserveExemplar(span Span, value float64, ts uint64) {

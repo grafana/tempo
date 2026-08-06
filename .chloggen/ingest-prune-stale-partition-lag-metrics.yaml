@@ -1,0 +1,11 @@
+change_type: bug_fix
+component: metrics-generator
+note: prune stale per-partition ingest lag metrics when a partition moves between consumers, and keep inactive partitions on their previous owner instead of reshuffling them on every rebalance.
+issues: []
+subtext: |
+  Fixes ever-growing tempo_ingest_group_partition_lag and tempo_ingest_group_partition_lag_seconds
+  reported by a former owner after a partition handoff. Affects consumers using the partition-ring
+  cooperative-active-sticky balancer (metrics-generator, block-builder, live-store). The
+  metrics-generator now also clears these metrics on OnPartitionsLost (e.g. session timeout or
+  fence), which previously left stale series behind.
+user: aldernero
