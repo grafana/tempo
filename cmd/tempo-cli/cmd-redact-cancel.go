@@ -39,7 +39,8 @@ func (cmd *redactCancelCmd) Run(_ *globalOptions) error {
 	}
 
 	fmt.Printf("batch_id:       %s\npending_purged: %d\n", resp.BatchId, resp.PendingPurged)
-	fmt.Println("in-flight jobs will finish; the batch is then removed and compaction resumes")
+	fmt.Println("queued jobs were discarded; jobs already running on a worker will finish")
+	fmt.Println("compaction for this tenant resumes shortly after, once the block list catches up")
 	return nil
 }
 

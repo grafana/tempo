@@ -651,11 +651,12 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 }
 
 // CancelRedaction cancels the authenticated tenant's in-progress redaction. It marks the batch
-// cancelled, clears any armed rescan, and purges the not-yet-started pending jobs so the backlog
-// stops. Jobs already dispatched finish on their own — cancel never interrupts a block rewrite, so
-// block in:out stays 1:1 — after which the batch is removed without quiescence and compaction
-// resumes. The tenant is read from the request header, never a body field, so cancel cannot cross
-// tenants and concurrent per-tenant redactions stay isolated.
+// cancelled, abandons any armed rescan, and discards the queued jobs so the backlog stops; jobs
+// already dequeued are dropped at assignment. Jobs already running on a worker finish — cancel never
+// interrupts a block rewrite, so block in:out stays 1:1 — and because those may have rewritten
+// blocks, the batch then quiesces like any other apply-mode batch before compaction resumes. The
+// tenant is read from the request header, never a body field, so cancel cannot cross tenants and
+// concurrent per-tenant redactions stay isolated.
 func (s *BackendScheduler) CancelRedaction(ctx context.Context, _ *tempopb.CancelRedactionRequest) (*tempopb.CancelRedactionResponse, error) {
 	ctx, span := tracer.Start(ctx, "CancelRedaction")
 	defer span.End()

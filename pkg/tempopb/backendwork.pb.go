@@ -830,8 +830,11 @@ var xxx_messageInfo_CancelRedactionRequest proto.InternalMessageInfo
 type CancelRedactionResponse struct {
 	// batch_id of the cancelled batch.
 	BatchId string `protobuf:"bytes,1,opt,name=batch_id,json=batchId,proto3" json:"batch_id,omitempty"`
-	// pending_purged is the number of not-yet-started pending jobs removed by the cancel. Jobs
-	// already dispatched finish on their own, then the batch is removed.
+	// pending_purged counts the jobs removed from the tenant's pending queue by this call. It is
+	// not the total abandoned: jobs already dequeued for assignment are discarded too (at assignment
+	// time, so they cannot be counted here), and a retry of an interrupted cancel reports 0 because
+	// the queue was already emptied. Jobs already running on a worker are not abandoned at all --
+	// they finish.
 	PendingPurged int32 `protobuf:"varint,2,opt,name=pending_purged,json=pendingPurged,proto3" json:"pending_purged,omitempty"`
 }
 
@@ -959,9 +962,10 @@ type RedactionBatch struct {
 	// removed on the first maintenance tick at or after the deadline. An absolute timestamp is
 	// stable across pod restarts / work reloads and avoids rewriting the batch on every tick.
 	QuiesceUntilUnixNano int64 `protobuf:"varint,9,opt,name=quiesce_until_unix_nano,json=quiesceUntilUnixNano,proto3" json:"quiesce_until_unix_nano,omitempty"`
-	// cancelled marks a batch whose remaining pending jobs were purged by CancelRedaction.
-	// In-flight jobs finish, then the batch is removed immediately (no quiescence, no rescan),
-	// like a completed dry-run.
+	// cancelled marks a batch whose queued jobs were discarded by CancelRedaction. Jobs already
+	// running on a worker still finish, so an apply-mode batch may have rewritten blocks; it
+	// therefore still quiesces (only a dry-run, which rewrites nothing, skips that). No rescan is
+	// performed: the blocks a cancel abandons are deliberately left un-redacted.
 	Cancelled bool `protobuf:"varint,10,opt,name=cancelled,proto3" json:"cancelled,omitempty"`
 }
 
@@ -1643,9 +1647,10 @@ type BackendSchedulerClient interface {
 	// The scheduler discovers all blocks for the tenant and fans out one internal pending
 	// job per block.
 	SubmitRedaction(ctx context.Context, in *SubmitRedactionRequest, opts ...grpc.CallOption) (*SubmitRedactionResponse, error)
-	// Cancel an in-progress redaction for the authenticated tenant. Stops handing out the
-	// remaining pending jobs; jobs already in flight finish, so block in:out stays 1:1. The
-	// tenant is sourced exclusively from the X-Scope-OrgID header (never a body field).
+	// Cancel an in-progress redaction for the authenticated tenant. Stops handing out work:
+	// queued jobs are discarded, as are jobs already dequeued but not yet assigned. Jobs already
+	// running on a worker finish, so a block rewrite is never interrupted and block in:out stays
+	// 1:1. The tenant is sourced exclusively from the X-Scope-OrgID header (never a body field).
 	CancelRedaction(ctx context.Context, in *CancelRedactionRequest, opts ...grpc.CallOption) (*CancelRedactionResponse, error)
 }
 
@@ -1703,9 +1708,10 @@ type BackendSchedulerServer interface {
 	// The scheduler discovers all blocks for the tenant and fans out one internal pending
 	// job per block.
 	SubmitRedaction(context.Context, *SubmitRedactionRequest) (*SubmitRedactionResponse, error)
-	// Cancel an in-progress redaction for the authenticated tenant. Stops handing out the
-	// remaining pending jobs; jobs already in flight finish, so block in:out stays 1:1. The
-	// tenant is sourced exclusively from the X-Scope-OrgID header (never a body field).
+	// Cancel an in-progress redaction for the authenticated tenant. Stops handing out work:
+	// queued jobs are discarded, as are jobs already dequeued but not yet assigned. Jobs already
+	// running on a worker finish, so a block rewrite is never interrupted and block in:out stays
+	// 1:1. The tenant is sourced exclusively from the X-Scope-OrgID header (never a body field).
 	CancelRedaction(context.Context, *CancelRedactionRequest) (*CancelRedactionResponse, error)
 }
 

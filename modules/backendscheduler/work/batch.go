@@ -288,9 +288,10 @@ func (w *Work) BatchQuiescenceState(tenantID string) (quiesceUntilUnixNano int64
 	return w.batches.quiescenceState(tenantID)
 }
 
-// SetBatchCancelled sets the tenant's batch cancelled flag. A cancelled batch has its remaining
-// pending jobs purged separately; in-flight jobs finish, then it is removed immediately (no
-// quiescence). Pass false to revert (e.g. when a cancel could not be persisted).
+// SetBatchCancelled sets the tenant's batch cancelled flag, publishing it to readers, and reports the
+// value it replaced so a retry can tell whether it made the change. Publish only after
+// PersistBatchCancelled has made the cancel durable: the readers of this flag act irreversibly.
+// Purging the batch's queued jobs is a separate step.
 func (w *Work) SetBatchCancelled(tenantID string, cancelled bool) (previous bool) {
 	return w.batches.setCancelled(tenantID, cancelled)
 }
