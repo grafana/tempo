@@ -993,7 +993,9 @@ Options:
 - `--tls` Use TLS for the gRPC connection (default: `false`).
 - `--tls-server-name <value>` Override the TLS server name (SNI).
 - `--tls-ca <value>` Path to a PEM-encoded CA certificate file.
-- `--tls-min-version <value>` Minimum TLS version: `VersionTLS10`, `VersionTLS11`, `VersionTLS12`, or `VersionTLS13` (default: `VersionTLS13`).
+- `--tls-min-version <value>` Minimum TLS version: `VersionTLS10`, `VersionTLS11`, `VersionTLS12`, or `VersionTLS13` (default: `VersionTLS13`). Only applies with `--tls`.
+
+`--tls-ca` and `--tls-server-name` require `--tls`. Supplying them without it is an error rather than a silent plaintext connection.
 
 Specify either `--trace-id` or `--query`.
 
@@ -1051,7 +1053,9 @@ Options:
 - `--tls` Use TLS for the gRPC connection (default: `false`).
 - `--tls-server-name <value>` Override the TLS server name (SNI).
 - `--tls-ca <value>` Path to a PEM-encoded CA certificate file.
-- `--tls-min-version <value>` Minimum TLS version: `VersionTLS10`, `VersionTLS11`, `VersionTLS12`, or `VersionTLS13` (default: `VersionTLS13`).
+- `--tls-min-version <value>` Minimum TLS version: `VersionTLS10`, `VersionTLS11`, `VersionTLS12`, or `VersionTLS13` (default: `VersionTLS13`). Only applies with `--tls`.
+
+`--tls-ca` and `--tls-server-name` require `--tls`. Supplying them without it is an error rather than a silent plaintext connection.
 
 On success, the command prints the cancelled batch ID and how many queued jobs were discarded:
 

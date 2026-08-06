@@ -6,7 +6,10 @@ import (
 	"crypto/x509"
 	"flag"
 	"fmt"
+	"maps"
 	"os"
+	"slices"
+	"strings"
 
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -29,7 +32,7 @@ type redactCmd struct {
 	TLS           bool   `name:"tls" help:"use TLS transport" default:"false"`
 	TLSServerName string `name:"tls-server-name" help:"override the TLS server name (SNI)"`
 	TLSCA         string `name:"tls-ca" help:"path to a PEM-encoded CA certificate file"`
-	TLSMinVersion string `name:"tls-min-version" default:"VersionTLS13" help:"minimum TLS version. Allowed: VersionTLS10, VersionTLS11, VersionTLS12, VersionTLS13"`
+	TLSMinVersion string `name:"tls-min-version" default:"VersionTLS13" enum:"VersionTLS10,VersionTLS11,VersionTLS12,VersionTLS13" help:"minimum TLS version (only applies with --tls)"`
 }
 
 func (cmd *redactCmd) Run(_ *globalOptions) error {
@@ -124,15 +127,46 @@ var tlsMinVersions = map[string]uint16{
 
 // schedulerTransportCredentials builds gRPC transport credentials for the backend-scheduler
 // client, shared by the redact submit and cancel commands. minVersion is a dskit-style version
-// name (e.g. "VersionTLS13"); it is only consulted on the TLS path.
+// name (e.g. "VersionTLS13").
+//
+// TLS settings are rejected rather than ignored when useTLS is false: discarding them silently would
+// send the tenant header and a control-plane call in cleartext while the operator believed the
+// connection was protected. The version name is validated either way, so a typo cannot pass unnoticed
+// behind a plaintext connection.
 func schedulerTransportCredentials(useTLS bool, serverName, ca, minVersion string) (credentials.TransportCredentials, error) {
 	if !useTLS {
+		if _, err := parseTLSMinVersion(minVersion); err != nil {
+			return nil, err
+		}
+		if ca != "" || serverName != "" {
+			return nil, fmt.Errorf("--tls-ca and --tls-server-name require --tls; refusing to connect in cleartext with TLS options set")
+		}
 		return insecure.NewCredentials(), nil
 	}
 
-	minVer, ok := tlsMinVersions[minVersion]
-	if !ok {
-		return nil, fmt.Errorf("unknown minimum TLS version %q (allowed: VersionTLS10, VersionTLS11, VersionTLS12, VersionTLS13)", minVersion)
+	cfg, err := schedulerTLSConfig(serverName, ca, minVersion)
+	if err != nil {
+		return nil, err
+	}
+	return credentials.NewTLS(cfg), nil
+}
+
+// parseTLSMinVersion resolves a dskit-style version name, listing the accepted names on failure so the
+// message cannot drift from the table above.
+func parseTLSMinVersion(minVersion string) (uint16, error) {
+	if v, ok := tlsMinVersions[minVersion]; ok {
+		return v, nil
+	}
+	return 0, fmt.Errorf("unknown minimum TLS version %q (allowed: %s)",
+		minVersion, strings.Join(slices.Sorted(maps.Keys(tlsMinVersions)), ", "))
+}
+
+// schedulerTLSConfig builds the TLS config for a scheduler connection: the system roots plus an
+// optional additional CA, the requested minimum version, and an optional SNI override.
+func schedulerTLSConfig(serverName, ca, minVersion string) (*tls.Config, error) {
+	minVer, err := parseTLSMinVersion(minVersion)
+	if err != nil {
+		return nil, err
 	}
 
 	certPool, err := x509.SystemCertPool()
@@ -153,11 +187,11 @@ func schedulerTransportCredentials(useTLS bool, serverName, ca, minVersion strin
 		}
 	}
 
-	return credentials.NewTLS(&tls.Config{
+	return &tls.Config{
 		ServerName: serverName,
 		RootCAs:    certPool,
 		MinVersion: minVer,
-	}), nil
+	}, nil
 }
 
 // parseTraceIDs converts a slice of hex trace ID strings to raw byte slices.
