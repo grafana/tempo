@@ -758,6 +758,9 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValue
 				if err != nil {
 					return false, fmt.Errorf("creating fetch iter: %w", err)
 				}
+				if iter == nil {
+					continue // nothing to read for this condition group
+				}
 
 				for {
 					// Exhaust the iterator
@@ -847,6 +850,9 @@ func (b *walBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsReque
 				iter, err := autocompleteIter(ctx, tr, file.parquetFile, opts, b.meta.DedicatedColumns)
 				if err != nil {
 					return false, fmt.Errorf("creating fetch iter: %w", err)
+				}
+				if iter == nil {
+					continue // nothing to read for this condition group
 				}
 
 				for {
