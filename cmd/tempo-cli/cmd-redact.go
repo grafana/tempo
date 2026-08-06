@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -25,6 +26,8 @@ type redactCmd struct {
 	TraceIDs []string `name:"trace-id" help:"trace ID to redact (may be repeated; mutually exclusive with --query)"`
 	Query    string   `name:"query" help:"TraceQL query selecting traces to redact (mutually exclusive with --trace-id)"`
 	DryRun   bool     `name:"dry-run" default:"false" help:"evaluate and report match counts without rewriting any blocks"`
+	Start    string   `name:"start" help:"restrict redaction to blocks/traces at or after this time. 'now', 'now-<dur>' (e.g. now-7d), or RFC3339. Empty = unbounded"`
+	End      string   `name:"end" help:"restrict redaction to blocks/traces at or before this time. Same forms as --start. Empty = unbounded"`
 
 	TLS           bool   `name:"tls" help:"use TLS transport" default:"false"`
 	TLSServerName string `name:"tls-server-name" help:"override the TLS server name (SNI)"`
@@ -99,6 +102,16 @@ func (cmd *redactCmd) submit(ctx context.Context, c tempopb.BackendSchedulerClie
 	}
 	if cmd.DryRun {
 		req.Mode = tempopb.RedactionMode_REDACTION_MODE_DRY_RUN
+	}
+
+	// Resolve any relative window (now-7d, …) to absolute nanos client-side, so the server gets a
+	// frozen window. Empty stays 0 (unbounded on that side).
+	now := time.Now()
+	if req.StartTimeUnixNano, err = parseTimeSpec(cmd.Start, now); err != nil {
+		return nil, fmt.Errorf("parsing --start: %w", err)
+	}
+	if req.EndTimeUnixNano, err = parseTimeSpec(cmd.End, now); err != nil {
+		return nil, fmt.Errorf("parsing --end: %w", err)
 	}
 
 	resp, err := c.SubmitRedaction(ctx, req)
