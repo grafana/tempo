@@ -1,6 +1,7 @@
 package backendscheduler
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -190,6 +191,52 @@ func TestNextDropsJobFromCancelledBatch(t *testing.T) {
 
 	require.False(t, s.work.HasJobsForTenant(tenant, tempopb.JobType_JOB_TYPE_REDACTION),
 		"the dropped job's in-flight count is released, so the cancelled batch can drain and be removed")
+}
+
+// TestNextConcurrentWithCancelNoRace drives job assignment against a concurrent cancel — the
+// feature's intended use: an operator cancels while workers are still polling for work. Next()
+// consults the tenant's batch to decide whether to assign or drop, and CancelRedaction mutates that
+// batch, so the two must not touch the same batch memory unsynchronized. Meaningful under -race.
+func TestNextConcurrentWithCancelNoRace(t *testing.T) {
+	ctx, s := newQuiescenceScheduler(t)
+	// Short wait: a dropped job leaves Next() waiting for another that never comes.
+	s.cfg.JobTimeout = 20 * time.Millisecond
+
+	tenant := "t-cancel-race"
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: "batch-race", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+		TraceIds: [][]byte{{0x01}},
+	}))
+
+	const n = 30
+	jobs := make([]*work.Job, n)
+	for i := range jobs {
+		jobs[i] = pendingRedactionJob(fmt.Sprintf("rj%d", i), tenant, fmt.Sprintf("blk%d", i))
+	}
+	require.NoError(t, s.work.AddPendingJobs(jobs))
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < n; i++ {
+			j := s.work.NextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
+			if j == nil {
+				return
+			}
+			s.mergedJobs <- j
+			// A fresh worker ID each time, so Next() re-reads the batch instead of replaying
+			// an already-assigned job via GetJobForWorker.
+			_, _ = s.Next(ctx, &tempopb.NextJobRequest{WorkerId: fmt.Sprintf("w%d", i)})
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for i := 0; i < n; i++ {
+			s.work.SetBatchCancelled(tenant, i%2 == 0)
+		}
+	}()
+	wg.Wait()
 }
 
 // TestCancelledBatchStaleRescanClearedNotRun verifies checkPendingRescans never rescans a

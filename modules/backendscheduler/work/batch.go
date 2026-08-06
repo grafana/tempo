@@ -37,10 +37,20 @@ func (b *batchStore) add(batch *tempopb.RedactionBatch) error {
 	return nil
 }
 
+// get returns a shallow copy of the tenant's batch taken under the lock, or nil if there is none.
+// Copying rather than handing back the live pointer is what lets callers read mutable fields
+// (Cancelled, RescanAfterUnixNano, QuiesceUntilUnixNano) off-lock: the locked setters mutate the
+// stored batch, so a live pointer would race them. Same contract as list() — see its comment for why
+// a shallow copy is a consistent view.
 func (b *batchStore) get(tenantID string) *tempopb.RedactionBatch {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-	return b.byTenant[tenantID]
+	batch, ok := b.byTenant[tenantID]
+	if !ok {
+		return nil
+	}
+	cp := *batch
+	return &cp
 }
 
 func (b *batchStore) remove(tenantID string) {
@@ -172,10 +182,11 @@ func (w *Work) AddBatch(batch *tempopb.RedactionBatch) error {
 	return w.batches.add(batch)
 }
 
-// GetBatch returns a live pointer into batchStore. Callers must treat the returned
-// value as read-only; use SetBatchRescan to mutate rescan fields under the write lock.
-// TODO: return a copy or add narrower accessor methods so the read-only contract is
-// enforced by the type system rather than convention.
+// GetBatch returns a point-in-time shallow copy of the tenant's batch, or nil if there is none.
+// Reading its fields is safe without holding any lock; mutating the copy has no effect on the store,
+// so use SetBatchRescan/SetBatchCancelled/SetBatchQuiesceUntil to change batch state. Slice fields
+// (TraceIds, SkippedCompactionJobIds) share backing arrays with the stored batch and must not be
+// mutated in place. Same contract as ListBatches.
 func (w *Work) GetBatch(tenantID string) *tempopb.RedactionBatch {
 	return w.batches.get(tenantID)
 }
