@@ -153,11 +153,34 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 			var job *work.Job
 
 			for {
+				var ok bool
 				select {
-				case job = <-jobs:
+				case job, ok = <-jobs:
+					if !ok {
+						// Provider closed its channel (it has stopped); nothing more to forward.
+						level.Info(log.Logger).Log("msg", "provider channel closed", "provider", i)
+						return
+					}
 				case <-ctx.Done():
 					level.Info(log.Logger).Log("msg", "stopping provider", "provider", i)
-					return
+					// The provider channel is buffered: drain any job it already handed off but we
+					// never forwarded, releasing the in-flight count of redaction jobs so it does
+					// not leak on shutdown.
+					for {
+						select {
+						case j, ok := <-jobs:
+							// A closed channel is always ready, so use the two-value receive and
+							// return on close; otherwise this loop would spin forever.
+							if !ok {
+								return
+							}
+							if j != nil && j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION {
+								s.work.ReleaseRedactionInFlight(j.Tenant())
+							}
+						default:
+							return
+						}
+					}
 				}
 
 				select {
@@ -165,6 +188,11 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 					metricProviderJobsMerged.WithLabelValues(strconv.Itoa(i)).Inc()
 				case <-ctx.Done():
 					level.Info(log.Logger).Log("msg", "stopping provider", "provider", i)
+					// This job was received but not forwarded; if it's a redaction job it was
+					// counted in-flight at dequeue and will never reach Next(), so release it.
+					if job != nil && job.GetType() == tempopb.JobType_JOB_TYPE_REDACTION {
+						s.work.ReleaseRedactionInFlight(job.Tenant())
+					}
 					return
 				}
 			}
@@ -311,6 +339,9 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 						level.Debug(log.Logger).Log("msg", "dropping redaction job: batch no longer exists",
 							"job_id", j.ID, "tenant", j.Tenant())
 						metricJobsDropped.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
+						// This job was counted in-flight when NextPendingJob dequeued it; since it is
+						// dropped rather than promoted via AddJob, release that count or it leaks.
+						s.work.ReleaseRedactionInFlight(j.Tenant())
 						drop = true
 					} else if j.JobDetail.Redaction != nil {
 						// Inject the batch's selector (trace IDs or query) and mode so the

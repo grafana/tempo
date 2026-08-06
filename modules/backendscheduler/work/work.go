@@ -135,17 +135,27 @@ func (w *Work) AddJob(j *Job) error {
 	}
 
 	shard := w.getShard(j.ID)
-	shard.mtx.Lock()
-	defer shard.mtx.Unlock()
 
+	// Lock ordering: never hold shard.mtx while acquiring pendingMtx. AddPendingJobs takes them in
+	// the opposite order (pendingMtx then shard.mtx), so nesting the two here would be a lock-order
+	// inversion and could deadlock. We release shard.mtx before touching the pending-side maps.
+	shard.mtx.Lock()
 	if _, ok := shard.Jobs[j.ID]; ok {
+		shard.mtx.Unlock()
+		// This job is already active, so it will not be promoted here. If it was dequeued via
+		// NextPendingJob it was counted in-flight; release that count now — the promote path below
+		// is skipped by this early return, and without the release the counter leaks and
+		// HasJobsForTenant wedges the tenant permanently.
+		if j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION {
+			w.ReleaseRedactionInFlight(j.Tenant())
+		}
 		return ErrJobAlreadyExists
 	}
 
 	j.CreatedTime = time.Now()
 	j.Status = tempopb.JobStatus_JOB_STATUS_UNSPECIFIED
-
 	shard.Jobs[j.ID] = j
+	shard.mtx.Unlock()
 
 	w.pendingMtx.Lock()
 	// Clear registered job now that it is promoted to active.
@@ -153,9 +163,7 @@ func (w *Work) AddJob(j *Job) error {
 	// If this redaction job was previously in-flight (popped from pending but not
 	// yet active), decrement the counter now that it has been promoted to active.
 	if j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION {
-		if w.redactionInFlight[j.Tenant()] > 0 {
-			w.redactionInFlight[j.Tenant()]--
-		}
+		w.decRedactionInFlightLocked(j.Tenant())
 	}
 	// Index the worker -> job assignment so GetJobForWorker is O(1).
 	if wid := j.GetWorkerID(); wid != "" {
@@ -828,6 +836,13 @@ func (w *Work) NextPendingJob(jobType tempopb.JobType) *Job {
 				break
 			}
 		}
+		// Count a redaction job as in-flight in the SAME critical section as the dequeue, so it is
+		// never dequeued-but-uncounted — a window in which HasJobsForTenant could misread the batch
+		// as done and remove it. If the shard lookup below shows the entry was stale, we undo this
+		// increment before retrying.
+		if tenantID != "" && jobType == tempopb.JobType_JOB_TYPE_REDACTION {
+			w.redactionInFlight[tenantID]++
+		}
 		w.pendingMtx.Unlock()
 
 		if tenantID == "" {
@@ -843,35 +858,44 @@ func (w *Work) NextPendingJob(jobType tempopb.JobType) *Job {
 
 		if j != nil {
 			w.removePendingBlockIndex(j)
-			// Track that this redaction job is now in-flight: it has been removed
-			// from the pending queue but not yet promoted to the active map.
-			if j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION {
-				w.pendingMtx.Lock()
-				w.redactionInFlight[j.Tenant()]++
-				w.pendingMtx.Unlock()
-			}
 			return j
 		}
-		// j is nil: stale index entry, skip and retry.
+		// Stale index entry (present in pendingByTenant but missing from the shard): undo the
+		// optimistic in-flight increment taken above, then retry.
+		if jobType == tempopb.JobType_JOB_TYPE_REDACTION {
+			w.ReleaseRedactionInFlight(tenantID)
+		}
 	}
 }
 
-// hasRedactionInFlight returns true if there are redaction jobs for the tenant
-// that have been popped from the pending queue but not yet promoted to active.
-// Caller must hold pendingMtx.
-func (w *Work) hasRedactionInFlight(tenantID string) bool {
-	return w.redactionInFlight[tenantID] > 0
+// decRedactionInFlightLocked decrements a tenant's in-flight redaction counter, guarding against
+// underflow. Caller must hold pendingMtx.
+func (w *Work) decRedactionInFlightLocked(tenantID string) {
+	if w.redactionInFlight[tenantID] > 0 {
+		w.redactionInFlight[tenantID]--
+	}
 }
 
-// HasJobsForTenant returns true if there are any jobs of the given type in any
-// state (pending queue, registered, or active map) for the tenant.
+// ReleaseRedactionInFlight decrements the tenant's in-flight redaction counter for a job that was
+// dequeued via NextPendingJob (and thus counted) but will NOT be promoted to active — e.g. dropped
+// at assignment because its batch is gone or cancelled. AddJob performs the same decrement on the
+// normal promote path; this releases the count on a drop path so it is not leaked there.
+func (w *Work) ReleaseRedactionInFlight(tenantID string) {
+	w.pendingMtx.Lock()
+	defer w.pendingMtx.Unlock()
+	w.decRedactionInFlightLocked(tenantID)
+}
+
+// HasJobsForTenant returns true if there are any jobs of the given type for the tenant in any of
+// its tracked states: pending queue, in-flight (redaction jobs dequeued but not yet promoted),
+// registered, or active map.
 func (w *Work) HasJobsForTenant(tenantID string, jobType tempopb.JobType) bool {
 	w.pendingMtx.Lock()
 	hasPending := len(w.pendingByTenant[tenantID][jobType]) > 0
 	hasRunning := w.runningByTenant[tenantID][jobType] > 0
 	hasInFlight := false
 	if jobType == tempopb.JobType_JOB_TYPE_REDACTION {
-		hasInFlight = w.hasRedactionInFlight(tenantID)
+		hasInFlight = w.redactionInFlight[tenantID] > 0
 	}
 	if !hasInFlight && !hasRunning {
 		for _, j := range w.registeredJobs {
