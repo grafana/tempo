@@ -76,6 +76,50 @@ func TestPersistBatchCancelledUnknownTenant(t *testing.T) {
 	require.Error(t, w.PersistBatchCancelled(ctx, "absent", dir))
 }
 
+// TestSetBatchRescanIfCurrentRejectsCancelled verifies a rescan cannot be armed on a cancelled batch.
+// The rescan sweep scans on a snapshot and takes a long time, so a cancel can land mid-scan; committing
+// the result unconditionally would re-arm the rescan the cancel had just cleared, holding the tenant's
+// compaction for another rescan delay with no work outstanding.
+func TestSetBatchRescanIfCurrentRejectsCancelled(t *testing.T) {
+	w := New(Config{})
+	tenant := "t1"
+	b := testBatch(tenant)
+	require.NoError(t, w.AddBatch(b))
+	w.SetBatchCancelled(tenant, true)
+
+	require.False(t, w.SetBatchRescanIfCurrent(tenant, b.BatchId, []string{"j1"}, 12345),
+		"a cancelled batch never re-arms its rescan")
+	require.Zero(t, w.GetBatch(tenant).RescanAfterUnixNano)
+	require.Empty(t, w.GetBatch(tenant).SkippedCompactionJobIds)
+}
+
+// TestSetBatchRescanIfCurrentRejectsReplacedBatch verifies a rescan result cannot be committed onto a
+// different batch than the one it was computed from. Cancel removes the batch once quiescence ends so
+// the operator can resubmit, and a resubmission gets a new batch ID; applying an in-flight scan's
+// result to it would arm a rescan for blocks the new batch never scheduled.
+func TestSetBatchRescanIfCurrentRejectsReplacedBatch(t *testing.T) {
+	w := New(Config{})
+	tenant := "t1"
+	require.NoError(t, w.AddBatch(testBatch(tenant)))
+
+	require.False(t, w.SetBatchRescanIfCurrent(tenant, "some-older-batch", []string{"j1"}, 12345),
+		"a scan started under a previous batch does not commit onto the current one")
+	require.Zero(t, w.GetBatch(tenant).RescanAfterUnixNano)
+}
+
+// TestSetBatchRescanIfCurrentAppliesWhenCurrent verifies the normal path still arms the rescan.
+func TestSetBatchRescanIfCurrentAppliesWhenCurrent(t *testing.T) {
+	w := New(Config{})
+	tenant := "t1"
+	b := testBatch(tenant)
+	require.NoError(t, w.AddBatch(b))
+
+	require.True(t, w.SetBatchRescanIfCurrent(tenant, b.BatchId, []string{"j1"}, 12345))
+	got := w.GetBatch(tenant)
+	require.Equal(t, int64(12345), got.RescanAfterUnixNano)
+	require.Equal(t, []string{"j1"}, got.SkippedCompactionJobIds)
+}
+
 // TestSetBatchCancelledReportsPreviousValue verifies the setter reports what it replaced, so a retried
 // cancel is idempotent and two concurrent cancels can tell which of them actually made the change.
 func TestSetBatchCancelledReportsPreviousValue(t *testing.T) {

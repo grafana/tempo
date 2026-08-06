@@ -977,12 +977,22 @@ func (s *BackendScheduler) performRescan(ctx context.Context, batch *tempopb.Red
 		)
 	}
 
-	// Commit rescan state update under the batch store's write lock.
+	// Commit the rescan state, but only if the batch is still the one this scan started from. Everything
+	// above ran off a snapshot and can take a long time, so a cancel may have landed meanwhile — and a
+	// cancelled batch must not have its rescan re-armed, nor may a resubmitted batch inherit this scan's
+	// result. If the guard rejects, abandon the whole result including any jobs found ready to enqueue:
+	// the cancel (or the new batch) decides what happens to those blocks now.
 	var rescanAfterNano int64
 	if len(rearmIDs) > 0 {
 		rescanAfterNano = time.Now().Add(s.cfg.ProviderConfig.Redaction.RescanDelay).UnixNano()
 	}
-	s.work.SetBatchRescan(tenantID, rearmIDs, rescanAfterNano)
+	if !s.work.SetBatchRescanIfCurrent(tenantID, batchID, rearmIDs, rescanAfterNano) {
+		level.Info(log.Logger).Log(
+			"msg", "redaction rescan abandoned: batch was cancelled or replaced while the rescan ran",
+			"tenant", tenantID, "batch_id", batchID, "discarded_ready_jobs", len(allReadyJobs),
+		)
+		return
+	}
 
 	if len(allReadyJobs) == 0 && len(rearmIDs) == 0 {
 		s.cleanupBatchIfDone(ctx, tenantID)

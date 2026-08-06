@@ -65,6 +65,12 @@ type Interface interface {
 	RemoveBatch(tenantID string)
 	ListBatches() []*tempopb.RedactionBatch
 	SetBatchRescan(tenantID string, skippedJobIDs []string, rescanAfterUnixNano int64)
+
+	// SetBatchRescanIfCurrent arms the rescan only if the tenant's batch is still the one identified
+	// by batchID and is not cancelled, reporting whether it applied. Use it to commit a rescan result
+	// computed from an earlier snapshot, so a cancel or a resubmission that landed in the meantime is
+	// not overwritten.
+	SetBatchRescanIfCurrent(tenantID, batchID string, skippedJobIDs []string, rescanAfterUnixNano int64) bool
 	SetBatchQuiesceUntil(tenantID string, untilUnixNano int64)
 	// SetBatchCancelled sets the tenant's cancelled flag, publishing it to readers, and reports the
 	// value it replaced so a retry can tell whether it made the change. Publish only after

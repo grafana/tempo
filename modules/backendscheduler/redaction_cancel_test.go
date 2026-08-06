@@ -248,6 +248,45 @@ func TestCancelledBatchFutureRescanCleared(t *testing.T) {
 	require.Empty(t, b.SkippedCompactionJobIds, "the abandoned skipped-job list is cleared with the rescan")
 }
 
+// TestPerformRescanAbandonsCancelledBatch verifies a rescan already in progress does not re-arm itself
+// on a batch that was cancelled while it ran. The sweep scans from a snapshot and the scan is slow
+// (it walks every shard, possibly over several generations), so a cancel can land mid-scan. Committing
+// the result anyway would re-arm the rescan the cancel just cleared and keep the tenant's compaction
+// held for another rescan delay — after the operator was told the cancel succeeded.
+//
+// The stale snapshot passed in models the pre-cancel state the sweep captured.
+func TestPerformRescanAbandonsCancelledBatch(t *testing.T) {
+	ctx, s := newQuiescenceScheduler(t)
+	tenant := "t-rescan-cancelled"
+	batchID := "batch-rescan"
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: batchID, TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+		SkippedCompactionJobIds: []string{"busy-job"},
+		RescanAfterUnixNano:     time.Now().Add(-time.Hour).UnixNano(),
+	}))
+	// An incomplete compaction job matching the skipped ID, so the scan wants to re-arm for a retry.
+	require.NoError(t, s.work.AddJob(&work.Job{
+		ID:        "busy-job",
+		Type:      tempopb.JobType_JOB_TYPE_COMPACTION,
+		JobDetail: tempopb.JobDetail{Tenant: tenant},
+	}))
+
+	// The cancel lands while the sweep is mid-scan.
+	s.work.SetBatchCancelled(tenant, true)
+	s.work.SetBatchRescan(tenant, nil, 0)
+
+	staleSnapshot := &tempopb.RedactionBatch{
+		BatchId: batchID, TenantId: tenant,
+		SkippedCompactionJobIds: []string{"busy-job"},
+	}
+	s.performRescan(ctx, staleSnapshot)
+
+	b := s.work.GetBatch(tenant)
+	require.NotNil(t, b)
+	require.Zero(t, b.RescanAfterUnixNano, "the rescan is not re-armed on a batch cancelled mid-scan")
+	require.Empty(t, b.SkippedCompactionJobIds, "the cleared skipped-job list stays cleared")
+}
+
 // TestNextConcurrentWithCancelNoRace drives job assignment against a concurrent cancel — the
 // feature's intended use: an operator cancels while workers are still polling for work. Next()
 // consults the tenant's batch to decide whether to assign or drop, and CancelRedaction mutates that

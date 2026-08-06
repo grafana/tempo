@@ -121,6 +121,26 @@ func (b *batchStore) setRescan(tenantID string, ids []string, afterNano int64) {
 	}
 }
 
+// setRescanIfCurrent arms the rescan only if the tenant's batch is still the one identified by
+// batchID and has not been cancelled, reporting whether it applied. The check and the write share one
+// lock acquisition, so a cancel cannot land between them.
+//
+// The rescan sweep computes its result from a snapshot and takes a long time doing it, so the batch can
+// change underneath it: a cancel clears the rescan (and must not see it re-armed), and once a cancelled
+// batch is removed the operator may resubmit, giving a new batch ID that must not inherit a previous
+// batch's scan result.
+func (b *batchStore) setRescanIfCurrent(tenantID, batchID string, ids []string, afterNano int64) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	batch, ok := b.byTenant[tenantID]
+	if !ok || batch.BatchId != batchID || batch.Cancelled {
+		return false
+	}
+	batch.SkippedCompactionJobIds = ids
+	batch.RescanAfterUnixNano = afterNano
+	return true
+}
+
 func (b *batchStore) setQuiesceUntil(tenantID string, untilUnixNano int64) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -273,6 +293,13 @@ func (w *Work) BatchQuiescenceState(tenantID string) (quiesceUntilUnixNano int64
 // quiescence). Pass false to revert (e.g. when a cancel could not be persisted).
 func (w *Work) SetBatchCancelled(tenantID string, cancelled bool) (previous bool) {
 	return w.batches.setCancelled(tenantID, cancelled)
+}
+
+// SetBatchRescanIfCurrent arms the rescan only if the tenant's batch is still the one identified by
+// batchID and is not cancelled, reporting whether it applied. Use this to commit a rescan result that
+// was computed from an earlier snapshot.
+func (w *Work) SetBatchRescanIfCurrent(tenantID, batchID string, skippedJobIDs []string, rescanAfterUnixNano int64) bool {
+	return w.batches.setRescanIfCurrent(tenantID, batchID, skippedJobIDs, rescanAfterUnixNano)
 }
 
 // PersistBatchCancelled makes a tenant's cancel durable without publishing it in memory, so that no
