@@ -42,6 +42,7 @@ For externally supported gRPC API, [refer to Tempo gRPC API](#tempo-grpc-api).
 | [TraceQL Metrics](#traceql-metrics)                                                   | Query-frontend                            | HTTP | `GET /api/metrics/query_range`                            |
 | [TraceQL Metrics (instant)](#instant)                                                 | Query-frontend                            | HTTP | `GET /api/metrics/query`                                  |
 | [Trace diff](#trace-diff) (\*)                                                        | Query-frontend                            | HTTP | `POST /api/v2/traces/diff`                                |
+| [Trace summary](#trace-summary) (\*)                                                  | Query-frontend                            | HTTP | `GET /api/v2/traces/<traceID>/summary`                    |
 | [Query Echo Endpoint](#query-echo-endpoint)                                           | Query-frontend                            | HTTP | `GET /api/echo`                                           |
 | [Overrides API](#overrides-api)                                                       | Query-frontend                            | HTTP | `GET,POST,PATCH,DELETE /api/overrides`                    |
 | Memberlist                                                                            | Distributor, Querier, Live store          | HTTP | `GET /memberlist`                                         |
@@ -811,6 +812,35 @@ before `end` and limits the block search to that time range. If omitted, Tempo
 searches across all blocks.
 
 Only `POST` is allowed. Other methods return `405 Method Not Allowed`.
+
+### Trace summary
+
+{{< admonition type="warning" >}}
+This endpoint is experimental. The request format and behavior may change in future releases.
+{{< /admonition >}}
+
+This endpoint returns a condensed summary of a trace, useful for a quick triage view without fetching the full trace.
+
+```
+GET /api/v2/traces/<traceID>/summary?start=<start>&end=<end>
+```
+
+Parameters:
+
+- `start = (unix epoch seconds)`
+  Optional. Along with `end`, limits the time range searched for the trace.
+- `end = (unix epoch seconds)`
+  Optional. Along with `start`, limits the time range searched for the trace.
+
+The response is a JSON object containing:
+
+- `traceId`, `rootService`, `rootSpanName`, `durationNanos`, `spanCount`, `errorCount`
+- `criticalPath`: the root-to-leaf chain of spans following, at each level, whichever child ends latest.
+- `services`: per-service span count, error count, and cumulative duration.
+- `slowestSpans`: the 5 slowest spans in the trace.
+- `errorSpans`: the first 5 spans with an error status.
+
+Only `GET` is allowed. Other methods return `405 Method Not Allowed`.
 
 ### Query Echo endpoint
 
