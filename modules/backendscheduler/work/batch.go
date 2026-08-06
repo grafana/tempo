@@ -17,6 +17,13 @@ const batchesFileName = "batches.pb"
 // of N block-level jobs does not duplicate the trace ID list N times in memory
 // or on disk.
 type batchStore struct {
+	// writeMu orders manifest writers with respect to each other. mu alone is not enough: it is
+	// released before the file write, so two writers can marshal in one order and rename in the other.
+	// That was harmless while every writer marshalled the live store — they all wrote the same truth —
+	// but persistCancelled deliberately marshals a state the store does not yet hold, so an older
+	// snapshot landing last can revert a cancel the handler has already published and reported.
+	// Held across marshal-and-write; always acquired before mu, never while holding it.
+	writeMu  sync.Mutex
 	mu       sync.RWMutex
 	byTenant map[string]*tempopb.RedactionBatch
 }
@@ -71,8 +78,11 @@ func (b *batchStore) hasBlockingBatch(tenantID string) bool {
 
 // flush writes all active batches to batches.pb in localPath using proto encoding.
 func (b *batchStore) flush(localPath string) error {
-	// Hold the read lock through Marshal so that clearRescan mutations cannot race
-	// with field reads inside proto.Marshal.
+	b.writeMu.Lock()
+	defer b.writeMu.Unlock()
+
+	// Hold the read lock through Marshal so the locked setters (setRescan, setRescanIfCurrent,
+	// setQuiesceUntil, setCancelled) cannot mutate fields that proto.Marshal is reading.
 	b.mu.RLock()
 	batches := make([]*tempopb.RedactionBatch, 0, len(b.byTenant))
 	for _, batch := range b.byTenant {
@@ -177,26 +187,33 @@ func (b *batchStore) setCancelled(tenantID string, cancelled bool) (previous boo
 	return previous
 }
 
-// persistCancelled writes the manifest with tenantID's batch marked cancelled, WITHOUT changing the
-// in-memory store. On success the cancel is durable but not yet visible to readers; the caller
-// publishes it with setCancelled.
+// commitCancel makes a tenant's cancel durable and only then publishes it in the store, as one
+// operation with respect to every other manifest writer. It reports whether the batch was already
+// cancelled, and returns ErrBatchNotFound if the tenant has no batch (including one removed while the
+// commit was in flight, in which case the manifest is corrected by the next flush).
 //
-// Committing before publishing is required because the readers of the in-memory flag act
-// irreversibly: a dequeued job is discarded at assignment, and a cancelled batch's skipped-block list
-// is cleared rather than rescanned. Publishing first would let those happen during the write, so a
-// write failure could not be undone and the operator would be told the cancel failed after work had
-// already been dropped. Returns an error if the tenant has no batch.
-func (b *batchStore) persistCancelled(tenantID, localPath string) error {
+// Commit must precede publish because the readers of the in-memory flag act irreversibly: Next()
+// discards a dequeued job and checkPendingRescans clears the skipped-block list, neither of which can
+// be undone if the write then fails. Commit and publish must also be inseparable: in between, the
+// manifest says cancelled while the store does not, so any concurrent flush of live state would write
+// the cancel back out of existence. Holding writeMu across both closes that window — a flush blocked
+// on it proceeds afterwards and marshals a store that now agrees with the disk.
+func (b *batchStore) commitCancel(tenantID, localPath string) (alreadyCancelled bool, err error) {
+	b.writeMu.Lock()
+	defer b.writeMu.Unlock()
+
 	b.mu.RLock()
 	target, ok := b.byTenant[tenantID]
 	if !ok {
 		b.mu.RUnlock()
-		return fmt.Errorf("no batch for tenant %s", tenantID)
+		return false, ErrBatchNotFound
 	}
+	alreadyCancelled = target.Cancelled
 	batches := make([]*tempopb.RedactionBatch, 0, len(b.byTenant))
 	for tenant, batch := range b.byTenant {
 		if tenant == tenantID {
-			// Serialize a copy carrying the cancel, leaving the stored batch untouched.
+			// Serialize a copy carrying the cancel, leaving the stored batch untouched until the write
+			// succeeds.
 			cp := *target
 			cp.Cancelled = true
 			batches = append(batches, &cp)
@@ -209,16 +226,35 @@ func (b *batchStore) persistCancelled(tenantID, localPath string) error {
 	b.mu.RUnlock()
 
 	if err != nil {
-		return fmt.Errorf("marshal batches: %w", err)
+		return false, fmt.Errorf("marshal batches: %w", err)
 	}
 	if err := os.MkdirAll(localPath, 0o700); err != nil {
-		return fmt.Errorf("mkdir %s: %w", localPath, err)
+		return false, fmt.Errorf("mkdir %s: %w", localPath, err)
 	}
-	return atomicWriteFile(data, filepath.Join(localPath, batchesFileName), batchesFileName)
+	if err := atomicWriteFile(data, filepath.Join(localPath, batchesFileName), batchesFileName); err != nil {
+		return false, err
+	}
+
+	// Durable: publish it. Still under writeMu, so nothing has flushed the pre-cancel state in between.
+	b.mu.Lock()
+	batch, stillThere := b.byTenant[tenantID]
+	if stillThere {
+		batch.Cancelled = true
+	}
+	b.mu.Unlock()
+	if !stillThere {
+		// Removed while the commit was in flight; the caller must not report a successful cancel.
+		return alreadyCancelled, ErrBatchNotFound
+	}
+	return alreadyCancelled, nil
 }
 
-// load reads batches.pb from localPath. Missing file is not an error (clean start).
 func (b *batchStore) load(localPath string) error {
+	// Ordered with the writers, so a reload cannot read a manifest that a concurrent write is
+	// midway through replacing.
+	b.writeMu.Lock()
+	defer b.writeMu.Unlock()
+
 	path := filepath.Join(localPath, batchesFileName)
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -303,9 +339,10 @@ func (w *Work) SetBatchRescanIfCurrent(tenantID, batchID string, skippedJobIDs [
 	return w.batches.setRescanIfCurrent(tenantID, batchID, skippedJobIDs, rescanAfterUnixNano)
 }
 
-// PersistBatchCancelled makes a tenant's cancel durable without publishing it in memory, so that no
-// reader can act on a cancel that is not yet persisted. Publish it with SetBatchCancelled once this
-// returns nil; if it returns an error, nothing changed and the operation is safe to retry.
-func (w *Work) PersistBatchCancelled(_ context.Context, tenantID, localPath string) error {
-	return w.batches.persistCancelled(tenantID, localPath)
+// CommitBatchCancel makes a tenant's cancel durable and then publishes it, as one operation: on
+// success the cancel is both on disk and visible to readers, and on failure neither. Reports whether
+// the batch was already cancelled, so a retry is idempotent, and ErrBatchNotFound when the tenant has
+// no batch.
+func (w *Work) CommitBatchCancel(_ context.Context, tenantID, localPath string) (alreadyCancelled bool, err error) {
+	return w.batches.commitCancel(tenantID, localPath)
 }

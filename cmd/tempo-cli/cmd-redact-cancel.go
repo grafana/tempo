@@ -18,7 +18,7 @@ type redactCancelCmd struct {
 	TLS           bool   `name:"tls" help:"use TLS transport" default:"false"`
 	TLSServerName string `name:"tls-server-name" help:"override the TLS server name (SNI)"`
 	TLSCA         string `name:"tls-ca" help:"path to a PEM-encoded CA certificate file"`
-	TLSMinVersion string `name:"tls-min-version" default:"VersionTLS13" enum:"VersionTLS10,VersionTLS11,VersionTLS12,VersionTLS13" help:"minimum TLS version (only applies with --tls)"`
+	TLSMinVersion string `name:"tls-min-version" default:"VersionTLS13" enum:"VersionTLS10,VersionTLS11,VersionTLS12,VersionTLS13" help:"minimum TLS version; validated always, applied when --tls is set"`
 }
 
 func (cmd *redactCancelCmd) Run(_ *globalOptions) error {

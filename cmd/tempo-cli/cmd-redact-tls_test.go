@@ -18,7 +18,7 @@ func TestSchedulerTLSConfig(t *testing.T) {
 	}{
 		{
 			name:       "default is the strongest version",
-			minVersion: "VersionTLS13",
+			minVersion: defaultTLSMinVersion,
 			wantMin:    tls.VersionTLS13,
 		},
 		{
@@ -29,7 +29,7 @@ func TestSchedulerTLSConfig(t *testing.T) {
 		{
 			name:       "server name is carried through for SNI",
 			serverName: "scheduler.example.com",
-			minVersion: "VersionTLS13",
+			minVersion: defaultTLSMinVersion,
 			wantMin:    tls.VersionTLS13,
 		},
 		{
@@ -40,12 +40,12 @@ func TestSchedulerTLSConfig(t *testing.T) {
 		{
 			name:       "the error names the versions that are allowed",
 			minVersion: "",
-			wantErr:    "VersionTLS13",
+			wantErr:    defaultTLSMinVersion,
 		},
 		{
 			name:       "a missing CA file is reported",
 			ca:         "/nonexistent/ca.pem",
-			minVersion: "VersionTLS13",
+			minVersion: defaultTLSMinVersion,
 			wantErr:    "reading CA cert",
 		},
 	} {
@@ -70,18 +70,18 @@ func TestSchedulerTLSConfig(t *testing.T) {
 // hide behind a plaintext connection.
 func TestSchedulerTransportCredentialsWithoutTLS(t *testing.T) {
 	t.Run("plain connection when no TLS settings are given", func(t *testing.T) {
-		creds, err := schedulerTransportCredentials(false, "", "", "VersionTLS13")
+		creds, err := schedulerTransportCredentials(false, "", "", defaultTLSMinVersion)
 		require.NoError(t, err)
 		require.Equal(t, "insecure", creds.Info().SecurityProtocol)
 	})
 
 	t.Run("a CA without --tls is refused rather than ignored", func(t *testing.T) {
-		_, err := schedulerTransportCredentials(false, "", "/tmp/ca.pem", "VersionTLS13")
+		_, err := schedulerTransportCredentials(false, "", "/tmp/ca.pem", defaultTLSMinVersion)
 		require.ErrorContains(t, err, "--tls")
 	})
 
 	t.Run("a server name without --tls is refused rather than ignored", func(t *testing.T) {
-		_, err := schedulerTransportCredentials(false, "scheduler.example.com", "", "VersionTLS13")
+		_, err := schedulerTransportCredentials(false, "scheduler.example.com", "", defaultTLSMinVersion)
 		require.ErrorContains(t, err, "--tls")
 	})
 

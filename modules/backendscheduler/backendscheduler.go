@@ -717,11 +717,17 @@ func (s *BackendScheduler) CancelRedaction(ctx context.Context, _ *tempopb.Cance
 	// irreversibly — Next() discards a dequeued job and checkPendingRescans clears the skipped-block
 	// list — so a subsequent write failure could not be undone, and we would report a failed cancel
 	// after work had already been dropped.
-	if err := s.work.PersistBatchCancelled(ctx, tenant, s.cfg.LocalWorkPath); err != nil {
-		level.Error(log.Logger).Log("msg", "failed to persist redaction cancel; nothing changed, safe to retry", "tenant", tenant, "err", err)
-		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to persist redaction cancel; nothing changed, retry: %v", err))
-	}
-	if alreadyCancelled := s.work.SetBatchCancelled(tenant, true); alreadyCancelled {
+	alreadyCancelled, err := s.work.CommitBatchCancel(ctx, tenant, s.cfg.LocalWorkPath)
+	switch {
+	case errors.Is(err, work.ErrBatchNotFound):
+		// The batch was removed while the cancel was in flight (its quiescence elapsed on a maintenance
+		// tick), so there is nothing left to cancel. Report that rather than a success for work that had
+		// already finished; the next flush rewrites the manifest without it.
+		return nil, status.Error(codes.NotFound, "no redaction in progress for this tenant")
+	case err != nil:
+		level.Error(log.Logger).Log("msg", "failed to commit redaction cancel; nothing changed, safe to retry", "tenant", tenant, "err", err)
+		return nil, status.Errorf(codes.Internal, "failed to commit redaction cancel; nothing changed, retry: %v", err)
+	case alreadyCancelled:
 		level.Info(log.Logger).Log("msg", "redaction already cancelled; completing idempotently", "tenant", tenant, "batch_id", batchID)
 	}
 

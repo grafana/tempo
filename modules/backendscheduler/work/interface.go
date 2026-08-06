@@ -77,9 +77,11 @@ type Interface interface {
 	// PersistBatchCancelled has made the cancel durable.
 	SetBatchCancelled(tenantID string, cancelled bool) (previous bool)
 
-	// PersistBatchCancelled makes the tenant's cancel durable without publishing it in memory, so no
-	// reader acts on a cancel that is not yet persisted. Returns an error if the tenant has no batch.
-	PersistBatchCancelled(ctx context.Context, tenantID, localPath string) error
+	// CommitBatchCancel makes the tenant's cancel durable and then publishes it to readers as one
+	// operation: on success it is both on disk and visible, on failure neither, so a failed cancel is
+	// never observable and is safe to retry. Reports whether the batch was already cancelled (making a
+	// retry idempotent) and returns ErrBatchNotFound if the tenant has no batch.
+	CommitBatchCancel(ctx context.Context, tenantID, localPath string) (alreadyCancelled bool, err error)
 	BatchQuiescenceState(tenantID string) (quiesceUntilUnixNano int64, rescanPending, dryRun, cancelled, ok bool)
 	FlushBatchesToLocal(ctx context.Context, localPath string) error
 	LoadBatchesFromLocal(ctx context.Context, localPath string) error
