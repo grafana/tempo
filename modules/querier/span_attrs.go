@@ -3,6 +3,7 @@ package querier
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -28,7 +29,7 @@ func finishQuerierSpan(span oteltrace.Span, err error, metrics any) {
 	setQuerierSpanMetrics(span, metrics)
 	if err != nil {
 		span.RecordError(err)
-		if err != context.Canceled {
+		if !errors.Is(err, context.Canceled) {
 			span.SetStatus(codes.Error, err.Error())
 		}
 	}
