@@ -136,6 +136,23 @@ func TestApplyQueryOnlyReturnsMatchedSpans(t *testing.T) {
 	require.ElementsMatch(t, []byte{3}, keptIDs(out), "only the matching span is returned without keep_hierarchy")
 }
 
+func TestApplyMatchDepthZeroMatchesOnly(t *testing.T) {
+	// trace: A(root) -> B -> C, only C has http.status_code=500. An explicit match_depth=0 must
+	// behave identically to today's default (matched spans only, no descendants).
+	trace := buildTrace([]testSpan{
+		{id: 1, attrs: map[string]any{"http.status_code": 200}},
+		{id: 2, parent: 1, attrs: map[string]any{"http.status_code": 200}},
+		{id: 3, parent: 2, attrs: map[string]any{"http.status_code": 500}},
+	}, nil)
+
+	f, err := Options{Query: `{ .http.status_code = 500 }`, MatchDepth: 0}.Compile()
+	require.NoError(t, err)
+
+	out, err := f.Process(trace)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []byte{3}, keptIDs(out), "match_depth=0 keeps only the matching span")
+}
+
 func TestApplyKeepHierarchyAddsAncestors(t *testing.T) {
 	// trace: A(root) -> B -> C, only C matches. keep_hierarchy should also return A and B.
 	trace := buildTrace([]testSpan{
@@ -144,7 +161,7 @@ func TestApplyKeepHierarchyAddsAncestors(t *testing.T) {
 		{id: 3, parent: 2, attrs: map[string]any{"http.status_code": 500}},
 	}, nil)
 
-	f, err := Options{Query: `{ .http.status_code = 500 }`, KeepHierarchy: true}.Compile()
+	f, err := Options{Query: `{ .http.status_code = 500 }`, KeepHierarchy: true, AncestorDepth: -1}.Compile()
 	require.NoError(t, err)
 
 	out, err := f.Process(trace)
@@ -162,12 +179,44 @@ func TestApplyKeepHierarchyMultipleBranches(t *testing.T) {
 		{id: 5, parent: 3},
 	}, nil)
 
-	f, err := Options{Query: `{ .match = true }`, KeepHierarchy: true}.Compile()
+	f, err := Options{Query: `{ .match = true }`, KeepHierarchy: true, AncestorDepth: -1}.Compile()
 	require.NoError(t, err)
 
 	out, err := f.Process(trace)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []byte{1, 2, 4}, keptIDs(out))
+}
+
+func TestApplyAncestorDepthZero(t *testing.T) {
+	// A(root) -> B -> C(match). ancestor_depth=0 keeps no ancestors, even with keep_hierarchy=true.
+	trace := buildTrace([]testSpan{
+		{id: 1},
+		{id: 2, parent: 1},
+		{id: 3, parent: 2, attrs: map[string]any{"match": true}},
+	}, nil)
+
+	f, err := Options{Query: `{ .match = true }`, KeepHierarchy: true, AncestorDepth: 0}.Compile()
+	require.NoError(t, err)
+
+	out, err := f.Process(trace)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []byte{3}, keptIDs(out), "ancestor_depth=0 keeps only the matched span, no ancestors")
+}
+
+func TestApplyAncestorDepthLimitsToImmediateParent(t *testing.T) {
+	// A(root) -> B -> C(match). ancestor_depth=1 keeps only the immediate parent B, not the root A.
+	trace := buildTrace([]testSpan{
+		{id: 1},
+		{id: 2, parent: 1},
+		{id: 3, parent: 2, attrs: map[string]any{"match": true}},
+	}, nil)
+
+	f, err := Options{Query: `{ .match = true }`, KeepHierarchy: true, AncestorDepth: 1}.Compile()
+	require.NoError(t, err)
+
+	out, err := f.Process(trace)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []byte{2, 3}, keptIDs(out), "ancestor_depth=1 keeps only the immediate parent")
 }
 
 func TestApplyKeepHierarchyFollowsAllParentsOfDuplicateID(t *testing.T) {
@@ -180,7 +229,7 @@ func TestApplyKeepHierarchyFollowsAllParentsOfDuplicateID(t *testing.T) {
 		{id: 3, parent: 2, attrs: map[string]any{"match": true}},
 	}, nil)
 
-	f, err := Options{Query: `{ .match = true }`, KeepHierarchy: true}.Compile()
+	f, err := Options{Query: `{ .match = true }`, KeepHierarchy: true, AncestorDepth: -1}.Compile()
 	require.NoError(t, err)
 
 	out, err := f.Process(trace)
@@ -203,6 +252,88 @@ func TestApplyDuplicateIDKeepsOnlyMatchingSpan(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []byte{3}, keptIDs(out), "only the matching span survives, not both duplicates")
 	require.Equal(t, []string{"keep"}, stringAttrValues(out, "which"))
+}
+
+func TestApplyMatchDepthKeepsDirectChildren(t *testing.T) {
+	// A(match) -> B -> C, a 3-level chain. match_depth=1 keeps only the direct child B, not C.
+	trace := buildTrace([]testSpan{
+		{id: 1, attrs: map[string]any{"match": true}},
+		{id: 2, parent: 1},
+		{id: 3, parent: 2},
+	}, nil)
+
+	f, err := Options{Query: `{ .match = true }`, MatchDepth: 1}.Compile()
+	require.NoError(t, err)
+
+	out, err := f.Process(trace)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []byte{1, 2}, keptIDs(out), "match_depth=1 keeps only direct children")
+}
+
+func TestApplyMatchDepthCumulativeLevels(t *testing.T) {
+	// A(match) -> B -> C -> D, a 4-level chain.
+	trace := buildTrace([]testSpan{
+		{id: 1, attrs: map[string]any{"match": true}},
+		{id: 2, parent: 1},
+		{id: 3, parent: 2},
+		{id: 4, parent: 3},
+	}, nil)
+
+	f, err := Options{Query: `{ .match = true }`, MatchDepth: 2}.Compile()
+	require.NoError(t, err)
+	out, err := f.Process(trace)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []byte{1, 2, 3}, keptIDs(out), "match_depth=2 keeps two cumulative levels of descendants, D excluded")
+
+	unlimited, err := Options{Query: `{ .match = true }`, MatchDepth: -1}.Compile()
+	require.NoError(t, err)
+	out, err = unlimited.Process(trace)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []byte{1, 2, 3, 4}, keptIDs(out), "match_depth=-1 keeps the full subtree")
+}
+
+func TestApplyMatchDepthMultipleBranches(t *testing.T) {
+	// A(match) -> {B -> D (shallow), C -> E -> F (deep)}. match_depth=2 keeps the shallow branch in
+	// full (B, D) and truncates the deep branch before F (C, E kept, F dropped).
+	trace := buildTrace([]testSpan{
+		{id: 1, attrs: map[string]any{"match": true}},
+		{id: 2, parent: 1},
+		{id: 3, parent: 1},
+		{id: 4, parent: 2},
+		{id: 5, parent: 3},
+		{id: 6, parent: 5},
+	}, nil)
+
+	f, err := Options{Query: `{ .match = true }`, MatchDepth: 2}.Compile()
+	require.NoError(t, err)
+
+	out, err := f.Process(trace)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []byte{1, 2, 3, 4, 5}, keptIDs(out), "shallow branch kept in full, deep branch truncated at the cutoff")
+}
+
+func TestApplyDepthAssignmentUsesShortestPath(t *testing.T) {
+	// A(match) has two branches to span id 5: a short one (A -> B -> X, depth 2) and a longer one
+	// through a duplicate span sharing id 5 (A -> C -> D -> X', depth 3). X has a real child Y at
+	// true depth 3. With match_depth=3, Y is within budget only if X is assigned its shortest-path
+	// depth (2); a DFS-based walk that visits the longer branch first would record X at depth 3
+	// instead, push Y past the cutoff at depth 4, and wrongly drop it.
+	trace := buildTrace([]testSpan{
+		{id: 1, attrs: map[string]any{"match": true}}, // A
+		{id: 2, parent: 1},                            // B, short branch
+		{id: 5, parent: 2},                            // X, true shortest depth 2
+		{id: 6, parent: 5},                            // Y, X's child, true depth 3
+		{id: 3, parent: 1},                            // C, long branch
+		{id: 4, parent: 3},                            // D
+		{id: 5, parent: 4},                            // X' (duplicate id 5), reached at depth 3 via the long branch
+	}, nil)
+
+	f, err := Options{Query: `{ .match = true }`, MatchDepth: 3}.Compile()
+	require.NoError(t, err)
+
+	out, err := f.Process(trace)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []byte{1, 2, 3, 4, 5, 5, 6}, keptIDs(out), "id 5 must be assigned its shortest-path depth so its child Y stays within budget")
 }
 
 func TestApplyNoMatchReturnsEmptyTrace(t *testing.T) {
@@ -268,7 +399,7 @@ func TestApplyKeepHierarchyToleratesMissingParent(t *testing.T) {
 		{id: 2, parent: 9, attrs: map[string]any{"match": true}},
 	}, nil)
 
-	f, err := Options{Query: `{ .match = true }`, KeepHierarchy: true}.Compile()
+	f, err := Options{Query: `{ .match = true }`, KeepHierarchy: true, AncestorDepth: -1}.Compile()
 	require.NoError(t, err)
 
 	out, err := f.Process(trace)
@@ -283,7 +414,42 @@ func TestApplyKeepHierarchyTerminatesOnCycle(t *testing.T) {
 		{id: 2, parent: 1},
 	}, nil)
 
-	f, err := Options{Query: `{ .match = true }`, KeepHierarchy: true}.Compile()
+	f, err := Options{Query: `{ .match = true }`, KeepHierarchy: true, AncestorDepth: -1}.Compile()
+	require.NoError(t, err)
+
+	out, err := f.Process(trace)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []byte{1, 2}, keptIDs(out))
+}
+
+func TestApplyMatchDepthToleratesMissingParent(t *testing.T) {
+	// span id 5 is declared twice: one instance genuinely parented under matched span 2, the other
+	// parented under a dangling id 99 that appears nowhere else in the trace. Since keptDescendantIDs
+	// is id-keyed (not pointer-keyed), reaching id 5 through either instance keeps both - this must
+	// not panic and must still return every span, including the one behind the dangling reference.
+	trace := buildTrace([]testSpan{
+		{id: 2, attrs: map[string]any{"match": true}},
+		{id: 5, parent: 2},
+		{id: 5, parent: 99},
+	}, nil)
+
+	f, err := Options{Query: `{ .match = true }`, MatchDepth: 1}.Compile()
+	require.NoError(t, err)
+
+	out, err := f.Process(trace)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []byte{2, 5, 5}, keptIDs(out))
+}
+
+func TestApplyMatchDepthTerminatesOnCycle(t *testing.T) {
+	// 1 -> 2 -> 1 is a child cycle (same shape as the ancestor cycle, inverted). The walk must
+	// terminate (not hang) and keep both.
+	trace := buildTrace([]testSpan{
+		{id: 1, parent: 2, attrs: map[string]any{"match": true}},
+		{id: 2, parent: 1},
+	}, nil)
+
+	f, err := Options{Query: `{ .match = true }`, MatchDepth: -1}.Compile()
 	require.NoError(t, err)
 
 	out, err := f.Process(trace)
@@ -372,9 +538,9 @@ func TestKeepHierarchyIgnoredWhenQueryAbsent(t *testing.T) {
 		{id: 3, parent: 2},
 	}, nil)
 
-	f, err := Options{KeepHierarchy: true}.Compile()
+	f, err := Options{KeepHierarchy: true, MatchDepth: 2, AncestorDepth: 1}.Compile()
 	require.NoError(t, err)
-	require.Nil(t, f, "no query means no filter regardless of keep_hierarchy")
+	require.Nil(t, f, "no query means no filter regardless of keep_hierarchy, match_depth, or ancestor_depth")
 
 	out, err := f.Process(trace)
 	require.NoError(t, err)
@@ -420,9 +586,11 @@ func buildBenchTrace(n int) *tempopb.Trace {
 func BenchmarkProcess(b *testing.B) {
 	trace := buildBenchTrace(2000)
 
-	keep, err := Options{Query: `{ .http.status_code = 500 }`, KeepHierarchy: true}.Compile()
+	keep, err := Options{Query: `{ .http.status_code = 500 }`, KeepHierarchy: true, AncestorDepth: -1}.Compile()
 	require.NoError(b, err)
 	flat, err := Options{Query: `{ .http.status_code = 500 }`, KeepHierarchy: false}.Compile()
+	require.NoError(b, err)
+	matchDepth, err := Options{Query: `{ .http.status_code = 500 }`, MatchDepth: 2}.Compile()
 	require.NoError(b, err)
 
 	b.Run("keep_hierarchy=true", func(b *testing.B) {
@@ -437,6 +605,14 @@ func BenchmarkProcess(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
 			if _, err := flat.Process(trace); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+	b.Run("match_depth=2", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			if _, err := matchDepth.Process(trace); err != nil {
 				b.Fatal(err)
 			}
 		}

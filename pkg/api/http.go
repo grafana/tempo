@@ -65,6 +65,8 @@ const (
 
 	// trace by id v2 filtering (q reuses urlParamQuery)
 	urlParamKeepHierarchy = "keep_hierarchy"
+	urlParamMatchDepth    = "match_depth"
+	urlParamAncestorDepth = "ancestor_depth"
 
 	// search tags
 	urlParamScope = "scope"
@@ -942,28 +944,69 @@ func ParseTraceByIDRequest(r *http.Request) (string, string, string, time.Time, 
 	return blockStart, blockEnd, queryMode, startTime, endTime, nil
 }
 
+// TraceByIDFilterParams holds the parsed q spanset filter params for the trace by id v2 API.
+type TraceByIDFilterParams struct {
+	Query         string
+	KeepHierarchy bool
+	MatchDepth    int
+	AncestorDepth int
+}
+
 // ParseTraceByIDFilterParams parses the q spanset filter params for the trace by id v2 API.
-// It returns (query, keepHierarchy, error). keep_hierarchy is only parsed when q is set: it is
-// documented as ignored without a query, so a malformed value must not fail an unfiltered request.
-func ParseTraceByIDFilterParams(r *http.Request) (string, bool, error) {
+// keep_hierarchy, match_depth, and ancestor_depth are only parsed and validated when q is set:
+// they are documented as ignored without a query, so malformed values must not fail an
+// unfiltered request. When q is empty, the zero-value TraceByIDFilterParams is returned.
+//
+// match_depth and ancestor_depth have different defaults when absent from the request, both
+// chosen to preserve pre-existing behavior: an absent match_depth defaults to 0 (matched spans
+// only, no descendants), while an absent ancestor_depth defaults to -1 (unbounded ancestor walk).
+// When present, both accept -1 (unbounded) or any non-negative depth.
+func ParseTraceByIDFilterParams(r *http.Request) (TraceByIDFilterParams, error) {
 	vals := r.URL.Query()
 
 	// trim so a blank or whitespace-only q means no filter (full trace), matching the docs.
 	query := strings.TrimSpace(vals.Get(urlParamQuery))
 	if query == "" {
-		return "", false, nil
+		return TraceByIDFilterParams{}, nil
 	}
 
-	keepHierarchy := false
+	params := TraceByIDFilterParams{
+		Query:         query,
+		MatchDepth:    0,
+		AncestorDepth: -1,
+	}
+
 	if raw := vals.Get(urlParamKeepHierarchy); raw != "" {
 		keep, err := strconv.ParseBool(raw)
 		if err != nil {
-			return "", false, fmt.Errorf("invalid value for %s: %w", urlParamKeepHierarchy, err)
+			return TraceByIDFilterParams{}, fmt.Errorf("invalid value for %s: %w", urlParamKeepHierarchy, err)
 		}
-		keepHierarchy = keep
+		params.KeepHierarchy = keep
 	}
 
-	return query, keepHierarchy, nil
+	if raw := vals.Get(urlParamMatchDepth); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil {
+			return TraceByIDFilterParams{}, fmt.Errorf("invalid value for %s: %w", urlParamMatchDepth, err)
+		}
+		if n < -1 {
+			return TraceByIDFilterParams{}, fmt.Errorf("invalid value for %s: must be >= -1", urlParamMatchDepth)
+		}
+		params.MatchDepth = n
+	}
+
+	if raw := vals.Get(urlParamAncestorDepth); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil {
+			return TraceByIDFilterParams{}, fmt.Errorf("invalid value for %s: %w", urlParamAncestorDepth, err)
+		}
+		if n < -1 {
+			return TraceByIDFilterParams{}, fmt.Errorf("invalid value for %s: must be >= -1", urlParamAncestorDepth)
+		}
+		params.AncestorDepth = n
+	}
+
+	return params, nil
 }
 
 func ReadBodyToBuffer(resp *http.Response) (*bytes.Buffer, error) {

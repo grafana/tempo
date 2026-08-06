@@ -21,6 +21,8 @@ type queryTraceIDCmd struct {
 	// Trace By ID V2 filtering and selection params
 	Q             string `name:"q" help:"TraceQL spanset filter, only matching spans are returned (V2 only)"`
 	KeepHierarchy bool   `name:"keep-hierarchy" default:"false" help:"include ancestor path to the root for each matched span, requires --q (V2 only)"`
+	MatchDepth    int    `name:"match-depth" default:"0" help:"levels of descendants to keep below each matched span: -1 = all, 0 = matched spans only, n = n levels (V2 only, requires --q)"`
+	AncestorDepth int    `name:"ancestor-depth" default:"-1" help:"levels of ancestors to keep above each matched span when --keep-hierarchy is set: -1 = all (default), 0 = none, n = n levels (V2 only)"`
 }
 
 func (cmd *queryTraceIDCmd) Run(_ *globalOptions) error {
@@ -50,7 +52,12 @@ func (cmd *queryTraceIDCmd) Run(_ *globalOptions) error {
 	var traceResp *tempopb.TraceByIDResponse
 	var err error
 	if cmd.Q != "" {
-		params := map[string]string{"q": cmd.Q, "keep_hierarchy": strconv.FormatBool(cmd.KeepHierarchy)}
+		params := map[string]string{
+			"q":              cmd.Q,
+			"keep_hierarchy": strconv.FormatBool(cmd.KeepHierarchy),
+			"match_depth":    strconv.Itoa(cmd.MatchDepth),
+			"ancestor_depth": strconv.Itoa(cmd.AncestorDepth),
+		}
 		traceResp, err = client.QueryTraceV2WithQueryParams(cmd.TraceID, params)
 	} else {
 		traceResp, err = client.QueryTraceV2(cmd.TraceID)
