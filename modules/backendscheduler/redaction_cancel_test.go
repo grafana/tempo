@@ -28,10 +28,13 @@ func pendingRedactionJob(id, tenant, blockID string) *work.Job {
 	}
 }
 
-// TestCancelledBatchRemovedImmediately verifies a cancelled batch, once drained, is removed at
-// once (like a dry-run) rather than entering quiescence — nothing more will be written, so there
-// is no cleanup-window race to hold compaction for.
-func TestCancelledBatchRemovedImmediately(t *testing.T) {
+// TestCancelledApplyBatchQuiesces verifies a cancelled apply-mode batch still enters quiescence once
+// drained, instead of being removed at once. Cancel abandons only the work that had not started: jobs
+// already dispatched finish and rewrite their blocks, so the batch has produced output blocks that the
+// scheduler's blocklist has not polled yet. Removing the batch immediately would re-enable compaction
+// while the blocklist still names the pre-redaction input blocks, and compacting one of those would
+// resurrect the traces the redaction just removed.
+func TestCancelledApplyBatchQuiesces(t *testing.T) {
 	ctx, s := newQuiescenceScheduler(t)
 	tenant := "t-cancel"
 	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
@@ -40,7 +43,27 @@ func TestCancelledBatchRemovedImmediately(t *testing.T) {
 	s.work.SetBatchCancelled(tenant, true)
 
 	s.cleanupBatchIfDone(ctx, tenant)
-	require.Nil(t, s.work.GetBatch(tenant), "a cancelled batch is removed immediately once drained")
+
+	b := s.work.GetBatch(tenant)
+	require.NotNil(t, b, "a cancelled apply-mode batch is held through quiescence, not removed at once")
+	require.NotZero(t, b.QuiesceUntilUnixNano, "quiescence deadline is recorded so the blocklist can catch up to the rewritten blocks")
+	require.True(t, s.work.TenantPending(tenant), "compaction stays gated until quiescence completes")
+}
+
+// TestCancelledDryRunBatchRemovedImmediately verifies a cancelled dry-run batch is still removed at
+// once: a dry-run rewrites nothing, so there are no new blocks for the blocklist to catch up to and
+// nothing to hold compaction for. (A dry-run does not gate compaction in the first place.)
+func TestCancelledDryRunBatchRemovedImmediately(t *testing.T) {
+	ctx, s := newQuiescenceScheduler(t)
+	tenant := "t-cancel-dryrun"
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: "b", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+		Mode: tempopb.RedactionMode_REDACTION_MODE_DRY_RUN,
+	}))
+	s.work.SetBatchCancelled(tenant, true)
+
+	s.cleanupBatchIfDone(ctx, tenant)
+	require.Nil(t, s.work.GetBatch(tenant), "a cancelled dry-run batch is removed immediately once drained")
 }
 
 // TestCancelRedactionPurgesPendingAndMarksCancelled verifies the handler stops the backlog: it
@@ -74,10 +97,11 @@ func TestCancelRedactionPurgesPendingAndMarksCancelled(t *testing.T) {
 	require.True(t, s.work.HasJobsForTenant(tenant, tempopb.JobType_JOB_TYPE_REDACTION), "the in-flight job keeps the batch active")
 }
 
-// TestCancelRedactionRemovesDrainedBatchImmediately verifies that when a cancel leaves no in-flight
-// work (only pending jobs, now purged), the batch is removed at once and compaction resumes —
-// without waiting for a maintenance tick.
-func TestCancelRedactionRemovesDrainedBatchImmediately(t *testing.T) {
+// TestCancelRedactionQuiescesDrainedBatch verifies that a cancel which leaves no outstanding work
+// starts the quiescence countdown rather than removing the batch on the spot. Even here the batch may
+// have rewritten blocks before the cancel landed, and the scheduler cannot cheaply prove otherwise, so
+// it takes the conservative path: hold compaction for the quiescence window, then remove.
+func TestCancelRedactionQuiescesDrainedBatch(t *testing.T) {
 	ctx, s := newQuiescenceScheduler(t)
 	tenant := "t-cancel3"
 	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
@@ -90,8 +114,11 @@ func TestCancelRedactionRemovesDrainedBatchImmediately(t *testing.T) {
 	resp, err := s.CancelRedaction(user.InjectOrgID(ctx, tenant), &tempopb.CancelRedactionRequest{})
 	require.NoError(t, err)
 	require.Equal(t, int32(1), resp.PendingPurged)
-	require.Nil(t, s.work.GetBatch(tenant), "a cancel with only pending work removes the batch immediately")
-	require.False(t, s.work.TenantPending(tenant), "compaction resumes right away")
+
+	b := s.work.GetBatch(tenant)
+	require.NotNil(t, b, "the batch is held through quiescence so the blocklist can catch up")
+	require.NotZero(t, b.QuiesceUntilUnixNano)
+	require.True(t, s.work.TenantPending(tenant), "compaction resumes when quiescence completes, not at cancel time")
 }
 
 // TestCancelRedactionFailsIfPurgeNotPersisted verifies that if the purge can't be flushed to the
@@ -264,7 +291,7 @@ func TestNextConcurrentWithCancelNoRace(t *testing.T) {
 
 // TestCancelledBatchStaleRescanClearedNotRun verifies checkPendingRescans never rescans a
 // cancelled batch: it clears any stale armed rescan (e.g. reloaded from a manifest written before
-// the cancel cleared it) instead of enqueuing jobs, then the batch drains and is removed.
+// the cancel cleared it) instead of enqueuing jobs, after which the batch is free to quiesce.
 func TestCancelledBatchStaleRescanClearedNotRun(t *testing.T) {
 	ctx, s := newQuiescenceScheduler(t)
 	tenant := "t-cancel-stale-rescan"
@@ -282,8 +309,12 @@ func TestCancelledBatchStaleRescanClearedNotRun(t *testing.T) {
 	require.Zero(t, b.RescanAfterUnixNano, "a cancelled batch's stale rescan is cleared, not run")
 	require.False(t, s.work.HasJobsForTenant(tenant, tempopb.JobType_JOB_TYPE_REDACTION), "no redaction jobs are enqueued for a cancelled batch")
 
+	// With the rescan cleared the batch is no longer active, so the sweep starts its quiescence
+	// countdown; it is removed by a later tick once that window elapses.
 	s.cleanupOrphanedBatches(ctx)
-	require.Nil(t, s.work.GetBatch(tenant), "cancelled batch drains once its stale rescan is cleared")
+	b = s.work.GetBatch(tenant)
+	require.NotNil(t, b, "cancelled batch quiesces once its stale rescan is cleared")
+	require.NotZero(t, b.QuiesceUntilUnixNano)
 }
 
 // TestCheckPendingRescansConcurrentWithCancel runs the maintenance rescan sweep concurrently with

@@ -769,32 +769,27 @@ func batchDropReason(batch *tempopb.RedactionBatch) string {
 // promoted to the active map) still count via redactionBatchActive, so the batch is not treated
 // as done while any are outstanding.
 func (s *BackendScheduler) cleanupBatchIfDone(ctx context.Context, tenantID string) {
-	quiesceUntil, rescanPending, dryRun, cancelled, ok := s.work.BatchQuiescenceState(tenantID)
+	quiesceUntil, rescanPending, dryRun, _, ok := s.work.BatchQuiescenceState(tenantID)
 	if !ok || s.redactionBatchActive(tenantID, rescanPending) {
 		return
 	}
-	// A dry-run writes nothing, and a cancelled batch abandons its remaining work; neither
-	// produced an output block, so there is no cleanup-window race to hold compaction open for.
-	// Remove at once and free the tenant's slot instead of entering quiescence.
-	if dryRun || cancelled {
+	// A dry-run rewrites nothing, so no output block exists for the blocklist to catch up to and
+	// there is no cleanup-window race to hold compaction open for. Remove at once.
+	//
+	// A cancelled batch does NOT qualify: cancel abandons only work that had not started, while jobs
+	// already dispatched finish and rewrite their blocks. Such a batch has produced output blocks the
+	// blocklist may not have polled yet, so it quiesces on the normal path below — otherwise
+	// compaction could pick up a pre-redaction input block and resurrect the redacted traces.
+	if dryRun {
 		s.work.RemoveBatch(tenantID)
 		s.flushBatches(ctx)
-		level.Info(log.Logger).Log("msg", "redaction batch removed without quiescence", "tenant", tenantID, "reason", removalReason(dryRun, cancelled))
+		level.Info(log.Logger).Log("msg", "redaction batch removed without quiescence", "tenant", tenantID, "reason", "dry_run")
 		return
 	}
 	if quiesceUntil == 0 {
 		s.enterQuiescence(tenantID)
 		s.flushBatches(ctx)
 	}
-}
-
-// removalReason labels why a batch skipped quiescence, for logs. Only called when one of the two
-// is set (dryRun or cancelled), so cancelled-first fully covers it.
-func removalReason(_, cancelled bool) string {
-	if cancelled {
-		return "cancelled"
-	}
-	return "dry_run"
 }
 
 // enterQuiescence records the quiesce-until deadline (now + quiescenceSweeps × MaintenanceInterval)
@@ -811,7 +806,7 @@ func (s *BackendScheduler) enterQuiescence(tenantID string) {
 // change (returns false), so the manifest is not rewritten on every tick. The caller flushes once
 // per tick if anything changed.
 func (s *BackendScheduler) advanceQuiescence(tenantID string) (changed bool) {
-	quiesceUntil, rescanPending, dryRun, cancelled, ok := s.work.BatchQuiescenceState(tenantID)
+	quiesceUntil, rescanPending, dryRun, _, ok := s.work.BatchQuiescenceState(tenantID)
 	if !ok {
 		return false
 	}
@@ -822,12 +817,13 @@ func (s *BackendScheduler) advanceQuiescence(tenantID string) (changed bool) {
 		}
 		return false
 	}
-	if dryRun || cancelled {
-		// Dry-run and cancelled batches do not quiesce (neither produced an output block); remove
-		// on the tick that finds them drained. cleanupBatchIfDone usually handles this on job
-		// completion; this covers a batch that drained without a completion callback.
+	if dryRun {
+		// A dry-run does not quiesce (it produced no output block); remove on the tick that finds it
+		// drained. cleanupBatchIfDone usually handles this on job completion; this covers a batch
+		// that drained without a completion callback. Cancelled batches quiesce like any other
+		// apply-mode batch — see cleanupBatchIfDone.
 		s.work.RemoveBatch(tenantID)
-		level.Info(log.Logger).Log("msg", "redaction batch removed without quiescence", "tenant", tenantID, "reason", removalReason(dryRun, cancelled))
+		level.Info(log.Logger).Log("msg", "redaction batch removed without quiescence", "tenant", tenantID, "reason", "dry_run")
 		return true
 	}
 	if quiesceUntil == 0 {
