@@ -465,6 +465,21 @@ func TestFetchTagValues(t *testing.T) {
 		dc             backend.DedicatedColumns
 	}{
 		{
+			// Both span:id and trace:id are metadata-only intrinsics: neither
+			// contributes a column iterator, so the trace-level join ends up with
+			// zero sub-iterators. It must return no values instead of panicking.
+			name:           "metadata-only intrinsic tag with metadata-only intrinsic condition",
+			tag:            "span:id",
+			query:          `{trace:id="000000000000000000000000000000ff"}`,
+			expectedValues: []tempopb.TagValue{},
+		},
+		{
+			name:           "metadata-only intrinsic tag with span-scoped metadata-only condition",
+			tag:            "span:id",
+			query:          `{span:id="0000000000000001"}`,
+			expectedValues: []tempopb.TagValue{},
+		},
+		{
 			name:  "intrinsic with no query - match",
 			tag:   "name",
 			query: "{}",
