@@ -33,3 +33,20 @@ func TestQueryTraceIDCmdRejectsKeepHierarchyWithoutQ(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "--keep-hierarchy only applies with --q")
 }
+
+func TestQueryTraceIDCmdAllowsMatchDepthAndAncestorDepthWithQ(t *testing.T) {
+	// --match-depth and --ancestor-depth are validated server-side, so with --q set they
+	// must pass client-side validation and reach the HTTP call instead of failing fast.
+	cmd := &queryTraceIDCmd{
+		APIEndpoint:   "http://localhost:0",
+		TraceID:       "1234",
+		Q:             `{ .foo = "bar" }`,
+		MatchDepth:    2,
+		AncestorDepth: 1,
+	}
+
+	err := cmd.Run(nil)
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), "only supported on the v2 API")
+	require.NotContains(t, err.Error(), "--keep-hierarchy only applies with --q")
+}

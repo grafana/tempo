@@ -1,5 +1,6 @@
 // Plumbing for the trace-by-id q filter: parse options, compile, build the span index, walk ancestors
-// for keep_hierarchy, and rebuild the trace. Span matching itself lives in protospan.go.
+// and descendants of matched spans with depthBoundedWalk, and rebuild the trace. Span matching itself
+// lives in protospan.go.
 
 package tracefilter
 
@@ -21,12 +22,20 @@ type Options struct {
 	Query string
 	// KeepHierarchy includes each matched span's ancestor path. Ignored when Query is empty.
 	KeepHierarchy bool
+	// MatchDepth bounds how many hops of descendants of each matched span are kept, cumulatively.
+	// -1 means unlimited, 0 means no descendants are kept. Ignored when Query is empty.
+	MatchDepth int
+	// AncestorDepth bounds how many hops of ancestors of each matched span are kept, cumulatively.
+	// -1 means unlimited, 0 means no ancestors are kept. Ignored when Query is empty or KeepHierarchy is false.
+	AncestorDepth int
 }
 
 // Filter is a compiled, ready-to-apply trace filter.
 type Filter struct {
 	spansetFilter *traceql.SpansetFilter
 	keepHierarchy bool
+	matchDepth    int
+	ancestorDepth int
 	// expandElements is used to expand event/link elements.
 	expandElements bool
 	// logger warns when a span's event/link fan-out is truncated. Defaults to a nop logger.
@@ -57,6 +66,8 @@ func (o Options) Compile() (*Filter, error) {
 	return &Filter{
 		spansetFilter:  sf,
 		keepHierarchy:  o.KeepHierarchy,
+		matchDepth:     o.MatchDepth,
+		ancestorDepth:  o.AncestorDepth,
 		expandElements: sf.ReferencesEventOrLink(),
 		logger:         log.NewNopLogger(),
 	}, nil
@@ -68,7 +79,7 @@ func (f *Filter) Process(trace *tempopb.Trace) (*tempopb.Trace, error) {
 		return trace, nil
 	}
 
-	idx := newSpanIndex(trace, f.expandElements, f.keepHierarchy)
+	idx := newSpanIndex(trace, f.expandElements, f.keepHierarchy, f.matchDepth != 0)
 	if idx.truncatedSpans > 0 {
 		level.Warn(f.logger).Log("msg", "trace by id q filter: span event/link fan-out hit the cap, some spans may under-match", "cap", maxBindingsPerSpan, "truncated_spans", idx.truncatedSpans)
 	}
@@ -86,57 +97,87 @@ func (f *Filter) Process(trace *tempopb.Trace) (*tempopb.Trace, error) {
 		}
 	}
 
-	var keptAncestorIDs map[string]struct{}
+	var keptAncestorIDs, keptDescendantIDs map[string]struct{}
 	if f.keepHierarchy {
-		keptAncestorIDs = ancestorIDs(idx, keptSpans)
+		keptAncestorIDs = depthBoundedWalk(idx.parentsByID, keptSpans, f.ancestorDepth)
+	}
+	if f.matchDepth != 0 {
+		keptDescendantIDs = depthBoundedWalk(idx.childrenByID, keptSpans, f.matchDepth)
 	}
 
-	return rebuildTrace(trace, keptSpans, keptAncestorIDs), nil
+	return rebuildTrace(trace, keptSpans, keptAncestorIDs, keptDescendantIDs), nil
 }
 
-func ancestorIDs(idx *spanIndex, matched map[*tracev1.Span]struct{}) map[string]struct{} {
-	ancestors := make(map[string]struct{})
+// idAndDepth pairs a span id with the number of hops it took to reach it from a seed, for BFS.
+type idAndDepth struct {
+	id    string
+	depth int
+}
 
-	queue := make([]string, 0, len(matched))
-	for s := range matched {
-		queue = append(queue, string(s.SpanId))
+// depthBoundedWalk does a breadth-first walk of adjacency starting from the ids of seeds, returning
+// every id reachable within maxDepth hops (cumulative). maxDepth < 0 means unlimited (whole reachable
+// graph); maxDepth == 0 returns an empty result. adjacency maps an id to its neighbor ids: pass
+// parentsByID for an ancestor walk (skipping the "" root sentinel) or childrenByID for a descendant walk.
+// True BFS (front-of-queue pop) is required: a node must be assigned its shortest-path depth, since a
+// depth cutoff applied to a DFS could reach a node via a longer path first and wrongly exclude it.
+func depthBoundedWalk(adjacency map[string][]string, seeds map[*tracev1.Span]struct{}, maxDepth int) map[string]struct{} {
+	result := make(map[string]struct{})
+	if maxDepth == 0 {
+		return result
+	}
+
+	queue := make([]idAndDepth, 0, len(seeds))
+	for s := range seeds {
+		queue = append(queue, idAndDepth{id: string(s.SpanId), depth: 0})
 	}
 
 	for len(queue) > 0 {
-		current := queue[len(queue)-1]
-		queue = queue[:len(queue)-1]
-		for _, parentID := range idx.parentsByID[current] {
-			if parentID == "" {
+		current := queue[0]
+		queue = queue[1:]
+		for _, neighborID := range adjacency[current.id] {
+			if neighborID == "" {
 				continue // reached a root.
 			}
-			if _, seen := ancestors[parentID]; seen {
+			if _, seen := result[neighborID]; seen {
 				continue // already recorded, also breaks cycles.
 			}
-			// a dangling parentID is harmless: rebuildTrace only emits spans that exist.
-			ancestors[parentID] = struct{}{}
-			queue = append(queue, parentID)
+			nextDepth := current.depth + 1
+			if maxDepth >= 0 && nextDepth > maxDepth {
+				continue
+			}
+			// a dangling neighborID is harmless: rebuildTrace only emits spans that exist.
+			result[neighborID] = struct{}{}
+			queue = append(queue, idAndDepth{id: neighborID, depth: nextDepth})
 		}
 	}
 
-	return ancestors
+	return result
 }
 
-// spanIndex is a flattened view of a trace for matching and ancestor walks.
+// spanIndex is a flattened view of a trace for matching and ancestor/descendant walks.
 type spanIndex struct {
 	spans []traceql.Span
-	// hierarchy is keyed by span id, so identical ids across batches merge parents and can over-include
-	// ancestors (rare, bad instrumentation). Matching is pointer-keyed, so matches stay exact.
+	// hierarchy is keyed by span id, so identical ids across batches merge parents/children and can
+	// over-include ancestors/descendants (rare, bad instrumentation). Matching is pointer-keyed, so
+	// matches stay exact.
 	parentsByID map[string][]string
+	// childrenByID maps a parent span id to all of its child span ids. Unlike parentsByID, entries are
+	// not deduped: a parent can legitimately have many distinct children.
+	childrenByID map[string][]string
 	// truncatedSpans counts spans whose event x link fan-out hit maxBindingsPerSpan and was cut short.
 	truncatedSpans int
 }
 
-func newSpanIndex(trace *tempopb.Trace, expandElements, keepHierarchy bool) *spanIndex {
+func newSpanIndex(trace *tempopb.Trace, expandElements, keepHierarchy, buildChildren bool) *spanIndex {
 	// pre-size to the span count, a lower bound since events/links expand a span into more (append grows it).
 	idx := &spanIndex{spans: make([]traceql.Span, 0, countSpans(trace))}
-	// parentsByID is only read by ancestorIDs (keep_hierarchy), so only allocate it then.
+	// parentsByID is only read by the ancestor walk (keep_hierarchy), so only allocate it then.
 	if keepHierarchy {
 		idx.parentsByID = make(map[string][]string)
+	}
+	// childrenByID is only read by the descendant walk (match_depth != 0), so only allocate it then.
+	if buildChildren {
+		idx.childrenByID = make(map[string][]string)
 	}
 	for _, rs := range trace.ResourceSpans {
 		for _, ss := range rs.ScopeSpans {
@@ -148,6 +189,9 @@ func newSpanIndex(trace *tempopb.Trace, expandElements, keepHierarchy bool) *spa
 				}
 				if keepHierarchy {
 					idx.addParent(string(span.SpanId), string(span.ParentSpanId))
+				}
+				if buildChildren {
+					idx.addChild(string(span.ParentSpanId), string(span.SpanId))
 				}
 			}
 		}
@@ -164,10 +208,17 @@ func (idx *spanIndex) addParent(spanID, parentID string) {
 	idx.parentsByID[spanID] = append(idx.parentsByID[spanID], parentID)
 }
 
+// addChild records a child id under its parent id. A parent can legitimately have many distinct
+// children, so unlike addParent this does not dedup.
+func (idx *spanIndex) addChild(parentID, childID string) {
+	idx.childrenByID[parentID] = append(idx.childrenByID[parentID], childID)
+}
+
 // rebuildTrace returns a new trace of only the kept spans, preserving grouping and dropping empties.
-// A span is kept if it matched or its id is an ancestor to keep(keep_hierarchy=true). It reuses the
-// input's *Span/*Resource/*Scope pointers (only the slices are new), so the result must be treated as read only, and the input trace may be cached.
-func rebuildTrace(trace *tempopb.Trace, keptSpans map[*tracev1.Span]struct{}, keptAncestorIDs map[string]struct{}) *tempopb.Trace {
+// A span is kept if it matched, its id is an ancestor to keep (keep_hierarchy=true), or its id is a
+// descendant to keep (match_depth != 0). It reuses the input's *Span/*Resource/*Scope pointers (only
+// the slices are new), so the result must be treated as read only, and the input trace may be cached.
+func rebuildTrace(trace *tempopb.Trace, keptSpans map[*tracev1.Span]struct{}, keptAncestorIDs, keptDescendantIDs map[string]struct{}) *tempopb.Trace {
 	out := &tempopb.Trace{}
 
 	for _, rs := range trace.ResourceSpans {
@@ -180,6 +231,10 @@ func rebuildTrace(trace *tempopb.Trace, keptSpans map[*tracev1.Span]struct{}, ke
 					continue
 				}
 				if _, ok := keptAncestorIDs[string(span.SpanId)]; ok {
+					kept = append(kept, span)
+					continue
+				}
+				if _, ok := keptDescendantIDs[string(span.SpanId)]; ok {
 					kept = append(kept, span)
 				}
 			}

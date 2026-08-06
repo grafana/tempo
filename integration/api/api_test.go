@@ -1127,8 +1127,9 @@ func TestTraceByIDV2Filtering(t *testing.T) {
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
 
-		// trace shape: A(root) -> B -> C(status_code=500), and A -> D(status_code=200).
-		// only C matches the filter; B and A are its ancestors; D is an unrelated branch.
+		// trace shape: A(root) -> B -> C(status_code=500) -> E -> F, and A -> D(status_code=200).
+		// only C matches the filter; B and A are its ancestors; E and F are its descendants;
+		// D is an unrelated branch.
 		traceID := []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
 		require.NoError(t, h.WriteTempoProtoTraces(buildFilterTestTrace(traceID), ""))
 		h.WaitTracesQueryable(t, 1)
@@ -1136,13 +1137,15 @@ func TestTraceByIDV2Filtering(t *testing.T) {
 		hexID := tempoUtil.TraceIDToHexString(traceID)
 
 		assertFiltering := func(t *testing.T, apiClient *httpclient.Client) {
-			// no params: full trace, all four spans, and a complete (not partial) status.
+			// no params: full trace, all six spans, and a complete (not partial) status.
 			full, err := apiClient.QueryTraceV2WithQueryParams(hexID, nil)
 			require.NoError(t, err)
-			require.ElementsMatch(t, []byte{1, 2, 3, 4}, spanLastBytes(full.Trace))
+			require.ElementsMatch(t, []byte{1, 2, 3, 4, 5, 6}, spanLastBytes(full.Trace))
 			require.Equal(t, tempopb.PartialStatus_COMPLETE, full.Status, "an unfiltered trace is complete")
 
-			// q only: keep_hierarchy defaults to false, so only the matched span (C).
+			// q only, no match_depth param at all: keep_hierarchy defaults to false and match_depth
+			// defaults to 0, so only the matched span (C). This is the backward-compat baseline:
+			// behavior must be identical to what the endpoint returned before match_depth existed.
 			matchedOnly, err := apiClient.QueryTraceV2WithQueryParams(hexID, map[string]string{"q": "{ .http.status_code = 500 }"})
 			require.NoError(t, err)
 			require.ElementsMatch(t, []byte{3}, spanLastBytes(matchedOnly.Trace))
@@ -1150,11 +1153,38 @@ func TestTraceByIDV2Filtering(t *testing.T) {
 			require.Equal(t, tempopb.PartialStatus_PARTIAL, matchedOnly.Status)
 			require.Contains(t, matchedOnly.Message, "only a subset of spans matching the filter")
 
-			// keep_hierarchy=true: the match plus its ancestor path (A,B,C), still a subset of the full trace.
+			// keep_hierarchy=true: the match plus its unbounded ancestor path (A,B,C), still a
+			// subset of the full trace. ancestor_depth defaults to -1 (unbounded) when absent.
 			withHierarchy, err := apiClient.QueryTraceV2WithQueryParams(hexID, map[string]string{"q": "{ .http.status_code = 500 }", "keep_hierarchy": "true"})
 			require.NoError(t, err)
 			require.ElementsMatch(t, []byte{1, 2, 3}, spanLastBytes(withHierarchy.Trace))
 			require.Equal(t, tempopb.PartialStatus_PARTIAL, withHierarchy.Status, "a filtered subset is partial even with ancestors")
+
+			// match_depth=1: the match plus its direct children only (E), not the grandchild F.
+			matchDepthOne, err := apiClient.QueryTraceV2WithQueryParams(hexID, map[string]string{"q": "{ .http.status_code = 500 }", "match_depth": "1"})
+			require.NoError(t, err)
+			require.ElementsMatch(t, []byte{3, 5}, spanLastBytes(matchDepthOne.Trace))
+			require.Equal(t, tempopb.PartialStatus_PARTIAL, matchDepthOne.Status)
+
+			// match_depth=-1: the match plus its full descendant subtree (E, F).
+			matchDepthUnbounded, err := apiClient.QueryTraceV2WithQueryParams(hexID, map[string]string{"q": "{ .http.status_code = 500 }", "match_depth": "-1"})
+			require.NoError(t, err)
+			require.ElementsMatch(t, []byte{3, 5, 6}, spanLastBytes(matchDepthUnbounded.Trace))
+			require.Equal(t, tempopb.PartialStatus_PARTIAL, matchDepthUnbounded.Status)
+
+			// keep_hierarchy=true + ancestor_depth=0: matched span only, no ancestors kept
+			// despite keep_hierarchy being set.
+			ancestorDepthZero, err := apiClient.QueryTraceV2WithQueryParams(hexID, map[string]string{"q": "{ .http.status_code = 500 }", "keep_hierarchy": "true", "ancestor_depth": "0"})
+			require.NoError(t, err)
+			require.ElementsMatch(t, []byte{3}, spanLastBytes(ancestorDepthZero.Trace))
+			require.Equal(t, tempopb.PartialStatus_PARTIAL, ancestorDepthZero.Status)
+
+			// keep_hierarchy=true + ancestor_depth=1: the match plus its immediate parent (B)
+			// only, not the full ancestor chain to the root (A).
+			ancestorDepthOne, err := apiClient.QueryTraceV2WithQueryParams(hexID, map[string]string{"q": "{ .http.status_code = 500 }", "keep_hierarchy": "true", "ancestor_depth": "1"})
+			require.NoError(t, err)
+			require.ElementsMatch(t, []byte{2, 3}, spanLastBytes(ancestorDepthOne.Trace))
+			require.Equal(t, tempopb.PartialStatus_PARTIAL, ancestorDepthOne.Status)
 		}
 
 		apiClient := h.APIClientHTTP("")
@@ -1163,6 +1193,7 @@ func TestTraceByIDV2Filtering(t *testing.T) {
 		assertFiltering(t, apiClient)
 		assertBadFilterRejected(t, apiClient, hexID)
 		assertOversizedFilterRejected(t, apiClient, hexID)
+		assertBadDepthParamsRejected(t, apiClient, hexID)
 
 		// backend path.
 		h.WaitTracesWrittenToBackend(t, 1)
@@ -1171,6 +1202,7 @@ func TestTraceByIDV2Filtering(t *testing.T) {
 		assertFiltering(t, apiClient)
 		assertBadFilterRejected(t, apiClient, hexID)
 		assertOversizedFilterRejected(t, apiClient, hexID)
+		assertBadDepthParamsRejected(t, apiClient, hexID)
 	})
 }
 
@@ -1198,6 +1230,21 @@ func assertOversizedFilterRejected(t *testing.T, apiClient *httpclient.Client, h
 	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
+// assertBadDepthParamsRejected confirms out-of-range match_depth/ancestor_depth values (< -1) are
+// rejected with 400, not 500.
+func assertBadDepthParamsRejected(t *testing.T, apiClient *httpclient.Client, hexID string) {
+	t.Helper()
+
+	for _, param := range []string{"match_depth", "ancestor_depth"} {
+		req, err := http.NewRequest(http.MethodGet, apiClient.BaseURL+"/api/v2/traces/"+hexID+"?q="+url.QueryEscape("{ .http.status_code = 500 }")+"&"+param+"=-2", nil)
+		require.NoError(t, err)
+		resp, err := apiClient.Do(req)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode, "expected 400 for %s=-2", param)
+		require.NoError(t, resp.Body.Close())
+	}
+}
+
 // spanLastBytes returns the last byte of each span id in the trace, used as a compact span identity.
 func spanLastBytes(tr *tempopb.Trace) []byte {
 	var ids []byte
@@ -1211,7 +1258,9 @@ func spanLastBytes(tr *tempopb.Trace) []byte {
 	return ids
 }
 
-// buildFilterTestTrace builds the A->B->C(500), A->D(200) trace used by TestTraceByIDV2Filtering.
+// buildFilterTestTrace builds the A->B->C(500)->E->F, A->D(200) trace used by
+// TestTraceByIDV2Filtering. E and F give C a two-level descendant subtree so match_depth has
+// something meaningful to bound.
 func buildFilterTestTrace(traceID []byte) *tempopb.Trace {
 	start := uint64(time.Now().Add(-3 * time.Second).UnixNano())
 	spanID := func(n byte) []byte { return []byte{0, 0, 0, 0, 0, 0, 0, n} }
@@ -1248,6 +1297,8 @@ func buildFilterTestTrace(traceID []byte) *tempopb.Trace {
 					span(2, 1, 0),   // B child of A
 					span(3, 2, 500), // C child of B, matches
 					span(4, 1, 200), // D child of A, unrelated
+					span(5, 3, 0),   // E child of C
+					span(6, 5, 0),   // F child of E
 				},
 			}},
 		}},
