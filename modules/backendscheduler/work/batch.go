@@ -141,14 +141,60 @@ func (b *batchStore) quiescenceState(tenantID string) (quiesceUntilUnixNano int6
 	return batch.QuiesceUntilUnixNano, batch.RescanAfterUnixNano > 0, batch.Mode.IsDryRun(), batch.Cancelled, true
 }
 
-// setCancelled sets the tenant's batch cancelled flag under the write lock. Takes an explicit
-// value so a failed cancel can revert the flag (leaving the batch as if never cancelled).
-func (b *batchStore) setCancelled(tenantID string, cancelled bool) {
+// setCancelled sets the tenant's batch cancelled flag under the write lock and reports the value it
+// replaced. Reading and writing under one lock acquisition lets a caller tell whether it made the
+// change or found it already made, which is what makes a retried cancel idempotent and stops two
+// concurrent cancels from drawing different conclusions.
+func (b *batchStore) setCancelled(tenantID string, cancelled bool) (previous bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if batch, ok := b.byTenant[tenantID]; ok {
-		batch.Cancelled = cancelled
+	batch, ok := b.byTenant[tenantID]
+	if !ok {
+		return false
 	}
+	previous = batch.Cancelled
+	batch.Cancelled = cancelled
+	return previous
+}
+
+// persistCancelled writes the manifest with tenantID's batch marked cancelled, WITHOUT changing the
+// in-memory store. On success the cancel is durable but not yet visible to readers; the caller
+// publishes it with setCancelled.
+//
+// Committing before publishing is required because the readers of the in-memory flag act
+// irreversibly: a dequeued job is discarded at assignment, and a cancelled batch's skipped-block list
+// is cleared rather than rescanned. Publishing first would let those happen during the write, so a
+// write failure could not be undone and the operator would be told the cancel failed after work had
+// already been dropped. Returns an error if the tenant has no batch.
+func (b *batchStore) persistCancelled(tenantID, localPath string) error {
+	b.mu.RLock()
+	target, ok := b.byTenant[tenantID]
+	if !ok {
+		b.mu.RUnlock()
+		return fmt.Errorf("no batch for tenant %s", tenantID)
+	}
+	batches := make([]*tempopb.RedactionBatch, 0, len(b.byTenant))
+	for tenant, batch := range b.byTenant {
+		if tenant == tenantID {
+			// Serialize a copy carrying the cancel, leaving the stored batch untouched.
+			cp := *target
+			cp.Cancelled = true
+			batches = append(batches, &cp)
+			continue
+		}
+		batches = append(batches, batch)
+	}
+	msg := &tempopb.RedactionBatches{Batches: batches}
+	data, err := msg.Marshal()
+	b.mu.RUnlock()
+
+	if err != nil {
+		return fmt.Errorf("marshal batches: %w", err)
+	}
+	if err := os.MkdirAll(localPath, 0o700); err != nil {
+		return fmt.Errorf("mkdir %s: %w", localPath, err)
+	}
+	return atomicWriteFile(data, filepath.Join(localPath, batchesFileName), batchesFileName)
 }
 
 // load reads batches.pb from localPath. Missing file is not an error (clean start).
@@ -225,6 +271,13 @@ func (w *Work) BatchQuiescenceState(tenantID string) (quiesceUntilUnixNano int64
 // SetBatchCancelled sets the tenant's batch cancelled flag. A cancelled batch has its remaining
 // pending jobs purged separately; in-flight jobs finish, then it is removed immediately (no
 // quiescence). Pass false to revert (e.g. when a cancel could not be persisted).
-func (w *Work) SetBatchCancelled(tenantID string, cancelled bool) {
-	w.batches.setCancelled(tenantID, cancelled)
+func (w *Work) SetBatchCancelled(tenantID string, cancelled bool) (previous bool) {
+	return w.batches.setCancelled(tenantID, cancelled)
+}
+
+// PersistBatchCancelled makes a tenant's cancel durable without publishing it in memory, so that no
+// reader can act on a cancel that is not yet persisted. Publish it with SetBatchCancelled once this
+// returns nil; if it returns an error, nothing changed and the operation is safe to retry.
+func (w *Work) PersistBatchCancelled(_ context.Context, tenantID, localPath string) error {
+	return w.batches.persistCancelled(tenantID, localPath)
 }

@@ -663,41 +663,40 @@ func (s *BackendScheduler) CancelRedaction(ctx context.Context, _ *tempopb.Cance
 	}
 	batchID := batch.BatchId
 
-	// Mark the batch cancelled and persist that FIRST — before touching anything else. On flush
-	// failure, revert only the flag: nothing else has changed (crucially the rescan is untouched),
-	// so this is a clean rollback that leaves the batch exactly as it was, and we fail the RPC so a
-	// failed cancel never leaves the batch marked cancelled for a maintenance tick to remove.
-	s.work.SetBatchCancelled(tenant, true)
-	if err := s.work.FlushBatchesToLocal(ctx, s.cfg.LocalWorkPath); err != nil {
-		s.work.SetBatchCancelled(tenant, false)
-		level.Error(log.Logger).Log("msg", "failed to persist redaction cancel; batch left for retry", "tenant", tenant, "err", err)
-		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to persist redaction cancel; retry: %v", err))
+	// Commit the cancel before publishing it. Persisting does not touch the in-memory batch, so if it
+	// fails nothing has changed and nothing has seen the cancel: the RPC reports failure honestly and
+	// the operator can retry. Publishing first would be unsafe, because the readers of the flag act
+	// irreversibly — Next() discards a dequeued job and checkPendingRescans clears the skipped-block
+	// list — so a subsequent write failure could not be undone, and we would report a failed cancel
+	// after work had already been dropped.
+	if err := s.work.PersistBatchCancelled(ctx, tenant, s.cfg.LocalWorkPath); err != nil {
+		level.Error(log.Logger).Log("msg", "failed to persist redaction cancel; nothing changed, safe to retry", "tenant", tenant, "err", err)
+		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to persist redaction cancel; nothing changed, retry: %v", err))
+	}
+	if alreadyCancelled := s.work.SetBatchCancelled(tenant, true); alreadyCancelled {
+		level.Info(log.Logger).Log("msg", "redaction already cancelled; completing idempotently", "tenant", tenant, "batch_id", batchID)
 	}
 
-	// Cancelled is durable. Now clear any armed rescan and purge the pending backlog, then persist.
-	// Clearing the rescan only after the flag is durable keeps the rollback above clean. Between
-	// this point and the second manifest flush a durable {cancelled, rescan-armed} state can exist,
-	// but checkPendingRescans skips cancelled batches (clearing, never running, their rescan), so it
-	// can't re-enqueue work. In-flight/running jobs are untouched and finish normally.
+	// The cancel is durable and published, so it is now forward-only: there is no state left that a
+	// failure below could roll back to, and none is needed. Everything from here self-heals from the
+	// durable flag if it is interrupted — pending jobs that survive on disk are dropped at assignment
+	// (Next), and an armed rescan that survives is cleared by checkPendingRescans — so these writes are
+	// latency optimizations, not correctness gates. Failing the RPC for them would tell the operator to
+	// retry something already in effect.
 	s.work.SetBatchRescan(tenant, nil, 0)
 	purgedIDs := s.work.PurgePendingRedactionJobs(tenant)
-	// Flush unconditionally, even when this call purged nothing. A retry after a failed flush finds
-	// the jobs already gone from memory and so gets no IDs back, but they are still on disk; skipping
-	// the flush there would report a successful cancel while a restart could reload the backlog and
-	// resume redacting. With no IDs to target this flushes every shard, which persists whatever an
-	// earlier attempt removed in memory.
+	// Flush unconditionally, even when this call purged nothing: a retry finds the jobs already gone
+	// from memory and so gets no IDs back, while they are still on disk. With no IDs to target this
+	// flushes every shard, persisting whatever an earlier attempt removed.
 	if err := s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, purgedIDs); err != nil {
-		level.Error(log.Logger).Log("msg", "failed to persist redaction cancel purge; retry", "tenant", tenant, "err", err)
-		return nil, status.Error(codes.Internal, fmt.Sprintf("cancel purged jobs in memory but failed to persist them; retry: %v", err))
+		level.Warn(log.Logger).Log("msg", "redaction cancel purge not yet persisted; jobs will be dropped at assignment and the purge re-persisted on a later flush", "tenant", tenant, "err", err)
 	}
 	if err := s.work.FlushBatchesToLocal(ctx, s.cfg.LocalWorkPath); err != nil {
-		level.Error(log.Logger).Log("msg", "failed to persist redaction cancel rescan clear; retry", "tenant", tenant, "err", err)
-		return nil, status.Error(codes.Internal, fmt.Sprintf("cancel cleared rescan in memory but failed to persist it; retry: %v", err))
+		level.Warn(log.Logger).Log("msg", "redaction cancel rescan clear not yet persisted; a stale armed rescan is cleared on a later maintenance tick", "tenant", tenant, "err", err)
 	}
 
-	// If the batch had only pending work, it is now fully drained: remove it immediately (no
-	// quiescence) so compaction resumes without waiting for a maintenance tick. If in-flight jobs
-	// remain, this is a no-op and the maintenance loop removes the batch once they finish.
+	// Start the quiescence countdown if nothing is outstanding: jobs dispatched before the cancel may
+	// have rewritten blocks, so the tenant's compaction stays held until the blocklist has polled them.
 	s.cleanupBatchIfDone(ctx, tenant)
 
 	span.SetAttributes(

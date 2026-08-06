@@ -66,7 +66,14 @@ type Interface interface {
 	ListBatches() []*tempopb.RedactionBatch
 	SetBatchRescan(tenantID string, skippedJobIDs []string, rescanAfterUnixNano int64)
 	SetBatchQuiesceUntil(tenantID string, untilUnixNano int64)
-	SetBatchCancelled(tenantID string, cancelled bool)
+	// SetBatchCancelled sets the tenant's cancelled flag, publishing it to readers, and reports the
+	// value it replaced so a retry can tell whether it made the change. Publish only after
+	// PersistBatchCancelled has made the cancel durable.
+	SetBatchCancelled(tenantID string, cancelled bool) (previous bool)
+
+	// PersistBatchCancelled makes the tenant's cancel durable without publishing it in memory, so no
+	// reader acts on a cancel that is not yet persisted. Returns an error if the tenant has no batch.
+	PersistBatchCancelled(ctx context.Context, tenantID, localPath string) error
 	BatchQuiescenceState(tenantID string) (quiesceUntilUnixNano int64, rescanPending, dryRun, cancelled, ok bool)
 	FlushBatchesToLocal(ctx context.Context, localPath string) error
 	LoadBatchesFromLocal(ctx context.Context, localPath string) error

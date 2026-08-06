@@ -121,22 +121,24 @@ func TestCancelRedactionQuiescesDrainedBatch(t *testing.T) {
 	require.True(t, s.work.TenantPending(tenant), "compaction resumes when quiescence completes, not at cancel time")
 }
 
-// TestCancelRedactionFailsIfPurgeNotPersisted verifies that if the purge can't be flushed to the
-// work cache, the RPC fails and the batch is left in place — so the operator can retry rather than
-// believe the backlog is stopped, and the batch isn't removed unless the purge is durable.
-func TestCancelRedactionFailsIfPurgeNotPersisted(t *testing.T) {
+// TestCancelRedactionUnpersistedCancelIsNeverObservable verifies the core guarantee: we never tell
+// the operator a redaction is cancelled unless that is durable, and — more importantly — nothing else
+// in the scheduler acts on a cancel that has not been persisted. The cancel is committed to the
+// manifest BEFORE the in-memory flag is published, because the observers of that flag destroy state:
+// Next() discards a dequeued job and checkPendingRescans clears the skipped-block list, neither of
+// which can be undone if the persist then fails. So a failed cancel must leave the batch byte-for-byte
+// as it was, with its backlog and armed rescan intact and nothing having seen Cancelled=true.
+func TestCancelRedactionUnpersistedCancelIsNeverObservable(t *testing.T) {
 	ctx, s := newQuiescenceScheduler(t)
-	// Point the work path at a child of a regular file so FlushToLocal's MkdirAll fails.
+	// Point the work path at a child of a regular file so every persist attempt fails.
 	notADir := filepath.Join(t.TempDir(), "notadir")
 	require.NoError(t, os.WriteFile(notADir, []byte("x"), 0o600))
 	s.cfg.LocalWorkPath = filepath.Join(notADir, "sub")
 
-	tenant := "t-flushfail"
+	tenant := "t-unpersisted"
 	rescanAt := time.Now().Add(time.Hour).UnixNano()
 	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
 		BatchId: "b", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
-		// An armed rescan (blocks were busy compacting at submit) must survive a failed cancel,
-		// or the deferred redaction of those blocks would be silently lost.
 		SkippedCompactionJobIds: []string{"busy-job"},
 		RescanAfterUnixNano:     rescanAt,
 	}))
@@ -146,11 +148,14 @@ func TestCancelRedactionFailsIfPurgeNotPersisted(t *testing.T) {
 	require.Error(t, err, "cancel must fail if it could not be persisted")
 	require.Equal(t, codes.Internal, status.Code(err))
 
+	// The flag was never published, so no observer could have reacted to it.
 	b := s.work.GetBatch(tenant)
 	require.NotNil(t, b, "batch is left in place for retry when persistence failed")
-	require.False(t, b.Cancelled, "the cancelled flag is reverted on a persistence failure, so a maintenance tick can't remove the batch before the cancel is durable")
-	require.Equal(t, rescanAt, b.RescanAfterUnixNano, "a failed cancel leaves the armed rescan intact, so deferred redaction work is not lost")
-	require.Equal(t, []string{"busy-job"}, b.SkippedCompactionJobIds, "the rescan's skipped-job list is preserved on rollback")
+	require.False(t, b.Cancelled, "an unpersisted cancel is never published, so nothing can act on it")
+	require.Equal(t, rescanAt, b.RescanAfterUnixNano, "the armed rescan is untouched, so deferred redaction work is not lost")
+	require.Equal(t, []string{"busy-job"}, b.SkippedCompactionJobIds, "the skipped-job list is untouched")
+	require.True(t, s.work.HasJobsForTenant(tenant, tempopb.JobType_JOB_TYPE_REDACTION),
+		"the backlog is untouched: a failed cancel must not silently drop the work it reported failing to stop")
 }
 
 // TestCancelRedactionRetryPersistsAlreadyPurgedJobs verifies a retried cancel still persists the
