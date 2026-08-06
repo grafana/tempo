@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/go-kit/log"
@@ -47,9 +49,14 @@ func setQueryShapeSpanAttrs(span trace.Span, qs pipeline.QueryShape) {
 }
 
 // recordResult logs the response fields and mirrors them as span attributes.
+// Every entry in additionalMetrics is appended as a log key/value (keys sorted).
+// Pass nil when the response has no AdditionalMetrics.
 //
 //nolint:revive // logger first to match logWithShape's calling convention: recordResult(level.Info(logger), ctx, ...)
-func recordResult(logger log.Logger, ctx context.Context, fields ...any) {
+func recordResult(logger log.Logger, ctx context.Context, additionalMetrics map[string]int64, fields ...any) {
+	for _, k := range slices.Sorted(maps.Keys(additionalMetrics)) {
+		fields = append(fields, k, additionalMetrics[k])
+	}
 	logWithShape(logger, ctx, fields...)
 	setSpanAttrsWithShape(ctx, fields...)
 }

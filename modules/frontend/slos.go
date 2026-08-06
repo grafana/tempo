@@ -28,10 +28,10 @@ var (
 	// query_frontend_queries_total metric are used to calculate budget burns.
 	// the labels need to be aligned for accurate calculations
 	sloQueriesPerTenant = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
+		Namespace: metricNamespace,
 		Name:      "query_frontend_queries_within_slo_total",
 		Help:      "Total Queries within SLO per tenant",
-	}, []string{"tenant", "op", "result"})
+	}, []string{metricLabelTenant, metricLabelOp, metricLabelResult})
 
 	sloTraceByIDCounter = sloQueriesPerTenant.MustCurryWith(prometheus.Labels{"op": traceByIDOp})
 	sloSearchCounter    = sloQueriesPerTenant.MustCurryWith(prometheus.Labels{"op": searchOp})
@@ -42,10 +42,10 @@ var (
 	// query_frontend_queries_within_slo_total metric are used to calculate budget burns.
 	// the labels need to be aligned for accurate calculations
 	queriesPerTenant = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
+		Namespace: metricNamespace,
 		Name:      "query_frontend_queries_total",
 		Help:      "Total queries received per tenant.",
-	}, []string{"tenant", "op", "result"})
+	}, []string{metricLabelTenant, metricLabelOp, metricLabelResult})
 
 	traceByIDCounter = queriesPerTenant.MustCurryWith(prometheus.Labels{"op": traceByIDOp})
 	searchCounter    = queriesPerTenant.MustCurryWith(prometheus.Labels{"op": searchOp})
@@ -53,10 +53,10 @@ var (
 	metricsCounter   = queriesPerTenant.MustCurryWith(prometheus.Labels{"op": metricsOp})
 
 	queryThroughput = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
+		Namespace: metricNamespace,
 		Name:      "query_frontend_bytes_processed_per_second",
 		Help:      "Bytes processed per second in the query per tenant",
-	}, []string{"tenant", "op"})
+	}, []string{metricLabelTenant, metricLabelOp})
 
 	traceByIDThroughput = queryThroughput.MustCurryWith(prometheus.Labels{"op": traceByIDOp})
 	searchThroughput    = queryThroughput.MustCurryWith(prometheus.Labels{"op": searchOp})
@@ -64,10 +64,10 @@ var (
 	metricsThroughput   = queryThroughput.MustCurryWith(prometheus.Labels{"op": metricsOp})
 
 	queryInspectedBytes = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
+		Namespace: metricNamespace,
 		Name:      "query_frontend_bytes_inspected_total",
 		Help:      "Bytes read from storage using queries per tenant",
-	}, []string{"tenant", "op"})
+	}, []string{metricLabelTenant, metricLabelOp})
 
 	traceByIDInspectedBytes = queryInspectedBytes.MustCurryWith(prometheus.Labels{"op": traceByIDOp})
 	searchInspectedBytes    = queryInspectedBytes.MustCurryWith(prometheus.Labels{"op": searchOp})

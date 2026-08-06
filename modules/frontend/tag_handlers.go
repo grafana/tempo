@@ -92,7 +92,7 @@ func newTagsStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[com
 		}
 		postSLOHook(nil, tenant, bytesProcessed, duration, err)
 		logTagsResult(ctx, logger, tenant, "SearchTagsStreaming", req.Scope, req.End-req.Start, duration.Seconds(), bytesProcessed, err)
-
+		recordQueryMetaDataMetrics(tenant, finalResponse.GetMetrics())
 		return err
 	}
 }
@@ -165,7 +165,7 @@ func newTagsV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 		}
 		postSLOHook(nil, tenant, bytesProcessed, duration, err)
 		logTagsResult(ctx, logger, tenant, "SearchTagsV2Streaming", req.Scope, req.End-req.Start, duration.Seconds(), bytesProcessed, err)
-
+		recordQueryMetaDataMetrics(tenant, finalResponse.GetMetrics())
 		return err
 	}
 }
@@ -216,7 +216,7 @@ func newTagValuesStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrippe
 		}
 		postSLOHook(nil, tenant, bytesProcessed, duration, err)
 		logTagValuesResult(ctx, logger, tenant, "SearchTagValuesStreaming", req.TagName, req.Query, req.End-req.Start, duration.Seconds(), bytesProcessed, err)
-
+		recordQueryMetaDataMetrics(tenant, finalResponse.GetMetrics())
 		return err
 	}
 }
@@ -273,7 +273,7 @@ func newTagValuesV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrip
 		}
 		postSLOHook(nil, tenant, bytesProcessed, duration, err)
 		logTagValuesResult(ctx, logger, tenant, "SearchTagValuesV2Streaming", req.TagName, req.Query, req.End-req.Start, duration.Seconds(), bytesProcessed, err)
-
+		recordQueryMetaDataMetrics(tenant, finalResponse.GetMetrics())
 		return err
 	}
 }
@@ -334,7 +334,7 @@ func newTagsHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pip
 		duration := time.Since(start)
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
 		logTagsResult(req.Context(), logger, tenant, "SearchTags", scope, rangeDur, duration.Seconds(), bytesProcessed, err)
-
+		recordQueryMetaDataMetrics(tenant, searchResp.GetMetrics())
 		return resp, err
 	})
 }
@@ -408,7 +408,7 @@ func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 		duration := time.Since(start)
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
 		logTagsResult(req.Context(), logger, tenant, "SearchTagsV2", scope, rangeDur, duration.Seconds(), bytesProcessed, err)
-
+		recordQueryMetaDataMetrics(tenant, searchResp.GetMetrics())
 		return resp, err
 	})
 }
@@ -455,7 +455,7 @@ func newTagValuesHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combine
 		duration := time.Since(start)
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
 		logTagValuesResult(req.Context(), logger, tenant, "SearchTagValues", tagName, query, rangeDur, duration.Seconds(), bytesProcessed, err)
-
+		recordQueryMetaDataMetrics(tenant, searchResp.GetMetrics())
 		return resp, err
 	})
 }
@@ -509,7 +509,7 @@ func newTagValuesV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combi
 		duration := time.Since(start)
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
 		logTagValuesResult(req.Context(), logger, tenant, "SearchTagValuesV2", tagName, query, rangeDur, duration.Seconds(), bytesProcessed, err)
-
+		recordQueryMetaDataMetrics(tenant, searchResp.GetMetrics())
 		return resp, err
 	})
 }
@@ -580,7 +580,7 @@ func logTagsRequest(logger log.Logger, tenantID, handler, scope string, rangeSec
 func logTagsResult(ctx context.Context, logger log.Logger, tenantID, handler, scope string, rangeSeconds uint32, durationSeconds float64, inspectedBytes uint64, err error) {
 	traceID, _ := tracing.ExtractTraceID(ctx)
 	recordResult(
-		level.Info(logger), ctx,
+		level.Info(logger), ctx, nil,
 		"msg", "search tag response",
 		"tenant", tenantID,
 		"traceID", traceID,
@@ -608,7 +608,7 @@ func logTagValuesRequest(logger log.Logger, tenantID, handler, tagName, query st
 func logTagValuesResult(ctx context.Context, logger log.Logger, tenantID, handler, tagName, query string, rangeSeconds uint32, durationSeconds float64, inspectedBytes uint64, err error) {
 	traceID, _ := tracing.ExtractTraceID(ctx)
 	recordResult(
-		level.Info(logger), ctx,
+		level.Info(logger), ctx, nil,
 		"msg", "search tag values response",
 		"tenant", tenantID,
 		"traceID", traceID,

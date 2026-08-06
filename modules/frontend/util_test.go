@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/stretchr/testify/assert"
@@ -193,4 +194,31 @@ func TestSetSpanAttrsWithShape(t *testing.T) {
 		// must not panic with a noop span from a bare context
 		setSpanAttrsWithShape(context.Background(), "query", "{}")
 	})
+}
+
+func TestRecordResult_AdditionalMetrics(t *testing.T) {
+	t.Parallel()
+
+	logger := &recordingLogger{}
+	recordResult(
+		level.Info(logger), context.Background(),
+		map[string]int64{
+			"zMetric": 3,
+			"aMetric": 1,
+		},
+		"msg", "test",
+	)
+
+	got := logger.String()
+	require.Contains(t, got, "msg test")
+	require.Contains(t, got, "aMetric 1")
+	require.Contains(t, got, "zMetric 3")
+}
+
+func TestRecordResult_NilAdditionalMetrics(t *testing.T) {
+	t.Parallel()
+
+	logger := &recordingLogger{}
+	recordResult(level.Info(logger), context.Background(), nil, "msg", "test")
+	require.Contains(t, logger.String(), "msg test")
 }

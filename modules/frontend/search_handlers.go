@@ -82,6 +82,7 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 		}
 		postSLOHook(nil, tenant, bytesProcessed, duration, err)
 		logResult(ctx, logger, tenant, duration.Seconds(), req, finalResponse, nil, err)
+		recordQueryMetrics(tenant, searchOp, finalResponse.GetMetrics())
 		return err
 	}
 }
@@ -139,6 +140,7 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 		duration := time.Since(start)
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
 		logResult(req.Context(), logger, tenant, duration.Seconds(), searchReq, searchResp, resp, err)
+		recordQueryMetrics(tenant, searchOp, searchResp.GetMetrics())
 		return resp, err
 	})
 }
@@ -190,7 +192,7 @@ func logResult(ctx context.Context, logger log.Logger, tenantID string, duration
 
 	if resp == nil {
 		recordResult(
-			level.Info(logger), ctx,
+			level.Info(logger), ctx, nil,
 			"msg", "search response - no resp",
 			"tenant", tenantID,
 			"traceID", traceID,
@@ -203,7 +205,7 @@ func logResult(ctx context.Context, logger log.Logger, tenantID string, duration
 
 	if resp.Metrics == nil {
 		recordResult(
-			level.Info(logger), ctx,
+			level.Info(logger), ctx, nil,
 			"msg", "search response - no metrics",
 			"tenant", tenantID,
 			"traceID", traceID,
@@ -217,7 +219,7 @@ func logResult(ctx context.Context, logger log.Logger, tenantID string, duration
 	}
 
 	recordResult(
-		level.Info(logger), ctx,
+		level.Info(logger), ctx, resp.Metrics.AdditionalMetrics,
 		"msg", "search response",
 		"tenant", tenantID,
 		"traceID", traceID,
