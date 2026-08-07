@@ -807,6 +807,8 @@ github.com/thanos-io/objstore v0.0.0-20220809103346-8ef1f215e2bf h1:onQsPyHlq2yI
 github.com/thanos-io/objstore v0.0.0-20220809103346-8ef1f215e2bf/go.mod h1:v0NhuxxxUFUPatQcVNSCUkBEVezXzl7LSdaBOZygq98=
 github.com/tinylib/msgp v1.6.1 h1:ESRv8eL3u+DNHUoSAAQRE50Hm162zqAnBoGv9PzScPY=
 github.com/tinylib/msgp v1.6.1/go.mod h1:RSp0LW9oSxFut3KzESt5Voq4GVWyS+PSulT77roAqEA=
+github.com/tjhop/slog-gokit v0.2.0 h1:tUNkuukDjpswQ2abhsugEobRRxN1aHEW8h4rvwdHMqU=
+github.com/tjhop/slog-gokit v0.2.0/go.mod h1:yA48zAHvV+Sg4z4VRyeFyFUNNXd3JY5Zg84u3USICq0=
 github.com/tklauser/go-sysconf v0.3.16 h1:frioLaCQSsF5Cy1jgRBrzr6t502KIIwQ0MArYICU0nA=
 github.com/tklauser/go-sysconf v0.3.16/go.mod h1:/qNL9xxDhc7tx3HSRsLWNnuzbVfh3e7gh/BmM179nYI=
 github.com/tklauser/numcpus v0.11.0 h1:nSTwhKH5e1dMNsCdVBukSZrURJRoHbSEQjdEbY+9RXw=
