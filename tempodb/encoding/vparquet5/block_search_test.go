@@ -14,6 +14,7 @@ import (
 	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	resourcev1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -317,6 +318,63 @@ func TestSearchLegacyTagsHTTPStatusCode(t *testing.T) {
 		RootTraceName:     pqTrace.RootSpanName,
 	}
 	require.Equal(t, expected, res.Traces[0])
+}
+
+// TestSearchDuplicateDedicatedColumnKey checks that a value which only exists because it
+// was accumulated from a duplicated attribute key -- i.e. not the first occurrence -- is
+// still searchable in the dedicated column.
+func TestSearchDuplicateDedicatedColumnKey(t *testing.T) {
+	ctx := context.Background()
+	id := test.ValidTraceID(nil)
+	meta := &backend.BlockMeta{DedicatedColumns: test.MakeDedicatedColumns()}
+
+	pbTrace := &tempopb.Trace{
+		ResourceSpans: []*tracev1.ResourceSpans{{
+			Resource: &resourcev1.Resource{
+				Attributes: []*commonv1.KeyValue{{
+					Key:   LabelServiceName,
+					Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "service-a"}},
+				}},
+			},
+			ScopeSpans: []*tracev1.ScopeSpans{{
+				Spans: []*tracev1.Span{{
+					Name:              "span-a",
+					SpanId:            []byte("spanid01"),
+					StartTimeUnixNano: uint64(time.Second),
+					EndTimeUnixNano:   uint64(2 * time.Second),
+					Events: []*tracev1.Span_Event{{
+						Name: "lookup_plan_predicate",
+						Attributes: []*commonv1.KeyValue{
+							{Key: "dedicated.event.1", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "matcher-a"}}},
+							{Key: "dedicated.event.1", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "matcher-b"}}},
+						},
+					}},
+				}},
+			}},
+		}},
+	}
+
+	pqTrace, connected := traceToParquet(meta, id, pbTrace, nil)
+	require.True(t, connected)
+	b := makeBackendBlockWithTracesWithDedicatedColumns(t, []*Trace{pqTrace}, meta.DedicatedColumns)
+
+	for _, query := range []string{
+		`{event.dedicated.event.1 = "matcher-a"}`,
+		`{event.dedicated.event.1 = "matcher-b"}`,
+	} {
+		t.Run(query, func(t *testing.T) {
+			req, err := traceql.ExtractFetchSpansRequest(query)
+			require.NoError(t, err)
+
+			resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
+			require.NoError(t, err)
+			defer resp.Results.Close()
+
+			ss, err := resp.Results.Next(ctx)
+			require.NoError(t, err)
+			require.NotNil(t, ss, "both occurrences of the duplicated key must be searchable")
+		})
+	}
 }
 
 func makeBackendBlockWithTraces(t *testing.T, trs []*Trace) *backendBlock {
