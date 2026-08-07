@@ -13,6 +13,10 @@ import (
 // Prefer accepting a non-global logger as an argument.
 var Logger = kitlog.NewNopLogger()
 
+// goKitBase is the level-filtered logger without ts/caller. slog-gokit adds
+// time and caller itself, so SlogFromGoKit wraps this instead of Logger.
+var goKitBase = kitlog.NewNopLogger()
+
 // logLevel tracks the configured level for slog adapters (see SlogFromGoKit).
 var logLevel = levelInfo
 
@@ -28,6 +32,9 @@ func InitLogger(cfg *server.Config) {
 
 	// add support for level based logging
 	logger = level.NewFilter(logger, LevelFilter(logLevel))
+
+	// Keep a copy without ts/caller for the slog adapter.
+	goKitBase = logger
 
 	// use UTC timestamps
 	logger = kitlog.With(logger, "ts", kitlog.DefaultTimestampUTC)
