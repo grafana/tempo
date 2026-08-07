@@ -1,0 +1,6 @@
+change_type: enhancement
+component: metrics-generator
+note: Improve service graph troubleshooting by labeling expired edges with the unmatched span kind.
+issues: []
+subtext:
+user: javiermolinar
