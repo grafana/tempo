@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
+	semconvnew "go.opentelemetry.io/otel/semconv/v1.34.0"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs/store"
@@ -64,8 +65,10 @@ const (
 
 const virtualNodeLabel = "virtual_node"
 
+// db.system was renamed to db.system.name in semconv v1.30.0. Both are consulted,
+// the older key first, so existing pipelines keep naming virtual nodes as they do today.
 var defaultPeerAttributes = []attribute.Key{
-	semconv.PeerServiceKey, semconv.DBNameKey, semconv.DBSystemKey,
+	semconv.PeerServiceKey, semconv.DBNameKey, semconv.DBSystemKey, semconvnew.DBSystemNameKey,
 }
 
 type tooManySpansError struct {
