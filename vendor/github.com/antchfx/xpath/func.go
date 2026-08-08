@@ -123,16 +123,16 @@ func asNumber(t iterator, o interface{}) float64 {
 		if node == nil {
 			return math.NaN()
 		}
-		if v, err := strconv.ParseFloat(node.Value(), 64); err == nil {
-			return v
-		}
+		return stringToNumber(node.Value())
 	case float64:
 		return typ
 	case string:
-		v, err := strconv.ParseFloat(typ, 64)
-		if err == nil {
-			return v
+		return stringToNumber(typ)
+	case bool:
+		if typ {
+			return 1
 		}
+		return 0
 	}
 	return math.NaN()
 }
@@ -156,11 +156,26 @@ func floorFunc(arg query) func(query, iterator) interface{} {
 	}
 }
 
+// round implements XPath 1.0 round() (REC §4.4): halves round toward +Infinity
+// and NaN/±Infinity pass through, so the result stays a number.
+func round(f float64) float64 {
+	if math.IsNaN(f) || math.IsInf(f, 0) {
+		return f
+	}
+	if f >= -0.5 && f < 0.5 {
+		return f * 0 // keep the sign of zero per §4.4
+	}
+	r := math.Floor(f)
+	if f-r >= 0.5 {
+		r++
+	}
+	return r
+}
+
 // roundFunc is a XPath Node Set functions round(node-set).
 func roundFunc(arg query) func(query, iterator) interface{} {
 	return func(_ query, t iterator) interface{} {
 		val := asNumber(t, functionArgs(arg).Evaluate(t))
-		//return math.Round(val)
 		return round(val)
 	}
 }
@@ -245,6 +260,32 @@ func asBool(t iterator, v interface{}) bool {
 	}
 }
 
+func stringToNumber(s string) float64 {
+	s = strings.TrimSpace(s)
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return math.NaN()
+	}
+	return f
+}
+
+// formatNumber converts a number to a string per the XPath 1.0 spec (REC 4.2):
+// no exponent for finite values, "Infinity"/"-Infinity", "NaN", and "0" for -0.
+func formatNumber(f float64) string {
+	switch {
+	case math.IsNaN(f):
+		return "NaN"
+	case math.IsInf(f, 1):
+		return "Infinity"
+	case math.IsInf(f, -1):
+		return "-Infinity"
+	case f == 0:
+		return "0"
+	default:
+		return strconv.FormatFloat(f, 'f', -1, 64)
+	}
+}
+
 func asString(t iterator, v interface{}) string {
 	switch v := v.(type) {
 	case nil:
@@ -255,7 +296,7 @@ func asString(t iterator, v interface{}) string {
 		}
 		return "false"
 	case float64:
-		return strconv.FormatFloat(v, 'g', -1, 64)
+		return formatNumber(v)
 	case string:
 		return v
 	case query:
@@ -621,16 +662,7 @@ func concatFunc(args ...query) func(query, iterator) interface{} {
 		b := builderPool.Get().(stringBuilder)
 		for _, v := range args {
 			v = functionArgs(v)
-
-			switch v := v.Evaluate(t).(type) {
-			case string:
-				b.WriteString(v)
-			case query:
-				node := v.Select(t)
-				if node != nil {
-					b.WriteString(node.Value())
-				}
-			}
+			b.WriteString(asString(t, v.Evaluate(t)))
 		}
 		result := b.String()
 		b.Reset()
