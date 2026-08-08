@@ -2,6 +2,7 @@ package vparquet5
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"time"
@@ -70,11 +71,20 @@ func fetchSpans(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.
 }
 
 type spanOnlyIterator struct {
-	iter parquetquery.Iterator
-	span *span
+	iter  parquetquery.Iterator
+	span  *span
+	batch []traceql.Span
 }
 
-var _ traceql.SpanIterator = (*spanOnlyIterator)(nil)
+var (
+	_ traceql.SpanIterator      = (*spanOnlyIterator)(nil)
+	_ traceql.SpanBatchIterator = (*spanOnlyIterator)(nil)
+)
+
+var (
+	errBatchSize        = errors.New("span batch size must be positive")
+	errBatchNotReleased = errors.New("span batch was not released")
+)
 
 func (i *spanOnlyIterator) Next(_ context.Context) (traceql.Span, error) {
 	res, err := i.iter.Next()
@@ -89,8 +99,135 @@ func (i *spanOnlyIterator) Next(_ context.Context) (traceql.Span, error) {
 	return i.span, nil
 }
 
+// NextBatch snapshots the collector's reusable span into bounded pooled spans.
+// Iterator values are read before this method returns, so the evaluator can
+// acquire its lock afterwards without putting storage or SecondPass work under
+// that lock.
+func (i *spanOnlyIterator) NextBatch(ctx context.Context, size int) ([]traceql.Span, error) {
+	if size <= 0 {
+		return nil, errBatchSize
+	}
+	if len(i.batch) > 0 {
+		return nil, errBatchNotReleased
+	}
+
+	for len(i.batch) < size {
+		if err := ctx.Err(); err != nil {
+			return i.batch, err
+		}
+
+		s, err := i.Next(ctx)
+		if s != nil {
+			i.batch = append(i.batch, cloneSpanForBatch(s.(*span)))
+		}
+		if err != nil {
+			return i.batch, err
+		}
+		if s == nil {
+			break
+		}
+	}
+
+	return i.batch, nil
+}
+
+// ReleaseBatch returns the snapshots from the last NextBatch call to the span
+// pool. The caller must finish processing that batch before releasing it.
+func (i *spanOnlyIterator) ReleaseBatch() {
+	for _, s := range i.batch {
+		putSpan(s.(*span))
+	}
+	clear(i.batch)
+	i.batch = i.batch[:0]
+}
+
 func (i *spanOnlyIterator) Close() {
+	i.ReleaseBatch()
 	i.iter.Close()
+}
+
+// cloneSpanForBatch detaches a returned span from the collector's reusable
+// attribute slices. Array values are copied into destination-owned buffers while
+// scalar values have stable storage and are safe to share.
+func cloneSpanForBatch(src *span) *span {
+	dst := getSpan()
+	spanAttrs := dst.spanAttrs[:0]
+	resourceAttrs := dst.resourceAttrs[:0]
+	traceAttrs := dst.traceAttrs[:0]
+	eventAttrs := dst.eventAttrs[:0]
+	linkAttrs := dst.linkAttrs[:0]
+	instrumentationAttrs := dst.instrumentationAttrs[:0]
+	batchArrayBuffers := resetBatchArrayBuffers(dst.batchArrayBuffers)
+
+	*dst = *src
+	dst.id = append([]byte(nil), src.id...)
+	dst.batchArrayBuffers = batchArrayBuffers
+	spanAttrs = cloneAttrValsForBatch(dst, spanAttrs, src.spanAttrs)
+	resourceAttrs = cloneAttrValsForBatch(dst, resourceAttrs, src.resourceAttrs)
+	traceAttrs = cloneAttrValsForBatch(dst, traceAttrs, src.traceAttrs)
+	eventAttrs = cloneAttrValsForBatch(dst, eventAttrs, src.eventAttrs)
+	linkAttrs = cloneAttrValsForBatch(dst, linkAttrs, src.linkAttrs)
+	instrumentationAttrs = cloneAttrValsForBatch(dst, instrumentationAttrs, src.instrumentationAttrs)
+	dst.spanAttrs = spanAttrs
+	dst.resourceAttrs = resourceAttrs
+	dst.traceAttrs = traceAttrs
+	dst.eventAttrs = eventAttrs
+	dst.linkAttrs = linkAttrs
+	dst.instrumentationAttrs = instrumentationAttrs
+	dst.cbSpanset = nil
+	dst.cbSpansetFinal = false
+
+	return dst
+}
+
+// cloneAttrValsForBatch detaches array values from reusable attribute
+// collectors. Scalar strings come from stable cloned or interned parquet values.
+func cloneAttrValsForBatch(dst *span, attrs, src []attrVal) []attrVal {
+	attrs = append(attrs, src...)
+	for i := range attrs {
+		attrs[i].s = cloneStaticForBatch(dst, src[i].s)
+	}
+	return attrs
+}
+
+// cloneStaticForBatch copies array values into dst's reusable batch buffers.
+func cloneStaticForBatch(dst *span, src traceql.Static) traceql.Static {
+	switch src.Type {
+	case traceql.TypeIntArray:
+		values, _ := src.IntArray()
+		if len(values) == 0 {
+			return src
+		}
+		buffer := dst.nextBatchArrayBuffer()
+		buffer.ints = append(buffer.ints[:0], values...)
+		return traceql.NewStaticIntArray(buffer.ints)
+	case traceql.TypeFloatArray:
+		values, _ := src.FloatArray()
+		if len(values) == 0 {
+			return src
+		}
+		buffer := dst.nextBatchArrayBuffer()
+		buffer.floats = append(buffer.floats[:0], values...)
+		return traceql.NewStaticFloatArray(buffer.floats)
+	case traceql.TypeStringArray:
+		values, _ := src.StringArray()
+		if len(values) == 0 {
+			return src
+		}
+		buffer := dst.nextBatchArrayBuffer()
+		buffer.strings = append(buffer.strings[:0], values...)
+		return traceql.NewStaticStringArray(buffer.strings)
+	case traceql.TypeBooleanArray:
+		values, _ := src.BooleanArray()
+		if len(values) == 0 {
+			return src
+		}
+		buffer := dst.nextBatchArrayBuffer()
+		buffer.bools = append(buffer.bools[:0], values...)
+		return traceql.NewStaticBooleanArray(buffer.bools)
+	default:
+		return src
+	}
 }
 
 func create(makeIter, makeNilIter makeIterFn,

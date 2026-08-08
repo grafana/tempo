@@ -295,6 +295,18 @@ type SpanIterator interface {
 	CommonIterator[Span]
 }
 
+// SpanBatchIterator is an optional extension for span-only storage iterators.
+// NextBatch returns up to size spans that remain valid until ReleaseBatch. An
+// empty batch with a nil error signals exhaustion. A non-empty batch may be
+// returned with an error and must still be released. Callers must release each
+// non-empty batch before asking for the next one so implementations can reuse
+// their bounded buffers.
+type SpanBatchIterator interface {
+	SpanIterator
+	NextBatch(context.Context, int) ([]Span, error)
+	ReleaseBatch()
+}
+
 type FetchSpansOnlyResponse struct {
 	Results SpanIterator
 	// callback to get the cumulative read stats during Fetch

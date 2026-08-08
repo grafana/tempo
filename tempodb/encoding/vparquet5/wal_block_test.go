@@ -458,6 +458,146 @@ func TestWalBlockTombstone(t *testing.T) {
 	require.NoError(t, w.Tombstone(), "Tombstone must be idempotent when meta.json is missing")
 }
 
+func TestWalBlockFetchSpansBatchesStableSnapshots(t *testing.T) {
+	testWalBlock(t, func(w *walBlock, _ []common.ID, trs []*tempopb.Trace) {
+		req := traceql.FetchSpansRequest{
+			SecondPass: func(s *traceql.Spanset) ([]*traceql.Spanset, error) {
+				return []*traceql.Spanset{s}, nil
+			},
+			SecondPassConditions: traceql.SearchMetaConditions(),
+		}
+		resp, err := w.FetchSpans(t.Context(), req, common.DefaultSearchOptions())
+		require.NoError(t, err)
+
+		iter, ok := resp.Results.(traceql.SpanBatchIterator)
+		require.True(t, ok, "WAL span-only iterators must preserve the batch capability")
+		defer iter.Close()
+
+		expected := 0
+		for _, tr := range trs {
+			for _, resource := range tr.ResourceSpans {
+				for _, scope := range resource.ScopeSpans {
+					expected += len(scope.Spans)
+				}
+			}
+		}
+
+		seen := make(map[string]struct{}, expected)
+		count := 0
+		for {
+			batch, err := iter.NextBatch(t.Context(), 8)
+			require.NoError(t, err)
+			if len(batch) == 0 {
+				break
+			}
+
+			for i, span := range batch {
+				for j := 0; j < i; j++ {
+					require.NotSame(t, batch[j], span, "each batched span must be detached from the reusable collector buffer")
+				}
+
+				traceID, ok := span.AttributeFor(traceql.IntrinsicTraceIDAttribute)
+				require.True(t, ok)
+				spanID, ok := span.AttributeFor(traceql.IntrinsicSpanIDAttribute)
+				require.True(t, ok)
+				require.NotEmpty(t, span.ID())
+				identity := traceID.String() + ":" + spanID.String() + ":" + string(span.ID())
+				_, duplicate := seen[identity]
+				require.False(t, duplicate, "batched spans must retain their individual attribute values")
+				seen[identity] = struct{}{}
+				count++
+			}
+
+			iter.ReleaseBatch()
+		}
+
+		require.Equal(t, expected, count)
+	})
+}
+
+type nonBatchSpanIterator struct {
+	spans  []traceql.Span
+	closed bool
+}
+
+var _ traceql.SpanIterator = (*nonBatchSpanIterator)(nil)
+
+func (i *nonBatchSpanIterator) Next(_ context.Context) (traceql.Span, error) {
+	if len(i.spans) == 0 {
+		return nil, nil
+	}
+
+	span := i.spans[0]
+	i.spans = i.spans[1:]
+	return span, nil
+}
+
+func (i *nonBatchSpanIterator) Close() {
+	i.closed = true
+}
+
+func TestBatchIteratorFallbacks(t *testing.T) {
+	t.Run("page file closing iterator", func(t *testing.T) {
+		first := &span{}
+		second := &span{}
+		inner := &nonBatchSpanIterator{spans: []traceql.Span{first, second}}
+		iter := &pageFileClosingIterator[traceql.Span]{iter: inner}
+
+		_, err := iter.NextBatch(t.Context(), 0)
+		require.ErrorIs(t, err, errBatchSize)
+
+		batch, err := iter.NextBatch(t.Context(), 8)
+		require.NoError(t, err)
+		require.Len(t, batch, 1)
+		require.True(t, first == batch[0])
+		iter.ReleaseBatch()
+
+		batch, err = iter.NextBatch(t.Context(), 8)
+		require.NoError(t, err)
+		require.Len(t, batch, 1)
+		require.True(t, second == batch[0])
+		iter.ReleaseBatch()
+
+		batch, err = iter.NextBatch(t.Context(), 8)
+		require.NoError(t, err)
+		require.Empty(t, batch)
+	})
+
+	t.Run("merge iterator", func(t *testing.T) {
+		first := &span{}
+		second := &span{}
+		firstInner := &nonBatchSpanIterator{spans: []traceql.Span{first}}
+		secondInner := &nonBatchSpanIterator{spans: []traceql.Span{second}}
+		iter := &mergeIterator[traceql.Span]{
+			iters: []traceql.CommonIterator[traceql.Span]{firstInner, secondInner},
+		}
+
+		_, err := iter.NextBatch(t.Context(), 0)
+		require.ErrorIs(t, err, errBatchSize)
+
+		batch, err := iter.NextBatch(t.Context(), 8)
+		require.NoError(t, err)
+		require.Len(t, batch, 1)
+		require.True(t, first == batch[0])
+
+		_, err = iter.NextBatch(t.Context(), 8)
+		require.ErrorIs(t, err, errBatchNotReleased)
+		iter.ReleaseBatch()
+
+		batch, err = iter.NextBatch(t.Context(), 8)
+		require.NoError(t, err)
+		require.Len(t, batch, 1)
+		require.True(t, second == batch[0])
+		require.True(t, firstInner.closed)
+		iter.ReleaseBatch()
+
+		batch, err = iter.NextBatch(t.Context(), 8)
+		require.NoError(t, err)
+		require.Empty(t, batch)
+		require.True(t, secondInner.closed)
+	})
+}
+
 func testWalBlock(t *testing.T, f func(w *walBlock, ids []common.ID, trs []*tempopb.Trace)) {
 	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
 	w, err := createWALBlock(meta, t.TempDir(), model.CurrentEncoding, 0)

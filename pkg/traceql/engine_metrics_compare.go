@@ -187,7 +187,7 @@ func (m *MetricsCompare) processAttribute(a Attribute, v Static) {
 	vk := v.MapKey()
 	sc, ok := values[vk]
 	if !ok {
-		sc = &staticWithCounts{val: v, counts: make([]float64, m.intervalMapper.IntervalCount())}
+		sc = &staticWithCounts{val: v.Clone(), counts: make([]float64, m.intervalMapper.IntervalCount())}
 		values[vk] = sc
 	}
 	sc.counts[m.interval] += m.currentMultiplier
@@ -214,7 +214,7 @@ func (m *MetricsCompare) observeExemplar(span Span) {
 	all := span.AllAttributes()
 	lbls := make(Labels, 0, len(all))
 	for a, v := range all {
-		lbls = append(lbls, Label{Name: a.String(), Value: v})
+		lbls = append(lbls, Label{Name: a.String(), Value: v.Clone()})
 	}
 	exemplar := Exemplar{
 		Labels:      lbls,

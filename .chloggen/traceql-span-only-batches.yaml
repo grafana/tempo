@@ -1,0 +1,6 @@
+change_type: enhancement
+component: traceql
+note: Improve TraceQL metrics query performance when concurrently reading WAL blocks.
+issues: []
+subtext:
+user: "perfloop[bot]"

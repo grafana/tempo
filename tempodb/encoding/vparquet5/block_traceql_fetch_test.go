@@ -13,6 +13,79 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestCloneSpanForBatchCopiesArrayValues(t *testing.T) {
+	ints := []int{1, 2}
+	floats := []float64{1.5, 2.5}
+	strings := []string{"one", "two"}
+	bools := []bool{true, false}
+	intAttribute := traceql.NewAttribute("int-array")
+	floatAttribute := traceql.NewAttribute("float-array")
+	stringAttribute := traceql.NewAttribute("string-array")
+	boolAttribute := traceql.NewAttribute("bool-array")
+	snapshot := cloneSpanForBatch(&span{spanAttrs: []attrVal{
+		{a: intAttribute, s: traceql.NewStaticIntArray(ints)},
+		{a: floatAttribute, s: traceql.NewStaticFloatArray(floats)},
+		{a: stringAttribute, s: traceql.NewStaticStringArray(strings)},
+		{a: boolAttribute, s: traceql.NewStaticBooleanArray(bools)},
+	}})
+	defer putSpan(snapshot)
+
+	ints[0] = 99
+	floats[0] = 99.5
+	strings[0] = "changed"
+	bools[0] = false
+
+	got, ok := snapshot.AttributeFor(intAttribute)
+	require.True(t, ok)
+	actualInts, ok := got.IntArray()
+	require.True(t, ok)
+	require.Equal(t, []int{1, 2}, actualInts)
+
+	got, ok = snapshot.AttributeFor(floatAttribute)
+	require.True(t, ok)
+	actualFloats, ok := got.FloatArray()
+	require.True(t, ok)
+	require.Equal(t, []float64{1.5, 2.5}, actualFloats)
+
+	got, ok = snapshot.AttributeFor(stringAttribute)
+	require.True(t, ok)
+	actualStrings, ok := got.StringArray()
+	require.True(t, ok)
+	require.Equal(t, []string{"one", "two"}, actualStrings)
+
+	got, ok = snapshot.AttributeFor(boolAttribute)
+	require.True(t, ok)
+	actualBools, ok := got.BooleanArray()
+	require.True(t, ok)
+	require.Equal(t, []bool{true, false}, actualBools)
+}
+
+func TestCloneStaticForBatchReusesArrayBuffer(t *testing.T) {
+	dst := &span{}
+
+	first := cloneStaticForBatch(dst, traceql.NewStaticIntArray([]int{1, 2}))
+	firstValues, ok := first.IntArray()
+	require.True(t, ok)
+	require.Equal(t, []int{1, 2}, firstValues)
+	require.Len(t, dst.batchArrayBuffers, 1)
+
+	source := traceql.NewStaticIntArray([]int{3, 4})
+	dst.batchArrayBuffers = resetBatchArrayBuffers(dst.batchArrayBuffers)
+	second := cloneStaticForBatch(dst, source)
+	secondValues, ok := second.IntArray()
+	require.True(t, ok)
+	require.Equal(t, []int{3, 4}, secondValues)
+	require.True(t, &firstValues[0] == &secondValues[0], "released batch buffers must be reused")
+
+	allocs := testing.AllocsPerRun(100, func() {
+		dst.batchArrayBuffers = resetBatchArrayBuffers(dst.batchArrayBuffers)
+		if cloned := cloneStaticForBatch(dst, source); cloned.Type != traceql.TypeIntArray {
+			panic("expected integer array")
+		}
+	})
+	require.Zero(t, allocs)
+}
+
 func TestSearchFetchSpansOnly(t *testing.T) {
 	var (
 		ctx          = t.Context()
