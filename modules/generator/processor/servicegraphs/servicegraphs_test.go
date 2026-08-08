@@ -50,10 +50,12 @@ func TestSemconvKeys(t *testing.T) {
 }
 
 // TestServiceGraphs_defaultDatabaseAttributeOrder locks in the order in which
-// database attributes are consulted. Renamed keys (db.namespace for db.name,
-// db.system.name for db.system) are always listed after the key they replace,
-// so adding support for a new semconv name never changes the node name an
-// existing pipeline produces.
+// database attributes are consulted, since the first match wins and reordering
+// them changes the node names an existing pipeline emits. Attributes naming the
+// database (db.namespace, db.name) come before those naming the DBMS product
+// (db.system, db.system.name), and db.system.name is placed after the db.system
+// it replaced in semconv v1.30.0 so that spans carrying the older key are
+// unaffected.
 func TestServiceGraphs_defaultDatabaseAttributeOrder(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)

@@ -734,7 +734,7 @@ metrics_generator:
 
             # Attributes that will be used to create a peer edge
             # Attributes are searched in the order they are provided
-            # See: https://pkg.go.dev/go.opentelemetry.io/otel/semconv/v1.25.0
+            # See: https://opentelemetry.io/docs/specs/semconv/registry/attributes/
             # Example: ["peer.service", "db.name", "db.system", "host.name"]
             [peer_attributes: <list of string> | default = ["peer.service", "db.name", "db.system", "db.system.name"] ]
 

@@ -164,7 +164,8 @@ When enabled, the tracestate threshold takes priority over `span_multiplier_key`
 The `database_name_attributes` option controls which span attributes the processor uses to identify a span as a database request.
 The defaults are `db.namespace`, `db.name`, `db.system`, and `db.system.name`.
 The processor searches the list in order and uses the first attribute the span carries.
-Renamed OpenTelemetry attributes are listed after the attribute they replaced, so `db.namespace` (which replaced `db.name` in semantic conventions v1.26.0) and `db.system.name` (which replaced `db.system` in v1.30.0) don't change the node name for instrumentation that still emits the older attributes.
+`db.namespace` and `db.name` identify the database itself, such as `mydb`, so they take precedence over `db.system` and `db.system.name`, which identify only the database product, such as `postgresql`.
+Within that second pair, `db.system.name` (which replaced `db.system` in semantic conventions v1.30.0) is listed last, so instrumentation that still emits `db.system` produces the same node name as before.
 You can override this list to match your instrumentation if it uses non-standard attribute names.
 
 ### Filter policies
