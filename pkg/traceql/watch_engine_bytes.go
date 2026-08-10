@@ -3,7 +3,6 @@ package traceql
 import (
 	"fmt"
 	math_bits "math/bits"
-	"sync/atomic"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 )
@@ -11,14 +10,20 @@ import (
 var _ SpanWatcher = (*engineBytesWatcher)(nil)
 
 type engineBytesWatcher struct {
-	bytes atomic.Int64
+	bytes uint64
+
+	// Runtime fields to avoid allocating closures
+	// and escaping to the heap when we call span.AllAttributesFunc.
+	attrCallback func(Attribute, Static)
 }
 
 // NewEngineBytesWatcher returns a watcher that estimates encoded attribute bytes on matched spans.
 // For each watched span it walks AllAttributesFunc and sizes every attribute value (including arrays),
 // plus the span start time. The running total is reported under tempopb.AdditionalMetricEngineBytes.
 func NewEngineBytesWatcher() SpanWatcher {
-	return &engineBytesWatcher{}
+	w := &engineBytesWatcher{}
+	w.attrCallback = w.watchAttr
+	return w
 }
 
 func (e *engineBytesWatcher) Conditions() []Condition {
@@ -26,13 +31,17 @@ func (e *engineBytesWatcher) Conditions() []Condition {
 }
 
 func (e *engineBytesWatcher) WatchSpan(span Span) bool {
-	span.AllAttributesFunc(func(_ Attribute, v Static) {
-		e.bytes.Add(int64(e.staticSize(v)))
-	})
+	span.AllAttributesFunc(e.attrCallback)
 	if st := span.StartTimeUnixNanos(); st != 0 {
-		e.bytes.Add(1 + int64(e.varIntSize(st)))
+		e.bytes += 1 + uint64(e.varIntSize(st))
 	}
 	return true // keep watching every span
+}
+
+// watchAttr records the size of the attribute.
+func (e *engineBytesWatcher) watchAttr(_ Attribute, v Static) {
+	// TODO - Include attribute name?
+	e.bytes += uint64(e.staticSize(v))
 }
 
 // staticSize returns the encoded size of a Static value.
@@ -86,5 +95,5 @@ func (e *engineBytesWatcher) Active() bool {
 }
 
 func (e *engineBytesWatcher) Stats() map[string]int64 {
-	return map[string]int64{tempopb.AdditionalMetricEngineBytes: e.bytes.Load()}
+	return map[string]int64{tempopb.AdditionalMetricEngineBytes: int64(e.bytes)}
 }

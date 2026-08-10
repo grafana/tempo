@@ -142,6 +142,26 @@ func (s *spanWatchers) WatchSpan(span Span) bool {
 	return s.active > 0
 }
 
+// WatchSpanNoLock is like WatchSpan but is used when the caller is already guaranteeing
+// single threadedness with a separate lock.
+func (s *spanWatchers) WatchSpanNoLock(span Span) bool {
+	if s.active == 0 {
+		return false // done, exit early
+	}
+
+	// Fast path
+	if s.active == 1 {
+		if !s.obs[0].WatchSpan(span) {
+			s.active = 0
+			s.obs = s.obs[:0]
+		}
+		return s.active > 0
+	}
+
+	s.watch(span)
+	return s.active > 0
+}
+
 // watch walks the active prefix for a single span.
 // When a watcher goes inactive, swap it past the boundary so it's retained but skipped on future calls.
 // Caller must hold s.mtx.
