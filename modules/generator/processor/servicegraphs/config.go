@@ -82,10 +82,17 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 
 	cfg.EnableMessagingSystemLatencyHistogram = false
 
+	// Searched in order, first match wins. db.namespace and db.name identify the
+	// database itself (for example "mydb"), so they are preferred over db.system
+	// and db.system.name, which only identify the DBMS product (for example
+	// "postgresql"). Within that second pair, db.system was renamed to
+	// db.system.name in semconv v1.30.0 and is kept first, so spans that still
+	// emit the older key resolve to the name they do today.
 	cfg.DatabaseNameAttributes = []string{
 		string(semconvnew.DBNamespaceKey),
 		string(semconv.DBNameKey),
 		string(semconv.DBSystemKey),
+		string(semconvnew.DBSystemNameKey),
 	}
 
 	// Request and Latency are on for backwards compatibility with the bare "service-graphs"

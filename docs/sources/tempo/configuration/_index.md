@@ -785,9 +785,9 @@ metrics_generator:
 
             # Attributes that will be used to create a peer edge
             # Attributes are searched in the order they are provided
-            # See: https://pkg.go.dev/go.opentelemetry.io/otel/semconv/v1.25.0
+            # See: https://opentelemetry.io/docs/specs/semconv/registry/attributes/
             # Example: ["peer.service", "db.name", "db.system", "host.name"]
-            [peer_attributes: <list of string> | default = ["peer.service", "db.name", "db.system"] ]
+            [peer_attributes: <list of string> | default = ["peer.service", "db.name", "db.system", "db.system.name"] ]
 
             # Attribute Key to multiply span metrics
             # Note that the attribute name is searched for in both
@@ -803,8 +803,11 @@ metrics_generator:
             # Enables additional labels for services and virtual nodes.
             [enable_virtual_node_label: <bool> | default = false]
 
-            # List of attribute names used to identify the database name from span attributes. If it isn't set, the order is peer.service -> server.address -> network.peer.address -> db.name
-            [database_name_attributes: <list of string> | default = ["db.namespace","db.name","db.system"]]
+            # List of attribute names used to identify the database name from span attributes.
+            # Attributes are searched in the order they are provided and the first match is used.
+            # The database node itself is named after peer.service -> server.address ->
+            # network.peer.address -> the matching attribute from this list.
+            [database_name_attributes: <list of string> | default = ["db.namespace","db.name","db.system","db.system.name"]]
 
             # List of policies that will be applied to spans for inclusion or exclusion.
             [filter_policies: <list of filter policies config> | default = []]
