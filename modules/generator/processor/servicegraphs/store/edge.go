@@ -1,6 +1,10 @@
 package store
 
-import "time"
+import (
+	"time"
+
+	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+)
 
 type ConnectionType string
 
@@ -31,6 +35,9 @@ type Edge struct {
 	ServerService, ClientService                   string
 	ServerLatencySec, ClientLatencySec             float64
 	ServerStartTimeUnixNano, ClientEndTimeUnixNano uint64
+
+	// SpanKind is the kind of the most recently added span.
+	SpanKind v1_trace.Span_SpanKind
 
 	// If either the client or the server spans have status code error,
 	// the Edge will be considered as failed.

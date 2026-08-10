@@ -22,6 +22,7 @@ import (
 	tempo_util "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/prometheus/client_golang/prometheus"
+	prometheus_testutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/exemplar"
 	prom_histogram "github.com/prometheus/prometheus/model/histogram"
@@ -657,8 +658,7 @@ func TestServiceGraphs_expiredEdges(t *testing.T) {
 
 	p.(*Processor).store.Expire()
 
-	expiredEdges, err := test.GetCounterVecValue(metricExpiredEdges, tenant)
-	require.NoError(t, err)
+	expiredEdges := prometheus_testutil.ToFloat64(metricExpiredEdges.WithLabelValues(tenant, tracev1.Span_SPAN_KIND_SERVER.String()))
 	assert.Equal(t, 1.0, expiredEdges)
 
 	totalEdges, err := test.GetCounterVecValue(metricTotalEdges, tenant)
@@ -668,6 +668,47 @@ func TestServiceGraphs_expiredEdges(t *testing.T) {
 	droppedSpans, err := test.GetCounterVecValue(metricDroppedSpans, tenant)
 	require.NoError(t, err)
 	assert.Equal(t, 0.0, droppedSpans)
+}
+
+func TestServiceGraphs_expiredEdgesByUnmatchedSpanKind(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.Wait = time.Nanosecond
+
+	const tenant = "expired-edge-span-kind-test"
+
+	p, err := New(cfg, tenant, testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
+	require.NoError(t, err)
+	defer p.Shutdown(context.Background())
+
+	testCases := []struct {
+		name         string
+		kind         tracev1.Span_SpanKind
+		parentSpanID []byte
+	}{
+		{name: "client", kind: tracev1.Span_SPAN_KIND_CLIENT},
+		{name: "server", kind: tracev1.Span_SPAN_KIND_SERVER, parentSpanID: []byte{0x10}},
+		{name: "producer", kind: tracev1.Span_SPAN_KIND_PRODUCER},
+		{name: "consumer", kind: tracev1.Span_SPAN_KIND_CONSUMER, parentSpanID: []byte{0x11}},
+	}
+
+	batches := make([]*tracev1.ResourceSpans, 0, len(testCases))
+	for i, tc := range testCases {
+		id := byte(i + 1)
+		batches = append(batches, makeServiceGraphBatch(tc.name, tc.kind, []byte{id}, []byte{id}, tc.parentSpanID))
+	}
+
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: batches})
+	p.(*Processor).store.Expire()
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			expiredEdges := prometheus_testutil.ToFloat64(metricExpiredEdges.WithLabelValues(tenant, tc.kind.String()))
+			assert.Equal(t, 1.0, expiredEdges)
+		})
+	}
 }
 
 func TestServiceGraphs_droppedEdgesMetric(t *testing.T) {
@@ -1742,9 +1783,15 @@ func TestServiceGraphs_serverPeerSurvivesClientDatabaseUpdate(t *testing.T) {
 	})
 	assert.Equal(t, 1.0, testRegistry.Query("traces_service_graph_request_total", virtualNodeLabels))
 
-	expiredEdges, err := test.GetCounterVecValue(metricExpiredEdges, tenant)
-	require.NoError(t, err)
-	assert.Zero(t, expiredEdges)
+	for _, kind := range []tracev1.Span_SpanKind{
+		tracev1.Span_SPAN_KIND_CLIENT,
+		tracev1.Span_SPAN_KIND_SERVER,
+		tracev1.Span_SPAN_KIND_PRODUCER,
+		tracev1.Span_SPAN_KIND_CONSUMER,
+	} {
+		expiredEdges := prometheus_testutil.ToFloat64(metricExpiredEdges.WithLabelValues(tenant, kind.String()))
+		assert.Zero(t, expiredEdges)
+	}
 }
 
 // TestServiceGraphs_dbSystemNamePeerAttribute covers the virtual node path: a
