@@ -823,7 +823,9 @@ The response is a JSON object containing:
 
 - `traceId`, `rootService`, `rootSpanName`, `durationNanos`, `spanCount`, `errorCount`
 - `criticalPath`: the root-to-leaf chain of spans following, at each level, whichever child ends latest.
-- `services`: per-service span count, error count, and cumulative duration.
+- `services`: per-service span count, error count, and cumulative duration. The duration is the sum of that
+  service's span durations, so it is inclusive of time spent in child spans (including child spans belonging to
+  other services) rather than self-time. Summing it across services can therefore exceed `durationNanos`.
 - `slowestSpans`: the 5 slowest spans in the trace.
 - `errorSpans`: the first 5 spans with an error status.
 

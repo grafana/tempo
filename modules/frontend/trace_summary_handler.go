@@ -117,12 +117,6 @@ func fetchTraceForSummary(ctx context.Context, cfg Config, tenant, traceID strin
 
 	traceByIDReq := buildTraceSummaryTraceByIDRequest(ctx, apiPrefix, traceID, startTime, endTime, headers)
 
-	// check marshalling format
-	marshallingFormat := api.MarshalingFormatFromAcceptHeader(traceByIDReq.Header)
-
-	// enforce all communication internal to Tempo to be in protobuf bytes
-	traceByIDReq.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)
-
 	var traceRedactor combiner.TraceRedactor
 	if dataAccessController != nil {
 		redactor, err := dataAccessController.HandleHTTPTraceByIDReq(traceByIDReq)
@@ -133,7 +127,8 @@ func fetchTraceForSummary(ctx context.Context, cfg Config, tenant, traceID strin
 		traceRedactor = redactor
 	}
 
-	comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat, traceRedactor, combiner.TraceByIDV2Options{})
+	// all communication internal to Tempo is protobuf bytes, regardless of what the caller asked for.
+	comb := combinerFn(o.MaxBytesPerTrace(tenant), api.MarshallingFormatProtobuf, traceRedactor, combiner.TraceByIDV2Options{})
 	rt := pipeline.NewHTTPCollector(tracePipeline, cfg.ResponseConsumers, comb)
 
 	start := time.Now()
@@ -161,7 +156,7 @@ func fetchTraceForSummary(ctx context.Context, cfg Config, tenant, traceID strin
 		"traceID", traceID,
 		"path", traceByIDReq.URL.Path,
 		"duration_seconds", elapsed.Seconds(),
-		"err", err,
+		"partial", traceResp.GetStatus() == tempopb.PartialStatus_PARTIAL,
 	)
 	return traceResp, nil
 }

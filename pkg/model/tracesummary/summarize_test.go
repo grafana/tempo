@@ -1,13 +1,14 @@
 package tracesummary
 
 import (
+	"sort"
 	"testing"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	resourcev1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/stretchr/testify/assert"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,7 +21,7 @@ func stringAttribute(key, value string) *commonv1.KeyValue {
 	}
 }
 
-func testSpan(spanID, parentID, name string, kind tracev1.Span_SpanKind, start, end uint64, status tracev1.Status_StatusCode, statusMsg string, attrs ...*commonv1.KeyValue) *tracev1.Span {
+func testSpan(spanID, parentID, name string, kind tracev1.Span_SpanKind, start, end uint64, status tracev1.Status_StatusCode, statusMsg string) *tracev1.Span {
 	return &tracev1.Span{
 		TraceId:           testTraceID,
 		SpanId:            []byte(spanID),
@@ -30,7 +31,6 @@ func testSpan(spanID, parentID, name string, kind tracev1.Span_SpanKind, start, 
 		StartTimeUnixNano: start,
 		EndTimeUnixNano:   end,
 		Status:            &tracev1.Status{Code: status, Message: statusMsg},
-		Attributes:        attrs,
 	}
 }
 
@@ -67,26 +67,26 @@ func TestSummarize_SimpleMultiLevelTrace(t *testing.T) {
 	got, err := Summarize(trace)
 	require.NoError(t, err)
 
-	assert.Equal(t, "checkout", got.RootService)
-	assert.Equal(t, "POST /checkout", got.RootSpanName)
-	assert.Equal(t, int64(100), got.DurationNanos)
-	assert.Equal(t, 4, got.SpanCount)
-	assert.Equal(t, 0, got.ErrorCount)
+	require.Equal(t, "checkout", got.RootService)
+	require.Equal(t, "POST /checkout", got.RootSpanName)
+	require.Equal(t, int64(100), got.DurationNanos)
+	require.Equal(t, 4, got.SpanCount)
+	require.Equal(t, 0, got.ErrorCount)
 
 	var pathNames []string
 	for _, p := range got.CriticalPath {
 		pathNames = append(pathNames, p.Name)
 	}
-	assert.Equal(t, []string{"POST /checkout", "reserve inventory", "reserve"}, pathNames)
+	require.Equal(t, []string{"POST /checkout", "reserve inventory", "reserve"}, pathNames)
 
 	require.Len(t, got.Services, 3)
 	byService := map[string]ServiceBreakdown{}
 	for _, s := range got.Services {
 		byService[s.Service] = s
 	}
-	assert.Equal(t, ServiceBreakdown{Service: "checkout", SpanCount: 1, ErrorCount: 0, DurationNanos: 60}, byService["checkout"])
-	assert.Equal(t, ServiceBreakdown{Service: "inventory", SpanCount: 2, ErrorCount: 0, DurationNanos: 145}, byService["inventory"])
-	assert.Equal(t, ServiceBreakdown{Service: "payment", SpanCount: 1, ErrorCount: 0, DurationNanos: 15}, byService["payment"])
+	require.Equal(t, ServiceBreakdown{Service: "checkout", SpanCount: 1, ErrorCount: 0, DurationNanos: 60}, byService["checkout"])
+	require.Equal(t, ServiceBreakdown{Service: "inventory", SpanCount: 2, ErrorCount: 0, DurationNanos: 145}, byService["inventory"])
+	require.Equal(t, ServiceBreakdown{Service: "payment", SpanCount: 1, ErrorCount: 0, DurationNanos: 15}, byService["payment"])
 }
 
 func TestSummarize_NormalNestedTraceFollowsLastFinishingBranch(t *testing.T) {
@@ -118,7 +118,7 @@ func TestSummarize_NormalNestedTraceFollowsLastFinishingBranch(t *testing.T) {
 		pathNames = append(pathNames, p.Name)
 	}
 	require.Greater(t, len(pathNames), 1)
-	assert.Equal(t, []string{"root-op", "branch-a", "leaf-a1"}, pathNames)
+	require.Equal(t, []string{"root-op", "branch-a", "leaf-a1"}, pathNames)
 }
 
 func TestSummarize_SingleSpanTrace(t *testing.T) {
@@ -133,14 +133,14 @@ func TestSummarize_SingleSpanTrace(t *testing.T) {
 	got, err := Summarize(trace)
 	require.NoError(t, err)
 
-	assert.Equal(t, "solo", got.RootService)
-	assert.Equal(t, "do-thing", got.RootSpanName)
-	assert.Equal(t, int64(10), got.DurationNanos)
-	assert.Equal(t, 1, got.SpanCount)
+	require.Equal(t, "solo", got.RootService)
+	require.Equal(t, "do-thing", got.RootSpanName)
+	require.Equal(t, int64(10), got.DurationNanos)
+	require.Equal(t, 1, got.SpanCount)
 	require.Len(t, got.CriticalPath, 1)
-	assert.Equal(t, "do-thing", got.CriticalPath[0].Name)
+	require.Equal(t, "do-thing", got.CriticalPath[0].Name)
 	require.Len(t, got.SlowestSpans, 1)
-	assert.Empty(t, got.ErrorSpans)
+	require.Empty(t, got.ErrorSpans)
 }
 
 func TestSummarize_NoErrors(t *testing.T) {
@@ -155,8 +155,8 @@ func TestSummarize_NoErrors(t *testing.T) {
 
 	got, err := Summarize(trace)
 	require.NoError(t, err)
-	assert.Equal(t, 0, got.ErrorCount)
-	assert.Empty(t, got.ErrorSpans)
+	require.Equal(t, 0, got.ErrorCount)
+	require.Empty(t, got.ErrorSpans)
 }
 
 func TestSummarize_TruncatesToFive(t *testing.T) {
@@ -173,16 +173,69 @@ func TestSummarize_TruncatesToFive(t *testing.T) {
 	got, err := Summarize(trace)
 	require.NoError(t, err)
 
-	assert.Len(t, got.SlowestSpans, 5)
-	assert.Len(t, got.ErrorSpans, 5)
-	assert.Equal(t, 8, got.ErrorCount)
+	require.Len(t, got.SlowestSpans, 5)
+	require.Len(t, got.ErrorSpans, 5)
+	require.Equal(t, 8, got.ErrorCount)
 
 	for i := 1; i < len(got.SlowestSpans); i++ {
-		assert.GreaterOrEqual(t, got.SlowestSpans[i-1].DurationNanos, got.SlowestSpans[i].DurationNanos)
+		require.GreaterOrEqual(t, got.SlowestSpans[i-1].DurationNanos, got.SlowestSpans[i].DurationNanos)
 	}
 	for i := 1; i < len(got.ErrorSpans); i++ {
-		assert.LessOrEqual(t, got.ErrorSpans[i-1].StartTimeUnixNano, got.ErrorSpans[i].StartTimeUnixNano)
+		require.LessOrEqual(t, got.ErrorSpans[i-1].StartTimeUnixNano, got.ErrorSpans[i].StartTimeUnixNano)
 	}
+}
+
+// The bounded top-K selection must pick exactly what a full sort over every
+// span would have picked, including on the tie-break paths.
+func TestSummarize_TopKSelectionMatchesFullSort(t *testing.T) {
+	durations := []uint64{50, 10, 50, 30, 10, 90, 30, 90, 50, 70, 10, 90}
+
+	spans := []*tracev1.Span{
+		testSpan("root", "", "root-op", tracev1.Span_SPAN_KIND_SERVER, 0, 1000, tracev1.Status_STATUS_CODE_OK, ""),
+	}
+	for i, d := range durations {
+		id := string([]byte{byte('a' + i)})
+		start := uint64((i % 3) * 10)
+		spans = append(spans, testSpan(id, "root", "op-"+id, tracev1.Span_SPAN_KIND_CLIENT, start, start+d, tracev1.Status_STATUS_CODE_ERROR, "boom"))
+	}
+	trace := &tempopb.Trace{ResourceSpans: []*tracev1.ResourceSpans{resourceSpans("svc", spans...)}}
+
+	got, err := Summarize(trace)
+	require.NoError(t, err)
+
+	all := flattenSpans(trace)
+
+	bySlowest := make([]*resolvedSpan, len(all))
+	copy(bySlowest, all)
+	sort.Slice(bySlowest, func(i, j int) bool { return longerDuration(bySlowest[i].span, bySlowest[j].span) })
+
+	errored := make([]*resolvedSpan, 0, len(all))
+	for _, s := range all {
+		if isError(s.span) {
+			errored = append(errored, s)
+		}
+	}
+	sort.Slice(errored, func(i, j int) bool { return lessByStartThenID(errored[i].span, errored[j].span) })
+
+	gotSlowest := make([]string, len(got.SlowestSpans))
+	for i, s := range got.SlowestSpans {
+		gotSlowest[i] = s.SpanID
+	}
+	gotErrors := make([]string, len(got.ErrorSpans))
+	for i, s := range got.ErrorSpans {
+		gotErrors[i] = s.SpanID
+	}
+
+	require.Equal(t, expectedSpanIDs(bySlowest, maxSlowestSpans), gotSlowest)
+	require.Equal(t, expectedSpanIDs(errored, maxErrorSpans), gotErrors)
+}
+
+func expectedSpanIDs(spans []*resolvedSpan, k int) []string {
+	out := make([]string, 0, k)
+	for _, s := range spans[:k] {
+		out = append(out, util.SpanIDToHexString(s.span.GetSpanId()))
+	}
+	return out
 }
 
 func TestSummarize_FewerThanFive(t *testing.T) {
@@ -198,8 +251,8 @@ func TestSummarize_FewerThanFive(t *testing.T) {
 	require.NotPanics(t, func() {
 		got, err := Summarize(trace)
 		require.NoError(t, err)
-		assert.Len(t, got.SlowestSpans, 2)
-		assert.Len(t, got.ErrorSpans, 1)
+		require.Len(t, got.SlowestSpans, 2)
+		require.Len(t, got.ErrorSpans, 1)
 	})
 }
 
@@ -224,9 +277,9 @@ func TestSummarize_DisconnectedTraceFallsBackToEarliestSpan(t *testing.T) {
 	require.NoError(t, err)
 
 	// Fallback picks the globally earliest-starting span as synthetic root.
-	assert.Equal(t, "orphan-b", got.RootService)
-	assert.Equal(t, "op-b", got.RootSpanName)
-	assert.Equal(t, int64(80), got.DurationNanos)
+	require.Equal(t, "orphan-b", got.RootService)
+	require.Equal(t, "op-b", got.RootSpanName)
+	require.Equal(t, int64(80), got.DurationNanos)
 }
 
 func TestSummarize_DuplicateSpanIDZipkinPattern(t *testing.T) {
@@ -267,7 +320,7 @@ func TestSummarize_DuplicateSpanIDZipkinPattern(t *testing.T) {
 		got, err = Summarize(trace)
 	})
 	require.NoError(t, err)
-	assert.Equal(t, 4, got.SpanCount)
+	require.Equal(t, 4, got.SpanCount)
 
 	var pathNames []string
 	for _, p := range got.CriticalPath {
@@ -276,7 +329,7 @@ func TestSummarize_DuplicateSpanIDZipkinPattern(t *testing.T) {
 	// At the root, "handle" ends later than "call" so the walk descends into
 	// it. grandchild's parent (kindWant=SERVER, since grandchild is INTERNAL)
 	// then correctly resolves to the SERVER-kind "handle", not "call".
-	assert.Equal(t, []string{"root-op", "handle", "do-work"}, pathNames)
+	require.Equal(t, []string{"root-op", "handle", "do-work"}, pathNames)
 }
 
 func TestSummarize_RootCandidateExcludedByChildOfLink(t *testing.T) {
@@ -302,8 +355,8 @@ func TestSummarize_RootCandidateExcludedByChildOfLink(t *testing.T) {
 	got, err := Summarize(trace)
 	require.NoError(t, err)
 
-	assert.Equal(t, "real-svc", got.RootService)
-	assert.Equal(t, "real-op", got.RootSpanName)
+	require.Equal(t, "real-svc", got.RootService)
+	require.Equal(t, "real-op", got.RootSpanName)
 }
 
 func TestCriticalPath_CycleGuardTerminates(t *testing.T) {
@@ -332,7 +385,7 @@ func TestCriticalPath_CycleGuardTerminates(t *testing.T) {
 	for _, p := range got.CriticalPath {
 		pathNames = append(pathNames, p.Name)
 	}
-	assert.Equal(t, []string{"op-a", "op-b"}, pathNames)
+	require.Equal(t, []string{"op-a", "op-b"}, pathNames)
 }
 
 func TestCriticalPath_SelfReferentialSpanTerminates(t *testing.T) {
@@ -359,19 +412,19 @@ func TestCriticalPath_SelfReferentialSpanTerminates(t *testing.T) {
 	for _, p := range got.CriticalPath {
 		pathNames = append(pathNames, p.Name)
 	}
-	assert.Equal(t, []string{"op-loopy"}, pathNames)
+	require.Equal(t, []string{"op-loopy"}, pathNames)
 }
 
 func TestSummarize_NilTraceReturnsError(t *testing.T) {
 	got, err := Summarize(nil)
 	require.Error(t, err)
-	assert.Nil(t, got)
+	require.Nil(t, got)
 }
 
 func TestSummarize_EmptyTraceReturnsZeroSummary(t *testing.T) {
 	got, err := Summarize(&tempopb.Trace{})
 	require.NoError(t, err)
 	require.NotNil(t, got)
-	assert.Equal(t, 0, got.SpanCount)
-	assert.Empty(t, got.CriticalPath)
+	require.Equal(t, 0, got.SpanCount)
+	require.Empty(t, got.CriticalPath)
 }

@@ -336,25 +336,48 @@ func serviceBreakdown(spans []*resolvedSpan) []ServiceBreakdown {
 	return out
 }
 
-func slowestSpans(spans []*resolvedSpan) []SpanSummary {
-	sorted := make([]*resolvedSpan, len(spans))
-	copy(sorted, spans)
-	sort.Slice(sorted, func(i, j int) bool {
-		di, dj := spanDuration(sorted[i].span), spanDuration(sorted[j].span)
-		if di != dj {
-			return di > dj
+// insertRanked inserts s into top, which is kept sorted by less and capped at
+// k entries, dropping the lowest-ranked entry once full. Selecting a bounded
+// number of spans this way avoids copying and sorting every span in the trace.
+func insertRanked(top []*resolvedSpan, k int, s *resolvedSpan, less func(a, b *tracev1.Span) bool) []*resolvedSpan {
+	if k <= 0 {
+		return top
+	}
+	if len(top) == k {
+		if !less(s.span, top[k-1].span) {
+			return top
 		}
-		return lessByStartThenID(sorted[i].span, sorted[j].span)
-	})
-
-	n := maxSlowestSpans
-	if len(sorted) < n {
-		n = len(sorted)
+	} else {
+		top = append(top, nil)
 	}
 
-	out := make([]SpanSummary, n)
-	for i := 0; i < n; i++ {
-		s := sorted[i]
+	i := len(top) - 1
+	for i > 0 && less(s.span, top[i-1].span) {
+		top[i] = top[i-1]
+		i--
+	}
+	top[i] = s
+	return top
+}
+
+// longerDuration reports whether a is the longer-running span, breaking ties
+// by earliest start then smallest hex span ID.
+func longerDuration(a, b *tracev1.Span) bool {
+	da, db := spanDuration(a), spanDuration(b)
+	if da != db {
+		return da > db
+	}
+	return lessByStartThenID(a, b)
+}
+
+func slowestSpans(spans []*resolvedSpan) []SpanSummary {
+	top := make([]*resolvedSpan, 0, maxSlowestSpans)
+	for _, s := range spans {
+		top = insertRanked(top, maxSlowestSpans, s, longerDuration)
+	}
+
+	out := make([]SpanSummary, len(top))
+	for i, s := range top {
 		out[i] = SpanSummary{
 			SpanID:            util.SpanIDToHexString(s.span.GetSpanId()),
 			Service:           s.service,
@@ -369,24 +392,16 @@ func slowestSpans(spans []*resolvedSpan) []SpanSummary {
 }
 
 func errorSpans(spans []*resolvedSpan) []ErrorSpanSummary {
-	var filtered []*resolvedSpan
+	top := make([]*resolvedSpan, 0, maxErrorSpans)
 	for _, s := range spans {
-		if isError(s.span) {
-			filtered = append(filtered, s)
+		if !isError(s.span) {
+			continue
 		}
-	}
-	sort.Slice(filtered, func(i, j int) bool {
-		return lessByStartThenID(filtered[i].span, filtered[j].span)
-	})
-
-	n := maxErrorSpans
-	if len(filtered) < n {
-		n = len(filtered)
+		top = insertRanked(top, maxErrorSpans, s, lessByStartThenID)
 	}
 
-	out := make([]ErrorSpanSummary, n)
-	for i := 0; i < n; i++ {
-		s := filtered[i]
+	out := make([]ErrorSpanSummary, len(top))
+	for i, s := range top {
 		out[i] = ErrorSpanSummary{
 			SpanID:            util.SpanIDToHexString(s.span.GetSpanId()),
 			Service:           s.service,
