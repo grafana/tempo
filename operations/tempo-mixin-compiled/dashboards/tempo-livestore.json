@@ -11,18 +11,16 @@
  "hideControls": false,
  "links": [
   {
-   "asDropdown": false,
+   "asDropdown": true,
    "icon": "external link",
    "includeVars": true,
    "keepTime": true,
    "tags": [
-
+    "tempo"
    ],
-   "targetBlank": true,
-   "title": "Livestore Write Path",
-   "tooltip": "",
-   "type": "link",
-   "url": "/d/livestore-write-path/livestore-write-path?${__url_time_range}&var-datasource=$datasource&var-namespace=$namespace&var-pod=$pod"
+   "targetBlank": false,
+   "title": "Tempo Dashboards",
+   "type": "dashboards"
   }
  ],
  "refresh": "",
@@ -214,7 +212,7 @@
     },
     {
      "datasource": "$datasource",
-     "description": "### Backpressure time by zone\nSeconds spent backpressuring per second, split by live-store zone. Uses tempo_live_store_back_pressure_seconds_total when present, with duration histogram sum as fallback for cells that do not expose the counter.\n",
+     "description": "### Backpressure seconds/s by zone\nAccumulated backpressure seconds per second, split by live-store zone. Values can exceed 1 when multiple pushes wait concurrently. Uses tempo_live_store_back_pressure_seconds_total when present, with duration histogram sum as fallback for cells that do not expose the counter.\n",
      "fieldConfig": {
       "defaults": {
        "color": {
@@ -231,7 +229,7 @@
          }
         ]
        },
-       "unit": "percentunit"
+       "unit": "none"
       },
       "overrides": [
 
@@ -268,7 +266,7 @@
        "step": null
       }
      ],
-     "title": "Backpressure time by zone",
+     "title": "Backpressure seconds/s by zone",
      "type": "stat"
     },
     {
@@ -399,7 +397,7 @@
        "sort": "desc"
       }
      },
-     "span": 7,
+     "span": 5,
      "targets": [
       {
        "expr": "histogram_quantile(0.99, sum by (le, cluster, namespace, route) (rate(tempo_request_duration_seconds_bucket{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\", method=\"gRPC\", route=~\"/tempopb.Querier/.*|/tempopb.Metrics/.*\"}[$__rate_interval])))",
@@ -467,7 +465,7 @@
        "sort": "desc"
       }
      },
-     "span": 5,
+     "span": 3,
      "targets": [
       {
        "expr": "sum by (cluster, namespace, route) (rate(tempo_request_duration_seconds_count{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\", method=\"gRPC\", route=~\"/tempopb.Querier/.*|/tempopb.Metrics/.*\"}[$__rate_interval]))",
@@ -478,6 +476,67 @@
       }
      ],
      "title": "Query QPS by namespace/route",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$datasource",
+     "description": "### Lag-affected requests/s\nLive-store request rate where Kafka lag means complete results cannot be guaranteed, split by cluster, namespace, zone, and route. This counts live-store RPC attempts; querier zone failover may prevent an end-user failure.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "auto",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "decimals": 2,
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "ops"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 8,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "calcs": [
+        "lastNotNull"
+       ],
+       "displayMode": "table",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "span": 4,
+     "targets": [
+      {
+       "expr": "sum by (cluster, namespace, zone, route) (label_replace(rate(tempo_live_store_lagged_requests_total{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\"}[$__rate_interval]), \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\"))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{cluster}}/{{namespace}} {{zone}} {{route}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Lag-affected requests/s",
      "type": "timeseries"
     }
    ],
@@ -522,7 +581,7 @@
 
       ]
      },
-     "id": 8,
+     "id": 9,
      "links": [
 
      ],
@@ -583,7 +642,7 @@
 
       ]
      },
-     "id": 9,
+     "id": 10,
      "links": [
 
      ],
@@ -639,7 +698,7 @@
 
       ]
      },
-     "id": 10,
+     "id": 11,
      "links": [
 
      ],
@@ -698,7 +757,7 @@
 
       ]
      },
-     "id": 11,
+     "id": 12,
      "links": [
 
      ],
@@ -762,7 +821,7 @@
 
       ]
      },
-     "id": 12,
+     "id": 13,
      "links": [
 
      ],
@@ -783,7 +842,7 @@
      "span": 4,
      "targets": [
       {
-       "expr": "sum by (zone) (label_replace(rate(tempo_live_store_records_processed_total{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\"}[$__rate_interval]), \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\"))",
+       "expr": "sum by (zone) (label_replace(rate(tempo_live_store_records_processed_total{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", container=\"live-store\", tenant=~\"$tenant\"}[$__rate_interval]), \"zone\", \"$1\", \"pod\", \"(live-store-zone-[^-]+)-.*\"))",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "{{zone}}",
@@ -807,7 +866,7 @@
    "panels": [
     {
      "datasource": "$datasource",
-     "description": "### Backpressure time by zone/reason\nBackpressure seconds per second by live-store zone and reason. Uses reason when the counter is available; otherwise falls back to duration-sum by zone.\n",
+     "description": "### Backpressure seconds/s by zone/reason\nAccumulated backpressure seconds per second by live-store zone and reason. Values can exceed 1 when multiple pushes wait concurrently. Uses reason when the counter is available; otherwise falls back to duration-sum by zone.\n",
      "fieldConfig": {
       "defaults": {
        "custom": {
@@ -829,13 +888,13 @@
 
         ]
        },
-       "unit": "percentunit"
+       "unit": "none"
       },
       "overrides": [
 
       ]
      },
-     "id": 13,
+     "id": 14,
      "links": [
 
      ],
@@ -863,7 +922,7 @@
        "legendLink": null
       }
      ],
-     "title": "Backpressure time by zone/reason",
+     "title": "Backpressure seconds/s by zone/reason",
      "type": "timeseries"
     },
     {
@@ -896,7 +955,7 @@
 
       ]
      },
-     "id": 14,
+     "id": 15,
      "links": [
 
      ],
@@ -936,7 +995,7 @@
     },
     {
      "datasource": "$datasource",
-     "description": "### Backpressure by pod\nTop live-store pods spending time in backpressure. Reason is shown when that counter is available; otherwise duration-sum fallback is shown by pod.\n",
+     "description": "### Backpressure seconds/s by pod\nTop live-store pods by accumulated backpressure seconds per second. Values can exceed 1 when multiple pushes wait concurrently. Reason is shown when that counter is available; otherwise duration-sum fallback is shown by pod.\n",
      "fieldConfig": {
       "defaults": {
        "custom": {
@@ -958,13 +1017,13 @@
 
         ]
        },
-       "unit": "percentunit"
+       "unit": "none"
       },
       "overrides": [
 
       ]
      },
-     "id": 15,
+     "id": 16,
      "links": [
 
      ],
@@ -992,7 +1051,7 @@
        "legendLink": null
       }
      ],
-     "title": "Backpressure by pod",
+     "title": "Backpressure seconds/s by pod",
      "type": "timeseries"
     },
     {
@@ -1025,7 +1084,7 @@
 
       ]
      },
-     "id": 16,
+     "id": 17,
      "links": [
 
      ],
@@ -1093,7 +1152,7 @@
 
       ]
      },
-     "id": 17,
+     "id": 18,
      "links": [
 
      ],
@@ -1166,7 +1225,7 @@
 
       ]
      },
-     "id": 18,
+     "id": 19,
      "links": [
 
      ],
@@ -1234,7 +1293,7 @@
 
       ]
      },
-     "id": 19,
+     "id": 20,
      "links": [
 
      ],
@@ -1304,7 +1363,7 @@
 
       ]
      },
-     "id": 20,
+     "id": 21,
      "links": [
 
      ],
@@ -1368,7 +1427,7 @@
 
       ]
      },
-     "id": 21,
+     "id": 22,
      "links": [
 
      ],
@@ -1436,7 +1495,7 @@
 
       ]
      },
-     "id": 22,
+     "id": 23,
      "links": [
 
      ],
@@ -1509,7 +1568,7 @@
 
       ]
      },
-     "id": 23,
+     "id": 24,
      "links": [
 
      ],
@@ -1570,7 +1629,7 @@
 
       ]
      },
-     "id": 24,
+     "id": 25,
      "links": [
 
      ],
@@ -1602,8 +1661,8 @@
      "type": "timeseries"
     },
     {
-     "description": "### Top tenants by traces created/s (current)\nCurrent top tenants by live-store trace creation rate across selected zones. Click a tenant to filter this dashboard or open RT overrides.\n",
-     "id": 25,
+     "description": "### Top tenants by traces created/s (current)\nCurrent top tenants by live-store trace creation rate across selected zones.\n",
+     "id": 26,
      "span": 6,
      "styles": [
       {
@@ -1716,8 +1775,8 @@
      "type": "table"
     },
     {
-     "description": "### Top tenants by bytes received (current)\nCurrent top tenants by live-store input byte rate across selected zones. Click a tenant to filter this dashboard or open RT overrides.\n",
-     "id": 26,
+     "description": "### Top tenants by bytes received (current)\nCurrent top tenants by live-store input byte rate across selected zones.\n",
+     "id": 27,
      "span": 6,
      "styles": [
       {
@@ -1871,7 +1930,7 @@
 
       ]
      },
-     "id": 27,
+     "id": 28,
      "links": [
 
      ],
@@ -1939,7 +1998,7 @@
 
       ]
      },
-     "id": 28,
+     "id": 29,
      "links": [
 
      ],
@@ -2007,7 +2066,7 @@
 
       ]
      },
-     "id": 29,
+     "id": 30,
      "links": [
 
      ],
@@ -2068,7 +2127,7 @@
 
       ]
      },
-     "id": 30,
+     "id": 31,
      "links": [
 
      ],
@@ -2141,7 +2200,7 @@
 
       ]
      },
-     "id": 31,
+     "id": 32,
      "links": [
 
      ],
@@ -2223,7 +2282,7 @@
 
       ]
      },
-     "id": 32,
+     "id": 33,
      "links": [
 
      ],
@@ -2284,7 +2343,7 @@
 
       ]
      },
-     "id": 33,
+     "id": 34,
      "links": [
 
      ],
@@ -2345,7 +2404,7 @@
 
       ]
      },
-     "id": 34,
+     "id": 35,
      "links": [
 
      ],
@@ -2411,56 +2470,60 @@
     "type": "datasource"
    },
    {
-    "allValue": "tempo.*",
-    "allowCustomValue": true,
+    "allValue": null,
     "current": {
+     "selected": true,
      "text": "All",
      "value": "$__all"
     },
-    "datasource": {
-     "type": "prometheus",
-     "uid": "$datasource"
-    },
+    "datasource": "$datasource",
     "hide": 0,
     "includeAll": true,
-    "multi": true,
-    "name": "namespace",
-    "options": [
-
-    ],
-    "query": "label_values(tempo_live_store_records_processed_total, namespace)",
-    "refresh": 2,
-    "regex": "",
-    "regexApplyTo": "value",
-    "skipUrlSync": false,
-    "sort": 0,
-    "type": "query"
-   },
-   {
-    "allValue": ".*",
-    "allowCustomValue": true,
-    "current": {
-     "text": "All",
-     "value": "$__all"
-    },
-    "datasource": {
-     "type": "prometheus",
-     "uid": "$datasource"
-    },
-    "hide": 0,
-    "includeAll": true,
+    "label": "cluster",
     "multi": true,
     "name": "cluster",
     "options": [
 
     ],
-    "query": "label_values(tempo_live_store_records_processed_total{namespace=~\"$namespace\"}, cluster)",
-    "refresh": 2,
+    "query": "label_values(tempo_build_info, cluster)",
+    "refresh": 1,
     "regex": "",
-    "regexApplyTo": "value",
-    "skipUrlSync": false,
-    "sort": 0,
-    "type": "query"
+    "sort": 2,
+    "tagValuesQuery": "",
+    "tags": [
+
+    ],
+    "tagsQuery": "",
+    "type": "query",
+    "useTags": false
+   },
+   {
+    "allValue": null,
+    "current": {
+     "selected": true,
+     "text": "All",
+     "value": "$__all"
+    },
+    "datasource": "$datasource",
+    "hide": 0,
+    "includeAll": true,
+    "label": "namespace",
+    "multi": true,
+    "name": "namespace",
+    "options": [
+
+    ],
+    "query": "label_values(tempo_build_info{cluster=~'$cluster'}, namespace)",
+    "refresh": 1,
+    "regex": "",
+    "sort": 2,
+    "tagValuesQuery": "",
+    "tags": [
+
+    ],
+    "tagsQuery": "",
+    "type": "query",
+    "useTags": false
    },
    {
     "allValue": "live-store-zone-.*",

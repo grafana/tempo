@@ -170,28 +170,13 @@ dashboard_utils {
         type: 'query',
       };
 
-      $.dashboard('Tempo / Livestore') {
+      $.dashboard('Tempo / Livestore')
+      .addClusterSelectorTemplates() {
         description: 'Tempo LiveStore dashboard',
-        links: [
-          {
-            asDropdown: false,
-            icon: 'external link',
-            includeVars: true,
-            keepTime: true,
-            tags: [],
-            targetBlank: true,
-            title: 'Livestore Write Path',
-            tooltip: '',
-            type: 'link',
-            url: '/d/livestore-write-path/livestore-write-path?${__url_time_range}&var-datasource=$datasource&var-namespace=$namespace&var-pod=$pod',
-          },
-        ],
         refresh: '',
         tags: ['tempo', 'livestore', 'triage'],
         templating+: {
           list+: [
-            queryTemplate('namespace', 'label_values(tempo_live_store_records_processed_total, namespace)', 'tempo.*'),
-            queryTemplate('cluster', 'label_values(tempo_live_store_records_processed_total{namespace=~"$namespace"}, cluster)', '.*'),
             queryTemplate('pod', 'label_values(kube_pod_container_info{' + namespaceMatcher + ', container="%s", pod=~"%s"}, pod)' % [liveStoreContainer, liveStorePodRegex], liveStorePodRegex, '/^(live-store-zone-[ab]-.*)$/'),
             queryTemplate('tenant', 'label_values(tempo_live_store_traces_created_total{' + namespaceMatcher + '}, tenant)', '.*'),
           ],
@@ -229,14 +214,14 @@ dashboard_utils {
         )
         .addPanel(
           statPanel(
-            'Backpressure time by zone',
-            'Seconds spent backpressuring per second, split by live-store zone. Uses tempo_live_store_back_pressure_seconds_total when present, with duration histogram sum as fallback for cells that do not expose the counter.',
+            'Backpressure seconds/s by zone',
+            'Accumulated backpressure seconds per second, split by live-store zone. Values can exceed 1 when multiple pushes wait concurrently. Uses tempo_live_store_back_pressure_seconds_total when present, with duration histogram sum as fallback for cells that do not expose the counter.',
             'sum by (zone) (%s) or sum by (zone) (%s)' % [
               zoneRate('tempo_live_store_back_pressure_seconds_total'),
               zoneRate('tempo_live_store_back_pressure_duration_seconds_sum'),
             ],
             '{{zone}}',
-            unit='percentunit',
+            unit='none',
             decimals=2,
           )
         )
@@ -253,7 +238,7 @@ dashboard_utils {
         )
       )
       .addRow(
-        row('Read latency and query impact', [7, 5])
+        row('Read latency and query impact', [5, 3, 4])
         .addPanel(
           timeseriesPanel(
             'Query latency p99/p50 by namespace/route',
@@ -272,6 +257,15 @@ dashboard_utils {
             'Read traffic served by live-store query routes, split by cluster, namespace, and route with live-store zones collapsed.',
             'sum by (cluster, namespace, route) (%s)' % metricRate('tempo_request_duration_seconds_count', readRequestMatcher),
             '{{cluster}}/{{namespace}} {{route}}',
+            unit='ops',
+          )
+        )
+        .addPanel(
+          timeseriesPanel(
+            'Lag-affected requests/s',
+            'Live-store request rate where Kafka lag means complete results cannot be guaranteed, split by cluster, namespace, zone, and route. This counts live-store RPC attempts; querier zone failover may prevent an end-user failure.',
+            'sum by (cluster, namespace, zone, route) (%s)' % zoneRate('tempo_live_store_lagged_requests_total'),
+            '{{cluster}}/{{namespace}} {{zone}} {{route}}',
             unit='ops',
           )
         )
@@ -319,7 +313,7 @@ dashboard_utils {
           timeseriesPanel(
             'Records processed trend by zone',
             'Live-store records successfully processed after Kafka fetch, split by zone. This is not a loss detector; use lag, backpressure, completion queue, readiness, and logs to investigate missing throughput.',
-            'sum by (zone) (%s)' % zoneRate('tempo_live_store_records_processed_total'),
+            'sum by (zone) (%s)' % zoneRate('tempo_live_store_records_processed_total', liveStoreTenantAfterMatcher),
             '{{zone}}',
             unit='ops',
           )
@@ -329,14 +323,14 @@ dashboard_utils {
         row('Backpressure and readiness', [6, 6, 6, 6, 6], collapsed=true)
         .addPanel(
           timeseriesPanel(
-            'Backpressure time by zone/reason',
-            'Backpressure seconds per second by live-store zone and reason. Uses reason when the counter is available; otherwise falls back to duration-sum by zone.',
+            'Backpressure seconds/s by zone/reason',
+            'Accumulated backpressure seconds per second by live-store zone and reason. Values can exceed 1 when multiple pushes wait concurrently. Uses reason when the counter is available; otherwise falls back to duration-sum by zone.',
             'sum by (zone, reason) (%s) or sum by (zone) (%s)' % [
               zoneRate('tempo_live_store_back_pressure_seconds_total'),
               zoneRate('tempo_live_store_back_pressure_duration_seconds_sum'),
             ],
             '{{zone}} {{reason}}',
-            unit='percentunit',
+            unit='none',
           )
         )
         .addPanel(
@@ -353,14 +347,14 @@ dashboard_utils {
         )
         .addPanel(
           timeseriesPanel(
-            'Backpressure by pod',
-            'Top live-store pods spending time in backpressure. Reason is shown when that counter is available; otherwise duration-sum fallback is shown by pod.',
+            'Backpressure seconds/s by pod',
+            'Top live-store pods by accumulated backpressure seconds per second. Values can exceed 1 when multiple pushes wait concurrently. Reason is shown when that counter is available; otherwise duration-sum fallback is shown by pod.',
             'topk(30, sum by (cluster, namespace, pod, reason) (%s)) or topk(30, sum by (cluster, namespace, pod) (%s))' % [
               zoneRate('tempo_live_store_back_pressure_seconds_total'),
               zoneRate('tempo_live_store_back_pressure_duration_seconds_sum'),
             ],
             '{{cluster}}/{{namespace}} {{pod}} {{reason}}',
-            unit='percentunit',
+            unit='none',
           )
         )
         .addPanel(
@@ -466,7 +460,7 @@ dashboard_utils {
         .addPanel(
           tenantTablePanel(
             'Top tenants by traces created/s (current)',
-            'Current top tenants by live-store trace creation rate across selected zones. Click a tenant to filter this dashboard or open RT overrides.',
+            'Current top tenants by live-store trace creation rate across selected zones.',
             'topk(10, sum by (tenant) (%s))' % metricRate('tempo_live_store_traces_created_total', liveStoreTenantMatcher),
             'traces/s',
             'ops',
@@ -476,7 +470,7 @@ dashboard_utils {
         .addPanel(
           tenantTablePanel(
             'Top tenants by bytes received (current)',
-            'Current top tenants by live-store input byte rate across selected zones. Click a tenant to filter this dashboard or open RT overrides.',
+            'Current top tenants by live-store input byte rate across selected zones.',
             'topk(10, sum by (tenant) (%s))' % metricRate('tempo_live_store_bytes_received_total', liveStoreTenantMatcher),
             'bytes/s',
             'Bps',
@@ -615,10 +609,6 @@ dashboard_utils {
             '{{scaledObject}} {{scaler}}',
           )
         )
-      ) {
-        description: 'Tempo LiveStore dashboard',
-        refresh: '',
-        tags: ['tempo', 'livestore', 'triage'],
-      },
+      ),
   },
 }
