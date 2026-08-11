@@ -108,7 +108,7 @@ func TestCompactionProvider_EmptyStart(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	var (
-		ctx, cancel  = context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel  = context.WithTimeout(context.Background(), 5*time.Second)
 		store, _, ww = newStore(ctx, t, tmpDir)
 	)
 
@@ -136,11 +136,7 @@ func TestCompactionProvider_EmptyStart(t *testing.T) {
 	require.Nil(t, p.curSelector, "a block selector should not be set")
 
 	writeTenantBlocks(ctx, t, backend.NewWriter(ww), tenant, 1)
-
-	// Poll synchronously so the store has definitely observed the single block
-	// before asserting. Otherwise a false result could mean the poll simply
-	// lagged, rather than a single block correctly not being compactable.
-	store.PollNow(ctx)
+	time.Sleep(150 * time.Millisecond)
 
 	b = p.prepareNextTenant(ctx, false)
 	require.False(t, b, "no tenant with a single block should be found")
@@ -148,10 +144,7 @@ func TestCompactionProvider_EmptyStart(t *testing.T) {
 	require.Nil(t, p.curSelector, "a block selector should not be set")
 
 	writeTenantBlocks(ctx, t, backend.NewWriter(ww), tenant, 1)
-
-	// Poll synchronously so the second block is observed before asserting,
-	// avoiding a fixed sleep or retry loop that can pass or fail on timing.
-	store.PollNow(ctx)
+	time.Sleep(150 * time.Millisecond)
 
 	b = p.prepareNextTenant(ctx, false)
 	require.True(t, b, "tenant with two blocks should be found")
@@ -275,10 +268,71 @@ func TestCompactionProvider_SkipsAllCompactionDuringRedaction(t *testing.T) {
 	require.Empty(t, collectAllMetas(selector), "no blocks should be offered for compaction during redaction")
 }
 
-// TestCompactionProvider_MeasureTenantsIgnoresTenantPending verifies that
-// newBlockSelectorForMeasurement returns the real block count even when
-// TenantPending is true. This ensures the outstanding-blocks metric (and
-// therefore autoscaling) is not disrupted by an active redaction batch.
+// outstandingBlocksForTenant reads the live tempodb_compaction_outstanding_blocks gauge for a tenant
+// from the default registry, or -1 if no series exists for it.
+func outstandingBlocksForTenant(t *testing.T, tenantID string) float64 {
+	t.Helper()
+	mfs, err := prometheus.DefaultGatherer.Gather()
+	require.NoError(t, err)
+	for _, mf := range mfs {
+		if mf.GetName() != "tempodb_compaction_outstanding_blocks" {
+			continue
+		}
+		for _, m := range mf.GetMetric() {
+			for _, l := range m.GetLabel() {
+				if l.GetName() == "tenant" && l.GetValue() == tenantID {
+					return m.GetGauge().GetValue()
+				}
+			}
+		}
+	}
+	return -1
+}
+
+// TestCompactionProvider_MeasureTenantsPublishesBlocksDuringRedaction verifies the outstanding-blocks
+// gauge still reports real work while a tenant's compaction is gated by a redaction batch.
+//
+// This asserts the wiring, not just the selector: measureTenants must call the measurement selector and
+// not the TenantPending-guarded one. Otherwise the gauge reads zero for the whole redaction, and because
+// the worker autoscaler scales on this signal it scales down underneath a running redaction — making the
+// redaction slower the longer it runs. That bug shipped once already (fixed in #6992); the selector got a
+// unit test, but nothing asserted measureTenants used it, so swapping the call back left the suite green.
+func TestCompactionProvider_MeasureTenantsPublishesBlocksDuringRedaction(t *testing.T) {
+	// A dedicated tenant: this gauge lives in the global default registry.
+	const measureTenant = "measure-wiring-tenant"
+	cfg := CompactionConfig{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+
+	tmpDir := t.TempDir()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	store, _, ww := newStore(ctx, t, tmpDir)
+	defer store.Shutdown()
+
+	writeTenantBlocks(ctx, t, backend.NewWriter(ww), measureTenant, 5)
+	time.Sleep(150 * time.Millisecond)
+
+	w := work.New(work.Config{})
+	require.NoError(t, w.AddBatch(&tempopb.RedactionBatch{
+		BatchId:  "batch-1",
+		TenantId: measureTenant,
+	}))
+	require.True(t, w.TenantPending(measureTenant), "compaction is gated for this tenant")
+
+	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+
+	p := NewCompactionProvider(cfg, test.NewTestingLogger(t), store, limits, w)
+	p.measureTenants()
+
+	require.Greater(t, outstandingBlocksForTenant(t, measureTenant), 0.0,
+		"the gauge must report real work while compaction is gated, or autoscaling scales down under a running redaction")
+}
+
+// TestCompactionProvider_MeasureTenantsIgnoresTenantPending verifies the two selectors differ as
+// intended: the compaction selector is gated by TenantPending while the measurement selector is not.
+// The gauge itself is covered by TestCompactionProvider_MeasureTenantsPublishesBlocksDuringRedaction.
 func TestCompactionProvider_MeasureTenantsIgnoresTenantPending(t *testing.T) {
 	const testTenant = "test-tenant"
 	cfg := CompactionConfig{}
