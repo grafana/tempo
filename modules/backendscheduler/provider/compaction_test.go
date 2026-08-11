@@ -108,7 +108,7 @@ func TestCompactionProvider_EmptyStart(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	var (
-		ctx, cancel  = context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel  = context.WithTimeout(context.Background(), 30*time.Second)
 		store, _, ww = newStore(ctx, t, tmpDir)
 	)
 
@@ -136,7 +136,11 @@ func TestCompactionProvider_EmptyStart(t *testing.T) {
 	require.Nil(t, p.curSelector, "a block selector should not be set")
 
 	writeTenantBlocks(ctx, t, backend.NewWriter(ww), tenant, 1)
-	time.Sleep(150 * time.Millisecond)
+
+	// Poll synchronously so the store has definitely observed the single block
+	// before asserting. Otherwise a false result could mean the poll simply
+	// lagged, rather than a single block correctly not being compactable.
+	store.PollNow(ctx)
 
 	b = p.prepareNextTenant(ctx, false)
 	require.False(t, b, "no tenant with a single block should be found")
@@ -144,7 +148,10 @@ func TestCompactionProvider_EmptyStart(t *testing.T) {
 	require.Nil(t, p.curSelector, "a block selector should not be set")
 
 	writeTenantBlocks(ctx, t, backend.NewWriter(ww), tenant, 1)
-	time.Sleep(150 * time.Millisecond)
+
+	// Poll synchronously so the second block is observed before asserting,
+	// avoiding a fixed sleep or retry loop that can pass or fail on timing.
+	store.PollNow(ctx)
 
 	b = p.prepareNextTenant(ctx, false)
 	require.True(t, b, "tenant with two blocks should be found")
