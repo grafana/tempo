@@ -7,7 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"time"
+	"strings"
 
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -28,6 +28,10 @@ type redactCmd struct {
 	DryRun   bool     `name:"dry-run" default:"false" help:"evaluate and report match counts without rewriting any blocks"`
 	Start    string   `name:"start" help:"restrict redaction to blocks/traces at or after this time. 'now', 'now-<dur>' (e.g. now-7d), or RFC3339. Empty = unbounded"`
 	End      string   `name:"end" help:"restrict redaction to blocks/traces at or before this time. Same forms as --start. Empty = unbounded"`
+
+	// startNano/endNano hold the window resolved by validate().
+	startNano int64
+	endNano   int64
 
 	TLS           bool   `name:"tls" help:"use TLS transport" default:"false"`
 	TLSServerName string `name:"tls-server-name" help:"override the TLS server name (SNI)"`
@@ -71,6 +75,24 @@ func (cmd *redactCmd) Run(_ *globalOptions) error {
 // TraceQL query, never both and never neither. The server enforces the same, but checking
 // here fails fast before dialing.
 func (cmd *redactCmd) validate() error {
+	// Resolve the window here, not in submit(): validate() runs before the scheduler is dialed, so a
+	// mistyped bound fails immediately rather than after a TLS handshake.
+	var err error
+	if cmd.startNano, err = windowBoundNano(cmd.Start); err != nil {
+		return fmt.Errorf("parsing --start: %w", err)
+	}
+	if cmd.endNano, err = windowBoundNano(cmd.End); err != nil {
+		return fmt.Errorf("parsing --end: %w", err)
+	}
+	// The server enforces both of these; checking here saves a round trip. A one-sided window is
+	// refused because the storage layer only bounds the per-block scan when both bounds are set.
+	if (cmd.startNano == 0) != (cmd.endNano == 0) {
+		return fmt.Errorf("--start and --end must both be set or both be omitted")
+	}
+	if cmd.startNano != 0 && cmd.startNano >= cmd.endNano {
+		return fmt.Errorf("--start must be before --end")
+	}
+
 	hasIDs := len(cmd.TraceIDs) > 0
 	hasQuery := cmd.Query != ""
 	switch {
@@ -104,15 +126,9 @@ func (cmd *redactCmd) submit(ctx context.Context, c tempopb.BackendSchedulerClie
 		req.Mode = tempopb.RedactionMode_REDACTION_MODE_DRY_RUN
 	}
 
-	// Resolve any relative window (now-7d, …) to absolute nanos client-side, so the server gets a
-	// frozen window. Empty stays 0 (unbounded on that side).
-	now := time.Now()
-	if req.StartTimeUnixNano, err = parseTimeSpec(cmd.Start, now); err != nil {
-		return nil, fmt.Errorf("parsing --start: %w", err)
-	}
-	if req.EndTimeUnixNano, err = parseTimeSpec(cmd.End, now); err != nil {
-		return nil, fmt.Errorf("parsing --end: %w", err)
-	}
+	// The window was resolved and validated in validate().
+	req.StartTimeUnixNano = cmd.startNano
+	req.EndTimeUnixNano = cmd.endNano
 
 	resp, err := c.SubmitRedaction(ctx, req)
 	if err != nil {
@@ -148,6 +164,33 @@ func (cmd *redactCmd) buildTransportCredentials() (credentials.TransportCredenti
 		ServerName: cmd.TLSServerName,
 		RootCAs:    certPool,
 	}), nil
+}
+
+// unixNanoMinYear/unixNanoMaxYear bound what time.Time.UnixNano() can represent. Outside this range
+// it is undefined and wraps silently, so a bound written as "far future" would resolve negative — and a
+// negative window selects every block and then scans each one unbounded. Reject rather than wrap.
+const (
+	unixNanoMinYear = 1678
+	unixNanoMaxYear = 2262
+)
+
+// windowBoundNano resolves a --start/--end value to absolute unix nanoseconds, or 0 when omitted.
+//
+// Resolution reuses parseTime, the helper the query commands already use, so the accepted forms (now,
+// now-<dur> with Prometheus units, RFC3339) stay consistent across the CLI. Resolving client-side means
+// the window is frozen at submission and a long redaction never chases live ingest.
+func windowBoundNano(spec string) (int64, error) {
+	if strings.TrimSpace(spec) == "" {
+		return 0, nil
+	}
+	t, err := parseTime(spec)
+	if err != nil {
+		return 0, err
+	}
+	if y := t.Year(); y < unixNanoMinYear || y > unixNanoMaxYear {
+		return 0, fmt.Errorf("time %q is outside the representable range (%d-%d)", spec, unixNanoMinYear, unixNanoMaxYear)
+	}
+	return t.UnixNano(), nil
 }
 
 // parseTraceIDs converts a slice of hex trace ID strings to raw byte slices.
