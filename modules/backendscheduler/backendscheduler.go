@@ -805,6 +805,14 @@ func (s *BackendScheduler) checkPendingRescans(ctx context.Context) {
 	}
 }
 
+// rescanBlockInWindow reports whether a rescan output block falls inside the batch's window. It exists
+// so the rescan loop can read as a single condition; indeterminate metas resolve to in-scope, matching
+// blockOverlapsWindow.
+func rescanBlockInWindow(meta *backend.BlockMeta, batch *tempopb.RedactionBatch) bool {
+	overlaps, _ := blockOverlapsWindow(meta, batch.StartTimeUnixNano, batch.EndTimeUnixNano)
+	return overlaps
+}
+
 // performRescan handles one batch that is ready for a rescan.
 //
 // It loops over the skipped compaction job IDs, classifying each job as still-running
@@ -854,10 +862,24 @@ func (s *BackendScheduler) performRescan(ctx context.Context, batch *tempopb.Red
 
 		// Classify output blocks: ready to redact vs still being compacted.
 		busyBlocks := s.work.BusyBlocksForTenant(tenantID)
+		// Output blocks are discovered by ID, so the window filter applied at submission has to be
+		// re-applied here by looking their metas up. A compaction that merged an in-window input with an
+		// out-of-window one produces an output covering both; enqueueing it unfiltered would redact data
+		// the submit-time filter had deliberately excluded.
+		metaByID := make(map[string]*backend.BlockMeta)
+		for _, m := range s.store.BlockMetas(tenantID) {
+			metaByID[m.BlockID.String()] = m
+		}
 		var nextJobIDs []string
 		for _, blockID := range outputBlockIDs {
 			if jobID, busy := busyBlocks[blockID]; busy {
 				nextJobIDs = append(nextJobIDs, jobID)
+			} else if m, known := metaByID[blockID]; known && !rescanBlockInWindow(m, batch) {
+				// Outside the requested window. A block not yet in the blocklist is treated as in scope,
+				// matching blockOverlapsWindow's resolve-doubt-toward-inclusion rule: the per-block scan
+				// bound still limits what is deleted.
+				level.Debug(log.Logger).Log("msg", "redaction rescan: output block outside the window; not enqueued",
+					"tenant", tenantID, "batch_id", batchID, "block_id", blockID)
 			} else {
 				allReadyJobs = append(allReadyJobs, &work.Job{
 					ID:   uuid.New().String(),

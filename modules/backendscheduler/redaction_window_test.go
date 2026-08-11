@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/grafana/tempo/modules/backendscheduler/work"
@@ -222,4 +223,84 @@ func TestNextPropagatesWindowToJob(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, startNano, resp.Detail.Redaction.StartTimeUnixNano, "the job carries the batch's window start")
 	require.Equal(t, endNano, resp.Detail.Redaction.EndTimeUnixNano, "the job carries the batch's window end")
+}
+
+// TestRescanAppliesWindowToOutputBlocks verifies the rescan honours the batch's window.
+//
+// SubmitRedaction filters blocks by the window, but the rescan enqueues jobs for compaction OUTPUT
+// blocks, which it discovers later by ID. A compaction merging an in-window input with an out-of-window
+// one produces an output whose range exceeds the window, so without the same filter the rescan re-widens
+// the redaction past what the operator asked for — and the submit-time filter had explicitly excluded
+// that data.
+func TestRescanAppliesWindowToOutputBlocks(t *testing.T) {
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	cfg.ProviderConfig.Redaction.RescanDelay = 0
+	tmpDir := t.TempDir()
+	cfg.LocalWorkPath = tmpDir
+
+	ctx, cancel := context.WithCancel(context.Background())
+	store, rr, ww := newStore(ctx, t, tmpDir)
+	defer func() {
+		cancel()
+		store.Shutdown()
+	}()
+
+	tenant := "t-rescan-window"
+	base := time.Now().Add(-20 * 24 * time.Hour)
+	day := func(n int) time.Time { return base.Add(time.Duration(n) * 24 * time.Hour) }
+
+	// An in-window block that compaction is holding, and an out-of-window block that will be the
+	// compaction's output.
+	ids := writeTenantBlocksWithRanges(ctx, t, backend.NewWriter(ww), tenant, [][2]time.Time{
+		{day(3), day(4)},   // in window, busy
+		{day(12), day(13)}, // the compaction output: outside the window
+	})
+	inWindow, outputBlock := ids[0].String(), ids[1].String()
+	require.Eventually(t, func() bool { return len(store.BlockMetas(tenant)) == 2 },
+		5*time.Second, 50*time.Millisecond, "both blocks must be polled before submitting")
+
+	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.NewRegistry())
+	require.NoError(t, err)
+	s, err := New(cfg, store, limits, rr, ww)
+	require.NoError(t, err)
+
+	compJob := &work.Job{
+		ID:   uuid.New().String(),
+		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
+		JobDetail: tempopb.JobDetail{
+			Tenant:     tenant,
+			Compaction: &tempopb.CompactionDetail{Input: []string{inWindow}},
+		},
+	}
+	s.work.RegisterJob(compJob)
+	require.NoError(t, s.work.AddJob(compJob))
+	s.work.StartJob(compJob.ID)
+
+	// The in-window block is busy, so the submission arms a rescan for that compaction job.
+	_, err = s.SubmitRedaction(user.InjectOrgID(ctx, tenant), &tempopb.SubmitRedactionRequest{
+		TraceIds:          [][]byte{{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}},
+		StartTimeUnixNano: day(2).UnixNano(),
+		EndTimeUnixNano:   day(5).UnixNano(),
+	})
+	require.NoError(t, err)
+	batch := s.work.GetBatch(tenant)
+	require.NotNil(t, batch)
+	require.Equal(t, []string{compJob.ID}, batch.SkippedCompactionJobIds, "the busy in-window block arms the rescan")
+
+	// The compaction completes, producing an out-of-window output block.
+	s.work.SetJobCompactionOutput(compJob.ID, []string{outputBlock})
+	s.work.CompleteJob(compJob.ID)
+
+	before := len(s.work.ListAllPendingJobs())
+	s.performRescan(ctx, batch)
+
+	for _, j := range s.work.ListAllPendingJobs() {
+		if j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION && j.JobDetail.Redaction != nil {
+			require.NotEqual(t, outputBlock, j.JobDetail.Redaction.BlockId,
+				"an output block outside the window must not be enqueued: the window excluded that data at submit")
+		}
+	}
+	require.Equal(t, before, len(s.work.ListAllPendingJobs()),
+		"the only output block is out of window, so the rescan should enqueue nothing")
 }
