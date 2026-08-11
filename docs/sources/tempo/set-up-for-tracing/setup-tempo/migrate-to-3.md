@@ -146,14 +146,26 @@ ingest:
     topic: <KAFKA_TOPIC>
 ```
 
-Each block-builder instance consumes from exactly one Kafka partition based on its ordinal: block-builder-0 consumes partition 0, block-builder-1 consumes partition 1, and so on. This means the number of block-builder replicas must equal the number of Kafka partitions.
+With the default `block_builder.partitions_per_instance: 1`,
+each block-builder instance consumes one Kafka partition based on its ordinal:
+`block-builder-0` consumes partition 0,
+`block-builder-1` consumes partition 1,
+and so on.
+Set the block-builder replica count to cover the active Tempo partitions,
+which normally matches the active live-store replica count.
+It doesn't need to equal the total Kafka topic partition count;
+extra pre-provisioned Kafka partitions remain idle until live-stores activate the corresponding Tempo partitions.
 
-To keep block-builder replicas in sync with the partition count, scale them to match the live-store replica count (live-stores also run one replica per partition). You can do this with:
+For other `partitions_per_instance` values and partition assignment requirements,
+refer to [Configure a Kafka-compatible backend](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/configure-kafka/#choose-the-partition-count).
 
-- A **KEDA autoscaler** that mirrors the live-store pod count. The Tempo Jsonnet library includes this configuration.
-- The [**Grafana rollout-operator**](https://github.com/grafana/rollout-operator) mirroring feature, which keeps one 
-  StatefulSet's replica count in sync with another.
-- A **static replica count** set to the number of Kafka partitions if your partition count is fixed.
+Keep block-builder capacity aligned with the active live-store replica count by using:
+
+- A **KEDA autoscaler** that scales live-stores and adjusts block-builder capacity.
+  The Tempo Jsonnet library includes this configuration.
+- The [**Grafana rollout-operator**](https://github.com/grafana/rollout-operator) mirroring feature,
+  which keeps one StatefulSet's replica count in sync with another.
+- A **static replica count** based on the number of active Tempo partitions.
 
 The `live_store:` block uses sensible defaults and doesn't require overrides for most deployments.
 
