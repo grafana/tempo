@@ -16,6 +16,9 @@ An implementation of JSON Pointer for golang, which supports go `struct`.
 
 ## Announcements
 
+* **2026-07-07** : landing v1.0.0
+  * stable API pledge
+
 * **2026-06-29** : reinsourced external dependency to swag (v0.24.0)
   * module `github.com/go-openapi/swag/jsonname` is source directly here, so we no longer have any external dependency
   * `jsonname` was never really used by any other package, so it makes sense to deprecate it away from the `swag` family
