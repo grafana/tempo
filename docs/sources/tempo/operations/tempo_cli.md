@@ -988,6 +988,8 @@ Options:
 
 - `--tenant <value>` **(required)** Tenant ID.
 - `--trace-id <value>` **(required)** Trace ID to redact, in hex format. Specify multiple times to redact several traces in one request.
+- `--start <value>` Restrict redaction to traces at or after this time. Accepts `now`, a relative offset such as `now-7d`, or an RFC3339 timestamp. Omit for no lower bound.
+- `--end <value>` Restrict redaction to traces at or before this time. Same forms as `--start`. Omit for no upper bound.
 - `--tls` Use TLS for the gRPC connection (default: `false`).
 - `--tls-server-name <value>` Override the TLS server name (SNI).
 - `--tls-ca <value>` Path to a PEM-encoded CA certificate file.
@@ -998,6 +1000,21 @@ On success, the command prints the batch ID and the number of jobs created:
 batch_id:     <BATCH_ID>
 jobs_created: <COUNT>
 ```
+
+### Redact a time window
+
+A redaction with no window covers every block the tenant has, which keeps the tenant's compaction paused for the whole run and lets its block list grow.
+`--start` and `--end` scope a redaction to a time range, so a large tenant can be redacted in slices with compaction recovering in between.
+
+```bash
+tempo-cli redact --tenant=my-tenant --query='{resource.namespace = "checkout"}' --start=now-7d --end=now-6d localhost:9095
+```
+
+Both bounds are inclusive, and a trace is redacted if any part of it falls inside the window.
+Only blocks whose data range overlaps the window are read, and each block is scanned only over the requested range.
+
+The window is resolved to absolute timestamps when the command runs, so a long redaction does not drift forward into data that arrived after it started.
+Repeat the command for each slice; traces outside every window you run are left in place.
 
 Monitor job progress through the [`/status/backendscheduler`](/docs/tempo/<TEMPO_VERSION>/api_docs/#backend-scheduler-job-status) endpoint.
 
