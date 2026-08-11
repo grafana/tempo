@@ -48,17 +48,20 @@ func resourceSpans(service string, spans ...*tracev1.Span) *tracev1.ResourceSpan
 func TestSummarize_SimpleMultiLevelTrace(t *testing.T) {
 	trace := &tempopb.Trace{
 		ResourceSpans: []*tracev1.ResourceSpans{
-			resourceSpans("checkout",
+			resourceSpans(
+				"checkout",
 				// Root's own span ends before some of its descendants (e.g. an
 				// async downstream call outliving the parent's response) so the
 				// critical path is a genuine multi-hop walk, not just the root.
 				testSpan("root", "", "POST /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 60, tracev1.Status_STATUS_CODE_OK, ""),
 			),
-			resourceSpans("inventory",
+			resourceSpans(
+				"inventory",
 				testSpan("inventory", "root", "reserve inventory", tracev1.Span_SPAN_KIND_CLIENT, 20, 90, tracev1.Status_STATUS_CODE_OK, ""),
 				testSpan("reserve", "inventory", "reserve", tracev1.Span_SPAN_KIND_SERVER, 25, 100, tracev1.Status_STATUS_CODE_OK, ""),
 			),
-			resourceSpans("payment",
+			resourceSpans(
+				"payment",
 				testSpan("payment", "root", "charge", tracev1.Span_SPAN_KIND_CLIENT, 30, 45, tracev1.Status_STATUS_CODE_OK, ""),
 			),
 		},
@@ -96,7 +99,8 @@ func TestSummarize_NormalNestedTraceFollowsLastFinishingBranch(t *testing.T) {
 	// each level.
 	trace := &tempopb.Trace{
 		ResourceSpans: []*tracev1.ResourceSpans{
-			resourceSpans("svc",
+			resourceSpans(
+				"svc",
 				testSpan("root", "", "root-op", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK, ""),
 				// branch-a finishes later than branch-b, so the walk descends
 				// into branch-a at the root level.
@@ -124,7 +128,8 @@ func TestSummarize_NormalNestedTraceFollowsLastFinishingBranch(t *testing.T) {
 func TestSummarize_SingleSpanTrace(t *testing.T) {
 	trace := &tempopb.Trace{
 		ResourceSpans: []*tracev1.ResourceSpans{
-			resourceSpans("solo",
+			resourceSpans(
+				"solo",
 				testSpan("only", "", "do-thing", tracev1.Span_SPAN_KIND_INTERNAL, 5, 15, tracev1.Status_STATUS_CODE_OK, ""),
 			),
 		},
@@ -146,7 +151,8 @@ func TestSummarize_SingleSpanTrace(t *testing.T) {
 func TestSummarize_NoErrors(t *testing.T) {
 	trace := &tempopb.Trace{
 		ResourceSpans: []*tracev1.ResourceSpans{
-			resourceSpans("svc",
+			resourceSpans(
+				"svc",
 				testSpan("root", "", "root-op", tracev1.Span_SPAN_KIND_SERVER, 0, 10, tracev1.Status_STATUS_CODE_OK, ""),
 				testSpan("child", "root", "child-op", tracev1.Span_SPAN_KIND_CLIENT, 1, 9, tracev1.Status_STATUS_CODE_UNSET, ""),
 			),
@@ -241,7 +247,8 @@ func expectedSpanIDs(spans []*resolvedSpan, k int) []string {
 func TestSummarize_FewerThanFive(t *testing.T) {
 	trace := &tempopb.Trace{
 		ResourceSpans: []*tracev1.ResourceSpans{
-			resourceSpans("svc",
+			resourceSpans(
+				"svc",
 				testSpan("root", "", "root-op", tracev1.Span_SPAN_KIND_SERVER, 0, 30, tracev1.Status_STATUS_CODE_OK, ""),
 				testSpan("child", "root", "child-op", tracev1.Span_SPAN_KIND_CLIENT, 1, 20, tracev1.Status_STATUS_CODE_ERROR, "oops"),
 			),
@@ -264,10 +271,12 @@ func TestSummarize_DisconnectedTraceFallsBackToEarliestSpan(t *testing.T) {
 	// qualifies as a normal root.
 	trace := &tempopb.Trace{
 		ResourceSpans: []*tracev1.ResourceSpans{
-			resourceSpans("orphan-a",
+			resourceSpans(
+				"orphan-a",
 				testSpan("a", "missing-1", "op-a", tracev1.Span_SPAN_KIND_INTERNAL, 50, 60, tracev1.Status_STATUS_CODE_OK, ""),
 			),
-			resourceSpans("orphan-b",
+			resourceSpans(
+				"orphan-b",
 				testSpan("b", "missing-2", "op-b", tracev1.Span_SPAN_KIND_INTERNAL, 10, 90, tracev1.Status_STATUS_CODE_OK, ""),
 			),
 		},
@@ -297,18 +306,22 @@ func TestSummarize_DuplicateSpanIDZipkinPattern(t *testing.T) {
 	// client-kind half.
 	trace := &tempopb.Trace{
 		ResourceSpans: []*tracev1.ResourceSpans{
-			resourceSpans("root-svc",
+			resourceSpans(
+				"root-svc",
 				testSpan("root", "", "root-op", tracev1.Span_SPAN_KIND_SERVER, 0, 120, tracev1.Status_STATUS_CODE_OK, ""),
 			),
-			resourceSpans("caller",
+			resourceSpans(
+				"caller",
 				testSpan("shared", "root", "call", tracev1.Span_SPAN_KIND_CLIENT, 10, 90, tracev1.Status_STATUS_CODE_OK, ""),
 			),
-			resourceSpans("callee",
+			resourceSpans(
+				"callee",
 				// Ends later than the client-kind half so the top-down walk
 				// descends into it, not "call".
 				testSpan("shared", "root", "handle", tracev1.Span_SPAN_KIND_SERVER, 15, 95, tracev1.Status_STATUS_CODE_OK, ""),
 			),
-			resourceSpans("downstream",
+			resourceSpans(
+				"downstream",
 				testSpan("grandchild", "shared", "do-work", tracev1.Span_SPAN_KIND_INTERNAL, 20, 80, tracev1.Status_STATUS_CODE_OK, ""),
 			),
 		},
@@ -367,7 +380,8 @@ func TestCriticalPath_CycleGuardTerminates(t *testing.T) {
 	// result (both cycle members visited once each).
 	trace := &tempopb.Trace{
 		ResourceSpans: []*tracev1.ResourceSpans{
-			resourceSpans("svc",
+			resourceSpans(
+				"svc",
 				testSpan("a", "b", "op-a", tracev1.Span_SPAN_KIND_INTERNAL, 0, 100, tracev1.Status_STATUS_CODE_OK, ""),
 				testSpan("b", "a", "op-b", tracev1.Span_SPAN_KIND_INTERNAL, 10, 90, tracev1.Status_STATUS_CODE_OK, ""),
 			),
@@ -395,7 +409,8 @@ func TestCriticalPath_SelfReferentialSpanTerminates(t *testing.T) {
 	// terminate immediately rather than looping on itself forever.
 	trace := &tempopb.Trace{
 		ResourceSpans: []*tracev1.ResourceSpans{
-			resourceSpans("svc",
+			resourceSpans(
+				"svc",
 				testSpan("loopy", "loopy", "op-loopy", tracev1.Span_SPAN_KIND_INTERNAL, 0, 100, tracev1.Status_STATUS_CODE_OK, ""),
 			),
 		},
