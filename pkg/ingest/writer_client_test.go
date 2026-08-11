@@ -52,7 +52,8 @@ func TestCommonKafkaClientOptions_ClientRack(t *testing.T) {
 	metrics := kprom.NewMetrics("", kprom.Registerer(prometheus.NewPedanticRegistry()))
 	cfg := KafkaConfig{Address: "localhost:9092", Topic: "test", ClientRack: "us-east-1a"}
 
-	opts := commonKafkaClientOptions(cfg, metrics, test.NewTestingLogger(t))
+	opts, err := commonKafkaClientOptions(cfg, metrics, test.NewTestingLogger(t))
+	require.NoError(t, err)
 
 	client, err := kgo.NewClient(opts...)
 	require.NoError(t, err)
@@ -65,7 +66,8 @@ func TestCommonKafkaClientOptions_EmptyClientRack(t *testing.T) {
 	metrics := kprom.NewMetrics("", kprom.Registerer(prometheus.NewPedanticRegistry()))
 	cfg := KafkaConfig{Address: "localhost:9092", Topic: "test"}
 
-	opts := commonKafkaClientOptions(cfg, metrics, test.NewTestingLogger(t))
+	opts, err := commonKafkaClientOptions(cfg, metrics, test.NewTestingLogger(t))
+	require.NoError(t, err)
 
 	client, err := kgo.NewClient(opts...)
 	require.NoError(t, err)
