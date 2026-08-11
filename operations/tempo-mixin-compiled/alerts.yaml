@@ -295,6 +295,8 @@
       /
       sum by (cluster, namespace) (rate(tempo_distributor_produce_records_total{namespace=~".*"}[5m]))
       > 0.001
+      and
+      sum by (cluster, namespace) (rate(tempo_distributor_produce_records_total{namespace=~".*"}[5m])) > 0
     "for": "5m"
     "labels":
       "severity": "critical"
