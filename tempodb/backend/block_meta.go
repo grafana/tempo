@@ -188,7 +188,7 @@ type DedicatedColumn struct {
 func (dc *DedicatedColumn) MarshalJSON() ([]byte, error) {
 	type dcAlias DedicatedColumn // alias required to avoid recursive calls of MarshalJSON
 
-	cpy := (dcAlias)(*dc)
+	cpy := dcAlias(*dc)
 	if cpy.Scope == DefaultDedicatedColumnScope {
 		cpy.Scope = ""
 	}

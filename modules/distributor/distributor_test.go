@@ -963,23 +963,28 @@ func TestProcessAttributes(t *testing.T) {
 	longString := strings.Repeat("t", 1100)
 
 	// add long attributes to the resource level
-	trace.ResourceSpans[0].Resource.Attributes = append(trace.ResourceSpans[0].Resource.Attributes,
+	trace.ResourceSpans[0].Resource.Attributes = append(
+		trace.ResourceSpans[0].Resource.Attributes,
 		test.MakeAttribute("long value", longString),
 	)
-	trace.ResourceSpans[0].Resource.Attributes = append(trace.ResourceSpans[0].Resource.Attributes,
+	trace.ResourceSpans[0].Resource.Attributes = append(
+		trace.ResourceSpans[0].Resource.Attributes,
 		test.MakeAttribute(longString, "long key"),
 	)
 
 	// add long attributes to the span level
-	trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes = append(trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes,
+	trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes = append(
+		trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes,
 		test.MakeAttribute("long value", longString),
 	)
-	trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes = append(trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes,
+	trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes = append(
+		trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes,
 		test.MakeAttribute(longString, "long key"),
 	)
 
 	// add long attributes to the event level
-	trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Events = append(trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Events,
+	trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Events = append(
+		trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Events,
 		&v1.Span_Event{
 			TimeUnixNano: 0,
 			Attributes: []*v1_common.KeyValue{
@@ -990,7 +995,8 @@ func TestProcessAttributes(t *testing.T) {
 	)
 
 	// add long attributes to the link level
-	trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Links = append(trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Links,
+	trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Links = append(
+		trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Links,
 		&v1.Span_Link{
 			TraceId: []byte{0x0A, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F},
 			SpanId:  []byte{0x0A, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F},
@@ -1256,7 +1262,8 @@ func TestLogReceivedSpans(t *testing.T) {
 			batches: []*v1.ResourceSpans{
 				makeResourceSpans("test", []*v1.ScopeSpans{
 					makeScope(
-						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span", nil)),
+						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span", nil),
+					),
 				}),
 			},
 			expectedLogsSpan: []testLogSpan{},
@@ -1268,13 +1275,16 @@ func TestLogReceivedSpans(t *testing.T) {
 				makeResourceSpans("test-service", []*v1.ScopeSpans{
 					makeScope(
 						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span1", nil),
-						makeSpan("e3210a2b38097332d1fe43083ea93d29", "6c21c48da4dbd1a7", "Test Span2", nil)),
+						makeSpan("e3210a2b38097332d1fe43083ea93d29", "6c21c48da4dbd1a7", "Test Span2", nil),
+					),
 					makeScope(
-						makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", "Test Span3", nil)),
+						makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", "Test Span3", nil),
+					),
 				}),
 				makeResourceSpans("test-service2", []*v1.ScopeSpans{
 					makeScope(
-						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", "Test Span", nil)),
+						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", "Test Span", nil),
+					),
 				}),
 			},
 			expectedLogsSpan: []testLogSpan{
@@ -1311,13 +1321,16 @@ func TestLogReceivedSpans(t *testing.T) {
 				makeResourceSpans("test-service", []*v1.ScopeSpans{
 					makeScope(
 						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span1", nil),
-						makeSpan("e3210a2b38097332d1fe43083ea93d29", "6c21c48da4dbd1a7", "Test Span2", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR})),
+						makeSpan("e3210a2b38097332d1fe43083ea93d29", "6c21c48da4dbd1a7", "Test Span2", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR}),
+					),
 					makeScope(
-						makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", "Test Span3", nil)),
+						makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", "Test Span3", nil),
+					),
 				}),
 				makeResourceSpans("test-service2", []*v1.ScopeSpans{
 					makeScope(
-						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", "Test Span", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR})),
+						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", "Test Span", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR}),
+					),
 				}),
 			},
 			expectedLogsSpan: []testLogSpan{
@@ -1346,13 +1359,16 @@ func TestLogReceivedSpans(t *testing.T) {
 							makeAttribute("tag1", "value1")),
 						makeSpan("e3210a2b38097332d1fe43083ea93d29", "6c21c48da4dbd1a7", "Test Span2", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR},
 							makeAttribute("tag1", "value1"),
-							makeAttribute("tag2", "value2"))),
+							makeAttribute("tag2", "value2")),
+					),
 					makeScope(
-						makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", "Test Span3", nil)),
+						makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", "Test Span3", nil),
+					),
 				}, makeAttribute("resource_attribute1", "value1")),
 				makeResourceSpans("test-service2", []*v1.ScopeSpans{
 					makeScope(
-						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", "Test Span", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR})),
+						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", "Test Span", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR}),
+					),
 				}, makeAttribute("resource_attribute2", "value2")),
 			},
 			expectedLogsSpan: []testLogSpan{
@@ -1389,7 +1405,8 @@ func TestLogReceivedSpans(t *testing.T) {
 			batches: []*v1.ResourceSpans{
 				makeResourceSpans("test-service", []*v1.ScopeSpans{
 					makeScope(
-						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span", nil, makeAttribute("tag1", "value1"))),
+						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span", nil, makeAttribute("tag1", "value1")),
+					),
 				}),
 			},
 			expectedLogsSpan: []testLogSpan{
@@ -1463,13 +1480,16 @@ func TestRateLimitRespected(t *testing.T) {
 					makeAttribute("tag1", "value1")),
 				makeSpan("e3210a2b38097332d1fe43083ea93d29", "6c21c48da4dbd1a7", "Test Span2", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR},
 					makeAttribute("tag1", "value1"),
-					makeAttribute("tag2", "value2"))),
+					makeAttribute("tag2", "value2")),
+			),
 			makeScope(
-				makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", "Test Span3", nil)),
+				makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", "Test Span3", nil),
+			),
 		}, makeAttribute("resource_attribute1", "value1")),
 		makeResourceSpans("test-service2", []*v1.ScopeSpans{
 			makeScope(
-				makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", "Test Span", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR})),
+				makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", "Test Span", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR}),
+			),
 		}, makeAttribute("resource_attribute2", "value2")),
 	}
 	traces := batchesToTraces(t, batches)
@@ -1718,9 +1738,11 @@ func TestArtificialLatency(t *testing.T) {
 	batches := []*v1.ResourceSpans{
 		makeResourceSpans("test-service", []*v1.ScopeSpans{
 			makeScope(
-				makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span1", nil)),
+				makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span1", nil),
+			),
 			makeScope(
-				makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", "Test Span3", nil)),
+				makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", "Test Span3", nil),
+			),
 		}),
 	}
 

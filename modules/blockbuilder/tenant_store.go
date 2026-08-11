@@ -134,7 +134,7 @@ func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Wri
 	}
 
 	// Initial meta for creating the block
-	meta := backend.NewBlockMeta(s.tenantID, (uuid.UUID)(blockID), s.enc.Version())
+	meta := backend.NewBlockMeta(s.tenantID, uuid.UUID(blockID), s.enc.Version())
 	meta.DedicatedColumns = s.getDedicatedColumns()
 	meta.ReplicationFactor = 1
 	meta.TotalObjects = int64(s.liveTraces.Len())
@@ -184,7 +184,7 @@ func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Wri
 
 	metricBlockBuilderFlushedBlocks.WithLabelValues(s.tenantID).Inc()
 
-	if err := s.wal.LocalBackend().ClearBlock((uuid.UUID)(newMeta.BlockID), s.tenantID); err != nil {
+	if err := s.wal.LocalBackend().ClearBlock(uuid.UUID(newMeta.BlockID), s.tenantID); err != nil {
 		return err
 	}
 	span.AddEvent("cleared block from wal", trace.WithAttributes(attribute.String("block_id", newMeta.BlockID.String())))

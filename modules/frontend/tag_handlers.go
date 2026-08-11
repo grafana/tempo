@@ -551,7 +551,8 @@ func logTagsRequest(logger log.Logger, tenantID, handler, scope string, rangeSec
 		"tenant", tenantID,
 		"handler", handler,
 		"scope", scope,
-		"range_seconds", rangeSeconds)
+		"range_seconds", rangeSeconds,
+	)
 }
 
 func logTagsResult(ctx context.Context, logger log.Logger, tenantID, handler, scope string, rangeSeconds uint32, durationSeconds float64, inspectedBytes uint64, err error) {
@@ -566,7 +567,8 @@ func logTagsResult(ctx context.Context, logger log.Logger, tenantID, handler, sc
 		"duration_seconds", durationSeconds,
 		"inspected_bytes", inspectedBytes,
 		"request_throughput", float64(inspectedBytes)/durationSeconds,
-		"error", err)
+		"error", err,
+	)
 }
 
 func logTagValuesRequest(logger log.Logger, tenantID, handler, tagName, query string, rangeSeconds uint32) {
@@ -576,7 +578,8 @@ func logTagValuesRequest(logger log.Logger, tenantID, handler, tagName, query st
 		"handler", handler,
 		"tag", tagName,
 		"query", query,
-		"range_seconds", rangeSeconds)
+		"range_seconds", rangeSeconds,
+	)
 }
 
 func logTagValuesResult(ctx context.Context, logger log.Logger, tenantID, handler, tagName, query string, rangeSeconds uint32, durationSeconds float64, inspectedBytes uint64, err error) {
@@ -592,7 +595,8 @@ func logTagValuesResult(ctx context.Context, logger log.Logger, tenantID, handle
 		"duration_seconds", durationSeconds,
 		"inspected_bytes", inspectedBytes,
 		"request_throughput", float64(inspectedBytes)/durationSeconds,
-		"error", err)
+		"error", err,
+	)
 }
 
 // parseParams parses optional 'start', 'end', 'scope', and 'q' params from a http.Request

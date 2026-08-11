@@ -381,7 +381,8 @@ func (h *TempoHarness) WaitTracesWritable(t *testing.T) {
 	require.NoError(t, distributor.WaitSumMetricsWithOptions(
 		e2e.Equals(float64(1)),
 		[]string{"tempo_partition_ring_partitions"},
-		e2e.WithLabelMatchers(matchers...)), "distributor failed to see the partition ring")
+		e2e.WithLabelMatchers(matchers...),
+	), "distributor failed to see the partition ring")
 }
 
 func (h *TempoHarness) WaitTracesQueryable(t *testing.T, traces int) {
@@ -529,7 +530,8 @@ func (h *TempoHarness) startMicroservices(t *testing.T, config TestHarnessConfig
 	}
 
 	if config.Components&componentsDistributor != 0 {
-		h.Services[ServiceDistributor] = NewTempoService("distributor", "distributor",
+		h.Services[ServiceDistributor] = NewTempoService(
+			"distributor", "distributor",
 			readinessProbe,
 			[]int{14250, 4317, 4318, 9411}, // jaeger grpc ingest, otlp grpc, otlp http, zipkin ingest
 		)

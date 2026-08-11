@@ -601,6 +601,9 @@ type conflictingExtension struct{}
 func (c *conflictingExtension) Key() string                                             { return "ingestion" }
 func (c *conflictingExtension) RegisterFlagsAndApplyDefaults(_ string, _ *flag.FlagSet) {}
 func (c *conflictingExtension) Validate() error                                         { return nil }
-func (c *conflictingExtension) LegacyKeys() []string                                    { return nil }
-func (c *conflictingExtension) FromLegacy(_ map[string]any) error                       { return nil }
-func (c *conflictingExtension) ToLegacy() map[string]any                                { return nil }
+
+func (c *conflictingExtension) LegacyKeys() []string { return nil }
+
+func (c *conflictingExtension) FromLegacy(_ map[string]any) error { return nil }
+
+func (c *conflictingExtension) ToLegacy() map[string]any { return nil }

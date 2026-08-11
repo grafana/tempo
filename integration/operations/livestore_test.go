@@ -331,7 +331,8 @@ func waitActivePartitions(t *testing.T, service *e2e.HTTPService, count int) {
 	require.NoError(t, service.WaitSumMetricsWithOptions(
 		e2e.Equals(float64(count)),
 		[]string{"tempo_partition_ring_partitions"},
-		e2e.WithLabelMatchers(matchers...)), "distributor failed to see the partition ring")
+		e2e.WithLabelMatchers(matchers...),
+	), "distributor failed to see the partition ring")
 }
 
 func newLiveStore(name string, zone string) *e2e.HTTPService {
