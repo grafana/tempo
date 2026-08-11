@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -634,13 +635,26 @@ func redactionIDsFromQuery(ctx context.Context, block common.BackendBlock, query
 		return nil, fmt.Errorf("compiling redaction query: %w", err)
 	}
 
-	// Bound the scan to the redaction window so each block is read only over the requested time
-	// range. 0 leaves the bound unset (unbounded on that side).
-	if startNano > 0 {
-		req.StartTimeUnixNanos = uint64(startNano)
-	}
-	if endNano > 0 {
-		req.EndTimeUnixNanos = uint64(endNano)
+	// Bound the scan to the redaction window so each block is read only over the requested range.
+	//
+	// Both fields must be set together or the bound does not apply at all: vparquet{3,4,5} install the
+	// trace-time predicate only under `if start > 0 && end > 0`, so assigning one field and leaving the
+	// other at zero REMOVES the filter rather than narrowing it — the block is scanned in full and every
+	// query match is dropped regardless of its timestamp, which on this path cannot be undone.
+	//
+	// SubmitRedaction rejects one-sided windows, but that check runs at submission: a batch persisted by
+	// an older scheduler, or any future caller, can still deliver one here. Materialising the open side
+	// keeps the scan bounded whatever the source.
+	if startNano > 0 || endNano > 0 {
+		lo, hi := startNano, endNano
+		if lo <= 0 {
+			lo = 1 // 0 would disable the predicate; 1ns is the earliest bound that keeps it installed
+		}
+		if hi <= 0 {
+			hi = math.MaxInt64
+		}
+		req.StartTimeUnixNanos = uint64(lo)
+		req.EndTimeUnixNanos = uint64(hi)
 	}
 
 	// Request trace-level metadata in the second pass so each returned spanset carries its
