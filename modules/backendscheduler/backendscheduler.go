@@ -569,10 +569,17 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 
 	skippedJobSet := make(map[string]struct{})
 	filtered := metas[:0:0]
+	// Counted separately from the busy-block skip so the two reasons are never conflated in the logs.
+	var outOfWindowBlocks, indeterminateBlocks int
 	for _, meta := range metas {
 		// Skip blocks whose data range falls outside the requested window (no job created). Keyed
 		// on the block's real StartTime/EndTime — see blockOverlapsWindow on why not CompactedTime.
-		if !blockOverlapsWindow(meta, req.StartTimeUnixNano, req.EndTimeUnixNano) {
+		overlaps, indeterminate := blockOverlapsWindow(meta, req.StartTimeUnixNano, req.EndTimeUnixNano)
+		if indeterminate {
+			indeterminateBlocks++
+		}
+		if !overlaps {
+			outOfWindowBlocks++
 			continue
 		}
 		if jobID, busy := busyBlocks[meta.BlockID.String()]; busy {

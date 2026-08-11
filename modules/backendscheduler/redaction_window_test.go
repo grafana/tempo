@@ -27,30 +27,53 @@ func TestBlockOverlapsWindow(t *testing.T) {
 		require.NoError(t, err)
 		return tm.UnixNano()
 	}
-	// Block holds data spanning Jan 10–20.
-	blk := &backend.BlockMeta{
-		StartTime: time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC),
-		EndTime:   time.Date(2026, 1, 20, 0, 0, 0, 0, time.UTC),
-	}
+	day := func(d int) time.Time { return time.Date(2026, 1, d, 0, 0, 0, 0, time.UTC) }
+	// Most cases use a block holding data spanning Jan 10-20.
+	blk := &backend.BlockMeta{StartTime: day(10), EndTime: day(20)}
 
 	cases := []struct {
-		name        string
-		start, end  int64
-		wantOverlap bool
+		name              string
+		meta              *backend.BlockMeta
+		start, end        int64
+		wantOverlap       bool
+		wantIndeterminate bool
 	}{
-		{"unbounded 0/0 matches everything", 0, 0, true},
-		{"window entirely before block", ts("2026-01-01T00:00:00Z"), ts("2026-01-05T00:00:00Z"), false},
-		{"window entirely after block", ts("2026-01-25T00:00:00Z"), ts("2026-01-30T00:00:00Z"), false},
-		{"window overlaps block start", ts("2026-01-05T00:00:00Z"), ts("2026-01-15T00:00:00Z"), true},
-		{"window inside block", ts("2026-01-12T00:00:00Z"), ts("2026-01-14T00:00:00Z"), true},
-		{"unbounded start, ends inside block", 0, ts("2026-01-15T00:00:00Z"), true},
-		{"unbounded start, ends before block", 0, ts("2026-01-05T00:00:00Z"), false},
-		{"starts inside block, unbounded end", ts("2026-01-15T00:00:00Z"), 0, true},
-		{"starts after block, unbounded end", ts("2026-01-25T00:00:00Z"), 0, false},
+		{name: "unbounded 0/0 matches everything", meta: blk, wantOverlap: true},
+		{name: "window entirely before block", meta: blk, start: ts("2026-01-01T00:00:00Z"), end: ts("2026-01-05T00:00:00Z")},
+		{name: "window entirely after block", meta: blk, start: ts("2026-01-25T00:00:00Z"), end: ts("2026-01-30T00:00:00Z")},
+		{name: "window overlaps block start", meta: blk, start: ts("2026-01-05T00:00:00Z"), end: ts("2026-01-15T00:00:00Z"), wantOverlap: true},
+		{name: "window inside block", meta: blk, start: ts("2026-01-12T00:00:00Z"), end: ts("2026-01-14T00:00:00Z"), wantOverlap: true},
+		{name: "unbounded start, ends inside block", meta: blk, end: ts("2026-01-15T00:00:00Z"), wantOverlap: true},
+		{name: "unbounded start, ends before block", meta: blk, end: ts("2026-01-05T00:00:00Z")},
+		{name: "starts inside block, unbounded end", meta: blk, start: ts("2026-01-15T00:00:00Z"), wantOverlap: true},
+		{name: "starts after block, unbounded end", meta: blk, start: ts("2026-01-25T00:00:00Z")},
+
+		// Block metadata is second-granularity: ObjectAdded builds the times from uint32 epoch
+		// SECONDS, so the recorded EndTime is the truncated second of the block's latest data and
+		// real spans can extend into the following second. A window opening inside that second
+		// must still select the block, or those traces are silently skipped.
+		{
+			name:        "window opens inside the block's final truncated second",
+			meta:        &backend.BlockMeta{StartTime: day(10), EndTime: time.Date(2026, 1, 20, 0, 0, 5, 0, time.UTC)},
+			start:       ts("2026-01-20T00:00:05.400Z"),
+			end:         ts("2026-01-21T00:00:00Z"),
+			wantOverlap: true,
+		},
+
+		// A block whose recorded range is unusable cannot be judged. Include it and say so: the
+		// per-block scan bound decides what is actually deleted, so an extra block costs I/O, while
+		// excluding one silently leaves data the operator asked to delete. Reachable in practice —
+		// ObjectAdded skips zero timestamps, so a block completed from a replayed WAL carries none.
+		{name: "zero start time is indeterminate", meta: &backend.BlockMeta{EndTime: day(20)}, start: ts("2026-01-12T00:00:00Z"), end: ts("2026-01-14T00:00:00Z"), wantOverlap: true, wantIndeterminate: true},
+		{name: "zero end time is indeterminate", meta: &backend.BlockMeta{StartTime: day(10)}, start: ts("2026-01-12T00:00:00Z"), end: ts("2026-01-14T00:00:00Z"), wantOverlap: true, wantIndeterminate: true},
+		{name: "both zero is indeterminate", meta: &backend.BlockMeta{}, start: ts("2026-01-12T00:00:00Z"), end: ts("2026-01-14T00:00:00Z"), wantOverlap: true, wantIndeterminate: true},
+		{name: "both zero with no window is not indeterminate", meta: &backend.BlockMeta{}, wantOverlap: true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.wantOverlap, blockOverlapsWindow(blk, tc.start, tc.end))
+			overlaps, indeterminate := blockOverlapsWindow(tc.meta, tc.start, tc.end)
+			require.Equal(t, tc.wantOverlap, overlaps)
+			require.Equal(t, tc.wantIndeterminate, indeterminate, "an unusable block range must be reported, not silently assumed")
 		})
 	}
 }
