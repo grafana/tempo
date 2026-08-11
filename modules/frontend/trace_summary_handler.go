@@ -27,6 +27,9 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// muxVarTraceID is the mux URL variable, and structured-log field, naming a trace ID.
+const muxVarTraceID = "traceID"
+
 var errTraceSummaryTraceNotFound = errors.New("trace not found")
 
 // newTraceSummaryHandler creates an HTTP handler for trace summary requests.
@@ -109,7 +112,7 @@ func buildTraceSummaryTraceByIDRequest(ctx context.Context, apiPrefix, traceID s
 	}).WithContext(ctx)
 	req.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)
 
-	return mux.SetURLVars(req, map[string]string{"traceID": traceID})
+	return mux.SetURLVars(req, map[string]string{muxVarTraceID: traceID})
 }
 
 func fetchTraceForSummary(ctx context.Context, cfg Config, tenant, traceID string, startTime, endTime time.Time, headers http.Header, apiPrefix string, tracePipeline pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor, combiner.TraceByIDV2Options) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], logger log.Logger, dataAccessController DataAccessController) (*tempopb.TraceByIDResponse, error) {
