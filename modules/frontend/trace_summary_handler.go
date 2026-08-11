@@ -61,7 +61,8 @@ func newTraceSummaryHandler(cfg Config, apiPrefix string, tracePipeline pipeline
 			"msg", "trace summary request",
 			"tenant", tenant,
 			"path", req.URL.Path,
-			"trace_id", traceID)
+			"trace_id", traceID,
+		)
 
 		traceResp, err := fetchTraceForSummary(req.Context(), cfg, tenant, traceID, startTime, endTime, req.Header, apiPrefix, tracePipeline, o, combinerFn, logger, dataAccessController)
 		if err != nil {
@@ -150,7 +151,8 @@ func fetchTraceForSummary(ctx context.Context, cfg Config, tenant, traceID strin
 		return nil, fmt.Errorf("trace %s: %w", traceID, errTraceSummaryTraceNotFound)
 	}
 
-	logWithShape(level.Info(logger), traceByIDReq.Context(),
+	logWithShape(
+		level.Info(logger), traceByIDReq.Context(),
 		"msg", "trace id response",
 		"tenant", tenant,
 		"traceID", traceID,
