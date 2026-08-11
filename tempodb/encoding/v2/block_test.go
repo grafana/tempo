@@ -57,12 +57,12 @@ func TestWriteBlockMetaWithNoCompactFlag(t *testing.T) {
 				CreateWithNoCompactFlag: withNoCompactFlag,
 				Encoding:                backend.EncLZ4_64k,
 			}
-			streamingBlock, err := NewStreamingBlock(cfg, (uuid.UUID)(meta.BlockID), meta.TenantID, []*backend.BlockMeta{meta}, 100)
+			streamingBlock, err := NewStreamingBlock(cfg, uuid.UUID(meta.BlockID), meta.TenantID, []*backend.BlockMeta{meta}, 100)
 			require.NoError(t, err)
 
 			go func() {
 				<-waitChan // writing block meta started, stopping it to emulate a slow write
-				hasFlag, err := reader.HasNoCompactFlag(ctx, (uuid.UUID)(meta.BlockID), meta.TenantID)
+				hasFlag, err := reader.HasNoCompactFlag(ctx, uuid.UUID(meta.BlockID), meta.TenantID)
 				require.NoError(t, err)
 				assert.Equal(t, withNoCompactFlag, hasFlag, fmt.Sprintf("nocompact flag should be %t in the middle of writing", withNoCompactFlag))
 				waitChan <- struct{}{} // we checked flag, proceed with writing
@@ -73,12 +73,12 @@ func TestWriteBlockMetaWithNoCompactFlag(t *testing.T) {
 			require.NoError(t, err)
 
 			// Verify nocompact flag remains after successful Complete (flag removal is done at higher level)
-			hasFlag, err := reader.HasNoCompactFlag(ctx, (uuid.UUID)(meta.BlockID), meta.TenantID)
+			hasFlag, err := reader.HasNoCompactFlag(ctx, uuid.UUID(meta.BlockID), meta.TenantID)
 			require.NoError(t, err)
 			assert.Equal(t, withNoCompactFlag, hasFlag, fmt.Sprintf("nocompact flag should be %t after successful Complete", withNoCompactFlag))
 
 			// Verify meta.json was written
-			blockMeta, err := reader.BlockMeta(ctx, (uuid.UUID)(meta.BlockID), meta.TenantID)
+			blockMeta, err := reader.BlockMeta(ctx, uuid.UUID(meta.BlockID), meta.TenantID)
 			require.NoError(t, err)
 			assert.Equal(t, meta.BlockID, blockMeta.BlockID)
 			assert.Equal(t, meta.TenantID, blockMeta.TenantID)

@@ -140,7 +140,8 @@ func TestStreamingBlockAll(t *testing.T) {
 
 		for _, enc := range backend.SupportedEncoding {
 			t.Run(enc.String(), func(t *testing.T) {
-				testStreamingBlockToBackendBlock(t,
+				testStreamingBlockToBackendBlock(
+					t,
 					&common.BlockConfig{
 						IndexDownsampleBytes: indexDownsampleBytes,
 						BloomFP:              bloomFP,
@@ -254,7 +255,7 @@ func streamingBlock(t *testing.T, cfg *common.BlockConfig, w backend.Writer) (*S
 		dataReader,
 		NewObjectReaderWriter())
 
-	block, err := NewStreamingBlock(cfg, (uuid.UUID)(originatingMeta.BlockID), originatingMeta.TenantID, []*backend.BlockMeta{originatingMeta}, int(originatingMeta.TotalObjects))
+	block, err := NewStreamingBlock(cfg, uuid.UUID(originatingMeta.BlockID), originatingMeta.TenantID, []*backend.BlockMeta{originatingMeta}, int(originatingMeta.TotalObjects))
 	require.NoError(t, err, "unexpected error completing block")
 
 	expectedBloomShards := block.bloom.GetShardCount()

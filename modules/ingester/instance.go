@@ -287,7 +287,7 @@ func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes
 		}
 
 		completingBlock := i.headBlock
-		blockID := (uuid.UUID)(completingBlock.BlockMeta().BlockID)
+		blockID := uuid.UUID(completingBlock.BlockMeta().BlockID)
 		blockSize := completingBlock.DataLength()
 
 		level.Info(i.logger).Log("msg", "head block cut", "block", blockID, "size", blockSize)
@@ -319,7 +319,7 @@ func (i *instance) CompleteBlock(ctx context.Context, blockID uuid.UUID) error {
 	i.blocksMtx.Lock()
 	var completingBlock common.WALBlock
 	for _, iterBlock := range i.completingBlocks {
-		if (uuid.UUID)(iterBlock.BlockMeta().BlockID) == blockID {
+		if uuid.UUID(iterBlock.BlockMeta().BlockID) == blockID {
 			completingBlock = iterBlock
 			break
 		}
@@ -350,7 +350,7 @@ func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 
 	var completingBlock common.WALBlock
 	for j, iterBlock := range i.completingBlocks {
-		if (uuid.UUID)(iterBlock.BlockMeta().BlockID) == blockID {
+		if uuid.UUID(iterBlock.BlockMeta().BlockID) == blockID {
 			completingBlock = iterBlock
 			i.completingBlocks = append(i.completingBlocks[:j], i.completingBlocks[j+1:]...)
 			break
@@ -370,7 +370,7 @@ func (i *instance) GetBlockToBeFlushed(blockID uuid.UUID) *LocalBlock {
 	defer i.blocksMtx.RUnlock()
 
 	for _, c := range i.completeBlocks {
-		if (uuid.UUID)(c.BlockMeta().BlockID) == blockID && c.FlushedTime().IsZero() {
+		if uuid.UUID(c.BlockMeta().BlockID) == blockID && c.FlushedTime().IsZero() {
 			return c
 		}
 	}
@@ -397,7 +397,7 @@ func (i *instance) ClearOldBlocks(flushObjectStorage bool, completeBlockTimeout 
 		}
 
 		// This block can be deleted.
-		err := i.local.ClearBlock((uuid.UUID)(b.BlockMeta().BlockID), i.instanceID)
+		err := i.local.ClearBlock(uuid.UUID(b.BlockMeta().BlockID), i.instanceID)
 		if err != nil {
 			return err
 		}
@@ -619,7 +619,7 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*LocalBlock, er
 		i.blocksMtx.RLock()
 		defer i.blocksMtx.RUnlock()
 		for _, b := range i.completingBlocks {
-			if (uuid.UUID)(b.BlockMeta().BlockID) == id {
+			if uuid.UUID(b.BlockMeta().BlockID) == id {
 				return true
 			}
 		}

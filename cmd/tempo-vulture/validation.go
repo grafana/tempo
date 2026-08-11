@@ -46,7 +46,8 @@ func RunValidationMode(
 		os.Exit(1)
 	}
 
-	logger.Info("Running in validation mode",
+	logger.Info(
+		"Running in validation mode",
 		zap.Int("cycles", validationCycles),
 		zap.Duration("timeout", validationTimeout),
 		zap.String("org_id", vultureConfig.tempoOrgID),
@@ -65,7 +66,8 @@ func RunValidationMode(
 	result := service.RunValidation(ctx, authJaegerClient, httpClient, httpClient)
 
 	// Log detailed results before exiting
-	logger.Info("Validation completed",
+	logger.Info(
+		"Validation completed",
 		zap.Int("total_traces", result.TotalTraces),
 		zap.Int("validations_passed", result.SuccessCount),
 		zap.Int("validations_failed", len(result.Failures)),
@@ -74,7 +76,8 @@ func RunValidationMode(
 
 	// Optionally log each failure for debugging
 	for _, failure := range result.Failures {
-		logger.Error("validation failure",
+		logger.Error(
+			"validation failure",
 			zap.String("phase", failure.Phase),
 			zap.String("traceID", failure.TraceID),
 			zap.Int("cycle", failure.Cycle),
@@ -182,7 +185,7 @@ func (vs *ValidationService) RunValidation(
 				Timestamp: vs.clock.Now(),
 			})
 			result.Duration = vs.clock.Now().Sub(start)
-			result.SuccessCount = (result.TotalTraces) - len(result.Failures)
+			result.SuccessCount = result.TotalTraces - len(result.Failures)
 			return result
 		}
 		vs.logger.Info("Wrote trace", zap.String("id", trace.HexID()))
@@ -240,7 +243,7 @@ func (vs *ValidationService) RunValidation(
 	}
 
 	result.Duration = vs.clock.Now().Sub(start)
-	result.SuccessCount = (result.TotalTraces) - len(result.Failures) // update this to 2 validations per trace when we enable search
+	result.SuccessCount = result.TotalTraces - len(result.Failures) // update this to 2 validations per trace when we enable search
 	return result
 }
 
@@ -333,7 +336,8 @@ func (vs *ValidationService) validateTraceSearch(
 	}
 
 	searchQuery := fmt.Sprintf(`{.%s = "%s"}`, attr.Key, util.StringifyAnyValue(attr.Value))
-	vs.logger.Info("Searching for trace",
+	vs.logger.Info(
+		"Searching for trace",
 		zap.String("traceID", writtenTrace.HexID()),
 		zap.String("searchQuery", searchQuery),
 	)
@@ -346,7 +350,8 @@ func (vs *ValidationService) validateTraceSearch(
 		return fmt.Errorf("search API failed: %w", searchErr)
 	}
 
-	vs.logger.Info("Search response received",
+	vs.logger.Info(
+		"Search response received",
 		zap.Int("traces_found", len(searchResp.Traces)),
 	)
 
@@ -402,7 +407,8 @@ func (vs *ValidationService) logTraceAttributes(trace *tempopb.Trace, traceID st
 		vs.logger.Info("Resource attributes", zap.Int("resourceSpan", i))
 		if resourceSpan.Resource != nil {
 			for _, attr := range resourceSpan.Resource.Attributes {
-				vs.logger.Info("  Resource attr",
+				vs.logger.Info(
+					"  Resource attr",
 					zap.String("key", attr.Key),
 					zap.String("value", util.StringifyAnyValue(attr.Value)),
 				)
@@ -412,12 +418,14 @@ func (vs *ValidationService) logTraceAttributes(trace *tempopb.Trace, traceID st
 		for j, scopeSpan := range resourceSpan.ScopeSpans {
 			vs.logger.Info("Scope spans", zap.Int("scopeSpan", j))
 			for k, span := range scopeSpan.Spans {
-				vs.logger.Info("  Span",
+				vs.logger.Info(
+					"  Span",
 					zap.Int("spanIndex", k),
 					zap.String("name", span.Name),
 				)
 				for _, attr := range span.Attributes {
-					vs.logger.Info("    Span attr",
+					vs.logger.Info(
+						"    Span attr",
 						zap.String("key", attr.Key),
 						zap.String("value", util.StringifyAnyValue(attr.Value)),
 					)

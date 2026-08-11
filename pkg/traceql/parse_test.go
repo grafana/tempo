@@ -38,8 +38,10 @@ func TestPipelineOperatorPrecedence(t *testing.T) {
 	}{
 		{
 			in: "({ .a } | { .b }) > ({ .a } | { .b }) && ({ .a } | { .b })",
-			expected: newSpansetOperation(OpSpansetAnd,
-				newSpansetOperation(OpSpansetChild,
+			expected: newSpansetOperation(
+				OpSpansetAnd,
+				newSpansetOperation(
+					OpSpansetChild,
 					newPipeline(
 						newSpansetFilter(NewAttribute("a")),
 						newSpansetFilter(NewAttribute("b")),
@@ -57,12 +59,14 @@ func TestPipelineOperatorPrecedence(t *testing.T) {
 		},
 		{
 			in: "({ .a } | { .b }) > (({ .a } | { .b }) && ({ .a } | { .b }))",
-			expected: newSpansetOperation(OpSpansetChild,
+			expected: newSpansetOperation(
+				OpSpansetChild,
 				newPipeline(
 					newSpansetFilter(NewAttribute("a")),
 					newSpansetFilter(NewAttribute("b")),
 				),
-				newSpansetOperation(OpSpansetAnd,
+				newSpansetOperation(
+					OpSpansetAnd,
 					newPipeline(
 						newSpansetFilter(NewAttribute("a")),
 						newSpansetFilter(NewAttribute("b")),
@@ -76,12 +80,14 @@ func TestPipelineOperatorPrecedence(t *testing.T) {
 		},
 		{
 			in: "({ .a } | { .b }) < (({ .a } | { .b }) && ({ .a } | { .b }))",
-			expected: newSpansetOperation(OpSpansetParent,
+			expected: newSpansetOperation(
+				OpSpansetParent,
 				newPipeline(
 					newSpansetFilter(NewAttribute("a")),
 					newSpansetFilter(NewAttribute("b")),
 				),
-				newSpansetOperation(OpSpansetAnd,
+				newSpansetOperation(
+					OpSpansetAnd,
 					newPipeline(
 						newSpansetFilter(NewAttribute("a")),
 						newSpansetFilter(NewAttribute("b")),
@@ -112,7 +118,8 @@ func TestPipelineSpansetOperators(t *testing.T) {
 	}{
 		{
 			in: "({ .a } | { .b }) > ({ .a } | { .b })",
-			expected: newSpansetOperation(OpSpansetChild,
+			expected: newSpansetOperation(
+				OpSpansetChild,
 				newPipeline(
 					newSpansetFilter(NewAttribute("a")),
 					newSpansetFilter(NewAttribute("b")),
@@ -125,7 +132,8 @@ func TestPipelineSpansetOperators(t *testing.T) {
 		},
 		{
 			in: "({ .a } | { .b }) < ({ .a } | { .b })",
-			expected: newSpansetOperation(OpSpansetParent,
+			expected: newSpansetOperation(
+				OpSpansetParent,
 				newPipeline(
 					newSpansetFilter(NewAttribute("a")),
 					newSpansetFilter(NewAttribute("b")),
@@ -138,7 +146,8 @@ func TestPipelineSpansetOperators(t *testing.T) {
 		},
 		{
 			in: "({ .a } | { .b }) ~ ({ .a } | { .b })",
-			expected: newSpansetOperation(OpSpansetSibling,
+			expected: newSpansetOperation(
+				OpSpansetSibling,
 				newPipeline(
 					newSpansetFilter(NewAttribute("a")),
 					newSpansetFilter(NewAttribute("b")),
@@ -151,7 +160,8 @@ func TestPipelineSpansetOperators(t *testing.T) {
 		},
 		{
 			in: "({ .a } | { .b }) && ({ .a } | { .b })",
-			expected: newSpansetOperation(OpSpansetAnd,
+			expected: newSpansetOperation(
+				OpSpansetAnd,
 				newPipeline(
 					newSpansetFilter(NewAttribute("a")),
 					newSpansetFilter(NewAttribute("b")),
@@ -164,7 +174,8 @@ func TestPipelineSpansetOperators(t *testing.T) {
 		},
 		{
 			in: "({ .a } | { .b }) >> ({ .a } | { .b })",
-			expected: newSpansetOperation(OpSpansetDescendant,
+			expected: newSpansetOperation(
+				OpSpansetDescendant,
 				newPipeline(
 					newSpansetFilter(NewAttribute("a")),
 					newSpansetFilter(NewAttribute("b")),
@@ -177,7 +188,8 @@ func TestPipelineSpansetOperators(t *testing.T) {
 		},
 		{
 			in: "({ .a } | { .b }) << ({ .a } | { .b })",
-			expected: newSpansetOperation(OpSpansetAncestor,
+			expected: newSpansetOperation(
+				OpSpansetAncestor,
 				newPipeline(
 					newSpansetFilter(NewAttribute("a")),
 					newSpansetFilter(NewAttribute("b")),
@@ -190,7 +202,8 @@ func TestPipelineSpansetOperators(t *testing.T) {
 		},
 		{
 			in: "({ .a } | { .b }) !> ({ .a } | { .b })",
-			expected: newSpansetOperation(OpSpansetNotChild,
+			expected: newSpansetOperation(
+				OpSpansetNotChild,
 				newPipeline(
 					newSpansetFilter(NewAttribute("a")),
 					newSpansetFilter(NewAttribute("b")),
@@ -203,7 +216,8 @@ func TestPipelineSpansetOperators(t *testing.T) {
 		},
 		{
 			in: "({ .a } | { .b }) !< ({ .a } | { .b })",
-			expected: newSpansetOperation(OpSpansetNotParent,
+			expected: newSpansetOperation(
+				OpSpansetNotParent,
 				newPipeline(
 					newSpansetFilter(NewAttribute("a")),
 					newSpansetFilter(NewAttribute("b")),
@@ -216,7 +230,8 @@ func TestPipelineSpansetOperators(t *testing.T) {
 		},
 		{
 			in: "({ .a } | { .b }) !~ ({ .a } | { .b })",
-			expected: newSpansetOperation(OpSpansetNotSibling,
+			expected: newSpansetOperation(
+				OpSpansetNotSibling,
 				newPipeline(
 					newSpansetFilter(NewAttribute("a")),
 					newSpansetFilter(NewAttribute("b")),
@@ -229,7 +244,8 @@ func TestPipelineSpansetOperators(t *testing.T) {
 		},
 		{
 			in: "({ .a } | { .b }) !>> ({ .a } | { .b })",
-			expected: newSpansetOperation(OpSpansetNotDescendant,
+			expected: newSpansetOperation(
+				OpSpansetNotDescendant,
 				newPipeline(
 					newSpansetFilter(NewAttribute("a")),
 					newSpansetFilter(NewAttribute("b")),
@@ -242,7 +258,8 @@ func TestPipelineSpansetOperators(t *testing.T) {
 		},
 		{
 			in: "({ .a } | { .b }) !<< ({ .a } | { .b })",
-			expected: newSpansetOperation(OpSpansetNotAncestor,
+			expected: newSpansetOperation(
+				OpSpansetNotAncestor,
 				newPipeline(
 					newSpansetFilter(NewAttribute("a")),
 					newSpansetFilter(NewAttribute("b")),
@@ -255,7 +272,8 @@ func TestPipelineSpansetOperators(t *testing.T) {
 		},
 		{
 			in: "({ .a } | { .b }) &> ({ .a } | { .b })",
-			expected: newSpansetOperation(OpSpansetUnionChild,
+			expected: newSpansetOperation(
+				OpSpansetUnionChild,
 				newPipeline(
 					newSpansetFilter(NewAttribute("a")),
 					newSpansetFilter(NewAttribute("b")),
@@ -268,7 +286,8 @@ func TestPipelineSpansetOperators(t *testing.T) {
 		},
 		{
 			in: "({ .a } | { .b }) &< ({ .a } | { .b })",
-			expected: newSpansetOperation(OpSpansetUnionParent,
+			expected: newSpansetOperation(
+				OpSpansetUnionParent,
 				newPipeline(
 					newSpansetFilter(NewAttribute("a")),
 					newSpansetFilter(NewAttribute("b")),
@@ -281,7 +300,8 @@ func TestPipelineSpansetOperators(t *testing.T) {
 		},
 		{
 			in: "({ .a } | { .b }) &~ ({ .a } | { .b })",
-			expected: newSpansetOperation(OpSpansetUnionSibling,
+			expected: newSpansetOperation(
+				OpSpansetUnionSibling,
 				newPipeline(
 					newSpansetFilter(NewAttribute("a")),
 					newSpansetFilter(NewAttribute("b")),
@@ -294,7 +314,8 @@ func TestPipelineSpansetOperators(t *testing.T) {
 		},
 		{
 			in: "({ .a } | { .b }) &>> ({ .a } | { .b })",
-			expected: newSpansetOperation(OpSpansetUnionDescendant,
+			expected: newSpansetOperation(
+				OpSpansetUnionDescendant,
 				newPipeline(
 					newSpansetFilter(NewAttribute("a")),
 					newSpansetFilter(NewAttribute("b")),
@@ -307,7 +328,8 @@ func TestPipelineSpansetOperators(t *testing.T) {
 		},
 		{
 			in: "({ .a } | { .b }) &<< ({ .a } | { .b })",
-			expected: newSpansetOperation(OpSpansetUnionAncestor,
+			expected: newSpansetOperation(
+				OpSpansetUnionAncestor,
 				newPipeline(
 					newSpansetFilter(NewAttribute("a")),
 					newSpansetFilter(NewAttribute("b")),
@@ -337,7 +359,8 @@ func TestPipelineScalarOperators(t *testing.T) {
 	}{
 		{
 			in: "({ .a } | count()) = ({ .a } | count())",
-			expected: newScalarFilter(OpEqual,
+			expected: newScalarFilter(
+				OpEqual,
 				newPipeline(
 					newSpansetFilter(NewAttribute("a")),
 					newAggregate(aggregateCount, nil),
@@ -350,7 +373,8 @@ func TestPipelineScalarOperators(t *testing.T) {
 		},
 		{
 			in: "({ .a } | count()) != ({ .a } | count())",
-			expected: newScalarFilter(OpNotEqual,
+			expected: newScalarFilter(
+				OpNotEqual,
 				newPipeline(
 					newSpansetFilter(NewAttribute("a")),
 					newAggregate(aggregateCount, nil),
@@ -363,7 +387,8 @@ func TestPipelineScalarOperators(t *testing.T) {
 		},
 		{
 			in: "({ .a } | count()) < ({ .a } | count())",
-			expected: newScalarFilter(OpLess,
+			expected: newScalarFilter(
+				OpLess,
 				newPipeline(
 					newSpansetFilter(NewAttribute("a")),
 					newAggregate(aggregateCount, nil),
@@ -376,7 +401,8 @@ func TestPipelineScalarOperators(t *testing.T) {
 		},
 		{
 			in: "({ .a } | count()) <= ({ .a } | count())",
-			expected: newScalarFilter(OpLessEqual,
+			expected: newScalarFilter(
+				OpLessEqual,
 				newPipeline(
 					newSpansetFilter(NewAttribute("a")),
 					newAggregate(aggregateCount, nil),
@@ -389,7 +415,8 @@ func TestPipelineScalarOperators(t *testing.T) {
 		},
 		{
 			in: "({ .a } | count()) >= ({ .a } | count())",
-			expected: newScalarFilter(OpGreaterEqual,
+			expected: newScalarFilter(
+				OpGreaterEqual,
 				newPipeline(
 					newSpansetFilter(NewAttribute("a")),
 					newAggregate(aggregateCount, nil),
@@ -551,35 +578,40 @@ func TestSpansetExpressionPrecedence(t *testing.T) {
 	}{
 		{
 			in: "{ true } && { false } >> { `a` }",
-			expected: newSpansetOperation(OpSpansetAnd,
+			expected: newSpansetOperation(
+				OpSpansetAnd,
 				newSpansetFilter(NewStaticBool(true)),
 				newSpansetOperation(OpSpansetDescendant, newSpansetFilter(NewStaticBool(false)), newSpansetFilter(NewStaticString("a"))),
 			),
 		},
 		{
 			in: "{ true } >> { false } && { `a` }",
-			expected: newSpansetOperation(OpSpansetAnd,
+			expected: newSpansetOperation(
+				OpSpansetAnd,
 				newSpansetOperation(OpSpansetDescendant, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false))),
 				newSpansetFilter(NewStaticString("a")),
 			),
 		},
 		{
 			in: "({ true } >> { false }) && { `a` }",
-			expected: newSpansetOperation(OpSpansetAnd,
+			expected: newSpansetOperation(
+				OpSpansetAnd,
 				newSpansetOperation(OpSpansetDescendant, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false))),
 				newSpansetFilter(NewStaticString("a")),
 			),
 		},
 		{
 			in: "{ true } >> { false } ~ { `a` }",
-			expected: newSpansetOperation(OpSpansetSibling,
+			expected: newSpansetOperation(
+				OpSpansetSibling,
 				newSpansetOperation(OpSpansetDescendant, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false))),
 				newSpansetFilter(NewStaticString("a")),
 			),
 		},
 		{
 			in: "{ true } ~ { false } >> { `a` }",
-			expected: newSpansetOperation(OpSpansetDescendant,
+			expected: newSpansetOperation(
+				OpSpansetDescendant,
 				newSpansetOperation(OpSpansetSibling, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false))),
 				newSpansetFilter(NewStaticString("a")),
 			),
@@ -659,9 +691,11 @@ func TestScalarExpressionPrecedence(t *testing.T) {
 	}{
 		{
 			in: "avg(.foo) > count() + sum(.bar)",
-			expected: newScalarFilter(OpGreater,
+			expected: newScalarFilter(
+				OpGreater,
 				newAggregate(aggregateAvg, NewAttribute("foo")),
-				newScalarOperation(OpAdd,
+				newScalarOperation(
+					OpAdd,
 					newAggregate(aggregateCount, nil),
 					newAggregate(aggregateSum, NewAttribute("bar")),
 				),
@@ -669,8 +703,10 @@ func TestScalarExpressionPrecedence(t *testing.T) {
 		},
 		{
 			in: "avg(.foo) + count() > sum(.bar)",
-			expected: newScalarFilter(OpGreater,
-				newScalarOperation(OpAdd,
+			expected: newScalarFilter(
+				OpGreater,
+				newScalarOperation(
+					OpAdd,
 					newAggregate(aggregateAvg, NewAttribute("foo")),
 					newAggregate(aggregateCount, nil),
 				),
@@ -1111,7 +1147,8 @@ func TestIntrinsics(t *testing.T) {
 					Parent:    false,
 					Name:      tc.in,
 					Intrinsic: tc.expected,
-				}))), actual)
+				}),
+			)), actual)
 
 			// as attribute e.g .duration
 			s = "{ ." + tc.in + "}"
@@ -1124,7 +1161,8 @@ func TestIntrinsics(t *testing.T) {
 					Parent:    false,
 					Name:      tc.in,
 					Intrinsic: IntrinsicNone,
-				}))), actual)
+				}),
+			)), actual)
 
 			// as span scoped attribute e.g span.duration
 			s = "{ span." + tc.in + "}"
@@ -1137,7 +1175,8 @@ func TestIntrinsics(t *testing.T) {
 					Parent:    false,
 					Name:      tc.in,
 					Intrinsic: IntrinsicNone,
-				}))), actual)
+				}),
+			)), actual)
 
 			// as resource scoped attribute e.g resource.duration
 			s = "{ resource." + tc.in + "}"
@@ -1150,7 +1189,8 @@ func TestIntrinsics(t *testing.T) {
 					Parent:    false,
 					Name:      tc.in,
 					Intrinsic: IntrinsicNone,
-				}))), actual)
+				}),
+			)), actual)
 
 			// as parent scoped intrinsic e.g parent.duration
 			s = "{ parent." + tc.in + "}"
@@ -1163,7 +1203,8 @@ func TestIntrinsics(t *testing.T) {
 					Parent:    true,
 					Name:      tc.in,
 					Intrinsic: IntrinsicNone,
-				}))), actual)
+				}),
+			)), actual)
 
 			// as nested parent scoped intrinsic e.g. parent.duration.foo
 			// this becomes lookup on attribute named "duration.foo"
@@ -1177,7 +1218,8 @@ func TestIntrinsics(t *testing.T) {
 					Parent:    true,
 					Name:      tc.in + ".foo",
 					Intrinsic: IntrinsicNone,
-				}))), actual)
+				}),
+			)), actual)
 
 			// as parent resource scoped attribute e.g. parent.resource.duration
 			s = "{ parent.resource." + tc.in + "}"
@@ -1190,7 +1232,8 @@ func TestIntrinsics(t *testing.T) {
 					Parent:    true,
 					Name:      tc.in,
 					Intrinsic: IntrinsicNone,
-				}))), actual)
+				}),
+			)), actual)
 
 			// as parent span scoped attribute e.g. praent.span.duration
 			s = "{ parent.span." + tc.in + "}"
@@ -1203,7 +1246,8 @@ func TestIntrinsics(t *testing.T) {
 					Parent:    true,
 					Name:      tc.in,
 					Intrinsic: IntrinsicNone,
-				}))), actual)
+				}),
+			)), actual)
 		})
 	}
 }
@@ -1256,7 +1300,8 @@ func TestScopedIntrinsics(t *testing.T) {
 						Parent:    false,
 						Name:      tc.expected.String(),
 						Intrinsic: tc.expected,
-					}))), actual)
+					}),
+				)), actual)
 			}
 		})
 	}
@@ -1576,7 +1621,8 @@ func TestMetrics(t *testing.T) {
 					[]Attribute{
 						NewIntrinsic(IntrinsicName),
 						NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"),
-					}),
+					},
+				),
 			),
 		},
 		{
@@ -1601,7 +1647,8 @@ func TestMetrics(t *testing.T) {
 					[]Attribute{
 						NewIntrinsic(IntrinsicName),
 						NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"),
-					}),
+					},
+				),
 			),
 		},
 	}

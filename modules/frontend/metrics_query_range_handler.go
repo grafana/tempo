@@ -209,7 +209,8 @@ func logQueryRangeResult(logger log.Logger, tenantID string, durationSeconds flo
 			"msg", "query range response - no resp",
 			"tenant", tenantID,
 			"duration_seconds", durationSeconds,
-			"error", err)
+			"error", err,
+		)
 
 		return
 	}
@@ -221,7 +222,8 @@ func logQueryRangeResult(logger log.Logger, tenantID string, durationSeconds flo
 			"query", req.Query,
 			"range_nanos", req.End-req.Start,
 			"duration_seconds", durationSeconds,
-			"error", err)
+			"error", err,
+		)
 		return
 	}
 
@@ -243,7 +245,8 @@ func logQueryRangeResult(logger log.Logger, tenantID string, durationSeconds flo
 		"partial_status", resp.Status,
 		"partial_message", resp.Message,
 		"num_response_series", len(resp.Series),
-		"error", err)
+		"error", err,
+	)
 }
 
 func logQueryRangeRequest(logger log.Logger, tenantID string, req *tempopb.QueryRangeRequest) {
@@ -253,7 +256,8 @@ func logQueryRangeRequest(logger log.Logger, tenantID string, req *tempopb.Query
 		"query", req.Query,
 		"range_nanos", req.End-req.Start,
 		"mode", req.QueryMode,
-		"step", req.Step)
+		"step", req.Step,
+	)
 }
 
 func httpInvalidRequest(err error) *http.Response {

@@ -47,4 +47,4 @@ type metricsGeneratorOverrides interface {
 	UnsafeQueryHints(userID string) bool
 }
 
-var _ metricsGeneratorOverrides = (overrides.Interface)(nil)
+var _ metricsGeneratorOverrides = overrides.Interface(nil)

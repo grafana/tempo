@@ -395,7 +395,7 @@ func (i *instance) cutBlocks(immediate bool) (uuid.UUID, error) {
 		return uuid.Nil, err
 	}
 
-	id := (uuid.UUID)(i.headBlock.BlockMeta().BlockID)
+	id := uuid.UUID(i.headBlock.BlockMeta().BlockID)
 	blockSize := i.headBlock.DataLength()
 	i.walBlocks[id] = i.headBlock
 
@@ -478,7 +478,7 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) error {
 		level.Error(i.logger).Log("msg", "failed to clear WAL block", "id", id, "err", err)
 		span.RecordError(err)
 	}
-	delete(i.walBlocks, (uuid.UUID)(walBlock.BlockMeta().BlockID))
+	delete(i.walBlocks, uuid.UUID(walBlock.BlockMeta().BlockID))
 
 	level.Info(i.logger).Log("msg", "completed block", "id", id.String())
 	span.AddEvent("block completed successfully")
