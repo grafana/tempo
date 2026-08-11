@@ -3,6 +3,7 @@ package backendscheduler
 import (
 	"context"
 	"flag"
+	"fmt"
 	"testing"
 	"time"
 
@@ -54,17 +55,52 @@ func TestBlockOverlapsWindow(t *testing.T) {
 	}
 }
 
-// TestSubmitRedactionRejectsInvalidWindow verifies a window with end <= start is rejected before
-// any block work; 0 on either side is unbounded and allowed.
-func TestSubmitRedactionRejectsInvalidWindow(t *testing.T) {
-	ctx, s := newQuiescenceScheduler(t)
-	_, err := s.SubmitRedaction(user.InjectOrgID(ctx, "t-badwindow"), &tempopb.SubmitRedactionRequest{
-		TraceIds:          [][]byte{{0x01}},
-		StartTimeUnixNano: 2000,
-		EndTimeUnixNano:   1000, // end before start
-	})
-	require.Error(t, err)
-	require.Equal(t, codes.InvalidArgument, status.Code(err))
+// TestSubmitRedactionWindowValidation covers every window a caller can submit.
+//
+// The rejections are not stylistic. A one-sided window is refused because the storage layer only
+// installs its time predicate when both bounds are set (vparquet{3,4,5} gate on `start > 0 && end > 0`),
+// so a single bound would narrow block selection while leaving the per-block scan unbounded — deleting
+// out-of-window traces from every selected block, unrecoverably. A negative bound is refused because
+// the layers disagree about it: block selection treats non-zero as a real bound while the scan bound
+// treats non-positive as absent, so a negative value selects every block and then scans it unbounded.
+// A degenerate range is refused because it matches almost nothing while reporting success.
+func TestSubmitRedactionWindowValidation(t *testing.T) {
+	hour := int64(time.Hour)
+	for _, tc := range []struct {
+		name       string
+		start, end int64
+		wantReject bool
+	}{
+		{name: "no window is the whole tenant", start: 0, end: 0},
+		{name: "both bounds set in order", start: hour, end: 2 * hour},
+		{name: "start only leaves the scan unbounded", start: hour, wantReject: true},
+		{name: "end only leaves the scan unbounded", end: hour, wantReject: true},
+		{name: "negative start selects everything then scans unbounded", start: -hour, end: hour, wantReject: true},
+		{name: "negative end", start: hour, end: -hour, wantReject: true},
+		{name: "both negative passes an ordering check but still diverges", start: -2 * hour, end: -hour, wantReject: true},
+		{name: "end before start", start: 2 * hour, end: hour, wantReject: true},
+		{name: "degenerate range reports success while matching nothing", start: hour, end: hour, wantReject: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, s := newQuiescenceScheduler(t)
+			// A tenant ID built from the subtest name would contain spaces and fail tenant
+			// validation first, making every case pass for the wrong reason.
+			tenant := fmt.Sprintf("t-window-%d", tc.start+tc.end)
+			_, err := s.SubmitRedaction(user.InjectOrgID(ctx, tenant), &tempopb.SubmitRedactionRequest{
+				TraceIds:          [][]byte{{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}},
+				StartTimeUnixNano: tc.start,
+				EndTimeUnixNano:   tc.end,
+			})
+			if tc.wantReject {
+				require.Error(t, err, "this window must be rejected before any block work")
+				require.Equal(t, codes.InvalidArgument, status.Code(err))
+				return
+			}
+			// Accepted windows get past validation; the tenant has no blocks, so NotFound is the
+			// expected outcome rather than InvalidArgument.
+			require.Equal(t, codes.NotFound, status.Code(err), "window accepted, then no blocks to redact")
+		})
+	}
 }
 
 // writeTenantBlocksWithRanges writes one block per [start, end] data range, so a test can control

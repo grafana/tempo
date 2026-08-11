@@ -508,9 +508,28 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("unknown redaction mode %d", int32(req.Mode)))
 	}
 
-	// Optional [start, end] window: 0 means unbounded on that side. When both are set, require a
-	// valid range. The client resolves any relative form (e.g. now-7d) to absolute nanos first.
-	if req.StartTimeUnixNano != 0 && req.EndTimeUnixNano != 0 && req.StartTimeUnixNano >= req.EndTimeUnixNano {
+	// Optional [start, end] window. It must be fully specified or absent, non-negative, and a
+	// non-empty range. The client resolves any relative form (e.g. now-7d) to absolute nanos first.
+	//
+	// A one-sided window is refused rather than supported: the storage layer only installs its
+	// time predicate when both bounds are set (vparquet{3,4,5} gate the trace-time filter on
+	// `start > 0 && end > 0`), so a single bound would narrow block selection while leaving the
+	// per-block scan unbounded — deleting out-of-window traces from every selected block, with no
+	// way to undo it. Requiring both keeps the scan bound always engaged.
+	//
+	// A negative bound is refused because the layers disagree about it: block selection treats any
+	// non-zero value as a real bound, while the scan bound treats a non-positive value as absent.
+	// A negative window would therefore select every block and then scan each one unbounded.
+	//
+	// A degenerate range (start == end) is refused because it matches only traces spanning that exact
+	// instant — effectively nothing — while reporting a successful redaction.
+	if (req.StartTimeUnixNano == 0) != (req.EndTimeUnixNano == 0) {
+		return nil, status.Error(codes.InvalidArgument, "start_time_unix_nano and end_time_unix_nano must both be set or both be omitted")
+	}
+	if req.StartTimeUnixNano < 0 || req.EndTimeUnixNano < 0 {
+		return nil, status.Error(codes.InvalidArgument, "window bounds must be non-negative unix nanoseconds")
+	}
+	if req.StartTimeUnixNano != 0 && req.StartTimeUnixNano >= req.EndTimeUnixNano {
 		return nil, status.Error(codes.InvalidArgument, "start_time_unix_nano must be before end_time_unix_nano")
 	}
 
