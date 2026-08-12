@@ -304,3 +304,51 @@ func TestRescanAppliesWindowToOutputBlocks(t *testing.T) {
 	require.Equal(t, before, len(s.work.ListAllPendingJobs()),
 		"the only output block is out of window, so the rescan should enqueue nothing")
 }
+
+// TestSubmitRedactionWindowMatchingNothing verifies a window that overlaps no block is refused rather
+// than accepted as an empty batch.
+//
+// An empty batch reported jobs_created:0 with a success status, so a mistyped bound looked like a
+// completed redaction; it also held the tenant's compaction off for a full quiescence cycle for no work,
+// and rejected the corrected resubmission with AlreadyExists — so the operator's natural retry failed too.
+func TestSubmitRedactionWindowMatchingNothing(t *testing.T) {
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	tmpDir := t.TempDir()
+	cfg.LocalWorkPath = tmpDir
+
+	ctx, cancel := context.WithCancel(context.Background())
+	store, rr, ww := newStore(ctx, t, tmpDir)
+	defer func() {
+		cancel()
+		store.Shutdown()
+	}()
+
+	tenant := "t-window-empty"
+	base := time.Now().Add(-30 * 24 * time.Hour)
+	day := func(n int) time.Time { return base.Add(time.Duration(n) * 24 * time.Hour) }
+
+	writeTenantBlocksWithRanges(ctx, t, backend.NewWriter(ww), tenant, [][2]time.Time{
+		{day(1), day(2)},
+		{day(3), day(4)},
+	})
+	require.Eventually(t, func() bool { return len(store.BlockMetas(tenant)) == 2 },
+		5*time.Second, 50*time.Millisecond, "blocks must be polled before submitting")
+
+	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.NewRegistry())
+	require.NoError(t, err)
+	s, err := New(cfg, store, limits, rr, ww)
+	require.NoError(t, err)
+
+	// A window well clear of both blocks — the shape a mistyped bound produces.
+	_, err = s.SubmitRedaction(user.InjectOrgID(ctx, tenant), &tempopb.SubmitRedactionRequest{
+		TraceIds:          [][]byte{{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}},
+		StartTimeUnixNano: day(20).UnixNano(),
+		EndTimeUnixNano:   day(21).UnixNano(),
+	})
+	require.Error(t, err, "a window overlapping no block must fail, not report an empty success")
+	require.Equal(t, codes.NotFound, status.Code(err))
+
+	require.Nil(t, s.work.GetBatch(tenant), "no batch may be created: it would gate compaction for a quiescence cycle for no work")
+	require.False(t, s.work.TenantPending(tenant), "the tenant's compaction must not be held")
+}

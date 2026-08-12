@@ -588,15 +588,60 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		}
 		filtered = append(filtered, meta)
 	}
-	skippedBlocks := len(metas) - len(filtered)
-	if skippedBlocks > 0 {
+	// Blocks held by an active compaction are a coverage gap the operator may need to act on, so they
+	// warn. Blocks outside the window are the feature working as asked, so they do not — counting them
+	// into the same total would make a routine one-day slice of a 90-day tenant warn that nearly every
+	// block is mid-compaction.
+	busySkippedBlocks := len(metas) - len(filtered) - outOfWindowBlocks
+	if busySkippedBlocks > 0 {
 		level.Warn(log.Logger).Log("msg", "skipping blocks in active compaction jobs during redaction submission",
 			"tenant", tenant,
-			"skipped_blocks", skippedBlocks,
+			"skipped_blocks", busySkippedBlocks,
 			"skipped_compaction_jobs", len(skippedJobSet),
 			"total_blocks", len(metas))
 	}
+	if indeterminateBlocks > 0 {
+		// Included rather than skipped, but worth surfacing: their recorded range could not be judged,
+		// so they were taken on trust and the scan bound alone decides what they lose.
+		level.Warn(log.Logger).Log("msg", "redaction included blocks with an unusable data range",
+			"tenant", tenant, "blocks", indeterminateBlocks, "total_blocks", len(metas))
+	}
 	metas = filtered
+
+	// Nothing to schedule AND nothing deferred means the window overlapped no data at all — almost always
+	// a mistyped bound. Fail rather than create a batch: an empty batch reports jobs_created:0 with a
+	// success status, holds the tenant's compaction off for a quiescence cycle for no work, and rejects
+	// the corrected resubmission with AlreadyExists.
+	//
+	// An empty set with a non-empty skippedJobSet is different: every candidate block is mid-compaction,
+	// so the batch must exist for the rescan to pick those blocks up once compaction finishes.
+	if len(metas) == 0 && len(skippedJobSet) == 0 {
+		level.Info(log.Logger).Log("msg", "redaction submission matched no blocks in the requested window",
+			"tenant", tenant, "out_of_window_blocks", outOfWindowBlocks,
+			"total_blocks", outOfWindowBlocks+busySkippedBlocks)
+		return nil, status.Error(codes.NotFound, "no blocks overlap the requested time window")
+	}
+
+	// Record what will actually be touched. The requested window can extend well past the data (a
+	// -9999y bound on a 30d tenant is a clumsy way to say "everything"), so the covered range is the
+	// honest description of the blast radius on an operation with no undo.
+	var coveredStart, coveredEnd time.Time
+	for _, meta := range metas {
+		if coveredStart.IsZero() || meta.StartTime.Before(coveredStart) {
+			coveredStart = meta.StartTime
+		}
+		if coveredEnd.IsZero() || meta.EndTime.After(coveredEnd) {
+			coveredEnd = meta.EndTime
+		}
+	}
+	span.SetAttributes(
+		attribute.Int64("window_start_unix_nano", req.StartTimeUnixNano),
+		attribute.Int64("window_end_unix_nano", req.EndTimeUnixNano),
+		attribute.String("covered_start", coveredStart.UTC().Format(time.RFC3339)),
+		attribute.String("covered_end", coveredEnd.UTC().Format(time.RFC3339)),
+		attribute.Int("out_of_window_blocks", outOfWindowBlocks),
+		attribute.Int("indeterminate_blocks", indeterminateBlocks),
+	)
 
 	jobs := make([]*work.Job, 0, len(metas))
 	for _, meta := range metas {
@@ -664,7 +709,10 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		"tenant", tenant,
 		"batch_id", batchID,
 		"jobs_created", len(jobs),
-		"blocks_skipped_compacting", skippedBlocks,
+		"blocks_skipped_compacting", busySkippedBlocks,
+		"blocks_out_of_window", outOfWindowBlocks,
+		"covered_start", coveredStart.UTC().Format(time.RFC3339),
+		"covered_end", coveredEnd.UTC().Format(time.RFC3339),
 		"trace_count", len(req.TraceIds))
 
 	return &tempopb.SubmitRedactionResponse{
