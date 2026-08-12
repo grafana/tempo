@@ -1119,8 +1119,9 @@ func TestTagValuesWithSpecialCharacters(t *testing.T) {
 	})
 }
 
-// TestTraceByIDV2Filtering exercises the `q` spanset filter and keep_hierarchy options on the V2
-// trace-by-id endpoint end to end, on both the recent-data and backend querying paths.
+// TestTraceByIDV2Filtering exercises the `q` spanset filter and its keep_hierarchy, match_depth
+// and ancestor_depth options on the V2 trace-by-id endpoint end to end, on both the recent-data
+// and backend querying paths.
 func TestTraceByIDV2Filtering(t *testing.T) {
 	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		Components: util.ComponentsRecentDataQuerying | util.ComponentsBackendQuerying,
@@ -1136,61 +1137,111 @@ func TestTraceByIDV2Filtering(t *testing.T) {
 
 		hexID := tempoUtil.TraceIDToHexString(traceID)
 
-		assertFiltering := func(t *testing.T, apiClient *httpclient.Client) {
-			// no params: full trace, all six spans, and a complete (not partial) status.
-			full, err := apiClient.QueryTraceV2WithQueryParams(hexID, nil)
-			require.NoError(t, err)
-			require.ElementsMatch(t, []byte{1, 2, 3, 4, 5, 6}, spanLastBytes(full.Trace))
-			require.Equal(t, tempopb.PartialStatus_COMPLETE, full.Status, "an unfiltered trace is complete")
+		// spans are identified by the last byte of their id:
+		//   1=A(root)  2=B  3=C(http.status_code=500)  4=D(http.status_code=200)  5=E  6=F
+		// relative to C: ancestors are B at 1 hop then A at 2 hops; descendants are E at 1 hop
+		// then F at 2 hops. Relative to D: A is its only ancestor, and it has no descendants.
+		const (
+			matchC  = "{ .http.status_code = 500 }" // matches C only
+			matchCD = "{ .http.status_code > 0 }"   // matches C and D
+		)
 
-			// q only, no match_depth param at all: keep_hierarchy defaults to false and match_depth
-			// defaults to 0, so only the matched span (C). This is the backward-compat baseline:
-			// behavior must be identical to what the endpoint returned before match_depth existed.
-			matchedOnly, err := apiClient.QueryTraceV2WithQueryParams(hexID, map[string]string{"q": "{ .http.status_code = 500 }"})
-			require.NoError(t, err)
-			require.ElementsMatch(t, []byte{3}, spanLastBytes(matchedOnly.Trace))
-			// a filter that dropped spans marks the response partial so a client knows it is a subset.
-			require.Equal(t, tempopb.PartialStatus_PARTIAL, matchedOnly.Status)
-			require.Contains(t, matchedOnly.Message, "only a subset of spans matching the filter")
+		// filterCases covers the interaction of keep_hierarchy, match_depth and ancestor_depth.
+		// The two depth params default differently when absent — match_depth to 0 (no descendants),
+		// ancestor_depth to -1 (unbounded) — so absent and explicit values are both asserted.
+		filterCases := []struct {
+			name   string
+			query  string
+			params map[string]string
+			expect []byte
+			// a filter only reports COMPLETE when it dropped nothing, so this is the exception.
+			wantComplete bool
+		}{
+			// backward-compat baseline: no depth params at all must behave exactly as the endpoint
+			// did before match_depth and ancestor_depth existed — the matched span and nothing else.
+			{name: "defaults_match_only", query: matchC, expect: []byte{3}},
 
-			// keep_hierarchy=true: the match plus its unbounded ancestor path (A,B,C), still a
-			// subset of the full trace. ancestor_depth defaults to -1 (unbounded) when absent.
-			withHierarchy, err := apiClient.QueryTraceV2WithQueryParams(hexID, map[string]string{"q": "{ .http.status_code = 500 }", "keep_hierarchy": "true"})
-			require.NoError(t, err)
-			require.ElementsMatch(t, []byte{1, 2, 3}, spanLastBytes(withHierarchy.Trace))
-			require.Equal(t, tempopb.PartialStatus_PARTIAL, withHierarchy.Status, "a filtered subset is partial even with ancestors")
+			// match_depth alone, without keep_hierarchy.
+			{name: "match_depth_0", query: matchC, params: map[string]string{"match_depth": "0"}, expect: []byte{3}},
+			{name: "match_depth_1", query: matchC, params: map[string]string{"match_depth": "1"}, expect: []byte{3, 5}},
+			{name: "match_depth_2", query: matchC, params: map[string]string{"match_depth": "2"}, expect: []byte{3, 5, 6}},
+			{name: "match_depth_beyond_subtree", query: matchC, params: map[string]string{"match_depth": "9"}, expect: []byte{3, 5, 6}},
+			{name: "match_depth_unbounded", query: matchC, params: map[string]string{"match_depth": "-1"}, expect: []byte{3, 5, 6}},
 
-			// match_depth=1: the match plus its direct children only (E), not the grandchild F.
-			matchDepthOne, err := apiClient.QueryTraceV2WithQueryParams(hexID, map[string]string{"q": "{ .http.status_code = 500 }", "match_depth": "1"})
-			require.NoError(t, err)
-			require.ElementsMatch(t, []byte{3, 5}, spanLastBytes(matchDepthOne.Trace))
-			require.Equal(t, tempopb.PartialStatus_PARTIAL, matchDepthOne.Status)
+			// ancestor_depth is inert unless keep_hierarchy is true, at any value.
+			{name: "ancestor_depth_unbounded_without_keep_hierarchy", query: matchC, params: map[string]string{"ancestor_depth": "-1"}, expect: []byte{3}},
+			{name: "ancestor_depth_2_without_keep_hierarchy", query: matchC, params: map[string]string{"ancestor_depth": "2"}, expect: []byte{3}},
+			{name: "ancestor_depth_unbounded_keep_hierarchy_false", query: matchC, params: map[string]string{"keep_hierarchy": "false", "ancestor_depth": "-1"}, expect: []byte{3}},
+			{name: "ancestor_depth_inert_but_match_depth_applies", query: matchC, params: map[string]string{"keep_hierarchy": "false", "ancestor_depth": "-1", "match_depth": "1"}, expect: []byte{3, 5}},
 
-			// match_depth=-1: the match plus its full descendant subtree (E, F).
-			matchDepthUnbounded, err := apiClient.QueryTraceV2WithQueryParams(hexID, map[string]string{"q": "{ .http.status_code = 500 }", "match_depth": "-1"})
-			require.NoError(t, err)
-			require.ElementsMatch(t, []byte{3, 5, 6}, spanLastBytes(matchDepthUnbounded.Trace))
-			require.Equal(t, tempopb.PartialStatus_PARTIAL, matchDepthUnbounded.Status)
+			// keep_hierarchy with ancestor_depth, no descendants.
+			{name: "keep_hierarchy_default_ancestor_depth", query: matchC, params: map[string]string{"keep_hierarchy": "true"}, expect: []byte{1, 2, 3}},
+			{name: "keep_hierarchy_ancestor_depth_unbounded", query: matchC, params: map[string]string{"keep_hierarchy": "true", "ancestor_depth": "-1"}, expect: []byte{1, 2, 3}},
+			{name: "keep_hierarchy_ancestor_depth_0", query: matchC, params: map[string]string{"keep_hierarchy": "true", "ancestor_depth": "0"}, expect: []byte{3}},
+			{name: "keep_hierarchy_ancestor_depth_1", query: matchC, params: map[string]string{"keep_hierarchy": "true", "ancestor_depth": "1"}, expect: []byte{2, 3}},
+			{name: "keep_hierarchy_ancestor_depth_2", query: matchC, params: map[string]string{"keep_hierarchy": "true", "ancestor_depth": "2"}, expect: []byte{1, 2, 3}},
+			{name: "keep_hierarchy_ancestor_depth_past_root", query: matchC, params: map[string]string{"keep_hierarchy": "true", "ancestor_depth": "9"}, expect: []byte{1, 2, 3}},
 
-			// keep_hierarchy=true + ancestor_depth=0: matched span only, no ancestors kept
-			// despite keep_hierarchy being set.
-			ancestorDepthZero, err := apiClient.QueryTraceV2WithQueryParams(hexID, map[string]string{"q": "{ .http.status_code = 500 }", "keep_hierarchy": "true", "ancestor_depth": "0"})
-			require.NoError(t, err)
-			require.ElementsMatch(t, []byte{3}, spanLastBytes(ancestorDepthZero.Trace))
-			require.Equal(t, tempopb.PartialStatus_PARTIAL, ancestorDepthZero.Status)
+			// all three together: ancestors and descendants are bounded independently.
+			{name: "hierarchy_ancestor_0_match_0", query: matchC, params: map[string]string{"keep_hierarchy": "true", "ancestor_depth": "0", "match_depth": "0"}, expect: []byte{3}},
+			{name: "hierarchy_ancestor_0_match_1", query: matchC, params: map[string]string{"keep_hierarchy": "true", "ancestor_depth": "0", "match_depth": "1"}, expect: []byte{3, 5}},
+			{name: "hierarchy_ancestor_0_match_unbounded", query: matchC, params: map[string]string{"keep_hierarchy": "true", "ancestor_depth": "0", "match_depth": "-1"}, expect: []byte{3, 5, 6}},
+			{name: "hierarchy_ancestor_1_match_1", query: matchC, params: map[string]string{"keep_hierarchy": "true", "ancestor_depth": "1", "match_depth": "1"}, expect: []byte{2, 3, 5}},
+			{name: "hierarchy_ancestor_1_match_2", query: matchC, params: map[string]string{"keep_hierarchy": "true", "ancestor_depth": "1", "match_depth": "2"}, expect: []byte{2, 3, 5, 6}},
+			{name: "hierarchy_ancestor_1_match_unbounded", query: matchC, params: map[string]string{"keep_hierarchy": "true", "ancestor_depth": "1", "match_depth": "-1"}, expect: []byte{2, 3, 5, 6}},
+			{name: "hierarchy_ancestor_2_match_1", query: matchC, params: map[string]string{"keep_hierarchy": "true", "ancestor_depth": "2", "match_depth": "1"}, expect: []byte{1, 2, 3, 5}},
+			{name: "hierarchy_ancestor_2_match_2", query: matchC, params: map[string]string{"keep_hierarchy": "true", "ancestor_depth": "2", "match_depth": "2"}, expect: []byte{1, 2, 3, 5, 6}},
+			{name: "hierarchy_ancestor_past_root_match_past_leaf", query: matchC, params: map[string]string{"keep_hierarchy": "true", "ancestor_depth": "9", "match_depth": "9"}, expect: []byte{1, 2, 3, 5, 6}},
+			// unbounded in both directions still excludes D: it is on a sibling branch, neither an
+			// ancestor nor a descendant of C.
+			{name: "hierarchy_both_unbounded_excludes_sibling_branch", query: matchC, params: map[string]string{"keep_hierarchy": "true", "ancestor_depth": "-1", "match_depth": "-1"}, expect: []byte{1, 2, 3, 5, 6}},
 
-			// keep_hierarchy=true + ancestor_depth=1: the match plus its immediate parent (B)
-			// only, not the full ancestor chain to the root (A).
-			ancestorDepthOne, err := apiClient.QueryTraceV2WithQueryParams(hexID, map[string]string{"q": "{ .http.status_code = 500 }", "keep_hierarchy": "true", "ancestor_depth": "1"})
-			require.NoError(t, err)
-			require.ElementsMatch(t, []byte{2, 3}, spanLastBytes(ancestorDepthOne.Trace))
-			require.Equal(t, tempopb.PartialStatus_PARTIAL, ancestorDepthOne.Status)
+			// two matched spans: depths are counted per match, so the kept set is the union.
+			{name: "two_matches_defaults", query: matchCD, expect: []byte{3, 4}},
+			// A is 2 hops above C but only 1 above D, so ancestor_depth=1 still pulls it in.
+			{name: "two_matches_ancestor_1", query: matchCD, params: map[string]string{"keep_hierarchy": "true", "ancestor_depth": "1"}, expect: []byte{1, 2, 3, 4}},
+			// D is a leaf, so only C contributes a descendant.
+			{name: "two_matches_ancestor_0_match_1", query: matchCD, params: map[string]string{"keep_hierarchy": "true", "ancestor_depth": "0", "match_depth": "1"}, expect: []byte{3, 4, 5}},
+			// the union covers every span, so nothing was dropped and the response is not partial.
+			{name: "two_matches_both_unbounded_keeps_whole_trace", query: matchCD, params: map[string]string{"keep_hierarchy": "true", "ancestor_depth": "-1", "match_depth": "-1"}, expect: []byte{1, 2, 3, 4, 5, 6}, wantComplete: true},
+		}
+
+		assertFiltering := func(t *testing.T, pathName string, apiClient *httpclient.Client) {
+			t.Run(pathName, func(t *testing.T) {
+				// no params: full trace, all six spans, and a complete (not partial) status.
+				full, err := apiClient.QueryTraceV2WithQueryParams(hexID, nil)
+				require.NoError(t, err)
+				require.ElementsMatch(t, []byte{1, 2, 3, 4, 5, 6}, spanLastBytes(full.Trace))
+				require.Equal(t, tempopb.PartialStatus_COMPLETE, full.Status, "an unfiltered trace is complete")
+
+				for _, tc := range filterCases {
+					t.Run(tc.name, func(t *testing.T) {
+						params := map[string]string{"q": tc.query}
+						for k, v := range tc.params {
+							params[k] = v
+						}
+
+						resp, err := apiClient.QueryTraceV2WithQueryParams(hexID, params)
+						require.NoError(t, err)
+						require.ElementsMatch(t, tc.expect, spanLastBytes(resp.Trace))
+
+						if tc.wantComplete {
+							require.Equal(t, tempopb.PartialStatus_COMPLETE, resp.Status)
+							require.Empty(t, resp.Message)
+							return
+						}
+						// a filter that dropped spans marks the response partial so a client knows it is a subset.
+						require.Equal(t, tempopb.PartialStatus_PARTIAL, resp.Status)
+						require.Contains(t, resp.Message, "only a subset of spans matching the filter")
+					})
+				}
+			})
 		}
 
 		apiClient := h.APIClientHTTP("")
 
 		// recent-data path.
-		assertFiltering(t, apiClient)
+		assertFiltering(t, "recent_data", apiClient)
 		assertBadFilterRejected(t, apiClient, hexID)
 		assertOversizedFilterRejected(t, apiClient, hexID)
 		assertBadDepthParamsRejected(t, apiClient, hexID)
@@ -1199,7 +1250,7 @@ func TestTraceByIDV2Filtering(t *testing.T) {
 		h.WaitTracesWrittenToBackend(t, 1)
 		h.ForceBackendQuerying(t)
 		apiClient = h.APIClientHTTP("")
-		assertFiltering(t, apiClient)
+		assertFiltering(t, "backend", apiClient)
 		assertBadFilterRejected(t, apiClient, hexID)
 		assertOversizedFilterRejected(t, apiClient, hexID)
 		assertBadDepthParamsRejected(t, apiClient, hexID)
