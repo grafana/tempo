@@ -151,6 +151,7 @@ each block-builder instance consumes one Kafka partition based on its ordinal:
 `block-builder-0` consumes partition 0,
 `block-builder-1` consumes partition 1,
 and so on.
+
 Set the block-builder replica count to cover the active Tempo partitions,
 which normally matches the active live-store replica count.
 It doesn't need to equal the total Kafka topic partition count;
