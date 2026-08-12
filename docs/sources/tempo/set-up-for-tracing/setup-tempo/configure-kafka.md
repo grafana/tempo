@@ -38,7 +38,7 @@ Adjust these values to your durability target.
 
 The Kafka topic partition count is the upper limit on active Tempo partitions,
 not the required live-store or block-builder replica count.
-It can be much higher than the number of partitions that Tempo currently has active.
+The partition count can be much higher than the number of partitions that Tempo currently has active.
 Each active live-store ordinal owns the corresponding Tempo and Kafka partition.
 Extra Kafka partitions receive no distributor writes until live-stores scale up and activate the corresponding Tempo partitions.
 
