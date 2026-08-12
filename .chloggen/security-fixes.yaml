@@ -1,0 +1,11 @@
+change_type: security
+
+component: operations
+
+note: Update Go to 1.26.5 (CVE-2026-39822, CVE-2026-27145, CVE-2026-42504, CVE-2026-42505, CVE-2026-42507), google.golang.org/grpc to v1.82.1 (GHSA-hrxh-6v49-42gf), golang.org/x/net to v0.56.0 (CVE-2026-46600), golang.org/x/text to v0.39.0 (CVE-2026-56852), and go.opentelemetry.io/otel to v1.44.0 (CVE-2026-41178)
+
+issues: []
+
+subtext:
+
+user: mattdurham
