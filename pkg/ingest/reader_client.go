@@ -20,7 +20,8 @@ func NewReaderClient(kafkaCfg KafkaConfig, metrics *kprom.Metrics, logger log.Lo
 	const fetchMaxBytes = 100_000_000
 
 	opts = append(opts, commonKafkaClientOptions(kafkaCfg, metrics, logger)...)
-	opts = append(opts,
+	opts = append(
+		opts,
 		kgo.FetchMinBytes(1),
 		kgo.FetchMaxBytes(fetchMaxBytes),
 		kgo.FetchMaxWait(5*time.Second),
@@ -51,7 +52,8 @@ type Client struct {
 }
 
 func NewGroupReaderClient(kafkaCfg KafkaConfig, partitionRing ring.PartitionRingReader, metrics *kprom.Metrics, logger log.Logger, opts ...kgo.Opt) (*Client, error) {
-	opts = append(opts,
+	opts = append(
+		opts,
 		kgo.ConsumerGroup(kafkaCfg.ConsumerGroup),
 		kgo.ConsumeTopics(kafkaCfg.Topic),
 		kgo.SessionTimeout(3*time.Minute),

@@ -36,7 +36,8 @@ func NewOverrides(cfg Config, validator Validator, registerer prometheus.Registe
 		if !cfg.EnableLegacyOverrides {
 			return nil, fmt.Errorf(
 				"DEPRECATED: legacy overrides config format detected but legacy overrides are disabled by default. Legacy overrides will be removed in a future release. " +
-					"Migrate your overrides config to the new scoped format, or set -config.enable-legacy-overrides=true (or enable_legacy_overrides: true in YAML) to continue using legacy overrides temporarily")
+					"Migrate your overrides config to the new scoped format, or set -config.enable-legacy-overrides=true (or enable_legacy_overrides: true in YAML) to continue using legacy overrides temporarily",
+			)
 		}
 
 	}

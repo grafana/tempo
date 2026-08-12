@@ -401,7 +401,8 @@ func createResourceIterators(
 		columnPathResourceAttrBool,
 		allConditions,
 		selectAll,
-		traceql.AttributeScopeResource)
+		traceql.AttributeScopeResource,
+	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("creating span attribute iterator: %w", err)
 	}
@@ -705,7 +706,8 @@ func createSpanIterators(
 		columnPathSpanAttrBool,
 		allConditions,
 		selectAll,
-		traceql.AttributeScopeSpan)
+		traceql.AttributeScopeSpan,
+	)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("creating span attribute iterator: %w", err)
 	}
@@ -840,7 +842,8 @@ func createEventIterators(
 		columnPathEventAttrString,
 		columnPathEventAttrInt,
 		columnPathEventAttrDouble,
-		columnPathEventAttrBool, allConditions, selectAll, traceql.AttributeScopeEvent)
+		columnPathEventAttrBool, allConditions, selectAll, traceql.AttributeScopeEvent,
+	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("creating event attribute iterator: %w", err)
 	}
@@ -906,7 +909,8 @@ func createLinkIterators(makeIter, makeNilIter makeIterFn, conditions []traceql.
 		columnPathLinkAttrBool,
 		allConditions,
 		selectAll,
-		traceql.AttributeScopeLink)
+		traceql.AttributeScopeLink,
+	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("creating link attribute iterator: %w", err)
 	}
@@ -975,7 +979,8 @@ func createInstrumentationIterators(makeIter, makeNilIter makeIterFn, conditions
 		columnPathInstrumentationAttrBool,
 		allConditions,
 		selectAll,
-		traceql.AttributeScopeInstrumentation)
+		traceql.AttributeScopeInstrumentation,
+	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("creating instrumentation attribute iterator: %w", err)
 	}

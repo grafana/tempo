@@ -28,7 +28,8 @@ func InstallOpenTelemetryTracer(appName, target string, spanProfiling bool) (fun
 		return nil, fmt.Errorf("failed to create OTEL exporter: %w", err)
 	}
 
-	resources, err := resource.New(context.Background(),
+	resources, err := resource.New(
+		context.Background(),
 		resource.WithAttributes(
 			semconv.ServiceNameKey.String(fmt.Sprintf("%s-%s", appName, target)),
 			semconv.ServiceVersionKey.String(fmt.Sprintf("%s-%s", version.Version, version.Revision)),

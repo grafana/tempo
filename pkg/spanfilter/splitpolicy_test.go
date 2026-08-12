@@ -35,7 +35,8 @@ func Test_newSplitPolicy(t *testing.T) {
 				IntrinsicMatch: policymatch.NewIntrinsicPolicyMatch(
 					[]policymatch.IntrinsicFilter{
 						policymatch.NewKindIntrinsicFilter(tracev1.Span_SPAN_KIND_CLIENT),
-					}),
+					},
+				),
 			},
 		},
 		{
@@ -53,7 +54,8 @@ func Test_newSplitPolicy(t *testing.T) {
 				IntrinsicMatch: policymatch.NewIntrinsicPolicyMatch(
 					[]policymatch.IntrinsicFilter{
 						policymatch.NewStatusIntrinsicFilter(tracev1.Status_STATUS_CODE_OK),
-					}),
+					},
+				),
 			},
 		},
 		{
