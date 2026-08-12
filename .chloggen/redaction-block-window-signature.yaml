@@ -1,0 +1,7 @@
+change_type: breaking
+component: storage
+note: "`Compactor.RedactBlock` takes two additional parameters carrying the redaction time window."
+issues: []
+subtext: |
+  `RedactBlock(ctx, meta, tenantID, traceIDs, query, mode)` becomes `RedactBlock(ctx, meta, tenantID, traceIDs, query, mode, startNano, endNano)`. `Compactor` is embedded in `storage.Store`, so any external implementation or mock of either interface needs updating. Passing `0, 0` preserves the previous behaviour of scanning each block in full.
+user: zalegrala

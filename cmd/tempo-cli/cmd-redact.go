@@ -26,8 +26,8 @@ type redactCmd struct {
 	TraceIDs []string `name:"trace-id" help:"trace ID to redact (may be repeated; mutually exclusive with --query)"`
 	Query    string   `name:"query" help:"TraceQL query selecting traces to redact (mutually exclusive with --trace-id)"`
 	DryRun   bool     `name:"dry-run" default:"false" help:"evaluate and report match counts without rewriting any blocks"`
-	Start    string   `name:"start" help:"restrict redaction to blocks/traces at or after this time. 'now', 'now-<dur>' (e.g. now-7d), or RFC3339. Empty = unbounded"`
-	End      string   `name:"end" help:"restrict redaction to blocks/traces at or before this time. Same forms as --start. Empty = unbounded"`
+	Start    string   `name:"start" help:"start of the redaction window: 'now', 'now-<dur>' (e.g. now-7d), or RFC3339. Must be given with --end; omit both for the whole tenant"`
+	End      string   `name:"end" help:"end of the redaction window. Same forms as --start. Must be given with --start"`
 
 	// startNano/endNano hold the window resolved by validate().
 	startNano int64

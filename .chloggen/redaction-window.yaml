@@ -1,6 +1,9 @@
 change_type: enhancement
 component: backend-scheduler
-note: redaction now accepts an optional `[start, end]` time window (`tempo-cli redact --start/--end`, Grafana-style `now-7d` or RFC3339). It scopes the batch to blocks whose data range overlaps the window and bounds each per-block scan, so operators can redact large tenants in time-sliced batches and let compaction recover between them. The window is resolved to absolute time by the client and frozen at submission; `0/0` (the default) is the whole tenant, unchanged.
+note: redaction accepts an optional `[start, end]` time window (`tempo-cli redact --start/--end`), so a large tenant can be redacted in time slices instead of one all-blocks pass.
 issues: []
-subtext:
+subtext: |
+  A redaction holds the tenant's compaction off for its whole run, so a single pass over every block keeps compaction paused long enough for the block list to grow. Slicing lets compaction recover in between.
+
+  Only blocks overlapping the window are read. With `--query` the window also bounds the scan inside each block; with `--trace-id` the listed traces are removed from every selected block regardless of their own timestamps. Both bounds are required together — a one-sided window is rejected, because the storage layer applies its per-trace filter only when both are set. The CLI accepts `now`, `now-7d` or RFC3339 and resolves to absolute time at submission, so a long run never drifts into newer data.
 user: zalegrala

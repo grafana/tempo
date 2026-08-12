@@ -987,9 +987,18 @@ Arguments:
 Options:
 
 - `--tenant <value>` **(required)** Tenant ID.
-- `--trace-id <value>` **(required)** Trace ID to redact, in hex format. Specify multiple times to redact several traces in one request.
-- `--start <value>` Restrict redaction to traces at or after this time. Accepts `now`, a relative offset such as `now-7d`, or an RFC3339 timestamp. Omit for no lower bound.
-- `--end <value>` Restrict redaction to traces at or before this time. Same forms as `--start`. Omit for no upper bound.
+- `--trace-id <value>` Trace ID to redact, in hex format. Specify multiple times to redact several traces in one request. Mutually exclusive with `--query`.
+- `--query <value>` TraceQL query selecting the traces to redact. Mutually exclusive with `--trace-id`. Conditions may be joined with `&&` and `||`, and only `=` comparisons on `resource.*` and `span.*` attributes are accepted.
+- `--dry-run` Report how many traces match without rewriting any blocks (default: `false`).
+- `--start <value>` Start of the time window. Accepts `now`, a relative offset such as `now-7d`, or an RFC3339 timestamp.
+- `--end <value>` End of the time window. Same forms as `--start`.
+
+Specify exactly one of `--trace-id` or `--query`.
+
+`--start` and `--end` must both be given or both be omitted, and `--start` must be before `--end`. A window
+with only one bound is refused: the storage layer applies its per-trace time filter only when both bounds
+are set, so a single bound would narrow which blocks are read while leaving the scan inside each block
+unbounded — removing traces from outside the range you asked for. Omit both to redact the whole tenant.
 - `--tls` Use TLS for the gRPC connection (default: `false`).
 - `--tls-server-name <value>` Override the TLS server name (SNI).
 - `--tls-ca <value>` Path to a PEM-encoded CA certificate file.
@@ -1010,11 +1019,34 @@ A redaction with no window covers every block the tenant has, which keeps the te
 tempo-cli redact --tenant=my-tenant --query='{resource.namespace = "checkout"}' --start=now-7d --end=now-6d localhost:9095
 ```
 
-Both bounds are inclusive, and a trace is redacted if any part of it falls inside the window.
-Only blocks whose data range overlaps the window are read, and each block is scanned only over the requested range.
+Both bounds are inclusive and must both be supplied. Only blocks whose data range overlaps the window are read.
 
-The window is resolved to absolute timestamps when the command runs, so a long redaction does not drift forward into data that arrived after it started.
-Repeat the command for each slice; traces outside every window you run are left in place.
+With `--query`, the window also bounds the scan inside each block: a trace is redacted if any part of it
+falls inside the window. With `--trace-id` it does not — the listed traces are removed from every block the
+window selected, whatever their own timestamps. A windowed `--trace-id` redaction is therefore **partial by
+design**: the named traces remain in blocks outside the window until you run those slices too.
+
+The window is resolved to absolute timestamps when the command runs, so a long redaction does not drift
+forward into data that arrived after it started. Traces outside every window you run are left in place.
+
+Repeat the command for each slice, but expect to wait between slices. A finished redaction is held briefly
+before it is cleared, and a second submission for the same tenant is rejected with `AlreadyExists` until
+that completes — a couple of minutes at the default maintenance interval.
+
+{{< admonition type="note" >}}
+Redaction rewrites blocks in object storage and cannot be undone. Two things bound what a single run covers:
+
+- Only blocks already visible to the scheduler when you submit are included. Traces ingested during the run,
+  or still held by ingesters, are untouched — a single pass over a live tenant is never complete.
+- Search results are cached, so re-running the same search can still list redacted traces until that cache
+  entry expires. To confirm a redaction, query by trace ID, vary the time range so the cache key differs, or
+  read the match count the redaction itself reports.
+{{< /admonition >}}
+
+Run with `--dry-run` first. It reports the match count without rewriting anything, which both confirms the
+selector and — because an out-of-date worker ignores the window and reports a larger count — surfaces a
+version skew before anything is destroyed. Avoid submitting a windowed redaction during a rollout, when
+schedulers and workers can briefly disagree about whether the window exists.
 
 Monitor job progress through the [`/status/backendscheduler`](/docs/tempo/<TEMPO_VERSION>/api_docs/#backend-scheduler-job-status) endpoint.
 
