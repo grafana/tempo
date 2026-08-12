@@ -12,6 +12,15 @@ import (
 
 func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 	now := time.Now()
+	// The cases below build block end times and expected hashes from now, and run
+	// with a one second compaction range, so a window is one Unix second wide.
+	// Pin the selector to the same reference time: otherwise any case that
+	// depends on a block landing exactly on the active window boundary fails
+	// whenever a second elapses between here and the selector reading the clock,
+	// which happens routinely under a slow or instrumented test run.
+	timeNow = func() time.Time { return now }
+	t.Cleanup(func() { timeNow = time.Now })
+
 	timeWindow := 12 * time.Hour
 	tenantID := ""
 
