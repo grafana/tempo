@@ -30,7 +30,8 @@ The topic has three independent consumers:
 ## Plan the topic
 
 Create one dedicated topic for Tempo.
-For Apache Kafka, replication factor 3 with a minimum of 2 in-sync replicas is a common starting point.
+
+For Apache Kafka, use replication factor 3 with a minimum of 2 in-sync replicas is a common starting point.
 Adjust these values to your durability target.
 
 ### Choose the partition count
