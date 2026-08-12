@@ -227,7 +227,7 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
 
    tempo {
        _images+:: {
-           tempo: 'grafana/tempo:2.9.4',
+           tempo: 'grafana/tempo:2.9.5',
            tempo_query: 'grafana/tempo-query:latest',
        },
 
