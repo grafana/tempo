@@ -364,3 +364,175 @@ func TestSubmitRedactionWindowMatchingNothing(t *testing.T) {
 	require.Nil(t, s.work.GetBatch(tenant), "no batch may be created: it would gate compaction for a quiescence cycle for no work")
 	require.False(t, s.work.TenantPending(tenant), "the tenant's compaction must not be held")
 }
+
+// TestSubmitRedactionDryRunAllBlocksBusy verifies a dry-run whose every in-window block is mid-compaction
+// is refused rather than turned into a batch that never scans anything.
+//
+// The zero-match guard exempts a submission with deferred blocks, because an apply-mode batch must
+// survive for the rescan to pick those blocks up once compaction finishes. A dry-run arms no rescan, so
+// that exemption leaves a batch with zero jobs and no rescan armed: nothing will ever be scanned, the
+// call still reports success, the tenant's compaction is held off for a quiescence cycle, and the
+// operator's corrected resubmission is rejected with AlreadyExists — every consequence the guard exists
+// to prevent.
+func TestSubmitRedactionDryRunAllBlocksBusy(t *testing.T) {
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	cfg.ProviderConfig.Redaction.RescanDelay = 0
+	tmpDir := t.TempDir()
+	cfg.LocalWorkPath = tmpDir
+
+	ctx, cancel := context.WithCancel(context.Background())
+	store, rr, ww := newStore(ctx, t, tmpDir)
+	defer func() {
+		cancel()
+		store.Shutdown()
+	}()
+
+	tenant := "t-dryrun-busy"
+	base := time.Now().Add(-20 * 24 * time.Hour)
+	day := func(n int) time.Time { return base.Add(time.Duration(n) * 24 * time.Hour) }
+
+	// One block, inside the window, held by a running compaction.
+	ids := writeTenantBlocksWithRanges(ctx, t, backend.NewWriter(ww), tenant, [][2]time.Time{
+		{day(3), day(4)},
+	})
+	require.Eventually(t, func() bool { return len(store.BlockMetas(tenant)) == 1 },
+		5*time.Second, 50*time.Millisecond, "the block must be polled before submitting")
+
+	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.NewRegistry())
+	require.NoError(t, err)
+	s, err := New(cfg, store, limits, rr, ww)
+	require.NoError(t, err)
+
+	compJob := &work.Job{
+		ID:   uuid.New().String(),
+		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
+		JobDetail: tempopb.JobDetail{
+			Tenant:     tenant,
+			Compaction: &tempopb.CompactionDetail{Input: []string{ids[0].String()}},
+		},
+	}
+	s.work.RegisterJob(compJob)
+	require.NoError(t, s.work.AddJob(compJob))
+	s.work.StartJob(compJob.ID)
+
+	req := &tempopb.SubmitRedactionRequest{
+		Selector:          &tempopb.SubmitRedactionRequest_Query{Query: &tempopb.TraceQLSelector{Query: `{resource.namespace = "checkout"}`}},
+		Mode:              tempopb.RedactionMode_REDACTION_MODE_DRY_RUN,
+		StartTimeUnixNano: day(2).UnixNano(),
+		EndTimeUnixNano:   day(5).UnixNano(),
+	}
+
+	_, err = s.SubmitRedaction(user.InjectOrgID(ctx, tenant), req)
+	require.Error(t, err, "a dry-run that can never scan anything must be refused")
+	require.Equal(t, codes.NotFound, status.Code(err))
+	require.Nil(t, s.work.GetBatch(tenant), "no batch may be left behind to block resubmission")
+
+	// The same submission in apply mode IS accepted: its batch arms a rescan, so the deferred block
+	// is picked up once the compaction finishes. This is the distinction the guard has to preserve.
+	req.Mode = tempopb.RedactionMode_REDACTION_MODE_APPLY
+	_, err = s.SubmitRedaction(user.InjectOrgID(ctx, tenant), req)
+	require.NoError(t, err, "an apply-mode batch with deferred blocks must still be created")
+	batch := s.work.GetBatch(tenant)
+	require.NotNil(t, batch)
+	require.Equal(t, []string{compJob.ID}, batch.SkippedCompactionJobIds)
+	require.NotZero(t, batch.RescanAfterUnixNano, "the apply batch must arm a rescan")
+}
+
+// TestRescanFallsBackWhenPersistedWindowIsUnusable verifies an unusable window on a persisted batch makes
+// the rescan over-include rather than exclude everything.
+//
+// The rescan reads its window off the batch manifest, not off a request that SubmitRedaction just
+// validated. For a negative bound, blockOverlapsWindow compares against a pre-1970 instant and reports no
+// overlap for every real block — so without a guard every output block is dropped with nothing but a debug
+// log. That is silent under-deletion: the operator is told the redaction completed. Falling back to
+// unwindowed over-includes instead, and for a query redaction the per-block scan bound still decides what
+// is actually deleted.
+func TestRescanFallsBackWhenPersistedWindowIsUnusable(t *testing.T) {
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	cfg.ProviderConfig.Redaction.RescanDelay = 0
+	tmpDir := t.TempDir()
+	cfg.LocalWorkPath = tmpDir
+
+	ctx, cancel := context.WithCancel(context.Background())
+	store, rr, ww := newStore(ctx, t, tmpDir)
+	defer func() {
+		cancel()
+		store.Shutdown()
+	}()
+
+	tenant := "t-rescan-badwindow"
+	base := time.Now().Add(-20 * 24 * time.Hour)
+	day := func(n int) time.Time { return base.Add(time.Duration(n) * 24 * time.Hour) }
+
+	// The output block sits OUTSIDE the submitted window, so the submission itself cannot enqueue it.
+	// Only the rescan can, which is what makes the assertion below about rescan behaviour rather than
+	// about what SubmitRedaction already did.
+	ids := writeTenantBlocksWithRanges(ctx, t, backend.NewWriter(ww), tenant, [][2]time.Time{
+		{day(3), day(4)},   // in window, busy
+		{day(12), day(13)}, // the compaction output: outside the submitted window
+	})
+	inWindow, outputBlock := ids[0].String(), ids[1].String()
+
+	// The output block must be in the blocklist, or the rescan treats it as unknown and enqueues it
+	// regardless -- which would make this test pass without ever reaching the window filter.
+	require.Eventually(t, func() bool { return len(store.BlockMetas(tenant)) == 2 },
+		5*time.Second, 50*time.Millisecond, "both blocks must be polled before submitting")
+
+	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.NewRegistry())
+	require.NoError(t, err)
+	s, err := New(cfg, store, limits, rr, ww)
+	require.NoError(t, err)
+
+	compJob := &work.Job{
+		ID:   uuid.New().String(),
+		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
+		JobDetail: tempopb.JobDetail{
+			Tenant:     tenant,
+			Compaction: &tempopb.CompactionDetail{Input: []string{inWindow}},
+		},
+	}
+	s.work.RegisterJob(compJob)
+	require.NoError(t, s.work.AddJob(compJob))
+	s.work.StartJob(compJob.ID)
+
+	_, err = s.SubmitRedaction(user.InjectOrgID(ctx, tenant), &tempopb.SubmitRedactionRequest{
+		Selector:          &tempopb.SubmitRedactionRequest_Query{Query: &tempopb.TraceQLSelector{Query: `{resource.namespace = "checkout"}`}},
+		StartTimeUnixNano: day(2).UnixNano(),
+		EndTimeUnixNano:   day(5).UnixNano(),
+	})
+	require.NoError(t, err)
+
+	batch := s.work.GetBatch(tenant)
+	require.NotNil(t, batch)
+	require.Equal(t, []string{compJob.ID}, batch.SkippedCompactionJobIds)
+
+	// Confirm the premise: the out-of-window output block is not enqueued yet.
+	require.NotContains(t, enqueuedRedactionBlocks(s), outputBlock,
+		"the submission must not have enqueued the out-of-window block, or this test proves nothing")
+
+	// Stand in for a manifest written by something other than this scheduler: SubmitRedaction refuses a
+	// negative bound, so this state can only arrive already persisted.
+	batch.StartTimeUnixNano = -1
+	batch.EndTimeUnixNano = -1
+
+	s.work.SetJobCompactionOutput(compJob.ID, []string{outputBlock})
+	s.work.CompleteJob(compJob.ID)
+
+	s.performRescan(ctx, batch)
+
+	require.Contains(t, enqueuedRedactionBlocks(s), outputBlock,
+		"an unusable persisted window must fall back to unwindowed, not silently drop every output block")
+}
+
+// enqueuedRedactionBlocks lists the block IDs of pending redaction jobs.
+func enqueuedRedactionBlocks(s *BackendScheduler) []string {
+	var ids []string
+	for _, j := range s.work.ListAllPendingJobs() {
+		if j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION && j.JobDetail.Redaction != nil {
+			ids = append(ids, j.JobDetail.Redaction.BlockId)
+		}
+	}
+	return ids
+}

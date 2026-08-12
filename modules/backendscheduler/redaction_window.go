@@ -53,3 +53,44 @@ func blockOverlapsWindow(meta *backend.BlockMeta, startNano, endNano int64) (ove
 	}
 	return true, false
 }
+
+// coveredRange reports the span of data the selected blocks actually hold, and whether any block
+// contributed a usable range.
+//
+// Blocks whose recorded range is unusable contribute nothing. Selection deliberately includes those
+// (see blockOverlapsWindow), so they reach here by construction — and time.Time{} both precedes every
+// real timestamp and is indistinguishable from an unseeded accumulator, so admitting one would drag the
+// reported start back to year 1. That understates the blast radius on exactly the blocks selection was
+// least confident about, in the one record an operator has for an operation with no undo.
+//
+// ok is false when no block had a usable range; callers report that as unknown rather than as year 1.
+func coveredRange(metas []*backend.BlockMeta) (start, end time.Time, ok bool) {
+	for _, meta := range metas {
+		if meta.StartTime.IsZero() || meta.EndTime.IsZero() {
+			continue
+		}
+
+		if !ok {
+			start, end, ok = meta.StartTime, meta.EndTime, true
+			continue
+		}
+
+		if meta.StartTime.Before(start) {
+			start = meta.StartTime
+		}
+		if meta.EndTime.After(end) {
+			end = meta.EndTime
+		}
+	}
+
+	return start, end, ok
+}
+
+// coveredRangeLabel renders a covered bound for an audit record, so "no block reported a usable range"
+// is distinguishable from a real timestamp instead of both printing as year 1.
+func coveredRangeLabel(t time.Time, ok bool) string {
+	if !ok {
+		return "unknown"
+	}
+	return t.UTC().Format(time.RFC3339)
+}

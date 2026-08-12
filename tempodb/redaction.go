@@ -19,6 +19,12 @@ type RedactionWindow struct {
 	EndNano   int64
 }
 
+// IsZero reports whether the window is unbounded, so a caller can skip work that only a bounded
+// window needs.
+func (w RedactionWindow) IsZero() bool {
+	return w.StartNano == 0 && w.EndNano == 0
+}
+
 // Validate reports whether the window can be honoured, so a caller refuses it instead of
 // scanning with it and reporting the empty result as a completed redaction.
 //
