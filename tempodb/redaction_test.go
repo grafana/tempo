@@ -2,6 +2,7 @@ package tempodb
 
 import (
 	"context"
+	"sort"
 	"testing"
 	"time"
 
@@ -9,7 +10,11 @@ import (
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,6 +52,50 @@ func traceAtTime(id []byte, startNano, endNano uint64) *tempopb.Trace {
 			Spans: []*v1_trace.Span{test.MakeSpanWithTimeWindow(id, startNano, endNano)},
 		}},
 	}}}
+}
+
+// survivingTraceIDs returns the hex IDs of traces still present in a block and matching a query,
+// scanned with no time bound.
+//
+// Window tests must assert WHICH trace survived, not how many. With two candidate traces that both
+// satisfy the query and differ only in time, "one was deleted" is equally true of the intended
+// victim and the intended survivor — so a count-only assertion passes even when the window is applied
+// backwards. Transposing the two bounds inside fetchBounds is a real, one-character mistake, and on a
+// redaction the difference between those two outcomes cannot be undone.
+func survivingTraceIDs(t *testing.T, r Reader, meta *backend.BlockMeta, query string) []string {
+	t.Helper()
+
+	_, _, filter, req, err := traceql.Compile(query)
+	require.NoError(t, err)
+
+	req.SecondPassConditions = traceql.SearchMetaConditionsWithout(req.Conditions, req.AllConditions)
+	req.SecondPass = func(inSS *traceql.Spanset) ([]*traceql.Spanset, error) {
+		if inSS == nil || len(inSS.Spans) == 0 {
+			return nil, nil
+		}
+		return filter([]*traceql.Spanset{inSS})
+	}
+
+	ctx := context.Background()
+	resp, err := r.Fetch(ctx, meta, *req, common.DefaultSearchOptions())
+	require.NoError(t, err)
+	defer resp.Results.Close()
+
+	var ids []string
+	for {
+		ss, err := resp.Results.Next(ctx)
+		require.NoError(t, err)
+		if ss == nil {
+			break
+		}
+		ids = append(ids, util.TraceIDToHexString(ss.TraceID))
+		if ss.ReleaseFn != nil {
+			ss.ReleaseFn(ss)
+		}
+	}
+
+	sort.Strings(ids)
+	return ids
 }
 
 // TestRedactBlockQuerySelector verifies the TraceQL query path of RedactBlock: exactly the
@@ -99,7 +148,7 @@ func TestRedactBlockQuerySelector(t *testing.T) {
 // the fetch, the out-of-window trace is matched and dropped too — over-deletion of data the operator did
 // not ask to remove, on a path with no recovery.
 func TestRedactBlockTwoSidedWindowBoundsTheScan(t *testing.T) {
-	_, w, c, _ := testConfig(t, 0)
+	r, w, c, _ := testConfig(t, 0)
 	ctx := context.Background()
 
 	idOld := test.ValidTraceID(nil)
@@ -128,6 +177,8 @@ func TestRedactBlockTwoSidedWindowBoundsTheScan(t *testing.T) {
 	require.Equal(t, 1, found, "only the in-window trace is matched, even though both satisfy the query")
 	require.NotNil(t, newMeta)
 	require.Equal(t, int64(1), newMeta.TotalObjects, "the out-of-window trace must survive")
+	require.Equal(t, []string{util.TraceIDToHexString(idOld)}, survivingTraceIDs(t, r, newMeta, query),
+		"the OLD trace must be the one left behind; a count alone cannot tell the window from its inverse")
 }
 
 // TestRedactBlockQueryDisjunction checks that a query joining conditions with || matches traces
@@ -217,7 +268,7 @@ func TestRedactBlockQueryDisjunctionAcrossScopes(t *testing.T) {
 // runs at submit: a batch persisted by an older scheduler, or any future caller, can still deliver one
 // here. Normalising the open side at the point of use keeps the scan bounded whatever the source.
 func TestRedactBlockOneSidedWindowStillBounds(t *testing.T) {
-	_, w, c, _ := testConfig(t, 0)
+	r, w, c, _ := testConfig(t, 0)
 	ctx := context.Background()
 
 	idOld := test.ValidTraceID(nil)
@@ -238,6 +289,8 @@ func TestRedactBlockOneSidedWindowStillBounds(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 1, found, "a start-only window must still exclude the out-of-window trace")
 		require.Equal(t, int64(1), newMeta.TotalObjects)
+		require.Equal(t, []string{util.TraceIDToHexString(idOld)}, survivingTraceIDs(t, r, newMeta, query),
+			"a start-only window must delete the RECENT trace and spare the older one")
 	})
 
 	t.Run("end only excludes newer traces", func(t *testing.T) {
@@ -247,6 +300,8 @@ func TestRedactBlockOneSidedWindowStillBounds(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 1, found, "an end-only window must still exclude the out-of-window trace")
 		require.Equal(t, int64(1), newMeta.TotalObjects)
+		require.Equal(t, []string{util.TraceIDToHexString(idRecent)}, survivingTraceIDs(t, r, newMeta, query),
+			"an end-only window must delete the OLD trace and spare the recent one")
 	})
 }
 
