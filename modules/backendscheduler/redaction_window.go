@@ -4,38 +4,28 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
+	"github.com/gogo/status"
+	"google.golang.org/grpc/codes"
 
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
-// blockTimeGranularity is the resolution of BlockMeta.StartTime/EndTime. ObjectAdded builds them from
-// uint32 epoch SECONDS, so the recorded range is truncated and a block's real data can extend up to one
-// second past EndTime. The overlap test pads by this much so a window opening inside that final second
-// still selects the block. The same reasoning is recorded in traceql.TrimToBlockOverlap.
+// blockTimeGranularity is the resolution of BlockMeta.StartTime/EndTime: ObjectAdded builds them from
+// uint32 epoch SECONDS, so real data can extend up to a second past the recorded EndTime. Selection pads
+// by this much so a window opening inside that final second still picks the block up, matching
+// traceql.TrimToBlockOverlap.
 const blockTimeGranularity = time.Second
 
-// blockOverlapsWindow reports whether a block's data range overlaps the redaction window
-// [startNano, endNano], and whether that answer had to be assumed because the block's recorded range is
-// unusable. A zero bound is unbounded on that side, so 0/0 (the default) matches every block — the whole
-// tenant, i.e. prior behaviour.
+// blockOverlapsWindow reports whether a block's data range overlaps [startNano, endNano], and whether
+// that answer had to be assumed. A zero bound is unbounded on that side, so 0/0 matches every block.
 //
-// Selection keys strictly on the block's data range (StartTime/EndTime), never CompactedTime. The poller
-// fudges CompactedTime to "now" at compaction discovery to avoid a per-block backend read, so keying on
-// it would misjudge the block's real content window. (CompactedTime also lives on CompactedBlockMeta,
-// not BlockMeta, and the metas reaching here come from the live blocklist — so this is a note about why
-// the compacted metas are not consulted, not a field choice available at this call site.)
-//
-// Doubt resolves toward inclusion. The per-block scan bound decides which traces are actually deleted, so
-// selecting an extra block costs I/O; excluding one silently leaves data the operator asked to delete,
-// which they cannot detect. Two cases need it:
-//
-//   - An unusable recorded range. ObjectAdded skips zero timestamps, so a block completed from a
-//     replayed WAL reaches the backend with no times at all, and time.Time{}.UnixNano() is a large
-//     negative number rather than zero — comparing it directly excludes the block from every window with
-//     a lower bound. Such blocks are reported as indeterminate so the caller can count them.
-//   - Second-granularity truncation, handled by the padding above.
+// Doubt resolves toward inclusion: for a query redaction the per-block scan bound decides what is
+// actually deleted, so an extra block costs I/O while a missing one silently leaves data the operator
+// asked to delete. A block with no recorded times — which is what a replayed WAL produces — is therefore
+// included and reported as indeterminate so the caller can count it.
 func blockOverlapsWindow(meta *backend.BlockMeta, startNano, endNano int64) (overlaps, indeterminate bool) {
 	if startNano == 0 && endNano == 0 {
 		return true, false // no window: every block is in scope, and the range is never consulted
@@ -45,7 +35,7 @@ func blockOverlapsWindow(meta *backend.BlockMeta, startNano, endNano int64) (ove
 		return true, true
 	}
 
-	// Pad outward: the recorded range is a truncated, therefore understated, view of the real data.
+	// Pad outward: the recorded range is truncated to whole seconds, so it understates the real end.
 	blockStart := meta.StartTime.Add(-blockTimeGranularity)
 	blockEnd := meta.EndTime.Add(blockTimeGranularity)
 
@@ -58,17 +48,13 @@ func blockOverlapsWindow(meta *backend.BlockMeta, startNano, endNano int64) (ove
 	return true, false
 }
 
-// coveredRange reports the span of data the selected blocks actually hold, with a flag per bound saying
-// whether any block supplied it.
+// coveredRange reports the span of data the selected blocks actually hold — the honest blast radius for
+// an operation with no undo — with a flag per bound saying whether any block supplied it.
 //
-// Unusable timestamps contribute nothing. Selection deliberately includes blocks whose recorded range is
-// unusable (see blockOverlapsWindow), so they reach here by construction — and time.Time{} both precedes
-// every real timestamp and is indistinguishable from an unseeded accumulator, so admitting one would drag
-// the reported start back to year 1. That understates the blast radius on exactly the blocks selection was
-// least confident about, in the one record an operator has for an operation with no undo.
-//
-// The bounds are tracked separately so a half-usable meta still contributes the half that is good.
-// Callers render a bound with no contributor as unknown rather than as year 1.
+// Unusable timestamps contribute nothing. Selection deliberately includes blocks with no recorded range,
+// and time.Time{} both precedes every real timestamp and looks exactly like an unseeded accumulator, so
+// admitting one would drag the reported start back to year 1. The two bounds are tracked separately so a
+// half-usable meta still contributes its good half; a bound with no contributor renders as unknown.
 func coveredRange(metas []*backend.BlockMeta) (start, end time.Time, startOK, endOK bool) {
 	for _, meta := range metas {
 		// A meta whose recorded range is inverted describes no interval; neither bound is trustworthy.
@@ -90,18 +76,13 @@ func coveredRange(metas []*backend.BlockMeta) (start, end time.Time, startOK, en
 	return start, end, startOK, endOK
 }
 
-// dropBatchesWithUnusableWindows removes any loaded batch whose persisted window cannot be honoured.
+// dropBatchesWithUnusableWindows removes any loaded batch whose persisted window cannot be honoured. This
+// is the trust boundary for windows arriving off disk, so Next() and performRescan can both assume a
+// usable window.
 //
-// This is the trust boundary for windows arriving off disk. SubmitRedaction validates on the way in, so
-// no window this scheduler wrote can be unusable; one that is came from a corrupted manifest or another
-// writer. Both downstream consumers — Next(), which stamps the window onto every dispatched job, and
-// performRescan, which filters output blocks with it — would otherwise each have to cope, and neither
-// can do so safely: dropping the batch's blocks silently under-deletes, while treating the window as
-// unbounded would delete every query match in those blocks regardless of time, which is unrecoverable
-// over-deletion of data the operator never asked about.
-//
-// Refusing the batch is the only option that destroys nothing. The tenant's compaction gate is released
-// and the operator must resubmit, which the error log says explicitly.
+// Refusing is the only safe option: skipping the batch's blocks under-deletes silently, and treating the
+// window as unbounded would delete every query match in them regardless of time. The operator must
+// resubmit, which the error log says.
 func (s *BackendScheduler) dropBatchesWithUnusableWindows() {
 	for _, batch := range s.work.ListBatches() {
 		w := tempodb.RedactionWindow{StartNano: batch.StartTimeUnixNano, EndNano: batch.EndTimeUnixNano}
@@ -127,4 +108,59 @@ func coveredRangeLabel(t time.Time, ok bool) string {
 		return "unknown"
 	}
 	return t.UTC().Format(time.RFC3339)
+}
+
+// validateRedactionRequest rejects a submission the scheduler cannot honour, returning a gRPC status
+// error. Every check fails closed: on a redaction, a refused request destroys nothing while a
+// misinterpreted one cannot be undone.
+func validateRedactionRequest(req *tempopb.SubmitRedactionRequest, querySel *tempopb.TraceQLSelector) error {
+	// Exactly one selector. The proto reserves a single-member oneof for query; the XOR is enforced
+	// here until trace_ids migrates into it.
+	hasIDs := len(req.TraceIds) > 0
+	hasQuery := querySel.GetQuery() != "" // nil-safe
+	switch {
+	case hasIDs && hasQuery:
+		return status.Error(codes.InvalidArgument, "trace_ids and query are mutually exclusive")
+	case !hasIDs && !hasQuery:
+		return status.Error(codes.InvalidArgument, "one of trace_ids or query must be set")
+	case hasQuery:
+		if err := validateRedactionQuery(querySel.Query); err != nil {
+			return status.Error(codes.InvalidArgument, err.Error())
+		}
+	}
+
+	// Only DRY_RUN is checked downstream, so an unrecognised mode would fall through to a destructive
+	// rewrite. Reject it rather than defaulting.
+	switch req.Mode {
+	case tempopb.RedactionMode_REDACTION_MODE_APPLY, tempopb.RedactionMode_REDACTION_MODE_DRY_RUN:
+	default:
+		return status.Errorf(codes.InvalidArgument, "unknown redaction mode %d", int32(req.Mode))
+	}
+
+	// The optional [start, end] window, already resolved to absolute nanos by the client.
+	//
+	// Both bounds are required by policy, not by a storage limit: fetchBounds does materialise a
+	// one-sided window, but a half-specified window is almost always a typo and guessing has no undo.
+	if (req.StartTimeUnixNano == 0) != (req.EndTimeUnixNano == 0) {
+		return status.Error(codes.InvalidArgument, "start_time_unix_nano and end_time_unix_nano must both be set or both be omitted")
+	}
+	// A negative bound cannot describe real data (block times are post-epoch) and reads differently at
+	// different layers, so it either widens or empties the selection.
+	if req.StartTimeUnixNano < 0 || req.EndTimeUnixNano < 0 {
+		return status.Errorf(codes.InvalidArgument, "window bounds must be non-negative unix nanoseconds, got start=%d end=%d", req.StartTimeUnixNano, req.EndTimeUnixNano)
+	}
+	// start == end matches only traces spanning that exact instant, i.e. nothing, while reporting success.
+	if req.StartTimeUnixNano != 0 && req.StartTimeUnixNano >= req.EndTimeUnixNano {
+		return status.Errorf(codes.InvalidArgument, "start_time_unix_nano must be before end_time_unix_nano, got start=%d end=%d", req.StartTimeUnixNano, req.EndTimeUnixNano)
+	}
+
+	// A window scopes which blocks are read, and the trace-ID path applies no time bound at all, so the
+	// pair would delete each listed trace from the overlapping blocks and leave the rest of it behind
+	// while reporting success. See tempodb.RedactionWindow.
+	if hasIDs && req.StartTimeUnixNano != 0 {
+		return status.Error(codes.InvalidArgument,
+			"a time window cannot be combined with trace_ids: the window is not applied per trace, so only the parts of each trace held by in-window blocks would be removed")
+	}
+
+	return nil
 }

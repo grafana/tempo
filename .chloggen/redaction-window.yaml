@@ -1,9 +1,11 @@
 change_type: enhancement
 component: backend-scheduler
-note: redaction accepts an optional `[start, end]` time window (`tempo-cli redact --start/--end`), so a large tenant can be redacted in time slices instead of one all-blocks pass.
+note: add an optional `[start, end]` time window to redaction (`tempo-cli redact --start/--end`), scoping it to overlapping blocks and bounding the per-block scan.
 issues: []
 subtext: |
-  A redaction holds the tenant's compaction off for its whole run, so a single pass over every block keeps compaction paused long enough for the block list to grow. Slicing lets compaction recover in between.
+  A windowed redaction lets a large tenant be redacted in slices instead of one pass over every block, so compaction is not held off for the whole run. Both bounds are required and must be ordered; omitting them redacts the whole tenant, as before. Bounds are resolved to absolute timestamps by the client, so a long redaction does not drift forward into newly ingested data.
 
-  Only blocks overlapping the window are read. With `--query` the window also bounds the scan inside each block; with `--trace-id` the listed traces are removed from every selected block regardless of their own timestamps. Both bounds are required together — a one-sided window is rejected, because the storage layer applies its per-trace filter only when both are set. The CLI accepts `now`, `now-7d` or RFC3339 and resolves to absolute time at submission, so a long run never drifts into newer data.
+  The window bounds the scan for the `--query` selector. It cannot be combined with `--trace-id`, which resolves traces with no time bound: the pair would remove each listed trace only from the blocks that overlap the window and leave the rest in place while reporting success.
+
+  Do not submit a windowed redaction while schedulers and workers run different versions. A worker predating this change ignores the window fields and removes every query match in each block it is given, regardless of timestamp, with no error and no way to recover the data.
 user: zalegrala

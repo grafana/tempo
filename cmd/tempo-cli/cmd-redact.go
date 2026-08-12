@@ -81,11 +81,9 @@ func (cmd *redactCmd) Run(_ *globalOptions) error {
 //
 // Resolving the window is a side effect: it populates cmd.startNano/endNano for submit().
 func (cmd *redactCmd) validate() error {
-	// Resolve the window here, not in submit(): validate() runs before the scheduler is dialed, so a
-	// mistyped bound fails immediately rather than after a TLS handshake.
-	//
-	// Both bounds resolve against this one instant, so identical relative specs produce identical
-	// bounds and are caught by the ordering check below rather than becoming a nanoseconds-wide window.
+	// Resolved here, not in submit(): validate() runs before the dial, so a mistyped bound fails without
+	// a TLS handshake. One instant for both bounds, so identical relative specs collapse to a zero-width
+	// window that the ordering check below rejects.
 	now := time.Now()
 
 	startSet, endSet, err := cmd.resolveWindow(now)
@@ -93,9 +91,8 @@ func (cmd *redactCmd) validate() error {
 		return err
 	}
 
-	// The server enforces both of these; checking here saves a round trip. Requiring both bounds is a
-	// deliberate policy choice rather than a storage constraint: a one-sided window is almost always a
-	// typo, and on a destructive command the cost of guessing wrong has no undo.
+	// The server enforces these too; checking here saves a round trip. Requiring both bounds is policy,
+	// not a storage limit: a one-sided window is almost always a typo and guessing has no undo.
 	if startSet != endSet {
 		return errors.New("--start and --end must both be set or both be omitted")
 	}
@@ -115,10 +112,8 @@ func (cmd *redactCmd) validate() error {
 		return errors.New("one of --trace-id or --query must be provided")
 	}
 
-	// The window scopes which blocks are read, not which spans of a trace are removed, and the
-	// trace-ID path applies no time bound at all. Combining them would delete each listed trace only
-	// from the blocks overlapping the window and leave the rest behind, reported as a completed
-	// redaction. The server refuses this too; failing here saves the round trip.
+	// The trace-ID path applies no time bound, so a window would delete each listed trace only from the
+	// overlapping blocks and leave the rest behind, reported as complete. The server refuses this too.
 	if startSet && hasIDs {
 		return errors.New("--start/--end cannot be combined with --trace-id: the window is not applied per trace, " +
 			"so only the parts of each trace held by in-window blocks would be removed")
@@ -189,9 +184,8 @@ func (cmd *redactCmd) buildTransportCredentials() (credentials.TransportCredenti
 	}), nil
 }
 
-// unixNanoMin/unixNanoMax are the instants time.Time.UnixNano() is defined between. unixNanoMin is the
-// epoch rather than the true int64 floor (1677-09-21) because every layer rejects a negative bound, so
-// a pre-epoch bound cannot be submitted regardless.
+// unixNanoMin/unixNanoMax bound what time.Time.UnixNano() can express. The floor is the epoch rather
+// than the true int64 minimum (1677-09-21) because every layer rejects a negative bound anyway.
 var (
 	unixNanoMin = time.Unix(0, 0)
 	unixNanoMax = time.Unix(0, math.MaxInt64)
@@ -215,15 +209,11 @@ func (cmd *redactCmd) resolveWindow(now time.Time) (startSet, endSet bool, err e
 }
 
 // windowBoundNano resolves a --start/--end value to absolute unix nanoseconds, reporting ok=false when
-// the flag was not supplied.
+// the flag was not supplied. Resolving client-side freezes the window at submission so a long redaction
+// never chases live ingest, and reuses the parseTime family the query commands already use.
 //
-// Resolution reuses the parseTime family, the helpers the query commands already use, so the accepted
-// forms (now, now-<dur> with Prometheus units, RFC3339) stay consistent across the CLI. Resolving
-// client-side means the window is frozen at submission and a long redaction never chases live ingest.
-//
-// now is supplied by the caller so both bounds of one window resolve against a single instant. Letting
-// each bound take its own time.Now() puts "--start now-7d --end now-7d" a few nanoseconds apart, which
-// passes every ordering check and submits a window nothing can match.
+// now comes from the caller so both bounds resolve against one instant: per-bound time.Now() puts
+// "--start now-7d --end now-7d" a few nanoseconds apart, which passes every ordering check.
 func windowBoundNano(spec string, now time.Time) (nano int64, ok bool, err error) {
 	if strings.TrimSpace(spec) == "" {
 		return 0, false, nil
@@ -234,19 +224,16 @@ func windowBoundNano(spec string, now time.Time) (nano int64, ok bool, err error
 		return 0, false, err
 	}
 
-	// Bound the resolved instant, not its year. time.Time.UnixNano() is only defined between
-	// unixNanoMin and unixNanoMax and wraps silently outside them, and a year-granular check leaks
-	// the ~8 months of 2262 past the limit as well as everything before 1970 — all of which resolve
-	// negative. The scheduler rejects a negative bound, but only after a dial and TLS handshake,
-	// which defeats the point of checking here.
+	// Bound the resolved instant, not its year: UnixNano() wraps silently outside [unixNanoMin,
+	// unixNanoMax], and a year-granular check leaks the last ~8 months of 2262 and everything before
+	// 1970, all of which resolve negative and are only caught server-side after a TLS handshake.
 	if t.Before(unixNanoMin) || t.After(unixNanoMax) {
 		return 0, false, fmt.Errorf("time %q resolves to %s, outside the range this command can express (%s .. %s)",
 			spec, t.UTC().Format(time.RFC3339Nano),
 			unixNanoMin.UTC().Format(time.RFC3339Nano), unixNanoMax.UTC().Format(time.RFC3339Nano))
 	}
 
-	// Exactly the epoch collides with the sentinel that every layer reads as "unbounded", so a
-	// window asking for a single instant at the epoch would widen to the whole tenant.
+	// Exactly the epoch collides with the "unbounded" sentinel, widening the window to the whole tenant.
 	if nano = t.UnixNano(); nano == 0 {
 		return 0, false, fmt.Errorf("time %q resolves to the unix epoch, which this command reserves to mean "+
 			"'no bound'; use 1970-01-01T00:00:00.000000001Z instead", spec)
