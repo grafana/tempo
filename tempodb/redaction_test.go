@@ -91,13 +91,13 @@ func TestRedactBlockQuerySelector(t *testing.T) {
 	})
 }
 
-// TestRedactBlockWindowBoundsTheScan verifies the [start, end] window bounds which traces inside a
+// TestRedactBlockTwoSidedWindowBoundsTheScan verifies a fully-specified window bounds which traces inside a
 // block are matched, not only which blocks are selected.
 //
 // Both traces satisfy the query and differ only in their span timestamps. Without the window applied to
 // the fetch, the out-of-window trace is matched and dropped too — over-deletion of data the operator did
 // not ask to remove, on a path with no recovery.
-func TestRedactBlockWindowBoundsTheScan(t *testing.T) {
+func TestRedactBlockTwoSidedWindowBoundsTheScan(t *testing.T) {
 	_, w, c, _ := testConfig(t, 0)
 	ctx := context.Background()
 

@@ -171,12 +171,15 @@ func TestSubmitRedactionOnlySelectsBlocksInWindow(t *testing.T) {
 	day := func(n int) time.Time { return base.Add(time.Duration(n) * 24 * time.Hour) }
 
 	// Three blocks: one entirely before the window, one inside it, one entirely after.
-	writeTenantBlocksWithRanges(ctx, t, backend.NewWriter(ww), tenant, [][2]time.Time{
-		{day(0), day(1)},
-		{day(4), day(5)},
-		{day(8), day(9)},
+	ids := writeTenantBlocksWithRanges(ctx, t, backend.NewWriter(ww), tenant, [][2]time.Time{
+		{day(0), day(1)}, // before the window
+		{day(4), day(5)}, // inside the window
+		{day(8), day(9)}, // after the window
 	})
-	time.Sleep(150 * time.Millisecond) // let the blocklist poll pick them up
+	// All three blocks must be visible before submitting. A bare sleep can leave only the in-window
+	// block polled, in which case a count-of-one assertion passes without the filter ever running.
+	require.Eventually(t, func() bool { return len(store.BlockMetas(tenant)) == 3 },
+		5*time.Second, 50*time.Millisecond, "all three blocks must be polled, or the filter is not exercised")
 
 	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
@@ -191,6 +194,16 @@ func TestSubmitRedactionOnlySelectsBlocksInWindow(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int32(1), resp.JobsCreated,
 		"only the block overlapping the window gets a job; a window must never widen to the whole tenant")
+
+	// Assert which block, not just how many: a filter selecting the wrong single block would also
+	// produce a count of one.
+	var selected []string
+	for _, j := range s.work.ListAllPendingJobs() {
+		if j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION && j.JobDetail.Redaction != nil {
+			selected = append(selected, j.JobDetail.Redaction.BlockId)
+		}
+	}
+	require.Equal(t, []string{ids[1].String()}, selected, "the selected block is the one inside the window")
 }
 
 // TestNextPropagatesWindowToJob verifies the batch's window reaches the per-block job, so the worker
@@ -198,7 +211,6 @@ func TestSubmitRedactionOnlySelectsBlocksInWindow(t *testing.T) {
 // full — the window would narrow block selection but not the work done inside each block.
 func TestNextPropagatesWindowToJob(t *testing.T) {
 	ctx, s := newQuiescenceScheduler(t)
-	s.cfg.JobTimeout = 200 * time.Millisecond
 
 	tenant := "t-window-propagate"
 	startNano := time.Now().Add(-48 * time.Hour).UnixNano()
