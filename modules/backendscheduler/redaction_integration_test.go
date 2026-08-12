@@ -17,6 +17,7 @@ import (
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -123,7 +124,7 @@ func TestSubmitRedactionQueryEndToEnd(t *testing.T) {
 		meta := metaByID[rd.BlockId]
 		require.NotNil(t, meta, "job references a discovered block")
 
-		rewrote, found, _, err := store.RedactBlock(ctx, meta, tenant, nil, rd.Query.GetQuery(), rd.Mode, rd.StartTimeUnixNano, rd.EndTimeUnixNano)
+		rewrote, found, _, err := store.RedactBlock(ctx, meta, tenant, nil, rd.Query.GetQuery(), rd.Mode, tempodb.RedactionWindow{StartNano: rd.StartTimeUnixNano, EndNano: rd.EndTimeUnixNano})
 		require.NoError(t, err)
 		totalFound += found
 		if rewrote {

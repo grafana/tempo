@@ -71,7 +71,7 @@ func TestRedactBlockQuerySelector(t *testing.T) {
 		meta := blk.BlockMeta()
 		require.Equal(t, int64(2), meta.TotalObjects)
 
-		rewrote, found, newMeta, err := c.RedactBlock(ctx, meta, testTenantID, nil, query, tempopb.RedactionMode_REDACTION_MODE_APPLY, 0, 0)
+		rewrote, found, newMeta, err := c.RedactBlock(ctx, meta, testTenantID, nil, query, tempopb.RedactionMode_REDACTION_MODE_APPLY, RedactionWindow{})
 		require.NoError(t, err)
 		require.True(t, rewrote)
 		require.Equal(t, 1, found, "exactly one trace matches the query")
@@ -83,7 +83,7 @@ func TestRedactBlockQuerySelector(t *testing.T) {
 		blk := cutTestBlockWithTraces(t, w, data)
 		meta := blk.BlockMeta()
 
-		rewrote, found, newMeta, err := c.RedactBlock(ctx, meta, testTenantID, nil, query, tempopb.RedactionMode_REDACTION_MODE_DRY_RUN, 0, 0)
+		rewrote, found, newMeta, err := c.RedactBlock(ctx, meta, testTenantID, nil, query, tempopb.RedactionMode_REDACTION_MODE_DRY_RUN, RedactionWindow{})
 		require.NoError(t, err)
 		require.False(t, rewrote, "dry-run must not rewrite")
 		require.Equal(t, 1, found, "dry-run still reports the match count")
@@ -121,7 +121,7 @@ func TestRedactBlockTwoSidedWindowBoundsTheScan(t *testing.T) {
 	meta := blk.BlockMeta()
 	require.Equal(t, int64(2), meta.TotalObjects)
 
-	rewrote, found, newMeta, err := c.RedactBlock(ctx, meta, testTenantID, nil, query, tempopb.RedactionMode_REDACTION_MODE_APPLY, startNano, endNano)
+	rewrote, found, newMeta, err := c.RedactBlock(ctx, meta, testTenantID, nil, query, tempopb.RedactionMode_REDACTION_MODE_APPLY, RedactionWindow{StartNano: startNano, EndNano: endNano})
 	require.NoError(t, err)
 	require.True(t, rewrote)
 	require.Equal(t, 1, found, "only the in-window trace is matched, even though both satisfy the query")
@@ -153,7 +153,7 @@ func TestRedactBlockQueryDisjunction(t *testing.T) {
 	meta := blk.BlockMeta()
 	require.Equal(t, int64(3), meta.TotalObjects)
 
-	rewrote, found, newMeta, err := c.RedactBlock(ctx, meta, testTenantID, nil, query, tempopb.RedactionMode_REDACTION_MODE_APPLY, 0, 0)
+	rewrote, found, newMeta, err := c.RedactBlock(ctx, meta, testTenantID, nil, query, tempopb.RedactionMode_REDACTION_MODE_APPLY, RedactionWindow{})
 	require.NoError(t, err)
 	require.True(t, rewrote)
 	require.Equal(t, 2, found, "both sides of the || must match")
@@ -200,7 +200,7 @@ func TestRedactBlockQueryDisjunctionAcrossScopes(t *testing.T) {
 	meta := blk.BlockMeta()
 	require.Equal(t, int64(3), meta.TotalObjects)
 
-	_, found, newMeta, err := c.RedactBlock(ctx, meta, testTenantID, nil, query, tempopb.RedactionMode_REDACTION_MODE_APPLY, 0, 0)
+	_, found, newMeta, err := c.RedactBlock(ctx, meta, testTenantID, nil, query, tempopb.RedactionMode_REDACTION_MODE_APPLY, RedactionWindow{})
 	require.NoError(t, err)
 	require.Equal(t, 2, found, "a || across resource and span scopes must match both sides")
 	require.NotNil(t, newMeta)
@@ -233,7 +233,7 @@ func TestRedactBlockOneSidedWindowStillBounds(t *testing.T) {
 	t.Run("start only excludes older traces", func(t *testing.T) {
 		blk := cutTestBlockWithTraces(t, w, data)
 		_, found, newMeta, err := c.RedactBlock(ctx, blk.BlockMeta(), testTenantID, nil, query,
-			tempopb.RedactionMode_REDACTION_MODE_APPLY, time.Now().Add(-2*time.Hour).UnixNano(), 0)
+			tempopb.RedactionMode_REDACTION_MODE_APPLY, RedactionWindow{StartNano: time.Now().Add(-2 * time.Hour).UnixNano()})
 		require.NoError(t, err)
 		require.Equal(t, 1, found, "a start-only window must still exclude the out-of-window trace")
 		require.Equal(t, int64(1), newMeta.TotalObjects)
@@ -242,7 +242,7 @@ func TestRedactBlockOneSidedWindowStillBounds(t *testing.T) {
 	t.Run("end only excludes newer traces", func(t *testing.T) {
 		blk := cutTestBlockWithTraces(t, w, data)
 		_, found, newMeta, err := c.RedactBlock(ctx, blk.BlockMeta(), testTenantID, nil, query,
-			tempopb.RedactionMode_REDACTION_MODE_APPLY, 0, time.Now().Add(-48*time.Hour).UnixNano())
+			tempopb.RedactionMode_REDACTION_MODE_APPLY, RedactionWindow{EndNano: time.Now().Add(-48 * time.Hour).UnixNano()})
 		require.NoError(t, err)
 		require.Equal(t, 1, found, "an end-only window must still exclude the out-of-window trace")
 		require.Equal(t, int64(1), newMeta.TotalObjects)

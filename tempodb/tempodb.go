@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"math"
 	"sync"
 	"time"
 
@@ -124,7 +123,7 @@ type Compactor interface {
 	RetainWithConfig(ctx context.Context, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides)
 	RetainTenantWithConfig(ctx context.Context, tenantID string, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides)
 
-	RedactBlock(ctx context.Context, meta *backend.BlockMeta, tenantID string, traceIDs []common.ID, query string, mode tempopb.RedactionMode, startNano, endNano int64) (rewrote bool, found int, newMeta *backend.BlockMeta, err error)
+	RedactBlock(ctx context.Context, meta *backend.BlockMeta, tenantID string, traceIDs []common.ID, query string, mode tempopb.RedactionMode, window RedactionWindow) (rewrote bool, found int, newMeta *backend.BlockMeta, err error)
 }
 
 type CompactorSharder interface {
@@ -627,7 +626,7 @@ func (rw *readerWriter) MarkBlockCompacted(tenantID string, blockID backend.UUID
 // the spanset stream directly avoids the search result-cap that ExecuteSearch imposes.
 //
 // The query must already be validated to the redaction subset (see validateRedactionQuery).
-func redactionIDsFromQuery(ctx context.Context, block common.BackendBlock, query string, startNano, endNano int64, opts common.SearchOptions) (map[string]struct{}, error) {
+func redactionIDsFromQuery(ctx context.Context, block common.BackendBlock, query string, window RedactionWindow, opts common.SearchOptions) (map[string]struct{}, error) {
 	// filter is the compiled TraceQL boolean expression (a SpansetFilterFunc), not a
 	// code-eval primitive; it decides whether a spanset satisfies the query.
 	_, _, filter, req, err := traceql.Compile(query)
@@ -635,26 +634,11 @@ func redactionIDsFromQuery(ctx context.Context, block common.BackendBlock, query
 		return nil, fmt.Errorf("compiling redaction query: %w", err)
 	}
 
-	// Bound the scan to the redaction window so each block is read only over the requested range.
-	//
-	// Both fields must be set together or the bound does not apply at all: vparquet{3,4,5} install the
-	// trace-time predicate only under `if start > 0 && end > 0`, so assigning one field and leaving the
-	// other at zero REMOVES the filter rather than narrowing it — the block is scanned in full and every
-	// query match is dropped regardless of its timestamp, which on this path cannot be undone.
-	//
-	// SubmitRedaction rejects one-sided windows, but that check runs at submission: a batch persisted by
-	// an older scheduler, or any future caller, can still deliver one here. Materialising the open side
-	// keeps the scan bounded whatever the source.
-	if startNano > 0 || endNano > 0 {
-		lo, hi := startNano, endNano
-		if lo <= 0 {
-			lo = 1 // 0 would disable the predicate; 1ns is the earliest bound that keeps it installed
-		}
-		if hi <= 0 {
-			hi = math.MaxInt64
-		}
-		req.StartTimeUnixNanos = uint64(lo)
-		req.EndTimeUnixNanos = uint64(hi)
+	// Bound the scan to the redaction window so each block is read only over the requested
+	// range. See RedactionWindow.fetchBounds for why both fetch fields move together.
+	if start, end, ok := window.fetchBounds(); ok {
+		req.StartTimeUnixNanos = start
+		req.EndTimeUnixNanos = end
 	}
 
 	// Request trace-level metadata in the second pass so each returned spanset carries its
@@ -697,7 +681,7 @@ func redactionIDsFromQuery(ctx context.Context, block common.BackendBlock, query
 // RedactBlock rewrites a block excluding the traces selected by either an explicit trace
 // ID list or a TraceQL query (never both). If none are present in the block, no rewrite is
 // performed. In dry-run mode it reports the match count without rewriting.
-func (rw *readerWriter) RedactBlock(ctx context.Context, meta *backend.BlockMeta, tenantID string, traceIDs []common.ID, query string, mode tempopb.RedactionMode, startNano, endNano int64) (rewrote bool, found int, newMeta *backend.BlockMeta, err error) {
+func (rw *readerWriter) RedactBlock(ctx context.Context, meta *backend.BlockMeta, tenantID string, traceIDs []common.ID, query string, mode tempopb.RedactionMode, window RedactionWindow) (rewrote bool, found int, newMeta *backend.BlockMeta, err error) {
 	block, err := encoding.OpenBlock(meta, rw.r)
 	if err != nil {
 		return false, 0, nil, fmt.Errorf("error opening block for redaction, blockID: %s: %w", meta.BlockID.String(), err)
@@ -714,7 +698,7 @@ func (rw *readerWriter) RedactBlock(ctx context.Context, meta *backend.BlockMeta
 	// the O(1) DropObject membership check in the rewrite below.
 	var dropSet map[string]struct{}
 	if query != "" {
-		dropSet, err = redactionIDsFromQuery(ctx, block, query, startNano, endNano, searchOpts)
+		dropSet, err = redactionIDsFromQuery(ctx, block, query, window, searchOpts)
 		if err != nil {
 			return false, 0, nil, fmt.Errorf("error selecting traces by query in block %s: %w", meta.BlockID.String(), err)
 		}
