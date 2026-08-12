@@ -1,0 +1,11 @@
+change_type: security
+
+component: operations
+
+note: Update google.golang.org/grpc to v1.82.1 (GHSA-hrxh-6v49-42gf) and go.opentelemetry.io/otel to v1.44.0 (CVE-2026-41178)
+
+issues: []
+
+subtext:
+
+user: mattdurham
