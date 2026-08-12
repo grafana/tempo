@@ -30,32 +30,38 @@ func (w RedactionWindow) IsZero() bool {
 // Validate reports whether the window can be honoured, so a caller refuses it rather than scanning with
 // it and reporting the empty result as a completed redaction.
 //
-// A one-sided window is accepted here — fetchBounds materialises the open side — even though
-// SubmitRedaction rejects one at the API edge.
+// A one-sided window is accepted here — materialise pins the open side — even though SubmitRedaction
+// rejects one at the API edge.
 func (w RedactionWindow) Validate() error {
 	if w.StartNano < 0 || w.EndNano < 0 {
 		return fmt.Errorf("window bounds must be non-negative unix nanoseconds, got start=%d end=%d", w.StartNano, w.EndNano)
 	}
 
-	// Ordering is only meaningful once both bounds are set.
-	if w.StartNano > 0 && w.EndNano > 0 && w.StartNano >= w.EndNano {
-		return fmt.Errorf("window start must be before end, got start=%d end=%d", w.StartNano, w.EndNano)
+	// Judge the MATERIALISED range, not the raw fields. A one-sided window is pinned before the scan, so
+	// an end bound of 1ns resolves to [1,1] and a start bound at the maximum instant to [max,max]. Both
+	// have ordered raw fields and neither can install a predicate, which would leave the block scanned in
+	// full and every query match dropped whatever its timestamp.
+	if lo, hi, bounded := w.materialise(); bounded && lo >= hi {
+		return fmt.Errorf("window start must be before end: start=%d end=%d resolves to the scan range [%d, %d]",
+			w.StartNano, w.EndNano, lo, hi)
 	}
 
 	return nil
 }
 
-// fetchBounds resolves the window to block-fetch bounds, reporting whether a bound applies at all.
+// materialise resolves the window to the inclusive bounds a block scan needs, reporting whether any
+// bound applies at all.
 //
-// The open side is materialised rather than left at zero because vparquet{3,4,5} install the trace-time
-// predicate only under `start > 0 && end > 0` — a half-set window would remove the filter instead of
-// narrowing it, scanning the block in full.
-func (w RedactionWindow) fetchBounds() (start, end uint64, ok bool) {
+// The open side is pinned rather than left at zero because vparquet{3,4,5} install the trace-time
+// predicate only under `start > 0 && end > 0`: a half-set window would remove the filter instead of
+// narrowing it. Validate judges this same resolved range, so the two cannot disagree about which windows
+// are usable.
+func (w RedactionWindow) materialise() (lo, hi int64, bounded bool) {
 	if w.StartNano <= 0 && w.EndNano <= 0 {
 		return 0, 0, false
 	}
 
-	lo, hi := w.StartNano, w.EndNano
+	lo, hi = w.StartNano, w.EndNano
 	if lo <= 0 {
 		lo = 1 // 0 would disable the predicate; 1ns is the earliest bound that keeps it installed
 	}
@@ -63,9 +69,17 @@ func (w RedactionWindow) fetchBounds() (start, end uint64, ok bool) {
 		hi = math.MaxInt64
 	}
 
-	// Unreachable via RedactBlock, which validates first. Kept because an inverted predicate matches
-	// nothing, so a second caller added later would under-delete and report success.
-	if lo >= hi {
+	return lo, hi, true
+}
+
+// fetchBounds resolves the window to block-fetch bounds, reporting whether a bound applies at all.
+//
+// Requires a window that Validate has accepted. That guarantee is what makes the result safe to trust:
+// for any non-zero validated window this returns ok=true with lo < hi, so a caller can never silently
+// fall back to scanning the block in full. TestRedactionWindowValidateImpliesBoundedScan pins the link.
+func (w RedactionWindow) fetchBounds() (start, end uint64, ok bool) {
+	lo, hi, bounded := w.materialise()
+	if !bounded {
 		return 0, 0, false
 	}
 

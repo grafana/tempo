@@ -24,14 +24,17 @@ const blockTimeGranularity = time.Second
 //
 // Doubt resolves toward inclusion: for a query redaction the per-block scan bound decides what is
 // actually deleted, so an extra block costs I/O while a missing one silently leaves data the operator
-// asked to delete. A block with no recorded times — which is what a replayed WAL produces — is therefore
-// included and reported as indeterminate so the caller can count it.
+// asked to delete. A block whose recorded range is unusable is therefore included and reported as
+// indeterminate so the caller can count it.
 func blockOverlapsWindow(meta *backend.BlockMeta, startNano, endNano int64) (overlaps, indeterminate bool) {
 	if startNano == 0 && endNano == 0 {
 		return true, false // no window: every block is in scope, and the range is never consulted
 	}
 
-	if meta.StartTime.IsZero() || meta.EndTime.IsZero() {
+	// Unusable recorded range: no times at all (what a replayed WAL produces), or an inverted one, which
+	// describes no interval. Both are included and reported rather than compared, because the padded
+	// comparisons below would exclude an inverted range outright.
+	if meta.StartTime.IsZero() || meta.EndTime.IsZero() || meta.StartTime.After(meta.EndTime) {
 		return true, true
 	}
 

@@ -2,6 +2,7 @@ package tempodb
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"sort"
 	"testing"
@@ -349,6 +350,21 @@ func TestRedactionWindowValidate(t *testing.T) {
 			window:  RedactionWindow{EndNano: -1},
 			wantErr: "non-negative",
 		},
+
+		// A one-sided window is materialised before the scan (fetchBounds pins the open side to 1ns or
+		// MaxInt64). Validate must judge the MATERIALISED range, not the raw fields: an end bound of 1ns
+		// materialises to [1,1], which installs no predicate at all, so the block would be scanned in
+		// full and every query match dropped regardless of timestamp.
+		{
+			name:    "end bound that materialises to a zero-width range",
+			window:  RedactionWindow{EndNano: 1},
+			wantErr: "must be before",
+		},
+		{
+			name:    "start bound at the maximum instant materialises to a zero-width range",
+			window:  RedactionWindow{StartNano: math.MaxInt64},
+			wantErr: "must be before",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := tc.window.Validate()
@@ -428,12 +444,10 @@ func TestRedactionWindowFetchBounds(t *testing.T) {
 			window: RedactionWindow{EndNano: day},
 			wantOK: true, wantLo: 1, wantHi: uint64(day),
 		},
-		{
-			// Unreachable through RedactBlock, which validates first; kept because the failure is silent.
-			name:   "an inverted window installs nothing rather than a predicate matching nothing",
-			window: RedactionWindow{StartNano: 2 * day, EndNano: day},
-			wantOK: false,
-		},
+		// An inverted or degenerate window is rejected by Validate before it reaches here (covered by
+		// TestRedactionWindowValidate), so fetchBounds does not absorb one. It deliberately has no
+		// fail-open branch: returning ok=false for a non-zero window would install no predicate and scan
+		// the block in full, which is over-deletion — worse than the case it would be guarding against.
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			lo, hi, ok := tc.window.fetchBounds()
@@ -447,6 +461,40 @@ func TestRedactionWindowFetchBounds(t *testing.T) {
 			require.Equal(t, tc.wantHi, hi)
 			require.Positive(t, lo, "a zero lower bound would disable the predicate instead of narrowing it")
 			require.Less(t, lo, hi, "bounds must describe a non-empty range")
+		})
+	}
+}
+
+// TestRedactionWindowValidateImpliesBoundedScan pins the invariant that links the two methods: any
+// non-zero window Validate accepts must produce installed fetch bounds.
+//
+// Break it and the failure is silent over-deletion rather than an error. fetchBounds reporting ok=false
+// means redactionIDsFromQuery installs no trace-time predicate, so the block is scanned in full and
+// every query match is dropped whatever its timestamp — the opposite of what the window asked for, on a
+// path with no undo. Validate is the only gate before that, so it has to judge the materialised range.
+func TestRedactionWindowValidateImpliesBoundedScan(t *testing.T) {
+	const day = int64(24 * time.Hour)
+
+	for _, w := range []RedactionWindow{
+		{StartNano: 1},
+		{EndNano: 1},
+		{StartNano: 1, EndNano: 2},
+		{StartNano: day},
+		{EndNano: day},
+		{StartNano: day, EndNano: 2 * day},
+		{StartNano: math.MaxInt64},
+		{EndNano: math.MaxInt64},
+		{StartNano: math.MaxInt64 - 1, EndNano: math.MaxInt64},
+	} {
+		t.Run(fmt.Sprintf("start=%d_end=%d", w.StartNano, w.EndNano), func(t *testing.T) {
+			if err := w.Validate(); err != nil {
+				return // refused up front, which is the safe outcome
+			}
+			require.False(t, w.IsZero(), "guard only covers non-zero windows")
+
+			lo, hi, ok := w.fetchBounds()
+			require.True(t, ok, "a validated non-zero window must install a predicate, not silently scan the block in full")
+			require.Less(t, lo, hi)
 		})
 	}
 }

@@ -69,6 +69,26 @@ func TestBlockOverlapsWindow(t *testing.T) {
 		{name: "zero end time is indeterminate", meta: &backend.BlockMeta{StartTime: day(10)}, start: ts("2026-01-12T00:00:00Z"), end: ts("2026-01-14T00:00:00Z"), wantOverlap: true, wantIndeterminate: true},
 		{name: "both zero is indeterminate", meta: &backend.BlockMeta{}, start: ts("2026-01-12T00:00:00Z"), end: ts("2026-01-14T00:00:00Z"), wantOverlap: true, wantIndeterminate: true},
 		{name: "both zero with no window is not indeterminate", meta: &backend.BlockMeta{}, wantOverlap: true},
+
+		// An inverted recorded range describes no interval, so it is unusable for the same reason a zero
+		// one is. Falling through to the padded comparisons can EXCLUDE such a block (its padded start
+		// lands after the window end), which silently leaves behind data the operator asked to delete.
+		{
+			name:              "inverted recorded range is indeterminate, not excluded",
+			meta:              &backend.BlockMeta{StartTime: day(20), EndTime: day(10)},
+			start:             ts("2026-01-12T00:00:00Z"),
+			end:               ts("2026-01-14T00:00:00Z"),
+			wantOverlap:       true,
+			wantIndeterminate: true,
+		},
+		{
+			name:              "inverted range far from the window is still included",
+			meta:              &backend.BlockMeta{StartTime: day(28), EndTime: day(2)},
+			start:             ts("2026-01-12T00:00:00Z"),
+			end:               ts("2026-01-14T00:00:00Z"),
+			wantOverlap:       true,
+			wantIndeterminate: true,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
