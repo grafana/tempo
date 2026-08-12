@@ -1047,16 +1047,10 @@ by the scheduler, not printed by the command: read the `tempo_backend_scheduler_
 metric for the tenant.
 
 {{< admonition type="warning" >}}
-Do not submit a windowed redaction while schedulers and workers are running different versions, such as
-during a rollout.
-
-A worker older than the window feature does not understand the window fields and scans each block it is
-given in full, removing **every** trace matching the query regardless of timestamp. Nothing detects this:
-the job reports success, and the larger number of removed traces is indistinguishable from a block that
-genuinely held more matches. The data cannot be recovered.
-
-Wait until every backend-worker for the cell is running a version that supports `--start`/`--end` before
-submitting a windowed redaction. An unwindowed redaction is unaffected.
+A backend-worker that predates `--start`/`--end` does not respect the window and scans each block it is
+given in full. The job still reports success, so there is no signal afterwards and the removed traces
+cannot be recovered. Wait until every worker for the cell supports the window before submitting a windowed
+redaction; an unwindowed redaction is unaffected.
 {{< /admonition >}}
 
 Monitor job progress through the [`/status/backendscheduler`](/docs/tempo/<TEMPO_VERSION>/api_docs/#backend-scheduler-job-status) endpoint.

@@ -62,11 +62,10 @@ func traceAtTime(id []byte, startNano, endNano uint64) *tempopb.Trace {
 // is not reported. Callers therefore pair it with an assertion on newMeta.TotalObjects, so a fixture
 // containing a non-matching trace cannot hide that trace being over-deleted.
 //
-// Window tests must assert WHICH trace survived, not how many. With two candidate traces that both
-// satisfy the query and differ only in time, "one was deleted" is equally true of the intended
-// victim and the intended survivor — so a count-only assertion passes even when the window is applied
-// backwards. Transposing the two bounds inside fetchBounds is a real, one-character mistake, and on a
-// redaction the difference between those two outcomes cannot be undone.
+// Window tests must assert WHICH trace remains, not how many. With two candidate traces that both
+// satisfy the query and differ only in time, "one was deleted" holds whichever of them went — so a
+// count-only assertion passes even when the window is applied backwards. Transposing the two bounds
+// inside fetchBounds is a one-character mistake, and on a redaction the wrong outcome cannot be undone.
 func survivingTraceIDs(t *testing.T, r Reader, meta *backend.BlockMeta, query string) []string {
 	t.Helper()
 
