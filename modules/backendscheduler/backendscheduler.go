@@ -523,6 +523,13 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 	// jobs for this tenant, so busy blocks are exclusively from other providers.
 	busyBlocks := s.work.BusyBlocksForTenant(tenant)
 
+	// The block count at the instant of selection. Held in its own variable because `metas` is
+	// reassigned to the filtered set below, and because it is the denominator every count in the audit
+	// record is relative to: without it, jobs_created cannot be reconciled against anything. It will not
+	// match tempodb_blocklist_length, which is only written at poll completion while compaction mutates
+	// the live list in between.
+	totalBlocks := len(metas)
+
 	skippedJobSet := make(map[string]struct{})
 	filtered := metas[:0:0]
 	// Counted separately from the busy-block skip so the two reasons are never conflated in the logs.
@@ -546,18 +553,18 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 	}
 	// Blocks held by an active compaction are a coverage gap the operator may need to act on, so they
 	// warn. Out-of-window blocks are the feature working as asked, so they are counted separately.
-	busySkippedBlocks := len(metas) - len(filtered) - outOfWindowBlocks
+	busySkippedBlocks := totalBlocks - len(filtered) - outOfWindowBlocks
 	if busySkippedBlocks > 0 {
 		level.Warn(log.Logger).Log("msg", "skipping blocks in active compaction jobs during redaction submission",
 			"tenant", tenant,
 			"skipped_blocks", busySkippedBlocks,
 			"skipped_compaction_jobs", len(skippedJobSet),
-			"total_blocks", len(metas))
+			"total_blocks", totalBlocks)
 	}
 	if indeterminateBlocks > 0 {
 		// Included, not skipped: their range could not be judged, so they were taken on trust.
 		level.Warn(log.Logger).Log("msg", "redaction included blocks with an unusable data range",
-			"tenant", tenant, "blocks", indeterminateBlocks, "total_blocks", len(metas))
+			"tenant", tenant, "blocks", indeterminateBlocks, "total_blocks", totalBlocks)
 	}
 	metas = filtered
 
@@ -577,7 +584,7 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 	if len(metas) == 0 && len(skippedJobSet) == 0 {
 		level.Info(log.Logger).Log("msg", "redaction submission matched no blocks in the requested window",
 			"tenant", tenant, "out_of_window_blocks", outOfWindowBlocks,
-			"total_blocks", outOfWindowBlocks+busySkippedBlocks)
+			"total_blocks", totalBlocks)
 		return nil, status.Error(codes.NotFound, "no blocks overlap the requested time window")
 	}
 
@@ -589,6 +596,7 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		attribute.Int64("window_end_unix_nano", req.EndTimeUnixNano),
 		attribute.String("covered_start", coveredRangeLabel(coveredStart, haveStart)),
 		attribute.String("covered_end", coveredRangeLabel(coveredEnd, haveEnd)),
+		attribute.Int("total_blocks", totalBlocks),
 		attribute.Int("out_of_window_blocks", outOfWindowBlocks),
 		attribute.Int("indeterminate_blocks", indeterminateBlocks),
 	)
@@ -659,6 +667,7 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		"tenant", tenant,
 		"batch_id", batchID,
 		"jobs_created", len(jobs),
+		"total_blocks", totalBlocks,
 		"blocks_skipped_compacting", busySkippedBlocks,
 		"blocks_out_of_window", outOfWindowBlocks,
 		"covered_start", coveredRangeLabel(coveredStart, haveStart),
