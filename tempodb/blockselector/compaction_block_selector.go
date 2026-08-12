@@ -21,6 +21,13 @@ const (
 	DefaultMaxCompactionLevel = 0
 )
 
+// timeNow is the clock used to decide which time windows are active. It is a
+// variable so tests can pin it: window membership is computed by integer
+// division on Unix seconds, so a test that captures its own reference time and
+// then lets the selector read the wall clock separately depends on both landing
+// in the same window.
+var timeNow = time.Now
+
 /*************************** Time Window Block Selector **************************/
 
 // Sharding will be based on time slot - not level. Since each compactor works on two levels.
@@ -58,7 +65,7 @@ func NewTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRan
 		MaxCompactionLevel:   uint32(maxCompactionLevel),
 	}
 
-	now := time.Now()
+	now := timeNow()
 	currWindow := twbs.windowForTime(now)
 	activeWindow := twbs.windowForTime(now.Add(-activeWindowDuration))
 
