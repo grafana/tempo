@@ -4,10 +4,13 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"flag"
 	"fmt"
+	"math"
 	"os"
 	"strings"
+	"time"
 
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -77,20 +80,26 @@ func (cmd *redactCmd) Run(_ *globalOptions) error {
 func (cmd *redactCmd) validate() error {
 	// Resolve the window here, not in submit(): validate() runs before the scheduler is dialed, so a
 	// mistyped bound fails immediately rather than after a TLS handshake.
-	var err error
-	if cmd.startNano, err = windowBoundNano(cmd.Start); err != nil {
-		return fmt.Errorf("parsing --start: %w", err)
+	//
+	// Both bounds resolve against this one instant, so identical relative specs produce identical
+	// bounds and are caught by the ordering check below rather than becoming a nanoseconds-wide window.
+	now := time.Now()
+
+	startSet, endSet, err := cmd.resolveWindow(now)
+	if err != nil {
+		return err
 	}
-	if cmd.endNano, err = windowBoundNano(cmd.End); err != nil {
-		return fmt.Errorf("parsing --end: %w", err)
+
+	// The server enforces both of these; checking here saves a round trip. Requiring both bounds is a
+	// deliberate policy choice rather than a storage constraint: a one-sided window is almost always a
+	// typo, and on a destructive command the cost of guessing wrong has no undo.
+	if startSet != endSet {
+		return errors.New("--start and --end must both be set or both be omitted")
 	}
-	// The server enforces both of these; checking here saves a round trip. A one-sided window is
-	// refused because the storage layer only bounds the per-block scan when both bounds are set.
-	if (cmd.startNano == 0) != (cmd.endNano == 0) {
-		return fmt.Errorf("--start and --end must both be set or both be omitted")
-	}
-	if cmd.startNano != 0 && cmd.startNano >= cmd.endNano {
-		return fmt.Errorf("--start must be before --end")
+	if startSet && cmd.startNano >= cmd.endNano {
+		return fmt.Errorf("--start must be before --end, but %s resolved to %s and %s resolved to %s",
+			cmd.Start, time.Unix(0, cmd.startNano).UTC().Format(time.RFC3339Nano),
+			cmd.End, time.Unix(0, cmd.endNano).UTC().Format(time.RFC3339Nano))
 	}
 
 	hasIDs := len(cmd.TraceIDs) > 0
@@ -166,31 +175,64 @@ func (cmd *redactCmd) buildTransportCredentials() (credentials.TransportCredenti
 	}), nil
 }
 
-// unixNanoMinYear/unixNanoMaxYear bound what time.Time.UnixNano() can represent. Outside this range
-// it is undefined and wraps silently, so a bound written as "far future" would resolve negative — and a
-// negative window selects every block and then scans each one unbounded. Reject rather than wrap.
-const (
-	unixNanoMinYear = 1678
-	unixNanoMaxYear = 2262
+// unixNanoMin/unixNanoMax are the instants time.Time.UnixNano() is defined between. unixNanoMin is the
+// epoch rather than the true int64 floor (1677-09-21) because every layer rejects a negative bound, so
+// a pre-epoch bound cannot be submitted regardless.
+var (
+	unixNanoMin = time.Unix(0, 0)
+	unixNanoMax = time.Unix(0, math.MaxInt64)
 )
 
-// windowBoundNano resolves a --start/--end value to absolute unix nanoseconds, or 0 when omitted.
+// resolveWindow resolves both bounds against a single instant, reporting which were supplied.
+func (cmd *redactCmd) resolveWindow(now time.Time) (startSet, endSet bool, err error) {
+	if cmd.startNano, startSet, err = windowBoundNano(cmd.Start, now); err != nil {
+		return false, false, fmt.Errorf("parsing --start: %w", err)
+	}
+	if cmd.endNano, endSet, err = windowBoundNano(cmd.End, now); err != nil {
+		return false, false, fmt.Errorf("parsing --end: %w", err)
+	}
+	return startSet, endSet, nil
+}
+
+// windowBoundNano resolves a --start/--end value to absolute unix nanoseconds, reporting ok=false when
+// the flag was not supplied.
 //
-// Resolution reuses parseTime, the helper the query commands already use, so the accepted forms (now,
-// now-<dur> with Prometheus units, RFC3339) stay consistent across the CLI. Resolving client-side means
-// the window is frozen at submission and a long redaction never chases live ingest.
-func windowBoundNano(spec string) (int64, error) {
+// Resolution reuses the parseTime family, the helpers the query commands already use, so the accepted
+// forms (now, now-<dur> with Prometheus units, RFC3339) stay consistent across the CLI. Resolving
+// client-side means the window is frozen at submission and a long redaction never chases live ingest.
+//
+// now is supplied by the caller so both bounds of one window resolve against a single instant. Letting
+// each bound take its own time.Now() puts "--start now-7d --end now-7d" a few nanoseconds apart, which
+// passes every ordering check and submits a window nothing can match.
+func windowBoundNano(spec string, now time.Time) (nano int64, ok bool, err error) {
 	if strings.TrimSpace(spec) == "" {
-		return 0, nil
+		return 0, false, nil
 	}
-	t, err := parseTime(spec)
+
+	t, err := parseTimeAt(spec, now)
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
-	if y := t.Year(); y < unixNanoMinYear || y > unixNanoMaxYear {
-		return 0, fmt.Errorf("time %q is outside the representable range (%d-%d)", spec, unixNanoMinYear, unixNanoMaxYear)
+
+	// Bound the resolved instant, not its year. time.Time.UnixNano() is only defined between
+	// unixNanoMin and unixNanoMax and wraps silently outside them, and a year-granular check leaks
+	// the ~8 months of 2262 past the limit as well as everything before 1970 — all of which resolve
+	// negative. The scheduler rejects a negative bound, but only after a dial and TLS handshake,
+	// which defeats the point of checking here.
+	if t.Before(unixNanoMin) || t.After(unixNanoMax) {
+		return 0, false, fmt.Errorf("time %q resolves to %s, outside the range this command can express (%s .. %s)",
+			spec, t.UTC().Format(time.RFC3339),
+			unixNanoMin.UTC().Format(time.RFC3339), unixNanoMax.UTC().Format(time.RFC3339))
 	}
-	return t.UnixNano(), nil
+
+	// Exactly the epoch collides with the sentinel that every layer reads as "unbounded", so a
+	// window asking for a single instant at the epoch would widen to the whole tenant.
+	if nano = t.UnixNano(); nano == 0 {
+		return 0, false, fmt.Errorf("time %q resolves to the unix epoch, which this command reserves to mean "+
+			"'no bound'; use 1970-01-01T00:00:00.000000001Z instead", spec)
+	}
+
+	return nano, true, nil
 }
 
 // parseTraceIDs converts a slice of hex trace ID strings to raw byte slices.

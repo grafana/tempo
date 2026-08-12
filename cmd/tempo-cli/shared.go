@@ -209,11 +209,21 @@ func grpcTransportCredentials(secure bool) (opt grpc.DialOption, err error) {
 // parseTime parses a time string that can be:
 // - relative: "now", "now-1h", "now-30m", "now-3h30m"
 // - RFC3339: "2024-01-01T00:00:00Z"
+//
+// Relative forms resolve against the current instant. A caller parsing a pair of bounds that must be
+// consistent with each other should use parseTimeAt with one shared instant instead: two parseTime
+// calls resolve "now" twice, so identical specs produce bounds a few nanoseconds apart.
 func parseTime(s string) (time.Time, error) {
+	return parseTimeAt(s, time.Now())
+}
+
+// parseTimeAt is parseTime with the instant that relative forms resolve against supplied by the
+// caller, so a pair of bounds can be resolved against a single "now".
+func parseTimeAt(s string, now time.Time) (time.Time, error) {
 	s = strings.TrimSpace(s)
 
 	if strings.HasPrefix(s, "now") {
-		return parseRelativeTime(s)
+		return parseRelativeTimeAt(s, now)
 	}
 
 	if t, err := time.Parse(time.RFC3339, s); err == nil {
@@ -223,8 +233,7 @@ func parseTime(s string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("failed to parse time: %q use relative (now, now-1h) or absolute RFC3339 (2006-01-02T15:04:05Z07:00) format", s)
 }
 
-func parseRelativeTime(s string) (time.Time, error) {
-	now := time.Now()
+func parseRelativeTimeAt(s string, now time.Time) (time.Time, error) {
 	s = strings.TrimSpace(s)
 
 	if s == "now" {
