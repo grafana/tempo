@@ -296,7 +296,8 @@ func TestBadBlocks(t *testing.T) {
 	u1 := uuid.New().String()
 
 	// Write some bad wal data
-	writeBadJSON(t,
+	writeBadJSON(
+		t,
 		filepath.Join(
 			wal.GetFilepath(),
 			u1+"+test-tenant+"+vparquet3.VersionString,
@@ -304,7 +305,8 @@ func TestBadBlocks(t *testing.T) {
 		),
 	)
 
-	writeBadJSON(t,
+	writeBadJSON(
+		t,
 		filepath.Join(
 			wal.GetFilepath(),
 			u1+"+test-tenant+"+vparquet3.VersionString,
@@ -312,7 +314,8 @@ func TestBadBlocks(t *testing.T) {
 		),
 	)
 
-	writeBadJSON(t,
+	writeBadJSON(
+		t,
 		filepath.Join(
 			wal.GetFilepath(),
 			uuid.New().String()+"+test-tenant+"+vparquet3.VersionString,
@@ -321,7 +324,8 @@ func TestBadBlocks(t *testing.T) {
 	)
 
 	// write a bad block meta for a completed block
-	writeBadJSON(t,
+	writeBadJSON(
+		t,
 		filepath.Join(
 			wal.GetFilepath(),
 			"blocks",

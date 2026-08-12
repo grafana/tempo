@@ -207,7 +207,8 @@ func logQueryInstantResult(logger log.Logger, tenantID string, durationSeconds f
 			"msg", "query instant results - no resp",
 			"tenant", tenantID,
 			"duration_seconds", durationSeconds,
-			"error", err)
+			"error", err,
+		)
 
 		return
 	}
@@ -219,7 +220,8 @@ func logQueryInstantResult(logger log.Logger, tenantID string, durationSeconds f
 			"query", req.Query,
 			"range_nanos", req.End-req.Start,
 			"duration_seconds", durationSeconds,
-			"error", err)
+			"error", err,
+		)
 		return
 	}
 
@@ -240,7 +242,8 @@ func logQueryInstantResult(logger log.Logger, tenantID string, durationSeconds f
 		"partial_status", resp.Status,
 		"partial_message", resp.Message,
 		"num_response_series", len(resp.Series),
-		"error", err)
+		"error", err,
+	)
 }
 
 func logQueryInstantRequest(logger log.Logger, tenantID string, req *tempopb.QueryInstantRequest) {
@@ -248,5 +251,6 @@ func logQueryInstantRequest(logger log.Logger, tenantID string, req *tempopb.Que
 		"msg", "query instant request",
 		"tenant", tenantID,
 		"query", req.Query,
-		"range_seconds", req.End-req.Start)
+		"range_seconds", req.End-req.Start,
+	)
 }

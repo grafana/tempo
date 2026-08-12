@@ -13,4 +13,4 @@ type ingesterOverrides interface {
 	UnsafeQueryHints(userID string) bool
 }
 
-var _ ingesterOverrides = (overrides.Interface)(nil)
+var _ ingesterOverrides = overrides.Interface(nil)

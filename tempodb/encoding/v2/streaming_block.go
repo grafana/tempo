@@ -152,7 +152,7 @@ func (c *StreamingBlock) Complete(ctx context.Context, tracker backend.AppendTra
 
 	if c.withNoCompactFlag {
 		// write nocompact flag first to prevent compaction before completion
-		err := w.WriteNoCompactFlag(ctx, (uuid.UUID)(meta.BlockID), meta.TenantID)
+		err := w.WriteNoCompactFlag(ctx, uuid.UUID(meta.BlockID), meta.TenantID)
 		if err != nil {
 			return 0, fmt.Errorf("unexpected error writing nocompact flag: %w", err)
 		}

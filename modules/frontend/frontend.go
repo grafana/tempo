@@ -150,7 +150,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			newAsyncTraceIDSharder(&cfg.TraceByID, logger),
 		},
 		[]pipeline.Middleware{traceIDStatusCodeWare, retryWare},
-		next)
+		next,
+	)
 
 	searchPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
@@ -164,7 +165,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			newAsyncSearchSharder(reader, o, cfg.Search.Sharder, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
-		next)
+		next,
+	)
 
 	searchTagsPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
@@ -177,7 +179,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagsRequest, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
-		next)
+		next,
+	)
 
 	searchTagValuesPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
@@ -190,7 +193,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequest, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
-		next)
+		next,
+	)
 
 	searchTagValuesV2Pipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
@@ -203,7 +207,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequestV2, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
-		next)
+		next,
+	)
 
 	// metrics summary
 	metricsPipeline := pipeline.Build(
@@ -216,7 +221,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			tenantValidatorWare,
 		},
 		[]pipeline.Middleware{statusCodeWare, retryWare},
-		next)
+		next,
+	)
 
 	// traceql metrics
 	queryRangePipeline := pipeline.Build(
@@ -233,7 +239,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, false, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
-		next)
+		next,
+	)
 
 	queryInstantPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
@@ -247,7 +254,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, true, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
-		next)
+		next,
+	)
 
 	traces := newTraceIDHandler(cfg, tracePipeline, o, combiner.NewTypedTraceByID, logger, dataAccessController)
 	tracesV2 := newTraceIDV2Handler(cfg, tracePipeline, o, combiner.NewTypedTraceByIDV2, logger, dataAccessController)
@@ -354,7 +362,8 @@ func newMetricsSummaryHandler(next pipeline.AsyncRoundTripper[combiner.PipelineR
 		level.Info(logger).Log(
 			"msg", "metrics summary request",
 			"tenant", tenant,
-			"path", req.URL.Path)
+			"path", req.URL.Path,
+		)
 
 		resps, err := next.RoundTrip(pipeline.NewHTTPRequest(req))
 		if err != nil {
@@ -367,7 +376,8 @@ func newMetricsSummaryHandler(next pipeline.AsyncRoundTripper[combiner.PipelineR
 			"msg", "metrics summary response",
 			"tenant", tenant,
 			"path", req.URL.Path,
-			"err", err)
+			"err", err,
+		)
 
 		return resp.HTTPResponse(), err
 	})

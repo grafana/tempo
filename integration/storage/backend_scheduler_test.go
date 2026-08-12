@@ -111,7 +111,8 @@ func TestBackendScheduler(t *testing.T) {
 
 					t.Logf("Waiting for %d blocks in the blocklist for tenant: %s", expectedBlocks, tenantID)
 
-					require.NoError(t, scheduler.WaitSumMetricsWithOptions(e2e.Equals(float64(expectedBlocks)), []string{"tempodb_blocklist_length"},
+					require.NoError(t, scheduler.WaitSumMetricsWithOptions(
+						e2e.Equals(float64(expectedBlocks)), []string{"tempodb_blocklist_length"},
 						e2e.WaitMissingMetrics,
 						tenantMatcher,
 						printMetricValue(t, fmt.Sprintf("%d", expectedBlocks), "tempodb_blocklist_length"),
@@ -173,7 +174,8 @@ func TestBackendScheduler(t *testing.T) {
 				tenantMatcher := e2e.WithLabelMatchers(&labels.Matcher{Type: labels.MatchEqual, Name: "tenant", Value: tenantID})
 
 				// We should have at least 1 block for each tenant
-				require.NoError(t, scheduler.WaitSumMetricsWithOptions(e2e.GreaterOrEqual(1.0), []string{"tempodb_blocklist_length"},
+				require.NoError(t, scheduler.WaitSumMetricsWithOptions(
+					e2e.GreaterOrEqual(1.0), []string{"tempodb_blocklist_length"},
 					e2e.WaitMissingMetrics,
 					tenantMatcher,
 					printMetricValue(t, fmt.Sprintf("%f+", 1.0), "tempodb_blocklist_length"),
@@ -215,7 +217,8 @@ func TestBackendScheduler(t *testing.T) {
 
 				t.Logf("Waiting for blocklist metric: %s: %d-%d", tenantID, expectedMin.blocks, expectedMax.blocks)
 
-				require.NoError(t, scheduler.WaitSumMetricsWithOptions(e2e.Between(float64(expectedMin.blocks), float64(expectedMax.blocks)), []string{"tempodb_blocklist_length"},
+				require.NoError(t, scheduler.WaitSumMetricsWithOptions(
+					e2e.Between(float64(expectedMin.blocks), float64(expectedMax.blocks)), []string{"tempodb_blocklist_length"},
 					e2e.WaitMissingMetrics,
 					tenantMatcher,
 					printMetricValue(t, fmt.Sprintf("%d-%d", expectedMin.blocks, expectedMax.blocks), "tempodb_blocklist_length"),
@@ -223,7 +226,8 @@ func TestBackendScheduler(t *testing.T) {
 
 				t.Logf("Waiting for outstanding blocks metric: %s: %d-%d", tenantID, expectedMin.outstanding, expectedMax.outstanding)
 
-				require.NoError(t, scheduler.WaitSumMetricsWithOptions(e2e.Between(float64(expectedMin.outstanding), float64(expectedMax.outstanding)), []string{"tempodb_compaction_outstanding_blocks"},
+				require.NoError(t, scheduler.WaitSumMetricsWithOptions(
+					e2e.Between(float64(expectedMin.outstanding), float64(expectedMax.outstanding)), []string{"tempodb_compaction_outstanding_blocks"},
 					e2e.WaitMissingMetrics,
 					tenantMatcher,
 					printMetricValue(t, fmt.Sprintf("%d-%d", expectedMin.outstanding, expectedMax.outstanding), "tempodb_compaction_outstanding_blocks"),
@@ -245,7 +249,8 @@ func TestBackendScheduler(t *testing.T) {
 
 				t.Logf("Waiting for blocklist metric: %s: %d-%d", tenantID, expectedMin.blocks, expectedMax.blocks)
 
-				require.NoError(t, scheduler.WaitSumMetricsWithOptions(e2e.Between(float64(expectedMin.blocks), float64(expectedMax.blocks)), []string{"tempodb_blocklist_length"},
+				require.NoError(t, scheduler.WaitSumMetricsWithOptions(
+					e2e.Between(float64(expectedMin.blocks), float64(expectedMax.blocks)), []string{"tempodb_blocklist_length"},
 					e2e.WaitMissingMetrics,
 					tenantMatcher,
 					printMetricValue(t, fmt.Sprintf("%d-%d", expectedMin.blocks, expectedMax.blocks), "tempodb_blocklist_length"),
@@ -253,7 +258,8 @@ func TestBackendScheduler(t *testing.T) {
 
 				t.Logf("Waiting for outstanding blocks metric: %s: %d-%d", tenantID, expectedMin.outstanding, expectedMax.outstanding)
 
-				require.NoError(t, scheduler.WaitSumMetricsWithOptions(e2e.Between(float64(expectedMin.outstanding), float64(expectedMax.outstanding)), []string{"tempodb_compaction_outstanding_blocks"},
+				require.NoError(t, scheduler.WaitSumMetricsWithOptions(
+					e2e.Between(float64(expectedMin.outstanding), float64(expectedMax.outstanding)), []string{"tempodb_compaction_outstanding_blocks"},
 					e2e.WaitMissingMetrics,
 					tenantMatcher,
 					printMetricValue(t, fmt.Sprintf("%d-%d", expectedMin.outstanding, expectedMax.outstanding), "tempodb_compaction_outstanding_blocks"),

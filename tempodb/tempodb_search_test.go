@@ -49,7 +49,8 @@ func TestSearchCompleteBlock(t *testing.T) {
 		vers := v.Version()
 		t.Run(vers, func(t *testing.T) {
 			t.Parallel()
-			runCompleteBlockSearchTest(t, vers,
+			runCompleteBlockSearchTest(
+				t, vers,
 				searchRunner,
 				traceQLRunner,
 				advancedTraceQLRunner,

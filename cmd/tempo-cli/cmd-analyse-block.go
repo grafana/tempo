@@ -903,7 +903,8 @@ func printFullSummary(scope string, settings heuristicSettings, summary attribut
 				blobText = "(blob)"
 			}
 
-			_, err := fmt.Fprintf(w, "name: %s\t size: %s\t (%.2f%%)\tcount: %d\t distinct: %d\t avg reuse: %.2f\t avg rowgroup content (dict + body): %s %s\t%s\n",
+			_, err := fmt.Fprintf(
+				w, "name: %s\t size: %s\t (%.2f%%)\tcount: %d\t distinct: %d\t avg reuse: %.2f\t avg rowgroup content (dict + body): %s %s\t%s\n",
 				name,
 				humanize.Bytes(thisBytes),
 				percentage,

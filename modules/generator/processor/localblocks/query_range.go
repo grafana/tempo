@@ -219,7 +219,7 @@ func (p *Processor) queryRangeCacheGet(ctx context.Context, m *backend.BlockMeta
 
 	name := fmt.Sprintf("cache_query_range_%v.buf", hash)
 
-	data, err := p.walR.Read(ctx, name, (uuid.UUID)(m.BlockID), m.TenantID, nil)
+	data, err := p.walR.Read(ctx, name, uuid.UUID(m.BlockID), m.TenantID, nil)
 	if err != nil {
 		if errors.Is(err, backend.ErrDoesNotExist) {
 			// Not cached, but return the name/keypath so it can be set after
@@ -243,7 +243,7 @@ func (p *Processor) queryRangeCacheSet(ctx context.Context, m *backend.BlockMeta
 		return err
 	}
 
-	return p.walW.Write(ctx, name, (uuid.UUID)(m.BlockID), m.TenantID, data, nil)
+	return p.walW.Write(ctx, name, uuid.UUID(m.BlockID), m.TenantID, data, nil)
 }
 
 func queryRangeHashForBlock(req tempopb.QueryRangeRequest) uint64 {

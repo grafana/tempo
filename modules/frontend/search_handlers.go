@@ -185,7 +185,8 @@ func logResult(logger log.Logger, tenantID string, durationSeconds float64, req 
 			"tenant", tenantID,
 			"duration_seconds", durationSeconds,
 			"status_code", statusCode,
-			"error", err)
+			"error", err,
+		)
 
 		return
 	}
@@ -198,7 +199,8 @@ func logResult(logger log.Logger, tenantID string, durationSeconds float64, req 
 			"range_seconds", req.End-req.Start,
 			"duration_seconds", durationSeconds,
 			"status_code", statusCode,
-			"error", err)
+			"error", err,
+		)
 		return
 	}
 
@@ -217,7 +219,8 @@ func logResult(logger log.Logger, tenantID string, durationSeconds float64, req 
 		"inspected_traces", resp.Metrics.InspectedTraces,
 		"inspected_spans", resp.Metrics.InspectedSpans,
 		"status_code", statusCode,
-		"error", err)
+		"error", err,
+	)
 }
 
 func logRequest(logger log.Logger, tenantID string, req *tempopb.SearchRequest) {
@@ -227,5 +230,6 @@ func logRequest(logger log.Logger, tenantID string, req *tempopb.SearchRequest) 
 		"query", req.Query,
 		"range_seconds", req.End-req.Start,
 		"limit", req.Limit,
-		"spans_per_spanset", req.SpansPerSpanSet)
+		"spans_per_spanset", req.SpansPerSpanSet,
+	)
 }
