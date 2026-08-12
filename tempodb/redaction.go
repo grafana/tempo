@@ -1,6 +1,9 @@
 package tempodb
 
-import "math"
+import (
+	"fmt"
+	"math"
+)
 
 // RedactionWindow bounds a redaction in time: only traces whose spans fall inside it are
 // candidates for removal. Both bounds are unix nanoseconds. The zero value is an unbounded
@@ -16,9 +19,23 @@ type RedactionWindow struct {
 	EndNano   int64
 }
 
-// IsZero reports whether the window is unbounded.
-func (w RedactionWindow) IsZero() bool {
-	return w.StartNano == 0 && w.EndNano == 0
+// Validate reports whether the window can be honoured, so a caller refuses it instead of
+// scanning with it and reporting the empty result as a completed redaction.
+//
+// A one-sided window is deliberately accepted: a batch persisted by an older scheduler can
+// still carry one, and fetchBounds materialises the open side to keep the scan bounded.
+// Rejecting those would turn in-flight batches into permanently failing jobs.
+func (w RedactionWindow) Validate() error {
+	if w.StartNano < 0 || w.EndNano < 0 {
+		return fmt.Errorf("window bounds must be non-negative unix nanoseconds, got start=%d end=%d", w.StartNano, w.EndNano)
+	}
+
+	// Only meaningful once both bounds are set; a one-sided window has nothing to order against.
+	if w.StartNano > 0 && w.EndNano > 0 && w.StartNano >= w.EndNano {
+		return fmt.Errorf("window start must be before end, got start=%d end=%d", w.StartNano, w.EndNano)
+	}
+
+	return nil
 }
 
 // fetchBounds resolves the window to the bounds handed to a block fetch, reporting whether

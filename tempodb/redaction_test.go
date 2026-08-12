@@ -30,10 +30,11 @@ func traceWithResourceAttr(id []byte, key, val string) *tempopb.Trace {
 const windowTestNamespace = "checkout"
 
 // traceAtTime builds a trace whose spans sit at a chosen instant, carrying windowTestNamespace.
-// Controlling the span timestamps is the whole point: MakeBatchWithAttributes leaves them at whatever
-// MakeSpan produces, so a fixture built on it cannot distinguish traces by time at all, so a
-// test can distinguish traces by time as well as by attribute. MakeBatchWithAttributes leaves span
-// times at their defaults, which no redaction window can separate.
+//
+// Controlling the span timestamps is the whole point. MakeBatchWithAttributes leaves span times at
+// whatever MakeSpan produces, so every trace built on it lands at effectively the same instant and no
+// redaction window can separate them — a window test using that fixture passes whether or not the
+// window is applied.
 func traceAtTime(id []byte, startNano, endNano uint64) *tempopb.Trace {
 	attrs := []*v1_common.KeyValue{{
 		Key:   "namespace",
@@ -247,4 +248,84 @@ func TestRedactBlockOneSidedWindowStillBounds(t *testing.T) {
 		require.Equal(t, 1, found, "an end-only window must still exclude the out-of-window trace")
 		require.Equal(t, int64(1), newMeta.TotalObjects)
 	})
+}
+
+// TestRedactionWindowValidate covers the window predicate exhaustively: which windows RedactBlock will
+// honour and which it refuses.
+//
+// The accept cases matter as much as the reject cases. A one-sided window must stay ACCEPTED here — a
+// batch persisted by an older scheduler can still deliver one, and fetchBounds materialises the open
+// side to keep the scan bounded. A guard that rejected one-sided windows would turn those in-flight
+// batches into permanently failing jobs.
+func TestRedactionWindowValidate(t *testing.T) {
+	now := time.Now().UnixNano()
+	hour := int64(time.Hour)
+
+	for _, tc := range []struct {
+		name    string
+		window  RedactionWindow
+		wantErr string
+	}{
+		{name: "unbounded", window: RedactionWindow{}},
+		{name: "start only", window: RedactionWindow{StartNano: now}},
+		{name: "end only", window: RedactionWindow{EndNano: now}},
+		{name: "ordered two-sided", window: RedactionWindow{StartNano: now - hour, EndNano: now}},
+		{
+			name:    "transposed bounds",
+			window:  RedactionWindow{StartNano: now, EndNano: now - hour},
+			wantErr: "must be before",
+		},
+		{
+			name:    "zero width",
+			window:  RedactionWindow{StartNano: now, EndNano: now},
+			wantErr: "must be before",
+		},
+		{
+			name:    "negative start",
+			window:  RedactionWindow{StartNano: -1, EndNano: now},
+			wantErr: "non-negative",
+		},
+		{
+			name:    "negative end",
+			window:  RedactionWindow{EndNano: -1},
+			wantErr: "non-negative",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.window.Validate()
+			if tc.wantErr == "" {
+				require.NoError(t, err, "this window must remain usable")
+				return
+			}
+			require.ErrorContains(t, err, tc.wantErr)
+		})
+	}
+}
+
+// TestRedactBlockRejectsUnusableWindow verifies RedactBlock refuses a window it cannot honour instead
+// of scanning with it.
+//
+// A transposed window selects no traces at all. Without this guard the job completes, reports zero
+// found, and the batch advances — the operator is told the block was processed when nothing was
+// removed. That is the redaction failure with no external signal: over-deletion is visible in the
+// data, under-deletion reported as success is not.
+func TestRedactBlockRejectsUnusableWindow(t *testing.T) {
+	_, w, c, _ := testConfig(t, 0)
+	ctx := context.Background()
+
+	id := test.ValidTraceID(nil)
+	nano := uint64(time.Now().Add(-time.Hour).UnixNano())
+	data := []testData{{id, traceAtTime(id, nano, nano), uint32(nano / 1e9), uint32(nano / 1e9)}}
+
+	blk := cutTestBlockWithTraces(t, w, data)
+	now := time.Now().UnixNano()
+
+	rewrote, found, newMeta, err := c.RedactBlock(ctx, blk.BlockMeta(), testTenantID, nil,
+		`{resource.namespace = "checkout"}`, tempopb.RedactionMode_REDACTION_MODE_APPLY,
+		RedactionWindow{StartNano: now, EndNano: now - int64(time.Hour)})
+
+	require.ErrorContains(t, err, "must be before")
+	require.False(t, rewrote, "a refused window must not rewrite the block")
+	require.Zero(t, found)
+	require.Nil(t, newMeta)
 }

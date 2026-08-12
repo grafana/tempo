@@ -682,6 +682,12 @@ func redactionIDsFromQuery(ctx context.Context, block common.BackendBlock, query
 // ID list or a TraceQL query (never both). If none are present in the block, no rewrite is
 // performed. In dry-run mode it reports the match count without rewriting.
 func (rw *readerWriter) RedactBlock(ctx context.Context, meta *backend.BlockMeta, tenantID string, traceIDs []common.ID, query string, mode tempopb.RedactionMode, window RedactionWindow) (rewrote bool, found int, newMeta *backend.BlockMeta, err error) {
+	// Refuse a window this block cannot be scanned with, rather than scanning with it and
+	// reporting the empty result as a completed redaction.
+	if err := window.Validate(); err != nil {
+		return false, 0, nil, fmt.Errorf("redaction window for block %s: %w", meta.BlockID.String(), err)
+	}
+
 	block, err := encoding.OpenBlock(meta, rw.r)
 	if err != nil {
 		return false, 0, nil, fmt.Errorf("error opening block for redaction, blockID: %s: %w", meta.BlockID.String(), err)

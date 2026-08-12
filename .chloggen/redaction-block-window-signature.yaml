@@ -1,7 +1,7 @@
 change_type: breaking
 component: storage
-note: "`Compactor.RedactBlock` takes two additional parameters carrying the redaction time window."
+note: "`Compactor.RedactBlock` takes an additional parameter carrying the redaction time window."
 issues: []
 subtext: |
-  `RedactBlock(ctx, meta, tenantID, traceIDs, query, mode)` becomes `RedactBlock(ctx, meta, tenantID, traceIDs, query, mode, startNano, endNano)`. `Compactor` is embedded in `storage.Store`, so any external implementation or mock of either interface needs updating. Passing `0, 0` preserves the previous behaviour of scanning each block in full.
+  `RedactBlock(ctx, meta, tenantID, traceIDs, query, mode)` becomes `RedactBlock(ctx, meta, tenantID, traceIDs, query, mode, window)`, where `window` is a `tempodb.RedactionWindow{StartNano, EndNano}` of unix nanosecond bounds. `Compactor` is embedded in `storage.Store`, so any external implementation or mock of either interface needs updating. The zero value preserves the previous behaviour of scanning each block in full. `RedactBlock` returns an error for a window it cannot honour (negative bounds, or a start at or after the end) rather than scanning with it and reporting the empty result as a completed redaction.
 user: zalegrala
