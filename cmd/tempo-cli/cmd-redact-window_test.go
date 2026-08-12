@@ -71,19 +71,3 @@ func TestWindowBoundNano(t *testing.T) {
 		})
 	}
 }
-
-// TestWindowBoundNanoResolvesAgainstOneInstant pins the property that makes identical relative specs
-// comparable: the same spec and the same now must resolve identically, every time.
-func TestWindowBoundNanoResolvesAgainstOneInstant(t *testing.T) {
-	now := time.Now()
-
-	for _, spec := range []string{"now", "now-7d", "now-30m"} {
-		t.Run(spec, func(t *testing.T) {
-			first, _, err := windowBoundNano(spec, now)
-			require.NoError(t, err)
-			second, _, err := windowBoundNano(spec, now)
-			require.NoError(t, err)
-			require.Equal(t, first, second, "one instant in, one instant out -- otherwise --start X --end X is a nonzero window")
-		})
-	}
-}

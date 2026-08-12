@@ -140,6 +140,7 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 	if err := s.work.LoadBatchesFromLocal(ctx, s.cfg.LocalWorkPath); err != nil {
 		level.Info(log.Logger).Log("msg", "no batch manifest found at startup", "err", err)
 	}
+	s.dropBatchesWithUnusableWindows()
 
 	wg := sync.WaitGroup{}
 
@@ -512,15 +513,14 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 	// Optional [start, end] window. It must be fully specified or absent, non-negative, and a
 	// non-empty range. The client resolves any relative form (e.g. now-7d) to absolute nanos first.
 	//
-	// A one-sided window is refused rather than supported: the storage layer only installs its
-	// time predicate when both bounds are set (vparquet{3,4,5} gate the trace-time filter on
-	// `start > 0 && end > 0`), so a single bound would narrow block selection while leaving the
-	// per-block scan unbounded — deleting out-of-window traces from every selected block, with no
-	// way to undo it. Requiring both keeps the scan bound always engaged.
+	// Requiring both bounds is a policy choice, not a storage constraint. The storage layer does
+	// materialise a one-sided window (RedactionWindow.fetchBounds keeps the vparquet trace-time
+	// predicate installed either way), so a single bound would be honoured — but a half-specified
+	// window is almost always a typo, and guessing which half was meant has no undo.
 	//
-	// A negative bound is refused because the layers disagree about it: block selection treats any
-	// non-zero value as a real bound, while the scan bound treats a non-positive value as absent.
-	// A negative window would therefore select every block and then scan each one unbounded.
+	// A negative bound is refused because it cannot describe a real redaction target: block
+	// timestamps are post-epoch, so a negative bound only ever widens or empties the selection
+	// depending on which layer reads it.
 	//
 	// A degenerate range (start == end) is refused because it matches only traces spanning that exact
 	// instant — effectively nothing — while reporting a successful redaction.
@@ -528,10 +528,21 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		return nil, status.Error(codes.InvalidArgument, "start_time_unix_nano and end_time_unix_nano must both be set or both be omitted")
 	}
 	if req.StartTimeUnixNano < 0 || req.EndTimeUnixNano < 0 {
-		return nil, status.Error(codes.InvalidArgument, "window bounds must be non-negative unix nanoseconds")
+		return nil, status.Errorf(codes.InvalidArgument, "window bounds must be non-negative unix nanoseconds, got start=%d end=%d", req.StartTimeUnixNano, req.EndTimeUnixNano)
 	}
 	if req.StartTimeUnixNano != 0 && req.StartTimeUnixNano >= req.EndTimeUnixNano {
-		return nil, status.Error(codes.InvalidArgument, "start_time_unix_nano must be before end_time_unix_nano")
+		return nil, status.Errorf(codes.InvalidArgument, "start_time_unix_nano must be before end_time_unix_nano, got start=%d end=%d", req.StartTimeUnixNano, req.EndTimeUnixNano)
+	}
+
+	// A window and an explicit trace-ID list are mutually exclusive. The window scopes which BLOCKS
+	// are read; it is not applied per trace, and the trace-ID path resolves IDs with no time bound at
+	// all (see tempodb.RedactBlock). Accepting the pair would delete each listed trace only from the
+	// blocks that happen to overlap the window and leave the rest of it in the backend, while
+	// reporting a completed redaction — under-deletion with no signal, on a privacy-motivated
+	// operation that cannot be undone. Refuse instead of half-honouring it.
+	if len(req.TraceIds) > 0 && req.StartTimeUnixNano != 0 {
+		return nil, status.Error(codes.InvalidArgument,
+			"a time window cannot be combined with trace_ids: the window is not applied per trace, so only the parts of each trace held by in-window blocks would be removed")
 	}
 
 	if s.overrides.CompactionDisabled(tenant) {
@@ -615,10 +626,19 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 	// the corrected resubmission with AlreadyExists.
 	//
 	// An empty set with a non-empty skippedJobSet is different: every candidate block is mid-compaction,
-	// so the batch must exist for the rescan to pick those blocks up once compaction finishes. That
-	// exemption does not apply to a dry-run, which arms no rescan (see below) — such a batch would never
-	// scan anything, so it hits every consequence above with no work pending to justify it.
-	if len(metas) == 0 && (len(skippedJobSet) == 0 || req.Mode.IsDryRun()) {
+	// so the batch must exist for the rescan to pick those blocks up once compaction finishes.
+	//
+	// That exemption does not apply to a dry-run, which arms no rescan (see below) — such a batch would
+	// never scan anything, so it hits every consequence above with no work pending to justify it. It gets
+	// its own code and message: the blocks DID overlap the window, so telling the operator their window
+	// matched nothing would send them to widen it, when the fix is to retry once compaction settles.
+	if len(metas) == 0 && len(skippedJobSet) > 0 && req.Mode.IsDryRun() {
+		level.Info(log.Logger).Log("msg", "dry-run redaction deferred every in-window block to compaction; refusing rather than creating a batch that never scans",
+			"tenant", tenant, "busy_blocks", busySkippedBlocks, "compaction_jobs", len(skippedJobSet))
+		return nil, status.Errorf(codes.FailedPrecondition,
+			"all %d in-window blocks are being compacted; retry the dry-run shortly", busySkippedBlocks)
+	}
+	if len(metas) == 0 && len(skippedJobSet) == 0 {
 		level.Info(log.Logger).Log("msg", "redaction submission matched no blocks in the requested window",
 			"tenant", tenant, "out_of_window_blocks", outOfWindowBlocks,
 			"total_blocks", outOfWindowBlocks+busySkippedBlocks)
@@ -628,12 +648,12 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 	// Record what will actually be touched. The requested window can extend well past the data (a
 	// -9999y bound on a 30d tenant is a clumsy way to say "everything"), so the covered range is the
 	// honest description of the blast radius on an operation with no undo.
-	coveredStart, coveredEnd, haveCovered := coveredRange(metas)
+	coveredStart, coveredEnd, haveStart, haveEnd := coveredRange(metas)
 	span.SetAttributes(
 		attribute.Int64("window_start_unix_nano", req.StartTimeUnixNano),
 		attribute.Int64("window_end_unix_nano", req.EndTimeUnixNano),
-		attribute.String("covered_start", coveredRangeLabel(coveredStart, haveCovered)),
-		attribute.String("covered_end", coveredRangeLabel(coveredEnd, haveCovered)),
+		attribute.String("covered_start", coveredRangeLabel(coveredStart, haveStart)),
+		attribute.String("covered_end", coveredRangeLabel(coveredEnd, haveEnd)),
 		attribute.Int("out_of_window_blocks", outOfWindowBlocks),
 		attribute.Int("indeterminate_blocks", indeterminateBlocks),
 	)
@@ -706,8 +726,8 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		"jobs_created", len(jobs),
 		"blocks_skipped_compacting", busySkippedBlocks,
 		"blocks_out_of_window", outOfWindowBlocks,
-		"covered_start", coveredRangeLabel(coveredStart, haveCovered),
-		"covered_end", coveredRangeLabel(coveredEnd, haveCovered),
+		"covered_start", coveredRangeLabel(coveredStart, haveStart),
+		"covered_end", coveredRangeLabel(coveredEnd, haveEnd),
 		"trace_count", len(req.TraceIds))
 
 	return &tempopb.SubmitRedactionResponse{
@@ -868,23 +888,20 @@ func (s *BackendScheduler) performRescan(ctx context.Context, batch *tempopb.Red
 	var rearmIDs []string // non-empty → re-arm batch for next tick
 	resolved := false     // true on clean exit (done or scheduled for re-arm)
 
-	// The window comes off the persisted manifest rather than a just-validated request, so revalidate it.
-	// An unusable window must not silently exclude everything: for a negative bound blockOverlapsWindow
-	// compares against a pre-1970 instant and reports no overlap for every real block, which would drop
-	// every output block with nothing but a debug log — silent under-deletion. Fall back to treating the
-	// batch as unwindowed, which over-includes; for a query redaction the per-block scan bound in
-	// RedactBlock still decides what is actually deleted.
+	// Both ways a batch can reach the store validate its window first — SubmitRedaction on the way in,
+	// dropBatchesWithUnusableWindows on the way back off disk — so the window here is usable.
 	rescanWindow := tempodb.RedactionWindow{StartNano: batch.StartTimeUnixNano, EndNano: batch.EndTimeUnixNano}
-	if err := rescanWindow.Validate(); err != nil {
-		level.Warn(log.Logger).Log("msg", "redaction rescan: persisted batch window is unusable, treating the batch as unwindowed",
-			"tenant", tenantID, "batch_id", batchID, "err", err)
-		rescanWindow = tempodb.RedactionWindow{}
-	}
 
 	// Output blocks are discovered by ID, so re-applying the window means looking their metas up. Built
-	// once outside the generation loop: the blocklist does not change within a single tick, and on a
-	// large tenant this is a full meta snapshot plus a UUID format per block. Skipped entirely when the
-	// batch has no window, which is the common case and needs no lookups at all.
+	// once outside the generation loop rather than per generation.
+	//
+	// Holding the snapshot across generations is safe, but not because the blocklist is immutable — the
+	// poller mutates it concurrently. It is safe because BlockMetas returns a private slice copy and the
+	// *BlockMeta values are not mutated after publication, so these pointers cannot be observed torn. A
+	// later generation's output block may be missing from the snapshot; that resolves to unknown, which
+	// falls through to enqueue, so the staleness can only over-include, never silently drop a block.
+	//
+	// Skipped entirely when the batch has no window, which is the common case and needs no lookups.
 	var metaByID map[string]*backend.BlockMeta
 	if !rescanWindow.IsZero() {
 		metas := s.store.BlockMetas(tenantID)

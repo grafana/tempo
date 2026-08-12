@@ -102,6 +102,11 @@ func TestRedactCmdValidate(t *testing.T) {
 		// nothing can match -- under-deletion reported as success.
 		{"window identical relative specs", redactCmd{Query: q, Start: "now-7d", End: "now-7d"}, true},
 		{"window identical now", redactCmd{Query: q, Start: "now", End: "now"}, true},
+
+		// The window is not applied per trace, so pairing it with --trace-id would half-delete each
+		// listed trace and report success.
+		{"window with trace ids", redactCmd{TraceIDs: []string{"abc"}, Start: "now-7d", End: "now-6d"}, true},
+		{"trace ids without a window are fine", redactCmd{TraceIDs: []string{"abc"}}, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -151,9 +156,10 @@ func TestRedactCmdCarriesResolvedWindow(t *testing.T) {
 		require.Equal(t, cmd.endNano, mock.capturedReq.EndTimeUnixNano, "resolved end must reach the wire")
 		require.NotZero(t, mock.capturedReq.StartTimeUnixNano, "a submitted window must not be the unbounded sentinel")
 		require.NotZero(t, mock.capturedReq.EndTimeUnixNano)
-		require.InDelta(t, float64(24*time.Hour),
-			float64(mock.capturedReq.EndTimeUnixNano-mock.capturedReq.StartTimeUnixNano),
-			float64(2*time.Minute), "now-7d..now-6d is a one-day window")
+		// Exactly 24h, not approximately: both bounds resolve against one instant, so any tolerance here
+		// would still pass if someone reverted to a per-bound time.Now() -- the regression this pins.
+		require.Equal(t, int64(24*time.Hour), mock.capturedReq.EndTimeUnixNano-mock.capturedReq.StartTimeUnixNano,
+			"now-7d..now-6d is exactly a one-day window")
 	})
 
 	t.Run("no window submits the unbounded sentinel", func(t *testing.T) {

@@ -678,14 +678,29 @@ func redactionIDsFromQuery(ctx context.Context, block common.BackendBlock, query
 	return dropSet, nil
 }
 
-// RedactBlock rewrites a block excluding the traces selected by either an explicit trace
-// ID list or a TraceQL query (never both). If none are present in the block, no rewrite is
-// performed. In dry-run mode it reports the match count without rewriting.
+// RedactBlock rewrites a block excluding the traces selected by either an explicit trace ID list or a
+// TraceQL query (never both). If none are present in the block, no rewrite is performed. In dry-run mode
+// it reports the match count without rewriting.
+//
+// window bounds which traces inside the block are candidates; the zero value scans the block in full.
+// It applies to the query selector only — see RedactionWindow — and is refused alongside traceIDs
+// rather than silently ignored. An unusable window is an error, not a scan that matches nothing.
+//
+// On error, found is 0 and newMeta is nil; newMeta is also nil in dry-run mode, where nothing is written.
 func (rw *readerWriter) RedactBlock(ctx context.Context, meta *backend.BlockMeta, tenantID string, traceIDs []common.ID, query string, mode tempopb.RedactionMode, window RedactionWindow) (rewrote bool, found int, newMeta *backend.BlockMeta, err error) {
 	// Refuse a window this block cannot be scanned with, rather than scanning with it and
 	// reporting the empty result as a completed redaction.
 	if err := window.Validate(); err != nil {
 		return false, 0, nil, fmt.Errorf("redaction window for block %s: %w", meta.BlockID.String(), err)
+	}
+
+	// A window cannot scope an explicit trace-ID list: the ID path resolves each trace with no time
+	// bound, so honouring the window here is impossible and accepting it would delete the listed traces
+	// from this block regardless of when their spans occurred. SubmitRedaction refuses the pair at the
+	// API edge, but this is the layer that would do the deleting, and it is reachable by any other
+	// caller of the exported Compactor interface.
+	if len(traceIDs) > 0 && !window.IsZero() {
+		return false, 0, nil, fmt.Errorf("redaction of block %s: a time window cannot be combined with an explicit trace ID list", meta.BlockID.String())
 	}
 
 	block, err := encoding.OpenBlock(meta, rw.r)

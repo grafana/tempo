@@ -5,9 +5,18 @@ import (
 	"math"
 )
 
-// RedactionWindow bounds a redaction in time: only traces whose spans fall inside it are
-// candidates for removal. Both bounds are unix nanoseconds. The zero value is an unbounded
-// window, which redacts every query match in the block regardless of timestamp.
+// RedactionWindow bounds the per-block scan of a TraceQL redaction in time: with a window set, only
+// traces overlapping it are candidates for removal. Both bounds are unix nanoseconds, and the zero
+// value is unbounded — every query match in the block, regardless of timestamp.
+//
+// Two limits are worth stating because neither is obvious and both destroy data:
+//
+//   - Overlap, not containment. The installed predicate matches a trace whose range intersects the
+//     window, and a matched trace is dropped whole — so a trace starting before the window and ending
+//     inside it loses its out-of-window spans too.
+//   - Query selector only. The explicit trace-ID path resolves IDs with no time bound, so a window
+//     cannot scope it; RedactBlock refuses that combination rather than validating a window it would
+//     then ignore.
 //
 // The bounds travel as a named-field struct rather than two adjacent int64 parameters
 // because transposing them fails silently: an inverted window matches nothing, the job
@@ -66,6 +75,13 @@ func (w RedactionWindow) fetchBounds() (start, end uint64, ok bool) {
 	}
 	if hi <= 0 {
 		hi = math.MaxInt64
+	}
+
+	// Validate rejects an inverted window and RedactBlock calls it first, so this is unreachable today.
+	// It stays because the failure it prevents is silent: an inverted predicate matches nothing, so a
+	// second caller added later would under-delete and report success with no signal.
+	if lo >= hi {
+		return 0, 0, false
 	}
 
 	return uint64(lo), uint64(hi), true

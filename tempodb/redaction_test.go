@@ -2,6 +2,7 @@ package tempodb
 
 import (
 	"context"
+	"math"
 	"sort"
 	"testing"
 	"time"
@@ -56,6 +57,10 @@ func traceAtTime(id []byte, startNano, endNano uint64) *tempopb.Trace {
 
 // survivingTraceIDs returns the hex IDs of traces still present in a block and matching a query,
 // scanned with no time bound.
+//
+// This is a query-scoped census, not a block census: a surviving trace that does not satisfy the query
+// is not reported. Callers therefore pair it with an assertion on newMeta.TotalObjects, so a fixture
+// containing a non-matching trace cannot hide that trace being over-deleted.
 //
 // Window tests must assert WHICH trace survived, not how many. With two candidate traces that both
 // satisfy the query and differ only in time, "one was deleted" is equally true of the intended
@@ -383,4 +388,105 @@ func TestRedactBlockRejectsUnusableWindow(t *testing.T) {
 	require.False(t, rewrote, "a refused window must not rewrite the block")
 	require.Zero(t, found)
 	require.Nil(t, newMeta)
+}
+
+// TestRedactionWindowFetchBounds covers the resolution of a window into block-fetch bounds directly.
+//
+// The unbounded case is the one that matters most and is invisible at the block level. If the zero
+// window stopped reporting "no bound" and instead resolved to [1ns, MaxInt64], the vparquet trace-time
+// predicate would be INSTALLED on every whole-tenant redaction — and any trace whose recorded trace-time
+// is zero would then be excluded and silently survive. Blocks completed from a replayed WAL carry no
+// times at all, which is exactly the population blockOverlapsWindow's indeterminate branch exists for,
+// so that is a live under-deletion path reported as success.
+func TestRedactionWindowFetchBounds(t *testing.T) {
+	const day = int64(24 * time.Hour)
+
+	for _, tc := range []struct {
+		name           string
+		window         RedactionWindow
+		wantOK         bool
+		wantLo, wantHi uint64
+	}{
+		{
+			name:   "unbounded installs no predicate at all",
+			window: RedactionWindow{},
+			wantOK: false,
+		},
+		{
+			name:   "both bounds pass through unchanged",
+			window: RedactionWindow{StartNano: day, EndNano: 2 * day},
+			wantOK: true, wantLo: uint64(day), wantHi: uint64(2 * day),
+		},
+		{
+			// The open side is materialised rather than left at 0: vparquet gates the predicate on
+			// start > 0 && end > 0, so a zero bound would remove the filter instead of widening it.
+			name:   "start only materialises the upper bound",
+			window: RedactionWindow{StartNano: day},
+			wantOK: true, wantLo: uint64(day), wantHi: math.MaxInt64,
+		},
+		{
+			name:   "end only materialises the lower bound at 1ns, not 0",
+			window: RedactionWindow{EndNano: day},
+			wantOK: true, wantLo: 1, wantHi: uint64(day),
+		},
+		{
+			// Unreachable through RedactBlock, which validates first; kept because the failure is silent.
+			name:   "an inverted window installs nothing rather than a predicate matching nothing",
+			window: RedactionWindow{StartNano: 2 * day, EndNano: day},
+			wantOK: false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			lo, hi, ok := tc.window.fetchBounds()
+			require.Equal(t, tc.wantOK, ok, "ok decides whether a trace-time predicate is installed at all")
+			if !tc.wantOK {
+				require.Zero(t, lo)
+				require.Zero(t, hi)
+				return
+			}
+			require.Equal(t, tc.wantLo, lo)
+			require.Equal(t, tc.wantHi, hi)
+			require.Positive(t, lo, "a zero lower bound would disable the predicate instead of narrowing it")
+			require.Less(t, lo, hi, "bounds must describe a non-empty range")
+		})
+	}
+}
+
+// TestRedactBlockRefusesWindowWithTraceIDs verifies a window alongside an explicit trace-ID list is an
+// error rather than a validated-then-ignored parameter.
+//
+// The ID path resolves each trace with FindTraceByID, which takes no time bound, so the window cannot
+// scope it. Accepting the pair deletes each listed trace from every selected block regardless of when its
+// spans occurred, while the caller believes the window constrained the operation — under-deletion of the
+// rest of the trace and over-deletion within these blocks, both unrecoverable and both reported as
+// success. SubmitRedaction refuses the pair too; this is the layer that would do the deleting.
+func TestRedactBlockRefusesWindowWithTraceIDs(t *testing.T) {
+	_, w, c, _ := testConfig(t, 0)
+	ctx := context.Background()
+
+	id := test.ValidTraceID(nil)
+	nano := uint64(time.Now().Add(-time.Hour).UnixNano())
+	blk := cutTestBlockWithTraces(t, w, []testData{
+		{id, traceAtTime(id, nano, nano), uint32(nano / 1e9), uint32(nano / 1e9)},
+	})
+
+	window := RedactionWindow{
+		StartNano: time.Now().Add(-2 * time.Hour).UnixNano(),
+		EndNano:   time.Now().UnixNano(),
+	}
+
+	rewrote, found, newMeta, err := c.RedactBlock(ctx, blk.BlockMeta(), testTenantID,
+		[]common.ID{id}, "", tempopb.RedactionMode_REDACTION_MODE_APPLY, window)
+
+	require.ErrorContains(t, err, "cannot be combined")
+	require.False(t, rewrote, "a refused request must not rewrite the block")
+	require.Zero(t, found)
+	require.Nil(t, newMeta)
+
+	// The same list without a window still works, so the guard is specific to the combination.
+	rewrote, found, _, err = c.RedactBlock(ctx, blk.BlockMeta(), testTenantID,
+		[]common.ID{id}, "", tempopb.RedactionMode_REDACTION_MODE_APPLY, RedactionWindow{})
+	require.NoError(t, err)
+	require.True(t, rewrote)
+	require.Equal(t, 1, found)
 }

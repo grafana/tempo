@@ -3,6 +3,10 @@ package backendscheduler
 import (
 	"time"
 
+	"github.com/go-kit/log/level"
+
+	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
@@ -54,36 +58,66 @@ func blockOverlapsWindow(meta *backend.BlockMeta, startNano, endNano int64) (ove
 	return true, false
 }
 
-// coveredRange reports the span of data the selected blocks actually hold, and whether any block
-// contributed a usable range.
+// coveredRange reports the span of data the selected blocks actually hold, with a flag per bound saying
+// whether any block supplied it.
 //
-// Blocks whose recorded range is unusable contribute nothing. Selection deliberately includes those
-// (see blockOverlapsWindow), so they reach here by construction — and time.Time{} both precedes every
-// real timestamp and is indistinguishable from an unseeded accumulator, so admitting one would drag the
-// reported start back to year 1. That understates the blast radius on exactly the blocks selection was
+// Unusable timestamps contribute nothing. Selection deliberately includes blocks whose recorded range is
+// unusable (see blockOverlapsWindow), so they reach here by construction — and time.Time{} both precedes
+// every real timestamp and is indistinguishable from an unseeded accumulator, so admitting one would drag
+// the reported start back to year 1. That understates the blast radius on exactly the blocks selection was
 // least confident about, in the one record an operator has for an operation with no undo.
 //
-// ok is false when no block had a usable range; callers report that as unknown rather than as year 1.
-func coveredRange(metas []*backend.BlockMeta) (start, end time.Time, ok bool) {
+// The bounds are tracked separately so a half-usable meta still contributes the half that is good.
+// Callers render a bound with no contributor as unknown rather than as year 1.
+func coveredRange(metas []*backend.BlockMeta) (start, end time.Time, startOK, endOK bool) {
 	for _, meta := range metas {
-		if meta.StartTime.IsZero() || meta.EndTime.IsZero() {
+		// A meta whose recorded range is inverted describes no interval; neither bound is trustworthy.
+		if !meta.StartTime.IsZero() && !meta.EndTime.IsZero() && meta.StartTime.After(meta.EndTime) {
 			continue
 		}
 
-		if !ok {
-			start, end, ok = meta.StartTime, meta.EndTime, true
-			continue
+		// The two bounds accumulate independently: a meta can carry a usable start and a zero end, and
+		// discarding its start along with the unusable end would understate the range on a block that
+		// was nonetheless enqueued.
+		if !meta.StartTime.IsZero() && (!startOK || meta.StartTime.Before(start)) {
+			start, startOK = meta.StartTime, true
 		}
-
-		if meta.StartTime.Before(start) {
-			start = meta.StartTime
-		}
-		if meta.EndTime.After(end) {
-			end = meta.EndTime
+		if !meta.EndTime.IsZero() && (!endOK || meta.EndTime.After(end)) {
+			end, endOK = meta.EndTime, true
 		}
 	}
 
-	return start, end, ok
+	return start, end, startOK, endOK
+}
+
+// dropBatchesWithUnusableWindows removes any loaded batch whose persisted window cannot be honoured.
+//
+// This is the trust boundary for windows arriving off disk. SubmitRedaction validates on the way in, so
+// no window this scheduler wrote can be unusable; one that is came from a corrupted manifest or another
+// writer. Both downstream consumers — Next(), which stamps the window onto every dispatched job, and
+// performRescan, which filters output blocks with it — would otherwise each have to cope, and neither
+// can do so safely: dropping the batch's blocks silently under-deletes, while treating the window as
+// unbounded would delete every query match in those blocks regardless of time, which is unrecoverable
+// over-deletion of data the operator never asked about.
+//
+// Refusing the batch is the only option that destroys nothing. The tenant's compaction gate is released
+// and the operator must resubmit, which the error log says explicitly.
+func (s *BackendScheduler) dropBatchesWithUnusableWindows() {
+	for _, batch := range s.work.ListBatches() {
+		w := tempodb.RedactionWindow{StartNano: batch.StartTimeUnixNano, EndNano: batch.EndTimeUnixNano}
+		err := w.Validate()
+		if err == nil {
+			continue
+		}
+
+		level.Error(log.Logger).Log(
+			"msg", "discarding persisted redaction batch with an unusable time window; nothing was redacted for it, resubmit if the traces are still present",
+			"tenant", batch.TenantId, "batch_id", batch.BatchId,
+			"start_time_unix_nano", batch.StartTimeUnixNano, "end_time_unix_nano", batch.EndTimeUnixNano,
+			"err", err,
+		)
+		s.work.RemoveBatch(batch.TenantId)
+	}
 }
 
 // coveredRangeLabel renders a covered bound for an audit record, so "no block reported a usable range"

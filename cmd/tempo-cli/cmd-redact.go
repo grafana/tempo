@@ -74,9 +74,12 @@ func (cmd *redactCmd) Run(_ *globalOptions) error {
 	return nil
 }
 
-// validate enforces that exactly one selector is provided: an explicit trace ID list or a
-// TraceQL query, never both and never neither. The server enforces the same, but checking
-// here fails fast before dialing.
+// validate resolves the time window and enforces that the request is coherent: exactly one selector
+// (an explicit trace ID list or a TraceQL query, never both and never neither), a fully specified and
+// ordered window if one is given, and a window only alongside the query selector. The server enforces
+// all of it too; checking here fails fast before dialing and before a TLS handshake.
+//
+// Resolving the window is a side effect: it populates cmd.startNano/endNano for submit().
 func (cmd *redactCmd) validate() error {
 	// Resolve the window here, not in submit(): validate() runs before the scheduler is dialed, so a
 	// mistyped bound fails immediately rather than after a TLS handshake.
@@ -101,15 +104,26 @@ func (cmd *redactCmd) validate() error {
 			cmd.Start, time.Unix(0, cmd.startNano).UTC().Format(time.RFC3339Nano),
 			cmd.End, time.Unix(0, cmd.endNano).UTC().Format(time.RFC3339Nano))
 	}
-
+	// Selector coherence is checked before window/selector compatibility, so a request that gets both
+	// wrong is told about the more fundamental problem first.
 	hasIDs := len(cmd.TraceIDs) > 0
 	hasQuery := cmd.Query != ""
 	switch {
 	case hasIDs && hasQuery:
-		return fmt.Errorf("--trace-id and --query are mutually exclusive")
+		return errors.New("--trace-id and --query are mutually exclusive")
 	case !hasIDs && !hasQuery:
-		return fmt.Errorf("one of --trace-id or --query must be provided")
+		return errors.New("one of --trace-id or --query must be provided")
 	}
+
+	// The window scopes which blocks are read, not which spans of a trace are removed, and the
+	// trace-ID path applies no time bound at all. Combining them would delete each listed trace only
+	// from the blocks overlapping the window and leave the rest behind, reported as a completed
+	// redaction. The server refuses this too; failing here saves the round trip.
+	if startSet && hasIDs {
+		return errors.New("--start/--end cannot be combined with --trace-id: the window is not applied per trace, " +
+			"so only the parts of each trace held by in-window blocks would be removed")
+	}
+
 	return nil
 }
 
@@ -185,12 +199,18 @@ var (
 
 // resolveWindow resolves both bounds against a single instant, reporting which were supplied.
 func (cmd *redactCmd) resolveWindow(now time.Time) (startSet, endSet bool, err error) {
-	if cmd.startNano, startSet, err = windowBoundNano(cmd.Start, now); err != nil {
+	// Resolved into locals and assigned together, so a failure on the second bound cannot leave the
+	// receiver describing a one-sided window that the returned flags deny.
+	startNano, startSet, err := windowBoundNano(cmd.Start, now)
+	if err != nil {
 		return false, false, fmt.Errorf("parsing --start: %w", err)
 	}
-	if cmd.endNano, endSet, err = windowBoundNano(cmd.End, now); err != nil {
+	endNano, endSet, err := windowBoundNano(cmd.End, now)
+	if err != nil {
 		return false, false, fmt.Errorf("parsing --end: %w", err)
 	}
+
+	cmd.startNano, cmd.endNano = startNano, endNano
 	return startSet, endSet, nil
 }
 
@@ -221,8 +241,8 @@ func windowBoundNano(spec string, now time.Time) (nano int64, ok bool, err error
 	// which defeats the point of checking here.
 	if t.Before(unixNanoMin) || t.After(unixNanoMax) {
 		return 0, false, fmt.Errorf("time %q resolves to %s, outside the range this command can express (%s .. %s)",
-			spec, t.UTC().Format(time.RFC3339),
-			unixNanoMin.UTC().Format(time.RFC3339), unixNanoMax.UTC().Format(time.RFC3339))
+			spec, t.UTC().Format(time.RFC3339Nano),
+			unixNanoMin.UTC().Format(time.RFC3339Nano), unixNanoMax.UTC().Format(time.RFC3339Nano))
 	}
 
 	// Exactly the epoch collides with the sentinel that every layer reads as "unbounded", so a
