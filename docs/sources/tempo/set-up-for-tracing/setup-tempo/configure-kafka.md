@@ -9,7 +9,7 @@ versionDate: 2026-08-10
 
 # Configure a Kafka-compatible backend
 
-Tempo microservices mode uses an external Kafka-compatible system as its durable write-ahead log.
+The microservices mode in Grafana Tempo uses an external Kafka-compatible system as its durable write-ahead log.
 The `tempo-distributed` Helm chart configures the connection but doesn't install or operate Kafka.
 
 {{< admonition type="note" >}}
