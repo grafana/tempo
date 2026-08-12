@@ -458,6 +458,14 @@ alerts only fire once the failures propagate back to `cortex-gw` as gRPC errors 
 than the SLO bucket. With small-but-sustained failure rates the cortex-gw signal can take hours to
 cross the SLO burn threshold; this alert fires from the producer side in minutes.
 
+The expression is guarded on a non-zero produce rate, so it deliberately does not evaluate on a cell
+where `tempo_distributor_produce_records_total` is not being incremented. Without that guard the ratio
+divides by zero, which PromQL evaluates to `+Inf`, and the alert pages as critical at a meaningless
+`+Inf%` on the first recorded failure. If this alert is unexpectedly silent while produce failures are
+visible, confirm the produce counter is live with
+`sum by (cluster, namespace) (rate(tempo_distributor_produce_records_total[5m]))` -- a flat counter
+there means the ratio cannot be computed and the failures must be investigated directly by reason.
+
 ### Failure reasons
 
 The `tempo_distributor_produce_failures_total` metric carries a `reason` label set by
