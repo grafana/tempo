@@ -829,6 +829,9 @@ The response is a JSON object containing:
 - `slowestSpans`: the 5 slowest spans in the trace.
 - `errorSpans`: the first 5 spans with an error status.
 
+Nanosecond fields (`durationNanos`, `startTimeUnixNano`) are encoded as JSON strings, not numbers.
+They are 64-bit values that exceed the range a JSON number represents exactly in JavaScript clients.
+
 Only `GET` is allowed. Other methods return `405 Method Not Allowed`.
 
 ### Query Echo endpoint

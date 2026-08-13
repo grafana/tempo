@@ -34,7 +34,7 @@ var errTraceSummaryTraceNotFound = errors.New("trace not found")
 
 // newTraceSummaryHandler creates an HTTP handler for trace summary requests.
 // EXPERIMENTAL: this endpoint is not yet a stable API contract.
-func newTraceSummaryHandler(cfg Config, apiPrefix string, tracePipeline pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor, combiner.TraceByIDV2Options) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
+func newTraceSummaryHandler(apiPrefix string, tracePipeline pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor, combiner.TraceByIDV2Options) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		if req.Method != http.MethodGet {
 			return &http.Response{
@@ -67,7 +67,7 @@ func newTraceSummaryHandler(cfg Config, apiPrefix string, tracePipeline pipeline
 			"trace_id", traceID,
 		)
 
-		traceResp, err := fetchTraceForSummary(req.Context(), cfg, tenant, traceID, startTime, endTime, req.Header, apiPrefix, tracePipeline, o, combinerFn, logger, dataAccessController)
+		traceResp, err := fetchTraceForSummary(req.Context(), tenant, traceID, startTime, endTime, req.Header, apiPrefix, tracePipeline, o, combinerFn, logger, dataAccessController)
 		if err != nil {
 			return traceSummaryErrorResponse(err), nil
 		}
@@ -115,7 +115,7 @@ func buildTraceSummaryTraceByIDRequest(ctx context.Context, apiPrefix, traceID s
 	return mux.SetURLVars(req, map[string]string{muxVarTraceID: traceID})
 }
 
-func fetchTraceForSummary(ctx context.Context, cfg Config, tenant, traceID string, startTime, endTime time.Time, headers http.Header, apiPrefix string, tracePipeline pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor, combiner.TraceByIDV2Options) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], logger log.Logger, dataAccessController DataAccessController) (*tempopb.TraceByIDResponse, error) {
+func fetchTraceForSummary(ctx context.Context, tenant, traceID string, startTime, endTime time.Time, headers http.Header, apiPrefix string, tracePipeline pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor, combiner.TraceByIDV2Options) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], logger log.Logger, dataAccessController DataAccessController) (*tempopb.TraceByIDResponse, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -131,20 +131,32 @@ func fetchTraceForSummary(ctx context.Context, cfg Config, tenant, traceID strin
 		traceRedactor = redactor
 	}
 
-	// all communication internal to Tempo is protobuf bytes, regardless of what the caller asked for.
-	comb := combinerFn(o.MaxBytesPerTrace(tenant), api.MarshallingFormatProtobuf, traceRedactor, combiner.TraceByIDV2Options{})
-	rt := pipeline.NewHTTPCollector(tracePipeline, cfg.ResponseConsumers, comb)
-
 	start := time.Now()
-	resp, err := rt.RoundTrip(traceByIDReq)
-	elapsed := time.Since(start)
-
-	if resp != nil && resp.Body != nil {
-		_ = resp.Body.Close()
-	}
+	resps, err := tracePipeline.RoundTrip(pipeline.NewHTTPRequest(traceByIDReq))
 	if err != nil {
 		return nil, fmt.Errorf("fetch trace %s: %w", traceID, err)
 	}
+
+	// all communication internal to Tempo is protobuf bytes, regardless of what the caller asked for.
+	// Responses are consumed directly rather than through pipeline.NewHTTPCollector: the collector
+	// calls HTTPFinal(), which finalizes (dedupe, redaction) and marshals a body this handler would
+	// only discard before finalizing a second time via GRPCFinal().
+	comb := combinerFn(o.MaxBytesPerTrace(tenant), api.MarshallingFormatProtobuf, traceRedactor, combiner.TraceByIDV2Options{})
+	for {
+		resp, done, err := resps.Next(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("read trace %s response: %w", traceID, err)
+		}
+		if resp != nil {
+			if err := comb.AddResponse(resp); err != nil {
+				return nil, fmt.Errorf("combine trace %s response: %w", traceID, err)
+			}
+		}
+		if comb.ShouldQuit() || done {
+			break
+		}
+	}
+	elapsed := time.Since(start)
 
 	traceResp, err := comb.GRPCFinal()
 	if err != nil {

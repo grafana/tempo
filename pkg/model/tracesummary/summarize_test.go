@@ -1,6 +1,7 @@
 package tracesummary
 
 import (
+	"encoding/json"
 	"sort"
 	"testing"
 
@@ -242,6 +243,37 @@ func expectedSpanIDs(spans []*resolvedSpan, k int) []string {
 		out = append(out, util.SpanIDToHexString(s.span.GetSpanId()))
 	}
 	return out
+}
+
+// Nanosecond fields must survive a JSON round trip exactly. Encoded as JSON
+// numbers they would not: an epoch-nanosecond timestamp is past 2^53, where a
+// JavaScript client silently rounds.
+func TestSummary_NanosMarshalAsJSONStrings(t *testing.T) {
+	const startNano = uint64(1763000000123456789)
+
+	trace := &tempopb.Trace{
+		ResourceSpans: []*tracev1.ResourceSpans{
+			resourceSpans(
+				"svc",
+				testSpan("root", "", "root-op", tracev1.Span_SPAN_KIND_SERVER, startNano, startNano+1500, tracev1.Status_STATUS_CODE_ERROR, "boom"),
+			),
+		},
+	}
+
+	got, err := Summarize(trace)
+	require.NoError(t, err)
+
+	body, err := json.Marshal(got)
+	require.NoError(t, err)
+	require.Contains(t, string(body), `"startTimeUnixNano":"1763000000123456789"`)
+	require.Contains(t, string(body), `"durationNanos":"1500"`)
+
+	var round Summary
+	require.NoError(t, json.Unmarshal(body, &round))
+	require.Equal(t, int64(1500), round.DurationNanos)
+	require.Equal(t, startNano, round.CriticalPath[0].StartTimeUnixNano)
+	require.Equal(t, startNano, round.SlowestSpans[0].StartTimeUnixNano)
+	require.Equal(t, startNano, round.ErrorSpans[0].StartTimeUnixNano)
 }
 
 func TestSummarize_FewerThanFive(t *testing.T) {
