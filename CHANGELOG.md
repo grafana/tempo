@@ -1,5 +1,11 @@
 <!-- next version -->
 
+# v2.9.5
+
+## 🔒 Security 🔒
+
+- `operations`: Update google.golang.org/grpc to v1.82.1 (GHSA-hrxh-6v49-42gf) and go.opentelemetry.io/otel to v1.44.0 (CVE-2026-41178) ([#7724](https://github.com/grafana/tempo/issues/7724)) (@mattdurham)
+
 # v2.9.4
 
 ## 🔒 Security 🔒
