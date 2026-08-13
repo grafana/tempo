@@ -4140,30 +4140,6 @@
       {
         "allValue": ".*",
         "current": {
-          "text": "ops-eu-south-0",
-          "value": "ops-eu-south-0"
-        },
-        "datasource": {
-          "type": "prometheus",
-          "uid": "${metrics}"
-        },
-        "definition": "label_values(tempo_build_info,cluster)",
-        "includeAll": true,
-        "label": "Cluster",
-        "name": "cluster",
-        "options": [],
-        "query": {
-          "qryType": 1,
-          "query": "label_values(tempo_build_info,cluster)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
-        },
-        "refresh": 1,
-        "regex": "",
-        "type": "query"
-      },
-      {
-        "allValue": ".*",
-        "current": {
           "text": "tempo-ops-01",
           "value": "tempo-ops-01"
         },
@@ -4179,6 +4155,30 @@
         "query": {
           "qryType": 1,
           "query": "label_values(tempo_build_info,namespace)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "text": "ops-eu-south-0",
+          "value": "ops-eu-south-0"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${metrics}"
+        },
+        "definition": "label_values(tempo_build_info{namespace=~\"$namespace\"},cluster)",
+        "includeAll": true,
+        "label": "Cluster",
+        "name": "cluster",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(tempo_build_info{namespace=~\"$namespace\"},cluster)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,
