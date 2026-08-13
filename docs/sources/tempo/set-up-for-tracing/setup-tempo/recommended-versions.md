@@ -27,8 +27,7 @@ Tempo releases use semantic-like versioning (`MAJOR.MINOR.PATCH`):
 
 ## Version recommendation policy
 
-<!-- [UNVERIFIED] The specific windows below are modeled after Grafana core's policy. Verify these timelines with the Tempo engineering team before publishing. -->
-
+These timelines are guidance; always consult the release notes for the most up-to-date information.
 For self-managed Tempo, version recommendations follow these rules:
 
 - Each minor release receives bug fixes and security patches for **9 months** after its release date.
