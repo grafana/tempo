@@ -3,5 +3,10 @@ component: storage
 note: "`Compactor.RedactBlock` takes an additional parameter carrying the redaction time window."
 issues: []
 subtext: |
-  `RedactBlock(ctx, meta, tenantID, traceIDs, query, mode)` becomes `RedactBlock(ctx, meta, tenantID, traceIDs, query, mode, window)`, where `window` is a `tempodb.RedactionWindow{StartNano, EndNano}` of unix nanosecond bounds. `Compactor` is embedded in `storage.Store`, so any external implementation or mock of either interface needs updating. The zero value preserves the previous behaviour of scanning each block in full. `RedactBlock` returns an error for a window it cannot honour (negative bounds, or a start at or after the end) rather than scanning with it and reporting the empty result as a completed redaction.
+  `RedactBlock(ctx, meta, tenantID, traceIDs, query, mode)` becomes `RedactBlock(ctx, meta, tenantID, traceIDs, query, mode, window)`, where `window` is a `tempodb.RedactionWindow{StartNano, EndNano}` of unix nanosecond bounds. `Compactor` is embedded in `storage.Store`, so any external implementation or mock of either interface needs updating. The zero value preserves the previous behaviour of scanning each block in full.
+
+  Two new error returns, both refusing rather than deleting more than asked:
+
+  - A window that cannot be honoured. `RedactionWindow.Validate` rejects negative bounds, and rejects any window whose *resolved* range is empty. A one-sided window is resolved before the scan — the open side is pinned to 1ns or the maximum instant — so `{EndNano: 1}` resolves to `[1, 1]` and is refused even though its raw fields are in order. Judging the raw fields instead would let such a window through, and it installs no time predicate at all: the block would be scanned in full and every query match dropped whatever its timestamp.
+  - A window combined with an explicit `traceIDs` list. The trace-ID path resolves each trace with no time bound, so the window can only narrow which blocks are read. Accepting the pair would remove each listed trace from the overlapping blocks and leave the rest of it in place, while reporting success.
 user: zalegrala
