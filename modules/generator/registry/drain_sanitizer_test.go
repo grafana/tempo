@@ -146,6 +146,41 @@ func TestDrainSanitizer_ConcurrentAccess(t *testing.T) {
 	// No panics or race conditions should occur
 }
 
+func TestDrainSanitizer_ConcurrentPrune(t *testing.T) {
+	sanitizer := newTestDrainSanitizer(SpanNameSanitizationEnabled)
+
+	const (
+		numGoroutines        = 10
+		numCallsPerGoroutine = 100
+	)
+	pruneChan := make(chan time.Time, numGoroutines*numCallsPerGoroutine)
+	for range cap(pruneChan) {
+		pruneChan <- time.Time{}
+	}
+	sanitizer.demandUpdateChan = nil
+	sanitizer.pruneChan = pruneChan
+
+	var wg sync.WaitGroup
+	wg.Add(numGoroutines)
+	for i := range numGoroutines {
+		go func() {
+			defer wg.Done()
+			for j := range numCallsPerGoroutine {
+				// Digit-bearing suffixes collapse into DRAIN's data wildcard and stop growing the tree.
+				n := i*numCallsPerGoroutine + j
+				suffix := string([]rune{
+					rune('a' + n%26),
+					rune('a' + (n/26)%26),
+					rune('a' + (n/676)%26),
+				})
+				sanitizer.Sanitize(labels.FromStrings("span_name", "GET /api/users/"+suffix))
+			}
+		}()
+	}
+	wg.Wait()
+	require.Empty(t, pruneChan)
+}
+
 func TestDrainSanitizer_DemandTracking(t *testing.T) {
 	t.Parallel()
 

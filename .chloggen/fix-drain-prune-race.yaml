@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: metrics-generator
+note: Prevent metrics-generator crashes when span-name sanitization prunes DRAIN clusters while processing spans.
+issues: [7787]
+subtext:
+user: carles-grafana
