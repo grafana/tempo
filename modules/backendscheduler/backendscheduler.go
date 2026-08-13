@@ -538,9 +538,6 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		// Skip blocks whose data range falls outside the requested window (no job created). Keyed
 		// on the block's real StartTime/EndTime — see blockOverlapsWindow on why not CompactedTime.
 		overlaps, indeterminate := blockOverlapsWindow(meta, req.StartTimeUnixNano, req.EndTimeUnixNano)
-		if indeterminate {
-			indeterminateBlocks++
-		}
 		if !overlaps {
 			outOfWindowBlocks++
 			continue
@@ -548,6 +545,12 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		if jobID, busy := busyBlocks[meta.BlockID.String()]; busy {
 			skippedJobSet[jobID] = struct{}{}
 			continue
+		}
+		// Counted here rather than at the overlap test so it means "enqueued on trust", matching the
+		// warning below. An indeterminate block that is also mid-compaction is deferred, not included,
+		// and is already reported by the busy-block warning.
+		if indeterminate {
+			indeterminateBlocks++
 		}
 		filtered = append(filtered, meta)
 	}
