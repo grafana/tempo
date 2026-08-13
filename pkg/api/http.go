@@ -949,10 +949,14 @@ type TraceByIDFilterParams struct {
 // they are documented as ignored without a query, so malformed values must not fail an
 // unfiltered request. When q is empty, the zero-value TraceByIDFilterParams is returned.
 //
+// ancestor_depth is narrower still: it is only read when keep_hierarchy is true, since that is the
+// only case where it changes the response. Otherwise it is left at its default and never validated,
+// so an out-of-range ancestor_depth cannot fail a request it would not have affected.
+//
 // match_depth and ancestor_depth have different defaults when absent from the request, both
 // chosen to preserve pre-existing behavior: an absent match_depth defaults to 0 (matched spans
 // only, no descendants), while an absent ancestor_depth defaults to -1 (unbounded ancestor walk).
-// When present, both accept -1 (unbounded) or any non-negative depth.
+// When read, both accept -1 (unbounded) or any non-negative depth.
 func ParseTraceByIDFilterParams(r *http.Request) (TraceByIDFilterParams, error) {
 	vals := r.URL.Query()
 
@@ -987,15 +991,21 @@ func ParseTraceByIDFilterParams(r *http.Request) (TraceByIDFilterParams, error) 
 		params.MatchDepth = n
 	}
 
-	if raw := vals.Get(urlParamAncestorDepth); raw != "" {
-		n, err := strconv.Atoi(raw)
-		if err != nil {
-			return TraceByIDFilterParams{}, fmt.Errorf("invalid value for %s: %w", urlParamAncestorDepth, err)
+	// ancestor_depth only bounds the keep_hierarchy ancestor walk, so without keep_hierarchy it is not
+	// read at all: a param with nothing to act on should not be able to fail a request that would
+	// otherwise succeed. Someone iterating on a trace can flip keep_hierarchy off without also having
+	// to strip the depth that goes with it.
+	if params.KeepHierarchy {
+		if raw := vals.Get(urlParamAncestorDepth); raw != "" {
+			n, err := strconv.Atoi(raw)
+			if err != nil {
+				return TraceByIDFilterParams{}, fmt.Errorf("invalid value for %s: %w", urlParamAncestorDepth, err)
+			}
+			if n < -1 {
+				return TraceByIDFilterParams{}, fmt.Errorf("invalid value for %s: must be >= -1", urlParamAncestorDepth)
+			}
+			params.AncestorDepth = n
 		}
-		if n < -1 {
-			return TraceByIDFilterParams{}, fmt.Errorf("invalid value for %s: must be >= -1", urlParamAncestorDepth)
-		}
-		params.AncestorDepth = n
 	}
 
 	return params, nil

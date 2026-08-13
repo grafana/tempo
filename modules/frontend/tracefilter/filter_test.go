@@ -112,6 +112,45 @@ func TestCompileInvalidQueryErrors(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestCompileDepthRange pins -1 as the only negative depth with a meaning. Anything below it is a
+// caller that misread the contract, so it is rejected rather than rounded up to unlimited.
+func TestCompileDepthRange(t *testing.T) {
+	const query = `{ .a = 1 }`
+
+	tests := []struct {
+		name    string
+		opts    Options
+		wantErr string
+	}{
+		{name: "match_depth -1 is unlimited", opts: Options{Query: query, MatchDepth: -1}},
+		{name: "match_depth 0 keeps no descendants", opts: Options{Query: query, MatchDepth: 0}},
+		{name: "match_depth positive", opts: Options{Query: query, MatchDepth: 3}},
+		{name: "ancestor_depth -1 is unlimited", opts: Options{Query: query, KeepHierarchy: true, AncestorDepth: -1}},
+		{name: "ancestor_depth 0 keeps no ancestors", opts: Options{Query: query, KeepHierarchy: true, AncestorDepth: 0}},
+		{name: "ancestor_depth positive", opts: Options{Query: query, KeepHierarchy: true, AncestorDepth: 3}},
+		{name: "match_depth below -1", opts: Options{Query: query, MatchDepth: -2}, wantErr: "invalid match depth -2"},
+		{name: "match_depth far below -1", opts: Options{Query: query, MatchDepth: -99}, wantErr: "invalid match depth -99"},
+		{name: "ancestor_depth below -1", opts: Options{Query: query, KeepHierarchy: true, AncestorDepth: -2}, wantErr: "invalid ancestor depth -2"},
+		// ancestor depth is only checked if keep_hierarchy is true, so this is a valid combination.
+		{name: "ancestor_depth below -1 without keep_hierarchy", opts: Options{Query: query, AncestorDepth: -2}},
+		// an empty query is a passthrough, so the depths are never consulted and never rejected.
+		{name: "out of range depths ignored without a query", opts: Options{MatchDepth: -2, AncestorDepth: -2}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, err := tt.opts.Compile()
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.wantErr)
+				require.Nil(t, f, "a rejected filter must not be returned")
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestApplyNilFilterReturnsInput(t *testing.T) {
 	trace := buildTrace([]testSpan{{id: 1}}, nil)
 	var f *Filter

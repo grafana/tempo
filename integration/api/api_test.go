@@ -1173,6 +1173,10 @@ func TestTraceByIDV2Filtering(t *testing.T) {
 			{name: "ancestor_depth_2_without_keep_hierarchy", query: matchC, params: map[string]string{"ancestor_depth": "2"}, expect: []byte{3}},
 			{name: "ancestor_depth_unbounded_keep_hierarchy_false", query: matchC, params: map[string]string{"keep_hierarchy": "false", "ancestor_depth": "-1"}, expect: []byte{3}},
 			{name: "ancestor_depth_inert_but_match_depth_applies", query: matchC, params: map[string]string{"keep_hierarchy": "false", "ancestor_depth": "-1", "match_depth": "1"}, expect: []byte{3, 5}},
+			// an unusable ancestor_depth is not read at all without keep_hierarchy, so it neither fails
+			// the request nor changes the result. See assertBadDepthParamsRejected for the 400 it earns
+			// once keep_hierarchy=true makes it meaningful.
+			{name: "ancestor_depth_out_of_range_ignored_without_keep_hierarchy", query: matchC, params: map[string]string{"ancestor_depth": "-2"}, expect: []byte{3}},
 
 			// keep_hierarchy with ancestor_depth, no descendants.
 			{name: "keep_hierarchy_default_ancestor_depth", query: matchC, params: map[string]string{"keep_hierarchy": "true"}, expect: []byte{1, 2, 3}},
@@ -1281,17 +1285,42 @@ func assertOversizedFilterRejected(t *testing.T, apiClient *httpclient.Client, h
 	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
-// assertBadDepthParamsRejected confirms out-of-range match_depth/ancestor_depth values (< -1) are
-// rejected with 400, not 500.
+// assertBadDepthParamsRejected confirms an out-of-range depth is rejected with 400, not 500, but only
+// where the depth is actually read. match_depth always applies once q is set, while ancestor_depth is
+// read only under keep_hierarchy=true — so the same -2 that fails there is accepted and ignored
+// without it, and must not fail a request it could not have changed.
 func assertBadDepthParamsRejected(t *testing.T, apiClient *httpclient.Client, hexID string) {
 	t.Helper()
 
-	for _, param := range []string{"match_depth", "ancestor_depth"} {
-		req, err := http.NewRequest(http.MethodGet, apiClient.BaseURL+"/api/v2/traces/"+hexID+"?q="+url.QueryEscape("{ .http.status_code = 500 }")+"&"+param+"=-2", nil)
+	rejected := []string{
+		"match_depth=-2",
+		"match_depth=abc",
+		"keep_hierarchy=true&ancestor_depth=-2",
+		"keep_hierarchy=true&ancestor_depth=abc",
+	}
+	ignored := []string{
+		"ancestor_depth=-2",
+		"ancestor_depth=abc",
+		"keep_hierarchy=false&ancestor_depth=-2",
+	}
+
+	filterQuery := url.QueryEscape("{ .http.status_code = 500 }")
+
+	for _, param := range rejected {
+		req, err := http.NewRequest(http.MethodGet, apiClient.BaseURL+"/api/v2/traces/"+hexID+"?q="+filterQuery+"&"+param, nil)
 		require.NoError(t, err)
 		resp, err := apiClient.Do(req)
 		require.NoError(t, err)
-		require.Equal(t, http.StatusBadRequest, resp.StatusCode, "expected 400 for %s=-2", param)
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode, "expected 400 for %s", param)
+		require.NoError(t, resp.Body.Close())
+	}
+
+	for _, param := range ignored {
+		req, err := http.NewRequest(http.MethodGet, apiClient.BaseURL+"/api/v2/traces/"+hexID+"?q="+filterQuery+"&"+param, nil)
+		require.NoError(t, err)
+		resp, err := apiClient.Do(req)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode, "expected 200 for unread %s", param)
 		require.NoError(t, resp.Body.Close())
 	}
 }

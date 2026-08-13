@@ -23,10 +23,13 @@ type Options struct {
 	// KeepHierarchy includes each matched span's ancestor path. Ignored when Query is empty.
 	KeepHierarchy bool
 	// MatchDepth bounds how many hops of descendants of each matched span are kept, cumulatively.
-	// -1 means unlimited, 0 means no descendants are kept. Ignored when Query is empty.
+	// -1 means unlimited and 0 means no descendants are kept; -1 is the only negative value accepted,
+	// and Compile rejects anything below it. Ignored when Query is empty.
 	MatchDepth int
 	// AncestorDepth bounds how many hops of ancestors of each matched span are kept, cumulatively.
-	// -1 means unlimited, 0 means no ancestors are kept. Ignored when Query is empty or KeepHierarchy is false.
+	// -1 means unlimited and 0 means no ancestors are kept. Ignored when Query is empty or
+	// KeepHierarchy is false, and only checked when it is read: -1 is then the only negative value
+	// accepted, and Compile rejects anything below it.
 	AncestorDepth int
 }
 
@@ -53,9 +56,24 @@ func NewFilter(opts Options, logger log.Logger) (*Filter, error) {
 }
 
 // Compile compiles the options into a Filter. Returns (nil, nil) for an empty Query (passthrough).
+// -1 is the only negative depth with a meaning, so anything below it is rejected rather than quietly
+// treated as unlimited: a caller that passes -5 is confused about the contract, not asking for the
+// whole subtree. A depth is only checked where it is actually read, so AncestorDepth is validated
+// only under KeepHierarchy — the same rule api.ParseTraceByIDFilterParams applies to the request
+// params. Errors are the caller's to map to a 400.
 func (o Options) Compile() (*Filter, error) {
 	if o.Query == "" {
 		return nil, nil
+	}
+
+	if o.KeepHierarchy {
+		if o.AncestorDepth < -1 {
+			return nil, fmt.Errorf("invalid ancestor depth %d: must be >= -1", o.AncestorDepth)
+		}
+	}
+
+	if o.MatchDepth < -1 {
+		return nil, fmt.Errorf("invalid match depth %d: must be >= -1", o.MatchDepth)
 	}
 
 	sf, err := traceql.CompileSpansetFilter(o.Query)
@@ -115,8 +133,11 @@ type idAndDepth struct {
 }
 
 // depthBoundedWalk does a breadth-first walk of adjacency starting from the ids of seeds, returning
-// every id reachable within maxDepth hops (cumulative). maxDepth < 0 means unlimited (whole reachable
-// graph); maxDepth == 0 returns an empty result. adjacency maps an id to its neighbor ids: pass
+// every id reachable within maxDepth hops (cumulative). maxDepth -1 means unlimited (whole reachable
+// graph) and is the only negative Compile lets through; maxDepth == 0 returns an empty result. The
+// guard below is written as maxDepth < 0 so a stray negative degrades to unlimited instead of
+// silently truncating, but callers are validated, not trusted to be lucky. adjacency maps an id to
+// its neighbor ids: pass
 // parentsByID for an ancestor walk (skipping the "" root sentinel) or childrenByID for a descendant walk.
 // True BFS (front-of-queue pop) is required: a node must be assigned its shortest-path depth, since a
 // depth cutoff applied to a DFS could reach a node via a longer path first and wrongly exclude it.
