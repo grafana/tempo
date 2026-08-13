@@ -14,7 +14,7 @@ weight: 520
 Grafana Tempo follows a regular release cadence.
 Knowing which versions Grafana recommends helps you plan upgrades and make sure you receive bug fixes and security patches.
 
-This page applies to self-managed Grafana Tempo installations.
+This page applies to self-managed Tempo installations.
 Grafana Cloud follows a different release process.
 
 ## Release types
