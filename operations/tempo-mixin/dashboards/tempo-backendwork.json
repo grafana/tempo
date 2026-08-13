@@ -4140,8 +4140,8 @@
       {
         "allValue": ".*",
         "current": {
-          "text": "tempo-ops-01",
-          "value": "tempo-ops-01"
+          "text": "All",
+          "value": "$__all"
         },
         "datasource": {
           "type": "prometheus",
@@ -4164,8 +4164,8 @@
       {
         "allValue": ".*",
         "current": {
-          "text": "ops-eu-south-0",
-          "value": "ops-eu-south-0"
+          "text": "All",
+          "value": "$__all"
         },
         "datasource": {
           "type": "prometheus",
