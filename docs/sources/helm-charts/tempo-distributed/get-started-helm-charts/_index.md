@@ -24,7 +24,11 @@ Grafana Enterprise Traces (GET) is no longer maintained in this chart. The enter
 
 The `tempo-distributed` Helm chart allows you to configure, install, and upgrade Grafana Tempo within a Kubernetes cluster.
 Tempo 3.0 uses a Kafka-based architecture: distributors write spans to a Kafka-compatible broker, block-builders consume from Kafka to write blocks to object storage, and live-stores serve recent-data queries.
-As a result, this procedure requires an external Kafka-compatible broker and an external S3-compatible object store, neither of which the chart deploys for you.
+As a result, this procedure requires an external Kafka-compatible broker and an external S3-compatible object store,
+neither of which the chart deploys for you.
+Before deploying the chart,
+refer to [Configure a Kafka-compatible backend](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/configure-kafka/)
+for topic sizing, retention, durability, security, and monitoring guidance.
 
 Using this procedure, you need to:
 
@@ -50,7 +54,17 @@ This procedure is primarily aimed at local or development setups.
 The Tempo 3.0 microservices deployment runs more components than earlier versions, including block-builders, live-stores, and a backend-scheduler and backend-worker, alongside an external Kafka broker and object store.
 
 - The main example uses the chart default of three Kafka partitions, which runs three block-builder and three live-store replicas. For a smaller single-partition footprint suitable for a single node (one block-builder and one live-store replica), use the [Optional: Quick test with a local S3-compatible store and Kafka](#optional-quick-test-with-a-local-s3-compatible-store-and-kafka) section and a Kubernetes node with a minimum of 6 cores and 16 GB RAM.
-- Production deployments scale block-builders and live-stores with your Kafka partition count and require significantly more resources. Refer to [Plan your deployment](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/plan/) for sizing guidance.
+- For production deployments, start with approximately one active live-store replica for every 10 MB/s of peak ingestion and validate that estimate against your workload.
+  With the default `blockBuilder.config.partitions_per_instance: 1`, use the same number of block-builder replicas.
+  The Kafka topic can contain significantly more partitions than Tempo currently has active,
+  so provision extra partitions for future growth.
+  Refer to [Plan your deployment](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/plan/) for more sizing guidance.
+
+Tempo 3.0 can run more specialized pods than the previous architecture,
+but pod count alone doesn't determine total cost of ownership.
+The architecture lowers total cost by eliminating duplicate block building,
+operating at replication factor 1 (RF1) to avoid duplicate blocks in object storage,
+and supporting autoscaling.
 
 ### Software requirements
 
@@ -117,9 +131,26 @@ To customize your Helm chart values:
 1. From the example below, copy and paste the Tempo Helm chart values into your file.
 1. Save your `custom.yaml` file.
 1. Set the `storage` section to point at your external S3-compatible object store. Further down this page are instructions for customizing your trace storage configuration options.
-1. Set the `ingest.kafka` section to point at your Kafka broker, and set `blockBuilder.replicas` and `liveStore.replicas` to match your Kafka partition count.
+1. Set the `ingest.kafka` section to point at your Kafka broker.
+   The chart's default Kafka topic name is `tempo-traces`.
+   If your topic has a different name,
+   set `ingest.kafka.topic` to that exact name.
+   Set `liveStore.replicas` to the initial number of active Tempo partitions.
+   With the default `blockBuilder.config.partitions_per_instance: 1`, set `blockBuilder.replicas` to the same value.
+   The Kafka topic can contain significantly more partitions than these replica counts.
 1. Set your traces values to configure the receivers on the Tempo distributor.
 1. Save the changes to your file.
+
+{{< admonition type="note" >}}
+Tempo exposes partition lifecycle APIs that autoscaling controllers can use for safe scale-down.
+KEDA can determine the desired replica count,
+but safe scale-down also requires a controller to orchestrate the partition lifecycle.
+The community chart doesn't yet implement this integration for live-stores and block-builders.
+Until that integration is available,
+don't attach a generic HPA directly to these StatefulSets or reduce their replicas without first draining the affected Tempo partitions.
+Refer to [Scale down a Helm deployment](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/configure-kafka/#scale-down-a-helm-deployment) for the manual procedure,
+and check the [upstream chart](https://github.com/grafana-community/helm-charts/tree/main/charts/tempo-distributed) for current capabilities.
+{{< /admonition >}}
 
 ### Tempo Helm chart values
 
@@ -146,13 +177,14 @@ ingest:
     topic: tempo-traces
     auto_create_topic_enabled: true
     # Number of partitions for the auto-created topic. This example uses the chart
-    # default. The block-builder and live-store replica counts must equal this value.
-    # Tune this value up for production based on your throughput requirements.
+    # default and initially activates all three partitions. A pre-created production
+    # topic can have more partitions than the initial Tempo replica counts.
     auto_create_topic_default_partitions: 3
-# One block-builder replica per Kafka partition.
+# One block-builder replica per active partition with the default
+# blockBuilder.config.partitions_per_instance value of 1.
 blockBuilder:
   replicas: 3
-# One live-store replica per Kafka partition.
+# One live-store replica per active Tempo partition.
 liveStore:
   replicas: 3
 # Specifies which trace protocols the distributor accepts.
@@ -270,7 +302,12 @@ Neither is suitable for production.
          targetPort: 9092
    ```
 
-1. Set `ingest.kafka.address` in your `custom.yaml` to `kafka.kafka-test.svc.cluster.local:9092`. For this single-node local test, set `blockBuilder.replicas`, `liveStore.replicas`, and `ingest.kafka.auto_create_topic_default_partitions` all to `1` to reduce the resource footprint. For production, use the chart default of `3` partitions or higher, and keep the block-builder and live-store replica counts equal to the partition count.
+1. Set `ingest.kafka.address` in your `custom.yaml` to `kafka.kafka-test.svc.cluster.local:9092`.
+   For this single-node local test,
+   set `blockBuilder.replicas`, `liveStore.replicas`, and `ingest.kafka.auto_create_topic_default_partitions` all to `1` to reduce the resource footprint.
+   For production,
+   provision the Kafka topic for your maximum expected active partition count and set the initial Tempo replica counts for the partitions you want active.
+   The Kafka topic can have significantly more partitions than the current block-builder and live-store replica counts.
 
 #### Optional: Other storage options
 
