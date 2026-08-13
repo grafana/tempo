@@ -1,6 +1,6 @@
 services:
   tempo:
-    image: grafana/tempo:3.0.2
+    image: grafana/tempo:3.0.3
     command: "-target=all -config.file=/etc/tempo.yaml"
     restart: always
     volumes:
