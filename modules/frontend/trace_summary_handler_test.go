@@ -182,7 +182,7 @@ func TestTraceSummaryHandler_ZipkinDualIDTrace_GoesThroughDeduperBeforeSummarize
 	})
 	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
-	handler := newHandler(nil, newTraceSummaryHandler(Config{}, "", tracePipeline, o, combiner.NewTypedTraceByIDV2, log.NewNopLogger(), nil), log.NewNopLogger())
+	handler := newHandler(nil, newTraceSummaryHandler("", tracePipeline, o, combiner.NewTypedTraceByIDV2, log.NewNopLogger(), nil), log.NewNopLogger())
 
 	req := newTraceSummaryTestRequest(t, http.MethodGet, "abc123", "")
 	resp := httptest.NewRecorder()
@@ -253,7 +253,7 @@ func TestFetchTraceForSummary(t *testing.T) {
 	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
 
-	actual, err := fetchTraceForSummary(context.Background(), Config{}, "test-tenant", traceID, time.Time{}, time.Time{}, nil, "/tempo", tracePipeline, o, combiner.NewTypedTraceByIDV2, log.NewNopLogger(), nil)
+	actual, err := fetchTraceForSummary(context.Background(), "test-tenant", traceID, time.Time{}, time.Time{}, nil, "/tempo", tracePipeline, o, combiner.NewTypedTraceByIDV2, log.NewNopLogger(), nil)
 	require.NoError(t, err)
 	require.NotNil(t, actual)
 	require.True(t, proto.Equal(trace, actual.Trace))
@@ -302,7 +302,7 @@ func TestTraceSummaryHandlerReturnsSummary(t *testing.T) {
 	})
 	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
-	handler := newHandler(nil, newTraceSummaryHandler(Config{}, "", tracePipeline, o, combiner.NewTypedTraceByIDV2, log.NewNopLogger(), nil), log.NewNopLogger())
+	handler := newHandler(nil, newTraceSummaryHandler("", tracePipeline, o, combiner.NewTypedTraceByIDV2, log.NewNopLogger(), nil), log.NewNopLogger())
 
 	req := newTraceSummaryTestRequest(t, http.MethodGet, "abc123", "")
 	resp := httptest.NewRecorder()
@@ -324,7 +324,7 @@ func TestTraceSummaryHandlerTraceNotFound(t *testing.T) {
 	})
 	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
-	handler := newHandler(nil, newTraceSummaryHandler(Config{}, "", tracePipeline, o, combiner.NewTypedTraceByIDV2, log.NewNopLogger(), nil), log.NewNopLogger())
+	handler := newHandler(nil, newTraceSummaryHandler("", tracePipeline, o, combiner.NewTypedTraceByIDV2, log.NewNopLogger(), nil), log.NewNopLogger())
 
 	req := newTraceSummaryTestRequest(t, http.MethodGet, "abc123", "")
 	resp := httptest.NewRecorder()
@@ -337,7 +337,7 @@ func TestTraceSummaryHandlerTraceNotFound(t *testing.T) {
 func TestTraceSummaryHandlerInvalidTraceID(t *testing.T) {
 	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
-	handler := newHandler(nil, newTraceSummaryHandler(Config{}, "", nil, o, combiner.NewTypedTraceByIDV2, log.NewNopLogger(), nil), log.NewNopLogger())
+	handler := newHandler(nil, newTraceSummaryHandler("", nil, o, combiner.NewTypedTraceByIDV2, log.NewNopLogger(), nil), log.NewNopLogger())
 
 	req := newTraceSummaryTestRequest(t, http.MethodGet, "not-hex", "")
 	resp := httptest.NewRecorder()
@@ -350,7 +350,7 @@ func TestTraceSummaryHandlerInvalidTraceID(t *testing.T) {
 func TestTraceSummaryHandlerInvalidQueryParams(t *testing.T) {
 	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
-	handler := newHandler(nil, newTraceSummaryHandler(Config{}, "", nil, o, combiner.NewTypedTraceByIDV2, log.NewNopLogger(), nil), log.NewNopLogger())
+	handler := newHandler(nil, newTraceSummaryHandler("", nil, o, combiner.NewTypedTraceByIDV2, log.NewNopLogger(), nil), log.NewNopLogger())
 
 	req := newTraceSummaryTestRequest(t, http.MethodGet, "abc123", "?start=notanumber")
 	resp := httptest.NewRecorder()
@@ -367,7 +367,7 @@ func TestTraceSummaryHandlerDataAccessErrorReturnsBadRequest(t *testing.T) {
 	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
 	dataAccessController := &traceDiffDataAccessController{err: errors.New("policy rejected")}
-	handler := newHandler(nil, newTraceSummaryHandler(Config{}, "", tracePipeline, o, combiner.NewTypedTraceByIDV2, log.NewNopLogger(), dataAccessController), log.NewNopLogger())
+	handler := newHandler(nil, newTraceSummaryHandler("", tracePipeline, o, combiner.NewTypedTraceByIDV2, log.NewNopLogger(), dataAccessController), log.NewNopLogger())
 
 	req := newTraceSummaryTestRequest(t, http.MethodGet, "abc123", "")
 	resp := httptest.NewRecorder()
@@ -380,7 +380,7 @@ func TestTraceSummaryHandlerDataAccessErrorReturnsBadRequest(t *testing.T) {
 }
 
 func TestTraceSummaryHandlerWrongMethod(t *testing.T) {
-	handler := newHandler(nil, newTraceSummaryHandler(Config{}, "", nil, nil, nil, log.NewNopLogger(), nil), log.NewNopLogger())
+	handler := newHandler(nil, newTraceSummaryHandler("", nil, nil, nil, log.NewNopLogger(), nil), log.NewNopLogger())
 
 	req := newTraceSummaryTestRequest(t, http.MethodPost, "abc123", "")
 	resp := httptest.NewRecorder()
@@ -399,7 +399,7 @@ func TestTraceSummaryHandlerPartialTraceStillSummarized(t *testing.T) {
 	})
 	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
-	handler := newHandler(nil, newTraceSummaryHandler(Config{}, "", tracePipeline, o, combiner.NewTypedTraceByIDV2, log.NewNopLogger(), nil), log.NewNopLogger())
+	handler := newHandler(nil, newTraceSummaryHandler("", tracePipeline, o, combiner.NewTypedTraceByIDV2, log.NewNopLogger(), nil), log.NewNopLogger())
 
 	req := newTraceSummaryTestRequest(t, http.MethodGet, "abc123", "")
 	resp := httptest.NewRecorder()
