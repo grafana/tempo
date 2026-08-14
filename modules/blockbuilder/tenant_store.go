@@ -30,6 +30,17 @@ var metricBlockBuilderFlushedBlocks = promauto.NewCounterVec(
 	}, []string{"tenant"},
 )
 
+var metricBlockBuilderFlushSize = promauto.NewHistogram(prometheus.HistogramOpts{
+	Namespace:                       "tempo",
+	Subsystem:                       "block_builder",
+	Name:                            "flush_size_bytes",
+	Help:                            "Size in bytes of blocks flushed by the block-builder.",
+	Buckets:                         prometheus.ExponentialBuckets(1024*1024, 2, 10),
+	NativeHistogramBucketFactor:     1.1,
+	NativeHistogramMaxBucketNumber:  100,
+	NativeHistogramMinResetDuration: 1 * time.Hour,
+})
+
 type tenantStore struct {
 	tenantID         string
 	idGenerator      util.IDGenerator
