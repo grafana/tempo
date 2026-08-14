@@ -107,6 +107,7 @@ This endpoint is useful for diagnosing stalled jobs, verifying that workers are 
 | `tempo_backend_scheduler_jobs_completed_total` | Jobs completed successfully |
 | `tempo_backend_scheduler_jobs_failed_total` | Jobs that failed |
 | `tempo_backend_scheduler_jobs_active` | Jobs currently assigned to a worker |
+| `tempo_backend_scheduler_jobs_pending` | Jobs enqueued and not yet assigned to a worker. Unlike `jobs_active`, which is bounded by the number of workers, this is queue depth and indicates whether more worker capacity is needed |
 | `tempo_backend_scheduler_job_duration_seconds` | Job execution duration histogram |
 | `tempodb_blocklist_length` | Number of live blocks per tenant; high values indicate compaction is falling behind |
 | `tempodb_compaction_outstanding_blocks` | Outstanding blocks awaiting compaction per tenant; the primary autoscaling signal |
