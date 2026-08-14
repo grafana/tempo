@@ -230,6 +230,7 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 			s.work.Prune(ctx)
 			s.checkPendingRescans(ctx)
 			s.cleanupOrphanedBatches(ctx)
+			s.recordPendingJobs()
 		case <-backendFlushTicker.C:
 			err = s.flushWorkCacheToBackend(ctx)
 			metricWorkFlushes.Inc()

@@ -20,24 +20,30 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
+// metricsNamespace is the Prometheus namespace shared by this package's metrics.
+const metricsNamespace = "tempodb"
+
 // cacheStoreSizeBytes records the byte size of every item written to a tempodb backend cache, labelled by role.
 var cacheStoreSizeBytes = promauto.NewHistogramVec(prometheus.HistogramOpts{
-	Namespace: "tempodb",
-	Name:      "cache_store_size_bytes",
-	Help:      "Distribution of item sizes written to tempodb backend caches, by role.",
-	Buckets:   prometheus.ExponentialBuckets(512, 2, 15), // 512 B, 1 KiB, ..., 8 MiB
+	Namespace:                       metricsNamespace,
+	Name:                            "cache_store_size_bytes",
+	Help:                            "Distribution of item sizes written to tempodb backend caches, by role.",
+	Buckets:                         prometheus.ExponentialBuckets(512, 2, 15), // 512 B, 1 KiB, ..., 8 MiB
+	NativeHistogramBucketFactor:     1.1,
+	NativeHistogramMaxBucketNumber:  100,
+	NativeHistogramMinResetDuration: 1 * time.Hour,
 }, []string{"role"})
 
 // cacheRequests counts cache lookups by role and outcome (hit / miss).
 var cacheRequests = promauto.NewCounterVec(prometheus.CounterOpts{
-	Namespace: "tempodb",
+	Namespace: metricsNamespace,
 	Name:      "cache_requests_total",
 	Help:      "Cache lookup outcome by role.",
 }, []string{"role", "outcome"})
 
 // cacheRequestBytes counts bytes served on hit and bytes fetched from backend on miss, by role.
 var cacheRequestBytes = promauto.NewCounterVec(prometheus.CounterOpts{
-	Namespace: "tempodb",
+	Namespace: metricsNamespace,
 	Name:      "cache_request_bytes_total",
 	Help:      "Bytes served by cache (hit) or fetched on miss, by role.",
 }, []string{"role", "outcome"})

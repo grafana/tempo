@@ -47,6 +47,9 @@ type Interface interface {
 	// Acquires pendingMtx exactly once and returns a snapshot.
 	BusyBlocksForTenant(tenantID string) map[string]string
 
+	// PendingJobCounts returns enqueued, not-yet-dispatched job counts per tenant and type.
+	PendingJobCounts() map[string]map[tempopb.JobType]int
+
 	// TenantPending returns true when an exclusive tenant operation exists whose
 	// full scope is not yet reflected in the job queue — i.e. an apply-mode redaction batch
 	// (just created or in its rescan-wait window). Gates compaction and retention. A dry-run

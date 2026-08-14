@@ -30,6 +30,11 @@ var (
 		Name:      "backend_scheduler_jobs_active",
 		Help:      "Number of currently active jobs",
 	}, []string{"tenant", "job_type"})
+	metricJobsPending = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "backend_scheduler_jobs_pending",
+		Help:      "Number of jobs enqueued and not yet dispatched to a worker, by tenant and type. This is queue depth: jobs_active counts work already handed out, so it is bounded by the worker count and cannot indicate that more capacity is needed.",
+	}, []string{"tenant", "job_type"})
 	metricJobsRetry = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "backend_scheduler_jobs_retry_total",
@@ -70,10 +75,18 @@ var (
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
 	metricJobDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace:                       "tempo",
-		Name:                            "backend_scheduler_job_duration_seconds",
-		Help:                            "Duration of of a job in seconds",
-		Buckets:                         prometheus.DefBuckets,
+		Namespace: "tempo",
+		Name:      "backend_scheduler_job_duration_seconds",
+		Help:      "Duration of a job in seconds",
+		// DefBuckets stops at 10s and puts nothing between 2.5s and 5s, where roughly 60% of
+		// redaction jobs land — every percentile drawn from it interpolates inside one bucket, so
+		// p50, p90 and p99 move together and say nothing. It also cannot represent a job slower
+		// than 10s at all, and a redaction over a large block runs for minutes.
+		//
+		// Powers of two from 10ms to ~11m: fast retention jobs stay resolved, the redaction mass
+		// splits across the 2.56s and 5.12s boundaries, and long jobs land in a real bucket
+		// instead of +Inf.
+		Buckets:                         prometheus.ExponentialBuckets(0.01, 2, 17),
 		NativeHistogramBucketFactor:     1.1,
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
@@ -100,4 +113,20 @@ func redactionModeLabel(mode tempopb.RedactionMode) string {
 		return "dry_run"
 	}
 	return "apply"
+}
+
+// recordPendingJobs publishes the queue depth per tenant and job type.
+//
+// Reset first: this is a gauge keyed by tenant, and a tenant whose queue drains stops appearing in
+// the snapshot entirely. Without the reset its last non-zero value would persist forever, so a
+// finished redaction would look permanently backlogged — and an autoscaler reading it would never
+// scale back down.
+func (s *BackendScheduler) recordPendingJobs() {
+	metricJobsPending.Reset()
+
+	for tenant, byType := range s.work.PendingJobCounts() {
+		for jobType, n := range byType {
+			metricJobsPending.WithLabelValues(tenant, jobType.String()).Set(float64(n))
+		}
+	}
 }
