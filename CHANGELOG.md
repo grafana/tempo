@@ -1,5 +1,13 @@
 <!-- next version -->
 
+# v3.0.3
+
+* [SECURITY] Update Go to 1.26.5 to fix CVE-2026-39822, CVE-2026-27145, CVE-2026-42504, CVE-2026-42505, and CVE-2026-42507; update google.golang.org/grpc to v1.82.1 to fix GHSA-hrxh-6v49-42gf; update golang.org/x/net to v0.56.0 to fix CVE-2026-46600; update golang.org/x/text to v0.39.0 to fix CVE-2026-56852; update go.opentelemetry.io/otel to v1.44.0 to fix CVE-2026-41178 [#7726](https://github.com/grafana/tempo/pull/7726) (@mattdurham)
+* [ENHANCEMENT] Add Tempo configuration documentation to the MCP server [#7521](https://github.com/grafana/tempo/pull/7521) (@knylander-grafana)
+* [ENHANCEMENT] Update the TraceQL and metrics documentation served by the MCP server [#7375](https://github.com/grafana/tempo/pull/7375) (@knylander-grafana)
+* [BUGFIX] Fix incorrect version reported by `--version`, the build-info metric, and `/api/status/buildinfo` [#7469](https://github.com/grafana/tempo/pull/7469) (@zhxiaogg)
+* [CHANGE] Remove guidance on running multiple monolithic instances [#7636](https://github.com/grafana/tempo/pull/7636) (@mattdurham)
+
 # v3.0.2
 
 * [CHANGE] Upgrade Tempo to Go 1.26.3 [#7423](https://github.com/grafana/tempo/pull/7423) (@ie-pham)
@@ -143,6 +151,10 @@
 * [CHANGE] **BREAKING CHANGE** Sets the `all` target to be 3.0 compatible and removes the `scalable-single-binary` target [#6283](https://github.com/grafana/tempo/pull/6283) (@joe-elliott)
 * [CHANGE] **BREAKING CHANGE** Clean up enterprise jsonnet [#6505](https://github.com/grafana/tempo/pull/6505) (@javiermolinar)
 * [CHANGE] Expose otlp http and grpc ports for Docker examples [#6296](https://github.com/grafana/tempo/pull/6296) (@javiermolinar)
+
+# v2.10.8
+
+* [SECURITY] Update Go to 1.26.5 to fix CVE-2026-39822, CVE-2026-27145, CVE-2026-42504, CVE-2026-42505, and CVE-2026-42507; update google.golang.org/grpc to v1.82.1 to fix GHSA-hrxh-6v49-42gf; update golang.org/x/net to v0.56.0 to fix CVE-2026-46600; update golang.org/x/text to v0.39.0 to fix CVE-2026-56852; update go.opentelemetry.io/otel to v1.44.0 to fix CVE-2026-41178 [#7725](https://github.com/grafana/tempo/pull/7725) (@mattdurham)
 
 # v2.10.7
 
@@ -303,6 +315,10 @@
 * [BUGFIX] Correctly track and reject too large traces in live stores. [#5757](https://github.com/grafana/tempo/pull/5757) (@joe-elliott)
 * [BUGFIX] Jsonnet: Correctly add tempo-gossip-member: true labels to block-builders and live-stores [#6125](https://github.com/grafana/tempo/pull/6125) (@joe-elliott)
 * [BUGFIX] Fix wrong sleep duration in block-builder if one of partitions is inactive [#5855](https://github.com/grafana/tempo/pull/5855) (@ruslan-mikhailov)
+
+# v2.9.5
+
+* [SECURITY] Update google.golang.org/grpc to v1.82.1 to fix GHSA-hrxh-6v49-42gf and go.opentelemetry.io/otel to v1.44.0 to fix CVE-2026-41178 [#7724](https://github.com/grafana/tempo/pull/7724) (@mattdurham)
 
 # v2.9.0
 
