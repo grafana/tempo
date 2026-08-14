@@ -1025,11 +1025,11 @@ github.com/maypok86/otter/v2/internal/xmath
 github.com/maypok86/otter/v2/internal/xruntime
 github.com/maypok86/otter/v2/internal/xsync
 github.com/maypok86/otter/v2/stats
-# github.com/mdlayher/socket v0.4.1
-## explicit; go 1.20
+# github.com/mdlayher/socket v0.6.0
+## explicit; go 1.25.0
 github.com/mdlayher/socket
-# github.com/mdlayher/vsock v1.2.1
-## explicit; go 1.20
+# github.com/mdlayher/vsock v1.3.0
+## explicit; go 1.25.0
 github.com/mdlayher/vsock
 # github.com/miekg/dns v1.1.72
 ## explicit; go 1.24.0
