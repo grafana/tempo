@@ -14,4 +14,8 @@ var (
 	ErrTenantMissing = errors.New("tenant missing")
 	// ErrBatchAlreadyExists is returned when a redaction batch already exists for a tenant.
 	ErrBatchAlreadyExists = errors.New("redaction batch already exists for tenant")
+
+	// ErrBatchNotFound is returned when an operation targets a tenant with no redaction batch,
+	// including a batch that was removed while the operation was in progress.
+	ErrBatchNotFound = errors.New("no redaction batch for tenant")
 )

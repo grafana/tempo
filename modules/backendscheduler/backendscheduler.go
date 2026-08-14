@@ -332,12 +332,30 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 						drop = true
 					}
 				case tempopb.JobType_JOB_TYPE_REDACTION:
-					// Resolve trace IDs from the batch manifest.
-					// Drop if the batch no longer exists (cancelled or already cleaned up).
+					// The batch carries the selector this job needs, and is resolved by tenant. Drop the
+					// job unless that batch is still the one it was created for and still wants the work.
+					// Dropping happens before any work begins, so no partial output exists and the 1:1
+					// block in:out invariant holds; jobs already running on a worker still finish.
 					batch := s.work.GetBatch(j.Tenant())
-					if batch == nil {
-						level.Debug(log.Logger).Log("msg", "dropping redaction job: batch no longer exists",
-							"job_id", j.ID, "tenant", j.Tenant())
+					dropReason := ""
+					switch {
+					case batch == nil:
+						dropReason = "batch_missing"
+					case batch.Cancelled:
+						// A cancel's purge only reaches jobs still in the pending queue, so a job dequeued
+						// just before the cancel would otherwise be assigned and redact a block the
+						// operator asked to stop.
+						dropReason = "batch_cancelled"
+					case j.JobDetail.BatchId != "" && j.JobDetail.BatchId != batch.BatchId:
+						// A job left over from an earlier batch, still travelling the provider channel when
+						// that batch was removed and a new one submitted. Without this check it would be
+						// handed the new batch's selector and mode, rewriting its block under a selector it
+						// was never scheduled for — possibly in apply mode when it belonged to a dry run.
+						dropReason = "batch_superseded"
+					}
+					if dropReason != "" {
+						level.Debug(log.Logger).Log("msg", "dropping redaction job",
+							"job_id", j.ID, "tenant", j.Tenant(), "reason", dropReason)
 						metricJobsDropped.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
 						// This job was counted in-flight when NextPendingJob dequeued it; since it is
 						// dropped rather than promoted via AddJob, release that count or it leaks.
@@ -596,14 +614,26 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		batch.RescanAfterUnixNano = time.Now().Add(s.cfg.ProviderConfig.Redaction.RescanDelay).UnixNano()
 	}
 
-	// Store batch first, then jobs. On job failure, roll back the batch so the
-	// tenant is not permanently locked out of future submissions.
+	// Store the batch first so the jobs always have one to resolve. That leaves a gap in which the
+	// batch exists with no jobs yet, during which a cancel can stop it, or the maintenance sweep can
+	// see nothing outstanding and remove it. Rather than lock the lifecycle against those, publish and
+	// then check whether the batch we published is still ours: if it is not, the submission lost and we
+	// must say so instead of reporting jobs that will never run. On job failure the batch is rolled back
+	// so the tenant is not locked out of future submissions.
 	if err := s.work.AddBatch(batch); err != nil {
+		if errors.Is(err, work.ErrBatchAlreadyExists) {
+			return nil, status.Error(codes.AlreadyExists, "a redaction is already in progress for this tenant")
+		}
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	if err := s.work.AddPendingJobs(jobs); err != nil {
 		s.work.RemoveBatch(tenant)
 		return nil, status.Error(codes.Internal, err.Error())
+	}
+	if discarded, ok := s.discardIfBatchChanged(ctx, tenant, batchID); !ok {
+		level.Warn(log.Logger).Log("msg", "redaction submission was cancelled or removed while it was being published",
+			"tenant", tenant, "batch_id", batchID, "jobs_discarded", discarded)
+		return nil, status.Error(codes.Aborted, "the redaction was cancelled or removed while it was being submitted; nothing was queued")
 	}
 
 	// Persist batch manifest and affected shards. Both are best-effort here;
@@ -629,6 +659,96 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 	return &tempopb.SubmitRedactionResponse{
 		BatchId:     batchID,
 		JobsCreated: int32(len(jobs)),
+	}, nil
+}
+
+// CancelRedaction cancels the authenticated tenant's in-progress redaction. It marks the batch
+// cancelled, abandons any armed rescan, and discards the queued jobs so the backlog stops; jobs
+// already dequeued are dropped at assignment. Jobs already running on a worker finish — cancel never
+// interrupts a block rewrite, so block in:out stays 1:1 — and because those may have rewritten
+// blocks, the batch then quiesces like any other apply-mode batch before compaction resumes. The
+// tenant is read from the request header, never a body field, so cancel cannot cross tenants and
+// concurrent per-tenant redactions stay isolated.
+func (s *BackendScheduler) CancelRedaction(ctx context.Context, _ *tempopb.CancelRedactionRequest) (*tempopb.CancelRedactionResponse, error) {
+	ctx, span := tracer.Start(ctx, "CancelRedaction")
+	defer span.End()
+
+	tenant, err := validation.ExtractValidTenantID(ctx)
+	if err != nil {
+		if errors.Is(err, user.ErrNoOrgID) {
+			return nil, status.Error(codes.Unauthenticated, err.Error())
+		}
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+	span.SetAttributes(attribute.String("tenant", tenant))
+
+	batch := s.work.GetBatch(tenant)
+	if batch == nil {
+		return nil, status.Error(codes.NotFound, "no redaction in progress for this tenant")
+	}
+	batchID := batch.BatchId
+
+	// Commit the cancel before publishing it. Persisting does not touch the in-memory batch, so if it
+	// fails nothing has changed and nothing has seen the cancel: the RPC reports failure honestly and
+	// the operator can retry. Publishing first would be unsafe, because the readers of the flag act
+	// irreversibly — Next() discards a dequeued job and checkPendingRescans clears the skipped-block
+	// list — so a subsequent write failure could not be undone, and we would report a failed cancel
+	// after work had already been dropped.
+	alreadyCancelled, err := s.work.CommitBatchCancel(ctx, tenant, s.cfg.LocalWorkPath)
+	switch {
+	case errors.Is(err, work.ErrBatchNotFound):
+		// The batch was removed while the cancel was in flight (its quiescence elapsed on a maintenance
+		// tick), so there is nothing left to cancel. Report that rather than a success for work that had
+		// already finished; the next flush rewrites the manifest without it.
+		return nil, status.Error(codes.NotFound, "no redaction in progress for this tenant")
+	case err != nil:
+		level.Error(log.Logger).Log("msg", "failed to commit redaction cancel; nothing changed, safe to retry", "tenant", tenant, "err", err)
+		return nil, status.Errorf(codes.Internal, "failed to commit redaction cancel; nothing changed, retry: %v", err)
+	case alreadyCancelled:
+		level.Info(log.Logger).Log("msg", "redaction already cancelled; completing idempotently", "tenant", tenant, "batch_id", batchID)
+	}
+
+	// The cancel is durable and published, so it is now forward-only: there is no state left that a
+	// failure below could roll back to, and none is needed. Everything from here self-heals from the
+	// durable flag if it is interrupted — pending jobs that survive on disk are dropped at assignment
+	// (Next), and an armed rescan that survives is cleared by checkPendingRescans — so these writes are
+	// latency optimizations, not correctness gates. Failing the RPC for them would tell the operator to
+	// retry something already in effect.
+	s.work.SetBatchRescan(tenant, nil, 0)
+	purgedIDs := s.work.PurgePendingRedactionJobs(tenant)
+	// Release jobs that were already dequeued but never dispatched. They are parked in the provider and
+	// merged channels and will be dropped at assignment now the batch is cancelled, so counting them as
+	// in-flight only keeps the batch — and with it the tenant's compaction — waiting on work that will
+	// never start. Without this, a cancel issued while the workers are down or wedged leaves the tenant
+	// gated indefinitely, which is the opposite of what cancel is for.
+	if parked := s.work.ReleaseAllRedactionInFlight(tenant); parked > 0 {
+		level.Info(log.Logger).Log("msg", "released dequeued redaction jobs that will not be dispatched",
+			"tenant", tenant, "batch_id", batchID, "released", parked)
+	}
+	// Flush unconditionally, even when this call purged nothing: a retry finds the jobs already gone
+	// from memory and so gets no IDs back, while they are still on disk. With no IDs to target this
+	// flushes every shard, persisting whatever an earlier attempt removed.
+	if err := s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, purgedIDs); err != nil {
+		level.Warn(log.Logger).Log("msg", "redaction cancel purge not yet persisted; jobs will be dropped at assignment and the purge re-persisted on a later flush", "tenant", tenant, "err", err)
+	}
+	if err := s.work.FlushBatchesToLocal(ctx, s.cfg.LocalWorkPath); err != nil {
+		level.Warn(log.Logger).Log("msg", "redaction cancel rescan clear not yet persisted; a stale armed rescan is cleared on a later maintenance tick", "tenant", tenant, "err", err)
+	}
+
+	// Start the quiescence countdown if nothing is outstanding: jobs dispatched before the cancel may
+	// have rewritten blocks, so the tenant's compaction stays held until the blocklist has polled them.
+	s.cleanupBatchIfDone(ctx, tenant)
+
+	span.SetAttributes(
+		attribute.String("batch_id", batchID),
+		attribute.Int("pending_purged", len(purgedIDs)),
+	)
+	level.Info(log.Logger).Log("msg", "redaction cancelled",
+		"tenant", tenant, "batch_id", batchID, "pending_purged", len(purgedIDs))
+
+	return &tempopb.CancelRedactionResponse{
+		BatchId:       batchID,
+		PendingPurged: int32(len(purgedIDs)),
 	}, nil
 }
 
@@ -671,6 +791,29 @@ func (s *BackendScheduler) redactionBatchActive(tenantID string, rescanPending b
 	return s.work.HasJobsForTenant(tenantID, tempopb.JobType_JOB_TYPE_REDACTION) || rescanPending
 }
 
+// discardIfBatchChanged reports whether the tenant's batch is still the one identified by batchID and
+// not cancelled. If it is not, the pending redaction jobs just enqueued for it belong to a submission
+// that lost, so they are purged and the count of discarded jobs is returned.
+//
+// This replaces locking the redaction lifecycle. The publish of a batch and its jobs cannot be made
+// atomic across the two stores, so instead of preventing a cancel or a maintenance sweep from acting on
+// the gap, the publisher checks afterwards whether it was acted upon. Leaving the jobs would be safe for
+// the data — Next() drops them — but they would keep the tenant looking busy and delay quiescence, and
+// the caller would report work that never runs.
+func (s *BackendScheduler) discardIfBatchChanged(ctx context.Context, tenantID, batchID string) (discarded int, unchanged bool) {
+	batch := s.work.GetBatch(tenantID)
+	if batch != nil && batch.BatchId == batchID && !batch.Cancelled {
+		return 0, true
+	}
+	purged := s.work.PurgePendingRedactionJobs(tenantID)
+	if len(purged) > 0 {
+		if err := s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, purged); err != nil {
+			level.Warn(log.Logger).Log("msg", "failed to persist discard of superseded redaction jobs", "tenant", tenantID, "err", err)
+		}
+	}
+	return len(purged), false
+}
+
 // cleanupBatchIfDone is called when a batch's redaction jobs may have all finished (e.g. on job
 // completion via UpdateJob). Rather than removing the batch immediately -- which would re-enable
 // compaction before the rescan can cover a late compaction output -- it enters quiescence by
@@ -684,12 +827,17 @@ func (s *BackendScheduler) cleanupBatchIfDone(ctx context.Context, tenantID stri
 	if !ok || s.redactionBatchActive(tenantID, rescanPending) {
 		return
 	}
+	// A dry-run rewrites nothing, so no output block exists for the blocklist to catch up to and
+	// there is no cleanup-window race to hold compaction open for. Remove at once.
+	//
+	// A cancelled batch does NOT qualify: cancel abandons only work that had not started, while jobs
+	// already dispatched finish and rewrite their blocks. Such a batch has produced output blocks the
+	// blocklist may not have polled yet, so it quiesces on the normal path below — otherwise
+	// compaction could pick up a pre-redaction input block and resurrect the redacted traces.
 	if dryRun {
-		// A dry-run writes nothing and never disabled compaction, so there is no cleanup-window
-		// race to hold open: remove the batch at once and free the tenant's slot.
 		s.work.RemoveBatch(tenantID)
 		s.flushBatches(ctx)
-		level.Info(log.Logger).Log("msg", "dry-run redaction batch complete, removed", "tenant", tenantID)
+		level.Info(log.Logger).Log("msg", "redaction batch removed without quiescence", "tenant", tenantID, "reason", "dry_run")
 		return
 	}
 	if quiesceUntil == 0 {
@@ -724,11 +872,12 @@ func (s *BackendScheduler) advanceQuiescence(tenantID string) (changed bool) {
 		return false
 	}
 	if dryRun {
-		// Dry-run batches do not quiesce (nothing was written); remove on the tick that finds
-		// them done. Normally cleanupBatchIfDone already handled this on job completion; this
-		// covers a batch that went done without a completion callback (e.g. all jobs dropped).
+		// A dry-run does not quiesce (it produced no output block); remove on the tick that finds it
+		// drained. cleanupBatchIfDone usually handles this on job completion; this covers a batch
+		// that drained without a completion callback. Cancelled batches quiesce like any other
+		// apply-mode batch — see cleanupBatchIfDone.
 		s.work.RemoveBatch(tenantID)
-		level.Info(log.Logger).Log("msg", "dry-run redaction batch complete, removed", "tenant", tenantID)
+		level.Info(log.Logger).Log("msg", "redaction batch removed without quiescence", "tenant", tenantID, "reason", "dry_run")
 		return true
 	}
 	if quiesceUntil == 0 {
@@ -756,11 +905,29 @@ func (s *BackendScheduler) flushBatches(ctx context.Context) {
 // jobs, and enqueues new pending redaction jobs for those blocks.
 func (s *BackendScheduler) checkPendingRescans(ctx context.Context) {
 	now := time.Now().UnixNano()
+	changed := false
 	for _, batch := range s.work.ListBatches() {
-		if batch.RescanAfterUnixNano == 0 || now < batch.RescanAfterUnixNano {
+		if batch.RescanAfterUnixNano == 0 {
+			continue
+		}
+		// A cancelled batch never rescans — it is abandoning the blocks it skipped. Clear the armed
+		// rescan instead of running it, whatever its deadline: this check must precede the due-time
+		// gate below, because a rescan armed for the future is exactly what a crash between the
+		// cancel's two manifest flushes leaves behind. Leaving it armed keeps rescanPending — and so
+		// the batch, and so the tenant's compaction block — alive for the rest of the rescan delay
+		// with no work outstanding.
+		if batch.Cancelled {
+			s.work.SetBatchRescan(batch.TenantId, nil, 0)
+			changed = true
+			continue
+		}
+		if now < batch.RescanAfterUnixNano {
 			continue
 		}
 		s.performRescan(ctx, batch)
+	}
+	if changed {
+		s.flushBatches(ctx)
 	}
 }
 
@@ -865,12 +1032,22 @@ func (s *BackendScheduler) performRescan(ctx context.Context, batch *tempopb.Red
 		)
 	}
 
-	// Commit rescan state update under the batch store's write lock.
+	// Commit the rescan state, but only if the batch is still the one this scan started from. Everything
+	// above ran off a snapshot and can take a long time, so a cancel may have landed meanwhile — and a
+	// cancelled batch must not have its rescan re-armed, nor may a resubmitted batch inherit this scan's
+	// result. If the guard rejects, abandon the whole result including any jobs found ready to enqueue:
+	// the cancel (or the new batch) decides what happens to those blocks now.
 	var rescanAfterNano int64
 	if len(rearmIDs) > 0 {
 		rescanAfterNano = time.Now().Add(s.cfg.ProviderConfig.Redaction.RescanDelay).UnixNano()
 	}
-	s.work.SetBatchRescan(tenantID, rearmIDs, rescanAfterNano)
+	if !s.work.SetBatchRescanIfCurrent(tenantID, batchID, rearmIDs, rescanAfterNano) {
+		level.Info(log.Logger).Log(
+			"msg", "redaction rescan abandoned: batch was cancelled or replaced while the rescan ran",
+			"tenant", tenantID, "batch_id", batchID, "discarded_ready_jobs", len(allReadyJobs),
+		)
+		return
+	}
 
 	if len(allReadyJobs) == 0 && len(rearmIDs) == 0 {
 		s.cleanupBatchIfDone(ctx, tenantID)
@@ -880,6 +1057,13 @@ func (s *BackendScheduler) performRescan(ctx context.Context, batch *tempopb.Red
 	if len(allReadyJobs) > 0 {
 		if err := s.work.AddPendingJobs(allReadyJobs); err != nil {
 			level.Error(log.Logger).Log("msg", "redaction rescan: failed to add pending jobs", "tenant", tenantID, "err", err)
+			return
+		}
+		// The guard above only covered the rescan write; a cancel can still land between it and here, so
+		// check whether the batch these jobs were built for is still current and discard them if not.
+		if discarded, ok := s.discardIfBatchChanged(ctx, tenantID, batchID); !ok {
+			level.Info(log.Logger).Log("msg", "redaction rescan: batch cancelled or replaced after the rescan committed; enqueued jobs discarded",
+				"tenant", tenantID, "batch_id", batchID, "jobs_discarded", discarded)
 			return
 		}
 	}

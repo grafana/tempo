@@ -6,7 +6,10 @@ import (
 	"crypto/x509"
 	"flag"
 	"fmt"
+	"maps"
 	"os"
+	"slices"
+	"strings"
 
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -29,6 +32,7 @@ type redactCmd struct {
 	TLS           bool   `name:"tls" help:"use TLS transport" default:"false"`
 	TLSServerName string `name:"tls-server-name" help:"override the TLS server name (SNI)"`
 	TLSCA         string `name:"tls-ca" help:"path to a PEM-encoded CA certificate file"`
+	TLSMinVersion string `name:"tls-min-version" default:"VersionTLS13" enum:"VersionTLS10,VersionTLS11,VersionTLS12,VersionTLS13" help:"minimum TLS version; validated always, applied when --tls is set"`
 }
 
 func (cmd *redactCmd) Run(_ *globalOptions) error {
@@ -109,8 +113,64 @@ func (cmd *redactCmd) submit(ctx context.Context, c tempopb.BackendSchedulerClie
 }
 
 func (cmd *redactCmd) buildTransportCredentials() (credentials.TransportCredentials, error) {
-	if !cmd.TLS {
+	return schedulerTransportCredentials(cmd.TLS, cmd.TLSServerName, cmd.TLSCA, cmd.TLSMinVersion)
+}
+
+// defaultTLSMinVersion is the strongest version and the CLI default. Kong tags need a literal, so the
+// two flag declarations repeat it; keep them in step with this.
+const defaultTLSMinVersion = "VersionTLS13"
+
+// tlsMinVersions maps the dskit-style version names to their tls constants. Mirrors dskit's
+// crypto/tls config values so the CLI flag matches the server's tls_min_version.
+var tlsMinVersions = map[string]uint16{
+	"VersionTLS10":       tls.VersionTLS10,
+	"VersionTLS11":       tls.VersionTLS11,
+	"VersionTLS12":       tls.VersionTLS12,
+	defaultTLSMinVersion: tls.VersionTLS13,
+}
+
+// schedulerTransportCredentials builds gRPC transport credentials for the backend-scheduler
+// client, shared by the redact submit and cancel commands. minVersion is a dskit-style version
+// name (e.g. "VersionTLS13").
+//
+// TLS settings are rejected rather than ignored when useTLS is false: discarding them silently would
+// send the tenant header and a control-plane call in cleartext while the operator believed the
+// connection was protected. The version name is validated either way, so a typo cannot pass unnoticed
+// behind a plaintext connection.
+func schedulerTransportCredentials(useTLS bool, serverName, ca, minVersion string) (credentials.TransportCredentials, error) {
+	if !useTLS {
+		if _, err := parseTLSMinVersion(minVersion); err != nil {
+			return nil, err
+		}
+		if ca != "" || serverName != "" {
+			return nil, fmt.Errorf("--tls-ca and --tls-server-name require --tls; refusing to connect in cleartext with TLS options set")
+		}
 		return insecure.NewCredentials(), nil
+	}
+
+	cfg, err := schedulerTLSConfig(serverName, ca, minVersion)
+	if err != nil {
+		return nil, err
+	}
+	return credentials.NewTLS(cfg), nil
+}
+
+// parseTLSMinVersion resolves a dskit-style version name, listing the accepted names on failure so the
+// message cannot drift from the table above.
+func parseTLSMinVersion(minVersion string) (uint16, error) {
+	if v, ok := tlsMinVersions[minVersion]; ok {
+		return v, nil
+	}
+	return 0, fmt.Errorf("unknown minimum TLS version %q (allowed: %s)",
+		minVersion, strings.Join(slices.Sorted(maps.Keys(tlsMinVersions)), ", "))
+}
+
+// schedulerTLSConfig builds the TLS config for a scheduler connection: the system roots plus an
+// optional additional CA, the requested minimum version, and an optional SNI override.
+func schedulerTLSConfig(serverName, ca, minVersion string) (*tls.Config, error) {
+	minVer, err := parseTLSMinVersion(minVersion)
+	if err != nil {
+		return nil, err
 	}
 
 	certPool, err := x509.SystemCertPool()
@@ -121,20 +181,21 @@ func (cmd *redactCmd) buildTransportCredentials() (credentials.TransportCredenti
 		certPool = x509.NewCertPool()
 	}
 
-	if cmd.TLSCA != "" {
-		pem, err := os.ReadFile(cmd.TLSCA)
+	if ca != "" {
+		pem, err := os.ReadFile(ca)
 		if err != nil {
-			return nil, fmt.Errorf("reading CA cert %q: %w", cmd.TLSCA, err)
+			return nil, fmt.Errorf("reading CA cert %q: %w", ca, err)
 		}
 		if !certPool.AppendCertsFromPEM(pem) {
-			return nil, fmt.Errorf("no valid certificates found in %q", cmd.TLSCA)
+			return nil, fmt.Errorf("no valid certificates found in %q", ca)
 		}
 	}
 
-	return credentials.NewTLS(&tls.Config{
-		ServerName: cmd.TLSServerName,
+	return &tls.Config{
+		ServerName: serverName,
 		RootCAs:    certPool,
-	}), nil
+		MinVersion: minVer,
+	}, nil
 }
 
 // parseTraceIDs converts a slice of hex trace ID strings to raw byte slices.

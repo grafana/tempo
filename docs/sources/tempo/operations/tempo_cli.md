@@ -987,10 +987,17 @@ Arguments:
 Options:
 
 - `--tenant <value>` **(required)** Tenant ID.
-- `--trace-id <value>` **(required)** Trace ID to redact, in hex format. Specify multiple times to redact several traces in one request.
+- `--trace-id <value>` Trace ID to redact, in hex format. Specify multiple times to redact several traces in one request. Mutually exclusive with `--query`.
+- `--query <value>` TraceQL query selecting the traces to redact. Mutually exclusive with `--trace-id`.
+- `--dry-run` Evaluate the selector and report how many traces match, without rewriting any blocks (default: `false`).
 - `--tls` Use TLS for the gRPC connection (default: `false`).
 - `--tls-server-name <value>` Override the TLS server name (SNI).
 - `--tls-ca <value>` Path to a PEM-encoded CA certificate file.
+- `--tls-min-version <value>` Minimum TLS version: `VersionTLS10`, `VersionTLS11`, `VersionTLS12`, or `VersionTLS13` (default: `VersionTLS13`). Only applies with `--tls`.
+
+`--tls-ca` and `--tls-server-name` require `--tls`. Supplying them without it is an error rather than a silent plaintext connection.
+
+Specify either `--trace-id` or `--query`.
 
 On success, the command prints the batch ID and the number of jobs created:
 
@@ -1019,4 +1026,56 @@ With TLS and a custom CA:
 
 ```bash
 tempo-cli redact --tenant=my-tenant --trace-id=931281e2a09876de16e15f45ff86283d --tls --tls-ca=/path/to/ca.pem scheduler.example.com:9095
+```
+
+## Cancel a redaction
+
+Stop an in-progress redaction for a tenant.
+A running redaction holds the tenant's compaction disabled until it finishes, so cancelling is useful when a request covers more blocks than expected.
+
+```bash
+tempo-cli redact-cancel --tenant=<TENANT_ID> <scheduler-address>
+```
+
+The scheduler discards the jobs that have not started yet.
+Jobs already running on a worker finish, so each block's rewrite completes and no partially redacted block is left behind.
+Once those jobs finish, compaction for the tenant resumes after a short pause that lets the scheduler's block list catch up to the blocks the redaction rewrote.
+
+Cancelling does not undo redactions that already completed: traces removed from blocks that were already rewritten stay removed.
+
+Arguments:
+
+- `scheduler-address` The backend scheduler gRPC address (`host:port`).
+
+Options:
+
+- `--tenant <value>` **(required)** Tenant ID.
+- `--tls` Use TLS for the gRPC connection (default: `false`).
+- `--tls-server-name <value>` Override the TLS server name (SNI).
+- `--tls-ca <value>` Path to a PEM-encoded CA certificate file.
+- `--tls-min-version <value>` Minimum TLS version: `VersionTLS10`, `VersionTLS11`, `VersionTLS12`, or `VersionTLS13` (default: `VersionTLS13`). Only applies with `--tls`.
+
+`--tls-ca` and `--tls-server-name` require `--tls`. Supplying them without it is an error rather than a silent plaintext connection.
+
+On success, the command prints the cancelled batch ID and how many queued jobs were discarded:
+
+```
+batch_id:       <BATCH_ID>
+pending_purged: <COUNT>
+queued jobs were discarded; jobs already running on a worker will finish
+compaction for this tenant resumes shortly after, once the block list catches up
+```
+
+`pending_purged` counts the jobs removed from the tenant's queue.
+It is not the total number of blocks left un-redacted: jobs already picked up for assignment are discarded as well but are not counted, and re-running the command after an interrupted cancel reports `0` because the queue was already emptied.
+
+A cancelled redaction is held briefly before it is cleared, so a new `redact` or `redact --dry-run` for the same tenant returns `AlreadyExists` until that finishes — a couple of minutes at the default maintenance interval.
+Wait for the hold to clear before submitting again; the blocks the cancel abandoned stay un-redacted until you do.
+
+If the tenant has no redaction in progress, the command reports a `NotFound` error.
+
+### Example
+
+```bash
+tempo-cli redact-cancel --tenant=my-tenant localhost:9095
 ```
