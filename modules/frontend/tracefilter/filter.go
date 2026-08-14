@@ -149,7 +149,15 @@ func depthBoundedWalk(adjacency map[string][]string, seeds map[*tracev1.Span]str
 
 	queue := make([]idAndDepth, 0, len(seeds))
 	for s := range seeds {
-		queue = append(queue, idAndDepth{id: string(s.SpanId), depth: 0})
+		id := string(s.SpanId)
+		// "" is the key every parentless span is indexed under, so a matched span that arrived with no
+		// span id at all must not be walked from: childrenByID[""] is every root in the trace, and
+		// parentsByID[""] is every parent of an id-less span. Seeding from it would adopt unrelated
+		// branches as the malformed span's own family. It still gets returned, just with no relatives.
+		if id == "" {
+			continue
+		}
+		queue = append(queue, idAndDepth{id: id, depth: 0})
 	}
 
 	for len(queue) > 0 {
@@ -230,7 +238,9 @@ func (idx *spanIndex) addParent(spanID, parentID string) {
 }
 
 // addChild records a child id under its parent id. A parent can legitimately have many distinct
-// children, so unlike addParent this does not dedup.
+// children, so unlike addParent this does not dedup. Every parentless span lands under the "" key,
+// which is deliberate and never walked: depthBoundedWalk skips "" as a neighbor and refuses to seed
+// from an id-less span, so that bucket is only ever a place roots go to be ignored.
 func (idx *spanIndex) addChild(parentID, childID string) {
 	idx.childrenByID[parentID] = append(idx.childrenByID[parentID], childID)
 }

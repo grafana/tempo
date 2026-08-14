@@ -205,9 +205,11 @@ Span pruning is experimental. The `span_pruning*` parameters, their behavior, an
 - `keep_hierarchy = (bool)`
   Optional. When `true`, the response also includes the ancestor path from the root spans to each matched span, so the result is still a complete hierarchy that can be rendered as a waterfall. Defaults to `false` (only the spans matching `q`). Ignored when `q` isn't set.
 - `match_depth = (int)`
-  Optional. Controls how many levels of descendants of each span matched by `q` are kept, independent of `keep_hierarchy`. Use `-1` to keep all descendants (the full subtree), `0` to keep only the matched spans with no descendants, or `n` (`n >= 1`) to keep descendants from level 1 (direct children) through level `n`, cumulative. When the parameter is omitted, the behavior is the same as `0`, preserving the existing matched-only behavior for backward compatibility; pass `-1` explicitly to get all descendants. Ignored when `q` isn't set.
+  Optional. How many levels of descendants to keep below each span matched by `q`, independent of `keep_hierarchy`. Use `-1` for the full subtree, `0` for the matched spans alone, or `n` (`n >= 1`) to keep levels 1 (direct children) through `n`. Values below `-1` are invalid and return a `400`. Ignored when `q` isn't set.
+  Default = `0`
 - `ancestor_depth = (int)`
-  Optional. Controls how many levels of ancestors are kept, only when `keep_hierarchy` is `true`. Use `-1` to keep all ancestors up to the root, `0` to keep no ancestors, or `n` (`n >= 1`) to keep ancestors from level 1 (immediate parent) through level `n`, cumulative. Defaults to `-1`, which matches the existing behavior when `keep_hierarchy=true`. Ignored entirely when `q` isn't set or `keep_hierarchy` is `false` or unset: the value isn't read or validated in those cases, so even an out-of-range one doesn't fail the request.
+  Optional. How many levels of ancestors to keep above each matched span. Use `-1` for the whole path to the root, `0` for none, or `n` (`n >= 1`) to keep levels 1 (immediate parent) through `n`. Values below `-1` are invalid and return a `400`. Only read when `keep_hierarchy` is `true`; otherwise it's ignored without being validated.
+  Default = `-1`
 
 The following query API is also provided on the querier service for _debugging_ purposes.
 

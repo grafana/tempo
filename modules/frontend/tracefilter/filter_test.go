@@ -480,6 +480,61 @@ func TestApplyMatchDepthToleratesMissingParent(t *testing.T) {
 	require.ElementsMatch(t, []byte{2, 5, 5}, keptIDs(out))
 }
 
+// TestApplyIDLessMatchedSpanWalksToNothing covers a matched span that arrived with no span id at all.
+// Every parentless span is indexed under the "" parent key, so seeding the descendant walk from an
+// id-less span would look up that bucket and adopt every root in the trace (and their subtrees) as
+// its children. The same applies to the ancestor walk via parentsByID. A malformed span must walk to
+// nothing rather than drag in unrelated branches.
+func TestApplyIDLessMatchedSpanWalksToNothing(t *testing.T) {
+	span := func(name string, id, parent []byte, match bool) *tracev1.Span {
+		s := &tracev1.Span{SpanId: id, ParentSpanId: parent, Name: name}
+		if match {
+			s.Attributes = keyValues(map[string]any{"match": true})
+		}
+		return s
+	}
+	// two separate roots, each with a child, plus a matched span carrying no span id.
+	trace := &tempopb.Trace{ResourceSpans: []*tracev1.ResourceSpans{{
+		ScopeSpans: []*tracev1.ScopeSpans{{Spans: []*tracev1.Span{
+			span("root-a", []byte{1}, nil, false),
+			span("child-a", []byte{2}, []byte{1}, false),
+			span("root-b", []byte{3}, nil, false),
+			span("child-b", []byte{4}, []byte{3}, false),
+			span("orphan", nil, nil, true),
+		}}},
+	}}}
+
+	allSpanNamesInTrace := func(tr *tempopb.Trace) []string {
+		var out []string
+		for _, rs := range tr.ResourceSpans {
+			for _, ss := range rs.ScopeSpans {
+				for _, s := range ss.Spans {
+					out = append(out, s.Name)
+				}
+			}
+		}
+		return out
+	}
+
+	for _, tc := range []struct {
+		name string
+		opts Options
+	}{
+		{name: "descendant walk", opts: Options{Query: `{ .match = true }`, MatchDepth: -1}},
+		{name: "ancestor walk", opts: Options{Query: `{ .match = true }`, KeepHierarchy: true, AncestorDepth: -1}},
+		{name: "both walks", opts: Options{Query: `{ .match = true }`, KeepHierarchy: true, AncestorDepth: -1, MatchDepth: -1}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f, err := tc.opts.Compile()
+			require.NoError(t, err)
+
+			outTrace, err := f.Process(trace)
+			require.NoError(t, err)
+			require.Equal(t, []string{"orphan"}, allSpanNamesInTrace(outTrace), "an id-less span has no ancestors or descendants to reach")
+		})
+	}
+}
+
 func TestApplyMatchDepthTerminatesOnCycle(t *testing.T) {
 	// 1 -> 2 -> 1 is a child cycle (same shape as the ancestor cycle, inverted). The walk must
 	// terminate (not hang) and keep both.
