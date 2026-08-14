@@ -822,15 +822,28 @@ Parameters:
 The response is a JSON object containing:
 
 - `traceId`, `rootService`, `rootSpanName`, `durationNanos`, `spanCount`, `errorCount`
-- `criticalPath`: the root-to-leaf chain of spans following, at each level, whichever child ends latest.
-- `services`: per-service span count, error count, and cumulative duration. The duration is the sum of that
-  service's span durations, so it is inclusive of time spent in child spans (including child spans belonging to
-  other services) rather than self-time. Summing it across services can therefore exceed `durationNanos`.
-- `slowestSpans`: the 5 slowest spans in the trace.
+- `criticalPath`: the root-to-leaf chain of spans following, at each level, whichever child ends latest. Each
+  entry carries its `attributes` and a `selfDurationNanos`. Because every span on the path nests inside the one
+  above it, the wall durations decline only slightly from hop to hop; `selfDurationNanos` is what identifies
+  which hop actually spent the time.
+- `services`: per-service span count, error count, and two durations. `durationNanos` is the sum of that
+  service's span durations and is therefore inclusive of time spent in child spans (including children belonging
+  to other services), so summing it across services can far exceed the trace `durationNanos`.
+  `selfDurationNanos` excludes time already covered by child spans and is the field to rank services by.
+- `slowestSpans`: the 5 spans with the highest `selfDurationNanos`. Ranking by self time rather than wall time
+  keeps this list from simply restating the critical path — by wall time the slowest spans in a nested trace are
+  always the outermost ones.
 - `errorSpans`: the first 5 spans with an error status.
 
-Nanosecond fields (`durationNanos`, `startTimeUnixNano`) are encoded as JSON strings, not numbers.
-They are 64-bit values that exceed the range a JSON number represents exactly in JavaScript clients.
+Spans in `slowestSpans` and `errorSpans` carry `parentSpanId` (omitted for a root span), so a caller can
+attribute a span to whatever invoked it without fetching the full trace.
+
+Self time is computed per span as its own duration minus the time covered by its direct children, where the
+children's intervals are unioned rather than summed — so a span that fans out to concurrent children is not
+reported as having spent no time of its own. Self times are per-span and do not sum to the trace duration.
+
+Nanosecond fields (`durationNanos`, `selfDurationNanos`, `startTimeUnixNano`) are encoded as JSON strings, not
+numbers. They are 64-bit values that exceed the range a JSON number represents exactly in JavaScript clients.
 
 Only `GET` is allowed. Other methods return `405 Method Not Allowed`.
 

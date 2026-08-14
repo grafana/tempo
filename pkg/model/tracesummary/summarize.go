@@ -49,6 +49,7 @@ func Summarize(trace *tempopb.Trace) (*Summary, error) {
 	byID := indexSpansByID(spans)
 	root := findRoot(spans)
 	children := buildChildrenIndex(spans, byID)
+	self := selfDurations(spans, children)
 	minStart, maxEnd := traceBounds(spans)
 
 	summary := &Summary{
@@ -58,9 +59,9 @@ func Summarize(trace *tempopb.Trace) (*Summary, error) {
 		DurationNanos: durationBetween(minStart, maxEnd),
 		SpanCount:     len(spans),
 		ErrorCount:    countErrors(spans),
-		CriticalPath:  criticalPath(root, children),
-		Services:      serviceBreakdown(spans),
-		SlowestSpans:  slowestSpans(spans),
+		CriticalPath:  criticalPath(root, children, self),
+		Services:      serviceBreakdown(spans, self),
+		SlowestSpans:  slowestSpans(spans, self),
 		ErrorSpans:    errorSpans(spans),
 	}
 
@@ -229,6 +230,77 @@ func spanDuration(span *tracev1.Span) int64 {
 	return durationBetween(span.GetStartTimeUnixNano(), span.GetEndTimeUnixNano())
 }
 
+func parentSpanIDHex(span *tracev1.Span) string {
+	if len(span.GetParentSpanId()) == 0 {
+		return ""
+	}
+	return util.SpanIDToHexString(span.GetParentSpanId())
+}
+
+// selfDurations computes each span's exclusive duration: its own wall time
+// minus the time already accounted for by its direct children.
+//
+// Child intervals are unioned rather than summed, and clipped to the parent's
+// own window. Summing would over-subtract whenever children run concurrently —
+// a span fanning out to ten parallel calls would report zero self time — and
+// children can start before or outlive their parent in real traces.
+func selfDurations(spans []*resolvedSpan, children map[*resolvedSpan][]*resolvedSpan) map[*tracev1.Span]int64 {
+	self := make(map[*tracev1.Span]int64, len(spans))
+	for _, s := range spans {
+		self[s.span] = exclusiveDuration(s, children[s])
+	}
+	return self
+}
+
+func exclusiveDuration(parent *resolvedSpan, kids []*resolvedSpan) int64 {
+	total := spanDuration(parent.span)
+	if total == 0 || len(kids) == 0 {
+		return total
+	}
+
+	windowStart := parent.span.GetStartTimeUnixNano()
+	windowEnd := parent.span.GetEndTimeUnixNano()
+
+	intervals := make([][2]uint64, 0, len(kids))
+	for _, k := range kids {
+		start := k.span.GetStartTimeUnixNano()
+		end := k.span.GetEndTimeUnixNano()
+		if start < windowStart {
+			start = windowStart
+		}
+		if end > windowEnd {
+			end = windowEnd
+		}
+		if end > start {
+			intervals = append(intervals, [2]uint64{start, end})
+		}
+	}
+	if len(intervals) == 0 {
+		return total
+	}
+	sort.Slice(intervals, func(i, j int) bool { return intervals[i][0] < intervals[j][0] })
+
+	var covered uint64
+	curStart, curEnd := intervals[0][0], intervals[0][1]
+	for _, iv := range intervals[1:] {
+		if iv[0] > curEnd {
+			covered += curEnd - curStart
+			curStart, curEnd = iv[0], iv[1]
+			continue
+		}
+		if iv[1] > curEnd {
+			curEnd = iv[1]
+		}
+	}
+	covered += curEnd - curStart
+
+	// covered is clipped to the parent's window, so it can't exceed total.
+	if int64(covered) >= total {
+		return 0
+	}
+	return total - int64(covered)
+}
+
 func isError(span *tracev1.Span) bool {
 	return span.GetStatus().GetCode() == tracev1.Status_STATUS_CODE_ERROR
 }
@@ -259,7 +331,7 @@ func buildChildrenIndex(spans []*resolvedSpan, byID map[uint64][]*resolvedSpan) 
 // criticalPath walks down from the root, at each level descending into the
 // direct child whose span ends latest (tie-break: earliest start, then
 // smallest hex span ID), until it reaches a span with no children.
-func criticalPath(root *resolvedSpan, children map[*resolvedSpan][]*resolvedSpan) []PathSpan {
+func criticalPath(root *resolvedSpan, children map[*resolvedSpan][]*resolvedSpan, self map[*tracev1.Span]int64) []PathSpan {
 	var chain []*resolvedSpan
 	visited := make(map[*resolvedSpan]struct{}, len(children)+1)
 
@@ -294,16 +366,19 @@ func criticalPath(root *resolvedSpan, children map[*resolvedSpan][]*resolvedSpan
 			Kind:              modeltrace.KindToString(s.span.GetKind()),
 			StartTimeUnixNano: s.span.GetStartTimeUnixNano(),
 			DurationNanos:     spanDuration(s.span),
+			SelfDurationNanos: self[s.span],
+			Attributes:        attributesMap(s.span.GetAttributes()),
 		}
 	}
 	return out
 }
 
-func serviceBreakdown(spans []*resolvedSpan) []ServiceBreakdown {
+func serviceBreakdown(spans []*resolvedSpan, self map[*tracev1.Span]int64) []ServiceBreakdown {
 	type acc struct {
 		spanCount     int
 		errorCount    int
 		durationNanos int64
+		selfNanos     int64
 	}
 
 	stats := map[string]*acc{}
@@ -320,6 +395,7 @@ func serviceBreakdown(spans []*resolvedSpan) []ServiceBreakdown {
 			a.errorCount++
 		}
 		a.durationNanos += spanDuration(s.span)
+		a.selfNanos += self[s.span]
 	}
 	sort.Strings(order)
 
@@ -327,10 +403,11 @@ func serviceBreakdown(spans []*resolvedSpan) []ServiceBreakdown {
 	for _, svc := range order {
 		a := stats[svc]
 		out = append(out, ServiceBreakdown{
-			Service:       svc,
-			SpanCount:     a.spanCount,
-			ErrorCount:    a.errorCount,
-			DurationNanos: a.durationNanos,
+			Service:           svc,
+			SpanCount:         a.spanCount,
+			ErrorCount:        a.errorCount,
+			DurationNanos:     a.durationNanos,
+			SelfDurationNanos: a.selfNanos,
 		})
 	}
 	return out
@@ -360,31 +437,41 @@ func insertRanked(top []*resolvedSpan, k int, s *resolvedSpan, less func(a, b *t
 	return top
 }
 
-// longerDuration reports whether a is the longer-running span, breaking ties
+// longerSelfDuration reports whether a spent more time in itself, breaking ties
 // by earliest start then smallest hex span ID.
-func longerDuration(a, b *tracev1.Span) bool {
-	da, db := spanDuration(a), spanDuration(b)
-	if da != db {
-		return da > db
+//
+// Ranking by self time rather than wall time is what makes this list worth
+// returning. Wall time in a nested trace is dominated by ancestry — the slowest
+// spans are trivially the outermost ones, which the critical path already
+// names. Self time surfaces the spans that actually burned the time.
+func longerSelfDuration(self map[*tracev1.Span]int64) func(a, b *tracev1.Span) bool {
+	return func(a, b *tracev1.Span) bool {
+		sa, sb := self[a], self[b]
+		if sa != sb {
+			return sa > sb
+		}
+		return lessByStartThenID(a, b)
 	}
-	return lessByStartThenID(a, b)
 }
 
-func slowestSpans(spans []*resolvedSpan) []SpanSummary {
+func slowestSpans(spans []*resolvedSpan, self map[*tracev1.Span]int64) []SpanSummary {
+	less := longerSelfDuration(self)
 	top := make([]*resolvedSpan, 0, maxSlowestSpans)
 	for _, s := range spans {
-		top = insertRanked(top, maxSlowestSpans, s, longerDuration)
+		top = insertRanked(top, maxSlowestSpans, s, less)
 	}
 
 	out := make([]SpanSummary, len(top))
 	for i, s := range top {
 		out[i] = SpanSummary{
 			SpanID:            util.SpanIDToHexString(s.span.GetSpanId()),
+			ParentSpanID:      parentSpanIDHex(s.span),
 			Service:           s.service,
 			Name:              s.span.GetName(),
 			Kind:              modeltrace.KindToString(s.span.GetKind()),
 			StartTimeUnixNano: s.span.GetStartTimeUnixNano(),
 			DurationNanos:     spanDuration(s.span),
+			SelfDurationNanos: self[s.span],
 			Attributes:        attributesMap(s.span.GetAttributes()),
 		}
 	}
@@ -404,6 +491,7 @@ func errorSpans(spans []*resolvedSpan) []ErrorSpanSummary {
 	for i, s := range top {
 		out[i] = ErrorSpanSummary{
 			SpanID:            util.SpanIDToHexString(s.span.GetSpanId()),
+			ParentSpanID:      parentSpanIDHex(s.span),
 			Service:           s.service,
 			Name:              s.span.GetName(),
 			Kind:              modeltrace.KindToString(s.span.GetKind()),

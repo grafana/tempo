@@ -88,9 +88,12 @@ func TestSummarize_SimpleMultiLevelTrace(t *testing.T) {
 	for _, s := range got.Services {
 		byService[s.Service] = s
 	}
-	require.Equal(t, ServiceBreakdown{Service: "checkout", SpanCount: 1, ErrorCount: 0, DurationNanos: 60}, byService["checkout"])
-	require.Equal(t, ServiceBreakdown{Service: "inventory", SpanCount: 2, ErrorCount: 0, DurationNanos: 145}, byService["inventory"])
-	require.Equal(t, ServiceBreakdown{Service: "payment", SpanCount: 1, ErrorCount: 0, DurationNanos: 15}, byService["payment"])
+	// Self time excludes what child spans already account for. The root runs
+	// 0-60 with children spanning 20-90 (clipped to 60) and 30-45, so 40ns of
+	// it is covered and 20ns is its own.
+	require.Equal(t, ServiceBreakdown{Service: "checkout", SpanCount: 1, ErrorCount: 0, DurationNanos: 60, SelfDurationNanos: 20}, byService["checkout"])
+	require.Equal(t, ServiceBreakdown{Service: "inventory", SpanCount: 2, ErrorCount: 0, DurationNanos: 145, SelfDurationNanos: 80}, byService["inventory"])
+	require.Equal(t, ServiceBreakdown{Service: "payment", SpanCount: 1, ErrorCount: 0, DurationNanos: 15, SelfDurationNanos: 15}, byService["payment"])
 }
 
 func TestSummarize_NormalNestedTraceFollowsLastFinishingBranch(t *testing.T) {
@@ -211,10 +214,12 @@ func TestSummarize_TopKSelectionMatchesFullSort(t *testing.T) {
 	require.NoError(t, err)
 
 	all := flattenSpans(trace)
+	self := selfDurations(all, buildChildrenIndex(all, indexSpansByID(all)))
+	less := longerSelfDuration(self)
 
 	bySlowest := make([]*resolvedSpan, len(all))
 	copy(bySlowest, all)
-	sort.Slice(bySlowest, func(i, j int) bool { return longerDuration(bySlowest[i].span, bySlowest[j].span) })
+	sort.Slice(bySlowest, func(i, j int) bool { return less(bySlowest[i].span, bySlowest[j].span) })
 
 	errored := make([]*resolvedSpan, 0, len(all))
 	for _, s := range all {
@@ -274,6 +279,106 @@ func TestSummary_NanosMarshalAsJSONStrings(t *testing.T) {
 	require.Equal(t, startNano, round.CriticalPath[0].StartTimeUnixNano)
 	require.Equal(t, startNano, round.SlowestSpans[0].StartTimeUnixNano)
 	require.Equal(t, startNano, round.ErrorSpans[0].StartTimeUnixNano)
+}
+
+// Children that overlap must be unioned, not summed. Summing would report the
+// parent as having spent no time of its own.
+func TestSelfDuration_ParallelChildrenAreUnioned(t *testing.T) {
+	trace := &tempopb.Trace{
+		ResourceSpans: []*tracev1.ResourceSpans{
+			resourceSpans(
+				"svc",
+				testSpan("root", "", "fan-out", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK, ""),
+				// Three concurrent children covering 10-60 between them.
+				testSpan("a", "root", "call-a", tracev1.Span_SPAN_KIND_CLIENT, 10, 60, tracev1.Status_STATUS_CODE_OK, ""),
+				testSpan("b", "root", "call-b", tracev1.Span_SPAN_KIND_CLIENT, 15, 55, tracev1.Status_STATUS_CODE_OK, ""),
+				testSpan("c", "root", "call-c", tracev1.Span_SPAN_KIND_CLIENT, 20, 50, tracev1.Status_STATUS_CODE_OK, ""),
+			),
+		},
+	}
+
+	got, err := Summarize(trace)
+	require.NoError(t, err)
+
+	// Summed children would be 120ns against a 100ns parent. Unioned they cover
+	// 10-60, so the root keeps 50ns of self time.
+	require.Equal(t, int64(50), got.CriticalPath[0].SelfDurationNanos)
+	require.Equal(t, int64(100), got.CriticalPath[0].DurationNanos)
+
+	svc := got.Services[0]
+	require.Equal(t, "svc", svc.Service)
+	require.Equal(t, int64(220), svc.DurationNanos)     // inclusive, double-counts
+	require.Equal(t, int64(170), svc.SelfDurationNanos) // 50 + 50 + 40 + 30
+}
+
+// A disjoint gap between children stays the parent's own time.
+func TestSelfDuration_GapBetweenChildrenCountsAsSelf(t *testing.T) {
+	trace := &tempopb.Trace{
+		ResourceSpans: []*tracev1.ResourceSpans{
+			resourceSpans(
+				"svc",
+				testSpan("root", "", "serial", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK, ""),
+				testSpan("a", "root", "call-a", tracev1.Span_SPAN_KIND_CLIENT, 10, 30, tracev1.Status_STATUS_CODE_OK, ""),
+				testSpan("b", "root", "call-b", tracev1.Span_SPAN_KIND_CLIENT, 60, 80, tracev1.Status_STATUS_CODE_OK, ""),
+			),
+		},
+	}
+
+	got, err := Summarize(trace)
+	require.NoError(t, err)
+	// 100ns total, 40ns covered by children, 60ns left to the parent.
+	require.Equal(t, int64(60), got.CriticalPath[0].SelfDurationNanos)
+}
+
+// Slowest spans rank by self time, so a long ancestor that merely waits on a
+// child must lose to the child that actually burned the time.
+func TestSlowestSpans_RankBySelfTimeNotWallTime(t *testing.T) {
+	trace := &tempopb.Trace{
+		ResourceSpans: []*tracev1.ResourceSpans{
+			resourceSpans(
+				"svc",
+				testSpan("root", "", "waits", tracev1.Span_SPAN_KIND_SERVER, 0, 1000, tracev1.Status_STATUS_CODE_OK, ""),
+				testSpan("mid", "root", "also-waits", tracev1.Span_SPAN_KIND_CLIENT, 5, 995, tracev1.Status_STATUS_CODE_OK, ""),
+				testSpan("leaf", "mid", "does-the-work", tracev1.Span_SPAN_KIND_CLIENT, 10, 990, tracev1.Status_STATUS_CODE_OK, ""),
+			),
+		},
+	}
+
+	got, err := Summarize(trace)
+	require.NoError(t, err)
+
+	// By wall time the order would be root (1000) > mid (990) > leaf (980).
+	require.Equal(t, "does-the-work", got.SlowestSpans[0].Name)
+	require.Equal(t, int64(980), got.SlowestSpans[0].SelfDurationNanos)
+	require.Equal(t, int64(980), got.SlowestSpans[0].DurationNanos)
+}
+
+// Attributes and parentage are what make a finding actionable, so they must
+// reach the caller without a second fetch of the full trace.
+func TestSummary_CarriesAttributesAndParentage(t *testing.T) {
+	root := testSpan("root", "", "root-op", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK, "")
+	child := testSpan("child", "root", "SELECT stock", tracev1.Span_SPAN_KIND_CLIENT, 10, 95, tracev1.Status_STATUS_CODE_ERROR, "deadlock")
+	child.Attributes = []*commonv1.KeyValue{stringAttribute("db.lock.holder", "batch-reconciler")}
+
+	trace := &tempopb.Trace{ResourceSpans: []*tracev1.ResourceSpans{resourceSpans("svc", root, child)}}
+
+	got, err := Summarize(trace)
+	require.NoError(t, err)
+
+	// The critical path carries the attribute that names the culprit.
+	require.Len(t, got.CriticalPath, 2)
+	require.Equal(t, "batch-reconciler", got.CriticalPath[1].Attributes["db.lock.holder"])
+	require.Empty(t, got.CriticalPath[0].Attributes)
+
+	// Error and slowest spans name their caller.
+	require.Len(t, got.ErrorSpans, 1)
+	require.Equal(t, util.SpanIDToHexString([]byte("root")), got.ErrorSpans[0].ParentSpanID)
+	require.Equal(t, "batch-reconciler", got.ErrorSpans[0].Attributes["db.lock.holder"])
+
+	require.Equal(t, "SELECT stock", got.SlowestSpans[0].Name)
+	require.Equal(t, util.SpanIDToHexString([]byte("root")), got.SlowestSpans[0].ParentSpanID)
+	// The root has no parent, so the field is omitted rather than zero-filled.
+	require.Empty(t, got.SlowestSpans[1].ParentSpanID)
 }
 
 func TestSummarize_FewerThanFive(t *testing.T) {
