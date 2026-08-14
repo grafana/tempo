@@ -23,38 +23,52 @@ type Summary struct {
 }
 
 // PathSpan is a span on the trace's critical path, in root-to-leaf order.
+//
+// SelfDurationNanos is what this hop actually contributed: on a critical path
+// every span nests inside the one above it, so the wall durations decline only
+// slightly from hop to hop and don't say which level spent the time.
 type PathSpan struct {
-	SpanID            string `json:"spanId"`
-	Service           string `json:"service"`
-	Name              string `json:"name"`
-	Kind              string `json:"kind"`
-	StartTimeUnixNano uint64 `json:"startTimeUnixNano,string"`
-	DurationNanos     int64  `json:"durationNanos,string"`
-}
-
-// ServiceBreakdown aggregates span/error counts and cumulative duration for
-// a single resolved service name.
-type ServiceBreakdown struct {
-	Service       string `json:"service"`
-	SpanCount     int    `json:"spanCount"`
-	ErrorCount    int    `json:"errorCount"`
-	DurationNanos int64  `json:"durationNanos,string"`
-}
-
-// SpanSummary describes a single span, e.g. one of the trace's slowest spans.
-type SpanSummary struct {
 	SpanID            string         `json:"spanId"`
 	Service           string         `json:"service"`
 	Name              string         `json:"name"`
 	Kind              string         `json:"kind"`
 	StartTimeUnixNano uint64         `json:"startTimeUnixNano,string"`
 	DurationNanos     int64          `json:"durationNanos,string"`
+	SelfDurationNanos int64          `json:"selfDurationNanos,string"`
+	Attributes        map[string]any `json:"attributes,omitempty"`
+}
+
+// ServiceBreakdown aggregates span/error counts and duration for a single
+// resolved service name.
+//
+// DurationNanos is inclusive of child span time and so double-counts nested
+// work; summed across services it can far exceed the trace duration. Rank
+// services by SelfDurationNanos, which excludes time covered by child spans.
+type ServiceBreakdown struct {
+	Service           string `json:"service"`
+	SpanCount         int    `json:"spanCount"`
+	ErrorCount        int    `json:"errorCount"`
+	DurationNanos     int64  `json:"durationNanos,string"`
+	SelfDurationNanos int64  `json:"selfDurationNanos,string"`
+}
+
+// SpanSummary describes a single span, e.g. one of the trace's slowest spans.
+type SpanSummary struct {
+	SpanID            string         `json:"spanId"`
+	ParentSpanID      string         `json:"parentSpanId,omitempty"`
+	Service           string         `json:"service"`
+	Name              string         `json:"name"`
+	Kind              string         `json:"kind"`
+	StartTimeUnixNano uint64         `json:"startTimeUnixNano,string"`
+	DurationNanos     int64          `json:"durationNanos,string"`
+	SelfDurationNanos int64          `json:"selfDurationNanos,string"`
 	Attributes        map[string]any `json:"attributes,omitempty"`
 }
 
 // ErrorSpanSummary describes a single span with an error status.
 type ErrorSpanSummary struct {
 	SpanID            string         `json:"spanId"`
+	ParentSpanID      string         `json:"parentSpanId,omitempty"`
 	Service           string         `json:"service"`
 	Name              string         `json:"name"`
 	Kind              string         `json:"kind"`
