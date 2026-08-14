@@ -194,6 +194,7 @@ func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Wri
 	span.AddEvent("wrote block to backend", trace.WithAttributes(attribute.String("block_id", newMeta.BlockID.String())))
 
 	metricBlockBuilderFlushedBlocks.WithLabelValues(s.tenantID).Inc()
+	metricBlockBuilderFlushSize.Observe(float64(newMeta.Size_))
 
 	if err := s.wal.LocalBackend().ClearBlock(uuid.UUID(newMeta.BlockID), s.tenantID); err != nil {
 		return err
