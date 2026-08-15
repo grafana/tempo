@@ -88,6 +88,36 @@ func TestNormalizeTraceHandlesCyclicParents(t *testing.T) {
 	assert.NotEmpty(t, paths["b"])
 }
 
+func TestNormalizeTraceBoundsDeeplyNestedAttribute(t *testing.T) {
+	// A span attribute whose value is an array nested far deeper than the
+	// recursion cap. Without a depth bound, normalizing this trace recurses one
+	// stack frame per level and can crash the process with an unrecoverable
+	// stack overflow.
+	deep := &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: "leaf"}}
+	for i := 0; i < maxAttributeValueDepth+50; i++ {
+		deep = &commonv1.AnyValue{
+			Value: &commonv1.AnyValue_ArrayValue{
+				ArrayValue: &commonv1.ArrayValue{Values: []*commonv1.AnyValue{deep}},
+			},
+		}
+	}
+
+	traceID := []byte("trace-id-0000002")
+	span := spanForNormalizeTest(traceID, "root", "", "svc", "op", tracev1.Span_SPAN_KIND_SERVER, 0, 10, tracev1.Status_STATUS_CODE_OK)
+	span.Attributes = append(span.Attributes, &commonv1.KeyValue{Key: "nested", Value: deep})
+
+	trace := &tempopb.Trace{
+		ResourceSpans: []*tracev1.ResourceSpans{
+			{ScopeSpans: []*tracev1.ScopeSpans{{Spans: []*tracev1.Span{span}}}},
+		},
+	}
+
+	require.NotPanics(t, func() {
+		got, _ := normalizeTrace(trace)
+		require.Len(t, got.spans, 1)
+	})
+}
+
 func traceForNormalizeTest() *tempopb.Trace {
 	traceID := []byte("trace-id-0000001")
 	return &tempopb.Trace{
