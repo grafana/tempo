@@ -1,0 +1,11 @@
+change_type: change
+component: distributor
+note: |
+  Rename the distributor's Kafka producer Summary metric `tempo_distributor_buffered_produce_bytes`
+  to `tempo_distributor_buffered_produce_bytes_summary` to avoid a registration collision with the
+  new same-name GaugeFunc exposed by `github.com/twmb/franz-go/plugin/kprom` v1.4.0. After the
+  rename, `tempo_distributor_buffered_produce_bytes` exposes the live buffered-bytes value from
+  the kprom plugin and can still be divided by `tempo_distributor_buffered_produce_bytes_limit`.
+issues: [7384]
+subtext:
+user:
