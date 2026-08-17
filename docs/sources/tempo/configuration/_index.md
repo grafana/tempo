@@ -2095,7 +2095,7 @@ Defines re-used configuration blocks.
 
 ```yaml
 # block format version. options: vParquet4, vParquet5
-[version: <string> | default = vParquet4]
+[version: <string> | default = vParquet5]
 
 # bloom filter false positive rate. lower values create larger filters but fewer false positives
 [bloom_filter_false_positive: <float> | default = 0.01]
