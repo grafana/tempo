@@ -1590,8 +1590,8 @@
       "uid": "${metrics}"
      },
      "editorMode": "code",
-     "expr": "histogram_quantile(0.99, sum(rate(tempo_backend_scheduler_job_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))",
-     "legendFormat": "p99 (native)",
+     "expr": "histogram_quantile(0.99, sum(rate(tempo_backend_scheduler_job_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (job_type))",
+     "legendFormat": "p99 {{job_type}} (native)",
      "range": true,
      "refId": "N99"
     },
@@ -1601,8 +1601,8 @@
       "uid": "${metrics}"
      },
      "editorMode": "code",
-     "expr": "histogram_quantile(0.5, sum(rate(tempo_backend_scheduler_job_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))",
-     "legendFormat": "p50 (native)",
+     "expr": "histogram_quantile(0.5, sum(rate(tempo_backend_scheduler_job_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (job_type))",
+     "legendFormat": "p50 {{job_type}} (native)",
      "range": true,
      "refId": "N50"
     }
@@ -2577,6 +2577,17 @@
      "legendFormat": "p99 (native)",
      "range": true,
      "refId": "N99"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${metrics}"
+     },
+     "editorMode": "code",
+     "expr": "histogram_quantile(0.9, sum(rate(tempo_backend_scheduler_job_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_REDACTION\"}[$__rate_interval])))",
+     "legendFormat": "p90 (native)",
+     "range": true,
+     "refId": "N90"
     },
     {
      "datasource": {

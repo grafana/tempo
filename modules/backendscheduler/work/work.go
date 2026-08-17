@@ -921,9 +921,6 @@ func (w *Work) IsBlockBusy(tenantID, blockID string) bool {
 	return inPending || inRunning
 }
 
-// BusyBlocksForTenant returns a map of blockID -> jobID for every block
-// currently referenced by a pending, registered, or active job for the tenant.
-// Acquires pendingMtx exactly once and returns a snapshot.
 // PendingJobCounts returns the number of enqueued, not-yet-dispatched jobs per tenant and type.
 //
 // This is queue DEPTH, which no other metric carries: jobs_active counts work already handed to a
@@ -949,6 +946,9 @@ func (w *Work) PendingJobCounts() map[string]map[tempopb.JobType]int {
 	return counts
 }
 
+// BusyBlocksForTenant returns a map of blockID -> jobID for every block
+// currently referenced by a pending, registered, or active job for the tenant.
+// Acquires pendingMtx exactly once and returns a snapshot.
 func (w *Work) BusyBlocksForTenant(tenantID string) map[string]string {
 	result := make(map[string]string)
 	w.pendingMtx.Lock()
