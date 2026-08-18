@@ -18,7 +18,9 @@ issues: []
 subtext: |
   The block-builder flush path had no visibility into the size of the blocks it writes to the
   backend. This closes that gap alongside the existing live-store `tempo_live_store_local_flush_size_bytes`
-  metric, informing `max_input_blocks` tuning and TCO analysis.
+  metric, informing `max_input_blocks` tuning and TCO analysis. Paired with a
+  `tempodb_compaction_output_block_size_bytes` metric added in the same PR for compaction output blocks
+  (see the sibling `.chloggen` entry).
 
 # The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
 user: zalegrala
