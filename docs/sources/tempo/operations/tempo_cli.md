@@ -889,6 +889,8 @@ Options:
 
 The input files can be either raw OpenTelemetry JSON traces or Tempo `TraceByIDResponse` JSON responses.
 
+Span durations, and a fixed allow-list of numeric attributes (byte and payload sizes, token counts, and a few duration-like attributes), are compared with a tolerance instead of exact equality, so run-to-run jitter doesn't produce noisy diffs. A duration change is reported only when the values differ by more than 20% relative, with a 1 millisecond floor. Allow-listed numeric attributes use a 5% relative tolerance; every other numeric attribute is still compared exactly. In the `trace-patch-v0` format, a span duration change appears as a `duration_nanos` field change, with `before` and `after` values in nanoseconds.
+
 The `trace-summary-v0-composed` format always includes a
 `trace-summary-v0-native` document. If
 the serialized `trace-patch-v0` document is no larger than 64 KiB, it is
@@ -980,6 +982,10 @@ Unlike [`drop-traces`](#drop-traces-by-id), which operates directly on object st
 tempo-cli redact --tenant=<TENANT_ID> --trace-id=<TRACE_ID> [--trace-id=<TRACE_ID> ...] <scheduler-address>
 ```
 
+```bash
+tempo-cli redact --tenant=<TENANT_ID> --query=<TRACEQL_QUERY> <scheduler-address>
+```
+
 Arguments:
 
 - `scheduler-address` The backend scheduler gRPC address (`host:port`).
@@ -987,16 +993,28 @@ Arguments:
 Options:
 
 - `--tenant <value>` **(required)** Tenant ID.
-- `--trace-id <value>` **(required)** Trace ID to redact, in hex format. Specify multiple times to redact several traces in one request.
+- `--trace-id <value>` Trace ID to redact, in hex format. Specify multiple times to redact several traces in one request. Mutually exclusive with `--query`.
+- `--query <value>` TraceQL query selecting the traces to redact, for example `{ span.http.status_code = 500 }`. Mutually exclusive with `--trace-id`. The query is restricted to a single spanset filter: `=` or `!=` comparisons on the matched span's own `resource.*` or `span.*` attributes, joined by `&&` or `||`. Regular expressions, ordered comparisons, `parent.`-scoped attributes, and pipelines or aggregates aren't supported.
+- `--dry-run` Evaluate the selector and report match counts without rewriting any blocks (default: `false`).
 - `--tls` Use TLS for the gRPC connection (default: `false`).
 - `--tls-server-name <value>` Override the TLS server name (SNI).
 - `--tls-ca <value>` Path to a PEM-encoded CA certificate file.
+
+You must provide exactly one of `--trace-id` or `--query`. Providing both, or neither, returns an error before the request is submitted.
 
 On success, the command prints the batch ID and the number of jobs created:
 
 ```
 batch_id:     <BATCH_ID>
 jobs_created: <COUNT>
+```
+
+When `--dry-run` is set, the command also prints a line indicating that no blocks were rewritten:
+
+```
+batch_id:     <BATCH_ID>
+jobs_created: <COUNT>
+mode:         dry-run (jobs will report match counts; no blocks will be rewritten)
 ```
 
 Monitor job progress through the [`/status/backendscheduler`](/docs/tempo/<TEMPO_VERSION>/api_docs/#backend-scheduler-job-status) endpoint.
@@ -1013,6 +1031,18 @@ Redact multiple traces in one request:
 
 ```bash
 tempo-cli redact --tenant=my-tenant --trace-id=931281e2a09876de16e15f45ff86283d --trace-id=00000000000000000000000000000001 localhost:9095
+```
+
+Redact all traces matching a TraceQL query:
+
+```bash
+tempo-cli redact --tenant=my-tenant --query='{ span.http.status_code = 500 }' localhost:9095
+```
+
+Preview the traces a query would match, without rewriting any blocks:
+
+```bash
+tempo-cli redact --tenant=my-tenant --query='{ span.http.status_code = 500 }' --dry-run localhost:9095
 ```
 
 With TLS and a custom CA:
