@@ -825,8 +825,8 @@ reads `duration_ms` from the response must be updated to read
 Numeric comparisons use a tolerance so that run-to-run jitter isn't reported
 as a difference:
 
-- Span duration differences are only reported when they exceed a 20%
-  relative tolerance or a 1 ms (1,000,000 ns) floor, whichever is larger.
+- Span duration differences are only reported when they exceed 1 ms
+  (1,000,000 ns) plus 20% of the larger duration.
 - A fixed allow-list of numeric attributes that represent magnitudes. For
   example, byte sizes such as `http.request.body.size` and token counts such
   as `gen_ai.usage.input_tokens` are compared with a 5% relative
