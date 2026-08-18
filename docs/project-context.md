@@ -141,6 +141,7 @@ Paths the agent should check when validating documentation claims against code.
 | `.agents/guidance/precommit.md` | Pre-commit checklist |
 | `.claude/skills/shared/style-guide.md` | Docs style guide |
 | `.claude/skills/shared/release-notes-workflow.md` | Release notes process |
+| `.claude/skills/shared/release-notes-placement.md` | Changelog-to-release-notes placement |
 | `.claude/skills/shared/verification-checklist.md` | Docs verification |
 | `.claude/skills/shared/best-practices.md` | Docs best practices |
 | `.claude/skills/shared/docs-context-guide.md` | Docs context guide |

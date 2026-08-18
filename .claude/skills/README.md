@@ -72,6 +72,7 @@ These files are loaded by skills automatically. This section is for maintainers 
 | `.claude/skills/shared/verification-checklist.md` | Pre-submission checklist for accuracy and completeness |
 | `.claude/skills/shared/best-practices.md` | Pre-writing checklist and common pitfalls |
 | `.claude/skills/shared/release-notes-workflow.md` | Multi-phase workflow for release notes |
+| `.claude/skills/shared/release-notes-placement.md` | Where changelog entries belong in the release notes |
 | `.claude/skills/shared/docs-context-guide.md` | General repo orientation for doc tasks |
 | `.claude/skills/shared/load-context.md` | Instructions for loading local project context |
 | `.claude/skills/shared/personas.md` | Persona and intent model for audience-fit checks |
