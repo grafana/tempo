@@ -108,31 +108,29 @@ Example:
 { span:name = "GET /:endpoint" } | quantile_over_time(duration, .99) by (span.http.target) with (exemplars=true)
 ```
 
-### Faster read path (experimental)
+### Faster read path
 
-{{< docs/experimental product="Tempo" >}}
+In vParquet5, TraceQL metrics queries use a span-only fetch layer by default, which significantly improves performance for most metrics queries. This optimized read path processes individual spans instead of full traces, reducing latency and memory usage. It applies to metrics queries that don't require knowledge of the full trace structure. Queries using structural operators like `>>`, `<<`, `~`, `!>>`, `!<<`, or `!~` still use the standard fetch layer.
 
-In vParquet5, you can use an experimental span-only fetch layer to significantly improve performance for most metrics queries. This optimized read path processes individual spans instead of full traces, reducing latency and memory usage.
+You can opt out of the faster read path using a query hint or a per-tenant override.
 
-You must enable the faster read path explicitly using a query hint or a per-tenant override. Once enabled, it applies to metrics queries that don't require knowledge of the full trace structure. Queries using structural operators like `>>`, `<<`, `~`, `!>>`, `!<<`, or `!~` still use the standard fetch layer.
+#### Opt out with a query hint
 
-#### Enable with a query hint
-
-Add the `spanonly_fetch=true` hint to your query. This hint requires [`unsafe_query_hints`](/docs/tempo/<TEMPO_VERSION>/configuration/#overrides) to be enabled for the tenant.
+Add the `spanonly_fetch=false` hint to your query to disable the faster read path for that query. This hint requires [`unsafe_query_hints`](/docs/tempo/<TEMPO_VERSION>/configuration/#overrides) to be enabled for the tenant.
 
 ```
-{ resource.service.name = "frontend" } | rate() by (status) with (spanonly_fetch=true)
+{ resource.service.name = "frontend" } | rate() by (status) with (spanonly_fetch=false)
 ```
 
-#### Enable with a per-tenant override
+#### Opt out with a per-tenant override
 
-Operators can enable the faster read path by default for a tenant using the `metrics_spanonly_fetch` override. When set, it applies to all eligible metrics queries for that tenant without requiring a query hint. This override doesn't require `unsafe_query_hints`.
+Operators can disable the faster read path by default for a tenant using the `metrics_spanonly_fetch` override. When set to `false`, all eligible metrics queries for that tenant use the standard fetch layer instead. This override doesn't require `unsafe_query_hints`.
 
 ```yaml
 overrides:
   'tenant-id':
     read:
-      metrics_spanonly_fetch: true
+      metrics_spanonly_fetch: false
 ```
 
-When `unsafe_query_hints` is also enabled for the tenant, the `spanonly_fetch` query hint takes precedence over the per-tenant override. Users can set `spanonly_fetch=false` to opt out, or `spanonly_fetch=true` to opt in even when the override is disabled.
+When `unsafe_query_hints` is also enabled for the tenant, the `spanonly_fetch` query hint takes precedence over the per-tenant override. Users can set `spanonly_fetch=false` to opt out, or `spanonly_fetch=true` to opt back in even when the override disables it for the tenant.
