@@ -13,7 +13,8 @@ type compileOptions struct {
 	timeOverlapCutoff float64
 	extrapolate       *bool
 
-	watchers []SpanWatcher
+	engineBytesTracking bool
+	watchers            []SpanWatcher
 }
 
 func applyCompileOptions(opts ...CompileOption) compileOptions {
@@ -54,6 +55,14 @@ func WithSpanOnlyFetch(v bool) CompileOption {
 func WithTimeOverlapCutoff(v float64) CompileOption {
 	return func(o *compileOptions) {
 		o.timeOverlapCutoff = v
+	}
+}
+
+// WithEngineBytesTracking enables the collection and calculation of the amount of data flowing
+// through the engine for the query. This includes the "size" of data of each span's attributes and fields.
+func WithEngineBytesTracking(v bool) CompileOption {
+	return func(o *compileOptions) {
+		o.engineBytesTracking = v
 	}
 }
 

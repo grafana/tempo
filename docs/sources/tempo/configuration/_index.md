@@ -2406,6 +2406,12 @@ overrides:
       # Operator-controlled and not exposed to query authors.
       [span_pruning_awareness: <bool> | default = false]
 
+      # EXPERIMENTAL
+      # Per-user toggle for tracking encoded attribute bytes on matched spans,
+      # reported as an additional query metric. When not set, the cluster-wide
+      # default is used.
+      [engine_bytes_tracking: <bool>]
+
     # Compaction related overrides
     compaction:
       # Per-user block retention. If this value is set to 0 (default),

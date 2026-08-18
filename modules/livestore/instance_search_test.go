@@ -1663,6 +1663,17 @@ func TestQueryRangeToleratesCorruptCache(t *testing.T) {
 
 func TestQueryRangeReportsInspectedBytes(t *testing.T) {
 	i, ls := defaultInstance(t)
+
+	engineBytesLimits, err := overrides.NewOverrides(overrides.Config{
+		Defaults: overrides.Overrides{
+			Read: overrides.ReadOverrides{
+				EngineBytesTracking: new(true),
+			},
+		},
+	}, nil, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+	i.overrides = engineBytesLimits
+
 	writeTracesForSearch(t, i, "", foo, bar, true, false)
 
 	blockID, err := i.cutBlocks(t.Context(), true)

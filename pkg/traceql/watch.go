@@ -152,8 +152,8 @@ func (s *spanWatchers) WatchSpanNoLock(span Span) bool {
 	// Fast path
 	if s.active == 1 {
 		if !s.obs[0].WatchSpan(span) {
+			// Don't truncate obs: Stats() below the active boundary still needs the watcher.
 			s.active = 0
-			s.obs = s.obs[:0]
 		}
 		return s.active > 0
 	}

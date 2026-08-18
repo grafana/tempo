@@ -272,9 +272,9 @@ func TestEngineExecuteSearch_EngineBytesWatcher(t *testing.T) {
 	}
 
 	req := &tempopb.SearchRequest{Query: `{ .foo = "value" }`, SpansPerSpanSet: 10, Limit: 10}
-	resp, err := NewEngine().ExecuteSearch(context.Background(), req, fetcher)
+	resp, err := NewEngine().ExecuteSearch(context.Background(), req, fetcher, WithEngineBytesTracking(true))
 	require.NoError(t, err)
 	require.NotNil(t, resp.Metrics)
 	require.Greater(t, resp.Metrics.AdditionalMetrics[tempopb.AdditionalMetricEngineBytes], int64(0),
-		"EngineBytesWatcher should be installed for search by default")
+		"EngineBytesWatcher should be installed when enabled")
 }

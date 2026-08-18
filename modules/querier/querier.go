@@ -675,6 +675,9 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 			compileOpts = append(compileOpts, traceql.WithSkipOptimization(name))
 		}
 		compileOpts = append(compileOpts, overrides.SpanPruningAwarenessCompileOptions(q.limits.SpanPruningAwareness(tenantID))...)
+		if p := q.limits.EngineBytesTracking(tenantID); p != nil {
+			compileOpts = append(compileOpts, traceql.WithEngineBytesTracking(*p))
+		}
 		return q.engine.ExecuteSearch(ctx, req.SearchReq, fetcher, compileOpts...)
 	}
 

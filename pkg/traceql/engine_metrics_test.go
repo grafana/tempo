@@ -3788,13 +3788,13 @@ func TestCompileMetricsQueryRange_EngineBytesWatcher(t *testing.T) {
 			Step:  uint64(time.Second),
 			Query: query,
 		}
-		eval, err := NewEngine().CompileMetricsQueryRange(req)
+		eval, err := NewEngine().CompileMetricsQueryRange(req, WithEngineBytesTracking(true))
 		require.NoError(t, err)
 		require.NoError(t, eval.Do(ctx, &fakeSpanFetcher{makeSpans}, 0, 0, 0))
 		return eval.Metrics().AdditionalMetrics
 	}
 
-	t.Run("always installed and counts attribute bytes", func(t *testing.T) {
+	t.Run("installed when enabled and counts attribute bytes", func(t *testing.T) {
 		got := run(t, `{} | rate()`)
 		require.Greater(t, got[tempopb.AdditionalMetricEngineBytes], int64(0))
 	})
