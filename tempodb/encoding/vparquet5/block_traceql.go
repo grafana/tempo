@@ -113,23 +113,35 @@ func (s *span) AllAttributes() map[traceql.Attribute]traceql.Static {
 }
 
 func (s *span) AllAttributesFunc(cb func(traceql.Attribute, traceql.Static)) {
-	for _, a := range s.traceAttrs {
-		cb(a.a, a.s)
+	if len(s.traceAttrs) > 0 {
+		for _, a := range s.traceAttrs {
+			cb(a.a, a.s)
+		}
 	}
-	for _, a := range s.resourceAttrs {
-		cb(a.a, a.s)
+	if len(s.resourceAttrs) > 0 {
+		for _, a := range s.resourceAttrs {
+			cb(a.a, a.s)
+		}
 	}
-	for _, a := range s.instrumentationAttrs {
-		cb(a.a, a.s)
+	if len(s.instrumentationAttrs) > 0 {
+		for _, a := range s.instrumentationAttrs {
+			cb(a.a, a.s)
+		}
 	}
-	for _, a := range s.spanAttrs {
-		cb(a.a, a.s)
+	if len(s.spanAttrs) > 0 {
+		for _, a := range s.spanAttrs {
+			cb(a.a, a.s)
+		}
 	}
-	for _, a := range s.eventAttrs {
-		cb(a.a, a.s)
+	if len(s.eventAttrs) > 0 {
+		for _, a := range s.eventAttrs {
+			cb(a.a, a.s)
+		}
 	}
-	for _, a := range s.linkAttrs {
-		cb(a.a, a.s)
+	if len(s.linkAttrs) > 0 {
+		for _, a := range s.linkAttrs {
+			cb(a.a, a.s)
+		}
 	}
 }
 
