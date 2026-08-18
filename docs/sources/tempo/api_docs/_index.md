@@ -763,7 +763,7 @@ body that identifies both traces by their IDs. Partial traces are rejected.
 Both traces are fully loaded into memory before they're compared. The combined
 size of the base trace and the compare trace is checked against the
 `max_bytes_per_trace` per-tenant override (default 5 MB; a value of `0`
-disables the check) -- the same limit that otherwise applies to a single
+disables the check).  The same limit also applies to a single
 trace. If `base.Trace.Size() + compare.Trace.Size()` exceeds this limit, the
 request fails with `429 Too Many Requests` (`ResourceExhausted`).
 
@@ -827,9 +827,9 @@ as a difference:
 
 - Span duration differences are only reported when they exceed a 20%
   relative tolerance or a 1 ms (1,000,000 ns) floor, whichever is larger.
-- A fixed allow-list of numeric attributes that represent magnitudes -- for
-  example byte sizes such as `http.request.body.size` and token counts such
-  as `gen_ai.usage.input_tokens` -- are compared with a 5% relative
+- A fixed allow-list of numeric attributes that represent magnitudes. For
+  example, byte sizes such as `http.request.body.size` and token counts such
+  as `gen_ai.usage.input_tokens` are compared with a 5% relative
   tolerance.
 - All other numeric attributes, such as `http.response.status_code` or
   `server.port`, are still compared for exact equality.
