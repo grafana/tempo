@@ -117,16 +117,32 @@ func redactionModeLabel(mode tempopb.RedactionMode) string {
 
 // recordPendingJobs publishes the queue depth per tenant and job type.
 //
-// Reset first: this is a gauge keyed by tenant, and a tenant whose queue drains stops appearing in
-// the snapshot entirely. Without the reset its last non-zero value would persist forever, so a
-// finished redaction would look permanently backlogged — and an autoscaler reading it would never
-// scale back down.
+// Current values are set BEFORE drained series are removed, rather than resetting the vector first.
+// A scrape landing inside a Reset would see series missing and read the total lower than it is —
+// which is precisely the spurious scale-down this metric exists to prevent. Setting first means a
+// scrape can only ever catch a slightly stale value, so the error biases toward holding scale.
+//
+// Drained queues must still be removed: a tenant whose queue empties stops appearing in the
+// snapshot rather than reporting zero, so its last non-zero value would otherwise persist for the
+// process lifetime and an autoscaler would hold scale forever.
+//
+// Called only from the maintenance loop, so the label bookkeeping needs no lock.
 func (s *BackendScheduler) recordPendingJobs() {
-	metricJobsPending.Reset()
+	current := make(map[[2]string]struct{}, len(s.publishedPendingLabels))
 
 	for tenant, byType := range s.work.PendingJobCounts() {
 		for jobType, n := range byType {
-			metricJobsPending.WithLabelValues(tenant, jobType.String()).Set(float64(n))
+			labels := [2]string{tenant, jobType.String()}
+			current[labels] = struct{}{}
+			metricJobsPending.WithLabelValues(labels[0], labels[1]).Set(float64(n))
 		}
 	}
+
+	for labels := range s.publishedPendingLabels {
+		if _, still := current[labels]; !still {
+			metricJobsPending.DeleteLabelValues(labels[0], labels[1])
+		}
+	}
+
+	s.publishedPendingLabels = current
 }

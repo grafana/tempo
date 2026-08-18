@@ -56,6 +56,10 @@ type BackendScheduler struct {
 	}
 
 	mergedJobs chan *work.Job
+
+	// publishedPendingLabels records the jobs_pending label sets published last tick, so a drained
+	// queue can be deleted without resetting the whole vector. Touched only from the maintenance loop.
+	publishedPendingLabels map[[2]string]struct{}
 }
 
 // ListJobs returns all jobs in the work cache
@@ -219,6 +223,11 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 
 	backendFlushTicker := time.NewTicker(s.cfg.BackendFlushInterval)
 	defer backendFlushTicker.Stop()
+
+	// Publish once up front: on the tick alone the metric would be absent for a full
+	// MaintenanceInterval after start, so a dashboard or autoscaler reading it right after a restart
+	// would see nothing rather than the queue that survived the restart.
+	s.recordPendingJobs()
 
 	var err error
 

@@ -11,13 +11,18 @@ import (
 )
 
 // TestRecordPendingJobs covers publishing queue depth, and in particular that a drained queue stops
-// being reported.
+// being reported while a surviving one keeps its value.
 //
-// The gauge is keyed by tenant, and a tenant whose queue empties simply stops appearing in the
-// snapshot — it never reports zero. Without the Reset, its last non-zero value would persist for the
+// The gauge is keyed by tenant, and a tenant whose queue empties stops appearing in the snapshot — it
+// never reports zero. Without removing those series their last non-zero value would persist for the
 // process lifetime: a finished redaction would look permanently backlogged, and an autoscaler
 // triggering on this would hold the scale-up forever.
+//
+// Removal is deliberately done by deleting drained label sets rather than resetting the vector. A
+// scrape landing inside a Reset would observe series missing and read the total lower than it is,
+// which is the spurious scale-down this metric exists to prevent.
 func TestRecordPendingJobs(t *testing.T) {
+	metricJobsPending.Reset() // isolate from other tests in this package
 	s := &BackendScheduler{work: work.New(work.Config{})}
 
 	redaction := func(id, tenant, block string) *work.Job {
@@ -60,5 +65,10 @@ func TestRecordPendingJobs(t *testing.T) {
 	require.Equal(t, 1, testutil.CollectAndCount(metricJobsPending),
 		"drained queues must lose their series rather than keep their last value")
 	require.Equal(t, 1.0, testutil.ToFloat64(metricJobsPending.WithLabelValues("tenant-a", "JOB_TYPE_COMPACTION")),
-		"the surviving series is the compaction queue that was never drained")
+		"the queue that was never drained keeps its value; only drained series are removed")
+
+	// Publishing again with nothing changed must be stable, not oscillate as labels are re-recorded.
+	s.recordPendingJobs()
+	require.Equal(t, 1, testutil.CollectAndCount(metricJobsPending), "a repeat publish must be idempotent")
+	require.Equal(t, 1.0, testutil.ToFloat64(metricJobsPending.WithLabelValues("tenant-a", "JOB_TYPE_COMPACTION")))
 }
