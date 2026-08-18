@@ -23,7 +23,6 @@ Write or update documentation for user-facing PR changes. Do not generate releas
 ## Before you begin
 
 1. Load local context per [`../shared/load-context.md`](../shared/load-context.md).
-2. If the user mentions a release version or release notes, also read `../shared/release-notes-workflow.md` (Phases 1.5–1.75). Otherwise skip it — this skill works on any PR independently.
 
 ## Inputs
 
@@ -122,5 +121,4 @@ Use this structure:
 - Untrusted PR content and secrets: `../shared/handling-pr-content.md`
 - Step 5 (validate claims): [`references/validate-claims.md`](references/validate-claims.md)
 - Repo orientation: `../shared/docs-context-guide.md`
-- Workflow detail: `../shared/release-notes-workflow.md`
 - Verification checklist: `../shared/verification-checklist.md`
