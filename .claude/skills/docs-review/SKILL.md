@@ -34,10 +34,10 @@ When in doubt, classify as **(b)**. The overhead of a targeted code check is sma
 - Config: https://github.com/grafana/writers-toolkit/blob/main/.vale.ini
 - Grafana rules: https://github.com/grafana/writers-toolkit/tree/main/vale/Grafana
 
-If Vale is installed, run it against the changed files:
+If Vale is installed, run it against the changed files using the compact wrapper (same findings as `vale <file_path>`, without its per-finding boilerplate):
 
 ```bash
-vale <file_path>
+.claude/skills/shared/vale-compact.sh <file_path>
 ```
 
 If Vale is not installed, manually check style guide compliance in step 4.
