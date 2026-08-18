@@ -144,6 +144,23 @@ Tempo changes the default connection behavior of the memcached cache client to k
 
 These defaults raise the steady-state number of open connections per memcached server. To keep the previous behavior, set `max_idle_conns: 16` and `min_idle_conns_headroom_percentage: 0` in your cache configuration.
 
+### Trace by ID query sharding now scales with block count
+
+Trace by ID lookups are split into jobs across a block range. Tempo adds a new `query_frontend.trace_by_id.blocks_per_shard` setting that targets a number of blocks per job instead of a fixed job count, and it defaults to `30`, taking precedence over the older `query_shards` setting whenever it's non-zero. [[PR 7105](https://github.com/grafana/tempo/pull/7105)]
+
+Previously, `query_shards` (default `50`) split every trace by ID query into the same fixed number of jobs, regardless of how many blocks a tenant had. That value had to be tuned for the largest tenant in a cell, which left smaller tenants with too few blocks per job, and it had to be revisited as ingest volume changed. With `blocks_per_shard` set, Tempo instead computes the shard count dynamically from the tenant's current block count, so the number of jobs scales automatically as a tenant grows or shrinks, and different tenant sizes in the same cell are each sharded appropriately. The computed shard count never exceeds `query_frontend.max_outstanding_per_tenant`, so this change doesn't overload the query queue.
+
+This affects anyone who tuned `query_shards` for their workload, or who relies on trace by ID lookups producing a fixed, predictable number of sub-queries, for example in dashboards, alerting, or capacity planning.
+
+To keep the previous fixed-shard-count behavior, set `blocks_per_shard: 0` to fall back to `query_shards`:
+
+```yaml
+query_frontend:
+  trace_by_id:
+    blocks_per_shard: 0
+    query_shards: 50
+```
+
 ## Upgrade to Tempo 3.0
 
 Tempo 3.0 is a major release that replaces the ingester-based architecture with a new design that separates the read and write paths.
