@@ -1,0 +1,6 @@
+change_type: enhancement
+component: query-frontend
+note: "TraceByID V2: Add `match_depth` and `ancestor_depth` query params to the `q` filter to bound how many hops of descendants/ancestors of matched spans are kept (`-1` unbounded, `0` none, `n` exactly n hops)"
+issues: []
+subtext:
+user: ie-pham

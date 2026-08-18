@@ -737,44 +737,186 @@ func TestParseTraceByIDFilterParams(t *testing.T) {
 		urlQuery          string
 		wantQuery         string
 		wantKeepHierarchy bool
+		wantMatchDepth    int
+		wantAncestorDepth int
 		wantErr           bool
 	}{
-		{name: "no params means no filter", urlQuery: ""},
-		{name: "query only defaults keep_hierarchy false", urlQuery: "q=" + url.QueryEscape("{ .a = 1 }"), wantQuery: "{ .a = 1 }"},
+		// no q means no filter at all, so the zero-value TraceByIDFilterParams is returned:
+		// match_depth and ancestor_depth are both 0 here, not their filtered-path defaults.
+		{name: "no params means no filter", urlQuery: "", wantMatchDepth: 0, wantAncestorDepth: 0},
+		{name: "query only defaults keep_hierarchy false", urlQuery: "q=" + url.QueryEscape("{ .a = 1 }"), wantQuery: "{ .a = 1 }", wantMatchDepth: 0, wantAncestorDepth: -1},
 		// a whitespace-only q is trimmed to empty, so it is treated as no filter and keep_hierarchy is ignored.
-		{name: "whitespace-only q is treated as empty", urlQuery: "q=" + url.QueryEscape("   ") + "&keep_hierarchy=true"},
+		{name: "whitespace-only q is treated as empty", urlQuery: "q=" + url.QueryEscape("   ") + "&keep_hierarchy=true", wantMatchDepth: 0, wantAncestorDepth: 0},
 		// surrounding whitespace on a real query is trimmed, not passed to the parser.
-		{name: "surrounding whitespace on q is trimmed", urlQuery: "q=" + url.QueryEscape("  { .a = 1 }  "), wantQuery: "{ .a = 1 }"},
+		{name: "surrounding whitespace on q is trimmed", urlQuery: "q=" + url.QueryEscape("  { .a = 1 }  "), wantQuery: "{ .a = 1 }", wantMatchDepth: 0, wantAncestorDepth: -1},
 		{
 			name:              "query and explicit keep_hierarchy true",
 			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=true",
 			wantQuery:         "{ .a = 1 }",
 			wantKeepHierarchy: true,
+			wantMatchDepth:    0,
+			wantAncestorDepth: -1,
 		},
 		{
-			name:      "explicit keep_hierarchy false overrides default",
-			urlQuery:  "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=false",
-			wantQuery: "{ .a = 1 }",
+			name:              "explicit keep_hierarchy false overrides default",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=false",
+			wantQuery:         "{ .a = 1 }",
+			wantMatchDepth:    0,
+			wantAncestorDepth: -1,
 		},
 		{
 			name:     "invalid keep_hierarchy with query",
 			urlQuery: "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=yes-please",
 			wantErr:  true,
 		},
-		{name: "invalid keep_hierarchy ignored without query", urlQuery: "keep_hierarchy=yes-please"},
+		{name: "invalid keep_hierarchy ignored without query", urlQuery: "keep_hierarchy=yes-please", wantMatchDepth: 0, wantAncestorDepth: 0},
+		{
+			name:              "match_depth absent with query defaults to 0",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }"),
+			wantQuery:         "{ .a = 1 }",
+			wantMatchDepth:    0,
+			wantAncestorDepth: -1,
+		},
+		{
+			name:              "match_depth explicit zero",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }") + "&match_depth=0",
+			wantQuery:         "{ .a = 1 }",
+			wantMatchDepth:    0,
+			wantAncestorDepth: -1,
+		},
+		{
+			name:              "match_depth explicit -1 means unbounded",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }") + "&match_depth=-1",
+			wantQuery:         "{ .a = 1 }",
+			wantMatchDepth:    -1,
+			wantAncestorDepth: -1,
+		},
+		{
+			name:              "match_depth explicit positive value",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }") + "&match_depth=2",
+			wantQuery:         "{ .a = 1 }",
+			wantMatchDepth:    2,
+			wantAncestorDepth: -1,
+		},
+		{
+			name:              "ancestor_depth absent with query defaults to -1",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }"),
+			wantQuery:         "{ .a = 1 }",
+			wantMatchDepth:    0,
+			wantAncestorDepth: -1,
+		},
+		{
+			name:              "ancestor_depth explicit zero",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=true&ancestor_depth=0",
+			wantQuery:         "{ .a = 1 }",
+			wantKeepHierarchy: true,
+			wantMatchDepth:    0,
+			wantAncestorDepth: 0,
+		},
+		{
+			name:              "ancestor_depth explicit -1 means unbounded",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=true&ancestor_depth=-1",
+			wantQuery:         "{ .a = 1 }",
+			wantKeepHierarchy: true,
+			wantMatchDepth:    0,
+			wantAncestorDepth: -1,
+		},
+		{
+			name:              "ancestor_depth explicit positive value",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=true&ancestor_depth=3",
+			wantQuery:         "{ .a = 1 }",
+			wantKeepHierarchy: true,
+			wantMatchDepth:    0,
+			wantAncestorDepth: 3,
+		},
+		// without keep_hierarchy, ancestor_depth has nothing to bound, so it is never read: the value
+		// is left at its default no matter what was sent, and even an unusable one cannot fail the
+		// request. This lets someone flip keep_hierarchy off without stripping the depth beside it.
+		{
+			name:              "ancestor_depth not read when keep_hierarchy absent",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }") + "&ancestor_depth=3",
+			wantQuery:         "{ .a = 1 }",
+			wantMatchDepth:    0,
+			wantAncestorDepth: -1,
+		},
+		{
+			name:              "ancestor_depth not read when keep_hierarchy false",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=false&ancestor_depth=0",
+			wantQuery:         "{ .a = 1 }",
+			wantMatchDepth:    0,
+			wantAncestorDepth: -1,
+		},
+		{
+			name:     "match_depth below -1 with query is an error",
+			urlQuery: "q=" + url.QueryEscape("{ .a = 1 }") + "&match_depth=-2",
+			wantErr:  true,
+		},
+		{
+			name:     "non-numeric match_depth with query is an error",
+			urlQuery: "q=" + url.QueryEscape("{ .a = 1 }") + "&match_depth=abc",
+			wantErr:  true,
+		},
+		{
+			name:     "ancestor_depth below -1 with keep_hierarchy is an error",
+			urlQuery: "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=true&ancestor_depth=-2",
+			wantErr:  true,
+		},
+		{
+			name:     "non-numeric ancestor_depth with keep_hierarchy is an error",
+			urlQuery: "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=true&ancestor_depth=abc",
+			wantErr:  true,
+		},
+		// the same unusable values are accepted without keep_hierarchy, because they are never read.
+		{
+			name:              "ancestor_depth below -1 ignored without keep_hierarchy",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }") + "&ancestor_depth=-2",
+			wantQuery:         "{ .a = 1 }",
+			wantMatchDepth:    0,
+			wantAncestorDepth: -1,
+		},
+		{
+			name:              "ancestor_depth below -1 ignored with keep_hierarchy false",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=false&ancestor_depth=-2",
+			wantQuery:         "{ .a = 1 }",
+			wantMatchDepth:    0,
+			wantAncestorDepth: -1,
+		},
+		{
+			name:              "non-numeric ancestor_depth ignored without keep_hierarchy",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }") + "&ancestor_depth=abc",
+			wantQuery:         "{ .a = 1 }",
+			wantMatchDepth:    0,
+			wantAncestorDepth: -1,
+		},
+		{
+			name:              "invalid match_depth ignored without query",
+			urlQuery:          "match_depth=-2",
+			wantMatchDepth:    0,
+			wantAncestorDepth: 0,
+		},
+		{
+			name:              "query, keep_hierarchy, and ancestor_depth combined",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=true&ancestor_depth=2",
+			wantQuery:         "{ .a = 1 }",
+			wantKeepHierarchy: true,
+			wantMatchDepth:    0,
+			wantAncestorDepth: 2,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := httptest.NewRequest("GET", "/api/v2/traces/1234?"+tt.urlQuery, nil)
-			query, keepHierarchy, err := ParseTraceByIDFilterParams(r)
+			params, err := ParseTraceByIDFilterParams(r)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, tt.wantQuery, query)
-			require.Equal(t, tt.wantKeepHierarchy, keepHierarchy)
+			require.Equal(t, tt.wantQuery, params.Query)
+			require.Equal(t, tt.wantKeepHierarchy, params.KeepHierarchy)
+			require.Equal(t, tt.wantMatchDepth, params.MatchDepth)
+			require.Equal(t, tt.wantAncestorDepth, params.AncestorDepth)
 		})
 	}
 }

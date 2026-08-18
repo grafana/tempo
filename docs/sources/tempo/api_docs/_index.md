@@ -204,6 +204,12 @@ Span pruning is experimental. The `span_pruning*` parameters, their behavior, an
   Optional. A single TraceQL spanset filter (for example `{ span.http.status_code = 500 }`) that returns only the matching spans. When it drops spans, the response status is `PARTIAL` to signal a subset. Only a single `{ ... }` filter is supported: pipelines, structural operators, metrics queries, trace-level intrinsics, and trace-scoped attributes return a `400`, and an absent or empty `q` returns the full trace.
 - `keep_hierarchy = (bool)`
   Optional. When `true`, the response also includes the ancestor path from the root spans to each matched span, so the result is still a complete hierarchy that can be rendered as a waterfall. Defaults to `false` (only the spans matching `q`). Ignored when `q` isn't set.
+- `match_depth = (int)`
+  Optional. How many levels of descendants to keep below each span matched by `q`, independent of `keep_hierarchy`. Use `-1` for the full subtree, `0` for the matched spans alone, or `n` (`n >= 1`) to keep levels 1 (direct children) through `n`. Values below `-1` are invalid and return a `400`. Ignored when `q` isn't set.
+  Default = `0`
+- `ancestor_depth = (int)`
+  Optional. How many levels of ancestors to keep above each matched span. Use `-1` for the whole path to the root, `0` for none, or `n` (`n >= 1`) to keep levels 1 (immediate parent) through `n`. Values below `-1` are invalid and return a `400`. Only read when `keep_hierarchy` is `true`; otherwise it's ignored without being validated.
+  Default = `-1`
 
 The following query API is also provided on the querier service for _debugging_ purposes.
 
