@@ -200,6 +200,10 @@ Span pruning is experimental. The `span_pruning*` parameters, their behavior, an
 - `span_pruning_max_parent_depth = (integer)`
   Optional. Overrides how many ancestor levels above the aggregated leaf spans can also be aggregated. Use `0` to aggregate only leaves, or `-1` for unlimited depth. Only used when pruning is enabled for the request, either via `span_pruning=true` or `span_pruning_enabled_by_default`.
   Default = `1`
+- `q = (TraceQL filter)`
+  Optional. A single TraceQL spanset filter (for example `{ span.http.status_code = 500 }`) that returns only the matching spans. When it drops spans, the response status is `PARTIAL` to signal a subset. Only a single `{ ... }` filter is supported: pipelines, structural operators, metrics queries, trace-level intrinsics, and trace-scoped attributes return a `400`, and an absent or empty `q` returns the full trace.
+- `keep_hierarchy = (bool)`
+  Optional. When `true`, the response also includes the ancestor path from the root spans to each matched span, so the result is still a complete hierarchy that can be rendered as a waterfall. Defaults to `false` (only the spans matching `q`). Ignored when `q` isn't set.
 
 The following query API is also provided on the querier service for _debugging_ purposes.
 
@@ -750,10 +754,11 @@ GET /api/metrics/query?q={status=error}|count_over_time()by(resource.service.nam
 ### Trace diff
 
 {{< admonition type="warning" >}}
-This endpoint is experimental. The request format and behavior may change in future releases. The diff computation isn't implemented yet; the endpoint currently returns `501 Not Implemented` for valid requests.
+This endpoint is experimental. The request and response formats may change in future releases.
 {{< /admonition >}}
 
-This endpoint will compare two traces and produce a structural diff. Send a `POST` request with a JSON body that identifies both traces by their IDs.
+This endpoint compares two complete traces. Send a `POST` request with a JSON
+body that identifies both traces by their IDs. Partial traces are rejected.
 
 ```
 POST /api/v2/traces/diff
@@ -772,7 +777,8 @@ Request body:
     "traceId": "<COMPARE_TRACE_ID>",
     "start": 1700100000,
     "end": 1700103600
-  }
+  },
+  "format": "trace-summary-v0-composed"
 }
 ```
 
@@ -790,8 +796,19 @@ Parameters:
   Optional. Start of the time range to search for the comparison trace (UNIX epoch seconds).
 - `compare.end`
   Optional. End of the time range to search for the comparison trace (UNIX epoch seconds).
+- `format`
+  Optional. Output format. The default is `trace-patch-v0`. Use
+  `trace-summary-v0-native` for only the compact summary or
+  `trace-summary-v0-composed` for the summary with a size-bounded patch.
 
-When `start` and `end` are provided, the request validates that `start` is before `end`. When the endpoint is fully implemented, these fields will limit block search to that time range. If omitted, Tempo will search across all blocks.
+The composed response always includes a native summary. It includes the full
+patch when the serialized patch is no larger than 64 KiB. Otherwise,
+`patchOmitted` reports the patch size and the reason `over_budget`; send another
+request with `format` set to `trace-patch-v0` to retrieve it.
+
+When `start` and `end` are provided, the request validates that `start` is
+before `end` and limits the block search to that time range. If omitted, Tempo
+searches across all blocks.
 
 Only `POST` is allowed. Other methods return `405 Method Not Allowed`.
 

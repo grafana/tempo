@@ -120,7 +120,12 @@ func Summarize(base, compare *tempopb.Trace) (*SummaryResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	return summarizeFromPatch(patch, baseTrace, compareTrace), nil
+}
 
+// summarizeFromPatch builds the native summary from an already-computed diff,
+// so composed responses do not normalize and diff the traces twice.
+func summarizeFromPatch(patch *Result, baseTrace, compareTrace normalizedTrace) *SummaryResult {
 	baseSummary, baseDurations := summarizeNormalizedTrace(baseTrace)
 	compareSummary, compareDurations := summarizeNormalizedTrace(compareTrace)
 	structureChanged := structureChangedServices(structureSignature(baseTrace), structureSignature(compareTrace))
@@ -154,7 +159,7 @@ func Summarize(base, compare *tempopb.Trace) (*SummaryResult, error) {
 		structureChanged,
 	)
 	result.Warnings = patch.Warnings
-	return result, nil
+	return result
 }
 
 type traceDurationAggregate struct {

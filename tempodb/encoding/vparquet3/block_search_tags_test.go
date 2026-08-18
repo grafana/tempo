@@ -249,3 +249,43 @@ func BenchmarkBackendBlockSearchTagValues(b *testing.B) {
 		})
 	}
 }
+
+// TestSearchSpecialTagValuesStopsEarly asserts that once the TagValuesCallbackV2 asks to
+// stop, searchSpecialTagValues abandons the scan instead of walking every remaining row
+// group and invoking the callback for each value it finds there.
+func TestSearchSpecialTagValuesStopsEarly(t *testing.T) {
+	traces, _, _, _ := makeTraces()
+	block := makeBackendBlockWithTraces(t, traces)
+
+	ctx := context.Background()
+	pf, _, err := block.openForSearch(ctx, common.DefaultSearchOptions())
+	require.NoError(t, err)
+
+	// The regression guarded here is the callback being invoked again in a *later* row
+	// group, so the fixture has to span more than one for this test to mean anything.
+	require.Greater(t, len(pf.RowGroups()), 1, "fixture must span multiple row groups")
+
+	const column = columnPathResourceServiceName
+
+	// First collect everything so we know the column has more than one value to report.
+	var all int
+	err = searchSpecialTagValues(ctx, column, pf, func(traceql.Static) bool {
+		all++
+		return false
+	})
+	require.NoError(t, err)
+	require.Greater(t, all, 1, "column must report multiple values for this test to mean anything")
+
+	// Now stop on the very first value. The callback must not be called again.
+	var calls, afterStop int
+	err = searchSpecialTagValues(ctx, column, pf, func(traceql.Static) bool {
+		calls++
+		if calls > 1 {
+			afterStop++
+		}
+		return true // stop immediately
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, calls, "callback must be invoked exactly once when it stops on the first value")
+	require.Zero(t, afterStop, "callback must not be invoked after asking to stop")
+}

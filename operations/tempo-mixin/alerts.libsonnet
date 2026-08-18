@@ -450,18 +450,28 @@
             //
             // The 'cancelled-before-producing' reason is excluded because it is a caller-side
             // cancellation (upstream context done) rather than a Kafka/producer problem.
+            //
+            // The trailing produce-rate guard is required. On a cell where
+            // tempo_distributor_produce_records_total is not being incremented, the ratio divides by
+            // zero and PromQL evaluates that to +Inf, which exceeds any threshold. The alert would
+            // then fire as critical at a meaningless '+Inf%' whenever a single failure is recorded.
+            // Requiring a non-zero produce rate keeps the alert to cells where the ratio is real.
             alert: 'TempoDistributorKafkaProduceFailing',
             expr: |||
               sum by (%s) (rate(tempo_distributor_produce_failures_total{namespace=~"%s", reason!="cancelled-before-producing"}[5m]))
               /
               sum by (%s) (rate(tempo_distributor_produce_records_total{namespace=~"%s"}[5m]))
               > %s
+              and
+              sum by (%s) (rate(tempo_distributor_produce_records_total{namespace=~"%s"}[5m])) > 0
             ||| % [
               $._config.group_by_cluster,
               $._config.namespace,
               $._config.group_by_cluster,
               $._config.namespace,
               $._config.alerts.distributor_kafka_produce_failure_ratio,
+              $._config.group_by_cluster,
+              $._config.namespace,
             ],
             'for': '5m',
             labels: {

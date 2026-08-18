@@ -101,6 +101,48 @@ func TestExperimentalTraceDiffWritesTraceSummary(t *testing.T) {
 	require.Len(t, result.Services, 1)
 }
 
+func TestExperimentalTraceDiffWritesComposed(t *testing.T) {
+	dir := t.TempDir()
+	traceAFile := filepath.Join(dir, "trace-a.json")
+	traceBFile := filepath.Join(dir, "trace-b.json")
+	outFile := filepath.Join(dir, "composed.json")
+
+	writeExperimentalTraceDiffTraceFile(t, traceAFile, experimentalTraceDiffTrace(1, 100_000_000))
+	writeExperimentalTraceDiffResponseFile(t, traceBFile, &tempopb.TraceByIDResponse{
+		Trace:   experimentalTraceDiffTrace(2, 150_000_000),
+		Status:  tempopb.PartialStatus_PARTIAL,
+		Message: "deadline exceeded",
+	})
+
+	cmd := experimentalTraceDiffCmd{
+		TraceA: traceAFile,
+		TraceB: traceBFile,
+		Format: tracediff.VersionTraceSummaryV0Composed,
+		Out:    outFile,
+	}
+	require.NoError(t, cmd.Run(nil))
+
+	bytes, err := os.ReadFile(outFile)
+	require.NoError(t, err)
+
+	var result tracediff.ComposedResult
+	require.NoError(t, json.Unmarshal(bytes, &result))
+	require.Equal(t, tracediff.VersionTraceSummaryV0Composed, result.Version)
+	require.NotNil(t, result.Summary)
+	require.Equal(t, tracediff.VersionTraceSummaryV0Native, result.Summary.Version)
+	require.Nil(t, result.PatchOmitted)
+
+	var patch tracediff.Result
+	require.NoError(t, json.Unmarshal(result.Patch, &patch))
+	require.Equal(t, tracediff.VersionTracePatchV0, patch.Version)
+	require.Len(t, patch.Warnings, 1)
+	assert.Equal(t, tracediff.WarningPartialTrace, patch.Warnings[0].Code)
+
+	require.Len(t, result.Summary.Warnings, 1)
+	assert.Equal(t, tracediff.WarningPartialTrace, result.Summary.Warnings[0].Code)
+	assert.Contains(t, result.Summary.Warnings[0].Message, "trace-b")
+}
+
 func TestExperimentalTraceDiffSummaryWarnsOnPartialTraceFile(t *testing.T) {
 	dir := t.TempDir()
 	traceAFile := filepath.Join(dir, "trace-a.json")

@@ -5,6 +5,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+
+	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 var (
@@ -76,4 +78,26 @@ var (
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	}, []string{"job_type"})
+	metricRedactionTracesFound = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "backend_scheduler_redaction_traces_found_total",
+		Help:      "Total traces matched by redaction jobs, by tenant and mode. mode=apply counts traces actually removed; mode=dry_run counts previewed blast radius (nothing removed).",
+	}, []string{"tenant", "mode"})
 )
+
+// recordRedactionResult records a completed redaction job's match count on the per-tenant,
+// per-mode counter. A zero/empty result (block scanned clean) is a no-op.
+func recordRedactionResult(tenant string, mode tempopb.RedactionMode, found int32) {
+	if found <= 0 {
+		return
+	}
+	metricRedactionTracesFound.WithLabelValues(tenant, redactionModeLabel(mode)).Add(float64(found))
+}
+
+// redactionModeLabel is a short, stable metric label for a redaction mode.
+func redactionModeLabel(mode tempopb.RedactionMode) string {
+	if mode.IsDryRun() {
+		return "dry_run"
+	}
+	return "apply"
+}

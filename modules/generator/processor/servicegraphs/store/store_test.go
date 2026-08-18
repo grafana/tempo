@@ -10,6 +10,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
@@ -533,6 +534,7 @@ func TestResetEdge(t *testing.T) {
 		key:                     testEdgeKey("test-key"),
 		traceID:                 []byte("trace-123"),
 		ConnectionType:          Database,
+		SpanKind:                v1_trace.Span_SPAN_KIND_CLIENT,
 		ServerService:           "server-svc",
 		ClientService:           "client-svc",
 		ServerLatencySec:        1.5,
@@ -553,6 +555,7 @@ func TestResetEdge(t *testing.T) {
 	assert.Equal(t, edgeKey{}, e.key, "key should be reset")
 	assert.Empty(t, e.traceID, "traceID should be reset (buffer retained, length zero)")
 	assert.Equal(t, Unknown, e.ConnectionType, "ConnectionType should be reset to Unknown")
+	assert.Equal(t, v1_trace.Span_SPAN_KIND_UNSPECIFIED, e.SpanKind, "SpanKind should be reset to unspecified")
 	assert.Equal(t, "", e.ServerService, "ServerService should be reset")
 	assert.Equal(t, "", e.ClientService, "ClientService should be reset")
 	assert.Equal(t, 0.0, e.ServerLatencySec, "ServerLatencySec should be reset")

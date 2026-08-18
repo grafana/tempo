@@ -22,6 +22,7 @@ import (
 	tempo_util "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/prometheus/client_golang/prometheus"
+	prometheus_testutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/exemplar"
 	prom_histogram "github.com/prometheus/prometheus/model/histogram"
@@ -46,6 +47,22 @@ func TestSemconvKeys(t *testing.T) {
 	require.Equal(t, string(semconv.NetworkPeerPortKey), "network.peer.port")
 	require.Equal(t, string(semconv.ServerAddressKey), "server.address")
 	require.Equal(t, string(semconvnew.DBNamespaceKey), "db.namespace")
+	require.Equal(t, string(semconvnew.DBSystemNameKey), "db.system.name")
+}
+
+// TestServiceGraphs_defaultDatabaseAttributeOrder locks in the order in which
+// database attributes are consulted, since the first match wins and reordering
+// them changes the node names an existing pipeline emits. Attributes naming the
+// database (db.namespace, db.name) come before those naming the DBMS product
+// (db.system, db.system.name), and db.system.name is placed after the db.system
+// it replaced in semconv v1.30.0 so that spans carrying the older key are
+// unaffected.
+func TestServiceGraphs_defaultDatabaseAttributeOrder(t *testing.T) {
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+
+	require.Equal(t, []string{"peer.service", "db.name", "db.system", "db.system.name"}, cfg.PeerAttributes)
+	require.Equal(t, []string{"db.namespace", "db.name", "db.system", "db.system.name"}, cfg.DatabaseNameAttributes)
 }
 
 func TestServiceGraphs(t *testing.T) {
@@ -641,8 +658,7 @@ func TestServiceGraphs_expiredEdges(t *testing.T) {
 
 	p.(*Processor).store.Expire()
 
-	expiredEdges, err := test.GetCounterVecValue(metricExpiredEdges, tenant)
-	require.NoError(t, err)
+	expiredEdges := prometheus_testutil.ToFloat64(metricExpiredEdges.WithLabelValues(tenant, tracev1.Span_SPAN_KIND_SERVER.String()))
 	assert.Equal(t, 1.0, expiredEdges)
 
 	totalEdges, err := test.GetCounterVecValue(metricTotalEdges, tenant)
@@ -652,6 +668,47 @@ func TestServiceGraphs_expiredEdges(t *testing.T) {
 	droppedSpans, err := test.GetCounterVecValue(metricDroppedSpans, tenant)
 	require.NoError(t, err)
 	assert.Equal(t, 0.0, droppedSpans)
+}
+
+func TestServiceGraphs_expiredEdgesByUnmatchedSpanKind(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.Wait = time.Nanosecond
+
+	const tenant = "expired-edge-span-kind-test"
+
+	p, err := New(cfg, tenant, testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
+	require.NoError(t, err)
+	defer p.Shutdown(context.Background())
+
+	testCases := []struct {
+		name         string
+		kind         tracev1.Span_SpanKind
+		parentSpanID []byte
+	}{
+		{name: "client", kind: tracev1.Span_SPAN_KIND_CLIENT},
+		{name: "server", kind: tracev1.Span_SPAN_KIND_SERVER, parentSpanID: []byte{0x10}},
+		{name: "producer", kind: tracev1.Span_SPAN_KIND_PRODUCER},
+		{name: "consumer", kind: tracev1.Span_SPAN_KIND_CONSUMER, parentSpanID: []byte{0x11}},
+	}
+
+	batches := make([]*tracev1.ResourceSpans, 0, len(testCases))
+	for i, tc := range testCases {
+		id := byte(i + 1)
+		batches = append(batches, makeServiceGraphBatch(tc.name, tc.kind, []byte{id}, []byte{id}, tc.parentSpanID))
+	}
+
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: batches})
+	p.(*Processor).store.Expire()
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			expiredEdges := prometheus_testutil.ToFloat64(metricExpiredEdges.WithLabelValues(tenant, tc.kind.String()))
+			assert.Equal(t, 1.0, expiredEdges)
+		})
+	}
 }
 
 func TestServiceGraphs_droppedEdgesMetric(t *testing.T) {
@@ -1040,6 +1097,33 @@ func TestServiceGraphs_databaseVirtualNodes(t *testing.T) {
 			databaseLabels: labels.FromMap(map[string]string{
 				"client":          "mythical-server",
 				"server":          "priority-db",
+				"connection_type": "database",
+			}),
+			total:  1.0,
+			errors: 0.0,
+		},
+		{
+			// db.system was renamed to db.system.name in semconv v1.30.0. A span
+			// carrying only the new name still has to be recognised as a database.
+			name:        "dbSystemNameAttribute",
+			fixturePath: "testdata/trace-with-db-system-name.json",
+			databaseLabels: labels.FromMap(map[string]string{
+				"client":          "mythical-server",
+				"server":          "postgresql",
+				"connection_type": "database",
+			}),
+			total:  1.0,
+			errors: 0.0,
+		},
+		{
+			// v1.30.0 also changed the recognised constants, so db.system and
+			// db.system.name can disagree on the same span. The older key keeps
+			// winning to preserve the node name existing pipelines already emit.
+			name:        "bothDbSystemAndSystemName",
+			fixturePath: "testdata/trace-with-db-system-and-system-name.json",
+			databaseLabels: labels.FromMap(map[string]string{
+				"client":          "mythical-server",
+				"server":          "mssql",
 				"connection_type": "database",
 			}),
 			total:  1.0,
@@ -1699,9 +1783,62 @@ func TestServiceGraphs_serverPeerSurvivesClientDatabaseUpdate(t *testing.T) {
 	})
 	assert.Equal(t, 1.0, testRegistry.Query("traces_service_graph_request_total", virtualNodeLabels))
 
-	expiredEdges, err := test.GetCounterVecValue(metricExpiredEdges, tenant)
-	require.NoError(t, err)
-	assert.Zero(t, expiredEdges)
+	for _, kind := range []tracev1.Span_SpanKind{
+		tracev1.Span_SPAN_KIND_CLIENT,
+		tracev1.Span_SPAN_KIND_SERVER,
+		tracev1.Span_SPAN_KIND_PRODUCER,
+		tracev1.Span_SPAN_KIND_CONSUMER,
+	} {
+		expiredEdges := prometheus_testutil.ToFloat64(metricExpiredEdges.WithLabelValues(tenant, kind.String()))
+		assert.Zero(t, expiredEdges)
+	}
+}
+
+// TestServiceGraphs_dbSystemNamePeerAttribute covers the virtual node path: a
+// client span with no server counterpart is named after the first matching peer
+// attribute. db.system.name has to work here exactly like the db.system key it
+// replaced in semconv v1.30.0.
+func TestServiceGraphs_dbSystemNamePeerAttribute(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		attrKey string
+	}{
+		{name: "db.system", attrKey: string(semconv.DBSystemKey)},
+		{name: "db.system.name", attrKey: string(semconvnew.DBSystemNameKey)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			testRegistry := registry.NewTestRegistry()
+
+			cfg := Config{}
+			cfg.RegisterFlagsAndApplyDefaults("", nil)
+			cfg.Wait = time.Nanosecond
+			// Isolate the peer attribute path. Left at its default, the same
+			// attribute would identify a database edge and name the server
+			// before the edge ever expires.
+			cfg.DatabaseNameAttributes = nil
+
+			p, err := New(cfg, "test", testRegistry, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
+			require.NoError(t, err)
+			defer p.Shutdown(context.Background())
+
+			dbAttr := &v1.KeyValue{
+				Key:   tc.attrKey,
+				Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "postgresql"}},
+			}
+
+			p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*tracev1.ResourceSpans{
+				makeServiceGraphBatch("svc-a", tracev1.Span_SPAN_KIND_CLIENT, []byte{0x3a}, []byte{0x3b}, nil, dbAttr),
+			}})
+			p.(*Processor).store.Expire()
+
+			virtualNodeLabels := labels.FromMap(map[string]string{
+				"client":          "svc-a",
+				"server":          "postgresql",
+				"connection_type": "virtual_node",
+			})
+			assert.Equal(t, 1.0, testRegistry.Query("traces_service_graph_request_total", virtualNodeLabels))
+		})
+	}
 }
 
 // TestServiceGraphs_emptyServiceNameServerSpanInfersVirtualNodeFromPeer covers

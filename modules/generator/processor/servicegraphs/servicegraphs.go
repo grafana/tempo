@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
+	semconvnew "go.opentelemetry.io/otel/semconv/v1.34.0"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs/store"
@@ -49,8 +50,8 @@ var (
 	metricExpiredEdges = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "metrics_generator_processor_service_graphs_expired_edges",
-		Help:      "Number of edges that expired before finding its matching span",
-	}, []string{"tenant"})
+		Help:      "Number of edges that expired before finding a matching span, labeled by the unmatched span kind",
+	}, []string{"tenant", "unmatched_span_kind"})
 )
 
 const (
@@ -64,8 +65,10 @@ const (
 
 const virtualNodeLabel = "virtual_node"
 
+// db.system was renamed to db.system.name in semconv v1.30.0. Both are consulted,
+// the older key first, so existing pipelines keep naming virtual nodes as they do today.
 var defaultPeerAttributes = []attribute.Key{
-	semconv.PeerServiceKey, semconv.DBNameKey, semconv.DBSystemKey,
+	semconv.PeerServiceKey, semconv.DBNameKey, semconv.DBSystemKey, semconvnew.DBSystemNameKey,
 }
 
 type tooManySpansError struct {
@@ -100,7 +103,7 @@ type Processor struct {
 	metricDroppedEdges                  prometheus.Counter
 	metricDroppedSpanSideCacheOverflows prometheus.Counter
 	metricTotalEdges                    prometheus.Counter
-	metricExpiredEdges                  prometheus.Counter
+	metricExpiredEdges                  *prometheus.CounterVec
 	invalidUTF8Counter                  prometheus.Counter
 	logger                              log.Logger
 }
@@ -161,7 +164,7 @@ func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, fi
 		metricDroppedEdges:                  metricDroppedEdges.WithLabelValues(tenant),
 		metricDroppedSpanSideCacheOverflows: metricDroppedSpanSideCacheOverflows.WithLabelValues(tenant),
 		metricTotalEdges:                    metricTotalEdges.WithLabelValues(tenant),
-		metricExpiredEdges:                  metricExpiredEdges.WithLabelValues(tenant),
+		metricExpiredEdges:                  metricExpiredEdges.MustCurryWith(prometheus.Labels{"tenant": tenant}),
 		invalidUTF8Counter:                  invalidUTF8Counter,
 		logger:                              log.With(logger, "component", "service-graphs"),
 	}
@@ -255,6 +258,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 				case v1_trace.Span_SPAN_KIND_CLIENT:
 					isNew, err = p.store.UpsertEdgeFromBytes(span.TraceId, span.SpanId, store.Client, func(e *store.Edge) {
 						e.SetTraceID(span.TraceId)
+						e.SpanKind = span.Kind
 						e.ConnectionType = connectionType
 						e.ClientService = svcName
 						e.ClientLatencySec = spanDurationSec(span)
@@ -272,6 +276,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 					fallthrough
 				case v1_trace.Span_SPAN_KIND_SERVER:
 					isNew, err = p.store.UpsertEdgeFromBytes(span.TraceId, span.ParentSpanId, store.Server, func(e *store.Edge) {
+						e.SpanKind = span.Kind
 						// Non-root server spans cannot produce metrics without a client
 						// update, which supplies the same trace ID.
 						if len(span.ParentSpanId) == 0 {
@@ -517,7 +522,7 @@ func (p *Processor) onExpire(e *store.Edge) {
 
 	// there was no match and no information in the one found span to create a service graph edge. mark expired
 	if !wasCounted {
-		p.metricExpiredEdges.Inc()
+		p.metricExpiredEdges.WithLabelValues(e.SpanKind.String()).Inc()
 	}
 }
 

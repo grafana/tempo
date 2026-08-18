@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: backend-scheduler
+note: a completed redaction batch now enters a short quiescence period before removal, keeping tenant compaction disabled until the rescan can cover any block a compaction produced just as the last redaction job finished. Previously the batch was removed the instant its jobs completed, so a block compacted in that window could escape redaction.
+issues: []
+subtext:
+user: zalegrala

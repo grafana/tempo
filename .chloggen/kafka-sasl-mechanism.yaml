@@ -1,0 +1,22 @@
+# Changelog entry. Generate a copy with `make chlog-new`, then fill in the fields.
+
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: enhancement
+
+# Component or area of the change. Must be one of the components in .chloggen/config.yaml,
+# e.g. distributor, querier, query-frontend, storage, operations.
+component: distributor
+
+# A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
+note: Add Kafka SASL mechanism selection and TLS support. The `sasl_mechanism` option selects the SASL mechanism (`PLAIN` (default), `SCRAM-SHA-256`, `SCRAM-SHA-512`, `OAUTHBEARER`, or `AWS_MSK_IAM`), and `tls_enabled` with the `tls_*` options enables TLS transport and mutual-TLS for the Kafka client.
+
+# (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
+# .chloggen/README.md.
+issues: [7580]
+
+# (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
+subtext: |
+  OAUTHBEARER and AWS_MSK_IAM credentials can be supplied statically, from a JSON file, or fetched over a Unix domain socket. Existing configurations are unaffected because the default mechanism remains `PLAIN` with SASL disabled when no username or password is set.
+
+# The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
+user: heytrav

@@ -276,6 +276,19 @@ Rate of edges that have expired without a match:
 sum(rate(tempo_metrics_generator_processor_service_graphs_expired_edges{}[1m]))
 ```
 
+The `unmatched_span_kind` label identifies the kind of span that did not find its matching span.
+Use it to determine which side of an edge is missing:
+
+```promql
+sum by (unmatched_span_kind) (
+  rate(tempo_metrics_generator_processor_service_graphs_expired_edges{}[1m])
+)
+```
+
+For example, `unmatched_span_kind="SPAN_KIND_SERVER"` means that server spans are arriving without matching client spans.
+This can indicate discarded client spans or incorrect instrumentation,
+such as a server span directly parenting another server span.
+
 Rate of all edges:
 
 ```

@@ -16,7 +16,7 @@ import (
 type experimentalTraceDiffCmd struct {
 	TraceA string `name:"trace-a" type:"path" required:"" help:"Baseline trace JSON file"`
 	TraceB string `name:"trace-b" type:"path" required:"" help:"Comparison trace JSON file"`
-	Format string `help:"Output format" default:"trace-patch-v0" enum:"trace-patch-v0,trace-summary-v0-native"`
+	Format string `help:"Output format" default:"trace-patch-v0" enum:"trace-patch-v0,trace-summary-v0-native,trace-summary-v0-composed"`
 	Out    string `short:"o" type:"path" help:"File to write output to, instead of stdout" default:""`
 	Pretty bool   `help:"Pretty-print JSON output"`
 }
@@ -71,6 +71,12 @@ func buildTraceDiffOutput(base, compare *tempopb.Trace, format string, warnings 
 			return nil, err
 		}
 		result.Warnings = append(result.Warnings, warnings...)
+		return result, nil
+	case tracediff.VersionTraceSummaryV0Composed:
+		result, err := tracediff.Compose(base, compare, tracediff.DefaultPatchBudgetBytes, warnings)
+		if err != nil {
+			return nil, err
+		}
 		return result, nil
 	default:
 		return nil, fmt.Errorf("%q: %w", format, tracediff.ErrUnsupportedFormat)

@@ -5,7 +5,6 @@ local withApiVersion = {
   withApiVersion(apiversion): { apiVersion: apiversion },
 };
 
-
 local withScaleTargetRef = {
   '#withScaleTargetRef':: d.fn(help='Set spec.ScaleTargetRef to `object`', args=[d.arg(name='object', type=d.T.object)]),
   withScaleTargetRef(object):

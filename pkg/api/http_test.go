@@ -558,6 +558,35 @@ func TestParseTraceDiffRequest(t *testing.T) {
 			},
 		},
 		{
+			name: "explicit composed format",
+			body: `{"base":{"traceId":"abc123"},"compare":{"traceId":"def456"},"format":"trace-summary-v0-composed"}`,
+			assertReq: func(t *testing.T, req *TraceDiffRequest) {
+				t.Helper()
+				assert.Equal(t, tracediff.VersionTraceSummaryV0Composed, req.Format)
+			},
+		},
+		{
+			name: "explicit patch format",
+			body: `{"base":{"traceId":"abc123"},"compare":{"traceId":"def456"},"format":"trace-patch-v0"}`,
+			assertReq: func(t *testing.T, req *TraceDiffRequest) {
+				t.Helper()
+				assert.Equal(t, tracediff.VersionTracePatchV0, req.Format)
+			},
+		},
+		{
+			name: "explicit native summary format",
+			body: `{"base":{"traceId":"abc123"},"compare":{"traceId":"def456"},"format":"trace-summary-v0-native"}`,
+			assertReq: func(t *testing.T, req *TraceDiffRequest) {
+				t.Helper()
+				assert.Equal(t, tracediff.VersionTraceSummaryV0Native, req.Format)
+			},
+		},
+		{
+			name:        "unknown format",
+			body:        `{"base":{"traceId":"abc123"},"compare":{"traceId":"def456"},"format":"trace-summary-v1"}`,
+			expectedErr: `invalid format "trace-summary-v1": must be one of "trace-summary-v0-composed", "trace-patch-v0", "trace-summary-v0-native"`,
+		},
+		{
 			name:        "empty body",
 			body:        "",
 			expectedErr: "invalid trace diff request body",
@@ -699,6 +728,54 @@ func TestParseTraceByIDRequest(t *testing.T) {
 		assert.Equal(t, tc.blockEnd, blockEnd)
 		assert.Equal(t, tc.startTime, startTime)
 		assert.Equal(t, tc.endTime, endTime)
+	}
+}
+
+func TestParseTraceByIDFilterParams(t *testing.T) {
+	tests := []struct {
+		name              string
+		urlQuery          string
+		wantQuery         string
+		wantKeepHierarchy bool
+		wantErr           bool
+	}{
+		{name: "no params means no filter", urlQuery: ""},
+		{name: "query only defaults keep_hierarchy false", urlQuery: "q=" + url.QueryEscape("{ .a = 1 }"), wantQuery: "{ .a = 1 }"},
+		// a whitespace-only q is trimmed to empty, so it is treated as no filter and keep_hierarchy is ignored.
+		{name: "whitespace-only q is treated as empty", urlQuery: "q=" + url.QueryEscape("   ") + "&keep_hierarchy=true"},
+		// surrounding whitespace on a real query is trimmed, not passed to the parser.
+		{name: "surrounding whitespace on q is trimmed", urlQuery: "q=" + url.QueryEscape("  { .a = 1 }  "), wantQuery: "{ .a = 1 }"},
+		{
+			name:              "query and explicit keep_hierarchy true",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=true",
+			wantQuery:         "{ .a = 1 }",
+			wantKeepHierarchy: true,
+		},
+		{
+			name:      "explicit keep_hierarchy false overrides default",
+			urlQuery:  "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=false",
+			wantQuery: "{ .a = 1 }",
+		},
+		{
+			name:     "invalid keep_hierarchy with query",
+			urlQuery: "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=yes-please",
+			wantErr:  true,
+		},
+		{name: "invalid keep_hierarchy ignored without query", urlQuery: "keep_hierarchy=yes-please"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := httptest.NewRequest("GET", "/api/v2/traces/1234?"+tt.urlQuery, nil)
+			query, keepHierarchy, err := ParseTraceByIDFilterParams(r)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.wantQuery, query)
+			require.Equal(t, tt.wantKeepHierarchy, keepHierarchy)
+		})
 	}
 }
 

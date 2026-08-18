@@ -443,6 +443,10 @@ func (o *runtimeConfigOverridesManager) EngineBytesTracking(userID string) *bool
 	return o.defaultLimits.Read.EngineBytesTracking
 }
 
+func (o *runtimeConfigOverridesManager) SpanPruningEnabled(userID string) *bool {
+	return o.getOverridesForUser(userID).Read.SpanPruningEnabled
+}
+
 func (o *runtimeConfigOverridesManager) CostAttributionMaxCardinality(userID string) uint64 {
 	return o.getOverridesForUser(userID).CostAttribution.MaxCardinality
 }

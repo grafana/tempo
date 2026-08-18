@@ -423,6 +423,9 @@ func (r *rowNumberIterator) Close() {}
 // reportValuesPredicate is a "fake" predicate that uses existing iterator logic to find all values in a given column
 type reportValuesPredicate struct {
 	cb common.TagValuesCallbackV2
+	// stop latches once cb has asked to stop. From then on the predicate reports a match
+	// so the iterator returns control to searchSpecialTagValues, which abandons the scan.
+	stop bool
 }
 
 func newReportValuesPredicate(cb common.TagValuesCallbackV2) *reportValuesPredicate {
@@ -435,13 +438,21 @@ func (r *reportValuesPredicate) String() string {
 
 // KeepColumnChunk checks to see if the page has a dictionary. if it does then we can report the values contained in it
 // and return false b/c we don't have to go to the actual columns to retrieve values. if there is no dict we return
-// true so the iterator will call KeepValue on all values in the column
+// true so the iterator will call KeepValue on all values in the column.
+//
+// Once cb has asked to stop we return true instead, so the iterator produces a match and
+// hands control back to the caller rather than walking every remaining row group.
 func (r *reportValuesPredicate) KeepColumnChunk(cc *pq.ColumnChunkHelper) bool {
+	if r.stop {
+		return true
+	}
+
 	if d := cc.Dictionary(); d != nil {
 		for i := 0; i < d.Len(); i++ {
 			v := d.Index(int32(i))
 			if callback(r.cb, v) {
-				break
+				r.stop = true
+				return true
 			}
 		}
 
@@ -460,9 +471,17 @@ func (r *reportValuesPredicate) KeepPage(parquet.Page) bool {
 }
 
 // KeepValue is only called if this column does not have a dictionary. Just report everything to r.cb and
-// return false so the iterator do any extra work.
+// return false so the iterator does not do any extra work. Once cb has asked to stop we
+// return true so the iterator yields a match and the caller can abandon the scan.
 func (r *reportValuesPredicate) KeepValue(v parquet.Value) bool {
-	callback(r.cb, v)
+	if r.stop {
+		return true
+	}
+
+	if callback(r.cb, v) {
+		r.stop = true
+		return true
+	}
 
 	return false
 }

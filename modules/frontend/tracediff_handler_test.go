@@ -3,6 +3,7 @@ package frontend
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -19,6 +20,7 @@ import (
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/model/tracediff"
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempotest "github.com/grafana/tempo/pkg/util/test"
 	"github.com/prometheus/client_golang/prometheus"
@@ -183,23 +185,70 @@ func (traceDiffHidingRedactor) RedactTraceAttributes(_ *tempopb.Trace) error {
 }
 
 func TestTraceDiffHandlerReturnsDiff(t *testing.T) {
-	tracePipeline := traceDiffTestPipeline(t, map[string]*tempopb.TraceByIDResponse{
-		"abc123": {Trace: tempotest.MakeTrace(1, []byte{0xab, 0xc1, 0x23})},
-		"def456": {Trace: tempotest.MakeTrace(1, []byte{0xde, 0xf4, 0x56})},
-	})
-	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
-	require.NoError(t, err)
-	handler := newHandler(nil, newTraceDiffHandler(Config{}, "", tracePipeline, o, combiner.NewTypedTraceByIDV2, nil, log.NewNopLogger(), nil), log.NewNopLogger())
+	tests := []struct {
+		name       string
+		body       string
+		assertBody func(t *testing.T, body []byte)
+	}{
+		{
+			name: "default format returns patch",
+			body: `{"base":{"traceId":"abc123"},"compare":{"traceId":"def456"}}`,
+			assertBody: func(t *testing.T, body []byte) {
+				t.Helper()
+				var result tracediff.Result
+				require.NoError(t, json.Unmarshal(body, &result))
+				require.Equal(t, tracediff.VersionTracePatchV0, result.Version)
+			},
+		},
+		{
+			name: "composed format returns summary and patch",
+			body: `{"base":{"traceId":"abc123"},"compare":{"traceId":"def456"},"format":"trace-summary-v0-composed"}`,
+			assertBody: func(t *testing.T, body []byte) {
+				t.Helper()
+				var result tracediff.ComposedResult
+				require.NoError(t, json.Unmarshal(body, &result))
+				require.Equal(t, tracediff.VersionTraceSummaryV0Composed, result.Version)
+				require.NotNil(t, result.Summary)
+				require.Equal(t, tracediff.VersionTraceSummaryV0Native, result.Summary.Version)
+				require.Nil(t, result.PatchOmitted)
+				var patch tracediff.Result
+				require.NoError(t, json.Unmarshal(result.Patch, &patch))
+				require.Equal(t, tracediff.VersionTracePatchV0, patch.Version)
+			},
+		},
+		{
+			name: "native summary format returns bare summary",
+			body: `{"base":{"traceId":"abc123"},"compare":{"traceId":"def456"},"format":"trace-summary-v0-native"}`,
+			assertBody: func(t *testing.T, body []byte) {
+				t.Helper()
+				var result tracediff.SummaryResult
+				require.NoError(t, json.Unmarshal(body, &result))
+				require.Equal(t, tracediff.VersionTraceSummaryV0Native, result.Version)
+			},
+		},
+	}
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v2/traces/diff", strings.NewReader(`{"base":{"traceId":"abc123"},"compare":{"traceId":"def456"}}`))
-	req = req.WithContext(user.InjectOrgID(req.Context(), "test-tenant"))
-	resp := httptest.NewRecorder()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tracePipeline := traceDiffTestPipeline(t, map[string]*tempopb.TraceByIDResponse{
+				"abc123": {Trace: tempotest.MakeTrace(1, []byte{0xab, 0xc1, 0x23})},
+				"def456": {Trace: tempotest.MakeTrace(1, []byte{0xde, 0xf4, 0x56})},
+			})
+			o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
+			require.NoError(t, err)
+			handler := newHandler(nil, newTraceDiffHandler(Config{}, "", tracePipeline, o, combiner.NewTypedTraceByIDV2, nil, log.NewNopLogger(), nil), log.NewNopLogger())
 
-	handler.ServeHTTP(resp, req)
+			req := httptest.NewRequest(http.MethodPost, "/api/v2/traces/diff", strings.NewReader(tt.body))
+			req = req.WithContext(user.InjectOrgID(req.Context(), "test-tenant"))
+			resp := httptest.NewRecorder()
 
-	require.Equal(t, http.StatusOK, resp.Code)
-	require.Equal(t, api.HeaderAcceptJSON, resp.Header().Get(api.HeaderContentType))
-	require.Contains(t, resp.Body.String(), `"version":"trace-patch-v0"`)
+			handler.ServeHTTP(resp, req)
+
+			require.Equal(t, http.StatusOK, resp.Code)
+			require.Equal(t, api.HeaderAcceptJSON, resp.Header().Get(api.HeaderContentType))
+			tt.assertBody(t, resp.Body.Bytes())
+		})
+	}
 }
 
 func TestTraceDiffHandlerRejectsOversizedCombinedInput(t *testing.T) {

@@ -95,13 +95,18 @@ func FromVersionForWrites(v string) (VersionedEncoding, error) {
 }
 
 // DefaultEncoding for newly written blocks.
+//
+// The default is vParquet5. Existing vParquet3 and vParquet4 blocks are still
+// read without migration; only newly written blocks use this default. Pin
+// storage.trace.block.version to vParquet4 to opt out. See CHANGELOG.md for
+// migration guidance.
 func DefaultEncoding() VersionedEncoding {
-	return vparquet4.Encoding{}
+	return vparquet5.Encoding{}
 }
 
 // LatestEncoding returns the most recent encoding.
 func LatestEncoding() VersionedEncoding {
-	return vparquet4.Encoding{}
+	return vparquet5.Encoding{}
 }
 
 // AllEncodings returns all encodings

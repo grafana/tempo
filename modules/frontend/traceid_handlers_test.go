@@ -16,10 +16,12 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -594,4 +596,60 @@ func TestTraceByIDHandlerV2CachedMetrics(t *testing.T) {
 
 	// Verify the backend was called again (callCount should be 4)
 	require.Equal(t, 4, callCount)
+}
+
+func TestResolveSpanPruningEnabledByDefault(t *testing.T) {
+	boolPtr := func(b bool) *bool { return &b }
+
+	newOverridesWithSpanPruningDefault := func(t *testing.T, override *bool) overrides.Interface {
+		o, err := overrides.NewOverrides(overrides.Config{
+			Defaults: overrides.Overrides{
+				Read: overrides.ReadOverrides{
+					SpanPruningEnabled: override,
+				},
+			},
+		}, nil, prometheus.NewRegistry())
+		require.NoError(t, err)
+		return o
+	}
+
+	tests := []struct {
+		name           string
+		tenantOverride *bool
+		globalDefault  bool
+		expected       bool
+	}{
+		{
+			name:           "tenant override true wins over global default false",
+			tenantOverride: boolPtr(true),
+			globalDefault:  false,
+			expected:       true,
+		},
+		{
+			name:           "tenant override false wins over global default true",
+			tenantOverride: boolPtr(false),
+			globalDefault:  true,
+			expected:       false,
+		},
+		{
+			name:           "no tenant override falls back to global default true",
+			tenantOverride: nil,
+			globalDefault:  true,
+			expected:       true,
+		},
+		{
+			name:           "no tenant override falls back to global default false",
+			tenantOverride: nil,
+			globalDefault:  false,
+			expected:       false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			o := newOverridesWithSpanPruningDefault(t, tc.tenantOverride)
+			got := resolveSpanPruningEnabledByDefault(o, "test-tenant", tc.globalDefault)
+			assert.Equal(t, tc.expected, got)
+		})
+	}
 }

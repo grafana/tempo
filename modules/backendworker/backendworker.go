@@ -398,9 +398,18 @@ func (w *BackendWorker) processRedactionJob(ctx context.Context, resp *tempopb.N
 		}
 	}
 
-	level.Debug(log.Logger).Log("msg", "processing redaction job", "job_id", resp.JobId, "block_id", blockIDStr, "trace_ids_count", len(traceIDs))
+	query := resp.Detail.Redaction.GetQuery().GetQuery() // nil-safe: "" when no query selector
+	mode := resp.Detail.Redaction.GetMode()
+	window := tempodb.RedactionWindow{
+		StartNano: resp.Detail.Redaction.GetStartTimeUnixNano(),
+		EndNano:   resp.Detail.Redaction.GetEndTimeUnixNano(),
+	}
 
-	_, tracesFound, _, err := w.store.RedactBlock(ctx, meta, tenantID, traceIDs)
+	// Log only whether a query selector is present, not the query text: for a
+	// privacy-motivated feature the query can embed sensitive attribute values.
+	level.Debug(log.Logger).Log("msg", "processing redaction job", "job_id", resp.JobId, "block_id", blockIDStr, "trace_ids_count", len(traceIDs), "has_query", query != "", "mode", mode.String())
+
+	_, tracesFound, _, err := w.store.RedactBlock(ctx, meta, tenantID, traceIDs, query, mode, window)
 	if err != nil {
 		return w.failJob(ctx, resp.JobId, fmt.Sprintf("redact block: %v", err))
 	}

@@ -49,11 +49,14 @@ func (b *batchStore) remove(tenantID string) {
 	delete(b.byTenant, tenantID)
 }
 
-func (b *batchStore) hasActive(tenantID string) bool {
+// hasBlockingBatch reports whether the tenant has a batch that must block compaction/retention,
+// i.e. an apply-mode redaction. A dry-run writes nothing and is not an exclusive operation, so it
+// does not block. Fails safe: an unset/unrecognized mode (zero value APPLY) blocks.
+func (b *batchStore) hasBlockingBatch(tenantID string) bool {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-	_, ok := b.byTenant[tenantID]
-	return ok
+	batch, ok := b.byTenant[tenantID]
+	return ok && !batch.Mode.IsDryRun()
 }
 
 // flush writes all active batches to batches.pb in localPath using proto encoding.
@@ -100,6 +103,26 @@ func (b *batchStore) setRescan(tenantID string, ids []string, afterNano int64) {
 		batch.SkippedCompactionJobIds = ids
 		batch.RescanAfterUnixNano = afterNano
 	}
+}
+
+func (b *batchStore) setQuiesceUntil(tenantID string, untilUnixNano int64) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if batch, ok := b.byTenant[tenantID]; ok {
+		batch.QuiesceUntilUnixNano = untilUnixNano
+	}
+}
+
+// quiescenceState reads a tenant's quiescence-relevant fields under the lock, returning a
+// snapshot so callers never touch the live batch pointer's mutable fields unsynchronized.
+func (b *batchStore) quiescenceState(tenantID string) (quiesceUntilUnixNano int64, rescanPending, dryRun, ok bool) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	batch, exists := b.byTenant[tenantID]
+	if !exists {
+		return 0, false, false, false
+	}
+	return batch.QuiesceUntilUnixNano, batch.RescanAfterUnixNano > 0, batch.Mode.IsDryRun(), true
 }
 
 // load reads batches.pb from localPath. Missing file is not an error (clean start).
@@ -159,4 +182,14 @@ func (w *Work) ListBatches() []*tempopb.RedactionBatch {
 
 func (w *Work) SetBatchRescan(tenantID string, skippedJobIDs []string, rescanAfterUnixNano int64) {
 	w.batches.setRescan(tenantID, skippedJobIDs, rescanAfterUnixNano)
+}
+
+func (w *Work) SetBatchQuiesceUntil(tenantID string, untilUnixNano int64) {
+	w.batches.setQuiesceUntil(tenantID, untilUnixNano)
+}
+
+// BatchQuiescenceState returns a locked snapshot of a tenant's quiesce-until deadline, whether a
+// rescan is pending, and whether the batch is a dry-run; ok is false when no batch exists.
+func (w *Work) BatchQuiescenceState(tenantID string) (quiesceUntilUnixNano int64, rescanPending, dryRun, ok bool) {
+	return w.batches.quiescenceState(tenantID)
 }

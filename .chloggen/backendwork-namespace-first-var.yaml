@@ -1,0 +1,11 @@
+change_type: enhancement
+
+component: operations
+
+note: Reorder the Backend Work mixin dashboard variables so Namespace is selected before Cluster and filters the Cluster query, instead of the two being independent.
+
+issues: []
+
+subtext:
+
+user: zalegrala

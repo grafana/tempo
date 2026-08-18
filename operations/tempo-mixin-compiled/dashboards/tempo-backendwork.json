@@ -2445,12 +2445,218 @@
    "type": "timeseries"
   },
   {
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${metrics}"
+   },
+   "description": "Traces actually removed by applied redaction jobs (mode=apply), by tenant. The durable record of what was deleted.",
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "palette-classic"
+     },
+     "custom": {
+      "axisBorderShow": false,
+      "axisCenteredZero": false,
+      "axisColorMode": "text",
+      "axisLabel": "",
+      "axisPlacement": "auto",
+      "barAlignment": 0,
+      "barWidthFactor": 0.6,
+      "drawStyle": "line",
+      "fillOpacity": 0,
+      "gradientMode": "none",
+      "hideFrom": {
+       "legend": false,
+       "tooltip": false,
+       "viz": false
+      },
+      "insertNulls": false,
+      "lineInterpolation": "linear",
+      "lineWidth": 1,
+      "pointSize": 5,
+      "scaleDistribution": {
+       "type": "linear"
+      },
+      "showPoints": "auto",
+      "spanNulls": false,
+      "stacking": {
+       "group": "A",
+       "mode": "none"
+      },
+      "thresholdsStyle": {
+       "mode": "off"
+      }
+     },
+     "mappings": [
+
+     ],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green"
+       },
+       {
+        "color": "red",
+        "value": 80
+       }
+      ]
+     }
+    },
+    "overrides": [
+
+    ]
+   },
+   "gridPos": {
+    "h": 6,
+    "w": 12,
+    "x": 0,
+    "y": 40
+   },
+   "id": 42,
+   "options": {
+    "legend": {
+     "calcs": [
+
+     ],
+     "displayMode": "list",
+     "placement": "right",
+     "showLegend": true
+    },
+    "tooltip": {
+     "hideZeros": false,
+     "mode": "single",
+     "sort": "none"
+    }
+   },
+   "pluginVersion": "12.0.1",
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${metrics}"
+     },
+     "editorMode": "code",
+     "expr": "sum(increase(tempo_backend_scheduler_redaction_traces_found_total{cluster=~\"$cluster\", namespace=~\"$namespace\", mode=\"apply\"}[1h])) by (tenant)",
+     "legendFormat": "{{tenant}}",
+     "range": true,
+     "refId": "A"
+    }
+   ],
+   "title": "Traces Redacted / h",
+   "type": "timeseries"
+  },
+  {
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${metrics}"
+   },
+   "description": "Traces a dry-run redaction matched but did NOT remove (mode=dry_run), by tenant. Preview of a query selector’s blast radius before applying.",
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "palette-classic"
+     },
+     "custom": {
+      "axisBorderShow": false,
+      "axisCenteredZero": false,
+      "axisColorMode": "text",
+      "axisLabel": "",
+      "axisPlacement": "auto",
+      "barAlignment": 0,
+      "barWidthFactor": 0.6,
+      "drawStyle": "line",
+      "fillOpacity": 0,
+      "gradientMode": "none",
+      "hideFrom": {
+       "legend": false,
+       "tooltip": false,
+       "viz": false
+      },
+      "insertNulls": false,
+      "lineInterpolation": "linear",
+      "lineWidth": 1,
+      "pointSize": 5,
+      "scaleDistribution": {
+       "type": "linear"
+      },
+      "showPoints": "auto",
+      "spanNulls": false,
+      "stacking": {
+       "group": "A",
+       "mode": "none"
+      },
+      "thresholdsStyle": {
+       "mode": "off"
+      }
+     },
+     "mappings": [
+
+     ],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green"
+       },
+       {
+        "color": "red",
+        "value": 80
+       }
+      ]
+     }
+    },
+    "overrides": [
+
+    ]
+   },
+   "gridPos": {
+    "h": 6,
+    "w": 12,
+    "x": 12,
+    "y": 40
+   },
+   "id": 43,
+   "options": {
+    "legend": {
+     "calcs": [
+
+     ],
+     "displayMode": "list",
+     "placement": "right",
+     "showLegend": true
+    },
+    "tooltip": {
+     "hideZeros": false,
+     "mode": "single",
+     "sort": "none"
+    }
+   },
+   "pluginVersion": "12.0.1",
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${metrics}"
+     },
+     "editorMode": "code",
+     "expr": "sum(increase(tempo_backend_scheduler_redaction_traces_found_total{cluster=~\"$cluster\", namespace=~\"$namespace\", mode=\"dry_run\"}[1h])) by (tenant)",
+     "legendFormat": "{{tenant}}",
+     "range": true,
+     "refId": "A"
+    }
+   ],
+   "title": "Dry-run Blast Radius / h",
+   "type": "timeseries"
+  },
+  {
    "collapsed": false,
    "gridPos": {
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 40
+    "y": 46
    },
    "id": 8,
    "panels": [
@@ -2526,7 +2732,7 @@
     "h": 6,
     "w": 5,
     "x": 0,
-    "y": 41
+    "y": 47
    },
    "id": 9,
    "options": {
@@ -2630,7 +2836,7 @@
     "h": 6,
     "w": 4,
     "x": 5,
-    "y": 41
+    "y": 47
    },
    "id": 11,
    "options": {
@@ -2733,7 +2939,7 @@
     "h": 6,
     "w": 5,
     "x": 9,
-    "y": 41
+    "y": 47
    },
    "id": 10,
    "options": {
@@ -2836,7 +3042,7 @@
     "h": 6,
     "w": 4,
     "x": 14,
-    "y": 41
+    "y": 47
    },
    "id": 13,
    "options": {
@@ -2940,7 +3146,7 @@
     "h": 6,
     "w": 4,
     "x": 18,
-    "y": 41
+    "y": 47
    },
    "id": 12,
    "options": {
@@ -3043,7 +3249,7 @@
     "h": 6,
     "w": 2,
     "x": 22,
-    "y": 41
+    "y": 47
    },
    "id": 29,
    "options": {
@@ -3084,7 +3290,7 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 47
+    "y": 53
    },
    "id": 25,
    "panels": [
@@ -3205,7 +3411,7 @@
     "h": 8,
     "w": 6,
     "x": 12,
-    "y": 48
+    "y": 54
    },
    "id": 7,
    "options": {
@@ -3377,7 +3583,7 @@
     "h": 8,
     "w": 6,
     "x": 18,
-    "y": 48
+    "y": 54
    },
    "id": 6,
    "options": {
@@ -3456,7 +3662,7 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 56
+    "y": 62
    },
    "id": 1,
    "panels": [
@@ -3532,7 +3738,7 @@
     "h": 8,
     "w": 6,
     "x": 0,
-    "y": 57
+    "y": 63
    },
    "id": 2,
    "options": {
@@ -3715,7 +3921,7 @@
     "h": 8,
     "w": 6,
     "x": 6,
-    "y": 57
+    "y": 63
    },
    "id": 3,
    "options": {
@@ -3876,7 +4082,7 @@
     "h": 8,
     "w": 6,
     "x": 12,
-    "y": 57
+    "y": 63
    },
    "id": 4,
    "options": {
@@ -4048,7 +4254,7 @@
     "h": 8,
     "w": 6,
     "x": 18,
-    "y": 57
+    "y": 63
    },
    "id": 5,
    "options": {
@@ -4164,34 +4370,8 @@
    {
     "allValue": ".*",
     "current": {
-     "text": "ops-eu-south-0",
-     "value": "ops-eu-south-0"
-    },
-    "datasource": {
-     "type": "prometheus",
-     "uid": "${metrics}"
-    },
-    "definition": "label_values(tempo_build_info,cluster)",
-    "includeAll": true,
-    "label": "Cluster",
-    "name": "cluster",
-    "options": [
-
-    ],
-    "query": {
-     "qryType": 1,
-     "query": "label_values(tempo_build_info,cluster)",
-     "refId": "PrometheusVariableQueryEditor-VariableQuery"
-    },
-    "refresh": 1,
-    "regex": "",
-    "type": "query"
-   },
-   {
-    "allValue": ".*",
-    "current": {
-     "text": "tempo-ops-01",
-     "value": "tempo-ops-01"
+     "text": "All",
+     "value": "$__all"
     },
     "datasource": {
      "type": "prometheus",
@@ -4207,6 +4387,32 @@
     "query": {
      "qryType": 1,
      "query": "label_values(tempo_build_info,namespace)",
+     "refId": "PrometheusVariableQueryEditor-VariableQuery"
+    },
+    "refresh": 1,
+    "regex": "",
+    "type": "query"
+   },
+   {
+    "allValue": ".*",
+    "current": {
+     "text": "All",
+     "value": "$__all"
+    },
+    "datasource": {
+     "type": "prometheus",
+     "uid": "${metrics}"
+    },
+    "definition": "label_values(tempo_build_info{namespace=~\"$namespace\"},cluster)",
+    "includeAll": true,
+    "label": "Cluster",
+    "name": "cluster",
+    "options": [
+
+    ],
+    "query": {
+     "qryType": 1,
+     "query": "label_values(tempo_build_info{namespace=~\"$namespace\"},cluster)",
      "refId": "PrometheusVariableQueryEditor-VariableQuery"
     },
     "refresh": 1,

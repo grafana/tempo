@@ -21,7 +21,7 @@ This document describes the schema used with the Parquet block format.
 
 ## Version applicability
 
-Tempo defaults to the vParquet4 schema. vParquet5 is production-ready and differs in some schema details.
+Tempo defaults to the vParquet5 schema. vParquet4 remains available and differs in some schema details.
 Unless otherwise noted, the sections below describe vParquet4.
 
 The following sections apply to both vParquet4 and vParquet5:
