@@ -75,8 +75,9 @@ type Config struct {
 	ListBlocksConcurrency int  `yaml:"list_blocks_concurrency"`
 	// DisableMultipartUpload writes objects with a single PutObject instead of a multipart
 	// upload, for S3-compatible stores that do not implement the multipart upload API.
-	// The object is buffered to a temporary file (os.TempDir) while it is written, so it
-	// cannot exceed the 5 GiB single-PutObject limit, and part_size has no effect.
+	// Streaming writes buffer the object to a temporary file (os.TempDir) first; writes
+	// whose size is already known are sent straight through. Either way an object cannot
+	// exceed the 5 GiB single-PutObject limit, and part_size has no effect.
 	DisableMultipartUpload bool      `yaml:"disable_multipart_upload"`
 	SSE                    SSEConfig `yaml:"sse"`
 }

@@ -185,6 +185,24 @@ func getObjectOptions(rw *readerWriter) minio.GetObjectOptions {
 	}
 }
 
+// maxSinglePutObjectSize is the largest object S3 accepts in a single PutObject request.
+// Anything above it needs a multipart upload, which disable_multipart_upload turns off.
+const maxSinglePutObjectSize = 5 * 1024 * 1024 * 1024
+
+// checkSinglePutObjectSize reports whether an object can be written with one PutObject.
+// It is only consulted when disable_multipart_upload is set: minio-go needs a known size
+// to send a single request, and S3 caps that request at 5 GiB. Failing here is better than
+// sending a doomed request or silently falling back to the multipart API the store lacks.
+func checkSinglePutObjectSize(objName string, size int64) error {
+	if size < 0 {
+		return fmt.Errorf("object %s has unknown length; disable_multipart_upload requires a known object size", objName)
+	}
+	if size > maxSinglePutObjectSize {
+		return fmt.Errorf("object %s is %d bytes; disable_multipart_upload writes it as a single PutObject, which S3 limits to 5 GiB", objName, size)
+	}
+	return nil
+}
+
 func getPutObjectPartOptions(rw *readerWriter) minio.PutObjectPartOptions {
 	return minio.PutObjectPartOptions{
 		SSE: rw.sse,
@@ -202,6 +220,17 @@ func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.
 	objName := backend.ObjectFileName(keypath, name)
 
 	putObjectOptions := getPutObjectOptions(rw)
+	if rw.cfg.DisableMultipartUpload {
+		// Pin this write to a single PutObject. Without it minio-go switches to a multipart
+		// upload for any object larger than the part size (its default is 16 MiB), and the
+		// stores this option exists for answer CreateMultipartUpload with 501 Not Implemented.
+		// Unlike Append, there is nothing to buffer here: the caller already knows the size.
+		if err := checkSinglePutObjectSize(objName, size); err != nil {
+			span.SetStatus(codes.Error, "object cannot be written as a single PutObject")
+			return err
+		}
+		putObjectOptions.DisableMultipart = true
+	}
 
 	info, err := rw.core.Client.PutObject(
 		derivedCtx,
@@ -345,11 +374,8 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 		if err != nil {
 			return fmt.Errorf("error sizing buffered object %s: %w", a.objectName, err)
 		}
-		// A single PutObject is limited to 5 GiB by S3; objects above that need multipart,
-		// which this option disables. Fail loudly rather than send a doomed request.
-		const maxSinglePutObjectSize = 5 * 1024 * 1024 * 1024
-		if size > maxSinglePutObjectSize {
-			return fmt.Errorf("object %s is %d bytes; disable_multipart_upload writes it as a single PutObject, which S3 limits to 5 GiB", a.objectName, size)
+		if err := checkSinglePutObjectSize(a.objectName, size); err != nil {
+			return err
 		}
 		if _, err := f.Seek(0, io.SeekStart); err != nil {
 			return fmt.Errorf("error rewinding buffered object %s: %w", a.objectName, err)
