@@ -30,6 +30,17 @@ var metricBlockBuilderFlushedBlocks = promauto.NewCounterVec(
 	}, []string{"tenant"},
 )
 
+var metricBlockBuilderFlushSize = promauto.NewHistogram(prometheus.HistogramOpts{
+	Namespace:                       "tempo",
+	Subsystem:                       "block_builder",
+	Name:                            "flush_size_bytes",
+	Help:                            "Size in bytes of blocks flushed by the block-builder.",
+	Buckets:                         prometheus.ExponentialBuckets(1024*1024, 2, 10),
+	NativeHistogramBucketFactor:     1.1,
+	NativeHistogramMaxBucketNumber:  100,
+	NativeHistogramMinResetDuration: 1 * time.Hour,
+})
+
 type tenantStore struct {
 	tenantID         string
 	idGenerator      util.IDGenerator
@@ -183,6 +194,7 @@ func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Wri
 	span.AddEvent("wrote block to backend", trace.WithAttributes(attribute.String("block_id", newMeta.BlockID.String())))
 
 	metricBlockBuilderFlushedBlocks.WithLabelValues(s.tenantID).Inc()
+	metricBlockBuilderFlushSize.Observe(float64(newMeta.Size_))
 
 	if err := s.wal.LocalBackend().ClearBlock(uuid.UUID(newMeta.BlockID), s.tenantID); err != nil {
 		return err

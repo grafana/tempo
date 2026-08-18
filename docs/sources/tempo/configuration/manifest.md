@@ -589,7 +589,7 @@ storage:
         block:
             bloom_filter_false_positive: 0.01
             bloom_filter_shard_size_bytes: 102400
-            version: vParquet4
+            version: vParquet5
             parquet_row_group_size_bytes: 100000000
             parquet_dedicated_columns:
                 - scope: resource
