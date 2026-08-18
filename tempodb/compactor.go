@@ -68,6 +68,15 @@ var (
 		Name:      "compaction_spans_deduped_total",
 		Help:      "Total number of spans that are deduped per replication factor.",
 	}, []string{"replication_factor"})
+	metricCompactionOutputBlockSize = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace:                       "tempodb",
+		Name:                            "compaction_output_block_size_bytes",
+		Help:                            "Size in bytes of blocks produced by compaction.",
+		Buckets:                         prometheus.ExponentialBuckets(1024*1024, 2, 10),
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
+	})
 
 	errCompactionJobNoLongerOwned = fmt.Errorf("compaction job no longer owned")
 )
@@ -333,6 +342,9 @@ func (rw *readerWriter) CompactWithConfig(ctx context.Context, blockMetas []*bac
 	}
 
 	metricCompactionBlocks.WithLabelValues(compactionLevelLabel).Add(float64(len(blockMetas)))
+	for _, meta := range newCompactedBlocks {
+		metricCompactionOutputBlockSize.Observe(float64(meta.Size_))
+	}
 
 	logArgs := []interface{}{
 		"msg",
