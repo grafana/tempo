@@ -123,7 +123,7 @@ type Compactor interface {
 	RetainWithConfig(ctx context.Context, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides)
 	RetainTenantWithConfig(ctx context.Context, tenantID string, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides)
 
-	RedactBlock(ctx context.Context, meta *backend.BlockMeta, tenantID string, traceIDs []common.ID, query string, mode tempopb.RedactionMode) (rewrote bool, found int, newMeta *backend.BlockMeta, err error)
+	RedactBlock(ctx context.Context, meta *backend.BlockMeta, tenantID string, traceIDs []common.ID, query string, mode tempopb.RedactionMode, window RedactionWindow) (rewrote bool, found int, newMeta *backend.BlockMeta, err error)
 }
 
 type CompactorSharder interface {
@@ -626,12 +626,19 @@ func (rw *readerWriter) MarkBlockCompacted(tenantID string, blockID backend.UUID
 // the spanset stream directly avoids the search result-cap that ExecuteSearch imposes.
 //
 // The query must already be validated to the redaction subset (see validateRedactionQuery).
-func redactionIDsFromQuery(ctx context.Context, block common.BackendBlock, query string, opts common.SearchOptions) (map[string]struct{}, error) {
+func redactionIDsFromQuery(ctx context.Context, block common.BackendBlock, query string, window RedactionWindow, opts common.SearchOptions) (map[string]struct{}, error) {
 	// filter is the compiled TraceQL boolean expression (a SpansetFilterFunc), not a
 	// code-eval primitive; it decides whether a spanset satisfies the query.
 	_, _, filter, req, err := traceql.Compile(query)
 	if err != nil {
 		return nil, fmt.Errorf("compiling redaction query: %w", err)
+	}
+
+	// Bound the scan to the redaction window so each block is read only over the requested
+	// range. See RedactionWindow.fetchBounds for why both fetch fields move together.
+	if start, end, ok := window.fetchBounds(); ok {
+		req.StartTimeUnixNanos = start
+		req.EndTimeUnixNanos = end
 	}
 
 	// Request trace-level metadata in the second pass so each returned spanset carries its
@@ -671,10 +678,31 @@ func redactionIDsFromQuery(ctx context.Context, block common.BackendBlock, query
 	return dropSet, nil
 }
 
-// RedactBlock rewrites a block excluding the traces selected by either an explicit trace
-// ID list or a TraceQL query (never both). If none are present in the block, no rewrite is
-// performed. In dry-run mode it reports the match count without rewriting.
-func (rw *readerWriter) RedactBlock(ctx context.Context, meta *backend.BlockMeta, tenantID string, traceIDs []common.ID, query string, mode tempopb.RedactionMode) (rewrote bool, found int, newMeta *backend.BlockMeta, err error) {
+// RedactBlock rewrites a block excluding the traces selected by either an explicit trace ID list or a
+// TraceQL query (never both). If none are present in the block, no rewrite is performed. In dry-run mode
+// it reports the match count without rewriting.
+//
+// window bounds which traces inside the block are candidates; the zero value scans the block in full.
+// It applies to the query selector only — see RedactionWindow — and is refused alongside traceIDs
+// rather than silently ignored. An unusable window is an error, not a scan that matches nothing.
+//
+// On error, found is 0 and newMeta is nil; newMeta is also nil in dry-run mode, where nothing is written.
+func (rw *readerWriter) RedactBlock(ctx context.Context, meta *backend.BlockMeta, tenantID string, traceIDs []common.ID, query string, mode tempopb.RedactionMode, window RedactionWindow) (rewrote bool, found int, newMeta *backend.BlockMeta, err error) {
+	// Refuse a window this block cannot be scanned with, rather than scanning with it and
+	// reporting the empty result as a completed redaction.
+	if err := window.Validate(); err != nil {
+		return false, 0, nil, fmt.Errorf("redaction window for block %s: %w", meta.BlockID.String(), err)
+	}
+
+	// A window cannot scope an explicit trace-ID list: the ID path resolves each trace with no time
+	// bound, so honouring the window here is impossible and accepting it would delete the listed traces
+	// from this block regardless of when their spans occurred. SubmitRedaction refuses the pair at the
+	// API edge, but this is the layer that would do the deleting, and it is reachable by any other
+	// caller of the exported Compactor interface.
+	if len(traceIDs) > 0 && !window.IsZero() {
+		return false, 0, nil, fmt.Errorf("redaction of block %s: a time window cannot be combined with an explicit trace ID list", meta.BlockID.String())
+	}
+
 	block, err := encoding.OpenBlock(meta, rw.r)
 	if err != nil {
 		return false, 0, nil, fmt.Errorf("error opening block for redaction, blockID: %s: %w", meta.BlockID.String(), err)
@@ -691,7 +719,7 @@ func (rw *readerWriter) RedactBlock(ctx context.Context, meta *backend.BlockMeta
 	// the O(1) DropObject membership check in the rewrite below.
 	var dropSet map[string]struct{}
 	if query != "" {
-		dropSet, err = redactionIDsFromQuery(ctx, block, query, searchOpts)
+		dropSet, err = redactionIDsFromQuery(ctx, block, query, window, searchOpts)
 		if err != nil {
 			return false, 0, nil, fmt.Errorf("error selecting traces by query in block %s: %w", meta.BlockID.String(), err)
 		}

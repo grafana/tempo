@@ -23,6 +23,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/validation"
+	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/blocklist"
 	"github.com/jedib0t/go-pretty/v6/table"
@@ -139,6 +140,7 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 	if err := s.work.LoadBatchesFromLocal(ctx, s.cfg.LocalWorkPath); err != nil {
 		level.Info(log.Logger).Log("msg", "no batch manifest found at startup", "err", err)
 	}
+	s.dropBatchesWithUnusableWindows()
 
 	wg := sync.WaitGroup{}
 
@@ -349,6 +351,8 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 						j.JobDetail.Redaction.TraceIds = batch.TraceIds
 						j.JobDetail.Redaction.Query = batch.Query
 						j.JobDetail.Redaction.Mode = batch.Mode
+						j.JobDetail.Redaction.StartTimeUnixNano = batch.StartTimeUnixNano
+						j.JobDetail.Redaction.EndTimeUnixNano = batch.EndTimeUnixNano
 					}
 				}
 				if drop {
@@ -480,30 +484,9 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		}
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
-	// Exactly one selector: an explicit trace ID list or a TraceQL query, never both.
-	// (The proto reserves a single-member oneof for query; XOR is enforced here until
-	// trace_ids is migrated into the oneof.)
 	querySel := req.GetQuery()
-	hasIDs := len(req.TraceIds) > 0
-	hasQuery := querySel.GetQuery() != "" // nil-safe
-	switch {
-	case hasIDs && hasQuery:
-		return nil, status.Error(codes.InvalidArgument, "trace_ids and query are mutually exclusive")
-	case !hasIDs && !hasQuery:
-		return nil, status.Error(codes.InvalidArgument, "one of trace_ids or query must be set")
-	case hasQuery:
-		if err := validateRedactionQuery(querySel.Query); err != nil {
-			return nil, status.Error(codes.InvalidArgument, err.Error())
-		}
-	}
-
-	// Reject unknown modes rather than defaulting them to APPLY: since only DRY_RUN is
-	// checked downstream, an unrecognized value would otherwise fall through to a
-	// destructive rewrite. Fail closed.
-	switch req.Mode {
-	case tempopb.RedactionMode_REDACTION_MODE_APPLY, tempopb.RedactionMode_REDACTION_MODE_DRY_RUN:
-	default:
-		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("unknown redaction mode %d", int32(req.Mode)))
+	if err := validateRedactionRequest(req, querySel); err != nil {
+		return nil, err
 	}
 
 	if s.overrides.CompactionDisabled(tenant) {
@@ -540,24 +523,86 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 	// jobs for this tenant, so busy blocks are exclusively from other providers.
 	busyBlocks := s.work.BusyBlocksForTenant(tenant)
 
+	// The block count at the instant of selection. Held in its own variable because `metas` is
+	// reassigned to the filtered set below, and because it is the denominator every count in the audit
+	// record is relative to: without it, jobs_created cannot be reconciled against anything. It will not
+	// match tempodb_blocklist_length, which is only written at poll completion while compaction mutates
+	// the live list in between.
+	totalBlocks := len(metas)
+
 	skippedJobSet := make(map[string]struct{})
 	filtered := metas[:0:0]
+	// Counted separately from the busy-block skip so the two reasons are never conflated in the logs.
+	var outOfWindowBlocks, indeterminateBlocks int
 	for _, meta := range metas {
+		// Skip blocks whose data range falls outside the requested window (no job created). Keyed
+		// on the block's real StartTime/EndTime — see blockOverlapsWindow on why not CompactedTime.
+		overlaps, indeterminate := blockOverlapsWindow(meta, req.StartTimeUnixNano, req.EndTimeUnixNano)
+		if !overlaps {
+			outOfWindowBlocks++
+			continue
+		}
 		if jobID, busy := busyBlocks[meta.BlockID.String()]; busy {
 			skippedJobSet[jobID] = struct{}{}
 			continue
 		}
+		// Counted here rather than at the overlap test so it means "enqueued on trust", matching the
+		// warning below. An indeterminate block that is also mid-compaction is deferred, not included,
+		// and is already reported by the busy-block warning.
+		if indeterminate {
+			indeterminateBlocks++
+		}
 		filtered = append(filtered, meta)
 	}
-	skippedBlocks := len(metas) - len(filtered)
-	if skippedBlocks > 0 {
+	// Blocks held by an active compaction are a coverage gap the operator may need to act on, so they
+	// warn. Out-of-window blocks are the feature working as asked, so they are counted separately.
+	busySkippedBlocks := totalBlocks - len(filtered) - outOfWindowBlocks
+	if busySkippedBlocks > 0 {
 		level.Warn(log.Logger).Log("msg", "skipping blocks in active compaction jobs during redaction submission",
 			"tenant", tenant,
-			"skipped_blocks", skippedBlocks,
+			"skipped_blocks", busySkippedBlocks,
 			"skipped_compaction_jobs", len(skippedJobSet),
-			"total_blocks", len(metas))
+			"total_blocks", totalBlocks)
+	}
+	if indeterminateBlocks > 0 {
+		// Included, not skipped: their range could not be judged, so they were taken on trust.
+		level.Warn(log.Logger).Log("msg", "redaction included blocks with an unusable data range",
+			"tenant", tenant, "blocks", indeterminateBlocks, "total_blocks", totalBlocks)
 	}
 	metas = filtered
+
+	// An empty selection with nothing deferred means the window matched no data — almost always a mistyped
+	// bound. Refuse rather than create a batch: an empty batch reports jobs_created:0 as success, holds
+	// compaction off for a quiescence cycle, and rejects the corrected resubmission with AlreadyExists.
+	//
+	// Deferred blocks are the exception, because an apply-mode batch must survive for its rescan. A
+	// dry-run arms no rescan, so it gets no exemption — and its own code, since the blocks did overlap and
+	// "no blocks overlap" would send the operator to widen the window instead of retrying.
+	if len(metas) == 0 && len(skippedJobSet) > 0 && req.Mode.IsDryRun() {
+		level.Info(log.Logger).Log("msg", "dry-run redaction deferred every in-window block to compaction; refusing rather than creating a batch that never scans",
+			"tenant", tenant, "busy_blocks", busySkippedBlocks, "compaction_jobs", len(skippedJobSet))
+		return nil, status.Errorf(codes.FailedPrecondition,
+			"all %d in-window blocks are being compacted; retry the dry-run shortly", busySkippedBlocks)
+	}
+	if len(metas) == 0 && len(skippedJobSet) == 0 {
+		level.Info(log.Logger).Log("msg", "redaction submission matched no blocks in the requested window",
+			"tenant", tenant, "out_of_window_blocks", outOfWindowBlocks,
+			"total_blocks", totalBlocks)
+		return nil, status.Error(codes.NotFound, "no blocks overlap the requested time window")
+	}
+
+	// Record what will actually be touched: the requested window can extend well past the data, so the
+	// covered range is the honest blast radius.
+	coveredStart, coveredEnd, haveStart, haveEnd := coveredRange(metas)
+	span.SetAttributes(
+		attribute.Int64("window_start_unix_nano", req.StartTimeUnixNano),
+		attribute.Int64("window_end_unix_nano", req.EndTimeUnixNano),
+		attribute.String("covered_start", coveredRangeLabel(coveredStart, haveStart)),
+		attribute.String("covered_end", coveredRangeLabel(coveredEnd, haveEnd)),
+		attribute.Int("total_blocks", totalBlocks),
+		attribute.Int("out_of_window_blocks", outOfWindowBlocks),
+		attribute.Int("indeterminate_blocks", indeterminateBlocks),
+	)
 
 	jobs := make([]*work.Job, 0, len(metas))
 	for _, meta := range metas {
@@ -581,6 +626,8 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		TraceIds:          req.TraceIds,
 		Query:             querySel,
 		Mode:              req.Mode,
+		StartTimeUnixNano: req.StartTimeUnixNano,
+		EndTimeUnixNano:   req.EndTimeUnixNano,
 		CreatedAtUnixNano: time.Now().UnixNano(),
 	}
 	// Only apply-mode batches arm a rescan. A dry-run rewrites nothing, so there is no output
@@ -623,7 +670,11 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		"tenant", tenant,
 		"batch_id", batchID,
 		"jobs_created", len(jobs),
-		"blocks_skipped_compacting", skippedBlocks,
+		"total_blocks", totalBlocks,
+		"blocks_skipped_compacting", busySkippedBlocks,
+		"blocks_out_of_window", outOfWindowBlocks,
+		"covered_start", coveredRangeLabel(coveredStart, haveStart),
+		"covered_end", coveredRangeLabel(coveredEnd, haveEnd),
 		"trace_count", len(req.TraceIds))
 
 	return &tempopb.SubmitRedactionResponse{
@@ -784,6 +835,23 @@ func (s *BackendScheduler) performRescan(ctx context.Context, batch *tempopb.Red
 	var rearmIDs []string // non-empty → re-arm batch for next tick
 	resolved := false     // true on clean exit (done or scheduled for re-arm)
 
+	// Validated on both paths into the store (SubmitRedaction, dropBatchesWithUnusableWindows).
+	rescanWindow := tempodb.RedactionWindow{StartNano: batch.StartTimeUnixNano, EndNano: batch.EndTimeUnixNano}
+
+	// Output blocks are discovered by ID, so re-applying the window means looking their metas up. Snapshot
+	// once: BlockMetas returns a private slice copy and metas are not mutated after publication, so the
+	// pointers cannot be read torn even though the poller mutates the blocklist concurrently. A block
+	// missing from the snapshot resolves to unknown and is enqueued, so staleness can only over-include.
+	// Skipped entirely for an unwindowed batch, the common case.
+	var metaByID map[string]*backend.BlockMeta
+	if !rescanWindow.IsZero() {
+		metas := s.store.BlockMetas(tenantID)
+		metaByID = make(map[string]*backend.BlockMeta, len(metas))
+		for _, m := range metas {
+			metaByID[m.BlockID.String()] = m
+		}
+	}
+
 	for range maxRetries {
 		// skippedSet doubles as a "not-yet-found" tracker: delete each entry on match;
 		// any IDs remaining after the loop were never found (pruned/failed externally).
@@ -817,19 +885,31 @@ func (s *BackendScheduler) performRescan(ctx context.Context, batch *tempopb.Red
 		for _, blockID := range outputBlockIDs {
 			if jobID, busy := busyBlocks[blockID]; busy {
 				nextJobIDs = append(nextJobIDs, jobID)
-			} else {
-				allReadyJobs = append(allReadyJobs, &work.Job{
-					ID:   uuid.New().String(),
-					Type: tempopb.JobType_JOB_TYPE_REDACTION,
-					JobDetail: tempopb.JobDetail{
-						Tenant:  tenantID,
-						BatchId: batchID,
-						Redaction: &tempopb.RedactionDetail{
-							BlockId: blockID,
-						},
-					},
-				})
+				continue
 			}
+
+			// Skip an output block lying wholly outside the window. This is an I/O saving, not a safety
+			// property: an output merging an in-window input still overlaps, and the per-block scan bound
+			// is what actually limits deletion. An unknown block is treated as in scope.
+			if m, known := metaByID[blockID]; known {
+				if overlaps, _ := blockOverlapsWindow(m, rescanWindow.StartNano, rescanWindow.EndNano); !overlaps {
+					level.Debug(log.Logger).Log("msg", "redaction rescan: output block outside the window; not enqueued",
+						"tenant", tenantID, "batch_id", batchID, "block_id", blockID)
+					continue
+				}
+			}
+
+			allReadyJobs = append(allReadyJobs, &work.Job{
+				ID:   uuid.New().String(),
+				Type: tempopb.JobType_JOB_TYPE_REDACTION,
+				JobDetail: tempopb.JobDetail{
+					Tenant:  tenantID,
+					BatchId: batchID,
+					Redaction: &tempopb.RedactionDetail{
+						BlockId: blockID,
+					},
+				},
+			})
 		}
 
 		level.Info(log.Logger).Log(
