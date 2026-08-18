@@ -8,11 +8,11 @@ change_type: enhancement
 component: query-frontend
 
 # A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
-note: Compute and track the amount of data of spans and their attributes flowing through the read path and TraceQL query engine.
+note: Adds new feature to compute and track the amount of data of spans and their attributes flowing through the TraceQL query engine and data returned trace lookups. Disabled by default, set the override value `engine_bytes_tracking` to enable.
 
 # (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
 # .chloggen/README.md.
-issues: []
+issues: [7689]
 
 # (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
 subtext:
