@@ -1005,3 +1005,102 @@ func TestDisableMultipartUpload(t *testing.T) {
 		require.Zero(t, c.putCount.Load(), "default must not take the single-PutObject path")
 	})
 }
+
+// Write() is the path the ingester uses to flush a finished block; unlike Append it hands
+// minio-go a reader and a known size, so it needs its own guard. Without one, minio-go
+// switches to a multipart upload above its default 16 MiB part size and stores that do not
+// implement the multipart API reject the object.
+func TestDisableMultipartUploadWrite(t *testing.T) {
+	const tenant = "single-tenant"
+
+	// Larger than minio-go's default 16 MiB part size, which is the threshold that decides
+	// between a single PutObject and a multipart upload when part_size is not configured.
+	body := bytes.Repeat([]byte("a"), 17*1024*1024)
+
+	type capture struct {
+		sawUploads atomic.Bool
+		putCount   atomic.Int32
+		putBytes   atomic.Int64
+		putDecoded atomic.Int64
+	}
+
+	handler := func(c *capture) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			q := r.URL.Query()
+			switch {
+			case q.Has("uploads"): // CreateMultipartUpload
+				c.sawUploads.Store(true)
+				_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?><InitiateMultipartUploadResult><Bucket>blerg</Bucket><Key>k</Key><UploadId>test-upload-id</UploadId></InitiateMultipartUploadResult>`))
+			case q.Get("uploadId") != "" && r.Method == http.MethodPut: // UploadPart
+				c.sawUploads.Store(true)
+				w.Header().Set("ETag", `"abc"`)
+				w.WriteHeader(http.StatusOK)
+			case q.Get("uploadId") != "" && r.Method == http.MethodPost: // CompleteMultipartUpload
+				c.sawUploads.Store(true)
+				_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?><CompleteMultipartUploadResult><Bucket>blerg</Bucket><Key>k</Key><ETag>"abc"</ETag></CompleteMultipartUploadResult>`))
+			case r.Method == http.MethodPut: // single PutObject
+				c.putCount.Add(1)
+				// The body is framed with the streaming signature, so the bytes on the wire
+				// exceed the payload; the decoded length header carries the real object size.
+				if decoded, err := strconv.ParseInt(r.Header.Get("x-amz-decoded-content-length"), 10, 64); err == nil {
+					c.putDecoded.Store(decoded)
+				}
+				n, _ := io.Copy(io.Discard, r.Body)
+				c.putBytes.Store(n)
+				w.Header().Set("ETag", `"abc"`)
+				w.WriteHeader(http.StatusOK)
+			default:
+				w.WriteHeader(http.StatusOK)
+			}
+		}
+	}
+
+	newWriter := func(t *testing.T, c *capture, disable bool) backend.RawWriter {
+		t.Helper()
+		server := testServer(t, handler(c))
+		_, w, _, err := NewNoConfirm(&Config{
+			Region:                 "blerg",
+			AccessKey:              "test",
+			SecretKey:              flagext.SecretWithValue("test"),
+			Bucket:                 "blerg",
+			Insecure:               true,
+			Endpoint:               server.URL[7:],
+			DisableMultipartUpload: disable,
+		})
+		require.NoError(t, err)
+		return w
+	}
+
+	t.Run("disabled writes an over-part-size object with a single PutObject", func(t *testing.T) {
+		c := &capture{}
+		w := newWriter(t, c, true)
+		require.NoError(t, w.Write(context.Background(), "data", backend.KeyPath{tenant}, bytes.NewReader(body), int64(len(body)), nil))
+		require.False(t, c.sawUploads.Load(), "must not initiate a multipart upload when disable_multipart_upload is set")
+		require.Equal(t, int32(1), c.putCount.Load(), "object must be written with a single PutObject")
+		require.Equal(t, int64(len(body)), c.putDecoded.Load(), "the single PutObject must carry the whole object")
+		require.GreaterOrEqual(t, c.putBytes.Load(), int64(len(body)), "the request body must hold at least the whole object")
+	})
+
+	t.Run("default still uses multipart upload", func(t *testing.T) {
+		c := &capture{}
+		w := newWriter(t, c, false)
+		require.NoError(t, w.Write(context.Background(), "data", backend.KeyPath{tenant}, bytes.NewReader(body), int64(len(body)), nil))
+		require.True(t, c.sawUploads.Load(), "default behavior must use a multipart upload above the part size")
+	})
+
+	t.Run("disabled rejects an unknown length instead of failing inside minio", func(t *testing.T) {
+		c := &capture{}
+		w := newWriter(t, c, true)
+		err := w.Write(context.Background(), "data", backend.KeyPath{tenant}, bytes.NewReader(body), -1, nil)
+		require.ErrorContains(t, err, "requires a known object size")
+		require.Zero(t, c.putCount.Load())
+	})
+
+	t.Run("disabled rejects an object above the 5 GiB single-PutObject limit", func(t *testing.T) {
+		c := &capture{}
+		w := newWriter(t, c, true)
+		err := w.Write(context.Background(), "data", backend.KeyPath{tenant}, bytes.NewReader(nil), maxSinglePutObjectSize+1, nil)
+		require.ErrorContains(t, err, "S3 limits to 5 GiB")
+		require.Zero(t, c.putCount.Load())
+	})
+}

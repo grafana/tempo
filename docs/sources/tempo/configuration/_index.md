@@ -1670,9 +1670,10 @@ storage:
 
             # Optional. Default is false.
             # Write objects with a single PutObject instead of a multipart upload, for
-            # S3-compatible stores that do not implement the multipart upload API. The
-            # object is buffered to a temporary file while it is written, so it cannot
-            # exceed the 5 GiB single-PutObject limit and part_size has no effect.
+            # S3-compatible stores that do not implement the multipart upload API. This
+            # applies to every object Tempo writes, including block flushes. Streaming
+            # writes are buffered to a temporary file first, so an object cannot exceed
+            # the 5 GiB single-PutObject limit and part_size has no effect.
             [disable_multipart_upload: <bool>]
 
             # Optional. Default is 0 (disabled)
