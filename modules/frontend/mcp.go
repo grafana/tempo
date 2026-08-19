@@ -8,6 +8,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/middleware"
 	frontendDocs "github.com/grafana/tempo/modules/frontend/docs"
+	"github.com/grafana/tempo/pkg/model/tracediff"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -39,6 +40,7 @@ const (
 	toolTraceQLMetricsInstant = "traceql-metrics-instant"
 	toolTraceQLMetricsRange   = "traceql-metrics-range"
 	toolGetTrace              = "get-trace"
+	toolTraceDiff             = "trace-diff"
 	toolGetAttributeNames     = "get-attribute-names"
 	toolGetAttributeValues    = "get-attribute-values"
 	toolDocsTraceQL           = "docs-traceql"
@@ -324,6 +326,49 @@ func (s *MCPServer) setupTools() {
 		mcp.WithDestructiveHintAnnotation(false),
 	)
 	s.mcpServer.AddTool(traceTool, s.handleGetTrace)
+
+	traceDiffTool := newReadOnlyTool(
+		toolTraceDiff,
+		mcp.WithDescription("Compare two complete traces. Returns a compact summary and includes the full span-level patch when it is at most 64 KiB. Request trace-patch-v0 only when full details are required; full patches are not size-bounded."),
+		mcp.WithString(
+			"base_trace_id",
+			mcp.Required(),
+			mcp.Description("Trace ID for the baseline trace"),
+		),
+		mcp.WithString(
+			"compare_trace_id",
+			mcp.Required(),
+			mcp.Description("Trace ID for the comparison trace"),
+		),
+		mcp.WithString(
+			"base_start",
+			mcp.Description("Optional start of the baseline trace search range in RFC3339 format. Must be provided with base_end."),
+			mcp.MinLength(1),
+		),
+		mcp.WithString(
+			"base_end",
+			mcp.Description("Optional end of the baseline trace search range in RFC3339 format. Must be provided with base_start."),
+			mcp.MinLength(1),
+		),
+		mcp.WithString(
+			"compare_start",
+			mcp.Description("Optional start of the comparison trace search range in RFC3339 format. Must be provided with compare_end."),
+			mcp.MinLength(1),
+		),
+		mcp.WithString(
+			"compare_end",
+			mcp.Description("Optional end of the comparison trace search range in RFC3339 format. Must be provided with compare_start."),
+			mcp.MinLength(1),
+		),
+		mcp.WithString(
+			"format",
+			mcp.Description("Output format. The composed format returns a compact summary and attaches the full patch only when it is at most 64 KiB. trace-patch-v0 has no output-size guarantee."),
+			mcp.Enum(tracediff.VersionTraceSummaryV0Composed, tracediff.VersionTraceSummaryV0Native, tracediff.VersionTracePatchV0),
+			mcp.DefaultString(tracediff.VersionTraceSummaryV0Composed),
+			mcp.MinLength(1),
+		),
+	)
+	s.mcpServer.AddTool(traceDiffTool, s.handleTraceDiff)
 
 	attributeNamesTool := newReadOnlyTool(
 		toolGetAttributeNames,

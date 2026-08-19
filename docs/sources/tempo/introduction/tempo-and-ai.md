@@ -14,14 +14,14 @@ weight: 450
 
 # Tempo and AI
 
-Tempo exposes a Model Context Protocol (MCP) server and LLM-optimized API endpoints that let AI agents query traces, compute metrics, and discover attributes directly.
+Tempo exposes a Model Context Protocol (MCP) server and LLM-optimized API endpoints that let AI agents query and compare traces, compute metrics, and discover attributes directly.
 Grafana also provides command-line tools that connect agents to the broader observability platform.
 
 ![AI agent entry points for Tempo and Grafana tools](tempo-ai-tooling.svg)
 
 ## Model Context Protocol server
 
-The [MCP server](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/mcp-server/) at `/api/mcp` lets agents search for traces with TraceQL, retrieve a trace by ID, compute metrics from span data, and discover available attributes.
+The [MCP server](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/mcp-server/) at `/api/mcp` lets agents search for traces with TraceQL, retrieve or compare traces by ID, compute metrics from span data, and discover available attributes.
 The server also serves TraceQL syntax documentation as MCP resources, so agents can look up query syntax on demand instead of relying on training data.
 
 The MCP server uses the `streamable-http` transport and supports the same authentication and [multi-tenancy](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/multitenancy/) as other Tempo API endpoints.

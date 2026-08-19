@@ -805,12 +805,15 @@ Parameters:
 - `format`
   Optional. Output format. The default is `trace-patch-v0`. Use
   `trace-summary-v0-native` for only the compact summary or
-  `trace-summary-v0-composed` for the summary with a size-bounded patch.
+  `trace-summary-v0-composed` for the summary with a patch attachment limited to
+  64 KiB.
 
-The composed response always includes a native summary. It includes the full
-patch when the serialized patch is no larger than 64 KiB. Otherwise,
-`patchOmitted` reports the patch size and the reason `over_budget`; send another
-request with `format` set to `trace-patch-v0` to retrieve it.
+The composed response always includes a native summary. If the full patch is larger
+than 64 KiB, `patchOmitted` reports its serialized size and the reason `over_budget`.
+Request `trace-patch-v0` only when span-level evidence is required and the client can
+accept the reported patch size. The 64 KiB limit applies only to the attached patch;
+neither the complete composed response nor the full patch response has a hard output
+size limit.
 
 When `start` and `end` are provided, the request validates that `start` is
 before `end` and limits the block search to that time range. If omitted, Tempo
