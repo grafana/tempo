@@ -52,7 +52,9 @@ func recordQueryMetaDataMetrics(tenant string, metrics *tempopb.MetadataMetrics)
 }
 
 func recordQueryAdditionalMetrics(op string, tenant string, additionalMetrics map[string]int64) {
-	if engineBytes, ok := additionalMetrics[tempopb.AdditionalMetricEngineBytes]; ok {
+	// Counter.Add panics on a negative value; guard since AdditionalMetrics is wire data
+	// (and may come from a cached response) that could be malformed or overflowed.
+	if engineBytes, ok := additionalMetrics[tempopb.AdditionalMetricEngineBytes]; ok && engineBytes >= 0 {
 		queryEngineBytes.WithLabelValues(op, tenant).Add(float64(engineBytes))
 	}
 }

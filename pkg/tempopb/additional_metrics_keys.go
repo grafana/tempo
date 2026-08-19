@@ -18,21 +18,27 @@ const (
 	AdditionalMetricEngineBytes        = "engineBytes"
 )
 
-// IsCacheable reports whether an AdditionalMetrics key should be retained across
-// query-result cache hits. Keys absent from the map are not cacheable.
-var IsCacheable = map[string]bool{
+// isCacheableAdditionalMetric reports whether an AdditionalMetrics key should be retained
+// across query-result cache hits. Keys absent from the map are not cacheable.
+var isCacheableAdditionalMetric = map[string]bool{
 	AdditionalMetricEngineBytes: true,
 }
 
-// CacheableAdditionalMetrics returns a new map with only keys marked IsCacheable.
-// Returns nil when src has no cacheable entries.
+// IsCacheableAdditionalMetric reports whether an AdditionalMetrics key should be retained
+// across query-result cache hits.
+func IsCacheableAdditionalMetric(key string) bool {
+	return isCacheableAdditionalMetric[key]
+}
+
+// CacheableAdditionalMetrics returns a new map with only keys marked cacheable by
+// IsCacheableAdditionalMetric. Returns nil when src has no cacheable entries.
 func CacheableAdditionalMetrics(src map[string]int64) map[string]int64 {
 	if len(src) == 0 {
 		return nil
 	}
 	var dst map[string]int64
 	for k, v := range src {
-		if !IsCacheable[k] {
+		if !IsCacheableAdditionalMetric(k) {
 			continue
 		}
 		if dst == nil {

@@ -8,13 +8,13 @@ import (
 
 // mergeAdditionalMetrics performs an in-place key-by-key sum of src into dst,
 // allocating dst lazily. Both maps may be nil.
-// When cacheableOnly is true, only keys in tempopb.IsCacheable are merged.
+// When cacheableOnly is true, only keys marked cacheable by tempopb.IsCacheableAdditionalMetric are merged.
 func mergeAdditionalMetrics(dst, src map[string]int64, cacheableOnly bool) map[string]int64 {
 	if len(src) == 0 {
 		return dst
 	}
 	for k, v := range src {
-		if cacheableOnly && !tempopb.IsCacheable[k] {
+		if cacheableOnly && !tempopb.IsCacheableAdditionalMetric(k) {
 			continue
 		}
 		if dst == nil {

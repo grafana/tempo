@@ -73,11 +73,15 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 
 		traceID, _ := tracing.ExtractTraceID(req.Context())
 		m := comb.MetricsCombiner.Metrics
-		if m.AdditionalMetrics == nil {
-			m.AdditionalMetrics = map[string]int64{}
+		if p := o.EngineBytesTracking(tenant); p != nil && *p {
+			if m.AdditionalMetrics == nil {
+				m.AdditionalMetrics = map[string]int64{}
+			}
+			// no TraceQL engine on this path; use protobuf payload size as engineBytes
+			if result := comb.Result(); result != nil {
+				m.AdditionalMetrics[tempopb.AdditionalMetricEngineBytes] = int64(result.Size())
+			}
 		}
-		// no TraceQL engine on this path; use protobuf payload size as engineBytes
-		m.AdditionalMetrics[tempopb.AdditionalMetricEngineBytes] = int64(comb.Result().Size())
 		recordResult(
 			level.Info(logger), req.Context(), m.AdditionalMetrics,
 			"msg", "trace id response",
@@ -198,11 +202,13 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 		findResp, _ := comb.GRPCFinal()
 		if findResp != nil && findResp.Metrics != nil {
 			bytesProcessed = findResp.Metrics.InspectedBytes
-			if findResp.Metrics.AdditionalMetrics == nil {
-				findResp.Metrics.AdditionalMetrics = map[string]int64{}
+			if p := o.EngineBytesTracking(tenant); p != nil && *p {
+				if findResp.Metrics.AdditionalMetrics == nil {
+					findResp.Metrics.AdditionalMetrics = map[string]int64{}
+				}
+				// no TraceQL engine on this path; use protobuf payload size as engineBytes
+				findResp.Metrics.AdditionalMetrics[tempopb.AdditionalMetricEngineBytes] = int64(findResp.Size())
 			}
-			// no TraceQL engine on this path; use protobuf payload size as engineBytes
-			findResp.Metrics.AdditionalMetrics[tempopb.AdditionalMetricEngineBytes] = int64(findResp.Size())
 		}
 
 		postSLOHook(resp, tenant, bytesProcessed, elapsed, err)
