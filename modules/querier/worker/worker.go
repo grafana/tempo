@@ -175,16 +175,32 @@ func (w *querierWorker) AddressAdded(address string) {
 	}
 
 	w.mu.Lock()
-	defer w.mu.Unlock()
-
 	if m := w.managers[address]; m != nil {
+		w.mu.Unlock()
+		return
+	}
+	w.mu.Unlock()
+
+	level.Info(w.log).Log("msg", "adding connection", "addr", address)
+	conn, err := w.connect(ctx, address)
+	if err != nil {
+		level.Error(w.log).Log("msg", "error connecting", "addr", address, "err", err)
 		return
 	}
 
-	level.Info(w.log).Log("msg", "adding connection", "addr", address)
-	conn, err := w.connect(context.Background(), address)
-	if err != nil {
-		level.Error(w.log).Log("msg", "error connecting", "addr", address, "err", err)
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	if ctx.Err() != nil {
+		if err := conn.Close(); err != nil {
+			level.Error(w.log).Log("msg", "failed to close connection after service stopped", "addr", address, "err", err)
+		}
+		return
+	}
+	if m := w.managers[address]; m != nil {
+		if err := conn.Close(); err != nil {
+			level.Error(w.log).Log("msg", "failed to close duplicate connection", "addr", address, "err", err)
+		}
 		return
 	}
 
