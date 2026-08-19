@@ -116,9 +116,6 @@ func redactionModeLabel(mode tempopb.RedactionMode) string {
 // scale-down this metric exists to prevent. Setting first means a scrape can only ever catch a
 // slightly stale value.
 //
-// Deleting is still necessary. A queue that empties stops appearing in the snapshot rather than
-// reporting zero, so its series would otherwise keep its last value for the process lifetime.
-//
 // Called only from the maintenance loop, so the retained snapshot needs no lock.
 func (s *BackendScheduler) recordPendingJobs() {
 	current := s.work.PendingJobCounts()
@@ -129,7 +126,9 @@ func (s *BackendScheduler) recordPendingJobs() {
 		}
 	}
 
-	// Anything present last time and absent now has drained, so drop its series.
+	// A drained queue is absent from the snapshot rather than zero within it, so anything published
+	// last time and missing now has to be deleted explicitly, or its series keeps its last value for
+	// the process lifetime.
 	for tenant, byType := range s.publishedPendingCounts {
 		for jobType := range byType {
 			if _, stillPending := current[tenant][jobType]; !stillPending {
