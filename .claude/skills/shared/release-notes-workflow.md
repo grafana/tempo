@@ -91,20 +91,23 @@ Provide the pending changelog entries (from `.chloggen` or `chlog-preview`) to t
 
    **`change_type` and `component` from `.chloggen` are hints, not the release-notes grouping.** Use `change_type` as a first pass: `breaking` entries are candidates for Upgrade considerations, `bug_fix` for Bug fixes, `security` for Security fixes. `component` (for example, `metrics-generator`, `traceql`) hints at feature area but doesn't replace it -- a single feature area often spans several components, and a single component often spans several feature areas.
 
-   `chlog-preview` / `chloggen update --dry` already sorts entries by `component` within each `change_type` section, and `-c <component>` filters the render to one component -- component-level grouping is already free. What this step actually adds is the cross-cutting *feature-area* grouping, not re-deriving component buckets by hand.
+   `make chlog-preview` already sorts entries by `component` within each `change_type` section --
+   component-level grouping is already free.
+   What this step actually adds is the cross-cutting *feature-area* grouping,
+   not re-deriving component buckets by hand.
 
 3. **Group every changelog entry** into the feature areas:
    - Assign each entry to the feature area where it has the most user impact. PRs associated with known headline features should be grouped under those areas first.
    - Within each group, weight the entries: identify which are headline items versus supporting changes, minor improvements, or bug fixes.
    - Assign every entry a placement label using [release-notes-placement.md](release-notes-placement.md).
-   - Flag entries that are uncertain -- these need human judgment.
+   - Use **Uncertain** when you can't decide -- these need human judgment.
 
 4. **Return a structured, grouped list** organized by feature area, with entries ordered by importance within each group and exclusions listed separately. Known headline features should appear first.
 
 #### Step 3b: Place each entry
 
 Read [release-notes-placement.md](release-notes-placement.md)
-and assign every entry a label: highlight, brief include, cite prior notes, or exclude.
+and assign every entry a label: highlight, brief include, cite prior notes, exclude, or uncertain.
 Fold sibling PRs into one description as that file describes --
 folding is how an include is represented, not a skip.
 
@@ -404,8 +407,8 @@ Use this prompt when the main features of the release are already known. The kno
 > 1. **Group entries under the known headline features first.** PRs associated with each headline feature should be grouped together, with the key PRs as the headline items.
 > 2. **Identify any additional feature areas** from the remaining entries that don't fit under the known features.
 > 3. **Order entries within each group** by importance: headline items first, then supporting changes, then minor fixes.
-> 4. **Assign a placement label** using [release-notes-placement.md](release-notes-placement.md): highlight, brief include, cite prior notes, or exclude. Fold sibling PRs into one description. List exclusions separately with a brief reason.
-> 5. **Flag uncertain entries** that need human judgment. Explain why you're unsure.
+> 4. **Assign a placement label** using [release-notes-placement.md](release-notes-placement.md): highlight, brief include, cite prior notes, exclude, or uncertain. Fold sibling PRs into one description. List exclusions separately with a brief reason.
+> 5. **For uncertain entries**, explain why you couldn't decide. These need human judgment.
 >
 > Return the result as a structured, grouped list with the known headline features listed first. I'll review and adjust your groupings before we proceed.
 >
@@ -427,8 +430,8 @@ Use this prompt when the main features aren't known yet. The AI proposes the maj
 > 1. **Identify the major feature areas** for this release. These should be the themes that emerge from the entries themselves (for example, "TraceQL enhancements", "metrics-generator cardinality management", "vParquet5 production readiness"). Don't use fixed categories; let the entries tell you what this release is about.
 > 2. **Group every entry** into the proposed feature areas. Assign each entry to the area where it has the most user impact.
 > 3. **Order entries within each group** by importance: headline items first, then supporting changes, then minor fixes.
-> 4. **Assign a placement label** using [release-notes-placement.md](release-notes-placement.md): highlight, brief include, cite prior notes, or exclude. Fold sibling PRs into one description. List exclusions separately with a brief reason.
-> 5. **Flag uncertain entries** that need human judgment. Explain why you're unsure.
+> 4. **Assign a placement label** using [release-notes-placement.md](release-notes-placement.md): highlight, brief include, cite prior notes, exclude, or uncertain. Fold sibling PRs into one description. List exclusions separately with a brief reason.
+> 5. **For uncertain entries**, explain why you couldn't decide. These need human judgment.
 >
 > Return the result as a structured, grouped list organized by feature area. I'll review and adjust your groupings before we proceed.
 >

@@ -11,8 +11,9 @@ Assign every changelog entry one label.
 | **Brief include** | User-facing, not headline. Short bullet under Features, Upgrade, or Bug fixes. |
 | **Cite prior notes** | Already covered in an earlier X.Y. Mention it and link there. Do not rewrite. |
 | **Exclude** | Changelog only. |
+| **Uncertain** | Can't tell from the diff. Hold for human review. Do not exclude. |
 
-**Fold** is not a fifth label.
+**Fold** is not a placement label.
 Several PRs that are the same change get one description and a list of PR numbers.
 Follow-up fixes cite the parent feature, not each fix.
 
@@ -44,5 +45,5 @@ Can't tell from the diff? Label it uncertain, not exclude.
 ## Sanity check
 
 On a normal minor, most chloggen entries should appear.
-If almost nothing is excluded, revisit.
+If almost everything is excluded, revisit.
 Do not use a major-version cite-back pass as the omit rate for a minor.
