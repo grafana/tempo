@@ -2,11 +2,15 @@ package frontend
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
+	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/go-kit/log"
+	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/model/tracediff"
 	mcpclient "github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/require"
@@ -29,6 +33,12 @@ func newTestMCPClient(t *testing.T) *mcpclient.Client {
 
 	mcpServer, ok := qf.MCPHandler.(*MCPServer)
 	require.True(t, ok, "expected MCP handler to be enabled")
+
+	return newInProcessMCPClient(t, mcpServer)
+}
+
+func newInProcessMCPClient(t *testing.T, mcpServer *MCPServer) *mcpclient.Client {
+	t.Helper()
 
 	client, err := mcpclient.NewInProcessClient(mcpServer.mcpServer)
 	require.NoError(t, err)
@@ -97,6 +107,96 @@ func TestMCPConfigDocsTool(t *testing.T) {
 
 	// unknown doc types fall back to the overview instead of erroring
 	require.Equal(t, overview, callDocsConfig(t, client, "does-not-exist"))
+}
+
+func TestMCPTraceDiffTool(t *testing.T) {
+	var receivedRequest *http.Request
+	var receivedBody api.TraceDiffRequest
+	handlerCalls := 0
+	frontend := &QueryFrontend{
+		TraceDiffHandler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handlerCalls++
+			receivedRequest = r
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&receivedBody))
+			_, err := w.Write([]byte(`{"version":"trace-summary-v0-composed"}`))
+			require.NoError(t, err)
+		}),
+	}
+	mcpServer := NewMCPServer(frontend, "", log.NewNopLogger(), fakeHTTPAuthMiddleware, 0)
+	client := newInProcessMCPClient(t, mcpServer)
+
+	toolsResp, err := client.ListTools(context.Background(), mcp.ListToolsRequest{})
+	require.NoError(t, err)
+
+	var traceDiffTool *mcp.Tool
+	for i := range toolsResp.Tools {
+		if toolsResp.Tools[i].Name == toolTraceDiff {
+			traceDiffTool = &toolsResp.Tools[i]
+		}
+	}
+	require.NotNil(t, traceDiffTool, "trace-diff tool should be listed")
+	require.NotNil(t, traceDiffTool.Annotations.ReadOnlyHint)
+	require.True(t, *traceDiffTool.Annotations.ReadOnlyHint)
+	require.NotNil(t, traceDiffTool.Annotations.DestructiveHint)
+	require.False(t, *traceDiffTool.Annotations.DestructiveHint)
+	require.NotNil(t, traceDiffTool.Annotations.OpenWorldHint)
+	require.False(t, *traceDiffTool.Annotations.OpenWorldHint)
+	require.ElementsMatch(t, []string{"base_trace_id", "compare_trace_id"}, traceDiffTool.InputSchema.Required)
+
+	formatSchema, ok := traceDiffTool.InputSchema.Properties["format"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, tracediff.VersionTraceSummaryV0Composed, formatSchema["default"])
+	require.Equal(t, float64(1), formatSchema["minLength"])
+	enumJSON, err := json.Marshal(formatSchema["enum"])
+	require.NoError(t, err)
+	require.JSONEq(t, `[
+		"trace-summary-v0-composed",
+		"trace-summary-v0-native",
+		"trace-patch-v0"
+	]`, string(enumJSON))
+
+	resp, err := client.CallTool(context.Background(), mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: toolTraceDiff,
+			Arguments: map[string]any{
+				"base_trace_id":    "12345678abcdef90",
+				"compare_trace_id": "abcdef9012345678",
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.False(t, resp.IsError)
+	require.NotNil(t, receivedRequest)
+	require.Equal(t, http.MethodPost, receivedRequest.Method)
+	require.Equal(t, api.PathTraceDiffV2, receivedRequest.URL.Path)
+	require.Equal(t, api.HeaderAcceptJSON, receivedRequest.Header.Get(api.HeaderContentType))
+	require.Equal(t, api.HeaderAcceptLLM, receivedRequest.Header.Get(api.HeaderAccept))
+	require.Equal(t, "12345678abcdef90", receivedBody.Base.TraceID)
+	require.Equal(t, "abcdef9012345678", receivedBody.Compare.TraceID)
+	require.Equal(t, tracediff.VersionTraceSummaryV0Composed, receivedBody.Format)
+	require.Equal(t, map[string]any{
+		"type":     MetaTypeTraceDiff,
+		"encoding": "json",
+		"version":  "2",
+	}, resp.Meta.AdditionalFields)
+	require.Len(t, resp.Content, 1)
+	textContent, ok := resp.Content[0].(mcp.TextContent)
+	require.True(t, ok)
+	require.JSONEq(t, `{"version":"trace-summary-v0-composed"}`, textContent.Text)
+
+	emptyFormatResp, err := client.CallTool(context.Background(), mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: toolTraceDiff,
+			Arguments: map[string]any{
+				"base_trace_id":    "12345678abcdef90",
+				"compare_trace_id": "abcdef9012345678",
+				"format":           "",
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, emptyFormatResp.IsError)
+	require.Equal(t, 1, handlerCalls)
 }
 
 // TestMCPConfigDocsResources exercises the docs://config resources over the real MCP protocol.

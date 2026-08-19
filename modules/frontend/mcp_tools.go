@@ -3,6 +3,7 @@ package frontend
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 	"github.com/grafana/tempo/modules/frontend/docs"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/model/tracediff"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -35,6 +37,7 @@ const (
 	MetaTypeMetricsRange    = "metrics-range"
 	MetaTypeMetricsInstant  = "metrics-instant"
 	MetaTypeTrace           = "trace"
+	MetaTypeTraceDiff       = "trace-diff"
 	MetaTypeAttributeNames  = "attribute-names"
 	MetaTypeAttributeValues = "attribute-values"
 )
@@ -288,6 +291,123 @@ func (s *MCPServer) handleGetTrace(ctx context.Context, request mcp.CallToolRequ
 	}
 
 	return toolResult(body, MetaTypeTrace, "json", "2"), nil
+}
+
+func (s *MCPServer) handleTraceDiff(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	metricMCPToolCalls.WithLabelValues(toolTraceDiff).Inc()
+
+	baseTraceID, err := request.RequireString("base_trace_id")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	compareTraceID, err := request.RequireString("compare_trace_id")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	format, err := traceDiffFormat(request)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	baseStart, baseEnd, err := parseTraceDiffRange(request, "base_start", "base_end")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	compareStart, compareEnd, err := parseTraceDiffRange(request, "compare_start", "compare_end")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	level.Info(s.logger).Log(
+		"msg", "comparing traces",
+		"base_trace_id", baseTraceID,
+		"compare_trace_id", compareTraceID,
+		"format", format,
+	)
+
+	diffReq := api.TraceDiffRequest{
+		Base: api.TraceDiffTraceRequest{
+			TraceID: baseTraceID,
+			Start:   baseStart,
+			End:     baseEnd,
+		},
+		Compare: api.TraceDiffTraceRequest{
+			TraceID: compareTraceID,
+			Start:   compareStart,
+			End:     compareEnd,
+		},
+		Format: format,
+	}
+	reqBody, err := json.Marshal(diffReq)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("failed to build trace diff request: %v", err)), nil
+	}
+
+	httpReq := &http.Request{
+		Method: http.MethodPost,
+		URL:    &url.URL{Path: s.buildPath(api.PathTraceDiffV2)},
+		Header: http.Header{api.HeaderContentType: {api.HeaderAcceptJSON}},
+		Body:   io.NopCloser(bytes.NewReader(reqBody)),
+	}
+	body, err := handleHTTP(ctx, s.frontend.TraceDiffHandler, httpReq)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	return toolResult(body, MetaTypeTraceDiff, "json", "2"), nil
+}
+
+func traceDiffFormat(request mcp.CallToolRequest) (string, error) {
+	if _, ok := request.GetArguments()["format"]; !ok {
+		return tracediff.VersionTraceSummaryV0Composed, nil
+	}
+
+	format, err := request.RequireString("format")
+	if err != nil {
+		return "", err
+	}
+	if format == "" {
+		return "", fmt.Errorf("argument %q must not be empty", "format")
+	}
+	return format, nil
+}
+
+func parseTraceDiffRange(request mcp.CallToolRequest, startName, endName string) (*int64, *int64, error) {
+	args := request.GetArguments()
+	_, hasStart := args[startName]
+	_, hasEnd := args[endName]
+	if hasStart != hasEnd {
+		return nil, nil, fmt.Errorf("arguments %q and %q must be provided together", startName, endName)
+	}
+	if !hasStart {
+		return nil, nil, nil
+	}
+
+	startValue, err := request.RequireString(startName)
+	if err != nil {
+		return nil, nil, err
+	}
+	endValue, err := request.RequireString(endName)
+	if err != nil {
+		return nil, nil, err
+	}
+	start, err := parseTraceDiffTime(startValue, startName)
+	if err != nil {
+		return nil, nil, err
+	}
+	end, err := parseTraceDiffTime(endValue, endName)
+	if err != nil {
+		return nil, nil, err
+	}
+	return start, end, nil
+}
+
+func parseTraceDiffTime(value, name string) (*int64, error) {
+	timestamp, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return nil, fmt.Errorf("invalid %s: %w", name, err)
+	}
+	epoch := timestamp.Unix()
+	return &epoch, nil
 }
 
 // handleGetAttributeNames handles the get-attribute-names tool

@@ -18,7 +18,7 @@
   <!-- MCP server box -->
   <rect x="300" y="54" width="340" height="60" rx="6" fill="#eff6ff" stroke="#93c5fd" stroke-width="1"/>
   <text x="470" y="76" text-anchor="middle" font-weight="600" font-size="12" fill="#1a1a1a">MCP server  /api/mcp</text>
-  <text x="470" y="102" text-anchor="middle" font-size="10" fill="#6e6e6e">7 tools | 4 doc resources | TraceQL | metrics | attributes</text>
+  <text x="470" y="102" text-anchor="middle" font-size="10" fill="#6e6e6e">9 tools | 6 doc resources | TraceQL | metrics | attributes | diff</text>
 
   <!-- HTTP API box -->
   <rect x="300" y="124" width="340" height="60" rx="6" fill="#eff6ff" stroke="#93c5fd" stroke-width="1"/>

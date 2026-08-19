@@ -9,12 +9,12 @@ import (
 
 const (
 	// VersionTraceSummaryV0Composed is an optional diff response shape: the
-	// native summary is always present, plus the full trace-patch-v0
-	// attached iff it fits the byte budget, omitted whole with a disclosure
-	// otherwise. Never truncated: a truncated change list lies by omission.
-	// Consumers needing the full patch when it exceeds the budget re-request
-	// with format trace-patch-v0; the two-request cost is accepted for the
-	// experimental endpoint rather than adding a bypass knob.
+	// native summary is always present, plus the full trace-patch-v0 attached
+	// iff it fits the byte budget. The budget applies only to the patch, not
+	// the complete composed response. Never truncated: a truncated change list
+	// lies by omission. Consumers can use PatchOmitted.Bytes to decide whether
+	// full span-level evidence justifies requesting trace-patch-v0, which has no
+	// output-size guarantee.
 	VersionTraceSummaryV0Composed = "trace-summary-v0-composed"
 
 	// DefaultPatchBudgetBytes bounds the patch attached to a composed

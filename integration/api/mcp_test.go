@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"path"
 	"sort"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/grafana/e2e"
 	"github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/model/tracediff"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/stretchr/testify/require"
 
@@ -60,6 +62,7 @@ func TestMCP(t *testing.T) {
 			"traceql-metrics-instant",
 			"traceql-metrics-range",
 			"get-trace",
+			"trace-diff",
 			"get-attribute-names",
 			"get-attribute-values",
 			"docs-traceql",
@@ -77,6 +80,7 @@ func TestMCP(t *testing.T) {
 		require.Equal(t, expectedTools, actualTools)
 
 		assertTraceOverMCP(t, mcpClient, info.HexID())
+		assertTraceDiffOverMCP(t, mcpClient, info.HexID())
 	})
 }
 
@@ -126,6 +130,26 @@ func assertTraceOverMCP(t *testing.T, mcpClient mcpclient.MCPClient, traceID str
 	if !strings.Contains(str, traceID) {
 		t.Fatalf("expected trace ID %s not found in response", traceID)
 	}
+}
+
+func assertTraceDiffOverMCP(t *testing.T, mcpClient mcpclient.MCPClient, traceID string) {
+	resp, err := mcpClient.CallTool(context.Background(), mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: "trace-diff",
+			Arguments: map[string]any{
+				"base_trace_id":    traceID,
+				"compare_trace_id": traceID,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	var result tracediff.ComposedResult
+	require.NoError(t, json.Unmarshal([]byte(toolResult(t, resp)), &result))
+	require.Equal(t, tracediff.VersionTraceSummaryV0Composed, result.Version)
+	require.NotNil(t, result.Summary)
+	require.Equal(t, traceID, result.Summary.Base.TraceID)
+	require.Equal(t, traceID, result.Summary.Compare.TraceID)
 }
 
 func toolResult(t *testing.T, resp *mcp.CallToolResult) string {
