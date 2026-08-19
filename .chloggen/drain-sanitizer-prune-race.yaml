@@ -1,0 +1,8 @@
+change_type: bug_fix
+component: metrics-generator
+note: Prevent concurrent span-name sanitizer pruning from racing with Drain training
+issues: [7794]
+subtext: |
+  Periodic pruning now uses the sanitizer's training mutex, preventing concurrent tree and exact-index
+  mutation that could crash the metrics-generator with a concurrent map access.
+user: carles-grafana

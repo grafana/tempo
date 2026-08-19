@@ -15,16 +15,17 @@ type LineTokenizer interface {
 // interface. It tokenizes a line into a list of tokens using a simple state
 // machine. This is the main point of customization for the DRAIN algorithm, and
 // is largely domain-specific.
-type defaultTokenizer struct{}
+type defaultTokenizer struct {
+	lexer lexer
+}
 
 var _ LineTokenizer = (*defaultTokenizer)(nil)
 
 func (t *defaultTokenizer) Tokenize(line string, tokens []string) []string {
 	tokens = tokens[:0]
 
-	l := &lexer{
-		input: line,
-	}
+	l := &t.lexer
+	*l = lexer{input: line}
 	for !l.eof {
 		currentState := lexAny
 		for currentState != nil {
@@ -40,6 +41,9 @@ func (t *defaultTokenizer) Tokenize(line string, tokens []string) []string {
 	// and `GET /users/123/settings` - we want to preserve `/data` and `/settings`.
 	// Adding an extra token helps reduce this behavior.
 	tokens = append(tokens, "<END>")
+
+	l.input = ""
+	l.token = ""
 
 	return tokens
 }
