@@ -3,11 +3,9 @@ component: backend-scheduler
 note: add `tempo_backend_scheduler_jobs_pending`, widen the job-duration histogram buckets, and complete native-histogram coverage.
 issues: []
 subtext: |
-  `tempo_backend_scheduler_jobs_pending{tenant, job_type}` reports queue depth: jobs enqueued and not yet dispatched to a worker. Nothing exposed this before, so a submission that fanned out hundreds of jobs showed only the handful already running. `jobs_active` counts work already handed out, so it is bounded by the worker count and cannot indicate that more capacity is needed — only depth can, which makes this the signal to autoscale backend-workers on.
+  `tempo_backend_scheduler_jobs_pending{tenant, job_type}` reports queue depth: jobs enqueued and not yet dispatched. Nothing exposed this before, so a submission that fanned out hundreds of jobs showed only the handful already running. It is also the only signal that can drive scale-up, since `jobs_active` is bounded by the worker count.
 
-  It matters most for redaction. Compaction is gated for a tenant being redacted, so no compaction jobs are created for it, yet the outstanding-blocks metric deliberately keeps reporting that backlog (see `newBlockSelectorForMeasurement`) — an autoscaler on that signal is holding scale for work it cannot dispatch. Redaction depth is the direct input, and the only one that tracks progress.
-
-  The `backend_scheduler_job_duration_seconds` buckets move from the client library defaults to powers of two between 10ms and ~11m. The defaults stop at 10s and place no boundary between 2.5s and 5s, where roughly 60% of redaction jobs land, so every percentile drawn from them interpolated inside a single bucket. Dashboards using `histogram_quantile` are unaffected; queries pinned to specific `le` values need updating.
+  `backend_scheduler_job_duration_seconds` buckets move from the client library defaults, which stop at 10s and put no boundary between 2.5s and 5s where roughly 60% of redaction jobs land, to powers of two between 10ms and ~11m. `histogram_quantile` queries are unaffected; queries pinned to specific `le` values need updating.
 
   `tempodb_cache_store_size_bytes` was the only histogram in the tree without native-histogram configuration; it now matches the other 33.
 user: zalegrala

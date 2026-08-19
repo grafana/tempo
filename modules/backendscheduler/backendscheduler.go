@@ -57,9 +57,11 @@ type BackendScheduler struct {
 
 	mergedJobs chan *work.Job
 
-	// publishedPendingLabels records the jobs_pending label sets published last tick, so a drained
-	// queue can be deleted without resetting the whole vector. Touched only from the maintenance loop.
-	publishedPendingLabels map[[2]string]struct{}
+	// publishedPendingCounts is the jobs_pending snapshot published on the previous maintenance tick,
+	// keyed exactly as work.PendingJobCounts returns it. Comparing the next snapshot against it
+	// identifies the tenants and job types whose queue has drained, so their series can be deleted
+	// without resetting the whole vector. Touched only from the maintenance loop.
+	publishedPendingCounts map[string]map[tempopb.JobType]int
 }
 
 // ListJobs returns all jobs in the work cache

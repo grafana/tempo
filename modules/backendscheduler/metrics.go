@@ -30,10 +30,12 @@ var (
 		Name:      "backend_scheduler_jobs_active",
 		Help:      "Number of currently active jobs",
 	}, []string{"tenant", "job_type"})
+	// Queue depth. Distinct from jobs_active, which counts work already handed to a worker and is
+	// therefore bounded by the worker count — only depth can indicate that more capacity is needed.
 	metricJobsPending = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempo",
 		Name:      "backend_scheduler_jobs_pending",
-		Help:      "Number of jobs enqueued and not yet dispatched to a worker, by tenant and type. This is queue depth: jobs_active counts work already handed out, so it is bounded by the worker count and cannot indicate that more capacity is needed.",
+		Help:      "Number of jobs enqueued and not yet dispatched to a worker, by tenant and type.",
 	}, []string{"tenant", "job_type"})
 	metricJobsRetry = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
@@ -117,32 +119,32 @@ func redactionModeLabel(mode tempopb.RedactionMode) string {
 
 // recordPendingJobs publishes the queue depth per tenant and job type.
 //
-// Current values are set BEFORE drained series are removed, rather than resetting the vector first.
-// A scrape landing inside a Reset would see series missing and read the total lower than it is —
-// which is precisely the spurious scale-down this metric exists to prevent. Setting first means a
-// scrape can only ever catch a slightly stale value, so the error biases toward holding scale.
+// Values are set before drained series are deleted, rather than resetting the vector first: a scrape
+// landing inside a Reset would see series missing and read the total lower than it is — the spurious
+// scale-down this metric exists to prevent. Setting first means a scrape can only ever catch a
+// slightly stale value.
 //
-// Drained queues must still be removed: a tenant whose queue empties stops appearing in the
-// snapshot rather than reporting zero, so its last non-zero value would otherwise persist for the
-// process lifetime and an autoscaler would hold scale forever.
+// Deleting is still necessary. A queue that empties stops appearing in the snapshot rather than
+// reporting zero, so its series would otherwise keep its last value for the process lifetime.
 //
-// Called only from the maintenance loop, so the label bookkeeping needs no lock.
+// Called only from the maintenance loop, so the retained snapshot needs no lock.
 func (s *BackendScheduler) recordPendingJobs() {
-	current := make(map[[2]string]struct{}, len(s.publishedPendingLabels))
+	current := s.work.PendingJobCounts()
 
-	for tenant, byType := range s.work.PendingJobCounts() {
-		for jobType, n := range byType {
-			labels := [2]string{tenant, jobType.String()}
-			current[labels] = struct{}{}
-			metricJobsPending.WithLabelValues(labels[0], labels[1]).Set(float64(n))
+	for tenant, byType := range current {
+		for jobType, pending := range byType {
+			metricJobsPending.WithLabelValues(tenant, jobType.String()).Set(float64(pending))
 		}
 	}
 
-	for labels := range s.publishedPendingLabels {
-		if _, still := current[labels]; !still {
-			metricJobsPending.DeleteLabelValues(labels[0], labels[1])
+	// Anything present last time and absent now has drained, so drop its series.
+	for tenant, byType := range s.publishedPendingCounts {
+		for jobType := range byType {
+			if _, stillPending := current[tenant][jobType]; !stillPending {
+				metricJobsPending.DeleteLabelValues(tenant, jobType.String())
+			}
 		}
 	}
 
-	s.publishedPendingLabels = current
+	s.publishedPendingCounts = current
 }
