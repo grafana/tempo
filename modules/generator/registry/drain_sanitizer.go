@@ -68,10 +68,10 @@ func (s *DrainSanitizer) Sanitize(lbls labels.Labels) labels.Labels {
 		return lbls
 	}
 
-	s.doPeriodicMaintenance()
-
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
+
+	s.doPeriodicMaintenanceLocked()
 
 	spanName := lbls.Get(labelSpanName)
 	// drain.Train retains substrings of spanName in long-lived cluster tokens
@@ -110,7 +110,7 @@ func (s *DrainSanitizer) Sanitize(lbls labels.Labels) labels.Labels {
 	return newLbls
 }
 
-func (s *DrainSanitizer) doPeriodicMaintenance() {
+func (s *DrainSanitizer) doPeriodicMaintenanceLocked() {
 	select {
 	case <-s.demandUpdateChan:
 		s.demandGauge.Set(float64(s.demand.Estimate()))
