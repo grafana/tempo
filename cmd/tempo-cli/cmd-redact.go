@@ -39,6 +39,7 @@ type redactCmd struct {
 	TLS           bool   `name:"tls" help:"use TLS transport" default:"false"`
 	TLSServerName string `name:"tls-server-name" help:"override the TLS server name (SNI)"`
 	TLSCA         string `name:"tls-ca" help:"path to a PEM-encoded CA certificate file"`
+	TLSMinVersion string `name:"tls-min-version" default:"VersionTLS13" help:"minimum TLS version to accept. Allowed values: VersionTLS10, VersionTLS11, VersionTLS12, VersionTLS13"`
 }
 
 func (cmd *redactCmd) Run(_ *globalOptions) error {
@@ -156,15 +157,31 @@ func (cmd *redactCmd) submit(ctx context.Context, c tempopb.BackendSchedulerClie
 }
 
 func (cmd *redactCmd) buildTransportCredentials() (credentials.TransportCredentials, error) {
-	return schedulerTransportCredentials(cmd.TLS, cmd.TLSServerName, cmd.TLSCA)
+	return schedulerTransportCredentials(cmd.TLS, cmd.TLSServerName, cmd.TLSCA, cmd.TLSMinVersion)
+}
+
+// tlsMinVersions mirrors the names dskit's crypto/tls accepts, so --tls-min-version is spelled the
+// same way as the scheduler's own server.tls-min-version. dskit keeps its map unexported.
+var tlsMinVersions = map[string]uint16{
+	"VersionTLS10": tls.VersionTLS10,
+	"VersionTLS11": tls.VersionTLS11,
+	"VersionTLS12": tls.VersionTLS12,
+	"VersionTLS13": tls.VersionTLS13,
 }
 
 // schedulerTransportCredentials builds the dial credentials for the scheduler, shared by every
 // redact subcommand. Hand-rolled rather than routed through the dskit grpcclient.Config the
 // scheduler client already embeds; that consolidation is tracked separately.
-func schedulerTransportCredentials(useTLS bool, serverName, caPath string) (credentials.TransportCredentials, error) {
+func schedulerTransportCredentials(useTLS bool, serverName, caPath, minVersionName string) (credentials.TransportCredentials, error) {
 	if !useTLS {
+		// minVersionName is not validated here: it only has meaning for a TLS dial, matching how
+		// dskit parses its own value only when TLS is enabled.
 		return insecure.NewCredentials(), nil
+	}
+
+	minVersion, ok := tlsMinVersions[minVersionName]
+	if !ok {
+		return nil, fmt.Errorf("unknown tls-min-version %q; allowed values are VersionTLS10, VersionTLS11, VersionTLS12, VersionTLS13", minVersionName)
 	}
 
 	certPool, err := x509.SystemCertPool()
@@ -188,6 +205,10 @@ func schedulerTransportCredentials(useTLS bool, serverName, caPath string) (cred
 	return credentials.NewTLS(&tls.Config{
 		ServerName: serverName,
 		RootCAs:    certPool,
+		// Defaults to 1.3 rather than the Go default of 1.2. --tls-min-version lowers it for a
+		// scheduler behind a TLS-terminating proxy that has not moved to 1.3; the scheduler's own
+		// floor is set by dskit's server.tls-min-version.
+		MinVersion: minVersion,
 	}), nil
 }
 

@@ -65,3 +65,24 @@ func TestFormatRedactionStatusShowsWindowAndDryRun(t *testing.T) {
 	require.Contains(t, out, "2020-09-13T12:26:40Z .. unbounded",
 		"a one-sided window must read as unbounded, not as the epoch")
 }
+
+// TestSchedulerTransportCredentialsMinVersion pins the default floor and that an unknown value is
+// refused rather than silently falling back to a weaker one.
+func TestSchedulerTransportCredentialsMinVersion(t *testing.T) {
+	// The default the flags carry.
+	_, err := schedulerTransportCredentials(true, "", "", "VersionTLS13")
+	require.NoError(t, err)
+
+	// Lowering it is allowed, for a scheduler behind a proxy that has not moved to 1.3.
+	_, err = schedulerTransportCredentials(true, "", "", "VersionTLS12")
+	require.NoError(t, err)
+
+	// A typo must fail loudly: silently accepting it would dial with Go's default floor, quietly
+	// weaker than the operator asked for.
+	_, err = schedulerTransportCredentials(true, "", "", "TLS1.3")
+	require.ErrorContains(t, err, "unknown tls-min-version")
+
+	// Without TLS the value is irrelevant and must not block a plaintext dial.
+	_, err = schedulerTransportCredentials(false, "", "", "nonsense")
+	require.NoError(t, err)
+}

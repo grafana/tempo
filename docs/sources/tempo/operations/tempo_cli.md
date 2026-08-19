@@ -995,6 +995,10 @@ Options:
 - `--tls` Use TLS for the gRPC connection (default: `false`).
 - `--tls-server-name <value>` Override the TLS server name (SNI).
 - `--tls-ca <value>` Path to a PEM-encoded CA certificate file.
+- `--tls-min-version <value>` Minimum TLS version to accept, one of `VersionTLS10`, `VersionTLS11`,
+  `VersionTLS12`, or `VersionTLS13` (default: `VersionTLS13`). Lower it only for a scheduler behind a
+  TLS-terminating proxy that does not support TLS 1.3. The scheduler's own floor is set separately by
+  `server.tls_min_version`.
 
 Specify exactly one of `--trace-id` or `--query`.
 
@@ -1095,6 +1099,10 @@ Options:
 - `--tls` Use a TLS transport.
 - `--tls-server-name <value>` Override the TLS server name (SNI).
 - `--tls-ca <value>` Path to a PEM-encoded CA certificate file.
+- `--tls-min-version <value>` Minimum TLS version to accept, one of `VersionTLS10`, `VersionTLS11`,
+  `VersionTLS12`, or `VersionTLS13` (default: `VersionTLS13`). Lower it only for a scheduler behind a
+  TLS-terminating proxy that does not support TLS 1.3. The scheduler's own floor is set separately by
+  `server.tls_min_version`.
 
 The command reports the batch ID, mode, phase, submission time, the window, and how many blocks are
 done, remaining, and running. `phase` explains why a redaction that has stopped doing visible work is

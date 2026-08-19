@@ -1,0 +1,7 @@
+change_type: enhancement
+component: tempo-cli
+note: "Add a `--tls-min-version` flag to the `redact` and `redact-status` commands, defaulting to TLS 1.3."
+issues: []
+subtext: |
+  The scheduler dial previously used Go's default floor of TLS 1.2 with no way to change it. The default is now TLS 1.3; pass `--tls-min-version=VersionTLS12` for a scheduler behind a TLS-terminating proxy that does not support TLS 1.3. Values are spelled as in the scheduler's own `server.tls_min_version`.
+user: zalegrala
