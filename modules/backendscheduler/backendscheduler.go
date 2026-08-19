@@ -56,6 +56,12 @@ type BackendScheduler struct {
 	}
 
 	mergedJobs chan *work.Job
+
+	// publishedPendingCounts is the jobs_pending snapshot published on the previous maintenance tick,
+	// keyed exactly as work.PendingJobCounts returns it. Comparing the next snapshot against it
+	// identifies the tenants and job types whose queue has drained, so their series can be deleted
+	// without resetting the whole vector. Touched only from the maintenance loop.
+	publishedPendingCounts map[string]map[tempopb.JobType]int
 }
 
 // ListJobs returns all jobs in the work cache
@@ -220,6 +226,11 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 	backendFlushTicker := time.NewTicker(s.cfg.BackendFlushInterval)
 	defer backendFlushTicker.Stop()
 
+	// Publish once up front: on the tick alone the metric would be absent for a full
+	// MaintenanceInterval after start, so a dashboard or autoscaler reading it right after a restart
+	// would see nothing rather than the queue that survived the restart.
+	s.recordPendingJobs()
+
 	var err error
 
 	for {
@@ -230,6 +241,7 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 			s.work.Prune(ctx)
 			s.checkPendingRescans(ctx)
 			s.cleanupOrphanedBatches(ctx)
+			s.recordPendingJobs()
 		case <-backendFlushTicker.C:
 			err = s.flushWorkCacheToBackend(ctx)
 			metricWorkFlushes.Inc()

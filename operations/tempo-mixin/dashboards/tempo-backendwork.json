@@ -1496,10 +1496,33 @@
           "legendFormat": "p50 {{job_type}}",
           "range": true,
           "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.99, sum(rate(tempo_backend_scheduler_job_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (job_type))",
+          "legendFormat": "p99 {{job_type}} (native)",
+          "range": true,
+          "refId": "N99"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.5, sum(rate(tempo_backend_scheduler_job_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (job_type))",
+          "legendFormat": "p50 {{job_type}} (native)",
+          "range": true,
+          "refId": "N50"
         }
       ],
       "title": "Job Duration",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "Classic-bucket and native-histogram queries are both present. The native series gives full resolution where the classic buckets are coarse; it renders once native histograms are retained for this metric."
     },
     {
       "datasource": {
@@ -1774,6 +1797,103 @@
         "x": 0,
         "y": 28
       },
+      "id": 44,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.0.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "sum(tempo_backend_scheduler_jobs_pending{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_REDACTION\"}) by (tenant)",
+          "legendFormat": "{{tenant}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Pending Redaction Jobs",
+      "type": "timeseries",
+      "description": "Jobs enqueued and not yet dispatched to a worker. Active shows what is running now (bounded by worker count); this shows how much is left, so it is the progress indicator and the signal to autoscale workers on."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${metrics}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 28
+      },
       "id": 36,
       "options": {
         "legend": {
@@ -1867,7 +1987,7 @@
       "gridPos": {
         "h": 6,
         "w": 8,
-        "x": 8,
+        "x": 16,
         "y": 28
       },
       "id": 37,
@@ -1963,8 +2083,8 @@
       "gridPos": {
         "h": 6,
         "w": 8,
-        "x": 16,
-        "y": 28
+        "x": 0,
+        "y": 34
       },
       "id": 38,
       "options": {
@@ -2058,8 +2178,8 @@
       },
       "gridPos": {
         "h": 6,
-        "w": 6,
-        "x": 0,
+        "w": 8,
+        "x": 8,
         "y": 34
       },
       "id": 39,
@@ -2154,8 +2274,8 @@
       },
       "gridPos": {
         "h": 6,
-        "w": 6,
-        "x": 6,
+        "w": 8,
+        "x": 16,
         "y": 34
       },
       "id": 40,
@@ -2252,8 +2372,8 @@
       "gridPos": {
         "h": 6,
         "w": 12,
-        "x": 12,
-        "y": 34
+        "x": 0,
+        "y": 40
       },
       "id": 41,
       "options": {
@@ -2303,10 +2423,44 @@
           "legendFormat": "p50",
           "range": true,
           "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.99, sum(rate(tempo_backend_scheduler_job_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_REDACTION\"}[$__rate_interval])))",
+          "legendFormat": "p99 (native)",
+          "range": true,
+          "refId": "N99"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.9, sum(rate(tempo_backend_scheduler_job_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_REDACTION\"}[$__rate_interval])))",
+          "legendFormat": "p90 (native)",
+          "range": true,
+          "refId": "N90"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.5, sum(rate(tempo_backend_scheduler_job_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_REDACTION\"}[$__rate_interval])))",
+          "legendFormat": "p50 (native)",
+          "range": true,
+          "refId": "N50"
         }
       ],
       "title": "Redaction Job Duration",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "Classic-bucket and native-histogram queries are both present. The native series gives full resolution where the classic buckets are coarse; it renders once native histograms are retained for this metric."
     },
     {
       "datasource": {
@@ -2370,7 +2524,7 @@
       "gridPos": {
         "h": 6,
         "w": 12,
-        "x": 0,
+        "x": 12,
         "y": 40
       },
       "id": 42,
@@ -2467,8 +2621,8 @@
       "gridPos": {
         "h": 6,
         "w": 12,
-        "x": 12,
-        "y": 40
+        "x": 0,
+        "y": 46
       },
       "id": 43,
       "options": {
@@ -2508,7 +2662,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 46
+        "y": 52
       },
       "id": 8,
       "panels": [],
@@ -2578,7 +2732,7 @@
         "h": 6,
         "w": 5,
         "x": 0,
-        "y": 47
+        "y": 53
       },
       "id": 9,
       "options": {
@@ -2676,7 +2830,7 @@
         "h": 6,
         "w": 4,
         "x": 5,
-        "y": 47
+        "y": 53
       },
       "id": 11,
       "options": {
@@ -2773,7 +2927,7 @@
         "h": 6,
         "w": 5,
         "x": 9,
-        "y": 47
+        "y": 53
       },
       "id": 10,
       "options": {
@@ -2870,7 +3024,7 @@
         "h": 6,
         "w": 4,
         "x": 14,
-        "y": 47
+        "y": 53
       },
       "id": 13,
       "options": {
@@ -2968,7 +3122,7 @@
         "h": 6,
         "w": 4,
         "x": 18,
-        "y": 47
+        "y": 53
       },
       "id": 12,
       "options": {
@@ -3065,7 +3219,7 @@
         "h": 6,
         "w": 2,
         "x": 22,
-        "y": 47
+        "y": 53
       },
       "id": 29,
       "options": {
@@ -3104,7 +3258,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 53
+        "y": 59
       },
       "id": 25,
       "panels": [],
@@ -3219,7 +3373,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 54
+        "y": 60
       },
       "id": 7,
       "options": {
@@ -3385,7 +3539,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 54
+        "y": 60
       },
       "id": 6,
       "options": {
@@ -3462,7 +3616,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 62
+        "y": 68
       },
       "id": 1,
       "panels": [],
@@ -3532,7 +3686,7 @@
         "h": 8,
         "w": 6,
         "x": 0,
-        "y": 63
+        "y": 69
       },
       "id": 2,
       "options": {
@@ -3709,7 +3863,7 @@
         "h": 8,
         "w": 6,
         "x": 6,
-        "y": 63
+        "y": 69
       },
       "id": 3,
       "options": {
@@ -3864,7 +4018,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 63
+        "y": 69
       },
       "id": 4,
       "options": {
@@ -4030,7 +4184,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 63
+        "y": 69
       },
       "id": 5,
       "options": {

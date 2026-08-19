@@ -1,0 +1,7 @@
+change_type: enhancement
+component: operations
+note: "tempo-mixin: add a pending-redaction-jobs panel and native-histogram queries to the Backend Work dashboard."
+issues: []
+subtext: |
+  "Pending Redaction Jobs" plots `tempo_backend_scheduler_jobs_pending` per tenant, so the dashboard shows how much of a redaction is left rather than only that one is running. Both job-duration panels also carry native-histogram queries alongside the classic-bucket ones, so they render on stacks retaining either.
+user: zalegrala

@@ -1,0 +1,9 @@
+change_type: enhancement
+component: backend-scheduler
+note: add `tempo_backend_scheduler_jobs_pending` and complete native-histogram coverage.
+issues: []
+subtext: |
+  `tempo_backend_scheduler_jobs_pending{tenant, job_type}` reports queue depth: jobs enqueued and not yet dispatched. Nothing exposed this before, so a submission that fanned out hundreds of jobs showed only the handful already running. It is also the only signal that can drive scale-up, since `jobs_active` is bounded by the worker count.
+
+  `tempodb_cache_store_size_bytes` was the only histogram in the tree without native-histogram configuration; it now matches the other 33.
+user: zalegrala
