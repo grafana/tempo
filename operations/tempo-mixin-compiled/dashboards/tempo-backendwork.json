@@ -250,12 +250,11 @@
       "uid": "${metrics}"
      },
      "editorMode": "code",
-     "expr": "histogram_quantile(.99, sum(rate(tempodb_blocklist_poll_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le))",
+     "expr": "(histogram_quantile(0.99, sum(rate(tempodb_blocklist_poll_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le))) and on() (vector($latency_metrics) == 1)",
      "hide": false,
-     "interval": "",
      "legendFormat": ".99",
      "range": true,
-     "refId": "D"
+     "refId": "A_classic"
     },
     {
      "datasource": {
@@ -263,11 +262,23 @@
       "uid": "${metrics}"
      },
      "editorMode": "code",
-     "expr": "histogram_quantile(.9, sum(rate(tempodb_blocklist_poll_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le))",
+     "expr": "(histogram_quantile(0.99, sum(rate(tempodb_blocklist_poll_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))) and on() (vector($latency_metrics) == -1)",
+     "hide": false,
+     "legendFormat": ".99",
+     "range": true,
+     "refId": "A_native"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${metrics}"
+     },
+     "editorMode": "code",
+     "expr": "(histogram_quantile(0.90, sum(rate(tempodb_blocklist_poll_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le))) and on() (vector($latency_metrics) == 1)",
      "hide": false,
      "legendFormat": ".9",
      "range": true,
-     "refId": "E"
+     "refId": "B_classic"
     },
     {
      "datasource": {
@@ -275,12 +286,35 @@
       "uid": "${metrics}"
      },
      "editorMode": "code",
-     "expr": "histogram_quantile(.5, sum(rate(tempodb_blocklist_poll_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le))",
+     "expr": "(histogram_quantile(0.90, sum(rate(tempodb_blocklist_poll_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))) and on() (vector($latency_metrics) == -1)",
      "hide": false,
-     "interval": "",
+     "legendFormat": ".9",
+     "range": true,
+     "refId": "B_native"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${metrics}"
+     },
+     "editorMode": "code",
+     "expr": "(histogram_quantile(0.50, sum(rate(tempodb_blocklist_poll_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le))) and on() (vector($latency_metrics) == 1)",
+     "hide": false,
      "legendFormat": ".5",
      "range": true,
-     "refId": "F"
+     "refId": "C_classic"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${metrics}"
+     },
+     "editorMode": "code",
+     "expr": "(histogram_quantile(0.50, sum(rate(tempodb_blocklist_poll_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))) and on() (vector($latency_metrics) == -1)",
+     "hide": false,
+     "legendFormat": ".5",
+     "range": true,
+     "refId": "C_native"
     }
    ],
    "title": "Blocklist Poll Duration",
@@ -380,12 +414,11 @@
       "uid": "${metrics}"
      },
      "editorMode": "code",
-     "expr": "histogram_quantile(.99, sum(rate(tempodb_retention_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))",
+     "expr": "(histogram_quantile(0.99, sum(rate(tempodb_retention_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le))) and on() (vector($latency_metrics) == 1)",
      "hide": false,
-     "interval": "",
      "legendFormat": ".99",
      "range": true,
-     "refId": "D"
+     "refId": "A_classic"
     },
     {
      "datasource": {
@@ -393,12 +426,23 @@
       "uid": "${metrics}"
      },
      "editorMode": "code",
-     "expr": "histogram_quantile(.9, sum(rate(tempodb_retention_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))",
+     "expr": "(histogram_quantile(0.99, sum(rate(tempodb_retention_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))) and on() (vector($latency_metrics) == -1)",
      "hide": false,
-     "interval": "",
+     "legendFormat": ".99",
+     "range": true,
+     "refId": "A_native"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${metrics}"
+     },
+     "editorMode": "code",
+     "expr": "(histogram_quantile(0.90, sum(rate(tempodb_retention_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le))) and on() (vector($latency_metrics) == 1)",
+     "hide": false,
      "legendFormat": ".9",
      "range": true,
-     "refId": "E"
+     "refId": "B_classic"
     },
     {
      "datasource": {
@@ -406,12 +450,35 @@
       "uid": "${metrics}"
      },
      "editorMode": "code",
-     "expr": "histogram_quantile(.5, sum(rate(tempodb_retention_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) )",
+     "expr": "(histogram_quantile(0.90, sum(rate(tempodb_retention_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))) and on() (vector($latency_metrics) == -1)",
      "hide": false,
-     "interval": "",
+     "legendFormat": ".9",
+     "range": true,
+     "refId": "B_native"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${metrics}"
+     },
+     "editorMode": "code",
+     "expr": "(histogram_quantile(0.50, sum(rate(tempodb_retention_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le))) and on() (vector($latency_metrics) == 1)",
+     "hide": false,
      "legendFormat": ".5",
      "range": true,
-     "refId": "F"
+     "refId": "C_classic"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${metrics}"
+     },
+     "editorMode": "code",
+     "expr": "(histogram_quantile(0.50, sum(rate(tempodb_retention_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))) and on() (vector($latency_metrics) == -1)",
+     "hide": false,
+     "legendFormat": ".5",
+     "range": true,
+     "refId": "C_native"
     }
    ],
    "title": "Retention duration",
@@ -1338,10 +1405,11 @@
       "uid": "${metrics}"
      },
      "editorMode": "code",
-     "expr": "histogram_quantile(0.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"backend-scheduler\", route!~\"debug_pprof|metrics|ready\"}[$__rate_interval])) by (le, route, namespace, cluster))",
+     "expr": "(histogram_quantile(0.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"backend-scheduler\", route!~\"debug_pprof|metrics|ready\"}[$__rate_interval])) by (le, route, namespace, cluster))) and on() (vector($latency_metrics) == 1)",
+     "hide": false,
      "legendFormat": "__auto",
      "range": true,
-     "refId": "A"
+     "refId": "A_classic"
     },
     {
      "datasource": {
@@ -1349,11 +1417,11 @@
       "uid": "${metrics}"
      },
      "editorMode": "code",
-     "expr": "histogram_quantile(0.90, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"backend-scheduler\", route!~\"debug_pprof|metrics|ready\"}[$__rate_interval])) by (le, route, namespace, cluster))",
+     "expr": "(histogram_quantile(0.99, sum(rate(tempo_request_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"backend-scheduler\", route!~\"debug_pprof|metrics|ready\"}[$__rate_interval])) by (route, namespace, cluster))) and on() (vector($latency_metrics) == -1)",
      "hide": false,
      "legendFormat": "__auto",
      "range": true,
-     "refId": "B"
+     "refId": "A_native"
     },
     {
      "datasource": {
@@ -1361,11 +1429,47 @@
       "uid": "${metrics}"
      },
      "editorMode": "code",
-     "expr": "histogram_quantile(0.50, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"backend-scheduler\", route!~\"debug_pprof|metrics|ready\"}[$__rate_interval])) by (le, route, namespace, cluster))",
+     "expr": "(histogram_quantile(0.90, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"backend-scheduler\", route!~\"debug_pprof|metrics|ready\"}[$__rate_interval])) by (le, route, namespace, cluster))) and on() (vector($latency_metrics) == 1)",
      "hide": false,
      "legendFormat": "__auto",
      "range": true,
-     "refId": "C"
+     "refId": "B_classic"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${metrics}"
+     },
+     "editorMode": "code",
+     "expr": "(histogram_quantile(0.90, sum(rate(tempo_request_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"backend-scheduler\", route!~\"debug_pprof|metrics|ready\"}[$__rate_interval])) by (route, namespace, cluster))) and on() (vector($latency_metrics) == -1)",
+     "hide": false,
+     "legendFormat": "__auto",
+     "range": true,
+     "refId": "B_native"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${metrics}"
+     },
+     "editorMode": "code",
+     "expr": "(histogram_quantile(0.50, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"backend-scheduler\", route!~\"debug_pprof|metrics|ready\"}[$__rate_interval])) by (le, route, namespace, cluster))) and on() (vector($latency_metrics) == 1)",
+     "hide": false,
+     "legendFormat": "__auto",
+     "range": true,
+     "refId": "C_classic"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${metrics}"
+     },
+     "editorMode": "code",
+     "expr": "(histogram_quantile(0.50, sum(rate(tempo_request_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"backend-scheduler\", route!~\"debug_pprof|metrics|ready\"}[$__rate_interval])) by (route, namespace, cluster))) and on() (vector($latency_metrics) == -1)",
+     "hide": false,
+     "legendFormat": "__auto",
+     "range": true,
+     "refId": "C_native"
     }
    ],
    "title": "Backend-scheduler request latency",
@@ -1568,10 +1672,11 @@
       "uid": "${metrics}"
      },
      "editorMode": "code",
-     "expr": "histogram_quantile(0.99, sum(rate(tempo_backend_scheduler_job_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le, job_type))",
+     "expr": "(histogram_quantile(0.99, sum(rate(tempo_backend_scheduler_job_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le, job_type))) and on() (vector($latency_metrics) == 1)",
+     "hide": false,
      "legendFormat": "p99 {{job_type}}",
      "range": true,
-     "refId": "A"
+     "refId": "A_classic"
     },
     {
      "datasource": {
@@ -1579,10 +1684,23 @@
       "uid": "${metrics}"
      },
      "editorMode": "code",
-     "expr": "histogram_quantile(0.50, sum(rate(tempo_backend_scheduler_job_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le, job_type))",
+     "expr": "(histogram_quantile(0.99, sum(rate(tempo_backend_scheduler_job_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (job_type))) and on() (vector($latency_metrics) == -1)",
+     "hide": false,
+     "legendFormat": "p99 {{job_type}}",
+     "range": true,
+     "refId": "A_native"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${metrics}"
+     },
+     "editorMode": "code",
+     "expr": "(histogram_quantile(0.50, sum(rate(tempo_backend_scheduler_job_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le, job_type))) and on() (vector($latency_metrics) == 1)",
+     "hide": false,
      "legendFormat": "p50 {{job_type}}",
      "range": true,
-     "refId": "B"
+     "refId": "B_classic"
     },
     {
      "datasource": {
@@ -1590,21 +1708,11 @@
       "uid": "${metrics}"
      },
      "editorMode": "code",
-     "expr": "histogram_quantile(0.99, sum(rate(tempo_backend_scheduler_job_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (job_type))",
-     "legendFormat": "p99 {{job_type}} (native)",
+     "expr": "(histogram_quantile(0.50, sum(rate(tempo_backend_scheduler_job_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (job_type))) and on() (vector($latency_metrics) == -1)",
+     "hide": false,
+     "legendFormat": "p50 {{job_type}}",
      "range": true,
-     "refId": "N99"
-    },
-    {
-     "datasource": {
-      "type": "prometheus",
-      "uid": "${metrics}"
-     },
-     "editorMode": "code",
-     "expr": "histogram_quantile(0.5, sum(rate(tempo_backend_scheduler_job_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (job_type))",
-     "legendFormat": "p50 {{job_type}} (native)",
-     "range": true,
-     "refId": "N50"
+     "refId": "B_native"
     }
    ],
    "title": "Job Duration",
@@ -2540,10 +2648,11 @@
       "uid": "${metrics}"
      },
      "editorMode": "code",
-     "expr": "histogram_quantile(0.99, sum(rate(tempo_backend_scheduler_job_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_REDACTION\"}[$__rate_interval])) by (le))",
+     "expr": "(histogram_quantile(0.99, sum(rate(tempo_backend_scheduler_job_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_REDACTION\"}[$__rate_interval])) by (le))) and on() (vector($latency_metrics) == 1)",
+     "hide": false,
      "legendFormat": "p99",
      "range": true,
-     "refId": "A"
+     "refId": "A_classic"
     },
     {
      "datasource": {
@@ -2551,10 +2660,23 @@
       "uid": "${metrics}"
      },
      "editorMode": "code",
-     "expr": "histogram_quantile(0.90, sum(rate(tempo_backend_scheduler_job_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_REDACTION\"}[$__rate_interval])) by (le))",
+     "expr": "(histogram_quantile(0.99, sum(rate(tempo_backend_scheduler_job_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_REDACTION\"}[$__rate_interval])))) and on() (vector($latency_metrics) == -1)",
+     "hide": false,
+     "legendFormat": "p99",
+     "range": true,
+     "refId": "A_native"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${metrics}"
+     },
+     "editorMode": "code",
+     "expr": "(histogram_quantile(0.90, sum(rate(tempo_backend_scheduler_job_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_REDACTION\"}[$__rate_interval])) by (le))) and on() (vector($latency_metrics) == 1)",
+     "hide": false,
      "legendFormat": "p90",
      "range": true,
-     "refId": "B"
+     "refId": "B_classic"
     },
     {
      "datasource": {
@@ -2562,10 +2684,23 @@
       "uid": "${metrics}"
      },
      "editorMode": "code",
-     "expr": "histogram_quantile(0.50, sum(rate(tempo_backend_scheduler_job_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_REDACTION\"}[$__rate_interval])) by (le))",
+     "expr": "(histogram_quantile(0.90, sum(rate(tempo_backend_scheduler_job_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_REDACTION\"}[$__rate_interval])))) and on() (vector($latency_metrics) == -1)",
+     "hide": false,
+     "legendFormat": "p90",
+     "range": true,
+     "refId": "B_native"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${metrics}"
+     },
+     "editorMode": "code",
+     "expr": "(histogram_quantile(0.50, sum(rate(tempo_backend_scheduler_job_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_REDACTION\"}[$__rate_interval])) by (le))) and on() (vector($latency_metrics) == 1)",
+     "hide": false,
      "legendFormat": "p50",
      "range": true,
-     "refId": "C"
+     "refId": "C_classic"
     },
     {
      "datasource": {
@@ -2573,32 +2708,11 @@
       "uid": "${metrics}"
      },
      "editorMode": "code",
-     "expr": "histogram_quantile(0.99, sum(rate(tempo_backend_scheduler_job_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_REDACTION\"}[$__rate_interval])))",
-     "legendFormat": "p99 (native)",
+     "expr": "(histogram_quantile(0.50, sum(rate(tempo_backend_scheduler_job_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_REDACTION\"}[$__rate_interval])))) and on() (vector($latency_metrics) == -1)",
+     "hide": false,
+     "legendFormat": "p50",
      "range": true,
-     "refId": "N99"
-    },
-    {
-     "datasource": {
-      "type": "prometheus",
-      "uid": "${metrics}"
-     },
-     "editorMode": "code",
-     "expr": "histogram_quantile(0.9, sum(rate(tempo_backend_scheduler_job_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_REDACTION\"}[$__rate_interval])))",
-     "legendFormat": "p90 (native)",
-     "range": true,
-     "refId": "N90"
-    },
-    {
-     "datasource": {
-      "type": "prometheus",
-      "uid": "${metrics}"
-     },
-     "editorMode": "code",
-     "expr": "histogram_quantile(0.5, sum(rate(tempo_backend_scheduler_job_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_REDACTION\"}[$__rate_interval])))",
-     "legendFormat": "p50 (native)",
-     "range": true,
-     "refId": "N50"
+     "refId": "C_native"
     }
    ],
    "title": "Redaction Job Duration",
@@ -4578,6 +4692,30 @@
     "refresh": 1,
     "regex": "",
     "type": "query"
+   },
+   {
+    "current": {
+     "text": "native",
+     "value": "-1"
+    },
+    "description": "Choose between showing latencies based on low precision classic or high precision native histogram metrics.",
+    "includeAll": false,
+    "label": "Latency metrics",
+    "name": "latency_metrics",
+    "options": [
+     {
+      "selected": true,
+      "text": "native",
+      "value": "-1"
+     },
+     {
+      "selected": false,
+      "text": "classic",
+      "value": "1"
+     }
+    ],
+    "query": "native : -1,classic : 1",
+    "type": "custom"
    }
   ]
  },
