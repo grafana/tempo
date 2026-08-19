@@ -113,6 +113,38 @@ func (b *batchStore) setQuiesceUntil(tenantID string, untilUnixNano int64) {
 	}
 }
 
+// addJobsCreated grows the batch's recorded job count under the write lock. Called when a rescan
+// enqueues further block jobs, so the progress denominator still covers every job the batch will
+// run -- frozen at submission it could be exceeded, and progress would read as negative.
+func (b *batchStore) addJobsCreated(tenantID string, n int32) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if batch, ok := b.byTenant[tenantID]; ok {
+		batch.JobsCreated += n
+	}
+}
+
+// statusSnapshot copies every field the status path reports, under the lock. Reading them off the
+// live pointer GetBatch returns would race setRescan/setQuiesceUntil/addJobsCreated.
+func (b *batchStore) statusSnapshot(tenantID string) (RedactionStatus, bool) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	batch, exists := b.byTenant[tenantID]
+	if !exists {
+		return RedactionStatus{}, false
+	}
+	return RedactionStatus{
+		BatchID:              batch.BatchId,
+		Mode:                 batch.Mode,
+		CreatedAtUnixNano:    batch.CreatedAtUnixNano,
+		StartTimeUnixNano:    batch.StartTimeUnixNano,
+		EndTimeUnixNano:      batch.EndTimeUnixNano,
+		JobsCreated:          batch.JobsCreated,
+		RescanPending:        batch.RescanAfterUnixNano > 0,
+		QuiesceUntilUnixNano: batch.QuiesceUntilUnixNano,
+	}, true
+}
+
 // quiescenceState reads a tenant's quiescence-relevant fields under the lock, returning a
 // snapshot so callers never touch the live batch pointer's mutable fields unsynchronized.
 func (b *batchStore) quiescenceState(tenantID string) (quiesceUntilUnixNano int64, rescanPending, dryRun, ok bool) {
@@ -192,4 +224,15 @@ func (w *Work) SetBatchQuiesceUntil(tenantID string, untilUnixNano int64) {
 // rescan is pending, and whether the batch is a dry-run; ok is false when no batch exists.
 func (w *Work) BatchQuiescenceState(tenantID string) (quiesceUntilUnixNano int64, rescanPending, dryRun, ok bool) {
 	return w.batches.quiescenceState(tenantID)
+}
+
+// AddBatchJobsCreated grows the tenant batch's recorded job count by n.
+func (w *Work) AddBatchJobsCreated(tenantID string, n int32) {
+	w.batches.addJobsCreated(tenantID, n)
+}
+
+// RedactionStatus returns a locked snapshot of the tenant's redaction batch; ok is false when no
+// batch exists, which is the normal state once a redaction finishes.
+func (w *Work) RedactionStatus(tenantID string) (RedactionStatus, bool) {
+	return w.batches.statusSnapshot(tenantID)
 }

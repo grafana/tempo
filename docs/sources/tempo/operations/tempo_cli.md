@@ -1053,7 +1053,8 @@ cannot be recovered. Wait until every worker for the cell supports the window be
 redaction; an unwindowed redaction is unaffected.
 {{< /admonition >}}
 
-Monitor job progress through the [`/status/backendscheduler`](/docs/tempo/<TEMPO_VERSION>/api_docs/#backend-scheduler-job-status) endpoint.
+Monitor job progress with [`redact-status`](#check-redaction-status) or through the
+[`/status/backendscheduler`](/docs/tempo/<TEMPO_VERSION>/api_docs/#backend-scheduler-job-status) endpoint.
 
 ### Examples
 
@@ -1073,4 +1074,55 @@ With TLS and a custom CA:
 
 ```bash
 tempo-cli redact --tenant=my-tenant --trace-id=931281e2a09876de16e15f45ff86283d --tls --tls-ca=/path/to/ca.pem scheduler.example.com:9095
+```
+
+## Check redaction status
+
+The `redact-status` command reports the state of a tenant's in-progress redaction.
+
+```bash
+tempo-cli redact-status --tenant=<TENANT_ID> <scheduler-address>
+```
+
+Arguments:
+
+- `scheduler-address` The backend scheduler's gRPC address, as `host:port`.
+
+Options:
+
+- `--tenant <value>` Tenant ID whose redaction to report. Required. Sent as the `X-Scope-OrgID`
+  header, so a request only ever reports the state of the tenant it authenticates as.
+- `--tls` Use a TLS transport.
+- `--tls-server-name <value>` Override the TLS server name (SNI).
+- `--tls-ca <value>` Path to a PEM-encoded CA certificate file.
+
+The command reports the batch ID, mode, phase, submission time, the window, and how many blocks are
+done, remaining, and running. `phase` explains why a redaction that has stopped doing visible work is
+still open:
+
+- `running` — block jobs are still outstanding.
+- `awaiting rescan` — the block jobs finished, and the scheduler is waiting to cover blocks that
+  compaction produced from inputs skipped at submission.
+- `quiescing` — the work is done and the batch is held briefly so the tenant's compaction stays paused
+  until teardown.
+
+A finished redaction leaves no batch behind, so the command reports `no redaction in progress for this
+tenant` once a run completes. That is the normal end state and not an error. It is not a record of what
+a redaction removed — read the `tempo_backend_scheduler_redaction_traces_found_total` metric for that.
+
+If any block job failed, the command says so: those blocks were not rewritten, and the traces they hold
+are still present.
+
+### Examples
+
+Check on a running redaction:
+
+```bash
+tempo-cli redact-status --tenant=my-tenant localhost:9095
+```
+
+With TLS and a custom CA:
+
+```bash
+tempo-cli redact-status --tenant=my-tenant --tls --tls-ca=/path/to/ca.pem scheduler.example.com:9095
 ```

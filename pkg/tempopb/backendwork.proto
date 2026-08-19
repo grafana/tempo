@@ -18,6 +18,9 @@ service BackendScheduler {
   // The scheduler discovers all blocks for the tenant and fans out one internal pending
   // job per block.
   rpc SubmitRedaction(SubmitRedactionRequest) returns (SubmitRedactionResponse) {}
+
+  // Report the state of the authenticated tenant's current redaction batch. Read-only.
+  rpc GetRedactionStatus(GetRedactionStatusRequest) returns (GetRedactionStatusResponse) {}
 }
 
 enum JobType {
@@ -52,6 +55,20 @@ message RetentionDetail {
 enum RedactionMode {
   REDACTION_MODE_APPLY = 0;    // default: rewrite blocks, removing matched traces
   REDACTION_MODE_DRY_RUN = 1;  // evaluate and count matches, never rewrite
+}
+
+// RedactionPhase reports why a batch is still present, which is what separates "still
+// deleting" from "finished deleting but not yet torn down".
+enum RedactionPhase {
+  REDACTION_PHASE_UNSPECIFIED = 0;
+  // Block jobs are still outstanding.
+  REDACTION_PHASE_RUNNING = 1;
+  // All block jobs finished; waiting on the rescan deadline to cover blocks that compaction
+  // produced from inputs skipped at submission.
+  REDACTION_PHASE_AWAITING_RESCAN = 2;
+  // All block jobs finished and no rescan is pending. The batch is held open only to keep
+  // compaction disabled until removal.
+  REDACTION_PHASE_QUIESCING = 3;
 }
 
 // TraceQLSelector carries a TraceQL expression that selects the traces to redact,
@@ -148,6 +165,41 @@ message SubmitRedactionResponse {
   int32 jobs_created = 2;
 }
 
+// GetRedactionStatusRequest asks for the state of the authenticated tenant's redaction batch.
+// The tenant is sourced exclusively from the X-Scope-OrgID request header; the message carries
+// no tenant field, so there is nothing to spoof.
+message GetRedactionStatusRequest {}
+
+// GetRedactionStatusResponse describes the tenant's current redaction batch, or reports that
+// there is none. A finished redaction leaves no batch behind, so "no batch" is the normal
+// terminal state; the durable record of what a redaction removed is the
+// redaction_traces_found_total metric, not this RPC.
+message GetRedactionStatusResponse {
+  // active reports whether a batch exists for the tenant. Every other field is unset when false.
+  bool active = 1;
+  string batch_id = 2;
+  RedactionMode mode = 3;
+  RedactionPhase phase = 4;
+  int64 created_at_unix_nano = 5;
+  // The window frozen at submission. 0 means unbounded on that side.
+  int64 start_time_unix_nano = 6;
+  int64 end_time_unix_nano = 7;
+  // jobs_created is the block-job count recorded at submission: the denominator for progress.
+  // A batch persisted by a binary predating the field reports 0, which is indistinguishable
+  // from an empty batch -- submission refuses an empty selection, so read 0 as "unknown".
+  int32 jobs_created = 8;
+  // jobs_remaining counts block jobs still queued, in flight between the queue and a worker, or
+  // running. Progress is jobs_created - jobs_remaining rather than a count of completions,
+  // because Prune deletes terminal jobs while a long batch is still going.
+  int32 jobs_remaining = 9;
+  // jobs_running is the subset of jobs_remaining currently assigned to a worker. It separates a
+  // batch that is progressing from one starved of workers.
+  int32 jobs_running = 10;
+  // jobs_failed counts block jobs that ended in failure and have not yet been pruned. Non-zero
+  // means the redaction left blocks uncovered. Best-effort, for the same pruning reason.
+  int32 jobs_failed = 11;
+}
+
 // RedactionResult is reported by the worker when a redaction job completes.
 message RedactionResult {
   option (gogoproto.equal) = true;
@@ -193,6 +245,10 @@ message RedactionBatch {
   // Stored on the batch and injected into each per-block job. 0 means unbounded on that side.
   int64 start_time_unix_nano = 10;
   int64 end_time_unix_nano = 11;
+  // jobs_created is the number of block jobs enqueued for this batch at submission. Stored so
+  // progress reporting has a denominator that does not decay: Prune deletes terminal jobs after
+  // PruneAge, so counting surviving completions understates a long-running batch.
+  int32 jobs_created = 12;
 }
 
 // RedactionBatches is the top-level container written to batches.pb.

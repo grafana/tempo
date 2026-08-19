@@ -1,0 +1,7 @@
+change_type: feature
+component: backend-scheduler
+note: "Add a GetRedactionStatus RPC and `tempo-cli redact-status` to report the state of a tenant's in-progress redaction."
+issues: []
+subtext: |
+  Reports batch ID, mode, window, phase, and how many blocks are done, remaining, and running. Progress is derived from a job count recorded on the batch minus the work still outstanding, rather than from surviving completions, which shrink as the job pruner retires them. A finished redaction leaves no batch, so the command reports that no redaction is in progress; the durable record of what was removed remains the `tempo_backend_scheduler_redaction_traces_found_total` metric.
+user: zalegrala

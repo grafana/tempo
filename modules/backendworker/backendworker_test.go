@@ -126,6 +126,10 @@ func (i *mockScheduler) SubmitRedaction(_ context.Context, _ *tempopb.SubmitReda
 	return &tempopb.SubmitRedactionResponse{}, nil
 }
 
+func (i *mockScheduler) GetRedactionStatus(_ context.Context, _ *tempopb.GetRedactionStatusRequest, _ ...grpc.CallOption) (*tempopb.GetRedactionStatusResponse, error) {
+	return &tempopb.GetRedactionStatusResponse{}, nil
+}
+
 func nextNoop(_ context.Context, _ *tempopb.NextJobRequest, _ ...grpc.CallOption) (*tempopb.NextJobResponse, error) {
 	return &tempopb.NextJobResponse{}, nil
 }

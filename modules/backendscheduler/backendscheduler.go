@@ -641,6 +641,9 @@ func (s *BackendScheduler) SubmitRedaction(ctx context.Context, req *tempopb.Sub
 		StartTimeUnixNano: req.StartTimeUnixNano,
 		EndTimeUnixNano:   req.EndTimeUnixNano,
 		CreatedAtUnixNano: time.Now().UnixNano(),
+		// Recorded so progress reporting has a denominator that does not decay as Prune retires
+		// completed jobs. A rescan that enqueues more jobs grows it (see performRescan).
+		JobsCreated: int32(len(jobs)),
 	}
 	// Only apply-mode batches arm a rescan. A dry-run rewrites nothing, so there is no output
 	// block to re-cover once a skipped compaction finishes; a rescan would only re-count and
@@ -970,6 +973,10 @@ func (s *BackendScheduler) performRescan(ctx context.Context, batch *tempopb.Red
 	}
 
 	if len(allReadyJobs) > 0 {
+		// Grow the progress denominator before enqueueing: these jobs were not part of the
+		// submission count, and a denominator the remaining count can exceed reports negative
+		// progress -- exactly in the case where compaction raced the submission.
+		s.work.AddBatchJobsCreated(tenantID, int32(len(allReadyJobs)))
 		if err := s.work.AddPendingJobs(allReadyJobs); err != nil {
 			level.Error(log.Logger).Log("msg", "redaction rescan: failed to add pending jobs", "tenant", tenantID, "err", err)
 			return

@@ -156,7 +156,14 @@ func (cmd *redactCmd) submit(ctx context.Context, c tempopb.BackendSchedulerClie
 }
 
 func (cmd *redactCmd) buildTransportCredentials() (credentials.TransportCredentials, error) {
-	if !cmd.TLS {
+	return schedulerTransportCredentials(cmd.TLS, cmd.TLSServerName, cmd.TLSCA)
+}
+
+// schedulerTransportCredentials builds the dial credentials for the scheduler, shared by every
+// redact subcommand. Hand-rolled rather than routed through the dskit grpcclient.Config the
+// scheduler client already embeds; that consolidation is tracked separately.
+func schedulerTransportCredentials(useTLS bool, serverName, caPath string) (credentials.TransportCredentials, error) {
+	if !useTLS {
 		return insecure.NewCredentials(), nil
 	}
 
@@ -168,18 +175,18 @@ func (cmd *redactCmd) buildTransportCredentials() (credentials.TransportCredenti
 		certPool = x509.NewCertPool()
 	}
 
-	if cmd.TLSCA != "" {
-		pem, err := os.ReadFile(cmd.TLSCA)
+	if caPath != "" {
+		pem, err := os.ReadFile(caPath)
 		if err != nil {
-			return nil, fmt.Errorf("reading CA cert %q: %w", cmd.TLSCA, err)
+			return nil, fmt.Errorf("reading CA cert %q: %w", caPath, err)
 		}
 		if !certPool.AppendCertsFromPEM(pem) {
-			return nil, fmt.Errorf("no valid certificates found in %q", cmd.TLSCA)
+			return nil, fmt.Errorf("no valid certificates found in %q", caPath)
 		}
 	}
 
 	return credentials.NewTLS(&tls.Config{
-		ServerName: cmd.TLSServerName,
+		ServerName: serverName,
 		RootCAs:    certPool,
 	}), nil
 }

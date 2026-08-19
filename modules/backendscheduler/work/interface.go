@@ -50,6 +50,11 @@ type Interface interface {
 	// PendingJobCounts returns enqueued, not-yet-dispatched job counts per tenant and type.
 	PendingJobCounts() map[string]map[tempopb.JobType]int
 
+	// RedactionStatus returns a locked snapshot of the tenant's redaction batch; ok is false
+	// when none exists. RedactionJobCounts reports how much of that batch is still outstanding.
+	RedactionStatus(tenantID string) (RedactionStatus, bool)
+	RedactionJobCounts(tenantID, batchID string) RedactionJobCounts
+
 	// TenantPending returns true when an exclusive tenant operation exists whose
 	// full scope is not yet reflected in the job queue — i.e. an apply-mode redaction batch
 	// (just created or in its rescan-wait window). Gates compaction and retention. A dry-run
@@ -66,6 +71,7 @@ type Interface interface {
 	SetBatchRescan(tenantID string, skippedJobIDs []string, rescanAfterUnixNano int64)
 	SetBatchQuiesceUntil(tenantID string, untilUnixNano int64)
 	BatchQuiescenceState(tenantID string) (quiesceUntilUnixNano int64, rescanPending, dryRun, ok bool)
+	AddBatchJobsCreated(tenantID string, n int32)
 	FlushBatchesToLocal(ctx context.Context, localPath string) error
 	LoadBatchesFromLocal(ctx context.Context, localPath string) error
 

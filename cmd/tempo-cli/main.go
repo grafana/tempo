@@ -97,7 +97,8 @@ var cli struct {
 		TraceDiff experimentalTraceDiffCmd `cmd:"" help:"Compare two local trace JSON files and emit an experimental trace-aware diff or summary"`
 	} `cmd:""`
 
-	Redact redactCmd `cmd:"" help:"Submit a redaction request to the backend scheduler"`
+	Redact       redactCmd       `cmd:"" help:"Submit a redaction request to the backend scheduler"`
+	RedactStatus redactStatusCmd `cmd:"" help:"Report the state of a tenant's in-progress redaction"`
 }
 
 func main() {
