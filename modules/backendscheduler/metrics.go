@@ -77,18 +77,10 @@ var (
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
 	metricJobDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "tempo",
-		Name:      "backend_scheduler_job_duration_seconds",
-		Help:      "Duration of a job in seconds",
-		// DefBuckets stops at 10s and puts nothing between 2.5s and 5s, where roughly 60% of
-		// redaction jobs land — every percentile drawn from it interpolates inside one bucket, so
-		// p50, p90 and p99 move together and say nothing. It also cannot represent a job slower
-		// than 10s at all, and a redaction over a large block runs for minutes.
-		//
-		// Powers of two from 10ms to ~11m: fast retention jobs stay resolved, the redaction mass
-		// splits across the 2.56s and 5.12s boundaries, and long jobs land in a real bucket
-		// instead of +Inf.
-		Buckets:                         prometheus.ExponentialBuckets(0.01, 2, 17),
+		Namespace:                       "tempo",
+		Name:                            "backend_scheduler_job_duration_seconds",
+		Help:                            "Duration of a job in seconds",
+		Buckets:                         prometheus.DefBuckets,
 		NativeHistogramBucketFactor:     1.1,
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
