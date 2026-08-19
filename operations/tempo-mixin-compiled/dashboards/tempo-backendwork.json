@@ -2811,6 +2811,112 @@
    "type": "timeseries"
   },
   {
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${metrics}"
+   },
+   "description": "1 while an apply-mode redaction holds the tenant, including the quiescence period after its last block job; 0 once the batch is torn down and compaction and retention resume. Use the 1 to 0 edge to confirm a redaction is fully finished -- a drained job queue is not the same state. Dry-runs never pause maintenance and so never appear here.",
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "palette-classic"
+     },
+     "custom": {
+      "axisBorderShow": false,
+      "axisCenteredZero": false,
+      "axisColorMode": "text",
+      "axisLabel": "",
+      "axisPlacement": "auto",
+      "barAlignment": 0,
+      "barWidthFactor": 0.6,
+      "drawStyle": "line",
+      "fillOpacity": 20,
+      "gradientMode": "none",
+      "hideFrom": {
+       "legend": false,
+       "tooltip": false,
+       "viz": false
+      },
+      "insertNulls": false,
+      "lineInterpolation": "stepAfter",
+      "lineWidth": 1,
+      "pointSize": 5,
+      "scaleDistribution": {
+       "type": "linear"
+      },
+      "showPoints": "auto",
+      "spanNulls": false,
+      "stacking": {
+       "group": "A",
+       "mode": "none"
+      },
+      "thresholdsStyle": {
+       "mode": "off"
+      }
+     },
+     "mappings": [
+
+     ],
+     "max": 1,
+     "min": 0,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green"
+       },
+       {
+        "color": "red",
+        "value": 80
+       }
+      ]
+     }
+    },
+    "overrides": [
+
+    ]
+   },
+   "gridPos": {
+    "h": 6,
+    "w": 12,
+    "x": 12,
+    "y": 46
+   },
+   "id": 45,
+   "options": {
+    "legend": {
+     "calcs": [
+
+     ],
+     "displayMode": "list",
+     "placement": "right",
+     "showLegend": true
+    },
+    "tooltip": {
+     "hideZeros": false,
+     "mode": "single",
+     "sort": "none"
+    }
+   },
+   "pluginVersion": "12.0.1",
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${metrics}"
+     },
+     "editorMode": "code",
+     "expr": "max by (tenant) (tempo_backend_scheduler_tenant_maintenance_paused{cluster=~\"$cluster\", namespace=~\"$namespace\"})",
+     "hide": false,
+     "legendFormat": "{{tenant}}",
+     "range": true,
+     "refId": "A"
+    }
+   ],
+   "title": "Maintenance Paused by Redaction",
+   "type": "timeseries"
+  },
+  {
    "collapsed": false,
    "gridPos": {
     "h": 1,

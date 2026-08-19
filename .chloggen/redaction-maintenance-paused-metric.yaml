@@ -1,7 +1,7 @@
 change_type: enhancement
 component: backend-scheduler
-note: "Add `tempo_backend_scheduler_tenant_maintenance_paused`, reporting whether a tenant's compaction and retention are paused by an exclusive operation."
+note: "Add `tempo_backend_scheduler_tenant_maintenance_paused` and a Backend Work panel, reporting whether a tenant's compaction and retention are paused by an exclusive operation."
 issues: []
 subtext: |
-  Set to 1 while an apply-mode redaction holds a tenant, including the quiescence period after its last block job, and back to 0 once the batch is torn down. This is the signal for whether a redaction has fully finished; job dispatch counters are not a substitute, because they keep draining a queue built before the redaction started and so dip rather than stopping.
+  "Maintenance Paused by Redaction" plots it per tenant. Set to 1 while an apply-mode redaction holds a tenant, including the quiescence period after its last block job, and back to 0 once the batch is torn down. This is the signal for whether a redaction has fully finished; job dispatch counters are not a substitute, because they keep draining a queue built before the redaction started and so dip rather than stopping.
 user: zalegrala
