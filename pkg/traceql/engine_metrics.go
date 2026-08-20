@@ -1756,6 +1756,10 @@ func (e *metricsEvaluator) DoSpansOnly(ctx context.Context, f SpansetFetcher, fe
 }
 
 func (e *metricsEvaluator) Length() int {
+	if e.mtx != nil {
+		e.mtx.Lock()
+		defer e.mtx.Unlock()
+	}
 	return e.metricsPipeline.length()
 }
 
