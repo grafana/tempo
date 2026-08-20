@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-kit/log/level"
@@ -733,6 +734,36 @@ type StaticVals interface {
 	StaticVals1 | StaticVals2 | StaticVals3 | StaticVals4 | StaticVals5
 }
 
+func cloneStaticSlice(values []Static) {
+	for i := range values {
+		values[i] = values[i].Clone()
+	}
+}
+
+// cloneStaticVals detaches array backing storage before grouping values outlive
+// the span that supplied them.
+func cloneStaticVals[S StaticVals](vals S) S {
+	switch cloned := any(vals).(type) {
+	case StaticVals1:
+		cloneStaticSlice(cloned[:])
+		return any(cloned).(S)
+	case StaticVals2:
+		cloneStaticSlice(cloned[:])
+		return any(cloned).(S)
+	case StaticVals3:
+		cloneStaticSlice(cloned[:])
+		return any(cloned).(S)
+	case StaticVals4:
+		cloneStaticSlice(cloned[:])
+		return any(cloned).(S)
+	case StaticVals5:
+		cloneStaticSlice(cloned[:])
+		return any(cloned).(S)
+	default:
+		panic("unsupported static values")
+	}
+}
+
 // GroupingAggregator groups spans into series based on attribute values.
 type GroupingAggregator[F FastStatic, S StaticVals] struct {
 	// Config
@@ -853,7 +884,7 @@ func (g *GroupingAggregator[F, S]) getSeries() aggregatorWitValues[S] {
 	s, ok := g.series[g.buf.fast]
 	if !ok {
 		s.agg = g.innerAgg()
-		s.vals = g.buf.vals
+		s.vals = cloneStaticVals(g.buf.vals)
 		g.series[g.buf.fast] = s
 	}
 
@@ -883,8 +914,8 @@ func (g *GroupingAggregator[F, S]) ObserveExemplar(span Span, value float64, ts 
 	// Observe exemplar
 	all := span.AllAttributes()
 	lbls := make(Labels, 0, len(all))
-	for k, v := range span.AllAttributes() {
-		lbls = append(lbls, Label{k.String(), v})
+	for k, v := range all {
+		lbls = append(lbls, Label{k.String(), v.Clone()})
 	}
 	s.agg.ObserveExemplar(value, ts, lbls)
 }
@@ -974,7 +1005,7 @@ func (u *UngroupedAggregator) ObserveExemplar(span Span, value float64, ts uint6
 	all := span.AllAttributes()
 	lbls := make(Labels, 0, len(all))
 	for k, v := range all {
-		lbls = append(lbls, Label{k.String(), v})
+		lbls = append(lbls, Label{k.String(), v.Clone()})
 	}
 	u.innerAgg.ObserveExemplar(value, ts, lbls)
 }
@@ -1149,6 +1180,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 			exemplarMap:       make(map[string]struct{}, exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
 			needsFullTrace:    NeedsFullTrace(pipeline),
 		}
+		me.exemplarsAvailable.Store(exemplars > 0)
 
 		// Determine usage of new fetch layer.
 		// Hint in the query takes precedence over passed in options which are hard-coded or from tenant config.
@@ -1203,8 +1235,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 		me.end = req.End
 
 		if me.maxExemplars > 0 {
-			cb := func() bool { return me.exemplarCount < me.maxExemplars }
-			meta := ExemplarMetaConditionsWithout(cb, storageReq.SecondPassConditions, storageReq.AllConditions)
+			meta := ExemplarMetaConditionsWithout(me.exemplarsAvailable.Load, storageReq.SecondPassConditions, storageReq.AllConditions)
 			storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, meta...)
 		}
 
@@ -1221,11 +1252,11 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 			if s == nil || len(s.Spans) == 0 {
 				return nil, nil
 			}
-			// The traceql engine isn't thread-safe.
-			// But parallelization is required for good metrics performance.
-			// So we do external locking here.
-			me.mtx.Lock()
-			defer me.mtx.Unlock()
+			// The TraceQL filter pipeline is not thread-safe, but it is
+			// independent of metricsPipeline. Keep it separately serialized so
+			// storage callbacks do not contend with batched metric aggregation.
+			me.secondPassMtx.Lock()
+			defer me.secondPassMtx.Unlock()
 			return pipeline.evaluate([]*Spanset{s})
 		}
 
@@ -1451,12 +1482,15 @@ func (e *batchMetricsEvaluator) Results() SeriesSet {
 }
 
 type metricsEvaluator struct {
-	start, end                      uint64
-	checkTime                       bool
-	needsFullTrace                  bool
-	spanOnlyFetch                   bool
-	maxExemplars, exemplarCount     int
-	exemplarMap                     map[string]struct{}
+	start, end                  uint64
+	checkTime                   bool
+	needsFullTrace              bool
+	spanOnlyFetch               bool
+	maxExemplars, exemplarCount int
+	exemplarMap                 map[string]struct{}
+	// exemplarsAvailable lets storage callbacks skip exemplar metadata without
+	// taking mtx while aggregation is processing a batch.
+	exemplarsAvailable              atomic.Bool
 	timeOverlapCutoff               float64
 	storageReq                      *FetchSpansRequest
 	metricsPipeline                 spanProcessor
@@ -1469,7 +1503,11 @@ type metricsEvaluator struct {
 	// watchers inspect matched result spans (independent of the second pass) to collect extra on-demand metrics.
 	// Shared across all sub-pipeline evaluators of a request; owned and reported by batchMetricsEvaluator.
 	watchers *spanWatchers
-	mtx      sync.Mutex
+	// mtx protects metrics aggregation, exemplars, watchers, and fetch stats.
+	mtx sync.Mutex
+	// secondPassMtx protects the independent TraceQL filter pipeline used while
+	// storage advances span-only iterators.
+	secondPassMtx sync.Mutex
 }
 
 // EvaluatorMetrics is the snapshot returned by MetricsEvaluator.Metrics().
@@ -1664,60 +1702,62 @@ func (e *metricsEvaluator) DoSpansOnly(ctx context.Context, f SpansetFetcher, fe
 
 	watch := e.watchers.Active()
 
-	for {
-		done, err := func() (done bool, err error) {
+	batches, batched := fetch.Results.(SpanBatchIterator)
+	if batched && maxSeries <= 0 {
+		for {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+
+			// NextBatch may advance storage iterators and invoke SecondPass, so it
+			// must stay outside e.mtx. The returned spans remain valid until
+			// ReleaseBatch, allowing the engine work below to share one lock.
+			spans, fetchErr := batches.NextBatch(ctx, spansOnlyBatchSize)
+			if len(spans) == 0 {
+				if fetchErr != nil {
+					return fetchErr
+				}
+				break
+			}
+
+			done, nextWatch, err := e.observeSpansOnlyBatch(ctx, spans, maxSeries, watch)
+			batches.ReleaseBatch()
+			if err != nil {
+				return err
+			}
+			watch = nextWatch
+			if done {
+				break
+			}
+			if fetchErr != nil {
+				return fetchErr
+			}
+		}
+	} else {
+		// A max-series cutoff is only known after observing a span. Advancing a
+		// batch before that observation can make bounded requests scan well past
+		// their cutoff, so retain the original per-span iterator behavior here.
+		for {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+
 			s, err := fetch.Results.Next(ctx)
 			if err != nil {
-				return true, err
+				return err
 			}
 			if s == nil {
-				return true, nil
+				break
 			}
 
-			// Acquire lock while doing engine work. It is
-			// not locked above while doing storage work.
-			// TODO(mdisibio): Removed batching so that the mutex lock is not held during
-			// storage work and allows the secondPass callback to be called. However this
-			// represents ~20% performance loss, so we need to re-add batching.
-			e.mtx.Lock()
-			defer e.mtx.Unlock()
-
-			if e.checkTime {
-				st := s.StartTimeUnixNanos()
-				if st <= e.start || st > e.end {
-					return false, nil
-				}
+			done, nextWatch, err := e.observeSpansOnlyBatch(ctx, []Span{s}, maxSeries, watch)
+			if err != nil {
+				return err
 			}
-
-			if e.storageReq.SpanSampler != nil {
-				e.storageReq.SpanSampler.Measured()
+			watch = nextWatch
+			if done {
+				break
 			}
-
-			e.metricsPipeline.observe(s)
-			if watch {
-				watch = e.watchers.WatchSpan(s)
-			}
-			e.spansTotal++
-
-			if e.maxExemplars > 0 && e.exemplarCount < e.maxExemplars {
-				traceID, ok := s.AttributeFor(IntrinsicTraceIDAttribute)
-				if ok {
-					if e.sampleExemplar(traceID.valBytes) {
-						e.metricsPipeline.observeExemplar(s)
-					}
-				}
-			}
-
-			if maxSeries > 0 && e.metricsPipeline.length() >= maxSeries {
-				return true, nil
-			}
-			return
-		}()
-		if err != nil {
-			return err
-		}
-		if done {
-			break
 		}
 	}
 
@@ -1728,6 +1768,55 @@ func (e *metricsEvaluator) DoSpansOnly(ctx context.Context, f SpansetFetcher, fe
 	}
 
 	return nil
+}
+
+// spansOnlyBatchSize bounds the amount of iterator-owned span state retained
+// while the evaluator lock is held. Storage iteration and second-pass callbacks
+// run before this batch is locked.
+const spansOnlyBatchSize = 64
+
+// observeSpansOnlyBatch applies the evaluator-owned work to one storage batch.
+// Callers must acquire the spans outside e.mtx so storage reads and SecondPass
+// callbacks remain outside the metrics aggregation critical section.
+func (e *metricsEvaluator) observeSpansOnlyBatch(ctx context.Context, spans []Span, maxSeries int, watch bool) (done bool, nextWatch bool, err error) {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+
+	for _, s := range spans {
+		if err := ctx.Err(); err != nil {
+			return false, watch, err
+		}
+
+		if e.checkTime {
+			st := s.StartTimeUnixNanos()
+			if st <= e.start || st > e.end {
+				continue
+			}
+		}
+
+		if e.storageReq.SpanSampler != nil {
+			e.storageReq.SpanSampler.Measured()
+		}
+
+		e.metricsPipeline.observe(s)
+		if watch {
+			watch = e.watchers.WatchSpan(s)
+		}
+		e.spansTotal++
+
+		if e.maxExemplars > 0 && e.exemplarCount < e.maxExemplars {
+			traceID, ok := s.AttributeFor(IntrinsicTraceIDAttribute)
+			if ok && e.sampleExemplar(traceID.valBytes) {
+				e.metricsPipeline.observeExemplar(s)
+			}
+		}
+
+		if maxSeries > 0 && e.metricsPipeline.length() >= maxSeries {
+			return true, watch, nil
+		}
+	}
+
+	return false, watch, nil
 }
 
 func (e *metricsEvaluator) Length() int {
@@ -1824,6 +1913,7 @@ func (e *metricsEvaluator) Results() SeriesSet {
 
 func (e *metricsEvaluator) sampleExemplar(id []byte) bool {
 	if len(e.exemplarMap) >= e.maxExemplars {
+		e.exemplarsAvailable.Store(false)
 		return false
 	}
 	if len(id) == 0 {
@@ -1838,6 +1928,9 @@ func (e *metricsEvaluator) sampleExemplar(id []byte) bool {
 
 	e.exemplarMap[string(id)] = struct{}{}
 	e.exemplarCount++
+	if e.exemplarCount >= e.maxExemplars {
+		e.exemplarsAvailable.Store(false)
+	}
 	return true
 }
 

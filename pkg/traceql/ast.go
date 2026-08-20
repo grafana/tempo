@@ -895,6 +895,39 @@ func NewStaticBooleanArray(b []bool) Static {
 	}
 }
 
+// Clone returns a Static with independent array backing storage. Scalar values
+// are immutable, so they are safe to share.
+func (s Static) Clone() Static {
+	switch s.Type {
+	case TypeIntArray:
+		values, _ := s.IntArray()
+		if len(values) == 0 {
+			return s
+		}
+		return NewStaticIntArray(slices.Clone(values))
+	case TypeFloatArray:
+		values, _ := s.FloatArray()
+		if len(values) == 0 {
+			return s
+		}
+		return NewStaticFloatArray(slices.Clone(values))
+	case TypeStringArray:
+		values, _ := s.StringArray()
+		if len(values) == 0 {
+			return s
+		}
+		return NewStaticStringArray(slices.Clone(values))
+	case TypeBooleanArray:
+		values, _ := s.BooleanArray()
+		if len(values) == 0 {
+			return s
+		}
+		return NewStaticBooleanArray(slices.Clone(values))
+	default:
+		return s
+	}
+}
+
 var (
 	seedBytes = []byte{204, 38, 247, 160, 15, 37, 67, 77}
 	// separatorByte is a byte that cannot occur in valid UTF-8 sequences

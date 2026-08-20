@@ -48,6 +48,53 @@ func TestNewStaticNil(t *testing.T) {
 	assert.Equal(t, Static{}, s)
 }
 
+func TestStaticCloneDetachesArrays(t *testing.T) {
+	ints := []int{1, 2}
+	floats := []float64{1.5, 2.5}
+	strings := []string{"one", "two"}
+	bools := []bool{true, false}
+
+	tests := []struct {
+		name   string
+		static Static
+		mutate func()
+		want   Static
+	}{
+		{
+			name:   "integer",
+			static: NewStaticIntArray(ints),
+			mutate: func() { ints[0] = 3 },
+			want:   NewStaticIntArray([]int{1, 2}),
+		},
+		{
+			name:   "float",
+			static: NewStaticFloatArray(floats),
+			mutate: func() { floats[0] = 3.5 },
+			want:   NewStaticFloatArray([]float64{1.5, 2.5}),
+		},
+		{
+			name:   "string",
+			static: NewStaticStringArray(strings),
+			mutate: func() { strings[0] = "three" },
+			want:   NewStaticStringArray([]string{"one", "two"}),
+		},
+		{
+			name:   "boolean",
+			static: NewStaticBooleanArray(bools),
+			mutate: func() { bools[0] = false },
+			want:   NewStaticBooleanArray([]bool{true, false}),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clone := tt.static.Clone()
+			tt.mutate()
+			require.True(t, clone.StrictEquals(&tt.want))
+		})
+	}
+}
+
 func TestStatic_Int(t *testing.T) {
 	tests := []struct {
 		arg any

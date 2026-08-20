@@ -524,8 +524,8 @@ func (g *avgOverTimeSpanAggregator[F, S]) ObserveExemplar(span Span, value float
 
 	all := span.AllAttributes()
 	lbls := make(Labels, 0, len(all))
-	for k, v := range span.AllAttributes() {
-		lbls = append(lbls, Label{k.String(), v})
+	for k, v := range all {
+		lbls = append(lbls, Label{k.String(), v.Clone()})
 	}
 
 	s.average.Exemplars = append(s.average.Exemplars, Exemplar{
@@ -600,7 +600,7 @@ func (g *avgOverTimeSpanAggregator[F, S]) getSeries(span Span) avgOverTimeSeries
 	if !ok {
 		intervals := g.intervalMapper.IntervalCount()
 		s = avgOverTimeSeries[S]{
-			vals:            g.buf.vals,
+			vals:            cloneStaticVals(g.buf.vals),
 			average:         newAverageSeries(intervals, g.exemplars, nil),
 			exemplarBuckets: newExemplarBucketSet(g.exemplars, g.start, g.end, g.step, g.instant),
 			initialized:     true,

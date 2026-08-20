@@ -45,6 +45,14 @@ type attrVal struct {
 	s traceql.Static
 }
 
+// batchArrayBuffer retains a batch span's detached array backing storage.
+type batchArrayBuffer struct {
+	ints    []int
+	floats  []float64
+	strings []string
+	bools   []bool
+}
+
 // span implements traceql.Span
 type span struct {
 	spanAttrs            []attrVal
@@ -53,6 +61,7 @@ type span struct {
 	eventAttrs           []attrVal
 	linkAttrs            []attrVal
 	instrumentationAttrs []attrVal
+	batchArrayBuffers    []batchArrayBuffer
 
 	id                 []byte
 	startTimeUnixNanos uint64
@@ -915,6 +924,7 @@ var spanPool = sync.Pool{
 }
 
 func putSpan(s *span) {
+	s.batchArrayBuffers = resetBatchArrayBuffers(s.batchArrayBuffers)
 	s.id = nil
 	s.startTimeUnixNanos = 0
 	s.durationNanos = 0
@@ -936,6 +946,26 @@ func putSpan(s *span) {
 
 func getSpan() *span {
 	return spanPool.Get().(*span)
+}
+
+func resetBatchArrayBuffers(buffers []batchArrayBuffer) []batchArrayBuffer {
+	for i := range buffers {
+		clear(buffers[i].strings)
+		buffers[i].strings = buffers[i].strings[:0]
+	}
+
+	return buffers[:0]
+}
+
+func (s *span) nextBatchArrayBuffer() *batchArrayBuffer {
+	n := len(s.batchArrayBuffers)
+	if n == cap(s.batchArrayBuffers) {
+		s.batchArrayBuffers = append(s.batchArrayBuffers, batchArrayBuffer{})
+	} else {
+		s.batchArrayBuffers = s.batchArrayBuffers[:n+1]
+	}
+
+	return &s.batchArrayBuffers[n]
 }
 
 var spansetPool = sync.Pool{}

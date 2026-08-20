@@ -283,23 +283,59 @@ func (b *pageFile) Close() error {
 	return b.osFile.Close()
 }
 
+// batchIterator is the generic form of traceql.SpanBatchIterator used to
+// propagate batching through WAL iterator wrappers.
+type batchIterator[T comparable] interface {
+	NextBatch(context.Context, int) ([]T, error)
+	ReleaseBatch()
+}
+
 // pageFileClosingIterator wraps an iterator with a pageFile and ensures both are
 // always closed.
-type pageFileClosingIterator[T any] struct {
+type pageFileClosingIterator[T comparable] struct {
 	iter     traceql.CommonIterator[T]
 	pageFile *pageFile
+	batch    []T
 }
 
 var (
-	_ traceql.SpansetIterator = (*pageFileClosingIterator[*traceql.Spanset])(nil)
-	_ traceql.SpanIterator    = (*pageFileClosingIterator[traceql.Span])(nil)
+	_ traceql.SpansetIterator   = (*pageFileClosingIterator[*traceql.Spanset])(nil)
+	_ traceql.SpanIterator      = (*pageFileClosingIterator[traceql.Span])(nil)
+	_ traceql.SpanBatchIterator = (*pageFileClosingIterator[traceql.Span])(nil)
 )
 
 func (b *pageFileClosingIterator[T]) Next(ctx context.Context) (T, error) {
 	return b.iter.Next(ctx)
 }
 
+func (b *pageFileClosingIterator[T]) NextBatch(ctx context.Context, size int) ([]T, error) {
+	if iter, ok := b.iter.(batchIterator[T]); ok {
+		return iter.NextBatch(ctx, size)
+	}
+	if size <= 0 {
+		return nil, errBatchSize
+	}
+
+	res, err := b.Next(ctx)
+	var zero T
+	if res == zero {
+		return nil, err
+	}
+	b.batch = append(b.batch[:0], res)
+	return b.batch, err
+}
+
+func (b *pageFileClosingIterator[T]) ReleaseBatch() {
+	if iter, ok := b.iter.(batchIterator[T]); ok {
+		iter.ReleaseBatch()
+		return
+	}
+	clear(b.batch)
+	b.batch = b.batch[:0]
+}
+
 func (b *pageFileClosingIterator[T]) Close() {
+	b.ReleaseBatch()
 	b.iter.Close()
 	b.pageFile.Close()
 }
@@ -1154,11 +1190,15 @@ func (i *commonIterator) Close() {
 // mergeIterator iterates through the list of WAL block flush pages and iterates them in order.
 type mergeIterator[T comparable] struct {
 	iters []traceql.CommonIterator[T]
+
+	batchIter batchIterator[T]
+	batch     []T
 }
 
 var (
-	_ traceql.SpansetIterator = (*mergeIterator[*traceql.Spanset])(nil)
-	_ traceql.SpanIterator    = (*mergeIterator[traceql.Span])(nil)
+	_ traceql.SpansetIterator   = (*mergeIterator[*traceql.Spanset])(nil)
+	_ traceql.SpanIterator      = (*mergeIterator[traceql.Span])(nil)
+	_ traceql.SpanBatchIterator = (*mergeIterator[traceql.Span])(nil)
 )
 
 func (i *mergeIterator[T]) Next(ctx context.Context) (T, error) {
@@ -1179,7 +1219,58 @@ func (i *mergeIterator[T]) Next(ctx context.Context) (T, error) {
 	return zero, nil
 }
 
+func (i *mergeIterator[T]) NextBatch(ctx context.Context, size int) ([]T, error) {
+	if size <= 0 {
+		return nil, errBatchSize
+	}
+	if i.batchIter != nil || len(i.batch) > 0 {
+		return nil, errBatchNotReleased
+	}
+
+	var zero T
+	for len(i.iters) > 0 {
+		if iter, ok := i.iters[0].(batchIterator[T]); ok {
+			batch, err := iter.NextBatch(ctx, size)
+			if len(batch) > 0 {
+				i.batchIter = iter
+				return batch, err
+			}
+			if err != nil {
+				return nil, err
+			}
+
+			i.iters[0].Close()
+			i.iters = i.iters[1:]
+			continue
+		}
+
+		res, err := i.iters[0].Next(ctx)
+		if res != zero {
+			i.batch = append(i.batch[:0], res)
+			return i.batch, err
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		i.iters[0].Close()
+		i.iters = i.iters[1:]
+	}
+
+	return nil, nil
+}
+
+func (i *mergeIterator[T]) ReleaseBatch() {
+	if i.batchIter != nil {
+		i.batchIter.ReleaseBatch()
+		i.batchIter = nil
+	}
+	clear(i.batch)
+	i.batch = i.batch[:0]
+}
+
 func (i *mergeIterator[T]) Close() {
+	i.ReleaseBatch()
 	// Close any outstanding iters
 	for _, iter := range i.iters {
 		iter.Close()
