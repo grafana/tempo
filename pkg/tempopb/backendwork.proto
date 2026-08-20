@@ -79,6 +79,12 @@ message RedactionDetail {
   // scan. 0 means unbounded on that side.
   int64 start_time_unix_nano = 5;
   int64 end_time_unix_nano = 6;
+  // verify marks a job created by the post-completion verification pass: scan the block and report
+  // the match count, never rewrite it. This is a job-level field rather than a mode because Next()
+  // overwrites `mode` from the batch on every dispatch, so a mode set here would be replaced by the
+  // batch's APPLY and the verification scan would rewrite the block. The worker turns this into a
+  // dry-run scan, which keeps the rewrite layer unaware of verification entirely.
+  bool verify = 7;
 }
 
 // JobDetail contains the specific details for each job type
@@ -193,6 +199,10 @@ message RedactionBatch {
   // Stored on the batch and injected into each per-block job. 0 means unbounded on that side.
   int64 start_time_unix_nano = 10;
   int64 end_time_unix_nano = 11;
+  // verify_rounds counts the verification passes run for this batch. Persisted so a scheduler
+  // restart resumes the count rather than resetting it, which would let a batch that keeps finding
+  // matches re-verify forever and hold the tenant's compaction off indefinitely.
+  int32 verify_rounds = 12;
 }
 
 // RedactionBatches is the top-level container written to batches.pb.
