@@ -32,6 +32,26 @@ var (
 	}, []string{"tenant", "job_type"})
 	// Queue depth. Distinct from jobs_active, which counts work already handed to a worker and is
 	// therefore bounded by the worker count — only depth can indicate that more capacity is needed.
+	metricRedactionVerifyFound = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "backend_scheduler_redaction_verify_traces_found_total",
+		Help:      "Traces found by a verification scan after a redaction reported complete; non-zero means a block was missed.",
+	}, []string{"tenant"})
+	metricRedactionVerifyRounds = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "backend_scheduler_redaction_verify_rounds_total",
+		Help:      "Verification passes enqueued after a redaction batch's jobs drained.",
+	}, []string{"tenant"})
+	metricRedactionVerifyGaps = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "backend_scheduler_redaction_verify_gaps_total",
+		Help:      "Blocks found still holding matches after a redaction reported complete; each enqueued a further redaction job.",
+	}, []string{"tenant"})
+	metricRedactionVerifyExhausted = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "backend_scheduler_redaction_verify_exhausted_total",
+		Help:      "Redaction batches released without a clean verification pass after exhausting their rounds; the redaction may be incomplete.",
+	}, []string{"tenant"})
 	metricJobsPending = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempo",
 		Name:      "backend_scheduler_jobs_pending",
@@ -99,6 +119,18 @@ func recordRedactionResult(tenant string, mode tempopb.RedactionMode, found int3
 		return
 	}
 	metricRedactionTracesFound.WithLabelValues(tenant, redactionModeLabel(mode)).Add(float64(found))
+}
+
+// recordRedactionVerifyResult records what a verification scan found. Kept separate from
+// recordRedactionResult so verification never contributes to the apply or dry-run traces-found
+// counters: those are the record of what a redaction removed, and a verify job removes nothing.
+// A clean pass finds zero and is deliberately not counted as a series -- the signal worth alerting
+// on is a non-zero find, which means a block survived a redaction that reported complete.
+func recordRedactionVerifyResult(tenant string, tracesFound int32) {
+	if tracesFound <= 0 {
+		return
+	}
+	metricRedactionVerifyFound.WithLabelValues(tenant).Add(float64(tracesFound))
 }
 
 // redactionModeLabel is a short, stable metric label for a redaction mode.
