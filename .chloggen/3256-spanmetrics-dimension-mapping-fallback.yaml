@@ -1,0 +1,14 @@
+change_type: bug_fix
+component: metrics-generator
+note: Span metrics now fall back to the `dimension_mappings.name` attribute when no `source_labels` match, so spans that already use the target attribute (e.g. `http_response_status_code`) are labelled consistently with spans mapped from a legacy source (e.g. `http.status_code`).
+issues: [3256]
+subtext: |
+  Previously, a `dimension_mappings` entry such as
+  `name: http_response_status_code, source_labels: [http.status_code]` only
+  populated the `http_response_status_code` metric label when the span had the
+  legacy `http.status_code` attribute. Spans already carrying
+  `http_response_status_code` (or `http.response.status_code` after sanitization)
+  ended up on a separate series with an empty label. With this change, if no
+  `source_label` matches, the processor falls back to the mapping `name` itself,
+  letting both span conventions land on the same series.
+user: buiducnhat
