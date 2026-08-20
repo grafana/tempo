@@ -436,7 +436,18 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 			}
 		case tempopb.JobType_JOB_TYPE_REDACTION:
 			if req.Redaction != nil {
-				recordRedactionResult(j.Tenant(), j.JobDetail.GetRedaction().GetMode(), req.Redaction.TracesFound)
+				if j.JobDetail.GetRedaction().GetVerify() {
+					// A verify job's mode arrives as the batch's APPLY (Next() overwrites it), so
+					// reporting it under that label would credit verification scans to the apply
+					// counter and inflate what the redaction claims to have removed.
+					recordRedactionVerifyResult(j.Tenant(), req.Redaction.TracesFound)
+					if req.Redaction.TracesFound > 0 {
+						s.enqueueRedactionForVerifiedBlock(ctx, j.Tenant(),
+							j.JobDetail.GetBatchId(), j.JobDetail.GetRedaction().GetBlockId())
+					}
+				} else {
+					recordRedactionResult(j.Tenant(), j.JobDetail.GetRedaction().GetMode(), req.Redaction.TracesFound)
+				}
 				level.Info(log.Logger).Log("msg", "redaction job result",
 					"job_id", req.JobId,
 					"tenant", j.Tenant(),
@@ -704,7 +715,7 @@ func (s *BackendScheduler) cleanupOrphanedBatches(ctx context.Context) {
 	changed := false
 	for _, batch := range s.work.ListBatches() {
 		// batch.TenantId is immutable; advanceQuiescence reads the mutable fields under lock.
-		if s.advanceQuiescence(batch.TenantId) {
+		if s.advanceQuiescence(ctx, batch.TenantId) {
 			changed = true
 		}
 	}
@@ -774,7 +785,7 @@ func (s *BackendScheduler) enterQuiescence(tenantID string) {
 // quiescing batch is removed once its deadline passes. Between entry and the deadline it makes no
 // change (returns false), so the manifest is not rewritten on every tick. The caller flushes once
 // per tick if anything changed.
-func (s *BackendScheduler) advanceQuiescence(tenantID string) (changed bool) {
+func (s *BackendScheduler) advanceQuiescence(ctx context.Context, tenantID string) (changed bool) {
 	quiesceUntil, rescanPending, dryRun, ok := s.work.BatchQuiescenceState(tenantID)
 	if !ok {
 		return false
@@ -795,6 +806,12 @@ func (s *BackendScheduler) advanceQuiescence(tenantID string) (changed bool) {
 		return true
 	}
 	if quiesceUntil == 0 {
+		// Verify before quiescing, not after: quiescence is the window that keeps compaction off so
+		// the batch can still act, and a pass that finds a gap needs to enqueue work rather than
+		// discover it once teardown has already re-enabled compaction.
+		if s.runVerification(ctx, tenantID) {
+			return true
+		}
 		s.enterQuiescence(tenantID)
 		return true
 	}
