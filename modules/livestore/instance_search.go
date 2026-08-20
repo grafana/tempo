@@ -257,6 +257,9 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 				searchOpts = append(searchOpts, traceql.WithSkipOptimization(name))
 			}
 			searchOpts = append(searchOpts, overrides.SpanPruningAwarenessCompileOptions(i.overrides.SpanPruningAwareness(i.tenantID))...)
+			if p := i.overrides.EngineBytesTracking(i.tenantID); p != nil {
+				searchOpts = append(searchOpts, traceql.WithEngineBytesTracking(*p))
+			}
 			resp, err = traceql.NewEngine().ExecuteSearch(ctx, req, f, searchOpts...)
 		} else {
 			resp, err = b.Search(ctx, req, opts)
@@ -277,10 +280,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		resultsMtx.Lock()
 		defer resultsMtx.Unlock()
 
-		if resp.Metrics != nil {
-			metrics.InspectedTraces += resp.Metrics.InspectedTraces
-			metrics.InspectedBytes += resp.Metrics.InspectedBytes
-		}
+		metrics = tempopb.MergeSearchMetrics(metrics, resp.Metrics)
 
 		for _, tr := range resp.Traces {
 			combiner.AddMetadata(tr)
@@ -762,11 +762,19 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 	}
 
 	compileOpts = append(compileOpts, overrides.SpanPruningAwarenessCompileOptions(i.overrides.SpanPruningAwareness(i.tenantID))...)
+	if p := i.overrides.EngineBytesTracking(i.tenantID); p != nil {
+		compileOpts = append(compileOpts, traceql.WithEngineBytesTracking(*p))
+	}
 
 	// Compile the raw version of the query for head and wal blocks
 	// These aren't cached and we put them all into the same evaluator
-	// for efficiency.
-	rawEval, err := e.CompileMetricsQueryRange(req, compileOpts...)
+	// for efficiency. iterateBlocks below evaluates wal blocks concurrently against this
+	// one evaluator, so it needs a lock; queryRangeCompleteBlock below compiles its own
+	// private evaluator per complete block and doesn't share one, so compileOpts (used there)
+	// intentionally omits the lock.
+	var rawEvalMtx sync.Mutex
+	rawCompileOpts := append([]traceql.CompileOption{traceql.WithLock(&rawEvalMtx)}, compileOpts...)
+	rawEval, err := e.CompileMetricsQueryRange(req, rawCompileOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -783,10 +791,20 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 		return nil, fmt.Errorf("time range must be within last %v", i.Cfg.CompleteBlockTimeout)
 	}
 
-	maxSeries := int(req.MaxSeries)
-	maxSeriesReached := atomic.Bool{}
-	maxSeriesReached.Store(false)
-	inspectedBytes := atomic.NewUint64(0)
+	var (
+		maxSeries        = int(req.MaxSeries)
+		maxSeriesReached atomic.Bool
+		metricsMtx       sync.Mutex
+		metrics          = &tempopb.SearchMetrics{}
+	)
+	mergeMetrics := func(src *tempopb.SearchMetrics) {
+		if src == nil {
+			return
+		}
+		metricsMtx.Lock()
+		defer metricsMtx.Unlock()
+		metrics = tempopb.MergeSearchMetrics(metrics, src)
+	}
 
 	search := func(ctx context.Context, _ *backend.BlockMeta, b block) error {
 		if walBlock, ok := b.(common.WALBlock); ok {
@@ -802,12 +820,14 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 		}
 
 		if localBlock, ok := b.(*LocalBlock); ok {
-			resp, bytes, err := i.queryRangeCompleteBlock(ctx, localBlock, *req, compileOpts)
+			resp, err := i.queryRangeCompleteBlock(ctx, localBlock, *req, compileOpts)
 			if err != nil {
 				return err
 			}
-			inspectedBytes.Add(bytes)
-			jobEval.ObserveSeries(resp)
+			if resp != nil {
+				mergeMetrics(resp.Metrics)
+				jobEval.ObserveSeries(resp.Series)
+			}
 			if maxSeries > 0 && jobEval.Length() > maxSeries {
 				maxSeriesReached.Store(true)
 				return errComplete
@@ -832,28 +852,25 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 	rr := r.ToProto(req)
 
 	rawEm := rawEval.Metrics()
-	inspectedBytes.Add(rawEm.Bytes)
-	totalBytes := inspectedBytes.Load()
-	metricQueryInspectedBytesTotal.WithLabelValues(i.tenantID, queryOpQueryRange).Add(float64(totalBytes))
-
-	respMetrics := &tempopb.SearchMetrics{
-		InspectedBytes:    totalBytes,
+	mergeMetrics(&tempopb.SearchMetrics{
+		InspectedBytes:    rawEm.Bytes,
 		BackendReads:      rawEm.BackendReads,
 		BackendBytes:      rawEm.BackendBytes,
 		AdditionalMetrics: rawEm.AdditionalMetrics,
-	}
+	})
+	metricQueryInspectedBytesTotal.WithLabelValues(i.tenantID, queryOpQueryRange).Add(float64(metrics.InspectedBytes))
 
 	if maxSeriesReached.Load() {
 		return &tempopb.QueryRangeResponse{
 			Series:  rr[:maxSeries],
-			Metrics: respMetrics,
+			Metrics: metrics,
 			Status:  tempopb.PartialStatus_PARTIAL,
 		}, nil
 	}
 
 	return &tempopb.QueryRangeResponse{
 		Series:  rr,
-		Metrics: respMetrics,
+		Metrics: metrics,
 	}, nil
 }
 
@@ -876,9 +893,11 @@ func (i *instance) queryRangeWALBlock(ctx context.Context, b common.WALBlock, ev
 	return eval.Do(ctx, fetcher, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()), maxSeries)
 }
 
-// queryRangeCompleteBlock returns the per-block series and the bytes scanned to
-// produce them. A cache hit reports 0 bytes since no parquet data was read.
-func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *LocalBlock, req tempopb.QueryRangeRequest, compileOpts []traceql.CompileOption) ([]*tempopb.TimeSeries, uint64, error) {
+// queryRangeCompleteBlock returns the per-block QueryRangeResponse. A cache hit
+// reports InspectedBytes=0 since no parquet data was read, but still returns
+// cacheable AdditionalMetrics stored with the cached series. Returns nil when
+// the request does not overlap the block after alignment.
+func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *LocalBlock, req tempopb.QueryRangeRequest, compileOpts []traceql.CompileOption) (*tempopb.QueryRangeResponse, error) {
 	m := b.BlockMeta()
 	ctx, span := tracer.Start(ctx, "instance.QueryRange.CompleteBlock", oteltrace.WithAttributes(
 		attribute.String("block", m.BlockID.String()),
@@ -893,7 +912,7 @@ func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *LocalBlock, r
 
 	if req.Start >= req.End {
 		// After alignment there is no overlap or something else isn't right
-		return nil, 0, nil
+		return nil, nil
 	}
 
 	name := queryRangeCacheName(req)
@@ -907,12 +926,12 @@ func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *LocalBlock, r
 	span.SetAttributes(attribute.Bool("cached", cached != nil))
 
 	if cached != nil {
-		return cached.Series, 0, nil
+		return cached, nil
 	}
 
 	eval, err := traceql.NewEngine().CompileMetricsQueryRange(&req, compileOpts...)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 	f := traceql.NewSpansetFetcherWrapperBoth(
 		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
@@ -924,20 +943,32 @@ func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *LocalBlock, r
 	)
 	err = eval.Do(ctx, f, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()), int(req.MaxSeries))
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
 	results := eval.Results().ToProto(&req)
-	inspectedBytes := eval.Metrics().Bytes
+	em := eval.Metrics()
 
+	resp := &tempopb.QueryRangeResponse{
+		Series: results,
+		Metrics: &tempopb.SearchMetrics{
+			InspectedBytes:    em.Bytes,
+			AdditionalMetrics: em.AdditionalMetrics,
+		},
+	}
+
+	// For caching only persist what is cacheable.
 	if err := i.queryRangeCacheSet(ctx, m, name, &tempopb.QueryRangeResponse{
 		Series: results,
+		Metrics: &tempopb.SearchMetrics{
+			AdditionalMetrics: tempopb.CacheableAdditionalMetrics(em.AdditionalMetrics),
+		},
 	}); err != nil {
 		level.Warn(i.logger).Log("msg", "writing local query cache failed",
 			"block", m.BlockID.String(), "err", err)
 	}
 
-	return results, inspectedBytes, nil
+	return resp, nil
 }
 
 func queryRangeCacheName(req tempopb.QueryRangeRequest) string {

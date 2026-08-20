@@ -434,6 +434,15 @@ func (o *runtimeConfigOverridesManager) SpanPruningAwareness(userID string) bool
 	return o.getOverridesForUser(userID).Read.SpanPruningAwareness
 }
 
+// EngineBytesTracking returns whether the engine bytes watcher is enabled for the tenant, or nil
+// if not set for the tenant or in the cluster-wide default.
+func (o *runtimeConfigOverridesManager) EngineBytesTracking(userID string) *bool {
+	if v := o.getOverridesForUser(userID).Read.EngineBytesTracking; v != nil {
+		return v
+	}
+	return o.defaultLimits.Read.EngineBytesTracking
+}
+
 func (o *runtimeConfigOverridesManager) SpanPruningEnabled(userID string) *bool {
 	return o.getOverridesForUser(userID).Read.SpanPruningEnabled
 }

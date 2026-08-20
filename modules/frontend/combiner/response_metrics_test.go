@@ -53,17 +53,39 @@ func TestSearchMetricsCombiner_CacheHitSuppressesNewFields(t *testing.T) {
 	mc := NewSearchMetricsCombiner()
 	cacheHit := &fakePipelineResponse{cacheHit: true}
 	mc.Combine(&tempopb.SearchMetrics{
-		InspectedBytes:    100,
-		BackendReads:      2,
-		BackendBytes:      4096,
-		AdditionalMetrics: map[string]int64{tempopb.AdditionalMetricCacheHits: 5},
+		InspectedBytes: 100,
+		BackendReads:   2,
+		BackendBytes:   4096,
+		AdditionalMetrics: map[string]int64{
+			tempopb.AdditionalMetricCacheHits:   5,  // not cacheable
+			tempopb.AdditionalMetricEngineBytes: 42, // cacheable
+		},
 	}, cacheHit)
 	// CompletedJobs still increments on cache hit (matches existing semantics).
 	assert.Equal(t, uint32(1), mc.Metrics.CompletedJobs)
 	assert.Equal(t, uint64(0), mc.Metrics.InspectedBytes)
 	assert.Equal(t, uint64(0), mc.Metrics.BackendReads)
 	assert.Equal(t, uint64(0), mc.Metrics.BackendBytes)
-	assert.Empty(t, mc.Metrics.AdditionalMetrics)
+	assert.Equal(t, int64(42), mc.Metrics.AdditionalMetrics[tempopb.AdditionalMetricEngineBytes])
+	_, ok := mc.Metrics.AdditionalMetrics[tempopb.AdditionalMetricCacheHits]
+	assert.False(t, ok, "non-cacheable AdditionalMetrics must be suppressed on cache hit")
+}
+
+func TestQueryRangeMetricsCombiner_CacheHitKeepsCacheableAdditionalMetrics(t *testing.T) {
+	mc := NewQueryRangeMetricsCombiner()
+	cacheHit := &fakePipelineResponse{cacheHit: true}
+	mc.Combine(&tempopb.SearchMetrics{
+		InspectedBytes: 200,
+		AdditionalMetrics: map[string]int64{
+			tempopb.AdditionalMetricCacheHits:   9,
+			tempopb.AdditionalMetricEngineBytes: 11,
+		},
+	}, cacheHit)
+
+	assert.Equal(t, uint64(0), mc.Metrics.InspectedBytes)
+	assert.Equal(t, int64(11), mc.Metrics.AdditionalMetrics[tempopb.AdditionalMetricEngineBytes])
+	_, ok := mc.Metrics.AdditionalMetrics[tempopb.AdditionalMetricCacheHits]
+	assert.False(t, ok)
 }
 
 func TestSearchMetricsCombiner_CombineMetadataDoesNotPullNewFields(t *testing.T) {
@@ -143,17 +165,24 @@ func TestQueryRangeMetricsCombiner_SumsNewFields(t *testing.T) {
 
 func TestMergeAdditionalMetrics(t *testing.T) {
 	// nil/empty source is no-op.
-	assert.Nil(t, mergeAdditionalMetrics(nil, nil))
-	assert.Nil(t, mergeAdditionalMetrics(nil, map[string]int64{}))
+	assert.Nil(t, mergeAdditionalMetrics(nil, nil, false))
+	assert.Nil(t, mergeAdditionalMetrics(nil, map[string]int64{}, false))
 
 	// Allocates dst lazily and copies entries.
-	dst := mergeAdditionalMetrics(nil, map[string]int64{"a": 1, "b": 2})
+	dst := mergeAdditionalMetrics(nil, map[string]int64{"a": 1, "b": 2}, false)
 	assert.Equal(t, int64(1), dst["a"])
 	assert.Equal(t, int64(2), dst["b"])
 
 	// Sums into existing dst keys.
-	dst = mergeAdditionalMetrics(dst, map[string]int64{"a": 5, "c": 7})
+	dst = mergeAdditionalMetrics(dst, map[string]int64{"a": 5, "c": 7}, false)
 	assert.Equal(t, int64(6), dst["a"])
 	assert.Equal(t, int64(2), dst["b"])
 	assert.Equal(t, int64(7), dst["c"])
+
+	// cacheableOnly keeps only IsCacheable keys.
+	dst = mergeAdditionalMetrics(nil, map[string]int64{
+		tempopb.AdditionalMetricCacheHits:   5,
+		tempopb.AdditionalMetricEngineBytes: 3,
+	}, true)
+	assert.Equal(t, map[string]int64{tempopb.AdditionalMetricEngineBytes: 3}, dst)
 }

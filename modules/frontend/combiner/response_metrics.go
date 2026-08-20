@@ -8,14 +8,18 @@ import (
 
 // mergeAdditionalMetrics performs an in-place key-by-key sum of src into dst,
 // allocating dst lazily. Both maps may be nil.
-func mergeAdditionalMetrics(dst, src map[string]int64) map[string]int64 {
+// When cacheableOnly is true, only keys marked cacheable by tempopb.IsCacheableAdditionalMetric are merged.
+func mergeAdditionalMetrics(dst, src map[string]int64, cacheableOnly bool) map[string]int64 {
 	if len(src) == 0 {
 		return dst
 	}
-	if dst == nil {
-		dst = make(map[string]int64, len(src))
-	}
 	for k, v := range src {
+		if cacheableOnly && !tempopb.IsCacheableAdditionalMetric(k) {
+			continue
+		}
+		if dst == nil {
+			dst = make(map[string]int64, len(src))
+		}
 		dst[k] += v
 	}
 	return dst
@@ -34,13 +38,15 @@ func NewSearchMetricsCombiner() *SearchMetricsCombiner {
 func (mc *SearchMetricsCombiner) Combine(newMetrics *tempopb.SearchMetrics, resp PipelineResponse) {
 	if newMetrics != nil {
 		mc.Metrics.CompletedJobs++
-		if !IsCacheHit(resp.HTTPResponse()) {
+		cacheHit := IsCacheHit(resp.HTTPResponse())
+		if !cacheHit {
 			mc.Metrics.InspectedTraces += newMetrics.InspectedTraces
 			mc.Metrics.InspectedBytes += newMetrics.InspectedBytes
 			mc.Metrics.BackendReads += newMetrics.BackendReads
 			mc.Metrics.BackendBytes += newMetrics.BackendBytes
-			mc.Metrics.AdditionalMetrics = mergeAdditionalMetrics(mc.Metrics.AdditionalMetrics, newMetrics.AdditionalMetrics)
 		}
+		// Cacheable AdditionalMetrics are retained across cache hits.
+		mc.Metrics.AdditionalMetrics = mergeAdditionalMetrics(mc.Metrics.AdditionalMetrics, newMetrics.AdditionalMetrics, cacheHit)
 	}
 }
 
@@ -66,12 +72,16 @@ func NewTraceByIDMetricsCombiner() *TraceByIDMetricsCombiner {
 }
 
 func (mc *TraceByIDMetricsCombiner) Combine(newMetrics *tempopb.TraceByIDMetrics, resp PipelineResponse) {
-	if newMetrics != nil && !IsCacheHit(resp.HTTPResponse()) {
+	if newMetrics == nil {
+		return
+	}
+	cacheHit := IsCacheHit(resp.HTTPResponse())
+	if !cacheHit {
 		mc.Metrics.InspectedBytes += newMetrics.InspectedBytes
 		mc.Metrics.BackendReads += newMetrics.BackendReads
 		mc.Metrics.BackendBytes += newMetrics.BackendBytes
-		mc.Metrics.AdditionalMetrics = mergeAdditionalMetrics(mc.Metrics.AdditionalMetrics, newMetrics.AdditionalMetrics)
 	}
+	mc.Metrics.AdditionalMetrics = mergeAdditionalMetrics(mc.Metrics.AdditionalMetrics, newMetrics.AdditionalMetrics, cacheHit)
 }
 
 type MetadataMetricsCombiner struct {
@@ -85,12 +95,16 @@ func NewMetadataMetricsCombiner() *MetadataMetricsCombiner {
 }
 
 func (mc *MetadataMetricsCombiner) Combine(newMetrics *tempopb.MetadataMetrics, resp PipelineResponse) {
-	if newMetrics != nil && !IsCacheHit(resp.HTTPResponse()) {
+	if newMetrics == nil {
+		return
+	}
+	cacheHit := IsCacheHit(resp.HTTPResponse())
+	if !cacheHit {
 		mc.Metrics.InspectedBytes += newMetrics.InspectedBytes
 		mc.Metrics.BackendReads += newMetrics.BackendReads
 		mc.Metrics.BackendBytes += newMetrics.BackendBytes
-		mc.Metrics.AdditionalMetrics = mergeAdditionalMetrics(mc.Metrics.AdditionalMetrics, newMetrics.AdditionalMetrics)
 	}
+	mc.Metrics.AdditionalMetrics = mergeAdditionalMetrics(mc.Metrics.AdditionalMetrics, newMetrics.AdditionalMetrics, cacheHit)
 }
 
 type QueryRangeMetricsCombiner struct {
@@ -112,7 +126,8 @@ func (mc *QueryRangeMetricsCombiner) Combine(newMetrics *tempopb.SearchMetrics, 
 			newMetrics.CompletedJobs = 1
 			mc.Metrics.CompletedJobs += newMetrics.CompletedJobs
 		}
-		if !IsCacheHit(resp.HTTPResponse()) {
+		cacheHit := IsCacheHit(resp.HTTPResponse())
+		if !cacheHit {
 			mc.Metrics.TotalJobs += newMetrics.TotalJobs
 			mc.Metrics.TotalBlocks += newMetrics.TotalBlocks
 			mc.Metrics.TotalBlockBytes += newMetrics.TotalBlockBytes
@@ -121,7 +136,8 @@ func (mc *QueryRangeMetricsCombiner) Combine(newMetrics *tempopb.SearchMetrics, 
 			mc.Metrics.InspectedSpans += newMetrics.InspectedSpans
 			mc.Metrics.BackendReads += newMetrics.BackendReads
 			mc.Metrics.BackendBytes += newMetrics.BackendBytes
-			mc.Metrics.AdditionalMetrics = mergeAdditionalMetrics(mc.Metrics.AdditionalMetrics, newMetrics.AdditionalMetrics)
 		}
+		// Cacheable AdditionalMetrics are retained across cache hits.
+		mc.Metrics.AdditionalMetrics = mergeAdditionalMetrics(mc.Metrics.AdditionalMetrics, newMetrics.AdditionalMetrics, cacheHit)
 	}
 }

@@ -65,15 +65,26 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 		resp, err := rt.RoundTrip(req)
 		elapsed := time.Since(start)
 
-		var inspectBytes uint64
-		if comb.MetricsCombiner != nil && comb.MetricsCombiner.Metrics != nil {
-			inspectBytes = comb.MetricsCombiner.Metrics.InspectedBytes
+		var m *tempopb.TraceByIDMetrics
+		if comb.MetricsCombiner != nil {
+			m = comb.MetricsCombiner.Metrics
 		}
+
+		inspectBytes := m.GetInspectedBytes()
 		postSLOHook(resp, tenant, inspectBytes, elapsed, err)
 
 		traceID, _ := tracing.ExtractTraceID(req.Context())
+		if p := o.EngineBytesTracking(tenant); p != nil && *p && m != nil {
+			if m.AdditionalMetrics == nil {
+				m.AdditionalMetrics = map[string]int64{}
+			}
+			// no TraceQL engine on this path; use protobuf payload size as engineBytes
+			if result := comb.Result(); result != nil {
+				m.AdditionalMetrics[tempopb.AdditionalMetricEngineBytes] = int64(result.Size())
+			}
+		}
 		recordResult(
-			level.Info(logger), req.Context(),
+			level.Info(logger), req.Context(), m.GetAdditionalMetrics(),
 			"msg", "trace id response",
 			"tenant", tenant,
 			"traceID", traceID,
@@ -83,7 +94,7 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 			"request_throughput", float64(inspectBytes)/elapsed.Seconds(),
 			"err", err,
 		)
-
+		recordTraceByIDMetrics(tenant, m)
 		return resp, err
 	})
 }
@@ -192,13 +203,20 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 		findResp, _ := comb.GRPCFinal()
 		if findResp != nil && findResp.Metrics != nil {
 			bytesProcessed = findResp.Metrics.InspectedBytes
+			if p := o.EngineBytesTracking(tenant); p != nil && *p {
+				if findResp.Metrics.AdditionalMetrics == nil {
+					findResp.Metrics.AdditionalMetrics = map[string]int64{}
+				}
+				// no TraceQL engine on this path; use protobuf payload size as engineBytes
+				findResp.Metrics.AdditionalMetrics[tempopb.AdditionalMetricEngineBytes] = int64(findResp.Size())
+			}
 		}
 
 		postSLOHook(resp, tenant, bytesProcessed, elapsed, err)
 
 		traceID, _ := tracing.ExtractTraceID(req.Context())
 		recordResult(
-			level.Info(logger), req.Context(),
+			level.Info(logger), req.Context(), findResp.GetMetrics().GetAdditionalMetrics(),
 			"msg", "trace id response",
 			"tenant", tenant,
 			"traceID", traceID,
@@ -210,7 +228,7 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			"trace_filter_enabled", traceFilter != nil,
 			"err", err,
 		)
-
+		recordTraceByIDMetrics(tenant, findResp.GetMetrics())
 		return resp, err
 	})
 }

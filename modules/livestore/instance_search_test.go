@@ -1663,6 +1663,17 @@ func TestQueryRangeToleratesCorruptCache(t *testing.T) {
 
 func TestQueryRangeReportsInspectedBytes(t *testing.T) {
 	i, ls := defaultInstance(t)
+
+	engineBytesLimits, err := overrides.NewOverrides(overrides.Config{
+		Defaults: overrides.Overrides{
+			Read: overrides.ReadOverrides{
+				EngineBytesTracking: new(true),
+			},
+		},
+	}, nil, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+	i.overrides = engineBytesLimits
+
 	writeTracesForSearch(t, i, "", foo, bar, true, false)
 
 	blockID, err := i.cutBlocks(t.Context(), true)
@@ -1708,13 +1719,19 @@ func TestQueryRangeReportsInspectedBytes(t *testing.T) {
 	require.NotNil(t, first.Metrics, "QueryRange should populate Metrics")
 	require.Greater(t, first.Metrics.InspectedBytes, uint64(0),
 		"cache-miss QueryRange should report scanned bytes")
+	require.Greater(t, first.Metrics.AdditionalMetrics[tempopb.AdditionalMetricEngineBytes], int64(0),
+		"cache-miss QueryRange should report engineBytes")
 
-	// Second call: cache hit, no parquet read so we expect zero bytes.
+	// Second call: cache hit, no parquet read so we expect zero inspected bytes,
+	// but cacheable AdditionalMetrics (engineBytes) must still be present.
 	second, err := i.QueryRange(t.Context(), req)
 	require.NoError(t, err)
 	require.NotNil(t, second.Metrics)
 	require.Equal(t, uint64(0), second.Metrics.InspectedBytes,
 		"cache-hit QueryRange should not report scanned bytes")
+	require.Equal(t, first.Metrics.AdditionalMetrics[tempopb.AdditionalMetricEngineBytes],
+		second.Metrics.AdditionalMetrics[tempopb.AdditionalMetricEngineBytes],
+		"cacheable engineBytes must survive the complete-block cache hit")
 
 	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
 }

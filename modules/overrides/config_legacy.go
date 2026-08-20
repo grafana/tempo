@@ -83,6 +83,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		LeftPadTraceIDs:               c.Read.LeftPadTraceIDs,
 		MetricsSpanOnlyFetch:          c.Read.MetricsSpanOnlyFetch,
 		SpanPruningAwareness:          c.Read.SpanPruningAwareness,
+		EngineBytesTracking:           c.Read.EngineBytesTracking,
 		SpanPruningEnabled:            c.Read.SpanPruningEnabled,
 
 		MaxBytesPerTrace: c.Global.MaxBytesPerTrace,
@@ -172,6 +173,7 @@ type LegacyOverrides struct {
 	LeftPadTraceIDs      bool           `yaml:"left_pad_trace_ids" json:"left_pad_trace_ids"`
 	MetricsSpanOnlyFetch *bool          `yaml:"metrics_spanonly_fetch,omitempty" json:"metrics_spanonly_fetch,omitempty"`
 	SpanPruningAwareness bool           `yaml:"span_pruning_awareness,omitempty" json:"span_pruning_awareness,omitempty"`
+	EngineBytesTracking  *bool          `yaml:"engine_bytes_tracking,omitempty" json:"engine_bytes_tracking,omitempty"`
 	SpanPruningEnabled   *bool          `yaml:"span_pruning_enabled,omitempty" json:"span_pruning_enabled,omitempty"`
 
 	// MaxBytesPerTrace is enforced in the Ingester, Compactor, Querier (Search). It
@@ -329,6 +331,7 @@ func (l *LegacyOverrides) toNewLimits() *Overrides {
 			LeftPadTraceIDs:               l.LeftPadTraceIDs,
 			MetricsSpanOnlyFetch:          l.MetricsSpanOnlyFetch,
 			SpanPruningAwareness:          l.SpanPruningAwareness,
+			EngineBytesTracking:           l.EngineBytesTracking,
 			SpanPruningEnabled:            l.SpanPruningEnabled,
 		},
 		Compaction: CompactionOverrides{

@@ -475,6 +475,7 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		UnsafeQueryHints:     true,
 		MetricsSpanOnlyFetch: boolPtr(true),
 		SpanPruningAwareness: true,
+		EngineBytesTracking:  boolPtr(true),
 		SpanPruningEnabled:   boolPtr(true),
 
 		MaxBytesPerTrace: 10 * 1024 * 1024,

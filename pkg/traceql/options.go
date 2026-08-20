@@ -1,5 +1,7 @@
 package traceql
 
+import "sync"
+
 // CompileOption is a functional option for Parse, Compile, Engine.CompileMetricsQueryRange, and Engine.CompileMetricsQueryRangeNonRaw.
 // Parse and Compile silently ignore options specific to metrics queries like WithSpanOnlyFetch and WithTimeOverlapCutoff.
 type CompileOption func(*compileOptions)
@@ -13,7 +15,9 @@ type compileOptions struct {
 	timeOverlapCutoff float64
 	extrapolate       *bool
 
-	watchers []SpanWatcher
+	engineBytesTracking bool
+	watchers            []SpanWatcher
+	lock                *sync.Mutex
 }
 
 func applyCompileOptions(opts ...CompileOption) compileOptions {
@@ -57,12 +61,35 @@ func WithTimeOverlapCutoff(v float64) CompileOption {
 	}
 }
 
+// WithEngineBytesTracking enables the collection and calculation of the amount of data flowing
+// through the engine for the query. This includes the "size" of data of each span's attributes and fields.
+func WithEngineBytesTracking(v bool) CompileOption {
+	return func(o *compileOptions) {
+		o.engineBytesTracking = v
+	}
+}
+
 // WithWatchers installs span watchers on the query.
 // Watchers inspect matched spans to gather extra on-demand metrics.
 // They are typically installed from per-tenant overrides and shared across a request's sub-queries.
 func WithWatchers(watchers ...SpanWatcher) CompileOption {
 	return func(o *compileOptions) {
 		o.watchers = append(o.watchers, watchers...)
+	}
+}
+
+// WithLock supplies the lock a metrics evaluator (Engine.CompileMetricsQueryRange) uses to guard
+// its Do/DoSpansOnly work, including any watchers installed via WithWatchers and
+// WithEngineBytesTracking. Metrics query only.
+//
+// Pass this when the compiled evaluator will be driven by multiple goroutines, e.g. livestore's
+// QueryRange evaluates WAL blocks concurrently against one shared evaluator. When nil (the
+// default), the evaluator performs no locking at all; only omit this when the compiled evaluator
+// is guaranteed to be used by a single goroutine, e.g. one evaluator per block as with the
+// querier's per-block QueryRange.
+func WithLock(mtx *sync.Mutex) CompileOption {
+	return func(o *compileOptions) {
+		o.lock = mtx
 	}
 }
 

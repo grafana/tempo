@@ -3770,6 +3770,36 @@ func TestCompileMetricsQueryRange_IsSummaryWatcher(t *testing.T) {
 	})
 }
 
+func TestCompileMetricsQueryRange_EngineBytesWatcher(t *testing.T) {
+	ctx := context.Background()
+
+	makeSpans := func() []Span {
+		return []Span{
+			newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("a", "ab").WithSpanString("b", "cdef"),
+			newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("c", "xyz").WithAttrBool("ok", true),
+		}
+	}
+
+	run := func(t *testing.T, query string) map[string]int64 {
+		t.Helper()
+		req := &tempopb.QueryRangeRequest{
+			Start: 1,
+			End:   uint64(3 * time.Second),
+			Step:  uint64(time.Second),
+			Query: query,
+		}
+		eval, err := NewEngine().CompileMetricsQueryRange(req, WithEngineBytesTracking(true))
+		require.NoError(t, err)
+		require.NoError(t, eval.Do(ctx, &fakeSpanFetcher{makeSpans}, 0, 0, 0))
+		return eval.Metrics().AdditionalMetrics
+	}
+
+	t.Run("installed when enabled and counts attribute bytes", func(t *testing.T) {
+		got := run(t, `{} | rate()`)
+		require.Greater(t, got[tempopb.AdditionalMetricEngineBytes], int64(0))
+	})
+}
+
 func runTraceQLMetric(req *tempopb.QueryRangeRequest, inSpans ...[]Span) (SeriesSet, int, error) {
 	res, err := processLayer1AndLayer2(req, inSpans...)
 	if err != nil {

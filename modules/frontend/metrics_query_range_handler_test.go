@@ -402,6 +402,10 @@ func TestQueryRangeCachedMetrics(t *testing.T) {
 				Metrics: &tempopb.SearchMetrics{
 					InspectedTraces: 2,
 					InspectedBytes:  33,
+					AdditionalMetrics: map[string]int64{
+						tempopb.AdditionalMetricCacheHits:   5,  // not cacheable
+						tempopb.AdditionalMetricEngineBytes: 42, // cacheable
+					},
 				},
 				Series: []*tempopb.TimeSeries{
 					{
@@ -459,6 +463,8 @@ func TestQueryRangeCachedMetrics(t *testing.T) {
 	require.Equal(t, uint32(1), actualResp.Metrics.TotalJobs)
 	require.Equal(t, uint32(1), actualResp.Metrics.TotalBlocks)
 	require.Equal(t, uint64(defaultTargetBytesPerRequest), actualResp.Metrics.TotalBlockBytes)
+	require.Equal(t, int64(42), actualResp.Metrics.AdditionalMetrics[tempopb.AdditionalMetricEngineBytes])
+	require.Equal(t, int64(5), actualResp.Metrics.AdditionalMetrics[tempopb.AdditionalMetricCacheHits])
 
 	// execute query again
 	respWriter = httptest.NewRecorder()
@@ -473,7 +479,7 @@ func TestQueryRangeCachedMetrics(t *testing.T) {
 	err = jsonpb.Unmarshal(bytes.NewReader(bytesResp), actualResp)
 	require.NoError(t, err)
 
-	// verify metrics are 0 because the response was cached
+	// I/O metrics are 0 because the response was cached
 	require.Equal(t, uint64(0), actualResp.Metrics.InspectedBytes)
 	require.Equal(t, uint32(0), actualResp.Metrics.InspectedTraces)
 	require.Equal(t, uint32(1), actualResp.Metrics.CompletedJobs)
@@ -481,6 +487,10 @@ func TestQueryRangeCachedMetrics(t *testing.T) {
 	require.Equal(t, uint32(1), actualResp.Metrics.TotalJobs)
 	require.Equal(t, uint32(1), actualResp.Metrics.TotalBlocks)
 	require.Equal(t, uint64(defaultTargetBytesPerRequest), actualResp.Metrics.TotalBlockBytes)
+	// cacheable AdditionalMetrics survive the hit; non-cacheable ones do not
+	require.Equal(t, int64(42), actualResp.Metrics.AdditionalMetrics[tempopb.AdditionalMetricEngineBytes])
+	_, ok := actualResp.Metrics.AdditionalMetrics[tempopb.AdditionalMetricCacheHits]
+	require.False(t, ok)
 }
 
 func TestQueryRangeHandlerWithEndCutoff(t *testing.T) {
@@ -1500,6 +1510,28 @@ func (l *recordingLogger) String() string {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.buf.String()
+}
+
+func TestLogQueryRangeResult_IncludesAdditionalMetrics(t *testing.T) {
+	logger := &recordingLogger{}
+	req := &tempopb.QueryRangeRequest{Query: "{} | rate()", Start: 1, End: 2}
+	resp := &tempopb.QueryRangeResponse{
+		Metrics: &tempopb.SearchMetrics{
+			InspectedBytes: 100,
+			AdditionalMetrics: map[string]int64{
+				tempopb.AdditionalMetricEngineBytes: 42,
+				"otherMetric":                       7,
+			},
+		},
+	}
+
+	logQueryRangeResult(context.Background(), logger, "tenant", 1.0, req, resp, nil)
+
+	got := logger.String()
+	require.Contains(t, got, tempopb.AdditionalMetricEngineBytes)
+	require.Contains(t, got, "42")
+	require.Contains(t, got, "otherMetric")
+	require.Contains(t, got, "7")
 }
 
 // TestQueryRangeHandlerLogsErrorReason is a regression test for the HTTP metrics

@@ -99,6 +99,7 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 		}
 		postSLOHook(nil, tenant, bytesProcessed, duration, err)
 		logQueryInstantResult(ctx, logger, tenant, duration.Seconds(), req, finalResponse, err)
+		recordQueryMetrics(tenant, metricsOp, finalResponse.GetMetrics())
 		return err
 	}
 }
@@ -205,6 +206,7 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 		}
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
 		logQueryInstantResult(req.Context(), logger, tenant, duration.Seconds(), i, &qiResp, err)
+		recordQueryMetrics(tenant, metricsOp, qiResp.GetMetrics())
 
 		return resp, nil
 	})
@@ -269,7 +271,7 @@ func logQueryInstantResult(ctx context.Context, logger log.Logger, tenantID stri
 
 	if resp == nil {
 		recordResult(
-			level.Info(logger), ctx,
+			level.Info(logger), ctx, nil,
 			"msg", "query instant results - no resp",
 			"tenant", tenantID,
 			"traceID", traceID,
@@ -281,7 +283,7 @@ func logQueryInstantResult(ctx context.Context, logger log.Logger, tenantID stri
 
 	if resp.Metrics == nil {
 		recordResult(
-			level.Info(logger), ctx,
+			level.Info(logger), ctx, nil,
 			"msg", "query instant results - no metrics",
 			"tenant", tenantID,
 			"traceID", traceID,
@@ -294,7 +296,7 @@ func logQueryInstantResult(ctx context.Context, logger log.Logger, tenantID stri
 	}
 
 	recordResult(
-		level.Info(logger), ctx,
+		level.Info(logger), ctx, resp.Metrics.AdditionalMetrics,
 		"msg", "query instant results",
 		"tenant", tenantID,
 		"traceID", traceID,

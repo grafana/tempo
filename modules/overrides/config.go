@@ -185,6 +185,10 @@ type ReadOverrides struct {
 	// span-pruning summary spans (spans carrying aggregation.is_summary).
 	SpanPruningAwareness bool `yaml:"span_pruning_awareness,omitempty" json:"span_pruning_awareness,omitempty"`
 
+	// EngineBytesTracking enables tracking of encoded attribute bytes on matched spans, reported
+	// as an additional query metric. When not set, the cluster-wide default is used.
+	EngineBytesTracking *bool `yaml:"engine_bytes_tracking,omitempty" json:"engine_bytes_tracking,omitempty"`
+
 	// SpanPruningEnabled, when set, overrides frontend.TraceByIDConfig.SpanPruningEnabledByDefault
 	// per-tenant. When not set (nil), the cluster-wide config value is used. This is distinct from
 	// frontend.TraceByIDConfig.SpanPruningEnabled, the cluster-wide kill switch for the feature — this

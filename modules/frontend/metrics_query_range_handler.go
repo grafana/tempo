@@ -105,6 +105,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 		}
 		postSLOHook(nil, tenant, bytesProcessed, duration, err)
 		logQueryRangeResult(ctx, logger, tenant, duration.Seconds(), req, finalResponse, err)
+		recordQueryMetrics(tenant, metricsOp, finalResponse.GetMetrics())
 		return err
 	}
 }
@@ -190,6 +191,7 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 			logErr = finalErr
 		}
 		logQueryRangeResult(req.Context(), logger, tenant, duration.Seconds(), queryRangeReq, queryRangeResp, logErr)
+		recordQueryMetrics(tenant, metricsOp, queryRangeResp.GetMetrics())
 		return resp, err
 	})
 }
@@ -257,7 +259,7 @@ func logQueryRangeResult(ctx context.Context, logger log.Logger, tenantID string
 
 	if resp == nil {
 		recordResult(
-			level.Info(logger), ctx,
+			level.Info(logger), ctx, nil,
 			"msg", "query range response - no resp",
 			"tenant", tenantID,
 			"traceID", traceID,
@@ -269,7 +271,7 @@ func logQueryRangeResult(ctx context.Context, logger log.Logger, tenantID string
 
 	if resp.Metrics == nil {
 		recordResult(
-			level.Info(logger), ctx,
+			level.Info(logger), ctx, nil,
 			"msg", "query range response - no metrics",
 			"tenant", tenantID,
 			"traceID", traceID,
@@ -282,7 +284,7 @@ func logQueryRangeResult(ctx context.Context, logger log.Logger, tenantID string
 	}
 
 	recordResult(
-		level.Info(logger), ctx,
+		level.Info(logger), ctx, resp.Metrics.AdditionalMetrics,
 		"msg", "query range response",
 		"tenant", tenantID,
 		"traceID", traceID,

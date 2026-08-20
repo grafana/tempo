@@ -105,6 +105,14 @@ func (c *TraceByIDCombiner) AddResponse(r PipelineResponse) error {
 	return err
 }
 
+// Result returns the combined trace, or nil if none was found.
+func (c *TraceByIDCombiner) Result() *tempopb.Trace {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	t, _ := c.c.Result()
+	return t
+}
+
 func (c *TraceByIDCombiner) HTTPFinal() (*http.Response, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

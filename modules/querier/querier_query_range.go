@@ -113,6 +113,9 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 	}
 
 	compileOpts = append(compileOpts, overrides.SpanPruningAwarenessCompileOptions(q.limits.SpanPruningAwareness(tenantID))...)
+	if p := q.limits.EngineBytesTracking(tenantID); p != nil {
+		compileOpts = append(compileOpts, traceql.WithEngineBytesTracking(*p))
+	}
 
 	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, compileOpts...)
 	if err != nil {
