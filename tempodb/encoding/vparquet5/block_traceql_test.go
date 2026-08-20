@@ -1939,7 +1939,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 				Exemplars: 2,
 			}
 
-			eval, err := e.CompileMetricsQueryRange(req, traceql.WithUnsafeHints(true))
+			eval, err := e.CompileMetricsQueryRange(req, traceql.WithUnsafeHints(true), traceql.WithEngineBytesTracking(true))
 			require.NoError(b, err)
 
 			b.ResetTimer()

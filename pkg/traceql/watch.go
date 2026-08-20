@@ -1,7 +1,6 @@
 package traceql
 
 import (
-	"sync"
 	"sync/atomic"
 )
 
@@ -71,16 +70,16 @@ func (a *attrPresenceWatcher) Stats() map[string]int64 {
 // (1) obs[:active] are still active
 // (2) obs[active:] have gone inactive.
 // Inactive watchers are never dropped, only moved past the boundary, so WatchSpans only walks the active prefix.
+//
+// spanWatchers does no locking of its own. Callers that share one spanWatchers across multiple
+// goroutines (e.g. a metricsEvaluator with WithLock set, used across concurrently-evaluated
+// blocks) are responsible for synchronizing every call, including Active().
 type spanWatchers struct {
-	mtx    sync.Mutex
 	obs    []SpanWatcher
 	active int
 }
 
 func (s *spanWatchers) Add(watchers ...SpanWatcher) {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
 	for _, o := range watchers {
 		s.obs = append(s.obs, o)
 		if o.Active() {
@@ -95,9 +94,6 @@ func (s *spanWatchers) Add(watchers ...SpanWatcher) {
 }
 
 func (s *spanWatchers) Conditions() []Condition {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
 	// Only the active watchers need their attributes fetched.
 	conds := make([]Condition, 0, s.active)
 	for _, watcher := range s.obs[:s.active] {
@@ -107,9 +103,6 @@ func (s *spanWatchers) Conditions() []Condition {
 }
 
 func (s *spanWatchers) WatchSpans(spans []*Spanset) {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
 	if s.active == 0 {
 		return // done, exit early
 	}
@@ -128,28 +121,13 @@ outer:
 // WatchSpan feeds a single span to the active watchers.
 // It's the per-span equivalent of WatchSpans,
 // used by hot paths that already iterate spans individually (e.g. the span-only metrics fetch) to avoid allocating a Spanset.
-// It returns whether any watchers remain active, so callers can stop
-// calling (and paying for the mutex) once all watchers are done.
+// It returns whether any watchers remain active, so callers can stop calling once all watchers are done.
 func (s *spanWatchers) WatchSpan(span Span) bool {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
 	if s.active == 0 {
 		return false // done, exit early
 	}
 
-	s.watch(span)
-	return s.active > 0
-}
-
-// WatchSpanNoLock is like WatchSpan but is used when the caller is already guaranteeing
-// single threadedness with a separate lock.
-func (s *spanWatchers) WatchSpanNoLock(span Span) bool {
-	if s.active == 0 {
-		return false // done, exit early
-	}
-
-	// Fast path
+	// Fast path: skip the swap-and-recheck loop in watch() for the common single-watcher case.
 	if s.active == 1 {
 		if !s.obs[0].WatchSpan(span) {
 			// Don't truncate obs: Stats() below the active boundary still needs the watcher.
@@ -164,7 +142,6 @@ func (s *spanWatchers) WatchSpanNoLock(span Span) bool {
 
 // watch walks the active prefix for a single span.
 // When a watcher goes inactive, swap it past the boundary so it's retained but skipped on future calls.
-// Caller must hold s.mtx.
 func (s *spanWatchers) watch(span Span) {
 	for i := 0; i < s.active; {
 		if s.obs[i].WatchSpan(span) {
@@ -178,16 +155,10 @@ func (s *spanWatchers) watch(span Span) {
 }
 
 func (s *spanWatchers) Active() bool {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
 	return s.active > 0
 }
 
 func (s *spanWatchers) Stats() map[string]int64 {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
 	stats := make(map[string]int64)
 	for _, watcher := range s.obs {
 		for k, v := range watcher.Stats() {

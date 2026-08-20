@@ -768,8 +768,13 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 
 	// Compile the raw version of the query for head and wal blocks
 	// These aren't cached and we put them all into the same evaluator
-	// for efficiency.
-	rawEval, err := e.CompileMetricsQueryRange(req, compileOpts...)
+	// for efficiency. iterateBlocks below evaluates wal blocks concurrently against this
+	// one evaluator, so it needs a lock; queryRangeCompleteBlock below compiles its own
+	// private evaluator per complete block and doesn't share one, so compileOpts (used there)
+	// intentionally omits the lock.
+	var rawEvalMtx sync.Mutex
+	rawCompileOpts := append([]traceql.CompileOption{traceql.WithLock(&rawEvalMtx)}, compileOpts...)
+	rawEval, err := e.CompileMetricsQueryRange(req, rawCompileOpts...)
 	if err != nil {
 		return nil, err
 	}
