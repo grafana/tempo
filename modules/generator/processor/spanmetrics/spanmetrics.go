@@ -217,6 +217,14 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 				}
 			}
 		}
+		// If no source_label matched, fall back to the mapping Name itself so spans
+		// that already carry the target attribute (e.g. http.response.status_code when
+		// mapping http.status_code -> http_response_status_code) still get the label.
+		if values == "" {
+			if value, _ := processor_util.FindAttributeValue(m.Name, rs.Attributes, span.Attributes); value != "" {
+				values = value
+			}
+		}
 		builder.Add(p.dimensionMappingLabels[i], values)
 	}
 
