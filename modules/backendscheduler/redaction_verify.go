@@ -89,18 +89,7 @@ func (s *BackendScheduler) runVerification(ctx context.Context, tenantID string)
 // compacted or redacted would race it, and a block still in flight is by definition not yet settled
 // enough to verify. The next pass re-derives candidates, so a skipped block is re-checked then.
 func (s *BackendScheduler) verificationJobs(tenantID string, state work.RedactionVerifyState) []*work.Job {
-	// The explicit-ID selector applies no time bound -- RedactBlock refuses an ID list combined with
-	// a window -- so its verification scan runs unwindowed, exactly as its original jobs did.
-	var startNano, endNano int64
-	if !state.HasTraceIDs {
-		startNano, endNano = state.StartTimeUnixNano, state.EndTimeUnixNano
-		if startNano == 0 && endNano == 0 {
-			// No caller-specified window: the effective scope is everything up to submission. An
-			// unbounded re-scan would match data ingested after the request, which the operator
-			// never asked to remove and which would keep the loop from converging.
-			endNano = state.CreatedAtUnixNano
-		}
-	}
+	startNano, endNano := verificationWindow(state)
 
 	busy := s.work.BusyBlocksForTenant(tenantID)
 	metas := s.store.BlockMetas(tenantID)
@@ -135,6 +124,25 @@ func (s *BackendScheduler) verificationJobs(tenantID string, state work.Redactio
 	}
 
 	return jobs
+}
+
+// verificationWindow resolves the bounds a verification pass scans with.
+//
+// An unbounded re-scan would match data ingested after the request -- which the operator never asked
+// to remove, and which keeps arriving, so the loop would never converge. With no caller-specified
+// window the effective scope is therefore everything up to submission.
+//
+// The explicit-ID selector is the exception and returns no bounds at all: it applies no time bound,
+// and RedactBlock refuses an ID list combined with a window, so its pass runs unwindowed exactly as
+// its original jobs did.
+func verificationWindow(state work.RedactionVerifyState) (startNano, endNano int64) {
+	if state.HasTraceIDs {
+		return 0, 0
+	}
+	if state.StartTimeUnixNano == 0 && state.EndTimeUnixNano == 0 {
+		return 0, state.CreatedAtUnixNano
+	}
+	return state.StartTimeUnixNano, state.EndTimeUnixNano
 }
 
 // enqueueRedactionForVerifiedBlock creates a real redaction job for a block a verification pass
