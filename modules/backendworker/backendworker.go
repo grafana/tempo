@@ -399,7 +399,8 @@ func (w *BackendWorker) processRedactionJob(ctx context.Context, resp *tempopb.N
 	}
 
 	query := resp.Detail.Redaction.GetQuery().GetQuery() // nil-safe: "" when no query selector
-	mode := resp.Detail.Redaction.GetMode()
+	verify := resp.Detail.Redaction.GetVerify()
+	mode := effectiveRedactionMode(resp.Detail.Redaction)
 	window := tempodb.RedactionWindow{
 		StartNano: resp.Detail.Redaction.GetStartTimeUnixNano(),
 		EndNano:   resp.Detail.Redaction.GetEndTimeUnixNano(),
@@ -407,7 +408,7 @@ func (w *BackendWorker) processRedactionJob(ctx context.Context, resp *tempopb.N
 
 	// Log only whether a query selector is present, not the query text: for a
 	// privacy-motivated feature the query can embed sensitive attribute values.
-	level.Debug(log.Logger).Log("msg", "processing redaction job", "job_id", resp.JobId, "block_id", blockIDStr, "trace_ids_count", len(traceIDs), "has_query", query != "", "mode", mode.String())
+	level.Debug(log.Logger).Log("msg", "processing redaction job", "job_id", resp.JobId, "block_id", blockIDStr, "trace_ids_count", len(traceIDs), "has_query", query != "", "mode", mode.String(), "verify", verify)
 
 	_, tracesFound, _, err := w.store.RedactBlock(ctx, meta, tenantID, traceIDs, query, mode, window)
 	if err != nil {
@@ -416,6 +417,20 @@ func (w *BackendWorker) processRedactionJob(ctx context.Context, resp *tempopb.N
 
 	level.Debug(log.Logger).Log("msg", "redaction block processed", "job_id", resp.JobId, "block_id", blockIDStr, "rewrote", tracesFound > 0, "traces_found", tracesFound)
 	return w.completeRedactionJob(ctx, resp.JobId, tracesFound)
+}
+
+// effectiveRedactionMode resolves the mode a redaction job actually runs under.
+//
+// A verification job scans and reports its match count and must never rewrite, so it resolves to
+// dry-run whatever mode it arrived with. That translation cannot live in the job's `mode` field:
+// the scheduler overwrites `mode` from the batch on every dispatch (see Next()), so a verification
+// job belonging to an apply-mode batch arrives carrying APPLY. Resolving the flag here also keeps
+// the rewrite layer in tempodb unaware that verification exists.
+func effectiveRedactionMode(detail *tempopb.RedactionDetail) tempopb.RedactionMode {
+	if detail.GetVerify() {
+		return tempopb.RedactionMode_REDACTION_MODE_DRY_RUN
+	}
+	return detail.GetMode()
 }
 
 func (w *BackendWorker) completeRedactionJob(ctx context.Context, jobID string, tracesFound int) error {
