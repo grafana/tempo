@@ -9,12 +9,12 @@ if ! command -v vale >/dev/null 2>&1; then
   echo "vale not installed (https://vale.sh/docs/install/); check style manually." >&2
   exit 0
 fi
-if [ "$#" -eq 0 ]; then
+if [[ "$#" -eq 0 ]]; then
   echo "usage: vale-compact.sh <file>..." >&2
   exit 1
 fi
 
-json="$(vale --output=JSON "$@" || true)"
+json="$(vale --no-exit --output=JSON "$@")"
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "$json"
