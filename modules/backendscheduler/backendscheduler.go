@@ -362,9 +362,20 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 						// worker can resolve and act on the block without re-reading the batch.
 						j.JobDetail.Redaction.TraceIds = batch.TraceIds
 						j.JobDetail.Redaction.Query = batch.Query
-						j.JobDetail.Redaction.Mode = batch.Mode
-						j.JobDetail.Redaction.StartTimeUnixNano = batch.StartTimeUnixNano
-						j.JobDetail.Redaction.EndTimeUnixNano = batch.EndTimeUnixNano
+						// A verification job keeps its dry-run intent. Injecting the batch's APPLY
+						// here is what a worker that predates the verify field would act on, turning
+						// a scan into a rewrite of every block in the pass.
+						if !j.JobDetail.Redaction.Verify {
+							j.JobDetail.Redaction.Mode = batch.Mode
+						} else {
+							j.JobDetail.Redaction.Mode = tempopb.RedactionMode_REDACTION_MODE_DRY_RUN
+						}
+						// A job carrying its own window keeps it: verification derives a narrower
+						// window than the batch's, and overwriting it would unbound the scan.
+						if j.JobDetail.Redaction.StartTimeUnixNano == 0 && j.JobDetail.Redaction.EndTimeUnixNano == 0 {
+							j.JobDetail.Redaction.StartTimeUnixNano = batch.StartTimeUnixNano
+							j.JobDetail.Redaction.EndTimeUnixNano = batch.EndTimeUnixNano
+						}
 					}
 				}
 				if drop {
@@ -443,7 +454,9 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 					recordRedactionVerifyResult(j.Tenant(), req.Redaction.TracesFound)
 					if req.Redaction.TracesFound > 0 {
 						s.enqueueRedactionForVerifiedBlock(ctx, j.Tenant(),
-							j.JobDetail.GetBatchId(), j.JobDetail.GetRedaction().GetBlockId())
+							j.JobDetail.GetBatchId(), j.JobDetail.GetRedaction().GetBlockId(),
+							j.JobDetail.GetRedaction().GetStartTimeUnixNano(),
+							j.JobDetail.GetRedaction().GetEndTimeUnixNano())
 					}
 				} else {
 					recordRedactionResult(j.Tenant(), j.JobDetail.GetRedaction().GetMode(), req.Redaction.TracesFound)
@@ -767,9 +780,24 @@ func (s *BackendScheduler) cleanupBatchIfDone(ctx context.Context, tenantID stri
 		return
 	}
 	if quiesceUntil == 0 {
-		s.enterQuiescence(tenantID)
+		s.settleDrainedBatch(ctx, tenantID)
 		s.flushBatches(ctx)
 	}
+}
+
+// settleDrainedBatch decides what becomes of a batch whose jobs have drained: verify it, or enter
+// quiescence if verification has nothing left to do.
+//
+// Both the job-completion path (cleanupBatchIfDone) and the maintenance tick (advanceQuiescence)
+// route through here, for the same reason they share redactionBatchActive: if the two decide
+// independently they drift. They already did -- quiescence entered from the completion path skipped
+// verification entirely, so it only ever ran for a batch that drained without a completion
+// callback, which is the timeout case rather than the normal one.
+func (s *BackendScheduler) settleDrainedBatch(ctx context.Context, tenantID string) {
+	if s.runVerification(ctx, tenantID) {
+		return
+	}
+	s.enterQuiescence(tenantID)
 }
 
 // enterQuiescence records the quiesce-until deadline (now + quiescenceSweeps × MaintenanceInterval)
@@ -809,10 +837,7 @@ func (s *BackendScheduler) advanceQuiescence(ctx context.Context, tenantID strin
 		// Verify before quiescing, not after: quiescence is the window that keeps compaction off so
 		// the batch can still act, and a pass that finds a gap needs to enqueue work rather than
 		// discover it once teardown has already re-enabled compaction.
-		if s.runVerification(ctx, tenantID) {
-			return true
-		}
-		s.enterQuiescence(tenantID)
+		s.settleDrainedBatch(ctx, tenantID)
 		return true
 	}
 	if time.Now().UnixNano() < quiesceUntil {

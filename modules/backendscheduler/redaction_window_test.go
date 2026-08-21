@@ -346,7 +346,20 @@ func TestRescanAppliesWindowToOutputBlocks(t *testing.T) {
 	s.work.SetJobCompactionOutput(compJob.ID, []string{outputBlock})
 	s.work.CompleteJob(compJob.ID)
 
-	before := len(s.work.ListAllPendingJobs())
+	// Counted excluding verification jobs: performRescan ends in cleanupBatchIfDone, which now
+	// verifies a drained batch, so the total pending count moves for a reason unrelated to what this
+	// test asserts. The rescan's own contribution is what matters here.
+	countRewrites := func() int {
+		n := 0
+		for _, j := range s.work.ListAllPendingJobs() {
+			if !j.JobDetail.GetRedaction().GetVerify() {
+				n++
+			}
+		}
+		return n
+	}
+
+	before := countRewrites()
 	s.performRescan(ctx, batch)
 
 	for _, j := range s.work.ListAllPendingJobs() {
@@ -355,8 +368,8 @@ func TestRescanAppliesWindowToOutputBlocks(t *testing.T) {
 				"an output block outside the window must not be enqueued: the window excluded that data at submit")
 		}
 	}
-	require.Equal(t, before, len(s.work.ListAllPendingJobs()),
-		"the only output block is out of window, so the rescan should enqueue nothing")
+	require.Equal(t, before, countRewrites(),
+		"the only output block is out of window, so the rescan should enqueue no rewrite")
 }
 
 // TestSubmitRedactionWindowMatchingNothing verifies a window that overlaps no block is refused rather
