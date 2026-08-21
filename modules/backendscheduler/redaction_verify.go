@@ -115,9 +115,15 @@ func (s *BackendScheduler) verificationJobs(tenantID string, state work.Redactio
 				BatchId: state.BatchID,
 				Redaction: &tempopb.RedactionDetail{
 					BlockId: meta.BlockID.String(),
-					// Verify is the only field Next() does not overwrite from the batch, which is
-					// what keeps this a scan rather than a rewrite.
+					// Verify keeps this a scan rather than a rewrite: Next() injects the batch's
+					// mode over everything else, and does not touch this field.
 					Verify: true,
+					// The resolved window travels on the job. Filtering candidates by it is not
+					// enough -- the scan itself has to be bounded, or a pass over a block created
+					// after submission matches traces the request never covered, and the repair job
+					// that follows deletes them.
+					StartTimeUnixNano: startNano,
+					EndTimeUnixNano:   endNano,
 				},
 			},
 		})
@@ -148,7 +154,7 @@ func verificationWindow(state work.RedactionVerifyState) (startNano, endNano int
 // enqueueRedactionForVerifiedBlock creates a real redaction job for a block a verification pass
 // found still holding matches. Acting per result rather than tallying the whole pass first means a
 // gap is repaired as soon as it is seen, and no barrier is needed across the pass.
-func (s *BackendScheduler) enqueueRedactionForVerifiedBlock(ctx context.Context, tenantID, batchID, blockID string) {
+func (s *BackendScheduler) enqueueRedactionForVerifiedBlock(ctx context.Context, tenantID, batchID, blockID string, startNano, endNano int64) {
 	job := &work.Job{
 		ID:   uuid.New().String(),
 		Type: tempopb.JobType_JOB_TYPE_REDACTION,
@@ -157,8 +163,12 @@ func (s *BackendScheduler) enqueueRedactionForVerifiedBlock(ctx context.Context,
 			BatchId: batchID,
 			Redaction: &tempopb.RedactionDetail{
 				BlockId: blockID,
-				// Verify deliberately unset: this job rewrites. Next() injects the batch's selector,
-				// mode and window.
+				// Verify deliberately unset: this job rewrites. It carries the window the scan that
+				// found the match ran under rather than the batch's, because a batch submitted
+				// without a window is unbounded and this block may hold post-submission data that
+				// the request never covered.
+				StartTimeUnixNano: startNano,
+				EndTimeUnixNano:   endNano,
 			},
 		},
 	}
