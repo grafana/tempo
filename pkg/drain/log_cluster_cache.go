@@ -2,6 +2,8 @@ package drain
 
 import (
 	"iter"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/maypok86/otter/v2"
@@ -9,24 +11,49 @@ import (
 )
 
 type logClusterCache struct {
-	cache *otter.Cache[int, *LogCluster]
+	cache          *otter.Cache[int, *LogCluster]
+	deletedMtx     sync.Mutex
+	deletedPending atomic.Bool
+	deletedIDs     []int
 }
 
 func newLogClusterCache(maxAge time.Duration, maxSize int, evictions prometheus.Counter, expired prometheus.Counter) *logClusterCache {
-	return &logClusterCache{
-		cache: otter.Must(&otter.Options[int, *LogCluster]{
-			MaximumSize:      maxSize,
-			ExpiryCalculator: otter.ExpiryAccessing[int, *LogCluster](maxAge),
-			OnAtomicDeletion: func(e otter.DeletionEvent[int, *LogCluster]) {
-				switch e.Cause {
-				case otter.CauseOverflow:
-					evictions.Inc()
-				case otter.CauseExpiration:
-					expired.Inc()
-				}
-			},
-		}),
+	c := &logClusterCache{}
+	c.cache = otter.Must(&otter.Options[int, *LogCluster]{
+		MaximumSize:      maxSize,
+		ExpiryCalculator: otter.ExpiryAccessing[int, *LogCluster](maxAge),
+		OnAtomicDeletion: func(e otter.DeletionEvent[int, *LogCluster]) {
+			switch e.Cause {
+			case otter.CauseOverflow:
+				evictions.Inc()
+			case otter.CauseExpiration:
+				expired.Inc()
+			}
+			if e.Cause != otter.CauseReplacement {
+				c.recordDeletion(e.Key)
+			}
+		},
+	})
+	return c
+}
+
+func (c *logClusterCache) recordDeletion(id int) {
+	c.deletedMtx.Lock()
+	c.deletedIDs = append(c.deletedIDs, id)
+	c.deletedPending.Store(true)
+	c.deletedMtx.Unlock()
+}
+
+func (c *logClusterCache) TakeDeleted() []int {
+	if !c.deletedPending.Load() {
+		return nil
 	}
+	c.deletedMtx.Lock()
+	deleted := c.deletedIDs
+	c.deletedIDs = nil
+	c.deletedPending.Store(false)
+	c.deletedMtx.Unlock()
+	return deleted
 }
 
 func (c *logClusterCache) Values() iter.Seq[*LogCluster] {

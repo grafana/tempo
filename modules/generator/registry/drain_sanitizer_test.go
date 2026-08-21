@@ -181,6 +181,36 @@ func TestDrainSanitizer_ConcurrentPrune(t *testing.T) {
 	require.Empty(t, pruneChan)
 }
 
+func TestDrainSanitizer_MaintenanceIsSerialized(t *testing.T) {
+	sanitizer := newTestDrainSanitizer(SpanNameSanitizationEnabled)
+	pruneChan := make(chan time.Time, 1)
+	pruneChan <- time.Now()
+	sanitizer.pruneChan = pruneChan
+
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	sanitizer.pruneHook = func() {
+		close(entered)
+		<-release
+	}
+	done := make(chan struct{})
+	go func() {
+		sanitizer.Sanitize(labels.FromStrings("span_name", "GET /api/users/123"))
+		close(done)
+	}()
+
+	<-entered
+	serialized := !sanitizer.mtx.TryLock()
+	if !serialized {
+		sanitizer.mtx.Unlock()
+	}
+	close(release)
+	<-done
+
+	require.True(t, serialized)
+	require.Empty(t, pruneChan)
+}
+
 func TestDrainSanitizer_DemandTracking(t *testing.T) {
 	t.Parallel()
 
@@ -286,12 +316,8 @@ func TestDrainSanitizer_FullSanitizedOutput(t *testing.T) {
 	}
 }
 
-// TestDrainSanitizer_BorrowedSpanNameNotRetained verifies that Sanitize does not
-// let drain retain token substrings that alias a reusable scratch buffer. drain
-// clones the token slice headers when it creates a cluster, but the bytes those
-// headers point at belong to the span name; if the span name aliases a pooled
-// scratch buffer (as CloseAndBorrowLabels produces) a later borrow that reuses
-// the buffer would corrupt the retained cluster tokens.
+// TestDrainSanitizer_BorrowedSpanNameNotRetained verifies that Drain owns token
+// bytes retained from a reusable scratch buffer.
 func TestDrainSanitizer_BorrowedSpanNameNotRetained(t *testing.T) {
 	s := newTestDrainSanitizer(SpanNameSanitizationEnabled)
 
