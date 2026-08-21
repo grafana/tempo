@@ -37,6 +37,16 @@ var (
 		Name:      "backend_scheduler_redaction_verify_traces_found_total",
 		Help:      "Traces found by a verification scan after a redaction reported complete; non-zero means a block was missed.",
 	}, []string{"tenant"})
+	metricRedactionVerifyDeferred = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "backend_scheduler_redaction_verify_deferred_total",
+		Help:      "Verification passes that checked nothing because every candidate block was held by another job; the batch is retried rather than torn down unverified.",
+	}, []string{"tenant"})
+	metricRedactionVerifyOrphanedGaps = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "backend_scheduler_redaction_verify_orphaned_gaps_total",
+		Help:      "Blocks confirmed to still hold matches whose batch was gone before a repair could be queued; the redaction is incomplete and must be resubmitted.",
+	}, []string{"tenant"})
 	metricRedactionVerifyRounds = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "backend_scheduler_redaction_verify_rounds_total",

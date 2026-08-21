@@ -31,7 +31,8 @@ func TestRunVerificationSkipsAVerifiedBatch(t *testing.T) {
 		Verified: true, VerifyRounds: 1,
 	}))
 
-	require.NotEmpty(t, s.verificationJobs(tenant, mustVerifyState(t, s, tenant)),
+	premise, _ := s.verificationJobs(tenant, mustVerifyState(t, s, tenant))
+	require.NotEmpty(t, premise,
 		"premise: there are in-scope blocks, so only the guard can stop the pass")
 
 	require.False(t, s.runVerification(ctx, tenant), "a verified batch must not be re-verified")
@@ -55,7 +56,8 @@ func TestRunVerificationCircuitBreaker(t *testing.T) {
 		VerifyRounds: maxVerifyRounds,
 	}))
 
-	require.NotEmpty(t, s.verificationJobs(tenant, mustVerifyState(t, s, tenant)),
+	premise, _ := s.verificationJobs(tenant, mustVerifyState(t, s, tenant))
+	require.NotEmpty(t, premise,
 		"premise: there are in-scope blocks, so only the round limit can stop the pass")
 
 	require.False(t, s.runVerification(ctx, tenant),
@@ -113,7 +115,7 @@ func TestVerificationJobsOnlyEnqueueScans(t *testing.T) {
 	const tenant = "t-verify-scans"
 	_, s, _ := newVerifyScheduler(t, tenant)
 
-	jobs := s.verificationJobs(tenant, work.RedactionVerifyState{
+	jobs, _ := s.verificationJobs(tenant, work.RedactionVerifyState{
 		BatchID:           "b",
 		Query:             `{resource.namespace = "checkout"}`,
 		CreatedAtUnixNano: time.Now().UnixNano(),
@@ -137,7 +139,7 @@ func TestVerificationJobsRespectTheWindow(t *testing.T) {
 	// Blocks span [d0,d1], [d4,d5], [d8,d9]; bracket only the middle one.
 	windowStart, windowEnd := day(3).UnixNano(), day(6).UnixNano()
 
-	jobs := s.verificationJobs(tenant, work.RedactionVerifyState{
+	jobs, _ := s.verificationJobs(tenant, work.RedactionVerifyState{
 		BatchID:           "b",
 		Query:             `{resource.namespace = "checkout"}`,
 		StartTimeUnixNano: windowStart,
@@ -145,6 +147,34 @@ func TestVerificationJobsRespectTheWindow(t *testing.T) {
 	})
 
 	require.Len(t, jobs, 1, "only the block overlapping the window is scanned")
+	// The bound must travel on the job, not just filter candidates. Next() dispatches whatever the
+	// job carries; a job with a zero window is scanned unbounded, which matches traces outside the
+	// request and hands them to a rewrite.
+	require.Equal(t, windowStart, jobs[0].JobDetail.GetRedaction().GetStartTimeUnixNano())
+	require.Equal(t, windowEnd, jobs[0].JobDetail.GetRedaction().GetEndTimeUnixNano())
+}
+
+// TestVerificationJobsCarryTheDerivedWindow covers the case that can actually be violated: a batch
+// submitted without a window. Its effective scope is everything up to submission, and that bound has
+// to reach the worker -- filtering candidate blocks by it is not enough, because the scan of a block
+// that straddles submission would still match data ingested after the request.
+func TestVerificationJobsCarryTheDerivedWindow(t *testing.T) {
+	const tenant = "t-verify-derived-window"
+	_, s, _ := newVerifyScheduler(t, tenant)
+	created := time.Now().UnixNano()
+
+	jobs, _ := s.verificationJobs(tenant, work.RedactionVerifyState{
+		BatchID:           "b",
+		Query:             `{resource.namespace = "checkout"}`,
+		CreatedAtUnixNano: created,
+	})
+
+	require.NotEmpty(t, jobs)
+	for _, j := range jobs {
+		require.Zero(t, j.JobDetail.GetRedaction().GetStartTimeUnixNano())
+		require.Equal(t, created, j.JobDetail.GetRedaction().GetEndTimeUnixNano(),
+			"an unwindowed batch verifies only up to its submission instant")
+	}
 }
 
 // TestVerificationJobsSkipBusyBlocks pins that a block already held by another job is left alone.
@@ -159,7 +189,7 @@ func TestVerificationJobsSkipBusyBlocks(t *testing.T) {
 		Query:             `{resource.namespace = "checkout"}`,
 		CreatedAtUnixNano: time.Now().UnixNano(),
 	}
-	all := s.verificationJobs(tenant, state)
+	all, _ := s.verificationJobs(tenant, state)
 	require.Len(t, all, 3)
 
 	// Register a compaction job holding one of those blocks.
@@ -173,8 +203,9 @@ func TestVerificationJobsSkipBusyBlocks(t *testing.T) {
 		},
 	})
 
-	remaining := s.verificationJobs(tenant, state)
+	remaining, deferred := s.verificationJobs(tenant, state)
 	require.Len(t, remaining, 2, "the busy block is skipped")
+	require.Equal(t, 1, deferred, "the skipped block is reported, not silently dropped")
 	for _, j := range remaining {
 		require.NotEqual(t, busyBlock, j.JobDetail.GetRedaction().GetBlockId())
 	}
@@ -277,4 +308,118 @@ func TestVerificationRunsOnNormalCompletion(t *testing.T) {
 		"quiescence must not start while verification is outstanding, or teardown races the scan")
 	require.True(t, s.work.HasJobsForTenant(tenant, tempopb.JobType_JOB_TYPE_REDACTION),
 		"the verification pass leaves scan jobs outstanding")
+}
+
+// completeVerifyJob drives a verify job through the production completion path -- UpdateJob, not
+// work.CompleteJob -- because the two diverge: UpdateJob is what routes a verify result and what
+// calls cleanupBatchIfDone. A test that shortcuts it cannot see either.
+func completeVerifyJob(ctx context.Context, t *testing.T, s *BackendScheduler, tracesFound int32) string {
+	t.Helper()
+	j := s.work.NextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
+	require.NotNil(t, j, "expected a pending verification job")
+	require.True(t, j.JobDetail.GetRedaction().GetVerify())
+	j.SetWorkerID("w1")
+	require.NoError(t, s.work.AddJob(j))
+	s.work.StartJob(j.ID)
+
+	_, err := s.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
+		JobId:     j.ID,
+		Status:    tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
+		Redaction: &tempopb.RedactionResult{TracesFound: tracesFound},
+	})
+	require.NoError(t, err)
+	return j.JobDetail.GetRedaction().GetBlockId()
+}
+
+// TestVerifyResultEnqueuesRepairOnAMatch covers the half of the feature that acts on a finding: a
+// verification scan reporting a match must queue a rewrite for that block and mark the pass dirty,
+// so the batch cannot quiesce on the strength of the pass that found the gap.
+func TestVerifyResultEnqueuesRepairOnAMatch(t *testing.T) {
+	const tenant = "t-verify-repair"
+	ctx, s, _ := newVerifyScheduler(t, tenant)
+
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: "b", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+		Query: &tempopb.TraceQLSelector{Query: `{resource.namespace = "checkout"}`},
+	}))
+	require.True(t, s.runVerification(ctx, tenant))
+
+	blockID := completeVerifyJob(ctx, t, s, 3)
+
+	state, ok := s.work.RedactionVerifyState(tenant)
+	require.True(t, ok)
+	require.False(t, state.Verified,
+		"a pass that found a match is not clean; quiescing on it would report a redaction that missed a block")
+
+	var repairs []string
+	for _, j := range s.work.ListAllPendingJobs() {
+		if !j.JobDetail.GetRedaction().GetVerify() {
+			repairs = append(repairs, j.JobDetail.GetRedaction().GetBlockId())
+		}
+	}
+	require.Contains(t, repairs, blockID, "the block that still matched must be queued for rewrite")
+}
+
+// TestVerifyResultCleanPassQuiesces is the converse: a pass finding nothing lets the batch settle,
+// and must not queue a rewrite for a block that came back clean.
+func TestVerifyResultCleanPassQuiesces(t *testing.T) {
+	const tenant = "t-verify-clean-pass"
+	ctx, s, _ := newVerifyScheduler(t, tenant)
+
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: "b", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+		Query: &tempopb.TraceQLSelector{Query: `{resource.namespace = "checkout"}`},
+	}))
+	require.True(t, s.runVerification(ctx, tenant))
+
+	// Drain the whole pass with no findings.
+	for s.work.HasJobsForTenant(tenant, tempopb.JobType_JOB_TYPE_REDACTION) {
+		completeVerifyJob(ctx, t, s, 0)
+	}
+
+	state, ok := s.work.RedactionVerifyState(tenant)
+	require.True(t, ok)
+	require.True(t, state.Verified, "a pass that found nothing is clean")
+
+	for _, j := range s.work.ListAllPendingJobs() {
+		require.True(t, j.JobDetail.GetRedaction().GetVerify(), "a clean pass must queue no rewrites")
+	}
+
+	quiesceUntil, _, _, ok := s.work.BatchQuiescenceState(tenant)
+	require.True(t, ok)
+	require.NotZero(t, quiesceUntil, "the last clean result settles the batch into quiescence")
+}
+
+// TestVerifyJobFailureIsNotACleanPass pins that a scan which never ran cannot be read as clean. A
+// failed verify job means its blocks were not looked at, and Prune reaching DeadJobTimeout is the
+// most likely way that happens.
+func TestVerifyJobFailureIsNotACleanPass(t *testing.T) {
+	const tenant = "t-verify-failed"
+	ctx, s, _ := newVerifyScheduler(t, tenant)
+
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: "b", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+		Query: &tempopb.TraceQLSelector{Query: `{resource.namespace = "checkout"}`},
+	}))
+	require.True(t, s.runVerification(ctx, tenant))
+
+	state, _ := s.work.RedactionVerifyState(tenant)
+	require.True(t, state.Verified, "premise: the pass starts optimistically clean")
+
+	j := s.work.NextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
+	require.NotNil(t, j)
+	j.SetWorkerID("w1")
+	require.NoError(t, s.work.AddJob(j))
+	s.work.StartJob(j.ID)
+	_, err := s.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
+		JobId:  j.ID,
+		Status: tempopb.JobStatus_JOB_STATUS_FAILED,
+		Error:  "worker died mid-scan",
+	})
+	require.NoError(t, err)
+
+	state, ok := s.work.RedactionVerifyState(tenant)
+	require.True(t, ok)
+	require.False(t, state.Verified,
+		"blocks that were never scanned cannot count as verified")
 }

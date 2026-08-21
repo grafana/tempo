@@ -54,23 +54,37 @@ func (s *BackendScheduler) runVerification(ctx context.Context, tenantID string)
 		return false
 	}
 
-	jobs := s.verificationJobs(tenantID, state)
+	jobs, deferred := s.verificationJobs(tenantID, state)
 	if len(jobs) == 0 {
-		// Nothing in scope to re-check: treat as verified so the batch can quiesce.
+		if deferred > 0 {
+			// Every candidate is held by another job, so nothing was actually checked. Quiescing here
+			// would tear the batch down unverified -- and a block mid-compaction is the likeliest way
+			// the uncovered block this pass exists to find came about. Report outstanding work so the
+			// next tick re-derives candidates instead.
+			metricRedactionVerifyDeferred.WithLabelValues(tenantID).Inc()
+			level.Info(log.Logger).Log("msg", "redaction verification deferred: every candidate block is busy",
+				"tenant", tenantID, "batch_id", state.BatchID, "deferred_blocks", deferred)
+			return true
+		}
+		// Genuinely nothing in scope. Record it so the batch is not re-derived every tick.
+		s.work.SetBatchVerified(tenantID, true)
+		s.flushBatches(ctx)
 		return false
 	}
 
+	// Marked before the jobs are published: AddPendingJobs is the point a worker can see them, and a
+	// job that completes with a match calls SetBatchVerified(false). Setting the flag afterwards would
+	// let the launcher overwrite that finding and lose the dirty record for this pass.
+	s.work.SetBatchVerified(tenantID, true)
+	s.work.IncBatchVerifyRounds(tenantID)
+
 	if err := s.work.AddPendingJobs(jobs); err != nil {
-		// Leave verify_rounds alone so the next tick retries rather than burning a round on a pass
-		// that never ran.
+		// Roll the optimistic mark back rather than leaving a pass that never ran looking clean.
+		s.work.SetBatchVerified(tenantID, false)
 		level.Error(log.Logger).Log("msg", "redaction verification: failed to enqueue jobs", "tenant", tenantID, "err", err)
 		return false
 	}
 
-	// Optimistic: the pass is assumed clean and any job in it that finds a match clears this, which
-	// both repairs the block and puts the batch back in line for a further pass.
-	s.work.SetBatchVerified(tenantID, true)
-	s.work.IncBatchVerifyRounds(tenantID)
 	s.flushBatches(ctx)
 
 	metricRedactionVerifyRounds.WithLabelValues(tenantID).Inc()
@@ -88,15 +102,16 @@ func (s *BackendScheduler) runVerification(ctx context.Context, tenantID string)
 // Blocks already held by another job are skipped: enqueueing a second job for a block being
 // compacted or redacted would race it, and a block still in flight is by definition not yet settled
 // enough to verify. The next pass re-derives candidates, so a skipped block is re-checked then.
-func (s *BackendScheduler) verificationJobs(tenantID string, state work.RedactionVerifyState) []*work.Job {
+func (s *BackendScheduler) verificationJobs(tenantID string, state work.RedactionVerifyState) (jobs []*work.Job, deferred int) {
 	startNano, endNano := verificationWindow(state)
 
 	busy := s.work.BusyBlocksForTenant(tenantID)
 	metas := s.store.BlockMetas(tenantID)
-	jobs := make([]*work.Job, 0, len(metas))
+	jobs = make([]*work.Job, 0, len(metas))
 
 	for _, meta := range metas {
 		if _, isBusy := busy[meta.BlockID.String()]; isBusy {
+			deferred++
 			continue
 		}
 		if !state.HasTraceIDs {
@@ -129,7 +144,7 @@ func (s *BackendScheduler) verificationJobs(tenantID string, state work.Redactio
 		})
 	}
 
-	return jobs
+	return jobs, deferred
 }
 
 // verificationWindow resolves the bounds a verification pass scans with.
@@ -155,6 +170,21 @@ func verificationWindow(state work.RedactionVerifyState) (startNano, endNano int
 // found still holding matches. Acting per result rather than tallying the whole pass first means a
 // gap is repaired as soon as it is seen, and no barrier is needed across the pass.
 func (s *BackendScheduler) enqueueRedactionForVerifiedBlock(ctx context.Context, tenantID, batchID, blockID string, startNano, endNano int64) {
+	// Fail closed on identity. A verify job can outlive its batch (Prune fails it, the batch
+	// quiesces and is removed) and still report a match. Enqueueing then would either be dropped in
+	// Next(), losing a confirmed surviving trace with nothing tracking it, or -- worse -- be matched
+	// to a batch the operator submitted since, and rewritten under that batch's scope.
+	if batch := s.work.GetBatch(tenantID); batch == nil || batch.BatchId != batchID {
+		metricRedactionVerifyOrphanedGaps.WithLabelValues(tenantID).Inc()
+		level.Warn(log.Logger).Log("msg", "redaction verification found matches but its batch is gone; not enqueueing a repair -- resubmit the redaction",
+			"tenant", tenantID, "batch_id", batchID, "block_id", blockID)
+		return
+	}
+
+	// Recorded before the job is published so the pass cannot be read as clean if the enqueue fails.
+	s.work.SetBatchVerified(tenantID, false)
+	s.flushBatches(ctx)
+
 	job := &work.Job{
 		ID:   uuid.New().String(),
 		Type: tempopb.JobType_JOB_TYPE_REDACTION,
@@ -178,10 +208,6 @@ func (s *BackendScheduler) enqueueRedactionForVerifiedBlock(ctx context.Context,
 			"tenant", tenantID, "block_id", blockID, "err", err)
 		return
 	}
-
-	// This pass is not clean, so the batch must be verified again once the repair lands rather than
-	// quiescing on the strength of the pass that found the gap.
-	s.work.SetBatchVerified(tenantID, false)
 
 	metricRedactionVerifyGaps.WithLabelValues(tenantID).Inc()
 	level.Warn(log.Logger).Log("msg", "redaction verification found a block still holding matches; enqueued a redaction job",
