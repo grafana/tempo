@@ -889,10 +889,6 @@ Options:
 
 The input files can be either raw OpenTelemetry JSON traces or Tempo `TraceByIDResponse` JSON responses.
 
-Span durations, and a fixed allow-list of numeric attributes (byte and payload sizes, token counts, and a few duration-like attributes), are compared with a tolerance instead of exact equality, so run-to-run jitter doesn't produce noisy diffs. 
-A duration change is reported only when the values differ by more than 1 millisecond plus 20% of the larger duration. Allow-listed numeric attributes use a 5% relative tolerance; every other numeric attribute is still compared exactly. 
-In the `trace-patch-v0` format, a span duration change appears as a `duration_nanos` field change, with `before` and `after` values in nanoseconds.
-
 The `trace-summary-v0-composed` format always includes a
 `trace-summary-v0-native` document. If
 the serialized `trace-patch-v0` document is no larger than 64 KiB, it is

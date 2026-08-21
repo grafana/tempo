@@ -760,12 +760,8 @@ This endpoint is experimental. The request and response formats may change in fu
 This endpoint compares two complete traces. Send a `POST` request with a JSON
 body that identifies both traces by their IDs. Partial traces are rejected.
 
-Both traces are fully loaded into memory before they're compared. The combined
-size of the base trace and the compare trace is checked against the
-`max_bytes_per_trace` per-tenant override (default 5 MB; a value of `0`
-disables the check).  The same limit also applies to a single
-trace. If `base.Trace.Size() + compare.Trace.Size()` exceeds this limit, the
-request fails with `429 Too Many Requests` (`ResourceExhausted`).
+This endpoint uses the same `max_bytes_per_trace` limit as
+[querying a trace by ID](#query-v2).
 
 ```
 POST /api/v2/traces/diff
@@ -816,26 +812,6 @@ request with `format` set to `trace-patch-v0` to retrieve it.
 When `start` and `end` are provided, the request validates that `start` is
 before `end` and limits the block search to that time range. If omitted, Tempo
 searches across all blocks.
-
-Span duration is reported in the `duration_nanos` field (nanoseconds), which
-replaces the deprecated `duration_ms` field (milliseconds). Any client that
-reads `duration_ms` from the response must be updated to read
-`duration_nanos` instead.
-
-Numeric comparisons use a tolerance so that run-to-run jitter isn't reported
-as a difference:
-
-- Span duration differences are only reported when they exceed 1 ms
-  (1,000,000 ns) plus 20% of the larger duration.
-- A fixed allow-list of numeric attributes that represent magnitudes. For
-  example, byte sizes such as `http.request.body.size` and token counts such
-  as `gen_ai.usage.input_tokens` are compared with a 5% relative
-  tolerance.
-- All other numeric attributes, such as `http.response.status_code` or
-  `server.port`, are still compared for exact equality.
-
-As a result, the diff response can omit differences that were previously
-reported if they fall within these tolerances.
 
 Only `POST` is allowed. Other methods return `405 Method Not Allowed`.
 
