@@ -226,3 +226,55 @@ func mustVerifyState(t *testing.T, s *BackendScheduler, tenant string) work.Reda
 	require.True(t, ok)
 	return state
 }
+
+// TestVerificationRunsOnNormalCompletion covers the path that matters and was missed: a batch whose
+// jobs complete successfully.
+//
+// Completion arrives through UpdateJob, which calls cleanupBatchIfDone -- and that used to enter
+// quiescence directly. Because the tick path only verifies a batch whose quiesce deadline is still
+// unset, quiescence entered from the completion path skipped verification entirely. Verification
+// therefore only ran for a batch that drained *without* a completion callback, i.e. the Prune-timeout
+// case, which is the one case the other lifecycle test happens to cover. The feature was inert for
+// every successful redaction and the suite was green.
+func TestVerificationRunsOnNormalCompletion(t *testing.T) {
+	const tenant = "t-verify-normal-completion"
+	ctx, s, _ := newVerifyScheduler(t, tenant)
+
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: "b", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+		Query: &tempopb.TraceQLSelector{Query: `{resource.namespace = "checkout"}`},
+	}))
+
+	// One redaction job, taken to completion the way a worker would.
+	job := &work.Job{
+		ID:   "the-only-job",
+		Type: tempopb.JobType_JOB_TYPE_REDACTION,
+		JobDetail: tempopb.JobDetail{
+			Tenant:    tenant,
+			BatchId:   "b",
+			Redaction: &tempopb.RedactionDetail{BlockId: "some-block"},
+		},
+	}
+	require.NoError(t, s.work.AddPendingJobs([]*work.Job{job}))
+	dequeued := s.work.NextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
+	require.NotNil(t, dequeued)
+	dequeued.SetWorkerID("w1")
+	require.NoError(t, s.work.AddJob(dequeued))
+	s.work.StartJob(dequeued.ID)
+	s.work.CompleteJob(dequeued.ID)
+
+	// This is what UpdateJob invokes once the last job reports success.
+	s.cleanupBatchIfDone(ctx, tenant)
+
+	state, ok := s.work.RedactionVerifyState(tenant)
+	require.True(t, ok, "the batch must still exist -- it has not been verified yet")
+	require.Equal(t, int32(1), state.VerifyRounds,
+		"a batch completing normally must be verified, not quiesced unverified")
+
+	quiesceUntil, _, _, ok := s.work.BatchQuiescenceState(tenant)
+	require.True(t, ok)
+	require.Zero(t, quiesceUntil,
+		"quiescence must not start while verification is outstanding, or teardown races the scan")
+	require.True(t, s.work.HasJobsForTenant(tenant, tempopb.JobType_JOB_TYPE_REDACTION),
+		"the verification pass leaves scan jobs outstanding")
+}
