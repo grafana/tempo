@@ -482,6 +482,11 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 			return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, err.Error())
 		}
 	case tempopb.JobStatus_JOB_STATUS_FAILED:
+		if j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION && j.JobDetail.GetRedaction().GetVerify() {
+			// The blocks this job would have scanned were not scanned. Marking the pass dirty makes
+			// the batch verify again rather than quiescing on a pass that partly did not run.
+			s.work.SetBatchVerified(j.Tenant(), false)
+		}
 		s.work.FailJob(req.JobId)
 		metricJobsFailed.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
 		metricJobsActive.WithLabelValues(j.Tenant(), j.GetType().String()).Dec()
@@ -821,6 +826,10 @@ func (s *BackendScheduler) advanceQuiescence(ctx context.Context, tenantID strin
 	if s.redactionBatchActive(tenantID, rescanPending) {
 		if quiesceUntil != 0 {
 			s.work.SetBatchQuiesceUntil(tenantID, 0)
+			// New work arrived after the batch had drained, so whatever the last pass concluded no
+			// longer covers this batch. Leaving the flag set would let it quiesce having never
+			// verified the blocks this work rewrites.
+			s.work.SetBatchVerified(tenantID, false)
 			return true
 		}
 		return false
@@ -1012,6 +1021,8 @@ func (s *BackendScheduler) performRescan(ctx context.Context, batch *tempopb.Red
 	}
 
 	if len(allReadyJobs) > 0 {
+		// These are rewrites of blocks no pass has seen, so an earlier clean verdict does not apply.
+		s.work.SetBatchVerified(tenantID, false)
 		if err := s.work.AddPendingJobs(allReadyJobs); err != nil {
 			level.Error(log.Logger).Log("msg", "redaction rescan: failed to add pending jobs", "tenant", tenantID, "err", err)
 			return
