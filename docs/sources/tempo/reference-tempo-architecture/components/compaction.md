@@ -109,6 +109,10 @@ This endpoint is useful for diagnosing stalled jobs, verifying that workers are 
 | `tempo_backend_scheduler_jobs_active` | Jobs currently assigned to a worker |
 | `tempo_backend_scheduler_jobs_pending` | Jobs enqueued and not yet assigned to a worker. Unlike `jobs_active`, which is bounded by the number of workers, this is queue depth and indicates whether more worker capacity is needed |
 | `tempo_backend_scheduler_job_duration_seconds` | Job execution duration histogram |
+| `tempo_backend_scheduler_redaction_verify_rounds_total` | Verification passes run after a redaction batch's jobs drained |
+| `tempo_backend_scheduler_redaction_verify_gaps_total` | Blocks found still holding matches after a redaction reported complete. Non-zero means the batch missed a block and a further redaction job was queued for it |
+| `tempo_backend_scheduler_redaction_verify_traces_found_total` | Traces found by verification scans. Deliberately separate from `redaction_traces_found_total`, which records what was removed |
+| `tempo_backend_scheduler_redaction_verify_exhausted_total` | Redaction batches released without a clean verification pass. The redaction may be incomplete and should be re-submitted |
 | `tempodb_blocklist_length` | Number of live blocks per tenant; high values indicate compaction is falling behind |
 | `tempodb_compaction_outstanding_blocks` | Outstanding blocks awaiting compaction per tenant; the primary autoscaling signal |
 

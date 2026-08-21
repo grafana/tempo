@@ -324,3 +324,32 @@ func TestIsSharded(t *testing.T) {
 		})
 	}
 }
+
+// TestEffectiveRedactionMode pins the one property that makes verification safe: a verification job
+// never rewrites, even though it belongs to an apply-mode batch and therefore arrives carrying
+// APPLY. Next() overwrites the job's mode from the batch on every dispatch, so the verify flag --
+// which Next() does not touch -- is the only thing distinguishing the two at the worker.
+func TestEffectiveRedactionMode(t *testing.T) {
+	apply := tempopb.RedactionMode_REDACTION_MODE_APPLY
+	dryRun := tempopb.RedactionMode_REDACTION_MODE_DRY_RUN
+
+	for _, tc := range []struct {
+		name   string
+		detail *tempopb.RedactionDetail
+		want   tempopb.RedactionMode
+	}{
+		{name: "nil detail is not a rewrite", detail: nil, want: apply},
+		{name: "apply without verify rewrites", detail: &tempopb.RedactionDetail{Mode: apply}, want: apply},
+		{name: "dry-run without verify", detail: &tempopb.RedactionDetail{Mode: dryRun}, want: dryRun},
+		{
+			name:   "verify overrides the batch's APPLY -- the case that would delete data",
+			detail: &tempopb.RedactionDetail{Mode: apply, Verify: true},
+			want:   dryRun,
+		},
+		{name: "verify with dry-run stays dry-run", detail: &tempopb.RedactionDetail{Mode: dryRun, Verify: true}, want: dryRun},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, effectiveRedactionMode(tc.detail))
+		})
+	}
+}

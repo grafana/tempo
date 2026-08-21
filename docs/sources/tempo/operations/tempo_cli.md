@@ -987,7 +987,7 @@ Arguments:
 Options:
 
 - `--tenant <value>` **(required)** Tenant ID.
-- `--trace-id <value>` Trace ID to redact, in hex format. Specify multiple times to redact several traces in one request. Mutually exclusive with `--query`.
+- `--trace-id <value>` Trace ID to redact, in hex format. Specify multiple times to redact several traces in one request, up to 1000. Every job the redaction creates carries the whole list, so a longer list costs the scheduler one copy per block; use `--query` instead. Mutually exclusive with `--query`.
 - `--query <value>` TraceQL query selecting the traces to redact. Mutually exclusive with `--trace-id`. Conditions may be joined with `&&` and `||`, and only `=` comparisons on `resource.*` and `span.*` attributes are accepted.
 - `--dry-run` Report how many traces match without rewriting any blocks (default: `false`).
 - `--start <value>` Start of the time window. Accepts `now`, a relative offset such as `now-7d`, or an RFC3339 timestamp. Must be given with `--end`, must be before `--end`, and cannot be combined with `--trace-id`. Omit both bounds to redact the whole tenant.
@@ -1054,6 +1054,17 @@ redaction; an unwindowed redaction is unaffected.
 {{< /admonition >}}
 
 Monitor job progress through the [`/status/backendscheduler`](/docs/tempo/<TEMPO_VERSION>/api_docs/#backend-scheduler-job-status) endpoint.
+
+Completing every job is not the same as the data being gone, so a redaction is verified before it is
+torn down. Once its block jobs finish, the scheduler re-scans the blocks currently overlapping the
+redaction's window and queues a further redaction job for any that still match. This catches a block
+that the submission never accounted for -- for example one produced by a compaction that started at
+almost the same moment as the request. Verification only ever scans; it never rewrites on its own.
+
+A redaction is complete when a verification pass finds nothing. Until then the tenant's compaction
+stays paused. Watch `tempo_backend_scheduler_redaction_verify_gaps_total` for blocks that were
+missed, and `tempo_backend_scheduler_redaction_verify_exhausted_total` for a redaction released
+without ever coming back clean -- that one has not finished and should be re-submitted.
 
 ### Examples
 

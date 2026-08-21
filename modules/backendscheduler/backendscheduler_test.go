@@ -867,15 +867,40 @@ func TestCleanupOrphanedBatchesAfterDeadJobTimeout(t *testing.T) {
 	require.NotNil(t, s.work.GetBatch(testTenant),
 		"batch must still exist after prune alone (orphaned batch bug)")
 
-	// cleanupOrphanedBatches sweeps all batches on every maintenance tick. A done batch
-	// first enters quiescence (held so compaction stays blocked while the rescan settles),
-	// then is removed once the quiesce-until deadline passes -- so the first sweep does not
-	// remove it.
+	// cleanupOrphanedBatches sweeps all batches on every maintenance tick. A batch whose jobs have
+	// drained is verified before it may quiesce -- and a batch that drained because its jobs timed
+	// out is exactly the case where completion is least trustworthy, so the pass runs here too.
 	s.cleanupOrphanedBatches(ctx)
 	require.NotNil(t, s.work.GetBatch(testTenant),
-		"orphaned batch enters quiescence on the first sweep, not immediate removal")
+		"orphaned batch is verified first, not removed")
 	require.True(t, s.work.TenantPending(testTenant),
-		"tenant stays blocked while the batch is quiescing")
+		"tenant stays blocked while verification runs")
+
+	verifyState, ok := s.work.RedactionVerifyState(testTenant)
+	require.True(t, ok)
+	require.Equal(t, int32(1), verifyState.VerifyRounds,
+		"the sweep that finds the batch drained must verify it")
+	require.True(t, s.work.HasJobsForTenant(testTenant, tempopb.JobType_JOB_TYPE_REDACTION),
+		"verification enqueues scan jobs, so the batch has outstanding work again")
+
+	// Drain the verification pass with no findings: the blocks are clean, so the batch may quiesce.
+	for {
+		j := s.work.NextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
+		if j == nil {
+			break
+		}
+		require.True(t, j.JobDetail.GetRedaction().GetVerify(),
+			"a verification pass must enqueue scan jobs, never rewrites")
+		j.SetWorkerID("verify-worker")
+		require.NoError(t, s.work.AddJob(j))
+		s.work.StartJob(j.ID)
+		s.work.CompleteJob(j.ID)
+	}
+
+	// With verification clean, the next sweep enters quiescence rather than verifying again.
+	s.cleanupOrphanedBatches(ctx)
+	require.NotNil(t, s.work.GetBatch(testTenant),
+		"a verified batch enters quiescence, not immediate removal")
 
 	// Once the deadline passes, the next sweep removes the batch.
 	s.work.SetBatchQuiesceUntil(testTenant, time.Now().Add(-time.Second).UnixNano())
