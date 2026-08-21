@@ -98,6 +98,7 @@ const (
 	PathSearchTagsV2      = "/api/v2/search/tags"
 	PathTraceDiffV2       = "/api/v2/traces/diff"
 	PathTracesV2          = "/api/v2/traces/{traceID}"
+	PathTraceSummaryV2    = "/api/v2/traces/{traceID}/summary"
 
 	QueryModeKey       = "mode"
 	QueryModeIngesters = "ingesters"
