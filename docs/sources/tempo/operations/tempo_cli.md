@@ -1053,7 +1053,19 @@ cannot be recovered. Wait until every worker for the cell supports the window be
 redaction; an unwindowed redaction is unaffected.
 {{< /admonition >}}
 
-Monitor job progress through the [`/status/backendscheduler`](/docs/tempo/<TEMPO_VERSION>/api_docs/#backend-scheduler-job-status) endpoint.
+Monitor job progress through the [`/status/backendscheduler`](/docs/tempo/<TEMPO_VERSION>/api_docs/#backend-scheduler-job-status)
+endpoint, or from metrics:
+
+- `tempo_backend_scheduler_jobs_pending{job_type="JOB_TYPE_REDACTION"}` is the number of blocks still queued.
+  Progress is this against its peak for the run, since the queue only drains: `1 - (jobs_pending / max_over_time(jobs_pending[6h]))`.
+  It counts blocks not yet handed to a worker, so it reaches zero slightly before the last blocks finish.
+- `tempo_backend_scheduler_tenant_maintenance_paused` is `1` while the tenant's compaction and retention are held
+  off, and `0` once the batch is torn down after its quiescence period. This is how to tell that a redaction is
+  fully finished rather than still holding the tenant.
+
+Do not use `tempo_backend_scheduler_jobs_created_total` as a progress denominator. It counts jobs as they are
+assigned to a worker rather than as they are enqueued, so it tracks completions almost exactly and stays near
+100% for the whole run.
 
 ### Examples
 
