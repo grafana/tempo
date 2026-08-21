@@ -361,8 +361,14 @@ func isIgnoredDedicatedColumn(dc *backend.DedicatedColumn) bool {
 	return false
 }
 
+// anyValueToDedicatedColStr appends value onto buf. buf is not reset first: a single
+// attribute key can appear more than once within the same span/event/resource (e.g.
+// one attribute per loop iteration in the emitting instrumentation), and every call for
+// that key within one writeAttrs invocation must accumulate into the same dedicated
+// column rather than overwrite it. Callers are responsible for resetting buf once per
+// span/event/resource (see DedicatedAttributes.Reset).
 func anyValueToDedicatedColStr(value *v1.AnyValue, buf []string) ([]string, bool) {
-	buf = buf[:0]
+	start := len(buf)
 	switch value := value.Value.(type) {
 	case *v1.AnyValue_StringValue:
 		buf = append(buf, value.StringValue)
@@ -372,13 +378,15 @@ func anyValueToDedicatedColStr(value *v1.AnyValue, buf []string) ([]string, bool
 			case *v1.AnyValue_StringValue:
 				buf = append(buf, v.StringValue)
 			default:
-				// Mixed array types, not supported
-				return nil, false
+				// Mixed array types, not supported. Leave previously accumulated
+				// values from earlier calls intact.
+				return buf[:start], false
 			}
 		}
 	default:
-		// Wrong type, not supported
-		return nil, false
+		// Wrong type, not supported. Leave previously accumulated values from
+		// earlier calls intact.
+		return buf[:start], false
 	}
 
 	return buf, true
@@ -411,8 +419,10 @@ func dedicatedColStrToAnyValue(v []string) *v1.AnyValue {
 	}
 }
 
+// anyValueToDedicatedColInt appends value onto buf. See anyValueToDedicatedColStr for
+// why buf is not reset first.
 func anyValueToDedicatedColInt(value *v1.AnyValue, buf []int64) ([]int64, bool) {
-	buf = buf[:0]
+	start := len(buf)
 	switch value := value.Value.(type) {
 	case *v1.AnyValue_IntValue:
 		buf = append(buf, value.IntValue)
@@ -422,13 +432,15 @@ func anyValueToDedicatedColInt(value *v1.AnyValue, buf []int64) ([]int64, bool) 
 			case *v1.AnyValue_IntValue:
 				buf = append(buf, v.IntValue)
 			default:
-				// Mixed array types, not supported
-				return nil, false
+				// Mixed array types, not supported. Leave previously accumulated
+				// values from earlier calls intact.
+				return buf[:start], false
 			}
 		}
 	default:
-		// Wrong type, not supported
-		return nil, false
+		// Wrong type, not supported. Leave previously accumulated values from
+		// earlier calls intact.
+		return buf[:start], false
 	}
 
 	return buf, true
