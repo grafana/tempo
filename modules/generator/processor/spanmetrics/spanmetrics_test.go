@@ -1589,6 +1589,63 @@ func TestSpanMetricsDimensionMappingMissingLabels(t *testing.T) {
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_sum", lbls))
 }
 
+func TestSpanMetricsDimensionMappingIncludesMappedAttribute(t *testing.T) {
+	// Regression for #3256: when a dimension_mapping's name matches an attribute
+	// already present on the span/resource, that value must be used as a fallback
+	// so spans carrying the new convention (e.g. http.response.status_code) still
+	// get the mapped label even though no source_label matched.
+	testRegistry := registry.NewTestRegistry()
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.HistogramBuckets = []float64{0.5, 1}
+	cfg.IntrinsicDimensions.SpanKind = false
+	cfg.IntrinsicDimensions.StatusMessage = true
+	cfg.DimensionMappings = []sharedconfig.DimensionMappings{
+		{
+			Name:        "http_response_status_code",
+			SourceLabel: []string{"http.status_code"},
+			Join:        "",
+		},
+	}
+
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, err)
+	defer p.Shutdown(context.Background())
+
+	makeBatchWithAttr := func(key, value string) *trace_v1.ResourceSpans {
+		batch := test.MakeBatch(10, nil)
+		for _, rs := range batch.ScopeSpans {
+			for _, s := range rs.Spans {
+				s.Attributes = append(s.Attributes, &common_v1.KeyValue{
+					Key:   key,
+					Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: value}},
+				})
+			}
+		}
+		return batch
+	}
+
+	// Batch 1: spans using the old convention (source label present)
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{makeBatchWithAttr("http.status_code", "200")}})
+	// Batch 2: spans using the new convention (target attribute present directly)
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{makeBatchWithAttr("http_response_status_code", "200")}})
+
+	lbls := labels.FromMap(map[string]string{
+		"service":                   "test-service",
+		"span_name":                 "test",
+		"status_code":               "STATUS_CODE_OK",
+		"status_message":            "OK",
+		"http_response_status_code": "200",
+	})
+
+	// Both batches should land on the same series
+	assert.Equal(t, 20.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
+	assert.Equal(t, 20.0, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
+}
+
 func TestSpanMetricsNegativeLatency(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
