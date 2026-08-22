@@ -1013,7 +1013,7 @@ func init() {
 }
 
 func (self *_Assembler) mapaccess_ptr(t reflect.Type) {
-	if rt.MapType(rt.UnpackType(t)).IndirectElem() {
+	if rt.IsMapIndirectElem(t) {
 		self.vfollow(t.Elem())
 	}
 }

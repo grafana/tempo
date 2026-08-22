@@ -1,6 +1,8 @@
 package ll
 
-import "github.com/olekukonko/ll/lx"
+import (
+	"github.com/olekukonko/ll/lx"
+)
 
 // WithHandler sets the handler for the logger as a functional option for configuring
 // a new logger instance.
@@ -38,7 +40,7 @@ func WithTimestamped(enable bool, format ...string) Option {
 //	logger := New("app", WithLevel(lx.LevelWarn))
 func WithLevel(level lx.LevelType) Option {
 	return func(l *Logger) {
-		l.level = level
+		l.Level(level)
 	}
 }
 
