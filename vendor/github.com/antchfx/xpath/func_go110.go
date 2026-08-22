@@ -2,14 +2,7 @@
 
 package xpath
 
-import (
-	"math"
-	"strings"
-)
-
-func round(f float64) int {
-	return int(math.Round(f))
-}
+import "strings"
 
 func newStringBuilder() stringBuilder {
 	return &strings.Builder{}
