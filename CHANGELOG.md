@@ -1,5 +1,7 @@
 <!-- next version -->
 
+* [BUGFIX] fix(storage): cancel polling context on store shutdown. [#7081](https://github.com/grafana/tempo/pull/7081) (@fgouteroux)
+
 # v3.0.2
 
 * [CHANGE] Upgrade Tempo to Go 1.26.3 [#7423](https://github.com/grafana/tempo/pull/7423) (@ie-pham)
