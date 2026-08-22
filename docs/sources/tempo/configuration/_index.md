@@ -791,8 +791,8 @@ metrics_generator:
             # Attributes that will be used to create a peer edge
             # Attributes are searched in the order they are provided
             # See: https://opentelemetry.io/docs/specs/semconv/registry/attributes/
-            # Example: ["peer.service", "db.name", "db.system", "host.name"]
-            [peer_attributes: <list of string> | default = ["peer.service", "db.name", "db.system", "db.system.name"] ]
+            # Example: ["service.peer.name", "peer.service", "db.name", "db.system", "host.name"]
+            [peer_attributes: <list of string> | default = ["service.peer.name", "peer.service", "db.name", "db.system", "db.system.name"] ]
 
             # Attribute Key to multiply span metrics
             # Note that the attribute name is searched for in both
