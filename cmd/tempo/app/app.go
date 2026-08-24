@@ -57,6 +57,7 @@ const (
 var (
 	statFeatureEnabledAuth         = usagestats.NewInt("feature_enabled_auth_stats")
 	statFeatureEnabledMultitenancy = usagestats.NewInt("feature_enabled_multitenancy")
+	statStorageBlockFormat         = usagestats.NewString("storage_block_format")
 )
 
 // App is the root datastructure.
@@ -104,6 +105,11 @@ func New(cfg Config) (*App, error) {
 	}
 
 	usagestats.Edition("oss")
+
+	statStorageBlockFormat.Set("")
+	if cfg.StorageConfig.Trace.Block != nil {
+		statStorageBlockFormat.Set(cfg.StorageConfig.Trace.Block.Version)
+	}
 
 	statFeatureEnabledAuth.Set(0)
 	if cfg.AuthEnabled {
