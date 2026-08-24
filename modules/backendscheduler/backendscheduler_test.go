@@ -689,9 +689,18 @@ func TestRescanSkipsRunningJob(t *testing.T) {
 
 	// Second rescan: job is now complete, output block must be enqueued.
 	time.Sleep(time.Millisecond)
+	// Marked verified first so the rescan's effect on that verdict is observable. The output blocks a
+	// rescan enqueues have never been scanned, so a clean verdict from an earlier pass cannot cover
+	// them -- without clearing it the batch would quiesce having verified none of this work.
+	s.work.SetBatchVerified(testTenant, true)
 	s.checkPendingRescans(ctx)
 
 	require.True(t, s.work.IsBlockBusy(testTenant, outputBlock), "output block must have a pending redaction job after rescan")
+
+	verifyState, ok := s.work.RedactionVerifyState(testTenant)
+	require.True(t, ok)
+	require.False(t, verifyState.Verified,
+		"a rescan that enqueues rewrites invalidates an earlier clean verification")
 
 	batch = s.work.GetBatch(testTenant)
 	require.NotNil(t, batch)
