@@ -2,7 +2,7 @@
 
 # v3.0.3
 
-* [SECURITY] Update Go to 1.26.5 to fix CVE-2026-39822, CVE-2026-27145, CVE-2026-42504, CVE-2026-42505, and CVE-2026-42507; update google.golang.org/grpc to v1.82.1 to fix GHSA-hrxh-6v49-42gf; update golang.org/x/net to v0.56.0 to fix CVE-2026-46600; update golang.org/x/text to v0.39.0 to fix CVE-2026-56852; update go.opentelemetry.io/otel to v1.44.0 to fix CVE-2026-41178 [#7726](https://github.com/grafana/tempo/pull/7726) (@mattdurham)
+* [SECURITY] Update Go to 1.26.5 to fix [CVE-2026-39822](https://nvd.nist.gov/vuln/detail/CVE-2026-39822), [CVE-2026-27145](https://nvd.nist.gov/vuln/detail/CVE-2026-27145), [CVE-2026-42504](https://nvd.nist.gov/vuln/detail/CVE-2026-42504), [CVE-2026-42505](https://nvd.nist.gov/vuln/detail/CVE-2026-42505), and [CVE-2026-42507](https://nvd.nist.gov/vuln/detail/CVE-2026-42507); update google.golang.org/grpc to v1.82.1 to fix [GHSA-hrxh-6v49-42gf](https://github.com/advisories/GHSA-hrxh-6v49-42gf); update golang.org/x/net to v0.56.0 to fix [CVE-2026-46600](https://nvd.nist.gov/vuln/detail/CVE-2026-46600); update golang.org/x/text to v0.39.0 to fix [CVE-2026-56852](https://nvd.nist.gov/vuln/detail/CVE-2026-56852); update go.opentelemetry.io/otel to v1.44.0 to fix [CVE-2026-41178](https://nvd.nist.gov/vuln/detail/CVE-2026-41178) [#7726](https://github.com/grafana/tempo/pull/7726) (@mattdurham)
 * [ENHANCEMENT] Add Tempo configuration documentation to the MCP server [#7521](https://github.com/grafana/tempo/pull/7521) (@knylander-grafana)
 * [ENHANCEMENT] Update the TraceQL and metrics documentation served by the MCP server [#7375](https://github.com/grafana/tempo/pull/7375) (@knylander-grafana)
 * [BUGFIX] Fix incorrect version reported by `--version`, the build-info metric, and `/api/status/buildinfo` [#7469](https://github.com/grafana/tempo/pull/7469) (@zhxiaogg)
@@ -154,7 +154,7 @@
 
 # v2.10.8
 
-* [SECURITY] Update Go to 1.26.5 to fix CVE-2026-39822, CVE-2026-27145, CVE-2026-42504, CVE-2026-42505, and CVE-2026-42507; update google.golang.org/grpc to v1.82.1 to fix GHSA-hrxh-6v49-42gf; update golang.org/x/net to v0.56.0 to fix CVE-2026-46600; update golang.org/x/text to v0.39.0 to fix CVE-2026-56852; update go.opentelemetry.io/otel to v1.44.0 to fix CVE-2026-41178 [#7725](https://github.com/grafana/tempo/pull/7725) (@mattdurham)
+* [SECURITY] Update Go to 1.26.5 to fix [CVE-2026-39822](https://nvd.nist.gov/vuln/detail/CVE-2026-39822), [CVE-2026-27145](https://nvd.nist.gov/vuln/detail/CVE-2026-27145), [CVE-2026-42504](https://nvd.nist.gov/vuln/detail/CVE-2026-42504), [CVE-2026-42505](https://nvd.nist.gov/vuln/detail/CVE-2026-42505), and [CVE-2026-42507](https://nvd.nist.gov/vuln/detail/CVE-2026-42507); update google.golang.org/grpc to v1.82.1 to fix [GHSA-hrxh-6v49-42gf](https://github.com/advisories/GHSA-hrxh-6v49-42gf); update golang.org/x/net to v0.56.0 to fix [CVE-2026-46600](https://nvd.nist.gov/vuln/detail/CVE-2026-46600); update golang.org/x/text to v0.39.0 to fix [CVE-2026-56852](https://nvd.nist.gov/vuln/detail/CVE-2026-56852); update go.opentelemetry.io/otel to v1.44.0 to fix [CVE-2026-41178](https://nvd.nist.gov/vuln/detail/CVE-2026-41178) [#7725](https://github.com/grafana/tempo/pull/7725) (@mattdurham)
 
 # v2.10.7
 
@@ -318,7 +318,7 @@
 
 # v2.9.5
 
-* [SECURITY] Update google.golang.org/grpc to v1.82.1 to fix GHSA-hrxh-6v49-42gf and go.opentelemetry.io/otel to v1.44.0 to fix CVE-2026-41178 [#7724](https://github.com/grafana/tempo/pull/7724) (@mattdurham)
+* [SECURITY] Update google.golang.org/grpc to v1.82.1 to fix [GHSA-hrxh-6v49-42gf](https://github.com/advisories/GHSA-hrxh-6v49-42gf) and go.opentelemetry.io/otel to v1.44.0 to fix [CVE-2026-41178](https://nvd.nist.gov/vuln/detail/CVE-2026-41178) [#7724](https://github.com/grafana/tempo/pull/7724) (@mattdurham)
 
 # v2.9.0
 
