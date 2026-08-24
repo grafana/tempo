@@ -563,3 +563,96 @@ func TestAdvanceQuiescenceEdges(t *testing.T) {
 	require.Nil(t, s.work.GetBatch(dryTenant),
 		"a drained dry-run wrote nothing and never blocked compaction, so it is removed outright")
 }
+
+// TestVerificationSkipsBlocksAlreadyCovered pins the filter that makes a pass affordable. A block
+// whose redaction job succeeded was either rewritten or found clean, so re-scanning it costs a full
+// block read and tells us nothing. Without this a pass re-scans every in-window block, making
+// verification cost about as much as the redaction it is verifying, once per round.
+func TestVerificationSkipsBlocksAlreadyCovered(t *testing.T) {
+	const tenant = "t-verify-covered"
+	_, s, _ := newVerifyScheduler(t, tenant)
+
+	state := work.RedactionVerifyState{BatchID: "b", CreatedAtUnixNano: time.Now().UnixNano()}
+	all, _ := s.verificationJobs(tenant, state)
+	require.Len(t, all, 3, "premise: three in-window blocks")
+
+	// One block already has a succeeded redaction job for this batch.
+	coveredBlock := all[0].JobDetail.GetRedaction().GetBlockId()
+	done := &work.Job{
+		ID:   "already-redacted",
+		Type: tempopb.JobType_JOB_TYPE_REDACTION,
+		JobDetail: tempopb.JobDetail{
+			Tenant:    tenant,
+			BatchId:   "b",
+			Redaction: &tempopb.RedactionDetail{BlockId: coveredBlock},
+		},
+	}
+	done.SetWorkerID("w1")
+	require.NoError(t, s.work.AddJob(done))
+	s.work.StartJob(done.ID)
+	s.work.CompleteJob(done.ID)
+
+	remaining, _ := s.verificationJobs(tenant, state)
+	require.Len(t, remaining, 2, "a block with a succeeded job is not re-scanned")
+	for _, j := range remaining {
+		require.NotEqual(t, coveredBlock, j.JobDetail.GetRedaction().GetBlockId())
+	}
+}
+
+// TestVerificationRescansAFailedBlock is the other half: a job that FAILED did not scan its block, so
+// the pass must still look at it. Treating failure as coverage would skip exactly the blocks least
+// likely to have been redacted.
+func TestVerificationRescansAFailedBlock(t *testing.T) {
+	const tenant = "t-verify-failed-not-covered"
+	_, s, _ := newVerifyScheduler(t, tenant)
+
+	state := work.RedactionVerifyState{BatchID: "b", CreatedAtUnixNano: time.Now().UnixNano()}
+	all, _ := s.verificationJobs(tenant, state)
+	require.Len(t, all, 3)
+
+	failedBlock := all[0].JobDetail.GetRedaction().GetBlockId()
+	failed := &work.Job{
+		ID:   "redaction-that-failed",
+		Type: tempopb.JobType_JOB_TYPE_REDACTION,
+		JobDetail: tempopb.JobDetail{
+			Tenant:    tenant,
+			BatchId:   "b",
+			Redaction: &tempopb.RedactionDetail{BlockId: failedBlock},
+		},
+	}
+	failed.SetWorkerID("w1")
+	require.NoError(t, s.work.AddJob(failed))
+	s.work.StartJob(failed.ID)
+	s.work.FailJob(failed.ID)
+
+	remaining, _ := s.verificationJobs(tenant, state)
+	require.Len(t, remaining, 3, "a failed job leaves its block unscanned, so it stays a candidate")
+}
+
+// TestVerificationCoverageIsScopedToTheBatch guards against a previous batch's completed work
+// suppressing this batch's pass.
+func TestVerificationCoverageIsScopedToTheBatch(t *testing.T) {
+	const tenant = "t-verify-covered-other-batch"
+	_, s, _ := newVerifyScheduler(t, tenant)
+
+	state := work.RedactionVerifyState{BatchID: "b", CreatedAtUnixNano: time.Now().UnixNano()}
+	all, _ := s.verificationJobs(tenant, state)
+	require.Len(t, all, 3)
+
+	other := &work.Job{
+		ID:   "older-batch-job",
+		Type: tempopb.JobType_JOB_TYPE_REDACTION,
+		JobDetail: tempopb.JobDetail{
+			Tenant:    tenant,
+			BatchId:   "a-previous-batch",
+			Redaction: &tempopb.RedactionDetail{BlockId: all[0].JobDetail.GetRedaction().GetBlockId()},
+		},
+	}
+	other.SetWorkerID("w1")
+	require.NoError(t, s.work.AddJob(other))
+	s.work.StartJob(other.ID)
+	s.work.CompleteJob(other.ID)
+
+	remaining, _ := s.verificationJobs(tenant, state)
+	require.Len(t, remaining, 3, "another batch's completed work does not cover this batch's blocks")
+}

@@ -134,6 +134,7 @@ func (s *BackendScheduler) verificationJobs(tenantID string, state work.Redactio
 	startNano, endNano := verificationWindow(state)
 
 	busy := s.work.BusyBlocksForTenant(tenantID)
+	covered := s.coveredBlocks(tenantID, state.BatchID)
 	metas := s.store.BlockMetas(tenantID)
 	jobs = make([]*work.Job, 0, len(metas))
 
@@ -155,6 +156,9 @@ func (s *BackendScheduler) verificationJobs(tenantID string, state work.Redactio
 		blockID := meta.BlockID.String()
 		if _, isBusy := busy[blockID]; isBusy {
 			deferred++
+			continue
+		}
+		if _, done := covered[blockID]; done {
 			continue
 		}
 
@@ -181,6 +185,40 @@ func (s *BackendScheduler) verificationJobs(tenantID string, state work.Redactio
 	}
 
 	return jobs, deferred
+}
+
+// coveredBlocks returns the blocks this batch already holds a succeeded redaction job for.
+//
+// Re-scanning them is the dominant cost of a pass and buys nothing: a block whose job succeeded was
+// either rewritten -- in which case the input is retired and is not in the blocklist to be a
+// candidate at all -- or was scanned and found clean. What verification is actually looking for is
+// the block no job ever covered: the output of a compaction that registered between the submission's
+// busy-block snapshot and the batch barrier, or a block ingested since. Without this filter a pass
+// re-scans every in-window block, so verifying a redaction costs about as much as the redaction did,
+// once per round.
+//
+// A FAILED job deliberately does not count as covered: its block was not scanned, so the pass must
+// look at it. Nor does an in-flight one, which the busy-block check already defers.
+//
+// Derived from the job records rather than stored on the batch, which keeps a block-ID set off the
+// single global manifest -- at tens of thousands of blocks that would be megabytes rewritten on every
+// flush. The trade-off is that Prune eventually retires the job records, after which a block looks
+// uncovered and is re-scanned. That degrades to the unfiltered behaviour, which is correct and merely
+// slower, so the failure direction is safe.
+func (s *BackendScheduler) coveredBlocks(tenantID, batchID string) map[string]struct{} {
+	covered := make(map[string]struct{})
+	for _, j := range s.work.ListJobs() {
+		if j.GetType() != tempopb.JobType_JOB_TYPE_REDACTION || !j.IsComplete() {
+			continue
+		}
+		if j.Tenant() != tenantID || j.JobDetail.GetBatchId() != batchID {
+			continue
+		}
+		if blockID := j.JobDetail.GetRedaction().GetBlockId(); blockID != "" {
+			covered[blockID] = struct{}{}
+		}
+	}
+	return covered
 }
 
 // verificationWindow resolves the bounds a verification pass scans with.
