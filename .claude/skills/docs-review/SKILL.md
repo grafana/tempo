@@ -37,7 +37,7 @@ When in doubt, classify as **(b)**. The overhead of a targeted code check is sma
 If Vale is installed, run it against the changed files using the compact wrapper (same findings as `vale <file_path>`, without its per-finding boilerplate):
 
 ```bash
-.claude/skills/shared/vale-compact.bash <file_path>
+bash .claude/skills/shared/vale-compact.bash <file_path>
 ```
 
 If Vale is not installed, manually check style guide compliance in step 4.
