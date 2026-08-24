@@ -36,7 +36,7 @@ func TestRunVerificationSkipsAVerifiedBatch(t *testing.T) {
 	require.NotEmpty(t, premise,
 		"premise: there are in-scope blocks, so only the guard can stop the pass")
 
-	require.False(t, s.runVerification(ctx, tenant), "a verified batch must not be re-verified")
+	require.False(t, s.advanceVerification(ctx, tenant), "a verified batch must not be re-verified")
 	require.False(t, s.work.HasJobsForTenant(tenant, tempopb.JobType_JOB_TYPE_REDACTION),
 		"no scan jobs may be enqueued for a batch already verified")
 
@@ -61,7 +61,7 @@ func TestRunVerificationCircuitBreaker(t *testing.T) {
 	require.NotEmpty(t, premise,
 		"premise: there are in-scope blocks, so only the round limit can stop the pass")
 
-	require.False(t, s.runVerification(ctx, tenant),
+	require.False(t, s.advanceVerification(ctx, tenant),
 		"at the round limit the batch is released so compaction can resume")
 	require.False(t, s.work.HasJobsForTenant(tenant, tempopb.JobType_JOB_TYPE_REDACTION))
 }
@@ -70,7 +70,7 @@ func TestRunVerificationCircuitBreaker(t *testing.T) {
 // and the pass.
 func TestRunVerificationWithNoBatch(t *testing.T) {
 	ctx, s := newQuiescenceScheduler(t)
-	require.False(t, s.runVerification(ctx, "t-absent"))
+	require.False(t, s.advanceVerification(ctx, "t-absent"))
 }
 
 // newVerifyScheduler builds a scheduler over a store holding three blocks for tenant, one per day
@@ -343,7 +343,7 @@ func TestVerifyResultEnqueuesRepairOnAMatch(t *testing.T) {
 		BatchId: "b", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
 		Query: &tempopb.TraceQLSelector{Query: `{resource.namespace = "checkout"}`},
 	}))
-	require.True(t, s.runVerification(ctx, tenant))
+	require.True(t, s.advanceVerification(ctx, tenant))
 
 	blockID := completeVerifyJob(ctx, t, s, 3)
 
@@ -371,7 +371,7 @@ func TestVerifyResultCleanPassQuiesces(t *testing.T) {
 		BatchId: "b", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
 		Query: &tempopb.TraceQLSelector{Query: `{resource.namespace = "checkout"}`},
 	}))
-	require.True(t, s.runVerification(ctx, tenant))
+	require.True(t, s.advanceVerification(ctx, tenant))
 
 	// Drain the whole pass with no findings.
 	for s.work.HasJobsForTenant(tenant, tempopb.JobType_JOB_TYPE_REDACTION) {
@@ -402,7 +402,7 @@ func TestVerifyJobFailureIsNotACleanPass(t *testing.T) {
 		BatchId: "b", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
 		Query: &tempopb.TraceQLSelector{Query: `{resource.namespace = "checkout"}`},
 	}))
-	require.True(t, s.runVerification(ctx, tenant))
+	require.True(t, s.advanceVerification(ctx, tenant))
 
 	state, _ := s.work.RedactionVerifyState(tenant)
 	require.True(t, state.Verified, "premise: the pass starts optimistically clean")
@@ -489,7 +489,7 @@ func TestVerificationDefersWhenEveryCandidateIsBusy(t *testing.T) {
 		})
 	}
 
-	require.True(t, s.runVerification(ctx, tenant),
+	require.True(t, s.advanceVerification(ctx, tenant),
 		"a pass that checked nothing must report outstanding work, not let the batch quiesce")
 
 	state, ok := s.work.RedactionVerifyState(tenant)
