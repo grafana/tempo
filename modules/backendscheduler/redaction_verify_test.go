@@ -3,6 +3,7 @@ package backendscheduler
 import (
 	"context"
 	"flag"
+	"fmt"
 	"testing"
 	"time"
 
@@ -422,4 +423,113 @@ func TestVerifyJobFailureIsNotACleanPass(t *testing.T) {
 	require.True(t, ok)
 	require.False(t, state.Verified,
 		"blocks that were never scanned cannot count as verified")
+}
+
+// TestReactivatedBatchLosesItsCleanVerdict covers the re-activation branch of advanceQuiescence.
+//
+// A batch that verified clean and entered quiescence can gain new rewrite work -- a rescan resolving,
+// or a retried job. Those blocks have not been scanned, so the earlier clean verdict does not cover
+// them. Leaving it set would let the batch quiesce a second time without verifying any of them.
+func TestReactivatedBatchLosesItsCleanVerdict(t *testing.T) {
+	const tenant = "t-verify-reactivated"
+	ctx, s, _ := newVerifyScheduler(t, tenant)
+
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: "b", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+		Verified: true, VerifyRounds: 1,
+		QuiesceUntilUnixNano: time.Now().Add(time.Hour).UnixNano(),
+	}))
+
+	// New rewrite work arrives while the batch is quiescing.
+	require.NoError(t, s.work.AddPendingJobs([]*work.Job{{
+		ID:   "late-rewrite",
+		Type: tempopb.JobType_JOB_TYPE_REDACTION,
+		JobDetail: tempopb.JobDetail{
+			Tenant:    tenant,
+			BatchId:   "b",
+			Redaction: &tempopb.RedactionDetail{BlockId: "block-nobody-scanned"},
+		},
+	}}))
+
+	require.True(t, s.advanceQuiescence(ctx, tenant), "re-activation changes batch state")
+
+	state, ok := s.work.RedactionVerifyState(tenant)
+	require.True(t, ok)
+	require.False(t, state.Verified,
+		"a batch that gained unscanned work must not keep an earlier clean verdict")
+
+	quiesceUntil, _, _, ok := s.work.BatchQuiescenceState(tenant)
+	require.True(t, ok)
+	require.Zero(t, quiesceUntil, "re-activation leaves quiescence")
+}
+
+// TestVerificationDefersWhenEveryCandidateIsBusy covers the deferred branch. A block held by another
+// job cannot be scanned, and a block mid-compaction is the likeliest origin of the uncovered block
+// this pass exists to find -- so a pass that checked nothing must not let the batch tear down.
+func TestVerificationDefersWhenEveryCandidateIsBusy(t *testing.T) {
+	const tenant = "t-verify-all-busy"
+	ctx, s, _ := newVerifyScheduler(t, tenant)
+
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: "b", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+		Query: &tempopb.TraceQLSelector{Query: `{resource.namespace = "checkout"}`},
+	}))
+
+	// Hold every block the pass would scan.
+	candidates, _ := s.verificationJobs(tenant, mustVerifyState(t, s, tenant))
+	require.NotEmpty(t, candidates, "premise: there are candidates to hold")
+	for i, c := range candidates {
+		s.work.RegisterJob(&work.Job{
+			ID:   fmt.Sprintf("compaction-%d", i),
+			Type: tempopb.JobType_JOB_TYPE_COMPACTION,
+			JobDetail: tempopb.JobDetail{
+				Tenant:     tenant,
+				Compaction: &tempopb.CompactionDetail{Input: []string{c.JobDetail.GetRedaction().GetBlockId()}},
+			},
+		})
+	}
+
+	require.True(t, s.runVerification(ctx, tenant),
+		"a pass that checked nothing must report outstanding work, not let the batch quiesce")
+
+	state, ok := s.work.RedactionVerifyState(tenant)
+	require.True(t, ok)
+	require.False(t, state.Verified, "nothing was scanned, so nothing is verified")
+	require.Zero(t, state.VerifyRounds, "a pass that ran no jobs must not consume a round")
+}
+
+// TestRepairRefusedWhenTheBatchIsGone covers the identity guard. A verify job can outlive its batch:
+// Prune fails it, the batch quiesces and is removed, and the worker still reports a match. Queueing
+// then would either be dropped in Next(), losing a confirmed surviving trace, or be matched to a
+// batch submitted since and rewritten under that batch's scope.
+func TestRepairRefusedWhenTheBatchIsGone(t *testing.T) {
+	const tenant = "t-verify-orphaned"
+	ctx, s, _ := newVerifyScheduler(t, tenant)
+
+	// A batch exists, but under a different ID than the one the stale job names.
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: "the-new-batch", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+	}))
+
+	s.enqueueRedactionForVerifiedBlock(ctx, tenant, "the-batch-that-is-gone", "some-block", 0, 0)
+
+	require.Empty(t, s.work.ListAllPendingJobs(),
+		"a repair must not be queued against a batch that is not the one it came from")
+}
+
+// TestAdvanceQuiescenceWithNoBatch and the dry-run path round out the sweep's branches.
+func TestAdvanceQuiescenceEdges(t *testing.T) {
+	ctx, s, _ := newVerifyScheduler(t, "t-quiesce-edges")
+
+	require.False(t, s.advanceQuiescence(ctx, "tenant-without-a-batch"),
+		"a tenant with no batch is not a state change")
+
+	const dryTenant = "t-quiesce-dryrun"
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: "b", TenantId: dryTenant, CreatedAtUnixNano: time.Now().UnixNano(),
+		Mode: tempopb.RedactionMode_REDACTION_MODE_DRY_RUN,
+	}))
+	require.True(t, s.advanceQuiescence(ctx, dryTenant))
+	require.Nil(t, s.work.GetBatch(dryTenant),
+		"a drained dry-run wrote nothing and never blocked compaction, so it is removed outright")
 }
