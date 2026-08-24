@@ -266,10 +266,12 @@ type RedactionDetail struct {
 	StartTimeUnixNano int64 `protobuf:"varint,5,opt,name=start_time_unix_nano,json=startTimeUnixNano,proto3" json:"start_time_unix_nano,omitempty"`
 	EndTimeUnixNano   int64 `protobuf:"varint,6,opt,name=end_time_unix_nano,json=endTimeUnixNano,proto3" json:"end_time_unix_nano,omitempty"`
 	// verify marks a job created by the post-completion verification pass: scan the block and report
-	// the match count, never rewrite it. This is a job-level field rather than a mode because Next()
-	// overwrites `mode` from the batch on every dispatch, so a mode set here would be replaced by the
-	// batch's APPLY and the verification scan would rewrite the block. The worker turns this into a
-	// dry-run scan, which keeps the rewrite layer unaware of verification entirely.
+	// the match count, never rewrite it.
+	//
+	// It is a job-level field rather than a mode value because `mode` is batch-derived: the scheduler
+	// injects the batch's mode onto every job it dispatches, so an apply-mode batch cannot express a
+	// job that only scans. This field is what the scheduler consults to send DRY_RUN instead, and what
+	// the worker consults to scan even if it received something else.
 	Verify bool `protobuf:"varint,7,opt,name=verify,proto3" json:"verify,omitempty"`
 }
 

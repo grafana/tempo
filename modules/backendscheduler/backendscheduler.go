@@ -448,9 +448,9 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 		case tempopb.JobType_JOB_TYPE_REDACTION:
 			if req.Redaction != nil {
 				if j.JobDetail.GetRedaction().GetVerify() {
-					// A verify job's mode arrives as the batch's APPLY (Next() overwrites it), so
-					// reporting it under that label would credit verification scans to the apply
-					// counter and inflate what the redaction claims to have removed.
+					// Reported separately from apply and dry-run: those counters are the record of what
+					// a redaction removed, and a verification scan removes nothing. Folding it in would
+					// inflate what the redaction claims to have deleted.
 					recordRedactionVerifyResult(j.Tenant(), req.Redaction.TracesFound)
 					if req.Redaction.TracesFound > 0 {
 						s.enqueueRedactionForVerifiedBlock(ctx, j)
@@ -796,7 +796,7 @@ func (s *BackendScheduler) cleanupBatchIfDone(ctx context.Context, tenantID stri
 // verification entirely, so it only ever ran for a batch that drained without a completion
 // callback, which is the timeout case rather than the normal one.
 func (s *BackendScheduler) settleDrainedBatch(ctx context.Context, tenantID string) {
-	if outstanding := s.advanceVerification(ctx, tenantID); outstanding {
+	if s.advanceVerification(ctx, tenantID) {
 		return
 	}
 	s.enterQuiescence(tenantID)

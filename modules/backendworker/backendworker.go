@@ -422,10 +422,10 @@ func (w *BackendWorker) processRedactionJob(ctx context.Context, resp *tempopb.N
 // effectiveRedactionMode resolves the mode a redaction job actually runs under.
 //
 // A verification job scans and reports its match count and must never rewrite, so it resolves to
-// dry-run whatever mode it arrived with. That translation cannot live in the job's `mode` field:
-// the scheduler overwrites `mode` from the batch on every dispatch (see Next()), so a verification
-// job belonging to an apply-mode batch arrives carrying APPLY. Resolving the flag here also keeps
-// the rewrite layer in tempodb unaware that verification exists.
+// dry-run whatever mode it arrived with. The scheduler already sends DRY_RUN for these jobs; this is
+// the second half of a deliberate pair on an irreversible operation -- the scheduler's half protects
+// a worker that predates the verify field, and this half protects against a scheduler that sends the
+// batch's mode by mistake. It also keeps the rewrite layer in tempodb unaware verification exists.
 func effectiveRedactionMode(detail *tempopb.RedactionDetail) tempopb.RedactionMode {
 	if detail.GetVerify() {
 		return tempopb.RedactionMode_REDACTION_MODE_DRY_RUN
