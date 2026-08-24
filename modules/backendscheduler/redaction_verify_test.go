@@ -345,6 +345,16 @@ func TestVerifyResultEnqueuesRepairOnAMatch(t *testing.T) {
 	}))
 	require.True(t, s.advanceVerification(ctx, tenant))
 
+	// The window the pass derived, which the repair must inherit.
+	var verifyEnd int64
+	for _, j := range s.work.ListAllPendingJobs() {
+		if j.JobDetail.GetRedaction().GetVerify() {
+			verifyEnd = j.JobDetail.GetRedaction().GetEndTimeUnixNano()
+			break
+		}
+	}
+	require.NotZero(t, verifyEnd, "premise: the pass bounds its scan")
+
 	blockID := completeVerifyJob(ctx, t, s, 3)
 
 	state, ok := s.work.RedactionVerifyState(tenant)
@@ -359,6 +369,17 @@ func TestVerifyResultEnqueuesRepairOnAMatch(t *testing.T) {
 		}
 	}
 	require.Contains(t, repairs, blockID, "the block that still matched must be queued for rewrite")
+
+	// The repair must be scoped by the window the scan that found the match ran under. Inheriting the
+	// batch's instead would be unbounded for a batch submitted without a window, and the rewrite would
+	// delete traces ingested after the request.
+	for _, j := range s.work.ListAllPendingJobs() {
+		if j.JobDetail.GetRedaction().GetVerify() || j.JobDetail.GetRedaction().GetBlockId() != blockID {
+			continue
+		}
+		require.Equal(t, verifyEnd, j.JobDetail.GetRedaction().GetEndTimeUnixNano(),
+			"the repair carries the verification window, not the batch's")
+	}
 }
 
 // TestVerifyResultCleanPassQuiesces is the converse: a pass finding nothing lets the batch settle,
@@ -511,7 +532,20 @@ func TestRepairRefusedWhenTheBatchIsGone(t *testing.T) {
 		BatchId: "the-new-batch", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
 	}))
 
-	s.enqueueRedactionForVerifiedBlock(ctx, tenant, "the-batch-that-is-gone", "some-block", 0, 0)
+	// A verify job from the batch that has since been removed.
+	stale := &work.Job{
+		ID:   "stale-verify-job",
+		Type: tempopb.JobType_JOB_TYPE_REDACTION,
+		JobDetail: tempopb.JobDetail{
+			Tenant:  tenant,
+			BatchId: "the-batch-that-is-gone",
+			Redaction: &tempopb.RedactionDetail{
+				BlockId: "some-block",
+				Verify:  true,
+			},
+		},
+	}
+	s.enqueueRedactionForVerifiedBlock(ctx, stale)
 
 	require.Empty(t, s.work.ListAllPendingJobs(),
 		"a repair must not be queued against a batch that is not the one it came from")
