@@ -19,9 +19,16 @@ import (
 // coverage gap needs two; beyond that the batch is not converging and an operator should look.
 const maxVerifyRounds = 3
 
-// runVerification enqueues a verification pass for a batch whose jobs have drained, returning
-// whether it enqueued anything. A true result means the batch has outstanding work again and must
-// not enter quiescence.
+// advanceVerification moves verification forward for a batch whose jobs have drained, and reports
+// whether verification is still OUTSTANDING.
+//
+// The return value answers the caller's question -- may this batch settle? -- rather than describing
+// what happened here, and the two are not the same: the deferred case reports outstanding while
+// enqueueing nothing at all. Outstanding is also the safe answer, because settling means teardown
+// and re-enabling the tenant's compaction, so anything uncertain returns true:
+//
+//	true  -- a pass is now running, or nothing could be checked and the next tick must retry.
+//	false -- verification has nothing left to do; the caller may quiesce the batch.
 //
 // Verification exists because completing every job the batch knew about is not the same as the data
 // being gone. A compaction that registered between the submission's busy-block snapshot and the
@@ -31,7 +38,7 @@ const maxVerifyRounds = 3
 //
 // The scan runs on workers, not here: this only filters block metadata already in memory and
 // enqueues, so the singleton scheduler adds no I/O per pass.
-func (s *BackendScheduler) runVerification(ctx context.Context, tenantID string) bool {
+func (s *BackendScheduler) advanceVerification(ctx context.Context, tenantID string) (outstanding bool) {
 	state, ok := s.work.RedactionVerifyState(tenantID)
 	if !ok {
 		return false
@@ -75,16 +82,27 @@ func (s *BackendScheduler) runVerification(ctx context.Context, tenantID string)
 	// Marked before the jobs are published: AddPendingJobs is the point a worker can see them, and a
 	// job that completes with a match calls SetBatchVerified(false). Setting the flag afterwards would
 	// let the launcher overwrite that finding and lose the dirty record for this pass.
+	//
+	// Note: no test proves this ordering. Both orderings pass the suite, because the losing
+	// interleaving needs a worker to complete a scan between the enqueue and the flag write, and a
+	// sequential test cannot produce it while a stress test would only fail intermittently. It is
+	// verified by inspection -- as with the in-flight dequeue atomicity in work/inflight_test.go.
 	s.work.SetBatchVerified(tenantID, true)
-	s.work.IncBatchVerifyRounds(tenantID)
 
 	if err := s.work.AddPendingJobs(jobs); err != nil {
-		// Roll the optimistic mark back rather than leaving a pass that never ran looking clean.
+		// Roll the optimistic mark back rather than leaving a pass that never ran looking clean, and
+		// report outstanding: returning false here would quiesce and tear down a batch that was never
+		// checked. No round was consumed, so the next tick simply retries.
 		s.work.SetBatchVerified(tenantID, false)
 		level.Error(log.Logger).Log("msg", "redaction verification: failed to enqueue jobs", "tenant", tenantID, "err", err)
-		return false
+		return true
 	}
 
+	// Counted only once the pass is actually running. Consuming a round before the enqueue would let
+	// repeated failures exhaust the budget without a single block being scanned, and the batch would
+	// then be released as unconverged having never been checked. Unlike the flag above, the counter
+	// has no reason to precede publication: nothing a worker does touches it.
+	s.work.IncBatchVerifyRounds(tenantID)
 	s.flushBatches(ctx)
 
 	metricRedactionVerifyRounds.WithLabelValues(tenantID).Inc()
