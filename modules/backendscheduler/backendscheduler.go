@@ -453,10 +453,7 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 					// counter and inflate what the redaction claims to have removed.
 					recordRedactionVerifyResult(j.Tenant(), req.Redaction.TracesFound)
 					if req.Redaction.TracesFound > 0 {
-						s.enqueueRedactionForVerifiedBlock(ctx, j.Tenant(),
-							j.JobDetail.GetBatchId(), j.JobDetail.GetRedaction().GetBlockId(),
-							j.JobDetail.GetRedaction().GetStartTimeUnixNano(),
-							j.JobDetail.GetRedaction().GetEndTimeUnixNano())
+						s.enqueueRedactionForVerifiedBlock(ctx, j)
 					}
 				} else {
 					recordRedactionResult(j.Tenant(), j.JobDetail.GetRedaction().GetMode(), req.Redaction.TracesFound)
