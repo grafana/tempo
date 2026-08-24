@@ -187,7 +187,18 @@ func verificationWindow(state work.RedactionVerifyState) (startNano, endNano int
 // enqueueRedactionForVerifiedBlock creates a real redaction job for a block a verification pass
 // found still holding matches. Acting per result rather than tallying the whole pass first means a
 // gap is repaired as soon as it is seen, and no barrier is needed across the pass.
-func (s *BackendScheduler) enqueueRedactionForVerifiedBlock(ctx context.Context, tenantID, batchID, blockID string, startNano, endNano int64) {
+//
+// Takes the verify job rather than its fields. Every value it needs comes from that job, and spelling
+// them out gave a signature with three adjacent strings (tenant, batch, block) and two adjacent
+// int64s (the window) -- transpose either pair and it compiles, then silently mis-scopes an
+// irreversible rewrite. tempodb.RedactionWindow carries named fields for the same reason.
+func (s *BackendScheduler) enqueueRedactionForVerifiedBlock(ctx context.Context, verified *work.Job) {
+	tenantID := verified.Tenant()
+	batchID := verified.JobDetail.GetBatchId()
+	detail := verified.JobDetail.GetRedaction()
+	blockID := detail.GetBlockId()
+	startNano, endNano := detail.GetStartTimeUnixNano(), detail.GetEndTimeUnixNano()
+
 	// Fail closed on identity. A verify job can outlive its batch (Prune fails it, the batch
 	// quiesces and is removed) and still report a match. Enqueueing then would either be dropped in
 	// Next(), losing a confirmed surviving trace with nothing tracking it, or -- worse -- be matched
