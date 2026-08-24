@@ -1,7 +1,7 @@
 change_type: enhancement
 component: backend-scheduler
-note: "Verify a redaction before tearing it down, and cap the explicit trace-ID list at 1000."
+note: "Verify a redaction before tearing it down rather than reporting it complete once its jobs finish."
 issues: []
 subtext: |
-  Once a batch's block jobs drain, the scheduler re-scans the blocks currently overlapping the redaction's window and queues a further redaction job for any still holding matches, so a block the submission never accounted for is caught rather than silently left behind. Candidates come from the current block list rather than the batch's own blocks, so a trace stamped inside the window but ingested late is still found. Verification scans only; a bounded number of rounds keeps a batch that never comes back clean from pausing a tenant's compaction indefinitely, reported by `tempo_backend_scheduler_redaction_verify_exhausted_total`. Separately, an explicit trace-ID list is now capped: every job carries the whole list, so a large one costs one copy per block -- use a query selector instead.
+  Once a batch's block jobs drain, the scheduler re-scans the blocks currently overlapping the redaction's window and queues a further redaction job for any still holding matches, so a block the submission never accounted for is caught rather than silently left behind. Candidates come from the current block list rather than the batch's own blocks, so a trace stamped inside the window but ingested late is still found. Verification scans only; a bounded number of rounds keeps a batch that never comes back clean from pausing a tenant's compaction indefinitely, reported by `tempo_backend_scheduler_redaction_verify_exhausted_total`.
 user: zalegrala
