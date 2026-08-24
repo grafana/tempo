@@ -72,7 +72,7 @@ type Interface interface {
 	// no-ops without a batch.
 	RedactionVerifyState(tenantID string) (RedactionVerifyState, bool)
 	IncBatchVerifyRounds(tenantID string)
-	SetBatchVerified(tenantID string, verified bool)
+	SetBatchVerified(tenantID string, verified bool) (changed bool)
 	FlushBatchesToLocal(ctx context.Context, localPath string) error
 	LoadBatchesFromLocal(ctx context.Context, localPath string) error
 

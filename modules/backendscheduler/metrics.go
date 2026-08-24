@@ -30,8 +30,6 @@ var (
 		Name:      "backend_scheduler_jobs_active",
 		Help:      "Number of currently active jobs",
 	}, []string{"tenant", "job_type"})
-	// Queue depth. Distinct from jobs_active, which counts work already handed to a worker and is
-	// therefore bounded by the worker count — only depth can indicate that more capacity is needed.
 	metricRedactionVerifyFound = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "backend_scheduler_redaction_verify_traces_found_total",
@@ -62,6 +60,8 @@ var (
 		Name:      "backend_scheduler_redaction_verify_exhausted_total",
 		Help:      "Redaction batches released without a clean verification pass after exhausting their rounds; the redaction may be incomplete.",
 	}, []string{"tenant"})
+	// Queue depth. Distinct from jobs_active, which counts work already handed to a worker and is
+	// therefore bounded by the worker count — only depth can indicate that more capacity is needed.
 	metricJobsPending = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempo",
 		Name:      "backend_scheduler_jobs_pending",

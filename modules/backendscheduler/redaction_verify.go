@@ -75,7 +75,6 @@ func (s *BackendScheduler) advanceVerification(ctx context.Context, tenantID str
 		}
 		// Genuinely nothing in scope. Record it so the batch is not re-derived every tick.
 		s.work.SetBatchVerified(tenantID, true)
-		s.flushBatches(ctx)
 		return false
 	}
 
@@ -103,7 +102,18 @@ func (s *BackendScheduler) advanceVerification(ctx context.Context, tenantID str
 	// then be released as unconverged having never been checked. Unlike the flag above, the counter
 	// has no reason to precede publication: nothing a worker does touches it.
 	s.work.IncBatchVerifyRounds(tenantID)
-	s.flushBatches(ctx)
+
+	// Persist the jobs. The manifest is left to the caller, which flushes once per tick rather than
+	// once per settling tenant -- and that ordering is the safe one: jobs reach disk before the
+	// manifest records the round, so a crash between them leaves work to redo rather than a consumed
+	// round with nothing enqueued.
+	affectedIDs := make([]string, len(jobs))
+	for i, j := range jobs {
+		affectedIDs[i] = j.ID
+	}
+	if err := s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, affectedIDs); err != nil {
+		level.Warn(log.Logger).Log("msg", "redaction verification: failed to flush scan jobs", "tenant", tenantID, "err", err)
+	}
 
 	metricRedactionVerifyRounds.WithLabelValues(tenantID).Inc()
 	level.Info(log.Logger).Log("msg", "redaction verification pass enqueued",
@@ -128,16 +138,24 @@ func (s *BackendScheduler) verificationJobs(tenantID string, state work.Redactio
 	jobs = make([]*work.Job, 0, len(metas))
 
 	for _, meta := range metas {
-		if _, isBusy := busy[meta.BlockID.String()]; isBusy {
-			deferred++
+		// Window first, busy second -- the same order SubmitRedaction uses, and it matters twice over.
+		// blockOverlapsWindow is branch-only while the busy lookup formats a UUID, so filtering first
+		// avoids that allocation for every rejected block. More importantly, `deferred` must count only
+		// blocks this pass actually wanted: counting an out-of-window block that happens to be busy
+		// would report the pass deferred, and since a deferred pass consumes no round the batch would
+		// re-derive every tick forever with the tenant's compaction held off.
+		//
+		// An indeterminate range is taken on trust, matching submission: a block whose range cannot be
+		// judged is scanned rather than skipped. blockOverlapsWindow already treats an unset window as
+		// matching everything, so the explicit-ID selector needs no special case here.
+		if overlaps, _ := blockOverlapsWindow(meta, startNano, endNano); !overlaps {
 			continue
 		}
-		if !state.HasTraceIDs {
-			// An indeterminate range is taken on trust, matching submission: a block that cannot be
-			// judged is scanned rather than skipped.
-			if overlaps, _ := blockOverlapsWindow(meta, startNano, endNano); !overlaps {
-				continue
-			}
+
+		blockID := meta.BlockID.String()
+		if _, isBusy := busy[blockID]; isBusy {
+			deferred++
+			continue
 		}
 
 		jobs = append(jobs, &work.Job{
@@ -147,9 +165,9 @@ func (s *BackendScheduler) verificationJobs(tenantID string, state work.Redactio
 				Tenant:  tenantID,
 				BatchId: state.BatchID,
 				Redaction: &tempopb.RedactionDetail{
-					BlockId: meta.BlockID.String(),
-					// Verify keeps this a scan rather than a rewrite: Next() injects the batch's
-					// mode over everything else, and does not touch this field.
+					BlockId: blockID,
+					// Verify is what makes this a scan: the dispatcher sends DRY_RUN for a job
+					// carrying it, rather than the batch's mode.
 					Verify: true,
 					// The resolved window travels on the job. Filtering candidates by it is not
 					// enough -- the scan itself has to be bounded, or a pass over a block created
@@ -210,9 +228,13 @@ func (s *BackendScheduler) enqueueRedactionForVerifiedBlock(ctx context.Context,
 		return
 	}
 
-	// Recorded before the job is published so the pass cannot be read as clean if the enqueue fails.
-	s.work.SetBatchVerified(tenantID, false)
-	s.flushBatches(ctx)
+	// Recorded before the job is published so the pass cannot be read as clean if the enqueue fails,
+	// and persisted immediately: this runs on the completion path, where the caller only flushes the
+	// manifest once the batch has drained -- which it has not, since a repair is about to be queued.
+	// Flushed only on a transition, so a pass finding many dirty blocks writes the manifest once.
+	if s.work.SetBatchVerified(tenantID, false) {
+		s.flushBatches(ctx)
+	}
 
 	job := &work.Job{
 		ID:   uuid.New().String(),

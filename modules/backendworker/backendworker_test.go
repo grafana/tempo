@@ -338,7 +338,7 @@ func TestEffectiveRedactionMode(t *testing.T) {
 		detail *tempopb.RedactionDetail
 		want   tempopb.RedactionMode
 	}{
-		{name: "nil detail is not a rewrite", detail: nil, want: apply},
+		{name: "nil detail falls through to the zero mode, which is APPLY", detail: nil, want: apply},
 		{name: "apply without verify rewrites", detail: &tempopb.RedactionDetail{Mode: apply}, want: apply},
 		{name: "dry-run without verify", detail: &tempopb.RedactionDetail{Mode: dryRun}, want: dryRun},
 		{
