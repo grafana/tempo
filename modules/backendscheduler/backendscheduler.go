@@ -799,7 +799,7 @@ func (s *BackendScheduler) cleanupBatchIfDone(ctx context.Context, tenantID stri
 // verification entirely, so it only ever ran for a batch that drained without a completion
 // callback, which is the timeout case rather than the normal one.
 func (s *BackendScheduler) settleDrainedBatch(ctx context.Context, tenantID string) {
-	if s.runVerification(ctx, tenantID) {
+	if outstanding := s.advanceVerification(ctx, tenantID); outstanding {
 		return
 	}
 	s.enterQuiescence(tenantID)
