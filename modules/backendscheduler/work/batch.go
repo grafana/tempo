@@ -118,7 +118,6 @@ func (b *batchStore) setQuiesceUntil(tenantID string, untilUnixNano int64) {
 // verify_rounds is mutable.
 type RedactionVerifyState struct {
 	BatchID           string
-	Query             string
 	CreatedAtUnixNano int64
 	StartTimeUnixNano int64
 	EndTimeUnixNano   int64
@@ -141,7 +140,6 @@ func (b *batchStore) verifyState(tenantID string) (RedactionVerifyState, bool) {
 	}
 	return RedactionVerifyState{
 		BatchID:           batch.BatchId,
-		Query:             batch.Query.GetQuery(),
 		CreatedAtUnixNano: batch.CreatedAtUnixNano,
 		StartTimeUnixNano: batch.StartTimeUnixNano,
 		EndTimeUnixNano:   batch.EndTimeUnixNano,
@@ -151,13 +149,18 @@ func (b *batchStore) verifyState(tenantID string) (RedactionVerifyState, bool) {
 	}, true
 }
 
-// setVerified records whether the batch's latest verification pass came back clean.
-func (b *batchStore) setVerified(tenantID string, verified bool) {
+// setVerified records whether the batch's latest verification pass came back clean, reporting
+// whether that changed the stored value. Callers persist the manifest only on a change: the flag is
+// set once per dirty block found, and every write after the first would be byte-identical.
+func (b *batchStore) setVerified(tenantID string, verified bool) (changed bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if batch, ok := b.byTenant[tenantID]; ok {
-		batch.Verified = verified
+	batch, ok := b.byTenant[tenantID]
+	if !ok || batch.Verified == verified {
+		return false
 	}
+	batch.Verified = verified
+	return true
 }
 
 // incVerifyRounds records that another verification pass has been launched.
@@ -261,8 +264,8 @@ func (w *Work) IncBatchVerifyRounds(tenantID string) {
 	w.batches.incVerifyRounds(tenantID)
 }
 
-// SetBatchVerified records whether the batch's latest verification pass found nothing. No-ops when
-// the tenant has no batch.
-func (w *Work) SetBatchVerified(tenantID string, verified bool) {
-	w.batches.setVerified(tenantID, verified)
+// SetBatchVerified records whether the batch's latest verification pass found nothing, reporting
+// whether the stored value changed. No-ops when the tenant has no batch.
+func (w *Work) SetBatchVerified(tenantID string, verified bool) (changed bool) {
+	return w.batches.setVerified(tenantID, verified)
 }

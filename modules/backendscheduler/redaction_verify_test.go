@@ -118,7 +118,6 @@ func TestVerificationJobsOnlyEnqueueScans(t *testing.T) {
 
 	jobs, _ := s.verificationJobs(tenant, work.RedactionVerifyState{
 		BatchID:           "b",
-		Query:             `{resource.namespace = "checkout"}`,
 		CreatedAtUnixNano: time.Now().UnixNano(),
 	})
 
@@ -142,7 +141,6 @@ func TestVerificationJobsRespectTheWindow(t *testing.T) {
 
 	jobs, _ := s.verificationJobs(tenant, work.RedactionVerifyState{
 		BatchID:           "b",
-		Query:             `{resource.namespace = "checkout"}`,
 		StartTimeUnixNano: windowStart,
 		EndTimeUnixNano:   windowEnd,
 	})
@@ -166,7 +164,6 @@ func TestVerificationJobsCarryTheDerivedWindow(t *testing.T) {
 
 	jobs, _ := s.verificationJobs(tenant, work.RedactionVerifyState{
 		BatchID:           "b",
-		Query:             `{resource.namespace = "checkout"}`,
 		CreatedAtUnixNano: created,
 	})
 
@@ -187,7 +184,6 @@ func TestVerificationJobsSkipBusyBlocks(t *testing.T) {
 
 	state := work.RedactionVerifyState{
 		BatchID:           "b",
-		Query:             `{resource.namespace = "checkout"}`,
 		CreatedAtUnixNano: time.Now().UnixNano(),
 	}
 	all, _ := s.verificationJobs(tenant, state)
