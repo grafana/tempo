@@ -993,7 +993,7 @@ Arguments:
 Options:
 
 - `--tenant <value>` **(required)** Tenant ID.
-- `--trace-id <value>` Trace ID to redact, in hex format. Specify multiple times to redact several traces in one request. Mutually exclusive with `--query`.
+- `--trace-id <value>` Trace ID to redact, in hex format. Specify multiple times to redact several traces in one request, up to 1000. Every job the redaction creates carries the whole list, so a longer list costs one copy per block; use `--query` instead. Mutually exclusive with `--query`.
 - `--query <value>` TraceQL query selecting the traces to redact, for example `{ span.http.status_code = 500 }`. Mutually exclusive with `--trace-id`. The query is restricted to a single spanset filter: `=` comparisons on the matched span's own `resource.*` or `span.*` attributes, joined by `&&` or `||`. Regular expressions, `!=` or ordered comparisons, `parent.`-scoped attributes, and pipelines or aggregates aren't supported.
 - `--dry-run` Evaluate the selector and report match counts without rewriting any blocks (default: `false`).
 - `--start <value>` Start of the time window. Accepts `now`, a relative offset such as `now-7d`, or an RFC3339 timestamp. Must be given with `--end`, must be before `--end`, and cannot be combined with `--trace-id`. Omit both bounds to redact the whole tenant.
