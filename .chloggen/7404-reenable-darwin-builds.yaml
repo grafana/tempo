@@ -1,6 +1,6 @@
 change_type: enhancement
 component: tempo
 note: re-enable darwin release builds again
-issues: [7404]
+issues: [7407]
 subtext:
 user: electron0zero
