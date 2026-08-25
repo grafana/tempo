@@ -384,8 +384,8 @@ github.com/grafana/dskit v0.0.0-20260703122047-de1ec7541c44 h1:UvN85f1puVLpC6g9Q
 github.com/grafana/dskit v0.0.0-20260703122047-de1ec7541c44/go.mod h1:T0r0vLv/JwmOoSc/EOZw/5ni7r/djCoCdJ3/JnHDAjQ=
 github.com/grafana/e2e v0.1.2-0.20260504080022-0f57c9f0da68 h1:+GLaDMc1zkYNTMHZq3ljGaRSm1IcOxQvpBNn0YUyh60=
 github.com/grafana/e2e v0.1.2-0.20260504080022-0f57c9f0da68/go.mod h1:o6aUPNFrl7H0XjIdBpXSU2Gou6vVwctVBuSvWPN7Ogg=
-github.com/grafana/gomemcache v0.0.0-20251127154401-74f93547077b h1:5qp8/5YPt/Z2RW5QHsxvwE05+LWQYIXydP2MwOkMfb8=
-github.com/grafana/gomemcache v0.0.0-20251127154401-74f93547077b/go.mod h1:j/s0jkda4UXTemDs7Pgw/vMT06alWc42CHisvYac0qw=
+github.com/grafana/gomemcache v0.0.0-20260728143316-9448343bd654 h1:d04mpP3+tVfBec0NkKKASCnzps5xfd8UY5gBoVFOba0=
+github.com/grafana/gomemcache v0.0.0-20260728143316-9448343bd654/go.mod h1:j/s0jkda4UXTemDs7Pgw/vMT06alWc42CHisvYac0qw=
 github.com/grafana/memberlist v0.3.1-0.20260515134459-1798cf41aca7 h1:F5hMoc+tCK4AeUKfaL1XFEVEPSg+eKQe712fsSO/JA0=
 github.com/grafana/memberlist v0.3.1-0.20260515134459-1798cf41aca7/go.mod h1:OSu8+LHxPUHB67c9v5Gfw5NQZxFWOL3EKmn9TgHvyCo=
 github.com/grafana/otel-profiling-go v0.6.0 h1:W7lOZaJj4IJISXMcM1UBk3fJF3tzF2OD6MJBJaQp1H8=
