@@ -33,11 +33,16 @@ Consider the following resolutions:
 
 ## TempoDistributorUnhealthy
 
-This can happen when we have unhealthy distributors sticking around in the ring.
+This can happen when we have unhealthy distributors sticking around in the ring, for example after a distributor Pod is OOM-killed or otherwise
+terminated non-gracefully instead of shutting down cleanly.
 
-If this occurs access the [ring page](https://grafana.com/docs/tempo/latest/operations/consistent_hash_ring/) at `/distributor/ring`.
-Use the "Forget" button to forget and remove any unhealthy distributors from the ring. An unhealthy distributor or two has virtually no impact except to slightly
-increase the amount of memberlist traffic propagated by the cluster.
+Distributors automatically forget unhealthy ring entries after `2 * distributor.ring.heartbeat-timeout` (10 minutes with the default 5m timeout),
+so stale entries are normally cleared well within this alert's 15m `for` window and no manual action is needed.
+
+If you need an unhealthy distributor removed sooner than the auto-forget window, or if `distributor.ring.heartbeat-timeout` has been configured to
+a larger value in your deployment, access the [ring page](https://grafana.com/docs/tempo/latest/operations/consistent_hash_ring/) at
+`/distributor/ring` and use the "Forget" button to remove it. An unhealthy distributor or two has virtually no impact except to slightly increase
+the amount of memberlist traffic propagated by the cluster.
 
 
 ### Quick checks
