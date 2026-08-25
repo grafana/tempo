@@ -73,7 +73,7 @@ require (
 	github.com/bytedance/sonic v1.15.1
 	github.com/evanphx/json-patch/v5 v5.9.11
 	github.com/googleapis/gax-go/v2 v2.23.0
-	github.com/grafana/gomemcache v0.0.0-20251127154401-74f93547077b
+	github.com/grafana/gomemcache v0.0.0-20260728143316-9448343bd654
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.1.0
 	github.com/jaegertracing/jaeger-idl v0.9.0
 	github.com/mark3labs/mcp-go v0.54.1
