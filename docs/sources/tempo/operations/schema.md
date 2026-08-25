@@ -21,8 +21,8 @@ This document describes the schema used with the Parquet block format.
 
 ## Version applicability
 
-Tempo 3.1 and later write new blocks using the vParquet5 schema by default.
-vParquet4 remains available as an opt-in write format and differs in some schema details.
+Tempo defaults to the vParquet5 schema. vParquet4 remains available and differs in some schema details.
+Unless otherwise noted, the sections below describe vParquet4.
 
 The column tables and collapsed schema example below describe vParquet4.
 A [summary of vParquet5 differences](#summary-of-vparquet5-differences) lists what changed.
