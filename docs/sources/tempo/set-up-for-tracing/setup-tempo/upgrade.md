@@ -31,6 +31,23 @@ You can check your configuration options using the [`status` API endpoint](https
 
 ## Upgrade to Tempo 3.1
 
+### Default block format is now vParquet5
+
+Tempo 3.1 writes new blocks in vParquet5.
+Existing vParquet4 and vParquet3 blocks still read, and no data migration is required.
+[[PR 7775](https://github.com/grafana/tempo/pull/7775)]
+
+To keep writing vParquet4, set the block version explicitly:
+
+```yaml
+storage:
+  trace:
+    block:
+      version: vParquet4
+```
+
+Refer to [Apache Parquet block format](/docs/tempo/<TEMPO_VERSION>/configuration/parquet/) for version details.
+
 ### Redis cache configuration changes
 
 Tempo upgrades the Redis cache client to [`github.com/redis/go-redis/v9`](https://github.com/redis/go-redis) and reworks the cache configuration. Redis Cluster is now the default routing mode, Redis Sentinel support is removed, several YAML keys are renamed, and the TLS block is replaced with a dskit-style block that fails closed on invalid configuration. [[PR 7337](https://github.com/grafana/tempo/pull/7337)]
@@ -132,6 +149,19 @@ cache:
         read_only: false        # Allow read-only commands on replica nodes. Reads may be stale.
         max_redirects: 3        # Maximum redirects to follow on MOVED/ASK responses.
         min_idle_conns: 0       # Minimum idle connections to maintain in the pool.
+```
+
+### Trace by ID query sharding
+
+Trace-by-ID lookups now shard dynamically based on the number of blocks in the blocklist rather than using a fixed shard count. A new `blocks_per_shard` option defaults to `30` and takes precedence over the deprecated `query_shards` setting. [[PR 7105](https://github.com/grafana/tempo/pull/7105)]
+
+To keep the previous fixed-shard-count behavior, set `blocks_per_shard: 0` to fall back to `query_shards`:
+
+```yaml
+query_frontend:
+  trace_by_id:
+    blocks_per_shard: 0
+    query_shards: 50  # previous default
 ```
 
 ### Memcached cache connection defaults
