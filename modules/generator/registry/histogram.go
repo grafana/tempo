@@ -231,7 +231,11 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) erro
 			// We set the timestamp of the init serie at the end of the previous minute, that way we ensure it ends in a
 			// different aggregation interval to avoid be downsampled.
 			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
-			_, err := appender.Append(0, s.countLabels, endOfLastMinuteMs, 0)
+			_, err := appender.Append(0, s.sumLabels, endOfLastMinuteMs, 0)
+			if err != nil && !isOutOfOrderError(err) {
+				return err
+			}
+			_, err = appender.Append(0, s.countLabels, endOfLastMinuteMs, 0)
 			if err != nil && !isOutOfOrderError(err) {
 				return err
 			}
