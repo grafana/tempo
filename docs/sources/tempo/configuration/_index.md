@@ -2856,7 +2856,7 @@ For guidance on sizing these limits for your workload, refer to [Manage trace in
 
 By default, Tempo reports anonymous usage data about the shape of a deployment to Grafana Labs.
 This data is used to determine how common the deployment of certain features are, if a feature flag has been enabled,
-and which replication factor or compression levels are used.
+and which replication factors or block formats are used.
 
 By providing information on how people use Tempo, usage reporting helps the Tempo team decide where to focus their development and documentation efforts. No private information is collected, and all reports are completely anonymous.
 
@@ -2864,7 +2864,7 @@ The following configuration values are used:
 
 - Receivers enabled
 - Frontend concurrency and version
-- Storage cache, backend, WAL and block encodings
+- Storage cache, backend, and configured block format
 - Ring replication factor, and `kvstore`
 - Features toggles enabled
 

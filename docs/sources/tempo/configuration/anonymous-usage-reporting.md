@@ -7,7 +7,8 @@ weight: 950
 # Anonymous usage reporting
 
 By default, Tempo reports anonymous usage data about itself to Grafana Labs.
-This data is used to understand which features are commonly enabled, as well as which deployment modes, replication factors, and compression levels are most popular, etc.
+This data is used to understand which features are commonly enabled,
+as well as which deployment modes, replication factors, and block formats are most popular.
 
 By providing information on how people use Tempo, usage reporting helps the Tempo team decide where to focus their development and documentation efforts.
 
@@ -15,7 +16,7 @@ The following configuration values are used:
 
 - Receivers enabled
 - Frontend concurrency and version
-- Storage cache, backend, WAL and block encodings
+- Storage cache, backend, and configured block format
 - Ring replication factor, and `kvstore`
 - Features toggles enabled
 
@@ -42,7 +43,7 @@ An example report output looks like this:
   "intervalPeriod": 14400,
   "target": "all",
   "version": {
-    "version": "v2.8.0",
+    "version": "v3.0.0",
     "revision": "31e2dddb5",
     "branch": "main",
     "buildUser": "",
@@ -68,16 +69,13 @@ An example report output looks like this:
     "num_cpu": 8,
     "feature_enabled_multitenancy": 0,
     "receiver_enabled_jaeger": 0,
-    "storage_block_encoding": "zstd",
-    "storage_block_search_encoding": "snappy",
+    "storage_block_format": "vParquet5",
     "storage_cache": "",
     "feature_enabled_auth_stats": 0,
     "frontend_version": "v1",
     "storage_backend": "local",
     "receiver_enabled_otlp": 0,
     "ring_replication_factor": 1,
-    "storage_wal_encoding": "snappy",
-    "storage_wal_search_encoding": "none",
     "num_goroutine": 813,
     "cache_memcached": 1,
     "cache_redis": 0,
@@ -118,7 +116,7 @@ Tempo maintainers commit to keeping the list of tracked information updated over
 
 - **`target`**: The deployment mode or target for the Tempo instance, such as `all` for monolithic mode.
 - **`version`**: An object containing detailed version information:
-  - **`version`**: The Tempo version, for example `v2.8.0`.
+  - **`version`**: The Tempo version, for example `v3.0.0`.
   - **`revision`**: The Git commit hash or revision used to build the binary.
   - **`branch`**: The Git branch used for the build.
   - **`buildUser`**: The user who built the binary.
@@ -139,7 +137,9 @@ Tempo maintainers commit to keeping the list of tracked information updated over
   - **`num_cpu`**: The number of logical CPU cores available.
   - **`feature_enabled_multitenancy`**: Indicates if multitenancy is enabled (`1`) or not (`0`).
   - **`receiver_enabled_jaeger`**, **`receiver_enabled_otlp`**, **`receiver_enabled_kafka`**, **`receiver_enabled_zipkin`**: Flags indicating if each trace receiver is enabled (`1`) or not (`0`).
-  - **`storage_block_encoding`**, **`storage_block_search_encoding`**, **`storage_wal_encoding`**, **`storage_wal_search_encoding`**: The encoding or compression algorithms used for storage blocks and write-ahead logs.
+  - **`storage_block_format`**: The effective `storage.trace.block.version` value used for newly written blocks.
+    Existing blocks may use older formats,
+    and older Tempo versions omit this field.
   - **`storage_cache`**: The cache backend used for storage, if any.
   - **`feature_enabled_auth_stats`**: Indicates if authentication statistics are enabled.
   - **`frontend_version`**: The version of the frontend component.
