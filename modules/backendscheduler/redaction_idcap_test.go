@@ -23,13 +23,8 @@ func idList(n int) [][]byte {
 	return ids
 }
 
-// TestValidateRedactionRequestCapsTraceIDs bounds the explicit trace-ID list.
-//
-// Next() assigns the batch's whole list onto every job it hands out, so the dispatch cost is
-// O(ids x blocks): a few million 16-byte IDs against a tenant with tens of thousands of blocks is
-// terabytes of gRPC traffic out of the scheduler, which is a singleton. The gRPC message limit
-// caps a single submission somewhere near 5.8M ids, which is a failure discovered under load
-// rather than a stated boundary -- and far past the point where the cost is unreasonable.
+// TestValidateRedactionRequestCapsTraceIDs bounds the explicit trace-ID list and pins that the
+// rejection names the query selector, so a refused operator has a next step.
 func TestValidateRedactionRequestCapsTraceIDs(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
@@ -51,17 +46,14 @@ func TestValidateRedactionRequestCapsTraceIDs(t *testing.T) {
 			require.Error(t, err)
 			require.Equal(t, codes.InvalidArgument, status.Code(err))
 			require.Contains(t, err.Error(), tc.wantMsg)
-			// The rejection has to name the way out, or an operator with a large list has no next
-			// step but to split it up and pay the same dispatch cost across several batches.
-			require.Contains(t, err.Error(), "query",
-				"the error must point at the query selector, which costs nothing per job")
+			require.Contains(t, err.Error(), "query", "the error must point at the query selector")
 		})
 	}
 }
 
-// TestValidateRedactionRequestCapDoesNotApplyToQuery pins that the cap is a property of shipping
-// an ID list, not of redaction size. A query selects an unbounded number of traces and is resolved
-// per block on the worker, so it carries no per-job payload at all.
+// TestValidateRedactionRequestCapDoesNotApplyToQuery pins that the cap is a property of shipping an
+// ID list, not of redaction size: a query is resolved per block on the worker and carries no
+// per-job payload.
 func TestValidateRedactionRequestCapDoesNotApplyToQuery(t *testing.T) {
 	err := validateRedactionRequest(
 		&tempopb.SubmitRedactionRequest{},
