@@ -117,9 +117,11 @@ func TestDrainSanitizer_DisabledTenantNeverRegistersMetrics(t *testing.T) {
 
 	// check the metric and assert
 	for _, vec := range []prometheus.Collector{metricPostSanitizationDemand, metricTotalSpansSanitized} {
-		ch := make(chan prometheus.Metric, 100)
-		vec.Collect(ch)
-		close(ch)
+		ch := make(chan prometheus.Metric)
+		go func() {
+			vec.Collect(ch)
+			close(ch)
+		}()
 		for m := range ch {
 			var g io_prometheus_client.Metric
 			require.NoError(t, m.Write(&g))
