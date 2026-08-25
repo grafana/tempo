@@ -11,9 +11,13 @@ Tempo has a default columnar block format based on Apache Parquet.
 This format is required for tags-based search as well as [TraceQL](../../traceql/), the query language for traces.
 The columnar block format improves search performance and enables an ecosystem of tools, including [Tempo CLI](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/tempo_cli/#analyse-blocks), to access the underlying trace data.
 
+Starting in Tempo 3.1, Tempo writes new blocks in `vParquet5` by default.
+Existing `vParquet4` blocks remain readable.
+No data migration is required.
+
 ## Considerations
 
-The Parquet block format has been the default since Tempo 2.0 and is the only supported block format in Tempo 3.0.
+The Parquet block format has been the default since Tempo 2.0 and is the only supported block format in Tempo 3.x.
 
 If you install using the [Tempo Helm charts](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/helm-chart/), then Parquet is enabled by default.
 No data conversion or upgrade process is necessary.
@@ -26,18 +30,11 @@ The `v2` and `vParquet3` block formats have been removed in Tempo 3.0.
 Use `vParquet5` (default) or `vParquet4`. 
 {{< /admonition >}}
 
-Only Parquet-based formats are supported. 
-
-### vParquet4 
-
-`vParquet4` is available as an opt-in alternative to the default `vParquet5` format.
-
-`vParquet4` introduces columns that enable querying for data in array attributes as well as events and links.
-For more information, refer to [Dedicated attribute columns](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/dedicated_columns/).
+Only Parquet-based formats are supported.
 
 ### vParquet5
 
-`vParquet5` is the default block format.
+`vParquet5` is the default block format as of Tempo 3.1.
 It builds on vParquet4 with the following improvements:
 
 - Expanded dedicated columns: Up to 20 dedicated string columns and 5 dedicated integer columns per scope (span, resource, and event), compared with 10 string columns per scope in vParquet4.
@@ -46,6 +43,13 @@ It builds on vParquet4 with the following improvements:
 - Array-valued dedicated columns: Dedicated columns can store multiple values per attribute using the `options: ["array"]` configuration.
 
 For details on configuring dedicated attribute columns with vParquet5 features, refer to [Dedicated attribute columns](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/dedicated_columns/).
+
+### vParquet4
+
+`vParquet4` is available as an opt-in alternative to the default `vParquet5` format.
+
+`vParquet4` introduces columns that enable querying for data in array attributes as well as events and links.
+For more information, refer to [Dedicated attribute columns](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/dedicated_columns/).
 
 ## Change the block format version
 
@@ -58,6 +62,7 @@ storage:
       version: <version>
 ```
 
+If you omit `version`, Tempo writes `vParquet5`.
 Replace `<version>` with `vParquet4` or `vParquet5`.
 
 To keep writing the previous `vParquet4` format, set the `version` option to `vParquet4`.

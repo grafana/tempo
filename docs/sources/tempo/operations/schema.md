@@ -14,15 +14,18 @@ aliases:
 <!-- vale Grafana.GooglePassive = NO -->
 <!-- vale Grafana.GoogleWill = NO -->
 
-Apache Parquet is the only supported block format in Tempo 3.0.
+Apache Parquet is the only supported block format in Tempo 3.x.
 Refer to the [Parquet configuration options](../../configuration/parquet/) for more information.
 
 This document describes the schema used with the Parquet block format.
 
 ## Version applicability
 
-Tempo defaults to the vParquet5 schema. vParquet4 remains available and differs in some schema details.
-Unless otherwise noted, the sections below describe vParquet4.
+Tempo 3.1 and later write new blocks using the vParquet5 schema by default.
+vParquet4 remains available as an opt-in write format and differs in some schema details.
+
+The column tables and collapsed schema example below describe vParquet4.
+A [summary of vParquet5 differences](#summary-of-vparquet5-differences) lists what changed.
 
 The following sections apply to both vParquet4 and vParquet5:
 
