@@ -37,6 +37,8 @@ type DrainSanitizer struct {
 	tenant        string
 	sanitizeModeF sanitizeModeFunc
 
+	// initialized on first enabled Sanitize call, to ensure only tenant with
+	// sanitization enabled register these metrics.
 	metricTotalSpansSanitized prometheus.Counter
 	demandGauge               prometheus.Gauge
 
@@ -49,14 +51,12 @@ type DrainSanitizer struct {
 
 func NewDrainSanitizer(tenant string, sanitizeModeF sanitizeModeFunc, staleDuration time.Duration) *DrainSanitizer {
 	return &DrainSanitizer{
-		drain:                     drain.New(tenant, drain.DefaultConfig()),
-		tenant:                    tenant,
-		sanitizeModeF:             sanitizeModeF,
-		metricTotalSpansSanitized: metricTotalSpansSanitized.WithLabelValues(tenant),
-		demand:                    NewCardinality(staleDuration, removeStaleSeriesInterval),
-		demandGauge:               metricPostSanitizationDemand.WithLabelValues(tenant),
-		demandUpdateChan:          time.Tick(15 * time.Second),
-		pruneChan:                 time.Tick(5 * time.Minute),
+		drain:            drain.New(tenant, drain.DefaultConfig()),
+		tenant:           tenant,
+		sanitizeModeF:    sanitizeModeF,
+		demand:           NewCardinality(staleDuration, removeStaleSeriesInterval),
+		demandUpdateChan: time.Tick(15 * time.Second),
+		pruneChan:        time.Tick(5 * time.Minute),
 	}
 }
 
@@ -70,6 +70,12 @@ func (s *DrainSanitizer) Sanitize(lbls labels.Labels) labels.Labels {
 
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
+
+	// only register metrics when feature is NOT disabled.
+	if s.demandGauge == nil {
+		s.metricTotalSpansSanitized = metricTotalSpansSanitized.WithLabelValues(s.tenant)
+		s.demandGauge = metricPostSanitizationDemand.WithLabelValues(s.tenant)
+	}
 
 	s.doPeriodicMaintenanceLocked()
 
