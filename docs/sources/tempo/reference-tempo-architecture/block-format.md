@@ -4,7 +4,7 @@ menuTitle: Block format
 description: How Tempo stores trace data in Apache Parquet blocks.
 weight: 500
 topicType: concept
-versionDate: 2026-03-20
+versionDate: 2026-08-25
 ---
 
 # Block format
@@ -83,14 +83,16 @@ Refer to [Dedicated attribute columns](https://grafana.com/docs/tempo/<TEMPO_VER
 ## Block format versions
 
 Tempo uses versioned block formats.
+As of Tempo 3.1, new blocks are written in vParquet5 by default.
 
-| Version   | Status                             |
-| --------- | ---------------------------------- |
-| vParquet3 | Deprecated in 2.10, removed in 3.0 |
-| vParquet4 | Production-ready, opt-in            |
-| vParquet5 | Default and latest                 |
+| Version   | Status                                    |
+| --------- | ----------------------------------------- |
+| vParquet3 | Deprecated in 2.10; still readable in 3.x |
+| vParquet4 | Production-ready, opt-in                  |
+| vParquet5 | Default and latest                        |
 
-The block format is configured in:
+If you omit `version`, Tempo writes vParquet5.
+To keep writing vParquet4, set the version explicitly:
 
 ```yaml
 storage:
@@ -99,7 +101,9 @@ storage:
       version: vParquet4
 ```
 
-Existing blocks in older formats remain readable. New blocks are always written in the configured version.
+Existing blocks in older formats remain readable.
+New blocks are always written in the configured version.
+No data migration is required when the default changes.
 
 ## Related resources
 
