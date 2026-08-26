@@ -85,11 +85,11 @@ Refer to [Dedicated attribute columns](https://grafana.com/docs/tempo/<TEMPO_VER
 Tempo uses versioned block formats.
 As of Tempo 3.1, new blocks are written in vParquet5 by default.
 
-| Version   | Status                                      |
-| --------- | ------------------------------------------- |
-| vParquet3 | Deprecated in 2.10; still readable in 3.x   |
-| vParquet4 | Production-ready, opt-in                    |
-| vParquet5 | Default and latest                          |
+| Version   | Status                                    |
+| --------- | ----------------------------------------- |
+| vParquet3 | Deprecated in 2.10; still readable in 3.x |
+| vParquet4 | Production-ready, opt-in                  |
+| vParquet5 | Default and latest                        |
 
 If you omit `version`, Tempo writes vParquet5.
 To keep writing vParquet4, set the version explicitly:

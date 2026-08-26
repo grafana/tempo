@@ -28,7 +28,7 @@ As soon as a block format version is enabled, Tempo starts writing data in that 
 {{< admonition type="warning" >}}
 The `v2` block format has been removed in Tempo 3.0.
 `vParquet3` is deprecated.
-Tempo still reads existing `vParquet3` blocks.
+Tempo 3.x still reads existing `vParquet3` blocks.
 Write new blocks in `vParquet5` (default) or `vParquet4`.
 {{< /admonition >}}
 
