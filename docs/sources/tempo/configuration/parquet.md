@@ -41,7 +41,7 @@ It builds on vParquet4 with the following improvements:
 - Event-scoped dedicated columns: Dedicated attribute columns can target event-scoped attributes such as `exception.message`.
 - Blob column support: High-cardinality or high-length string attributes (for example, stack traces or UUIDs) can use `zstd` compression instead of dictionary encoding for better efficiency.
 - Array-valued dedicated columns: Dedicated columns can store multiple values per attribute using the `options: ["array"]` configuration.
-
+- Materialized timestamp columns for faster metrics queries using common step intervals of 15s, 60s, 300s, and 1h, and any even multiples of those.  The best value is chosen by automatically based on the query time range when the step interval is left as `auto`.
 For details on configuring dedicated attribute columns with vParquet5 features, refer to [Dedicated attribute columns](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/dedicated_columns/).
 
 ### vParquet4
