@@ -17,44 +17,67 @@ Ensure you have the following:
 - Access to the GitHub API to look up PR details (for example, GitHub MCP server, `gh` CLI, or direct API access)
 - Access to the Tempo repository (`grafana/tempo`) and its PRs
 - Previous release notes for format reference (for example, `v2-10.md`)
-- Source material: curated PR list from the engineering team OR CHANGELOG unreleased section
+- Source material: a curated PR list from the engineering team,
+  pending entries in `.chloggen/*.yaml` (or `make chlog-preview` output),
+  or a collated `# vX.Y.Z` section in `CHANGELOG.md` after `make chlog-update`
+
+Unreleased work never lives in `CHANGELOG.md`.
+See [`.chloggen/README.md`](../../../.chloggen/README.md)
+and the [`changelog-entry`](../../../.claude/skills/changelog-entry/SKILL.md) skill
+for how individual PR entries are created;
+this workflow only consumes those entries to draft release notes.
 
 ## Workflow phases
 
 ### Phase 0: Source curation (human-driven, AI-assisted)
 
-The CHANGELOG must be sorted and grouped before drafting begins. An AI assistant can do the heavy lifting -- reading each PR, understanding context, and proposing groupings -- but a human must review, adjust, and approve the final result. Do not proceed to Phase 1 until this is complete.
+The pending changelog entries must be sorted and grouped before drafting begins. An AI assistant can do the heavy lifting -- reading each PR, understanding context, and proposing groupings -- but a human must review, adjust, and approve the final result. Do not proceed to Phase 1 until this is complete.
 
-The goal of this phase is to understand the shape of the release: what the major feature areas are, which CHANGELOG entries belong to each area, and what to include or exclude from the release notes.
+The goal of this phase is to understand the shape of the release: what the major feature areas are, which changelog entries belong to each area, and what to include or exclude from the release notes.
 
-#### Step 1: Obtain the raw CHANGELOG
+#### Step 1: Collect pending changelog entries
 
-Get the raw CHANGELOG or PR list for the upcoming release.
+Get the input set for the upcoming release:
+
+- **Before a release is collated**: pending entries in `.chloggen/*.yaml`
+  (ignore `TEMPLATE.yaml` and `config.yaml`).
+  Prefer `make chlog-preview` when `issues` are filled in for every entry.
+  If preview fails because some entry has `issues: []`,
+  parse the YAML directly and resolve PR numbers
+  from git history, the branch, or GitHub.
+- **After `make chlog-update VERSION=vX.Y.Z`**:
+  use the versioned `# vX.Y.Z` section in `CHANGELOG.md`.
+
+CI already filters this input set:
+PRs labeled `Skip Changelog` or `dependencies`,
+labeled `type/docs`, or with a `chore:`-prefixed title
+typically don't get a `.chloggen` entry at all,
+so the pending entries are already a filtered starting point.
 
 #### Step 2: Identify known headline features
 
-Before sorting the CHANGELOG, ask: **are the main features of this release already known?**
+Before sorting the pending entries, ask: **are the main features of this release already known?**
 
-The engineering team, product manager, or writer may already know which features define this release. If so, these known headline features and their associated PRs become the primary emphasis of the release notes. Everything else in the CHANGELOG gets organized around them.
+The engineering team, product manager, or writer may already know which features define this release. If so, these known headline features and their associated PRs become the primary emphasis of the release notes. Everything else in the changelog entries gets organized around them.
 
 If the main features are known:
 - List them along with the key PRs associated with each feature
 - These features become the top-level feature areas for sorting
-- The AI-assisted sorting in Step 3 should group remaining CHANGELOG entries around these known areas and identify any additional areas the team may not have mentioned
+- The AI-assisted sorting in Step 3 should group remaining changelog entries around these known areas and identify any additional areas the team may not have mentioned
 
 If the main features aren't known yet:
-- Proceed to Step 3 and let the AI propose the major feature areas by reading through the CHANGELOG entries
+- Proceed to Step 3 and let the AI propose the major feature areas by reading through the changelog entries
 - Review the AI's proposed areas with the engineering team in Step 4 to confirm
 
 #### Step 3: AI-assisted sorting
 
-Provide the raw CHANGELOG to the AI assistant, along with the known headline features if available. Ask it to:
+Provide the pending changelog entries (from `.chloggen` or `chlog-preview`) to the AI assistant, along with the known headline features if available. Ask it to:
 
 1. **Look up each PR** to read the description, understand the change, and assess user impact.
 
 2. **Identify or confirm the major feature areas** for this release:
    - If headline features were provided in Step 2, use those as the primary feature areas and group associated PRs under them. Then identify any additional areas from the remaining entries.
-   - If no headline features were provided, identify the major feature areas from the CHANGELOG entries themselves. These aren't fixed categories -- they emerge from the entries. The AI should read through all entries and propose the themes that define the release.
+   - If no headline features were provided, identify the major feature areas from the changelog entries themselves. These aren't fixed categories -- they emerge from the entries. The AI should read through all entries and propose the themes that define the release.
 
    For example, the Tempo 2.10 release had these major feature areas:
    - TraceQL (new query capabilities like `= nil`, `span:childCount`, `minInt`/`maxInt`)
@@ -64,47 +87,34 @@ Provide the raw CHANGELOG to the AI assistant, along with the known headline fea
    - User-configurable overrides
    - Project Rhythm (new architecture, experimental)
 
-   A different release might have entirely different major areas, for example, query performance, multi-tenancy, or new storage backends. Let the CHANGELOG entries tell you what the release is about.
+   A different release might have entirely different major areas, for example, query performance, multi-tenancy, or new storage backends. Let the changelog entries tell you what the release is about.
 
-3. **Group every CHANGELOG entry** into the feature areas:
+   **`change_type` and `component` from `.chloggen` are hints, not the release-notes grouping.** Use `change_type` as a first pass: `breaking` entries are candidates for Upgrade considerations, `bug_fix` for Bug fixes, `security` for Security fixes. `component` (for example, `metrics-generator`, `traceql`) hints at feature area but doesn't replace it -- a single feature area often spans several components, and a single component often spans several feature areas.
+
+   `make chlog-preview` already sorts entries by `component` within each `change_type` section --
+   component-level grouping is already free.
+   What this step actually adds is the cross-cutting *feature-area* grouping,
+   not re-deriving component buckets by hand.
+
+3. **Group every changelog entry** into the feature areas:
    - Assign each entry to the feature area where it has the most user impact. PRs associated with known headline features should be grouped under those areas first.
    - Within each group, weight the entries: identify which are headline items versus supporting changes, minor improvements, or bug fixes.
-   - Flag entries for exclusion or folding using the criteria in Step 3b.
-   - Flag entries that are uncertain -- these need human judgment.
+   - Assign every entry a placement label using [release-notes-placement.md](release-notes-placement.md).
+   - Use **Uncertain** when you can't decide -- these need human judgment.
 
 4. **Return a structured, grouped list** organized by feature area, with entries ordered by importance within each group and exclusions listed separately. Known headline features should appear first.
 
-#### Step 3b: Apply inclusion/exclusion criteria
+#### Step 3b: Place each entry
 
-Use these criteria to decide what belongs in the release notes. Based on analysis of Tempo 2.10 (where ~75% of CHANGELOG entries made it into the release notes), entries fall into three categories: include, exclude, or fold.
+Read [release-notes-placement.md](release-notes-placement.md)
+and assign every entry a label: highlight, brief include, cite prior notes, exclude, or uncertain.
+Fold sibling PRs into one description as that file describes --
+folding is how an include is represented, not a skip.
 
-**Exclude** — omit entirely:
-
-| Category | Example (2.10) |
-|----------|----------------|
-| Test/validation infrastructure | Vulture changes, perf-test harness (#5723) |
-| Docs-only PRs | Auth notes in docs (#5735), config example fix (#6116) |
-| Dashboard/mixin/runbook updates | New dashboard panels (#5848, #6210), panel removal (#6221) |
-| Internal refactors | SDK migration (#5856), preview encoding churn (#6134) |
-| Dependency/vendor updates | jsonnet vendor deps (#6202) |
-| Example/Docker config changes | Port exposure, backend changes in example configs |
-| Internal metrics plumbing | Metric type fixes (gauge vs counter), internal histograms |
-
-**Fold** — represent in the narrative of a headline section, not as a separate entry:
-
-Multiple PRs that describe the same change from different angles get one description, not N bullets. For example, if 5 PRs all remove parts of the ingester module, the release notes describe the ingester removal once and list the PR numbers together.
-
-Also fold: narrow follow-up bug fixes for a feature PR (cite the feature, not each fix), and preview/iteration PRs that led to a shipped feature.
-
-**Include** — even if they look internal:
-
-- Breaking changes (always, even if the change is an internal cleanup)
-- Go version upgrades (under Upgrade considerations)
-- New config options or flags, even if minor
-- Deprecations (users need to plan)
-- Bug fixes that users could have hit in production
-
-**Expected ratio:** ~70-80% of CHANGELOG entries appear in the release notes. If significantly more or fewer entries survive, revisit the criteria.
+Docs-only and dependency-only PRs increasingly skip `.chloggen` entirely
+(see the skip labels in Step 1),
+so the share of surviving entries that appear in the notes is often high.
+Treat that as a sanity check for a normal minor, not a hard target.
 
 #### Step 4: Human review
 
@@ -112,7 +122,7 @@ The AI's proposed grouping is a starting point, not the final answer. Review the
 
 - Adjust feature area names and boundaries (the AI may split or merge areas incorrectly)
 - Move entries between groups if the AI misjudged the primary feature area
-- Override include/exclude decisions where the AI lacked context
+- Override placement labels where the AI lacked context
 - Resolve uncertain entries
 - Confirm which feature areas deserve featured sections versus brief mentions
 
@@ -125,32 +135,41 @@ Review the grouped list with the engineering team to:
 - Flag features that need documentation updates
 - Resolve any remaining entries you're unsure about
 
-#### Step 6: Produce the curated input
+#### Step 6: Produce the curated input, then stop
 
 The final output of Phase 0 is a curated, grouped PR list organized by major feature area, with entries weighted by importance within each group. This list is the input for all subsequent phases.
 
-Do not begin Phase 1 until this curated list has been reviewed and approved by the writer or team lead.
+**STOP here.** Output the grouped list in a form the writer can edit -- highlight and brief include (by feature area, weighted), cite prior notes (with the earlier X.Y to link), fold (with fold-into target), exclude (with reason), uncertain (with why) -- and end the turn. Do not start Phase 1, 1.5, 1.75, or drafting in the same turn, even for a short source list. Resume only after the writer explicitly approves (for example, "approved") or sends a revised list; a revision gets a new grouped list and stops again, the same way.
+
+This also applies to the "Initial draft from pending entries (not recommended)" example prompt below -- it's a shortcut for skipping curation, not for skipping this approval. And to the [feature-by-feature workflow](#feature-by-feature-workflow) at the end of this doc: session 1 may run Phases 1 through 1.75 only when Phase 0 was already approved in an earlier turn.
+
+Once approved, work through Phases 1 to 5 one feature area at a time using the [feature-by-feature workflow](#feature-by-feature-workflow) -- the default approach for any release with a nontrivial number of entries, not only unusually complex ones.
 
 ### Phase 1: Input gathering
 
-Using the curated PR list from Phase 0:
+Using the curated PR list from Phase 0, gather what's needed to draft each entry: user impact, config or flag names, migration steps. This is drafting context only -- documentation-gap classification happens in Phase 1.5, not here. (Phase 1.5's `docs-pr-check` already does its own PR lookup and checks for changed `docs/` files; duplicating that here just redoes the same work with a shallower schema.)
 
-1. **Look up each PR** using the GitHub API:
-   - Read PR descriptions for context and user impact
-   - Check linked issues for additional context
-   - Identify configuration changes, new flags, or migration steps
-   - **Check the PR checklist**: Note if "Documentation added" is checked
-   - Look for documentation files changed in the PR
+Most entries don't need a fresh PR lookup: `.chloggen` notes are already written for release-notes consumption (per `.chloggen/README.md`, the note opens with user impact). Draft directly from the note, and look up the PR only when:
+
+- the entry is a headline, breaking, or security item that needs a deeper writeup than the note provides,
+- Phase 0 flagged the entry as uncertain,
+- a specific config or behavior claim needs verification beyond what Phase 4's code checks can confirm on their own.
+
+When you do look up a PR, read the description and linked issues for context the note doesn't cover, and confirm configuration changes, new flags, or migration steps.
 
 ### Phase 1.5: Documentation assessment
 
-For each PR, evaluate whether it needs documentation and whether that documentation exists. This is a critical review step that prevents features from shipping without adequate docs.
+Run `/docs-pr-check` on every Phase 0 **highlight**, **brief include**, **cite prior notes**, and **fold** entry. Placement is a release-notes-narrative decision, not a documentation-completeness decision -- a folded or cited PR can still be an undocumented config change, and this phase exists specifically to catch that. Skip Phase 1.5 only for entries Phase 0 **excluded** for a reason already synonymous with "no docs needed": docs-only, dependency/vendor bump, pure internal refactor, test/validation infrastructure, internal metrics plumbing ([release-notes-placement.md](release-notes-placement.md) is the source list). For any other exclude reason, still run it.
 
-Run `/docs-pr-check`. See [`.claude/skills/docs-pr-check/SKILL.md`](../../../.claude/skills/docs-pr-check/SKILL.md) for the full classification process, criteria, and return format.
+This is a critical review step that prevents features from shipping without adequate docs.
+
+See [`.claude/skills/docs-pr-check/SKILL.md`](../../../.claude/skills/docs-pr-check/SKILL.md) for the full classification process, criteria, and return format.
 
 ### Phase 1.75: Documentation gap resolution
 
 For each PR classified as "docs needed" or "docs update needed", create or update the required documentation pages.
+
+**Present the Phase 1.5 gap list and confirm before running `/docs-pr-write`.** Unlike Phase 1.5's classification, this phase writes to real documentation pages. Do not run it automatically the moment Phase 1.5 finishes -- there may be reasons to defer or rescope it (batching with other doc work, waiting on engineering input for an ambiguous gap, running it only for a subset of entries first). Resume once the writer confirms whether to proceed, and with what scope.
 
 Run `/docs-pr-write`. See [`.claude/skills/docs-pr-write/SKILL.md`](../../../.claude/skills/docs-pr-write/SKILL.md) for the full execution steps, validation process, and return format.
 
@@ -226,9 +245,9 @@ Before finalizing examples, validate them against the codebase:
 1. Verify all PR links are correct and accessible
 2. Check that configuration examples match the actual code
 3. Ensure documentation links use `<TEMPO_VERSION>` placeholder
-4. Run linter to fix style issues
+4. Run `.claude/skills/shared/vale-compact.sh <file>` to fix style issues (a compact wrapper over `vale` -- same findings, without its per-finding boilerplate)
 5. Apply sentence case to all headings
-6. Remove CHANGELOG artifacts (usernames, brackets around categories)
+6. Remove chloggen formatting artifacts: `component:` prefixes, emoji section headings (🚀, 💡, 🧰, and so on), and `(@handle)` suffixes. Older, already-shipped CHANGELOG sections may still use bracketed `[CHANGE]`-style tags instead -- leave those as historical text; don't retrofit them.
 
 ## Patch releases (X.Y.Z)
 
@@ -364,21 +383,21 @@ For a complete list, refer to the [Tempo CHANGELOG](https://github.com/grafana/t
 
 These prompts work with any AI coding assistant. Replace `[look up the PR]` with whatever method your tool supports (GitHub MCP, `gh` CLI, API calls, etc.).
 
-### CHANGELOG curation assist (Phase 0)
+### Changelog curation assist (Phase 0)
 
 Use these prompts to help with the sorting process, but **a human must review and approve the final grouped list** before proceeding.
 
-#### Sort CHANGELOG with known headline features
+#### Sort pending entries with known headline features
 
 Use this prompt when the main features of the release are already known. The known features become the primary emphasis, and the remaining entries are organized around them.
 
-> Here is the unreleased section of the CHANGELOG for Tempo vX.Y. The main features of this release are already known:
+> Here are the pending changelog entries for Tempo vX.Y (from `.chloggen/*.yaml` or `make chlog-preview` output). The main features of this release are already known:
 >
 > - [Feature 1]: [brief description, key PRs if known]
 > - [Feature 2]: [brief description, key PRs if known]
 > - [Feature 3]: [brief description, key PRs if known]
 >
-> Sort the CHANGELOG entries using these headline features as the primary feature areas. For each CHANGELOG entry:
+> Sort the entries using these headline features as the primary feature areas. For each entry:
 >
 > 1. Look up the PR to read the description and understand the change
 > 2. Assess the user impact
@@ -388,20 +407,20 @@ Use this prompt when the main features of the release are already known. The kno
 > 1. **Group entries under the known headline features first.** PRs associated with each headline feature should be grouped together, with the key PRs as the headline items.
 > 2. **Identify any additional feature areas** from the remaining entries that don't fit under the known features.
 > 3. **Order entries within each group** by importance: headline items first, then supporting changes, then minor fixes.
-> 4. **Flag entries to exclude or fold** using the inclusion/exclusion criteria in Step 3b of the workflow. List exclusions separately with a brief reason.
-> 5. **Flag uncertain entries** that need human judgment. Explain why you're unsure.
+> 4. **Assign a placement label** using [release-notes-placement.md](release-notes-placement.md): highlight, brief include, cite prior notes, exclude, or uncertain. Fold sibling PRs into one description. List exclusions separately with a brief reason.
+> 5. **For uncertain entries**, explain why you couldn't decide. These need human judgment.
 >
 > Return the result as a structured, grouped list with the known headline features listed first. I'll review and adjust your groupings before we proceed.
 >
-> [Paste raw CHANGELOG section here]
+> [Paste chlog-preview output or the .chloggen entries here]
 
-#### Sort CHANGELOG without known headline features
+#### Sort pending entries without known headline features
 
-Use this prompt when the main features aren't known yet. The AI proposes the major feature areas by reading through the CHANGELOG.
+Use this prompt when the main features aren't known yet. The AI proposes the major feature areas by reading through the pending entries.
 
-> Here is the unreleased section of the CHANGELOG for Tempo vX.Y. I need you to sort these entries into major feature areas for the release notes.
+> Here are the pending changelog entries for Tempo vX.Y (from `.chloggen/*.yaml` or `make chlog-preview` output). I need you to sort these entries into major feature areas for the release notes.
 >
-> For each CHANGELOG entry:
+> For each entry:
 >
 > 1. Look up the PR to read the description and understand the change
 > 2. Assess the user impact (is this a headline feature, a supporting enhancement, a minor fix, or an internal-only change?)
@@ -411,12 +430,12 @@ Use this prompt when the main features aren't known yet. The AI proposes the maj
 > 1. **Identify the major feature areas** for this release. These should be the themes that emerge from the entries themselves (for example, "TraceQL enhancements", "metrics-generator cardinality management", "vParquet5 production readiness"). Don't use fixed categories; let the entries tell you what this release is about.
 > 2. **Group every entry** into the proposed feature areas. Assign each entry to the area where it has the most user impact.
 > 3. **Order entries within each group** by importance: headline items first, then supporting changes, then minor fixes.
-> 4. **Flag entries to exclude or fold** using the inclusion/exclusion criteria in Step 3b of the workflow. List exclusions separately with a brief reason.
-> 5. **Flag uncertain entries** that need human judgment. Explain why you're unsure.
+> 4. **Assign a placement label** using [release-notes-placement.md](release-notes-placement.md): highlight, brief include, cite prior notes, exclude, or uncertain. Fold sibling PRs into one description. List exclusions separately with a brief reason.
+> 5. **For uncertain entries**, explain why you couldn't decide. These need human judgment.
 >
 > Return the result as a structured, grouped list organized by feature area. I'll review and adjust your groupings before we proceed.
 >
-> [Paste raw CHANGELOG section here]
+> [Paste chlog-preview output or the .chloggen entries here]
 
 #### Adjust groupings after human review
 
@@ -424,13 +443,13 @@ Use this prompt after reviewing the AI's initial sort, if you need to refine the
 
 > I've reviewed your proposed feature area groupings. Here are my adjustments:
 >
-> [Describe adjustments: moved entries, renamed areas, changed include/exclude decisions, etc.]
+> [Describe adjustments: moved entries, renamed areas, changed placement labels, etc.]
 >
 > Please update the grouped list with these changes and return the revised version.
 
 ### Initial draft from curated PR list
 
-This prompt requires a curated PR list from Phase 0. Do not use the raw CHANGELOG directly.
+This prompt requires a curated PR list from Phase 0. Do not use the pending `.chloggen` entries or `chlog-preview` output directly.
 
 > As an experienced technical writer and tracing expert, generate release notes for Tempo vX.Y using the following curated PR list. This list has already been sorted and approved -- include all entries.
 >
@@ -442,11 +461,11 @@ This prompt requires a curated PR list from Phase 0. Do not use the raw CHANGELO
 >
 > [Paste curated PR list here]
 
-### Initial draft from CHANGELOG (not recommended)
+### Initial draft from pending entries (not recommended)
 
 Use the curated PR list prompt above when possible. Only use this prompt if you haven't completed Phase 0 curation yet, and be prepared to remove entries during review.
 
-> As an experienced technical writer and tracing expert, generate release notes for Tempo vX.Y using the unreleased section of CHANGELOG.md.
+> As an experienced technical writer and tracing expert, generate release notes for Tempo vX.Y using the pending changelog entries in `.chloggen/*.yaml` (or `make chlog-preview` output).
 >
 > Look up each PR for additional context. Provide 2-3 sentence summaries focusing on user impact. Flag any entries that appear to be internal-only or too minor for release notes.
 >
@@ -454,17 +473,11 @@ Use the curated PR list prompt above when possible. Only use this prompt if you 
 
 ### Documentation assessment for a PR list
 
-> For each PR in the following list, assess whether it needs documentation:
->
-> 1. Look up the PR description and changed files
-> 2. Determine if it's user-facing (new feature, config change, behavior change, breaking change) or internal-only (refactor, test, dependency bump)
-> 3. If user-facing, check: Is "Documentation added" checked in the PR checklist? Are there changes to files under `docs/`?
-> 4. Search `docs/sources/tempo` for existing coverage of the feature
-> 5. Classify as: docs present, docs needed, docs update needed, or no docs required
->
-> Return a table with columns: PR number, title, classification, and notes (what's missing or what needs updating).
+> Run `/docs-pr-check` on the following PRs and give me the classification table and gap summary:
 >
 > [Paste PR list here]
+
+This is Phase 1.5 -- don't restate `docs-pr-check`'s classification steps here; the skill owns that logic (see [`.claude/skills/docs-pr-check/SKILL.md`](../../../.claude/skills/docs-pr-check/SKILL.md)). Keeping both in sync by hand invites drift.
 
 ### PR deep dive (feature evaluation)
 
@@ -523,8 +536,8 @@ Use the curated PR list prompt above when possible. Only use this prompt if you 
 > 1. Apply sentence case to all headings
 > 2. Ensure all PR links are formatted as `[[PR XXXX](URL)]`
 > 3. Check that documentation links use `<TEMPO_VERSION>` placeholder
-> 4. Remove any CHANGELOG artifacts (usernames, category brackets)
-> 5. Fix any linting issues
+> 4. Remove any chloggen artifacts (`component:` prefixes, emoji section headings, `(@handle)` suffixes)
+> 5. Run `.claude/skills/shared/vale-compact.sh` and fix any linting issues
 
 ## Style guidelines
 
@@ -613,21 +626,21 @@ After generating the initial draft, verify:
 
 - [ ] Documentation links use `<TEMPO_VERSION>` placeholder
 - [ ] Headings use sentence case
-- [ ] No CHANGELOG artifacts remain (usernames, brackets)
+- [ ] No chloggen artifacts remain (`component:` prefixes, emoji headings, `(@handle)` suffixes)
 - [ ] Linter passes with no errors
 - [ ] Examples prioritize practical debugging value
 
 ## Feature-by-feature workflow
 
-For complex releases, work through major features individually across multiple sessions:
+The default approach for any release with a nontrivial number of entries, not only unusually complex ones: work through major features individually across multiple sessions, rather than drafting everything in one pass.
 
-1. **Before session 1**: Complete Phase 0 (source curation). Sort the CHANGELOG manually, produce a curated PR list, and get it reviewed. This is a human-driven step.
+1. **Before session 1**: Complete Phase 0 (source curation) and get the grouped list explicitly approved -- the Step 6 stop applies here too. Session 1 may run Phases 1 through 1.75 only once that approval exists from a prior turn, not as a way to fold curation and drafting into the same session.
 2. **Session 1**: Generate initial draft from the curated PR list and run the documentation assessment (Phases 1-1.75)
 3. **Sessions 2-N**: Deep dive on each major feature:
    - Access PR via GitHub API
    - Evaluate documentation status
    - Validate examples against codebase
    - Update existing docs if needed
-4. **Final session**: Polish, validate links, run linter
+4. **Final session**: Polish, validate links, run `.claude/skills/shared/vale-compact.sh`
 
 This approach ensures each feature gets proper attention and documentation coverage.

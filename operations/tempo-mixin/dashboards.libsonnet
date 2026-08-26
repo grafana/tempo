@@ -3,6 +3,7 @@
 (import 'dashboards/tempo-tenants.libsonnet') +
 (import 'dashboards/tempo-writes.libsonnet') +
 (import 'dashboards/tempo-block-builder.libsonnet') +
+(import 'dashboards/tempo-livestore.libsonnet') +
 {
   grafanaDashboards+:
     (import 'dashboards/rollout-progress.libsonnet') +

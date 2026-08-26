@@ -36,13 +36,13 @@ func NewContextReader(meta *BlockMeta, name string, r Reader) ContextReader {
 
 // ReadAt implements ContextReader
 func (b *backendReader) ReadAt(ctx context.Context, p []byte, off int64) (int, error) {
-	err := b.r.ReadRange(ctx, b.name, (uuid.UUID)(b.meta.BlockID), b.meta.TenantID, uint64(off), p, nil)
+	err := b.r.ReadRange(ctx, b.name, uuid.UUID(b.meta.BlockID), b.meta.TenantID, uint64(off), p, nil)
 	return len(p), err
 }
 
 // ReadAll implements ContextReader
 func (b *backendReader) ReadAll(ctx context.Context) ([]byte, error) {
-	return b.r.Read(ctx, b.name, (uuid.UUID)(b.meta.BlockID), b.meta.TenantID, nil)
+	return b.r.Read(ctx, b.name, uuid.UUID(b.meta.BlockID), b.meta.TenantID, nil)
 }
 
 // Reader implements ContextReader

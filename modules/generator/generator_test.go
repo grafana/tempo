@@ -148,6 +148,10 @@ func (l testLogger) Log(keyvals ...interface{}) error {
 	return nil
 }
 
+// BenchmarkPushSpans measures WAL-inclusive pushSpans cost: randomized
+// test.MakeBatch fixtures pushed through an instance backed by a real WAL.
+// For deterministic, processor-only cost over a noop storage, use the
+// BenchmarkInstancePushSpans* suites in generator_benchmark_test.go.
 func BenchmarkPushSpans(b *testing.B) {
 	var (
 		tenant = "test-tenant"

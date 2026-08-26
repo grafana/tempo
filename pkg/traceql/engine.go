@@ -98,6 +98,14 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 		mostRecent = false
 	}
 
+	// Watchers are scoped to this Compile call. EngineBytesWatcher is installed fresh when enabled via
+	// WithEngineBytesTracking; additional watchers come from WithWatchers (e.g. per-tenant overrides).
+	var watchers spanWatchers
+	if cfg.engineBytesTracking {
+		watchers.Add(NewEngineBytesWatcher())
+	}
+	watchers.Add(cfg.watchers...)
+
 	if rootExpr.IsNoop() {
 		return &tempopb.SearchResponse{
 			Traces:  nil,
@@ -115,6 +123,10 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 	meta := SearchMetaConditionsWithout(fetchSpansRequest.Conditions, fetchSpansRequest.AllConditions)
 	fetchSpansRequest.SecondPassConditions = append(fetchSpansRequest.SecondPassConditions, meta...)
 
+	if watchers.Active() {
+		fetchSpansRequest.SecondPassConditions = append(fetchSpansRequest.SecondPassConditions, watchers.Conditions()...)
+	}
+
 	spansetsEvaluated := 0
 	// set up the expression evaluation as a filter to reduce data pulled
 	fetchSpansRequest.SecondPass = func(inSS *Spanset) ([]*Spanset, error) {
@@ -131,6 +143,10 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 		spansetsEvaluated++
 		if len(evalSS) == 0 {
 			return nil, nil
+		}
+
+		if watchers.Active() {
+			watchers.WatchSpans(evalSS)
 		}
 
 		// reduce all evalSS to their max length to reduce meta data lookups
@@ -189,11 +205,21 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 	span.SetAttributes(attribute.Int("spansets_evaluated", spansetsEvaluated))
 	span.SetAttributes(attribute.Int("spansets_found", len(res.Traces)))
 
-	// Bytes can be nil when callback is no set
-	if fetchSpansResponse.Bytes != nil {
-		// InspectedBytes is used to compute query throughput and SLO metrics
-		res.Metrics.InspectedBytes = fetchSpansResponse.Bytes()
-		span.SetAttributes(attribute.Int64("inspectedBytes", int64(res.Metrics.InspectedBytes)))
+	// Stats can be nil when callback is not set.
+	if fetchSpansResponse.Stats != nil {
+		stats := fetchSpansResponse.Stats()
+		// InspectedBytes is used to compute query throughput and SLO metrics.
+		res.Metrics.InspectedBytes = stats.Bytes
+		populateMetricsFromFetchStats(res.Metrics, stats)
+		span.SetAttributes(attribute.Int64("inspectedBytes", int64(stats.Bytes)))
+	}
+
+	// Populate extra metrics from watchers
+	for k, v := range watchers.Stats() {
+		if res.Metrics.AdditionalMetrics == nil {
+			res.Metrics.AdditionalMetrics = make(map[string]int64)
+		}
+		res.Metrics.AdditionalMetrics[k] += v
 	}
 
 	return res, nil

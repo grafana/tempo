@@ -13,8 +13,11 @@ import (
 	"unsafe"
 
 	"github.com/parquet-go/parquet-go"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
+	"github.com/grafana/tempo/pkg/sampling"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
@@ -110,23 +113,35 @@ func (s *span) AllAttributes() map[traceql.Attribute]traceql.Static {
 }
 
 func (s *span) AllAttributesFunc(cb func(traceql.Attribute, traceql.Static)) {
-	for _, a := range s.traceAttrs {
-		cb(a.a, a.s)
+	if len(s.traceAttrs) > 0 {
+		for _, a := range s.traceAttrs {
+			cb(a.a, a.s)
+		}
 	}
-	for _, a := range s.resourceAttrs {
-		cb(a.a, a.s)
+	if len(s.resourceAttrs) > 0 {
+		for _, a := range s.resourceAttrs {
+			cb(a.a, a.s)
+		}
 	}
-	for _, a := range s.instrumentationAttrs {
-		cb(a.a, a.s)
+	if len(s.instrumentationAttrs) > 0 {
+		for _, a := range s.instrumentationAttrs {
+			cb(a.a, a.s)
+		}
 	}
-	for _, a := range s.spanAttrs {
-		cb(a.a, a.s)
+	if len(s.spanAttrs) > 0 {
+		for _, a := range s.spanAttrs {
+			cb(a.a, a.s)
+		}
 	}
-	for _, a := range s.eventAttrs {
-		cb(a.a, a.s)
+	if len(s.eventAttrs) > 0 {
+		for _, a := range s.eventAttrs {
+			cb(a.a, a.s)
+		}
 	}
-	for _, a := range s.linkAttrs {
-		cb(a.a, a.s)
+	if len(s.linkAttrs) > 0 {
+		for _, a := range s.linkAttrs {
+			cb(a.a, a.s)
+		}
 	}
 }
 
@@ -1000,6 +1015,7 @@ const (
 	columnPathInstrumentationAttrDouble = "rs.ss.Scope.Attrs.ValueDouble"
 	columnPathInstrumentationAttrBool   = "rs.ss.Scope.Attrs.ValueBool"
 
+	columnPathSpanTraceState       = "rs.ss.Spans.TraceState"
 	columnPathSpanID               = "rs.ss.Spans.SpanID"
 	ColumnPathSpanName             = "rs.ss.Spans.Name"
 	columnPathSpanStartTime        = "rs.ss.Spans.StartTimeUnixNano"
@@ -1071,6 +1087,7 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	traceql.IntrinsicNestedSetRight:       {intrinsicScopeSpan, traceql.TypeInt, columnPathSpanNestedSetRight},
 	traceql.IntrinsicNestedSetParent:      {intrinsicScopeSpan, traceql.TypeInt, columnPathSpanParentID},
 	traceql.IntrinsicChildCount:           {intrinsicScopeSpan, traceql.TypeInt, columnPathSpanChildCount},
+	traceql.IntrinsicSpanMultiplier:       {intrinsicScopeSpan, traceql.TypeFloat, columnPathSpanTraceState},
 
 	traceql.IntrinsicTraceRootService: {intrinsicScopeTrace, traceql.TypeString, columnPathRootServiceName},
 	traceql.IntrinsicTraceRootSpan:    {intrinsicScopeTrace, traceql.TypeString, columnPathRootSpanName},
@@ -1104,6 +1121,16 @@ var wellKnownColumnLookups = map[string]struct {
 // internal consistencies:  operand count matches the operation, all operands in each condition are identical
 // types, and the operand type is compatible with the operation.
 func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error) {
+	ctx, span := tracer.Start(ctx, "parquet.backendBlock.Fetch", trace.WithAttributes(
+		attribute.String("blockID", b.meta.BlockID.String()),
+		attribute.String("tenantID", b.meta.TenantID),
+		attribute.Int64("blockSize", int64(b.meta.Size_)),
+		attribute.Int("numConditions", len(req.Conditions)),
+		attribute.Bool("allConditions", req.AllConditions),
+		attribute.Bool("secondPassSelectAll", req.SecondPassSelectAll),
+	))
+	defer span.End()
+
 	err := checkConditions(req.Conditions)
 	if err != nil {
 		return traceql.FetchSpansResponse{}, fmt.Errorf("conditions invalid: %w", err)
@@ -1123,9 +1150,22 @@ func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest,
 		return traceql.FetchSpansResponse{}, fmt.Errorf("creating fetch iter: %w", err)
 	}
 
+	// The span covers planning and iterator creation. The iterator is consumed
+	// lazily by the caller after this function returns; the deferred attribute
+	// below reads rr.BytesRead() at function exit (before iteration), so
+	// inspectedBytes on the span will under-report relative to the true bytes
+	// read during iteration. Cumulative bytes are available via Stats() on the
+	// returned response. This matches the existing backendBlock.Search pattern.
+	defer func() {
+		span.SetAttributes(attribute.Int64("inspectedBytes", int64(rr.BytesRead())))
+	}()
+
 	return traceql.FetchSpansResponse{
 		Results: iter,
-		Bytes:   func() uint64 { return rr.BytesRead() },
+		Stats: func() traceql.FetchSpansStats {
+			// TODO(issue/1274): populate per-iterator and per-role counters.
+			return traceql.FetchSpansStats{Bytes: rr.BytesRead()}
+		},
 	}, nil
 }
 
@@ -1995,6 +2035,13 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 		nestedSetLeftExplicit   = false
 		nestedSetRightExplicit  = false
 		nestedSetParentExplicit = false
+		// columnSyncIterOpts folds extra SyncIterator options into a specific column's
+		// iterator when it is built below.
+		columnSyncIterOpts = map[string][]parquetquery.SyncIteratorOpt{}
+		// samplerPlaced records whether the sampler was attached to a real column; if
+		// not it falls back to the span-count iterator built when nothing else is
+		// required.
+		samplerPlaced bool
 	)
 
 	// todo: improve these methods. if addPredicate gets a nil predicate shouldn't it just wipe out the existing predicates instead of appending?
@@ -2068,30 +2115,27 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 				return nil, err
 			}
 
-			if sampler != nil {
-				pred = newSamplingPredicate(sampler, pred)
-				// Removed so that it's not used down below.
-				sampler = nil
-			}
-
 			// Choose the least precise column possible.
 			// The step interval must be an even multiple of the pre-rounded precision.
+			var startCol string
 			switch {
 			case cond.Precision >= 3600*time.Second && cond.Precision%(3600*time.Second) == 0:
-				addPredicate(columnPathSpanStartRounded3600, pred)
-				columnSelectAs[columnPathSpanStartRounded3600] = columnPathSpanStartRounded3600
+				startCol = columnPathSpanStartRounded3600
 			case cond.Precision >= 300*time.Second && cond.Precision%(300*time.Second) == 0:
-				addPredicate(columnPathSpanStartRounded300, pred)
-				columnSelectAs[columnPathSpanStartRounded300] = columnPathSpanStartRounded300
+				startCol = columnPathSpanStartRounded300
 			case cond.Precision >= 60*time.Second && cond.Precision%(60*time.Second) == 0:
-				addPredicate(columnPathSpanStartRounded60, pred)
-				columnSelectAs[columnPathSpanStartRounded60] = columnPathSpanStartRounded60
+				startCol = columnPathSpanStartRounded60
 			case cond.Precision >= 15*time.Second && cond.Precision%(15*time.Second) == 0:
-				addPredicate(columnPathSpanStartRounded15, pred)
-				columnSelectAs[columnPathSpanStartRounded15] = columnPathSpanStartRounded15
+				startCol = columnPathSpanStartRounded15
 			default:
-				addPredicate(columnPathSpanStartTime, pred)
-				columnSelectAs[columnPathSpanStartTime] = columnPathSpanStartTime
+				startCol = columnPathSpanStartTime
+			}
+			addPredicate(startCol, pred)
+			columnSelectAs[startCol] = startCol
+
+			if sampler != nil && !samplerPlaced {
+				columnSyncIterOpts[startCol] = append(columnSyncIterOpts[startCol], parquetquery.SyncIteratorOptSampler(sampler))
+				samplerPlaced = true
 			}
 			continue
 
@@ -2188,6 +2232,14 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 			addPredicate(columnPathSpanChildCount, pred)
 			columnSelectAs[columnPathSpanChildCount] = columnPathSpanChildCount
 			continue
+		case traceql.IntrinsicSpanMultiplier:
+			// IntrinsicSpanMultiplier is a synthetic float intrinsic derived from
+			// the W3C tracestate (ot=th:...). Storage just surfaces the raw
+			// TraceState column; the iterator callback parses it into a float.
+			// Only OpNone (projection) is supported.
+			addPredicate(columnPathSpanTraceState, nil)
+			columnSelectAs[columnPathSpanTraceState] = columnPathSpanTraceState
+			continue
 		}
 
 		// Attributes stored in dedicated columns
@@ -2246,7 +2298,8 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 				traceql.IntrinsicStructuralSibling,
 				traceql.IntrinsicNestedSetLeft,
 				traceql.IntrinsicNestedSetRight,
-				traceql.IntrinsicNestedSetParent:
+				traceql.IntrinsicNestedSetParent,
+				traceql.IntrinsicSpanMultiplier: // synthetic; explicitly requested by metrics queries
 				continue
 			}
 			addPredicate(entry.columnPath, nil)
@@ -2260,7 +2313,7 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 	}
 
 	for columnPath, predicates := range columnPredicates {
-		iters = append(iters, makeIter(columnPath, orIfNeeded(predicates), columnSelectAs[columnPath]))
+		iters = append(iters, makeIter(columnPath, orIfNeeded(predicates), columnSelectAs[columnPath], columnSyncIterOpts[columnPath]...))
 	}
 
 	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceSpansILSSpanAttrs,
@@ -2304,11 +2357,11 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 	// If there are no direct conditions imposed on the span level we are evaluating the SpanCount column to
 	// calculate all span row numbers.
 	if len(required) == 0 {
-		var pred parquetquery.Predicate
-		if sampler != nil {
-			pred = newSamplingPredicate(sampler, nil)
+		var opt parquetquery.SyncIteratorOpt
+		if sampler != nil && !samplerPlaced {
+			opt = parquetquery.SyncIteratorOptSampler(sampler)
 		}
-		required = []parquetquery.Iterator{newVirtualRowNumberIterator(makeIter(columnPathScopeSpansSpanCount, pred, "spanCount"), DefinitionLevelResourceSpansILSSpan)}
+		required = []parquetquery.Iterator{newVirtualRowNumberIterator(makeIter(columnPathScopeSpansSpanCount, nil, "spanCount", opt), DefinitionLevelResourceSpansILSSpan)}
 	}
 
 	// Left join here means the span id/start/end iterators + 1 are required,
@@ -2653,8 +2706,7 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 		// TODO: We might be able to do this without loading a real column, by using
 		// the fact that every trace is a top-level row and there are no gaps. We could
 		// inspect the number of rows in the given row groups and generate virtual row numbers.
-		pred := newSamplingPredicate(sampler, nil)
-		i := makeIter(columnPathRootServiceName, pred, "")
+		i := makeIter(columnPathRootServiceName, nil, "", parquetquery.SyncIteratorOptSampler(sampler))
 		required = append([]parquetquery.Iterator{i}, required...)
 	}
 
@@ -3279,6 +3331,20 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			}
 		case columnPathSpanChildCount:
 			sp.addSpanAttr(traceql.IntrinsicChildCountAttribute, traceql.NewStaticInt(int(kv.Value.Int32())))
+		case columnPathSpanTraceState:
+			// Parse OTel probability sampling threshold once per span. When
+			// the tracestate carries an OTEP-235 R-value (`rv:` field), we
+			// use it to stochastically round the multiplier to an integer
+			// so count-style aggregates emit whole-number contributions.
+			// Falls back to the raw float multiplier when no R-value is
+			// present, and to 1.0 when the tracestate is absent or
+			// unparseable. Also surfaced as a span attribute so the engine
+			// reads it via AttributeFor and it counts toward attributesMatched().
+			m := sampling.MultiplierFromTraceState(unsafeToString(kv.Value.Bytes()))
+			if m <= 0 {
+				m = 1.0
+			}
+			sp.addSpanAttr(traceql.IntrinsicSpanMultiplierAttribute, traceql.NewStaticFloat(m))
 		default:
 			// TODO - This exists for span-level dedicated columns like http.status_code
 			// Are nils possible here?
@@ -3982,50 +4048,4 @@ func otlpKindToTraceqlKind(v uint64) traceql.Kind {
 	default:
 		return traceql.Kind(v)
 	}
-}
-
-type samplingPredicate struct {
-	sampler traceql.Sampler
-	inner   parquetquery.Predicate
-}
-
-var _ parquetquery.Predicate = (*samplingPredicate)(nil)
-
-func newSamplingPredicate(sampler traceql.Sampler, inner parquetquery.Predicate) *samplingPredicate {
-	return &samplingPredicate{
-		sampler: sampler,
-		inner:   inner,
-	}
-}
-
-func (p *samplingPredicate) String() string {
-	return "samplingPredicate{}"
-}
-
-func (p *samplingPredicate) KeepColumnChunk(chunk *parquetquery.ColumnChunkHelper) bool {
-	if p.inner != nil {
-		return p.inner.KeepColumnChunk(chunk)
-	}
-	return true
-}
-
-func (p *samplingPredicate) KeepPage(page parquet.Page) bool {
-	if p.inner != nil && !p.inner.KeepPage(page) {
-		return false
-	}
-
-	// We call Expect() on page because it is closer to the actual data
-	// to be processed.  We could call it earlier in KeepColumnChunk()
-	// but it reduces effectiveness of the sampler because we may
-	// skip around or exit early due to any other conditions.
-	p.sampler.Expect(uint64(page.NumValues()))
-	return true
-}
-
-func (p *samplingPredicate) KeepValue(value parquet.Value) bool {
-	if p.inner != nil && !p.inner.KeepValue(value) {
-		return false
-	}
-
-	return p.sampler.Sample()
 }

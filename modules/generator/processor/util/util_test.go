@@ -3,7 +3,6 @@ package util
 import (
 	"testing"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling"
 	"github.com/stretchr/testify/assert"
 
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
@@ -103,98 +102,88 @@ func TestFindServiceName(t *testing.T) {
 	}
 }
 
-func TestGetSpanMultiplierFromTraceState(t *testing.T) {
-	tests := []struct {
-		name       string
-		traceState string
-		expected   float64
-	}{
-		{
-			name:       "empty tracestate",
-			traceState: "",
-			expected:   0,
-		},
-		{
-			name:       "th:0 means always sampled",
-			traceState: "ot=th:0",
-			expected:   1.0,
-		},
-		{
-			name:       "th:8 means 50% sampling, multiplier 2",
-			traceState: "ot=th:8",
-			expected:   2.0,
-		},
-		{
-			name:       "th:c means 25% sampling, multiplier 4",
-			traceState: "ot=th:c",
-			expected:   4.0,
-		},
-		{
-			name:       "th:fd70a4 means ~1% sampling, multiplier ~100",
-			traceState: "ot=th:fd70a4",
-			expected:   100.0,
-		},
-		{
-			name:       "multiple vendors in tracestate",
-			traceState: "vendor1=value1,ot=th:8,vendor2=value2",
-			expected:   2.0,
-		},
-		{
-			name:       "ot value with multiple subkeys",
-			traceState: "ot=rv:00112233445566;th:8",
-			expected:   2.0,
-		},
-		{
-			name:       "invalid hex in threshold",
-			traceState: "ot=th:xyz",
-			expected:   0,
-		},
-		{
-			name:       "no ot key",
-			traceState: "vendor1=value1,vendor2=value2",
-			expected:   0,
-		},
-		{
-			name:       "ot without th subkey",
-			traceState: "ot=rv:00112233445566",
-			expected:   0,
-		},
-		{
-			name:       "threshold too long",
-			traceState: "ot=th:123456789abcdef",
-			expected:   0,
-		},
-		{
-			name:       "empty threshold value",
-			traceState: "ot=th:",
-			expected:   0,
-		},
-		{
-			name:       "vendor key ending with ot",
-			traceState: "not=foo:bar",
-			expected:   0,
-		},
-		{
-			name:       "vendor key ending with ot with th",
-			traceState: "not=th:c",
-			expected:   0,
-		},
-		{
-			name:       "not and ot vendor keys each with th",
-			traceState: "not=th:8,ot=th:c",
-			expected:   4.00,
-		},
-		{
-			name:       "not and ot vendor keys each with th and whitespace",
-			traceState: "not=th:8, ot=th:c",
-			expected:   4.00,
-		},
+func TestFindServiceLabels(t *testing.T) {
+	strAttr := func(key, value string) *v1_common.KeyValue {
+		return &v1_common.KeyValue{
+			Key: key,
+			Value: &v1_common.AnyValue{
+				Value: &v1_common.AnyValue_StringValue{StringValue: value},
+			},
+		}
 	}
 
-	for _, tc := range tests {
+	testCases := []struct {
+		name               string
+		attributes         []*v1_common.KeyValue
+		expectedSvcName    string
+		expectedJobName    string
+		expectedInstanceID string
+	}{
+		{
+			name: "empty attributes",
+		},
+		{
+			name:            "service name only",
+			attributes:      []*v1_common.KeyValue{strAttr("service.name", "my-service")},
+			expectedSvcName: "my-service",
+			expectedJobName: "my-service",
+		},
+		{
+			name: "service name and namespace",
+			attributes: []*v1_common.KeyValue{
+				strAttr("service.namespace", "my-namespace"),
+				strAttr("service.name", "my-service"),
+			},
+			expectedSvcName: "my-service",
+			expectedJobName: "my-namespace/my-service",
+		},
+		{
+			name:       "namespace without service name yields empty job",
+			attributes: []*v1_common.KeyValue{strAttr("service.namespace", "my-namespace")},
+		},
+		{
+			name: "instance id",
+			attributes: []*v1_common.KeyValue{
+				strAttr("service.name", "my-service"),
+				strAttr("service.instance.id", "instance-1"),
+			},
+			expectedSvcName:    "my-service",
+			expectedJobName:    "my-service",
+			expectedInstanceID: "instance-1",
+		},
+		{
+			name: "first occurrence wins",
+			attributes: []*v1_common.KeyValue{
+				strAttr("service.name", "first"),
+				strAttr("service.name", "second"),
+				strAttr("service.instance.id", "instance-1"),
+				strAttr("service.instance.id", "instance-2"),
+			},
+			expectedSvcName:    "first",
+			expectedJobName:    "first",
+			expectedInstanceID: "instance-1",
+		},
+		{
+			name: "non-string values are stringified",
+			attributes: []*v1_common.KeyValue{
+				{
+					Key: "service.name",
+					Value: &v1_common.AnyValue{
+						Value: &v1_common.AnyValue_BoolValue{BoolValue: false},
+					},
+				},
+			},
+			expectedSvcName: "false",
+			expectedJobName: "false",
+		},
+	}
+	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := getSpanMultiplierFromTraceState(tc.traceState)
-			assert.InDelta(t, tc.expected, result, 0.001, "tracestate: %s", tc.traceState)
+			svcName, jobName, instanceID := FindServiceLabels(tc.attributes)
+
+			assert.Equal(t, tc.expectedSvcName, svcName)
+			assert.Equal(t, tc.expectedJobName, jobName)
+			assert.Equal(t, tc.expectedInstanceID, instanceID)
 		})
 	}
 }
@@ -233,34 +222,6 @@ func BenchmarkGetSpanMultiplier(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			GetSpanMultiplier("sampling.ratio", spanWithoutTraceState, rs, false)
 		}
-	})
-}
-
-func FuzzGetSpanMultiplierFromTraceState(f *testing.F) {
-	f.Add("")
-	f.Add("ot=th:8")
-	f.Add("ot=th:c")
-	f.Add("ot=th:")
-	f.Add("vendor1=value1,ot=th:8,vendor2=value2")
-	f.Add("ot=rv:00112233445566;th:8")
-	f.Add("not=th:8,ot=th:c")
-	f.Add("not=th:8, ot=th:c")
-	f.Add("ot=th:xyz")
-	f.Add("vendor1=value1,vendor2=value2")
-	f.Add("  ot=th:8  ")
-	f.Add(",,,")
-	f.Add("ot=")
-	f.Add("=value")
-
-	f.Fuzz(func(t *testing.T, traceState string) {
-		// Verify that our multiplier matches what is done from the sampling package.
-		result := getSpanMultiplierFromTraceState(traceState)
-		w3c, err := sampling.NewW3CTraceState(traceState)
-		if err == nil {
-			assert.Equal(t, w3c.OTelValue().AdjustedCount(), result, "traceState: %s", traceState)
-		}
-		// We are looser with trace state errors where we can still parse ot=,
-		// so no assertions when there is an error as the results may differ.
 	})
 }
 

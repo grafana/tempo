@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: query-frontend
+note: enforce `max_metrics_duration` against the user-provided range, not the post-alignment range. A range query whose window falls entirely inside `query_end_cutoff` now returns 400 instead of an empty result; an instant query with the same condition is now also rejected explicitly. gRPC metrics queries now return `InvalidArgument` for max-duration validation failures.
+issues: [7170]
+subtext:
+user: carles-grafana

@@ -11,6 +11,8 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/parquet-go/parquet-go"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type tagNameKey struct {
@@ -48,7 +50,25 @@ func (r tagRequest) keysRequested(scope traceql.AttributeScope) bool {
 	return r.scope == scope
 }
 
+// totalConditions returns the total number of conditions across all groups.
+func totalConditions(groups [][]traceql.Condition) int {
+	n := 0
+	for _, g := range groups {
+		n += len(g)
+	}
+	return n
+}
+
 func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, mcb common.MetricsCallback, opts common.SearchOptions) error {
+	ctx, span := tracer.Start(ctx, "parquet.backendBlock.FetchTagNames", trace.WithAttributes(
+		attribute.String("blockID", b.meta.BlockID.String()),
+		attribute.String("tenantID", b.meta.TenantID),
+		attribute.Int64("blockSize", int64(b.meta.Size_)),
+		attribute.Int("numConditionGroups", len(req.ConditionGroups)),
+		attribute.Int("numConditions", totalConditions(req.ConditionGroups)),
+	))
+	defer span.End()
+
 	if len(req.ConditionGroups) == 0 {
 		return b.SearchTags(ctx, req.Scope, func(t string, scope traceql.AttributeScope) {
 			cb(t, scope)
@@ -199,6 +219,16 @@ func tagNamesForSpecialColumns(scope traceql.AttributeScope, pf *parquet.File, d
 }
 
 func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, mcb common.MetricsCallback, opts common.SearchOptions) error {
+	ctx, span := tracer.Start(ctx, "parquet.backendBlock.FetchTagValues", trace.WithAttributes(
+		attribute.String("blockID", b.meta.BlockID.String()),
+		attribute.String("tenantID", b.meta.TenantID),
+		attribute.Int64("blockSize", int64(b.meta.Size_)),
+		attribute.Int("numConditionGroups", len(req.ConditionGroups)),
+		attribute.Int("numConditions", totalConditions(req.ConditionGroups)),
+		attribute.String("tagName", req.TagName.String()),
+	))
+	defer span.End()
+
 	if len(req.ConditionGroups) == 0 {
 		return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), mcb, common.DefaultSearchOptions())
 	}

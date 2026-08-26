@@ -2,6 +2,7 @@ package frontend
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/url"
 	"testing"
@@ -9,6 +10,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/gorilla/mux"
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/model/tracediff"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/require"
 )
@@ -118,6 +120,54 @@ func TestHandleSearch(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			callAndTestResults(t, tt.request, server.handleSearch, tt.expected)
+		})
+	}
+}
+
+func TestMCPRejectsOversizedQueryBeforeParsing(t *testing.T) {
+	server, callAndTestResults := testFrontend()
+	server.maxQueryExpressionSizeBytes = 10
+	tests := []struct {
+		name    string
+		request mcp.CallToolRequest
+		handler func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error)
+	}{
+		{
+			name: "search",
+			request: callToolRequest(map[string]any{
+				"query": oversizedTraceQLQuery(),
+			}),
+			handler: server.handleSearch,
+		},
+		{
+			name: "instant metrics",
+			request: callToolRequest(map[string]any{
+				"query": oversizedTraceQLQuery(),
+			}),
+			handler: server.handleInstantQuery,
+		},
+		{
+			name: "range metrics",
+			request: callToolRequest(map[string]any{
+				"query": oversizedTraceQLQuery(),
+			}),
+			handler: server.handleRangeQuery,
+		},
+		{
+			name: "attribute values filter query",
+			request: callToolRequest(map[string]any{
+				"name":         "span.name",
+				"filter-query": oversizedTraceQLQuery(),
+			}),
+			handler: server.handleGetAttributeValues,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			callAndTestResults(t, tt.request, tt.handler, expectedResult{
+				err: "TraceQL expression exceeds the configured maximum size of 10 bytes, reduce the query expression size or contact your system administrator",
+			})
 		})
 	}
 }
@@ -321,6 +371,148 @@ func TestHandleGetTrace(t *testing.T) {
 	}
 }
 
+func TestHandleTraceDiff(t *testing.T) {
+	tests := []struct {
+		name         string
+		args         map[string]any
+		expectedBody string
+		expectedErr  string
+	}{
+		{
+			name: "required arguments use composed format",
+			args: map[string]any{
+				"base_trace_id":    "12345678abcdef90",
+				"compare_trace_id": "abcdef9012345678",
+			},
+			expectedBody: `{
+				"base": {"traceId": "12345678abcdef90"},
+				"compare": {"traceId": "abcdef9012345678"},
+				"format": "trace-summary-v0-composed"
+			}`,
+		},
+		{
+			name: "explicit format and time ranges",
+			args: map[string]any{
+				"base_trace_id":    "12345678abcdef90",
+				"compare_trace_id": "abcdef9012345678",
+				"base_start":       "2022-01-01T00:00:00Z",
+				"base_end":         "2022-01-02T00:00:00Z",
+				"compare_start":    "2022-01-03T00:00:00Z",
+				"compare_end":      "2022-01-04T00:00:00Z",
+				"format":           tracediff.VersionTracePatchV0,
+			},
+			expectedBody: `{
+				"base": {"traceId": "12345678abcdef90", "start": 1640995200, "end": 1641081600},
+				"compare": {"traceId": "abcdef9012345678", "start": 1641168000, "end": 1641254400},
+				"format": "trace-patch-v0"
+			}`,
+		},
+		{
+			name:        "missing base trace ID",
+			args:        map[string]any{"compare_trace_id": "abcdef9012345678"},
+			expectedErr: `required argument "base_trace_id" not found`,
+		},
+		{
+			name:        "missing compare trace ID",
+			args:        map[string]any{"base_trace_id": "12345678abcdef90"},
+			expectedErr: `required argument "compare_trace_id" not found`,
+		},
+		{
+			name: "empty format",
+			args: map[string]any{
+				"base_trace_id":    "12345678abcdef90",
+				"compare_trace_id": "abcdef9012345678",
+				"format":           "",
+			},
+			expectedErr: `argument "format" must not be empty`,
+		},
+		{
+			name: "non-string format",
+			args: map[string]any{
+				"base_trace_id":    "12345678abcdef90",
+				"compare_trace_id": "abcdef9012345678",
+				"format":           1,
+			},
+			expectedErr: `argument "format" is not a string`,
+		},
+		{
+			name: "incomplete time range",
+			args: map[string]any{
+				"base_trace_id":    "12345678abcdef90",
+				"compare_trace_id": "abcdef9012345678",
+				"base_start":       "2022-01-01T00:00:00Z",
+			},
+			expectedErr: `arguments "base_start" and "base_end" must be provided together`,
+		},
+		{
+			name: "non-string time",
+			args: map[string]any{
+				"base_trace_id":    "12345678abcdef90",
+				"compare_trace_id": "abcdef9012345678",
+				"compare_start":    1641168000,
+				"compare_end":      "2022-01-04T00:00:00Z",
+			},
+			expectedErr: `argument "compare_start" is not a string`,
+		},
+		{
+			name: "invalid time",
+			args: map[string]any{
+				"base_trace_id":    "12345678abcdef90",
+				"compare_trace_id": "abcdef9012345678",
+				"base_start":       "not-a-time",
+				"base_end":         "2022-01-02T00:00:00Z",
+			},
+			expectedErr: "invalid base_start: parsing time",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var capturedRequest *http.Request
+			var capturedBody []byte
+			mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				capturedRequest = r
+				var err error
+				capturedBody, err = io.ReadAll(r.Body)
+				require.NoError(t, err)
+				_, err = w.Write([]byte(`{"version":"trace-summary-v0-composed"}`))
+				require.NoError(t, err)
+			})
+			server := &MCPServer{
+				frontend:   &QueryFrontend{TraceDiffHandler: mockHandler},
+				logger:     log.NewNopLogger(),
+				pathPrefix: "",
+			}
+
+			result, err := server.handleTraceDiff(context.Background(), callToolRequest(tt.args))
+			require.NoError(t, err)
+			require.NotNil(t, result)
+
+			if tt.expectedErr != "" {
+				require.True(t, result.IsError)
+				require.Len(t, result.Content, 1)
+				textContent, ok := result.Content[0].(mcp.TextContent)
+				require.True(t, ok)
+				require.Contains(t, textContent.Text, tt.expectedErr)
+				require.Nil(t, capturedRequest)
+				return
+			}
+
+			require.False(t, result.IsError)
+			require.NotNil(t, capturedRequest)
+			require.Equal(t, http.MethodPost, capturedRequest.Method)
+			require.Equal(t, api.PathTraceDiffV2, capturedRequest.URL.Path)
+			require.Equal(t, api.HeaderAcceptJSON, capturedRequest.Header.Get(api.HeaderContentType))
+			require.JSONEq(t, tt.expectedBody, string(capturedBody))
+			require.Equal(t, map[string]any{
+				"type":     MetaTypeTraceDiff,
+				"encoding": "json",
+				"version":  "2",
+			}, result.Meta.AdditionalFields)
+		})
+	}
+}
+
 func TestHandleGetAttributeNames(t *testing.T) {
 	server, callAndTestResults := testFrontend()
 
@@ -481,6 +673,13 @@ func TestAcceptHeaderIsSet(t *testing.T) {
 			}),
 		},
 		{
+			name: "handleTraceDiff sets Accept header",
+			request: callToolRequest(map[string]any{
+				"base_trace_id":    "12345678abcdef90",
+				"compare_trace_id": "abcdef9012345678",
+			}),
+		},
+		{
 			name:    "handleGetAttributeNames sets Accept header",
 			request: callToolRequest(map[string]any{}),
 		},
@@ -506,13 +705,15 @@ func TestAcceptHeaderIsSet(t *testing.T) {
 				frontend: &QueryFrontend{
 					SearchHandler:              mockHandler,
 					TraceByIDHandlerV2:         mockHandler,
+					TraceDiffHandler:           mockHandler,
 					SearchTagsV2Handler:        mockHandler,
 					SearchTagsValuesV2Handler:  mockHandler,
 					MetricsQueryInstantHandler: mockHandler,
 					MetricsQueryRangeHandler:   mockHandler,
 				},
-				logger:     log.NewNopLogger(),
-				pathPrefix: "",
+				logger:                      log.NewNopLogger(),
+				pathPrefix:                  "",
+				maxQueryExpressionSizeBytes: 100000,
 			}
 
 			ctx := context.Background()
@@ -529,6 +730,8 @@ func TestAcceptHeaderIsSet(t *testing.T) {
 				result, err = server.handleRangeQuery(ctx, tt.request)
 			case "handleGetTrace sets Accept header":
 				result, err = server.handleGetTrace(ctx, tt.request)
+			case "handleTraceDiff sets Accept header":
+				result, err = server.handleTraceDiff(ctx, tt.request)
 			case "handleGetAttributeNames sets Accept header":
 				result, err = server.handleGetAttributeNames(ctx, tt.request)
 			case "handleGetAttributeValues sets Accept header":
@@ -566,13 +769,15 @@ func testFrontend() (*MCPServer, func(t *testing.T, req mcp.CallToolRequest, han
 		frontend: &QueryFrontend{
 			SearchHandler:              mockHandler,
 			TraceByIDHandlerV2:         mockHandler,
+			TraceDiffHandler:           mockHandler,
 			SearchTagsV2Handler:        mockHandler,
 			SearchTagsValuesV2Handler:  mockHandler,
 			MetricsQueryInstantHandler: mockHandler,
 			MetricsQueryRangeHandler:   mockHandler,
 		},
-		logger:     log.NewNopLogger(),
-		pathPrefix: "",
+		logger:                      log.NewNopLogger(),
+		pathPrefix:                  "",
+		maxQueryExpressionSizeBytes: 100000,
 	}
 
 	callAndTestResults := func(t *testing.T, req mcp.CallToolRequest, handler func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error), expected expectedResult) {

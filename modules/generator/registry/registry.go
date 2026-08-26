@@ -55,6 +55,7 @@ type ManagedRegistry struct {
 	sanitizer       Sanitizer
 	perLabelLimiter LabelLimiter
 	limiter         Limiter
+	builderPools    *labelBuilderPools
 
 	appendable storage.Appendable
 
@@ -102,6 +103,13 @@ type Limiter interface {
 	// OnAdd is called when a new entity is created. It accepts the labels and returns
 	// the labels to use (either original or transformed to reduce cardinality) along with the hash.
 	// OnAdd never fails - it always returns valid labels. LabelHash is a hash of all non-constant labels.
+	//
+	// Precondition: lbls may be borrowed from a pooled scratch buffer (see
+	// BorrowedLabels) that the caller reuses after OnAdd returns. Implementations
+	// MUST NOT retain lbls or any of its label name/value strings past the call;
+	// copy (e.g. labels.Labels.Copy or strings.Clone) anything kept in long-lived
+	// state. The returned labels are either lbls passed through (the caller owns
+	// copying it onto a new series) or implementation-owned labels.
 	OnAdd(labelHash uint64, seriesCount uint32, lbls labels.Labels) (labels.Labels, uint64)
 	// OnUpdate is called when an entity is updated.
 	// LabelHash is a hash of all non-constant labels.
@@ -112,11 +120,23 @@ type Limiter interface {
 }
 
 // LabelLimiter caps label cardinality by replacing high-cardinality values.
+//
+// Precondition: lbls may be borrowed from a pooled scratch buffer (see
+// BorrowedLabels) that the caller reuses after Limit returns. Implementations
+// MUST NOT retain lbls or any of its label name/value strings past the call;
+// clone (e.g. strings.Clone) anything kept in long-lived state. The returned
+// labels are either lbls passed through or implementation-owned labels.
 type LabelLimiter interface {
 	Limit(lbls labels.Labels) labels.Labels
 }
 
 // Sanitizer applies a transformation to all non-constant labels.
+//
+// Precondition: lbls may be borrowed from a pooled scratch buffer (see
+// BorrowedLabels) that the caller reuses after Sanitize returns. Implementations
+// MUST NOT retain lbls or any of its label name/value strings past the call;
+// clone (e.g. strings.Clone) anything kept in long-lived state. The returned
+// labels are either lbls passed through or implementation-owned labels.
 type Sanitizer interface {
 	Sanitize(lbls labels.Labels) labels.Labels
 }
@@ -154,6 +174,7 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 		sanitizer:       drainSanitizer,
 		perLabelLimiter: perLabelLimiter,
 		limiter:         limiter,
+		builderPools:    newLabelBuilderPools(),
 		entityDemand:    NewCardinality(cfg.StaleDuration, removeStaleSeriesInterval),
 
 		logger:                 logger,
@@ -170,11 +191,11 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 }
 
 func (r *ManagedRegistry) NewLabelBuilder() LabelBuilder {
-	return NewLabelBuilder(r.cfg.MaxLabelNameLength, r.cfg.MaxLabelValueLength, r.sanitizer, r.perLabelLimiter)
+	return r.builderPools.newLabelBuilder(r.cfg.MaxLabelNameLength, r.cfg.MaxLabelValueLength, r.sanitizer, r.perLabelLimiter)
 }
 
 func (r *ManagedRegistry) NewInfoMetricLabelBuilder() LabelBuilder {
-	return NewLabelBuilder(r.cfg.MaxLabelNameLength, r.cfg.MaxLabelValueLength, noopSanitizer{}, noopLabelLimiter{})
+	return r.builderPools.newLabelBuilder(r.cfg.MaxLabelNameLength, r.cfg.MaxLabelValueLength, noopSanitizer{}, noopLabelLimiter{})
 }
 
 func (r *ManagedRegistry) OnAdd(labelHash uint64, seriesCount uint32, lbls labels.Labels) (labels.Labels, uint64) {

@@ -445,7 +445,8 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 	// is needed per batch: once the originally-skipped compaction jobs finish and
 	// the rescan fires, no further compaction can have created uncovered blocks.
 	if p.sched.TenantPending(tenantID) {
-		return blockselector.NewTimeWindowBlockSelector(nil,
+		return blockselector.NewTimeWindowBlockSelector(
+			nil,
 			p.cfg.Compactor.MaxCompactionRange,
 			p.cfg.Compactor.MaxCompactionObjects,
 			p.cfg.Compactor.MaxBlockBytes,

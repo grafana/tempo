@@ -373,6 +373,11 @@ Generated files (`*.pb.go`, `*.y.go`, `*.gen.go`) are excluded from formatting a
 
 ## Pull requests
 
+Effective June 22, 2026, all Grafana Labs repositories, including Tempo, [require signed commits](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches#require-signed-commits).
+To learn how to enable commit verification, refer to [about commit signature verification](https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification) and this page to learn about [checking your commit signature verification status](https://docs.github.com/en/authentication/troubleshooting-commit-signature-verification/checking-your-commit-and-tag-signature-verification-status).
+
+**NOTE** Unsigned commits and pull requests will be rejected and closed. This includes pull requests that have been authored by Agents.
+
 ### Description
 
 Every PR must have a clear description covering:
@@ -455,6 +460,17 @@ See `.chloggen/README.md` for details.
 ### Keeping your PR up to date
 
 Rebase your PR on `main` if it gets out of sync. Don't merge `main` into your branch.
+
+Once your PR has received a review,
+avoid force pushes — including `git push --force-with-lease`.
+Rewriting history breaks GitHub's "changes since your last review" view
+and forces reviewers to re-read the entire PR.
+Address review feedback by pushing new commits instead.
+If you need to rebase on `main` to resolve conflicts,
+push the rebase on its own with no other changes mixed in,
+and mention it in a PR comment.
+This applies doubly to AI coding agents,
+which tend to reach for `--force-with-lease` by default.
 
 ## Documentation
 

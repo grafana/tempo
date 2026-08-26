@@ -5,6 +5,7 @@ package high
 
 import (
 	"fmt"
+	"math"
 	"reflect"
 	"sort"
 	"strconv"
@@ -38,6 +39,32 @@ type RenderableInlineWithContext interface {
 }
 
 const renderZero = "renderZero"
+
+func originalFloatLexeme(value float64, lowValue any) (string, bool) {
+	vnut, ok := lowValue.(low.HasValueNodeUntyped)
+	if !ok {
+		return "", false
+	}
+
+	valueNode := vnut.GetValueNode()
+	if valueNode == nil || !utils.IsNodeNumberValue(valueNode) {
+		return "", false
+	}
+
+	parsed, err := strconv.ParseFloat(valueNode.Value, 64)
+	if err != nil {
+		return "", false
+	}
+
+	if parsed != value {
+		return "", false
+	}
+	if value == 0 && math.Signbit(parsed) != math.Signbit(value) {
+		return "", false
+	}
+
+	return valueNode.Value, true
+}
 
 // NewNodeBuilder will create a new NodeBuilder instance, this is the only way to create a NodeBuilder.
 // The function accepts a high level object and a low level object (need to be siblings/same type).
@@ -321,6 +348,19 @@ func (n *NodeBuilder) Render() *yaml.Node {
 	return m
 }
 
+// encodeSafeValue returns a value safe to pass to (*yaml.Node).Encode. When the
+// value is a *yaml.Node it returns a deep copy: Encode desolves the represented
+// graph in place (Desolve rewrites Tag/Style), and the representer aliases input
+// nodes, so encoding a model-owned node would mutate it. With concurrent renders
+// (e.g. linters running rules in parallel) that mutation races with readers of
+// the same node. Encoding a copy keeps shared nodes immutable.
+func encodeSafeValue(value any) any {
+	if vn, ok := value.(*yaml.Node); ok {
+		return utils.CloneYAMLNode(vn)
+	}
+	return value
+}
+
 // AddYAMLNode will add a new *yaml.Node to the parent node, using the tag, key and value provided.
 // If the value is nil, then the node will not be added. This method is recursive, so it will dig down
 // into any non-scalar types.
@@ -384,6 +424,9 @@ func (n *NodeBuilder) AddYAMLNode(parent *yaml.Node, entry *nodes.NodeEntry) *ya
 			precision = len(strings.Split(fmt.Sprint(entry.StringValue), ".")[1])
 		}
 		val := strconv.FormatFloat(value.(float64), 'f', precision, 64)
+		if original, ok := originalFloatLexeme(value.(float64), entry.LowValue); ok {
+			val = original
+		}
 		// Always create float node for float64 values, even if they don't contain decimal points
 		// This handles cases like negative zero (-0.0) which formats as "-0" but should remain float
 		valueNode = utils.CreateFloatNode(val)
@@ -462,7 +505,7 @@ func (n *NodeBuilder) AddYAMLNode(parent *yaml.Node, entry *nodes.NodeEntry) *ya
 			break
 		}
 
-		err := rawNode.Encode(value)
+		err := rawNode.Encode(encodeSafeValue(value))
 		if err != nil {
 			return parent
 		} else {
@@ -589,6 +632,9 @@ func (n *NodeBuilder) AddYAMLNode(parent *yaml.Node, entry *nodes.NodeEntry) *ya
 				encodeSkip = true
 				if *b != 0 || entry.RenderZero {
 					formatFloat := strconv.FormatFloat(*b, 'f', -1, 64)
+					if original, ok := originalFloatLexeme(*b, entry.LowValue); ok {
+						formatFloat = original
+					}
 
 					// Always create float node for float64 values, even if they're whole numbers
 					// This handles cases like negative zero (-0.0) and ensures type consistency
@@ -612,7 +658,7 @@ func (n *NodeBuilder) AddYAMLNode(parent *yaml.Node, entry *nodes.NodeEntry) *ya
 						}
 					}
 
-					err := rawNode.Encode(value)
+					err := rawNode.Encode(encodeSafeValue(value))
 					if err != nil {
 						return parent
 					} else {

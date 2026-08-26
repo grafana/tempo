@@ -30,7 +30,7 @@ jobs:
           fetch-depth: "0"
           persist-credentials: false
       - name: Set up Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: 'go.mod'
 
@@ -45,7 +45,7 @@ jobs:
         run: echo "date=$(date +"%Yweek%U")" >> "$GITHUB_OUTPUT"
 
       - name: cache golangci
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: .cache/golangci-lint
           key: golangci-lint-${{ runner.os }}-${{ steps.get-year-week-number.outputs.date }}-${{ hashFiles('go.mod', '.golangci.yml') }}
@@ -80,7 +80,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: 'go.mod'
 
@@ -165,7 +165,7 @@ jobs:
       - name: Fetch tags
         run: git fetch --prune --unshallow --tags
       - name: Set up Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: 'go.mod'
       - name: Run Tests
@@ -181,7 +181,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: 'go.mod'
 
@@ -214,7 +214,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: 'go.mod'
 
@@ -240,7 +240,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: 'go.mod'
 
@@ -257,7 +257,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: 'go.mod'
 
@@ -285,6 +285,7 @@ jobs:
   coverage-annotations:
     name: Coverage Annotations
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     needs: [unit-tests]
     permissions:
       contents: read
@@ -296,12 +297,6 @@ jobs:
           persist-credentials: false
           fetch-depth: 0  # Fetch full history for proper diff computation
 
-
-      - name: Set up Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
-        with:
-          go-version-file: 'go.mod'
-
       - name: Download all coverage artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
@@ -309,9 +304,10 @@ jobs:
           path: .coverage/
           merge-multiple: true
 
-      - name: Generate coverage annotations with canopy
-        run: |
-          go run github.com/oleg-kozlyuk-grafana/go-canopy/cmd/canopy@e147d900bcd82da500bf3b8ce55dfddceb73f310 \
-            --base ${{ github.event.pull_request.base.sha }} \
-            --commit ${{ github.event.pull_request.head.sha }} \
-            --format GitHubAnnotations
+      - name: Annotate uncovered lines in PR diff
+        uses: grafana/shared-workflows/actions/annotate-coverage@ccd82960521026200c6b51f6c61100732a1a62f3 # annotate-coverage/v0.2.0
+        with:
+          coverage-path: .coverage
+          format: GitHubAnnotations
+          base-ref: ${{ github.event.pull_request.base.sha }}
+          commit-sha: ${{ github.event.pull_request.head.sha }}

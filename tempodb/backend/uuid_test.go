@@ -49,11 +49,11 @@ func Test_roundTrip(t *testing.T) {
 func Test_helpers(t *testing.T) {
 	u := google_uuid.New()
 	s := MustParse(u.String())
-	require.Equal(t, u, (google_uuid.UUID)(s))
+	require.Equal(t, u, google_uuid.UUID(s))
 
 	s2, err := ParseUUID(u.String())
 	require.NoError(t, err)
-	require.Equal(t, u, (google_uuid.UUID)(s2))
+	require.Equal(t, u, google_uuid.UUID(s2))
 
 	_, err = ParseUUID("x")
 	require.Error(t, err)

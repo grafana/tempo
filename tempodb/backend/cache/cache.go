@@ -20,13 +20,38 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
+// metricsNamespace is the Prometheus namespace shared by this package's metrics.
+const metricsNamespace = "tempodb"
+
 // cacheStoreSizeBytes records the byte size of every item written to a tempodb backend cache, labelled by role.
 var cacheStoreSizeBytes = promauto.NewHistogramVec(prometheus.HistogramOpts{
-	Namespace: "tempodb",
-	Name:      "cache_store_size_bytes",
-	Help:      "Distribution of item sizes written to tempodb backend caches, by role.",
-	Buckets:   prometheus.ExponentialBuckets(512, 2, 15), // 512 B, 1 KiB, ..., 8 MiB
+	Namespace:                       metricsNamespace,
+	Name:                            "cache_store_size_bytes",
+	Help:                            "Distribution of item sizes written to tempodb backend caches, by role.",
+	Buckets:                         prometheus.ExponentialBuckets(512, 2, 15), // 512 B, 1 KiB, ..., 8 MiB
+	NativeHistogramBucketFactor:     1.1,
+	NativeHistogramMaxBucketNumber:  100,
+	NativeHistogramMinResetDuration: 1 * time.Hour,
 }, []string{"role"})
+
+// cacheRequests counts cache lookups by role and outcome (hit / miss).
+var cacheRequests = promauto.NewCounterVec(prometheus.CounterOpts{
+	Namespace: metricsNamespace,
+	Name:      "cache_requests_total",
+	Help:      "Cache lookup outcome by role.",
+}, []string{"role", "outcome"})
+
+// cacheRequestBytes counts bytes served on hit and bytes fetched from backend on miss, by role.
+var cacheRequestBytes = promauto.NewCounterVec(prometheus.CounterOpts{
+	Namespace: metricsNamespace,
+	Name:      "cache_request_bytes_total",
+	Help:      "Bytes served by cache (hit) or fetched on miss, by role.",
+}, []string{"role", "outcome"})
+
+const (
+	cacheOutcomeHit  = "hit"
+	cacheOutcomeMiss = "miss"
+)
 
 type BloomConfig struct {
 	CacheMinCompactionLevel uint8         `yaml:"cache_min_compaction_level"`
@@ -62,7 +87,8 @@ func NewCache(cfgBloom *BloomConfig, nextReader backend.RawReader, nextWriter ba
 		nextWriter: nextWriter,
 	}
 
-	level.Info(logger).Log("msg", "caches available to storage backend",
+	level.Info(logger).Log(
+		"msg", "caches available to storage backend",
 		cache.RoleParquetFooter, rw.footerCache != nil,
 		cache.RoleBloom, rw.bloomCache != nil,
 		cache.RoleParquetOffsetIdx, rw.offsetIdxCache != nil,
@@ -91,13 +117,18 @@ func (r *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f back
 // Read implements backend.RawReader
 func (r *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath, cacheInfo *backend.CacheInfo) (io.ReadCloser, int64, error) {
 	var k string
+	var role string
 	cache := r.cacheFor(cacheInfo)
 	if cache != nil {
+		role = string(cacheInfo.Role)
 		k = key(keypath, name)
 		b, found := cache.FetchKey(ctx, k)
 		if found {
-			return io.NopCloser(bytes.NewReader(b)), int64(len(b)), nil
+			cacheRequests.WithLabelValues(role, cacheOutcomeHit).Inc()
+			cacheRequestBytes.WithLabelValues(role, cacheOutcomeHit).Add(float64(len(b)))
+			return &cacheReadCloser{Reader: bytes.NewReader(b), buf: b, cache: cache}, int64(len(b)), nil
 		}
+		cacheRequests.WithLabelValues(role, cacheOutcomeMiss).Inc()
 	}
 
 	// previous implemenation always passed false forward for "shouldCache" so we are matching that behavior by passing nil for cacheInfo
@@ -110,6 +141,7 @@ func (r *readerWriter) Read(ctx context.Context, name string, keypath backend.Ke
 
 	b, err := tempo_io.ReadAllWithEstimate(object, size)
 	if err == nil && cache != nil {
+		cacheRequestBytes.WithLabelValues(role, cacheOutcomeMiss).Add(float64(len(b)))
 		store(ctx, cache, cacheInfo.Role, k, b)
 	}
 
@@ -119,21 +151,27 @@ func (r *readerWriter) Read(ctx context.Context, name string, keypath backend.Ke
 // ReadRange implements backend.RawReader
 func (r *readerWriter) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte, cacheInfo *backend.CacheInfo) error {
 	var k string
+	var role string
 	cache := r.cacheFor(cacheInfo)
 	if cache != nil {
+		role = string(cacheInfo.Role)
 		k = strings.Join(append(keypath, name, strconv.Itoa(int(offset)), strconv.Itoa(len(buffer))), ":")
 		b, found := cache.FetchKey(ctx, k)
 		if found {
+			cacheRequests.WithLabelValues(role, cacheOutcomeHit).Inc()
+			cacheRequestBytes.WithLabelValues(role, cacheOutcomeHit).Add(float64(len(b)))
 			copy(buffer, b)
 			cache.Release(b)
 			return nil
 		}
+		cacheRequests.WithLabelValues(role, cacheOutcomeMiss).Inc()
 	}
 
 	// previous implemenation always passed false forward for "shouldCache" so we are matching that behavior by passing nil for cacheInfo
 	// todo: reevaluate. should we pass the cacheInfo forward?
 	err := r.nextReader.ReadRange(ctx, name, keypath, offset, buffer, nil)
 	if err == nil && cache != nil {
+		cacheRequestBytes.WithLabelValues(role, cacheOutcomeMiss).Add(float64(len(buffer)))
 		store(ctx, cache, cacheInfo.Role, k, buffer)
 	}
 
@@ -250,4 +288,22 @@ func store(ctx context.Context, cache cache.Cache, role cache.Role, key string, 
 // todo: should this be signalled through cacheinfo instead?
 func needsCopy(role cache.Role) bool {
 	return role == cache.RoleParquetPage // parquet pages are reused by the library. if we don't copy them then the buffer may be reused before written to cache
+}
+
+// cacheReadCloser releases the underlying buffer back to the cache on Close
+// so pooled allocators (e.g. memcached) can reuse it on the next cache hit.
+type cacheReadCloser struct {
+	*bytes.Reader
+	buf    []byte
+	cache  cache.Cache
+	closed bool
+}
+
+func (c *cacheReadCloser) Close() error {
+	if c.closed {
+		return nil
+	}
+	c.closed = true
+	c.cache.Release(c.buf)
+	return nil
 }

@@ -5,6 +5,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+
+	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 var (
@@ -27,6 +29,13 @@ var (
 		Namespace: "tempo",
 		Name:      "backend_scheduler_jobs_active",
 		Help:      "Number of currently active jobs",
+	}, []string{"tenant", "job_type"})
+	// Queue depth. Distinct from jobs_active, which counts work already handed to a worker and is
+	// therefore bounded by the worker count — only depth can indicate that more capacity is needed.
+	metricJobsPending = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "backend_scheduler_jobs_pending",
+		Help:      "Number of jobs enqueued and not yet dispatched to a worker, by tenant and type.",
 	}, []string{"tenant", "job_type"})
 	metricJobsRetry = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
@@ -70,10 +79,63 @@ var (
 	metricJobDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace:                       "tempo",
 		Name:                            "backend_scheduler_job_duration_seconds",
-		Help:                            "Duration of of a job in seconds",
+		Help:                            "Duration of a job in seconds",
 		Buckets:                         prometheus.DefBuckets,
 		NativeHistogramBucketFactor:     1.1,
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	}, []string{"job_type"})
+	metricRedactionTracesFound = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "backend_scheduler_redaction_traces_found_total",
+		Help:      "Total traces matched by redaction jobs, by tenant and mode. mode=apply counts traces actually removed; mode=dry_run counts previewed blast radius (nothing removed).",
+	}, []string{"tenant", "mode"})
 )
+
+// recordRedactionResult records a completed redaction job's match count on the per-tenant,
+// per-mode counter. A zero/empty result (block scanned clean) is a no-op.
+func recordRedactionResult(tenant string, mode tempopb.RedactionMode, found int32) {
+	if found <= 0 {
+		return
+	}
+	metricRedactionTracesFound.WithLabelValues(tenant, redactionModeLabel(mode)).Add(float64(found))
+}
+
+// redactionModeLabel is a short, stable metric label for a redaction mode.
+func redactionModeLabel(mode tempopb.RedactionMode) string {
+	if mode.IsDryRun() {
+		return "dry_run"
+	}
+	return "apply"
+}
+
+// recordPendingJobs publishes the queue depth per tenant and job type.
+//
+// Values are set before drained series are deleted, rather than resetting the vector first: a scrape
+// landing inside a Reset would see series missing and read the total lower than it is — the spurious
+// scale-down this metric exists to prevent. Setting first means a scrape can only ever catch a
+// slightly stale value.
+//
+// Called only from the maintenance loop, so the retained snapshot needs no lock.
+func (s *BackendScheduler) recordPendingJobs() {
+	current := s.work.PendingJobCounts()
+
+	for tenant, byType := range current {
+		for jobType, pending := range byType {
+			metricJobsPending.WithLabelValues(tenant, jobType.String()).Set(float64(pending))
+		}
+	}
+
+	// A drained queue is absent from the snapshot rather than zero within it, so anything published
+	// last time and missing now has to be deleted explicitly, or its series keeps its last value for
+	// the process lifetime.
+	for tenant, byType := range s.publishedPendingCounts {
+		for jobType := range byType {
+			if _, stillPending := current[tenant][jobType]; !stillPending {
+				metricJobsPending.DeleteLabelValues(tenant, jobType.String())
+			}
+		}
+	}
+
+	s.publishedPendingCounts = current
+}

@@ -1,7 +1,9 @@
 package tracediff
 
 import (
+	"encoding/json"
 	"errors"
+	"math"
 	"testing"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -53,7 +55,10 @@ func TestDiffEmptyTracesReturnsEmptyResult(t *testing.T) {
 		Modified: []ModifiedSpan{},
 		Added:    []SpanChange{},
 		Removed:  []SpanChange{},
-		Warnings: []Warning{},
+		Warnings: []Warning{
+			{Code: WarningZeroSpanTrace, Message: "base trace contains no spans; comparison has no span matches"},
+			{Code: WarningZeroSpanTrace, Message: "compare trace contains no spans; comparison has no span matches"},
+		},
 	}, got)
 }
 
@@ -264,10 +269,10 @@ func TestDiffMatchesDuplicateSpanIdentityByParent(t *testing.T) {
 	removedDBDurations := make([]int64, 0, 1)
 	for _, removed := range got.Removed {
 		if removed.Span.Service == "db" && removed.Span.Name == "SELECT users" {
-			removedDBDurations = append(removedDBDurations, removed.Span.DurationMs)
+			removedDBDurations = append(removedDBDurations, removed.Span.DurationNanos)
 		}
 	}
-	assert.Equal(t, []int64{10}, removedDBDurations)
+	assert.Equal(t, []int64{10_000_000}, removedDBDurations)
 }
 
 func TestDiffWarnsAndUsesRawHighCardinalitySpanName(t *testing.T) {
@@ -331,9 +336,9 @@ func TestDiffReportsModifiedSpanFields(t *testing.T) {
 	assert.Equal(t, []Change{
 		{
 			Op:     OperationModify,
-			Target: Target{Type: TargetField, Name: "duration_ms"},
-			Before: int64(100),
-			After:  int64(250),
+			Target: Target{Type: TargetField, Name: "duration_nanos"},
+			Before: int64(100_000_000),
+			After:  int64(250_000_000),
 		},
 		{
 			Op:     OperationModify,
@@ -344,15 +349,72 @@ func TestDiffReportsModifiedSpanFields(t *testing.T) {
 	}, got.Modified[0].Changes)
 }
 
+func TestDiffReportsInvalidDurationTransitionsWithNull(t *testing.T) {
+	traceID := []byte("trace-id-0000001")
+	base := traceWithNamedSpans(
+		spanForNormalizeTest(traceID, "root", "", "checkout", "POST /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK),
+	)
+	compare := traceWithNamedSpans(&tracev1.Span{
+		TraceId:           traceID,
+		SpanId:            []byte("root"),
+		Name:              "POST /checkout",
+		Kind:              tracev1.Span_SPAN_KIND_SERVER,
+		StartTimeUnixNano: 0,
+		EndTimeUnixNano:   (normalizeTestTimeOffsetMs + 250) * 1_000_000,
+		Attributes:        []*commonv1.KeyValue{stringAttribute("service.name", "checkout")},
+		Status:            &tracev1.Status{Code: tracev1.Status_STATUS_CODE_OK},
+	})
+
+	got, err := Diff(base, compare, FormatTracePatchV0)
+	require.NoError(t, err)
+
+	assert.Equal(t, Stats{
+		SpanCountA:    1,
+		SpanCountB:    1,
+		MatchedSpans:  1,
+		ModifiedSpans: 1,
+		FieldChanges:  1,
+	}, got.Stats)
+	require.Len(t, got.Modified, 1)
+	assert.Equal(t, []Change{
+		{
+			Op:     OperationModify,
+			Target: Target{Type: TargetField, Name: "duration_nanos"},
+			Before: int64(100_000_000),
+			After:  nil,
+		},
+	}, got.Modified[0].Changes)
+	require.Len(t, got.Warnings, 1)
+	assert.Equal(t, WarningInvalidDuration, got.Warnings[0].Code)
+	assert.Contains(t, got.Warnings[0].Message, "compare trace")
+}
+
+func TestDiffKeepsInvalidAddedSpanDurationCompatible(t *testing.T) {
+	traceID := []byte("trace-id-0000001")
+	root := spanForNormalizeTest(traceID, "root", "", "checkout", "POST /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK)
+	invalid := spanForNormalizeTest(traceID, "child", "root", "checkout", "invalid", tracev1.Span_SPAN_KIND_CLIENT, 10, 20, tracev1.Status_STATUS_CODE_OK)
+	invalid.StartTimeUnixNano = 0
+
+	got, err := Diff(traceWithNamedSpans(root), traceWithNamedSpans(root, invalid), FormatTracePatchV0)
+	require.NoError(t, err)
+	require.Len(t, got.Added, 1)
+	assert.Zero(t, got.Added[0].Span.DurationNanos)
+	data, err := json.Marshal(got)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), `"duration_nanos":0`)
+}
+
 func TestDiffReportsSpanAttributeChanges(t *testing.T) {
 	traceID := []byte("trace-id-0000001")
 	baseSpan := spanForNormalizeTest(traceID, "root", "", "checkout", "POST /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK)
-	baseSpan.Attributes = append(baseSpan.Attributes,
+	baseSpan.Attributes = append(
+		baseSpan.Attributes,
 		stringAttribute("removed.attr", "gone"),
 		stringAttribute("version", "v1"),
 	)
 	compareSpan := spanForNormalizeTest(traceID, "root", "", "checkout", "POST /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK)
-	compareSpan.Attributes = append(compareSpan.Attributes,
+	compareSpan.Attributes = append(
+		compareSpan.Attributes,
 		stringAttribute("added.attr", "new"),
 		stringAttribute("version", "v2"),
 	)
@@ -393,11 +455,13 @@ func TestDiffReportsSpanAttributeChanges(t *testing.T) {
 func TestDiffReportsArraySpanAttributeChanges(t *testing.T) {
 	traceID := []byte("trace-id-0000001")
 	baseSpan := spanForNormalizeTest(traceID, "root", "", "checkout", "POST /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK)
-	baseSpan.Attributes = append(baseSpan.Attributes,
+	baseSpan.Attributes = append(
+		baseSpan.Attributes,
 		stringArrayAttribute("feature.flags", "a", "b"),
 	)
 	compareSpan := spanForNormalizeTest(traceID, "root", "", "checkout", "POST /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK)
-	compareSpan.Attributes = append(compareSpan.Attributes,
+	compareSpan.Attributes = append(
+		compareSpan.Attributes,
 		stringArrayAttribute("feature.flags", "a", "c"),
 	)
 
@@ -420,6 +484,42 @@ func TestDiffReportsArraySpanAttributeChanges(t *testing.T) {
 			After:  []any{"a", "c"},
 		},
 	}, got.Modified[0].Changes)
+}
+
+func TestDiffTreatsIdenticalNaNAttributesAsUnchanged(t *testing.T) {
+	traceID := []byte("trace-id-0000001")
+	makeSpan := func() *tracev1.Span {
+		span := spanForNormalizeTest(traceID, "root", "", "checkout", "POST /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK)
+		span.Attributes = append(span.Attributes, doubleAttribute("score", math.NaN()))
+		return span
+	}
+
+	got, err := Diff(traceWithNamedSpans(makeSpan()), traceWithNamedSpans(makeSpan()), FormatTracePatchV0)
+	require.NoError(t, err)
+	// NaN != NaN under ==, but two attributes that are both NaN must not be
+	// reported as a spurious modification.
+	assert.Equal(t, 0, got.Stats.AttributeChanges)
+	assert.Empty(t, got.Modified)
+}
+
+func TestDiffReportsNaNToValueAttributeChange(t *testing.T) {
+	traceID := []byte("trace-id-0000001")
+	baseSpan := spanForNormalizeTest(traceID, "root", "", "checkout", "POST /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK)
+	baseSpan.Attributes = append(baseSpan.Attributes, doubleAttribute("latency", math.NaN()))
+	compareSpan := spanForNormalizeTest(traceID, "root", "", "checkout", "POST /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK)
+	compareSpan.Attributes = append(compareSpan.Attributes, doubleAttribute("latency", 1.5))
+
+	got, err := Diff(traceWithNamedSpans(baseSpan), traceWithNamedSpans(compareSpan), FormatTracePatchV0)
+	require.NoError(t, err)
+	// A NaN that becomes a finite value is a real change and must be reported.
+	assert.Equal(t, 1, got.Stats.AttributeChanges)
+	require.Len(t, got.Modified, 1)
+	require.Len(t, got.Modified[0].Changes, 1)
+	assert.Equal(t, OperationModify, got.Modified[0].Changes[0].Op)
+	assert.Equal(t, "latency", got.Modified[0].Changes[0].Target.Key)
+	assert.Equal(t, "NaN", got.Modified[0].Changes[0].Before)
+	_, err = json.Marshal(got)
+	require.NoError(t, err)
 }
 
 func traceWithSpans(traceID []byte, spanIDs ...[]byte) *tempopb.Trace {
@@ -464,5 +564,44 @@ func stringArrayAttribute(key string, values ...string) *commonv1.KeyValue {
 				ArrayValue: &commonv1.ArrayValue{Values: arrayValues},
 			},
 		},
+	}
+}
+
+func TestValuesEqual(t *testing.T) {
+	// 2^53 is the largest integer float64 represents exactly; 2^53 and 2^53+1
+	// collapse to the same float64, so comparing int64s as float would miss the
+	// difference.
+	const maxExactFloat = int64(1) << 53
+
+	tests := []struct {
+		name string
+		a, b any
+		want bool
+	}{
+		{name: "nil equal", a: nil, b: nil, want: true},
+		{name: "nil vs value", a: nil, b: int64(0), want: false},
+		{name: "string equal", a: "x", b: "x", want: true},
+		{name: "string unequal", a: "x", b: "y", want: false},
+		{name: "bool equal", a: true, b: true, want: true},
+		{name: "int64 equal", a: int64(5), b: int64(5), want: true},
+		{name: "int64 unequal", a: int64(5), b: int64(6), want: false},
+		{name: "float64 equal", a: 2.5, b: 2.5, want: true},
+		{name: "float64 unequal", a: 2.5, b: 2.6, want: false},
+		{name: "int64 vs float64 same value", a: int64(80), b: 80.0, want: true},
+		{name: "float64 vs int64 same value", a: 80.0, b: int64(80), want: true},
+		{name: "int64 vs float64 different value", a: int64(80), b: 81.0, want: false},
+		{name: "large near-equal int64 stays exact", a: maxExactFloat, b: maxExactFloat + 1, want: false},
+		{name: "numeric vs string", a: int64(80), b: "80", want: false},
+		{name: "bytes equal", a: []byte{1, 2}, b: []byte{1, 2}, want: true},
+		{name: "bytes unequal", a: []byte{1, 2}, b: []byte{1, 3}, want: false},
+		{name: "array with cross-type numeric equal", a: []any{int64(1), "x"}, b: []any{1.0, "x"}, want: true},
+		{name: "array unequal", a: []any{int64(1)}, b: []any{int64(2)}, want: false},
+		{name: "map with cross-type numeric equal", a: map[string]any{"k": int64(3)}, b: map[string]any{"k": 3.0}, want: true},
+		{name: "map unequal", a: map[string]any{"k": int64(3)}, b: map[string]any{"k": int64(4)}, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, valuesEqual(tt.a, tt.b))
+		})
 	}
 }

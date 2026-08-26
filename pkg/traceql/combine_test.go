@@ -269,6 +269,67 @@ func TestCombineResults(t *testing.T) {
 	}
 }
 
+func TestQueryRangeCombinerMergesReadMetrics(t *testing.T) {
+	combiner, err := QueryRangeCombinerFor(&tempopb.QueryRangeRequest{
+		Query: "{} | rate()",
+		Start: 1,
+		End:   2,
+		Step:  1,
+	}, AggregateModeSum, 0)
+	require.NoError(t, err)
+
+	combiner.Combine(&tempopb.QueryRangeResponse{
+		Metrics: &tempopb.SearchMetrics{
+			TotalJobs:       1,
+			CompletedJobs:   2,
+			TotalBlocks:     3,
+			TotalBlockBytes: 4,
+			InspectedBytes:  5,
+			InspectedTraces: 6,
+			InspectedSpans:  7,
+			BackendReads:    8,
+			BackendBytes:    9,
+			AdditionalMetrics: map[string]int64{
+				tempopb.AdditionalMetricCacheHits: 10,
+			},
+		},
+	})
+	combiner.Combine(&tempopb.QueryRangeResponse{
+		Metrics: &tempopb.SearchMetrics{
+			TotalJobs:       11,
+			CompletedJobs:   12,
+			TotalBlocks:     13,
+			TotalBlockBytes: 14,
+			InspectedBytes:  15,
+			InspectedTraces: 16,
+			InspectedSpans:  17,
+			BackendReads:    18,
+			BackendBytes:    19,
+			AdditionalMetrics: map[string]int64{
+				tempopb.AdditionalMetricCacheHits:   20,
+				tempopb.AdditionalMetricCacheMisses: 21,
+			},
+		},
+	})
+
+	resp := combiner.Response()
+	require.Equal(t, &tempopb.SearchMetrics{
+		TotalJobs:       1 + 11,
+		CompletedJobs:   2 + 12,
+		TotalBlocks:     3 + 13,
+		TotalBlockBytes: 4 + 14,
+		InspectedBytes:  5 + 15,
+		InspectedTraces: 6 + 16,
+		InspectedSpans:  7 + 17,
+		BackendReads:    8 + 18,
+		BackendBytes:    9 + 19,
+		AdditionalMetrics: map[string]int64{
+			tempopb.AdditionalMetricCacheHits:   10 + 20,
+			tempopb.AdditionalMetricCacheMisses: 21,
+		},
+	}, resp.Metrics)
+}
+
 func TestCombinerKeepsMostRecent(t *testing.T) {
 	totalTraces := 10
 	keepMostRecent := 5

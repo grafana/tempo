@@ -1,0 +1,6 @@
+change_type: enhancement
+component: query-frontend
+note: Add a `trace-diff` tool to the Tempo MCP server for comparing complete traces
+issues: [7785]
+subtext: The default composed response includes a compact summary and conditionally includes patches up to 64 KiB. Native summary and full patch formats remain available on request; full patches have no output-size guarantee.
+user: carles-grafana

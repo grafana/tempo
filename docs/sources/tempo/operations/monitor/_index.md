@@ -38,13 +38,9 @@ Tempo emits logs in the `key=value` ([logfmt](https://brandur.org/logfmt)) forma
 
 ### Traces
 
-Tempo uses the [OpenTelemetry SDK](https://github.com/open-telemetry/opentelemetry-go) for tracing instrumentation.
-The complete read path and some parts of the write path of Tempo are instrumented for tracing.
+You can configure the self-tracing for tempo using OpenTelemetry or Jaeger environment variables.
 
-You can configure the tracer [using environment variables](https://opentelemetry.io/docs/languages/sdk-configuration/otlp-exporter/).
-To enable tracing, set one of the following: `OTEL_EXPORTER_OTLP_ENDPOINT` or `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`.
-
-The OpenTelemetry SDK uses OTLP/HTTP by default, which can be configured with `OTEL_EXPORTER_OTLP_PROTOCOL`.
+Refer to [Configure Tempo self-tracing](self-tracing/) for the supported config, environment variables, sampling, propagation, and more details.
 
 ## Polling
 
@@ -55,7 +51,7 @@ Refer to [Use polling to monitor the backend status](polling/) for Tempo.
 
 ## Dashboards
 
-The [Tempo mixin](https://github.com/grafana/tempo/tree/main/operations/tempo-mixin) has eight Grafana dashboards in the `dashboards` folder that you can download and import into your Grafana UI.
+The [Tempo mixin](https://github.com/grafana/tempo/tree/main/operations/tempo-mixin) has ten Grafana dashboards in the `dashboards` folder that you can download and import into your Grafana UI.
 These dashboards work well when you run Tempo in a Kubernetes (k8s) environment and metrics scraped have the
 `cluster` and `namespace` labels.
 
@@ -140,6 +136,23 @@ The Tenants dashboard provides per-tenant visibility into ingestion, reads, stor
 It shows a limits table alongside distributor bytes and spans per second, live trace counts, query rates for ID lookups and searches, blocklist length, outstanding compactions, and metrics-generator bytes and active series.
 
 Use this dashboard in multitenant deployments to identify tenants with high ingestion rates, query volumes, or storage growth.
+
+### Tempo Service Graph dashboard
+
+> This is available as `tempo-service-graph.json`.
+
+The Service Graph dashboard visualizes service-to-service topology discovered from the `traces_service_graph_connection_info` metric emitted by the metrics-generator's service-graphs connection-info subprocessor.
+
+Use this dashboard to see how services in your system call each other and to spot unexpected or missing connections in the traced topology.
+
+### Tempo Livestore dashboard
+
+> This is available as `tempo-livestore.json`.
+
+The Livestore dashboard monitors the health and performance of the live-store component, which serves recent trace data directly from memory and the write-ahead log (WAL) before it's flushed to the backend.
+It's organized into a triage cockpit plus rows for read latency and query impact, ingest lag and throughput, backpressure and readiness, the WAL completion path, live trace and tenant pressure, resource usage, and autoscaling, with most rows broken down by live-store zone.
+
+Use this dashboard to diagnose read latency, ingest lag, and backpressure issues on the live-store path, and to monitor autoscaling behavior for live-store and its supporting Warpstream agents.
 
 ## Rules and alerts
 

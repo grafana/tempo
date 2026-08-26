@@ -38,3 +38,27 @@ func GetDocsContent(docType string) string {
 		return docsBasic // fallback to basic docs
 	}
 }
+
+const (
+	DocsTypeConfigOverview  = "config-overview"  // hand-curated map of the configuration tree
+	DocsTypeConfigReference = "config-reference" // generated complete reference of all options and defaults
+)
+
+//go:embed config-overview.md
+var docsConfigOverview string
+
+//go:embed config-reference.md
+var docsConfigReference string
+
+// GetConfigDocsContent returns Tempo configuration documentation based on the doc type.
+// Unknown types fall back to the orientation overview.
+func GetConfigDocsContent(docType string) string {
+	switch docType {
+	case DocsTypeConfigOverview:
+		return docsConfigOverview
+	case DocsTypeConfigReference:
+		return docsConfigReference
+	default:
+		return docsConfigOverview // fallback to the overview
+	}
+}

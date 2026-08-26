@@ -13,7 +13,7 @@ import (
 	"github.com/grafana/tempo/pkg/traceql"
 )
 
-// DedicatedColumnType is the type of the values in the dedicated attribute column. Only 'string' is supported.
+// DedicatedColumnType is the type of the values in the dedicated attribute column. Supported values are 'string' and 'int'.
 type DedicatedColumnType string
 
 // DedicatedColumnScope is the scope of the attribute that is stored in a dedicated column. Possible values are
@@ -188,7 +188,7 @@ type DedicatedColumn struct {
 func (dc *DedicatedColumn) MarshalJSON() ([]byte, error) {
 	type dcAlias DedicatedColumn // alias required to avoid recursive calls of MarshalJSON
 
-	cpy := (dcAlias)(*dc)
+	cpy := dcAlias(*dc)
 	if cpy.Scope == DefaultDedicatedColumnScope {
 		cpy.Scope = ""
 	}

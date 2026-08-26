@@ -7,11 +7,13 @@ import (
 	"math/rand"
 	"os"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/go-kit/log"
 	"github.com/grafana/tempo/modules/overrides/histograms"
+	tempo_util "github.com/grafana/tempo/pkg/util"
 	"github.com/prometheus/client_golang/prometheus"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/model/labels"
@@ -1045,4 +1047,364 @@ func collectDemandEstimateLabels(t *testing.T, tenant string) map[string]float64
 		}
 	}
 	return result
+}
+
+// TestManagedRegistry_borrowedLabelsSurviveScratchReuse verifies the
+// BorrowedLabels contract from the metric side: counter, histogram, and gauge
+// updates must copy everything they need synchronously, so that after Release
+// aggressive reuse of the pooled builder and scratch storage cannot corrupt
+// previously created series or exemplars.
+func TestManagedRegistry_borrowedLabelsSurviveScratchReuse(t *testing.T) {
+	appender := &capturingAppender{}
+
+	registry := New(&Config{}, &mockOverrides{}, "test", appender, log.NewNopLogger(), noopLimiter)
+	defer registry.Close()
+
+	counter := registry.NewCounter("my_counter")
+	histogram := registry.NewHistogram("my_histogram", []float64{1.0}, HistogramModeClassic)
+	gauge := registry.NewGauge("my_gauge")
+
+	builder := registry.NewLabelBuilder()
+	builder.Add("label", "value-1")
+	borrowed, valid := builder.CloseAndBorrowLabels()
+	require.True(t, valid)
+	scratch := borrowed.scratch
+
+	timeMs := time.Now().UnixMilli()
+	traceID := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}
+	counter.IncBorrowed(borrowed, 1.0, timeMs)
+	histogram.ObserveBorrowed(borrowed, 1.0, traceID, 1.0, timeMs)
+	gauge.SetBorrowed(borrowed, 1.0, timeMs)
+	borrowed.Release()
+
+	// Overwrite the caller-owned trace ID slice: the histogram must have
+	// copied the bytes synchronously.
+	for i := range traceID {
+		traceID[i] = 0xff
+	}
+
+	overwriteBorrowedScratch(t, scratch)
+
+	expectedSamples := []sample{
+		newSample(map[string]string{"__name__": "my_counter", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 0),
+		newSample(map[string]string{"__name__": "my_counter", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1),
+		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 0),
+		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1),
+		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "__metrics_gen_instance": mustGetHostname(), "le": "1"}, 0, 0),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "__metrics_gen_instance": mustGetHostname(), "le": "1"}, 0, 1),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "__metrics_gen_instance": mustGetHostname(), "le": "+Inf"}, 0, 0),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "__metrics_gen_instance": mustGetHostname(), "le": "+Inf"}, 0, 1),
+		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1),
+	}
+	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
+
+	// The exemplar's trace ID bytes must have been copied out of the borrowed
+	// slice, and the exemplar series labels must be intact. Note
+	// TraceIDToHexString strips leading zeros.
+	require.Len(t, appender.exemplars, 1)
+	assert.Equal(t, "102030405060708090a0b0c0d0e0f10", appender.exemplars[0].e.Labels.Get("traceID"))
+	assert.Equal(t, "value-1", appender.exemplars[0].l.Get("label"))
+}
+
+func TestManagedRegistry_targetInfoBorrowedLabelsSurviveScratchReuse(t *testing.T) {
+	appender := &capturingAppender{}
+	registry := New(&Config{}, &mockOverrides{}, "test", appender, log.NewNopLogger(), noopLimiter)
+	defer registry.Close()
+
+	targetInfo := registry.NewGauge("my_target_info")
+	setTargetInfo := func(value float64) {
+		builder := registry.NewInfoMetricLabelBuilder()
+		builder.Add("resource", "resource-1")
+		borrowed, valid := builder.CloseAndBorrowLabels()
+		require.True(t, valid)
+		scratch := borrowed.scratch
+		targetInfo.SetForTargetInfoBorrowed(borrowed, value, time.Now().UnixMilli())
+		borrowed.Release()
+		overwriteBorrowedScratch(t, scratch)
+	}
+
+	setTargetInfo(1)
+	setTargetInfo(2) // Existing target_info series are presence-only and stay at 1.
+
+	expected := []sample{
+		newSample(map[string]string{"__name__": "my_target_info", "resource": "resource-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1),
+	}
+	collectRegistryMetricsAndAssert(t, registry, appender, expected)
+}
+
+// TestManagedRegistry_borrowedLabelsSurviveSanitizerAndLimiter is the
+// integration counterpart of the per-label-limiter and drain-sanitizer
+// retention unit tests. With span-name sanitization and the per-label
+// cardinality limiter both enabled, pushing many distinct series through the
+// borrow path churns the pooled scratch buffers; neither component may retain
+// label strings that alias those buffers. The limiter keys its state by label
+// name, which must stay exactly the small, stable set of names used here — a
+// retention bug corrupts those keys and pollutes the map with garbage.
+func TestManagedRegistry_borrowedLabelsSurviveSanitizerAndLimiter(t *testing.T) {
+	overrides := &mockOverrides{
+		spanNameSanitization:   SpanNameSanitizationEnabled,
+		maxCardinalityPerLabel: 1_000_000, // enabled, but high enough to never overflow
+	}
+	registry := New(&Config{}, overrides, "test", &noopAppender{}, log.NewNopLogger(), noopLimiter)
+	defer registry.Close()
+
+	counter := registry.NewCounter("my_counter")
+
+	const iterations = 500
+	for i := 0; i < iterations; i++ {
+		builder := registry.NewLabelBuilder()
+		// Stable label NAMES (what the limiter keys on) with varying VALUES and
+		// span_name (what the sanitizer trains on). Varying value lengths force
+		// the pooled scratch buffer to be overwritten with different content
+		// between borrows.
+		builder.Add("service", "svc")
+		builder.Add("span_name", fmt.Sprintf("GET /api/users/%d/detail", i))
+		builder.Add("route", fmt.Sprintf("/u/%0*d", i%37, i))
+		borrowed, ok := builder.CloseAndBorrowLabels()
+		require.True(t, ok)
+		counter.IncBorrowed(borrowed, 1, time.Now().UnixMilli())
+		borrowed.Release()
+	}
+
+	// The per-label limiter must only know the stable, owned label names.
+	pll := registry.perLabelLimiter.(*PerLabelLimiter)
+	pll.mtx.Lock()
+	keys := make([]string, 0, len(pll.labelsState))
+	for k := range pll.labelsState {
+		keys = append(keys, k)
+	}
+	pll.mtx.Unlock()
+
+	sort.Strings(keys)
+	require.Equal(t, []string{"route", "service", "span_name"}, keys,
+		"per-label limiter retained corrupted or unexpected label-name keys: %v", keys)
+}
+
+// TestManagedRegistry_retainingLimiterDoesNotCorruptSeries documents the
+// Limiter.OnAdd no-retain precondition from the registry's side: even if a
+// Limiter implementation violates the contract and retains the borrowed labels
+// it is handed, the registry's own emitted series stay correct because the
+// registry copies labels onto every new series before the borrow is released.
+func TestManagedRegistry_retainingLimiterDoesNotCorruptSeries(t *testing.T) {
+	var retained []labels.Labels
+	retainingLimiter := &mockLimiter{
+		onAddFunc: func(hash uint64, _ uint32, lbls labels.Labels) (labels.Labels, uint64) {
+			// Deliberately (incorrectly) keep a reference to the borrowed labels.
+			retained = append(retained, lbls)
+			return lbls, hash
+		},
+	}
+
+	appender := &capturingAppender{}
+	registry := New(&Config{}, &mockOverrides{}, "test", appender, log.NewNopLogger(), retainingLimiter)
+	defer registry.Close()
+
+	counter := registry.NewCounter("my_counter")
+
+	builder := registry.NewLabelBuilder()
+	builder.Add("label", "value-1")
+	borrowed, ok := builder.CloseAndBorrowLabels()
+	require.True(t, ok)
+	scratch := borrowed.scratch
+	counter.IncBorrowed(borrowed, 1, time.Now().UnixMilli())
+	borrowed.Release()
+
+	// Deterministically overwrite the released scratch so anything the
+	// limiter incorrectly retained now aliases different bytes.
+	overwriteBorrowedScratch(t, scratch)
+
+	require.NotEmpty(t, retained)
+	expected := []sample{
+		newSample(map[string]string{"__name__": "my_counter", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 0),
+		newSample(map[string]string{"__name__": "my_counter", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1),
+	}
+	collectRegistryMetricsAndAssert(t, registry, appender, expected)
+}
+
+// TestManagedRegistry_nativeBorrowedLabelsSurviveScratchReuse covers both raw
+// and pre-encoded trace IDs in native and both-mode histograms. The native
+// series re-bases its reusable bucket-label builder onto owned labels
+// (native_histogram.go: lb.Reset(newSeries.labels)); a regression there would
+// corrupt emitted labels once pooled scratch is reused.
+func TestManagedRegistry_nativeBorrowedLabelsSurviveScratchReuse(t *testing.T) {
+	modes := []struct {
+		name string
+		mode HistogramMode
+	}{
+		{"native", HistogramModeNative},
+		{"both", HistogramModeBoth},
+	}
+	paths := []struct {
+		name          string
+		mutateTraceID bool
+		observe       func(Histogram, *BorrowedLabels, []byte, int64)
+	}{
+		{
+			name:          "raw trace ID",
+			mutateTraceID: true,
+			observe: func(histogram Histogram, borrowed *BorrowedLabels, traceID []byte, timeMs int64) {
+				histogram.ObserveBorrowed(borrowed, 1.5, traceID, 1.0, timeMs)
+			},
+		},
+		{
+			name: "encoded trace ID",
+			observe: func(histogram Histogram, borrowed *BorrowedLabels, traceID []byte, timeMs int64) {
+				histogram.ObserveBorrowedWithEncodedTraceID(borrowed, 1.5, tempo_util.TraceIDToHexString(traceID), 1.0, timeMs)
+			},
+		},
+	}
+
+	for _, mode := range modes {
+		for _, path := range paths {
+			t.Run(mode.name+"/"+path.name, func(t *testing.T) {
+				appender := &capturingAppender{}
+				overrides := &mockOverrides{
+					nativeHistogramBucketFactor:     1.5,
+					nativeHistogramMaxBucketNumber:  10,
+					nativeHistogramMinResetDuration: time.Minute,
+				}
+				registry := New(&Config{}, overrides, "test", appender, log.NewNopLogger(), noopLimiter)
+				defer registry.Close()
+
+				histogram := registry.NewHistogram("my_histogram", []float64{1.0}, mode.mode)
+
+				traceID := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}
+				wantTraceID := tempo_util.TraceIDToHexString(traceID)
+				builder := registry.NewLabelBuilder()
+				builder.Add("label", "value-1")
+				borrowed, valid := builder.CloseAndBorrowLabels()
+				require.True(t, valid)
+				scratch := borrowed.scratch
+				path.observe(histogram, borrowed, traceID, time.Now().UnixMilli())
+				borrowed.Release()
+
+				// The raw path must copy or encode the caller-owned bytes before
+				// returning. Mutating the slice must not change the exemplar.
+				if path.mutateTraceID {
+					for i := range traceID {
+						traceID[i] = 0xff
+					}
+				}
+
+				overwriteBorrowedScratch(t, scratch)
+
+				require.NoError(t, histogram.collectMetrics(appender, time.Now().UnixMilli()))
+
+				// Gather the labels of every emitted series. Native-only mode emits
+				// native histograms (AppendHistogram) plus exemplars; both-mode also
+				// emits classic float samples. Each must carry the intact owned
+				// label, never corrupted bytes from the churned scratch buffers.
+				var seriesLabels []labels.Labels
+				for _, s := range appender.samples {
+					seriesLabels = append(seriesLabels, s.l)
+				}
+				for _, h := range appender.histograms {
+					seriesLabels = append(seriesLabels, h.l)
+				}
+				require.NotEmpty(t, appender.exemplars, "trace ID produced no exemplar")
+				for _, ex := range appender.exemplars {
+					seriesLabels = append(seriesLabels, ex.l)
+					assert.Equal(t, wantTraceID, ex.e.Labels.Get("traceID"))
+				}
+				require.NotEmpty(t, seriesLabels, "native histogram emitted no series")
+				for _, l := range seriesLabels {
+					assert.Equal(t, "value-1", l.Get("label"), "series labels corrupted after scratch reuse: %s", l.String())
+				}
+			})
+		}
+	}
+}
+
+func overwriteBorrowedScratch(t *testing.T, scratch *labels.ScratchBuilder) {
+	t.Helper()
+
+	scratch.Reset()
+	scratch.Add("label", "x")
+	var overwritten labels.Labels
+	scratch.Overwrite(&overwritten)
+	require.Equal(t, "x", overwritten.Get("label"))
+}
+
+// TestManagedRegistryPerTenantPools verifies that each ManagedRegistry owns its
+// own label-builder pools, so pooled scratch memory is never shared across
+// tenants. A regression to a shared/global pool would fail the NotSame check;
+// run under -race to catch cross-tenant aliasing in the borrow/release path.
+func TestManagedRegistryPerTenantPools(t *testing.T) {
+	regA := New(&Config{}, &mockOverrides{}, "tenant-a", &noopAppender{}, log.NewNopLogger(), noopLimiter)
+	defer regA.Close()
+	regB := New(&Config{}, &mockOverrides{}, "tenant-b", &noopAppender{}, log.NewNopLogger(), noopLimiter)
+	defer regB.Close()
+
+	require.NotNil(t, regA.builderPools)
+	require.NotNil(t, regB.builderPools)
+	assert.NotSame(t, regA.builderPools, regB.builderPools, "each tenant's registry must own a distinct pool set")
+
+	// Interleaved borrow/release against each registry's own pools. Uses the
+	// info-metric builder (noop sanitizer/limiter) so the borrowed labels are
+	// exactly what was added, isolating the test to pooling behaviour.
+	for i := 0; i < 100; i++ {
+		ba := regA.NewInfoMetricLabelBuilder()
+		ba.Add("k", "a")
+		la, ok := ba.CloseAndBorrowLabels()
+		require.True(t, ok)
+		assert.Equal(t, "a", la.Labels.Get("k"))
+		la.Release()
+
+		bb := regB.NewInfoMetricLabelBuilder()
+		bb.Add("k", "b")
+		lb, ok := bb.CloseAndBorrowLabels()
+		require.True(t, ok)
+		assert.Equal(t, "b", lb.Labels.Get("k"))
+		lb.Release()
+	}
+}
+
+// TestManagedRegistry_concurrentBorrowRelease exercises the full borrow path —
+// NewLabelBuilder → Add → CloseAndBorrowLabels → *Borrowed update → Release —
+// from many goroutines sharing one registry, as production does (a tenant's
+// pools are shared across ingest_concurrency consumers). Run under -race it
+// pins the Release ordering invariant that fields are cleared before the
+// builder is pooled: a regression that Puts the builder first would let the
+// next borrower's writes race Release's clears across goroutines.
+func TestManagedRegistry_concurrentBorrowRelease(t *testing.T) {
+	registry := New(&Config{}, &mockOverrides{}, "test", &noopAppender{}, log.NewNopLogger(), noopLimiter)
+	defer registry.Close()
+
+	counter := registry.NewCounter("my_counter")
+	histogram := registry.NewHistogram("my_histogram", []float64{1}, HistogramModeClassic)
+	gauge := registry.NewGauge("my_gauge")
+
+	const (
+		goroutines = 8
+		iterations = 500
+	)
+	traceID := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}
+
+	var wg sync.WaitGroup
+	for g := 0; g < goroutines; g++ {
+		wg.Add(1)
+		go func(g int) {
+			defer wg.Done()
+			for i := 0; i < iterations; i++ {
+				timeMs := time.Now().UnixMilli()
+
+				builder := registry.NewLabelBuilder()
+				builder.Add("service", "svc")
+				// A small set of distinct values keeps the series count
+				// bounded while still churning the pooled scratch buffers
+				// with different content between borrows.
+				builder.Add("span_name", fmt.Sprintf("GET /g/%d/%d", g, i%5))
+				borrowed, ok := builder.CloseAndBorrowLabels()
+				if !assert.True(t, ok) {
+					continue
+				}
+				counter.IncBorrowed(borrowed, 1, timeMs)
+				histogram.ObserveBorrowed(borrowed, 0.5, traceID, 1, timeMs)
+				gauge.SetForTargetInfoBorrowed(borrowed, 1, timeMs)
+				borrowed.Release()
+			}
+		}(g)
+	}
+	wg.Wait()
 }

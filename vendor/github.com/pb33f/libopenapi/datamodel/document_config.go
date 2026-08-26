@@ -39,8 +39,8 @@ type DocumentConfiguration struct {
 	// RemoteURLHandler is a function that will be used to retrieve remote documents. If not set, the default
 	// remote document getter will be used.
 	//
-	// The remote handler is only used if the BaseURL is set. If the BaseURL is not set, then the remote handler
-	// will not be used, as there will be nothing to use it against.
+	// The remote handler is only used if AllowRemoteReferences is true. If AllowRemoteReferences is false, then
+	// the remote handler will not be used even when BaseURL is set.
 	//
 	// Resolves [#132]: https://github.com/pb33f/libopenapi/issues/132
 	RemoteURLHandler utils.RemoteURLHandler
@@ -89,12 +89,8 @@ type DocumentConfiguration struct {
 
 	// AllowRemoteReferences will allow the index to lookup remote references. This is disabled by default.
 	//
-	// This behavior is now driven by the inclusion of a BaseURL. If a BaseURL is set, then the
-	// rolodex will look for remote references. If no BaseURL is set, then the rolodex will not look for
-	// remote references. This value has no effect as of version 0.13.0 and will be removed in a future release.
-	//
-	// This value when set, will force the creation of a remote file system even when the BaseURL has not been set.
-	// it will suck in every http link it finds, and recurse through all references located in each document.
+	// BaseURL is used to resolve relative references, but it does not enable remote fetching on its own. Remote
+	// lookup only occurs when this value is true.
 	AllowRemoteReferences bool
 
 	// AvoidIndexBuild will avoid building the index. This is disabled by default, only use if you are sure you don't need it.
@@ -105,11 +101,16 @@ type DocumentConfiguration struct {
 	// passed in and used. Only enable this when parsing non openapi documents.
 	BypassDocumentCheck bool
 
-	// SkipJSONConversion skips the YAML-to-JSON conversion during spec parsing.
-	// SpecJSON and SpecJSONBytes on SpecInfo will be nil when enabled.
-	// This also skips structural validation that parseJSON performs (e.g., duplicate key detection).
+	// SkipJSONConversion disables the JSON representation of the document entirely:
+	// SpecInfo.GetSpecJSON and GetSpecJSONBytes return nil when enabled (and the
+	// deprecated SpecJSON/SpecJSONBytes fields stay nil). This also skips the eager
+	// structural validation performed at parse time (e.g., duplicate key detection).
 	// Safe when document-level schema validation rules are not running and no custom
 	// functions depend on the JSON representation.
+	//
+	// Note: the JSON representation is built lazily on first accessor call, so leaving
+	// this disabled no longer costs anything at parse time. Enable it only to also
+	// skip the eager structural validation, or to guarantee accessors return nil.
 	SkipJSONConversion bool
 
 	// IgnorePolymorphicCircularReferences will skip over checking for circular references in polymorphic schemas.
@@ -142,6 +143,20 @@ type DocumentConfiguration struct {
 	// ExcludeExtensionReferences will prevent the indexing of any $ref pointers buried under extensions.
 	// defaults to false (which means extensions will be included)
 	ExcludeExtensionRefs bool
+
+	// SkipMetadataCollection disables the collection of diagnostic metadata during indexing:
+	// descriptions, summaries, enums, objects-with-properties, security requirement
+	// references, and the JSONPath `Path` values on inline schema references. Skipping
+	// them significantly reduces allocations and retained memory when parsing large
+	// documents. Reference extraction, resolution and model building are unaffected.
+	//
+	// -- UNSAFE FOR DIAGNOSTIC, RULE, OR PATH CONSUMERS --
+	// When enabled, the index methods GetAllDescriptions, GetAllSummaries, GetAllEnums,
+	// GetAllObjectsWithProperties, GetSecurityRequirementReferences and the related
+	// counts are intentionally empty/zero, and inline schema Reference.Path values are
+	// empty strings. vacuum and any other tool that consumes index metadata or Path
+	// values must NOT enable this. Defaults to false (everything is collected).
+	SkipMetadataCollection bool
 
 	// BundleInlineRefs controls whether local component references are inlined during bundling.
 	// When false (default): Local refs like #/components/schemas/Pet are preserved

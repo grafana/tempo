@@ -14,12 +14,13 @@ import (
 	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kmsg"
-	"github.com/twmb/franz-go/pkg/sasl/plain"
 	"github.com/twmb/franz-go/plugin/kotel"
 	"github.com/twmb/franz-go/plugin/kprom"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/atomic"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // NewWriterClient returns the kgo.Client that should be used by the Writer.
@@ -31,10 +32,16 @@ func NewWriterClient(kafkaCfg KafkaConfig, maxInflightProduceRequests int, logge
 	metrics := kprom.NewMetrics(
 		"", // No prefix. We expect the input prometheus.Registered to be wrapped with a prefix.
 		kprom.Registerer(reg),
-		kprom.FetchAndProduceDetail(kprom.Batches, kprom.Records, kprom.CompressedBytes, kprom.UncompressedBytes))
+		kprom.FetchAndProduceDetail(kprom.Batches, kprom.Records, kprom.CompressedBytes, kprom.UncompressedBytes),
+	)
+
+	commonOpts, err := commonKafkaClientOptions(kafkaCfg, metrics, logger)
+	if err != nil {
+		return nil, fmt.Errorf("creating kafka writer client options: %w", err)
+	}
 
 	opts := append(
-		commonKafkaClientOptions(kafkaCfg, metrics, logger),
+		commonOpts,
 		kgo.RequiredAcks(kgo.AllISRAcks()),
 		kgo.DefaultProduceTopic(kafkaCfg.Topic),
 
@@ -81,6 +88,15 @@ func NewWriterClient(kafkaCfg KafkaConfig, maxInflightProduceRequests int, logge
 		kgo.MaxBufferedRecords(math.MaxInt), // Use a high value to set it as unlimited, because the client doesn't support "0 as unlimited".
 		kgo.MaxBufferedBytes(0),
 	)
+
+	codec, set, err := parseProducerCompression(kafkaCfg.ProducerCompression)
+	if err != nil {
+		return nil, err
+	}
+	if set {
+		opts = append(opts, kgo.ProducerBatchCompression(codec))
+	}
+
 	if kafkaCfg.AutoCreateTopicEnabled {
 		kafkaCfg.SetDefaultNumberOfPartitionsForAutocreatedTopics(logger)
 	}
@@ -99,7 +115,7 @@ func (o onlySampledTraces) Inject(ctx context.Context, carrier propagation.TextM
 	o.TextMapPropagator.Inject(ctx, carrier)
 }
 
-func commonKafkaClientOptions(cfg KafkaConfig, metrics *kprom.Metrics, logger log.Logger) []kgo.Opt {
+func commonKafkaClientOptions(cfg KafkaConfig, metrics *kprom.Metrics, logger log.Logger) ([]kgo.Opt, error) {
 	opts := []kgo.Opt{
 		kgo.ClientID(cfg.ClientID),
 		kgo.SeedBrokers(cfg.Address),
@@ -129,13 +145,18 @@ func commonKafkaClientOptions(cfg KafkaConfig, metrics *kprom.Metrics, logger lo
 		kgo.WithLogger(newLogger(logger)),
 
 		kgo.RetryTimeoutFn(func(key int16) time.Duration {
-			if key == ((*kmsg.ListOffsetsRequest)(nil)).Key() {
+			if key == (*kmsg.ListOffsetsRequest)(nil).Key() {
 				return cfg.LastProducedOffsetRetryTimeout
 			}
 
 			// 30s is the default timeout in the Kafka client.
 			return 30 * time.Second
 		}),
+	}
+
+	// Enable rack-aware fetching (KIP-392) so consumers can fetch from the closest replica.
+	if cfg.ClientRack != "" {
+		opts = append(opts, kgo.Rack(cfg.ClientRack))
 	}
 
 	// Disable client metrics if explicitly disabled to reduce noise.
@@ -147,14 +168,20 @@ func commonKafkaClientOptions(cfg KafkaConfig, metrics *kprom.Metrics, logger lo
 		opts = append(opts, kgo.AllowAutoTopicCreation())
 	}
 
-	// SASL plain auth.
-	if cfg.SASLUsername != "" && cfg.SASLPassword.String() != "" {
-		opts = append(opts, kgo.SASL(plain.Plain(func(_ context.Context) (plain.Auth, error) {
-			return plain.Auth{
-				User: cfg.SASLUsername,
-				Pass: cfg.SASLPassword.String(),
-			}, nil
-		})))
+	// SASL auth. The configured mechanism determines how credentials are
+	// exchanged; kafkaAuthOptions returns nil options when SASL is disabled.
+	authOpts, err := kafkaAuthOptions(cfg.SASL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid Kafka SASL config: %w", err)
+	}
+	opts = append(opts, authOpts...)
+
+	if cfg.TLSEnabled {
+		tlsConfig, err := cfg.TLS.GetTLSConfig()
+		if err != nil {
+			return nil, fmt.Errorf("failed to build Kafka TLS config: %w", err)
+		}
+		opts = append(opts, kgo.DialTLSConfig(tlsConfig))
 	}
 
 	tracer := kotel.NewTracer(
@@ -169,7 +196,7 @@ func commonKafkaClientOptions(cfg KafkaConfig, metrics *kprom.Metrics, logger lo
 		opts = append(opts, kgo.WithHooks(metrics))
 	}
 
-	return opts
+	return opts, nil
 }
 
 // Producer is a kgo.Client wrapper exposing some higher level features and metrics useful for producers.
@@ -214,14 +241,16 @@ func NewProducer(client *kgo.Client, maxBufferedBytes int64, reg prometheus.Regi
 				Objectives: map[float64]float64{0.5: 0.05, 0.99: 0.001, 1: 0.001},
 				MaxAge:     time.Minute,
 				AgeBuckets: 6,
-			}),
+			},
+		),
 		bufferedProduceBytesLimit: promauto.With(reg).NewGauge(
 			prometheus.GaugeOpts{
 				Namespace: "tempo",
 				Subsystem: "distributor",
 				Name:      "buffered_produce_bytes_limit",
 				Help:      "The bytes limit on buffered produce records. Produce requests fail once this limit is reached.",
-			}),
+			},
+		),
 
 		produceRecordsFailuresTotal: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 			Namespace: "tempo",
@@ -334,6 +363,19 @@ func (c *Producer) ProduceSync(ctx context.Context, records []*kgo.Record) kgo.P
 		// Once we're done, it's guaranteed that no more results will be appended, so we can safely return it.
 		return res
 	}
+}
+
+func StatusFromProduceErr(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, context.Canceled) {
+		return status.Error(codes.Canceled, err.Error())
+	}
+	if errors.Is(err, kerr.MessageTooLarge) {
+		return status.Error(codes.InvalidArgument, err.Error())
+	}
+	return status.Error(codes.Unavailable, err.Error())
 }
 
 func produceErrReason(err error) string {

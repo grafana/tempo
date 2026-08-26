@@ -6,23 +6,31 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
+	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-func (q *Querier) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
+func (q *Querier) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (resp *tempopb.QueryRangeResponse, err error) {
+	ctx, span, tenantID, err := startQueryRangeSpan(ctx, "Querier.QueryRange", req)
+	if err != nil {
+		return nil, fmt.Errorf("error extracting org id in Querier.QueryRange: %w", err)
+	}
+	defer func() { finishQuerierSpan(span, err, resp.GetMetrics()) }()
+
 	if req.QueryMode == QueryModeRecent {
 		return q.queryRangeRecent(ctx, req)
 	}
 
-	return q.queryBlock(ctx, req)
+	setQueryRangeBlockSpanAttributes(span, req)
+	return q.queryBlock(ctx, req, tenantID)
 }
 
-func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
+func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeRequest) (resp *tempopb.QueryRangeResponse, err error) {
 	// correct max series limit logic should've been set by the query-frontend sharder
 	c, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeSum, int(req.MaxSeries))
 	if err != nil {
@@ -48,11 +56,8 @@ func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeR
 	return c.Response(), nil
 }
 
-func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
-	tenantID, err := validation.ExtractValidTenantID(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("error extracting org id in Querier.queryBlock: %w", err)
-	}
+func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest, tenantID string) (resp *tempopb.QueryRangeResponse, err error) {
+	defer observeBackendProcessing(api.OpMetrics, tenantID, time.Now())
 
 	blockID, err := backend.ParseUUID(req.BlockID)
 	if err != nil {
@@ -107,6 +112,11 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 		compileOpts = append(compileOpts, traceql.WithSpanOnlyFetch(*p))
 	}
 
+	compileOpts = append(compileOpts, overrides.SpanPruningAwarenessCompileOptions(q.limits.SpanPruningAwareness(tenantID))...)
+	if p := q.limits.EngineBytesTracking(tenantID); p != nil {
+		compileOpts = append(compileOpts, traceql.WithEngineBytesTracking(*p))
+	}
+
 	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, compileOpts...)
 	if err != nil {
 		return nil, err
@@ -128,7 +138,7 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 
 	res := eval.Results()
 
-	inspectedBytes, spansTotal, _ := eval.Metrics()
+	em := eval.Metrics()
 
 	if req.MaxSeries > 0 && len(res) > int(req.MaxSeries) {
 		limitedRes := make(traceql.SeriesSet)
@@ -146,8 +156,11 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 	response := &tempopb.QueryRangeResponse{
 		Series: res.ToProto(req),
 		Metrics: &tempopb.SearchMetrics{
-			InspectedBytes: inspectedBytes,
-			InspectedSpans: spansTotal,
+			InspectedBytes:    em.Bytes,
+			InspectedSpans:    em.SpansTotal,
+			BackendReads:      em.BackendReads,
+			BackendBytes:      em.BackendBytes,
+			AdditionalMetrics: em.AdditionalMetrics,
 		},
 	}
 

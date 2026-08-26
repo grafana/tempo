@@ -40,12 +40,17 @@ type mockOverrides struct {
 	serviceGraphsEnableTraceStateSpanMultiplier        *bool
 	spanMetricsSpanMultiplierKey                       string
 	spanMetricsEnableTraceStateSpanMultiplier          *bool
+	ingestionSlack                                     time.Duration
+	collectionInterval                                 time.Duration
 }
 
 var _ metricsGeneratorOverrides = (*mockOverrides)(nil)
 
+// MetricsGeneratorIngestionSlack mirrors the production overrides: it returns
+// the raw value and leaves the zero-value fallback to the instance, which
+// falls back to Config.MetricsIngestionSlack.
 func (m *mockOverrides) MetricsGeneratorIngestionSlack(string) time.Duration {
-	return 30 * time.Second
+	return m.ingestionSlack
 }
 
 func (m *mockOverrides) MetricsGeneratorMaxActiveSeries(string) uint32 {
@@ -56,8 +61,11 @@ func (m *mockOverrides) MetricsGeneratorMaxActiveEntities(string) uint32 {
 	return 0
 }
 
+// MetricsGeneratorCollectionInterval mirrors the production overrides: it
+// returns the raw value and leaves the zero-value fallback to the registry,
+// which falls back to registry.Config.CollectionInterval.
 func (m *mockOverrides) MetricsGeneratorCollectionInterval(string) time.Duration {
-	return 15 * time.Second
+	return m.collectionInterval
 }
 
 func (m *mockOverrides) MetricsGeneratorProcessors(string) map[string]struct{} {
@@ -117,16 +125,29 @@ func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsDimensionMappings(st
 	return m.spanMetricsDimensionMappings
 }
 
+// The native histogram accessors fall back to the registered production
+// defaults (modules/overrides/config.go) when unset. The registry feeds these
+// values to prometheus without further defaulting, so returning a zero bucket
+// factor would silently disable native (sparse) bucket observation.
 func (m *mockOverrides) MetricsGeneratorNativeHistogramBucketFactor(string) float64 {
-	return m.nativeHistogramBucketFactor
+	if m.nativeHistogramBucketFactor != 0 {
+		return m.nativeHistogramBucketFactor
+	}
+	return 1.1
 }
 
 func (m *mockOverrides) MetricsGeneratorNativeHistogramMaxBucketNumber(string) uint32 {
-	return m.nativeHistogramMaxBucketNumber
+	if m.nativeHistogramMaxBucketNumber != 0 {
+		return m.nativeHistogramMaxBucketNumber
+	}
+	return 100
 }
 
 func (m *mockOverrides) MetricsGeneratorNativeHistogramMinResetDuration(string) time.Duration {
-	return m.nativeHistogramMinResetDuration
+	if m.nativeHistogramMinResetDuration != 0 {
+		return m.nativeHistogramMinResetDuration
+	}
+	return 15 * time.Minute
 }
 
 func (m *mockOverrides) MetricsGeneratorSpanNameSanitization(string) string {

@@ -7,14 +7,17 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strconv"
+	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
 
+	spanpruningprocessor "github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanpruningprocessor"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/cmd/tempo-query/tempo"
+	"github.com/grafana/tempo/pkg/model/tracediff"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
@@ -519,6 +522,131 @@ func TestBuildSearchBlockRequest(t *testing.T) {
 	}
 }
 
+func TestParseTraceDiffRequest(t *testing.T) {
+	tests := []struct {
+		name        string
+		body        string
+		expectedErr string
+		assertReq   func(t *testing.T, req *TraceDiffRequest)
+	}{
+		{
+			name: "valid minimal request defaults format",
+			body: `{"base":{"traceId":"abc123"},"compare":{"traceId":"def456"}}`,
+			assertReq: func(t *testing.T, req *TraceDiffRequest) {
+				t.Helper()
+				assert.Equal(t, tracediff.VersionTracePatchV0, req.Format)
+				assert.Equal(t, "abc123", req.Base.TraceID)
+				assert.Equal(t, "def456", req.Compare.TraceID)
+				assert.Len(t, req.Base.TraceIDBytes, 16)
+				assert.Len(t, req.Compare.TraceIDBytes, 16)
+				assert.True(t, req.Base.StartTime.IsZero())
+				assert.True(t, req.Base.EndTime.IsZero())
+				assert.True(t, req.Compare.StartTime.IsZero())
+				assert.True(t, req.Compare.EndTime.IsZero())
+			},
+		},
+		{
+			name: "valid request with independent windows",
+			body: `{"base":{"traceId":"abc123","start":10,"end":20},"compare":{"traceId":"def456","start":100,"end":200}}`,
+			assertReq: func(t *testing.T, req *TraceDiffRequest) {
+				t.Helper()
+				assert.Equal(t, tracediff.VersionTracePatchV0, req.Format)
+				assert.Equal(t, time.Unix(10, 0), req.Base.StartTime)
+				assert.Equal(t, time.Unix(20, 0), req.Base.EndTime)
+				assert.Equal(t, time.Unix(100, 0), req.Compare.StartTime)
+				assert.Equal(t, time.Unix(200, 0), req.Compare.EndTime)
+			},
+		},
+		{
+			name: "explicit composed format",
+			body: `{"base":{"traceId":"abc123"},"compare":{"traceId":"def456"},"format":"trace-summary-v0-composed"}`,
+			assertReq: func(t *testing.T, req *TraceDiffRequest) {
+				t.Helper()
+				assert.Equal(t, tracediff.VersionTraceSummaryV0Composed, req.Format)
+			},
+		},
+		{
+			name: "explicit patch format",
+			body: `{"base":{"traceId":"abc123"},"compare":{"traceId":"def456"},"format":"trace-patch-v0"}`,
+			assertReq: func(t *testing.T, req *TraceDiffRequest) {
+				t.Helper()
+				assert.Equal(t, tracediff.VersionTracePatchV0, req.Format)
+			},
+		},
+		{
+			name: "explicit native summary format",
+			body: `{"base":{"traceId":"abc123"},"compare":{"traceId":"def456"},"format":"trace-summary-v0-native"}`,
+			assertReq: func(t *testing.T, req *TraceDiffRequest) {
+				t.Helper()
+				assert.Equal(t, tracediff.VersionTraceSummaryV0Native, req.Format)
+			},
+		},
+		{
+			name:        "unknown format",
+			body:        `{"base":{"traceId":"abc123"},"compare":{"traceId":"def456"},"format":"trace-summary-v1"}`,
+			expectedErr: `invalid format "trace-summary-v1": must be one of "trace-summary-v0-composed", "trace-patch-v0", "trace-summary-v0-native"`,
+		},
+		{
+			name:        "empty body",
+			body:        "",
+			expectedErr: "invalid trace diff request body",
+		},
+		{
+			name:        "malformed json",
+			body:        `{"base":`,
+			expectedErr: "invalid trace diff request body",
+		},
+		{
+			name:        "missing base",
+			body:        `{"compare":{"traceId":"def456"}}`,
+			expectedErr: "base.traceId is required",
+		},
+		{
+			name:        "missing compare",
+			body:        `{"base":{"traceId":"abc123"}}`,
+			expectedErr: "compare.traceId is required",
+		},
+		{
+			name:        "missing base trace ID",
+			body:        `{"base":{},"compare":{"traceId":"def456"}}`,
+			expectedErr: "base.traceId is required",
+		},
+		{
+			name:        "invalid trace ID",
+			body:        `{"base":{"traceId":"not-hex"},"compare":{"traceId":"def456"}}`,
+			expectedErr: "invalid base.traceId",
+		},
+		{
+			name:        "base end equals start",
+			body:        `{"base":{"traceId":"abc123","start":10,"end":10},"compare":{"traceId":"def456"}}`,
+			expectedErr: "base.start must be before base.end. received start=10 end=10",
+		},
+		{
+			name:        "compare end before start",
+			body:        `{"base":{"traceId":"abc123"},"compare":{"traceId":"def456","start":20,"end":10}}`,
+			expectedErr: "compare.start must be before compare.end. received start=20 end=10",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, PathTraceDiffV2, strings.NewReader(tt.body))
+
+			actual, err := ParseTraceDiffRequest(req)
+			if tt.expectedErr != "" {
+				require.ErrorContains(t, err, tt.expectedErr)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, actual)
+			if tt.assertReq != nil {
+				tt.assertReq(t, actual)
+			}
+		})
+	}
+}
+
 func TestParseTraceByIDRequest(t *testing.T) {
 	tests := []struct {
 		httpReq       *http.Request
@@ -600,6 +728,327 @@ func TestParseTraceByIDRequest(t *testing.T) {
 		assert.Equal(t, tc.blockEnd, blockEnd)
 		assert.Equal(t, tc.startTime, startTime)
 		assert.Equal(t, tc.endTime, endTime)
+	}
+}
+
+func TestParseTraceByIDFilterParams(t *testing.T) {
+	tests := []struct {
+		name              string
+		urlQuery          string
+		wantQuery         string
+		wantKeepHierarchy bool
+		wantMatchDepth    int
+		wantAncestorDepth int
+		wantErr           bool
+	}{
+		// no q means no filter at all, so the zero-value TraceByIDFilterParams is returned:
+		// match_depth and ancestor_depth are both 0 here, not their filtered-path defaults.
+		{name: "no params means no filter", urlQuery: "", wantMatchDepth: 0, wantAncestorDepth: 0},
+		{name: "query only defaults keep_hierarchy false", urlQuery: "q=" + url.QueryEscape("{ .a = 1 }"), wantQuery: "{ .a = 1 }", wantMatchDepth: 0, wantAncestorDepth: -1},
+		// a whitespace-only q is trimmed to empty, so it is treated as no filter and keep_hierarchy is ignored.
+		{name: "whitespace-only q is treated as empty", urlQuery: "q=" + url.QueryEscape("   ") + "&keep_hierarchy=true", wantMatchDepth: 0, wantAncestorDepth: 0},
+		// surrounding whitespace on a real query is trimmed, not passed to the parser.
+		{name: "surrounding whitespace on q is trimmed", urlQuery: "q=" + url.QueryEscape("  { .a = 1 }  "), wantQuery: "{ .a = 1 }", wantMatchDepth: 0, wantAncestorDepth: -1},
+		{
+			name:              "query and explicit keep_hierarchy true",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=true",
+			wantQuery:         "{ .a = 1 }",
+			wantKeepHierarchy: true,
+			wantMatchDepth:    0,
+			wantAncestorDepth: -1,
+		},
+		{
+			name:              "explicit keep_hierarchy false overrides default",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=false",
+			wantQuery:         "{ .a = 1 }",
+			wantMatchDepth:    0,
+			wantAncestorDepth: -1,
+		},
+		{
+			name:     "invalid keep_hierarchy with query",
+			urlQuery: "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=yes-please",
+			wantErr:  true,
+		},
+		{name: "invalid keep_hierarchy ignored without query", urlQuery: "keep_hierarchy=yes-please", wantMatchDepth: 0, wantAncestorDepth: 0},
+		{
+			name:              "match_depth absent with query defaults to 0",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }"),
+			wantQuery:         "{ .a = 1 }",
+			wantMatchDepth:    0,
+			wantAncestorDepth: -1,
+		},
+		{
+			name:              "match_depth explicit zero",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }") + "&match_depth=0",
+			wantQuery:         "{ .a = 1 }",
+			wantMatchDepth:    0,
+			wantAncestorDepth: -1,
+		},
+		{
+			name:              "match_depth explicit -1 means unbounded",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }") + "&match_depth=-1",
+			wantQuery:         "{ .a = 1 }",
+			wantMatchDepth:    -1,
+			wantAncestorDepth: -1,
+		},
+		{
+			name:              "match_depth explicit positive value",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }") + "&match_depth=2",
+			wantQuery:         "{ .a = 1 }",
+			wantMatchDepth:    2,
+			wantAncestorDepth: -1,
+		},
+		{
+			name:              "ancestor_depth absent with query defaults to -1",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }"),
+			wantQuery:         "{ .a = 1 }",
+			wantMatchDepth:    0,
+			wantAncestorDepth: -1,
+		},
+		{
+			name:              "ancestor_depth explicit zero",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=true&ancestor_depth=0",
+			wantQuery:         "{ .a = 1 }",
+			wantKeepHierarchy: true,
+			wantMatchDepth:    0,
+			wantAncestorDepth: 0,
+		},
+		{
+			name:              "ancestor_depth explicit -1 means unbounded",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=true&ancestor_depth=-1",
+			wantQuery:         "{ .a = 1 }",
+			wantKeepHierarchy: true,
+			wantMatchDepth:    0,
+			wantAncestorDepth: -1,
+		},
+		{
+			name:              "ancestor_depth explicit positive value",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=true&ancestor_depth=3",
+			wantQuery:         "{ .a = 1 }",
+			wantKeepHierarchy: true,
+			wantMatchDepth:    0,
+			wantAncestorDepth: 3,
+		},
+		// without keep_hierarchy, ancestor_depth has nothing to bound, so it is never read: the value
+		// is left at its default no matter what was sent, and even an unusable one cannot fail the
+		// request. This lets someone flip keep_hierarchy off without stripping the depth beside it.
+		{
+			name:              "ancestor_depth not read when keep_hierarchy absent",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }") + "&ancestor_depth=3",
+			wantQuery:         "{ .a = 1 }",
+			wantMatchDepth:    0,
+			wantAncestorDepth: -1,
+		},
+		{
+			name:              "ancestor_depth not read when keep_hierarchy false",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=false&ancestor_depth=0",
+			wantQuery:         "{ .a = 1 }",
+			wantMatchDepth:    0,
+			wantAncestorDepth: -1,
+		},
+		{
+			name:     "match_depth below -1 with query is an error",
+			urlQuery: "q=" + url.QueryEscape("{ .a = 1 }") + "&match_depth=-2",
+			wantErr:  true,
+		},
+		{
+			name:     "non-numeric match_depth with query is an error",
+			urlQuery: "q=" + url.QueryEscape("{ .a = 1 }") + "&match_depth=abc",
+			wantErr:  true,
+		},
+		{
+			name:     "ancestor_depth below -1 with keep_hierarchy is an error",
+			urlQuery: "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=true&ancestor_depth=-2",
+			wantErr:  true,
+		},
+		{
+			name:     "non-numeric ancestor_depth with keep_hierarchy is an error",
+			urlQuery: "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=true&ancestor_depth=abc",
+			wantErr:  true,
+		},
+		// the same unusable values are accepted without keep_hierarchy, because they are never read.
+		{
+			name:              "ancestor_depth below -1 ignored without keep_hierarchy",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }") + "&ancestor_depth=-2",
+			wantQuery:         "{ .a = 1 }",
+			wantMatchDepth:    0,
+			wantAncestorDepth: -1,
+		},
+		{
+			name:              "ancestor_depth below -1 ignored with keep_hierarchy false",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=false&ancestor_depth=-2",
+			wantQuery:         "{ .a = 1 }",
+			wantMatchDepth:    0,
+			wantAncestorDepth: -1,
+		},
+		{
+			name:              "non-numeric ancestor_depth ignored without keep_hierarchy",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }") + "&ancestor_depth=abc",
+			wantQuery:         "{ .a = 1 }",
+			wantMatchDepth:    0,
+			wantAncestorDepth: -1,
+		},
+		{
+			name:              "invalid match_depth ignored without query",
+			urlQuery:          "match_depth=-2",
+			wantMatchDepth:    0,
+			wantAncestorDepth: 0,
+		},
+		{
+			name:              "query, keep_hierarchy, and ancestor_depth combined",
+			urlQuery:          "q=" + url.QueryEscape("{ .a = 1 }") + "&keep_hierarchy=true&ancestor_depth=2",
+			wantQuery:         "{ .a = 1 }",
+			wantKeepHierarchy: true,
+			wantMatchDepth:    0,
+			wantAncestorDepth: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := httptest.NewRequest("GET", "/api/v2/traces/1234?"+tt.urlQuery, nil)
+			params, err := ParseTraceByIDFilterParams(r)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.wantQuery, params.Query)
+			require.Equal(t, tt.wantKeepHierarchy, params.KeepHierarchy)
+			require.Equal(t, tt.wantMatchDepth, params.MatchDepth)
+			require.Equal(t, tt.wantAncestorDepth, params.AncestorDepth)
+		})
+	}
+}
+
+func TestParseSpanPruningRequest(t *testing.T) {
+	defaultCfg := func() *spanpruningprocessor.Config {
+		return spanpruningprocessor.NewFactory().CreateDefaultConfig().(*spanpruningprocessor.Config)
+	}
+
+	tests := []struct {
+		name             string
+		query            string
+		enabledByDefault bool
+		expectEnabled    bool
+		expectCfg        *spanpruningprocessor.Config
+		expectedError    string
+	}{
+		{
+			name:          "absent param disables pruning",
+			query:         "",
+			expectEnabled: false,
+			expectCfg:     nil,
+		},
+		{
+			name:          "explicit false disables pruning",
+			query:         "span_pruning=false",
+			expectEnabled: false,
+			expectCfg:     nil,
+		},
+		{
+			name:             "enabledByDefault enables pruning with defaults when the param is absent",
+			query:            "",
+			enabledByDefault: true,
+			expectEnabled:    true,
+			expectCfg:        defaultCfg(),
+		},
+		{
+			name:             "explicit false is respected even when enabledByDefault is set",
+			query:            "span_pruning=false",
+			enabledByDefault: true,
+			expectEnabled:    false,
+			expectCfg:        nil,
+		},
+		{
+			name:             "explicit true is respected when enabledByDefault is set",
+			query:            "span_pruning=true",
+			enabledByDefault: true,
+			expectEnabled:    true,
+			expectCfg:        defaultCfg(),
+		},
+		{
+			name:             "enabledByDefault honors request overrides when span_pruning param is absent",
+			query:            "span_pruning_min_spans=10",
+			enabledByDefault: true,
+			expectEnabled:    true,
+			expectCfg: func() *spanpruningprocessor.Config {
+				cfg := defaultCfg()
+				cfg.MinSpansToAggregate = 10
+				return cfg
+			}(),
+		},
+		{
+			name:          "invalid bool value",
+			query:         "span_pruning=maybe",
+			expectedError: `invalid span_pruning value "maybe": must be a boolean`,
+		},
+		{
+			name:          "true with defaults",
+			query:         "span_pruning=true",
+			expectEnabled: true,
+			expectCfg:     defaultCfg(),
+		},
+		{
+			name:          "group_by trims whitespace and drops empty entries",
+			query:         "span_pruning=true&span_pruning_group_by=" + url.QueryEscape("http.route, , db.statement,"),
+			expectEnabled: true,
+			expectCfg: func() *spanpruningprocessor.Config {
+				cfg := defaultCfg()
+				cfg.GroupByAttributes = []string{"http.route", "db.statement"}
+				return cfg
+			}(),
+		},
+		{
+			name:          "min_spans override",
+			query:         "span_pruning=true&span_pruning_min_spans=10",
+			expectEnabled: true,
+			expectCfg: func() *spanpruningprocessor.Config {
+				cfg := defaultCfg()
+				cfg.MinSpansToAggregate = 10
+				return cfg
+			}(),
+		},
+		{
+			name:          "min_spans invalid integer",
+			query:         "span_pruning=true&span_pruning_min_spans=nope",
+			expectedError: `invalid span_pruning_min_spans value "nope": strconv.Atoi: parsing "nope": invalid syntax`,
+		},
+		{
+			name:          "min_spans below processor minimum fails validation",
+			query:         "span_pruning=true&span_pruning_min_spans=1",
+			expectedError: "invalid span pruning config",
+		},
+		{
+			name:          "max_parent_depth override",
+			query:         "span_pruning=true&span_pruning_max_parent_depth=2",
+			expectEnabled: true,
+			expectCfg: func() *spanpruningprocessor.Config {
+				cfg := defaultCfg()
+				cfg.MaxParentDepth = 2
+				return cfg
+			}(),
+		},
+		{
+			name:          "max_parent_depth invalid integer",
+			query:         "span_pruning=true&span_pruning_max_parent_depth=nope",
+			expectedError: `invalid span_pruning_max_parent_depth value "nope": strconv.Atoi: parsing "nope": invalid syntax`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/api/v2/traces/1234?"+tc.query, nil)
+			enabled, cfg, err := ParseSpanPruningRequest(req, tc.enabledByDefault)
+			if tc.expectedError != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedError)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectEnabled, enabled)
+			assert.Equal(t, tc.expectCfg, cfg)
+		})
 	}
 }
 

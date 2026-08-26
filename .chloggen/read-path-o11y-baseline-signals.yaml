@@ -1,0 +1,6 @@
+change_type: enhancement
+component: query-frontend
+note: "Add read-path observability: cache hit/miss counters, query-shape on logs/spans, backend stats, vparquet5 spans."
+issues: []
+subtext:
+user: stoewer

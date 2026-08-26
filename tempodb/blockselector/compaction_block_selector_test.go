@@ -12,6 +12,15 @@ import (
 
 func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 	now := time.Now()
+	// The cases below build block end times and expected hashes from now, and run
+	// with a one second compaction range, so a window is one Unix second wide.
+	// Pin the selector to the same reference time: otherwise any case that
+	// depends on a block landing exactly on the active window boundary fails
+	// whenever a second elapses between here and the selector reading the clock,
+	// which happens routinely under a slow or instrumented test run.
+	timeNow = func() time.Time { return now }
+	t.Cleanup(func() { timeNow = time.Now })
+
 	timeWindow := 12 * time.Hour
 	tenantID := ""
 
@@ -925,5 +934,67 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			assert.Equal(t, tt.expectedSecond, actual)
 			assert.Equal(t, tt.expectedHash2, hash)
 		})
+	}
+}
+
+func benchmarkBlocklist(n int, withDedicatedColumns bool) []*backend.BlockMeta {
+	now := time.Now()
+	version := encoding.DefaultEncoding().Version()
+
+	var dcs backend.DedicatedColumns
+	if withDedicatedColumns {
+		dcs = backend.DedicatedColumns{
+			{Scope: backend.DedicatedColumnScopeSpan, Name: "http.method", Type: backend.DedicatedColumnTypeString},
+			{Scope: backend.DedicatedColumnScopeSpan, Name: "http.status_code", Type: backend.DedicatedColumnTypeString},
+			{Scope: backend.DedicatedColumnScopeSpan, Name: "http.route", Type: backend.DedicatedColumnTypeString},
+			{Scope: backend.DedicatedColumnScopeResource, Name: "service.name", Type: backend.DedicatedColumnTypeString},
+			{Scope: backend.DedicatedColumnScopeResource, Name: "k8s.pod.name", Type: backend.DedicatedColumnTypeString},
+		}
+	}
+
+	blocklist := make([]*backend.BlockMeta, 0, n)
+	for i := 0; i < n; i++ {
+		blocklist = append(blocklist, &backend.BlockMeta{
+			BlockID:           backend.MustParse(fmt.Sprintf("00000000-0000-0000-0000-%012d", i)),
+			EndTime:           now,
+			TotalObjects:      int64(1000 + i%500),
+			Version:           version,
+			DedicatedColumns:  dcs,
+			ReplicationFactor: 1,
+		})
+	}
+	return blocklist
+}
+
+// BenchmarkBlocksToCompact_WithDedicatedColumns guards against regressing the
+// per-entry DedicatedColumnsHash caching: prod max_input_blocks runs 6-8, and
+// BlocksToCompact's comparison loop re-checks hash equality on every candidate
+// stripe, so an uncached hash would show up here as a large gap against the
+// no-dedicated-columns case.
+func BenchmarkBlocksToCompact_NoDedicatedColumns(b *testing.B) {
+	blocklist := benchmarkBlocklist(1000, false)
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		selector := NewTimeWindowBlockSelector(blocklist, time.Hour, 6_000_000, 100*1024*1024*1024, DefaultMinInputBlocks, 7, DefaultMaxCompactionLevel)
+		for {
+			blocks, _ := selector.BlocksToCompact()
+			if blocks == nil {
+				break
+			}
+		}
+	}
+}
+
+func BenchmarkBlocksToCompact_WithDedicatedColumns(b *testing.B) {
+	blocklist := benchmarkBlocklist(1000, true)
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		selector := NewTimeWindowBlockSelector(blocklist, time.Hour, 6_000_000, 100*1024*1024*1024, DefaultMinInputBlocks, 7, DefaultMaxCompactionLevel)
+		for {
+			blocks, _ := selector.BlocksToCompact()
+			if blocks == nil {
+				break
+			}
+		}
 	}
 }

@@ -694,13 +694,13 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, _ c
 		Results: &mergeSpansetIterator{
 			iters: iters,
 		},
-		Bytes: func() uint64 {
+		Stats: func() traceql.FetchSpansStats {
 			// read value when callback is called
 			var totalBytesRead uint64
 			for _, r := range readers {
 				totalBytesRead += r.BytesRead()
 			}
-			return totalBytesRead
+			return traceql.FetchSpansStats{Bytes: totalBytesRead}
 		},
 	}, nil
 }

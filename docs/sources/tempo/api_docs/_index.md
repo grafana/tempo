@@ -41,6 +41,7 @@ For externally supported gRPC API, [refer to Tempo gRPC API](#tempo-grpc-api).
 | [Search tag values V2](#search-tag-values-v2)                                         | Query-frontend                            | HTTP | `GET /api/v2/search/tag/<tag>/values`                     |
 | [TraceQL Metrics](#traceql-metrics)                                                   | Query-frontend                            | HTTP | `GET /api/metrics/query_range`                            |
 | [TraceQL Metrics (instant)](#instant)                                                 | Query-frontend                            | HTTP | `GET /api/metrics/query`                                  |
+| [Trace diff](#trace-diff) (\*)                                                        | Query-frontend                            | HTTP | `POST /api/v2/traces/diff`                                |
 | [Query Echo Endpoint](#query-echo-endpoint)                                           | Query-frontend                            | HTTP | `GET /api/echo`                                           |
 | [Overrides API](#overrides-api)                                                       | Query-frontend                            | HTTP | `GET,POST,PATCH,DELETE /api/overrides`                    |
 | Memberlist                                                                            | Distributor, Querier, Live store          | HTTP | `GET /memberlist`                                         |
@@ -110,7 +111,7 @@ These APIs are meant to be consumed by the corresponding client SDK or pipeline 
 | Jaeger        | gRPC           | [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis) |
 | Zipkin        | HTTP           | [Link](https://zipkin.io/zipkin-api/)                                      |
 
-For information on how to use the OTLP endpoint with curl (for debugging purposes), refer to [Pushing spans with HTTP](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/pushing-spans-with-http/).
+For information on how to push spans using OTLP/HTTP or OTLP/gRPC (for debugging purposes), refer to [Push spans](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/pushing-spans-with-http/).
 
 If you are using Grafana Enterprise Traces (GET), then it only supports OpenTelemetry (OTLP):
 
@@ -183,6 +184,32 @@ Parameters:
   Optional. Along with `end` define a time range from which traces should be returned.
 - `end = (unix epoch seconds)`
   Optional. Along with `start` define a time range from which traces should be returned. Providing both `start` and `end` includes traces for the specified time range only. If the parameters aren't provided then Tempo checks for the trace across all blocks in backend. If the parameters are provided, it only checks in the blocks within the specified time range, this can result in trace not being found or partial results if it doesn't fall in the specified time range.
+
+{{< admonition type="warning" >}}
+Span pruning is experimental. The `span_pruning*` parameters, their behavior, and the response format may change in future releases.
+{{< /admonition >}}
+
+- `span_pruning = (boolean)`
+  Optional. Enables span pruning post-processing on the returned trace, collapsing similar leaf spans into a single summary span. Only takes effect when the query-frontend also has `span_pruning_enabled: true` set under `trace_by_id`; otherwise this parameter is ignored. If the query-frontend also has `span_pruning_enabled_by_default: true` set, pruning defaults to enabled when this parameter is omitted, but an explicit `span_pruning` value in the request (true or false) always takes precedence. Pruning is applied even if the returned trace is partial (for example, because it exceeds the maximum trace size); the resulting summary spans reflect only the spans present in the partial trace.
+  Default = `false`
+- `span_pruning_group_by = (comma-separated list of attribute glob patterns)`
+  Optional. Overrides the attribute patterns used to decide which leaf spans belong in the same aggregation group, for example `db.*,http.method`. Spans must share the span name and have identical values for every matched attribute to be grouped. Only used when pruning is enabled for the request, either via `span_pruning=true` or `span_pruning_enabled_by_default`.
+- `span_pruning_min_spans = (integer)`
+  Optional. Overrides the minimum number of similar spans required in a group before they're aggregated into a single summary span. Groups smaller than this threshold are left unpruned. Only used when pruning is enabled for the request, either via `span_pruning=true` or `span_pruning_enabled_by_default`.
+  Default = `5`
+- `span_pruning_max_parent_depth = (integer)`
+  Optional. Overrides how many ancestor levels above the aggregated leaf spans can also be aggregated. Use `0` to aggregate only leaves, or `-1` for unlimited depth. Only used when pruning is enabled for the request, either via `span_pruning=true` or `span_pruning_enabled_by_default`.
+  Default = `1`
+- `q = (TraceQL filter)`
+  Optional. A single TraceQL spanset filter (for example `{ span.http.status_code = 500 }`) that returns only the matching spans. When it drops spans, the response status is `PARTIAL` to signal a subset. Only a single `{ ... }` filter is supported: pipelines, structural operators, metrics queries, trace-level intrinsics, and trace-scoped attributes return a `400`, and an absent or empty `q` returns the full trace.
+- `keep_hierarchy = (bool)`
+  Optional. When `true`, the response also includes the ancestor path from the root spans to each matched span, so the result is still a complete hierarchy that can be rendered as a waterfall. Defaults to `false` (only the spans matching `q`). Ignored when `q` isn't set.
+- `match_depth = (int)`
+  Optional. How many levels of descendants to keep below each span matched by `q`, independent of `keep_hierarchy`. Use `-1` for the full subtree, `0` for the matched spans alone, or `n` (`n >= 1`) to keep levels 1 (direct children) through `n`. Values below `-1` are invalid and return a `400`. Ignored when `q` isn't set.
+  Default = `0`
+- `ancestor_depth = (int)`
+  Optional. How many levels of ancestors to keep above each matched span. Use `-1` for the whole path to the root, `0` for none, or `n` (`n >= 1`) to keep levels 1 (immediate parent) through `n`. Values below `-1` are invalid and return a `400`. Only read when `keep_hierarchy` is `true`; otherwise it's ignored without being validated.
+  Default = `-1`
 
 The following query API is also provided on the querier service for _debugging_ purposes.
 
@@ -328,15 +355,30 @@ curl -G -s http://localhost:3200/api/search --data-urlencode 'tags=service.name=
   "metrics": {
     "inspectedTraces": 3100,
     "inspectedBytes": "3811736",
-    "totalBlocks": 3
+    "totalBlocks": 3,
+    "backendReads": "47",
+    "backendBytes": "2415680",
+    "additionalMetrics": {
+      "cacheHits": "124",
+      "cacheMisses": "18",
+      "cacheBytes": "1396224"
+    }
   }
 }
 ```
 
+The `metrics` object on search responses includes read-side counters that help explain query cost:
+
+- `backendReads` is the number of read operations issued against object storage.
+- `backendBytes` is the bytes read from object storage, excluding cache hits.
+- `additionalMetrics` is an open-ended map keyed by stable strings (today: `cacheHits`, `cacheMisses`, `cacheBytes`, plus row-group and page inspection counters as they are populated).
+
+The keys in `additionalMetrics` are stable and additive: clients should treat unknown keys as forward compatible.
+
 ### Search tags
 
 Live store configuration `complete_block_timeout` affects how long tags are available for search.
-Tag search is supported in blocks as well, based on the start and end query parameters. 
+Tag search is supported in blocks as well, based on the start and end query parameters.
 Tag value search is also supported.
 
 This endpoint retrieves all discovered tag names that can be used in search.
@@ -715,6 +757,70 @@ Actual API parameters must be URL-encoded. This example is left unencoded for re
 GET /api/metrics/query?q={status=error}|count_over_time()by(resource.service.name)
 ```
 
+### Trace diff
+
+{{< admonition type="warning" >}}
+This endpoint is experimental. The request and response formats may change in future releases.
+{{< /admonition >}}
+
+This endpoint compares two complete traces. Send a `POST` request with a JSON
+body that identifies both traces by their IDs. Partial traces are rejected.
+
+```
+POST /api/v2/traces/diff
+```
+
+Request body:
+
+```json
+{
+  "base": {
+    "traceId": "<BASE_TRACE_ID>",
+    "start": 1700000000,
+    "end": 1700003600
+  },
+  "compare": {
+    "traceId": "<COMPARE_TRACE_ID>",
+    "start": 1700100000,
+    "end": 1700103600
+  },
+  "format": "trace-summary-v0-composed"
+}
+```
+
+Parameters:
+
+- `base.traceId`
+  Trace ID for the baseline trace, as a hexadecimal string.
+- `base.start`
+  Optional. Start of the time range to search for the baseline trace (UNIX epoch seconds).
+- `base.end`
+  Optional. End of the time range to search for the baseline trace (UNIX epoch seconds).
+- `compare.traceId`
+  Trace ID for the comparison trace, as a hexadecimal string.
+- `compare.start`
+  Optional. Start of the time range to search for the comparison trace (UNIX epoch seconds).
+- `compare.end`
+  Optional. End of the time range to search for the comparison trace (UNIX epoch seconds).
+- `format`
+  Optional. Output format. The default is `trace-patch-v0`. Use
+  `trace-summary-v0-native` for only the compact summary or
+  `trace-summary-v0-composed` for the summary with a patch attachment limited to
+  64 KiB.
+
+The composed response always includes a native summary. If the full patch is larger
+than 64 KiB, `patchOmitted` reports its serialized size and the reason `over_budget`.
+Request `trace-patch-v0` only when span-level evidence is required and the client can
+accept the reported patch size. The 64 KiB limit applies only to the attached patch;
+neither the complete composed response nor the full patch response has a hard output
+size limit.
+
+When `start` and `end` are provided, the request validates that `start` is
+before `end` and limits the block search to that time range. If omitted, Tempo
+searches across all blocks.
+
+Only `POST` is allowed. Other methods return `405 Method Not Allowed`.
+
 ### Query Echo endpoint
 
 ```
@@ -925,7 +1031,7 @@ stream_over_http_enabled: true
 ```
 
 The query frontend segments streamed diffs and final responses into smaller packets.
-The default packet size is 2 MiB.
+The default packet size is 1 MiB.
 To change the packet size, configure `query_frontend.max_grpc_streaming_packet_size`.
 For details, refer to the [query frontend configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#query-frontend).
 

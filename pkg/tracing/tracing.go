@@ -2,77 +2,57 @@
 package tracing
 
 import (
-	"context"
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/go-kit/log/level"
-	otelpyroscope "github.com/grafana/otel-profiling-go"
+	dstracing "github.com/grafana/dskit/tracing"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/prometheus/common/version"
-	"go.opentelemetry.io/contrib/exporters/autoexport"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/sdk/resource"
-	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
-func InstallOpenTelemetryTracer(appName, target string, spanProfiling bool) (func(), error) {
-	level.Info(log.Logger).Log("msg", "initialising OpenTelemetry tracer")
+// InstallOTelOrJaegerFromEnv initialises the global OpenTelemetry tracer from OTel or Jaeger
+// environment variables, and is a no-op when neither is configured.
+// Delegation to dskit keeps tracing support (including jaeger_remote) consistent with Mimir.
+func InstallOTelOrJaegerFromEnv(appName, target string, spanProfiling bool) (func(), error) {
+	name := serviceName(appName, target)
 
-	exp, err := autoexport.NewSpanExporter(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("failed to create OTEL exporter: %w", err)
-	}
-
-	resources, err := resource.New(context.Background(),
-		resource.WithAttributes(
-			semconv.ServiceNameKey.String(fmt.Sprintf("%s-%s", appName, target)),
+	opts := []dstracing.OTelOption{
+		dstracing.WithResourceAttributes(
 			semconv.ServiceVersionKey.String(fmt.Sprintf("%s-%s", version.Version, version.Revision)),
 		),
-		resource.WithHost(),
-		resource.WithTelemetrySDK(),
-	)
+	}
+	// resource.Default() lacks host.name, keep emitting it as before
+	if host, err := os.Hostname(); err == nil {
+		opts = append(opts, dstracing.WithResourceAttributes(semconv.HostNameKey.String(host)))
+	}
+	if !spanProfiling {
+		opts = append(opts, dstracing.WithPyroscopeDisabled())
+	}
+
+	closer, err := dstracing.NewOTelOrJaegerFromEnv(name, log.Logger, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialise trace resources: %w", err)
+		return nil, err
 	}
-
-	otel.SetErrorHandler(otelErrorHandlerFunc(func(err error) {
-		level.Error(log.Logger).Log("msg", "OpenTelemetry.ErrorHandler", "err", err)
-	}))
-
-	tpsdk := tracesdk.NewTracerProvider(
-		tracesdk.WithBatcher(exp),
-		tracesdk.WithResource(resources),
-	)
-
-	var tp trace.TracerProvider = tpsdk
-	if spanProfiling {
-		tp = otelpyroscope.NewTracerProvider(tp)
-	}
-	otel.SetTracerProvider(tp)
 
 	shutdown := func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := tpsdk.Shutdown(ctx); err != nil {
+		if err := closer.Close(); err != nil {
 			level.Error(log.Logger).Log("msg", "OpenTelemetry trace provider failed to shutdown", "err", err)
 			os.Exit(1)
 		}
 	}
 
-	propagator := propagation.NewCompositeTextMapPropagator(propagation.Baggage{}, propagation.TraceContext{})
-	otel.SetTextMapPropagator(propagator)
-
 	return shutdown, nil
 }
 
-type otelErrorHandlerFunc func(error)
-
-// Handle implements otel.ErrorHandler
-func (f otelErrorHandlerFunc) Handle(err error) {
-	f(err)
+// serviceName lets env vars override the default tempo-<target> name.
+func serviceName(appName, target string) string {
+	if name := os.Getenv("JAEGER_SERVICE_NAME"); name != "" {
+		return name
+	}
+	if name := os.Getenv("OTEL_SERVICE_NAME"); name != "" {
+		return name
+	}
+	return fmt.Sprintf("%s-%s", appName, target)
 }

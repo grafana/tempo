@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: query-frontend
+note: Reject TraceQL queries larger than `max_query_expression_size_bytes` before parsing them.
+issues: []
+subtext:
+user: carles-grafana

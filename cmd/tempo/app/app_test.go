@@ -8,10 +8,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/require"
 )
+
+func TestAppNewSetsStorageBlockFormatUsageStat(t *testing.T) {
+	config := NewDefaultConfig()
+	config.StorageConfig.Trace.Block.Version = "vParquet4"
+
+	_, err := New(*config)
+	require.NoError(t, err)
+
+	report := usagestats.BuildStats()
+	require.Equal(t, "vParquet4", report.Metrics["storage_block_format"])
+}
 
 func TestApp_RunStop(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "tempo-test-app-*")

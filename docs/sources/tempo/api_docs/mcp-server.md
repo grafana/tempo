@@ -41,20 +41,45 @@ The MCP server exposes the following tools that AI assistants can use to interac
 | `traceql-metrics-instant` | Retrieve a single metric value given a TraceQL metrics query            |
 | `traceql-metrics-range`   | Retrieve a metric series given a TraceQL metrics query                  |
 | `get-trace`               | Retrieve a specific trace by ID                                         |
+| `trace-diff`              | Compare two complete traces and return their differences                |
 | `get-attribute-names`     | Get available attribute names for use in TraceQL queries                |
 | `get-attribute-values`    | Get values for a specific scoped attribute name                         |
 | `docs-traceql`            | Retrieve TraceQL documentation (basic, aggregates, structural, metrics) |
+| `docs-config`             | Retrieve Tempo configuration documentation (overview, reference)        |
+
+### Compare traces
+
+The experimental `trace-diff` tool compares a baseline trace with another complete trace.
+Provide `base_trace_id` and `compare_trace_id`. By default, the tool returns
+`trace-summary-v0-composed`, which always contains a compact summary and includes the full
+span-level patch when the patch is no larger than 64 KiB. The 64 KiB limit applies only
+to the attached patch, not to the complete composed response.
+
+Omit `format` to use the composed response. Set it to `trace-summary-v0-native` to
+return only the compact summary, or to `trace-patch-v0` when you need the complete
+span-level patch. An explicitly empty `format` is invalid. If a composed response
+contains `patchOmitted`, use the summary for initial analysis. Request `trace-patch-v0`
+only when span-level evidence is required and the client can accept a patch of
+`patchOmitted.bytes` bytes. Full patch responses have no output-size guarantee.
+
+The optional `base_start` and `base_end` arguments limit the baseline lookup to an
+RFC3339 time range; both must be provided together. The same rule applies to
+`compare_start` and `compare_end` for the comparison trace. Tempo searches all blocks
+for a trace when its range is omitted. Partial traces are rejected because their
+comparison could be inaccurate.
 
 ## Available resources
 
-The MCP server also provides the following resources containing TraceQL documentation:
+The MCP server also provides the following resources containing TraceQL and configuration documentation:
 
-| Resource URI                | Description                                                 |
-| --------------------------- | ----------------------------------------------------------- |
-| `docs://traceql/basic`      | Basic TraceQL syntax, intrinsics, operators, and attributes |
-| `docs://traceql/aggregates` | TraceQL aggregate functions (count, sum, etc.)              |
-| `docs://traceql/structural` | Advanced structural query patterns                          |
-| `docs://traceql/metrics`    | Generating metrics from tracing data with TraceQL           |
+| Resource URI                | Description                                                          |
+| --------------------------- | -------------------------------------------------------------------- |
+| `docs://traceql/basic`      | Basic TraceQL syntax, intrinsics, operators, and attributes          |
+| `docs://traceql/aggregates` | TraceQL aggregate functions (count, sum, etc.)                       |
+| `docs://traceql/structural` | Advanced structural query patterns                                   |
+| `docs://traceql/metrics`    | Generating metrics from tracing data with TraceQL                    |
+| `docs://config/overview`    | Orientation map of what each top-level configuration block controls  |
+| `docs://config/reference`   | Complete reference of all configuration options and their defaults   |
 
 ## Quick start
 

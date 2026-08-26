@@ -370,7 +370,8 @@ func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest) []*tempopb.TimeSeri
 	for _, s := range set {
 		labels := make([]commonv1proto.KeyValue, 0, len(s.Labels))
 		for _, label := range s.Labels {
-			labels = append(labels,
+			labels = append(
+				labels,
 				commonv1proto.KeyValue{
 					Key:   label.Name,
 					Value: label.Value.AsAnyValue(),
@@ -411,7 +412,8 @@ func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest) []*tempopb.TimeSeri
 
 			labels := make([]commonv1proto.KeyValue, 0, len(e.Labels))
 			for _, label := range e.Labels {
-				labels = append(labels,
+				labels = append(
+					labels,
 					commonv1proto.KeyValue{
 						Key:   label.Name,
 						Value: label.Value.AsAnyValue(),
@@ -462,12 +464,29 @@ type SpanAggregator interface {
 	Length() int
 }
 
+// spanExtrapolation returns the per-span sampling multiplier (= 1 / sampling
+// probability) surfaced by the storage layer as IntrinsicSpanMultiplier.
+// Falls back to 1.0 when the storage layer didn't expose a value or it is
+// invalid — callers may safely call this on every span.
+func spanExtrapolation(s Span) float64 {
+	v, ok := s.AttributeFor(IntrinsicSpanMultiplierAttribute)
+	if !ok {
+		return 1.0
+	}
+	f := v.Float()
+	if math.IsNaN(f) || f <= 0 {
+		return 1.0
+	}
+	return f
+}
+
 // CountOverTimeAggregator counts the number of spans. It can also
 // calculate the rate when given a multiplier.
 // TODO - Rewrite me to be []float64 which is more efficient
 type CountOverTimeAggregator struct {
-	count    float64
-	rateMult float64
+	count       float64
+	rateMult    float64
+	extrapolate bool
 }
 
 var _ VectorAggregator = (*CountOverTimeAggregator)(nil)
@@ -484,7 +503,21 @@ func NewRateAggregator(rateMult float64) *CountOverTimeAggregator {
 	}
 }
 
-func (c *CountOverTimeAggregator) Observe(_ Span) {
+// SetExtrapolate toggles per-span sampling extrapolation. When true, each
+// observed span contributes spanExtrapolation(span) instead of 1.
+func (c *CountOverTimeAggregator) SetExtrapolate(extrapolate bool) {
+	c.extrapolate = extrapolate
+}
+
+func (c *CountOverTimeAggregator) Observe(s Span) {
+	if c.extrapolate {
+		// The value returned by spanExtrapolation is already stochastically
+		// rounded at storage decode time when the tracestate carries an
+		// OTEP-235 R-value, so the per-span contribution is integer whenever
+		// the SDK gave us the randomness to make that decision.
+		c.count += spanExtrapolation(s)
+		return
+	}
 	c.count++
 }
 
@@ -498,6 +531,8 @@ type OverTimeAggregator struct {
 	getSpanAttValue func(s Span) float64
 	agg             func(current, n float64) float64
 	val             float64
+	op              SimpleAggregationOp
+	extrapolate     bool
 }
 
 var _ VectorAggregator = (*OverTimeAggregator)(nil)
@@ -534,11 +569,25 @@ func NewOverTimeAggregator(attr Attribute, op SimpleAggregationOp) *OverTimeAggr
 		getSpanAttValue: fn,
 		agg:             agg,
 		val:             math.Float64frombits(normalNaN),
+		op:              op,
+	}
+}
+
+// SetExtrapolate toggles per-span sampling extrapolation. Only applies to
+// sum_over_time; min/max remain unscaled (population extremes don't scale
+// with sampling).
+func (c *OverTimeAggregator) SetExtrapolate(extrapolate bool) {
+	if c.op == sumOverTimeAggregation {
+		c.extrapolate = extrapolate
 	}
 }
 
 func (c *OverTimeAggregator) Observe(s Span) {
-	c.val = c.agg(c.val, c.getSpanAttValue(s))
+	v := c.getSpanAttValue(s)
+	if c.extrapolate {
+		v *= spanExtrapolation(s)
+	}
+	c.val = c.agg(c.val, v)
 }
 
 func (c *OverTimeAggregator) Sample() float64 {
@@ -996,6 +1045,26 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 	}, nil
 }
 
+// metricsPipelineExtrapolator is implemented by metrics pipelines that
+// support per-span sampling extrapolation.
+type metricsPipelineExtrapolator interface {
+	SetExtrapolate(bool)
+}
+
+// applyExtrapolation toggles per-span extrapolation on the pipeline if it
+// supports it, and adds the multiplier intrinsic to the storage request so
+// the storage layer surfaces it. Must be called before sp.init().
+func applyExtrapolation(pipeline spanProcessor, req *FetchSpansRequest) {
+	if ext, ok := pipeline.(metricsPipelineExtrapolator); ok {
+		ext.SetExtrapolate(true)
+	}
+	if !req.HasAttribute(IntrinsicSpanMultiplierAttribute) {
+		req.SecondPassConditions = append(req.SecondPassConditions, Condition{
+			Attribute: IntrinsicSpanMultiplierAttribute,
+		})
+	}
+}
+
 // CompileMetricsQueryRange returns an evaluator that can be reused across multiple data sources.
 func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts ...CompileOption) (MetricsEvaluator, error) {
 	cfg := applyCompileOptions(opts...)
@@ -1029,16 +1098,45 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 		exemplars = 1 // at least one per sub-query when exemplars are requested
 	}
 
-	bme := make(batchMetricsEvaluator, len(expr.Pipeline))
+	// Watchers are scoped to this Compile call. EngineBytesWatcher is installed fresh when enabled via
+	// WithEngineBytesTracking; additional watchers come from WithWatchers (e.g. per-tenant overrides).
+	// Access to watchers is synchronized by each metricsEvaluator's own (optional) lock; see WithLock.
+	watchers := &spanWatchers{}
+	if cfg.engineBytesTracking {
+		watchers.Add(NewEngineBytesWatcher())
+	}
+	watchers.Add(cfg.watchers...)
+
+	// Per-span sampling extrapolation. Hint in the query takes precedence
+	// over the default passed in via WithExtrapolation. Must apply before
+	// sp.init() so inner aggregators capture the flag.
+	extrapolate := false
+	if cfg.extrapolate != nil {
+		extrapolate = *cfg.extrapolate
+	}
+	if b, ok := expr.Hints.GetBool(HintExtrapolate, cfg.allowUnsafeHints); ok {
+		extrapolate = b
+	}
+
+	bme := &batchMetricsEvaluator{
+		evals:    make(map[string]*metricsEvaluator, len(expr.Pipeline)),
+		watchers: watchers,
+	}
 	for key, pipeline := range expr.Pipeline {
 		sp := expr.BatchSpanProcessor[key]
 		if sp == nil {
 			return nil, fmt.Errorf("not a metrics query")
 		}
+
+		storageReq := storageReqs[key]
+
+		if extrapolate {
+			applyExtrapolation(sp, &storageReq)
+		}
+
 		// This initializes all step buffers, counters, etc
 		sp.init(req, AggregateModeRaw)
 
-		storageReq := storageReqs[key]
 		e.applySampleHints(expr, pipeline, &storageReq, cfg.allowUnsafeHints)
 
 		exemplars := exemplars
@@ -1055,6 +1153,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 			maxExemplars:      exemplars,
 			exemplarMap:       make(map[string]struct{}, exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
 			needsFullTrace:    NeedsFullTrace(pipeline),
+			mtx:               cfg.lock,
 		}
 
 		// Determine usage of new fetch layer.
@@ -1114,6 +1213,15 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 			meta := ExemplarMetaConditionsWithout(cb, storageReq.SecondPassConditions, storageReq.AllConditions)
 			storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, meta...)
 		}
+
+		// Share the request's watchers and load their attributes via the second pass.
+		// This keeps optimize() from eliminating the second pass while a watcher is active.
+		// Watching happens in Do/DoSpansOnly on the final matched spans.
+		me.watchers = watchers
+		if watchers.Active() {
+			storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, watchers.Conditions()...)
+		}
+
 		// Setup second pass callback.  It might be optimized away
 		storageReq.SecondPass = func(s *Spanset) ([]*Spanset, error) {
 			if s == nil || len(s.Spans) == 0 {
@@ -1121,14 +1229,16 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 			}
 			// The traceql engine isn't thread-safe.
 			// But parallelization is required for good metrics performance.
-			// So we do external locking here.
-			me.mtx.Lock()
-			defer me.mtx.Unlock()
+			// So we do external locking here, when needed (see WithLock).
+			if me.mtx != nil {
+				me.mtx.Lock()
+				defer me.mtx.Unlock()
+			}
 			return pipeline.evaluate([]*Spanset{s})
 		}
 
 		optimize(&storageReq)
-		bme[key] = me
+		bme.evals[key] = me
 	}
 
 	return bme, nil
@@ -1273,53 +1383,73 @@ func lookup(needles []Attribute, haystack Span) Static {
 type MetricsEvaluator interface {
 	Do(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error
 	Length() int
-	Metrics() (uint64, uint64, uint64)
+	Metrics() EvaluatorMetrics
 	Results() SeriesSet
 }
 
-type batchMetricsEvaluator map[string]MetricsEvaluator
+// batchMetricsEvaluator runs one metricsEvaluator per sub-pipeline of a query
+// and is itself the request-scoped object returned by CompileMetricsQueryRange.
+type batchMetricsEvaluator struct {
+	evals map[string]*metricsEvaluator
+	// watchers collect extra on-demand metrics for the whole request.
+	// A single shared instance is fed every matched span from every sub-pipeline
+	watchers *spanWatchers
+}
 
-var _ = (MetricsEvaluator)(batchMetricsEvaluator(nil))
+var _ MetricsEvaluator = (*batchMetricsEvaluator)(nil)
 
-func (e batchMetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error {
-	var err error
-	for _, eval := range e {
-		err = eval.Do(ctx, f, fetcherStart, fetcherEnd, maxSeries)
-		if err != nil {
+func (e *batchMetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error {
+	for _, eval := range e.evals {
+		if err := eval.Do(ctx, f, fetcherStart, fetcherEnd, maxSeries); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (e batchMetricsEvaluator) Length() int {
+func (e *batchMetricsEvaluator) Length() int {
 	var total int
-	for _, eval := range e {
+	for _, eval := range e.evals {
 		total += eval.Length()
 	}
 	return total
 }
 
-func (e batchMetricsEvaluator) Metrics() (uint64, uint64, uint64) {
-	var bytes, spansTotal, spansDeduped uint64
-	for _, eval := range e {
-		b, st, sd := eval.Metrics()
-		bytes += b
-		spansTotal += st
-		spansDeduped += sd
+func (e *batchMetricsEvaluator) Metrics() EvaluatorMetrics {
+	var combined EvaluatorMetrics
+	addMetric := func(k string, v int64) {
+		if combined.AdditionalMetrics == nil {
+			combined.AdditionalMetrics = make(map[string]int64)
+		}
+		combined.AdditionalMetrics[k] += v
 	}
-	return bytes, spansTotal, spansDeduped
+	for _, eval := range e.evals {
+		m := eval.Metrics()
+		combined.Bytes += m.Bytes
+		combined.SpansTotal += m.SpansTotal
+		combined.SpansDeduped += m.SpansDeduped
+		combined.BackendReads += m.BackendReads
+		combined.BackendBytes += m.BackendBytes
+		for k, v := range m.AdditionalMetrics {
+			addMetric(k, v)
+		}
+	}
+
+	for k, v := range e.watchers.Stats() {
+		addMetric(k, v)
+	}
+	return combined
 }
 
-func (e batchMetricsEvaluator) Results() SeriesSet {
-	if len(e) == 1 {
-		for _, eval := range e {
+func (e *batchMetricsEvaluator) Results() SeriesSet {
+	if len(e.evals) == 1 {
+		for _, eval := range e.evals {
 			return eval.Results()
 		}
 	}
 
 	merged := make(SeriesSet)
-	for q, eval := range e {
+	for q, eval := range e.evals {
 		for _, v := range eval.Results() {
 			v.Labels = v.Labels.Add(Label{Name: internalLabelQueryFragment, Value: NewStaticString(q)})
 			merged[v.Labels.MapKey()] = v
@@ -1339,10 +1469,26 @@ type metricsEvaluator struct {
 	storageReq                      *FetchSpansRequest
 	metricsPipeline                 spanProcessor
 	spansTotal, spansDeduped, bytes uint64
-	mtx                             sync.Mutex
+	// Accumulated FetchSpansStats across all blocks fetched by this evaluator.
+	// Per-role maps are flattened into scalars.
+	backendReads      uint64
+	backendBytes      uint64
+	additionalMetrics map[string]int64
+	watchers          *spanWatchers
+	mtx               *sync.Mutex
 }
 
-var _ = (MetricsEvaluator)(&metricsEvaluator{})
+// EvaluatorMetrics is the snapshot returned by MetricsEvaluator.Metrics().
+type EvaluatorMetrics struct {
+	Bytes             uint64
+	SpansTotal        uint64
+	SpansDeduped      uint64
+	BackendReads      uint64
+	BackendBytes      uint64
+	AdditionalMetrics map[string]int64
+}
+
+var _ = MetricsEvaluator(&metricsEvaluator{})
 
 func (e *metricsEvaluator) FetchSpansRequest() FetchSpansRequest {
 	return *e.storageReq
@@ -1411,6 +1557,13 @@ func (e *metricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 	defer fetch.Results.Close()
 
 	seriesCount := 0
+	if e.mtx != nil {
+		e.mtx.Lock()
+	}
+	watch := e.watchers.Active()
+	if e.mtx != nil {
+		e.mtx.Unlock()
+	}
 
 	for {
 		ss, err := fetch.Results.Next(ctx)
@@ -1421,7 +1574,9 @@ func (e *metricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 			break
 		}
 
-		e.mtx.Lock()
+		if e.mtx != nil {
+			e.mtx.Lock()
+		}
 
 		if e.storageReq.TraceSampler != nil {
 			e.storageReq.TraceSampler.Measured()
@@ -1447,6 +1602,9 @@ func (e *metricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 
 			validSpansCount++
 			e.metricsPipeline.observe(s)
+			if watch {
+				watch = e.watchers.WatchSpan(s)
+			}
 
 			if !needExemplar {
 				continue
@@ -1466,7 +1624,9 @@ func (e *metricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 
 		seriesCount = e.metricsPipeline.length()
 
-		e.mtx.Unlock()
+		if e.mtx != nil {
+			e.mtx.Unlock()
+		}
 		ss.Release()
 
 		if maxSeries > 0 && seriesCount >= maxSeries {
@@ -1474,9 +1634,13 @@ func (e *metricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 		}
 	}
 
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
-	e.bytes += fetch.Bytes()
+	if e.mtx != nil {
+		e.mtx.Lock()
+		defer e.mtx.Unlock()
+	}
+	if fetch.Stats != nil {
+		e.accumulateFetchStats(fetch.Stats())
+	}
 
 	return nil
 }
@@ -1516,6 +1680,14 @@ func (e *metricsEvaluator) DoSpansOnly(ctx context.Context, f SpansetFetcher, fe
 
 	defer fetch.Results.Close()
 
+	if e.mtx != nil {
+		e.mtx.Lock()
+	}
+	watch := e.watchers.Active()
+	if e.mtx != nil {
+		e.mtx.Unlock()
+	}
+
 	for {
 		done, err := func() (done bool, err error) {
 			s, err := fetch.Results.Next(ctx)
@@ -1526,13 +1698,12 @@ func (e *metricsEvaluator) DoSpansOnly(ctx context.Context, f SpansetFetcher, fe
 				return true, nil
 			}
 
-			// Acquire lock while doing engine work. It is
-			// not locked above while doing storage work.
-			// TODO(mdisibio): Removed batching so that the mutex lock is not held during
-			// storage work and allows the secondPass callback to be called. However this
-			// represents ~20% performance loss, so we need to re-add batching.
-			e.mtx.Lock()
-			defer e.mtx.Unlock()
+			// Acquire lock while doing engine work, if required. It is
+			// not required above while doing storage work.
+			if e.mtx != nil {
+				e.mtx.Lock()
+				defer e.mtx.Unlock()
+			}
 
 			if e.checkTime {
 				st := s.StartTimeUnixNanos()
@@ -1546,6 +1717,9 @@ func (e *metricsEvaluator) DoSpansOnly(ctx context.Context, f SpansetFetcher, fe
 			}
 
 			e.metricsPipeline.observe(s)
+			if watch {
+				watch = e.watchers.WatchSpan(s)
+			}
 			e.spansTotal++
 
 			if e.maxExemplars > 0 && e.exemplarCount < e.maxExemplars {
@@ -1570,27 +1744,95 @@ func (e *metricsEvaluator) DoSpansOnly(ctx context.Context, f SpansetFetcher, fe
 		}
 	}
 
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
-	e.bytes += fetch.Bytes()
+	if e.mtx != nil {
+		e.mtx.Lock()
+		defer e.mtx.Unlock()
+	}
+	if fetch.Stats != nil {
+		e.accumulateFetchStats(fetch.Stats())
+	}
 
 	return nil
 }
 
 func (e *metricsEvaluator) Length() int {
+	if e.mtx != nil {
+		e.mtx.Lock()
+		defer e.mtx.Unlock()
+	}
 	return e.metricsPipeline.length()
 }
 
-func (e *metricsEvaluator) Metrics() (uint64, uint64, uint64) {
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
+// Metrics returns a snapshot of the accumulated read-side stats from every
+// fetch this evaluator has consumed. Callers MUST hold no locks on e.mtx.
+func (e *metricsEvaluator) Metrics() EvaluatorMetrics {
+	if e.mtx != nil {
+		e.mtx.Lock()
+		defer e.mtx.Unlock()
+	}
 
-	return e.bytes, e.spansTotal, e.spansDeduped
+	var additional map[string]int64
+	if len(e.additionalMetrics) > 0 {
+		additional = make(map[string]int64, len(e.additionalMetrics))
+		for k, v := range e.additionalMetrics {
+			additional[k] = v
+		}
+	}
+	return EvaluatorMetrics{
+		Bytes:             e.bytes,
+		SpansTotal:        e.spansTotal,
+		SpansDeduped:      e.spansDeduped,
+		BackendReads:      e.backendReads,
+		BackendBytes:      e.backendBytes,
+		AdditionalMetrics: additional,
+	}
+}
+
+// accumulateFetchStats merges one fetch's stats into the evaluator. Caller
+// must hold e.mtx.
+func (e *metricsEvaluator) accumulateFetchStats(s FetchSpansStats) {
+	e.bytes += s.Bytes
+	for _, v := range s.BackendReadsByRole {
+		e.backendReads += v
+	}
+	for _, v := range s.BackendBytesByRole {
+		e.backendBytes += v
+	}
+
+	var cacheHits, cacheMisses, cacheBytes uint64
+	for _, v := range s.CacheHitsByRole {
+		cacheHits += v
+	}
+	for _, v := range s.CacheMissesByRole {
+		cacheMisses += v
+	}
+	for _, v := range s.CacheBytesByRole {
+		cacheBytes += v
+	}
+
+	addIfNonZero := func(key string, v uint64) {
+		if v == 0 {
+			return
+		}
+		if e.additionalMetrics == nil {
+			e.additionalMetrics = map[string]int64{}
+		}
+		e.additionalMetrics[key] += int64(v)
+	}
+	addIfNonZero(tempopb.AdditionalMetricRowGroupsInspected, uint64(s.RowGroupsInspected))
+	addIfNonZero(tempopb.AdditionalMetricRowGroupsSkipped, uint64(s.RowGroupsSkipped))
+	addIfNonZero(tempopb.AdditionalMetricPagesInspected, uint64(s.PagesInspected))
+	addIfNonZero(tempopb.AdditionalMetricPagesSkipped, uint64(s.PagesSkipped))
+	addIfNonZero(tempopb.AdditionalMetricCacheHits, cacheHits)
+	addIfNonZero(tempopb.AdditionalMetricCacheMisses, cacheMisses)
+	addIfNonZero(tempopb.AdditionalMetricCacheBytes, cacheBytes)
 }
 
 func (e *metricsEvaluator) Results() SeriesSet {
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
+	if e.mtx != nil {
+		e.mtx.Lock()
+		defer e.mtx.Unlock()
+	}
 
 	spanMultiplier := 1.0
 	if e.storageReq.SpanSampler != nil {
@@ -1766,7 +2008,7 @@ func (b *SimpleAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing *
 		if b.exemplarBuckets.testTotal() {
 			break
 		}
-		if b.exemplarBuckets.addAndTest(uint64(exemplar.TimestampMs)) { //nolint: gosec // G115
+		if b.exemplarBuckets.addAndTest(uint64(exemplar.TimestampMs)) { // nolint: gosec // G115
 			continue // Skip this exemplar and continue, next exemplar might fit in a different bucket
 		}
 		labels, _ := convertProtoLabelsToTraceQL(exemplar.Labels, false)
@@ -2073,7 +2315,7 @@ func (h *HistogramAggregator) Results() SeriesSet {
 		// For each input series, we create a new series for each quantile.
 		for qIdx, q := range h.qs {
 			// Append label for the quantile
-			labels := append((Labels)(nil), in.labels...)
+			labels := append(Labels(nil), in.labels...)
 			labels = append(labels, Label{"p", NewStaticFloat(q)})
 
 			ts := TimeSeries{

@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: live-store
+note: Tag value queries now cache empty (negative) results per block, so a block that contains no values for the requested tag is not re-scanned on every query.
+issues: []
+subtext:
+user: zalegrala

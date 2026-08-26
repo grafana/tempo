@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: backend-scheduler
+note: fix a backend-scheduler bug where a redaction job dropped at assignment leaked an internal in-flight counter, which could leave a tenant's redaction looking perpetually in progress and block that tenant's future redaction submissions.
+issues: []
+subtext:
+user: zalegrala

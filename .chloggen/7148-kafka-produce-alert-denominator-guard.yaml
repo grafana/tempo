@@ -1,0 +1,10 @@
+change_type: bug_fix
+component: operations
+note: Guard `TempoDistributorKafkaProduceFailing` on a non-zero produce rate so it does not page at `+Inf%` on cells where `tempo_distributor_produce_records_total` is not incremented.
+issues: []
+subtext: |
+  The alert divided the produce-failure rate by the produce rate with no guard. On a cell where
+  `tempo_distributor_produce_records_total` is flat, that ratio divides by zero, which PromQL
+  evaluates to `+Inf`. Since `+Inf` exceeds any threshold, the alert fired as critical with a
+  meaningless `+Inf%` value as soon as a single produce failure was recorded.
+user: zalegrala

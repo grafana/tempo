@@ -654,7 +654,10 @@ func searchesThatMatch(t *testing.T, traceIDText string) []struct {
 		// Events
 		{"event:name", traceql.MustExtractFetchSpansRequestWithMetadata(`{event:name = "e1"}`)},
 		{"event:timeSinceStart", traceql.MustExtractFetchSpansRequestWithMetadata(`{event:timeSinceStart > 2ms}`)},
-		{"event.message", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.message =~ "exception"}`)},
+		{"event:message", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.message =~ "exception"}`)},
+		// Event dedicated attributes
+		{"event.dedicated.event.1", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.dedicated.event.1 = "dedicated-event-attr-value-1"}`)},
+		{"event.dedicated.event.2", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.dedicated.event.2 = "dedicated-event-attr-value-2"}`)},
 		// Links
 		{"link:spanID", traceql.MustExtractFetchSpansRequestWithMetadata(`{link:spanID = "1234567890abcdef"}`)},
 		{"link:traceID", traceql.MustExtractFetchSpansRequestWithMetadata(`{link:traceID = "1234567890abcdef1234567890abcdef"}`)},
@@ -806,6 +809,8 @@ func searchesThatDontMatch(t *testing.T) []struct {
 		{"Matches neither condition", traceql.MustExtractFetchSpansRequestWithMetadata(`{.foo = "xyz" || .` + LabelHTTPStatusCode + " = 1000}")},
 		{"Resource dedicated attributes does not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.dedicated.resource.3 = "dedicated-resource-attr-value-4"}`)},
 		{"Resource dedicated attributes does not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.2 = "dedicated-span-attr-value-5"}`)},
+		{"Event dedicated attributes does not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.dedicated.event.1 = "dedicated-event-attr-value-2"}`)},
+		{"Event dedicated attributes does not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.dedicated.event.2 = "dedicated-event-attr-value-1"}`)},
 		{"Blob test 1", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 = "dedicated-span-attr-value-asdf"}`)},
 		{"Blob test 2", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 =~ "dedicated-span-attr-value-asdf"}`)},
 		{"Blob test 3", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.5 = ""}`)},
@@ -1035,6 +1040,97 @@ func parse(t *testing.T, q string) traceql.Condition {
 	require.NoError(t, err, "query:", q)
 
 	return req.Conditions[0]
+}
+
+// testSampler is a keep-all traceql.Sampler that records how many values it
+// was offered (Sample) and the population reported to it (Expect). Keeping every
+// value means results are identical to running without a sampler, so any non-zero
+// count proves the sampler was wired into the fetch path.
+type testSampler struct {
+	sampled, expected uint64
+}
+
+var _ traceql.Sampler = (*testSampler)(nil)
+
+func (s *testSampler) Sample() bool                { s.sampled++; return true }
+func (s *testSampler) Measured()                   {}
+func (s *testSampler) Expect(count uint64)         { s.expected += count }
+func (s *testSampler) FinalScalingFactor() float64 { return 1 }
+
+// TestBackendBlockSearchTraceQLSamplerWiring checks that a sampler set on the
+// fetch request is actually attached to and driven by the storage iterators, for
+// both the span-level and trace-level sampler slots.
+func TestBackendBlockSearchTraceQLSamplerWiring(t *testing.T) {
+	wantTraceID := test.ValidTraceID(nil)
+	b := makeBackendBlockWithTraces(t, []*Trace{fullyPopulatedTestTrace(wantTraceID)})
+	ctx := context.Background()
+
+	countSpans := func(t *testing.T, mutate func(*traceql.FetchSpansRequest)) int {
+		t.Helper()
+		req := traceql.MustExtractFetchSpansRequestWithMetadata("{}")
+		mutate(&req)
+		resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
+		require.NoError(t, err)
+		n := 0
+		for {
+			ss, err := resp.Results.Next(ctx)
+			require.NoError(t, err)
+			if ss == nil {
+				break
+			}
+			n += len(ss.Spans)
+		}
+		return n
+	}
+
+	// countSpansOnly drives the FetchSpans path (createSpanIterators), which the
+	// metrics engine also uses and which wires the span sampler separately.
+	countSpansOnly := func(t *testing.T, mutate func(*traceql.FetchSpansRequest)) int {
+		t.Helper()
+		req := traceql.MustExtractFetchSpansRequestWithMetadata("{}")
+		mutate(&req)
+		resp, err := b.FetchSpans(ctx, req, common.DefaultSearchOptions())
+		require.NoError(t, err)
+		n := 0
+		for {
+			s, err := resp.Results.Next(ctx)
+			require.NoError(t, err)
+			if s == nil {
+				break
+			}
+			n++
+		}
+		return n
+	}
+
+	baseline := countSpans(t, func(*traceql.FetchSpansRequest) {})
+	require.Positive(t, baseline, "baseline query should return spans")
+	spansOnlyBaseline := countSpansOnly(t, func(*traceql.FetchSpansRequest) {})
+	require.Positive(t, spansOnlyBaseline, "baseline FetchSpans query should return spans")
+
+	t.Run("span sampler (Fetch)", func(t *testing.T) {
+		s := &testSampler{}
+		got := countSpans(t, func(req *traceql.FetchSpansRequest) { req.SpanSampler = s })
+		require.Equal(t, baseline, got, "keep-all sampler returns the same spans")
+		require.Positive(t, s.sampled, "Sample() driven through the span iterator")
+		require.Positive(t, s.expected, "Expect() driven through the span iterator")
+	})
+
+	t.Run("trace sampler (Fetch)", func(t *testing.T) {
+		s := &testSampler{}
+		got := countSpans(t, func(req *traceql.FetchSpansRequest) { req.TraceSampler = s })
+		require.Equal(t, baseline, got, "keep-all sampler returns the same spans")
+		require.Positive(t, s.sampled, "Sample() driven through the trace iterator")
+		require.Positive(t, s.expected, "Expect() driven through the trace iterator")
+	})
+
+	t.Run("span sampler (FetchSpans)", func(t *testing.T) {
+		s := &testSampler{}
+		got := countSpansOnly(t, func(req *traceql.FetchSpansRequest) { req.SpanSampler = s })
+		require.Equal(t, spansOnlyBaseline, got, "keep-all sampler returns the same spans")
+		require.Positive(t, s.sampled, "Sample() driven through the FetchSpans span iterator")
+		require.Positive(t, s.expected, "Expect() driven through the FetchSpans span iterator")
+	})
 }
 
 func fullyPopulatedTestTrace(id common.ID) *Trace {
@@ -1843,7 +1939,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 				Exemplars: 2,
 			}
 
-			eval, err := e.CompileMetricsQueryRange(req, traceql.WithUnsafeHints(true))
+			eval, err := e.CompileMetricsQueryRange(req, traceql.WithUnsafeHints(true), traceql.WithEngineBytesTracking(true))
 			require.NoError(b, err)
 
 			b.ResetTimer()
@@ -1855,10 +1951,10 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 			// Always call results to include the final series processing in the benchmark.
 			_ = eval.Results()
 
-			bytes, spansTotal, _ := eval.Metrics()
-			b.ReportMetric(float64(bytes)/float64(b.N)/1024.0/1024.0, "MB_io/op")
-			b.ReportMetric(float64(spansTotal)/float64(b.N), "spans/op")
-			b.ReportMetric(float64(spansTotal)/float64(b.Elapsed().Seconds()), "spans/s")
+			em := eval.Metrics()
+			b.ReportMetric(float64(em.Bytes)/float64(b.N)/1024.0/1024.0, "MB_io/op")
+			b.ReportMetric(float64(em.SpansTotal)/float64(b.N), "spans/op")
+			b.ReportMetric(float64(em.SpansTotal)/float64(b.Elapsed().Seconds()), "spans/s")
 		})
 	}
 }
@@ -1981,9 +2077,9 @@ func TestSamplingError(t *testing.T) {
 		err = eval.Do(ctx, f, st, end, int(req.MaxSeries))
 		require.NoError(t, err)
 
-		_, spansTotal, _ := eval.Metrics()
+		em := eval.Metrics()
 
-		return eval.Results(), int(spansTotal)
+		return eval.Results(), int(em.SpansTotal)
 	}
 
 	for _, query := range testQueries {
@@ -2009,7 +2105,8 @@ func TestSamplingError(t *testing.T) {
 					err = math.Log(err)
 				}
 
-				fmt.Fprintln(w,
+				fmt.Fprintln(
+					w,
 					query,
 					"\t"+option,
 					"\t"+fmt.Sprintf("%.2f", err),

@@ -236,12 +236,11 @@
             "uid": "${metrics}"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(.99, sum(rate(tempodb_blocklist_poll_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le))",
+          "expr": "(histogram_quantile(0.99, sum(rate(tempodb_blocklist_poll_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le))) and on() (vector($latency_metrics) == 1)",
           "hide": false,
-          "interval": "",
           "legendFormat": ".99",
           "range": true,
-          "refId": "D"
+          "refId": "A_classic"
         },
         {
           "datasource": {
@@ -249,11 +248,23 @@
             "uid": "${metrics}"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(.9, sum(rate(tempodb_blocklist_poll_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le))",
+          "expr": "(histogram_quantile(0.99, sum(rate(tempodb_blocklist_poll_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))) and on() (vector($latency_metrics) == -1)",
+          "hide": false,
+          "legendFormat": ".99",
+          "range": true,
+          "refId": "A_native"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "(histogram_quantile(0.90, sum(rate(tempodb_blocklist_poll_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le))) and on() (vector($latency_metrics) == 1)",
           "hide": false,
           "legendFormat": ".9",
           "range": true,
-          "refId": "E"
+          "refId": "B_classic"
         },
         {
           "datasource": {
@@ -261,12 +272,35 @@
             "uid": "${metrics}"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(.5, sum(rate(tempodb_blocklist_poll_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le))",
+          "expr": "(histogram_quantile(0.90, sum(rate(tempodb_blocklist_poll_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))) and on() (vector($latency_metrics) == -1)",
           "hide": false,
-          "interval": "",
+          "legendFormat": ".9",
+          "range": true,
+          "refId": "B_native"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "(histogram_quantile(0.50, sum(rate(tempodb_blocklist_poll_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le))) and on() (vector($latency_metrics) == 1)",
+          "hide": false,
           "legendFormat": ".5",
           "range": true,
-          "refId": "F"
+          "refId": "C_classic"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "(histogram_quantile(0.50, sum(rate(tempodb_blocklist_poll_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))) and on() (vector($latency_metrics) == -1)",
+          "hide": false,
+          "legendFormat": ".5",
+          "range": true,
+          "refId": "C_native"
         }
       ],
       "title": "Blocklist Poll Duration",
@@ -360,12 +394,11 @@
             "uid": "${metrics}"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(.99, sum(rate(tempodb_retention_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))",
+          "expr": "(histogram_quantile(0.99, sum(rate(tempodb_retention_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le))) and on() (vector($latency_metrics) == 1)",
           "hide": false,
-          "interval": "",
           "legendFormat": ".99",
           "range": true,
-          "refId": "D"
+          "refId": "A_classic"
         },
         {
           "datasource": {
@@ -373,12 +406,23 @@
             "uid": "${metrics}"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(.9, sum(rate(tempodb_retention_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))",
+          "expr": "(histogram_quantile(0.99, sum(rate(tempodb_retention_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))) and on() (vector($latency_metrics) == -1)",
           "hide": false,
-          "interval": "",
+          "legendFormat": ".99",
+          "range": true,
+          "refId": "A_native"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "(histogram_quantile(0.90, sum(rate(tempodb_retention_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le))) and on() (vector($latency_metrics) == 1)",
+          "hide": false,
           "legendFormat": ".9",
           "range": true,
-          "refId": "E"
+          "refId": "B_classic"
         },
         {
           "datasource": {
@@ -386,12 +430,35 @@
             "uid": "${metrics}"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(.5, sum(rate(tempodb_retention_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) )",
+          "expr": "(histogram_quantile(0.90, sum(rate(tempodb_retention_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))) and on() (vector($latency_metrics) == -1)",
           "hide": false,
-          "interval": "",
+          "legendFormat": ".9",
+          "range": true,
+          "refId": "B_native"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "(histogram_quantile(0.50, sum(rate(tempodb_retention_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le))) and on() (vector($latency_metrics) == 1)",
+          "hide": false,
           "legendFormat": ".5",
           "range": true,
-          "refId": "F"
+          "refId": "C_classic"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "(histogram_quantile(0.50, sum(rate(tempodb_retention_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))) and on() (vector($latency_metrics) == -1)",
+          "hide": false,
+          "legendFormat": ".5",
+          "range": true,
+          "refId": "C_native"
         }
       ],
       "title": "Retention duration",
@@ -1264,10 +1331,11 @@
             "uid": "${metrics}"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"backend-scheduler\", route!~\"debug_pprof|metrics|ready\"}[$__rate_interval])) by (le, route, namespace, cluster))",
+          "expr": "(histogram_quantile(0.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"backend-scheduler\", route!~\"debug_pprof|metrics|ready\"}[$__rate_interval])) by (le, route, namespace, cluster))) and on() (vector($latency_metrics) == 1)",
+          "hide": false,
           "legendFormat": "__auto",
           "range": true,
-          "refId": "A"
+          "refId": "A_classic"
         },
         {
           "datasource": {
@@ -1275,11 +1343,11 @@
             "uid": "${metrics}"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.90, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"backend-scheduler\", route!~\"debug_pprof|metrics|ready\"}[$__rate_interval])) by (le, route, namespace, cluster))",
+          "expr": "(histogram_quantile(0.99, sum(rate(tempo_request_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"backend-scheduler\", route!~\"debug_pprof|metrics|ready\"}[$__rate_interval])) by (route, namespace, cluster))) and on() (vector($latency_metrics) == -1)",
           "hide": false,
           "legendFormat": "__auto",
           "range": true,
-          "refId": "B"
+          "refId": "A_native"
         },
         {
           "datasource": {
@@ -1287,11 +1355,47 @@
             "uid": "${metrics}"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.50, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"backend-scheduler\", route!~\"debug_pprof|metrics|ready\"}[$__rate_interval])) by (le, route, namespace, cluster))",
+          "expr": "(histogram_quantile(0.90, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"backend-scheduler\", route!~\"debug_pprof|metrics|ready\"}[$__rate_interval])) by (le, route, namespace, cluster))) and on() (vector($latency_metrics) == 1)",
           "hide": false,
           "legendFormat": "__auto",
           "range": true,
-          "refId": "C"
+          "refId": "B_classic"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "(histogram_quantile(0.90, sum(rate(tempo_request_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"backend-scheduler\", route!~\"debug_pprof|metrics|ready\"}[$__rate_interval])) by (route, namespace, cluster))) and on() (vector($latency_metrics) == -1)",
+          "hide": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "B_native"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "(histogram_quantile(0.50, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"backend-scheduler\", route!~\"debug_pprof|metrics|ready\"}[$__rate_interval])) by (le, route, namespace, cluster))) and on() (vector($latency_metrics) == 1)",
+          "hide": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "C_classic"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "(histogram_quantile(0.50, sum(rate(tempo_request_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"backend-scheduler\", route!~\"debug_pprof|metrics|ready\"}[$__rate_interval])) by (route, namespace, cluster))) and on() (vector($latency_metrics) == -1)",
+          "hide": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "C_native"
         }
       ],
       "title": "Backend-scheduler request latency",
@@ -1481,10 +1585,11 @@
             "uid": "${metrics}"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum(rate(tempo_backend_scheduler_job_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le, job_type))",
+          "expr": "(histogram_quantile(0.99, sum(rate(tempo_backend_scheduler_job_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le, job_type))) and on() (vector($latency_metrics) == 1)",
+          "hide": false,
           "legendFormat": "p99 {{job_type}}",
           "range": true,
-          "refId": "A"
+          "refId": "A_classic"
         },
         {
           "datasource": {
@@ -1492,14 +1597,40 @@
             "uid": "${metrics}"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.50, sum(rate(tempo_backend_scheduler_job_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le, job_type))",
+          "expr": "(histogram_quantile(0.99, sum(rate(tempo_backend_scheduler_job_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (job_type))) and on() (vector($latency_metrics) == -1)",
+          "hide": false,
+          "legendFormat": "p99 {{job_type}}",
+          "range": true,
+          "refId": "A_native"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "(histogram_quantile(0.50, sum(rate(tempo_backend_scheduler_job_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le, job_type))) and on() (vector($latency_metrics) == 1)",
+          "hide": false,
           "legendFormat": "p50 {{job_type}}",
           "range": true,
-          "refId": "B"
+          "refId": "B_classic"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "(histogram_quantile(0.50, sum(rate(tempo_backend_scheduler_job_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (job_type))) and on() (vector($latency_metrics) == -1)",
+          "hide": false,
+          "legendFormat": "p50 {{job_type}}",
+          "range": true,
+          "refId": "B_native"
         }
       ],
       "title": "Job Duration",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "Classic-bucket and native-histogram queries are both present. The native series gives full resolution where the classic buckets are coarse; it renders once native histograms are retained for this metric."
     },
     {
       "datasource": {
@@ -1774,6 +1905,103 @@
         "x": 0,
         "y": 28
       },
+      "id": 44,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.0.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "sum(tempo_backend_scheduler_jobs_pending{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_REDACTION\"}) by (tenant)",
+          "legendFormat": "{{tenant}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Pending Redaction Jobs",
+      "type": "timeseries",
+      "description": "Jobs enqueued and not yet dispatched to a worker. Active shows what is running now (bounded by worker count); this shows how much is left, so it is the progress indicator and the signal to autoscale workers on."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${metrics}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 28
+      },
       "id": 36,
       "options": {
         "legend": {
@@ -1867,7 +2095,7 @@
       "gridPos": {
         "h": 6,
         "w": 8,
-        "x": 8,
+        "x": 16,
         "y": 28
       },
       "id": 37,
@@ -1963,8 +2191,8 @@
       "gridPos": {
         "h": 6,
         "w": 8,
-        "x": 16,
-        "y": 28
+        "x": 0,
+        "y": 34
       },
       "id": 38,
       "options": {
@@ -2058,8 +2286,8 @@
       },
       "gridPos": {
         "h": 6,
-        "w": 6,
-        "x": 0,
+        "w": 8,
+        "x": 8,
         "y": 34
       },
       "id": 39,
@@ -2154,8 +2382,8 @@
       },
       "gridPos": {
         "h": 6,
-        "w": 6,
-        "x": 6,
+        "w": 8,
+        "x": 16,
         "y": 34
       },
       "id": 40,
@@ -2252,8 +2480,8 @@
       "gridPos": {
         "h": 6,
         "w": 12,
-        "x": 12,
-        "y": 34
+        "x": 0,
+        "y": 40
       },
       "id": 41,
       "options": {
@@ -2277,10 +2505,11 @@
             "uid": "${metrics}"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum(rate(tempo_backend_scheduler_job_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_REDACTION\"}[$__rate_interval])) by (le))",
+          "expr": "(histogram_quantile(0.99, sum(rate(tempo_backend_scheduler_job_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_REDACTION\"}[$__rate_interval])) by (le))) and on() (vector($latency_metrics) == 1)",
+          "hide": false,
           "legendFormat": "p99",
           "range": true,
-          "refId": "A"
+          "refId": "A_classic"
         },
         {
           "datasource": {
@@ -2288,10 +2517,23 @@
             "uid": "${metrics}"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.90, sum(rate(tempo_backend_scheduler_job_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_REDACTION\"}[$__rate_interval])) by (le))",
+          "expr": "(histogram_quantile(0.99, sum(rate(tempo_backend_scheduler_job_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_REDACTION\"}[$__rate_interval])))) and on() (vector($latency_metrics) == -1)",
+          "hide": false,
+          "legendFormat": "p99",
+          "range": true,
+          "refId": "A_native"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "(histogram_quantile(0.90, sum(rate(tempo_backend_scheduler_job_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_REDACTION\"}[$__rate_interval])) by (le))) and on() (vector($latency_metrics) == 1)",
+          "hide": false,
           "legendFormat": "p90",
           "range": true,
-          "refId": "B"
+          "refId": "B_classic"
         },
         {
           "datasource": {
@@ -2299,14 +2541,234 @@
             "uid": "${metrics}"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.50, sum(rate(tempo_backend_scheduler_job_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_REDACTION\"}[$__rate_interval])) by (le))",
+          "expr": "(histogram_quantile(0.90, sum(rate(tempo_backend_scheduler_job_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_REDACTION\"}[$__rate_interval])))) and on() (vector($latency_metrics) == -1)",
+          "hide": false,
+          "legendFormat": "p90",
+          "range": true,
+          "refId": "B_native"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "(histogram_quantile(0.50, sum(rate(tempo_backend_scheduler_job_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_REDACTION\"}[$__rate_interval])) by (le))) and on() (vector($latency_metrics) == 1)",
+          "hide": false,
           "legendFormat": "p50",
           "range": true,
-          "refId": "C"
+          "refId": "C_classic"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "(histogram_quantile(0.50, sum(rate(tempo_backend_scheduler_job_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_REDACTION\"}[$__rate_interval])))) and on() (vector($latency_metrics) == -1)",
+          "hide": false,
+          "legendFormat": "p50",
+          "range": true,
+          "refId": "C_native"
         }
       ],
       "title": "Redaction Job Duration",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "Classic-bucket and native-histogram queries are both present. The native series gives full resolution where the classic buckets are coarse; it renders once native histograms are retained for this metric."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${metrics}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 40
+      },
+      "id": 42,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.0.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "sum(increase(tempo_backend_scheduler_redaction_traces_found_total{cluster=~\"$cluster\", namespace=~\"$namespace\", mode=\"apply\"}[1h])) by (tenant)",
+          "legendFormat": "{{tenant}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Traces Redacted / h",
+      "type": "timeseries",
+      "description": "Traces actually removed by applied redaction jobs (mode=apply), by tenant. The durable record of what was deleted."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${metrics}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 46
+      },
+      "id": 43,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.0.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "sum(increase(tempo_backend_scheduler_redaction_traces_found_total{cluster=~\"$cluster\", namespace=~\"$namespace\", mode=\"dry_run\"}[1h])) by (tenant)",
+          "legendFormat": "{{tenant}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Dry-run Blast Radius / h",
+      "type": "timeseries",
+      "description": "Traces a dry-run redaction matched but did NOT remove (mode=dry_run), by tenant. Preview of a query selector’s blast radius before applying."
     },
     {
       "collapsed": false,
@@ -2314,7 +2776,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 40
+        "y": 52
       },
       "id": 8,
       "panels": [],
@@ -2384,7 +2846,7 @@
         "h": 6,
         "w": 5,
         "x": 0,
-        "y": 41
+        "y": 53
       },
       "id": 9,
       "options": {
@@ -2482,7 +2944,7 @@
         "h": 6,
         "w": 4,
         "x": 5,
-        "y": 41
+        "y": 53
       },
       "id": 11,
       "options": {
@@ -2579,7 +3041,7 @@
         "h": 6,
         "w": 5,
         "x": 9,
-        "y": 41
+        "y": 53
       },
       "id": 10,
       "options": {
@@ -2676,7 +3138,7 @@
         "h": 6,
         "w": 4,
         "x": 14,
-        "y": 41
+        "y": 53
       },
       "id": 13,
       "options": {
@@ -2774,7 +3236,7 @@
         "h": 6,
         "w": 4,
         "x": 18,
-        "y": 41
+        "y": 53
       },
       "id": 12,
       "options": {
@@ -2871,7 +3333,7 @@
         "h": 6,
         "w": 2,
         "x": 22,
-        "y": 41
+        "y": 53
       },
       "id": 29,
       "options": {
@@ -2910,7 +3372,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 47
+        "y": 59
       },
       "id": 25,
       "panels": [],
@@ -3025,7 +3487,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 48
+        "y": 60
       },
       "id": 7,
       "options": {
@@ -3191,7 +3653,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 48
+        "y": 60
       },
       "id": 6,
       "options": {
@@ -3268,7 +3730,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 56
+        "y": 68
       },
       "id": 1,
       "panels": [],
@@ -3338,7 +3800,7 @@
         "h": 8,
         "w": 6,
         "x": 0,
-        "y": 57
+        "y": 69
       },
       "id": 2,
       "options": {
@@ -3515,7 +3977,7 @@
         "h": 8,
         "w": 6,
         "x": 6,
-        "y": 57
+        "y": 69
       },
       "id": 3,
       "options": {
@@ -3670,7 +4132,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 57
+        "y": 69
       },
       "id": 4,
       "options": {
@@ -3836,7 +4298,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 57
+        "y": 69
       },
       "id": 5,
       "options": {
@@ -3946,32 +4408,8 @@
       {
         "allValue": ".*",
         "current": {
-          "text": "ops-eu-south-0",
-          "value": "ops-eu-south-0"
-        },
-        "datasource": {
-          "type": "prometheus",
-          "uid": "${metrics}"
-        },
-        "definition": "label_values(tempo_build_info,cluster)",
-        "includeAll": true,
-        "label": "Cluster",
-        "name": "cluster",
-        "options": [],
-        "query": {
-          "qryType": 1,
-          "query": "label_values(tempo_build_info,cluster)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
-        },
-        "refresh": 1,
-        "regex": "",
-        "type": "query"
-      },
-      {
-        "allValue": ".*",
-        "current": {
-          "text": "tempo-ops-01",
-          "value": "tempo-ops-01"
+          "text": "All",
+          "value": "$__all"
         },
         "datasource": {
           "type": "prometheus",
@@ -3990,6 +4428,54 @@
         "refresh": 1,
         "regex": "",
         "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${metrics}"
+        },
+        "definition": "label_values(tempo_build_info{namespace=~\"$namespace\"},cluster)",
+        "includeAll": true,
+        "label": "Cluster",
+        "name": "cluster",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(tempo_build_info{namespace=~\"$namespace\"},cluster)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "native",
+          "value": "-1"
+        },
+        "description": "Choose between showing latencies based on low precision classic or high precision native histogram metrics.",
+        "includeAll": false,
+        "label": "Latency metrics",
+        "name": "latency_metrics",
+        "options": [
+          {
+            "selected": true,
+            "text": "native",
+            "value": "-1"
+          },
+          {
+            "selected": false,
+            "text": "classic",
+            "value": "1"
+          }
+        ],
+        "query": "native : -1,classic : 1",
+        "type": "custom"
       }
     ]
   },

@@ -1,10 +1,11 @@
-// Copyright 2022 Princess B33f Heavy Industries / Dave Shanley
+// Copyright 2022-2026 Princess B33f Heavy Industries / Dave Shanley
 // SPDX-License-Identifier: MIT
 
 package v3
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"hash/maphash"
 	"reflect"
@@ -41,6 +42,8 @@ type Components struct {
 	RootNode        *yaml.Node
 	index           *index.SpecIndex
 	context         context.Context
+	nodeStore       sync.Map
+	reference       low.Reference
 	*low.Reference
 	low.NodeMap
 }
@@ -48,6 +51,7 @@ type Components struct {
 type componentBuildResult[T any] struct {
 	key   low.KeyReference[string]
 	value low.ValueReference[T]
+	err   error
 }
 
 type componentInput struct {
@@ -169,8 +173,15 @@ func (co *Components) FindMediaType(mediaType string) *low.ValueReference[*Media
 func (co *Components) Build(ctx context.Context, root *yaml.Node, idx *index.SpecIndex) error {
 	root = utils.NodeAlias(root)
 	utils.CheckForMergeNodes(root)
-	co.Reference = new(low.Reference)
-	co.Nodes = low.ExtractNodes(ctx, root)
+	co.reference = low.Reference{}
+	co.Reference = &co.reference
+	co.nodeStore = sync.Map{}
+	co.Nodes = &co.nodeStore
+	if len(root.Content) > 0 {
+		co.NodeMap.ExtractNodes(root, false)
+	} else {
+		co.AddNode(root.Line, root)
+	}
 	co.Extensions = low.ExtractExtensions(root)
 	low.ExtractExtensionNodes(ctx, co.Extensions, co.Nodes)
 	co.RootNode = root
@@ -277,57 +288,70 @@ func extractComponentValues[T low.Buildable[N], N any](ctx context.Context, labe
 		return emptyResult, fmt.Errorf("node is array, cannot be used in components: line %d, column %d", nodeValue.Line, nodeValue.Column)
 	}
 
-	in := make(chan componentInput)
-	out := make(chan componentBuildResult[T])
-	done := make(chan struct{})
-	var wg sync.WaitGroup
-	wg.Add(2) // input and output goroutines.
-
-	// Send input.
-	go func() {
-		defer func() {
-			close(in)
-			wg.Done()
-		}()
-		var currentLabel *yaml.Node
-		for i, node := range nodeValue.Content {
-			// always ignore extensions
-			if i%2 == 0 {
-				currentLabel = node
-				continue
-			}
-
-			select {
-			case in <- componentInput{
-				node:         node,
-				currentLabel: currentLabel,
-			}:
-			case <-done:
-				return
-			}
+	inputs := make([]componentInput, 0, len(nodeValue.Content)/2)
+	var currentLabel *yaml.Node
+	for i, node := range nodeValue.Content {
+		if i%2 == 0 {
+			currentLabel = node
+			continue
 		}
-	}()
+		inputs = append(inputs, componentInput{
+			node:         node,
+			currentLabel: currentLabel,
+		})
+	}
 
-	// Collect output.
-	go func() {
-		for result := range out {
-			componentValues.Set(result.key, result.value)
-		}
-		close(done)
-		wg.Done()
-	}()
-
-	// Translate.
-	translateFunc := func(value componentInput) (componentBuildResult[T], error) {
+	translateFunc := func(_ int, value componentInput) (componentBuildResult[T], error) {
 		var n T = new(N)
 		currentLabel := value.currentLabel
-		node := value.node
+		node := utils.NodeAlias(value.node)
+		foundIndex := idx
+		foundContext := ctx
+		var localCircErr error
+		var refNode *yaml.Node
+		var referenceValue string
+		_, isSchemaProxy := any(n).(*base.SchemaProxy)
+
+		if h, _, rv := utils.IsNodeRefValue(node); h && rv != "" && !isSchemaProxy && foundIndex != nil {
+			ref, fIdx, err, nCtx := low.LocateRefNodeWithContext(foundContext, node, foundIndex)
+			if ref != nil {
+				refNode = node
+				node = ref
+				referenceValue = rv
+				if fIdx != nil {
+					foundIndex = fIdx
+				}
+				foundContext = nCtx
+				if err != nil {
+					localCircErr = err
+				}
+			} else if errors.Is(err, low.ErrExternalRefSkipped) {
+				low.SetReference(n, rv, node)
+				v := low.ValueReference[T]{
+					Value:     n,
+					ValueNode: node,
+				}
+				v.SetReference(rv, node)
+				return componentBuildResult[T]{
+					key: low.KeyReference[string]{
+						KeyNode: currentLabel,
+						Value:   currentLabel.Value,
+					},
+					value: v,
+				}, nil
+			} else if err != nil {
+				return componentBuildResult[T]{}, fmt.Errorf("component build failed: reference cannot be found: %s", err.Error())
+			}
+		}
 
 		// build.
 		_ = low.BuildModel(node, n)
-		err := n.Build(ctx, currentLabel, node, idx)
+		err := n.Build(foundContext, currentLabel, node, foundIndex)
 		if err != nil {
 			return componentBuildResult[T]{}, err
+		}
+		if referenceValue != "" {
+			low.SetReference(n, referenceValue, refNode)
 		}
 
 		nType := reflect.TypeOf(n)
@@ -352,19 +376,30 @@ func extractComponentValues[T low.Buildable[N], N any](ctx context.Context, labe
 			}
 
 		}
+		valueRef := low.ValueReference[T]{
+			Value:     n,
+			ValueNode: finalValueNode, // use transformed node if available
+		}
+		if referenceValue != "" {
+			valueRef.SetReference(referenceValue, refNode)
+		}
 		return componentBuildResult[T]{
 			key: low.KeyReference[string]{
 				KeyNode: currentLabel,
 				Value:   currentLabel.Value,
 			},
-			value: low.ValueReference[T]{
-				Value:     n,
-				ValueNode: finalValueNode, // use transformed node if available
-			},
+			value: valueRef,
+			err:   localCircErr,
 		}, nil
 	}
-	err := datamodel.TranslatePipeline[componentInput, componentBuildResult[T]](in, out, translateFunc)
-	wg.Wait()
+	var circError error
+	err := datamodel.TranslateSliceParallel(inputs, translateFunc, func(result componentBuildResult[T]) error {
+		if result.err != nil {
+			circError = result.err
+		}
+		componentValues.Set(result.key, result.value)
+		return nil
+	})
 	if err != nil {
 		return emptyResult, err
 	}
@@ -373,6 +408,9 @@ func extractComponentValues[T low.Buildable[N], N any](ctx context.Context, labe
 		KeyNode:   nodeLabel,
 		ValueNode: nodeValue,
 		Value:     componentValues,
+	}
+	if circError != nil && (idx == nil || !idx.AllowCircularReferenceResolving()) {
+		return results, circError
 	}
 	return results, nil
 }

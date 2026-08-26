@@ -1190,10 +1190,10 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 						require.NoError(b, err)
 					}
 
-					bytes, spansTotal, _ := eval.Metrics()
-					b.ReportMetric(float64(bytes)/float64(b.N)/1024.0/1024.0, "MB_IO/op")
-					b.ReportMetric(float64(spansTotal)/float64(b.N), "spans/op")
-					b.ReportMetric(float64(spansTotal)/b.Elapsed().Seconds(), "spans/s")
+					em := eval.Metrics()
+					b.ReportMetric(float64(em.Bytes)/float64(b.N)/1024.0/1024.0, "MB_IO/op")
+					b.ReportMetric(float64(em.SpansTotal)/float64(b.N), "spans/op")
+					b.ReportMetric(float64(em.SpansTotal)/b.Elapsed().Seconds(), "spans/s")
 				})
 			}
 		})

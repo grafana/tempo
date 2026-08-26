@@ -1,0 +1,6 @@
+change_type: enhancement
+component: tempo
+note: Add support for all otel tracing configs for self tracing
+issues: [7577]
+subtext: Self tracing setup is done via dskit, and supports all OTEL_* and JAEGER_* configs.
+user: electron0zero

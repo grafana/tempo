@@ -112,6 +112,50 @@ func TestVirtualTagsDoesntHitBackend(t *testing.T) {
 	require.Nil(t, resp)
 }
 
+func TestPostProcessIngesterSearchResultsMergesReadMetrics(t *testing.T) {
+	q := &Querier{}
+
+	resp := q.postProcessIngesterSearchResults(&tempopb.SearchRequest{}, []any{
+		&tempopb.SearchResponse{
+			Metrics: &tempopb.SearchMetrics{
+				InspectedTraces: 1,
+				InspectedBytes:  2,
+				InspectedSpans:  3,
+				BackendReads:    4,
+				BackendBytes:    5,
+				AdditionalMetrics: map[string]int64{
+					tempopb.AdditionalMetricCacheHits: 6,
+				},
+			},
+		},
+		&tempopb.SearchResponse{
+			Metrics: &tempopb.SearchMetrics{
+				InspectedTraces: 7,
+				InspectedBytes:  8,
+				InspectedSpans:  9,
+				BackendReads:    10,
+				BackendBytes:    11,
+				AdditionalMetrics: map[string]int64{
+					tempopb.AdditionalMetricCacheHits:   12,
+					tempopb.AdditionalMetricCacheMisses: 13,
+				},
+			},
+		},
+	})
+
+	require.Equal(t, &tempopb.SearchMetrics{
+		InspectedTraces: 1 + 7,
+		InspectedBytes:  2 + 8,
+		InspectedSpans:  3 + 9,
+		BackendReads:    4 + 10,
+		BackendBytes:    5 + 11,
+		AdditionalMetrics: map[string]int64{
+			tempopb.AdditionalMetricCacheHits:   6 + 12,
+			tempopb.AdditionalMetricCacheMisses: 13,
+		},
+	}, resp.Metrics)
+}
+
 func TestFindTraceByID_ExternalMode(t *testing.T) {
 	traceID := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}
 	userID := "test-tenant"

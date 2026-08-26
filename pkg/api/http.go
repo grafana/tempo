@@ -16,8 +16,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/grafana/dskit/httpgrpc"
+	spanpruningprocessor "github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanpruningprocessor"
 	"github.com/prometheus/common/model"
 
+	"github.com/grafana/tempo/pkg/model/tracediff"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
@@ -32,6 +34,7 @@ const (
 	urlParamMinDuration     = "minDuration"
 	urlParamMaxDuration     = "maxDuration"
 	urlParamLimit           = "limit"
+	urlParamMaxStaleValues  = "maxStaleValues"
 	urlParamStart           = "start"
 	urlParamEnd             = "end"
 	urlParamSpansPerSpanSet = "spss"
@@ -53,6 +56,17 @@ const (
 	urlParamDedicatedColumns = "dc"
 
 	urlParamSkipASTTransformations = "skip_ast_transformations"
+
+	// span pruning
+	urlParamSpanPruning               = "span_pruning"
+	urlParamSpanPruningGroupBy        = "span_pruning_group_by"
+	urlParamSpanPruningMinSpans       = "span_pruning_min_spans"
+	urlParamSpanPruningMaxParentDepth = "span_pruning_max_parent_depth"
+
+	// trace by id v2 filtering (q reuses urlParamQuery)
+	urlParamKeepHierarchy = "keep_hierarchy"
+	urlParamMatchDepth    = "match_depth"
+	urlParamAncestorDepth = "ancestor_depth"
 
 	// search tags
 	urlParamScope = "scope"
@@ -82,6 +96,7 @@ const (
 
 	PathSearchTagValuesV2 = "/api/v2/search/tag/" + MuxVarTagInPath + "/values"
 	PathSearchTagsV2      = "/api/v2/search/tags"
+	PathTraceDiffV2       = "/api/v2/traces/diff"
 	PathTracesV2          = "/api/v2/traces/{traceID}"
 
 	QueryModeKey       = "mode"
@@ -105,6 +120,24 @@ const (
 	MarshallingFormatJSON     MarshallingFormat = HeaderAcceptJSON
 	MarshallingFormatLLM      MarshallingFormat = HeaderAcceptLLM
 )
+
+// TraceDiffRequest is the request body for the trace diff API.
+type TraceDiffRequest struct {
+	Base    TraceDiffTraceRequest `json:"base"`
+	Compare TraceDiffTraceRequest `json:"compare"`
+	Format  string                `json:"format,omitempty"`
+}
+
+// TraceDiffTraceRequest identifies one side of a trace diff request.
+type TraceDiffTraceRequest struct {
+	TraceID string `json:"traceId"`
+	Start   *int64 `json:"start,omitempty"`
+	End     *int64 `json:"end,omitempty"`
+
+	TraceIDBytes []byte    `json:"-"`
+	StartTime    time.Time `json:"-"`
+	EndTime      time.Time `json:"-"`
+}
 
 // MarshalingFormatFromAcceptHeader extracts the marshaling format from the Accept header
 // It properly handles multiple media types and quality values
@@ -784,6 +817,57 @@ func extractDateRangeParams(vals url.Values) (start, end, since string) {
 	return
 }
 
+// ParseTraceDiffRequest parses and validates the trace diff API request body.
+func ParseTraceDiffRequest(r *http.Request) (*TraceDiffRequest, error) {
+	var req TraceDiffRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return nil, fmt.Errorf("invalid trace diff request body: %w", err)
+	}
+
+	if req.Format == "" {
+		req.Format = tracediff.VersionTracePatchV0
+	}
+	switch req.Format {
+	case tracediff.VersionTraceSummaryV0Composed, tracediff.VersionTracePatchV0, tracediff.VersionTraceSummaryV0Native:
+	default:
+		return nil, fmt.Errorf("invalid format %q: must be one of %q, %q, %q",
+			req.Format, tracediff.VersionTraceSummaryV0Composed, tracediff.VersionTracePatchV0, tracediff.VersionTraceSummaryV0Native)
+	}
+
+	if err := parseTraceDiffTraceRequest("base", &req.Base); err != nil {
+		return nil, err
+	}
+	if err := parseTraceDiffTraceRequest("compare", &req.Compare); err != nil {
+		return nil, err
+	}
+
+	return &req, nil
+}
+
+func parseTraceDiffTraceRequest(name string, traceReq *TraceDiffTraceRequest) error {
+	if traceReq.TraceID == "" {
+		return fmt.Errorf("%s.traceId is required", name)
+	}
+
+	traceID, err := util.HexStringToTraceID(traceReq.TraceID)
+	if err != nil {
+		return fmt.Errorf("invalid %s.traceId: %w", name, err)
+	}
+	traceReq.TraceIDBytes = traceID
+
+	if traceReq.Start != nil {
+		traceReq.StartTime = time.Unix(*traceReq.Start, 0)
+	}
+	if traceReq.End != nil {
+		traceReq.EndTime = time.Unix(*traceReq.End, 0)
+	}
+	if traceReq.Start != nil && traceReq.End != nil && *traceReq.End <= *traceReq.Start {
+		return fmt.Errorf("%s.start must be before %s.end. received start=%d end=%d", name, name, *traceReq.Start, *traceReq.End)
+	}
+
+	return nil
+}
+
 // ParseTraceByIDRequest parses and validates params for the trace by id API.
 // return values are (blockStart, blockEnd, queryMode, start, end, error)
 // start and end are zero time.Time values when not provided by the caller.
@@ -860,6 +944,81 @@ func ParseTraceByIDRequest(r *http.Request) (string, string, string, time.Time, 
 	return blockStart, blockEnd, queryMode, startTime, endTime, nil
 }
 
+// TraceByIDFilterParams holds the parsed q spanset filter params for the trace by id v2 API.
+type TraceByIDFilterParams struct {
+	Query         string
+	KeepHierarchy bool
+	MatchDepth    int
+	AncestorDepth int
+}
+
+// ParseTraceByIDFilterParams parses the q spanset filter params for the trace by id v2 API.
+// keep_hierarchy, match_depth, and ancestor_depth are only parsed and validated when q is set:
+// they are documented as ignored without a query, so malformed values must not fail an
+// unfiltered request. When q is empty, the zero-value TraceByIDFilterParams is returned.
+//
+// ancestor_depth is narrower still: it is only read when keep_hierarchy is true, since that is the
+// only case where it changes the response. Otherwise it is left at its default and never validated,
+// so an out-of-range ancestor_depth cannot fail a request it would not have affected.
+//
+// match_depth and ancestor_depth have different defaults when absent from the request, both
+// chosen to preserve pre-existing behavior: an absent match_depth defaults to 0 (matched spans
+// only, no descendants), while an absent ancestor_depth defaults to -1 (unbounded ancestor walk).
+// When read, both accept -1 (unbounded) or any non-negative depth.
+func ParseTraceByIDFilterParams(r *http.Request) (TraceByIDFilterParams, error) {
+	vals := r.URL.Query()
+
+	// trim so a blank or whitespace-only q means no filter (full trace), matching the docs.
+	query := strings.TrimSpace(vals.Get(urlParamQuery))
+	if query == "" {
+		return TraceByIDFilterParams{}, nil
+	}
+
+	params := TraceByIDFilterParams{
+		Query:         query,
+		MatchDepth:    0,
+		AncestorDepth: -1,
+	}
+
+	if raw := vals.Get(urlParamKeepHierarchy); raw != "" {
+		keep, err := strconv.ParseBool(raw)
+		if err != nil {
+			return TraceByIDFilterParams{}, fmt.Errorf("invalid value for %s: %w", urlParamKeepHierarchy, err)
+		}
+		params.KeepHierarchy = keep
+	}
+
+	if raw := vals.Get(urlParamMatchDepth); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil {
+			return TraceByIDFilterParams{}, fmt.Errorf("invalid value for %s: %w", urlParamMatchDepth, err)
+		}
+		if n < -1 {
+			return TraceByIDFilterParams{}, fmt.Errorf("invalid value for %s: must be >= -1", urlParamMatchDepth)
+		}
+		params.MatchDepth = n
+	}
+
+	// ancestor_depth only bounds the keep_hierarchy ancestor walk, so without keep_hierarchy it is not
+	// read at all: a param with nothing to act on should not be able to fail a request that would
+	// otherwise succeed. Someone iterating on a trace can flip keep_hierarchy off without also having
+	// to strip the depth that goes with it.
+	if params.KeepHierarchy {
+		if raw := vals.Get(urlParamAncestorDepth); raw != "" {
+			n, err := strconv.Atoi(raw)
+			if err != nil {
+				return TraceByIDFilterParams{}, fmt.Errorf("invalid value for %s: %w", urlParamAncestorDepth, err)
+			}
+			if n < -1 {
+				return TraceByIDFilterParams{}, fmt.Errorf("invalid value for %s: must be >= -1", urlParamAncestorDepth)
+			}
+			params.AncestorDepth = n
+		}
+	}
+
+	return params, nil
+}
+
 func ReadBodyToBuffer(resp *http.Response) (*bytes.Buffer, error) {
 	length := resp.ContentLength
 	// if ContentLength is -1 if the length is unknown. default to bytes.MinRead (its what buffer.ReadFrom does)
@@ -878,4 +1037,63 @@ func ReadBodyToBuffer(resp *http.Response) (*bytes.Buffer, error) {
 	}
 
 	return buffer, nil
+}
+
+// DefaultSpanPruningConfig returns the span pruning processor's default configuration.
+func DefaultSpanPruningConfig() *spanpruningprocessor.Config {
+	return spanpruningprocessor.NewFactory().CreateDefaultConfig().(*spanpruningprocessor.Config)
+}
+
+// ParseSpanPruningRequest parses span_pruning* query parameters into a *spanpruningprocessor.Config
+// and reports whether span pruning should be applied to the response.
+//
+// If enabledByDefault is true, span pruning is enabled when the request's own span_pruning param
+// is absent. An explicit span_pruning value in the request, true or false, always takes precedence.
+func ParseSpanPruningRequest(r *http.Request, enabledByDefault bool) (bool, *spanpruningprocessor.Config, error) {
+	raw := r.URL.Query().Get(urlParamSpanPruning)
+
+	spanPruningEnabled := enabledByDefault
+	if raw != "" {
+		var err error
+		spanPruningEnabled, err = strconv.ParseBool(raw)
+		if err != nil {
+			return false, nil, fmt.Errorf("invalid %s value %q: must be a boolean", urlParamSpanPruning, raw)
+		}
+	}
+
+	if !spanPruningEnabled {
+		return false, nil, nil
+	}
+
+	cfg := DefaultSpanPruningConfig()
+
+	if v := r.URL.Query().Get(urlParamSpanPruningGroupBy); v != "" {
+		var patterns []string
+		for _, p := range strings.Split(v, ",") {
+			if p = strings.TrimSpace(p); p != "" {
+				patterns = append(patterns, p)
+			}
+		}
+		cfg.GroupByAttributes = patterns
+	}
+	if v := r.URL.Query().Get(urlParamSpanPruningMinSpans); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return false, nil, fmt.Errorf("invalid %s value %q: %w", urlParamSpanPruningMinSpans, v, err)
+		}
+		cfg.MinSpansToAggregate = n
+	}
+	if v := r.URL.Query().Get(urlParamSpanPruningMaxParentDepth); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return false, nil, fmt.Errorf("invalid %s value %q: %w", urlParamSpanPruningMaxParentDepth, v, err)
+		}
+		cfg.MaxParentDepth = n
+	}
+
+	if err := cfg.Validate(); err != nil {
+		return false, nil, fmt.Errorf("invalid span pruning config: %w", err)
+	}
+
+	return true, cfg, nil
 }

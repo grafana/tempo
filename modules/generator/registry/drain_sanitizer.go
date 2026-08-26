@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"strings"
 	"sync"
 	"time"
 
@@ -36,6 +37,8 @@ type DrainSanitizer struct {
 	tenant        string
 	sanitizeModeF sanitizeModeFunc
 
+	// initialized on first enabled Sanitize call, to ensure only tenant with
+	// sanitization enabled register these metrics.
 	metricTotalSpansSanitized prometheus.Counter
 	demandGauge               prometheus.Gauge
 
@@ -48,14 +51,12 @@ type DrainSanitizer struct {
 
 func NewDrainSanitizer(tenant string, sanitizeModeF sanitizeModeFunc, staleDuration time.Duration) *DrainSanitizer {
 	return &DrainSanitizer{
-		drain:                     drain.New(tenant, drain.DefaultConfig()),
-		tenant:                    tenant,
-		sanitizeModeF:             sanitizeModeF,
-		metricTotalSpansSanitized: metricTotalSpansSanitized.WithLabelValues(tenant),
-		demand:                    NewCardinality(staleDuration, removeStaleSeriesInterval),
-		demandGauge:               metricPostSanitizationDemand.WithLabelValues(tenant),
-		demandUpdateChan:          time.Tick(15 * time.Second),
-		pruneChan:                 time.Tick(5 * time.Minute),
+		drain:            drain.New(tenant, drain.DefaultConfig()),
+		tenant:           tenant,
+		sanitizeModeF:    sanitizeModeF,
+		demand:           NewCardinality(staleDuration, removeStaleSeriesInterval),
+		demandUpdateChan: time.Tick(15 * time.Second),
+		pruneChan:        time.Tick(5 * time.Minute),
 	}
 }
 
@@ -67,13 +68,23 @@ func (s *DrainSanitizer) Sanitize(lbls labels.Labels) labels.Labels {
 		return lbls
 	}
 
-	s.doPeriodicMaintenance()
-
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
+	// only register metrics when feature is NOT disabled.
+	if s.demandGauge == nil {
+		s.metricTotalSpansSanitized = metricTotalSpansSanitized.WithLabelValues(s.tenant)
+		s.demandGauge = metricPostSanitizationDemand.WithLabelValues(s.tenant)
+	}
+
+	s.doPeriodicMaintenanceLocked()
+
 	spanName := lbls.Get(labelSpanName)
-	cluster := s.drain.Train(spanName)
+	// drain.Train retains substrings of spanName in long-lived cluster tokens
+	// (drain.newCluster clones the token slice headers, not the bytes). spanName
+	// may alias a pooled/borrowed scratch buffer (see CloseAndBorrowLabels) that
+	// the caller reuses after this call, so clone it before handing it to drain.
+	cluster := s.drain.Train(strings.Clone(spanName))
 	// drain has various limits to prevent excessive memory usage, etc. in these
 	// cases, we will just return the original labels.
 	if cluster == nil {
@@ -105,7 +116,7 @@ func (s *DrainSanitizer) Sanitize(lbls labels.Labels) labels.Labels {
 	return newLbls
 }
 
-func (s *DrainSanitizer) doPeriodicMaintenance() {
+func (s *DrainSanitizer) doPeriodicMaintenanceLocked() {
 	select {
 	case <-s.demandUpdateChan:
 		s.demandGauge.Set(float64(s.demand.Estimate()))

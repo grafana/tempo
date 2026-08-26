@@ -1,0 +1,7 @@
+change_type: enhancement
+component: operations
+note: "tempo-mixin: add a Latency metrics variable to the Backend Work dashboard to switch its histogram panels between classic and native."
+issues: []
+subtext: |
+  Every histogram panel on the dashboard now carries a gated classic/native query pair, matching the control the Operational dashboard already has. Previously the job-duration panels drew both families at once on stacks retaining both, and the blocklist-poll and retention panels queried native only, leaving them blank on stacks retaining only classic.
+user: zalegrala

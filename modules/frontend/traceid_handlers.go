@@ -8,6 +8,7 @@ import (
 	"github.com/go-kit/log/level" //nolint:all //deprecated
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
+	"github.com/grafana/tempo/modules/frontend/tracefilter"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -45,7 +46,8 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 		level.Info(logger).Log(
 			"msg", "trace id request",
 			"tenant", tenant,
-			"path", req.URL.Path)
+			"path", req.URL.Path,
+		)
 
 		var traceRedactor combiner.TraceRedactor
 		if dataAccessController != nil {
@@ -63,14 +65,26 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 		resp, err := rt.RoundTrip(req)
 		elapsed := time.Since(start)
 
-		var inspectBytes uint64
-		if comb.MetricsCombiner != nil && comb.MetricsCombiner.Metrics != nil {
-			inspectBytes = comb.MetricsCombiner.Metrics.InspectedBytes
+		var m *tempopb.TraceByIDMetrics
+		if comb.MetricsCombiner != nil {
+			m = comb.MetricsCombiner.Metrics
 		}
+
+		inspectBytes := m.GetInspectedBytes()
 		postSLOHook(resp, tenant, inspectBytes, elapsed, err)
 
 		traceID, _ := tracing.ExtractTraceID(req.Context())
-		level.Info(logger).Log(
+		if p := o.EngineBytesTracking(tenant); p != nil && *p && m != nil {
+			if m.AdditionalMetrics == nil {
+				m.AdditionalMetrics = map[string]int64{}
+			}
+			// no TraceQL engine on this path; use protobuf payload size as engineBytes
+			if result := comb.Result(); result != nil {
+				m.AdditionalMetrics[tempopb.AdditionalMetricEngineBytes] = int64(result.Size())
+			}
+		}
+		recordResult(
+			level.Info(logger), req.Context(), m.GetAdditionalMetrics(),
 			"msg", "trace id response",
 			"tenant", tenant,
 			"traceID", traceID,
@@ -78,14 +92,24 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 			"duration_seconds", elapsed.Seconds(),
 			"inspected_bytes", inspectBytes,
 			"request_throughput", float64(inspectBytes)/elapsed.Seconds(),
-			"err", err)
-
+			"err", err,
+		)
+		recordTraceByIDMetrics(tenant, m)
 		return resp, err
 	})
 }
 
+// resolveSpanPruningEnabledByDefault returns the tenant-specific span pruning default
+// if one is configured via overrides, else falls back to the cluster-wide default.
+func resolveSpanPruningEnabledByDefault(o overrides.Interface, tenant string, globalDefault bool) bool {
+	if p := o.SpanPruningEnabled(tenant); p != nil {
+		return *p
+	}
+	return globalDefault
+}
+
 // newTraceIDV2Handler creates a http.handler for trace by id requests
-func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
+func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor, combiner.TraceByIDV2Options) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	postSLOHook := traceByIDSLOPostHook(cfg.TraceByID.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -106,6 +130,27 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			return httpInvalidRequest(reqErr), nil
 		}
 
+		// bound q size before parsing, as the other TraceQL handlers do, to avoid a parse-time DoS.
+		if err := pipeline.ValidateTraceQLQueryParamsSize(req.URL.Query(), cfg.MaxQueryExpressionSizeBytes); err != nil {
+			return httpInvalidRequest(err), nil
+		}
+
+		// parse and compile filter params up front so a malformed filter can fail-fast as HTTP 4xx.
+		params, err := api.ParseTraceByIDFilterParams(req)
+		if err != nil {
+			return httpInvalidRequest(err), nil
+		}
+		filter, err := tracefilter.NewFilter(tracefilter.Options{Query: params.Query, KeepHierarchy: params.KeepHierarchy, MatchDepth: params.MatchDepth, AncestorDepth: params.AncestorDepth}, logger)
+		if err != nil {
+			return httpInvalidRequest(err), nil
+		}
+		// assign only when non-nil, else the interface holds a typed-nil and reads as non-nil.
+		var traceFilter combiner.TraceFilter
+		if filter != nil {
+			traceFilter = filter
+		}
+		// filter runs in finalize(), after combine and redaction.
+
 		// check marshalling format
 		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header)
 
@@ -115,7 +160,8 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 		level.Info(logger).Log(
 			"msg", "trace id request",
 			"tenant", tenant,
-			"path", req.URL.Path)
+			"path", req.URL.Path,
+		)
 
 		var traceRedactor combiner.TraceRedactor
 		if dataAccessController != nil {
@@ -126,7 +172,27 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			}
 		}
 
-		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat, traceRedactor)
+		var (
+			opts               combiner.TraceByIDV2Options
+			spanPruningEnabled bool
+		)
+		// EXPERIMENTAL: span pruning is not yet a stable feature; config, params, and behavior
+		// may change. Only parse span_pruning_* params when the feature is enabled cluster-wide,
+		// so a malformed param doesn't 400 a request for a feature that's actually turned off.
+		if cfg.TraceByID.SpanPruningEnabled {
+			enabled, spanPruningCfg, pErr := api.ParseSpanPruningRequest(req, resolveSpanPruningEnabledByDefault(o, tenant, cfg.TraceByID.SpanPruningEnabledByDefault))
+			if pErr != nil {
+				return httpInvalidRequest(pErr), nil
+			}
+			spanPruningEnabled = enabled
+			if enabled && spanPruningCfg != nil {
+				opts.SpanPruningConfig = spanPruningCfg
+				opts.Logger = logger
+			}
+		}
+		opts.TraceFilter = traceFilter
+
+		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat, traceRedactor, opts)
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 
 		start := time.Now()
@@ -137,12 +203,20 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 		findResp, _ := comb.GRPCFinal()
 		if findResp != nil && findResp.Metrics != nil {
 			bytesProcessed = findResp.Metrics.InspectedBytes
+			if p := o.EngineBytesTracking(tenant); p != nil && *p {
+				if findResp.Metrics.AdditionalMetrics == nil {
+					findResp.Metrics.AdditionalMetrics = map[string]int64{}
+				}
+				// no TraceQL engine on this path; use protobuf payload size as engineBytes
+				findResp.Metrics.AdditionalMetrics[tempopb.AdditionalMetricEngineBytes] = int64(findResp.Size())
+			}
 		}
 
 		postSLOHook(resp, tenant, bytesProcessed, elapsed, err)
 
 		traceID, _ := tracing.ExtractTraceID(req.Context())
-		level.Info(logger).Log(
+		recordResult(
+			level.Info(logger), req.Context(), findResp.GetMetrics().GetAdditionalMetrics(),
 			"msg", "trace id response",
 			"tenant", tenant,
 			"traceID", traceID,
@@ -150,8 +224,11 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			"inspected_bytes", bytesProcessed,
 			"request_throughput", float64(bytesProcessed)/elapsed.Seconds(),
 			"duration_seconds", elapsed.Seconds(),
-			"err", err)
-
+			"span_pruning_enabled", spanPruningEnabled,
+			"trace_filter_enabled", traceFilter != nil,
+			"err", err,
+		)
+		recordTraceByIDMetrics(tenant, findResp.GetMetrics())
 		return resp, err
 	})
 }

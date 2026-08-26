@@ -17,7 +17,7 @@ const emptyQuery = "{}"
 const DefaultMaxConditionGroupsPerTagQuery = 100
 
 // ExtractConditionGroups parses a query string using the lenient parser and returns
-// groups of conditions. Conditions with OpNone (from incomplete matchers) are filtered out.
+// groups of conditions. Conditions with OpNone (bare attributes) are filtered out.
 //
 // Returns nil if the query is empty or parsing fails completely.
 // Returns nil, ErrMaxConditionGroupsPerTagQueryReached if the number of groups exceeds maxGroups.
@@ -61,7 +61,11 @@ func ExtractConditionGroups(query string, maxGroups int) ([][]Condition, error) 
 			}
 		}
 
-		// if even one group has zero conditions after filtering, treat the whole query as empty (e.g. `{.attr || .foo}`)
+		// If even one group has zero conditions after filtering, treat the whole query as
+		// match-all: that group places no constraint on spans, so no other group can narrow
+		// the result. This covers empty filters (`{}`), bare attributes (`{.attr || .foo}`)
+		// and OR branches with an incomplete matcher (`{.a = "x" || .b = }`, which the
+		// lenient parser rewrites to `{.a = "x" || true}`).
 		if len(conditions) == 0 {
 			return nil, nil
 		}
@@ -181,15 +185,10 @@ func splitReqConditions(expr FieldExpression, maxGroups int) ([][]Condition, boo
 		}
 	}
 
-	// Drop empty groups (e.g. from an empty filter `{}`).
-	result := conditionGroups[:0]
-	for _, g := range conditionGroups {
-		if len(g) > 0 {
-			result = append(result, g)
-		}
-	}
-
-	return result, reachedMaxGroups
+	// Empty groups are kept: they come from match-all branches (`true` leaves, e.g. an
+	// empty filter `{}` or an incomplete matcher rewritten by the lenient parser) and
+	// signal to the caller that the whole query is match-all.
+	return conditionGroups, reachedMaxGroups
 }
 
 // deduplicateConditionBranches removes duplicate branches from an OR group.

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/tempo/pkg/httpclient"
@@ -16,12 +17,28 @@ type queryTraceIDCmd struct {
 	V1      bool     `name:"v1" help:"Use v1 API /api/traces endpoint"`
 	OrgID   string   `help:"optional orgID"`
 	Headers []string `help:"extra HTTP header in key=value format" name:"header"`
+
+	// Trace By ID V2 filtering and selection params
+	Q             string `name:"q" help:"TraceQL spanset filter, only matching spans are returned (V2 only)"`
+	KeepHierarchy bool   `name:"keep-hierarchy" default:"false" help:"include ancestor path to the root for each matched span (V2 only, ignored without --q)"`
+	MatchDepth    int    `name:"match-depth" default:"0" help:"levels of descendants to keep below each matched span: -1 = all, 0 = matched spans only, n = n levels (V2 only, ignored without --q)"`
+	AncestorDepth int    `name:"ancestor-depth" default:"-1" help:"levels of ancestors to keep above each matched span: -1 = all (default), 0 = none, n = n levels (V2 only, ignored without --q or --keep-hierarchy)"`
 }
 
 func (cmd *queryTraceIDCmd) Run(_ *globalOptions) error {
 	client := httpclient.New(cmd.APIEndpoint, cmd.OrgID)
 	applyHeaders(client, cmd.Headers)
 	// util.QueryTrace will only add orgID header if len(orgID) > 0
+
+	// the v1 endpoint cannot filter at all, so honoring --v1 would silently return the whole trace
+	// instead of the requested subset. That is a wrong answer, not an inert flag, so it must fail.
+	if cmd.Q != "" && cmd.V1 {
+		return fmt.Errorf("--q filtering is only supported on the v2 API, remove --v1 to call v2 endpoint")
+	}
+
+	// --keep-hierarchy, --match-depth and --ancestor-depth only shape a filtered result, so without
+	// --q they are ignored rather than rejected: the full trace is already a superset of anything
+	// they could select, and someone iterating on a trace should not have to clear stale flags.
 
 	// use v1 API if specified, we default to v2
 	if cmd.V1 {
@@ -32,7 +49,20 @@ func (cmd *queryTraceIDCmd) Run(_ *globalOptions) error {
 		return printTrace(trace)
 	}
 
-	traceResp, err := client.QueryTraceV2(cmd.TraceID)
+	var traceResp *tempopb.TraceByIDResponse
+	var err error
+	if cmd.Q != "" {
+		params := map[string]string{
+			"q":              cmd.Q,
+			"keep_hierarchy": strconv.FormatBool(cmd.KeepHierarchy),
+			"match_depth":    strconv.Itoa(cmd.MatchDepth),
+			"ancestor_depth": strconv.Itoa(cmd.AncestorDepth),
+		}
+		traceResp, err = client.QueryTraceV2WithQueryParams(cmd.TraceID, params)
+	} else {
+		traceResp, err = client.QueryTraceV2(cmd.TraceID)
+	}
+
 	if err != nil {
 		return err
 	}

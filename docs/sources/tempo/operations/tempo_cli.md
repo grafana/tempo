@@ -860,6 +860,74 @@ Example with intrinsic attributes:
 tempo-cli gen attr-index --add-intrinsics ./path/to/block
 ```
 
+## Experimental trace diff
+
+{{< admonition type="warning" >}}
+This command is experimental. The output format and behavior may change in future releases.
+{{< /admonition >}}
+
+Compare two local trace JSON files. The default `trace-patch-v0` format returns
+the complete mechanical change list. You can instead request a compact native
+summary or a composed summary with a size-bounded patch.
+
+Use this command to compare traces captured at different times or from different environments, for example, to understand how a deployment changed trace structure.
+
+```bash
+tempo-cli experimental trace-diff --trace-a <BASELINE_PATH> --trace-b <COMPARISON_PATH>
+```
+
+Arguments:
+
+- `--trace-a <path>` (required) Path to the baseline trace JSON file.
+- `--trace-b <path>` (required) Path to the comparison trace JSON file.
+
+Options:
+
+- `--format <value>` Output format: `trace-patch-v0` (default), `trace-summary-v0-native`, or `trace-summary-v0-composed`.
+- `-o, --out <path>` File to write output to. If not specified, output is printed to `stdout`.
+- `--pretty` Pretty-print JSON output.
+
+The input files can be either raw OpenTelemetry JSON traces or Tempo `TraceByIDResponse` JSON responses.
+
+The `trace-summary-v0-composed` format always includes a
+`trace-summary-v0-native` document. If
+the serialized `trace-patch-v0` document is no larger than 64 KiB, it is
+included in `patch`. Otherwise, `patchOmitted` reports its size and the reason
+`over_budget`; rerun with `--format trace-patch-v0` to retrieve the full patch.
+
+Example:
+
+```bash
+tempo-cli experimental trace-diff --trace-a baseline.json --trace-b compare.json --pretty
+```
+
+Example writing output to a file:
+
+```bash
+tempo-cli experimental trace-diff --trace-a baseline.json --trace-b compare.json -o diff-output.json
+```
+
+Example producing the native summary:
+
+```bash
+tempo-cli experimental trace-diff \
+  --trace-a baseline.json \
+  --trace-b compare.json \
+  --format trace-summary-v0-native \
+  --pretty
+```
+
+The native summary calculates latency, the sum of inclusive span durations,
+topology, and significant per-service duration drift from the normalized traces.
+It combines those values with matcher-derived change and error counts.
+`changedServices` and service rollups cover all matcher changes and significant
+duration drift; `changedServices` also includes structure-only changes, which do
+not have service rollups.
+
+Warnings report partial inputs, high-cardinality span names, duplicate span
+IDs, ambiguous duplicate-span matching, empty traces, and invalid durations.
+Invalid spans contribute zero to summary duration aggregates.
+
 ## Drop traces by ID
 
 Rewrites all blocks for a tenant that contain specific trace IDs. The traces are dropped from
@@ -919,10 +987,16 @@ Arguments:
 Options:
 
 - `--tenant <value>` **(required)** Tenant ID.
-- `--trace-id <value>` **(required)** Trace ID to redact, in hex format. Specify multiple times to redact several traces in one request.
+- `--trace-id <value>` Trace ID to redact, in hex format. Specify multiple times to redact several traces in one request. Mutually exclusive with `--query`.
+- `--query <value>` TraceQL query selecting the traces to redact. Mutually exclusive with `--trace-id`. Conditions may be joined with `&&` and `||`, and only `=` comparisons on `resource.*` and `span.*` attributes are accepted.
+- `--dry-run` Report how many traces match without rewriting any blocks (default: `false`).
+- `--start <value>` Start of the time window. Accepts `now`, a relative offset such as `now-7d`, or an RFC3339 timestamp. Must be given with `--end`, must be before `--end`, and cannot be combined with `--trace-id`. Omit both bounds to redact the whole tenant.
+- `--end <value>` End of the time window. Same forms as `--start`. Must be given with `--start`.
 - `--tls` Use TLS for the gRPC connection (default: `false`).
 - `--tls-server-name <value>` Override the TLS server name (SNI).
 - `--tls-ca <value>` Path to a PEM-encoded CA certificate file.
+
+Specify exactly one of `--trace-id` or `--query`.
 
 On success, the command prints the batch ID and the number of jobs created:
 
@@ -930,6 +1004,54 @@ On success, the command prints the batch ID and the number of jobs created:
 batch_id:     <BATCH_ID>
 jobs_created: <COUNT>
 ```
+
+### Redact a time window
+
+A redaction with no window covers every block the tenant has, which keeps the tenant's compaction paused for the whole run and lets its block list grow.
+`--start` and `--end` scope a redaction to a time range, so a large tenant can be redacted in slices with compaction recovering in between.
+
+```bash
+tempo-cli redact --tenant=my-tenant --query='{resource.namespace = "checkout"}' --start=now-7d --end=now-6d localhost:9095
+```
+
+Both bounds are inclusive and must both be supplied. Blocks whose data range overlaps the window are read,
+as are blocks whose recorded range is unusable — those are included rather than skipped, so that a block
+whose timestamps cannot be judged is never silently left behind.
+
+Inside each block the window bounds the scan, and a trace is redacted if any part of it overlaps: a trace
+that starts before the window and ends inside it is removed in full, including its earlier spans.
+
+A window cannot be combined with `--trace-id`. The window scopes which blocks are read and is not applied
+per trace, so the pair would remove each listed trace only from the blocks that happen to overlap and leave
+the rest of it in place while reporting success. Redact by trace ID without a window.
+
+The window is resolved to absolute timestamps when the command runs, so a long redaction does not drift
+forward into data that arrived after it started. Traces outside every window you run are left in place.
+
+Repeat the command for each slice, but expect to wait between slices. A finished redaction is held briefly
+before it is cleared, and a second submission for the same tenant is rejected with `AlreadyExists` until
+that completes — a couple of minutes at the default maintenance interval.
+
+{{< admonition type="note" >}}
+Redaction rewrites blocks in object storage and cannot be undone. Two things bound what a single run covers:
+
+- Traces ingested during the run, or still held by ingesters, are untouched — a single pass over a live
+  tenant is never complete. Blocks produced by compactions that were running at submission *are* picked up
+  later, so the set of blocks rewritten is not exactly the set visible when you submitted.
+- Search results are cached, so re-running the same search can still list redacted traces until that cache
+  entry expires. To confirm a redaction, query by trace ID or vary the time range so the cache key differs.
+{{< /admonition >}}
+
+Run with `--dry-run` first to confirm the selector without rewriting anything. Dry-run counts are reported
+by the scheduler, not printed by the command: read the `tempo_backend_scheduler_redaction_traces_found_total`
+metric for the tenant.
+
+{{< admonition type="warning" >}}
+A backend-worker that predates `--start`/`--end` does not respect the window and scans each block it is
+given in full. The job still reports success, so there is no signal afterwards and the removed traces
+cannot be recovered. Wait until every worker for the cell supports the window before submitting a windowed
+redaction; an unwindowed redaction is unaffected.
+{{< /admonition >}}
 
 Monitor job progress through the [`/status/backendscheduler`](/docs/tempo/<TEMPO_VERSION>/api_docs/#backend-scheduler-job-status) endpoint.
 

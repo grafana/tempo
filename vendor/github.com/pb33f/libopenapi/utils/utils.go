@@ -192,6 +192,10 @@ func FindNodesWithoutDeserializingWithTimeout(node *yaml.Node, jsonPath string, 
 // Behavior can be customized using JSONPathLookupOptions.
 func FindNodesWithoutDeserializingWithOptions(node *yaml.Node, jsonPath string, options JSONPathLookupOptions) ([]*yaml.Node, error) {
 	options = normalizeJSONPathLookupOptions(options)
+	if results, handled := findNodesWithoutDeserializingFastPath(node, jsonPath); handled {
+		return results, nil
+	}
+
 	path, err := getJSONPathWithOptions(jsonPath, options)
 	if err != nil {
 		return nil, err
@@ -321,14 +325,138 @@ func ExtractValueFromInterfaceMap(name string, raw interface{}) interface{} {
 	return nil
 }
 
+// leadingMergeContent unwraps a leading YAML merge key when it has a corresponding value node.
+// Malformed YAML can produce a bare `<<` node with no value; in that case we leave the original
+// node slice intact and let higher-level validation return an error instead of panicking.
+func leadingMergeContent(nodes []*yaml.Node) []*yaml.Node {
+	if len(nodes) < 2 || nodes[0] == nil || nodes[0].Tag != "!!merge" {
+		return nodes
+	}
+	expanded := expandMergeContent(&yaml.Node{
+		Kind:    yaml.MappingNode,
+		Tag:     "!!map",
+		Content: nodes,
+	}, make(map[*yaml.Node]struct{}))
+	if len(expanded) == 0 {
+		return nodes
+	}
+	return expanded
+}
+
+func hasMergeKeys(nodes []*yaml.Node) bool {
+	for i := 0; i < len(nodes); i += 2 {
+		if nodes[i] != nil && nodes[i].Tag == "!!merge" {
+			return true
+		}
+	}
+	return false
+}
+
+func expandMergeContent(node *yaml.Node, visited map[*yaml.Node]struct{}) []*yaml.Node {
+	if node == nil {
+		return nil
+	}
+	node = NodeAlias(node)
+	if node == nil || node.Kind != yaml.MappingNode && node.Tag != "!!map" {
+		return nil
+	}
+	if _, ok := visited[node]; ok {
+		return nil
+	}
+	visited[node] = struct{}{}
+	defer delete(visited, node)
+
+	if !hasMergeKeys(node.Content) {
+		return node.Content
+	}
+
+	var mergedValues []*yaml.Node
+	expanded := make([]*yaml.Node, 0, len(node.Content))
+	seenKeys := make(map[string]struct{}, len(node.Content)/2)
+
+	for i := 0; i < len(node.Content); i += 2 {
+		key := node.Content[i]
+		if key == nil {
+			continue
+		}
+		if key.Tag == "!!merge" {
+			if i+1 < len(node.Content) {
+				mergedValues = append(mergedValues, node.Content[i+1])
+			}
+			continue
+		}
+		value := key
+		if i+1 < len(node.Content) {
+			value = node.Content[i+1]
+		}
+		expanded = append(expanded, key, value)
+		seenKeys[key.Value] = struct{}{}
+	}
+
+	for _, mergeValue := range mergedValues {
+		expanded = appendExpandedMergeContent(expanded, seenKeys, mergeValue, visited)
+	}
+	return expanded
+}
+
+func appendExpandedMergeContent(
+	target []*yaml.Node,
+	seenKeys map[string]struct{},
+	mergeValue *yaml.Node,
+	visited map[*yaml.Node]struct{},
+) []*yaml.Node {
+	mergeValue = NodeAlias(mergeValue)
+	if mergeValue == nil {
+		return target
+	}
+
+	if mergeValue.Kind == yaml.SequenceNode {
+		for _, item := range mergeValue.Content {
+			target = appendExpandedMergeContent(target, seenKeys, item, visited)
+		}
+		return target
+	}
+
+	content := expandMergeContent(mergeValue, visited)
+	for i := 0; i < len(content); i += 2 {
+		key := content[i]
+		if key == nil {
+			continue
+		}
+		if _, ok := seenKeys[key.Value]; ok {
+			continue
+		}
+		value := key
+		if i+1 < len(content) {
+			value = content[i+1]
+		}
+		target = append(target, key, value)
+		seenKeys[key.Value] = struct{}{}
+	}
+	return target
+}
+
+func mergedNodeContent(node *yaml.Node) []*yaml.Node {
+	if node == nil {
+		return nil
+	}
+	node = NodeAlias(node)
+	if node == nil || !hasMergeKeys(node.Content) {
+		return node.Content
+	}
+	expanded := expandMergeContent(node, make(map[*yaml.Node]struct{}))
+	if len(expanded) == 0 {
+		return node.Content
+	}
+	return expanded
+}
+
 // FindFirstKeyNode will locate the first key and value yaml.Node based on a key.
 func FindFirstKeyNode(key string, nodes []*yaml.Node, depth int) (keyNode *yaml.Node, valueNode *yaml.Node) {
 	if depth > 40 {
 		return nil, nil
 	}
-	if nodes != nil && len(nodes) > 0 && nodes[0].Tag == "!!merge" {
-		nodes = NodeAlias(nodes[1]).Content
-	}
+	nodes = leadingMergeContent(nodes)
 	for i, v := range nodes {
 		if key != "" && key == v.Value {
 			if i+1 >= len(nodes) {
@@ -366,9 +494,7 @@ type KeyNodeSearch struct {
 // FindKeyNodeTop is a non-recursive search of top level nodes for a key, will not look at content.
 // Returns the key and value
 func FindKeyNodeTop(key string, nodes []*yaml.Node) (keyNode *yaml.Node, valueNode *yaml.Node) {
-	if nodes != nil && len(nodes) > 0 && nodes[0].Tag == "!!merge" {
-		nodes = NodeAlias(nodes[1]).Content
-	}
+	nodes = leadingMergeContent(nodes)
 	for i := 0; i < len(nodes); i++ {
 		v := nodes[i]
 		if i%2 != 0 {
@@ -387,9 +513,7 @@ func FindKeyNodeTop(key string, nodes []*yaml.Node) (keyNode *yaml.Node, valueNo
 // FindKeyNode is a non-recursive search of a *yaml.Node Content for a child node with a key.
 // Returns the key and value
 func FindKeyNode(key string, nodes []*yaml.Node) (keyNode *yaml.Node, valueNode *yaml.Node) {
-	if nodes != nil && len(nodes) > 0 && nodes[0].Tag == "!!merge" {
-		nodes = NodeAlias(nodes[1]).Content
-	}
+	nodes = leadingMergeContent(nodes)
 	for i, v := range nodes {
 		if i%2 == 0 && key == v.Value {
 			if len(nodes) <= i+1 {
@@ -397,17 +521,18 @@ func FindKeyNode(key string, nodes []*yaml.Node) (keyNode *yaml.Node, valueNode 
 			}
 			return NodeAlias(v), NodeAlias(nodes[i+1]) // next node is what we need.
 		}
-		for x, j := range v.Content {
+		content := mergedNodeContent(v)
+		for x, j := range content {
 			if key == j.Value {
 				if IsNodeMap(v) {
-					if x+1 == len(v.Content) {
-						return NodeAlias(v), NodeAlias(v.Content[x])
+					if x+1 == len(content) {
+						return NodeAlias(v), NodeAlias(content[x])
 					}
-					return NodeAlias(v), NodeAlias(v.Content[x+1]) // next node is what we need.
+					return NodeAlias(v), NodeAlias(content[x+1]) // next node is what we need.
 
 				}
 				if IsNodeArray(v) {
-					return NodeAlias(v), NodeAlias(v.Content[x])
+					return NodeAlias(v), NodeAlias(content[x])
 				}
 			}
 		}
@@ -419,9 +544,7 @@ func FindKeyNode(key string, nodes []*yaml.Node) (keyNode *yaml.Node, valueNode 
 // generally different things are required from different node trees, so depending on what this function is looking at
 // it will return different things.
 func FindKeyNodeFull(key string, nodes []*yaml.Node) (keyNode *yaml.Node, labelNode *yaml.Node, valueNode *yaml.Node) {
-	if nodes != nil && len(nodes) > 0 && nodes[0].Tag == "!!merge" {
-		nodes = NodeAlias(nodes[1]).Content
-	}
+	nodes = leadingMergeContent(nodes)
 	for i := 0; i < len(nodes); i++ {
 		if i%2 == 0 && key == nodes[i].Value {
 			if i+1 >= len(nodes) {
@@ -431,25 +554,17 @@ func FindKeyNodeFull(key string, nodes []*yaml.Node) (keyNode *yaml.Node, labelN
 		}
 	}
 	for _, v := range nodes {
-		for x := 0; x < len(v.Content); x++ {
-			r := v.Content[x]
-			if x%2 == 0 {
-				if r.Tag == "!!merge" {
-					if len(nodes) > x+1 {
-						v = NodeAlias(nodes[x+1])
-					}
-				}
-			}
-
-			if len(v.Content) > 0 && key == v.Content[x].Value {
+		content := mergedNodeContent(v)
+		for x := 0; x < len(content); x++ {
+			if len(content) > 0 && key == content[x].Value {
 				if IsNodeMap(v) {
-					if x+1 == len(v.Content) {
-						return v, v.Content[x], NodeAlias(v.Content[x])
+					if x+1 == len(content) {
+						return v, content[x], NodeAlias(content[x])
 					}
-					return NodeAlias(v), NodeAlias(v.Content[x]), NodeAlias(v.Content[x+1])
+					return NodeAlias(v), NodeAlias(content[x]), NodeAlias(content[x+1])
 				}
 				if IsNodeArray(v) {
-					return NodeAlias(v), NodeAlias(v.Content[x]), NodeAlias(v.Content[x])
+					return NodeAlias(v), NodeAlias(content[x]), NodeAlias(content[x])
 				}
 			}
 		}
@@ -460,9 +575,7 @@ func FindKeyNodeFull(key string, nodes []*yaml.Node) (keyNode *yaml.Node, labelN
 // FindKeyNodeFullTop is an overloaded version of FindKeyNodeFull. This version only looks at the top
 // level of the node and not the children.
 func FindKeyNodeFullTop(key string, nodes []*yaml.Node) (keyNode *yaml.Node, labelNode *yaml.Node, valueNode *yaml.Node) {
-	if nodes != nil && len(nodes) >= 0 && nodes[0].Tag == "!!merge" {
-		nodes = NodeAlias(nodes[1]).Content
-	}
+	nodes = leadingMergeContent(nodes)
 	for i := 0; i < len(nodes); i++ {
 		v := nodes[i]
 		if i%2 == 0 {
@@ -479,6 +592,9 @@ func FindKeyNodeFullTop(key string, nodes []*yaml.Node) (keyNode *yaml.Node, lab
 			continue
 		}
 		if i%2 == 0 && key == nodes[i].Value {
+			if i+1 >= len(nodes) {
+				return NodeAlias(nodes[i]), NodeAlias(nodes[i]), NodeAlias(nodes[i])
+			}
 			return NodeAlias(nodes[i]), NodeAlias(nodes[i]), NodeAlias(nodes[i+1]) // next node is what we need.
 		}
 	}
@@ -574,14 +690,31 @@ func NodeMerge(nodes []*yaml.Node) *yaml.Node {
 	for i, v := range nodes {
 		if v.Tag == "!!merge" {
 			if i+1 < len(nodes) {
-				return NodeAlias(nodes[i+1])
+				return resolvedMergeNode(nodes[i+1])
 			}
 		}
 	}
 	if len(nodes) > 0 {
-		return NodeAlias(nodes[0])
+		return resolvedMergeNode(nodes[0])
 	}
 	return nil
+}
+
+func resolvedMergeNode(node *yaml.Node) *yaml.Node {
+	node = NodeAlias(node)
+	if node == nil {
+		return nil
+	}
+	if !hasMergeKeys(node.Content) {
+		return node
+	}
+	expanded := expandMergeContent(node, make(map[*yaml.Node]struct{}))
+	if len(expanded) == 0 {
+		return node
+	}
+	clone := *node
+	clone.Content = expanded
+	return &clone
 }
 
 // NodeAlias checks if the node is an alias, and lifts out the anchor
@@ -589,23 +722,6 @@ func NodeAlias(node *yaml.Node) *yaml.Node {
 	if node == nil {
 		return nil
 	}
-
-	content := node.Content
-	if node.Kind == yaml.AliasNode {
-		content = node.Alias.Content
-	}
-
-	for i, n := range content {
-		if i%2 == 0 {
-			if n.Tag == "!!merge" {
-				g := NodeMerge(content[i+1:])
-				if g != nil {
-					node = g
-				}
-			}
-		}
-	}
-
 	if node.Kind == yaml.AliasNode {
 		node = node.Alias
 		return node
@@ -844,43 +960,6 @@ func isPathChar(s string) bool {
 	return true
 }
 
-func appendSegment(sb *strings.Builder, segs []string, cleaned []string, i int, wrapInQuotes bool) {
-	sb.Reset()
-	if wrapInQuotes {
-		sb.WriteString("['")
-		sb.WriteString(segs[i])
-		sb.WriteString("']")
-	} else {
-		sb.WriteString("[")
-		sb.WriteString(segs[i])
-		sb.WriteString("]")
-	}
-	c := sb.String()
-	sb.Reset()
-	sb.WriteString(cleaned[len(cleaned)-1])
-	sb.WriteString(c)
-	cleaned[len(cleaned)-1] = sb.String()
-}
-
-// appendSegmentOptimized uses strings.Builder more efficiently to avoid allocations
-func appendSegmentOptimized(segs []string, cleaned []string, i int, wrapInQuotes bool) {
-	var builder strings.Builder
-	if wrapInQuotes {
-		builder.Grow(len(cleaned[len(cleaned)-1]) + len(segs[i]) + 4) // existing + [''] + segment
-		builder.WriteString(cleaned[len(cleaned)-1])
-		builder.WriteString("['")
-		builder.WriteString(segs[i])
-		builder.WriteString("']")
-	} else {
-		builder.Grow(len(cleaned[len(cleaned)-1]) + len(segs[i]) + 2) // existing + [] + segment
-		builder.WriteString(cleaned[len(cleaned)-1])
-		builder.WriteByte('[')
-		builder.WriteString(segs[i])
-		builder.WriteByte(']')
-	}
-	cleaned[len(cleaned)-1] = builder.String()
-}
-
 // parseSmallUint returns the unsigned integer value and true if s is a string of
 // digits representing a non-negative integer. Returns 0, false otherwise.
 func parseSmallUint(s string) (int, bool) {
@@ -900,15 +979,16 @@ func parseSmallUint(s string) (int, bool) {
 // ConvertComponentIdIntoFriendlyPathSearch will convert a JSON Path into a friendly path search string.
 // the friendliness comes from it being suitable for use with any JSON Path parser.
 //
-// This function was re-written in v0.18.0 in order to fix a number of performance issues with the original
-// implementation. Allocations were high and this function is used a lot, this new implementation is much
-// lighter on string allocations by using a string builder.
+// Rewritten as a single pass over the input with one output builder: no segment slice,
+// no per-segment builders. Output is byte-identical to the previous implementation and
+// is pinned by the golden corpus in testdata/component_id_golden.txt.
 func ConvertComponentIdIntoFriendlyPathSearch(id string) (string, string) {
 	if id == "" || id == "#/" {
 		return "", "$."
 	}
-	segs := strings.Split(id, "/")
-	lastSeg := segs[len(segs)-1]
+
+	// the name is the raw final segment, JSON-Pointer unescaped and URL decoded.
+	lastSeg := id[strings.LastIndexByte(id, '/')+1:]
 	if strings.Contains(lastSeg, "~1") {
 		lastSeg = strings.ReplaceAll(lastSeg, "~1", "/")
 	}
@@ -917,151 +997,125 @@ func ConvertComponentIdIntoFriendlyPathSearch(id string) (string, string) {
 	}
 	name := lastSeg
 
-	// Pre-allocate with estimated capacity
-	estimatedCap := len(segs) + (len(segs) / 2)
-	cleaned := make([]string, 0, estimatedCap)
+	idContainsHash := strings.Contains(id, "#")
+	lastIndex := strings.Count(id, "/") // absolute index of the final segment
 
-	// check for strange spaces, chars and if found, wrap them up, clean them and create a new cleaned path.
-	for i := range segs {
-		if segs[i] == "" {
-			continue
-		}
-		if !isPathChar(segs[i]) {
-
-			if strings.Contains(segs[i], "~1") {
-				segs[i] = strings.ReplaceAll(segs[i], "~1", "/")
-			}
-			if strings.ContainsRune(segs[i], '%') {
-				segs[i], _ = url.QueryUnescape(segs[i])
-			}
-
-			// Use string builder for bracket wrapping
-			var bracketBuilder strings.Builder
-			bracketBuilder.Grow(len(segs[i]) + 4)
-			bracketBuilder.WriteString("['")
-			bracketBuilder.WriteString(segs[i])
-			bracketBuilder.WriteString("']")
-			segs[i] = bracketBuilder.String()
-
-			if len(cleaned) > 0 && i < len(segs)-1 {
-				// Use string builder for concatenation with last cleaned element
-				var concatBuilder strings.Builder
-				concatBuilder.Grow(len(cleaned[len(cleaned)-1]) + len(segs[i]))
-				concatBuilder.WriteString(cleaned[len(cleaned)-1])
-				concatBuilder.WriteString(segs[i])
-				cleaned[len(cleaned)-1] = concatBuilder.String()
-				continue
-			} else {
-				if i > 0 && i < len(segs)-1 {
-					cleaned = append(cleaned, segs[i])
-					continue
-				}
-				if i == len(segs)-1 {
-					l := len(cleaned)
-					if l > 0 {
-						// Use string builder for concatenation
-						var endBuilder strings.Builder
-						endBuilder.Grow(len(cleaned[l-1]) + len(segs[i]))
-						endBuilder.WriteString(cleaned[l-1])
-						endBuilder.WriteString(segs[i])
-						cleaned[l-1] = endBuilder.String()
-					} else {
-						cleaned = append(cleaned, segs[i])
-					}
-				}
-			}
-		} else {
-
-			// strip out any backslashes
-			if strings.Contains(id, "#") && strings.Contains(segs[i], `\`) {
-				segs[i] = strings.ReplaceAll(segs[i], `\`, "")
-				cleaned = append(cleaned, segs[i])
-				continue
-			}
-
-			intVal, isNum := parseSmallUint(segs[i])
-			if isNum {
-				if intVal <= 99 {
-					if len(cleaned) > 0 {
-						appendSegmentOptimized(segs, cleaned, i, false)
-					}
-				} else {
-					if len(cleaned) > 0 {
-						appendSegmentOptimized(segs, cleaned, i, true)
-					}
-				}
-				continue
-			}
-
-			// if we have a plural parent, wrap it in quotes.
-			if i > 0 && segs[i-1] != "" && segs[i-1][len(segs[i-1])-1] == 's' {
-				if i == 2 { // ignore first segment.
-					cleaned = append(cleaned, segs[i])
-					continue
-				}
-
-				// Use string builder for plural wrapping
-				var pluralBuilder strings.Builder
-				pluralBuilder.Grow(len(cleaned[len(cleaned)-1]) + len(segs[i]) + 4)
-				pluralBuilder.WriteString(cleaned[len(cleaned)-1])
-				pluralBuilder.WriteString("['")
-				pluralBuilder.WriteString(segs[i])
-				pluralBuilder.WriteString("']")
-				cleaned[len(cleaned)-1] = pluralBuilder.String()
-				continue
-			}
-
-			cleaned = append(cleaned, segs[i])
-		}
-	}
-
-	// use single string builder for final assembly.
 	// note: we do NOT replace # with $ here. the leading # from JSON Pointer notation
-	// (e.g., "#/components/...") is already stripped when we split by "/", and any #
+	// (e.g., "#/components/...") is dropped by the leading-segment rule, and any #
 	// characters within component names (e.g., "async_search.submit#wait_for_completion_timeout")
 	// should be preserved literally in the JSONPath query. see issue #485.
-	var finalBuilder strings.Builder
-	if len(cleaned) > 1 {
-		// Estimate final size
-		totalLen := 0
-		for _, seg := range cleaned {
-			totalLen += len(seg)
-		}
-		finalBuilder.Grow(totalLen + len(cleaned) + 5) // segments + dots + $ + potential extra .
+	var b strings.Builder
+	b.Grow(len(id) + 16)
+	b.WriteString("$.")
+	elements := 0
 
-		finalBuilder.WriteByte('$')
-		for i, segment := range cleaned {
-			if i > 0 {
-				finalBuilder.WriteByte('.')
-			}
-			finalBuilder.WriteString(segment)
-		}
-	} else {
-		// Handle single segment case
-		if len(cleaned) == 1 {
-			finalBuilder.Grow(len(cleaned[0]) + 5)
-			finalBuilder.WriteString("$.")
-			finalBuilder.WriteString(cleaned[0])
+	// the plural-parent rule reads the previous segment as transformed by its own
+	// iteration (bracket-wrapped segments end in ']', stripped segments may shrink),
+	// so track what the previous segment ended up as, not what it started as.
+	prevNonEmpty := false
+	prevEndsInS := false
+
+	pos := 0
+	for i := 0; pos <= len(id); i++ {
+		var seg string
+		if next := strings.IndexByte(id[pos:], '/'); next >= 0 {
+			seg = id[pos : pos+next]
+			pos += next + 1
 		} else {
-			finalBuilder.WriteString("$.")
+			seg = id[pos:]
+			pos = len(id) + 1
 		}
+
+		if seg == "" {
+			prevNonEmpty = false
+			prevEndsInS = false
+			continue
+		}
+		isLast := i == lastIndex
+
+		if !isPathChar(seg) {
+			t := seg
+			if strings.Contains(t, "~1") {
+				t = strings.ReplaceAll(t, "~1", "/")
+			}
+			if strings.ContainsRune(t, '%') {
+				t, _ = url.QueryUnescape(t)
+			}
+			// the transformed segment is bracket-wrapped: never empty, ends in ']'.
+			prevNonEmpty = true
+			prevEndsInS = false
+			if i == 0 && !isLast {
+				// a leading non-path segment (like the '#' of a JSON Pointer) is dropped.
+				continue
+			}
+			if elements == 0 {
+				elements++ // becomes the first element, no separator needed
+			}
+			b.WriteString("['")
+			b.WriteString(t)
+			b.WriteString("']")
+			continue
+		}
+
+		// strip out any backslashes
+		if idContainsHash && strings.Contains(seg, `\`) {
+			t := strings.ReplaceAll(seg, `\`, "")
+			if elements > 0 {
+				b.WriteByte('.')
+			}
+			b.WriteString(t)
+			elements++
+			prevNonEmpty = t != ""
+			prevEndsInS = t != "" && t[len(t)-1] == 's'
+			continue
+		}
+
+		if intVal, isNum := parseSmallUint(seg); isNum {
+			// an index with no preceding element is dropped.
+			if elements > 0 {
+				if intVal <= 99 {
+					b.WriteByte('[')
+					b.WriteString(seg)
+					b.WriteByte(']')
+				} else {
+					b.WriteString("['")
+					b.WriteString(seg)
+					b.WriteString("']")
+				}
+			}
+			prevNonEmpty = true
+			prevEndsInS = false
+			continue
+		}
+
+		// if we have a plural parent, wrap it in quotes.
+		if i > 0 && prevNonEmpty && prevEndsInS {
+			prevNonEmpty = true
+			prevEndsInS = seg[len(seg)-1] == 's'
+			if i == 2 { // ignore first segment.
+				if elements > 0 {
+					b.WriteByte('.')
+				}
+				b.WriteString(seg)
+				elements++
+				continue
+			}
+			b.WriteString("['")
+			b.WriteString(seg)
+			b.WriteString("']")
+			continue
+		}
+
+		if elements > 0 {
+			b.WriteByte('.')
+		}
+		b.WriteString(seg)
+		elements++
+		prevNonEmpty = true
+		prevEndsInS = seg[len(seg)-1] == 's'
 	}
 
-	replaced := finalBuilder.String()
-
-	// Ensure proper format
-	if len(replaced) > 0 {
-		if len(replaced) > 1 && replaced[1] != '.' {
-			// Insert period after $
-			var dotBuilder strings.Builder
-			dotBuilder.Grow(len(replaced) + 1)
-			dotBuilder.WriteByte(replaced[0]) // $
-			dotBuilder.WriteByte('.')         // .
-			dotBuilder.WriteString(replaced[1:])
-			replaced = dotBuilder.String()
-		}
-	}
-	return name, replaced
+	return name, b.String()
 }
 
 // ConvertComponentIdIntoPath will convert a JSON Path into a component ID
@@ -1226,26 +1280,20 @@ func DetermineWhitespaceLength(input string) int {
 }
 
 // CheckForMergeNodes will check the top level of the schema for merge nodes. If any are found, then the merged nodes
-// will be appended to the end of the rest of the nodes in the schema.
+// will be expanded into the current mapping while preserving local-key precedence.
 // Note: this is a destructive operation, so the in-memory node structure will be modified
 func CheckForMergeNodes(node *yaml.Node) {
 	if node == nil {
 		return
 	}
-	total := len(node.Content)
-	for i := 0; i < total; i++ {
-		mn := node.Content[i]
-		if i%2 == 0 {
-			if mn.Tag == "!!merge" {
-				an := node.Content[i+1].Alias
-				if an != nil {
-					node.Content = append(node.Content, an.Content...) // append the merged nodes
-					total = len(node.Content)
-					i += 2
-				}
-			}
-		}
+	if !hasMergeKeys(node.Content) {
+		return
 	}
+	expanded := expandMergeContent(node, make(map[*yaml.Node]struct{}))
+	if len(expanded) == 0 {
+		return
+	}
+	node.Content = expanded
 }
 
 // IsExternalRef returns true if the reference string points to an external resource

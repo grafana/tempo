@@ -2,17 +2,38 @@ package combiner
 
 import (
 	"fmt"
+	"strings"
+
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level" //nolint:all //deprecated
+	spanpruningprocessor "github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanpruningprocessor"
 
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/model/trace"
+	"github.com/grafana/tempo/pkg/spanpruning"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-func NewTypedTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceRedactor TraceRedactor) GRPCCombiner[*tempopb.TraceByIDResponse] {
-	return NewTraceByIDV2(maxBytes, marshalingFormat, traceRedactor).(GRPCCombiner[*tempopb.TraceByIDResponse])
+// TraceFilter runs on a complete trace and applies a filter to it.
+type TraceFilter interface {
+	Process(t *tempopb.Trace) (*tempopb.Trace, error)
 }
 
-func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceRedactor TraceRedactor) Combiner {
+// TraceByIDV2Options holds optional post-processing configuration for the v2 trace combiner.
+type TraceByIDV2Options struct {
+	// SpanPruningConfig holds processor configuration when span pruning is active. nil = off.
+	SpanPruningConfig *spanpruningprocessor.Config
+	// Logger is used to log non-fatal pruning errors.
+	Logger log.Logger
+	// TraceFilter, when set, restricts the trace to the spans matching a TraceQL filter.
+	TraceFilter TraceFilter
+}
+
+func NewTypedTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceRedactor TraceRedactor, opts TraceByIDV2Options) GRPCCombiner[*tempopb.TraceByIDResponse] {
+	return NewTraceByIDV2(maxBytes, marshalingFormat, traceRedactor, opts).(GRPCCombiner[*tempopb.TraceByIDResponse])
+}
+
+func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceRedactor TraceRedactor, opts TraceByIDV2Options) Combiner {
 	combiner := trace.NewCombiner(maxBytes, true)
 	var partialTrace bool
 	metricsCombiner := NewTraceByIDMetricsCombiner()
@@ -42,12 +63,62 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceR
 					return nil, err
 				}
 			}
+
+			// filter before pruning so the TraceQL filter matches on real spans, not summary spans.
+			var traceFiltered bool
+			if opts.TraceFilter != nil {
+				before := countTraceSpans(traceResult)
+				filtered, err := opts.TraceFilter.Process(traceResult)
+				if err != nil {
+					return nil, err
+				}
+				if filtered == nil {
+					// a TraceFilter may return nil, treat it as empty.
+					filtered = &tempopb.Trace{}
+				}
+				// a q filter that dropped spans returns a subset, not the full trace - flag it for the status below.
+				traceFiltered = countTraceSpans(filtered) < before
+				traceResult = filtered
+			}
+
+			// Pruning runs even on a partial trace (see partialTrace/combiner.IsPartialTrace below):
+			// reducing the size of an already-oversized partial trace is still valuable, and the
+			// resulting summary spans are simply scoped to whatever spans made it into the partial result.
+			pruneStatus := spanpruning.StatusNotPruned
+			if opts.SpanPruningConfig != nil {
+				pruned, status, err := spanpruning.PruneTrace(opts.SpanPruningConfig, traceResult)
+				if err != nil {
+					if opts.Logger != nil {
+						level.Error(opts.Logger).Log("msg", "span pruning failed, returning unpruned trace", "err", err)
+					}
+				} else {
+					traceResult = pruned
+					pruneStatus = status
+				}
+			}
+
 			resp.Trace = traceResult
+			// metrics count bytes inspected to pull the whole trace, which filtering only trims from the response.
 			resp.Metrics = metricsCombiner.Metrics
 
+			// PARTIAL doubles as "not the full trace": the size limit truncated it, the q filter dropped
+			// spans, pruning summarized it, or any mix, so surface every reason that applies.
+			var messages []string
 			if partialTrace || combiner.IsPartialTrace() {
+				messages = append(messages, fmt.Sprintf("Trace exceeds maximum size of %d bytes, a partial trace is returned", maxBytes))
+			}
+			if traceFiltered {
+				messages = append(messages, "Trace filtered, only a subset of spans matching the filter is returned")
+			}
+			switch pruneStatus {
+			case spanpruning.StatusPrunedOnWrite:
+				messages = append(messages, "Trace was already pruned before it reached Tempo; this is the complete trace Tempo has stored")
+			case spanpruning.StatusPrunedOnRead:
+				messages = append(messages, "Trace was pruned by Tempo while serving this request; the original spans remain in storage and can be retrieved by querying again with span pruning disabled")
+			}
+			if len(messages) > 0 {
 				resp.Status = tempopb.PartialStatus_PARTIAL
-				resp.Message = fmt.Sprintf("Trace exceeds maximum size of %d bytes, a partial trace is returned", maxBytes)
+				resp.Message = strings.Join(messages, "; ")
 			}
 
 			return resp, nil
@@ -57,4 +128,16 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceR
 	}
 	initHTTPCombiner(gc, marshalingFormat)
 	return gc
+}
+
+// countTraceSpans returns the total span count across the trace, used to detect whether the q filter
+// dropped any spans.
+func countTraceSpans(t *tempopb.Trace) int {
+	n := 0
+	for _, rs := range t.ResourceSpans {
+		for _, ss := range rs.ScopeSpans {
+			n += len(ss.Spans)
+		}
+	}
+	return n
 }

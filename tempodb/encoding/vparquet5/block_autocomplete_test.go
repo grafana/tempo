@@ -771,7 +771,8 @@ func TestFetchTagValues(t *testing.T) {
 				distinctValues  = collector.NewDistinctValue(1_000_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 				autocompleteReq = traceql.FetchTagValuesRequest{
 					TagName: tag,
-					ConditionGroups: [][]traceql.Condition{append(req.Conditions,
+					ConditionGroups: [][]traceql.Condition{append(
+						req.Conditions,
 						traceql.Condition{
 							Attribute: tagAtrr,
 							Op:        traceql.OpNone,
