@@ -1,11 +1,14 @@
 package registry
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/require"
 )
@@ -102,6 +105,31 @@ func TestDrainSanitizer_DisabledMode(t *testing.T) {
 	result := sanitizer.Sanitize(lbls2)
 	require.Equal(t, "GET /api/users/456", result.Get("span_name"))
 	require.Equal(t, lbls2, result)
+}
+
+func TestDrainSanitizer_DisabledTenantNeverRegistersMetrics(t *testing.T) {
+	const tenant = "test-drain-sanitizer-disabled-tenant"
+	s := NewDrainSanitizer(tenant, func(string) string { return SpanNameSanitizationDisabled }, 15*time.Minute)
+
+	for i := range 10 {
+		s.Sanitize(labels.FromStrings("span_name", fmt.Sprintf("GET /api/x/%d", i)))
+	}
+
+	// check the metric and assert
+	for _, vec := range []prometheus.Collector{metricPostSanitizationDemand, metricTotalSpansSanitized} {
+		ch := make(chan prometheus.Metric)
+		go func() {
+			vec.Collect(ch)
+			close(ch)
+		}()
+		for m := range ch {
+			var g io_prometheus_client.Metric
+			require.NoError(t, m.Write(&g))
+			for _, lbl := range g.GetLabel() {
+				require.NotEqual(t, tenant, lbl.GetValue(), "disabled tenant should never register a sanitizer metric")
+			}
+		}
+	}
 }
 
 func TestDrainSanitizer_NilClusterHandling(t *testing.T) {
