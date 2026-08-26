@@ -222,7 +222,7 @@
             alert: 'TempoLiveStorePartitionLagWarning',
             expr: |||
               max by (%s, partition, group) (avg_over_time(tempo_ingest_group_partition_lag_seconds{namespace=~"%s", container="%s"}[6m])) > %d
-            ||| % [$._config.group_by_cluster, $._config.namespace, $._config.jobs.live_store, $._config.alerts.live_store_partition_lag_warning_seconds],
+            ||| % [$._config.group_by_cluster, $._config.namespace, $._config.jobs.live_store, $._config.alerts.live_store_partition_lag_warning_seconds],  // trufflehog:ignore - config field name, not a credential
             'for': '5m',
             labels: {
               severity: 'warning',
