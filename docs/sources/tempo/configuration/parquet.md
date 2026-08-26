@@ -12,7 +12,7 @@ This format is required for tags-based search as well as [TraceQL](../../traceql
 The columnar block format improves search performance and enables an ecosystem of tools, including [Tempo CLI](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/tempo_cli/#analyse-blocks), to access the underlying trace data.
 
 Starting in Tempo 3.1, Tempo writes new blocks in `vParquet5` by default.
-Existing `vParquet4` blocks remain readable.
+Existing `vParquet4` and `vParquet3` blocks remain readable.
 No data migration is required.
 
 ## Considerations
@@ -26,8 +26,10 @@ As soon as a block format version is enabled, Tempo starts writing data in that 
 ## Block format versions
 
 {{< admonition type="warning" >}}
-The `v2` and `vParquet3` block formats have been removed in Tempo 3.0.
-Use `vParquet5` (default) or `vParquet4`. 
+The `v2` block format has been removed in Tempo 3.0.
+`vParquet3` is deprecated.
+Tempo still reads existing `vParquet3` blocks.
+Write new blocks in `vParquet5` (default) or `vParquet4`.
 {{< /admonition >}}
 
 Only Parquet-based formats are supported.

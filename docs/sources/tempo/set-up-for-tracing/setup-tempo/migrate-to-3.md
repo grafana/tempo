@@ -6,7 +6,7 @@ weight: 520
 aliases:
   - ../migrate-to-3/
 topicType: task
-versionDate: 2026-02-25
+versionDate: 2026-08-25
 ---
 
 # Migrate from Tempo 2.x to 3.0
@@ -32,12 +32,12 @@ Running two Tempo deployments in parallel increases infrastructure costs for the
 
 Confirm the following before you start:
 
-- Your Tempo 2.x deployment uses **vParquet4 or later** as the block format.
-  Tempo 3.0 doesn't support vParquet3 or earlier.
-  If you're using an older format, upgrade your block format before migrating.
+- Your Tempo 2.x deployment writes **vParquet4 or later**.
+  `vParquet3` is deprecated.
+  Tempo 3.x still reads existing vParquet3 blocks, so you don't need to convert them before migrating.
+  If your configuration still specifies `vParquet3`, upgrade the write format before migrating.
   Refer to [Change the block format version](/docs/tempo/<TEMPO_VERSION>/configuration/parquet/#change-the-block-format-version).
   Tempo 3.1 writes new blocks as vParquet5 by default.
-  Existing vParquet4 blocks remain readable; you don't need to convert them.
 - **Microservices mode only**: You have a running **Kafka-compatible system** (for example, Apache Kafka or Redpanda). Monolithic mode does not require Kafka.
 - You have access to the **same object storage** bucket or container used by your 2.x deployment.
 - If you're running **scalable monolithic mode** (SSB), plan to switch to either monolithic or microservices mode. SSB has been removed in Tempo 3.0.
