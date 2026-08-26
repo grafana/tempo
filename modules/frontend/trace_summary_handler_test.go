@@ -29,6 +29,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// traceTestBase offsets fixture timestamps off zero: a start of 0 is an unset
+// OTLP timestamp and is treated as unmeasurable by the summarizer.
+const traceTestBase = uint64(1_700_000_000_000_000_000)
+
 func traceSummaryTestTrace() *tempopb.Trace {
 	traceID := []byte{0xab, 0xc1, 0x23}
 	rootSpanID := []byte{0, 0, 0, 0, 0, 0, 0, 1}
@@ -49,8 +53,8 @@ func traceSummaryTestTrace() *tempopb.Trace {
 								SpanId:            rootSpanID,
 								Name:              "root-op",
 								Kind:              tracev1.Span_SPAN_KIND_SERVER,
-								StartTimeUnixNano: 0,
-								EndTimeUnixNano:   100,
+								StartTimeUnixNano: traceTestBase + 0,
+								EndTimeUnixNano:   traceTestBase + 100,
 								Status:            &tracev1.Status{Code: tracev1.Status_STATUS_CODE_OK},
 							},
 							{
@@ -59,8 +63,8 @@ func traceSummaryTestTrace() *tempopb.Trace {
 								ParentSpanId:      rootSpanID,
 								Name:              "child-op",
 								Kind:              tracev1.Span_SPAN_KIND_CLIENT,
-								StartTimeUnixNano: 10,
-								EndTimeUnixNano:   50,
+								StartTimeUnixNano: traceTestBase + 10,
+								EndTimeUnixNano:   traceTestBase + 50,
 								Status:            &tracev1.Status{Code: tracev1.Status_STATUS_CODE_OK},
 							},
 						},
@@ -95,8 +99,8 @@ func zipkinDualIDTestTrace() *tempopb.Trace {
 						SpanId:            rootSpanID,
 						Name:              "root-op",
 						Kind:              tracev1.Span_SPAN_KIND_SERVER,
-						StartTimeUnixNano: 0,
-						EndTimeUnixNano:   120,
+						StartTimeUnixNano: traceTestBase + 0,
+						EndTimeUnixNano:   traceTestBase + 120,
 						Status:            &tracev1.Status{Code: tracev1.Status_STATUS_CODE_OK},
 					},
 				}}},
@@ -114,8 +118,8 @@ func zipkinDualIDTestTrace() *tempopb.Trace {
 						ParentSpanId:      rootSpanID,
 						Name:              "call",
 						Kind:              tracev1.Span_SPAN_KIND_CLIENT,
-						StartTimeUnixNano: 10,
-						EndTimeUnixNano:   90,
+						StartTimeUnixNano: traceTestBase + 10,
+						EndTimeUnixNano:   traceTestBase + 90,
 						Status:            &tracev1.Status{Code: tracev1.Status_STATUS_CODE_OK},
 					},
 				}}},
@@ -135,8 +139,8 @@ func zipkinDualIDTestTrace() *tempopb.Trace {
 						ParentSpanId:      rootSpanID,
 						Name:              "handle",
 						Kind:              tracev1.Span_SPAN_KIND_SERVER,
-						StartTimeUnixNano: 15,
-						EndTimeUnixNano:   95,
+						StartTimeUnixNano: traceTestBase + 15,
+						EndTimeUnixNano:   traceTestBase + 95,
 						Status:            &tracev1.Status{Code: tracev1.Status_STATUS_CODE_OK},
 					},
 				}}},
@@ -154,8 +158,8 @@ func zipkinDualIDTestTrace() *tempopb.Trace {
 						ParentSpanId:      sharedSpanID,
 						Name:              "do-work",
 						Kind:              tracev1.Span_SPAN_KIND_INTERNAL,
-						StartTimeUnixNano: 20,
-						EndTimeUnixNano:   80,
+						StartTimeUnixNano: traceTestBase + 20,
+						EndTimeUnixNano:   traceTestBase + 80,
 						Status:            &tracev1.Status{Code: tracev1.Status_STATUS_CODE_OK},
 					},
 				}}},
@@ -191,7 +195,7 @@ func TestTraceSummaryHandler_ZipkinDualIDTrace_GoesThroughDeduperBeforeSummarize
 
 	require.Equal(t, http.StatusOK, resp.Code)
 
-	var summary tracesummary.Summary
+	var summary tracesummary.TraceOverview
 	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &summary))
 
 	require.Equal(t, 4, summary.SpanCount)
@@ -312,7 +316,7 @@ func TestTraceSummaryHandlerReturnsSummary(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.Code)
 	require.Equal(t, api.HeaderAcceptJSON, resp.Header().Get(api.HeaderContentType))
 
-	var summary tracesummary.Summary
+	var summary tracesummary.TraceOverview
 	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &summary))
 	require.Equal(t, "checkout", summary.RootService)
 	require.Equal(t, 2, summary.SpanCount)
@@ -408,7 +412,7 @@ func TestTraceSummaryHandlerPartialTraceStillSummarized(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, resp.Code)
 
-	var summary tracesummary.Summary
+	var summary tracesummary.TraceOverview
 	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &summary))
 	require.Equal(t, 2, summary.SpanCount)
 	require.Equal(t, "checkout", summary.RootService)
