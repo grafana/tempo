@@ -464,7 +464,11 @@ func (h *nativeHistogram) nativeHistograms(appender storage.Appender, lbls label
 func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs int64, s *nativeHistogramSeries) error {
 	if s.isNew() {
 		endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
-		_, err := appender.Append(0, s.countLabels, endOfLastMinuteMs, 0)
+		_, err := appender.Append(0, s.sumLabels, endOfLastMinuteMs, 0)
+		if err != nil {
+			return err
+		}
+		_, err = appender.Append(0, s.countLabels, endOfLastMinuteMs, 0)
 		if err != nil {
 			return err
 		}

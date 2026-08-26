@@ -575,7 +575,7 @@ func TestServiceGraphs_histogramModesEmitValuesAndExemplars(t *testing.T) {
 
 			wantSamples := 2 // request counter initialization and current value
 			if tt.wantClassic {
-				wantSamples = 23
+				wantSamples = 26
 			}
 			wantHistograms := 0
 			if tt.wantNative {

@@ -152,6 +152,7 @@ func TestManagedRegistry_histogram(t *testing.T) {
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "histogram_count", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 0),
 		newSample(map[string]string{"__name__": "histogram_count", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 1, 1.0),
+		newSample(map[string]string{"__name__": "histogram_sum", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 0),
 		newSample(map[string]string{"__name__": "histogram_sum", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 1, 1.0),
 		newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-1", "__metrics_gen_instance": mustGetHostname(), "le": "1"}, 0, 0),
 		newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-1", "__metrics_gen_instance": mustGetHostname(), "le": "1"}, 1, 1.0),
@@ -371,6 +372,7 @@ func TestManagedRegistry_maxLabelNameLength(t *testing.T) {
 		newSample(map[string]string{"__name__": "counter", "very_len": "very_", "__metrics_gen_instance": mustGetHostname()}, 1, 1.0),
 		newSample(map[string]string{"__name__": "histogram_count", "another_": "anoth", "__metrics_gen_instance": mustGetHostname()}, 0, 0),
 		newSample(map[string]string{"__name__": "histogram_count", "another_": "anoth", "__metrics_gen_instance": mustGetHostname()}, 1, 1.0),
+		newSample(map[string]string{"__name__": "histogram_sum", "another_": "anoth", "__metrics_gen_instance": mustGetHostname()}, 0, 0),
 		newSample(map[string]string{"__name__": "histogram_sum", "another_": "anoth", "__metrics_gen_instance": mustGetHostname()}, 1, 1.0),
 		newSample(map[string]string{"__name__": "histogram_bucket", "another_": "anoth", "__metrics_gen_instance": mustGetHostname(), "le": "1"}, 0, 0),
 		newSample(map[string]string{"__name__": "histogram_bucket", "another_": "anoth", "__metrics_gen_instance": mustGetHostname(), "le": "1"}, 1, 1.0),
@@ -1090,6 +1092,7 @@ func TestManagedRegistry_borrowedLabelsSurviveScratchReuse(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1),
 		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 0),
 		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1),
+		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 0),
 		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "__metrics_gen_instance": mustGetHostname(), "le": "1"}, 0, 0),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "__metrics_gen_instance": mustGetHostname(), "le": "1"}, 0, 1),
