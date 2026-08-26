@@ -821,12 +821,12 @@ Parameters:
 
 The response is a JSON object containing:
 
-- `traceId`, `rootService`, `rootSpanName`, `durationNanos`, `spanCount`, `errorCount`
+- `traceId`, `rootService`, `rootSpanName`, `durationNanos`, `spanCount`, `errorSpanCount`
 - `criticalPath`: the root-to-leaf chain of spans following, at each level, whichever child ends latest. Each
   entry carries its `attributes` and a `selfDurationNanos`. Because every span on the path nests inside the one
   above it, the wall durations decline only slightly from hop to hop; `selfDurationNanos` is what identifies
   which hop actually spent the time.
-- `services`: per-service span count, error count, and two durations. `durationNanos` is the sum of that
+- `services`: per-service span count, `errorSpanCount`, and two durations. `durationNanos` is the sum of that
   service's span durations and is therefore inclusive of time spent in child spans (including children belonging
   to other services), so summing it across services can far exceed the trace `durationNanos`.
   `selfDurationNanos` excludes time already covered by child spans and is the field to rank services by.
@@ -841,6 +841,10 @@ attribute a span to whatever invoked it without fetching the full trace.
 Self time is computed per span as its own duration minus the time covered by its direct children, where the
 children's intervals are unioned rather than summed — so a span that fans out to concurrent children is not
 reported as having spent no time of its own. Self times are per-span and do not sum to the trace duration.
+
+Spans whose timestamps are unusable — an unset (zero) start, or an end before the start — contribute zero
+duration rather than distorting the totals, so a single badly instrumented span cannot report the trace as
+having taken decades.
 
 Nanosecond fields (`durationNanos`, `selfDurationNanos`, `startTimeUnixNano`) are encoded as JSON strings, not
 numbers. They are 64-bit values that exceed the range a JSON number represents exactly in JavaScript clients.

@@ -6,20 +6,24 @@ package tracesummary
 // This matches the protobuf JSON convention Tempo's trace endpoints already
 // follow for 64-bit fields.
 
-// Summary is a condensed, human-readable view of a trace: its root, overall
-// duration, critical path, per-service breakdown, and the spans most likely
-// to matter for triage (slowest spans, error spans).
-type Summary struct {
-	TraceID       string             `json:"traceId"`
-	RootService   string             `json:"rootService"`
-	RootSpanName  string             `json:"rootSpanName"`
-	DurationNanos int64              `json:"durationNanos,string"`
-	SpanCount     int                `json:"spanCount"`
-	ErrorCount    int                `json:"errorCount"`
-	CriticalPath  []PathSpan         `json:"criticalPath"`
-	Services      []ServiceBreakdown `json:"services"`
-	SlowestSpans  []SpanSummary      `json:"slowestSpans"`
-	ErrorSpans    []ErrorSpanSummary `json:"errorSpans"`
+// TraceOverview is a condensed, human-readable view of a trace: its root,
+// overall duration, critical path, per-service breakdown, and the spans most
+// likely to matter for triage (slowest spans, error spans).
+//
+// Named to stay distinct from tracediff's TraceSummary, which is a compact
+// per-side scalar rollup used only as an input to a trace comparison — not a
+// general-purpose single-trace summary.
+type TraceOverview struct {
+	TraceID        string             `json:"traceId"`
+	RootService    string             `json:"rootService"`
+	RootSpanName   string             `json:"rootSpanName"`
+	DurationNanos  int64              `json:"durationNanos,string"`
+	SpanCount      int                `json:"spanCount"`
+	ErrorSpanCount int                `json:"errorSpanCount"`
+	CriticalPath   []PathSpan         `json:"criticalPath"`
+	Services       []ServiceBreakdown `json:"services"`
+	SlowestSpans   []SpanSummary      `json:"slowestSpans"`
+	ErrorSpans     []ErrorSpanSummary `json:"errorSpans"`
 }
 
 // PathSpan is a span on the trace's critical path, in root-to-leaf order.
@@ -47,7 +51,7 @@ type PathSpan struct {
 type ServiceBreakdown struct {
 	Service           string `json:"service"`
 	SpanCount         int    `json:"spanCount"`
-	ErrorCount        int    `json:"errorCount"`
+	ErrorSpanCount    int    `json:"errorSpanCount"`
 	DurationNanos     int64  `json:"durationNanos,string"`
 	SelfDurationNanos int64  `json:"selfDurationNanos,string"`
 }

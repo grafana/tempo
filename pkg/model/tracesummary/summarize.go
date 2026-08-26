@@ -6,16 +6,15 @@ import (
 	"sort"
 
 	modeltrace "github.com/grafana/tempo/pkg/model/trace"
+	"github.com/grafana/tempo/pkg/model/tracediff"
 	"github.com/grafana/tempo/pkg/tempopb"
-	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
 )
 
 const (
-	serviceNameAttribute = "service.name"
-	childOfRefTypeKey    = "opentracing.ref_type"
-	childOfRefTypeValue  = "child_of"
+	childOfRefTypeKey   = "opentracing.ref_type"
+	childOfRefTypeValue = "child_of"
 
 	maxSlowestSpans = 5
 	maxErrorSpans   = 5
@@ -29,40 +28,41 @@ type resolvedSpan struct {
 	service string
 }
 
-// Summarize computes a condensed Summary over an assembled trace: root
+// Summarize computes a condensed TraceOverview over an assembled trace: root
 // span, overall duration, critical path, per-service breakdown, top-5
 // slowest spans and first-5 error spans.
 //
 // A nil trace is a caller error and returns an error. A trace with no spans
-// is a valid (if unusual) input and returns a zero-value Summary with no
-// error.
-func Summarize(trace *tempopb.Trace) (*Summary, error) {
+// is a valid (if unusual) input and returns a zero-value TraceOverview with
+// no error.
+func Summarize(trace *tempopb.Trace) (*TraceOverview, error) {
 	if trace == nil {
 		return nil, errors.New("tracesummary: trace is nil")
 	}
 
 	spans := flattenSpans(trace)
 	if len(spans) == 0 {
-		return &Summary{}, nil
+		return &TraceOverview{}, nil
 	}
 
 	byID := indexSpansByID(spans)
 	root := findRoot(spans)
 	children := buildChildrenIndex(spans, byID)
 	self := selfDurations(spans, children)
+	reach := subtreeEnds(spans, children)
 	minStart, maxEnd := traceBounds(spans)
 
-	summary := &Summary{
-		TraceID:       util.TraceIDToHexString(root.span.GetTraceId()),
-		RootService:   root.service,
-		RootSpanName:  root.span.GetName(),
-		DurationNanos: durationBetween(minStart, maxEnd),
-		SpanCount:     len(spans),
-		ErrorCount:    countErrors(spans),
-		CriticalPath:  criticalPath(root, children, self),
-		Services:      serviceBreakdown(spans, self),
-		SlowestSpans:  slowestSpans(spans, self),
-		ErrorSpans:    errorSpans(spans),
+	summary := &TraceOverview{
+		TraceID:        util.TraceIDToHexString(root.span.GetTraceId()),
+		RootService:    root.service,
+		RootSpanName:   root.span.GetName(),
+		DurationNanos:  durationBetween(minStart, maxEnd),
+		SpanCount:      len(spans),
+		ErrorSpanCount: countErrors(spans),
+		CriticalPath:   criticalPath(root, children, self, reach),
+		Services:       serviceBreakdown(spans, self),
+		SlowestSpans:   slowestSpans(spans, self),
+		ErrorSpans:     errorSpans(spans),
 	}
 
 	return summary, nil
@@ -71,7 +71,7 @@ func Summarize(trace *tempopb.Trace) (*Summary, error) {
 func flattenSpans(trace *tempopb.Trace) []*resolvedSpan {
 	var spans []*resolvedSpan
 	for _, rs := range trace.GetResourceSpans() {
-		resourceService := attributeString(rs.GetResource().GetAttributes(), serviceNameAttribute)
+		resourceService := tracediff.AttributeString(rs.GetResource().GetAttributes(), tracediff.ServiceNameAttribute)
 		for _, ss := range rs.GetScopeSpans() {
 			for _, span := range ss.GetSpans() {
 				if span == nil {
@@ -91,7 +91,7 @@ func resolveService(span *tracev1.Span, resourceService string) string {
 	if resourceService != "" {
 		return resourceService
 	}
-	return attributeString(span.GetAttributes(), serviceNameAttribute)
+	return tracediff.AttributeString(span.GetAttributes(), tracediff.ServiceNameAttribute)
 }
 
 // indexSpansByID maps a span's own ID to every span sharing that ID. Zipkin
@@ -205,15 +205,31 @@ func lessByStartThenID(a, b *tracev1.Span) bool {
 	return util.SpanIDToHexString(a.GetSpanId()) < util.SpanIDToHexString(b.GetSpanId())
 }
 
+// hasUsableTimestamps reports whether a span's timestamps can be measured. A
+// start of 0 is unset — OTLP start times are non-zero — and treating it as the
+// epoch would report a duration of decades against a real end time, letting one
+// badly instrumented span poison the whole trace's numbers.
+func hasUsableTimestamps(span *tracev1.Span) bool {
+	start := span.GetStartTimeUnixNano()
+	return start > 0 && span.GetEndTimeUnixNano() >= start
+}
+
+// traceBounds returns the trace's wall-clock envelope across spans with usable
+// timestamps. Spans without them contribute nothing rather than dragging the
+// envelope back to the epoch.
 func traceBounds(spans []*resolvedSpan) (minStart, maxEnd uint64) {
-	minStart = spans[0].span.GetStartTimeUnixNano()
-	maxEnd = spans[0].span.GetEndTimeUnixNano()
-	for _, s := range spans[1:] {
-		if st := s.span.GetStartTimeUnixNano(); st < minStart {
-			minStart = st
+	var found bool
+	for _, s := range spans {
+		if !hasUsableTimestamps(s.span) {
+			continue
 		}
-		if et := s.span.GetEndTimeUnixNano(); et > maxEnd {
-			maxEnd = et
+		start := s.span.GetStartTimeUnixNano()
+		if !found || start < minStart {
+			minStart = start
+			found = true
+		}
+		if end := s.span.GetEndTimeUnixNano(); end > maxEnd {
+			maxEnd = end
 		}
 	}
 	return minStart, maxEnd
@@ -227,6 +243,9 @@ func durationBetween(start, end uint64) int64 {
 }
 
 func spanDuration(span *tracev1.Span) int64 {
+	if !hasUsableTimestamps(span) {
+		return 0
+	}
 	return durationBetween(span.GetStartTimeUnixNano(), span.GetEndTimeUnixNano())
 }
 
@@ -263,6 +282,9 @@ func exclusiveDuration(parent *resolvedSpan, kids []*resolvedSpan) int64 {
 
 	intervals := make([][2]uint64, 0, len(kids))
 	for _, k := range kids {
+		if !hasUsableTimestamps(k.span) {
+			continue
+		}
 		start := k.span.GetStartTimeUnixNano()
 		end := k.span.GetEndTimeUnixNano()
 		if start < windowStart {
@@ -314,6 +336,15 @@ func isLaterEnd(a, b *tracev1.Span) bool {
 	return lessByStartThenID(a, b)
 }
 
+// reachesLater reports whether a's subtree extends later than b's, falling back
+// to the spans' own end times when both branches reach the same instant.
+func reachesLater(a, b *resolvedSpan, reach map[*resolvedSpan]uint64) bool {
+	if reach[a] != reach[b] {
+		return reach[a] > reach[b]
+	}
+	return isLaterEnd(a.span, b.span)
+}
+
 // buildChildrenIndex maps each span to its direct children, resolving
 // zipkin-style duplicate span IDs the same way lookupParent does.
 func buildChildrenIndex(spans []*resolvedSpan, byID map[uint64][]*resolvedSpan) map[*resolvedSpan][]*resolvedSpan {
@@ -328,10 +359,68 @@ func buildChildrenIndex(spans []*resolvedSpan, byID map[uint64][]*resolvedSpan) 
 	return children
 }
 
+// subtreeEnds maps each span to the latest end time anywhere in its subtree,
+// including its own. Computed with an iterative post-order walk so a deep
+// trace can't overflow the stack; a back edge (cycle) is simply not folded in,
+// which leaves the traversal finite.
+func subtreeEnds(spans []*resolvedSpan, children map[*resolvedSpan][]*resolvedSpan) map[*resolvedSpan]uint64 {
+	const (
+		unvisited = iota
+		inProgress
+		done
+	)
+
+	state := make(map[*resolvedSpan]int, len(spans))
+	end := make(map[*resolvedSpan]uint64, len(spans))
+
+	for _, start := range spans {
+		if state[start] == done {
+			continue
+		}
+		stack := []*resolvedSpan{start}
+		for len(stack) > 0 {
+			cur := stack[len(stack)-1]
+			switch state[cur] {
+			case done:
+				stack = stack[:len(stack)-1]
+			case inProgress:
+				// Children have been resolved by now; fold them in.
+				var latest uint64
+				if hasUsableTimestamps(cur.span) {
+					latest = cur.span.GetEndTimeUnixNano()
+				}
+				for _, k := range children[cur] {
+					if state[k] == done && end[k] > latest {
+						latest = end[k]
+					}
+				}
+				end[cur] = latest
+				state[cur] = done
+				stack = stack[:len(stack)-1]
+			default:
+				state[cur] = inProgress
+				for _, k := range children[cur] {
+					if state[k] == unvisited {
+						stack = append(stack, k)
+					}
+				}
+			}
+		}
+	}
+	return end
+}
+
 // criticalPath walks down from the root, at each level descending into the
-// direct child whose span ends latest (tie-break: earliest start, then
-// smallest hex span ID), until it reaches a span with no children.
-func criticalPath(root *resolvedSpan, children map[*resolvedSpan][]*resolvedSpan, self map[*tracev1.Span]int64) []PathSpan {
+// child whose subtree reaches latest, until it reaches a span with no children.
+//
+// The choice is made on the subtree's latest end rather than the direct child's
+// own end time. Picking the child that itself ends latest is greedy and can
+// walk away from the branch that actually determines the trace duration: a
+// child may finish early while a descendant of it — detached or async work
+// outliving its parent — runs on well past every sibling. Ties fall back to the
+// spans' own end times, then earliest start and smallest hex span ID, so the
+// result stays deterministic regardless of combiner merge order.
+func criticalPath(root *resolvedSpan, children map[*resolvedSpan][]*resolvedSpan, self map[*tracev1.Span]int64, reach map[*resolvedSpan]uint64) []PathSpan {
 	var chain []*resolvedSpan
 	visited := make(map[*resolvedSpan]struct{}, len(children)+1)
 
@@ -350,7 +439,7 @@ func criticalPath(root *resolvedSpan, children map[*resolvedSpan][]*resolvedSpan
 
 		next := kids[0]
 		for _, k := range kids[1:] {
-			if isLaterEnd(k.span, next.span) {
+			if reachesLater(k, next, reach) {
 				next = k
 			}
 		}
@@ -367,7 +456,7 @@ func criticalPath(root *resolvedSpan, children map[*resolvedSpan][]*resolvedSpan
 			StartTimeUnixNano: s.span.GetStartTimeUnixNano(),
 			DurationNanos:     spanDuration(s.span),
 			SelfDurationNanos: self[s.span],
-			Attributes:        attributesMap(s.span.GetAttributes()),
+			Attributes:        tracediff.AttributesMap(s.span.GetAttributes()),
 		}
 	}
 	return out
@@ -375,10 +464,10 @@ func criticalPath(root *resolvedSpan, children map[*resolvedSpan][]*resolvedSpan
 
 func serviceBreakdown(spans []*resolvedSpan, self map[*tracev1.Span]int64) []ServiceBreakdown {
 	type acc struct {
-		spanCount     int
-		errorCount    int
-		durationNanos int64
-		selfNanos     int64
+		spanCount      int
+		errorSpanCount int
+		durationNanos  int64
+		selfNanos      int64
 	}
 
 	stats := map[string]*acc{}
@@ -392,7 +481,7 @@ func serviceBreakdown(spans []*resolvedSpan, self map[*tracev1.Span]int64) []Ser
 		}
 		a.spanCount++
 		if isError(s.span) {
-			a.errorCount++
+			a.errorSpanCount++
 		}
 		a.durationNanos += spanDuration(s.span)
 		a.selfNanos += self[s.span]
@@ -405,7 +494,7 @@ func serviceBreakdown(spans []*resolvedSpan, self map[*tracev1.Span]int64) []Ser
 		out = append(out, ServiceBreakdown{
 			Service:           svc,
 			SpanCount:         a.spanCount,
-			ErrorCount:        a.errorCount,
+			ErrorSpanCount:    a.errorSpanCount,
 			DurationNanos:     a.durationNanos,
 			SelfDurationNanos: a.selfNanos,
 		})
@@ -472,7 +561,7 @@ func slowestSpans(spans []*resolvedSpan, self map[*tracev1.Span]int64) []SpanSum
 			StartTimeUnixNano: s.span.GetStartTimeUnixNano(),
 			DurationNanos:     spanDuration(s.span),
 			SelfDurationNanos: self[s.span],
-			Attributes:        attributesMap(s.span.GetAttributes()),
+			Attributes:        tracediff.AttributesMap(s.span.GetAttributes()),
 		}
 	}
 	return out
@@ -498,7 +587,7 @@ func errorSpans(spans []*resolvedSpan) []ErrorSpanSummary {
 			StartTimeUnixNano: s.span.GetStartTimeUnixNano(),
 			DurationNanos:     spanDuration(s.span),
 			StatusMessage:     s.span.GetStatus().GetMessage(),
-			Attributes:        attributesMap(s.span.GetAttributes()),
+			Attributes:        tracediff.AttributesMap(s.span.GetAttributes()),
 		}
 	}
 	return out
@@ -512,50 +601,4 @@ func countErrors(spans []*resolvedSpan) int {
 		}
 	}
 	return count
-}
-
-func attributeString(attrs []*commonv1.KeyValue, key string) string {
-	for _, attr := range attrs {
-		if attr.GetKey() == key {
-			return attr.GetValue().GetStringValue()
-		}
-	}
-	return ""
-}
-
-func attributesMap(attrs []*commonv1.KeyValue) map[string]any {
-	out := make(map[string]any, len(attrs))
-	for _, attr := range attrs {
-		out[attr.GetKey()] = anyValue(attr.GetValue())
-	}
-	return out
-}
-
-func anyValue(value *commonv1.AnyValue) any {
-	if value == nil {
-		return nil
-	}
-	switch v := value.GetValue().(type) {
-	case *commonv1.AnyValue_StringValue:
-		return v.StringValue
-	case *commonv1.AnyValue_BoolValue:
-		return v.BoolValue
-	case *commonv1.AnyValue_IntValue:
-		return v.IntValue
-	case *commonv1.AnyValue_DoubleValue:
-		return v.DoubleValue
-	case *commonv1.AnyValue_ArrayValue:
-		values := v.ArrayValue.GetValues()
-		out := make([]any, 0, len(values))
-		for _, item := range values {
-			out = append(out, anyValue(item))
-		}
-		return out
-	case *commonv1.AnyValue_KvlistValue:
-		return attributesMap(v.KvlistValue.GetValues())
-	case *commonv1.AnyValue_BytesValue:
-		return v.BytesValue
-	default:
-		return nil
-	}
 }

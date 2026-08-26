@@ -15,6 +15,12 @@ import (
 
 var testTraceID = []byte("trace-id-0000001")
 
+// testBase offsets fixture timestamps off zero. A start of 0 is an unset
+// timestamp in OTLP and is deliberately treated as unmeasurable (see
+// hasUsableTimestamps), so fixtures need realistic wall-clock values. Offsets
+// passed to testSpan stay relative, so durations read the same as written.
+const testBase = uint64(1_700_000_000_000_000_000)
+
 func stringAttribute(key, value string) *commonv1.KeyValue {
 	return &commonv1.KeyValue{
 		Key:   key,
@@ -29,8 +35,8 @@ func testSpan(spanID, parentID, name string, kind tracev1.Span_SpanKind, start, 
 		ParentSpanId:      []byte(parentID),
 		Name:              name,
 		Kind:              kind,
-		StartTimeUnixNano: start,
-		EndTimeUnixNano:   end,
+		StartTimeUnixNano: testBase + start,
+		EndTimeUnixNano:   testBase + end,
 		Status:            &tracev1.Status{Code: status, Message: statusMsg},
 	}
 }
@@ -75,7 +81,7 @@ func TestSummarize_SimpleMultiLevelTrace(t *testing.T) {
 	require.Equal(t, "POST /checkout", got.RootSpanName)
 	require.Equal(t, int64(100), got.DurationNanos)
 	require.Equal(t, 4, got.SpanCount)
-	require.Equal(t, 0, got.ErrorCount)
+	require.Equal(t, 0, got.ErrorSpanCount)
 
 	var pathNames []string
 	for _, p := range got.CriticalPath {
@@ -91,9 +97,9 @@ func TestSummarize_SimpleMultiLevelTrace(t *testing.T) {
 	// Self time excludes what child spans already account for. The root runs
 	// 0-60 with children spanning 20-90 (clipped to 60) and 30-45, so 40ns of
 	// it is covered and 20ns is its own.
-	require.Equal(t, ServiceBreakdown{Service: "checkout", SpanCount: 1, ErrorCount: 0, DurationNanos: 60, SelfDurationNanos: 20}, byService["checkout"])
-	require.Equal(t, ServiceBreakdown{Service: "inventory", SpanCount: 2, ErrorCount: 0, DurationNanos: 145, SelfDurationNanos: 80}, byService["inventory"])
-	require.Equal(t, ServiceBreakdown{Service: "payment", SpanCount: 1, ErrorCount: 0, DurationNanos: 15, SelfDurationNanos: 15}, byService["payment"])
+	require.Equal(t, ServiceBreakdown{Service: "checkout", SpanCount: 1, ErrorSpanCount: 0, DurationNanos: 60, SelfDurationNanos: 20}, byService["checkout"])
+	require.Equal(t, ServiceBreakdown{Service: "inventory", SpanCount: 2, ErrorSpanCount: 0, DurationNanos: 145, SelfDurationNanos: 80}, byService["inventory"])
+	require.Equal(t, ServiceBreakdown{Service: "payment", SpanCount: 1, ErrorSpanCount: 0, DurationNanos: 15, SelfDurationNanos: 15}, byService["payment"])
 }
 
 func TestSummarize_NormalNestedTraceFollowsLastFinishingBranch(t *testing.T) {
@@ -165,7 +171,7 @@ func TestSummarize_NoErrors(t *testing.T) {
 
 	got, err := Summarize(trace)
 	require.NoError(t, err)
-	require.Equal(t, 0, got.ErrorCount)
+	require.Equal(t, 0, got.ErrorSpanCount)
 	require.Empty(t, got.ErrorSpans)
 }
 
@@ -185,7 +191,7 @@ func TestSummarize_TruncatesToFive(t *testing.T) {
 
 	require.Len(t, got.SlowestSpans, 5)
 	require.Len(t, got.ErrorSpans, 5)
-	require.Equal(t, 8, got.ErrorCount)
+	require.Equal(t, 8, got.ErrorSpanCount)
 
 	for i := 1; i < len(got.SlowestSpans); i++ {
 		require.GreaterOrEqual(t, got.SlowestSpans[i-1].DurationNanos, got.SlowestSpans[i].DurationNanos)
@@ -254,13 +260,15 @@ func expectedSpanIDs(spans []*resolvedSpan, k int) []string {
 // numbers they would not: an epoch-nanosecond timestamp is past 2^53, where a
 // JavaScript client silently rounds.
 func TestSummary_NanosMarshalAsJSONStrings(t *testing.T) {
-	const startNano = uint64(1763000000123456789)
+	// testSpan adds testBase, so the wire value is testBase + this offset.
+	const offsetNano = uint64(123456789)
+	const startNano = testBase + offsetNano
 
 	trace := &tempopb.Trace{
 		ResourceSpans: []*tracev1.ResourceSpans{
 			resourceSpans(
 				"svc",
-				testSpan("root", "", "root-op", tracev1.Span_SPAN_KIND_SERVER, startNano, startNano+1500, tracev1.Status_STATUS_CODE_ERROR, "boom"),
+				testSpan("root", "", "root-op", tracev1.Span_SPAN_KIND_SERVER, offsetNano, offsetNano+1500, tracev1.Status_STATUS_CODE_ERROR, "boom"),
 			),
 		},
 	}
@@ -270,10 +278,10 @@ func TestSummary_NanosMarshalAsJSONStrings(t *testing.T) {
 
 	body, err := json.Marshal(got)
 	require.NoError(t, err)
-	require.Contains(t, string(body), `"startTimeUnixNano":"1763000000123456789"`)
+	require.Contains(t, string(body), `"startTimeUnixNano":"1700000000123456789"`)
 	require.Contains(t, string(body), `"durationNanos":"1500"`)
 
-	var round Summary
+	var round TraceOverview
 	require.NoError(t, json.Unmarshal(body, &round))
 	require.Equal(t, int64(1500), round.DurationNanos)
 	require.Equal(t, startNano, round.CriticalPath[0].StartTimeUnixNano)
@@ -381,6 +389,31 @@ func TestSummary_CarriesAttributesAndParentage(t *testing.T) {
 	require.Empty(t, got.SlowestSpans[1].ParentSpanID)
 }
 
+// A span with an unset start time must contribute nothing rather than dragging
+// the envelope back to the epoch — otherwise one badly instrumented span
+// reports the trace as having taken decades.
+func TestSummarize_UnsetStartTimeDoesNotPoisonDurations(t *testing.T) {
+	root := testSpan("root", "", "root-op", tracev1.Span_SPAN_KIND_SERVER, 0, 500, tracev1.Status_STATUS_CODE_OK, "")
+	bad := testSpan("bad", "root", "buggy", tracev1.Span_SPAN_KIND_CLIENT, 100, 400, tracev1.Status_STATUS_CODE_OK, "")
+	bad.StartTimeUnixNano = 0 // unset, as buggy instrumentation emits it
+
+	trace := &tempopb.Trace{ResourceSpans: []*tracev1.ResourceSpans{resourceSpans("svc", root, bad)}}
+
+	got, err := Summarize(trace)
+	require.NoError(t, err)
+
+	require.Equal(t, 2, got.SpanCount)
+	require.Equal(t, int64(500), got.DurationNanos)
+
+	// It is counted as a span but measured as zero, everywhere.
+	require.Equal(t, int64(500), got.Services[0].DurationNanos)
+	require.Equal(t, 2, got.Services[0].SpanCount)
+	for _, s := range got.SlowestSpans {
+		require.LessOrEqual(t, s.DurationNanos, int64(500))
+		require.LessOrEqual(t, s.SelfDurationNanos, int64(500))
+	}
+}
+
 func TestSummarize_FewerThanFive(t *testing.T) {
 	trace := &tempopb.Trace{
 		ResourceSpans: []*tracev1.ResourceSpans{
@@ -464,7 +497,7 @@ func TestSummarize_DuplicateSpanIDZipkinPattern(t *testing.T) {
 		},
 	}
 
-	var got *Summary
+	var got *TraceOverview
 	var err error
 	require.NotPanics(t, func() {
 		got, err = Summarize(trace)
@@ -509,6 +542,40 @@ func TestSummarize_RootCandidateExcludedByChildOfLink(t *testing.T) {
 	require.Equal(t, "real-op", got.RootSpanName)
 }
 
+// Descending into whichever direct child ends latest is greedy: a branch can
+// finish early while a descendant of it runs on past every sibling. The walk
+// must choose on how far a branch reaches, not on where its first hop stops.
+func TestCriticalPath_FollowsBranchThatReachesLatest(t *testing.T) {
+	trace := &tempopb.Trace{
+		ResourceSpans: []*tracev1.ResourceSpans{
+			resourceSpans(
+				"svc",
+				testSpan("root", "", "root-op", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK, ""),
+				// Ends first of the two branches, but spawns work that outlives
+				// everything else in the trace.
+				testSpan("early", "root", "returns-early", tracev1.Span_SPAN_KIND_CLIENT, 10, 40, tracev1.Status_STATUS_CODE_OK, ""),
+				testSpan("detached", "early", "async-worker", tracev1.Span_SPAN_KIND_INTERNAL, 20, 200, tracev1.Status_STATUS_CODE_OK, ""),
+				// Ends later than "early" and would win a greedy comparison.
+				testSpan("late", "root", "ends-later", tracev1.Span_SPAN_KIND_CLIENT, 10, 90, tracev1.Status_STATUS_CODE_OK, ""),
+			),
+		},
+	}
+
+	got, err := Summarize(trace)
+	require.NoError(t, err)
+
+	var names []string
+	for _, p := range got.CriticalPath {
+		names = append(names, p.Name)
+	}
+	// Greedy on direct-child end time would stop at ["root-op", "ends-later"].
+	require.Equal(t, []string{"root-op", "returns-early", "async-worker"}, names)
+
+	// The path ends on the latest-ending span in the trace, which is what the
+	// trace duration is measured to.
+	require.Equal(t, int64(200), got.DurationNanos)
+}
+
 func TestCriticalPath_CycleGuardTerminates(t *testing.T) {
 	// Malformed data: A's parent is B and B's parent is A, a mutual (2-node)
 	// cycle with no true root. findRoot falls back to the earliest-starting
@@ -525,7 +592,7 @@ func TestCriticalPath_CycleGuardTerminates(t *testing.T) {
 		},
 	}
 
-	var got *Summary
+	var got *TraceOverview
 	var err error
 	require.NotPanics(t, func() {
 		got, err = Summarize(trace)
@@ -553,7 +620,7 @@ func TestCriticalPath_SelfReferentialSpanTerminates(t *testing.T) {
 		},
 	}
 
-	var got *Summary
+	var got *TraceOverview
 	var err error
 	require.NotPanics(t, func() {
 		got, err = Summarize(trace)
