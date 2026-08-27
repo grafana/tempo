@@ -1,0 +1,11 @@
+change_type: enhancement
+
+component: query-frontend
+
+note: Add an `op` label to `tempo_query_frontend_queue_duration_seconds` so queue time can be broken down by query type
+
+issues: []
+
+subtext:
+
+user: zhxiaogg
