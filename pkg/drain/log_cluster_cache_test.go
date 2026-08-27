@@ -1,6 +1,9 @@
 package drain
 
 import (
+	"runtime"
+	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -169,4 +172,113 @@ func TestLogClusterCache_Values(t *testing.T) {
 	assert.True(t, ids[1])
 	assert.True(t, ids[2])
 	assert.True(t, ids[3])
+}
+
+func TestLogClusterCache_TakeDeleted(t *testing.T) {
+	evictions := prometheus.NewCounter(prometheus.CounterOpts{Name: "evictions"})
+	expired := prometheus.NewCounter(prometheus.CounterOpts{Name: "expired"})
+	cache := newLogClusterCache(time.Hour, 10, evictions, expired)
+	cluster := &LogCluster{id: 1}
+
+	cache.Put(cluster)
+	cache.Put(cluster)
+	require.Empty(t, cache.TakeDeleted())
+
+	cache.Remove(cluster.id)
+	require.Equal(t, []int{cluster.id}, cache.TakeDeleted())
+	require.Empty(t, cache.TakeDeleted())
+}
+
+func TestLogClusterCache_DeletionCallbackDoesNotRetainCache(t *testing.T) {
+	collected := make(chan struct{})
+	func() {
+		evictions := prometheus.NewCounter(prometheus.CounterOpts{Name: "evictions"})
+		expired := prometheus.NewCounter(prometheus.CounterOpts{Name: "expired"})
+		cache := newLogClusterCache(time.Hour, 10, evictions, expired)
+		cache.Put(&LogCluster{id: 1})
+		runtime.AddCleanup(cache.cache, func(done chan struct{}) {
+			close(done)
+		}, collected)
+	}()
+
+	require.Eventually(t, func() bool {
+		runtime.GC()
+		select {
+		case <-collected:
+			return true
+		default:
+			return false
+		}
+	}, 5*time.Second, 10*time.Millisecond)
+}
+
+func TestLogClusterCache_TakeDeletedOverflow(t *testing.T) {
+	evictions := prometheus.NewCounter(prometheus.CounterOpts{Name: "evictions"})
+	expired := prometheus.NewCounter(prometheus.CounterOpts{Name: "expired"})
+	cache := newLogClusterCache(time.Hour, 1, evictions, expired)
+
+	for i := 1; i <= 10; i++ {
+		cache.Put(&LogCluster{id: i})
+	}
+	cache.cache.CleanUp()
+	deleted := cache.TakeDeleted()
+	require.NotEmpty(t, deleted)
+	for _, id := range deleted {
+		require.Nil(t, cache.GetQuietly(id))
+	}
+}
+
+func TestLogClusterCache_TakeDeletedExpiration(t *testing.T) {
+	evictions := prometheus.NewCounter(prometheus.CounterOpts{Name: "evictions"})
+	expired := prometheus.NewCounter(prometheus.CounterOpts{Name: "expired"})
+	cache := newLogClusterCache(time.Millisecond, 10, evictions, expired)
+	cache.Put(&LogCluster{id: 1})
+
+	var deleted []int
+	require.Eventually(t, func() bool {
+		cache.cache.CleanUp()
+		deleted = append(deleted, cache.TakeDeleted()...)
+		return slices.Contains(deleted, 1)
+	}, 5*time.Second, 10*time.Millisecond)
+}
+
+func TestLogClusterCache_TakeDeletedConcurrent(t *testing.T) {
+	const producers = 8
+	const deletionsPerProducer = 100
+	queue := &deletedClusterQueue{}
+	var producersWG sync.WaitGroup
+	producersWG.Add(producers)
+	for producer := range producers {
+		go func() {
+			defer producersWG.Done()
+			for i := range deletionsPerProducer {
+				queue.record(producer*deletionsPerProducer + i)
+			}
+		}()
+	}
+	done := make(chan struct{})
+	go func() {
+		producersWG.Wait()
+		close(done)
+	}()
+
+	collected := make(map[int]int, producers*deletionsPerProducer)
+	for {
+		for _, id := range queue.take() {
+			collected[id]++
+		}
+		select {
+		case <-done:
+			for _, id := range queue.take() {
+				collected[id]++
+			}
+			require.Len(t, collected, producers*deletionsPerProducer)
+			for _, count := range collected {
+				require.Equal(t, 1, count)
+			}
+			return
+		default:
+			runtime.Gosched()
+		}
+	}
 }

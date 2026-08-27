@@ -1,0 +1,9 @@
+change_type: enhancement
+component: metrics-generator
+note: Reduce span-name sanitizer CPU and allocations for repeated exact names
+issues: [7794]
+subtext: |
+  Drain now owns retained token bytes, reuses tokenizer state, removes stale candidates during matching,
+  and uses a bounded exact-match index keyed by complete span names for large leaves. Generated span-metric
+  labels and existing pattern fixtures are unchanged.
+user: carles-grafana

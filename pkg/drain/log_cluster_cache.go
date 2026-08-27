@@ -2,31 +2,72 @@ package drain
 
 import (
 	"iter"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/maypok86/otter/v2"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+type deletedClusterQueue struct {
+	mtx sync.Mutex
+	// Avoid taking mtx on every Train when no cache callback has run.
+	pending atomic.Bool
+	ids     []int
+}
+
 type logClusterCache struct {
-	cache *otter.Cache[int, *LogCluster]
+	cache   *otter.Cache[int, *LogCluster]
+	deleted *deletedClusterQueue
 }
 
 func newLogClusterCache(maxAge time.Duration, maxSize int, evictions prometheus.Counter, expired prometheus.Counter) *logClusterCache {
-	return &logClusterCache{
-		cache: otter.Must(&otter.Options[int, *LogCluster]{
-			MaximumSize:      maxSize,
-			ExpiryCalculator: otter.ExpiryAccessing[int, *LogCluster](maxAge),
-			OnAtomicDeletion: func(e otter.DeletionEvent[int, *LogCluster]) {
-				switch e.Cause {
-				case otter.CauseOverflow:
-					evictions.Inc()
-				case otter.CauseExpiration:
-					expired.Inc()
-				}
-			},
-		}),
+	// Otter retains this callback through its runtime cleanup argument. Keep the
+	// callback state separate so it cannot reach the public cache and prevent cleanup.
+	deleted := &deletedClusterQueue{}
+	c := &logClusterCache{deleted: deleted}
+	c.cache = otter.Must(&otter.Options[int, *LogCluster]{
+		MaximumSize:      maxSize,
+		ExpiryCalculator: otter.ExpiryAccessing[int, *LogCluster](maxAge),
+		OnAtomicDeletion: func(e otter.DeletionEvent[int, *LogCluster]) {
+			switch e.Cause {
+			case otter.CauseOverflow:
+				evictions.Inc()
+			case otter.CauseExpiration:
+				expired.Inc()
+			}
+			// Replacement keeps the same cluster ID active and must not
+			// invalidate its index entry.
+			if e.Cause != otter.CauseReplacement {
+				deleted.record(e.Key)
+			}
+		},
+	})
+	return c
+}
+
+func (q *deletedClusterQueue) record(id int) {
+	q.mtx.Lock()
+	q.ids = append(q.ids, id)
+	q.pending.Store(true)
+	q.mtx.Unlock()
+}
+
+func (q *deletedClusterQueue) take() []int {
+	if !q.pending.Load() {
+		return nil
 	}
+	q.mtx.Lock()
+	deleted := q.ids
+	q.ids = nil
+	q.pending.Store(false)
+	q.mtx.Unlock()
+	return deleted
+}
+
+func (c *logClusterCache) TakeDeleted() []int {
+	return c.deleted.take()
 }
 
 func (c *logClusterCache) Values() iter.Seq[*LogCluster] {
