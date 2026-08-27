@@ -822,10 +822,11 @@ Parameters:
 The response is a JSON object containing:
 
 - `traceId`, `rootService`, `rootSpanName`, `durationNanos`, `spanCount`, `errorSpanCount`
-- `criticalPath`: the root-to-leaf chain of spans following, at each level, whichever child ends latest. Each
-  entry carries its `attributes` and a `selfDurationNanos`. Because every span on the path nests inside the one
-  above it, the wall durations decline only slightly from hop to hop; `selfDurationNanos` is what identifies
-  which hop actually spent the time.
+- `criticalPath`: the root-to-leaf chain of spans following, at each level, whichever child's subtree reaches the
+  latest end time (not necessarily the child that itself ends latest — a detached or async descendant can keep
+  its branch on the path after the child span itself has finished). Each entry carries its `attributes` and a
+  `selfDurationNanos`. Because every span on the path nests inside the one above it, the wall durations decline
+  only slightly from hop to hop; `selfDurationNanos` is what identifies which hop actually spent the time.
 - `services`: per-service span count, `errorSpanCount`, and two durations. `durationNanos` is the sum of that
   service's span durations and is therefore inclusive of time spent in child spans (including children belonging
   to other services), so summing it across services can far exceed the trace `durationNanos`.

@@ -3,6 +3,7 @@ package tracesummary
 import (
 	"bytes"
 	"errors"
+	"math"
 	"sort"
 
 	modeltrace "github.com/grafana/tempo/pkg/model/trace"
@@ -208,10 +209,13 @@ func lessByStartThenID(a, b *tracev1.Span) bool {
 // hasUsableTimestamps reports whether a span's timestamps can be measured. A
 // start of 0 is unset — OTLP start times are non-zero — and treating it as the
 // epoch would report a duration of decades against a real end time, letting one
-// badly instrumented span poison the whole trace's numbers.
+// badly instrumented span poison the whole trace's numbers. A gap that doesn't
+// fit in int64 is likewise rejected, matching tracediff's hasValidDuration, so
+// the later uint64-to-int64 cast in durationBetween can't wrap negative.
 func hasUsableTimestamps(span *tracev1.Span) bool {
 	start := span.GetStartTimeUnixNano()
-	return start > 0 && span.GetEndTimeUnixNano() >= start
+	end := span.GetEndTimeUnixNano()
+	return start > 0 && end >= start && end-start <= math.MaxInt64
 }
 
 // traceBounds returns the trace's wall-clock envelope across spans with usable
