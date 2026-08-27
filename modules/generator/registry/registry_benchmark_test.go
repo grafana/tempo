@@ -18,12 +18,10 @@ import (
 // BenchmarkSpanMetricsPushSpans uses registry.TestRegistry, which ignores the
 // precomputed hash and stringifies labels, so it does not exercise this path.
 //
-// The variants toggle the sanitizer and per-label limiter so their per-span
-// cost is visible: the sanitizer strings.Clone's the span name on every
-// Sanitize call, while the limiter only clones a label name the first time it
-// is seen. The label set is identical every iteration, so after the first
-// iteration this measures the steady-state existing-series path (map hit, no
-// new-series allocation).
+// The variants toggle the sanitizer and per-label limiter so their steady-state
+// costs are visible. The fixed label set keeps the sanitizer on its existing
+// single-cluster path; BenchmarkDrain_CollapsedLeafExactMatch covers the new
+// exact index. The limiter has already cloned the label names it retains.
 func BenchmarkManagedRegistryBorrowPath(b *testing.B) {
 	variants := []struct {
 		name      string

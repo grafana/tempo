@@ -213,6 +213,19 @@ func TestDrain_Train_PatternEmergence(t *testing.T) {
 	require.NotEqual(t, pattern1, pattern2, "pattern should change after merging")
 }
 
+func TestDrain_TrainReleasesInputReferences(t *testing.T) {
+	d := New(t.Name(), DefaultConfig())
+	d.Train("GET /api/users/123/children/456")
+	d.Train("GET /api")
+
+	for _, token := range d.tokenBuffer[:cap(d.tokenBuffer)] {
+		require.Empty(t, token)
+	}
+	tokenizer := d.tokenizer.(*defaultTokenizer)
+	require.Empty(t, tokenizer.lexer.input)
+	require.Empty(t, tokenizer.lexer.token)
+}
+
 func TestDrain_ExactIndexHit(t *testing.T) {
 	d, lines, clusters := newCollapsedDrain(t, exactMatchIndexThreshold)
 	target := clusters[3]

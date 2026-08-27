@@ -6,6 +6,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var benchmarkTokenSink []string
+
 func TestLineTokenizer(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -125,4 +127,16 @@ func TestLineTokenizer(t *testing.T) {
 			require.Equal(t, test.expected, tokens)
 		})
 	}
+}
+
+func BenchmarkLineTokenizer(b *testing.B) {
+	tokenizer := &defaultTokenizer{}
+	input := "GET /api/users/123/children/456"
+	tokens := make([]string, 0, 16)
+
+	b.ReportAllocs()
+	for b.Loop() {
+		tokens = tokenizer.Tokenize(input, tokens)
+	}
+	benchmarkTokenSink = tokens
 }
