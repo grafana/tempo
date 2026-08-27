@@ -6,8 +6,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var benchmarkTokenSink []string
-
 func TestLineTokenizer(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -138,5 +136,4 @@ func BenchmarkLineTokenizer(b *testing.B) {
 	for b.Loop() {
 		tokens = tokenizer.Tokenize(input, tokens)
 	}
-	benchmarkTokenSink = tokens
 }

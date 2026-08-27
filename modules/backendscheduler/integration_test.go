@@ -60,7 +60,7 @@ func TestShardedIntegration(t *testing.T) {
 
 			testPersistenceAndRecovery(ctx, t, scheduler, cfg, store, limits, rr, ww)
 
-			testSubmitRedactionPersistence(ctx, t, scheduler, cfg, store, limits, rr, ww)
+			testSubmitRedactionPersistence(ctx, t, cfg, store, limits, rr, ww)
 		})
 	}
 }
@@ -124,12 +124,16 @@ func testJobOperations(ctx context.Context, t *testing.T, scheduler *BackendSche
 	t.Logf("Shard distribution stats: %+v", stats)
 }
 
-func testSubmitRedactionPersistence(ctx context.Context, t *testing.T, scheduler *BackendScheduler, cfg Config, store storage.Store, limits overrides.Interface, rr backend.RawReader, ww backend.RawWriter) {
+func testSubmitRedactionPersistence(ctx context.Context, t *testing.T, cfg Config, store storage.Store, limits overrides.Interface, rr backend.RawReader, ww backend.RawWriter) {
 	testTenant := "tenant-redact-persist"
 
 	// Write blocks and wait for the blocklist poll.
 	blockIDs := writeTenantBlocks(ctx, t, backend.NewWriter(ww), testTenant, 3)
 	time.Sleep(300 * time.Millisecond)
+
+	scheduler, err := New(cfg, store, limits, rr, ww)
+	require.NoError(t, err)
+	// Do not start providers: RedactionProvider would drain pending work before the snapshot.
 
 	resp, err := scheduler.SubmitRedaction(user.InjectOrgID(ctx, testTenant), &tempopb.SubmitRedactionRequest{
 		TraceIds: [][]byte{[]byte(uuid.New().String())},
@@ -141,10 +145,8 @@ func testSubmitRedactionPersistence(ctx context.Context, t *testing.T, scheduler
 	require.NoError(t, scheduler.work.FlushBatchesToLocal(ctx, scheduler.cfg.LocalWorkPath))
 	require.NoError(t, scheduler.work.FlushToLocal(ctx, scheduler.cfg.LocalWorkPath, nil))
 
-	// Reload into a new scheduler instance (simulating a restart).
-	// We load work + batches directly rather than calling starting() to avoid the
-	// race where the RedactionProvider goroutine drains pending jobs before we
-	// can assert on IsBlockBusy.
+	// Reload into another unstarted scheduler, simulating a restart without
+	// letting a provider drain pending jobs before the assertions.
 	newSched, err := New(cfg, store, limits, rr, ww)
 	require.NoError(t, err)
 	require.NoError(t, newSched.work.LoadFromLocal(ctx, cfg.LocalWorkPath))

@@ -52,7 +52,7 @@ func TestCompactionProvider(t *testing.T) {
 		writeTenantBlocks(ctx, t, backend.NewWriter(ww), testTenant, 5)
 	}
 
-	time.Sleep(100 * time.Millisecond)
+	store.PollNow(ctx)
 
 	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
@@ -215,7 +215,7 @@ func TestCompactionProvider_SkipsAllCompactionDuringRedaction(t *testing.T) {
 	defer store.Shutdown()
 
 	writeTenantBlocks(ctx, t, backend.NewWriter(ww), testTenant, 5)
-	time.Sleep(150 * time.Millisecond)
+	store.PollNow(ctx)
 
 	blockMetas := store.BlockMetas(testTenant)
 	require.GreaterOrEqual(t, len(blockMetas), 2, "need at least 2 blocks to mark pending")
@@ -292,7 +292,7 @@ func TestCompactionProvider_MeasureTenantsIgnoresTenantPending(t *testing.T) {
 	defer store.Shutdown()
 
 	writeTenantBlocks(ctx, t, backend.NewWriter(ww), testTenant, 5)
-	time.Sleep(150 * time.Millisecond)
+	store.PollNow(ctx)
 
 	w := work.New(work.Config{})
 	// Activate a redaction batch so TenantPending returns true.
@@ -340,7 +340,7 @@ func TestCompactionProvider_InFlightJobsPreventDuplicates(t *testing.T) {
 	// Push some data to one tenant - enough blocks to create multiple compaction jobs
 	writeTenantBlocks(ctx, t, backend.NewWriter(ww), tenant, 10)
 
-	time.Sleep(100 * time.Millisecond)
+	store.PollNow(ctx)
 
 	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
