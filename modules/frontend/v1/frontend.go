@@ -63,7 +63,7 @@ type Frontend struct {
 	queueLength       *prometheus.GaugeVec
 	discardedRequests *prometheus.CounterVec
 	numClients        prometheus.GaugeFunc
-	queueDuration     prometheus.Histogram
+	queueDuration     *prometheus.HistogramVec
 	actualBatchSize   prometheus.Histogram
 	batchWeight       *prometheus.HistogramVec
 }
@@ -83,6 +83,16 @@ func (r *request) Weight() int {
 
 func (r *request) OriginalContext() context.Context {
 	return r.request.Context()
+}
+
+// queryOp returns the query type used to label queue metrics. Every pipeline
+// stamps a shape via the weight middleware before sharding, so this is only
+// empty for requests built outside a pipeline.
+func queryOp(req pipeline.Request) string {
+	if t := req.QueryShape().Type; t != "" {
+		return t
+	}
+	return "unknown"
 }
 
 // New creates a new frontend. Frontend implements service, and must be started and stopped.
@@ -112,14 +122,14 @@ func New(cfg Config, log log.Logger, registerer prometheus.Registerer) (*Fronten
 			Name: "tempo_query_frontend_discarded_requests_total",
 			Help: "Total number of query requests discarded.",
 		}, []string{"user"}),
-		queueDuration: promauto.With(registerer).NewHistogram(prometheus.HistogramOpts{
+		queueDuration: promauto.With(registerer).NewHistogramVec(prometheus.HistogramOpts{
 			Name:                            "tempo_query_frontend_queue_duration_seconds",
 			Help:                            "Time spend by requests queued.",
 			Buckets:                         prometheus.DefBuckets,
 			NativeHistogramBucketFactor:     1.1,
 			NativeHistogramMaxBucketNumber:  100,
 			NativeHistogramMinResetDuration: 1 * time.Hour,
-		}),
+		}, []string{"op"}),
 		actualBatchSize: promauto.With(registerer).NewHistogram(prometheus.HistogramOpts{
 			Name:                            "tempo_query_frontend_actual_batch_size",
 			Help:                            "Batch size.",
@@ -241,7 +251,7 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 		for _, reqWrapper := range reqSlice {
 			req := reqWrapper.(*request)
 
-			f.queueDuration.Observe(time.Since(req.enqueueTime).Seconds())
+			f.queueDuration.WithLabelValues(queryOp(req.request)).Observe(time.Since(req.enqueueTime).Seconds())
 			req.queueSpan.End()
 
 			// only add if not expired

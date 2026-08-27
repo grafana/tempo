@@ -122,3 +122,35 @@ func TestProcessRequestBatchReuseRace(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 	require.GreaterOrEqual(t, srv.served, totalRequests)
 }
+
+func TestQueryOp(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		shape    pipeline.QueryShape
+		expected string
+	}{
+		{"traces", pipeline.QueryShape{Type: pipeline.QueryTypeTraces}, "traces"},
+		{"search", pipeline.QueryShape{Type: pipeline.QueryTypeSearch}, "search"},
+		{"metrics", pipeline.QueryShape{Type: pipeline.QueryTypeMetrics}, "metrics"},
+		{"metadata", pipeline.QueryShape{Type: pipeline.QueryTypeMetadata}, "metadata"},
+		{"unstamped", pipeline.QueryShape{}, "unknown"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := pipeline.NewHTTPRequest(httptest.NewRequest("GET", "/", nil))
+			req.SetQueryShape(tc.shape)
+
+			require.Equal(t, tc.expected, queryOp(req))
+		})
+	}
+}
+
+// TestQueryOpSurvivesSharding asserts the shape stamped on the parent request is
+// carried onto the sharded subrequests that are actually enqueued.
+func TestQueryOpSurvivesSharding(t *testing.T) {
+	parent := pipeline.NewHTTPRequest(httptest.NewRequest("GET", "/", nil))
+	parent.SetQueryShape(pipeline.QueryShape{Type: pipeline.QueryTypeSearch})
+
+	sub := parent.CloneFromHTTPRequest(httptest.NewRequest("GET", "/shard", nil))
+
+	require.Equal(t, "search", queryOp(sub))
+}
