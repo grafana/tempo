@@ -200,6 +200,9 @@ jobs:
       - name: Build tempo-cli
         run: make tempo-cli
 
+      - name: Verify packaged and example configs
+        run: make check-configs
+
   build-riscv64:
     name: Build (riscv64 cross-compilation)
     runs-on: ubuntu-24.04
