@@ -96,6 +96,27 @@ tempo-cli: ## Build tempo-cli
 tempo-vulture:
 	$(GO_ENV) go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-vulture-$(GOARCH) $(BUILD_INFO) ./cmd/tempo-vulture
 
+# tempo-v2.yaml and the nomad example are excluded on purpose - v2 targets an old release, nomad's README already flags it as unmaintained for 3.x.
+CONFIGS_TO_VERIFY = tools/packaging/tempo.yaml \
+	example/docker-compose/debug/tempo.yaml \
+	example/docker-compose/distributed/tempo.yaml \
+	example/docker-compose/multitenant/tempo.yaml \
+	example/docker-compose/single-binary/tempo.yaml \
+	example/docker-compose/migrate-to-3/tempo-v3.yaml
+
+.PHONY: check-configs
+check-configs: tempo ## Verify the packaged and example configs parse against the built binary
+	@fail=0; \
+	for f in $(CONFIGS_TO_VERIFY); do \
+		if ./bin/$(GOOS)/tempo-$(GOARCH) -config.file=$$f -config.verify=true -config.verify-errors-only=true; then \
+			echo "OK: $$f"; \
+		else \
+			echo "INVALID CONFIG: $$f"; \
+			fail=1; \
+		fi; \
+	done; \
+	exit $$fail
+
 .PHONY: exe  ## Build exe
 exe:
 	GOOS=linux make $(COMPONENT)
