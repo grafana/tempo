@@ -1,0 +1,12 @@
+change_type: bug_fix
+component: operations
+note: Remove deprecated `traces_storage` from the packaged config so the deb/rpm installs start cleanly
+issues: [7818]
+subtext: |
+  tempo 3.0.3's deb/rpm package ships /etc/tempo/config.yml with a
+  `metrics_generator.traces_storage` section. That field does not exist on
+  `generator.Config`, so startup fails with
+  `field traces_storage not found in type generator.Config` (yaml is parsed
+  strictly). The packaged config is also used by the single-binary example,
+  which does not contain this section.
+user: waterWang
