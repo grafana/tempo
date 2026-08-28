@@ -8,14 +8,14 @@ change_type: bug_fix
 component: tempo
 
 # A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
-note: Fix the deb/rpm packaged config, which crash-looped on install due to a stale field left over from the localblocks removal.
+note: Fix the packaged config for the deb/rpm.
 
 # (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
 # .chloggen/README.md.
 issues: []
 
 # (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
-subtext:
+subtext: Also adds CI validation and an errors-only flag for `-config.verify`.
 
 # The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
 user: electron0zero
