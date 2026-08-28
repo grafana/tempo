@@ -499,8 +499,7 @@ func (p *TCompactProtocol) ReadMapBegin(ctx context.Context) (keyType TType, val
 	valueType, _ = p.getTType(tCompactType(keyAndValueType & 0xf))
 
 	minElemSize := p.getMinSerializedSize(keyType) + p.getMinSerializedSize(valueType)
-	totalMinSize := size32 * minElemSize
-	err = checkSizeForProtocol(totalMinSize, p.cfg)
+	err = checkContainerSizeForProtocol(int64(size32), minElemSize, p.cfg)
 	if err != nil {
 		return
 	}
@@ -534,8 +533,7 @@ func (p *TCompactProtocol) ReadListBegin(ctx context.Context) (elemType TType, s
 	}
 
 	minElemSize := p.getMinSerializedSize(elemType)
-	totalMinSize := int32(size) * minElemSize
-	err = checkSizeForProtocol(totalMinSize, p.cfg)
+	err = checkContainerSizeForProtocol(int64(size), minElemSize, p.cfg)
 	if err != nil {
 		return
 	}
@@ -775,7 +773,7 @@ const maxVarint64Bytes = 10
 func (p *TCompactProtocol) readVarint64() (int64, error) {
 	shift := uint(0)
 	result := int64(0)
-	for rsize := 0; rsize < maxVarint64Bytes; rsize++ {
+	for range maxVarint64Bytes {
 		b, err := p.readByteDirect()
 		if err != nil {
 			return 0, err
