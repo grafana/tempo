@@ -357,7 +357,11 @@ type SeriesMapLabel struct {
 	Value StaticMapKey
 }
 
-type SeriesMapKey [maxGroupBys]SeriesMapLabel
+// One slot beyond maxGroupBys: batchMetricsEvaluator.Results reserves it for the
+// __query_fragment label it adds when a query is one arm of a math expression.
+const maxSeriesMapKeyLabels = maxGroupBys + 1
+
+type SeriesMapKey [maxSeriesMapKeyLabels]SeriesMapLabel
 
 // SeriesSet is a set of unique timeseries. They are mapped by the "Prometheus"-style
 // text description: {x="a",y="b"} for convenience.

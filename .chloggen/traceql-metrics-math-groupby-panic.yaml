@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: traceql
+note: Fixes a panic in TraceQL metrics-math queries (e.g. `(A) / (B)`) when a sub-query's `by()` clause uses the maximum number of group-by attributes.
+issues: []
+subtext:
+user: electron0zero

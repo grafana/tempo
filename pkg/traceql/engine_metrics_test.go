@@ -1659,6 +1659,119 @@ func TestScalarMath(t *testing.T) {
 	}
 }
 
+// TestMetricsMathGroupByBoundary checks math queries with a by() clause at the max group-by count
+// run without erroring or panicking, and fail with a clean error just past that max.
+func TestMetricsMathGroupByBoundary(t *testing.T) {
+	span4attrs := newMockSpan(nil).WithStartTime(uint64(1*time.Second)).
+		WithSpanString("a", "1").WithSpanString("b", "2").WithSpanString("c", "3").
+		WithSpanString("d", "4").WithDuration(uint64(1 * time.Second))
+	span5attrs := newMockSpan(nil).WithStartTime(uint64(1*time.Second)).
+		WithSpanString("a", "1").WithSpanString("b", "2").WithSpanString("c", "3").
+		WithSpanString("d", "4").WithSpanString("e", "5").WithDuration(128)
+
+	tcs := []struct {
+		name           string
+		query          string
+		in             []Span
+		wantCompileErr bool // true: query must fail to compile cleanly
+	}{
+		{
+			name:  "count_over_time at maxGroupBys (5)",
+			query: `({} | count_over_time() by (.a, .b, .c, .d, .e)) / ({ .a = "1" } | count_over_time() by (.a, .b, .c, .d, .e))`,
+			in:    []Span{span5attrs},
+		},
+		{
+			name:  "rate at maxGroupBys (5)",
+			query: `({} | rate() by (.a, .b, .c, .d, .e)) / ({ .a = "1" } | rate() by (.a, .b, .c, .d, .e))`,
+			in:    []Span{span5attrs},
+		},
+		{
+			name: "nested math: (total*k - success) / total * 100",
+			query: `(((({} | count_over_time() by (.a, .b, .c, .d, .e)) * 1.000000001) -` +
+				` ({ .a = "1" } | count_over_time() by (.a, .b, .c, .d, .e))) /` +
+				` ({} | count_over_time() by (.a, .b, .c, .d, .e))) * 100`,
+			in: []Span{span5attrs},
+		},
+		{
+			name:  "avg_over_time at maxGroupBys-1 (4)",
+			query: `({ } | avg_over_time(duration) by (.a, .b, .c, .d)) / ({ .a = "1" } | count_over_time() by (.a, .b, .c, .d))`,
+			in:    []Span{span4attrs},
+		},
+		{
+			name:  "histogram_over_time at maxGroupBys-1 (4)",
+			query: `({ } | histogram_over_time(duration) by (.a, .b, .c, .d)) / ({ .a = "1" } | count_over_time() by (.a, .b, .c, .d))`,
+			in:    []Span{span4attrs},
+		},
+		{
+			name:  "quantile_over_time at maxGroupBys-1 (4)",
+			query: `({ } | quantile_over_time(duration, 0.5) by (.a, .b, .c, .d)) / ({ .a = "1" } | count_over_time() by (.a, .b, .c, .d))`,
+			in:    []Span{span4attrs},
+		},
+		{
+			name:           "count_over_time over maxGroupBys (6), standalone",
+			query:          `{} | count_over_time() by (.a, .b, .c, .d, .e, .f)`,
+			wantCompileErr: true,
+		},
+		{
+			name:           "count_over_time over maxGroupBys (6), in math",
+			query:          `({} | count_over_time() by (.a, .b, .c, .d, .e, .f)) / ({} | count_over_time() by (.a, .b, .c, .d, .e, .f))`,
+			wantCompileErr: true,
+		},
+		{
+			name:           "avg_over_time over maxGroupBys-1 (5), in math",
+			query:          `({} | avg_over_time(duration) by (.a, .b, .c, .d, .e)) / ({} | count_over_time() by (.a, .b, .c, .d, .e))`,
+			wantCompileErr: true,
+		},
+		{
+			name:           "quantile_over_time over maxGroupBys-1 (5), in math",
+			query:          `({} | quantile_over_time(duration, 0.5) by (.a, .b, .c, .d, .e)) / ({} | count_over_time() by (.a, .b, .c, .d, .e))`,
+			wantCompileErr: true,
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			req := &tempopb.QueryRangeRequest{
+				Start: 1,
+				End:   uint64(3 * time.Second),
+				Step:  uint64(1 * time.Second),
+			}
+			req.Query = tc.query
+
+			e := NewEngine()
+			var eval MetricsEvaluator
+			var err error
+			// ensure no panic in all queries
+			require.NotPanics(t, func() {
+				eval, err = e.CompileMetricsQueryRange(req)
+			})
+
+			// invalid queries are rejected
+			if tc.wantCompileErr {
+				require.Error(t, err, "a by() clause over the max must be rejected at compile time")
+				return
+			}
+			// valid queries don't error
+			require.NoError(t, err)
+
+			// and execute and produce results without panic
+			batch, ok := eval.(*batchMetricsEvaluator)
+			require.True(t, ok)
+			require.Greater(t, len(batch.evals), 1, "query must compile to more than one sub-pipeline for this test")
+
+			for _, me := range batch.evals {
+				for _, s := range tc.in {
+					me.metricsPipeline.observe(s)
+				}
+			}
+
+			require.NotPanics(t, func() {
+				_ = batch.Results()
+			})
+		})
+	}
+}
+
 func TestCountOverTimeInstantNs(t *testing.T) {
 	// not rounded values to simulate real world data
 	start := 1*time.Second - 9*time.Nanosecond
@@ -3591,12 +3704,12 @@ func TestSimpleAggregatorExemplarLimit(t *testing.T) {
 			exemplars := make([]tempopb.Exemplar, tc.sendCount)
 			for i := range exemplars {
 				ts := startMs + uint64(i)*(endMs-startMs)/uint64(tc.sendCount)
-				exemplars[i] = tempopb.Exemplar{TimestampMs: int64(ts), Value: float64(i)} //nolint: gosec // G115
+				exemplars[i] = tempopb.Exemplar{TimestampMs: int64(ts), Value: float64(i)} // nolint: gosec // G115
 			}
 
 			agg.Combine([]*tempopb.TimeSeries{{
 				Labels:    []commonv1proto.KeyValue{{Key: "service", Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_StringValue{StringValue: "test"}}}},
-				Samples:   []tempopb.Sample{{TimestampMs: int64(startMs), Value: 1.0}}, //nolint: gosec // G115
+				Samples:   []tempopb.Sample{{TimestampMs: int64(startMs), Value: 1.0}}, // nolint: gosec // G115
 				Exemplars: exemplars,
 			}})
 
