@@ -1,0 +1,10 @@
+change_type: enhancement
+component: traceql
+note: Hardens TraceQL metrics queries so a series carrying more labels than the series key can hold degrades instead of crashing the querier.
+issues: []
+subtext: |
+  `Labels.MapKey` wrote into a fixed-size array without a bounds check, so any series
+  exceeding the key capacity panicked the querier mid-query. Query validation already
+  caps `by()` clauses so this is unreachable, but the invariant is enforced in several
+  places and a single gap crashed queriers in the past (#7831).
+user: stephaniehingtgen

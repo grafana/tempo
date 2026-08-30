@@ -12,6 +12,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	commonv1proto "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/util"
+	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1770,6 +1771,82 @@ func TestMetricsMathGroupByBoundary(t *testing.T) {
 			})
 		})
 	}
+}
+
+// TestLabelsMapKeyBounds checks MapKey never writes past the end of SeriesMapKey.
+// Query validation caps by() clauses so the overflow cases here are unreachable in
+// practice, but MapKey runs on every series in a querier and must not panic.
+func TestLabelsMapKeyBounds(t *testing.T) {
+	// labels builds n distinct labels, prefixed by the given names.
+	labels := func(n int, prefix ...string) Labels {
+		out := make(Labels, 0, n+len(prefix))
+		for _, p := range prefix {
+			out = append(out, Label{Name: p, Value: NewStaticString(p)})
+		}
+		for i := range n {
+			name := fmt.Sprintf("span.attr%d", i)
+			out = append(out, Label{Name: name, Value: NewStaticString(name)})
+		}
+		return out
+	}
+
+	tcs := []struct {
+		name string
+		in   Labels
+		want int // number of labels expected to occupy a slot in the key
+	}{
+		{"empty", nil, 0},
+		{"under the max", labels(maxSeriesMapKeyLabels - 1), maxSeriesMapKeyLabels - 1},
+		{"at the max", labels(maxSeriesMapKeyLabels), maxSeriesMapKeyLabels},
+		{"one over the max", labels(maxSeriesMapKeyLabels + 1), maxSeriesMapKeyLabels},
+		{"far over the max", labels(maxSeriesMapKeyLabels * 3), maxSeriesMapKeyLabels},
+		// __name__ is skipped, so it must not consume a slot.
+		{"at the max plus __name__", labels(maxSeriesMapKeyLabels, model.MetricNameLabel), maxSeriesMapKeyLabels},
+		{"over the max plus __name__", labels(maxSeriesMapKeyLabels+1, model.MetricNameLabel), maxSeriesMapKeyLabels},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			var key SeriesMapKey
+			require.NotPanics(t, func() {
+				key = tc.in.MapKey()
+			}, "MapKey must not panic on %d labels", len(tc.in))
+
+			var got int
+			for _, l := range key {
+				if l.Name != "" {
+					got++
+				}
+			}
+			require.Equal(t, tc.want, got, "occupied slots in the key")
+
+			// Labels that do fit are recorded in order, and __name__ is never recorded.
+			for i := 0; i < tc.want; i++ {
+				require.NotEqual(t, model.MetricNameLabel, key[i].Name)
+				require.Equal(t, fmt.Sprintf("span.attr%d", i), key[i].Name)
+			}
+		})
+	}
+}
+
+// TestLabelsMapKeyDistinguishesSeries checks that series differing only within the
+// key's capacity still map to distinct keys.
+func TestLabelsMapKeyDistinguishesSeries(t *testing.T) {
+	base := make(Labels, 0, maxSeriesMapKeyLabels)
+	for i := range maxSeriesMapKeyLabels {
+		base = append(base, Label{Name: fmt.Sprintf("span.attr%d", i), Value: NewStaticString("a")})
+	}
+
+	seen := map[SeriesMapKey]struct{}{}
+	for i := range maxSeriesMapKeyLabels {
+		other := make(Labels, len(base))
+		copy(other, base)
+		other[i] = Label{Name: other[i].Name, Value: NewStaticString("b")}
+		seen[other.MapKey()] = struct{}{}
+	}
+	seen[base.MapKey()] = struct{}{}
+
+	require.Len(t, seen, maxSeriesMapKeyLabels+1, "each distinct series must get its own key")
 }
 
 func TestCountOverTimeInstantNs(t *testing.T) {

@@ -326,6 +326,13 @@ func (ls Labels) MapKey() SeriesMapKey {
 		if l.Name == model.MetricNameLabel {
 			continue
 		}
+		if i == len(key) {
+			// Unreachable: MetricsAggregate.validate caps by() clauses so the group-by
+			// labels plus the reserved internal label always fit. Guarded anyway because
+			// a querier must not crash on a series that slips past validation; dropping
+			// the overflow can only merge series in a query that was already invalid.
+			break
+		}
 		key[i] = SeriesMapLabel{Name: l.Name, Value: l.Value.MapKey()}
 		i++
 	}
