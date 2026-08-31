@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: traceql
+note: Cache subtree analyses in `newBinaryOperation` to avoid O(n^3) parsing of long arithmetic chains.
+issues: [7815]
+subtext: Long left-associative arithmetic chains (e.g. hundreds of thousands of `+` terms) previously re-walked the whole AST subtree for `referencesSpan`/`validate`/`impliedType` on every bottom-up reduction. The results are now cached per node, turning cubic parse time into quadratic.
+user: waterWang
