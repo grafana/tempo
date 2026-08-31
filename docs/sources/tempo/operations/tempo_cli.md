@@ -989,7 +989,7 @@ Arguments:
 Options:
 
 - `--tenant <value>` **(required)** Tenant ID.
-- `--trace-id <value>` Trace ID to redact, in hex format. Specify multiple times to redact several traces in one request. Mutually exclusive with `--query`.
+- `--trace-id <value>` Trace ID to redact, in hex format. Repeat the flag for several traces in one request (`--trace-id=<ID> --trace-id=<ID>`, not comma-separated), up to 1000. Every job the redaction creates carries the whole list, so a longer list costs one copy per block; use `--query` instead. Mutually exclusive with `--query`.
 - `--query <value>` TraceQL query selecting the traces to redact. Mutually exclusive with `--trace-id`. Conditions may be joined with `&&` and `||`, and only `=` comparisons on `resource.*` and `span.*` attributes are accepted.
 - `--dry-run` Report how many traces match without rewriting any blocks (default: `false`).
 - `--start <value>` Start of the time window. Accepts `now`, a relative offset such as `now-7d`, or an RFC3339 timestamp. Must be given with `--end`, must be before `--end`, and cannot be combined with `--trace-id`. Omit both bounds to redact the whole tenant.
@@ -999,6 +999,10 @@ Options:
 - `--tls-ca <value>` Path to a PEM-encoded CA certificate file.
 
 Specify exactly one of `--trace-id` or `--query`.
+
+A tenant can have only one redaction in progress at a time, dry runs included.
+A submission made while an earlier one is still running, or still in its quiescence period, is rejected.
+A trace-ID list larger than the cap therefore has to be redacted as successive batches rather than several at once, which is another reason to prefer `--query`.
 
 On success, the command prints the batch ID and the number of jobs created:
 

@@ -113,6 +113,10 @@ func coveredRangeLabel(t time.Time, ok bool) string {
 	return t.UTC().Format(time.RFC3339)
 }
 
+// maxRedactionTraceIDs bounds the explicit trace-ID list on a submission: Next() copies the batch's
+// whole list onto every job, so dispatch cost is O(ids x blocks) out of a singleton scheduler.
+const maxRedactionTraceIDs = 1000
+
 // validateRedactionRequest rejects a submission the scheduler cannot honour, returning a gRPC status
 // error. Every check fails closed: on a redaction, a refused request destroys nothing while a
 // misinterpreted one cannot be undone.
@@ -130,6 +134,14 @@ func validateRedactionRequest(req *tempopb.SubmitRedactionRequest, querySel *tem
 		if err := validateRedactionQuery(querySel.Query); err != nil {
 			return status.Error(codes.InvalidArgument, err.Error())
 		}
+	}
+
+	// Checked after the selector XOR so a request that also sets a query is told about the more
+	// fundamental problem first.
+	if len(req.TraceIds) > maxRedactionTraceIDs {
+		return status.Errorf(codes.InvalidArgument,
+			"too many trace_ids: %d exceeds the limit of %d; every job dispatch carries the whole list, so use a query selector instead",
+			len(req.TraceIds), maxRedactionTraceIDs)
 	}
 
 	// Only DRY_RUN is checked downstream, so an unrecognised mode would fall through to a destructive
