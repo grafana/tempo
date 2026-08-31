@@ -314,12 +314,8 @@ func TestDrainSanitizer_FullSanitizedOutput(t *testing.T) {
 	}
 }
 
-// TestDrainSanitizer_BorrowedSpanNameNotRetained verifies that Sanitize does not
-// let drain retain token substrings that alias a reusable scratch buffer. drain
-// clones the token slice headers when it creates a cluster, but the bytes those
-// headers point at belong to the span name; if the span name aliases a pooled
-// scratch buffer (as CloseAndBorrowLabels produces) a later borrow that reuses
-// the buffer would corrupt the retained cluster tokens.
+// TestDrainSanitizer_BorrowedSpanNameNotRetained verifies that Drain owns token
+// bytes retained from a reusable scratch buffer.
 func TestDrainSanitizer_BorrowedSpanNameNotRetained(t *testing.T) {
 	s := newTestDrainSanitizer(SpanNameSanitizationEnabled)
 
@@ -334,11 +330,14 @@ func TestDrainSanitizer_BorrowedSpanNameNotRetained(t *testing.T) {
 	var borrowed labels.Labels
 	scratch.Overwrite(&borrowed)
 	s.Sanitize(borrowed)
+	clusters := s.drain.Clusters()
+	require.Len(t, clusters, 1)
+	cluster := clusters[0]
 
 	// Snapshot (owning a copy of) every token drain retained from the borrowed
 	// span name, so the comparison below is against the original bytes.
 	var snapshot []string
-	for _, c := range s.drain.Clusters() {
+	for _, c := range clusters {
 		for _, tok := range c.Tokens {
 			snapshot = append(snapshot, strings.Clone(tok))
 		}
@@ -360,4 +359,25 @@ func TestDrainSanitizer_BorrowedSpanNameNotRetained(t *testing.T) {
 		after = append(after, c.Tokens...)
 	}
 	require.Equal(t, snapshot, after, "drain retained tokens were corrupted by scratch-buffer reuse")
+
+	result := s.Sanitize(labels.FromStrings("span_name", "GET /alpha/bravo"))
+	require.Equal(t, "GET /alpha/bravo", result.Get("span_name"))
+	require.Equal(t, 2, cluster.Size)
+	require.Len(t, s.drain.Clusters(), 1)
+}
+
+func TestDrainSanitizer_TenantIsolation(t *testing.T) {
+	mode := func(string) string { return SpanNameSanitizationEnabled }
+	tenantA := NewDrainSanitizer(t.Name()+"/a", mode, 15*time.Minute)
+	tenantB := NewDrainSanitizer(t.Name()+"/b", mode, 15*time.Minute)
+
+	tenantA.Sanitize(labels.FromStrings("span_name", "GET /api/users/123"))
+	resultA := tenantA.Sanitize(labels.FromStrings("span_name", "GET /api/users/456"))
+	require.Equal(t, "GET /api/users/<_>", resultA.Get("span_name"))
+
+	resultB := tenantB.Sanitize(labels.FromStrings("span_name", "GET /api/users/789"))
+	require.Equal(t, "GET /api/users/789", resultB.Get("span_name"))
+	require.NotSame(t, tenantA.drain, tenantB.drain)
+	require.Len(t, tenantA.drain.Clusters(), 1)
+	require.Len(t, tenantB.drain.Clusters(), 1)
 }

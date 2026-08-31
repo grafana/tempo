@@ -1,7 +1,6 @@
 package registry
 
 import (
-	"strings"
 	"sync"
 	"time"
 
@@ -76,15 +75,10 @@ func (s *DrainSanitizer) Sanitize(lbls labels.Labels) labels.Labels {
 		s.metricTotalSpansSanitized = metricTotalSpansSanitized.WithLabelValues(s.tenant)
 		s.demandGauge = metricPostSanitizationDemand.WithLabelValues(s.tenant)
 	}
-
 	s.doPeriodicMaintenanceLocked()
 
 	spanName := lbls.Get(labelSpanName)
-	// drain.Train retains substrings of spanName in long-lived cluster tokens
-	// (drain.newCluster clones the token slice headers, not the bytes). spanName
-	// may alias a pooled/borrowed scratch buffer (see CloseAndBorrowLabels) that
-	// the caller reuses after this call, so clone it before handing it to drain.
-	cluster := s.drain.Train(strings.Clone(spanName))
+	cluster := s.drain.Train(spanName)
 	// drain has various limits to prevent excessive memory usage, etc. in these
 	// cases, we will just return the original labels.
 	if cluster == nil {
