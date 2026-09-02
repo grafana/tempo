@@ -161,6 +161,8 @@ This can have an effect on observation of data inside Grafana.
 
 The following is a suggested pipeline that can be applied to both [Grafana Alloy](https://grafana.com/docs/alloy/latest/) and the [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/), to carry out tail sampling, but also ensure that other telemetry signals are still captured for observation from within Grafana and Grafana Cloud.
 
+To decide whether to generate those metrics in the collector or in Tempo, refer to [Choose where to generate metrics from traces](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/generate-locally/).
+
 This pipeline exists in the second layer of collectors, sent data by the load balancing layer, and is commonly deployed as a Kubernetes `StatefulSet` to ensure that each instance has a consistent identity. A realistic example pipeline could be made of up the following components:
 
 - The **OTLP Receiver** is the [OpenTelemetry Protocol](https://opentelemetry.io/docs/specs/otel/protocol/) (OTLP) receiver in this pipeline, and receives traces from the load balancing exporter. This receiver is responsible for initiating the processing pipeline within this collector layer.
