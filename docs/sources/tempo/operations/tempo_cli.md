@@ -1057,6 +1057,17 @@ redaction; an unwindowed redaction is unaffected.
 
 Monitor job progress through the [`/status/backendscheduler`](/docs/tempo/<TEMPO_VERSION>/api_docs/#backend-scheduler-job-status) endpoint.
 
+Completing every job is not the same as the data being gone, so a redaction is verified before it is
+torn down. Once its block jobs finish, the scheduler re-scans the blocks currently overlapping the
+redaction's window and queues a further redaction job for any that still match. This catches a block
+that the submission never accounted for -- for example one produced by a compaction that started at
+almost the same moment as the request. Verification only ever scans; it never rewrites on its own.
+
+A redaction is complete when a verification pass finds nothing. Until then the tenant's compaction
+stays paused. Watch `tempo_backend_scheduler_redaction_verify_gaps_total` for blocks that were
+missed, and `tempo_backend_scheduler_redaction_verify_exhausted_total` for a redaction released
+without ever coming back clean -- that one has not finished and should be re-submitted.
+
 ### Examples
 
 Redact a single trace:
