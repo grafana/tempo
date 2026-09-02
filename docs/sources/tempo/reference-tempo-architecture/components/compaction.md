@@ -109,6 +109,7 @@ This endpoint is useful for diagnosing stalled jobs, verifying that workers are 
 | `tempo_backend_scheduler_jobs_active` | Jobs currently assigned to a worker |
 | `tempo_backend_scheduler_jobs_pending` | Jobs enqueued and not yet assigned to a worker. Unlike `jobs_active`, which is bounded by the number of workers, this is queue depth and indicates whether more worker capacity is needed |
 | `tempo_backend_scheduler_job_duration_seconds` | Job execution duration histogram |
+| `tempo_backend_scheduler_tenant_maintenance_paused` | `1` while compaction and retention are paused for a tenant by an exclusive operation (an apply-mode redaction, including the quiescence period after its last block job), `0` once they resume. Job dispatch is not a substitute signal: it keeps draining a queue built before the operation started, so it dips rather than stopping |
 | `tempodb_blocklist_length` | Number of live blocks per tenant; high values indicate compaction is falling behind |
 | `tempodb_compaction_outstanding_blocks` | Outstanding blocks awaiting compaction per tenant; the primary autoscaling signal |
 
