@@ -163,9 +163,12 @@ For a detailed description, refer to [Tail sampling](/docs/tempo/<TEMPO_VERSION>
 
 ### Generate metrics from spans
 
-Alloy can take advantage of the span data flowing through the pipeline to generate Prometheus metrics.
+Alloy can emit span metrics from traces in this pipeline.
 
-Refer to [Span metrics](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/span-metrics/) for a more detailed explanation of the feature.
+If you sample traces before they reach Tempo, choose where to generate those metrics first.
+Refer to [Choose where to generate metrics from traces](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/generate-locally/).
+
+For Alloy settings, refer to [Use Alloy to generate metrics from spans](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/span-metrics/span-metrics-alloy/).
 
 ### Service graph metrics
 

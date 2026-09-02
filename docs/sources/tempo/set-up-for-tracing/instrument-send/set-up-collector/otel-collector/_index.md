@@ -192,19 +192,12 @@ For a detailed description of sampling strategies, refer to the [Sampling](/docs
 
 The `spanmetrics` connector generates RED (Rate, Error, Duration) metrics from trace spans flowing through the pipeline.
 
-Tempo also generates these metrics server-side through the [metrics-generator](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/span-metrics/).
-However, collector-side generation is useful when tail sampling is active, because tail sampling can discard traces before they reach Tempo.
-By generating metrics in the collector, you ensure complete metrics coverage regardless of which traces are ultimately stored.
-
-You don't need to disable the Tempo metrics-generator to use the collector `spanmetrics` connector. Both can run simultaneously since they produce differently-named metrics. 
-However, running both increases active series, storage, and compute overhead. 
-In Grafana Cloud, extra active series can impact billing. 
-If you use tail sampling, collector-side generation ensures complete metrics coverage because it sees all spans before sampling discards any. 
-Without tail sampling, the Tempo [metrics-generator](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/span-metrics/span-metrics-metrics-generator/) alone is typically sufficient and avoids the overhead of duplicate metric generation.
+Tempo can also generate these metrics after ingest.
+To decide between the collector and Tempo, refer to [Choose where to generate metrics from traces](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/generate-locally/).
 
 ![OpenTelemetry Collector metrics pipeline showing spans branching to the `spanmetrics` connector and tail sampling processor](diagram-otel-collector-metrics-pipeline.svg)
 
-To ensure complete metrics coverage, configure the `spanmetrics` connector before the `tail_sampling` processor in your pipeline. This ordering lets span metrics see all traces before tail sampling discards any.
+Configure the `spanmetrics` connector before the `tail_sampling` processor so span metrics see every span.
 You can export the generated metrics using Prometheus remote write, OTLP, or any other supported metrics exporter.
 
 Refer to the [`spanmetrics` connector documentation](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/connector/spanmetricsconnector) for configuration details.
