@@ -198,25 +198,45 @@ metrics_generator:
 
 On tenants where a handful of series carry most of the span volume, the
 metrics-generator spends most of its CPU aggregating spans that barely move
-those series' values. `max_spans_per_series_per_second` caps how many spans per
-series are fully aggregated each second:
+those series' values. `max_spans_per_series_per_interval` caps how many spans
+per series are fully aggregated in each collection interval:
 
 ```yaml
 metrics_generator:
   processor:
     span_metrics:
-      max_spans_per_series_per_second: 500
+      max_spans_per_series_per_interval: 500
 ```
 
-Series below the rate are untouched. For a series above it, the processor takes
-a uniform sample of that series' spans and scales the sampled values back up, so
+Series receiving fewer spans than that in an interval are untouched, so this
+only affects your heaviest series. For a series above it, the processor takes a
+uniform sample of that series' spans and scales the sampled values back up, so
 no spans are dropped and the metrics stay unbiased -- but the values carry a
 sampling error.
 
+The budget is fleet-wide, not per replica. Every generator emits its own copy
+of a series, tagged with `__metrics_gen_instance`, and a query sums them, so
+handing each generator the full budget would give the query one budget per
+generator. Each instance instead takes the share matching the share of the
+tenant's spans it receives, read from its partition assignment, so the setting
+does not need adjusting when you scale the generators. When the split cannot be
+determined -- a single binary, or a deployment not consuming from Kafka -- each
+instance keeps the whole budget, which samples less than asked: that costs CPU
+rather than accuracy.
+
 How much error depends on which metric you query and on how many of the series'
 spans were sampled inside your query's lookback window. Writing `m` for that
-count, `m = max_spans_per_series_per_second x lookback in seconds`. A budget of
-34 with a 5-minute lookback gives `m = 10,000`.
+count:
+
+```
+m = max_spans_per_series_per_interval x (lookback / collection_interval)
+```
+
+A query covers several intervals, so the budget is multiplied by however many
+it spans. At the default 15-second `collection_interval`, a 5-minute lookback
+covers 20 of them, so a budget of 500 gives `m = 10,000`. Size the budget
+against the shortest lookback your dashboards use: the same 500 gives only
+`m = 2,000` to a 1-minute query.
 
 `m = 10,000` is a good default target. It fills a native histogram in properly
 and leaves the counter rates essentially exact:

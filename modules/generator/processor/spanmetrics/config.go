@@ -3,6 +3,7 @@ package spanmetrics
 import (
 	"flag"
 	"fmt"
+	"time"
 
 	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/registry"
@@ -65,12 +66,23 @@ type Config struct {
 	// Allow user to disable instance label from all span metrics series
 	EnableInstanceLabel bool `yaml:"enable_instance_label"`
 
-	// MaxSpansPerSeriesPerSecond bounds how many spans per metric series run the
-	// full aggregation path each second. Once a series exceeds it, the processor
-	// aggregates a uniform sample of its spans and scales the result back up, so
-	// no data is dropped but the series' values carry a sampling error that
-	// shrinks as this value grows. 0, the default, disables sampling.
-	MaxSpansPerSeriesPerSecond int `yaml:"max_spans_per_series_per_second"`
+	// MaxSpansPerSeriesPerInterval bounds how many spans per metric series run
+	// the full aggregation path in each collection interval. Once a series
+	// exceeds it, the processor aggregates a uniform sample of its spans and
+	// scales the result back up, so no data is dropped but the series' values
+	// carry a sampling error that shrinks as this value grows. Series below it
+	// are never sampled. 0, the default, disables sampling.
+	//
+	// The budget is fleet-wide. Every generator emits its own copy of a series,
+	// tagged with __metrics_gen_instance, and a query sums them, so each
+	// instance takes the share of this budget matching the share of the tenant's
+	// spans it receives.
+	MaxSpansPerSeriesPerInterval int `yaml:"max_spans_per_series_per_interval"`
+
+	// SendInterval is the registry's collection interval, which is the unit
+	// MaxSpansPerSeriesPerInterval is counted in. Set from the tenant's
+	// overrides rather than from this processor's own YAML.
+	SendInterval time.Duration `yaml:"-"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {

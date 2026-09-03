@@ -17,7 +17,7 @@ import (
 )
 
 // TestSamplingAccuracyStudy derives the sample counts documented alongside
-// max_spans_per_series_per_second: how many of a series' spans have to be
+// max_spans_per_series_per_interval: how many of a series' spans have to be
 // sampled inside a query's lookback window before that query's answer is
 // within 1%, 3% or 5% of the unsampled answer 99% of the time.
 //
@@ -148,7 +148,7 @@ func studyTempoHistogramValues(t *testing.T) {
 		trials int
 	}{
 		{"unsampled, 1000 spans/s (N=300,000)", 300_000, 400},
-		{"sampled at 34/s budget (m= 10,200)", 10_200, 4_000},
+		{"sampled to m=10,200 in the window", 10_200, 4_000},
 	} {
 		for _, native := range []bool{true, false} {
 			r := rand.New(rand.NewPCG(7, 11))

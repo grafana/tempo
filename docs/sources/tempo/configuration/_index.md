@@ -878,13 +878,16 @@ metrics_generator:
             # Add instance label to all span metrics series when enable_target_info is true
             [enable_instance_label: <bool> | default = true]
 
-            # Bound how many spans per metric series are fully aggregated each
-            # second. Once a series exceeds this rate, the processor aggregates a
-            # uniform sample of its spans and scales the result back up: no spans
-            # are dropped, but that series' values carry a sampling error that
-            # shrinks as this value grows. Series below the rate are unaffected.
+            # Bound how many spans per metric series are fully aggregated in
+            # each collection interval. Once a series exceeds this, the processor
+            # aggregates a uniform sample of its spans and scales the result back
+            # up: no spans are dropped, but that series' values carry a sampling
+            # error that shrinks as this value grows. Series below it are
+            # unaffected. The budget is fleet-wide -- each generator takes the
+            # share matching the share of the tenant's spans it receives -- so it
+            # does not need adjusting when replicas are added.
             # 0 disables sampling.
-            [max_spans_per_series_per_second: <int> | default = 0]
+            [max_spans_per_series_per_interval: <int> | default = 0]
 
         host_info:
 
@@ -2660,9 +2663,10 @@ overrides:
           [target_info_excluded_dimensions: <list of string>]
           # add instance label to all span metrics series when enable_target_info is true
           [enable_instance_label: <bool> | default = true]
-          # Bound how many spans per metric series are fully aggregated each second.
-          # Spans over the rate are sampled and scaled back up. 0 disables sampling.
-          [max_spans_per_series_per_second: <int> | default = 0]
+          # Bound how many spans per metric series are fully aggregated per
+          # collection interval, fleet-wide. Spans over it are sampled and scaled
+          # back up. 0 disables sampling.
+          [max_spans_per_series_per_interval: <int> | default = 0]
 
         # Configuration for the host-info processor
         host_info:

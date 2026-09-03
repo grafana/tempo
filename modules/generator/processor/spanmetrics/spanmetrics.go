@@ -73,7 +73,30 @@ type spanScratch struct {
 	mappings   []string
 }
 
-func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Counter prometheus.Counter) (gen.Processor, error) {
+// Option configures optional processor behaviour. Options exist so deployment
+// facts the processor cannot discover for itself can be supplied without every
+// caller having to know about them.
+type Option func(*options)
+
+type options struct {
+	trafficShare func() float64
+}
+
+// WithTrafficShare supplies the fraction of a tenant's spans this instance
+// receives, between 0 and 1. Per-series sampling needs it to split its
+// fleet-wide budget across the instances sharing the traffic; without it each
+// instance takes the whole budget, which under-samples. Values outside (0,1]
+// are ignored.
+func WithTrafficShare(share func() float64) Option {
+	return func(o *options) { o.trafficShare = share }
+}
+
+func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Counter prometheus.Counter, opts ...Option) (gen.Processor, error) {
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
+
 	var configuredIntrinsicDimensions []string
 
 	if cfg.IntrinsicDimensions.Service {
@@ -126,7 +149,7 @@ func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Cou
 		dimensionLabels:        dimensionLabels,
 		dimensionMappingLabels: dimensionMappingLabels,
 		usesSpanMultiplier:     cfg.SpanMultiplierKey != "" || cfg.EnableTraceStateSpanMultiplier,
-		sampler:                newSeriesSampler(cfg.MaxSpansPerSeriesPerSecond),
+		sampler:                newSeriesSampler(cfg.MaxSpansPerSeriesPerInterval, cfg.SendInterval, o.trafficShare),
 		mappingSourceOffsets:   mappingSourceOffsets,
 	}
 	p.scratchPool.New = func() any {

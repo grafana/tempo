@@ -39,8 +39,12 @@ func BenchmarkSpanMetricsSampling(b *testing.B) {
 		spansPerPush          = 400
 		spansPerSeriesPerPush = 100
 		pushInterval          = 20 * time.Millisecond
+		benchmarkSendInterval = 15 * time.Second
 	)
 	spansPerSeriesPerSecond := int(float64(spansPerSeriesPerPush) / pushInterval.Seconds())
+	// The budget is counted per send interval, so convert the keep rates below
+	// into that unit.
+	spansPerSeriesPerInterval := spansPerSeriesPerSecond * int(benchmarkSendInterval.Seconds())
 
 	// "plain" is the default span-metrics config. "prod" adds the per-span costs
 	// a busy tenant actually pays -- six dimensions, a dimension mapping, span
@@ -78,8 +82,8 @@ func BenchmarkSpanMetricsSampling(b *testing.B) {
 			budget int
 		}{
 			{"off", 0},
-			{"keep_1_in_10", spansPerSeriesPerSecond / 10},
-			{"keep_1_in_100", spansPerSeriesPerSecond / 100},
+			{"keep_1_in_10", spansPerSeriesPerInterval / 10},
+			{"keep_1_in_100", spansPerSeriesPerInterval / 100},
 		} {
 			b.Run(shape.name+"/"+tc.name, func(b *testing.B) {
 				cfg := Config{}
@@ -87,7 +91,8 @@ func BenchmarkSpanMetricsSampling(b *testing.B) {
 				if shape.tune != nil {
 					shape.tune(&cfg)
 				}
-				cfg.MaxSpansPerSeriesPerSecond = tc.budget
+				cfg.MaxSpansPerSeriesPerInterval = tc.budget
+				cfg.SendInterval = benchmarkSendInterval
 
 				regCfg := &registry.Config{}
 				regCfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -118,7 +123,7 @@ func BenchmarkSpanMetricsSampling(b *testing.B) {
 				// Warm up past a few sampler windows so the measured loop runs at
 				// the block size the observed rate implies, rather than inside the
 				// block-doubling burst guard that covers a series' first window.
-				for warmup := time.Duration(0); warmup < 3*samplerWindow; warmup += pushInterval {
+				for warmup := time.Duration(0); warmup < 3*benchmarkSendInterval; warmup += pushInterval {
 					push()
 				}
 

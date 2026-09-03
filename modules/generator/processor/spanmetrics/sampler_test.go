@@ -26,6 +26,18 @@ func newTestCounter() prometheus.Counter {
 	return prometheus.NewCounter(prometheus.CounterOpts{})
 }
 
+// testSendInterval matches registry.Config's default CollectionInterval, which
+// is the unit the sampler's budget is counted in.
+const testSendInterval = 15 * time.Second
+
+// newTestSampler builds a sampler whose budget is stated per send interval, as
+// production states it, with reproducible block picks.
+func newTestSampler(budgetPerInterval int, seed uint64, share func() float64) *seriesSampler {
+	s := newSeriesSampler(budgetPerInterval, testSendInterval, share)
+	seedSampler(s, seed)
+	return s
+}
+
 // seedSampler makes the block pick reproducible. Every shard gets the same
 // stream, which is fine because these tests exercise one key at a time.
 func seedSampler(s *seriesSampler, seed uint64) {
@@ -88,10 +100,9 @@ func feedSampler(s *seriesSampler, key uint64, startMs int64, spansPerSecond int
 }
 
 func TestSeriesSamplerKeepsSeriesUnderBudget(t *testing.T) {
-	s := newSeriesSampler(100)
-	seedSampler(s, 1)
+	s := newTestSampler(1_500, 1, nil)
 
-	// 50 spans/s against a 100 spans/s budget: never worth sampling, so every
+	// 50 spans/s against a 1500-per-15s (100/s) budget: never worth sampling, so every
 	// span must come back with a multiplier of exactly 1.
 	start := time.Unix(1_700_000_000, 0).UnixMilli()
 	for i := 0; i < 5_000; i++ {
@@ -108,18 +119,17 @@ func TestSeriesSamplerCountIsExactWithinOneBlock(t *testing.T) {
 	// spans and contributes exactly blockSize to the estimate, so the only error
 	// is the block still in flight.
 	for _, tc := range []struct {
-		name            string
-		budgetPerSecond int
-		spansPerSecond  int
+		name              string
+		budgetPerInterval int
+		spansPerSecond    int
 	}{
-		{"under budget", 100, 50},
-		{"10x over budget", 100, 1_000},
-		{"100x over budget", 100, 10_000},
-		{"1000x over budget", 10, 10_000},
+		{"under budget", 1_500, 50},
+		{"10x over budget", 1_500, 1_000},
+		{"100x over budget", 1_500, 10_000},
+		{"1000x over budget", 150, 10_000},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			s := newSeriesSampler(tc.budgetPerSecond)
-			seedSampler(s, 7)
+			s := newTestSampler(tc.budgetPerInterval, 7, nil)
 
 			const duration = 2 * time.Minute
 			run := feedSampler(s, 1, time.Unix(1_700_000_000, 0).UnixMilli(), tc.spansPerSecond, duration)
@@ -131,8 +141,8 @@ func TestSeriesSamplerCountIsExactWithinOneBlock(t *testing.T) {
 			// The budget has to actually bite, otherwise the bound above is
 			// trivially satisfied by keeping everything. Allow generous slack for
 			// the logarithmic overshoot of the first window.
-			wantKept := float64(tc.budgetPerSecond) * duration.Seconds()
-			if tc.spansPerSecond > tc.budgetPerSecond {
+			wantKept := float64(tc.budgetPerInterval) * duration.Seconds() / testSendInterval.Seconds()
+			if float64(tc.spansPerSecond) > float64(tc.budgetPerInterval)/testSendInterval.Seconds() {
 				require.Less(t, float64(run.kept), 3*wantKept,
 					"kept %d spans, budget over this run is %v", run.kept, wantKept)
 			}
@@ -141,8 +151,7 @@ func TestSeriesSamplerCountIsExactWithinOneBlock(t *testing.T) {
 }
 
 func TestSeriesSamplerKeepsExactlyOnePerBlock(t *testing.T) {
-	s := newSeriesSampler(100)
-	seedSampler(s, 3)
+	s := newTestSampler(1_500, 3, nil)
 
 	// Warm up to a steady block size, then walk whole blocks and check each one
 	// yields a single span scaled by exactly that block's size.
@@ -178,8 +187,7 @@ func TestSeriesSamplerPickIsUniformWithinBlock(t *testing.T) {
 	// Always picking a fixed position inside the block would make the estimates
 	// wrong whenever arrival order correlates with latency, so check the picks
 	// spread across the block.
-	s := newSeriesSampler(100)
-	seedSampler(s, 11)
+	s := newTestSampler(1_500, 11, nil)
 
 	run := feedSampler(s, 1, time.Unix(1_700_000_000, 0).UnixMilli(), 10_000, 30*time.Minute)
 	require.Greater(t, run.steadyBlockSize, uint64(4), "block too small to say anything about the spread")
@@ -198,15 +206,14 @@ func TestSeriesSamplerPickIsUniformWithinBlock(t *testing.T) {
 }
 
 func TestSeriesSamplerAdaptsWhenRateDrops(t *testing.T) {
-	s := newSeriesSampler(100)
-	seedSampler(s, 5)
+	s := newTestSampler(1_500, 5, nil)
 
 	run := feedSampler(s, 1, time.Unix(1_700_000_000, 0).UnixMilli(), 10_000, time.Minute)
 	require.Greater(t, currentBlockSize(t, s, 1), uint64(1))
 
 	// The series goes quiet, then comes back well under budget. A couple of
 	// windows of low-rate traffic bring the block size back to 1.
-	quietMs := run.endMs + 10*samplerWindow.Milliseconds()
+	quietMs := run.endMs + 10*testSendInterval.Milliseconds()
 	back := feedSampler(s, 1, quietMs, 10, 30*time.Second)
 
 	require.Equal(t, uint64(1), currentBlockSize(t, s, 1))
@@ -217,8 +224,7 @@ func TestSeriesSamplerBurstGuard(t *testing.T) {
 	// A brand new series has no rate estimate, so it starts at block size 1. A
 	// burst inside that first window must neither cost a full-price aggregation
 	// per span nor blow up the block size past what the volume implies.
-	s := newSeriesSampler(10)
-	seedSampler(s, 13)
+	s := newTestSampler(150, 13, nil)
 
 	const spans = 1_000_000
 	nowMs := time.Unix(1_700_000_000, 0).UnixMilli()
@@ -227,7 +233,7 @@ func TestSeriesSamplerBurstGuard(t *testing.T) {
 		estimate += s.sample(1, nowMs)
 	}
 
-	budget := uint64(10) * uint64(samplerWindow/time.Second)
+	budget := uint64(150)
 	_, kept := s.counts()
 
 	// budget*(1+ln(spans/budget)) is what the seen/budget block sizing lets
@@ -251,9 +257,58 @@ func currentBlockSize(t *testing.T, s *seriesSampler, key uint64) uint64 {
 	return series.blockSize
 }
 
+func TestSeriesSamplerSplitsBudgetAcrossReplicas(t *testing.T) {
+	// The budget is fleet-wide. Every generator emits its own copy of a series
+	// and a query sums them, so N instances each keeping the whole budget would
+	// hand the query N budgets. Each instance takes the share of the budget
+	// matching the share of the spans it sees, and those shares sum to 1.
+	const (
+		budgetPerInterval = 1_500
+		replicas          = 10
+		fleetSpansPerSec  = 20_000
+		// Long enough that each replica's first window, which overshoots
+		// logarithmically because no rate estimate exists yet, amortizes away.
+		duration = 10 * time.Minute
+	)
+
+	fleetKept := 0.0
+	fleetEstimate := 0.0
+	for replica := 0; replica < replicas; replica++ {
+		s := newTestSampler(budgetPerInterval, uint64(replica)+1, func() float64 { return 1.0 / replicas })
+		run := feedSampler(s, 1, time.Unix(1_700_000_000, 0).UnixMilli(), fleetSpansPerSec/replicas, duration)
+		fleetKept += float64(run.kept)
+		fleetEstimate += run.estimate
+	}
+
+	intervals := duration.Seconds() / testSendInterval.Seconds()
+	wantKept := budgetPerInterval * intervals
+	require.InDelta(t, wantKept, fleetKept, 0.5*wantKept,
+		"fleet kept %v spans, the fleet-wide budget over this run is %v", fleetKept, wantKept)
+	// The point of the split: without it each replica would keep the whole
+	// budget and the fleet would keep replicas times too many.
+	require.Less(t, fleetKept, float64(replicas)*wantKept/2)
+
+	// Summing the replicas' series still recovers the fleet's span count, which
+	// is what a query aggregating over __metrics_gen_instance computes.
+	wantSpans := fleetSpansPerSec * duration.Seconds()
+	require.InDelta(t, wantSpans, fleetEstimate, 0.001*wantSpans)
+}
+
+func TestSeriesSamplerIgnoresUnusableShare(t *testing.T) {
+	// A share the deployment could not work out must leave the budget whole:
+	// under-sampling costs CPU, over-sampling would quietly cost accuracy.
+	for _, share := range []float64{0, -1, 1.5, math.NaN()} {
+		s := newTestSampler(1_500, 3, func() float64 { return share })
+		s.shards[1&samplerShardMsk].mtx.Lock()
+		budget := s.shards[1&samplerShardMsk].budgetFor(s, 0)
+		s.shards[1&samplerShardMsk].mtx.Unlock()
+		require.Equal(t, uint64(1_500), budget, "share %v", share)
+	}
+}
+
 func TestSeriesSamplerDisabled(t *testing.T) {
-	require.Nil(t, newSeriesSampler(0))
-	require.Nil(t, newSeriesSampler(-1))
+	require.Nil(t, newSeriesSampler(0, testSendInterval, nil))
+	require.Nil(t, newSeriesSampler(-1, testSendInterval, nil))
 }
 
 // TestSpanMetricsSamplingPreservesTotals drives the whole processor and checks
@@ -268,18 +323,19 @@ func TestSpanMetricsSamplingPreservesTotals(t *testing.T) {
 		// single series this fixture maps to. Running for 40 simulated seconds
 		// rolls several sampler windows, so the totals below are checked against
 		// the steady state rather than the first window's warm-up.
-		spansPerPush = 100
-		pushes       = 40_000
-		spans        = spansPerPush * pushes
-		latencySecs  = 0.75
-		budgetPerSec = 100
+		spansPerPush      = 100
+		pushes            = 40_000
+		spans             = spansPerPush * pushes
+		latencySecs       = 0.75
+		budgetPerInterval = 1_500
 	)
 
 	testRegistry := registry.NewTestRegistry()
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
-	cfg.MaxSpansPerSeriesPerSecond = budgetPerSec
+	cfg.MaxSpansPerSeriesPerInterval = budgetPerInterval
+	cfg.SendInterval = testSendInterval
 
 	p, err := New(cfg, testRegistry, newTestCounter(), newTestCounter())
 	require.NoError(t, err)
@@ -342,7 +398,8 @@ func TestSpanMetricsSamplingComposesWithSpanMultiplier(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
-	cfg.MaxSpansPerSeriesPerSecond = 100
+	cfg.MaxSpansPerSeriesPerInterval = 1_500
+	cfg.SendInterval = testSendInterval
 	cfg.SpanMultiplierKey = "sample.rate"
 
 	p, err := New(cfg, testRegistry, newTestCounter(), newTestCounter())
@@ -388,7 +445,8 @@ func TestSpanMetricsSamplingKeyTracksLabelSet(t *testing.T) {
 	newProcessor := func(t *testing.T, tune func(*Config)) *Processor {
 		cfg := Config{}
 		cfg.RegisterFlagsAndApplyDefaults("", nil)
-		cfg.MaxSpansPerSeriesPerSecond = 100
+		cfg.MaxSpansPerSeriesPerInterval = 1_500
+		cfg.SendInterval = testSendInterval
 		if tune != nil {
 			tune(&cfg)
 		}

@@ -29,11 +29,6 @@ import (
 // storms). Picking a fixed position instead would be cheaper but would inherit
 // any periodicity in the stream.
 const (
-	// samplerWindow is how often each series re-estimates its span rate and
-	// resizes its blocks. Short enough to track a ramp within a collection
-	// interval, long enough that the budget below is a meaningful sample.
-	samplerWindow = 10 * time.Second
-
 	// samplerShards splits the series map so concurrent pushes for one tenant
 	// do not serialize on a single mutex. Must be a power of two.
 	samplerShards   = 64
@@ -45,13 +40,27 @@ const (
 	// Sweeping an active series is harmless anyway -- it restarts at blockSize
 	// 1, which costs CPU for a window but never accuracy.
 	samplerMaxSeriesPerShard = 16384
-	samplerEvictAfter        = 5 * samplerWindow
+	// samplerEvictAfterWindows is how many send intervals a series may go
+	// unseen before an over-capacity shard sweeps it.
+	samplerEvictAfterWindows = 20
+
+	// defaultSamplerWindow stands in when no send interval is configured, and
+	// matches registry.Config's default CollectionInterval.
+	defaultSamplerWindow = 15 * time.Second
 )
 
 // seriesSampler tracks a per-series span budget. It is safe for concurrent use.
 type seriesSampler struct {
-	// budget is the number of spans to keep per series per samplerWindow.
-	budget   uint64
+	// target is how many spans per series the whole generator fleet should keep
+	// per send interval. It is a fleet-wide number because every instance emits
+	// its own copy of a series, tagged with __metrics_gen_instance, and a query
+	// sums them: giving each instance the full target would hand the query one
+	// budget per instance.
+	target uint64
+	// share reports the fraction of a tenant's spans this instance receives, so
+	// target can be split across the instances that share the traffic. The
+	// shares across instances sum to 1, so the local budgets sum to target.
+	share    func() float64
 	windowMs int64
 
 	shards [samplerShards]samplerShard
@@ -65,6 +74,11 @@ type samplerShard struct {
 	// sweep. Without it a shard that stays over capacity would sweep on every
 	// push.
 	evictAtMs int64
+	// budget is target scaled by the traffic share, refreshed at most once per
+	// window: resolving the share reads the ring, which is far too expensive to
+	// do per span.
+	budget     uint64
+	budgetAtMs int64
 	// seenSpans and keptSpans track how much the sampler is actually cutting.
 	// Kept under the shard mutex rather than in atomics so the hot path pays
 	// nothing extra for them.
@@ -89,17 +103,27 @@ type samplerSeries struct {
 	lastSeenMs    int64
 }
 
-// newSeriesSampler returns a sampler that keeps at most maxSpansPerSecond spans
-// per series per second, or nil if sampling is disabled.
-func newSeriesSampler(maxSpansPerSecond int) *seriesSampler {
-	if maxSpansPerSecond <= 0 {
+// newSeriesSampler returns a sampler that keeps at most maxSpansPerSeriesPerInterval
+// spans per series per sendInterval across the whole fleet, or nil if sampling
+// is disabled. share may be nil, in which case this instance is assumed to
+// receive every span of every series.
+//
+// sendInterval is the registry's collection interval, so the budget is stated
+// in the same unit the metrics are emitted in: a query covering W seconds sees
+// maxSpansPerSeriesPerInterval * W / sendInterval sampled spans per series.
+func newSeriesSampler(maxSpansPerSeriesPerInterval int, sendInterval time.Duration, share func() float64) *seriesSampler {
+	if maxSpansPerSeriesPerInterval <= 0 {
 		return nil
 	}
+	if sendInterval <= 0 {
+		sendInterval = defaultSamplerWindow
+	}
 
-	windowMs := samplerWindow.Milliseconds()
-	budget := uint64(maxSpansPerSecond) * uint64(samplerWindow/time.Second)
-
-	s := &seriesSampler{budget: budget, windowMs: windowMs}
+	s := &seriesSampler{
+		target:   uint64(maxSpansPerSeriesPerInterval),
+		share:    share,
+		windowMs: sendInterval.Milliseconds(),
+	}
 	for i := range s.shards {
 		s.shards[i].series = make(map[uint64]*samplerSeries)
 		// Seeding per shard from the global source keeps the picks independent
@@ -128,15 +152,16 @@ func (s *seriesSampler) sample(key uint64, nowMs int64) float64 {
 		// burst guard below stops that from being unbounded.
 		series = &samplerSeries{blockSize: 1, nextBlockSize: 1, windowStartMs: nowMs}
 		sh.series[key] = series
-		sh.maybeEvict(nowMs)
+		sh.maybeEvict(nowMs, s.windowMs)
 	}
 
 	series.lastSeenMs = nowMs
 	series.seen++
 	sh.seenSpans++
 
+	budget := sh.budgetFor(s, nowMs)
 	if nowMs-series.windowStartMs >= s.windowMs {
-		series.rollWindow(nowMs, s.windowMs, s.budget)
+		series.rollWindow(nowMs, s.windowMs, budget)
 	}
 
 	if series.pos == 0 {
@@ -166,7 +191,7 @@ func (s *seriesSampler) sample(key uint64, nowMs int64) float64 {
 		// large the burst gets, while letting only about budget*ln(seen/budget)
 		// spans through.
 		blockSize := series.nextBlockSize
-		if burst := series.seen / s.budget; burst > blockSize {
+		if burst := series.seen / budget; burst > blockSize {
 			blockSize = burst
 		}
 		series.blockSize = blockSize
@@ -188,6 +213,34 @@ func (s *seriesSampler) counts() (seen, kept uint64) {
 		sh.mtx.Unlock()
 	}
 	return seen, kept
+}
+
+// budgetFor returns this shard's per-window budget, refreshing the traffic
+// share at most once per window.
+//
+// A share outside (0,1] means the deployment could not tell us how the traffic
+// is split. Assuming this instance sees every span leaves the budget whole,
+// which under-samples: that costs CPU rather than accuracy, which is the right
+// direction to fail in. Called with the shard mutex held.
+func (sh *samplerShard) budgetFor(s *seriesSampler, nowMs int64) uint64 {
+	if sh.budget != 0 && nowMs-sh.budgetAtMs < s.windowMs {
+		return sh.budget
+	}
+
+	share := 1.0
+	if s.share != nil {
+		if v := s.share(); v > 0 && v <= 1 {
+			share = v
+		}
+	}
+	budget := uint64(float64(s.target) * share)
+	if budget < 1 {
+		budget = 1
+	}
+
+	sh.budget = budget
+	sh.budgetAtMs = nowMs
+	return budget
 }
 
 // rollWindow re-estimates the series' span rate and sizes the next block from
@@ -213,13 +266,14 @@ func (s *samplerSeries) rollWindow(nowMs, windowMs int64, budget uint64) {
 
 // maybeEvict drops series that have gone quiet once a shard grows past its cap.
 // Called with the shard mutex held.
-func (sh *samplerShard) maybeEvict(nowMs int64) {
+func (sh *samplerShard) maybeEvict(nowMs, windowMs int64) {
 	if len(sh.series) <= samplerMaxSeriesPerShard || nowMs < sh.evictAtMs {
 		return
 	}
-	sh.evictAtMs = nowMs + samplerEvictAfter.Milliseconds()
+	evictAfterMs := samplerEvictAfterWindows * windowMs
+	sh.evictAtMs = nowMs + evictAfterMs
 
-	staleBefore := nowMs - samplerEvictAfter.Milliseconds()
+	staleBefore := nowMs - evictAfterMs
 	for key, series := range sh.series {
 		if series.lastSeenMs < staleBefore {
 			delete(sh.series, key)

@@ -89,10 +89,14 @@ type instance struct {
 
 	shutdownCh chan struct{}
 
+	// trafficShare reports the fraction of this tenant's spans the generator
+	// receives, for processors that split a fleet-wide budget across instances.
+	trafficShare func() float64
+
 	logger log.Logger
 }
 
-func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverrides, wal storage.Storage, logger log.Logger) (*instance, error) {
+func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverrides, wal storage.Storage, logger log.Logger, trafficShare func() float64) (*instance, error) {
 	logger = log.With(logger, "tenant", instanceID)
 
 	limitLogger := tempo_log.NewRateLimitedLogger(1, level.Warn(logger))
@@ -117,6 +121,8 @@ func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverr
 		processors: make(map[string]processor.Processor),
 
 		shutdownCh: make(chan struct{}, 1),
+
+		trafficShare: trafficShare,
 
 		logger: logger,
 	}
@@ -373,7 +379,8 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 	case processor.SpanMetricsName:
 		filteredSpansCounter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonSpanMetricsFiltered, processor.SpanMetricsName)
 		invalidUTF8Counter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonInvalidUTF8, processor.SpanMetricsName)
-		newProcessor, err = spanmetrics.New(cfg.SpanMetrics, i.registry, filteredSpansCounter, invalidUTF8Counter)
+		newProcessor, err = spanmetrics.New(cfg.SpanMetrics, i.registry, filteredSpansCounter, invalidUTF8Counter,
+			spanmetrics.WithTrafficShare(i.trafficShare))
 		if err != nil {
 			return err
 		}
