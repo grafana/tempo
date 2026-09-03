@@ -213,68 +213,54 @@ a uniform sample of that series' spans and scales the sampled values back up, so
 no spans are dropped and the metrics stay unbiased -- but the values carry a
 sampling error.
 
-How much error depends on which metric you query and on how many of the
-series' spans were sampled inside your query's lookback window. Writing `m` for
-that count, `m = max_spans_per_series_per_second x lookback in seconds`. So a
-budget of 500 with a 5-minute lookback gives `m = 150,000`.
+How much error depends on which metric you query and on how many of the series'
+spans were sampled inside your query's lookback window. Writing `m` for that
+count, `m = max_spans_per_series_per_second x lookback in seconds`. A budget of
+34 with a 5-minute lookback gives `m = 10,000`.
 
-The `m` needed to hold the 99th percentile of the relative error under 5%:
+`m = 10,000` is a good default target. It fills a native histogram in properly
+and leaves the counter rates essentially exact:
 
-| Query | `m` for 5% error | Scaling |
-| --- | --- | --- |
-| `rate(traces_spanmetrics_calls_total[...])` | 20 | error is at most `1/m` |
-| `rate(traces_spanmetrics_latency_count[...])` | 20 | error is at most `1/m` |
-| `rate(traces_spanmetrics_size_total[...])` | 2,700 | `2.6 x CV / sqrt(m)` |
-| `traces_spanmetrics_latency_sum` (average latency) | 11,000 | `2.6 x CV / sqrt(m)` |
-| `histogram_quantile(0.5, ...)` | 5,600 | roughly `1/sqrt(m)` |
-| `histogram_quantile(0.9, ...)` | 42,000 | roughly `1/sqrt(m)` |
-| `histogram_quantile(0.99, ...)` | 100,000 | roughly `1/sqrt(m)` |
+| Query | Typical error | 1 window in 20 | 1 window in 100 |
+| --- | --- | --- | --- |
+| `rate(traces_spanmetrics_calls_total[...])` | 0.01% | 0.01% | 0.01% |
+| `rate(traces_spanmetrics_latency_count[...])` | 0.01% | 0.01% | 0.01% |
+| `rate(traces_spanmetrics_size_total[...])` | 0.7% | 1.6% | 2.6% |
+| `traces_spanmetrics_latency_sum` (average latency) | 1.4% | 3.4% | 5.3% |
+| `histogram_quantile(0.5, ...)` | 1.1% | 3.2% | 4.1% |
+| `histogram_quantile(0.9, ...)` | 1.5% | 4.3% | 5.6% |
+| `histogram_quantile(0.99, ...)` | 3.2% | 9.4% | 12.4% |
 
-Counter rates are nearly exact because the sampling is stratified: a series'
-spans are cut into equal blocks and exactly one span per block is kept, so the
-scaled-up count can only be off by one block however hard the series is
-sampled. `_sum` and the quantiles are different -- they depend on how the
-sampled spans spread across the latency buckets, which no sampling scheme can
-make exact. `CV` is the coefficient of variation of the quantity being summed.
+Error scales as `1/sqrt(m)` for every row except the two counter rates, so ask
+for 4x the budget to halve it. The counter rates are near-exact at any budget
+because the sampling is stratified: a series' spans are cut into equal blocks
+and exactly one span per block is kept, so the scaled-up count can only be off
+by the one block in flight, however hard the series is sampled.
 
-The quantile rows are for a long-tailed service latency (median 50 ms, p99 1 s)
-against the default histogram buckets. Most of that cost is not the histogram:
-estimating a quantile from `m` samples pins its *rank* to about
-`sqrt(phi(1-phi)/m)`, and turning a rank error into a *value* error multiplies
-it by the inverse of the density at the quantile. On a long tail the density up
-there is thin, so the multiplier is large -- for this shape one percentage
-point of rank is 7% of the value at p90 and 48% at p99. Even a perfect
-estimator reading every span would need about 13,000 samples for 5% at p90 and
-61,000 at p99. That part is a property of your latency distribution, not of
-Tempo.
+The quantile rows assume [native histograms](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration#metrics-generator),
+which is what you want if you sample. At Tempo's default
+`native_histogram_bucket_factor` of 1.1 the buckets are 9% wide, and the
+histogram's own answer is within 0.1% of the true quantile at every percentile
+-- so the table above is the whole error. Classic histograms carry a
+quantization bias of 1.5% to 35% depending on where your quantile falls
+relative to a bucket boundary, and that bias is there with or without sampling:
+no budget removes it.
 
-Reading the quantile off bucket counts adds to it, but only when the quantile
-falls near a bucket boundary -- and Tempo's default buckets double in width at
-every step, so there is a lot of bucket to interpolate across. For this shape
-the p90 lands 2% into its bucket, and that alone accounts for the jump from
-13,000 to 42,000. Mid-bucket it costs nothing: the same shape's p50 sits 56%
-into its bucket and needs slightly *fewer* samples than a perfect estimator,
-because coarse buckets trade variance for bias like any binned estimator.
+Two things set the quantile rows, and only one is about histograms:
 
-Two consequences worth acting on:
-
-- If you sample and care about high quantiles, enable
-  [native histograms](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration#metrics-generator).
-  Their much finer buckets remove the interpolation penalty almost entirely --
-  p90 drops from 42,000 back to about 13,000 samples -- leaving only the floor.
-- A narrow latency distribution is far cheaper than a wide one. A service whose
-  p99 is only 3x its median needs roughly an order of magnitude fewer samples
-  than the table shows.
-
-Treat the quantile rows as the order of magnitude to budget for, not a
-guarantee. Tightening the error from 5% to 1% costs roughly 25x more samples
-for every row except the two counter rates.
-
-The practical reading: sampling is close to free for request-rate and error-rate
-dashboards, wants a budget in the low thousands for median latency, and wants
-tens of thousands before high quantiles stay tight. A series receiving fewer
-spans per second than the budget is never sampled at all, so this only affects
-your heaviest series.
+- Estimating a quantile from `m` samples pins its *rank* to about
+  `sqrt(phi(1-phi)/m)`, and turning a rank error into a *value* error
+  multiplies by the inverse density at the quantile. On a long tail the density
+  up there is thin, so one percentage point of rank is 7% of the value at p90
+  and 48% at p99. That is why the p99 row costs several times the p90 row, and
+  it is a property of your latency distribution rather than of Tempo. A service
+  whose p99 is only 3x its median needs roughly an order of magnitude fewer
+  samples than the table shows.
+- Reading the quantile off bucket counts adds to that only when the quantile
+  falls near a bucket boundary. With 9%-wide native buckets there is very
+  little bucket to interpolate across, so this term is small. With the classic
+  default, where buckets double in width at each step, it can triple the
+  samples a percentile needs.
 
 Sampling is disabled by default.
 

@@ -8,7 +8,9 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/prometheus/prometheus/model/histogram"
 	"github.com/prometheus/prometheus/promql"
+	"github.com/prometheus/prometheus/promql/parser/posrange"
 )
 
 // TestSamplingAccuracyStudy derives the sample counts documented alongside
@@ -32,6 +34,7 @@ func TestSamplingAccuracyStudy(t *testing.T) {
 
 	const trials = 20_000
 	studyCounts(t)
+	studyQuantileAccuracy(t, trials)
 	studyQuantiles(t, trials)
 	studyQuantileDecomposition(t)
 	studySchemes(t)
@@ -113,6 +116,157 @@ func poissonInterval(lambda, coverage float64) (lo, hi float64) {
 			return lo, k
 		}
 	}
+}
+
+// studyQuantileAccuracy reports what a given sample count actually buys, for
+// Tempo's two histogram modes, at the three percentiles of the error
+// distribution that matter: the typical window, a bad window, and a very bad
+// one. The inversion in studyQuantiles answers "how many samples for 5%?" using
+// the strictest of the three, which overstates the budget if what you want is a
+// histogram that is usually right.
+//
+// The native rows use schema 3, which is what Tempo's default
+// native_histogram_bucket_factor of 1.1 resolves to, and are read through
+// promql.HistogramQuantile so they get the exponential in-bucket interpolation
+// a real query would use.
+func studyQuantileAccuracy(t *testing.T, trials int) {
+	const schema = int32(3)
+	dist := newLognormalLatency("web (p50 50ms, p99 1s, sigma=1.29)", 0.05, 1.0)
+	classicBounds := defaultHistogramBuckets()
+	classicProbs := dist.bucketProbs(classicBounds)
+	firstBucket, nativeProbs := nativeBucketProbs(dist, schema)
+
+	t.Log("== What a sample count buys, by histogram mode ==")
+	t.Logf("%s, schema %d native (%d occupied buckets, %.1f%% wide) vs the default classic buckets.",
+		dist.name, schema, len(nativeProbs), 100*(math.Exp2(math.Exp2(-float64(schema)))-1))
+	t.Log("")
+
+	// Quantization bias is the error left once sampling noise is gone: the gap
+	// between the histogram's own answer and the true quantile. It never shrinks
+	// with more samples, so a mode carrying a lot of it puts a floor under any
+	// accuracy target.
+	t.Log("Quantization bias (infinite samples, so this is what no budget can fix):")
+	for _, phi := range []float64{0.5, 0.9, 0.99} {
+		truth := math.Exp(dist.mu + dist.sigma*standardNormalQuantile(phi))
+		t.Logf("  p%-4g  schema 3 native %+6.2f%%   classic factor 2 %+7.2f%%", phi*100,
+			100*(nativeQuantile(phi, schema, firstBucket, nativeProbs)/truth-1),
+			100*(classicQuantile(phi, classicBounds, classicProbs)/truth-1))
+	}
+	t.Log("")
+
+	t.Log("|relative error| against each mode's own infinite-sample answer:")
+	t.Logf("%9s %6s | %-30s | %-30s", "m", "phi", "schema 3 native med/p95/p99", "classic factor 2 med/p95/p99")
+	for _, m := range []float64{1_000, 3_000, 10_000, 30_000, 100_000} {
+		for _, phi := range []float64{0.5, 0.9, 0.99} {
+			native := quantileErrorSpread(func(r *rand.Rand, counts []float64) float64 {
+				drawCounts(r, m, nativeProbs, counts)
+				return nativeQuantile(phi, schema, firstBucket, counts)
+			}, len(nativeProbs), nativeQuantile(phi, schema, firstBucket, nativeProbs), trials, uint64(m)+uint64(phi*1000))
+
+			classic := quantileErrorSpread(func(r *rand.Rand, counts []float64) float64 {
+				drawCounts(r, m, classicProbs, counts)
+				return classicQuantile(phi, classicBounds, counts)
+			}, len(classicProbs), classicQuantile(phi, classicBounds, classicProbs), trials, uint64(m)+uint64(phi*1000))
+
+			t.Logf("%9.0f %6s | %8.2f%% %8.2f%% %8.2f%%      | %8.2f%% %8.2f%% %8.2f%%",
+				m, fmt.Sprintf("p%g", phi*100),
+				100*native[0], 100*native[1], 100*native[2],
+				100*classic[0], 100*classic[1], 100*classic[2])
+		}
+	}
+	t.Log("")
+
+	// Total variation distance answers the shape question directly rather than
+	// through a quantile: how much of the distribution's mass sits in the wrong
+	// bucket. 0 is a perfect match, 1 is disjoint.
+	t.Log("Shape fidelity of the sampled schema 3 histogram (total variation distance):")
+	r := rand.New(rand.NewPCG(42, 43))
+	counts := make([]float64, len(nativeProbs))
+	for _, m := range []float64{1_000, 3_000, 10_000, 30_000, 100_000} {
+		const shapeTrials = 400
+		total := 0.0
+		for trial := 0; trial < shapeTrials; trial++ {
+			drawn := drawCounts(r, m, nativeProbs, counts)
+			distance := 0.0
+			for j, p := range nativeProbs {
+				distance += math.Abs(counts[j]/drawn - p)
+			}
+			total += distance / 2
+		}
+		t.Logf("  m=%7.0f  %.3f", m, total/shapeTrials)
+	}
+	t.Log("")
+}
+
+func drawCounts(r *rand.Rand, m float64, probs, into []float64) (total float64) {
+	for j, p := range probs {
+		into[j] = poissonDraw(r, m*p)
+		total += into[j]
+	}
+	return total
+}
+
+// quantileErrorSpread returns the median, 95th and 99th percentile of
+// |estimate/reference - 1|.
+func quantileErrorSpread(draw func(*rand.Rand, []float64) float64, buckets int, reference float64, trials int, seed uint64) [3]float64 {
+	r := rand.New(rand.NewPCG(seed, seed+1))
+	counts := make([]float64, buckets)
+	errs := make([]float64, 0, trials)
+	for i := 0; i < trials; i++ {
+		value := draw(r, counts)
+		if math.IsNaN(value) {
+			errs = append(errs, math.Inf(1))
+			continue
+		}
+		errs = append(errs, math.Abs(value/reference-1))
+	}
+	sort.Float64s(errs)
+	at := func(p float64) float64 { return errs[max(int(math.Ceil(p*float64(len(errs))))-1, 0)] }
+	return [3]float64{at(0.5), at(0.95), at(0.99)}
+}
+
+// nativeBucketProbs returns the exact probability mass of each schema-n bucket
+// covering the distribution, along with the index of the first one. Bucket i
+// covers (base^(i-1), base^i] with base = 2^(2^-schema).
+func nativeBucketProbs(l lognormalLatency, schema int32) (first int, probs []float64) {
+	first = nativeBucketIndex(math.Exp(l.mu-5*l.sigma), schema)
+	last := nativeBucketIndex(math.Exp(l.mu+5*l.sigma), schema)
+	probs = make([]float64, last-first+1)
+	prev := 0.0
+	for i := first; i <= last; i++ {
+		c := l.cdf(nativeBucketUpper(i, schema))
+		probs[i-first] = c - prev
+		prev = c
+	}
+	// Fold the remaining upper tail into the last bucket so the mass sums to 1.
+	probs[len(probs)-1] += 1 - prev
+	return first, probs
+}
+
+func nativeBucketIndex(v float64, schema int32) int {
+	return int(math.Ceil(math.Log(v) / math.Log(math.Exp2(math.Exp2(-float64(schema))))))
+}
+
+func nativeBucketUpper(i int, schema int32) float64 {
+	return math.Pow(math.Exp2(math.Exp2(-float64(schema))), float64(i))
+}
+
+// nativeQuantile runs Prometheus' native-histogram histogram_quantile over
+// per-bucket counts, so the study measures the exponential in-bucket
+// interpolation a real query would use rather than the classic linear one.
+func nativeQuantile(phi float64, schema int32, first int, counts []float64) float64 {
+	total := 0.0
+	for _, c := range counts {
+		total += c
+	}
+	q, _ := promql.HistogramQuantile(phi, &histogram.FloatHistogram{
+		Schema:          schema,
+		ZeroThreshold:   1e-12,
+		Count:           total,
+		PositiveSpans:   []histogram.Span{{Offset: int32(first), Length: uint32(len(counts))}},
+		PositiveBuckets: counts,
+	}, "", posrange.PositionRange{})
+	return q
 }
 
 // studyQuantiles measures the error sampling adds to histogram_quantile. The
@@ -200,6 +354,10 @@ func quantileErrAtP99(dist lognormalLatency, bounds []float64, phi, m float64, t
 //     does. Sitting on a boundary is the bad case, and Tempo's default buckets
 //     double in width at every step, so there is a lot of bucket to jitter
 //     across. Finer buckets recover it.
+//
+// Every layout here is read with classic linear interpolation, so the finer
+// rows isolate the effect of bucket width alone. A native histogram is not just
+// finer, it also interpolates exponentially; studyQuantileAccuracy covers that.
 func studyQuantileDecomposition(t *testing.T) {
 	phis := []float64{0.5, 0.9, 0.99}
 	layouts := []struct {
@@ -208,7 +366,7 @@ func studyQuantileDecomposition(t *testing.T) {
 	}{
 		{"factor 2 (Tempo default)", defaultHistogramBuckets()},
 		{"factor 1.5", exponentialBuckets(0.002, 1.5, 16.384)},
-		{"factor 1.1 (native-like)", exponentialBuckets(0.002, 1.1, 16.384)},
+		{"factor 1.1", exponentialBuckets(0.002, 1.1, 16.384)},
 	}
 
 	var grid []float64
