@@ -233,10 +233,23 @@ m = max_spans_per_series_per_interval x (lookback / collection_interval)
 ```
 
 A query covers several intervals, so the budget is multiplied by however many
-it spans. At the default 15-second `collection_interval`, a 5-minute lookback
-covers 20 of them, so a budget of 500 gives `m = 10,000`. Size the budget
-against the shortest lookback your dashboards use: the same 500 gives only
-`m = 2,000` to a 1-minute query.
+it spans, which makes the right number depend on your `collection_interval`.
+Rearranged, the budget for a target `m` is
+
+```
+max_spans_per_series_per_interval = m x (collection_interval / lookback)
+```
+
+For the `m = 10,000` target below, over a 5-minute lookback:
+
+| `collection_interval` | Budget for `m = 10,000` |
+| --- | --- |
+| 15s | 500 |
+| 60s | 2,000 |
+
+Size it against the shortest lookback your dashboards use, not the longest. At
+a 15-second interval a budget of 500 gives a 5-minute query `m = 10,000` but a
+1-minute query only `m = 2,000`.
 
 `m = 10,000` is a good default target. It fills a native histogram in properly
 and leaves the counter rates essentially exact:
