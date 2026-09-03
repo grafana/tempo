@@ -44,6 +44,7 @@ type Config struct {
 	Target                 string        `yaml:"target,omitempty"`
 	AuthEnabled            bool          `yaml:"auth_enabled,omitempty"`
 	MultitenancyEnabled    bool          `yaml:"multitenancy_enabled,omitempty"`
+	NoAuthTenant           string        `yaml:"no_auth_tenant,omitempty"`
 	ShutdownDelay          time.Duration `yaml:"shutdown_delay,omitempty"`
 	StreamOverHTTPEnabled  bool          `yaml:"stream_over_http_enabled,omitempty"`
 	HTTPAPIPrefix          string        `yaml:"http_api_prefix"`
@@ -94,6 +95,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.StringVar(&c.Target, "target", SingleBinary, "target module")
 	f.BoolVar(&c.AuthEnabled, "auth.enabled", false, "Set to true to enable auth (deprecated: use multitenancy.enabled)")
 	f.BoolVar(&c.MultitenancyEnabled, "multitenancy.enabled", false, "Set to true to enable multitenancy.")
+	f.StringVar(&c.NoAuthTenant, "auth.no-auth-tenant", util.FakeTenantID, "Tenant ID to use when multitenancy is disabled.")
 	f.StringVar(&c.HTTPAPIPrefix, "http-api-prefix", "", "String prefix for all http api endpoints.")
 	f.BoolVar(&c.EnableGoRuntimeMetrics, "enable-go-runtime-metrics", false, "Set to true to enable all Go runtime metrics")
 	f.DurationVar(&c.ShutdownDelay, "shutdown-delay", 0, "How long to wait between SIGTERM and shutdown. After receiving SIGTERM, Tempo will report not-ready status via /ready endpoint.")
@@ -162,6 +164,14 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 // MultitenancyIsEnabled checks if multitenancy is enabled
 func (c *Config) MultitenancyIsEnabled() bool {
 	return c.MultitenancyEnabled || c.AuthEnabled
+}
+
+// NoAuthTenantID returns the tenant ID to inject when multitenancy is disabled.
+func (c *Config) NoAuthTenantID() string {
+	if c.NoAuthTenant == "" {
+		return util.FakeTenantID
+	}
+	return c.NoAuthTenant
 }
 
 // CheckConfig checks if config values are suspect and returns a bundled list of warnings and explanation.
