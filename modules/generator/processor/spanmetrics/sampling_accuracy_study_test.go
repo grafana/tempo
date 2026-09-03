@@ -7,7 +7,10 @@ import (
 	"os"
 	"sort"
 	"testing"
+	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/model/histogram"
 	"github.com/prometheus/prometheus/promql"
 	"github.com/prometheus/prometheus/promql/parser/posrange"
@@ -34,6 +37,7 @@ func TestSamplingAccuracyStudy(t *testing.T) {
 
 	const trials = 20_000
 	studyCounts(t)
+	studyTempoHistogramValues(t)
 	studyBucketFill(t)
 	studyQuantileAccuracy(t, trials)
 	studyQuantiles(t, trials)
@@ -117,6 +121,154 @@ func poissonInterval(lambda, coverage float64) (lo, hi float64) {
 			return lo, k
 		}
 	}
+}
+
+// studyTempoHistogramValues answers the concrete question the tables above only
+// answer in percentages: what does histogram_quantile actually return, in
+// milliseconds, from the histogram Tempo would really build, with and without
+// sampling?
+//
+// It drives a real prometheus.Histogram configured the way
+// registry.nativeHistogram configures one from Tempo's default overrides, and
+// converts it the same way the collect path does, so the native-histogram
+// bucket limit is in play rather than assumed away.
+func studyTempoHistogramValues(t *testing.T) {
+	dist := newLognormalLatency("web (p50 50ms, p99 1s)", 0.05, 1.0)
+	truth := math.Exp(dist.mu + dist.sigma*standardNormalQuantile(0.99))
+	classicBounds := defaultHistogramBuckets()
+
+	t.Log("== histogram_quantile(0.99) in milliseconds, from real Tempo histograms ==")
+	t.Logf("%s, whose true p99 is %.1f ms. One 5-minute query window.", dist.name, 1000*truth)
+	t.Log("")
+	t.Logf("%-40s %8s %8s %7s %17s %17s", "histogram", "median", "mean", "sd", "5th-95th pct", "1st-99th pct")
+
+	for _, run := range []struct {
+		label  string
+		spans  int
+		trials int
+	}{
+		{"unsampled, 1000 spans/s (N=300,000)", 300_000, 400},
+		{"sampled at 34/s budget (m= 10,200)", 10_200, 4_000},
+	} {
+		for _, native := range []bool{true, false} {
+			r := rand.New(rand.NewPCG(7, 11))
+			values := make([]float64, run.spans)
+			results := make([]float64, 0, run.trials)
+			schema, buckets := int32(0), 0
+
+			for trial := 0; trial < run.trials; trial++ {
+				for i := range values {
+					values[i] = math.Exp(dist.mu + dist.sigma*r.NormFloat64())
+				}
+				if native {
+					h := prometheus.NewHistogram(tempoNativeHistogramOpts())
+					for _, v := range values {
+						h.Observe(v)
+					}
+					q, gotSchema, gotBuckets := tempoNativeQuantile(0.99, h)
+					results = append(results, q)
+					schema, buckets = gotSchema, gotBuckets
+				} else {
+					counts := make([]float64, len(classicBounds)+1)
+					for _, v := range values {
+						counts[sort.SearchFloat64s(classicBounds, v)]++
+					}
+					results = append(results, classicQuantile(0.99, classicBounds, counts))
+				}
+			}
+
+			sort.Float64s(results)
+			mean, sd := 0.0, 0.0
+			for _, v := range results {
+				mean += v
+			}
+			mean /= float64(len(results))
+			for _, v := range results {
+				sd += (v - mean) * (v - mean)
+			}
+			sd = math.Sqrt(sd / float64(len(results)-1))
+			at := func(p float64) float64 {
+				return results[max(int(math.Ceil(p*float64(len(results))))-1, 0)]
+			}
+
+			label := run.label + "  classic"
+			if native {
+				label = fmt.Sprintf("%s  native (schema %d, %d buckets)", run.label, schema, buckets)
+			}
+			t.Logf("%-40s %8.1f %8.1f %7.1f %7.1f - %-7.1f %7.1f - %-7.1f",
+				label, 1000*at(0.5), 1000*mean, 1000*sd,
+				1000*at(0.05), 1000*at(0.95), 1000*at(0.01), 1000*at(0.99))
+		}
+	}
+	t.Log("")
+
+	// Tempo caps native histograms at native_histogram_max_bucket_number, 100 by
+	// default. A distribution wide enough to want more buckets than that does
+	// not get them: client_golang doubles the bucket width instead, so the
+	// series ends up a schema coarser than the configured bucket factor asks
+	// for. Whether that happens is a property of the latency spread and the
+	// number of observations, not of the configuration alone.
+	t.Log("Schema the native histogram actually settles on (bucket factor 1.1 asks for schema 3):")
+	t.Logf("%-24s %10s %8s %8s", "latency shape", "spans", "schema", "buckets")
+	for _, shape := range []lognormalLatency{
+		newLognormalLatency("web   sigma=1.29", 0.05, 1.0),
+		newLognormalLatency("mid   sigma=0.85", 0.05, 0.35),
+		newLognormalLatency("tight sigma=0.47", 0.05, 0.15),
+	} {
+		for _, n := range []int{1_000, 10_000, 100_000, 1_000_000} {
+			r := rand.New(rand.NewPCG(7, 11))
+			h := prometheus.NewHistogram(tempoNativeHistogramOpts())
+			for i := 0; i < n; i++ {
+				h.Observe(math.Exp(shape.mu + shape.sigma*r.NormFloat64()))
+			}
+			_, schema, buckets := tempoNativeQuantile(0.99, h)
+			t.Logf("%-24s %10d %8d %8d", shape.name, n, schema, buckets)
+		}
+	}
+	t.Log("")
+}
+
+// tempoNativeHistogramOpts mirrors the options registry.nativeHistogram builds
+// in newSeries from Tempo's default overrides.
+func tempoNativeHistogramOpts() prometheus.HistogramOpts {
+	return prometheus.HistogramOpts{
+		Name:                            "traces_spanmetrics_latency",
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 15 * time.Minute,
+	}
+}
+
+// tempoNativeQuantile mirrors registry.nativeHistogram.nativeHistograms: encode
+// the client_golang histogram to dto, rebuild the Prometheus representation
+// from it, and query that. It also reports the schema and bucket count the
+// histogram settled on.
+func tempoNativeQuantile(phi float64, h prometheus.Histogram) (quantile float64, schema int32, buckets int) {
+	encoded := &dto.Metric{}
+	if err := h.(prometheus.Metric).Write(encoded); err != nil {
+		panic(err)
+	}
+	src := encoded.GetHistogram()
+
+	hist := histogram.Histogram{
+		Schema:        src.GetSchema(),
+		Count:         src.GetSampleCount(),
+		Sum:           src.GetSampleSum(),
+		ZeroThreshold: src.GetZeroThreshold(),
+		ZeroCount:     src.GetZeroCount(),
+	}
+	for _, span := range src.PositiveSpan {
+		hist.PositiveSpans = append(hist.PositiveSpans, histogram.Span{Offset: span.GetOffset(), Length: span.GetLength()})
+		buckets += int(span.GetLength())
+	}
+	hist.PositiveBuckets = src.PositiveDelta
+	for _, span := range src.NegativeSpan {
+		hist.NegativeSpans = append(hist.NegativeSpans, histogram.Span{Offset: span.GetOffset(), Length: span.GetLength()})
+	}
+	hist.NegativeBuckets = src.NegativeDelta
+
+	q, _ := promql.HistogramQuantile(phi, hist.ToFloat(nil), "", posrange.PositionRange{})
+	return q, src.GetSchema(), buckets
 }
 
 // studyBucketFill checks the closed forms for how well m samples fill a
