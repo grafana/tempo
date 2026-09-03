@@ -33,6 +33,7 @@ func TestSamplingAccuracyStudy(t *testing.T) {
 	const trials = 20_000
 	studyCounts(t)
 	studyQuantiles(t, trials)
+	studyQuantileDecomposition(t)
 	studySchemes(t)
 }
 
@@ -178,6 +179,137 @@ func quantileErrAtP99(dist lognormalLatency, bounds []float64, phi, m float64, t
 		errs = append(errs, classicQuantile(phi, bounds, counts)/reference-1)
 	}
 	return p99Abs(errs)
+}
+
+// studyQuantileDecomposition splits the quantile numbers above into the two
+// costs they actually combine, because they are not the same size and only one
+// of them is fixable.
+//
+//  1. Estimating a quantile from m samples at all. The sample quantile pins the
+//     rank to about sqrt(phi(1-phi)/m), and turning a rank error into a value
+//     error multiplies it by 1/f(q), the inverse density at the quantile. On a
+//     long tail the density up there is thin, so the multiplier is large: for a
+//     sigma=1.29 lognormal one percentage point of rank is 7.3% of the value at
+//     p90 and 48% at p99. This is a property of the distribution, and no
+//     histogram layout or interpolation scheme escapes it.
+//
+//  2. Reading the quantile off bucket counts instead of the samples. This one
+//     depends almost entirely on where the quantile falls inside its bucket.
+//     Mid-bucket it costs nothing -- coarse buckets can even beat the exact
+//     sample quantile, trading bias for variance the way any binned estimator
+//     does. Sitting on a boundary is the bad case, and Tempo's default buckets
+//     double in width at every step, so there is a lot of bucket to jitter
+//     across. Finer buckets recover it.
+func studyQuantileDecomposition(t *testing.T) {
+	phis := []float64{0.5, 0.9, 0.99}
+	layouts := []struct {
+		name   string
+		bounds []float64
+	}{
+		{"factor 2 (Tempo default)", defaultHistogramBuckets()},
+		{"factor 1.5", exponentialBuckets(0.002, 1.5, 16.384)},
+		{"factor 1.1 (native-like)", exponentialBuckets(0.002, 1.1, 16.384)},
+	}
+
+	var grid []float64
+	for e := 2.0; e <= 7.0001; e += 0.0625 {
+		grid = append(grid, math.Round(math.Pow(10, e)))
+	}
+	needM := func(dist lognormalLatency, bounds []float64, phi float64) float64 {
+		errs := make([]float64, len(grid))
+		for i, m := range grid {
+			errs[i] = quantileErrAtP99(dist, bounds, phi, m, 8_000, rand.New(rand.NewPCG(uint64(m), uint64(phi*1000))))
+		}
+		need := math.Inf(1)
+		for i := len(grid) - 1; i >= 0 && errs[i] <= 0.05; i-- {
+			need = grid[i]
+		}
+		return need
+	}
+
+	t.Log("== Where the quantile sample counts come from ==")
+	t.Log("m needed to hold the p99 of the relative error under 5%.")
+
+	for _, dist := range []lognormalLatency{
+		newLognormalLatency("web   (p50 50ms, p99 1s, sigma=1.29)", 0.05, 1.0),
+		newLognormalLatency("tight (p50 50ms, p99 150ms, sigma=0.47)", 0.05, 0.15),
+	} {
+		t.Logf("-- %s", dist.name)
+		header := fmt.Sprintf("%-28s", "estimator")
+		for _, phi := range phis {
+			header += fmt.Sprintf(" %14s", fmt.Sprintf("p%g", phi*100))
+		}
+		t.Log(header)
+
+		row := fmt.Sprintf("%-28s", "exact quantile, no buckets")
+		for _, phi := range phis {
+			row += fmt.Sprintf(" %14.0f", exactQuantileSamplesNeeded(dist.sigma, phi, 0.05))
+		}
+		t.Log(row + "   <- analytic floor, unavoidable")
+
+		for _, layout := range layouts {
+			row := fmt.Sprintf("%-28s", layout.name)
+			for _, phi := range phis {
+				row += fmt.Sprintf(" %14.0f", needM(dist, layout.bounds, phi))
+			}
+			t.Log(row + fmt.Sprintf("   (%d buckets)", len(layout.bounds)))
+		}
+
+		row = fmt.Sprintf("%-28s", "position within its bucket")
+		for _, phi := range phis {
+			row += fmt.Sprintf(" %13.0f%%", 100*dist.positionInBucket(defaultHistogramBuckets(), phi))
+		}
+		t.Log(row + "   <- near 0% or 100% means sitting on a boundary")
+		t.Log("")
+	}
+}
+
+// exactQuantileSamplesNeeded inverts the asymptotic standard error of the exact
+// sample quantile of a lognormal: sd/q = sqrt(phi(1-phi)/m) * sigma / pdf(z),
+// with z the standard normal quantile at phi. No histogram is involved, so this
+// is the floor every bucketed estimator is measured against.
+func exactQuantileSamplesNeeded(sigma, phi, eps float64) float64 {
+	z := standardNormalQuantile(phi)
+	pdf := math.Exp(-z*z/2) / math.Sqrt(2*math.Pi)
+	return math.Round(math.Pow(zP99*sigma*math.Sqrt(phi*(1-phi))/(pdf*eps), 2))
+}
+
+func standardNormalQuantile(p float64) float64 {
+	lo, hi := -10.0, 10.0
+	for i := 0; i < 200; i++ {
+		mid := (lo + hi) / 2
+		if 0.5*math.Erfc(-mid/math.Sqrt2) < p {
+			lo = mid
+		} else {
+			hi = mid
+		}
+	}
+	return (lo + hi) / 2
+}
+
+// positionInBucket reports where the distribution's phi quantile falls inside
+// whichever bucket contains it, as a fraction of that bucket's width.
+func (l lognormalLatency) positionInBucket(bounds []float64, phi float64) float64 {
+	q := math.Exp(l.mu + l.sigma*standardNormalQuantile(phi))
+	lower, upper := 0.0, bounds[0]
+	for i := range bounds {
+		if bounds[i] >= q {
+			upper = bounds[i]
+			if i > 0 {
+				lower = bounds[i-1]
+			}
+			break
+		}
+	}
+	return (q - lower) / (upper - lower)
+}
+
+func exponentialBuckets(start, factor, upTo float64) []float64 {
+	var bounds []float64
+	for v := start; v <= upTo*1.0000001; v *= factor {
+		bounds = append(bounds, v)
+	}
+	return bounds
 }
 
 // studySchemes compares three unbiased schemes that all keep the same number of

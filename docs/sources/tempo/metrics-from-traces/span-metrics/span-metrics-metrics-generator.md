@@ -238,13 +238,37 @@ sampled spans spread across the latency buckets, which no sampling scheme can
 make exact. `CV` is the coefficient of variation of the quantity being summed.
 
 The quantile rows are for a long-tailed service latency (median 50 ms, p99 1 s)
-against the default histogram buckets. They move a lot with the shape of your
-latency distribution and with where your quantile falls relative to a bucket
-boundary, because Tempo's default buckets double in width at each step: a
-narrow distribution needs an order of magnitude fewer samples, and a quantile
-sitting near a boundary needs more. Treat them as the order of magnitude to
-budget for, not a guarantee. Tightening the error from 5% to 1% costs roughly
-25x more samples for every row except the two counter rates.
+against the default histogram buckets. Most of that cost is not the histogram:
+estimating a quantile from `m` samples pins its *rank* to about
+`sqrt(phi(1-phi)/m)`, and turning a rank error into a *value* error multiplies
+it by the inverse of the density at the quantile. On a long tail the density up
+there is thin, so the multiplier is large -- for this shape one percentage
+point of rank is 7% of the value at p90 and 48% at p99. Even a perfect
+estimator reading every span would need about 13,000 samples for 5% at p90 and
+61,000 at p99. That part is a property of your latency distribution, not of
+Tempo.
+
+Reading the quantile off bucket counts adds to it, but only when the quantile
+falls near a bucket boundary -- and Tempo's default buckets double in width at
+every step, so there is a lot of bucket to interpolate across. For this shape
+the p90 lands 2% into its bucket, and that alone accounts for the jump from
+13,000 to 42,000. Mid-bucket it costs nothing: the same shape's p50 sits 56%
+into its bucket and needs slightly *fewer* samples than a perfect estimator,
+because coarse buckets trade variance for bias like any binned estimator.
+
+Two consequences worth acting on:
+
+- If you sample and care about high quantiles, enable
+  [native histograms](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration#metrics-generator).
+  Their much finer buckets remove the interpolation penalty almost entirely --
+  p90 drops from 42,000 back to about 13,000 samples -- leaving only the floor.
+- A narrow latency distribution is far cheaper than a wide one. A service whose
+  p99 is only 3x its median needs roughly an order of magnitude fewer samples
+  than the table shows.
+
+Treat the quantile rows as the order of magnitude to budget for, not a
+guarantee. Tightening the error from 5% to 1% costs roughly 25x more samples
+for every row except the two counter rates.
 
 The practical reading: sampling is close to free for request-rate and error-rate
 dashboards, wants a budget in the low thousands for median latency, and wants
