@@ -194,6 +194,66 @@ metrics_generator:
         - "process.runtime.version"
 ```
 
+### Capping per-series CPU with sampling
+
+On tenants where a handful of series carry most of the span volume, the
+metrics-generator spends most of its CPU aggregating spans that barely move
+those series' values. `max_spans_per_series_per_second` caps how many spans per
+series are fully aggregated each second:
+
+```yaml
+metrics_generator:
+  processor:
+    span_metrics:
+      max_spans_per_series_per_second: 500
+```
+
+Series below the rate are untouched. For a series above it, the processor takes
+a uniform sample of that series' spans and scales the sampled values back up, so
+no spans are dropped and the metrics stay unbiased -- but the values carry a
+sampling error.
+
+How much error depends on which metric you query and on how many of the
+series' spans were sampled inside your query's lookback window. Writing `m` for
+that count, `m = max_spans_per_series_per_second x lookback in seconds`. So a
+budget of 500 with a 5-minute lookback gives `m = 150,000`.
+
+The `m` needed to hold the 99th percentile of the relative error under 5%:
+
+| Query | `m` for 5% error | Scaling |
+| --- | --- | --- |
+| `rate(traces_spanmetrics_calls_total[...])` | 20 | error is at most `1/m` |
+| `rate(traces_spanmetrics_latency_count[...])` | 20 | error is at most `1/m` |
+| `rate(traces_spanmetrics_size_total[...])` | 2,700 | `2.6 x CV / sqrt(m)` |
+| `traces_spanmetrics_latency_sum` (average latency) | 11,000 | `2.6 x CV / sqrt(m)` |
+| `histogram_quantile(0.5, ...)` | 5,600 | roughly `1/sqrt(m)` |
+| `histogram_quantile(0.9, ...)` | 42,000 | roughly `1/sqrt(m)` |
+| `histogram_quantile(0.99, ...)` | 100,000 | roughly `1/sqrt(m)` |
+
+Counter rates are nearly exact because the sampling is stratified: a series'
+spans are cut into equal blocks and exactly one span per block is kept, so the
+scaled-up count can only be off by one block however hard the series is
+sampled. `_sum` and the quantiles are different -- they depend on how the
+sampled spans spread across the latency buckets, which no sampling scheme can
+make exact. `CV` is the coefficient of variation of the quantity being summed.
+
+The quantile rows are for a long-tailed service latency (median 50 ms, p99 1 s)
+against the default histogram buckets. They move a lot with the shape of your
+latency distribution and with where your quantile falls relative to a bucket
+boundary, because Tempo's default buckets double in width at each step: a
+narrow distribution needs an order of magnitude fewer samples, and a quantile
+sitting near a boundary needs more. Treat them as the order of magnitude to
+budget for, not a guarantee. Tightening the error from 5% to 1% costs roughly
+25x more samples for every row except the two counter rates.
+
+The practical reading: sampling is close to free for request-rate and error-rate
+dashboards, wants a budget in the low thousands for median latency, and wants
+tens of thousands before high quantiles stay tight. A series receiving fewer
+spans per second than the budget is never sampled at all, so this only affects
+your heaviest series.
+
+Sampling is disabled by default.
+
 ### Handling sampled traces
 
 If you use a ratio-based sampler, you have two options to prevent losing metric information:

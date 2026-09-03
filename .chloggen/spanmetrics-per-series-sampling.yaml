@@ -1,0 +1,12 @@
+change_type: feature
+component: metrics-generator
+note: add span_metrics.max_spans_per_series_per_second to cap how many spans per metric series are fully aggregated.
+issues: []
+subtext: |
+  Series above the rate have a uniform sample of their spans aggregated and the
+  result scaled back up, so no spans are dropped and the metrics stay unbiased.
+  Sampling is stratified, which keeps calls_total and latency_count rates within
+  one block of exact; latency_sum and the histogram quantiles carry a sampling
+  error that shrinks with the budget. Series below the rate are untouched.
+  Disabled by default.
+user: csmarchbanks

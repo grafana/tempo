@@ -64,6 +64,13 @@ type Config struct {
 
 	// Allow user to disable instance label from all span metrics series
 	EnableInstanceLabel bool `yaml:"enable_instance_label"`
+
+	// MaxSpansPerSeriesPerSecond bounds how many spans per metric series run the
+	// full aggregation path each second. Once a series exceeds it, the processor
+	// aggregates a uniform sample of its spans and scales the result back up, so
+	// no data is dropped but the series' values carry a sampling error that
+	// shrinks as this value grows. 0, the default, disables sampling.
+	MaxSpansPerSeriesPerSecond int `yaml:"max_spans_per_series_per_second"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
