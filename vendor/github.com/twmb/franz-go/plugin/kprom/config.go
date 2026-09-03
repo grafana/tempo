@@ -1,12 +1,13 @@
 package kprom
 
 import (
+	"maps"
 	"reflect"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"maps"
 )
 
 type cfg struct {
@@ -21,6 +22,12 @@ type cfg struct {
 	histograms       map[Histogram][]float64
 	defBuckets       []float64
 	fetchProduceOpts fetchProduceOpts
+	brokerLabels     []string
+
+	nativeBucketFactor   float64
+	nativeMaxBuckets     uint32
+	nativeBucketMinReset time.Duration
+	nativeBucketsOnly    bool
 
 	handlerOpts  promhttp.HandlerOpts
 	goCollectors bool
@@ -38,6 +45,11 @@ func newCfg(namespace string, opts ...Opt) cfg {
 			uncompressedBytes: true,
 			labels:            []string{"node_id", "topic"},
 		},
+		brokerLabels: []string{"node_id"},
+
+		nativeBucketFactor:   DefNativeBucketFactor,
+		nativeMaxBuckets:     DefNativeMaxBuckets,
+		nativeBucketMinReset: DefNativeBucketMinReset,
 	}
 
 	for _, opt := range opts {
@@ -138,6 +150,48 @@ func Buckets(buckets []float64) Opt {
 // tailored to broadly measure the kafka timings (in seconds).
 var DefBuckets = []float64{0.001, 0.002, 0.004, 0.008, 0.016, 0.032, 0.064, 0.128, 0.256, 0.512, 1.024, 2.048}
 
+// Default native histogram parameters, used by all kprom histograms unless
+// overridden with the Native* options.
+const (
+	DefNativeBucketFactor   = 1.1
+	DefNativeMaxBuckets     = 100
+	DefNativeBucketMinReset = time.Hour
+)
+
+// NativeBucketFactor sets the bucket factor used by all kprom native
+// histograms, overriding the default of DefNativeBucketFactor. It controls the
+// resolution of native histogram buckets: the growth factor between consecutive
+// buckets is at most this value. It must be greater than 1 to enable native
+// histograms; a value of 1 or less disables native histograms, leaving only the
+// classic histograms.
+func NativeBucketFactor(factor float64) Opt {
+	return opt{func(c *cfg) { c.nativeBucketFactor = factor }}
+}
+
+// NativeMaxBuckets sets the maximum number of buckets used by all kprom native
+// histograms, overriding the default of DefNativeMaxBuckets. Once exceeded,
+// buckets are widened to keep cardinality bounded. A value of 0 means no limit.
+func NativeMaxBuckets(n uint32) Opt {
+	return opt{func(c *cfg) { c.nativeMaxBuckets = n }}
+}
+
+// NativeBucketMinReset sets the minimum duration that must pass before kprom
+// native histogram buckets may be reset to keep them within the max bucket
+// number, overriding the default of DefNativeBucketMinReset.
+func NativeBucketMinReset(d time.Duration) Opt {
+	return opt{func(c *cfg) { c.nativeBucketMinReset = d }}
+}
+
+// NativeBucketsOnly stops kprom from emitting classic (fixed-bucket) histograms,
+// leaving only native histograms. Native histograms must be enabled for this to
+// work: if the native bucket factor is 1 or less (see NativeBucketFactor),
+// prometheus silently falls back to its own default classic buckets
+// (prometheus.DefBuckets), which are neither the kprom defaults nor tailored to
+// Kafka timings.
+func NativeBucketsOnly() Opt {
+	return opt{func(c *cfg) { c.nativeBucketsOnly = true }}
+}
+
 // A Histogram is an identifier for a kprom histogram that can be enabled
 type Histogram uint8
 
@@ -166,7 +220,7 @@ type HistogramOpts struct {
 //	 		Buckets: prometheus.LinearBuckets(10, 10, 8),
 //	 	},
 //	 	kprom.HistogramOpts{
-//	 		Enable: kprom.ReadeTime,
+//	 		Enable: kprom.ReadTime,
 //	 		// kprom default bucket will be used
 //	 	},
 //	 ),
@@ -196,7 +250,7 @@ func Histograms(hs ...Histogram) Opt {
 	return HistogramsFromOpts(hos...)
 }
 
-// A Detail is a label that can be set on fetch/produce metrics
+// A Detail is a label that can be set on fetch/produce metrics.
 type Detail uint8
 
 const (
@@ -250,4 +304,44 @@ func FetchAndProduceDetail(details ...Detail) Opt {
 			c.fetchProduceOpts.labels = labels
 		},
 	}
+}
+
+// A BrokerLabel is a label that can be set on broker-level metrics.
+type BrokerLabel uint8
+
+const (
+	BrokerNodeID BrokerLabel = iota // Include "node_id" label on broker metrics.
+	BrokerHost                      // Include "host" label on broker metrics.
+	BrokerRack                      // Include "rack" label on broker metrics.
+)
+
+// BrokerLabels configures which labels are included on broker-level
+// connection, read, write, and request metrics, overriding the default
+// of (BrokerNodeID).
+// Calling with no arguments removes all broker-level labels, aggregating
+// metrics across all brokers:
+//
+//	kprom.BrokerLabels( /* none */ )
+//
+// This is useful for reducing metrics cardinality in environments with many or
+// frequently changing broker IDs.
+func BrokerLabels(labels ...BrokerLabel) Opt {
+	return opt{func(c *cfg) {
+		seen := make(map[BrokerLabel]bool)
+		c.brokerLabels = nil
+		for _, l := range labels {
+			if seen[l] {
+				continue
+			}
+			seen[l] = true
+			switch l {
+			case BrokerNodeID:
+				c.brokerLabels = append(c.brokerLabels, "node_id")
+			case BrokerHost:
+				c.brokerLabels = append(c.brokerLabels, "host")
+			case BrokerRack:
+				c.brokerLabels = append(c.brokerLabels, "rack")
+			}
+		}
+	}}
 }
