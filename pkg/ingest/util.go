@@ -31,8 +31,10 @@ func IngesterPartitionID(ingesterID string) (int32, error) {
 		return 0, fmt.Errorf("ingester ID %s doesn't match regular expression %q", ingesterID, ingesterIDRegexp.String())
 	}
 
-	// Parse the ingester sequence number.
-	ingesterSeq, err := strconv.Atoi(match[1])
+	// Parse the ingester sequence number. Parsing straight into 32 bits keeps a
+	// sequence number that cannot be a partition ID an error, rather than
+	// wrapping it into some other partition on the conversion below.
+	ingesterSeq, err := strconv.ParseInt(match[1], 10, 32)
 	if err != nil {
 		return 0, fmt.Errorf("no ingester sequence number in ingester ID %s", ingesterID)
 	}
