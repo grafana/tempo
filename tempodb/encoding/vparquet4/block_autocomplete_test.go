@@ -487,6 +487,21 @@ func TestFetchTagValues(t *testing.T) {
 		expectedValues []tempopb.TagValue
 	}{
 		{
+			// Both span:id and trace:id are metadata-only intrinsics: neither
+			// contributes a column iterator, so the trace-level join ends up with
+			// zero sub-iterators. It must return no values instead of panicking.
+			name:           "metadata-only intrinsic tag with metadata-only intrinsic condition",
+			tag:            "span:id",
+			query:          `{trace:id="000000000000000000000000000000ff"}`,
+			expectedValues: []tempopb.TagValue{},
+		},
+		{
+			name:           "metadata-only intrinsic tag with span-scoped metadata-only condition",
+			tag:            "span:id",
+			query:          `{span:id="0000000000000001"}`,
+			expectedValues: []tempopb.TagValue{},
+		},
+		{
 			name:  "intrinsic with no query - match",
 			tag:   "name",
 			query: "{}",
@@ -1072,6 +1087,44 @@ func TestFetchTagNamesWithOrConditions(t *testing.T) {
 			})
 		}
 	}
+}
+
+// A WAL block runs the same autocomplete iterator as a backend block, so it hits
+// the same empty-join and nil-iterator cases when every condition is a
+// metadata-only intrinsic.
+func TestWalBlockFetchTagValuesMetadataOnlyIntrinsics(t *testing.T) {
+	queries := []string{
+		`{trace:id="000000000000000000000000000000ff"}`,
+		`{span:id="0000000000000001"}`,
+	}
+
+	testWalBlock(t, func(w *walBlock, _ []common.ID, _ []*tempopb.Trace) {
+		for _, query := range queries {
+			t.Run(query, func(t *testing.T) {
+				req, err := traceql.ExtractFetchSpansRequest(query)
+				require.NoError(t, err)
+
+				tag, err := traceql.ParseIdentifier("span:id")
+				require.NoError(t, err)
+
+				var (
+					mc               = collector.NewMetricsCollector()
+					distinctValues   = collector.NewDistinctValue(1_000_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+					autocompletedReq = traceql.FetchTagValuesRequest{
+						TagName: tag,
+						ConditionGroups: [][]traceql.Condition{append(
+							req.Conditions,
+							traceql.Condition{Attribute: tag, Op: traceql.OpNone},
+						)},
+					}
+				)
+
+				err = w.FetchTagValues(t.Context(), autocompletedReq, traceql.MakeCollectTagValueFunc(distinctValues.Collect), mc.Add, common.DefaultSearchOptions())
+				require.NoError(t, err)
+				require.Empty(t, distinctValues.Values())
+			})
+		}
+	})
 }
 
 func TestFetchTagValuesWithOrConditions(t *testing.T) {
