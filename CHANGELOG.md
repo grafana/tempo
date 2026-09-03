@@ -1,5 +1,5 @@
 <!-- next version -->
-* [BUGFIX] Reject an ingester sequence number that does not fit a partition ID instead of wrapping it [#7852](https://github.com/grafana/tempo/pull/7852) (@arpitjain099)
+* [BUGFIX] Reject an ingester sequence number that does not fit a partition ID instead of wrapping it [#7851](https://github.com/grafana/tempo/pull/7851) (@arpitjain099)
 
 # v3.0.2
 
