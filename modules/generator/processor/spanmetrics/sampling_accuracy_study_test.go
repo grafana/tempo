@@ -34,6 +34,7 @@ func TestSamplingAccuracyStudy(t *testing.T) {
 
 	const trials = 20_000
 	studyCounts(t)
+	studyBucketFill(t)
 	studyQuantileAccuracy(t, trials)
 	studyQuantiles(t, trials)
 	studyQuantileDecomposition(t)
@@ -114,6 +115,89 @@ func poissonInterval(lambda, coverage float64) (lo, hi float64) {
 		}
 		if cdf >= 1-tail || k > lambda+50*math.Sqrt(lambda)+100 {
 			return lo, k
+		}
+	}
+}
+
+// studyBucketFill checks the closed forms for how well m samples fill a
+// log-spaced histogram against simulation. Having them means the budget for a
+// given histogram resolution can be computed rather than simulated.
+//
+// Write w for the bucket width in log space, w = ln(2)/2^schema, and take
+// log-latency to be normal with standard deviation sigma, so sigma/w is the
+// number of buckets spanning one standard deviation. For a bucket holding
+// probability p, the sampled count is Binomial(m, p), which gives the whole
+// picture:
+//
+//	per bucket        relative sd = sqrt((1-p)/(m*p)), so 1/sqrt(n) for a
+//	                  bucket with n = m*p expected samples
+//	busiest bucket    p_max = phi(0)*w/sigma = 0.3989*w/sigma
+//	populated buckets sum(1 - exp(-m*p_i)); a bucket falls out of the
+//	                  histogram once m*p_i drops below about 1
+//	populated out to  z = sqrt(2*ln(w*m/(sigma*sqrt(2*pi)))) standard
+//	                  deviations, which is where m*p_i = 1
+//	whole shape       E[TVD] = sum(sqrt(p_i*(1-p_i)))/sqrt(2*pi*m), and for a
+//	                  lognormal sum(sqrt(p_i)) = 2^(3/4)*pi^(1/4)*sqrt(sigma/w),
+//	                  so E[TVD] = (2/pi)^(1/4)*sqrt(sigma/(w*m))
+//
+// Inverting the last one, holding total variation distance under eps costs
+// m = sqrt(2/pi)*sigma/(w*eps^2). Two things fall straight out of that: the
+// budget is linear in sigma, so a wide latency distribution costs proportionally
+// more than a narrow one, and it is linear in 2^schema, so each step of
+// histogram resolution doubles the samples needed to fill it.
+func studyBucketFill(t *testing.T) {
+	t.Log("== Filling a log-spaced histogram: closed form vs simulation ==")
+
+	for _, schema := range []int32{2, 3, 4} {
+		w := math.Ln2 / math.Exp2(float64(schema))
+		for _, dist := range []lognormalLatency{
+			newLognormalLatency("web   sigma=1.29", 0.05, 1.0),
+			newLognormalLatency("tight sigma=0.47", 0.05, 0.15),
+		} {
+			_, probs := nativeBucketProbs(dist, schema)
+
+			measuredS, measuredPeak := 0.0, 0.0
+			for _, p := range probs {
+				measuredS += math.Sqrt(p)
+				measuredPeak = math.Max(measuredPeak, p)
+			}
+			predictedS := math.Pow(2, 0.75) * math.Pow(math.Pi, 0.25) * math.Sqrt(dist.sigma/w)
+
+			t.Logf("-- schema %d (w=%.4f, sigma/w=%.1f buckets per sigma), %s", schema, w, dist.sigma/w, dist.name)
+			t.Logf("   sum sqrt(p): measured %.2f  predicted %.2f", measuredS, predictedS)
+			t.Logf("   busiest bucket: measured %.3f%%  predicted %.3f%%",
+				100*measuredPeak, 100*0.3989422804*w/dist.sigma)
+
+			t.Logf("   %9s %10s %10s | %10s %10s | %8s", "m", "TVD sim", "TVD calc", "filled sim", "filled calc", "out to")
+			r := rand.New(rand.NewPCG(uint64(schema)*31+7, 99))
+			counts := make([]float64, len(probs))
+			for _, m := range []float64{1_000, 10_000, 100_000} {
+				const trials = 400
+				totalTV, totalFilled := 0.0, 0.0
+				for trial := 0; trial < trials; trial++ {
+					drawn := drawCounts(r, m, probs, counts)
+					distance := 0.0
+					for j, p := range probs {
+						distance += math.Abs(counts[j]/drawn - p)
+						if counts[j] > 0 {
+							totalFilled++
+						}
+					}
+					totalTV += distance / 2
+				}
+
+				calcFilled := 0.0
+				for _, p := range probs {
+					calcFilled += 1 - math.Exp(-m*p)
+				}
+				z := math.Sqrt(2 * math.Log(w*m/(dist.sigma*math.Sqrt(2*math.Pi))))
+
+				t.Logf("   %9.0f %10.4f %10.4f | %10.1f %10.1f | %6.2f sd = p%.4g",
+					m, totalTV/trials, math.Pow(2/math.Pi, 0.25)*math.Sqrt(dist.sigma/(w*m)),
+					totalFilled/trials, calcFilled,
+					z, 100*(0.5*math.Erfc(-z/math.Sqrt2)))
+			}
+			t.Log("")
 		}
 	}
 }

@@ -262,6 +262,55 @@ Two things set the quantile rows, and only one is about histograms:
   default, where buckets double in width at each step, it can triple the
   samples a percentile needs.
 
+#### Computing a budget for your own histogram
+
+The table above is one latency shape at one resolution. If yours differs, the
+numbers follow from two quantities and you can work them out directly.
+
+Let `w` be the bucket width in log space, `w = ln(2) / 2^schema`, which is
+0.0866 at Tempo's default schema 3. Let `sigma` be the spread of your
+log-latency, which you can read off two percentiles you already have:
+`sigma = ln(p99 / p50) / 2.33`. A service with a 50 ms median and a 1 s p99 has
+`sigma = 1.29`. Then `sigma / w` is the number of buckets your latency spans per
+standard deviation -- about 15 for that service at schema 3.
+
+A bucket holding a fraction `p` of the spans collects `n = m * p` samples and
+its count carries a relative standard deviation of `1 / sqrt(n)`. The busiest
+bucket holds `0.399 * w / sigma`, so 2.7% for that service, giving it 268
+samples and a 6% standard deviation at `m = 10,000`.
+
+For the histogram as a whole, the expected share of the distribution's mass
+that lands in the wrong bucket -- the total variation distance from the true
+shape -- is
+
+```
+E[TVD] = (2/pi)^(1/4) * sqrt(sigma / (w * m))
+```
+
+so holding it under `eps` costs
+
+```
+m = sqrt(2/pi) * sigma / (w * eps^2)
+```
+
+Two consequences are worth planning around. The budget is linear in `sigma`, so
+a service with a long tail costs proportionally more than a tight one. And it is
+linear in `2^schema`, so every step up in histogram resolution doubles the
+samples needed to fill it: schema 4 buckets are half as wide but need twice the
+data to populate as well as schema 3 does.
+
+Finally, a bucket drops out of the histogram entirely once its expected count
+falls below about 1, which puts the edge of the populated range at
+
+```
+z = sqrt(2 * ln(w * m / (sigma * sqrt(2*pi))))
+```
+
+standard deviations from the median. For the service above at `m = 10,000` that
+is 3.3 standard deviations, or the 99.96th percentile -- comfortably past p99.
+At `m = 1,000` it falls to 2.6, the 99.5th percentile, which is why the p99 row
+of the table degrades sharply below a few thousand samples.
+
 Sampling is disabled by default.
 
 ### Handling sampled traces
