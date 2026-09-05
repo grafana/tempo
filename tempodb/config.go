@@ -57,6 +57,12 @@ type Config struct {
 	BlocklistPollJitterMs                  int           `yaml:"blocklist_poll_jitter_ms"`
 	BlocklistPollTolerateConsecutiveErrors int           `yaml:"blocklist_poll_tolerate_consecutive_errors"`
 	BlocklistPollTolerateTenantFailures    int           `yaml:"blocklist_poll_tolerate_tenant_failures"`
+	// BlocklistPollTenantIndexJSONFallback is a temporary rollout bridge from
+	// when tenant indexes moved to protobuf. When false (default), only the
+	// protobuf-encoded tenant index is read or written, and any stale
+	// JSON-encoded index left over from before the migration is opportunistically
+	// deleted on write. Planned for removal once the fleet has fully migrated.
+	BlocklistPollTenantIndexJSONFallback bool `yaml:"blocklist_poll_tenant_index_json_fallback"`
 
 	EmptyTenantDeletionEnabled bool          `yaml:"empty_tenant_deletion_enabled"`
 	EmptyTenantDeletionAge     time.Duration `yaml:"empty_tenant_deletion_age"`
