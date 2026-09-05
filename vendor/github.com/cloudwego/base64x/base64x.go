@@ -16,12 +16,6 @@
 
 package base64x
 
-import (
-    `encoding/base64`
-
-    "github.com/cloudwego/base64x/internal/native"
-)
-
 // An Encoding is a radix 64 encoding/decoding scheme, defined by a
 // 64-character alphabet. The most common encoding is the "base64"
 // encoding defined in RFC 4648 and used in MIME (RFC 2045) and PEM
@@ -30,10 +24,10 @@ import (
 type Encoding int
 
 const (
-    _MODE_URL  = 1 << 0
-    _MODE_RAW  = 1 << 1
-    _MODE_AVX2 = 1 << 2
-    _MODE_JSON = 1 << 3
+	_MODE_URL  = 1 << 0
+	_MODE_RAW  = 1 << 1
+	_MODE_AVX2 = 1 << 2
+	_MODE_JSON = 1 << 3
 )
 
 // StdEncoding is the standard base64 encoding, as defined in
@@ -57,10 +51,10 @@ const RawStdEncoding Encoding = _MODE_RAW
 const RawURLEncoding Encoding = _MODE_RAW | _MODE_URL
 
 // JSONStdEncoding is the StdEncoding and encoded as JSON string as RFC 8259.
-const JSONStdEncoding Encoding = _MODE_JSON;
+const JSONStdEncoding Encoding = _MODE_JSON
 
 var (
-    archFlags = 0
+	archFlags = 0
 )
 
 /** Encoder Functions **/
@@ -75,13 +69,13 @@ var (
 // If out is not large enough to contain the encoded result,
 // it will panic.
 func (self Encoding) Encode(out []byte, src []byte) {
-    if len(src) != 0 {
-        if buf := out[:0:len(out)]; self.EncodedLen(len(src)) <= len(out) {
-            self.EncodeUnsafe(&buf, src)
-        } else {
-            panic("encoder output buffer is too small")
-        }
-    }
+	if len(src) != 0 {
+		if buf := out[:0:len(out)]; self.EncodedLen(len(src)) <= len(out) {
+			self.EncodeUnsafe(&buf, src)
+		} else {
+			panic("encoder output buffer is too small")
+		}
+	}
 }
 
 // EncodeUnsafe behaves like Encode, except it does NOT check if
@@ -89,27 +83,27 @@ func (self Encoding) Encode(out []byte, src []byte) {
 //
 // It will also update the length of out.
 func (self Encoding) EncodeUnsafe(out *[]byte, src []byte) {
-    native.B64Encode(out, &src, int(self) | archFlags)
+	encode(out, src, int(self)|archFlags)
 }
 
 // EncodeToString returns the base64 encoding of src.
 func (self Encoding) EncodeToString(src []byte) string {
-    nbs := len(src)
-    ret := make([]byte, 0, self.EncodedLen(nbs))
+	nbs := len(src)
+	ret := make([]byte, 0, self.EncodedLen(nbs))
 
-    /* encode in native code */
-    self.EncodeUnsafe(&ret, src)
-    return mem2str(ret)
+	/* encode in native code */
+	self.EncodeUnsafe(&ret, src)
+	return mem2str(ret)
 }
 
 // EncodedLen returns the length in bytes of the base64 encoding
 // of an input buffer of length n.
 func (self Encoding) EncodedLen(n int) int {
-    if (self & _MODE_RAW) == 0 {
-        return (n + 2) / 3 * 4
-    } else {
-        return (n * 8 + 5) / 6
-    }
+	if (self & _MODE_RAW) == 0 {
+		return (n + 2) / 3 * 4
+	} else {
+		return (n*8 + 5) / 6
+	}
 }
 
 /** Decoder Functions **/
@@ -124,13 +118,13 @@ func (self Encoding) EncodedLen(n int) int {
 // If out is not large enough to contain the encoded result,
 // it will panic.
 func (self Encoding) Decode(out []byte, src []byte) (int, error) {
-    if len(src) == 0 {
-        return 0, nil
-    } else if buf := out[:0:len(out)]; self.DecodedLen(len(src)) <= len(out) {
-        return self.DecodeUnsafe(&buf, src)
-    } else {
-        panic("decoder output buffer is too small")
-    }
+	if len(src) == 0 {
+		return 0, nil
+	} else if buf := out[:0:len(out)]; self.DecodedLen(len(src)) <= len(out) {
+		return self.DecodeUnsafe(&buf, src)
+	} else {
+		panic("decoder output buffer is too small")
+	}
 }
 
 // DecodeUnsafe behaves like Decode, except it does NOT check if
@@ -138,32 +132,28 @@ func (self Encoding) Decode(out []byte, src []byte) (int, error) {
 //
 // It will also update the length of out.
 func (self Encoding) DecodeUnsafe(out *[]byte, src []byte) (int, error) {
-    if n := native.B64Decode(out, mem2addr(src), len(src), int(self) | archFlags); n >= 0 {
-        return n, nil
-    } else {
-        return 0, base64.CorruptInputError(-n - 1)
-    }
+	return decode(out, src, int(self)|archFlags)
 }
 
 // DecodeString returns the bytes represented by the base64 string s.
 func (self Encoding) DecodeString(s string) ([]byte, error) {
-    src := str2mem(s)
-    ret := make([]byte, 0, self.DecodedLen(len(s)))
+	src := str2mem(s)
+	ret := make([]byte, 0, self.DecodedLen(len(s)))
 
-    /* decode into the allocated buffer */
-    if _, err := self.DecodeUnsafe(&ret, src); err != nil {
-        return nil, err
-    } else {
-        return ret, nil
-    }
+	/* decode into the allocated buffer */
+	if _, err := self.DecodeUnsafe(&ret, src); err != nil {
+		return nil, err
+	} else {
+		return ret, nil
+	}
 }
 
 // DecodedLen returns the maximum length in bytes of the decoded data
 // corresponding to n bytes of base64-encoded data.
 func (self Encoding) DecodedLen(n int) int {
-    if (self & _MODE_RAW) == 0 {
-        return n / 4 * 3
-    } else {
-        return n * 6 / 8
-    }
+	if (self & _MODE_RAW) == 0 {
+		return n / 4 * 3
+	} else {
+		return n * 6 / 8
+	}
 }
