@@ -42,6 +42,7 @@ For externally supported gRPC API, [refer to Tempo gRPC API](#tempo-grpc-api).
 | [TraceQL Metrics](#traceql-metrics)                                                   | Query-frontend                            | HTTP | `GET /api/metrics/query_range`                            |
 | [TraceQL Metrics (instant)](#instant)                                                 | Query-frontend                            | HTTP | `GET /api/metrics/query`                                  |
 | [Trace diff](#trace-diff) (\*)                                                        | Query-frontend                            | HTTP | `POST /api/v2/traces/diff`                                |
+| [Trace summary](#trace-summary) (\*)                                                  | Query-frontend                            | HTTP | `GET /api/v2/traces/<traceID>/summary`                    |
 | [Query Echo Endpoint](#query-echo-endpoint)                                           | Query-frontend                            | HTTP | `GET /api/echo`                                           |
 | [Overrides API](#overrides-api)                                                       | Query-frontend                            | HTTP | `GET,POST,PATCH,DELETE /api/overrides`                    |
 | Memberlist                                                                            | Distributor, Querier, Live store          | HTTP | `GET /memberlist`                                         |
@@ -820,6 +821,58 @@ before `end` and limits the block search to that time range. If omitted, Tempo
 searches across all blocks.
 
 Only `POST` is allowed. Other methods return `405 Method Not Allowed`.
+
+### Trace summary
+
+{{< admonition type="warning" >}}
+This endpoint is experimental. The request format and behavior may change in future releases.
+{{< /admonition >}}
+
+This endpoint returns a condensed summary of a trace, useful for a quick triage view without fetching the full trace.
+
+```
+GET /api/v2/traces/<traceID>/summary?start=<start>&end=<end>
+```
+
+Parameters:
+
+- `start = (unix epoch seconds)`
+  Optional. Along with `end`, limits the time range searched for the trace.
+- `end = (unix epoch seconds)`
+  Optional. Along with `start`, limits the time range searched for the trace.
+
+The response is a JSON object containing:
+
+- `traceId`, `rootService`, `rootSpanName`, `durationNanos`, `spanCount`, `errorSpanCount`
+- `criticalPath`: the root-to-leaf chain of spans following, at each level, whichever child's subtree reaches the
+  latest end time (not necessarily the child that itself ends latest — a detached or async descendant can keep
+  its branch on the path after the child span itself has finished). Each entry carries its `attributes` and a
+  `selfDurationNanos`. Because every span on the path nests inside the one above it, the wall durations decline
+  only slightly from hop to hop; `selfDurationNanos` is what identifies which hop actually spent the time.
+- `services`: per-service span count, `errorSpanCount`, and two durations. `durationNanos` is the sum of that
+  service's span durations and is therefore inclusive of time spent in child spans (including children belonging
+  to other services), so summing it across services can far exceed the trace `durationNanos`.
+  `selfDurationNanos` excludes time already covered by child spans and is the field to rank services by.
+- `slowestSpans`: the 5 spans with the highest `selfDurationNanos`. Ranking by self time rather than wall time
+  keeps this list from simply restating the critical path — by wall time the slowest spans in a nested trace are
+  always the outermost ones.
+- `errorSpans`: the first 5 spans with an error status.
+
+Spans in `slowestSpans` and `errorSpans` carry `parentSpanId` (omitted for a root span), so a caller can
+attribute a span to whatever invoked it without fetching the full trace.
+
+Self time is computed per span as its own duration minus the time covered by its direct children, where the
+children's intervals are unioned rather than summed — so a span that fans out to concurrent children is not
+reported as having spent no time of its own. Self times are per-span and do not sum to the trace duration.
+
+Spans whose timestamps are unusable — an unset (zero) start, or an end before the start — contribute zero
+duration rather than distorting the totals, so a single badly instrumented span cannot report the trace as
+having taken decades.
+
+Nanosecond fields (`durationNanos`, `selfDurationNanos`, `startTimeUnixNano`) are encoded as JSON strings, not
+numbers. They are 64-bit values that exceed the range a JSON number represents exactly in JavaScript clients.
+
+Only `GET` is allowed. Other methods return `405 Method Not Allowed`.
 
 ### Query Echo endpoint
 

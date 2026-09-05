@@ -15,7 +15,8 @@ import (
 	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
 
-const serviceNameAttribute = "service.name"
+// ServiceNameAttribute is the OTel resource attribute naming a span's service.
+const ServiceNameAttribute = "service.name"
 
 type normalizedTrace struct {
 	meta  TraceMeta
@@ -109,7 +110,7 @@ func flattenSpans(trace *tempopb.Trace) ([]spanWithResource, TraceMeta) {
 	var meta TraceMeta
 	var spans []spanWithResource
 	for _, rs := range trace.ResourceSpans {
-		resourceService := attributeString(rs.GetResource().GetAttributes(), serviceNameAttribute)
+		resourceService := AttributeString(rs.GetResource().GetAttributes(), ServiceNameAttribute)
 		for _, ss := range rs.ScopeSpans {
 			for _, span := range ss.Spans {
 				meta.SpanCount++
@@ -162,7 +163,7 @@ func normalizeSpan(span spanWithResource, path []int, logicalKey spanLogicalKey,
 		startUnixNano:  span.span.GetStartTimeUnixNano(),
 		endUnixNano:    span.span.GetEndTimeUnixNano(),
 		durationValid:  hasValidDuration(span.span),
-		spanAttrs:      attributesMap(span.span.GetAttributes()),
+		spanAttrs:      AttributesMap(span.span.GetAttributes()),
 		snapshot: SpanSnapshot{
 			Path:          path,
 			Service:       ref.Service,
@@ -221,7 +222,7 @@ func invalidDurationExamples(invalid []spanLogicalKey, limit int) string {
 }
 
 func logicalKey(span spanWithResource) spanLogicalKey {
-	service := attributeString(span.span.GetAttributes(), serviceNameAttribute)
+	service := AttributeString(span.span.GetAttributes(), ServiceNameAttribute)
 	if service == "" {
 		service = span.resourceService
 	}
@@ -276,7 +277,9 @@ func spanIDKey(id []byte) string {
 	return string(id)
 }
 
-func attributeString(attrs []*commonv1.KeyValue, key string) string {
+// AttributeString returns the string value of key, or "" if the key is absent
+// or does not hold a string.
+func AttributeString(attrs []*commonv1.KeyValue, key string) string {
 	for _, attr := range attrs {
 		if attr.GetKey() == key {
 			return attr.GetValue().GetStringValue()
@@ -285,7 +288,8 @@ func attributeString(attrs []*commonv1.KeyValue, key string) string {
 	return ""
 }
 
-func attributesMap(attrs []*commonv1.KeyValue) map[string]any {
+// AttributesMap flattens attributes into a JSON-marshalable map.
+func AttributesMap(attrs []*commonv1.KeyValue) map[string]any {
 	out := make(map[string]any, len(attrs))
 	for _, attr := range attrs {
 		out[attr.GetKey()] = anyValue(attr.GetValue())
@@ -314,7 +318,7 @@ func anyValue(value *commonv1.AnyValue) any {
 		}
 		return out
 	case *commonv1.AnyValue_KvlistValue:
-		return attributesMap(v.KvlistValue.GetValues())
+		return AttributesMap(v.KvlistValue.GetValues())
 	case *commonv1.AnyValue_BytesValue:
 		return v.BytesValue
 	default:

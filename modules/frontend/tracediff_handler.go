@@ -1,7 +1,6 @@
 package frontend
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -97,7 +96,7 @@ func newTraceDiffHandler(_ Config, apiPrefix string, tracePipeline pipeline.Asyn
 		if err != nil {
 			return nil, fmt.Errorf("marshal trace diff response: %w", err)
 		}
-		return traceDiffJSONResponse(body), nil
+		return jsonResponse(body), nil
 	})
 }
 
@@ -276,18 +275,6 @@ func traceHasSpans(trace *tempopb.Trace) bool {
 		}
 	}
 	return false
-}
-
-func traceDiffJSONResponse(body []byte) *http.Response {
-	return &http.Response{
-		StatusCode: http.StatusOK,
-		Status:     http.StatusText(http.StatusOK),
-		Header: http.Header{
-			api.HeaderContentType: []string{api.HeaderAcceptJSON},
-		},
-		Body:          io.NopCloser(bytes.NewReader(body)),
-		ContentLength: int64(len(body)),
-	}
 }
 
 func traceDiffErrorResponse(err error) *http.Response {
