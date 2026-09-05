@@ -5,6 +5,17 @@ import (
 	"time"
 )
 
+// levelStrings provides O(1) lookup for level string conversion
+var levelStrings = [7]string{
+	LevelNone:    NoneString,
+	LevelInfo:    InfoString,
+	LevelWarn:    WarnString,
+	LevelError:   ErrorString,
+	LevelFatal:   FatalString,
+	LevelDebug:   DebugString,
+	LevelUnknown: UnknownString,
+}
+
 // LevelType represents the severity of a log message.
 // It is an integer type used to define log levels (Debug, Info, Warn, Error, None), with associated
 // string representations for display in log output.
@@ -18,22 +29,10 @@ type LevelType int
 //	var level lx.LevelType = lx.LevelInfo
 //	fmt.Println(level.String()) // Output: INFO
 func (l LevelType) String() string {
-	switch l {
-	case LevelDebug:
-		return DebugString
-	case LevelInfo:
-		return InfoString
-	case LevelWarn:
-		return WarnString
-	case LevelError:
-		return ErrorString
-	case LevelFatal:
-		return FatalString
-	case LevelNone:
-		return NoneString
-	default:
-		return UnknownString
+	if l >= 0 && int(l) < len(levelStrings) {
+		return levelStrings[l]
 	}
+	return UnknownString
 }
 
 func (l LevelType) Name(class ClassType) string {
@@ -101,10 +100,8 @@ type ClassType int
 func (t ClassType) String() string {
 	switch t {
 	case ClassText:
-
 		return TextString
 	case ClassJSON:
-
 		return JSONString
 	case ClassDump:
 		return DumpString
@@ -118,6 +115,10 @@ func (t ClassType) String() string {
 		return RawString
 	case ClassTimed:
 		return TimedString
+	case ClassStack:
+		return StackString
+	case ClassOutput:
+		return OutputString
 	default:
 		return UnknownString
 	}

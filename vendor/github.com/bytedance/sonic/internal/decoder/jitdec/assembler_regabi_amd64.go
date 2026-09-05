@@ -1,5 +1,5 @@
-//go:build go1.17 && !go1.27
-// +build go1.17,!go1.27
+//go:build go1.17 && !go1.28
+// +build go1.17,!go1.28
 
 /*
  * Copyright 2021 ByteDance Inc.
@@ -1013,7 +1013,7 @@ func init() {
 }
 
 func (self *_Assembler) mapaccess_ptr(t reflect.Type) {
-	if rt.MapType(rt.UnpackType(t)).IndirectElem() {
+	if rt.IsMapIndirectElem(t) {
 		self.vfollow(t.Elem())
 	}
 }

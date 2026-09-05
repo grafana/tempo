@@ -20,17 +20,17 @@ import (
 	"unsafe"
 )
 
-
 // NoEscape hides a pointer from escape analysis. NoEscape is
 // the identity function but escape analysis doesn't think the
 // output depends on the input. NoEscape is inlined and currently
 // compiles down to zero instructions.
 // USE CAREFULLY!
+//
 //go:nosplit
 //goland:noinspection GoVetUnsafePointer
 func NoEscape(p unsafe.Pointer) unsafe.Pointer {
-    x := uintptr(p)
-    return unsafe.Pointer(x ^ 0)
+	x := uintptr(p)
+	return unsafe.Pointer(x ^ 0)
 }
 
 //go:nosplit
@@ -38,5 +38,5 @@ func MoreStack(size uintptr)
 
 //go:nosplit
 func Add(ptr unsafe.Pointer, off uintptr) unsafe.Pointer {
-    return unsafe.Pointer(uintptr(ptr) + off)
+	return unsafe.Pointer(uintptr(ptr) + off)
 }
