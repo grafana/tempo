@@ -1,5 +1,7 @@
 <!-- next version -->
 
+* [BUGFIX] Span metrics: include values of attributes already matching a `dimension_mappings.name` when no `source_labels` match, so spans using the target attribute directly (e.g. `http_response_status_code`) are labelled consistently with spans that get mapped from a legacy source (e.g. `http.status_code`). [#3256](https://github.com/grafana/tempo/issues/3256) (@buiducnhat)
+
 # v3.0.2
 
 * [CHANGE] Upgrade Tempo to Go 1.26.3 [#7423](https://github.com/grafana/tempo/pull/7423) (@ie-pham)
