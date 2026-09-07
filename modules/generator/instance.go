@@ -95,6 +95,9 @@ type instance struct {
 func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverrides, wal storage.Storage, logger log.Logger) (*instance, error) {
 	logger = log.With(logger, "tenant", instanceID)
 
+	registryConfig := cfg.Registry
+	registryConfig.GeneratorInstanceID = cfg.Ring.InstanceID
+
 	limitLogger := tempo_log.NewRateLimitedLogger(1, level.Warn(logger))
 	var limiter registry.Limiter
 	switch cfg.LimiterType {
@@ -111,7 +114,7 @@ func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverr
 		instanceID: instanceID,
 		overrides:  overrides,
 
-		registry: registry.New(&cfg.Registry, overrides, instanceID, wal, logger, limiter),
+		registry: registry.New(&registryConfig, overrides, instanceID, wal, logger, limiter),
 		wal:      wal,
 
 		processors: make(map[string]processor.Processor),
