@@ -72,8 +72,7 @@ func (a *attrPresenceWatcher) Stats() map[string]int64 {
 // Inactive watchers are never dropped, only moved past the boundary, so WatchSpans only walks the active prefix.
 //
 // spanWatchers does no locking of its own. Callers that share one spanWatchers across multiple
-// goroutines (e.g. a metricsEvaluator with WithLock set, used across concurrently-evaluated
-// blocks) are responsible for synchronizing every call, including Active().
+// goroutines are responsible for synchronizing every call, including Active().
 type spanWatchers struct {
 	obs    []SpanWatcher
 	active int
