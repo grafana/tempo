@@ -67,7 +67,7 @@ Common causes of late-arriving spans include:
 
 - OpenTelemetry Collector batching: The batch processor can introduce delays, especially with large `send_batch_max_size` or `timeout` values.
 - Network delays: High-latency links between the collector and Tempo, or retries in the export pipeline, push span arrival times beyond the slack window.
-- Clock skew: If the application host's clock is ahead of the Tempo ingest infrastructure, span end times appear further in the past than they actually are.
+- Clock skew: If the application host's clock is behind the Tempo ingest infrastructure, span end times appear further in the past than they actually are.
 
 In Grafana Cloud, you can query the following metric to detect late-span discards:
 
@@ -82,8 +82,8 @@ Spans could also be discarded if the attributes aren't valid UTF-8 characters wh
 ### Max active series
 
 The generator protects itself and your remote-write target by having a maximum number of series the generator produces.
-When this limit is reached, new metric series are silently dropped or routed to overflow buckets.
-There is no customer-visible error or alert — metrics become incomplete without any indication in dashboards or queries.
+When this limit is reached, new metric series are routed to overflow buckets (labeled `metric_overflow="true"`) instead of being tracked individually.
+There is no customer-visible error or alert — metrics appear incomplete because detail is collapsed into the overflow series rather than tracked as separate series.
 
 Use the `sum` below to determine if series are being dropped due to this limit:
 
