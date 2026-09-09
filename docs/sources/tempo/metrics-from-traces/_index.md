@@ -27,7 +27,6 @@ Refer to the table for a summary of these metrics and their capabilities.
 
 The metrics-generator and TraceQL metrics use different data paths.
 If you query the same spans both ways, the results may not match.
-This is expected behavior, not a bug.
 
 The following factors cause differences:
 
