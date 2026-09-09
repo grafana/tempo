@@ -29,7 +29,10 @@ tempo_ingest_group_partition_lag{group="metrics-generator"}
 tempo_ingest_group_partition_lag_seconds{group="metrics-generator"}
 ```
 
-`tempo_ingest_group_partition_lag` tracks the lag in number of records per partition, while `tempo_ingest_group_partition_lag_seconds` tracks the lag in seconds. High or growing lag indicates the generator is falling behind.
+- `tempo_ingest_group_partition_lag` tracks the lag in number of records per partition.
+- `tempo_ingest_group_partition_lag_seconds` tracks the lag in seconds.
+
+High or growing lag indicates that the generator is falling behind.
 
 ### Kafka client errors
 
@@ -62,9 +65,9 @@ away from "now" are included.
 
 Common causes of late-arriving spans include:
 
-- **OTel Collector batching**: The OpenTelemetry Collector's batch processor can introduce delays, especially with large `send_batch_max_size` or `timeout` values.
-- **Network delays**: High-latency links between the collector and Tempo, or retries in the export pipeline, push span arrival times beyond the slack window.
-- **Clock skew**: If the application host's clock is ahead of the Tempo ingest infrastructure, span end times appear further in the past than they actually are.
+- OpenTelemetry Collector batching: The batch processor can introduce delays, especially with large `send_batch_max_size` or `timeout` values.
+- Network delays: High-latency links between the collector and Tempo, or retries in the export pipeline, push span arrival times beyond the slack window.
+- Clock skew: If the application host's clock is ahead of the Tempo ingest infrastructure, span end times appear further in the past than they actually are.
 
 In Grafana Cloud, you can query the following metric to detect late-span discards:
 
@@ -230,7 +233,7 @@ re-evaluated every few seconds, which means there may be a brief delay between a
 If a high-cardinality label's cardinality is later reduced (for example, by fixing instrumentation), the limiter automatically recovers
 and allows label values through again. No configuration changes are needed.
 
-Recovery is not immediate. The limiter tracks cardinality over a sliding window (based on the registry's `stale_duration`). It takes at least that 
+Recovery is not immediate. The limiter tracks cardinality over a sliding window (based on the registry's `stale_duration`). It takes at least that
 duration or longer for existing high-cardinality labels to age out before the label values are allowed through again.
 
 ### Estimate active series demand
