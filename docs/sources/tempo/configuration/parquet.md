@@ -22,13 +22,14 @@ As soon as a block format version is enabled, Tempo starts writing data in that 
 ## Block format versions
 
 {{< admonition type="warning" >}}
-The `v2` and `vParquet3` block formats have been removed in Tempo 3.0.
-Use `vParquet4` (default) or `vParquet5`. 
+The v2 block format has been removed in Tempo 3.0.
+vParquet3 is deprecated.
+Tempo 3.x still reads existing vParquet3 blocks. Write new blocks in vParquet5 (default) or vParquet4.
 {{< /admonition >}}
 
-Only Parquet-based formats are supported. 
+Only Parquet-based formats are supported.
 
-### vParquet4 
+### vParquet4
 
 The default block format is `vParquet4`.
 
