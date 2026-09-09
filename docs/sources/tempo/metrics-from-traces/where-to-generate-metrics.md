@@ -18,7 +18,7 @@ and service graphs that map how services call each other.
 Generating metrics from traces lets you build dashboards and alerts from your tracing pipeline
 without a separate metrics instrumentation path.
 
-Where you generate the metrics depends on whether you sample traces before they reach Tempo.
+Where you generate the metrics depends on how you sample traces before they reach Tempo.
 Sampling reduces the traces Tempo stores.
 It doesn't change the traffic your services produced.
 Refer to [Sampling](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/instrument-send/set-up-collector/tail-sampling/) for head and tail sampling.
@@ -41,7 +41,7 @@ Use the table to choose a generation path, then follow the matching section.
 
 | Option | Use when | Tradeoff |
 | --- | --- | --- |
-| [Tempo metrics-generator](#use-tempo-metrics-generator) | Traces reach Tempo unsampled | One component generates metrics and collectors stay thin. Metrics include only the traces Tempo ingested. |
+| [Tempo metrics-generator](#use-the-metrics-generator) | Traces reach Tempo unsampled | One component generates metrics and collectors stay thin. Metrics include only the traces Tempo ingested. |
 | [Alloy or OpenTelemetry Collector](#generate-metrics-in-alloy-or-the-opentelemetry-collector) | You tail sample before traces reach Tempo | RED metrics and service graphs describe all traffic. Each collector replica emits series. |
 | [Both generators](#avoid-running-both) | You have a specific requirement for two generation paths | Duplicate active series, extra compute, and extra cost. |
 | [Scale ratio-based samples in Tempo](#scale-ratio-based-samples-in-tempo) | You sample at a fixed ratio and record that ratio on the span | Generation stays in Tempo. This option doesn't apply to tail sampling. |
