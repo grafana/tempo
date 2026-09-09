@@ -7,12 +7,9 @@ aliases:
   - ../../setup/command-line-flags/ # /docs/tempo/next/setup/command-line-flags/
 ---
 
-<!-- vale Grafana.Spelling = NO -->
-<!-- vale Grafana.WordList = NO -->
-
 # Command line flags
 
-Tempo provides command-line flags to configure its behavior when you start the binary.
+Tempo provides various command-line flags to configure its behavior when starting the binary. This document serves as a reference for these flags.
 
 ## Global flags
 
@@ -24,7 +21,6 @@ Tempo provides command-line flags to configure its behavior when you start the b
 | `--config.file` | Configuration file to load | |
 | `--config.expand-env` | Whether to expand environment variables in config file | `false` |
 | `--config.verify` | Verify configuration and exit | `false` |
-| `--config.verify-errors-only` | Fail `--config.verify` only on hard errors, not configuration warnings | `false` |
 
 ## Target flag
 
@@ -43,7 +39,6 @@ Valid target values:
 | `all` | Monolithic mode. Runs all components in a single process. |
 | `distributor` | Receives and distributes trace data to downstream components. |
 | `metrics-generator` | Generates metrics from ingested trace data. |
-| `metrics-generator-no-local-blocks` | Generates metrics from ingested trace data without writing local blocks. |
 | `querier` | Queries the backend storage for traces and metrics. |
 | `query-frontend` | Provides search API and splits queries for parallelism. |
 | `block-builder` | Consumes data from Kafka and writes blocks to backend storage. |
@@ -55,14 +50,14 @@ Valid target values:
   In Tempo 3.0, the `ingester`, `compactor`, and `scalable-single-binary` targets were removed as part of the new [Tempo architecture](/docs/tempo/<TEMPO_VERSION>/introduction/architecture/).
   {{< /admonition >}}
 
-Refer to [Plan your Tempo deployment](../plan/) for information on deployment modes.
+Refer to the [Plan your Tempo deployment](../plan/) documentation for information on deployment modes.
 
 ## Authentication and multitenancy
 
 | Flag | Description | Default |
 | --- | --- | --- |
 | `--multitenancy.enabled` | Set to true to enable multitenancy | `false` |
-| `--auth.enabled` | **Deprecated. Use `--multitenancy.enabled` instead.** Set to true to enable auth. This flag is scheduled for removal in a future release. | `false` |
+| `--auth.enabled` | **Deprecated. Use `--multitenancy.enabled` instead.** Set to true to enable auth. This flag will be removed in a future release. | `false` |
 
 ## HTTP and API settings
 
@@ -159,13 +154,6 @@ Verify configuration without starting Tempo:
 
 ```bash
 tempo --config.file=/etc/tempo/config.yaml --config.verify
-```
-
-Verify configuration but treat warnings as non-fatal,
-which is useful in CI pipelines where only hard errors should fail the build:
-
-```bash
-tempo --config.file=/etc/tempo/config.yaml --config.verify --config.verify-errors-only
 ```
 
 Print version information:
