@@ -31,9 +31,10 @@ Tail sampling is more complex to configure, implement, and maintain but is the r
 
 You can use sampling with Tempo using Grafana or Grafana Cloud.
 
-{{< admonition type="tip" >}}
-If you send traces to Grafana Cloud Traces, you can use [Adaptive Traces](https://grafana.com/docs/grafana-cloud/cost-management-and-billing/adaptive-telemetry/adaptive-traces/) instead of building and operating your own tail sampling pipeline. Adaptive Traces is a managed tail sampling capability that analyzes your trace data, recommends sampling policies (for example, keep traces with errors or high latency), and applies them for you.
-{{< /admonition >}}
+
+If you send traces to Grafana Cloud Traces, you can use [Adaptive Traces](https://grafana.com/docs/grafana-cloud/cost-management-and-billing/adaptive-telemetry/adaptive-traces/) instead of building and operating your own tail sampling pipeline. 
+Adaptive Traces is a managed tail sampling capability that analyzes your trace data, recommends sampling policies (for example, keep traces with errors or high latency), and applies them for you.
+Adaptive Traces can also generate metrics from all received traces.
 
 ![Tail sampling overview and components with Tempo, Alloy, and Grafana](/media/docs/tempo/sampling/tempo-tail-based-sampling.svg)
 
