@@ -97,7 +97,7 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 	}
 
 	// report metrics with defer to handle early exit
-	defer mcb(rr.BytesRead())
+	defer func() { mcb(rr.BytesRead()) }()
 
 	// track sent tag names to avoid duplicates. this is a perf improvement
 	sentKeys := make(map[tagNameKey]struct{})
@@ -253,7 +253,7 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 		return err
 	}
 	// report metrics with defer to handle early exit
-	defer mcb(rr.BytesRead())
+	defer func() { mcb(rr.BytesRead()) }()
 
 	// track sent tag values to avoid duplicates. this is a perf improvement
 	sentVals := make(map[traceql.StaticMapKey]struct{})
