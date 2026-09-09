@@ -34,7 +34,7 @@ You can check your configuration options using the [`status` API endpoint](https
 ### Default block format is now vParquet5
 
 Tempo 3.1 writes new blocks in vParquet5.
-Existing vParquet4 blocks still read, and no data migration is required.
+Existing vParquet4 blocks are still readable, and no data migration is required.
 [[PR 7775](https://github.com/grafana/tempo/pull/7775)]
 
 To keep writing vParquet4, set the block version explicitly:
@@ -169,19 +169,6 @@ cache:
         read_only: false        # Allow read-only commands on replica nodes. Reads may be stale.
         max_redirects: 3        # Maximum redirects to follow on MOVED/ASK responses.
         min_idle_conns: 0       # Minimum idle connections to maintain in the pool.
-```
-
-### Trace by ID query sharding
-
-Trace-by-ID lookups now shard dynamically based on the number of blocks in the blocklist rather than using a fixed shard count. A new `blocks_per_shard` option defaults to `30` and takes precedence over the deprecated `query_shards` setting. [[PR 7105](https://github.com/grafana/tempo/pull/7105)]
-
-To keep the previous fixed-shard-count behavior, set `blocks_per_shard: 0` to fall back to `query_shards`:
-
-```yaml
-query_frontend:
-  trace_by_id:
-    blocks_per_shard: 0
-    query_shards: 50  # previous default
 ```
 
 ### Memcached cache connection defaults
