@@ -85,7 +85,7 @@ The generator protects itself and your remote-write target by having a maximum n
 When this limit is reached, new metric series are routed to overflow buckets (labeled `metric_overflow="true"`) instead of being tracked individually.
 There is no customer-visible error or alert — metrics appear incomplete because detail is collapsed into the overflow series rather than tracked as separate series.
 
-Use the `sum` below to determine if series are being dropped due to this limit:
+Use the `sum` below to determine if series are being limited (routed to overflow) due to this limit:
 
 ```
 sum(rate(tempo_metrics_generator_registry_series_limited_total{}[1m]))
