@@ -982,6 +982,10 @@ Unlike [`drop-traces`](#drop-traces-by-id), which operates directly on object st
 tempo-cli redact --tenant=<TENANT_ID> --trace-id=<TRACE_ID> [--trace-id=<TRACE_ID> ...] <scheduler-address>
 ```
 
+```bash
+tempo-cli redact --tenant=<TENANT_ID> --query=<TRACEQL_QUERY> [--start=<START> --end=<END>] <scheduler-address>
+```
+
 Arguments:
 
 - `scheduler-address` The backend scheduler gRPC address (`host:port`).
@@ -990,21 +994,29 @@ Options:
 
 - `--tenant <value>` **(required)** Tenant ID.
 - `--trace-id <value>` Trace ID to redact, in hex format. Specify multiple times to redact several traces in one request. Mutually exclusive with `--query`.
-- `--query <value>` TraceQL query selecting the traces to redact. Mutually exclusive with `--trace-id`. Conditions may be joined with `&&` and `||`, and only `=` comparisons on `resource.*` and `span.*` attributes are accepted.
-- `--dry-run` Report how many traces match without rewriting any blocks (default: `false`).
+- `--query <value>` TraceQL query selecting the traces to redact, for example `{ span.http.status_code = 500 }`. Mutually exclusive with `--trace-id`. The query is restricted to a single spanset filter: `=` comparisons on the matched span's own `resource.*` or `span.*` attributes, joined by `&&` or `||`. Regular expressions, `!=` or ordered comparisons, `parent.`-scoped attributes, and pipelines or aggregates aren't supported.
+- `--dry-run` Evaluate the selector and report match counts without rewriting any blocks (default: `false`).
 - `--start <value>` Start of the time window. Accepts `now`, a relative offset such as `now-7d`, or an RFC3339 timestamp. Must be given with `--end`, must be before `--end`, and cannot be combined with `--trace-id`. Omit both bounds to redact the whole tenant.
 - `--end <value>` End of the time window. Same forms as `--start`. Must be given with `--start`.
 - `--tls` Use TLS for the gRPC connection (default: `false`).
 - `--tls-server-name <value>` Override the TLS server name (SNI).
 - `--tls-ca <value>` Path to a PEM-encoded CA certificate file.
 
-Specify exactly one of `--trace-id` or `--query`.
+You must provide exactly one of `--trace-id` or `--query`. Providing both, or neither, returns an error before the request is submitted.
 
 On success, the command prints the batch ID and the number of jobs created:
 
 ```
 batch_id:     <BATCH_ID>
 jobs_created: <COUNT>
+```
+
+When `--dry-run` is set, the command also prints a line indicating that no blocks were rewritten:
+
+```
+batch_id:     <BATCH_ID>
+jobs_created: <COUNT>
+mode:         dry-run (jobs will report match counts; no blocks will be rewritten)
 ```
 
 ### Redact a time window
@@ -1069,6 +1081,18 @@ Redact multiple traces in one request:
 
 ```bash
 tempo-cli redact --tenant=my-tenant --trace-id=931281e2a09876de16e15f45ff86283d --trace-id=00000000000000000000000000000001 localhost:9095
+```
+
+Redact all traces matching a TraceQL query:
+
+```bash
+tempo-cli redact --tenant=my-tenant --query='{ span.http.status_code = 500 }' localhost:9095
+```
+
+Preview the traces a query would match, without rewriting any blocks:
+
+```bash
+tempo-cli redact --tenant=my-tenant --query='{ span.http.status_code = 500 }' --dry-run localhost:9095
 ```
 
 With TLS and a custom CA:
