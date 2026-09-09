@@ -23,7 +23,7 @@ Sampling reduces the traces Tempo stores.
 It doesn't change the traffic your services produced.
 Refer to [Sampling](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/instrument-send/set-up-collector/tail-sampling/) for head and tail sampling.
 
-Tempo's [metrics-generator](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/) builds span metrics and service graphs from traces after ingest.
+The [metrics-generator](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/) builds span metrics and service graphs from traces after ingest.
 Span metrics are request counts, durations, and error rates derived from individual spans.
 Service graphs are maps of relationships between services, built from parent-child span pairs.
 
@@ -31,6 +31,9 @@ If a collector already dropped most of those traces, the metrics describe the sa
 Request rate, error rate, and latency no longer match the traffic your services produced.
 Service graphs miss relationships that never arrived.
 Alerts that depend on those series miss discarded traffic.
+
+If you send traces to Grafana Cloud Traces, you can use [Adaptive Traces](https://grafana.com/docs/grafana-cloud/cost-management-and-billing/adaptive-telemetry/adaptive-traces/) instead of building and operating your own tail sampling pipeline.
+Adaptive Traces is a managed tail sampling capability that analyzes your trace data, recommends sampling policies (for example, keep traces with errors or high latency), and applies them for you.
 
 Use the table to choose a generation path, then follow the matching section.
 
@@ -41,9 +44,9 @@ Use the table to choose a generation path, then follow the matching section.
 | [Both generators](#avoid-running-both) | You have a specific requirement for two generation paths | Duplicate active series, extra compute, and extra cost. |
 | [Scale ratio-based samples in Tempo](#scale-ratio-based-samples-in-tempo) | You sample at a fixed ratio and record that ratio on the span | Generation stays in Tempo. This option doesn't apply to tail sampling. |
 
-## Use Tempo metrics-generator
+## Use the metrics-generator
 
-Tempo metrics-generator creates span metrics and service graphs after traces are ingested.
+The metrics-generator creates span metrics and service graphs after traces are ingested.
 
 Use it when traces reach Tempo unsampled.
 One component generates the metrics, so collectors stay thin and you don't emit the same series from every collector replica.
