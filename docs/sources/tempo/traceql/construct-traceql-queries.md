@@ -303,6 +303,15 @@ The trace-level intrinsics, `trace:duration`, `trace:rootName`, and `trace:rootS
 Additionally, these intrinsics are significantly more performant because they have to inspect much less data then a span-level intrinsic.
 They should be preferred whenever possible to span-level intrinsics.
 
+{{< admonition type="note" >}}
+The unscoped field `duration` is an alias for `span:duration` (the duration of a single span), **not** `trace:duration` (the end-to-end duration of the entire trace).
+
+- `span:duration` measures the time between a single span's start and end. Use it to find slow operations within a trace.
+- `trace:duration` measures `max(end) - min(start)` across all spans in the trace. Use it to find traces with long overall latency. For long-running or asynchronous traces, `trace:duration` can be much larger than any individual span's duration.
+
+If your latency percentiles don't match expectations, verify whether you're querying `span:duration` or `trace:duration`.
+{{< /admonition >}}
+
 You may have a time when you want to search by a trace-level intrinsic instead.
 For example, using `span:name` looks for the names of spans within traces.
 If you want to search by a trace name of `perf`, use `trace:rootName` to match against trace name.
