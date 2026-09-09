@@ -33,7 +33,7 @@ Service graphs miss relationships that never arrived.
 Alerts that depend on those series miss discarded traffic.
 
 If you send traces to Grafana Cloud Traces, you can use [Adaptive Traces](https://grafana.com/docs/grafana-cloud/cost-management-and-billing/adaptive-telemetry/adaptive-traces/) instead of building and operating your own tail sampling pipeline.
-Adaptive Traces is a managed tail sampling capability that analyzes your trace data, recommends sampling policies (for example, keep traces with errors or high latency), and applies them for you.
+Adaptive Traces is a managed tail sampling capability that analyzes your trace data, recommends sampling policies (for example, keep traces with errors or high latency), and applies them for you. Adaptive Traces can also generate metrics from all received traces.
 
 ## Choose a generation path
 
