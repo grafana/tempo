@@ -11,8 +11,10 @@ import (
 
 	dslog "github.com/grafana/dskit/log"
 	"github.com/grafana/dskit/services"
+	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -244,6 +246,23 @@ func (p *erroringPusher) PushTraces(context.Context, ptrace.Traces) (*tempopb.Pu
 
 func (p *erroringPusher) RetryInfoEnabled(context.Context) (bool, error) {
 	return false, nil
+}
+
+func TestConsumeTraces_RecordsPerTenantPushDuration(t *testing.T) {
+	t.Cleanup(func() {
+		metricPushDuration.Reset()
+	})
+
+	tenant := "test"
+	ctx := user.InjectOrgID(context.Background(), tenant)
+
+	shim := &receiversShim{pusher: &erroringPusher{}}
+
+	require.NoError(t, shim.ConsumeTraces(ctx, testdata.GenerateTraces(1)))
+
+	m := &dto.Metric{}
+	require.NoError(t, metricPushDuration.WithLabelValues(tenant).(prometheus.Histogram).Write(m))
+	assert.Equal(t, uint64(1), m.Histogram.GetSampleCount())
 }
 
 func TestKafkaWriteTimeoutHTTPStatus(t *testing.T) {
