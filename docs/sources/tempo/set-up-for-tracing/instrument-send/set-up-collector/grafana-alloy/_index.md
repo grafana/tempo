@@ -166,7 +166,7 @@ For a detailed description, refer to [Tail sampling](/docs/tempo/<TEMPO_VERSION>
 Alloy can emit span metrics from traces in this pipeline.
 
 If you sample traces before they reach Tempo, choose where to generate those metrics first.
-Refer to [Choose where to generate metrics from traces](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/generate-locally/).
+Refer to [Choose where to generate metrics from traces](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/where-to-generate-metrics/).
 
 For Alloy settings, refer to [Use Alloy to generate metrics from spans](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/span-metrics/span-metrics-alloy/).
 

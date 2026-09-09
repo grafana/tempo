@@ -93,7 +93,7 @@ To see all the available configuration options, refer to the [component referenc
 ## Server-side metrics
 
 Tempo can generate the same span metrics after ingest.
-To choose between Alloy and Tempo, refer to [Choose where to generate metrics from traces](../metrics-generator/generate-locally/).
+To choose between Alloy and Tempo, refer to [Choose where to generate metrics from traces](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/where-to-generate-metrics/).
 For Tempo settings, refer to [Use the metrics-generator to create metrics from spans](span-metrics-metrics-generator/).
 
 ## Example

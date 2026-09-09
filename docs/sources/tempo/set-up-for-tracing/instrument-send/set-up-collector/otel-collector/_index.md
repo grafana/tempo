@@ -193,7 +193,7 @@ For a detailed description of sampling strategies, refer to the [Sampling](/docs
 The `spanmetrics` connector generates RED (Rate, Error, Duration) metrics from trace spans flowing through the pipeline.
 
 Tempo can also generate these metrics after ingest.
-To decide between the collector and Tempo, refer to [Choose where to generate metrics from traces](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/generate-locally/).
+To decide between the collector and Tempo, refer to [Choose where to generate metrics from traces](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/where-to-generate-metrics/).
 
 ![OpenTelemetry Collector metrics pipeline showing spans branching to the `spanmetrics` connector and tail sampling processor](diagram-otel-collector-metrics-pipeline.svg)
 
