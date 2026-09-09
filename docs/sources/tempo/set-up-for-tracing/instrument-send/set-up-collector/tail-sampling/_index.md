@@ -167,9 +167,9 @@ This can have an effect on observation of data inside Grafana.
 
 The following is a suggested pipeline that can be applied to both [Grafana Alloy](https://grafana.com/docs/alloy/latest/) and the [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/), to carry out tail sampling, but also ensure that other telemetry signals are still captured for observation from within Grafana and Grafana Cloud.
 
-{{< admonition type="note" >}}
-This section describes how to build and operate this pipeline yourself. If you send traces to Grafana Cloud Traces, [Adaptive Traces](https://grafana.com/docs/grafana-cloud/cost-management-and-billing/adaptive-telemetry/adaptive-traces/) provides equivalent tail sampling as a managed feature, without requiring you to deploy and maintain a two-layer collector pipeline.
-{{< /admonition >}}
+This section describes how to build and operate this pipeline yourself. 
+If you send traces to Grafana Cloud Traces, [Adaptive Traces](https://grafana.com/docs/grafana-cloud/cost-management-and-billing/adaptive-telemetry/adaptive-traces/) provides equivalent tail sampling as a managed feature, without requiring you to deploy and maintain a two-layer collector pipeline.
+Adaptive Traces can also generate metrics from all received traces.
 
 This pipeline exists in the second layer of collectors, sent data by the load balancing layer, and is commonly deployed as a Kubernetes `StatefulSet` to ensure that each instance has a consistent identity. A realistic example pipeline could be made of up the following components:
 
