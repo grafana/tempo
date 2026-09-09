@@ -63,7 +63,7 @@ Two generators means two sets of active series, extra compute, and extra Grafana
 ## Scale ratio-based samples in Tempo
 
 A ratio-based sampler keeps a fixed fraction of traces and can record that fraction on the span.
-Tempo multiplies the metric so counts match the unsampled population.
+When configured, Tempo multiplies the metric so counts match the unsampled population.
 
 Use this when you sample at a fixed ratio, not when you tail sample.
 You keep generation in Tempo and you don't need a collector-side generator.
