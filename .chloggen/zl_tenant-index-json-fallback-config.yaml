@@ -1,0 +1,23 @@
+# Changelog entry. Generate a copy with `make chlog-new`, then fill in the fields.
+
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: change
+
+# Component or area of the change. Must be one of the components in .chloggen/config.yaml,
+# e.g. distributor, querier, query-frontend, storage, operations.
+component: storage
+
+# A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
+note: the legacy JSON-encoded tenant index (a rollout bridge from when tenant indexes moved to protobuf) is no longer written or read by default. Set `blocklist_poll_tenant_index_json_fallback` to restore it. A `tempo-cli list tenant-index` command dumps the protobuf index as JSON on demand for jq-based debugging.
+
+# (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
+# .chloggen/README.md.
+issues: []
+
+# (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
+subtext: |
+  This is a temporary rollout bridge; the config flag and its opportunistic cleanup of stale
+  JSON indexes are planned for removal once the fleet has fully migrated.
+
+# The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
+user: zalegrala

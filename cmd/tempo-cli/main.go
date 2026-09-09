@@ -45,6 +45,7 @@ var cli struct {
 		CompactionSummary listCompactionSummaryCmd `cmd:"" help:"List summary of data by compaction level"`
 		CacheSummary      listCacheSummaryCmd      `cmd:"" help:"List summary of bloom sizes per day per compaction level"`
 		Column            listColumnCmd            `cmd:"" help:"List values in a given column"`
+		TenantIndex       dumpTenantIndexCmd       `cmd:"" help:"Dump a tenant's protobuf-encoded tenant index as JSON, for use with jq"`
 	} `cmd:""`
 
 	Analyse struct {
@@ -179,5 +180,7 @@ func loadBackend(b *backendOptions, g *globalOptions) (backend.Reader, backend.W
 		return nil, nil, nil, err
 	}
 
-	return backend.NewReader(r), backend.NewWriter(w), c, nil
+	jsonFallback := cfg.StorageConfig.Trace.BlocklistPollTenantIndexJSONFallback
+	return backend.NewReader(r, backend.WithTenantIndexJSONFallback(jsonFallback)),
+		backend.NewWriter(w, backend.WithTenantIndexJSONWrite(jsonFallback)), c, nil
 }

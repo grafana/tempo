@@ -221,8 +221,8 @@ func New(cfg *Config, cacheProvider cache.Provider, logger gkLog.Logger) (Reader
 		}
 	}
 
-	r := backend.NewReader(rawR)
-	w := backend.NewWriter(rawW)
+	r := backend.NewReader(rawR, backend.WithTenantIndexJSONFallback(cfg.BlocklistPollTenantIndexJSONFallback))
+	w := backend.NewWriter(rawW, backend.WithTenantIndexJSONWrite(cfg.BlocklistPollTenantIndexJSONFallback))
 	rw := &readerWriter{
 		c:                       c,
 		r:                       r,
