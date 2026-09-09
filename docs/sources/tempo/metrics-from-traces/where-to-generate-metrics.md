@@ -1,7 +1,7 @@
 ---
 title: Choose where to generate metrics from traces
 menuTitle: Where to generate metrics
-description: Learn how to choose between generating metrics in Tempo or in the collector pipeline.
+description: Learn how to choose between generating span metrics and service graphs in Tempo or in the collector pipeline.
 keywords:
   - metrics-generator
   - span metrics
