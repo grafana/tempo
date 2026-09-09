@@ -48,7 +48,7 @@ const (
 )
 
 var (
-	metricPushDuration = promauto.NewHistogram(prometheus.HistogramOpts{
+	metricPushDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace:                       "tempo",
 		Name:                            "distributor_push_duration_seconds",
 		Help:                            "Records the amount of time to process and route a batch through the distributor.",
@@ -56,7 +56,7 @@ var (
 		NativeHistogramBucketFactor:     1.1,
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
-	})
+	}, []string{"tenant"})
 
 	statReceiverOtlp   = usagestats.NewInt("receiver_enabled_otlp")
 	statReceiverJaeger = usagestats.NewInt("receiver_enabled_jaeger")
@@ -355,7 +355,9 @@ func (r *receiversShim) ConsumeTraces(ctx context.Context, td ptrace.Traces) err
 
 	start := time.Now()
 	_, err = r.pusher.PushTraces(ctx, td)
-	metricPushDuration.Observe(time.Since(start).Seconds())
+	if tenantErr == nil {
+		metricPushDuration.WithLabelValues(tenant).Observe(time.Since(start).Seconds())
+	}
 	if err != nil {
 		if tenantErr == nil {
 			r.logger.Log("msg", "pusher failed to consume trace data", "tenant", tenant, "err", err)

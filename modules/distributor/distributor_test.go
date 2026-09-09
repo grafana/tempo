@@ -24,6 +24,7 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kfake"
@@ -1282,6 +1283,37 @@ func TestDistributor(t *testing.T) {
 			assert.Equal(t, tc.expectedError, err)
 		})
 	}
+}
+
+func TestPushTraces_RecordsPerTenantShapeMetrics(t *testing.T) {
+	// Other tests in this package push traces for the same "test" tenant via
+	// the shared package-level ctx, so these package-level metrics need a
+	// reset immediately before use, not just in cleanup.
+	metricPushBytes.Reset()
+	metricReceivedTraces.Reset()
+	t.Cleanup(func() {
+		metricPushBytes.Reset()
+		metricReceivedTraces.Reset()
+	})
+
+	limits := overrides.Config{}
+	limits.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+	d := prepare(t, limits, nil)
+
+	b := test.MakeBatch(10, []byte{})
+	traces := batchesToTraces(t, []*v1.ResourceSpans{b})
+
+	_, err := d.PushTraces(ctx, traces)
+	require.NoError(t, err)
+
+	bytesMetric := &dto.Metric{}
+	require.NoError(t, metricPushBytes.WithLabelValues("test").(prometheus.Histogram).Write(bytesMetric))
+	assert.Equal(t, uint64(1), bytesMetric.Histogram.GetSampleCount())
+	assert.Greater(t, bytesMetric.Histogram.GetSampleSum(), 0.0)
+
+	tracesMetric := &dto.Metric{}
+	require.NoError(t, metricReceivedTraces.WithLabelValues("test").Write(tracesMetric))
+	assert.Equal(t, float64(1), tracesMetric.Counter.GetValue())
 }
 
 func TestLogReceivedSpans(t *testing.T) {
