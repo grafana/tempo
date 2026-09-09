@@ -1,0 +1,6 @@
+change_type: security
+component: metrics-generator
+note: Reject path-like tenant IDs before the metrics-generator WAL Join and RemoveAll.
+issues: []
+subtext:
+user: SashaMIT

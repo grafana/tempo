@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/grafana/tempo/modules/overrides"
+	dskittenant "github.com/grafana/dskit/tenant"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/common/model"
@@ -19,6 +19,8 @@ import (
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/storage/remote"
 	"github.com/prometheus/prometheus/tsdb/agent"
+
+	"github.com/grafana/tempo/modules/overrides"
 )
 
 var metricStorageRemoteWriteUpdateFailed = promauto.NewCounterVec(prometheus.CounterOpts{
@@ -60,9 +62,14 @@ var _ Storage = (*storageImpl)(nil)
 func New(cfg *Config, o Overrides, tenant string, reg prometheus.Registerer, _ log.Logger) (Storage, error) {
 	// TODO move this to the generator.go
 
-	// Validate empty tenant to prevent WAL directory deletion only when org ID header is required
+	// Reject empty and path-like tenants before filepath.Join + os.RemoveAll.
+	// Kafka ingest uses the record key as the tenant and skips HTTP extraction,
+	// so this is the last gate before a tenant of ".." deletes cfg.Path's parent.
 	if tenant == "" {
 		return nil, errors.New("tenant cannot be empty")
+	}
+	if err := dskittenant.ValidTenantID(tenant); err != nil {
+		return nil, fmt.Errorf("invalid tenant ID: %w", err)
 	}
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{

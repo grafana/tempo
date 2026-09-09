@@ -414,3 +414,34 @@ func TestInstance_emptyTenantValidation(t *testing.T) {
 		instance.Close()
 	})
 }
+
+func TestInstance_pathTenantValidation(t *testing.T) {
+	t.Parallel()
+
+	o := &mockOverrides{}
+	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))
+
+	for _, tenantID := range []string{"..", "../x", "foo/bar", "."} {
+		t.Run(tenantID, func(t *testing.T) {
+			parent := t.TempDir()
+			walRoot := filepath.Join(parent, "wal")
+			require.NoError(t, os.MkdirAll(walRoot, 0o700))
+
+			marker := filepath.Join(parent, "marker")
+			require.NoError(t, os.WriteFile(marker, []byte("keep"), 0o600))
+
+			var cfg Config
+			cfg.RegisterFlagsAndApplyDefaults("", nil)
+			cfg.Path = walRoot
+			reg := prometheus.NewRegistry()
+
+			instance, err := New(&cfg, o, tenantID, reg, logger)
+			require.Error(t, err)
+			require.Nil(t, instance)
+			assert.Contains(t, err.Error(), "invalid tenant ID")
+
+			_, statErr := os.Stat(marker)
+			assert.NoError(t, statErr, "path-like tenant must not RemoveAll the WAL parent")
+		})
+	}
+}
