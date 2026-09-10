@@ -408,6 +408,7 @@ message QueryRangeResponse {
   SearchMetrics metrics = 2;
   PartialStatus status = 3;
   string message = 4;
+  uint64 step = 5;
 }
 
 message Exemplar {
