@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -992,7 +993,15 @@ func TestQuiescenceDeadlineRemovesWhenTheBudgetIsSpent(t *testing.T) {
 		VerifyRounds:         maxVerifyRounds,
 	}))
 
+	before := testutil.ToFloat64(metricRedactionVerifyExhausted.WithLabelValues(tenant))
+
 	require.True(t, s.advanceQuiescence(ctx, tenant), "the tick must act")
 	require.Nil(t, s.work.GetBatch(tenant),
 		"with the budget spent the batch is removed rather than held indefinitely")
+
+	// The docs tell operators this counter reports every redaction released without a clean pass, so
+	// the release itself has to be what increments it -- convergence is abandoned earlier, but a late
+	// result can still mark the batch dirty between there and here.
+	require.Equal(t, before+1, testutil.ToFloat64(metricRedactionVerifyExhausted.WithLabelValues(tenant)),
+		"a batch released without a clean pass must be reported")
 }

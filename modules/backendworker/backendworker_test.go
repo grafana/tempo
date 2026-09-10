@@ -353,3 +353,67 @@ func TestEffectiveRedactionMode(t *testing.T) {
 		})
 	}
 }
+
+// TestProcessRedactionJobMissingBlockFailsAVerificationScan separates "not checked" from "no matches".
+//
+// The scheduler and each worker poll the block list independently, so a verification target can be
+// absent here while still live in the scheduler's list. Completing as a no-op reports zero matches,
+// which the scheduler reads as a clean scan -- it then keeps the optimistic clean verdict and can
+// settle the batch over a block nothing examined. A rewrite job keeps the no-op: that path is
+// deliberate for a block genuinely compacted or retained away.
+func TestProcessRedactionJobMissingBlockFailsAVerificationScan(t *testing.T) {
+	limitCfg := overrides.Config{}
+	limitCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	workerCfg, schedulerClientCfg, overridesSvc, _, store := setupDependencies(ctx, t, limitCfg)
+
+	for _, tc := range []struct {
+		name       string
+		verify     bool
+		wantStatus tempopb.JobStatus
+		wantErr    bool
+	}{
+		// failJob reports FAILED to the scheduler and also returns the error to the worker loop.
+		{name: "verification scan fails", verify: true, wantStatus: tempopb.JobStatus_JOB_STATUS_FAILED, wantErr: true},
+		{name: "rewrite still no-ops", verify: false, wantStatus: tempopb.JobStatus_JOB_STATUS_SUCCEEDED},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w, err := New(workerCfg, schedulerClientCfg, store, overridesSvc, prometheus.NewRegistry())
+			require.NoError(t, err)
+
+			var got []*tempopb.UpdateJobStatusRequest
+			w.backendScheduler = &mockScheduler{
+				updateJob: func(_ context.Context, in *tempopb.UpdateJobStatusRequest, _ ...grpc.CallOption) (*tempopb.UpdateJobStatusResponse, error) {
+					got = append(got, in)
+					return &tempopb.UpdateJobStatusResponse{}, nil
+				},
+			}
+
+			err = w.processRedactionJob(ctx, &tempopb.NextJobResponse{
+				JobId: "job-missing-block",
+				Detail: tempopb.JobDetail{
+					Tenant: tenant,
+					Redaction: &tempopb.RedactionDetail{
+						BlockId: uuid.New().String(),
+						Verify:  tc.verify,
+					},
+				},
+			})
+			if tc.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			require.NotEmpty(t, got, "the scheduler must be told what happened")
+			last := got[len(got)-1]
+			require.Equal(t, tc.wantStatus, last.Status)
+			if tc.verify {
+				require.Zero(t, last.GetRedaction().GetTracesFound(),
+					"a failed scan must not report a match count that would read as a clean result")
+			}
+		})
+	}
+}
