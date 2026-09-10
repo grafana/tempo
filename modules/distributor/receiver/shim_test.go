@@ -265,6 +265,24 @@ func TestConsumeTraces_RecordsPerTenantPushDuration(t *testing.T) {
 	assert.Equal(t, uint64(1), m.Histogram.GetSampleCount())
 }
 
+func TestConsumeTraces_SkipsPushDurationForInvalidTenant(t *testing.T) {
+	metricPushDuration.Reset()
+	t.Cleanup(func() {
+		metricPushDuration.Reset()
+	})
+
+	// MultiTenancyMiddleware injects the org ID header value into the context
+	// unvalidated. A malformed value here must not create a new label series.
+	invalidTenant := "not a/valid tenant"
+	ctx := user.InjectOrgID(context.Background(), invalidTenant)
+
+	shim := &receiversShim{pusher: &erroringPusher{}}
+
+	require.NoError(t, shim.ConsumeTraces(ctx, testdata.GenerateTraces(1)))
+
+	assert.Equal(t, 0, testutil.CollectAndCount(metricPushDuration))
+}
+
 func TestKafkaWriteTimeoutHTTPStatus(t *testing.T) {
 	receiverCfg := map[string]interface{}{
 		"otlp": map[string]interface{}{
