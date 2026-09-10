@@ -298,7 +298,11 @@ func (w *Work) ListJobs() []*Job {
 // Prune removes old completed/failed jobs from all shards and transitions
 // timed-out running jobs to FAILED. Index cleanup (runningBlocks, workerJobs)
 // for timed-out jobs is performed after all shards are processed.
-func (w *Work) Prune(ctx context.Context) {
+//
+// Returns the jobs it force-failed. They never pass through UpdateJob, so a caller that reacts to a
+// job's failure -- redaction verification marks its batch unverified -- would otherwise miss a job
+// killed by the timeout rather than reported by its worker.
+func (w *Work) Prune(ctx context.Context) []*Job {
 	_, span := tracer.Start(ctx, "ShardedPrune")
 	defer span.End()
 
@@ -354,6 +358,12 @@ func (w *Work) Prune(ctx context.Context) {
 		}
 	}
 	w.pendingMtx.Unlock()
+
+	failed := make([]*Job, 0)
+	for _, shardJobs := range timedOut {
+		failed = append(failed, shardJobs...)
+	}
+	return failed
 }
 
 // GetJobForWorker returns the active job assigned to the given worker, or nil

@@ -238,7 +238,7 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-maintenanceTicker.C:
-			s.work.Prune(ctx)
+			s.releaseVerificationForTimedOutJobs(s.work.Prune(ctx))
 			s.checkPendingRescans(ctx)
 			s.cleanupOrphanedBatches(ctx)
 			s.recordPendingJobs()

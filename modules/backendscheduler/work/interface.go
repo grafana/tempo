@@ -77,7 +77,7 @@ type Interface interface {
 	LoadBatchesFromLocal(ctx context.Context, localPath string) error
 
 	// Maintenance
-	Prune(ctx context.Context)
+	Prune(ctx context.Context) []*Job
 
 	// Serialization
 	Marshal() ([]byte, error)
