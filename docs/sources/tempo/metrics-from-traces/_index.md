@@ -23,6 +23,23 @@ Refer to the table for a summary of these metrics and their capabilities.
 | Setup          | Configure the metrics-generator in the Tempo configuration file, enable processors like span metrics or service graphs, and send metrics to a Prometheus-compatible database.                                                                                              | TraceQL metrics work out of the box. Configure a Tempo data source in Grafana.                                                                                                                                                                                                  |
 | Query language | Metrics are consumed using PromQL via Prometheus/Grafana.                                                                                                                                                                                                                                                                                       | Uses TraceQL which has a PromQL-inspired syntax, but not all PromQL features are supported; it's a similar but distinct subset with different semantics.                                                                                                                                        |
 
+## Why metrics-generator and TraceQL metrics can show different results
+
+The metrics-generator and TraceQL metrics use different data paths.
+If you query the same spans both ways, the results may not match.
+
+The following factors cause differences:
+
+| Factor | What happens | How to detect |
+| --- | --- | --- |
+| **Different pipelines** | The metrics-generator processes spans at ingestion time in a streaming processor and writes pre-computed metrics to Prometheus. TraceQL metrics query raw stored spans at query time. These are independent data paths with different processing models. | Compare span counts from `traces_spanmetrics_calls_total` with a `count_over_time()` TraceQL query for the same service and time range. |
+| **Late-arriving spans** | Spans that arrive after the `metrics_ingestion_time_range_slack` window (default: 30s) are stored in Tempo but never counted by the metrics-generator. TraceQL queries can still find them. | Query `tempo_metrics_generator_spans_discarded_total` by reason. In Grafana Cloud, query `grafanacloud_traces_instance_metrics_generator_discarded_spans_per_second{reason="outside_metrics_ingestion_slack"}`. Refer to [Discarded spans](/docs/tempo/<TEMPO_VERSION>/troubleshooting/metrics-generator/#discarded-spans-in-the-generator). |
+| **Active series limits** | When the per-tenant active series limit is reached, the metrics-generator routes new metric series to overflow buckets (labeled `metric_overflow="true"`) instead of tracking them individually. There's no customer-visible error. Metrics appear incomplete because detail is collapsed into the overflow series. | Query `tempo_metrics_generator_registry_series_limited_total` to detect limited series. Use `tempo_metrics_generator_registry_active_series_demand_estimate` to see true demand. Refer to [Max active series](/docs/tempo/<TEMPO_VERSION>/troubleshooting/metrics-generator/#max-active-series). |
+| **Sampling** | Head sampling and [Adaptive Traces](https://grafana.com/docs/grafana-cloud/cost-management-and-billing/adaptive-telemetry/adaptive-traces/) reduce what the metrics-generator sees. If traces are stored before filtering, TraceQL queries can find spans the generator never processed. | Refer to [Choose where to generate metrics](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/where-to-generate-metrics/) for guidance on generation path based on your sampling strategy. |
+
+If you see unexpected differences, start by checking the late-span discard metric and the active series limit metric.
+These two causes account for the majority of discrepancies in environments where traces reach Tempo unsampled.
+
 ## Metrics-generator
 
 Tempo can generate metrics from ingested traces using the metrics-generator, an optional Tempo component. The metrics-generator runs processors including [service graphs](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/service_graphs/), [span metrics](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/span-metrics), and host info.
