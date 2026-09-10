@@ -1855,3 +1855,27 @@ func TestQueryRangeConcurrentWALBlocks(t *testing.T) {
 		require.Len(t, resp.Series, 2)
 	})
 }
+
+func TestQueryRangeNoDataReturnsZeroedSeries(t *testing.T) {
+	i, _ := defaultInstance(t)
+	ctx := user.InjectOrgID(context.Background(), testTenantID)
+
+	end := time.Now().Truncate(time.Minute)
+	req := &tempopb.QueryRangeRequest{
+		Query:     "{} | count_over_time()",
+		Start:     uint64(end.Add(-2 * time.Minute).UnixNano()),
+		End:       uint64(end.UnixNano()),
+		Step:      uint64(time.Minute),
+		MaxSeries: 10,
+	}
+
+	resp, err := i.QueryRange(ctx, req)
+	require.NoError(t, err)
+
+	require.Len(t, resp.Series, 1, "an ungrouped query must still report a series when nothing matches")
+	require.NotEmpty(t, resp.Series[0].Samples, "empty samples")
+	for _, sample := range resp.Series[0].Samples {
+		require.Zero(t, sample.Value, "no data in range, so every step must be zero")
+	}
+	require.Equal(t, tempopb.PartialStatus_COMPLETE, resp.Status)
+}
