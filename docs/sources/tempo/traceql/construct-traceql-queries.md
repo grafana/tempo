@@ -300,7 +300,7 @@ The following table shows the current available scoped intrinsic fields:
 | `instrumentation:version` | string      | instrumentation scope version                                   | `{ instrumentation:version = "1.0.0" }` |
 
 The trace-level intrinsics, `trace:duration`, `trace:rootName`, and `trace:rootService`, are the same for all spans in the same trace.
-Additionally, these intrinsics are significantly more performant because they have to inspect much less data then a span-level intrinsic.
+Additionally, these intrinsics are significantly more performant because they have to inspect much less data than a span-level intrinsic.
 They should be preferred whenever possible to span-level intrinsics.
 
 {{< admonition type="note" >}}
