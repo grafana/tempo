@@ -841,11 +841,13 @@ func (m *heatmapModel) renderHeaders() string {
 	rightWidth := m.ioGrid.cols * cellWidth
 
 	left := fmt.Sprintf("SPAN LOCATIONS  %s matches  |  cell=%d rows", humanize.Comma(m.matched), m.spanGrid.unitsPerCell)
-	right := fmt.Sprintf("FILE I/O READS  %s read  |  cell=%s  |  %s",
+	right := fmt.Sprintf(
+		"FILE I/O READS  %s read  |  cell=%s  |  %s",
 		humanize.Bytes(uint64(m.ioStats.SumSize)), humanize.Bytes(uint64(m.ioGrid.unitsPerCell)), ioStatsSummary(m.ioStats),
 	)
 
-	return fmt.Sprintf("%s%s%s\n",
+	return fmt.Sprintf(
+		"%s%s%s\n",
 		headerStyle.Render(fmt.Sprintf("%-*s", leftWidth, truncate(left, leftWidth))),
 		gridGap,
 		headerStyle.Render(fmt.Sprintf("%-*s", rightWidth, truncate(right, rightWidth))),
@@ -857,7 +859,8 @@ func ioStatsSummary(s ioStats) string {
 	if s.Reads == 0 {
 		return "no reads yet"
 	}
-	return fmt.Sprintf("%s reads  min %s  max %s  avg %s",
+	return fmt.Sprintf(
+		"%s reads  min %s  max %s  avg %s",
 		humanize.Comma(s.Reads), humanize.Bytes(uint64(s.MinSize)), humanize.Bytes(uint64(s.MaxSize)), humanize.Bytes(uint64(s.avgSize())),
 	)
 }

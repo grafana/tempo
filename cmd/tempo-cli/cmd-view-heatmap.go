@@ -96,7 +96,8 @@ func rowGroupBoundaries(ctx context.Context, r backend.Reader, meta *backend.Blo
 	rr := vparquet5.NewBackendReaderAt(ctx, r, vparquet5.DataFileName, meta)
 	schema, _, _ := vparquet5.SchemaWithDynamicChanges(meta.DedicatedColumns)
 
-	pf, err := parquet.OpenFile(rr, int64(meta.Size_),
+	pf, err := parquet.OpenFile(
+		rr, int64(meta.Size_),
 		parquet.SkipBloomFilters(true),
 		parquet.SkipPageIndex(true),
 		parquet.FileSchema(schema),
