@@ -826,6 +826,15 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 		return nil, err
 	}
 
+	// edge case when no blocks were processed, init with a baseline
+	if jobEval.Length() == 0 {
+		baseline, err := traceql.NewEngine().CompileMetricsQueryRange(req, compileOpts...)
+		if err != nil {
+			return nil, err
+		}
+		jobEval.ObserveSeries(baseline.Results().ToProto(req))
+	}
+
 	r := jobEval.Results()
 	rr := r.ToProto(req)
 
