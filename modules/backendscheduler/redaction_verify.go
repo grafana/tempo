@@ -293,6 +293,18 @@ func (s *BackendScheduler) enqueueRedactionForVerifiedBlock(ctx context.Context,
 		s.flushBatches(ctx)
 	}
 
+	// One repair per block. The worker retries UpdateJob after an error or a lost response, and this
+	// handler runs again on every retry -- with a fresh UUID, against an AddPendingJobs that
+	// deduplicates nothing -- so a retried result would queue a second rewrite of the same block, and
+	// two rewrites of one block can run concurrently. A block already held by a pending or running job
+	// is either that first repair or something else mid-flight; either way the batch is marked dirty
+	// above, so the next pass re-derives this block and re-checks it.
+	if _, held := s.work.BusyBlocksForTenant(tenantID)[blockID]; held {
+		level.Info(log.Logger).Log("msg", "redaction verification: a job already holds this block, not queueing a second repair",
+			"tenant", tenantID, "batch_id", batchID, "block_id", blockID)
+		return
+	}
+
 	job := &work.Job{
 		ID:   uuid.New().String(),
 		Type: tempopb.JobType_JOB_TYPE_REDACTION,
