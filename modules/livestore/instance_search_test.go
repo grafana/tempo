@@ -1762,3 +1762,96 @@ func findCacheFile(t *testing.T, blockDir string) string {
 	t.Fatalf("no cache_query_range_*.buf file found in %s", blockDir)
 	return ""
 }
+
+// TestQueryRangeConcurrentWALBlocks covers the multi-WAL-block path with QueryBlockConcurrency > 1.
+// The test asserts that no spans are lost or double counted when several blocks are evaluated at once
+func TestQueryRangeConcurrentWALBlocks(t *testing.T) {
+	const (
+		walBlocks      = 4
+		tracesPerBlock = 5
+	)
+
+	i, _ := defaultInstance(t)
+	i.Cfg.QueryBlockConcurrency = walBlocks
+
+	ctx := user.InjectOrgID(context.Background(), testTenantID)
+	now := time.Now()
+
+	// Each block gets its own value for span.blk, so the query below yields exactly one series
+	// per block and the expected span count is known.
+	totalSpans := 0
+	for blk := range walBlocks {
+		for range tracesPerBlock {
+			id := make([]byte, 16)
+			_, err := crand.Read(id)
+			require.NoError(t, err)
+
+			tt := test.MakeTrace(1, id)
+			kv := &v1.KeyValue{Key: "blk", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "b" + strconv.Itoa(blk)}}}
+			for _, batch := range tt.ResourceSpans {
+				for _, ils := range batch.ScopeSpans {
+					for _, span := range ils.Spans {
+						span.StartTimeUnixNano = uint64(now.UnixNano())
+						span.EndTimeUnixNano = uint64(now.UnixNano())
+						span.Attributes = append(span.Attributes, kv)
+						totalSpans++
+					}
+				}
+			}
+			trace.SortTrace(tt)
+			traceBytes, err := tt.Marshal()
+			require.NoError(t, err)
+
+			i.pushBytes(ctx, now, &tempopb.PushBytesRequest{
+				Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
+				Ids:    [][]byte{id},
+			})
+		}
+
+		_, err := i.cutIdleTraces(ctx, true)
+		require.NoError(t, err)
+		_, err = i.cutBlocks(ctx, true)
+		require.NoError(t, err)
+	}
+
+	// check wal blocks count to validate test setup
+	require.Len(t, i.blocks.Load().walBlocks, walBlocks)
+
+	newReq := func(maxSeries uint32) *tempopb.QueryRangeRequest {
+		return &tempopb.QueryRangeRequest{
+			Query:     "{} | count_over_time() by (span.blk)",
+			Start:     uint64(now.Add(-time.Minute).UnixNano()),
+			End:       uint64(now.Add(time.Minute).UnixNano()),
+			Step:      uint64(15 * time.Second),
+			MaxSeries: maxSeries,
+		}
+	}
+
+	countSpans := func(resp *tempopb.QueryRangeResponse) float64 {
+		var total float64
+		for _, s := range resp.Series {
+			for _, sample := range s.Samples {
+				total += sample.Value
+			}
+		}
+		return total
+	}
+
+	t.Run("all blocks contribute exactly once", func(t *testing.T) {
+		// Repeated to catch a result that depends on the order blocks happen to finish in.
+		for range 3 {
+			resp, err := i.QueryRange(ctx, newReq(100))
+			require.NoError(t, err)
+			require.Len(t, resp.Series, walBlocks, "expected one series per WAL block")
+			require.Equal(t, float64(totalSpans), countSpans(resp), "spans lost or double counted")
+			require.Equal(t, tempopb.PartialStatus_COMPLETE, resp.Status)
+		}
+	})
+
+	t.Run("MaxSeries reports partial", func(t *testing.T) {
+		resp, err := i.QueryRange(ctx, newReq(2))
+		require.NoError(t, err)
+		require.Equal(t, tempopb.PartialStatus_PARTIAL, resp.Status)
+		require.Len(t, resp.Series, 2)
+	})
+}
