@@ -4,6 +4,8 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -655,4 +657,141 @@ func TestVerificationCoverageIsScopedToTheBatch(t *testing.T) {
 
 	remaining, _ := s.verificationJobs(tenant, state)
 	require.Len(t, remaining, 3, "another batch's completed work does not cover this batch's blocks")
+}
+
+// TestVerificationScanIsNotCoverage separates "this block was scanned" from "this block was
+// rewritten". A scan that finds matches succeeds and queues a repair; if that repair fails, the batch
+// is dirty and passes again -- and if the succeeded scan counted as coverage, that pass would skip the
+// one block known to still hold matches and report the batch clean.
+func TestVerificationScanIsNotCoverage(t *testing.T) {
+	const tenant = "t-verify-scan-not-coverage"
+	_, s, _ := newVerifyScheduler(t, tenant)
+
+	state := work.RedactionVerifyState{BatchID: "b", CreatedAtUnixNano: time.Now().UnixNano()}
+	all, _ := s.verificationJobs(tenant, state)
+	require.Len(t, all, 3, "premise: three in-window blocks")
+
+	// A verification scan for this batch on one of those blocks, succeeded.
+	scanned := all[0].JobDetail.GetRedaction().GetBlockId()
+	scan := &work.Job{
+		ID:   "a-succeeded-scan",
+		Type: tempopb.JobType_JOB_TYPE_REDACTION,
+		JobDetail: tempopb.JobDetail{
+			Tenant:    tenant,
+			BatchId:   "b",
+			Redaction: &tempopb.RedactionDetail{BlockId: scanned, Verify: true},
+		},
+	}
+	scan.SetWorkerID("w1")
+	require.NoError(t, s.work.AddJob(scan))
+	s.work.StartJob(scan.ID)
+	s.work.CompleteJob(scan.ID)
+
+	remaining, _ := s.verificationJobs(tenant, state)
+	require.Len(t, remaining, 3, "a succeeded scan is not a rewrite and must not suppress the block")
+	blocks := make([]string, 0, len(remaining))
+	for _, j := range remaining {
+		blocks = append(blocks, j.JobDetail.GetRedaction().GetBlockId())
+	}
+	require.Contains(t, blocks, scanned)
+}
+
+// TestPassThatDeferredBlocksIsNotClean pins that a partly-run pass is not a clean verdict.
+//
+// The deferred-only branch already refuses to settle a pass that checked nothing. A pass that
+// enqueued some jobs and skipped others is no more complete: those blocks were not scanned, so
+// marking the batch clean lets it quiesce with them unchecked. Left dirty, the next drain re-derives
+// and picks them up, bounded by maxVerifyRounds.
+func TestPassThatDeferredBlocksIsNotClean(t *testing.T) {
+	const tenant = "t-verify-partial"
+	ctx, s, _ := newVerifyScheduler(t, tenant)
+
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: "b", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+		Query: &tempopb.TraceQLSelector{Query: `{resource.namespace = "checkout"}`},
+	}))
+
+	// Hold one of the three candidates with a compaction so the pass both enqueues and defers.
+	candidates, _ := s.verificationJobs(tenant, mustVerifyState(t, s, tenant))
+	require.Len(t, candidates, 3, "premise: three in-window blocks")
+	s.work.RegisterJob(&work.Job{
+		ID:   "compaction-holding-a-candidate",
+		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
+		JobDetail: tempopb.JobDetail{
+			Tenant:     tenant,
+			Compaction: &tempopb.CompactionDetail{Input: []string{candidates[0].JobDetail.GetRedaction().GetBlockId()}},
+		},
+	})
+
+	jobs, deferred := s.verificationJobs(tenant, mustVerifyState(t, s, tenant))
+	require.Len(t, jobs, 2, "premise: the pass enqueues the two free blocks")
+	require.Equal(t, 1, deferred, "premise: and defers the busy one")
+
+	require.True(t, s.advanceVerification(ctx, tenant), "a pass with work outstanding reports outstanding")
+
+	state := mustVerifyState(t, s, tenant)
+	require.False(t, state.Verified,
+		"a pass that skipped a busy block has not checked it, so the batch is not clean")
+}
+
+// TestVerifySuccessWithNoResultIsNotClean covers the scan that answers nothing. A worker reporting
+// SUCCEEDED without a redaction result has said nothing about its block, so the pass cannot be read
+// as clean -- the batch must verify again rather than quiescing on an unanswered scan.
+func TestVerifySuccessWithNoResultIsNotClean(t *testing.T) {
+	const tenant = "t-verify-no-result"
+	ctx, s, _ := newVerifyScheduler(t, tenant)
+
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: "b", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+		Query: &tempopb.TraceQLSelector{Query: `{resource.namespace = "checkout"}`},
+	}))
+	require.True(t, s.advanceVerification(ctx, tenant))
+	require.True(t, mustVerifyState(t, s, tenant).Verified, "premise: the pass starts optimistically clean")
+
+	j := s.work.NextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
+	require.NotNil(t, j)
+	require.True(t, j.JobDetail.GetRedaction().GetVerify())
+	j.SetWorkerID("w1")
+	require.NoError(t, s.work.AddJob(j))
+	s.work.StartJob(j.ID)
+
+	// SUCCEEDED with no Redaction result at all.
+	_, err := s.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
+		JobId:  j.ID,
+		Status: tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
+	})
+	require.NoError(t, err)
+
+	require.False(t, mustVerifyState(t, s, tenant).Verified,
+		"a scan that reported no result cannot leave the batch verified")
+}
+
+// TestFlushFailureLeavesBatchUnverified covers the durability edge on a destructive path.
+//
+// The scan jobs are published in memory before they are persisted, and the caller writes the batch
+// manifest once per tick afterwards. If the job flush fails, the manifest would otherwise record
+// "round consumed, batch clean" while no jobs exist on disk -- so a restart reads a redaction that
+// verified cleanly and never scanned anything. Recording the batch dirty costs an extra pass in the
+// surviving case, which is the safe direction.
+func TestFlushFailureLeavesBatchUnverified(t *testing.T) {
+	const tenant = "t-verify-flush-fails"
+	ctx, s, _ := newVerifyScheduler(t, tenant)
+
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: "b", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+		Query: &tempopb.TraceQLSelector{Query: `{resource.namespace = "checkout"}`},
+	}))
+
+	// FlushToLocal starts with MkdirAll, so pointing the work path at a regular file makes every
+	// flush fail with ENOTDIR.
+	blocker := filepath.Join(t.TempDir(), "not-a-directory")
+	require.NoError(t, os.WriteFile(blocker, []byte("x"), 0o600))
+	s.cfg.LocalWorkPath = blocker
+	require.Error(t, s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, nil), "premise: flushing must fail")
+
+	require.True(t, s.advanceVerification(ctx, tenant), "the pass still runs; its jobs are live in memory")
+
+	state := mustVerifyState(t, s, tenant)
+	require.False(t, state.Verified,
+		"a pass whose jobs never reached disk must not leave the batch recorded clean")
 }
