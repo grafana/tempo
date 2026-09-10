@@ -78,6 +78,12 @@ func (s *BackendScheduler) advanceVerification(ctx context.Context, tenantID str
 		return false
 	}
 
+	// Clean only if this pass covers every candidate it wanted. A pass that skipped busy blocks has
+	// not checked them, and marking it clean would let the batch quiesce with those blocks unscanned --
+	// the deferred-only branch above already refuses to settle for exactly that reason, and a pass
+	// that both enqueued and deferred is no more complete than one that only deferred. Left dirty, the
+	// next drain re-derives and picks them up, bounded by maxVerifyRounds.
+	//
 	// Marked before the jobs are published: AddPendingJobs is the point a worker can see them, and a
 	// job that completes with a match calls SetBatchVerified(false). Setting the flag afterwards would
 	// let the launcher overwrite that finding and lose the dirty record for this pass.
@@ -86,7 +92,7 @@ func (s *BackendScheduler) advanceVerification(ctx context.Context, tenantID str
 	// interleaving needs a worker to complete a scan between the enqueue and the flag write, and a
 	// sequential test cannot produce it while a stress test would only fail intermittently. It is
 	// verified by inspection -- as with the in-flight dequeue atomicity in work/inflight_test.go.
-	s.work.SetBatchVerified(tenantID, true)
+	s.work.SetBatchVerified(tenantID, deferred == 0)
 
 	if err := s.work.AddPendingJobs(jobs); err != nil {
 		// Roll the optimistic mark back rather than leaving a pass that never ran looking clean, and
@@ -112,7 +118,12 @@ func (s *BackendScheduler) advanceVerification(ctx context.Context, tenantID str
 		affectedIDs[i] = j.ID
 	}
 	if err := s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, affectedIDs); err != nil {
-		level.Warn(log.Logger).Log("msg", "redaction verification: failed to flush scan jobs", "tenant", tenantID, "err", err)
+		// The jobs are live in memory and will still run, but they are not on disk while the manifest
+		// the caller is about to write says this round happened. Record the batch dirty so a restart
+		// re-derives the pass instead of reading "round consumed, nothing enqueued" as clean. Costs an
+		// extra pass in the surviving case, which is the safe direction.
+		s.work.SetBatchVerified(tenantID, false)
+		level.Warn(log.Logger).Log("msg", "redaction verification: failed to flush scan jobs; batch left unverified", "tenant", tenantID, "err", err)
 	}
 
 	metricRedactionVerifyRounds.WithLabelValues(tenantID).Inc()
@@ -200,6 +211,11 @@ func (s *BackendScheduler) verificationJobs(tenantID string, state work.Redactio
 // A FAILED job deliberately does not count as covered: its block was not scanned, so the pass must
 // look at it. Nor does an in-flight one, which the busy-block check already defers.
 //
+// Nor does a succeeded *verification* job, even though it is a redaction job for this batch on this
+// block. A scan that found matches succeeds and queues a repair; if that repair then fails, the batch
+// is dirty and passes again -- and counting the scan as coverage would skip the one block known to
+// still hold matches and report the batch clean. Only a completed rewrite proves coverage.
+//
 // Derived from the job records rather than stored on the batch, which keeps a block-ID set off the
 // single global manifest -- at tens of thousands of blocks that would be megabytes rewritten on every
 // flush. The trade-off is that Prune eventually retires the job records, after which a block looks
@@ -212,6 +228,9 @@ func (s *BackendScheduler) coveredBlocks(tenantID, batchID string) map[string]st
 			continue
 		}
 		if j.Tenant() != tenantID || j.JobDetail.GetBatchId() != batchID {
+			continue
+		}
+		if j.JobDetail.GetRedaction().GetVerify() {
 			continue
 		}
 		if blockID := j.JobDetail.GetRedaction().GetBlockId(); blockID != "" {

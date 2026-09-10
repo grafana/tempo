@@ -446,6 +446,14 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 				s.work.SetJobCompactionOutput(req.JobId, req.Compaction.Output)
 			}
 		case tempopb.JobType_JOB_TYPE_REDACTION:
+			if req.Redaction == nil && j.JobDetail.GetRedaction().GetVerify() {
+				// A scan that reports success without a result has told us nothing about its block, so
+				// the pass cannot be read as clean. Mark the batch dirty and let it verify again rather
+				// than quiescing on an unanswered scan.
+				s.work.SetBatchVerified(j.Tenant(), false)
+				level.Warn(log.Logger).Log("msg", "redaction verification job succeeded with no result; batch left unverified",
+					"job_id", req.JobId, "tenant", j.Tenant(), "block_id", j.JobDetail.GetRedaction().GetBlockId())
+			}
 			if req.Redaction != nil {
 				if j.JobDetail.GetRedaction().GetVerify() {
 					// Reported separately from apply and dry-run: those counters are the record of what
