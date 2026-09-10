@@ -269,6 +269,7 @@ func TestNextPropagatesWindowToJob(t *testing.T) {
 		Type: tempopb.JobType_JOB_TYPE_REDACTION,
 		JobDetail: tempopb.JobDetail{
 			Tenant:    tenant,
+			BatchId:   "batch-window",
 			Redaction: &tempopb.RedactionDetail{BlockId: "blk1"},
 		},
 	}
