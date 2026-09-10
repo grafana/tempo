@@ -62,6 +62,10 @@ type BackendScheduler struct {
 	// identifies the tenants and job types whose queue has drained, so their series can be deleted
 	// without resetting the whole vector. Touched only from the maintenance loop.
 	publishedPendingCounts map[string]map[tempopb.JobType]int
+
+	// publishedMaintenancePaused is the set of tenants reported as gated on the previous maintenance
+	// tick, so a tenant that has resumed can be set back to 0 rather than left reading 1 forever.
+	publishedMaintenancePaused map[string]struct{}
 }
 
 // ListJobs returns all jobs in the work cache
@@ -230,6 +234,7 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 	// MaintenanceInterval after start, so a dashboard or autoscaler reading it right after a restart
 	// would see nothing rather than the queue that survived the restart.
 	s.recordPendingJobs()
+	s.recordMaintenancePaused()
 
 	var err error
 
@@ -242,6 +247,7 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 			s.checkPendingRescans(ctx)
 			s.cleanupOrphanedBatches(ctx)
 			s.recordPendingJobs()
+			s.recordMaintenancePaused()
 		case <-backendFlushTicker.C:
 			err = s.flushWorkCacheToBackend(ctx)
 			metricWorkFlushes.Inc()
