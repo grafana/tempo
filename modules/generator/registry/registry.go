@@ -150,8 +150,11 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 	for k, v := range cfg.ExternalLabels {
 		externalLabels[k] = v
 	}
-	hostname, _ := os.Hostname()
-	externalLabels["__metrics_gen_instance"] = hostname
+	generatorInstanceID := cfg.GeneratorInstanceID
+	if generatorInstanceID == "" {
+		generatorInstanceID, _ = os.Hostname()
+	}
+	externalLabels["__metrics_gen_instance"] = generatorInstanceID
 
 	if cfg.InjectTenantIDAs != "" {
 		externalLabels[cfg.InjectTenantIDAs] = tenant

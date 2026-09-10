@@ -1,0 +1,7 @@
+change_type: bug_fix
+component: metrics-generator
+note: Use the configured ring identity for the `__metrics_gen_instance` label to prevent time-series collisions when metrics-generator is deployed within Tempo cluster as multiple Statefulsets.
+issues: []
+subtext: |
+  During rollout, series using the old hostname identity and the new ring identity can coexist until the registry staleness interval expires, potentially causing temporary double-counting.
+user: david-vavra
