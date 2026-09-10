@@ -34,7 +34,7 @@ exemplars can be automatically added, providing additional value to these metric
 ## How to run
 
 To enable span metrics in Tempo or Grafana Enterprise Traces, enable the metrics generator and add an overrides section which enables the `span-metrics` processor.
-Refer to [the configuration details](/docs/tempo/<TEMPO_VERSION>/configuration#metrics-generator).
+Refer to [the configuration details](/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generator).
 
 In Tempo 3.0 microservices deployments, the metrics-generator consumes trace data from Kafka instead of receiving spans directly from the distributor. In single-binary deployments, the distributor still calls the metrics-generator's `PushSpans` method in-process.
 For architecture details, refer to the [Metrics-generator](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/) documentation.
@@ -131,7 +131,7 @@ Apply these changes during a maintenance window if a short gap would affect aler
 
 ### Adding custom dimensions
 
-Additional user defined labels can be created using the [`dimensions` configuration option](/docs/tempo/<TEMPO_VERSION>/configuration#metrics-generator).
+Additional user defined labels can be created using the [`dimensions` configuration option](/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generator).
 When a configured dimension collides with one of the default labels (for example, `status_code`), the label for the respective dimension is prefixed with double underscore (for example, `__status_code`).
 
 {{< admonition type="warning" >}}
@@ -172,7 +172,7 @@ Duplicate dimension validation still applies to `dimension_mappings`. If a `dime
 
 ### Renaming dimensions with dimension_mappings
 
-Custom labeling of dimensions is also supported using the [`dimension_mappings` configuration option](/docs/tempo/<TEMPO_VERSION>/configuration#metrics-generator).
+Custom labeling of dimensions is also supported using the [`dimension_mappings` configuration option](/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generator).
 
 **Understanding dimensions vs dimension_mappings:**
 
@@ -212,7 +212,7 @@ With this configuration, if a span has the following attribute values:
 
 The resulting metric label is `service_instance="abc/def/ghi"`.
 
-An optional metric called `traces_target_info` using all resource level attributes as dimensions can be enabled in the [`enable_target_info` configuration option](/docs/tempo/<TEMPO_VERSION>/configuration#metrics-generator).
+An optional metric called `traces_target_info` using all resource level attributes as dimensions can be enabled in the [`enable_target_info` configuration option](/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generator).
 
 ### Excluding dimensions from target_info
 
