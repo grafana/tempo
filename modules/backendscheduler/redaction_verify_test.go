@@ -795,3 +795,39 @@ func TestFlushFailureLeavesBatchUnverified(t *testing.T) {
 	require.False(t, state.Verified,
 		"a pass whose jobs never reached disk must not leave the batch recorded clean")
 }
+
+// TestTimedOutScanLeavesBatchUnverified covers the failure that never reports itself.
+//
+// Prune force-fails a job past DeadJobTimeout by calling j.Fail() directly, so it bypasses UpdateJob
+// -- and UpdateJob's failure path is what records that a scan did not run. Without the Prune
+// reaction, a pass whose only scan was killed by the timeout keeps the optimistic clean mark it was
+// launched with, and the batch quiesces on a block nothing ever looked at.
+func TestTimedOutScanLeavesBatchUnverified(t *testing.T) {
+	const tenant = "t-verify-timeout"
+	ctx, s, _ := newVerifyScheduler(t, tenant)
+
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: "b", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+		Query: &tempopb.TraceQLSelector{Query: `{resource.namespace = "checkout"}`},
+	}))
+	require.True(t, s.advanceVerification(ctx, tenant))
+	require.True(t, mustVerifyState(t, s, tenant).Verified, "premise: the pass starts optimistically clean")
+
+	// Take a scan job to RUNNING and age it past the dead-job timeout.
+	j := s.work.NextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
+	require.NotNil(t, j)
+	require.True(t, j.JobDetail.GetRedaction().GetVerify())
+	j.SetWorkerID("w1")
+	require.NoError(t, s.work.AddJob(j))
+	s.work.StartJob(j.ID)
+	// Back-date past the default 24h DeadJobTimeout, as the Prune test in this package does.
+	s.work.GetJob(j.ID).StartTime = time.Now().Add(-25 * time.Hour)
+
+	timedOut := s.work.Prune(ctx)
+	require.Len(t, timedOut, 1, "premise: Prune must report the scan it force-failed")
+
+	s.releaseVerificationForTimedOutJobs(timedOut)
+
+	require.False(t, mustVerifyState(t, s, tenant).Verified,
+		"a scan killed by the timeout did not check its block, so the batch is not verified")
+}

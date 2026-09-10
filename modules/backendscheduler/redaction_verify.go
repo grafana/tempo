@@ -325,3 +325,21 @@ func (s *BackendScheduler) enqueueRedactionForVerifiedBlock(ctx context.Context,
 		level.Warn(log.Logger).Log("msg", "redaction verification: failed to flush repair job", "err", err)
 	}
 }
+
+// releaseVerificationForTimedOutJobs marks a batch unverified when the timeout, rather than a worker,
+// ends one of its verification scans.
+//
+// Prune force-fails a job that outran DeadJobTimeout by calling j.Fail() directly, so it never
+// reaches UpdateJob -- and UpdateJob's failure path is what normally records that a scan did not run.
+// Without this a pass whose scan was killed by the timeout keeps the optimistic clean mark it was
+// launched with, and the batch quiesces on a block that was never looked at.
+func (s *BackendScheduler) releaseVerificationForTimedOutJobs(timedOut []*work.Job) {
+	for _, j := range timedOut {
+		if j.GetType() != tempopb.JobType_JOB_TYPE_REDACTION || !j.JobDetail.GetRedaction().GetVerify() {
+			continue
+		}
+		s.work.SetBatchVerified(j.Tenant(), false)
+		level.Warn(log.Logger).Log("msg", "redaction verification scan timed out; batch left unverified",
+			"job_id", j.ID, "tenant", j.Tenant(), "block_id", j.JobDetail.GetRedaction().GetBlockId())
+	}
+}
