@@ -335,10 +335,20 @@ func createDistinctSpanIterator(
 		// Intrinsic?
 		switch cond.Attribute.Intrinsic {
 
-		case traceql.IntrinsicSpanID,
-			traceql.IntrinsicSpanStartTime:
-			// Metadata conditions not necessary, we don't need to fetch them
-			// TODO: Add support if they're added to TraceQL
+		case traceql.IntrinsicSpanID:
+			pred, err := createBytesPredicate(cond.Op, cond.Operands, true)
+			if err != nil {
+				return nil, err
+			}
+			addPredicate(columnPathSpanID, pred)
+			continue
+
+		case traceql.IntrinsicSpanStartTime:
+			pred, err := createIntPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
+			}
+			addPredicate(columnPathSpanStartTime, pred)
 			continue
 
 		case traceql.IntrinsicName:
@@ -834,8 +844,19 @@ func createDistinctTraceIterator(
 	// otherwise we just pass the info up to the engine to make a choice
 	for _, cond := range conds {
 		switch cond.Attribute.Intrinsic {
-		case traceql.IntrinsicTraceID, traceql.IntrinsicTraceStartTime:
-			// metadata conditions not necessary, we don't need to fetch them
+		case traceql.IntrinsicTraceID:
+			pred, err := createBytesPredicate(cond.Op, cond.Operands, false)
+			if err != nil {
+				return nil, err
+			}
+			traceIters = append(traceIters, makeIter(columnPathTraceID, pred, ""))
+
+		case traceql.IntrinsicTraceStartTime:
+			pred, err := createIntPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
+			}
+			traceIters = append(traceIters, makeIter(columnPathStartTimeUnixNano, pred, ""))
 
 		case traceql.IntrinsicTraceDuration:
 			var pred parquetquery.Predicate
