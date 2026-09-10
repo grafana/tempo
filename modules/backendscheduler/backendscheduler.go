@@ -361,6 +361,19 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 						// dropped rather than promoted via AddJob, release that count or it leaks.
 						s.work.ReleaseRedactionInFlight(j.Tenant())
 						drop = true
+					} else if j.JobDetail.GetBatchId() != batch.BatchId {
+						// Fail closed on identity, not just existence. A batch can be torn down and
+						// another take the tenant's slot while this job sits in the pending queue, and
+						// the injection below would then hand this block the new batch's selector, mode
+						// and window -- an irreversible rewrite under a scope its operator never asked
+						// for. Every production path stamps BatchId (submit, rescan, verification,
+						// repair), so an unset one is also a mismatch rather than a job to trust.
+						level.Warn(log.Logger).Log("msg", "dropping redaction job: batch identity does not match the tenant's current batch",
+							"job_id", j.ID, "tenant", j.Tenant(),
+							"job_batch_id", j.JobDetail.GetBatchId(), "current_batch_id", batch.BatchId)
+						metricJobsDropped.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
+						s.work.ReleaseRedactionInFlight(j.Tenant())
+						drop = true
 					} else if j.JobDetail.Redaction != nil {
 						// Inject the batch's selector (trace IDs or query) and mode so the
 						// worker can resolve and act on the block without re-reading the batch.
@@ -877,6 +890,20 @@ func (s *BackendScheduler) advanceQuiescence(ctx context.Context, tenantID strin
 		// Still within the quiescence window; nothing to change this tick.
 		return false
 	}
+	// A dirty verdict can land after quiescence was armed: a verification result enqueues a repair,
+	// or new work arrives and invalidates the earlier clean pass. Both mark the batch unverified, and
+	// both can complete inside the window -- so by the deadline there is nothing active to re-open
+	// quiescence and this would remove the batch on a verdict already known to be stale. Verify again
+	// instead. VerifyRounds still bounds it, and once the budget is spent the batch is released as
+	// unconverged rather than held forever.
+	if state, ok := s.work.RedactionVerifyState(tenantID); ok && !state.Verified && state.VerifyRounds < maxVerifyRounds {
+		s.work.SetBatchQuiesceUntil(tenantID, 0)
+		level.Info(log.Logger).Log("msg", "redaction batch reached its quiescence deadline unverified; verifying again rather than removing",
+			"tenant", tenantID, "batch_id", state.BatchID, "rounds", state.VerifyRounds)
+		s.settleDrainedBatch(ctx, tenantID)
+		return true
+	}
+
 	s.work.RemoveBatch(tenantID)
 	level.Info(log.Logger).Log("msg", "redaction batch quiescence complete, manifest removed", "tenant", tenantID)
 	return true

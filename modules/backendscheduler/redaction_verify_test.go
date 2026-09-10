@@ -12,6 +12,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/grafana/tempo/modules/backendscheduler/work"
 	"github.com/grafana/tempo/modules/overrides"
@@ -907,4 +909,90 @@ func TestSettleRechecksTheBatchIsStillDrained(t *testing.T) {
 	require.Zero(t, quiesceUntil, "a batch mid-verification must not be quiesced")
 	require.Equal(t, rounds, mustVerifyState(t, s, tenant).VerifyRounds,
 		"the second settle must not consume another round")
+}
+
+// TestNextDropsAJobFromAnotherBatch is the fail-closed check at dispatch.
+//
+// A job can sit in the pending queue while its batch is torn down and another takes the tenant's
+// slot. Next() injects the current batch's selector, mode and window into whatever redaction job it
+// hands out, so without an identity check that stale job rewrites its block under a scope the
+// operator never requested -- irreversibly. Existence of a batch is not enough; it has to be the
+// same batch.
+func TestNextDropsAJobFromAnotherBatch(t *testing.T) {
+	ctx, s := newQuiescenceScheduler(t)
+	tenant := "t-next-batch-identity"
+
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: "the-new-batch", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+		Query: &tempopb.TraceQLSelector{Query: `{resource.namespace = "new"}`},
+		Mode:  tempopb.RedactionMode_REDACTION_MODE_APPLY,
+	}))
+
+	// A repair left over from a batch that has since been removed.
+	s.mergedJobs <- &work.Job{
+		ID:   "stale-repair",
+		Type: tempopb.JobType_JOB_TYPE_REDACTION,
+		JobDetail: tempopb.JobDetail{
+			Tenant:    tenant,
+			BatchId:   "the-old-batch",
+			Redaction: &tempopb.RedactionDetail{BlockId: "blk-from-the-old-batch"},
+		},
+	}
+
+	_, err := s.Next(ctx, &tempopb.NextJobRequest{WorkerId: "w1"})
+	require.Error(t, err, "the stale job is dropped, so no job is available")
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	require.Equal(t, codes.NotFound, st.Code())
+}
+
+// TestQuiescenceDeadlineDoesNotRemoveAnUnverifiedBatch covers a dirty verdict that lands after
+// quiescence was armed.
+//
+// A verification result enqueues a repair and marks the batch unverified; new work arriving does the
+// same. Either can complete inside the quiescence window, so by the deadline there is nothing active
+// to re-open quiescence -- and removing then would tear the batch down on a verdict already known to
+// be stale, with no further pass ever confirming the repair.
+func TestQuiescenceDeadlineDoesNotRemoveAnUnverifiedBatch(t *testing.T) {
+	const tenant = "t-verify-stale-verdict"
+	ctx, s, _ := newVerifyScheduler(t, tenant)
+
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: "b", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+		Query: &tempopb.TraceQLSelector{Query: `{resource.namespace = "checkout"}`},
+		// Quiescing, deadline already passed, and a dirty verdict recorded since.
+		QuiesceUntilUnixNano: time.Now().Add(-time.Minute).UnixNano(),
+		Verified:             false,
+		VerifyRounds:         1,
+	}))
+
+	require.True(t, s.advanceQuiescence(ctx, tenant), "the tick must act")
+
+	require.NotNil(t, s.work.GetBatch(tenant),
+		"a batch with a dirty verdict must not be removed at the deadline")
+	state := mustVerifyState(t, s, tenant)
+	require.Equal(t, int32(2), state.VerifyRounds, "it verifies again instead")
+
+	quiesceUntil, _, _, ok := s.work.BatchQuiescenceState(tenant)
+	require.True(t, ok)
+	require.Zero(t, quiesceUntil, "quiescence is cleared while the new pass runs")
+}
+
+// TestQuiescenceDeadlineRemovesWhenTheBudgetIsSpent is the other half: the re-verify above must not
+// hold a batch forever. Once the round budget is spent the batch is released as unconverged.
+func TestQuiescenceDeadlineRemovesWhenTheBudgetIsSpent(t *testing.T) {
+	const tenant = "t-verify-stale-exhausted"
+	ctx, s, _ := newVerifyScheduler(t, tenant)
+
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: "b", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+		Query:                &tempopb.TraceQLSelector{Query: `{resource.namespace = "checkout"}`},
+		QuiesceUntilUnixNano: time.Now().Add(-time.Minute).UnixNano(),
+		Verified:             false,
+		VerifyRounds:         maxVerifyRounds,
+	}))
+
+	require.True(t, s.advanceQuiescence(ctx, tenant), "the tick must act")
+	require.Nil(t, s.work.GetBatch(tenant),
+		"with the budget spent the batch is removed rather than held indefinitely")
 }
