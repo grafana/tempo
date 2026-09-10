@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 
@@ -79,6 +80,39 @@ func TestReadWrite(t *testing.T) {
 	assert.NoError(t, err, "unexpected error listing blocks")
 	assert.Len(t, m, 1)
 	assert.Len(t, cm, 1)
+}
+
+func TestListBlocksAllowsConcurrentBlockDeletion(t *testing.T) {
+	path := t.TempDir()
+	r, _, _, err := New(&Config{Path: path})
+	require.NoError(t, err)
+
+	tenant := "tenant"
+	blockID := uuid.New()
+	blockPath := filepath.Join(path, tenant, blockID.String())
+	require.NoError(t, os.MkdirAll(blockPath, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(blockPath, backend.MetaName), []byte("meta"), 0o600))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for ctx.Err() == nil {
+			_ = os.RemoveAll(blockPath)
+			_ = os.MkdirAll(blockPath, 0o700)
+			_ = os.WriteFile(filepath.Join(blockPath, backend.MetaName), []byte("meta"), 0o600)
+		}
+	}()
+	t.Cleanup(func() {
+		cancel()
+		wg.Wait()
+	})
+
+	for range 1_000 {
+		_, _, err = r.ListBlocks(context.Background(), tenant)
+		require.NoError(t, err)
+	}
 }
 
 func TestShutdownLeavesTenantsWithBlocks(t *testing.T) {
