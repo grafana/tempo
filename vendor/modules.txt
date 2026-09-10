@@ -295,6 +295,9 @@ github.com/aws/smithy-go/transport/http/internal/io
 # github.com/axiomhq/hyperloglog v0.2.6
 ## explicit; go 1.23
 github.com/axiomhq/hyperloglog
+# github.com/aymanbagabas/go-osc52/v2 v2.0.1
+## explicit; go 1.16
+github.com/aymanbagabas/go-osc52/v2
 # github.com/bahlo/generic-list-go v0.2.0
 ## explicit; go 1.18
 github.com/bahlo/generic-list-go
@@ -367,6 +370,25 @@ github.com/cenkalti/backoff/v5
 # github.com/cespare/xxhash/v2 v2.3.0
 ## explicit; go 1.11
 github.com/cespare/xxhash/v2
+# github.com/charmbracelet/bubbletea v1.3.10
+## explicit; go 1.24.0
+github.com/charmbracelet/bubbletea
+# github.com/charmbracelet/colorprofile v0.4.3
+## explicit; go 1.25.0
+github.com/charmbracelet/colorprofile
+# github.com/charmbracelet/lipgloss v1.1.0
+## explicit; go 1.18
+github.com/charmbracelet/lipgloss
+# github.com/charmbracelet/x/ansi v0.11.8
+## explicit; go 1.24.2
+github.com/charmbracelet/x/ansi
+github.com/charmbracelet/x/ansi/parser
+# github.com/charmbracelet/x/cellbuf v0.0.15
+## explicit; go 1.24.2
+github.com/charmbracelet/x/cellbuf
+# github.com/charmbracelet/x/term v0.2.2
+## explicit; go 1.24.0
+github.com/charmbracelet/x/term
 # github.com/clipperhouse/displaywidth v0.11.0
 ## explicit; go 1.18
 github.com/clipperhouse/displaywidth
@@ -483,6 +505,9 @@ github.com/envoyproxy/go-control-plane/envoy/type/v3
 # github.com/envoyproxy/protoc-gen-validate v1.3.3
 ## explicit; go 1.24.1
 github.com/envoyproxy/protoc-gen-validate/validate
+# github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f
+## explicit; go 1.16
+github.com/erikgeiser/coninput
 # github.com/evanphx/json-patch/v5 v5.9.11
 ## explicit; go 1.18
 github.com/evanphx/json-patch/v5
@@ -985,6 +1010,9 @@ github.com/knadh/koanf/v2
 ## explicit; go 1.11
 github.com/kylelemons/godebug/diff
 github.com/kylelemons/godebug/pretty
+# github.com/lucasb-eyer/go-colorful v1.4.0
+## explicit; go 1.12
+github.com/lucasb-eyer/go-colorful
 # github.com/lufia/plan9stats v0.0.0-20251013123823-9fd1530e3ec3
 ## explicit; go 1.21
 github.com/lufia/plan9stats
@@ -1006,7 +1034,10 @@ github.com/mattn/go-colorable
 # github.com/mattn/go-isatty v0.0.22
 ## explicit; go 1.21
 github.com/mattn/go-isatty
-# github.com/mattn/go-runewidth v0.0.23
+# github.com/mattn/go-localereader v0.0.1
+## explicit
+github.com/mattn/go-localereader
+# github.com/mattn/go-runewidth v0.0.24
 ## explicit; go 1.20
 github.com/mattn/go-runewidth
 # github.com/maypok86/otter/v2 v2.3.0
@@ -1069,6 +1100,16 @@ github.com/modern-go/concurrent
 # github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee
 ## explicit; go 1.12
 github.com/modern-go/reflect2
+# github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6
+## explicit; go 1.17
+github.com/muesli/ansi
+github.com/muesli/ansi/compressor
+# github.com/muesli/cancelreader v0.2.2
+## explicit; go 1.17
+github.com/muesli/cancelreader
+# github.com/muesli/termenv v0.16.0
+## explicit; go 1.17
+github.com/muesli/termenv
 # github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822
 ## explicit
 github.com/munnerz/goautoneg
@@ -1470,6 +1511,9 @@ github.com/redis/go-redis/v9/push
 # github.com/relvacode/iso8601 v1.7.0
 ## explicit; go 1.13
 github.com/relvacode/iso8601
+# github.com/rivo/uniseg v0.4.7
+## explicit; go 1.18
+github.com/rivo/uniseg
 # github.com/rs/cors v1.11.1
 ## explicit; go 1.13
 github.com/rs/cors
@@ -1656,6 +1700,9 @@ github.com/uber/jaeger-lib/metrics/prometheus
 # github.com/x448/float16 v0.8.4
 ## explicit; go 1.11
 github.com/x448/float16
+# github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e
+## explicit; go 1.19
+github.com/xo/terminfo
 # github.com/yosida95/uritemplate/v3 v3.0.2
 ## explicit; go 1.14
 github.com/yosida95/uritemplate/v3

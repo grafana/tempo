@@ -53,7 +53,8 @@ var cli struct {
 	} `cmd:""`
 
 	View struct {
-		Schema viewSchemaCmd `cmd:"" help:"View parquet schema"`
+		Schema  viewSchemaCmd `cmd:"" help:"View parquet schema"`
+		Heatmap heatmapCmd    `cmd:"" help:"Interactive TUI showing where a TraceQL query matches within a vParquet5 block"`
 	} `cmd:""`
 
 	Gen struct {
