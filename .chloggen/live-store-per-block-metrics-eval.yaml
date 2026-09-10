@@ -1,0 +1,8 @@
+change_type: enhancement
+component: live-store
+note: Improve TraceQL metrics query performance by removing lock contention between concurrently evaluated WAL blocks
+issues: [7867]
+subtext: |
+  Each block is now evaluated with its own metrics evaluator and the per-block results are
+  summed, instead of all WAL blocks sharing one evaluator guarded by a mutex.
+user: ruslan-mikhailov

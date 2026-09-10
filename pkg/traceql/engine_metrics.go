@@ -1104,7 +1104,6 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 
 	// Watchers are scoped to this Compile call. EngineBytesWatcher is installed fresh when enabled via
 	// WithEngineBytesTracking; additional watchers come from WithWatchers (e.g. per-tenant overrides).
-	// Access to watchers is synchronized by each metricsEvaluator's own (optional) lock; see WithLock.
 	watchers := &spanWatchers{}
 	if cfg.engineBytesTracking {
 		watchers.Add(NewEngineBytesWatcher())
@@ -1157,7 +1156,6 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 			maxExemplars:      exemplars,
 			exemplarMap:       make(map[string]struct{}, exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
 			needsFullTrace:    NeedsFullTrace(pipeline),
-			mtx:               cfg.lock,
 		}
 
 		// Determine usage of new fetch layer.
@@ -1230,13 +1228,6 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 		storageReq.SecondPass = func(s *Spanset) ([]*Spanset, error) {
 			if s == nil || len(s.Spans) == 0 {
 				return nil, nil
-			}
-			// The traceql engine isn't thread-safe.
-			// But parallelization is required for good metrics performance.
-			// So we do external locking here, when needed (see WithLock).
-			if me.mtx != nil {
-				me.mtx.Lock()
-				defer me.mtx.Unlock()
 			}
 			return pipeline.evaluate([]*Spanset{s})
 		}
@@ -1462,6 +1453,7 @@ func (e *batchMetricsEvaluator) Results() SeriesSet {
 	return merged
 }
 
+// metricsEvaluator does no locking and must be driven by a single goroutine
 type metricsEvaluator struct {
 	start, end                      uint64
 	checkTime                       bool
@@ -1479,7 +1471,6 @@ type metricsEvaluator struct {
 	backendBytes      uint64
 	additionalMetrics map[string]int64
 	watchers          *spanWatchers
-	mtx               *sync.Mutex
 }
 
 // EvaluatorMetrics is the snapshot returned by MetricsEvaluator.Metrics().
@@ -1561,13 +1552,7 @@ func (e *metricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 	defer fetch.Results.Close()
 
 	seriesCount := 0
-	if e.mtx != nil {
-		e.mtx.Lock()
-	}
 	watch := e.watchers.Active()
-	if e.mtx != nil {
-		e.mtx.Unlock()
-	}
 
 	for {
 		ss, err := fetch.Results.Next(ctx)
@@ -1576,10 +1561,6 @@ func (e *metricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 		}
 		if ss == nil {
 			break
-		}
-
-		if e.mtx != nil {
-			e.mtx.Lock()
 		}
 
 		if e.storageReq.TraceSampler != nil {
@@ -1628,9 +1609,6 @@ func (e *metricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 
 		seriesCount = e.metricsPipeline.length()
 
-		if e.mtx != nil {
-			e.mtx.Unlock()
-		}
 		ss.Release()
 
 		if maxSeries > 0 && seriesCount >= maxSeries {
@@ -1638,10 +1616,6 @@ func (e *metricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 		}
 	}
 
-	if e.mtx != nil {
-		e.mtx.Lock()
-		defer e.mtx.Unlock()
-	}
 	if fetch.Stats != nil {
 		e.accumulateFetchStats(fetch.Stats())
 	}
@@ -1684,13 +1658,7 @@ func (e *metricsEvaluator) DoSpansOnly(ctx context.Context, f SpansetFetcher, fe
 
 	defer fetch.Results.Close()
 
-	if e.mtx != nil {
-		e.mtx.Lock()
-	}
 	watch := e.watchers.Active()
-	if e.mtx != nil {
-		e.mtx.Unlock()
-	}
 
 	for {
 		done, err := func() (done bool, err error) {
@@ -1700,13 +1668,6 @@ func (e *metricsEvaluator) DoSpansOnly(ctx context.Context, f SpansetFetcher, fe
 			}
 			if s == nil {
 				return true, nil
-			}
-
-			// Acquire lock while doing engine work, if required. It is
-			// not required above while doing storage work.
-			if e.mtx != nil {
-				e.mtx.Lock()
-				defer e.mtx.Unlock()
 			}
 
 			if e.checkTime {
@@ -1748,10 +1709,6 @@ func (e *metricsEvaluator) DoSpansOnly(ctx context.Context, f SpansetFetcher, fe
 		}
 	}
 
-	if e.mtx != nil {
-		e.mtx.Lock()
-		defer e.mtx.Unlock()
-	}
 	if fetch.Stats != nil {
 		e.accumulateFetchStats(fetch.Stats())
 	}
@@ -1760,21 +1717,12 @@ func (e *metricsEvaluator) DoSpansOnly(ctx context.Context, f SpansetFetcher, fe
 }
 
 func (e *metricsEvaluator) Length() int {
-	if e.mtx != nil {
-		e.mtx.Lock()
-		defer e.mtx.Unlock()
-	}
 	return e.metricsPipeline.length()
 }
 
 // Metrics returns a snapshot of the accumulated read-side stats from every
-// fetch this evaluator has consumed. Callers MUST hold no locks on e.mtx.
+// fetch this evaluator has consumed.
 func (e *metricsEvaluator) Metrics() EvaluatorMetrics {
-	if e.mtx != nil {
-		e.mtx.Lock()
-		defer e.mtx.Unlock()
-	}
-
 	var additional map[string]int64
 	if len(e.additionalMetrics) > 0 {
 		additional = make(map[string]int64, len(e.additionalMetrics))
@@ -1792,8 +1740,7 @@ func (e *metricsEvaluator) Metrics() EvaluatorMetrics {
 	}
 }
 
-// accumulateFetchStats merges one fetch's stats into the evaluator. Caller
-// must hold e.mtx.
+// accumulateFetchStats merges one fetch's stats into the evaluator.
 func (e *metricsEvaluator) accumulateFetchStats(s FetchSpansStats) {
 	e.bytes += s.Bytes
 	for _, v := range s.BackendReadsByRole {
@@ -1833,11 +1780,6 @@ func (e *metricsEvaluator) accumulateFetchStats(s FetchSpansStats) {
 }
 
 func (e *metricsEvaluator) Results() SeriesSet {
-	if e.mtx != nil {
-		e.mtx.Lock()
-		defer e.mtx.Unlock()
-	}
-
 	spanMultiplier := 1.0
 	if e.storageReq.SpanSampler != nil {
 		spanMultiplier = e.storageReq.SpanSampler.FinalScalingFactor()
