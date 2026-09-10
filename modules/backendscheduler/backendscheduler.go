@@ -904,6 +904,15 @@ func (s *BackendScheduler) advanceQuiescence(ctx context.Context, tenantID strin
 		return true
 	}
 
+	if state, ok := s.work.RedactionVerifyState(tenantID); ok && !state.Verified {
+		// Released without a clean pass: either the round budget is spent, or a late result marked it
+		// dirty on the final round. Reported here rather than where convergence was abandoned, so
+		// every unverified release is counted exactly once regardless of which path reached it.
+		metricRedactionVerifyExhausted.WithLabelValues(tenantID).Inc()
+		level.Warn(log.Logger).Log("msg", "removing redaction batch that never verified clean -- re-submit if traces are still present",
+			"tenant", tenantID, "batch_id", state.BatchID, "rounds", state.VerifyRounds)
+	}
+
 	s.work.RemoveBatch(tenantID)
 	level.Info(log.Logger).Log("msg", "redaction batch quiescence complete, manifest removed", "tenant", tenantID)
 	return true

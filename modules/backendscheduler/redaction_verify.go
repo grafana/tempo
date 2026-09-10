@@ -55,7 +55,10 @@ func (s *BackendScheduler) advanceVerification(ctx context.Context, tenantID str
 	if state.VerifyRounds >= maxVerifyRounds {
 		// Stop rather than keep the tenant's compaction paused. The batch proceeds to quiescence and
 		// teardown, so this is reported as an unconverged redaction rather than a completed one.
-		metricRedactionVerifyExhausted.WithLabelValues(tenantID).Inc()
+		// The counter is not incremented here: this is where convergence is abandoned, but the batch
+		// is not released until quiescence ends, and a late result can mark it dirty in between. The
+		// release itself is the single place that reports, so the count matches the docs' promise of
+		// one signal per redaction released without a clean pass.
 		level.Warn(log.Logger).Log("msg", "redaction verification did not converge; releasing the batch without a clean pass -- operator should re-submit if traces are still present",
 			"tenant", tenantID, "batch_id", state.BatchID, "rounds", state.VerifyRounds)
 		return false
