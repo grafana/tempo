@@ -41,6 +41,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/pkg/validation"
 )
 
 const (
@@ -355,8 +356,11 @@ func (r *receiversShim) ConsumeTraces(ctx context.Context, td ptrace.Traces) err
 
 	start := time.Now()
 	_, err = r.pusher.PushTraces(ctx, td)
-	if tenantErr == nil {
-		metricPushDuration.WithLabelValues(tenant).Observe(time.Since(start).Seconds())
+	// user.ExtractOrgID above returns the org ID header verbatim, unvalidated,
+	// so it's not safe to use as a metric label: a malformed value would create
+	// a permanent, unbounded-cardinality series. Use the validated tenant ID instead.
+	if validTenant, vErr := validation.ExtractValidTenantID(ctx); vErr == nil {
+		metricPushDuration.WithLabelValues(validTenant).Observe(time.Since(start).Seconds())
 	}
 	if err != nil {
 		if tenantErr == nil {
