@@ -1,0 +1,6 @@
+change_type: enhancement
+component: storage
+note: "Add a `disable_multipart_upload` option to the S3 backend to support S3-compatible stores that do not implement the multipart upload API."
+issues: []
+subtext:
+user: kbelokon

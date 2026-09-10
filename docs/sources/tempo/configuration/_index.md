@@ -1727,6 +1727,14 @@ storage:
             # Notice: ignore this option if `forcepathstyle` is set true, this option allow expose minio's sdk configure.
             [bucket_lookup_type: <int> | default = 0]
 
+            # Optional. Default is false.
+            # Write objects with a single PutObject instead of a multipart upload, for
+            # S3-compatible stores that do not implement the multipart upload API. This
+            # applies to every object Tempo writes, including block flushes. Streaming
+            # writes are buffered to a temporary file first, so an object cannot exceed
+            # the 5 GiB single-PutObject limit and part_size has no effect.
+            [disable_multipart_upload: <bool>]
+
             # Optional. Default is 0 (disabled)
             # Example: "hedge_requests_at: 500ms"
             # If set to a non-zero value a second request will be issued at the provided duration. Recommended to
