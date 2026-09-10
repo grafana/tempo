@@ -831,3 +831,80 @@ func TestTimedOutScanLeavesBatchUnverified(t *testing.T) {
 	require.False(t, mustVerifyState(t, s, tenant).Verified,
 		"a scan killed by the timeout did not check its block, so the batch is not verified")
 }
+
+// TestRetriedVerifyResultQueuesOneRepair covers the retried RPC. UpdateJob is retried by the worker
+// after an error or a lost response, and the result handler runs again each time with a fresh job
+// UUID against an AddPendingJobs that deduplicates nothing -- so without a per-block guard a single
+// confirmed gap becomes two concurrent rewrites of the same block.
+func TestRetriedVerifyResultQueuesOneRepair(t *testing.T) {
+	const tenant = "t-verify-retry"
+	ctx, s, _ := newVerifyScheduler(t, tenant)
+
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: "b", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+		Query: &tempopb.TraceQLSelector{Query: `{resource.namespace = "checkout"}`},
+	}))
+	require.True(t, s.advanceVerification(ctx, tenant))
+
+	j := s.work.NextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
+	require.NotNil(t, j)
+	require.True(t, j.JobDetail.GetRedaction().GetVerify())
+	j.SetWorkerID("w1")
+	require.NoError(t, s.work.AddJob(j))
+	s.work.StartJob(j.ID)
+
+	result := &tempopb.UpdateJobStatusRequest{
+		JobId:     j.ID,
+		Status:    tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
+		Redaction: &tempopb.RedactionResult{TracesFound: 3},
+	}
+	// The same result delivered twice, as a retry after a lost response.
+	_, err := s.UpdateJob(ctx, result)
+	require.NoError(t, err)
+	_, err = s.UpdateJob(ctx, result)
+	require.NoError(t, err)
+
+	repairs := 0
+	for {
+		q := s.work.NextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
+		if q == nil {
+			break
+		}
+		if !q.JobDetail.GetRedaction().GetVerify() {
+			repairs++
+		}
+	}
+	require.Equal(t, 1, repairs, "a retried result must not queue a second rewrite of the same block")
+}
+
+// TestSettleRechecksTheBatchIsStillDrained covers the second caller into the settle path.
+//
+// Both the completion path and the maintenance tick settle a drained batch, and each arrives having
+// checked liveness before taking the lock. If the first caller launches a verification pass, those
+// scans make the batch active again -- so the second must not act on its stale check and quiesce a
+// batch that is mid-verification.
+func TestSettleRechecksTheBatchIsStillDrained(t *testing.T) {
+	const tenant = "t-verify-settle-recheck"
+	ctx, s, _ := newVerifyScheduler(t, tenant)
+
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: "b", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+		Query: &tempopb.TraceQLSelector{Query: `{resource.namespace = "checkout"}`},
+	}))
+
+	// First caller: launches a pass, leaving scan jobs outstanding.
+	s.settleDrainedBatch(ctx, tenant)
+	require.True(t, s.work.HasJobsForTenant(tenant, tempopb.JobType_JOB_TYPE_REDACTION),
+		"premise: the pass left scan jobs outstanding, so the batch is active again")
+	rounds := mustVerifyState(t, s, tenant).VerifyRounds
+	require.Equal(t, int32(1), rounds, "premise: one pass ran")
+
+	// Second caller, arriving with a check made before that pass existed.
+	s.settleDrainedBatch(ctx, tenant)
+
+	quiesceUntil, _, _, ok := s.work.BatchQuiescenceState(tenant)
+	require.True(t, ok)
+	require.Zero(t, quiesceUntil, "a batch mid-verification must not be quiesced")
+	require.Equal(t, rounds, mustVerifyState(t, s, tenant).VerifyRounds,
+		"the second settle must not consume another round")
+}

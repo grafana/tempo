@@ -41,6 +41,10 @@ type BackendScheduler struct {
 
 	mtx sync.Mutex
 
+	// settleMtx serializes the decision about what becomes of a drained batch. Kept separate from
+	// mtx, which guards the work-cache flush and would couple two unrelated paths.
+	settleMtx sync.Mutex
+
 	cfg       Config
 	store     storage.Store
 	overrides overrides.Interface
@@ -803,7 +807,22 @@ func (s *BackendScheduler) cleanupBatchIfDone(ctx context.Context, tenantID stri
 // independently they drift. They already did -- quiescence entered from the completion path skipped
 // verification entirely, so it only ever ran for a batch that drained without a completion
 // callback, which is the timeout case rather than the normal one.
+// One settle at a time, and one recheck under the lock. Both callers arrive having seen the batch
+// drained, and the decision below reads the batch's verification state and then writes it -- so two
+// concurrent settles can both see "not verified" and both launch a pass, consuming two rounds and
+// enqueueing a duplicate scan for every block. Serializing alone is not enough: the second caller
+// through would find the flag set by the first and read that as "nothing left to verify", then
+// quiesce a batch whose scans are still in flight. Rechecking that the batch is still drained is what
+// makes it correct rather than merely second.
 func (s *BackendScheduler) settleDrainedBatch(ctx context.Context, tenantID string) {
+	s.settleMtx.Lock()
+	defer s.settleMtx.Unlock()
+
+	_, rescanPending, _, ok := s.work.BatchQuiescenceState(tenantID)
+	if !ok || s.redactionBatchActive(tenantID, rescanPending) {
+		return
+	}
+
 	if s.advanceVerification(ctx, tenantID) {
 		return
 	}
