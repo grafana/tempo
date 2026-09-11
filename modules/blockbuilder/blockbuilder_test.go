@@ -925,7 +925,7 @@ func blockbuilderConfig(t testing.TB, address string, assignedPartitions []int32
 	cfg.BlockConfig.Version = encoding.DefaultEncoding().Version()
 
 	flagext.DefaultValues(&cfg.IngestStorageConfig.Kafka)
-	cfg.IngestStorageConfig.Kafka.Address = address
+	cfg.IngestStorageConfig.Kafka.Address = ingest.KafkaAddresses{address}
 	cfg.IngestStorageConfig.Kafka.Topic = testTopic
 	cfg.IngestStorageConfig.Kafka.ConsumerGroup = testConsumerGroup
 	cfg.AssignedPartitionsMap = map[string][]int32{cfg.InstanceID: assignedPartitions}

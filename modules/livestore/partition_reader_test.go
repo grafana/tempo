@@ -36,7 +36,7 @@ func TestPartitionReaderCommits(t *testing.T) {
 			return nil, nil, false
 		})
 
-		client := testkafka.NewKafkaClient(t, address, testTopic)
+		client := testkafka.NewKafkaClient(t, []string{address}, testTopic)
 		testkafka.SendReq(t.Context(), t, client, ingest.Encode, testTenantID)
 
 		consumeFn := func(_ context.Context, rs recordIter, _ time.Time) (*kadm.Offset, error) {
@@ -68,7 +68,7 @@ func TestPartitionReaderCommits(t *testing.T) {
 			return nil, nil, false
 		})
 
-		client := testkafka.NewKafkaClient(t, address, testTopic)
+		client := testkafka.NewKafkaClient(t, []string{address}, testTopic)
 		testkafka.SendReq(t.Context(), t, client, ingest.Encode, testTenantID)
 
 		consumed := make(chan struct{})
@@ -118,7 +118,7 @@ func TestPartitionReaderLag(t *testing.T) {
 	// commitInterval=0 commits synchronously
 	r := defaultPartitionReaderWithCommitInterval(t, address, 0, consumeFn)
 
-	client := testkafka.NewKafkaClient(t, address, testTopic)
+	client := testkafka.NewKafkaClient(t, []string{address}, testTopic)
 	records := 10
 	for range records {
 		testkafka.SendReq(t.Context(), t, client, ingest.Encode, testTenantID)
@@ -136,7 +136,7 @@ func TestFetchLastCommittedOffsetForceFromLookback(t *testing.T) {
 
 	t.Run("committed offset exists, forceFromLookback=false uses committed offset", func(t *testing.T) {
 		_, address := testkafka.CreateCluster(t, 1, testTopic)
-		client := testkafka.NewKafkaClient(t, address, testTopic)
+		client := testkafka.NewKafkaClient(t, []string{address}, testTopic)
 
 		// Produce a record and commit an offset
 		testkafka.SendReq(t.Context(), t, client, ingest.Encode, testTenantID)
@@ -154,7 +154,7 @@ func TestFetchLastCommittedOffsetForceFromLookback(t *testing.T) {
 		l := test.NewTestingLogger(t)
 		cfg := ingest.KafkaConfig{}
 		flagext.DefaultValues(&cfg)
-		cfg.Address = address
+		cfg.Address = ingest.KafkaAddresses{address}
 		cfg.Topic = testTopic
 		cfg.ConsumerGroup = testConsumerGroup
 
@@ -174,7 +174,7 @@ func TestFetchLastCommittedOffsetForceFromLookback(t *testing.T) {
 
 	t.Run("committed offset exists, forceFromLookback=true ignores committed offset", func(t *testing.T) {
 		_, address := testkafka.CreateCluster(t, 1, testTopic)
-		client := testkafka.NewKafkaClient(t, address, testTopic)
+		client := testkafka.NewKafkaClient(t, []string{address}, testTopic)
 
 		// Produce a record and commit an offset
 		testkafka.SendReq(t.Context(), t, client, ingest.Encode, testTenantID)
@@ -192,7 +192,7 @@ func TestFetchLastCommittedOffsetForceFromLookback(t *testing.T) {
 		l := test.NewTestingLogger(t)
 		cfg := ingest.KafkaConfig{}
 		flagext.DefaultValues(&cfg)
-		cfg.Address = address
+		cfg.Address = ingest.KafkaAddresses{address}
 		cfg.Topic = testTopic
 		cfg.ConsumerGroup = testConsumerGroup
 
@@ -218,7 +218,7 @@ func TestFetchLastCommittedOffsetForceFromLookback(t *testing.T) {
 		l := test.NewTestingLogger(t)
 		cfg := ingest.KafkaConfig{}
 		flagext.DefaultValues(&cfg)
-		cfg.Address = address
+		cfg.Address = ingest.KafkaAddresses{address}
 		cfg.Topic = testTopic
 		cfg.ConsumerGroup = testConsumerGroup
 
@@ -244,7 +244,7 @@ func defaultPartitionReaderWithCommitInterval(t *testing.T, address string, comm
 
 	cfg := ingest.KafkaConfig{}
 	flagext.DefaultValues(&cfg)
-	cfg.Address = address
+	cfg.Address = ingest.KafkaAddresses{address}
 	cfg.Topic = testTopic
 	cfg.ConsumerGroup = testConsumerGroup
 
