@@ -31,6 +31,13 @@ Tail sampling is more complex to configure, implement, and maintain but is the r
 
 You can use sampling with Tempo using Grafana or Grafana Cloud.
 
+
+{{< admonition type="tip" >}}
+If you send traces to Grafana Cloud Traces, you can use [Adaptive Traces](https://grafana.com/docs/grafana-cloud/cost-management-and-billing/adaptive-telemetry/adaptive-traces/) instead of building and operating your own tail sampling pipeline.
+Adaptive Traces is a managed tail sampling capability that analyzes your trace data, recommends sampling policies, for example, keeping traces with errors or high latency, and applies them for you.
+Adaptive Traces can also generate metrics from all received traces.
+{{< /admonition >}}
+
 ![Tail sampling overview and components with Tempo, Alloy, and Grafana](/media/docs/tempo/sampling/tempo-tail-based-sampling.svg)
 
 ### Resources
@@ -39,6 +46,7 @@ You can use sampling with Tempo using Grafana or Grafana Cloud.
 - Sampling in Grafana Cloud Traces with a collector: [Head sampling](https://grafana.com/docs/opentelemetry/collector/sampling/head/) and [Tail sampling](https://grafana.com/docs/opentelemetry/collector/sampling/tail/)
 - [Enable tail sampling in Tempo](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/tail-sampling/enable-tail-sampling/)
 - [Sampling policies and strategies](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/tail-sampling/policies-strategies/)
+- [Adaptive Traces](https://grafana.com/docs/grafana-cloud/cost-management-and-billing/adaptive-telemetry/adaptive-traces/): managed tail sampling for Grafana Cloud Traces
 
 ## Sampling and telemetry correlation
 
@@ -160,6 +168,10 @@ The act of sampling reduces the amount of tracing telemetry data that's sent to 
 This can have an effect on observation of data inside Grafana.
 
 The following is a suggested pipeline that can be applied to both [Grafana Alloy](https://grafana.com/docs/alloy/latest/) and the [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/), to carry out tail sampling, but also ensure that other telemetry signals are still captured for observation from within Grafana and Grafana Cloud.
+
+This section describes how to build and operate this pipeline yourself. 
+If you send traces to Grafana Cloud Traces, [Adaptive Traces](https://grafana.com/docs/grafana-cloud/cost-management-and-billing/adaptive-telemetry/adaptive-traces/) provides equivalent tail sampling as a managed feature, without requiring you to deploy and maintain a two-layer collector pipeline.
+Adaptive Traces can also generate metrics from all received traces.
 
 This pipeline exists in the second layer of collectors, sent data by the load balancing layer, and is commonly deployed as a Kubernetes `StatefulSet` to ensure that each instance has a consistent identity. A realistic example pipeline could be made of up the following components:
 
