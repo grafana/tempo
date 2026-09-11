@@ -32,6 +32,7 @@ const (
 
 var tracer = otel.Tracer("tempodb/blocklist")
 
+//nolint:goconst // Keep metric namespaces inline.
 var (
 	metricBackendObjects = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempodb",
@@ -57,6 +58,30 @@ var (
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
+	// Tenant IDs belong in logs and traces, not in these histogram labels.
+	metricPollStageDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace:                       "tempodb",
+		Name:                            "blocklist_poll_stage_duration_seconds",
+		Help:                            "Time spent in each tenant polling stage, including failed attempts.",
+		Buckets:                         prometheus.ExponentialBuckets(0.01, 4, 10),
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: time.Hour,
+	}, []string{"stage", "outcome"})
+	metricTenantQueueDuration = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace:                       "tempodb",
+		Name:                            "blocklist_poll_tenant_queue_duration_seconds",
+		Help:                            "Time from completing tenant discovery to starting a tenant poll, including waiting behind other tenants. Only started tenants are observed.",
+		Buckets:                         prometheus.ExponentialBuckets(0.01, 4, 10),
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: time.Hour,
+	})
+	metricActiveTenantPolls = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "tempodb",
+		Name:      "blocklist_poll_tenants_active",
+		Help:      "Number of tenant polling workers currently running, including retries.",
+	})
 	metricBlocklistLength = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempodb",
 		Name:      "blocklist_length",
@@ -78,6 +103,38 @@ var (
 		Help:      "Age in seconds of the last pulled tenant index.",
 	}, []string{"tenant"})
 )
+
+// pollStage measures wall time, including backend retries and any bounded
+// concurrency waits within the stage. It does not change error handling.
+type pollStage struct {
+	name  string
+	start time.Time
+	span  trace.Span
+}
+
+func startPollStage(ctx context.Context, name string) (context.Context, *pollStage) {
+	ctx, span := tracer.Start(ctx, "Poller."+name)
+	return ctx, &pollStage{
+		name:  name,
+		start: time.Now(),
+		span:  span,
+	}
+}
+
+// Finish records the duration and outcome, ends the span, and returns the
+// duration for logging. Call it once after the stage's operation completes.
+func (s *pollStage) Finish(err error) time.Duration {
+	duration := time.Since(s.start)
+	outcome := "success"
+	if err != nil {
+		outcome = "error"
+		s.span.RecordError(err)
+		s.span.SetStatus(codes.Error, "polling stage failed")
+	}
+	metricPollStageDuration.WithLabelValues(s.name, outcome).Observe(duration.Seconds())
+	s.span.End()
+	return duration
+}
 
 // Config is used to configure the poller
 type PollerConfig struct {
@@ -146,6 +203,10 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (PerTenant, PerTe
 	parentCtx, parentSpan := tracer.Start(parentCtx, "Poller.Do")
 	defer parentSpan.End()
 
+	// Keep a correlation ID even when this cycle is not sampled for tracing.
+	cycleID := uuid.NewString()
+	parentSpan.SetAttributes(attribute.String("poll_cycle", cycleID))
+
 	tenants, err := p.reader.Tenants(parentCtx)
 	if err != nil {
 		metricBlocklistErrors.WithLabelValues("").Inc()
@@ -161,8 +222,9 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (PerTenant, PerTe
 
 		tenantFailuresRemaining = atomic.NewInt32(int32(p.cfg.TolerateTenantFailures))
 
-		link  = trace.LinkFromContext(parentCtx)
-		bgCtx = context.Background()
+		link       = trace.LinkFromContext(parentCtx)
+		bgCtx      = context.Background()
+		queueStart = time.Now()
 	)
 
 	for _, tenantID := range tenants {
@@ -186,8 +248,18 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (PerTenant, PerTe
 			bgCtx, bgSpan := tracer.Start(bgCtx, "Poller.Do.func")
 			defer bgSpan.End()
 
-			bgSpan.SetAttributes(attribute.String("tenant", tenantID))
+			queueDuration := time.Since(queueStart)
+			logger := log.With(p.logger, "tenant", tenantID, "poll_cycle", cycleID, "queue_seconds", queueDuration.Seconds())
+			metricTenantQueueDuration.Observe(queueDuration.Seconds())
+			metricActiveTenantPolls.Inc()
+			defer metricActiveTenantPolls.Dec()
+			bgSpan.SetAttributes(
+				attribute.String("tenant", tenantID),
+				attribute.String("poll_cycle", cycleID),
+				attribute.Float64("queue_seconds", queueDuration.Seconds()),
+			)
 			bgSpan.AddLink(link)
+			level.Debug(logger).Log("msg", "tenant poll started")
 
 			var (
 				consecutiveErrorsRemaining = p.cfg.TolerateConsecutiveErrors
@@ -197,7 +269,7 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (PerTenant, PerTe
 			)
 
 			for consecutiveErrorsRemaining >= 0 {
-				newBlockList, newCompactedBlockList, err = p.pollTenantAndCreateIndex(bgCtx, tenantID, previous)
+				newBlockList, newCompactedBlockList, err = p.pollTenantAndCreateIndex(bgCtx, tenantID, previous, logger)
 				if err == nil {
 					break
 				}
@@ -209,7 +281,7 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (PerTenant, PerTe
 			defer mtx.Unlock()
 
 			if err != nil {
-				level.Error(p.logger).Log("msg", "failed to poll or create index for tenant", "tenant", tenantID, "err", err)
+				level.Error(logger).Log("msg", "failed to poll or create index for tenant", "err", err)
 				blocklist[tenantID] = previous.Metas(tenantID)
 				compactedBlocklist[tenantID] = previous.CompactedMetas(tenantID)
 
@@ -246,7 +318,7 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (PerTenant, PerTe
 
 	diff := time.Since(start).Seconds()
 	metricBlocklistPollDuration.Observe(diff)
-	level.Info(p.logger).Log("msg", "blocklist poll complete", "seconds", diff)
+	level.Info(p.logger).Log("msg", "blocklist poll complete", "poll_cycle", cycleID, "seconds", diff)
 
 	return blocklist, compactedBlocklist, nil
 }
@@ -255,6 +327,7 @@ func (p *Poller) pollTenantAndCreateIndex(
 	ctx context.Context,
 	tenantID string,
 	previous *List,
+	logger log.Logger,
 ) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
 	derivedCtx, span := tracer.Start(ctx, "Poller.pollTenantAndCreateIndex", trace.WithAttributes(attribute.String("tenant", tenantID)))
 	defer span.End()
@@ -265,13 +338,16 @@ func (p *Poller) pollTenantAndCreateIndex(
 	if !builder {
 		metricTenantIndexBuilder.WithLabelValues(tenantID).Set(0)
 
-		i, err := p.reader.TenantIndex(derivedCtx, tenantID)
+		readCtx, readStage := startPollStage(derivedCtx, "read_index")
+		i, err := p.reader.TenantIndex(readCtx, tenantID)
 		err = p.tenantIndexPollError(i, err)
+		readDuration := readStage.Finish(err)
 		if err == nil {
 			// success! return the retrieved index
 			metricTenantIndexAgeSeconds.WithLabelValues(tenantID).Set(float64(time.Since(i.CreatedAt) / time.Second))
-			level.Info(p.logger).Log("msg", "successfully pulled tenant index", "tenant", tenantID, "createdAt", i.CreatedAt, "metas", len(i.Meta), "compactedMetas", len(i.CompactedMeta))
+			level.Info(logger).Log("msg", "successfully pulled tenant index", "createdAt", i.CreatedAt, "metas", len(i.Meta), "compactedMetas", len(i.CompactedMeta), "seconds", readDuration.Seconds())
 
+			span.SetAttributes(attribute.String("index_created_at", i.CreatedAt.Format(time.RFC3339Nano)))
 			span.SetAttributes(attribute.Int("metas", len(i.Meta)))
 			span.SetAttributes(attribute.Int("compactedMetas", len(i.CompactedMeta)))
 			return i.Meta, i.CompactedMeta, nil
@@ -286,24 +362,35 @@ func (p *Poller) pollTenantAndCreateIndex(
 		}
 
 		// polling fallback is true, log the error and continue in this method to completely poll the backend
-		level.Error(p.logger).Log("msg", "failed to pull bucket index for tenant. falling back to polling", "tenant", tenantID, "err", err)
+		span.SetAttributes(attribute.Bool("fallback", true))
+		level.Error(logger).Log("msg", "failed to pull bucket index for tenant. falling back to polling", "err", err)
 	}
 
 	// if we're here then we have been configured to be a tenant index builder OR
 	// there was a failure to pull the tenant index and we are configured to fall
 	// back to polling.
 	metricTenantIndexBuilder.WithLabelValues(tenantID).Set(1)
-	blocklist, compactedBlocklist, err := p.pollTenantBlocks(derivedCtx, tenantID, previous)
+	buildStart := time.Now()
+	level.Info(logger).Log("msg", "tenant index build started", "assigned_builder", builder)
+	blocklist, compactedBlocklist, err := p.pollTenantBlocks(derivedCtx, tenantID, previous, logger)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to poll tenant blocks: %w", err)
 	}
 
 	// everything is happy, write this tenant index
-	level.Info(p.logger).Log("msg", "writing tenant index", "tenant", tenantID, "metas", len(blocklist), "compactedMetas", len(compactedBlocklist))
-	err = p.writer.WriteTenantIndex(ctx, tenantID, blocklist, compactedBlocklist)
+	// These are point-in-time ownership observations, not a lease or a write
+	// guard. They help identify builds that overlap a ring ownership change.
+	builderBeforeWrite := p.tenantIndexBuilder(tenantID)
+	span.SetAttributes(attribute.Bool("assigned_builder_before_write", builderBeforeWrite))
+	level.Info(logger).Log("msg", "writing tenant index", "metas", len(blocklist), "compactedMetas", len(compactedBlocklist), "assigned_builder", builder, "assigned_builder_before_write", builderBeforeWrite)
+	writeCtx, writeStage := startPollStage(derivedCtx, "write_index")
+	err = p.writer.WriteTenantIndex(writeCtx, tenantID, blocklist, compactedBlocklist)
+	writeDuration := writeStage.Finish(err)
 	if err != nil {
 		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()
-		level.Error(p.logger).Log("msg", "failed to write tenant index", "tenant", tenantID, "err", err)
+		level.Error(logger).Log("msg", "failed to write tenant index", "seconds", writeDuration.Seconds(), "err", err)
+	} else {
+		level.Info(logger).Log("msg", "tenant index write complete", "write_seconds", writeDuration.Seconds(), "build_seconds", time.Since(buildStart).Seconds())
 	}
 
 	if len(blocklist) == 0 && len(compactedBlocklist) == 0 {
@@ -322,15 +409,41 @@ func (p *Poller) pollTenantBlocks(
 	ctx context.Context,
 	tenantID string,
 	previous *List,
+	logger log.Logger,
 ) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
 	derivedCtx, span := tracer.Start(ctx, "Poller.pollTenantBlocks")
 	defer span.End()
 
-	currentBlockIDs, currentCompactedBlockIDs, err := p.reader.Blocks(derivedCtx, tenantID)
+	start := time.Now()
+	var (
+		listDuration      time.Duration
+		reconcileDuration time.Duration
+		fetchDuration     time.Duration
+		unknownCount      int
+	)
+	listCtx, listStage := startPollStage(derivedCtx, "list_blocks")
+	currentBlockIDs, currentCompactedBlockIDs, err := p.reader.Blocks(listCtx, tenantID)
+	listDuration = listStage.Finish(err)
+	defer func() {
+		span.SetAttributes(
+			attribute.Int("listed_blocks", len(currentBlockIDs)),
+			attribute.Int("listed_compacted_blocks", len(currentCompactedBlockIDs)),
+			attribute.Int("unknown_blocks", unknownCount),
+		)
+		level.Info(logger).Log("msg", "tenant block poll complete",
+			"seconds", time.Since(start).Seconds(),
+			"list_seconds", listDuration.Seconds(),
+			"reconcile_seconds", reconcileDuration.Seconds(),
+			"fetch_seconds", fetchDuration.Seconds(),
+			"listed_blocks", len(currentBlockIDs),
+			"listed_compacted_blocks", len(currentCompactedBlockIDs),
+			"unknown_blocks", unknownCount, "err", err)
+	}()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed listing tenant blocks: %w", err)
 	}
 
+	_, reconcileStage := startPollStage(derivedCtx, "reconcile_metadata")
 	var (
 		metas                 = previous.Metas(tenantID)
 		compactedMetas        = previous.CompactedMetas(tenantID)
@@ -386,7 +499,11 @@ func (p *Poller) pollTenantBlocks(
 		unknownBlockIDs[blockID] = true
 	}
 
-	newM, newCm, err := p.pollUnknown(derivedCtx, unknownBlockIDs, tenantID)
+	unknownCount = len(unknownBlockIDs)
+	reconcileDuration = reconcileStage.Finish(nil)
+	fetchCtx, fetchStage := startPollStage(derivedCtx, "fetch_metadata")
+	newM, newCm, err := p.pollUnknown(fetchCtx, unknownBlockIDs, tenantID)
+	fetchDuration = fetchStage.Finish(err)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed reading unknown blocks: %w", err)
 	}
