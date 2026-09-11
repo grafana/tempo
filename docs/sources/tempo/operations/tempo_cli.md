@@ -1101,6 +1101,14 @@ Verification narrows both cases without closing them.
 A pass re-derives its candidates from the current block list, so a block that appears late is picked up by a later pass -- but a batch whose passes all come back clean can finish before that block appears.
 Re-submit the redaction if you cannot guarantee the quiet period.
 
+### What verification checks
+
+Verification scans up to the moment the redaction was submitted, or the `--start`/`--end` window if you gave one.
+A redaction with no window removes matching traces regardless of their timestamps, so the two differ at one edge: a block whose spans are *all* stamped after the submission instant is not re-checked.
+In practice that means clock skew or deliberately future-dated spans; a block whose range spans the submission instant is still scanned.
+
+The bound is deliberate. An unbounded re-scan keeps matching data that arrived after the request -- data the redaction was never asked to remove -- so it would never come back clean on an active tenant, and `tempo_backend_scheduler_redaction_verify_exhausted_total` would fire on every redaction instead of marking the ones that need attention.
+
 ### Examples
 
 Redact a single trace:

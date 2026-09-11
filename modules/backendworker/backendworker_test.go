@@ -271,7 +271,7 @@ func TestProcessRedactionJobMissingBlockObservable(t *testing.T) {
 			Redaction: &tempopb.RedactionDetail{BlockId: uuid.New().String()},
 		},
 	})
-	require.NoError(t, err, "a missing block must complete as a non-fatal no-op")
+	require.Error(t, err, "a missing block fails the job rather than reporting a no-op success")
 	after := testutil.ToFloat64(metricRedactionBlockMissing.WithLabelValues(tenant))
 	require.Equal(t, before+1, after, "a missing redaction block must be counted, not silently dropped")
 }
@@ -354,14 +354,16 @@ func TestEffectiveRedactionMode(t *testing.T) {
 	}
 }
 
-// TestProcessRedactionJobMissingBlockFailsAVerificationScan separates "not checked" from "no matches".
+// TestProcessRedactionJobMissingBlockFails separates "not checked" from "no matches", for a rewrite
+// as much as for a scan.
 //
-// The scheduler and each worker poll the block list independently, so a verification target can be
-// absent here while still live in the scheduler's list. Completing as a no-op reports zero matches,
-// which the scheduler reads as a clean scan -- it then keeps the optimistic clean verdict and can
-// settle the batch over a block nothing examined. A rewrite job keeps the no-op: that path is
-// deliberate for a block genuinely compacted or retained away.
-func TestProcessRedactionJobMissingBlockFailsAVerificationScan(t *testing.T) {
+// The scheduler and each worker poll the block list independently, so the target can be absent here
+// while still live in the scheduler's list. A no-op success reports zero matches, which the scheduler
+// counts as coverage for a rewrite and reads as a clean scan for a verification job -- either way
+// nothing revisits the block. Failing is safe in both readings: a failed job is not coverage, so a
+// later pass re-derives the block if the scheduler still lists it, and if it really is gone the
+// scheduler's own poll drops it as a candidate.
+func TestProcessRedactionJobMissingBlockFails(t *testing.T) {
 	limitCfg := overrides.Config{}
 	limitCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
 
@@ -370,14 +372,11 @@ func TestProcessRedactionJobMissingBlockFailsAVerificationScan(t *testing.T) {
 	workerCfg, schedulerClientCfg, overridesSvc, _, store := setupDependencies(ctx, t, limitCfg)
 
 	for _, tc := range []struct {
-		name       string
-		verify     bool
-		wantStatus tempopb.JobStatus
-		wantErr    bool
+		name   string
+		verify bool
 	}{
-		// failJob reports FAILED to the scheduler and also returns the error to the worker loop.
-		{name: "verification scan fails", verify: true, wantStatus: tempopb.JobStatus_JOB_STATUS_FAILED, wantErr: true},
-		{name: "rewrite still no-ops", verify: false, wantStatus: tempopb.JobStatus_JOB_STATUS_SUCCEEDED},
+		{name: "verification scan", verify: true},
+		{name: "rewrite", verify: false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			w, err := New(workerCfg, schedulerClientCfg, store, overridesSvc, prometheus.NewRegistry())
@@ -401,19 +400,14 @@ func TestProcessRedactionJobMissingBlockFailsAVerificationScan(t *testing.T) {
 					},
 				},
 			})
-			if tc.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
+			// failJob reports FAILED to the scheduler and also returns the error to the worker loop.
+			require.Error(t, err)
 
 			require.NotEmpty(t, got, "the scheduler must be told what happened")
 			last := got[len(got)-1]
-			require.Equal(t, tc.wantStatus, last.Status)
-			if tc.verify {
-				require.Zero(t, last.GetRedaction().GetTracesFound(),
-					"a failed scan must not report a match count that would read as a clean result")
-			}
+			require.Equal(t, tempopb.JobStatus_JOB_STATUS_FAILED, last.Status)
+			require.Zero(t, last.GetRedaction().GetTracesFound(),
+				"a failure must not carry a match count that would read as a clean result")
 		})
 	}
 }
