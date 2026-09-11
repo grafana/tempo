@@ -1828,14 +1828,12 @@ func BenchmarkIterators(b *testing.B) {
 	rgs := pf.RowGroups()
 	rgs = rgs[3:5]
 
-	var instrPred *pq.InstrumentedPredicate
+	var stats *pq.PredicateStats
 	makeIterInternal := makeIterFunc(ctx, rgs, pf)
 	makeIter := func(columnName string, predicate pq.Predicate, selectAs string) pq.Iterator {
-		instrPred = &pq.InstrumentedPredicate{
-			Pred: predicate,
-		}
+		stats = &pq.PredicateStats{}
 
-		return makeIterInternal(columnName, predicate, selectAs)
+		return makeIterInternal(columnName, predicate, selectAs, pq.SyncIteratorOptStats(stats))
 	}
 
 	b.ResetTimer()
@@ -1866,14 +1864,14 @@ func BenchmarkIterators(b *testing.B) {
 			count++
 		}
 		iter.Close()
-		if instrPred != nil {
+		if stats != nil {
 			b.ReportMetric(float64(count), "count")
-			b.ReportMetric(float64(instrPred.InspectedColumnChunks), "stats_cc")
-			b.ReportMetric(float64(instrPred.KeptColumnChunks), "stats_cc_kept")
-			b.ReportMetric(float64(instrPred.InspectedPages), "stats_ip")
-			b.ReportMetric(float64(instrPred.KeptPages), "stats_ip_kept")
-			b.ReportMetric(float64(instrPred.InspectedValues), "stats_v")
-			b.ReportMetric(float64(instrPred.KeptValues), "stats_v_kept")
+			b.ReportMetric(float64(stats.InspectedColumnChunks), "stats_cc")
+			b.ReportMetric(float64(stats.KeptColumnChunks), "stats_cc_kept")
+			b.ReportMetric(float64(stats.InspectedPages), "stats_ip")
+			b.ReportMetric(float64(stats.KeptPages), "stats_ip_kept")
+			b.ReportMetric(float64(stats.InspectedValues), "stats_v")
+			b.ReportMetric(float64(stats.KeptValues), "stats_v_kept")
 		}
 	}
 }

@@ -10,14 +10,16 @@ import (
 	pq "github.com/parquet-go/parquet-go"
 )
 
-// Predicate is a pushdown predicate that can be applied at
-// the chunk, page, and value levels.
+// Predicate is a pushdown predicate evaluated at the value level (KeepValue) and,
+// for chunk/page skipping, at the value-range level (KeepRange). Chunk-, page-,
+// dictionary-, and null-level skipping are handled generically by the iterator
+// layer (keepColumnChunk / keepPage) using these two methods.
 type Predicate interface {
 	fmt.Stringer
 
-	KeepColumnChunk(*ColumnChunkHelper) bool
-	KeepPage(page pq.Page) bool
 	KeepValue(pq.Value) bool
+	// KeepRange reports whether any value in the inclusive [minV,maxV] range could match.
+	KeepRange(minV, maxV pq.Value) bool
 }
 
 // NewStringEqualPredicate is just an alias for the equivalent byte predicate
@@ -72,29 +74,6 @@ func (p *ByteInPredicate) String() string {
 	return fmt.Sprintf("ByteInPredicate{%s}", strs)
 }
 
-func (p *ByteInPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
-	if d := cc.Dictionary(); d != nil {
-		return keepDictionary(d, p.KeepValue)
-	}
-
-	ci, err := cc.ColumnIndex()
-	if err != nil || ci == nil {
-		return true // no index: keep column chunk
-	}
-
-	for i := 0; i < ci.NumPages(); i++ {
-		minVal := ci.MinValue(i).ByteArray()
-		maxVal := ci.MaxValue(i).ByteArray()
-		for _, subs := range p.values {
-			if bytes.Compare(minVal, subs) <= 0 && bytes.Compare(maxVal, subs) >= 0 {
-				// At least one page in this chunk matches
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func (p *ByteInPredicate) KeepValue(v pq.Value) bool {
 	ba := v.ByteArray()
 	if p.valuesMap != nil {
@@ -109,9 +88,14 @@ func (p *ByteInPredicate) KeepValue(v pq.Value) bool {
 	return false
 }
 
-func (p *ByteInPredicate) KeepPage(pq.Page) bool {
-	// todo: check bounds
-	return true
+func (p *ByteInPredicate) KeepRange(minV, maxV pq.Value) bool {
+	lo, hi := minV.ByteArray(), maxV.ByteArray()
+	for _, s := range p.values {
+		if bytes.Compare(lo, s) <= 0 && bytes.Compare(hi, s) >= 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // ByteNotInPredicate checks for any of the given strings. Case-sensitive exact byte matching
@@ -152,14 +136,6 @@ func (p *ByteNotInPredicate) String() string {
 	return fmt.Sprintf("ByteNotInPredicate{%s}", strs)
 }
 
-func (p *ByteNotInPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
-	if d := cc.Dictionary(); d != nil {
-		return keepDictionary(d, p.KeepValue)
-	}
-
-	return true
-}
-
 func (p *ByteNotInPredicate) KeepValue(v pq.Value) bool {
 	ba := v.ByteArray()
 	if p.valuesMap != nil {
@@ -174,10 +150,7 @@ func (p *ByteNotInPredicate) KeepValue(v pq.Value) bool {
 	return true
 }
 
-func (p *ByteNotInPredicate) KeepPage(pq.Page) bool {
-	// todo: check bounds
-	return true
-}
+func (p *ByteNotInPredicate) KeepRange(pq.Value, pq.Value) bool { return true }
 
 type regexPredicate struct {
 	matcher *regexp.Regexp
@@ -220,26 +193,11 @@ func (p *regexPredicate) keep(v *pq.Value) bool {
 	return p.matcher.Match(v.ByteArray())
 }
 
-func (p *regexPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
-	d := cc.Dictionary()
-
-	// should we do this?
-	p.matcher.Reset()
-
-	if d != nil {
-		return keepDictionary(d, p.KeepValue)
-	}
-
-	return true
-}
-
 func (p *regexPredicate) KeepValue(v pq.Value) bool {
 	return p.keep(&v)
 }
 
-func (p *regexPredicate) KeepPage(pq.Page) bool {
-	return true
-}
+func (p *regexPredicate) KeepRange(pq.Value, pq.Value) bool { return true }
 
 type SubstringPredicate struct {
 	substring []byte
@@ -259,17 +217,6 @@ func (p *SubstringPredicate) String() string {
 	return fmt.Sprintf("SubstringPredicate{%s}", p.substring)
 }
 
-func (p *SubstringPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
-	// Reset match cache on each row group change
-	p.matches = make(map[string]bool, len(p.matches))
-
-	if d := cc.Dictionary(); d != nil {
-		return keepDictionary(d, p.KeepValue)
-	}
-
-	return true
-}
-
 func (p *SubstringPredicate) KeepValue(v pq.Value) bool {
 	b := v.ByteArray()
 
@@ -286,9 +233,7 @@ func (p *SubstringPredicate) KeepValue(v pq.Value) bool {
 	return matched
 }
 
-func (p *SubstringPredicate) KeepPage(pq.Page) bool {
-	return true
-}
+func (p *SubstringPredicate) KeepRange(pq.Value, pq.Value) bool { return true }
 
 // IntBetweenPredicate checks for int between the bounds [min,max] inclusive
 type IntBetweenPredicate struct {
@@ -305,32 +250,13 @@ func (p *IntBetweenPredicate) String() string {
 	return fmt.Sprintf("IntBetweenPredicate{%d,%d}", p.min, p.max)
 }
 
-func (p *IntBetweenPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
-	ci, err := c.ColumnIndex()
-	if err == nil && ci != nil {
-		for i := 0; i < ci.NumPages(); i++ {
-			minVal := ci.MinValue(i).Int64()
-			maxVal := ci.MaxValue(i).Int64()
-			if p.max >= minVal && p.min <= maxVal {
-				return true
-			}
-		}
-		return false
-	}
-
-	return true
-}
-
 func (p *IntBetweenPredicate) KeepValue(v pq.Value) bool {
 	vv := v.Int64()
 	return p.min <= vv && vv <= p.max
 }
 
-func (p *IntBetweenPredicate) KeepPage(page pq.Page) bool {
-	if minVal, maxVal, ok := page.Bounds(); ok {
-		return p.max >= minVal.Int64() && p.min <= maxVal.Int64()
-	}
-	return true
+func (p *IntBetweenPredicate) KeepRange(minV, maxV pq.Value) bool {
+	return p.max >= minV.Int64() && p.min <= maxV.Int64()
 }
 
 // GenericPredicate with callbacks to evaluate data of type T
@@ -356,42 +282,15 @@ func (p *GenericPredicate[T]) String() string {
 	return "GenericPredicate{}"
 }
 
-func (p *GenericPredicate[T]) KeepColumnChunk(c *ColumnChunkHelper) bool {
-	if d := c.Dictionary(); d != nil {
-		return keepDictionary(d, p.KeepValue)
-	}
+func (p *GenericPredicate[T]) KeepValue(v pq.Value) bool {
+	return p.Fn(p.Extract(v))
+}
 
+func (p *GenericPredicate[T]) KeepRange(minV, maxV pq.Value) bool {
 	if p.RangeFn == nil {
 		return true
 	}
-
-	ci, err := c.ColumnIndex()
-	if err == nil && ci != nil {
-		for i := 0; i < ci.NumPages(); i++ {
-			minVal := p.Extract(ci.MinValue(i))
-			maxVal := p.Extract(ci.MaxValue(i))
-			if p.RangeFn(minVal, maxVal) {
-				return true
-			}
-		}
-		return false
-	}
-
-	return true
-}
-
-func (p *GenericPredicate[T]) KeepPage(page pq.Page) bool {
-	if p.RangeFn != nil {
-		if min, max, ok := page.Bounds(); ok {
-			return p.RangeFn(p.Extract(min), p.Extract(max))
-		}
-	}
-
-	return true
-}
-
-func (p *GenericPredicate[T]) KeepValue(v pq.Value) bool {
-	return p.Fn(p.Extract(v))
+	return p.RangeFn(p.Extract(minV), p.Extract(maxV))
 }
 
 type OrPredicate struct {
@@ -418,36 +317,6 @@ func (p *OrPredicate) String() string {
 	return fmt.Sprintf("OrPredicate{%s}", strings.Join(preds, ","))
 }
 
-func (p *OrPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
-	ret := false
-	for _, p := range p.preds {
-		if p == nil {
-			// Nil means all values are returned
-			ret = ret || true
-			continue
-		}
-		if p.KeepColumnChunk(c) {
-			ret = ret || true
-		}
-	}
-
-	return ret
-}
-
-func (p *OrPredicate) KeepPage(page pq.Page) bool {
-	for _, p := range p.preds {
-		if p == nil {
-			// Nil means all values are returned
-			return true
-		}
-		if p.KeepPage(page) {
-			return true
-		}
-	}
-
-	return false
-}
-
 func (p *OrPredicate) KeepValue(v pq.Value) bool {
 	for _, p := range p.preds {
 		if p == nil {
@@ -462,69 +331,13 @@ func (p *OrPredicate) KeepValue(v pq.Value) bool {
 	return false
 }
 
-type InstrumentedPredicate struct {
-	Pred                  Predicate // Optional, if missing then just keeps metrics with no filtering
-	InspectedColumnChunks int64
-	InspectedPages        int64
-	InspectedValues       int64
-	KeptColumnChunks      int64
-	KeptPages             int64
-	KeptValues            int64
-}
-
-var _ Predicate = (*InstrumentedPredicate)(nil)
-
-func (p *InstrumentedPredicate) String() string {
-	if p.Pred == nil {
-		return fmt.Sprintf("InstrumentedPredicate{%d, nil}", p.InspectedValues)
-	}
-	return fmt.Sprintf("InstrumentedPredicate{%d, %s}", p.InspectedValues, p.Pred)
-}
-
-func (p *InstrumentedPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
-	p.InspectedColumnChunks++
-
-	if p.Pred == nil || p.Pred.KeepColumnChunk(c) {
-		p.KeptColumnChunks++
-		return true
-	}
-
-	return false
-}
-
-func (p *InstrumentedPredicate) KeepPage(page pq.Page) bool {
-	p.InspectedPages++
-
-	if p.Pred == nil || p.Pred.KeepPage(page) {
-		p.KeptPages++
-		return true
-	}
-
-	return false
-}
-
-func (p *InstrumentedPredicate) KeepValue(v pq.Value) bool {
-	p.InspectedValues++
-
-	if p.Pred == nil || p.Pred.KeepValue(v) {
-		p.KeptValues++
-		return true
-	}
-
-	return false
-}
-
-// keepDictionary inspects all values using the callback and returns if any
-// matches were found.
-func keepDictionary(dict pq.Dictionary, keepValue func(pq.Value) bool) bool {
-	l := dict.Len()
-	for i := 0; i < l; i++ {
-		dictionaryEntry := dict.Index(int32(i))
-		if keepValue(dictionaryEntry) {
+func (p *OrPredicate) KeepRange(minV, maxV pq.Value) bool {
+	for _, sub := range p.preds {
+		if sub == nil || sub.KeepRange(minV, maxV) {
+			// Nil means all values are returned
 			return true
 		}
 	}
-
 	return false
 }
 
@@ -540,17 +353,11 @@ func (p *SkipNilsPredicate) String() string {
 	return "SkipNilsPredicate{}"
 }
 
-func (p *SkipNilsPredicate) KeepColumnChunk(*ColumnChunkHelper) bool {
-	return true
-}
-
-func (p *SkipNilsPredicate) KeepPage(page pq.Page) bool {
-	return page.NumValues() > page.NumNulls()
-}
-
 func (p *SkipNilsPredicate) KeepValue(v pq.Value) bool {
 	return !v.IsNull()
 }
+
+func (p *SkipNilsPredicate) KeepRange(pq.Value, pq.Value) bool { return true }
 
 type CallbackPredicate struct {
 	cb func() bool
@@ -564,11 +371,9 @@ func NewCallbackPredicate(cb func() bool) *CallbackPredicate {
 
 func (m *CallbackPredicate) String() string { return "CallbackPredicate{}" }
 
-func (m *CallbackPredicate) KeepColumnChunk(*ColumnChunkHelper) bool { return m.cb() }
-
-func (m *CallbackPredicate) KeepPage(pq.Page) bool { return m.cb() }
-
 func (m *CallbackPredicate) KeepValue(pq.Value) bool { return m.cb() }
+
+func (m *CallbackPredicate) KeepRange(pq.Value, pq.Value) bool { return m.cb() }
 
 var _ Predicate = (*NilValuePredicate)(nil)
 
@@ -582,27 +387,11 @@ func (p NilValuePredicate) String() string {
 	return "NilValuePredicate{}"
 }
 
-func (p NilValuePredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
-	ci, err := c.ColumnIndex()
-	if err == nil && ci != nil {
-		for i := range ci.NumPages() {
-			if ci.NullCount(i) > 0 {
-				// At least one page in this chunk matches
-				return true
-			}
-		}
-		return false
-	}
-	return true
-}
-
-func (p NilValuePredicate) KeepPage(page pq.Page) bool {
-	return page.NumNulls() > 0
-}
-
 func (p NilValuePredicate) KeepValue(v pq.Value) bool {
 	return v.IsNull()
 }
+
+func (p NilValuePredicate) KeepRange(pq.Value, pq.Value) bool { return false }
 
 type IncludeNilStringEqualPredicate struct {
 	value []byte
@@ -616,15 +405,9 @@ func (p IncludeNilStringEqualPredicate) String() string {
 	return "IncludeNilStringEqualPredicate{}"
 }
 
-func (p IncludeNilStringEqualPredicate) KeepColumnChunk(_ *ColumnChunkHelper) bool {
-	return true
-}
-
-func (p IncludeNilStringEqualPredicate) KeepPage(_ pq.Page) bool {
-	return true
-}
-
 func (p IncludeNilStringEqualPredicate) KeepValue(v pq.Value) bool {
 	vv := v.ByteArray()
 	return bytes.Equal(vv, p.value)
 }
+
+func (p IncludeNilStringEqualPredicate) KeepRange(pq.Value, pq.Value) bool { return true }

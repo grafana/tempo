@@ -9,7 +9,9 @@ import (
 	pq "github.com/parquet-go/parquet-go"
 )
 
-// NilSyncIterator copies all functions of the sync iterator with just the next() function being different
+// NilSyncIterator copies all functions of the sync iterator with just the next() function
+// being different. It detects the ABSENCE of a matching value per scope, so next() and
+// SeekTo must not prune — pruning would drop the very scopes it needs to emit as nil.
 type NilSyncIterator struct {
 	SyncIterator
 	lastRowNumberReturned RowNumber
@@ -54,11 +56,11 @@ func (c *NilSyncIterator) Next() (*IteratorResult, error) {
 
 func (c *NilSyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResult, error) {
 	for {
-		if done := c.seekRowGroup(to, definitionLevel); done {
+		if done := c.seekRowGroup(to, definitionLevel, false); done {
 			return nil, nil
 		}
 
-		done, err := c.seekPages(to, definitionLevel)
+		done, err := c.seekPages(to, definitionLevel, false)
 		if err != nil {
 			return nil, err
 		}
@@ -134,11 +136,6 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 			}
 
 			cc := &ColumnChunkHelper{ColumnChunk: rg.ColumnChunks()[c.column]}
-			if c.filter != nil && !c.filter.KeepColumnChunk(cc) {
-				cc.Close()
-				continue
-			}
-
 			c.setRowGroup(rg, minRN, maxRN, cc)
 		}
 
@@ -150,12 +147,6 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 			if pg == nil || errors.Is(err, io.EOF) {
 				// This row group is exhausted
 				c.closeCurrRowGroup()
-				continue
-			}
-			if c.filter != nil && !c.filter.KeepPage(pg) {
-				// This page filtered out
-				c.curr.Skip(pg.NumRows())
-				pq.Release(pg)
 				continue
 			}
 			c.setPage(pg)
