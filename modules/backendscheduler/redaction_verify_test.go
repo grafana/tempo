@@ -829,7 +829,7 @@ func TestTimedOutScanLeavesBatchUnverified(t *testing.T) {
 	timedOut := s.work.Prune(ctx)
 	require.Len(t, timedOut, 1, "premise: Prune must report the scan it force-failed")
 
-	s.releaseVerificationForTimedOutJobs(timedOut)
+	s.releaseVerificationForTimedOutJobs(ctx, timedOut)
 
 	require.False(t, mustVerifyState(t, s, tenant).Verified,
 		"a scan killed by the timeout did not check its block, so the batch is not verified")
@@ -1004,4 +1004,152 @@ func TestQuiescenceDeadlineRemovesWhenTheBudgetIsSpent(t *testing.T) {
 	// result can still mark the batch dirty between there and here.
 	require.Equal(t, before+1, testutil.ToFloat64(metricRedactionVerifyExhausted.WithLabelValues(tenant)),
 		"a batch released without a clean pass must be reported")
+}
+
+// TestFailedScanPersistsTheDirtyVerdict covers the restart in the gap.
+//
+// A pass is persisted with the clean verdict it was launched with. The failure path clears that in
+// memory and then persists the job as FAILED -- so without flushing the manifest too, a restart
+// reloads a terminal, inactive job alongside a stale clean verdict, finds the batch drained, and
+// quiesces without ever re-running the scan. Nothing on the RPC path writes the manifest otherwise.
+func TestFailedScanPersistsTheDirtyVerdict(t *testing.T) {
+	const tenant = "t-verify-durable-verdict"
+	ctx, s, _ := newVerifyScheduler(t, tenant)
+
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: "b", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+		Query: &tempopb.TraceQLSelector{Query: `{resource.namespace = "checkout"}`},
+	}))
+	require.True(t, s.advanceVerification(ctx, tenant))
+	s.flushBatches(ctx)
+	require.True(t, mustVerifyState(t, s, tenant).Verified, "premise: the launched pass is optimistically clean")
+
+	j := s.work.NextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
+	require.NotNil(t, j)
+	j.SetWorkerID("w1")
+	require.NoError(t, s.work.AddJob(j))
+	s.work.StartJob(j.ID)
+	_, err := s.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
+		JobId:  j.ID,
+		Status: tempopb.JobStatus_JOB_STATUS_FAILED,
+		Error:  "worker died mid-scan",
+	})
+	require.NoError(t, err)
+
+	fresh := work.New(s.cfg.Work)
+	require.NoError(t, fresh.LoadBatchesFromLocal(ctx, s.cfg.LocalWorkPath))
+	batch := fresh.GetBatch(tenant)
+	require.NotNil(t, batch, "premise: the manifest on disk has this batch")
+	require.False(t, batch.Verified,
+		"the dirty verdict must survive a restart, or the batch settles on a scan that never ran")
+}
+
+// TestStaleScanDoesNotClearAnotherBatchVerdict covers a job reporting after its own batch is gone.
+//
+// A verification scan failed by the dead-job timeout can report long after its batch was torn down
+// and another took the tenant's slot. Clearing the verdict by tenant alone would spend the new
+// batch's rounds on the old batch's result, and reading the current batch before writing would not
+// help -- the batch can change between the two.
+func TestStaleScanDoesNotClearAnotherBatchVerdict(t *testing.T) {
+	const tenant = "t-verify-stale-batch"
+	ctx, s, _ := newVerifyScheduler(t, tenant)
+
+	// The batch that holds the slot now, mid-verification and so far clean.
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: "the-new-batch", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+		Query:    &tempopb.TraceQLSelector{Query: `{resource.namespace = "checkout"}`},
+		Verified: true, VerifyRounds: 1,
+	}))
+
+	// A scan belonging to a batch that has since been removed.
+	stale := &work.Job{
+		ID:   "stale-scan",
+		Type: tempopb.JobType_JOB_TYPE_REDACTION,
+		JobDetail: tempopb.JobDetail{
+			Tenant:    tenant,
+			BatchId:   "the-old-batch",
+			Redaction: &tempopb.RedactionDetail{BlockId: "blk", Verify: true},
+		},
+	}
+	stale.SetWorkerID("w1")
+	require.NoError(t, s.work.AddJob(stale))
+	s.work.StartJob(stale.ID)
+
+	_, err := s.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
+		JobId:  stale.ID,
+		Status: tempopb.JobStatus_JOB_STATUS_FAILED,
+		Error:  "timed out long ago",
+	})
+	require.NoError(t, err)
+
+	require.True(t, mustVerifyState(t, s, tenant).Verified,
+		"a stale job must not change the verdict of the batch that replaced its own")
+}
+
+// TestRetryAfterRepairCompletedQueuesNoSecondRewrite is the retry the busy-block check cannot see.
+//
+// The worker retries UpdateJob after a lost response. If the first repair has already finished by
+// then, the block is idle -- so a busy-only check queues a second rewrite, and rewriting an input
+// another worker still lists as live produces a duplicate output carrying every non-matching trace.
+func TestRetryAfterRepairCompletedQueuesNoSecondRewrite(t *testing.T) {
+	const tenant = "t-verify-retry-after-repair"
+	ctx, s, _ := newVerifyScheduler(t, tenant)
+
+	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
+		BatchId: "b", TenantId: tenant, CreatedAtUnixNano: time.Now().UnixNano(),
+		Query: &tempopb.TraceQLSelector{Query: `{resource.namespace = "checkout"}`},
+	}))
+	require.True(t, s.advanceVerification(ctx, tenant))
+
+	scan := s.work.NextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
+	require.NotNil(t, scan)
+	require.True(t, scan.JobDetail.GetRedaction().GetVerify())
+	scan.SetWorkerID("w1")
+	require.NoError(t, s.work.AddJob(scan))
+	s.work.StartJob(scan.ID)
+
+	result := &tempopb.UpdateJobStatusRequest{
+		JobId:     scan.ID,
+		Status:    tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
+		Redaction: &tempopb.RedactionResult{TracesFound: 2},
+	}
+	_, err := s.UpdateJob(ctx, result)
+	require.NoError(t, err)
+
+	// Drain the queue to find the repair: the pass also left scans for the other in-window blocks.
+	var repair *work.Job
+	for {
+		q := s.work.NextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
+		if q == nil {
+			break
+		}
+		if !q.JobDetail.GetRedaction().GetVerify() {
+			require.Nil(t, repair, "premise: the match queues exactly one repair")
+			repair = q
+		}
+	}
+	require.NotNil(t, repair, "premise: the match queued a repair")
+	require.Equal(t, scan.JobDetail.GetRedaction().GetBlockId(), repair.JobDetail.GetRedaction().GetBlockId(),
+		"premise: the repair targets the block the scan found matches in")
+
+	// Take it all the way to SUCCEEDED, so the block is idle again.
+	repair.SetWorkerID("w2")
+	require.NoError(t, s.work.AddJob(repair))
+	s.work.StartJob(repair.ID)
+	s.work.CompleteJob(repair.ID)
+	require.NotContains(t, s.work.BusyBlocksForTenant(tenant), repair.JobDetail.GetRedaction().GetBlockId(),
+		"premise: with the repair finished the block is idle, so a busy-only check would not catch the retry")
+
+	// The lost response arrives now.
+	_, err = s.UpdateJob(ctx, result)
+	require.NoError(t, err)
+
+	for {
+		q := s.work.NextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
+		if q == nil {
+			break
+		}
+		require.True(t, q.JobDetail.GetRedaction().GetVerify(),
+			"a retry after the repair completed must not queue a second rewrite of the same block")
+	}
 }

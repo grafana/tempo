@@ -242,7 +242,7 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-maintenanceTicker.C:
-			s.releaseVerificationForTimedOutJobs(s.work.Prune(ctx))
+			s.releaseVerificationForTimedOutJobs(ctx, s.work.Prune(ctx))
 			s.checkPendingRescans(ctx)
 			s.cleanupOrphanedBatches(ctx)
 			s.recordPendingJobs()
@@ -467,7 +467,13 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 				// A scan that reports success without a result has told us nothing about its block, so
 				// the pass cannot be read as clean. Mark the batch dirty and let it verify again rather
 				// than quiescing on an unanswered scan.
-				s.work.SetBatchVerified(j.Tenant(), false)
+				//
+				// Scoped to the reporting job's batch, and flushed here: nothing on the RPC path writes
+				// the manifest, so a verdict left in memory is lost on a restart -- which would reload
+				// this job as terminal alongside a stale clean verdict and quiesce without another pass.
+				if s.work.SetBatchVerifiedForBatch(j.Tenant(), j.JobDetail.GetBatchId(), false) {
+					s.flushBatches(ctx)
+				}
 				level.Warn(log.Logger).Log("msg", "redaction verification job succeeded with no result; batch left unverified",
 					"job_id", req.JobId, "tenant", j.Tenant(), "block_id", j.JobDetail.GetRedaction().GetBlockId())
 			}
@@ -507,7 +513,14 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 		if j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION && j.JobDetail.GetRedaction().GetVerify() {
 			// The blocks this job would have scanned were not scanned. Marking the pass dirty makes
 			// the batch verify again rather than quiescing on a pass that partly did not run.
-			s.work.SetBatchVerified(j.Tenant(), false)
+			//
+			// Scoped to this job's batch so a scan failed long after its own batch was torn down does
+			// not spend a later batch's rounds, and flushed before the job's terminal state is
+			// persisted below: otherwise a restart reloads a failed, inactive job together with the
+			// clean verdict the pass was launched with, and settles without ever re-running it.
+			if s.work.SetBatchVerifiedForBatch(j.Tenant(), j.JobDetail.GetBatchId(), false) {
+				s.flushBatches(ctx)
+			}
 		}
 		s.work.FailJob(req.JobId)
 		metricJobsFailed.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()

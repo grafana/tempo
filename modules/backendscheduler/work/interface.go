@@ -73,6 +73,7 @@ type Interface interface {
 	RedactionVerifyState(tenantID string) (RedactionVerifyState, bool)
 	IncBatchVerifyRounds(tenantID string)
 	SetBatchVerified(tenantID string, verified bool) (changed bool)
+	SetBatchVerifiedForBatch(tenantID, batchID string, verified bool) (changed bool)
 	FlushBatchesToLocal(ctx context.Context, localPath string) error
 	LoadBatchesFromLocal(ctx context.Context, localPath string) error
 
