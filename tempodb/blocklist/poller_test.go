@@ -1336,7 +1336,7 @@ func BenchmarkFullPoller(b *testing.B) {
 func benchmarkPollTenant(b *testing.B, poller *Poller, tenant string, previous *List) {
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		_, _, err := poller.pollTenantBlocks(context.Background(), tenant, previous)
+		_, _, err := poller.pollTenantBlocks(context.Background(), tenant, previous, log.NewNopLogger())
 		require.NoError(b, err)
 	}
 }

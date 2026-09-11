@@ -166,7 +166,7 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (PerTenant, PerTe
 		tenantFailuresRemaining = atomic.NewInt32(int32(p.cfg.TolerateTenantFailures))
 
 		link       = trace.LinkFromContext(parentCtx)
-		bgCtx      = context.WithValue(context.Background(), pollCycleKey{}, cycleID)
+		bgCtx      = context.Background()
 		queueStart = time.Now()
 	)
 
@@ -192,7 +192,7 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (PerTenant, PerTe
 			defer bgSpan.End()
 
 			queueDuration := time.Since(queueStart)
-			bgCtx = context.WithValue(bgCtx, pollQueueKey{}, queueDuration)
+			logger := log.With(p.logger, "tenant", tenantID, "poll_cycle", cycleID, "queue_seconds", queueDuration.Seconds())
 			metricTenantQueueDuration.Observe(queueDuration.Seconds())
 			metricActiveTenantPolls.Inc()
 			defer metricActiveTenantPolls.Dec()
@@ -202,7 +202,7 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (PerTenant, PerTe
 				attribute.Float64("queue_seconds", queueDuration.Seconds()),
 			)
 			bgSpan.AddLink(link)
-			level.Debug(p.tenantLogger(bgCtx, tenantID)).Log("msg", "tenant poll started")
+			level.Debug(logger).Log("msg", "tenant poll started")
 
 			var (
 				consecutiveErrorsRemaining = p.cfg.TolerateConsecutiveErrors
@@ -212,7 +212,7 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (PerTenant, PerTe
 			)
 
 			for consecutiveErrorsRemaining >= 0 {
-				newBlockList, newCompactedBlockList, err = p.pollTenantAndCreateIndex(bgCtx, tenantID, previous)
+				newBlockList, newCompactedBlockList, err = p.pollTenantAndCreateIndex(bgCtx, tenantID, previous, logger)
 				if err == nil {
 					break
 				}
@@ -224,7 +224,7 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (PerTenant, PerTe
 			defer mtx.Unlock()
 
 			if err != nil {
-				level.Error(p.logger).Log("msg", "failed to poll or create index for tenant", "tenant", tenantID, "err", err)
+				level.Error(logger).Log("msg", "failed to poll or create index for tenant", "err", err)
 				blocklist[tenantID] = previous.Metas(tenantID)
 				compactedBlocklist[tenantID] = previous.CompactedMetas(tenantID)
 
@@ -270,11 +270,10 @@ func (p *Poller) pollTenantAndCreateIndex(
 	ctx context.Context,
 	tenantID string,
 	previous *List,
+	logger log.Logger,
 ) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
 	derivedCtx, span := tracer.Start(ctx, "Poller.pollTenantAndCreateIndex", trace.WithAttributes(attribute.String("tenant", tenantID)))
 	defer span.End()
-
-	logger := p.tenantLogger(ctx, tenantID)
 
 	// are we a tenant index builder?
 	builder := p.tenantIndexBuilder(tenantID)
@@ -316,7 +315,7 @@ func (p *Poller) pollTenantAndCreateIndex(
 	metricTenantIndexBuilder.WithLabelValues(tenantID).Set(1)
 	buildStart := time.Now()
 	level.Info(logger).Log("msg", "tenant index build started", "assigned_builder", builder)
-	blocklist, compactedBlocklist, err := p.pollTenantBlocks(derivedCtx, tenantID, previous)
+	blocklist, compactedBlocklist, err := p.pollTenantBlocks(derivedCtx, tenantID, previous, logger)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to poll tenant blocks: %w", err)
 	}
@@ -353,6 +352,7 @@ func (p *Poller) pollTenantBlocks(
 	ctx context.Context,
 	tenantID string,
 	previous *List,
+	logger log.Logger,
 ) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
 	derivedCtx, span := tracer.Start(ctx, "Poller.pollTenantBlocks")
 	defer span.End()
@@ -373,7 +373,7 @@ func (p *Poller) pollTenantBlocks(
 			attribute.Int("listed_compacted_blocks", len(currentCompactedBlockIDs)),
 			attribute.Int("unknown_blocks", unknownCount),
 		)
-		level.Info(p.tenantLogger(ctx, tenantID)).Log("msg", "tenant block poll complete",
+		level.Info(logger).Log("msg", "tenant block poll complete",
 			"seconds", time.Since(start).Seconds(),
 			"list_seconds", listDuration.Seconds(),
 			"reconcile_seconds", reconcileDuration.Seconds(),
