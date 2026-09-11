@@ -41,6 +41,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/pkg/validation"
 )
 
 const (
@@ -48,7 +49,7 @@ const (
 )
 
 var (
-	metricPushDuration = promauto.NewHistogram(prometheus.HistogramOpts{
+	metricPushDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace:                       "tempo",
 		Name:                            "distributor_push_duration_seconds",
 		Help:                            "Records the amount of time to process and route a batch through the distributor.",
@@ -56,7 +57,7 @@ var (
 		NativeHistogramBucketFactor:     1.1,
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
-	})
+	}, []string{"tenant"})
 
 	statReceiverOtlp   = usagestats.NewInt("receiver_enabled_otlp")
 	statReceiverJaeger = usagestats.NewInt("receiver_enabled_jaeger")
@@ -355,7 +356,13 @@ func (r *receiversShim) ConsumeTraces(ctx context.Context, td ptrace.Traces) err
 
 	start := time.Now()
 	_, err = r.pusher.PushTraces(ctx, td)
-	metricPushDuration.Observe(time.Since(start).Seconds())
+	pushDuration := time.Since(start)
+	// user.ExtractOrgID above returns the org ID header verbatim, unvalidated,
+	// so it's not safe to use as a metric label: a malformed value would create
+	// a permanent, unbounded-cardinality series. Use the validated tenant ID instead.
+	if validTenant, vErr := validation.ExtractValidTenantID(ctx); vErr == nil {
+		metricPushDuration.WithLabelValues(validTenant).Observe(pushDuration.Seconds())
+	}
 	if err != nil {
 		if tenantErr == nil {
 			r.logger.Log("msg", "pusher failed to consume trace data", "tenant", tenant, "err", err)
