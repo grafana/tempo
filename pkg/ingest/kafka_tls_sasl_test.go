@@ -169,7 +169,7 @@ func mtlsScramKafkaConfig(t *testing.T, address, topic string, certs testCerts, 
 
 	cfg := ingest.KafkaConfig{}
 	flagext.DefaultValues(&cfg)
-	cfg.Address = address
+	cfg.Address = ingest.KafkaAddresses{address}
 	cfg.Topic = topic
 	cfg.WriteTimeout = 10 * time.Second
 
