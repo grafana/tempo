@@ -1073,6 +1073,47 @@ redaction; an unwindowed redaction is unaffected.
 
 Monitor job progress through the [`/status/backendscheduler`](/docs/tempo/<TEMPO_VERSION>/api_docs/#backend-scheduler-job-status) endpoint.
 
+Completing every job is not the same as the data being gone, so a redaction is verified before it is
+torn down. Once its block jobs finish, the scheduler re-scans the blocks currently overlapping the
+redaction's window and queues a further redaction job for any that still match. This catches a block
+that the submission never accounted for -- for example one produced by a compaction that started at
+almost the same moment as the request. Verification only ever scans; it never rewrites on its own.
+
+A redaction is complete when a verification pass finds nothing. Until then the tenant's compaction
+stays paused. Watch `tempo_backend_scheduler_redaction_verify_gaps_total` for blocks that were
+missed, and `tempo_backend_scheduler_redaction_verify_exhausted_total` for a redaction released
+without ever coming back clean -- that one has not finished and should be re-submitted.
+
+### Stop writing the data before you submit
+
+A redaction covers the blocks the scheduler knows about.
+A block that exists in object storage but has not yet been polled is invisible to the submission, and the block list is refreshed on `blocklist_poll` (five minutes by default).
+
+Stop emitting the data you intend to redact at least **two poll cycles** before submitting.
+Two rather than one because of when an index is written: a poll that starts before the submission and finishes after it writes an index stamped later than the request but listing only what existed when the poll began.
+Only the next index is guaranteed to list everything that was present at submission time.
+
+Two cases are worth separating.
+A block flushed while the redaction runs holds data ingested at that moment, so it falls outside a historical `--start`/`--end` window and does not affect coverage there; the wait matters for an unwindowed redaction, for a window running to `now`, and for data that arrives with older timestamps than the moment it was written.
+Compaction output blocks are also only discovered by the next poll, so a block produced by a compaction that raced the submission can be invisible for up to one poll cycle.
+
+Verification narrows both cases without closing them.
+A pass re-derives its candidates from the current block list, so a block that appears late is picked up by a later pass -- but a batch whose passes all come back clean can finish before that block appears.
+Re-submit the redaction if you cannot guarantee the quiet period.
+
+### What verification checks
+
+A redaction given `--start` and `--end` is verified over that window.
+
+A `--query` redaction with no window is verified over everything up to the moment it was submitted.
+That differs at one edge from the redaction itself, which removes matching traces whatever their timestamps: a block whose spans are *all* stamped after the submission instant is not re-checked.
+In practice that means clock skew or deliberately future-dated spans; a block whose range spans the instant is still scanned.
+
+The bound is deliberate. An unbounded re-scan keeps matching data that arrived after the request -- data the redaction was never asked to remove -- so it would never come back clean on an active tenant, and `tempo_backend_scheduler_redaction_verify_exhausted_total` would fire on every redaction instead of marking the ones that need attention.
+
+A `--trace-id` redaction is verified with no time bound at all, exactly as its own jobs ran.
+An explicit list names specific traces, so there is no growing set of later matches for a pass to converge against, and the cutoff above does not apply.
+
 ### Examples
 
 Redact a single trace:
