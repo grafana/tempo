@@ -163,6 +163,24 @@ func (b *batchStore) setVerified(tenantID string, verified bool) (changed bool) 
 	return true
 }
 
+// setVerifiedForBatch is setVerified scoped to one batch's identity, tested under the same lock as
+// the write.
+//
+// A job can report after its own batch has been torn down and another has taken the tenant's slot; a
+// verification scan failed by the dead-job timeout is the documented case. Clearing the verdict then
+// would spend a new batch's rounds on an old batch's result, or change its outcome. Reading the
+// current batch first and then writing would not help, because the batch can change between the two.
+func (b *batchStore) setVerifiedForBatch(tenantID, batchID string, verified bool) (changed bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	batch, ok := b.byTenant[tenantID]
+	if !ok || batch.BatchId != batchID || batch.Verified == verified {
+		return false
+	}
+	batch.Verified = verified
+	return true
+}
+
 // incVerifyRounds records that another verification pass has been launched.
 func (b *batchStore) incVerifyRounds(tenantID string) {
 	b.mu.Lock()
@@ -268,4 +286,10 @@ func (w *Work) IncBatchVerifyRounds(tenantID string) {
 // whether the stored value changed. No-ops when the tenant has no batch.
 func (w *Work) SetBatchVerified(tenantID string, verified bool) (changed bool) {
 	return w.batches.setVerified(tenantID, verified)
+}
+
+// SetBatchVerifiedForBatch is SetBatchVerified for a caller acting on a specific batch's result,
+// which a job-completion callback is: it no-ops unless that batch still holds the tenant's slot.
+func (w *Work) SetBatchVerifiedForBatch(tenantID, batchID string, verified bool) (changed bool) {
+	return w.batches.setVerifiedForBatch(tenantID, batchID, verified)
 }

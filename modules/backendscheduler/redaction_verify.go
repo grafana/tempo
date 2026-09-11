@@ -301,8 +301,22 @@ func (s *BackendScheduler) enqueueRedactionForVerifiedBlock(ctx context.Context,
 	// and persisted immediately: this runs on the completion path, where the caller only flushes the
 	// manifest once the batch has drained -- which it has not, since a repair is about to be queued.
 	// Flushed only on a transition, so a pass finding many dirty blocks writes the manifest once.
-	if s.work.SetBatchVerified(tenantID, false) {
+	if s.work.SetBatchVerifiedForBatch(tenantID, batchID, false) {
 		s.flushBatches(ctx)
+	}
+
+	// A repair that already ran counts too, which the busy-block index below cannot see: it holds only
+	// pending and running work, so a retry arriving after the first repair finished would look at an
+	// idle block and queue a second rewrite. Rewriting an input another worker still lists as live
+	// produces a duplicate output carrying every non-matching trace again. coveredBlocks answers this
+	// from the job records, which are already durable, so there is no processed-result relationship to
+	// store -- at the cost of a job walk per gap found, which is acceptable because a gap is the rare
+	// case. Pruned job records degrade this to the busy check alone, and PruneAge is far longer than
+	// any RPC retry.
+	if _, alreadyRewritten := s.coveredBlocks(tenantID, batchID)[blockID]; alreadyRewritten {
+		level.Info(log.Logger).Log("msg", "redaction verification: this batch has already rewritten the block, not queueing a second repair",
+			"tenant", tenantID, "batch_id", batchID, "block_id", blockID)
+		return
 	}
 
 	// One repair per block. The worker retries UpdateJob after an error or a lost response, and this
@@ -357,12 +371,14 @@ func (s *BackendScheduler) enqueueRedactionForVerifiedBlock(ctx context.Context,
 // reaches UpdateJob -- and UpdateJob's failure path is what normally records that a scan did not run.
 // Without this a pass whose scan was killed by the timeout keeps the optimistic clean mark it was
 // launched with, and the batch quiesces on a block that was never looked at.
-func (s *BackendScheduler) releaseVerificationForTimedOutJobs(timedOut []*work.Job) {
+func (s *BackendScheduler) releaseVerificationForTimedOutJobs(ctx context.Context, timedOut []*work.Job) {
 	for _, j := range timedOut {
 		if j.GetType() != tempopb.JobType_JOB_TYPE_REDACTION || !j.JobDetail.GetRedaction().GetVerify() {
 			continue
 		}
-		s.work.SetBatchVerified(j.Tenant(), false)
+		if s.work.SetBatchVerifiedForBatch(j.Tenant(), j.JobDetail.GetBatchId(), false) {
+			s.flushBatches(ctx)
+		}
 		level.Warn(log.Logger).Log("msg", "redaction verification scan timed out; batch left unverified",
 			"job_id", j.ID, "tenant", j.Tenant(), "block_id", j.JobDetail.GetRedaction().GetBlockId())
 	}
