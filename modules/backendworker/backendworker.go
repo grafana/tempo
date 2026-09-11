@@ -372,11 +372,6 @@ func (w *BackendWorker) processRedactionJob(ctx context.Context, resp *tempopb.N
 		return w.failJob(ctx, resp.JobId, "received redaction job with empty block_id")
 	}
 
-	// Read before the lookup: a verification scan that cannot find its block has not checked it, and
-	// the branch below would otherwise report success with zero matches -- which the scheduler reads
-	// as a clean scan and keeps its optimistic clean verdict on.
-	verify := resp.Detail.Redaction.GetVerify()
-
 	blockMetas := w.store.BlockMetas(tenantID)
 	var meta *backend.BlockMeta
 	for _, m := range blockMetas {
@@ -386,22 +381,17 @@ func (w *BackendWorker) processRedactionJob(ctx context.Context, resp *tempopb.N
 		}
 	}
 	if meta == nil {
+		// Fail rather than completing as a no-op, for a rewrite as much as for a scan. A success here
+		// reports zero matches, and the scheduler counts that as coverage -- so nothing revisits the
+		// block. Scheduler and worker poll independently, so it may still be live in the scheduler's
+		// list with matching data in it.
+		//
+		// Failing is safe in both readings. A failed job is not coverage, so the next verification
+		// pass re-derives this block if the scheduler still lists it; and if the block really has been
+		// compacted or retained away, the scheduler's own poll drops it and it stops being a
+		// candidate. metricRedactionBlockMissing separates this from other failures.
 		metricRedactionBlockMissing.WithLabelValues(tenantID).Inc()
-		if verify {
-			// Fail rather than no-op. Scheduler and worker poll independently, so a block can be
-			// absent here while still live in the scheduler's list; reporting zero matches would be
-			// read as a clean scan and let the batch settle over a block nothing examined. Failing
-			// marks the batch unverified, so the next pass re-derives -- and if the block really is
-			// gone, the scheduler's own list drops it and it stops being a candidate.
-			return w.failJob(ctx, resp.JobId, fmt.Sprintf("verification target block %s not in live blocklist", blockIDStr))
-		}
-		// Block absent from the live blocklist (e.g. compacted or retained away).
-		// Completing as a no-op is correct only because the scheduler re-targets a
-		// moved trace via the batch's coverage logic; surface it so a genuine
-		// coverage gap is visible rather than a silent "successful" redaction.
-		level.Warn(log.Logger).Log("msg", "redaction block not found in live blocklist, completing as no-op",
-			"job_id", resp.JobId, "block_id", blockIDStr, "tenant", tenantID)
-		return w.completeRedactionJob(ctx, resp.JobId, 0)
+		return w.failJob(ctx, resp.JobId, fmt.Sprintf("redaction target block %s not in live blocklist", blockIDStr))
 	}
 
 	traceIDs := make([]common.ID, 0, len(resp.Detail.Redaction.TraceIds))
@@ -412,6 +402,7 @@ func (w *BackendWorker) processRedactionJob(ctx context.Context, resp *tempopb.N
 	}
 
 	query := resp.Detail.Redaction.GetQuery().GetQuery() // nil-safe: "" when no query selector
+	verify := resp.Detail.Redaction.GetVerify()
 	mode := effectiveRedactionMode(resp.Detail.Redaction)
 	window := tempodb.RedactionWindow{
 		StartNano: resp.Detail.Redaction.GetStartTimeUnixNano(),

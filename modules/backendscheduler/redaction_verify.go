@@ -252,6 +252,15 @@ func (s *BackendScheduler) coveredBlocks(tenantID, batchID string) map[string]st
 // The explicit-ID selector is the exception and returns no bounds at all: it applies no time bound,
 // and RedactBlock refuses an ID list combined with a window, so its pass runs unwindowed exactly as
 // its original jobs did.
+//
+// This leaves a deliberate asymmetry for an unwindowed query batch: its original jobs scan with no
+// bound and would remove a span stamped after the request, while a pass bounded at the submission
+// instant will not look at a block whose whole range post-dates it -- which clock skew or
+// future-dated spans can produce. blockOverlapsWindow is an overlap test, so only a block lying
+// entirely in the future is excluded; one straddling the instant is still scanned. The alternative
+// is worse: an unbounded pass over an active tenant keeps matching data that arrived after the
+// request, so it never comes back clean, spends its round budget every time, and makes the
+// exhausted signal routine rather than actionable. Documented with the redact command.
 func verificationWindow(state work.RedactionVerifyState) (startNano, endNano int64) {
 	if state.HasTraceIDs {
 		return 0, 0
