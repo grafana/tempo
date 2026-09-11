@@ -55,7 +55,7 @@ The top-level service, `mythical-requester` receives requests and returns respon
 Using Grafana Explore, the operations team starts with a simple TraceQL query to find all traces from this top-level service, where an HTTP response code sent to a user is `400` or above. Status codes in this range include `Forbidden`, `Not found`, `Unauthorized`, and other client and server errors.
 
 ```traceql
-{ resource.service.name = "mythical-requester" && span.http.status_code >= 400 } | select(span.http.target)
+{ resource.service.name = "mythical-requester" && span.http.response.status_code >= 400 } | select(span.http.target)
 ```
 
 Adding the `select` statement to this query (after the `|`) ensures that the query response includes not only the set of matched spans, but also the `http.target` attribute (for example, the endpoints for the SaaS service) for each of those spans.
@@ -72,7 +72,7 @@ Using this query, the team can pinpoint the downstream service that might be cau
 The query below says "Find spans where `status = error` that are descendants of spans from the `mythical-requester` service that have status code `500`."
 
 ```traceql
-{ resource.service.name = "mythical-requester" && span.http.status_code = 500 } >> { status = error }
+{ resource.service.name = "mythical-requester" && span.http.response.status_code = 500 } >> { status = error }
 ```
 
 ![TraceQL results showing expanded span](/media/docs/tempo/intro/traceql-error-insert-handy-site.png)
@@ -90,7 +90,7 @@ Their updated query uses a negated regular expression to find any spans where th
 This should expose any other issues causing an internal server error and filter out the class of issues that they already diagnosed.
 
 ```traceql
-{ resource.service.name = "mythical-requester" && span.http.status_code = 500 } >> { status = error && span.db.statement !~ "INSERT.*" }
+{ resource.service.name = "mythical-requester" && span.http.response.status_code = 500 } >> { status = error && span.db.statement !~ "INSERT.*" }
 ```
 
 This query yields no results, suggesting that the root cause of the issues the operations team are seeing is exclusively due to the failing database `INSERT` statement.
