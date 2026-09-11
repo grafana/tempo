@@ -356,11 +356,12 @@ func (r *receiversShim) ConsumeTraces(ctx context.Context, td ptrace.Traces) err
 
 	start := time.Now()
 	_, err = r.pusher.PushTraces(ctx, td)
+	pushDuration := time.Since(start)
 	// user.ExtractOrgID above returns the org ID header verbatim, unvalidated,
 	// so it's not safe to use as a metric label: a malformed value would create
 	// a permanent, unbounded-cardinality series. Use the validated tenant ID instead.
 	if validTenant, vErr := validation.ExtractValidTenantID(ctx); vErr == nil {
-		metricPushDuration.WithLabelValues(validTenant).Observe(time.Since(start).Seconds())
+		metricPushDuration.WithLabelValues(validTenant).Observe(pushDuration.Seconds())
 	}
 	if err != nil {
 		if tenantErr == nil {
