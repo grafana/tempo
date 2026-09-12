@@ -102,7 +102,7 @@ func New(cfg *Config, o Overrides, tenant string, reg prometheus.Registerer, _ l
 	sendNativeHistograms := overrides.HasNativeHistograms(generateNativeHistograms)
 
 	remoteStorageConfig := &prometheus_config.Config{
-		RemoteWriteConfigs: generateTenantRemoteWriteConfigs(cfg.RemoteWrite, tenant, headers, cfg.RemoteWriteAddOrgIDHeader, logger, sendNativeHistograms),
+		RemoteWriteConfigs: generateTenantRemoteWriteConfigs(cfg.RemoteWrite, tenant, cfg.NoAuthTenant, headers, cfg.RemoteWriteAddOrgIDHeader, logger, sendNativeHistograms),
 	}
 
 	err = remoteStorage.ApplyConfig(remoteStorageConfig)
@@ -169,7 +169,7 @@ func (s *storageImpl) watchOverrides() {
 			if !headersEqual(s.currentHeaders, newHeaders) || s.sendNativeHistograms != newSendNativeHistograms {
 				s.logger.Info("updating remote write configuration")
 				err := s.remote.ApplyConfig(&prometheus_config.Config{
-					RemoteWriteConfigs: generateTenantRemoteWriteConfigs(s.cfg.RemoteWrite, s.tenantID, newHeaders, s.cfg.RemoteWriteAddOrgIDHeader, s.logger, newSendNativeHistograms),
+					RemoteWriteConfigs: generateTenantRemoteWriteConfigs(s.cfg.RemoteWrite, s.tenantID, s.cfg.NoAuthTenant, newHeaders, s.cfg.RemoteWriteAddOrgIDHeader, s.logger, newSendNativeHistograms),
 				})
 				if err != nil {
 					metricStorageRemoteWriteUpdateFailed.WithLabelValues(s.tenantID).Inc()

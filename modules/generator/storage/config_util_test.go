@@ -36,7 +36,7 @@ func Test_generateTenantRemoteWriteConfigs(t *testing.T) {
 
 	addOrgIDHeader := true
 
-	result := generateTenantRemoteWriteConfigs(original, "my-tenant", nil, addOrgIDHeader, logger, false)
+	result := generateTenantRemoteWriteConfigs(original, "my-tenant", "", nil, addOrgIDHeader, logger, false)
 
 	// First case doesn't have a header, gets set.
 	assert.Equal(t, original[0].URL, result[0].URL)
@@ -68,7 +68,7 @@ func Test_generateTenantRemoteWriteConfigs_singleTenant(t *testing.T) {
 
 	addOrgIDHeader := true
 
-	result := generateTenantRemoteWriteConfigs(original, util.FakeTenantID, nil, addOrgIDHeader, logger, false)
+	result := generateTenantRemoteWriteConfigs(original, util.FakeTenantID, "", nil, addOrgIDHeader, logger, false)
 
 	assert.Equal(t, original[0].URL, result[0].URL)
 
@@ -81,6 +81,9 @@ func Test_generateTenantRemoteWriteConfigs_singleTenant(t *testing.T) {
 	assert.Equal(t, map[string]string{"x-scope-orgid": "my-custom-tenant-id"}, original[1].Headers, "Original headers have been modified")
 	// X-Scope-OrgID has not been modified
 	assert.Equal(t, map[string]string{"x-scope-orgid": "my-custom-tenant-id"}, result[1].Headers)
+
+	result = generateTenantRemoteWriteConfigs(original, "anonymous", "anonymous", nil, addOrgIDHeader, logger, false)
+	assert.Equal(t, map[string]string{}, result[0].Headers)
 }
 
 func Test_generateTenantRemoteWriteConfigs_addOrgIDHeader(t *testing.T) {
@@ -102,7 +105,7 @@ func Test_generateTenantRemoteWriteConfigs_addOrgIDHeader(t *testing.T) {
 
 	addOrgIDHeader := false
 
-	result := generateTenantRemoteWriteConfigs(original, "my-tenant", nil, addOrgIDHeader, logger, false)
+	result := generateTenantRemoteWriteConfigs(original, "my-tenant", "", nil, addOrgIDHeader, logger, false)
 
 	assert.Equal(t, original[0].URL, result[0].URL)
 	assert.Empty(t, original[0].Headers, "X-Scope-OrgID header is not added")
@@ -121,10 +124,10 @@ func Test_generateTenantRemoteWriteConfigs_sendNativeHistograms(t *testing.T) {
 		},
 	}
 
-	result := generateTenantRemoteWriteConfigs(original, "my-tenant", nil, false, logger, true)
+	result := generateTenantRemoteWriteConfigs(original, "my-tenant", "", nil, false, logger, true)
 	assert.Equal(t, true, result[0].SendNativeHistograms, "SendNativeHistograms should be true")
 
-	result = generateTenantRemoteWriteConfigs(original, "my-tenant", nil, false, logger, false)
+	result = generateTenantRemoteWriteConfigs(original, "my-tenant", "", nil, false, logger, false)
 	assert.Equal(t, false, result[0].SendNativeHistograms, "SendNativeHistograms should be true")
 }
 
@@ -171,7 +174,7 @@ func Test_generateTenantRemoteWriteConfigs_writeRelabelConfigs(t *testing.T) {
 	// Validate once at startup, as the generator does in Config.Validate().
 	require.NoError(t, cfg.Validate())
 
-	result := generateTenantRemoteWriteConfigs(cfg.RemoteWrite, "my-tenant", nil, false, logger, false)
+	result := generateTenantRemoteWriteConfigs(cfg.RemoteWrite, "my-tenant", "", nil, false, logger, false)
 
 	// Simulate what the Prometheus remote write queue manager does: run the
 	// relabel configs against a label set. Before the fix this panics with

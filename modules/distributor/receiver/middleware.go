@@ -32,15 +32,26 @@ func (tc MiddlewareFunc) Wrap(next consumer.Traces) consumer.Traces {
 	return tc(next)
 }
 
-type fakeTenantMiddleware struct{}
-
 func FakeTenantMiddleware() Middleware {
-	return &fakeTenantMiddleware{}
+	return FakeTenantMiddlewareFor(util.FakeTenantID)
+}
+
+func FakeTenantMiddlewareFor(tenantID string) Middleware {
+	if tenantID == "" {
+		tenantID = util.FakeTenantID
+	}
+	return &fakeTenantMiddleware{
+		tenantID: tenantID,
+	}
+}
+
+type fakeTenantMiddleware struct {
+	tenantID string
 }
 
 func (m *fakeTenantMiddleware) Wrap(next consumer.Traces) consumer.Traces {
 	return ConsumeTracesFunc(func(ctx context.Context, td ptrace.Traces) error {
-		ctx = user.InjectOrgID(ctx, util.FakeTenantID)
+		ctx = user.InjectOrgID(ctx, m.tenantID)
 		return next.ConsumeTraces(ctx, td)
 	})
 }
