@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/x509"
 	"errors"
 	"fmt"
 	"net/http"
@@ -15,9 +14,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/prometheus/common/model"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
@@ -189,21 +185,6 @@ func httpScheme(secure bool) string {
 		return "https"
 	}
 	return "http"
-}
-
-func grpcTransportCredentials(secure bool) (opt grpc.DialOption, err error) {
-	var creds credentials.TransportCredentials
-	if secure {
-		certPool, err := x509.SystemCertPool()
-		if err != nil {
-			return nil, err
-		}
-		creds = credentials.NewClientTLSFromCert(certPool, "")
-	} else {
-		creds = insecure.NewCredentials()
-	}
-
-	return grpc.WithTransportCredentials(creds), nil
 }
 
 // parseTime parses a time string that can be:

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 
@@ -11,6 +12,8 @@ import (
 )
 
 type queryTraceIDCmd struct {
+	tlsOptions
+
 	APIEndpoint string `arg:"" help:"tempo api endpoint"`
 	TraceID     string `arg:"" help:"trace ID to retrieve"`
 
@@ -26,7 +29,18 @@ type queryTraceIDCmd struct {
 }
 
 func (cmd *queryTraceIDCmd) Run(_ *globalOptions) error {
+	endpoint, err := url.Parse(cmd.APIEndpoint)
+	if err != nil {
+		return fmt.Errorf("parsing API endpoint: %w", err)
+	}
+	transport, err := cmd.httpTransport(endpoint.Scheme == "https")
+	if err != nil {
+		return err
+	}
+	defer transport.CloseIdleConnections()
+
 	client := httpclient.New(cmd.APIEndpoint, cmd.OrgID)
+	client.WithTransport(transport)
 	applyHeaders(client, cmd.Headers)
 	// util.QueryTrace will only add orgID header if len(orgID) > 0
 
@@ -50,7 +64,6 @@ func (cmd *queryTraceIDCmd) Run(_ *globalOptions) error {
 	}
 
 	var traceResp *tempopb.TraceByIDResponse
-	var err error
 	if cmd.Q != "" {
 		params := map[string]string{
 			"q":              cmd.Q,
