@@ -659,6 +659,17 @@ type BinaryOperation struct {
 	compiledExpressions []*regexp.Regexp
 
 	b branchOptimizer
+
+	// Cached results of the pure AST analyses below. The AST is immutable after
+	// construction (LHS/RHS are finalized in newBinaryOperation before any of
+	// these are first consulted), so each value is computed once and reused.
+	// Without caching, a long left-associative arithmetic chain re-walks the
+	// whole subtree for referencesSpan/impliedType/validate on every bottom-up
+	// reduction, yielding O(n^3) parse time (grafana/tempo#7815).
+	referencesSpanCache *bool
+	impliedTypeCache    *StaticType
+	validateCache       error
+	validateComputed    bool
 }
 
 func newBinaryOperation(op Operator, lhs, rhs FieldExpression) FieldExpression {
@@ -707,6 +718,14 @@ func normalizeTraceIDOperand(operand Static) Static {
 func (BinaryOperation) __fieldExpression() {}
 
 func (o *BinaryOperation) impliedType() StaticType {
+	if o.impliedTypeCache == nil {
+		t := o.computeImpliedType()
+		o.impliedTypeCache = &t
+	}
+	return *o.impliedTypeCache
+}
+
+func (o *BinaryOperation) computeImpliedType() StaticType {
 	if o.Op.isBoolean() {
 		return TypeBoolean
 	}
@@ -722,7 +741,11 @@ func (o *BinaryOperation) impliedType() StaticType {
 }
 
 func (o *BinaryOperation) referencesSpan() bool {
-	return o.LHS.referencesSpan() || o.RHS.referencesSpan()
+	if o.referencesSpanCache == nil {
+		v := o.LHS.referencesSpan() || o.RHS.referencesSpan()
+		o.referencesSpanCache = &v
+	}
+	return *o.referencesSpanCache
 }
 
 type UnaryOperation struct {
