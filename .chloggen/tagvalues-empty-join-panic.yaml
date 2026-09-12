@@ -1,0 +1,25 @@
+# Changelog entry. Generate a copy with `make chlog-new`, then fill in the fields.
+
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: bug_fix
+
+# Component or area of the change. Must be one of the components in .chloggen/config.yaml,
+# e.g. distributor, querier, query-frontend, storage, operations.
+component: storage
+
+# A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
+note: Fix querier panic on tag value autocomplete when every condition is a metadata-only intrinsic, e.g. `span:id` filtered by `{trace:id="..."}`
+
+# (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
+# .chloggen/README.md.
+issues: []
+
+# (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
+subtext: |
+  Metadata-only intrinsics such as `trace:id`, `trace:start`, `span:id` and `span:startTime` are
+  deliberately not fetched from columns. When a tag value autocomplete request consisted solely of
+  those, the trace-level join was built with zero sub-iterators and panicked on the first `Next()`,
+  restarting the querier. Affects vparquet3, vparquet4 and vparquet5.
+
+# The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
+user: zalegrala
