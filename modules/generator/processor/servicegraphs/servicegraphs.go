@@ -12,7 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
-	semconvnew "go.opentelemetry.io/otel/semconv/v1.34.0"
+	semconvnew "go.opentelemetry.io/otel/semconv/v1.40.0"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs/store"
@@ -68,7 +68,7 @@ const virtualNodeLabel = "virtual_node"
 // db.system was renamed to db.system.name in semconv v1.30.0. Both are consulted,
 // the older key first, so existing pipelines keep naming virtual nodes as they do today.
 var defaultPeerAttributes = []attribute.Key{
-	semconv.PeerServiceKey, semconv.DBNameKey, semconv.DBSystemKey, semconvnew.DBSystemNameKey,
+	semconvnew.ServicePeerNameKey, semconv.PeerServiceKey, semconv.DBNameKey, semconv.DBSystemKey, semconvnew.DBSystemNameKey,
 }
 
 type tooManySpansError struct {
@@ -347,7 +347,8 @@ func (p *Processor) upsertPeerNode(e *store.Edge, spanAttr []*v1_common.KeyValue
 // database request.  The name of the edge is determined by the following
 // order:
 //
-//	if we have a peer.service, use it as the database ServerService
+//	if we have a service.peer.name, use it as the database ServerService
+//	if we have a peer.service (deprecated in favor of service.peer.name), use it as the database ServerService
 //	if we have a server.address, use it as the database ServerService
 //	if we have a network.peer.address, use it as the database ServerService.  Include :port if network.peer.port is present
 //	if we have a db.name, use it as the database ServerService, which is the backwards-compatible behavior
@@ -375,7 +376,13 @@ func (p *Processor) upsertDatabaseRequest(e *store.Edge, resourceAttr []*v1_comm
 	e.ConnectionType = store.Database
 	e.ServerLatencySec = spanDurationSec(span)
 
-	// Check for peer.service
+	// Check for service.peer.name
+	if name, ok := processor_util.FindAttributeValue(string(semconvnew.ServicePeerNameKey), resourceAttr, span.Attributes); ok {
+		e.ServerService = name
+		return
+	}
+
+	// Check for peer.service (deprecated in favor of service.peer.name)
 	if name, ok := processor_util.FindAttributeValue(string(semconv.PeerServiceKey), resourceAttr, span.Attributes); ok {
 		e.ServerService = name
 		return

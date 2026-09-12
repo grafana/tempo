@@ -8,7 +8,7 @@ import (
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/prometheus/client_golang/prometheus"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
-	semconvnew "go.opentelemetry.io/otel/semconv/v1.34.0"
+	semconvnew "go.opentelemetry.io/otel/semconv/v1.40.0"
 )
 
 type Config struct {
