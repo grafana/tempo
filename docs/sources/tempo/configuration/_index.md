@@ -213,7 +213,7 @@ For the full list of `internal_server` options, refer to the [manifest](/docs/te
 ## Memory
 
 Tempo supports automatic GOMEMLIMIT configuration using the [automemlimit](https://github.com/KimMachineGun/automemlimit) library.
-When enabled, it automatically sets Go's memory limit based on available container (via CGroups) or system memory every 15 seconds.
+When enabled, it automatically sets Go's memory limit based on available container (via CGroups) or system memory.
 For information on memory considerations across deployment modes, refer to the [Deployment modes](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/deployment-modes/) documentation.
 
 NOTE: enabling this will override value set in GOMEMLIMIT environment variable
@@ -228,6 +228,9 @@ memory:
     # Ratio of available memory to use for GOMEMLIMIT.
     # For example, 0.8 means 80% of available memory will be used for GOMEMLIMIT.
     [automemlimit_ratio: <float> | default = 0.8]
+
+    # Interval at which to refresh the Go memory limit.
+    [automemlimit_refresh_interval: <duration> | default = 15s]
 ```
 
 ## Distributor
