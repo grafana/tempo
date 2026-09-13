@@ -16,7 +16,7 @@ import (
 	"strconv"
 	"strings"
 
-	"golang.org/x/crypto/pbkdf2"
+	"crypto/pbkdf2"
 
 	"github.com/twmb/franz-go/pkg/sasl"
 )
@@ -209,7 +209,10 @@ func (s *session) authenticateClient(serverFirstMsg []byte) ([]byte, error) {
 	//////////////////
 
 	h := s.newhash()
-	saltedPassword := pbkdf2.Key([]byte(s.auth.Pass), salt, iters, h.Size(), s.newhash) // SaltedPassword := Hi(Normalize(password), salt, i)
+	saltedPassword, err := pbkdf2.Key(s.newhash, s.auth.Pass, salt, iters, h.Size()) // SaltedPassword := Hi(Normalize(password), salt, i)
+	if err != nil {
+		return nil, fmt.Errorf("pbkdf2 err: %v", err)
+	}
 
 	mac := hmac.New(s.newhash, saltedPassword)
 	if _, err = mac.Write([]byte("Client Key")); err != nil {

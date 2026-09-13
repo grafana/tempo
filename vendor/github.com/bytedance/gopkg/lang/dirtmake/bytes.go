@@ -12,6 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build !tinygo
+
+// Bytes provides optimized memory allocation using runtime.mallocgc.
+// This implementation is excluded from TinyGo builds (including WASM environments)
+// because TinyGo doesn't support the same unsafe operations and runtime symbols
+// as standard Go. For TinyGo compatibility, use the implementation in bytes_tinygo.go.
+
 package dirtmake
 
 import (

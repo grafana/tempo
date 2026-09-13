@@ -37,7 +37,7 @@ func Pipe(h lx.Handler, wraps ...lx.Wrap) lx.Handler {
 }
 
 // PipeDedup returns a wrapper that applies deduplication to the handler.
-func PipeDedup(ttl time.Duration, opts ...DedupOpt[lx.Handler]) lx.Wrap {
+func PipeDedup(ttl time.Duration, opts ...DedupOpt) lx.Wrap {
 	return func(next lx.Handler) lx.Handler {
 		return NewDedup(next, ttl, opts...)
 	}
