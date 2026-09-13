@@ -1235,7 +1235,7 @@ github.com/opentracing/opentracing-go/log
 github.com/openzipkin/zipkin-go/model
 github.com/openzipkin/zipkin-go/proto/zipkin_proto3
 github.com/openzipkin/zipkin-go/reporter
-# github.com/parquet-go/bitpack v1.0.1
+# github.com/parquet-go/bitpack v1.1.0
 ## explicit; go 1.24.0
 github.com/parquet-go/bitpack
 github.com/parquet-go/bitpack/unsafecast
