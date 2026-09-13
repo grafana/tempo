@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/modules/generator/processor/hostinfo"
+	"github.com/grafana/tempo/modules/generator/processor/secretdetection"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/registry"
@@ -120,6 +121,10 @@ func (cfg *Config) Validate() error {
 		}
 	}
 
+	if cfg.ConsumeFromKafka && cfg.SkipStaleBacklogOnStartup && cfg.Processor.SecretDetection.Enabled {
+		return errors.New("skip_stale_backlog_on_startup cannot be enabled with secrets detection")
+	}
+
 	if cfg.IngestConcurrency == 0 {
 		return errors.New("ingest concurrency must be greater than zero")
 	}
@@ -156,15 +161,17 @@ func (cfg *Config) Validate() error {
 }
 
 type ProcessorConfig struct {
-	ServiceGraphs servicegraphs.Config `yaml:"service_graphs"`
-	SpanMetrics   spanmetrics.Config   `yaml:"span_metrics"`
-	HostInfo      hostinfo.Config      `yaml:"host_info"`
+	ServiceGraphs   servicegraphs.Config   `yaml:"service_graphs"`
+	SpanMetrics     spanmetrics.Config     `yaml:"span_metrics"`
+	HostInfo        hostinfo.Config        `yaml:"host_info"`
+	SecretDetection secretdetection.Config `yaml:"-" json:"-"`
 }
 
 func (cfg *ProcessorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	cfg.ServiceGraphs.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.SpanMetrics.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.HostInfo.RegisterFlagsAndApplyDefaults(prefix, f)
+	cfg.SecretDetection.RegisterFlagsAndApplyDefaults(prefix, f)
 }
 
 func (cfg *ProcessorConfig) Validate() error {

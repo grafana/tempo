@@ -21,6 +21,7 @@ import (
 
 	"github.com/grafana/tempo/modules/overrides/histograms"
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
+	"github.com/grafana/tempo/pkg/secrets"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
@@ -177,6 +178,11 @@ func (o *userConfigurableOverridesManager) reloadAllTenantLimits(ctx context.Con
 			o.setTenantLimit(tenant, nil)
 			continue
 		}
+		if errors.Is(err, userconfigurableoverrides.ErrInvalidSecretsPolicy) {
+			metricUserConfigurableOverridesReloadFailed.Inc()
+			level.Warn(o.logger).Log("msg", "rejecting invalid secret detection policy; retaining last known good or runtime defaults", "tenant", tenant, "err", err)
+			continue
+		}
 		if err != nil {
 			return fmt.Errorf("failed to load tenant limits for tenant %v: %w", tenant, err)
 		}
@@ -198,7 +204,7 @@ func (o *userConfigurableOverridesManager) getAllTenantLimits() tenantLimits {
 	o.mtx.RLock()
 	defer o.mtx.RUnlock()
 
-	return o.tenantLimits
+	return maps.Clone(o.tenantLimits)
 }
 
 func (o *userConfigurableOverridesManager) setTenantLimit(userID string, limits *userconfigurableoverrides.Limits) {
@@ -236,6 +242,13 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessors(userID str
 		return processors
 	}
 	return o.Interface.MetricsGeneratorProcessors(userID)
+}
+
+func (o *userConfigurableOverridesManager) SecretsPolicy(userID string) (*secrets.Policy, bool) {
+	if policy, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSecretDetection(); ok {
+		return policy, false
+	}
+	return o.Interface.SecretsPolicy(userID)
 }
 
 func (o *userConfigurableOverridesManager) MetricsGeneratorIngestionSlack(userID string) time.Duration {
@@ -456,6 +469,9 @@ func (o *userConfigurableOverridesManager) WriteStatusRuntimeConfig(w io.Writer,
 	// now write per tenant user configured overrides
 	// wrap in userConfigOverrides struct to return correct yaml
 	l := o.getAllTenantLimits()
+	for tenant, limits := range l {
+		l[tenant] = RedactUserLimits(limits)
+	}
 	ucl := statusUserConfigurableOverrides{TenantLimits: l}
 	out, err := yaml.Marshal(ucl)
 	if err != nil {

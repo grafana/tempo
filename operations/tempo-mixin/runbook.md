@@ -76,6 +76,39 @@ Use the "Forget" button to forget and remove any unhealthy metrics-generators fr
 - Metric/query: `max by (partition) (tempo_ingest_group_partition_lag_seconds{container="metrics-generator"})`
 - Log query: `{container="metrics-generator"}`
 
+## Secret detection reporting gaps
+
+Finding logs are best-effort operational evidence, not a complete inventory. Reporting limits, logger failures, and delivery or input errors can leave gaps while ingestion continues.
+
+### Quick checks
+
+- Log query: `{container="metrics-generator"} |= "secret detection coverage gap"`
+- Log query: `{container=~"metrics-generator|distributor"} |~ "consumeKafkaChannel|failed to push traces to queue|failed to forward request to metrics generator"`
+- Metric/query: `max by (partition) (tempo_ingest_group_partition_lag_seconds{container="metrics-generator"})`
+
+The bounded coverage-gap warning retains `tenant`, `traceID`, `field_kind`, `reason`, and `ts`. `finding_log_limit_exceeded` means one trace exceeded its finding-log limit. `finding_log_rate_limit_exceeded` means the per-tenant emission limiter suppressed finding logs. `finding_log_error` means a finding record could not be written; failure of the logging pipeline can also prevent that warning from arriving. These warnings do not enumerate every suppressed finding.
+
+Use the existing metrics-generator input/instance errors and distributor queue/forwarding errors to investigate input that did not reach the detector. Identify the affected generator fleet from deployment and log-stream labels, and check its lag and traffic shape before changing reporting limits or policy. The absence of warnings or detections does not prove complete coverage. There is no detector coverage metric or coverage alert; the policy-rejection alert below remains available.
+
+## TempoSecretDetectionPolicyRejected
+
+A metrics-generator rejected a recent effective secret-detection override. Existing instances retain their last-known-good policy; an invalid initial policy falls back to the native catalog. Ingestion continues, but the requested custom-rule change is not active.
+
+### Quick checks
+
+- Metric/query: `sum(increase(tempo_secret_detection_policy_updates_total{outcome="rejected"}[10m]))`
+- Metric/query: `sum(tempo_secret_detection_policy_compilations_active)`
+- Metric/query: `histogram_quantile(0.99, sum by (le) (rate(tempo_secret_detection_policy_compilation_duration_seconds_bucket[5m])))`
+- Log query: `{container="metrics-generator"} |= "secrets policy rejected; retaining last-known-good or native policy"`
+
+Inspect the effective `metrics_generator.processor.secret_detection` override in the tenant's runtime configuration or through the user-configurable overrides API, depending on where the policy is configured. Custom rules accept only `id` and `regex`; remove any other custom-rule fields. Check regex syntax, unique custom IDs that do not collide with the catalog, the 16-rule and 4096-byte per-expression limits, and the policy-wide estimate of at most 1,048,576 expanded regexp instructions. Oversized policies are rejected as a whole, not truncated. Fix the policy at its source; do not restart Tempo or weaken a detector rule to suppress this signal.
+
+Unchanged rejected policies are remembered instead of repeatedly compiled. This alert reports a rejection event in the recent window, not a persistent desired-policy status. An `applied` event means a compiled policy was accepted by a provider; processor replacement follows. These process-wide events do not confirm activation or recovery for a particular tenant. `superseded` means an obsolete build was discarded; `canceled` normally accompanies instance shutdown. These outcomes and compilation metrics have no tenant, rule, regex, or generation labels.
+
+Compilation admission is bounded to two active policy compilations per process. Waiting refreshes re-read the latest override rather than queuing every historical update. The existing overrides delivery and ten-second processor refresh cadence still apply; activation is not an instantaneous cluster-wide transaction. Removing an overlay restores inherited policy; an explicit empty custom-rule list removes custom rules but keeps native detection.
+
+Policy failure logs deliberately omit parser errors, expressions, and tenant-authored rule IDs. Do not add those contents to logs, metric labels, or diagnostic tickets. An optimization limit that retains exact Go regexp fallback is not a policy rejection or a coverage gap.
+
 ## TempoCompactionsFailing
 
 Check to determine the cause for the failures. Intermittent failures require no immediate action, because the backend scheduler will

@@ -3,11 +3,14 @@ package overrides
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
 	"net/http"
+	"regexp"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/drone/envsubst"
@@ -18,6 +21,7 @@ import (
 	"go.yaml.in/yaml/v2"
 
 	"github.com/grafana/tempo/modules/overrides/histograms"
+	"github.com/grafana/tempo/pkg/secrets"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/util"
@@ -67,9 +71,56 @@ func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) er
 func UnmarshalPerTenantOverrides(data []byte) (map[string]*Overrides, error) {
 	var o perTenantOverrides
 	if err := yaml.UnmarshalStrict(data, &o); err != nil {
-		return nil, err
+		return nil, PolicySafeConfigError(data, err)
 	}
 	return o.TenantLimits, nil
+}
+
+var configErrorLine = regexp.MustCompile(`^(?:yaml: )?line ([0-9]+):`)
+
+// PolicySafeConfigError preserves diagnostics only when valid YAML proves that
+// no policy is present. Malformed YAML can expose policy scalars, keys or anchors
+// before typed decoding; only its source location is safe to report.
+func PolicySafeConfigError(data []byte, err error) error {
+	var document any
+	if yaml.UnmarshalStrict(data, &document) == nil && !containsPolicyConfig(document) {
+		return err
+	}
+	var typeError *yaml.TypeError
+	if errors.As(err, &typeError) {
+		locations := make([]string, 0, len(typeError.Errors))
+		for _, detail := range typeError.Errors {
+			if match := configErrorLine.FindStringSubmatch(detail); match != nil {
+				locations = append(locations, "line "+match[1])
+			}
+		}
+		if len(locations) > 0 {
+			return fmt.Errorf("invalid configuration value at %s (policy details redacted)", strings.Join(locations, ", "))
+		}
+		return errors.New("invalid configuration value (policy details redacted)")
+	}
+	if match := configErrorLine.FindStringSubmatch(err.Error()); match != nil {
+		return fmt.Errorf("invalid configuration syntax at line %s (policy details redacted)", match[1])
+	}
+	return errors.New("invalid configuration (policy details redacted)")
+}
+
+func containsPolicyConfig(value any) bool {
+	switch value := value.(type) {
+	case map[any]any:
+		for key, child := range value {
+			if key == "secret_detection" || key == "metrics_generator_processor_secret_detection" || containsPolicyConfig(child) {
+				return true
+			}
+		}
+	case []any:
+		for _, child := range value {
+			if containsPolicyConfig(child) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // forUser returns limits for a given tenant, or nil if there are no tenant-specific limits.
@@ -97,15 +148,16 @@ func loadPerTenantOverrides(validator Validator, typ ConfigType, expandEnv bool,
 
 			s, err := envsubst.EvalEnv(string(b))
 			if err != nil {
-				return nil, fmt.Errorf("failed to expand env vars: %w", err)
+				return nil, fmt.Errorf("failed to expand env vars: %w", PolicySafeConfigError(b, err))
 			}
 			r = bytes.NewReader([]byte(s))
 		}
 
-		decoder := yaml.NewDecoder(r)
+		var input bytes.Buffer
+		decoder := yaml.NewDecoder(io.TeeReader(r, &input))
 		decoder.SetStrict(true)
 		if err := decoder.Decode(&overrides); err != nil {
-			return nil, err
+			return nil, PolicySafeConfigError(input.Bytes(), err)
 		}
 
 		if overrides.ConfigType == ConfigTypeLegacy {
@@ -257,12 +309,15 @@ type statusRuntimeConfig struct {
 
 func (o *runtimeConfigOverridesManager) WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error {
 	var tenantOverrides perTenantOverrides
-	if o.tenantOverrides() != nil {
-		tenantOverrides = *o.tenantOverrides()
+	if current := o.tenantOverrides(); current != nil {
+		tenantOverrides.TenantLimits = make(map[string]*Overrides, len(current.TenantLimits))
+		for tenant, limits := range current.TenantLimits {
+			tenantOverrides.TenantLimits[tenant] = statusOverrides(limits)
+		}
 	}
 	var output interface{}
 	cfg := statusRuntimeConfig{
-		Defaults:           o.defaultLimits,
+		Defaults:           statusOverrides(o.defaultLimits),
 		PerTenantOverrides: tenantOverrides,
 	}
 
@@ -275,7 +330,7 @@ func (o *runtimeConfigOverridesManager) WriteStatusRuntimeConfig(w io.Writer, r 
 		defaultCfg.TenantLimits = map[string]*Overrides{}
 		for k, v := range tenantOverrides.TenantLimits {
 			if v != nil {
-				defaultCfg.TenantLimits[k] = o.defaultLimits
+				defaultCfg.TenantLimits[k] = cfg.Defaults
 			}
 		}
 
@@ -484,6 +539,13 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorRingSize(userID string) 
 // MetricsGeneratorProcessors returns the metrics-generator processors enabled for this tenant.
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessors(userID string) map[string]struct{} {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processors.GetMap()
+}
+
+func (o *runtimeConfigOverridesManager) SecretsPolicy(userID string) (*secrets.Policy, bool) {
+	if tenantOverrides := o.getTenantOverridesForUser(userID); tenantOverrides != nil && tenantOverrides.MetricsGenerator.Processor.SecretDetection != nil {
+		return tenantOverrides.MetricsGenerator.Processor.SecretDetection, false
+	}
+	return o.defaultLimits.MetricsGenerator.Processor.SecretDetection, true
 }
 
 // MetricsGeneratorMaxActiveSeries is the maximum amount of active series in the metrics-generator
@@ -711,19 +773,20 @@ func (o *runtimeConfigOverridesManager) DedicatedColumns(userID string) backend.
 	return o.getOverridesForUser(userID).Storage.DedicatedColumns
 }
 
-func (o *runtimeConfigOverridesManager) getOverridesForUser(userID string) *Overrides {
+func (o *runtimeConfigOverridesManager) getTenantOverridesForUser(userID string) *Overrides {
 	if tenantOverrides := o.tenantOverrides(); tenantOverrides != nil {
-		l := tenantOverrides.forUser(userID)
-		if l != nil {
-			return l
+		if limits := tenantOverrides.forUser(userID); limits != nil {
+			return limits
 		}
-
-		l = tenantOverrides.forUser(wildcardTenant)
-		if l != nil {
-			return l
-		}
+		return tenantOverrides.forUser(wildcardTenant)
 	}
+	return nil
+}
 
+func (o *runtimeConfigOverridesManager) getOverridesForUser(userID string) *Overrides {
+	if limits := o.getTenantOverridesForUser(userID); limits != nil {
+		return limits
+	}
 	return o.defaultLimits
 }
 

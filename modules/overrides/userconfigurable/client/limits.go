@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/modules/overrides/histograms"
+	"github.com/grafana/tempo/pkg/secrets"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/util/listtomap"
@@ -130,9 +131,10 @@ func (l *LimitsMetricsGenerator) GetSpanNameSanitization() (string, bool) {
 }
 
 type LimitsMetricsGeneratorProcessor struct {
-	ServiceGraphs LimitsMetricsGeneratorProcessorServiceGraphs `yaml:"service_graphs,omitempty" json:"service_graphs,omitempty"`
-	SpanMetrics   LimitsMetricsGeneratorProcessorSpanMetrics   `yaml:"span_metrics,omitempty" json:"span_metrics,omitempty"`
-	HostInfo      LimitsMetricGeneratorProcessorHostInfo       `yaml:"host_info,omitempty" json:"host_info,omitempty"`
+	ServiceGraphs   LimitsMetricsGeneratorProcessorServiceGraphs `yaml:"service_graphs,omitempty" json:"service_graphs,omitempty"`
+	SpanMetrics     LimitsMetricsGeneratorProcessorSpanMetrics   `yaml:"span_metrics,omitempty" json:"span_metrics,omitempty"`
+	HostInfo        LimitsMetricGeneratorProcessorHostInfo       `yaml:"host_info,omitempty" json:"host_info,omitempty"`
+	SecretDetection *secrets.Policy                              `yaml:"secret_detection,omitempty" json:"secret_detection,omitempty"`
 }
 
 func (l *LimitsMetricsGeneratorProcessor) GetServiceGraphs() *LimitsMetricsGeneratorProcessorServiceGraphs {
@@ -154,6 +156,13 @@ func (l *LimitsMetricsGeneratorProcessor) GetHostInfo() *LimitsMetricGeneratorPr
 		return &l.HostInfo
 	}
 	return nil
+}
+
+func (l *LimitsMetricsGeneratorProcessor) GetSecretDetection() (*secrets.Policy, bool) {
+	if l != nil && l.SecretDetection != nil {
+		return l.SecretDetection, true
+	}
+	return nil, false
 }
 
 type LimitsMetricsGeneratorProcessorServiceGraphs struct {

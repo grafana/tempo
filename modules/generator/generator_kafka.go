@@ -117,7 +117,6 @@ func (g *Generator) readKafka(ctx context.Context) error {
 	})
 
 	start := time.Now()
-
 	for iter := fetches.RecordIter(); !iter.Done(); {
 		select {
 		case g.kafkaCh <- iter.Next():
@@ -127,7 +126,6 @@ func (g *Generator) readKafka(ctx context.Context) error {
 	}
 
 	metricEnqueueTime.Add(time.Since(start).Seconds())
-
 	return nil
 }
 

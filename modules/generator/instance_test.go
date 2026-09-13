@@ -5,12 +5,12 @@ import (
 	"flag"
 	"os"
 	"sort"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/go-kit/log"
 	"github.com/grafana/tempo/modules/generator/processor"
+	"github.com/grafana/tempo/modules/generator/processor/secretdetection"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/prometheus/model/exemplar"
@@ -25,6 +25,7 @@ import (
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/storage"
+	"github.com/grafana/tempo/pkg/secrets"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
@@ -100,43 +101,128 @@ func TestInstancePushSpansSkipProcessors(t *testing.T) {
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 	i, err := newInstance(cfg, tenantID, overrides, &noopStorage{}, log.NewNopLogger())
 	require.NoError(t, err)
+	t.Cleanup(i.shutdown)
 
 	req := test.MakeBatch(1, nil)
 
-	// Expose this series so it's present at the initial zero value even if not created/incremented by the test.
-	_ = metricSkippedProcessorPushes.WithLabelValues(tenantID)
+	skippedPushes := metricSkippedProcessorPushes.WithLabelValues(tenantID)
+	before := testutil.ToFloat64(skippedPushes)
 
 	t.Run("use metrics-generating processors", func(t *testing.T) {
 		i.pushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*v1.ResourceSpans{req}})
 
-		expectMetrics := `
-# HELP tempo_metrics_generator_metrics_generation_skipped_processor_pushes_total The total number of processor pushes skipped because the request indicated that metrics should not be generated.
-# TYPE tempo_metrics_generator_metrics_generation_skipped_processor_pushes_total counter
-tempo_metrics_generator_metrics_generation_skipped_processor_pushes_total{tenant="skip-processors-test"} 0
-`
-		err := testutil.GatherAndCompare(
-			prometheus.DefaultGatherer,
-			strings.NewReader(expectMetrics),
-			"tempo_metrics_generator_metrics_generation_skipped_processor_pushes_total",
-		)
-		require.NoError(t, err)
+		require.Equal(t, before, testutil.ToFloat64(skippedPushes))
 	})
 
 	t.Run("skip metrics-generating processors", func(t *testing.T) {
 		i.pushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*v1.ResourceSpans{req}, SkipMetricsGeneration: true})
 
-		expectMetrics := `
-# HELP tempo_metrics_generator_metrics_generation_skipped_processor_pushes_total The total number of processor pushes skipped because the request indicated that metrics should not be generated.
-# TYPE tempo_metrics_generator_metrics_generation_skipped_processor_pushes_total counter
-tempo_metrics_generator_metrics_generation_skipped_processor_pushes_total{tenant="skip-processors-test"} 2
-`
-		err := testutil.GatherAndCompare(
-			prometheus.DefaultGatherer,
-			strings.NewReader(expectMetrics),
-			"tempo_metrics_generator_metrics_generation_skipped_processor_pushes_total",
-		)
-		require.NoError(t, err)
+		require.Equal(t, before+2, testutil.ToFloat64(skippedPushes))
 	})
+}
+
+func TestInstanceDetectsBeforeTimeFilteringOnEveryIngestionPath(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		push func(*instance, *tempopb.PushSpansRequest)
+	}{
+		{
+			name: "direct",
+			push: func(i *instance, request *tempopb.PushSpansRequest) {
+				i.pushSpans(context.Background(), request)
+			},
+		},
+		{
+			name: "queue",
+			push: func(i *instance, request *tempopb.PushSpansRequest) {
+				i.pushSpansFromQueue(context.Background(), time.Now(), request)
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			detector := &observingProcessor{name: processor.SecretDetectionName}
+			metricsProcessor := &observingProcessor{name: processor.SpanMetricsName}
+			i := &instance{
+				instanceID: "detection-order-" + tc.name,
+				processors: map[string]processor.Processor{
+					processor.SecretDetectionName: detector,
+					processor.SpanMetricsName:     metricsProcessor,
+				},
+			}
+			i.ingestionSlackOverride.Store((30 * time.Second).Nanoseconds())
+
+			batch := test.MakeBatch(1, nil)
+			batch.ScopeSpans[0].Spans[0].EndTimeUnixNano = uint64(time.Now().Add(-time.Hour).UnixNano())
+			request := &tempopb.PushSpansRequest{
+				Batches:               []*v1.ResourceSpans{batch},
+				SkipMetricsGeneration: true,
+			}
+
+			tc.push(i, request)
+
+			assert.Equal(t, 1, detector.spans)
+			assert.Zero(t, metricsProcessor.spans)
+			assert.Empty(t, request.Batches[0].ScopeSpans[0].Spans)
+		})
+	}
+}
+
+func TestDetectionSourceStream(t *testing.T) {
+	assert.Equal(t, "tempo-ingest", detectionSourceStream(codecPushBytes))
+	assert.Equal(t, "sampler-ingest", detectionSourceStream(codecOTLP))
+	assert.Equal(t, "tempo-ingest", detectionSourceStream(""))
+}
+
+type observingProcessor struct {
+	name  string
+	spans int
+}
+
+func (p *observingProcessor) Name() string {
+	return p.name
+}
+
+func (p *observingProcessor) PushSpans(_ context.Context, request *tempopb.PushSpansRequest) {
+	for _, batch := range request.Batches {
+		for _, scope := range batch.ScopeSpans {
+			p.spans += len(scope.Spans)
+		}
+	}
+}
+
+func (*observingProcessor) Shutdown(context.Context) {}
+
+func TestInstanceSecretDetectionKeepsServingOnInvalidPolicy(t *testing.T) {
+	cfg := &Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	cfg.Processor.SecretDetection.Enabled = true
+	compiler, err := secrets.NewPolicyCompiler(&[]string{"stripe-access-token"})
+	require.NoError(t, err)
+	cfg.Processor.SecretDetection.PolicyCompiler = compiler
+	overrides := &mockOverrides{
+		processors: map[string]struct{}{processor.SecretDetectionName: {}},
+		secretsPolicy: &secrets.Policy{
+			CustomRules: []secrets.CustomRule{{ID: "broken", Regex: `(`}},
+		},
+	}
+
+	instance, err := newInstance(cfg, "invalid-secrets-policy", overrides, &noopStorage{}, log.NewNopLogger())
+	require.NoError(t, err)
+	t.Cleanup(instance.shutdown)
+	detector := instance.processors[processor.SecretDetectionName].(*secretdetection.Processor)
+	probe := "CUSTOMER-1\n" + "sk_test_" + "0123456789abcdefghijklmn" + "\n" + "xoxb-" + "1234567890-1234567890123-abcdefghijklmnopqrstuvwx"
+	assert.Equal(t, []secrets.Match{{RuleID: "stripe-access-token"}}, detector.Cfg.CompiledPolicy.Detect(probe).Matches)
+
+	overrides.secretsPolicy = &secrets.Policy{
+		CustomRules: []secrets.CustomRule{{ID: "customer-token", Regex: `CUSTOMER-[0-9]+`}},
+	}
+	require.NoError(t, instance.updateProcessors())
+	detector = instance.processors[processor.SecretDetectionName].(*secretdetection.Processor)
+	assert.ElementsMatch(t, []secrets.Match{{RuleID: "stripe-access-token"}, {RuleID: "customer-token"}}, detector.Cfg.CompiledPolicy.Detect(probe).Matches)
+	overrides.secretsPolicy = &secrets.Policy{CustomRules: []secrets.CustomRule{{ID: "broken", Regex: `(`}}}
+	require.NoError(t, instance.updateProcessors())
+	assert.ElementsMatch(t, []secrets.Match{{RuleID: "stripe-access-token"}, {RuleID: "customer-token"}},
+		instance.processors[processor.SecretDetectionName].(*secretdetection.Processor).Cfg.CompiledPolicy.Detect(probe).Matches)
 }
 
 func Test_instance_updateProcessors(t *testing.T) {
