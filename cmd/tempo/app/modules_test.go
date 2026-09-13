@@ -111,6 +111,38 @@ func TestConfigureGenerator(t *testing.T) {
 	})
 }
 
+func TestInitGeneratorRejectsSecretDetectionWithoutStorage(t *testing.T) {
+	for _, target := range []string{SingleBinary, MetricsGenerator, MetricsGeneratorNoLocalBlocks} {
+		t.Run(target, func(t *testing.T) {
+			cfg := NewDefaultConfig()
+			cfg.Target = target
+			cfg.Secrets.DetectionEnabled = true
+			cfg.Generator.Storage.Path = ""
+			cfg.Generator.RingMode = generator.RingModeGenerator
+			app, err := New(*cfg)
+			require.NoError(t, err)
+			app.generatorRingWatcher = &dskitring.PartitionRingWatcher{}
+
+			svc, err := app.initGenerator()
+			require.ErrorIs(t, err, generator.ErrUnconfigured)
+			require.Nil(t, svc)
+			require.Nil(t, app.generator)
+		})
+	}
+
+	t.Run("disabled single binary still permits no generator storage", func(t *testing.T) {
+		cfg := NewDefaultConfig()
+		cfg.Target = SingleBinary
+		cfg.Generator.Storage.Path = ""
+		app, err := New(*cfg)
+		require.NoError(t, err)
+		svc, err := app.initGenerator()
+		require.NoError(t, err)
+		require.NotNil(t, svc)
+		require.Nil(t, app.generator)
+	})
+}
+
 func TestGeneratorRingReader(t *testing.T) {
 	partitionRing := &dskitring.PartitionInstanceRing{}
 	generatorRingWatcher := &dskitring.PartitionRingWatcher{}

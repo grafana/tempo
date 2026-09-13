@@ -3,13 +3,18 @@ package overrides
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/go-kit/log"
+	"github.com/gorilla/mux"
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
@@ -20,6 +25,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides/histograms"
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	tempo_api "github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/secrets"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/util/listtomap"
@@ -74,6 +80,185 @@ func TestUserConfigOverridesManager(t *testing.T) {
 	assert.Equal(t, []string{"my-forwarder"}, mgr.Forwarders(tenant1))
 	assert.Equal(t, 1024, mgr.MaxBytesPerTrace(tenant2))
 	assert.Equal(t, []string{"my-forwarder"}, mgr.Forwarders(tenant2))
+}
+
+func TestUserConfigOverridesManagerSecretsPolicy(t *testing.T) {
+	defaultPolicy := &secrets.Policy{
+		CustomRules: []secrets.CustomRule{{ID: "default-rule", Regex: `DEFAULT-[0-9]+`}},
+	}
+	tenantPolicy := &secrets.Policy{
+		CustomRules: []secrets.CustomRule{{ID: "tenant-rule", Regex: `TENANT-[0-9]+`}},
+	}
+	_, mgr, cleanup := localUserConfigOverrides(t, Overrides{MetricsGenerator: MetricsGeneratorOverrides{Processor: ProcessorOverrides{SecretDetection: defaultPolicy}}}, nil)
+	defer cleanup()
+
+	policy, inherited := mgr.SecretsPolicy(tenant1)
+	assert.Equal(t, defaultPolicy, policy)
+	assert.True(t, inherited)
+
+	_, err := mgr.client.Set(context.Background(), tenant1, &userconfigurableoverrides.Limits{
+		MetricsGenerator: userconfigurableoverrides.LimitsMetricsGenerator{
+			Processor: userconfigurableoverrides.LimitsMetricsGeneratorProcessor{
+				SecretDetection: tenantPolicy,
+			},
+		},
+	}, backend.VersionNew)
+	require.NoError(t, err)
+	require.NoError(t, mgr.reloadAllTenantLimits(context.Background()))
+
+	policy, inherited = mgr.SecretsPolicy(tenant1)
+	assert.Equal(t, tenantPolicy, policy)
+	assert.False(t, inherited)
+
+	policy, inherited = mgr.SecretsPolicy(tenant2)
+	assert.Equal(t, defaultPolicy, policy)
+	assert.True(t, inherited)
+}
+
+func TestUserConfigOverridesManagerSecretsPolicyCustomRuleLimit(t *testing.T) {
+	makeLimits := func(prefix string, count int) *userconfigurableoverrides.Limits {
+		rules := make([]secrets.CustomRule, count)
+		for i := range rules {
+			rules[i] = secrets.CustomRule{
+				ID:    fmt.Sprintf("boundary-%s-%02d", prefix, i),
+				Regex: fmt.Sprintf("^BOUNDARY-%s-%02d$", prefix, i),
+			}
+		}
+		return &userconfigurableoverrides.Limits{
+			MetricsGenerator: userconfigurableoverrides.LimitsMetricsGenerator{
+				Processor: userconfigurableoverrides.LimitsMetricsGeneratorProcessor{
+					SecretDetection: &secrets.Policy{CustomRules: rules},
+				},
+			},
+		}
+	}
+	oversized := makeLimits("oversized", 17)
+	path := t.TempDir()
+	// Persist the invalid initial policy before startup, through the real client.
+	writeUserConfigurableOverridesToDisk(t, path, tenant1, oversized)
+	overrides, err := NewOverrides(Config{
+		UserConfigurableOverridesConfig: UserConfigurableOverridesConfig{
+			Enabled: true,
+			Client: userconfigurableoverrides.Config{
+				Backend: backend.Local,
+				Local:   &local.Config{Path: path},
+			},
+			PollInterval: time.Hour,
+		},
+	}, &mockValidator{}, prometheus.NewRegistry())
+	require.NoError(t, err)
+	require.NoError(t, services.StartAndAwaitRunning(context.Background(), overrides))
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), overrides))
+	})
+	mgr := overrides.(*userConfigurableOverridesManager)
+	compiler, err := secrets.NewPolicyCompiler(nil)
+	require.NoError(t, err)
+	provider := compiler.NewCompiledPolicyProvider(tenant1, mgr.SecretsPolicy, log.NewNopLogger())
+	_, version, err := mgr.client.Get(context.Background(), tenant1)
+	require.NoError(t, err)
+
+	for _, step := range []struct {
+		name   string
+		limits *userconfigurableoverrides.Limits
+		active string
+	}{
+		{name: "initial 17 rules falls back to native"},
+		{name: "accept all 16 rules", limits: makeLimits("accepted", 16), active: "accepted"},
+		{name: "reject 17 rules and retain all 16", limits: oversized, active: "accepted"},
+		{name: "recover after valid replacement", limits: makeLimits("recovered", 16), active: "recovered"},
+	} {
+		t.Run(step.name, func(t *testing.T) {
+			if step.limits != nil {
+				version, err = mgr.client.Set(context.Background(), tenant1, step.limits, version)
+				require.NoError(t, err)
+				require.NoError(t, mgr.reloadAllTenantLimits(context.Background()))
+			}
+			compiled, ok := provider(context.Background())
+			require.True(t, ok)
+			for _, probes := range []struct {
+				prefix string
+				count  int
+			}{
+				{prefix: "oversized", count: 17},
+				{prefix: "accepted", count: 16},
+				{prefix: "recovered", count: 16},
+			} {
+				for i := range probes.count {
+					var expected []secrets.Match
+					if probes.prefix == step.active {
+						expected = []secrets.Match{{RuleID: fmt.Sprintf("boundary-%s-%02d", probes.prefix, i)}}
+					}
+					actual := compiled.Detect(fmt.Sprintf("BOUNDARY-%s-%02d", probes.prefix, i))
+					assert.ElementsMatch(t, expected, actual.Matches, "policy group %s, rule index %d", probes.prefix, i)
+				}
+			}
+			assert.Equal(t, []secrets.Match{{RuleID: "stripe-access-token"}},
+				compiled.Detect("sk_test_"+"0123456789abcdefghijklmn").Matches)
+		})
+	}
+}
+
+func TestUserConfigOverridesManagerRejectsLegacyPolicyAndRetainsLastGood(t *testing.T) {
+	dir := t.TempDir()
+	persistLegacy := func(tenant string) {
+		t.Helper()
+		tenantDir := filepath.Join(dir, userconfigurableoverrides.OverridesKeyPath, tenant)
+		require.NoError(t, os.MkdirAll(tenantDir, 0o700))
+		require.NoError(t, os.WriteFile(filepath.Join(tenantDir, userconfigurableoverrides.OverridesFileName),
+			[]byte(`{"metrics_generator":{"processor":{"secret_detection":{"optional_rules":[]}}}}`), 0o600))
+	}
+	persistLegacy(tenant1)
+	writeUserConfigurableOverridesToDisk(t, dir, tenant2, &userconfigurableoverrides.Limits{Forwarders: &[]string{"healthy-tenant"}})
+	service, err := NewOverrides(Config{
+		Defaults: Overrides{MetricsGenerator: MetricsGeneratorOverrides{Processor: ProcessorOverrides{
+			SecretDetection: &secrets.Policy{DisabledRules: []string{"stripe-access-token"}},
+		}}},
+		UserConfigurableOverridesConfig: UserConfigurableOverridesConfig{
+			Enabled:      true,
+			Client:       userconfigurableoverrides.Config{Backend: backend.Local, Local: &local.Config{Path: dir}},
+			PollInterval: time.Hour,
+		},
+	}, &mockValidator{}, prometheus.NewRegistry())
+	require.NoError(t, err)
+	require.NoError(t, services.StartAndAwaitRunning(context.Background(), service))
+	t.Cleanup(func() { require.NoError(t, services.StopAndAwaitTerminated(context.Background(), service)) })
+	mgr := service.(*userConfigurableOverridesManager)
+	compiler, err := secrets.NewPolicyCompiler(&[]string{"stripe-access-token"})
+	require.NoError(t, err)
+	provider := compiler.NewCompiledPolicyProvider(tenant1, mgr.SecretsPolicy, log.NewNopLogger())
+	probe := "CUSTOMER-123\n" + "sk_test_" + "0123456789abcdefghijklmn" + "\n" + "xoxb-" + "1234567890-1234567890123-abcdefghijklmnopqrstuvwx"
+	compiled, ok := provider(context.Background())
+	require.True(t, ok)
+	require.Empty(t, compiled.Detect(probe).Matches)
+	require.Equal(t, []string{"healthy-tenant"}, mgr.Forwarders(tenant2))
+
+	accepted := &userconfigurableoverrides.Limits{MetricsGenerator: userconfigurableoverrides.LimitsMetricsGenerator{
+		Processor: userconfigurableoverrides.LimitsMetricsGeneratorProcessor{SecretDetection: &secrets.Policy{
+			DisabledRules: []string{"stripe-access-token"},
+			CustomRules:   []secrets.CustomRule{{ID: "customer-rule", Regex: "CUSTOMER-[0-9]+"}},
+		}},
+	}}
+	writeUserConfigurableOverridesToDisk(t, dir, tenant1, accepted)
+	require.NoError(t, mgr.reloadAllTenantLimits(context.Background()))
+	compiled, ok = provider(context.Background())
+	require.True(t, ok)
+	require.Equal(t, []secrets.Match{{RuleID: "customer-rule"}}, compiled.Detect(probe).Matches)
+
+	persistLegacy(tenant1)
+	writeUserConfigurableOverridesToDisk(t, dir, tenant2, &userconfigurableoverrides.Limits{Forwarders: &[]string{"healthy-update"}})
+	require.NoError(t, mgr.reloadAllTenantLimits(context.Background()))
+	compiled, ok = provider(context.Background())
+	require.True(t, ok)
+	require.Equal(t, []secrets.Match{{RuleID: "customer-rule"}}, compiled.Detect(probe).Matches)
+	require.Equal(t, []string{"healthy-update"}, mgr.Forwarders(tenant2))
+
+	accepted.MetricsGenerator.Processor.SecretDetection = &secrets.Policy{}
+	writeUserConfigurableOverridesToDisk(t, dir, tenant1, accepted)
+	require.NoError(t, mgr.reloadAllTenantLimits(context.Background()))
+	compiled, ok = provider(context.Background())
+	require.True(t, ok)
+	require.Equal(t, []secrets.Match{{RuleID: "stripe-access-token"}}, compiled.Detect(probe).Matches)
 }
 
 func TestUserConfigOverridesManager_allFields(t *testing.T) {
@@ -343,6 +528,80 @@ func TestUserConfigOverridesManager_backendUnavailable(t *testing.T) {
 
 	// but overrides should be cached
 	assert.Equal(t, []string{"my-other-forwarder"}, mgr.Forwarders(tenant1))
+}
+
+func TestUserConfigOverridesManagerOrdinaryDecodeFailure(t *testing.T) {
+	dir, mgr, cleanup := localUserConfigOverrides(t, Overrides{}, nil)
+	defer cleanup()
+	writeUserConfigurableOverridesToDisk(t, dir, tenant1, &userconfigurableoverrides.Limits{Forwarders: &[]string{"last-good"}})
+	require.NoError(t, mgr.reloadAllTenantLimits(context.Background()))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, userconfigurableoverrides.OverridesKeyPath, tenant1, userconfigurableoverrides.OverridesFileName),
+		[]byte(`{"forwarders":123}`), 0o600))
+
+	err := mgr.reloadAllTenantLimits(context.Background())
+	require.Error(t, err)
+	require.NotErrorIs(t, err, userconfigurableoverrides.ErrInvalidSecretsPolicy)
+	require.Equal(t, []string{"last-good"}, mgr.Forwarders(tenant1))
+
+	service, err := NewOverrides(Config{
+		UserConfigurableOverridesConfig: UserConfigurableOverridesConfig{
+			Enabled:      true,
+			Client:       userconfigurableoverrides.Config{Backend: backend.Local, Local: &local.Config{Path: dir}},
+			PollInterval: time.Hour,
+		},
+	}, &mockValidator{}, prometheus.NewRegistry())
+	require.NoError(t, err)
+	require.Error(t, services.StartAndAwaitRunning(context.Background(), service), "ordinary malformed overrides must remain a startup failure")
+}
+
+func TestOverrideStatusDoesNotDiscloseSecretPolicy(t *testing.T) {
+	const private = "synthetic-private-policy-marker"
+	policy := func(suffix string) *secrets.Policy {
+		return &secrets.Policy{CustomRules: []secrets.CustomRule{{ID: private + suffix, Regex: private + suffix}}}
+	}
+	defaultPolicy, runtimePolicy, userPolicy := policy("-default"), policy("-runtime"), policy("-user")
+	base := Overrides{MetricsGenerator: MetricsGeneratorOverrides{Processor: ProcessorOverrides{SecretDetection: defaultPolicy}}}
+	perTenant := &perTenantOverrides{TenantLimits: map[string]*Overrides{
+		"tenant": {MetricsGenerator: MetricsGeneratorOverrides{Processor: ProcessorOverrides{SecretDetection: runtimePolicy}}},
+	}}
+	originalRegisterer := prometheus.DefaultRegisterer
+	t.Cleanup(func() { prometheus.DefaultRegisterer = originalRegisterer })
+	_, mgr, cleanup := localUserConfigOverrides(t, base, toYamlBytes(t, perTenant))
+	defer cleanup()
+	limits := &userconfigurableoverrides.Limits{MetricsGenerator: userconfigurableoverrides.LimitsMetricsGenerator{
+		Processor: userconfigurableoverrides.LimitsMetricsGeneratorProcessor{SecretDetection: userPolicy},
+	}}
+	_, err := mgr.client.Set(context.Background(), "tenant", limits, backend.VersionNew)
+	require.True(t, err == nil, "policy persistence must succeed")
+	require.NoError(t, mgr.reloadAllTenantLimits(context.Background()))
+	for _, mode := range []string{"", "diff", "defaults"} {
+		for _, manager := range []Interface{mgr.Interface, mgr} {
+			response := httptest.NewRecorder()
+			err := manager.WriteStatusRuntimeConfig(response, httptest.NewRequest(http.MethodGet, "/status/runtime_config?mode="+mode, nil))
+			require.True(t, err == nil, "runtime status must serialize safely")
+			require.False(t, strings.Contains(response.Body.String(), private), "runtime status disclosed private policy")
+		}
+	}
+	for _, tenant := range []string{"tenant", "missing"} {
+		for _, accept := range []string{"text/html", "application/json"} {
+			req := mux.SetURLVars(httptest.NewRequest(http.MethodGet, "/status/overrides/"+tenant, nil), map[string]string{"tenant": tenant})
+			req.Header.Set("Accept", accept)
+			response := httptest.NewRecorder()
+			TenantStatusHandler(mgr)(response, req)
+			require.Equal(t, http.StatusOK, response.Code)
+			require.False(t, strings.Contains(response.Body.String(), private), "tenant status disclosed private policy")
+		}
+	}
+	// Status copies must not alter either live snapshots or the authorized store.
+	for tenant, expected := range map[string]*secrets.Policy{"tenant": runtimePolicy, "missing": defaultPolicy} {
+		actual, _ := mgr.Interface.SecretsPolicy(tenant)
+		require.True(t, reflect.DeepEqual(expected, actual), "runtime policy changed after status read")
+	}
+	actual, _ := mgr.SecretsPolicy("tenant")
+	require.True(t, reflect.DeepEqual(userPolicy, actual), "user policy changed after status read")
+	persisted, _, err := mgr.client.Get(context.Background(), "tenant")
+	require.True(t, err == nil, "persisted policy must remain readable")
+	require.True(t, reflect.DeepEqual(limits, persisted), "status must not alter persisted policy")
 }
 
 func TestUserConfigOverridesManager_WriteStatusRuntimeConfig(t *testing.T) {

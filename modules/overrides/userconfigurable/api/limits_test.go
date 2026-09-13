@@ -10,6 +10,7 @@ import (
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/overrides/histograms"
+	"github.com/grafana/tempo/pkg/secrets"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 )
@@ -177,6 +178,25 @@ func Test_limitsFromOverrides(t *testing.T) {
   }
 }`
 	assert.Equal(t, expectedJSON, string(limitsJSON))
+}
+
+func TestLimitsFromOverridesSecretsPolicy(t *testing.T) {
+	expected := &secrets.Policy{
+		CustomRules: []secrets.CustomRule{{ID: "customer-token", Regex: `CUSTOMER-[0-9]+`}},
+	}
+	cfg := overrides.Config{
+		Defaults: overrides.Overrides{
+			MetricsGenerator: overrides.MetricsGeneratorOverrides{
+				Processor: overrides.ProcessorOverrides{SecretDetection: expected},
+			},
+		},
+	}
+	overridesInt, err := overrides.NewOverrides(cfg, nil, prometheus.DefaultRegisterer)
+	assert.NoError(t, err)
+
+	actual, ok := limitsFromOverrides(overridesInt, "tenant").GetMetricsGenerator().GetProcessor().GetSecretDetection()
+	assert.True(t, ok)
+	assert.Equal(t, expected, actual)
 }
 
 func Test_limitsFromOverrides_EmptyOrNilFilterPoliciesDontCrash(t *testing.T) {

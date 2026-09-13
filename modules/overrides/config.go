@@ -13,6 +13,7 @@ import (
 	"github.com/prometheus/common/config"
 
 	"github.com/grafana/tempo/modules/overrides/histograms"
+	"github.com/grafana/tempo/pkg/secrets"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util/listtomap"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -118,9 +119,10 @@ type HostInfoOverrides struct {
 }
 
 type ProcessorOverrides struct {
-	ServiceGraphs ServiceGraphsOverrides `yaml:"service_graphs,omitempty" json:"service_graphs,omitempty"`
-	SpanMetrics   SpanMetricsOverrides   `yaml:"span_metrics,omitempty" json:"span_metrics,omitempty"`
-	HostInfo      HostInfoOverrides      `yaml:"host_info,omitempty" json:"host_info,omitempty"`
+	ServiceGraphs   ServiceGraphsOverrides `yaml:"service_graphs,omitempty" json:"service_graphs,omitempty"`
+	SpanMetrics     SpanMetricsOverrides   `yaml:"span_metrics,omitempty" json:"span_metrics,omitempty"`
+	HostInfo        HostInfoOverrides      `yaml:"host_info,omitempty" json:"host_info,omitempty"`
+	SecretDetection *secrets.Policy        `yaml:"secret_detection,omitempty" json:"secret_detection,omitempty"`
 }
 
 type RemoteWriteHeaders map[string]config.Secret

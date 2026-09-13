@@ -43,6 +43,7 @@ import (
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/cache"
+	"github.com/grafana/tempo/pkg/secrets"
 	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
@@ -98,6 +99,18 @@ type App struct {
 
 // New makes a new app.
 func New(cfg Config) (*App, error) {
+	if err := cfg.Secrets.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid secrets configuration: %w", err)
+	}
+	cfg.Generator.Processor.SecretDetection.PolicyCompiler = nil
+	if cfg.Secrets.DetectionEnabled {
+		compiler, err := secrets.NewPolicyCompiler(cfg.Secrets.EnabledRules)
+		if err != nil {
+			return nil, fmt.Errorf("invalid secrets configuration: %w", err)
+		}
+		cfg.Generator.Processor.SecretDetection.PolicyCompiler = compiler
+	}
+	cfg.Generator.Processor.SecretDetection.Enabled = cfg.Secrets.DetectionEnabled
 	app := &App{
 		cfg:       cfg,
 		readRings: map[string]*ring.Ring{},
@@ -283,19 +296,26 @@ func (t *App) writeStatusVersion(w io.Writer) error {
 }
 
 func (t *App) writeStatusConfig(w io.Writer, r *http.Request) error {
-	var output interface{}
+	var output any
+	// Diagnostic config views must not disclose policies or modify the live
+	// configuration used by the override manager and authorized policy APIs.
+	redactSecretPolicy := func(cfg Config) Config {
+		cfg.Overrides.Defaults.MetricsGenerator.Processor.SecretDetection = nil
+		return cfg
+	}
+	cfg := redactSecretPolicy(t.cfg)
 
 	mode := r.URL.Query().Get("mode")
 	switch mode {
 	case "diff":
-		defaultCfg := NewDefaultConfig()
+		defaultCfg := redactSecretPolicy(*NewDefaultConfig())
 
 		defaultCfgYaml, err := util.YAMLMarshalUnmarshal(defaultCfg)
 		if err != nil {
 			return err
 		}
 
-		cfgYaml, err := util.YAMLMarshalUnmarshal(t.cfg)
+		cfgYaml, err := util.YAMLMarshalUnmarshal(cfg)
 		if err != nil {
 			return err
 		}
@@ -305,9 +325,9 @@ func (t *App) writeStatusConfig(w io.Writer, r *http.Request) error {
 			return err
 		}
 	case "defaults":
-		output = NewDefaultConfig()
+		output = redactSecretPolicy(*NewDefaultConfig())
 	case "":
-		output = t.cfg
+		output = cfg
 	default:
 		return fmt.Errorf("unknown value for mode query parameter: %v", mode)
 	}

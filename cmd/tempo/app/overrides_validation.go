@@ -2,11 +2,13 @@ package app
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/grafana/tempo/modules/generator/validation"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/api"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
+	"github.com/grafana/tempo/pkg/secrets"
 )
 
 type runtimeConfigValidator struct {
@@ -73,6 +75,7 @@ type overridesValidator struct {
 	cfg *Config
 
 	validForwarders map[string]struct{}
+	policyCompiler  func() (*secrets.PolicyCompiler, error)
 }
 
 var _ api.Validator = (*overridesValidator)(nil)
@@ -88,6 +91,14 @@ func newOverridesValidator(cfg *Config) api.Validator {
 		cfg: cfg,
 
 		validForwarders: validForwarders,
+		policyCompiler: sync.OnceValues(func() (*secrets.PolicyCompiler, error) {
+			if compiler := cfg.Generator.Processor.SecretDetection.PolicyCompiler; compiler != nil {
+				return compiler, nil
+			}
+			// Policy validation remains available while detection is disabled,
+			// without initializing the catalog until a policy is submitted.
+			return secrets.NewPolicyCompiler(cfg.Secrets.EnabledRules)
+		}),
 	}
 }
 
@@ -206,6 +217,16 @@ func (v *overridesValidator) Validate(limits *client.Limits) error {
 		}
 		if err := validation.ValidateDimensions(dimensions, enabledIntrinsicDims, dimMappings, validation.SanitizeLabelName); err != nil {
 			return err
+		}
+	}
+
+	if policy, ok := limits.GetMetricsGenerator().GetProcessor().GetSecretDetection(); ok {
+		compiler, err := v.policyCompiler()
+		if err != nil {
+			return fmt.Errorf("invalid secrets configuration: %w", err)
+		}
+		if _, err := compiler.CompilePolicy(*policy); err != nil {
+			return fmt.Errorf("invalid metrics_generator.processor.secret_detection: %w", err)
 		}
 	}
 

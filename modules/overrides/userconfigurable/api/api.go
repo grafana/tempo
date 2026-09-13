@@ -84,10 +84,11 @@ func (a *UserConfigOverridesAPI) get(ctx context.Context, userID string) (*clien
 
 // set the Limits. Can return backend.ErrVersionDoesNotMatch, validationError
 func (a *UserConfigOverridesAPI) set(ctx context.Context, userID string, limits *client.Limits, version backend.Version, skipConflictingOverridesCheck bool) (backend.Version, error) {
+	loggedLimits := logLimits(limits)
 	ctx, span := tracer.Start(ctx, "UserConfigOverridesAPI.set", trace.WithAttributes(
 		attribute.String("userID", userID),
 		attribute.String("version", string(version)),
-		attribute.String("limits", logLimits(limits)),
+		attribute.String("limits", loggedLimits),
 	))
 	defer span.End()
 	traceID, _ := tracing.ExtractTraceID(ctx)
@@ -104,11 +105,11 @@ func (a *UserConfigOverridesAPI) set(ctx context.Context, userID string, limits 
 		}
 	}
 
-	level.Info(a.logger).Log("traceID", traceID, "msg", "storing user-configurable overrides", "userID", userID, "limits", logLimits(limits), "version", version)
+	level.Info(a.logger).Log("traceID", traceID, "msg", "storing user-configurable overrides", "userID", userID, "limits", loggedLimits, "version", version)
 
 	newVersion, err := a.client.Set(ctx, userID, limits, version)
 
-	level.Info(a.logger).Log("traceID", traceID, "msg", "stored user-configurable overrides", "userID", userID, "limits", logLimits(limits), "version", version, "newVersion", newVersion, "err", err)
+	level.Info(a.logger).Log("traceID", traceID, "msg", "stored user-configurable overrides", "userID", userID, "limits", loggedLimits, "version", version, "newVersion", newVersion, "err", err)
 	return newVersion, err
 }
 
@@ -124,10 +125,16 @@ func (a *UserConfigOverridesAPI) update(ctx context.Context, userID string, patc
 		return nil, "", err
 	}
 
-	level.Info(a.logger).Log("traceID", traceID, "msg", "patching user-configurable overrides", "userID", userID, "patch", patch, "currLimits", logLimits(currLimits), "currVersion", currVersion)
+	level.Info(a.logger).Log("traceID", traceID, "msg", "patching user-configurable overrides", "userID", userID, "patch_bytes", len(patch), "currLimits", logLimits(currLimits), "currVersion", currVersion)
 
 	if errors.Is(err, backend.ErrDoesNotExist) {
 		currVersion = backend.VersionNew
+	}
+
+	// Only policy changes require a complete document. Ordinary overrides keep
+	// the existing first-document decoder behavior.
+	if client.HasSecretsPolicy(patch) && !json.Valid(patch) {
+		return nil, "", newValidationError(client.ErrInvalidSecretsPolicy)
 	}
 
 	patchedBytes := patch
@@ -139,7 +146,10 @@ func (a *UserConfigOverridesAPI) update(ctx context.Context, userID string, patc
 
 		patchedBytes, err = jsonpatch.MergePatch(currBytes, patch)
 		if err != nil {
-			return nil, "", err
+			if errors.Is(err, jsonpatch.ErrBadJSONDoc) || errors.Is(err, jsonpatch.ErrBadJSONPatch) {
+				return nil, "", err
+			}
+			return nil, "", client.JSONDecodeError(err)
 		}
 	}
 
@@ -173,15 +183,23 @@ func (a *UserConfigOverridesAPI) delete(ctx context.Context, userID string, vers
 }
 
 func (a *UserConfigOverridesAPI) parseLimits(body io.Reader) (*client.Limits, error) {
-	d := json.NewDecoder(body)
+	var input bytes.Buffer
+	d := json.NewDecoder(io.TeeReader(body, &input))
 
 	// error in case of unwanted fields
 	d.DisallowUnknownFields()
 
 	var limits client.Limits
 
-	err := d.Decode(&limits)
-	return &limits, err
+	if err := d.Decode(&limits); err != nil {
+		return nil, client.JSONDecodeError(err)
+	}
+	if client.HasSecretsPolicy(input.Bytes()) {
+		if err := d.Decode(new(json.RawMessage)); err != io.EOF {
+			return nil, client.ErrInvalidSecretsPolicy
+		}
+	}
+	return &limits, nil
 }
 
 func (a *UserConfigOverridesAPI) assertNoConflictingRuntimeOverrides(ctx context.Context, userID string) error {
@@ -242,9 +260,9 @@ func logLimits(limits *client.Limits) string {
 	if limits == nil {
 		return ""
 	}
-	bytes, err := json.Marshal(limits)
+	data, err := json.Marshal(overrides.RedactUserLimits(limits))
 	if err != nil {
 		return ""
 	}
-	return string(bytes)
+	return string(data)
 }
