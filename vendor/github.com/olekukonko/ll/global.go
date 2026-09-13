@@ -30,9 +30,9 @@ func Handler(handler lx.Handler) *Logger {
 // the specified level are ignored. Returns the default logger for method chaining.
 // Example:
 //
-//	ll.Level(lx.LevelWarn)
-//	ll.Info("Ignored") // No output
-//	ll.Warn("Logged")  // Output: [] WARN: Logged
+//	ll.Level(lx.LevelInfo)
+//	ll.Warn("Ignored") // Inactive output
+//	ll.Info("Logged")  // Output: [] INFO: Logged
 func Level(level lx.LevelType) *Logger {
 	return defaultLogger.Level(level)
 }
@@ -65,7 +65,7 @@ func NamespaceEnable(path string) *Logger {
 // Example:
 //
 //	ll.NamespaceDisable("app/db")
-//	ll.Clone().Namespace("db").Info("Query") // No output
+//	ll.Clone().Namespace("db").Info("Query") // Inactive output
 func NamespaceDisable(path string) *Logger {
 	return defaultLogger.NamespaceDisable(path)
 }
@@ -369,7 +369,7 @@ func StackSize(size int) *Logger {
 //	    }
 //	    return nil
 //	}))
-//	ll.Info("Ignored") // No output
+//	ll.Info("Ignored") // Inactive output
 //	mw.Remove()
 //	ll.Info("Logged") // Output: [] INFO: Logged
 func Use(fn lx.Handler) *Middleware {
@@ -393,7 +393,7 @@ func Remove(m *Middleware) {
 //
 //	ll.Use(someMiddleware)
 //	ll.Clear()
-//	ll.Info("No middleware") // Output: [] INFO: No middleware
+//	ll.Info("Inactive middleware") // Output: [] INFO: Inactive middleware
 func Clear() *Logger {
 	return defaultLogger.Clear()
 }
@@ -545,7 +545,7 @@ func Err(errs ...error) {
 // Example:
 //
 //	ll.Shutdown()
-//	ll.Info("Ignored") // No output
+//	ll.Info("Ignored") // Inactive output
 //	ll.Start()
 //	ll.Info("Logged")  // Output: [] INFO: Logged
 func Start() {
@@ -558,7 +558,7 @@ func Start() {
 // Example:
 //
 //	ll.Shutdown()
-//	ll.Info("Ignored") // No output
+//	ll.Info("Ignored") // Inactive output
 func Shutdown() {
 	atomic.StoreInt32(&systemActive, 0)
 }
@@ -580,7 +580,7 @@ func Active() bool {
 // Example:
 //
 //	ll.Disable()
-//	ll.Info("Ignored") // No output
+//	ll.Info("Ignored") // Inactive output
 //	ll.Enable()
 //	ll.Info("Logged")  // Output: [] INFO: Logged
 func Enable() *Logger {
@@ -593,7 +593,7 @@ func Enable() *Logger {
 // Example:
 //
 //	ll.Disable()
-//	ll.Info("Ignored") // No output
+//	ll.Info("Ignored") // Inactive output
 func Disable() *Logger {
 	return defaultLogger.Disable()
 }

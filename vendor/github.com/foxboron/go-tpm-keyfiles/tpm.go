@@ -3,77 +3,67 @@ package keyfile
 import (
 	"bytes"
 	"crypto"
-	"crypto/ecdh"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rsa"
-	"crypto/sha256"
 	"errors"
 	"fmt"
-	"io"
 	"slices"
 
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/transport"
-	"golang.org/x/crypto/chacha20poly1305"
 	"golang.org/x/crypto/cryptobyte"
 	"golang.org/x/crypto/cryptobyte/asn1"
-	"golang.org/x/crypto/hkdf"
 )
 
-var (
-	// If a permanent handle (MSO 0x40) is specified then the implementation MUST run
-	// TPM2_CreatePrimary on the handle using the TCG specified Elliptic Curve
-	// template [TCG-Provision] (section 7.5.1 for the Storage and other seeds or
-	// 7.4.1 for the endorsement seed) which refers to the TCG EK Credential Profile
-	// [TCG-EK-Profile] . Since there are several possible templates, implementations
-	// MUST always use the H template (the one with zero size unique fields). The
-	// template used MUST be H-2 (EK Credential Profile section B.4.5) for the NIST
-	// P-256 curve if rsaParent is absent or the H-1 (EK Credential Profile section
-	// B.4.4) RSA template with a key length of 2048 if rsaParent is present and true
-	// and use the primary key so generated as the parent.
-	ECCSRK_H2_Template = tpm2.TPMTPublic{
-		Type:    tpm2.TPMAlgECC,
-		NameAlg: tpm2.TPMAlgSHA256,
-		ObjectAttributes: tpm2.TPMAObject{
-			FixedTPM:            true,
-			FixedParent:         true,
-			SensitiveDataOrigin: true,
-			UserWithAuth:        true,
-			NoDA:                true,
-			Restricted:          true,
-			Decrypt:             true,
+// If a permanent handle (MSO 0x40) is specified then the implementation MUST run
+// TPM2_CreatePrimary on the handle using the TCG specified Elliptic Curve
+// template [TCG-Provision] (section 7.5.1 for the Storage and other seeds or
+// 7.4.1 for the endorsement seed) which refers to the TCG EK Credential Profile
+// [TCG-EK-Profile] . Since there are several possible templates, implementations
+// MUST always use the H template (the one with zero size unique fields). The
+// template used MUST be H-2 (EK Credential Profile section B.4.5) for the NIST
+// P-256 curve if rsaParent is absent or the H-1 (EK Credential Profile section
+// B.4.4) RSA template with a key length of 2048 if rsaParent is present and true
+// and use the primary key so generated as the parent.
+var ECCSRK_H2_Template = tpm2.TPMTPublic{
+	Type:    tpm2.TPMAlgECC,
+	NameAlg: tpm2.TPMAlgSHA256,
+	ObjectAttributes: tpm2.TPMAObject{
+		FixedTPM:            true,
+		FixedParent:         true,
+		SensitiveDataOrigin: true,
+		UserWithAuth:        true,
+		NoDA:                true,
+		Restricted:          true,
+		Decrypt:             true,
+	},
+	Parameters: tpm2.NewTPMUPublicParms(
+		tpm2.TPMAlgECC,
+		&tpm2.TPMSECCParms{
+			Symmetric: tpm2.TPMTSymDefObject{
+				Algorithm: tpm2.TPMAlgAES,
+				KeyBits: tpm2.NewTPMUSymKeyBits(
+					tpm2.TPMAlgAES,
+					tpm2.TPMKeyBits(128),
+				),
+				Mode: tpm2.NewTPMUSymMode(
+					tpm2.TPMAlgAES,
+					tpm2.TPMAlgCFB,
+				),
+			},
+			CurveID: tpm2.TPMECCNistP256,
 		},
-		Parameters: tpm2.NewTPMUPublicParms(
-			tpm2.TPMAlgECC,
-			&tpm2.TPMSECCParms{
-				Symmetric: tpm2.TPMTSymDefObject{
-					Algorithm: tpm2.TPMAlgAES,
-					KeyBits: tpm2.NewTPMUSymKeyBits(
-						tpm2.TPMAlgAES,
-						tpm2.TPMKeyBits(128),
-					),
-					Mode: tpm2.NewTPMUSymMode(
-						tpm2.TPMAlgAES,
-						tpm2.TPMAlgCFB,
-					),
-				},
-				CurveID: tpm2.TPMECCNistP256,
+	),
+	Unique: tpm2.NewTPMUPublicID(
+		tpm2.TPMAlgECC,
+		&tpm2.TPMSECCPoint{
+			X: tpm2.TPM2BECCParameter{
+				Buffer: make([]byte, 0),
 			},
-		),
-		Unique: tpm2.NewTPMUPublicID(
-			tpm2.TPMAlgECC,
-			&tpm2.TPMSECCPoint{
-				X: tpm2.TPM2BECCParameter{
-					Buffer: make([]byte, 0),
-				},
-				Y: tpm2.TPM2BECCParameter{
-					Buffer: make([]byte, 0),
-				},
+			Y: tpm2.TPM2BECCParameter{
+				Buffer: make([]byte, 0),
 			},
-		),
-	}
-)
+		},
+	),
+}
 
 // This is a helper to deal with TPM Session encryption.
 type TPMSession struct {
@@ -368,7 +358,6 @@ func Sign(sess *TPMSession, key *TPMKey, ownerauth, auth, digest []byte, digesta
 }
 
 func TPMSign(tpm transport.TPMCloser, handle handle, digest []byte, digestalgo tpm2.TPMAlgID, keysize int, keyalgo tpm2.TPMAlgID, sess ...tpm2.Session) (*tpm2.TPMTSignature, error) {
-
 	// Seperate function to include our own sigscheme?
 	var sigscheme tpm2.TPMTSigScheme
 	switch keyalgo {
@@ -379,7 +368,7 @@ func TPMSign(tpm transport.TPMCloser, handle handle, digest []byte, digestalgo t
 	case tpm2.TPMAlgRSAPSS:
 		sigscheme = newRSAPSSSigScheme(digestalgo)
 	default:
-		return nil, fmt.Errorf("Unexpected key algorithm 0x%x", keyalgo)
+		return nil, fmt.Errorf("unexpected key algorithm 0x%x", keyalgo)
 	}
 
 	// If we encounter RSA with SHA512 keys we use TPM_Decrypt to sign
@@ -388,7 +377,7 @@ func TPMSign(tpm transport.TPMCloser, handle handle, digest []byte, digestalgo t
 		// TODO: Refactor this part
 		// Taken from crypto/rsa
 		pkcsPadding := func(hashed []byte, privkeySize int, h crypto.Hash) []byte {
-			var hashPrefixes = map[crypto.Hash][]byte{
+			hashPrefixes := map[crypto.Hash][]byte{
 				crypto.SHA256: {0x30, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x05, 0x00, 0x04, 0x20},
 				crypto.SHA384: {0x30, 0x41, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x02, 0x05, 0x00, 0x04, 0x30},
 				crypto.SHA512: {0x30, 0x51, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03, 0x05, 0x00, 0x04, 0x40},
@@ -484,7 +473,7 @@ type handle interface {
 
 // Helper to flush handles
 func FlushHandle(tpm transport.TPM, h handle) {
-	//TODO: We should probably handle the error here
+	// TODO: We should probably handle the error here
 	flushSrk := tpm2.FlushContext{FlushHandle: h}
 	flushSrk.Execute(tpm)
 }
@@ -693,85 +682,4 @@ func ChangeAuth(tpm transport.TPMCloser, ownerauth []byte, key *TPMKey, oldpin, 
 	)
 
 	return nil
-}
-
-const p256Label = "github.com/foxboron/go-tpm-keyfile/v1/p256"
-
-func kdf(sharedKey, publicKey *ecdh.PublicKey, shared []byte) ([]byte, error) {
-	// NOTE:
-	// This should probably be compatible with whatever openssl is doing,
-	// but I have no clue. So this is just what age is doing for figuring out
-	// shared tokens
-	sharedKeyB := sharedKey.Bytes()
-	publicKeyB := publicKey.Bytes()
-
-	// We use the concatinated bytes of the shared key and the public key for the
-	// key derivative functions.
-	salt := make([]byte, 0, len(sharedKeyB)+len(publicKeyB))
-	salt = append(salt, sharedKeyB...)
-	salt = append(salt, publicKeyB...)
-
-	h := hkdf.New(sha256.New, shared, salt, []byte(p256Label))
-	wrappingKey := make([]byte, chacha20poly1305.KeySize)
-	if _, err := io.ReadFull(h, wrappingKey); err != nil {
-		return nil, err
-	}
-	return wrappingKey, nil
-}
-
-func DeriveECDH(sess *TPMSession, key *TPMKey, sessionkey *ecdh.PublicKey, ownerauth, auth []byte) ([]byte, error) {
-	var publickey *ecdh.PublicKey
-	pubkey, err := key.PublicKey()
-	if err != nil {
-		return nil, fmt.Errorf("failed getting pubkey: %v", err)
-	}
-	switch pk := pubkey.(type) {
-	case *ecdsa.PublicKey:
-		publickey, err = pk.ECDH()
-		if err != nil {
-			return nil, fmt.Errorf("can't get ecdh key")
-		}
-	case *rsa.PublicKey:
-		return nil, fmt.Errorf("only ecdh key scan use DeriveECDH")
-	}
-
-	parenthandle, err := GetParentHandle(sess, key.Parent, ownerauth)
-	if err != nil {
-		return nil, err
-	}
-	defer sess.FlushHandle()
-
-	handle, err := LoadKeyWithParent(sess, *parenthandle, key)
-	if err != nil {
-		return nil, err
-	}
-	defer FlushHandle(sess.GetTPM(), handle)
-
-	if len(auth) != 0 {
-		handle.Auth = tpm2.PasswordAuth(auth)
-	}
-
-	x, y := elliptic.Unmarshal(elliptic.P256(), sessionkey.Bytes())
-
-	// ECDHZGen command for the TPM, turns the sesion key into something we understand.
-	ecdhRsp, err := tpm2.ECDHZGen{
-		KeyHandle: *handle,
-		InPoint: tpm2.New2B(
-			tpm2.TPMSECCPoint{
-				X: tpm2.TPM2BECCParameter{Buffer: x.FillBytes(make([]byte, 32))},
-				Y: tpm2.TPM2BECCParameter{Buffer: y.FillBytes(make([]byte, 32))},
-			},
-		),
-	}.Execute(sess.GetTPM(), sess.GetHMAC())
-	if err != nil {
-		fmt.Println("here")
-		return nil, err
-	}
-
-	shared, err := ecdhRsp.OutPoint.Contents()
-	if err != nil {
-		return nil, fmt.Errorf("failed getting ecdh point: %v", err)
-	}
-
-	return kdf(sessionkey, publickey, shared.X.Buffer)
 }
