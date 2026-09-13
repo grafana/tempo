@@ -76,6 +76,18 @@ You can configure the backend using the following options:
 
 Each option applies only to the command in which it's used. For example, `--backend <value>` doesn't permanently change where Tempo stores data. It only changes it for command in which you apply the option.
 
+## TLS options
+
+All `query api` commands support these options for HTTPS and gRPC TLS connections.
+Use an `https://` URL for `trace-id`, or `--secure` for the other commands.
+
+- `--tls-cert <path>`, `--tls-key <path>` PEM client certificate and matching unencrypted private key for mutual TLS (mTLS).
+  Both must be provided together.
+- `--tls-ca <path>` PEM CA bundle added to the system trust roots for server certificate verification.
+- `--tls-server-name <name>` Override the server name used for certificate verification and SNI.
+
+The CA and server-name options can also be used without a client certificate.
+
 ## Query API command
 
 ### Trace ID
@@ -93,6 +105,7 @@ Arguments:
 
 Options:
 
+- [TLS options](#tls-options)
 - `--org-id <value>` Organization ID (for use in multi-tenant setup).
 - `--header <key=value>` Extra HTTP header to send with the request. Can be specified multiple times.
 - `--v1` use v1 API (use /api/traces endpoint to fetch traces, default: /api/v2/traces).
@@ -128,6 +141,7 @@ Arguments:
 
 Options:
 
+- [TLS options](#tls-options)
 - `--org-id <value>` Organization ID (for use in multi-tenant setup).
 - `--header <key=value>` Extra header to send with the request (as gRPC metadata when using `--use-grpc`). Can be specified multiple times.
 - `--use-grpc` Use GRPC streaming
@@ -180,6 +194,7 @@ Arguments:
 
 Options:
 
+- [TLS options](#tls-options)
 - `--org-id <value>` Organization ID (for use in multi-tenant setup).
 - `--header <key=value>` Extra header to send with the request (as gRPC metadata when using `--use-grpc`). Can be specified multiple times.
 - `--use-grpc` Use GRPC streaming
@@ -225,6 +240,7 @@ Arguments:
 
 Options:
 
+- [TLS options](#tls-options)
 - `--org-id <value>` Organization ID (for use in multi-tenant setup).
 - `--header <key=value>` Extra header to send with the request (as gRPC metadata when using `--use-grpc`). Can be specified multiple times.
 - `--query <value>` TraceQL query to filter attribute results by.
@@ -265,6 +281,7 @@ Arguments:
 
 Options:
 
+- [TLS options](#tls-options)
 - `--org-id <value>` Organization ID (for use in multi-tenant setup).
 - `--header <key=value>` Extra header to send with the request (as gRPC metadata when using `--use-grpc`). Can be specified multiple times.
 - `--use-grpc` Use GRPC streaming
