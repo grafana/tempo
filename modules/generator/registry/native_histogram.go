@@ -14,7 +14,9 @@ import (
 	"github.com/prometheus/prometheus/model/exemplar"
 	promhistogram "github.com/prometheus/prometheus/model/histogram"
 	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/model/value"
 	"github.com/prometheus/prometheus/storage"
+	"go.uber.org/multierr"
 
 	tempo_util "github.com/grafana/tempo/pkg/util"
 )
@@ -306,12 +308,13 @@ func (h *nativeHistogram) countSeriesDemand() int {
 	return int(est) * int(h.activeSeriesPerHistogramSerie())
 }
 
-func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
+func (h *nativeHistogram) removeStaleSeries(appender storage.Appender, timeMs, staleTimeMs int64) error {
 	overridesHash, _, _, _ := h.hashOverrides()
 
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
 
+	errs := []error{}
 	for hash, s := range h.series {
 		if s.overridesHash != overridesHash {
 			// The overrides have changed, so we need to recreate the series.
@@ -321,11 +324,30 @@ func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
 		}
 
 		if s.lastUpdated < staleTimeMs {
+			if appender != nil {
+				_, err := appender.Append(0, s.countLabels, timeMs, math.Float64frombits(value.StaleNaN))
+				if err != nil {
+					errs = append(errs, err)
+				}
+				_, err = appender.Append(0, s.sumLabels, timeMs, math.Float64frombits(value.StaleNaN))
+				if err != nil {
+					errs = append(errs, err)
+				}
+				_, err = appender.Append(0, s.labels, timeMs, math.Float64frombits(value.StaleNaN))
+				if err != nil {
+					errs = append(errs, err)
+				}
+			}
 			delete(h.series, hash)
 			h.lifecycler.OnDelete(hash, h.activeSeriesPerHistogramSerie())
 		}
 	}
 	h.seriesDemand.Advance()
+
+	if len(errs) > 0 {
+		return multierr.Combine(errs...)
+	}
+	return nil
 }
 
 func (h *nativeHistogram) hashOverrides() (uint64, float64, uint32, time.Duration) {
