@@ -132,7 +132,10 @@ func (g *Generator) trafficShare() float64 {
 	if g.partitionRing == nil || !g.cfg.ConsumeFromKafka {
 		return 1
 	}
-	total := g.partitionRing.PartitionRing().PartitionsCount()
+	// Active partitions only: pending and inactive ones take no writes, so
+	// counting them would inflate the denominator, shrink this instance's share
+	// and over-sample it for as long as a scale-down is in progress.
+	total := g.partitionRing.PartitionRing().ActivePartitionsCount()
 	if total <= 0 {
 		return 1
 	}

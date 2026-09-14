@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"math/rand/v2"
+	"sync"
 	"testing"
 	"time"
 
@@ -189,7 +190,7 @@ func TestSeriesSamplerPickIsUniformWithinBlock(t *testing.T) {
 	// spread across the block.
 	s := newTestSampler(1_500, 11, nil)
 
-	run := feedSampler(s, 1, time.Unix(1_700_000_000, 0).UnixMilli(), 10_000, 30*time.Minute)
+	run := feedSampler(s, 1, time.Unix(1_700_000_000, 0).UnixMilli(), 5_000, 10*time.Minute)
 	require.Greater(t, run.steadyBlockSize, uint64(4), "block too small to say anything about the spread")
 
 	total := 0
@@ -218,6 +219,67 @@ func TestSeriesSamplerAdaptsWhenRateDrops(t *testing.T) {
 
 	require.Equal(t, uint64(1), currentBlockSize(t, s, 1))
 	require.Equal(t, 1.0, s.sample(1, back.endMs+100))
+}
+
+func TestSeriesSamplerRecoversFromABurst(t *testing.T) {
+	// A burst drives the block size far above what the series' settled rate
+	// justifies. If an oversized block had to fill before anything was kept,
+	// a series that spiked and then went quiet would report nothing for many
+	// windows -- long enough to age out of the registry and come back as a
+	// counter reset. The shrinking size has to take effect at the window roll.
+	s := newTestSampler(1_500, 23, nil)
+
+	burst := feedSampler(s, 1, time.Unix(1_700_000_000, 0).UnixMilli(), 200_000, testSendInterval)
+	require.Greater(t, currentBlockSize(t, s, 1), uint64(100), "the burst should have grown the block")
+
+	// The series settles to a trickle far below one block per window. One window
+	// has to pass before the estimate knows the rate fell -- that much is
+	// inherent -- but from then on the trickle must be kept in full. Without
+	// the shrink taking effect at the roll it would instead take blockSize
+	// spans, here thousands of windows, to keep even one.
+	trickle := feedSampler(s, 1, burst.endMs, 1, 5*testSendInterval)
+
+	require.Equal(t, uint64(1), currentBlockSize(t, s, 1), "a trickle should not stay sampled")
+	require.Greater(t, trickle.kept, trickle.spans/2,
+		"kept only %d of %d trickle spans, so the oversized block never shrank", trickle.kept, trickle.spans)
+}
+
+func TestSeriesSamplerConcurrentPushes(t *testing.T) {
+	// sample() runs on every goroutine that pushes to a tenant, so the
+	// per-series bookkeeping has to survive contention on a single key. Worth
+	// asserting the count guarantee rather than just the absence of a race:
+	// a lost update would show up as a drifted estimate.
+	s := newTestSampler(1_500, 29, nil)
+
+	const (
+		goroutines   = 8
+		perGoroutine = 50_000
+	)
+	nowMs := time.Unix(1_700_000_000, 0).UnixMilli()
+
+	estimates := make([]float64, goroutines)
+	var wg sync.WaitGroup
+	for g := 0; g < goroutines; g++ {
+		wg.Add(1)
+		go func(g int) {
+			defer wg.Done()
+			for i := 0; i < perGoroutine; i++ {
+				estimates[g] += s.sample(1, nowMs)
+			}
+		}(g)
+	}
+	wg.Wait()
+
+	estimate := 0.0
+	for _, e := range estimates {
+		estimate += e
+	}
+	spans := float64(goroutines * perGoroutine)
+	require.InDelta(t, spans, estimate, float64(currentBlockSize(t, s, 1)),
+		"estimate %v is more than one block away from %v spans", estimate, spans)
+
+	seen, _ := s.counts()
+	require.Equal(t, uint64(spans), seen)
 }
 
 func TestSeriesSamplerBurstGuard(t *testing.T) {

@@ -330,7 +330,10 @@ func (p *Processor) aggregateMetricsForSpan(scratch *spanScratch, svcName string
 
 	registryLabelValues, validUTF8 := builder.CloseAndBorrowLabels()
 	if !validUTF8 {
-		p.invalidUTF8Counter.Inc()
+		// Scaled like everything else this span stands for: only sampled spans
+		// reach the UTF-8 check, so counting one per kept span would undercount
+		// the discards by the sampling multiplier. Unsampled, this is Inc.
+		p.invalidUTF8Counter.Add(samplingMultiplier)
 		return false
 	}
 	defer registryLabelValues.Release()

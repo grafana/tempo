@@ -35,14 +35,22 @@ const (
 	samplerShardMsk = samplerShards - 1
 
 	// samplerMaxSeriesPerShard is the size at which a shard sweeps out series
-	// that have gone quiet, not a hard cap: a shard whose series are all active
-	// keeps growing, bounded instead by the registry's own active-series limit.
-	// Sweeping an active series is harmless anyway -- it restarts at blockSize
-	// 1, which costs CPU for a window but never accuracy.
-	samplerMaxSeriesPerShard = 16384
+	// that have gone quiet. It is not a hard cap: a shard whose series are all
+	// active keeps growing. Nor is it bounded by the registry's active-series
+	// limit, because the sampling key is built before sanitization and before
+	// the per-label limiter, so series those would collapse still get an entry
+	// each. What bounds it is the number of distinct keys seen within
+	// samplerEvictAfterWindows, which is why that is kept short.
+	//
+	// Sweeping a series that is still active is cheap: it restarts at blockSize
+	// 1, costing CPU for a window, and abandons its block in flight, which is
+	// zero-mean and at most one block of count error.
+	samplerMaxSeriesPerShard = 4096
 	// samplerEvictAfterWindows is how many send intervals a series may go
-	// unseen before an over-capacity shard sweeps it.
-	samplerEvictAfterWindows = 20
+	// unseen before an over-capacity shard sweeps it. Short, because it is what
+	// bounds sampler memory during a cardinality spike: a series quiet for this
+	// long has no rate estimate worth keeping anyway.
+	samplerEvictAfterWindows = 4
 
 	// defaultSamplerWindow stands in when no send interval is configured, and
 	// matches registry.Config's default CollectionInterval.
@@ -119,10 +127,18 @@ func newSeriesSampler(maxSpansPerSeriesPerInterval int, sendInterval time.Durati
 		sendInterval = defaultSamplerWindow
 	}
 
+	// A sub-millisecond interval would truncate to 0, which makes every span
+	// look like a window boundary: seen resets constantly, the burst guard never
+	// sees a backlog, and sampling quietly becomes a no-op.
+	windowMs := sendInterval.Milliseconds()
+	if windowMs < 1 {
+		windowMs = 1
+	}
+
 	s := &seriesSampler{
 		target:   uint64(maxSpansPerSeriesPerInterval),
 		share:    share,
-		windowMs: sendInterval.Milliseconds(),
+		windowMs: windowMs,
 	}
 	for i := range s.shards {
 		s.shards[i].series = make(map[uint64]*samplerSeries)
@@ -150,7 +166,9 @@ func (s *seriesSampler) sample(key uint64, nowMs int64) float64 {
 		// A series is seen for the first time, or after an eviction: keep every
 		// span until the first window boundary produces a rate estimate. The
 		// burst guard below stops that from being unbounded.
-		series = &samplerSeries{blockSize: 1, nextBlockSize: 1, windowStartMs: nowMs}
+		// lastSeenMs is set here, not after maybeEvict: a series left at zero
+		// would be swept by the very sweep its own insertion triggered.
+		series = &samplerSeries{blockSize: 1, nextBlockSize: 1, windowStartMs: nowMs, lastSeenMs: nowMs}
 		sh.series[key] = series
 		sh.maybeEvict(nowMs, s.windowMs)
 	}
@@ -260,11 +278,33 @@ func (s *samplerSeries) rollWindow(nowMs, windowMs int64, budget uint64) {
 	}
 
 	s.nextBlockSize = next
+	// A block sized by a burst can be far larger than the series' settled rate.
+	// Waiting for it to finish would keep nothing for as many windows as it
+	// takes to fill -- long enough for a series that spiked and then went quiet
+	// to stop being updated, age out of the registry, and come back as a
+	// counter reset. So a shrinking size takes effect immediately.
+	//
+	// Abandoning a partial block costs at most one block of count error, with
+	// zero expected bias because the pick is uniform, and only in a window
+	// where the rate actually fell. Over a query window those errors random
+	// walk rather than accumulate, which is far cheaper than a series going
+	// dark. A growing size still waits for the boundary, where it costs
+	// nothing.
+	if next < s.blockSize {
+		s.blockSize = next
+		s.pos = 0
+	}
 	s.seen = 0
 	s.windowStartMs = nowMs
 }
 
 // maybeEvict drops series that have gone quiet once a shard grows past its cap.
+// Only called when a new key is inserted, so a shard that has stopped seeing
+// new series never sweeps -- which is fine, because it is also not growing.
+//
+// Sweeping a series that is still active costs a little accuracy as well as
+// CPU: its block in flight is abandoned, so the one block of slack its counter
+// carries becomes permanent rather than being resolved by the next kept span.
 // Called with the shard mutex held.
 func (sh *samplerShard) maybeEvict(nowMs, windowMs int64) {
 	if len(sh.series) <= samplerMaxSeriesPerShard || nowMs < sh.evictAtMs {
@@ -307,10 +347,6 @@ func (k *samplerKey) reset() {
 func (k *samplerKey) addString(v string) {
 	k.buf = append(k.buf, v...)
 	k.buf = append(k.buf, 0)
-}
-
-func (k *samplerKey) addByte(v byte) {
-	k.buf = append(k.buf, v, 0)
 }
 
 func (k *samplerKey) sum() uint64 {

@@ -263,7 +263,7 @@ func (i *instance) updateServiceGraphsSubprocessors(desiredProcessors map[string
 
 func (i *instance) updateProcessors() error {
 	desiredProcessors := i.filterSupportedProcessors(i.overrides.MetricsGeneratorProcessors(i.instanceID))
-	desiredCfg, err := i.cfg.Processor.copyWithOverrides(i.overrides, i.instanceID)
+	desiredCfg, err := i.cfg.Processor.copyWithOverrides(i.overrides, i.instanceID, i.cfg.Registry.CollectionInterval)
 	if err != nil {
 		return err
 	}

@@ -57,6 +57,17 @@ func BenchmarkSpanMetricsSampling(b *testing.B) {
 	}{
 		{name: "plain", overrides: &benchmarkSamplingOverrides{}},
 		{
+			// Native histograms apply the sampling multiplier by calling Observe
+			// that many times (registry.nativeHistogram.updateSeries), so the
+			// observe work is not saved even though the label pipeline is. This
+			// row is here to keep that cost visible rather than assumed away.
+			name: "native",
+			tune: func(cfg *Config) {
+				cfg.HistogramOverride = registry.HistogramModeNative
+			},
+			overrides: &benchmarkSamplingOverrides{native: true},
+		},
+		{
 			name: "prod",
 			tune: func(cfg *Config) {
 				cfg.Dimensions = []string{
@@ -162,6 +173,7 @@ func BenchmarkSpanMetricsSampling(b *testing.B) {
 type benchmarkSamplingOverrides struct {
 	sanitizeSpanNames      bool
 	maxCardinalityPerLabel uint64
+	native                 bool
 }
 
 func (*benchmarkSamplingOverrides) MetricsGeneratorMaxActiveSeries(string) uint32 { return 0 }
@@ -173,7 +185,10 @@ func (*benchmarkSamplingOverrides) MetricsGeneratorCollectionInterval(string) ti
 	return 15 * time.Second
 }
 func (*benchmarkSamplingOverrides) MetricsGeneratorDisableCollection(string) bool { return true }
-func (*benchmarkSamplingOverrides) MetricsGeneratorGenerateNativeHistograms(string) histograms.HistogramMethod {
+func (o *benchmarkSamplingOverrides) MetricsGeneratorGenerateNativeHistograms(string) histograms.HistogramMethod {
+	if o.native {
+		return histograms.HistogramMethodNative
+	}
 	return histograms.HistogramMethodClassic
 }
 func (*benchmarkSamplingOverrides) MetricsGeneratorTraceIDLabelName(string) string { return "traceID" }

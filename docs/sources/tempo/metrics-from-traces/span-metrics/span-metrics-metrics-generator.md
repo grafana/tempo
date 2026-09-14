@@ -373,6 +373,37 @@ unsampled one is remarkably steady but sits 1.5% high whatever you do, and the
 sampled one is skewed upward, because this p99 falls near the top of its bucket
 and noise pushes it into the next one, which is twice as wide.
 
+#### Sampling saves much less with native histograms
+
+A sampled span carries a multiplier saying how many spans it stands for, and a
+native histogram series applies it by calling `Observe` that many times,
+because the underlying client library has no weighted observation. The total
+number of `Observe` calls is therefore unchanged by sampling -- only the label
+building in front of it is skipped.
+
+Measured per span on the same fixture, sampling to a 1% keep rate:
+
+| Histogram mode | Unsampled | Sampled | Saving |
+| --- | --- | --- | --- |
+| classic, production-shaped config | 1,372 ns | 143 ns | 9.6x |
+| classic, default config | 261 ns | 51 ns | 5.1x |
+| native | 552 ns | 307 ns | 1.8x |
+
+Allocations tell the same story: the production classic config drops from 835
+to 12 per 400-span push, while native barely moves.
+
+There is a second, unmeasured concern. A native histogram series takes one
+mutex covering every series of that metric for the tenant, and the multiplier
+loop runs inside it, so a heavily sampled series holds that lock for as many
+iterations as its block size. On a generator serving many concurrent pushes
+this could contend where it did not before. If you enable sampling on a tenant
+using native histograms, watch generator CPU and push latency rather than
+assuming the saving above.
+
+So the two recommendations pull against each other: native histograms buy
+quantile accuracy, classic histograms buy CPU. If quantile accuracy is what you
+are sampling to protect, take the smaller saving.
+
 Sampling is disabled by default.
 
 ### Handling sampled traces

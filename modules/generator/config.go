@@ -183,7 +183,10 @@ func (cfg *ProcessorConfig) Validate() error {
 }
 
 // copyWithOverrides creates a copy of the config using values set in the overrides.
-func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userID string) (ProcessorConfig, error) {
+// copyWithOverrides returns cfg with this tenant's overrides applied.
+// collectionIntervalFallback is the statically configured registry collection
+// interval, used when the tenant has no override for it.
+func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userID string, collectionIntervalFallback time.Duration) (ProcessorConfig, error) {
 	copyCfg := *cfg
 
 	if buckets := o.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID); buckets != nil {
@@ -237,8 +240,15 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 
 	// Per-series sampling counts its budget in collection intervals, so it needs
 	// the interval this tenant's registry actually sends on rather than the
-	// span-metrics YAML, which does not carry it.
+	// span-metrics YAML, which does not carry it. Resolve it exactly as
+	// ManagedRegistry.collectionInterval does -- override first, then the static
+	// config. Reading only the override would leave a deployment that sets
+	// collection_interval statically applying the budget on the wrong cadence:
+	// a 60s interval with a 15s assumption spends it four times per send.
 	copyCfg.SpanMetrics.SendInterval = o.MetricsGeneratorCollectionInterval(userID)
+	if copyCfg.SpanMetrics.SendInterval == 0 {
+		copyCfg.SpanMetrics.SendInterval = collectionIntervalFallback
+	}
 
 	if enableClientServerPrefix := o.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID); enableClientServerPrefix {
 		copyCfg.ServiceGraphs.EnableClientServerPrefix = enableClientServerPrefix

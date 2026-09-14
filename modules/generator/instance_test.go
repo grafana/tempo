@@ -214,6 +214,9 @@ func Test_instance_updateProcessors(t *testing.T) {
 
 		var expectedConfig spanmetrics.Config
 		expectedConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+		// SendInterval is derived from the registry config rather than from
+		// span-metrics defaults, so the expectation has to carry it too.
+		expectedConfig.SendInterval = instance.cfg.Registry.CollectionInterval
 		expectedConfig.Dimensions = []string{"namespace"}
 		expectedConfig.IntrinsicDimensions.StatusMessage = true
 
@@ -273,6 +276,9 @@ func Test_instance_updateProcessors(t *testing.T) {
 
 		var expectedConfig spanmetrics.Config
 		expectedConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+		// SendInterval is derived from the registry config rather than from
+		// span-metrics defaults, so the expectation has to carry it too.
+		expectedConfig.SendInterval = instance.cfg.Registry.CollectionInterval
 		expectedConfig.Dimensions = []string{"namespace"}
 		expectedConfig.IntrinsicDimensions.StatusMessage = true
 		expectedConfig.HistogramBuckets = prometheus.ExponentialBuckets(0.002, 2, 14)
@@ -304,6 +310,9 @@ func Test_instance_updateProcessors(t *testing.T) {
 
 		var expectedConfig spanmetrics.Config
 		expectedConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+		// SendInterval is derived from the registry config rather than from
+		// span-metrics defaults, so the expectation has to carry it too.
+		expectedConfig.SendInterval = instance.cfg.Registry.CollectionInterval
 		expectedConfig.Dimensions = []string{"namespace"}
 		expectedConfig.IntrinsicDimensions.StatusMessage = true
 		expectedConfig.HistogramBuckets = nil
@@ -337,6 +346,9 @@ func Test_instance_updateProcessors(t *testing.T) {
 
 		var expectedConfig spanmetrics.Config
 		expectedConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+		// SendInterval is derived from the registry config rather than from
+		// span-metrics defaults, so the expectation has to carry it too.
+		expectedConfig.SendInterval = instance.cfg.Registry.CollectionInterval
 		expectedConfig.Dimensions = []string{"namespace"}
 		expectedConfig.IntrinsicDimensions.StatusMessage = true
 		expectedConfig.HistogramBuckets = prometheus.ExponentialBuckets(0.002, 2, 14)
@@ -368,6 +380,9 @@ func Test_instance_updateProcessors(t *testing.T) {
 
 		var expectedConfig spanmetrics.Config
 		expectedConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+		// SendInterval is derived from the registry config rather than from
+		// span-metrics defaults, so the expectation has to carry it too.
+		expectedConfig.SendInterval = instance.cfg.Registry.CollectionInterval
 		expectedConfig.Dimensions = []string{"namespace"}
 		expectedConfig.IntrinsicDimensions.StatusMessage = true
 		expectedConfig.HistogramBuckets = prometheus.ExponentialBuckets(0.002, 2, 14)
@@ -399,7 +414,7 @@ func Test_instance_updateProcessors(t *testing.T) {
 
 		assertHistogramsReload := func(t *testing.T) {
 			desiredProcessors := instance.overrides.MetricsGeneratorProcessors(instance.instanceID)
-			desiredCfg, copyErr := instance.cfg.Processor.copyWithOverrides(instance.overrides, instance.instanceID)
+			desiredCfg, copyErr := instance.cfg.Processor.copyWithOverrides(instance.overrides, instance.instanceID, instance.cfg.Registry.CollectionInterval)
 			assert.NoError(t, copyErr)
 			toAdd, toRemove, toReplace, diffErr := instance.diffProcessors(desiredProcessors, desiredCfg)
 			assert.NoError(t, diffErr)
@@ -412,7 +427,7 @@ func Test_instance_updateProcessors(t *testing.T) {
 
 		assertHistogramsNoChange := func(t *testing.T) {
 			desiredProcessors := instance.overrides.MetricsGeneratorProcessors(instance.instanceID)
-			desiredCfg, copyErr := instance.cfg.Processor.copyWithOverrides(instance.overrides, instance.instanceID)
+			desiredCfg, copyErr := instance.cfg.Processor.copyWithOverrides(instance.overrides, instance.instanceID, instance.cfg.Registry.CollectionInterval)
 			assert.NoError(t, copyErr)
 			toAdd, toRemove, toReplace, diffErr := instance.diffProcessors(desiredProcessors, desiredCfg)
 			assert.NoError(t, diffErr)
@@ -536,7 +551,7 @@ func Test_instance_updateProcessors(t *testing.T) {
 		}
 
 		desiredProcessors := instance.filterSupportedProcessors(instance.overrides.MetricsGeneratorProcessors(instance.instanceID))
-		desiredCfg, err := instance.cfg.Processor.copyWithOverrides(instance.overrides, instance.instanceID)
+		desiredCfg, err := instance.cfg.Processor.copyWithOverrides(instance.overrides, instance.instanceID, instance.cfg.Registry.CollectionInterval)
 		require.NoError(t, err)
 		desiredProcessors, desiredCfg = instance.updateSubprocessors(desiredProcessors, desiredCfg)
 
