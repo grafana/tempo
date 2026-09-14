@@ -191,16 +191,21 @@ func (o *benchmarkSamplingOverrides) MetricsGeneratorGenerateNativeHistograms(st
 	}
 	return histograms.HistogramMethodClassic
 }
+
 func (*benchmarkSamplingOverrides) MetricsGeneratorTraceIDLabelName(string) string { return "traceID" }
+
 func (*benchmarkSamplingOverrides) MetricsGeneratorNativeHistogramBucketFactor(string) float64 {
 	return 1.1
 }
+
 func (*benchmarkSamplingOverrides) MetricsGeneratorNativeHistogramMaxBucketNumber(string) uint32 {
 	return 100
 }
+
 func (*benchmarkSamplingOverrides) MetricsGeneratorNativeHistogramMinResetDuration(string) time.Duration {
 	return 15 * time.Minute
 }
+
 func (o *benchmarkSamplingOverrides) MetricsGeneratorSpanNameSanitization(string) string {
 	if o.sanitizeSpanNames {
 		return string(registry.SpanNameSanitizationEnabled)

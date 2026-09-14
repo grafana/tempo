@@ -1,7 +1,11 @@
 package spanmetrics
 
 import (
-	"math/rand/v2"
+	// Sampling draws which span within a block to keep. That is a choice about
+	// which telemetry to aggregate, not a secret, a token or anything an
+	// attacker gains from predicting, and it sits on the per-span hot path
+	// where a CSPRNG would cost far more than it could protect.
+	"math/rand/v2" // #nosec G404 nosemgrep: go.lang.security.audit.crypto.math_random.math-random-used
 	"sync"
 	"time"
 
@@ -145,6 +149,8 @@ func newSeriesSampler(maxSpansPerSeriesPerInterval int, sendInterval time.Durati
 		// Seeding per shard from the global source keeps the picks independent
 		// across shards without sharing a locked global generator on the hot
 		// path; the shard mutex already serializes access to this one.
+		//
+		//nolint:gosec // G404: picks which span to keep, not a secret; see the import comment.
 		s.shards[i].rng = rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64()))
 	}
 	return s

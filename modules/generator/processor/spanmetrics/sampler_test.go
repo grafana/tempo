@@ -31,6 +31,11 @@ func newTestCounter() prometheus.Counter {
 // is the unit the sampler's budget is counted in.
 const testSendInterval = 15 * time.Second
 
+// testSeriesKey is the one sampling key these tests drive. Which key it is does
+// not matter: the shard is picked from its low bits and every shard behaves the
+// same, so the tests exercise one series at a time through one shard.
+const testSeriesKey = uint64(1)
+
 // newTestSampler builds a sampler whose budget is stated per send interval, as
 // production states it, with reproducible block picks.
 func newTestSampler(budgetPerInterval int, seed uint64, share func() float64) *seriesSampler {
@@ -62,15 +67,15 @@ type samplerRun struct {
 // feedSampler pushes spans for one key at spansPerSecond for the given
 // duration, advancing the clock in step so sampler windows roll the way they do
 // in production, and reports what came back.
-func feedSampler(s *seriesSampler, key uint64, startMs int64, spansPerSecond int, d time.Duration) samplerRun {
+func feedSampler(s *seriesSampler, startMs int64, spansPerSecond int, d time.Duration) samplerRun {
 	spans := int(d.Seconds() * float64(spansPerSecond))
 	run := samplerRun{spans: spans, endMs: startMs}
 
 	series := func() *samplerSeries {
-		sh := &s.shards[key&samplerShardMsk]
+		sh := &s.shards[testSeriesKey&samplerShardMsk]
 		sh.mtx.Lock()
 		defer sh.mtx.Unlock()
-		return sh.series[key]
+		return sh.series[testSeriesKey]
 	}
 
 	for i := 0; i < spans; i++ {
@@ -82,7 +87,7 @@ func feedSampler(s *seriesSampler, key uint64, startMs int64, spansPerSecond int
 			pos, blockSize = existing.pos, existing.blockSize
 		}
 
-		multiplier := s.sample(key, run.endMs)
+		multiplier := s.sample(testSeriesKey, run.endMs)
 		if multiplier != 0 {
 			run.kept++
 			run.estimate += multiplier
@@ -107,7 +112,7 @@ func TestSeriesSamplerKeepsSeriesUnderBudget(t *testing.T) {
 	// span must come back with a multiplier of exactly 1.
 	start := time.Unix(1_700_000_000, 0).UnixMilli()
 	for i := 0; i < 5_000; i++ {
-		require.Equal(t, 1.0, s.sample(1, start+int64(i)*20), "span %d was sampled", i)
+		require.Equal(t, 1.0, s.sample(testSeriesKey, start+int64(i)*20), "span %d was sampled", i)
 	}
 
 	seen, kept := s.counts()
@@ -133,9 +138,9 @@ func TestSeriesSamplerCountIsExactWithinOneBlock(t *testing.T) {
 			s := newTestSampler(tc.budgetPerInterval, 7, nil)
 
 			const duration = 2 * time.Minute
-			run := feedSampler(s, 1, time.Unix(1_700_000_000, 0).UnixMilli(), tc.spansPerSecond, duration)
+			run := feedSampler(s, time.Unix(1_700_000_000, 0).UnixMilli(), tc.spansPerSecond, duration)
 
-			blockSize := currentBlockSize(t, s, 1)
+			blockSize := currentBlockSize(t, s)
 			require.LessOrEqual(t, math.Abs(run.estimate-float64(run.spans)), float64(blockSize),
 				"count estimate %v is more than one block (%d) away from %d spans", run.estimate, blockSize, run.spans)
 
@@ -157,16 +162,16 @@ func TestSeriesSamplerKeepsExactlyOnePerBlock(t *testing.T) {
 	// Warm up to a steady block size, then walk whole blocks and check each one
 	// yields a single span scaled by exactly that block's size.
 	start := time.Unix(1_700_000_000, 0).UnixMilli()
-	run := feedSampler(s, 1, start, 10_000, 2*time.Minute)
+	run := feedSampler(s, start, 10_000, 2*time.Minute)
 	nowMs := run.endMs
 
-	series := s.shards[1&samplerShardMsk].series[1]
+	series := s.shards[testSeriesKey&samplerShardMsk].series[testSeriesKey]
 	require.NotNil(t, series)
 	require.Greater(t, series.blockSize, uint64(1), "rate never pushed the block size above 1")
 
 	// Finish the block in flight so the walk starts on a boundary.
 	for series.pos != 0 {
-		s.sample(1, nowMs)
+		s.sample(testSeriesKey, nowMs)
 	}
 
 	for block := 0; block < 50; block++ {
@@ -174,7 +179,7 @@ func TestSeriesSamplerKeepsExactlyOnePerBlock(t *testing.T) {
 		keptInBlock := 0
 		multiplierSum := 0.0
 		for i := uint64(0); i < blockSize; i++ {
-			if multiplier := s.sample(1, nowMs); multiplier != 0 {
+			if multiplier := s.sample(testSeriesKey, nowMs); multiplier != 0 {
 				keptInBlock++
 				multiplierSum += multiplier
 			}
@@ -190,7 +195,7 @@ func TestSeriesSamplerPickIsUniformWithinBlock(t *testing.T) {
 	// spread across the block.
 	s := newTestSampler(1_500, 11, nil)
 
-	run := feedSampler(s, 1, time.Unix(1_700_000_000, 0).UnixMilli(), 5_000, 10*time.Minute)
+	run := feedSampler(s, time.Unix(1_700_000_000, 0).UnixMilli(), 5_000, 10*time.Minute)
 	require.Greater(t, run.steadyBlockSize, uint64(4), "block too small to say anything about the spread")
 
 	total := 0
@@ -209,16 +214,16 @@ func TestSeriesSamplerPickIsUniformWithinBlock(t *testing.T) {
 func TestSeriesSamplerAdaptsWhenRateDrops(t *testing.T) {
 	s := newTestSampler(1_500, 5, nil)
 
-	run := feedSampler(s, 1, time.Unix(1_700_000_000, 0).UnixMilli(), 10_000, time.Minute)
-	require.Greater(t, currentBlockSize(t, s, 1), uint64(1))
+	run := feedSampler(s, time.Unix(1_700_000_000, 0).UnixMilli(), 10_000, time.Minute)
+	require.Greater(t, currentBlockSize(t, s), uint64(1))
 
 	// The series goes quiet, then comes back well under budget. A couple of
 	// windows of low-rate traffic bring the block size back to 1.
 	quietMs := run.endMs + 10*testSendInterval.Milliseconds()
-	back := feedSampler(s, 1, quietMs, 10, 30*time.Second)
+	back := feedSampler(s, quietMs, 10, 30*time.Second)
 
-	require.Equal(t, uint64(1), currentBlockSize(t, s, 1))
-	require.Equal(t, 1.0, s.sample(1, back.endMs+100))
+	require.Equal(t, uint64(1), currentBlockSize(t, s))
+	require.Equal(t, 1.0, s.sample(testSeriesKey, back.endMs+100))
 }
 
 func TestSeriesSamplerRecoversFromABurst(t *testing.T) {
@@ -229,17 +234,17 @@ func TestSeriesSamplerRecoversFromABurst(t *testing.T) {
 	// counter reset. The shrinking size has to take effect at the window roll.
 	s := newTestSampler(1_500, 23, nil)
 
-	burst := feedSampler(s, 1, time.Unix(1_700_000_000, 0).UnixMilli(), 200_000, testSendInterval)
-	require.Greater(t, currentBlockSize(t, s, 1), uint64(100), "the burst should have grown the block")
+	burst := feedSampler(s, time.Unix(1_700_000_000, 0).UnixMilli(), 200_000, testSendInterval)
+	require.Greater(t, currentBlockSize(t, s), uint64(100), "the burst should have grown the block")
 
 	// The series settles to a trickle far below one block per window. One window
 	// has to pass before the estimate knows the rate fell -- that much is
 	// inherent -- but from then on the trickle must be kept in full. Without
 	// the shrink taking effect at the roll it would instead take blockSize
 	// spans, here thousands of windows, to keep even one.
-	trickle := feedSampler(s, 1, burst.endMs, 1, 5*testSendInterval)
+	trickle := feedSampler(s, burst.endMs, 1, 5*testSendInterval)
 
-	require.Equal(t, uint64(1), currentBlockSize(t, s, 1), "a trickle should not stay sampled")
+	require.Equal(t, uint64(1), currentBlockSize(t, s), "a trickle should not stay sampled")
 	require.Greater(t, trickle.kept, trickle.spans/2,
 		"kept only %d of %d trickle spans, so the oversized block never shrank", trickle.kept, trickle.spans)
 }
@@ -264,7 +269,7 @@ func TestSeriesSamplerConcurrentPushes(t *testing.T) {
 		go func(g int) {
 			defer wg.Done()
 			for i := 0; i < perGoroutine; i++ {
-				estimates[g] += s.sample(1, nowMs)
+				estimates[g] += s.sample(testSeriesKey, nowMs)
 			}
 		}(g)
 	}
@@ -275,7 +280,7 @@ func TestSeriesSamplerConcurrentPushes(t *testing.T) {
 		estimate += e
 	}
 	spans := float64(goroutines * perGoroutine)
-	require.InDelta(t, spans, estimate, float64(currentBlockSize(t, s, 1)),
+	require.InDelta(t, spans, estimate, float64(currentBlockSize(t, s)),
 		"estimate %v is more than one block away from %v spans", estimate, spans)
 
 	seen, _ := s.counts()
@@ -292,7 +297,7 @@ func TestSeriesSamplerBurstGuard(t *testing.T) {
 	nowMs := time.Unix(1_700_000_000, 0).UnixMilli()
 	estimate := 0.0
 	for i := 0; i < spans; i++ {
-		estimate += s.sample(1, nowMs)
+		estimate += s.sample(testSeriesKey, nowMs)
 	}
 
 	budget := uint64(150)
@@ -304,17 +309,17 @@ func TestSeriesSamplerBurstGuard(t *testing.T) {
 	require.Less(t, float64(kept), 2*wantKept, "burst guard let %d of %d spans through", kept, spans)
 
 	// The block, and so the count error, stayed bounded by spans/budget.
-	blockSize := currentBlockSize(t, s, 1)
+	blockSize := currentBlockSize(t, s)
 	require.LessOrEqual(t, blockSize, uint64(spans)/budget)
 	require.LessOrEqual(t, math.Abs(estimate-float64(spans)), float64(blockSize))
 }
 
-func currentBlockSize(t *testing.T, s *seriesSampler, key uint64) uint64 {
+func currentBlockSize(t *testing.T, s *seriesSampler) uint64 {
 	t.Helper()
-	sh := &s.shards[key&samplerShardMsk]
+	sh := &s.shards[testSeriesKey&samplerShardMsk]
 	sh.mtx.Lock()
 	defer sh.mtx.Unlock()
-	series := sh.series[key]
+	series := sh.series[testSeriesKey]
 	require.NotNil(t, series)
 	return series.blockSize
 }
@@ -337,7 +342,7 @@ func TestSeriesSamplerSplitsBudgetAcrossReplicas(t *testing.T) {
 	fleetEstimate := 0.0
 	for replica := 0; replica < replicas; replica++ {
 		s := newTestSampler(budgetPerInterval, uint64(replica)+1, func() float64 { return 1.0 / replicas })
-		run := feedSampler(s, 1, time.Unix(1_700_000_000, 0).UnixMilli(), fleetSpansPerSec/replicas, duration)
+		run := feedSampler(s, time.Unix(1_700_000_000, 0).UnixMilli(), fleetSpansPerSec/replicas, duration)
 		fleetKept += float64(run.kept)
 		fleetEstimate += run.estimate
 	}
@@ -361,9 +366,9 @@ func TestSeriesSamplerIgnoresUnusableShare(t *testing.T) {
 	// under-sampling costs CPU, over-sampling would quietly cost accuracy.
 	for _, share := range []float64{0, -1, 1.5, math.NaN()} {
 		s := newTestSampler(1_500, 3, func() float64 { return share })
-		s.shards[1&samplerShardMsk].mtx.Lock()
-		budget := s.shards[1&samplerShardMsk].budgetFor(s, 0)
-		s.shards[1&samplerShardMsk].mtx.Unlock()
+		s.shards[testSeriesKey&samplerShardMsk].mtx.Lock()
+		budget := s.shards[testSeriesKey&samplerShardMsk].budgetFor(s, 0)
+		s.shards[testSeriesKey&samplerShardMsk].mtx.Unlock()
 		require.Equal(t, uint64(1_500), budget, "share %v", share)
 	}
 }

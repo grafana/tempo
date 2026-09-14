@@ -104,7 +104,7 @@ func poissonInterval(lambda, coverage float64) (lo, hi float64) {
 	// log pmf computed recursively: logpmf(k) = logpmf(k-1) + log(lambda) - log(k)
 	logPmf := -lambda
 	cdf := math.Exp(logPmf)
-	lo, hi = -1, -1
+	lo = -1
 	if cdf > tail {
 		lo = 0
 	}
@@ -771,7 +771,7 @@ func compareSchemes(bounds []float64, dist lognormalLatency, spans, blockSize, t
 	}
 
 	r := rand.New(rand.NewPCG(seed, seed+1))
-	kept := int(spans / blockSize)
+	kept := spans / blockSize
 	scale := float64(blockSize)
 	stratified := make([]float64, nb)
 	independent := make([]float64, nb)
