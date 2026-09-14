@@ -487,6 +487,40 @@ Example:
 tempo-cli view schema -c ./tempo.yaml single-tenant ca314fba-efec-4852-ba3f-8d2b0bbf69f1
 ```
 
+## Benchmark profile
+
+Profile a local block for read-path benchmarking. Writes a JSON file recording
+what had to be measured from the block — its metadata, its row-group count, and
+present and absent trace IDs to look up — so that a benchmark run does not have
+to inspect the block, and every variant of an experiment works from the same
+measurements.
+
+```bash
+tempo-cli benchmark profile <block-path>
+```
+
+Arguments:
+
+- `block-path` Path to the block directory on local disk, laid out as
+  `<bucket>/<tenant-id>/<block-id>`.
+
+Options:
+
+- `--trace-ids` Number of present trace IDs to sample, or `all` to enumerate
+  every ID at run time rather than embedding them. Defaults to `10000`. One
+  absent ID is derived per present ID. Pass `0` to skip trace IDs, and with them
+  the full scan they require.
+- `-o`, `--out` File to write the profile to. Defaults to stdout.
+
+Profiles built from a customer block embed real trace IDs. Treat them as local
+artifacts.
+
+Example:
+
+```bash
+tempo-cli benchmark profile /data/traces/single-tenant/ca314fba-efec-4852-ba3f-8d2b0bbf69f1 --trace-ids=10000 -o profile.json
+```
+
 ## Query search command
 
 Search blocks in a given time range for a specific key/value pair.
