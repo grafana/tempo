@@ -387,6 +387,9 @@ query_frontend:
         max_regex_conditions: 1
     mcp_server:
         enabled: false
+    redaction:
+        enabled: false
+        backend_scheduler_address: ""
     max_grpc_streaming_packet_size: 1048576
     max_query_expression_size_bytes: 131072
     query_end_cutoff: 30s
