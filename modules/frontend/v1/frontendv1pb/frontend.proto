@@ -13,8 +13,8 @@ option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 
 service Frontend {
-  // After calling this method, client enters a loop, in which it waits for
-  // a "FrontendToClient" message and replies with single "ClientToFrontend" message.
+  // Legacy clients exchange one request batch for one response batch.
+  // SLOT_SCHEDULING clients exchange independent assignment and completion frames.
   rpc Process(stream ClientToFrontend) returns (stream FrontendToClient) {};
 
   // The client notifies the query-frontend that it started a graceful shutdown.
@@ -25,11 +25,13 @@ enum Type {
   HTTP_REQUEST = 0;
   GET_ID = 1;
   HTTP_REQUEST_BATCH = 2;
+  JOB_FRAME = 3;
 }
 
 enum Feature {
   NONE = 0;
   REQUEST_BATCHING = 1;
+  SLOT_SCHEDULING = 2;
 }
 
 message FrontendToClient {
@@ -37,6 +39,8 @@ message FrontendToClient {
   Type type = 2;
   // bool statsEnabled = 3; - removed in 2.2. reserved until we can cleanly reclaim it
   repeated httpgrpc.HTTPRequest httpRequestBatch = 4;
+  repeated Job jobs = 5;
+  repeated uint64 cancelJobIDs = 6;
 }
 
 message ClientToFrontend {
@@ -45,6 +49,19 @@ message ClientToFrontend {
   // stats.Stats stats = 3; - removed in 2.2. reserved until we can cleanly reclaim it
   repeated httpgrpc.HTTPResponse httpResponseBatch = 4;
   int32 features = 5; // used by the querier to indicate to the fronted that it supports
+  repeated JobResult results = 6;
+  uint32 slots = 7; // Capacity allocated to this stream, sent in the GET_ID response.
+}
+
+message Job {
+  uint64 jobID = 1;
+  httpgrpc.HTTPRequest request = 2;
+}
+
+message JobResult {
+  uint64 jobID = 1;
+  httpgrpc.HTTPResponse response = 2;
+  bool cancelled = 3;
 }
 
 message NotifyClientShutdownRequest {
