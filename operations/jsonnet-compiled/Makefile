@@ -14,7 +14,7 @@ gen: jb gen-examples
 gen-examples: gen-example/microservices gen-example/microservices-with-extras
 
 gen-example/%:
-	jb update
+	jb install
 	tk export out-$*/ $* --format "{{.kind}}-{{or .metadata.name .metadata.generateName}}"
 	rm -rf $*/gen
 	mkdir -p $*/gen
