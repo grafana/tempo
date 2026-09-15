@@ -25,6 +25,7 @@ type Config struct {
 	ResponseConsumers         int                    `yaml:"response_consumers"`
 	Weights                   pipeline.WeightsConfig `yaml:"weights"`
 	MCPServer                 MCPServerConfig        `yaml:"mcp_server"`
+	Redaction                 RedactionConfig        `yaml:"redaction"`
 
 	// the maximum time limit that tempo will work on an api request. this includes both
 	// grpc and http requests and applies to all "api" frontend query endpoints such as
@@ -60,6 +61,11 @@ type Config struct {
 
 type MCPServerConfig struct {
 	Enabled bool `yaml:"enabled"`
+}
+
+type RedactionConfig struct {
+	Enabled                 bool   `yaml:"enabled"`
+	BackendSchedulerAddress string `yaml:"backend_scheduler_address"`
 }
 
 type SearchConfig struct {
@@ -158,6 +164,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	// enabling an mcp server opens the door to send tracing data to an LLM. it should require
 	// explicit enabling. registers a flag in addition to YAML configuration.
 	f.BoolVar(&cfg.MCPServer.Enabled, util.PrefixConfig(prefix, "mcp-server.enabled"), false, "Set to true to enable the MCP server")
+	f.BoolVar(&cfg.Redaction.Enabled, util.PrefixConfig(prefix, "redaction.enabled"), false, "Enable the private redaction HTTP facade.")
+	f.StringVar(&cfg.Redaction.BackendSchedulerAddress, util.PrefixConfig(prefix, "redaction.backend-scheduler-address"), "", "Backend scheduler gRPC address used by the private redaction HTTP facade.")
 }
 
 type CortexNoQuerierLimits struct{}
