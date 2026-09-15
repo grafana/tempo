@@ -113,6 +113,37 @@ func (b *batchStore) setQuiesceUntil(tenantID string, untilUnixNano int64) {
 	}
 }
 
+// RedactionVerifyState is a locked snapshot of the batch fields the verification pass needs.
+// ListBatches hands out live pointers, so these cannot be read off a batch directly once
+// verify_rounds is mutable.
+type RedactionVerifyState struct {
+	BatchID           string
+	CreatedAtUnixNano int64
+	StartTimeUnixNano int64
+	EndTimeUnixNano   int64
+	// HasTraceIDs distinguishes the explicit-ID selector from the query selector. The ID path
+	// applies no time bound, so its verification scan must run unwindowed -- RedactBlock refuses
+	// an ID list combined with a window.
+	HasTraceIDs bool
+}
+
+// verifyState reads the verification-relevant fields under the lock.
+func (b *batchStore) verifyState(tenantID string) (RedactionVerifyState, bool) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	batch, exists := b.byTenant[tenantID]
+	if !exists {
+		return RedactionVerifyState{}, false
+	}
+	return RedactionVerifyState{
+		BatchID:           batch.BatchId,
+		CreatedAtUnixNano: batch.CreatedAtUnixNano,
+		StartTimeUnixNano: batch.StartTimeUnixNano,
+		EndTimeUnixNano:   batch.EndTimeUnixNano,
+		HasTraceIDs:       len(batch.TraceIds) > 0,
+	}, true
+}
+
 // quiescenceState reads a tenant's quiescence-relevant fields under the lock, returning a
 // snapshot so callers never touch the live batch pointer's mutable fields unsynchronized.
 func (b *batchStore) quiescenceState(tenantID string) (quiesceUntilUnixNano int64, rescanPending, dryRun, ok bool) {
@@ -192,4 +223,9 @@ func (w *Work) SetBatchQuiesceUntil(tenantID string, untilUnixNano int64) {
 // rescan is pending, and whether the batch is a dry-run; ok is false when no batch exists.
 func (w *Work) BatchQuiescenceState(tenantID string) (quiesceUntilUnixNano int64, rescanPending, dryRun, ok bool) {
 	return w.batches.quiescenceState(tenantID)
+}
+
+// RedactionVerifyState returns a locked snapshot of the tenant batch's verification state.
+func (w *Work) RedactionVerifyState(tenantID string) (RedactionVerifyState, bool) {
+	return w.batches.verifyState(tenantID)
 }

@@ -867,15 +867,37 @@ func TestCleanupOrphanedBatchesAfterDeadJobTimeout(t *testing.T) {
 	require.NotNil(t, s.work.GetBatch(testTenant),
 		"batch must still exist after prune alone (orphaned batch bug)")
 
-	// cleanupOrphanedBatches sweeps all batches on every maintenance tick. A done batch
-	// first enters quiescence (held so compaction stays blocked while the rescan settles),
-	// then is removed once the quiesce-until deadline passes -- so the first sweep does not
-	// remove it.
+	// cleanupOrphanedBatches sweeps all batches on every maintenance tick. A batch whose jobs have
+	// drained is audited and enters quiescence on the same tick -- a batch that drained because its
+	// jobs timed out is exactly the case where completion is least trustworthy, so the audit runs here
+	// too, but it reports rather than deciding.
 	s.cleanupOrphanedBatches(ctx)
 	require.NotNil(t, s.work.GetBatch(testTenant),
-		"orphaned batch enters quiescence on the first sweep, not immediate removal")
+		"orphaned batch enters quiescence, not immediate removal")
 	require.True(t, s.work.TenantPending(testTenant),
-		"tenant stays blocked while the batch is quiescing")
+		"tenant stays blocked for the quiescence window")
+	require.True(t, s.work.HasJobsForTenant(testTenant, tempopb.JobType_JOB_TYPE_REDACTION),
+		"the audit enqueues scan jobs, so the batch has outstanding work again")
+
+	// Drain the audit's scans. They report nothing, and nothing about teardown depends on what they
+	// found -- the batch tears down on its quiescence deadline either way.
+	for {
+		j := s.work.NextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
+		if j == nil {
+			break
+		}
+		require.True(t, j.JobDetail.GetRedaction().GetVerify(),
+			"an audit must enqueue scan jobs, never rewrites")
+		j.SetWorkerID("verify-worker")
+		require.NoError(t, s.work.AddJob(j))
+		s.work.StartJob(j.ID)
+		s.work.CompleteJob(j.ID)
+	}
+
+	// Quiescence was already armed, so the next sweep makes no change and does not re-audit.
+	s.cleanupOrphanedBatches(ctx)
+	require.NotNil(t, s.work.GetBatch(testTenant),
+		"the batch waits out its quiescence window rather than being removed early")
 
 	// Once the deadline passes, the next sweep removes the batch.
 	s.work.SetBatchQuiesceUntil(testTenant, time.Now().Add(-time.Second).UnixNano())

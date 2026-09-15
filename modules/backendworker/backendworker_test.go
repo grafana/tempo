@@ -271,7 +271,7 @@ func TestProcessRedactionJobMissingBlockObservable(t *testing.T) {
 			Redaction: &tempopb.RedactionDetail{BlockId: uuid.New().String()},
 		},
 	})
-	require.NoError(t, err, "a missing block must complete as a non-fatal no-op")
+	require.Error(t, err, "a missing block fails the job rather than reporting a no-op success")
 	after := testutil.ToFloat64(metricRedactionBlockMissing.WithLabelValues(tenant))
 	require.Equal(t, before+1, after, "a missing redaction block must be counted, not silently dropped")
 }
@@ -321,6 +321,93 @@ func TestIsSharded(t *testing.T) {
 				},
 			}
 			assert.Equal(t, tc.expected, w.isSharded())
+		})
+	}
+}
+
+// TestEffectiveRedactionMode pins the one property that makes verification safe: a verification job
+// never rewrites, even though it belongs to an apply-mode batch and therefore arrives carrying
+// APPLY. Next() overwrites the job's mode from the batch on every dispatch, so the verify flag --
+// which Next() does not touch -- is the only thing distinguishing the two at the worker.
+func TestEffectiveRedactionMode(t *testing.T) {
+	apply := tempopb.RedactionMode_REDACTION_MODE_APPLY
+	dryRun := tempopb.RedactionMode_REDACTION_MODE_DRY_RUN
+
+	for _, tc := range []struct {
+		name   string
+		detail *tempopb.RedactionDetail
+		want   tempopb.RedactionMode
+	}{
+		{name: "nil detail falls through to the zero mode, which is APPLY", detail: nil, want: apply},
+		{name: "apply without verify rewrites", detail: &tempopb.RedactionDetail{Mode: apply}, want: apply},
+		{name: "dry-run without verify", detail: &tempopb.RedactionDetail{Mode: dryRun}, want: dryRun},
+		{
+			name:   "verify overrides the batch's APPLY -- the case that would delete data",
+			detail: &tempopb.RedactionDetail{Mode: apply, Verify: true},
+			want:   dryRun,
+		},
+		{name: "verify with dry-run stays dry-run", detail: &tempopb.RedactionDetail{Mode: dryRun, Verify: true}, want: dryRun},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, effectiveRedactionMode(tc.detail))
+		})
+	}
+}
+
+// TestProcessRedactionJobMissingBlockFails separates "not checked" from "no matches", for a rewrite
+// as much as for a scan.
+//
+// The scheduler and each worker poll the block list independently, so the target can be absent here
+// while still live in the scheduler's list. A no-op success reports zero matches, which the scheduler
+// counts as coverage for a rewrite and reads as a clean scan for a verification job -- either way
+// nothing revisits the block. Failing is safe in both readings: a failed job is not coverage, so a
+// later pass re-derives the block if the scheduler still lists it, and if it really is gone the
+// scheduler's own poll drops it as a candidate.
+func TestProcessRedactionJobMissingBlockFails(t *testing.T) {
+	limitCfg := overrides.Config{}
+	limitCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	workerCfg, schedulerClientCfg, overridesSvc, _, store := setupDependencies(ctx, t, limitCfg)
+
+	for _, tc := range []struct {
+		name   string
+		verify bool
+	}{
+		{name: "verification scan", verify: true},
+		{name: "rewrite", verify: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w, err := New(workerCfg, schedulerClientCfg, store, overridesSvc, prometheus.NewRegistry())
+			require.NoError(t, err)
+
+			var got []*tempopb.UpdateJobStatusRequest
+			w.backendScheduler = &mockScheduler{
+				updateJob: func(_ context.Context, in *tempopb.UpdateJobStatusRequest, _ ...grpc.CallOption) (*tempopb.UpdateJobStatusResponse, error) {
+					got = append(got, in)
+					return &tempopb.UpdateJobStatusResponse{}, nil
+				},
+			}
+
+			err = w.processRedactionJob(ctx, &tempopb.NextJobResponse{
+				JobId: "job-missing-block",
+				Detail: tempopb.JobDetail{
+					Tenant: tenant,
+					Redaction: &tempopb.RedactionDetail{
+						BlockId: uuid.New().String(),
+						Verify:  tc.verify,
+					},
+				},
+			})
+			// failJob reports FAILED to the scheduler and also returns the error to the worker loop.
+			require.Error(t, err)
+
+			require.NotEmpty(t, got, "the scheduler must be told what happened")
+			last := got[len(got)-1]
+			require.Equal(t, tempopb.JobStatus_JOB_STATUS_FAILED, last.Status)
+			require.Zero(t, last.GetRedaction().GetTracesFound(),
+				"a failure must not carry a match count that would read as a clean result")
 		})
 	}
 }

@@ -381,14 +381,17 @@ func (w *BackendWorker) processRedactionJob(ctx context.Context, resp *tempopb.N
 		}
 	}
 	if meta == nil {
-		// Block absent from the live blocklist (e.g. compacted or retained away).
-		// Completing as a no-op is correct only because the scheduler re-targets a
-		// moved trace via the batch's coverage logic; surface it so a genuine
-		// coverage gap is visible rather than a silent "successful" redaction.
+		// Fail rather than completing as a no-op, for a rewrite as much as for a scan. A success here
+		// reports zero matches, and the scheduler counts that as coverage -- so nothing revisits the
+		// block. Scheduler and worker poll independently, so it may still be live in the scheduler's
+		// list with matching data in it.
+		//
+		// Failing is safe in both readings. A failed job is not coverage, so the next verification
+		// pass re-derives this block if the scheduler still lists it; and if the block really has been
+		// compacted or retained away, the scheduler's own poll drops it and it stops being a
+		// candidate. metricRedactionBlockMissing separates this from other failures.
 		metricRedactionBlockMissing.WithLabelValues(tenantID).Inc()
-		level.Warn(log.Logger).Log("msg", "redaction block not found in live blocklist, completing as no-op",
-			"job_id", resp.JobId, "block_id", blockIDStr, "tenant", tenantID)
-		return w.completeRedactionJob(ctx, resp.JobId, 0)
+		return w.failJob(ctx, resp.JobId, fmt.Sprintf("redaction target block %s not in live blocklist", blockIDStr))
 	}
 
 	traceIDs := make([]common.ID, 0, len(resp.Detail.Redaction.TraceIds))
@@ -399,7 +402,8 @@ func (w *BackendWorker) processRedactionJob(ctx context.Context, resp *tempopb.N
 	}
 
 	query := resp.Detail.Redaction.GetQuery().GetQuery() // nil-safe: "" when no query selector
-	mode := resp.Detail.Redaction.GetMode()
+	verify := resp.Detail.Redaction.GetVerify()
+	mode := effectiveRedactionMode(resp.Detail.Redaction)
 	window := tempodb.RedactionWindow{
 		StartNano: resp.Detail.Redaction.GetStartTimeUnixNano(),
 		EndNano:   resp.Detail.Redaction.GetEndTimeUnixNano(),
@@ -407,7 +411,7 @@ func (w *BackendWorker) processRedactionJob(ctx context.Context, resp *tempopb.N
 
 	// Log only whether a query selector is present, not the query text: for a
 	// privacy-motivated feature the query can embed sensitive attribute values.
-	level.Debug(log.Logger).Log("msg", "processing redaction job", "job_id", resp.JobId, "block_id", blockIDStr, "trace_ids_count", len(traceIDs), "has_query", query != "", "mode", mode.String())
+	level.Debug(log.Logger).Log("msg", "processing redaction job", "job_id", resp.JobId, "block_id", blockIDStr, "trace_ids_count", len(traceIDs), "has_query", query != "", "mode", mode.String(), "verify", verify)
 
 	_, tracesFound, _, err := w.store.RedactBlock(ctx, meta, tenantID, traceIDs, query, mode, window)
 	if err != nil {
@@ -416,6 +420,20 @@ func (w *BackendWorker) processRedactionJob(ctx context.Context, resp *tempopb.N
 
 	level.Debug(log.Logger).Log("msg", "redaction block processed", "job_id", resp.JobId, "block_id", blockIDStr, "rewrote", tracesFound > 0, "traces_found", tracesFound)
 	return w.completeRedactionJob(ctx, resp.JobId, tracesFound)
+}
+
+// effectiveRedactionMode resolves the mode a redaction job actually runs under.
+//
+// A verification job scans and reports its match count and must never rewrite, so it resolves to
+// dry-run whatever mode it arrived with. The scheduler already sends DRY_RUN for these jobs; this is
+// the second half of a deliberate pair on an irreversible operation -- the scheduler's half protects
+// a worker that predates the verify field, and this half protects against a scheduler that sends the
+// batch's mode by mistake. It also keeps the rewrite layer in tempodb unaware verification exists.
+func effectiveRedactionMode(detail *tempopb.RedactionDetail) tempopb.RedactionMode {
+	if detail.GetVerify() {
+		return tempopb.RedactionMode_REDACTION_MODE_DRY_RUN
+	}
+	return detail.GetMode()
 }
 
 func (w *BackendWorker) completeRedactionJob(ctx context.Context, jobID string, tracesFound int) error {

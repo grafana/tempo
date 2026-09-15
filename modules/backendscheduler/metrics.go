@@ -30,6 +30,16 @@ var (
 		Name:      "backend_scheduler_jobs_active",
 		Help:      "Number of currently active jobs",
 	}, []string{"tenant", "job_type"})
+	metricRedactionVerifyFound = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "backend_scheduler_redaction_verify_traces_found_total",
+		Help:      "Traces matching the redaction's selector found by a post-redaction audit scan; non-zero means the redaction was incomplete.",
+	}, []string{"tenant"})
+	metricRedactionVerifyGaps = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "backend_scheduler_redaction_verify_gaps_total",
+		Help:      "Blocks the post-redaction audit found still holding matching traces; re-submit the redaction over the same window.",
+	}, []string{"tenant"})
 	// Queue depth. Distinct from jobs_active, which counts work already handed to a worker and is
 	// therefore bounded by the worker count — only depth can indicate that more capacity is needed.
 	metricJobsPending = promauto.NewGaugeVec(prometheus.GaugeOpts{
@@ -99,6 +109,18 @@ func recordRedactionResult(tenant string, mode tempopb.RedactionMode, found int3
 		return
 	}
 	metricRedactionTracesFound.WithLabelValues(tenant, redactionModeLabel(mode)).Add(float64(found))
+}
+
+// recordRedactionVerifyResult records what a verification scan found. Kept separate from
+// recordRedactionResult so verification never contributes to the apply or dry-run traces-found
+// counters: those are the record of what a redaction removed, and a verify job removes nothing.
+// A clean pass finds zero and is deliberately not counted as a series -- the signal worth alerting
+// on is a non-zero find, which means a block survived a redaction that reported complete.
+func recordRedactionVerifyResult(tenant string, tracesFound int32) {
+	if tracesFound <= 0 {
+		return
+	}
+	metricRedactionVerifyFound.WithLabelValues(tenant).Add(float64(tracesFound))
 }
 
 // redactionModeLabel is a short, stable metric label for a redaction mode.

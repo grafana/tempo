@@ -79,6 +79,14 @@ message RedactionDetail {
   // scan. 0 means unbounded on that side.
   int64 start_time_unix_nano = 5;
   int64 end_time_unix_nano = 6;
+  // verify marks a job created by the post-completion verification pass: scan the block and report
+  // the match count, never rewrite it.
+  //
+  // It is a job-level field rather than a mode value because `mode` is batch-derived: the scheduler
+  // injects the batch's mode onto every job it dispatches, so an apply-mode batch cannot express a
+  // job that only scans. This field is what the scheduler consults to send DRY_RUN instead, and what
+  // the worker consults to scan even if it received something else.
+  bool verify = 7;
 }
 
 // JobDetail contains the specific details for each job type

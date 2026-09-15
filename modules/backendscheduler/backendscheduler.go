@@ -357,14 +357,38 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 						// dropped rather than promoted via AddJob, release that count or it leaks.
 						s.work.ReleaseRedactionInFlight(j.Tenant())
 						drop = true
+					} else if j.JobDetail.GetBatchId() != batch.BatchId {
+						// Fail closed on identity, not just existence. A batch can be torn down and
+						// another take the tenant's slot while this job sits in the pending queue, and
+						// the injection below would then hand this block the new batch's selector, mode
+						// and window -- an irreversible rewrite under a scope its operator never asked
+						// for. Every production path stamps BatchId (submit, rescan, verification,
+						// repair), so an unset one is also a mismatch rather than a job to trust.
+						level.Warn(log.Logger).Log("msg", "dropping redaction job: batch identity does not match the tenant's current batch",
+							"job_id", j.ID, "tenant", j.Tenant(),
+							"job_batch_id", j.JobDetail.GetBatchId(), "current_batch_id", batch.BatchId)
+						metricJobsDropped.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
+						s.work.ReleaseRedactionInFlight(j.Tenant())
+						drop = true
 					} else if j.JobDetail.Redaction != nil {
 						// Inject the batch's selector (trace IDs or query) and mode so the
 						// worker can resolve and act on the block without re-reading the batch.
 						j.JobDetail.Redaction.TraceIds = batch.TraceIds
 						j.JobDetail.Redaction.Query = batch.Query
-						j.JobDetail.Redaction.Mode = batch.Mode
-						j.JobDetail.Redaction.StartTimeUnixNano = batch.StartTimeUnixNano
-						j.JobDetail.Redaction.EndTimeUnixNano = batch.EndTimeUnixNano
+						// A verification job keeps its dry-run intent. Injecting the batch's APPLY
+						// here is what a worker that predates the verify field would act on, turning
+						// a scan into a rewrite of every block in the pass.
+						if !j.JobDetail.Redaction.Verify {
+							j.JobDetail.Redaction.Mode = batch.Mode
+						} else {
+							j.JobDetail.Redaction.Mode = tempopb.RedactionMode_REDACTION_MODE_DRY_RUN
+						}
+						// A job carrying its own window keeps it: verification derives a narrower
+						// window than the batch's, and overwriting it would unbound the scan.
+						if j.JobDetail.Redaction.StartTimeUnixNano == 0 && j.JobDetail.Redaction.EndTimeUnixNano == 0 {
+							j.JobDetail.Redaction.StartTimeUnixNano = batch.StartTimeUnixNano
+							j.JobDetail.Redaction.EndTimeUnixNano = batch.EndTimeUnixNano
+						}
 					}
 				}
 				if drop {
@@ -436,7 +460,25 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 			}
 		case tempopb.JobType_JOB_TYPE_REDACTION:
 			if req.Redaction != nil {
-				recordRedactionResult(j.Tenant(), j.JobDetail.GetRedaction().GetMode(), req.Redaction.TracesFound)
+				if j.JobDetail.GetRedaction().GetVerify() {
+					// Reported separately from apply and dry-run: those counters are the record of what
+					// a redaction removed, and an audit scan removes nothing. Folding it in would
+					// inflate what the redaction claims to have deleted.
+					recordRedactionVerifyResult(j.Tenant(), req.Redaction.TracesFound)
+					if req.Redaction.TracesFound > 0 {
+						// Reported, not repaired. Queueing a rewrite from here needs the block claim to
+						// be atomic with the enqueue, which the current structures cannot express -- two
+						// producers can both pass a busy check and dispatch concurrent rewrites of one
+						// block. So the operator is told, and re-submitting is their call.
+						metricRedactionVerifyGaps.WithLabelValues(j.Tenant()).Inc()
+						level.Warn(log.Logger).Log("msg", "redaction audit found a block still holding matches; the redaction is incomplete -- re-submit over the same window",
+							"tenant", j.Tenant(), "batch_id", j.JobDetail.GetBatchId(),
+							"block_id", j.JobDetail.GetRedaction().GetBlockId(),
+							"traces_found", req.Redaction.TracesFound)
+					}
+				} else {
+					recordRedactionResult(j.Tenant(), j.JobDetail.GetRedaction().GetMode(), req.Redaction.TracesFound)
+				}
 				level.Info(log.Logger).Log("msg", "redaction job result",
 					"job_id", req.JobId,
 					"tenant", j.Tenant(),
@@ -704,7 +746,7 @@ func (s *BackendScheduler) cleanupOrphanedBatches(ctx context.Context) {
 	changed := false
 	for _, batch := range s.work.ListBatches() {
 		// batch.TenantId is immutable; advanceQuiescence reads the mutable fields under lock.
-		if s.advanceQuiescence(batch.TenantId) {
+		if s.advanceQuiescence(ctx, batch.TenantId) {
 			changed = true
 		}
 	}
@@ -756,6 +798,9 @@ func (s *BackendScheduler) cleanupBatchIfDone(ctx context.Context, tenantID stri
 		return
 	}
 	if quiesceUntil == 0 {
+		// Audit first, so the scans exist before the batch starts counting down; they are ordinary
+		// redaction jobs, so quiescence naturally waits for them via redactionBatchActive.
+		s.auditDrainedBatch(ctx, tenantID)
 		s.enterQuiescence(tenantID)
 		s.flushBatches(ctx)
 	}
@@ -774,7 +819,7 @@ func (s *BackendScheduler) enterQuiescence(tenantID string) {
 // quiescing batch is removed once its deadline passes. Between entry and the deadline it makes no
 // change (returns false), so the manifest is not rewritten on every tick. The caller flushes once
 // per tick if anything changed.
-func (s *BackendScheduler) advanceQuiescence(tenantID string) (changed bool) {
+func (s *BackendScheduler) advanceQuiescence(ctx context.Context, tenantID string) (changed bool) {
 	quiesceUntil, rescanPending, dryRun, ok := s.work.BatchQuiescenceState(tenantID)
 	if !ok {
 		return false
@@ -795,6 +840,10 @@ func (s *BackendScheduler) advanceQuiescence(tenantID string) (changed bool) {
 		return true
 	}
 	if quiesceUntil == 0 {
+		// Audit before quiescing, so a block the batch left uncovered is scanned while the batch is
+		// still around to report against. The scans do not gate teardown; quiescence waits for them
+		// only because they are redaction jobs and redactionBatchActive counts them.
+		s.auditDrainedBatch(ctx, tenantID)
 		s.enterQuiescence(tenantID)
 		return true
 	}
