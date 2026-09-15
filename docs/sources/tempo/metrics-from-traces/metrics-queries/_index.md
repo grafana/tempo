@@ -104,7 +104,7 @@ Example:
 
 ### Faster read path (experimental)
 
-{{< docs/experimental product="Tempo" >}}
+{{< docs/experimental product="Span-only fetch" >}}
 
 In vParquet5, you can use an experimental span-only fetch layer to significantly improve performance for most metrics queries. This optimized read path processes individual spans instead of full traces, reducing latency and memory usage.
 
