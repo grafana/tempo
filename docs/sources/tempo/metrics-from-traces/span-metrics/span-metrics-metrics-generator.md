@@ -6,12 +6,6 @@ title: Use the span metrics processor
 menuTitle: Use metrics-generator
 description: The span metrics processor generates metrics from ingested tracing data, including request, error, and duration (RED) metrics.
 weight: 200
-refs:
-  cardinality:
-    - pattern: /docs/tempo/
-      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/cardinality/
-    - pattern: /docs/enterprise-traces/
-      destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/metrics-generator/cardinality/
 ---
 
 # Use the metrics-generator to create metrics from spans
@@ -40,10 +34,10 @@ exemplars can be automatically added, providing additional value to these metric
 ## How to run
 
 To enable span metrics in Tempo or Grafana Enterprise Traces, enable the metrics generator and add an overrides section which enables the `span-metrics` processor.
-Refer to [the configuration details](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration#metrics-generator).
+Refer to [the configuration details](/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generator).
 
 In Tempo 3.0 microservices deployments, the metrics-generator consumes trace data from Kafka instead of receiving spans directly from the distributor. In single-binary deployments, the distributor still calls the metrics-generator's `PushSpans` method in-process.
-For architecture details, refer to the [Metrics-generator](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/) documentation.
+For architecture details, refer to the [Metrics-generator](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/) documentation.
 
 If you want to enable metrics-generator for your Grafana Cloud account, refer to the [Metrics-generator in Grafana Cloud](https://grafana.com/docs/grafana-cloud/send-data/traces/metrics-generator/) documentation.
 
@@ -76,7 +70,7 @@ This processor mirrored the implementation from the OpenTelemetry Collector of t
 The OTel `spanmetricsprocessor` has since been [deprecated](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/processor/spanmetricsprocessor/v0.95.0/processor/spanmetricsprocessor/README.md) and replaced with the [span metric connector](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/processor/spanmetricsprocessor/v0.95.0/connector/spanmetricsconnector/README.md).
 
 {{< admonition type="note" >}}
-To learn more about cardinality and how to perform a dry run of the metrics generator, refer to the [Cardinality documentation](ref:cardinality).
+To learn more about cardinality and how to perform a dry run of the metrics generator, refer to the [Cardinality documentation](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/cardinality/).
 {{< /admonition >}}
 
 ### Metrics
@@ -113,22 +107,62 @@ The `status_message`, `job`, and `instance` labels are optional and require addi
 
 You can control which intrinsic dimensions are included in your metrics. Disable any of the default intrinsic dimensions using the `intrinsic_dimensions` configuration. This is useful for reducing cardinality when certain labels are not needed.
 
+The available intrinsic dimensions are `service`, `span_name`, `span_kind`, `status_code`, and `status_message`.
+`span_name` is usually the largest cardinality driver, because it can take a distinct value for every operation, so it's the most common intrinsic dimension to disable when reducing active series.
+
 ```yaml
 metrics_generator:
   processor:
     span_metrics:
       intrinsic_dimensions:
         service: true
-        span_name: true
+        span_name: false # Disable the largest cardinality driver
         span_kind: false # Disable span_kind label
         status_code: true
         status_message: false # Disabled by default
 ```
 
+{{< admonition type="note" >}}
+Changing intrinsic dimensions changes the label set of the generated series.
+When the label set changes, the existing series become stale and new series start, which can cause a brief gap in metric generation before metrics resume normally.
+This is expected and usually lasts until the next collection interval.
+Apply these changes during a maintenance window if a short gap would affect alerting.
+{{< /admonition >}}
+
 ### Adding custom dimensions
 
-Additional user defined labels can be created using the [`dimensions` configuration option](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration#metrics-generator).
+Additional user defined labels can be created using the [`dimensions` configuration option](/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generator).
 When a configured dimension collides with one of the default labels (for example, `status_code`), the label for the respective dimension is prefixed with double underscore (for example, `__status_code`).
+
+{{< admonition type="warning" >}}
+A dimension can only surface an attribute that already exists on your spans.
+If you add an attribute as a dimension but the trace data doesn't contain that attribute, the generator produces no label and no error.
+The metric simply doesn't gain the label you expected.
+
+Before adding a dimension, confirm the attribute is present on your spans, for example by inspecting a trace in Grafana or querying it with TraceQL.
+Check both the exact attribute name and its scope, because `k8s.cluster.name` on a resource and a custom attribute on a span are different sources.
+{{< /admonition >}}
+
+Each new dimension multiplies the number of active series by the number of distinct values that attribute has.
+Adding a high-cardinality attribute, such as one that contains user IDs or full URLs, can cause a cardinality explosion that exceeds your active series limit and forces you to revert the change.
+Estimate the impact before you apply a dimension, and keep a record of your previous configuration so you can roll back.
+For how to estimate and control the increase, refer to [Cardinality](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/cardinality/) and [Max active series](/docs/tempo/<TEMPO_VERSION>/troubleshooting/metrics-generator/#max-active-series).
+
+The following attributes are commonly added as dimensions.
+Cardinality risk is a rough guide, because the actual number of values depends on your environment.
+
+| Attribute | Typical cardinality risk | Notes |
+| --------- | ------------------------ | ----- |
+| `http.method` | Low | A small, fixed set of values, such as `GET` and `POST`. |
+| `http.status_code` / `http.response.status_code` | Low | A bounded set of status codes. |
+| `deployment.environment` | Low | A handful of values, such as `prod` and `staging`. |
+| `cloud.region` | Low | Bounded by the regions you run in. |
+| `cloud.availability_zone` | Low to medium | Bounded, but multiplies with region. |
+| `k8s.cluster.name` | Low to medium | Bounded by the number of clusters. Often renamed with `dimension_mappings`. |
+| `k8s.namespace.name` | Medium | Grows with the number of namespaces. |
+| `code.function` / `code.function.name` | Medium to high | Grows with the number of instrumented functions. |
+| `http.route` | High | One value per route template. Safe only if routes are templated, not raw paths. |
+| Custom business attributes, such as `team` | Varies | Depends entirely on the number of distinct values. |
 
 Duplicate dimensions are allowed after Prometheus label name conversion. This supports environments where different instrumentation libraries use different attribute naming conventions. For example, you can configure both `deployment.environment` and `deployment_environment` in the `dimensions` list even though both convert to the same Prometheus label `deployment_environment`. When a collision occurs, the last configured value wins.
 
@@ -138,7 +172,7 @@ Duplicate dimension validation still applies to `dimension_mappings`. If a `dime
 
 ### Renaming dimensions with dimension_mappings
 
-Custom labeling of dimensions is also supported using the [`dimension_mappings` configuration option](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration#metrics-generator).
+Custom labeling of dimensions is also supported using the [`dimension_mappings` configuration option](/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generator).
 
 **Understanding dimensions vs dimension_mappings:**
 
@@ -178,7 +212,7 @@ With this configuration, if a span has the following attribute values:
 
 The resulting metric label is `service_instance="abc/def/ghi"`.
 
-An optional metric called `traces_target_info` using all resource level attributes as dimensions can be enabled in the [`enable_target_info` configuration option](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration#metrics-generator).
+An optional metric called `traces_target_info` using all resource level attributes as dimensions can be enabled in the [`enable_target_info` configuration option](/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generator).
 
 ### Excluding dimensions from target_info
 
@@ -193,6 +227,73 @@ metrics_generator:
         - "telemetry.sdk.version"
         - "process.runtime.version"
 ```
+
+### Configure histogram buckets
+
+The span-metrics processor records span duration in the `traces_spanmetrics_latency` histogram.
+The `histogram_buckets` option sets the bucket boundaries, in seconds.
+
+The default buckets are:
+
+```yaml
+metrics_generator:
+  processor:
+    span_metrics:
+      histogram_buckets: [0.002, 0.004, 0.008, 0.016, 0.032, 0.064, 0.128, 0.256, 0.512, 1.024, 2.048, 4.096, 8.192, 16.384]
+```
+
+The default range tops out at about 16 seconds.
+Any span longer than the highest bucket boundary still counts toward the total and the `+Inf` bucket, but its duration isn't distinguished beyond the top bucket.
+
+Each bucket adds one series per unique label combination, so the number of buckets directly affects cardinality.
+
+#### Extend the range for long-running operations
+
+If you have operations that run longer than the top bucket, such as asynchronous jobs that take minutes, the latency histogram can't distinguish their durations.
+Extend the range by moving the top boundaries higher.
+You can keep the same number of buckets, so you don't increase cardinality, by spacing the boundaries further apart.
+
+The following example keeps 14 buckets but extends the ceiling to 600 seconds (10 minutes):
+
+```yaml
+metrics_generator:
+  processor:
+    span_metrics:
+      histogram_buckets: [0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 450, 600]
+```
+
+#### Reduce the bucket count to lower cardinality
+
+To lower cardinality, use fewer, coarser buckets.
+Keep enough resolution around the latencies you alert on.
+
+```yaml
+metrics_generator:
+  processor:
+    span_metrics:
+      histogram_buckets: [0.1, 0.5, 1, 5, 10]
+```
+
+#### Use native histograms as an alternative
+
+Classic histograms create one series per bucket.
+Native histograms store the whole distribution in a single series, which greatly reduces active series while keeping high resolution.
+This is an effective alternative when histogram cardinality is your main cost driver.
+
+Enable native histograms in the `overrides` block:
+
+```yaml
+overrides:
+  defaults:
+    metrics_generator:
+      generate_native_histograms: native # options: classic, native, both
+```
+
+The receiving endpoint must be configured to ingest native histograms, and you must update histogram queries in your dashboards.
+For more information, refer to [Native histograms](https://grafana.com/docs/mimir/<MIMIR_VERSION>/visualize/native-histograms/) in the Grafana Mimir documentation.
+
+If you don't need the latency histogram at all, enable only the `span-metrics-count` and `span-metrics-size` subprocessors to avoid generating histogram series entirely.
+Refer to [Enabling specific metrics (subprocessors)](#enabling-specific-metrics-subprocessors).
 
 ### Handling sampled traces
 
@@ -251,8 +352,15 @@ If the tracestate is absent or invalid, the attribute-based approach is used as 
 
 ### Filtering
 
-In some cases, you may want to reduce the number of metrics produced by the `spanmetrics` processor.
-To do so you can configure any of the following processors, in any order or combination:
+By default, the span-metrics processor applies no filter policies and generates metrics for spans of every kind, including `SPAN_KIND_INTERNAL`.
+In some cases, you may want to reduce the number of metrics produced by the `spanmetrics` processor, for example to include only server spans or to drop noisy health-check spans.
+
+{{< admonition type="note" >}}
+The `filter_policies` option is also available for the service-graphs processor, using the same syntax.
+Configure it under `metrics_generator.processor.service_graphs.filter_policies`.
+{{< /admonition >}}
+
+To filter span metrics, you can configure any of the following processors, in any order or combination:
 
 - `include`: Defines a matching criteria that all spans must meet. If multiple include policies are defined, a span must match all of them to be included (logical AND).
 
@@ -381,6 +489,15 @@ Tempo validates filter policies when they're submitted through the [user-configu
 - Intrinsic values are valid: `kind` must be a recognized `SPAN_KIND_*` value, `status` must be a recognized `STATUS_CODE_*` value.
 
 If you're upgrading from Tempo 2.x, refer to [Stricter filter policy validation](/docs/tempo/<TEMPO_VERSION>/release-notes/v3-0/#stricter-filter-policy-validation) in the 3.0 release notes for details on how this affects existing configurations.
+
+## Server-side and client-side generation
+
+You can also generate span metrics client-side, with the [`otelcol.connector.spanmetrics`](span-metrics-alloy/) component in Grafana Alloy or the OpenTelemetry Collector.
+The recommended Alloy configuration sets `namespace = "traces.spanmetrics"`, so client-side metric names start with `traces_spanmetrics_`, the same prefix the generator uses.
+The suffixes still differ: Alloy emits `calls` and `duration`, while the generator emits `calls_total`, `latency`, and `size_total`.
+If both run for the same services, you get overlapping RED coverage that can double-count request rates and inflate active series.
+
+To decide which approach to use, how sampling affects coverage, and how to avoid double-counting, refer to [Choose where to generate metrics from traces](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/where-to-generate-metrics/).
 
 ## Example
 

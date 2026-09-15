@@ -12,9 +12,99 @@ aliases:
 If you're concerned with data quality issues in the metrics-generator, consider:
 
 - Reviewing your telemetry pipeline to determine the number of dropped spans. You are only looking for major issues here.
-- Reviewing the [service graph documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-generator/service_graphs/) to understand how they are built.
+- Reviewing the [service graph documentation](/docs/tempo/<TEMPO_VERSION>/metrics-generator/service_graphs/) to understand how they are built.
 
 If everything seems acceptable from these two perspectives, consider the following topics to help resolve general issues with all metrics and span metrics specifically.
+
+## Common configuration issues
+
+The following issues come from configuration rather than data quality.
+
+### No metrics or only partial metrics after enabling
+
+If you enabled the metrics-generator but no series are created, or the metrics cover only a fraction of your traffic, work through this checklist.
+The generator doesn't require any specific span kind or attribute to produce metrics, so a missing label is rarely the cause.
+
+1. **Confirm at least one processor is enabled.**
+   Processors are disabled by default.
+   Set `metrics_generator.processors` in the [overrides](/docs/tempo/<TEMPO_VERSION>/configuration/#overrides) block, for example `[span-metrics, service-graphs]`.
+1. **Confirm the generator is receiving spans.**
+   In a Tempo 3.0 microservices deployment, the generator consumes from Kafka.
+   Verify consumption using the metrics in [Kafka consumption](#kafka-consumption).
+1. **Check for discarded spans.**
+   Spans with end times older than `metrics_ingestion_time_range_slack` (default 30 seconds) are discarded.
+   Refer to [Discarded spans in the generator](#discarded-spans-in-the-generator).
+1. **Confirm remote-write is working.**
+   Check `prometheus_remote_storage_samples_failed_total` and refer to [Remote write failures](#remote-write-failures).
+1. **Confirm series are being produced at all.**
+   `tempo_metrics_generator_registry_active_series` should be greater than zero.
+   If it's zero, the generator isn't producing series, which points to processors or ingestion rather than remote-write.
+1. **Check your filter policies.**
+   An overly strict `include` policy can drop every span.
+   Refer to [Filter policies aren't matching spans](#filter-policies-arent-matching-spans).
+1. **Account for sampling.**
+   The generator only sees the spans that reach it.
+   If you sample traces upstream, for example with tail sampling in Grafana Alloy or the OpenTelemetry Collector, the generator produces metrics only for the sampled spans.
+   With 10% sampling, expect roughly 10% of the request rate.
+   To decide where to generate metrics relative to sampling, refer to [Choose where to generate metrics from traces](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/where-to-generate-metrics/).
+
+### Unexpected metric types are generated
+
+If you're getting metrics you didn't want, such as `traces_spanmetrics_latency` histograms when you only wanted `traces_spanmetrics_size_total`, the cause is usually processor selection.
+
+Enabling the `span-metrics` processor generates all three span metrics: counts, latency histograms, and sizes.
+To generate only specific metrics, enable the individual subprocessors instead of `span-metrics`:
+
+- `span-metrics-count` emits only `traces_spanmetrics_calls_total`.
+- `span-metrics-latency` emits only `traces_spanmetrics_latency`.
+- `span-metrics-size` emits only `traces_spanmetrics_size_total`.
+
+For example, to generate counts and sizes but no latency histogram:
+
+```yaml
+overrides:
+  defaults:
+    metrics_generator:
+      processors:
+        - span-metrics-count
+        - span-metrics-size
+```
+
+For more information, refer to [Enabling specific metrics (subprocessors)](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/span-metrics/span-metrics-metrics-generator/#enabling-specific-metrics-subprocessors).
+
+### Filter policies aren't matching spans
+
+If a filter policy doesn't include or exclude the spans you expect, check for these common mistakes:
+
+- **Missing attribute scope.**
+  Non-intrinsic attributes must be prefixed with their scope, such as `resource.service.name` or `span.http.route`.
+  A bare `service.name` doesn't match.
+  Intrinsic keys `name`, `status`, and `kind` are used without a scope.
+- **Wrong intrinsic value.**
+  `kind` values must be the full `SPAN_KIND_*` form, such as `SPAN_KIND_SERVER`.
+  `status` values must be the full `STATUS_CODE_*` form.
+- **Regex escaping.**
+  With `match_type: regex`, the value is a regular expression.
+  Escape literal dots, and remember that the pattern isn't implicitly anchored.
+- **Unexpected include logic.**
+  Multiple `include` policies are combined with logical AND, so a span must match all of them.
+  Use `include_any` for logical OR.
+
+To measure how many spans your filters drop, use the discarded-spans metric:
+
+```
+sum(rate(tempo_metrics_generator_spans_discarded_total{}[1m])) by (reason)
+```
+
+For the full filter policy syntax and worked examples, refer to [Filtering](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/span-metrics/span-metrics-metrics-generator/#filtering).
+
+### Data gaps after configuration changes
+
+Changing a processor's label set, for example by disabling an intrinsic dimension such as `span_name` or by adding or removing a dimension, retires the existing series and starts new ones.
+This can cause a brief gap in metric generation before metrics resume, usually until the next collection interval.
+
+This is expected behavior.
+If a short gap would affect alerting, apply label-set changes during a maintenance window.
 
 ## Kafka consumption
 
@@ -247,7 +337,7 @@ rate(tempo_metrics_generator_registry_spans_sanitized_total{}[5m])
 
 If this rate is zero after enabling, the DRAIN model hasn't found patterns yet. This is expected for workloads with already-consistent span naming. The model trains continuously and adapts as new span names arrive.
 
-For more details on configuration and usage, refer to [Reduce cardinality with span name sanitization](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/reduce-cardinality/).
+For more details on configuration and usage, refer to [Reduce cardinality with span name sanitization](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/reduce-cardinality/).
 
 ### Remote write failures
 
