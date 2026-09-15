@@ -246,6 +246,18 @@ func (w *BackendWorker) processJobs(ctx context.Context) error {
 		return nil
 	})
 	if err != nil {
+		if isNotFound(err) {
+			// The scheduler's Next() RPC returns codes.NotFound simply to
+			// signal that no work is currently queued (it long-polls for
+			// cfg.JobTimeout and then times out). This happens on every idle
+			// poll cycle and is expected, routine behavior -- unlike
+			// NotFound on a job-completion call, it does not mean anything
+			// is wrong, so it must not be logged as an error or otherwise
+			// treated like a failure. Return quietly so running() resets its
+			// backoff and polls again immediately.
+			return nil
+		}
+
 		return fmt.Errorf("failed processing jobs: %w", err)
 	}
 
@@ -314,12 +326,7 @@ func (w *BackendWorker) processCompactionJob(ctx context.Context, resp *tempopb.
 		return nil
 	})
 	if err != nil {
-		if isNotFound(err) {
-			level.Warn(log.Logger).Log("msg", "job no longer known to scheduler, dropping and resuming polling", "job_id", resp.JobId, "err", err)
-			return nil
-		}
-
-		return w.failJob(ctx, resp.JobId, fmt.Sprintf("error marking job as complete: %v", err))
+		return w.handleCompletionErr(ctx, resp.JobId, "job", err)
 	}
 
 	return nil
@@ -350,12 +357,7 @@ func (w *BackendWorker) processRetentionJob(ctx context.Context, resp *tempopb.N
 		return nil
 	})
 	if err != nil {
-		if isNotFound(err) {
-			level.Warn(log.Logger).Log("msg", "job no longer known to scheduler, dropping and resuming polling", "job_id", resp.JobId, "err", err)
-			return nil
-		}
-
-		return w.failJob(ctx, resp.JobId, fmt.Sprintf("error marking job as complete: %v", err))
+		return w.handleCompletionErr(ctx, resp.JobId, "job", err)
 	}
 
 	return nil
@@ -437,12 +439,7 @@ func (w *BackendWorker) completeRedactionJob(ctx context.Context, jobID string, 
 		return nil
 	})
 	if err != nil {
-		if isNotFound(err) {
-			level.Warn(log.Logger).Log("msg", "redaction job no longer known to scheduler, dropping and resuming polling", "job_id", jobID, "err", err)
-			return nil
-		}
-
-		return w.failJob(ctx, jobID, fmt.Sprintf("error marking job as complete: %v", err))
+		return w.handleCompletionErr(ctx, jobID, "redaction job", err)
 	}
 
 	return nil
@@ -456,6 +453,24 @@ func (w *BackendWorker) stopping(_ error) error {
 	level.Info(log.Logger).Log("msg", "backend worker stopped")
 
 	return nil
+}
+
+// handleCompletionErr handles the error returned by callSchedulerWithBackoff
+// when marking a job complete (UpdateJob with a SUCCEEDED status). If the
+// scheduler no longer knows about the job (codes.NotFound), the error is
+// terminal -- retrying can never succeed and calling failJob would just hit
+// the same NotFound -- so the job is dropped with a warning log and the
+// worker resumes polling. Any other error is a genuine failure and is
+// forwarded to failJob, which marks the job as failed and returns an error.
+// jobDesc distinguishes the job kind in the log message (e.g. "job" vs
+// "redaction job"); err must be non-nil.
+func (w *BackendWorker) handleCompletionErr(ctx context.Context, jobID string, jobDesc string, err error) error {
+	if isNotFound(err) {
+		level.Warn(log.Logger).Log("msg", jobDesc+" no longer known to scheduler, dropping and resuming polling", "job_id", jobID, "err", err)
+		return nil
+	}
+
+	return w.failJob(ctx, jobID, fmt.Sprintf("error marking job as complete: %v", err))
 }
 
 func (w *BackendWorker) failJob(ctx context.Context, jobID string, errMsg string) error {
