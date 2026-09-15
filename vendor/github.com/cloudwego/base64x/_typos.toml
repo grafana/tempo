@@ -2,3 +2,15 @@
 
 [files]
 extend-exclude = ["go.mod", "go.sum", "check_branch_name.sh"]
+
+[default.extend-words]
+asure = "asure"
+brillig = "brillig"
+easure = "easure"
+fo = "fo"
+leasure = "leasure"
+shll = "shll"
+slithy = "slithy"
+sur = "sur"
+toves = "toves"
+Twas = "Twas"

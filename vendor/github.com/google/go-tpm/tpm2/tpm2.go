@@ -229,7 +229,7 @@ type CreateResponse struct {
 	// the public portion of the created object
 	OutPublic TPM2BPublic
 	// contains a TPMS_CREATION_DATA
-	CreationData tpm2bCreationData
+	CreationData TPM2BCreationData
 	// digest of creationData using nameAlg of outPublic
 	CreationHash TPM2BDigest
 	// ticket used by TPM2_CertifyCreation() to validate that the
@@ -1632,7 +1632,7 @@ type CreatePrimaryResponse struct {
 	// the public portion of the created object
 	OutPublic TPM2BPublic
 	// contains a TPMS_CREATION_DATA
-	CreationData tpm2bCreationData
+	CreationData TPM2BCreationData
 	// digest of creationData using nameAlg of outPublic
 	CreationHash TPM2BDigest
 	// ticket used by TPM2_CertifyCreation() to validate that the
