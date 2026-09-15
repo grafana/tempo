@@ -240,10 +240,8 @@ func (w *BackendWorker) processJobs(ctx context.Context) error {
 			WorkerId: w.workerID,
 		})
 		if funcErr != nil {
-			if errStatus, ok := status.FromError(funcErr); ok {
-				if errStatus.Code() == codes.NotFound {
-					return errStatus.Err()
-				}
+			if isNotFound(funcErr) {
+				return funcErr
 			}
 
 			return fmt.Errorf("error getting next job: %w", funcErr)
@@ -314,12 +312,21 @@ func (w *BackendWorker) processCompactionJob(ctx context.Context, resp *tempopb.
 			},
 		})
 		if err != nil {
+			if isNotFound(err) {
+				return err
+			}
+
 			return fmt.Errorf("failed marking job %q as complete: %w", resp.JobId, err)
 		}
 
 		return nil
 	})
 	if err != nil {
+		if isNotFound(err) {
+			level.Warn(log.Logger).Log("msg", "job no longer known to scheduler, dropping and resuming polling", "job_id", resp.JobId, "err", err)
+			return nil
+		}
+
 		return w.failJob(ctx, resp.JobId, fmt.Sprintf("error marking job as complete: %v", err))
 	}
 
@@ -345,12 +352,21 @@ func (w *BackendWorker) processRetentionJob(ctx context.Context, resp *tempopb.N
 			Status: tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
 		})
 		if err != nil {
+			if isNotFound(err) {
+				return err
+			}
+
 			return fmt.Errorf("failed marking job %q as complete: %w", resp.JobId, err)
 		}
 
 		return nil
 	})
 	if err != nil {
+		if isNotFound(err) {
+			level.Warn(log.Logger).Log("msg", "job no longer known to scheduler, dropping and resuming polling", "job_id", resp.JobId, "err", err)
+			return nil
+		}
+
 		return w.failJob(ctx, resp.JobId, fmt.Sprintf("error marking job as complete: %v", err))
 	}
 
@@ -419,7 +435,7 @@ func (w *BackendWorker) processRedactionJob(ctx context.Context, resp *tempopb.N
 }
 
 func (w *BackendWorker) completeRedactionJob(ctx context.Context, jobID string, tracesFound int) error {
-	return w.callSchedulerWithBackoff(ctx, func(ctx context.Context) error {
+	err := w.callSchedulerWithBackoff(ctx, func(ctx context.Context) error {
 		_, err := w.backendScheduler.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
 			JobId:  jobID,
 			Status: tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
@@ -428,10 +444,20 @@ func (w *BackendWorker) completeRedactionJob(ctx context.Context, jobID string, 
 			},
 		})
 		if err != nil {
+			if isNotFound(err) {
+				return err
+			}
+
 			return fmt.Errorf("failed marking redaction job %q as complete: %w", jobID, err)
 		}
 		return nil
 	})
+	if err != nil && isNotFound(err) {
+		level.Warn(log.Logger).Log("msg", "redaction job no longer known to scheduler, dropping and resuming polling", "job_id", jobID, "err", err)
+		return nil
+	}
+
+	return err
 }
 
 func (w *BackendWorker) stopping(_ error) error {
@@ -454,13 +480,21 @@ func (w *BackendWorker) failJob(ctx context.Context, jobID string, errMsg string
 			Error:  errMsg,
 		})
 		if err != nil {
+			if isNotFound(err) {
+				return err
+			}
+
 			return fmt.Errorf("failed marking job %q as failed: %w", jobID, err)
 		}
 
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("error marking job %q as failed: %w", jobID, err)
+		if isNotFound(err) {
+			level.Warn(log.Logger).Log("msg", "job no longer known to scheduler while marking as failed, dropping and resuming polling", "job_id", jobID, "err", err)
+		} else {
+			return fmt.Errorf("error marking job %q as failed: %w", jobID, err)
+		}
 	}
 
 	return fmt.Errorf("%s", errMsg)
@@ -540,6 +574,15 @@ func (w *BackendWorker) callSchedulerWithBackoff(ctx context.Context, f func(con
 					return nil
 				}
 
+				if isNotFound(err) {
+					// The scheduler no longer knows about this job (e.g. it
+					// restarted and lost the in-flight assignment, or the job
+					// was already completed/removed). Retrying can never
+					// succeed, so treat it as terminal instead of retrying
+					// forever and starving the worker of new work.
+					return err
+				}
+
 				level.Error(log.Logger).Log("msg", "error calling scheduler", "err", err, "backoff", b.NextDelay())
 				metricWorkerCallRetries.WithLabelValues().Inc()
 				// Add jitter so all workers don't all retry at once and cause a thundering herd.
@@ -554,6 +597,16 @@ func (w *BackendWorker) callSchedulerWithBackoff(ctx context.Context, f func(con
 	}
 
 	return fmt.Errorf("backoff terminated: %w, %w", b.Err(), err)
+}
+
+// isNotFound reports whether err is a gRPC status error with code
+// codes.NotFound, e.g. the scheduler no longer knows about a job because it
+// restarted or the job was already removed. Such errors are terminal: they
+// will never succeed on retry, so callers should drop the job rather than
+// retrying indefinitely via callSchedulerWithBackoff.
+func isNotFound(err error) bool {
+	errStatus, ok := status.FromError(err)
+	return ok && errStatus.Code() == codes.NotFound
 }
 
 func (w *BackendWorker) isSharded() bool {
