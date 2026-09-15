@@ -3328,4 +3328,6 @@ type TPMSContext struct {
 	ContextBlob TPM2BContextData
 }
 
-type tpm2bCreationData = TPM2B[TPMSCreationData, *TPMSCreationData]
+// TPM2BCreationData represents a TPM2B_CREATION_DATA
+// See definition in Part 2: Structures, section 15.2.
+type TPM2BCreationData = TPM2B[TPMSCreationData, *TPMSCreationData]
