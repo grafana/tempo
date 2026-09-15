@@ -1,0 +1,7 @@
+change_type: change
+component: backend-scheduler
+note: "Cap the explicit trace-ID list on a redaction submission at 1000, rejecting larger requests with a pointer to the query selector."
+issues: []
+subtext: |
+  Each job a redaction creates carries the batch's whole trace-ID list, so submission cost scales with ids x blocks: a few million 16-byte IDs against a tenant with tens of thousands of blocks reaches terabytes of dispatch traffic from a single scheduler. The gRPC message limit already capped a submission near 5.8M, but as a failure found under load rather than a stated boundary. A query selector resolves per block on the worker and adds nothing to any job payload.
+user: zalegrala

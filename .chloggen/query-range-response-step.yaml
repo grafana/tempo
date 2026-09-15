@@ -1,0 +1,6 @@
+change_type: enhancement
+component: query-frontend
+note: return the resolved step in the TraceQL metrics query_range response.
+issues: [7871]
+subtext:
+user: ruslan-mikhailov
