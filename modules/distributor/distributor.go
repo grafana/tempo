@@ -106,6 +106,20 @@ var (
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
+	metricPushBytes = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace:                       "tempo",
+		Name:                            "distributor_push_bytes",
+		Help:                            "The decoded size of each push, per tenant",
+		Buckets:                         prometheus.ExponentialBuckets(1024, 2, 16), // 1KiB to 32MiB
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
+	}, []string{"tenant"})
+	metricReceivedTraces = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "distributor_received_traces_total",
+		Help:      "The total number of traces received per tenant",
+	}, []string{"tenant"})
 	metricAttributesTruncated = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "distributor_attributes_truncated_total",
@@ -464,6 +478,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 	span.SetAttributes(attribute.String("orgID", userID))
 	defer d.padWithArtificialDelay(reqStart, userID)
 	metricIngressBytes.WithLabelValues(userID).Add(float64(size))
+	metricPushBytes.WithLabelValues(userID).Observe(float64(size))
 
 	if spanCount == 0 {
 		return &tempopb.PushResponse{}, nil
@@ -827,6 +842,7 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 	}
 
 	metricTracesPerBatch.Observe(float64(len(tracesByID)))
+	metricReceivedTraces.WithLabelValues(userID).Add(float64(len(tracesByID)))
 
 	ringTokens := make([]uint32, 0, len(tracesByID))
 	traces := make([]*rebatchedTrace, 0, len(tracesByID))
