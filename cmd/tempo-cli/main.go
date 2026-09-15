@@ -80,6 +80,7 @@ var cli struct {
 	Parquet struct {
 		Convert3to4 convertParquet3to4 `cmd:"" help:"convert an existing vParquet3 file to vParquet4 block"`
 		Convert4to5 convertParquet4to5 `cmd:"" help:"convert an existing vParquet4 file to vParquet5 block"`
+		Rewrite     parquetRewrite     `cmd:"" help:"rewrite an existing parquet block using its detected encoding"`
 	} `cmd:""`
 
 	Migrate struct {
