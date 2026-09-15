@@ -18,6 +18,8 @@ import (
 )
 
 type querySearchCmd struct {
+	tlsOptions
+
 	HostPort string `arg:"" help:"tempo host and port. scheme and path will be provided based on query type. e.g. localhost:3200"`
 	TraceQL  string `arg:"" optional:"" help:"traceql query"`
 	Start    string `arg:"" optional:"" help:"start time in RFC3339 (e.g. 2006-01-02T15:04:05Z07:00) or relative (e.g. now-1h) format"`
@@ -68,7 +70,7 @@ func (cmd *querySearchCmd) searchGRPC(req *tempopb.SearchRequest) error {
 	}
 	ctx = applyHeadersGRPC(ctx, cmd.Headers)
 
-	creds, err := grpcTransportCredentials(cmd.Secure)
+	creds, err := cmd.grpcTransportCredentials(cmd.Secure)
 	if err != nil {
 		return err
 	}
@@ -77,6 +79,7 @@ func (cmd *querySearchCmd) searchGRPC(req *tempopb.SearchRequest) error {
 	if err != nil {
 		return err
 	}
+	defer clientConn.Close()
 
 	client := tempopb.NewStreamingQuerierClient(clientConn)
 
@@ -104,6 +107,13 @@ func (cmd *querySearchCmd) searchGRPC(req *tempopb.SearchRequest) error {
 
 // nolint: goconst // goconst wants us to make http:// a const
 func (cmd *querySearchCmd) searchHTTP(req *tempopb.SearchRequest) error {
+	transport, err := cmd.httpTransport(cmd.Secure)
+	if err != nil {
+		return err
+	}
+	defer transport.CloseIdleConnections()
+	client := &http.Client{Transport: transport}
+
 	httpReq, err := http.NewRequest("GET", httpScheme(cmd.Secure)+"://"+path.Join(cmd.HostPort, cmd.PathPrefix, api.PathSearch), nil)
 	if err != nil {
 		return err
@@ -121,7 +131,7 @@ func (cmd *querySearchCmd) searchHTTP(req *tempopb.SearchRequest) error {
 	}
 	applyHeadersHTTP(httpReq, cmd.Headers)
 
-	httpResp, err := http.DefaultClient.Do(httpReq)
+	httpResp, err := client.Do(httpReq)
 	if err != nil {
 		return err
 	}
