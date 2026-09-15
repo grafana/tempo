@@ -281,20 +281,32 @@ func TestAuditRunsOncePerBatch(t *testing.T) {
 	addQueryBatch(t, s, tenant, "b")
 
 	s.auditDrainedBatch(ctx, tenant)
-	scans, rewrites := drainPending(s)
-	require.Len(t, scans, 3, "the first audit enqueues a scan per in-window block")
-	require.Empty(t, rewrites, "an audit never enqueues a rewrite")
+	pending := s.work.ListAllPendingJobs()
+	require.Len(t, pending, 3, "the first audit enqueues a scan per in-window block")
+	for _, j := range pending {
+		require.True(t, j.JobDetail.GetRedaction().GetVerify(), "an audit never enqueues a rewrite")
+	}
 
-	// Put them back in flight so the guard has records to find, the way a dispatched scan would be.
+	// Deliberately left in the pending queue rather than promoted. ListJobs covers only the active
+	// and terminal maps, so a guard that consulted it alone would pass here and enqueue a second set.
+	s.auditDrainedBatch(ctx, tenant)
+	require.Len(t, s.work.ListAllPendingJobs(), 3,
+		"a batch whose scans are still queued must not be audited again")
+
+	// And once they are dispatched and terminal, the guard still holds.
+	scans, rewrites := drainPending(s)
+	require.Len(t, scans, 3)
+	require.Empty(t, rewrites)
 	for _, j := range scans {
 		j.SetWorkerID("w1")
 		require.NoError(t, s.work.AddJob(j))
 		s.work.StartJob(j.ID)
+		s.work.CompleteJob(j.ID)
 	}
 
 	s.auditDrainedBatch(ctx, tenant)
 	again, _ := drainPending(s)
-	require.Empty(t, again, "a batch that already has scans must not be audited again")
+	require.Empty(t, again, "a batch whose scans have completed must not be audited again")
 }
 
 // TestAuditDoesNotGateTeardown is the load-bearing property of the narrowed feature: the audit
@@ -367,4 +379,37 @@ func TestAuditWithNoBatch(t *testing.T) {
 	scans, rewrites := drainPending(s)
 	require.Empty(t, scans, "no batch means nothing to audit")
 	require.Empty(t, rewrites)
+}
+
+// TestBatchHasAuditJobsSeesPendingScans tests the guard's own contract rather than its effect.
+//
+// The end-to-end test above cannot distinguish the guard from auditJobs' busy-block filter: a pending
+// scan makes its block busy, so a second audit enqueues nothing either way. That makes the outcome
+// test blind to whether the guard works at all, which is why this asserts the guard directly. The two
+// job queues are separate maps -- ListJobs covers active and terminal, ListAllPendingJobs covers
+// queued -- so a guard consulting only one of them reports a batch as un-audited while its scans sit
+// in the other.
+func TestBatchHasAuditJobsSeesPendingScans(t *testing.T) {
+	const tenant = "t-audit-guard"
+	_, s, _ := newAuditScheduler(t, tenant)
+
+	require.False(t, s.batchHasAuditJobs(tenant, "b"), "premise: nothing audited yet")
+
+	scan := &work.Job{
+		ID:   "a-queued-scan",
+		Type: tempopb.JobType_JOB_TYPE_REDACTION,
+		JobDetail: tempopb.JobDetail{
+			Tenant:    tenant,
+			BatchId:   "b",
+			Redaction: &tempopb.RedactionDetail{BlockId: "blk", Verify: true},
+		},
+	}
+	require.NoError(t, s.work.AddPendingJobs([]*work.Job{scan}))
+	require.Empty(t, s.work.ListJobs(), "premise: the scan is queued only, so the active map is empty")
+
+	require.True(t, s.batchHasAuditJobs(tenant, "b"),
+		"a scan in the pending queue means this batch has been audited")
+
+	// Scoping still holds: another batch's scan says nothing about this one.
+	require.False(t, s.batchHasAuditJobs(tenant, "some-other-batch"))
 }

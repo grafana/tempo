@@ -69,15 +69,30 @@ func (s *BackendScheduler) auditDrainedBatch(ctx context.Context, tenantID strin
 // Derived rather than stored: a scan job carries the batch ID and the verify flag, which is the same
 // record the audit would otherwise have to persist. Prune retires job records only once they are
 // terminal and older than PruneAge, by which point the batch itself is long gone.
+//
+// Both queues are searched because they are separate maps: ListJobs walks the active and terminal
+// jobs, and a scan sitting in the pending queue appears only in ListAllPendingJobs. Checking just the
+// active map would leave the guard relying on auditJobs' busy-block filter to suppress a second
+// audit -- which it does, since a pending scan makes its block busy, but that is a filter three
+// functions away rather than the thing this guard claims to do.
 func (s *BackendScheduler) batchHasAuditJobs(tenantID, batchID string) bool {
-	for _, j := range s.work.ListJobs() {
+	isAuditJob := func(j *work.Job) bool {
 		if j.GetType() != tempopb.JobType_JOB_TYPE_REDACTION {
-			continue
+			return false
 		}
 		if j.Tenant() != tenantID || j.JobDetail.GetBatchId() != batchID {
-			continue
+			return false
 		}
-		if j.JobDetail.GetRedaction().GetVerify() {
+		return j.JobDetail.GetRedaction().GetVerify()
+	}
+
+	for _, j := range s.work.ListAllPendingJobs() {
+		if isAuditJob(j) {
+			return true
+		}
+	}
+	for _, j := range s.work.ListJobs() {
+		if isAuditJob(j) {
 			return true
 		}
 	}
