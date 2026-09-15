@@ -33,32 +33,12 @@ var (
 	metricRedactionVerifyFound = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "backend_scheduler_redaction_verify_traces_found_total",
-		Help:      "Traces found by a verification scan after a redaction reported complete; non-zero means a block was missed.",
-	}, []string{"tenant"})
-	metricRedactionVerifyDeferred = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Name:      "backend_scheduler_redaction_verify_deferred_total",
-		Help:      "Verification passes that checked nothing because every candidate block was held by another job; the batch is retried rather than torn down unverified.",
-	}, []string{"tenant"})
-	metricRedactionVerifyOrphanedGaps = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Name:      "backend_scheduler_redaction_verify_orphaned_gaps_total",
-		Help:      "Blocks confirmed to still hold matches whose batch was gone before a repair could be queued; the redaction is incomplete and must be resubmitted.",
-	}, []string{"tenant"})
-	metricRedactionVerifyRounds = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Name:      "backend_scheduler_redaction_verify_rounds_total",
-		Help:      "Verification passes enqueued after a redaction batch's jobs drained.",
+		Help:      "Traces matching the redaction's selector found by a post-redaction audit scan; non-zero means the redaction was incomplete.",
 	}, []string{"tenant"})
 	metricRedactionVerifyGaps = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "backend_scheduler_redaction_verify_gaps_total",
-		Help:      "Blocks found still holding matches after a redaction reported complete; each enqueued a further redaction job.",
-	}, []string{"tenant"})
-	metricRedactionVerifyExhausted = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Name:      "backend_scheduler_redaction_verify_exhausted_total",
-		Help:      "Redaction batches released without a clean verification pass after exhausting their rounds; the redaction may be incomplete.",
+		Help:      "Blocks the post-redaction audit found still holding matching traces; re-submit the redaction over the same window.",
 	}, []string{"tenant"})
 	// Queue depth. Distinct from jobs_active, which counts work already handed to a worker and is
 	// therefore bounded by the worker count — only depth can indicate that more capacity is needed.

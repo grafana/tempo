@@ -41,10 +41,6 @@ type BackendScheduler struct {
 
 	mtx sync.Mutex
 
-	// settleMtx serializes the decision about what becomes of a drained batch. Kept separate from
-	// mtx, which guards the work-cache flush and would couple two unrelated paths.
-	settleMtx sync.Mutex
-
 	cfg       Config
 	store     storage.Store
 	overrides overrides.Interface
@@ -242,7 +238,7 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-maintenanceTicker.C:
-			s.releaseVerificationForTimedOutJobs(ctx, s.work.Prune(ctx))
+			s.work.Prune(ctx)
 			s.checkPendingRescans(ctx)
 			s.cleanupOrphanedBatches(ctx)
 			s.recordPendingJobs()
@@ -463,28 +459,22 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 				s.work.SetJobCompactionOutput(req.JobId, req.Compaction.Output)
 			}
 		case tempopb.JobType_JOB_TYPE_REDACTION:
-			if req.Redaction == nil && j.JobDetail.GetRedaction().GetVerify() {
-				// A scan that reports success without a result has told us nothing about its block, so
-				// the pass cannot be read as clean. Mark the batch dirty and let it verify again rather
-				// than quiescing on an unanswered scan.
-				//
-				// Scoped to the reporting job's batch, and flushed here: nothing on the RPC path writes
-				// the manifest, so a verdict left in memory is lost on a restart -- which would reload
-				// this job as terminal alongside a stale clean verdict and quiesce without another pass.
-				if s.work.SetBatchVerifiedForBatch(j.Tenant(), j.JobDetail.GetBatchId(), false) {
-					s.flushBatches(ctx)
-				}
-				level.Warn(log.Logger).Log("msg", "redaction verification job succeeded with no result; batch left unverified",
-					"job_id", req.JobId, "tenant", j.Tenant(), "block_id", j.JobDetail.GetRedaction().GetBlockId())
-			}
 			if req.Redaction != nil {
 				if j.JobDetail.GetRedaction().GetVerify() {
 					// Reported separately from apply and dry-run: those counters are the record of what
-					// a redaction removed, and a verification scan removes nothing. Folding it in would
+					// a redaction removed, and an audit scan removes nothing. Folding it in would
 					// inflate what the redaction claims to have deleted.
 					recordRedactionVerifyResult(j.Tenant(), req.Redaction.TracesFound)
 					if req.Redaction.TracesFound > 0 {
-						s.enqueueRedactionForVerifiedBlock(ctx, j)
+						// Reported, not repaired. Queueing a rewrite from here needs the block claim to
+						// be atomic with the enqueue, which the current structures cannot express -- two
+						// producers can both pass a busy check and dispatch concurrent rewrites of one
+						// block. So the operator is told, and re-submitting is their call.
+						metricRedactionVerifyGaps.WithLabelValues(j.Tenant()).Inc()
+						level.Warn(log.Logger).Log("msg", "redaction audit found a block still holding matches; the redaction is incomplete -- re-submit over the same window",
+							"tenant", j.Tenant(), "batch_id", j.JobDetail.GetBatchId(),
+							"block_id", j.JobDetail.GetRedaction().GetBlockId(),
+							"traces_found", req.Redaction.TracesFound)
 					}
 				} else {
 					recordRedactionResult(j.Tenant(), j.JobDetail.GetRedaction().GetMode(), req.Redaction.TracesFound)
@@ -510,18 +500,6 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 			return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, err.Error())
 		}
 	case tempopb.JobStatus_JOB_STATUS_FAILED:
-		if j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION && j.JobDetail.GetRedaction().GetVerify() {
-			// The blocks this job would have scanned were not scanned. Marking the pass dirty makes
-			// the batch verify again rather than quiescing on a pass that partly did not run.
-			//
-			// Scoped to this job's batch so a scan failed long after its own batch was torn down does
-			// not spend a later batch's rounds, and flushed before the job's terminal state is
-			// persisted below: otherwise a restart reloads a failed, inactive job together with the
-			// clean verdict the pass was launched with, and settles without ever re-running it.
-			if s.work.SetBatchVerifiedForBatch(j.Tenant(), j.JobDetail.GetBatchId(), false) {
-				s.flushBatches(ctx)
-			}
-		}
 		s.work.FailJob(req.JobId)
 		metricJobsFailed.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
 		metricJobsActive.WithLabelValues(j.Tenant(), j.GetType().String()).Dec()
@@ -820,39 +798,12 @@ func (s *BackendScheduler) cleanupBatchIfDone(ctx context.Context, tenantID stri
 		return
 	}
 	if quiesceUntil == 0 {
-		s.settleDrainedBatch(ctx, tenantID)
+		// Audit first, so the scans exist before the batch starts counting down; they are ordinary
+		// redaction jobs, so quiescence naturally waits for them via redactionBatchActive.
+		s.auditDrainedBatch(ctx, tenantID)
+		s.enterQuiescence(tenantID)
 		s.flushBatches(ctx)
 	}
-}
-
-// settleDrainedBatch decides what becomes of a batch whose jobs have drained: verify it, or enter
-// quiescence if verification has nothing left to do.
-//
-// Both the job-completion path (cleanupBatchIfDone) and the maintenance tick (advanceQuiescence)
-// route through here, for the same reason they share redactionBatchActive: if the two decide
-// independently they drift. They already did -- quiescence entered from the completion path skipped
-// verification entirely, so it only ever ran for a batch that drained without a completion
-// callback, which is the timeout case rather than the normal one.
-// One settle at a time, and one recheck under the lock. Both callers arrive having seen the batch
-// drained, and the decision below reads the batch's verification state and then writes it -- so two
-// concurrent settles can both see "not verified" and both launch a pass, consuming two rounds and
-// enqueueing a duplicate scan for every block. Serializing alone is not enough: the second caller
-// through would find the flag set by the first and read that as "nothing left to verify", then
-// quiesce a batch whose scans are still in flight. Rechecking that the batch is still drained is what
-// makes it correct rather than merely second.
-func (s *BackendScheduler) settleDrainedBatch(ctx context.Context, tenantID string) {
-	s.settleMtx.Lock()
-	defer s.settleMtx.Unlock()
-
-	_, rescanPending, _, ok := s.work.BatchQuiescenceState(tenantID)
-	if !ok || s.redactionBatchActive(tenantID, rescanPending) {
-		return
-	}
-
-	if s.advanceVerification(ctx, tenantID) {
-		return
-	}
-	s.enterQuiescence(tenantID)
 }
 
 // enterQuiescence records the quiesce-until deadline (now + quiescenceSweeps × MaintenanceInterval)
@@ -876,10 +827,6 @@ func (s *BackendScheduler) advanceQuiescence(ctx context.Context, tenantID strin
 	if s.redactionBatchActive(tenantID, rescanPending) {
 		if quiesceUntil != 0 {
 			s.work.SetBatchQuiesceUntil(tenantID, 0)
-			// New work arrived after the batch had drained, so whatever the last pass concluded no
-			// longer covers this batch. Leaving the flag set would let it quiesce having never
-			// verified the blocks this work rewrites.
-			s.work.SetBatchVerified(tenantID, false)
 			return true
 		}
 		return false
@@ -893,39 +840,17 @@ func (s *BackendScheduler) advanceQuiescence(ctx context.Context, tenantID strin
 		return true
 	}
 	if quiesceUntil == 0 {
-		// Verify before quiescing, not after: quiescence is the window that keeps compaction off so
-		// the batch can still act, and a pass that finds a gap needs to enqueue work rather than
-		// discover it once teardown has already re-enabled compaction.
-		s.settleDrainedBatch(ctx, tenantID)
+		// Audit before quiescing, so a block the batch left uncovered is scanned while the batch is
+		// still around to report against. The scans do not gate teardown; quiescence waits for them
+		// only because they are redaction jobs and redactionBatchActive counts them.
+		s.auditDrainedBatch(ctx, tenantID)
+		s.enterQuiescence(tenantID)
 		return true
 	}
 	if time.Now().UnixNano() < quiesceUntil {
 		// Still within the quiescence window; nothing to change this tick.
 		return false
 	}
-	// A dirty verdict can land after quiescence was armed: a verification result enqueues a repair,
-	// or new work arrives and invalidates the earlier clean pass. Both mark the batch unverified, and
-	// both can complete inside the window -- so by the deadline there is nothing active to re-open
-	// quiescence and this would remove the batch on a verdict already known to be stale. Verify again
-	// instead. VerifyRounds still bounds it, and once the budget is spent the batch is released as
-	// unconverged rather than held forever.
-	if state, ok := s.work.RedactionVerifyState(tenantID); ok && !state.Verified && state.VerifyRounds < maxVerifyRounds {
-		s.work.SetBatchQuiesceUntil(tenantID, 0)
-		level.Info(log.Logger).Log("msg", "redaction batch reached its quiescence deadline unverified; verifying again rather than removing",
-			"tenant", tenantID, "batch_id", state.BatchID, "rounds", state.VerifyRounds)
-		s.settleDrainedBatch(ctx, tenantID)
-		return true
-	}
-
-	if state, ok := s.work.RedactionVerifyState(tenantID); ok && !state.Verified {
-		// Released without a clean pass: either the round budget is spent, or a late result marked it
-		// dirty on the final round. Reported here rather than where convergence was abandoned, so
-		// every unverified release is counted exactly once regardless of which path reached it.
-		metricRedactionVerifyExhausted.WithLabelValues(tenantID).Inc()
-		level.Warn(log.Logger).Log("msg", "removing redaction batch that never verified clean -- re-submit if traces are still present",
-			"tenant", tenantID, "batch_id", state.BatchID, "rounds", state.VerifyRounds)
-	}
-
 	s.work.RemoveBatch(tenantID)
 	level.Info(log.Logger).Log("msg", "redaction batch quiescence complete, manifest removed", "tenant", tenantID)
 	return true
@@ -1094,8 +1019,6 @@ func (s *BackendScheduler) performRescan(ctx context.Context, batch *tempopb.Red
 	}
 
 	if len(allReadyJobs) > 0 {
-		// These are rewrites of blocks no pass has seen, so an earlier clean verdict does not apply.
-		s.work.SetBatchVerified(tenantID, false)
 		if err := s.work.AddPendingJobs(allReadyJobs); err != nil {
 			level.Error(log.Logger).Log("msg", "redaction rescan: failed to add pending jobs", "tenant", tenantID, "err", err)
 			return

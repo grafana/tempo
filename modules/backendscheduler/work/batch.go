@@ -124,10 +124,7 @@ type RedactionVerifyState struct {
 	// HasTraceIDs distinguishes the explicit-ID selector from the query selector. The ID path
 	// applies no time bound, so its verification scan must run unwindowed -- RedactBlock refuses
 	// an ID list combined with a window.
-	HasTraceIDs  bool
-	VerifyRounds int32
-	// Verified is true when the most recent pass found nothing, meaning the batch may quiesce.
-	Verified bool
+	HasTraceIDs bool
 }
 
 // verifyState reads the verification-relevant fields under the lock.
@@ -144,50 +141,7 @@ func (b *batchStore) verifyState(tenantID string) (RedactionVerifyState, bool) {
 		StartTimeUnixNano: batch.StartTimeUnixNano,
 		EndTimeUnixNano:   batch.EndTimeUnixNano,
 		HasTraceIDs:       len(batch.TraceIds) > 0,
-		VerifyRounds:      batch.VerifyRounds,
-		Verified:          batch.Verified,
 	}, true
-}
-
-// setVerified records whether the batch's latest verification pass came back clean, reporting
-// whether that changed the stored value. Callers persist the manifest only on a change: the flag is
-// set once per dirty block found, and every write after the first would be byte-identical.
-func (b *batchStore) setVerified(tenantID string, verified bool) (changed bool) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	batch, ok := b.byTenant[tenantID]
-	if !ok || batch.Verified == verified {
-		return false
-	}
-	batch.Verified = verified
-	return true
-}
-
-// setVerifiedForBatch is setVerified scoped to one batch's identity, tested under the same lock as
-// the write.
-//
-// A job can report after its own batch has been torn down and another has taken the tenant's slot; a
-// verification scan failed by the dead-job timeout is the documented case. Clearing the verdict then
-// would spend a new batch's rounds on an old batch's result, or change its outcome. Reading the
-// current batch first and then writing would not help, because the batch can change between the two.
-func (b *batchStore) setVerifiedForBatch(tenantID, batchID string, verified bool) (changed bool) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	batch, ok := b.byTenant[tenantID]
-	if !ok || batch.BatchId != batchID || batch.Verified == verified {
-		return false
-	}
-	batch.Verified = verified
-	return true
-}
-
-// incVerifyRounds records that another verification pass has been launched.
-func (b *batchStore) incVerifyRounds(tenantID string) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if batch, ok := b.byTenant[tenantID]; ok {
-		batch.VerifyRounds++
-	}
 }
 
 // quiescenceState reads a tenant's quiescence-relevant fields under the lock, returning a
@@ -274,22 +228,4 @@ func (w *Work) BatchQuiescenceState(tenantID string) (quiesceUntilUnixNano int64
 // RedactionVerifyState returns a locked snapshot of the tenant batch's verification state.
 func (w *Work) RedactionVerifyState(tenantID string) (RedactionVerifyState, bool) {
 	return w.batches.verifyState(tenantID)
-}
-
-// IncBatchVerifyRounds increments the tenant batch's verification round count. No-ops when the
-// tenant has no batch.
-func (w *Work) IncBatchVerifyRounds(tenantID string) {
-	w.batches.incVerifyRounds(tenantID)
-}
-
-// SetBatchVerified records whether the batch's latest verification pass found nothing, reporting
-// whether the stored value changed. No-ops when the tenant has no batch.
-func (w *Work) SetBatchVerified(tenantID string, verified bool) (changed bool) {
-	return w.batches.setVerified(tenantID, verified)
-}
-
-// SetBatchVerifiedForBatch is SetBatchVerified for a caller acting on a specific batch's result,
-// which a job-completion callback is: it no-ops unless that batch still holds the tenant's slot.
-func (w *Work) SetBatchVerifiedForBatch(tenantID, batchID string, verified bool) (changed bool) {
-	return w.batches.setVerifiedForBatch(tenantID, batchID, verified)
 }

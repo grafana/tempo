@@ -689,18 +689,9 @@ func TestRescanSkipsRunningJob(t *testing.T) {
 
 	// Second rescan: job is now complete, output block must be enqueued.
 	time.Sleep(time.Millisecond)
-	// Marked verified first so the rescan's effect on that verdict is observable. The output blocks a
-	// rescan enqueues have never been scanned, so a clean verdict from an earlier pass cannot cover
-	// them -- without clearing it the batch would quiesce having verified none of this work.
-	s.work.SetBatchVerified(testTenant, true)
 	s.checkPendingRescans(ctx)
 
 	require.True(t, s.work.IsBlockBusy(testTenant, outputBlock), "output block must have a pending redaction job after rescan")
-
-	verifyState, ok := s.work.RedactionVerifyState(testTenant)
-	require.True(t, ok)
-	require.False(t, verifyState.Verified,
-		"a rescan that enqueues rewrites invalidates an earlier clean verification")
 
 	batch = s.work.GetBatch(testTenant)
 	require.NotNil(t, batch)
@@ -877,39 +868,36 @@ func TestCleanupOrphanedBatchesAfterDeadJobTimeout(t *testing.T) {
 		"batch must still exist after prune alone (orphaned batch bug)")
 
 	// cleanupOrphanedBatches sweeps all batches on every maintenance tick. A batch whose jobs have
-	// drained is verified before it may quiesce -- and a batch that drained because its jobs timed
-	// out is exactly the case where completion is least trustworthy, so the pass runs here too.
+	// drained is audited and enters quiescence on the same tick -- a batch that drained because its
+	// jobs timed out is exactly the case where completion is least trustworthy, so the audit runs here
+	// too, but it reports rather than deciding.
 	s.cleanupOrphanedBatches(ctx)
 	require.NotNil(t, s.work.GetBatch(testTenant),
-		"orphaned batch is verified first, not removed")
+		"orphaned batch enters quiescence, not immediate removal")
 	require.True(t, s.work.TenantPending(testTenant),
-		"tenant stays blocked while verification runs")
-
-	verifyState, ok := s.work.RedactionVerifyState(testTenant)
-	require.True(t, ok)
-	require.Equal(t, int32(1), verifyState.VerifyRounds,
-		"the sweep that finds the batch drained must verify it")
+		"tenant stays blocked for the quiescence window")
 	require.True(t, s.work.HasJobsForTenant(testTenant, tempopb.JobType_JOB_TYPE_REDACTION),
-		"verification enqueues scan jobs, so the batch has outstanding work again")
+		"the audit enqueues scan jobs, so the batch has outstanding work again")
 
-	// Drain the verification pass with no findings: the blocks are clean, so the batch may quiesce.
+	// Drain the audit's scans. They report nothing, and nothing about teardown depends on what they
+	// found -- the batch tears down on its quiescence deadline either way.
 	for {
 		j := s.work.NextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
 		if j == nil {
 			break
 		}
 		require.True(t, j.JobDetail.GetRedaction().GetVerify(),
-			"a verification pass must enqueue scan jobs, never rewrites")
+			"an audit must enqueue scan jobs, never rewrites")
 		j.SetWorkerID("verify-worker")
 		require.NoError(t, s.work.AddJob(j))
 		s.work.StartJob(j.ID)
 		s.work.CompleteJob(j.ID)
 	}
 
-	// With verification clean, the next sweep enters quiescence rather than verifying again.
+	// Quiescence was already armed, so the next sweep makes no change and does not re-audit.
 	s.cleanupOrphanedBatches(ctx)
 	require.NotNil(t, s.work.GetBatch(testTenant),
-		"a verified batch enters quiescence, not immediate removal")
+		"the batch waits out its quiescence window rather than being removed early")
 
 	// Once the deadline passes, the next sweep removes the batch.
 	s.work.SetBatchQuiesceUntil(testTenant, time.Now().Add(-time.Second).UnixNano())

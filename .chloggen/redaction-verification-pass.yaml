@@ -1,7 +1,7 @@
 change_type: enhancement
 component: backend-scheduler
-note: "Verify a redaction before tearing it down."
+note: "Audit a redaction's block coverage once its jobs drain, and report what it missed."
 issues: []
 subtext: |
-  Once a batch's block jobs drain, the scheduler re-scans the blocks currently overlapping the redaction's window and queues a further redaction job for any still holding matches, so a block the submission never accounted for is caught rather than silently left behind. Candidates come from the current block list rather than the batch's own blocks, so a trace stamped inside the window but ingested late is still found. Verification scans only; a bounded number of rounds keeps a batch that never comes back clean from pausing a tenant's compaction indefinitely, reported by `tempo_backend_scheduler_redaction_verify_exhausted_total`.
+  When a redaction batch's rewrite jobs drain, the scheduler re-derives the blocks in the redaction's window and enqueues a read-only scan for any the batch holds no completed rewrite for -- catching a block left uncovered because its job failed or was never selected. A scan that matches increments `tempo_backend_scheduler_redaction_verify_gaps_total` and logs a warning naming the block; the operator re-submits. The audit never rewrites and never blocks teardown. It cannot establish completeness against object storage, because the scheduler's block list is refreshed on `blocklist_poll` while a batch lives for only a couple of maintenance ticks after draining, so a block created during the redaction is not visible to it -- re-running the request with `--dry-run` after a poll cycle is the check for that, and the docs say so.
 user: zalegrala
