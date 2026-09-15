@@ -30,12 +30,12 @@ Each expression in the pipeline selects or discards spansets from being included
 For example:
 
 ```traceql
-{ span.http.status_code >= 200 && span.http.status_code < 300 } | count() > 2
+{ span.http.response.status_code >= 200 && span.http.response.status_code < 300 } | count() > 2
 ```
 
 In this example, the search reduces traces to those spans where:
 
-- `http.status_code` is in the range of `200` to `299` and
+- `http.response.status_code` is in the range of `200` to `299` and
 - the number of matching spans within a trace is greater than two.
 
 Queries select sets of spans and filter them through a pipeline of aggregators and conditions.
@@ -94,7 +94,7 @@ This example finds all traces on the operation `POST /api/orders` that return wi
 {
   resource.service.name="frontend" &&
   name = "POST /api/orders" &&
-  span.http.status_code >= 500
+  span.http.response.status_code >= 500
 }
 ```
 
@@ -197,25 +197,25 @@ Find spans with high fan-out that spawn more than 10 child spans:
 Find the services where the HTTP status is `200`, and list the service name the span belongs to along with returned traces.
 
 ```
-{ span.http.status_code = 200 } | select(resource.service.name)
+{ span.http.response.status_code = 200 } | select(resource.service.name)
 ```
 
-Find any trace where spans within it have a `deployment.environment` resource attribute set to `production` and a span `http.status_code` attribute set to `200`. In previous examples, all conditions had to be true on one span. These conditions can be true on either different spans or the same spans.
+Find any trace where spans within it have a `deployment.environment` resource attribute set to `production` and a span `http.response.status_code` attribute set to `200`. In previous examples, all conditions had to be true on one span. These conditions can be true on either different spans or the same spans.
 
 ```
-{ resource.deployment.environment = "production" } && { span.http.status_code = 200 }
+{ resource.deployment.environment = "production" } && { span.http.response.status_code = 200 }
 ```
 
-Find any trace where any span has an `http.method` attribute set to `GET` as well as a `status` attribute set to `ok`, and where any other span has an `http.method` attribute set to `DELETE`, but doesn't have a `status` attribute set to `ok`:
+Find any trace where any span has an `http.request.method` attribute set to `GET` as well as a `status` attribute set to `ok`, and where any other span has an `http.request.method` attribute set to `DELETE`, but doesn't have a `status` attribute set to `ok`:
 
 ```
-{ span.http.method = "GET" && status = ok } && { span.http.method = "DELETE" && status != ok }
+{ span.http.request.method = "GET" && status = ok } && { span.http.request.method = "DELETE" && status != ok }
 ```
 
-Find any trace with a `deployment.environment` attribute that matches the regular expression `prod-.*` and `http.status_code` attribute set to `200`:
+Find any trace with a `deployment.environment` attribute that matches the regular expression `prod-.*` and `http.response.status_code` attribute set to `200`:
 
 ```
-{ resource.deployment.environment =~ "prod-.*" && span.http.status_code = 200 }
+{ resource.deployment.environment =~ "prod-.*" && span.http.response.status_code = 200 }
 ```
 
 Find traces that took longer than 5 seconds:
@@ -332,8 +332,15 @@ This provides significant performance benefits because it allows Tempo to only s
 To find traces with the `GET HTTP` method, your query could look like this:
 
 ```
-{ span.http.method = "GET" }
+{ span.http.request.method = "GET" }
 ```
+
+{{< admonition type="note" >}}
+OpenTelemetry's HTTP semantic conventions have changed over time, and instrumentation libraries have adopted the stable attribute names at different paces.
+Tempo doesn't alias these names: `span.http.request.method` and `span.http.method` are distinct attributes, as are `span.http.response.status_code` and `span.http.status_code`.
+Depending on the version of the instrumentation that produced them, your traces may use the stable names (for example, `http.request.method` and `http.response.status_code`) or the legacy names (for example, `http.method` and `http.status_code`).
+Write your queries to match the attribute names present in your data.
+{{< /admonition >}}
 
 For more information about attributes and resources, refer to the [OpenTelemetry Resource SDK](https://opentelemetry.io/docs/reference/specification/resource/sdk/).
 
@@ -423,7 +430,7 @@ A literal is a fixed value written directly in a query, such as `200`, `"GET"`, 
 Integer values can be positive or negative:
 
 ```
-{ span.http.status_code = 200 }
+{ span.http.response.status_code = 200 }
 { span.retry_count > -1 }
 ```
 
@@ -467,7 +474,7 @@ Floating-point values use decimal notation:
 String values are enclosed in double quotes:
 
 ```
-{ span.http.method = "GET" }
+{ span.http.request.method = "GET" }
 ```
 
 #### Nil
@@ -503,22 +510,22 @@ An unanchored query, such as: { span.foo =~ "bar" } is now treated as: { span.fo
 
 If you use TraceQL with regular expressions in your Grafana dashboards and you want the unanchored behavior, update the queries to use the unanchored version, such as { span.foo =~ "._bar._"}.
 
-For example, to find all traces where an `http.status_code` attribute in a span are greater than `400` but less than equal to `500`:
+For example, to find all traces where an `http.response.status_code` attribute in a span is greater than or equal to `400` but less than `500`:
 
 ```
-{ span.http.status_code >= 400 && span.http.status_code < 500 }
+{ span.http.response.status_code >= 400 && span.http.response.status_code < 500 }
 ```
 
-This works for `http.status_code` values that are strings as well using lexographic ordering:
+This works for `http.response.status_code` values that are strings as well using lexographic ordering:
 
 ```
-{ span.http.status_code >= "400" }
+{ span.http.response.status_code >= "400" }
 ```
 
-Find all traces where the `http.method` attribute is either `GET` or `DELETE`:
+Find all traces where the `http.request.method` attribute is either `GET` or `DELETE`:
 
 ```
-{ span.http.method =~ "DELETE|GET" }
+{ span.http.request.method =~ "DELETE|GET" }
 ```
 
 Find all traces where `any_attribute` isn't `nil` or where `any_attribute` exists in a span:
@@ -554,22 +561,22 @@ A field expression is a composite of multiple fields that define all of the crit
 
 #### Examples
 
-Find traces with `success` `http.status_code` codes:
+Find traces with `success` `http.response.status_code` codes:
 
 ```
-{ span.http.status_code >= 200 && span.http.status_code < 300 }
+{ span.http.response.status_code >= 200 && span.http.response.status_code < 300 }
 ```
 
 Find traces where a `DELETE` HTTP method was used and the intrinsic span status wasn't OK:
 
 ```
-{ span.http.method = "DELETE" && status != ok }
+{ span.http.request.method = "DELETE" && status != ok }
 ```
 
 Both expressions require all conditions to be true on the same span.
 The entire expression inside of a pair of `{}` must be evaluated as true on a single span for it to be included in the result set.
 
-In the above example, if a span includes an `.http.method` attribute set to `DELETE` where the span also includes a `status` attribute set to `ok`, the trace would not be included in the returned results.
+In the above example, if a span includes an `.http.request.method` attribute set to `DELETE` where the span also includes a `status` attribute set to `ok`, the trace would not be included in the returned results.
 
 ## Combine spansets using operators
 
@@ -624,7 +631,7 @@ Structural operators ALWAYS return matches from the right side of the operator.
 For example, to find a trace where a specific HTTP API interacted with a specific database:
 
 ```
-{ span.http.url = "/path/of/api" } >> { span.db.name = "db-shard-001" }
+{ span.url.full = "https://example.com/path/of/api" } >> { span.db.name = "db-shard-001" }
 ```
 
 ### Union structural
@@ -641,7 +648,7 @@ return spans that match on both sides of the operator.
 For example, to get a failing endpoint AND all descendant failing spans in one query:
 
 ```
-{ span.http.url = "/path/of/api" && status = error } &>> { status = error }
+{ span.url.full = "https://example.com/path/of/api" && status = error } &>> { status = error }
 ```
 
 ### Experimental structural
@@ -694,10 +701,10 @@ Find traces where the average duration of the spans in a trace is greater than `
 avg(duration) > 20ms
 ```
 
-For example, find traces that have more than 3 spans with an attribute `http.status_code` with a value of `200`:
+For example, find traces that have more than 3 spans with an attribute `http.response.status_code` with a value of `200`:
 
 ```
-{ span.http.status_code = 200 } | count() > 3
+{ span.http.response.status_code = 200 } | count() > 3
 ```
 
 To find spans where the total of a made-up attribute `bytesProcessed` was more than 1 GB:
@@ -724,7 +731,7 @@ TraceQL supports arbitrary arithmetic in your queries.
 Using arithmetic can make queries more human readable:
 
 ```
-{ span.http.request_content_length > 10 * 1024 * 1024 }
+{ span.http.request.body.size > 10 * 1024 * 1024 }
 ```
 
 or anything else that comes to mind.
@@ -733,10 +740,10 @@ or anything else that comes to mind.
 
 TraceQL can select arbitrary fields from spans.
 This is particularly performant because the selected fields aren't retrieved until all other criteria is met.
-For example, to select the `span.http.status_code` and `span.http.url` from all spans that have an error status code:
+For example, to select the `span.http.response.status_code` and `span.url.full` from all spans that have an error status code:
 
 ```
-{ status = error } | select(span.http.status_code, span.http.url)
+{ status = error } | select(span.http.response.status_code, span.url.full)
 ```
 
 ## Retrieve most recent results (experimental)

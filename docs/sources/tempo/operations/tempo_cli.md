@@ -155,7 +155,7 @@ tempo-cli query api search localhost:3200 '{status = error}' 2024-01-01T00:00:00
 Example using GRPC streaming with organization ID:
 
 ```bash
-tempo-cli query api search --use-grpc --org-id my-org localhost:3200 '{span.http.status_code >= 400}' now-1h now
+tempo-cli query api search --use-grpc --org-id my-org localhost:3200 '{span.http.response.status_code >= 400}' now-1h now
 ```
 
 Example with a custom authentication header over GRPC:
