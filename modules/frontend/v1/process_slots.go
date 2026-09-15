@@ -161,7 +161,7 @@ func (f *Frontend) dequeueSlotRequests(ctx context.Context, pulls <-chan int) <-
 			active := requests[:0]
 			for _, wrapper := range requests {
 				r := wrapper.(*request)
-				f.queueDuration.Observe(time.Since(r.enqueueTime).Seconds())
+				f.queueDuration.WithLabelValues(queryOp(r.request)).Observe(time.Since(r.enqueueTime).Seconds())
 				r.queueSpan.End()
 				if r.OriginalContext().Err() == nil {
 					active = append(active, wrapper)
