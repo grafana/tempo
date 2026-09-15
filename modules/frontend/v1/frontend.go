@@ -224,7 +224,7 @@ func (f *Frontend) RoundTrip(req pipeline.Request) (*http.Response, error) {
 
 // Process allows backends to pull requests from the frontend.
 func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
-	_, querierFeatures, err := getQuerierInfo(server)
+	querierInfo, err := getQuerierInfo(server)
 	if err != nil {
 		return err
 	}
@@ -232,11 +232,19 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 	f.connectedQuerierWorkers.Add(1)
 	defer f.connectedQuerierWorkers.Add(-1)
 
+	if querierInfo.Features&int32(frontendv1pb.Feature_SLOT_SCHEDULING) != 0 {
+		if querierInfo.Slots == 0 {
+			return errors.New("slot scheduling requires positive stream capacity")
+		}
+		level.Info(f.log).Log("msg", "querier stream using slot scheduling", "querier", querierInfo.ClientID, "slots", querierInfo.Slots)
+		return f.processSlots(server, int(querierInfo.Slots))
+	}
+
 	lastUserIndex := queue.FirstUser()
 
 	reqBatch := &requestBatch{}
 	batchSize := 1
-	if querierSupportsBatching(querierFeatures) {
+	if querierSupportsBatching(querierInfo.Features) {
 		batchSize = f.cfg.MaxBatchSize
 	}
 	for {
@@ -361,7 +369,7 @@ func (f *Frontend) NotifyClientShutdown(_ context.Context, req *frontendv1pb.Not
 	return &frontendv1pb.NotifyClientShutdownResponse{}, nil
 }
 
-func getQuerierInfo(server frontendv1pb.Frontend_ProcessServer) (string, int32, error) {
+func getQuerierInfo(server frontendv1pb.Frontend_ProcessServer) (*frontendv1pb.ClientToFrontend, error) {
 	err := server.Send(&frontendv1pb.FrontendToClient{
 		Type: frontendv1pb.Type_GET_ID,
 		// Old queriers don't support GET_ID, and will try to use the request.
@@ -372,18 +380,10 @@ func getQuerierInfo(server frontendv1pb.Frontend_ProcessServer) (string, int32, 
 		},
 	})
 	if err != nil {
-		return "", int32(frontendv1pb.Feature_NONE), err
+		return nil, err
 	}
 
-	resp, err := server.Recv()
-	if err != nil {
-		return "", int32(frontendv1pb.Feature_NONE), err
-	}
-
-	// Old queriers will return empty string, which is fine. All old queriers will be
-	// treated as single querier with lot of connections.
-	// (Note: if resp is nil, GetClientID() returns "")
-	return resp.GetClientID(), resp.Features, err
+	return server.Recv()
 }
 
 func (f *Frontend) queueRequest(ctx context.Context, req *request) error {
