@@ -32,6 +32,11 @@ var (
 	}, []string{"tenant", "job_type"})
 	// Queue depth. Distinct from jobs_active, which counts work already handed to a worker and is
 	// therefore bounded by the worker count — only depth can indicate that more capacity is needed.
+	metricTenantMaintenancePaused = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "backend_scheduler_tenant_maintenance_paused",
+		Help:      "1 while compaction and retention are paused for a tenant by an exclusive operation, 0 once they resume.",
+	}, []string{"tenant"})
 	metricJobsPending = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempo",
 		Name:      "backend_scheduler_jobs_pending",
@@ -138,4 +143,40 @@ func (s *BackendScheduler) recordPendingJobs() {
 	}
 
 	s.publishedPendingCounts = current
+}
+
+// recordMaintenancePaused publishes, per tenant, whether an exclusive operation is currently holding
+// compaction and retention off. Today that means an apply-mode redaction batch, for its whole
+// lifetime including the quiescence window that follows the last block job.
+//
+// Nothing else reports this. Compaction job dispatch is not a substitute: the gate stops the provider
+// *creating* jobs while the dispatch counter keeps draining a queue built before the batch was
+// submitted, so a real apply-mode redaction shows a dip rather than a stop.
+//
+// A tenant that resumes is set to 0 rather than deleted, unlike jobs_pending. The question an
+// operator asks is "has the quiet period elapsed", and a 1 -> 0 edge answers it on a graph or in an
+// alert, where a vanished series needs absent(). The label set stays small because it only ever holds
+// tenants that have taken the gate during this process's lifetime.
+//
+// Called only from the maintenance loop, so the retained snapshot needs no lock.
+func (s *BackendScheduler) recordMaintenancePaused() {
+	paused := make(map[string]struct{})
+
+	for _, batch := range s.work.ListBatches() {
+		tenant := batch.TenantId
+		// TenantPending is the same predicate compaction and retention gate on, rather than a second
+		// reading of "is there an apply-mode batch", so this cannot drift from what it reports.
+		if s.work.TenantPending(tenant) {
+			paused[tenant] = struct{}{}
+			metricTenantMaintenancePaused.WithLabelValues(tenant).Set(1)
+		}
+	}
+
+	for tenant := range s.publishedMaintenancePaused {
+		if _, stillPaused := paused[tenant]; !stillPaused {
+			metricTenantMaintenancePaused.WithLabelValues(tenant).Set(0)
+		}
+	}
+
+	s.publishedMaintenancePaused = paused
 }
