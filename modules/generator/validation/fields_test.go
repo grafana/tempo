@@ -7,6 +7,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestValidateProcessor(t *testing.T) {
+	require.NoError(t, ValidateProcessor("span-metrics"))
+	require.NoError(t, ValidateProcessor("secret-detection"))
+	require.Error(t, ValidateProcessor("unknown-processor"))
+}
+
 func TestValidateFilterPolicies(t *testing.T) {
 	tests := []struct {
 		name       string

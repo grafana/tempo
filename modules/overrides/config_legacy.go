@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/modules/overrides/histograms"
+	"github.com/grafana/tempo/pkg/secrets"
 	"github.com/grafana/tempo/pkg/util/listtomap"
 	"github.com/grafana/tempo/tempodb/backend"
 
@@ -63,6 +64,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorProcessorSpanMetricsEnableTraceStateSpanMultiplier:          c.MetricsGenerator.Processor.SpanMetrics.EnableTraceStateSpanMultiplier,
 		MetricsGeneratorProcessorHostInfoHostIdentifiers:                            c.MetricsGenerator.Processor.HostInfo.HostIdentifiers,
 		MetricsGeneratorProcessorHostInfoMetricName:                                 c.MetricsGenerator.Processor.HostInfo.MetricName,
+		MetricsGeneratorProcessorSecretDetection:                                    c.MetricsGenerator.Processor.SecretDetection,
 		MetricsGeneratorIngestionSlack:                                              c.MetricsGenerator.IngestionSlack,
 		MetricsGeneratorNativeHistogramBucketFactor:                                 c.MetricsGenerator.NativeHistogramBucketFactor,
 		MetricsGeneratorNativeHistogramMaxBucketNumber:                              c.MetricsGenerator.NativeHistogramMaxBucketNumber,
@@ -151,6 +153,7 @@ type LegacyOverrides struct {
 	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions            []string                         `yaml:"metrics_generator_processor_span_metrics_target_info_excluded_dimensions" json:"metrics_generator_processor_span_metrics_target_info_excluded_dimensions"`
 	MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel                     *bool                            `yaml:"metrics_generator_processor_span_metrics_enable_instance_label" json:"metrics_generator_processor_span_metrics_enable_instance_label"`
 	MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey                       string                           `yaml:"metrics_generator_processor_span_metrics_span_multiplier_key" json:"metrics_generator_processor_span_metrics_span_multiplier_key"`
+	MetricsGeneratorProcessorSecretDetection                                    *secrets.Policy                  `yaml:"metrics_generator_processor_secret_detection,omitempty" json:"metrics_generator_processor_secret_detection,omitempty"`
 	MetricsGeneratorProcessorSpanMetricsEnableTraceStateSpanMultiplier          *bool                            `yaml:"metrics_generator_processor_span_metrics_enable_tracestate_span_multiplier" json:"metrics_generator_processor_span_metrics_enable_tracestate_span_multiplier"`
 	MetricsGeneratorProcessorHostInfoHostIdentifiers                            []string                         `yaml:"metrics_generator_processor_host_info_host_identifiers" json:"metrics_generator_processor_host_info_host_identifiers"`
 	MetricsGeneratorProcessorHostInfoMetricName                                 string                           `yaml:"metrics_generator_processor_host_info_metric_name" json:"metrics_generator_processor_host_info_metric_name"`
@@ -382,6 +385,7 @@ func (l *LegacyOverrides) toNewLimits() *Overrides {
 					HostIdentifiers: l.MetricsGeneratorProcessorHostInfoHostIdentifiers,
 					MetricName:      l.MetricsGeneratorProcessorHostInfoMetricName,
 				},
+				SecretDetection: l.MetricsGeneratorProcessorSecretDetection,
 			},
 			NativeHistogramBucketFactor:     l.MetricsGeneratorNativeHistogramBucketFactor,
 			NativeHistogramMaxBucketNumber:  l.MetricsGeneratorNativeHistogramMaxBucketNumber,

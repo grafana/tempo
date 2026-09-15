@@ -341,6 +341,18 @@ func TestConfig_ValidateRingMode(t *testing.T) {
 	})
 }
 
+func TestConfigRejectsSkippingStaleBacklogWithSecretDetection(t *testing.T) {
+	cfg := &Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.PanicOnError))
+	cfg.Storage.Path = t.TempDir()
+	cfg.ConsumeFromKafka = true
+	cfg.Ingest.Kafka.Topic = "tempo"
+	cfg.SkipStaleBacklogOnStartup = true
+	cfg.Processor.SecretDetection.Enabled = true
+
+	require.EqualError(t, cfg.Validate(), "skip_stale_backlog_on_startup cannot be enabled with secrets detection")
+}
+
 func boolPtr(b bool) *bool {
 	return &b
 }

@@ -20,6 +20,7 @@ import (
 	"google.golang.org/grpc/encoding"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/gogocodec"
 	"github.com/grafana/tempo/pkg/util/log"
 )
@@ -182,14 +183,14 @@ func loadConfig() (*app.Config, bool, bool, error) {
 		if configExpandEnv {
 			s, err := envsubst.EvalEnv(string(buff))
 			if err != nil {
-				return nil, false, false, fmt.Errorf("failed to expand env vars from configFile %s: %w", configFile, err)
+				return nil, false, false, fmt.Errorf("failed to expand env vars from configFile %s: %w", configFile, overrides.PolicySafeConfigError(buff, err))
 			}
 			buff = []byte(s)
 		}
 
 		err = yaml.UnmarshalStrict(buff, config)
 		if err != nil {
-			return nil, false, false, fmt.Errorf("failed to parse configFile %s: %w", configFile, err)
+			return nil, false, false, fmt.Errorf("failed to parse configFile %s: %w", configFile, overrides.PolicySafeConfigError(buff, err))
 		}
 
 	}

@@ -300,6 +300,9 @@ func (t *App) initGenerator() (services.Service, error) {
 	}
 
 	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, ringReader, log.Logger)
+	if errors.Is(err, generator.ErrUnconfigured) && t.cfg.Generator.Processor.SecretDetection.Enabled {
+		return nil, fmt.Errorf("secret detection requires metrics_generator.storage.path: %w", err)
+	}
 	if errors.Is(err, generator.ErrUnconfigured) && t.cfg.Target != MetricsGenerator && t.cfg.Target != MetricsGeneratorNoLocalBlocks { // just warn if we're not running the metrics-generator
 		level.Warn(log.Logger).Log("msg", "metrics-generator is not configured.", "err", err)
 		return services.NewIdleService(nil, nil), nil

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/modules/overrides/histograms"
+	"github.com/grafana/tempo/pkg/secrets"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -42,6 +43,7 @@ type mockOverrides struct {
 	spanMetricsEnableTraceStateSpanMultiplier          *bool
 	ingestionSlack                                     time.Duration
 	collectionInterval                                 time.Duration
+	secretsPolicy                                      *secrets.Policy
 }
 
 var _ metricsGeneratorOverrides = (*mockOverrides)(nil)
@@ -243,4 +245,8 @@ func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsEnableTraceStateSpan
 		return *m.spanMetricsEnableTraceStateSpanMultiplier, true
 	}
 	return false, false
+}
+
+func (m *mockOverrides) SecretsPolicy(string) (*secrets.Policy, bool) {
+	return m.secretsPolicy, false
 }

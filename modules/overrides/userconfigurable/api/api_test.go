@@ -8,17 +8,23 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/go-kit/log"
 	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/secrets"
 	"github.com/grafana/tempo/pkg/util/listtomap"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -80,22 +86,6 @@ func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 			expStatusCode: 200,
 		},
 		{
-			name:           "POST - invalid JSON",
-			handler:        overridesAPI.PostHandler,
-			req:            prepareRequest(tenant, "POST", []byte("not a json")),
-			expResp:        "invalid character 'o' in literal null (expecting 'u')\n",
-			expContentType: "text/plain; charset=utf-8",
-			expStatusCode:  400,
-		},
-		{
-			name:           "POST - unknown field JSON",
-			handler:        overridesAPI.PostHandler,
-			req:            prepareRequest(tenant, "POST", []byte("{\"unknown\":true}")),
-			expResp:        "json: unknown field \"unknown\"\n",
-			expContentType: "text/plain; charset=utf-8",
-			expStatusCode:  400,
-		},
-		{
 			name:           "POST - invalid overrides",
 			handler:        overridesAPI.PostHandler,
 			req:            prepareRequest(tenant, "POST", postJSON),
@@ -131,6 +121,191 @@ func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 				assert.NotNil(t, limits.Forwarders)
 				assert.Equal(t, *limits.Forwarders, []string{"my-updated-forwarder"})
 			}
+		})
+	}
+}
+
+func TestUserConfigOverridesAPISecretDetection(t *testing.T) {
+	tenant := "my-tenant"
+	cfg := client.Config{
+		Backend: backend.Local,
+		Local:   &local.Config{Path: t.TempDir()},
+	}
+	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+	overridesAPI, err := New(&overrides.UserConfigurableOverridesAPIConfig{}, &cfg, o, &mockValidator{})
+	require.NoError(t, err)
+
+	body := []byte(`{"metrics_generator":{"processor":{"secret_detection":{"disabled_rules":["generic-api-key"],"custom_rules":[{"id":"customer-token","regex":"CUSTOMER-[0-9]+"}]}}}}`)
+	post := httptest.NewRecorder()
+	overridesAPI.PostHandler(post, prepareRequest(tenant, http.MethodPost, body))
+	require.Equal(t, http.StatusOK, post.Code)
+
+	get := httptest.NewRecorder()
+	overridesAPI.GetHandler(get, prepareRequest(tenant, http.MethodGet, nil))
+	require.Equal(t, http.StatusOK, get.Code)
+
+	var limits client.Limits
+	require.NoError(t, json.Unmarshal(get.Body.Bytes(), &limits))
+	policy, ok := limits.GetMetricsGenerator().GetProcessor().GetSecretDetection()
+	require.True(t, ok)
+	assert.Equal(t, &secrets.Policy{
+		DisabledRules: []string{"generic-api-key"},
+		CustomRules:   []secrets.CustomRule{{ID: "customer-token", Regex: `CUSTOMER-[0-9]+`}},
+	}, policy)
+}
+
+func TestUserConfigOverridesAPIRejectsRemovedSecretsPolicyFields(t *testing.T) {
+	cfg := client.Config{
+		Backend: backend.Local,
+		Local:   &local.Config{Path: t.TempDir()},
+	}
+	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+	overridesAPI, err := New(&overrides.UserConfigurableOverridesAPIConfig{}, &cfg, o, &mockValidator{})
+	require.NoError(t, err)
+
+	for _, body := range []string{
+		`{"metrics_generator":{"processor":{"secret_detection":{"catalog_version":"tempo-secrets-v1"}}}}`,
+		`{"metrics_generator":{"processor":{"secret_detection":{"revision":7}}}}`,
+		`{"metrics_generator":{"processor":{"secret_detection":{"optional_rules":["generic-api-key"]}}}}`,
+	} {
+		response := httptest.NewRecorder()
+		overridesAPI.PostHandler(response, prepareRequest("my-tenant", http.MethodPost, []byte(body)))
+		require.Equal(t, http.StatusBadRequest, response.Code)
+	}
+}
+
+func TestUserConfigOverridesAPIPolicyConfidentiality(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	oldTracer := tracer
+	tracer = provider.Tracer("policy-confidentiality")
+	t.Cleanup(func() {
+		tracer = oldTracer
+		require.NoError(t, provider.Shutdown(context.Background()))
+	})
+	store, err := client.New(&client.Config{Backend: backend.Local, Local: &local.Config{Path: t.TempDir()}})
+	require.NoError(t, err)
+	t.Cleanup(store.Shutdown)
+	var logs bytes.Buffer
+	a := &UserConfigOverridesAPI{
+		cfg: &overrides.UserConfigurableOverridesAPIConfig{}, client: store,
+		validator: &mockValidator{}, logger: log.NewLogfmtLogger(&logs),
+	}
+	const private = "synthetic-private-policy-marker"
+	checkSafe := func(t *testing.T, output string) {
+		t.Helper()
+		require.False(t, strings.Contains(output, private), "diagnostics disclosed private policy text")
+		encoded := fmt.Sprintf("%v", []byte(private))
+		require.False(t, strings.Contains(output, encoded[1:len(encoded)-1]), "diagnostics disclosed raw policy bytes")
+	}
+	body := []byte(`{"metrics_generator":{"processor":{"secret_detection":{"custom_rules":[{"id":"safe-rule","regex":"` + private + `"}]}}}}`)
+	response := httptest.NewRecorder()
+	a.PostHandler(response, prepareRequest("tenant", http.MethodPost, body))
+	require.Equal(t, http.StatusOK, response.Code)
+	checkSafe(t, response.Body.String())
+
+	policy := &secrets.Policy{CustomRules: []secrets.CustomRule{{ID: "safe-rule", Regex: private}}}
+	assertPolicy := func(t *testing.T) {
+		t.Helper()
+		response := httptest.NewRecorder()
+		a.GetHandler(response, prepareRequest("tenant", http.MethodGet, nil))
+		require.Equal(t, http.StatusOK, response.Code)
+		var got client.Limits
+		require.True(t, json.Unmarshal(response.Body.Bytes(), &got) == nil, "authorized response must be valid JSON")
+		require.True(t, reflect.DeepEqual(policy, got.MetricsGenerator.Processor.SecretDetection), "authorized GET must preserve complete policy")
+		persisted, _, err := store.Get(context.Background(), "tenant")
+		require.True(t, err == nil, "persisted policy must remain readable")
+		require.True(t, reflect.DeepEqual(policy, persisted.MetricsGenerator.Processor.SecretDetection), "persistence must preserve complete policy")
+	}
+	assertPolicy(t)
+	response = httptest.NewRecorder()
+	a.PatchHandler(response, prepareRequest("tenant", http.MethodPatch, body))
+	require.Equal(t, http.StatusOK, response.Code)
+	assertPolicy(t)
+
+	for _, tc := range []struct{ name, body string }{
+		{"unknown-field", `{"` + private + `":true}`},
+		{"invalid-policy-type", `{"metrics_generator":{"processor":{"secret_detection":{"custom_rules":"` + private + `"}}}}`},
+		{"removed-description", `{"metrics_generator":{"processor":{"secret_detection":{"custom_rules":[{"id":"safe-rule","regex":"` + private + `","description":"` + private + `"}]}}}}`},
+		{"removed-entropy", `{"metrics_generator":{"processor":{"secret_detection":{"custom_rules":[{"id":"safe-rule","regex":"` + private + `","entropy":1.5}]}}}}`},
+		{"removed-secret-group", `{"metrics_generator":{"processor":{"secret_detection":{"custom_rules":[{"id":"safe-rule","regex":"(` + private + `)","secret_group":1}]}}}}`},
+		{"second-document", string(body) + `{}`},
+		{"malformed-suffix", string(body) + private},
+		{"malformed-json", `{"` + private},
+	} {
+		for _, method := range []string{http.MethodPost, http.MethodPatch} {
+			t.Run(tc.name+"-"+method, func(t *testing.T) {
+				response := httptest.NewRecorder()
+				request := prepareRequest("tenant", method, []byte(tc.body))
+				if method == http.MethodPost {
+					a.PostHandler(response, request)
+				} else {
+					a.PatchHandler(response, request)
+				}
+				expectedStatus := http.StatusBadRequest
+				if tc.name == "malformed-json" && method == http.MethodPatch {
+					// A non-policy malformed patch retains the merge library's
+					// existing server-error response; its diagnostics stay safe.
+					expectedStatus = http.StatusInternalServerError
+				}
+				require.Equal(t, expectedStatus, response.Code)
+				checkSafe(t, response.Body.String())
+				assertPolicy(t)
+			})
+		}
+	}
+	checkSafe(t, logs.String())
+	seenSet, seenUpdate := false, false
+	for _, span := range recorder.Ended() {
+		seenSet = seenSet || span.Name() == "UserConfigOverridesAPI.set"
+		seenUpdate = seenUpdate || span.Name() == "UserConfigOverridesAPI.update"
+		checkSafe(t, fmt.Sprint(span.Attributes(), span.Events(), span.Status()))
+	}
+	require.True(t, seenSet && seenUpdate, "write and patch spans must be inspected")
+}
+
+func TestUserConfigOverridesAPINonPolicyDocumentCompatibility(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		method   string
+		existing bool
+		status   int
+	}{
+		{"post-first-document", http.MethodPost, false, http.StatusOK},
+		{"patch-first-document", http.MethodPatch, false, http.StatusOK},
+		{"existing-patch-rejects-suffix", http.MethodPatch, true, http.StatusInternalServerError},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store, err := client.New(&client.Config{Backend: backend.Local, Local: &local.Config{Path: t.TempDir()}})
+			require.NoError(t, err)
+			t.Cleanup(store.Shutdown)
+			var logs bytes.Buffer
+			a := &UserConfigOverridesAPI{
+				cfg: &overrides.UserConfigurableOverridesAPIConfig{}, client: store,
+				validator: &mockValidator{}, logger: log.NewLogfmtLogger(&logs),
+			}
+			if tc.existing {
+				_, err := store.Set(context.Background(), "tenant", &client.Limits{Forwarders: &[]string{"previous"}}, backend.VersionNew)
+				require.NoError(t, err)
+			}
+			request := prepareRequest("tenant", tc.method, []byte(`{"forwarders":["first"]} {"forwarders":["later"]}`))
+			response := httptest.NewRecorder()
+			if tc.method == http.MethodPost {
+				a.PostHandler(response, request)
+			} else {
+				a.PatchHandler(response, request)
+			}
+			require.Equal(t, tc.status, response.Code)
+			limits, _, err := store.Get(context.Background(), "tenant")
+			require.NoError(t, err)
+			want := []string{"first"}
+			if tc.existing {
+				want = []string{"previous"}
+			}
+			require.Equal(t, &want, limits.Forwarders)
+			require.Contains(t, logs.String(), want[0], "ordinary override values remain available in diagnostics")
 		})
 	}
 }
@@ -234,13 +409,6 @@ func Test_UserConfigOverridesAPI_patchOverridesHandlers(t *testing.T) {
 			expResp:        `{"forwarders":["my-other-forwarder"],"cost_attribution":{},"metrics_generator":{"processor":{"service_graphs":{},"span_metrics":{},"host_info":{}}}}`,
 			expContentType: api.HeaderAcceptJSON,
 			expStatusCode:  200,
-		},
-		{
-			name:          "PATCH - invalid patch",
-			patch:         `{"newField":true}`,
-			current:       `{"forwarders":["prior-forwarder"]}`,
-			expResp:       "json: unknown field \"newField\"\n",
-			expStatusCode: 400,
 		},
 		{
 			name:           "PATCH - processors: non-empty list over existing empty list sets the field",

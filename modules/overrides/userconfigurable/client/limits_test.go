@@ -7,9 +7,12 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/modules/overrides/histograms"
+	"github.com/grafana/tempo/pkg/secrets"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	"github.com/grafana/tempo/pkg/util/listtomap"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.yaml.in/yaml/v2"
 )
 
 func strPtr(s string) *string {
@@ -77,6 +80,12 @@ func TestLimits_parseJson(t *testing.T) {
       "host_info": {
         "host_identifiers": ["k8s.node.name", "host.id"],
         "metric_name": "traces_host_info"
+      },
+      "secret_detection": {
+        "disabled_rules": ["generic-api-key"],
+        "custom_rules": [
+          {"id": "customer-token", "regex": "CUSTOMER-[0-9]+"}
+        ]
       }
     }
   }
@@ -119,6 +128,10 @@ func TestLimits_parseJson(t *testing.T) {
 							HostIdentifiers: &[]string{"k8s.node.name", "host.id"},
 							MetricName:      strPtr("traces_host_info"),
 						},
+						SecretDetection: &secrets.Policy{
+							DisabledRules: []string{"generic-api-key"},
+							CustomRules:   []secrets.CustomRule{{ID: "customer-token", Regex: `CUSTOMER-[0-9]+`}},
+						},
 					},
 				},
 			},
@@ -151,5 +164,67 @@ func TestLimits_parseJson(t *testing.T) {
 			assert.Equal(t, tc.expected, limits)
 			assert.True(t, reflect.DeepEqual(tc.expected, limits))
 		})
+	}
+}
+
+func TestSecretDetectionDisabledRulesSerialization(t *testing.T) {
+	compiler, err := secrets.NewPolicyCompiler(nil)
+	require.NoError(t, err)
+	const value = `api_key="r9Q2m7V4x1Z8c6B3n0H5j2L9p4T7w8Y1"`
+	for _, codec := range []struct {
+		name      string
+		marshal   func(any) ([]byte, error)
+		unmarshal func([]byte, any) error
+	}{
+		{"json", json.Marshal, json.Unmarshal},
+		{"yaml", yaml.Marshal, yaml.Unmarshal},
+	} {
+		for _, test := range []struct {
+			name string
+			json string
+			yaml string
+			want secrets.Verdict
+		}{
+			{
+				name: "disabled-with-custom",
+				json: `{"metrics_generator":{"processor":{"secret_detection":{"disabled_rules":["generic-api-key"],"custom_rules":[{"id":"customer-token","regex":"CUSTOMER-[0-9]+"}]}}}}`,
+				yaml: "metrics_generator:\n  processor:\n    secret_detection:\n      disabled_rules: [generic-api-key]\n      custom_rules:\n        - id: customer-token\n          regex: CUSTOMER-[0-9]+\n",
+				want: secrets.Verdict{Matches: []secrets.Match{{RuleID: "customer-token"}}},
+			},
+			{
+				name: "explicit-empty",
+				json: `{"metrics_generator":{"processor":{"secret_detection":{"disabled_rules":[]}}}}`,
+				yaml: "metrics_generator:\n  processor:\n    secret_detection:\n      disabled_rules: []\n",
+				want: secrets.Verdict{Matches: []secrets.Match{{RuleID: "generic-api-key"}}},
+			},
+			{
+				name: "omitted-with-custom",
+				json: `{"metrics_generator":{"processor":{"secret_detection":{"custom_rules":[{"id":"customer-token","regex":"CUSTOMER-[0-9]+"}]}}}}`,
+				yaml: "metrics_generator:\n  processor:\n    secret_detection:\n      custom_rules:\n        - id: customer-token\n          regex: CUSTOMER-[0-9]+\n",
+				want: secrets.Verdict{Matches: []secrets.Match{{RuleID: "generic-api-key"}, {RuleID: "customer-token"}}},
+			},
+		} {
+			t.Run(codec.name+"/"+test.name, func(t *testing.T) {
+				input := test.json
+				if codec.name == "yaml" {
+					input = test.yaml
+				}
+				var decoded Limits
+				require.NoError(t, codec.unmarshal([]byte(input), &decoded))
+				encoded, err := codec.marshal(decoded)
+				require.NoError(t, err)
+				var restored Limits
+				require.NoError(t, codec.unmarshal(encoded, &restored))
+				for _, limits := range []*Limits{&decoded, &restored} {
+					policy := limits.MetricsGenerator.Processor.SecretDetection
+					// An explicit empty policy must survive serialization, so
+					// it can still replace inherited exclusions/custom rules.
+					require.NotNil(t, policy)
+					compiled, err := compiler.CompilePolicy(*policy)
+					require.NoError(t, err)
+					require.Equal(t, test.want, compiled.Detect(value+"\nCUSTOMER-123"))
+				}
+			})
+		}
 	}
 }

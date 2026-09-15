@@ -19,11 +19,13 @@ import (
 	"github.com/grafana/tempo/modules/generator/localserieslimiter"
 	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/hostinfo"
+	"github.com/grafana/tempo/modules/generator/processor/secretdetection"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/modules/generator/validation"
+	"github.com/grafana/tempo/pkg/secrets"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 
@@ -77,6 +79,12 @@ type instance struct {
 	instanceID             string
 	overrides              metricsGeneratorOverrides
 	ingestionSlackOverride atomic.Int64
+	secretsPolicyProvider  secrets.CompiledPolicyProvider
+	secretDetectionMetrics *secretdetection.TenantMetrics
+
+	// Refreshes may compile outside processorsMtx, but their complete resolve /
+	// replace transactions must remain ordered to prevent stale publication.
+	processorUpdatesMtx sync.Mutex
 
 	registry *registry.ManagedRegistry
 	wal      storage.Storage
@@ -87,7 +95,10 @@ type instance struct {
 	// active at any time
 	processors map[string]processor.Processor
 
-	shutdownCh chan struct{}
+	shutdownCh      chan struct{}
+	lifecycleCtx    context.Context
+	cancelLifecycle context.CancelFunc
+	overridesWatch  sync.WaitGroup
 
 	logger log.Logger
 }
@@ -106,31 +117,36 @@ func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverr
 		return nil, fmt.Errorf("invalid limiter type: %s", cfg.LimiterType)
 	}
 
+	lifecycleCtx, cancelLifecycle := context.WithCancel(context.Background())
 	i := &instance{
 		cfg:        cfg,
 		instanceID: instanceID,
 		overrides:  overrides,
-
-		registry: registry.New(&cfg.Registry, overrides, instanceID, wal, logger, limiter),
-		wal:      wal,
+		registry:   registry.New(&cfg.Registry, overrides, instanceID, wal, logger, limiter),
+		wal:        wal,
 
 		processors: make(map[string]processor.Processor),
 
-		shutdownCh: make(chan struct{}, 1),
+		shutdownCh:      make(chan struct{}, 1),
+		lifecycleCtx:    lifecycleCtx,
+		cancelLifecycle: cancelLifecycle,
 
 		logger: logger,
 	}
 
 	err := i.updateProcessors()
 	if err != nil {
+		cancelLifecycle()
 		return nil, fmt.Errorf("could not initialize processors: %w", err)
 	}
+	i.overridesWatch.Add(1)
 	go i.watchOverrides()
 
 	return i, nil
 }
 
 func (i *instance) watchOverrides() {
+	defer i.overridesWatch.Done()
 	reloadPeriod := 10 * time.Second
 
 	ticker := time.NewTicker(reloadPeriod)
@@ -256,10 +272,32 @@ func (i *instance) updateServiceGraphsSubprocessors(desiredProcessors map[string
 }
 
 func (i *instance) updateProcessors() error {
+	i.processorUpdatesMtx.Lock()
+	defer i.processorUpdatesMtx.Unlock()
+	if i.lifecycleCtx.Err() != nil {
+		return nil
+	}
+
 	desiredProcessors := i.filterSupportedProcessors(i.overrides.MetricsGeneratorProcessors(i.instanceID))
 	desiredCfg, err := i.cfg.Processor.copyWithOverrides(i.overrides, i.instanceID)
 	if err != nil {
 		return err
+	}
+	if _, enabled := desiredProcessors[processor.SecretDetectionName]; enabled {
+		if i.secretsPolicyProvider == nil {
+			i.secretsPolicyProvider = i.cfg.Processor.SecretDetection.PolicyCompiler.NewCompiledPolicyProvider(i.instanceID, i.overrides.SecretsPolicy, i.logger)
+		}
+		compiledSecretsPolicy, ok := i.secretsPolicyProvider(i.lifecycleCtx)
+		if i.lifecycleCtx.Err() != nil {
+			return nil
+		}
+		if !ok {
+			return fmt.Errorf("could not initialize secrets policy")
+		}
+		desiredCfg.SecretDetection.CompiledPolicy = compiledSecretsPolicy
+		desiredCfg.SecretDetection.SourceStream = detectionSourceStream(i.cfg.Codec)
+	} else {
+		i.secretsPolicyProvider = nil
 	}
 
 	ingestionSlackInt := i.overrides.MetricsGeneratorIngestionSlack(i.instanceID).Nanoseconds()
@@ -284,6 +322,9 @@ func (i *instance) updateProcessors() error {
 
 	i.processorsMtx.Lock()
 	defer i.processorsMtx.Unlock()
+	if i.lifecycleCtx.Err() != nil {
+		return nil
+	}
 
 	for _, processorName := range toAdd {
 		err := i.addProcessor(processorName, desiredCfg)
@@ -295,10 +336,19 @@ func (i *instance) updateProcessors() error {
 		i.removeProcessor(processorName)
 	}
 	for _, processorName := range toReplace {
-		i.removeProcessor(processorName)
+		if processorName == processor.SecretDetectionName {
+			replacement, err := secretdetection.New(desiredCfg.SecretDetection, i.instanceID, i.logger, i.secretDetectionMetrics)
+			if err != nil {
+				return err
+			}
+			previous := i.processors[processorName]
+			i.processors[processorName] = replacement
+			previous.Shutdown(context.Background())
+			continue
+		}
 
-		err := i.addProcessor(processorName, desiredCfg)
-		if err != nil {
+		i.removeProcessor(processorName)
+		if err := i.addProcessor(processorName, desiredCfg); err != nil {
 			return err
 		}
 	}
@@ -308,10 +358,20 @@ func (i *instance) updateProcessors() error {
 	return nil
 }
 
+func detectionSourceStream(codec string) string {
+	if codec == codecOTLP {
+		return "sampler-ingest"
+	}
+	return "tempo-ingest"
+}
+
 func (i *instance) filterSupportedProcessors(processors map[string]struct{}) map[string]struct{} {
 	filtered := make(map[string]struct{}, len(processors))
 
 	for processorName := range processors {
+		if processorName == processor.SecretDetectionName && !i.cfg.Processor.SecretDetection.Enabled {
+			continue
+		}
 		if _, ok := validation.SupportedProcessorsSet[processorName]; ok {
 			filtered[processorName] = struct{}{}
 			continue
@@ -348,6 +408,10 @@ func (i *instance) diffProcessors(desiredProcessors map[string]struct{}, desired
 			}
 		case *hostinfo.Processor:
 			if !reflect.DeepEqual(p.Cfg, desiredCfg.HostInfo) {
+				toReplace = append(toReplace, processorName)
+			}
+		case *secretdetection.Processor:
+			if !reflect.DeepEqual(p.Cfg, desiredCfg.SecretDetection) {
 				toReplace = append(toReplace, processorName)
 			}
 		default:
@@ -387,6 +451,14 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 	case processor.HostInfoName:
 		invalidUTF8Counter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonInvalidUTF8, processor.HostInfoName)
 		newProcessor, err = hostinfo.New(cfg.HostInfo, i.registry, i.logger, invalidUTF8Counter)
+		if err != nil {
+			return err
+		}
+	case processor.SecretDetectionName:
+		if i.secretDetectionMetrics == nil {
+			i.secretDetectionMetrics = secretdetection.NewTenantMetrics(i.registry, detectionSourceStream(i.cfg.Codec))
+		}
+		newProcessor, err = secretdetection.New(cfg.SecretDetection, i.instanceID, i.logger, i.secretDetectionMetrics)
 		if err != nil {
 			return err
 		}
@@ -435,36 +507,32 @@ func (i *instance) updateProcessorMetrics() {
 }
 
 func (i *instance) pushSpans(ctx context.Context, req *tempopb.PushSpansRequest) {
-	i.preprocessSpans(req)
-	i.processorsMtx.RLock()
-	defer i.processorsMtx.RUnlock()
-
-	for _, proc := range i.processors {
-		switch proc.Name() {
-		case processor.SpanMetricsName, processor.ServiceGraphsName, processor.HostInfoName:
-			if req.SkipMetricsGeneration {
-				metricSkippedProcessorPushes.WithLabelValues(i.instanceID).Inc()
-				break
-			}
-			proc.PushSpans(ctx, req)
-		}
-	}
+	i.processSpans(ctx, req)
 }
 
 func (i *instance) pushSpansFromQueue(ctx context.Context, _ time.Time, req *tempopb.PushSpansRequest) {
-	i.preprocessSpans(req)
+	i.processSpans(ctx, req)
+}
+
+func (i *instance) processSpans(ctx context.Context, req *tempopb.PushSpansRequest) {
 	i.processorsMtx.RLock()
 	defer i.processorsMtx.RUnlock()
 
-	for _, proc := range i.processors {
-		switch proc.Name() {
-		case processor.SpanMetricsName, processor.ServiceGraphsName, processor.HostInfoName:
-			if req.SkipMetricsGeneration {
-				metricSkippedProcessorPushes.WithLabelValues(i.instanceID).Inc()
-				break
-			}
-			proc.PushSpans(ctx, req)
+	if detector, ok := i.processors[processor.SecretDetectionName]; ok {
+		detector.PushSpans(ctx, req)
+	}
+
+	i.preprocessSpans(req)
+
+	for processorName, proc := range i.processors {
+		if processorName == processor.SecretDetectionName {
+			continue
 		}
+		if req.SkipMetricsGeneration {
+			metricSkippedProcessorPushes.WithLabelValues(i.instanceID).Inc()
+			continue
+		}
+		proc.PushSpans(ctx, req)
 	}
 }
 
@@ -510,7 +578,14 @@ func (i *instance) updatePushMetrics(bytesIngested int, spanCount int, expiredSp
 // shutdown stops the instance and flushes any remaining data. After shutdown
 // is called pushSpans should not be called anymore.
 func (i *instance) shutdown() {
+	i.cancelLifecycle()
 	close(i.shutdownCh)
+	i.overridesWatch.Wait()
+
+	// Wait for any externally requested refresh as well as the watcher before
+	// closing processor resources. Cancellation releases admission waiters.
+	i.processorUpdatesMtx.Lock()
+	defer i.processorUpdatesMtx.Unlock()
 
 	i.processorsMtx.Lock()
 	defer i.processorsMtx.Unlock()

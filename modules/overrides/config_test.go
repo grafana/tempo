@@ -16,6 +16,7 @@ import (
 
 	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
+	"github.com/grafana/tempo/pkg/secrets"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/util/listtomap"
@@ -92,6 +93,51 @@ max_search_duration: 5m
 	require.NoError(t, err, "expected to be able to unmarshal from JSON")
 
 	assert.Equal(t, limitsYAML, limitsJSON)
+}
+
+func TestConfigUnmarshalsSecretsPolicyUnderMetricsGeneratorProcessor(t *testing.T) {
+	raw := `
+defaults:
+  metrics_generator:
+    processor:
+      secret_detection:
+        disabled_rules: [generic-api-key]
+        custom_rules:
+          - id: acme-key
+            regex: ACME-[A-Z0-9]{16}
+`
+	var cfg Config
+	require.NoError(t, yaml.UnmarshalStrict([]byte(raw), &cfg))
+	policy := cfg.Defaults.MetricsGenerator.Processor.SecretDetection
+	require.NotNil(t, policy)
+	assert.Equal(t, &secrets.Policy{
+		DisabledRules: []string{"generic-api-key"},
+		CustomRules:   []secrets.CustomRule{{ID: "acme-key", Regex: "ACME-[A-Z0-9]{16}"}},
+	}, policy)
+}
+
+func TestConfigRejectsRemovedSecretsPolicyFields(t *testing.T) {
+	for _, field := range []string{
+		"catalog_version: tempo-secrets-v1",
+		"revision: 7",
+		"optional_rules: [generic-api-key]",
+	} {
+		t.Run(field, func(t *testing.T) {
+			raw := "defaults:\n  metrics_generator:\n    processor:\n      secret_detection:\n        " + field + "\n"
+			var cfg Config
+			require.Error(t, yaml.UnmarshalStrict([]byte(raw), &cfg))
+		})
+	}
+}
+
+func TestConfigRejectsTopLevelSecretsPolicy(t *testing.T) {
+	raw := `
+defaults:
+  secrets:
+    custom_rules: []
+`
+	var cfg Config
+	require.Error(t, yaml.UnmarshalStrict([]byte(raw), &cfg))
 }
 
 func TestConfig_DefaultIngestionLimits(t *testing.T) {
@@ -456,6 +502,7 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MetricsGeneratorProcessorSpanMetricsEnableTraceStateSpanMultiplier: boolPtr(true),
 		MetricsGeneratorProcessorHostInfoHostIdentifiers:                   []string{"host-id-1", "host-id-2"},
 		MetricsGeneratorProcessorHostInfoMetricName:                        "host_info",
+		MetricsGeneratorProcessorSecretDetection:                           &secrets.Policy{},
 		MetricsGeneratorIngestionSlack:                                     1 * time.Minute,
 		MetricsGeneratorNativeHistogramBucketFactor:                        1.5,
 		MetricsGeneratorNativeHistogramMaxBucketNumber:                     200,

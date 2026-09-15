@@ -1802,6 +1802,70 @@ func TestPushLocalSkipsGeneratorWhenLiveStoreFails(t *testing.T) {
 	}
 }
 
+func TestPushLocalForwardsToGeneratorForSelectedProcessors(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		processors listtomap.ListToMap
+		forward    bool
+	}{
+		{
+			name: "no processors",
+		},
+		{
+			name:       "secret detection only",
+			processors: listtomap.ListToMap{"secret-detection": {}},
+			forward:    true,
+		},
+		{
+			name:       "service graphs",
+			processors: listtomap.ListToMap{"service-graphs": {}},
+			forward:    true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			limits := overrides.Config{}
+			limits.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+			limits.Defaults.MetricsGenerator.Processors = tc.processors
+			distributorCfg, overridesSvc, loggingLevel, middleware := setupDependencies(t, limits)
+
+			generatorCalled := make(chan struct{}, 1)
+			d, err := New(
+				distributorCfg,
+				LocalPushTargets{
+					Generator: func(_ context.Context, _ *tempopb.PushSpansRequest) (*tempopb.PushResponse, error) {
+						generatorCalled <- struct{}{}
+						return &tempopb.PushResponse{}, nil
+					},
+				},
+				nil,
+				overridesSvc,
+				middleware,
+				kitlog.NewNopLogger(),
+				loggingLevel,
+				prometheus.NewRegistry(),
+			)
+			require.NoError(t, err)
+			require.NoError(t, services.StartAndAwaitRunning(context.Background(), d.generatorForwarder))
+			t.Cleanup(func() {
+				require.NoError(t, services.StopAndAwaitTerminated(context.Background(), d.generatorForwarder))
+			})
+
+			traces := batchesToTraces(t, []*v1.ResourceSpans{test.MakeBatch(1, nil)})
+			_, err = d.PushTraces(ctx, traces)
+			require.NoError(t, err)
+			// Stopping drains all queued requests before checking whether the generator was called.
+			require.NoError(t, services.StopAndAwaitTerminated(context.Background(), d.generatorForwarder))
+
+			select {
+			case <-generatorCalled:
+				require.True(t, tc.forward, "generator was called without selected processors")
+			default:
+				require.False(t, tc.forward, "generator was not called")
+			}
+		})
+	}
+}
+
 func TestArtificialLatency(t *testing.T) {
 	// prepare test data
 	overridesConfig := overrides.Config{}

@@ -23,6 +23,7 @@ import (
 
 	"github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/pkg/ingest"
+	"github.com/grafana/tempo/pkg/secrets"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/validation"
 )
@@ -87,6 +88,14 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 
 	if err := cfg.Validate(); err != nil {
 		return nil, err
+	}
+
+	if cfg.Processor.SecretDetection.Enabled && cfg.Processor.SecretDetection.PolicyCompiler == nil {
+		compiler, err := secrets.NewPolicyCompiler(nil)
+		if err != nil {
+			return nil, fmt.Errorf("could not initialize secrets policy compiler: %w", err)
+		}
+		cfg.Processor.SecretDetection.PolicyCompiler = compiler
 	}
 
 	err := os.MkdirAll(cfg.Storage.Path, 0o700)

@@ -47,6 +47,20 @@
             },
           },
           {
+            alert: 'TempoSecretDetectionPolicyRejected',
+            'for': '5m',
+            expr: |||
+              sum by (%s) (increase(tempo_secret_detection_policy_updates_total{namespace=~"%s", outcome="rejected"}[10m])) > 0
+            ||| % [$._config.group_by_cluster, $._config.namespace],
+            labels: {
+              severity: 'warning',
+            },
+            annotations: {
+              message: 'The metrics-generator rejected a secret-detection policy update and retained its last-known-good or native policy.',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoSecretDetectionPolicyRejected',
+            },
+          },
+          {
             alert: 'TempoCompactionsFailing',
             'for': '1h',
             expr: |||
