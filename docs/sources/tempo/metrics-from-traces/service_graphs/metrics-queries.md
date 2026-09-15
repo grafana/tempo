@@ -73,11 +73,10 @@ If you're interested in how the latency changed over time between any two servic
 Adjust this value if you want to calculate a different percentile for latency, for example, `p50`, `p95`, `p99`.
 
 {{< admonition type="caution" >}}
-`histogram_quantile()` can produce inaccurate results when span metrics data is sparse.
-PromQL extrapolates across histogram buckets, which can return misleadingly high or impossible latency values when few samples are present.
-If you use `histogram_quantile()` on span metrics for alerting, false alerts are common with low-traffic services.
+`histogram_quantile()` interpolates within pre-aggregated histogram buckets, which can return misleadingly high or impossible latency values when few samples are present.
+If you use `histogram_quantile()` on service graph metrics for alerting, false alerts are common with low-traffic services.
 
-For latency-based alerts on trace data, prefer TraceQL's [`quantile_over_time()`](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/functions/#the-quantile_over_time-function) function, which computes percentiles directly from spans without histogram bucket extrapolation.
+For latency-based alerts on trace data, consider TraceQL's [`quantile_over_time()`](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/functions/#the-quantile_over_time-function) function, which computes percentiles from raw span data at query time rather than from pre-aggregated histogram buckets.
 {{< /admonition >}}
 
 ```promql
