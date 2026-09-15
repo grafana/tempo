@@ -2,6 +2,7 @@ package spanmetrics
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/grafana/tempo/modules/generator/validation"
@@ -49,11 +50,53 @@ type Processor struct {
 	dimensionMappingLabels []string
 	usesSpanMultiplier     bool
 
+	// sampler is nil unless per-series sampling is configured.
+	sampler *seriesSampler
+	// scratchPool holds the per-push buffers the sampled path uses. Only
+	// touched when sampler is non-nil, so the unsampled path is unaffected.
+	scratchPool sync.Pool
+	// mappingSourceOffsets[i]:mappingSourceOffsets[i+1] indexes the resolved
+	// source values of Cfg.DimensionMappings[i] inside spanScratch.mappings.
+	mappingSourceOffsets []int
+
 	// for testing
 	now func() time.Time
 }
 
-func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Counter prometheus.Counter) (gen.Processor, error) {
+// spanScratch holds the buffers the sampled path needs for one push. The
+// sampling key and the label set read the same resolved attribute values, so
+// they are resolved once into here and shared. Pooled because PushSpans may run
+// concurrently for a single tenant.
+type spanScratch struct {
+	key        samplerKey
+	dimensions []string
+	mappings   []string
+}
+
+// Option configures optional processor behaviour. Options exist so deployment
+// facts the processor cannot discover for itself can be supplied without every
+// caller having to know about them.
+type Option func(*options)
+
+type options struct {
+	trafficShare func() float64
+}
+
+// WithTrafficShare supplies the fraction of a tenant's spans this instance
+// receives, between 0 and 1. Per-series sampling needs it to split its
+// fleet-wide budget across the instances sharing the traffic; without it each
+// instance takes the whole budget, which under-samples. Values outside (0,1]
+// are ignored.
+func WithTrafficShare(share func() float64) Option {
+	return func(o *options) { o.trafficShare = share }
+}
+
+func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Counter prometheus.Counter, opts ...Option) (gen.Processor, error) {
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
+
 	var configuredIntrinsicDimensions []string
 
 	if cfg.IntrinsicDimensions.Service {
@@ -89,6 +132,11 @@ func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Cou
 		dimensionMappingLabels[i] = validation.SanitizeLabelNameWithCollisions(m.Name, validation.SupportedIntrinsicDimensionsSet, c.Get)
 	}
 
+	mappingSourceOffsets := make([]int, len(cfg.DimensionMappings)+1)
+	for i, m := range cfg.DimensionMappings {
+		mappingSourceOffsets[i+1] = mappingSourceOffsets[i] + len(m.SourceLabel)
+	}
+
 	p := &Processor{
 		Cfg:                    cfg,
 		registry:               reg,
@@ -101,6 +149,14 @@ func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Cou
 		dimensionLabels:        dimensionLabels,
 		dimensionMappingLabels: dimensionMappingLabels,
 		usesSpanMultiplier:     cfg.SpanMultiplierKey != "" || cfg.EnableTraceStateSpanMultiplier,
+		sampler:                newSeriesSampler(cfg.MaxSpansPerSeriesPerInterval, cfg.SendInterval, o.trafficShare),
+		mappingSourceOffsets:   mappingSourceOffsets,
+	}
+	p.scratchPool.New = func() any {
+		return &spanScratch{
+			dimensions: make([]string, len(cfg.Dimensions)),
+			mappings:   make([]string, mappingSourceOffsets[len(mappingSourceOffsets)-1]),
+		}
 	}
 
 	if cfg.Subprocessors[Latency] {
@@ -138,6 +194,15 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 	// feeds staleness checks on the order of minutes, so per-batch granularity
 	// is more than enough.
 	updateTimeMs := p.now().UnixMilli()
+
+	// One scratch per push, not per span: the sampled path reuses its buffers
+	// across every span in the request.
+	var scratch *spanScratch
+	if p.sampler != nil {
+		scratch = p.scratchPool.Get().(*spanScratch)
+		defer p.scratchPool.Put(scratch)
+	}
+
 	for _, rs := range resourceSpans {
 		// already extract job name & instance id, so we only have to do it once per batch of spans
 		svcName, jobName, instanceID := processor_util.FindServiceLabels(rs.Resource.Attributes)
@@ -149,7 +214,7 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 					p.filteredSpansCounter.Inc()
 					continue
 				}
-				if !p.aggregateMetricsForSpan(svcName, jobName, instanceID, rs.Resource, span, updateTimeMs) {
+				if !p.aggregateMetricsForSpan(scratch, svcName, jobName, instanceID, rs.Resource, span, updateTimeMs) {
 					continue
 				}
 				if p.Cfg.EnableTargetInfo {
@@ -178,7 +243,21 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 // span. It reports whether the span's primary label set was valid UTF-8;
 // callers gate target_info registration on this, independent of which
 // subprocessors are enabled.
-func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, instanceID string, rs *v1.Resource, span *v1_trace.Span, updateTimeMs int64) bool {
+//
+// scratch is non-nil exactly when per-series sampling is enabled, in which case
+// a span the sampler skips returns early. Skipped spans report true: their
+// label set was never built, so nothing is known about its UTF-8 validity, and
+// reporting false would suppress target_info for the whole resource batch.
+// target_info is per resource rather than per span and is never sampled.
+func (p *Processor) aggregateMetricsForSpan(scratch *spanScratch, svcName string, jobName string, instanceID string, rs *v1.Resource, span *v1_trace.Span, updateTimeMs int64) bool {
+	samplingMultiplier := 1.0
+	if scratch != nil {
+		samplingMultiplier = p.sampleSpan(scratch, svcName, jobName, instanceID, rs, span, updateTimeMs)
+		if samplingMultiplier == 0 {
+			return true
+		}
+	}
+
 	builder := p.registry.NewLabelBuilder()
 
 	if p.Cfg.IntrinsicDimensions.Service {
@@ -197,19 +276,34 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 		builder.Add(gen.DimStatusMessage, span.GetStatus().GetMessage())
 	}
 
-	for i, d := range p.Cfg.Dimensions {
-		value, _ := processor_util.FindAttributeValue(d, rs.Attributes, span.Attributes)
-		// if there is a collision, for example deployment.environment and deployment_environment,
-		// both sanitized to deployment_environment, we just take the last one configured.
-		builder.Add(p.dimensionLabels[i], value)
+	// The sampled path already resolved every dimension value to build the
+	// sampling key, so it reads them back instead of scanning the attributes a
+	// second time. If there is a collision, for example deployment.environment
+	// and deployment_environment, both sanitized to deployment_environment, we
+	// just take the last one configured.
+	if scratch != nil {
+		for i := range p.Cfg.Dimensions {
+			builder.Add(p.dimensionLabels[i], scratch.dimensions[i])
+		}
+	} else {
+		for i, d := range p.Cfg.Dimensions {
+			value, _ := processor_util.FindAttributeValue(d, rs.Attributes, span.Attributes)
+			builder.Add(p.dimensionLabels[i], value)
+		}
 	}
 
 	for i, m := range p.Cfg.DimensionMappings {
 		// Plain concatenation: source lists are short (1-3 entries), where
 		// strings.Builder allocates more than simple concatenation.
 		values := ""
-		for _, s := range m.SourceLabel {
-			if value, _ := processor_util.FindAttributeValue(s, rs.Attributes, span.Attributes); value != "" {
+		for j, source := range m.SourceLabel {
+			value := ""
+			if scratch != nil {
+				value = scratch.mappings[p.mappingSourceOffsets[i]+j]
+			} else {
+				value, _ = processor_util.FindAttributeValue(source, rs.Attributes, span.Attributes)
+			}
+			if value != "" {
 				if values == "" {
 					values = value
 				} else {
@@ -229,14 +323,17 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 		builder.Add(gen.DimInstance, instanceID)
 	}
 
-	spanMultiplier := 1.0
+	spanMultiplier := samplingMultiplier
 	if p.usesSpanMultiplier {
-		spanMultiplier = processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span, rs, p.Cfg.EnableTraceStateSpanMultiplier)
+		spanMultiplier *= processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span, rs, p.Cfg.EnableTraceStateSpanMultiplier)
 	}
 
 	registryLabelValues, validUTF8 := builder.CloseAndBorrowLabels()
 	if !validUTF8 {
-		p.invalidUTF8Counter.Inc()
+		// Scaled like everything else this span stands for: only sampled spans
+		// reach the UTF-8 check, so counting one per kept span would undercount
+		// the discards by the sampling multiplier. Unsampled, this is Inc.
+		p.invalidUTF8Counter.Add(samplingMultiplier)
 		return false
 	}
 	defer registryLabelValues.Release()
@@ -255,10 +352,73 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 	}
 
 	if p.Cfg.Subprocessors[Size] {
-		p.spanMetricsSizeTotal.IncBorrowed(registryLabelValues, float64(span.Size()), updateTimeMs)
+		// size_total deliberately ignores the span multiplier, but it still has
+		// to be scaled by the sampling multiplier: the skipped spans' bytes are
+		// never observed anywhere else.
+		p.spanMetricsSizeTotal.IncBorrowed(registryLabelValues, float64(span.Size())*samplingMultiplier, updateTimeMs)
 	}
 
 	return true
+}
+
+// sampleSpan resolves the values that decide the span's series into scratch and
+// asks the sampler for this span's multiplier, 0 meaning skip. The resolved
+// values are left in scratch for aggregateMetricsForSpan to reuse.
+//
+// The components mirror the label set built by aggregateMetricsForSpan exactly.
+// Keying on more than the label set would hand each series several budgets;
+// keying on less would make several series share one, and neither is what the
+// per-series accuracy target asks for.
+func (p *Processor) sampleSpan(scratch *spanScratch, svcName string, jobName string, instanceID string, rs *v1.Resource, span *v1_trace.Span, updateTimeMs int64) float64 {
+	p.buildSamplerKey(scratch, svcName, jobName, instanceID, rs, span)
+	return p.sampler.sample(scratch.key.sum(), updateTimeMs)
+}
+
+// buildSamplerKey fills scratch.key with the span's series-defining values and
+// scratch.dimensions/mappings with the attribute values it resolved on the way.
+func (p *Processor) buildSamplerKey(scratch *spanScratch, svcName string, jobName string, instanceID string, rs *v1.Resource, span *v1_trace.Span) {
+	key := &scratch.key
+	key.reset()
+
+	if p.Cfg.IntrinsicDimensions.Service {
+		key.addString(svcName)
+	}
+	if p.Cfg.IntrinsicDimensions.SpanName {
+		key.addString(span.GetName())
+	}
+	if p.Cfg.IntrinsicDimensions.SpanKind {
+		key.addString(spanKindString(span.GetKind()))
+	}
+	if p.Cfg.IntrinsicDimensions.StatusCode {
+		key.addString(statusCodeString(span.GetStatus().GetCode()))
+	}
+	if p.Cfg.IntrinsicDimensions.StatusMessage {
+		key.addString(span.GetStatus().GetMessage())
+	}
+
+	for i, d := range p.Cfg.Dimensions {
+		value, _ := processor_util.FindAttributeValue(d, rs.Attributes, span.Attributes)
+		scratch.dimensions[i] = value
+		key.addString(value)
+	}
+
+	// The mapping label is the join of its source values, but the sources
+	// discriminate series just as well and hashing them avoids building the
+	// joined string for a span that is about to be skipped.
+	for i, m := range p.Cfg.DimensionMappings {
+		for j, source := range m.SourceLabel {
+			value, _ := processor_util.FindAttributeValue(source, rs.Attributes, span.Attributes)
+			scratch.mappings[p.mappingSourceOffsets[i]+j] = value
+			key.addString(value)
+		}
+	}
+
+	if jobName != "" && p.Cfg.EnableTargetInfo {
+		key.addString(jobName)
+	}
+	if instanceID != "" && p.Cfg.EnableTargetInfo && p.Cfg.EnableInstanceLabel {
+		key.addString(instanceID)
+	}
 }
 
 func (p *Processor) buildAndSetTargetInfoLabels(attributes []*v1_common.KeyValue, jobName string, instanceID string, updateTimeMs int64) bool {

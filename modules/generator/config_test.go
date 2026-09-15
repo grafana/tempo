@@ -3,6 +3,7 @@ package generator
 import (
 	"flag"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,6 +29,20 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 		},
 	}
 
+	t.Run("span metrics send interval resolves like the registry", func(t *testing.T) {
+		// The sampler counts its budget in send intervals, so SendInterval has to
+		// land on the same value ManagedRegistry.collectionInterval would pick:
+		// the tenant override when set, the static registry config otherwise.
+		// Reading only the override would make a statically configured interval
+		// spend the budget on the wrong cadence.
+		copied, err := original.copyWithOverrides(&mockOverrides{collectionInterval: 30 * time.Second}, "tenant", 60*time.Second)
+		require.NoError(t, err)
+		assert.Equal(t, 30*time.Second, copied.SpanMetrics.SendInterval, "override should win")
+
+		copied, err = original.copyWithOverrides(&mockOverrides{}, "tenant", 60*time.Second)
+		require.NoError(t, err)
+		assert.Equal(t, 60*time.Second, copied.SpanMetrics.SendInterval, "should fall back to the static config")
+	})
 	t.Run("test enable service graph flags", func(t *testing.T) {
 		o := &mockOverrides{
 			serviceGraphsEnableClientServerPrefix:              true,
@@ -35,7 +50,7 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 			serviceGraphsEnableMessagingSystemLatencyHistogram: boolPtr(true),
 		}
 
-		copied, err := original.copyWithOverrides(o, "tenant")
+		copied, err := original.copyWithOverrides(o, "tenant", 0)
 		require.NoError(t, err)
 		assert.Equal(t, true, copied.ServiceGraphs.EnableClientServerPrefix)
 		assert.Equal(t, true, copied.ServiceGraphs.EnableVirtualNodeLabel)
@@ -50,7 +65,7 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 			spanMetricsIntrinsicDimensions: map[string]bool{"status_code": true},
 		}
 
-		copied, err := original.copyWithOverrides(o, "tenant")
+		copied, err := original.copyWithOverrides(o, "tenant", 0)
 		require.NoError(t, err)
 
 		assert.NotEqual(t, *original, copied)
@@ -73,7 +88,7 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 	t.Run("empty overrides", func(t *testing.T) {
 		o := &mockOverrides{}
 
-		copied, err := original.copyWithOverrides(o, "tenant")
+		copied, err := original.copyWithOverrides(o, "tenant", 0)
 		require.NoError(t, err)
 
 		assert.Equal(t, *original, copied)
@@ -84,7 +99,7 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 			spanMetricsIntrinsicDimensions: map[string]bool{"invalid": true},
 		}
 
-		_, err := original.copyWithOverrides(o, "tenant")
+		_, err := original.copyWithOverrides(o, "tenant", 0)
 		require.Error(t, err)
 	})
 
@@ -93,7 +108,7 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 			spanMetricsFilterPolicies: nil,
 		}
 
-		copied, err := original.copyWithOverrides(o, "tenant")
+		copied, err := original.copyWithOverrides(o, "tenant", 0)
 		require.NoError(t, err)
 
 		assert.Equal(t, *original, copied)
@@ -104,7 +119,7 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 			spanMetricsFilterPolicies: []config.FilterPolicy{},
 		}
 
-		copied, err := original.copyWithOverrides(o, "tenant")
+		copied, err := original.copyWithOverrides(o, "tenant", 0)
 		require.NoError(t, err)
 
 		assert.NotEqual(t, *original, copied)
@@ -129,7 +144,7 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 			},
 		}
 
-		copied, err := original.copyWithOverrides(o, "tenant")
+		copied, err := original.copyWithOverrides(o, "tenant", 0)
 		require.NoError(t, err)
 
 		assert.NotEqual(t, *original, copied)
@@ -154,7 +169,7 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 			serviceGraphsFilterPolicies: nil,
 		}
 
-		copied, err := original.copyWithOverrides(o, "tenant")
+		copied, err := original.copyWithOverrides(o, "tenant", 0)
 		require.NoError(t, err)
 
 		assert.Equal(t, *original, copied)
@@ -165,7 +180,7 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 			serviceGraphsFilterPolicies: []config.FilterPolicy{},
 		}
 
-		copied, err := original.copyWithOverrides(o, "tenant")
+		copied, err := original.copyWithOverrides(o, "tenant", 0)
 		require.NoError(t, err)
 
 		assert.NotEqual(t, *original, copied)
@@ -189,7 +204,7 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 			},
 		}
 
-		copied, err := original.copyWithOverrides(o, "tenant")
+		copied, err := original.copyWithOverrides(o, "tenant", 0)
 		require.NoError(t, err)
 
 		assert.NotEqual(t, *original, copied)
@@ -214,7 +229,7 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 			spanMetricsSpanMultiplierKey:   "custom_key",
 		}
 
-		copied, err := original.copyWithOverrides(o, "tenant")
+		copied, err := original.copyWithOverrides(o, "tenant", 0)
 		require.NoError(t, err)
 
 		assert.NotEqual(t, *original, copied)
@@ -228,7 +243,7 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 			spanMetricsEnableTraceStateSpanMultiplier:   boolPtr(true),
 		}
 
-		copied, err := original.copyWithOverrides(o, "tenant")
+		copied, err := original.copyWithOverrides(o, "tenant", 0)
 		require.NoError(t, err)
 
 		assert.NotEqual(t, *original, copied)
@@ -250,7 +265,7 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 		// Empty overrides should preserve base config values
 		o := &mockOverrides{}
 
-		copied, err := originalWithMappings.copyWithOverrides(o, "tenant")
+		copied, err := originalWithMappings.copyWithOverrides(o, "tenant", 0)
 		require.NoError(t, err)
 
 		// Verify dimension_mappings from base config is preserved
@@ -281,7 +296,7 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 			spanMetricsTargetInfoExcludedDimensions: []string{"process.runtime.version"},
 		}
 
-		copied, err := originalWithMappings.copyWithOverrides(o, "tenant")
+		copied, err := originalWithMappings.copyWithOverrides(o, "tenant", 0)
 		require.NoError(t, err)
 
 		// Verify override replaced base config
