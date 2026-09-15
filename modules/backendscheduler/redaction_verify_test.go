@@ -49,13 +49,6 @@ func newAuditScheduler(t *testing.T, tenant string) (context.Context, *BackendSc
 	return ctx, s, day
 }
 
-func mustVerifyState(t *testing.T, s *BackendScheduler, tenant string) work.RedactionVerifyState {
-	t.Helper()
-	state, ok := s.work.RedactionVerifyState(tenant)
-	require.True(t, ok, "the tenant must have a batch")
-	return state
-}
-
 func addQueryBatch(t *testing.T, s *BackendScheduler, tenant, batchID string) {
 	t.Helper()
 	require.NoError(t, s.work.AddBatch(&tempopb.RedactionBatch{
