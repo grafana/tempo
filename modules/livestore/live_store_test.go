@@ -727,7 +727,7 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 	const testTopic = "traces"
 	_, kafkaAddr := testkafka.CreateCluster(t, 1, testTopic)
 
-	cfg.IngestConfig.Kafka.Address = kafkaAddr
+	cfg.IngestConfig.Kafka.Address = ingest.KafkaAddresses{kafkaAddr}
 	cfg.IngestConfig.Kafka.Topic = testTopic
 	cfg.IngestConfig.Kafka.ConsumerGroup = "test-consumer-group"
 

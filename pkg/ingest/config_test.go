@@ -9,6 +9,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kfake"
 	"github.com/twmb/franz-go/pkg/kgo"
+	yamlv2 "go.yaml.in/yaml/v2"
 )
 
 func TestKafkaConfig_ClientRackFlag(t *testing.T) {
@@ -47,7 +48,7 @@ func TestSetDefaultNumberOfPartitionsForAutocreatedTopics(t *testing.T) {
 	}
 
 	cfg := KafkaConfig{
-		Address:                          cluster.ListenAddrs()[0],
+		Address:                          KafkaAddresses{cluster.ListenAddrs()[0]},
 		AutoCreateTopicDefaultPartitions: 100,
 	}
 
@@ -114,7 +115,7 @@ func TestParseProducerCompression_UnsetVsExplicitNone(t *testing.T) {
 
 func TestKafkaConfig_Validate_ProducerCompression(t *testing.T) {
 	cfg := KafkaConfig{
-		Address:                    "localhost:9092",
+		Address:                    KafkaAddresses{"localhost:9092"},
 		Topic:                      "test",
 		ProducerMaxRecordSizeBytes: minProducerRecordDataBytesLimit,
 	}
@@ -130,4 +131,86 @@ func TestKafkaConfig_Validate_ProducerCompression(t *testing.T) {
 	// validate that an invalid value raises an error.
 	cfg.ProducerCompression = "unsupported"
 	require.ErrorIs(t, cfg.Validate(), ErrInvalidProducerCompression)
+}
+
+func TestKafkaAddresses(t *testing.T) {
+	t.Run("flag default is a single localhost broker", func(t *testing.T) {
+		var cfg KafkaConfig
+		f := flag.NewFlagSet("test", flag.PanicOnError)
+		cfg.RegisterFlags(f)
+
+		require.Equal(t, KafkaAddresses{"localhost:9092"}, cfg.Address)
+		require.NoError(t, f.Parse(nil))
+		require.Equal(t, KafkaAddresses{"localhost:9092"}, cfg.Address)
+	})
+
+	t.Run("flag replaces the default with a comma-separated list", func(t *testing.T) {
+		var cfg KafkaConfig
+		f := flag.NewFlagSet("test", flag.PanicOnError)
+		cfg.RegisterFlags(f)
+
+		require.NoError(t, f.Parse([]string{"-kafka.address=kafka-1:9092, kafka-2:9092"}))
+		require.Equal(t, KafkaAddresses{"kafka-1:9092", "kafka-2:9092"}, cfg.Address)
+	})
+
+	tests := []struct {
+		name string
+		yaml string
+		want KafkaAddresses
+	}{
+		{
+			name: "single string",
+			yaml: "address: kafka-1:9092\n",
+			want: KafkaAddresses{"kafka-1:9092"},
+		},
+		{
+			name: "comma-separated string",
+			yaml: "address: kafka-1:9092, kafka-2:9092\n",
+			want: KafkaAddresses{"kafka-1:9092", "kafka-2:9092"},
+		},
+		{
+			name: "yaml list",
+			yaml: "address:\n  - kafka-1:9092\n  - kafka-2:9092\n",
+			want: KafkaAddresses{"kafka-1:9092", "kafka-2:9092"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run("yaml "+tc.name, func(t *testing.T) {
+			var cfg KafkaConfig
+			require.NoError(t, yamlv2.Unmarshal([]byte(tc.yaml), &cfg))
+			require.Equal(t, tc.want, cfg.Address)
+		})
+	}
+}
+
+func TestKafkaConfig_Validate_Address(t *testing.T) {
+	cfg := KafkaConfig{
+		Address:                    KafkaAddresses{"localhost:9092"},
+		Topic:                      "test",
+		ProducerMaxRecordSizeBytes: minProducerRecordDataBytesLimit,
+	}
+	require.NoError(t, cfg.Validate())
+
+	cfg.Address = nil
+	require.ErrorIs(t, cfg.Validate(), ErrMissingKafkaAddress)
+
+	cfg.Address = KafkaAddresses{}
+	require.ErrorIs(t, cfg.Validate(), ErrMissingKafkaAddress)
+}
+
+func TestCommonKafkaClientOptions_MultipleSeedBrokers(t *testing.T) {
+	cluster, err := kfake.NewCluster(kfake.NumBrokers(2))
+	require.NoError(t, err)
+	t.Cleanup(cluster.Close)
+
+	cfg := KafkaConfig{
+		Address: KafkaAddresses(cluster.ListenAddrs()),
+		Topic:   "test",
+	}
+	opts, err := commonKafkaClientOptions(cfg, nil, log.NewNopLogger())
+	require.NoError(t, err)
+
+	client, err := kgo.NewClient(opts...)
+	require.NoError(t, err)
+	t.Cleanup(client.Close)
 }
