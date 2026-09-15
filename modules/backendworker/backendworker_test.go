@@ -334,6 +334,57 @@ func TestCompletionNotFoundIsTerminal(t *testing.T) {
 	require.Equal(t, 1, nextCalls, "worker must resume calling Next() for new work after dropping the NotFound job")
 }
 
+// TestCompleteRedactionJobFailsOnGenuineError verifies that completeRedactionJob
+// marks the job as failed (via failJob, i.e. an UpdateJob call with
+// Status: JOB_STATUS_FAILED) when UpdateJob returns a genuine, non-NotFound
+// error. Without this, a real UpdateJob failure (e.g. Unavailable or
+// DeadlineExceeded) would leave the redaction job stuck as in-progress/leased
+// to this worker forever instead of being marked failed and made available
+// for retry/reassignment, unlike processCompactionJob and processRetentionJob.
+func TestCompleteRedactionJobFailsOnGenuineError(t *testing.T) {
+	limitCfg := overrides.Config{}
+	limitCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	workerCfg, schedulerClientCfg, overridesSvc, _, store := setupDependencies(ctx, t, limitCfg)
+
+	// Bound callSchedulerWithBackoff's retries: MaxRetries defaults to 0
+	// (infinite retries) which would make the completion attempt below
+	// retry the genuine error forever instead of ever reaching failJob.
+	workerCfg.Backoff.MaxRetries = 1
+
+	w, err := New(workerCfg, schedulerClientCfg, store, overridesSvc, prometheus.NewRegistry())
+	require.NoError(t, err)
+
+	var failCalls int
+	w.backendScheduler = &mockScheduler{
+		updateJob: func(_ context.Context, req *tempopb.UpdateJobStatusRequest, _ ...grpc.CallOption) (*tempopb.UpdateJobStatusResponse, error) {
+			if req.Status == tempopb.JobStatus_JOB_STATUS_FAILED {
+				failCalls++
+				return &tempopb.UpdateJobStatusResponse{}, nil
+			}
+			// The completion attempt (SUCCEEDED) fails with a genuine,
+			// non-NotFound error.
+			return nil, status.Error(codes.Unavailable, "scheduler unavailable")
+		},
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- w.completeRedactionJob(ctx, "job-genuine-error", 0)
+	}()
+
+	select {
+	case err = <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("completeRedactionJob did not return promptly on a genuine UpdateJob error; it appears wedged retrying forever")
+	}
+	require.Error(t, err, "a genuine UpdateJob failure must not be swallowed")
+	require.Equal(t, 1, failCalls, "completeRedactionJob must call failJob (UpdateJob with JOB_STATUS_FAILED) on a genuine, non-NotFound UpdateJob error")
+}
+
 func TestIsNotFound(t *testing.T) {
 	tests := []struct {
 		name     string
