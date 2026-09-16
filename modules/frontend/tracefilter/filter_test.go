@@ -359,12 +359,12 @@ func TestApplyDepthAssignmentUsesShortestPath(t *testing.T) {
 	// instead, push Y past the cutoff at depth 4, and wrongly drop it.
 	trace := buildTrace([]testSpan{
 		{id: 1, attrs: map[string]any{"match": true}}, // A
-		{id: 2, parent: 1},                            // B, short branch
-		{id: 5, parent: 2},                            // X, true shortest depth 2
-		{id: 6, parent: 5},                            // Y, X's child, true depth 3
-		{id: 3, parent: 1},                            // C, long branch
-		{id: 4, parent: 3},                            // D
-		{id: 5, parent: 4},                            // X' (duplicate id 5), reached at depth 3 via the long branch
+		{id: 2, parent: 1}, // B, short branch
+		{id: 5, parent: 2}, // X, true shortest depth 2
+		{id: 6, parent: 5}, // Y, X's child, true depth 3
+		{id: 3, parent: 1}, // C, long branch
+		{id: 4, parent: 3}, // D
+		{id: 5, parent: 4}, // X' (duplicate id 5), reached at depth 3 via the long branch
 	}, nil)
 
 	f, err := Options{Query: `{ .match = true }`, MatchDepth: 3}.Compile()
