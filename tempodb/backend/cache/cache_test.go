@@ -83,18 +83,36 @@ func TestCacheFor(t *testing.T) {
 			},
 		},
 		{
-			name: "bloom - compaction lvl invalid",
+			name: "bloom - compaction lvl below minimum",
+			cacheInfo: &backend.CacheInfo{
+				Role: cache.RoleBloom,
+				Meta: &backend.BlockMeta{CompactionLevel: 0, StartTime: time.Now()},
+			},
+			expectedCache: nil,
+		},
+		{
+			name: "bloom - compaction lvl equal minimum",
 			cacheInfo: &backend.CacheInfo{
 				Role: cache.RoleBloom,
 				Meta: &backend.BlockMeta{CompactionLevel: 2, StartTime: time.Now()},
 			},
+			expectedCache: rw.bloomCache,
 		},
 		{
-			name: "bloom - both invalid",
+			name: "bloom - compaction lvl above minimum",
 			cacheInfo: &backend.CacheInfo{
 				Role: cache.RoleBloom,
-				Meta: &backend.BlockMeta{CompactionLevel: 2, StartTime: time.Now().Add(-2 * time.Hour)},
+				Meta: &backend.BlockMeta{CompactionLevel: 3, StartTime: time.Now()},
 			},
+			expectedCache: rw.bloomCache,
+		},
+		{
+			name: "bloom - compaction lvl below minimum and start time invalid",
+			cacheInfo: &backend.CacheInfo{
+				Role: cache.RoleBloom,
+				Meta: &backend.BlockMeta{CompactionLevel: 0, StartTime: time.Now().Add(-2 * time.Hour)},
+			},
+			expectedCache: nil,
 		},
 	}
 
