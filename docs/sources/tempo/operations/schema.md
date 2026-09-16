@@ -22,12 +22,12 @@ This document describes the schema used with the Parquet block format.
 ## Version applicability
 
 Tempo defaults to the vParquet5 schema. vParquet4 remains available and differs in some schema details.
-Unless otherwise noted, the sections below describe vParquet4.
 
-The column tables and collapsed schema example below describe vParquet4.
-A [summary of vParquet5 differences](#summary-of-vparquet5-differences) lists what changed.
+The column tables and collapsed schema example below document the vParquet4 layout.
+vParquet5 shares the same overall structure with changes listed in
+[Summary of vParquet5 differences](#summary-of-vparquet5-differences).
 
-The following sections apply to both vParquet4 and vParquet5:
+The following sections apply to both vParquet5 and vParquet4:
 
 - Fully nested versus span-oriented schema
 - Static vs dynamic columns (see vParquet5 differences for changes to dedicated columns)
