@@ -66,6 +66,11 @@ type Interface interface {
 	SetBatchRescan(tenantID string, skippedJobIDs []string, rescanAfterUnixNano int64)
 	SetBatchQuiesceUntil(tenantID string, untilUnixNano int64)
 	BatchQuiescenceState(tenantID string) (quiesceUntilUnixNano int64, rescanPending, dryRun, ok bool)
+
+	// RedactionVerifyState snapshots the batch fields the post-completion coverage audit needs to
+	// scope its scans; ok is false when the tenant has no batch. Read-only: the audit records no
+	// verdict, so nothing here is written back.
+	RedactionVerifyState(tenantID string) (RedactionVerifyState, bool)
 	FlushBatchesToLocal(ctx context.Context, localPath string) error
 	LoadBatchesFromLocal(ctx context.Context, localPath string) error
 
