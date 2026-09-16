@@ -2663,6 +2663,10 @@ overrides:
           [target_info_excluded_dimensions: <list of string>]
           # add instance label to all span metrics series when enable_target_info is true
           [enable_instance_label: <bool> | default = true]
+          # Bound how many spans per metric series are fully aggregated per
+          # collection interval, fleet-wide. Spans over it are sampled and scaled
+          # back up. 0 disables sampling for this tenant.
+          [max_spans_per_series_per_interval: <int>]
 
         # Configuration for the host-info processor
         host_info:

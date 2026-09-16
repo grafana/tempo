@@ -72,6 +72,7 @@ type Interface interface {
 	MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(userID string) (bool, bool)                // returns (enabled, isSet)
 	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string
 	MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel(userID string) (bool, bool)
+	MetricsGeneratorProcessorSpanMetricsMaxSpansPerSeriesPerInterval(userID string) (int, bool) // returns (budget, isSet)
 	MetricsGeneratorProcessorHostInfoHostIdentifiers(userID string) []string
 	MetricsGeneratorProcessorHostInfoMetricName(userID string) string
 	MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey(userID string) string

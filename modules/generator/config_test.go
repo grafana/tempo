@@ -29,6 +29,26 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 		},
 	}
 
+	t.Run("span metrics sampling budget is per tenant", func(t *testing.T) {
+		// Unset leaves the statically configured budget alone, so a tenant with
+		// no override keeps whatever the generator config says.
+		original.SpanMetrics.MaxSpansPerSeriesPerInterval = 500
+		defer func() { original.SpanMetrics.MaxSpansPerSeriesPerInterval = 0 }()
+
+		copied, err := original.copyWithOverrides(&mockOverrides{}, "tenant", 0)
+		require.NoError(t, err)
+		assert.Equal(t, 500, copied.SpanMetrics.MaxSpansPerSeriesPerInterval)
+
+		copied, err = original.copyWithOverrides(&mockOverrides{spanMetricsMaxSpansPerSeriesPerInterval: intPtr(2000)}, "tenant", 0)
+		require.NoError(t, err)
+		assert.Equal(t, 2000, copied.SpanMetrics.MaxSpansPerSeriesPerInterval)
+
+		// Zero is a meaningful value, not an absent one: it turns sampling off
+		// for this tenant even though the static config enables it.
+		copied, err = original.copyWithOverrides(&mockOverrides{spanMetricsMaxSpansPerSeriesPerInterval: intPtr(0)}, "tenant", 0)
+		require.NoError(t, err)
+		assert.Equal(t, 0, copied.SpanMetrics.MaxSpansPerSeriesPerInterval)
+	})
 	t.Run("span metrics send interval resolves like the registry", func(t *testing.T) {
 		// The sampler counts its budget in send intervals, so SendInterval has to
 		// land on the same value ManagedRegistry.collectionInterval would pick:
@@ -354,6 +374,10 @@ func TestConfig_ValidateRingMode(t *testing.T) {
 		cfg.RingMode = RingMode("invalid")
 		require.EqualError(t, cfg.Validate(), "invalid ring mode: invalid, valid values are partition and generator")
 	})
+}
+
+func intPtr(i int) *int {
+	return &i
 }
 
 func boolPtr(b bool) *bool {

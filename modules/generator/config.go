@@ -238,6 +238,10 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 		copyCfg.SpanMetrics.EnableInstanceLabel = EnableInstanceLabel
 	}
 
+	if maxSpans, ok := o.MetricsGeneratorProcessorSpanMetricsMaxSpansPerSeriesPerInterval(userID); ok {
+		copyCfg.SpanMetrics.MaxSpansPerSeriesPerInterval = maxSpans
+	}
+
 	// Per-series sampling counts its budget in collection intervals, so it needs
 	// the interval this tenant's registry actually sends on rather than the
 	// span-metrics YAML, which does not carry it. Resolve it exactly as

@@ -34,6 +34,7 @@ type metricsGeneratorOverrides interface {
 	MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(userID string) (bool, bool)
 	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string
 	MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel(userID string) (bool, bool)
+	MetricsGeneratorProcessorSpanMetricsMaxSpansPerSeriesPerInterval(userID string) (int, bool)
 	MetricsGeneratorProcessorHostInfoHostIdentifiers(userID string) []string
 	MetricsGeneratorProcessorHostInfoMetricName(userID string) string
 	MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey(userID string) string

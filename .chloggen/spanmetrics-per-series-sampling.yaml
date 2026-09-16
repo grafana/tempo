@@ -7,7 +7,8 @@ subtext: |
   the result scaled back up, so no spans are dropped and the metrics stay
   unbiased. The budget is fleet-wide: each generator takes the share matching
   the share of the tenant's spans it receives, so it needs no adjusting when
-  generators are scaled.
+  generators are scaled. Settable per tenant via the runtime overrides, where 0
+  turns sampling off for that tenant.
   Sampling is stratified, which keeps calls_total and latency_count rates
   within one block of exact; latency_sum and the histogram quantiles carry a
   sampling error that shrinks with the budget. Series below the budget are

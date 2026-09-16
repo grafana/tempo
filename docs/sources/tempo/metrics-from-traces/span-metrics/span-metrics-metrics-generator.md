@@ -208,6 +208,22 @@ metrics_generator:
       max_spans_per_series_per_interval: 500
 ```
 
+It can also be set per tenant, which is the usual way to roll it out --
+enabled for the few tenants whose generator CPU is a problem and left off
+everywhere else:
+
+```yaml
+overrides:
+  "tenant-123":
+    metrics_generator:
+      processor:
+        span_metrics:
+          max_spans_per_series_per_interval: 500
+```
+
+A tenant override of `0` turns sampling off for that tenant even when the
+generator config enables it.
+
 Series receiving fewer spans than that in an interval are untouched, so this
 only affects your heaviest series. For a series above it, the processor takes a
 uniform sample of that series' spans and scales the sampled values back up, so
