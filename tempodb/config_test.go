@@ -160,6 +160,17 @@ func TestDeprecatedVersions(t *testing.T) {
 			},
 			err: "vParquet5-preview1 is not a valid block version for creating blocks",
 		},
+		{
+			cfg: &Config{
+				WAL: &wal.Config{},
+				Block: &common.BlockConfig{
+					BloomFP:             0.01,
+					BloomShardSizeBytes: 1,
+					Version:             "vParquet3",
+				},
+			},
+			err: "vParquet3 is not a valid block version for creating blocks",
+		},
 	}
 
 	for _, test := range tests {

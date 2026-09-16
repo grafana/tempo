@@ -766,6 +766,9 @@ This endpoint is experimental. The request and response formats may change in fu
 This endpoint compares two complete traces. Send a `POST` request with a JSON
 body that identifies both traces by their IDs. Partial traces are rejected.
 
+This endpoint uses the same `max_bytes_per_trace` limit as
+[querying a trace by ID](#query-v2).
+
 ```
 POST /api/v2/traces/diff
 ```

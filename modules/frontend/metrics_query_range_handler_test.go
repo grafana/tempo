@@ -95,6 +95,7 @@ func TestQueryRangeHandlerSucceeds(t *testing.T) {
 			TotalBlocks:     2,
 			TotalBlockBytes: 419430400,
 		},
+		Step: uint64(100 * time.Second),
 		Series: []*tempopb.TimeSeries{
 			{
 				Labels: []v1.KeyValue{

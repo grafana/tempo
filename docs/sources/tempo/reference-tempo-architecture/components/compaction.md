@@ -111,6 +111,8 @@ This endpoint is useful for diagnosing stalled jobs, verifying that workers are 
 | `tempo_backend_scheduler_job_duration_seconds` | Job execution duration histogram |
 | `tempodb_blocklist_length` | Number of live blocks per tenant; high values indicate compaction is falling behind |
 | `tempodb_compaction_outstanding_blocks` | Outstanding blocks awaiting compaction per tenant; the primary autoscaling signal |
+| `tempo_backend_worker_redaction_block_missing_total` | Redaction jobs whose target block was absent from the live blocklist; a potential redaction coverage gap |
+| `tempo_backend_scheduler_redaction_traces_found_total` | Traces matched by redaction jobs, by tenant and mode; `mode=apply` counts traces actually removed, `mode=dry_run` counts previewed blast radius |
 
 Most scheduler job metrics carry `tenant` and `job_type` labels; `tempo_backend_scheduler_job_duration_seconds` carries only `job_type`.
 The `job_type` label uses protobuf enum string values: `JOB_TYPE_COMPACTION`, `JOB_TYPE_RETENTION`, and `JOB_TYPE_REDACTION`.
@@ -126,6 +128,7 @@ The Tempo mixin ships a pre-built Grafana dashboard, **Tempo - Backend Work**, t
 - Outstanding blocks per tenant
 - CPU and memory for both the backend scheduler and backend workers
 - A backend-worker autoscaling panel
+- A Redaction row with per-tenant "Traces Redacted / h" (`mode=apply`) and "Dry-run Blast Radius / h" (`mode=dry_run`) panels
 
 To use the dashboard, install the Tempo mixin from `operations/tempo-mixin/` and import the generated dashboard into your Grafana instance.
 

@@ -652,7 +652,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 				{
 					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now,
-					Version: "vParquet3",
+					Version: "vParquet4",
 				},
 				{
 					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000003"),
@@ -662,19 +662,19 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 				{
 					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000004"),
 					EndTime: now,
-					Version: "vParquet3",
+					Version: "vParquet4",
 				},
 			},
 			expected: []*backend.BlockMeta{
 				{
 					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now,
-					Version: "vParquet3",
+					Version: "vParquet4",
 				},
 				{
 					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000004"),
 					EndTime: now,
-					Version: "vParquet3",
+					Version: "vParquet4",
 				},
 			},
 			expectedHash: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
@@ -822,6 +822,25 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now,
 					Version: "preview1",
+				},
+			},
+			expected:       nil,
+			expectedHash:   "",
+			expectedSecond: nil,
+			expectedHash2:  "",
+		},
+		{
+			name: "deprecated vParquet3 blocks are ignored for compaction",
+			blocklist: []*backend.BlockMeta{
+				{
+					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime: now,
+					Version: "vParquet3",
+				},
+				{
+					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime: now,
+					Version: "vParquet3",
 				},
 			},
 			expected:       nil,

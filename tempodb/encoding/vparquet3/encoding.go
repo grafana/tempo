@@ -21,12 +21,16 @@ func (v Encoding) NewCompactor(opts common.CompactionOptions) common.Compactor {
 	return NewCompactor(opts)
 }
 
+// CompactionSupported returns false because vParquet3 is deprecated. Existing
+// vParquet3 blocks are left as-is and are not compacted with each other.
 func (v Encoding) CompactionSupported() bool {
-	return true
+	return false
 }
 
+// WritesSupported returns false because vParquet3 is deprecated and read-only.
+// Existing vParquet3 blocks remain readable.
 func (v Encoding) WritesSupported() bool {
-	return true
+	return false
 }
 
 func (v Encoding) OpenBlock(meta *backend.BlockMeta, r backend.Reader) (common.BackendBlock, error) {

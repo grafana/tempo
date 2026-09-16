@@ -1,0 +1,20 @@
+# Changelog entry. Generate a copy with `make chlog-new`, then fill in the fields.
+
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: breaking
+
+# Component or area of the change. Must be one of the components in .chloggen/config.yaml,
+# e.g. distributor, querier, query-frontend, storage, operations.
+component: storage
+
+# A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
+note: Enforce the vParquet3 deprecation. Tempo now refuses to start with `storage.trace.block.version` set to `vParquet3`, and the compactor no longer compacts existing vParquet3 blocks together.
+issues: []
+
+# (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
+subtext: |
+  Existing vParquet3 blocks remain readable and are left as-is. Set the block version to
+  vParquet4 or later.
+
+# The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
+user: mdisibio

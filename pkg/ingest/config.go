@@ -275,7 +275,7 @@ func (cfg KafkaConfig) SetDefaultNumberOfPartitionsForAutocreatedTopics(logger l
 	defer adm.Close()
 
 	defaultNumberOfPartitions := fmt.Sprintf("%d", cfg.AutoCreateTopicDefaultPartitions)
-	_, err = adm.AlterBrokerConfigsState(context.Background(), []kadm.AlterConfig{
+	_, err = adm.AlterBrokerConfigs(context.Background(), []kadm.AlterConfig{
 		{
 			Op:    kadm.SetConfig,
 			Name:  "num.partitions",
