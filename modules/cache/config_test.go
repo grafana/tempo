@@ -32,6 +32,7 @@ caches:
 	require.Equal(t, float64(-1), clientCfg.MinIdleConnsHeadroomPercentage)
 	require.Equal(t, 100*time.Millisecond, clientCfg.Timeout)
 	require.Equal(t, time.Minute, clientCfg.UpdateInterval)
+	require.True(t, clientCfg.ConsistentHash)
 }
 
 func TestConfigValidation(t *testing.T) {

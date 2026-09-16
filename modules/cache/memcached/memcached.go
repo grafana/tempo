@@ -28,6 +28,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(_ string, _ *flag.FlagSet) {
 	cfg.ClientConfig.MinIdleConnsHeadroomPercentage = -1
 	cfg.ClientConfig.Timeout = 100 * time.Millisecond
 	cfg.ClientConfig.UpdateInterval = time.Minute
+	cfg.ClientConfig.ConsistentHash = true
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
