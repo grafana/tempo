@@ -12,7 +12,7 @@ require (
 	github.com/alicebob/miniredis/v2 v2.37.0
 	github.com/axiomhq/hyperloglog v0.2.6
 	github.com/bits-and-blooms/bloom/v3 v3.7.1
-	github.com/bytedance/sonic v1.15.1
+	github.com/bytedance/sonic v1.15.4
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/cristalhq/hedgedhttp v0.9.1
 	github.com/drone/envsubst v1.0.3
@@ -152,7 +152,7 @@ require (
 	github.com/bits-and-blooms/bitset v1.25.0 // indirect
 	github.com/buger/jsonparser v1.6.1 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
-	github.com/bytedance/sonic/loader v0.5.1 // indirect
+	github.com/bytedance/sonic/loader v0.5.2 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/clipperhouse/displaywidth v0.11.0 // indirect
