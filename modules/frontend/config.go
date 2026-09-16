@@ -76,8 +76,6 @@ type TraceByIDConfig struct {
 	SLO              SLOConfig `yaml:",inline"`
 	ExternalEnabled  bool      `yaml:"external_enabled,omitempty"`
 
-	// EXPERIMENTAL: span pruning is not yet a stable feature; config and behavior may change.
-	SpanPruningEnabled bool `yaml:"span_pruning_enabled,omitempty"`
 	// SpanPruningEnabledByDefault makes span pruning default to enabled for trace-by-id v2
 	// requests that don't set their own span_pruning param. An explicit span_pruning value in
 	// the request, true or false, always takes precedence over this default.
