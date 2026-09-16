@@ -29,7 +29,10 @@ tempo_ingest_group_partition_lag{group="metrics-generator"}
 tempo_ingest_group_partition_lag_seconds{group="metrics-generator"}
 ```
 
-`tempo_ingest_group_partition_lag` tracks the lag in number of records per partition, while `tempo_ingest_group_partition_lag_seconds` tracks the lag in seconds. High or growing lag indicates the generator is falling behind.
+- `tempo_ingest_group_partition_lag` tracks the lag in number of records per partition.
+- `tempo_ingest_group_partition_lag_seconds` tracks the lag in seconds.
+
+High or growing lag indicates that the generator is falling behind.
 
 ### Kafka client errors
 
@@ -60,12 +63,29 @@ If spans are regularly exceeding this value you may want to consider reviewing y
 Note that increasing this value allows the generator to consume more spans, but does reduce the accuracy of metrics because spans farther
 away from "now" are included.
 
+Common causes of late-arriving spans include:
+
+- OpenTelemetry Collector batching: The batch processor can introduce delays, especially with large `send_batch_max_size` or `timeout` values.
+- Network delays: High-latency links between the collector and Tempo, or retries in the export pipeline, push span arrival times beyond the slack window.
+- Clock skew: If the application host's clock is behind the Tempo ingest infrastructure, span end times appear further in the past than they actually are.
+
+In Grafana Cloud, you can query the following metric to detect late-span discards:
+
+```promql
+grafanacloud_traces_instance_metrics_generator_discarded_spans_per_second{reason="outside_metrics_ingestion_slack"}
+```
+
+To request an increase to the ingestion slack window in Grafana Cloud, contact [Grafana Support](https://grafana.com/profile/org#support).
+
 Spans could also be discarded if the attributes aren't valid UTF-8 characters when those attributes are converted to metric labels.
 
 ### Max active series
 
 The generator protects itself and your remote-write target by having a maximum number of series the generator produces.
-Use the `sum` below to determine if series are being dropped due to this limit:
+When this limit is reached, new metric series are routed to overflow buckets (labeled `metric_overflow="true"`) instead of being tracked individually.
+There is no customer-visible error or alert — metrics appear incomplete because detail is collapsed into the overflow series rather than tracked as separate series.
+
+Use the `sum` below to determine if series are being limited (routed to overflow) due to this limit:
 
 ```
 sum(rate(tempo_metrics_generator_registry_series_limited_total{}[1m]))
@@ -93,6 +113,14 @@ To identify overflow series in your metrics:
 ```
 
 As existing series become stale and are removed, new series are split out from the overflow bucket until the limit is reached again. To reduce overflow, either increase `max_active_series` or reduce cardinality by adjusting dimensions or filters.
+
+To reduce cardinality, consider these strategies:
+
+- Remove high-cardinality dimensions such as `span_name` when span names contain dynamic values like full SQL statements, REST paths with IDs, or auto-generated operation names. Refer to [Reduce cardinality with span name sanitization](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/reduce-cardinality/) for automatic grouping.
+- Use [filter policies](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/span-metrics/span-metrics-metrics-generator/#filtering) to exclude spans that don't need metrics, such as health checks or internal-only spans.
+- Disable intrinsic dimensions you don't query, such as `span_kind`, using the [`intrinsic_dimensions` configuration](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/span-metrics/span-metrics-metrics-generator/#disabling-intrinsic-dimensions).
+
+In Grafana Cloud, the active series limit is managed per tenant. To request an increase, contact [Grafana Support](https://grafana.com/profile/org#support).
 
 ### Entity-based limiting
 
@@ -205,7 +233,7 @@ re-evaluated every few seconds, which means there may be a brief delay between a
 If a high-cardinality label's cardinality is later reduced (for example, by fixing instrumentation), the limiter automatically recovers
 and allows label values through again. No configuration changes are needed.
 
-Recovery is not immediate. The limiter tracks cardinality over a sliding window (based on the registry's `stale_duration`). It takes at least that 
+Recovery is not immediate. The limiter tracks cardinality over a sliding window (based on the registry's `stale_duration`). It takes at least that
 duration or longer for existing high-cardinality labels to age out before the label values are allowed through again.
 
 ### Estimate active series demand
