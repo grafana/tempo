@@ -66,19 +66,21 @@ func (fp *frontendProcessor) notifyShutdown(ctx context.Context, conn *grpc.Clie
 }
 
 // runOne loops, trying to establish a stream to the frontend to begin request processing.
-func (fp *frontendProcessor) processQueriesOnSingleStream(ctx context.Context, conn *grpc.ClientConn, address string) {
+func (fp *frontendProcessor) processQueriesOnSingleStream(ctx context.Context, conn *grpc.ClientConn, address string, slots int) {
 	client := frontendv1pb.NewFrontendClient(conn)
 
 	backoff := backoff.New(ctx, processorBackoffConfig)
 	for backoff.Ongoing() {
-		c, err := client.Process(ctx)
+		streamCtx, cancelStream := context.WithCancel(ctx)
+		c, err := client.Process(streamCtx)
 		if err != nil {
+			cancelStream()
 			level.Error(fp.log).Log("msg", "error contacting frontend", "address", address, "err", err)
 			backoff.Wait()
 			continue
 		}
 
-		if err := fp.process(c); err != nil {
+		if err := fp.process(c, slots, cancelStream); err != nil {
 			// Avoid logging and connection backoff in the case of a canceled context on the gRPC stream.  This will allow queriers to reconnect and work more quickly.
 			if status.Code(err) != codes.Canceled {
 				level.Error(fp.log).Log("msg", "error processing requests", "address", address, "err", err)
@@ -92,10 +94,17 @@ func (fp *frontendProcessor) processQueriesOnSingleStream(ctx context.Context, c
 }
 
 // process loops processing requests on an established stream.
-func (fp *frontendProcessor) process(c frontendv1pb.Frontend_ProcessClient) error {
-	// Build a child context so we can cancel a query when the stream is closed.
+func (fp *frontendProcessor) process(c frontendv1pb.Frontend_ProcessClient, slots int, cancelStream context.CancelFunc) error {
+	// Join legacy jobs too: a topology change must not reuse their allocations
+	// while requests from the old stream are still executing.
 	ctx, cancel := context.WithCancel(c.Context())
-	defer cancel()
+	var jobs sync.WaitGroup
+	defer func() {
+		cancel()
+		cancelStream()
+		jobs.Wait()
+	}()
+	legacy := false
 
 	for {
 		request, err := c.Recv()
@@ -105,40 +114,56 @@ func (fp *frontendProcessor) process(c frontendv1pb.Frontend_ProcessClient) erro
 
 		switch request.Type {
 		case frontendv1pb.Type_HTTP_REQUEST:
+			legacy = true
 			// Handle the request on a "background" goroutine, so we go back to
 			// blocking on c.Recv().  This allows us to detect the stream closing
 			// and cancel the query.  We don't actually handle queries in parallel
 			// here, as we're running in lock step with the server - each Recv is
 			// paired with a Send.
-			go func() {
+			jobs.Go(func() {
 				resp := fp.runRequest(ctx, request.HttpRequest)
 				err := fp.handleSendError(c.Send(&frontendv1pb.ClientToFrontend{
 					HttpResponse: resp,
 				}))
 				if err != nil {
 					level.Error(fp.log).Log("msg", "error running requests", "err", err)
+					cancelStream()
 				}
-			}()
+			})
 
 		case frontendv1pb.Type_GET_ID:
+			features := int32(frontendv1pb.Feature_REQUEST_BATCHING)
+			if slots > 0 {
+				features |= int32(frontendv1pb.Feature_SLOT_SCHEDULING)
+			}
 			err := fp.handleSendError(c.Send(&frontendv1pb.ClientToFrontend{
 				ClientID: fp.querierID,
-				Features: int32(frontendv1pb.Feature_REQUEST_BATCHING),
+				Features: features,
+				Slots:    uint32(slots),
 			}))
 			if err != nil {
 				return err
 			}
 
 		case frontendv1pb.Type_HTTP_REQUEST_BATCH:
-			go func() {
+			legacy = true
+			jobs.Go(func() {
 				resp := fp.runRequests(ctx, request.HttpRequestBatch)
 				err := fp.handleSendError(c.Send(&frontendv1pb.ClientToFrontend{
 					HttpResponseBatch: resp,
 				}))
 				if err != nil {
 					level.Error(fp.log).Log("msg", "error running  batched requests", "err", err)
+					cancelStream()
 				}
-			}()
+			})
+
+		case frontendv1pb.Type_JOB_FRAME:
+			if slots <= 0 || legacy {
+				return errors.New("unexpected slot scheduling frame on legacy stream")
+			}
+			level.Info(fp.log).Log("msg", "processing jobs with slot scheduling", "slots", slots)
+			return fp.processSlotRequests(ctx, c, request, slots, cancelStream)
 
 		default:
 			return fmt.Errorf("unknown request type: %v", request.Type)

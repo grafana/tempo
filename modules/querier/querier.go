@@ -134,6 +134,7 @@ func New(
 
 func (q *Querier) CreateAndRegisterWorker(handler http.Handler) error {
 	q.cfg.Worker.MaxConcurrentRequests = q.cfg.MaxConcurrentQueries
+	q.cfg.Worker.MaxConcurrentJobs = q.cfg.MaxConcurrentJobs
 	worker, err := worker.NewQuerierWorker(
 		q.cfg.Worker,
 		httpgrpc_server.NewServer(handler),

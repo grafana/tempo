@@ -24,6 +24,10 @@ type Config struct {
 	ShuffleShardingIngestersLookbackPeriod time.Duration `yaml:"shuffle_sharding_ingesters_lookback_period"`
 	QueryRelevantIngesters                 bool          `yaml:"query_relevant_ingesters"`
 	SecondaryIngesterRing                  string        `yaml:"secondary_ingester_ring,omitempty"`
+
+	// MaxConcurrentJobs enables experimental slot scheduling when positive.
+	// Zero preserves legacy batching; max_concurrent_queries still controls streams.
+	MaxConcurrentJobs int `yaml:"max_concurrent_jobs,omitempty"`
 }
 
 type SearchConfig struct {
