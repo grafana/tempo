@@ -21,7 +21,7 @@ GORELEASER := $(GOPATH)/bin/goreleaser
 LOKI_BUILD_IMAGE ?= grafana/loki-build-image:0.35.0
 # https://hub.docker.com/repository/docker/grafana/tempo-ci-tools/
 # built by: .github/workflows/docker-ci-tools.yml
-TEMPO_CI_TOOLS_IMAGE ?= grafana/tempo-ci-tools:main-7051a4a-20260916-075432
+TEMPO_CI_TOOLS_IMAGE ?= grafana/tempo-ci-tools:main-7e3ad96-20260916-174433
 DOCS_IMAGE ?= grafana/docs-base:latest
 
 # More exclusions can be added similar with: -not -path './testbed/*'
