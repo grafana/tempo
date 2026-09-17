@@ -1,0 +1,24 @@
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: bug_fix
+
+# Component or area of the change. Must be one of the components in .chloggen/config.yaml,
+# e.g. distributor, querier, query-frontend, storage, operations.
+component: storage
+
+# A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
+note: Read whole objects from Azure blob storage with a single ETag-pinned request, preventing torn tenant index reads when the index is overwritten mid-read.
+
+# (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
+# .chloggen/README.md.
+issues: []
+
+# (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
+subtext: |
+  Whole-object reads previously issued concurrent chunked GETs with no access conditions, so an
+  overwrite mid-read could return a buffer stitched from two blob generations, surfacing as a
+  zstd magic number mismatch when decoding the tenant index. Reads now issue a single download
+  request with `If-Match` pinned to the ETag returned by `GetProperties`, and are retried a
+  bounded number of times if the blob changed while reading.
+
+# The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
+user: grafana

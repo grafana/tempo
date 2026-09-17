@@ -33,7 +33,16 @@ const (
 	dir = "/"
 	// max parallelism on uploads
 	maxParallelism = 3
+	// number of times a whole object read is retried when the blob was
+	// overwritten between GetProperties and the download request
+	maxConditionNotMetRetries = 2
 )
+
+// ErrBlobModified is returned when a conditional read fails because the blob was
+// overwritten while it was being read. It is deliberately not backend.ErrDoesNotExist:
+// callers such as the tenant index poller treat ErrDoesNotExist as "object is missing"
+// and fall back to expensive paths, while this error simply means "retry the read".
+var ErrBlobModified = errors.New("blob was modified while reading, retry required")
 
 type Azure struct {
 	cfg                   *Config
@@ -106,6 +115,10 @@ func internalNew(cfg *Config, confirm bool) (*Azure, error) {
 func readError(err error) error {
 	if bloberror.HasCode(err, bloberror.BlobNotFound) {
 		return backend.ErrDoesNotExist
+	}
+
+	if bloberror.HasCode(err, bloberror.ConditionNotMet) {
+		return fmt.Errorf("%w: %w", ErrBlobModified, err)
 	}
 
 	if err != nil {
@@ -483,13 +496,16 @@ func (rw *Azure) readRange(ctx context.Context, name string, offset int64, destB
 		size = *props.ContentLength - offset
 	}
 
+	// pin the read to the generation we just inspected. ranged reads are legitimately
+	// partial, but they must not stitch bytes together from two different blob generations.
 	if _, err := blobClient.DownloadBuffer(ctx, destBuffer, &blob.DownloadBufferOptions{
 		Range: blob.HTTPRange{
 			Offset: offset,
 			Count:  size,
 		},
-		BlockSize:   blob.DefaultDownloadBlockSize,
-		Concurrency: maxParallelism,
+		AccessConditions: ifMatch(props.ETag),
+		BlockSize:        blob.DefaultDownloadBlockSize,
+		Concurrency:      maxParallelism,
 		RetryReaderOptionsPerBlock: blob.RetryReaderOptions{
 			MaxRetries: maxRetries,
 		},
@@ -505,7 +521,54 @@ func (rw *Azure) readRange(ctx context.Context, name string, offset int64, destB
 	return nil
 }
 
+// ifMatch pins a blob request to a single generation of the blob. Requests carrying
+// this condition fail with bloberror.ConditionNotMet if the blob has been overwritten,
+// instead of silently returning bytes from the newer generation.
+func ifMatch(etag *azcore.ETag) *blob.AccessConditions {
+	if etag == nil || len(*etag) == 0 {
+		return nil
+	}
+
+	return &blob.AccessConditions{
+		ModifiedAccessConditions: &blob.ModifiedAccessConditions{
+			IfMatch: etag,
+		},
+	}
+}
+
+// readAll reads an entire object. It is retried a bounded number of times if the blob
+// is overwritten mid-read: objects such as the tenant index are rewritten every few
+// minutes and read concurrently by a large number of pollers, and the caller's fallback
+// (a full bucket scan) is far more expensive than another read. Retrying is transparent
+// to every caller: a successful read returns the same bytes/etag pair as before.
 func (rw *Azure) readAll(ctx context.Context, name string) ([]byte, azcore.ETag, error) {
+	var (
+		b    []byte
+		etag azcore.ETag
+		err  error
+	)
+
+	for attempt := 0; attempt <= maxConditionNotMetRetries; attempt++ {
+		// each attempt re-reads the properties to pick up the fresh etag
+		b, etag, err = rw.readAllSingleRequest(ctx, name)
+		if err == nil {
+			return b, etag, nil
+		}
+
+		if !bloberror.HasCode(err, bloberror.ConditionNotMet) {
+			return nil, "", err
+		}
+	}
+
+	return nil, "", err
+}
+
+// readAllSingleRequest reads an entire object with a single GET pinned to the etag
+// returned by GetProperties. Reading in one request means the returned bytes always
+// come from one generation of the blob, mirroring the guarantee the S3 and GCS backends
+// get for free, and it removes any dependence on the object fitting in a single
+// download block.
+func (rw *Azure) readAllSingleRequest(ctx context.Context, name string) ([]byte, azcore.ETag, error) {
 	blobClient := rw.hedgedContainerClient.NewBlockBlobClient(name)
 
 	props, err := blobClient.GetProperties(ctx, &blob.GetPropertiesOptions{})
@@ -514,22 +577,26 @@ func (rw *Azure) readAll(ctx context.Context, name string) ([]byte, azcore.ETag,
 	}
 
 	if props.ContentLength == nil {
-		return nil, "", fmt.Errorf("expected content length but got none for blob %s: %w", name, err)
+		return nil, "", fmt.Errorf("expected content length but got none for blob %s", name)
 	}
 
-	destBuffer := make([]byte, *props.ContentLength)
+	resp, err := blobClient.DownloadStream(ctx, &blob.DownloadStreamOptions{
+		AccessConditions: ifMatch(props.ETag),
+	})
+	if err != nil {
+		return nil, "", err
+	}
 
-	if _, err := blobClient.DownloadBuffer(context.Background(), destBuffer, &blob.DownloadBufferOptions{
-		Range: blob.HTTPRange{
-			Offset: 0,
-			Count:  *props.ContentLength,
-		},
-		BlockSize:   blob.DefaultDownloadBlockSize,
-		Concurrency: maxParallelism,
-		RetryReaderOptionsPerBlock: blob.RetryReaderOptions{
-			MaxRetries: maxRetries,
-		},
-	}); err != nil {
+	// the retry reader re-issues the GET with If-Match set to the etag of the first
+	// response if the connection drops mid-read, so network resilience is preserved
+	// without any risk of mixing generations.
+	body := resp.NewRetryReader(ctx, &blob.RetryReaderOptions{
+		MaxRetries: maxRetries,
+	})
+	defer body.Close()
+
+	destBuffer := make([]byte, *props.ContentLength)
+	if _, err := io.ReadFull(body, destBuffer); err != nil {
 		return nil, "", err
 	}
 

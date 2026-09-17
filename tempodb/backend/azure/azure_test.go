@@ -3,18 +3,23 @@ package azure
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
+	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"net/textproto"
 	"os"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/flagext"
@@ -167,6 +172,17 @@ func TestReadError(t *testing.T) {
 	otherAzureError := blobStorageError(string(bloberror.InternalError))
 	err = readError(otherAzureError)
 	require.NotEqual(t, backend.ErrDoesNotExist, err)
+
+	// condition not met converts to a retryable error and never to ErrDoesNotExist
+	conditionNotMetError := blobStorageError(string(bloberror.ConditionNotMet))
+	err = readError(conditionNotMetError)
+	require.ErrorIs(t, err, ErrBlobModified)
+	require.NotErrorIs(t, err, backend.ErrDoesNotExist)
+
+	// wrapped condition not met still converts to the retryable error
+	err = readError(fmt.Errorf("wrap: %w", conditionNotMetError))
+	require.ErrorIs(t, err, ErrBlobModified)
+	require.NotErrorIs(t, err, backend.ErrDoesNotExist)
 }
 
 func blobStorageError(serviceCode string) error {
@@ -474,6 +490,12 @@ func TestMarkBlockCompacted_DoesNotDoublePrefix(t *testing.T) {
 	const body = `{}`
 	var capturedDeletePath string
 	server := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		// container level requests, e.g. the confirmation request in New()
+		if r.URL.Query().Get("restype") == "container" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
 		switch r.Method {
 		case http.MethodHead:
 			// readAll calls GetProperties first - SDK requires Content-Length and ETag.
@@ -573,6 +595,12 @@ func TestDeleteVersioned_DoesNotDoublePrefix(t *testing.T) {
 
 	var capturedDeletePath string
 	server := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		// container level requests, e.g. the confirmation request in New()
+		if r.URL.Query().Get("restype") == "container" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
 		switch r.Method {
 		case http.MethodHead:
 			w.Header().Set("Content-Length", strconv.Itoa(len(body)))
@@ -611,4 +639,135 @@ func testServer(t *testing.T, httpHandler http.HandlerFunc) *httptest.Server {
 	server := httptest.NewServer(httpHandler)
 	t.Cleanup(server.Close)
 	return server
+}
+
+// readTestServerState records what a read test server saw.
+type readTestServerState struct {
+	gets            int32
+	heads           int32
+	getIfMatch      []string
+	getRangeHeaders []string
+}
+
+// newReadTestReader spins up a server that serves body for the requested blob with the
+// given etag. The first failGets GET requests are answered with ConditionNotMet.
+func newReadTestReader(t *testing.T, body []byte, etag string, failGets int32) (backend.RawReader, *readTestServerState) {
+	t.Helper()
+
+	state := &readTestServerState{}
+	var mtx sync.Mutex
+
+	server := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		// container level requests, e.g. the confirmation request in New()
+		if r.URL.Query().Get("restype") == "container" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		switch r.Method {
+		case http.MethodHead:
+			atomic.AddInt32(&state.heads, 1)
+			w.Header().Set("ETag", etag)
+			w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+			w.WriteHeader(http.StatusOK)
+		case http.MethodGet:
+			got := atomic.AddInt32(&state.gets, 1)
+
+			mtx.Lock()
+			state.getIfMatch = append(state.getIfMatch, r.Header.Get("If-Match"))
+			state.getRangeHeaders = append(state.getRangeHeaders, r.Header.Get("x-ms-range"))
+			mtx.Unlock()
+
+			if got <= failGets {
+				w.Header().Set("x-ms-error-code", string(bloberror.ConditionNotMet))
+				w.WriteHeader(http.StatusPreconditionFailed)
+				return
+			}
+
+			w.Header().Set("ETag", etag)
+			w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(body)
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	})
+
+	r, _, _, err := New(&Config{
+		StorageAccountName: "testing_account",
+		StorageAccountKey:  flagext.SecretWithValue("YQo="),
+		MaxBuffers:         3,
+		BufferSize:         1000,
+		ContainerName:      "blerg",
+		Endpoint:           server.URL[7:], // [7:] -> strip http://,
+	})
+	require.NoError(t, err)
+
+	return r, state
+}
+
+func TestReadPinsETagInSingleRequest(t *testing.T) {
+	expected := []byte("this is a tenant index")
+	r, state := newReadTestReader(t, expected, `"etag-1"`, 0)
+
+	body, size, err := r.Read(context.Background(), "object", backend.KeyPath{"tenant"}, nil)
+	require.NoError(t, err)
+
+	actual, err := io.ReadAll(body)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+	require.Equal(t, int64(len(expected)), size)
+
+	// exactly one GET, pinned to the etag returned by GetProperties
+	require.Equal(t, int32(1), atomic.LoadInt32(&state.gets))
+	require.Equal(t, int32(1), atomic.LoadInt32(&state.heads))
+	require.Equal(t, []string{`"etag-1"`}, state.getIfMatch)
+}
+
+func TestReadLargerThanDownloadBlockSize(t *testing.T) {
+	expected := make([]byte, blob.DefaultDownloadBlockSize+11)
+	_, err := rand.Read(expected)
+	require.NoError(t, err)
+
+	r, state := newReadTestReader(t, expected, `"etag-big"`, 0)
+
+	body, size, err := r.Read(context.Background(), "object", backend.KeyPath{"tenant"}, nil)
+	require.NoError(t, err)
+
+	actual, err := io.ReadAll(body)
+	require.NoError(t, err)
+	require.Equal(t, int64(len(expected)), size)
+	require.True(t, bytes.Equal(expected, actual))
+
+	// a blob larger than the download block size is still read with a single request
+	require.Equal(t, int32(1), atomic.LoadInt32(&state.gets))
+	require.Equal(t, []string{`"etag-big"`}, state.getIfMatch)
+}
+
+func TestReadRetriesConditionNotMet(t *testing.T) {
+	expected := []byte("this is a tenant index")
+	r, state := newReadTestReader(t, expected, `"etag-2"`, 1) // first GET fails with ConditionNotMet
+
+	body, _, err := r.Read(context.Background(), "object", backend.KeyPath{"tenant"}, nil)
+	require.NoError(t, err)
+
+	actual, err := io.ReadAll(body)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+
+	// the properties are re-read on every attempt to pick up the fresh etag
+	require.Equal(t, int32(2), atomic.LoadInt32(&state.gets))
+	require.Equal(t, int32(2), atomic.LoadInt32(&state.heads))
+}
+
+func TestReadConditionNotMetExhaustsRetries(t *testing.T) {
+	r, state := newReadTestReader(t, []byte("this is a tenant index"), `"etag-3"`, math.MaxInt32)
+
+	_, _, err := r.Read(context.Background(), "object", backend.KeyPath{"tenant"}, nil)
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrBlobModified)
+	require.NotErrorIs(t, err, backend.ErrDoesNotExist)
+
+	// one initial attempt + maxConditionNotMetRetries
+	require.Equal(t, int32(maxConditionNotMetRetries+1), atomic.LoadInt32(&state.gets))
 }
