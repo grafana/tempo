@@ -148,17 +148,23 @@ test-with-cover-pkg: tools  ## Run Tempo packages' tests with code coverage
 	mkdir -p $(COVERAGE_DIR)
 	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/pkg.out $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './pkg*/*' -type f | sort))))
 
-# tests in tempodb (excluding tempodb/wal)
+# tests in tempodb (excluding tempodb/wal and tempodb/encoding/vparquet*)
 .PHONY: test-with-cover-tempodb
 test-with-cover-tempodb: tools ## Run tempodb tests with code coverage
 	mkdir -p $(COVERAGE_DIR)
-	GOMEMLIMIT=6GiB $(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/tempodb.out $(shell go list $(sort $(dir $(shell find . -name '*.go'  -not -path './tempodb/wal*/*' -path './tempodb*/*' -type f | sort))))
+	GOMEMLIMIT=6GiB $(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/tempodb.out $(shell go list $(sort $(dir $(shell find . -name '*.go'  -not -path './tempodb/wal*/*' -not -path './tempodb/encoding/vparquet*/*' -path './tempodb*/*' -type f | sort))))
 
 # tests in tempodb/wal
 .PHONY: test-with-cover-tempodb-wal
 test-with-cover-tempodb-wal: tools  ## Test tempodb/wal with code coverage
 	mkdir -p $(COVERAGE_DIR)
 	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/tempodb-wal.out $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './tempodb/wal*/*' -type f | sort))))
+
+# tests in tempodb/encoding/vparquet3, vparquet4, vparquet5
+.PHONY: test-with-cover-tempodb-encoding
+test-with-cover-tempodb-encoding: tools ## Run tempodb vparquet encoding tests with code coverage
+	mkdir -p $(COVERAGE_DIR)
+	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/tempodb-encoding.out $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './tempodb/encoding/vparquet*/*' -type f | sort))))
 
 # tests in modules/generator (metrics-generator)
 .PHONY: test-with-cover-generator

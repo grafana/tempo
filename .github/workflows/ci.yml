@@ -70,6 +70,7 @@ jobs:
             test-with-cover-pkg,
             test-with-cover-tempodb,
             test-with-cover-tempodb-wal,
+            test-with-cover-tempodb-encoding,
             test-with-cover-generator,
             test-with-cover-others,
           ]
