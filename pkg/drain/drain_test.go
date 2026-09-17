@@ -479,3 +479,39 @@ func alphabetic(i int) string {
 		}
 	}
 }
+
+func TestDrain_WildcardSiblingDoesNotOrphanLiteralPath(t *testing.T) {
+	t.Parallel()
+
+	d := New("test", DefaultConfig())
+
+	const literal = "svc xyz gamma delta"
+	first := d.Train(literal)
+	require.NotNil(t, first)
+
+	// "1" is flagged as data, so insertion stores this cluster under the param
+	// string, adding a wildcard sibling next to "xyz" at the same depth. Both
+	// names tokenize to 8 tokens (spaces are tokens, plus a trailing <END>), so
+	// they share the same token-count group and the same "svc" prefix:
+	//
+	//	rootNode
+	//	└── "8"                                   token count
+	//	    └── "svc" ── " " ──┬── "xyz" ── " " ── "gamma" ── " " ── "delta" ── clusterIDs[1]
+	//	                       └── "<_>" ── " " ── "alpha" ── " " ── "beta"  ── clusterIDs[2]
+	//
+	// A lookup of the first name reaches the node holding both children. The
+	// "<_>" branch has no child for "gamma", so it cannot produce a match, and
+	// the walk has to fall back to "xyz" to find cluster 1.
+	require.NotNil(t, d.Train("svc 1 alpha beta"))
+	require.Len(t, d.Clusters(), 2)
+
+	// The literal branch must stay reachable. Before backtracking was added the
+	// lookup committed to the wildcard sibling, dead-ended, and created a new
+	// cluster on every repeat until MaxClusters was reached.
+	for i := 0; i < 10; i++ {
+		cluster := d.Train(literal)
+		require.NotNil(t, cluster)
+		require.Equal(t, first.id, cluster.id)
+	}
+	require.Len(t, d.Clusters(), 2)
+}
