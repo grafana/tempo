@@ -1,6 +1,0 @@
-change_type: bug_fix
-component: cache
-note: Enable Memcached consistent hashing by default when omitted from YAML, matching the documented default.
-issues: [7903]
-subtext:
-user: ruslan-mikhailov
