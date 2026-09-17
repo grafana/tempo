@@ -31,13 +31,14 @@ ALL_SRC := $(shell find . -name '*.go' \
 								-not -path './integration/*' \
                                 -type f | sort)
 
-# ALL_SRC but without pkg and tempodb packages
+# ALL_SRC but without pkg, tempodb, and generator packages
 OTHERS_SRC := $(shell find . -name '*.go' \
 								-not -path './tools*/*' \
 								-not -path './vendor*/*' \
 								-not -path './integration/*' \
 								-not -path './pkg*/*' \
 								-not -path './tempodb*/*' \
+								-not -path './modules/generator*/*' \
                                 -type f | sort)
 
 # All source code and documents. Used in spell check.
@@ -159,7 +160,13 @@ test-with-cover-tempodb-wal: tools  ## Test tempodb/wal with code coverage
 	mkdir -p $(COVERAGE_DIR)
 	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/tempodb-wal.out $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './tempodb/wal*/*' -type f | sort))))
 
-# all other tests (excluding pkg & tempodb)
+# tests in modules/generator (metrics-generator)
+.PHONY: test-with-cover-generator
+test-with-cover-generator: tools ## Run metrics-generator tests with code coverage
+	mkdir -p $(COVERAGE_DIR)
+	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/generator.out $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './modules/generator*/*' -type f | sort))))
+
+# all other tests (excluding pkg, tempodb & generator)
 .PHONY: test-with-cover-others
 test-with-cover-others: tools ## Run other tests with code coverage
 	mkdir -p $(COVERAGE_DIR)
