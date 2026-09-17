@@ -388,7 +388,7 @@ update-mod: tools-update-mod ## Update module
 
 ### Release (intended to be used in the .github/workflows/release.yml)
 $(GORELEASER):
-	go install github.com/goreleaser/goreleaser/v2@v2.16.0
+	go install github.com/goreleaser/goreleaser/v2@v2.18.2
 
 .PHONY: release
 release: $(GORELEASER)  ## Release 
