@@ -32,13 +32,10 @@ func buildSpanPruningTrace(traceID []byte, n int, leafIDPrefix byte, attr *commo
 	return test.WrapSpansAsTrace(spans...)
 }
 
-// TestSpanPruning verifies that query_frontend.trace_by_id.span_pruning_enabled gates the
-// span_pruning* request params on /api/v2/traces/{id}, and that those params control whether
-// and how duplicate leaf spans get collapsed into aggregated summary spans.
+// TestSpanPruning verifies that the span_pruning* request params on /api/v2/traces/{id}
+// control whether and how duplicate leaf spans get collapsed into aggregated summary spans.
 func TestSpanPruning(t *testing.T) {
-	util.RunIntegrationTests(t, util.TestHarnessConfig{
-		ConfigOverlay: "config-span-pruning.yaml",
-	}, func(h *util.TempoHarness) {
+	util.RunIntegrationTests(t, util.TestHarnessConfig{}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
 
 		// 6 identical leaves >= the default min_spans_to_aggregate (5): aggregates as a whole.
@@ -168,27 +165,5 @@ func TestSpanPruningEnabledByDefault(t *testing.T) {
 			require.Len(t, test.AllSpansInTrace(resp.Trace), 7) // 6 < 10, nothing aggregated
 			require.Empty(t, test.SpanPruningSummaries(resp.Trace))
 		})
-	})
-}
-
-// TestSpanPruningDisabledByConfig verifies that when span_pruning_enabled is left at its
-// default (false), span_pruning* request params are silently ignored and the trace is
-// returned unpruned - the config flag is the master switch, not just a request-side hint.
-func TestSpanPruningDisabledByConfig(t *testing.T) {
-	util.RunIntegrationTests(t, util.TestHarnessConfig{}, func(h *util.TempoHarness) {
-		h.WaitTracesWritable(t)
-
-		traceID := []byte{0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0x00}
-		require.NoError(t, h.WriteTempoProtoTraces(buildSpanPruningTrace(traceID, 6, 2, nil), ""))
-		h.WaitTracesQueryable(t, 1)
-
-		client := h.APIClientHTTP("")
-		hexID := hex.EncodeToString(traceID)
-
-		resp, err := client.QueryTraceV2WithQueryParams(hexID, map[string]string{"span_pruning": "true"})
-		require.NoError(t, err)
-
-		require.Len(t, test.AllSpansInTrace(resp.Trace), 7) // param ignored, trace unpruned
-		require.Empty(t, test.SpanPruningSummaries(resp.Trace))
 	})
 }
