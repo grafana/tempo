@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: traceql
+note: Fix tag value autocomplete so metadata intrinsic conditions are applied as filters instead of being silently dropped.
+issues: [7706]
+subtext:
+user: yigitcan-ozturk
