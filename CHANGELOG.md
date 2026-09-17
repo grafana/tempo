@@ -1,5 +1,11 @@
 <!-- next version -->
 
+# v3.1.0-rc.1
+
+## 🧰 Bug fixes 🧰
+
+- `operations`: Restore release binary and package builds with Go 1.27 by upgrading GoReleaser to v2.18.2. ([#7920](https://github.com/grafana/tempo/issues/7920)) (@javiermolinar)
+
 # v3.1.0-rc.0
 
 ## 🔒 Security 🔒
