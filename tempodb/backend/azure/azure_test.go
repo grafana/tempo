@@ -10,6 +10,7 @@ import (
 	"net/textproto"
 	"os"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -167,6 +168,13 @@ func TestReadError(t *testing.T) {
 	otherAzureError := blobStorageError(string(bloberror.InternalError))
 	err = readError(otherAzureError)
 	require.NotEqual(t, backend.ErrDoesNotExist, err)
+
+	// a failed if-match precondition is a normal read error, not ErrDoesNotExist
+	conditionNotMetError := blobStorageError(string(bloberror.ConditionNotMet))
+	err = readError(conditionNotMetError)
+	require.Error(t, err)
+	require.NotErrorIs(t, err, backend.ErrDoesNotExist)
+	require.ErrorIs(t, err, conditionNotMetError)
 }
 
 func blobStorageError(serviceCode string) error {
@@ -603,6 +611,128 @@ func TestDeleteVersioned_DoesNotDoublePrefix(t *testing.T) {
 	require.NoError(t, rw.DeleteVersioned(context.Background(), name, backend.KeyPath{"overrides", "tenant-1"}, backend.Version(etag)))
 	assert.Equal(t, expectedDeletePath, capturedDeletePath,
 		"DELETE key path must contain the configured prefix exactly once")
+}
+
+// TestReadPinsETag asserts that reads pin the ETag returned by GetProperties on
+// every ranged GET issued by DownloadBuffer. Without If-Match a concurrent
+// overwrite can produce a buffer stitched together from two blob generations.
+func TestReadPinsETag(t *testing.T) {
+	const (
+		etag = `"etag123"`
+		body = "some-blob-contents"
+	)
+
+	tests := []struct {
+		name string
+		read func(t *testing.T, r backend.RawReader)
+	}{
+		{
+			name: "Read",
+			read: func(t *testing.T, r backend.RawReader) {
+				_, _, err := r.Read(context.Background(), "object", backend.KeyPath{"tenant"}, nil)
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "ReadRange",
+			read: func(t *testing.T, r backend.RawReader) {
+				buffer := make([]byte, 4)
+				err := r.ReadRange(context.Background(), "object", backend.KeyPath{"tenant"}, 2, buffer, nil)
+				require.NoError(t, err)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var (
+				mtx          sync.Mutex
+				getIfMatches []string
+			)
+
+			server := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+				switch r.Method {
+				case http.MethodHead:
+					w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+					w.Header().Set("ETag", etag)
+					w.WriteHeader(http.StatusOK)
+				case http.MethodGet:
+					mtx.Lock()
+					getIfMatches = append(getIfMatches, r.Header.Get("If-Match"))
+					mtx.Unlock()
+
+					// Azure ranges arrive in x-ms-range, ie: "bytes=2-5".
+					content := []byte(body)
+					if rng := r.Header.Get("x-ms-range"); rng != "" {
+						var start, end int
+						_, err := fmt.Sscanf(rng, "bytes=%d-%d", &start, &end)
+						require.NoError(t, err)
+						content = content[start : end+1]
+					}
+
+					w.Header().Set("ETag", etag)
+					w.Header().Set("Content-Length", strconv.Itoa(len(content)))
+					_, _ = w.Write(content)
+				default:
+					w.WriteHeader(http.StatusOK)
+				}
+			})
+
+			r, _, _, err := NewNoConfirm(&Config{
+				StorageAccountName: "testing_account",
+				StorageAccountKey:  flagext.SecretWithValue("YQo="),
+				MaxBuffers:         3,
+				BufferSize:         1000,
+				ContainerName:      "blerg",
+				Endpoint:           server.URL[7:], // [7:] -> strip http://
+			})
+			require.NoError(t, err)
+
+			tc.read(t, r)
+
+			mtx.Lock()
+			defer mtx.Unlock()
+			require.NotEmpty(t, getIfMatches)
+			for _, ifMatch := range getIfMatches {
+				assert.Equal(t, etag, ifMatch, "every ranged GET must pin the ETag from GetProperties")
+			}
+		})
+	}
+}
+
+// TestReadConditionNotMet asserts that a blob overwritten mid-read surfaces as a
+// normal read error instead of ErrDoesNotExist, so callers such as the tenant
+// index poller fall back and retry rather than treating the object as missing.
+func TestReadConditionNotMet(t *testing.T) {
+	const body = "some-blob-contents"
+
+	server := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodHead:
+			w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+			w.Header().Set("ETag", `"etag123"`)
+			w.WriteHeader(http.StatusOK)
+		case http.MethodGet:
+			w.Header().Set("x-ms-error-code", string(bloberror.ConditionNotMet))
+			w.WriteHeader(http.StatusPreconditionFailed)
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	})
+
+	r, _, _, err := NewNoConfirm(&Config{
+		StorageAccountName: "testing_account",
+		StorageAccountKey:  flagext.SecretWithValue("YQo="),
+		MaxBuffers:         3,
+		BufferSize:         1000,
+		ContainerName:      "blerg",
+		Endpoint:           server.URL[7:], // [7:] -> strip http://
+	})
+	require.NoError(t, err)
+
+	_, _, err = r.Read(context.Background(), "object", backend.KeyPath{"tenant"}, nil)
+	require.Error(t, err)
+	require.NotErrorIs(t, err, backend.ErrDoesNotExist)
 }
 
 func testServer(t *testing.T, httpHandler http.HandlerFunc) *httptest.Server {

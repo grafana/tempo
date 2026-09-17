@@ -108,6 +108,14 @@ func readError(err error) error {
 		return backend.ErrDoesNotExist
 	}
 
+	// The blob was overwritten while we were reading it. Reads pin the ETag returned
+	// by GetProperties so that a concurrent overwrite fails loudly instead of
+	// returning a buffer stitched together from two blob generations. Surface this as
+	// a normal (retryable) read error.
+	if bloberror.HasCode(err, bloberror.ConditionNotMet) {
+		return fmt.Errorf("blob was modified while reading, retry required: %w", err)
+	}
+
 	if err != nil {
 		return fmt.Errorf("reading Azure blob container: %w", err)
 	}
@@ -488,8 +496,9 @@ func (rw *Azure) readRange(ctx context.Context, name string, offset int64, destB
 			Offset: offset,
 			Count:  size,
 		},
-		BlockSize:   blob.DefaultDownloadBlockSize,
-		Concurrency: maxParallelism,
+		AccessConditions: ifMatch(props.ETag),
+		BlockSize:        blob.DefaultDownloadBlockSize,
+		Concurrency:      maxParallelism,
 		RetryReaderOptionsPerBlock: blob.RetryReaderOptions{
 			MaxRetries: maxRetries,
 		},
@@ -524,8 +533,9 @@ func (rw *Azure) readAll(ctx context.Context, name string) ([]byte, azcore.ETag,
 			Offset: 0,
 			Count:  *props.ContentLength,
 		},
-		BlockSize:   blob.DefaultDownloadBlockSize,
-		Concurrency: maxParallelism,
+		AccessConditions: ifMatch(props.ETag),
+		BlockSize:        blob.DefaultDownloadBlockSize,
+		Concurrency:      maxParallelism,
 		RetryReaderOptionsPerBlock: blob.RetryReaderOptions{
 			MaxRetries: maxRetries,
 		},
@@ -539,4 +549,21 @@ func (rw *Azure) readAll(ctx context.Context, name string) ([]byte, azcore.ETag,
 	}
 
 	return destBuffer, etag, nil
+}
+
+// ifMatch pins a download to a single blob generation. DownloadBuffer issues one
+// ranged GET per chunk, concurrently and independently, so without a condition a
+// blob overwritten mid-download can produce a buffer assembled from two
+// generations (a torn read). With If-Match set, the service fails the affected
+// chunk with ConditionNotMet instead.
+func ifMatch(etag *azcore.ETag) *blob.AccessConditions {
+	if etag == nil {
+		return nil
+	}
+
+	return &blob.AccessConditions{
+		ModifiedAccessConditions: &blob.ModifiedAccessConditions{
+			IfMatch: etag,
+		},
+	}
 }

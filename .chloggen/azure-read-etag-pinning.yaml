@@ -1,0 +1,19 @@
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: bug_fix
+
+# Component or area of the change. Must be one of the components in .chloggen/config.yaml,
+# e.g. distributor, querier, query-frontend, storage, operations.
+component: storage
+
+# A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
+note: Fix corrupt reads from Azure blob storage when an object is overwritten while being read, which showed up as tenant index unmarshal failures.
+
+# (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
+# .chloggen/README.md.
+issues: []
+
+# (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
+subtext: Azure reads now pin the ETag from GetProperties on every ranged GET, so a concurrent overwrite returns a retryable error instead of a buffer stitched together from two blob generations.
+
+# The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
+user: grafana
