@@ -1,6 +1,0 @@
-change_type: bug_fix
-component: compactor
-note: skip input blocks whose meta no longer exists instead of failing the whole compaction.
-issues: []
-subtext:
-user: zhxiaogg

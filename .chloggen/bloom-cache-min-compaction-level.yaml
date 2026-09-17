@@ -1,6 +1,0 @@
-change_type: bug_fix
-component: cache
-note: honor `cache_min_compaction_level` as a minimum when selecting bloom filters for caching.
-issues: [7904]
-subtext:
-user: ruslan-mikhailov
