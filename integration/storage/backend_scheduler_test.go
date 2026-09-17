@@ -299,10 +299,14 @@ func TestBackendSchedulerRedaction(t *testing.T) {
 
 		// Verify the trace is findable before redaction by querying object storage directly.
 		tempodbReader.EnablePolling(ctx, nil, false)
-		trs, failedBlocks, err := tempodbReader.Find(ctx, testTenant, traceID, tempodb.BlockIDMin, tempodb.BlockIDMax, time.Time{}, time.Time{}, common.DefaultSearchOptions())
-		require.NoError(t, err)
-		require.Empty(t, failedBlocks, "no blocks should fail lookup")
-		require.NotEmpty(t, trs, "trace must be findable in all blocks before redaction")
+		var trs []*tempopb.TraceByIDResponse
+		var failedBlocks []error
+		// tempodbReader's poll can still race the writer's last block - retry like the post-redaction check below.
+		require.Eventually(t, func() bool {
+			tempodbReader.PollNow(ctx)
+			trs, failedBlocks, err = tempodbReader.Find(ctx, testTenant, traceID, tempodb.BlockIDMin, tempodb.BlockIDMax, time.Time{}, time.Time{}, common.DefaultSearchOptions())
+			return err == nil && len(failedBlocks) == 0 && len(trs) > 0
+		}, 60*time.Second, 2*time.Second, "trace must be findable in all blocks before redaction")
 
 		// Dial the scheduler's gRPC endpoint and build a client.
 		conn, err := grpc.NewClient(
