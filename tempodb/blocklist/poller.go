@@ -77,6 +77,15 @@ var (
 		Name:      "blocklist_tenant_index_age_seconds",
 		Help:      "Age in seconds of the last pulled tenant index.",
 	}, []string{"tenant"})
+	metricTenantIndexBuildDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace:                       "tempodb",
+		Name:                            "blocklist_tenant_index_build_duration_seconds",
+		Help:                            "Records the amount of time to build and write the tenant index, per tenant.",
+		Buckets:                         []float64{1, 10, 100, 1000},
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
+	}, []string{"tenant"})
 )
 
 // Config is used to configure the poller
@@ -293,6 +302,11 @@ func (p *Poller) pollTenantAndCreateIndex(
 	// there was a failure to pull the tenant index and we are configured to fall
 	// back to polling.
 	metricTenantIndexBuilder.WithLabelValues(tenantID).Set(1)
+
+	buildStart := time.Now()
+	defer func() {
+		metricTenantIndexBuildDuration.WithLabelValues(tenantID).Observe(time.Since(buildStart).Seconds())
+	}()
 	blocklist, compactedBlocklist, err := p.pollTenantBlocks(derivedCtx, tenantID, previous)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to poll tenant blocks: %w", err)
