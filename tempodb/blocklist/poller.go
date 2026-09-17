@@ -302,7 +302,11 @@ func (p *Poller) pollTenantAndCreateIndex(
 	// there was a failure to pull the tenant index and we are configured to fall
 	// back to polling.
 	metricTenantIndexBuilder.WithLabelValues(tenantID).Set(1)
+
 	buildStart := time.Now()
+	defer func() {
+		metricTenantIndexBuildDuration.WithLabelValues(tenantID).Observe(time.Since(buildStart).Seconds())
+	}()
 	blocklist, compactedBlocklist, err := p.pollTenantBlocks(derivedCtx, tenantID, previous)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to poll tenant blocks: %w", err)
@@ -315,7 +319,6 @@ func (p *Poller) pollTenantAndCreateIndex(
 		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()
 		level.Error(p.logger).Log("msg", "failed to write tenant index", "tenant", tenantID, "err", err)
 	}
-	metricTenantIndexBuildDuration.WithLabelValues(tenantID).Observe(time.Since(buildStart).Seconds())
 
 	if len(blocklist) == 0 && len(compactedBlocklist) == 0 {
 		err := p.deleteTenant(ctx, tenantID)
