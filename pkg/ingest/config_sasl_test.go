@@ -28,7 +28,7 @@ import (
 func validSASLBaseConfig() KafkaConfig {
 	cfg := KafkaConfig{}
 	flagext.DefaultValues(&cfg)
-	cfg.Address = "localhost:9092"
+	cfg.Address = KafkaAddresses{"localhost:9092"}
 	cfg.Topic = "tempo"
 	return cfg
 }

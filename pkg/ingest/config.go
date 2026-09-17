@@ -102,14 +102,69 @@ func (cfg *Config) Validate() error {
 	return cfg.Kafka.Validate()
 }
 
+// KafkaAddresses is a list of Kafka bootstrap broker host:port pairs.
+// YAML accepts a single address, a comma-separated string, or a list of addresses.
+// Flags accept a comma-separated string.
+type KafkaAddresses []string
+
+// String implements flag.Value.
+func (v KafkaAddresses) String() string {
+	return strings.Join(v, ",")
+}
+
+// Set implements flag.Value. The flag value replaces any previous addresses
+// so RegisterFlags can set a default without appending when the flag is provided.
+func (v *KafkaAddresses) Set(s string) error {
+	*v = parseKafkaAddresses(s)
+	return nil
+}
+
+// FlagType implements flagext.Value so the generated docs describe the flag as a string.
+func (KafkaAddresses) FlagType() string {
+	return "string"
+}
+
+// UnmarshalYAML implements yaml.Unmarshaler.
+func (v *KafkaAddresses) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var s string
+	if err := unmarshal(&s); err == nil {
+		return v.Set(s)
+	}
+
+	var slice []string
+	if err := unmarshal(&slice); err != nil {
+		return err
+	}
+	*v = parseKafkaAddresses(slice...)
+	return nil
+}
+
+// MarshalYAML implements yaml.Marshaler.
+func (v KafkaAddresses) MarshalYAML() (interface{}, error) {
+	return v.String(), nil
+}
+
+func parseKafkaAddresses(values ...string) KafkaAddresses {
+	out := make(KafkaAddresses, 0, len(values))
+	for _, value := range values {
+		for _, part := range strings.Split(value, ",") {
+			part = strings.TrimSpace(part)
+			if part != "" {
+				out = append(out, part)
+			}
+		}
+	}
+	return out
+}
+
 // KafkaConfig holds the generic config for the Kafka backend.
 type KafkaConfig struct {
-	Address      string        `yaml:"address"`
-	Topic        string        `yaml:"topic"`
-	ClientID     string        `yaml:"client_id"`
-	ClientRack   string        `yaml:"client_rack"`
-	DialTimeout  time.Duration `yaml:"dial_timeout"`
-	WriteTimeout time.Duration `yaml:"write_timeout"`
+	Address      KafkaAddresses `yaml:"address"`
+	Topic        string         `yaml:"topic"`
+	ClientID     string         `yaml:"client_id"`
+	ClientRack   string         `yaml:"client_rack"`
+	DialTimeout  time.Duration  `yaml:"dial_timeout"`
+	WriteTimeout time.Duration  `yaml:"write_timeout"`
 
 	SASL       KafkaAuthConfig `yaml:",inline"`
 	TLSEnabled bool            `yaml:"tls_enabled"`
@@ -145,7 +200,8 @@ func (cfg *KafkaConfig) RegisterFlags(f *flag.FlagSet) {
 }
 
 func (cfg *KafkaConfig) RegisterFlagsWithPrefix(prefix string, f *flag.FlagSet) {
-	f.StringVar(&cfg.Address, prefix+".address", "localhost:9092", "The Kafka backend address.")
+	cfg.Address = KafkaAddresses{"localhost:9092"}
+	f.Var(&cfg.Address, prefix+".address", "The Kafka backend addresses. Accepts a comma-separated list of host:port pairs used as bootstrap brokers.")
 	f.StringVar(&cfg.Topic, prefix+".topic", "", "The Kafka topic name.")
 	f.StringVar(&cfg.ClientID, prefix+".client-id", "", "The Kafka client ID.")
 	f.StringVar(&cfg.ClientRack, prefix+".client-rack", "", "The rack identifier for this Kafka client. Corresponds to the Kafka client.rack setting and enables fetching from the closest replica (KIP-392). Set this to the instance's availability zone to reduce cross-zone Kafka traffic.")
@@ -178,7 +234,7 @@ func (cfg *KafkaConfig) RegisterFlagsWithPrefix(prefix string, f *flag.FlagSet) 
 }
 
 func (cfg *KafkaConfig) Validate() error {
-	if cfg.Address == "" {
+	if len(cfg.Address) == 0 {
 		return ErrMissingKafkaAddress
 	}
 	if cfg.Topic == "" {

@@ -92,7 +92,7 @@ func TestCooperativeActiveStickyBalancer_InactivePartitionsStayOnOwnerAcrossReba
 	tracker := newOwnershipTracker()
 
 	cfg := ingest.KafkaConfig{
-		Address:                        addr,
+		Address:                        ingest.KafkaAddresses{addr},
 		Topic:                          rebalanceTopic,
 		ConsumerGroup:                  rebalanceGroup,
 		DisableKafkaTelemetry:          true,
