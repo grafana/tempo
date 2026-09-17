@@ -44,6 +44,57 @@ func TestProtoParquetRoundTrip(t *testing.T) {
 	tempopbTraceEqual(t, expectedTrace, actualTrace)
 }
 
+// Duplicate attribute keys are the one case where proto -> parquet -> proto is
+// deliberately not symmetric: several occurrences of a key mapped to a dedicated column
+// accumulate into that single column, so they come back as one attribute holding an
+// array rather than as repeated keys. Note that repeated keys are not valid OTLP to
+// begin with ("Attribute keys MUST be unique"), so collapsing them to an array value
+// makes the read path conformant.
+func TestProtoParquetRoundTripDuplicateDedicatedColumnKey(t *testing.T) {
+	meta := backend.BlockMeta{DedicatedColumns: test.MakeDedicatedColumns()}
+	traceID := common.ID{0x01}
+
+	trace := &tempopb.Trace{
+		ResourceSpans: []*v1_trace.ResourceSpans{{
+			Resource: &v1_resource.Resource{
+				Attributes: []*v1.KeyValue{
+					{Key: "service.name", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "service-a"}}},
+				},
+			},
+			ScopeSpans: []*v1_trace.ScopeSpans{{
+				Spans: []*v1_trace.Span{{
+					Name:   "span-a",
+					SpanId: common.ID{0x01},
+					Events: []*v1_trace.Span_Event{{
+						Name: "lookup_plan_predicate",
+						Attributes: []*v1.KeyValue{
+							{Key: "dedicated.event.1", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "matcher-a"}}},
+							{Key: "dedicated.event.1", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "matcher-b"}}},
+							{Key: "dedicated.event.1", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "matcher-c"}}},
+						},
+					}},
+				}},
+			}},
+		}},
+	}
+
+	parquetTrace, connected := traceToParquet(&meta, traceID, trace, nil)
+	require.True(t, connected)
+
+	roundTripped := ParquetTraceToTempopbTrace(&meta, parquetTrace)
+	event := roundTripped.ResourceSpans[0].ScopeSpans[0].Spans[0].Events[0]
+
+	require.Len(t, event.Attributes, 1)
+	require.Equal(t, "dedicated.event.1", event.Attributes[0].Key)
+
+	arr := event.Attributes[0].Value.GetArrayValue()
+	require.NotNil(t, arr, "duplicated occurrences must come back as a single array value")
+	require.Len(t, arr.Values, 3)
+	require.Equal(t, "matcher-a", arr.Values[0].GetStringValue())
+	require.Equal(t, "matcher-b", arr.Values[1].GetStringValue())
+	require.Equal(t, "matcher-c", arr.Values[2].GetStringValue())
+}
+
 func TestProtoToParquetEmptyTrace(t *testing.T) {
 	want := &Trace{
 		TraceID:       make([]byte, 16),
@@ -741,6 +792,162 @@ func TestTraceToParquet(t *testing.T) {
 								}},
 							},
 						},
+					}},
+				}},
+			},
+		},
+		{
+			// A single resource/span/event can carry the same attribute key more than
+			// once (e.g. instrumentation emitting one attribute per loop iteration).
+			// Every occurrence must accumulate into the dedicated column -- previously
+			// each write reset the column and all but the last value was lost, without
+			// falling back to the generic list. Occurrences are deliberately scattered:
+			// accumulation must not depend on them being contiguous.
+			name: "duplicate attribute keys mapped to dedicated columns",
+			id:   traceID,
+			trace: tempopb.Trace{
+				ResourceSpans: []*v1_trace.ResourceSpans{{
+					Resource: &v1_resource.Resource{
+						Attributes: []*v1.KeyValue{
+							{Key: "service.name", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "service-a"}}},
+							{Key: "dedicated.resource.1", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "res-a"}}},
+							{Key: "dedicated.resource.1", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "res-b"}}},
+						},
+					},
+					ScopeSpans: []*v1_trace.ScopeSpans{{
+						Spans: []*v1_trace.Span{{
+							Name:   "span-a",
+							SpanId: common.ID{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+							Attributes: []*v1.KeyValue{
+								{Key: "dedicated.span.1", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "span-a"}}},
+								{Key: "dedicated.span.1", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "span-b"}}},
+							},
+							Events: []*v1_trace.Span_Event{{
+								Name: "lookup_plan_predicate",
+								Attributes: []*v1.KeyValue{
+									{Key: "dedicated.event.1", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "matcher-a"}}},
+									{Key: "dedicated.event.2", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "other-value"}}},
+									{Key: "dedicated.event.1", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "matcher-b"}}},
+									{Key: "plain.attr", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "unrelated"}}},
+									{Key: "dedicated.event.1", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "matcher-c"}}},
+								},
+							}},
+						}},
+					}},
+				}},
+			},
+			expected: Trace{
+				TraceID:         traceID,
+				TraceIDText:     "102030405060708090a0b0c0d0e0f",
+				RootSpanName:    "span-a",
+				RootServiceName: "service-a",
+				ServiceStats: []ServiceStats{
+					{
+						ServiceName: "service-a",
+						SpanCount:   1,
+						ErrorCount:  0,
+					},
+				},
+				ResourceSpans: []ResourceSpans{{
+					Resource: Resource{
+						ServiceName: "service-a",
+						Attrs:       []Attribute{},
+						DedicatedAttributes: DedicatedAttributes{
+							String01: []string{"res-a", "res-b"},
+						},
+					},
+					ScopeSpans: []ScopeSpans{{
+						SpanCount: 1,
+						Spans: []Span{{
+							Name:           "span-a",
+							SpanID:         []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+							NestedSetLeft:  1,
+							NestedSetRight: 2,
+							ParentID:       -1,
+							Attrs:          []Attribute{},
+							DedicatedAttributes: DedicatedAttributes{
+								String01: []string{"span-a", "span-b"},
+							},
+							Events: []Event{{
+								Name: "lookup_plan_predicate",
+								Attrs: []Attribute{
+									attr("plain.attr", "unrelated"),
+								},
+								DedicatedAttributes: DedicatedAttributes{
+									String01: []string{"matcher-a", "matcher-b", "matcher-c"},
+									String02: []string{"other-value"},
+								},
+							}},
+						}},
+					}},
+				}},
+			},
+		},
+		{
+			// A later occurrence of a duplicated key whose type doesn't match the
+			// dedicated column spills to the generic list on its own, without
+			// discarding the correctly-typed values already accumulated.
+			name: "duplicate attribute key with mismatched type falls back to generic",
+			id:   traceID,
+			trace: tempopb.Trace{
+				ResourceSpans: []*v1_trace.ResourceSpans{{
+					Resource: &v1_resource.Resource{
+						Attributes: []*v1.KeyValue{
+							{Key: "service.name", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "service-a"}}},
+						},
+					},
+					ScopeSpans: []*v1_trace.ScopeSpans{{
+						Spans: []*v1_trace.Span{{
+							Name:   "span-a",
+							SpanId: common.ID{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+							Events: []*v1_trace.Span_Event{{
+								Name: "mixed-type-event",
+								Attributes: []*v1.KeyValue{
+									// "dedicated.event.1" is configured as a string column.
+									{Key: "dedicated.event.1", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "matcher-a"}}},
+									{Key: "dedicated.event.1", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 42}}},
+								},
+							}},
+						}},
+					}},
+				}},
+			},
+			expected: Trace{
+				TraceID:         traceID,
+				TraceIDText:     "102030405060708090a0b0c0d0e0f",
+				RootSpanName:    "span-a",
+				RootServiceName: "service-a",
+				ServiceStats: []ServiceStats{
+					{
+						ServiceName: "service-a",
+						SpanCount:   1,
+						ErrorCount:  0,
+					},
+				},
+				ResourceSpans: []ResourceSpans{{
+					Resource: Resource{
+						ServiceName: "service-a",
+						Attrs:       []Attribute{},
+					},
+					ScopeSpans: []ScopeSpans{{
+						SpanCount: 1,
+						Spans: []Span{{
+							Name:           "span-a",
+							SpanID:         []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+							NestedSetLeft:  1,
+							NestedSetRight: 2,
+							ParentID:       -1,
+							Attrs:          []Attribute{},
+							Events: []Event{{
+								Name: "mixed-type-event",
+								Attrs: []Attribute{
+									attr("dedicated.event.1", 42),
+								},
+								DedicatedAttributes: DedicatedAttributes{
+									String01: []string{"matcher-a"},
+								},
+							}},
+						}},
 					}},
 				}},
 			},

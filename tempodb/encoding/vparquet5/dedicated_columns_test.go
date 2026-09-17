@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -380,70 +381,115 @@ func TestDedicatedColumn_readValue(t *testing.T) {
 	}
 }
 
+// values are written to the column in order, simulating the same attribute key
+// appearing more than once on a single span/event/resource. expectedWritten holds one
+// entry per value.
 func TestDedicatedColumn_writeValue(t *testing.T) {
 	tests := []struct {
 		name            string
 		dedicatedColumn dedicatedColumn
-		value           *v1.AnyValue
-		expectedWritten bool
+		values          []*v1.AnyValue
+		expectedWritten []bool
 		expectedAttr    DedicatedAttributes
 	}{
 		{
 			name:            "string",
 			dedicatedColumn: dedicatedColumn{Type: "string", ColumnIndex: 4},
-			value:           &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "five"}},
-			expectedWritten: true,
+			values:          []*v1.AnyValue{{Value: &v1.AnyValue_StringValue{StringValue: "five"}}},
+			expectedWritten: []bool{true},
 			expectedAttr:    DedicatedAttributes{String05: []string{"five"}},
 		},
 		{
 			name:            "string array",
 			dedicatedColumn: dedicatedColumn{Type: "string", ColumnIndex: 4},
-			value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{
+			values: []*v1.AnyValue{{Value: &v1.AnyValue_ArrayValue{
 				ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_StringValue{StringValue: "five"}}, {Value: &v1.AnyValue_StringValue{StringValue: "five_b"}}}},
-			}},
-			expectedWritten: true,
+			}}},
+			expectedWritten: []bool{true},
 			expectedAttr:    DedicatedAttributes{String05: []string{"five", "five_b"}},
 		},
 		{
 			name:            "int",
 			dedicatedColumn: dedicatedColumn{Type: "int", ColumnIndex: 3},
-			value:           &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 11}},
-			expectedWritten: true,
+			values:          []*v1.AnyValue{{Value: &v1.AnyValue_IntValue{IntValue: 11}}},
+			expectedWritten: []bool{true},
 			expectedAttr:    DedicatedAttributes{Int04: []int64{11}},
 		},
 		{
 			name:            "int array",
 			dedicatedColumn: dedicatedColumn{Type: "int", ColumnIndex: 3},
-			value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{
+			values: []*v1.AnyValue{{Value: &v1.AnyValue_ArrayValue{
 				ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_IntValue{IntValue: 11}}, {Value: &v1.AnyValue_IntValue{IntValue: 12}}}},
-			}},
-			expectedWritten: true,
+			}}},
+			expectedWritten: []bool{true},
 			expectedAttr:    DedicatedAttributes{Int04: []int64{11, 12}},
 		},
 		{
 			name:            "wrong type",
 			dedicatedColumn: dedicatedColumn{Type: "string", ColumnIndex: 1},
-			value:           &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 2}},
+			values:          []*v1.AnyValue{{Value: &v1.AnyValue_IntValue{IntValue: 2}}},
+			expectedWritten: []bool{false},
 		},
 		{
 			name:            "wrong array element type",
 			dedicatedColumn: dedicatedColumn{Type: "string", ColumnIndex: 2},
-			value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{
+			values: []*v1.AnyValue{{Value: &v1.AnyValue_ArrayValue{
 				ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_IntValue{IntValue: 2}}}},
-			}},
+			}}},
+			expectedWritten: []bool{false},
 		},
 		{
 			name:            "index too high",
 			dedicatedColumn: dedicatedColumn{Type: "string", ColumnIndex: 20},
-			value:           &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "twenty"}},
+			values:          []*v1.AnyValue{{Value: &v1.AnyValue_StringValue{StringValue: "twenty"}}},
+			expectedWritten: []bool{false},
+		},
+		{
+			// A repeated key must accumulate rather than overwrite. Previously the
+			// second write reset the buffer and "five" was lost with no fallback.
+			name:            "repeated string accumulates",
+			dedicatedColumn: dedicatedColumn{Type: "string", ColumnIndex: 4},
+			values: []*v1.AnyValue{
+				{Value: &v1.AnyValue_StringValue{StringValue: "five"}},
+				{Value: &v1.AnyValue_StringValue{StringValue: "five_b"}},
+			},
+			expectedWritten: []bool{true, true},
+			expectedAttr:    DedicatedAttributes{String05: []string{"five", "five_b"}},
+		},
+		{
+			name:            "repeated int accumulates",
+			dedicatedColumn: dedicatedColumn{Type: "int", ColumnIndex: 3},
+			values: []*v1.AnyValue{
+				{Value: &v1.AnyValue_IntValue{IntValue: 11}},
+				{Value: &v1.AnyValue_IntValue{IntValue: 12}},
+			},
+			expectedWritten: []bool{true, true},
+			expectedAttr:    DedicatedAttributes{Int04: []int64{11, 12}},
+		},
+		{
+			// A later occurrence of the wrong type reports itself as unwritten so the
+			// caller spills it to the generic list, but it must not discard the values
+			// already accumulated for that column.
+			name:            "repeated with wrong type keeps earlier values",
+			dedicatedColumn: dedicatedColumn{Type: "string", ColumnIndex: 4},
+			values: []*v1.AnyValue{
+				{Value: &v1.AnyValue_StringValue{StringValue: "five"}},
+				{Value: &v1.AnyValue_IntValue{IntValue: 2}},
+			},
+			expectedWritten: []bool{true, false},
+			expectedAttr:    DedicatedAttributes{String05: []string{"five"}},
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			var attr DedicatedAttributes
-			written := tc.dedicatedColumn.writeValue(&attr, tc.value)
+			require.Len(t, tc.expectedWritten, len(tc.values), "test case must expect one written result per value")
 
-			assert.Equal(t, tc.expectedWritten, written)
+			var attr DedicatedAttributes
+			for i, v := range tc.values {
+				written := tc.dedicatedColumn.writeValue(&attr, v)
+				assert.Equal(t, tc.expectedWritten[i], written, "value %d", i)
+			}
+
 			assert.Equal(t, tc.expectedAttr, attr)
 		})
 	}
