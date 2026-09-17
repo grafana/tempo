@@ -15,10 +15,16 @@ Find flaky and slow CI jobs in `grafana/tempo` from real run data, fix what's co
 - Pick a window: 4 weeks of runs is usually enough data and keeps API calls under GitHub's rate limit.
 - `ci.yml` runs 100+ times/week - don't pull every run. Sample recent runs, and weight sampling toward failed/rerun runs since that's where flaky-job evidence lives.
 - Check `git branch --show-current` before you start editing, and again right before staging or committing. A local checkout can be shared with concurrent work happening in the same directory. If the branch isn't what you expect, stop and ask - don't guess what happened.
+- Steps 1 and 2 are independent data-gathering passes and can be split across parallel sub-agents when the window is large, with you consolidating and re-verifying their claims (see step 2) rather than trusting a summary as-is.
+- This skill only covers CI config inside this repo - a fix that would require changing anything outside it is out of scope. Flag it instead.
 
 ## Workflow
 
 ### 1. Find slow jobs
+
+First ask the user for a CSV export from GitHub's own Actions Performance dashboard: `https://github.com/grafana/tempo/actions/metrics/performance?tab=jobs`, Jobs tab, exported for the window you want. It gives per-job avg run time, avg queue time, and failure rate across every run in the window in one file - far less work than sampling, and it surfaces failure rate directly (useful context for step 2 too). This page needs an authenticated browser session behind it - both WebFetch and `gh api` return a 404 for it, so it cannot be fetched automatically. If the user can provide it, use it as the primary data source for this step and skip the sampling below.
+
+If no CSV is available, fall back to sampling live runs:
 
 ```bash
 gh api "repos/grafana/tempo/actions/workflows/ci.yml/runs?per_page=100&status=completed&created=>=<date>" --paginate
@@ -100,4 +106,5 @@ Report:
 - Every flaky job/test claim: job name, error text quoted from a real log, run/job IDs as evidence, whether same-commit reruns confirm it.
 - Every slow-job claim: sample size, mean/median/max in real units.
 - Every "already fixed" or "can't fix here" item, stated explicitly rather than padded with a guess.
+- Any splitting precedent cited: the actual PR number and what it changed, not just a description of the pattern.
 - Any fix made: file changed, what verification confirmed it works.
