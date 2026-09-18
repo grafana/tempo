@@ -28,10 +28,10 @@ const debounceDelay = 200 * time.Millisecond
 // handleMouse (which has to know exactly where they land on screen to hit-test a click or
 // hover). Keeping these in one place means the two can never drift out of sync.
 const (
-	cellWidth       = 2                   // characters per rendered grid cell
-	gapChars        = 3                   // characters between the span and io columns
-	linesBeforeGrid = 5                   // title(1) + query box(3) + column header(1)
-	reservedLines   = linesBeforeGrid + 1 // + footer(1)
+	cellWidth       = 2               // characters per rendered grid cell
+	gapChars        = 3               // characters between the span and io columns
+	linesBeforeGrid = 6               // title(1) + query box(3) + column header(2)
+	reservedLines   = linesBeforeGrid // no footer
 )
 
 // rowNumbered is implemented by vparquet5 spans returned from Fetch/FetchSpans. It exposes
@@ -296,20 +296,36 @@ func (m *heatmapModel) handleMouse(ev tea.MouseMsg) {
 
 	case ev.X < leftWidth:
 		col := ev.X / cellWidth
-		if idx, ok := cellIndex(&m.spanGrid, row, col); ok && m.spanGrid.counts[idx] > 0 {
-			m.hoverActive = true
-			m.hoverOnSpanGrid = true
-			m.hoverRow, m.hoverCol = row, col
-			m.hoverText = humanize.Comma(m.spanGrid.counts[idx]) + " matches"
+		if idx, ok := cellIndex(&m.spanGrid, row, col); ok {
+			switch {
+			case idx < len(m.boundaryCells) && m.boundaryCells[idx]:
+				m.hoverActive = true
+				m.hoverOnSpanGrid = true
+				m.hoverRow, m.hoverCol = row, col
+				m.hoverText = "row group boundary"
+			case m.spanGrid.counts[idx] > 0:
+				m.hoverActive = true
+				m.hoverOnSpanGrid = true
+				m.hoverRow, m.hoverCol = row, col
+				m.hoverText = humanize.Comma(m.spanGrid.counts[idx]) + " matches"
+			}
 		}
 
 	case ev.X >= rightStart:
 		col := (ev.X - rightStart) / cellWidth
-		if idx, ok := cellIndex(&m.ioGrid, row, col); ok && m.ioGrid.counts[idx] > 0 {
-			m.hoverActive = true
-			m.hoverOnSpanGrid = false
-			m.hoverRow, m.hoverCol = row, col
-			m.hoverText = humanize.Bytes(uint64(m.ioGrid.counts[idx])) + " read"
+		if idx, ok := cellIndex(&m.ioGrid, row, col); ok {
+			switch {
+			case idx < len(m.ioBoundaryCells) && m.ioBoundaryCells[idx]:
+				m.hoverActive = true
+				m.hoverOnSpanGrid = false
+				m.hoverRow, m.hoverCol = row, col
+				m.hoverText = "row group boundary"
+			case m.ioGrid.counts[idx] > 0:
+				m.hoverActive = true
+				m.hoverOnSpanGrid = false
+				m.hoverRow, m.hoverCol = row, col
+				m.hoverText = humanize.Bytes(uint64(m.ioGrid.counts[idx])) + " read"
+			}
 		}
 	}
 }
@@ -784,7 +800,6 @@ var (
 	boxStyle      = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
 	errStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
 	statusStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("246"))
-	footerStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	boundaryStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Bold(true)
 )
 
@@ -796,8 +811,8 @@ func (m *heatmapModel) View() string {
 	var b strings.Builder
 
 	title := fmt.Sprintf(
-		"tempo-cli view heatmap  block=%s  tenant=%s  traces=%d  row groups=%d",
-		m.meta.BlockID.String(), m.meta.TenantID, m.meta.TotalObjects, len(m.rowGroupEnds),
+		"tempo-cli view heatmap  block=%s  tenant=%s  size=%s  traces=%d  row groups=%d",
+		m.meta.BlockID.String(), m.meta.TenantID, humanize.Bytes(m.meta.Size_), m.meta.TotalObjects, len(m.rowGroupEnds),
 	)
 
 	metricsNote := ""
@@ -822,47 +837,73 @@ func (m *heatmapModel) View() string {
 	b.WriteString(m.renderHeaders())
 	b.WriteString(m.renderGrids())
 
-	b.WriteString(footerStyle.Render("esc/ctrl+c: quit    e.g. {resource.service.name=\"tempo-gateway\"}    "))
-	b.WriteString(boundaryStyle.Render("▕▏"))
-	b.WriteString(footerStyle.Render(" = row group boundary"))
-
-	return b.String()
+	// The grid's last row (like every other line built above) ends with a trailing "\n".
+	// bubbletea needs the very last line to NOT end in one: a trailing newline makes the
+	// terminal need one row more than we accounted for in reservedLines, so once content
+	// exactly fills the screen it scrolls - pushing the title off the top and leaving a
+	// blank line at the bottom.
+	return strings.TrimSuffix(b.String(), "\n")
 }
 
 // gridGap separates the span-location and I/O columns, both in the header and in the grids
 // themselves, so the two stay aligned with each other.
 var gridGap = strings.Repeat(" ", gapChars)
 
-// renderHeaders packs each column's label and all its stats onto a single line, so the
-// column header costs exactly one line no matter how much there is to report - leaving the
-// rest of the screen for the heatmap itself.
+// fileIOPrefix starts the FILE I/O line; the second line is indented to match its width so
+// the simulated-latency readout lines up under the read stats rather than under the label.
+const fileIOPrefix = "FILE I/O: "
+
+// renderHeaders packs each column's label and stats into two lines - a column header costing
+// a fixed two lines no matter what there is to report, so the rest of the screen stays free
+// for the heatmap and the grid's start line never shifts.
 func (m *heatmapModel) renderHeaders() string {
 	leftWidth := m.spanGrid.cols * cellWidth
 	rightWidth := m.ioGrid.cols * cellWidth
 
-	left := fmt.Sprintf("SPAN LOCATIONS  %s matches  |  cell=%d rows", humanize.Comma(m.matched), m.spanGrid.unitsPerCell)
-	right := fmt.Sprintf(
-		"FILE I/O READS  %s read  |  cell=%s  |  %s",
-		humanize.Bytes(uint64(m.ioStats.SumSize)), humanize.Bytes(uint64(m.ioGrid.unitsPerCell)), ioStatsSummary(m.ioStats),
-	)
+	left := fmt.Sprintf("SPAN LOCATIONS  %s matches", humanize.Comma(m.matched))
 
-	return fmt.Sprintf(
+	right1 := fileIOPrefix + "no reads yet"
+	right2 := ""
+	if m.ioStats.Reads > 0 {
+		right1 = fileIOPrefix + fmt.Sprintf(
+			"%s reads, %s  |  min %s  avg %s  max %s",
+			humanize.Comma(m.ioStats.Reads), humanize.Bytes(uint64(m.ioStats.SumSize)),
+			humanize.Bytes(uint64(m.ioStats.MinSize)), humanize.Bytes(uint64(m.ioStats.avgSize())), humanize.Bytes(uint64(m.ioStats.MaxSize)),
+		)
+		right2 = strings.Repeat(" ", len(fileIOPrefix)) + fmt.Sprintf(
+			"simulated latency: %dms + %dms/MB = %s",
+			int64(simBaseLatencyMs), int64(simPerMBMs), simulatedExecTime(m.ioStats),
+		)
+	}
+
+	line1 := fmt.Sprintf(
 		"%s%s%s\n",
 		headerStyle.Render(fmt.Sprintf("%-*s", leftWidth, truncate(left, leftWidth))),
 		gridGap,
-		headerStyle.Render(fmt.Sprintf("%-*s", rightWidth, truncate(right, rightWidth))),
+		headerStyle.Render(fmt.Sprintf("%-*s", rightWidth, truncate(right1, rightWidth))),
 	)
+	line2 := fmt.Sprintf(
+		"%s%s%s\n",
+		headerStyle.Render(fmt.Sprintf("%-*s", leftWidth, "")),
+		gridGap,
+		headerStyle.Render(fmt.Sprintf("%-*s", rightWidth, truncate(right2, rightWidth))),
+	)
+	return line1 + line2
 }
 
-// ioStatsSummary formats the read count and min/max/avg read size for the I/O column header.
-func ioStatsSummary(s ioStats) string {
-	if s.Reads == 0 {
-		return "no reads yet"
-	}
-	return fmt.Sprintf(
-		"%s reads  min %s  max %s  avg %s",
-		humanize.Comma(s.Reads), humanize.Bytes(uint64(s.MinSize)), humanize.Bytes(uint64(s.MaxSize)), humanize.Bytes(uint64(s.avgSize())),
-	)
+// simBaseLatencyMs and simPerMBMs model a rough object-storage read cost: a fixed per-request
+// round-trip latency plus a throughput-dependent cost proportional to how much of that request
+// was actual data. Both terms are linear in the read count and byte count respectively, so the
+// total across every read reduces to a function of just ioStats.Reads and ioStats.SumSize -
+// no need to track individual read sizes for this.
+const (
+	simBaseLatencyMs = 20.0
+	simPerMBMs       = 10.0
+)
+
+func simulatedExecTime(s ioStats) time.Duration {
+	ms := float64(s.Reads)*simBaseLatencyMs + float64(s.SumSize)/(1024*1024)*simPerMBMs
+	return time.Duration(ms * float64(time.Millisecond)).Round(time.Millisecond)
 }
 
 // truncate keeps a header string from overflowing its column and bleeding into the next one
