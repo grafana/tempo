@@ -42,17 +42,37 @@ Putting a setting in the wrong block is a common source of errors, so check the 
 | Block | Purpose | Examples |
 | ----- | ------- | -------- |
 | `metrics_generator` (top level) | Infrastructure that applies to the whole generator. | `storage.remote_write`, `registry.collection_interval`, ring settings. |
-| `overrides` | Which processors are enabled and how each processor behaves. Set globally under `overrides.defaults` or per tenant. | `processors`, `processor.span_metrics`, `processor.service_graphs`, `max_active_series`, `generate_native_histograms`. |
+| `overrides` | Which processors are enabled and how each processor behaves. Set global defaults under `overrides.defaults` in `tempo.yaml`, or set per-tenant values in a separate runtime overrides file. | `processors`, `processor.span_metrics`, `processor.service_graphs`, `max_active_series`, `generate_native_histograms`. |
 
-Per-processor tuning, such as `dimensions`, `filter_policies`, `histogram_buckets`, `intrinsic_dimensions`, and `dimension_mappings`, lives in a `processor.<processor>` block, under either `metrics_generator.processor` or `overrides...metrics_generator.processor`.
-The examples on this page use the `overrides` block, which is the recommended place because it also supports per-tenant settings.
+Per-processor tuning, such as `dimensions`, `filter_policies`, `histogram_buckets`, `intrinsic_dimensions`, and `dimension_mappings`, lives in a `processor.<processor>` block under `overrides.defaults.metrics_generator.processor`.
+The examples on this page set values under `overrides.defaults`, which applies them to every tenant.
 `processors`, which selects which processors are enabled, is set only in the `overrides` block.
 
 {{< admonition type="warning" >}}
-Use the current overrides format, which nests tenant settings under `overrides.defaults` (global) and `overrides.<tenant-id>` (per tenant).
-The flat legacy overrides format is deprecated, is disabled by default (`enable_legacy_overrides: false`), and will be removed in a future release.
-Mixing the two formats in one file produces configuration that doesn't take effect as expected.
+Don't add a per-tenant block, such as `overrides.<tenant-id>`, directly to `tempo.yaml`.
+A tenant ID nested under `overrides` in the main configuration file causes Tempo to fail to load the configuration.
 {{< /admonition >}}
+
+To set values for individual tenants, use a separate runtime overrides file and point to it from `tempo.yaml` with `overrides.per_tenant_override_config`.
+Tempo reloads this file at runtime without a restart:
+
+```yaml
+# tempo.yaml
+overrides:
+  per_tenant_override_config: /conf/overrides.yaml
+```
+
+```yaml
+# /conf/overrides.yaml
+overrides:
+  "<tenant-id>":
+    metrics_generator:
+      processors:
+        - span-metrics
+        - service-graphs
+```
+
+For more information, refer to [Tenant-specific overrides](/docs/tempo/<TEMPO_VERSION>/configuration/#tenant-specific-overrides).
 
 ## Send metrics to a remote Prometheus or Mimir endpoint
 
@@ -236,7 +256,7 @@ For a detailed explanation of each span-metrics option, including worked example
 ## Version and format notes
 
 - **Tempo 3.0 removed the `local-blocks` processor.**
-  Remove any `local-blocks` entries from `metrics_generator.processors`.
+  Remove any `local-blocks` entries from the `processors` list in your `overrides` block, either `overrides.defaults.metrics_generator.processors` or the per-tenant runtime overrides file.
   The live-store component now serves TraceQL metrics queries on recent data.
   The valid processors are `span-metrics`, `service-graphs`, and `host-info`, along with the span-metrics and service-graphs subprocessors.
 - **Filter policy validation is stricter in Tempo 3.0.**

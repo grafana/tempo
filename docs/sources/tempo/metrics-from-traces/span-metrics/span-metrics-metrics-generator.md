@@ -494,8 +494,9 @@ If you're upgrading from Tempo 2.x, refer to [Stricter filter policy validation]
 
 You can also generate span metrics client-side, with the [`otelcol.connector.spanmetrics`](span-metrics-alloy/) component in Grafana Alloy or the OpenTelemetry Collector.
 The recommended Alloy configuration sets `namespace = "traces.spanmetrics"`, so client-side metric names start with `traces_spanmetrics_`, the same prefix the generator uses.
-The suffixes still differ: Alloy emits `calls` and `duration`, while the generator emits `calls_total`, `latency`, and `size_total`.
-If both run for the same services, you get overlapping RED coverage that can double-count request rates and inflate active series.
+Once exported to Prometheus, the client-side request counter and the generator's request counter both become `traces_spanmetrics_calls_total`, so you can't tell them apart by name.
+If both run for the same services, those counters overlap, double-count request rates, and inflate active series.
+For this reason, run only one of them for a given set of services.
 
 To decide which approach to use, how sampling affects coverage, and how to avoid double-counting, refer to [Choose where to generate metrics from traces](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/where-to-generate-metrics/).
 
