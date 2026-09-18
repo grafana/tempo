@@ -1,0 +1,11 @@
+change_type: bug_fix
+
+component: metrics-generator
+
+note: Fix span name sanitization creating a new DRAIN cluster on every span once a wildcard sibling appeared in the pattern tree
+
+issues: []
+
+subtext:
+
+user: zhxiaogg
