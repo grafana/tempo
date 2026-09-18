@@ -170,8 +170,10 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (PerTenant, PerTe
 
 		tenantFailuresRemaining = atomic.NewInt32(int32(p.cfg.TolerateTenantFailures))
 
-		link  = trace.LinkFromContext(parentCtx)
-		bgCtx = context.Background()
+		// bgCtx carries parentCtx's span context (so tenant spans stay
+		// children of Poller.Do) but not its cancellation, so an in-flight
+		// tenant poll can finish even after parentCtx is canceled for shutdown.
+		bgCtx = context.WithoutCancel(parentCtx)
 	)
 
 	for _, tenantID := range tenants {
@@ -196,7 +198,6 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (PerTenant, PerTe
 			defer bgSpan.End()
 
 			bgSpan.SetAttributes(attribute.String("tenant", tenantID))
-			bgSpan.AddLink(link)
 
 			var (
 				consecutiveErrorsRemaining = p.cfg.TolerateConsecutiveErrors
