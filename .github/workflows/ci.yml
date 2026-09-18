@@ -152,7 +152,11 @@ jobs:
         test-target:
           [
             test-e2e-operations,
-            test-e2e-api,
+            test-e2e-api-search,
+            test-e2e-api-metrics,
+            test-e2e-api-overrides,
+            test-e2e-api-misc,
+            test-e2e-api-tracebyid,
             test-e2e-limits,
             test-e2e-metrics-generator,
             test-e2e-storage,

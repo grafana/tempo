@@ -182,7 +182,7 @@ test-with-cover-others: tools ## Run other tests with code coverage
 
 # runs e2e tests in the top level integration/e2e directory
 .PHONY: test-e2e
-test-e2e: tools docker-tempo docker-tempo-query test-e2e-operations test-e2e-api test-e2e-limits test-e2e-metrics-generator test-e2e-storage test-e2e-util ## Run all e2e tests
+test-e2e: tools docker-tempo docker-tempo-query test-e2e-operations test-e2e-api-search test-e2e-api-metrics test-e2e-api-overrides test-e2e-api-misc test-e2e-api-tracebyid test-e2e-limits test-e2e-metrics-generator test-e2e-storage test-e2e-util ## Run all e2e tests
 	@echo "All e2e tests completed"
 
 # runs only operations e2e tests
@@ -190,10 +190,26 @@ test-e2e: tools docker-tempo docker-tempo-query test-e2e-operations test-e2e-api
 test-e2e-operations: tools docker-tempo docker-tempo-query ## Run operations e2e tests
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/operations
 
-# runs only api e2e tests
-.PHONY: test-e2e-api
-test-e2e-api: tools docker-tempo docker-tempo-query ## Run api e2e tests
-	$(GOTEST) -v $(GOTEST_OPT) ./integration/api
+# runs api e2e tests, split by area (see integration/api/*)
+.PHONY: test-e2e-api-search
+test-e2e-api-search: tools docker-tempo docker-tempo-query ## Run api multi-tenant search/tag e2e tests
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/api/search
+
+.PHONY: test-e2e-api-metrics
+test-e2e-api-metrics: tools docker-tempo docker-tempo-query ## Run api query-range e2e tests
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/api/metrics
+
+.PHONY: test-e2e-api-overrides
+test-e2e-api-overrides: tools docker-tempo docker-tempo-query ## Run api overrides CRUD e2e tests
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/api/overrides
+
+.PHONY: test-e2e-api-misc
+test-e2e-api-misc: tools docker-tempo docker-tempo-query ## Run api mcp/status e2e tests
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/api/misc
+
+.PHONY: test-e2e-api-tracebyid
+test-e2e-api-tracebyid: tools docker-tempo docker-tempo-query ## Run api trace-by-id/trace-diff/span-pruning e2e tests
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/api/tracebyid
 
 ## runs only poller integration tests
 .PHONY: test-e2e-limits
