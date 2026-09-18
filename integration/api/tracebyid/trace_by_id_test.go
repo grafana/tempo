@@ -9,10 +9,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestTraceByIDandTraceQL runs against all 3 object storage backends (no need to replicate
+// for every test), each as its own parallel subtest - the harness itself runs Backends
+// sequentially, so looping here is what actually gets the 3x wall-clock cost back.
 func TestTraceByIDandTraceQL(t *testing.T) {
+	for _, be := range util.BackendTestCases(util.BackendObjectStorageAll) {
+		t.Run(be.Name, func(t *testing.T) {
+			// RunIntegrationTests itself calls t.Parallel() on this subtest's t.
+			testTraceByIDandTraceQL(t, be.Backend)
+		})
+	}
+}
+
+func testTraceByIDandTraceQL(t *testing.T, backend util.BackendsMask) {
 	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		Components: util.ComponentsRecentDataQuerying | util.ComponentsBackendQuerying,
-		Backends:   util.BackendObjectStorageAll, // runs basic querying against all 3 object storage backends. no need to replicate for every test.
+		Backends:   backend,
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
 

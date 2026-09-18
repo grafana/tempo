@@ -14,9 +14,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestOverridesWithObjectStorage runs against all 3 object storage backends, each as its own
+// parallel subtest - the harness itself runs Backends sequentially, so looping here is what
+// actually gets the 3x wall-clock cost back.
 func TestOverridesWithObjectStorage(t *testing.T) {
+	for _, be := range util.BackendTestCases(util.BackendObjectStorageAll) {
+		t.Run(be.Name, func(t *testing.T) {
+			// RunIntegrationTests itself calls t.Parallel() on this subtest's t.
+			testOverridesWithObjectStorage(t, be.Backend)
+		})
+	}
+}
+
+func testOverridesWithObjectStorage(t *testing.T, backend util.BackendsMask) {
 	util.RunIntegrationTests(t, util.TestHarnessConfig{
-		Backends:       util.BackendObjectStorageAll,
+		Backends:       backend,
 		DeploymentMode: util.DeploymentModeSingleBinary,
 		ConfigOverlay:  configOverrides,
 	}, func(h *util.TempoHarness) {
