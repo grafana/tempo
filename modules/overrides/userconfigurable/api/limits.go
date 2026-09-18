@@ -6,6 +6,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
+	"github.com/grafana/tempo/pkg/secrets"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	"github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/util/listtomap"
@@ -60,9 +61,15 @@ func limitsFromOverrides(overrides overrides.Interface, userID string) *client.L
 					HostIdentifiers: strArrPtr(overrides.MetricsGeneratorProcessorHostInfoHostIdentifiers(userID)),
 					MetricName:      strPtr(overrides.MetricsGeneratorProcessorHostInfoMetricName(userID)),
 				},
+				SecretDetection: secretsPolicyPtr(overrides, userID),
 			},
 		},
 	}
+}
+
+func secretsPolicyPtr(o overrides.Interface, userID string) *secrets.Policy {
+	policy, _ := o.SecretsPolicy(userID)
+	return policy
 }
 
 func boolPtr(b bool) *bool {

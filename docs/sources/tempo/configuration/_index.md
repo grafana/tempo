@@ -28,6 +28,7 @@ The Tempo configuration options include:
   - [Block-builder](#block-builder)
   - [Live-store](#live-store)
   - [Metrics-generator](#metrics-generator)
+  - [Secret detection](#secret-detection)
   - [Query-frontend](#query-frontend)
     - [Limit query size to improve performance and stability](#limit-query-size-to-improve-performance-and-stability)
       - [Limit the spans per spanset](#limit-the-spans-per-spanset)
@@ -1014,6 +1015,58 @@ metrics_generator:
               - /etc/tempo/custom-token
 ```
 
+## Secret detection
+
+Secret detection is opt-in per tenant and disabled by default. It runs only when both `secrets.detection_enabled: true` is set in the process configuration and the tenant's effective `metrics_generator.processors` list contains `secret-detection`. Enabling the process-wide gate alone does not opt tenants in.
+
+Once opted in, secret detection runs in the common metrics-generator path, including sampler deployments, before preprocessing and timestamp filtering. It does not require another metric processor and still scans requests with `SkipMetricsGeneration` set.
+
+When the process-wide gate is enabled, the metrics-generator must have `metrics_generator.storage.path` configured; otherwise initialization fails rather than silently leaving detection inactive. Existing optional-generator behavior is unchanged when the gate is disabled.
+
+```yaml
+# /conf/tempo.yaml
+secrets:
+  detection_enabled: true
+  # Optional. Omitted or null selects all supported native rules.
+  # An explicit list selects exactly those native IDs.
+  # [] selects no native rules, but tenant custom rules remain available.
+  enabled_rules:
+    - aws-secret-access-key
+    - github-pat
+
+overrides:
+  per_tenant_override_config: /conf/overrides.yaml
+```
+
+Opt a tenant in using the existing runtime overrides processor list:
+
+```yaml
+# /conf/overrides.yaml
+overrides:
+  "<tenant-id>":
+    metrics_generator:
+      # Include every processor this tenant should run.
+      processors: [span-metrics, secret-detection]
+```
+
+The same `metrics_generator.processors` field is available through user-configurable overrides. Remove `secret-detection` from the effective list to disable scanning for a tenant when the processor update is applied. Configuring a `metrics_generator.processor.secret_detection` policy alone does not opt the tenant in; there is no per-tenant policy `enabled` field.
+
+The `secrets.enabled_rules` example is an illustrative subset, not a recommended complete catalog. Global rule selection controls recognition coverage, not tenant activation, and is restart-scoped. Unknown and duplicate IDs are rejected even when detection is disabled. Only selected native expressions and the shared matcher are compiled; native implementations remain available without deleting catalog code.
+
+For opted-in tenants, policy at `metrics_generator.processor.secret_detection` can exclude selected native IDs with `disabled_rules` and add up to 16 custom rules. Each custom rule accepts only `id` and `regex`, and regex matching alone determines its findings. Built-in rules use catalog-defined entropy thresholds and capture behavior. The tenant policy cannot activate a globally unselected native rule. An invalid initial tenant policy falls back to the selected native baseline; later rejected policies retain the last-known-good snapshot. Neither fallback nor policy replacement opts a tenant in. Native selection, tenant exclusions, and an explicit empty selection have different coverage and memory implications.
+
+Finding logs contain `msg="secret detected in trace field"`, `tenant`, `traceID`, optional/empty `spanID`, `field_kind`, `rule`, and `ts`, in addition to the ordinary logger envelope. They contain no matched values, attribute names, structural locations, catalog metadata, or metric-exposure classification.
+
+Process metrics retain `tempo_secret_detections_total` by `attribute_scope`, `tempo_secret_detection_pushes_total` by `source_stream`, and the `tempo_secret_detection_duration_seconds` histogram by `source_stream`. Tenant remote-write metrics retain `traces_secret_detections_total` by `attribute_scope` and `source_stream`, and `traces_secret_detection_pushes_total` by `source_stream`. Detection totals count rule matches, not distinct credentials or emitted log records; pushes count batches presented to the detector. Policy update and compilation metrics remain available as described in the policy documentation.
+
+Finding logs are best-effort, with per-trace caps and per-tenant rate limits. Bounded `secret detection coverage gap` warnings retain a reason and safe tenant/trace/field context; input and delivery failures use existing error logs. Inspect these logs and generator lag when investigating gaps. Neither an absence of warnings nor a bounded Loki query proves a complete finding inventory.
+
+Finding logs are limited to 100 per second per tenant processor (burst 1,000), 1,000 per second process-wide (burst 2,000), and 1,000 per trace per request. These fixed limits discard excess log records without stopping scanning or detection counters.
+
+Kafka keeps its normal automatic offset commits; it does not wait for secret detection to finish. A generator crash can therefore lose pending detections.
+
+Refer to [User-configurable overrides](/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/user-configurable-overrides/#secret-detection-activation) for tenant activation, policy bounds, whole-policy replacement, and accuracy limitations. A matching shape does not prove that a credential is issued or active; zero false positives are not guaranteed.
+
 ## Query-frontend
 
 The query frontend is responsible for sharding incoming requests for faster processing in parallel by the queriers.
@@ -1432,6 +1485,7 @@ backend_scheduler:
   # Path to store local work cache files
   [local_work_path: <string> | default = "/var/tempo"]
 ```
+
 
 ## Backend worker
 
@@ -2515,6 +2569,7 @@ overrides:
       #  - span-metrics-latency            (only emits traces_spanmetrics_latency histogram)
       #  - span-metrics-size               (only emits traces_spanmetrics_size_total)
       #  - host-info
+      #  - secret-detection               also requires secrets.detection_enabled: true
       [processors: <list of strings>]
 
       # Maximum number of active series in the registry, per instance of the metrics-generator. A

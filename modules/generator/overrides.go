@@ -7,6 +7,7 @@ import (
 	"github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/overrides/histograms"
+	"github.com/grafana/tempo/pkg/secrets"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -40,6 +41,7 @@ type metricsGeneratorOverrides interface {
 	MetricsGeneratorProcessorServiceGraphsEnableTraceStateSpanMultiplier(userID string) (bool, bool)
 	MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey(userID string) string
 	MetricsGeneratorProcessorSpanMetricsEnableTraceStateSpanMultiplier(userID string) (bool, bool)
+	SecretsPolicy(userID string) (*secrets.Policy, bool)
 	DedicatedColumns(userID string) backend.DedicatedColumns
 	MaxLocalTracesPerUser(userID string) int
 	MaxBytesPerTrace(userID string) int

@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,9 +21,55 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v2"
 
+	"github.com/grafana/tempo/pkg/secrets"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	"github.com/grafana/tempo/tempodb/backend"
 )
+
+func TestRuntimePolicyDecodeErrorsAreValueSafe(t *testing.T) {
+	const private = "synthetic-private-policy-marker"
+	loader := loadPerTenantOverrides(&mockValidator{}, ConfigTypeNew, false, false)
+	for _, policy := range []string{
+		"custom_rules: " + private,
+		"custom_rules:\n- id: safe-rule\n  regex: " + private + "\n  description: " + private,
+		"custom_rules:\n- id: safe-rule\n  regex: " + private + "\n  entropy: 1.5",
+		"custom_rules:\n- id: safe-rule\n  regex: (" + private + ")\n  secret_group: 1",
+		"custom_rules:\n- id: safe-rule\n  regex: *" + private,
+		private + ": true",
+	} {
+		data := "overrides:\n  tenant:\n    metrics_generator:\n      processor:\n        secret_detection:\n          " + strings.ReplaceAll(policy, "\n", "\n          ") + "\n"
+		limits, err := loader(strings.NewReader(data))
+		require.True(t, err != nil, "invalid runtime policy must be rejected")
+		require.True(t, limits == nil, "invalid runtime policy must not be published")
+		require.False(t, strings.Contains(err.Error(), private), "runtime decode error disclosed private policy")
+		parsed, err := UnmarshalPerTenantOverrides([]byte(data))
+		require.True(t, err != nil, "invalid migration input must be rejected")
+		require.True(t, parsed == nil, "invalid migration input must not return limits")
+		require.False(t, strings.Contains(err.Error(), private), "migration decode error disclosed private policy")
+	}
+}
+
+func TestRuntimeOrdinaryDecodeDiagnostics(t *testing.T) {
+	data := []byte("overrides:\n  tenant:\n    ingestion:\n      max_traces_per_user: bad-limit\n")
+	_, err := loadPerTenantOverrides(nil, ConfigTypeNew, false, false)(bytes.NewReader(data))
+	var typeError *yaml.TypeError
+	require.ErrorAs(t, err, &typeError)
+	require.Contains(t, err.Error(), "bad-limit")
+	_, err = UnmarshalPerTenantOverrides(data)
+	require.ErrorAs(t, err, &typeError)
+	require.Contains(t, err.Error(), "bad-limit")
+}
+
+func TestRuntimeDuplicateConfigCannotHidePolicy(t *testing.T) {
+	const private = "synthetic-private-policy-marker"
+	data := []byte("overrides:\n  tenant:\n    metrics_generator:\n      processor:\n        secret_detection:\n          custom_rules: " + private + "\noverrides: {}\n")
+	_, err := loadPerTenantOverrides(nil, ConfigTypeNew, false, false)(bytes.NewReader(data))
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), private)
+	_, err = UnmarshalPerTenantOverrides(data)
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), private)
+}
 
 func TestRuntimeConfigOverrides_loadPerTenantOverrides(t *testing.T) {
 	validator := &mockValidator{}
@@ -822,6 +869,41 @@ func TestMetricsGeneratorMaxCardinalityPerLabel(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSecretsPolicyFallsBackToDefault(t *testing.T) {
+	defaultPolicy := &secrets.Policy{CustomRules: []secrets.CustomRule{{ID: "default", Regex: `DEFAULT-[0-9]+`}}}
+	tenantPolicy := &secrets.Policy{CustomRules: []secrets.CustomRule{{ID: "tenant", Regex: `TENANT-[0-9]+`}}}
+	perTenant := &perTenantOverrides{
+		TenantLimits: map[string]*Overrides{
+			"sparse": {
+				Ingestion: IngestionOverrides{TenantShardSize: 2},
+			},
+			"explicit": {
+				MetricsGenerator: MetricsGeneratorOverrides{Processor: ProcessorOverrides{SecretDetection: tenantPolicy}},
+			},
+		},
+	}
+
+	overrides, cleanup := createAndInitializeRuntimeOverridesManager(
+		t,
+		Overrides{MetricsGenerator: MetricsGeneratorOverrides{Processor: ProcessorOverrides{SecretDetection: defaultPolicy}}},
+		toYamlBytes(t, perTenant),
+	)
+	defer cleanup()
+
+	policy, inherited := overrides.SecretsPolicy("sparse")
+	assert.Equal(t, defaultPolicy, policy)
+	assert.True(t, inherited)
+	policy, inherited = overrides.SecretsPolicy("missing")
+	assert.Equal(t, defaultPolicy, policy)
+	assert.True(t, inherited)
+	policy, inherited = overrides.SecretsPolicy("explicit")
+	assert.Equal(t, tenantPolicy, policy)
+	assert.False(t, inherited)
+	assert.Zero(t, testing.AllocsPerRun(100, func() {
+		_, _ = overrides.SecretsPolicy("explicit")
+	}))
 }
 
 func createAndInitializeRuntimeOverridesManager(t *testing.T, defaultLimits Overrides, perTenantOverrides []byte) (Service, func()) {

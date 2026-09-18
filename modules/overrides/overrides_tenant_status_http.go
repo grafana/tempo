@@ -11,6 +11,8 @@ import (
 	"github.com/gorilla/mux"
 	"go.yaml.in/yaml/v2"
 
+	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
+	"github.com/grafana/tempo/pkg/secrets"
 	"github.com/grafana/tempo/pkg/util"
 )
 
@@ -41,7 +43,7 @@ func TenantStatusHandler(o Interface) http.HandlerFunc {
 		}
 
 		// runtime overrides
-		overrides := o.GetRuntimeOverridesFor(page.Tenant)
+		overrides := statusOverrides(o.GetRuntimeOverridesFor(page.Tenant))
 		runtimeOverrides, err := yaml.Marshal(overrides)
 		if err != nil {
 			util.WriteTextResponse(w, fmt.Sprintf("Marshalling runtime overrides failed: %s", err))
@@ -68,7 +70,7 @@ func TenantStatusHandler(o Interface) http.HandlerFunc {
 
 		// user-configurable overrides
 		if userConfigOverridesManager, ok := o.(*userConfigurableOverridesManager); ok {
-			overrides := userConfigOverridesManager.getTenantLimits(page.Tenant)
+			overrides := RedactUserLimits(userConfigOverridesManager.getTenantLimits(page.Tenant))
 			if overrides != nil {
 				marshalledOverrides, err := yaml.Marshal(overrides)
 				if err != nil {
@@ -85,4 +87,29 @@ func TenantStatusHandler(o Interface) http.HandlerFunc {
 
 		util.RenderHTTPResponse(w, page, tenantStatusTemplate, req)
 	}
+}
+
+// Status is a diagnostic surface, not a policy read API. Preserve configured
+// presence but never expose tenant-authored policy text or mutate live limits.
+func statusOverrides(limits *Overrides) *Overrides {
+	if limits == nil {
+		return nil
+	}
+	out := *limits
+	if out.MetricsGenerator.Processor.SecretDetection != nil {
+		out.MetricsGenerator.Processor.SecretDetection = &secrets.Policy{}
+	}
+	return &out
+}
+
+// RedactUserLimits copies limits for diagnostics without exposing policy text.
+func RedactUserLimits(limits *client.Limits) *client.Limits {
+	if limits == nil {
+		return nil
+	}
+	out := *limits
+	if out.MetricsGenerator.Processor.SecretDetection != nil {
+		out.MetricsGenerator.Processor.SecretDetection = &secrets.Policy{}
+	}
+	return &out
 }

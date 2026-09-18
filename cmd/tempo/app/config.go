@@ -23,6 +23,7 @@ import (
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/ingest"
+	"github.com/grafana/tempo/pkg/secrets"
 	internalserver "github.com/grafana/tempo/pkg/server"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/usagestats"
@@ -50,6 +51,7 @@ type Config struct {
 	EnableGoRuntimeMetrics bool          `yaml:"enable_go_runtime_metrics,omitempty"`
 	SpanProfiling          bool          `yaml:"span_profiling,omitempty"`
 
+	Secrets                secrets.FeatureConfig          `yaml:"secrets,omitempty"`
 	Memory                 MemoryConfig                   `yaml:"memory,omitempty"`
 	Server                 server.Config                  `yaml:"server,omitempty"`
 	InternalServer         internalserver.Config          `yaml:"internal_server,omitempty"`

@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
@@ -16,6 +19,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/grafana/tempo/pkg/secrets"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 	azure "github.com/grafana/tempo/tempodb/backend/azure"
@@ -28,6 +32,10 @@ const (
 	OverridesKeyPath  = "overrides"
 	OverridesFileName = "overrides.json"
 )
+
+// ErrInvalidSecretsPolicy identifies an invalid persisted policy. Reloads may
+// retain the last good policy, but ordinary override decode failures remain fatal.
+var ErrInvalidSecretsPolicy = errors.New("invalid secret detection policy JSON")
 
 var tracer = otel.Tracer("modules/overrides/userconfigurable/client")
 
@@ -98,6 +106,87 @@ type clientImpl struct {
 }
 
 var _ Client = (*clientImpl)(nil)
+
+// Persisted overrides may contain newer non-policy fields, but an unsupported
+// policy must not be mistaken for an empty replacement that erases exclusions.
+type persistedPolicy secrets.Policy
+
+func (p *persistedPolicy) UnmarshalJSON(data []byte) error {
+	d := json.NewDecoder(bytes.NewReader(data))
+	d.DisallowUnknownFields()
+	if err := d.Decode((*secrets.Policy)(p)); err != nil {
+		return ErrInvalidSecretsPolicy
+	}
+	return nil
+}
+
+// HasSecretsPolicy reports a policy field in the first JSON document, including
+// a null or malformed value. Token decoding recognizes escaped and case-folded
+// field names without treating policy-like text in ordinary values as a policy.
+func HasSecretsPolicy(data []byte) bool {
+	found, _ := findSecretsPolicy(json.NewDecoder(bytes.NewReader(data)), 0)
+	return found
+}
+
+func findSecretsPolicy(d *json.Decoder, field int) (bool, error) {
+	token, err := d.Token()
+	if err != nil {
+		return false, err
+	}
+	switch token {
+	case json.Delim('{'):
+		fields := [...]string{"metrics_generator", "processor", "secret_detection"}
+		for d.More() {
+			key, err := d.Token()
+			if err != nil {
+				return false, err
+			}
+			next := -1
+			if field >= 0 && strings.EqualFold(key.(string), fields[field]) {
+				if field == len(fields)-1 {
+					return true, nil
+				}
+				next = field + 1
+			}
+			if found, err := findSecretsPolicy(d, next); found || err != nil {
+				return found, err
+			}
+		}
+		_, err = d.Token()
+	case json.Delim('['):
+		for d.More() {
+			if found, err := findSecretsPolicy(d, -1); found || err != nil {
+				return found, err
+			}
+		}
+		_, err = d.Token()
+	}
+	return false, err
+}
+
+// JSONDecodeError retains safe error categories and offsets, not untrusted field
+// names or values. Even malformed JSON can contain policy text before decoding
+// reaches the policy field.
+func JSONDecodeError(err error) error {
+	var syntaxError *json.SyntaxError
+	var typeError *json.UnmarshalTypeError
+	switch {
+	case errors.Is(err, ErrInvalidSecretsPolicy):
+		return ErrInvalidSecretsPolicy
+	case errors.As(err, &syntaxError):
+		return fmt.Errorf("invalid overrides JSON syntax at byte %d", syntaxError.Offset)
+	case errors.As(err, &typeError):
+		return fmt.Errorf("invalid overrides JSON value at byte %d: expected %s", typeError.Offset, typeError.Type)
+	case errors.Is(err, io.ErrUnexpectedEOF):
+		return errors.New("incomplete overrides JSON document")
+	case errors.Is(err, io.EOF):
+		return err
+	case strings.HasPrefix(err.Error(), "json: unknown field "):
+		return errors.New("unknown field in overrides JSON")
+	default:
+		return errors.New("invalid overrides JSON")
+	}
+}
 
 func New(cfg *Config) (Client, error) {
 	rw, err := initBackend(cfg)
@@ -171,8 +260,41 @@ func (o *clientImpl) Get(ctx context.Context, userID string) (tenantLimits *Limi
 	}
 	defer reader.Close()
 
-	d := json.NewDecoder(reader)
-	err = d.Decode(&tenantLimits)
+	tenantLimits = &Limits{}
+	document := &struct {
+		*Limits
+		MetricsGenerator struct {
+			*LimitsMetricsGenerator
+			Processor struct {
+				*LimitsMetricsGeneratorProcessor
+				SecretDetection *persistedPolicy `json:"secret_detection"`
+			} `json:"processor"`
+		} `json:"metrics_generator"`
+	}{Limits: tenantLimits}
+	document.MetricsGenerator.LimitsMetricsGenerator = &tenantLimits.MetricsGenerator
+	document.MetricsGenerator.Processor.LimitsMetricsGeneratorProcessor = &tenantLimits.MetricsGenerator.Processor
+
+	var input bytes.Buffer
+	d := json.NewDecoder(io.TeeReader(reader, &input))
+	if err = d.Decode(&document); err != nil {
+		var syntaxError *json.SyntaxError
+		if errors.Is(err, ErrInvalidSecretsPolicy) || ((errors.As(err, &syntaxError) || errors.Is(err, io.ErrUnexpectedEOF)) && HasSecretsPolicy(input.Bytes())) {
+			return nil, version, ErrInvalidSecretsPolicy
+		}
+		return nil, version, JSONDecodeError(err)
+	}
+	if document == nil {
+		return nil, version, nil
+	}
+	// Keep the existing decoder behavior for non-secret overrides. Only the
+	// newly introduced policy requires a complete, unambiguous document.
+	if document.MetricsGenerator.Processor.SecretDetection != nil || HasSecretsPolicy(input.Bytes()) {
+		if err = d.Decode(new(json.RawMessage)); !errors.Is(err, io.EOF) {
+			return nil, version, ErrInvalidSecretsPolicy
+		}
+	}
+	tenantLimits.MetricsGenerator.Processor.SecretDetection = (*secrets.Policy)(document.MetricsGenerator.Processor.SecretDetection)
+	err = nil
 	return
 }
 

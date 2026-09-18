@@ -9,6 +9,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/grafana/tempo/modules/overrides/histograms"
+	"github.com/grafana/tempo/pkg/secrets"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	"github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -78,6 +79,7 @@ type Interface interface {
 	MetricsGeneratorProcessorServiceGraphsEnableTraceStateSpanMultiplier(userID string) (bool, bool)
 	MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey(userID string) string
 	MetricsGeneratorProcessorSpanMetricsEnableTraceStateSpanMultiplier(userID string) (bool, bool)
+	SecretsPolicy(userID string) (*secrets.Policy, bool)
 	MetricsGeneratorNativeHistogramBucketFactor(userID string) float64
 	MetricsGeneratorNativeHistogramMaxBucketNumber(userID string) uint32
 	MetricsGeneratorNativeHistogramMinResetDuration(userID string) time.Duration

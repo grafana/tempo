@@ -12,11 +12,13 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/overrides/histograms"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
+	"github.com/grafana/tempo/pkg/secrets"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/util/listtomap"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func strPtr(s string) *string {
@@ -329,6 +331,18 @@ func Test_overridesValidator(t *testing.T) {
 						processor.SpanMetricsLatencyName:          {},
 						processor.SpanMetricsSizeName:             {},
 						processor.HostInfoName:                    {},
+						processor.SecretDetectionName:             {},
+					},
+				},
+			},
+		},
+		{
+			name: "metrics_generator.processor.secret_detection valid",
+			cfg:  Config{},
+			limits: client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					Processor: client.LimitsMetricsGeneratorProcessor{
+						SecretDetection: &secrets.Policy{},
 					},
 				},
 			},
@@ -859,4 +873,27 @@ func Test_overridesValidator(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestOverridesValidatorRejectsUnsafePolicyWithoutEchoingInput(t *testing.T) {
+	const privateID = "private-customer-rule"
+	const privatePattern = "PRIVATE-CUSTOMER-CONTENT("
+	cfg := Config{Secrets: secrets.FeatureConfig{EnabledRules: &[]string{}}}
+	validator := newOverridesValidator(&cfg)
+	limits := &client.Limits{MetricsGenerator: client.LimitsMetricsGenerator{
+		Processor: client.LimitsMetricsGeneratorProcessor{
+			SecretDetection: &secrets.Policy{CustomRules: []secrets.CustomRule{{ID: privateID, Regex: privatePattern}}},
+		},
+	}}
+	err := validator.Validate(limits)
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), privateID)
+	require.NotContains(t, err.Error(), privatePattern)
+
+	// Globally inactive native IDs remain valid tenant exclusions, but cannot
+	// be reused as custom IDs even with an empty global selection.
+	limits.MetricsGenerator.Processor.SecretDetection = &secrets.Policy{DisabledRules: []string{"stripe-access-token"}}
+	require.NoError(t, validator.Validate(limits))
+	limits.MetricsGenerator.Processor.SecretDetection.CustomRules = []secrets.CustomRule{{ID: "stripe-access-token", Regex: "CUSTOM"}}
+	require.Error(t, validator.Validate(limits))
 }

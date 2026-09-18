@@ -26,6 +26,7 @@ var SupportedProcessors = []string{
 	processor.SpanMetricsLatencyName,
 	processor.SpanMetricsSizeName,
 	processor.HostInfoName,
+	processor.SecretDetectionName,
 }
 
 var SupportedIntrinsicDimensions = []string{processor.DimService, processor.DimSpanName, processor.DimSpanKind, processor.DimStatusCode, processor.DimStatusMessage}
