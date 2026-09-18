@@ -315,7 +315,9 @@ func (t *App) initGenerator() (services.Service, error) {
 func (t *App) configureGenerator() {
 	t.cfg.Generator.Ingest = t.cfg.Ingest
 	t.cfg.Generator.ConsumeFromKafka = !IsSingleBinary(t.cfg.Target)
-	if t.cfg.Generator.ConsumeFromKafka && t.cfg.Generator.RingMode == generator.RingModePartition {
+	// Only default the consumer group when unset, so it can be overridden to let multiple
+	// metrics-generators share one Kafka cluster (otherwise they all collide on this group).
+	if t.cfg.Generator.ConsumeFromKafka && t.cfg.Generator.RingMode == generator.RingModePartition && t.cfg.Generator.Ingest.Kafka.ConsumerGroup == "" {
 		t.cfg.Generator.Ingest.Kafka.ConsumerGroup = generator.ConsumerGroup
 	}
 }
