@@ -3,12 +3,14 @@ package azure
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -48,8 +50,11 @@ func (rw *Azure) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
 	return rw.deleteRaw(ctx, metaFilename)
 }
 
+// A block holds a meta, a data file, an index and a bloom blob per shard, so
+// deleting them serially costs ~30 round trips.
+const blobDeleteConcurrency = 16
+
 func (rw *Azure) ClearBlock(blockID uuid.UUID, tenantID string) error {
-	var warning error
 	if len(tenantID) == 0 {
 		return fmt.Errorf("empty tenant id")
 	}
@@ -60,34 +65,54 @@ func (rw *Azure) ClearBlock(blockID uuid.UUID, tenantID string) error {
 
 	ctx := context.TODO()
 
-	prefix := backend.RootPath(blockID, tenantID, rw.cfg.Prefix)
-	pager := rw.containerClient.NewListBlobsHierarchyPager("", &container.ListBlobsHierarchyOptions{
-		Include: container.ListBlobsInclude{},
-		Prefix:  &prefix,
-	})
+	var (
+		listErr error
+		names   []string
+		prefix  = backend.RootPath(blockID, tenantID, rw.cfg.Prefix)
+		pager   = rw.containerClient.NewListBlobsHierarchyPager("", &container.ListBlobsHierarchyOptions{
+			Include: container.ListBlobsInclude{},
+			Prefix:  &prefix,
+		})
+	)
 
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			warning = err
+			// A partial listing may leave blobs behind, so the caller must not
+			// treat the block as cleared.
+			listErr = fmt.Errorf("listing blobs under %s: %w", prefix, err)
 			continue
 		}
 
 		for _, b := range page.Segment.BlobItems {
 			if b.Name == nil {
-				return fmt.Errorf("unexpected empty blob name when listing %s: %w", prefix, err)
+				return fmt.Errorf("unexpected empty blob name when listing %s", prefix)
 			}
-
-			// b.Name from the listing is already prefixed so use deleteRaw - rw.Delete would re-apply it.
-			err = rw.deleteRaw(ctx, *b.Name)
-			if err != nil {
-				warning = err
-				continue
-			}
+			names = append(names, *b.Name)
 		}
 	}
 
-	return warning
+	// Not WithContext: cancelling on the first error would leave the block half
+	// deleted.
+	var g errgroup.Group
+	g.SetLimit(blobDeleteConcurrency)
+
+	for _, name := range names {
+		g.Go(func() error {
+			// b.Name from the listing is already prefixed so use deleteRaw - rw.Delete would re-apply it.
+			err := rw.deleteRaw(ctx, name)
+			if errors.Is(err, backend.ErrDoesNotExist) {
+				// Already gone is the outcome we wanted.
+				return nil
+			}
+			if err != nil {
+				return fmt.Errorf("deleting %s: %w", name, err)
+			}
+			return nil
+		})
+	}
+
+	return errors.Join(listErr, g.Wait())
 }
 
 func (rw *Azure) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
