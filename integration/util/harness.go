@@ -190,35 +190,37 @@ func RunIntegrationTests(t *testing.T, config TestHarnessConfig, testFunc func(*
 		config.Components = ComponentsRecentDataQuerying
 	}
 
-	backendTCs := backendTestCases(config.Backends)
+	backendTCs := BackendTestCases(config.Backends)
 
 	// Run tests for each deployment mode and backend combination
 	for _, be := range backendTCs {
 		// t.Run() with t.Parallel() here will cause some tests to run faster, but others like TestKVStores will fail for unknown reasons.
-		runTempoHarness(t, config, be.name, testFunc)
+		runTempoHarness(t, config, be.Name, testFunc)
 	}
 }
 
-type backendTestCase struct {
-	mask BackendsMask
-	name string
+// BackendTestCase pairs a single backend bit with its harness-facing name, letting a test
+// derive its own per-backend subtests instead of hardcoding the backend list.
+type BackendTestCase struct {
+	Backend BackendsMask
+	Name    string
 }
 
-// backendTestCases returns the list of backends to test based on the config
-func backendTestCases(backends BackendsMask) []backendTestCase {
-	var result []backendTestCase
+// BackendTestCases returns the list of backends to test based on the config
+func BackendTestCases(backends BackendsMask) []BackendTestCase {
+	var result []BackendTestCase
 
 	if backends&BackendObjectStorageS3 != 0 {
-		result = append(result, backendTestCase{BackendObjectStorageS3, backend.S3})
+		result = append(result, BackendTestCase{BackendObjectStorageS3, backend.S3})
 	}
 	if backends&BackendObjectStorageAzure != 0 {
-		result = append(result, backendTestCase{BackendObjectStorageAzure, backend.Azure})
+		result = append(result, BackendTestCase{BackendObjectStorageAzure, backend.Azure})
 	}
 	if backends&BackendObjectStorageGCS != 0 {
-		result = append(result, backendTestCase{BackendObjectStorageGCS, backend.GCS})
+		result = append(result, BackendTestCase{BackendObjectStorageGCS, backend.GCS})
 	}
 	if backends&BackendLocal != 0 {
-		result = append(result, backendTestCase{BackendLocal, backend.Local})
+		result = append(result, BackendTestCase{BackendLocal, backend.Local})
 	}
 
 	return result
