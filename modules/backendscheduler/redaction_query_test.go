@@ -1,6 +1,12 @@
 package backendscheduler
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/tempo/pkg/traceql"
+)
 
 // The redaction query selector accepts only a single spanset filter restricted to
 // equality on resource.*/span.* attributes joined by && / ||. Everything
@@ -104,4 +110,93 @@ func TestValidateRedactionQuery(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestRedactionQueryExistenceForms covers the two negative spellings that are positive matches.
+//
+// `attr != nil` and `attr != ""` both select spans that HAVE the attribute, so they are not the
+// complement match the `!=` rejection exists to prevent. `!=` against any other value still is.
+func TestRedactionQueryExistenceForms(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		query   string
+		wantErr string
+	}{
+		{name: "attr != nil is an existence check", query: `{ span.foo != nil }`},
+		{name: "attr != empty string", query: `{ span.foo != "" }`},
+		{name: "empty string on the left", query: `{ "" != span.foo }`},
+		{name: "existence combined with equality", query: `{ resource.service.name != nil && span.foo = "x" }`},
+		{name: "existence combined with or", query: `{ span.a != "" || span.b != nil }`},
+
+		{
+			name:    "negation against a value is still refused",
+			query:   `{ span.foo != "bar" }`,
+			wantErr: `!= is allowed only against ""`,
+		},
+		{
+			name:    "negation against a number is still refused",
+			query:   `{ span.http.status_code != 500 }`,
+			wantErr: `!= is allowed only against ""`,
+		},
+		{
+			name:    "existence on an unscoped attribute is refused",
+			query:   `{ .foo != nil }`,
+			wantErr: "must be scoped to resource. or span.",
+		},
+		{
+			name:    "existence on a parent-scoped attribute is refused",
+			query:   `{ parent.span.foo != nil }`,
+			wantErr: "must not be parent-scoped",
+		},
+		{
+			name:    "ordered comparison against the empty string stays refused",
+			query:   `{ span.foo > "" }`,
+			wantErr: "not allowed in redaction query",
+		},
+		{
+			name:    "not-regex stays refused",
+			query:   `{ span.foo !~ "bar" }`,
+			wantErr: "not allowed in redaction query",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateRedactionQuery(tc.query)
+			if tc.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tc.wantErr)
+		})
+	}
+}
+
+// TestEmptyStringComparisonExcludesMissingAttributes pins the TraceQL semantics that make
+// `attr != ""` safe to allow, which live in another package and know nothing about redaction.
+//
+// The safety argument is: a span without the attribute resolves it to nil (traceql's
+// Attribute.execute returns StaticNil when AttributeFor reports the attribute absent), and
+// Static.NotEquals returns false whenever either operand is nil. So `attr != ""` selects spans where
+// the attribute is present and non-empty, NOT the spans that lack it.
+//
+// If that nil rule ever changed -- to SQL-style propagation, or to treating nil as unequal to
+// everything -- `attr != ""` would silently become a complement match on an irreversible delete, and
+// the validator would keep accepting it. This test is what fails in that case. It deliberately
+// asserts against traceql's exported behaviour rather than against the validator.
+func TestEmptyStringComparisonExcludesMissingAttributes(t *testing.T) {
+	var (
+		missing  = traceql.NewStaticNil()
+		empty    = traceql.NewStaticString("")
+		nonEmpty = traceql.NewStaticString("something")
+	)
+
+	require.False(t, missing.NotEquals(&empty),
+		`a missing attribute must not match attr != "" -- if it does, the selector becomes a complement match`)
+	require.False(t, empty.NotEquals(&empty),
+		`an empty value must not match attr != ""`)
+	require.True(t, nonEmpty.NotEquals(&empty),
+		`a present, non-empty value must match attr != "", or the selector matches nothing`)
+
+	// The same rule is what makes `attr != nil` an existence check rather than a match on everything.
+	require.False(t, missing.NotEquals(&missing), "nil is not unequal to nil")
 }

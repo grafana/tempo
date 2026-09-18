@@ -994,7 +994,7 @@ Options:
 
 - `--tenant <value>` **(required)** Tenant ID.
 - `--trace-id <value>` Trace ID to redact, in hex format. Repeat the flag for several traces in one request (`--trace-id=<ID> --trace-id=<ID>`, not comma-separated), up to 1000. Every job the redaction creates carries the whole list, so a longer list costs one copy per block; use `--query` instead. Mutually exclusive with `--query`.
-- `--query <value>` TraceQL query selecting the traces to redact, for example `{ span.http.status_code = 500 }`. Mutually exclusive with `--trace-id`. The query is restricted to a single spanset filter: `=` comparisons on the matched span's own `resource.*` or `span.*` attributes, joined by `&&` or `||`. Regular expressions, `!=` or ordered comparisons, `parent.`-scoped attributes, and pipelines or aggregates aren't supported.
+- `--query <value>` TraceQL query selecting the traces to redact, for example `{ span.http.status_code = 500 }`. Mutually exclusive with `--trace-id`. The query is restricted to a single spanset filter over the matched span's own `resource.*` or `span.*` attributes, joined by `&&` or `||`: `=` comparisons, and the existence checks `attr != nil` and `attr != ""`. Regular expressions, `!=` against a value, ordered comparisons, `parent.`-scoped attributes, and pipelines or aggregates aren't supported.
 - `--dry-run` Evaluate the selector and report match counts without rewriting any blocks (default: `false`).
 - `--start <value>` Start of the time window. Accepts `now`, a relative offset such as `now-7d`, or an RFC3339 timestamp. Must be given with `--end`, must be before `--end`, and cannot be combined with `--trace-id`. Omit both bounds to redact the whole tenant.
 - `--end <value>` End of the time window. Same forms as `--start`. Must be given with `--start`.
@@ -1003,6 +1003,12 @@ Options:
 - `--tls-ca <value>` Path to a PEM-encoded CA certificate file.
 
 You must provide exactly one of `--trace-id` or `--query`. Providing both, or neither, returns an error before the request is submitted.
+
+`attr != nil` and `attr != ""` select spans that **have** the attribute -- the first where it is present, the second where it is present and non-empty.
+They are not negations: TraceQL resolves a missing attribute to nil and treats a nil comparison as no match, so neither form selects the spans that lack the attribute.
+`!=` against any other value is refused, because that match set is everything except the value you named.
+
+Both are broader than they look on a large tenant -- `span.user_id != ""` selects every span carrying a user ID -- so preview with `--dry-run` before running them for real.
 
 A tenant can have only one redaction in progress at a time, dry runs included.
 A submission made while an earlier one is still running, or still in its quiescence period, is rejected.
