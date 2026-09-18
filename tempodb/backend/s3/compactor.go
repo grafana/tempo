@@ -41,11 +41,19 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 		},
 	)
 	if err != nil {
+		if minio.ToErrorResponse(err).Code == minio.NoSuchKey {
+			// Another compaction or retention pass already retired this block.
+			return backend.ErrDoesNotExist
+		}
 		return fmt.Errorf("error copying obj meta to compacted obj meta: %w", err)
 	}
 
 	// delete meta.json
-	return rw.core.RemoveObject(context.TODO(), rw.cfg.Bucket, metaFileName, minio.RemoveObjectOptions{})
+	err = rw.core.RemoveObject(context.TODO(), rw.cfg.Bucket, metaFileName, minio.RemoveObjectOptions{})
+	if err != nil && minio.ToErrorResponse(err).Code == minio.NoSuchKey {
+		return backend.ErrDoesNotExist
+	}
+	return err
 }
 
 func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {

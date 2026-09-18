@@ -2,6 +2,7 @@ package tempodb
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/go-kit/log/level"
@@ -91,7 +92,12 @@ func (rw *readerWriter) retainTenant(ctx context.Context, tenantID string, compa
 			if b.EndTime.Before(cutoff) && compactorSharder.Owns(b.BlockID.String()) {
 				level.Info(rw.logger).Log("msg", "marking block for deletion", "blockID", b.BlockID, "tenantID", tenantID)
 				err := rw.c.MarkBlockCompacted(uuid.UUID(b.BlockID), tenantID)
-				if err != nil {
+				if errors.Is(err, backend.ErrDoesNotExist) {
+					// A concurrent compaction or retention pass already retired this
+					// block. Leave our local view alone; the next blocklist poll will
+					// pick up whatever the backend actually settled on.
+					level.Debug(rw.logger).Log("msg", "block already retired, skipping", "blockID", b.BlockID, "tenantID", tenantID)
+				} else if err != nil {
 					level.Error(rw.logger).Log("msg", "failed to mark block compacted during retention", "blockID", b.BlockID, "tenantID", tenantID, "err", err)
 					metricRetentionErrors.Inc()
 				} else {
@@ -136,12 +142,15 @@ func (rw *readerWriter) retainTenant(ctx context.Context, tenantID string, compa
 		g.Go(func() error {
 			level.Info(rw.logger).Log("msg", "deleting block", "blockID", b.BlockID, "tenantID", tenantID)
 			err := rw.c.ClearBlock(uuid.UUID(b.BlockID), tenantID)
-			if err != nil {
+			if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 				level.Error(rw.logger).Log("msg", "failed to clear compacted block during retention", "blockID", b.BlockID, "tenantID", tenantID, "err", err)
 				metricRetentionErrors.Inc()
 				return nil
 			}
 
+			// A concurrent retention pass may have already cleared this
+			// block (ErrDoesNotExist): the goal state - no data, no longer
+			// tracked - is the same either way.
 			metricDeleted.Inc()
 			rw.removeCachedBlock(ctx, tenantID, uuid.UUID(b.BlockID), int(b.BloomShardCount))
 			rw.blocklist.Update(tenantID, nil, nil, nil, []*backend.CompactedBlockMeta{b})
