@@ -697,3 +697,104 @@ func TestClearBlock_DeletesAllBlobsConcurrently(t *testing.T) {
 		})
 	}
 }
+
+func TestClearBlock_BlobDeleteErrors(t *testing.T) {
+	const (
+		tenantID = "test-tenant"
+		blockID  = "00000000-0000-0000-0000-000000000004"
+		numBlobs = 20
+	)
+
+	tests := []struct {
+		name string
+		// status returns the HTTP status to answer a DELETE for the nth blob.
+		status  func(n int) int
+		wantErr bool
+	}{
+		{"all deleted", func(int) int { return http.StatusAccepted }, false},
+		// A blob that is already gone is the outcome we wanted, so 404 alone is
+		// not an error.
+		{"all already gone", func(int) int { return http.StatusNotFound }, false},
+		{"some already gone", func(n int) int {
+			if n%2 == 0 {
+				return http.StatusNotFound
+			}
+			return http.StatusAccepted
+		}, false},
+		// The case that matters: one real failure alongside a 404 must not be
+		// reported as success, or retention drops the block and orphans its data.
+		{"one real failure among 404s", func(n int) int {
+			switch {
+			case n == 0:
+				return http.StatusForbidden
+			case n%2 == 0:
+				return http.StatusNotFound
+			default:
+				return http.StatusAccepted
+			}
+		}, true},
+		{"all fail", func(int) int { return http.StatusForbidden }, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var blobs strings.Builder
+			for i := 0; i < numBlobs; i++ {
+				fmt.Fprintf(&blobs, `<Blob><Name>%s/%s/bloom-%d</Name><Properties>
+					<Last-Modified>Fri, 01 Mar 2024 00:00:00 GMT</Last-Modified>
+					<Etag>0x8CBFF45D8A29A19</Etag><Content-Length>1</Content-Length>
+					<BlobType>BlockBlob</BlobType></Properties></Blob>`, tenantID, blockID, i)
+			}
+
+			var (
+				mtx      sync.Mutex
+				attempts int
+				seen     = map[string]struct{}{}
+			)
+			server := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+				switch r.Method {
+				case http.MethodGet:
+					_, _ = w.Write([]byte(`<?xml version="1.0" encoding="utf-8"?>
+						<EnumerationResults><Blobs>` + blobs.String() + `</Blobs><NextMarker /></EnumerationResults>`))
+				case http.MethodDelete:
+					mtx.Lock()
+					n := attempts
+					attempts++
+					seen[r.URL.Path] = struct{}{}
+					mtx.Unlock()
+
+					status := tt.status(n)
+					if status == http.StatusNotFound {
+						w.Header().Set("x-ms-error-code", string(bloberror.BlobNotFound))
+					}
+					w.WriteHeader(status)
+				default:
+					w.WriteHeader(http.StatusOK)
+				}
+			})
+
+			_, _, compactor, err := NewNoConfirm(&Config{
+				StorageAccountName: "testing_account",
+				StorageAccountKey:  flagext.SecretWithValue("YQo="),
+				MaxBuffers:         3,
+				BufferSize:         1000,
+				ContainerName:      "blerg",
+				Endpoint:           server.URL[7:], // [7:] -> strip http://
+			})
+			require.NoError(t, err)
+
+			err = compactor.ClearBlock(uuid.MustParse(blockID), tenantID)
+
+			mtx.Lock()
+			defer mtx.Unlock()
+			assert.Len(t, seen, numBlobs, "every blob must be attempted even when one fails")
+
+			if tt.wantErr {
+				require.Error(t, err, "a real delete failure must be reported so the block is not treated as cleared")
+				require.NotErrorIs(t, err, backend.ErrDoesNotExist, "a mixed failure must not look like an already-gone block")
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}

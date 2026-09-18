@@ -2,7 +2,6 @@ package tempodb
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/go-kit/log/level"
@@ -138,10 +137,6 @@ func (rw *readerWriter) retainTenant(ctx context.Context, tenantID string, compa
 
 			level.Info(rw.logger).Log("msg", "deleting block", "blockID", b.BlockID, "tenantID", tenantID)
 			err := rw.c.ClearBlock(uuid.UUID(b.BlockID), tenantID)
-			if errors.Is(err, backend.ErrDoesNotExist) {
-				level.Warn(rw.logger).Log("msg", "compacted block was already gone", "blockID", b.BlockID, "tenantID", tenantID)
-				err = nil
-			}
 			if err != nil {
 				level.Error(rw.logger).Log("msg", "failed to clear compacted block during retention", "blockID", b.BlockID, "tenantID", tenantID, "err", err)
 				metricRetentionErrors.Inc()

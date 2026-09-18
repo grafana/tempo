@@ -3,15 +3,15 @@ package azure
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 
-	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
@@ -53,7 +53,7 @@ func (rw *Azure) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
 // blobDeleteConcurrency is how many of a block's blobs are deleted at once. A
 // block is a meta, a data file, an index and one bloom blob per shard, so
 // deleting them one at a time costs ~30 sequential round trips per block.
-const blobDeleteConcurrency = uint(16)
+const blobDeleteConcurrency = 16
 
 func (rw *Azure) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	if len(tenantID) == 0 {
@@ -67,7 +67,7 @@ func (rw *Azure) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	ctx := context.TODO()
 
 	var (
-		warning error
+		listErr error
 		names   []string
 		prefix  = backend.RootPath(blockID, tenantID, rw.cfg.Prefix)
 		pager   = rw.containerClient.NewListBlobsHierarchyPager("", &container.ListBlobsHierarchyOptions{
@@ -79,7 +79,10 @@ func (rw *Azure) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			warning = err
+			// Keep deleting what we did list, but remember the failure: a partial
+			// listing means blobs may be left behind, so the caller must not treat
+			// the block as cleared.
+			listErr = fmt.Errorf("listing blobs under %s: %w", prefix, err)
 			continue
 		}
 
@@ -91,30 +94,28 @@ func (rw *Azure) ClearBlock(blockID uuid.UUID, tenantID string) error {
 		}
 	}
 
-	// The deletes are independent and latency bound, so issue them concurrently
-	// rather than one at a time.
-	var (
-		bg  = boundedwaitgroup.New(blobDeleteConcurrency)
-		mtx sync.Mutex
-	)
+	// The deletes are independent and latency bound, so issue them concurrently.
+	// Deliberately not errgroup.WithContext: one blob failing should not cancel
+	// the rest, or a single error leaves the block half deleted.
+	var g errgroup.Group
+	g.SetLimit(blobDeleteConcurrency)
 
 	for _, name := range names {
-		bg.Add(1)
-		go func(name string) {
-			defer bg.Done()
-
+		g.Go(func() error {
 			// b.Name from the listing is already prefixed so use deleteRaw - rw.Delete would re-apply it.
-			if err := rw.deleteRaw(ctx, name); err != nil {
-				mtx.Lock()
-				warning = err
-				mtx.Unlock()
+			err := rw.deleteRaw(ctx, name)
+			if errors.Is(err, backend.ErrDoesNotExist) {
+				// Already gone, which is the outcome we wanted for this blob.
+				return nil
 			}
-		}(name)
+			if err != nil {
+				return fmt.Errorf("deleting %s: %w", name, err)
+			}
+			return nil
+		})
 	}
 
-	bg.Wait()
-
-	return warning
+	return errors.Join(listErr, g.Wait())
 }
 
 func (rw *Azure) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {

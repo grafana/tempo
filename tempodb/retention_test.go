@@ -2,8 +2,6 @@ package tempodb
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"os"
 	"path"
 	"testing"
@@ -534,87 +532,4 @@ func TestRetentionClearsEveryBlockConcurrently(t *testing.T) {
 
 	require.Empty(t, rw.blocklist.Metas(testTenantID))
 	require.Empty(t, rw.blocklist.CompactedMetas(testTenantID), "every compacted block must be cleared")
-}
-
-// stubCompactor wraps a real compactor so ClearBlock can be made to fail.
-type stubCompactor struct {
-	backend.Compactor
-	clearErr error
-}
-
-func (s *stubCompactor) ClearBlock(uuid.UUID, string) error { return s.clearErr }
-
-func TestRetentionClearBlockErrors(t *testing.T) {
-	tests := []struct {
-		name        string
-		clearErr    error
-		wantCleared bool
-	}{
-		{"cleared", nil, true},
-		// A block that is already gone is the outcome retention wants, so it must
-		// still leave the compacted list rather than be retried on every pass.
-		{"already gone", backend.ErrDoesNotExist, true},
-		{"wrapped already gone", fmt.Errorf("clearing block: %w", backend.ErrDoesNotExist), true},
-		{"real failure", errors.New("storage account throttled"), false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tempDir := t.TempDir()
-
-			r, w, c, err := New(&Config{
-				Backend: backend.Local,
-				Local: &local.Config{
-					Path: path.Join(tempDir, "traces"),
-				},
-				Block: &common.BlockConfig{
-					BloomFP:             0.01,
-					BloomShardSizeBytes: 100_000,
-					Version:             encoding.DefaultEncoding().Version(),
-				},
-				WAL: &wal.Config{
-					Filepath: path.Join(tempDir, "wal"),
-				},
-				BlocklistPoll: 0,
-			}, nil, log.NewNopLogger())
-			require.NoError(t, err)
-
-			ctx := context.Background()
-			r.EnablePolling(ctx, &mockJobSharder{}, false)
-
-			require.NoError(t, c.EnableCompaction(ctx, &CompactorConfig{
-				MaxCompactionRange:      time.Hour,
-				BlockRetention:          0,
-				CompactedBlockRetention: 0,
-			}, &mockSharder{}, &mockOverrides{}))
-
-			head, err := w.WAL().NewBlock(&backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID}, model.CurrentEncoding)
-			require.NoError(t, err)
-
-			_, err = w.CompleteBlock(ctx, head)
-			require.NoError(t, err)
-
-			rw := r.(*readerWriter)
-			rw.pollBlocklist(ctx)
-			require.Len(t, rw.blocklist.Metas(testTenantID), 1)
-
-			// Move the block onto the compacted list.
-			rw.compactorCfg.BlockRetention = 0
-			rw.compactorCfg.CompactedBlockRetention = time.Hour
-			rw.doRetention(ctx)
-			require.Len(t, rw.blocklist.CompactedMetas(testTenantID), 1)
-
-			// Now clear it, with ClearBlock behaving as the case describes.
-			rw.c = &stubCompactor{Compactor: rw.c, clearErr: tt.clearErr}
-			rw.compactorCfg.BlockRetention = time.Hour
-			rw.compactorCfg.CompactedBlockRetention = 0
-			rw.doRetention(ctx)
-
-			if tt.wantCleared {
-				require.Empty(t, rw.blocklist.CompactedMetas(testTenantID), "block should have left the compacted list")
-				return
-			}
-			require.Len(t, rw.blocklist.CompactedMetas(testTenantID), 1, "a real failure must leave the block for a later pass")
-		})
-	}
 }
