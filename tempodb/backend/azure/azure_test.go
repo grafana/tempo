@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/textproto"
@@ -98,7 +99,7 @@ func TestHedge(t *testing.T) {
 			// calls that should hedge
 			_, _, _ = r.Read(ctx, "object", backend.KeyPathForBlock(uuid.New(), "tenant"), nil)
 			time.Sleep(tc.returnIn)
-			assert.Equal(t, tc.expectedHedgedRequests*2, atomic.LoadInt32(&count)) // *2 b/c reads execute a HEAD and GET
+			assert.Equal(t, tc.expectedHedgedRequests, atomic.LoadInt32(&count)) // reads are a single GET
 			atomic.StoreInt32(&count, 0)
 
 			// this panics with the garbage test setup. todo: make it not panic
@@ -651,6 +652,148 @@ func TestDeleteVersioned_DoesNotDoublePrefix(t *testing.T) {
 	require.NoError(t, rw.DeleteVersioned(context.Background(), name, backend.KeyPath{"overrides", "tenant-1"}, backend.Version(etag)))
 	assert.Equal(t, expectedDeletePath, capturedDeletePath,
 		"DELETE key path must contain the configured prefix exactly once")
+}
+
+// TestReadsIssueOneRequest pins the property that makes these reads safe: a read
+// is a single GET, so the bytes and the length that describes them come from the
+// same response and cannot belong to different generations of the blob. A
+// GetProperties call here would mean the buffer is sized by one request and
+// filled by another.
+func TestReadsIssueOneRequest(t *testing.T) {
+	const body = "some-blob-contents"
+
+	tests := []struct {
+		name         string
+		read         func(t *testing.T, r backend.RawReader)
+		expectedGets int
+	}{
+		{
+			name: "Read",
+			read: func(t *testing.T, r backend.RawReader) {
+				reader, size, err := r.Read(context.Background(), "object", backend.KeyPath{"tenant"}, nil)
+				require.NoError(t, err)
+				defer reader.Close()
+
+				b, err := io.ReadAll(reader)
+				require.NoError(t, err)
+				assert.Equal(t, body, string(b))
+				assert.Equal(t, int64(len(body)), size)
+			},
+			expectedGets: 1,
+		},
+		{
+			name: "ReadRange",
+			read: func(t *testing.T, r backend.RawReader) {
+				buffer := make([]byte, 4)
+				err := r.ReadRange(context.Background(), "object", backend.KeyPath{"tenant"}, 2, buffer, nil)
+				require.NoError(t, err)
+				assert.Equal(t, body[2:6], string(buffer))
+			},
+			expectedGets: 1,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var (
+				mtx     sync.Mutex
+				methods []string
+			)
+
+			server := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+				mtx.Lock()
+				methods = append(methods, r.Method)
+				mtx.Unlock()
+
+				w.Header().Set("ETag", `"etag123"`)
+
+				// Answer a GetProperties truthfully, so that an implementation
+				// which makes one fails on the assertion below and not on a
+				// missing header.
+				if r.Method != http.MethodGet {
+					w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+
+				// Azure sends the range in x-ms-range, ie: "bytes=2-5".
+				content := []byte(body)
+				if rng := r.Header.Get("x-ms-range"); rng != "" {
+					var start, end int
+					_, err := fmt.Sscanf(rng, "bytes=%d-%d", &start, &end)
+					require.NoError(t, err)
+					if end >= len(content) {
+						end = len(content) - 1
+					}
+					content = content[start : end+1]
+				}
+
+				w.Header().Set("ETag", `"etag123"`)
+				w.Header().Set("Content-Length", strconv.Itoa(len(content)))
+				_, _ = w.Write(content)
+			})
+
+			r := testReader(t, server)
+			tc.read(t, r)
+
+			mtx.Lock()
+			defer mtx.Unlock()
+			assert.NotContains(t, methods, http.MethodHead, "reads must not precede the GET with a GetProperties")
+			gets := 0
+			for _, m := range methods {
+				if m == http.MethodGet {
+					gets++
+				}
+			}
+			assert.Equal(t, tc.expectedGets, gets)
+		})
+	}
+}
+
+// TestReadRangeShortRead asserts a range that cannot be filled is an error
+// rather than a partially-filled buffer. Silently returning the caller's buffer
+// with zeros in the tail is how a mid-read overwrite used to surface as a
+// decode failure much further up the stack.
+func TestReadRangeShortRead(t *testing.T) {
+	const body = "short"
+
+	// The HEAD answers truthfully: an implementation that sizes the read from
+	// GetProperties would clamp to the real length, fill part of the buffer and
+	// report success, leaving the tail as zeros.
+	server := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("ETag", `"etag123"`)
+		w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+
+		if r.Method != http.MethodGet {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		_, _ = w.Write([]byte(body))
+	})
+
+	r := testReader(t, server)
+
+	buffer := make([]byte, 2*len(body))
+	err := r.ReadRange(context.Background(), "object", backend.KeyPath{"tenant"}, 0, buffer, nil)
+	require.Error(t, err)
+	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+}
+
+func testReader(t *testing.T, server *httptest.Server) backend.RawReader {
+	t.Helper()
+
+	r, _, _, err := NewNoConfirm(&Config{
+		StorageAccountName: "testing_account",
+		StorageAccountKey:  flagext.SecretWithValue("YQo="),
+		MaxBuffers:         3,
+		BufferSize:         1000,
+		ContainerName:      "blerg",
+		Endpoint:           server.URL[7:], // [7:] -> strip http://
+	})
+	require.NoError(t, err)
+
+	return r
 }
 
 func testServer(t *testing.T, httpHandler http.HandlerFunc) *httptest.Server {

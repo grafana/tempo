@@ -1,0 +1,25 @@
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: bug_fix
+
+# Component or area of the change. Must be one of the components in .chloggen/config.yaml,
+# e.g. distributor, querier, query-frontend, storage, operations.
+component: storage
+
+# A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
+note: Fix corrupt reads from Azure blob storage when an object is overwritten mid-read, which surfaced as tenant index decode failures.
+
+# (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
+# .chloggen/README.md.
+issues: []
+
+# (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
+subtext: |
+  Azure reads asked the service for an object's length and then downloaded into a buffer sized from that
+  answer, as two separate requests, discarding the number of bytes actually written. An overwrite in
+  between returned corrupt data as a success: zero padding when the new object was smaller, truncation
+  when it was larger. Reads are now a single GET whose response carries the content, its length and its
+  ETag together, matching the GCS and S3 backends. Range reads additionally require the buffer to be
+  filled exactly, and no longer pay for a GetProperties request before every read.
+
+# The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
+user: zhxiaogg

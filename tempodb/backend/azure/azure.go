@@ -23,6 +23,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
+	tempo_io "github.com/grafana/tempo/v3/pkg/io"
 	"github.com/grafana/tempo/v3/pkg/util/log"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 	"go.opentelemetry.io/otel"
@@ -535,81 +536,90 @@ func (rw *Azure) writer(ctx context.Context, src io.Reader, name string) error {
 	return nil
 }
 
+// readRange downloads a byte range of a blob with a single ranged GET and
+// requires destBuffer to be filled exactly.
+//
+// The previous implementation asked for the blob's length with GetProperties and
+// then downloaded into a buffer sized from that answer. Those are two separate
+// requests: an overwrite in between left the buffer sized for one generation and
+// filled from another, with no error. Taking the range straight from the caller
+// and insisting on a full read removes the mismatch instead of detecting it, and
+// matches the GCS and S3 backends. It also drops a request from the hot path -
+// every parquet range read previously paid for a GetProperties first.
 func (rw *Azure) readRange(ctx context.Context, name string, offset int64, destBuffer []byte) error {
+	if len(destBuffer) == 0 {
+		return nil
+	}
+
 	blobClient := rw.hedgedContainerClient.NewBlockBlobClient(name)
 
-	props, err := blobClient.GetProperties(ctx, &blob.GetPropertiesOptions{})
-	if err != nil {
-		return err
-	}
-
-	length := int64(len(destBuffer))
-	var size int64
-
-	if props.ContentLength == nil {
-		return fmt.Errorf("expected content length but got none for blob %s: %w", name, err)
-	}
-
-	if length > 0 && length <= *props.ContentLength-offset {
-		size = length
-	} else {
-		size = *props.ContentLength - offset
-	}
-
-	if _, err := blobClient.DownloadBuffer(ctx, destBuffer, &blob.DownloadBufferOptions{
+	resp, err := blobClient.DownloadStream(ctx, &blob.DownloadStreamOptions{
 		Range: blob.HTTPRange{
 			Offset: offset,
-			Count:  size,
+			Count:  int64(len(destBuffer)),
 		},
-		BlockSize:   blob.DefaultDownloadBlockSize,
-		Concurrency: maxParallelism,
-		RetryReaderOptionsPerBlock: blob.RetryReaderOptions{
-			MaxRetries: maxRetries,
-		},
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
 
-	_, err = bytes.NewReader(destBuffer).Read(destBuffer)
-	if err != nil {
-		return err
+	// NewRetryReader resumes a dropped connection with If-Match pinned to the ETag
+	// of the response above, so a reconnect cannot continue against a different
+	// generation of the blob.
+	body := resp.NewRetryReader(ctx, &blob.RetryReaderOptions{
+		MaxRetries: maxRetries,
+	})
+	defer body.Close()
+
+	/* bytes read == len(destBuffer) if and only if err == nil */
+	if _, err := io.ReadFull(body, destBuffer); err != nil {
+		return fmt.Errorf("reading range from blob %s: %w", name, err)
 	}
 
 	return nil
 }
 
+// readAll downloads a whole blob with a single GET. The response carries the
+// content, its length and its ETag together, so the returned bytes and the
+// returned ETag always describe the same generation of the blob, and the buffer
+// can never be sized from a different one.
+//
+// The previous implementation called GetProperties for the length, sized a
+// buffer from it, then filled that buffer with a second request and discarded
+// the number of bytes actually written. An overwrite between the two requests
+// returned corrupt data reported as success: zero padding when the new blob was
+// smaller, a truncated object when it was larger. This is the shape the GCS and
+// S3 backends already use.
 func (rw *Azure) readAll(ctx context.Context, name string) ([]byte, azcore.ETag, error) {
 	blobClient := rw.hedgedContainerClient.NewBlockBlobClient(name)
 
-	props, err := blobClient.GetProperties(ctx, &blob.GetPropertiesOptions{})
+	// No Range: the whole blob, served from a single generation.
+	resp, err := blobClient.DownloadStream(ctx, &blob.DownloadStreamOptions{})
 	if err != nil {
 		return nil, "", err
 	}
 
-	if props.ContentLength == nil {
-		return nil, "", fmt.Errorf("expected content length but got none for blob %s: %w", name, err)
+	body := resp.NewRetryReader(ctx, &blob.RetryReaderOptions{
+		MaxRetries: maxRetries,
+	})
+	defer body.Close()
+
+	var size int64
+	if resp.ContentLength != nil {
+		size = *resp.ContentLength
 	}
 
-	destBuffer := make([]byte, *props.ContentLength)
-
-	if _, err := blobClient.DownloadBuffer(ctx, destBuffer, &blob.DownloadBufferOptions{
-		Range: blob.HTTPRange{
-			Offset: 0,
-			Count:  *props.ContentLength,
-		},
-		BlockSize:   blob.DefaultDownloadBlockSize,
-		Concurrency: maxParallelism,
-		RetryReaderOptionsPerBlock: blob.RetryReaderOptions{
-			MaxRetries: maxRetries,
-		},
-	}); err != nil {
-		return nil, "", err
+	// ContentLength is an allocation hint only - the read runs to EOF, so a wrong
+	// hint costs a copy, never correctness.
+	buf, err := tempo_io.ReadAllWithEstimate(body, size)
+	if err != nil {
+		return nil, "", fmt.Errorf("reading blob %s: %w", name, err)
 	}
 
 	var etag azcore.ETag
-	if props.ETag != nil {
-		etag = *props.ETag
+	if resp.ETag != nil {
+		etag = *resp.ETag
 	}
 
-	return destBuffer, etag, nil
+	return buf, etag, nil
 }
