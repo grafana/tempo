@@ -304,11 +304,29 @@ func (p *Poller) pollTenantAndCreateIndex(
 	// back to polling.
 	metricTenantIndexBuilder.WithLabelValues(tenantID).Set(1)
 
+	// If we have no local cache for this tenant (e.g. we just started, or just
+	// took over ownership from another pod), seed our diff from the last
+	// published tenant index instead of treating every block as unknown. Our
+	// own local cache, when present, is always at least as fresh as the last
+	// index we published, so only fall back to this when it's actually empty.
+	seed := previous
+	if len(previous.Metas(tenantID)) == 0 && len(previous.CompactedMetas(tenantID)) == 0 {
+		if i, err := p.reader.TenantIndex(derivedCtx, tenantID); err == nil {
+			level.Info(p.logger).Log("msg", "seeding cold tenant index build from last published index",
+				"tenant", tenantID, "metas", len(i.Meta), "compactedMetas", len(i.CompactedMeta), "createdAt", i.CreatedAt)
+
+			seed = New()
+			seed.ApplyPollResults(PerTenant{tenantID: i.Meta}, PerTenantCompacted{tenantID: i.CompactedMeta})
+		}
+		// any error (no index published yet, malformed, etc.) leaves seed == previous,
+		// i.e. still empty, and we fall through to a full poll exactly as before.
+	}
+
 	buildStart := time.Now()
 	defer func() {
 		metricTenantIndexBuildDuration.WithLabelValues(tenantID).Observe(time.Since(buildStart).Seconds())
 	}()
-	blocklist, compactedBlocklist, err := p.pollTenantBlocks(derivedCtx, tenantID, previous)
+	blocklist, compactedBlocklist, err := p.pollTenantBlocks(derivedCtx, tenantID, seed)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to poll tenant blocks: %w", err)
 	}
