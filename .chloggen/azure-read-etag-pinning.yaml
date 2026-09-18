@@ -13,7 +13,7 @@ note: Fix corrupt reads from Azure blob storage when an object is overwritten wh
 issues: []
 
 # (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
-subtext: Azure reads now pin the ETag from GetProperties on every ranged GET, so a concurrent overwrite returns a retryable error instead of a buffer stitched together from two blob generations.
+subtext: Azure reads now use a single response stream and restart the complete read once if the transfer fails.
 
 # The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
 user: grafana

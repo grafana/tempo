@@ -5,12 +5,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/textproto"
 	"os"
 	"strconv"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -97,7 +97,7 @@ func TestHedge(t *testing.T) {
 			// calls that should hedge
 			_, _, _ = r.Read(ctx, "object", backend.KeyPathForBlock(uuid.New(), "tenant"), nil)
 			time.Sleep(tc.returnIn)
-			assert.Equal(t, tc.expectedHedgedRequests*2, atomic.LoadInt32(&count)) // *2 b/c reads execute a HEAD and GET
+			assert.Equal(t, tc.expectedHedgedRequests, atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 
 			// this panics with the garbage test setup. todo: make it not panic
@@ -483,12 +483,8 @@ func TestMarkBlockCompacted_DoesNotDoublePrefix(t *testing.T) {
 	var capturedDeletePath string
 	server := testServer(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
-		case http.MethodHead:
-			// readAll calls GetProperties first - SDK requires Content-Length and ETag.
-			w.Header().Set("Content-Length", strconv.Itoa(len(body)))
-			w.Header().Set("ETag", `"etag123"`)
-			w.WriteHeader(http.StatusOK)
 		case http.MethodGet:
+			w.Header().Set("ETag", `"etag123"`)
 			_, _ = w.Write([]byte(body))
 		case http.MethodPut:
 			w.WriteHeader(http.StatusCreated)
@@ -582,10 +578,6 @@ func TestDeleteVersioned_DoesNotDoublePrefix(t *testing.T) {
 	var capturedDeletePath string
 	server := testServer(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
-		case http.MethodHead:
-			w.Header().Set("Content-Length", strconv.Itoa(len(body)))
-			w.Header().Set("ETag", etag)
-			w.WriteHeader(http.StatusOK)
 		case http.MethodGet:
 			w.Header().Set("ETag", etag)
 			_, _ = w.Write([]byte(body))
@@ -613,111 +605,33 @@ func TestDeleteVersioned_DoesNotDoublePrefix(t *testing.T) {
 		"DELETE key path must contain the configured prefix exactly once")
 }
 
-// TestReadPinsETag asserts that reads pin the ETag returned by GetProperties on
-// every ranged GET issued by DownloadBuffer. Without If-Match a concurrent
-// overwrite can produce a buffer stitched together from two blob generations.
-func TestReadPinsETag(t *testing.T) {
-	const (
-		etag = `"etag123"`
-		body = "some-blob-contents"
-	)
+func TestReadUsesDownloadStream(t *testing.T) {
+	const etag = `"etag123"`
+	// Exceed the former DownloadBuffer block size to verify the full read remains one GET.
+	body := append([]byte("some-blob-contents"), make([]byte, 4*1024*1024)...)
 
-	tests := []struct {
-		name string
-		read func(t *testing.T, r backend.RawReader)
-	}{
-		{
-			name: "Read",
-			read: func(t *testing.T, r backend.RawReader) {
-				_, _, err := r.Read(context.Background(), "object", backend.KeyPath{"tenant"}, nil)
-				require.NoError(t, err)
-			},
-		},
-		{
-			name: "ReadRange",
-			read: func(t *testing.T, r backend.RawReader) {
-				buffer := make([]byte, 4)
-				err := r.ReadRange(context.Background(), "object", backend.KeyPath{"tenant"}, 2, buffer, nil)
-				require.NoError(t, err)
-			},
-		},
+	type request struct {
+		method  string
+		rnge    string
+		ifMatch string
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			var (
-				mtx          sync.Mutex
-				getIfMatches []string
-			)
-
-			server := testServer(t, func(w http.ResponseWriter, r *http.Request) {
-				switch r.Method {
-				case http.MethodHead:
-					w.Header().Set("Content-Length", strconv.Itoa(len(body)))
-					w.Header().Set("ETag", etag)
-					w.WriteHeader(http.StatusOK)
-				case http.MethodGet:
-					mtx.Lock()
-					getIfMatches = append(getIfMatches, r.Header.Get("If-Match"))
-					mtx.Unlock()
-
-					// Azure ranges arrive in x-ms-range, ie: "bytes=2-5".
-					content := []byte(body)
-					if rng := r.Header.Get("x-ms-range"); rng != "" {
-						var start, end int
-						_, err := fmt.Sscanf(rng, "bytes=%d-%d", &start, &end)
-						require.NoError(t, err)
-						content = content[start : end+1]
-					}
-
-					w.Header().Set("ETag", etag)
-					w.Header().Set("Content-Length", strconv.Itoa(len(content)))
-					_, _ = w.Write(content)
-				default:
-					w.WriteHeader(http.StatusOK)
-				}
-			})
-
-			r, _, _, err := NewNoConfirm(&Config{
-				StorageAccountName: "testing_account",
-				StorageAccountKey:  flagext.SecretWithValue("YQo="),
-				MaxBuffers:         3,
-				BufferSize:         1000,
-				ContainerName:      "blerg",
-				Endpoint:           server.URL[7:], // [7:] -> strip http://
-			})
-			require.NoError(t, err)
-
-			tc.read(t, r)
-
-			mtx.Lock()
-			defer mtx.Unlock()
-			require.NotEmpty(t, getIfMatches)
-			for _, ifMatch := range getIfMatches {
-				assert.Equal(t, etag, ifMatch, "every ranged GET must pin the ETag from GetProperties")
-			}
-		})
-	}
-}
-
-// TestReadConditionNotMet asserts that a blob overwritten mid-read surfaces as a
-// normal read error instead of ErrDoesNotExist, so callers such as the tenant
-// index poller fall back and retry rather than treating the object as missing.
-func TestReadConditionNotMet(t *testing.T) {
-	const body = "some-blob-contents"
+	requests := make(chan request, 2)
 
 	server := testServer(t, func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodHead:
-			w.Header().Set("Content-Length", strconv.Itoa(len(body)))
-			w.Header().Set("ETag", `"etag123"`)
-			w.WriteHeader(http.StatusOK)
-		case http.MethodGet:
-			w.Header().Set("x-ms-error-code", string(bloberror.ConditionNotMet))
-			w.WriteHeader(http.StatusPreconditionFailed)
-		default:
-			w.WriteHeader(http.StatusOK)
+		requests <- request{
+			method:  r.Method,
+			rnge:    r.Header.Get("x-ms-range"),
+			ifMatch: r.Header.Get("If-Match"),
 		}
+		if r.Method != http.MethodGet {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+
+		w.Header().Set("ETag", etag)
+		w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+		_, _ = w.Write(body)
 	})
 
 	r, _, _, err := NewNoConfirm(&Config{
@@ -730,9 +644,63 @@ func TestReadConditionNotMet(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, _, err = r.Read(context.Background(), "object", backend.KeyPath{"tenant"}, nil)
-	require.Error(t, err)
-	require.NotErrorIs(t, err, backend.ErrDoesNotExist)
+	reader, _, err := r.Read(context.Background(), "object", backend.KeyPath{"tenant"}, nil)
+	require.NoError(t, err)
+	defer reader.Close()
+
+	gotBody, err := io.ReadAll(reader)
+	require.NoError(t, err)
+	require.True(t, bytes.Equal(body, gotBody))
+
+	gotRequest := <-requests
+	assert.Equal(t, http.MethodGet, gotRequest.method)
+	assert.Empty(t, gotRequest.rnge)
+	assert.Empty(t, gotRequest.ifMatch)
+	select {
+	case extra := <-requests:
+		t.Fatalf("unexpected additional request: %+v", extra)
+	default:
+	}
+}
+
+func TestReadRestartsAfterReadError(t *testing.T) {
+	const body = "some-blob-contents"
+
+	requests := make(chan *http.Request, 2)
+	var getCount int32
+	server := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		requests <- r
+		w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+		if atomic.AddInt32(&getCount, 1) == 1 {
+			_, _ = w.Write([]byte(body[:2]))
+			return
+		}
+		_, _ = w.Write([]byte(body))
+	})
+
+	r, _, _, err := NewNoConfirm(&Config{
+		StorageAccountName: "testing_account",
+		StorageAccountKey:  flagext.SecretWithValue("YQo="),
+		MaxBuffers:         3,
+		BufferSize:         1000,
+		ContainerName:      "blerg",
+		Endpoint:           server.URL[7:], // [7:] -> strip http://
+	})
+	require.NoError(t, err)
+
+	reader, _, err := r.Read(context.Background(), "object", backend.KeyPath{"tenant"}, nil)
+	require.NoError(t, err)
+	defer reader.Close()
+
+	got, err := io.ReadAll(reader)
+	require.NoError(t, err)
+	require.Equal(t, []byte(body), got)
+
+	for range 2 {
+		request := <-requests
+		assert.Empty(t, request.Header.Get("x-ms-range"))
+		assert.Empty(t, request.Header.Get("If-Match"))
+	}
 }
 
 func testServer(t *testing.T, httpHandler http.HandlerFunc) *httptest.Server {

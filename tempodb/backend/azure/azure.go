@@ -516,39 +516,32 @@ func (rw *Azure) readRange(ctx context.Context, name string, offset int64, destB
 
 func (rw *Azure) readAll(ctx context.Context, name string) ([]byte, azcore.ETag, error) {
 	blobClient := rw.hedgedContainerClient.NewBlockBlobClient(name)
+	var lastErr error
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		resp, err := blobClient.DownloadStream(ctx, nil)
+		if err != nil {
+			lastErr = err
+			continue
+		}
 
-	props, err := blobClient.GetProperties(ctx, &blob.GetPropertiesOptions{})
-	if err != nil {
-		return nil, "", err
+		buffer, err := io.ReadAll(resp.Body)
+		closeErr := resp.Body.Close()
+		if err == nil {
+			err = closeErr
+		}
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
+		var etag azcore.ETag
+		if resp.ETag != nil {
+			etag = *resp.ETag
+		}
+		return buffer, etag, nil
 	}
 
-	if props.ContentLength == nil {
-		return nil, "", fmt.Errorf("expected content length but got none for blob %s: %w", name, err)
-	}
-
-	destBuffer := make([]byte, *props.ContentLength)
-
-	if _, err := blobClient.DownloadBuffer(context.Background(), destBuffer, &blob.DownloadBufferOptions{
-		Range: blob.HTTPRange{
-			Offset: 0,
-			Count:  *props.ContentLength,
-		},
-		AccessConditions: ifMatch(props.ETag),
-		BlockSize:        blob.DefaultDownloadBlockSize,
-		Concurrency:      maxParallelism,
-		RetryReaderOptionsPerBlock: blob.RetryReaderOptions{
-			MaxRetries: maxRetries,
-		},
-	}); err != nil {
-		return nil, "", err
-	}
-
-	var etag azcore.ETag
-	if props.ETag != nil {
-		etag = *props.ETag
-	}
-
-	return destBuffer, etag, nil
+	return nil, "", lastErr
 }
 
 // ifMatch pins a download to a single blob generation. DownloadBuffer issues one
