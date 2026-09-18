@@ -96,7 +96,19 @@ If splitting integration tests specifically, check `integration-tests-validation
 4. Verify the partition is exact: the new target's packages plus the old target's remaining packages should equal the original set, with no overlap and no gap. If a verification command comes back suspiciously empty for a target you didn't even touch, suspect environment noise (a stray local git worktree, an extra module, a broken tool cache) before concluding your edit is wrong - rerun the same check as a control against an untouched target first.
 5. Run the new target's actual test command (not a dry-run) and confirm it passes with real output, not just a clean exit code.
 
-### 6. Flag runner-queue starvation
+### 6. Reorganize test packages for area and readability
+
+Map cross-file dependencies before drawing package boundaries - don't guess from file names alone.
+
+Keep a structurally slow test grouped with its topic. Fix the speed inside the test itself rather than changing shared test infrastructure - lower blast radius, even for an opt-in change.
+
+Check shared test setup for assumptions tied to package location before restructuring folders.
+
+Splitting one file into several for readability doesn't require a CI or build change.
+
+Diff any moved or split file against its last committed version before trusting it.
+
+### 7. Flag runner-queue starvation
 
 If duration data shows jobs occasionally queuing for tens of minutes to hours while sibling jobs already finished, that's runner capacity or org-wide contention, not something a workflow file in this repo can fix. Confirm whether you have the access to diagnose further (e.g. an org-admin-only API) - if not, flag it for the user to escalate instead of guessing at a workflow change. Don't ship an unverified fix for any problem - ask for more detail when you need it.
 
