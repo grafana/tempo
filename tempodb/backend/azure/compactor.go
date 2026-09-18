@@ -36,7 +36,8 @@ func (rw *Azure) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
 
 	src, _, err := rw.readAll(ctx, metaFilename)
 	if err != nil {
-		return err
+		// Another compaction or retention pass already retired this block.
+		return readError(err)
 	}
 
 	err = rw.writeAll(ctx, compactedMetaFilename, src)

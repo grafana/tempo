@@ -421,6 +421,12 @@ func markCompacted(rw *readerWriter, tenantID string, oldBlocks, newBlocks []*ba
 	for _, meta := range oldBlocks {
 		// Mark in the backend
 		if err := rw.c.MarkBlockCompacted(uuid.UUID(meta.BlockID), tenantID); err != nil {
+			if errors.Is(err, backend.ErrDoesNotExist) {
+				// A concurrent compaction or retention pass already retired this
+				// block. The desired end state (input block retired) is already
+				// true, so this isn't a real failure.
+				continue
+			}
 			errCount++
 			level.Error(rw.logger).Log("msg", "unable to mark block compacted", "blockID", meta.BlockID, "tenantID", tenantID, "err", err)
 			metricCompactionErrors.Inc()
