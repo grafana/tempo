@@ -97,7 +97,17 @@ func TemplateFuncMap() template.FuncMap {
 	return template.FuncMap{
 		"indent": func(n int, s string) string {
 			indent := strings.Repeat(" ", n)
-			return indent + strings.ReplaceAll(s, "\n", "\n"+indent)
+			lines := strings.Split(s, "\n")
+			for i, line := range lines {
+				if strings.TrimSpace(line) == "" {
+					lines[i] = ""
+				} else {
+					lines[i] = indent + line
+				}
+			}
+			// YAML block scalars commonly end with a newline. Keep paragraph
+			// breaks, but do not add whitespace-only lines around the entry.
+			return strings.Trim(strings.Join(lines, "\n"), "\n")
 		},
 	}
 }
