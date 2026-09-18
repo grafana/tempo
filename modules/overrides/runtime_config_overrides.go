@@ -665,6 +665,17 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsEnab
 	return true, false // default to true
 }
 
+// MetricsGeneratorProcessorSpanMetricsMaxSpansPerSeriesPerInterval bounds how
+// many spans per span-metrics series are fully aggregated per collection
+// interval. 0 disables sampling for the tenant.
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsMaxSpansPerSeriesPerInterval(userID string) (int, bool) {
+	maxSpans := o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.MaxSpansPerSeriesPerInterval
+	if maxSpans != nil {
+		return *maxSpans, true
+	}
+	return 0, false
+}
+
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorHostInfoHostIdentifiers(userID string) []string {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.HostInfo.HostIdentifiers
 }

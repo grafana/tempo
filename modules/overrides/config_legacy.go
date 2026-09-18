@@ -59,6 +59,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorProcessorSpanMetricsEnableTargetInfo:                        c.MetricsGenerator.Processor.SpanMetrics.EnableTargetInfo,
 		MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions:            c.MetricsGenerator.Processor.SpanMetrics.TargetInfoExcludedDimensions,
 		MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel:                     c.MetricsGenerator.Processor.SpanMetrics.EnableInstanceLabel,
+		MetricsGeneratorProcessorSpanMetricsMaxSpansPerSeriesPerInterval:            c.MetricsGenerator.Processor.SpanMetrics.MaxSpansPerSeriesPerInterval,
 		MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey:                       c.MetricsGenerator.Processor.SpanMetrics.SpanMultiplierKey,
 		MetricsGeneratorProcessorSpanMetricsEnableTraceStateSpanMultiplier:          c.MetricsGenerator.Processor.SpanMetrics.EnableTraceStateSpanMultiplier,
 		MetricsGeneratorProcessorHostInfoHostIdentifiers:                            c.MetricsGenerator.Processor.HostInfo.HostIdentifiers,
@@ -150,6 +151,7 @@ type LegacyOverrides struct {
 	MetricsGeneratorProcessorSpanMetricsEnableTargetInfo                        *bool                            `yaml:"metrics_generator_processor_span_metrics_enable_target_info" json:"metrics_generator_processor_span_metrics_enable_target_info"`
 	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions            []string                         `yaml:"metrics_generator_processor_span_metrics_target_info_excluded_dimensions" json:"metrics_generator_processor_span_metrics_target_info_excluded_dimensions"`
 	MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel                     *bool                            `yaml:"metrics_generator_processor_span_metrics_enable_instance_label" json:"metrics_generator_processor_span_metrics_enable_instance_label"`
+	MetricsGeneratorProcessorSpanMetricsMaxSpansPerSeriesPerInterval            *int                             `yaml:"metrics_generator_processor_span_metrics_max_spans_per_series_per_interval" json:"metrics_generator_processor_span_metrics_max_spans_per_series_per_interval"`
 	MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey                       string                           `yaml:"metrics_generator_processor_span_metrics_span_multiplier_key" json:"metrics_generator_processor_span_metrics_span_multiplier_key"`
 	MetricsGeneratorProcessorSpanMetricsEnableTraceStateSpanMultiplier          *bool                            `yaml:"metrics_generator_processor_span_metrics_enable_tracestate_span_multiplier" json:"metrics_generator_processor_span_metrics_enable_tracestate_span_multiplier"`
 	MetricsGeneratorProcessorHostInfoHostIdentifiers                            []string                         `yaml:"metrics_generator_processor_host_info_host_identifiers" json:"metrics_generator_processor_host_info_host_identifiers"`
@@ -375,6 +377,7 @@ func (l *LegacyOverrides) toNewLimits() *Overrides {
 					EnableTargetInfo:               l.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo,
 					TargetInfoExcludedDimensions:   l.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions,
 					EnableInstanceLabel:            l.MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel,
+					MaxSpansPerSeriesPerInterval:   l.MetricsGeneratorProcessorSpanMetricsMaxSpansPerSeriesPerInterval,
 					SpanMultiplierKey:              l.MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey,
 					EnableTraceStateSpanMultiplier: l.MetricsGeneratorProcessorSpanMetricsEnableTraceStateSpanMultiplier,
 				},

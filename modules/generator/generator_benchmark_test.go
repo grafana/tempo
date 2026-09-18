@@ -474,7 +474,7 @@ func benchmarkGeneratorInstance(b *testing.B, tune func(*mockOverrides)) (*insta
 	tune(o)
 
 	st := &benchmarkGeneratorStorage{}
-	inst, err := newInstance(cfg, benchmarkGeneratorTenant, o, st, log.NewNopLogger())
+	inst, err := newInstance(cfg, benchmarkGeneratorTenant, o, st, log.NewNopLogger(), nil)
 	if err != nil {
 		b.Fatal(err)
 	}
