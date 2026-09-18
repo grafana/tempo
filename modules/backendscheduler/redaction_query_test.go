@@ -125,6 +125,8 @@ func TestRedactionQueryExistenceForms(t *testing.T) {
 		{name: "attr != nil is an existence check", query: `{ span.foo != nil }`},
 		{name: "attr != empty string", query: `{ span.foo != "" }`},
 		{name: "empty string on the left", query: `{ "" != span.foo }`},
+		{name: "attr > empty string", query: `{ span.foo > "" }`},
+		{name: "greater-than combined with equality", query: `{ span.foo > "" && resource.service.name = "api" }`},
 		{name: "existence combined with equality", query: `{ resource.service.name != nil && span.foo = "x" }`},
 		{name: "existence combined with or", query: `{ span.a != "" || span.b != nil }`},
 
@@ -149,8 +151,28 @@ func TestRedactionQueryExistenceForms(t *testing.T) {
 			wantErr: "must not be parent-scoped",
 		},
 		{
-			name:    "ordered comparison against the empty string stays refused",
-			query:   `{ span.foo > "" }`,
+			// != is symmetric so either side may hold the literal; > is not, and this orientation
+			// matches nothing at all, so accepting it would be accepting a query that silently
+			// selects no traces.
+			name:    "reversed greater-than is refused",
+			query:   `{ "" > span.foo }`,
+			wantErr: `> is allowed only as attr > ""`,
+		},
+		{
+			name:    "greater-than against a value is refused",
+			query:   `{ span.foo > "bar" }`,
+			wantErr: `> is allowed only as attr > ""`,
+		},
+		{
+			// Bounded the same way, but not an existence check: it also matches an empty value, which
+			// != nil already expresses.
+			name:    "greater-or-equal against the empty string stays refused",
+			query:   `{ span.foo >= "" }`,
+			wantErr: "not allowed in redaction query",
+		},
+		{
+			name:    "less-than-or-equal against the empty string stays refused",
+			query:   `{ span.foo <= "" }`,
 			wantErr: "not allowed in redaction query",
 		},
 		{
@@ -181,8 +203,11 @@ func TestRedactionQueryExistenceForms(t *testing.T) {
 //
 // If that nil rule ever changed -- to SQL-style propagation, or to treating nil as unequal to
 // everything -- `attr != ""` would silently become a complement match on an irreversible delete, and
-// the validator would keep accepting it. This test is what fails in that case. It deliberately
-// asserts against traceql's exported behaviour rather than against the validator.
+// the validator would keep accepting it. This test is what fails in that case, in the package that
+// depends on the rule rather than the one that owns it.
+//
+// `> ""` is bounded by a different rule (binaryTypeValid refuses ordered operators for nil), which is
+// unexported. Both forms are pinned end to end by TestSpansetExistence in pkg/traceql.
 func TestEmptyStringComparisonExcludesMissingAttributes(t *testing.T) {
 	var (
 		missing  = traceql.NewStaticNil()

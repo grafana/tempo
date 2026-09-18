@@ -9,7 +9,7 @@ import (
 
 // validateRedactionQuery enforces the redaction query subset: a single spanset filter whose
 // expression combines, with && / ||, either an = comparison on a resource.*/span.* attribute or an
-// existence check on one. Anything else (value negation, regex, ordered comparisons, unscoped
+// existence check on one (`!= nil`, `!= ""`, `> ""`). Anything else (value negation, regex, ordered comparisons, unscoped
 // attributes, pipelines, aggregates, multiple/structural filters) is rejected at submission.
 //
 // Parsing uses ParseNoOptimizations so the optimizer does not fold an OR of equalities
@@ -74,8 +74,7 @@ func validateRedactionExpr(fe traceql.FieldExpression) error {
 		// != is allowed against the empty string only, where it is an existence check rather than a
 		// negation. TraceQL resolves a missing attribute to nil, and Static.NotEquals returns false
 		// whenever either side is nil, so `attr != ""` selects spans where attr is present and
-		// non-empty -- it does not select the spans that lack it. That bound is what makes this safe
-		// on an irreversible delete, and TestEmptyStringComparisonExcludesMissingAttributes pins it.
+		// non-empty; it does not select the spans that lack it.
 		//
 		// Against any other value the match set is the complement, potentially all data, so a typo
 		// is as catastrophic as a bad regex.
@@ -86,8 +85,27 @@ func validateRedactionExpr(fe traceql.FieldExpression) error {
 			return errors.New(`!= is allowed only against "" (attr != "" selects spans where attr is present and non-empty); use = to match a value`)
 		}
 		return nil
+	case traceql.OpGreater:
+		// `attr > ""` spells the same existence check by a different route: every non-empty string
+		// sorts after "", and an absent attribute resolves to nil, which binaryTypeValid refuses for
+		// ordered operators outright, so the comparison is false rather than matching. A present
+		// non-string operand fails the matching-operand check for the same reason.
+		//
+		// Orientation matters here in a way it does not for !=, which is symmetric: `"" > attr`
+		// compares the other way and matches nothing at all, so it is refused rather than accepted as
+		// a query that silently selects no traces.
+		if err := validateRedactionComparison(bin.LHS, bin.RHS); err != nil {
+			return err
+		}
+		if !isEmptyString(bin.RHS) {
+			return errors.New(`> is allowed only as attr > "" (which selects spans where attr is present and non-empty)`)
+		}
+		return nil
 	default:
-		return fmt.Errorf(`operator %v not allowed in redaction query; only =, != "" and != nil are supported`, bin.Op)
+		// >= and <= against "" are bounded the same way, but they are not existence checks: `attr >= ""`
+		// also matches an empty value, which `attr != nil` already says, and `attr <= ""` matches only
+		// the empty value. `< ""` matches nothing. None are worth widening the subset for.
+		return fmt.Errorf(`operator %v not allowed in redaction query; only =, != "", > "" and != nil are supported`, bin.Op)
 	}
 }
 

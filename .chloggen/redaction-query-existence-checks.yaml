@@ -1,7 +1,7 @@
 change_type: enhancement
 component: backend-scheduler
-note: "Allow the existence checks `attr != nil` and `attr != \"\"` in a redaction query selector."
+note: "Allow the existence checks `attr != nil`, `attr != \"\"` and `attr > \"\"` in a redaction query selector."
 issues: []
 subtext: |
-  The selector subset refused every `!=` because a negation's match set is the complement of what the operator named, which is a poor property for an irreversible delete. These two forms are not negations: TraceQL rewrites `attr != nil` into an existence check, and resolves a missing attribute to nil while treating any nil comparison as no match -- so `attr != ""` selects spans where the attribute is present and non-empty rather than the spans that lack it. `!=` against a value is still refused. A test pins the TraceQL nil semantics the second form depends on, since they live in another package and a change there would silently turn it into a complement match.
+  The selector subset refused every `!=` because a negation's match set is the complement of what the operator named, which is a poor property for an irreversible delete. These two forms are not negations: TraceQL rewrites `attr != nil` into an existence check, and resolves a missing attribute to nil while treating any nil comparison as no match -- so `attr != ""` selects spans where the attribute is present and non-empty rather than the spans that lack it. `attr > ""` is the same check by a different route: ordered comparisons are type-invalid against nil, so a missing attribute cannot match. `!=` against a value is still refused, as are `>=` and `<=` against `""`, which are bounded the same way but are not existence checks. A test pins the TraceQL nil semantics the second form depends on, since they live in another package and a change there would silently turn it into a complement match.
 user: zalegrala
