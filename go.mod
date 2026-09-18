@@ -21,7 +21,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/grafana/dskit v0.0.0-20260703122047-de1ec7541c44
-	github.com/grafana/e2e v0.1.2-0.20260504080022-0f57c9f0da68
+	github.com/grafana/e2e v0.1.2-0.20260914044258-ebe09ad459cf
 	github.com/hashicorp/go-hclog v1.6.3 // indirect
 	github.com/jedib0t/go-pretty/v6 v6.7.10
 	github.com/jsternberg/zap-logfmt v1.3.0

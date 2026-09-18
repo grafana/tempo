@@ -786,7 +786,7 @@ github.com/grafana/dskit/test
 github.com/grafana/dskit/timeutil
 github.com/grafana/dskit/tracing
 github.com/grafana/dskit/user
-# github.com/grafana/e2e v0.1.2-0.20260504080022-0f57c9f0da68
+# github.com/grafana/e2e v0.1.2-0.20260914044258-ebe09ad459cf
 ## explicit; go 1.25.5
 github.com/grafana/e2e
 github.com/grafana/e2e/db
