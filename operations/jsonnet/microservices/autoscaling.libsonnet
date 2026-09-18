@@ -2,7 +2,7 @@
 // Requires KEDA operator and CRDs installed in the cluster.
 // All scalers are disabled by default; enable via _config.<component>.keda.enabled.
 {
-  local keda = (import 'github.com/jsonnet-libs/keda-libsonnet/2.15/main.libsonnet').keda.v1alpha1,
+  local keda = (import 'github.com/jsonnet-libs/keda-libsonnet/2.16/main.libsonnet').keda.v1alpha1,
   local scaledObject = keda.scaledObject,
   local scaleUpBehavior = scaledObject.spec.advanced.horizontalPodAutoscalerConfig.behavior.scaleUp,
   local scaleDownBehavior = scaledObject.spec.advanced.horizontalPodAutoscalerConfig.behavior.scaleDown,

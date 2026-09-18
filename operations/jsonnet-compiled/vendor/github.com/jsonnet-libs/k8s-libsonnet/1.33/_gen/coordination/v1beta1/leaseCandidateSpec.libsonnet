@@ -1,0 +1,18 @@
+{
+  local d = (import 'doc-util/main.libsonnet'),
+  '#':: d.pkg(name='leaseCandidateSpec', url='', help='"LeaseCandidateSpec is a specification of a Lease."'),
+  '#withBinaryVersion':: d.fn(help='"BinaryVersion is the binary version. It must be in a semver format without leading `v`. This field is required."', args=[d.arg(name='binaryVersion', type=d.T.string)]),
+  withBinaryVersion(binaryVersion): { binaryVersion: binaryVersion },
+  '#withEmulationVersion':: d.fn(help='"EmulationVersion is the emulation version. It must be in a semver format without leading `v`. EmulationVersion must be less than or equal to BinaryVersion. This field is required when strategy is \\"OldestEmulationVersion\\', args=[d.arg(name='emulationVersion', type=d.T.string)]),
+  withEmulationVersion(emulationVersion): { emulationVersion: emulationVersion },
+  '#withLeaseName':: d.fn(help='"LeaseName is the name of the lease for which this candidate is contending. The limits on this field are the same as on Lease.name. Multiple lease candidates may reference the same Lease.name. This field is immutable."', args=[d.arg(name='leaseName', type=d.T.string)]),
+  withLeaseName(leaseName): { leaseName: leaseName },
+  '#withPingTime':: d.fn(help='"MicroTime is version of Time with microsecond level precision."', args=[d.arg(name='pingTime', type=d.T.string)]),
+  withPingTime(pingTime): { pingTime: pingTime },
+  '#withRenewTime':: d.fn(help='"MicroTime is version of Time with microsecond level precision."', args=[d.arg(name='renewTime', type=d.T.string)]),
+  withRenewTime(renewTime): { renewTime: renewTime },
+  '#withStrategy':: d.fn(help='"Strategy is the strategy that coordinated leader election will use for picking the leader. If multiple candidates for the same Lease return different strategies, the strategy provided by the candidate with the latest BinaryVersion will be used. If there is still conflict, this is a user error and coordinated leader election will not operate the Lease until resolved."', args=[d.arg(name='strategy', type=d.T.string)]),
+  withStrategy(strategy): { strategy: strategy },
+  '#mixin': 'ignore',
+  mixin: self,
+}

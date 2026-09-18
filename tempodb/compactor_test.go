@@ -14,6 +14,7 @@ import (
 	"github.com/go-kit/log"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -827,6 +828,102 @@ func testCompactWithConfig(t *testing.T, targetBlockVersion string) {
 		&mockOverrides{},
 	)
 	require.NoError(t, err)
+}
+
+func TestCompactWithConfigSkipsMissingBlocks(t *testing.T) {
+	for _, enc := range encoding.AllEncodingsForWrites() {
+		t.Run(enc.Version(), func(t *testing.T) {
+			t.Parallel()
+			testCompactWithConfigSkipsMissingBlocks(t, enc.Version())
+		})
+	}
+}
+
+func testCompactWithConfigSkipsMissingBlocks(t *testing.T, targetBlockVersion string) {
+	tenantID := "missing-blocks-" + targetBlockVersion
+
+	_, w, c, _ := testConfig(t, 0, func(cfg *Config) {
+		cfg.Block.Version = targetBlockVersion
+	})
+
+	ctx := context.Background()
+	compactorCfg := &CompactorConfig{
+		MaxCompactionRange:   24 * time.Hour,
+		MaxCompactionObjects: 1000,
+		MaxBlockBytes:        100_000_000,
+	}
+
+	// A meta the block list still carries but whose block is gone from the backend:
+	// the race a caller hits when it selects blocks from a stale block list. It is
+	// placed first so the version lookup cannot depend on it.
+	missing := &backend.BlockMeta{
+		BlockID:  backend.NewUUID(),
+		TenantID: tenantID,
+		Version:  targetBlockVersion,
+	}
+
+	blocks := cutTestBlocks(t, w, tenantID, 3, 10)
+	metas := []*backend.BlockMeta{missing}
+	for _, b := range blocks {
+		metas = append(metas, b.BlockMeta())
+	}
+
+	before := testutil.ToFloat64(metricCompactionBlocksMissing.WithLabelValues(tenantID))
+
+	compacted, err := c.CompactWithConfig(ctx, metas, tenantID, compactorCfg, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
+	require.NotEmpty(t, compacted, "blocks that still exist should be compacted")
+	require.Equal(t, before+1, testutil.ToFloat64(metricCompactionBlocksMissing.WithLabelValues(tenantID)))
+
+	// A lone survivor has nothing to combine with: a no-op success, not a failure.
+	single := cutTestBlocks(t, w, tenantID, 1, 10)
+	compacted, err = c.CompactWithConfig(ctx,
+		[]*backend.BlockMeta{missing, single[0].BlockMeta()},
+		tenantID, compactorCfg, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
+	require.Empty(t, compacted)
+}
+
+func TestCompactWithConfigFailsOnUnreadableMeta(t *testing.T) {
+	tenantID := "unreadable-meta"
+
+	_, w, c, tempDir := testConfig(t, 0)
+
+	ctx := context.Background()
+	compactorCfg := &CompactorConfig{
+		MaxCompactionRange:   24 * time.Hour,
+		MaxCompactionObjects: 1000,
+		MaxBlockBytes:        100_000_000,
+	}
+
+	// A meta that is present but cannot be read is not the already-compacted race, so
+	// it must still fail the compaction instead of being skipped.
+	_, rawW, _, err := local.New(&local.Config{Path: path.Join(tempDir, "traces")})
+	require.NoError(t, err)
+
+	unreadable := backend.NewUUID()
+	garbage := []byte("not a block meta")
+	err = backend.NewWriter(rawW).Write(ctx, backend.MetaName, uuid.UUID(unreadable), tenantID, garbage, nil)
+	require.NoError(t, err)
+
+	blocks := cutTestBlocks(t, w, tenantID, 2, 10)
+	metas := []*backend.BlockMeta{{
+		BlockID:  unreadable,
+		TenantID: tenantID,
+		Version:  encoding.DefaultEncoding().Version(),
+	}}
+	for _, b := range blocks {
+		metas = append(metas, b.BlockMeta())
+	}
+
+	before := testutil.ToFloat64(metricCompactionBlocksMissing.WithLabelValues(tenantID))
+
+	compacted, err := c.CompactWithConfig(ctx, metas, tenantID, compactorCfg, &mockSharder{}, &mockOverrides{})
+	require.Error(t, err)
+	require.NotErrorIs(t, err, backend.ErrDoesNotExist)
+	require.Empty(t, compacted)
+	require.Equal(t, before, testutil.ToFloat64(metricCompactionBlocksMissing.WithLabelValues(tenantID)),
+		"an unreadable meta must not be counted as a missing block")
 }
 
 type testData struct {
