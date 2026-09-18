@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/grafana/e2e"
@@ -18,14 +19,21 @@ import (
 const (
 	tempoConfigFile    = "config.yaml"
 	tempoOverridesFile = "overrides.yaml"
+)
 
-	// these paths are all referenced from the other integration test folders. this is why they all have a relative
-	// path ../util. this also constrains the folder structure for integration tests to only be one level deeper
-	// than ./integration
-	baseConfigFile         = "../util/config-base.yaml"
-	singleBinaryConfigFile = "../util/config-single-binary.yaml"
-	backendConfigFile      = "../util/config-backend-%s.yaml"
-	queryBackendConfigFile = "../util/config-query-backend.yaml"
+// utilDir is this package's own directory, resolved at runtime rather than assumed from the
+// caller's working directory. Config files below are always loaded relative to this, so a
+// test package can live at any depth under ./integration instead of exactly one level down.
+var utilDir = func() string {
+	_, thisFile, _, _ := runtime.Caller(0)
+	return filepath.Dir(thisFile)
+}()
+
+var (
+	baseConfigFile         = filepath.Join(utilDir, "config-base.yaml")
+	singleBinaryConfigFile = filepath.Join(utilDir, "config-single-binary.yaml")
+	backendConfigFile      = filepath.Join(utilDir, "config-backend-%s.yaml")
+	queryBackendConfigFile = filepath.Join(utilDir, "config-query-backend.yaml")
 )
 
 func CopyFileToSharedDir(s *e2e.Scenario, src, dst string) error {
