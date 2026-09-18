@@ -1,0 +1,6 @@
+change_type: enhancement
+component: operations
+note: Add SlogFromGoKit adapter to bridge go-kit/log and log/slog during the slog migration.
+issues: [7616]
+subtext:
+user: amarkdotdev
