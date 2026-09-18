@@ -50,9 +50,8 @@ func (rw *Azure) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
 	return rw.deleteRaw(ctx, metaFilename)
 }
 
-// blobDeleteConcurrency is how many of a block's blobs are deleted at once. A
-// block is a meta, a data file, an index and one bloom blob per shard, so
-// deleting them one at a time costs ~30 sequential round trips per block.
+// A block holds a meta, a data file, an index and a bloom blob per shard, so
+// deleting them serially costs ~30 round trips.
 const blobDeleteConcurrency = 16
 
 func (rw *Azure) ClearBlock(blockID uuid.UUID, tenantID string) error {
@@ -79,9 +78,8 @@ func (rw *Azure) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			// Keep deleting what we did list, but remember the failure: a partial
-			// listing means blobs may be left behind, so the caller must not treat
-			// the block as cleared.
+			// A partial listing may leave blobs behind, so the caller must not
+			// treat the block as cleared.
 			listErr = fmt.Errorf("listing blobs under %s: %w", prefix, err)
 			continue
 		}
@@ -94,9 +92,8 @@ func (rw *Azure) ClearBlock(blockID uuid.UUID, tenantID string) error {
 		}
 	}
 
-	// The deletes are independent and latency bound, so issue them concurrently.
-	// Deliberately not errgroup.WithContext: one blob failing should not cancel
-	// the rest, or a single error leaves the block half deleted.
+	// Not WithContext: cancelling on the first error would leave the block half
+	// deleted.
 	var g errgroup.Group
 	g.SetLimit(blobDeleteConcurrency)
 
@@ -105,7 +102,7 @@ func (rw *Azure) ClearBlock(blockID uuid.UUID, tenantID string) error {
 			// b.Name from the listing is already prefixed so use deleteRaw - rw.Delete would re-apply it.
 			err := rw.deleteRaw(ctx, name)
 			if errors.Is(err, backend.ErrDoesNotExist) {
-				// Already gone, which is the outcome we wanted for this blob.
+				// Already gone is the outcome we wanted.
 				return nil
 			}
 			if err != nil {

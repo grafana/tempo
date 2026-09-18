@@ -472,9 +472,8 @@ func TestRetentionCacheEviction(t *testing.T) {
 }
 
 func TestRetentionClearsEveryBlockConcurrently(t *testing.T) {
-	// Retention clears a tenant's blocks through a bounded worker pool. Existing
-	// retention tests only ever have one block to clear, so this covers the case
-	// where several are cleared at once and asserts none is left behind.
+	// Every other retention test clears a single block, so nothing covers the
+	// concurrent path.
 	const numBlocks = 8
 
 	tempDir := t.TempDir()
@@ -518,14 +517,12 @@ func TestRetentionClearsEveryBlockConcurrently(t *testing.T) {
 	rw.pollBlocklist(ctx)
 	require.Len(t, rw.blocklist.Metas(testTenantID), numBlocks)
 
-	// Move every block onto the compacted list.
 	rw.compactorCfg.BlockRetention = 0
 	rw.compactorCfg.CompactedBlockRetention = time.Hour
 	rw.doRetention(ctx)
 	require.Empty(t, rw.blocklist.Metas(testTenantID))
 	require.Len(t, rw.blocklist.CompactedMetas(testTenantID), numBlocks)
 
-	// Clear them all. Every block must leave the compacted list.
 	rw.compactorCfg.BlockRetention = time.Hour
 	rw.compactorCfg.CompactedBlockRetention = 0
 	rw.doRetention(ctx)

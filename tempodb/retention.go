@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/cache"
@@ -111,16 +112,17 @@ func (rw *readerWriter) retainTenant(ctx context.Context, tenantID string, compa
 	cutoff = time.Now().Add(-compactorCfg.CompactedBlockRetention)
 	compactedBlocklist := rw.blocklist.CompactedMetas(tenantID)
 
-	// Clearing a block is a list plus a delete batch against the backend, so the
-	// loop is latency bound rather than CPU bound. Run a bounded number of blocks
-	// at once: one retention job covers a whole tenant, and a serial loop cannot
-	// keep up with compaction when a tenant has a large backlog.
+	// One retention job covers a whole tenant, and a serial loop cannot keep up
+	// with compaction when that tenant has a large backlog.
 	concurrency := compactorCfg.RetentionBlockConcurrency
 	if concurrency == 0 {
 		concurrency = DefaultRetentionBlockConcurrency
 	}
 
-	bg := boundedwaitgroup.New(concurrency)
+	// Not WithContext: cancelling on the first error would strand the rest of
+	// the tenant's blocks.
+	var g errgroup.Group
+	g.SetLimit(int(concurrency))
 
 	for _, b := range compactedBlocklist {
 		if ctx.Err() != nil {
@@ -131,25 +133,24 @@ func (rw *readerWriter) retainTenant(ctx context.Context, tenantID string, compa
 			continue
 		}
 
-		bg.Add(1)
-		go func(b *backend.CompactedBlockMeta) {
-			defer bg.Done()
-
+		g.Go(func() error {
 			level.Info(rw.logger).Log("msg", "deleting block", "blockID", b.BlockID, "tenantID", tenantID)
 			err := rw.c.ClearBlock(uuid.UUID(b.BlockID), tenantID)
 			if err != nil {
 				level.Error(rw.logger).Log("msg", "failed to clear compacted block during retention", "blockID", b.BlockID, "tenantID", tenantID, "err", err)
 				metricRetentionErrors.Inc()
-				return
+				return nil
 			}
 
 			metricDeleted.Inc()
 			rw.removeCachedBlock(ctx, tenantID, uuid.UUID(b.BlockID), int(b.BloomShardCount))
 			rw.blocklist.Update(tenantID, nil, nil, nil, []*backend.CompactedBlockMeta{b})
-		}(b)
+			return nil
+		})
 	}
 
-	bg.Wait()
+	// Each block logs its own failure, so there is nothing left to report here.
+	_ = g.Wait()
 }
 
 func (rw *readerWriter) removeCachedBlock(ctx context.Context, tenantID string, blockID uuid.UUID, bloomShardCount int) {

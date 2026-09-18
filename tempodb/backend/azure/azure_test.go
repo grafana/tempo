@@ -712,8 +712,7 @@ func TestClearBlock_BlobDeleteErrors(t *testing.T) {
 		wantErr bool
 	}{
 		{"all deleted", func(int) int { return http.StatusAccepted }, false},
-		// A blob that is already gone is the outcome we wanted, so 404 alone is
-		// not an error.
+		// Already gone is the outcome we wanted, so a 404 alone is not an error.
 		{"all already gone", func(int) int { return http.StatusNotFound }, false},
 		{"some already gone", func(n int) int {
 			if n%2 == 0 {
@@ -721,8 +720,8 @@ func TestClearBlock_BlobDeleteErrors(t *testing.T) {
 			}
 			return http.StatusAccepted
 		}, false},
-		// The case that matters: one real failure alongside a 404 must not be
-		// reported as success, or retention drops the block and orphans its data.
+		// A real failure beside a 404 must not read as success, or retention
+		// drops the block and orphans its data.
 		{"one real failure among 404s", func(n int) int {
 			switch {
 			case n == 0:
