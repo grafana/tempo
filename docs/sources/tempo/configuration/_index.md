@@ -1238,6 +1238,13 @@ query_frontend:
     mcp_server:
         [enabled: <bool> | default = false]
 
+    # Private administrator redaction submission facade. Keep this route off the
+    # public gateway allowlist.
+    # Uses the shared top-level backend_scheduler_client transport configuration.
+    redaction:
+        [enabled: <bool> | default = false]
+        [backend_scheduler_address: <string> | default = ""]
+
 ```
 
 ### Limit query size to improve performance and stability

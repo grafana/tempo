@@ -1,0 +1,7 @@
+change_type: feature
+component: query-frontend
+note: Add a disabled-by-default private POST /api/redactions endpoint for trace-ID-only asynchronous redaction submission.
+issues: []
+subtext: |
+  Enable query_frontend.redaction.enabled and configure its backend scheduler address to submit explicit trace IDs to the existing scheduler. The endpoint uses the shared backend_scheduler_client transport settings and returns a batch ID and job count without waiting for redaction to finish. Keep this administrator-facing endpoint off the public gateway allowlist.
+user: carles-grafana

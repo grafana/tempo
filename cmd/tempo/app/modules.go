@@ -26,6 +26,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors"
 
 	"github.com/grafana/tempo/modules/backendscheduler"
+	backendschedulerclient "github.com/grafana/tempo/modules/backendscheduler/client"
 	"github.com/grafana/tempo/modules/backendworker"
 	"github.com/grafana/tempo/modules/blockbuilder"
 	"github.com/grafana/tempo/modules/cache"
@@ -74,6 +75,7 @@ const (
 	MetricsGeneratorNoLocalBlocks string = "metrics-generator-no-local-blocks"
 	Querier                       string = "querier"
 	QueryFrontend                 string = "query-frontend"
+	QueryFrontendRedaction        string = "query-frontend-redaction"
 	BlockBuilder                  string = "block-builder"
 	BackendScheduler              string = "backend-scheduler"
 	BackendWorker                 string = "backend-worker"
@@ -461,6 +463,31 @@ func (t *App) initQuerier() (services.Service, error) {
 	return t.querier, t.querier.CreateAndRegisterWorker(t.Server.HTTPHandler())
 }
 
+func (t *App) initQueryFrontendRedaction() (services.Service, error) {
+	cfg := t.cfg.Frontend.Redaction
+	if !cfg.Enabled {
+		return services.NewIdleService(nil, nil), nil
+	}
+	if cfg.BackendSchedulerAddress == "" {
+		return nil, errors.New("query_frontend.redaction.backend_scheduler_address is required when redaction is enabled")
+	}
+
+	schedulerClient, err := backendschedulerclient.New(cfg.BackendSchedulerAddress, t.cfg.BackenSchedulerClient)
+	if err != nil {
+		return nil, fmt.Errorf("create query-frontend redaction client: %w", err)
+	}
+
+	handler := frontend.NewRedactionHandler(schedulerClient)
+	t.Server.HTTPRouter().
+		Methods(http.MethodPost).
+		Path(addHTTPAPIPrefix(&t.cfg, api.PathRedactions)).
+		Handler(t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(handler.Submit)))
+
+	return services.NewIdleService(nil, func(_ error) error {
+		return schedulerClient.Close()
+	}), nil
+}
+
 func (t *App) initQueryFrontend() (services.Service, error) {
 	// cortexTripper is a bridge between http and httpgrpc.
 	// It does the job of passing data to the cortex frontend code.
@@ -755,6 +782,7 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(Querier, t.initQuerier)
 	mm.RegisterModule(QueryFrontend, t.initQueryFrontend)
 	mm.RegisterModule(MetricsGenerator, t.initGenerator)
+	mm.RegisterModule(QueryFrontendRedaction, t.initQueryFrontendRedaction, modules.UserInvisibleModule)
 	mm.RegisterModule(MetricsGeneratorNoLocalBlocks, t.initGeneratorNoLocalBlocks)
 	mm.RegisterModule(BlockBuilder, t.initBlockBuilder)
 	mm.RegisterModule(BackendScheduler, t.initBackendScheduler)
@@ -792,7 +820,8 @@ func (t *App) setupModuleManager() error {
 		Common: {UsageReport, Server, Overrides},
 
 		// individual targets
-		QueryFrontend:                 {Common, Store, OverridesAPI},
+		QueryFrontendRedaction:        {Common},
+		QueryFrontend:                 {Common, Store, OverridesAPI, QueryFrontendRedaction},
 		Distributor:                   distributorDeps,
 		LiveStore:                     liveStoreDeps,
 		MetricsGenerator:              generatorDeps,
