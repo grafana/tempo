@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/google/uuid"
 
+	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
@@ -48,8 +50,12 @@ func (rw *Azure) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
 	return rw.deleteRaw(ctx, metaFilename)
 }
 
+// blobDeleteConcurrency is how many of a block's blobs are deleted at once. A
+// block is a meta, a data file, an index and one bloom blob per shard, so
+// deleting them one at a time costs ~30 sequential round trips per block.
+const blobDeleteConcurrency = uint(16)
+
 func (rw *Azure) ClearBlock(blockID uuid.UUID, tenantID string) error {
-	var warning error
 	if len(tenantID) == 0 {
 		return fmt.Errorf("empty tenant id")
 	}
@@ -60,11 +66,15 @@ func (rw *Azure) ClearBlock(blockID uuid.UUID, tenantID string) error {
 
 	ctx := context.TODO()
 
-	prefix := backend.RootPath(blockID, tenantID, rw.cfg.Prefix)
-	pager := rw.containerClient.NewListBlobsHierarchyPager("", &container.ListBlobsHierarchyOptions{
-		Include: container.ListBlobsInclude{},
-		Prefix:  &prefix,
-	})
+	var (
+		warning error
+		names   []string
+		prefix  = backend.RootPath(blockID, tenantID, rw.cfg.Prefix)
+		pager   = rw.containerClient.NewListBlobsHierarchyPager("", &container.ListBlobsHierarchyOptions{
+			Include: container.ListBlobsInclude{},
+			Prefix:  &prefix,
+		})
+	)
 
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
@@ -75,17 +85,34 @@ func (rw *Azure) ClearBlock(blockID uuid.UUID, tenantID string) error {
 
 		for _, b := range page.Segment.BlobItems {
 			if b.Name == nil {
-				return fmt.Errorf("unexpected empty blob name when listing %s: %w", prefix, err)
+				return fmt.Errorf("unexpected empty blob name when listing %s", prefix)
 			}
-
-			// b.Name from the listing is already prefixed so use deleteRaw - rw.Delete would re-apply it.
-			err = rw.deleteRaw(ctx, *b.Name)
-			if err != nil {
-				warning = err
-				continue
-			}
+			names = append(names, *b.Name)
 		}
 	}
+
+	// The deletes are independent and latency bound, so issue them concurrently
+	// rather than one at a time.
+	var (
+		bg  = boundedwaitgroup.New(blobDeleteConcurrency)
+		mtx sync.Mutex
+	)
+
+	for _, name := range names {
+		bg.Add(1)
+		go func(name string) {
+			defer bg.Done()
+
+			// b.Name from the listing is already prefixed so use deleteRaw - rw.Delete would re-apply it.
+			if err := rw.deleteRaw(ctx, name); err != nil {
+				mtx.Lock()
+				warning = err
+				mtx.Unlock()
+			}
+		}(name)
+	}
+
+	bg.Wait()
 
 	return warning
 }

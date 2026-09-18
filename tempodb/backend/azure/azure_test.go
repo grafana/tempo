@@ -10,6 +10,8 @@ import (
 	"net/textproto"
 	"os"
 	"strconv"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -611,4 +613,87 @@ func testServer(t *testing.T, httpHandler http.HandlerFunc) *httptest.Server {
 	server := httptest.NewServer(httpHandler)
 	t.Cleanup(server.Close)
 	return server
+}
+
+func TestClearBlock_DeletesAllBlobsConcurrently(t *testing.T) {
+	const (
+		tenantID = "test-tenant"
+		blockID  = "00000000-0000-0000-0000-000000000003"
+	)
+
+	tests := []struct {
+		name     string
+		numBlobs int
+		wantMax  uint
+	}{
+		{"fewer blobs than the bound", 5, 5},
+		{"more blobs than the bound", 40, blobDeleteConcurrency},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var blobs strings.Builder
+			want := make([]string, 0, tt.numBlobs)
+			for i := 0; i < tt.numBlobs; i++ {
+				name := fmt.Sprintf("%s/%s/bloom-%d", tenantID, blockID, i)
+				want = append(want, "/blerg/"+name)
+				fmt.Fprintf(&blobs, `<Blob><Name>%s</Name><Properties>
+					<Last-Modified>Fri, 01 Mar 2024 00:00:00 GMT</Last-Modified>
+					<Etag>0x8CBFF45D8A29A19</Etag><Content-Length>1</Content-Length>
+					<BlobType>BlockBlob</BlobType></Properties></Blob>`, name)
+			}
+
+			var (
+				mtx      sync.Mutex
+				deleted  []string
+				inFlight uint
+				maxSeen  uint
+			)
+			server := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+				switch r.Method {
+				case http.MethodGet:
+					_, _ = w.Write([]byte(`<?xml version="1.0" encoding="utf-8"?>
+						<EnumerationResults><Blobs>` + blobs.String() + `</Blobs><NextMarker /></EnumerationResults>`))
+				case http.MethodDelete:
+					mtx.Lock()
+					inFlight++
+					maxSeen = max(maxSeen, inFlight)
+					mtx.Unlock()
+
+					// Hold the request open so overlapping deletes are observable.
+					time.Sleep(20 * time.Millisecond)
+
+					mtx.Lock()
+					inFlight--
+					deleted = append(deleted, r.URL.Path)
+					mtx.Unlock()
+					w.WriteHeader(http.StatusAccepted)
+				default:
+					w.WriteHeader(http.StatusOK)
+				}
+			})
+
+			_, _, compactor, err := NewNoConfirm(&Config{
+				StorageAccountName: "testing_account",
+				StorageAccountKey:  flagext.SecretWithValue("YQo="),
+				MaxBuffers:         3,
+				BufferSize:         1000,
+				ContainerName:      "blerg",
+				Endpoint:           server.URL[7:], // [7:] -> strip http://
+			})
+			require.NoError(t, err)
+
+			require.NoError(t, compactor.ClearBlock(uuid.MustParse(blockID), tenantID))
+
+			mtx.Lock()
+			defer mtx.Unlock()
+
+			for i := range deleted {
+				deleted[i] = strings.TrimPrefix(deleted[i], "/testing_account")
+			}
+			assert.ElementsMatch(t, want, deleted, "every blob in the block must be deleted exactly once")
+			assert.Greater(t, maxSeen, uint(1), "deletes must be issued concurrently")
+			assert.LessOrEqual(t, maxSeen, tt.wantMax, "concurrency must stay within the bound")
+		})
+	}
 }
