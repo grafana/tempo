@@ -1,0 +1,6 @@
+change_type: enhancement
+component: compactor
+note: Speed up retention so compacted blocks are removed promptly when a tenant has a large compaction backlog.
+issues: []
+subtext:
+user: zhxiaogg
