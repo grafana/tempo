@@ -119,6 +119,12 @@ func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
 		return nil, fmt.Errorf("config is nil")
 	}
 
+	switch cfg.ListObjectsVersion {
+	case "", ListObjectsVersionV1, ListObjectsVersionV2:
+	default:
+		return nil, fmt.Errorf("unsupported s3 list_objects_version %q, supported values are v1 and v2", cfg.ListObjectsVersion)
+	}
+
 	l := log.Logger
 
 	// Global minio settings that affect all minio clients in the process
@@ -393,6 +399,42 @@ func (rw *readerWriter) List(_ context.Context, keypath backend.KeyPath) ([]stri
 	return objects, nil
 }
 
+// listObjects lists one page of objects under prefix using the V1 or V2 S3 list API
+// depending on cfg.ListObjectsVersion (default v2). startAfter bounds the listing from
+// below (sharded listing); token carries the cursor returned by the previous page. It
+// returns the page contents, the cursor for the next page, and whether more pages remain.
+func (rw *readerWriter) listObjects(prefix, startAfter, token string) (contents []minio.ObjectInfo, next string, truncated bool, err error) {
+	if rw.cfg.ListObjectsVersion == ListObjectsVersionV1 {
+		marker := token
+		if marker == "" {
+			marker = startAfter
+		}
+		res, err := rw.core.ListObjects(rw.cfg.Bucket, prefix, marker, "", 0)
+		if err != nil {
+			return nil, "", false, err
+		}
+		next = res.NextMarker
+		truncated = res.IsTruncated
+		// The low-level minio-go Core does not derive NextMarker when the request omits a
+		// delimiter, so fall back to the last key to advance pagination.
+		if next == "" && truncated && len(res.Contents) > 0 {
+			next = res.Contents[len(res.Contents)-1].Key
+		}
+		// If the response is truncated but offers no way to advance the marker (no
+		// NextMarker and an empty page), stop rather than re-issue the same request.
+		if next == "" && truncated {
+			truncated = false
+		}
+		return res.Contents, next, truncated, nil
+	}
+
+	res, err := rw.core.ListObjectsV2(rw.cfg.Bucket, prefix, startAfter, token, "", 0)
+	if err != nil {
+		return nil, "", false, err
+	}
+	return res.Contents, res.NextContinuationToken, res.IsTruncated, nil
+}
+
 func (rw *readerWriter) ListBlocks(
 	ctx context.Context,
 	tenant string,
@@ -427,22 +469,24 @@ func (rw *readerWriter) ListBlocks(
 
 			var (
 				err        error
-				res        minio.ListBucketV2Result
+				contents   []minio.ObjectInfo
+				truncated  = true
+				token      string
 				startAfter = prefix + minUUID.String()
 			)
 
-			for res.IsTruncated = true; res.IsTruncated; {
+			for truncated {
 				if ctx.Err() != nil {
 					return
 				}
 
-				res, err = rw.core.ListObjectsV2(rw.cfg.Bucket, prefix, startAfter, res.NextContinuationToken, "", 0)
+				contents, token, truncated, err = rw.listObjects(prefix, startAfter, token)
 				if err != nil {
 					errChan <- fmt.Errorf("error finding objects in s3 bucket, bucket: %s: %w", rw.cfg.Bucket, err)
 					return
 				}
 
-				for _, c := range res.Contents {
+				for _, c := range contents {
 					// i.e: <blockID>/meta
 					parts := strings.Split(strings.TrimPrefix(c.Key, prefix), "/")
 					if len(parts) != 2 {
@@ -512,23 +556,20 @@ func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f bac
 
 	nextToken := ""
 	isTruncated := true
-	var res minio.ListBucketV2Result
+	var contents []minio.ObjectInfo
 
 	for isTruncated {
 		select {
 		case <-ctx.Done():
 			return
 		default:
-			res, err = rw.core.ListObjectsV2(rw.cfg.Bucket, prefix, "", nextToken, "", 0)
+			contents, nextToken, isTruncated, err = rw.listObjects(prefix, "", nextToken)
 			if err != nil {
 				return fmt.Errorf("error finding objects in s3 bucket, bucket: %s: %w", rw.cfg.Bucket, err)
 			}
 
-			isTruncated = res.IsTruncated
-			nextToken = res.NextContinuationToken
-
-			if len(res.Contents) > 0 {
-				for _, c := range res.Contents {
+			if len(contents) > 0 {
+				for _, c := range contents {
 					opts := backend.FindMatch{
 						Key:      strings.TrimPrefix(c.Key, rw.cfg.Prefix),
 						Modified: c.LastModified,

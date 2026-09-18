@@ -731,6 +731,184 @@ func TestListBlocksWithPrefix(t *testing.T) {
 	}
 }
 
+func TestListObjectsVersion(t *testing.T) {
+	const (
+		tenant   = "single-tenant"
+		liveID   = "00000000-0000-0000-0000-0000000000aa"
+		liveKey  = tenant + "/" + liveID + "/meta.json"
+		compID   = "00000000-0000-0000-0000-0000000000bb"
+		compKey  = tenant + "/" + compID + "/meta.compacted.json"
+		live2ID  = "00000000-0000-0000-0000-0000000000cc"
+		live2Key = tenant + "/" + live2ID + "/meta.json"
+	)
+
+	v1Page := func(truncated bool, nextMarker string, keys ...string) string {
+		var sb strings.Builder
+		sb.WriteString(`<?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Name>blerg</Name>`)
+		if truncated {
+			sb.WriteString(`<IsTruncated>true</IsTruncated>`)
+		} else {
+			sb.WriteString(`<IsTruncated>false</IsTruncated>`)
+		}
+		sb.WriteString(`<NextMarker>` + nextMarker + `</NextMarker>`)
+		for _, k := range keys {
+			sb.WriteString(`<Contents><Key>` + k + `</Key><LastModified>2024-03-01T00:00:00.000Z</LastModified><ETag>&quot;abc&quot;</ETag><Size>398</Size><StorageClass>STANDARD</StorageClass></Contents>`)
+		}
+		sb.WriteString(`</ListBucketResult>`)
+		return sb.String()
+	}
+
+	v2Page := func(keys ...string) string {
+		var sb strings.Builder
+		sb.WriteString(`<?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Name>blerg</Name><IsTruncated>false</IsTruncated>`)
+		for _, k := range keys {
+			sb.WriteString(`<Contents><Key>` + k + `</Key><LastModified>2024-03-01T00:00:00.000Z</LastModified><ETag>&quot;abc&quot;</ETag><Size>398</Size><StorageClass>STANDARD</StorageClass></Contents>`)
+		}
+		sb.WriteString(`</ListBucketResult>`)
+		return sb.String()
+	}
+
+	tests := []struct {
+		name               string
+		listObjectsVersion string
+		liveBlockIDs       []uuid.UUID
+		compactedBlockIDs  []uuid.UUID
+		httpHandler        func(t *testing.T) http.HandlerFunc
+	}{
+		{
+			// (a) default → V2 on the wire
+			name:               "default uses v2",
+			listObjectsVersion: "",
+			liveBlockIDs:       []uuid.UUID{uuid.MustParse(liveID)},
+			compactedBlockIDs:  []uuid.UUID{uuid.MustParse(compID)},
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method != getMethod {
+						return
+					}
+					assert.Equal(t, "2", r.URL.Query().Get("list-type"), "default must use ListObjectsV2 on the wire")
+					_, _ = w.Write([]byte(v2Page(liveKey, compKey)))
+				}
+			},
+		},
+		{
+			// (b) v1 single page → no list-type
+			name:               "v1 single page",
+			listObjectsVersion: ListObjectsVersionV1,
+			liveBlockIDs:       []uuid.UUID{uuid.MustParse(liveID)},
+			compactedBlockIDs:  []uuid.UUID{uuid.MustParse(compID)},
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method != getMethod {
+						return
+					}
+					assert.Equal(t, "", r.URL.Query().Get("list-type"), "v1 must not send list-type")
+					_, _ = w.Write([]byte(v1Page(false, "", liveKey, compKey)))
+				}
+			},
+		},
+		{
+			// (c) v1 truncated two-page → page 2 carries the expected marker
+			name:               "v1 truncated two pages with NextMarker",
+			listObjectsVersion: ListObjectsVersionV1,
+			liveBlockIDs:       []uuid.UUID{uuid.MustParse(liveID), uuid.MustParse(live2ID)},
+			compactedBlockIDs:  []uuid.UUID{},
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				var calls int
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method != getMethod {
+						return
+					}
+					assert.Equal(t, "", r.URL.Query().Get("list-type"), "v1 must not send list-type")
+					calls++
+					if calls == 1 {
+						// page 1: truncated, advertise NextMarker = liveKey
+						_, _ = w.Write([]byte(v1Page(true, liveKey, liveKey)))
+						return
+					}
+					// page 2: must carry the marker advertised by page 1
+					assert.Equal(t, liveKey, r.URL.Query().Get("marker"), "page 2 must use NextMarker from page 1")
+					_, _ = w.Write([]byte(v1Page(false, "", live2Key)))
+				}
+			},
+		},
+		{
+			// (d) v1 truncated with EMPTY NextMarker → terminates via last key
+			name:               "v1 truncated empty NextMarker terminates",
+			listObjectsVersion: ListObjectsVersionV1,
+			liveBlockIDs:       []uuid.UUID{uuid.MustParse(liveID)},
+			compactedBlockIDs:  []uuid.UUID{uuid.MustParse(compID)},
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				var calls int
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method != getMethod {
+						return
+					}
+					assert.Equal(t, "", r.URL.Query().Get("list-type"), "v1 must not send list-type")
+					calls++
+					if calls == 1 {
+						// page 1: truncated, EMPTY NextMarker, single Contents (liveKey)
+						_, _ = w.Write([]byte(v1Page(true, "", liveKey)))
+						return
+					}
+					// page 2: marker must fall back to the last key of page 1
+					assert.Equal(t, liveKey, r.URL.Query().Get("marker"), "page 2 must fall back to last key when NextMarker empty")
+					_, _ = w.Write([]byte(v1Page(false, "", compKey)))
+				}
+			},
+		},
+		{
+			// (e) v1 truncated with empty NextMarker AND empty page → must terminate, not spin
+			name:               "v1 truncated empty page terminates",
+			listObjectsVersion: ListObjectsVersionV1,
+			liveBlockIDs:       []uuid.UUID{},
+			compactedBlockIDs:  []uuid.UUID{},
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				var calls int
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method != getMethod {
+						return
+					}
+					calls++
+					if calls > 1 {
+						// A correct implementation cannot advance the marker on an empty,
+						// NextMarker-less truncated page, so it must stop after page 1.
+						t.Errorf("must not re-request after a non-advancing truncated page (call %d)", calls)
+						_, _ = w.Write([]byte(v1Page(false, "")))
+						return
+					}
+					// page 1: truncated, empty NextMarker, no Contents
+					_, _ = w.Write([]byte(v1Page(true, "")))
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			server := testServer(t, tc.httpHandler(t))
+			r, _, _, err := NewNoConfirm(&Config{
+				Region:                "blerg",
+				AccessKey:             "test",
+				SecretKey:             flagext.SecretWithValue("test"),
+				Bucket:                "blerg",
+				Insecure:              true,
+				Endpoint:              server.URL[7:],
+				ListBlocksConcurrency: 1,
+				ListObjectsVersion:    tc.listObjectsVersion,
+			})
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			blockIDs, compactedBlockIDs, err := r.ListBlocks(ctx, tenant)
+			assert.NoError(t, err)
+
+			assert.ElementsMatchf(t, tc.liveBlockIDs, blockIDs, "Block IDs did not match")
+			assert.ElementsMatchf(t, tc.compactedBlockIDs, compactedBlockIDs, "Compacted block IDs did not match")
+		})
+	}
+}
+
 func TestObjectStorageClass(t *testing.T) {
 	tests := []struct {
 		name         string
