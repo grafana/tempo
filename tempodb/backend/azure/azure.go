@@ -536,22 +536,14 @@ func (rw *Azure) writer(ctx context.Context, src io.Reader, name string) error {
 	return nil
 }
 
-// readRange downloads a byte range of a blob with a single ranged GET and
-// requires destBuffer to be filled exactly.
-//
-// The previous implementation asked for the blob's length with GetProperties and
-// then downloaded into a buffer sized from that answer. Those are two separate
-// requests: an overwrite in between left the buffer sized for one generation and
-// filled from another, with no error. Taking the range straight from the caller
-// and insisting on a full read removes the mismatch instead of detecting it, and
-// matches the GCS and S3 backends. It also drops a request from the hot path -
-// every parquet range read previously paid for a GetProperties first.
+// readRange downloads a byte range in a single ranged GET and requires
+// destBuffer to be filled exactly, as the GCS and S3 backends do.
 func (rw *Azure) readRange(ctx context.Context, name string, offset int64, destBuffer []byte) error {
 	if len(destBuffer) == 0 {
 		return nil
 	}
 
-	blobClient := rw.hedgedContainerClient.NewBlockBlobClient(name)
+	blobClient := rw.hedgedContainerClient.NewBlobClient(name)
 
 	resp, err := blobClient.DownloadStream(ctx, &blob.DownloadStreamOptions{
 		Range: blob.HTTPRange{
@@ -563,9 +555,8 @@ func (rw *Azure) readRange(ctx context.Context, name string, offset int64, destB
 		return err
 	}
 
-	// NewRetryReader resumes a dropped connection with If-Match pinned to the ETag
-	// of the response above, so a reconnect cannot continue against a different
-	// generation of the blob.
+	// A reconnect re-requests with If-Match pinned to the ETag of the response
+	// above, so it cannot continue against a different generation of the blob.
 	body := resp.NewRetryReader(ctx, &blob.RetryReaderOptions{
 		MaxRetries: maxRetries,
 	})
@@ -579,21 +570,12 @@ func (rw *Azure) readRange(ctx context.Context, name string, offset int64, destB
 	return nil
 }
 
-// readAll downloads a whole blob with a single GET. The response carries the
-// content, its length and its ETag together, so the returned bytes and the
-// returned ETag always describe the same generation of the blob, and the buffer
-// can never be sized from a different one.
-//
-// The previous implementation called GetProperties for the length, sized a
-// buffer from it, then filled that buffer with a second request and discarded
-// the number of bytes actually written. An overwrite between the two requests
-// returned corrupt data reported as success: zero padding when the new blob was
-// smaller, a truncated object when it was larger. This is the shape the GCS and
-// S3 backends already use.
+// readAll downloads a whole blob in a single GET. The response carries the
+// content, its length and its ETag together, so the returned bytes and ETag
+// always describe the same generation of the blob.
 func (rw *Azure) readAll(ctx context.Context, name string) ([]byte, azcore.ETag, error) {
-	blobClient := rw.hedgedContainerClient.NewBlockBlobClient(name)
+	blobClient := rw.hedgedContainerClient.NewBlobClient(name)
 
-	// No Range: the whole blob, served from a single generation.
 	resp, err := blobClient.DownloadStream(ctx, &blob.DownloadStreamOptions{})
 	if err != nil {
 		return nil, "", err
@@ -609,8 +591,6 @@ func (rw *Azure) readAll(ctx context.Context, name string) ([]byte, azcore.ETag,
 		size = *resp.ContentLength
 	}
 
-	// ContentLength is an allocation hint only - the read runs to EOF, so a wrong
-	// hint costs a copy, never correctness.
 	buf, err := tempo_io.ReadAllWithEstimate(body, size)
 	if err != nil {
 		return nil, "", fmt.Errorf("reading blob %s: %w", name, err)

@@ -654,11 +654,9 @@ func TestDeleteVersioned_DoesNotDoublePrefix(t *testing.T) {
 		"DELETE key path must contain the configured prefix exactly once")
 }
 
-// TestReadsIssueOneRequest pins the property that makes these reads safe: a read
-// is a single GET, so the bytes and the length that describes them come from the
-// same response and cannot belong to different generations of the blob. A
-// GetProperties call here would mean the buffer is sized by one request and
-// filled by another.
+// TestReadsIssueOneRequest pins the property that makes these reads safe: the
+// bytes and the length describing them come from the same response, so they
+// cannot belong to different generations of the blob.
 func TestReadsIssueOneRequest(t *testing.T) {
 	const body = "some-blob-contents"
 
@@ -707,9 +705,8 @@ func TestReadsIssueOneRequest(t *testing.T) {
 
 				w.Header().Set("ETag", `"etag123"`)
 
-				// Answer a GetProperties truthfully, so that an implementation
-				// which makes one fails on the assertion below and not on a
-				// missing header.
+				// Answer a GetProperties truthfully, so an implementation that
+				// makes one fails on the assertion below, not on a missing header.
 				if r.Method != http.MethodGet {
 					w.Header().Set("Content-Length", strconv.Itoa(len(body)))
 					w.WriteHeader(http.StatusOK)
@@ -751,15 +748,12 @@ func TestReadsIssueOneRequest(t *testing.T) {
 }
 
 // TestReadRangeShortRead asserts a range that cannot be filled is an error
-// rather than a partially-filled buffer. Silently returning the caller's buffer
-// with zeros in the tail is how a mid-read overwrite used to surface as a
-// decode failure much further up the stack.
+// rather than a buffer with zeros in the tail.
 func TestReadRangeShortRead(t *testing.T) {
 	const body = "short"
 
 	// The HEAD answers truthfully: an implementation that sizes the read from
-	// GetProperties would clamp to the real length, fill part of the buffer and
-	// report success, leaving the tail as zeros.
+	// GetProperties clamps to the real length and reports success.
 	server := testServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("ETag", `"etag123"`)
 		w.Header().Set("Content-Length", strconv.Itoa(len(body)))
