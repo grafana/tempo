@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/textproto"
@@ -96,7 +97,7 @@ func TestHedge(t *testing.T) {
 			// calls that should hedge
 			_, _, _ = r.Read(ctx, "object", backend.KeyPathForBlock(uuid.New(), "tenant"), nil)
 			time.Sleep(tc.returnIn)
-			assert.Equal(t, tc.expectedHedgedRequests*2, atomic.LoadInt32(&count)) // *2 b/c reads execute a HEAD and GET
+			assert.Equal(t, tc.expectedHedgedRequests, atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 
 			// this panics with the garbage test setup. todo: make it not panic
@@ -167,6 +168,13 @@ func TestReadError(t *testing.T) {
 	otherAzureError := blobStorageError(string(bloberror.InternalError))
 	err = readError(otherAzureError)
 	require.NotEqual(t, backend.ErrDoesNotExist, err)
+
+	// a failed if-match precondition is a normal read error, not ErrDoesNotExist
+	conditionNotMetError := blobStorageError(string(bloberror.ConditionNotMet))
+	err = readError(conditionNotMetError)
+	require.Error(t, err)
+	require.NotErrorIs(t, err, backend.ErrDoesNotExist)
+	require.ErrorIs(t, err, conditionNotMetError)
 }
 
 func blobStorageError(serviceCode string) error {
@@ -475,12 +483,8 @@ func TestMarkBlockCompacted_DoesNotDoublePrefix(t *testing.T) {
 	var capturedDeletePath string
 	server := testServer(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
-		case http.MethodHead:
-			// readAll calls GetProperties first - SDK requires Content-Length and ETag.
-			w.Header().Set("Content-Length", strconv.Itoa(len(body)))
-			w.Header().Set("ETag", `"etag123"`)
-			w.WriteHeader(http.StatusOK)
 		case http.MethodGet:
+			w.Header().Set("ETag", `"etag123"`)
 			_, _ = w.Write([]byte(body))
 		case http.MethodPut:
 			w.WriteHeader(http.StatusCreated)
@@ -574,10 +578,6 @@ func TestDeleteVersioned_DoesNotDoublePrefix(t *testing.T) {
 	var capturedDeletePath string
 	server := testServer(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
-		case http.MethodHead:
-			w.Header().Set("Content-Length", strconv.Itoa(len(body)))
-			w.Header().Set("ETag", etag)
-			w.WriteHeader(http.StatusOK)
 		case http.MethodGet:
 			w.Header().Set("ETag", etag)
 			_, _ = w.Write([]byte(body))
@@ -603,6 +603,104 @@ func TestDeleteVersioned_DoesNotDoublePrefix(t *testing.T) {
 	require.NoError(t, rw.DeleteVersioned(context.Background(), name, backend.KeyPath{"overrides", "tenant-1"}, backend.Version(etag)))
 	assert.Equal(t, expectedDeletePath, capturedDeletePath,
 		"DELETE key path must contain the configured prefix exactly once")
+}
+
+func TestReadUsesDownloadStream(t *testing.T) {
+	const etag = `"etag123"`
+	// Exceed the former DownloadBuffer block size to verify the full read remains one GET.
+	body := append([]byte("some-blob-contents"), make([]byte, 4*1024*1024)...)
+
+	type request struct {
+		method  string
+		rnge    string
+		ifMatch string
+	}
+
+	requests := make(chan request, 2)
+
+	server := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		requests <- request{
+			method:  r.Method,
+			rnge:    r.Header.Get("x-ms-range"),
+			ifMatch: r.Header.Get("If-Match"),
+		}
+		if r.Method != http.MethodGet {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+
+		w.Header().Set("ETag", etag)
+		w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+		_, _ = w.Write(body)
+	})
+
+	r, _, _, err := NewNoConfirm(&Config{
+		StorageAccountName: "testing_account",
+		StorageAccountKey:  flagext.SecretWithValue("YQo="),
+		MaxBuffers:         3,
+		BufferSize:         1000,
+		ContainerName:      "blerg",
+		Endpoint:           server.URL[7:], // [7:] -> strip http://
+	})
+	require.NoError(t, err)
+
+	reader, _, err := r.Read(context.Background(), "object", backend.KeyPath{"tenant"}, nil)
+	require.NoError(t, err)
+	defer reader.Close()
+
+	gotBody, err := io.ReadAll(reader)
+	require.NoError(t, err)
+	require.True(t, bytes.Equal(body, gotBody))
+
+	gotRequest := <-requests
+	assert.Equal(t, http.MethodGet, gotRequest.method)
+	assert.Empty(t, gotRequest.rnge)
+	assert.Empty(t, gotRequest.ifMatch)
+	select {
+	case extra := <-requests:
+		t.Fatalf("unexpected additional request: %+v", extra)
+	default:
+	}
+}
+
+func TestReadRestartsAfterReadError(t *testing.T) {
+	const body = "some-blob-contents"
+
+	requests := make(chan *http.Request, 2)
+	var getCount int32
+	server := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		requests <- r
+		w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+		if atomic.AddInt32(&getCount, 1) == 1 {
+			_, _ = w.Write([]byte(body[:2]))
+			return
+		}
+		_, _ = w.Write([]byte(body))
+	})
+
+	r, _, _, err := NewNoConfirm(&Config{
+		StorageAccountName: "testing_account",
+		StorageAccountKey:  flagext.SecretWithValue("YQo="),
+		MaxBuffers:         3,
+		BufferSize:         1000,
+		ContainerName:      "blerg",
+		Endpoint:           server.URL[7:], // [7:] -> strip http://
+	})
+	require.NoError(t, err)
+
+	reader, _, err := r.Read(context.Background(), "object", backend.KeyPath{"tenant"}, nil)
+	require.NoError(t, err)
+	defer reader.Close()
+
+	got, err := io.ReadAll(reader)
+	require.NoError(t, err)
+	require.Equal(t, []byte(body), got)
+
+	for range 2 {
+		request := <-requests
+		assert.Empty(t, request.Header.Get("x-ms-range"))
+		assert.Empty(t, request.Header.Get("If-Match"))
+	}
 }
 
 func testServer(t *testing.T, httpHandler http.HandlerFunc) *httptest.Server {
