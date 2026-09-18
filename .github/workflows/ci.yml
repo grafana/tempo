@@ -142,10 +142,35 @@ jobs:
 
           echo "✅ All integration folders are covered by CI"
 
+  build-e2e-images:
+    name: Build e2e test images
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: 'go.mod'
+      - name: Build images
+        run: make docker-tempo docker-tempo-query
+      # every integration-tests matrix job used to rebuild these images from scratch (~2-3min
+      # each, every job, every run) - build once here and share via artifact instead.
+      - name: Save images
+        run: docker save grafana/tempo tempo grafana/tempo-query tempo-query -o /tmp/tempo-e2e-images.tar
+      - name: Upload images
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: tempo-e2e-images
+          path: /tmp/tempo-e2e-images.tar
+          retention-days: 1
+
   integration-tests:
     name: Run integration tests
     runs-on: ubuntu-24.04
-    needs: integration-tests-validation
+    needs: [integration-tests-validation, build-e2e-images]
     strategy:
       fail-fast: false
       matrix:
@@ -174,8 +199,17 @@ jobs:
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: 'go.mod'
+      - name: Download e2e images
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: tempo-e2e-images
+          path: /tmp
+      - name: Load e2e images
+        run: docker load -i /tmp/tempo-e2e-images.tar
       - name: Run Tests
         run: make ${{ matrix.test-target }}
+        env:
+          SKIP_DOCKER_BUILD: "1"
 
   build:
     name: Build

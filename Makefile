@@ -295,9 +295,12 @@ docker-component-debug: check-component exe-debug
 	docker build -t grafana/$(COMPONENT)-debug --build-arg=TARGETARCH=$(GOARCH) -f ./cmd/$(COMPONENT)/Dockerfile_debug .
 	docker tag grafana/$(COMPONENT)-debug $(COMPONENT)-debug
 
-.PHONY: docker-tempo 
+.PHONY: docker-tempo
 docker-tempo: ## Build tempo docker image
+# CI builds this once and loads it via docker load, then sets SKIP_DOCKER_BUILD=1 so the matrix doesn't rebuild it in every job.
+ifneq ($(SKIP_DOCKER_BUILD),1)
 	COMPONENT=tempo make docker-component
+endif
 
 .PHONY: docker-tempo-multi
 docker-tempo-multi: ## Build multiarch image locally, requires containerd image store
@@ -312,7 +315,9 @@ docker-tempo-cli: ## Build tempo cli docker image
 
 .PHONY: docker-tempo-query
 docker-tempo-query: ## Build tempo query docker image
+ifneq ($(SKIP_DOCKER_BUILD),1)
 	COMPONENT=tempo-query make docker-component
+endif
 
 .PHONY: docker-tempo-vulture
 docker-tempo-vulture: ## Build tempo vulture docker image
