@@ -1,0 +1,5 @@
+change_type: feature
+component: tempo-cli
+note: Add `tempo-cli benchmark run` to measure read-path queries against a block using a profile from `benchmark profile`.
+issues: []
+user: zhxiaogg

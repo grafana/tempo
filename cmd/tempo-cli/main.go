@@ -58,6 +58,7 @@ var cli struct {
 
 	Benchmark struct {
 		Profile benchmarkProfileCmd `cmd:"" help:"Profile a block for read-path benchmarking"`
+		Run     benchmarkRunCmd     `cmd:"" help:"Run read-path benchmark queries against a block"`
 	} `cmd:""`
 
 	Gen struct {
