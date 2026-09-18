@@ -49,6 +49,7 @@ The agent walks you through five stages interactively: learn the feature, plan t
 | Review changed doc files | `/docs-review` |
 | Write docs from scratch | `writer-agent.md` with `style-guide.md` |
 | Create release notes | Follow `release-notes-workflow.md` |
+| Consolidate a release changelog | Use [`release-consolidation`](../.claude/skills/release-consolidation/SKILL.md) |
 
 ## Your responsibilities
 

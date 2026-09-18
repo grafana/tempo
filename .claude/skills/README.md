@@ -13,6 +13,7 @@ AI skills for documentation and maintenance workflows in the Tempo repository. F
 | Audience fit | `/persona-check` | Check whether content matches its intended audience |
 | Vendor conflicts | `/fix-vendor-conflicts` | Resolve `vendor/` conflicts during a merge, rebase, or dependency upgrade |
 | Go version update | `/update-go-version` | Update Go version across go.mod, Dockerfile, CI workflows, and tools |
+| Release consolidation | `/release-consolidation` | Consolidate release changelog entries while preserving references, credits, security fixes, and upgrade guidance |
 | SemBr reformat | `/sembr-reformat` | Reformat prose with [Semantic Line Breaks](https://sembr.org) without changing rendered output |
 
 ## Set up
@@ -54,6 +55,16 @@ Use `/docs-workflow` to run the full pipeline, or invoke each step individually.
 - *Vendor conflicts* — `/fix-vendor-conflicts`. Resolve `vendor/` directory conflicts during a merge, rebase, or dependency upgrade on main or release branches.
 
 - *Go version update* — `/update-go-version`. Update the Go version across all relevant files: `go.mod`, `tools/go.mod`, Dockerfile, CI workflows, and the tools image tag.
+
+- *Release consolidation* — `/release-consolidation`.
+  Review pending entries or an existing release-prep PR,
+  propose final-state descriptions,
+  and apply approved source edits before regenerating the changelog.
+  Preserve PR references, contributor credits, vulnerability identifiers,
+  and upgrade instructions.
+  Requires human review and never merges or publishes.
+  See [the skill](release-consolidation/SKILL.md)
+  and its [evaluation cases](release-consolidation/evals/evals.json).
 
 - *SemBr reformat* — `/sembr-reformat`.
   Reformat prose using [Semantic Line Breaks](https://sembr.org)
