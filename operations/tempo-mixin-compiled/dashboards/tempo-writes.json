@@ -677,13 +677,169 @@
 
         ]
        },
-       "unit": "ops"
+       "unit": "ms"
       },
       "overrides": [
 
       ]
      },
      "id": 10,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
+     "span": 6,
+     "targets": [
+      {
+       "expr": "topk(10, histogram_quantile(0.99, sum by (le, tenant) (rate(tempo_distributor_push_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval])))) * 1e3",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{tenant}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Push duration by tenant (top 10, p99)",
+     "type": "timeseries",
+     "yaxes": [
+      {
+       "format": "ms",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
+    },
+    {
+     "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "bytes"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 11,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
+     "span": 6,
+     "targets": [
+      {
+       "expr": "topk(10, histogram_quantile(0.99, sum by (le, tenant) (rate(tempo_distributor_push_bytes_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval]))))",
+       "format": "time_series",
+       "interval": "1m",
+       "legendFormat": "{{tenant}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Push size by tenant (top 10, p99)",
+     "type": "timeseries",
+     "yaxes": [
+      {
+       "format": "bytes",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
+    }
+   ],
+   "repeat": null,
+   "repeatIteration": null,
+   "repeatRowId": null,
+   "showTitle": true,
+   "title": "",
+   "titleSize": "h6"
+  },
+  {
+   "collapse": false,
+   "height": "250px",
+   "panels": [
+    {
+     "datasource": "$datasource",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "ops"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 12,
      "links": [
 
      ],
@@ -744,7 +900,7 @@
 
       ]
      },
-     "id": 11,
+     "id": 13,
      "links": [
 
      ],
@@ -810,7 +966,7 @@
 
       ]
      },
-     "id": 12,
+     "id": 14,
      "links": [
 
      ],
@@ -864,7 +1020,7 @@
 
       ]
      },
-     "id": 13,
+     "id": 15,
      "links": [
 
      ],
@@ -930,7 +1086,7 @@
 
       ]
      },
-     "id": 14,
+     "id": 16,
      "links": [
 
      ],
@@ -1002,7 +1158,7 @@
 
       ]
      },
-     "id": 15,
+     "id": 17,
      "links": [
 
      ],
@@ -1111,7 +1267,7 @@
       ]
      },
      "fill": 10,
-     "id": 16,
+     "id": 18,
      "linewidth": 0,
      "links": [
 
@@ -1167,7 +1323,7 @@
 
       ]
      },
-     "id": 17,
+     "id": 19,
      "links": [
 
      ],
@@ -1283,7 +1439,7 @@
       ]
      },
      "fill": 10,
-     "id": 18,
+     "id": 20,
      "linewidth": 0,
      "links": [
 
@@ -1339,7 +1495,7 @@
 
       ]
      },
-     "id": 19,
+     "id": 21,
      "links": [
 
      ],

@@ -121,6 +121,29 @@ dashboard_utils {
       .addRow(
         g.row('')
         .addPanel(
+          $.panel('Push duration by tenant (top 10, p99)') +
+          $.queryPanel(
+            'topk(10, histogram_quantile(0.99, sum by (le, tenant) (rate(tempo_distributor_push_duration_seconds_bucket{%s}[$__rate_interval])))) * 1e3' % $.jobMatcher($._config.jobs.distributor),
+            '{{tenant}}'
+          ) + {
+            yaxes: $.yaxes('ms'),
+            fieldConfig+: { defaults+: { unit: 'ms' } },
+          }
+        )
+        .addPanel(
+          $.panel('Push size by tenant (top 10, p99)') +
+          $.queryPanel(
+            'topk(10, histogram_quantile(0.99, sum by (le, tenant) (rate(tempo_distributor_push_bytes_bucket{%s}[$__rate_interval]))))' % $.jobMatcher($._config.jobs.distributor),
+            '{{tenant}}'
+          ) + {
+            yaxes: $.yaxes('bytes'),
+            fieldConfig+: { defaults+: { unit: 'bytes' } },
+          }
+        )
+      )
+      .addRow(
+        g.row('')
+        .addPanel(
           $.panel('Receiver spans / sec') +
           $.queryPanel('sum(rate(tempo_receiver_accepted_spans{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'accepted') +
           $.queryPanel('sum(rate(tempo_receiver_refused_spans{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'refused') +
