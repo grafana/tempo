@@ -432,7 +432,7 @@ func TestMetricsGeneratorMessagingSystemLatencyHistogramEnabled(t *testing.T) {
 			if _, ok := metricFamilies["traces_service_graph_request_messaging_system_seconds_bucket"]; ok {
 				break
 			}
-			time.Sleep(30 * time.Second)
+			time.Sleep(time.Second)
 		}
 
 		// Check that the metric exists and has a non-zero count
