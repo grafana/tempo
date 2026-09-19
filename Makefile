@@ -31,7 +31,7 @@ ALL_SRC := $(shell find . -name '*.go' \
 								-not -path './integration/*' \
                                 -type f | sort)
 
-# ALL_SRC but without pkg, tempodb, and generator packages
+# ALL_SRC but without pkg, tempodb, generator, livestore, and blockbuilder packages
 OTHERS_SRC := $(shell find . -name '*.go' \
 								-not -path './tools*/*' \
 								-not -path './vendor*/*' \
@@ -39,6 +39,8 @@ OTHERS_SRC := $(shell find . -name '*.go' \
 								-not -path './pkg*/*' \
 								-not -path './tempodb*/*' \
 								-not -path './modules/generator*/*' \
+								-not -path './modules/livestore*/*' \
+								-not -path './modules/blockbuilder*/*' \
                                 -type f | sort)
 
 # All source code and documents. Used in spell check.
@@ -172,7 +174,19 @@ test-with-cover-generator: tools ## Run metrics-generator tests with code covera
 	mkdir -p $(COVERAGE_DIR)
 	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/generator.out $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './modules/generator*/*' -type f | sort))))
 
-# all other tests (excluding pkg, tempodb & generator)
+# tests in modules/livestore
+.PHONY: test-with-cover-livestore
+test-with-cover-livestore: tools ## Run livestore tests with code coverage
+	mkdir -p $(COVERAGE_DIR)
+	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/livestore.out $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './modules/livestore*/*' -type f | sort))))
+
+# tests in modules/blockbuilder
+.PHONY: test-with-cover-blockbuilder
+test-with-cover-blockbuilder: tools ## Run blockbuilder tests with code coverage
+	mkdir -p $(COVERAGE_DIR)
+	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/blockbuilder.out $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './modules/blockbuilder*/*' -type f | sort))))
+
+# all other tests (excluding pkg, tempodb, generator, livestore & blockbuilder)
 .PHONY: test-with-cover-others
 test-with-cover-others: tools ## Run other tests with code coverage
 	mkdir -p $(COVERAGE_DIR)

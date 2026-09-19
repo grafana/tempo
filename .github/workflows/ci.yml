@@ -72,6 +72,8 @@ jobs:
             test-with-cover-tempodb-wal,
             test-with-cover-tempodb-encoding,
             test-with-cover-generator,
+            test-with-cover-livestore,
+            test-with-cover-blockbuilder,
             test-with-cover-others,
           ]
 
