@@ -87,6 +87,31 @@ jobs:
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: 'go.mod'
+          # cache managed below instead: setup-go keys on go.sum alone, so once that key
+          # exists it never re-saves and the -race build output never gets cached.
+          cache: false
+
+      - name: Get year and week number
+        id: get-year-week-number
+        run: echo "date=$(date +"%Yweek%U")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Go modules
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ~/go/pkg/mod
+          key: gomod-${{ runner.os }}-${{ hashFiles('go.sum', 'tools/go.sum') }}
+
+      - name: Cache Go build output
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          # one cache shared by the whole matrix: a -race build cache is ~1.1GB per target, so
+          # per-target caches would blow the 10GB repo limit. Targets overlap heavily anyway.
+          # Rotated weekly so the saved cache keeps up with the code instead of freezing.
+          path: ~/.cache/go-build
+          key: gobuild-${{ runner.os }}-unit-${{ steps.get-year-week-number.outputs.date }}-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            gobuild-${{ runner.os }}-unit-${{ steps.get-year-week-number.outputs.date }}-
+            gobuild-${{ runner.os }}-unit-
 
       - name: Run Tests
         run: make ${{ matrix.test-target }}
@@ -201,6 +226,24 @@ jobs:
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: 'go.mod'
+          # cache managed below instead, see the unit-tests job
+          cache: false
+      - name: Get year and week number
+        id: get-year-week-number
+        run: echo "date=$(date +"%Yweek%U")" >> "$GITHUB_OUTPUT"
+      - name: Cache Go modules
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ~/go/pkg/mod
+          key: gomod-${{ runner.os }}-${{ hashFiles('go.sum', 'tools/go.sum') }}
+      - name: Cache Go build output
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ~/.cache/go-build
+          key: gobuild-${{ runner.os }}-e2e-${{ steps.get-year-week-number.outputs.date }}-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            gobuild-${{ runner.os }}-e2e-${{ steps.get-year-week-number.outputs.date }}-
+            gobuild-${{ runner.os }}-e2e-
       - name: Download e2e images
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
