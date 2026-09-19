@@ -140,55 +140,55 @@ benchmark: tools ## Run benchmarks
 
 # Not used in CI, tests are split in pkg, tempodb, tempodb-wal and others in CI jobs
 .PHONY: test-with-cover
-test-with-cover: tools ## Run tests with code coverage
+test-with-cover: tools-test ## Run tests with code coverage
 	mkdir -p $(COVERAGE_DIR)
 	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/all.out $(ALL_PKGS)
 
 # tests in pkg
 .PHONY: test-with-cover-pkg
-test-with-cover-pkg: tools  ## Run Tempo packages' tests with code coverage
+test-with-cover-pkg: tools-test  ## Run Tempo packages' tests with code coverage
 	mkdir -p $(COVERAGE_DIR)
 	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/pkg.out $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './pkg*/*' -type f | sort))))
 
 # tests in tempodb (excluding tempodb/wal and tempodb/encoding/vparquet*)
 .PHONY: test-with-cover-tempodb
-test-with-cover-tempodb: tools ## Run tempodb tests with code coverage
+test-with-cover-tempodb: tools-test ## Run tempodb tests with code coverage
 	mkdir -p $(COVERAGE_DIR)
 	GOMEMLIMIT=6GiB $(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/tempodb.out $(shell go list $(sort $(dir $(shell find . -name '*.go'  -not -path './tempodb/wal*/*' -not -path './tempodb/encoding/vparquet*/*' -path './tempodb*/*' -type f | sort))))
 
 # tests in tempodb/wal
 .PHONY: test-with-cover-tempodb-wal
-test-with-cover-tempodb-wal: tools  ## Test tempodb/wal with code coverage
+test-with-cover-tempodb-wal: tools-test  ## Test tempodb/wal with code coverage
 	mkdir -p $(COVERAGE_DIR)
 	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/tempodb-wal.out $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './tempodb/wal*/*' -type f | sort))))
 
 # tests in tempodb/encoding/vparquet3, vparquet4, vparquet5
 .PHONY: test-with-cover-tempodb-encoding
-test-with-cover-tempodb-encoding: tools ## Run tempodb vparquet encoding tests with code coverage
+test-with-cover-tempodb-encoding: tools-test ## Run tempodb vparquet encoding tests with code coverage
 	mkdir -p $(COVERAGE_DIR)
 	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/tempodb-encoding.out $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './tempodb/encoding/vparquet*/*' -type f | sort))))
 
 # tests in modules/generator (metrics-generator)
 .PHONY: test-with-cover-generator
-test-with-cover-generator: tools ## Run metrics-generator tests with code coverage
+test-with-cover-generator: tools-test ## Run metrics-generator tests with code coverage
 	mkdir -p $(COVERAGE_DIR)
 	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/generator.out $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './modules/generator*/*' -type f | sort))))
 
 # tests in modules/livestore
 .PHONY: test-with-cover-livestore
-test-with-cover-livestore: tools ## Run livestore tests with code coverage
+test-with-cover-livestore: tools-test ## Run livestore tests with code coverage
 	mkdir -p $(COVERAGE_DIR)
 	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/livestore.out $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './modules/livestore*/*' -type f | sort))))
 
 # tests in modules/blockbuilder
 .PHONY: test-with-cover-blockbuilder
-test-with-cover-blockbuilder: tools ## Run blockbuilder tests with code coverage
+test-with-cover-blockbuilder: tools-test ## Run blockbuilder tests with code coverage
 	mkdir -p $(COVERAGE_DIR)
 	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/blockbuilder.out $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './modules/blockbuilder*/*' -type f | sort))))
 
 # all other tests (excluding pkg, tempodb, generator, livestore & blockbuilder)
 .PHONY: test-with-cover-others
-test-with-cover-others: tools ## Run other tests with code coverage
+test-with-cover-others: tools-test ## Run other tests with code coverage
 	mkdir -p $(COVERAGE_DIR)
 	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/others.out $(shell go list $(sort $(dir $(OTHERS_SRC))))
 
@@ -196,53 +196,53 @@ test-with-cover-others: tools ## Run other tests with code coverage
 
 # runs e2e tests in the top level integration/e2e directory
 .PHONY: test-e2e
-test-e2e: tools docker-tempo docker-tempo-query test-e2e-operations test-e2e-api-search test-e2e-api-metrics test-e2e-api-overrides test-e2e-api-misc test-e2e-api-tracebyid test-e2e-limits test-e2e-metrics-generator test-e2e-storage test-e2e-util ## Run all e2e tests
+test-e2e: tools-test docker-tempo docker-tempo-query test-e2e-operations test-e2e-api-search test-e2e-api-metrics test-e2e-api-overrides test-e2e-api-misc test-e2e-api-tracebyid test-e2e-limits test-e2e-metrics-generator test-e2e-storage test-e2e-util ## Run all e2e tests
 	@echo "All e2e tests completed"
 
 # runs only operations e2e tests
 .PHONY: test-e2e-operations
-test-e2e-operations: tools docker-tempo docker-tempo-query ## Run operations e2e tests
+test-e2e-operations: tools-test docker-tempo docker-tempo-query ## Run operations e2e tests
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/operations
 
 # runs api e2e tests, split by area (see integration/api/*)
 .PHONY: test-e2e-api-search
-test-e2e-api-search: tools docker-tempo docker-tempo-query ## Run api multi-tenant search/tag e2e tests
+test-e2e-api-search: tools-test docker-tempo docker-tempo-query ## Run api multi-tenant search/tag e2e tests
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/api/search
 
 .PHONY: test-e2e-api-metrics
-test-e2e-api-metrics: tools docker-tempo docker-tempo-query ## Run api query-range e2e tests
+test-e2e-api-metrics: tools-test docker-tempo docker-tempo-query ## Run api query-range e2e tests
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/api/metrics
 
 .PHONY: test-e2e-api-overrides
-test-e2e-api-overrides: tools docker-tempo docker-tempo-query ## Run api overrides CRUD e2e tests
+test-e2e-api-overrides: tools-test docker-tempo docker-tempo-query ## Run api overrides CRUD e2e tests
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/api/overrides
 
 .PHONY: test-e2e-api-misc
-test-e2e-api-misc: tools docker-tempo docker-tempo-query ## Run api mcp/status e2e tests
+test-e2e-api-misc: tools-test docker-tempo docker-tempo-query ## Run api mcp/status e2e tests
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/api/misc
 
 .PHONY: test-e2e-api-tracebyid
-test-e2e-api-tracebyid: tools docker-tempo docker-tempo-query ## Run api trace-by-id/trace-diff/span-pruning e2e tests
+test-e2e-api-tracebyid: tools-test docker-tempo docker-tempo-query ## Run api trace-by-id/trace-diff/span-pruning e2e tests
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/api/tracebyid
 
 ## runs only poller integration tests
 .PHONY: test-e2e-limits
-test-e2e-limits: tools tools docker-tempo ## Run limits e2e tests
+test-e2e-limits: tools-test docker-tempo ## Run limits e2e tests
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/limits
 
 # runs only metrics-generator integration tests
 .PHONY: test-e2e-metrics-generator
-test-e2e-metrics-generator: tools docker-tempo ## Run metrics-generator e2e tests
+test-e2e-metrics-generator: tools-test docker-tempo ## Run metrics-generator e2e tests
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/metrics-generator
 
 # runs only ingest integration tests
 .PHONY: test-e2e-storage
-test-e2e-storage: tools docker-tempo ## Run storage e2e tests
+test-e2e-storage: tools-test docker-tempo ## Run storage e2e tests
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/storage
 
 # runs only ingest integration tests
 .PHONY: test-e2e-util
-test-e2e-util: tools docker-tempo ## Run unit tests on the e2e test harness
+test-e2e-util: tools-test docker-tempo ## Run unit tests on the e2e test harness
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/util
 
 # test-all use a docker image so build it first to make sure we're up to date
