@@ -56,6 +56,11 @@ var cli struct {
 		Schema viewSchemaCmd `cmd:"" help:"View parquet schema"`
 	} `cmd:""`
 
+	Benchmark struct {
+		Profile benchmarkProfileCmd `cmd:"" help:"Profile a block for read-path benchmarking"`
+		Run     benchmarkRunCmd     `cmd:"" help:"Run read-path benchmark queries against a block"`
+	} `cmd:""`
+
 	Gen struct {
 		AttrIndex attrIndexCmd `cmd:"" help:"Generate an attribute index for a parquet block (EXPERIMENTAL)"`
 	} `cmd:""`

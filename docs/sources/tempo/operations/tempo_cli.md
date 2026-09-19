@@ -487,6 +487,85 @@ Example:
 tempo-cli view schema -c ./tempo.yaml single-tenant ca314fba-efec-4852-ba3f-8d2b0bbf69f1
 ```
 
+## Benchmark profile
+
+Profile a local block for read-path benchmarking. Writes a JSON file recording
+what had to be measured from the block — its metadata, its row-group count, and
+present and absent trace IDs to look up — so that a benchmark run does not have
+to inspect the block, and every variant of an experiment works from the same
+measurements.
+
+```bash
+tempo-cli benchmark profile <block-path>
+```
+
+Arguments:
+
+- `block-path` Path to the block directory on local disk, laid out as
+  `<bucket>/<tenant-id>/<block-id>`.
+
+Options:
+
+- `--trace-ids` Number of present trace IDs to sample, or `all` to enumerate
+  every ID at run time rather than embedding them. Defaults to `10000`. One
+  absent ID is derived per present ID. Pass `0` to skip trace IDs, and with them
+  the full scan they require.
+- `-o`, `--out` File to write the profile to. Defaults to stdout.
+
+Profiles built from a customer block embed real trace IDs. Treat them as local
+artifacts.
+
+Example:
+
+```bash
+tempo-cli benchmark profile /data/traces/single-tenant/ca314fba-efec-4852-ba3f-8d2b0bbf69f1 --trace-ids=10000 -o profile.json
+```
+
+## Benchmark run
+
+Run read-path benchmark queries against a local block and write the measurements
+as JSON. Takes a profile from `benchmark profile`, so the run does not inspect
+the block and every variant of an experiment measures the same queries.
+
+```bash
+tempo-cli benchmark run <block-path> -p <profile.json>
+```
+
+Arguments:
+
+- `block-path` Path to the block directory on local disk, laid out as
+  `<bucket>/<tenant-id>/<block-id>`.
+
+Options:
+
+- `-p`, `--profile` Profile of the block, from `benchmark profile`. Required.
+- `-o`, `--out` File to write the result to. Defaults to stdout.
+- `--repeat` Passes over the query set. Defaults to `1`.
+- `--warmup` Passes to run and discard first. Defaults to `0`.
+- `--max-samples` Per-case latency samples to keep. Defaults to `10000`.
+- `--target-bytes-per-request` Bytes per search shard, mirroring the query
+  frontend option of the same name. Defaults to `100MiB`.
+- `--search-limit` Traces a search returns per shard. Defaults to `20`.
+- `--read-buffer-size`, `--read-buffer-count`, `--chunk-size-bytes`,
+  `--prefetch-trace-count` Storage read options. Each defaults to `0`, meaning
+  Tempo's default. These are the knobs an experiment varies.
+
+The result records per-case latency percentiles and totals for CPU time,
+allocations, inspected bytes and spans, and object-store reads. It also records
+how many results each case matched: two runs are only comparable if those agree,
+so a difference means the comparison is invalid rather than interesting.
+
+A case that fails is recorded with its error and the rest of the run continues.
+Benchmarking trace lookups reads the block's bloom filters, so a partial block
+copy without them can still be profiled but only its search cases will run.
+
+Example:
+
+```bash
+tempo-cli benchmark profile /data/traces/single-tenant/ca314fba-efec-4852-ba3f-8d2b0bbf69f1 -o profile.json
+tempo-cli benchmark run /data/traces/single-tenant/ca314fba-efec-4852-ba3f-8d2b0bbf69f1 -p profile.json -o result.json
+```
+
 ## Query search command
 
 Search blocks in a given time range for a specific key/value pair.
