@@ -841,6 +841,8 @@ func defaultConfig(t testing.TB, tmpDir string) Config {
 	cfg.IngestConfig.Kafka.Address = kafkaAddr
 	cfg.IngestConfig.Kafka.Topic = testTopic
 	cfg.IngestConfig.Kafka.ConsumerGroup = "test-consumer-group"
+	// at the default 10s this costs ~10s per live store shutdown, which dominates this package's runtime
+	cfg.IngestConfig.Kafka.SetMetadataAges(10*time.Millisecond, 100*time.Millisecond)
 
 	cfg.holdAllBackgroundProcesses = true // note that the default testing live store disables background processes so we can deterministically run tests
 

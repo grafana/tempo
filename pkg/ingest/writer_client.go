@@ -116,6 +116,8 @@ func (o onlySampledTraces) Inject(ctx context.Context, carrier propagation.TextM
 }
 
 func commonKafkaClientOptions(cfg KafkaConfig, metrics *kprom.Metrics, logger log.Logger) ([]kgo.Opt, error) {
+	metadataMinAge, metadataMaxAge := cfg.metadataAges()
+
 	opts := []kgo.Opt{
 		kgo.ClientID(cfg.ClientID),
 		kgo.SeedBrokers(cfg.Address),
@@ -139,8 +141,8 @@ func commonKafkaClientOptions(cfg KafkaConfig, metrics *kprom.Metrics, logger lo
 		//
 		// We currently set min and max age to the same value to have constant load on the Kafka backend: regardless
 		// there are errors or not, the metadata requests frequency doesn't change.
-		kgo.MetadataMinAge(10 * time.Second),
-		kgo.MetadataMaxAge(10 * time.Second),
+		kgo.MetadataMinAge(metadataMinAge),
+		kgo.MetadataMaxAge(metadataMaxAge),
 
 		kgo.WithLogger(newLogger(logger)),
 
