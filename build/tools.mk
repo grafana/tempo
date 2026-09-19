@@ -43,6 +43,12 @@ tools:
 	@cd $(TOOL_DIR) && $(GO) install tool
 	@cd $(TOOL_DIR) && $(VENDOR_CMD)
 
+# Test targets only need gotestsum. Depending on `tools` made every CI test job build the
+# whole toolchain, golangci-lint included, which adds major overhead per CI job.
+tools-test:
+	@echo "=== [ tools-test       ]: Installing test tools..."
+	@cd $(TOOL_DIR) && $(GO) install gotest.tools/gotestsum
+
 tools-outdated:
 	@echo "=== [ tools-outdated   ]: Finding outdated tool deps with $(GO_MOD_OUTDATED)..."
 	@cd $(TOOL_DIR) && $(GO) list -u -m -json all | $(GO_MOD_OUTDATED) -update
@@ -52,7 +58,7 @@ tools-update:
 	@cd $(TOOL_DIR) && $(GO) get -u tool
 	@cd $(TOOL_DIR) && $(VENDOR_CMD)
 
-.PHONY: tools tools-update tools-outdated
+.PHONY: tools tools-test tools-update tools-outdated
 
 .PHONY: tools-update-mod
 tools-update-mod:
