@@ -18,6 +18,7 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"go.yaml.in/yaml/v2"
 
 	"github.com/grafana/tempo/pkg/sharedconfig"
@@ -853,6 +854,8 @@ func createAndInitializeRuntimeOverridesManager(t *testing.T, defaultLimits Over
 }
 
 func TestRuntimeConfigOverrides_retriesTransientLoadFailure(t *testing.T) {
+	leakOpts := goleak.IgnoreCurrent()
+
 	overridesFile := filepath.Join(t.TempDir(), "Overrides.yaml")
 	cfg := Config{
 		PerTenantOverrideConfig: overridesFile,
@@ -885,9 +888,12 @@ func TestRuntimeConfigOverrides_retriesTransientLoadFailure(t *testing.T) {
 	require.NoError(t, <-errCh)
 	require.Equal(t, services.Running, overrides.State())
 	require.NoError(t, services.StopAndAwaitTerminated(context.Background(), overrides))
+	goleak.VerifyNone(t, leakOpts)
 }
 
 func TestRuntimeConfigOverrides_retriesAfterMetricsRegistered(t *testing.T) {
+	leakOpts := goleak.IgnoreCurrent()
+
 	overridesFile := filepath.Join(t.TempDir(), "Overrides.yaml")
 	require.NoError(t, os.WriteFile(overridesFile, []byte("not: valid: {{{"), 0o700))
 
@@ -922,9 +928,12 @@ func TestRuntimeConfigOverrides_retriesAfterMetricsRegistered(t *testing.T) {
 	require.NoError(t, <-errCh)
 	require.Equal(t, services.Running, overrides.State())
 	require.NoError(t, services.StopAndAwaitTerminated(context.Background(), overrides))
+	goleak.VerifyNone(t, leakOpts)
 }
 
 func TestRuntimeConfigOverrides_retryStopsWhenContextCanceled(t *testing.T) {
+	leakOpts := goleak.IgnoreCurrent()
+
 	overridesFile := filepath.Join(t.TempDir(), "Overrides.yaml")
 	cfg := Config{
 		PerTenantOverrideConfig: overridesFile,
@@ -941,6 +950,7 @@ func TestRuntimeConfigOverrides_retryStopsWhenContextCanceled(t *testing.T) {
 	err = services.StartAndAwaitRunning(ctx, overrides)
 	require.Error(t, err)
 	require.NotEqual(t, services.Running, overrides.State())
+	goleak.VerifyNone(t, leakOpts)
 }
 
 func toYamlBytes(t *testing.T, perTenantOverrides *perTenantOverrides) []byte {
