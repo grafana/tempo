@@ -852,6 +852,97 @@ func createAndInitializeRuntimeOverridesManager(t *testing.T, defaultLimits Over
 	}
 }
 
+func TestRuntimeConfigOverrides_retriesTransientLoadFailure(t *testing.T) {
+	overridesFile := filepath.Join(t.TempDir(), "Overrides.yaml")
+	cfg := Config{
+		PerTenantOverrideConfig: overridesFile,
+		PerTenantOverridePeriod: model.Duration(time.Hour),
+	}
+
+	prometheus.DefaultRegisterer = prometheus.NewRegistry()
+	overrides, err := newRuntimeConfigOverrides(cfg, &mockValidator{}, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- services.StartAndAwaitRunning(ctx, overrides)
+	}()
+
+	require.Eventually(t, func() bool {
+		return overrides.State() == services.Starting
+	}, 2*time.Second, 20*time.Millisecond)
+
+	good := toYamlBytes(t, &perTenantOverrides{
+		TenantLimits: map[string]*Overrides{
+			"user1": {},
+		},
+	})
+	require.NoError(t, os.WriteFile(overridesFile, good, 0o700))
+
+	require.NoError(t, <-errCh)
+	require.Equal(t, services.Running, overrides.State())
+	require.NoError(t, services.StopAndAwaitTerminated(context.Background(), overrides))
+}
+
+func TestRuntimeConfigOverrides_retriesAfterMetricsRegistered(t *testing.T) {
+	overridesFile := filepath.Join(t.TempDir(), "Overrides.yaml")
+	require.NoError(t, os.WriteFile(overridesFile, []byte("not: valid: {{{"), 0o700))
+
+	cfg := Config{
+		PerTenantOverrideConfig: overridesFile,
+		PerTenantOverridePeriod: model.Duration(time.Hour),
+	}
+
+	reg := prometheus.NewRegistry()
+	overrides, err := newRuntimeConfigOverrides(cfg, &mockValidator{}, reg)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- services.StartAndAwaitRunning(ctx, overrides)
+	}()
+
+	require.Eventually(t, func() bool {
+		return overrides.State() == services.Starting
+	}, 2*time.Second, 20*time.Millisecond)
+
+	good := toYamlBytes(t, &perTenantOverrides{
+		TenantLimits: map[string]*Overrides{
+			"user1": {},
+		},
+	})
+	require.NoError(t, os.WriteFile(overridesFile, good, 0o700))
+
+	require.NoError(t, <-errCh)
+	require.Equal(t, services.Running, overrides.State())
+	require.NoError(t, services.StopAndAwaitTerminated(context.Background(), overrides))
+}
+
+func TestRuntimeConfigOverrides_retryStopsWhenContextCanceled(t *testing.T) {
+	overridesFile := filepath.Join(t.TempDir(), "Overrides.yaml")
+	cfg := Config{
+		PerTenantOverrideConfig: overridesFile,
+		PerTenantOverridePeriod: model.Duration(time.Hour),
+	}
+
+	prometheus.DefaultRegisterer = prometheus.NewRegistry()
+	overrides, err := newRuntimeConfigOverrides(cfg, &mockValidator{}, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
+	defer cancel()
+
+	err = services.StartAndAwaitRunning(ctx, overrides)
+	require.Error(t, err)
+	require.NotEqual(t, services.Running, overrides.State())
+}
+
 func toYamlBytes(t *testing.T, perTenantOverrides *perTenantOverrides) []byte {
 	buff, err := yaml.Marshal(perTenantOverrides)
 	require.NoError(t, err)

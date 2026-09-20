@@ -12,6 +12,7 @@ import (
 
 	"github.com/drone/envsubst"
 	"github.com/go-kit/log/level"
+	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/dskit/runtimeconfig"
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
@@ -107,6 +108,9 @@ func loadPerTenantOverrides(validator Validator, typ ConfigType, expandEnv bool,
 		if err := decoder.Decode(&overrides); err != nil {
 			return nil, err
 		}
+		if overrides == nil {
+			overrides = &perTenantOverrides{}
+		}
 
 		if overrides.ConfigType == ConfigTypeLegacy {
 			// Log periodically (every 10 mins) and not every reload, so the warning stays visible in recent logs
@@ -164,42 +168,27 @@ type runtimeConfigOverridesManager struct {
 	// Manager for subservices
 	subservices        *services.Manager
 	subservicesWatcher *services.FailureWatcher
+
+	cfg        Config
+	validator  Validator
+	registerer prometheus.Registerer
 }
+
+const (
+	runtimeConfigRetryMin         = 200 * time.Millisecond
+	runtimeConfigRetryMax         = 5 * time.Second
+	runtimeConfigRetryMaxAttempts = 10
+)
 
 var _ Interface = (*runtimeConfigOverridesManager)(nil)
 
 func newRuntimeConfigOverrides(cfg Config, validator Validator, registerer prometheus.Registerer) (Service, error) {
-	var manager *runtimeconfig.Manager
-	subservices := []services.Service(nil)
-
-	if cfg.PerTenantOverrideConfig != "" {
-		runtimeCfg := runtimeconfig.Config{
-			LoadPath:     []string{cfg.PerTenantOverrideConfig},
-			ReloadPeriod: time.Duration(cfg.PerTenantOverridePeriod),
-			Loader:       loadPerTenantOverrides(validator, cfg.ConfigType, cfg.ExpandEnv, cfg.EnableLegacyOverrides),
-		}
-		runtimeCfgMgr, err := runtimeconfig.New(runtimeCfg, "overrides", prometheus.WrapRegistererWithPrefix("tempo_", registerer), log.Logger)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create runtime config manager: %w", err)
-		}
-		manager = runtimeCfgMgr
-		subservices = append(subservices, runtimeCfgMgr)
-	}
-
 	o := &runtimeConfigOverridesManager{
-		runtimeConfigMgr: manager,
-		defaultLimits:    &cfg.Defaults,
+		cfg:        cfg,
+		validator:  validator,
+		registerer: registerer,
 	}
-
-	if len(subservices) > 0 {
-		var err error
-		o.subservices, err = services.NewManager(subservices...)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create subservices: %w", err)
-		}
-		o.subservicesWatcher = services.NewFailureWatcher()
-		o.subservicesWatcher.WatchManager(o.subservices)
-	}
+	o.defaultLimits = &o.cfg.Defaults
 
 	o.Service = services.NewBasicService(o.starting, o.running, o.stopping)
 
@@ -207,13 +196,93 @@ func newRuntimeConfigOverrides(cfg Config, validator Validator, registerer prome
 }
 
 func (o *runtimeConfigOverridesManager) starting(ctx context.Context) error {
-	if o.subservices != nil {
-		err := services.StartManagerAndAwaitHealthy(ctx, o.subservices)
-		if err != nil {
-			return fmt.Errorf("failed to start subservices: %w", err)
-		}
+	if o.cfg.PerTenantOverrideConfig == "" {
+		return nil
 	}
 
+	b := backoff.New(ctx, backoff.Config{
+		MinBackoff: runtimeConfigRetryMin,
+		MaxBackoff: runtimeConfigRetryMax,
+		MaxRetries: runtimeConfigRetryMaxAttempts,
+	})
+
+	var lastErr error
+	for b.Ongoing() {
+		// Probe with a throwaway registry. runtimeconfig.New registers metrics
+		// before load, and those collectors cannot be replaced, so retries must
+		// not use o.registerer until a load has already succeeded.
+		err := o.initAndStartRuntimeConfig(ctx, prometheus.NewRegistry())
+		if err == nil {
+			if b.NumRetries() > 0 {
+				level.Info(log.Logger).Log("msg", "runtime config loaded after retry", "retries", b.NumRetries())
+			}
+			if err := o.promoteRuntimeConfigMetrics(ctx); err != nil {
+				level.Warn(log.Logger).Log("msg", "runtime config is loaded but metrics were not exported", "err", err)
+			}
+			return nil
+		}
+
+		lastErr = err
+		level.Warn(log.Logger).Log("msg", "failed to load runtime config, retrying", "err", err, "retries", b.NumRetries()+1)
+		b.Wait()
+	}
+
+	if lastErr != nil {
+		return fmt.Errorf("failed to start subservices: %w", lastErr)
+	}
+	return fmt.Errorf("failed to start subservices: %w", b.Err())
+}
+
+func (o *runtimeConfigOverridesManager) promoteRuntimeConfigMetrics(ctx context.Context) error {
+	probeMgr := o.runtimeConfigMgr
+	probeSub := o.subservices
+	probeWatch := o.subservicesWatcher
+
+	o.runtimeConfigMgr = nil
+	o.subservices = nil
+	o.subservicesWatcher = nil
+
+	err := o.initAndStartRuntimeConfig(ctx, o.registerer)
+	if err != nil {
+		o.runtimeConfigMgr = probeMgr
+		o.subservices = probeSub
+		o.subservicesWatcher = probeWatch
+		return err
+	}
+
+	if probeSub != nil {
+		_ = services.StopManagerAndAwaitStopped(context.Background(), probeSub)
+	}
+	return nil
+}
+
+func (o *runtimeConfigOverridesManager) initAndStartRuntimeConfig(ctx context.Context, registerer prometheus.Registerer) error {
+	loader := loadPerTenantOverrides(o.validator, o.cfg.ConfigType, o.cfg.ExpandEnv, o.cfg.EnableLegacyOverrides)
+	runtimeCfg := runtimeconfig.Config{
+		LoadPath:     []string{o.cfg.PerTenantOverrideConfig},
+		ReloadPeriod: time.Duration(o.cfg.PerTenantOverridePeriod),
+		Loader:       loader,
+	}
+	mgr, err := runtimeconfig.New(runtimeCfg, "overrides", prometheus.WrapRegistererWithPrefix("tempo_", registerer), log.Logger)
+	if err != nil {
+		return fmt.Errorf("failed to create runtime config manager: %w", err)
+	}
+
+	subservices, err := services.NewManager(mgr)
+	if err != nil {
+		return fmt.Errorf("failed to create subservices: %w", err)
+	}
+	watcher := services.NewFailureWatcher()
+	watcher.WatchManager(subservices)
+
+	if err := services.StartManagerAndAwaitHealthy(ctx, subservices); err != nil {
+		_ = services.StopManagerAndAwaitStopped(context.Background(), subservices)
+		return err
+	}
+
+	o.runtimeConfigMgr = mgr
+	o.subservices = subservices
+	o.subservicesWatcher = watcher
 	return nil
 }
 
