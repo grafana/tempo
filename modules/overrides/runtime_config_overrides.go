@@ -211,7 +211,7 @@ func (o *runtimeConfigOverridesManager) starting(ctx context.Context) error {
 		// Probe with a throwaway registry. runtimeconfig.New registers metrics
 		// before load, and those collectors cannot be replaced, so retries must
 		// not use o.registerer until a load has already succeeded.
-		err := o.initAndStartRuntimeConfig(ctx, prometheus.NewRegistry())
+		err := o.initAndStartRuntimeConfig(ctx, prometheus.NewRegistry(), false)
 		if err == nil {
 			if b.NumRetries() > 0 {
 				level.Info(log.Logger).Log("msg", "runtime config loaded after retry", "retries", b.NumRetries())
@@ -242,7 +242,7 @@ func (o *runtimeConfigOverridesManager) promoteRuntimeConfigMetrics(ctx context.
 	o.subservices = nil
 	o.subservicesWatcher = nil
 
-	err := o.initAndStartRuntimeConfig(ctx, o.registerer)
+	err := o.initAndStartRuntimeConfig(ctx, o.registerer, true)
 	if err != nil {
 		o.runtimeConfigMgr = probeMgr
 		o.subservices = probeSub
@@ -250,13 +250,11 @@ func (o *runtimeConfigOverridesManager) promoteRuntimeConfigMetrics(ctx context.
 		return err
 	}
 
-	if probeSub != nil {
-		_ = services.StopManagerAndAwaitStopped(context.Background(), probeSub)
-	}
+	stopRuntimeConfig(probeWatch, probeSub)
 	return nil
 }
 
-func (o *runtimeConfigOverridesManager) initAndStartRuntimeConfig(ctx context.Context, registerer prometheus.Registerer) error {
+func (o *runtimeConfigOverridesManager) initAndStartRuntimeConfig(ctx context.Context, registerer prometheus.Registerer, watch bool) error {
 	loader := loadPerTenantOverrides(o.validator, o.cfg.ConfigType, o.cfg.ExpandEnv, o.cfg.EnableLegacyOverrides)
 	runtimeCfg := runtimeconfig.Config{
 		LoadPath:     []string{o.cfg.PerTenantOverrideConfig},
@@ -272,9 +270,10 @@ func (o *runtimeConfigOverridesManager) initAndStartRuntimeConfig(ctx context.Co
 	if err != nil {
 		return fmt.Errorf("failed to create subservices: %w", err)
 	}
-	watcher := services.NewFailureWatcher()
-	watcher.WatchManager(subservices)
 
+	// Watch only after a successful start, and only for the manager that will
+	// stay running. Failed probes used to WatchManager first; the unbuffered
+	// send then blocked the listener goroutine for the life of the process.
 	if err := services.StartManagerAndAwaitHealthy(ctx, subservices); err != nil {
 		_ = services.StopManagerAndAwaitStopped(context.Background(), subservices)
 		return err
@@ -282,8 +281,21 @@ func (o *runtimeConfigOverridesManager) initAndStartRuntimeConfig(ctx context.Co
 
 	o.runtimeConfigMgr = mgr
 	o.subservices = subservices
-	o.subservicesWatcher = watcher
+	if watch {
+		watcher := services.NewFailureWatcher()
+		watcher.WatchManager(subservices)
+		o.subservicesWatcher = watcher
+	}
 	return nil
+}
+
+func stopRuntimeConfig(watcher *services.FailureWatcher, mgr *services.Manager) {
+	if watcher != nil {
+		watcher.Close()
+	}
+	if mgr != nil {
+		_ = services.StopManagerAndAwaitStopped(context.Background(), mgr)
+	}
 }
 
 func (o *runtimeConfigOverridesManager) running(ctx context.Context) error {
@@ -300,8 +312,14 @@ func (o *runtimeConfigOverridesManager) running(ctx context.Context) error {
 }
 
 func (o *runtimeConfigOverridesManager) stopping(_ error) error {
+	if o.subservicesWatcher != nil {
+		o.subservicesWatcher.Close()
+		o.subservicesWatcher = nil
+	}
 	if o.subservices != nil {
-		return services.StopManagerAndAwaitStopped(context.Background(), o.subservices)
+		err := services.StopManagerAndAwaitStopped(context.Background(), o.subservices)
+		o.subservices = nil
+		return err
 	}
 	return nil
 }
