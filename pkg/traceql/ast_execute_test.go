@@ -1740,6 +1740,33 @@ func TestBinaryOperationsWorkAcrossNumberTypes(t *testing.T) {
 	}
 }
 
+func TestBinaryOperationsOrShortCircuitsOnMissingAttribute(t *testing.T) {
+	testCases := []evalTC{
+		{
+			"{ true || .does_not_exist }",
+			[]*Spanset{{Spans: []Span{
+				&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{}},
+			}}},
+			[]*Spanset{{Spans: []Span{
+				&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{}},
+			}}},
+		},
+		{
+			"{ .cache.hit || .does_not_exist }",
+			[]*Spanset{{Spans: []Span{
+				&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("cache.hit"): NewStaticBool(true)}},
+			}}},
+			[]*Spanset{{Spans: []Span{
+				&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("cache.hit"): NewStaticBool(true)}},
+			}}},
+		},
+	}
+
+	for _, tc := range testCases {
+		testEvaluator(t, tc)
+	}
+}
+
 func TestBinOp(t *testing.T) {
 	testCases := []struct {
 		op        Operator

@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: traceql
+note: Fix `||` returning no matches when one operand resolves to a missing attribute and the other is a true boolean.
+issues: []
+subtext:
+user: lazerg

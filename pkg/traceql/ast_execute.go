@@ -410,6 +410,17 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 	lhsT := lhs.Type
 	rhsT := rhs.Type
 
+	// recording forced us to evaluate the rhs even though the lhs alone already
+	// determines the result, honor that before the type check below
+	if lhsB, ok := lhs.Bool(); ok {
+		if o.Op == OpAnd && !lhsB {
+			return StaticFalse, nil
+		}
+		if o.Op == OpOr && lhsB {
+			return StaticTrue, nil
+		}
+	}
+
 	// ensure the resolved types are still valid
 	if !lhsT.isMatchingOperand(rhsT) {
 		return StaticFalse, nil
