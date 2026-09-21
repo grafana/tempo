@@ -90,6 +90,9 @@ otelcol.exporter.otlphttp "tempo" {
 
    This option forces all Tempo components to require the `X-Scope-OrgID` header.
 
+   When multi-tenancy is disabled, Tempo uses `single-tenant` as the tenant ID by default.
+   Set `no_auth_tenant` or `--auth.no-auth-tenant` to choose a different tenant ID for no-auth deployments.
+
 ## Configure per-tenant settings
 
 After you enable multi-tenancy, you can customize settings on a per-tenant basis using runtime overrides.
