@@ -21,6 +21,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -149,12 +150,16 @@ func TestCompactionProvider_EmptyStart(t *testing.T) {
 
 	writeTenantBlocks(ctx, t, backend.NewWriter(ww), tenant, 1)
 
-	// Poll synchronously so the second block is observed before asserting,
-	// avoiding a fixed sleep or retry loop that can pass or fail on timing.
-	store.PollNow(ctx)
+	// PollNow alone is not enough: the store's own 100ms poll loop runs
+	// concurrently, and both calls end in ApplyPollResults. A background poll
+	// that started before the second block was written can therefore land last
+	// and put the blocklist back to one block. Poll inside the retry so a
+	// clobbered result is followed by a fresh one.
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		store.PollNow(ctx)
+		assert.True(c, p.prepareNextTenant(ctx, false), "tenant with two blocks should be found")
+	}, 10*time.Second, 100*time.Millisecond)
 
-	b = p.prepareNextTenant(ctx, false)
-	require.True(t, b, "tenant with two blocks should be found")
 	require.NotNil(t, p.curTenant, "a tenant should be set")
 	require.NotNil(t, p.curSelector, "a block selector should be set")
 
