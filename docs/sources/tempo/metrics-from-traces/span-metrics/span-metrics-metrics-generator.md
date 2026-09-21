@@ -33,7 +33,7 @@ exemplars can be automatically added, providing additional value to these metric
 
 ## How to run
 
-To enable span metrics in Tempo or Grafana Enterprise Traces, enable the metrics generator and add an overrides section which enables the `span-metrics` processor.
+To enable span metrics in Tempo, enable the metrics generator and add an overrides section which enables the `span-metrics` processor.
 Refer to [the configuration details](/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generator).
 
 In Tempo 3.0 microservices deployments, the metrics-generator consumes trace data from Kafka instead of receiving spans directly from the distributor. In single-binary deployments, the distributor still calls the metrics-generator's `PushSpans` method in-process.
