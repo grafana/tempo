@@ -732,6 +732,7 @@ storage:
             buffer_size: 3145728
             hedge_requests_at: 0s
             hedge_requests_up_to: 2
+            list_blocks_concurrency: 1
         cache: ""
         background_cache:
             writeback_goroutines: 10
@@ -829,6 +830,7 @@ overrides:
                 buffer_size: 3145728
                 hedge_requests_at: 0s
                 hedge_requests_up_to: 2
+                list_blocks_concurrency: 1
         api:
             check_for_conflicting_runtime_overrides: false
     enable_legacy_overrides: false
