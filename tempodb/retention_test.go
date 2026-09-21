@@ -199,9 +199,23 @@ func TestRetentionSkipsBlockAlreadyCleared(t *testing.T) {
 	checkBlocklists(ctx, t, uuid.UUID(blockID), 0, 1, rw)
 
 	// Simulate a concurrent retention pass clearing the block on the backend
-	// first, bypassing our own bookkeeping - rw.blocklist still lists it as
-	// a compacted block pending deletion.
-	require.NoError(t, rw.c.ClearBlock(uuid.UUID(blockID), testTenantID))
+	// first: force ClearBlock to report ErrDoesNotExist for this block,
+	// exercising retention.go's tolerance directly rather than relying on any
+	// particular backend's incidental delete-on-missing idempotency (the local
+	// backend's ClearBlock already no-ops on a missing path via os.RemoveAll,
+	// which would make this assertion pass even without the fix).
+	realCompactor := rw.c
+	rw.c = &backend.MockCompactor{
+		ClearBlockFn: func(id uuid.UUID, tenantID string) error {
+			if id == uuid.UUID(blockID) {
+				// Actually remove it so a later real poll reflects reality, but
+				// report the race error retention.go must tolerate.
+				_ = realCompactor.ClearBlock(id, tenantID)
+				return backend.ErrDoesNotExist
+			}
+			return realCompactor.ClearBlock(id, tenantID)
+		},
+	}
 
 	beforeErrors := prom_testutil.ToFloat64(metricRetentionErrors)
 	beforeDeleted := prom_testutil.ToFloat64(metricDeleted)
