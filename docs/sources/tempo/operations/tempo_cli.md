@@ -1045,11 +1045,12 @@ If you use `--query`:
 1. Run the same query with `--dry-run`.
    The command returns as soon as jobs are created; it doesn't print the match count.
    Wait until those jobs complete.
-   Monitor progress on the [`/status/backendscheduler`](/docs/tempo/<TEMPO_VERSION>/api_docs/#backend-scheduler-job-status) endpoint.
-   Then read `tempo_backend_scheduler_redaction_traces_found_total` for your tenant with `mode="dry_run"`.
+1. Monitor progress on the [`/status/backendscheduler`](/docs/tempo/<TEMPO_VERSION>/api_docs/#backend-scheduler-job-status) endpoint.
+1. Read `tempo_backend_scheduler_redaction_traces_found_total` for your tenant with `mode="dry_run"`.
    The metric is a counter that increments when each job finishes, so use an increase over the run or the **Dry-run Blast Radius / h** panel on the **Tempo - Backend Work** dashboard.
    A value of zero can mean no matches or that jobs haven't finished yet.
-   For the metric and dashboard, refer to [Key metrics](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/compaction/#key-metrics).
+ 
+For the metric and dashboard, refer to [Key metrics](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/compaction/#key-metrics).
    If the count is far larger than the Explore sample, narrow the query first.
 
 Then submit the redaction.
