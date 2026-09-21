@@ -525,14 +525,16 @@ func TestTenantIndexPollError(t *testing.T) {
 
 func TestBlockListBackendMetrics(t *testing.T) {
 	tests := []struct {
-		name                                 string
-		list                                 PerTenant
-		compactedList                        PerTenantCompacted
-		testType                             string
-		expectedBackendObjectsTotal          int
-		expectedBackendBytesTotal            uint64
-		expectedCompactedBackendObjectsTotal int
-		expectedCompacteddBackendBytesTotal  uint64
+		name                                     string
+		list                                     PerTenant
+		compactedList                            PerTenantCompacted
+		testType                                 string
+		expectedBackendObjectsTotal              int
+		expectedBackendBytesTotal                uint64
+		expectedCompactedBackendObjectsTotal     int
+		expectedCompacteddBackendBytesTotal      uint64
+		expectedBackendBloomShardsTotal          uint64
+		expectedCompactedBackendBloomShardsTotal uint64
 	}{
 		{
 			name: "total backend objects calculation is correct",
@@ -624,6 +626,36 @@ func TestBlockListBackendMetrics(t *testing.T) {
 			expectedCompacteddBackendBytesTotal:  1250,
 			testType:                             "backend bytes",
 		},
+		{
+			name: "total bloom shards calculation is correct",
+			list: PerTenant{
+				"test": []*backend.BlockMeta{
+					{
+						BloomShardCount: 4,
+					},
+					{
+						BloomShardCount: 8,
+					},
+				},
+			},
+			compactedList: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{
+					{
+						BlockMeta: backend.BlockMeta{
+							BloomShardCount: 16,
+						},
+					},
+					{
+						BlockMeta: backend.BlockMeta{
+							BloomShardCount: 32,
+						},
+					},
+				},
+			},
+			expectedBackendBloomShardsTotal:          12,
+			expectedCompactedBackendBloomShardsTotal: 48,
+			testType:                                 "bloom shards",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -634,6 +666,8 @@ func TestBlockListBackendMetrics(t *testing.T) {
 			assert.Equal(t, tc.expectedCompactedBackendObjectsTotal, backendMetaMetrics.compactedBlockMetaTotalObjects)
 			assert.Equal(t, tc.expectedBackendBytesTotal, backendMetaMetrics.blockMetaTotalBytes)
 			assert.Equal(t, tc.expectedCompacteddBackendBytesTotal, backendMetaMetrics.compactedBlockMetaTotalBytes)
+			assert.Equal(t, tc.expectedBackendBloomShardsTotal, backendMetaMetrics.blockMetaTotalBloomShards)
+			assert.Equal(t, tc.expectedCompactedBackendBloomShardsTotal, backendMetaMetrics.compactedBlockMetaTotalBloomShards)
 		})
 	}
 }
