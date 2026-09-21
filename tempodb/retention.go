@@ -92,15 +92,16 @@ func (rw *readerWriter) retainTenant(ctx context.Context, tenantID string, compa
 			if b.EndTime.Before(cutoff) && compactorSharder.Owns(b.BlockID.String()) {
 				level.Info(rw.logger).Log("msg", "marking block for deletion", "blockID", b.BlockID, "tenantID", tenantID)
 				err := rw.c.MarkBlockCompacted(uuid.UUID(b.BlockID), tenantID)
-				if errors.Is(err, backend.ErrDoesNotExist) {
+				switch {
+				case errors.Is(err, backend.ErrDoesNotExist):
 					// A concurrent compaction or retention pass already retired this
 					// block. Leave our local view alone; the next blocklist poll will
 					// pick up whatever the backend actually settled on.
 					level.Debug(rw.logger).Log("msg", "block already retired, skipping", "blockID", b.BlockID, "tenantID", tenantID)
-				} else if err != nil {
+				case err != nil:
 					level.Error(rw.logger).Log("msg", "failed to mark block compacted during retention", "blockID", b.BlockID, "tenantID", tenantID, "err", err)
 					metricRetentionErrors.Inc()
-				} else {
+				default:
 					metricMarkedForDeletion.Inc()
 
 					rw.blocklist.Update(tenantID, nil, []*backend.BlockMeta{b}, []*backend.CompactedBlockMeta{
