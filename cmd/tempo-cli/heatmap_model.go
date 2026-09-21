@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 
@@ -186,7 +186,7 @@ func (m *heatmapModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.recomputeGrid()
 		return m, m.triggerFetch()
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKey(msg)
 
 	case tea.MouseMsg:
@@ -227,47 +227,44 @@ func (m *heatmapModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *heatmapModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.Type {
-	case tea.KeyCtrlC, tea.KeyEsc:
+func (m *heatmapModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "esc":
 		return m, tea.Quit
-	case tea.KeyBackspace:
+	case "backspace":
 		if m.cursor > 0 {
 			m.input = append(m.input[:m.cursor-1], m.input[m.cursor:]...)
 			m.cursor--
 		}
-	case tea.KeyDelete:
+	case "delete":
 		if m.cursor < len(m.input) {
 			m.input = append(m.input[:m.cursor], m.input[m.cursor+1:]...)
 		}
-	case tea.KeyLeft:
+	case "left":
 		if m.cursor > 0 {
 			m.cursor--
 		}
 		return m, nil
-	case tea.KeyRight:
+	case "right":
 		if m.cursor < len(m.input) {
 			m.cursor++
 		}
 		return m, nil
-	case tea.KeyHome:
+	case "home":
 		m.cursor = 0
 		return m, nil
-	case tea.KeyEnd:
+	case "end":
 		m.cursor = len(m.input)
 		return m, nil
-	case tea.KeyCtrlU:
-		m.input = nil
-		m.cursor = 0
-	case tea.KeyRunes, tea.KeySpace:
-		runes := msg.Runes
-		if msg.Type == tea.KeySpace {
-			runes = []rune{' '}
+	default:
+		// Plain typed text, including space (its Text is " " even though String() is
+		// "space"); msg.Text is empty for keys with no text representation, e.g. arrows.
+		if msg.Text == "" {
+			return m, nil
 		}
+		runes := []rune(msg.Text)
 		m.input = append(m.input[:m.cursor], append(append([]rune{}, runes...), m.input[m.cursor:]...)...)
 		m.cursor += len(runes)
-	default:
-		return m, nil
 	}
 
 	m.inputGen++
@@ -284,7 +281,8 @@ func (m *heatmapModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // The actual tooltip is drawn later, by renderGrids, right next to the cell it describes -
 // see overlayTooltip - rather than in a status line that could be anywhere on screen.
 func (m *heatmapModel) handleMouse(ev tea.MouseMsg) {
-	row := ev.Y - linesBeforeGrid
+	mouse := ev.Mouse() // MouseMsg is an interface (click/motion/release/wheel); .Mouse() gets X/Y uniformly
+	row := mouse.Y - linesBeforeGrid
 	leftWidth := m.spanGrid.cols * cellWidth
 	rightStart := leftWidth + gapChars
 
@@ -294,8 +292,8 @@ func (m *heatmapModel) handleMouse(ev tea.MouseMsg) {
 	case row < 0:
 		// above the grid entirely
 
-	case ev.X < leftWidth:
-		col := ev.X / cellWidth
+	case mouse.X < leftWidth:
+		col := mouse.X / cellWidth
 		if idx, ok := cellIndex(&m.spanGrid, row, col); ok {
 			switch {
 			case idx < len(m.boundaryCells) && m.boundaryCells[idx]:
@@ -311,8 +309,8 @@ func (m *heatmapModel) handleMouse(ev tea.MouseMsg) {
 			}
 		}
 
-	case ev.X >= rightStart:
-		col := (ev.X - rightStart) / cellWidth
+	case mouse.X >= rightStart:
+		col := (mouse.X - rightStart) / cellWidth
 		if idx, ok := cellIndex(&m.ioGrid, row, col); ok {
 			switch {
 			case idx < len(m.ioBoundaryCells) && m.ioBoundaryCells[idx]:
@@ -803,9 +801,11 @@ var (
 	boundaryStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Bold(true)
 )
 
-func (m *heatmapModel) View() string {
+func (m *heatmapModel) View() tea.View {
 	if !m.ready {
-		return "loading...\n"
+		var v tea.View
+		v.SetContent("loading...")
+		return v
 	}
 
 	var b strings.Builder
@@ -842,7 +842,13 @@ func (m *heatmapModel) View() string {
 	// terminal need one row more than we accounted for in reservedLines, so once content
 	// exactly fills the screen it scrolls - pushing the title off the top and leaving a
 	// blank line at the bottom.
-	return strings.TrimSuffix(b.String(), "\n")
+	var v tea.View
+	v.SetContent(strings.TrimSuffix(b.String(), "\n"))
+	// AltScreen and mouse mode are set here rather than as tea.NewProgram options - that's
+	// where bubbletea v2 moved them.
+	v.AltScreen = true
+	v.MouseMode = tea.MouseModeAllMotion
+	return v
 }
 
 // gridGap separates the span-location and I/O columns, both in the header and in the grids

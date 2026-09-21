@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/google/uuid"
 	"github.com/parquet-go/parquet-go"
 
@@ -70,8 +70,10 @@ func (cmd *heatmapCmd) Run(ctx *globalOptions) error {
 
 	// The block itself is (re)opened fresh per query in runHeatmapFetch, wrapping r in an
 	// ioTrackingReader so each fetch's file reads can be attributed to that fetch alone.
+	// AltScreen and mouse mode are set on the tea.View returned from View() in bubbletea v2,
+	// not as NewProgram options.
 	m := newHeatmapModel(r, meta, searchOpts, rowGroupEnds, rowGroupByteEnds)
-	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseAllMotion())
+	p := tea.NewProgram(m)
 	m.program = p
 
 	_, err = p.Run()
