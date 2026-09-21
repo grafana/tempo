@@ -488,6 +488,7 @@ metrics_generator:
             filter_policies: []
             target_info_excluded_dimensions: []
             enable_instance_label: true
+            max_spans_per_series_per_interval: 0
         host_info:
             host_identifiers:
                 - k8s.node.name

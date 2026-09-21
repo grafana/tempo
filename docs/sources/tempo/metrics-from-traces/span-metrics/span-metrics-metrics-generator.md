@@ -194,6 +194,234 @@ metrics_generator:
         - "process.runtime.version"
 ```
 
+### Capping per-series CPU with sampling
+
+On tenants where a handful of series carry most of the span volume, the
+metrics-generator spends most of its CPU aggregating spans that barely move
+those series' values. `max_spans_per_series_per_interval` caps how many spans
+per series are fully aggregated in each collection interval:
+
+```yaml
+metrics_generator:
+  processor:
+    span_metrics:
+      max_spans_per_series_per_interval: 500
+```
+
+It can also be set per tenant, which is the usual way to roll it out --
+enabled for the few tenants whose generator CPU is a problem and left off
+everywhere else:
+
+```yaml
+overrides:
+  "tenant-123":
+    metrics_generator:
+      processor:
+        span_metrics:
+          max_spans_per_series_per_interval: 500
+```
+
+A tenant override of `0` turns sampling off for that tenant even when the
+generator config enables it.
+
+Series receiving fewer spans than that in an interval are untouched, so this
+only affects your heaviest series. For a series above it, the processor takes a
+uniform sample of that series' spans and scales the sampled values back up, so
+no spans are dropped and the metrics stay unbiased -- but the values carry a
+sampling error.
+
+The budget is fleet-wide, not per replica. Every generator emits its own copy
+of a series, tagged with `__metrics_gen_instance`, and a query sums them, so
+handing each generator the full budget would give the query one budget per
+generator. Each instance instead takes the share matching the share of the
+tenant's spans it receives, read from its partition assignment, so the setting
+does not need adjusting when you scale the generators. When the split cannot be
+determined -- a single binary, or a deployment not consuming from Kafka -- each
+instance keeps the whole budget, which samples less than asked: that costs CPU
+rather than accuracy.
+
+How much error depends on which metric you query and on how many of the series'
+spans were sampled inside your query's lookback window. Writing `m` for that
+count:
+
+```
+m = max_spans_per_series_per_interval x (lookback / collection_interval)
+```
+
+A query covers several intervals, so the budget is multiplied by however many
+it spans, which makes the right number depend on your `collection_interval`.
+Rearranged, the budget for a target `m` is
+
+```
+max_spans_per_series_per_interval = m x (collection_interval / lookback)
+```
+
+For the `m = 10,000` target below, over a 5-minute lookback:
+
+| `collection_interval` | Budget for `m = 10,000` |
+| --- | --- |
+| 15s | 500 |
+| 60s | 2,000 |
+
+Size it against the shortest lookback your dashboards use, not the longest. At
+a 15-second interval a budget of 500 gives a 5-minute query `m = 10,000` but a
+1-minute query only `m = 2,000`.
+
+`m = 10,000` is a good default target. It fills a native histogram in properly
+and leaves the counter rates essentially exact:
+
+| Query | Typical error | 1 window in 20 | 1 window in 100 |
+| --- | --- | --- | --- |
+| `rate(traces_spanmetrics_calls_total[...])` | 0.01% | 0.01% | 0.01% |
+| `rate(traces_spanmetrics_latency_count[...])` | 0.01% | 0.01% | 0.01% |
+| `rate(traces_spanmetrics_size_total[...])` | 0.7% | 1.6% | 2.6% |
+| `traces_spanmetrics_latency_sum` (average latency) | 1.4% | 3.4% | 5.3% |
+| `histogram_quantile(0.5, ...)` | 1.1% | 3.2% | 4.1% |
+| `histogram_quantile(0.9, ...)` | 1.5% | 4.3% | 5.6% |
+| `histogram_quantile(0.99, ...)` | 3.2% | 9.4% | 12.4% |
+
+Error scales as `1/sqrt(m)` for every row except the two counter rates, so ask
+for 4x the budget to halve it. The counter rates are near-exact at any budget
+because the sampling is stratified: a series' spans are cut into equal blocks
+and exactly one span per block is kept, so the scaled-up count can only be off
+by the one block in flight, however hard the series is sampled.
+
+The quantile rows assume [native histograms](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration#metrics-generator),
+which is what you want if you sample. A native histogram's own answer is within
+0.1% of the true quantile at every percentile, so the table above is the whole
+error. Classic histograms carry a quantization bias of 1.5% to 35% depending on
+where your quantile falls relative to a bucket boundary, and that bias is there
+with or without sampling: no budget removes it.
+
+Note that `native_histogram_bucket_factor` is a request, not a guarantee.
+Tempo also sets `native_histogram_max_bucket_number`, 100 by default, and a
+series wide enough to want more buckets than that does not get them: the client
+library doubles the bucket width instead, so the series lands one schema
+coarser. The default factor of 1.1 asks for 9%-wide buckets, but a service
+whose p99 is 20x its median settles at 19%-wide buckets once it has more than a
+few thousand spans in the window. This costs almost nothing in accuracy -- the
+quantile error at a high percentile is dominated by rank uncertainty rather
+than bucket width -- but it does mean the effective resolution is narrower than
+the configured factor suggests. Raise `native_histogram_max_bucket_number` if
+you want the configured factor honoured for your widest services.
+
+Two things set the quantile rows, and only one is about histograms:
+
+- Estimating a quantile from `m` samples pins its *rank* to about
+  `sqrt(phi(1-phi)/m)`, and turning a rank error into a *value* error
+  multiplies by the inverse density at the quantile. On a long tail the density
+  up there is thin, so one percentage point of rank is 7% of the value at p90
+  and 48% at p99. That is why the p99 row costs several times the p90 row, and
+  it is a property of your latency distribution rather than of Tempo. A service
+  whose p99 is only 3x its median needs roughly an order of magnitude fewer
+  samples than the table shows.
+- Reading the quantile off bucket counts adds to that only when the quantile
+  falls near a bucket boundary. With 9%-wide native buckets there is very
+  little bucket to interpolate across, so this term is small. With the classic
+  default, where buckets double in width at each step, it can triple the
+  samples a percentile needs.
+
+#### Computing a budget for your own histogram
+
+The table above is one latency shape at one resolution. If yours differs, the
+numbers follow from two quantities and you can work them out directly.
+
+Let `w` be the bucket width in log space, `w = ln(2) / 2^schema`, which is
+0.0866 at schema 3 and 0.173 at schema 2. Use the schema the series actually
+settles on, which the note above explains may be coarser than the one
+`native_histogram_bucket_factor` asks for. Let `sigma` be the spread of your
+log-latency, which you can read off two percentiles you already have:
+`sigma = ln(p99 / p50) / 2.33`. A service with a 50 ms median and a 1 s p99 has
+`sigma = 1.29`. Then `sigma / w` is the number of buckets your latency spans per
+standard deviation -- about 15 for that service at schema 3.
+
+A bucket holding a fraction `p` of the spans collects `n = m * p` samples and
+its count carries a relative standard deviation of `1 / sqrt(n)`. The busiest
+bucket holds `0.399 * w / sigma`, so 2.7% for that service, giving it 268
+samples and a 6% standard deviation at `m = 10,000`.
+
+For the histogram as a whole, the expected share of the distribution's mass
+that lands in the wrong bucket -- the total variation distance from the true
+shape -- is
+
+```
+E[TVD] = (2/pi)^(1/4) * sqrt(sigma / (w * m))
+```
+
+so holding it under `eps` costs
+
+```
+m = sqrt(2/pi) * sigma / (w * eps^2)
+```
+
+Two consequences are worth planning around. The budget is linear in `sigma`, so
+a service with a long tail costs proportionally more than a tight one. And it is
+linear in `2^schema`, so every step up in histogram resolution doubles the
+samples needed to fill it: schema 4 buckets are half as wide but need twice the
+data to populate as well as schema 3 does.
+
+Finally, a bucket drops out of the histogram entirely once its expected count
+falls below about 1, which puts the edge of the populated range at
+
+```
+z = sqrt(2 * ln(w * m / (sigma * sqrt(2*pi))))
+```
+
+standard deviations from the median. For the service above at `m = 10,000` that
+is 3.3 standard deviations, or the 99.96th percentile -- comfortably past p99.
+At `m = 1,000` it falls to 2.6, the 99.5th percentile, which is why the p99 row
+of the table degrades sharply below a few thousand samples.
+
+Putting concrete numbers on it, for a service with a 50 ms median and a 1 s p99
+running at 1,000 spans/s, over a 5-minute window, with the true p99 at exactly
+1,000 ms:
+
+| Histogram | `histogram_quantile(0.99, ...)` | 90% of windows |
+| --- | --- | --- |
+| unsampled, native | 1,000 ms +/- 8 ms | 989 - 1,016 ms |
+| sampled to `m = 10,200`, native | 1,000 ms +/- 46 ms | 935 - 1,086 ms |
+| unsampled, classic | 1,015 ms +/- 3 ms | 1,009 - 1,020 ms |
+| sampled to `m = 10,200`, classic | 1,014 ms +/- 54 ms | 984 - 1,159 ms |
+
+Sampling costs about 4.6% of spread on the native answer while leaving it
+centred on the truth. The classic rows are the more interesting comparison: the
+unsampled one is remarkably steady but sits 1.5% high whatever you do, and the
+sampled one is skewed upward, because this p99 falls near the top of its bucket
+and noise pushes it into the next one, which is twice as wide.
+
+#### Sampling saves much less with native histograms
+
+A sampled span carries a multiplier saying how many spans it stands for, and a
+native histogram series applies it by calling `Observe` that many times,
+because the underlying client library has no weighted observation. The total
+number of `Observe` calls is therefore unchanged by sampling -- only the label
+building in front of it is skipped.
+
+Measured per span on the same fixture, sampling to a 1% keep rate:
+
+| Histogram mode | Unsampled | Sampled | Saving |
+| --- | --- | --- | --- |
+| classic, production-shaped config | 1,372 ns | 143 ns | 9.6x |
+| classic, default config | 261 ns | 51 ns | 5.1x |
+| native | 552 ns | 307 ns | 1.8x |
+
+Allocations tell the same story: the production classic config drops from 835
+to 12 per 400-span push, while native barely moves.
+
+There is a second, unmeasured concern. A native histogram series takes one
+mutex covering every series of that metric for the tenant, and the multiplier
+loop runs inside it, so a heavily sampled series holds that lock for as many
+iterations as its block size. On a generator serving many concurrent pushes
+this could contend where it did not before. If you enable sampling on a tenant
+using native histograms, watch generator CPU and push latency rather than
+assuming the saving above.
+
+So the two recommendations pull against each other: native histograms buy
+quantile accuracy, classic histograms buy CPU. If quantile accuracy is what you
+are sampling to protect, take the smaller saving.
+
+Sampling is disabled by default.
+
 ### Handling sampled traces
 
 If you use a ratio-based sampler, you have two options to prevent losing metric information:

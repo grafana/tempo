@@ -452,6 +452,7 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MetricsGeneratorProcessorSpanMetricsEnableTargetInfo:               boolPtr(true),
 		MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions:   []string{"excluded-dim-1", "excluded-dim-2"},
 		MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel:            boolPtr(false),
+		MetricsGeneratorProcessorSpanMetricsMaxSpansPerSeriesPerInterval:   intPtr(500),
 		MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey:              "custom_key",
 		MetricsGeneratorProcessorSpanMetricsEnableTraceStateSpanMultiplier: boolPtr(true),
 		MetricsGeneratorProcessorHostInfoHostIdentifiers:                   []string{"host-id-1", "host-id-2"},

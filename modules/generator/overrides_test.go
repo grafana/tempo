@@ -27,6 +27,7 @@ type mockOverrides struct {
 	spanMetricsFilterPolicies                          []filterconfig.FilterPolicy
 	spanMetricsDimensionMappings                       []sharedconfig.DimensionMappings
 	spanMetricsEnableTargetInfo                        *bool
+	spanMetricsMaxSpansPerSeriesPerInterval            *int
 	spanMetricsTargetInfoExcludedDimensions            []string
 	spanMetricsEnableInstanceLabel                     *bool
 	dedicatedColumns                                   backend.DedicatedColumns
@@ -165,6 +166,13 @@ func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(str
 		return *spanMetricsEnableTargetInfo, true
 	}
 	return false, false
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsMaxSpansPerSeriesPerInterval(string) (int, bool) {
+	if m.spanMetricsMaxSpansPerSeriesPerInterval != nil {
+		return *m.spanMetricsMaxSpansPerSeriesPerInterval, true
+	}
+	return 0, false
 }
 
 func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(string) bool {

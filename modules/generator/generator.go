@@ -114,6 +114,42 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 	return g, nil
 }
 
+// trafficShare reports the fraction of a tenant's spans this generator
+// receives, in (0, 1].
+//
+// Every generator emits its own copy of a series, tagged with
+// __metrics_gen_instance, and a query sums them, so anything expressed as a
+// per-series budget has to be split across the instances that share the
+// traffic. Spans are partitioned by trace ID, so a series carrying enough
+// volume to be worth sampling is spread evenly across partitions and this
+// instance's share of the spans is just its share of the partitions.
+//
+// It returns 1 when the split is unknown -- single binary, no partition ring,
+// or not consuming from Kafka so no assignment exists to read. That leaves any
+// budget whole on every instance, which under-samples: the cost is CPU rather
+// than accuracy, which is the right direction to fail in.
+func (g *Generator) trafficShare() float64 {
+	if g.partitionRing == nil || !g.cfg.ConsumeFromKafka {
+		return 1
+	}
+	// Active partitions only: pending and inactive ones take no writes, so
+	// counting them would inflate the denominator, shrink this instance's share
+	// and over-sample it for as long as a scale-down is in progress.
+	total := g.partitionRing.PartitionRing().ActivePartitionsCount()
+	if total <= 0 {
+		return 1
+	}
+
+	g.partitionMtx.RLock()
+	assigned := len(g.assignedPartitions)
+	g.partitionMtx.RUnlock()
+
+	if assigned <= 0 || assigned >= total {
+		return 1
+	}
+	return float64(assigned) / float64(total)
+}
+
 func (g *Generator) starting(ctx context.Context) error {
 	if g.cfg.ConsumeFromKafka {
 		opts := []kgo.Opt{
@@ -277,7 +313,7 @@ func (g *Generator) createInstance(id string) (*instance, error) {
 		return nil, err
 	}
 
-	inst, err := newInstance(g.cfg, id, g.overrides, wal, g.logger)
+	inst, err := newInstance(g.cfg, id, g.overrides, wal, g.logger, g.trafficShare)
 	if err != nil {
 		_ = wal.Close()
 		return nil, err
