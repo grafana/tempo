@@ -106,6 +106,12 @@ func internalNew(cfg *Config, confirm bool) (*Azure, error) {
 		hedgedContainerClient: hedgedContainer,
 	}
 
+	shards := 1
+	if cfg.ListBlocksConcurrency > 1 {
+		shards = listBlocksShards
+	}
+	level.Info(log.Logger).Log("msg", "azure backend configured", "list_blocks_concurrency", cfg.ListBlocksConcurrency, "list_blocks_shards", shards)
+
 	return rw, nil
 }
 
@@ -262,6 +268,13 @@ func (rw *Azure) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []
 	if err := g.Wait(); err != nil {
 		return nil, nil, err
 	}
+
+	span.SetAttributes(
+		attribute.String("tenant", tenant),
+		attribute.Int("shards", len(prefixes)),
+		attribute.Int("blockIDs", len(blockIDs)),
+		attribute.Int("compactedBlockIDs", len(compactedBlockIDs)),
+	)
 
 	return blockIDs, compactedBlockIDs, nil
 }
