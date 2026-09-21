@@ -139,13 +139,20 @@ jobs:
           persist-credentials: false
       - name: Validate all integration folders are covered by CI
         run: |
-          # Define expected folders that have corresponding test-e2e-* targets
-          EXPECTED_FOLDERS=("api" "limits" "metrics-generator" "operations" "storage" "util")
+          # Define expected test folders, relative to integration/, that have corresponding
+          # test-e2e-* targets. A nested folder maps to its target by replacing / with -,
+          # so api/search is run by test-e2e-api-search.
+          EXPECTED_FOLDERS=("api/metrics" "api/misc" "api/overrides" "api/search" "api/tracebyid" "limits" "metrics-generator" "operations" "storage" "util")
 
-          # Get actual folders in integration/ (excluding hidden files)
-          mapfile -d '' _raw < <(find integration/ -mindepth 1 -maxdepth 1 -type d -not -name '.*' -print0 2>/dev/null)
+          # Get the actual folders holding tests. Matching on test files rather than on
+          # first-level directories means a nested package like api/<area> is checked too,
+          # and that container directories and test scratch dirs are skipped.
+          mapfile -d '' _raw < <(find integration -mindepth 1 -type d -not -name '.*' -print0 2>/dev/null)
           ACTUAL_FOLDERS=()
-          for _d in "${_raw[@]}"; do ACTUAL_FOLDERS+=("$(basename "$_d")"); done
+          for _d in "${_raw[@]}"; do
+            ls "$_d"/*_test.go >/dev/null 2>&1 || continue
+            ACTUAL_FOLDERS+=("${_d#integration/}")
+          done
 
           # Convert arrays to strings for comparison
           EXPECTED_SORTED=$(printf '%s\n' "${EXPECTED_FOLDERS[@]}" | sort | tr '\n' ' ')
@@ -161,7 +168,8 @@ jobs:
             printf '  - %s\n' "${ACTUAL_FOLDERS[@]}" | sort
             echo ""
             echo "If you added a new integration test folder, you must:"
-            echo "  1. Add a corresponding 'test-e2e-<folder-name>' target to the Makefile"
+            echo "  1. Add a corresponding 'test-e2e-<folder-name>' target to the Makefile,"
+            echo "     replacing / with - for a nested folder (api/search -> test-e2e-api-search)"
             echo "  2. Add the target to the matrix in .github/workflows/ci.yml (integration-tests job)"
             echo "  3. Update the EXPECTED_FOLDERS list in this validation step"
             exit 1
