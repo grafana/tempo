@@ -974,6 +974,13 @@ tempo-cli rewrite-blocks drop-traces --drop-trace --backend=local --bucket=./cmd
 
 Remove traces containing personally identifiable information or other sensitive data from object storage without waiting for retention to expire.
 
+{{< admonition type="warning" >}}
+Redaction rewrites blocks in object storage and can't be undone.
+You're responsible for verifying the selection.
+If you redact by query, confirm in Grafana Explore that the query selects the right traces, then run it with `--dry-run` and check the match count.
+Explore shows only a sample; redaction removes every matching trace across the tenant.
+{{< /admonition >}}
+
 The `redact` command submits a redaction request to the [backend scheduler](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/compaction/#backend-scheduler). 
 The scheduler creates jobs that rewrite affected blocks in object storage to remove the specified traces. 
 Unlike [`drop-traces`](#drop-traces-by-id), which operates directly on object storage from the CLI, `redact` delegates the work to the backend scheduler over gRPC.
@@ -995,7 +1002,7 @@ Options:
 - `--tenant <value>` **(required)** Tenant ID.
 - `--trace-id <value>` Trace ID to redact, in hex format. Repeat the flag for several traces in one request (`--trace-id=<ID> --trace-id=<ID>`, not comma-separated), up to 1000. Every job the redaction creates carries the whole list, so a longer list costs one copy per block; use `--query` instead. Mutually exclusive with `--query`.
 - `--query <value>` TraceQL query selecting the traces to redact, for example `{ span.http.status_code = 500 }`. Mutually exclusive with `--trace-id`. The query is restricted to a single spanset filter: `=` comparisons on the matched span's own `resource.*` or `span.*` attributes, joined by `&&` or `||`. Regular expressions, `!=` or ordered comparisons, `parent.`-scoped attributes, and pipelines or aggregates aren't supported.
-- `--dry-run` Evaluate the selector and report match counts without rewriting any blocks (default: `false`).
+- `--dry-run` Evaluate the selector without rewriting any blocks. After the dry-run jobs complete, match counts are added to `tempo_backend_scheduler_redaction_traces_found_total` (`mode="dry_run"`). The command doesn't print the count (default: `false`).
 - `--start <value>` Start of the time window. Accepts `now`, a relative offset such as `now-7d`, or an RFC3339 timestamp. Must be given with `--end`, must be before `--end`, and cannot be combined with `--trace-id`. Omit both bounds to redact the whole tenant.
 - `--end <value>` End of the time window. Same forms as `--start`. Must be given with `--start`.
 - `--tls` Use TLS for the gRPC connection (default: `false`).
@@ -1022,6 +1029,47 @@ batch_id:     <BATCH_ID>
 jobs_created: <COUNT>
 mode:         dry-run (jobs will report match counts; no blocks will be rewritten)
 ```
+
+### Before you submit a redaction
+
+Redaction only rewrites blocks that already exist in object storage when you submit.
+Data still held by ingesters isn't covered, so recently ingested traces can survive a run.
+
+1. Stop ingesting the sensitive data at its source.
+1. Wait for the current blocks to flush to object storage.
+   Blocks flush on an interval of a few minutes; allow around 10 minutes to be safe, so the traces you want to remove land in blocks the redaction can reach.
+
+If you use `--query`:
+
+1. [Check your redaction query in Grafana Explore](#check-your-redaction-query-in-grafana-explore) to confirm it selects the right traces.
+1. Run the same query with `--dry-run`.
+   The command returns as soon as jobs are created; it doesn't print the match count.
+   Wait until those jobs complete.
+   Monitor progress on the [`/status/backendscheduler`](/docs/tempo/<TEMPO_VERSION>/api_docs/#backend-scheduler-job-status) endpoint.
+   Then read `tempo_backend_scheduler_redaction_traces_found_total` for your tenant with `mode="dry_run"`.
+   The metric is a counter that increments when each job finishes, so use an increase over the run or the **Dry-run Blast Radius / h** panel on the **Tempo - Backend Work** dashboard.
+   A value of zero can mean no matches or that jobs haven't finished yet.
+   For the metric and dashboard, refer to [Key metrics](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/compaction/#key-metrics).
+   If the count is far larger than the Explore sample, narrow the query first.
+
+Then submit the redaction.
+For commands, refer to [Examples](#examples).
+
+### Check your redaction query in Grafana Explore
+
+Use this procedure when you redact with `--query`.
+Enter the same query string you pass to `--query`.
+
+1. In Grafana, go to **Explore** and select your Tempo data source.
+1. For **Query type**, select **TraceQL**, then enter your redaction query, for example `{ span.http.status_code = 500 }`.
+1. Select **Run query** and inspect the matching traces in the results.
+
+For help building and running TraceQL queries, refer to [TraceQL queries in Grafana](/docs/tempo/<TEMPO_VERSION>/traceql/).
+
+The `--query` option accepts only a restricted subset of TraceQL: a single spanset filter with positive equality matchers.
+That subset is deliberately narrow so a redaction query can't widen its own match set the way negation or regular expressions could.
+A broader query that works in Explore may be rejected at submission.
+Explore shows a sample; use `--dry-run` for the count before you apply the redaction.
 
 ### Redact a time window
 
@@ -1051,18 +1099,14 @@ before it is cleared, and a second submission for the same tenant is rejected wi
 that completes — a couple of minutes at the default maintenance interval.
 
 {{< admonition type="note" >}}
-Redaction rewrites blocks in object storage and cannot be undone. Two things bound what a single run covers:
+A single run doesn't remove everything. Two things bound what it covers:
 
-- Traces ingested during the run, or still held by ingesters, are untouched — a single pass over a live
-  tenant is never complete. Blocks produced by compactions that were running at submission *are* picked up
-  later, so the set of blocks rewritten is not exactly the set visible when you submitted.
+- Redaction snapshots the tenant's block list at submission and only rewrites those blocks (plus output from
+  compactions that were already running). Traces still held by ingesters, or ingested after you submit, are
+  untouched, so a single pass over a live tenant is never complete.
 - Search results are cached, so re-running the same search can still list redacted traces until that cache
   entry expires. To confirm a redaction, query by trace ID or vary the time range so the cache key differs.
 {{< /admonition >}}
-
-Run with `--dry-run` first to confirm the selector without rewriting anything. Dry-run counts are reported
-by the scheduler, not printed by the command: read the `tempo_backend_scheduler_redaction_traces_found_total`
-metric for the tenant.
 
 {{< admonition type="warning" >}}
 A backend-worker that predates `--start`/`--end` does not respect the window and scans each block it is
@@ -1087,16 +1131,16 @@ Redact multiple traces in one request:
 tempo-cli redact --tenant=my-tenant --trace-id=931281e2a09876de16e15f45ff86283d --trace-id=00000000000000000000000000000001 localhost:9095
 ```
 
-Redact all traces matching a TraceQL query:
-
-```bash
-tempo-cli redact --tenant=my-tenant --query='{ span.http.status_code = 500 }' localhost:9095
-```
-
 Preview the traces a query would match, without rewriting any blocks:
 
 ```bash
 tempo-cli redact --tenant=my-tenant --query='{ span.http.status_code = 500 }' --dry-run localhost:9095
+```
+
+After you preview, redact all traces matching that query:
+
+```bash
+tempo-cli redact --tenant=my-tenant --query='{ span.http.status_code = 500 }' localhost:9095
 ```
 
 With TLS and a custom CA:
