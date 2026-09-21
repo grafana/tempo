@@ -163,7 +163,7 @@ func benchmarkGetNextForQuerier(b *testing.B, listeners int, messages int) {
 	}
 }
 
-func queueWithListeners(ctx context.Context, listeners int, batchSize int, listenerFn func(r []Request)) (*RequestQueue, chan struct{}) {
+func newTestRequestQueue() *RequestQueue {
 	g := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "test_len",
 	}, []string{"user"})
@@ -174,7 +174,11 @@ func queueWithListeners(ctx context.Context, listeners int, batchSize int, liste
 		Name: "test_batch_weight",
 	}, []string{"user"})
 
-	q := NewRequestQueue(100_000, g, b, c)
+	return NewRequestQueue(100_000, g, b, c)
+}
+
+func queueWithListeners(ctx context.Context, listeners int, batchSize int, listenerFn func(r []Request)) (*RequestQueue, chan struct{}) {
+	q := newTestRequestQueue()
 	start := make(chan struct{})
 
 	for i := 0; i < listeners; i++ {
@@ -399,6 +403,76 @@ func TestGetBatchBuffer(t *testing.T) {
 			assert.Equal(t, tt.expectedCount, len(result))
 		})
 	}
+}
+
+func TestStopTerminatesWithEmptyTenantQueues(t *testing.T) {
+	t.Parallel()
+
+	q := newTestRequestQueue()
+	require.NoError(t, services.StartAndAwaitRunning(context.Background(), q))
+
+	// a tenant queue outlives the request that created it, so any frontend that served
+	// traffic within the last cleanup period is in this state when SIGTERM arrives
+	require.NoError(t, q.EnqueueRequest("test", &mockRequest{}))
+	batch, _, err := q.GetNextRequestForQuerier(context.Background(), FirstUser(), make([]Request, 1))
+	require.NoError(t, err)
+	require.Len(t, batch, 1)
+	require.Equal(t, 1, tenantQueueCount(q))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	require.NoError(t, services.StopAndAwaitTerminated(ctx, q))
+}
+
+func TestStopDispatchesEnqueuedRequests(t *testing.T) {
+	t.Parallel()
+
+	q := newTestRequestQueue()
+	require.NoError(t, services.StartAndAwaitRunning(context.Background(), q))
+	require.NoError(t, q.EnqueueRequest("test", &mockRequest{}))
+
+	// the querier only shows up after shutdown has started, so terminating without
+	// waiting for it would drop the request
+	dequeued := make(chan int, 1)
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		batch, _, err := q.GetNextRequestForQuerier(context.Background(), FirstUser(), make([]Request, 1))
+		if err != nil {
+			dequeued <- -1
+			return
+		}
+		dequeued <- len(batch)
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	start := time.Now()
+	require.NoError(t, services.StopAndAwaitTerminated(ctx, q))
+	require.Equal(t, 1, <-dequeued)
+	require.Less(t, time.Since(start), queueDrainTimeout, "drain ended on its deadline instead of on dispatch")
+}
+
+func TestStopTerminatesWithUndispatchedRequests(t *testing.T) {
+	t.Parallel()
+
+	q := newTestRequestQueue()
+	q.drainTimeout = 100 * time.Millisecond
+	require.NoError(t, services.StartAndAwaitRunning(context.Background(), q))
+
+	// no querier ever arrives, so only the drain deadline can end the wait
+	require.NoError(t, q.EnqueueRequest("test", &mockRequest{}))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	require.NoError(t, services.StopAndAwaitTerminated(ctx, q))
+}
+
+func tenantQueueCount(q *RequestQueue) int {
+	q.mtx.RLock()
+	defer q.mtx.RUnlock()
+
+	return q.queues.len()
 }
 
 func assertChanReceived(t *testing.T, c chan struct{}, timeout time.Duration, msg string) {

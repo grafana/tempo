@@ -12,6 +12,9 @@ import (
 
 const (
 	queueCleanupPeriod = 30 * time.Second
+
+	// bounds shutdown's wait for enqueued requests, well under the 30s pod grace period
+	queueDrainTimeout = 5 * time.Second
 )
 
 var (
@@ -52,6 +55,9 @@ type RequestQueue struct {
 	queues  *queues
 	stopped bool
 
+	// overridden in tests
+	drainTimeout time.Duration
+
 	queueLength       *prometheus.GaugeVec     // Per user and reason.
 	batchWeight       *prometheus.HistogramVec // Weight of the batch
 	discardedRequests *prometheus.CounterVec   // Per user.
@@ -60,6 +66,7 @@ type RequestQueue struct {
 func NewRequestQueue(maxOutstandingPerTenant int, queueLength *prometheus.GaugeVec, batchWeight *prometheus.HistogramVec, discardedRequests *prometheus.CounterVec) *RequestQueue {
 	q := &RequestQueue{
 		queues:            newUserQueues(maxOutstandingPerTenant),
+		drainTimeout:      queueDrainTimeout,
 		queueLength:       queueLength,
 		batchWeight:       batchWeight,
 		discardedRequests: discardedRequests,
@@ -214,13 +221,16 @@ func (q *RequestQueue) cleanupQueues(_ context.Context) error {
 }
 
 func (q *RequestQueue) stopping(_ error) error {
+	ctx, cancel := context.WithTimeout(context.Background(), q.drainTimeout)
+	defer cancel()
+
 	q.mtx.Lock()
 	defer q.mtx.Unlock()
 
 	// The cleanup timer has stopped, so tenant entries may remain after their
 	// requests have drained. Wait for pending work, not for tenant removal.
-	for q.queues.hasPendingRequests() {
-		q.cond.Wait(context.Background())
+	for q.queues.hasPendingRequests() && ctx.Err() == nil {
+		q.cond.Wait(ctx)
 	}
 
 	// Only stop after dispatching enqueued requests.
