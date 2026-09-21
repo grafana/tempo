@@ -1840,6 +1840,15 @@ storage:
             # Number of simultaneous uploads to Azure.
             [max_buffers: <int> | default = 4]
 
+            # Optional. Default is 1 (no sharding)
+            # The number of list calls to make in parallel to the backend when listing a
+            # tenant's blocks. Azure cannot start a listing at an arbitrary key, so any
+            # value above 1 shards the block ID keyspace 16 ways by leading hex digit and
+            # lists those shards concurrently; a value above 16 adds no further
+            # parallelism. Raising this shortens the blocklist poll cycle for tenants with
+            # many blocks at the cost of more list requests for small tenants.
+            [list_blocks_concurrency: <int> | default = 1]
+
             # Optional. Default is 3145728 (3 MiB)
             # Buffer size for uploads to Azure.
             [buffer_size: <int> | default = 3145728]

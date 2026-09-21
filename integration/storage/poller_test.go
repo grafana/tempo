@@ -95,6 +95,7 @@ func TestPollerOwnership(t *testing.T) {
 					cfg.StorageConfig.Trace.GCS.Prefix = pc.prefix
 					rr, ww, cc, err = gcs.New(cfg.StorageConfig.Trace.GCS)
 				case backend.Azure:
+					cfg.StorageConfig.Trace.Azure.ListBlocksConcurrency = listBlockConcurrency
 					cfg.StorageConfig.Trace.Azure.Endpoint = e
 					cfg.StorageConfig.Trace.Azure.Prefix = pc.prefix
 					rr, ww, cc, err = azure.New(cfg.StorageConfig.Trace.Azure)
@@ -220,6 +221,7 @@ func TestTenantDeletion(t *testing.T) {
 					cfg.StorageConfig.Trace.GCS.Prefix = pc.prefix
 					rr, ww, cc, err = gcs.New(cfg.StorageConfig.Trace.GCS)
 				case backend.Azure:
+					cfg.StorageConfig.Trace.Azure.ListBlocksConcurrency = listBlockConcurrency
 					cfg.StorageConfig.Trace.Azure.Endpoint = e
 					cfg.StorageConfig.Trace.Azure.Prefix = pc.prefix
 					rr, ww, cc, err = azure.New(cfg.StorageConfig.Trace.Azure)

@@ -22,6 +22,9 @@ type Config struct {
 	BufferSize         int            `yaml:"buffer_size"`
 	HedgeRequestsAt    time.Duration  `yaml:"hedge_requests_at"`
 	HedgeRequestsUpTo  int            `yaml:"hedge_requests_up_to"`
+	// Concurrent list calls per tenant. See Azure.ListBlocks: values above
+	// listBlocksShards add no parallelism.
+	ListBlocksConcurrency int `yaml:"list_blocks_concurrency"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -31,6 +34,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.StringVar(&cfg.Prefix, util.PrefixConfig(prefix, "azure.prefix"), "", "Azure container prefix to store blocks in.")
 	f.StringVar(&cfg.Endpoint, util.PrefixConfig(prefix, "azure.endpoint"), "blob.core.windows.net", "Azure endpoint to push blocks to.")
 	f.IntVar(&cfg.MaxBuffers, util.PrefixConfig(prefix, "azure.max_buffers"), 4, "Number of simultaneous uploads.")
+	f.IntVar(&cfg.ListBlocksConcurrency, util.PrefixConfig(prefix, "azure.list_blocks_concurrency"), 1, "Number of concurrent list calls to make to the backend when listing a tenant's blocks.")
 	cfg.BufferSize = 3 * 1024 * 1024
 	cfg.HedgeRequestsUpTo = 2
 }
