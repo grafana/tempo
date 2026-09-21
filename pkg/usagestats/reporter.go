@@ -250,6 +250,10 @@ func (rep *Reporter) running(ctx context.Context) error {
 
 	if rep.cluster == nil {
 		<-ctx.Done()
+		// a cancelled context is a clean shutdown
+		if errors.Is(ctx.Err(), context.Canceled) {
+			return nil
+		}
 		return ctx.Err()
 	}
 	// check every minute if we should report.
