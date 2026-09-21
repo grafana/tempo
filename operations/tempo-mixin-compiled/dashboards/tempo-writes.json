@@ -582,7 +582,6 @@
      "links": [
 
      ],
-     "nullPointMode": "null as zero",
      "options": {
       "legend": {
        "showLegend": true
@@ -595,31 +594,25 @@
      "span": 4,
      "targets": [
       {
-       "expr": "histogram_quantile(0.99, sum(rate(tempo_distributor_push_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.99, sum (rate(tempo_distributor_push_duration_seconds{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval]))) * 1e3",
        "format": "time_series",
        "interval": "1m",
-       "intervalFactor": 2,
-       "legendFormat": "{{route}} 99th",
-       "refId": "A",
-       "step": 10
+       "legendFormat": "99th Percentile",
+       "legendLink": null
       },
       {
-       "expr": "histogram_quantile(0.50, sum(rate(tempo_distributor_push_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.50, sum (rate(tempo_distributor_push_duration_seconds{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval]))) * 1e3",
        "format": "time_series",
        "interval": "1m",
-       "intervalFactor": 2,
-       "legendFormat": "{{route}} 50th",
-       "refId": "B",
-       "step": 10
+       "legendFormat": "50th Percentile",
+       "legendLink": null
       },
       {
-       "expr": "sum(rate(tempo_distributor_push_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval])) by () * 1e3 / sum(rate(tempo_distributor_push_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval])) by ()",
+       "expr": "1e3 * sum(histogram_sum(rate(tempo_distributor_push_duration_seconds{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval]))) /\nsum(histogram_count(rate(tempo_distributor_push_duration_seconds{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval])))\n",
        "format": "time_series",
        "interval": "1m",
-       "intervalFactor": 2,
-       "legendFormat": "{{route}} Average",
-       "refId": "C",
-       "step": 10
+       "legendFormat": "Average",
+       "legendLink": null
       }
      ],
      "title": "Latency",
@@ -699,7 +692,7 @@
      "span": 6,
      "targets": [
       {
-       "expr": "topk(10, histogram_quantile(0.99, sum by (le, tenant) (rate(tempo_distributor_push_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval])))) * 1e3",
+       "expr": "topk(10, histogram_quantile(0.99, sum by (tenant) (rate(tempo_distributor_push_duration_seconds{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval]))) * 1e3)",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "{{tenant}}",
@@ -771,7 +764,7 @@
      "span": 6,
      "targets": [
       {
-       "expr": "topk(10, histogram_quantile(0.99, sum by (le, tenant) (rate(tempo_distributor_push_bytes_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval]))))",
+       "expr": "topk(10, histogram_quantile(0.99, sum by (tenant) (rate(tempo_distributor_push_bytes{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval]))))",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "{{tenant}}",

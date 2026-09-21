@@ -1,5 +1,6 @@
 local dashboard_utils = import 'dashboard-utils.libsonnet';
 local g = import 'grafana-builder/grafana.libsonnet';
+local utils = import 'mixin-utils/utils.libsonnet';
 
 dashboard_utils {
   grafanaDashboards+: {
@@ -115,7 +116,17 @@ dashboard_utils {
         )
         .addPanel(
           $.panel('Latency') +
-          $.latencyPanel('tempo_distributor_push_duration_seconds', '{%s}' % $.jobMatcher($._config.jobs.distributor))
+          $.queryPanel(
+            [
+              utils.ncHistogramQuantile('0.99', 'tempo_distributor_push_duration_seconds', $.jobMatcher($._config.jobs.distributor), multiplier='1e3').native,
+              utils.ncHistogramQuantile('0.50', 'tempo_distributor_push_duration_seconds', $.jobMatcher($._config.jobs.distributor), multiplier='1e3').native,
+              utils.ncHistogramAverageRate('tempo_distributor_push_duration_seconds', $.jobMatcher($._config.jobs.distributor), multiplier='1e3').native,
+            ],
+            ['99th Percentile', '50th Percentile', 'Average']
+          ) + {
+            yaxes: $.yaxes('ms'),
+            fieldConfig+: { defaults+: { unit: 'ms' } },
+          }
         )
       )
       .addRow(
@@ -123,7 +134,7 @@ dashboard_utils {
         .addPanel(
           $.panel('Push duration by tenant (top 10, p99)') +
           $.queryPanel(
-            'topk(10, histogram_quantile(0.99, sum by (le, tenant) (rate(tempo_distributor_push_duration_seconds_bucket{%s}[$__rate_interval])))) * 1e3' % $.jobMatcher($._config.jobs.distributor),
+            'topk(10, %s)' % utils.ncHistogramQuantile('0.99', 'tempo_distributor_push_duration_seconds', $.jobMatcher($._config.jobs.distributor), sum_by=['tenant'], multiplier='1e3').native,
             '{{tenant}}'
           ) + {
             yaxes: $.yaxes('ms'),
@@ -133,7 +144,7 @@ dashboard_utils {
         .addPanel(
           $.panel('Push size by tenant (top 10, p99)') +
           $.queryPanel(
-            'topk(10, histogram_quantile(0.99, sum by (le, tenant) (rate(tempo_distributor_push_bytes_bucket{%s}[$__rate_interval]))))' % $.jobMatcher($._config.jobs.distributor),
+            'topk(10, %s)' % utils.ncHistogramQuantile('0.99', 'tempo_distributor_push_bytes', $.jobMatcher($._config.jobs.distributor), sum_by=['tenant']).native,
             '{{tenant}}'
           ) + {
             yaxes: $.yaxes('bytes'),
