@@ -410,22 +410,33 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 	lhsT := lhs.Type
 	rhsT := rhs.Type
 
-	// recording forced us to evaluate the rhs even though the lhs alone already
-	// determines the result, honor that before the type check below
-	if lhsB, ok := lhs.Bool(); ok {
-		if o.Op == OpAnd && !lhsB {
-			return StaticFalse, nil
-		}
-		if o.Op == OpOr && lhsB {
-			return StaticTrue, nil
-		}
-	}
-
 	// ensure the resolved types are still valid
-	if !lhsT.isMatchingOperand(rhsT) {
-		return StaticFalse, nil
-	}
-	if !o.Op.binaryTypesValid(lhsT, rhsT) {
+	typesValid := lhsT.isMatchingOperand(rhsT) && o.Op.binaryTypesValid(lhsT, rhsT)
+
+	if !typesValid {
+		// Recording forced us to evaluate the RHS even though one operand alone
+		// (e.g. a resolved bool against a missing attribute) already determines
+		// the result. Honor that instead of falling through to StaticFalse below.
+		// Only reached when the types are invalid, so a valid bool/bool pair
+		// still flows through the case below and keeps recording the samples
+		// the predictor needs to converge.
+		if lhsB, ok := lhs.Bool(); ok {
+			if o.Op == OpAnd && !lhsB {
+				return StaticFalse, nil
+			}
+			if o.Op == OpOr && lhsB {
+				return StaticTrue, nil
+			}
+		}
+		if rhsB, ok := rhs.Bool(); ok {
+			if o.Op == OpAnd && !rhsB {
+				return StaticFalse, nil
+			}
+			if o.Op == OpOr && rhsB {
+				return StaticTrue, nil
+			}
+		}
+
 		return StaticFalse, nil
 	}
 
