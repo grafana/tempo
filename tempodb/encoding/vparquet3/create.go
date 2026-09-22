@@ -69,7 +69,7 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 			break
 		}
 
-		err = s.AddRaw(id, row, 0, 0) // start and end time of the wal meta are used.
+		err = s.AddRaw(id, row, estimateMarshalledSizeFromParquetRow(row), 0, 0) // start and end time of the wal meta are used.
 		if err != nil {
 			return nil, err
 		}
@@ -155,7 +155,7 @@ func (b *streamingBlock) Add(tr *Trace, start, end uint32) error {
 	return nil
 }
 
-func (b *streamingBlock) AddRaw(id []byte, row parquet.Row, start, end uint32) error {
+func (b *streamingBlock) AddRaw(id []byte, row parquet.Row, estimatedSize int, start, end uint32) error {
 	_, err := b.pw.WriteRows([]parquet.Row{row})
 	if err != nil {
 		return err
@@ -165,7 +165,7 @@ func (b *streamingBlock) AddRaw(id []byte, row parquet.Row, start, end uint32) e
 	b.bloom.Add(id)
 	b.meta.ObjectAdded(start, end)
 	b.currentBufferedTraces++
-	b.currentBufferedBytes += estimateMarshalledSizeFromParquetRow(row)
+	b.currentBufferedBytes += estimatedSize
 
 	return nil
 }

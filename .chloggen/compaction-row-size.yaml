@@ -1,0 +1,6 @@
+change_type: enhancement
+component: compactor
+note: Reduce compaction CPU usage by avoiding repeated row-size estimation.
+issues: []
+subtext:
+user: julienduchesne

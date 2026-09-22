@@ -168,8 +168,10 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			newCompactedBlocks = append(newCompactedBlocks, currentBlock.meta)
 		}
 
+		estimatedSize := estimateMarshalledSizeFromParquetRow(lowestObject)
+
 		// Flush existing block data if the next trace can't fit
-		if currentBlock.EstimatedBufferedBytes() > 0 && currentBlock.EstimatedBufferedBytes()+estimateMarshalledSizeFromParquetRow(lowestObject) > c.opts.BlockConfig.RowGroupSizeBytes {
+		if currentBlock.EstimatedBufferedBytes() > 0 && currentBlock.EstimatedBufferedBytes()+estimatedSize > c.opts.BlockConfig.RowGroupSizeBytes {
 			runtime.GC()
 			err = c.appendBlock(ctx, currentBlock, l)
 			if err != nil {
@@ -180,7 +182,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		// Write trace.
 		// Note - not specifying trace start/end here, we set the overall block start/stop
 		// times from the input metas.
-		err = currentBlock.AddRaw(lowestID, lowestObject, 0, 0)
+		err = currentBlock.AddRaw(lowestID, lowestObject, estimatedSize, 0, 0)
 		if err != nil {
 			return nil, err
 		}
