@@ -247,7 +247,7 @@ func TestBlockbuilder_offsetFile_preferredOverMissingKafkaCommit(t *testing.T) {
 	producedRecords := testkafka.SendTracesFor(t, ctx, client, 5*time.Second, 100*time.Millisecond, ingest.Encode)
 
 	skippedAt := len(producedRecords) / 2
-	require.NoError(t, ingest.NewOffsetFile(offsetFilePathForTest(cfg, testPartition), testPartition, testLogger(t)).
+	require.NoError(t, ingest.NewOffsetFile(offsetFilePathForTest(cfg), testPartition, testLogger(t)).
 		Write(producedRecords[skippedAt].Offset))
 
 	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
@@ -292,7 +292,7 @@ func TestBlockbuilder_offsetFile_ignoredWhenDisabled(t *testing.T) {
 	client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
 	producedRecords := testkafka.SendReq(ctx, t, client, ingest.Encode, util.FakeTenantID)
 
-	require.NoError(t, ingest.NewOffsetFile(offsetFilePathForTest(cfg, testPartition), testPartition, testLogger(t)).
+	require.NoError(t, ingest.NewOffsetFile(offsetFilePathForTest(cfg), testPartition, testLogger(t)).
 		Write(producedRecords[0].Offset))
 
 	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
@@ -332,7 +332,7 @@ func TestBlockbuilder_offsetFile_wrongPartitionTreatedAsAbsent(t *testing.T) {
 	producedRecords := testkafka.SendReq(ctx, t, client, ingest.Encode, util.FakeTenantID)
 
 	const wrongPartition = int32(99)
-	require.NoError(t, ingest.NewOffsetFile(offsetFilePathForTest(cfg, testPartition), wrongPartition, testLogger(t)).
+	require.NoError(t, ingest.NewOffsetFile(offsetFilePathForTest(cfg), wrongPartition, testLogger(t)).
 		Write(producedRecords[0].Offset))
 
 	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
@@ -377,7 +377,7 @@ func TestBlockbuilder_offsetFile_writtenOnCommit(t *testing.T) {
 
 	expectedOffset := producedRecords[len(producedRecords)-1].Offset + 1
 	require.Eventually(t, func() bool {
-		offset, ok := ingest.NewOffsetFile(offsetFilePathForTest(cfg, testPartition), testPartition, testLogger(t)).Read()
+		offset, ok := ingest.NewOffsetFile(offsetFilePathForTest(cfg), testPartition, testLogger(t)).Read()
 		return ok && offset == expectedOffset
 	}, time.Minute, time.Second)
 }
@@ -428,8 +428,8 @@ func TestBlockbuilder_offsetFile_boundedReplayFallback(t *testing.T) {
 	require.NotEqual(t, oldRecords[0].Offset, newRecords[0].Offset)
 }
 
-func offsetFilePathForTest(cfg Config, partition int32) string {
-	return fmt.Sprintf("%s/kafka-offset-%d.json", filepath.Dir(cfg.WAL.Filepath), partition)
+func offsetFilePathForTest(cfg Config) string {
+	return fmt.Sprintf("%s/kafka-offset-%d.json", filepath.Dir(cfg.WAL.Filepath), testPartition)
 }
 
 // In case a block flush initially fails, the system retries until it succeeds.
