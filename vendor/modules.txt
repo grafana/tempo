@@ -1885,6 +1885,7 @@ go.opentelemetry.io/collector/pdata/pprofile/pprofileotlp
 go.opentelemetry.io/collector/pdata/testdata
 # go.opentelemetry.io/collector/pdata/xpdata v0.153.0
 ## explicit; go 1.25.0
+go.opentelemetry.io/collector/pdata/xpdata/entity
 go.opentelemetry.io/collector/pdata/xpdata/pref
 go.opentelemetry.io/collector/pdata/xpdata/request
 # go.opentelemetry.io/collector/pipeline v1.59.0
