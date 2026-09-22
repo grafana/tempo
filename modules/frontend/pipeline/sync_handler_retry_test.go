@@ -7,10 +7,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/go-kit/log"
 	"github.com/grafana/dskit/httpgrpc"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
+
+	"github.com/grafana/tempo/v3/modules/frontend/queue"
 )
 
 func TestRetry(t *testing.T) {
@@ -109,7 +112,7 @@ func TestRetry(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			try.Store(0)
 
-			retryWare := NewRetryWare(tc.maxRetries, true, prometheus.NewRegistry())
+			retryWare := NewRetryWare(tc.maxRetries, true, prometheus.NewRegistry(), log.NewNopLogger())
 			handler := retryWare.Wrap(tc.handler)
 
 			req := httptest.NewRequest("GET", "http://example.com", nil)
@@ -123,6 +126,24 @@ func TestRetry(t *testing.T) {
 	}
 }
 
+func TestRetry_QueueStopped(t *testing.T) {
+	var try atomic.Int32
+
+	handler := NewRetryWare(5, true, prometheus.NewRegistry(), log.NewNopLogger()).Wrap(
+		RoundTripperFunc(func(_ Request) (*http.Response, error) {
+			try.Inc()
+			return nil, queue.ErrStopped
+		}))
+
+	res, err := handler.RoundTrip(NewHTTPRequest(httptest.NewRequest("GET", "http://example.com", nil)))
+
+	// every retry would fail the same way, so answer once with a status the client retries
+	// elsewhere, rather than 5 attempts and a 500
+	require.NoError(t, err)
+	require.Equal(t, int32(1), try.Load())
+	require.Equal(t, http.StatusServiceUnavailable, res.StatusCode)
+}
+
 func TestRetry_CancelledRequest(t *testing.T) {
 	var try atomic.Int32
 
@@ -133,7 +154,7 @@ func TestRetry_CancelledRequest(t *testing.T) {
 	req, err := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
 	require.NoError(t, err)
 
-	_, err = NewRetryWare(5, false, prometheus.NewRegistry()).
+	_, err = NewRetryWare(5, false, prometheus.NewRegistry(), log.NewNopLogger()).
 		Wrap(RoundTripperFunc(func(_ Request) (*http.Response, error) {
 			try.Inc()
 			return nil, ctx.Err()
@@ -148,7 +169,7 @@ func TestRetry_CancelledRequest(t *testing.T) {
 	req, err = http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
 	require.NoError(t, err)
 
-	_, err = NewRetryWare(5, false, prometheus.NewRegistry()).
+	_, err = NewRetryWare(5, false, prometheus.NewRegistry(), log.NewNopLogger()).
 		Wrap(RoundTripperFunc(func(_ Request) (*http.Response, error) {
 			try.Inc()
 			cancel()

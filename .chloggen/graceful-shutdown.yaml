@@ -15,7 +15,10 @@ note: Shut down query-frontend and querier gracefully instead of hanging until t
 issues: []
 
 # (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
-subtext:
+subtext: |
+  On SIGTERM the query-frontend now refuses new queries and drains the ones already queued
+  before exiting, waiting up to 10s for queriers to take them. If a rollout still returns
+  5xx, raise the pod's `terminationGracePeriodSeconds` to give in-flight queries more time.
 
 # The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
 user: electron0zero

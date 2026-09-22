@@ -1,6 +1,8 @@
 package deployments
 
 import (
+	"net/http"
+	"sync"
 	"testing"
 	"time"
 
@@ -10,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// capped by the e2e library's hardcoded `docker stop --time=30`, floored by block-builder finishing its consume cycle
-const gracefulStopBudget = 20 * time.Second
+// under the e2e library's hardcoded `docker stop --time=30`, so a slow exit still fails here
+const gracefulStopBudget = 25 * time.Second
 
 // read path first, memberlist gossip seeds last, so nothing stops after its gossip peers are gone
 var shutdownOrder = []string{
@@ -26,7 +28,7 @@ var shutdownOrder = []string{
 	util.ServiceLiveStoreZoneA,
 }
 
-func TestReadPathShutsDownGracefully(t *testing.T) {
+func TestShutdownReadPath(t *testing.T) {
 	util.RunIntegrationTests(t, util.TestHarnessConfig{}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
 
@@ -53,7 +55,7 @@ func TestReadPathShutsDownGracefully(t *testing.T) {
 }
 
 // single binary is the one mode where neither frontend nor querier enables blocklist polling
-func TestSingleBinaryShutsDownGracefully(t *testing.T) {
+func TestShutdownSingleBinary(t *testing.T) {
 	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		DeploymentMode: util.DeploymentModeSingleBinary,
 	}, func(h *util.TempoHarness) {
@@ -81,8 +83,164 @@ func TestSingleBinaryShutsDownGracefully(t *testing.T) {
 	})
 }
 
-// TestAllComponentsShutDownGracefully guards the bug class, not just the two deadlocks that prompted it.
-func TestAllComponentsShutDownGracefully(t *testing.T) {
+// accepted queries must finish, and anything arriving later gets a 503, never a 500
+func TestShutdownInFlightQueries(t *testing.T) {
+	util.RunIntegrationTests(t, util.TestHarnessConfig{}, func(h *util.TempoHarness) {
+		h.WaitTracesWritable(t)
+
+		info := tempoUtil.NewTraceInfo(time.Now(), "")
+		require.NoError(t, h.WriteTraceInfo(info, ""))
+
+		h.WaitTracesQueryable(t, 1)
+		util.QueryAndAssertTrace(t, h.APIClientHTTP(""), info)
+
+		var (
+			mtx         sync.Mutex
+			lost        []int
+			ok          int
+			unavailable int
+			total       int
+		)
+
+		baseURL := h.BaseURL()
+		stop := make(chan struct{}) // tells the loop below to finish
+		done := make(chan struct{}) // indicates that we stopped.
+
+		// query without pause, so a query is always in flight whenever SIGTERM lands
+		go func() {
+			defer close(done)
+			for {
+				// non-blocking, so the loop keeps querying instead of parking here
+				select {
+				case <-stop:
+					return
+				default:
+				}
+
+				code, err := searchStatus(baseURL)
+				if err != nil {
+					// no response at all, which a real client retries elsewhere
+					continue
+				}
+
+				mtx.Lock()
+				total++
+
+				switch {
+				case code == http.StatusServiceUnavailable:
+					// request arrived after the queue stopped accepting and got 503
+					unavailable++
+				case code/100 == 5:
+					// catch if we got 500
+					lost = append(lost, code)
+				default:
+					// happy path
+					ok++
+				}
+				mtx.Unlock()
+			}
+		}()
+
+		// give 2 seconds for some queries to be in flight
+		time.Sleep(2 * time.Second)
+
+		start := time.Now()
+		err := h.Services[util.ServiceQueryFrontend].Stop()
+		elapsed := time.Since(start)
+
+		close(stop)
+		<-done
+
+		require.NoError(t, err, "query-frontend did not exit cleanly")
+		require.Less(t, elapsed, gracefulStopBudget, "query-frontend took %s to stop", elapsed)
+
+		mtx.Lock()
+		defer mtx.Unlock()
+		t.Logf("total=%d served=%d unavailable=%d lost=%d", total, ok, unavailable, len(lost))
+		require.Positive(t, ok)
+		require.Equal(t, total, ok+unavailable+len(lost), "every response must land in exactly one bucket")
+		require.Empty(t, lost, "frontend returned %v while shutting down", lost)
+
+		// we have few ms between queue refusing new work and the listener closing.
+		// so unavailable should not be more than 1% of the total requests.
+		require.Less(t, unavailable*100, total, "refused %d of %d queries", unavailable, total)
+	})
+}
+
+// with no querier to take it, queued work must still be answered rather than left hanging
+func TestShutdownQueuedWork(t *testing.T) {
+	util.RunIntegrationTests(t, util.TestHarnessConfig{}, func(h *util.TempoHarness) {
+		h.WaitTracesWritable(t)
+
+		info := tempoUtil.NewTraceInfo(time.Now(), "")
+		require.NoError(t, h.WriteTraceInfo(info, ""))
+
+		h.WaitTracesQueryable(t, 1)
+		util.QueryAndAssertTrace(t, h.APIClientHTTP(""), info)
+
+		require.NoError(t, h.Services[util.ServiceQuerier].Stop())
+
+		const queued = 5
+
+		type result struct {
+			code int
+			err  error
+		}
+
+		var wg sync.WaitGroup
+		baseURL := h.BaseURL()
+		results := make(chan result, queued)
+		for range queued {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				code, err := searchStatus(baseURL)
+				results <- result{code: code, err: err}
+			}()
+		}
+
+		// let the queries reach the queue before the frontend drains
+		time.Sleep(2 * time.Second)
+
+		start := time.Now()
+		err := h.Services[util.ServiceQueryFrontend].Stop()
+		elapsed := time.Since(start)
+
+		require.NoError(t, err, "query-frontend did not exit cleanly")
+		require.Less(t, elapsed, gracefulStopBudget, "query-frontend took %s to stop", elapsed)
+
+		// the frontend is gone by now, so any request still open fails fast rather than hanging
+		wg.Wait()
+		close(results)
+
+		// none of them can be served with no querier, but every one must still be answered,
+		// and with something the client will retry rather than a 500
+		require.Len(t, results, queued, "not every queued query was answered")
+		for res := range results {
+			require.NoError(t, res.err, "queued query never got a response")
+			require.Equal(t, http.StatusServiceUnavailable, res.code)
+		}
+	})
+}
+
+func searchStatus(baseURL string) (int, error) {
+	req, err := http.NewRequest("GET", baseURL+"/api/search?q=%7B%7D", nil)
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("X-Scope-OrgID", tempoUtil.FakeTenantID)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	return resp.StatusCode, nil
+}
+
+// TestShutdownAllComponents guards the bug class, not just the two deadlocks that prompted it.
+func TestShutdownAllComponents(t *testing.T) {
 	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		Components: util.ComponentsRecentDataQuerying | util.ComponentsBackendQuerying |
 			util.ComponentsMetricsGeneration | util.ComponentsBackendWork,

@@ -13,8 +13,8 @@ import (
 const (
 	queueCleanupPeriod = 30 * time.Second
 
-	// bounds shutdown's wait for enqueued requests, well under the 30s pod grace period
-	queueDrainTimeout = 5 * time.Second
+	// how long shutdown waits for queriers to take the remaining work, see stopping
+	queueDrainTimeout = 10 * time.Second
 )
 
 var (
@@ -44,6 +44,7 @@ func FirstUser() UserIndex {
 // Request stored into the queue.
 type Request interface {
 	Weight() int
+	Fail(error)
 }
 
 // RequestQueue holds incoming requests in per-user queues.
@@ -54,6 +55,8 @@ type RequestQueue struct {
 	cond    contextCond // Notified when request is enqueued or dequeued, or querier is disconnected.
 	queues  *queues
 	stopped bool
+	// set when shutdown starts, so EnqueueRequest refuses new work
+	draining bool
 
 	// overridden in tests
 	drainTimeout time.Duration
@@ -85,7 +88,8 @@ func (q *RequestQueue) EnqueueRequest(userID string, req Request) error {
 	q.mtx.RLock()
 	// don't defer a release. we won't know what we need to release until we call getQueueUnderRlock
 
-	if q.stopped {
+	// refuse new work once shutdown starts, whether draining or already stopped
+	if q.stopped || q.draining {
 		q.mtx.RUnlock()
 		return ErrStopped
 	}
@@ -220,12 +224,15 @@ func (q *RequestQueue) cleanupQueues(_ context.Context) error {
 	return nil
 }
 
+// stopping drains already queued requests before the process exits.
 func (q *RequestQueue) stopping(_ error) error {
 	ctx, cancel := context.WithTimeout(context.Background(), q.drainTimeout)
 	defer cancel()
 
 	q.mtx.Lock()
 	defer q.mtx.Unlock()
+
+	q.draining = true
 
 	// The cleanup timer has stopped, so tenant entries may remain after their
 	// requests have drained. Wait for pending work, not for tenant removal.
@@ -235,6 +242,14 @@ func (q *RequestQueue) stopping(_ error) error {
 
 	// Only stop after dispatching enqueued requests.
 	q.stopped = true
+
+	for userID, uq := range q.queues.userQueues {
+		for len(uq.ch) > 0 {
+			// reap and fail any leftover requests
+			(<-uq.ch).Fail(ErrStopped)
+		}
+		q.queues.deleteQueue(userID)
+	}
 
 	// If there are still goroutines in GetNextRequestForQuerier method, they get notified.
 	q.cond.Broadcast()
