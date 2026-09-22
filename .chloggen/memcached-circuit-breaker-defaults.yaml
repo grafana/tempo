@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: cache
+note: respect memcache circuit breaker default for yaml configuration.
+issues: [7972]
+subtext:
+user: ruslan-mikhailov
