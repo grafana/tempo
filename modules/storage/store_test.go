@@ -10,12 +10,12 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/tempodb"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/v3/tempodb"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend/local"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/tempodb/wal"
 )
 
 func TestStopTerminatesWithPollingEnabled(t *testing.T) {
