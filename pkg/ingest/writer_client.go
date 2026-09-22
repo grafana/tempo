@@ -120,7 +120,7 @@ func commonKafkaClientOptions(cfg KafkaConfig, metrics *kprom.Metrics, logger lo
 
 	opts := []kgo.Opt{
 		kgo.ClientID(cfg.ClientID),
-		kgo.SeedBrokers(cfg.Address),
+		kgo.SeedBrokers(cfg.Address...),
 		kgo.DialTimeout(cfg.DialTimeout),
 
 		// A cluster metadata update is a request sent to a broker and getting back the map of partitions and

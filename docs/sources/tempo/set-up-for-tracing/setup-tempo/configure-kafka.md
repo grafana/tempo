@@ -147,17 +147,21 @@ Pre-create the topic and set `auto_create_topic_enabled: false` in production.
 
 ## Configure Tempo
 
-Set the bootstrap address and topic in the shared Tempo configuration:
+Set the bootstrap addresses and topic in the shared Tempo configuration:
 
 ```yaml
 ingest:
   kafka:
-    address: <KAFKA_BOOTSTRAP_ADDRESS>
+    address:
+      - <KAFKA_BOOTSTRAP_ADDRESS>
+      - <KAFKA_BOOTSTRAP_ADDRESS>
     topic: tempo-traces
     auto_create_topic_enabled: false
 ```
 
-`address` accepts one bootstrap address, after which Tempo discovers the topic's brokers from Kafka metadata.
+`address` accepts one or more bootstrap brokers as a single host:port,
+a comma-separated list, or a YAML list.
+After connecting, Tempo discovers the topic's remaining brokers from Kafka metadata.
 
 ### Configure authentication and TLS
 

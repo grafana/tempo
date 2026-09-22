@@ -343,7 +343,7 @@ Tempo logs errors such as `"the Kafka address has not been configured"`, `"ping 
 
 To resolve this issue:
 
-- Verify that `ingest.kafka.address` in your configuration points to the correct broker address.
+- Verify that `ingest.kafka.address` in your configuration points to the correct bootstrap broker addresses.
 - Confirm the broker is reachable from the Tempo deployment. Check network connectivity and firewall rules.
 - If you use SASL authentication, verify that both `sasl_username` and `sasl_password` are set. Setting only one produces the error `"the SASL username and password must be both configured to enable SASL authentication"`.
 
