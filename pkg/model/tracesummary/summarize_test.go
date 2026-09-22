@@ -1,0 +1,649 @@
+package tracesummary
+
+import (
+	"encoding/json"
+	"sort"
+	"testing"
+
+	"github.com/grafana/tempo/pkg/tempopb"
+	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	resourcev1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
+	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/util"
+	"github.com/stretchr/testify/require"
+)
+
+var testTraceID = []byte("trace-id-0000001")
+
+// testBase offsets fixture timestamps off zero. A start of 0 is an unset
+// timestamp in OTLP and is deliberately treated as unmeasurable (see
+// hasUsableTimestamps), so fixtures need realistic wall-clock values. Offsets
+// passed to testSpan stay relative, so durations read the same as written.
+const testBase = uint64(1_700_000_000_000_000_000)
+
+func stringAttribute(key, value string) *commonv1.KeyValue {
+	return &commonv1.KeyValue{
+		Key:   key,
+		Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: value}},
+	}
+}
+
+func testSpan(spanID, parentID, name string, kind tracev1.Span_SpanKind, start, end uint64, status tracev1.Status_StatusCode, statusMsg string) *tracev1.Span {
+	return &tracev1.Span{
+		TraceId:           testTraceID,
+		SpanId:            []byte(spanID),
+		ParentSpanId:      []byte(parentID),
+		Name:              name,
+		Kind:              kind,
+		StartTimeUnixNano: testBase + start,
+		EndTimeUnixNano:   testBase + end,
+		Status:            &tracev1.Status{Code: status, Message: statusMsg},
+	}
+}
+
+func resourceSpans(service string, spans ...*tracev1.Span) *tracev1.ResourceSpans {
+	return &tracev1.ResourceSpans{
+		Resource: &resourcev1.Resource{
+			Attributes: []*commonv1.KeyValue{stringAttribute("service.name", service)},
+		},
+		ScopeSpans: []*tracev1.ScopeSpans{
+			{Spans: spans},
+		},
+	}
+}
+
+func TestSummarize_SimpleMultiLevelTrace(t *testing.T) {
+	trace := &tempopb.Trace{
+		ResourceSpans: []*tracev1.ResourceSpans{
+			resourceSpans(
+				"checkout",
+				// Root's own span ends before some of its descendants (e.g. an
+				// async downstream call outliving the parent's response) so the
+				// critical path is a genuine multi-hop walk, not just the root.
+				testSpan("root", "", "POST /checkout", tracev1.Span_SPAN_KIND_SERVER, 0, 60, tracev1.Status_STATUS_CODE_OK, ""),
+			),
+			resourceSpans(
+				"inventory",
+				testSpan("inventory", "root", "reserve inventory", tracev1.Span_SPAN_KIND_CLIENT, 20, 90, tracev1.Status_STATUS_CODE_OK, ""),
+				testSpan("reserve", "inventory", "reserve", tracev1.Span_SPAN_KIND_SERVER, 25, 100, tracev1.Status_STATUS_CODE_OK, ""),
+			),
+			resourceSpans(
+				"payment",
+				testSpan("payment", "root", "charge", tracev1.Span_SPAN_KIND_CLIENT, 30, 45, tracev1.Status_STATUS_CODE_OK, ""),
+			),
+		},
+	}
+
+	got, err := Summarize(trace)
+	require.NoError(t, err)
+
+	require.Equal(t, "checkout", got.RootService)
+	require.Equal(t, "POST /checkout", got.RootSpanName)
+	require.Equal(t, int64(100), got.DurationNanos)
+	require.Equal(t, 4, got.SpanCount)
+	require.Equal(t, 0, got.ErrorSpanCount)
+
+	var pathNames []string
+	for _, p := range got.CriticalPath {
+		pathNames = append(pathNames, p.Name)
+	}
+	require.Equal(t, []string{"POST /checkout", "reserve inventory", "reserve"}, pathNames)
+
+	require.Len(t, got.Services, 3)
+	byService := map[string]ServiceBreakdown{}
+	for _, s := range got.Services {
+		byService[s.Service] = s
+	}
+	// Self time excludes what child spans already account for. The root runs
+	// 0-60 with children spanning 20-90 (clipped to 60) and 30-45, so 40ns of
+	// it is covered and 20ns is its own.
+	require.Equal(t, ServiceBreakdown{Service: "checkout", SpanCount: 1, ErrorSpanCount: 0, DurationNanos: 60, SelfDurationNanos: 20}, byService["checkout"])
+	require.Equal(t, ServiceBreakdown{Service: "inventory", SpanCount: 2, ErrorSpanCount: 0, DurationNanos: 145, SelfDurationNanos: 80}, byService["inventory"])
+	require.Equal(t, ServiceBreakdown{Service: "payment", SpanCount: 1, ErrorSpanCount: 0, DurationNanos: 15, SelfDurationNanos: 15}, byService["payment"])
+}
+
+func TestSummarize_NormalNestedTraceFollowsLastFinishingBranch(t *testing.T) {
+	// Fully-synchronous instrumentation: every span's end time is <= its
+	// parent's end time (the common case). The critical path must still be
+	// a multi-hop walk, following whichever direct child finishes latest at
+	// each level.
+	trace := &tempopb.Trace{
+		ResourceSpans: []*tracev1.ResourceSpans{
+			resourceSpans(
+				"svc",
+				testSpan("root", "", "root-op", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK, ""),
+				// branch-a finishes later than branch-b, so the walk descends
+				// into branch-a at the root level.
+				testSpan("branch-a", "root", "branch-a", tracev1.Span_SPAN_KIND_CLIENT, 10, 90, tracev1.Status_STATUS_CODE_OK, ""),
+				testSpan("branch-b", "root", "branch-b", tracev1.Span_SPAN_KIND_CLIENT, 20, 70, tracev1.Status_STATUS_CODE_OK, ""),
+				// leaf-a1 finishes later than leaf-a2, so the walk descends
+				// into leaf-a1 at the branch-a level.
+				testSpan("leaf-a1", "branch-a", "leaf-a1", tracev1.Span_SPAN_KIND_INTERNAL, 15, 85, tracev1.Status_STATUS_CODE_OK, ""),
+				testSpan("leaf-a2", "branch-a", "leaf-a2", tracev1.Span_SPAN_KIND_INTERNAL, 30, 60, tracev1.Status_STATUS_CODE_OK, ""),
+			),
+		},
+	}
+
+	got, err := Summarize(trace)
+	require.NoError(t, err)
+
+	var pathNames []string
+	for _, p := range got.CriticalPath {
+		pathNames = append(pathNames, p.Name)
+	}
+	require.Greater(t, len(pathNames), 1)
+	require.Equal(t, []string{"root-op", "branch-a", "leaf-a1"}, pathNames)
+}
+
+func TestSummarize_SingleSpanTrace(t *testing.T) {
+	trace := &tempopb.Trace{
+		ResourceSpans: []*tracev1.ResourceSpans{
+			resourceSpans(
+				"solo",
+				testSpan("only", "", "do-thing", tracev1.Span_SPAN_KIND_INTERNAL, 5, 15, tracev1.Status_STATUS_CODE_OK, ""),
+			),
+		},
+	}
+
+	got, err := Summarize(trace)
+	require.NoError(t, err)
+
+	require.Equal(t, "solo", got.RootService)
+	require.Equal(t, "do-thing", got.RootSpanName)
+	require.Equal(t, int64(10), got.DurationNanos)
+	require.Equal(t, 1, got.SpanCount)
+	require.Len(t, got.CriticalPath, 1)
+	require.Equal(t, "do-thing", got.CriticalPath[0].Name)
+	require.Len(t, got.SlowestSpans, 1)
+	require.Empty(t, got.ErrorSpans)
+}
+
+func TestSummarize_NoErrors(t *testing.T) {
+	trace := &tempopb.Trace{
+		ResourceSpans: []*tracev1.ResourceSpans{
+			resourceSpans(
+				"svc",
+				testSpan("root", "", "root-op", tracev1.Span_SPAN_KIND_SERVER, 0, 10, tracev1.Status_STATUS_CODE_OK, ""),
+				testSpan("child", "root", "child-op", tracev1.Span_SPAN_KIND_CLIENT, 1, 9, tracev1.Status_STATUS_CODE_UNSET, ""),
+			),
+		},
+	}
+
+	got, err := Summarize(trace)
+	require.NoError(t, err)
+	require.Equal(t, 0, got.ErrorSpanCount)
+	require.Empty(t, got.ErrorSpans)
+}
+
+func TestSummarize_TruncatesToFive(t *testing.T) {
+	var spans []*tracev1.Span
+	spans = append(spans, testSpan("root", "", "root-op", tracev1.Span_SPAN_KIND_SERVER, 0, 1000, tracev1.Status_STATUS_CODE_OK, ""))
+	for i := 0; i < 8; i++ {
+		id := string([]byte{byte('a' + i)})
+		start := uint64(i * 10)
+		end := start + uint64(100+i)
+		spans = append(spans, testSpan("slow-"+id, "root", "op-"+id, tracev1.Span_SPAN_KIND_CLIENT, start, end, tracev1.Status_STATUS_CODE_ERROR, "boom"))
+	}
+	trace := &tempopb.Trace{ResourceSpans: []*tracev1.ResourceSpans{resourceSpans("svc", spans...)}}
+
+	got, err := Summarize(trace)
+	require.NoError(t, err)
+
+	require.Len(t, got.SlowestSpans, 5)
+	require.Len(t, got.ErrorSpans, 5)
+	require.Equal(t, 8, got.ErrorSpanCount)
+
+	for i := 1; i < len(got.SlowestSpans); i++ {
+		require.GreaterOrEqual(t, got.SlowestSpans[i-1].DurationNanos, got.SlowestSpans[i].DurationNanos)
+	}
+	for i := 1; i < len(got.ErrorSpans); i++ {
+		require.LessOrEqual(t, got.ErrorSpans[i-1].StartTimeUnixNano, got.ErrorSpans[i].StartTimeUnixNano)
+	}
+}
+
+// The bounded top-K selection must pick exactly what a full sort over every
+// span would have picked, including on the tie-break paths.
+func TestSummarize_TopKSelectionMatchesFullSort(t *testing.T) {
+	durations := []uint64{50, 10, 50, 30, 10, 90, 30, 90, 50, 70, 10, 90}
+
+	spans := []*tracev1.Span{
+		testSpan("root", "", "root-op", tracev1.Span_SPAN_KIND_SERVER, 0, 1000, tracev1.Status_STATUS_CODE_OK, ""),
+	}
+	for i, d := range durations {
+		id := string([]byte{byte('a' + i)})
+		start := uint64((i % 3) * 10)
+		spans = append(spans, testSpan(id, "root", "op-"+id, tracev1.Span_SPAN_KIND_CLIENT, start, start+d, tracev1.Status_STATUS_CODE_ERROR, "boom"))
+	}
+	trace := &tempopb.Trace{ResourceSpans: []*tracev1.ResourceSpans{resourceSpans("svc", spans...)}}
+
+	got, err := Summarize(trace)
+	require.NoError(t, err)
+
+	all := flattenSpans(trace)
+	self := selfDurations(all, buildChildrenIndex(all, indexSpansByID(all)))
+	less := longerSelfDuration(self)
+
+	bySlowest := make([]*resolvedSpan, len(all))
+	copy(bySlowest, all)
+	sort.Slice(bySlowest, func(i, j int) bool { return less(bySlowest[i].span, bySlowest[j].span) })
+
+	errored := make([]*resolvedSpan, 0, len(all))
+	for _, s := range all {
+		if isError(s.span) {
+			errored = append(errored, s)
+		}
+	}
+	sort.Slice(errored, func(i, j int) bool { return lessByStartThenID(errored[i].span, errored[j].span) })
+
+	gotSlowest := make([]string, len(got.SlowestSpans))
+	for i, s := range got.SlowestSpans {
+		gotSlowest[i] = s.SpanID
+	}
+	gotErrors := make([]string, len(got.ErrorSpans))
+	for i, s := range got.ErrorSpans {
+		gotErrors[i] = s.SpanID
+	}
+
+	require.Equal(t, expectedSpanIDs(bySlowest, maxSlowestSpans), gotSlowest)
+	require.Equal(t, expectedSpanIDs(errored, maxErrorSpans), gotErrors)
+}
+
+func expectedSpanIDs(spans []*resolvedSpan, k int) []string {
+	out := make([]string, 0, k)
+	for _, s := range spans[:k] {
+		out = append(out, util.SpanIDToHexString(s.span.GetSpanId()))
+	}
+	return out
+}
+
+// Nanosecond fields must survive a JSON round trip exactly. Encoded as JSON
+// numbers they would not: an epoch-nanosecond timestamp is past 2^53, where a
+// JavaScript client silently rounds.
+func TestSummary_NanosMarshalAsJSONStrings(t *testing.T) {
+	// testSpan adds testBase, so the wire value is testBase + this offset.
+	const offsetNano = uint64(123456789)
+	const startNano = testBase + offsetNano
+
+	trace := &tempopb.Trace{
+		ResourceSpans: []*tracev1.ResourceSpans{
+			resourceSpans(
+				"svc",
+				testSpan("root", "", "root-op", tracev1.Span_SPAN_KIND_SERVER, offsetNano, offsetNano+1500, tracev1.Status_STATUS_CODE_ERROR, "boom"),
+			),
+		},
+	}
+
+	got, err := Summarize(trace)
+	require.NoError(t, err)
+
+	body, err := json.Marshal(got)
+	require.NoError(t, err)
+	require.Contains(t, string(body), `"startTimeUnixNano":"1700000000123456789"`)
+	require.Contains(t, string(body), `"durationNanos":"1500"`)
+
+	var round TraceOverview
+	require.NoError(t, json.Unmarshal(body, &round))
+	require.Equal(t, int64(1500), round.DurationNanos)
+	require.Equal(t, startNano, round.CriticalPath[0].StartTimeUnixNano)
+	require.Equal(t, startNano, round.SlowestSpans[0].StartTimeUnixNano)
+	require.Equal(t, startNano, round.ErrorSpans[0].StartTimeUnixNano)
+}
+
+// Children that overlap must be unioned, not summed. Summing would report the
+// parent as having spent no time of its own.
+func TestSelfDuration_ParallelChildrenAreUnioned(t *testing.T) {
+	trace := &tempopb.Trace{
+		ResourceSpans: []*tracev1.ResourceSpans{
+			resourceSpans(
+				"svc",
+				testSpan("root", "", "fan-out", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK, ""),
+				// Three concurrent children covering 10-60 between them.
+				testSpan("a", "root", "call-a", tracev1.Span_SPAN_KIND_CLIENT, 10, 60, tracev1.Status_STATUS_CODE_OK, ""),
+				testSpan("b", "root", "call-b", tracev1.Span_SPAN_KIND_CLIENT, 15, 55, tracev1.Status_STATUS_CODE_OK, ""),
+				testSpan("c", "root", "call-c", tracev1.Span_SPAN_KIND_CLIENT, 20, 50, tracev1.Status_STATUS_CODE_OK, ""),
+			),
+		},
+	}
+
+	got, err := Summarize(trace)
+	require.NoError(t, err)
+
+	// Summed children would be 120ns against a 100ns parent. Unioned they cover
+	// 10-60, so the root keeps 50ns of self time.
+	require.Equal(t, int64(50), got.CriticalPath[0].SelfDurationNanos)
+	require.Equal(t, int64(100), got.CriticalPath[0].DurationNanos)
+
+	svc := got.Services[0]
+	require.Equal(t, "svc", svc.Service)
+	require.Equal(t, int64(220), svc.DurationNanos)     // inclusive, double-counts
+	require.Equal(t, int64(170), svc.SelfDurationNanos) // 50 + 50 + 40 + 30
+}
+
+// A disjoint gap between children stays the parent's own time.
+func TestSelfDuration_GapBetweenChildrenCountsAsSelf(t *testing.T) {
+	trace := &tempopb.Trace{
+		ResourceSpans: []*tracev1.ResourceSpans{
+			resourceSpans(
+				"svc",
+				testSpan("root", "", "serial", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK, ""),
+				testSpan("a", "root", "call-a", tracev1.Span_SPAN_KIND_CLIENT, 10, 30, tracev1.Status_STATUS_CODE_OK, ""),
+				testSpan("b", "root", "call-b", tracev1.Span_SPAN_KIND_CLIENT, 60, 80, tracev1.Status_STATUS_CODE_OK, ""),
+			),
+		},
+	}
+
+	got, err := Summarize(trace)
+	require.NoError(t, err)
+	// 100ns total, 40ns covered by children, 60ns left to the parent.
+	require.Equal(t, int64(60), got.CriticalPath[0].SelfDurationNanos)
+}
+
+// Slowest spans rank by self time, so a long ancestor that merely waits on a
+// child must lose to the child that actually burned the time.
+func TestSlowestSpans_RankBySelfTimeNotWallTime(t *testing.T) {
+	trace := &tempopb.Trace{
+		ResourceSpans: []*tracev1.ResourceSpans{
+			resourceSpans(
+				"svc",
+				testSpan("root", "", "waits", tracev1.Span_SPAN_KIND_SERVER, 0, 1000, tracev1.Status_STATUS_CODE_OK, ""),
+				testSpan("mid", "root", "also-waits", tracev1.Span_SPAN_KIND_CLIENT, 5, 995, tracev1.Status_STATUS_CODE_OK, ""),
+				testSpan("leaf", "mid", "does-the-work", tracev1.Span_SPAN_KIND_CLIENT, 10, 990, tracev1.Status_STATUS_CODE_OK, ""),
+			),
+		},
+	}
+
+	got, err := Summarize(trace)
+	require.NoError(t, err)
+
+	// By wall time the order would be root (1000) > mid (990) > leaf (980).
+	require.Equal(t, "does-the-work", got.SlowestSpans[0].Name)
+	require.Equal(t, int64(980), got.SlowestSpans[0].SelfDurationNanos)
+	require.Equal(t, int64(980), got.SlowestSpans[0].DurationNanos)
+}
+
+// Attributes and parentage are what make a finding actionable, so they must
+// reach the caller without a second fetch of the full trace.
+func TestSummary_CarriesAttributesAndParentage(t *testing.T) {
+	root := testSpan("root", "", "root-op", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK, "")
+	child := testSpan("child", "root", "SELECT stock", tracev1.Span_SPAN_KIND_CLIENT, 10, 95, tracev1.Status_STATUS_CODE_ERROR, "deadlock")
+	child.Attributes = []*commonv1.KeyValue{stringAttribute("db.lock.holder", "batch-reconciler")}
+
+	trace := &tempopb.Trace{ResourceSpans: []*tracev1.ResourceSpans{resourceSpans("svc", root, child)}}
+
+	got, err := Summarize(trace)
+	require.NoError(t, err)
+
+	// The critical path carries the attribute that names the culprit.
+	require.Len(t, got.CriticalPath, 2)
+	require.Equal(t, "batch-reconciler", got.CriticalPath[1].Attributes["db.lock.holder"])
+	require.Empty(t, got.CriticalPath[0].Attributes)
+
+	// Error and slowest spans name their caller.
+	require.Len(t, got.ErrorSpans, 1)
+	require.Equal(t, util.SpanIDToHexString([]byte("root")), got.ErrorSpans[0].ParentSpanID)
+	require.Equal(t, "batch-reconciler", got.ErrorSpans[0].Attributes["db.lock.holder"])
+
+	require.Equal(t, "SELECT stock", got.SlowestSpans[0].Name)
+	require.Equal(t, util.SpanIDToHexString([]byte("root")), got.SlowestSpans[0].ParentSpanID)
+	// The root has no parent, so the field is omitted rather than zero-filled.
+	require.Empty(t, got.SlowestSpans[1].ParentSpanID)
+}
+
+// A span with an unset start time must contribute nothing rather than dragging
+// the envelope back to the epoch — otherwise one badly instrumented span
+// reports the trace as having taken decades.
+func TestSummarize_UnsetStartTimeDoesNotPoisonDurations(t *testing.T) {
+	root := testSpan("root", "", "root-op", tracev1.Span_SPAN_KIND_SERVER, 0, 500, tracev1.Status_STATUS_CODE_OK, "")
+	bad := testSpan("bad", "root", "buggy", tracev1.Span_SPAN_KIND_CLIENT, 100, 400, tracev1.Status_STATUS_CODE_OK, "")
+	bad.StartTimeUnixNano = 0 // unset, as buggy instrumentation emits it
+
+	trace := &tempopb.Trace{ResourceSpans: []*tracev1.ResourceSpans{resourceSpans("svc", root, bad)}}
+
+	got, err := Summarize(trace)
+	require.NoError(t, err)
+
+	require.Equal(t, 2, got.SpanCount)
+	require.Equal(t, int64(500), got.DurationNanos)
+
+	// It is counted as a span but measured as zero, everywhere.
+	require.Equal(t, int64(500), got.Services[0].DurationNanos)
+	require.Equal(t, 2, got.Services[0].SpanCount)
+	for _, s := range got.SlowestSpans {
+		require.LessOrEqual(t, s.DurationNanos, int64(500))
+		require.LessOrEqual(t, s.SelfDurationNanos, int64(500))
+	}
+}
+
+func TestSummarize_FewerThanFive(t *testing.T) {
+	trace := &tempopb.Trace{
+		ResourceSpans: []*tracev1.ResourceSpans{
+			resourceSpans(
+				"svc",
+				testSpan("root", "", "root-op", tracev1.Span_SPAN_KIND_SERVER, 0, 30, tracev1.Status_STATUS_CODE_OK, ""),
+				testSpan("child", "root", "child-op", tracev1.Span_SPAN_KIND_CLIENT, 1, 20, tracev1.Status_STATUS_CODE_ERROR, "oops"),
+			),
+		},
+	}
+
+	require.NotPanics(t, func() {
+		got, err := Summarize(trace)
+		require.NoError(t, err)
+		require.Len(t, got.SlowestSpans, 2)
+		require.Len(t, got.ErrorSpans, 1)
+	})
+}
+
+func TestSummarize_DisconnectedTraceFallsBackToEarliestSpan(t *testing.T) {
+	// Neither span has an empty parent id pointing nowhere in the trace
+	// AND both look like orphans (parent ids that don't resolve to any
+	// span present); this exercises the zero-root-candidate fallback only
+	// when both spans additionally have non-empty parent ids so neither
+	// qualifies as a normal root.
+	trace := &tempopb.Trace{
+		ResourceSpans: []*tracev1.ResourceSpans{
+			resourceSpans(
+				"orphan-a",
+				testSpan("a", "missing-1", "op-a", tracev1.Span_SPAN_KIND_INTERNAL, 50, 60, tracev1.Status_STATUS_CODE_OK, ""),
+			),
+			resourceSpans(
+				"orphan-b",
+				testSpan("b", "missing-2", "op-b", tracev1.Span_SPAN_KIND_INTERNAL, 10, 90, tracev1.Status_STATUS_CODE_OK, ""),
+			),
+		},
+	}
+
+	got, err := Summarize(trace)
+	require.NoError(t, err)
+
+	// Fallback picks the globally earliest-starting span as synthetic root.
+	require.Equal(t, "orphan-b", got.RootService)
+	require.Equal(t, "op-b", got.RootSpanName)
+	require.Equal(t, int64(80), got.DurationNanos)
+}
+
+func TestSummarize_DuplicateSpanIDZipkinPattern(t *testing.T) {
+	// This exercises disambiguateParent's own defense-in-depth logic on raw,
+	// un-deduped input. It does NOT reflect real /summary endpoint behavior:
+	// on that path, combiner.NewTraceByIDV2's deduper resolves zipkin
+	// dual-ID pairs before Summarize ever runs (see TestTraceSummaryHandler_
+	// ZipkinDualIDTrace_GoesThroughDeduperBeforeSummarize in the frontend
+	// package for the real, deduped path).
+	//
+	// Client and server spans share a span ID (zipkin pattern), across two
+	// different ResourceSpans batches, both parented under a real root. A
+	// fourth span is the true child of the server-kind half of the pair and
+	// must resolve its parent without panicking or misattributing to the
+	// client-kind half.
+	trace := &tempopb.Trace{
+		ResourceSpans: []*tracev1.ResourceSpans{
+			resourceSpans(
+				"root-svc",
+				testSpan("root", "", "root-op", tracev1.Span_SPAN_KIND_SERVER, 0, 120, tracev1.Status_STATUS_CODE_OK, ""),
+			),
+			resourceSpans(
+				"caller",
+				testSpan("shared", "root", "call", tracev1.Span_SPAN_KIND_CLIENT, 10, 90, tracev1.Status_STATUS_CODE_OK, ""),
+			),
+			resourceSpans(
+				"callee",
+				// Ends later than the client-kind half so the top-down walk
+				// descends into it, not "call".
+				testSpan("shared", "root", "handle", tracev1.Span_SPAN_KIND_SERVER, 15, 95, tracev1.Status_STATUS_CODE_OK, ""),
+			),
+			resourceSpans(
+				"downstream",
+				testSpan("grandchild", "shared", "do-work", tracev1.Span_SPAN_KIND_INTERNAL, 20, 80, tracev1.Status_STATUS_CODE_OK, ""),
+			),
+		},
+	}
+
+	var got *TraceOverview
+	var err error
+	require.NotPanics(t, func() {
+		got, err = Summarize(trace)
+	})
+	require.NoError(t, err)
+	require.Equal(t, 4, got.SpanCount)
+
+	var pathNames []string
+	for _, p := range got.CriticalPath {
+		pathNames = append(pathNames, p.Name)
+	}
+	// At the root, "handle" ends later than "call" so the walk descends into
+	// it. grandchild's parent (kindWant=SERVER, since grandchild is INTERNAL)
+	// then correctly resolves to the SERVER-kind "handle", not "call".
+	require.Equal(t, []string{"root-op", "handle", "do-work"}, pathNames)
+}
+
+func TestSummarize_RootCandidateExcludedByChildOfLink(t *testing.T) {
+	linked := testSpan("linked-root", "", "linked-op", tracev1.Span_SPAN_KIND_SERVER, 0, 50, tracev1.Status_STATUS_CODE_OK, "")
+	linked.Links = []*tracev1.Span_Link{
+		{
+			TraceId: testTraceID,
+			SpanId:  []byte("elsewhere"),
+			Attributes: []*commonv1.KeyValue{
+				stringAttribute("opentracing.ref_type", "child_of"),
+			},
+		},
+	}
+	realRoot := testSpan("real-root", "", "real-op", tracev1.Span_SPAN_KIND_SERVER, 10, 20, tracev1.Status_STATUS_CODE_OK, "")
+
+	trace := &tempopb.Trace{
+		ResourceSpans: []*tracev1.ResourceSpans{
+			resourceSpans("linked-svc", linked),
+			resourceSpans("real-svc", realRoot),
+		},
+	}
+
+	got, err := Summarize(trace)
+	require.NoError(t, err)
+
+	require.Equal(t, "real-svc", got.RootService)
+	require.Equal(t, "real-op", got.RootSpanName)
+}
+
+// Descending into whichever direct child ends latest is greedy: a branch can
+// finish early while a descendant of it runs on past every sibling. The walk
+// must choose on how far a branch reaches, not on where its first hop stops.
+func TestCriticalPath_FollowsBranchThatReachesLatest(t *testing.T) {
+	trace := &tempopb.Trace{
+		ResourceSpans: []*tracev1.ResourceSpans{
+			resourceSpans(
+				"svc",
+				testSpan("root", "", "root-op", tracev1.Span_SPAN_KIND_SERVER, 0, 100, tracev1.Status_STATUS_CODE_OK, ""),
+				// Ends first of the two branches, but spawns work that outlives
+				// everything else in the trace.
+				testSpan("early", "root", "returns-early", tracev1.Span_SPAN_KIND_CLIENT, 10, 40, tracev1.Status_STATUS_CODE_OK, ""),
+				testSpan("detached", "early", "async-worker", tracev1.Span_SPAN_KIND_INTERNAL, 20, 200, tracev1.Status_STATUS_CODE_OK, ""),
+				// Ends later than "early" and would win a greedy comparison.
+				testSpan("late", "root", "ends-later", tracev1.Span_SPAN_KIND_CLIENT, 10, 90, tracev1.Status_STATUS_CODE_OK, ""),
+			),
+		},
+	}
+
+	got, err := Summarize(trace)
+	require.NoError(t, err)
+
+	var names []string
+	for _, p := range got.CriticalPath {
+		names = append(names, p.Name)
+	}
+	// Greedy on direct-child end time would stop at ["root-op", "ends-later"].
+	require.Equal(t, []string{"root-op", "returns-early", "async-worker"}, names)
+
+	// The path ends on the latest-ending span in the trace, which is what the
+	// trace duration is measured to.
+	require.Equal(t, int64(200), got.DurationNanos)
+}
+
+func TestCriticalPath_CycleGuardTerminates(t *testing.T) {
+	// Malformed data: A's parent is B and B's parent is A, a mutual (2-node)
+	// cycle with no true root. findRoot falls back to the earliest-starting
+	// span. The critical path walk must still terminate via the visited-map
+	// guard rather than looping forever, and must produce a sane, bounded
+	// result (both cycle members visited once each).
+	trace := &tempopb.Trace{
+		ResourceSpans: []*tracev1.ResourceSpans{
+			resourceSpans(
+				"svc",
+				testSpan("a", "b", "op-a", tracev1.Span_SPAN_KIND_INTERNAL, 0, 100, tracev1.Status_STATUS_CODE_OK, ""),
+				testSpan("b", "a", "op-b", tracev1.Span_SPAN_KIND_INTERNAL, 10, 90, tracev1.Status_STATUS_CODE_OK, ""),
+			),
+		},
+	}
+
+	var got *TraceOverview
+	var err error
+	require.NotPanics(t, func() {
+		got, err = Summarize(trace)
+	})
+	require.NoError(t, err)
+
+	var pathNames []string
+	for _, p := range got.CriticalPath {
+		pathNames = append(pathNames, p.Name)
+	}
+	require.Equal(t, []string{"op-a", "op-b"}, pathNames)
+}
+
+func TestCriticalPath_SelfReferentialSpanTerminates(t *testing.T) {
+	// A single span whose ParentSpanId equals its own SpanId. No span in the
+	// trace has an empty parent, so findRoot falls back to the (only) span,
+	// which is then also its own child in the children index. The walk must
+	// terminate immediately rather than looping on itself forever.
+	trace := &tempopb.Trace{
+		ResourceSpans: []*tracev1.ResourceSpans{
+			resourceSpans(
+				"svc",
+				testSpan("loopy", "loopy", "op-loopy", tracev1.Span_SPAN_KIND_INTERNAL, 0, 100, tracev1.Status_STATUS_CODE_OK, ""),
+			),
+		},
+	}
+
+	var got *TraceOverview
+	var err error
+	require.NotPanics(t, func() {
+		got, err = Summarize(trace)
+	})
+	require.NoError(t, err)
+
+	var pathNames []string
+	for _, p := range got.CriticalPath {
+		pathNames = append(pathNames, p.Name)
+	}
+	require.Equal(t, []string{"op-loopy"}, pathNames)
+}
+
+func TestSummarize_NilTraceReturnsError(t *testing.T) {
+	got, err := Summarize(nil)
+	require.Error(t, err)
+	require.Nil(t, got)
+}
+
+func TestSummarize_EmptyTraceReturnsZeroSummary(t *testing.T) {
+	got, err := Summarize(&tempopb.Trace{})
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	require.Equal(t, 0, got.SpanCount)
+	require.Empty(t, got.CriticalPath)
+}
