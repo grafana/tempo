@@ -1,0 +1,22 @@
+# Changelog entry. Generate a copy with `make chlog-new`, then fill in the fields.
+
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: enhancement
+
+# Component or area of the change. Must be one of the components in .chloggen/config.yaml,
+# e.g. distributor, querier, query-frontend, storage, operations.
+component: block-builder
+
+# A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
+note: Persist the last committed Kafka offset to a local file per partition, and optionally enforce it at startup ahead of the Kafka consumer group offset, so block-builder survives a memberless consumer group being garbage collected by the broker.
+
+# (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
+# .chloggen/README.md.
+issues: []
+
+# (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
+subtext: |
+  Gated behind the `-ingest.consumer-group-offset-commit-file-enforced` flag (default off, shared with live-store). When neither the file nor the Kafka offset is usable, replay is now bounded by the new `-block-builder.max-replay-period` flag (default 1h) instead of always falling back to the partition start.
+
+# The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
+user: zalegrala

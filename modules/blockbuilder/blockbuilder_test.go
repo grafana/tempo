@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -221,6 +222,214 @@ func TestBlockbuilder_startWithCommit(t *testing.T) {
 
 	// Check committed offset
 	requireLastCommitEquals(t, ctx, client, producedRecords[len(producedRecords)-1].Offset+1)
+}
+
+// With the offset file enforced and no Kafka consumer group commit present (as if the
+// group's offset had been garbage collected - grafana/tempo-squad#1389), the block-builder
+// resumes from the local offset file instead of replaying the partition from its start.
+func TestBlockbuilder_offsetFile_preferredOverMissingKafkaCommit(t *testing.T) {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	t.Cleanup(func() { cancel(errors.New("test done")) })
+
+	k, address := testkafka.CreateCluster(t, 1, testTopic)
+
+	kafkaCommits := atomic.NewInt32(0)
+	k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
+		kafkaCommits.Inc()
+		return nil, nil, false
+	})
+
+	store := newStore(ctx, t)
+	cfg := blockbuilderConfig(t, address, []int32{0})
+	cfg.IngestStorageConfig.Kafka.ConsumerGroupOffsetCommitFileEnforced = true
+
+	client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
+	producedRecords := testkafka.SendTracesFor(t, ctx, client, 5*time.Second, 100*time.Millisecond, ingest.Encode)
+
+	skippedAt := len(producedRecords) / 2
+	require.NoError(t, ingest.NewOffsetFile(offsetFilePathForTest(cfg, testPartition), testPartition, testLogger(t)).
+		Write(producedRecords[skippedAt].Offset))
+
+	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	require.NoError(t, err)
+	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
+	})
+
+	newRecords := testkafka.SendTracesFor(t, ctx, client, 5*time.Second, 100*time.Millisecond, ingest.Encode)
+	producedRecords = append(producedRecords, newRecords...)
+
+	require.Eventually(t, func() bool {
+		return kafkaCommits.Load() > 0
+	}, time.Minute, time.Second)
+
+	require.Eventually(t, func() bool {
+		return countFlushedTraces(store) == len(producedRecords)-skippedAt
+	}, time.Minute, time.Second)
+
+	requireLastCommitEquals(t, ctx, client, producedRecords[len(producedRecords)-1].Offset+1)
+}
+
+// The same local offset file has no effect when the enforcement flag is off: the
+// block-builder falls back to its ordinary partition-start behavior.
+func TestBlockbuilder_offsetFile_ignoredWhenDisabled(t *testing.T) {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	t.Cleanup(func() { cancel(errors.New("test done")) })
+
+	k, address := testkafka.CreateCluster(t, 1, testTopic)
+
+	kafkaCommits := atomic.NewInt32(0)
+	k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
+		kafkaCommits.Inc()
+		return nil, nil, false
+	})
+
+	store := newStore(ctx, t)
+	cfg := blockbuilderConfig(t, address, []int32{0})
+	cfg.IngestStorageConfig.Kafka.ConsumerGroupOffsetCommitFileEnforced = false
+
+	client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
+	producedRecords := testkafka.SendReq(ctx, t, client, ingest.Encode, util.FakeTenantID)
+
+	require.NoError(t, ingest.NewOffsetFile(offsetFilePathForTest(cfg, testPartition), testPartition, testLogger(t)).
+		Write(producedRecords[0].Offset))
+
+	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	require.NoError(t, err)
+	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
+	})
+
+	require.Eventually(t, func() bool {
+		return kafkaCommits.Load() > 0
+	}, time.Minute, time.Second)
+
+	require.Eventually(t, func() bool {
+		return countFlushedTraces(store) == len(producedRecords)
+	}, time.Minute, time.Second)
+}
+
+// An offset file written for a different partition ID is treated as absent, not trusted.
+func TestBlockbuilder_offsetFile_wrongPartitionTreatedAsAbsent(t *testing.T) {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	t.Cleanup(func() { cancel(errors.New("test done")) })
+
+	k, address := testkafka.CreateCluster(t, 1, testTopic)
+
+	kafkaCommits := atomic.NewInt32(0)
+	k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
+		kafkaCommits.Inc()
+		return nil, nil, false
+	})
+
+	store := newStore(ctx, t)
+	cfg := blockbuilderConfig(t, address, []int32{0})
+	cfg.IngestStorageConfig.Kafka.ConsumerGroupOffsetCommitFileEnforced = true
+
+	client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
+	producedRecords := testkafka.SendReq(ctx, t, client, ingest.Encode, util.FakeTenantID)
+
+	const wrongPartition = int32(99)
+	require.NoError(t, ingest.NewOffsetFile(offsetFilePathForTest(cfg, testPartition), wrongPartition, testLogger(t)).
+		Write(producedRecords[0].Offset))
+
+	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	require.NoError(t, err)
+	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
+	})
+
+	require.Eventually(t, func() bool {
+		return kafkaCommits.Load() > 0
+	}, time.Minute, time.Second)
+
+	// The mismatched file was ignored, so every produced record - not just the tail after
+	// the file's offset - was consumed.
+	require.Eventually(t, func() bool {
+		return countFlushedTraces(store) == len(producedRecords)
+	}, time.Minute, time.Second)
+}
+
+// Every commit writes the local offset file too, regardless of whether enforcement is on,
+// so it's warm and trustworthy by the time enforcement is turned on for an existing partition.
+func TestBlockbuilder_offsetFile_writtenOnCommit(t *testing.T) {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	t.Cleanup(func() { cancel(errors.New("test done")) })
+
+	_, address := testkafka.CreateCluster(t, 1, testTopic)
+
+	store := newStore(ctx, t)
+	cfg := blockbuilderConfig(t, address, []int32{0})
+	cfg.IngestStorageConfig.Kafka.ConsumerGroupOffsetCommitFileEnforced = false
+
+	client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
+	producedRecords := testkafka.SendReq(ctx, t, client, ingest.Encode, util.FakeTenantID)
+
+	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	require.NoError(t, err)
+	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
+	})
+
+	expectedOffset := producedRecords[len(producedRecords)-1].Offset + 1
+	require.Eventually(t, func() bool {
+		offset, ok := ingest.NewOffsetFile(offsetFilePathForTest(cfg, testPartition), testPartition, testLogger(t)).Read()
+		return ok && offset == expectedOffset
+	}, time.Minute, time.Second)
+}
+
+// With neither a usable local offset file nor a Kafka consumer group commit, enforcement
+// bounds the replay to MaxReplayPeriod instead of the partition's absolute start.
+func TestBlockbuilder_offsetFile_boundedReplayFallback(t *testing.T) {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	t.Cleanup(func() { cancel(errors.New("test done")) })
+
+	k, address := testkafka.CreateCluster(t, 1, testTopic)
+
+	kafkaCommits := atomic.NewInt32(0)
+	k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
+		kafkaCommits.Inc()
+		return nil, nil, false
+	})
+
+	store := newStore(ctx, t)
+	cfg := blockbuilderConfig(t, address, []int32{0})
+	cfg.IngestStorageConfig.Kafka.ConsumerGroupOffsetCommitFileEnforced = true
+	cfg.MaxReplayPeriod = time.Second
+
+	client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
+	oldRecords := testkafka.SendReq(ctx, t, client, ingest.Encode, util.FakeTenantID)
+
+	time.Sleep(2 * cfg.MaxReplayPeriod)
+
+	newRecords := testkafka.SendReq(ctx, t, client, ingest.Encode, util.FakeTenantID)
+
+	b, err := New(cfg, testLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	require.NoError(t, err)
+	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
+	})
+
+	require.Eventually(t, func() bool {
+		return kafkaCommits.Load() > 0
+	}, time.Minute, time.Second)
+
+	// Only the records within MaxReplayPeriod were consumed - the older batch was skipped.
+	require.Eventually(t, func() bool {
+		return countFlushedTraces(store) == len(newRecords)
+	}, time.Minute, time.Second)
+
+	requireLastCommitEquals(t, ctx, client, newRecords[len(newRecords)-1].Offset+1)
+	require.NotEqual(t, oldRecords[0].Offset, newRecords[0].Offset)
+}
+
+func offsetFilePathForTest(cfg Config, partition int32) string {
+	return fmt.Sprintf("%s/kafka-offset-%d.json", filepath.Dir(cfg.WAL.Filepath), partition)
 }
 
 // In case a block flush initially fails, the system retries until it succeeds.
