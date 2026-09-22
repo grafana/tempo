@@ -21,6 +21,8 @@ type benchmarkRunCmd struct {
 
 	TargetBytesPerRequest string `help:"bytes per search shard, mirroring the query frontend option of the same name" default:"100MiB"`
 	SearchLimit           int    `help:"traces a search returns per shard" default:"20"`
+	MaxSeries             int    `help:"series a metrics query returns" default:"1000"`
+	Exemplars             int    `help:"exemplars a metrics query collects" default:"0"`
 
 	ReadBufferSize     int    `help:"read buffer size in bytes, 0 for the default"`
 	ReadBufferCount    int    `help:"number of read buffers, 0 for the default"`
@@ -51,6 +53,8 @@ func (cmd *benchmarkRunCmd) Run(_ *globalOptions) error {
 		MaxSamples:            cmd.MaxSamples,
 		TargetBytesPerRequest: int(targetBytes),
 		SearchLimit:           cmd.SearchLimit,
+		MaxSeries:             cmd.MaxSeries,
+		Exemplars:             cmd.Exemplars,
 		ReadBufferSize:        cmd.ReadBufferSize,
 		ReadBufferCount:       cmd.ReadBufferCount,
 		ChunkSizeBytes:        cmd.ChunkSizeBytes,

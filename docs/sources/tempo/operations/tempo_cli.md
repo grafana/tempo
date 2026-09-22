@@ -546,14 +546,34 @@ Options:
 - `--target-bytes-per-request` Bytes per search shard, mirroring the query
   frontend option of the same name. Defaults to `100MiB`.
 - `--search-limit` Traces a search returns per shard. Defaults to `20`.
+- `--max-series` Series a metrics query returns. Defaults to `1000`.
+- `--exemplars` Exemplars a metrics query collects. Defaults to `0`.
 - `--read-buffer-size`, `--read-buffer-count`, `--chunk-size-bytes`,
   `--prefetch-trace-count` Storage read options. Each defaults to `0`, meaning
   Tempo's default. These are the knobs an experiment varies.
 
-The result records per-case latency percentiles and totals for CPU time,
-allocations, inspected bytes and spans, and object-store reads. It also records
-how many results each case matched: two runs are only comparable if those agree,
-so a difference means the comparison is invalid rather than interesting.
+The result records per-case latency percentiles, totals for CPU time and
+allocations, and the object-store reads the case caused. It also records how
+many results each case matched: two runs are only comparable if those agree, so
+a difference means the comparison is invalid rather than interesting.
+
+Metrics are collected rather than listed, so a metric added to Tempo appears
+without a change to the benchmark:
+
+- `response` holds what the query responses reported, keyed by Tempo's own
+  metric names and summed over the case. A metric Tempo did not report is
+  absent rather than zero, because the two are different claims.
+- `process` holds the Prometheus metrics Tempo emitted while the case ran, read
+  from the process registry. `deltas` are counters and histograms, reporting
+  what the case added; `gauges` are snapshots, since differencing a gauge is
+  meaningless. Only metrics that moved are kept.
+
+The query set covers trace lookups by ID, present and absent; an unfiltered
+search; `rate()` and `rate() by (resource.service.name)` as both range and
+instant metrics queries; and tag-name lookups in each attribute scope. Metrics
+queries run over the block's whole time range, with a range query stepping at
+`max(60s, window/30)` to land about 30 points. Searches and metrics queries are
+split into shards of row groups, mirroring how the query frontend splits a job.
 
 A case that fails is recorded with its error and the rest of the run continues.
 Benchmarking trace lookups reads the block's bloom filters, so a partial block

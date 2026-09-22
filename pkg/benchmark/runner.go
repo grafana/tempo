@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"github.com/grafana/tempo/v3/pkg/traceql"
 	"github.com/grafana/tempo/v3/pkg/util"
@@ -24,6 +26,17 @@ const DefaultTargetBytesPerRequest = 100 * 1024 * 1024
 // stops where a real one would.
 const DefaultSearchLimit = 20
 
+// DefaultMaxSeries caps a metrics query's series the way a request would.
+const DefaultMaxSeries = 1000
+
+// minMetricsStep and metricsStepDivisor set the step of a range query:
+// max(60s, window/divisor), which targets about 30 points over the block and
+// falls back to 60s for a short window.
+const (
+	minMetricsStep     = time.Minute
+	metricsStepDivisor = 30
+)
+
 // RunOptions are the knobs a run holds fixed. They are recorded in the result
 // because they are what an experiment varies between its groups.
 type RunOptions struct {
@@ -33,6 +46,8 @@ type RunOptions struct {
 
 	TargetBytesPerRequest int `json:"targetBytesPerRequest"`
 	SearchLimit           int `json:"searchLimit"`
+	MaxSeries             int `json:"maxSeries"`
+	Exemplars             int `json:"exemplars"`
 
 	ReadBufferSize     int    `json:"readBufferSize,omitempty"`
 	ReadBufferCount    int    `json:"readBufferCount,omitempty"`
@@ -50,6 +65,9 @@ func (o *RunOptions) applyDefaults() {
 	}
 	if o.SearchLimit <= 0 {
 		o.SearchLimit = DefaultSearchLimit
+	}
+	if o.MaxSeries <= 0 {
+		o.MaxSeries = DefaultMaxSeries
 	}
 }
 
@@ -86,6 +104,11 @@ func Run(ctx context.Context, blockPath string, profile *BlockProfile, o RunOpti
 		return nil, errors.New(`profile was built with --trace-ids=all, which embeds no IDs; rebuild it with a count`)
 	}
 
+	// Every promauto metric in Tempo registers into the default registry at
+	// package init, so an in-process run can read them without a scrape
+	// endpoint.
+	gatherer := prometheus.Gatherer(prometheus.DefaultGatherer)
+
 	counter := &countingReader{RawReader: raw}
 	blk, err := encoding.OpenBlock(meta, backend.NewReader(counter))
 	if err != nil {
@@ -100,7 +123,7 @@ func Run(ctx context.Context, blockPath string, profile *BlockProfile, o RunOpti
 	start := time.Now()
 	cases := make([]CaseResult, 0, len(phase1Cases()))
 	for _, c := range phase1Cases() {
-		cases = append(cases, runCase(ctx, blk, profile, shards, c, o, counter))
+		cases = append(cases, runCase(ctx, blk, profile, shards, c, o, counter, gatherer))
 	}
 
 	return &Result{
@@ -108,7 +131,6 @@ func Run(ctx context.Context, blockPath string, profile *BlockProfile, o RunOpti
 		StartedAt:     start.UTC(),
 		DurationNs:    int64(time.Since(start)),
 		RunEnv:        runEnv(),
-		Profile:       profileRef(profile),
 		Options:       o,
 		Cases:         cases,
 	}, nil
@@ -133,7 +155,7 @@ func checkProfileMatchesBlock(profile *BlockProfile, meta *backend.BlockMeta) er
 
 // runCase measures one query shape. Latency is per execution; the counters are
 // process-wide or too coarse to attribute, so they are totals over the case.
-func runCase(ctx context.Context, blk common.BackendBlock, profile *BlockProfile, shards []Shard, c benchCase, o RunOptions, counter *countingReader) CaseResult {
+func runCase(ctx context.Context, blk common.BackendBlock, profile *BlockProfile, shards []Shard, c benchCase, o RunOptions, counter *countingReader, gatherer prometheus.Gatherer) CaseResult {
 	res := CaseResult{ID: c.id, API: c.api, Query: c.query}
 
 	exec, err := c.executions(profile, shards, o)
@@ -161,6 +183,9 @@ func runCase(ctx context.Context, blk common.BackendBlock, profile *BlockProfile
 		memAfter   runtime.MemStats
 		readBefore = counter.snapshot()
 	)
+	// A gather failure loses the process metrics for this case but says nothing
+	// about the query, so it is not allowed to fail the case.
+	promBefore, _ := gatherMetrics(gatherer)
 	runtime.ReadMemStats(&memBefore)
 	cpuBefore := cpuTime()
 
@@ -174,7 +199,7 @@ func runCase(ctx context.Context, blk common.BackendBlock, profile *BlockProfile
 				return res
 			}
 			res.Matched += out.matched
-			res.InspectedBytes += out.inspectedBytes
+			res.Response = addMetrics(res.Response, out.metrics)
 		}
 	}
 
@@ -183,6 +208,9 @@ func runCase(ctx context.Context, blk common.BackendBlock, profile *BlockProfile
 	res.AllocBytes = int64(memAfter.TotalAlloc - memBefore.TotalAlloc)
 	res.AllocCount = int64(memAfter.Mallocs - memBefore.Mallocs)
 	res.Backend = counter.since(readBefore)
+	if promAfter, err := gatherMetrics(gatherer); err == nil {
+		res.Process = promAfter.since(promBefore)
+	}
 
 	res.Executions = len(samples)
 	res.WallNs = summarize(samples)
@@ -213,19 +241,6 @@ func runEnv() RunEnv {
 		GoVersion:    runtime.Version(),
 		GoMaxProcs:   runtime.GOMAXPROCS(0),
 		Hostname:     host,
-	}
-}
-
-func profileRef(p *BlockProfile) ProfileRef {
-	return ProfileRef{
-		SchemaVersion: p.SchemaVersion,
-		Format:        p.Block.Version,
-		BlockID:       p.Block.BlockID.String(),
-		TenantID:      p.Block.TenantID,
-		RowGroups:     p.RowGroups,
-		TraceIDMode:   p.TraceIDs.Mode,
-		PresentIDs:    len(p.TraceIDs.Present),
-		AbsentIDs:     len(p.TraceIDs.Absent),
 	}
 }
 
@@ -276,8 +291,10 @@ func pagesPerShard(meta *backend.BlockMeta, rowGroups, targetBytesPerRequest int
 // execOutput is what one execution produced, for the totals and the validity
 // check.
 type execOutput struct {
-	matched        int64
-	inspectedBytes int64
+	matched int64
+	// metrics is whatever the response reported, flattened. Nil when the API
+	// returned no metrics, which the trace-by-ID miss path does.
+	metrics map[string]int64
 }
 
 type execution func(context.Context, common.BackendBlock, RunOptions) (execOutput, error)
@@ -296,18 +313,128 @@ func traceByIDExecutions(hexIDs []string, opts common.SearchOptions) ([]executio
 				return execOutput{}, err
 			}
 			out := execOutput{}
-			if resp != nil {
-				if resp.Metrics != nil {
-					out.inspectedBytes = int64(resp.Metrics.InspectedBytes)
-				}
-				if resp.Trace != nil {
-					out.matched = 1
+			if resp == nil {
+				// A bloom miss short-circuits before a response is built, so
+				// there is nothing to report but the read the counter saw.
+				return out, nil
+			}
+			if resp.Trace != nil {
+				out.matched = 1
+			}
+			if resp.Metrics != nil {
+				if out.metrics, err = responseMetrics(resp.Metrics); err != nil {
+					return execOutput{}, err
 				}
 			}
 			return out, nil
 		})
 	}
 	return exec, nil
+}
+
+// metricsStep is the step of a range query over the block: about 30 points,
+// never finer than a minute.
+func metricsStep(meta *backend.BlockMeta) time.Duration {
+	return max(meta.EndTime.Sub(meta.StartTime)/metricsStepDivisor, minMetricsStep)
+}
+
+// metricsExecutions runs a TraceQL metrics query, one execution per shard, over
+// the block's whole time range.
+//
+// instant collapses the window to a single point, which is the only difference
+// between an instant query and a range query.
+func metricsExecutions(query string, instant bool, shards []Shard, meta *backend.BlockMeta, base common.SearchOptions) []execution {
+	var (
+		start = uint64(meta.StartTime.UnixNano())
+		end   = uint64(meta.EndTime.UnixNano())
+	)
+
+	exec := make([]execution, 0, len(shards))
+	for _, shard := range shards {
+		opts := base
+		opts.StartPage, opts.TotalPages = shard.StartPage, shard.TotalPages
+
+		exec = append(exec, func(ctx context.Context, blk common.BackendBlock, o RunOptions) (execOutput, error) {
+			req := &tempopb.QueryRangeRequest{
+				Query:     query,
+				Start:     start,
+				End:       end,
+				Step:      uint64(metricsStep(meta)),
+				MaxSeries: uint32(o.MaxSeries),
+				Exemplars: uint32(o.Exemplars),
+			}
+			if instant {
+				req.Step = end - start
+				req.XInstant = &tempopb.QueryRangeRequest_Instant{Instant: true}
+			}
+
+			eval, err := traceql.NewEngine().CompileMetricsQueryRange(req,
+				traceql.WithUnsafeHints(true),
+				traceql.WithEngineBytesTracking(true),
+			)
+			if err != nil {
+				return execOutput{}, fmt.Errorf("compiling %q: %w", query, err)
+			}
+
+			fetcher := traceql.NewSpansetFetcherWrapperBoth(
+				func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+					return blk.Fetch(ctx, req, opts)
+				},
+				func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+					return blk.FetchSpans(ctx, req, opts)
+				},
+			)
+
+			if err := eval.Do(ctx, fetcher, start, end, o.MaxSeries); err != nil {
+				return execOutput{}, err
+			}
+
+			// Results does the final series processing, so it is part of what
+			// the query costs and must run inside the measured window.
+			results := eval.Results()
+
+			out := execOutput{matched: int64(len(results))}
+			if out.metrics, err = evaluatorResponseMetrics(eval.Metrics()); err != nil {
+				return execOutput{}, err
+			}
+			return out, nil
+		})
+	}
+	return exec
+}
+
+// tagNamesExecutions lists tag names in one scope, one execution per shard.
+//
+// This API reports through a callback rather than a metrics message, so bytes
+// read is all it can give. The backend counter and the process metrics are what
+// cover the rest.
+func tagNamesExecutions(scope traceql.AttributeScope, shards []Shard, base common.SearchOptions) []execution {
+	exec := make([]execution, 0, len(shards))
+	for _, shard := range shards {
+		opts := base
+		opts.StartPage, opts.TotalPages = shard.StartPage, shard.TotalPages
+
+		exec = append(exec, func(ctx context.Context, blk common.BackendBlock, _ RunOptions) (execOutput, error) {
+			var names, bytesRead int64
+			err := blk.SearchTags(ctx, scope,
+				func(string, traceql.AttributeScope) { names++ },
+				func(b uint64) { bytesRead += int64(b) },
+				opts,
+			)
+			if err != nil {
+				return execOutput{}, err
+			}
+
+			out := execOutput{matched: names}
+			if bytesRead > 0 {
+				// Keyed as the responses key it, so a reader does not have to
+				// know which API produced the row.
+				out.metrics = map[string]int64{"inspectedBytes": bytesRead}
+			}
+			return out, nil
+		})
+	}
+	return exec
 }
 
 func searchExecutions(query string, shards []Shard, meta *backend.BlockMeta, base common.SearchOptions) []execution {
@@ -337,10 +464,13 @@ func searchExecutions(query string, shards []Shard, meta *backend.BlockMeta, bas
 			}
 
 			out := execOutput{}
-			if resp != nil {
-				out.matched = int64(len(resp.Traces))
-				if resp.Metrics != nil {
-					out.inspectedBytes = int64(resp.Metrics.InspectedBytes)
+			if resp == nil {
+				return out, nil
+			}
+			out.matched = int64(len(resp.Traces))
+			if resp.Metrics != nil {
+				if out.metrics, err = responseMetrics(resp.Metrics); err != nil {
+					return execOutput{}, err
 				}
 			}
 			return out, nil

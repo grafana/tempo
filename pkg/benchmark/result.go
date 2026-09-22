@@ -32,8 +32,16 @@ type CaseResult struct {
 	AllocBytes int64 `json:"allocBytes"`
 	AllocCount int64 `json:"allocCount"`
 
-	InspectedBytes int64     `json:"inspectedBytes"`
-	Backend        readStats `json:"backend"`
+	// Response holds the metrics the query responses reported, summed over the
+	// case and keyed by Tempo's own metric names. It is a map so a metric added
+	// to Tempo's response is carried through without a change here.
+	Response map[string]int64 `json:"response,omitempty"`
+	// Process holds the Prometheus metrics Tempo emitted while the case ran.
+	Process ProcessMetrics `json:"process,omitempty"`
+	// Backend counts and times the object-store calls. The response metrics do
+	// not cover the trace-by-ID path, and a bloom miss returns no response at
+	// all, so this is measured at the reader instead.
+	Backend readStats `json:"backend"`
 
 	Error string `json:"error,omitempty"`
 }
@@ -48,25 +56,11 @@ type RunEnv struct {
 	Hostname     string `json:"hostname,omitempty"`
 }
 
-// ProfileRef identifies the profile a run consumed, so a result cannot be
-// silently paired with a different block.
-type ProfileRef struct {
-	SchemaVersion int    `json:"schemaVersion"`
-	Format        string `json:"format"`
-	BlockID       string `json:"blockID"`
-	TenantID      string `json:"tenantID"`
-	RowGroups     int    `json:"rowGroups"`
-	TraceIDMode   string `json:"traceIDMode"`
-	PresentIDs    int    `json:"presentIDs"`
-	AbsentIDs     int    `json:"absentIDs"`
-}
-
 type Result struct {
 	SchemaVersion int          `json:"schemaVersion"`
 	StartedAt     time.Time    `json:"startedAt"`
 	DurationNs    int64        `json:"durationNs"`
 	RunEnv        RunEnv       `json:"runEnv"`
-	Profile       ProfileRef   `json:"profile"`
 	Options       RunOptions   `json:"options"`
 	Cases         []CaseResult `json:"cases"`
 }

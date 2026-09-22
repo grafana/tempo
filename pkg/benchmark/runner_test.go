@@ -27,10 +27,10 @@ func TestRun(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, ResultSchemaVersion, result.SchemaVersion)
-	require.Equal(t, profile.Block.BlockID.String(), result.Profile.BlockID)
-	require.Equal(t, 25, result.Profile.PresentIDs)
 	require.Positive(t, result.DurationNs)
-	require.Len(t, result.Cases, 3)
+	// 2 trace-by-ID + 1 search + 2 metrics queries x (range, instant) + 6 tag
+	// name scopes.
+	require.Len(t, result.Cases, 13)
 
 	byID := map[string]CaseResult{}
 	for _, c := range result.Cases {
@@ -51,14 +51,44 @@ func TestRun(t *testing.T) {
 	absent := byID["traceid/absent"]
 	require.Equal(t, 25, absent.Executions)
 	require.Zero(t, absent.Matched, "an absent ID was found, so the profile is wrong")
+	// A bloom miss returns no response, so there is nothing to report rather
+	// than a row of zeroes. The backend counter is what covers this case.
+	require.Empty(t, absent.Response)
+	require.Positive(t, absent.Backend.Reads)
 
 	search := byID["search/nopredicate"]
 	require.Positive(t, search.Matched)
-	require.Positive(t, search.InspectedBytes)
+	// Keyed by Tempo's own name, not one the runner invented.
+	require.Positive(t, search.Response["inspectedBytes"])
 
 	// The block is read through a counting reader, so I/O must be observed.
 	require.Positive(t, present.Backend.Reads)
 	require.Positive(t, present.Backend.Bytes)
+
+	// Whatever Tempo emitted to the default registry while the case ran is
+	// picked up without the runner naming any metric.
+	require.NotEmpty(t, search.Process.Deltas)
+
+	// The metrics path reports through a different type, so check it lands
+	// under the same keys as search rather than the evaluator's field names.
+	rate := byID["metrics/rate"]
+	require.Positive(t, rate.Matched, "a metrics query returned no series")
+	require.Positive(t, rate.Response["inspectedBytes"])
+	require.Positive(t, rate.Response["inspectedSpans"])
+
+	// An instant query is the same fetch over one interval, so it must run and
+	// inspect the same data.
+	instant := byID["metrics/rate/instant"]
+	require.Positive(t, instant.Matched)
+	require.Equal(t, rate.Response["inspectedBytes"], instant.Response["inspectedBytes"])
+
+	// Tag names report bytes through a callback, keyed the way responses are.
+	unscoped := byID["metadata/tagnames/none"]
+	require.Positive(t, unscoped.Matched, "no tag names were found")
+	require.Positive(t, unscoped.Response["inspectedBytes"])
+
+	// A scope with no attributes still costs a read, which is worth measuring.
+	require.Positive(t, byID["metadata/tagnames/instrumentation"].Response["inspectedBytes"])
 }
 
 func TestRunRepeatMultipliesExecutions(t *testing.T) {
@@ -123,7 +153,6 @@ func TestResultRoundTrip(t *testing.T) {
 
 	got, err := LoadResult(&buf)
 	require.NoError(t, err)
-	require.Equal(t, want.Profile, got.Profile)
 	require.Equal(t, want.Options, got.Options)
 	require.Len(t, got.Cases, len(want.Cases))
 }
