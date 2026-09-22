@@ -1,13 +1,49 @@
 package ingest
 
 import (
+	"context"
 	"strconv"
 	"testing"
 	"time"
 
+	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
+	"github.com/twmb/franz-go/pkg/kfake"
+	"github.com/twmb/franz-go/pkg/kgo"
 )
+
+func TestExportPartitionLagMetricsDisabled(t *testing.T) {
+	cluster, err := kfake.NewCluster(kfake.NumBrokers(1))
+	require.NoError(t, err)
+	t.Cleanup(cluster.Close)
+
+	client, err := kgo.NewClient(kgo.SeedBrokers(cluster.ListenAddrs()...))
+	require.NoError(t, err)
+	t.Cleanup(client.Close)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+
+	called := make(chan struct{}, 1)
+	ExportPartitionLagMetrics(ctx, client, log.NewNopLogger(), Config{
+		Kafka: KafkaConfig{
+			ConsumerGroupLagMetricUpdateInterval: 0,
+		},
+	}, func() []int32 {
+		select {
+		case called <- struct{}{}:
+		default:
+		}
+		return nil
+	}, func() {})
+
+	select {
+	case <-called:
+		require.Fail(t, "lag metrics calculated when export is disabled")
+	case <-time.After(100 * time.Millisecond):
+	}
+}
 
 func TestPruneUnassignedLagMetrics(t *testing.T) {
 	const group = "test-group"
