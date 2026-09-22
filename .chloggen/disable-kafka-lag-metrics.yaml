@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: tempo
+note: Stop calculating Kafka consumer lag metrics when their update interval is set to zero.
+issues: [7973]
+subtext:
+user: ruslan-mikhailov
