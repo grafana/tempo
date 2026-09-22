@@ -953,6 +953,105 @@ func TestRuntimeConfigOverrides_retryStopsWhenContextCanceled(t *testing.T) {
 	goleak.VerifyNone(t, leakOpts)
 }
 
+func TestRuntimeConfigOverrides_retriesPromoteAfterFailedMetricsRegister(t *testing.T) {
+	leakOpts := goleak.IgnoreCurrent()
+
+	overridesFile := filepath.Join(t.TempDir(), "Overrides.yaml")
+	good := toYamlBytes(t, &perTenantOverrides{
+		TenantLimits: map[string]*Overrides{
+			"user1": {},
+		},
+	})
+	require.NoError(t, os.WriteFile(overridesFile, good, 0o700))
+
+	loads := 0
+	validator := &mockValidator{f: func(*Overrides) error {
+		loads++
+		if loads == 2 {
+			return errors.New("promote load failed")
+		}
+		return nil
+	}}
+
+	cfg := Config{
+		PerTenantOverrideConfig: overridesFile,
+		PerTenantOverridePeriod: model.Duration(time.Hour),
+	}
+	reg := prometheus.NewRegistry()
+	overrides, err := newRuntimeConfigOverrides(cfg, validator, reg)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	require.NoError(t, services.StartAndAwaitRunning(ctx, overrides))
+	require.Equal(t, services.Running, overrides.State())
+	require.GreaterOrEqual(t, loads, 3)
+
+	v := lastReloadSuccessful(t, reg)
+	require.NotNil(t, v)
+	require.Equal(t, 1.0, *v)
+
+	require.NoError(t, services.StopAndAwaitTerminated(context.Background(), overrides))
+	goleak.VerifyNone(t, leakOpts)
+}
+
+func TestRuntimeConfigOverrides_failedPromoteDoesNotLeaveStaleMetrics(t *testing.T) {
+	leakOpts := goleak.IgnoreCurrent()
+
+	overridesFile := filepath.Join(t.TempDir(), "Overrides.yaml")
+	good := toYamlBytes(t, &perTenantOverrides{
+		TenantLimits: map[string]*Overrides{
+			"user1": {},
+		},
+	})
+	require.NoError(t, os.WriteFile(overridesFile, good, 0o700))
+
+	first := true
+	validator := &mockValidator{f: func(*Overrides) error {
+		if first {
+			first = false
+			return nil
+		}
+		return errors.New("promote load failed")
+	}}
+
+	cfg := Config{
+		PerTenantOverrideConfig: overridesFile,
+		PerTenantOverridePeriod: model.Duration(time.Hour),
+	}
+	reg := prometheus.NewRegistry()
+	svc, err := newRuntimeConfigOverrides(cfg, validator, reg)
+	require.NoError(t, err)
+	overrides := svc.(*runtimeConfigOverridesManager)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	require.NoError(t, overrides.starting(ctx))
+	require.NotNil(t, overrides.tenantOverrides())
+	require.Nil(t, lastReloadSuccessful(t, reg))
+
+	require.NoError(t, overrides.stopping(nil))
+	goleak.VerifyNone(t, leakOpts)
+}
+
+func lastReloadSuccessful(t *testing.T, g prometheus.Gatherer) *float64 {
+	t.Helper()
+	mfs, err := g.Gather()
+	require.NoError(t, err)
+	for _, mf := range mfs {
+		if mf.GetName() != "tempo_runtime_config_last_reload_successful" {
+			continue
+		}
+		metrics := mf.GetMetric()
+		require.NotEmpty(t, metrics)
+		v := metrics[0].GetGauge().GetValue()
+		return &v
+	}
+	return nil
+}
+
 func toYamlBytes(t *testing.T, perTenantOverrides *perTenantOverrides) []byte {
 	buff, err := yaml.Marshal(perTenantOverrides)
 	require.NoError(t, err)

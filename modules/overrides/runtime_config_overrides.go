@@ -8,6 +8,7 @@ import (
 	"maps"
 	"net/http"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/drone/envsubst"
@@ -211,22 +212,32 @@ func (o *runtimeConfigOverridesManager) starting(ctx context.Context) error {
 		// Probe with a throwaway registry. runtimeconfig.New registers metrics
 		// before load, and those collectors cannot be replaced, so retries must
 		// not use o.registerer until a load has already succeeded.
-		err := o.initAndStartRuntimeConfig(ctx, prometheus.NewRegistry(), false)
-		if err == nil {
+		if o.runtimeConfigMgr == nil {
+			err := o.initAndStartRuntimeConfig(ctx, prometheus.NewRegistry(), false)
+			if err != nil {
+				lastErr = err
+				level.Warn(log.Logger).Log("msg", "failed to load runtime config, retrying", "err", err, "retries", b.NumRetries()+1)
+				b.Wait()
+				continue
+			}
 			if b.NumRetries() > 0 {
 				level.Info(log.Logger).Log("msg", "runtime config loaded after retry", "retries", b.NumRetries())
 			}
-			if err := o.promoteRuntimeConfigMetrics(ctx); err != nil {
-				level.Warn(log.Logger).Log("msg", "runtime config is loaded but metrics were not exported", "err", err)
-			}
-			return nil
 		}
 
-		lastErr = err
-		level.Warn(log.Logger).Log("msg", "failed to load runtime config, retrying", "err", err, "retries", b.NumRetries()+1)
-		b.Wait()
+		if err := o.promoteRuntimeConfigMetrics(ctx); err != nil {
+			lastErr = err
+			level.Warn(log.Logger).Log("msg", "runtime config is loaded but metrics were not exported, retrying", "err", err, "retries", b.NumRetries()+1)
+			b.Wait()
+			continue
+		}
+		return nil
 	}
 
+	if o.runtimeConfigMgr != nil {
+		level.Warn(log.Logger).Log("msg", "runtime config is loaded but metrics were not exported", "err", lastErr)
+		return nil
+	}
 	if lastErr != nil {
 		return fmt.Errorf("failed to start subservices: %w", lastErr)
 	}
@@ -261,13 +272,19 @@ func (o *runtimeConfigOverridesManager) initAndStartRuntimeConfig(ctx context.Co
 		ReloadPeriod: time.Duration(o.cfg.PerTenantOverridePeriod),
 		Loader:       loader,
 	}
-	mgr, err := runtimeconfig.New(runtimeCfg, "overrides", prometheus.WrapRegistererWithPrefix("tempo_", registerer), log.Logger)
+	// runtimeconfig.New registers last_reload_successful before load. Track
+	// those collectors so a failed start can unregister them instead of
+	// leaving TempoBadOverrides stuck at 0 while the probe manager is healthy.
+	tracked := newTrackingRegisterer(registerer)
+	mgr, err := runtimeconfig.New(runtimeCfg, "overrides", prometheus.WrapRegistererWithPrefix("tempo_", tracked), log.Logger)
 	if err != nil {
+		tracked.UnregisterAll()
 		return fmt.Errorf("failed to create runtime config manager: %w", err)
 	}
 
 	subservices, err := services.NewManager(mgr)
 	if err != nil {
+		tracked.UnregisterAll()
 		return fmt.Errorf("failed to create subservices: %w", err)
 	}
 
@@ -276,6 +293,7 @@ func (o *runtimeConfigOverridesManager) initAndStartRuntimeConfig(ctx context.Co
 	// send then blocked the listener goroutine for the life of the process.
 	if err := services.StartManagerAndAwaitHealthy(ctx, subservices); err != nil {
 		_ = services.StopManagerAndAwaitStopped(context.Background(), subservices)
+		tracked.UnregisterAll()
 		return err
 	}
 
@@ -287,6 +305,70 @@ func (o *runtimeConfigOverridesManager) initAndStartRuntimeConfig(ctx context.Co
 		o.subservicesWatcher = watcher
 	}
 	return nil
+}
+
+// trackingRegisterer records collectors so a failed runtimeconfig.New/Start
+// can remove them from the process registerer.
+type trackingRegisterer struct {
+	inner      prometheus.Registerer
+	mu         sync.Mutex
+	collectors []prometheus.Collector
+}
+
+func newTrackingRegisterer(inner prometheus.Registerer) *trackingRegisterer {
+	return &trackingRegisterer{inner: inner}
+}
+
+func (t *trackingRegisterer) Register(c prometheus.Collector) error {
+	if t.inner == nil {
+		return nil
+	}
+	if err := t.inner.Register(c); err != nil {
+		return err
+	}
+	t.mu.Lock()
+	t.collectors = append(t.collectors, c)
+	t.mu.Unlock()
+	return nil
+}
+
+func (t *trackingRegisterer) MustRegister(cs ...prometheus.Collector) {
+	for _, c := range cs {
+		if err := t.Register(c); err != nil {
+			panic(err)
+		}
+	}
+}
+
+func (t *trackingRegisterer) Unregister(c prometheus.Collector) bool {
+	if t.inner == nil {
+		return false
+	}
+	ok := t.inner.Unregister(c)
+	if !ok {
+		return false
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	out := t.collectors[:0]
+	for _, existing := range t.collectors {
+		if existing != c {
+			out = append(out, existing)
+		}
+	}
+	t.collectors = out
+	return true
+}
+
+func (t *trackingRegisterer) UnregisterAll() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.inner != nil {
+		for _, c := range t.collectors {
+			t.inner.Unregister(c)
+		}
+	}
+	t.collectors = nil
 }
 
 func stopRuntimeConfig(watcher *services.FailureWatcher, mgr *services.Manager) {
