@@ -41,17 +41,17 @@ func BenchmarkWriteTenantIndex(b *testing.B) {
 		{"escapedOnly1000", 1000, 10, "\"\\\n☃", true, false},
 		{"longOnly1000", 1000, 10, strings.Repeat("x", 65536), true, false},
 		{"escapedAll1000", 1000, 10, "\"\\\n☃", false, true},
-		{"longFallbackPlain1000", 1000, 10, "", false, true},
-		{"longFallbackEscaped1000", 1000, 10, "\"", false, true},
-		{"scanLimitPlain1000", 1000, 10, "", false, true},
-		{"scanLimitEscaped1000", 1000, 10, "\"", false, true},
+		{"name256Plain1000", 1000, 10, "", false, true},
+		{"name256Escaped1000", 1000, 10, "\"", false, true},
+		{"name32Plain1000", 1000, 10, "", false, true},
+		{"name32Escaped1000", 1000, 10, "\"", false, true},
 	} {
 		b.Run(tc.name, func(b *testing.B) {
 			idx := tenantIndexWriteFixture(tc.blocks, tc.layouts)
 			alter := func(m *BlockMeta) {
-				if strings.HasPrefix(tc.name, "scanLimit") || strings.HasPrefix(tc.name, "longFallback") {
+				if strings.HasPrefix(tc.name, "name32") || strings.HasPrefix(tc.name, "name256") {
 					limit := 32
-					if strings.HasPrefix(tc.name, "longFallback") {
+					if strings.HasPrefix(tc.name, "name256") {
 						limit = 256
 					}
 					for i := range m.DedicatedColumns {

@@ -18,8 +18,8 @@ func TestDedicatedColumnsEncodedSize(t *testing.T) {
 		{"defaults", DefaultDedicatedColumns()},
 		{"options", DedicatedColumns{{Name: "attribute", Scope: DedicatedColumnScopeEvent, Type: DedicatedColumnTypeInt, Options: DedicatedColumnOptions{DedicatedColumnOptionArray, DedicatedColumnOptionBlob}}}},
 		{"escaping", DedicatedColumns{{Name: "<>&\"\\\n☃"}}},
-		{"scan limit", DedicatedColumns{{Name: strings.Repeat("x", 32)}}},
-		{"past scan limit", DedicatedColumns{{Name: strings.Repeat("x", 33)}}},
+		{"32-byte name", DedicatedColumns{{Name: strings.Repeat("x", 32)}}},
+		{"33-byte name", DedicatedColumns{{Name: strings.Repeat("x", 33)}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			data, err := tc.cols.Marshal()

@@ -416,57 +416,16 @@ func (dcs DedicatedColumns) Size() int {
 	if len(dcs) == 0 {
 		return 0
 	}
+	// Count each encoded column without constructing the complete JSON array.
 	size := len("[]") + len(dcs) - 1
 	for i := range dcs {
-		size += dcs[i].jsonSize()
+		b, err := dcs[i].MarshalJSON()
+		if err != nil {
+			return 0
+		}
+		size += len(b)
 	}
 	return size
-}
-
-func (dc *DedicatedColumn) jsonSize() int {
-	// Match MarshalJSON's omitted defaults without allocating encoded strings.
-	size := len(`{"n":""}`) + len(dc.Name)
-	if !plainJSONString(dc.Name) {
-		goto encode
-	}
-	if dc.Scope != "" && dc.Scope != DefaultDedicatedColumnScope {
-		if !plainJSONString(string(dc.Scope)) {
-			goto encode
-		}
-		size += len(`,"s":""`) + len(dc.Scope)
-	}
-	if dc.Type != "" && dc.Type != DefaultDedicatedColumnType {
-		if !plainJSONString(string(dc.Type)) {
-			goto encode
-		}
-		size += len(`,"t":""`) + len(dc.Type)
-	}
-	if len(dc.Options) > 0 {
-		size += len(`,"o":[]`) + len(dc.Options) - 1
-		for _, option := range dc.Options {
-			if !plainJSONString(string(option)) {
-				goto encode
-			}
-			size += 2 + len(option)
-		}
-	}
-	return size
-encode:
-	b, _ := dc.MarshalJSON()
-	return len(b)
-}
-
-func plainJSONString(s string) bool {
-	// Bound scanning work; the JSON encoder is faster for long strings.
-	if len(s) > 32 {
-		return false
-	}
-	for i := 0; i < len(s); i++ {
-		if s[i] < 0x20 || s[i] >= 0x7f || s[i] == '"' || s[i] == '\\' || s[i] == '<' || s[i] == '>' || s[i] == '&' {
-			return false
-		}
-	}
-	return true
 }
 
 func (dcs DedicatedColumns) Marshal() ([]byte, error) {
