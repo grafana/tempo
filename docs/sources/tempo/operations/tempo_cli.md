@@ -1033,7 +1033,7 @@ mode:         dry-run (jobs will report match counts; no blocks will be rewritte
 ### Before you submit a redaction
 
 Redaction only rewrites blocks that already exist in object storage when you submit.
-Data still held by ingesters isn't covered, so recently ingested traces can survive a run.
+Traces still held by block-builders aren't covered, so recently ingested traces can survive a run.
 
 1. Stop ingesting the sensitive data at its source.
 1. Wait for the current blocks to flush to object storage.
@@ -1049,8 +1049,7 @@ If you use `--query`:
 1. Read `tempo_backend_scheduler_redaction_traces_found_total` for your tenant with `mode="dry_run"`.
    The metric is a counter that increments when each job finishes, so use an increase over the run or the **Dry-run Blast Radius / h** panel on the **Tempo - Backend Work** dashboard.
    A value of zero can mean no matches or that jobs haven't finished yet.
- 
-For the metric and dashboard, refer to [Key metrics](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/compaction/#key-metrics).
+   For the metric and dashboard, refer to [Key metrics](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/compaction/#key-metrics).
    If the count is far larger than the Explore sample, narrow the query first.
 
 Then submit the redaction.
@@ -1103,7 +1102,7 @@ that completes — a couple of minutes at the default maintenance interval.
 A single run doesn't remove everything. Two things bound what it covers:
 
 - Redaction snapshots the tenant's block list at submission and only rewrites those blocks (plus output from
-  compactions that were already running). Traces still held by ingesters, or ingested after you submit, are
+  compactions that were already running). Traces still held by block-builders, or ingested after you submit, are
   untouched, so a single pass over a live tenant is never complete.
 - Search results are cached, so re-running the same search can still list redacted traces until that cache
   entry expires. To confirm a redaction, query by trace ID or vary the time range so the cache key differs.
