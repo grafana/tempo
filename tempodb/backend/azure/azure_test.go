@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
 	"github.com/google/uuid"
@@ -560,6 +561,81 @@ func TestClearBlock_DoesNotDoublePrefix(t *testing.T) {
 	require.NoError(t, compactor.ClearBlock(uuid.MustParse(blockID), tenantID))
 	assert.Equal(t, expectedDeletePath, capturedDeletePath,
 		"DELETE key path must contain the configured prefix exactly once")
+}
+
+func TestClearBlockPreservesFailuresWhenBlobsAreMissing(t *testing.T) {
+	const (
+		prefix   = "a/b/c"
+		tenantID = "test-tenant"
+		blockID  = "00000000-0000-0000-0000-000000000002"
+		blobPath = "/testing_account/blerg/a/b/c/" + tenantID + "/" + blockID + "/"
+	)
+
+	for _, tc := range []struct {
+		name        string
+		statuses    [2]int
+		wantFailure bool
+	}{
+		{name: "missing blob only", statuses: [2]int{http.StatusNotFound, http.StatusAccepted}},
+		{name: "failure before missing blob", statuses: [2]int{http.StatusForbidden, http.StatusNotFound}, wantFailure: true},
+		{name: "missing blob before failure", statuses: [2]int{http.StatusNotFound, http.StatusForbidden}, wantFailure: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var deletes int32
+			server := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+				switch r.Method {
+				case http.MethodGet:
+					_, _ = fmt.Fprint(w, `<?xml version="1.0" encoding="utf-8"?>
+						<EnumerationResults><Blobs>
+						  <Blob><Name>a/b/c/test-tenant/00000000-0000-0000-0000-000000000002/first</Name></Blob>
+						  <Blob><Name>a/b/c/test-tenant/00000000-0000-0000-0000-000000000002/second</Name></Blob>
+						</Blobs><NextMarker /></EnumerationResults>`)
+				case http.MethodDelete:
+					atomic.AddInt32(&deletes, 1)
+					var status int
+					switch r.URL.Path {
+					case blobPath + "first":
+						status = tc.statuses[0]
+					case blobPath + "second":
+						status = tc.statuses[1]
+					default:
+						t.Errorf("unexpected delete path %s", r.URL.Path)
+						status = http.StatusInternalServerError
+					}
+					switch status {
+					case http.StatusNotFound:
+						w.Header().Set("x-ms-error-code", "BlobNotFound")
+					case http.StatusForbidden:
+						w.Header().Set("x-ms-error-code", "AuthorizationFailure")
+					}
+					w.WriteHeader(status)
+				default:
+					w.WriteHeader(http.StatusOK)
+				}
+			})
+
+			_, _, compactor, err := NewNoConfirm(&Config{
+				StorageAccountName: "testing_account",
+				StorageAccountKey:  flagext.SecretWithValue("YQo="),
+				MaxBuffers:         3,
+				BufferSize:         1000,
+				ContainerName:      "blerg",
+				Prefix:             prefix,
+				Endpoint:           server.URL[7:],
+			})
+			require.NoError(t, err)
+
+			err = compactor.ClearBlock(uuid.MustParse(blockID), tenantID)
+			require.Equal(t, int32(2), atomic.LoadInt32(&deletes))
+			if tc.wantFailure {
+				var responseErr *azcore.ResponseError
+				require.ErrorAs(t, err, &responseErr)
+				require.Equal(t, http.StatusForbidden, responseErr.StatusCode)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestDeleteVersioned_DoesNotDoublePrefix(t *testing.T) {

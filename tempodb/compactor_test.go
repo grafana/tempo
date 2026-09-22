@@ -14,6 +14,7 @@ import (
 	"github.com/go-kit/log"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -869,6 +870,33 @@ func testCompactWithConfig(t *testing.T, targetBlockVersion string) {
 		&mockOverrides{},
 	)
 	require.NoError(t, err)
+}
+
+func TestMarkCompactedSkipsAlreadyRetiredBlock(t *testing.T) {
+	// markCompacted retires each old block via MarkBlockCompacted after a
+	// successful merge. retention's own, independent age-based sweep can reach
+	// the same block first (or a duplicate compaction job can be dispatched
+	// against a stale block list). Either way, finding the block already
+	// retired is not a real compaction error.
+	tenantID := "already-retired"
+
+	_, w, c, _ := testConfig(t, backend.EncNone, 0)
+	rw := c.(*readerWriter)
+
+	blocks := cutTestBlocks(t, w, tenantID, 1, 10)
+	oldMeta := blocks[0].BlockMeta()
+
+	// Simulate a concurrent retention pass that already retired this block on
+	// the backend, bypassing markCompacted's own in-memory bookkeeping.
+	require.NoError(t, rw.c.MarkBlockCompacted(uuid.UUID(oldMeta.BlockID), tenantID))
+
+	before := testutil.ToFloat64(metricCompactionErrors)
+
+	newMeta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: tenantID}
+	err := markCompacted(rw, tenantID, []*backend.BlockMeta{oldMeta}, []*backend.BlockMeta{newMeta})
+	require.NoError(t, err)
+	require.Equal(t, before, testutil.ToFloat64(metricCompactionErrors),
+		"a block already retired by someone else must not count as a compaction error")
 }
 
 type testData struct {

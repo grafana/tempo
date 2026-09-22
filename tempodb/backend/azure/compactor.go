@@ -3,6 +3,7 @@ package azure
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -36,7 +37,8 @@ func (rw *Azure) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
 
 	src, _, err := rw.readAll(ctx, metaFilename)
 	if err != nil {
-		return err
+		// Another compaction or retention pass already retired this block.
+		return readError(err)
 	}
 
 	err = rw.writeAll(ctx, compactedMetaFilename, src)
@@ -80,9 +82,9 @@ func (rw *Azure) ClearBlock(blockID uuid.UUID, tenantID string) error {
 
 			// b.Name from the listing is already prefixed so use deleteRaw - rw.Delete would re-apply it.
 			err = rw.deleteRaw(ctx, *b.Name)
-			if err != nil {
+			// A missing blob is already cleared; preserve any other deletion error.
+			if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 				warning = err
-				continue
 			}
 		}
 	}

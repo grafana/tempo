@@ -125,13 +125,21 @@ type MockCompactor struct {
 
 	BlockMetaFn             func(blockID uuid.UUID, tenantID string) (*CompactedBlockMeta, error)
 	CompactedBlockMetaCalls map[string]map[uuid.UUID]int
+	MarkBlockCompactedFn    func(blockID uuid.UUID, tenantID string) error
+	ClearBlockFn            func(blockID uuid.UUID, tenantID string) error
 }
 
-func (c *MockCompactor) MarkBlockCompacted(uuid.UUID, string) error {
+func (c *MockCompactor) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
+	if c.MarkBlockCompactedFn != nil {
+		return c.MarkBlockCompactedFn(blockID, tenantID)
+	}
 	return nil
 }
 
-func (c *MockCompactor) ClearBlock(uuid.UUID, string) error {
+func (c *MockCompactor) ClearBlock(blockID uuid.UUID, tenantID string) error {
+	if c.ClearBlockFn != nil {
+		return c.ClearBlockFn(blockID, tenantID)
+	}
 	return nil
 }
 
