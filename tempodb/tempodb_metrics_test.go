@@ -2729,7 +2729,7 @@ func TestTempoDBQueryRange(t *testing.T) {
 		{Scope: "span", Name: "span-dedicated.01", Type: "string"},
 		{Scope: "span", Name: "span-dedicated.02", Type: "string"},
 	}
-	r, w, c, err := New(&Config{
+	r, w, _, err := New(&Config{
 		Backend: backend.Local,
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
@@ -2751,13 +2751,6 @@ func TestTempoDBQueryRange(t *testing.T) {
 		},
 		BlocklistPoll: 0,
 	}, nil, log.NewNopLogger())
-	require.NoError(t, err)
-
-	err = c.EnableCompaction(ctx, &CompactorConfig{
-		MaxCompactionRange:      time.Hour,
-		BlockRetention:          0,
-		CompactedBlockRetention: 0,
-	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
 	r.EnablePolling(ctx, &mockJobSharder{}, false)

@@ -21,6 +21,10 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 }
 
 func ValidateConfig(cfg *Config) error {
+	if err := cfg.Compaction.Compactor.Validate(); err != nil {
+		return fmt.Errorf("compaction config: %w", err)
+	}
+
 	if cfg.Compaction.MaxJobsPerTenant <= 0 {
 		return fmt.Errorf("max_jobs_per_tenant must be greater than 0")
 	}

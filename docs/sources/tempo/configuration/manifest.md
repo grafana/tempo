@@ -921,8 +921,6 @@ backend_scheduler:
                 compacted_block_retention: 1h0m0s
                 retention_concurrency: 10
                 retention_block_concurrency: 4
-                max_time_per_tenant: 5m0s
-                compaction_cycle: 30s
             max_jobs_per_tenant: 1000
             min_input_blocks: 2
             max_input_blocks: 4
@@ -975,8 +973,6 @@ backend_worker:
         compacted_block_retention: 1h0m0s
         retention_concurrency: 10
         retention_block_concurrency: 4
-        max_time_per_tenant: 5m0s
-        compaction_cycle: 30s
     override_ring_key: backend-worker
     ring:
         kvstore:
