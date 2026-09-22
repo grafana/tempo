@@ -6,13 +6,13 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level" //nolint:all //deprecated
-	"github.com/grafana/tempo/modules/frontend/combiner"
-	"github.com/grafana/tempo/modules/frontend/pipeline"
-	"github.com/grafana/tempo/modules/frontend/tracefilter"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util/tracing"
+	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
+	"github.com/grafana/tempo/v3/modules/frontend/tracefilter"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/util/tracing"
 )
 
 // newTraceIDHandler creates a http.handler for trace by id requests
@@ -172,23 +172,15 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			}
 		}
 
-		var (
-			opts               combiner.TraceByIDV2Options
-			spanPruningEnabled bool
-		)
-		// EXPERIMENTAL: span pruning is not yet a stable feature; config, params, and behavior
-		// may change. Only parse span_pruning_* params when the feature is enabled cluster-wide,
-		// so a malformed param doesn't 400 a request for a feature that's actually turned off.
-		if cfg.TraceByID.SpanPruningEnabled {
-			enabled, spanPruningCfg, pErr := api.ParseSpanPruningRequest(req, resolveSpanPruningEnabledByDefault(o, tenant, cfg.TraceByID.SpanPruningEnabledByDefault))
-			if pErr != nil {
-				return httpInvalidRequest(pErr), nil
-			}
-			spanPruningEnabled = enabled
-			if enabled && spanPruningCfg != nil {
-				opts.SpanPruningConfig = spanPruningCfg
-				opts.Logger = logger
-			}
+		var opts combiner.TraceByIDV2Options
+		enabled, spanPruningCfg, pErr := api.ParseSpanPruningRequest(req, resolveSpanPruningEnabledByDefault(o, tenant, cfg.TraceByID.SpanPruningEnabledByDefault))
+		if pErr != nil {
+			return httpInvalidRequest(pErr), nil
+		}
+		spanPruningEnabled := enabled
+		if enabled && spanPruningCfg != nil {
+			opts.SpanPruningConfig = spanPruningCfg
+			opts.Logger = logger
 		}
 		opts.TraceFilter = traceFilter
 

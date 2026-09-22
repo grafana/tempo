@@ -72,6 +72,13 @@ These queries provide latency quantiles for the above rate.
 If you're interested in how the latency changed over time between any two services we could use these. In the following query the `.9` means we're calculating the 90th percentile.
 Adjust this value if you want to calculate a different percentile for latency, for example, `p50`, `p95`, `p99`.
 
+{{< admonition type="caution" >}}
+`histogram_quantile()` interpolates within pre-aggregated histogram buckets, which can return misleadingly high or impossible latency values when few samples are present.
+If you use `histogram_quantile()` on service graph metrics for alerting, false alerts are common with low-traffic services.
+
+For latency-based alerts on trace data, consider TraceQL's [`quantile_over_time()`](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/functions/#the-quantile_over_time-function) function, which computes percentiles from raw span data at query time rather than from pre-aggregated histogram buckets.
+{{< /admonition >}}
+
 ```promql
 histogram_quantile(.9, sum(rate(traces_service_graph_request_server_seconds_bucket{client="foo"}[5m])) by (server, le))
 ```

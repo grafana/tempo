@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/modules/frontend/pipeline"
-	"github.com/grafana/tempo/pkg/blockboundary"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
+	"github.com/grafana/tempo/v3/pkg/blockboundary"
+	"github.com/grafana/tempo/v3/tempodb/backend"
 	"github.com/stretchr/testify/require"
 )
 

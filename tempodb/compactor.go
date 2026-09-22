@@ -14,13 +14,14 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 
-	"github.com/grafana/tempo/pkg/dataquality"
-	"github.com/grafana/tempo/pkg/util/tracing"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/blockselector"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/pkg/dataquality"
+	"github.com/grafana/tempo/v3/pkg/util/tracing"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/blockselector"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
 
 const (
@@ -53,6 +54,11 @@ var (
 		Name:      "compaction_errors_total",
 		Help:      "Total number of errors occurring during compaction.",
 	})
+	metricCompactionBlocksMissing = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempodb",
+		Name:      "compaction_blocks_missing_total",
+		Help:      "Total number of blocks skipped during compaction because their meta no longer exists.",
+	}, []string{"tenant"})
 	metricCompactionObjectsCombined = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempodb",
 		Name:      "compaction_objects_combined_total",
@@ -263,6 +269,45 @@ func (rw *readerWriter) CompactWithConfig(ctx context.Context, blockMetas []*bac
 	var err error
 	startTime := time.Now()
 
+	// Drop blocks whose meta has disappeared since the block list was built. Another
+	// compaction may already have compacted them, which is an expected race and must
+	// not discard the blocks in the same batch that are still there.
+	existing := make([]*backend.BlockMeta, 0, len(blockMetas))
+	for _, blockMeta := range blockMetas {
+		_, err = rw.r.BlockMeta(ctx, uuid.UUID(blockMeta.BlockID), tenantID)
+		if err != nil {
+			if errors.Is(err, backend.ErrDoesNotExist) {
+				metricCompactionBlocksMissing.WithLabelValues(tenantID).Inc()
+				level.Warn(rw.logger).Log(
+					"msg", "skipping block with no meta during compaction",
+					"tenantID", tenantID,
+					"blockID", blockMeta.BlockID.String(),
+				)
+				continue
+			}
+			return nil, err
+		}
+		existing = append(existing, blockMeta)
+	}
+
+	if len(existing) < len(blockMetas) {
+		level.Warn(rw.logger).Log(
+			"msg", "compacting remaining blocks after skipping missing metas",
+			"tenantID", tenantID,
+			"missing", len(blockMetas)-len(existing),
+			"remaining", len(existing),
+		)
+		span.SetAttributes(
+			attribute.Int("missing_blocks", len(blockMetas)-len(existing)),
+			attribute.Int("remaining_blocks", len(existing)),
+		)
+	}
+
+	if len(existing) < len(blockMetas) && len(existing) < 2 {
+		return nil, nil
+	}
+	blockMetas = existing
+
 	var totalRecords int
 	for _, blockMeta := range blockMetas {
 		level.Info(rw.logger).Log(
@@ -281,12 +326,6 @@ func (rw *readerWriter) CompactWithConfig(ctx context.Context, blockMetas []*bac
 			"replicationFactor", blockMeta.ReplicationFactor,
 		)
 		totalRecords += int(blockMeta.TotalObjects)
-
-		// Make sure block still exists
-		_, err = rw.r.BlockMeta(ctx, uuid.UUID(blockMeta.BlockID), tenantID)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	enc, err := encoding.FromVersion(blockMetas[0].Version)

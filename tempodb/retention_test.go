@@ -13,16 +13,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/dskit/services"
-	"github.com/grafana/tempo/pkg/cache"
-	"github.com/grafana/tempo/pkg/model"
-	testutil "github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/backend"
-	backend_cache "github.com/grafana/tempo/tempodb/backend/cache"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/pool"
-	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/v3/pkg/cache"
+	"github.com/grafana/tempo/v3/pkg/model"
+	testutil "github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	backend_cache "github.com/grafana/tempo/v3/tempodb/backend/cache"
+	"github.com/grafana/tempo/v3/tempodb/backend/local"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/tempodb/pool"
+	"github.com/grafana/tempo/v3/tempodb/wal"
 )
 
 func TestRetention(t *testing.T) {
@@ -469,4 +469,64 @@ func TestRetentionCacheEviction(t *testing.T) {
 	require.False(t, found, "bloom key should be evicted from bloom cache after block deletion")
 	_, found = idxCache.FetchKey(ctx, idxKey)
 	require.False(t, found, "index key should be evicted from trace-id-index cache after block deletion")
+}
+
+func TestRetentionClearsEveryBlockConcurrently(t *testing.T) {
+	// Every other retention test clears a single block, so nothing covers the
+	// concurrent path.
+	const numBlocks = 8
+
+	tempDir := t.TempDir()
+
+	r, w, c, err := New(&Config{
+		Backend: backend.Local,
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		Block: &common.BlockConfig{
+			BloomFP:             0.01,
+			BloomShardSizeBytes: 100_000,
+			Version:             encoding.DefaultEncoding().Version(),
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
+		},
+		BlocklistPoll: 0,
+	}, nil, log.NewNopLogger())
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	r.EnablePolling(ctx, &mockJobSharder{}, false)
+
+	require.NoError(t, c.EnableCompaction(ctx, &CompactorConfig{
+		MaxCompactionRange:        time.Hour,
+		BlockRetention:            0,
+		CompactedBlockRetention:   0,
+		RetentionBlockConcurrency: 4,
+	}, &mockSharder{}, &mockOverrides{}))
+
+	for i := 0; i < numBlocks; i++ {
+		head, err := w.WAL().NewBlock(&backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID}, model.CurrentEncoding)
+		require.NoError(t, err)
+
+		_, err = w.CompleteBlock(ctx, head)
+		require.NoError(t, err)
+	}
+
+	rw := r.(*readerWriter)
+	rw.pollBlocklist(ctx)
+	require.Len(t, rw.blocklist.Metas(testTenantID), numBlocks)
+
+	rw.compactorCfg.BlockRetention = 0
+	rw.compactorCfg.CompactedBlockRetention = time.Hour
+	rw.doRetention(ctx)
+	require.Empty(t, rw.blocklist.Metas(testTenantID))
+	require.Len(t, rw.blocklist.CompactedMetas(testTenantID), numBlocks)
+
+	rw.compactorCfg.BlockRetention = time.Hour
+	rw.compactorCfg.CompactedBlockRetention = 0
+	rw.doRetention(ctx)
+
+	require.Empty(t, rw.blocklist.Metas(testTenantID))
+	require.Empty(t, rw.blocklist.CompactedMetas(testTenantID), "every compacted block must be cleared")
 }

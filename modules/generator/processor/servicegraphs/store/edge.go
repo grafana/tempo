@@ -3,7 +3,7 @@ package store
 import (
 	"time"
 
-	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	v1_trace "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
 )
 
 type ConnectionType string

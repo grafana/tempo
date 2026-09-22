@@ -14,10 +14,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
-	"github.com/grafana/tempo/pkg/cache"
+	"github.com/grafana/tempo/v3/pkg/cache"
 
-	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/tempodb/backend"
+	tempo_io "github.com/grafana/tempo/v3/pkg/io"
+	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
 // metricsNamespace is the Prometheus namespace shared by this package's metrics.
@@ -256,7 +256,7 @@ func (r *readerWriter) cacheFor(cacheInfo *backend.CacheInfo) cache.Cache {
 		}
 
 		// compaction level is _atleast_ CacheMinCompactionLevel
-		if r.cfgBloom.CacheMinCompactionLevel > 0 && cacheInfo.Meta.CompactionLevel > uint32(r.cfgBloom.CacheMinCompactionLevel) {
+		if r.cfgBloom.CacheMinCompactionLevel > 0 && cacheInfo.Meta.CompactionLevel < uint32(r.cfgBloom.CacheMinCompactionLevel) {
 			return nil
 		}
 

@@ -17,9 +17,12 @@ import (
 	uuid "github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend/local"
 )
 
 var (
@@ -769,6 +772,59 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestPollerDoSpanParenting verifies that the per-tenant spans started inside
+// Poller.Do's goroutines are children of the Poller.Do span, so a trace
+// viewer can navigate from the poll cycle down into individual tenant work.
+func TestPollerDoSpanParenting(t *testing.T) {
+	prevTP := otel.GetTracerProvider()
+	exporter := tracetest.NewInMemoryExporter()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
+	otel.SetTracerProvider(tp)
+	defer func() {
+		require.NoError(t, tp.Shutdown(context.Background()))
+		otel.SetTracerProvider(prevTP)
+	}()
+
+	var (
+		c = newMockCompactor(PerTenantCompacted{}, false)
+		w = &backend.MockWriter{}
+		s = &mockJobSharder{owns: true}
+		b = newBlocklist(PerTenant{}, PerTenantCompacted{})
+		r = &backend.MockReader{T: []string{"test"}}
+	)
+
+	poller := NewPoller(&PollerConfig{
+		PollConcurrency:        testPollConcurrency,
+		TenantPollConcurrency:  testTenantPollConcurrency,
+		PollFallback:           testPollFallback,
+		TenantIndexBuilders:    testBuilders,
+		EmptyTenantDeletionAge: testEmptyTenantIndexAge,
+	}, s, r, c, w, log.NewNopLogger())
+
+	_, _, err := poller.Do(context.Background(), b)
+	require.NoError(t, err)
+	require.NoError(t, tp.ForceFlush(context.Background()))
+
+	spans := exporter.GetSpans()
+
+	var rootSpan, tenantSpan *tracetest.SpanStub
+	for i := range spans {
+		switch spans[i].Name {
+		case "Poller.Do":
+			rootSpan = &spans[i]
+		case "Poller.Do.func":
+			tenantSpan = &spans[i]
+		}
+	}
+
+	require.NotNil(t, rootSpan, "expected a Poller.Do span")
+	require.NotNil(t, tenantSpan, "expected a Poller.Do.func span")
+
+	assert.True(t, tenantSpan.Parent.IsValid(), "tenant span should have a valid parent span context")
+	assert.Equal(t, rootSpan.SpanContext.TraceID(), tenantSpan.Parent.TraceID(), "tenant span should belong to the same trace as Poller.Do")
+	assert.Equal(t, rootSpan.SpanContext.SpanID(), tenantSpan.Parent.SpanID(), "tenant span should be a direct child of Poller.Do")
 }
 
 func TestPollComparePreviousResults(t *testing.T) {

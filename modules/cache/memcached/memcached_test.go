@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v2"
 
-	"github.com/grafana/tempo/pkg/cache"
+	"github.com/grafana/tempo/v3/pkg/cache"
 )
 
 func TestConfigAppliesDefaultsOnUnmarshal(t *testing.T) {
@@ -24,6 +24,7 @@ func TestConfigAppliesDefaultsOnUnmarshal(t *testing.T) {
 				MinIdleConnsHeadroomPercentage: -1,
 				Timeout:                        100 * time.Millisecond,
 				UpdateInterval:                 time.Minute,
+				ConsistentHash:                 true,
 			},
 		},
 		{
@@ -35,6 +36,7 @@ min_idle_conns_headroom_percentage: 50
 timeout: 250ms
 connect_timeout: 50ms
 update_interval: 5m
+consistent_hash: false
 `,
 			want: cache.MemcachedClientConfig{
 				Host:                           "memcached.example.com",
@@ -43,6 +45,7 @@ update_interval: 5m
 				Timeout:                        250 * time.Millisecond,
 				ConnectTimeout:                 50 * time.Millisecond,
 				UpdateInterval:                 5 * time.Minute,
+				ConsistentHash:                 false,
 			},
 		},
 		{
@@ -53,6 +56,7 @@ update_interval: 5m
 				MinIdleConnsHeadroomPercentage: -1,
 				Timeout:                        500 * time.Millisecond,
 				UpdateInterval:                 time.Minute,
+				ConsistentHash:                 true,
 			},
 		},
 	}

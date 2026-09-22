@@ -10,17 +10,17 @@ import (
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/e2e"
-	"github.com/grafana/tempo/integration/util"
-	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/v3/integration/util"
+	"github.com/grafana/tempo/v3/pkg/model"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1_common "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	v1_trace "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/tempodb/wal"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/require"
@@ -299,10 +299,14 @@ func TestBackendSchedulerRedaction(t *testing.T) {
 
 		// Verify the trace is findable before redaction by querying object storage directly.
 		tempodbReader.EnablePolling(ctx, nil, false)
-		trs, failedBlocks, err := tempodbReader.Find(ctx, testTenant, traceID, tempodb.BlockIDMin, tempodb.BlockIDMax, time.Time{}, time.Time{}, common.DefaultSearchOptions())
-		require.NoError(t, err)
-		require.Empty(t, failedBlocks, "no blocks should fail lookup")
-		require.NotEmpty(t, trs, "trace must be findable in all blocks before redaction")
+		var trs []*tempopb.TraceByIDResponse
+		var failedBlocks []error
+		// tempodbReader's poll can still race the writer's last block - retry like the post-redaction check below.
+		require.Eventually(t, func() bool {
+			tempodbReader.PollNow(ctx)
+			trs, failedBlocks, err = tempodbReader.Find(ctx, testTenant, traceID, tempodb.BlockIDMin, tempodb.BlockIDMax, time.Time{}, time.Time{}, common.DefaultSearchOptions())
+			return err == nil && len(failedBlocks) == 0 && len(trs) > 0
+		}, 60*time.Second, 2*time.Second, "trace must be findable in all blocks before redaction")
 
 		// Dial the scheduler's gRPC endpoint and build a client.
 		conn, err := grpc.NewClient(

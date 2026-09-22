@@ -13,10 +13,11 @@ import (
 
 	"github.com/grafana/e2e"
 	e2edb "github.com/grafana/e2e/db"
-	"github.com/grafana/tempo/cmd/tempo/app"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/azure"
+	"github.com/grafana/e2e/images"
+	"github.com/grafana/tempo/v3/cmd/tempo/app"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend/azure"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v2"
@@ -53,6 +54,11 @@ const (
 	azuriteImage = "mcr.microsoft.com/azure-storage/azurite:3.35.0"
 	gcsImage     = "fsouza/fake-gcs-server:1.52.2"
 )
+
+func init() {
+	// Keep the e2e MinIO version, but use its available Quay registry.
+	images.Minio = "quay.io/minio/minio:RELEASE.2021-10-13T00-23-17Z"
+}
 
 // DeploymentMode specifies whether to run Tempo as a single binary, microservices or none.
 type DeploymentMode int
@@ -184,35 +190,37 @@ func RunIntegrationTests(t *testing.T, config TestHarnessConfig, testFunc func(*
 		config.Components = ComponentsRecentDataQuerying
 	}
 
-	backendTCs := backendTestCases(config.Backends)
+	backendTCs := BackendTestCases(config.Backends)
 
 	// Run tests for each deployment mode and backend combination
 	for _, be := range backendTCs {
 		// t.Run() with t.Parallel() here will cause some tests to run faster, but others like TestKVStores will fail for unknown reasons.
-		runTempoHarness(t, config, be.name, testFunc)
+		runTempoHarness(t, config, be.Name, testFunc)
 	}
 }
 
-type backendTestCase struct {
-	mask BackendsMask
-	name string
+// BackendTestCase pairs a single backend bit with its harness-facing name, letting a test
+// derive its own per-backend subtests instead of hardcoding the backend list.
+type BackendTestCase struct {
+	Backend BackendsMask
+	Name    string
 }
 
-// backendTestCases returns the list of backends to test based on the config
-func backendTestCases(backends BackendsMask) []backendTestCase {
-	var result []backendTestCase
+// BackendTestCases returns the list of backends to test based on the config
+func BackendTestCases(backends BackendsMask) []BackendTestCase {
+	var result []BackendTestCase
 
 	if backends&BackendObjectStorageS3 != 0 {
-		result = append(result, backendTestCase{BackendObjectStorageS3, backend.S3})
+		result = append(result, BackendTestCase{BackendObjectStorageS3, backend.S3})
 	}
 	if backends&BackendObjectStorageAzure != 0 {
-		result = append(result, backendTestCase{BackendObjectStorageAzure, backend.Azure})
+		result = append(result, BackendTestCase{BackendObjectStorageAzure, backend.Azure})
 	}
 	if backends&BackendObjectStorageGCS != 0 {
-		result = append(result, backendTestCase{BackendObjectStorageGCS, backend.GCS})
+		result = append(result, BackendTestCase{BackendObjectStorageGCS, backend.GCS})
 	}
 	if backends&BackendLocal != 0 {
-		result = append(result, backendTestCase{BackendLocal, backend.Local})
+		result = append(result, BackendTestCase{BackendLocal, backend.Local})
 	}
 
 	return result

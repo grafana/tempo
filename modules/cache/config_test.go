@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/grafana/tempo/modules/cache/memcached"
-	"github.com/grafana/tempo/modules/cache/redis"
-	"github.com/grafana/tempo/pkg/cache"
+	"github.com/grafana/tempo/v3/modules/cache/memcached"
+	"github.com/grafana/tempo/v3/modules/cache/redis"
+	"github.com/grafana/tempo/v3/pkg/cache"
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v2"
 )
@@ -32,6 +32,7 @@ caches:
 	require.Equal(t, float64(-1), clientCfg.MinIdleConnsHeadroomPercentage)
 	require.Equal(t, 100*time.Millisecond, clientCfg.Timeout)
 	require.Equal(t, time.Minute, clientCfg.UpdateInterval)
+	require.True(t, clientCfg.ConsistentHash)
 }
 
 func TestConfigValidation(t *testing.T) {

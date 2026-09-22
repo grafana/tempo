@@ -75,6 +75,9 @@ const (
 	// in the worst case scenario, which is expected to be way above the actual one.
 	maxProducerRecordDataBytesLimit = producerBatchMaxBytes - 16384
 	minProducerRecordDataBytesLimit = 1024 * 1024
+
+	// defaultMetadataAge is the cluster metadata min and max age used by default.
+	defaultMetadataAge = 10 * time.Second
 )
 
 var (
@@ -138,6 +141,29 @@ type KafkaConfig struct {
 	// The fetch backoff config to use in the concurrent fetchers (when enabled). This setting
 	// is just used to change the default backoff in tests.
 	concurrentFetchersFetchBackoffConfig backoff.Config `yaml:"-"`
+
+	// Cluster metadata ages, only lowered in tests. Zero means defaultMetadataAge.
+	metadataMinAge time.Duration `yaml:"-"`
+	metadataMaxAge time.Duration `yaml:"-"`
+}
+
+// SetMetadataAges lowers the metadata ages, used by tests because consumer session
+// teardown blocks until the metadata min age wait elapses.
+func (cfg *KafkaConfig) SetMetadataAges(minAge, maxAge time.Duration) {
+	cfg.metadataMinAge = minAge
+	cfg.metadataMaxAge = maxAge
+}
+
+// metadataAges returns the configured cluster metadata ages, defaulted when unset.
+func (cfg *KafkaConfig) metadataAges() (time.Duration, time.Duration) {
+	minAge, maxAge := cfg.metadataMinAge, cfg.metadataMaxAge
+	if minAge <= 0 {
+		minAge = defaultMetadataAge
+	}
+	if maxAge <= 0 {
+		maxAge = defaultMetadataAge
+	}
+	return minAge, maxAge
 }
 
 func (cfg *KafkaConfig) RegisterFlags(f *flag.FlagSet) {
@@ -275,7 +301,7 @@ func (cfg KafkaConfig) SetDefaultNumberOfPartitionsForAutocreatedTopics(logger l
 	defer adm.Close()
 
 	defaultNumberOfPartitions := fmt.Sprintf("%d", cfg.AutoCreateTopicDefaultPartitions)
-	_, err = adm.AlterBrokerConfigsState(context.Background(), []kadm.AlterConfig{
+	_, err = adm.AlterBrokerConfigs(context.Background(), []kadm.AlterConfig{
 		{
 			Op:    kadm.SetConfig,
 			Name:  "num.partitions",

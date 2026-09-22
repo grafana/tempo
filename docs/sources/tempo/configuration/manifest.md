@@ -732,6 +732,7 @@ storage:
             buffer_size: 3145728
             hedge_requests_at: 0s
             hedge_requests_up_to: 2
+            list_blocks_concurrency: 1
         cache: ""
         background_cache:
             writeback_goroutines: 10
@@ -829,6 +830,7 @@ overrides:
                 buffer_size: 3145728
                 hedge_requests_at: 0s
                 hedge_requests_up_to: 2
+                list_blocks_concurrency: 1
         api:
             check_for_conflicting_runtime_overrides: false
     enable_legacy_overrides: false
@@ -918,6 +920,7 @@ backend_scheduler:
                 block_retention: 336h0m0s
                 compacted_block_retention: 1h0m0s
                 retention_concurrency: 10
+                retention_block_concurrency: 4
                 max_time_per_tenant: 5m0s
                 compaction_cycle: 30s
             max_jobs_per_tenant: 1000
@@ -971,6 +974,7 @@ backend_worker:
         block_retention: 336h0m0s
         compacted_block_retention: 1h0m0s
         retention_concurrency: 10
+        retention_block_concurrency: 4
         max_time_per_tenant: 5m0s
         compaction_cycle: 30s
     override_ring_key: backend-worker

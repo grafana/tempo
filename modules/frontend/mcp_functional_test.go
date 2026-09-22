@@ -9,13 +9,13 @@ import (
 	"testing"
 
 	"github.com/go-kit/log"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/model/tracediff"
+	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/model/tracediff"
 	mcpclient "github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/require"
 
-	frontendDocs "github.com/grafana/tempo/modules/frontend/docs"
+	frontendDocs "github.com/grafana/tempo/v3/modules/frontend/docs"
 )
 
 // newTestMCPClient builds a query frontend with the MCP server enabled and returns an

@@ -8,10 +8,10 @@ import (
 	"github.com/go-kit/log"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/pkg/tempopb"
-	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	resourcev1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
-	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	commonv1 "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	resourcev1 "github.com/grafana/tempo/v3/pkg/tempopb/resource/v1"
+	tracev1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
 )
 
 // testSpan is a compact span spec for building test traces.
@@ -359,12 +359,12 @@ func TestApplyDepthAssignmentUsesShortestPath(t *testing.T) {
 	// instead, push Y past the cutoff at depth 4, and wrongly drop it.
 	trace := buildTrace([]testSpan{
 		{id: 1, attrs: map[string]any{"match": true}}, // A
-		{id: 2, parent: 1},                            // B, short branch
-		{id: 5, parent: 2},                            // X, true shortest depth 2
-		{id: 6, parent: 5},                            // Y, X's child, true depth 3
-		{id: 3, parent: 1},                            // C, long branch
-		{id: 4, parent: 3},                            // D
-		{id: 5, parent: 4},                            // X' (duplicate id 5), reached at depth 3 via the long branch
+		{id: 2, parent: 1}, // B, short branch
+		{id: 5, parent: 2}, // X, true shortest depth 2
+		{id: 6, parent: 5}, // Y, X's child, true depth 3
+		{id: 3, parent: 1}, // C, long branch
+		{id: 4, parent: 3}, // D
+		{id: 5, parent: 4}, // X' (duplicate id 5), reached at depth 3 via the long branch
 	}, nil)
 
 	f, err := Options{Query: `{ .match = true }`, MatchDepth: 3}.Compile()

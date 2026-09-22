@@ -73,16 +73,17 @@ jobs:
           PR_NUMBER: ${{ steps.find-pr.outputs.pr_number }}
           REPO: ${{ github.repository }}
         run: |
-          COUNT=$(gh pr view "$PR_NUMBER" \
-            --repo "$REPO" \
-            --json labels \
-            --jq '[.labels[].name | select(startswith("backport release-"))] | length')
+          LABELS_JSON=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json labels)
+          ALL_LABELS=$(jq -r '[.labels[].name] | join(", ")' <<<"$LABELS_JSON")
+          COUNT=$(jq '[.labels[].name | select(startswith("backport "))] | length' <<<"$LABELS_JSON")
 
           if [ "$COUNT" -gt "0" ]; then
             echo "Found $COUNT backport label(s), will run backport."
             echo "has_backport_labels=true" >> "$GITHUB_OUTPUT"
           else
             echo "No backport labels found, skipping backport."
+            echo "PR labels: ${ALL_LABELS:-(none)}"
+            echo "Expected a label starting with \"backport \", e.g. \"backport r270\" or \"backport release-v2.8\"."
             echo "has_backport_labels=false" >> "$GITHUB_OUTPUT"
           fi
 

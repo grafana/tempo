@@ -6,8 +6,8 @@ import (
 	"math"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/model/trace"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
 )
 
 // SegmentDecoder maintains the relationship between distributor -> ingester

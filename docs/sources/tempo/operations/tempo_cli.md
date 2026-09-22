@@ -487,6 +487,40 @@ Example:
 tempo-cli view schema -c ./tempo.yaml single-tenant ca314fba-efec-4852-ba3f-8d2b0bbf69f1
 ```
 
+## Benchmark profile
+
+Profile a local block for read-path benchmarking. Writes a JSON file recording
+what had to be measured from the block — its metadata, its row-group count, and
+present and absent trace IDs to look up — so that a benchmark run does not have
+to inspect the block, and every variant of an experiment works from the same
+measurements.
+
+```bash
+tempo-cli benchmark profile <block-path>
+```
+
+Arguments:
+
+- `block-path` Path to the block directory on local disk, laid out as
+  `<bucket>/<tenant-id>/<block-id>`.
+
+Options:
+
+- `--trace-ids` Number of present trace IDs to sample, or `all` to enumerate
+  every ID at run time rather than embedding them. Defaults to `10000`. One
+  absent ID is derived per present ID. Pass `0` to skip trace IDs, and with them
+  the full scan they require.
+- `-o`, `--out` File to write the profile to. Defaults to stdout.
+
+Profiles built from a customer block embed real trace IDs. Treat them as local
+artifacts.
+
+Example:
+
+```bash
+tempo-cli benchmark profile /data/traces/single-tenant/ca314fba-efec-4852-ba3f-8d2b0bbf69f1 --trace-ids=10000 -o profile.json
+```
+
 ## Query search command
 
 Search blocks in a given time range for a specific key/value pair.
@@ -993,7 +1027,7 @@ Arguments:
 Options:
 
 - `--tenant <value>` **(required)** Tenant ID.
-- `--trace-id <value>` Trace ID to redact, in hex format. Specify multiple times to redact several traces in one request. Mutually exclusive with `--query`.
+- `--trace-id <value>` Trace ID to redact, in hex format. Repeat the flag for several traces in one request (`--trace-id=<ID> --trace-id=<ID>`, not comma-separated), up to 1000. Every job the redaction creates carries the whole list, so a longer list costs one copy per block; use `--query` instead. Mutually exclusive with `--query`.
 - `--query <value>` TraceQL query selecting the traces to redact, for example `{ span.http.status_code = 500 }`. Mutually exclusive with `--trace-id`. The query is restricted to a single spanset filter: `=` comparisons on the matched span's own `resource.*` or `span.*` attributes, joined by `&&` or `||`. Regular expressions, `!=` or ordered comparisons, `parent.`-scoped attributes, and pipelines or aggregates aren't supported.
 - `--dry-run` Evaluate the selector and report match counts without rewriting any blocks (default: `false`).
 - `--start <value>` Start of the time window. Accepts `now`, a relative offset such as `now-7d`, or an RFC3339 timestamp. Must be given with `--end`, must be before `--end`, and cannot be combined with `--trace-id`. Omit both bounds to redact the whole tenant.
@@ -1003,6 +1037,10 @@ Options:
 - `--tls-ca <value>` Path to a PEM-encoded CA certificate file.
 
 You must provide exactly one of `--trace-id` or `--query`. Providing both, or neither, returns an error before the request is submitted.
+
+A tenant can have only one redaction in progress at a time, dry runs included.
+A submission made while an earlier one is still running, or still in its quiescence period, is rejected.
+A trace-ID list larger than the cap therefore has to be redacted as successive batches rather than several at once, which is another reason to prefer `--query`.
 
 On success, the command prints the batch ID and the number of jobs created:
 

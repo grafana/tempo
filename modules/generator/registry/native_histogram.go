@@ -16,7 +16,7 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
 
-	tempo_util "github.com/grafana/tempo/pkg/util"
+	tempo_util "github.com/grafana/tempo/v3/pkg/util"
 )
 
 type nativeHistogram struct {

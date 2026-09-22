@@ -167,13 +167,8 @@ func buildChunkOptions(o *Options, isFirstChunk, isLastChunk bool) []string {
 		opts = o.Options()
 	} else {
 		// These options are allowed in subsequent chunks
-		quiet := o.Quiet
 		if o.Quite > 0 {
-			// handle deprecated Quite field.
-			quiet = o.Quite
-		}
-		if quiet > 0 {
-			opts = append(opts, fmt.Sprintf("q=%d", quiet))
+			opts = append(opts, fmt.Sprintf("q=%d", o.Quite))
 		}
 		if o.Action == Frame {
 			opts = append(opts, "a=f")

@@ -70,6 +70,10 @@ jobs:
             test-with-cover-pkg,
             test-with-cover-tempodb,
             test-with-cover-tempodb-wal,
+            test-with-cover-tempodb-encoding,
+            test-with-cover-generator,
+            test-with-cover-livestore,
+            test-with-cover-blockbuilder,
             test-with-cover-others,
           ]
 
@@ -83,6 +87,31 @@ jobs:
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: 'go.mod'
+          # cache managed below instead: setup-go keys on go.sum alone, so once that key
+          # exists it never re-saves and the -race build output never gets cached.
+          cache: false
+
+      - name: Get year and week number
+        id: get-year-week-number
+        run: echo "date=$(date +"%Yweek%U")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Go modules
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ~/go/pkg/mod
+          key: gomod-${{ runner.os }}-${{ hashFiles('go.sum', 'tools/go.sum') }}
+
+      - name: Cache Go build output
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          # one cache shared by the whole matrix: a -race build cache is ~1.1GB per target, so
+          # per-target caches would blow the 10GB repo limit. Targets overlap heavily anyway.
+          # Rotated weekly so the saved cache keeps up with the code instead of freezing.
+          path: ~/.cache/go-build
+          key: gobuild-${{ runner.os }}-unit-${{ steps.get-year-week-number.outputs.date }}-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            gobuild-${{ runner.os }}-unit-${{ steps.get-year-week-number.outputs.date }}-
+            gobuild-${{ runner.os }}-unit-
 
       - name: Run Tests
         run: make ${{ matrix.test-target }}
@@ -110,13 +139,20 @@ jobs:
           persist-credentials: false
       - name: Validate all integration folders are covered by CI
         run: |
-          # Define expected folders that have corresponding test-e2e-* targets
-          EXPECTED_FOLDERS=("api" "limits" "metrics-generator" "operations" "storage" "util")
+          # Define expected test folders, relative to integration/, that have corresponding
+          # test-e2e-* targets. A nested folder maps to its target by replacing / with -,
+          # so api/search is run by test-e2e-api-search.
+          EXPECTED_FOLDERS=("api/metrics" "api/misc" "api/overrides" "api/search" "api/tracebyid" "limits" "metrics-generator" "operations" "storage" "util")
 
-          # Get actual folders in integration/ (excluding hidden files)
-          mapfile -d '' _raw < <(find integration/ -mindepth 1 -maxdepth 1 -type d -not -name '.*' -print0 2>/dev/null)
+          # Get the actual folders holding tests. Matching on test files rather than on
+          # first-level directories means a nested package like api/<area> is checked too,
+          # and that container directories and test scratch dirs are skipped.
+          mapfile -d '' _raw < <(find integration -mindepth 1 -type d -not -name '.*' -print0 2>/dev/null)
           ACTUAL_FOLDERS=()
-          for _d in "${_raw[@]}"; do ACTUAL_FOLDERS+=("$(basename "$_d")"); done
+          for _d in "${_raw[@]}"; do
+            ls "$_d"/*_test.go >/dev/null 2>&1 || continue
+            ACTUAL_FOLDERS+=("${_d#integration/}")
+          done
 
           # Convert arrays to strings for comparison
           EXPECTED_SORTED=$(printf '%s\n' "${EXPECTED_FOLDERS[@]}" | sort | tr '\n' ' ')
@@ -132,7 +168,8 @@ jobs:
             printf '  - %s\n' "${ACTUAL_FOLDERS[@]}" | sort
             echo ""
             echo "If you added a new integration test folder, you must:"
-            echo "  1. Add a corresponding 'test-e2e-<folder-name>' target to the Makefile"
+            echo "  1. Add a corresponding 'test-e2e-<folder-name>' target to the Makefile,"
+            echo "     replacing / with - for a nested folder (api/search -> test-e2e-api-search)"
             echo "  2. Add the target to the matrix in .github/workflows/ci.yml (integration-tests job)"
             echo "  3. Update the EXPECTED_FOLDERS list in this validation step"
             exit 1
@@ -140,17 +177,46 @@ jobs:
 
           echo "✅ All integration folders are covered by CI"
 
+  build-e2e-images:
+    name: Build e2e test images
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: 'go.mod'
+      - name: Build images
+        run: make docker-tempo docker-tempo-query
+      # every integration-tests matrix job used to rebuild these images from scratch (~2-3min
+      # each, every job, every run) - build once here and share via artifact instead.
+      - name: Save images
+        run: docker save grafana/tempo tempo grafana/tempo-query tempo-query -o /tmp/tempo-e2e-images.tar
+      - name: Upload images
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: tempo-e2e-images
+          path: /tmp/tempo-e2e-images.tar
+          retention-days: 1
+
   integration-tests:
     name: Run integration tests
     runs-on: ubuntu-24.04
-    needs: integration-tests-validation
+    needs: [integration-tests-validation, build-e2e-images]
     strategy:
       fail-fast: false
       matrix:
         test-target:
           [
             test-e2e-operations,
-            test-e2e-api,
+            test-e2e-api-search,
+            test-e2e-api-metrics,
+            test-e2e-api-overrides,
+            test-e2e-api-misc,
+            test-e2e-api-tracebyid,
             test-e2e-limits,
             test-e2e-metrics-generator,
             test-e2e-storage,
@@ -168,8 +234,35 @@ jobs:
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: 'go.mod'
+          # cache managed below instead, see the unit-tests job
+          cache: false
+      - name: Get year and week number
+        id: get-year-week-number
+        run: echo "date=$(date +"%Yweek%U")" >> "$GITHUB_OUTPUT"
+      - name: Cache Go modules
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ~/go/pkg/mod
+          key: gomod-${{ runner.os }}-${{ hashFiles('go.sum', 'tools/go.sum') }}
+      - name: Cache Go build output
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ~/.cache/go-build
+          key: gobuild-${{ runner.os }}-e2e-${{ steps.get-year-week-number.outputs.date }}-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            gobuild-${{ runner.os }}-e2e-${{ steps.get-year-week-number.outputs.date }}-
+            gobuild-${{ runner.os }}-e2e-
+      - name: Download e2e images
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: tempo-e2e-images
+          path: /tmp
+      - name: Load e2e images
+        run: docker load -i /tmp/tempo-e2e-images.tar
       - name: Run Tests
         run: make ${{ matrix.test-target }}
+        env:
+          SKIP_DOCKER_BUILD: "1"
 
   build:
     name: Build
@@ -249,6 +342,9 @@ jobs:
 
       - name: Check vendor
         run: make vendor-check
+
+      - name: Test Go module consumer
+        run: make test-module-consumer
 
   tempo-jsonnet:
     name: Check jsonnet & tempo-mixin

@@ -24,6 +24,7 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kfake"
@@ -32,18 +33,18 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 
-	"github.com/grafana/tempo/modules/generator"
-	"github.com/grafana/tempo/pkg/ingest"
+	"github.com/grafana/tempo/v3/modules/generator"
+	"github.com/grafana/tempo/v3/pkg/ingest"
 
-	"github.com/grafana/tempo/modules/distributor/receiver"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/listtomap"
-	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/v3/modules/distributor/receiver"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1_common "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	v1_resource "github.com/grafana/tempo/v3/pkg/tempopb/resource/v1"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/pkg/util/listtomap"
+	"github.com/grafana/tempo/v3/pkg/util/test"
 )
 
 var ctx = user.InjectOrgID(context.Background(), "test")
@@ -1282,6 +1283,37 @@ func TestDistributor(t *testing.T) {
 			assert.Equal(t, tc.expectedError, err)
 		})
 	}
+}
+
+func TestPushTraces_RecordsPerTenantShapeMetrics(t *testing.T) {
+	// Other tests in this package push traces for the same "test" tenant via
+	// the shared package-level ctx, so these package-level metrics need a
+	// reset immediately before use, not just in cleanup.
+	metricPushBytes.Reset()
+	metricReceivedTraces.Reset()
+	t.Cleanup(func() {
+		metricPushBytes.Reset()
+		metricReceivedTraces.Reset()
+	})
+
+	limits := overrides.Config{}
+	limits.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+	d := prepare(t, limits, nil)
+
+	b := test.MakeBatch(10, []byte{})
+	traces := batchesToTraces(t, []*v1.ResourceSpans{b})
+
+	_, err := d.PushTraces(ctx, traces)
+	require.NoError(t, err)
+
+	bytesMetric := &dto.Metric{}
+	require.NoError(t, metricPushBytes.WithLabelValues("test").(prometheus.Histogram).Write(bytesMetric))
+	assert.Equal(t, uint64(1), bytesMetric.Histogram.GetSampleCount())
+	assert.Greater(t, bytesMetric.Histogram.GetSampleSum(), 0.0)
+
+	tracesMetric := &dto.Metric{}
+	require.NoError(t, metricReceivedTraces.WithLabelValues("test").Write(tracesMetric))
+	assert.Equal(t, float64(1), tracesMetric.Counter.GetValue())
 }
 
 func TestLogReceivedSpans(t *testing.T) {
