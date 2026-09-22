@@ -253,7 +253,7 @@ func (m *heatmapModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "home":
 		m.cursor = 0
 		return m, nil
-	case "end":
+	case "end": // nolint: goconst // goconst wants us to make "end" a const, shared with unrelated column-header strings elsewhere in the package
 		m.cursor = len(m.input)
 		return m, nil
 	default:
