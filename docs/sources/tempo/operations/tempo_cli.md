@@ -541,7 +541,9 @@ Options:
 - `-p`, `--profile` Profile of the block, from `benchmark profile`. Required.
 - `-o`, `--out` File to write the result to. Defaults to stdout.
 - `--repeat` Passes over the query set. Defaults to `1`.
-- `--warmup` Passes to run and discard first. Defaults to `0`.
+- `--warmup` Passes to run and discard first. Defaults to `1`, which pays the
+  block's cold-read cost outside the measurement. Setting it to `0` measures
+  the first case cold and every later one warm.
 - `--max-samples` Per-case latency samples to keep. Defaults to `10000`.
 - `--target-bytes-per-request` Bytes per search shard, mirroring the query
   frontend option of the same name. Defaults to `100MiB`.

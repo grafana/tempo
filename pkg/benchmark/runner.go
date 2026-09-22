@@ -40,7 +40,11 @@ const (
 // RunOptions are the knobs a run holds fixed. They are recorded in the result
 // because they are what an experiment varies between its groups.
 type RunOptions struct {
-	Repeat     int `json:"repeat"`
+	Repeat int `json:"repeat"`
+	// Warmup passes run and are discarded before a case is measured. It has no
+	// default, so 0 stays expressible; the first case would otherwise pay the
+	// whole block's cold-read cost and every later case would run warm, which
+	// is a bias no amount of repetition averages out.
 	Warmup     int `json:"warmup"`
 	MaxSamples int `json:"maxSamples"`
 
@@ -177,12 +181,24 @@ func runCase(ctx context.Context, blk common.BackendBlock, profile *BlockProfile
 		}
 	}
 
+	// Clear what the warmup and the previous case left on the heap, so every
+	// case is measured against a comparable environment rather than inheriting
+	// its predecessor's garbage. testing.(*B).runN does the same before each
+	// benchmark run, for the same reason.
+	runtime.GC()
+
 	var (
 		samples    = make([]int64, 0, len(exec)*o.Repeat)
 		memBefore  runtime.MemStats
 		memAfter   runtime.MemStats
 		readBefore = counter.snapshot()
 	)
+	// CPU, allocations and the gathered metrics are all process-wide, and are
+	// attributed to this case only because cases run one at a time and nothing
+	// else in the process is working. Anything that runs concurrently - a
+	// write-back cache's goroutines, say - would land in whichever case happens
+	// to be in flight.
+	//
 	// A gather failure loses the process metrics for this case but says nothing
 	// about the query, so it is not allowed to fail the case.
 	promBefore, _ := gatherMetrics(gatherer)

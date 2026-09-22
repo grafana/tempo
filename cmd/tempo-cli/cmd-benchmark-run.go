@@ -16,7 +16,7 @@ type benchmarkRunCmd struct {
 	Out     string `short:"o" help:"file to write the result to, instead of stdout" default:""`
 
 	Repeat     int `help:"passes over the query set" default:"1"`
-	Warmup     int `help:"passes to run and discard first" default:"0"`
+	Warmup     int `help:"passes to run and discard first, paying the cold-read cost outside the measurement" default:"1"`
 	MaxSamples int `help:"per-case latency samples to keep" default:"10000"`
 
 	TargetBytesPerRequest string `help:"bytes per search shard, mirroring the query frontend option of the same name" default:"100MiB"`
