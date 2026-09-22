@@ -34,6 +34,9 @@ caches:
 	assert.Equal(t, 100*time.Millisecond, clientCfg.Timeout)
 	assert.Equal(t, time.Minute, clientCfg.UpdateInterval)
 	assert.True(t, clientCfg.ConsistentHash)
+	assert.Equal(t, uint(10), clientCfg.CBFailures)
+	assert.Equal(t, 10*time.Second, clientCfg.CBTimeout)
+	assert.Equal(t, 10*time.Second, clientCfg.CBInterval)
 }
 
 func TestConfigValidation(t *testing.T) {
