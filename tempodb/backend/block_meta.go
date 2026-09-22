@@ -244,7 +244,7 @@ func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, versio
 		Version:          version,
 		BlockID:          UUID(blockID),
 		TenantID:         tenantID,
-		DedicatedColumns: dc,
+		DedicatedColumns: NewDedicatedColumnLayout(dc),
 	}
 
 	return b

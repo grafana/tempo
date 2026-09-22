@@ -164,7 +164,7 @@ func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, inge
 		TenantID:          meta.TenantID,
 		ReplicationFactor: meta.ReplicationFactor,
 		// remove unsupported dedicated columns
-		DedicatedColumns: filterDedicatedColumns(meta.DedicatedColumns),
+		DedicatedColumns: backend.NewDedicatedColumnLayout(filterDedicatedColumns(meta.DedicatedColumns)),
 	}
 
 	b := &walBlock{
@@ -211,10 +211,10 @@ func ownsWALBlock(entry fs.DirEntry) bool {
 type walBlockFlush struct {
 	path    string
 	ids     *common.IDMap[int64]
-	dedcols backend.DedicatedColumns
+	dedcols backend.DedicatedColumnsView
 }
 
-func newWalBlockFlush(path string, ids *common.IDMap[int64], dedcols backend.DedicatedColumns) *walBlockFlush {
+func newWalBlockFlush(path string, ids *common.IDMap[int64], dedcols backend.DedicatedColumnsView) *walBlockFlush {
 	return &walBlockFlush{
 		path:    path,
 		ids:     ids,

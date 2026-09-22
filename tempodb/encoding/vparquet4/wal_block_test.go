@@ -5,7 +5,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"slices"
 	"sync"
 	"testing"
 
@@ -490,7 +489,7 @@ func testWalBlock(t *testing.T, f func(w *walBlock, ids []common.ID, trs []*temp
 
 func TestCreateWALBlockFilterDedicatedColumns(t *testing.T) {
 	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
-	meta.DedicatedColumns = backend.DedicatedColumns{
+	meta.DedicatedColumns = backend.NewDedicatedColumnLayout(backend.DedicatedColumns{
 		{Scope: "span", Name: "span-one", Type: "string"},
 		{Scope: "span", Name: LabelHTTPMethod, Type: "string"},
 		{Scope: "span", Name: LabelHTTPUrl, Type: "string"},
@@ -499,8 +498,8 @@ func TestCreateWALBlockFilterDedicatedColumns(t *testing.T) {
 		{Scope: "resource", Name: LabelK8sNamespaceName, Type: "string"},
 		{Scope: "resource", Name: "res-one", Type: "string"},
 		{Scope: "resource", Name: "res-two", Type: "string"},
-	}
-	original := slices.Clone(meta.DedicatedColumns)
+	})
+	original := meta.DedicatedColumns.Columns()
 
 	wb, err := createWALBlock(meta, t.TempDir(), model.CurrentEncoding, 0)
 	require.NoError(t, err)
@@ -512,8 +511,8 @@ func TestCreateWALBlockFilterDedicatedColumns(t *testing.T) {
 		{Scope: "resource", Name: "res-one", Type: "string"},
 		{Scope: "resource", Name: "res-two", Type: "string"},
 	}
-	require.Equal(t, expected, outMeta.DedicatedColumns) // check filtered column
-	require.Equal(t, original, meta.DedicatedColumns)    // the original meta is not changed
+	require.Equal(t, expected, outMeta.DedicatedColumns.Columns()) // check filtered column
+	require.Equal(t, original, meta.DedicatedColumns.Columns())    // the original meta is not changed
 }
 
 func BenchmarkWalTraceQL(b *testing.B) {

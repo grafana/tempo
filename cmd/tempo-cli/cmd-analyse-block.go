@@ -317,7 +317,7 @@ func processBlock(r backend.Reader, tenantID, blockID string, includeWellKnown b
 func aggregateScope(pf *parquet.File, meta *backend.BlockMeta, paths scopeAttributePath, includeWellKnown bool) (attributeSummary, error) {
 	var strings []backend.DedicatedColumn
 	var ints []backend.DedicatedColumn
-	for _, c := range meta.DedicatedColumns {
+	for _, c := range meta.DedicatedColumns.Columns() {
 		if c.Scope == paths.dedicatedColScope {
 			switch c.Type {
 			case backend.DedicatedColumnTypeString:

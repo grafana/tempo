@@ -3,7 +3,6 @@ package vparquet4
 import (
 	"context"
 	"io"
-	"slices"
 	"testing"
 	"time"
 
@@ -69,7 +68,7 @@ func TestCreateBlockFilterDedicatedColumns(t *testing.T) {
 
 	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
 	meta.TotalObjects = 1
-	meta.DedicatedColumns = backend.DedicatedColumns{
+	meta.DedicatedColumns = backend.NewDedicatedColumnLayout(backend.DedicatedColumns{
 		{Scope: "span", Name: "span-one", Type: "string"},
 		{Scope: "span", Name: LabelHTTPMethod, Type: "string"},
 		{Scope: "span", Name: LabelHTTPUrl, Type: "string"},
@@ -78,8 +77,8 @@ func TestCreateBlockFilterDedicatedColumns(t *testing.T) {
 		{Scope: "resource", Name: LabelK8sNamespaceName, Type: "string"},
 		{Scope: "resource", Name: "res-one", Type: "string"},
 		{Scope: "resource", Name: "res-two", Type: "string"},
-	}
-	original := slices.Clone(meta.DedicatedColumns)
+	})
+	original := meta.DedicatedColumns.Columns()
 
 	outMeta, err := CreateBlock(ctx, cfg, meta, iter, r, w)
 	require.NoError(t, err)
@@ -91,8 +90,8 @@ func TestCreateBlockFilterDedicatedColumns(t *testing.T) {
 		{Scope: "resource", Name: "res-two", Type: "string"},
 	}
 
-	require.Equal(t, expected, outMeta.DedicatedColumns) // check filtered column
-	require.Equal(t, original, meta.DedicatedColumns)    // the original meta is not changed
+	require.Equal(t, expected, outMeta.DedicatedColumns.Columns()) // check filtered column
+	require.Equal(t, original, meta.DedicatedColumns.Columns())    // the original meta is not changed
 }
 
 // func TestEstimateTraceSize(t *testing.T) {

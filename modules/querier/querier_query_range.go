@@ -77,7 +77,7 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 		BlockID:          blockID,
 		Size_:            req.Size_,
 		FooterSize:       req.FooterSize,
-		DedicatedColumns: dc,
+		DedicatedColumns: backend.NewDedicatedColumnLayout(dc),
 	}
 
 	opts := common.DefaultSearchOptions()

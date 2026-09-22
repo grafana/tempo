@@ -669,7 +669,7 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 		TotalRecords:     req.TotalRecords,
 		BlockID:          blockID,
 		FooterSize:       req.FooterSize,
-		DedicatedColumns: dc,
+		DedicatedColumns: backend.NewDedicatedColumnLayout(dc),
 	}
 
 	opts := common.DefaultSearchOptions()
@@ -731,7 +731,7 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 		TotalRecords:     req.TotalRecords,
 		BlockID:          blockID,
 		FooterSize:       req.FooterSize,
-		DedicatedColumns: dc,
+		DedicatedColumns: backend.NewDedicatedColumnLayout(dc),
 	}
 
 	opts := common.DefaultSearchOptions()
@@ -808,7 +808,7 @@ func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb
 		TotalRecords:     req.TotalRecords,
 		BlockID:          blockID,
 		FooterSize:       req.FooterSize,
-		DedicatedColumns: dc,
+		DedicatedColumns: backend.NewDedicatedColumnLayout(dc),
 	}
 
 	opts := common.DefaultSearchOptions()
@@ -844,7 +844,7 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 		TotalRecords:     req.TotalRecords,
 		BlockID:          blockID,
 		FooterSize:       req.FooterSize,
-		DedicatedColumns: dc,
+		DedicatedColumns: backend.NewDedicatedColumnLayout(dc),
 	}
 
 	opts := common.DefaultSearchOptions()

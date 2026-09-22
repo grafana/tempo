@@ -53,7 +53,7 @@ func (b *backendBlock) FetchSpans(ctx context.Context, req traceql.FetchSpansReq
 }
 
 // fetchSpans is the core logic for span-only fetch, like fetch is for Fetch. Callers open the parquet file and pass row groups.
-func fetchSpans(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File, rowGroups []parquet.RowGroup, dc backend.DedicatedColumns) (*spanOnlyIterator, error) {
+func fetchSpans(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File, rowGroups []parquet.RowGroup, dc backend.DedicatedColumnsView) (*spanOnlyIterator, error) {
 	makeIter := makeIterFunc(ctx, rowGroups, pf)
 	makeNilIter := makeNilIterFunc(ctx, rowGroups, pf)
 	iter, span, err := create(makeIter, makeNilIter, nil, req.Conditions, req.SecondPass, req.StartTimeUnixNanos, req.EndTimeUnixNanos, req.AllConditions, false, dc, req.SpanSampler)
@@ -103,7 +103,7 @@ func create(makeIter, makeNilIter makeIterFn,
 	start, end uint64,
 	allConditions bool,
 	selectAll bool,
-	dedicatedColumns backend.DedicatedColumns,
+	dedicatedColumns backend.DedicatedColumnsView,
 	sampler traceql.Sampler,
 ) (parquetquery.Iterator, *span, error) {
 	catConditions, mingledConditions, err := categorizeConditions(conditions)
@@ -245,7 +245,7 @@ func createTraceIterators(
 	conditions []traceql.Condition,
 	start, end uint64,
 	allConditions bool,
-	_ backend.DedicatedColumns,
+	_ backend.DedicatedColumnsView,
 	selectAll bool,
 ) (required, optional []parquetquery.Iterator, err error) {
 	var alwaysOptional []parquetquery.Iterator
@@ -336,7 +336,7 @@ func createResourceIterators(
 	conditions []traceql.Condition,
 	// requireAtLeastOneMatchOverall,
 	allConditions bool,
-	dedicatedColumns backend.DedicatedColumns,
+	dedicatedColumns backend.DedicatedColumnsView,
 	selectAll bool,
 ) (required, optional []parquetquery.Iterator, err error) {
 	var (
@@ -475,7 +475,7 @@ func createSpanIterators(
 	conditions []traceql.Condition,
 	allConditions bool,
 	selectAll bool,
-	dedicatedColumns backend.DedicatedColumns,
+	dedicatedColumns backend.DedicatedColumnsView,
 	sampler traceql.Sampler,
 ) (driver parquetquery.Iterator, required, optional []parquetquery.Iterator, err error) {
 	var (
@@ -815,7 +815,7 @@ func createEventIterators(
 	makeIter, makeNilIter makeIterFn,
 	conditions []traceql.Condition,
 	allConditions bool,
-	dedicatedColumns backend.DedicatedColumns,
+	dedicatedColumns backend.DedicatedColumnsView,
 	selectAll bool,
 ) (required, optional []parquetquery.Iterator, err error) {
 	// TODO - Preserving compatibility with original fetch.

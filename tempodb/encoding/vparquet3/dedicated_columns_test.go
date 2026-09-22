@@ -136,7 +136,7 @@ func TestDedicatedColumnsToColumnMapping(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
-		meta := backend.BlockMeta{DedicatedColumns: tc.columns}
+		meta := backend.BlockMeta{DedicatedColumns: backend.NewDedicatedColumnLayout(tc.columns)}
 		mapping := dedicatedColumnsToColumnMapping(meta.DedicatedColumns, tc.scopes...)
 		t.Run(tc.name, func(t *testing.T) {
 			assert.Equal(t, tc.expectedMapping, mapping)

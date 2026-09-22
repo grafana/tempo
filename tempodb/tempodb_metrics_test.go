@@ -2765,7 +2765,7 @@ func TestTempoDBQueryRange(t *testing.T) {
 	// Write to wal
 	wal := w.WAL()
 
-	meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID, DedicatedColumns: dc}
+	meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID, DedicatedColumns: backend.NewDedicatedColumnLayout(dc)}
 	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err)
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)

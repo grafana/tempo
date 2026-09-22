@@ -575,7 +575,7 @@ func testCompleteBlock(t *testing.T, from, to string) {
 		Version:          from,
 		BlockID:          backend.UUID(uuid.New()),
 		TenantID:         testTenantID,
-		DedicatedColumns: test.MakeDedicatedColumns(),
+		DedicatedColumns: backend.NewDedicatedColumnLayout(test.MakeDedicatedColumns()),
 	}
 	block, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err, "unexpected error creating block")

@@ -59,7 +59,7 @@ func Test_getDedicatedColumnsFromCache(t *testing.T) {
 			require.True(t, ok)
 			require.Equal(t, dcs, v)
 			if tc.isCached {
-				require.Equal(t, unsafe.Pointer(&dcs[0]), unsafe.Pointer(&v[0])) // check v was taken from the cache (pointers are the same)
+				require.NotEqual(t, unsafe.Pointer(&dcs[0]), unsafe.Pointer(&v[0])) // Mutable copies cannot change cached columns.
 			}
 		})
 	}

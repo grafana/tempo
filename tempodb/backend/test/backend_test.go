@@ -137,8 +137,8 @@ func TestOriginalFixtures(t *testing.T) {
 		assert.Equal(t, "vParquet4", v.Version)
 		assert.NotZero(t, v.StartTime)
 		assert.NotZero(t, v.EndTime)
-		assert.Equal(t, 20, len(v.DedicatedColumns))
-		assert.Equal(t, expectedDedicatedColumns, v.DedicatedColumns)
+		assert.Equal(t, 20, v.DedicatedColumns.Len())
+		assert.Equal(t, expectedDedicatedColumns, v.DedicatedColumns.Columns())
 	}
 
 	nonZeroCompactedMeta(t, i.CompactedMeta)
@@ -148,8 +148,8 @@ func TestOriginalFixtures(t *testing.T) {
 		assert.NotZero(t, v.CompactedTime)
 		assert.NotZero(t, v.StartTime)
 		assert.NotZero(t, v.EndTime)
-		assert.Equal(t, 20, len(v.DedicatedColumns))
-		assert.Equal(t, expectedDedicatedColumns, v.DedicatedColumns)
+		assert.Equal(t, 20, v.DedicatedColumns.Len())
+		assert.Equal(t, expectedDedicatedColumns, v.DedicatedColumns.Columns())
 	}
 }
 

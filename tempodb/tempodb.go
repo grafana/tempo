@@ -755,7 +755,7 @@ func (rw *readerWriter) RedactBlock(ctx context.Context, meta *backend.BlockMeta
 			BloomShardSizeBytes: common.DefaultBloomShardSizeBytes,
 			Version:             meta.Version,
 			RowGroupSizeBytes:   100_000_000,
-			DedicatedColumns:    meta.DedicatedColumns,
+			DedicatedColumns:    meta.DedicatedColumns.Columns(),
 		},
 		OutputBlocks:     1,
 		MaxBytesPerTrace: 0,

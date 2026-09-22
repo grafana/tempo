@@ -26,7 +26,7 @@ func TestProtoParquetRoundTrip(t *testing.T) {
 	// This test round trips a proto trace and checks that the transformation works as expected
 	// Proto -> Parquet -> Proto
 	meta := backend.BlockMeta{
-		DedicatedColumns: test.MakeDedicatedColumns(),
+		DedicatedColumns: backend.NewDedicatedColumnLayout(test.MakeDedicatedColumns()),
 	}
 	traceIDA := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
 
@@ -64,7 +64,7 @@ func TestProtoParquetRando(t *testing.T) {
 
 func TestFieldsAreCleared(t *testing.T) {
 	meta := backend.BlockMeta{
-		DedicatedColumns: test.MakeDedicatedColumns(),
+		DedicatedColumns: backend.NewDedicatedColumnLayout(test.MakeDedicatedColumns()),
 	}
 
 	traceID := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
@@ -123,7 +123,7 @@ func TestTraceToParquet(t *testing.T) {
 	strPtr := func(s string) *string { return &s }
 	intPtr := func(i int64) *int64 { return &i }
 
-	meta := backend.BlockMeta{DedicatedColumns: test.MakeDedicatedColumns()}
+	meta := backend.BlockMeta{DedicatedColumns: backend.NewDedicatedColumnLayout(test.MakeDedicatedColumns())}
 	traceID := common.ID{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
 
 	tsc := []struct {
@@ -330,7 +330,7 @@ func TestTraceToParquet(t *testing.T) {
 
 func BenchmarkProtoToParquet(b *testing.B) {
 	meta := backend.BlockMeta{
-		DedicatedColumns: test.MakeDedicatedColumns(),
+		DedicatedColumns: backend.NewDedicatedColumnLayout(test.MakeDedicatedColumns()),
 	}
 
 	batchCount := 100
@@ -392,7 +392,7 @@ func BenchmarkEventToParquet(b *testing.B) {
 
 func BenchmarkDeconstruct(b *testing.B) {
 	meta := backend.BlockMeta{
-		DedicatedColumns: test.MakeDedicatedColumns(),
+		DedicatedColumns: backend.NewDedicatedColumnLayout(test.MakeDedicatedColumns()),
 	}
 
 	batchCount := 100
@@ -706,7 +706,7 @@ func TestTraceToParquetRootSpanWithChildOfLink(t *testing.T) {
 
 	for _, tt := range tsc {
 		t.Run(tt.name, func(t *testing.T) {
-			meta := backend.BlockMeta{DedicatedColumns: test.MakeDedicatedColumns()}
+			meta := backend.BlockMeta{DedicatedColumns: backend.NewDedicatedColumnLayout(test.MakeDedicatedColumns())}
 			parquetTrace, _ := traceToParquet(&meta, traceID, tt.trace, nil)
 			assert.Equal(t, tt.expectedRootName, parquetTrace.RootSpanName)
 		})

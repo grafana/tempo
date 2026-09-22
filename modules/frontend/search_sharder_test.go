@@ -154,9 +154,9 @@ func TestBuildBackendRequests(t *testing.T) {
 					BlockID:       backend.MustParse("00000000-0000-0000-0000-000000000000"),
 					IndexPageSize: 13,
 					Version:       "vParquet3",
-					DedicatedColumns: backend.DedicatedColumns{
+					DedicatedColumns: backend.NewDedicatedColumnLayout(backend.DedicatedColumns{
 						{Scope: "span", Name: "net.sock.host.addr", Type: "string"},
-					},
+					}),
 				},
 			},
 			expectedURIs: []string{

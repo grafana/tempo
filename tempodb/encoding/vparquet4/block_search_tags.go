@@ -66,7 +66,7 @@ func (b *backendBlock) SearchTags(ctx context.Context, scope traceql.AttributeSc
 }
 
 // modify cb signature to also take in the
-func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagsCallback, pf *parquet.File, dc backend.DedicatedColumns) error {
+func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagsCallback, pf *parquet.File, dc backend.DedicatedColumnsView) error {
 	scanColumns := func(standardKeyPath string, specialMappings map[string]string, columnMapping dedicatedColumnMapping, cb common.TagsCallback, scope traceql.AttributeScope) error {
 		specialAttrIdxs := map[int]string{}
 
@@ -252,7 +252,7 @@ func (b *backendBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attrib
 	return searchTagValues(derivedCtx, tag, cb, pf, b.meta.DedicatedColumns)
 }
 
-func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagValuesCallbackV2, pf *parquet.File, dc backend.DedicatedColumns) error {
+func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagValuesCallbackV2, pf *parquet.File, dc backend.DedicatedColumnsView) error {
 	// Special handling for intrinsics
 	if tag.Intrinsic != traceql.IntrinsicNone {
 		lookup := intrinsicColumnLookups[tag.Intrinsic]

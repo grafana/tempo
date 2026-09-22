@@ -177,12 +177,15 @@ var allScopes = []backend.DedicatedColumnScope{backend.DedicatedColumnScopeResou
 
 // dedicatedColumnsToColumnMapping returns mapping from attribute names to spare columns for a give
 // block meta and scope.
-func dedicatedColumnsToColumnMapping(dedicatedColumns backend.DedicatedColumns, scopes ...backend.DedicatedColumnScope) dedicatedColumnMapping {
+func dedicatedColumnsToColumnMapping(dedicatedColumns backend.DedicatedColumnsView, scopes ...backend.DedicatedColumnScope) dedicatedColumnMapping {
 	if len(scopes) == 0 {
 		scopes = allScopes
 	}
 
-	mapping := newDedicatedColumnMapping(len(dedicatedColumns))
+	if dedicatedColumns == nil {
+		return newDedicatedColumnMapping(0)
+	}
+	mapping := newDedicatedColumnMapping(dedicatedColumns.Len())
 
 	for _, scope := range scopes {
 		spareColumnsByType, ok := DedicatedResourceColumnPaths[scope]
@@ -191,11 +194,12 @@ func dedicatedColumnsToColumnMapping(dedicatedColumns backend.DedicatedColumns, 
 		}
 
 		indexByType := map[backend.DedicatedColumnType]int{}
-		for _, c := range dedicatedColumns {
+		for i := range dedicatedColumns.Len() {
+			c := dedicatedColumns.At(i)
 			if c.Scope != scope {
 				continue
 			}
-			if len(c.Options) > 0 {
+			if c.HasOptions() {
 				continue // vp4 does not support options
 			}
 			spareColumnPaths, exists := spareColumnsByType[c.Type]
@@ -220,19 +224,23 @@ func dedicatedColumnsToColumnMapping(dedicatedColumns backend.DedicatedColumns, 
 	return mapping
 }
 
-func filterDedicatedColumns(columns backend.DedicatedColumns) backend.DedicatedColumns {
-	filtered := make(backend.DedicatedColumns, 0, len(columns))
-	for _, c := range columns {
+func filterDedicatedColumns(columns backend.DedicatedColumnsView) backend.DedicatedColumns {
+	if columns == nil {
+		return backend.DedicatedColumns{}
+	}
+	filtered := make(backend.DedicatedColumns, 0, columns.Len())
+	for i := range columns.Len() {
+		c := columns.At(i)
 		if isIgnoredDedicatedColumn(&c) {
 			continue
 		}
-		filtered = append(filtered, c)
+		filtered = append(filtered, c.Column())
 	}
 	return filtered
 }
 
-func isIgnoredDedicatedColumn(dc *backend.DedicatedColumn) bool {
-	if len(dc.Options) > 0 {
+func isIgnoredDedicatedColumn(dc *backend.DedicatedColumnView) bool {
+	if dc.HasOptions() {
 		return true // vp4 does not support options
 	}
 	if _, found := DedicatedResourceColumnPaths[dc.Scope][dc.Type]; !found {

@@ -17,8 +17,8 @@ func NewDedicatedColumnsToJSON() *DedicatedColumnsToJSON {
 	}
 }
 
-func (d *DedicatedColumnsToJSON) JSONForDedicatedColumns(cols backend.DedicatedColumns) (string, error) {
-	if len(cols) == 0 {
+func (d *DedicatedColumnsToJSON) JSONForDedicatedColumns(cols backend.DedicatedColumnsView) (string, error) {
+	if cols == nil || cols.Len() == 0 {
 		return "", nil
 	}
 

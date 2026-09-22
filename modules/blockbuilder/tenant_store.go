@@ -146,7 +146,7 @@ func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Wri
 
 	// Initial meta for creating the block
 	meta := backend.NewBlockMeta(s.tenantID, uuid.UUID(blockID), s.enc.Version())
-	meta.DedicatedColumns = s.getDedicatedColumns()
+	meta.DedicatedColumns = backend.NewDedicatedColumnLayout(s.getDedicatedColumns())
 	meta.ReplicationFactor = 1
 	meta.TotalObjects = int64(s.liveTraces.Len())
 

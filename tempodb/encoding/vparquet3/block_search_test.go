@@ -271,7 +271,7 @@ func makeBackendBlockWithTraces(t *testing.T, trs []*Trace) *backendBlock {
 
 	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
 	meta.TotalObjects = 1
-	meta.DedicatedColumns = test.MakeDedicatedColumns()
+	meta.DedicatedColumns = backend.NewDedicatedColumnLayout(test.MakeDedicatedColumns())
 
 	s, newMeta := newStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
 

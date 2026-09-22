@@ -491,7 +491,7 @@ func (i *instance) resetHeadBlock() error {
 	meta := &backend.BlockMeta{
 		BlockID:           backend.NewUUID(),
 		TenantID:          i.tenantID,
-		DedicatedColumns:  dedicatedColumns,
+		DedicatedColumns:  backend.NewDedicatedColumnLayout(dedicatedColumns),
 		ReplicationFactor: backend.LiveStoreReplicationFactor,
 	}
 	block, err := i.wal.NewBlock(meta, model.CurrentEncoding)

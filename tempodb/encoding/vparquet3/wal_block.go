@@ -156,7 +156,7 @@ func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, inge
 		TenantID:          meta.TenantID,
 		ReplicationFactor: meta.ReplicationFactor,
 		// remove ignored attributes from dedicated columns
-		DedicatedColumns: filterDedicatedColumns(meta.DedicatedColumns),
+		DedicatedColumns: backend.NewDedicatedColumnLayout(filterDedicatedColumns(meta.DedicatedColumns)),
 	}
 
 	b := &walBlock{

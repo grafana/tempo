@@ -1,0 +1,6 @@
+change_type: enhancement
+component: storage
+note: Cache dedicated-column encoding to reduce tenant-index write CPU and allocations.
+issues: []
+subtext: Retaining encoded layouts increases live metadata memory when layouts are mostly unique.
+user: julienduchesne

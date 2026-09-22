@@ -118,7 +118,7 @@ func rewriteBlock(ctx context.Context, r backend.Reader, w backend.Writer, meta 
 			RowGroupSizeBytes: 100_000_000, // default
 
 			// vParquet3 fields
-			DedicatedColumns: meta.DedicatedColumns,
+			DedicatedColumns: meta.DedicatedColumns.Columns(),
 		},
 		OutputBlocks:     1,
 		MaxBytesPerTrace: 0, // disable for this process

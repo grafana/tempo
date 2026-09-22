@@ -217,21 +217,21 @@ func TestRoundTripMeta(t *testing.T) {
 	expectedPb2 := &BlockMeta{}
 	err = expectedPb2.Unmarshal(expectedPb)
 	assert.NoError(t, err)
-	assert.Equal(t, meta, expectedPb2)
+	assert.Empty(t, cmp.Diff(meta, expectedPb2))
 
 	// RoundTrip with non-empty DedicatedColumns
-	meta.DedicatedColumns = DedicatedColumns{
+	meta.DedicatedColumns = NewDedicatedColumnLayout(DedicatedColumns{
 		{Scope: "resource", Name: "namespace", Type: "string"},
 		{Scope: "span", Name: "http.method", Type: "string"},
 		{Scope: "span", Name: "namespace", Type: "string"},
-	}
+	})
 
 	expectedPb, err = meta.Marshal()
 	assert.NoError(t, err)
 	expectedPb3 := &BlockMeta{}
 	err = expectedPb3.Unmarshal(expectedPb)
 	assert.NoError(t, err)
-	assert.Equal(t, meta, expectedPb3)
+	assert.Empty(t, cmp.Diff(meta, expectedPb3))
 
 	// Round trip the json
 	jsonBytes, err := json.Marshal(meta)
@@ -239,7 +239,7 @@ func TestRoundTripMeta(t *testing.T) {
 	expected2 := &BlockMeta{}
 	err = json.Unmarshal(jsonBytes, expected2)
 	assert.NoError(t, err)
-	assert.Equal(t, meta, expected2)
+	assert.Empty(t, cmp.Diff(meta, expected2))
 }
 
 func TestTenantIndexFallback(t *testing.T) {

@@ -99,7 +99,7 @@ func (cmd *convertParquet4to5) Run() error {
 			})
 		}
 	} else {
-		dedicatedCols = meta.DedicatedColumns
+		dedicatedCols = meta.DedicatedColumns.Columns()
 	}
 
 	// copy block
@@ -112,7 +112,7 @@ func (cmd *convertParquet4to5) Run() error {
 
 	newMeta := *meta
 	newMeta.Version = vparquet5.VersionString
-	newMeta.DedicatedColumns = dedicatedCols
+	newMeta.DedicatedColumns = backend.NewDedicatedColumnLayout(dedicatedCols)
 
 	// create iterator over in file
 	iter := &parquetIterator4{

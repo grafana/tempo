@@ -31,11 +31,11 @@ func BenchmarkIndexLoad(b *testing.B) {
 			TotalRecords:    124356,
 			BloomShardCount: 244,
 			FooterSize:      15775,
-			DedicatedColumns: backend.DedicatedColumns{
+			DedicatedColumns: backend.NewDedicatedColumnLayout(backend.DedicatedColumns{
 				{Scope: "resource", Name: "namespace", Type: "string"},
 				{Scope: "span", Name: "http.method", Type: "string"},
 				{Scope: "span", Name: "namespace", Type: "string"},
-			},
+			}),
 		}
 	}
 

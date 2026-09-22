@@ -698,46 +698,46 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 				{
 					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime: now,
-					DedicatedColumns: backend.DedicatedColumns{
+					DedicatedColumns: backend.NewDedicatedColumnLayout(backend.DedicatedColumns{
 						{Scope: "span", Name: "foo", Type: "int"},
-					},
+					}),
 				},
 				{
 					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now,
-					DedicatedColumns: backend.DedicatedColumns{
+					DedicatedColumns: backend.NewDedicatedColumnLayout(backend.DedicatedColumns{
 						{Scope: "span", Name: "foo", Type: "string"},
-					},
+					}),
 				},
 				{
 					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000003"),
 					EndTime: now,
-					DedicatedColumns: backend.DedicatedColumns{
+					DedicatedColumns: backend.NewDedicatedColumnLayout(backend.DedicatedColumns{
 						{Scope: "span", Name: "foo", Type: "int"},
-					},
+					}),
 				},
 				{
 					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000004"),
 					EndTime: now,
-					DedicatedColumns: backend.DedicatedColumns{
+					DedicatedColumns: backend.NewDedicatedColumnLayout(backend.DedicatedColumns{
 						{Scope: "span", Name: "foo", Type: "string"},
-					},
+					}),
 				},
 			},
 			expected: []*backend.BlockMeta{
 				{
 					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime: now,
-					DedicatedColumns: backend.DedicatedColumns{
+					DedicatedColumns: backend.NewDedicatedColumnLayout(backend.DedicatedColumns{
 						{Scope: "span", Name: "foo", Type: "int"},
-					},
+					}),
 				},
 				{
 					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000003"),
 					EndTime: now,
-					DedicatedColumns: backend.DedicatedColumns{
+					DedicatedColumns: backend.NewDedicatedColumnLayout(backend.DedicatedColumns{
 						{Scope: "span", Name: "foo", Type: "int"},
-					},
+					}),
 				},
 			},
 			expectedHash: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
@@ -745,16 +745,16 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 				{
 					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now,
-					DedicatedColumns: backend.DedicatedColumns{
+					DedicatedColumns: backend.NewDedicatedColumnLayout(backend.DedicatedColumns{
 						{Scope: "span", Name: "foo", Type: "string"},
-					},
+					}),
 				},
 				{
 					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000004"),
 					EndTime: now,
-					DedicatedColumns: backend.DedicatedColumns{
+					DedicatedColumns: backend.NewDedicatedColumnLayout(backend.DedicatedColumns{
 						{Scope: "span", Name: "foo", Type: "string"},
-					},
+					}),
 				},
 			},
 			expectedHash2: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
@@ -978,7 +978,7 @@ func benchmarkBlocklist(n int, withDedicatedColumns bool) []*backend.BlockMeta {
 			EndTime:           now,
 			TotalObjects:      int64(1000 + i%500),
 			Version:           version,
-			DedicatedColumns:  dcs,
+			DedicatedColumns:  backend.NewDedicatedColumnLayout(dcs),
 			ReplicationFactor: 1,
 		})
 	}

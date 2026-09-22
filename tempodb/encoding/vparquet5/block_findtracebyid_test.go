@@ -39,7 +39,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 
 	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
 	meta.TotalObjects = int64(numTraces)
-	meta.DedicatedColumns = test.MakeDedicatedColumns()
+	meta.DedicatedColumns = backend.NewDedicatedColumnLayout(test.MakeDedicatedColumns())
 
 	// Test data - sorted by trace ID
 	// Find trace by ID uses the column and page bounds,

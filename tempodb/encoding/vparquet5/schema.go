@@ -879,7 +879,7 @@ func extendReuseSlice[T any](sz int, in []T) []T {
 	return out
 }
 
-func SchemaWithDynamicChanges(dedicatedColumns backend.DedicatedColumns) (*parquet.Schema, []parquet.WriterOption, []parquet.ReaderOption) {
+func SchemaWithDynamicChanges(dedicatedColumns backend.DedicatedColumnsView) (*parquet.Schema, []parquet.WriterOption, []parquet.ReaderOption) {
 	var (
 		resMapping   = dedicatedColumnsToColumnMapping(dedicatedColumns, backend.DedicatedColumnScopeResource)
 		spanMapping  = dedicatedColumnsToColumnMapping(dedicatedColumns, backend.DedicatedColumnScopeSpan)

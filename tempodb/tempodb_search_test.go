@@ -1991,7 +1991,7 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 	// Write to wal
 	wal := w.WAL()
 
-	meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID, DedicatedColumns: dc}
+	meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID, DedicatedColumns: backend.NewDedicatedColumnLayout(dc)}
 	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err)
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
@@ -2093,7 +2093,7 @@ func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
 	// Write to wal
 	wal := w.WAL()
 
-	meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID, DedicatedColumns: dc}
+	meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID, DedicatedColumns: backend.NewDedicatedColumnLayout(dc)}
 	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err)
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)

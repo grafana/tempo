@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/google/go-cmp/cmp"
 	uuid "github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -107,14 +108,14 @@ func TestBlockMetaJSONProtoRoundTrip(t *testing.T) {
 		TotalRecords:    124356,
 		BloomShardCount: 244,
 		FooterSize:      15775,
-		DedicatedColumns: DedicatedColumns{
+		DedicatedColumns: NewDedicatedColumnLayout(DedicatedColumns{
 			{Scope: "resource", Name: "namespace", Type: "string"},
 			{Scope: "resource", Name: "net.host.port", Type: "int"},
 			{Scope: "span", Name: "http.method", Type: "string"},
 			{Scope: "span", Name: "namespace", Type: "string"},
 			{Scope: "span", Name: "http.response.body.size", Type: "int"},
 			{Scope: "span", Name: "http.request.header.accept", Type: "string", Options: DedicatedColumnOptions{DedicatedColumnOptionArray}},
-		},
+		}),
 	}
 	expectedJSON := `{
     	"format": "vParquet3",
@@ -147,7 +148,7 @@ func TestBlockMetaJSONProtoRoundTrip(t *testing.T) {
 	var metaRoundtrip BlockMeta
 	err = json.Unmarshal(metaJSON, &metaRoundtrip)
 	require.NoError(t, err)
-	assert.Equal(t, meta, metaRoundtrip)
+	assert.Empty(t, cmp.Diff(meta, metaRoundtrip))
 
 	// proto
 	protoData, err := meta.Marshal()
@@ -155,7 +156,7 @@ func TestBlockMetaJSONProtoRoundTrip(t *testing.T) {
 	newMeta := BlockMeta{}
 	require.NoError(t, newMeta.Unmarshal(protoData))
 
-	assert.Equal(t, meta, newMeta)
+	assert.Empty(t, cmp.Diff(meta, newMeta))
 }
 
 func BenchmarkBlockMetaMarshalUnmarshal(b *testing.B) {
@@ -178,7 +179,7 @@ func BenchmarkBlockMetaMarshalUnmarshal(b *testing.B) {
 		TotalRecords:    124356,
 		BloomShardCount: 244,
 		FooterSize:      15775,
-		DedicatedColumns: DedicatedColumns{
+		DedicatedColumns: NewDedicatedColumnLayout(DedicatedColumns{
 			{Scope: "resource", Name: "namespace", Type: "string"},
 			{Scope: "resource", Name: "net.host.port", Type: "int"},
 			{Scope: "span", Name: "http.method", Type: "string"},
@@ -196,7 +197,7 @@ func BenchmarkBlockMetaMarshalUnmarshal(b *testing.B) {
 			{Name: "test.span.str-08", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
 			{Name: "test.span.str-09", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
 			{Name: "test.span.str-10", Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString},
-		},
+		}),
 	}
 
 	b.Run("marshal", func(b *testing.B) {
@@ -398,7 +399,7 @@ func TestDedicatedColumnsMarshalRoundTrip(t *testing.T) {
 			}
 			t.Run(tc.name, func(t *testing.T) {
 				// DedicatedColumns does not implement proto.Message, needs to be wrapped in BlockMeta
-				bm1 := BlockMeta{DedicatedColumns: tc.cols}
+				bm1 := BlockMeta{DedicatedColumns: NewDedicatedColumnLayout(tc.cols)}
 
 				data, err := proto.Marshal(&bm1)
 				require.NoError(t, err)
@@ -406,7 +407,7 @@ func TestDedicatedColumnsMarshalRoundTrip(t *testing.T) {
 				var bm2 BlockMeta
 				err = proto.Unmarshal(data, &bm2)
 				require.NoError(t, err)
-				assert.Equal(t, tc.cols, bm2.DedicatedColumns)
+				assert.Equal(t, tc.cols, bm2.DedicatedColumns.Columns())
 			})
 		}
 	})

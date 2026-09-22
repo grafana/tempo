@@ -11,11 +11,11 @@ var (
 	dedicatedColumnsCacheNull  = []byte("null")
 	dedicatedColumnsCacheEmpty = []byte("[]")
 	dedicatedColumnsCacheSize  = 1024
-	dedicatedColumnsCache      *otter.Cache[string, DedicatedColumns]
+	dedicatedColumnsCache      *otter.Cache[string, DedicatedColumnLayout]
 )
 
 func init() {
-	dedicatedColumnsCache = otter.Must(&otter.Options[string, DedicatedColumns]{MaximumSize: dedicatedColumnsCacheSize})
+	dedicatedColumnsCache = otter.Must(&otter.Options[string, DedicatedColumnLayout]{MaximumSize: dedicatedColumnsCacheSize})
 }
 
 func getDedicatedColumnsFromCache(marshalled []byte) (DedicatedColumns, bool) {
@@ -28,13 +28,22 @@ func getDedicatedColumnsFromCache(marshalled []byte) (DedicatedColumns, bool) {
 	if len(marshalled) == 0 {
 		return nil, false
 	}
-	s := unsafe.String(unsafe.SliceData(marshalled), len(marshalled)) // unsafe conversion is safe for lookups
-	return dedicatedColumnsCache.GetIfPresent(s)
+	v, ok := getDedicatedColumnLayoutFromCache(marshalled)
+	return v.Columns(), ok
 }
 
 func putDedicatedColumnsToCache(marshalled []byte, cols DedicatedColumns) {
 	if len(marshalled) == 0 {
 		return
 	}
-	dedicatedColumnsCache.Set(string(marshalled), cols)
+	dedicatedColumnsCache.Set(string(marshalled), NewDedicatedColumnLayout(cols))
+}
+
+func getDedicatedColumnLayoutFromCache(data []byte) (DedicatedColumnLayout, bool) {
+	if len(data) == 0 {
+		return DedicatedColumnLayout{}, false
+	}
+	// The lookup does not retain the input buffer.
+	key := unsafe.String(unsafe.SliceData(data), len(data))
+	return dedicatedColumnsCache.GetIfPresent(key)
 }

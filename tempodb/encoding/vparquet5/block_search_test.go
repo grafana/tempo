@@ -264,7 +264,7 @@ func TestSearchLegacyTagsHTTPStatusCode(t *testing.T) {
 	ctx := context.Background()
 	id := test.ValidTraceID(nil)
 
-	meta := &backend.BlockMeta{DedicatedColumns: backend.DefaultDedicatedColumns()}
+	meta := &backend.BlockMeta{DedicatedColumns: backend.NewDedicatedColumnLayout(backend.DefaultDedicatedColumns())}
 	pbTrace := &tempopb.Trace{
 		ResourceSpans: []*tracev1.ResourceSpans{{
 			Resource: &resourcev1.Resource{
@@ -323,7 +323,7 @@ func makeBackendBlockWithTraces(t *testing.T, trs []*Trace) *backendBlock {
 	return makeBackendBlockWithTracesWithDedicatedColumns(t, trs, test.MakeDedicatedColumns())
 }
 
-func makeBackendBlockWithTracesWithDedicatedColumns(t *testing.T, trs []*Trace, dc backend.DedicatedColumns) *backendBlock {
+func makeBackendBlockWithTracesWithDedicatedColumns(t testing.TB, trs []*Trace, dc backend.DedicatedColumns) *backendBlock {
 	rawR, rawW, _, err := local.New(&local.Config{
 		Path: t.TempDir(),
 	})
@@ -340,7 +340,7 @@ func makeBackendBlockWithTracesWithDedicatedColumns(t *testing.T, trs []*Trace, 
 
 	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
 	meta.TotalObjects = 1
-	meta.DedicatedColumns = dc
+	meta.DedicatedColumns = backend.NewDedicatedColumnLayout(dc)
 
 	s, newMeta := newStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
 

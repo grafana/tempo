@@ -82,7 +82,7 @@ func (cmd *attrIndexCmd) Run(_ *globalOptions) error {
 }
 
 func (cmd *attrIndexCmd) readDedicatedAttributes(meta *backend.BlockMeta) {
-	for _, ded := range meta.DedicatedColumns {
+	for _, ded := range meta.DedicatedColumns.Columns() {
 		switch ded.Scope {
 		case backend.DedicatedColumnScopeResource:
 			cmd.dedicatedRes = append(cmd.dedicatedRes, ded.Name)

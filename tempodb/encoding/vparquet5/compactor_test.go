@@ -113,7 +113,7 @@ func createTestBlock(t testing.TB, ctx context.Context, cfg *common.BlockConfig,
 		BlockID:           backend.NewUUID(),
 		TotalObjects:      int64(traceCount),
 		ReplicationFactor: uint32(replicationFactor),
-		DedicatedColumns:  dc,
+		DedicatedColumns:  backend.NewDedicatedColumnLayout(dc),
 	}
 
 	sb, outMeta := newStreamingBlock(ctx, cfg, inMeta, r, w, tempo_io.NewBufferedWriter)
@@ -208,5 +208,5 @@ func TestCompact(t *testing.T) {
 	require.Len(t, newMeta, 1)
 	require.Equal(t, int64(20), newMeta[0].TotalObjects)
 	require.Equal(t, uint32(1), newMeta[0].ReplicationFactor)
-	require.Equal(t, dedicatedColumns, newMeta[0].DedicatedColumns)
+	require.Equal(t, dedicatedColumns, newMeta[0].DedicatedColumns.Columns())
 }
