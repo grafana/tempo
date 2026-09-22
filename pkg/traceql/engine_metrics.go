@@ -2216,35 +2216,47 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 func (h *HistogramAggregator) Results() SeriesSet {
 	results := make(SeriesSet, len(h.ss)*len(h.qs))
 
-	// Aggregate buckets across all series and time intervals for better quantile calculation
-	aggregatedBuckets := make(map[float64]int) // bucketMax -> totalCount
-
+	var buckets []HistogramBucket
+	var quantileValues []float64
+	hasExemplars := false
 	for _, in := range h.ss {
-		// Aggregate bucket counts across all time intervals
-		for _, hist := range in.hist {
-			for _, bucket := range hist.Buckets {
-				aggregatedBuckets[bucket.Max] += bucket.Count
-			}
+		if len(in.exemplars) > 0 {
+			hasExemplars = true
+			break
 		}
 	}
+	// The global distribution is only needed to place exemplars.
+	if hasExemplars {
+		// Aggregate buckets across all series and time intervals for better quantile calculation
+		aggregatedBuckets := make(map[float64]int) // bucketMax -> totalCount
 
-	// Calculate quantile values from aggregated distribution
-	// Convert map to sorted slice
-	buckets := make([]HistogramBucket, 0, len(aggregatedBuckets))
-	for bucketMax, count := range aggregatedBuckets {
-		buckets = append(buckets, HistogramBucket{
-			Max:   bucketMax,
-			Count: count,
+		for _, in := range h.ss {
+			// Aggregate bucket counts across all time intervals
+			for _, hist := range in.hist {
+				for _, bucket := range hist.Buckets {
+					aggregatedBuckets[bucket.Max] += bucket.Count
+				}
+			}
+		}
+
+		// Calculate quantile values from aggregated distribution
+		// Convert map to sorted slice
+		buckets = make([]HistogramBucket, 0, len(aggregatedBuckets))
+		for bucketMax, count := range aggregatedBuckets {
+			buckets = append(buckets, HistogramBucket{
+				Max:   bucketMax,
+				Count: count,
+			})
+		}
+
+		sort.Slice(buckets, func(i, j int) bool {
+			return buckets[i].Max < buckets[j].Max
 		})
-	}
 
-	sort.Slice(buckets, func(i, j int) bool {
-		return buckets[i].Max < buckets[j].Max
-	})
-
-	quantileValues := make([]float64, len(h.qs))
-	for i, q := range h.qs {
-		quantileValues[i] = Log2Quantile(q, buckets)
+		quantileValues = make([]float64, len(h.qs))
+		for i, q := range h.qs {
+			quantileValues[i] = Log2Quantile(q, buckets)
+		}
 	}
 
 	// Build results using the calculated quantile values

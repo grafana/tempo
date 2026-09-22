@@ -1,0 +1,6 @@
+change_type: enhancement
+component: query-frontend
+note: Skip global histogram aggregation when a metrics query returns no exemplars.
+issues: []
+subtext:
+user: julienduchesne
