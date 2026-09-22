@@ -265,6 +265,38 @@ func TestRetry_ClearBlock(t *testing.T) {
 	})
 }
 
+// CompactedBlockMeta's NotFound path (blocklist/poller.go's pollBlock treats it
+// as a benign "block in an intermediate state", not a poll error) has no
+// coverage: readError's classification is unit tested in isolation, but
+// nothing confirms CompactedBlockMeta actually routes a real 404 through it.
+func TestCompactedBlockMeta_NotFound(t *testing.T) {
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/b/blerg":
+			_, _ = w.Write([]byte(`{}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"error": {"code": 404, "message": "not found"}}`))
+		}
+	}))
+	server.StartTLS()
+	t.Cleanup(server.Close)
+
+	_, _, c, err := New(&Config{
+		BucketName: "blerg",
+		Insecure:   true,
+		Endpoint:   server.URL,
+	})
+	require.NoError(t, err)
+
+	id, err := uuid.NewUUID()
+	require.NoError(t, err)
+
+	_, err = c.CompactedBlockMeta(id, "tenant")
+	require.Error(t, err)
+	require.True(t, errors.Is(err, backend.ErrDoesNotExist))
+}
+
 func fakeServer(t *testing.T, returnIn time.Duration, counter *int32) *httptest.Server {
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(returnIn)
