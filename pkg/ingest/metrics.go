@@ -48,6 +48,10 @@ var (
 // ever-growing lag on the previous owner. Callers may still call ResetLagMetricsForRevokedPartitions
 // on revoke for an immediate cleanup rather than waiting for the next tick.
 func ExportPartitionLagMetrics(ctx context.Context, kclient *kgo.Client, log log.Logger, cfg Config, getAssignedActivePartitions func() []int32, forceMetadataRefresh func()) {
+	if cfg.Kafka.ConsumerGroupLagMetricUpdateInterval == 0 {
+		return
+	}
+
 	go func() {
 		var (
 			waitTime = cfg.Kafka.ConsumerGroupLagMetricUpdateInterval
