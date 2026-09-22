@@ -10,8 +10,8 @@ import (
 )
 
 // countingReader records the object-store traffic a query causes. It wraps the
-// raw reader rather than reading counters off the response, so it sees the
-// reads a block makes for footers, indexes and bloom filters too.
+// raw reader rather than reading the response, so it also sees the reads a
+// block makes for footers, indexes and bloom filters.
 type countingReader struct {
 	backend.RawReader
 

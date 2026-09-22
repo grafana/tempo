@@ -1,0 +1,201 @@
+package benchmark
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/grafana/tempo/v3/pkg/benchmark/metrics"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
+)
+
+// execOutput is what one execution produced.
+type execOutput struct {
+	matched int64
+	// metrics is what the API reported, flattened. Nil when it reported
+	// nothing, which a trace-by-ID miss does.
+	metrics map[string]int64
+}
+
+type execution func(context.Context, common.BackendBlock, RunOptions) (execOutput, error)
+
+// fetcherFor wraps a block's fetch methods for the TraceQL engine.
+func fetcherFor(block common.BackendBlock, readOpts common.SearchOptions) traceql.SpansetFetcher {
+	return traceql.NewSpansetFetcherWrapperBoth(
+		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return block.Fetch(ctx, req, readOpts)
+		},
+		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+			return block.FetchSpans(ctx, req, readOpts)
+		},
+	)
+}
+
+// shardOptions narrows read options to one shard's row groups.
+func shardOptions(baseOpts common.SearchOptions, shard Shard) common.SearchOptions {
+	baseOpts.StartPage, baseOpts.TotalPages = shard.StartPage, shard.TotalPages
+	return baseOpts
+}
+
+// traceByIDExecutions looks up one trace per ID.
+func traceByIDExecutions(hexIDs []string, readOpts common.SearchOptions) ([]execution, error) {
+	executions := make([]execution, 0, len(hexIDs))
+	for _, hexID := range hexIDs {
+		id, err := util.HexStringToTraceID(hexID)
+		if err != nil {
+			return nil, fmt.Errorf("decoding trace ID %q: %w", hexID, err)
+		}
+
+		executions = append(executions, func(ctx context.Context, block common.BackendBlock, _ RunOptions) (execOutput, error) {
+			resp, err := block.FindTraceByID(ctx, id, readOpts)
+			if err != nil {
+				return execOutput{}, err
+			}
+
+			out := execOutput{}
+			if resp == nil {
+				// A bloom miss returns before a response is built, so the
+				// backend counter is the only signal for this execution.
+				return out, nil
+			}
+			if resp.Trace != nil {
+				out.matched = 1
+			}
+			if resp.Metrics != nil {
+				if out.metrics, err = metrics.FromResponse(resp.Metrics); err != nil {
+					return execOutput{}, err
+				}
+			}
+			return out, nil
+		})
+	}
+	return executions, nil
+}
+
+// searchExecutions runs a search, one execution per shard.
+func searchExecutions(query string, shards []Shard, meta *backend.BlockMeta, baseOpts common.SearchOptions) []execution {
+	executions := make([]execution, 0, len(shards))
+	for _, shard := range shards {
+		readOpts := shardOptions(baseOpts, shard)
+
+		executions = append(executions, func(ctx context.Context, block common.BackendBlock, opts RunOptions) (execOutput, error) {
+			resp, err := traceql.NewEngine().ExecuteSearch(ctx, &tempopb.SearchRequest{
+				Query: query,
+				Limit: uint32(opts.SearchLimit),
+				Start: uint32(meta.StartTime.Unix()),
+				End:   uint32(meta.EndTime.Unix()),
+			}, fetcherFor(block, readOpts))
+			if err != nil {
+				return execOutput{}, err
+			}
+
+			out := execOutput{}
+			if resp == nil {
+				return out, nil
+			}
+			out.matched = int64(len(resp.Traces))
+			if resp.Metrics != nil {
+				if out.metrics, err = metrics.FromResponse(resp.Metrics); err != nil {
+					return execOutput{}, err
+				}
+			}
+			return out, nil
+		})
+	}
+	return executions
+}
+
+// metricsStep is the step of a range query over the block.
+func metricsStep(meta *backend.BlockMeta) time.Duration {
+	return max(meta.EndTime.Sub(meta.StartTime)/metricsStepDivisor, minMetricsStep)
+}
+
+// metricsExecutions runs a TraceQL metrics query over the block's whole time
+// range, one execution per shard.
+//
+// instant collapses the window to a single point, which is the only difference
+// between an instant query and a range query.
+func metricsExecutions(query string, instant bool, shards []Shard, meta *backend.BlockMeta, baseOpts common.SearchOptions) []execution {
+	var (
+		start = uint64(meta.StartTime.UnixNano())
+		end   = uint64(meta.EndTime.UnixNano())
+	)
+
+	executions := make([]execution, 0, len(shards))
+	for _, shard := range shards {
+		readOpts := shardOptions(baseOpts, shard)
+
+		executions = append(executions, func(ctx context.Context, block common.BackendBlock, opts RunOptions) (execOutput, error) {
+			req := &tempopb.QueryRangeRequest{
+				Query:     query,
+				Start:     start,
+				End:       end,
+				Step:      uint64(metricsStep(meta)),
+				MaxSeries: uint32(opts.MaxSeries),
+				Exemplars: uint32(opts.Exemplars),
+			}
+			if instant {
+				req.Step = end - start
+				req.XInstant = &tempopb.QueryRangeRequest_Instant{Instant: true}
+			}
+
+			eval, err := traceql.NewEngine().CompileMetricsQueryRange(req,
+				traceql.WithUnsafeHints(true),
+				traceql.WithEngineBytesTracking(true),
+			)
+			if err != nil {
+				return execOutput{}, fmt.Errorf("compiling %q: %w", query, err)
+			}
+
+			if err := eval.Do(ctx, fetcherFor(block, readOpts), start, end, opts.MaxSeries); err != nil {
+				return execOutput{}, err
+			}
+
+			// Results does the final series processing, so it is part of what
+			// the query costs and has to run inside the measured window.
+			results := eval.Results()
+
+			out := execOutput{matched: int64(len(results))}
+			if out.metrics, err = metrics.FromEvaluator(eval.Metrics()); err != nil {
+				return execOutput{}, err
+			}
+			return out, nil
+		})
+	}
+	return executions
+}
+
+// tagNamesExecutions lists tag names in one scope, one execution per shard.
+//
+// This API takes a callback for bytes read instead of returning a metrics
+// message, so bytes is all it can report. The backend counter and the process
+// metrics cover the rest.
+func tagNamesExecutions(scope traceql.AttributeScope, shards []Shard, baseOpts common.SearchOptions) []execution {
+	executions := make([]execution, 0, len(shards))
+	for _, shard := range shards {
+		readOpts := shardOptions(baseOpts, shard)
+
+		executions = append(executions, func(ctx context.Context, block common.BackendBlock, _ RunOptions) (execOutput, error) {
+			var names, bytesRead int64
+			err := block.SearchTags(ctx, scope,
+				func(string, traceql.AttributeScope) { names++ },
+				func(b uint64) { bytesRead += int64(b) },
+				readOpts,
+			)
+			if err != nil {
+				return execOutput{}, err
+			}
+
+			out := execOutput{matched: names}
+			if out.metrics, err = metrics.BytesRead(bytesRead); err != nil {
+				return execOutput{}, err
+			}
+			return out, nil
+		})
+	}
+	return executions
+}

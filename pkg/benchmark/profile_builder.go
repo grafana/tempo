@@ -176,20 +176,16 @@ func profileTraceIDs(ctx context.Context, blk common.BackendBlock, pf *parquet.F
 // sampleTraceIDs takes num present IDs at an even stride over every row of the
 // block, and pairs each with an absent ID.
 //
-// Striding over all rows costs a full scan, but taking the head of each row
-// group instead would leave a trace-by-ID benchmark reading only the opening
-// pages of each row group — well under 1% of a large block's pages, on a path
-// whose cost is dominated by page reads. The scan is paid once per block and
-// every variant then reuses the sample, which needs no seed because the block's
-// row order is fixed.
+// Striding over all rows costs a full scan, paid once per block. Sampling the
+// head of each row group would be cheaper but would leave the benchmark reading
+// only each group's opening pages, well under 1% of a large block.
 //
-// Each absent ID is the midpoint between a sampled ID and the one that follows
-// it in the block. Because a row group holds a contiguous range of the trace ID
-// sort key, and the scan reads every row of it, those two IDs are adjacent in
-// the whole block: no trace can lie between them, so the midpoint is absent by
-// construction rather than by a lookup. That keeps profiling off the bloom
-// filters, and spreads the absent IDs over the block's ID range, which matters
-// because the bloom shard a lookup reads is a hash of the whole ID.
+// Each absent ID is the midpoint between a sampled ID and the next one in the
+// block. Row groups hold contiguous ranges of the trace ID sort key and the
+// scan reads every row, so those two IDs are adjacent block-wide and no trace
+// can lie between them: the midpoint is absent by construction, with no lookup.
+// That also spreads the absent IDs across the ID range, which matters because a
+// lookup picks its bloom shard by hashing the whole ID.
 func sampleTraceIDs(ctx context.Context, blk common.BackendBlock, pf *parquet.File, num int) (present, absent []string, err error) {
 	var total int64
 	for _, rg := range pf.RowGroups() {
@@ -252,7 +248,7 @@ func sampleTraceIDs(ctx context.Context, blk common.BackendBlock, pf *parquet.Fi
 // listTraceIDs returns every trace ID in one row group.
 //
 // The time range spans everything representable rather than the block's own
-// window: a block's declared start and end can clip traces whose spans fall in
+// window, because a block's declared start and end can clip traces that fall in
 // its ingestion slack, and a partial list would break the adjacency the absent
 // IDs rely on.
 func listTraceIDs(ctx context.Context, blk common.BackendBlock, group parquet.RowGroup, rowGroup int) ([][]byte, error) {

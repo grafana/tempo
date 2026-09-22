@@ -5,23 +5,23 @@ import (
 	"fmt"
 	"io"
 	"time"
+
+	"github.com/grafana/tempo/v3/pkg/benchmark/metrics"
 )
 
 const ResultSchemaVersion = 1
 
-// CaseResult is what one query shape cost.
-//
-// Latency is per execution; everything else is a total over the case, because
-// process-wide counters cannot be attributed to a single execution and rusage
-// is too coarse to resolve a fast one.
+// CaseResult is what one query shape cost. Latency is per execution;
+// everything else is a total over the case, because the counters are
+// process-wide and rusage is too coarse to resolve one fast execution.
 type CaseResult struct {
 	ID    string `json:"id"`
 	API   string `json:"api"`
 	Query string `json:"query,omitempty"`
 
 	Executions int `json:"executions"`
-	// Matched is the total result size. A comparison between two runs is only
-	// meaningful if this agrees, so it is recorded to be checked.
+	// Matched is the total result size. Two runs are only comparable if this
+	// agrees, so it is recorded to be checked.
 	Matched int64 `json:"matched"`
 
 	WallNs Summary `json:"wallNs"`
@@ -32,15 +32,15 @@ type CaseResult struct {
 	AllocBytes int64 `json:"allocBytes"`
 	AllocCount int64 `json:"allocCount"`
 
-	// Response holds the metrics the query responses reported, summed over the
-	// case and keyed by Tempo's own metric names. It is a map so a metric added
-	// to Tempo's response is carried through without a change here.
+	// Response is what the query APIs reported, summed over the case and keyed
+	// by Tempo's own metric names. A map, so a metric added to Tempo is carried
+	// through without a change here.
 	Response map[string]int64 `json:"response,omitempty"`
-	// Process holds the Prometheus metrics Tempo emitted while the case ran.
-	Process ProcessMetrics `json:"process,omitempty"`
-	// Backend counts and times the object-store calls. The response metrics do
-	// not cover the trace-by-ID path, and a bloom miss returns no response at
-	// all, so this is measured at the reader instead.
+	// Process is the Prometheus metrics Tempo emitted while the case ran.
+	Process metrics.Process `json:"process,omitempty"`
+	// Backend counts and times the object-store calls. Responses do not cover
+	// the trace-by-ID path, and a bloom miss returns none at all, so this is
+	// measured at the reader instead.
 	Backend readStats `json:"backend"`
 
 	Error string `json:"error,omitempty"`
