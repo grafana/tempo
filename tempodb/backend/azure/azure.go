@@ -10,7 +10,9 @@ import (
 	"fmt"
 	"io"
 	"path"
+	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/streaming"
@@ -26,6 +28,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -33,6 +36,9 @@ const (
 	dir = "/"
 	// max parallelism on uploads
 	maxParallelism = 3
+	// number of leading-hex-digit shards the block ID keyspace is split into
+	// when list_blocks_concurrency > 1
+	listBlocksShards = 16
 )
 
 type Azure struct {
@@ -99,6 +105,12 @@ func internalNew(cfg *Config, confirm bool) (*Azure, error) {
 		containerClient:       c,
 		hedgedContainerClient: hedgedContainer,
 	}
+
+	shards := 1
+	if cfg.ListBlocksConcurrency > 1 {
+		shards = listBlocksShards
+	}
+	level.Info(log.Logger).Log("msg", "azure backend configured", "list_blocks_concurrency", cfg.ListBlocksConcurrency, "list_blocks_shards", shards)
 
 	return rw, nil
 }
@@ -209,23 +221,78 @@ func (rw *Azure) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []
 	ctx, span := tracer.Start(ctx, "V2.ListBlocks")
 	defer span.End()
 
-	var (
-		blockIDs          = make([]uuid.UUID, 0, 1000)
-		compactedBlockIDs = make([]uuid.UUID, 0, 1000)
-		keypath           = backend.KeyPathWithPrefix(backend.KeyPath{tenant}, rw.cfg.Prefix)
-		parts             []string
-		id                uuid.UUID
-	)
+	keypath := backend.KeyPathWithPrefix(backend.KeyPath{tenant}, rw.cfg.Prefix)
 
 	prefix := path.Join(keypath...)
 	if len(prefix) > 0 {
 		prefix += dir
 	}
 
-	pager := rw.containerClient.NewListBlobsFlatPager(&container.ListBlobsFlatOptions{
-		Include: container.ListBlobsInclude{},
-		Prefix:  &prefix,
-	})
+	// Azure's list marker is opaque, so unlike s3 and gcs the keyspace cannot be
+	// split by block ID range. Shard on the leading hex digit instead, which
+	// divides evenly because block IDs are UUIDs. Sharding costs extra requests
+	// for small tenants, so it is opt in.
+	prefixes := []string{prefix}
+	if rw.cfg.ListBlocksConcurrency > 1 {
+		prefixes = make([]string, 0, listBlocksShards)
+		for i := 0; i < listBlocksShards; i++ {
+			prefixes = append(prefixes, prefix+strconv.FormatInt(int64(i), 16))
+		}
+	}
+
+	var (
+		mtx               sync.Mutex
+		blockIDs          = make([]uuid.UUID, 0, 1000)
+		compactedBlockIDs = make([]uuid.UUID, 0, 1000)
+	)
+
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(max(rw.cfg.ListBlocksConcurrency, 1))
+
+	for _, listPrefix := range prefixes {
+		g.Go(func() error {
+			ids, compactedIDs, err := rw.listBlocksWithPrefix(ctx, listPrefix, prefix)
+			if err != nil {
+				return err
+			}
+
+			mtx.Lock()
+			defer mtx.Unlock()
+			blockIDs = append(blockIDs, ids...)
+			compactedBlockIDs = append(compactedBlockIDs, compactedIDs...)
+
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, nil, err
+	}
+
+	span.SetAttributes(
+		attribute.String("tenant", tenant),
+		attribute.Int("shards", len(prefixes)),
+		attribute.Int("blockIDs", len(blockIDs)),
+		attribute.Int("compactedBlockIDs", len(compactedBlockIDs)),
+	)
+
+	return blockIDs, compactedBlockIDs, nil
+}
+
+// listBlocksWithPrefix lists blocks under listPrefix, which is tenantPrefix
+// optionally narrowed by a block ID shard. Names are trimmed against
+// tenantPrefix so block IDs resolve the same in either case.
+func (rw *Azure) listBlocksWithPrefix(ctx context.Context, listPrefix, tenantPrefix string) ([]uuid.UUID, []uuid.UUID, error) {
+	var (
+		blockIDs          []uuid.UUID
+		compactedBlockIDs []uuid.UUID
+		parts             []string
+		id                uuid.UUID
+		pager             = rw.containerClient.NewListBlobsFlatPager(&container.ListBlobsFlatOptions{
+			Include: container.ListBlobsInclude{},
+			Prefix:  &listPrefix,
+		})
+	)
 
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
@@ -238,7 +305,7 @@ func (rw *Azure) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []
 				continue
 			}
 
-			obj := strings.TrimPrefix(strings.TrimSuffix(*b.Name, dir), prefix)
+			obj := strings.TrimPrefix(strings.TrimSuffix(*b.Name, dir), tenantPrefix)
 			parts = strings.Split(obj, "/")
 
 			// ie: <blockID>/meta.json
@@ -263,6 +330,7 @@ func (rw *Azure) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []
 			}
 		}
 	}
+
 	return blockIDs, compactedBlockIDs, nil
 }
 

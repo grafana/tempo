@@ -2,10 +2,12 @@ package tempodb
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/cache"
@@ -90,10 +92,16 @@ func (rw *readerWriter) retainTenant(ctx context.Context, tenantID string, compa
 			if b.EndTime.Before(cutoff) && compactorSharder.Owns(b.BlockID.String()) {
 				level.Info(rw.logger).Log("msg", "marking block for deletion", "blockID", b.BlockID, "tenantID", tenantID)
 				err := rw.c.MarkBlockCompacted(uuid.UUID(b.BlockID), tenantID)
-				if err != nil {
+				switch {
+				case errors.Is(err, backend.ErrDoesNotExist):
+					// A concurrent compaction or retention pass already retired this
+					// block. Leave our local view alone; the next blocklist poll will
+					// pick up whatever the backend actually settled on.
+					level.Debug(rw.logger).Log("msg", "block already retired, skipping", "blockID", b.BlockID, "tenantID", tenantID)
+				case err != nil:
 					level.Error(rw.logger).Log("msg", "failed to mark block compacted during retention", "blockID", b.BlockID, "tenantID", tenantID, "err", err)
 					metricRetentionErrors.Inc()
-				} else {
+				default:
 					metricMarkedForDeletion.Inc()
 
 					rw.blocklist.Update(tenantID, nil, []*backend.BlockMeta{b}, []*backend.CompactedBlockMeta{
@@ -110,32 +118,51 @@ func (rw *readerWriter) retainTenant(ctx context.Context, tenantID string, compa
 	// iterate through compacted list looking for blocks ready to be cleared
 	cutoff = time.Now().Add(-compactorCfg.CompactedBlockRetention)
 	compactedBlocklist := rw.blocklist.CompactedMetas(tenantID)
-	for _, b := range compactedBlocklist {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			level.Debug(rw.logger).Log("owns", compactorSharder.Owns(b.BlockID.String()), "blockID", b.BlockID, "tenantID", tenantID)
-			if b.CompactedTime.Before(cutoff) && compactorSharder.Owns(b.BlockID.String()) {
-				level.Info(rw.logger).Log("msg", "deleting block", "blockID", b.BlockID, "tenantID", tenantID)
-				err := rw.c.ClearBlock(uuid.UUID(b.BlockID), tenantID)
-				if err != nil {
-					level.Error(rw.logger).Log("msg", "failed to clear compacted block during retention", "blockID", b.BlockID, "tenantID", tenantID, "err", err)
-					metricRetentionErrors.Inc()
-				} else {
-					metricDeleted.Inc()
-					rw.removeCachedBlock(ctx, tenantID, uuid.UUID(b.BlockID), int(b.BloomShardCount))
-					rw.blocklist.Update(tenantID, nil, nil, nil, []*backend.CompactedBlockMeta{b})
-				}
-			}
-		}
+
+	// One retention job covers a whole tenant, and a serial loop cannot keep up
+	// with compaction when that tenant has a large backlog.
+	concurrency := compactorCfg.RetentionBlockConcurrency
+	if concurrency == 0 {
+		concurrency = DefaultRetentionBlockConcurrency
 	}
+
+	// Not WithContext: cancelling on the first error would strand the rest of
+	// the tenant's blocks.
+	var g errgroup.Group
+	g.SetLimit(int(concurrency))
+
+	for _, b := range compactedBlocklist {
+		if ctx.Err() != nil {
+			break
+		}
+
+		if !b.CompactedTime.Before(cutoff) || !compactorSharder.Owns(b.BlockID.String()) {
+			continue
+		}
+
+		g.Go(func() error {
+			level.Info(rw.logger).Log("msg", "deleting block", "blockID", b.BlockID, "tenantID", tenantID)
+			err := rw.c.ClearBlock(uuid.UUID(b.BlockID), tenantID)
+			if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
+				level.Error(rw.logger).Log("msg", "failed to clear compacted block during retention", "blockID", b.BlockID, "tenantID", tenantID, "err", err)
+				metricRetentionErrors.Inc()
+				return nil
+			}
+
+			// A concurrent retention pass may have already cleared this
+			// block (ErrDoesNotExist): the goal state - no data, no longer
+			// tracked - is the same either way.
+			metricDeleted.Inc()
+			rw.removeCachedBlock(ctx, tenantID, uuid.UUID(b.BlockID), int(b.BloomShardCount))
+			rw.blocklist.Update(tenantID, nil, nil, nil, []*backend.CompactedBlockMeta{b})
+			return nil
+		})
+	}
+
+	// Each block logs its own failure, so there is nothing left to report here.
+	_ = g.Wait()
 }
 
-// removeCachedBlock evicts bloom filter shards and the trace-id index for a deleted block
-// from all configured caches. Cache entries for other roles (parquet pages, footer, etc.)
-// use byte offsets in their keys that are not tracked in the block meta, so those are left
-// to expire via TTL or LRU eviction.
 func (rw *readerWriter) removeCachedBlock(ctx context.Context, tenantID string, blockID uuid.UUID, bloomShardCount int) {
 	if rw.cacheProvider == nil {
 		return
