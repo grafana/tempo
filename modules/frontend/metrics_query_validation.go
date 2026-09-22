@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
 )
 
 var errEndMustBeGreaterThanStart = errors.New("end must be greater than start")

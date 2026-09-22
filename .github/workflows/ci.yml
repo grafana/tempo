@@ -343,6 +343,9 @@ jobs:
       - name: Check vendor
         run: make vendor-check
 
+      - name: Test Go module consumer
+        run: make test-module-consumer
+
   tempo-jsonnet:
     name: Check jsonnet & tempo-mixin
     runs-on: ubuntu-24.04

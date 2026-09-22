@@ -7,7 +7,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel"
 
-	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/v3/pkg/util/log"
 )
 
 const wildcardTenant = "*"

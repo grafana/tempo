@@ -6,8 +6,8 @@ import (
 	"strconv"
 
 	"github.com/gogo/protobuf/jsonpb"
-	"github.com/grafana/tempo/pkg/httpclient"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/httpclient"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
 )
 
 type queryTraceIDCmd struct {

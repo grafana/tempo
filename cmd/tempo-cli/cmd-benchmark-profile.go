@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/grafana/tempo/pkg/benchmark"
+	"github.com/grafana/tempo/v3/pkg/benchmark"
 )
 
 type benchmarkProfileCmd struct {

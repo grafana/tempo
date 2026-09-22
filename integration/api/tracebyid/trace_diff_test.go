@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/tempo/integration/util"
-	"github.com/grafana/tempo/pkg/model/tracediff"
-	"github.com/grafana/tempo/pkg/tempopb"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v3/integration/util"
+	"github.com/grafana/tempo/v3/pkg/model/tracediff"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	tempoUtil "github.com/grafana/tempo/v3/pkg/util"
 	"github.com/stretchr/testify/require"
 )
 

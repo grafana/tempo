@@ -11,12 +11,12 @@ import (
 
 	"github.com/grafana/dskit/grpcclient"
 	"github.com/grafana/dskit/user"
-	livestore_client "github.com/grafana/tempo/modules/livestore/client"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/modules/querier/worker"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	livestore_client "github.com/grafana/tempo/v3/modules/livestore/client"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/modules/querier/worker"
+	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1_trace "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 )

@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v2"
 
-	"github.com/grafana/tempo/pkg/cache"
+	"github.com/grafana/tempo/v3/pkg/cache"
 )
 
 func TestConfigAppliesDefaultsOnUnmarshal(t *testing.T) {

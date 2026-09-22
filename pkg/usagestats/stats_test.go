@@ -8,7 +8,7 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/grafana/tempo/cmd/tempo/build"
+	"github.com/grafana/tempo/v3/cmd/tempo/build"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"

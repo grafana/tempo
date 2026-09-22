@@ -134,6 +134,10 @@ exe-debug:
 test: ## Run tests
 	$(GOTEST) $(GOTEST_OPT) $(ALL_PKGS)
 
+.PHONY: test-module-consumer
+test-module-consumer: ## Test public Go packages from a separate consumer module
+	./tools/test-module-consumer.sh
+
 .PHONY: benchmark
 benchmark: tools ## Run benchmarks
 	$(GOTEST) -bench=. -run=notests $(ALL_PKGS)
@@ -383,7 +387,7 @@ gen-proto:  ## Generate proto files
 	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i $(SED_OPTS) 's+ opentelemetry.proto+ tempopb+g'
 
 	@# Update go_package
-	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i $(SED_OPTS) 's+go.opentelemetry.io/proto/otlp+github.com/grafana/tempo/pkg/tempopb+g'
+	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i $(SED_OPTS) 's+go.opentelemetry.io/proto/otlp+github.com/grafana/tempo/v3/pkg/tempopb+g'
 
 	@# Update import paths
 	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i $(SED_OPTS) 's+import "opentelemetry/proto/+import "+g'

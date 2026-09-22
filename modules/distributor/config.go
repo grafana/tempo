@@ -5,11 +5,11 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/flagext"
-	"github.com/grafana/tempo/pkg/ingest"
+	"github.com/grafana/tempo/v3/pkg/ingest"
 
-	"github.com/grafana/tempo/modules/distributor/forwarder"
-	"github.com/grafana/tempo/modules/distributor/usage"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v3/modules/distributor/forwarder"
+	"github.com/grafana/tempo/v3/modules/distributor/usage"
+	"github.com/grafana/tempo/v3/pkg/util"
 )
 
 var defaultReceivers = map[string]interface{}{

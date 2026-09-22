@@ -13,8 +13,8 @@ import (
 	"github.com/grafana/dskit/services"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/grafana/tempo/modules/distributor/queue"
-	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/v3/modules/distributor/queue"
+	"github.com/grafana/tempo/v3/modules/overrides"
 )
 
 const (
