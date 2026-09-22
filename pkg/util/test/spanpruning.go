@@ -1,9 +1,9 @@
 package test
 
 import (
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1_common "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	v1_trace "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
 )
 
 // MakeSpanPruningSpanID builds a deterministic 8-byte span ID from two bytes, handy for

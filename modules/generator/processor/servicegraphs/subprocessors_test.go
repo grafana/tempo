@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/modules/generator/processor"
+	"github.com/grafana/tempo/v3/modules/generator/processor"
 )
 
 func TestSubprocessor_String(t *testing.T) {

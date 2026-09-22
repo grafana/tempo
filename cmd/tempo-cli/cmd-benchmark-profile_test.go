@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/pkg/benchmark"
+	"github.com/grafana/tempo/v3/pkg/benchmark"
 )
 
 func TestParseTraceIDCount(t *testing.T) {

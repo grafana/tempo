@@ -12,7 +12,7 @@ import (
 	"unsafe"
 
 	"github.com/cespare/xxhash/v2"
-	"github.com/grafana/tempo/pkg/regexp"
+	"github.com/grafana/tempo/v3/pkg/regexp"
 )
 
 type Element interface {
