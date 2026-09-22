@@ -365,6 +365,11 @@ func TestDedicatedColumnsMarshalRoundTrip(t *testing.T) {
 			},
 		},
 		{
+			name: "escaped",
+			cols: DedicatedColumns{{Scope: DedicatedColumnScopeSpan, Type: DedicatedColumnTypeString, Name: "<>&\"\\\n☃"}},
+		},
+
+		{
 			name: "multiple",
 			cols: DedicatedColumns{
 				{Scope: DedicatedColumnScopeResource, Name: "test.res.1", Type: DedicatedColumnTypeString},
