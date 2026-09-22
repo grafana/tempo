@@ -25,6 +25,9 @@ func TestConfigAppliesDefaultsOnUnmarshal(t *testing.T) {
 				Timeout:                        100 * time.Millisecond,
 				UpdateInterval:                 time.Minute,
 				ConsistentHash:                 true,
+				CBFailures:                     10,
+				CBTimeout:                      10 * time.Second,
+				CBInterval:                     10 * time.Second,
 			},
 		},
 		{
@@ -37,6 +40,9 @@ timeout: 250ms
 connect_timeout: 50ms
 update_interval: 5m
 consistent_hash: false
+circuit_breaker_consecutive_failures: 0
+circuit_breaker_timeout: 0s
+circuit_breaker_interval: 0s
 `,
 			want: cache.MemcachedClientConfig{
 				Host:                           "memcached.example.com",
@@ -57,6 +63,9 @@ consistent_hash: false
 				Timeout:                        500 * time.Millisecond,
 				UpdateInterval:                 time.Minute,
 				ConsistentHash:                 true,
+				CBFailures:                     10,
+				CBTimeout:                      10 * time.Second,
+				CBInterval:                     10 * time.Second,
 			},
 		},
 	}
