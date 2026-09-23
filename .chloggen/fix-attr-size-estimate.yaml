@@ -1,0 +1,12 @@
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: bug_fix
+
+# Component or area of the change.
+component: storage
+
+# A brief description of the change.
+note: Cap row groups at 800MiB and count attribute value bytes when estimating row group size
+
+issues: []
+
+user: zhxiaogg
