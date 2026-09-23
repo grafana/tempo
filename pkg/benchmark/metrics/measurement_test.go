@@ -16,7 +16,7 @@ func TestSummarize(t *testing.T) {
 	require.Equal(t, 5.0, s.Max)
 	require.InDelta(t, 3.0, s.Mean, 0.001)
 
-	// Quartiles are here so a box plot needs nothing else.
+	// Quantiles are here so a box plot needs nothing else.
 	require.Equal(t, 2.0, s.P25)
 	require.Equal(t, 4.0, s.P75)
 

@@ -562,7 +562,7 @@ result needs a rule per source:
 
 - `total` is the sum over the case for a `counter`, or the value left behind for
   a `gauge`.
-- `summary` describes the per-execution values, with quartiles so a box plot
+- `summary` describes the per-execution values, with quantiles so a box plot
   needs nothing else. A total on its own hides the tail, which on the read path
   is usually the interesting part.
 

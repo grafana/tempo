@@ -32,7 +32,7 @@ type Measurement struct {
 // Set is every measurement for one case, keyed by "source.name".
 type Set map[string]Measurement
 
-// Summary describes a distribution. The quartiles are here so a box plot can be
+// Summary describes a distribution. The quantiles are here so a box plot can be
 // drawn from it without keeping every sample.
 type Summary struct {
 	Count  int     `json:"count"`
