@@ -677,8 +677,9 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte, allowParti
 	// Check live traces first
 	i.liveTracesMtx.Lock()
 	if liveTrace, ok := i.liveTraces.Traces[util.HashForTraceID(traceID)]; ok {
-		tempTrace := &tempopb.Trace{}
-		tempTrace.ResourceSpans = liveTrace.Batches
+		// The combiner appends and sorts in place, including nested spans.
+		// Copy while holding the lock so reads cannot mutate live ingestion state.
+		tempTrace := proto.Clone(&tempopb.Trace{ResourceSpans: liveTrace.Batches}).(*tempopb.Trace)
 		// Previously there was some logic here to add inspected bytes in the ingester. But its hard to do with the different
 		// live traces format and feels inaccurate.
 		_, err := combiner.Consume(tempTrace)

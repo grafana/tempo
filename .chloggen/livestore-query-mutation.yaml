@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: live-store
+note: Prevent trace-by-ID queries from losing live spans before they are flushed to storage.
+issues: []
+subtext:
+user: javiermolinar
