@@ -2,7 +2,7 @@ package vparquet5
 
 import (
 	"bytes"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
@@ -576,33 +576,32 @@ func finalizeTrace(trace *Trace) (*Trace, bool) {
 
 func sortTrace(trace *Trace) {
 	for _, rs := range trace.ResourceSpans {
-		sort.SliceStable(rs.ScopeSpans, func(i, j int) bool {
-			return rs.ScopeSpans[i].Scope.Name < rs.ScopeSpans[j].Scope.Name
+		slices.SortStableFunc(rs.ScopeSpans, func(i, j ScopeSpans) int {
+			return strings.Compare(i.Scope.Name, j.Scope.Name)
 		})
 		for _, ss := range rs.ScopeSpans {
-			sort.SliceStable(ss.Spans, func(i, j int) bool {
-				left, right := ss.Spans[i], ss.Spans[j]
-				if left.Name != right.Name {
-					return left.Name < right.Name
+			slices.SortStableFunc(ss.Spans, func(i, j Span) int {
+				if i.Name != j.Name {
+					return strings.Compare(i.Name, j.Name)
 				}
-				return left.StatusCode < right.StatusCode
+				return int(i.StatusCode - j.StatusCode)
 			})
 		}
 	}
-	sort.SliceStable(trace.ResourceSpans, func(i, j int) bool {
-		left, right := trace.ResourceSpans[i], trace.ResourceSpans[j]
-		if left.Resource.ServiceName != right.Resource.ServiceName {
-			return left.Resource.ServiceName < right.Resource.ServiceName
+	slices.SortStableFunc(trace.ResourceSpans, func(i, j ResourceSpans) int {
+		// Sort by service name first.
+		if i.Resource.ServiceName != j.Resource.ServiceName {
+			return strings.Compare(i.Resource.ServiceName, j.Resource.ServiceName)
 		}
 
-		// Identical services, sort by first span name.
-		if len(left.ScopeSpans[0].Spans) == 0 {
-			return true
+		// Identical services, then sort by first span name if available.
+		if len(i.ScopeSpans) == 0 || len(i.ScopeSpans[0].Spans) == 0 {
+			return -1
 		}
-		if len(right.ScopeSpans[0].Spans) == 0 {
-			return false
+		if len(j.ScopeSpans) == 0 || len(j.ScopeSpans[0].Spans) == 0 {
+			return 1
 		}
-		return left.ScopeSpans[0].Spans[0].Name < right.ScopeSpans[0].Spans[0].Name
+		return strings.Compare(i.ScopeSpans[0].Spans[0].Name, j.ScopeSpans[0].Spans[0].Name)
 	})
 }
 
