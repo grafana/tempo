@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -1202,6 +1203,55 @@ func TestInstanceFindByTraceID(t *testing.T) {
 
 	err = services.StopAndAwaitTerminated(t.Context(), ls)
 	require.NoError(t, err)
+}
+
+func TestInstanceFindByTraceIDDoesNotShareLiveTraceBackingArray(t *testing.T) {
+	i, ls := defaultInstanceAndTmpDir(t)
+	defer func() {
+		err := services.StopAndAwaitTerminated(t.Context(), ls)
+		require.NoError(t, err)
+	}()
+
+	id := test.ValidTraceID(nil)
+	now := time.Now()
+	push := func(batches int) {
+		traceBytes, err := test.MakeTrace(batches, id).Marshal()
+		require.NoError(t, err)
+		i.pushBytes(t.Context(), now, &tempopb.PushBytesRequest{
+			Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
+			Ids:    [][]byte{id},
+		})
+	}
+
+	// Part of the trace is already in the head block ...
+	push(1)
+	drained, err := i.cutIdleTraces(t.Context(), true)
+	require.NoError(t, err)
+	require.True(t, drained)
+
+	// ... and the rest is still live, with spare capacity in Batches.
+	push(3)
+	i.liveTracesMtx.Lock()
+	liveTrace := i.liveTraces.Traces[util.HashForTraceID(id)]
+	i.liveTracesMtx.Unlock()
+	require.NotNil(t, liveTrace)
+	require.Len(t, liveTrace.Batches, 3)
+	require.Greater(t, cap(liveTrace.Batches), len(liveTrace.Batches))
+
+	resp, err := i.FindByTraceID(t.Context(), id, true)
+	require.NoError(t, err)
+	require.NotNil(t, resp.Trace)
+	require.Len(t, resp.Trace.ResourceSpans, 4)
+	batches := slices.Clone(resp.Trace.ResourceSpans)
+	size := resp.Trace.Size()
+
+	// More spans for the same trace arrive after the lookup. The response must not
+	// change, otherwise Size() and Marshal() disagree and marshalling panics.
+	push(1)
+	for n, batch := range batches {
+		require.Same(t, batch, resp.Trace.ResourceSpans[n])
+	}
+	require.Equal(t, size, resp.Trace.Size())
 }
 
 func TestInstanceFindByTraceIDWithSizeLimits(t *testing.T) {
