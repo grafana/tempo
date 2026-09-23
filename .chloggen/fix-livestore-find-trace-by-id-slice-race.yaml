@@ -1,0 +1,10 @@
+change_type: bug_fix
+component: live-store
+note: Fix a panic in live-store `FindTraceByID` when more spans for the trace arrive while it is being combined with block data and marshalled.
+issues: []
+subtext: |
+  The live trace's `Batches` slice was handed to the trace combiner with spare capacity, so the
+  combiner's append and the push path's append wrote different batches into the same slot of the
+  live trace's backing array. `Size()` and `Marshal()` then saw different objects and marshalling
+  panicked with `slice bounds out of range`.
+user: KR-Ravindra
