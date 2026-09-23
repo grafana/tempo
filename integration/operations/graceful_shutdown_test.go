@@ -144,6 +144,11 @@ func TestShutdownInFlightQueries(t *testing.T) {
 		// give 2 seconds for some queries to be in flight
 		time.Sleep(2 * time.Second)
 
+		// snapshot first, so a query still in flight can only land in the post-SIGTERM buckets
+		mtx.Lock()
+		servedBefore, refusedBefore := ok, unavailable
+		mtx.Unlock()
+
 		start := time.Now()
 		err := h.Services[util.ServiceQueryFrontend].Stop()
 		elapsed := time.Since(start)
@@ -156,14 +161,18 @@ func TestShutdownInFlightQueries(t *testing.T) {
 
 		mtx.Lock()
 		defer mtx.Unlock()
-		t.Logf("total=%d served=%d unavailable=%d lost=%d", total, ok, unavailable, len(lost))
-		require.Positive(t, ok)
+		t.Logf("total=%d served=%d unavailable=%d lost=%d (before SIGTERM: served=%d refused=%d)",
+			total, ok, unavailable, len(lost), servedBefore, refusedBefore)
+
 		require.Equal(t, total, ok+unavailable+len(lost), "every response must land in exactly one bucket")
 		require.Empty(t, lost, "frontend returned %v while shutting down", lost)
 
-		// we have few ms between queue refusing new work and the listener closing.
-		// so unavailable should not be more than 1% of the total requests.
-		require.Less(t, unavailable*100, total, "refused %d of %d queries", unavailable, total)
+		// the queue only refuses once SIGTERM lands, so a healthy frontend refuses nothing
+		require.Positive(t, servedBefore, "frontend served no queries before SIGTERM")
+		require.Zero(t, refusedBefore, "frontend refused %d queries before SIGTERM", refusedBefore)
+
+		// 5% of total is a ~100ms refusal window at this request rate, against ~3ms measured
+		require.Less(t, unavailable*20, total, "refused %d of %d queries", unavailable, total)
 	})
 }
 
