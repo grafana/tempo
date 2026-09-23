@@ -32,7 +32,7 @@ func Run(ctx context.Context, blockPath string, profile *BlockProfile, opts RunO
 		return nil, errors.New(`profile was built with --trace-ids=all, which embeds no IDs; rebuild it with a count`)
 	}
 
-	counter := &countingReader{RawReader: raw}
+	counter := &metrics.CountingReader{RawReader: raw}
 	block, err := encoding.OpenBlock(meta, backend.NewReader(counter))
 	if err != nil {
 		return nil, fmt.Errorf("opening block: %w", err)
@@ -79,7 +79,7 @@ func checkProfileMatchesBlock(profile *BlockProfile, meta *backend.BlockMeta) er
 
 // runCase measures one query shape. Latency is per execution; everything else
 // is a total over the case, because the counters are process-wide.
-func runCase(ctx context.Context, block common.BackendBlock, profile *BlockProfile, shards []Shard, queryCase benchCase, opts RunOptions, counter *countingReader, gatherer prometheus.Gatherer) CaseResult {
+func runCase(ctx context.Context, block common.BackendBlock, profile *BlockProfile, shards []Shard, queryCase benchCase, opts RunOptions, counter *metrics.CountingReader, gatherer prometheus.Gatherer) CaseResult {
 	res := CaseResult{ID: queryCase.id, API: queryCase.api, Query: queryCase.query}
 
 	executions, err := queryCase.executions(profile, shards, opts)
@@ -114,13 +114,13 @@ func runCase(ctx context.Context, block common.BackendBlock, profile *BlockProfi
 		samples    = make([]int64, 0, len(executions)*opts.Repeat)
 		memBefore  runtime.MemStats
 		memAfter   runtime.MemStats
-		readBefore = counter.snapshot()
+		readBefore = counter.Snapshot()
 	)
 	// A gather failure loses this case's process metrics but says nothing about
 	// the query, so it must not fail the case.
 	promBefore, _ := metrics.Gather(gatherer)
 	runtime.ReadMemStats(&memBefore)
-	cpuBefore := cpuTime()
+	cpuBefore := metrics.CPUTime()
 
 	for range opts.Repeat {
 		for _, execute := range executions {
@@ -136,11 +136,11 @@ func runCase(ctx context.Context, block common.BackendBlock, profile *BlockProfi
 		}
 	}
 
-	res.CPUNs = int64(cpuTime() - cpuBefore)
+	res.CPUNs = int64(metrics.CPUTime() - cpuBefore)
 	runtime.ReadMemStats(&memAfter)
 	res.AllocBytes = int64(memAfter.TotalAlloc - memBefore.TotalAlloc)
 	res.AllocCount = int64(memAfter.Mallocs - memBefore.Mallocs)
-	res.Backend = counter.since(readBefore)
+	res.Backend = counter.Since(readBefore)
 	if promAfter, err := metrics.Gather(gatherer); err == nil {
 		res.Process = promAfter.Since(promBefore)
 	}

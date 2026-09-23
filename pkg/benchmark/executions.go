@@ -114,12 +114,9 @@ func metricsStep(meta *backend.BlockMeta) time.Duration {
 	return max(meta.EndTime.Sub(meta.StartTime)/metricsStepDivisor, minMetricsStep)
 }
 
-// metricsExecutions runs a TraceQL metrics query over the block's whole time
-// range, one execution per shard.
-//
-// instant collapses the window to a single point, which is the only difference
-// between an instant query and a range query.
-func metricsExecutions(query string, instant bool, shards []Shard, meta *backend.BlockMeta, baseOpts common.SearchOptions) []execution {
+// metricsExecutions runs a TraceQL metrics range query over the block's whole
+// time range, one execution per shard.
+func metricsExecutions(query string, shards []Shard, meta *backend.BlockMeta, baseOpts common.SearchOptions) []execution {
 	var (
 		start = uint64(meta.StartTime.UnixNano())
 		end   = uint64(meta.EndTime.UnixNano())
@@ -138,11 +135,6 @@ func metricsExecutions(query string, instant bool, shards []Shard, meta *backend
 				MaxSeries: uint32(opts.MaxSeries),
 				Exemplars: uint32(opts.Exemplars),
 			}
-			if instant {
-				req.Step = end - start
-				req.XInstant = &tempopb.QueryRangeRequest_Instant{Instant: true}
-			}
-
 			eval, err := traceql.NewEngine().CompileMetricsQueryRange(req,
 				traceql.WithUnsafeHints(true),
 				traceql.WithEngineBytesTracking(true),

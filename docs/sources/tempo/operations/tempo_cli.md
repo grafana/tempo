@@ -571,11 +571,11 @@ without a change to the benchmark:
   meaningless. Only metrics that moved are kept.
 
 The query set covers trace lookups by ID, present and absent; an unfiltered
-search; `rate()` and `rate() by (resource.service.name)` as both range and
-instant metrics queries; and tag-name lookups in each attribute scope. Metrics
-queries run over the block's whole time range, with a range query stepping at
-`max(60s, window/30)` to land about 30 points. Searches and metrics queries are
-split into shards of row groups, mirroring how the query frontend splits a job.
+search; `rate()` and `rate() by (resource.service.name)` as metrics range
+queries; and tag-name lookups in each attribute scope. Metrics queries run over
+the block's whole time range, stepping at `max(60s, window/30)` to land about 30
+points. Searches and metrics queries are split into shards of row groups,
+mirroring how the query frontend splits a job.
 
 A case that fails is recorded with its error and the rest of the run continues.
 Benchmarking trace lookups reads the block's bloom filters, so a partial block

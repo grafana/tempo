@@ -1,14 +1,14 @@
 //go:build unix
 
-package benchmark
+package metrics
 
 import (
 	"syscall"
 	"time"
 )
 
-// cpuTime returns the process's user plus system time.
-func cpuTime() time.Duration {
+// CPUTime returns the process's user plus system time.
+func CPUTime() time.Duration {
 	var ru syscall.Rusage
 	if err := syscall.Getrusage(syscall.RUSAGE_SELF, &ru); err != nil {
 		return 0

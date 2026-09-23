@@ -41,7 +41,7 @@ type CaseResult struct {
 	// Backend counts and times the object-store calls. Responses do not cover
 	// the trace-by-ID path, and a bloom miss returns none at all, so this is
 	// measured at the reader instead.
-	Backend readStats `json:"backend"`
+	Backend metrics.ReadStats `json:"backend"`
 
 	Error string `json:"error,omitempty"`
 }

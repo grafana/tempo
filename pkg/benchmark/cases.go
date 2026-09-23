@@ -54,11 +54,11 @@ func phase1Cases() []benchCase {
 		{
 			id:  "traceid/present",
 			api: apiTraceByID,
-			executions: func(p *BlockProfile, _ []Shard, opts RunOptions) ([]execution, error) {
-				if len(p.TraceIDs.Present) == 0 {
+			executions: func(profile *BlockProfile, _ []Shard, opts RunOptions) ([]execution, error) {
+				if len(profile.TraceIDs.Present) == 0 {
 					return nil, errors.New("profile has no present trace IDs")
 				}
-				return traceByIDExecutions(p.TraceIDs.Present, opts.searchOptions())
+				return traceByIDExecutions(profile.TraceIDs.Present, opts.searchOptions())
 			},
 		},
 		{
@@ -66,11 +66,11 @@ func phase1Cases() []benchCase {
 			// index rather than by reading a trace, so it is measured apart.
 			id:  "traceid/absent",
 			api: apiTraceByID,
-			executions: func(p *BlockProfile, _ []Shard, opts RunOptions) ([]execution, error) {
-				if len(p.TraceIDs.Absent) == 0 {
+			executions: func(profile *BlockProfile, _ []Shard, opts RunOptions) ([]execution, error) {
+				if len(profile.TraceIDs.Absent) == 0 {
 					return nil, errors.New("profile has no absent trace IDs")
 				}
-				return traceByIDExecutions(p.TraceIDs.Absent, opts.searchOptions())
+				return traceByIDExecutions(profile.TraceIDs.Absent, opts.searchOptions())
 			},
 		},
 		{
@@ -78,35 +78,25 @@ func phase1Cases() []benchCase {
 			id:    "search/nopredicate",
 			api:   apiSearch,
 			query: "{}",
-			executions: func(p *BlockProfile, shards []Shard, opts RunOptions) ([]execution, error) {
-				return searchExecutions("{}", shards, p.Block, opts.searchOptions()), nil
+			executions: func(profile *BlockProfile, shards []Shard, opts RunOptions) ([]execution, error) {
+				return searchExecutions("{}", shards, profile.Block, opts.searchOptions()), nil
 			},
 		},
 	}
 
-	// Range and instant differ only in the step, but that sets how many
-	// intervals the aggregator keeps, so they cost differently.
 	for _, q := range basicMetricsQueries {
-		for _, variant := range []struct {
-			suffix  string
-			instant bool
-		}{
-			{"", false},
-			{"/instant", true},
-		} {
-			cases = append(cases, benchCase{
-				id:    "metrics/" + q.id + variant.suffix,
-				api:   apiMetrics,
-				query: q.query,
-				executions: func(p *BlockProfile, shards []Shard, opts RunOptions) ([]execution, error) {
-					if !p.Block.EndTime.After(p.Block.StartTime) {
-						return nil, fmt.Errorf("a metrics query needs a non-empty time window, but the block's is %s to %s",
-							p.Block.StartTime, p.Block.EndTime)
-					}
-					return metricsExecutions(q.query, variant.instant, shards, p.Block, opts.searchOptions()), nil
-				},
-			})
-		}
+		cases = append(cases, benchCase{
+			id:    "metrics/" + q.id,
+			api:   apiMetrics,
+			query: q.query,
+			executions: func(profile *BlockProfile, shards []Shard, opts RunOptions) ([]execution, error) {
+				if !profile.Block.EndTime.After(profile.Block.StartTime) {
+					return nil, fmt.Errorf("a metrics query needs a non-empty time window, but the block's is %s to %s",
+						profile.Block.StartTime, profile.Block.EndTime)
+				}
+				return metricsExecutions(q.query, shards, profile.Block, opts.searchOptions()), nil
+			},
+		})
 	}
 
 	// Tag names, one case per scope, with no TraceQL to filter by.

@@ -28,9 +28,8 @@ func TestRun(t *testing.T) {
 
 	require.Equal(t, ResultSchemaVersion, result.SchemaVersion)
 	require.Positive(t, result.DurationNs)
-	// 2 trace-by-ID + 1 search + 2 metrics queries x (range, instant) + 6 tag
-	// name scopes.
-	require.Len(t, result.Cases, 13)
+	// 2 trace-by-ID + 1 search + 2 metrics + 6 tag name scopes.
+	require.Len(t, result.Cases, 11)
 
 	byID := map[string]CaseResult{}
 	for _, c := range result.Cases {
@@ -75,12 +74,6 @@ func TestRun(t *testing.T) {
 	require.Positive(t, rate.Matched, "a metrics query returned no series")
 	require.Positive(t, rate.Response["inspectedBytes"])
 	require.Positive(t, rate.Response["inspectedSpans"])
-
-	// An instant query is the same fetch over one interval, so it must run and
-	// inspect the same data.
-	instant := byID["metrics/rate/instant"]
-	require.Positive(t, instant.Matched)
-	require.Equal(t, rate.Response["inspectedBytes"], instant.Response["inspectedBytes"])
 
 	// Tag names report bytes through a callback, keyed the way responses are.
 	unscoped := byID["metadata/tagnames/none"]
