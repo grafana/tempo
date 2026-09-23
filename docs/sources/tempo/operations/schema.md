@@ -23,7 +23,7 @@ This document describes the schema used with the Parquet block format.
 
 Tempo defaults to the vParquet5 schema. vParquet4 remains available and differs in some schema details.
 
-The column tables and collapsed schema example below document the vParquet4 layout.
+The column tables and collapsed schema example below document the vParquet5 layout.
 vParquet5 shares the same overall structure with changes listed in
 [Summary of vParquet5 differences](#summary-of-vparquet5-differences).
 
