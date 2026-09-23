@@ -101,68 +101,29 @@ func runCase(ctx context.Context, block common.BackendBlock, profile *BlockProfi
 		}
 	}
 
-	// Clear what the warmup and the previous case left on the heap, so each
-	// case is measured against a comparable environment instead of inheriting
-	// its predecessor's garbage. testing.(*B).runN does the same.
-	runtime.GC()
+	collector := metrics.NewCollector(counter, gatherer)
+	collector.BeginCase()
 
-	// CPU, allocations and the gathered metrics are process-wide, and belong to
-	// this case only because cases run one at a time and nothing else in the
-	// process is working. Anything concurrent, such as a write-back cache's
-	// goroutines, would land in whichever case is in flight.
-	var (
-		samples    = make([]int64, 0, len(executions)*opts.Repeat)
-		memBefore  runtime.MemStats
-		memAfter   runtime.MemStats
-		readBefore = counter.Snapshot()
-	)
-	// A gather failure loses this case's process metrics but says nothing about
-	// the query, so it must not fail the case.
-	promBefore, _ := metrics.Gather(gatherer)
-	runtime.ReadMemStats(&memBefore)
-	cpuBefore := metrics.CPUTime()
-
+	count := 0
 	for range opts.Repeat {
 		for _, execute := range executions {
+			collector.BeginExecution()
 			started := time.Now()
 			out, err := execute(ctx, block, opts)
-			samples = append(samples, int64(time.Since(started)))
+			wallNs := int64(time.Since(started))
 			if err != nil {
 				res.Error = err.Error()
 				return res
 			}
+			collector.EndExecution(wallNs, out.metrics)
 			res.Matched += out.matched
-			res.Response = metrics.Add(res.Response, out.metrics)
+			count++
 		}
 	}
 
-	res.CPUNs = int64(metrics.CPUTime() - cpuBefore)
-	runtime.ReadMemStats(&memAfter)
-	res.AllocBytes = int64(memAfter.TotalAlloc - memBefore.TotalAlloc)
-	res.AllocCount = int64(memAfter.Mallocs - memBefore.Mallocs)
-	res.Backend = counter.Since(readBefore)
-	if promAfter, err := metrics.Gather(gatherer); err == nil {
-		res.Process = promAfter.Since(promBefore)
-	}
-
-	res.Executions = len(samples)
-	res.WallNs = summarize(samples)
-	res.Samples = thin(samples, opts.MaxSamples)
+	res.Executions = count
+	res.Metrics = collector.EndCase()
 	return res
-}
-
-// thin keeps at most limit samples, at an even stride so the shape of the
-// distribution survives.
-func thin(samples []int64, limit int) []int64 {
-	if len(samples) <= limit {
-		return samples
-	}
-	stride := float64(len(samples)) / float64(limit)
-	out := make([]int64, 0, limit)
-	for i := range limit {
-		out = append(out, samples[int(float64(i)*stride)])
-	}
-	return out
 }
 
 func runEnv() RunEnv {

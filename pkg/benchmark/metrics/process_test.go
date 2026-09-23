@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGatherReportsWhatChanged(t *testing.T) {
+func TestCollectorReportsWhatChanged(t *testing.T) {
 	reg := prometheus.NewRegistry()
 
 	counter := prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -27,40 +27,70 @@ func TestGatherReportsWhatChanged(t *testing.T) {
 	steady.Set(9)
 	idle.Add(5)
 
-	before, err := Gather(reg)
-	require.NoError(t, err)
+	c := NewCollector(nil, reg)
+	c.BeginCase()
 
-	counter.WithLabelValues("page").Add(3)
+	// Two executions, each moving the metrics by a different amount, so the
+	// distribution has something to describe.
+	c.BeginExecution()
+	counter.WithLabelValues("page").Add(1)
 	hist.Observe(5)
 	gauge.Set(4)
+	c.EndExecution(100, nil)
 
-	after, err := Gather(reg)
-	require.NoError(t, err)
+	c.BeginExecution()
+	counter.WithLabelValues("page").Add(3)
+	hist.Observe(5)
+	gauge.Set(6)
+	c.EndExecution(300, nil)
 
-	got := after.Since(before)
+	got := c.EndCase()
 
-	// A counter reports what this window added, not its total.
-	require.Equal(t, 3.0, got.Deltas[`bench_reads_total{role="page"}`])
+	// A counter's total is what the case added; its summary describes the
+	// per-execution deltas.
+	reads := got[PrefixProcess+`bench_reads_total{role="page"}`]
+	require.Equal(t, Counter, reads.Kind)
+	require.Equal(t, 4.0, reads.Total)
+	require.Equal(t, 2, reads.Summary.Count)
+	require.Equal(t, 1.0, reads.Summary.Min)
+	require.Equal(t, 3.0, reads.Summary.Max)
 
-	// Histograms give sum, count and buckets, which is the distribution.
-	require.Equal(t, 5.0, got.Deltas["bench_duration_seconds_sum"])
-	require.Equal(t, 1.0, got.Deltas["bench_duration_seconds_count"])
-	require.Equal(t, 1.0, got.Deltas[`bench_duration_seconds_bucket{le="10"}`])
-	require.NotContains(t, got.Deltas, `bench_duration_seconds_bucket{le="1"}`)
+	// Histograms give sum, count and buckets, so the distribution comes along.
+	require.Equal(t, 10.0, got[PrefixProcess+"bench_duration_seconds_sum"].Total)
+	require.Equal(t, 2.0, got[PrefixProcess+"bench_duration_seconds_count"].Total)
+	require.Equal(t, 2.0, got[PrefixProcess+`bench_duration_seconds_bucket{le="10"}`].Total)
+	require.NotContains(t, got, PrefixProcess+`bench_duration_seconds_bucket{le="1"}`)
 
-	// Gauges are values, not deltas.
-	require.Equal(t, 4.0, got.Gauges["bench_inflight"])
+	// A gauge's total is the value it was left at, marked so it is not summed.
+	inflight := got[PrefixProcess+"bench_inflight"]
+	require.Equal(t, Gauge, inflight.Kind)
+	require.Equal(t, 6.0, inflight.Total)
+	require.Equal(t, 4.0, inflight.Summary.Min)
+
+	// The harness measures its own wall clock the same way.
+	wall := got[KeyWallNs]
+	require.Equal(t, 400.0, wall.Total)
+	require.Equal(t, 100.0, wall.Summary.Min)
+	require.Equal(t, 300.0, wall.Summary.Max)
 
 	// Nothing that stood still is reported, so the result stays readable
 	// without keeping a list of metrics we know about.
-	require.NotContains(t, got.Deltas, "bench_idle_total")
-	require.NotContains(t, got.Gauges, "bench_steady")
+	require.NotContains(t, got, PrefixProcess+"bench_idle_total")
+	require.NotContains(t, got, PrefixProcess+"bench_steady")
 }
 
-func TestGatherNilGatherer(t *testing.T) {
-	snap, err := Gather(nil)
-	require.NoError(t, err)
-	require.Empty(t, snap.Since(Snapshot{}).Deltas)
+func TestCollectorNilGatherer(t *testing.T) {
+	c := NewCollector(nil, nil)
+	c.BeginCase()
+	c.BeginExecution()
+	c.EndExecution(50, map[string]int64{"inspectedBytes": 7})
+
+	got := c.EndCase()
+	require.Equal(t, 50.0, got[KeyWallNs].Total)
+	require.Equal(t, 7.0, got[PrefixResponse+"inspectedBytes"].Total)
+	for key := range got {
+		require.NotContains(t, key, PrefixProcess)
+	}
 }
 
 func TestMetricKeyIsStable(t *testing.T) {

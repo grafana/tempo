@@ -544,7 +544,6 @@ Options:
 - `--warmup` Passes to run and discard first. Defaults to `1`, which pays the
   block's cold-read cost outside the measurement. Setting it to `0` measures
   the first case cold and every later one warm.
-- `--max-samples` Per-case latency samples to keep. Defaults to `10000`.
 - `--target-bytes-per-request` Bytes per search shard, mirroring the query
   frontend option of the same name. Defaults to `100MiB`.
 - `--search-limit` Traces a search returns per shard. Defaults to `20`.
@@ -554,21 +553,32 @@ Options:
   `--prefetch-trace-count` Storage read options. Each defaults to `0`, meaning
   Tempo's default. These are the knobs an experiment varies.
 
-The result records per-case latency percentiles, totals for CPU time and
-allocations, and the object-store reads the case caused. It also records how
-many results each case matched: two runs are only comparable if those agree, so
-a difference means the comparison is invalid rather than interesting.
+Each case records how many results it matched, and one `metrics` map. Two runs
+are only comparable if the match counts agree, so a difference there means the
+comparison is invalid rather than interesting.
+
+Every measurement has the same shape whatever its source, so nothing reading a
+result needs a rule per source:
+
+- `total` is the sum over the case for a `counter`, or the value left behind for
+  a `gauge`.
+- `summary` describes the per-execution values, with quartiles so a box plot
+  needs nothing else. A total on its own hides the tail, which on the read path
+  is usually the interesting part.
+
+Keys are `source.name`:
+
+- `harness.*` is what the benchmark timed itself: `wallNs`, `cpuNs`,
+  `allocBytes`, `allocCount`.
+- `backend.*` is object-store traffic: `reads`, `bytes`, `timeNs`.
+- `response.*` is what a query API reported, under Tempo's own metric names. A
+  metric Tempo did not report is absent rather than zero, because the two are
+  different claims, so a summary's `count` says how many executions reported it.
+- `process.*` is what Tempo emitted to its Prometheus registry, including the Go
+  runtime and process collectors.
 
 Metrics are collected rather than listed, so a metric added to Tempo appears
-without a change to the benchmark:
-
-- `response` holds what the query responses reported, keyed by Tempo's own
-  metric names and summed over the case. A metric Tempo did not report is
-  absent rather than zero, because the two are different claims.
-- `process` holds the Prometheus metrics Tempo emitted while the case ran, read
-  from the process registry. `deltas` are counters and histograms, reporting
-  what the case added; `gauges` are snapshots, since differencing a gauge is
-  meaningless. Only metrics that moved are kept.
+without a change to the benchmark. Only metrics that moved are kept.
 
 The query set covers trace lookups by ID, present and absent; an unfiltered
 search; `rate()` and `rate() by (resource.service.name)` as metrics range

@@ -31,8 +31,7 @@ type RunOptions struct {
 	// default so 0 stays expressible, but without it the first case pays the
 	// block's cold-read cost and every later case runs warm, a bias repetition
 	// does not average out.
-	Warmup     int `json:"warmup"`
-	MaxSamples int `json:"maxSamples"`
+	Warmup int `json:"warmup"`
 
 	TargetBytesPerRequest int `json:"targetBytesPerRequest"`
 	SearchLimit           int `json:"searchLimit"`
@@ -47,9 +46,6 @@ type RunOptions struct {
 
 func (opts *RunOptions) applyDefaults() {
 	opts.Repeat = max(opts.Repeat, 1)
-	if opts.MaxSamples <= 0 {
-		opts.MaxSamples = 10000
-	}
 	if opts.TargetBytesPerRequest <= 0 {
 		opts.TargetBytesPerRequest = DefaultTargetBytesPerRequest
 	}

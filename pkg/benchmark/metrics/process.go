@@ -10,20 +10,6 @@ import (
 	dto "github.com/prometheus/client_model/go"
 )
 
-// Process holds the Prometheus metrics Tempo emitted while a case ran.
-//
-// Deltas and Gauges are kept apart because they are different claims: a delta
-// is what the case added to a counter, a gauge is only the value left behind
-// when it finished.
-type Process struct {
-	// Deltas are counter, histogram and summary values the case accumulated.
-	// Only entries that moved are kept.
-	Deltas map[string]float64 `json:"deltas,omitempty"`
-	// Gauges are values read after the case, kept only when the case changed
-	// them. Differencing a gauge is meaningless, so these are not deltas.
-	Gauges map[string]float64 `json:"gauges,omitempty"`
-}
-
 // Snapshot is one Gather, flattened.
 type Snapshot struct {
 	cumulative map[string]float64
@@ -86,33 +72,19 @@ func Gather(g prometheus.Gatherer) (Snapshot, error) {
 	return snap, nil
 }
 
-// Since reduces two snapshots to what the case did: counters that moved, and
-// gauges that ended up somewhere new.
+// observeInto records one execution's worth of registry movement: what each
+// counter added, and where each gauge ended up.
 //
-// Filtering on change rather than on a list of names means a metric added to
-// Tempo is reported without a change here, and a metric the case never touched
-// does not pad the result.
-func (s Snapshot) Since(before Snapshot) Process {
-	var out Process
-
+// Recording every series and filtering at the end, rather than filtering
+// against a list of names, means a metric added to Tempo is reported without a
+// change here.
+func (s Snapshot) observeInto(before Snapshot, c *Collector) {
 	for key, after := range s.cumulative {
-		if d := after - before.cumulative[key]; d != 0 {
-			if out.Deltas == nil {
-				out.Deltas = map[string]float64{}
-			}
-			out.Deltas[key] = d
-		}
+		c.observe(Counter, PrefixProcess+key, after-before.cumulative[key])
 	}
-
 	for key, after := range s.gauges {
-		if prev, ok := before.gauges[key]; !ok || prev != after {
-			if out.Gauges == nil {
-				out.Gauges = map[string]float64{}
-			}
-			out.Gauges[key] = after
-		}
+		c.observe(Gauge, PrefixProcess+key, after)
 	}
-	return out
 }
 
 // metricKey renders a metric as name{label="value",...}, with labels sorted so

@@ -11,9 +11,12 @@ import (
 
 const ResultSchemaVersion = 1
 
-// CaseResult is what one query shape cost. Latency is per execution;
-// everything else is a total over the case, because the counters are
-// process-wide and rusage is too coarse to resolve one fast execution.
+// CaseResult is what one query shape cost.
+//
+// Every measurement has the same shape whatever it came from, so a reader does
+// not need a rule per source. Keys are "source.name": harness for what the
+// benchmark timed itself, backend for object-store traffic, response for what
+// a query API reported, process for what Tempo emitted to its registry.
 type CaseResult struct {
 	ID    string `json:"id"`
 	API   string `json:"api"`
@@ -24,24 +27,7 @@ type CaseResult struct {
 	// agrees, so it is recorded to be checked.
 	Matched int64 `json:"matched"`
 
-	WallNs Summary `json:"wallNs"`
-	// Samples holds per-execution latencies, thinned to at most MaxSamples.
-	Samples []int64 `json:"samples,omitempty"`
-
-	CPUNs      int64 `json:"cpuNs"`
-	AllocBytes int64 `json:"allocBytes"`
-	AllocCount int64 `json:"allocCount"`
-
-	// Response is what the query APIs reported, summed over the case and keyed
-	// by Tempo's own metric names. A map, so a metric added to Tempo is carried
-	// through without a change here.
-	Response map[string]int64 `json:"response,omitempty"`
-	// Process is the Prometheus metrics Tempo emitted while the case ran.
-	Process metrics.Process `json:"process,omitempty"`
-	// Backend counts and times the object-store calls. Responses do not cover
-	// the trace-by-ID path, and a bloom miss returns none at all, so this is
-	// measured at the reader instead.
-	Backend metrics.ReadStats `json:"backend"`
+	Metrics metrics.Set `json:"metrics,omitempty"`
 
 	Error string `json:"error,omitempty"`
 }

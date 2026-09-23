@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/v3/pkg/benchmark/metrics"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
@@ -35,10 +37,23 @@ func TestRun(t *testing.T) {
 	for _, c := range result.Cases {
 		require.Empty(t, c.Error, "case %s", c.ID)
 		require.Positive(t, c.Executions, "case %s", c.ID)
-		require.Positive(t, c.WallNs.Max, "case %s", c.ID)
-		require.LessOrEqual(t, c.WallNs.Min, c.WallNs.P50)
-		require.LessOrEqual(t, c.WallNs.P50, c.WallNs.P99)
-		require.LessOrEqual(t, c.WallNs.P99, c.WallNs.Max)
+
+		// Every measurement has the same shape, whatever it came from, so one
+		// loop checks them all.
+		for key, m := range c.Metrics {
+			require.Contains(t, []metrics.Kind{metrics.Counter, metrics.Gauge}, m.Kind, "%s/%s", c.ID, key)
+			require.Positive(t, m.Summary.Count, "%s/%s has no summary", c.ID, key)
+			require.LessOrEqual(t, m.Summary.Min, m.Summary.P25, "%s/%s", c.ID, key)
+			require.LessOrEqual(t, m.Summary.P25, m.Summary.P50, "%s/%s", c.ID, key)
+			require.LessOrEqual(t, m.Summary.P50, m.Summary.P75, "%s/%s", c.ID, key)
+			require.LessOrEqual(t, m.Summary.P75, m.Summary.P99, "%s/%s", c.ID, key)
+			require.LessOrEqual(t, m.Summary.P99, m.Summary.Max, "%s/%s", c.ID, key)
+		}
+
+		wall := c.Metrics[metrics.KeyWallNs]
+		require.Positive(t, wall.Summary.Max, "case %s", c.ID)
+		require.Equal(t, c.Executions, wall.Summary.Count, "case %s", c.ID)
+
 		byID[c.ID] = c
 	}
 
@@ -50,38 +65,51 @@ func TestRun(t *testing.T) {
 	absent := byID["traceid/absent"]
 	require.Equal(t, 25, absent.Executions)
 	require.Zero(t, absent.Matched, "an absent ID was found, so the profile is wrong")
-	// A bloom miss returns no response, so there is nothing to report rather
-	// than a row of zeroes. The backend counter is what covers this case.
-	require.Empty(t, absent.Response)
-	require.Positive(t, absent.Backend.Reads)
+	// A bloom miss returns no response, so nothing is reported rather than a
+	// row of zeroes. The backend counter is what covers this case.
+	require.NotContains(t, absent.Metrics, metrics.PrefixResponse+"inspectedBytes")
+	require.Positive(t, absent.Metrics[metrics.KeyBackendReads].Total)
 
 	search := byID["search/nopredicate"]
 	require.Positive(t, search.Matched)
-	// Keyed by Tempo's own name, not one the runner invented.
-	require.Positive(t, search.Response["inspectedBytes"])
+	// Keyed by Tempo's own name under its source prefix.
+	require.Positive(t, search.Metrics[metrics.PrefixResponse+"inspectedBytes"].Total)
 
-	// The block is read through a counting reader, so I/O must be observed.
-	require.Positive(t, present.Backend.Reads)
-	require.Positive(t, present.Backend.Bytes)
+	// The block is read through a counting reader, so I/O must be observed,
+	// and per execution rather than only as a case total.
+	require.Positive(t, present.Metrics[metrics.KeyBackendReads].Total)
+	require.Positive(t, present.Metrics[metrics.KeyBackendBytes].Total)
+	require.Positive(t, present.Metrics[metrics.KeyBackendTimeNs].Summary.Count)
 
-	// Whatever Tempo emitted to the default registry while the case ran is
-	// picked up without the runner naming any metric.
-	require.NotEmpty(t, search.Process.Deltas)
+	// CPU and allocations are measured per execution too.
+	require.Positive(t, present.Metrics[metrics.KeyAllocBytes].Total)
+	require.Positive(t, present.Metrics[metrics.KeyCPUNs].Summary.Count)
+
+	// Whatever Tempo emitted to the default registry is picked up without the
+	// runner naming any metric, and with a distribution like everything else.
+	var processKeys int
+	for key, m := range search.Metrics {
+		if strings.HasPrefix(key, metrics.PrefixProcess) {
+			processKeys++
+			require.Equal(t, search.Executions, m.Summary.Count, key)
+		}
+	}
+	require.Positive(t, processKeys)
 
 	// The metrics path reports through a different type, so check it lands
 	// under the same keys as search rather than the evaluator's field names.
 	rate := byID["metrics/rate"]
 	require.Positive(t, rate.Matched, "a metrics query returned no series")
-	require.Positive(t, rate.Response["inspectedBytes"])
-	require.Positive(t, rate.Response["inspectedSpans"])
+	require.Positive(t, rate.Metrics[metrics.PrefixResponse+"inspectedBytes"].Total)
+	require.Positive(t, rate.Metrics[metrics.PrefixResponse+"inspectedSpans"].Total)
 
 	// Tag names report bytes through a callback, keyed the way responses are.
 	unscoped := byID["metadata/tagnames/none"]
 	require.Positive(t, unscoped.Matched, "no tag names were found")
-	require.Positive(t, unscoped.Response["inspectedBytes"])
+	require.Positive(t, unscoped.Metrics[metrics.PrefixResponse+"inspectedBytes"].Total)
 
 	// A scope with no attributes still costs a read, which is worth measuring.
-	require.Positive(t, byID["metadata/tagnames/instrumentation"].Response["inspectedBytes"])
+	require.Positive(t, byID["metadata/tagnames/instrumentation"].Metrics[metrics.PrefixResponse+"inspectedBytes"].Total)
 }
 
 func TestRunRepeatMultipliesExecutions(t *testing.T) {
@@ -148,38 +176,6 @@ func TestResultRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, want.Options, got.Options)
 	require.Len(t, got.Cases, len(want.Cases))
-}
-
-func TestThin(t *testing.T) {
-	samples := make([]int64, 100)
-	for i := range samples {
-		samples[i] = int64(i)
-	}
-
-	require.Equal(t, samples, thin(samples, 100))
-	require.Equal(t, samples, thin(samples, 1000))
-
-	got := thin(samples, 10)
-	require.Len(t, got, 10)
-	require.Equal(t, int64(0), got[0])
-	require.Equal(t, int64(90), got[9], "should stride across the whole set")
-}
-
-func TestSummarize(t *testing.T) {
-	require.Equal(t, Summary{}, summarize(nil))
-
-	s := summarize([]int64{5, 1, 4, 2, 3})
-	require.Equal(t, 5, s.Count)
-	require.Equal(t, int64(1), s.Min)
-	require.Equal(t, int64(3), s.P50)
-	require.Equal(t, int64(5), s.Max)
-	require.InDelta(t, 3.0, s.Mean, 0.001)
-
-	// Percentiles are nearest rank, so they are values that were measured.
-	one := summarize([]int64{42})
-	require.Equal(t, int64(42), one.Min)
-	require.Equal(t, int64(42), one.P99)
-	require.Zero(t, one.StdDev)
 }
 
 func TestShardsForBlock(t *testing.T) {
