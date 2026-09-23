@@ -159,9 +159,10 @@ func (c *Collector) EndCase() Set {
 		for _, v := range samples {
 			total += v
 		}
-		// A counter that never moved says nothing, and the registry holds
-		// hundreds of those.
-		if total == 0 {
+		// The registry holds hundreds of counters a case never touches, so
+		// those are dropped. Everything else was measured, and a measured zero
+		// is a result: keeping it is what stops it reading as "not reported".
+		if total == 0 && strings.HasPrefix(key, PrefixProcess) {
 			continue
 		}
 		out[key] = Measurement{Kind: Counter, Total: total, Summary: summary}

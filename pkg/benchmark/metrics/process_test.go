@@ -79,6 +79,22 @@ func TestCollectorReportsWhatChanged(t *testing.T) {
 	require.NotContains(t, got, PrefixProcess+"bench_steady")
 }
 
+func TestCollectorKeepsMeasuredZeros(t *testing.T) {
+	// A reader that is never used: its counters were measured, and they are
+	// zero. Only the registry's untouched counters are dropped.
+	c := NewCollector(&CountingReader{}, nil)
+	c.BeginCase()
+	c.BeginExecution()
+	c.EndExecution(0, nil)
+
+	got := c.EndCase()
+	for _, key := range []string{KeyBackendReads, KeyBackendBytes, KeyBackendTimeNs, KeyWallNs} {
+		require.Contains(t, got, key, "a measured zero must not read as absent")
+		require.Zero(t, got[key].Total, key)
+		require.Equal(t, 1, got[key].Summary.Count, key)
+	}
+}
+
 func TestCollectorNilGatherer(t *testing.T) {
 	c := NewCollector(nil, nil)
 	c.BeginCase()
