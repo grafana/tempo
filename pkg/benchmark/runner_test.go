@@ -30,6 +30,10 @@ func TestRun(t *testing.T) {
 
 	require.Equal(t, ResultSchemaVersion, result.SchemaVersion)
 	require.Positive(t, result.DurationNs)
+	// A sharded case runs one execution per shard per pass, so the shard count
+	// is what makes an execution count legible next to Repeat.
+	require.Positive(t, result.Shards)
+	require.Equal(t, result.Shards, byAPI(t, result, apiSearch).Executions)
 	// 2 trace-by-ID + 1 search + 2 metrics + 6 tag name scopes.
 	require.Len(t, result.Cases, 11)
 
@@ -208,4 +212,17 @@ func TestShardsForBlock(t *testing.T) {
 	unsized.TotalRecords = 4
 	_, err := shardsForBlock(unsized, 4, DefaultTargetBytesPerRequest)
 	require.ErrorContains(t, err, "cannot size a shard")
+}
+
+// byAPI returns the one case for an API, failing if there is not exactly one.
+func byAPI(t *testing.T, result *Result, api string) CaseResult {
+	t.Helper()
+	var found []CaseResult
+	for _, c := range result.Cases {
+		if c.API == api {
+			found = append(found, c)
+		}
+	}
+	require.Len(t, found, 1, "expected one %s case", api)
+	return found[0]
 }

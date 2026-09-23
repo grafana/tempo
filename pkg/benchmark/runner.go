@@ -56,6 +56,7 @@ func Run(ctx context.Context, blockPath string, profile *BlockProfile, opts RunO
 		DurationNs:    int64(time.Since(start)),
 		RunEnv:        runEnv(),
 		Options:       opts,
+		Shards:        len(shards),
 		Cases:         cases,
 	}, nil
 }

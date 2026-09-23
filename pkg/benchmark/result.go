@@ -43,12 +43,16 @@ type RunEnv struct {
 }
 
 type Result struct {
-	SchemaVersion int          `json:"schemaVersion"`
-	StartedAt     time.Time    `json:"startedAt"`
-	DurationNs    int64        `json:"durationNs"`
-	RunEnv        RunEnv       `json:"runEnv"`
-	Options       RunOptions   `json:"options"`
-	Cases         []CaseResult `json:"cases"`
+	SchemaVersion int        `json:"schemaVersion"`
+	StartedAt     time.Time  `json:"startedAt"`
+	DurationNs    int64      `json:"durationNs"`
+	RunEnv        RunEnv     `json:"runEnv"`
+	Options       RunOptions `json:"options"`
+	// Shards is how many row-group shards the block split into. A case that
+	// shards runs one execution per shard per pass, so this is what explains a
+	// case's execution count next to Options.Repeat.
+	Shards int          `json:"shards"`
+	Cases  []CaseResult `json:"cases"`
 }
 
 func (r *Result) Write(w io.Writer) error {
