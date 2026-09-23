@@ -135,6 +135,9 @@ func metricsExecutions(query string, shards []Shard, meta *backend.BlockMeta, ba
 				MaxSeries: uint32(opts.MaxSeries),
 				Exemplars: uint32(opts.Exemplars),
 			}
+			// Align to step boundaries like the query frontend does.
+			traceql.AlignRequest(req)
+
 			eval, err := traceql.NewEngine().CompileMetricsQueryRange(req,
 				traceql.WithUnsafeHints(true),
 				traceql.WithEngineBytesTracking(true),
@@ -143,6 +146,8 @@ func metricsExecutions(query string, shards []Shard, meta *backend.BlockMeta, ba
 				return execOutput{}, fmt.Errorf("compiling %q: %w", query, err)
 			}
 
+			// Do takes the block's range, not the request's, as the querier
+			// does: the request is the query window, Do bounds the fetch.
 			if err := eval.Do(ctx, fetcherFor(block, readOpts), start, end, opts.MaxSeries); err != nil {
 				return execOutput{}, err
 			}
