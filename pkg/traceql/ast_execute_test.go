@@ -2042,6 +2042,40 @@ func TestSpansetExistence(t *testing.T) {
 		span    Span
 		matches bool
 	}{
+		// `attr != ""` and `attr > ""` both spell "present and non-empty" rather than a negation or
+		// an ordering: a missing attribute resolves to nil, which != treats as no match and which
+		// ordered operators refuse outright. Backend-scheduler redaction allows both selectors on
+		// the strength of that, and redaction deletes irreversibly, so the bound is pinned here.
+		{
+			query:   `{ .foo != "" }`,
+			span:    &mockSpan{attributes: map[Attribute]Static{NewAttribute("bar"): NewStaticString("bzz")}},
+			matches: false,
+		},
+		{
+			query:   `{ .foo != "" }`,
+			span:    &mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("")}},
+			matches: false,
+		},
+		{
+			query:   `{ .foo != "" }`,
+			span:    &mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("bzz")}},
+			matches: true,
+		},
+		{
+			query:   `{ .foo > "" }`,
+			span:    &mockSpan{attributes: map[Attribute]Static{NewAttribute("bar"): NewStaticString("bzz")}},
+			matches: false,
+		},
+		{
+			query:   `{ .foo > "" }`,
+			span:    &mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("")}},
+			matches: false,
+		},
+		{
+			query:   `{ .foo > "" }`,
+			span:    &mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("bzz")}},
+			matches: true,
+		},
 		// return traces where .foo exists
 		{
 			query: `{ .foo != nil }`,
