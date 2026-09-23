@@ -83,7 +83,7 @@ Use an `https://` URL for `trace-id`, or `--secure` for the other commands.
 
 - `--tls-cert <path>`, `--tls-key <path>` PEM client certificate and matching unencrypted private key for mutual TLS (mTLS).
   Both must be provided together.
-- `--tls-ca <path>` PEM CA bundle added to the system trust roots for server certificate verification.
+- `--tls-ca <path>` PEM CA bundle used instead of the system trust roots for server certificate verification.
 - `--tls-server-name <name>` Override the server name used for certificate verification and SNI.
 
 The CA and server-name options can also be used without a client certificate.

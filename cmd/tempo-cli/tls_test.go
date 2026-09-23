@@ -279,6 +279,36 @@ func TestTLSKeyValidation(t *testing.T) {
 	}
 }
 
+func TestTLSCustomCARoots(t *testing.T) {
+	first := newTLSTestPKI(t)
+	second := newTLSTestPKI(t)
+	for _, tc := range []struct {
+		name string
+		cas  []tlsTestPKI
+	}{
+		{name: "single CA", cas: []tlsTestPKI{first}},
+		{name: "multiple CAs", cas: []tlsTestPKI{first, second}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var bundle []byte
+			wantRoots := x509.NewCertPool()
+			for _, ca := range tc.cas {
+				data, err := os.ReadFile(ca.options.TLSCA)
+				require.NoError(t, err)
+				bundle = append(bundle, data...)
+				require.True(t, wantRoots.AppendCertsFromPEM(data))
+			}
+			path := filepath.Join(t.TempDir(), "ca-bundle.pem")
+			require.NoError(t, os.WriteFile(path, bundle, 0o600))
+			options := tlsOptions{TLSCA: path}
+			cfg, err := options.tlsConfig(true)
+			require.NoError(t, err)
+			require.NotNil(t, cfg.RootCAs)
+			require.True(t, cfg.RootCAs.Equal(wantRoots), "only the supplied CA bundle should be trusted")
+		})
+	}
+}
+
 func TestTLSWithoutClientCertificate(t *testing.T) {
 	pki := newTLSTestPKI(t)
 	pki.server.ClientAuth = tls.NoClientCert

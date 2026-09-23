@@ -15,7 +15,7 @@ note: Authenticate tempo-cli API queries over HTTPS and gRPC with mTLS client ce
 issues: []
 
 # (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
-subtext:
+subtext: When --tls-ca is provided, only CAs in that bundle are trusted to verify the server certificate.
 
 # The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
 user: dobesv

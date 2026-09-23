@@ -15,7 +15,7 @@ import (
 type tlsOptions struct {
 	TLSCert       string `name:"tls-cert" type:"path" help:"PEM client certificate file for mTLS; requires --tls-key and TLS"`
 	TLSKey        string `name:"tls-key" type:"path" help:"PEM private key file for mTLS; requires --tls-cert and TLS"`
-	TLSCA         string `name:"tls-ca" type:"path" help:"PEM CA certificate bundle to add to system trust roots; requires TLS"`
+	TLSCA         string `name:"tls-ca" type:"path" help:"PEM CA certificate bundle to use instead of system trust roots; requires TLS"`
 	TLSServerName string `name:"tls-server-name" help:"override the TLS server name for certificate verification and SNI; requires TLS"`
 }
 
@@ -35,17 +35,11 @@ func (o *tlsOptions) tlsConfig(secure bool) (*tls.Config, error) {
 		ServerName: o.TLSServerName,
 	}
 	if o.TLSCA != "" {
-		pool, err := x509.SystemCertPool()
-		if err != nil {
-			return nil, fmt.Errorf("loading system certificate pool: %w", err)
-		}
-		if pool == nil {
-			pool = x509.NewCertPool()
-		}
 		pem, err := os.ReadFile(o.TLSCA)
 		if err != nil {
 			return nil, fmt.Errorf("reading CA certificate %q: %w", o.TLSCA, err)
 		}
+		pool := x509.NewCertPool()
 		if !pool.AppendCertsFromPEM(pem) {
 			return nil, fmt.Errorf("no valid certificates found in CA bundle %q", o.TLSCA)
 		}
