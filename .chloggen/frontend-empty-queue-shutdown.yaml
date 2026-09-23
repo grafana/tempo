@@ -1,0 +1,5 @@
+change_type: bug_fix
+component: query-frontend
+note: Prevent empty tenant queues from blocking query-frontend queue shutdown.
+issues: []
+user: javiermolinar
