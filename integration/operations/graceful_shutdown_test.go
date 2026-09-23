@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/e2e"
 	"github.com/grafana/tempo/v3/integration/util"
 	tempoUtil "github.com/grafana/tempo/v3/pkg/util"
 	"github.com/stretchr/testify/require"
@@ -64,16 +63,12 @@ func TestShutdownSingleBinary(t *testing.T) {
 		info := tempoUtil.NewTraceInfo(time.Now(), "")
 		require.NoError(t, h.WriteTraceInfo(info, ""))
 
-		// every service name maps to the same container here
-		tempo := h.Services[util.ServiceQueryFrontend]
-		require.NoError(t, tempo.WaitSumMetricsWithOptions(
-			e2e.GreaterOrEqual(float64(1)),
-			[]string{"tempo_live_store_traces_created_total"},
-			e2e.WaitMissingMetrics,
-		))
-
+		// traces_created_total can increment before the trace answers a query
+		h.WaitTracesQueryable(t, 1)
 		util.QueryAndAssertTrace(t, h.APIClientHTTP(""), info)
 
+		// every service name maps to the same container here
+		tempo := h.Services[util.ServiceQueryFrontend]
 		start := time.Now()
 		err := tempo.Stop()
 		elapsed := time.Since(start)

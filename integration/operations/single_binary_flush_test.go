@@ -22,15 +22,12 @@ func TestSingleBinaryIngestsAndFlushesToBackend(t *testing.T) {
 		info := tempoUtil.NewTraceInfo(time.Now(), "")
 		require.NoError(t, h.WriteTraceInfo(info, ""))
 
-		tempo := h.Services[util.ServiceDistributor]
-		require.NoError(t, tempo.WaitSumMetricsWithOptions(
-			e2e.GreaterOrEqual(float64(1)),
-			[]string{"tempo_live_store_traces_created_total"},
-			e2e.WaitMissingMetrics,
-		))
+		// traces_created_total can increment before the trace answers a query
+		h.WaitTracesQueryable(t, 1)
 
 		util.QueryAndAssertTrace(t, h.APIClientHTTP(""), info)
 
+		tempo := h.Services[util.ServiceDistributor]
 		require.NoError(t, tempo.WaitSumMetricsWithOptions(
 			e2e.GreaterOrEqual(float64(1)),
 			[]string{"tempo_live_store_local_blocks_flushed_total"},
