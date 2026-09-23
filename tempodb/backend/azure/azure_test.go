@@ -510,6 +510,37 @@ func TestMarkBlockCompacted_DoesNotDoublePrefix(t *testing.T) {
 		"DELETE key path must contain the configured prefix exactly once")
 }
 
+// CompactedBlockMeta's NotFound path (blocklist/poller.go's pollBlock treats it
+// as a benign "block in an intermediate state", not a poll error) has no
+// coverage: TestReadError only tests the classification helper in isolation,
+// never that CompactedBlockMeta actually routes a real 404 through it.
+func TestCompactedBlockMeta_NotFound(t *testing.T) {
+	server := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodHead:
+			// readAllWithModTime's readAll calls GetProperties (HEAD) first.
+			w.Header().Set("x-ms-error-code", string(bloberror.BlobNotFound))
+			w.WriteHeader(http.StatusNotFound)
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	})
+
+	_, _, compactor, err := NewNoConfirm(&Config{
+		StorageAccountName: "testing_account",
+		StorageAccountKey:  flagext.SecretWithValue("YQo="),
+		MaxBuffers:         3,
+		BufferSize:         1000,
+		ContainerName:      "blerg",
+		Endpoint:           server.URL[7:], // [7:] -> strip http://
+	})
+	require.NoError(t, err)
+
+	_, err = compactor.CompactedBlockMeta(uuid.New(), "tenant1")
+	require.Error(t, err)
+	require.True(t, errors.Is(err, backend.ErrDoesNotExist))
+}
+
 func TestClearBlock_DoesNotDoublePrefix(t *testing.T) {
 	const (
 		prefix   = "a/b/c/"

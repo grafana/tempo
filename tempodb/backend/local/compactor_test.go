@@ -3,6 +3,7 @@ package local
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,6 +14,19 @@ import (
 
 	"github.com/grafana/tempo/v3/tempodb/backend"
 )
+
+// CompactedBlockMeta's NotFound path (blocklist/poller.go's pollBlock treats it
+// as a benign "block in an intermediate state", not a poll error) is otherwise
+// untested: only the success path is exercised via the test-data fixtures.
+func TestCompactedBlockMeta_NotFound(t *testing.T) {
+	dir := t.TempDir()
+	_, _, c, err := New(&Config{Path: dir})
+	require.NoError(t, err)
+
+	_, err = c.CompactedBlockMeta(uuid.UUID(backend.NewUUID()), "no-such-tenant")
+	require.Error(t, err)
+	require.True(t, errors.Is(err, backend.ErrDoesNotExist))
+}
 
 func TestTombstoneBlock_renamesMeta(t *testing.T) {
 	dir := t.TempDir()
