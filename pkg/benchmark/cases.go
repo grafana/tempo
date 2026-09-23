@@ -74,9 +74,7 @@ func phase1Cases() []benchCase {
 			},
 		},
 		{
-			// The fetch path with nothing to prune by. Not a ceiling on cost:
-			// it stops at the search limit rather than reading the block, so
-			// SearchLimit is what decides how much it reads.
+			// The fetch path with nothing to prune by.
 			id:    "search/nopredicate",
 			api:   apiSearch,
 			query: "{}",

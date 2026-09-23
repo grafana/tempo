@@ -29,12 +29,6 @@ const (
 // allocMetrics are cumulative allocation counters read through runtime/metrics
 // rather than runtime.ReadMemStats, which stops the world: an STW pause per
 // execution would inflate the wall clock measured beside it.
-//
-// The trade is that these lag ReadMemStats by whatever is still in per-P
-// caches, since only an STW flushes those. It is a lag and not a loss, so the
-// allocations land in a later execution's delta; measured at 0.6-16KB against
-// roughly 2.5MB per execution. The object counter also sits a constant offset
-// from MemStats.Mallocs, which cancels out in a delta.
 var allocMetrics = []string{
 	"/gc/heap/allocs:bytes",
 	"/gc/heap/allocs:objects",
