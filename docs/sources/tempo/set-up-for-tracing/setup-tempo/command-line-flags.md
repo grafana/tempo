@@ -21,7 +21,7 @@ Tempo provides various command-line flags to configure its behavior when startin
 | `--config.file` | Configuration file to load | |
 | `--config.expand-env` | Whether to expand environment variables in config file | `false` |
 | `--config.verify` | Verify configuration and exit | `false` |
-| `--config.verify-errors-only` | When used with `--config.verify`, exit successfully if the configuration has only warnings and no hard errors | `false` |
+| `--config.verify-errors-only` | When used with `--config.verify`, treat configuration warnings as non-fatal. Parsing errors still cause failure, but component startup validation is not performed | `false` |
 
 ## Target flag
 
