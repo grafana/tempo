@@ -198,11 +198,11 @@ func TestShardsForBlock(t *testing.T) {
 		{"block smaller than the target is one shard", meta(50, 4), 100, []Shard{{0, 0, 4}}},
 		{"one row group per shard when target-sized", meta(400, 4), 100, []Shard{{0, 0, 1}, {1, 1, 1}, {2, 2, 1}, {3, 3, 1}}},
 		{"small row groups grouped up to the target", meta(400, 8), 100, []Shard{{0, 0, 2}, {1, 2, 2}, {2, 4, 2}, {3, 6, 2}}},
-		{"last shard is short when it does not divide", meta(500, 5), 200, []Shard{{0, 0, 2}, {1, 2, 2}, {2, 4, 1}}},
+		{"last shard overruns when it does not divide, as production's does", meta(500, 5), 200, []Shard{{0, 0, 2}, {1, 2, 2}, {2, 4, 2}}},
 		{"row groups larger than the target get one each", meta(1000, 2), 100, []Shard{{0, 0, 1}, {1, 1, 1}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := shardsForBlock(tc.meta, int(tc.meta.TotalRecords), tc.targetBytes)
+			got, err := shardsForBlock(tc.meta, tc.targetBytes)
 			require.NoError(t, err)
 			require.Equal(t, tc.want, got)
 		})
@@ -210,7 +210,7 @@ func TestShardsForBlock(t *testing.T) {
 
 	unsized := backend.NewBlockMeta("t", uuid.New(), "vParquet5")
 	unsized.TotalRecords = 4
-	_, err := shardsForBlock(unsized, 4, DefaultTargetBytesPerRequest)
+	_, err := shardsForBlock(unsized, DefaultTargetBytesPerRequest)
 	require.ErrorContains(t, err, "cannot size a shard")
 }
 

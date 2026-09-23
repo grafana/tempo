@@ -38,7 +38,7 @@ func Run(ctx context.Context, blockPath string, profile *BlockProfile, opts RunO
 		return nil, fmt.Errorf("opening block: %w", err)
 	}
 
-	shards, err := shardsForBlock(meta, profile.RowGroups, opts.TargetBytesPerRequest)
+	shards, err := shardsForBlock(meta, opts.TargetBytesPerRequest)
 	if err != nil {
 		return nil, err
 	}
