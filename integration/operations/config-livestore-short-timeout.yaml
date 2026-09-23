@@ -1,4 +1,2 @@
 live_store:
-  # live_store.go sets the kafka replay lookback to 2x this, and TestLiveStoreLookback races
-  # that window against a live-store cold start, so 1s was never enough
-  complete_block_timeout: 10s
+  complete_block_timeout: 1s
