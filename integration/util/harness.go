@@ -56,8 +56,8 @@ const (
 )
 
 func init() {
-	// Keep the e2e MinIO version, but use its available Quay registry.
-	images.Minio = "quay.io/minio/minio:RELEASE.2021-10-13T00-23-17Z"
+	// MinIO no longer publishes images; use the community fork build.
+	images.Minio = "pgsty/minio:RELEASE.2026-08-04T00-00-00Z"
 }
 
 // DeploymentMode specifies whether to run Tempo as a single binary, microservices or none.
