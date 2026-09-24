@@ -6,12 +6,12 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/grafana/tempo/pkg/collector"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/pkg/collector"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -771,7 +771,8 @@ func TestFetchTagValues(t *testing.T) {
 				distinctValues  = collector.NewDistinctValue(1_000_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 				autocompleteReq = traceql.FetchTagValuesRequest{
 					TagName: tag,
-					ConditionGroups: [][]traceql.Condition{append(req.Conditions,
+					ConditionGroups: [][]traceql.Condition{append(
+						req.Conditions,
 						traceql.Condition{
 							Attribute: tagAtrr,
 							Op:        traceql.OpNone,

@@ -25,11 +25,11 @@ with messages between the querier and the query frontend.
 
 For gRPC streaming search, tag, and TraceQL metrics responses, the query frontend can split streamed diffs and final responses into smaller packets.
 Use `query_frontend.max_grpc_streaming_packet_size` to set the target packet size in bytes.
-The default is `2097152` bytes, or 2 MiB.
+The default is `1048576` bytes, or 1 MiB.
 
 ```yaml
 query_frontend:
-  max_grpc_streaming_packet_size: 2097152
+  max_grpc_streaming_packet_size: 1048576
 ```
 
 This setting applies to gRPC streaming responses from the query frontend.

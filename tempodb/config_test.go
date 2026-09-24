@@ -4,9 +4,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet5"
-	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet5"
+	"github.com/grafana/tempo/v3/tempodb/wal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -159,6 +159,17 @@ func TestDeprecatedVersions(t *testing.T) {
 				},
 			},
 			err: "vParquet5-preview1 is not a valid block version for creating blocks",
+		},
+		{
+			cfg: &Config{
+				WAL: &wal.Config{},
+				Block: &common.BlockConfig{
+					BloomFP:             0.01,
+					BloomShardSizeBytes: 1,
+					Version:             "vParquet3",
+				},
+			},
+			err: "vParquet3 is not a valid block version for creating blocks",
 		},
 	}
 

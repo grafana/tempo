@@ -3,8 +3,8 @@ package registry
 import (
 	"time"
 
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/modules/overrides/histograms"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/modules/overrides/histograms"
 )
 
 type Overrides interface {
@@ -21,4 +21,4 @@ type Overrides interface {
 	MetricsGeneratorMaxCardinalityPerLabel(userID string) uint64
 }
 
-var _ Overrides = (overrides.Interface)(nil)
+var _ Overrides = overrides.Interface(nil)

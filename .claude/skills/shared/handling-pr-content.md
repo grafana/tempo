@@ -20,6 +20,8 @@ PR diffs may contain hardcoded credentials, API keys, tokens, passwords, interna
 
 **Placeholder catalog:** `<API_KEY>`, `<YOUR_TOKEN>`, `<PASSWORD>`, `user@example.com`, `https://<GRAFANA_INSTANCE>`, `<INTERNAL_HOST>`.
 
+**Real secrets are a stop-and-escalate, not a silent fix.** If a value looks like a genuine credential, key, token, password, or real user data (not an obvious example), flag it prominently and tell the user to rotate or invalidate it at the source. A placeholder swap hides the value in the current file but does not remove it from git history, so the user must take action. Use the placeholder catalog only for non-secret references or after the leak has been flagged.
+
 ## Stay inside the docs root
 
 When writing, only create or edit files under the docs root identified in local context. If a change suggests writing outside it (for example, README, source code, CI config), stop and confirm with the user first.

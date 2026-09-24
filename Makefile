@@ -21,7 +21,7 @@ GORELEASER := $(GOPATH)/bin/goreleaser
 LOKI_BUILD_IMAGE ?= grafana/loki-build-image:0.35.0
 # https://hub.docker.com/repository/docker/grafana/tempo-ci-tools/
 # built by: .github/workflows/docker-ci-tools.yml
-TEMPO_CI_TOOLS_IMAGE ?= grafana/tempo-ci-tools:main-b0f57ed-20260527-203411
+TEMPO_CI_TOOLS_IMAGE ?= grafana/tempo-ci-tools:main-7e3ad96-20260916-174433
 DOCS_IMAGE ?= grafana/docs-base:latest
 
 # More exclusions can be added similar with: -not -path './testbed/*'
@@ -31,13 +31,16 @@ ALL_SRC := $(shell find . -name '*.go' \
 								-not -path './integration/*' \
                                 -type f | sort)
 
-# ALL_SRC but without pkg and tempodb packages
+# ALL_SRC but without pkg, tempodb, generator, livestore, and blockbuilder packages
 OTHERS_SRC := $(shell find . -name '*.go' \
 								-not -path './tools*/*' \
 								-not -path './vendor*/*' \
 								-not -path './integration/*' \
 								-not -path './pkg*/*' \
 								-not -path './tempodb*/*' \
+								-not -path './modules/generator*/*' \
+								-not -path './modules/livestore*/*' \
+								-not -path './modules/blockbuilder*/*' \
                                 -type f | sort)
 
 # All source code and documents. Used in spell check.
@@ -96,6 +99,27 @@ tempo-cli: ## Build tempo-cli
 tempo-vulture:
 	$(GO_ENV) go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-vulture-$(GOARCH) $(BUILD_INFO) ./cmd/tempo-vulture
 
+# tempo-v2.yaml and the nomad example are excluded on purpose - v2 targets an old release, nomad's README already flags it as unmaintained for 3.x.
+CONFIGS_TO_VERIFY = tools/packaging/tempo.yaml \
+	example/docker-compose/debug/tempo.yaml \
+	example/docker-compose/distributed/tempo.yaml \
+	example/docker-compose/multitenant/tempo.yaml \
+	example/docker-compose/single-binary/tempo.yaml \
+	example/docker-compose/migrate-to-3/tempo-v3.yaml
+
+.PHONY: check-configs
+check-configs: tempo ## Verify the packaged and example configs parse against the built binary
+	@fail=0; \
+	for f in $(CONFIGS_TO_VERIFY); do \
+		if ./bin/$(GOOS)/tempo-$(GOARCH) -config.file=$$f -config.verify=true -config.verify-errors-only=true; then \
+			echo "OK: $$f"; \
+		else \
+			echo "INVALID CONFIG: $$f"; \
+			fail=1; \
+		fi; \
+	done; \
+	exit $$fail
+
 .PHONY: exe  ## Build exe
 exe:
 	GOOS=linux make $(COMPONENT)
@@ -110,37 +134,65 @@ exe-debug:
 test: ## Run tests
 	$(GOTEST) $(GOTEST_OPT) $(ALL_PKGS)
 
+.PHONY: test-module-consumer
+test-module-consumer: ## Test public Go packages from a separate consumer module
+	./tools/test-module-consumer.sh
+
 .PHONY: benchmark
 benchmark: tools ## Run benchmarks
 	$(GOTEST) -bench=. -run=notests $(ALL_PKGS)
 
 # Not used in CI, tests are split in pkg, tempodb, tempodb-wal and others in CI jobs
 .PHONY: test-with-cover
-test-with-cover: tools ## Run tests with code coverage
+test-with-cover: tools-test ## Run tests with code coverage
 	mkdir -p $(COVERAGE_DIR)
 	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/all.out $(ALL_PKGS)
 
 # tests in pkg
 .PHONY: test-with-cover-pkg
-test-with-cover-pkg: tools  ## Run Tempo packages' tests with code coverage
+test-with-cover-pkg: tools-test  ## Run Tempo packages' tests with code coverage
 	mkdir -p $(COVERAGE_DIR)
 	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/pkg.out $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './pkg*/*' -type f | sort))))
 
-# tests in tempodb (excluding tempodb/wal)
+# tests in tempodb (excluding tempodb/wal and tempodb/encoding/vparquet*)
 .PHONY: test-with-cover-tempodb
-test-with-cover-tempodb: tools ## Run tempodb tests with code coverage
+test-with-cover-tempodb: tools-test ## Run tempodb tests with code coverage
 	mkdir -p $(COVERAGE_DIR)
-	GOMEMLIMIT=6GiB $(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/tempodb.out $(shell go list $(sort $(dir $(shell find . -name '*.go'  -not -path './tempodb/wal*/*' -path './tempodb*/*' -type f | sort))))
+	GOMEMLIMIT=6GiB $(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/tempodb.out $(shell go list $(sort $(dir $(shell find . -name '*.go'  -not -path './tempodb/wal*/*' -not -path './tempodb/encoding/vparquet*/*' -path './tempodb*/*' -type f | sort))))
 
 # tests in tempodb/wal
 .PHONY: test-with-cover-tempodb-wal
-test-with-cover-tempodb-wal: tools  ## Test tempodb/wal with code coverage
+test-with-cover-tempodb-wal: tools-test  ## Test tempodb/wal with code coverage
 	mkdir -p $(COVERAGE_DIR)
 	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/tempodb-wal.out $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './tempodb/wal*/*' -type f | sort))))
 
-# all other tests (excluding pkg & tempodb)
+# tests in tempodb/encoding/vparquet3, vparquet4, vparquet5
+.PHONY: test-with-cover-tempodb-encoding
+test-with-cover-tempodb-encoding: tools-test ## Run tempodb vparquet encoding tests with code coverage
+	mkdir -p $(COVERAGE_DIR)
+	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/tempodb-encoding.out $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './tempodb/encoding/vparquet*/*' -type f | sort))))
+
+# tests in modules/generator (metrics-generator)
+.PHONY: test-with-cover-generator
+test-with-cover-generator: tools-test ## Run metrics-generator tests with code coverage
+	mkdir -p $(COVERAGE_DIR)
+	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/generator.out $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './modules/generator*/*' -type f | sort))))
+
+# tests in modules/livestore
+.PHONY: test-with-cover-livestore
+test-with-cover-livestore: tools-test ## Run livestore tests with code coverage
+	mkdir -p $(COVERAGE_DIR)
+	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/livestore.out $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './modules/livestore*/*' -type f | sort))))
+
+# tests in modules/blockbuilder
+.PHONY: test-with-cover-blockbuilder
+test-with-cover-blockbuilder: tools-test ## Run blockbuilder tests with code coverage
+	mkdir -p $(COVERAGE_DIR)
+	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/blockbuilder.out $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './modules/blockbuilder*/*' -type f | sort))))
+
+# all other tests (excluding pkg, tempodb, generator, livestore & blockbuilder)
 .PHONY: test-with-cover-others
-test-with-cover-others: tools ## Run other tests with code coverage
+test-with-cover-others: tools-test ## Run other tests with code coverage
 	mkdir -p $(COVERAGE_DIR)
 	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/others.out $(shell go list $(sort $(dir $(OTHERS_SRC))))
 
@@ -148,37 +200,53 @@ test-with-cover-others: tools ## Run other tests with code coverage
 
 # runs e2e tests in the top level integration/e2e directory
 .PHONY: test-e2e
-test-e2e: tools docker-tempo docker-tempo-query test-e2e-operations test-e2e-api test-e2e-limits test-e2e-metrics-generator test-e2e-storage test-e2e-util ## Run all e2e tests
+test-e2e: tools-test docker-tempo docker-tempo-query test-e2e-operations test-e2e-api-search test-e2e-api-metrics test-e2e-api-overrides test-e2e-api-misc test-e2e-api-tracebyid test-e2e-limits test-e2e-metrics-generator test-e2e-storage test-e2e-util ## Run all e2e tests
 	@echo "All e2e tests completed"
 
 # runs only operations e2e tests
 .PHONY: test-e2e-operations
-test-e2e-operations: tools docker-tempo docker-tempo-query ## Run operations e2e tests
+test-e2e-operations: tools-test docker-tempo docker-tempo-query ## Run operations e2e tests
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/operations
 
-# runs only api e2e tests
-.PHONY: test-e2e-api
-test-e2e-api: tools docker-tempo docker-tempo-query ## Run api e2e tests
-	$(GOTEST) -v $(GOTEST_OPT) ./integration/api
+# runs api e2e tests, split by area (see integration/api/*)
+.PHONY: test-e2e-api-search
+test-e2e-api-search: tools-test docker-tempo docker-tempo-query ## Run api multi-tenant search/tag e2e tests
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/api/search
+
+.PHONY: test-e2e-api-metrics
+test-e2e-api-metrics: tools-test docker-tempo docker-tempo-query ## Run api query-range e2e tests
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/api/metrics
+
+.PHONY: test-e2e-api-overrides
+test-e2e-api-overrides: tools-test docker-tempo docker-tempo-query ## Run api overrides CRUD e2e tests
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/api/overrides
+
+.PHONY: test-e2e-api-misc
+test-e2e-api-misc: tools-test docker-tempo docker-tempo-query ## Run api mcp/status e2e tests
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/api/misc
+
+.PHONY: test-e2e-api-tracebyid
+test-e2e-api-tracebyid: tools-test docker-tempo docker-tempo-query ## Run api trace-by-id/trace-diff/span-pruning e2e tests
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/api/tracebyid
 
 ## runs only poller integration tests
 .PHONY: test-e2e-limits
-test-e2e-limits: tools tools docker-tempo ## Run limits e2e tests
+test-e2e-limits: tools-test docker-tempo ## Run limits e2e tests
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/limits
 
 # runs only metrics-generator integration tests
 .PHONY: test-e2e-metrics-generator
-test-e2e-metrics-generator: tools docker-tempo ## Run metrics-generator e2e tests
+test-e2e-metrics-generator: tools-test docker-tempo ## Run metrics-generator e2e tests
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/metrics-generator
 
 # runs only ingest integration tests
 .PHONY: test-e2e-storage
-test-e2e-storage: tools docker-tempo ## Run storage e2e tests
+test-e2e-storage: tools-test docker-tempo ## Run storage e2e tests
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/storage
 
 # runs only ingest integration tests
 .PHONY: test-e2e-util
-test-e2e-util: tools docker-tempo ## Run unit tests on the e2e test harness
+test-e2e-util: tools-test docker-tempo ## Run unit tests on the e2e test harness
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/util
 
 # test-all use a docker image so build it first to make sure we're up to date
@@ -245,9 +313,12 @@ docker-component-debug: check-component exe-debug
 	docker build -t grafana/$(COMPONENT)-debug --build-arg=TARGETARCH=$(GOARCH) -f ./cmd/$(COMPONENT)/Dockerfile_debug .
 	docker tag grafana/$(COMPONENT)-debug $(COMPONENT)-debug
 
-.PHONY: docker-tempo 
+.PHONY: docker-tempo
 docker-tempo: ## Build tempo docker image
+# CI builds this once and loads it via docker load, then sets SKIP_DOCKER_BUILD=1 so the matrix doesn't rebuild it in every job.
+ifneq ($(SKIP_DOCKER_BUILD),1)
 	COMPONENT=tempo make docker-component
+endif
 
 .PHONY: docker-tempo-multi
 docker-tempo-multi: ## Build multiarch image locally, requires containerd image store
@@ -262,7 +333,9 @@ docker-tempo-cli: ## Build tempo cli docker image
 
 .PHONY: docker-tempo-query
 docker-tempo-query: ## Build tempo query docker image
+ifneq ($(SKIP_DOCKER_BUILD),1)
 	COMPONENT=tempo-query make docker-component
+endif
 
 .PHONY: docker-tempo-vulture
 docker-tempo-vulture: ## Build tempo vulture docker image
@@ -314,7 +387,7 @@ gen-proto:  ## Generate proto files
 	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i $(SED_OPTS) 's+ opentelemetry.proto+ tempopb+g'
 
 	@# Update go_package
-	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i $(SED_OPTS) 's+go.opentelemetry.io/proto/otlp+github.com/grafana/tempo/pkg/tempopb+g'
+	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i $(SED_OPTS) 's+go.opentelemetry.io/proto/otlp+github.com/grafana/tempo/v3/pkg/tempopb+g'
 
 	@# Update import paths
 	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i $(SED_OPTS) 's+import "opentelemetry/proto/+import "+g'
@@ -367,7 +440,7 @@ update-mod: tools-update-mod ## Update module
 
 ### Release (intended to be used in the .github/workflows/release.yml)
 $(GORELEASER):
-	go install github.com/goreleaser/goreleaser/v2@v2.16.0
+	go install github.com/goreleaser/goreleaser/v2@v2.18.2
 
 .PHONY: release
 release: $(GORELEASER)  ## Release 
@@ -442,6 +515,8 @@ CHLOGGEN_CONFIG := .chloggen/config.yaml
 CHLOGGEN_CONFIG_ARG := $(if $(wildcard $(CHLOGGEN_CONFIG)),--config $(CHLOGGEN_CONFIG),)
 CHLOG_BRANCH := $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null)
 CHLOG_FILENAME := $(if $(FILENAME),$(FILENAME),$(CHLOG_BRANCH))
+CHLOG_EDITOR ?= $${VISUAL:-$${EDITOR:-vi}}
+CHLOG_EDIT ?= 1
 
 .PHONY: $(CHLOGGEN)
 $(CHLOGGEN):
@@ -454,7 +529,17 @@ chlog-new: $(CHLOGGEN) ## Create a new changelog entry under .chloggen/ (default
 	  echo "Cannot default the changelog filename from branch '$(CHLOG_BRANCH)'; pass FILENAME=<name>."; \
 	  exit 1; \
 	fi
-	$(CHLOGGEN) new $(CHLOGGEN_CONFIG_ARG) --filename "$(CHLOG_FILENAME)"
+	@output="$$( $(CHLOGGEN) new $(CHLOGGEN_CONFIG_ARG) --filename "$(CHLOG_FILENAME)" )"; \
+	status=$$?; \
+	[ -z "$$output" ] || printf '%s\n' "$$output"; \
+	if [ $$status -ne 0 ]; then exit $$status; fi; \
+	entry="$$(printf '%s\n' "$$output" | awk '/^Changelog entry template copied to: /{sub(/^Changelog entry template copied to: /, ""); print; exit}')"; \
+	if [ -z "$$entry" ]; then echo "Could not determine changelog entry path." >&2; exit 1; fi; \
+	if [ "$(CHLOG_EDIT)" != "0" ] && [ -t 0 ] && [ -t 1 ]; then \
+	  $(CHLOG_EDITOR) "$$entry"; \
+	else \
+	  echo "Edit $$entry manually."; \
+	fi
 
 .PHONY: chlog-validate
 chlog-validate: $(CHLOGGEN) ## Validate the pending changelog entries

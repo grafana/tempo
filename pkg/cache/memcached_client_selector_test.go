@@ -8,7 +8,7 @@ import (
 	"github.com/grafana/gomemcache/memcache"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/pkg/cache"
+	"github.com/grafana/tempo/v3/pkg/cache"
 )
 
 func TestNatSort(t *testing.T) {

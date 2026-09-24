@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/grafana/tempo/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/combiner"
 	"go.opentelemetry.io/otel"
 )
 
@@ -20,6 +20,9 @@ type Request interface {
 	SetWeight(int)
 	Weight() int
 
+	SetQueryShape(QueryShape)
+	QueryShape() QueryShape
+
 	SetCacheKey(string)
 	CacheKey() string
 
@@ -33,6 +36,7 @@ type HTTPRequest struct {
 	cacheKey     string
 	responseData any
 	weight       int
+	queryShape   QueryShape
 }
 
 func NewHTTPRequest(req *http.Request) *HTTPRequest {
@@ -79,10 +83,19 @@ func (r *HTTPRequest) SetWeight(w int) {
 	r.weight = w
 }
 
+func (r *HTTPRequest) QueryShape() QueryShape {
+	return r.queryShape
+}
+
+func (r *HTTPRequest) SetQueryShape(qs QueryShape) {
+	r.queryShape = qs
+}
+
 func (r *HTTPRequest) CloneFromHTTPRequest(request *http.Request) Request {
 	return &HTTPRequest{
 		req:          request,
 		weight:       r.weight,
+		queryShape:   r.queryShape,
 		cacheKey:     r.cacheKey,
 		responseData: r.responseData,
 	}

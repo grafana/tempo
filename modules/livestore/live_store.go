@@ -15,14 +15,14 @@ import (
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/flushqueues"
-	"github.com/grafana/tempo/pkg/ingest"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util/shutdownmarker"
-	"github.com/grafana/tempo/pkg/validation"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/pkg/flushqueues"
+	"github.com/grafana/tempo/v3/pkg/ingest"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/util/shutdownmarker"
+	"github.com/grafana/tempo/v3/pkg/validation"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/twmb/franz-go/pkg/kadm"
@@ -228,7 +228,8 @@ func New(cfg Config, overridesService overrides.Interface, completeBlockFlusher 
 		PartitionRingKey,
 		partitionRingKV,
 		logger,
-		prometheus.WrapRegistererWithPrefix("tempo_", reg))
+		prometheus.WrapRegistererWithPrefix("tempo_", reg),
+	)
 
 	// setup live store read ring
 	ringStore := cfg.Ring.KVStore.Mock
@@ -605,7 +606,8 @@ func (s *LiveStore) calculateTimeLag(lagShortcutThreshold int64) *time.Duration 
 	if lagShortcutThreshold >= 0 && lag <= lagShortcutThreshold {
 		level.Debug(s.logger).Log(
 			"msg", "At or close to partition end",
-			"lag", lag)
+			"lag", lag,
+		)
 		return new(time.Duration(0))
 	}
 

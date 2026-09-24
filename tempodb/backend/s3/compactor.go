@@ -9,7 +9,7 @@ import (
 
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
 func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
@@ -25,7 +25,8 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 
 	// copy meta.json to meta.compacted.json
 	// core.CopyObject does not support SSE on src object
-	_, err := rw.core.Client.CopyObject(context.TODO(),
+	_, err := rw.core.Client.CopyObject(
+		context.TODO(),
 		minio.CopyDestOptions{
 			Bucket:     rw.cfg.Bucket,
 			Object:     backend.CompactedMetaFileName(blockID, tenantID, rw.cfg.Prefix),

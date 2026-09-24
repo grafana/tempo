@@ -27,6 +27,8 @@ Refer to [Enable service graphs](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces
 
 ![Service graph](/media/docs/grafana/data-sources/tempo/query-editor/tempo-ds-query-service-graph-prom.png)
 
+To view service graphs in Grafana, refer to [Service graph view](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/service_graphs/service-graph-view/).
+
 ## How they work
 
 The metrics-generator and Grafana Alloy both process traces and generate service graphs in the form of Prometheus metrics.
@@ -38,7 +40,7 @@ It supports the following requests:
 
 - A direct request between two services where the outgoing and the incoming span must have [`span.kind`](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/api.md#spankind), `client`, and `server`, respectively.
 - A request across a messaging system where the outgoing and the incoming span must have `span.kind`, `producer`, and `consumer` respectively.
-- A database request; in this case the processor looks for spans containing attributes `span.kind`=`client` as well as one of `db.namespace`, `db.name` or `db.system`. You can customize which attributes identify a database span using the `database_name_attributes` [configuration option](/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generator). See below for how the name of the node is determined for a database request.
+- A database request; in this case the processor looks for spans containing attributes `span.kind`=`client` as well as one of `db.namespace`, `db.name`, `db.system`, or `db.system.name`. You can customize which attributes identify a database span using the `database_name_attributes` [configuration option](/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generator). See below for how the name of the node is determined for a database request.
 
 The processor keeps every span that can form a request pair in an in-memory store until the corresponding pair span arrives or the maximum waiting time passes.
 When either condition occurs, the processor records the request and removes it from the local store.
@@ -61,12 +63,12 @@ The processor detects virtual nodes in two ways:
   - In the Tempo metrics-generator, the processor checks the configured `peer_attributes` on the server span first. If it finds a matching attribute, it uses that value as the client node name. Otherwise, the client node name defaults to `user`.
   - In Grafana Alloy and the OpenTelemetry Collector `servicegraph` connector, the connector doesn't evaluate peer attributes for this case. The client node name always defaults to `user` and you can't override it. An [upstream feature request](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/45397) exists to add this capability.
 - **Uninstrumented server (missing server span):** A `client` span doesn't have its matching `server` span, but has a peer attribute present. In this case, the client called an external service that doesn't send spans. The processor uses the peer attribute value as the virtual server node name.
-  - The default peer attributes are `peer.service`, `db.name`, and `db.system`.
+  - The default peer attributes are `peer.service`, `db.name`, `db.system`, and `db.system.name`.
   - The processor searches the attributes in order and uses the first match as the virtual node name.
 
-The processor identifies a database node when the span has at least one `db.namespace`, `db.name`, or `db.system` attribute.
+The processor identifies a database node when the span has at least one `db.namespace`, `db.name`, `db.system`, or `db.system.name` attribute.
 
-The processor determines the database node name using the following span attributes in order of precedence: `peer.service`, `server.address`, `network.peer.address:network.peer.port`, `db.namespace`, `db.name`.
+The processor determines the database node name using the following span attributes in order of precedence: `peer.service`, `server.address`, `network.peer.address:network.peer.port`, and finally the first attribute from `database_name_attributes` that the span carries.
 
 ### Enabling specific metrics (subprocessors)
 
@@ -149,6 +151,8 @@ Activating this feature adds the following label and corresponding values:
 The service graphs processor has several configuration options beyond `dimensions` and `enable_virtual_node_label`.
 For the full YAML schema and defaults, refer to the [configuration reference](/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generator).
 
+You don't need to set any of them to get started; use them when you want to adjust sampling, labels, database detection, or which spans are included.
+
 ### Span multiplier
 
 When traces are sampled, the raw request counts produced by the service graph processor underrepresent actual traffic.
@@ -159,10 +163,33 @@ For example, if a span has attribute `X-SampleRatio=0.1` (10% sampling), setting
 The `enable_tracestate_span_multiplier` option provides an alternative approach that extracts the multiplier from the W3C tracestate header using the [OpenTelemetry probability sampling threshold](https://opentelemetry.io/docs/specs/otel/trace/tracestate-probability-sampling/) (`ot=th:<hex>`).
 When enabled, the tracestate threshold takes priority over `span_multiplier_key`.
 
+### Client and server dimension prefixes
+
+When you add extra `dimensions`, the same attribute can appear on both the client and server sides of an edge.
+By default, the processor writes one label per dimension,
+and if both sides carry the attribute the value is undetermined.
+
+Set `enable_client_server_prefix: true` to prefix those extra dimensions with `client_` and `server_`.
+The processor then emits two labels per additional dimension, for example `client_deployment_environment` and `server_deployment_environment`.
+That doubles the label count for each configured dimension, which increases cardinality.
+The default is `false`.
+
+```yaml
+metrics_generator:
+  processor:
+    service_graphs:
+      dimensions:
+        - deployment.environment
+      enable_client_server_prefix: true
+```
+
 ### Database name attributes
 
 The `database_name_attributes` option controls which span attributes the processor uses to identify a span as a database request.
-The defaults are `db.namespace`, `db.name`, and `db.system`.
+The defaults are `db.namespace`, `db.name`, `db.system`, and `db.system.name`.
+The processor searches the list in order and uses the first attribute the span carries.
+`db.namespace` and `db.name` identify the database itself, such as `mydb`, so they take precedence over `db.system` and `db.system.name`, which identify only the database product, such as `postgresql`.
+Within that second pair, `db.system.name` (which replaced `db.system` in semantic conventions v1.30.0) is listed last, so instrumentation that still emits `db.system` produces the same node name as before.
 You can override this list to match your instrumentation if it uses non-standard attribute names.
 
 ### Filter policies
@@ -204,3 +231,11 @@ Monitor service graph filtering with:
 - `tempo_metrics_generator_spans_discarded_total{reason="service_graphs_filtered", processor="service-graphs"}`
 - `tempo_metrics_generator_processor_service_graphs_dropped_edges_total`
 - `tempo_metrics_generator_processor_service_graphs_dropped_span_side_cache_overflow_total`
+
+## Next steps
+
+- [Enable service graphs](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/service_graphs/enable-service-graphs/) using the metrics-generator or Grafana Alloy.
+- [View service graphs](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/service_graphs/service-graph-view/) in Grafana.
+- [Create custom service graphs](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/service_graphs/custom-service-graphs/) with the Node graph visualization.
+- [Analyze service graph data](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/service_graphs/metrics-queries/) with PromQL queries.
+- Generate [span metrics](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/span-metrics/) for RED metrics alongside service graphs.

@@ -557,6 +557,29 @@ Samples a fixed percentage of traces for trace-level aggregations.
 { } | count_over_time() by (resource.service.name) with(trace_sample=0.05)
 ```
 
+## Extrapolation from ingest-time sampling: `with(extrapolate=true)` (experimental)
+
+{{< docs/experimental product="Tempo" >}}
+
+If your traces were sampled at ingest time by an OpenTelemetry probability
+sampler (for example, an OTel Collector `probabilistic_sampler` in
+`proportional` mode), each surviving span carries a W3C tracestate value that
+encodes the sampling probability. `with(extrapolate=true)` scales each matched
+span's contribution by `1 / sampling_probability` so the emitted metric
+represents the un-sampled population rather than what actually reached storage.
+
+For example, at 15% ingest sampling, the extrapolated rate is roughly 6.7 times
+the stored rate:
+
+```traceql
+{ resource.service.name="api" } | rate() with(extrapolate=true)
+```
+
+Applies to `rate`, `count_over_time`, `sum_over_time`, `avg_over_time`,
+`histogram_over_time`, `quantile_over_time`, and `compare`. `min_over_time`
+and `max_over_time` are intentionally unaffected because extremes don't
+scale with sampling.
+
 ## The `compare` function
 
 {{< admonition type="note">}}
@@ -596,7 +619,7 @@ The `compare` function has four parameters:
 
 2. Optional. The second parameter is the top `N` values to return per attribute. If an attribute exceeds this limit in
    either the selection group or baseline group, then only the top `N` values (based on frequency) are returned, and an
-   error indicator for the attribute is included output (see below). Defaults to `10`.
+   error indicator for the attribute is included output (see below). Must be an integer between 1 and 1000. Defaults to `10`.
 
 3. Optional. Start and End timestamps in Unix nanoseconds, which can be used to constrain the selection window by time,
    in addition to the filter. For example, the overall query could cover the past hour, and the selection window only a

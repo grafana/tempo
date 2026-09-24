@@ -1,6 +1,7 @@
 package traceql
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"math/rand/v2"
@@ -8,26 +9,23 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/tempo/pkg/tempopb"
-	commonv1proto "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	commonv1proto "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	"github.com/grafana/tempo/v3/pkg/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func singleBatchMetricsEvaluator(eval MetricsEvaluator) (*metricsEvaluator, error) {
-	batch, ok := eval.(batchMetricsEvaluator)
+	batch, ok := eval.(*batchMetricsEvaluator)
 	if !ok {
-		return nil, fmt.Errorf("expected batchMetricsEvaluator, got %T", eval)
+		return nil, fmt.Errorf("expected *batchMetricsEvaluator, got %T", eval)
 	}
-	if len(batch) != 1 {
-		return nil, fmt.Errorf("expected batchMetricsEvaluator of size 1, got %d", len(batch))
+	if len(batch.evals) != 1 {
+		return nil, fmt.Errorf("expected batchMetricsEvaluator of size 1, got %d", len(batch.evals))
 	}
 
-	for _, inner := range batch {
-		me, ok := inner.(*metricsEvaluator)
-		if !ok {
-			return nil, fmt.Errorf("expected *metricsEvaluator inside batch, got %T", inner)
-		}
+	for _, me := range batch.evals {
 		return me, nil
 	}
 
@@ -1657,6 +1655,119 @@ func TestScalarMath(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, len(result), seriesCount)
 			requireEqualSeriesSets(t, out, result)
+		})
+	}
+}
+
+// TestMetricsMathGroupByBoundary checks math queries with a by() clause at the max group-by count
+// run without erroring or panicking, and fail with a clean error just past that max.
+func TestMetricsMathGroupByBoundary(t *testing.T) {
+	span4attrs := newMockSpan(nil).WithStartTime(uint64(1*time.Second)).
+		WithSpanString("a", "1").WithSpanString("b", "2").WithSpanString("c", "3").
+		WithSpanString("d", "4").WithDuration(uint64(1 * time.Second))
+	span5attrs := newMockSpan(nil).WithStartTime(uint64(1*time.Second)).
+		WithSpanString("a", "1").WithSpanString("b", "2").WithSpanString("c", "3").
+		WithSpanString("d", "4").WithSpanString("e", "5").WithDuration(128)
+
+	tcs := []struct {
+		name           string
+		query          string
+		in             []Span
+		wantCompileErr bool // true: query must fail to compile cleanly
+	}{
+		{
+			name:  "count_over_time at maxGroupBys (5)",
+			query: `({} | count_over_time() by (.a, .b, .c, .d, .e)) / ({ .a = "1" } | count_over_time() by (.a, .b, .c, .d, .e))`,
+			in:    []Span{span5attrs},
+		},
+		{
+			name:  "rate at maxGroupBys (5)",
+			query: `({} | rate() by (.a, .b, .c, .d, .e)) / ({ .a = "1" } | rate() by (.a, .b, .c, .d, .e))`,
+			in:    []Span{span5attrs},
+		},
+		{
+			name: "nested math: (total*k - success) / total * 100",
+			query: `(((({} | count_over_time() by (.a, .b, .c, .d, .e)) * 1.000000001) -` +
+				` ({ .a = "1" } | count_over_time() by (.a, .b, .c, .d, .e))) /` +
+				` ({} | count_over_time() by (.a, .b, .c, .d, .e))) * 100`,
+			in: []Span{span5attrs},
+		},
+		{
+			name:  "avg_over_time at maxGroupBys-1 (4)",
+			query: `({ } | avg_over_time(duration) by (.a, .b, .c, .d)) / ({ .a = "1" } | count_over_time() by (.a, .b, .c, .d))`,
+			in:    []Span{span4attrs},
+		},
+		{
+			name:  "histogram_over_time at maxGroupBys-1 (4)",
+			query: `({ } | histogram_over_time(duration) by (.a, .b, .c, .d)) / ({ .a = "1" } | count_over_time() by (.a, .b, .c, .d))`,
+			in:    []Span{span4attrs},
+		},
+		{
+			name:  "quantile_over_time at maxGroupBys-1 (4)",
+			query: `({ } | quantile_over_time(duration, 0.5) by (.a, .b, .c, .d)) / ({ .a = "1" } | count_over_time() by (.a, .b, .c, .d))`,
+			in:    []Span{span4attrs},
+		},
+		{
+			name:           "count_over_time over maxGroupBys (6), standalone",
+			query:          `{} | count_over_time() by (.a, .b, .c, .d, .e, .f)`,
+			wantCompileErr: true,
+		},
+		{
+			name:           "count_over_time over maxGroupBys (6), in math",
+			query:          `({} | count_over_time() by (.a, .b, .c, .d, .e, .f)) / ({} | count_over_time() by (.a, .b, .c, .d, .e, .f))`,
+			wantCompileErr: true,
+		},
+		{
+			name:           "avg_over_time over maxGroupBys-1 (5), in math",
+			query:          `({} | avg_over_time(duration) by (.a, .b, .c, .d, .e)) / ({} | count_over_time() by (.a, .b, .c, .d, .e))`,
+			wantCompileErr: true,
+		},
+		{
+			name:           "quantile_over_time over maxGroupBys-1 (5), in math",
+			query:          `({} | quantile_over_time(duration, 0.5) by (.a, .b, .c, .d, .e)) / ({} | count_over_time() by (.a, .b, .c, .d, .e))`,
+			wantCompileErr: true,
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			req := &tempopb.QueryRangeRequest{
+				Start: 1,
+				End:   uint64(3 * time.Second),
+				Step:  uint64(1 * time.Second),
+			}
+			req.Query = tc.query
+
+			e := NewEngine()
+			var eval MetricsEvaluator
+			var err error
+			// ensure no panic in all queries
+			require.NotPanics(t, func() {
+				eval, err = e.CompileMetricsQueryRange(req)
+			})
+
+			// invalid queries are rejected
+			if tc.wantCompileErr {
+				require.Error(t, err, "a by() clause over the max must be rejected at compile time")
+				return
+			}
+			// valid queries don't error
+			require.NoError(t, err)
+
+			// and execute and produce results without panic
+			batch, ok := eval.(*batchMetricsEvaluator)
+			require.True(t, ok)
+			require.Greater(t, len(batch.evals), 1, "query must compile to more than one sub-pipeline for this test")
+
+			for _, me := range batch.evals {
+				for _, s := range tc.in {
+					me.metricsPipeline.observe(s)
+				}
+			}
+
+			require.NotPanics(t, func() {
+				_ = batch.Results()
+			})
 		})
 	}
 }
@@ -3593,12 +3704,12 @@ func TestSimpleAggregatorExemplarLimit(t *testing.T) {
 			exemplars := make([]tempopb.Exemplar, tc.sendCount)
 			for i := range exemplars {
 				ts := startMs + uint64(i)*(endMs-startMs)/uint64(tc.sendCount)
-				exemplars[i] = tempopb.Exemplar{TimestampMs: int64(ts), Value: float64(i)} //nolint: gosec // G115
+				exemplars[i] = tempopb.Exemplar{TimestampMs: int64(ts), Value: float64(i)} // nolint: gosec // G115
 			}
 
 			agg.Combine([]*tempopb.TimeSeries{{
 				Labels:    []commonv1proto.KeyValue{{Key: "service", Value: &commonv1proto.AnyValue{Value: &commonv1proto.AnyValue_StringValue{StringValue: "test"}}}},
-				Samples:   []tempopb.Sample{{TimestampMs: int64(startMs), Value: 1.0}}, //nolint: gosec // G115
+				Samples:   []tempopb.Sample{{TimestampMs: int64(startMs), Value: 1.0}}, // nolint: gosec // G115
 				Exemplars: exemplars,
 			}})
 
@@ -3681,6 +3792,125 @@ func TestHistogramAggregator(t *testing.T) {
 			}
 		})
 	}
+}
+
+// fakeSpanFetcher returns a freshly-built spanset on every Fetch so that each
+// sub-pipeline of a metrics query sees the full input independently. It applies
+// the request's SecondPass like the real storage bridge does.
+type fakeSpanFetcher struct {
+	makeSpans func() []Span
+}
+
+func (f *fakeSpanFetcher) Fetch(_ context.Context, req FetchSpansRequest) (FetchSpansResponse, error) {
+	it := &MockSpanSetIterator{results: []*Spanset{{Spans: f.makeSpans()}}, filter: req.SecondPass}
+	return FetchSpansResponse{
+		Results: it,
+		Stats:   func() FetchSpansStats { return FetchSpansStats{} },
+	}, nil
+}
+
+// FetchSpans is unsupported so metricsEvaluator.Do falls back to the spanset path.
+func (f *fakeSpanFetcher) FetchSpans(_ context.Context, _ FetchSpansRequest) (FetchSpansOnlyResponse, error) {
+	return FetchSpansOnlyResponse{}, util.ErrUnsupported
+}
+
+func TestCompileMetricsQueryRange_IsSummaryWatcher(t *testing.T) {
+	ctx := context.Background()
+	const summaryKey = "aggregation.is_summary"
+
+	summaryWatcher := func(t *testing.T) CompileOption {
+		t.Helper()
+		return WithWatchers(NewSpanPruningWatcher())
+	}
+
+	withSummary := func() []Span {
+		return []Span{
+			newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("service", "baseline"),
+			newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("service", "selected").WithAttrBool("aggregation.is_summary", true),
+			newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("service", "selected"),
+		}
+	}
+	withoutSummary := func() []Span {
+		return []Span{
+			newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("service", "baseline"),
+			newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("service", "selected"),
+		}
+	}
+
+	run := func(t *testing.T, query string, step uint64, makeSpans func() []Span, opts ...CompileOption) (MetricsEvaluator, map[string]int64) {
+		t.Helper()
+		req := &tempopb.QueryRangeRequest{
+			Start: 1,
+			End:   uint64(3 * time.Second),
+			Step:  step,
+			Query: query,
+		}
+		eval, err := NewEngine().CompileMetricsQueryRange(req, opts...)
+		require.NoError(t, err)
+		require.NoError(t, eval.Do(ctx, &fakeSpanFetcher{makeSpans}, 0, 0, 0))
+		return eval, eval.Metrics().AdditionalMetrics
+	}
+
+	t.Run("watcher installed and summary span present", func(t *testing.T) {
+		_, got := run(t, `{} | rate()`, uint64(time.Second), withSummary, summaryWatcher(t))
+		require.Equal(t, int64(1), got[summaryKey])
+	})
+
+	t.Run("watcher installed but no summary span", func(t *testing.T) {
+		_, got := run(t, `{} | rate()`, uint64(time.Second), withoutSummary, summaryWatcher(t))
+		_, ok := got[summaryKey]
+		require.False(t, ok, "no summary metric when no matched span carries the attribute")
+	})
+
+	t.Run("no watcher installed", func(t *testing.T) {
+		_, got := run(t, `{} | rate()`, uint64(time.Second), withSummary)
+		_, ok := got[summaryKey]
+		require.False(t, ok, "no metric when no watcher is installed")
+	})
+
+	// Metric math produces multiple sub-pipeline evaluators that share one
+	// request-scoped watcher. Both operands here match the summary span, so the
+	// old per-pipeline design would count it twice; it must be counted once.
+	// Guards the batchMetricsEvaluator request-scoping fix.
+	t.Run("math counts summary once across sub-pipelines", func(t *testing.T) {
+		query := `({} | count_over_time()) / ({ .service="selected" } | count_over_time())`
+		eval, got := run(t, query, uint64(2*time.Second), withSummary, summaryWatcher(t))
+
+		batch, ok := eval.(*batchMetricsEvaluator)
+		require.True(t, ok)
+		require.Greater(t, len(batch.evals), 1, "metric math should produce multiple sub-pipelines")
+		require.Equal(t, int64(1), got[summaryKey], "counted once, not once per sub-pipeline")
+	})
+}
+
+func TestCompileMetricsQueryRange_EngineBytesWatcher(t *testing.T) {
+	ctx := context.Background()
+
+	makeSpans := func() []Span {
+		return []Span{
+			newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("a", "ab").WithSpanString("b", "cdef"),
+			newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("c", "xyz").WithAttrBool("ok", true),
+		}
+	}
+
+	run := func(t *testing.T, query string) map[string]int64 {
+		t.Helper()
+		req := &tempopb.QueryRangeRequest{
+			Start: 1,
+			End:   uint64(3 * time.Second),
+			Step:  uint64(time.Second),
+			Query: query,
+		}
+		eval, err := NewEngine().CompileMetricsQueryRange(req, WithEngineBytesTracking(true))
+		require.NoError(t, err)
+		require.NoError(t, eval.Do(ctx, &fakeSpanFetcher{makeSpans}, 0, 0, 0))
+		return eval.Metrics().AdditionalMetrics
+	}
+
+	t.Run("installed when enabled and counts attribute bytes", func(t *testing.T) {
+		got := run(t, `{} | rate()`)
+		require.Greater(t, got[tempopb.AdditionalMetricEngineBytes], int64(0))
+	})
 }
 
 func runTraceQLMetric(req *tempopb.QueryRangeRequest, inSpans ...[]Span) (SeriesSet, int, error) {

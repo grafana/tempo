@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/tempo/modules/overrides/histograms"
-	"github.com/grafana/tempo/pkg/sharedconfig"
-	"github.com/grafana/tempo/pkg/util/listtomap"
+	"github.com/grafana/tempo/v3/modules/overrides/histograms"
+	"github.com/grafana/tempo/v3/pkg/sharedconfig"
+	"github.com/grafana/tempo/v3/pkg/util/listtomap"
 	"github.com/stretchr/testify/assert"
 )
 

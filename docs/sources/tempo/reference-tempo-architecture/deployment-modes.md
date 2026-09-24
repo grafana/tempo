@@ -37,7 +37,7 @@ Monolithic mode is suitable for getting started, development environments, and l
 
 ### Limitations
 
-Components share the same resource pool. A spike in query load can affect write throughput and vice versa. There is no independent scaling. You can run multiple monolithic instances, but each instance runs the same set of components. At higher volumes, memory pressure from collocated components, particularly the live-store and querier, can cause out-of-memory issues.
+Components share the same resource pool. A spike in query load can affect write throughput and vice versa. There is no independent scaling. At higher volumes, memory pressure from collocated components, particularly the live-store and querier, can cause out-of-memory issues.
 
 ### Resource considerations
 

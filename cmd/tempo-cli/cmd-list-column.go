@@ -9,8 +9,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/parquet-go/parquet-go"
 
-	pq "github.com/grafana/tempo/pkg/parquetquery"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
+	pq "github.com/grafana/tempo/v3/pkg/parquetquery"
+	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet3"
 )
 
 type listColumnCmd struct {

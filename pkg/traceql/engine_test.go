@@ -15,10 +15,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v2"
 
-	"github.com/grafana/tempo/pkg/collector"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v3/pkg/collector"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	"github.com/grafana/tempo/v3/pkg/util"
 )
 
 func TestEngine_Execute(t *testing.T) {
@@ -412,15 +412,15 @@ type MockSpanSetFetcher struct {
 	capturedRequest FetchSpansRequest
 }
 
-var _ = (SpansetFetcher)(&MockSpanSetFetcher{})
+var _ = SpansetFetcher(&MockSpanSetFetcher{})
 
 func (m *MockSpanSetFetcher) Fetch(_ context.Context, request FetchSpansRequest) (FetchSpansResponse, error) {
 	m.capturedRequest = request
 	m.iterator.(*MockSpanSetIterator).filter = request.SecondPass
 	return FetchSpansResponse{
 		Results: m.iterator,
-		Bytes: func() uint64 {
-			return 100_00 // hardcoded in tests
+		Stats: func() FetchSpansStats {
+			return FetchSpansStats{Bytes: 100_00} // hardcoded in tests
 		},
 	}, nil
 }

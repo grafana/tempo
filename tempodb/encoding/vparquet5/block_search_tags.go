@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"io"
 
-	pq "github.com/grafana/tempo/pkg/parquetquery"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	pq "github.com/grafana/tempo/v3/pkg/parquetquery"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 	"github.com/parquet-go/parquet-go"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -432,14 +432,13 @@ func searchSpecialTagValues(ctx context.Context, column string, pf *parquet.File
 
 	iter := makeIterFunc(ctx, rgs, pf)(column, pred, "")
 	defer iter.Close()
-	for {
-		match, err := iter.Next()
-		if err != nil {
-			return fmt.Errorf("iter.Next failed: %w", err)
-		}
-		if match == nil {
-			break
-		}
+
+	// reportValuesPredicate reports values to cb as a side effect and only produces a match
+	// once cb has asked to stop, so a single Next() either drains the column or returns as
+	// soon as the caller is done. Either way there is nothing further to collect, and any
+	// remaining row groups are dropped rather than scanned.
+	if _, err := iter.Next(); err != nil {
+		return fmt.Errorf("iter.Next failed: %w", err)
 	}
 
 	return nil

@@ -13,17 +13,17 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/integration/util"
+	"github.com/grafana/tempo/v3/integration/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/pkg/blockboundary"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/azure"
-	"github.com/grafana/tempo/tempodb/backend/gcs"
-	"github.com/grafana/tempo/tempodb/backend/s3"
-	"github.com/grafana/tempo/tempodb/blocklist"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
+	"github.com/grafana/tempo/v3/pkg/blockboundary"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend/azure"
+	"github.com/grafana/tempo/v3/tempodb/backend/gcs"
+	"github.com/grafana/tempo/v3/tempodb/backend/s3"
+	"github.com/grafana/tempo/v3/tempodb/blocklist"
+	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet3"
 )
 
 const (
@@ -95,6 +95,7 @@ func TestPollerOwnership(t *testing.T) {
 					cfg.StorageConfig.Trace.GCS.Prefix = pc.prefix
 					rr, ww, cc, err = gcs.New(cfg.StorageConfig.Trace.GCS)
 				case backend.Azure:
+					cfg.StorageConfig.Trace.Azure.ListBlocksConcurrency = listBlockConcurrency
 					cfg.StorageConfig.Trace.Azure.Endpoint = e
 					cfg.StorageConfig.Trace.Azure.Prefix = pc.prefix
 					rr, ww, cc, err = azure.New(cfg.StorageConfig.Trace.Azure)
@@ -145,7 +146,7 @@ func TestPollerOwnership(t *testing.T) {
 
 					actual := []uuid.UUID{}
 					for _, m := range metas {
-						actual = append(actual, (uuid.UUID)(m.BlockID))
+						actual = append(actual, uuid.UUID(m.BlockID))
 					}
 
 					sort.Slice(actual, func(i, j int) bool { return actual[i].String() < actual[j].String() })
@@ -220,6 +221,7 @@ func TestTenantDeletion(t *testing.T) {
 					cfg.StorageConfig.Trace.GCS.Prefix = pc.prefix
 					rr, ww, cc, err = gcs.New(cfg.StorageConfig.Trace.GCS)
 				case backend.Azure:
+					cfg.StorageConfig.Trace.Azure.ListBlocksConcurrency = listBlockConcurrency
 					cfg.StorageConfig.Trace.Azure.Endpoint = e
 					cfg.StorageConfig.Trace.Azure.Prefix = pc.prefix
 					rr, ww, cc, err = azure.New(cfg.StorageConfig.Trace.Azure)
@@ -287,7 +289,7 @@ func TestTenantDeletion(t *testing.T) {
 
 func found(id uuid.UUID, blockMetas []*backend.BlockMeta) bool {
 	for _, b := range blockMetas {
-		if (uuid.UUID)(b.BlockID) == id {
+		if uuid.UUID(b.BlockID) == id {
 			return true
 		}
 	}
@@ -344,7 +346,8 @@ func writeBadBlockFiles(t *testing.T, ww backend.RawWriter, rr backend.RawReader
 		vparquet3.DataFileName,
 		backend.KeyPath([]string{tenant, uuid.New().String()}),
 		bytes.NewReader(token),
-		int64(len(token)), nil)
+		int64(len(token)), nil,
+	)
 
 	require.NoError(t, err)
 

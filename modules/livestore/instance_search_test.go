@@ -30,18 +30,20 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/ingest/testkafka"
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	trace_v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/pkg/collector"
+	"github.com/grafana/tempo/v3/pkg/ingest/testkafka"
+	"github.com/grafana/tempo/v3/pkg/model/trace"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	trace_v1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/tempodb/wal"
 )
 
 const (
@@ -304,6 +306,230 @@ func TestSearchTagValuesV2DiskCache(t *testing.T) {
 	for idx := range resp1.TagValues {
 		require.Equal(t, resp1.TagValues[idx].Value, resp2.TagValues[idx].Value)
 	}
+
+	err = services.StopAndAwaitTerminated(t.Context(), ls)
+	require.NoError(t, err)
+}
+
+// TestSearchTagValuesV2CacheKeyIncludesLimits ensures the disk-cache key varies
+// with MaxTagValues / StaleValueThreshold. Since the cached per-block values are
+// truncated at these limits, sharing one entry across differing limits would
+// serve a truncated set as complete once those params propagate (tempo-squad#1355).
+func TestSearchTagValuesV2CacheKeyIncludesLimits(t *testing.T) {
+	const limit = 500000
+	newReq := func(mut func(*tempopb.SearchTagValuesRequest)) *tempopb.SearchTagValuesRequest {
+		r := &tempopb.SearchTagValuesRequest{TagName: "span.foo", Query: "{ span.bar = `baz` }"}
+		mut(r)
+		return r
+	}
+
+	base := searchTagValuesV2CacheKey(newReq(func(*tempopb.SearchTagValuesRequest) {}), limit, "p")
+	withLimit := searchTagValuesV2CacheKey(newReq(func(r *tempopb.SearchTagValuesRequest) { r.MaxTagValues = 100 }), limit, "p")
+	withStale := searchTagValuesV2CacheKey(newReq(func(r *tempopb.SearchTagValuesRequest) { r.StaleValueThreshold = 50 }), limit, "p")
+
+	require.NotEqual(t, base, withLimit, "cache key must vary with MaxTagValues")
+	require.NotEqual(t, base, withStale, "cache key must vary with StaleValueThreshold")
+}
+
+// BenchmarkLocalBlockSearchTagValuesV2Limit measures the block scan cost saved
+// by the per-request count limit (MaxTagValues) and stale-value threshold on the
+// unfiltered tag-value path. The "unlimited" case reflects production behavior
+// before tempo-squad#1355 (limits never reached the block); the limited/stale
+// cases are what the fix enables. Runs at the block level to isolate scan cost
+// from the instance disk cache.
+func BenchmarkLocalBlockSearchTagValuesV2Limit(b *testing.B) {
+	const (
+		numTraces = 4000
+		hcTag     = "bench_hc" // unique value per trace (high cardinality)
+		lcTag     = "bench_lc" // 10 distinct values, many repeats (low cardinality)
+	)
+
+	i, ls := defaultInstance(b)
+	b.Cleanup(func() { _ = services.StopAndAwaitTerminated(context.Background(), ls) })
+
+	ctx := user.InjectOrgID(context.Background(), testTenantID)
+	now := time.Now()
+	for j := 0; j < numTraces; j++ {
+		id := make([]byte, 16)
+		_, err := crand.Read(id)
+		require.NoError(b, err)
+
+		tt := test.MakeTrace(1, id)
+		hcKV := &v1.KeyValue{Key: hcTag, Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "hc-" + strconv.Itoa(j)}}}
+		lcKV := &v1.KeyValue{Key: lcTag, Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "lc-" + strconv.Itoa(j%10)}}}
+		for _, batch := range tt.ResourceSpans {
+			for _, ils := range batch.ScopeSpans {
+				for _, span := range ils.Spans {
+					span.StartTimeUnixNano = uint64(now.UnixNano())
+					span.EndTimeUnixNano = uint64(now.UnixNano())
+					span.Attributes = append(span.Attributes, hcKV, lcKV)
+				}
+			}
+		}
+		trace.SortTrace(tt)
+		traceBytes, err := tt.Marshal()
+		require.NoError(b, err)
+		i.pushBytes(ctx, now, &tempopb.PushBytesRequest{
+			Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
+			Ids:    [][]byte{id},
+		})
+	}
+
+	// Move live traces -> head -> WAL -> complete block. cutIdleTraces cuts the
+	// head early when it reaches MaxBlockBytes, so loop until all live traces are drained.
+	for {
+		drained, err := i.cutIdleTraces(ctx, true)
+		require.NoError(b, err)
+		blockID, err := i.cutBlocks(ctx, true)
+		require.NoError(b, err)
+		if blockID != uuid.Nil {
+			_, err = i.completeBlock(ctx, blockID)
+			require.NoError(b, err)
+		}
+		if drained {
+			break
+		}
+	}
+
+	// pick the largest complete block so the scan has meaningful cardinality
+	var block *LocalBlock
+	for _, bl := range i.blocks.Load().completeBlocks {
+		if block == nil || bl.BlockMeta().TotalRecords > block.BlockMeta().TotalRecords {
+			block = bl
+		}
+	}
+	require.NotNil(b, block)
+	b.Logf("benchmark block: %d records, %d bytes", block.BlockMeta().TotalRecords, block.BlockMeta().Size_)
+
+	opts := common.DefaultSearchOptions()
+	lenFn := func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) }
+
+	cases := []struct {
+		tag       string
+		name      string
+		maxValues uint32
+		stale     uint32
+	}{
+		{"span." + hcTag, "highcard/unlimited", 0, 0},
+		{"span." + hcTag, "highcard/limit_100", 100, 0},
+		{"span." + hcTag, "highcard/limit_1000", 1000, 0},
+		{"span." + lcTag, "lowcard/unlimited", 0, 0},
+		{"span." + lcTag, "lowcard/stale_50", 0, 50},
+	}
+
+	for _, tc := range cases {
+		tag, err := traceql.ParseIdentifier(tc.tag)
+		require.NoError(b, err)
+
+		// Time (ns/op) and -benchmem (B/op, allocs/op) capture the win: the count
+		// limit and stale threshold stop the scan early, so fewer values are
+		// materialized. Block-level BytesRead() is page-granular and does not drop
+		// on an already-open block, so it is not reported here; the cross-block
+		// byte savings come from Exceeded() skipping whole blocks at the instance layer.
+		b.Run(tc.name, func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for n := 0; n < b.N; n++ {
+				d := collector.NewDistinctValue(500_000, tc.maxValues, tc.stale, lenFn)
+				mc := collector.NewMetricsCollector()
+				err := block.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(d.Collect), mc.Add, opts)
+				require.NoError(b, err)
+			}
+		})
+	}
+}
+
+// TestSearchTagValuesV2ToleratesCorruptDiskCache ensures a block whose disk-cache
+// entry is unreadable/corrupt is still searched, rather than silently skipped and
+// dropped from the response (tempo-squad#1358).
+func TestSearchTagValuesV2ToleratesCorruptDiskCache(t *testing.T) {
+	i, ls := defaultInstance(t)
+
+	tagKey := foo
+	tagValue := bar
+
+	_, expectedTagValues, _, _ := writeTracesForSearch(t, i, "", tagKey, tagValue, true, false)
+
+	blockID, err := i.cutBlocks(t.Context(), true)
+	require.NoError(t, err)
+	require.NotEqual(t, uuid.Nil, blockID)
+	_, err = i.completeBlock(t.Context(), blockID)
+	require.NoError(t, err)
+
+	userCtx := user.InjectOrgID(t.Context(), testTenantID)
+	req := &tempopb.SearchTagValuesRequest{TagName: "." + tagKey}
+
+	// seed a corrupt (non-unmarshalable) cache entry on the complete block
+	var block *LocalBlock
+	for _, b := range i.blocks.Load().completeBlocks {
+		block = b
+		break
+	}
+	require.NotNil(t, block)
+	limit := i.overrides.MaxBytesPerTagValuesQuery(testTenantID)
+	cacheKey := searchTagValuesV2CacheKey(req, limit, "cache_search_tagvaluesv2")
+	// field 1, length-delimited, claims 10 bytes but supplies none -> proto.Unmarshal fails
+	require.NoError(t, block.SetDiskCache(userCtx, cacheKey, []byte{0x0a, 0x0a}))
+
+	// the block must still be searched despite the corrupt entry
+	resp, err := i.SearchTagValuesV2(userCtx, req)
+	require.NoError(t, err)
+
+	got := make([]string, 0, len(resp.TagValues))
+	for _, v := range resp.TagValues {
+		got = append(got, v.Value)
+	}
+	for _, want := range expectedTagValues {
+		require.Contains(t, got, want, "corrupt cache must not drop the block's values")
+	}
+
+	err = services.StopAndAwaitTerminated(t.Context(), ls)
+	require.NoError(t, err)
+}
+
+// TestSearchTagValuesV2CachesEmptyResults ensures a block that yields no values
+// for the requested tag still writes a cache entry, so tag-less blocks aren't
+// re-scanned on every query (tempo-squad#1359).
+func TestSearchTagValuesV2CachesEmptyResults(t *testing.T) {
+	i, ls := defaultInstance(t)
+
+	// block contains foo=bar* but not the tag we will query
+	_, _, _, _ = writeTracesForSearch(t, i, "", foo, bar, true, false)
+
+	blockID, err := i.cutBlocks(t.Context(), true)
+	require.NoError(t, err)
+	require.NotEqual(t, uuid.Nil, blockID)
+	_, err = i.completeBlock(t.Context(), blockID)
+	require.NoError(t, err)
+
+	userCtx := user.InjectOrgID(t.Context(), testTenantID)
+	req := &tempopb.SearchTagValuesRequest{TagName: "span.does_not_exist"}
+
+	// first query: cache miss, scans the block and finds nothing
+	resp1, err := i.SearchTagValuesV2(userCtx, req)
+	require.NoError(t, err)
+	require.Empty(t, resp1.TagValues, "tag is absent from the block")
+
+	// a cache entry (sentinel) should have been written for the tag-less block
+	var block *LocalBlock
+	for _, b := range i.blocks.Load().completeBlocks {
+		block = b
+		break
+	}
+	require.NotNil(t, block)
+	limit := i.overrides.MaxBytesPerTagValuesQuery(testTenantID)
+	cacheKey := searchTagValuesV2CacheKey(req, limit, "cache_search_tagvaluesv2")
+	cacheData, err := block.GetDiskCache(t.Context(), cacheKey)
+	require.NoError(t, err)
+	require.NotEmpty(t, cacheData, "an empty tag-value result should still be cached so the block isn't re-scanned next time")
+
+	// second query: must be a negative-cache hit -- still empty, and inspecting far
+	// fewer bytes than the initial scan (it reads only the sentinel, not the block)
+	resp2, err := i.SearchTagValuesV2(userCtx, req)
+	require.NoError(t, err)
+	require.Empty(t, resp2.TagValues)
+	require.Less(t, resp2.Metrics.InspectedBytes, resp1.Metrics.InspectedBytes,
+		"negative-cache hit should inspect fewer bytes than the initial block scan")
 
 	err = services.StopAndAwaitTerminated(t.Context(), ls)
 	require.NoError(t, err)
@@ -615,6 +841,8 @@ func defaultConfig(t testing.TB, tmpDir string) Config {
 	cfg.IngestConfig.Kafka.Address = kafkaAddr
 	cfg.IngestConfig.Kafka.Topic = testTopic
 	cfg.IngestConfig.Kafka.ConsumerGroup = "test-consumer-group"
+	// at the default 10s this costs ~10s per live store shutdown, which dominates this package's runtime
+	cfg.IngestConfig.Kafka.SetMetadataAges(10*time.Millisecond, 100*time.Millisecond)
 
 	cfg.holdAllBackgroundProcesses = true // note that the default testing live store disables background processes so we can deterministically run tests
 
@@ -1437,6 +1665,17 @@ func TestQueryRangeToleratesCorruptCache(t *testing.T) {
 
 func TestQueryRangeReportsInspectedBytes(t *testing.T) {
 	i, ls := defaultInstance(t)
+
+	engineBytesLimits, err := overrides.NewOverrides(overrides.Config{
+		Defaults: overrides.Overrides{
+			Read: overrides.ReadOverrides{
+				EngineBytesTracking: new(true),
+			},
+		},
+	}, nil, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+	i.overrides = engineBytesLimits
+
 	writeTracesForSearch(t, i, "", foo, bar, true, false)
 
 	blockID, err := i.cutBlocks(t.Context(), true)
@@ -1482,13 +1721,19 @@ func TestQueryRangeReportsInspectedBytes(t *testing.T) {
 	require.NotNil(t, first.Metrics, "QueryRange should populate Metrics")
 	require.Greater(t, first.Metrics.InspectedBytes, uint64(0),
 		"cache-miss QueryRange should report scanned bytes")
+	require.Greater(t, first.Metrics.AdditionalMetrics[tempopb.AdditionalMetricEngineBytes], int64(0),
+		"cache-miss QueryRange should report engineBytes")
 
-	// Second call: cache hit, no parquet read so we expect zero bytes.
+	// Second call: cache hit, no parquet read so we expect zero inspected bytes,
+	// but cacheable AdditionalMetrics (engineBytes) must still be present.
 	second, err := i.QueryRange(t.Context(), req)
 	require.NoError(t, err)
 	require.NotNil(t, second.Metrics)
 	require.Equal(t, uint64(0), second.Metrics.InspectedBytes,
 		"cache-hit QueryRange should not report scanned bytes")
+	require.Equal(t, first.Metrics.AdditionalMetrics[tempopb.AdditionalMetricEngineBytes],
+		second.Metrics.AdditionalMetrics[tempopb.AdditionalMetricEngineBytes],
+		"cacheable engineBytes must survive the complete-block cache hit")
 
 	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
 }
@@ -1518,4 +1763,121 @@ func findCacheFile(t *testing.T, blockDir string) string {
 	}
 	t.Fatalf("no cache_query_range_*.buf file found in %s", blockDir)
 	return ""
+}
+
+// TestQueryRangeConcurrentWALBlocks covers the multi-WAL-block path with QueryBlockConcurrency > 1.
+// The test asserts that no spans are lost or double counted when several blocks are evaluated at once
+func TestQueryRangeConcurrentWALBlocks(t *testing.T) {
+	const (
+		walBlocks      = 4
+		tracesPerBlock = 5
+	)
+
+	i, _ := defaultInstance(t)
+	i.Cfg.QueryBlockConcurrency = walBlocks
+
+	ctx := user.InjectOrgID(context.Background(), testTenantID)
+	now := time.Now()
+
+	// Each block gets its own value for span.blk, so the query below yields exactly one series
+	// per block and the expected span count is known.
+	totalSpans := 0
+	for blk := range walBlocks {
+		for range tracesPerBlock {
+			id := make([]byte, 16)
+			_, err := crand.Read(id)
+			require.NoError(t, err)
+
+			tt := test.MakeTrace(1, id)
+			kv := &v1.KeyValue{Key: "blk", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "b" + strconv.Itoa(blk)}}}
+			for _, batch := range tt.ResourceSpans {
+				for _, ils := range batch.ScopeSpans {
+					for _, span := range ils.Spans {
+						span.StartTimeUnixNano = uint64(now.UnixNano())
+						span.EndTimeUnixNano = uint64(now.UnixNano())
+						span.Attributes = append(span.Attributes, kv)
+						totalSpans++
+					}
+				}
+			}
+			trace.SortTrace(tt)
+			traceBytes, err := tt.Marshal()
+			require.NoError(t, err)
+
+			i.pushBytes(ctx, now, &tempopb.PushBytesRequest{
+				Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
+				Ids:    [][]byte{id},
+			})
+		}
+
+		_, err := i.cutIdleTraces(ctx, true)
+		require.NoError(t, err)
+		_, err = i.cutBlocks(ctx, true)
+		require.NoError(t, err)
+	}
+
+	// check wal blocks count to validate test setup
+	require.Len(t, i.blocks.Load().walBlocks, walBlocks)
+
+	newReq := func(maxSeries uint32) *tempopb.QueryRangeRequest {
+		return &tempopb.QueryRangeRequest{
+			Query:     "{} | count_over_time() by (span.blk)",
+			Start:     uint64(now.Add(-time.Minute).UnixNano()),
+			End:       uint64(now.Add(time.Minute).UnixNano()),
+			Step:      uint64(15 * time.Second),
+			MaxSeries: maxSeries,
+		}
+	}
+
+	countSpans := func(resp *tempopb.QueryRangeResponse) float64 {
+		var total float64
+		for _, s := range resp.Series {
+			for _, sample := range s.Samples {
+				total += sample.Value
+			}
+		}
+		return total
+	}
+
+	t.Run("all blocks contribute exactly once", func(t *testing.T) {
+		// Repeated to catch a result that depends on the order blocks happen to finish in.
+		for range 3 {
+			resp, err := i.QueryRange(ctx, newReq(100))
+			require.NoError(t, err)
+			require.Len(t, resp.Series, walBlocks, "expected one series per WAL block")
+			require.Equal(t, float64(totalSpans), countSpans(resp), "spans lost or double counted")
+			require.Equal(t, tempopb.PartialStatus_COMPLETE, resp.Status)
+		}
+	})
+
+	t.Run("MaxSeries reports partial", func(t *testing.T) {
+		resp, err := i.QueryRange(ctx, newReq(2))
+		require.NoError(t, err)
+		require.Equal(t, tempopb.PartialStatus_PARTIAL, resp.Status)
+		require.Len(t, resp.Series, 2)
+	})
+}
+
+func TestQueryRangeNoDataReturnsZeroedSeries(t *testing.T) {
+	i, _ := defaultInstance(t)
+	ctx := user.InjectOrgID(context.Background(), testTenantID)
+
+	end := time.Now().Truncate(time.Minute)
+	req := &tempopb.QueryRangeRequest{
+		Query:     "{} | count_over_time()",
+		Start:     uint64(end.Add(-2 * time.Minute).UnixNano()),
+		End:       uint64(end.UnixNano()),
+		Step:      uint64(time.Minute),
+		MaxSeries: 10,
+	}
+
+	resp, err := i.QueryRange(ctx, req)
+	require.NoError(t, err)
+
+	require.Len(t, resp.Series, 1, "an ungrouped query must still report a series when nothing matches")
+	require.NotEmpty(t, resp.Series[0].Samples, "empty samples")
+	for _, sample := range resp.Series[0].Samples {
+		require.Zero(t, sample.Value, "no data in range, so every step must be zero")
+	}
+	require.Equal(t, tempopb.PartialStatus_COMPLETE, resp.Status)
 }

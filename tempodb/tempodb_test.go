@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet5"
+	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet4"
+	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet5"
 
 	"github.com/go-kit/log"
 	"github.com/golang/protobuf/proto" //nolint:all
@@ -21,18 +21,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/modules/cache/memcached"
-	"github.com/grafana/tempo/modules/cache/redis"
-	"github.com/grafana/tempo/pkg/cache"
-	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/v3/modules/cache/memcached"
+	"github.com/grafana/tempo/v3/modules/cache/redis"
+	"github.com/grafana/tempo/v3/pkg/cache"
+	"github.com/grafana/tempo/v3/pkg/model"
+	"github.com/grafana/tempo/v3/pkg/model/trace"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend/local"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/tempodb/wal"
 )
 
 const (
@@ -246,13 +246,13 @@ func checkBlocklists(ctx context.Context, t *testing.T, expectedID uuid.UUID, ex
 	blocklist := rw.blocklist.Metas(testTenantID)
 	require.Len(t, blocklist, expectedB)
 	if expectedB > 0 && expectedID != uuid.Nil {
-		require.Equal(t, expectedID, (uuid.UUID)(blocklist[0].BlockID))
+		require.Equal(t, expectedID, uuid.UUID(blocklist[0].BlockID))
 	}
 
 	compactedBlocklist := rw.blocklist.CompactedMetas(testTenantID)
 	require.Len(t, compactedBlocklist, expectedCB)
 	if expectedCB > 0 && expectedID != uuid.Nil {
-		require.Equal(t, expectedID, (uuid.UUID)(compactedBlocklist[0].BlockID))
+		require.Equal(t, expectedID, uuid.UUID(compactedBlocklist[0].BlockID))
 	}
 }
 
@@ -906,7 +906,7 @@ func TestNoCompactFlag(t *testing.T) {
 
 			// Verify the nocompact flag
 			rw := r.(*readerWriter)
-			hasFlag, err := rw.r.HasNoCompactFlag(ctx, (uuid.UUID)(completedBlockID), testTenantID)
+			hasFlag, err := rw.r.HasNoCompactFlag(ctx, uuid.UUID(completedBlockID), testTenantID)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectedNoCompactFlag, hasFlag, "nocompact flag should remain after successful writeBlockMeta")
 
@@ -922,7 +922,7 @@ func TestNoCompactFlag(t *testing.T) {
 			}
 
 			// Remove the nocompact flag
-			err = rw.w.DeleteNoCompactFlag(ctx, (uuid.UUID)(completedBlockID), testTenantID)
+			err = rw.w.DeleteNoCompactFlag(ctx, uuid.UUID(completedBlockID), testTenantID)
 			require.NoError(t, err)
 
 			// Poll blocklist again

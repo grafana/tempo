@@ -13,12 +13,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/google/uuid"
-	tempo_io "github.com/grafana/tempo/pkg/io"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	tempo_io "github.com/grafana/tempo/v3/pkg/io"
+	tempoUtil "github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend/local"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -258,7 +258,7 @@ func TestWriteBlockMetaWithNoCompactFlag(t *testing.T) {
 
 			go func() {
 				<-waitChan // writing block meta started, stopping it to emulate a slow write
-				hasFlag, err := reader.HasNoCompactFlag(ctx, (uuid.UUID)(meta.BlockID), meta.TenantID)
+				hasFlag, err := reader.HasNoCompactFlag(ctx, uuid.UUID(meta.BlockID), meta.TenantID)
 				require.NoError(t, err)
 				assert.Equal(t, withNoCompactFlag, hasFlag, fmt.Sprintf("nocompact flag should be %t in the middle of writing", withNoCompactFlag))
 				waitChan <- struct{}{} // we checked flag, proceed with writing
@@ -269,12 +269,12 @@ func TestWriteBlockMetaWithNoCompactFlag(t *testing.T) {
 			require.NoError(t, err)
 
 			// Verify nocompact flag remains after successful Complete (flag removal is done at higher level)
-			hasFlag, err := reader.HasNoCompactFlag(ctx, (uuid.UUID)(meta.BlockID), meta.TenantID)
+			hasFlag, err := reader.HasNoCompactFlag(ctx, uuid.UUID(meta.BlockID), meta.TenantID)
 			require.NoError(t, err)
 			assert.Equal(t, withNoCompactFlag, hasFlag, fmt.Sprintf("nocompact flag should be %t after successful Complete", withNoCompactFlag))
 
 			// Verify meta.json was written
-			blockMeta, err := reader.BlockMeta(ctx, (uuid.UUID)(meta.BlockID), meta.TenantID)
+			blockMeta, err := reader.BlockMeta(ctx, uuid.UUID(meta.BlockID), meta.TenantID)
 			require.NoError(t, err)
 			assert.Equal(t, meta.BlockID, blockMeta.BlockID)
 			assert.Equal(t, meta.TenantID, blockMeta.TenantID)

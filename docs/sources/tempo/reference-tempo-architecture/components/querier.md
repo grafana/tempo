@@ -55,6 +55,12 @@ Increasing concurrency makes queriers process more jobs in parallel but increase
 
 Querier memory usage roughly scales with: `job_size * querier_concurrency + buffer`. You can tune this by adjusting `target_bytes_per_job` (at the frontend), `max_concurrent_queries` (at the querier), and `frontend_worker.parallelism` (which affects how many batches the querier processes at once).
 
+## Key metrics
+
+| Metric | Description |
+|---|---|
+| `tempo_querier_backend_processing_duration_seconds` | Time the querier spends processing backend blocks (object-store scan and interleaved I/O), labeled by `operation` (`traces`, `search`, `search-tags`, `search-tag-values`, `metrics`) and `tenant`. Excludes recent (live-store) data. Complements `tempodb_backend_request_duration_seconds`, which only times the underlying object-store GET I/O. Use this metric for capacity planning and autoscaling. |
+
 ## Related resources
 
 Refer to the [querier configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#querier) for the full list of options.

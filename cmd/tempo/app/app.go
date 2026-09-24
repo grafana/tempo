@@ -21,10 +21,10 @@ import (
 	"github.com/grafana/dskit/server"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/signals"
-	"github.com/grafana/tempo/modules/backendworker"
-	"github.com/grafana/tempo/modules/blockbuilder"
-	"github.com/grafana/tempo/modules/frontend"
-	"github.com/grafana/tempo/modules/livestore"
+	"github.com/grafana/tempo/v3/modules/backendworker"
+	"github.com/grafana/tempo/v3/modules/blockbuilder"
+	"github.com/grafana/tempo/v3/modules/frontend"
+	"github.com/grafana/tempo/v3/modules/livestore"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/prometheus/common/version"
 	"go.uber.org/atomic"
@@ -32,21 +32,20 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/grafana/tempo/cmd/tempo/build"
-	"github.com/grafana/tempo/modules/backendscheduler"
-	"github.com/grafana/tempo/modules/distributor"
-	"github.com/grafana/tempo/modules/distributor/receiver"
-	frontend_v1 "github.com/grafana/tempo/modules/frontend/v1"
-	"github.com/grafana/tempo/modules/generator"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/modules/querier"
-	"github.com/grafana/tempo/modules/storage"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/cache"
-	"github.com/grafana/tempo/pkg/usagestats"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/log"
-	util_log "github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/v3/cmd/tempo/build"
+	"github.com/grafana/tempo/v3/modules/backendscheduler"
+	"github.com/grafana/tempo/v3/modules/distributor"
+	"github.com/grafana/tempo/v3/modules/distributor/receiver"
+	frontend_v1 "github.com/grafana/tempo/v3/modules/frontend/v1"
+	"github.com/grafana/tempo/v3/modules/generator"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/modules/querier"
+	"github.com/grafana/tempo/v3/modules/storage"
+	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/cache"
+	"github.com/grafana/tempo/v3/pkg/usagestats"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/pkg/util/log"
 )
 
 const (
@@ -57,6 +56,7 @@ const (
 var (
 	statFeatureEnabledAuth         = usagestats.NewInt("feature_enabled_auth_stats")
 	statFeatureEnabledMultitenancy = usagestats.NewInt("feature_enabled_multitenancy")
+	statStorageBlockFormat         = usagestats.NewString("storage_block_format")
 )
 
 // App is the root datastructure.
@@ -104,6 +104,11 @@ func New(cfg Config) (*App, error) {
 	}
 
 	usagestats.Edition("oss")
+
+	statStorageBlockFormat.Set("")
+	if cfg.StorageConfig.Trace.Block != nil {
+		statStorageBlockFormat.Set(cfg.StorageConfig.Trace.Block.Version)
+	}
 
 	statFeatureEnabledAuth.Set(0)
 	if cfg.AuthEnabled {
@@ -327,7 +332,7 @@ func (t *App) writeStatusConfig(w io.Writer, r *http.Request) error {
 func (t *App) readyHandler(sm *services.Manager, shutdownRequested *atomic.Bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if shutdownRequested.Load() {
-			level.Debug(util_log.Logger).Log("msg", "application is stopping")
+			level.Debug(log.Logger).Log("msg", "application is stopping")
 			http.Error(w, "Application is stopping", http.StatusServiceUnavailable)
 			return
 		}

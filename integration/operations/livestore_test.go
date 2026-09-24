@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/grafana/e2e"
-	"github.com/grafana/tempo/integration/util"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v3/integration/util"
+	tempoUtil "github.com/grafana/tempo/v3/pkg/util"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/require"
 )
@@ -331,7 +331,8 @@ func waitActivePartitions(t *testing.T, service *e2e.HTTPService, count int) {
 	require.NoError(t, service.WaitSumMetricsWithOptions(
 		e2e.Equals(float64(count)),
 		[]string{"tempo_partition_ring_partitions"},
-		e2e.WithLabelMatchers(matchers...)), "distributor failed to see the partition ring")
+		e2e.WithLabelMatchers(matchers...),
+	), "distributor failed to see the partition ring")
 }
 
 func newLiveStore(name string, zone string) *e2e.HTTPService {

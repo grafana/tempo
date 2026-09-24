@@ -11,12 +11,12 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
+	tempoUtil "github.com/grafana/tempo/v3/pkg/util"
 	"github.com/parquet-go/parquet-go"
 
-	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	tempo_io "github.com/grafana/tempo/v3/pkg/io"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
 
 func NewCompactor(opts common.CompactionOptions) *Compactor {
@@ -259,7 +259,8 @@ func (c *Compactor) finishBlock(ctx context.Context, block *streamingBlock, l lo
 		return fmt.Errorf("error completing block: %w", err)
 	}
 
-	level.Info(l).Log("msg", "wrote compacted block",
+	level.Info(l).Log(
+		"msg", "wrote compacted block",
 		"version", block.meta.Version,
 		"tenantID", block.meta.TenantID,
 		"blockID", block.meta.BlockID.String(),

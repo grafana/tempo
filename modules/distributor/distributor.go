@@ -13,6 +13,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
+	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/limiter"
 	dslog "github.com/grafana/dskit/log"
 	"github.com/grafana/dskit/ring"
@@ -28,20 +29,20 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/grafana/tempo/modules/distributor/forwarder"
-	"github.com/grafana/tempo/modules/distributor/receiver"
-	"github.com/grafana/tempo/modules/distributor/usage"
-	"github.com/grafana/tempo/modules/generator"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/dataquality"
-	"github.com/grafana/tempo/pkg/ingest"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/usagestats"
-	"github.com/grafana/tempo/pkg/util"
-	tempo_log "github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/pkg/validation"
+	"github.com/grafana/tempo/v3/modules/distributor/forwarder"
+	"github.com/grafana/tempo/v3/modules/distributor/receiver"
+	"github.com/grafana/tempo/v3/modules/distributor/usage"
+	"github.com/grafana/tempo/v3/modules/generator"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/pkg/dataquality"
+	"github.com/grafana/tempo/v3/pkg/ingest"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1_common "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/usagestats"
+	"github.com/grafana/tempo/v3/pkg/util"
+	tempo_log "github.com/grafana/tempo/v3/pkg/util/log"
+	"github.com/grafana/tempo/v3/pkg/validation"
 )
 
 const (
@@ -51,7 +52,19 @@ const (
 
 	// 16 covers the typical spans-per-trace seen in production.
 	maxPreallocSpansPerTrace = 16
+
+	// ringAutoForgetUnhealthyPeriods is how many heartbeat-timeout periods of
+	// silence elapse before a distributor entry is auto-removed from the ring.
+	ringAutoForgetUnhealthyPeriods = 2
+
+	// Distributors only need a single token: the ring is used for
+	// HealthyInstancesCount (global ingestion-rate divisor), not sharding.
+	ringNumTokens = 1
 )
+
+// ringOp matches the semantics of the legacy Lifecycler.HealthyInstancesCount:
+// count instances in the ACTIVE state, no extension into LEAVING.
+var ringOp = ring.NewOp([]ring.InstanceState{ring.ACTIVE}, nil)
 
 var (
 	metricGeneratorPushes = promauto.NewCounterVec(prometheus.CounterOpts{
@@ -93,6 +106,20 @@ var (
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
+	metricPushBytes = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace:                       "tempo",
+		Name:                            "distributor_push_bytes",
+		Help:                            "The decoded size of each push, per tenant",
+		Buckets:                         prometheus.ExponentialBuckets(1024, 2, 16), // 1KiB to 32MiB
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
+	}, []string{"tenant"})
+	metricReceivedTraces = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "distributor_received_traces_total",
+		Help:      "The total number of traces received per tenant",
+	}, []string{"tenant"})
 	metricAttributesTruncated = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "distributor_attributes_truncated_total",
@@ -238,20 +265,51 @@ func New(
 	var distributorRing *ring.Ring
 
 	if o.IngestionRateStrategy() == overrides.GlobalIngestionRateStrategy {
-		lifecyclerCfg := cfg.DistributorRing.ToLifecyclerConfig()
-		lifecycler, err := ring.NewLifecycler(lifecyclerCfg, nil, "distributor", cfg.OverrideRingKey, false, logger, prometheus.WrapRegistererWithPrefix("tempo_", reg))
+		ringReg := prometheus.WrapRegistererWithPrefix("tempo_", reg)
+
+		lifecyclerStore, err := kv.NewClient(
+			cfg.DistributorRing.KVStore,
+			ring.GetCodec(),
+			kv.RegistererWithKVName(ringReg, "distributor-lifecycler"),
+			logger,
+		)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("unable to initialize distributor ring KV client: %w", err)
+		}
+
+		basicCfg, err := toBasicLifecyclerConfig(cfg.DistributorRing, logger)
+		if err != nil {
+			return nil, fmt.Errorf("invalid distributor ring config: %w", err)
+		}
+
+		// Delegates are chained in reverse order of invocation: AutoForget
+		// runs first on each heartbeat, then LeaveOnStopping on shutdown,
+		// then the Distributor's own delegate methods.
+		// Forget unhealthy peers after 2 * heartbeat_timeout, matching the
+		// pattern used by livestore and backendworker.
+		var delegate ring.BasicLifecyclerDelegate = &distributorLifecyclerDelegate{}
+		delegate = ring.NewLeaveOnStoppingDelegate(delegate, logger)
+		delegate = ring.NewAutoForgetDelegate(
+			ringAutoForgetUnhealthyPeriods*cfg.DistributorRing.HeartbeatTimeout,
+			delegate, logger,
+		)
+
+		lifecycler, err := ring.NewBasicLifecycler(
+			basicCfg, "distributor", cfg.OverrideRingKey,
+			lifecyclerStore, delegate, logger, ringReg,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("unable to initialize distributor ring lifecycler: %w", err)
 		}
 		subservices = append(subservices, lifecycler)
-		ingestionRateStrategy = newGlobalIngestionRateStrategy(o, lifecycler)
 
-		ring, err := ring.New(lifecyclerCfg.RingConfig, "distributor", cfg.OverrideRingKey, logger, prometheus.WrapRegistererWithPrefix("tempo_", reg))
+		distributorRing, err = ring.New(cfg.DistributorRing.ToLifecyclerConfig().RingConfig, "distributor", cfg.OverrideRingKey, logger, ringReg)
 		if err != nil {
 			return nil, fmt.Errorf("unable to initialize distributor ring: %w", err)
 		}
-		distributorRing = ring
 		subservices = append(subservices, distributorRing)
+
+		ingestionRateStrategy = newGlobalIngestionRateStrategy(o, ringHealthyCounter{distributorRing})
 	} else {
 		ingestionRateStrategy = newLocalIngestionRateStrategy(o)
 	}
@@ -420,6 +478,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 	span.SetAttributes(attribute.String("orgID", userID))
 	defer d.padWithArtificialDelay(reqStart, userID)
 	metricIngressBytes.WithLabelValues(userID).Add(float64(size))
+	metricPushBytes.WithLabelValues(userID).Observe(float64(size))
 
 	if spanCount == 0 {
 		return &tempopb.PushResponse{}, nil
@@ -783,6 +842,7 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 	}
 
 	metricTracesPerBatch.Observe(float64(len(tracesByID)))
+	metricReceivedTraces.WithLabelValues(userID).Add(float64(len(tracesByID)))
 
 	ringTokens := make([]uint32, 0, len(tracesByID))
 	traces := make([]*rebatchedTrace, 0, len(tracesByID))
@@ -887,7 +947,8 @@ func logSpans(batches []*v1.ResourceSpans, cfg *LogSpansConfig, logger log.Logge
 				loggerWithAtts = log.With(
 					loggerWithAtts,
 					"span_"+strutil.SanitizeLabelName(a.GetKey()),
-					util.StringifyAnyValue(a.GetValue()))
+					util.StringifyAnyValue(a.GetValue()),
+				)
 			}
 		}
 
@@ -909,7 +970,8 @@ func logSpan(s *v1.Span, allAttributes bool, logger log.Logger) {
 			logger = log.With(
 				logger,
 				"span_"+strutil.SanitizeLabelName(a.GetKey()),
-				util.StringifyAnyValue(a.GetValue()))
+				util.StringifyAnyValue(a.GetValue()),
+			)
 		}
 
 		latencySeconds := float64(s.GetEndTimeUnixNano()-s.GetStartTimeUnixNano()) / float64(time.Second.Nanoseconds())
@@ -918,7 +980,8 @@ func logSpan(s *v1.Span, allAttributes bool, logger log.Logger) {
 			"span_name", s.Name,
 			"span_duration_seconds", latencySeconds,
 			"span_kind", s.GetKind().String(),
-			"span_status", s.GetStatus().GetCode().String())
+			"span_status", s.GetStatus().GetCode().String(),
+		)
 	}
 
 	level.Info(logger).Log("spanid", hex.EncodeToString(s.SpanId), "traceid", hex.EncodeToString(s.TraceId))

@@ -12,6 +12,7 @@ rather than in the generic attribute key-value list.
 Dedicated attribute columns are available when using `vParquet4` or later block formats.
 
 `vParquet5` expands on the feature with doubled string column limits, integer dedicated columns, event-scoped attributes, array-valued attributes, and blob attributes using the `options` field.
+As of Tempo 3.1, Tempo writes `vParquet5` by default, so these expanded limits apply without setting `storage.trace.block.version`.
 
 ## Configuration
 

@@ -41,9 +41,12 @@ var (
 // ExportPartitionLagMetrics in a background goroutine by periodically querying Kafka state
 // for the assigned and active partitions.  This exports the lag metric in number of records
 // which is different than the lag metric for age.
-// Call ResetLagMetricsForRevokedPartitions when partitions are revoked to prevent exporting
-// stale data. For efficiency this is not detected automatically from changes inthe assigned
-// partition callback.
+// Each tick also reconciles the exported series against the current assigned-partition set and
+// deletes series for partitions no longer assigned to this consumer. This is a safety net for
+// handoffs that do not deliver a clean OnPartitionsRevoked (e.g. the round-robin distribution of
+// inactive partitions in cooperativeActiveStickyBalancer), which otherwise leaves stale,
+// ever-growing lag on the previous owner. Callers may still call ResetLagMetricsForRevokedPartitions
+// on revoke for an immediate cleanup rather than waiting for the next tick.
 func ExportPartitionLagMetrics(ctx context.Context, kclient *kgo.Client, log log.Logger, cfg Config, getAssignedActivePartitions func() []int32, forceMetadataRefresh func()) {
 	go func() {
 		var (
@@ -57,6 +60,11 @@ func ExportPartitionLagMetrics(ctx context.Context, kclient *kgo.Client, log log
 			})
 			admClient       = kadm.NewClient(kclient)
 			partitionClient = NewPartitionOffsetClient(kclient, topic)
+
+			// trackedPartitions is the set of partitions for which we have exported lag
+			// metrics, used to prune series for partitions that are no longer assigned to
+			// this consumer so stale lag can't accumulate and trip alerts.
+			trackedPartitions = make(map[int32]struct{})
 		)
 
 		for {
@@ -67,6 +75,12 @@ func ExportPartitionLagMetrics(ctx context.Context, kclient *kgo.Client, log log
 					err error
 				)
 				assignedPartitions := getAssignedActivePartitions()
+
+				// Prune series for partitions moved off this consumer since the last tick, and
+				// record the current assigned set as tracked. This runs before the lag fetch so
+				// ownership changes are still reconciled even if getGroupLag fails for several ticks.
+				pruneUnassignedLagMetrics(group, assignedPartitions, trackedPartitions)
+
 				boff.Reset()
 				for boff.Ongoing() {
 					lag, err = getGroupLag(ctx, admClient, partitionClient, group, assignedPartitions)
@@ -81,6 +95,7 @@ func ExportPartitionLagMetrics(ctx context.Context, kclient *kgo.Client, log log
 					level.Error(log).Log("msg", "metric lag failed:", "err", err, "retries", boff.NumRetries())
 					continue
 				}
+
 				for _, p := range assignedPartitions {
 					l, ok := lag.Lookup(topic, p)
 					if ok {
@@ -108,6 +123,27 @@ func ResetLagMetricsForRevokedPartitions(group string, partitions []int32) {
 		l := strconv.Itoa(int(p))
 		metricPartitionLag.DeletePartialMatch(prometheus.Labels{labelGroup: group, labelPartition: l})
 		metricPartitionLagSeconds.DeletePartialMatch(prometheus.Labels{labelGroup: group, labelPartition: l})
+	}
+}
+
+// pruneUnassignedLagMetrics deletes exported lag series for partitions in tracked that are no
+// longer present in assignedPartitions, then records assignedPartitions as the new tracked set.
+// tracked is mutated in place. This reconciles the exported metrics with actual ownership each
+// tick, so a partition moved to another consumer stops exporting stale lag even if no clean
+// OnPartitionsRevoked was delivered for it.
+func pruneUnassignedLagMetrics(group string, assignedPartitions []int32, tracked map[int32]struct{}) {
+	assigned := make(map[int32]struct{}, len(assignedPartitions))
+	for _, p := range assignedPartitions {
+		assigned[p] = struct{}{}
+	}
+	for p := range tracked {
+		if _, ok := assigned[p]; !ok {
+			ResetLagMetricsForRevokedPartitions(group, []int32{p})
+			delete(tracked, p)
+		}
+	}
+	for _, p := range assignedPartitions {
+		tracked[p] = struct{}{}
 	}
 }
 

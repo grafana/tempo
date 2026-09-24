@@ -11,21 +11,21 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	tempo_log "github.com/grafana/tempo/pkg/util/log"
+	tempo_log "github.com/grafana/tempo/v3/pkg/util/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
-	"github.com/grafana/tempo/modules/generator/localentitylimiter"
-	"github.com/grafana/tempo/modules/generator/localserieslimiter"
-	"github.com/grafana/tempo/modules/generator/processor"
-	"github.com/grafana/tempo/modules/generator/processor/hostinfo"
-	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
-	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
-	"github.com/grafana/tempo/modules/generator/registry"
-	"github.com/grafana/tempo/modules/generator/storage"
-	"github.com/grafana/tempo/modules/generator/validation"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/modules/generator/localentitylimiter"
+	"github.com/grafana/tempo/v3/modules/generator/localserieslimiter"
+	"github.com/grafana/tempo/v3/modules/generator/processor"
+	"github.com/grafana/tempo/v3/modules/generator/processor/hostinfo"
+	"github.com/grafana/tempo/v3/modules/generator/processor/servicegraphs"
+	"github.com/grafana/tempo/v3/modules/generator/processor/spanmetrics"
+	"github.com/grafana/tempo/v3/modules/generator/registry"
+	"github.com/grafana/tempo/v3/modules/generator/storage"
+	"github.com/grafana/tempo/v3/modules/generator/validation"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
 
 	"go.uber.org/atomic"
 )
@@ -161,7 +161,7 @@ func (i *instance) updateSubprocessors(desiredProcessors map[string]struct{}, de
 func (i *instance) updateSpanMetricsSubprocessors(desiredProcessors map[string]struct{}, desiredCfg ProcessorConfig) (map[string]struct{}, ProcessorConfig) {
 	desiredProcessorsFound := false
 	for d := range desiredProcessors {
-		if (d == processor.SpanMetricsName) || (spanmetrics.ParseSubprocessor(d)) {
+		if (d == processor.SpanMetricsName) || spanmetrics.ParseSubprocessor(d) {
 			desiredProcessorsFound = true
 		}
 	}
@@ -210,7 +210,7 @@ func (i *instance) updateSpanMetricsSubprocessors(desiredProcessors map[string]s
 func (i *instance) updateServiceGraphsSubprocessors(desiredProcessors map[string]struct{}, desiredCfg ProcessorConfig) (map[string]struct{}, ProcessorConfig) {
 	desiredProcessorsFound := false
 	for d := range desiredProcessors {
-		if (d == processor.ServiceGraphsName) || (servicegraphs.ParseSubprocessor(d)) {
+		if (d == processor.ServiceGraphsName) || servicegraphs.ParseSubprocessor(d) {
 			desiredProcessorsFound = true
 		}
 	}

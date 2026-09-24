@@ -8,10 +8,10 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/grafana/tempo/modules/overrides/histograms"
-	"github.com/grafana/tempo/pkg/sharedconfig"
-	"github.com/grafana/tempo/pkg/spanfilter/config"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v3/modules/overrides/histograms"
+	"github.com/grafana/tempo/v3/pkg/sharedconfig"
+	"github.com/grafana/tempo/v3/pkg/spanfilter/config"
+	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
 type Service interface {
@@ -91,6 +91,9 @@ type Interface interface {
 	UnsafeQueryHints(userID string) bool
 	LeftPadTraceIDs(userID string) bool
 	MetricsSpanOnlyFetch(userID string) *bool
+	SpanPruningAwareness(userID string) bool
+	EngineBytesTracking(userID string) *bool
+	SpanPruningEnabled(userID string) *bool
 	CostAttributionMaxCardinality(userID string) uint64
 	CostAttributionDimensions(userID string) map[string]string
 

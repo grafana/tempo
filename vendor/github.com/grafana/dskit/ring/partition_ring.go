@@ -454,7 +454,7 @@ func (r *PartitionRing) MultiPartitionOwnerIDs(partitionID int32, buf []string) 
 func (r *PartitionRing) String() string {
 	buf := bytes.Buffer{}
 	for pid, pd := range r.desc.Partitions {
-		buf.WriteString(fmt.Sprintf(" %d:%v", pid, pd.State.String()))
+		fmt.Fprintf(&buf, " %d:%v", pid, pd.State.String())
 	}
 
 	return fmt.Sprintf("PartitionRing{ownersCount: %d, partitionsCount: %d, partitions: {%s}}", len(r.desc.Owners), len(r.desc.Partitions), buf.String())

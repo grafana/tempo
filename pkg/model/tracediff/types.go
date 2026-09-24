@@ -1,8 +1,14 @@
 package tracediff
 
-const VersionTracePatchV0 = "trace-patch-v0"
+const (
+	VersionTracePatchV0 = "trace-patch-v0"
+	// VersionTraceSummaryV0Native is the single summary format: a compact
+	// triage/localization document computed from normalized traces and matcher
+	// results, with complete changed-service enumeration and uncapped rollups.
+	VersionTraceSummaryV0Native = "trace-summary-v0-native"
+)
 
-// Format selects the output representation.
+// Format selects a diff format implemented directly by Diff.
 type Format string
 
 const (
@@ -30,14 +36,18 @@ const (
 // Field names (Target.Name) and attribute scopes (Target.Scope) in the
 // trace-patch-v0 vocabulary.
 const (
-	FieldDurationMs = "duration_ms"
-	FieldStatus     = "status"
-	ScopeSpan       = "span"
+	FieldDurationNanos = "duration_nanos"
+	FieldStatus        = "status"
+	ScopeSpan          = "span"
 )
 
-// Warning codes in the trace-patch-v0 vocabulary.
+// Warning codes emitted by trace diff and trace-diff CLI outputs.
 const (
 	WarningHighCardinalitySpanName = "high_cardinality_span_name"
+	WarningPartialTrace            = "partial_trace"
+	WarningInvalidDuration         = "invalid_duration"
+	WarningZeroSpanTrace           = "zero_span_trace"
+	WarningDuplicateSpanID         = "duplicate_span_id"
 )
 
 // Result is the trace-patch-v0 diff document.
@@ -119,12 +129,12 @@ type SpanTarget struct {
 
 // SpanSnapshot is the minimal span data needed to render an add/remove.
 type SpanSnapshot struct {
-	Path       []int  `json:"path"`
-	Service    string `json:"service"`
-	Name       string `json:"name"`
-	Kind       string `json:"kind"`
-	DurationMs int64  `json:"duration_ms"`
-	Status     string `json:"status"`
+	Path          []int  `json:"path"`
+	Service       string `json:"service"`
+	Name          string `json:"name"`
+	Kind          string `json:"kind"`
+	DurationNanos int64  `json:"duration_nanos"`
+	Status        string `json:"status"`
 }
 
 // Warning reports non-fatal limits or matcher caveats.

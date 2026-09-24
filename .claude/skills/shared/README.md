@@ -88,10 +88,40 @@ This directory contains **foundation** resources for documentation agents and wr
 
 **Key contents**:
 
-- Multi-phase workflow (CHANGELOG curation, docs assessment, gap resolution, drafting, validation)
+- Multi-phase workflow (pending-entry curation, docs assessment, gap resolution, drafting, validation)
 - PR classification (docs present, docs needed, docs update needed, no docs required)
 - Templates and prompts
 - Iteration checklist for quality
+
+### [`release-notes-placement.md`](release-notes-placement.md)
+
+**Purpose**: Where each changelog entry belongs in the release notes
+
+**When to use**:
+
+- Phase 0 sorting (required from Step 3b of the workflow)
+- Deciding highlight vs brief include vs cite prior notes vs exclude
+
+**Key contents**:
+
+- Placement labels
+- Normal-minor vs cite-earlier-notes
+- Always-keep and exclude lists
+
+### [`vale-compact.sh`](vale-compact.sh)
+
+**Purpose**: Compact Vale output for linting docs
+
+**When to use**:
+
+- Running the linter during Phase 5 of the release notes workflow or during `docs-review`
+- Anywhere `vale <file>` would be used -- same findings, without Vale's repeated per-finding boilerplate paragraph
+
+**Key contents**:
+
+- Wraps `vale --output=JSON` and prints one line per finding (`file:line:col  severity  Rule  'matched text'`) plus a count-by-rule summary
+- Falls back to raw `vale` output (or a warning) if `jq` or `vale` aren't installed
+- Exits non-zero only if an `error`-severity finding remains
 
 ### [`personas.md`](personas.md)
 
@@ -122,10 +152,11 @@ This directory contains **foundation** resources for documentation agents and wr
 ### For Release Notes
 
 1. **Follow** [`release-notes-workflow.md`](release-notes-workflow.md) for the complete multi-phase process
-2. **Use** [`../docs-pr-check/SKILL.md`](../docs-pr-check/SKILL.md) for documentation assessment
-3. **Use** [`../docs-pr-write/SKILL.md`](../docs-pr-write/SKILL.md) for documentation gap resolution
-4. **Reference** [`style-guide.md`](style-guide.md) for general style rules
-5. **Use** [`verification-checklist.md`](verification-checklist.md) before submitting
+2. **Read** [`release-notes-placement.md`](release-notes-placement.md) during Phase 0 sorting
+3. **Use** [`../docs-pr-check/SKILL.md`](../docs-pr-check/SKILL.md) for documentation assessment
+4. **Use** [`../docs-pr-write/SKILL.md`](../docs-pr-write/SKILL.md) for documentation gap resolution
+5. **Reference** [`style-guide.md`](style-guide.md) for general style rules
+6. **Use** [`verification-checklist.md`](verification-checklist.md) before submitting
 
 ### For Updating Existing Documentation
 
@@ -147,7 +178,7 @@ This directory contains **foundation** resources for documentation agents and wr
 |------|-----------------|-------------------|
 | Starting new docs | `docs-context-guide.md` | `style-guide.md` |
 | Updating docs | `docs-context-guide.md` | `verification-checklist.md` |
-| Writing release notes | `release-notes-workflow.md` | `style-guide.md` |
+| Writing release notes | `release-notes-workflow.md` | `release-notes-placement.md` |
 | PR docs assessment (triage) | `../docs-pr-check/SKILL.md` | `release-notes-workflow.md` |
 | PR docs writing (execution) | `../docs-pr-write/SKILL.md` | `release-notes-workflow.md` |
 | Metrics-generator work | `.agents/doc-agents/shared/metrics-generator-knowledge.md` | `verification-checklist.md` |

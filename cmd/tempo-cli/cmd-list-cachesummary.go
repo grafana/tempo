@@ -45,7 +45,7 @@ func displayCacheSummary(results []blockStats) {
 		for len(bloomTable)-1 < int(row) {
 			bloomTable = append(bloomTable, make([]int, 0))
 		}
-		column := -1 * (int(time.Until(r.StartTime) / (time.Hour * 24)))
+		column := -1 * int(time.Until(r.StartTime)/(time.Hour*24))
 		// extend column of given row
 		for len(bloomTable[row])-1 < column {
 			bloomTable[row] = append(bloomTable[row], 0)

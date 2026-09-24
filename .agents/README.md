@@ -74,9 +74,11 @@ The agent handles the rest: reading the repo context guide, looking up PRs, sear
         ├── style-guide.md          # Grafana style rules and templates
         ├── best-practices.md       # Lessons learned and common pitfalls
         ├── verification-checklist.md  # Pre-submission quality checklist
-        ├── release-notes-workflow.md  # Multi-phase release notes process
         ├── metrics-generator-knowledge.md  # Domain knowledge for metrics-generator
         └── docs-context-guide.md   # Tempo docs context guide
+
+.claude/skills/shared/
+└── release-notes-workflow.md      # Multi-phase release notes process (moved here, #7446)
 
 .claude/skills/
 ├── README.md                       # Skills workflow overview
@@ -111,8 +113,9 @@ These files live in [`doc-agents/shared/`](doc-agents/shared/) and are used by a
 | [`style-guide.md`](doc-agents/shared/style-guide.md)                                 | Grafana documentation style rules, templates, and formatting requirements                                    |
 | [`best-practices.md`](doc-agents/shared/best-practices.md)                           | Pre-writing checklist, common pitfalls, documentation patterns (for human writers)                           |
 | [`verification-checklist.md`](doc-agents/shared/verification-checklist.md)           | Comprehensive pre-submission checklist for accuracy, consistency, and completeness                           |
-| [`release-notes-workflow.md`](doc-agents/shared/release-notes-workflow.md)           | Multi-phase workflow for creating release notes, from CHANGELOG curation through final polish                |
 | [`metrics-generator-knowledge.md`](doc-agents/shared/metrics-generator-knowledge.md) | Pointer to `modules/generator/AGENTS.md` (metrics-generator domain knowledge) |
+
+The release notes workflow moved to [`.claude/skills/shared/release-notes-workflow.md`](../.claude/skills/shared/release-notes-workflow.md) (#7446) — it's no longer under `doc-agents/shared/`.
 
 ### Skills
 
@@ -156,7 +159,7 @@ Use the PR workflow when you have a list of PRs that need documentation work (ou
 
 Use the release notes workflow for creating per-version release notes. This is a multi-session process that combines shared resources and skills.
 
-1. Follow [`release-notes-workflow.md`](doc-agents/shared/release-notes-workflow.md) — it covers the full process from CHANGELOG curation (Phase 0) through final polish (Phase 5).
+1. Follow [`release-notes-workflow.md`](../.claude/skills/shared/release-notes-workflow.md) — it covers the full process from source curation (Phase 0) through final polish (Phase 5).
 2. At Phase 1.5, run `/docs-pr-check` to assess documentation status for each PR.
 3. At Phase 1.75, run `/docs-pr-write` to fill documentation gaps.
 4. Reference [`style-guide.md`](doc-agents/shared/style-guide.md) throughout for formatting and conventions.

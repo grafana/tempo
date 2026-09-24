@@ -55,20 +55,26 @@ func newGauge(name string, lifecycler Limiter, externalLabels map[string]string,
 }
 
 func (g *gauge) Set(lbls labels.Labels, value float64) {
-	g.updateSeries(lbls, value, set, true)
+	g.updateSeries(lbls, lbls.Hash(), value, set, true, time.Now().UnixMilli())
+}
+
+func (g *gauge) SetBorrowed(lbls *BorrowedLabels, value float64, timeMs int64) {
+	g.updateSeries(lbls.Labels, lbls.Hash, value, set, true, timeMs)
 }
 
 func (g *gauge) Inc(lbls labels.Labels, value float64) {
-	g.updateSeries(lbls, value, add, true)
+	g.updateSeries(lbls, lbls.Hash(), value, add, true, time.Now().UnixMilli())
 }
 
 func (g *gauge) SetForTargetInfo(lbls labels.Labels, value float64) {
-	g.updateSeries(lbls, value, set, false)
+	g.updateSeries(lbls, lbls.Hash(), value, set, false, time.Now().UnixMilli())
 }
 
-func (g *gauge) updateSeries(lbls labels.Labels, value float64, operation string, updateIfAlreadyExist bool) {
-	hash := lbls.Hash()
+func (g *gauge) SetForTargetInfoBorrowed(lbls *BorrowedLabels, value float64, timeMs int64) {
+	g.updateSeries(lbls.Labels, lbls.Hash, value, set, false, timeMs)
+}
 
+func (g *gauge) updateSeries(lbls labels.Labels, hash uint64, value float64, operation string, updateIfAlreadyExist bool, timeMs int64) {
 	g.seriesMtx.RLock()
 	s, ok := g.series[hash]
 	g.seriesMtx.RUnlock()
@@ -80,7 +86,7 @@ func (g *gauge) updateSeries(lbls labels.Labels, value float64, operation string
 		if !updateIfAlreadyExist {
 			return
 		}
-		g.updateSeriesValue(hash, s, value, operation)
+		g.updateSeriesValue(hash, s, value, operation, timeMs)
 		return
 	}
 
@@ -92,28 +98,28 @@ func (g *gauge) updateSeries(lbls labels.Labels, value float64, operation string
 		if !updateIfAlreadyExist {
 			return
 		}
-		g.updateSeriesValue(hash, s, value, operation)
+		g.updateSeriesValue(hash, s, value, operation, timeMs)
 		return
 	}
 
-	g.series[hash] = g.newSeries(lbls, value)
+	g.series[hash] = g.newSeries(lbls, value, timeMs)
 }
 
-func (g *gauge) newSeries(lbls labels.Labels, value float64) *gaugeSeries {
+func (g *gauge) newSeries(lbls labels.Labels, value float64, timeMs int64) *gaugeSeries {
 	return &gaugeSeries{
 		labels:      getSeriesLabels(g.metricName, lbls, g.externalLabels),
 		value:       atomic.NewFloat64(value),
-		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
+		lastUpdated: atomic.NewInt64(timeMs),
 	}
 }
 
-func (g *gauge) updateSeriesValue(hash uint64, s *gaugeSeries, value float64, operation string) {
+func (g *gauge) updateSeriesValue(hash uint64, s *gaugeSeries, value float64, operation string, timeMs int64) {
 	if operation == add {
 		s.value.Add(value)
 	} else {
 		s.value.Store(value)
 	}
-	s.lastUpdated.Store(time.Now().UnixMilli())
+	s.lastUpdated.Store(timeMs)
 	g.lifecycler.OnUpdate(hash, 1)
 }
 

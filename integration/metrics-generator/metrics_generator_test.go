@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/grafana/e2e"
-	"github.com/grafana/tempo/integration/util"
+	"github.com/grafana/tempo/v3/integration/util"
 	thrift "github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
@@ -432,7 +432,7 @@ func TestMetricsGeneratorMessagingSystemLatencyHistogramEnabled(t *testing.T) {
 			if _, ok := metricFamilies["traces_service_graph_request_messaging_system_seconds_bucket"]; ok {
 				break
 			}
-			time.Sleep(30 * time.Second)
+			time.Sleep(time.Second)
 		}
 
 		// Check that the metric exists and has a non-zero count

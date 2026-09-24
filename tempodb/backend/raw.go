@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
-	tempo_io "github.com/grafana/tempo/pkg/io"
+	tempo_io "github.com/grafana/tempo/v3/pkg/io"
 )
 
 const (
@@ -117,7 +117,7 @@ func (w *writer) WriteBlockMeta(ctx context.Context, meta *BlockMeta) error {
 		return err
 	}
 
-	return w.w.Write(ctx, MetaName, KeyPathForBlock((uuid.UUID)(blockID), tenantID), bytes.NewReader(bMeta), int64(len(bMeta)), nil)
+	return w.w.Write(ctx, MetaName, KeyPathForBlock(uuid.UUID(blockID), tenantID), bytes.NewReader(bMeta), int64(len(bMeta)), nil)
 }
 
 // Write implements backend.Writer

@@ -7,8 +7,8 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
 )
 
 type migrateTenantCmd struct {
@@ -50,7 +50,7 @@ blocks:
 	for _, sourceBlockMeta := range sourceTenantIndex.Meta {
 		// check for collisions
 		for _, uuidDest := range blocksDest {
-			if (uuid.UUID)(sourceBlockMeta.BlockID) == uuidDest {
+			if uuid.UUID(sourceBlockMeta.BlockID) == uuidDest {
 				fmt.Printf("UUID %s exists in source and destination, skipping block\n", sourceBlockMeta.BlockID)
 				continue blocks
 			}

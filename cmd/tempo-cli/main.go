@@ -10,12 +10,12 @@ import (
 	"github.com/alecthomas/kong"
 	"go.yaml.in/yaml/v2"
 
-	"github.com/grafana/tempo/cmd/tempo/app"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/azure"
-	"github.com/grafana/tempo/tempodb/backend/gcs"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/backend/s3"
+	"github.com/grafana/tempo/v3/cmd/tempo/app"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend/azure"
+	"github.com/grafana/tempo/v3/tempodb/backend/gcs"
+	"github.com/grafana/tempo/v3/tempodb/backend/local"
+	"github.com/grafana/tempo/v3/tempodb/backend/s3"
 )
 
 type globalOptions struct {
@@ -54,6 +54,10 @@ var cli struct {
 
 	View struct {
 		Schema viewSchemaCmd `cmd:"" help:"View parquet schema"`
+	} `cmd:""`
+
+	Benchmark struct {
+		Profile benchmarkProfileCmd `cmd:"" help:"Profile a block for read-path benchmarking"`
 	} `cmd:""`
 
 	Gen struct {
@@ -95,14 +99,15 @@ var cli struct {
 	} `cmd:""`
 
 	Experimental struct {
-		TraceDiff experimentalTraceDiffCmd `cmd:"" help:"Compare two local trace JSON files and emit an experimental trace-aware patch"`
+		TraceDiff experimentalTraceDiffCmd `cmd:"" help:"Compare two local trace JSON files and emit an experimental trace-aware diff or summary"`
 	} `cmd:""`
 
 	Redact redactCmd `cmd:"" help:"Submit a redaction request to the backend scheduler"`
 }
 
 func main() {
-	ctx := kong.Parse(&cli,
+	ctx := kong.Parse(
+		&cli,
 		kong.UsageOnError(),
 		kong.ConfigureHelp(kong.HelpOptions{
 			Compact: true,

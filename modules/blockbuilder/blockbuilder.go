@@ -14,11 +14,11 @@ import (
 	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
-	"github.com/grafana/tempo/modules/storage"
-	"github.com/grafana/tempo/pkg/ingest"
-	"github.com/grafana/tempo/tempodb"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/v3/modules/storage"
+	"github.com/grafana/tempo/v3/pkg/ingest"
+	"github.com/grafana/tempo/v3/tempodb"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/twmb/franz-go/pkg/kadm"
@@ -217,7 +217,8 @@ func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 		b.logger,
 		b.cfg.IngestStorageConfig,
 		b.getAssignedPartitions,
-		b.kafkaClient.ForceMetadataRefresh)
+		b.kafkaClient.ForceMetadataRefresh,
+	)
 
 	return nil
 }
@@ -425,7 +426,8 @@ outer:
 					b.cfg.BlockConfig,
 					b.overrides,
 					b.wal,
-					b.enc)
+					b.enc,
+				)
 				init = true
 
 				// TODO(mapno): This call creates a link to the parent span in this trace.
@@ -453,9 +455,11 @@ outer:
 					"partition", ps.partition,
 					"timestamp", rec.Timestamp,
 				)
-				span.AddEvent("max bytes per cycle reached", trace.WithAttributes(
-					attribute.Int64("maxBytesPerCycle", int64(maxBytesPerCycle)),
-					attribute.Int64("consumedBytes", int64(consumedBytes))),
+				span.AddEvent(
+					"max bytes per cycle reached", trace.WithAttributes(
+						attribute.Int64("maxBytesPerCycle", int64(maxBytesPerCycle)),
+						attribute.Int64("consumedBytes", int64(consumedBytes)),
+					),
 				)
 				break outer
 			}

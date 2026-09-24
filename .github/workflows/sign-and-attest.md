@@ -54,6 +54,11 @@ attestations store.
 | `image` | yes | — | Digest-pinned image ref, e.g. `us-docker.pkg.dev/.../tempo-vulture@sha256:...`. The workflow fails fast if it is not digest-pinned. |
 | `registry` | no | `us-docker.pkg.dev` | GAR (Artifact Registry) hostname to authenticate against when writing the signature and attestation. |
 
+## Coverage
+
+`docker.yml` invokes this workflow (matrixed) for every published component:
+**`tempo`, `tempo-vulture`, `tempo-query`, and `tempo-cli`**.
+
 ## Step flow
 
 ```
@@ -63,7 +68,8 @@ attestations store.
 │ 1. Parse & validate image                                    │
 │    - require "@sha256:" (digest-pinned)                      │
 │    - split into subject-name (repo) + subject-digest         │
-│ 2. Login to GAR (OIDC workload identity)                     │
+│ 2. Login to GAR (shared login-to-gar; WIF + cred helper)     │
+│    + add a static `auths` entry for actions/attest           │
 │ 3. Install cosign                                            │
 │ 4. cosign sign      ──▶ keyless signature, logged to Rekor   │
 │ 5. attest-build-provenance ──▶ signed SLSA provenance,       │

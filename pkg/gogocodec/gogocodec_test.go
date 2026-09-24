@@ -5,12 +5,16 @@ package gogocodec
 import (
 	"testing"
 
+	gogoproto "github.com/gogo/protobuf/proto"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v3/cmd/tempo-query/jaeger/storage_v1"
+	"github.com/grafana/tempo/v3/modules/frontend/v1/frontendv1pb"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
 )
 
 type mockOTELProtoMessage struct {
@@ -112,4 +116,26 @@ func TestCodecUnmarshal_unsupported_type(t *testing.T) {
 	err := c.Unmarshal([]byte{0x01}, struct{}{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported unmarshal type")
+}
+
+// All Tempo package families must still select the gogo codec after a module rename.
+func TestCodecTempoPackages(t *testing.T) {
+	tests := []struct {
+		name    string
+		message gogoproto.Message
+		decoded gogoproto.Message
+	}{
+		{"tempo", &tempopb.TraceByIDRequest{TraceID: []byte{1, 2, 3}}, &tempopb.TraceByIDRequest{}},
+		{"frontend", &frontendv1pb.NotifyClientShutdownRequest{ClientID: "querier"}, &frontendv1pb.NotifyClientShutdownRequest{}},
+		{"jaeger storage", &storage_v1.GetServicesResponse{Services: []string{"checkout"}}, &storage_v1.GetServicesResponse{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			codec := NewCodec()
+			data, err := codec.Marshal(tt.message)
+			require.NoError(t, err)
+			require.NoError(t, codec.Unmarshal(data, tt.decoded))
+			require.Equal(t, tt.message, tt.decoded)
+		})
+	}
 }

@@ -61,6 +61,26 @@ Before submitting please run the following to verify that all dependencies and p
 make vendor-check
 ```
 
+## Consuming Tempo from Go
+
+The main module is `github.com/grafana/tempo/v3`.
+Use that prefix for imports such as `github.com/grafana/tempo/v3/pkg/tempopb`
+and `github.com/grafana/tempo/v3/pkg/traceql`.
+Select a v3 release that includes this module-path migration;
+earlier tags such as `v3.0.3` still declare the old path and cannot be fetched using `/v3`.
+Existing release tags are unchanged.
+
+Go does not inherit a dependency's `replace` directives or vendor directory.
+Consumers of server packages such as `cmd/tempo/app` must also apply the
+`github.com/hashicorp/memberlist` replacement from the selected Tempo version's `go.mod`.
+The module-path migration does not remove that requirement.
+The separate `tools` module keeps its existing path.
+
+Run `make test-module-consumer` to check the public protobuf, codec, and TraceQL packages
+from a temporary module with `GOWORK=off`, both with and without vendoring.
+This uses a local replacement to test the checkout;
+public tag resolution can only be verified after a release containing the migration is published.
+
 ## Project structure
 
 ```
@@ -106,8 +126,8 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/opentracing/opentracing-go"
 
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/validation"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/pkg/validation"
 )
 ```
 
@@ -460,6 +480,17 @@ See `.chloggen/README.md` for details.
 ### Keeping your PR up to date
 
 Rebase your PR on `main` if it gets out of sync. Don't merge `main` into your branch.
+
+Once your PR has received a review,
+avoid force pushes — including `git push --force-with-lease`.
+Rewriting history breaks GitHub's "changes since your last review" view
+and forces reviewers to re-read the entire PR.
+Address review feedback by pushing new commits instead.
+If you need to rebase on `main` to resolve conflicts,
+push the rebase on its own with no other changes mixed in,
+and mention it in a PR comment.
+This applies doubly to AI coding agents,
+which tend to reach for `--force-with-lease` by default.
 
 ## Documentation
 

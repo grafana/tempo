@@ -13,18 +13,18 @@ import (
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/services"
-	backendscheduler_client "github.com/grafana/tempo/modules/backendscheduler/client"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/modules/storage"
-	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/wal"
+	backendscheduler_client "github.com/grafana/tempo/v3/modules/backendscheduler/client"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/modules/storage"
+	"github.com/grafana/tempo/v3/pkg/model"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend/local"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
@@ -40,15 +40,9 @@ func TestWorker(t *testing.T) {
 	limitCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
 
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	workerCfg, schedulerClientCfg, overridesSvc, scheduler, store := setupDependencies(ctx, t, limitCfg)
-
-	defer func() {
-		cancel()
-		// Explicitly stop the store to avoid race condition on test fixture shutdown
-		store.StopAsync()
-		_ = store.AwaitTerminated(context.Background())
-	}()
 
 	w, err := New(workerCfg, schedulerClientCfg, store, overridesSvc, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
@@ -198,11 +192,13 @@ func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger, tmpDi
 	}, nil, log)
 	require.NoError(t, err)
 
+	// The store service is never started, so only cancel + Shutdown joins the poller.
+	ctx, cancel := context.WithCancel(ctx)
 	s.EnablePolling(ctx, &ownsEverythingSharder{}, false)
 
 	t.Cleanup(func() {
-		s.StopAsync()
-		require.NoError(t, s.AwaitTerminated(context.Background()))
+		cancel()
+		s.Shutdown()
 	})
 	return s
 }
@@ -260,12 +256,8 @@ func TestProcessRedactionJobMissingBlockObservable(t *testing.T) {
 	limitCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
 
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	workerCfg, schedulerClientCfg, overridesSvc, _, store := setupDependencies(ctx, t, limitCfg)
-	defer func() {
-		cancel()
-		store.StopAsync()
-		_ = store.AwaitTerminated(context.Background())
-	}()
 
 	w, err := New(workerCfg, schedulerClientCfg, store, overridesSvc, prometheus.NewRegistry())
 	require.NoError(t, err)

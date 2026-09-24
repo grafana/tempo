@@ -9,17 +9,20 @@ type LogCluster struct {
 	cache       string
 }
 
-func (c *LogCluster) ingestTokens(tokens []string) {
+func (c *LogCluster) ingestTokens(tokens []string) bool {
 	if len(tokens) != len(c.Tokens) {
 		panic("attempt to create template from sequences with different token lengths")
 	}
+	changed := false
 	for i := range tokens {
 		if tokens[i] != c.Tokens[i] && c.Tokens[i] != c.ParamString {
 			c.Tokens[i] = c.ParamString
 			c.cache = ""
+			changed = true
 		}
 	}
 	c.Size++
+	return changed
 }
 
 func (c *LogCluster) tokenDistance(tokens []string) (float64, int) {
@@ -42,6 +45,15 @@ func (c *LogCluster) tokenDistance(tokens []string) (float64, int) {
 	}
 	retVal := float64(similarTokens) / float64(len(c.Tokens))
 	return retVal, paramCount
+}
+
+func (c *LogCluster) isExact() bool {
+	for _, token := range c.Tokens {
+		if token == c.ParamString {
+			return false
+		}
+	}
+	return true
 }
 
 func (c *LogCluster) String() string {

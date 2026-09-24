@@ -15,15 +15,15 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/multierror"
-	"github.com/grafana/tempo/pkg/dataquality"
-	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/parquetquery"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/pkg/dataquality"
+	"github.com/grafana/tempo/v3/pkg/model"
+	"github.com/grafana/tempo/v3/pkg/model/trace"
+	"github.com/grafana/tempo/v3/pkg/parquetquery"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 	"github.com/parquet-go/parquet-go"
 )
 
@@ -694,13 +694,13 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, _ c
 		Results: &mergeSpansetIterator{
 			iters: iters,
 		},
-		Bytes: func() uint64 {
+		Stats: func() traceql.FetchSpansStats {
 			// read value when callback is called
 			var totalBytesRead uint64
 			for _, r := range readers {
 				totalBytesRead += r.BytesRead()
 			}
-			return totalBytesRead
+			return traceql.FetchSpansStats{Bytes: totalBytesRead}
 		},
 	}, nil
 }

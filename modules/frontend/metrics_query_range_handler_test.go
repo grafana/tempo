@@ -3,6 +3,7 @@ package frontend
 import (
 	"bytes"
 	"context"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,14 +18,16 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/modules/frontend/pipeline"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/cache"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/cache"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -92,6 +95,7 @@ func TestQueryRangeHandlerSucceeds(t *testing.T) {
 			TotalBlocks:     2,
 			TotalBlockBytes: 419430400,
 		},
+		Step: uint64(100 * time.Second),
 		Series: []*tempopb.TimeSeries{
 			{
 				Labels: []v1.KeyValue{
@@ -399,6 +403,10 @@ func TestQueryRangeCachedMetrics(t *testing.T) {
 				Metrics: &tempopb.SearchMetrics{
 					InspectedTraces: 2,
 					InspectedBytes:  33,
+					AdditionalMetrics: map[string]int64{
+						tempopb.AdditionalMetricCacheHits:   5,  // not cacheable
+						tempopb.AdditionalMetricEngineBytes: 42, // cacheable
+					},
 				},
 				Series: []*tempopb.TimeSeries{
 					{
@@ -456,6 +464,8 @@ func TestQueryRangeCachedMetrics(t *testing.T) {
 	require.Equal(t, uint32(1), actualResp.Metrics.TotalJobs)
 	require.Equal(t, uint32(1), actualResp.Metrics.TotalBlocks)
 	require.Equal(t, uint64(defaultTargetBytesPerRequest), actualResp.Metrics.TotalBlockBytes)
+	require.Equal(t, int64(42), actualResp.Metrics.AdditionalMetrics[tempopb.AdditionalMetricEngineBytes])
+	require.Equal(t, int64(5), actualResp.Metrics.AdditionalMetrics[tempopb.AdditionalMetricCacheHits])
 
 	// execute query again
 	respWriter = httptest.NewRecorder()
@@ -470,7 +480,7 @@ func TestQueryRangeCachedMetrics(t *testing.T) {
 	err = jsonpb.Unmarshal(bytes.NewReader(bytesResp), actualResp)
 	require.NoError(t, err)
 
-	// verify metrics are 0 because the response was cached
+	// I/O metrics are 0 because the response was cached
 	require.Equal(t, uint64(0), actualResp.Metrics.InspectedBytes)
 	require.Equal(t, uint32(0), actualResp.Metrics.InspectedTraces)
 	require.Equal(t, uint32(1), actualResp.Metrics.CompletedJobs)
@@ -478,6 +488,10 @@ func TestQueryRangeCachedMetrics(t *testing.T) {
 	require.Equal(t, uint32(1), actualResp.Metrics.TotalJobs)
 	require.Equal(t, uint32(1), actualResp.Metrics.TotalBlocks)
 	require.Equal(t, uint64(defaultTargetBytesPerRequest), actualResp.Metrics.TotalBlockBytes)
+	// cacheable AdditionalMetrics survive the hit; non-cacheable ones do not
+	require.Equal(t, int64(42), actualResp.Metrics.AdditionalMetrics[tempopb.AdditionalMetricEngineBytes])
+	_, ok := actualResp.Metrics.AdditionalMetrics[tempopb.AdditionalMetricCacheHits]
+	require.False(t, ok)
 }
 
 func TestQueryRangeHandlerWithEndCutoff(t *testing.T) {
@@ -1477,4 +1491,88 @@ func (m *mockRoundTripperWithCapture) RoundTrip(req pipeline.Request) (*http.Res
 
 	res, err := m.rt.RoundTrip(req)
 	return res, err
+}
+
+// recordingLogger records log lines so tests can assert on what was logged. It
+// satisfies the go-kit log.Logger interface (Log(...) error) without importing it.
+type recordingLogger struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (l *recordingLogger) Log(keyvals ...interface{}) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	fmt.Fprintln(&l.buf, keyvals...)
+	return nil
+}
+
+func (l *recordingLogger) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.buf.String()
+}
+
+func TestLogQueryRangeResult_IncludesAdditionalMetrics(t *testing.T) {
+	logger := &recordingLogger{}
+	req := &tempopb.QueryRangeRequest{Query: "{} | rate()", Start: 1, End: 2}
+	resp := &tempopb.QueryRangeResponse{
+		Metrics: &tempopb.SearchMetrics{
+			InspectedBytes: 100,
+			AdditionalMetrics: map[string]int64{
+				tempopb.AdditionalMetricEngineBytes: 42,
+				"otherMetric":                       7,
+			},
+		},
+	}
+
+	logQueryRangeResult(context.Background(), logger, "tenant", 1.0, req, resp, nil)
+
+	got := logger.String()
+	require.Contains(t, got, tempopb.AdditionalMetricEngineBytes)
+	require.Contains(t, got, "42")
+	require.Contains(t, got, "otherMetric")
+	require.Contains(t, got, "7")
+}
+
+// TestQueryRangeHandlerLogsErrorReason is a regression test for the HTTP metrics
+// query-range handler dropping the failure reason. When the pipeline returns an
+// error response in-band (a frontend-generated 4xx carried on the http.Response
+// with a nil Go error, e.g. from the URL deny list or a sharder), the result log
+// must record why the request failed. Previously the handler discarded the
+// combiner's error and logged "query range response - no resp" with a nil error,
+// making frontend 4xx/5xx undiagnosable from query-frontend logs.
+func TestQueryRangeHandlerLogsErrorReason(t *testing.T) {
+	const reason = "this query has been identified as one that destabilizes our system"
+
+	var cfg Config
+	cfg.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.PanicOnError))
+
+	// next stands in for the rest of the pipeline and returns a frontend 400 with a
+	// nil Go error, exactly how NewBadRequest surfaces deny-list / sharder rejections.
+	next := pipeline.AsyncRoundTripperFunc[combiner.PipelineResponse](func(_ pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
+		return pipeline.NewBadRequest(fmt.Errorf("%s", reason)), nil
+	})
+
+	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
+	require.NoError(t, err)
+
+	logger := &recordingLogger{}
+	handler := newMetricsQueryRangeHTTPHandler(cfg, next, o, logger, nil)
+
+	httpReq := httptest.NewRequest("GET", api.PathMetricsQueryRange, nil)
+	httpReq = api.BuildQueryRangeRequest(httpReq, &tempopb.QueryRangeRequest{
+		Query: "{} | rate()",
+		Start: uint64(1100 * time.Second),
+		End:   uint64(1300 * time.Second),
+		Step:  uint64(100 * time.Second),
+	}, "")
+	httpReq = httpReq.WithContext(user.InjectOrgID(httpReq.Context(), "foo"))
+
+	resp, err := handler.RoundTrip(httpReq)
+	require.NoError(t, err) // the 400 is carried in-band on resp, not as a Go error
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+	// the result log must record WHY the request failed, not a nil error
+	require.Contains(t, logger.String(), reason)
 }

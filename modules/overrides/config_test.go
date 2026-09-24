@@ -14,12 +14,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v2"
 
-	"github.com/grafana/tempo/modules/overrides/histograms"
-	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
-	"github.com/grafana/tempo/pkg/sharedconfig"
-	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
-	"github.com/grafana/tempo/pkg/util/listtomap"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v3/modules/overrides/histograms"
+	"github.com/grafana/tempo/v3/modules/overrides/userconfigurable/client"
+	"github.com/grafana/tempo/v3/pkg/sharedconfig"
+	filterconfig "github.com/grafana/tempo/v3/pkg/spanfilter/config"
+	"github.com/grafana/tempo/v3/pkg/util/listtomap"
+	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
 // Copied from Cortex
@@ -395,7 +395,7 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		IngestionTenantShardSize:   3,
 		IngestionMaxAttributeBytes: 1000,
 		IngestionArtificialDelay:   durationPtr(5 * time.Minute),
-		IngestionRetryInfoEnabled:  true,
+		IngestionRetryInfoEnabled:  new(true),
 
 		MaxLocalTracesPerUser:  1000,
 		MaxGlobalTracesPerUser: 2000,
@@ -474,6 +474,9 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MaxMetricsDuration:   model.Duration(30 * time.Minute),
 		UnsafeQueryHints:     true,
 		MetricsSpanOnlyFetch: boolPtr(true),
+		SpanPruningAwareness: true,
+		EngineBytesTracking:  boolPtr(true),
+		SpanPruningEnabled:   boolPtr(true),
 
 		MaxBytesPerTrace: 10 * 1024 * 1024,
 

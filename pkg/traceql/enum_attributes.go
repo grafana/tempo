@@ -120,6 +120,13 @@ const (
 	IntrinsicSpanStartTime
 
 	IntrinsicServiceStats
+
+	// IntrinsicSpanMultiplier is a synthetic per-span value that resolves to
+	// 1 / sampling_probability when the span carries an OpenTelemetry probability
+	// sampling threshold in its W3C tracestate (or a configured ratio attribute).
+	// It is used by TraceQL metrics queries to extrapolate observed counts/sums
+	// back to the un-sampled population. It is not parseable from query text.
+	IntrinsicSpanMultiplier
 )
 
 var (
@@ -145,6 +152,7 @@ var (
 	IntrinsicEventTimeSinceStartAttribute    = NewIntrinsic(IntrinsicEventTimeSinceStart)
 	IntrinsicInstrumentationNameAttribute    = NewIntrinsic(IntrinsicInstrumentationName)
 	IntrinsicInstrumentationVersionAttribute = NewIntrinsic(IntrinsicInstrumentationVersion)
+	IntrinsicSpanMultiplierAttribute         = NewIntrinsic(IntrinsicSpanMultiplier)
 )
 
 func (i Intrinsic) String() string {
@@ -216,6 +224,8 @@ func (i Intrinsic) String() string {
 		return "nestedSetRight"
 	case IntrinsicNestedSetParent:
 		return "nestedSetParent"
+	case IntrinsicSpanMultiplier:
+		return "span:multiplier"
 	}
 
 	return fmt.Sprintf("intrinsic(%d)", i)

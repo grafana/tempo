@@ -11,12 +11,12 @@ import (
 
 	"github.com/grafana/dskit/grpcclient"
 	"github.com/grafana/dskit/user"
-	livestore_client "github.com/grafana/tempo/modules/livestore/client"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/modules/querier/worker"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	livestore_client "github.com/grafana/tempo/v3/modules/livestore/client"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/modules/querier/worker"
+	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1_trace "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 )
@@ -110,6 +110,50 @@ func TestVirtualTagsDoesntHitBackend(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.Nil(t, resp)
+}
+
+func TestPostProcessIngesterSearchResultsMergesReadMetrics(t *testing.T) {
+	q := &Querier{}
+
+	resp := q.postProcessIngesterSearchResults(&tempopb.SearchRequest{}, []any{
+		&tempopb.SearchResponse{
+			Metrics: &tempopb.SearchMetrics{
+				InspectedTraces: 1,
+				InspectedBytes:  2,
+				InspectedSpans:  3,
+				BackendReads:    4,
+				BackendBytes:    5,
+				AdditionalMetrics: map[string]int64{
+					tempopb.AdditionalMetricCacheHits: 6,
+				},
+			},
+		},
+		&tempopb.SearchResponse{
+			Metrics: &tempopb.SearchMetrics{
+				InspectedTraces: 7,
+				InspectedBytes:  8,
+				InspectedSpans:  9,
+				BackendReads:    10,
+				BackendBytes:    11,
+				AdditionalMetrics: map[string]int64{
+					tempopb.AdditionalMetricCacheHits:   12,
+					tempopb.AdditionalMetricCacheMisses: 13,
+				},
+			},
+		},
+	})
+
+	require.Equal(t, &tempopb.SearchMetrics{
+		InspectedTraces: 1 + 7,
+		InspectedBytes:  2 + 8,
+		InspectedSpans:  3 + 9,
+		BackendReads:    4 + 10,
+		BackendBytes:    5 + 11,
+		AdditionalMetrics: map[string]int64{
+			tempopb.AdditionalMetricCacheHits:   6 + 12,
+			tempopb.AdditionalMetricCacheMisses: 13,
+		},
+	}, resp.Metrics)
 }
 
 func TestFindTraceByID_ExternalMode(t *testing.T) {

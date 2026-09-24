@@ -6,9 +6,9 @@ import (
 
 	"github.com/go-kit/log"
 
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
 type Finder interface {
@@ -28,7 +28,7 @@ type Searcher interface {
 	SearchTagValues(ctx context.Context, tag string, cb TagValuesCallback, mcb MetricsCallback, opts SearchOptions) error
 	SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb TagValuesCallbackV2, mcb MetricsCallback, opts SearchOptions) error
 
-	// TODO(suraj): use MetricsCallback in Fetch and remove the Bytes callback from FetchSpansResponse
+	// TODO(suraj): use MetricsCallback in Fetch and remove the Stats callback from FetchSpansResponse
 	Fetch(context.Context, traceql.FetchSpansRequest, SearchOptions) (traceql.FetchSpansResponse, error)
 	FetchSpans(context.Context, traceql.FetchSpansRequest, SearchOptions) (traceql.FetchSpansOnlyResponse, error)
 	FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, MetricsCallback, SearchOptions) error

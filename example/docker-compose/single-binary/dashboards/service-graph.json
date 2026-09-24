@@ -22,7 +22,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "label_replace(label_replace(label_replace(max by (client) (traces_service_graph_connection_info), \"id\", \"$1\", \"client\", \"(.*)\"), \"title\", \"$1\", \"client\", \"(.*)\"), \"color\", \"#1F3A6E\", \"\", \"\")",
+          "expr": "label_replace(label_replace(label_replace(max by (client) (traces_service_graph_request_total), \"id\", \"$1\", \"client\", \"(.*)\"), \"title\", \"$1\", \"client\", \"(.*)\"), \"color\", \"#1F3A6E\", \"\", \"\")",
           "format": "table",
           "instant": true,
           "legendFormat": "",
@@ -30,7 +30,7 @@
         },
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "label_replace(label_replace(label_replace(max by (server) (traces_service_graph_connection_info), \"id\", \"$1\", \"server\", \"(.*)\"), \"title\", \"$1\", \"server\", \"(.*)\"), \"color\", \"#1F3A6E\", \"\", \"\")",
+          "expr": "label_replace(label_replace(label_replace(max by (server) (traces_service_graph_request_total), \"id\", \"$1\", \"server\", \"(.*)\"), \"title\", \"$1\", \"server\", \"(.*)\"), \"color\", \"#1F3A6E\", \"\", \"\")",
           "format": "table",
           "instant": true,
           "legendFormat": "",
@@ -38,7 +38,7 @@
         },
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "label_replace(label_replace(label_join(traces_service_graph_connection_info, \"id\", \"->\", \"client\", \"server\"), \"source\", \"$1\", \"client\", \"(.*)\"), \"target\", \"$1\", \"server\", \"(.*)\")",
+          "expr": "label_replace(label_replace(label_join(traces_service_graph_request_total, \"id\", \"->\", \"client\", \"server\"), \"source\", \"$1\", \"client\", \"(.*)\"), \"target\", \"$1\", \"server\", \"(.*)\")",
           "format": "table",
           "instant": true,
           "legendFormat": "",

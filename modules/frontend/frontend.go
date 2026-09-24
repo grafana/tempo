@@ -17,14 +17,14 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
-	"github.com/grafana/tempo/modules/frontend/combiner"
-	"github.com/grafana/tempo/modules/frontend/pipeline"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/cache"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/tempodb"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/cache"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/tempodb"
+	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
 type RoundTripperFunc func(*http.Request) (*http.Response, error)
@@ -47,7 +47,7 @@ type (
 )
 
 type QueryFrontend struct {
-	TraceByIDHandler, TraceByIDHandlerV2, SearchHandler                                        http.Handler
+	TraceByIDHandler, TraceByIDHandlerV2, TraceDiffHandler, SearchHandler                      http.Handler
 	SearchTagsHandler, SearchTagsV2Handler, SearchTagsValuesHandler, SearchTagsValuesV2Handler http.Handler
 	MetricsQueryInstantHandler, MetricsQueryRangeHandler                                       http.Handler
 	MCPHandler                                                                                 http.Handler
@@ -148,7 +148,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			newAsyncTraceIDSharder(&cfg.TraceByID, cfg.Config.MaxOutstandingPerTenant, reader, jobsPerQuery, logger),
 		},
 		[]pipeline.Middleware{traceIDStatusCodeWare, retryWare},
-		next)
+		next,
+	)
 
 	searchPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
@@ -162,7 +163,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			newAsyncSearchSharder(reader, o, cfg.Search.Sharder, cfg.SkipASTTransformations, jobsPerQuery, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
-		next)
+		next,
+	)
 
 	searchTagsPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
@@ -175,7 +177,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagsRequest, jobsPerQuery, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
-		next)
+		next,
+	)
 
 	searchTagValuesPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
@@ -188,7 +191,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequest, jobsPerQuery, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
-		next)
+		next,
+	)
 
 	searchTagValuesV2Pipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
@@ -201,7 +205,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequestV2, jobsPerQuery, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
-		next)
+		next,
+	)
 
 	// traceql metrics
 	queryRangePipeline := pipeline.Build(
@@ -215,7 +220,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, cfg.SkipASTTransformations, false, jobsPerQuery, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
-		next)
+		next,
+	)
 
 	queryInstantPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
@@ -228,10 +234,12 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, cfg.SkipASTTransformations, true, jobsPerQuery, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
-		next)
+		next,
+	)
 
 	traces := newTraceIDHandler(cfg, tracePipeline, o, combiner.NewTypedTraceByID, logger, dataAccessController)
 	tracesV2 := newTraceIDV2Handler(cfg, tracePipeline, o, combiner.NewTypedTraceByIDV2, logger, dataAccessController)
+	traceDiff := newTraceDiffHandler(cfg, apiPrefix, tracePipeline, o, combiner.NewTypedTraceByIDV2, cacheProvider, logger, dataAccessController)
 	search := newSearchHTTPHandler(cfg, searchPipeline, o, logger, dataAccessController)
 	searchTags := newTagsHTTPHandler(cfg, searchTagsPipeline, o, logger, dataAccessController)
 	searchTagsV2 := newTagsV2HTTPHandler(cfg, searchTagsPipeline, o, logger, dataAccessController)
@@ -244,6 +252,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		// http/discrete
 		TraceByIDHandler:           newHandler(cfg.Config.LogQueryRequestHeaders, traces, logger),
 		TraceByIDHandlerV2:         newHandler(cfg.Config.LogQueryRequestHeaders, tracesV2, logger),
+		TraceDiffHandler:           newHandler(cfg.Config.LogQueryRequestHeaders, traceDiff, logger),
 		SearchHandler:              newHandler(cfg.Config.LogQueryRequestHeaders, search, logger),
 		SearchTagsHandler:          newHandler(cfg.Config.LogQueryRequestHeaders, searchTags, logger),
 		SearchTagsV2Handler:        newHandler(cfg.Config.LogQueryRequestHeaders, searchTagsV2, logger),
