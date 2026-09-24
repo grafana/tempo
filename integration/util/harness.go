@@ -13,7 +13,6 @@ import (
 
 	"github.com/grafana/e2e"
 	e2edb "github.com/grafana/e2e/db"
-	"github.com/grafana/e2e/images"
 	"github.com/grafana/tempo/v3/cmd/tempo/app"
 	"github.com/grafana/tempo/v3/modules/overrides"
 	"github.com/grafana/tempo/v3/tempodb/backend"
@@ -54,11 +53,6 @@ const (
 	azuriteImage = "mcr.microsoft.com/azure-storage/azurite:3.35.0"
 	gcsImage     = "fsouza/fake-gcs-server:1.52.2"
 )
-
-func init() {
-	// MinIO no longer publishes images; use the community fork build.
-	images.Minio = "pgsty/minio:RELEASE.2026-08-04T00-00-00Z"
-}
 
 // DeploymentMode specifies whether to run Tempo as a single binary, microservices or none.
 type DeploymentMode int
