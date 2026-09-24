@@ -2,6 +2,7 @@ package local
 
 import (
 	"context"
+	"errors"
 	"io"
 	"io/fs"
 	"os"
@@ -199,6 +200,12 @@ func (rw *Backend) ListBlocks(_ context.Context, tenant string) (metas []uuid.UU
 	fff := os.DirFS(rootPath)
 	err = fs.WalkDir(fff, ".", func(path string, _ fs.DirEntry, err error) error {
 		if err != nil {
+			// Blocks can be deleted by retention while the blocklist is being
+			// walked. A vanished child is no longer part of the blocklist, so
+			// skip it instead of failing the entire tenant poll.
+			if path != "." && errors.Is(err, fs.ErrNotExist) {
+				return nil
+			}
 			return err
 		}
 
