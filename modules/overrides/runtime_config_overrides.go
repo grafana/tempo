@@ -209,60 +209,25 @@ func (o *runtimeConfigOverridesManager) starting(ctx context.Context) error {
 
 	var lastErr error
 	for b.Ongoing() {
-		// Probe with a throwaway registry. runtimeconfig.New registers metrics
-		// before load, and those collectors cannot be replaced, so retries must
-		// not use o.registerer until a load has already succeeded.
-		if o.runtimeConfigMgr == nil {
-			err := o.initAndStartRuntimeConfig(ctx, prometheus.NewRegistry(), false)
-			if err != nil {
-				lastErr = err
-				level.Warn(log.Logger).Log("msg", "failed to load runtime config, retrying", "err", err, "retries", b.NumRetries()+1)
-				b.Wait()
-				continue
-			}
-			if b.NumRetries() > 0 {
-				level.Info(log.Logger).Log("msg", "runtime config loaded after retry", "retries", b.NumRetries())
-			}
-		}
-
-		if err := o.promoteRuntimeConfigMetrics(ctx); err != nil {
+		// runtimeconfig.New registers metrics before load. trackingRegisterer
+		// removes them when start fails, so a retry can use the same registerer.
+		err := o.initAndStartRuntimeConfig(ctx, o.registerer, true)
+		if err != nil {
 			lastErr = err
-			level.Warn(log.Logger).Log("msg", "runtime config is loaded but metrics were not exported, retrying", "err", err, "retries", b.NumRetries()+1)
+			level.Warn(log.Logger).Log("msg", "failed to load runtime config, retrying", "err", err, "retries", b.NumRetries()+1)
 			b.Wait()
 			continue
 		}
+		if b.NumRetries() > 0 {
+			level.Info(log.Logger).Log("msg", "runtime config loaded after retry", "retries", b.NumRetries())
+		}
 		return nil
 	}
 
-	if o.runtimeConfigMgr != nil {
-		level.Warn(log.Logger).Log("msg", "runtime config is loaded but metrics were not exported", "err", lastErr)
-		return nil
-	}
 	if lastErr != nil {
 		return fmt.Errorf("failed to start subservices: %w", lastErr)
 	}
 	return fmt.Errorf("failed to start subservices: %w", b.Err())
-}
-
-func (o *runtimeConfigOverridesManager) promoteRuntimeConfigMetrics(ctx context.Context) error {
-	probeMgr := o.runtimeConfigMgr
-	probeSub := o.subservices
-	probeWatch := o.subservicesWatcher
-
-	o.runtimeConfigMgr = nil
-	o.subservices = nil
-	o.subservicesWatcher = nil
-
-	err := o.initAndStartRuntimeConfig(ctx, o.registerer, true)
-	if err != nil {
-		o.runtimeConfigMgr = probeMgr
-		o.subservices = probeSub
-		o.subservicesWatcher = probeWatch
-		return err
-	}
-
-	stopRuntimeConfig(probeWatch, probeSub)
-	return nil
 }
 
 func (o *runtimeConfigOverridesManager) initAndStartRuntimeConfig(ctx context.Context, registerer prometheus.Registerer, watch bool) error {
@@ -369,15 +334,6 @@ func (t *trackingRegisterer) UnregisterAll() {
 		}
 	}
 	t.collectors = nil
-}
-
-func stopRuntimeConfig(watcher *services.FailureWatcher, mgr *services.Manager) {
-	if watcher != nil {
-		watcher.Close()
-	}
-	if mgr != nil {
-		_ = services.StopManagerAndAwaitStopped(context.Background(), mgr)
-	}
 }
 
 func (o *runtimeConfigOverridesManager) running(ctx context.Context) error {

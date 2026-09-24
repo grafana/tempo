@@ -1,6 +1,6 @@
 change_type: bug_fix
 component: overrides
 note: Retry loading per-tenant runtime overrides on startup so a transient config-file error does not leave the process unready until it is killed.
-issues: []
+issues: [7874]
 subtext:
 user: ArjunCodess
