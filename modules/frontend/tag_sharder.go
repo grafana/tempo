@@ -16,6 +16,7 @@ import (
 	"github.com/grafana/tempo/v3/pkg/validation"
 	"github.com/grafana/tempo/v3/tempodb"
 	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/blocksharding"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/segmentio/fasthash/fnv1a"
 )
@@ -380,7 +381,7 @@ func iterateTagJobs(metas []*backend.BlockMeta, bytesPerRequest int, jobIter tag
 	jobs := 0
 
 	for _, m := range metas {
-		pages := pagesPerRequest(m, bytesPerRequest)
+		pages := blocksharding.PagesPerRequest(m, bytesPerRequest)
 		if pages == 0 {
 			continue
 		}
