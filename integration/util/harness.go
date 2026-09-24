@@ -13,7 +13,6 @@ import (
 
 	"github.com/grafana/e2e"
 	e2edb "github.com/grafana/e2e/db"
-	"github.com/grafana/e2e/images"
 	"github.com/grafana/tempo/v3/cmd/tempo/app"
 	"github.com/grafana/tempo/v3/modules/overrides"
 	"github.com/grafana/tempo/v3/tempodb/backend"
@@ -54,11 +53,6 @@ const (
 	azuriteImage = "mcr.microsoft.com/azure-storage/azurite:3.35.0"
 	gcsImage     = "fsouza/fake-gcs-server:1.52.2"
 )
-
-func init() {
-	// Keep the e2e MinIO version, but use its available Quay registry.
-	images.Minio = "quay.io/minio/minio:RELEASE.2021-10-13T00-23-17Z"
-}
 
 // DeploymentMode specifies whether to run Tempo as a single binary, microservices or none.
 type DeploymentMode int
