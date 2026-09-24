@@ -23,35 +23,35 @@ local patch = {
     ),
 
     '#withContainerName': d.fn(
-        'The name of the container that the policy applies to. If not specified, the policy serves as the default policy.',
-        [d.arg('name', d.T.string)]
+      'The name of the container that the policy applies to. If not specified, the policy serves as the default policy.',
+      [d.arg('name', d.T.string)]
     ),
     withContainerName(name):: {
-        containerName: name,
+      containerName: name,
     },
 
     '#withControlledResources': d.fn(
-        'Specifies the type of recommendations that will be computed (and possibly applied) by VPA. If not specified, the default of [ResourceCPU, ResourceMemory] will be used.',
-        [d.arg('resources', d.T.array)]
+      'Specifies the type of recommendations that will be computed (and possibly applied) by VPA. If not specified, the default of [ResourceCPU, ResourceMemory] will be used.',
+      [d.arg('resources', d.T.array)]
     ),
     withControlledResources(resources):: {
-        controlledResources: std.uniq(std.sort(resources)),
+      controlledResources: std.uniq(std.sort(resources)),
     },
 
     '#withControlledResourcesMixin': d.fn(
-        'withControlledResourcesMixin is like withControlledResources, but appends to the existing list',
-        [d.arg('resources', d.T.array)]
+      'withControlledResourcesMixin is like withControlledResources, but appends to the existing list',
+      [d.arg('resources', d.T.array)]
     ),
     withControlledResourcesMixin(resources):: {
-        controlledResources: std.uniq(std.sort(super.resources+resources)),
+      controlledResources: std.uniq(std.sort(super.resources + resources)),
     },
 
     '#withControlledValues': d.fn(
-        'Which resource values should be controlled by VPA. Valid values are "RequestsAndLimits" and "RequestsOnly". The default is "RequestsAndLimits".',
-        [d.arg('values', d.T.string)]
+      'Which resource values should be controlled by VPA. Valid values are "RequestsAndLimits" and "RequestsOnly". The default is "RequestsAndLimits".',
+      [d.arg('values', d.T.string)]
     ),
     withControlledValues(values):: {
-        controlledValues: values,
+      controlledValues: values,
     },
 
     '#withMaxAllowed': d.fn(

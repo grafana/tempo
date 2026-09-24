@@ -17,19 +17,38 @@ Kafka isn't used in [monolithic mode](/docs/tempo/<TEMPO_VERSION>/reference-temp
 
 Kafka serves as a durable write-ahead log (WAL) between distributors and downstream consumers (block-builders, live-stores, and metrics-generators).
 
-With Kafka, durability is centralized. Once Kafka acknowledges a write, the data is safe regardless of what happens to any Tempo component. Consumers are stateless—block-builders and live-stores can crash and restart, replaying from their last committed Kafka offset to rebuild state without data loss. Because Kafka provides durability, Tempo doesn't need to replicate data across multiple instances on the write path, enabling a replication factor of 1 that significantly reduces storage costs.
+With Kafka, write-path durability is centralized.
+After Kafka acknowledges a write,
+Tempo components can recover from a restart as long as the records required for recovery remain available within the Kafka retention window.
+Block-builders resume from their last committed Kafka offsets.
+Live-stores reload their local WAL and completed local blocks,
+then resume Kafka consumption from a point based on their committed offsets and configured replay window.
+If local live-store data is missing,
+they replay Kafka over that window to rebuild recent-query state.
+Because Kafka provides durability,
+Tempo doesn't need to replicate data across multiple instances on the write path,
+enabling a replication factor of 1 that significantly reduces storage costs.
 
 ## Partitioning
 
-Kafka topics are divided into partitions. Distributors hash the trace ID to determine the target partition. Each Kafka partition is consumed by exactly one block-builder instance and one live-store instance (per availability zone).
+Kafka topics are divided into partitions.
+Distributors hash the trace ID to determine the target active partition.
+Each active Kafka partition is consumed by exactly one block-builder instance and one live-store instance per availability zone.
 
 Tempo maintains its own partition ring that maps Tempo partitions to Kafka partitions. While these are typically 1:1, the partition ring is logically independent from Kafka's partition metadata. Refer to the [partition ring](../partition-ring/) documentation for details.
 
 ### Scaling partitions
 
-The number of Kafka partitions determines the maximum parallelism for block-builders and live-stores. Each partition is owned by exactly one instance of each consumer type.
+The number of Kafka partitions determines the maximum parallelism for block-builders and live-stores.
+Each active partition is owned by exactly one instance of each consumer type.
+The topic can have significantly more partitions than Tempo currently has active.
 
-To scale block-builders or live-stores horizontally, you need at least as many partitions as instances. Adding Kafka partitions is a Kafka-side operation. Block-builders and live-stores use static partition assignment based on their instance ordinal, so scaling them requires adding both Kafka partitions and StatefulSet replicas together.
+To scale within the topic's existing capacity,
+increase the live-store replicas and the corresponding block-builder capacity without changing the Kafka topic.
+If the target active partition count exceeds the topic partition count,
+add Kafka partitions before scaling Tempo.
+Block-builders and live-stores use partition assignment based on their instance ordinals,
+but extra Kafka partitions remain idle until live-stores activate the corresponding Tempo partitions.
 
 ## Consumer groups
 
@@ -71,4 +90,5 @@ ingest:
 
 ## Related resources
 
-Refer to the [ingest configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#ingest) for Kafka connection settings.
+- [Configure a Kafka-compatible backend](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/configure-kafka/)
+- [Ingest configuration reference](/docs/tempo/<TEMPO_VERSION>/configuration/#ingest)

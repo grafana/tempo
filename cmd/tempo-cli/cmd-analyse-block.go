@@ -17,13 +17,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/parquet-go/parquet-go"
 
-	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/pkg/parquetquery"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet5"
+	tempo_io "github.com/grafana/tempo/v3/pkg/io"
+	"github.com/grafana/tempo/v3/pkg/parquetquery"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet3"
+	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet4"
+	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet5"
 )
 
 type attributePaths struct {
@@ -881,7 +881,8 @@ func printFullSummary(scope string, settings heuristicSettings, summary attribut
 				}
 			}
 
-			_, err := fmt.Fprintf(w, "name: %s\t size: %s\t (%.2f%%)\tcount: %d\t%s\t distinct: %d\t avg reuse: %.2f\t avg rowgroup content (dict + body): %s %s\t%s\n",
+			_, err := fmt.Fprintf(
+				w, "name: %s\t size: %s\t (%.2f%%)\tcount: %d\t%s\t distinct: %d\t avg reuse: %.2f\t avg rowgroup content (dict + body): %s %s\t%s\n",
 				name,
 				humanize.Bytes(thisBytes),
 				percentage,

@@ -10,8 +10,8 @@ import (
 
 	"go.yaml.in/yaml/v2"
 
-	"github.com/grafana/tempo/cmd/tempo/app"
-	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/v3/cmd/tempo/app"
+	"github.com/grafana/tempo/v3/modules/overrides"
 )
 
 const (
@@ -243,7 +243,8 @@ func modifyOverrides(m map[string]interface{}, warnings *[]string) {
 	if perTenantPath, ok := ovr["per_tenant_override_config"]; ok {
 		if pathStr, ok := perTenantPath.(string); ok && pathStr != "" {
 			*warnings = append(*warnings, fmt.Sprintf(
-				"external per-tenant overrides file %q needs compaction_disabled: true added manually for each tenant", pathStr))
+				"external per-tenant overrides file %q needs compaction_disabled: true added manually for each tenant", pathStr,
+			))
 		}
 	}
 }

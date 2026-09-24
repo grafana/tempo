@@ -4,8 +4,8 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
 )
 
 const (

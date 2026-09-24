@@ -55,11 +55,11 @@
       "source": {
         "git": {
           "remote": "https://github.com/jsonnet-libs/keda-libsonnet.git",
-          "subdir": "2.15"
+          "subdir": "2.16"
         }
       },
-      "version": "dbc8cf1a9847f123d8325378111155fb135983ab",
-      "sum": "EVCNg9VpU9ghIYHZtbQffHbZs+EqKOD0cw+ZPilWR48="
+      "version": "dc2d8bbd2472d81138c76b71f34d59fc4cc21df7",
+      "sum": "usyfk9u2Yik3A/Xv7mgT6BYKmPhsjsab+DqbcR4ScrQ="
     },
     {
       "source": {

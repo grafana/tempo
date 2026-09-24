@@ -7,13 +7,13 @@ import (
 	"time"
 
 	"github.com/go-kit/log" //nolint:all //deprecated
-	"github.com/grafana/tempo/modules/frontend/combiner"
-	"github.com/grafana/tempo/modules/frontend/pipeline"
-	"github.com/grafana/tempo/modules/querier"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/blockboundary"
-	"github.com/grafana/tempo/pkg/validation"
-	"github.com/grafana/tempo/tempodb"
+	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
+	"github.com/grafana/tempo/v3/modules/querier"
+	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/blockboundary"
+	"github.com/grafana/tempo/v3/pkg/validation"
+	"github.com/grafana/tempo/v3/tempodb"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

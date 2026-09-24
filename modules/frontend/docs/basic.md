@@ -28,7 +28,7 @@ Intrinsic fields use colon notation `<scope>:`:
 - `span:kind` - Kind: server, client, producer, consumer, internal, unspecified
 - `span:id` - Span ID using hex string
 - `span:parentID` - Parent span ID using hex string
-- `span:childCount` - Number of direct children of the span
+- `span:childCount` - Number of direct children of the span (requires vParquet5 or later)
 - `trace:duration` - Max(end) - min(start) time of spans in trace
 - `trace:rootName` - Name of the root span (if it exists)
 - `trace:rootService` - Service name of the root span (if it exists)
@@ -47,6 +47,24 @@ Attributes use dot notation `<scope>.`:
 - `event.` - Event attributes
 - `link.` - Link attributes
 - `instrumentation.` - Instrumentation scope attributes
+
+## Value Types and Literals
+TraceQL supports several literal types for expressing values in queries.
+
+- Integers: positive or negative whole numbers, for example `200` or `-1`. The constants `minInt` and `maxInt` represent the minimum and maximum 64-bit integer values.
+- Floats: decimal notation, for example `1.5`.
+- Durations: a number with a unit. Supported units are `ns`, `us`, `ms`, `s`, `m`, and `h`, for example `100ms` or `5s`. Durations can be signed.
+- Strings: enclosed in double quotes or backticks, for example `"GET"` or `` `GET` ``.
+- Nil: use `nil` to check for missing or null attributes, and `!= nil` to require an attribute to be present.
+
+Examples:
+```
+{ span.http.status_code = 200 }
+{ span:duration > 100ms }
+{ span.value > 1.5 }
+{ span.optional_field = nil }
+{ span.required_field != nil }
+```
 
 ## Comparison Operators
 - `=` - Equality
@@ -68,7 +86,7 @@ Attributes use dot notation `<scope>.`:
 - `||` - OR (either condition can be true)
 
 ## Spanset Operators
-Spanset operators allow conditions to be asserted on different spans within a trace. Also see strutural operators.
+Spanset operators allow conditions to be asserted on different spans within a trace. Also see structural operators.
 
 - `{condA} && {condB}` - Both conditions found matches
 - `{condA} || {condB}` - Either condition found matches
@@ -131,6 +149,26 @@ Spanset operators allow conditions to be asserted on different spans within a tr
 ```
 { span."attribute name with space" = "value" }
 { span.attribute."attribute name with space" = "value" }
+```
+
+## Selecting Fields
+Use the `select()` pipeline operator to return specific attributes from matching spans. Selected fields aren't retrieved until all other criteria are met, which makes this performant.
+```
+{ span.http.status_code = 200 } | select(resource.service.name)
+{ span:status = error } | select(span.http.status_code, span.http.url)
+```
+
+## Arithmetic in Expressions
+TraceQL supports arithmetic within field expressions, which can make queries more readable.
+```
+{ span.http.request_content_length > 10 * 1024 * 1024 }
+```
+
+## Retrieve Most Recent Results
+By default, Tempo returns the first `N` matching traces, which might not be the newest. Use the `most_recent=true` query hint with any selection query to force Tempo to return the most recent results ordered by time.
+```
+{} with (most_recent=true)
+{ span.foo = "bar" } >> { span:status = error } with (most_recent=true)
 ```
 
 ## Performance Tips

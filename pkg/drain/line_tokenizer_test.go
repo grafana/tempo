@@ -126,3 +126,14 @@ func TestLineTokenizer(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkLineTokenizer(b *testing.B) {
+	tokenizer := &defaultTokenizer{}
+	input := "GET /api/users/123/children/456"
+	tokens := make([]string, 0, 16)
+
+	b.ReportAllocs()
+	for b.Loop() {
+		tokens = tokenizer.Tokenize(input, tokens)
+	}
+}

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"github.com/prometheus/common/model"
 )
 

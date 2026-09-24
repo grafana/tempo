@@ -1,29 +1,33 @@
 ---
-title: Push spans with HTTP
-description: Learn a basic technique for pushing spans with HTTP and JSON
+title: Push spans
+menuTitle: Push spans
+description: Learn how to push spans to Tempo using HTTP or gRPC with the OpenTelemetry Protocol (OTLP) receiver.
 aliases:
   - /docs/tempo/latest/guides/pushing-spans-with-http/
 ---
 
-# Push spans with HTTP
+# Push spans with HTTP or gRPC
 
 Sometimes using a tracing system is intimidating because it seems like you need complex application instrumentation
-or a span ingestion pipeline in order to push spans. This guide aims to show an extremely basic technique for
-pushing spans with HTTP/JSON from a Bash script using the [OpenTelemetry](https://opentelemetry.io/docs/specs/otlp/) receiver.
+or a span ingestion pipeline to push spans. This guide shows a basic technique for
+pushing spans with HTTP/JSON or gRPC using the [OpenTelemetry](https://opentelemetry.io/docs/specs/otlp/) receiver.
 
 ## Before you begin
 
 This procedure uses an example Docker Compose setup to run Tempo, so you don't need an existing installation. The Docker image also includes a Grafana container which lets you visualize traces.
 
-To use this procedure, you need to have Docker and `docker compose` installed.
+To use this procedure, you need:
 
-## Start Tempo using the quick start
+- Docker and `docker compose` installed
+- (Optional) [OpenTelemetry `telemetrygen`](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/cmd/telemetrygen) installed for the gRPC examples
+
+## Start Tempo using the quickstart
 
 Use the instructions in the [Quick start for Tempo documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/getting-started/docker-example/) to start a local instance of Tempo and Grafana.
 
-## Push spans with OTLP
+## Push spans with OTLP/HTTP
 
-Now that Tempo is running and listening on port 4318 for [OTLP spans](https://opentelemetry.io/docs/specs/otlp/#otlphttp), you can push a span to Tempo using `curl`.
+Now that Tempo is running and listening on port 4318 for [OTLP/HTTP spans](https://opentelemetry.io/docs/specs/otlp/#otlphttp), you can push a span to Tempo using `curl`.
 
 {{< shared id="push-spans-http-otlp" >}}
 
@@ -102,11 +106,44 @@ You can also use an online tool such as [Epoch Converter](https://www.epochconve
 
 ![Using the TraceQL query builder on Explore to view pushed trace in Grafana.](/static/img/docs/tempo/push-spans-search-span-grafana.png "View the span in Grafana")
 
+## Push spans with OTLP/gRPC
+
+Tempo also listens on port 4317 for [OTLP/gRPC](https://opentelemetry.io/docs/specs/otlp/#otlpgrpc) spans.
+You can use [OpenTelemetry `telemetrygen`](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/cmd/telemetrygen) to push test traces over gRPC.
+
+1. Install `telemetrygen` following the [installation instructions](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/cmd/telemetrygen).
+
+1. Push traces to Tempo over gRPC:
+
+   ```bash
+   telemetrygen traces --otlp-insecure --rate 20 --duration 5s --otlp-endpoint localhost:4317
+   ```
+
+   This sends 100 traces (20 per second for 5 seconds) to the Tempo distributor's OTLP/gRPC receiver.
+
+1. Verify the traces arrived by searching for them. The `telemetrygen` tool uses the service name `telemetrygen` by default:
+
+   ```bash
+   curl -G -s http://localhost:3200/api/search --data-urlencode 'q={ resource.service.name = "telemetrygen" }' | jq .
+   ```
+
+### Multi-tenancy
+
+If you've enabled multi-tenancy (`multitenancy_enabled: true`), pass the tenant ID using the `X-Scope-OrgID` header in gRPC metadata:
+
+```bash
+telemetrygen traces --otlp-insecure --rate 20 --duration 5s \
+  --otlp-endpoint localhost:4317 \
+  --otlp-header "X-Scope-OrgID=my-tenant"
+```
+
+For more information about configuring OpenTelemetry SDKs to export traces over gRPC, refer to the [OpenTelemetry documentation](https://opentelemetry.io/docs/specs/otlp/#otlpgrpc).
+
 ## Retrieve traces
 
-The easiest way to get the trace is to execute a simple curl command to Tempo. The returned format is [OTLP](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/trace/v1/trace.proto).
+You can retrieve the trace by running a `curl` command against Tempo. The returned format is [OTLP](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/trace/v1/trace.proto).
 
-1. Replace the trace ID in the `curl` command with the trace ID that was generated from the push. This information is in the data that's sent with the `curl`. You could use Grafana’s Explorer page to find this, as shown in the previous section.
+1. Replace the trace ID in the `curl` command with the trace ID that was generated from the push. This information is in the data that's sent with the `curl`. You can use the Grafana **Explore** page to find this, as shown in the previous section.
 
    ```bash
    curl http://localhost:3200/api/v2/traces/5b8efff798038103d269b633813fc700
@@ -122,7 +159,7 @@ Alternatively, you can also use [TraceQL](https://grafana.com/docs/tempo/<TEMPO_
 You can search by using the unique trace attributes that were set:
 
 ```bash
-curl -G -s http://localhost:3200/api/search --data-urlencode 'q={ .service.name = "my.service" }'
+curl -G -s http://localhost:3200/api/search --data-urlencode 'q={ resource.service.name = "my.service" }'
 
 {"traces":[{"traceID":"5b8efff798038103d269b633813fc700","rootServiceName":"my.service","rootTraceName":"I am a span!","startTimeUnixNano":"1694718625557000000","durationMs":10000,"spanSet":{"spans":[{"spanID":"eee19b7ec3c1b100","startTimeUnixNano":"1694718625557000000","durationNanos":"10000000000","attributes":[{"key":"service.name","value":{"stringValue":"my.service"}}]}],"matched":1},"spanSets":[{"spans":[{"spanID":"eee19b7ec3c1b100","startTimeUnixNano":"1694718625557000000","durationNanos":"10000000000","attributes":[{"key":"service.name","value":{"stringValue":"my.service"}}]}],"matched":1}]}],"metrics":{"inspectedBytes":"292781","completedJobs":1,"totalJobs":1}}
 ```
@@ -130,14 +167,5 @@ curl -G -s http://localhost:3200/api/search --data-urlencode 'q={ .service.name 
 To format this in a more human-readable output, consider using a [tool such as `jq`](https://jqlang.github.io/jq/), which lets you to run the same `curl` command and pipe it to `jq` to format the block. For example:
 
 ```bash
-curl -G -s http://localhost:3200/api/search --data-urlencode 'q={ .service.name = "my.service" }' | jq
+curl -G -s http://localhost:3200/api/search --data-urlencode 'q={ resource.service.name = "my.service" }' | jq
 ```
-
-## Spans from everything
-
-Tracing isn't limited to enterprise languages with complex frameworks.
-As you can see, it's easy to store and track events from your js, python or bash scripts.
-You can use Tempo and distributed tracing today to trace CI pipelines, long running bash processes, python data processing flows, or anything else
-you can think of.
-
-Happy tracing!

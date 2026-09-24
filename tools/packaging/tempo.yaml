@@ -30,8 +30,6 @@ metrics_generator:
     remote_write:
       - url: http://prometheus:9090/api/v1/write
         send_exemplars: true
-  traces_storage:
-    path: /var/tempo/generator/traces
 
 storage:
   trace:
@@ -44,5 +42,5 @@ storage:
 overrides:
   defaults:
     metrics_generator:
-      processors: [service-graphs, span-metrics, local-blocks] # enables metrics generator
+      processors: [service-graphs, span-metrics] # enables metrics generator
       generate_native_histograms: both

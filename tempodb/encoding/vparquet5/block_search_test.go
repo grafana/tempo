@@ -9,16 +9,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/pkg/tempopb"
-	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	resourcev1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
-	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	tempo_io "github.com/grafana/tempo/v3/pkg/io"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	commonv1 "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	resourcev1 "github.com/grafana/tempo/v3/pkg/tempopb/resource/v1"
+	tracev1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend/local"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
 
 func TestBackendBlockSearch(t *testing.T) {

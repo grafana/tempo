@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
 
-	"github.com/grafana/tempo/pkg/cache"
+	"github.com/grafana/tempo/v3/pkg/cache"
 )
 
 const (

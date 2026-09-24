@@ -17,7 +17,7 @@ To test your Tempo deployment, select one of the procedures below to test your T
 Follow these steps to ensure that traces are being sent and received correctly.
 This guide assumes you have already set up a Tempo instance and have Grafana configured to query it.
 
-For additional information, refer to [Push spans with HTTP](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/push-spans-with-http/).
+For additional information, refer to [Push spans](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/pushing-spans-with-http/).
 
 If you are using Cloud Traces, refer to [Set up Cloud Traces](https://grafana.com/docs/grafana-cloud/send-data/traces/set-up/).
 

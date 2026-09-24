@@ -6,10 +6,10 @@ import (
 	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/grafana/tempo/modules/generator/processor"
-	"github.com/grafana/tempo/modules/generator/registry"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/modules/generator/processor"
+	"github.com/grafana/tempo/v3/modules/generator/registry"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
 )
 
 const (

@@ -1,0 +1,5 @@
+change_type: feature
+component: tempo-cli
+note: Add `tempo-cli benchmark profile` to profile a block for read-path benchmarking.
+issues: []
+user: zhxiaogg

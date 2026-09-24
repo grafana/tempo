@@ -12,16 +12,16 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/livetraces"
-	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/tracesizes"
-	util_log "github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/pkg/livetraces"
+	"github.com/grafana/tempo/v3/pkg/model"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/tracesizes"
+	util_log "github.com/grafana/tempo/v3/pkg/util/log"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/wal"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -576,7 +576,7 @@ func (i *instance) cutBlocks(ctx context.Context, immediate bool) (uuid.UUID, er
 		return uuid.Nil, err
 	}
 
-	id := (uuid.UUID)(hb.BlockMeta().BlockID)
+	id := uuid.UUID(hb.BlockMeta().BlockID)
 	blockSize := hb.DataLength()
 
 	// Move headBlock into walBlocks and clear head, in one published snapshot.
@@ -693,7 +693,7 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) (*LocalBlock
 		span.RecordError(err)
 	}
 
-	walID := (uuid.UUID)(walBlock.BlockMeta().BlockID)
+	walID := uuid.UUID(walBlock.BlockMeta().BlockID)
 	i.blocks.Store(snap.withCompleteBlockAdded(id, completeBlock).withWALBlockRemoved(walID))
 
 	// Defer file deletion past the grace window so readers on the previous

@@ -7,8 +7,8 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/grafana/tempo/modules/backendscheduler/work"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v3/modules/backendscheduler/work"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
 )
 
 // RedactionConfig holds configuration for the redaction provider.
@@ -70,6 +70,10 @@ func (p *RedactionProvider) Start(ctx context.Context) <-chan *work.Job {
 					select {
 					case jobs <- job:
 					case <-ctx.Done():
+						// Shutdown lost the handoff: this job was counted in-flight by
+						// NextPendingJob and will never reach Next() to be promoted or dropped,
+						// so release its count here or it leaks.
+						p.sched.ReleaseRedactionInFlight(job.Tenant())
 						return
 					}
 					continue

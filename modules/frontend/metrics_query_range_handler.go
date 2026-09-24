@@ -15,15 +15,15 @@ import (
 	"github.com/go-kit/log/level" //nolint:all //deprecated
 	"github.com/gogo/status"
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/modules/frontend/combiner"
-	"github.com/grafana/tempo/modules/frontend/pipeline"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/util/tracing"
+	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/pkg/util/tracing"
 	"google.golang.org/grpc/codes"
 
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/traceql"
 )
 
 var errQueryWindowWithinEndCutoff = errors.New("query window falls entirely within query_end_cutoff")
@@ -34,7 +34,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 	downstreamPath := path.Join(apiPrefix, api.PathMetricsQueryRange)
 
 	return func(req *tempopb.QueryRangeRequest, srv tempopb.StreamingQuerier_MetricsQueryRangeServer) error {
-		ctx := srv.Context()
+		ctx := pipeline.WithQueryShapeCell(srv.Context())
 		var err error
 
 		headers := headersFromGrpcContext(ctx)
@@ -105,6 +105,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 		}
 		postSLOHook(nil, tenant, bytesProcessed, duration, err)
 		logQueryRangeResult(ctx, logger, tenant, duration.Seconds(), req, finalResponse, err)
+		recordQueryMetrics(tenant, metricsOp, finalResponse.GetMetrics())
 		return err
 	}
 }
@@ -173,14 +174,24 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 		// ask for the typed diff and use that for the SLO hook. it will have up to date metrics
 		// todo: is there a way to remove this? it can be costly for large responses
 		var bytesProcessed uint64
-		queryRangeResp, _ := combiner.GRPCFinal()
+		queryRangeResp, finalErr := combiner.GRPCFinal()
 		if queryRangeResp != nil && queryRangeResp.Metrics != nil {
 			bytesProcessed = queryRangeResp.Metrics.InspectedBytes
 		}
 
 		duration := time.Since(start)
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
-		logQueryRangeResult(req.Context(), logger, tenant, duration.Seconds(), queryRangeReq, queryRangeResp, err)
+		// When the pipeline returns an error response in-band (a frontend-generated
+		// 4xx/5xx, e.g. from a sharder or the URL deny list), resp carries the status
+		// code and RoundTrip's err is nil while GRPCFinal returns the reason. Fall back
+		// to it for logging so the result log records why the query failed; otherwise it
+		// logs "query range response - no resp" with error=null and the reason is lost.
+		logErr := err
+		if logErr == nil {
+			logErr = finalErr
+		}
+		logQueryRangeResult(req.Context(), logger, tenant, duration.Seconds(), queryRangeReq, queryRangeResp, logErr)
+		recordQueryMetrics(tenant, metricsOp, queryRangeResp.GetMetrics())
 		return resp, err
 	})
 }
@@ -190,12 +201,12 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 // internally aligned range. If the cutoff removes the whole query window, it
 // returns a cutoff-specific error instead of the generic start/end error.
 func clampQueryEndForValidation(cfg Config, req *tempopb.QueryRangeRequest) error {
-	if req.Start > req.End {
-		return nil
+	if req.Start >= req.End {
+		return errEndMustBeGreaterThanStart
 	}
 
 	clamped := clampQueryEndToCutoff(cfg, req)
-	if clamped && req.Start > req.End {
+	if clamped && req.Start >= req.End {
 		return errQueryWindowWithinEndCutoff
 	}
 	return nil
@@ -247,29 +258,33 @@ func logQueryRangeResult(ctx context.Context, logger log.Logger, tenantID string
 	traceID, _ := tracing.ExtractTraceID(ctx)
 
 	if resp == nil {
-		level.Info(logger).Log(
+		recordResult(
+			level.Info(logger), ctx, nil,
 			"msg", "query range response - no resp",
 			"tenant", tenantID,
 			"traceID", traceID,
 			"duration_seconds", durationSeconds,
-			"error", err)
-
+			"error", err,
+		)
 		return
 	}
 
 	if resp.Metrics == nil {
-		level.Info(logger).Log(
+		recordResult(
+			level.Info(logger), ctx, nil,
 			"msg", "query range response - no metrics",
 			"tenant", tenantID,
 			"traceID", traceID,
 			"query", req.Query,
 			"range_nanos", req.End-req.Start,
 			"duration_seconds", durationSeconds,
-			"error", err)
+			"error", err,
+		)
 		return
 	}
 
-	level.Info(logger).Log(
+	recordResult(
+		level.Info(logger), ctx, resp.Metrics.AdditionalMetrics,
 		"msg", "query range response",
 		"tenant", tenantID,
 		"traceID", traceID,
@@ -288,7 +303,8 @@ func logQueryRangeResult(ctx context.Context, logger log.Logger, tenantID string
 		"partial_status", resp.Status,
 		"partial_message", resp.Message,
 		"num_response_series", len(resp.Series),
-		"error", err)
+		"error", err,
+	)
 }
 
 func logQueryRangeRequest(logger log.Logger, tenantID string, req *tempopb.QueryRangeRequest) {
@@ -298,7 +314,8 @@ func logQueryRangeRequest(logger log.Logger, tenantID string, req *tempopb.Query
 		"query", req.Query,
 		"range_nanos", req.End-req.Start,
 		"mode", req.QueryMode,
-		"step", req.Step)
+		"step", req.Step,
+	)
 }
 
 func httpInvalidRequest(err error) *http.Response {

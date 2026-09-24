@@ -10,7 +10,7 @@ import (
 
 	"github.com/twmb/franz-go/pkg/kgo"
 
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
 )
 
 var encoderPool = sync.Pool{

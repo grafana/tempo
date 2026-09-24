@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/v3/modules/overrides"
 )
 
 func TestIngestionRateStrategy(t *testing.T) {

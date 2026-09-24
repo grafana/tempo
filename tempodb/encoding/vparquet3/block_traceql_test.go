@@ -16,14 +16,14 @@ import (
 	"github.com/parquet-go/parquet-go"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1_common "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend/local"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
 
 func TestCreateIntPredicateFromFloat(t *testing.T) {
@@ -1190,10 +1190,10 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 						require.NoError(b, err)
 					}
 
-					bytes, spansTotal, _ := eval.Metrics()
-					b.ReportMetric(float64(bytes)/float64(b.N)/1024.0/1024.0, "MB_IO/op")
-					b.ReportMetric(float64(spansTotal)/float64(b.N), "spans/op")
-					b.ReportMetric(float64(spansTotal)/b.Elapsed().Seconds(), "spans/s")
+					em := eval.Metrics()
+					b.ReportMetric(float64(em.Bytes)/float64(b.N)/1024.0/1024.0, "MB_IO/op")
+					b.ReportMetric(float64(em.SpansTotal)/float64(b.N), "spans/op")
+					b.ReportMetric(float64(em.SpansTotal)/b.Elapsed().Seconds(), "spans/s")
 				})
 			}
 		})

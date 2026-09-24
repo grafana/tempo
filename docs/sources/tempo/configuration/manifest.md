@@ -225,10 +225,33 @@ distributor:
         address: ""
         topic: ""
         client_id: ""
+        client_rack: ""
         dial_timeout: 0s
         write_timeout: 0s
+        sasl_mechanism: ""
         sasl_username: ""
         sasl_password: ""
+        sasl_oauthbearer_token: ""
+        sasl_oauthbearer_zid: ""
+        sasl_oauthbearer_extensions: {}
+        sasl_oauthbearer_file_path: ""
+        sasl_oauthbearer_http_socket_path: ""
+        sasl_oauthbearer_http_socket_timeout: 0s
+        sasl_msk_iam_access_key: ""
+        sasl_msk_iam_secret_key: ""
+        sasl_msk_iam_session_token: ""
+        sasl_msk_iam_user_agent: ""
+        sasl_msk_iam_file_path: ""
+        sasl_msk_iam_http_socket_path: ""
+        sasl_msk_iam_http_socket_timeout: 0s
+        tls_enabled: false
+        tls_cert_path: ""
+        tls_key_path: ""
+        tls_ca_path: ""
+        tls_server_name: ""
+        tls_insecure_skip_verify: false
+        tls_cipher_suites: ""
+        tls_min_version: ""
         consumer_group: ""
         consumer_group_offset_commit_interval: 0s
         last_produced_offset_retry_timeout: 0s
@@ -236,6 +259,7 @@ distributor:
         auto_create_topic_default_partitions: 0
         producer_max_record_size_bytes: 0
         producer_max_buffered_bytes: 0
+        producer_compression: ""
         target_consumer_lag_at_startup: 0s
         max_consumer_lag_at_startup: 0s
         disable_kafka_telemetry: false
@@ -363,7 +387,7 @@ query_frontend:
         max_regex_conditions: 1
     mcp_server:
         enabled: false
-    max_grpc_streaming_packet_size: 2097152
+    max_grpc_streaming_packet_size: 1048576
     max_query_expression_size_bytes: 131072
     query_end_cutoff: 30s
 metrics_generator:
@@ -429,6 +453,7 @@ metrics_generator:
                 - peer.service
                 - db.name
                 - db.system
+                - db.system.name
             span_multiplier_key: ""
             enable_tracestate_span_multiplier: false
             enable_virtual_node_label: false
@@ -436,6 +461,7 @@ metrics_generator:
                 - db.namespace
                 - db.name
                 - db.system
+                - db.system.name
             filter_policies: []
         span_metrics:
             histogram_buckets:
@@ -496,15 +522,39 @@ metrics_generator:
     ingest_concurrency: 16
     instance_id: hostname
     leave_consumer_group_on_shutdown: false
+    skip_stale_backlog_on_startup: false
 ingest:
     kafka:
         address: localhost:9092
         topic: ""
         client_id: ""
+        client_rack: ""
         dial_timeout: 2s
         write_timeout: 10s
+        sasl_mechanism: PLAIN
         sasl_username: ""
         sasl_password: ""
+        sasl_oauthbearer_token: ""
+        sasl_oauthbearer_zid: ""
+        sasl_oauthbearer_extensions: {}
+        sasl_oauthbearer_file_path: ""
+        sasl_oauthbearer_http_socket_path: ""
+        sasl_oauthbearer_http_socket_timeout: 10s
+        sasl_msk_iam_access_key: ""
+        sasl_msk_iam_secret_key: ""
+        sasl_msk_iam_session_token: ""
+        sasl_msk_iam_user_agent: ""
+        sasl_msk_iam_file_path: ""
+        sasl_msk_iam_http_socket_path: ""
+        sasl_msk_iam_http_socket_timeout: 10s
+        tls_enabled: false
+        tls_cert_path: ""
+        tls_key_path: ""
+        tls_ca_path: ""
+        tls_server_name: ""
+        tls_insecure_skip_verify: false
+        tls_cipher_suites: ""
+        tls_min_version: ""
         consumer_group: ""
         consumer_group_offset_commit_interval: 1s
         last_produced_offset_retry_timeout: 10s
@@ -512,6 +562,7 @@ ingest:
         auto_create_topic_default_partitions: 1000
         producer_max_record_size_bytes: 15983616
         producer_max_buffered_bytes: 1073741824
+        producer_compression: ""
         target_consumer_lag_at_startup: 2s
         max_consumer_lag_at_startup: 15s
         disable_kafka_telemetry: false
@@ -538,7 +589,7 @@ storage:
         block:
             bloom_filter_false_positive: 0.01
             bloom_filter_shard_size_bytes: 102400
-            version: vParquet4
+            version: vParquet5
             parquet_row_group_size_bytes: 100000000
             parquet_dedicated_columns:
                 - scope: resource
@@ -681,6 +732,7 @@ storage:
             buffer_size: 3145728
             hedge_requests_at: 0s
             hedge_requests_up_to: 2
+            list_blocks_concurrency: 1
         cache: ""
         background_cache:
             writeback_goroutines: 10
@@ -778,6 +830,7 @@ overrides:
                 buffer_size: 3145728
                 hedge_requests_at: 0s
                 hedge_requests_up_to: 2
+                list_blocks_concurrency: 1
         api:
             check_for_conflicting_runtime_overrides: false
     enable_legacy_overrides: false
@@ -794,6 +847,8 @@ memberlist:
     compression_enabled: false
     notify_interval: 0s
     received_messages_queue_size: 1024
+    processed_messages_queue_size: 1024
+    compression_algorithm: lzw
     advertise_addr: ""
     advertise_port: 7946
     cluster_label: ""
@@ -865,6 +920,7 @@ backend_scheduler:
                 block_retention: 336h0m0s
                 compacted_block_retention: 1h0m0s
                 retention_concurrency: 10
+                retention_block_concurrency: 4
                 max_time_per_tenant: 5m0s
                 compaction_cycle: 30s
             max_jobs_per_tenant: 1000
@@ -918,6 +974,7 @@ backend_worker:
         block_retention: 336h0m0s
         compacted_block_retention: 1h0m0s
         retention_concurrency: 10
+        retention_block_concurrency: 4
         max_time_per_tenant: 5m0s
         compaction_cycle: 30s
     override_ring_key: backend-worker

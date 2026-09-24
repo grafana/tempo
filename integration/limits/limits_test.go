@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/v3/modules/overrides"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -23,11 +23,11 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 
-	"github.com/grafana/tempo/integration/util"
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/tempopb"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/v3/integration/util"
+	"github.com/grafana/tempo/v3/pkg/model/trace"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	tempoUtil "github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/pkg/util/test"
 )
 
 const (
@@ -71,19 +71,22 @@ func TestIngestionLimits(t *testing.T) {
 
 		// test limit metrics
 		liveStore := h.Services[util.ServiceLiveStoreZoneA]
-		err = liveStore.WaitSumMetricsWithOptions(e2e.Equals(2),
+		err = liveStore.WaitSumMetricsWithOptions(
+			e2e.Equals(2),
 			[]string{"tempo_discarded_spans_total"},
 			e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "trace_too_large")),
 			e2e.WaitMissingMetrics,
 		)
 		require.NoError(t, err)
-		err = liveStore.WaitSumMetricsWithOptions(e2e.Equals(1),
+		err = liveStore.WaitSumMetricsWithOptions(
+			e2e.Equals(1),
 			[]string{"tempo_discarded_spans_total"},
 			e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "live_traces_exceeded")),
 			e2e.WaitMissingMetrics,
 		)
 		require.NoError(t, err)
-		err = h.Services[util.ServiceDistributor].WaitSumMetricsWithOptions(e2e.Equals(10),
+		err = h.Services[util.ServiceDistributor].WaitSumMetricsWithOptions(
+			e2e.Equals(10),
 			[]string{"tempo_discarded_spans_total"},
 			e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "rate_limited")),
 			e2e.WaitMissingMetrics,
@@ -220,7 +223,8 @@ func TestQueryLimits(t *testing.T) {
 
 		// wait for live store to complete the block
 		liveStore := h.Services[util.ServiceLiveStoreZoneA]
-		err = liveStore.WaitSumMetricsWithOptions(e2e.Greater(0),
+		err = liveStore.WaitSumMetricsWithOptions(
+			e2e.Greater(0),
 			[]string{"tempo_live_store_blocks_completed_total"},
 			e2e.WaitMissingMetrics,
 		)
@@ -270,7 +274,8 @@ func TestLimitsPartialSuccess(t *testing.T) {
 		// test metrics
 		// 3 traces with trace_too_large each with 4+5+6 spans
 		liveStore := h.Services[util.ServiceLiveStoreZoneA]
-		err := liveStore.WaitSumMetricsWithOptions(e2e.Equals(15),
+		err := liveStore.WaitSumMetricsWithOptions(
+			e2e.Equals(15),
 			[]string{"tempo_discarded_spans_total"},
 			e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "trace_too_large")),
 			e2e.WaitMissingMetrics,

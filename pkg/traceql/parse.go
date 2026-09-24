@@ -8,7 +8,7 @@ import (
 	"text/scanner"
 
 	"github.com/go-kit/log/level"
-	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/v3/pkg/util/log"
 )
 
 func init() {

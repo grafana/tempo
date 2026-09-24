@@ -14,15 +14,15 @@ import (
 	"github.com/go-kit/log/level" //nolint:all //deprecated
 	"github.com/gogo/status"
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/modules/frontend/combiner"
-	"github.com/grafana/tempo/modules/frontend/pipeline"
-	"github.com/grafana/tempo/pkg/util/tracing"
+	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
+	"github.com/grafana/tempo/v3/pkg/util/tracing"
 	"google.golang.org/grpc/codes"
 
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/traceql"
 )
 
 // newSearchStreamingGRPCHandler returns a handler that streams results from the HTTP handler
@@ -31,7 +31,7 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 	downstreamPath := path.Join(apiPrefix, api.PathSearch)
 
 	return func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error {
-		ctx := srv.Context()
+		ctx := pipeline.WithQueryShapeCell(srv.Context())
 
 		if err := pipeline.ValidateTraceQLQuerySize(req.Query, cfg.MaxQueryExpressionSizeBytes); err != nil {
 			return status.Error(codes.InvalidArgument, err.Error())
@@ -82,6 +82,7 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 		}
 		postSLOHook(nil, tenant, bytesProcessed, duration, err)
 		logResult(ctx, logger, tenant, duration.Seconds(), req, finalResponse, nil, err)
+		recordQueryMetrics(tenant, searchOp, finalResponse.GetMetrics())
 		return err
 	}
 }
@@ -139,6 +140,7 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 		duration := time.Since(start)
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
 		logResult(req.Context(), logger, tenant, duration.Seconds(), searchReq, searchResp, resp, err)
+		recordQueryMetrics(tenant, searchOp, searchResp.GetMetrics())
 		return resp, err
 	})
 }
@@ -189,19 +191,21 @@ func logResult(ctx context.Context, logger log.Logger, tenantID string, duration
 	}
 
 	if resp == nil {
-		level.Info(logger).Log(
+		recordResult(
+			level.Info(logger), ctx, nil,
 			"msg", "search response - no resp",
 			"tenant", tenantID,
 			"traceID", traceID,
 			"duration_seconds", durationSeconds,
 			"status_code", statusCode,
-			"error", err)
-
+			"error", err,
+		)
 		return
 	}
 
 	if resp.Metrics == nil {
-		level.Info(logger).Log(
+		recordResult(
+			level.Info(logger), ctx, nil,
 			"msg", "search response - no metrics",
 			"tenant", tenantID,
 			"traceID", traceID,
@@ -209,11 +213,13 @@ func logResult(ctx context.Context, logger log.Logger, tenantID string, duration
 			"range_seconds", req.End-req.Start,
 			"duration_seconds", durationSeconds,
 			"status_code", statusCode,
-			"error", err)
+			"error", err,
+		)
 		return
 	}
 
-	level.Info(logger).Log(
+	recordResult(
+		level.Info(logger), ctx, resp.Metrics.AdditionalMetrics,
 		"msg", "search response",
 		"tenant", tenantID,
 		"traceID", traceID,
@@ -229,7 +235,8 @@ func logResult(ctx context.Context, logger log.Logger, tenantID string, duration
 		"inspected_traces", resp.Metrics.InspectedTraces,
 		"inspected_spans", resp.Metrics.InspectedSpans,
 		"status_code", statusCode,
-		"error", err)
+		"error", err,
+	)
 }
 
 func logRequest(logger log.Logger, tenantID string, req *tempopb.SearchRequest) {
@@ -239,5 +246,6 @@ func logRequest(logger log.Logger, tenantID string, req *tempopb.SearchRequest) 
 		"query", req.Query,
 		"range_seconds", req.End-req.Start,
 		"limit", req.Limit,
-		"spans_per_spanset", req.SpansPerSpanSet)
+		"spans_per_spanset", req.SpansPerSpanSet,
+	)
 }

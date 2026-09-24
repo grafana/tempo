@@ -8,8 +8,8 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/grafana/tempo/pkg/flushqueues"
-	"github.com/grafana/tempo/tempodb"
+	"github.com/grafana/tempo/v3/pkg/flushqueues"
+	"github.com/grafana/tempo/v3/tempodb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )

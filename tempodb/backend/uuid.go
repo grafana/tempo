@@ -34,11 +34,11 @@ func ParseUUID(s string) (UUID, error) {
 }
 
 func (u UUID) String() string {
-	return ((google_uuid.UUID)(u)).String()
+	return google_uuid.UUID(u).String()
 }
 
 func (u UUID) Marshal() ([]byte, error) {
-	return ((google_uuid.UUID)(u)).MarshalBinary()
+	return google_uuid.UUID(u).MarshalBinary()
 }
 
 func (u UUID) MarshalTo(data []byte) (n int, err error) {
@@ -46,7 +46,7 @@ func (u UUID) MarshalTo(data []byte) (n int, err error) {
 }
 
 func (u *UUID) Unmarshal(data []byte) error {
-	err := ((*google_uuid.UUID)(u)).UnmarshalBinary(data)
+	err := (*google_uuid.UUID)(u).UnmarshalBinary(data)
 	if err != nil {
 		return err
 	}
@@ -59,7 +59,7 @@ func (u *UUID) Size() int {
 }
 
 func (u UUID) MarshalJSON() ([]byte, error) {
-	return json.Marshal(((google_uuid.UUID)(u)).String())
+	return json.Marshal(google_uuid.UUID(u).String())
 }
 
 func (u *UUID) UnmarshalJSON(data []byte) error {

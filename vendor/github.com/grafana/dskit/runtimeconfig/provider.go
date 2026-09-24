@@ -51,7 +51,7 @@ func newHTTPProvider(rawURL string, client *http.Client, requestDuration *promet
 	if parsed, err := url.Parse(rawURL); err == nil {
 		parsed.RawQuery = ""
 		parsed.Fragment = ""
-		urlForMetrics = parsed.String()
+		urlForMetrics = parsed.Redacted()
 	}
 	return &httpProvider{
 		url:             rawURL,

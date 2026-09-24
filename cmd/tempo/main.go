@@ -12,16 +12,16 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/flagext"
 	dslog "github.com/grafana/dskit/log"
-	"github.com/grafana/tempo/pkg/tracing"
+	"github.com/grafana/tempo/v3/pkg/tracing"
 	"github.com/prometheus/client_golang/prometheus"
 	ver "github.com/prometheus/client_golang/prometheus/collectors/version"
 	"github.com/prometheus/common/version"
 	"go.yaml.in/yaml/v2"
 	"google.golang.org/grpc/encoding"
 
-	"github.com/grafana/tempo/cmd/tempo/app"
-	"github.com/grafana/tempo/pkg/gogocodec"
-	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/v3/cmd/tempo/app"
+	"github.com/grafana/tempo/v3/pkg/gogocodec"
+	"github.com/grafana/tempo/v3/pkg/util/log"
 )
 
 const appName = "tempo"
@@ -51,7 +51,7 @@ func main() {
 	mutexProfileFraction := flag.Int("mutex-profile-fraction", 0, "Override default mutex profiling fraction.")
 	blockProfileThreshold := flag.Int("block-profile-threshold", 0, "Override default block profiling threshold.")
 
-	config, configVerify, err := loadConfig()
+	config, configVerify, configVerifyErrorsOnly, err := loadConfig()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed parsing config: %v\n", err)
 		os.Exit(1)
@@ -75,7 +75,7 @@ func main() {
 	log.InitLogger(&config.Server)
 
 	// Verifying the config's validity and log warnings now that the logger is initialized
-	isValid := configIsValid(config)
+	isValid := configIsValid(config, configVerifyErrorsOnly)
 
 	// Exit if config.verify flag is true
 	if configVerify {
@@ -85,15 +85,13 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Init tracer if OTEL_TRACES_EXPORTER, OTEL_EXPORTER_OTLP_ENDPOINT or OTEL_EXPORTER_OTLP_TRACES_ENDPOINT is set
-	if os.Getenv("OTEL_TRACES_EXPORTER") != "" || os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") != "" || os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") != "" {
-		shutdownTracer, err := tracing.InstallOpenTelemetryTracer(appName, config.Target, config.SpanProfiling)
-		if err != nil {
-			level.Error(log.Logger).Log("msg", "error initialising tracer", "err", err)
-			os.Exit(1)
-		}
-		defer shutdownTracer()
+	// Init tracer, no-op unless enabled via OTel or Jaeger env vars
+	shutdownTracer, err := tracing.InstallOTelOrJaegerFromEnv(appName, config.Target, config.SpanProfiling)
+	if err != nil {
+		level.Error(log.Logger).Log("msg", "error initialising tracer", "err", err)
+		os.Exit(1)
 	}
+	defer shutdownTracer()
 
 	setMutexBlockProfiling(*mutexProfileFraction, *blockProfileThreshold)
 
@@ -116,33 +114,39 @@ func main() {
 	}
 }
 
-func configIsValid(config *app.Config) bool {
+func configIsValid(config *app.Config, errorsOnly bool) bool {
 	// Warn the user for suspect configurations
-	if warnings := config.CheckConfig(); len(warnings) != 0 {
-		level.Warn(log.Logger).Log("msg", "-- CONFIGURATION WARNINGS --")
-		for _, w := range warnings {
-			output := []any{"msg", w.Message}
-			if w.Explain != "" {
-				output = append(output, "explain", w.Explain)
-			}
-			level.Warn(log.Logger).Log(output...)
-		}
-		return false
+	warnings := config.CheckConfig()
+	if len(warnings) == 0 {
+		return true
 	}
-	return true
+
+	level.Warn(log.Logger).Log("msg", "-- CONFIGURATION WARNINGS --")
+	for _, w := range warnings {
+		output := []any{"msg", w.Message}
+		if w.Explain != "" {
+			output = append(output, "explain", w.Explain)
+		}
+		level.Warn(log.Logger).Log(output...)
+	}
+
+	// warnings are informational outside of -config.verify, they never block a real startup
+	return errorsOnly
 }
 
-func loadConfig() (*app.Config, bool, error) {
+func loadConfig() (*app.Config, bool, bool, error) {
 	const (
-		configFileOption      = "config.file"
-		configExpandEnvOption = "config.expand-env"
-		configVerifyOption    = "config.verify"
+		configFileOption           = "config.file"
+		configExpandEnvOption      = "config.expand-env"
+		configVerifyOption         = "config.verify"
+		configVerifyErrorsOnlyFlag = "config.verify-errors-only"
 	)
 
 	var (
-		configFile      string
-		configExpandEnv bool
-		configVerify    bool
+		configFile             string
+		configExpandEnv        bool
+		configVerify           bool
+		configVerifyErrorsOnly bool
 	)
 
 	args := os.Args[1:]
@@ -155,6 +159,7 @@ func loadConfig() (*app.Config, bool, error) {
 	fs.StringVar(&configFile, configFileOption, "", "")
 	fs.BoolVar(&configExpandEnv, configExpandEnvOption, false, "")
 	fs.BoolVar(&configVerify, configVerifyOption, false, "")
+	fs.BoolVar(&configVerifyErrorsOnly, configVerifyErrorsOnlyFlag, false, "")
 
 	// Try to find -config.file & -config.expand-env flags. As Parsing stops on the first error, eg. unknown flag,
 	// we simply try remaining parameters until we find config flag, or there are no params left.
@@ -171,20 +176,20 @@ func loadConfig() (*app.Config, bool, error) {
 	if configFile != "" {
 		buff, err := os.ReadFile(configFile)
 		if err != nil {
-			return nil, false, fmt.Errorf("failed to read configFile %s: %w", configFile, err)
+			return nil, false, false, fmt.Errorf("failed to read configFile %s: %w", configFile, err)
 		}
 
 		if configExpandEnv {
 			s, err := envsubst.EvalEnv(string(buff))
 			if err != nil {
-				return nil, false, fmt.Errorf("failed to expand env vars from configFile %s: %w", configFile, err)
+				return nil, false, false, fmt.Errorf("failed to expand env vars from configFile %s: %w", configFile, err)
 			}
 			buff = []byte(s)
 		}
 
 		err = yaml.UnmarshalStrict(buff, config)
 		if err != nil {
-			return nil, false, fmt.Errorf("failed to parse configFile %s: %w", configFile, err)
+			return nil, false, false, fmt.Errorf("failed to parse configFile %s: %w", configFile, err)
 		}
 
 	}
@@ -196,6 +201,7 @@ func loadConfig() (*app.Config, bool, error) {
 	flagext.IgnoredFlag(flag.CommandLine, configFileOption, "Configuration file to load")
 	flagext.IgnoredFlag(flag.CommandLine, configExpandEnvOption, "Whether to expand environment variables in config file")
 	flagext.IgnoredFlag(flag.CommandLine, configVerifyOption, "Verify configuration and exit")
+	flagext.IgnoredFlag(flag.CommandLine, configVerifyErrorsOnlyFlag, "Fail -config.verify only on hard errors, not configuration warnings")
 	flag.Parse()
 
 	// after loading config, let's force some values if in single binary mode
@@ -213,7 +219,7 @@ func loadConfig() (*app.Config, bool, error) {
 		config.BackendWorker.Ring.KVStore.Store = "" // this will force the single binary to work in "unsharded" mode
 	}
 
-	return config, configVerify, nil
+	return config, configVerify, configVerifyErrorsOnly, nil
 }
 
 func setMutexBlockProfiling(mutexFraction int, blockThreshold int) {

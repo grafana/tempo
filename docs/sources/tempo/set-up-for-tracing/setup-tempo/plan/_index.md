@@ -14,7 +14,9 @@ Before you deploy Tempo, you should consider how you plan to use traces and Temp
 Before planning your Tempo deployment, be aware of the following infrastructure requirements:
 
 - Object storage: Tempo stores trace data in object storage such as S3, GCS, or Azure Storage. Object storage is required for microservices deployments and recommended for production. Monolithic deployments can use local filesystem storage for development and test environments.
-- Kafka-compatible system: Microservices mode requires a Kafka-compatible system, such as Apache Kafka, Redpanda, or WarpStream, as the durable queue that decouples the write and read paths. Monolithic mode doesn't use Kafka.
+- Kafka-compatible system: Microservices mode requires a Kafka-compatible system, such as Apache Kafka, Redpanda, or WarpStream, as the durable queue that decouples the write and read paths.
+  Monolithic mode doesn't use Kafka.
+  Refer to [Configure a Kafka-compatible backend](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/configure-kafka/) to plan the Kafka cluster and topic.
 
 Include these infrastructure components in your deployment planning and resource estimation.
 

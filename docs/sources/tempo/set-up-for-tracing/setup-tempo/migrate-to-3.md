@@ -6,7 +6,7 @@ weight: 520
 aliases:
   - ../migrate-to-3/
 topicType: task
-versionDate: 2026-02-25
+versionDate: 2026-08-25
 ---
 
 # Migrate from Tempo 2.x to 3.0
@@ -32,7 +32,11 @@ Running two Tempo deployments in parallel increases infrastructure costs for the
 
 Confirm the following before you start:
 
-- Your Tempo 2.x deployment uses **vParquet4 or later** as the block format. Tempo 3.0 doesn't support vParquet3 or earlier. If you're using an older format, upgrade your block format before migrating. Refer to [Change the block format version](/docs/tempo/<TEMPO_VERSION>/configuration/parquet/#change-the-block-format-version).
+- `vParquet3` is deprecated.
+  Tempo 3.x still reads existing vParquet3 blocks, so you don't need to convert them before migrating.
+  If your configuration still specifies `vParquet3`, change the write format to **vParquet4 or later**.
+  Refer to [Change the block format version](/docs/tempo/<TEMPO_VERSION>/configuration/parquet/#change-the-block-format-version).
+  Tempo 3.1 writes new blocks as vParquet5 by default.
 - **Microservices mode only**: You have a running **Kafka-compatible system** (for example, Apache Kafka or Redpanda). Monolithic mode does not require Kafka.
 - You have access to the **same object storage** bucket or container used by your 2.x deployment.
 - If you're running **scalable monolithic mode** (SSB), plan to switch to either monolithic or microservices mode. SSB has been removed in Tempo 3.0.
@@ -146,14 +150,27 @@ ingest:
     topic: <KAFKA_TOPIC>
 ```
 
-Each block-builder instance consumes from exactly one Kafka partition based on its ordinal: block-builder-0 consumes partition 0, block-builder-1 consumes partition 1, and so on. This means the number of block-builder replicas must equal the number of Kafka partitions.
+With the default `block_builder.partitions_per_instance: 1`,
+each block-builder instance consumes one Kafka partition based on its ordinal:
+`block-builder-0` consumes partition 0,
+`block-builder-1` consumes partition 1,
+and so on.
 
-To keep block-builder replicas in sync with the partition count, scale them to match the live-store replica count (live-stores also run one replica per partition). You can do this with:
+Set the block-builder replica count to cover the active Tempo partitions,
+which normally matches the active live-store replica count.
+It doesn't need to equal the total Kafka topic partition count;
+extra pre-provisioned Kafka partitions remain idle until live-stores activate the corresponding Tempo partitions.
 
-- A **KEDA autoscaler** that mirrors the live-store pod count. The Tempo Jsonnet library includes this configuration.
-- The [**Grafana rollout-operator**](https://github.com/grafana/rollout-operator) mirroring feature, which keeps one 
-  StatefulSet's replica count in sync with another.
-- A **static replica count** set to the number of Kafka partitions if your partition count is fixed.
+For other `partitions_per_instance` values and partition assignment requirements,
+refer to [Configure a Kafka-compatible backend](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/setup-tempo/configure-kafka/#choose-the-partition-count).
+
+Keep block-builder capacity aligned with the active live-store replica count by using:
+
+- A **KEDA autoscaler** that scales live-stores and adjusts block-builder capacity.
+  The Tempo Jsonnet library includes this configuration.
+- The [**Grafana rollout-operator**](https://github.com/grafana/rollout-operator) mirroring feature,
+  which keeps one StatefulSet's replica count in sync with another.
+- A **static replica count** based on the number of active Tempo partitions.
 
 The `live_store:` block uses sensible defaults and doesn't require overrides for most deployments.
 

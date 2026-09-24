@@ -13,6 +13,7 @@ AI skills for documentation and maintenance workflows in the Tempo repository. F
 | Audience fit | `/persona-check` | Check whether content matches its intended audience |
 | Vendor conflicts | `/fix-vendor-conflicts` | Resolve `vendor/` conflicts during a merge, rebase, or dependency upgrade |
 | Go version update | `/update-go-version` | Update Go version across go.mod, Dockerfile, CI workflows, and tools |
+| SemBr reformat | `/sembr-reformat` | Reformat prose with [Semantic Line Breaks](https://sembr.org) without changing rendered output |
 
 ## Set up
 
@@ -54,6 +55,13 @@ Use `/docs-workflow` to run the full pipeline, or invoke each step individually.
 
 - *Go version update* — `/update-go-version`. Update the Go version across all relevant files: `go.mod`, `tools/go.mod`, Dockerfile, CI workflows, and the tools image tag.
 
+- *SemBr reformat* — `/sembr-reformat`.
+  Reformat prose using [Semantic Line Breaks](https://sembr.org)
+  while preserving rendered output and meaning.
+  Vendored unmodified from the official [sembr/skills](https://github.com/sembr/skills) repo (MIT).
+  Refer to [`.agents/guidance/writing.md`](../../.agents/guidance/writing.md)
+  for when and where to apply SemBr in this repo.
+
 ## Shared resources
 
 These files are loaded by skills automatically. This section is for maintainers editing or extending skills.
@@ -64,6 +72,7 @@ These files are loaded by skills automatically. This section is for maintainers 
 | `.claude/skills/shared/verification-checklist.md` | Pre-submission checklist for accuracy and completeness |
 | `.claude/skills/shared/best-practices.md` | Pre-writing checklist and common pitfalls |
 | `.claude/skills/shared/release-notes-workflow.md` | Multi-phase workflow for release notes |
+| `.claude/skills/shared/release-notes-placement.md` | Where changelog entries belong in the release notes |
 | `.claude/skills/shared/docs-context-guide.md` | General repo orientation for doc tasks |
 | `.claude/skills/shared/load-context.md` | Instructions for loading local project context |
 | `.claude/skills/shared/personas.md` | Persona and intent model for audience-fit checks |

@@ -4,7 +4,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"go.opentelemetry.io/otel"
 )
 

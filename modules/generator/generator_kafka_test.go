@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/grafana/tempo/pkg/ingest"
-	"github.com/grafana/tempo/pkg/ingest/ingesttest"
+	"github.com/grafana/tempo/v3/pkg/ingest"
+	"github.com/grafana/tempo/v3/pkg/ingest/ingesttest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kfake"
@@ -48,6 +48,21 @@ func TestHandlePartitionsRevoked_RemovesOnlyRevokedPartitions(t *testing.T) {
 	g.assignedPartitions = []int32{0, 1, 2, 3, 4, 5}
 
 	g.handlePartitionsRevoked(map[string][]int32{"test-topic": {1, 3, 5}})
+	assert.Equal(t, []int32{0, 2, 4}, g.assignedPartitions)
+}
+
+// TestHandlePartitionsLost_RemovesLostPartitions verifies that partitions lost (e.g. after a
+// session timeout or fence) are removed from the assigned set, matching the revoke path. Without
+// wiring OnPartitionsLost their lag metrics would otherwise never be cleaned up.
+func TestHandlePartitionsLost_RemovesLostPartitions(t *testing.T) {
+	g := minimalGeneratorForKafkaTest()
+	g.assignedPartitions = []int32{0, 1, 2, 3, 4, 5}
+
+	g.handlePartitionsLost(map[string][]int32{"test-topic": {1, 3, 5}})
+	assert.Equal(t, []int32{0, 2, 4}, g.assignedPartitions)
+
+	// Partitions for an unrelated topic must not affect the tracked set.
+	g.handlePartitionsLost(map[string][]int32{"other-topic": {0, 2}})
 	assert.Equal(t, []int32{0, 2, 4}, g.assignedPartitions)
 }
 

@@ -7,10 +7,10 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/grafana/tempo/modules/frontend/shardtracker"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/v3/modules/frontend/shardtracker"
+	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/traceql"
 )
 
 // QueryRangeJobResponse wraps shardtracker.JobMetadata and implements PipelineResponse.
@@ -99,6 +99,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 			}
 			attachExemplars(req, resp)
 			resp.Metrics = metricsCombiner.Metrics
+			resp.Step = req.Step
 			return resp, nil
 		},
 		diff: func(_ *tempopb.QueryRangeResponse) (*tempopb.QueryRangeResponse, error) {
@@ -110,6 +111,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 				return &tempopb.QueryRangeResponse{
 					Series:  []*tempopb.TimeSeries{},
 					Metrics: metricsCombiner.Metrics,
+					Step:    req.Step,
 				}, nil
 			}
 
@@ -138,6 +140,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 			}
 			attachExemplars(req, resp)
 			resp.Metrics = metricsCombiner.Metrics
+			resp.Step = req.Step
 
 			return resp, nil
 		},
@@ -179,6 +182,7 @@ func segmentQueryRangeResponseToMaxPacketSize(resp *tempopb.QueryRangeResponse, 
 	startNextPacket := func() {
 		current = &tempopb.QueryRangeResponse{
 			Metrics: resp.Metrics,
+			Step:    resp.Step,
 		}
 		currentSz = current.Size()
 		out = append(out, current)

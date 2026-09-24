@@ -3,8 +3,8 @@ package provider
 import (
 	"context"
 
-	"github.com/grafana/tempo/modules/backendscheduler/work"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v3/modules/backendscheduler/work"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
 )
 
 // Provider defines the interface for job providers
@@ -17,6 +17,11 @@ type Provider interface {
 type Scheduler interface {
 	ListJobs() []*work.Job
 	NextPendingJob(jobType tempopb.JobType) *work.Job
+
+	// ReleaseRedactionInFlight releases the in-flight count for a redaction job that was dequeued
+	// via NextPendingJob but is being dropped rather than dispatched (e.g. on shutdown), so the
+	// counter does not leak.
+	ReleaseRedactionInFlight(tenantID string)
 
 	// RegisterJob makes a job visible to other components before it is
 	// promoted to the active map via AddJob.

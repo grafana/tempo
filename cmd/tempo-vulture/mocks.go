@@ -6,10 +6,10 @@ import (
 	"sync"
 	"time"
 
-	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
+	userconfigurableoverrides "github.com/grafana/tempo/v3/modules/overrides/userconfigurable/client"
 	thrift "github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
 
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
 )
 
 type MockReporter struct {

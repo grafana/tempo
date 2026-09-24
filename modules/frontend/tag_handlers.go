@@ -17,14 +17,14 @@ import (
 	"github.com/gogo/status"
 	"github.com/gorilla/mux"
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/modules/frontend/combiner"
-	"github.com/grafana/tempo/modules/frontend/pipeline"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/search"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/util/tracing"
+	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/search"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/pkg/util/tracing"
 	"google.golang.org/grpc/codes"
 )
 
@@ -44,17 +44,19 @@ func newTagsStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[com
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 
 	return func(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsServer) error {
+		ctx := pipeline.WithQueryShapeCell(srv.Context())
+
 		if err := pipeline.ValidateTraceQLQuerySize(req.Query, cfg.MaxQueryExpressionSizeBytes); err != nil {
 			return status.Error(codes.InvalidArgument, err.Error())
 		}
 		if dataAccessController != nil {
-			err := dataAccessController.HandleGRPCTagsReq(srv.Context(), req)
+			err := dataAccessController.HandleGRPCTagsReq(ctx, req)
 			if err != nil {
 				level.Error(logger).Log("msg", "SearchTags streaming: access control handling failed", "err", err)
 				return err
 			}
 		}
-		httpReq, tenant, err := buildTagsRequestAndExtractTenant(srv.Context(), req, downstreamPath, logger)
+		httpReq, tenant, err := buildTagsRequestAndExtractTenant(ctx, req, downstreamPath, logger)
 		if err != nil {
 			return err
 		}
@@ -89,8 +91,8 @@ func newTagsStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[com
 			bytesProcessed = finalResponse.Metrics.InspectedBytes
 		}
 		postSLOHook(nil, tenant, bytesProcessed, duration, err)
-		logTagsResult(srv.Context(), logger, tenant, "SearchTagsStreaming", req.Scope, req.End-req.Start, duration.Seconds(), bytesProcessed, err)
-
+		logTagsResult(ctx, logger, tenant, "SearchTagsStreaming", req.Scope, req.End-req.Start, duration.Seconds(), bytesProcessed, err)
+		recordQueryMetaDataMetrics(tenant, finalResponse.GetMetrics())
 		return err
 	}
 }
@@ -100,7 +102,7 @@ func newTagsV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 
 	return func(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsV2Server) error {
-		ctx := srv.Context()
+		ctx := pipeline.WithQueryShapeCell(srv.Context())
 
 		if err := pipeline.ValidateTraceQLQuerySize(req.Query, cfg.MaxQueryExpressionSizeBytes); err != nil {
 			return status.Error(codes.InvalidArgument, err.Error())
@@ -163,7 +165,7 @@ func newTagsV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 		}
 		postSLOHook(nil, tenant, bytesProcessed, duration, err)
 		logTagsResult(ctx, logger, tenant, "SearchTagsV2Streaming", req.Scope, req.End-req.Start, duration.Seconds(), bytesProcessed, err)
-
+		recordQueryMetaDataMetrics(tenant, finalResponse.GetMetrics())
 		return err
 	}
 }
@@ -172,7 +174,7 @@ func newTagValuesStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrippe
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 
 	return func(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesServer) error {
-		ctx := srv.Context()
+		ctx := pipeline.WithQueryShapeCell(srv.Context())
 		var err error
 
 		if err := pipeline.ValidateTraceQLQuerySize(req.Query, cfg.MaxQueryExpressionSizeBytes); err != nil {
@@ -214,7 +216,7 @@ func newTagValuesStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrippe
 		}
 		postSLOHook(nil, tenant, bytesProcessed, duration, err)
 		logTagValuesResult(ctx, logger, tenant, "SearchTagValuesStreaming", req.TagName, req.Query, req.End-req.Start, duration.Seconds(), bytesProcessed, err)
-
+		recordQueryMetaDataMetrics(tenant, finalResponse.GetMetrics())
 		return err
 	}
 }
@@ -223,7 +225,7 @@ func newTagValuesV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrip
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 
 	return func(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesV2Server) error {
-		ctx := srv.Context()
+		ctx := pipeline.WithQueryShapeCell(srv.Context())
 
 		if err := pipeline.ValidateTraceQLQuerySize(req.Query, cfg.MaxQueryExpressionSizeBytes); err != nil {
 			return status.Error(codes.InvalidArgument, err.Error())
@@ -271,7 +273,7 @@ func newTagValuesV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrip
 		}
 		postSLOHook(nil, tenant, bytesProcessed, duration, err)
 		logTagValuesResult(ctx, logger, tenant, "SearchTagValuesV2Streaming", req.TagName, req.Query, req.End-req.Start, duration.Seconds(), bytesProcessed, err)
-
+		recordQueryMetaDataMetrics(tenant, finalResponse.GetMetrics())
 		return err
 	}
 }
@@ -332,7 +334,7 @@ func newTagsHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pip
 		duration := time.Since(start)
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
 		logTagsResult(req.Context(), logger, tenant, "SearchTags", scope, rangeDur, duration.Seconds(), bytesProcessed, err)
-
+		recordQueryMetaDataMetrics(tenant, searchResp.GetMetrics())
 		return resp, err
 	})
 }
@@ -406,7 +408,7 @@ func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 		duration := time.Since(start)
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
 		logTagsResult(req.Context(), logger, tenant, "SearchTagsV2", scope, rangeDur, duration.Seconds(), bytesProcessed, err)
-
+		recordQueryMetaDataMetrics(tenant, searchResp.GetMetrics())
 		return resp, err
 	})
 }
@@ -453,7 +455,7 @@ func newTagValuesHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combine
 		duration := time.Since(start)
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
 		logTagValuesResult(req.Context(), logger, tenant, "SearchTagValues", tagName, query, rangeDur, duration.Seconds(), bytesProcessed, err)
-
+		recordQueryMetaDataMetrics(tenant, searchResp.GetMetrics())
 		return resp, err
 	})
 }
@@ -507,7 +509,7 @@ func newTagValuesV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combi
 		duration := time.Since(start)
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
 		logTagValuesResult(req.Context(), logger, tenant, "SearchTagValuesV2", tagName, query, rangeDur, duration.Seconds(), bytesProcessed, err)
-
+		recordQueryMetaDataMetrics(tenant, searchResp.GetMetrics())
 		return resp, err
 	})
 }
@@ -571,12 +573,14 @@ func logTagsRequest(logger log.Logger, tenantID, handler, scope string, rangeSec
 		"tenant", tenantID,
 		"handler", handler,
 		"scope", scope,
-		"range_seconds", rangeSeconds)
+		"range_seconds", rangeSeconds,
+	)
 }
 
 func logTagsResult(ctx context.Context, logger log.Logger, tenantID, handler, scope string, rangeSeconds uint32, durationSeconds float64, inspectedBytes uint64, err error) {
 	traceID, _ := tracing.ExtractTraceID(ctx)
-	level.Info(logger).Log(
+	recordResult(
+		level.Info(logger), ctx, nil,
 		"msg", "search tag response",
 		"tenant", tenantID,
 		"traceID", traceID,
@@ -586,7 +590,8 @@ func logTagsResult(ctx context.Context, logger log.Logger, tenantID, handler, sc
 		"duration_seconds", durationSeconds,
 		"inspected_bytes", inspectedBytes,
 		"request_throughput", float64(inspectedBytes)/durationSeconds,
-		"error", err)
+		"error", err,
+	)
 }
 
 func logTagValuesRequest(logger log.Logger, tenantID, handler, tagName, query string, rangeSeconds uint32) {
@@ -596,12 +601,14 @@ func logTagValuesRequest(logger log.Logger, tenantID, handler, tagName, query st
 		"handler", handler,
 		"tag", tagName,
 		"query", query,
-		"range_seconds", rangeSeconds)
+		"range_seconds", rangeSeconds,
+	)
 }
 
 func logTagValuesResult(ctx context.Context, logger log.Logger, tenantID, handler, tagName, query string, rangeSeconds uint32, durationSeconds float64, inspectedBytes uint64, err error) {
 	traceID, _ := tracing.ExtractTraceID(ctx)
-	level.Info(logger).Log(
+	recordResult(
+		level.Info(logger), ctx, nil,
 		"msg", "search tag values response",
 		"tenant", tenantID,
 		"traceID", traceID,
@@ -612,7 +619,8 @@ func logTagValuesResult(ctx context.Context, logger log.Logger, tenantID, handle
 		"duration_seconds", durationSeconds,
 		"inspected_bytes", inspectedBytes,
 		"request_throughput", float64(inspectedBytes)/durationSeconds,
-		"error", err)
+		"error", err,
+	)
 }
 
 // parseParams parses optional 'start', 'end', 'scope', and 'q' params from a http.Request

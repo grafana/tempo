@@ -35,6 +35,9 @@ The evals are written to reflect this context: prompts set up the workflow phase
 ├── docs-workflow/
 │   └── evals/
 │       └── evals.json          # 4 test cases: full pipeline (Steps 1–3)
+├── persona-check/
+│   └── evals/
+│       └── evals.json          # 6 test cases: 5 standalone, 1 PR (audience fit)
 └── evals/
     ├── README.md               # this file
     └── evals.json              # 1 integration test (Phase 1.5 → 1.75 handoff)

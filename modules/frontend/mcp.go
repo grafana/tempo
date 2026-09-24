@@ -7,7 +7,8 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/middleware"
-	frontendDocs "github.com/grafana/tempo/modules/frontend/docs"
+	frontendDocs "github.com/grafana/tempo/v3/modules/frontend/docs"
+	"github.com/grafana/tempo/v3/pkg/model/tracediff"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -39,6 +40,7 @@ const (
 	toolTraceQLMetricsInstant = "traceql-metrics-instant"
 	toolTraceQLMetricsRange   = "traceql-metrics-range"
 	toolGetTrace              = "get-trace"
+	toolTraceDiff             = "trace-diff"
 	toolGetAttributeNames     = "get-attribute-names"
 	toolGetAttributeValues    = "get-attribute-values"
 	toolDocsTraceQL           = "docs-traceql"
@@ -253,31 +255,39 @@ func (s *MCPServer) setupResources() {
 // setupTools registers MCP tools for trace operations
 func (s *MCPServer) setupTools() {
 	// api tools
-	searchTool := newReadOnlyTool(toolTraceQLSearch,
+	searchTool := newReadOnlyTool(
+		toolTraceQLSearch,
 		mcp.WithDescription("Search for traces using TraceQL queries"),
-		mcp.WithString("query",
+		mcp.WithString(
+			"query",
 			mcp.Required(),
 			mcp.Description("TraceQL query string"),
 		),
-		mcp.WithString("start",
+		mcp.WithString(
+			"start",
 			mcp.Description("Start time for the search (RFC3339 format). If not provided will search the past 1 hour. If provided, must be before end."),
 		),
-		mcp.WithString("end",
+		mcp.WithString(
+			"end",
 			mcp.Description("End time for the search (RFC3339 format). If not provided will search the past 1 hour. If provided, must be after start."),
 		),
 	)
 	s.mcpServer.AddTool(searchTool, s.handleSearch)
 
-	instantQueryTool := newReadOnlyTool(toolTraceQLMetricsInstant,
+	instantQueryTool := newReadOnlyTool(
+		toolTraceQLMetricsInstant,
 		mcp.WithDescription("Retrieve a single metric value given a TraceQL metrics query. The value is at the current instant or end. Most metrics questions can be answered with instant values."),
-		mcp.WithString("query",
+		mcp.WithString(
+			"query",
 			mcp.Required(),
 			mcp.Description("TraceQL query string."),
 		),
-		mcp.WithString("start",
+		mcp.WithString(
+			"start",
 			mcp.Description("Start time for the search (RFC3339 format). If not provided will search the past 1 hour. If provided, must be before end."),
 		),
-		mcp.WithString("end",
+		mcp.WithString(
+			"end",
 			mcp.Description("End time for the search (RFC3339 format). If not provided will search the past 1 hour. If provided, must be after start."),
 		),
 		mcp.WithDestructiveHintAnnotation(false),
@@ -285,25 +295,31 @@ func (s *MCPServer) setupTools() {
 	s.mcpServer.AddTool(instantQueryTool, s.handleInstantQuery)
 
 	// TODO: should we even expose this? the LLM would be better at using the instant query tool and giving accurate answers.
-	rangeQueryTool := newReadOnlyTool(toolTraceQLMetricsRange,
+	rangeQueryTool := newReadOnlyTool(
+		toolTraceQLMetricsRange,
 		mcp.WithDescription("Retrieve a metric series given a TraceQL metrics query. The series ranges from start to end."),
-		mcp.WithString("query",
+		mcp.WithString(
+			"query",
 			mcp.Required(),
 			mcp.Description("TraceQL metrics query string."),
 		),
-		mcp.WithString("start",
+		mcp.WithString(
+			"start",
 			mcp.Description("Start time for the search (RFC3339 format). If not provided will search the past 1 hour. If provided, must be before end."),
 		),
-		mcp.WithString("end",
+		mcp.WithString(
+			"end",
 			mcp.Description("End time for the search (RFC3339 format). If not provided will search the past 1 hour. If provided, must be after start."),
 		),
 		mcp.WithDestructiveHintAnnotation(false),
 	)
 	s.mcpServer.AddTool(rangeQueryTool, s.handleRangeQuery)
 
-	traceTool := newReadOnlyTool(toolGetTrace,
+	traceTool := newReadOnlyTool(
+		toolGetTrace,
 		mcp.WithDescription("Retrieve a specific trace by ID"),
-		mcp.WithString("trace_id",
+		mcp.WithString(
+			"trace_id",
 			mcp.Required(),
 			mcp.Description("Trace ID to retrieve"),
 		),
@@ -311,22 +327,70 @@ func (s *MCPServer) setupTools() {
 	)
 	s.mcpServer.AddTool(traceTool, s.handleGetTrace)
 
-	attributeNamesTool := newReadOnlyTool(toolGetAttributeNames,
+	traceDiffTool := newReadOnlyTool(
+		toolTraceDiff,
+		mcp.WithDescription("Compare two complete traces. Returns a compact summary and includes the full span-level patch when it is at most 64 KiB. Request trace-patch-v0 only when full details are required; full patches are not size-bounded."),
+		mcp.WithString(
+			"base_trace_id",
+			mcp.Required(),
+			mcp.Description("Trace ID for the baseline trace"),
+		),
+		mcp.WithString(
+			"compare_trace_id",
+			mcp.Required(),
+			mcp.Description("Trace ID for the comparison trace"),
+		),
+		mcp.WithString(
+			"base_start",
+			mcp.Description("Optional start of the baseline trace search range in RFC3339 format. Must be provided with base_end."),
+			mcp.MinLength(1),
+		),
+		mcp.WithString(
+			"base_end",
+			mcp.Description("Optional end of the baseline trace search range in RFC3339 format. Must be provided with base_start."),
+			mcp.MinLength(1),
+		),
+		mcp.WithString(
+			"compare_start",
+			mcp.Description("Optional start of the comparison trace search range in RFC3339 format. Must be provided with compare_end."),
+			mcp.MinLength(1),
+		),
+		mcp.WithString(
+			"compare_end",
+			mcp.Description("Optional end of the comparison trace search range in RFC3339 format. Must be provided with compare_start."),
+			mcp.MinLength(1),
+		),
+		mcp.WithString(
+			"format",
+			mcp.Description("Output format. The composed format returns a compact summary and attaches the full patch only when it is at most 64 KiB. trace-patch-v0 has no output-size guarantee."),
+			mcp.Enum(tracediff.VersionTraceSummaryV0Composed, tracediff.VersionTraceSummaryV0Native, tracediff.VersionTracePatchV0),
+			mcp.DefaultString(tracediff.VersionTraceSummaryV0Composed),
+			mcp.MinLength(1),
+		),
+	)
+	s.mcpServer.AddTool(traceDiffTool, s.handleTraceDiff)
+
+	attributeNamesTool := newReadOnlyTool(
+		toolGetAttributeNames,
 		mcp.WithDescription("Get a list of available attribute names that can be used in TraceQL queries. This is useful for finding the names of attributes that can be used in a query."),
-		mcp.WithString("scope",
+		mcp.WithString(
+			"scope",
 			mcp.Description("Optional scope to filter attributes by (span, resource, event, link, instrumentation). If not provided, returns all attributes."),
 		),
 		mcp.WithDestructiveHintAnnotation(false),
 	)
 	s.mcpServer.AddTool(attributeNamesTool, s.handleGetAttributeNames)
 
-	attributeValuesTool := newReadOnlyTool(toolGetAttributeValues,
+	attributeValuesTool := newReadOnlyTool(
+		toolGetAttributeValues,
 		mcp.WithDescription("Get a list of values for a fully scoped attribute name. This is useful for finding the values of a specific attribute. i.e. you can find all the services in the data by asking for resource.service.name"),
-		mcp.WithString("name",
+		mcp.WithString(
+			"name",
 			mcp.Required(),
 			mcp.Description("The attribute name to get values for (e.g. 'span.http.method', 'resource.service.name')"),
 		),
-		mcp.WithString("filter-query",
+		mcp.WithString(
+			"filter-query",
 			mcp.Description("Filter query to apply to the attribute values. It can only have one spanset and only &&'ed conditions like { <cond> && <cond> && ... }.This is useful for filtering the values to a specific set of values. i.e. you can find all endpoints for a given service by asking for span.http.endpoint and filtering resource.service.name."),
 		),
 		mcp.WithDestructiveHintAnnotation(false),
@@ -336,9 +400,11 @@ func (s *MCPServer) setupTools() {
 
 	// docs tools - these are defined as tools as well as resources b/c claude code never asks for resources but it will nicely
 	// request the content from these docs tools.
-	traceQLDocs := newReadOnlyTool(toolDocsTraceQL,
+	traceQLDocs := newReadOnlyTool(
+		toolDocsTraceQL,
 		mcp.WithDescription(docsTraceQLQueryDescription),
-		mcp.WithString("name",
+		mcp.WithString(
+			"name",
 			mcp.Required(),
 			mcp.Description("The type of TraceQL documentation to retrieve"),
 			mcp.Enum(frontendDocs.DocsTypeBasic, frontendDocs.DocsTypeAggregates, frontendDocs.DocsTypeStructural, frontendDocs.DocsTypeMetrics),
@@ -347,9 +413,11 @@ func (s *MCPServer) setupTools() {
 	)
 	s.mcpServer.AddTool(traceQLDocs, s.handleTraceQLDocs)
 
-	configDocs := newReadOnlyTool(toolDocsConfig,
+	configDocs := newReadOnlyTool(
+		toolDocsConfig,
 		mcp.WithDescription(docsConfigDescription),
-		mcp.WithString("name",
+		mcp.WithString(
+			"name",
 			mcp.Required(),
 			mcp.Description("The type of Tempo configuration documentation to retrieve"),
 			mcp.Enum(frontendDocs.DocsTypeConfigOverview, frontendDocs.DocsTypeConfigReference),

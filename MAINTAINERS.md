@@ -7,7 +7,6 @@
 * @mapno
 * @mattdurham
 * @mdisibio
-* @oleg-kozlyuk-grafana
 * @ruslan-mikhailov
 * @stoewer
 * @yvrhdn
@@ -18,3 +17,4 @@ Emeritus Maintainers
 
 * @annanay25
 * @dgzlopes
+* @oleg-kozlyuk-grafana / @DarkWanderer
