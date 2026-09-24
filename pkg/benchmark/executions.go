@@ -168,25 +168,23 @@ func metricsExecutions(query string, shards []Shard, meta *backend.BlockMeta, ba
 	return executions
 }
 
-// tagNamesExecutions lists tag names in one scope, as a single execution.
+// tagNamesExecutions lists tag names in one scope, one execution per shard, as
+// the frontend's tag jobs do.
 //
-// It does not shard: SearchTags ignores StartPage and TotalPages and walks the
-// whole file, so a shard per row group would repeat the same work and report a
-// match count multiplied by the shard count. The frontend does fan these out
-// per job, so production pays that repetition, but measuring the API once is
-// what makes two runs comparable.
-//
-// The API also takes a callback for bytes read instead of returning a metrics
+// This API takes a callback for bytes read instead of returning a metrics
 // message, so bytes is all it can report. The backend counter and the process
 // metrics cover the rest.
-func tagNamesExecutions(scope traceql.AttributeScope, baseOpts common.SearchOptions) []execution {
-	return []execution{
-		func(ctx context.Context, block common.BackendBlock, _ RunOptions) (execOutput, error) {
+func tagNamesExecutions(scope traceql.AttributeScope, shards []Shard, baseOpts common.SearchOptions) []execution {
+	executions := make([]execution, 0, len(shards))
+	for _, shard := range shards {
+		readOpts := shardOptions(baseOpts, shard)
+
+		executions = append(executions, func(ctx context.Context, block common.BackendBlock, _ RunOptions) (execOutput, error) {
 			var names, bytesRead int64
 			err := block.SearchTags(ctx, scope,
 				func(string, traceql.AttributeScope) { names++ },
 				func(b uint64) { bytesRead += int64(b) },
-				baseOpts,
+				readOpts,
 			)
 			if err != nil {
 				return execOutput{}, err
@@ -197,6 +195,7 @@ func tagNamesExecutions(scope traceql.AttributeScope, baseOpts common.SearchOpti
 				return execOutput{}, err
 			}
 			return out, nil
-		},
+		})
 	}
+	return executions
 }

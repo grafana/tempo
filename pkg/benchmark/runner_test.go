@@ -107,11 +107,10 @@ func TestRun(t *testing.T) {
 	require.Positive(t, rate.Metrics[metrics.PrefixResponse+"inspectedBytes"].Total)
 	require.Positive(t, rate.Metrics[metrics.PrefixResponse+"inspectedSpans"].Total)
 
-	// Tag names run once, not per shard: SearchTags walks the whole file, so a
-	// shard per row group would multiply the match count by the shard count.
+	// Tag names shard like the frontend's tag jobs.
 	for id, c := range byID {
 		if c.API == apiMetadata {
-			require.Equal(t, 1, c.Executions, "%s must not shard", id)
+			require.Equal(t, result.Shards, c.Executions, "%s must shard", id)
 		}
 	}
 
