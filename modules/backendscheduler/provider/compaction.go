@@ -416,7 +416,11 @@ func (p *CompactionProvider) newBlockSelectorForMeasurement(tenantID string) (bl
 	)
 
 	busyBlocks := p.sched.BusyBlocksForTenant(tenantID)
+	noCompact := p.noCompactBlocks(tenantID)
 	for _, block := range fullBlocklist {
+		if _, ok := noCompact[block.BlockID]; ok {
+			continue
+		}
 		if _, ok := busyBlocks[block.BlockID.String()]; ok {
 			continue
 		}
@@ -465,10 +469,14 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 	// Take a single snapshot of all busy blocks for this tenant — one lock
 	// acquisition regardless of blocklist size.
 	busyBlocks := p.sched.BusyBlocksForTenant(tenantID)
+	noCompact := p.noCompactBlocks(tenantID)
 
-	// Build the filtered blocklist, skipping blocks already busy
-	// (pending redaction, active compaction input, etc.).
+	// Build the filtered blocklist, skipping blocks with a nocompact flag and
+	// blocks already busy (pending redaction, active compaction input, etc.).
 	for _, block := range fullBlocklist {
+		if _, ok := noCompact[block.BlockID]; ok {
+			continue
+		}
 		if _, ok := busyBlocks[block.BlockID.String()]; ok {
 			continue
 		}
@@ -488,4 +496,14 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 		p.cfg.MaxInputBlocks,
 		p.cfg.MaxCompactionLevel,
 	), len(blocklist)
+}
+
+// noCompactBlocks returns the set of the tenant's blocks that have a nocompact flag.
+func (p *CompactionProvider) noCompactBlocks(tenantID string) map[backend.UUID]struct{} {
+	ids := p.store.NoCompactBlocks(tenantID)
+	set := make(map[backend.UUID]struct{}, len(ids))
+	for _, id := range ids {
+		set[id] = struct{}{}
+	}
+	return set
 }

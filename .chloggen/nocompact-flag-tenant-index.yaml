@@ -1,0 +1,11 @@
+change_type: bug_fix
+
+component: backend-scheduler
+
+note: Fix the backend scheduler compacting blocks that have a `nocompact.flg`.
+
+issues: []
+
+subtext: The tenant index now records the flag, and the scheduler skips flagged blocks when it creates compaction jobs.
+
+user: zhxiaogg

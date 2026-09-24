@@ -952,7 +952,7 @@ func newStore(ctx context.Context, t testing.TB) storage.Store {
 	// wait for it, and it races with t.TempDir() cleanup, writing tenant index
 	// files while os.RemoveAll runs.
 	ctx, cancel := context.WithCancel(ctx)
-	store := newStoreWithLogger(ctx, t, testLogger(t), false)
+	store := newStoreWithLogger(ctx, t, testLogger(t))
 	t.Cleanup(func() {
 		cancel()
 		store.Shutdown()
@@ -961,7 +961,7 @@ func newStore(ctx context.Context, t testing.TB) storage.Store {
 	return store
 }
 
-func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger, skipNoCompactBlocks bool) storage.Store {
+func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger) storage.Store {
 	tmpDir := t.TempDir()
 
 	s, err := storage.NewStore(storage.Config{
@@ -983,7 +983,7 @@ func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger, skipN
 	}, nil, log)
 	require.NoError(t, err)
 
-	s.EnablePolling(ctx, &ownEverythingSharder{}, skipNoCompactBlocks)
+	s.EnablePolling(ctx, &ownEverythingSharder{})
 	return s
 }
 
@@ -1080,7 +1080,7 @@ func BenchmarkBlockBuilder(b *testing.B) {
 		ctx        = context.Background()
 		logger     = log.NewNopLogger()
 		_, address = testkafka.CreateCluster(b, 1, testTopic)
-		store      = newStoreWithLogger(ctx, b, logger, false)
+		store      = newStoreWithLogger(ctx, b, logger)
 		cfg        = blockbuilderConfig(b, address, []int32{0})
 		client     = testkafka.NewKafkaClient(b, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
 		o          = &mockOverrides{

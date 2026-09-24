@@ -318,6 +318,7 @@ func TestListBlocksWithPrefix(t *testing.T) {
 		prefix            string
 		liveBlockIDs      []uuid.UUID
 		compactedBlockIDs []uuid.UUID
+		noCompactBlockIDs []uuid.UUID
 		tenant            string
 		httpHandler       func(t *testing.T) http.HandlerFunc
 	}{
@@ -327,6 +328,7 @@ func TestListBlocksWithPrefix(t *testing.T) {
 			tenant:            "single-tenant",
 			liveBlockIDs:      []uuid.UUID{uuid.MustParse("00000000-0000-0000-0000-000000000000")},
 			compactedBlockIDs: []uuid.UUID{uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+			noCompactBlockIDs: []uuid.UUID{uuid.MustParse("00000000-0000-0000-0000-000000000000")},
 			httpHandler: func(t *testing.T) http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
 					if r.Method == "GET" {
@@ -355,6 +357,18 @@ func TestListBlocksWithPrefix(t *testing.T) {
 							  </Properties>
 							</Blob>
 							
+							<Blob>
+							  <Name>a/b/c/single-tenant/00000000-0000-0000-0000-000000000000/nocompact.flg</Name>
+							  <Url>https://myaccount.blob.core.windows.net/mycontainer/a/b/c/single-tenant/00000000-0000-0000-0000-000000000000/nocompact.flg</Url>
+							  <Properties>
+								<Last-Modified>Fri, 01 Mar 2024 00:00:00 GMT</Last-Modified>
+								<Etag>0x8CBFF45D8A29A19</Etag>
+								<Content-Length>0</Content-Length>
+								<BlobType>BlockBlob</BlobType>
+								<LeaseStatus>unlocked</LeaseStatus>
+							  </Properties>
+							</Blob>
+
 							<Blob>
 							  <Name>a/b/c/single-tenant/00000000-0000-0000-0000-000000000001/meta.compacted.json</Name>
 							  <Url>https://myaccount.blob.core.windows.net/mycontainer/a/b/c/single-tenant/00000000-0000-0000-0000-000000000001/meta.compacted.json</Url>
@@ -456,11 +470,12 @@ func TestListBlocksWithPrefix(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := context.Background()
-			blockIDs, compactedBlockIDs, err2 := r.ListBlocks(ctx, tc.tenant)
+			blockIDs, compactedBlockIDs, noCompactBlockIDs, err2 := r.ListBlocks(ctx, tc.tenant)
 			assert.NoError(t, err2)
 
 			assert.ElementsMatchf(t, tc.liveBlockIDs, blockIDs, "Block IDs did not match")
 			assert.ElementsMatchf(t, tc.compactedBlockIDs, compactedBlockIDs, "Compacted block IDs did not match")
+			assert.ElementsMatchf(t, tc.noCompactBlockIDs, noCompactBlockIDs, "Nocompact block IDs did not match")
 		})
 	}
 }
@@ -886,7 +901,7 @@ func TestListBlocksSharded(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	blockIDs, compacted, err := r.ListBlocks(context.Background(), tenant)
+	blockIDs, compacted, _, err := r.ListBlocks(context.Background(), tenant)
 	require.NoError(t, err)
 
 	assert.ElementsMatch(t, liveBlockIDs, blockIDs)
@@ -955,7 +970,7 @@ func TestListBlocksWithTenantIndex(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			blockIDs, compacted, err := r.ListBlocks(context.Background(), tenant)
+			blockIDs, compacted, _, err := r.ListBlocks(context.Background(), tenant)
 			require.NoError(t, err)
 
 			assert.Equal(t, []uuid.UUID{blockID}, blockIDs)
