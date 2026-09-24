@@ -29,7 +29,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.23.0
 	github.com/gorilla/mux v1.8.1
 	github.com/grafana/dskit v0.0.0-20260703122047-de1ec7541c44
-	github.com/grafana/e2e v0.1.2-0.20260504080022-0f57c9f0da68
+	github.com/grafana/e2e v0.1.2-0.20260918025020-cfcdc6861c9c
 	github.com/grafana/gomemcache v0.0.0-20260728143316-9448343bd654
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.1.0
 	github.com/jaegertracing/jaeger-idl v0.9.0
