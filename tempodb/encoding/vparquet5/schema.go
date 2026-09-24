@@ -584,7 +584,7 @@ func sortTrace(trace *Trace) {
 				if i.Name != j.Name {
 					return strings.Compare(i.Name, j.Name)
 				}
-				return int(i.StatusCode - j.StatusCode)
+				return i.StatusCode - j.StatusCode
 			})
 		}
 	}
