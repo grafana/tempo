@@ -85,6 +85,9 @@ func TestEstimateAttrSizeCountsValueBytes(t *testing.T) {
 
 	unsupported := strings.Repeat("x", 1<<10)
 	require.GreaterOrEqual(t, estimateAttrSize([]Attribute{{Key: "k", ValueUnsupported: &unsupported}}), (1<<10)/20)
+
+	// Strings under 20 bytes still count.
+	require.Greater(t, estimateAttrSize([]Attribute{{Key: "k", Value: []string{"short"}}}), estimateAttrSize([]Attribute{{Key: "k"}}))
 }
 
 func TestCreateBlockCutsRowGroupAtMaxSize(t *testing.T) {

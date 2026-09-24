@@ -337,10 +337,10 @@ func estimateAttrSize(attrs []Attribute) (size int) {
 		// String values are unbounded. Count ~1 byte per 20 to account for
 		// encoding and compression, like estimateMarshalledSizeFromParquetRow.
 		for _, v := range a.Value {
-			size += len(v) / 20
+			size += max(len(v)/20, 1)
 		}
 		if a.ValueUnsupported != nil {
-			size += len(*a.ValueUnsupported) / 20
+			size += max(len(*a.ValueUnsupported)/20, 1)
 		}
 
 		// 1 byte for every entry in arrays after the first one.

@@ -5,7 +5,7 @@ change_type: bug_fix
 component: storage
 
 # A brief description of the change.
-note: Cap row groups at 800MiB and count attribute value bytes when estimating row group size
+note: Fix vParquet5 blocks with large string attributes being written with oversized row groups, which could corrupt blocks and crash compaction.
 
 issues: []
 
