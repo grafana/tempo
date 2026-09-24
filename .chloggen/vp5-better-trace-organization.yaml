@@ -15,7 +15,7 @@ note: Internally sorts traces more intentionally before writing for better compr
 issues: []
 
 # (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
-subtext: Traces are now sorted by service, scope, span name, and then status.  This new sorting colocates data better, including of attributes and events, etc and results in about 10% storage savings, and less I/O during reads.
+subtext: Traces are now sorted by service, scope, span name, and then status. This new sorting colocates data better (including attributes and events) which can improve compression and reduce I/O during reads.
 
 # The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
 user: mdisibio
