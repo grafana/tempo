@@ -3,10 +3,19 @@ package images
 
 var (
 	// These are variables so that they can be modified.
-	Memcached        = "memcached:1.6.12"
-	Redis            = "redis:7.0.7"
-	Minio            = "minio/minio:RELEASE.2021-10-13T00-23-17Z"
-	KES              = "minio/kes:v0.17.1"
+	Memcached = "memcached:1.6.12"
+	Redis     = "redis:7.0.7"
+	// MinIO archived its community edition: pre-built images stopped in Oct 2025, and the
+	// Docker Hub AND quay.io community repos (minio/minio) were deleted in Sep 2026, so
+	// neither registry resolves it anymore. pgsty/silo is a community MinIO fork that keeps
+	// the same S3 API, MINIO_* env vars (including the legacy MINIO_ACCESS_KEY/
+	// MINIO_SECRET_KEY that db.NewMinio sets, verified still honoured) and /minio/* routes;
+	// only the server binary name changes from `minio` to `silo` (see db.NewMinio below).
+	Minio = "pgsty/silo:RELEASE.2026-09-03T13-18-01Z"
+	// quay.io/minio/kes (the standalone KES key-encryption-service, used by NewKES/
+	// NewMinioWithKES) is a separate image from MinIO/Silo itself and is still resolving on
+	// quay.io as of Sep 2026, so it is left unchanged here.
+	KES              = "quay.io/minio/kes:v0.17.1"
 	Consul           = "consul:1.8.15"
 	ETCD             = "gcr.io/etcd-development/etcd:v3.4.13"
 	DynamoDB         = "amazon/dynamodb-local:1.17.0"
