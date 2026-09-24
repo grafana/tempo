@@ -176,7 +176,7 @@ type runtimeConfigOverridesManager struct {
 }
 
 const (
-	runtimeConfigRetryMin         = 200 * time.Millisecond
+	runtimeConfigRetryBackoff     = 200 * time.Millisecond
 	runtimeConfigRetryMax         = 5 * time.Second
 	runtimeConfigRetryMaxAttempts = 10
 )
@@ -202,7 +202,7 @@ func (o *runtimeConfigOverridesManager) starting(ctx context.Context) error {
 	}
 
 	b := backoff.New(ctx, backoff.Config{
-		MinBackoff: runtimeConfigRetryMin,
+		MinBackoff: runtimeConfigRetryBackoff,
 		MaxBackoff: runtimeConfigRetryMax,
 		MaxRetries: runtimeConfigRetryMaxAttempts,
 	})
