@@ -29,13 +29,37 @@ type KafkaService struct {
 	*kafkaTLSCA
 }
 
-func NewKafka() *KafkaService {
-	return KafkaConfig{}.New()
+// KafkaOption customizes the KafkaConfig used to create a Kafka service.
+type KafkaOption func(*KafkaConfig)
+
+// WithKafkaName overrides the Kafka service name and hostname, which default to "kafka". Use it to
+// run more than one Kafka cluster within the same network.
+func WithKafkaName(name string) KafkaOption {
+	return func(c *KafkaConfig) { c.name = name }
+}
+
+func NewKafka(opts ...KafkaOption) *KafkaService {
+	cfg := KafkaConfig{}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	return cfg.New()
 }
 
 type KafkaConfig struct {
 	AuthMode    KafkaAuthMode
 	DexEndpoint string
+
+	// name is the Kafka service name and hostname. An empty value defaults to "kafka".
+	name string
+}
+
+// serviceName returns the Kafka service name, defaulting to "kafka".
+func (c KafkaConfig) serviceName() string {
+	if c.name == "" {
+		return "kafka"
+	}
+	return c.name
 }
 
 func (c KafkaConfig) ports() (clientPort, readinessPort int) {
@@ -58,7 +82,7 @@ func (c KafkaConfig) New() *KafkaService {
 
 	return &KafkaService{
 		HTTPService: e2e.NewHTTPService(
-			"kafka",
+			c.serviceName(),
 			images.Kafka,
 			nil, // No custom command.
 			c.NewReadinessProbe(),
@@ -89,13 +113,18 @@ const (
 )
 
 func (s *KafkaService) Start(networkName, sharedDir string) (err error) {
+	// brokerHost is the broker's address within the network. The controller quorum voter uses the
+	// container hostname (the service name), which resolves to the broker itself.
+	name := s.cfg.serviceName()
+	brokerHost := fmt.Sprintf("%s-%s", networkName, name)
+
 	vars := map[string]string{
 		// Configure Kafka to run in KRaft mode (without Zookeeper).
 		"CLUSTER_ID":                      "NqnEdODVKkiLTfJvqd1uqQ==", // A random ID (16 bytes of a base64-encoded UUID).
 		"KAFKA_BROKER_ID":                 "1",
 		"KAFKA_NODE_ID":                   "1",
 		"KAFKA_PROCESS_ROLES":             "broker,controller",
-		"KAFKA_CONTROLLER_QUORUM_VOTERS":  "1@kafka:29093",
+		"KAFKA_CONTROLLER_QUORUM_VOTERS":  fmt.Sprintf("1@%s:29093", name),
 		"KAFKA_CONTROLLER_LISTENER_NAMES": "CONTROLLER",
 
 		// RF=1.
@@ -113,13 +142,13 @@ func (s *KafkaService) Start(networkName, sharedDir string) (err error) {
 	switch s.cfg.AuthMode {
 	case KafkaAuthNone:
 		vars["KAFKA_LISTENERS"] = "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_HOST://localhost:29092"
-		vars["KAFKA_ADVERTISED_LISTENERS"] = fmt.Sprintf("PLAINTEXT://%s-kafka:9092,PLAINTEXT_HOST://localhost:29092", networkName)
+		vars["KAFKA_ADVERTISED_LISTENERS"] = fmt.Sprintf("PLAINTEXT://%s:9092,PLAINTEXT_HOST://localhost:29092", brokerHost)
 		vars["KAFKA_LISTENER_SECURITY_PROTOCOL_MAP"] = "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
 		vars["KAFKA_INTER_BROKER_LISTENER_NAME"] = "PLAINTEXT"
 
 	case KafkaAuthSASLPlain:
 		vars["KAFKA_LISTENERS"] = "SASLPLAIN://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093,PLAINTEXT://0.0.0.0:9093"
-		vars["KAFKA_ADVERTISED_LISTENERS"] = fmt.Sprintf("SASLPLAIN://%s-kafka:9092,PLAINTEXT://%s-kafka:9093", networkName, networkName)
+		vars["KAFKA_ADVERTISED_LISTENERS"] = fmt.Sprintf("SASLPLAIN://%s:9092,PLAINTEXT://%s:9093", brokerHost, brokerHost)
 		vars["KAFKA_LISTENER_SECURITY_PROTOCOL_MAP"] = "CONTROLLER:PLAINTEXT,SASLPLAIN:SASL_PLAINTEXT,PLAINTEXT:PLAINTEXT"
 		vars["KAFKA_INTER_BROKER_LISTENER_NAME"] = "PLAINTEXT"
 		vars["KAFKA_SASL_ENABLED_MECHANISMS"] = "PLAIN"
@@ -130,21 +159,21 @@ func (s *KafkaService) Start(networkName, sharedDir string) (err error) {
 
 	case KafkaAuthSASLScramSHA256:
 		vars["KAFKA_LISTENERS"] = "SASLSCRAM://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093,PLAINTEXT://0.0.0.0:9093"
-		vars["KAFKA_ADVERTISED_LISTENERS"] = fmt.Sprintf("SASLSCRAM://%s-kafka:9092,PLAINTEXT://%s-kafka:9093", networkName, networkName)
+		vars["KAFKA_ADVERTISED_LISTENERS"] = fmt.Sprintf("SASLSCRAM://%s:9092,PLAINTEXT://%s:9093", brokerHost, brokerHost)
 		vars["KAFKA_LISTENER_SECURITY_PROTOCOL_MAP"] = "CONTROLLER:PLAINTEXT,SASLSCRAM:SASL_PLAINTEXT,PLAINTEXT:PLAINTEXT"
 		vars["KAFKA_INTER_BROKER_LISTENER_NAME"] = "PLAINTEXT"
 		vars["KAFKA_SASL_ENABLED_MECHANISMS"] = "SCRAM-SHA-256"
 
 	case KafkaAuthSASLScramSHA512:
 		vars["KAFKA_LISTENERS"] = "SASLSCRAM://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093,PLAINTEXT://0.0.0.0:9093"
-		vars["KAFKA_ADVERTISED_LISTENERS"] = fmt.Sprintf("SASLSCRAM://%s-kafka:9092,PLAINTEXT://%s-kafka:9093", networkName, networkName)
+		vars["KAFKA_ADVERTISED_LISTENERS"] = fmt.Sprintf("SASLSCRAM://%s:9092,PLAINTEXT://%s:9093", brokerHost, brokerHost)
 		vars["KAFKA_LISTENER_SECURITY_PROTOCOL_MAP"] = "CONTROLLER:PLAINTEXT,SASLSCRAM:SASL_PLAINTEXT,PLAINTEXT:PLAINTEXT"
 		vars["KAFKA_INTER_BROKER_LISTENER_NAME"] = "PLAINTEXT"
 		vars["KAFKA_SASL_ENABLED_MECHANISMS"] = "SCRAM-SHA-512"
 
 	case KafkaAuthSASLOAuthToken, KafkaAuthSASLOAuthTokenFile:
 		vars["KAFKA_LISTENERS"] = "SASLOAUTH://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093,PLAINTEXT://0.0.0.0:9093"
-		vars["KAFKA_ADVERTISED_LISTENERS"] = fmt.Sprintf("SASLOAUTH://%s-kafka:9092,PLAINTEXT://%s-kafka:9093", networkName, networkName)
+		vars["KAFKA_ADVERTISED_LISTENERS"] = fmt.Sprintf("SASLOAUTH://%s:9092,PLAINTEXT://%s:9093", brokerHost, brokerHost)
 		vars["KAFKA_LISTENER_SECURITY_PROTOCOL_MAP"] = "CONTROLLER:PLAINTEXT,SASLOAUTH:SASL_PLAINTEXT,PLAINTEXT:PLAINTEXT"
 		vars["KAFKA_INTER_BROKER_LISTENER_NAME"] = "PLAINTEXT"
 		vars["KAFKA_SASL_ENABLED_MECHANISMS"] = "OAUTHBEARER"
@@ -175,7 +204,7 @@ func (s *KafkaService) Start(networkName, sharedDir string) (err error) {
 		})
 
 		vars["KAFKA_LISTENERS"] = "SSL://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093,PLAINTEXT://0.0.0.0:9093"
-		vars["KAFKA_ADVERTISED_LISTENERS"] = fmt.Sprintf("SSL://%s-kafka:9092,PLAINTEXT://%s-kafka:9093", networkName, networkName)
+		vars["KAFKA_ADVERTISED_LISTENERS"] = fmt.Sprintf("SSL://%s:9092,PLAINTEXT://%s:9093", brokerHost, brokerHost)
 		vars["KAFKA_LISTENER_SECURITY_PROTOCOL_MAP"] = "CONTROLLER:PLAINTEXT,SSL:SSL,PLAINTEXT:PLAINTEXT"
 		vars["KAFKA_INTER_BROKER_LISTENER_NAME"] = "PLAINTEXT"
 		vars["KAFKA_SSL_CLIENT_AUTH"] = "required"
@@ -335,11 +364,12 @@ func (s *KafkaService) generateTLSCerts(networkName, sharedDir string) error {
 		return fmt.Errorf("writing CA certificate: %w", err)
 	}
 
-	brokerHostname := fmt.Sprintf("%s-kafka", networkName)
+	name := s.cfg.serviceName()
+	brokerHostname := fmt.Sprintf("%s-%s", networkName, name)
 	serverKeyPath := filepath.Join(tlsDir, "server.key")
 	if err := ca.WriteCertificate(
 		&x509.Certificate{
-			Subject:     pkix.Name{CommonName: "kafka"},
+			Subject:     pkix.Name{CommonName: name},
 			DNSNames:    []string{brokerHostname},
 			ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		},
