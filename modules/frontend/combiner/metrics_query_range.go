@@ -1,6 +1,7 @@
 package combiner
 
 import (
+	"cmp"
 	"fmt"
 	"math"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"github.com/grafana/tempo/v3/modules/frontend/shardtracker"
 	"github.com/grafana/tempo/v3/pkg/api"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/v3/pkg/traceql"
 )
 
@@ -261,10 +263,8 @@ func sortResponse(res *tempopb.QueryRangeResponse) {
 				return ki < kj
 			}
 
-			si := res.Series[i].Labels[k].Value.String()
-			sj := res.Series[j].Labels[k].Value.String()
-			if si != sj {
-				return si < sj
+			if order := compareAnyValues(res.Series[i].Labels[k].Value, res.Series[j].Labels[k].Value); order != 0 {
+				return order < 0
 			}
 		}
 		return false
@@ -277,6 +277,20 @@ func sortResponse(res *tempopb.QueryRangeResponse) {
 			return series.Exemplars[i].TimestampMs < series.Exemplars[j].TimestampMs
 		})
 	}
+}
+
+func compareAnyValues(a, b *v1.AnyValue) int {
+	if a == b {
+		return 0
+	}
+	if sa, ok := a.GetValue().(*v1.AnyValue_StringValue); ok {
+		if sb, ok := b.GetValue().(*v1.AnyValue_StringValue); ok {
+			if sa.StringValue == sb.StringValue {
+				return 0
+			}
+		}
+	}
+	return cmp.Compare(a.String(), b.String())
 }
 
 // attachExemplars to the final series outputs. Placeholder exemplars for things like rate()
