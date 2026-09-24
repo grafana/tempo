@@ -104,8 +104,8 @@ func phase1Cases() []benchCase {
 		cases = append(cases, benchCase{
 			id:  "metadata/tagnames/" + scope.String(),
 			api: apiMetadata,
-			executions: func(_ *BlockProfile, shards []Shard, opts RunOptions) ([]execution, error) {
-				return tagNamesExecutions(scope, shards, opts.searchOptions()), nil
+			executions: func(_ *BlockProfile, _ []Shard, opts RunOptions) ([]execution, error) {
+				return tagNamesExecutions(scope, opts.searchOptions()), nil
 			},
 		})
 	}
