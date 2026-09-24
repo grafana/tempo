@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
@@ -777,15 +778,33 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 // TestPollerDoSpanParenting verifies that the per-tenant spans started inside
 // Poller.Do's goroutines are children of the Poller.Do span, so a trace
 // viewer can navigate from the poll cycle down into individual tenant work.
+// testTraceExporter and testTraceOnce back testSpans: OTel's global
+// TracerProvider only delegates reliably to the first concrete provider ever
+// installed via otel.SetTracerProvider in a process — a *Tracer obtained
+// beforehand (as this package's package-level `tracer` var is) resolves once
+// and keeps sending spans to that first provider even if a later test calls
+// otel.SetTracerProvider again with a fresh one. So install exactly one
+// provider for the whole test binary and reset its exporter per test instead
+// of swapping providers.
+var (
+	testTraceExporter = tracetest.NewInMemoryExporter()
+	testTraceOnce     sync.Once
+)
+
+// testSpans installs the shared tracer provider (once) and returns a fresh
+// view of the spans recorded during this test.
+func testSpans(t *testing.T) *tracetest.InMemoryExporter {
+	t.Helper()
+	testTraceOnce.Do(func() {
+		tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(testTraceExporter))
+		otel.SetTracerProvider(tp)
+	})
+	testTraceExporter.Reset()
+	return testTraceExporter
+}
+
 func TestPollerDoSpanParenting(t *testing.T) {
-	prevTP := otel.GetTracerProvider()
-	exporter := tracetest.NewInMemoryExporter()
-	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
-	otel.SetTracerProvider(tp)
-	defer func() {
-		require.NoError(t, tp.Shutdown(context.Background()))
-		otel.SetTracerProvider(prevTP)
-	}()
+	exporter := testSpans(t)
 
 	var (
 		c = newMockCompactor(PerTenantCompacted{}, false)
@@ -805,7 +824,6 @@ func TestPollerDoSpanParenting(t *testing.T) {
 
 	_, _, err := poller.Do(context.Background(), b)
 	require.NoError(t, err)
-	require.NoError(t, tp.ForceFlush(context.Background()))
 
 	spans := exporter.GetSpans()
 
@@ -825,6 +843,124 @@ func TestPollerDoSpanParenting(t *testing.T) {
 	assert.True(t, tenantSpan.Parent.IsValid(), "tenant span should have a valid parent span context")
 	assert.Equal(t, rootSpan.SpanContext.TraceID(), tenantSpan.Parent.TraceID(), "tenant span should belong to the same trace as Poller.Do")
 	assert.Equal(t, rootSpan.SpanContext.SpanID(), tenantSpan.Parent.SpanID(), "tenant span should be a direct child of Poller.Do")
+}
+
+// tenantsErrorReader wraps a MockReader to force Tenants() to fail, since
+// MockReader itself has no override hook for that specific call.
+type tenantsErrorReader struct {
+	*backend.MockReader
+}
+
+func (r *tenantsErrorReader) Tenants(context.Context) ([]string, error) {
+	return nil, errors.New("boom")
+}
+
+// TestPollerSpansRecordErrorStatus verifies that the spans created in the
+// Poller.Do call chain are marked with the OTel span status matching whether
+// that specific operation actually failed, rather than staying Unset
+// regardless of outcome.
+func TestPollerSpansRecordErrorStatus(t *testing.T) {
+	spanStatus := func(t *testing.T, spans []tracetest.SpanStub, name string) codes.Code {
+		t.Helper()
+		for _, s := range spans {
+			if s.Name == name {
+				return s.Status.Code
+			}
+		}
+		t.Fatalf("no span named %q found", name)
+		return codes.Unset
+	}
+
+	t.Run("failing tenant marks its span chain errored without failing the whole poll", func(t *testing.T) {
+		exporter := testSpans(t)
+
+		var (
+			c = newMockCompactor(PerTenantCompacted{}, false)
+			w = &backend.MockWriter{}
+			s = &mockJobSharder{owns: true}
+			b = newBlocklist(PerTenant{}, PerTenantCompacted{})
+			r = &backend.MockReader{
+				T: []string{"test"},
+				BlocksFn: func(context.Context, string) ([]uuid.UUID, []uuid.UUID, error) {
+					return nil, nil, errors.New("boom")
+				},
+			}
+		)
+
+		poller := NewPoller(&PollerConfig{
+			PollConcurrency:           testPollConcurrency,
+			TenantPollConcurrency:     testTenantPollConcurrency,
+			PollFallback:              testPollFallback,
+			TenantIndexBuilders:       testBuilders,
+			TolerateConsecutiveErrors: 0,
+			TolerateTenantFailures:    1,
+			EmptyTenantDeletionAge:    testEmptyTenantIndexAge,
+		}, s, r, c, w, log.NewNopLogger())
+
+		_, _, err := poller.Do(context.Background(), b)
+		require.NoError(t, err, "one tolerated tenant failure should not fail the whole poll")
+
+		spans := exporter.GetSpans()
+
+		assert.Equal(t, codes.Ok, spanStatus(t, spans, "Poller.Do"), "Poller.Do itself succeeded overall")
+		assert.Equal(t, codes.Error, spanStatus(t, spans, "Poller.Do.func"), "the failing tenant's span should be marked errored")
+		assert.Equal(t, codes.Error, spanStatus(t, spans, "Poller.pollTenantAndCreateIndex"))
+		assert.Equal(t, codes.Error, spanStatus(t, spans, "Poller.pollTenantBlocks"))
+	})
+
+	t.Run("fully successful poll marks every span Ok", func(t *testing.T) {
+		exporter := testSpans(t)
+
+		var (
+			c = newMockCompactor(PerTenantCompacted{}, false)
+			w = &backend.MockWriter{}
+			s = &mockJobSharder{owns: true}
+			b = newBlocklist(PerTenant{}, PerTenantCompacted{})
+			r = &backend.MockReader{T: []string{"test"}}
+		)
+
+		poller := NewPoller(&PollerConfig{
+			PollConcurrency:        testPollConcurrency,
+			TenantPollConcurrency:  testTenantPollConcurrency,
+			PollFallback:           testPollFallback,
+			TenantIndexBuilders:    testBuilders,
+			EmptyTenantDeletionAge: testEmptyTenantIndexAge,
+		}, s, r, c, w, log.NewNopLogger())
+
+		_, _, err := poller.Do(context.Background(), b)
+		require.NoError(t, err)
+
+		spans := exporter.GetSpans()
+		for _, name := range []string{"Poller.Do", "Poller.Do.func", "Poller.pollTenantAndCreateIndex", "Poller.pollTenantBlocks", "pollUnknown"} {
+			assert.Equal(t, codes.Ok, spanStatus(t, spans, name), "span %q should be explicitly marked Ok on success, not left Unset", name)
+		}
+	})
+
+	t.Run("Tenants listing failure marks Poller.Do's own span errored", func(t *testing.T) {
+		exporter := testSpans(t)
+
+		var (
+			c = newMockCompactor(PerTenantCompacted{}, false)
+			w = &backend.MockWriter{}
+			s = &mockJobSharder{owns: true}
+			b = newBlocklist(PerTenant{}, PerTenantCompacted{})
+			r = &tenantsErrorReader{MockReader: &backend.MockReader{}}
+		)
+
+		poller := NewPoller(&PollerConfig{
+			PollConcurrency:        testPollConcurrency,
+			TenantPollConcurrency:  testTenantPollConcurrency,
+			PollFallback:           testPollFallback,
+			TenantIndexBuilders:    testBuilders,
+			EmptyTenantDeletionAge: testEmptyTenantIndexAge,
+		}, s, r, c, w, log.NewNopLogger())
+
+		_, _, err := poller.Do(context.Background(), b)
+		require.Error(t, err)
+
+		spans := exporter.GetSpans()
+		assert.Equal(t, codes.Error, spanStatus(t, spans, "Poller.Do"))
+	})
 }
 
 func TestPollComparePreviousResults(t *testing.T) {
