@@ -62,10 +62,10 @@ func (b *backendBlock) SearchTags(ctx context.Context, scope traceql.AttributeSc
 		span.SetAttributes(attribute.Int64("inspectedBytes", int64(rr.BytesRead())))
 	}()
 
-	return searchTags(derivedCtx, scope, cb, pf, b.meta.DedicatedColumns)
+	return searchTags(derivedCtx, scope, cb, pf, b.meta.DedicatedColumns, opts)
 }
 
-func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagsCallback, pf *parquet.File, dc backend.DedicatedColumns) error {
+func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagsCallback, pf *parquet.File, dc backend.DedicatedColumns, opts common.SearchOptions) error {
 	scanColumns := func(standardKeyPath string, specialMappings map[string]string, columnMapping dedicatedColumnMapping, cb common.TagsCallback, scope traceql.AttributeScope) error {
 		specialAttrIdxs := map[int]string{}
 
@@ -94,7 +94,7 @@ func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagsC
 
 		// now search all row groups
 		var err error
-		rgs := pf.RowGroups()
+		rgs := rowGroupsFromFile(pf, opts)
 		for _, rg := range rgs {
 			// search all special attributes
 			for idx, lbl := range specialAttrIdxs {
@@ -226,15 +226,15 @@ func (b *backendBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attrib
 		span.SetAttributes(attribute.Int64("inspectedBytes", int64(rr.BytesRead())))
 	}()
 
-	return searchTagValues(derivedCtx, tag, cb, pf, b.meta.DedicatedColumns)
+	return searchTagValues(derivedCtx, tag, cb, pf, b.meta.DedicatedColumns, opts)
 }
 
-func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagValuesCallbackV2, pf *parquet.File, dc backend.DedicatedColumns) error {
+func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagValuesCallbackV2, pf *parquet.File, dc backend.DedicatedColumns, opts common.SearchOptions) error {
 	// Special handling for intrinsics
 	if tag.Intrinsic != traceql.IntrinsicNone {
 		lookup := intrinsicColumnLookups[tag.Intrinsic]
 		if lookup.columnPath != "" {
-			err := searchSpecialTagValues(ctx, lookup.columnPath, pf, cb)
+			err := searchSpecialTagValues(ctx, lookup.columnPath, pf, cb, opts)
 			if err != nil {
 				return fmt.Errorf("unexpected error searching special tags: %w", err)
 			}
@@ -244,7 +244,7 @@ func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagVa
 
 	// Special handling for weird non-traceql things
 	if columnPath := nonTraceQLAttributes[tag.Name]; columnPath != "" {
-		err := searchSpecialTagValues(ctx, columnPath, pf, cb)
+		err := searchSpecialTagValues(ctx, columnPath, pf, cb, opts)
 		if err != nil {
 			return fmt.Errorf("unexpected error searching special tags: %s %w", columnPath, err)
 		}
@@ -254,7 +254,7 @@ func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagVa
 	// Search well-known attribute column if one exists and is a compatible scope.
 	column := wellKnownColumnLookups[tag.Name]
 	if column.columnPath != "" && (tag.Scope == column.level || tag.Scope == traceql.AttributeScopeNone) {
-		err := searchSpecialTagValues(ctx, column.columnPath, pf, cb)
+		err := searchSpecialTagValues(ctx, column.columnPath, pf, cb, opts)
 		if err != nil {
 			return fmt.Errorf("unexpected error searching special tags: %w", err)
 		}
@@ -264,7 +264,7 @@ func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagVa
 	if tag.Scope == traceql.AttributeScopeResource || tag.Scope == traceql.AttributeScopeNone {
 		resourceColumnMapping := dedicatedColumnsToColumnMapping(dc, backend.DedicatedColumnScopeResource)
 		if c, ok := resourceColumnMapping.get(tag.Name); ok {
-			err := searchSpecialTagValues(ctx, c.ColumnPath, pf, cb)
+			err := searchSpecialTagValues(ctx, c.ColumnPath, pf, cb, opts)
 			if err != nil {
 				return fmt.Errorf("unexpected error searching special tags: %w", err)
 			}
@@ -273,7 +273,7 @@ func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagVa
 	if tag.Scope == traceql.AttributeScopeSpan || tag.Scope == traceql.AttributeScopeNone {
 		spanColumnMapping := dedicatedColumnsToColumnMapping(dc, backend.DedicatedColumnScopeSpan)
 		if c, ok := spanColumnMapping.get(tag.Name); ok {
-			err := searchSpecialTagValues(ctx, c.ColumnPath, pf, cb)
+			err := searchSpecialTagValues(ctx, c.ColumnPath, pf, cb, opts)
 			if err != nil {
 				return fmt.Errorf("unexpected error searching special tags: %w", err)
 			}
@@ -281,7 +281,7 @@ func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagVa
 	}
 
 	// Finally also search generic key/values
-	err := searchStandardTagValues(ctx, tag, pf, cb)
+	err := searchStandardTagValues(ctx, tag, pf, cb, opts)
 	if err != nil {
 		return fmt.Errorf("unexpected error searching standard tags: %w", err)
 	}
@@ -291,8 +291,8 @@ func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagVa
 
 // searchStandardTagValues searches a parquet file for "standard" tags. i.e. tags that don't have unique
 // columns and are contained in labelMappings
-func searchStandardTagValues(ctx context.Context, tag traceql.Attribute, pf *parquet.File, cb common.TagValuesCallbackV2) error {
-	rgs := pf.RowGroups()
+func searchStandardTagValues(ctx context.Context, tag traceql.Attribute, pf *parquet.File, cb common.TagValuesCallbackV2, opts common.SearchOptions) error {
+	rgs := rowGroupsFromFile(pf, opts)
 	makeIter := makeIterFunc(ctx, rgs, pf)
 
 	keyPred := pq.NewStringInPredicate([]string{tag.Name})
@@ -365,9 +365,9 @@ func searchKeyValues(definitionLevel int, keyPath, stringPath, intPath, floatPat
 
 // searchSpecialTagValues searches a parquet file for all values for the provided column. It first attempts
 // to only pull all values from the column's dictionary. If this fails it falls back to scanning the entire path.
-func searchSpecialTagValues(ctx context.Context, column string, pf *parquet.File, cb common.TagValuesCallbackV2) error {
+func searchSpecialTagValues(ctx context.Context, column string, pf *parquet.File, cb common.TagValuesCallbackV2, opts common.SearchOptions) error {
 	pred := newReportValuesPredicate(cb)
-	rgs := pf.RowGroups()
+	rgs := rowGroupsFromFile(pf, opts)
 
 	iter := makeIterFunc(ctx, rgs, pf)(column, pred, "")
 	defer iter.Close()
