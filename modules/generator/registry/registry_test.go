@@ -224,6 +224,25 @@ func TestManagedRegistry_externalLabels(t *testing.T) {
 	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
 }
 
+func TestManagedRegistry_instanceID(t *testing.T) {
+	appender := &capturingAppender{}
+
+	cfg := &Config{
+		InstanceID: "cluster-x-metrics-generator-0",
+	}
+	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger(), noopLimiter)
+	defer registry.Close()
+
+	counter := registry.NewCounter("my_counter")
+	counter.Inc(labels.New(), 1.0)
+
+	expectedSamples := []sample{
+		newSample(map[string]string{"__name__": "my_counter", "__metrics_gen_instance": "cluster-x-metrics-generator-0"}, 0, 0),
+		newSample(map[string]string{"__name__": "my_counter", "__metrics_gen_instance": "cluster-x-metrics-generator-0"}, 0, 1),
+	}
+	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
+}
+
 func TestManagedRegistry_injectTenantIDAs(t *testing.T) {
 	appender := &capturingAppender{}
 
