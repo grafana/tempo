@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"math"
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -13,7 +15,61 @@ import (
 
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	common "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	resource "github.com/grafana/tempo/v3/pkg/tempopb/resource/v1"
+	trace "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
 )
+
+func TestDirectTracesSchemaFields(t *testing.T) {
+	// New protobuf fields need an explicit conversion decision even when fixtures leave them empty.
+	tests := []struct {
+		message any
+		fields  string
+	}{
+		{&tempopb.Trace{}, "1:resourceSpans"},
+		{&trace.ResourceSpans{}, "1:resource 2:scope_spans 3:schema_url"},
+		{&resource.Resource{}, "1:attributes 2:dropped_attributes_count 3:entity_refs"},
+		{&trace.ScopeSpans{}, "1:scope 2:spans 3:schema_url"},
+		{&common.InstrumentationScope{}, "1:name 2:version 3:attributes 4:dropped_attributes_count"},
+		{&trace.Span{}, "1:trace_id 2:span_id 3:trace_state 4:parent_span_id 5:name 6:kind 7:start_time_unix_nano 8:end_time_unix_nano 9:attributes 10:dropped_attributes_count 11:events 12:dropped_events_count 13:links 14:dropped_links_count 15:status 16:flags"},
+		{&trace.Span_Event{}, "1:time_unix_nano 2:name 3:attributes 4:dropped_attributes_count"},
+		{&trace.Span_Link{}, "1:trace_id 2:span_id 3:trace_state 4:attributes 5:dropped_attributes_count 6:flags"},
+		{&trace.Status{}, "2:message 3:code"},
+		{&common.KeyValue{}, "1:key 2:value 3:key_strindex"},
+		{&common.AnyValue{}, "1:string_value 2:bool_value 3:int_value 4:double_value 5:array_value 6:kvlist_value 7:bytes_value 8:string_value_strindex"},
+		{&common.ArrayValue{}, "1:values"},
+		{&common.KeyValueList{}, "1:values"},
+		{&common.EntityRef{}, "1:schema_url 2:type 3:id_keys 4:description_keys"},
+	}
+	for _, tt := range tests {
+		t.Run(reflect.TypeOf(tt.message).Elem().Name(), func(t *testing.T) {
+			got := protobufFields(reflect.TypeOf(tt.message).Elem())
+			if m, ok := tt.message.(interface{ XXX_OneofWrappers() []interface{} }); ok {
+				for _, wrapper := range m.XXX_OneofWrappers() {
+					got = append(got, protobufFields(reflect.TypeOf(wrapper).Elem())...)
+				}
+			}
+			require.ElementsMatch(t, strings.Fields(tt.fields), got)
+		})
+	}
+}
+
+func protobufFields(message reflect.Type) []string {
+	var fields []string
+	for i := 0; i < message.NumField(); i++ {
+		tag := message.Field(i).Tag.Get("protobuf")
+		if tag == "" {
+			continue
+		}
+		parts := strings.Split(tag, ",")
+		for _, part := range parts[2:] {
+			if name, ok := strings.CutPrefix(part, "name="); ok {
+				fields = append(fields, parts[1]+":"+name)
+				break
+			}
+		}
+	}
+	return fields
+}
 
 func TestDirectTracesParity(t *testing.T) {
 	for _, n := range []int{0, 1, 100} {
