@@ -1040,6 +1040,11 @@ func (j *JoinIterator) String() string {
 }
 
 func (j *JoinIterator) Next() (*IteratorResult, error) {
+	// A join over zero iterators has no results.
+	if len(j.iters) == 0 {
+		return nil, nil
+	}
+
 outer:
 	for {
 		// This loop is doing two things:

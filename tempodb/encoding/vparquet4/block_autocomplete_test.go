@@ -1314,3 +1314,34 @@ func BenchmarkFetchTags(b *testing.B) {
 		}
 	}
 }
+
+// TestFetchTagValuesTraceIDConditions is a regression test for a panic when the only
+// conditions are on trace:id. Trace ID conditions add no iterators, so the query
+// produces no values rather than joining zero iterators.
+func TestFetchTagValuesTraceIDConditions(t *testing.T) {
+	block := makeBackendBlockWithTraces(t, []*Trace{fullyPopulatedTestTrace(common.ID{0})})
+
+	tag := traceql.NewIntrinsic(traceql.IntrinsicTraceID)
+
+	// {trace:id =~ ""} and {trace:id =~ "65c"}
+	for _, regex := range []string{"", "65c"} {
+		t.Run(fmt.Sprintf("trace:id =~ %q", regex), func(t *testing.T) {
+			req := traceql.FetchTagValuesRequest{
+				TagName: tag,
+				ConditionGroups: [][]traceql.Condition{{
+					{Attribute: tag, Op: traceql.OpRegex, Operands: traceql.Operands{traceql.NewStaticString(regex)}},
+					{Attribute: tag, Op: traceql.OpNone},
+				}},
+			}
+			distinctValues := collector.NewDistinctValue[tempopb.TagValue](1_000_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+			mc := collector.NewMetricsCollector()
+
+			var err error
+			require.NotPanics(t, func() {
+				err = block.FetchTagValues(context.TODO(), req, traceql.MakeCollectTagValueFunc(distinctValues.Collect), mc.Add, common.DefaultSearchOptions())
+			})
+			require.NoError(t, err)
+			require.Empty(t, distinctValues.Values())
+		})
+	}
+}

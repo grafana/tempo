@@ -96,6 +96,9 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 		if err != nil {
 			return fmt.Errorf("creating fetch iter: %w", err)
 		}
+		if iter == nil {
+			continue // conditions can't produce any results
+		}
 
 		done, iterErr := func() (bool, error) {
 			defer iter.Close()
@@ -231,6 +234,9 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 		iter, err := autocompleteIter(ctx, tr, pf, opts, b.meta.DedicatedColumns)
 		if err != nil {
 			return fmt.Errorf("creating fetch iter: %w", err)
+		}
+		if iter == nil {
+			continue // conditions can't produce any results
 		}
 
 		done, iterErr := func() (bool, error) {
@@ -867,6 +873,12 @@ func createDistinctTraceIterator(
 	// or the time range filtering first?
 	if resourceIter != nil {
 		traceIters = append(traceIters, resourceIter)
+	}
+
+	// Trace ID and start time conditions add no iterators. Without any other
+	// iterator there is nothing to join and no values to return.
+	if len(traceIters) == 0 {
+		return nil, nil
 	}
 
 	// Final trace iterator

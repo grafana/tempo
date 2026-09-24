@@ -438,6 +438,22 @@ func (t *testIterator) String() string {
 	return "testIterator"
 }
 
+func TestJoinIteratorNoIterators(t *testing.T) {
+	for _, iters := range [][]Iterator{nil, {}} {
+		j := NewJoinIterator(0, iters, nil)
+
+		res, err := j.Next()
+		require.NoError(t, err)
+		require.Nil(t, res)
+
+		res, err = j.SeekTo(rn(1), 0)
+		require.NoError(t, err)
+		require.Nil(t, res)
+
+		j.Close()
+	}
+}
+
 func TestLeftJoinUp(t *testing.T) {
 	// Defined at level 0
 	iter1 := &testIterator{rows: []IteratorResult{
