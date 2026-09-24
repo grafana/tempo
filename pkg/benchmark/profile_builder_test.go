@@ -120,7 +120,12 @@ func TestSampleTraceIDsSpreadsOverAllRows(t *testing.T) {
 		}
 	}
 
+	// Row groups a whole number of strides long would put every sample at a
+	// group's head, so the fixture must avoid that for the check below to hold.
 	const num = 20
+	stride := int(pf.NumRows()) / num
+	require.NotZero(t, int(pf.RowGroups()[0].NumRows())%stride, "fixture row groups must not align with the sample stride")
+
 	present, _, err := sampleTraceIDs(ctx, blk, pf, num)
 	require.NoError(t, err)
 	require.Len(t, present, num)
