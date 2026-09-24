@@ -272,7 +272,7 @@ func TestSearchSpecialTagValuesStopsEarly(t *testing.T) {
 	err = searchSpecialTagValues(ctx, column, pf, func(traceql.Static) bool {
 		all++
 		return false
-	})
+	}, common.SearchOptions{})
 	require.NoError(t, err)
 	require.Greater(t, all, 1, "column must report multiple values for this test to mean anything")
 
@@ -284,7 +284,7 @@ func TestSearchSpecialTagValuesStopsEarly(t *testing.T) {
 			afterStop++
 		}
 		return true // stop immediately
-	})
+	}, common.SearchOptions{})
 	require.NoError(t, err)
 	require.Equal(t, 1, calls, "callback must be invoked exactly once when it stops on the first value")
 	require.Zero(t, afterStop, "callback must not be invoked after asking to stop")

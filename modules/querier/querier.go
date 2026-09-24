@@ -753,7 +753,7 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 	var inspectedBytes uint64
 
 	fetcher := traceql.NewTagNamesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback) error {
-		return q.store.FetchTagNames(ctx, meta, req, cb, func(bytesRead uint64) { inspectedBytes += bytesRead }, common.DefaultSearchOptions())
+		return q.store.FetchTagNames(ctx, meta, req, cb, func(bytesRead uint64) { inspectedBytes += bytesRead }, opts)
 	})
 
 	scope := traceql.AttributeScopeFromString(req.SearchReq.Scope)
