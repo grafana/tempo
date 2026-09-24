@@ -313,6 +313,13 @@ func (s *span) DurationNanos() uint64 {
 	return s.durationNanos
 }
 
+// RowNumber exposes the span's location within the block file. It is not part of the
+// traceql.Span interface; callers that need it (e.g. tempo-cli tooling that visualizes
+// where matches fall within a block) type-assert for it.
+func (s *span) RowNumber() parquetquery.RowNumber {
+	return s.rowNum
+}
+
 func (s *span) DescendantOf(lhs, rhs []traceql.Span, falseForAll, invert, union bool, buffer []traceql.Span) []traceql.Span {
 	if len(lhs) == 0 && len(rhs) == 0 {
 		return nil
