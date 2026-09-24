@@ -1,12 +1,12 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package otelzap // import "go.opentelemetry.io/contrib/bridges/otelzap"
+package otelzap
 
 import (
 	"time"
 
-	"go.opentelemetry.io/otel/log"
+	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -17,7 +17,7 @@ var (
 
 type namespace struct {
 	name  string
-	attrs []log.KeyValue
+	attrs []attribute.KeyValue
 	next  *namespace
 }
 
@@ -31,7 +31,7 @@ type objectEncoder struct {
 }
 
 func newObjectEncoder(n int) *objectEncoder {
-	keyval := make([]log.KeyValue, 0, n)
+	keyval := make([]attribute.KeyValue, 0, n)
 	m := &namespace{
 		attrs: keyval,
 	}
@@ -48,13 +48,13 @@ func (m *objectEncoder) calculate(o *namespace) {
 		return
 	}
 	m.calculate(o.next)
-	o.attrs = append(o.attrs, log.Map(o.next.name, o.next.attrs...))
+	o.attrs = append(o.attrs, attribute.Map(o.next.name, o.next.attrs...))
 }
 
 func (m *objectEncoder) AddArray(key string, v zapcore.ArrayMarshaler) error {
 	arr := newArrayEncoder()
 	err := v.MarshalLogArray(arr)
-	m.cur.attrs = append(m.cur.attrs, log.Slice(key, arr.elems...))
+	m.cur.attrs = append(m.cur.attrs, attribute.Slice(key, arr.elems...))
 	return err
 }
 
@@ -64,20 +64,20 @@ func (m *objectEncoder) AddObject(k string, v zapcore.ObjectMarshaler) error {
 	newobj := newObjectEncoder(2)
 	err := v.MarshalLogObject(newobj)
 	newobj.calculate(newobj.root)
-	m.cur.attrs = append(m.cur.attrs, log.Map(k, newobj.root.attrs...))
+	m.cur.attrs = append(m.cur.attrs, attribute.Map(k, newobj.root.attrs...))
 	return err
 }
 
 func (m *objectEncoder) AddBinary(k string, v []byte) {
-	m.cur.attrs = append(m.cur.attrs, log.Bytes(k, v))
+	m.cur.attrs = append(m.cur.attrs, attribute.ByteSlice(k, v))
 }
 
 func (m *objectEncoder) AddByteString(k string, v []byte) {
-	m.cur.attrs = append(m.cur.attrs, log.String(k, string(v)))
+	m.cur.attrs = append(m.cur.attrs, attribute.String(k, string(v)))
 }
 
 func (m *objectEncoder) AddBool(k string, v bool) {
-	m.cur.attrs = append(m.cur.attrs, log.Bool(k, v))
+	m.cur.attrs = append(m.cur.attrs, attribute.Bool(k, v))
 }
 
 func (m *objectEncoder) AddDuration(k string, v time.Duration) {
@@ -85,39 +85,39 @@ func (m *objectEncoder) AddDuration(k string, v time.Duration) {
 }
 
 func (m *objectEncoder) AddComplex128(k string, v complex128) {
-	r := log.Float64("r", real(v))
-	i := log.Float64("i", imag(v))
-	m.cur.attrs = append(m.cur.attrs, log.Map(k, r, i))
+	r := attribute.Float64("r", real(v))
+	i := attribute.Float64("i", imag(v))
+	m.cur.attrs = append(m.cur.attrs, attribute.Map(k, r, i))
 }
 
 func (m *objectEncoder) AddFloat64(k string, v float64) {
-	m.cur.attrs = append(m.cur.attrs, log.Float64(k, v))
+	m.cur.attrs = append(m.cur.attrs, attribute.Float64(k, v))
 }
 
 func (m *objectEncoder) AddInt64(k string, v int64) {
-	m.cur.attrs = append(m.cur.attrs, log.Int64(k, v))
+	m.cur.attrs = append(m.cur.attrs, attribute.Int64(k, v))
 }
 
 func (m *objectEncoder) AddInt(k string, v int) {
-	m.cur.attrs = append(m.cur.attrs, log.Int(k, v))
+	m.cur.attrs = append(m.cur.attrs, attribute.Int(k, v))
 }
 
 func (m *objectEncoder) AddString(k, v string) {
-	m.cur.attrs = append(m.cur.attrs, log.String(k, v))
+	m.cur.attrs = append(m.cur.attrs, attribute.String(k, v))
 }
 
 func (m *objectEncoder) AddUint64(k string, v uint64) {
 	m.cur.attrs = append(m.cur.attrs,
-		log.KeyValue{
-			Key:   k,
+		attribute.KeyValue{
+			Key:   attribute.Key(k),
 			Value: assignUintValue(v),
 		})
 }
 
 func (m *objectEncoder) AddReflected(k string, v any) error {
 	m.cur.attrs = append(m.cur.attrs,
-		log.KeyValue{
-			Key:   k,
+		attribute.KeyValue{
+			Key:   attribute.Key(k),
 			Value: convertValue(v),
 		})
 	return nil
@@ -126,7 +126,7 @@ func (m *objectEncoder) AddReflected(k string, v any) error {
 // OpenNamespace opens an isolated namespace where all subsequent fields will
 // be added.
 func (m *objectEncoder) OpenNamespace(k string) {
-	keyValue := make([]log.KeyValue, 0, 5)
+	keyValue := make([]attribute.KeyValue, 0, 5)
 	s := &namespace{
 		name:  k,
 		attrs: keyValue,
@@ -179,31 +179,31 @@ func (m *objectEncoder) AddUintptr(k string, v uintptr) {
 	m.AddUint64(k, uint64(v))
 }
 
-func assignUintValue(v uint64) log.Value {
+func assignUintValue(v uint64) attribute.Value {
 	const maxInt64 = ^uint64(0) >> 1
 	if v > maxInt64 {
-		return log.Float64Value(float64(v))
+		return attribute.Float64Value(float64(v))
 	}
-	return log.Int64Value(int64(v))
+	return attribute.Int64Value(int64(v))
 }
 
 // arrayEncoder implements [zapcore.ArrayEncoder].
 type arrayEncoder struct {
-	elems []log.Value
+	elems []attribute.Value
 }
 
 func newArrayEncoder() *arrayEncoder {
 	return &arrayEncoder{
 		// Similar to console_encoder which uses capacity of 2:
 		// https://github.com/uber-go/zap/blob/bd0cf0447951b77aa98dcfc1ac19e6f58d3ee64f/zapcore/console_encoder.go#L33.
-		elems: make([]log.Value, 0, 2),
+		elems: make([]attribute.Value, 0, 2),
 	}
 }
 
 func (a *arrayEncoder) AppendArray(v zapcore.ArrayMarshaler) error {
 	arr := newArrayEncoder()
 	err := v.MarshalLogArray(arr)
-	a.elems = append(a.elems, log.SliceValue(arr.elems...))
+	a.elems = append(a.elems, attribute.SliceValue(arr.elems...))
 	return err
 }
 
@@ -213,7 +213,7 @@ func (a *arrayEncoder) AppendObject(v zapcore.ObjectMarshaler) error {
 	m := newObjectEncoder(2)
 	err := v.MarshalLogObject(m)
 	m.calculate(m.root)
-	a.elems = append(a.elems, log.MapValue(m.root.attrs...))
+	a.elems = append(a.elems, attribute.MapValue(m.root.attrs...))
 	return err
 }
 
@@ -223,15 +223,15 @@ func (a *arrayEncoder) AppendReflected(v any) error {
 }
 
 func (a *arrayEncoder) AppendByteString(v []byte) {
-	a.elems = append(a.elems, log.StringValue(string(v)))
+	a.elems = append(a.elems, attribute.StringValue(string(v)))
 }
 
 func (a *arrayEncoder) AppendBool(v bool) {
-	a.elems = append(a.elems, log.BoolValue(v))
+	a.elems = append(a.elems, attribute.BoolValue(v))
 }
 
 func (a *arrayEncoder) AppendFloat64(v float64) {
-	a.elems = append(a.elems, log.Float64Value(v))
+	a.elems = append(a.elems, attribute.Float64Value(v))
 }
 
 func (a *arrayEncoder) AppendFloat32(v float32) {
@@ -239,21 +239,21 @@ func (a *arrayEncoder) AppendFloat32(v float32) {
 }
 
 func (a *arrayEncoder) AppendInt(v int) {
-	a.elems = append(a.elems, log.IntValue(v))
+	a.elems = append(a.elems, attribute.IntValue(v))
 }
 
 func (a *arrayEncoder) AppendInt64(v int64) {
-	a.elems = append(a.elems, log.Int64Value(v))
+	a.elems = append(a.elems, attribute.Int64Value(v))
 }
 
 func (a *arrayEncoder) AppendString(v string) {
-	a.elems = append(a.elems, log.StringValue(v))
+	a.elems = append(a.elems, attribute.StringValue(v))
 }
 
 func (a *arrayEncoder) AppendComplex128(v complex128) {
-	r := log.Float64("r", real(v))
-	i := log.Float64("i", imag(v))
-	a.elems = append(a.elems, log.MapValue(r, i))
+	r := attribute.Float64("r", real(v))
+	i := attribute.Float64("i", imag(v))
+	a.elems = append(a.elems, attribute.MapValue(r, i))
 }
 
 func (a *arrayEncoder) AppendUint64(v uint64) {
