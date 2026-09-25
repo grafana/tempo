@@ -12,11 +12,15 @@ type PerTenant map[string][]*backend.BlockMeta
 // PerTenantCompacted is a map of tenant ids to backend.CompactedBlockMetas
 type PerTenantCompacted map[string][]*backend.CompactedBlockMeta
 
+// PerTenantNoCompact is a map of tenant ids to the IDs of live blocks with a nocompact flag
+type PerTenantNoCompact map[string][]backend.UUID
+
 // List controls access to a per tenant blocklist and compacted blocklist
 type List struct {
 	mtx            sync.Mutex
 	metas          PerTenant
 	compactedMetas PerTenantCompacted
+	noCompact      PerTenantNoCompact
 
 	// used by the compactor to track local changes it is aware of
 	added            PerTenant
@@ -29,6 +33,7 @@ func New() *List {
 	return &List{
 		metas:          make(PerTenant),
 		compactedMetas: make(PerTenantCompacted),
+		noCompact:      make(PerTenantNoCompact),
 
 		added:            make(PerTenant),
 		removed:          make(PerTenant),
@@ -77,15 +82,28 @@ func (l *List) CompactedMetas(tenantID string) []*backend.CompactedBlockMeta {
 	return copiedBlocklist
 }
 
-// ApplyPollResults applies the PerTenant and PerTenantCompacted maps to this blocklist
+// NoCompact returns the IDs of the tenant's live blocks that have a nocompact flag.
+func (l *List) NoCompact(tenantID string) []backend.UUID {
+	if tenantID == "" {
+		return nil
+	}
+
+	l.mtx.Lock()
+	defer l.mtx.Unlock()
+
+	return append([]backend.UUID(nil), l.noCompact[tenantID]...)
+}
+
+// ApplyPollResults applies the PerTenant, PerTenantCompacted and PerTenantNoCompact maps to this blocklist
 // Note that it also applies any known local changes and then wipes them out to be restored
 // in the next polling cycle.
-func (l *List) ApplyPollResults(m PerTenant, c PerTenantCompacted) {
+func (l *List) ApplyPollResults(m PerTenant, c PerTenantCompacted, nc PerTenantNoCompact) {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 
 	l.metas = m
 	l.compactedMetas = c
+	l.noCompact = nc
 
 	// now reapply all updates and clear
 	for tenantID := range l.added {

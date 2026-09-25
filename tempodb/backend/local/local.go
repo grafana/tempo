@@ -194,7 +194,7 @@ func (rw *Backend) List(ctx context.Context, keypath backend.KeyPath) ([]string,
 }
 
 // ListBlocks implements backend.Reader
-func (rw *Backend) ListBlocks(_ context.Context, tenant string) (metas []uuid.UUID, compactedMetas []uuid.UUID, err error) {
+func (rw *Backend) ListBlocks(_ context.Context, tenant string) (metas []uuid.UUID, compactedMetas []uuid.UUID, noCompact []uuid.UUID, err error) {
 	rootPath := rw.rootPath(backend.KeyPath{tenant})
 	fff := os.DirFS(rootPath)
 	err = fs.WalkDir(fff, ".", func(path string, _ fs.DirEntry, err error) error {
@@ -210,7 +210,7 @@ func (rw *Backend) ListBlocks(_ context.Context, tenant string) (metas []uuid.UU
 			return nil
 		}
 
-		if parts[2] != backend.MetaName && parts[2] != backend.CompactedMetaName {
+		if parts[2] != backend.MetaName && parts[2] != backend.CompactedMetaName && parts[2] != backend.NoCompactFileName {
 			return nil
 		}
 
@@ -224,6 +224,8 @@ func (rw *Backend) ListBlocks(_ context.Context, tenant string) (metas []uuid.UU
 			metas = append(metas, id)
 		case backend.CompactedMetaName:
 			compactedMetas = append(compactedMetas, id)
+		case backend.NoCompactFileName:
+			noCompact = append(noCompact, id)
 		}
 
 		return nil
