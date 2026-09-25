@@ -18,6 +18,10 @@ const (
 	SignatureVersionV4 = "v4"
 	SignatureVersionV2 = "v2"
 
+	// ListObjectsVersionV1 / V2 select which S3 list objects API the backend uses.
+	ListObjectsVersionV1 = "v1"
+	ListObjectsVersionV2 = "v2"
+
 	// SSEKMS config type constant to configure S3 server side encryption using KMS
 	// https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingKMSEncryption.html
 	SSEKMS = "SSE-KMS"
@@ -71,9 +75,12 @@ type Config struct {
 	Metadata         map[string]string `yaml:"metadata"`
 	// Deprecated
 	// See https://github.com/grafana/tempo/pull/3006 for more details
-	NativeAWSAuthEnabled  bool      `yaml:"native_aws_auth_enabled"`
-	ListBlocksConcurrency int       `yaml:"list_blocks_concurrency"`
-	SSE                   SSEConfig `yaml:"sse"`
+	NativeAWSAuthEnabled  bool `yaml:"native_aws_auth_enabled"`
+	ListBlocksConcurrency int  `yaml:"list_blocks_concurrency"`
+	// ListObjectsVersion selects the S3 list objects API version ("v1" or "v2"); defaults to v2.
+	// Set "v1" for S3-compatible stores that do not implement ListObjectsV2 pagination correctly.
+	ListObjectsVersion string    `yaml:"list_objects_version"`
+	SSE                SSEConfig `yaml:"sse"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -91,6 +98,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.StringVar(&cfg.SSE.KMSEncryptionContext, util.PrefixConfig(prefix, "s3.sse.kms-encryption-context"), "", "KMS Encryption Context used for object encryption. It expects JSON formatted string.")
 	f.Var(&cfg.SSE.CustomerEncryptionKey, util.PrefixConfig(prefix, "s3.sse.encryption-key"), "SSE-C Encryption Key used for object encryption.")
 	cfg.HedgeRequestsUpTo = 2
+	cfg.ListObjectsVersion = ListObjectsVersionV2
 	cfg.RetryMaxAttempts = minio.MaxRetry
 	cfg.RetryBackoffInitial = minio.DefaultRetryUnit
 	cfg.RetryBackoffMax = minio.DefaultRetryCap

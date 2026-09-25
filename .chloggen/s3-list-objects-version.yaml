@@ -1,0 +1,6 @@
+change_type: enhancement
+component: storage
+note: "Add a `list_objects_version` option to the S3 backend to support S3-compatible stores that do not implement ListObjectsV2."
+issues: []
+subtext:
+user: kbelokon
