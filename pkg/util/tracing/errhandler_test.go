@@ -51,3 +51,28 @@ func TestRecordErr(t *testing.T) {
 		})
 	}
 }
+
+func TestEndSpan(t *testing.T) {
+	exporter := tracetest.NewInMemoryExporter()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
+	defer func() { require.NoError(t, tp.Shutdown(context.Background())) }()
+
+	// doThing mirrors the intended call site: EndSpan is deferred while err
+	// is still nil, and must observe the value err holds at return time, not
+	// at the point the defer was registered.
+	doThing := func() (err error) {
+		_, span := tp.Tracer("test").Start(context.Background(), "op")
+		defer EndSpan(span, &err)
+
+		err = errors.New("boom")
+		return err
+	}
+
+	require.EqualError(t, doThing(), "boom")
+	require.NoError(t, tp.ForceFlush(context.Background()))
+
+	spans := exporter.GetSpans()
+	require.Len(t, spans, 1)
+	require.True(t, spans[0].EndTime.After(spans[0].StartTime), "span should have been ended")
+	require.Equal(t, codes.Error, spans[0].Status.Code)
+}

@@ -153,7 +153,7 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (_ PerTenant, _ P
 	defer cancel()
 
 	parentCtx, parentSpan := tracer.Start(parentCtx, "Poller.Do")
-	defer func() { tracing.RecordErr(parentSpan, err); parentSpan.End() }()
+	defer tracing.EndSpan(parentSpan, &err)
 
 	tenants, err := p.reader.Tenants(parentCtx)
 	if err != nil {
@@ -194,8 +194,10 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (_ PerTenant, _ P
 		go func(tenantID string) {
 			defer wg.Done()
 
+			var err error
+
 			bgCtx, bgSpan := tracer.Start(bgCtx, "Poller.Do.func")
-			defer bgSpan.End()
+			defer tracing.EndSpan(bgSpan, &err)
 
 			bgSpan.SetAttributes(attribute.String("tenant", tenantID))
 
@@ -203,9 +205,7 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (_ PerTenant, _ P
 				consecutiveErrorsRemaining = p.cfg.TolerateConsecutiveErrors
 				newBlockList               = make([]*backend.BlockMeta, 0)
 				newCompactedBlockList      = make([]*backend.CompactedBlockMeta, 0)
-				err                        error
 			)
-			defer func() { tracing.RecordErr(bgSpan, err) }()
 
 			for consecutiveErrorsRemaining >= 0 {
 				newBlockList, newCompactedBlockList, err = p.pollTenantAndCreateIndex(bgCtx, tenantID, previous)
@@ -268,7 +268,7 @@ func (p *Poller) pollTenantAndCreateIndex(
 	previous *List,
 ) (_ []*backend.BlockMeta, _ []*backend.CompactedBlockMeta, err error) {
 	derivedCtx, span := tracer.Start(ctx, "Poller.pollTenantAndCreateIndex", trace.WithAttributes(attribute.String("tenant", tenantID)))
-	defer func() { tracing.RecordErr(span, err); span.End() }()
+	defer tracing.EndSpan(span, &err)
 
 	// are we a tenant index builder?
 	builder := p.tenantIndexBuilder(tenantID)
@@ -340,7 +340,7 @@ func (p *Poller) pollTenantBlocks(
 	previous *List,
 ) (_ []*backend.BlockMeta, _ []*backend.CompactedBlockMeta, err error) {
 	derivedCtx, span := tracer.Start(ctx, "Poller.pollTenantBlocks")
-	defer func() { tracing.RecordErr(span, err); span.End() }()
+	defer tracing.EndSpan(span, &err)
 
 	currentBlockIDs, currentCompactedBlockIDs, err := p.reader.Blocks(derivedCtx, tenantID)
 	if err != nil {
@@ -421,7 +421,7 @@ func (p *Poller) pollUnknown(
 	derivedCtx, span := tracer.Start(ctx, "pollUnknown", trace.WithAttributes(
 		attribute.Int("unknownBlockIDs", len(unknownBlocks)),
 	))
-	defer func() { tracing.RecordErr(span, err); span.End() }()
+	defer tracing.EndSpan(span, &err)
 
 	var (
 		errs                  []error
@@ -486,7 +486,7 @@ func (p *Poller) pollBlock(
 	compacted bool,
 ) (_ *backend.BlockMeta, _ *backend.CompactedBlockMeta, err error) {
 	derivedCtx, span := tracer.Start(ctx, "Poller.pollBlock")
-	defer func() { tracing.RecordErr(span, err); span.End() }()
+	defer tracing.EndSpan(span, &err)
 
 	span.SetAttributes(attribute.String("tenant", tenantID))
 	span.SetAttributes(attribute.String("block", blockID.String()))
