@@ -17,11 +17,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/atomic"
 
 	"github.com/grafana/tempo/v3/pkg/boundedwaitgroup"
+	"github.com/grafana/tempo/v3/pkg/util/tracing"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
@@ -146,14 +146,14 @@ func NewPoller(cfg *PollerConfig, sharder JobSharder, reader backend.Reader, com
 }
 
 // Do does the doing of getting a blocklist
-func (p *Poller) Do(parentCtx context.Context, previous *List) (PerTenant, PerTenantCompacted, error) {
+func (p *Poller) Do(parentCtx context.Context, previous *List) (_ PerTenant, _ PerTenantCompacted, err error) {
 	start := time.Now()
 
 	parentCtx, cancel := context.WithCancel(parentCtx)
 	defer cancel()
 
 	parentCtx, parentSpan := tracer.Start(parentCtx, "Poller.Do")
-	defer parentSpan.End()
+	defer tracing.EndSpan(parentSpan, &err)
 
 	tenants, err := p.reader.Tenants(parentCtx)
 	if err != nil {
@@ -194,8 +194,10 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (PerTenant, PerTe
 		go func(tenantID string) {
 			defer wg.Done()
 
+			var err error
+
 			bgCtx, bgSpan := tracer.Start(bgCtx, "Poller.Do.func")
-			defer bgSpan.End()
+			defer tracing.EndSpan(bgSpan, &err)
 
 			bgSpan.SetAttributes(attribute.String("tenant", tenantID))
 
@@ -203,7 +205,6 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (PerTenant, PerTe
 				consecutiveErrorsRemaining = p.cfg.TolerateConsecutiveErrors
 				newBlockList               = make([]*backend.BlockMeta, 0)
 				newCompactedBlockList      = make([]*backend.CompactedBlockMeta, 0)
-				err                        error
 			)
 
 			for consecutiveErrorsRemaining >= 0 {
@@ -265,9 +266,9 @@ func (p *Poller) pollTenantAndCreateIndex(
 	ctx context.Context,
 	tenantID string,
 	previous *List,
-) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
+) (_ []*backend.BlockMeta, _ []*backend.CompactedBlockMeta, err error) {
 	derivedCtx, span := tracer.Start(ctx, "Poller.pollTenantAndCreateIndex", trace.WithAttributes(attribute.String("tenant", tenantID)))
-	defer span.End()
+	defer tracing.EndSpan(span, &err)
 
 	// are we a tenant index builder?
 	builder := p.tenantIndexBuilder(tenantID)
@@ -337,9 +338,9 @@ func (p *Poller) pollTenantBlocks(
 	ctx context.Context,
 	tenantID string,
 	previous *List,
-) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
+) (_ []*backend.BlockMeta, _ []*backend.CompactedBlockMeta, err error) {
 	derivedCtx, span := tracer.Start(ctx, "Poller.pollTenantBlocks")
-	defer span.End()
+	defer tracing.EndSpan(span, &err)
 
 	currentBlockIDs, currentCompactedBlockIDs, err := p.reader.Blocks(derivedCtx, tenantID)
 	if err != nil {
@@ -416,14 +417,13 @@ func (p *Poller) pollUnknown(
 	ctx context.Context,
 	unknownBlocks map[uuid.UUID]bool,
 	tenantID string,
-) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
+) (_ []*backend.BlockMeta, _ []*backend.CompactedBlockMeta, err error) {
 	derivedCtx, span := tracer.Start(ctx, "pollUnknown", trace.WithAttributes(
 		attribute.Int("unknownBlockIDs", len(unknownBlocks)),
 	))
-	defer span.End()
+	defer tracing.EndSpan(span, &err)
 
 	var (
-		err                   error
 		errs                  []error
 		mtx                   sync.Mutex
 		bg                    = boundedwaitgroup.New(p.cfg.PollConcurrency)
@@ -472,8 +472,6 @@ func (p *Poller) pollUnknown(
 	if len(errs) > 0 {
 		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()
 		err = errors.Join(errs...)
-		span.SetStatus(codes.Error, "")
-		span.RecordError(err)
 
 		return nil, nil, err
 	}
@@ -486,10 +484,9 @@ func (p *Poller) pollBlock(
 	tenantID string,
 	blockID uuid.UUID,
 	compacted bool,
-) (*backend.BlockMeta, *backend.CompactedBlockMeta, error) {
+) (_ *backend.BlockMeta, _ *backend.CompactedBlockMeta, err error) {
 	derivedCtx, span := tracer.Start(ctx, "Poller.pollBlock")
-	defer span.End()
-	var err error
+	defer tracing.EndSpan(span, &err)
 
 	span.SetAttributes(attribute.String("tenant", tenantID))
 	span.SetAttributes(attribute.String("block", blockID.String()))
