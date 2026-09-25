@@ -436,46 +436,21 @@ func (r *reportValuesPredicate) String() string {
 	return "reportValuesPredicate{}"
 }
 
-// KeepColumnChunk checks to see if the page has a dictionary. if it does then we can report the values contained in it
-// and return false b/c we don't have to go to the actual columns to retrieve values. if there is no dict we return
-// true so the iterator will call KeepValue on all values in the column.
+// KeepValue reports every present value to r.cb and returns false so the iterator
+// does no extra work. The generic keepColumnChunk helper drives this over the
+// column-chunk dictionary when present (reporting each distinct value once, then
+// skipping the pages) and over each value otherwise.
 //
-// Once cb has asked to stop we return true instead, so the iterator produces a match and
-// hands control back to the caller rather than walking every remaining row group.
-func (r *reportValuesPredicate) KeepColumnChunk(cc *pq.ColumnChunkHelper) bool {
-	if r.stop {
-		return true
-	}
-
-	if d := cc.Dictionary(); d != nil {
-		for i := 0; i < d.Len(); i++ {
-			v := d.Index(int32(i))
-			if callback(r.cb, v) {
-				r.stop = true
-				return true
-			}
-		}
-
-		// No need to check the pages since this was a dictionary
-		// column.
-		return false
-	}
-
-	return true
-}
-
-// KeepPage always returns true because if we get this far we need to
-// inspect each individual value.
-func (r *reportValuesPredicate) KeepPage(parquet.Page) bool {
-	return true
-}
-
-// KeepValue is only called if this column does not have a dictionary. Just report everything to r.cb and
-// return false so the iterator does not do any extra work. Once cb has asked to stop we
-// return true so the iterator yields a match and the caller can abandon the scan.
+// Once cb has asked to stop we return true so the iterator yields a match and the
+// caller can abandon the scan. The null probe keepColumnChunk/keepPage use to test
+// null rows is not a reportable value, so it is skipped.
 func (r *reportValuesPredicate) KeepValue(v parquet.Value) bool {
 	if r.stop {
 		return true
+	}
+
+	if v.IsNull() {
+		return false
 	}
 
 	if callback(r.cb, v) {
@@ -485,6 +460,11 @@ func (r *reportValuesPredicate) KeepValue(v parquet.Value) bool {
 
 	return false
 }
+
+// KeepRange keeps everything: this predicate reports all present values rather
+// than filtering by range. Dictionary reporting happens via KeepValue over the
+// dictionary in the generic chunk helper.
+func (r *reportValuesPredicate) KeepRange(parquet.Value, parquet.Value) bool { return true }
 
 func callback(cb common.TagValuesCallbackV2, v parquet.Value) (stop bool) {
 	switch v.Kind() {
