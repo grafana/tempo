@@ -1,0 +1,5 @@
+change_type: feature
+component: tempo-cli
+note: Add `tempo-cli benchmark compare` to compare two or more `benchmark run` results in benchstat-style tables, flagging runs that cannot be compared, in an interactive terminal view or as markdown for a pull request.
+issues: []
+user: mapno
