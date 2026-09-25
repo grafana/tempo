@@ -460,7 +460,7 @@ func startBackend(t *testing.T, s *e2e.Scenario, cfg app.Config) (*e2e.HTTPServi
 		if err != nil {
 			return nil, err
 		}
-		backendService = e2edb.NewMinio(port, "tempo")
+		backendService = e2edb.NewRustFS(port, "tempo")
 		err = s.StartAndWaitReady(backendService)
 		if err != nil {
 			return nil, err
