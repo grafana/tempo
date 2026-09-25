@@ -1,0 +1,7 @@
+change_type: enhancement
+component: backend-scheduler
+note: "Allow the existence check `attr != nil` in a redaction query selector."
+issues: []
+subtext: |
+  The selector subset refused every `!=` because a negation's match set is the complement of what the operator named, which is a poor property for an irreversible delete. `attr != nil` is not a negation: the TraceQL grammar rewrites it into a unary existence check rather than parsing it as `!=`, so it selects spans that have the attribute rather than the complement. `!=` against any other value, including `""`, is still refused.
+user: zalegrala

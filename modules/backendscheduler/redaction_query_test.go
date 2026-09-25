@@ -1,6 +1,10 @@
 package backendscheduler
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
 
 // The redaction query selector accepts only a single spanset filter restricted to
 // equality on resource.*/span.* attributes joined by && / ||. Everything
@@ -102,6 +106,62 @@ func TestValidateRedactionQuery(t *testing.T) {
 			if !tc.wantErr && err != nil {
 				t.Fatalf("query %q: expected acceptance, got error: %v", tc.query, err)
 			}
+		})
+	}
+}
+
+// TestRedactionQueryExistenceForms covers attr != nil, the negative spelling that is a
+// positive match: the grammar rewrites it into a unary existence check, so it is not the
+// complement match the `!=` rejection otherwise exists to prevent.
+func TestRedactionQueryExistenceForms(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		query   string
+		wantErr string
+	}{
+		{name: "attr != nil is an existence check", query: `{ span.foo != nil }`},
+		{name: "existence combined with equality", query: `{ resource.service.name != nil && span.foo = "x" }`},
+		{name: "existence combined with or", query: `{ span.a != nil || span.b != nil }`},
+
+		{
+			name:    "negation against a value is still refused",
+			query:   `{ span.foo != "bar" }`,
+			wantErr: "not allowed in redaction query",
+		},
+		{
+			name:    "negation against a number is still refused",
+			query:   `{ span.http.status_code != 500 }`,
+			wantErr: "not allowed in redaction query",
+		},
+		{
+			name:    "existence on an unscoped attribute is refused",
+			query:   `{ .foo != nil }`,
+			wantErr: "must be scoped to resource. or span.",
+		},
+		{
+			name:    "existence on a parent-scoped attribute is refused",
+			query:   `{ parent.span.foo != nil }`,
+			wantErr: "must not be parent-scoped",
+		},
+		{
+			name:    "ordered comparison stays refused",
+			query:   `{ span.foo > "" }`,
+			wantErr: "not allowed in redaction query",
+		},
+		{
+			name:    "not-regex stays refused",
+			query:   `{ span.foo !~ "bar" }`,
+			wantErr: "not allowed in redaction query",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateRedactionQuery(tc.query)
+			if tc.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tc.wantErr)
 		})
 	}
 }
