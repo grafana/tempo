@@ -91,7 +91,7 @@ services:
     image: *tempoImage
     environment: *tempoEnvironment
     depends_on:
-      - minio
+      - rustfs
     command: "-target=backend-scheduler -config.file=/etc/tempo.yaml"
     restart: always
     volumes:
@@ -164,17 +164,19 @@ services:
     ports:
       - "3200"
 
-  minio:
-    image: minio/minio:latest
+  rustfs:
+    image: rustfs/rustfs:1.0.0
     environment:
-      - MINIO_ACCESS_KEY=tempo
-      - MINIO_SECRET_KEY=supersecret
+      - RUSTFS_ACCESS_KEY=tempo
+      - RUSTFS_SECRET_KEY=supersecret
+      - RUSTFS_CONSOLE_ENABLE=true
+      - RUSTFS_CONSOLE_ADDRESS=:9001
     ports:
       - "9001:9001"
     entrypoint:
       - sh
       - -euc
-      - mkdir -p /data/tempo && minio server /data --console-address ':9001'
+      - mkdir -p /data/tempo && rustfs /data
 
   redpanda:
     image: redpandadata/redpanda:latest
