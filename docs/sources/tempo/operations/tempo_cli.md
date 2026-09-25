@@ -579,7 +579,7 @@ result needs a rule per source:
 
 - `total` is the sum over the case for a `counter`, or the value left behind for
   a `gauge`.
-- `summary` describes the per-execution values, with quantiles so a box plot
+- `summary` describes the per-execution values, with quartiles so a box plot
   needs nothing else. A total on its own hides the tail, which on the read path
   is usually the interesting part.
 
@@ -613,6 +613,98 @@ Example:
 ```bash
 tempo-cli benchmark profile /data/traces/single-tenant/ca314fba-efec-4852-ba3f-8d2b0bbf69f1 -o profile.json
 tempo-cli benchmark run /data/traces/single-tenant/ca314fba-efec-4852-ba3f-8d2b0bbf69f1 -p profile.json -o result.json
+```
+
+## Benchmark compare
+
+Compare two or more results from `benchmark run`.
+For each metric it lays every case out as benchstat does:
+the baseline's value, then each other run's value and its change from the baseline.
+
+```bash
+tempo-cli benchmark compare <result.json> <result.json>...
+```
+
+A run that cannot be compared with the baseline on a case reads `not comparable`,
+with the reason under the table:
+its match or execution count differs, or it is missing the case or failed it.
+
+In a terminal it opens an interactive view on that summary.
+Pick a case with the arrow keys or `j` and `k`,
+move between metrics with the left and right arrows or `tab`,
+cycle the percentile with `p`,
+move the baseline to the next run with `b`,
+and quit with `q`.
+`enter` opens the selected case as box plots over a table,
+and `esc` goes back.
+
+A change is coloured blue when it falls and orange when it rises,
+since every default metric is better lower,
+and is bold at 10% or more.
+When a run's name is too long to head a column,
+runs are numbered, and listed with their numbers above.
+
+When stdout is not a terminal, or with `--format=text`,
+it prints the summaries and then every case's box plots to stdout instead.
+With `--format=markdown`, it writes the summaries as markdown tables,
+to paste into a pull request.
+
+Arguments:
+
+- `results` Results to compare, as `name=path` or a path.
+  The first is the baseline.
+
+Options:
+
+- `-m`, `--metric` Metrics to show, as glob patterns over the metric keys.
+  Defaults to `harness.wallNs`, `harness.cpuNs`, `harness.allocBytes`,
+  `backend.bytes`, and `backend.reads`.
+- `-k`, `--case` Cases to show, as glob patterns over the case IDs,
+  for example `traceid/*`. Defaults to every case.
+- `--percentile` Percentile the summaries show: `p50`, `p90`, or `p99`.
+  Defaults to `p50`.
+- `--format` `interactive`, the default, opens the interactive view,
+  or prints `text` when stdout is not a terminal.
+  `text` prints the summaries and every case's box plots.
+  `markdown` writes the summaries as markdown tables.
+- `--width` Columns the text output is drawn in. Defaults to `100`.
+
+A result given as a path is named after the settings that set it apart from the others:
+the run options and git SHA that differ between the runs,
+or, when those are all the same, the Go version, `GOMAXPROCS`, or host.
+When one setting differs, the name is its value, like `4MiB`.
+When several do, the name lists each, like `readBufferSize=4MiB readBufferCount=8`.
+Runs set up alike, such as repeats of one setup,
+are named after their files instead.
+When the one setting that differs is a number,
+the runs are put in its order, with those left at Tempo's default first,
+so reading down the plots follows the setting as it grows.
+The baseline stays the run given first wherever it lands.
+
+Above the tables, each run has a line saying how it differs from the baseline,
+like `readBufferSize default → 4MiB`.
+The baseline's line shows what the others are measured from:
+its value of every setting that differs, then its git SHA, Go version, `GOMAXPROCS`, and host.
+A difference in where a run happened, its Go version, `GOMAXPROCS`, or host, is flagged with ⚠,
+since latencies from two environments are hard to compare.
+A shard count that follows from `--target-bytes-per-request` is shown dimmed.
+
+A box spans the 25th to 75th percentile, with a mark at the median.
+Its whisker runs from the minimum to the 99th percentile, with a tick at the 90th.
+The axis stops near the highest 99th percentile,
+so a maximum far past it is marked at the edge and written out,
+rather than squashing every box into a few columns.
+
+The summaries are per execution:
+one trace lookup, or one shard of a search, metrics, or tag-name query.
+The spread of a box is across those executions, not across repeated runs,
+so it describes how the inputs differ, not how noisy the measurement is.
+
+Example, where the runs are named `default`, `4MiB`, and `16MiB` from their read buffer sizes:
+
+```bash
+tempo-cli benchmark compare main.json read-buffer-4mib.json read-buffer-16mib.json -k 'traceid/*'
+tempo-cli benchmark compare main.json read-buffer-4mib.json --format=markdown > comparison.md
 ```
 
 ## Query search command
