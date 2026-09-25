@@ -10,7 +10,7 @@ weight: 500
 # Deploy on Kubernetes with Tanka
 
 Using this deployment guide, you can deploy Tempo to Kubernetes using a Jsonnet library and [Grafana Tanka](https://tanka.dev) to create a development cluster or sand-boxed environment.
-This procedure uses MinIO to provide object storage regardless of the cloud platform or on-premise storage you use.
+This procedure uses RustFS to provide object storage regardless of the cloud platform or on-premise storage you use.
 In a production environment, you can use your cloud provider’s object storage service to avoid the operational overhead of running object storage in production.
 
 To set up Tempo using Kubernetes with Tanka, you need to:
@@ -18,7 +18,7 @@ To set up Tempo using Kubernetes with Tanka, you need to:
 1. Configure Kubernetes and install Tanka
 1. Set up the Tanka environment
 1. Install libraries
-1. Deploy MinIO object storage
+1. Deploy RustFS object storage
 1. Optional: Enable metrics-generator
 1. Deploy Tempo with the Tanka command
 
@@ -101,20 +101,20 @@ Install the `k.libsonnet`, Jsonnet, and Memcached libraries.
    jb install github.com/grafana/jsonnet-libs/memcached@master
    ```
 
-## Deploy MinIO object storage
+## Deploy RustFS object storage
 
-[MinIO](https://min.io) is an open source Amazon S3-compatible object storage service that is freely available and runs on Kubernetes.
+[RustFS](https://github.com/rustfs/rustfs) is an open source, Apache-2.0 licensed Amazon S3-compatible object storage service that runs on Kubernetes.
 
-1. Create a file named `minio.yaml` and copy the following YAML configuration into it. You may need to remove/modify the `storageClassName` depending on your Kubernetes platform. GKE, for example, may not support `local-path` name but may support another option such as `standard`.
+1. Create a file named `rustfs.yaml` and copy the following YAML configuration into it. You may need to remove/modify the `storageClassName` depending on your Kubernetes platform. GKE, for example, may not support `local-path` name but may support another option such as `standard`.
 
    ```yaml
    apiVersion: v1
    kind: PersistentVolumeClaim
    metadata:
      # This name uniquely identifies the PVC. Will be used in deployment below.
-     name: minio-pv-claim
+     name: rustfs-pv-claim
      labels:
-       app: minio-storage-claim
+       app: rustfs-storage-claim
    spec:
      # Read more about access modes here: http://kubernetes.io/docs/user-guide/persistent-volumes/#access-modes
      accessModes:
@@ -128,50 +128,51 @@ Install the `k.libsonnet`, Jsonnet, and Memcached libraries.
    apiVersion: apps/v1
    kind: Deployment
    metadata:
-     name: minio
+     name: rustfs
    spec:
      selector:
        matchLabels:
-         app: minio
+         app: rustfs
      strategy:
        type: Recreate
      template:
        metadata:
          labels:
            # Label is used as selector in the service.
-           app: minio
+           app: rustfs
        spec:
          # Refer to the PVC created earlier
          volumes:
            - name: storage
              persistentVolumeClaim:
                # Name of the PVC created earlier
-               claimName: minio-pv-claim
+               claimName: rustfs-pv-claim
          initContainers:
            - name: create-buckets
              image: busybox:1.28
              command:
                - 'sh'
                - '-c'
-               - 'mkdir -p /storage/tempo-data'
+               # RustFS runs as UID 10001, so hand it the volume.
+               - 'mkdir -p /storage/tempo-data && chown -R 10001:10001 /storage'
              volumeMounts:
                - name: storage # must match the volume name, above
                  mountPath: '/storage'
          containers:
-           - name: minio
-             # Pulls the default Minio image from Docker Hub
-             image: minio/minio:latest
+           - name: rustfs
+             image: rustfs/rustfs:1.0.0
              args:
-               - server
                - /storage
-               - --console-address
-               - ':9001'
              env:
-               # MinIO root credentials
-               - name: MINIO_ROOT_USER
-                 value: 'minio'
-               - name: MINIO_ROOT_PASSWORD
-                 value: 'minio123'
+               # RustFS root credentials
+               - name: RUSTFS_ACCESS_KEY
+                 value: 'rustfs'
+               - name: RUSTFS_SECRET_KEY
+                 value: 'rustfs123'
+               - name: RUSTFS_CONSOLE_ENABLE
+                 value: 'true'
+               - name: RUSTFS_CONSOLE_ADDRESS
+                 value: ':9001'
              ports:
                - containerPort: 9000
                - containerPort: 9001
@@ -182,7 +183,7 @@ Install the `k.libsonnet`, Jsonnet, and Memcached libraries.
    apiVersion: v1
    kind: Service
    metadata:
-     name: minio
+     name: rustfs
    spec:
      type: ClusterIP
      ports:
@@ -195,27 +196,27 @@ Install the `k.libsonnet`, Jsonnet, and Memcached libraries.
          protocol: TCP
          name: console
      selector:
-       app: minio
+       app: rustfs
    ```
 
-1. Run the following command to apply the minio.yaml file:
+1. Run the following command to apply the rustfs.yaml file:
 
    ```bash
-   kubectl apply --namespace tempo -f minio.yaml
+   kubectl apply --namespace tempo -f rustfs.yaml
    ```
 
-1. To check that MinIO is correctly configured, sign in to MinIO and verify that a bucket has been created. Without these buckets, no data will be stored.
+1. To check that RustFS is correctly configured, sign in to RustFS and verify that a bucket has been created. Without these buckets, no data will be stored.
 
-   1. Port-forward MinIO to port 9001:
+   1. Port-forward RustFS to port 9001:
 
       ```bash
-       kubectl port-forward --namespace tempo service/minio 9001:9001
+       kubectl port-forward --namespace tempo service/rustfs 9001:9001
       ```
 
-   1. Navigate to the MinIO admin bash using your browser: `http://localhost:9001`. The sign-in credentials are username `minio` and password `minio123`.
+   1. Navigate to the RustFS console using your browser: `http://localhost:9001/rustfs/console/`. The sign-in credentials are username `rustfs` and password `rustfs123`.
    1. Verify that the Buckets page lists `tempo-data`.
 
-1. Configure the Tempo cluster using the MinIO object storage by updating the contents of the `environments/tempo/main.jsonnet` file by running the following command:
+1. Configure the Tempo cluster using the RustFS object storage by updating the contents of the `environments/tempo/main.jsonnet` file by running the following command:
 
    ```jsonnet
    cat <<EOF > environments/tempo/main.jsonnet
@@ -299,9 +300,9 @@ Install the `k.libsonnet`, Jsonnet, and Memcached libraries.
                 trace+: {
                     s3: {
                         bucket: $._config.bucket,
-                        access_key: 'minio',
-                        secret_key: 'minio123',
-                        endpoint: 'minio:9000',
+                        access_key: 'rustfs',
+                        secret_key: 'rustfs123',
+                        endpoint: 'rustfs:9000',
                         insecure: true,
                     },
                 },

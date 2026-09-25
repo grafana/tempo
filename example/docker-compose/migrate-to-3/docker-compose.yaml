@@ -6,10 +6,10 @@
 #   - "v3" profile: a Tempo 3.0 microservices deployment (distributor, live-store,
 #     block-builder, querier, query-frontend, backend-scheduler, backend-worker,
 #     metrics-generator) plus Redpanda for Kafka.
-#   - default (no profile): shared infrastructure (MinIO, Prometheus, Grafana,
+#   - default (no profile): shared infrastructure (RustFS, Prometheus, Grafana,
 #     Alloy as the trace router, k6 trace generator).
 #
-# Both Tempo deployments share the same MinIO bucket, which is the whole point
+# Both Tempo deployments share the same RustFS bucket, which is the whole point
 # of the parallel-deployment migration story.
 #
 # See README.md for the step-by-step playbook.
@@ -22,17 +22,19 @@ services:
   # Shared infrastructure (always on)
   # =========================================================================
 
-  minio:
-    image: minio/minio:latest
+  rustfs:
+    image: rustfs/rustfs:1.0.0
     environment:
-      - MINIO_ACCESS_KEY=tempo
-      - MINIO_SECRET_KEY=supersecret
+      - RUSTFS_ACCESS_KEY=tempo
+      - RUSTFS_SECRET_KEY=supersecret
+      - RUSTFS_CONSOLE_ENABLE=true
+      - RUSTFS_CONSOLE_ADDRESS=:9001
     ports:
       - "9001:9001"
     entrypoint:
       - sh
       - -euc
-      - mkdir -p /data/tempo && minio server /data --console-address ':9001'
+      - mkdir -p /data/tempo && rustfs /data
 
   # The trace router. k6-tracing -> alloy -> distributor.
   # To switch traffic between v2 and v3, edit the ALLOY_OTLP_UPSTREAM env var
@@ -96,7 +98,7 @@ services:
       - ./tempo-v2.yaml:/etc/tempo.yaml
     hostname: tempo-v2-distributor
     depends_on:
-      - minio
+      - rustfs
 
   tempo-v2-ingester:
     image: *tempoV2Image
@@ -107,7 +109,7 @@ services:
       - ./tempo-v2.yaml:/etc/tempo.yaml
     hostname: tempo-v2-ingester
     depends_on:
-      - minio
+      - rustfs
 
   tempo-v2-querier:
     image: *tempoV2Image
@@ -118,7 +120,7 @@ services:
       - ./tempo-v2.yaml:/etc/tempo.yaml
     hostname: tempo-v2-querier
     depends_on:
-      - minio
+      - rustfs
 
   tempo-v2-query-frontend:
     image: *tempoV2Image
@@ -140,7 +142,7 @@ services:
       - ./tempo-v2.yaml:/etc/tempo.yaml
     hostname: tempo-v2-compactor
     depends_on:
-      - minio
+      - rustfs
 
   tempo-v2-metrics-generator:
     image: *tempoV2Image
@@ -206,7 +208,7 @@ services:
     hostname: tempo-v3-distributor
     depends_on:
       - redpanda
-      - minio
+      - rustfs
 
   tempo-v3-live-store-0:
     image: *tempoV3Image
@@ -240,7 +242,7 @@ services:
     hostname: tempo-v3-block-builder-0
     depends_on:
       - redpanda
-      - minio
+      - rustfs
 
   tempo-v3-block-builder-1:
     image: *tempoV3Image
@@ -252,7 +254,7 @@ services:
     hostname: tempo-v3-block-builder-1
     depends_on:
       - redpanda
-      - minio
+      - rustfs
 
   tempo-v3-querier:
     image: *tempoV3Image
@@ -283,7 +285,7 @@ services:
       - ./tempo-v3.yaml:/etc/tempo.yaml
     hostname: tempo-v3-backend-scheduler
     depends_on:
-      - minio
+      - rustfs
 
   tempo-v3-backend-worker:
     image: *tempoV3Image
@@ -294,7 +296,7 @@ services:
       - ./tempo-v3.yaml:/etc/tempo.yaml
     hostname: tempo-v3-backend-worker
     depends_on:
-      - minio
+      - rustfs
       - tempo-v3-backend-scheduler
 
   tempo-v3-metrics-generator:
