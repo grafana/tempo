@@ -8,12 +8,10 @@ import (
 	"maps"
 	"net/http"
 	"slices"
-	"sync"
 	"time"
 
 	"github.com/drone/envsubst"
 	"github.com/go-kit/log/level"
-	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/dskit/runtimeconfig"
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
@@ -169,27 +167,44 @@ type runtimeConfigOverridesManager struct {
 	// Manager for subservices
 	subservices        *services.Manager
 	subservicesWatcher *services.FailureWatcher
-
-	cfg        Config
-	validator  Validator
-	registerer prometheus.Registerer
 }
-
-const (
-	runtimeConfigRetryBackoff     = 200 * time.Millisecond
-	runtimeConfigRetryMax         = 5 * time.Second
-	runtimeConfigRetryMaxAttempts = 10
-)
 
 var _ Interface = (*runtimeConfigOverridesManager)(nil)
 
 func newRuntimeConfigOverrides(cfg Config, validator Validator, registerer prometheus.Registerer) (Service, error) {
-	o := &runtimeConfigOverridesManager{
-		cfg:        cfg,
-		validator:  validator,
-		registerer: registerer,
+	var manager *runtimeconfig.Manager
+	subservices := []services.Service(nil)
+
+	if cfg.PerTenantOverrideConfig != "" {
+		runtimeCfg := runtimeconfig.Config{
+			LoadPath:     []string{cfg.PerTenantOverrideConfig},
+			ReloadPeriod: time.Duration(cfg.PerTenantOverridePeriod),
+			Loader:       loadPerTenantOverrides(validator, cfg.ConfigType, cfg.ExpandEnv, cfg.EnableLegacyOverrides),
+		}
+		runtimeCfgMgr, err := runtimeconfig.New(runtimeCfg, "overrides", prometheus.WrapRegistererWithPrefix("tempo_", registerer), log.Logger)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create runtime config manager: %w", err)
+		}
+		manager = runtimeCfgMgr
+		subservices = append(subservices, runtimeCfgMgr)
 	}
-	o.defaultLimits = &o.cfg.Defaults
+
+	o := &runtimeConfigOverridesManager{
+		runtimeConfigMgr: manager,
+		defaultLimits:    &cfg.Defaults,
+	}
+
+	if len(subservices) > 0 {
+		var err error
+		o.subservices, err = services.NewManager(subservices...)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create subservices: %w", err)
+		}
+		// Watch after a successful start. The channel is unbuffered, and a
+		// failed start has no reader yet, so watching here blocks the manager
+		// listener and the process never finishes stopping.
+		o.subservicesWatcher = services.NewFailureWatcher()
+	}
 
 	o.Service = services.NewBasicService(o.starting, o.running, o.stopping)
 
@@ -197,143 +212,15 @@ func newRuntimeConfigOverrides(cfg Config, validator Validator, registerer prome
 }
 
 func (o *runtimeConfigOverridesManager) starting(ctx context.Context) error {
-	if o.cfg.PerTenantOverrideConfig == "" {
+	if o.subservices == nil {
 		return nil
 	}
-
-	b := backoff.New(ctx, backoff.Config{
-		MinBackoff: runtimeConfigRetryBackoff,
-		MaxBackoff: runtimeConfigRetryMax,
-		MaxRetries: runtimeConfigRetryMaxAttempts,
-	})
-
-	var lastErr error
-	for b.Ongoing() {
-		// runtimeconfig.New registers metrics before load. trackingRegisterer
-		// removes them when start fails, so a retry can use the same registerer.
-		err := o.initAndStartRuntimeConfig(ctx, o.registerer, true)
-		if err != nil {
-			lastErr = err
-			level.Warn(log.Logger).Log("msg", "failed to load runtime config, retrying", "err", err, "retries", b.NumRetries()+1)
-			b.Wait()
-			continue
-		}
-		if b.NumRetries() > 0 {
-			level.Info(log.Logger).Log("msg", "runtime config loaded after retry", "retries", b.NumRetries())
-		}
-		return nil
-	}
-
-	if lastErr != nil {
-		return fmt.Errorf("failed to start subservices: %w", lastErr)
-	}
-	return fmt.Errorf("failed to start subservices: %w", b.Err())
-}
-
-func (o *runtimeConfigOverridesManager) initAndStartRuntimeConfig(ctx context.Context, registerer prometheus.Registerer, watch bool) error {
-	loader := loadPerTenantOverrides(o.validator, o.cfg.ConfigType, o.cfg.ExpandEnv, o.cfg.EnableLegacyOverrides)
-	runtimeCfg := runtimeconfig.Config{
-		LoadPath:     []string{o.cfg.PerTenantOverrideConfig},
-		ReloadPeriod: time.Duration(o.cfg.PerTenantOverridePeriod),
-		Loader:       loader,
-	}
-	// runtimeconfig.New registers last_reload_successful before load. Track
-	// those collectors so a failed start can unregister them instead of
-	// leaving TempoBadOverrides stuck at 0 while the probe manager is healthy.
-	tracked := newTrackingRegisterer(registerer)
-	mgr, err := runtimeconfig.New(runtimeCfg, "overrides", prometheus.WrapRegistererWithPrefix("tempo_", tracked), log.Logger)
+	err := services.StartManagerAndAwaitHealthy(ctx, o.subservices)
 	if err != nil {
-		tracked.UnregisterAll()
-		return fmt.Errorf("failed to create runtime config manager: %w", err)
+		return fmt.Errorf("failed to start subservices: %w", err)
 	}
-
-	subservices, err := services.NewManager(mgr)
-	if err != nil {
-		tracked.UnregisterAll()
-		return fmt.Errorf("failed to create subservices: %w", err)
-	}
-
-	// Watch only after a successful start, and only for the manager that will
-	// stay running. Failed probes used to WatchManager first; the unbuffered
-	// send then blocked the listener goroutine for the life of the process.
-	if err := services.StartManagerAndAwaitHealthy(ctx, subservices); err != nil {
-		_ = services.StopManagerAndAwaitStopped(context.Background(), subservices)
-		tracked.UnregisterAll()
-		return err
-	}
-
-	o.runtimeConfigMgr = mgr
-	o.subservices = subservices
-	if watch {
-		watcher := services.NewFailureWatcher()
-		watcher.WatchManager(subservices)
-		o.subservicesWatcher = watcher
-	}
+	o.subservicesWatcher.WatchManager(o.subservices)
 	return nil
-}
-
-// trackingRegisterer records collectors so a failed runtimeconfig.New/Start
-// can remove them from the process registerer.
-type trackingRegisterer struct {
-	inner      prometheus.Registerer
-	mu         sync.Mutex
-	collectors []prometheus.Collector
-}
-
-func newTrackingRegisterer(inner prometheus.Registerer) *trackingRegisterer {
-	return &trackingRegisterer{inner: inner}
-}
-
-func (t *trackingRegisterer) Register(c prometheus.Collector) error {
-	if t.inner == nil {
-		return nil
-	}
-	if err := t.inner.Register(c); err != nil {
-		return err
-	}
-	t.mu.Lock()
-	t.collectors = append(t.collectors, c)
-	t.mu.Unlock()
-	return nil
-}
-
-func (t *trackingRegisterer) MustRegister(cs ...prometheus.Collector) {
-	for _, c := range cs {
-		if err := t.Register(c); err != nil {
-			panic(err)
-		}
-	}
-}
-
-func (t *trackingRegisterer) Unregister(c prometheus.Collector) bool {
-	if t.inner == nil {
-		return false
-	}
-	ok := t.inner.Unregister(c)
-	if !ok {
-		return false
-	}
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	out := t.collectors[:0]
-	for _, existing := range t.collectors {
-		if existing != c {
-			out = append(out, existing)
-		}
-	}
-	t.collectors = out
-	return true
-}
-
-func (t *trackingRegisterer) UnregisterAll() {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if t.inner != nil {
-		for _, c := range t.collectors {
-			t.inner.Unregister(c)
-		}
-	}
-	t.collectors = nil
 }
 
 func (o *runtimeConfigOverridesManager) running(ctx context.Context) error {
@@ -355,9 +242,7 @@ func (o *runtimeConfigOverridesManager) stopping(_ error) error {
 		o.subservicesWatcher = nil
 	}
 	if o.subservices != nil {
-		err := services.StopManagerAndAwaitStopped(context.Background(), o.subservices)
-		o.subservices = nil
-		return err
+		return services.StopManagerAndAwaitStopped(context.Background(), o.subservices)
 	}
 	return nil
 }

@@ -853,45 +853,7 @@ func createAndInitializeRuntimeOverridesManager(t *testing.T, defaultLimits Over
 	}
 }
 
-func TestRuntimeConfigOverrides_retriesTransientLoadFailure(t *testing.T) {
-	leakOpts := goleak.IgnoreCurrent()
-
-	overridesFile := filepath.Join(t.TempDir(), "Overrides.yaml")
-	cfg := Config{
-		PerTenantOverrideConfig: overridesFile,
-		PerTenantOverridePeriod: model.Duration(time.Hour),
-	}
-
-	reg := prometheus.NewRegistry()
-	overrides, err := newRuntimeConfigOverrides(cfg, &mockValidator{}, reg)
-	require.NoError(t, err)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- services.StartAndAwaitRunning(ctx, overrides)
-	}()
-
-	require.Eventually(t, func() bool {
-		return overrides.State() == services.Starting
-	}, 2*time.Second, 20*time.Millisecond)
-
-	good := toYamlBytes(t, &perTenantOverrides{
-		TenantLimits: map[string]*Overrides{
-			"user1": {},
-		},
-	})
-	require.NoError(t, os.WriteFile(overridesFile, good, 0o700))
-
-	require.NoError(t, <-errCh)
-	require.Equal(t, services.Running, overrides.State())
-	require.NoError(t, services.StopAndAwaitTerminated(context.Background(), overrides))
-	goleak.VerifyNone(t, leakOpts)
-}
-
-func TestRuntimeConfigOverrides_retriesAfterMetricsRegistered(t *testing.T) {
+func TestRuntimeConfigOverrides_invalidFileFailsAndStops(t *testing.T) {
 	leakOpts := goleak.IgnoreCurrent()
 
 	overridesFile := filepath.Join(t.TempDir(), "Overrides.yaml")
@@ -902,74 +864,17 @@ func TestRuntimeConfigOverrides_retriesAfterMetricsRegistered(t *testing.T) {
 		PerTenantOverridePeriod: model.Duration(time.Hour),
 	}
 
-	reg := prometheus.NewRegistry()
-	overrides, err := newRuntimeConfigOverrides(cfg, &mockValidator{}, reg)
+	overrides, err := newRuntimeConfigOverrides(cfg, &mockValidator{}, prometheus.NewRegistry())
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- services.StartAndAwaitRunning(ctx, overrides)
-	}()
-
-	require.Eventually(t, func() bool {
-		return overrides.State() == services.Starting
-	}, 2*time.Second, 20*time.Millisecond)
-
-	good := toYamlBytes(t, &perTenantOverrides{
-		TenantLimits: map[string]*Overrides{
-			"user1": {},
-		},
-	})
-	require.NoError(t, os.WriteFile(overridesFile, good, 0o700))
-
-	require.NoError(t, <-errCh)
-	require.Equal(t, services.Running, overrides.State())
-	v := lastReloadSuccessful(t, reg)
-	require.NotNil(t, v)
-	require.Equal(t, 1.0, *v)
-	require.NoError(t, services.StopAndAwaitTerminated(context.Background(), overrides))
-	goleak.VerifyNone(t, leakOpts)
-}
-
-func TestRuntimeConfigOverrides_retryStopsWhenContextCanceled(t *testing.T) {
-	leakOpts := goleak.IgnoreCurrent()
-
-	overridesFile := filepath.Join(t.TempDir(), "Overrides.yaml")
-	cfg := Config{
-		PerTenantOverrideConfig: overridesFile,
-		PerTenantOverridePeriod: model.Duration(time.Hour),
-	}
-
-	reg := prometheus.NewRegistry()
-	overrides, err := newRuntimeConfigOverrides(cfg, &mockValidator{}, reg)
-	require.NoError(t, err)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
-	defer cancel()
-
 	err = services.StartAndAwaitRunning(ctx, overrides)
 	require.Error(t, err)
-	require.NotEqual(t, services.Running, overrides.State())
+	require.ErrorContains(t, err, "failed to start subservices")
+	require.Equal(t, services.Failed, overrides.State())
 	goleak.VerifyNone(t, leakOpts)
-}
-
-func lastReloadSuccessful(t *testing.T, g prometheus.Gatherer) *float64 {
-	t.Helper()
-	mfs, err := g.Gather()
-	require.NoError(t, err)
-	for _, mf := range mfs {
-		if mf.GetName() != "tempo_runtime_config_last_reload_successful" {
-			continue
-		}
-		metrics := mf.GetMetric()
-		require.NotEmpty(t, metrics)
-		v := metrics[0].GetGauge().GetValue()
-		return &v
-	}
-	return nil
 }
 
 func toYamlBytes(t *testing.T, perTenantOverrides *perTenantOverrides) []byte {
