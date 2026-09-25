@@ -24,11 +24,9 @@ const (
 	jaegerProtoGenPkgPath   = "github.com/jaegertracing/jaeger-idl/proto-gen"
 	jaegerModelPkgPath      = "github.com/jaegertracing/jaeger-idl/model"
 	jaegerStorageV1PkgPath  = "github.com/grafana/tempo/v3/cmd/tempo-query/jaeger/storage_v1"
-	// etcd path can be removed once upgrade to grpc >v1.38 is released (tentatively next release from v3.5.1)
-	etcdAPIProtoPkgPath = "go.etcd.io/etcd/api/v3"
 )
 
-// GogoCodec forces the use of gogo proto marshalling/unmarshalling for Tempo/Cortex/Jaeger/etcd structs
+// GogoCodec forces the use of gogo proto marshalling/unmarshalling for Tempo/Cortex/Jaeger structs
 type GogoCodec struct{}
 
 var _ encoding.Codec = (*GogoCodec)(nil)
@@ -60,7 +58,7 @@ func (c *GogoCodec) Marshal(v any) ([]byte, error) {
 		return buf[:n], nil
 	}
 
-	// use gogo proto only for Tempo/Cortex/Jaeger/etcd types
+	// use gogo proto only for Tempo/Cortex/Jaeger types
 	if useGogo(reflect.TypeOf(v)) {
 		if msg, ok := v.(gogoproto.Message); ok {
 			return gogoproto.Marshal(msg)
@@ -80,7 +78,7 @@ func (c *GogoCodec) Unmarshal(data []byte, v any) error {
 		return m.UnmarshalProto(data)
 	}
 
-	// use gogo proto only for Tempo/Cortex/Jaeger/etcd types
+	// use gogo proto only for Tempo/Cortex/Jaeger types
 	if useGogo(reflect.TypeOf(v)) {
 		if msg, ok := v.(gogoproto.Message); ok {
 			return gogoproto.Unmarshal(data, msg)
@@ -94,7 +92,7 @@ func (c *GogoCodec) Unmarshal(data []byte, v any) error {
 	return proto.Unmarshal(data, msg)
 }
 
-// useGogo checks if the element belongs to Tempo/Cortex/Jaeger/etcd packages
+// useGogo checks if the element belongs to Tempo/Cortex/Jaeger packages
 func useGogo(t reflect.Type) bool {
 	if t == nil {
 		return false
@@ -106,5 +104,5 @@ func useGogo(t reflect.Type) bool {
 		}
 	}
 	pkgPath := t.PkgPath()
-	return strings.HasPrefix(pkgPath, frontendProtoGenPkgPath) || strings.HasPrefix(pkgPath, tempoProtoGenPkgPath) || strings.HasPrefix(pkgPath, jaegerProtoGenPkgPath) || strings.HasPrefix(pkgPath, jaegerModelPkgPath) || strings.HasPrefix(pkgPath, jaegerStorageV1PkgPath) || strings.HasPrefix(pkgPath, etcdAPIProtoPkgPath)
+	return strings.HasPrefix(pkgPath, frontendProtoGenPkgPath) || strings.HasPrefix(pkgPath, tempoProtoGenPkgPath) || strings.HasPrefix(pkgPath, jaegerProtoGenPkgPath) || strings.HasPrefix(pkgPath, jaegerModelPkgPath) || strings.HasPrefix(pkgPath, jaegerStorageV1PkgPath)
 }

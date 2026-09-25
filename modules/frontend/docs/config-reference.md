@@ -92,6 +92,7 @@ server:
             excluded_paths: ""
             excluded_user_agents: ""
     create_new_traces: false
+    enable_open_metrics_text_created_samples: false
 internal_server:
     http_listen_network: tcp
     http_listen_address: ""
@@ -168,6 +169,7 @@ internal_server:
             excluded_paths: ""
             excluded_user_agents: ""
     create_new_traces: false
+    enable_open_metrics_text_created_samples: false
     enable: false
 distributor:
     ring:
@@ -294,6 +296,8 @@ live_store_client:
         connect_timeout: 5s
         connect_backoff_base_delay: 1s
         connect_backoff_max_delay: 5s
+        keepalive_time: 20s
+        keepalive_timeout: 10s
         cluster_validation:
             label: ""
 querier:
@@ -341,6 +345,8 @@ querier:
             connect_timeout: 0s
             connect_backoff_base_delay: 0s
             connect_backoff_max_delay: 0s
+            keepalive_time: 0s
+            keepalive_timeout: 0s
             cluster_validation:
                 label: ""
     shuffle_sharding_ingesters_enabled: false
@@ -864,6 +870,8 @@ memberlist:
     broadcast_timeout_for_local_updates_on_shutdown: 10s
     message_history_buffer_bytes: 0
     watch_prefix_buffer_size: 128
+    cas_retry_min_backoff: 0s
+    cas_retry_max_backoff: 10s
     bind_addr: []
     bind_port: 7946
     packet_dial_timeout: 2s
@@ -955,6 +963,8 @@ backend_scheduler_client:
         connect_timeout: 5s
         connect_backoff_base_delay: 1s
         connect_backoff_max_delay: 5s
+        keepalive_time: 20s
+        keepalive_timeout: 10s
         cluster_validation:
             label: ""
 backend_worker:
