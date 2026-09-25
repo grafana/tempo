@@ -2,6 +2,7 @@ package ring
 
 import (
 	"fmt"
+	"maps"
 	"math"
 	"sort"
 	"sync"
@@ -469,9 +470,21 @@ func (d *Desc) RemoveTombstones(limit time.Time) (total, removed int) {
 	return
 }
 
-// Clone returns a deep copy of the ring state.
+// Clone returns a copy of the ring state. The returned Desc and its Ingesters map are
+// safe to modify (entries can be added, removed or replaced), but reference-type fields
+// inside InstanceDesc (Tokens, Versions) share their underlying storage with the
+// original, so they must be treated as read-only.
+//
+// It's hand-written instead of using the reflection-based proto.Clone because it runs on
+// the memberlist hot path (once per watcher notification), where reflection is a
+// significant CPU cost on rings with thousands of instances. Sharing Tokens and Versions
+// storage is not a behavior change: gogo's proto.Clone shallow-copies non-nullable map
+// values, so it shared those fields too.
 func (d *Desc) Clone() memberlist.Mergeable {
-	return proto.Clone(d).(*Desc)
+	if d == nil {
+		return (*Desc)(nil)
+	}
+	return &Desc{Ingesters: maps.Clone(d.Ingesters)}
 }
 
 func (d *Desc) getTokensInfo() map[uint32]instanceInfo {
