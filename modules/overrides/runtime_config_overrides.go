@@ -107,6 +107,9 @@ func loadPerTenantOverrides(validator Validator, typ ConfigType, expandEnv bool,
 		if err := decoder.Decode(&overrides); err != nil {
 			return nil, err
 		}
+		if overrides == nil {
+			overrides = &perTenantOverrides{}
+		}
 
 		if overrides.ConfigType == ConfigTypeLegacy {
 			// Log periodically (every 10 mins) and not every reload, so the warning stays visible in recent logs
@@ -197,8 +200,10 @@ func newRuntimeConfigOverrides(cfg Config, validator Validator, registerer prome
 		if err != nil {
 			return nil, fmt.Errorf("failed to create subservices: %w", err)
 		}
+		// Watch after a successful start. The channel is unbuffered, and a
+		// failed start has no reader yet, so watching here blocks the manager
+		// listener and the process never finishes stopping.
 		o.subservicesWatcher = services.NewFailureWatcher()
-		o.subservicesWatcher.WatchManager(o.subservices)
 	}
 
 	o.Service = services.NewBasicService(o.starting, o.running, o.stopping)
@@ -207,13 +212,14 @@ func newRuntimeConfigOverrides(cfg Config, validator Validator, registerer prome
 }
 
 func (o *runtimeConfigOverridesManager) starting(ctx context.Context) error {
-	if o.subservices != nil {
-		err := services.StartManagerAndAwaitHealthy(ctx, o.subservices)
-		if err != nil {
-			return fmt.Errorf("failed to start subservices: %w", err)
-		}
+	if o.subservices == nil {
+		return nil
 	}
-
+	err := services.StartManagerAndAwaitHealthy(ctx, o.subservices)
+	if err != nil {
+		return fmt.Errorf("failed to start subservices: %w", err)
+	}
+	o.subservicesWatcher.WatchManager(o.subservices)
 	return nil
 }
 
@@ -231,6 +237,10 @@ func (o *runtimeConfigOverridesManager) running(ctx context.Context) error {
 }
 
 func (o *runtimeConfigOverridesManager) stopping(_ error) error {
+	if o.subservicesWatcher != nil {
+		o.subservicesWatcher.Close()
+		o.subservicesWatcher = nil
+	}
 	if o.subservices != nil {
 		return services.StopManagerAndAwaitStopped(context.Background(), o.subservices)
 	}

@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/go-kit/log/level"
@@ -216,26 +217,48 @@ func (t *App) Run() error {
 	// Let's listen for events from this manager, and log them.
 	healthy := func() { level.Info(log.Logger).Log("msg", "Tempo started") }
 	stopped := func() { level.Info(log.Logger).Log("msg", "Tempo stopped") }
+	var (
+		moduleErrMu sync.Mutex
+		moduleErr   error
+	)
 	serviceFailed := func(service services.Service) {
-		// if any service fails, stop everything
-		sm.StopAsync()
+		// Stop from another goroutine. This callback runs on the manager
+		// listener, and StopAsync emits more state events back to that same
+		// listener. Doing it inline fills the listener channel while the
+		// manager lock is held, so the process never finishes stopping.
+		go sm.StopAsync()
 
-		// let's find out which module failed
+		err := service.FailureCase()
 		for m, s := range serviceMap {
-			if s == service {
-				err := service.FailureCase()
-				if errors.Is(err, modules.ErrStopProcess) {
-					level.Info(log.Logger).Log("msg", "received stop signal via return error", "module", m, "err", err)
-				} else if errors.Is(err, context.Canceled) {
-					return
-				} else if err != nil {
-					level.Error(log.Logger).Log("msg", "module failed", "module", m, "err", err)
-				}
+			if s != service {
+				continue
+			}
+			if errors.Is(err, modules.ErrStopProcess) {
+				level.Info(log.Logger).Log("msg", "received stop signal via return error", "module", m, "err", err)
 				return
 			}
+			if errors.Is(err, context.Canceled) {
+				return
+			}
+			if err != nil {
+				level.Error(log.Logger).Log("msg", "module failed", "module", m, "err", err)
+				moduleErrMu.Lock()
+				if moduleErr == nil {
+					moduleErr = fmt.Errorf("module %s failed: %w", m, err)
+				}
+				moduleErrMu.Unlock()
+			}
+			return
 		}
 
-		level.Error(log.Logger).Log("msg", "module failed", "module", "unknown", "err", service.FailureCase())
+		level.Error(log.Logger).Log("msg", "module failed", "module", "unknown", "err", err)
+		if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, modules.ErrStopProcess) {
+			moduleErrMu.Lock()
+			if moduleErr == nil {
+				moduleErr = fmt.Errorf("module failed: %w", err)
+			}
+			moduleErrMu.Unlock()
+		}
 	}
 	sm.AddListener(services.NewManagerListener(healthy, stopped, serviceFailed))
 
@@ -261,7 +284,12 @@ func (t *App) Run() error {
 		return fmt.Errorf("failed to start service manager: %w", err)
 	}
 
-	return sm.AwaitStopped(context.Background())
+	if err := sm.AwaitStopped(context.Background()); err != nil {
+		return err
+	}
+	moduleErrMu.Lock()
+	defer moduleErrMu.Unlock()
+	return moduleErr
 }
 
 // Stop the app. It panics if the app is not running.

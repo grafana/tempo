@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: overrides
+note: Exit when per-tenant runtime overrides fail to load, instead of leaving the process running after the module stops.
+issues: [7874]
+subtext:
+user: ArjunCodess
