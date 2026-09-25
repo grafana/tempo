@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/binary"
 	"flag"
+	"fmt"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/kv"
@@ -18,6 +21,7 @@ import (
 	"github.com/grafana/tempo/v3/modules/storage"
 	"github.com/grafana/tempo/v3/pkg/model"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
+	util_log "github.com/grafana/tempo/v3/pkg/util/log"
 	"github.com/grafana/tempo/v3/pkg/util/test"
 	"github.com/grafana/tempo/v3/tempodb"
 	"github.com/grafana/tempo/v3/tempodb/backend"
@@ -30,7 +34,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/status"
 )
 
 var tenant = "test-tenant"
@@ -274,6 +280,250 @@ func TestProcessRedactionJobMissingBlockObservable(t *testing.T) {
 	require.NoError(t, err, "a missing block must complete as a non-fatal no-op")
 	after := testutil.ToFloat64(metricRedactionBlockMissing.WithLabelValues(tenant))
 	require.Equal(t, before+1, after, "a missing redaction block must be counted, not silently dropped")
+}
+
+// TestCompletionNotFoundIsTerminal verifies that a codes.NotFound response
+// from the scheduler on a job-completion call (UpdateJob) is treated as
+// terminal for that job: the worker must drop the job rather than retrying
+// the completion call forever via callSchedulerWithBackoff (which loops
+// indefinitely by default, since Backoff.MaxRetries defaults to 0). See
+// https://github.com/grafana/tempo/issues/7879.
+func TestCompletionNotFoundIsTerminal(t *testing.T) {
+	limitCfg := overrides.Config{}
+	limitCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	workerCfg, schedulerClientCfg, overridesSvc, _, store := setupDependencies(ctx, t, limitCfg)
+
+	w, err := New(workerCfg, schedulerClientCfg, store, overridesSvc, prometheus.NewRegistry())
+	require.NoError(t, err)
+
+	var updateCalls int
+	w.backendScheduler = &mockScheduler{
+		next: nextFuncWithJob(store, tenant),
+		updateJob: func(_ context.Context, _ *tempopb.UpdateJobStatusRequest, _ ...grpc.CallOption) (*tempopb.UpdateJobStatusResponse, error) {
+			updateCalls++
+			return nil, status.Error(codes.NotFound, "job not found")
+		},
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- w.processJobs(ctx)
+	}()
+
+	select {
+	case err := <-done:
+		require.NoError(t, err, "a NotFound response on job completion must be terminal for that job")
+	case <-time.After(10 * time.Second):
+		t.Fatal("processJobs did not return promptly after a NotFound completion response; the worker appears wedged retrying forever")
+	}
+
+	require.Equal(t, 1, updateCalls, "UpdateJob must not be retried once the scheduler reports the job as NotFound")
+
+	// The worker must resume polling Next() for new work rather than
+	// remaining stuck on the dropped job.
+	var nextCalls int
+	w.backendScheduler = &mockScheduler{
+		next: func(ctx context.Context, req *tempopb.NextJobRequest, opts ...grpc.CallOption) (*tempopb.NextJobResponse, error) {
+			nextCalls++
+			return nextNoop(ctx, req, opts...)
+		},
+		updateJob: updateJobNoop,
+	}
+	err = w.processJobs(ctx)
+	require.Error(t, err, "no jobs found")
+	require.Equal(t, 1, nextCalls, "worker must resume calling Next() for new work after dropping the NotFound job")
+}
+
+// TestNextNotFoundIsQuietIdlePolling verifies that a codes.NotFound response
+// from the scheduler's Next() RPC -- which the backend-scheduler returns
+// whenever its long-poll times out with no queued work, see
+// ErrNoJobsFound in modules/backendscheduler/backendscheduler.go -- is
+// treated as normal, expected idle-polling behavior rather than a failure.
+//
+// This distinguishes it from TestCompletionNotFoundIsTerminal, where
+// NotFound on a job-*completion* call (UpdateJob) means the job itself is
+// gone and is genuinely terminal. Next()'s NotFound instead just means "no
+// jobs right now, keep polling" and happens on every idle poll cycle, so it
+// must not surface as a processJobs error (which running() logs at Error
+// level) and must not be counted via metricWorkerCallRetries, which tracks
+// genuine call failures/retries. See https://github.com/grafana/tempo/issues/7879.
+func TestNextNotFoundIsQuietIdlePolling(t *testing.T) {
+	limitCfg := overrides.Config{}
+	limitCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	reg := prometheus.NewRegistry()
+	workerCfg, schedulerClientCfg, overridesSvc, _, store := setupDependencies(ctx, t, limitCfg)
+
+	w, err := New(workerCfg, schedulerClientCfg, store, overridesSvc, reg)
+	require.NoError(t, err)
+
+	before := testutil.ToFloat64(metricWorkerCallRetries.WithLabelValues())
+
+	var nextCalls int
+	w.backendScheduler = &mockScheduler{
+		next: func(_ context.Context, _ *tempopb.NextJobRequest, _ ...grpc.CallOption) (*tempopb.NextJobResponse, error) {
+			nextCalls++
+			// Mirrors backendscheduler.BackendScheduler.Next's empty-queue
+			// response: an empty NextJobResponse plus a codes.NotFound error.
+			return &tempopb.NextJobResponse{}, status.Error(codes.NotFound, "no jobs found")
+		},
+		updateJob: updateJobNoop,
+	}
+
+	capturing := newCapturingLogger()
+	origLogger := util_log.Logger
+	util_log.Logger = capturing
+	defer func() { util_log.Logger = origLogger }()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- w.processJobs(ctx)
+	}()
+
+	select {
+	case err = <-done:
+		require.NoError(t, err, "an idle Next() NotFound must not be surfaced as a processJobs error")
+	case <-time.After(10 * time.Second):
+		t.Fatal("processJobs did not return promptly on an idle Next() NotFound; it appears wedged retrying")
+	}
+
+	require.Equal(t, 1, nextCalls)
+
+	for _, e := range capturing.entries() {
+		require.NotEqual(t, "error", e, "idle Next() NotFound must not produce an Error-level log entry, got: %v", capturing.entries())
+	}
+
+	after := testutil.ToFloat64(metricWorkerCallRetries.WithLabelValues())
+	require.Equal(t, before, after, "idle Next() NotFound must not be counted as a call retry/failure")
+}
+
+// capturingLogger is a minimal go-kit log.Logger that records the "level"
+// value (if any) of each log line logged through it, so tests can assert on
+// log severity without depending on a specific logger implementation.
+type capturingLogger struct {
+	mu   sync.Mutex
+	logs []string
+}
+
+func newCapturingLogger() *capturingLogger {
+	return &capturingLogger{}
+}
+
+func (c *capturingLogger) Log(keyvals ...interface{}) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for i := 0; i+1 < len(keyvals); i += 2 {
+		if keyvals[i] == level.Key() {
+			if stringer, ok := keyvals[i+1].(fmt.Stringer); ok {
+				c.logs = append(c.logs, stringer.String())
+			}
+		}
+	}
+
+	return nil
+}
+
+func (c *capturingLogger) entries() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	out := make([]string, len(c.logs))
+	copy(out, c.logs)
+	return out
+}
+
+// TestCompleteRedactionJobFailsOnGenuineError verifies that completeRedactionJob
+// marks the job as failed (via failJob, i.e. an UpdateJob call with
+// Status: JOB_STATUS_FAILED) when UpdateJob returns a genuine, non-NotFound
+// error. Without this, a real UpdateJob failure (e.g. Unavailable or
+// DeadlineExceeded) would leave the redaction job stuck as in-progress/leased
+// to this worker forever instead of being marked failed and made available
+// for retry/reassignment, unlike processCompactionJob and processRetentionJob.
+func TestCompleteRedactionJobFailsOnGenuineError(t *testing.T) {
+	limitCfg := overrides.Config{}
+	limitCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	workerCfg, schedulerClientCfg, overridesSvc, _, store := setupDependencies(ctx, t, limitCfg)
+
+	// Bound callSchedulerWithBackoff's retries: MaxRetries defaults to 0
+	// (infinite retries) which would make the completion attempt below
+	// retry the genuine error forever instead of ever reaching failJob.
+	workerCfg.Backoff.MaxRetries = 1
+
+	w, err := New(workerCfg, schedulerClientCfg, store, overridesSvc, prometheus.NewRegistry())
+	require.NoError(t, err)
+
+	var failCalls int
+	w.backendScheduler = &mockScheduler{
+		updateJob: func(_ context.Context, req *tempopb.UpdateJobStatusRequest, _ ...grpc.CallOption) (*tempopb.UpdateJobStatusResponse, error) {
+			if req.Status == tempopb.JobStatus_JOB_STATUS_FAILED {
+				failCalls++
+				return &tempopb.UpdateJobStatusResponse{}, nil
+			}
+			// The completion attempt (SUCCEEDED) fails with a genuine,
+			// non-NotFound error.
+			return nil, status.Error(codes.Unavailable, "scheduler unavailable")
+		},
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- w.completeRedactionJob(ctx, "job-genuine-error", 0)
+	}()
+
+	select {
+	case err = <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("completeRedactionJob did not return promptly on a genuine UpdateJob error; it appears wedged retrying forever")
+	}
+	require.Error(t, err, "a genuine UpdateJob failure must not be swallowed")
+	require.Equal(t, 1, failCalls, "completeRedactionJob must call failJob (UpdateJob with JOB_STATUS_FAILED) on a genuine, non-NotFound UpdateJob error")
+}
+
+func TestIsNotFound(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "nil error",
+			err:      nil,
+			expected: false,
+		},
+		{
+			name:     "NotFound status error",
+			err:      status.Error(codes.NotFound, "job not found"),
+			expected: true,
+		},
+		{
+			name:     "other status error",
+			err:      status.Error(codes.Internal, "boom"),
+			expected: false,
+		},
+		{
+			name:     "plain error",
+			err:      assert.AnError,
+			expected: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, isNotFound(tc.err))
+		})
+	}
 }
 
 func TestIsSharded(t *testing.T) {
