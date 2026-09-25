@@ -23,7 +23,9 @@ func BenchmarkIndexMarshal(b *testing.B) {
 				dedicatedColumnsCache.InvalidateAll()
 				idx := makeTestTenantIndex(numBlocks)
 				for b.Loop() {
-					doNotOptimizeBytes, _ = idx.marshal()
+					var err error
+					doNotOptimizeBytes, err = idx.marshal()
+					require.NoError(b, err)
 				}
 			})
 		}
@@ -35,7 +37,9 @@ func BenchmarkIndexMarshal(b *testing.B) {
 				dedicatedColumnsCache.InvalidateAll()
 				idx := makeTestTenantIndex(numBlocks)
 				for b.Loop() {
-					doNotOptimizeBytes, _ = idx.marshalPb()
+					var err error
+					doNotOptimizeBytes, err = idx.marshalPb()
+					require.NoError(b, err)
 				}
 			})
 		}
@@ -52,7 +56,7 @@ func BenchmarkIndexUnmarshal(b *testing.B) {
 				require.NoError(b, err)
 				for b.Loop() {
 					doNotOptimizeTenantIndex = &TenantIndex{}
-					_ = doNotOptimizeTenantIndex.unmarshal(idxBuf)
+					require.NoError(b, doNotOptimizeTenantIndex.unmarshal(idxBuf))
 				}
 			})
 		}
@@ -63,11 +67,11 @@ func BenchmarkIndexUnmarshal(b *testing.B) {
 			b.Run(fmt.Sprintf("blocks=%d", numBlocks), func(b *testing.B) {
 				dedicatedColumnsCache.InvalidateAll()
 				idx := makeTestTenantIndex(numBlocks)
-				idxBuf, err := idx.marshal()
+				idxBuf, err := idx.marshalPb()
 				require.NoError(b, err)
 				for b.Loop() {
 					doNotOptimizeTenantIndex = &TenantIndex{}
-					_ = doNotOptimizeTenantIndex.unmarshalPb(idxBuf)
+					require.NoError(b, doNotOptimizeTenantIndex.unmarshalPb(idxBuf))
 				}
 			})
 		}
