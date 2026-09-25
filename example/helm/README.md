@@ -29,15 +29,16 @@ The microservices deploy of Tempo is fault tolerant, high volume, independently 
 > Note: double check you're applying to your local k3d before running this!
 
 ```console
-helm repo add grafana https://grafana.github.io/helm-charts
+helm repo add grafana-community https://grafana-community.github.io/helm-charts
 helm repo update
 ```
 
-Install Tempo, Grafana and run a K6 job against tempo.
+Install RustFS (S3-compatible object store) and Kafka, then Tempo, Grafana and run a K6 job against tempo.
 
 ```console
-helm upgrade -f microservices-tempo-values.yaml --install tempo grafana/tempo-distributed
-helm upgrade -f microservices-grafana-values.yaml --install grafana grafana/grafana
+kubectl apply -f rustfs.yaml -f kafka.yaml
+helm upgrade -f microservices-tempo-values.yaml --install tempo grafana-community/tempo-distributed
+helm upgrade -f microservices-grafana-values.yaml --install grafana grafana-community/grafana
 kubectl apply -f microservices-extras.yaml
 ```
 
@@ -51,15 +52,15 @@ store them in an S3 or GCS bucket. See configuration docs or some of the other e
 > Note: double check you're applying to your local k3d before running this!
 
 ```console
-helm repo add grafana https://grafana.github.io/helm-charts
+helm repo add grafana-community https://grafana-community.github.io/helm-charts
 helm repo update
 ```
 
 Install Tempo, Grafana and synthetic-load-generator
 
 ```console
-helm upgrade --install tempo grafana/tempo
-helm upgrade -f single-binary-grafana-values.yaml --install grafana grafana/grafana
+helm upgrade --install tempo grafana-community/tempo
+helm upgrade -f single-binary-grafana-values.yaml --install grafana grafana-community/grafana
 kubectl create -f single-binary-extras.yaml
 ```
 

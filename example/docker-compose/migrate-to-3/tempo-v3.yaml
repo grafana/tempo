@@ -88,7 +88,7 @@ storage:
     blocklist_poll: 1m
     s3:
       bucket: tempo # SAME bucket as v2 -- shared object storage.
-      endpoint: minio:9000
+      endpoint: rustfs:9000
       access_key: tempo
       secret_key: supersecret
       insecure: true
