@@ -1,0 +1,60 @@
+---
+# S3-compatible object storage for the microservices and enterprise examples.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rustfs
+spec:
+  selector:
+    matchLabels:
+      app: rustfs
+  template:
+    metadata:
+      labels:
+        app: rustfs
+    spec:
+      volumes:
+        - name: storage
+          emptyDir: {}
+      initContainers:
+        - name: create-buckets
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            # RustFS runs as UID 10001, so hand it the volume.
+            - mkdir -p /storage/tempo-traces /storage/enterprise-traces /storage/enterprise-traces-admin && chown -R 10001:10001 /storage
+          volumeMounts:
+            - name: storage
+              mountPath: /storage
+      containers:
+        - name: rustfs
+          image: rustfs/rustfs:1.0.0
+          args:
+            - /storage
+          env:
+            - name: RUSTFS_ACCESS_KEY
+              value: grafana-tempo
+            - name: RUSTFS_SECRET_KEY
+              value: supersecret
+          ports:
+            - containerPort: 9000
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9000
+          volumeMounts:
+            - name: storage
+              mountPath: /storage
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rustfs
+spec:
+  selector:
+    app: rustfs
+  ports:
+    - name: api
+      port: 9000
+      targetPort: 9000
