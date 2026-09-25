@@ -113,7 +113,7 @@ type maintenance struct {
 
 func NewMaintenance(c *Client) Maintenance {
 	api := &maintenance{
-		lg: c.GetLogger(),
+		lg: c.lg,
 		dial: func(endpoint string) (pb.MaintenanceClient, func(), error) {
 			conn, err := c.Dial(endpoint)
 			if err != nil {
@@ -140,7 +140,7 @@ func NewMaintenanceFromMaintenanceClient(remote pb.MaintenanceClient, c *Client)
 	}
 	if c != nil {
 		api.callOpts = c.callOpts
-		api.lg = c.GetLogger()
+		api.lg = c.lg
 	}
 	return api
 }

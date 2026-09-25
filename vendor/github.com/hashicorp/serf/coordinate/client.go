@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	metrics "github.com/hashicorp/go-metrics"
+	metrics "github.com/hashicorp/go-metrics/compat"
 )
 
 // Client manages the estimated network coordinate for a given node, and adjusts

@@ -16,7 +16,7 @@ package procfs
 import (
 	"fmt"
 
-	"github.com/prometheus/procfs/internal/parsers"
+	"github.com/prometheus/procfs/internal/util"
 )
 
 // ProcIO models the content of /proc/<pid>/io.
@@ -43,7 +43,7 @@ type ProcIO struct {
 func (p Proc) IO() (ProcIO, error) {
 	pio := ProcIO{}
 
-	data, err := parsers.ReadFileNoStat(p.path("io"))
+	data, err := util.ReadFileNoStat(p.path("io"))
 	if err != nil {
 		return pio, err
 	}

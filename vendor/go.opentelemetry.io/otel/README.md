@@ -53,25 +53,18 @@ Currently, this project supports the following environments.
 
 | OS       | Go Version | Architecture |
 |----------|------------|--------------|
-| Ubuntu   | 1.27       | amd64        |
 | Ubuntu   | 1.26       | amd64        |
 | Ubuntu   | 1.25       | amd64        |
-| Ubuntu   | 1.27       | 386          |
 | Ubuntu   | 1.26       | 386          |
 | Ubuntu   | 1.25       | 386          |
-| Ubuntu   | 1.27       | arm64        |
 | Ubuntu   | 1.26       | arm64        |
 | Ubuntu   | 1.25       | arm64        |
-| macOS    | 1.27       | amd64        |
 | macOS    | 1.26       | amd64        |
 | macOS    | 1.25       | amd64        |
-| macOS    | 1.27       | arm64        |
 | macOS    | 1.26       | arm64        |
 | macOS    | 1.25       | arm64        |
-| Windows  | 1.27       | amd64        |
 | Windows  | 1.26       | amd64        |
 | Windows  | 1.25       | amd64        |
-| Windows  | 1.27       | 386          |
 | Windows  | 1.26       | 386          |
 | Windows  | 1.25       | 386          |
 
@@ -120,10 +113,3 @@ All officially supported exporters for the OpenTelemetry project are contained i
 ## Contributing
 
 See the [contributing documentation](CONTRIBUTING.md).
-
-### Emeritus
-
-- [Alex Kats](https://github.com/akats7), Triager
-
-For more information about the emeritus role, see the
-[community repository](https://github.com/open-telemetry/community/blob/main/guides/contributor/membership.md#emeritus-maintainerapprovertriager).

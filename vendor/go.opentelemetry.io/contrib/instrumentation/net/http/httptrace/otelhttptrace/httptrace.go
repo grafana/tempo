@@ -3,7 +3,7 @@
 
 // Package otelhttptrace provides instrumentation for the [net/http/httptrace]
 // package.
-package otelhttptrace
+package otelhttptrace // import "go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace"
 
 import (
 	"context"

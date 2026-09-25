@@ -1,7 +1,7 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package resource
+package resource // import "go.opentelemetry.io/otel/sdk/resource"
 
 import (
 	"context"
@@ -23,9 +23,7 @@ type Option interface {
 	apply(config) config
 }
 
-// WithAttributes adds attributes to the configured Resource. Duplicate
-// top-level attribute keys and duplicate keys inside map values are
-// resolved using last-value-wins semantics.
+// WithAttributes adds attributes to the configured Resource.
 func WithAttributes(attributes ...attribute.KeyValue) Option {
 	return WithDetectors(detectAttributes{attributes})
 }

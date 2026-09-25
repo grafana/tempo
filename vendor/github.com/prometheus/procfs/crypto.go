@@ -20,7 +20,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/prometheus/procfs/internal/parsers"
+	"github.com/prometheus/procfs/internal/util"
 )
 
 // Crypto holds info parsed from /proc/crypto.
@@ -55,7 +55,7 @@ var cryptoFile = "crypto"
 // https://kernel.readthedocs.io/en/sphinx-samples/crypto-API.html
 func (fs FS) Crypto() ([]Crypto, error) {
 	path := fs.proc.Path(cryptoFile)
-	b, err := parsers.ReadFileNoStat(path)
+	b, err := util.ReadFileNoStat(path)
 	if err != nil {
 		return nil, fmt.Errorf("%w: Cannot read file %v: %w", ErrFileRead, b, err)
 
@@ -112,7 +112,7 @@ func parseCrypto(r io.Reader) ([]Crypto, error) {
 
 // parseKV parses a key/value pair into the appropriate field of c.
 func (c *Crypto) parseKV(k, v string) error {
-	vp := parsers.NewValueParser(v)
+	vp := util.NewValueParser(v)
 
 	switch k {
 	case "async":

@@ -1,11 +1,10 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package trace
+package trace // import "go.opentelemetry.io/otel/sdk/trace"
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"sync/atomic"
 
@@ -67,19 +66,19 @@ func (ssp *simpleSpanProcessor) OnEnd(s ReadOnlySpan) {
 	ssp.exporterMu.Lock()
 	defer ssp.exporterMu.Unlock()
 
-	if ssp.inst != nil {
-		// Add the span to the context to ensure the metric is recorded
-		// with the correct span context. Record the span as processed before
-		// invoking the exporter so the count is unaffected by the export
-		// outcome.
-		ctx := trace.ContextWithSpanContext(context.Background(), s.SpanContext())
-		ssp.inst.SpanProcessed(ctx)
-	}
-
+	var err error
 	if ssp.exporter != nil && s.SpanContext().TraceFlags().IsSampled() {
-		if err := ssp.exporter.ExportSpans(context.Background(), []ReadOnlySpan{s}); err != nil {
+		err = ssp.exporter.ExportSpans(context.Background(), []ReadOnlySpan{s})
+		if err != nil {
 			otel.Handle(err)
 		}
+	}
+
+	if ssp.inst != nil {
+		// Add the span to the context to ensure the metric is recorded
+		// with the correct span context.
+		ctx := trace.ContextWithSpanContext(context.Background(), s.SpanContext())
+		ssp.inst.SpanProcessed(ctx, err)
 	}
 }
 
@@ -141,18 +140,11 @@ func (*simpleSpanProcessor) ForceFlush(context.Context) error {
 // MarshalLog is the marshaling function used by the logging system to represent
 // this Span Processor.
 func (ssp *simpleSpanProcessor) MarshalLog() any {
-	// Shutdown clears exporter under exporterMu.
-	// Copy it while holding the same lock so MarshalLog
-	// can run concurrently without racing with Shutdown.
-	ssp.exporterMu.Lock()
-	exp := ssp.exporter
-	ssp.exporterMu.Unlock()
-
 	return struct {
 		Type     string
-		Exporter string
+		Exporter SpanExporter
 	}{
 		Type:     "SimpleSpanProcessor",
-		Exporter: fmt.Sprintf("%T", exp),
+		Exporter: ssp.exporter,
 	}
 }

@@ -39,7 +39,7 @@ func NewTimeoutTransport(info TLSInfo, dialtimeoutd, rdtimeoutd, wtimeoutd time.
 		tr.MaxIdleConnsPerHost = 1024
 	}
 
-	tr.Dial = (&rwTimeoutDialer{ //nolint:staticcheck // TODO: remove for a supported version
+	tr.Dial = (&rwTimeoutDialer{
 		Dialer: net.Dialer{
 			Timeout:   dialtimeoutd,
 			KeepAlive: 30 * time.Second,

@@ -1,7 +1,7 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package aggregate
+package aggregate // import "go.opentelemetry.io/otel/sdk/metric/internal/aggregate"
 
 import (
 	"context"
@@ -24,15 +24,16 @@ type lastValuePoint[N int64 | float64] struct {
 // lastValueMap summarizes a set of measurements as the last one made.
 type lastValueMap[N int64 | float64] struct {
 	newRes func(attribute.Set) FilteredExemplarReservoir[N]
-	values limitedSyncMap[*lastValuePoint[N]]
+	values limitedSyncMap
 }
 
 func (s *lastValueMap[N]) measure(
 	ctx context.Context,
 	value N,
-	lazy lazyFilteredAttributes,
+	fltrAttr attribute.Set,
+	droppedAttr []attribute.KeyValue,
 ) {
-	lv := s.values.LoadOrStoreAttr(lazy, func(attr attribute.Set) *lastValuePoint[N] {
+	lv := s.values.LoadOrStoreAttr(fltrAttr, func(attr attribute.Set) any {
 		r := s.newRes(attr)
 		_, isDrop := r.(*dropRes[N])
 		p := &lastValuePoint[N]{
@@ -43,11 +44,11 @@ func (s *lastValueMap[N]) measure(
 		}
 		p.value.Store(value)
 		return p
-	})
+	}).(*lastValuePoint[N])
 
 	lv.value.Store(value)
 	if !lv.dropExemplars {
-		lv.res.Offer(ctx, value, lazy)
+		lv.res.Offer(ctx, value, droppedAttr)
 	}
 }
 
@@ -60,12 +61,12 @@ func newDeltaLastValue[N int64 | float64](
 		start:  now(),
 		hotColdValMap: [2]lastValueMap[N]{
 			{
+				values: limitedSyncMap{aggLimit: limit},
 				newRes: r,
-				values: limitedSyncMap[*lastValuePoint[N]]{aggLimit: limit},
 			},
 			{
+				values: limitedSyncMap{aggLimit: limit},
 				newRes: r,
-				values: limitedSyncMap[*lastValuePoint[N]]{aggLimit: limit},
 			},
 		},
 	}
@@ -83,11 +84,12 @@ type deltaLastValue[N int64 | float64] struct {
 func (s *deltaLastValue[N]) measure(
 	ctx context.Context,
 	value N,
-	lazy lazyFilteredAttributes,
+	fltrAttr attribute.Set,
+	droppedAttr []attribute.KeyValue,
 ) {
 	hotIdx := s.hcwg.start()
 	defer s.hcwg.done(hotIdx)
-	s.hotColdValMap[hotIdx].measure(ctx, value, lazy)
+	s.hotColdValMap[hotIdx].measure(ctx, value, fltrAttr, droppedAttr)
 }
 
 func (s *deltaLastValue[N]) collect(
@@ -146,8 +148,8 @@ func newCumulativeLastValue[N int64 | float64](
 ) *cumulativeLastValue[N] {
 	return &cumulativeLastValue[N]{
 		lastValueMap: lastValueMap[N]{
+			values: limitedSyncMap{aggLimit: limit},
 			newRes: r,
-			values: limitedSyncMap[*lastValuePoint[N]]{aggLimit: limit},
 		},
 		start: now(),
 	}

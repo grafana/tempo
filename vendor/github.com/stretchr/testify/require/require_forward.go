@@ -147,7 +147,7 @@ func (a *Assertions) Equal(expected interface{}, actual interface{}, msgAndArgs 
 	Equal(a.t, expected, actual, msgAndArgs...)
 }
 
-// EqualError asserts that a function returned a non-nil error (i.e. an error)
+// EqualError asserts that a function returned an error (i.e. not `nil`)
 // and that it is equal to the provided error.
 //
 //	actualObj, err := SomeFunction()
@@ -159,7 +159,7 @@ func (a *Assertions) EqualError(theError error, errString string, msgAndArgs ...
 	EqualError(a.t, theError, errString, msgAndArgs...)
 }
 
-// EqualErrorf asserts that a function returned a non-nil error (i.e. an error)
+// EqualErrorf asserts that a function returned an error (i.e. not `nil`)
 // and that it is equal to the provided error.
 //
 //	actualObj, err := SomeFunction()
@@ -241,7 +241,7 @@ func (a *Assertions) Equalf(expected interface{}, actual interface{}, msg string
 	Equalf(a.t, expected, actual, msg, args...)
 }
 
-// Error asserts that a function returned a non-nil error (ie. an error).
+// Error asserts that a function returned an error (i.e. not `nil`).
 //
 //	actualObj, err := SomeFunction()
 //	a.Error(err)
@@ -270,8 +270,8 @@ func (a *Assertions) ErrorAsf(err error, target interface{}, msg string, args ..
 	ErrorAsf(a.t, err, target, msg, args...)
 }
 
-// ErrorContains asserts that a function returned a non-nil error (i.e. an
-// error) and that the error contains the specified substring.
+// ErrorContains asserts that a function returned an error (i.e. not `nil`)
+// and that the error contains the specified substring.
 //
 //	actualObj, err := SomeFunction()
 //	a.ErrorContains(err,  expectedErrorSubString)
@@ -282,8 +282,8 @@ func (a *Assertions) ErrorContains(theError error, contains string, msgAndArgs .
 	ErrorContains(a.t, theError, contains, msgAndArgs...)
 }
 
-// ErrorContainsf asserts that a function returned a non-nil error (i.e. an
-// error) and that the error contains the specified substring.
+// ErrorContainsf asserts that a function returned an error (i.e. not `nil`)
+// and that the error contains the specified substring.
 //
 //	actualObj, err := SomeFunction()
 //	a.ErrorContainsf(err,  expectedErrorSubString, "error message %s", "formatted")
@@ -312,7 +312,7 @@ func (a *Assertions) ErrorIsf(err error, target error, msg string, args ...inter
 	ErrorIsf(a.t, err, target, msg, args...)
 }
 
-// Errorf asserts that a function returned a non-nil error (ie. an error).
+// Errorf asserts that a function returned an error (i.e. not `nil`).
 //
 //	actualObj, err := SomeFunction()
 //	a.Errorf(err, "error message %s", "formatted")
@@ -373,10 +373,10 @@ func (a *Assertions) EventuallyWithT(condition func(collect *assert.CollectT), w
 //		time.Sleep(8*time.Second)
 //		externalValue = true
 //	}()
-//	a.EventuallyWithTf(func(c *assert.CollectT) {
+//	a.EventuallyWithTf(func(c *assert.CollectT, "error message %s", "formatted") {
 //		// add assertions as needed; any assertion failure will fail the current tick
 //		assert.True(c, externalValue, "expected 'externalValue' to be true")
-//	}, 10*time.Second, 1*time.Second, "error message %s", "formatted")
+//	}, 10*time.Second, 1*time.Second, "external state has not changed to 'true'; still false")
 func (a *Assertions) EventuallyWithTf(condition func(collect *assert.CollectT), waitFor time.Duration, tick time.Duration, msg string, args ...interface{}) {
 	if h, ok := a.t.(tHelper); ok {
 		h.Helper()
@@ -539,6 +539,8 @@ func (a *Assertions) Greaterf(e1 interface{}, e2 interface{}, msg string, args .
 // body that contains a string.
 //
 //	a.HTTPBodyContains(myHandler, "GET", "www.google.com", nil, "I'm Feeling Lucky")
+//
+// Returns whether the assertion was successful (true) or not (false).
 func (a *Assertions) HTTPBodyContains(handler http.HandlerFunc, method string, url string, values url.Values, str interface{}, msgAndArgs ...interface{}) {
 	if h, ok := a.t.(tHelper); ok {
 		h.Helper()
@@ -550,6 +552,8 @@ func (a *Assertions) HTTPBodyContains(handler http.HandlerFunc, method string, u
 // body that contains a string.
 //
 //	a.HTTPBodyContainsf(myHandler, "GET", "www.google.com", nil, "I'm Feeling Lucky", "error message %s", "formatted")
+//
+// Returns whether the assertion was successful (true) or not (false).
 func (a *Assertions) HTTPBodyContainsf(handler http.HandlerFunc, method string, url string, values url.Values, str interface{}, msg string, args ...interface{}) {
 	if h, ok := a.t.(tHelper); ok {
 		h.Helper()
@@ -561,6 +565,8 @@ func (a *Assertions) HTTPBodyContainsf(handler http.HandlerFunc, method string, 
 // body that does not contain a string.
 //
 //	a.HTTPBodyNotContains(myHandler, "GET", "www.google.com", nil, "I'm Feeling Lucky")
+//
+// Returns whether the assertion was successful (true) or not (false).
 func (a *Assertions) HTTPBodyNotContains(handler http.HandlerFunc, method string, url string, values url.Values, str interface{}, msgAndArgs ...interface{}) {
 	if h, ok := a.t.(tHelper); ok {
 		h.Helper()
@@ -572,6 +578,8 @@ func (a *Assertions) HTTPBodyNotContains(handler http.HandlerFunc, method string
 // body that does not contain a string.
 //
 //	a.HTTPBodyNotContainsf(myHandler, "GET", "www.google.com", nil, "I'm Feeling Lucky", "error message %s", "formatted")
+//
+// Returns whether the assertion was successful (true) or not (false).
 func (a *Assertions) HTTPBodyNotContainsf(handler http.HandlerFunc, method string, url string, values url.Values, str interface{}, msg string, args ...interface{}) {
 	if h, ok := a.t.(tHelper); ok {
 		h.Helper()
@@ -582,6 +590,8 @@ func (a *Assertions) HTTPBodyNotContainsf(handler http.HandlerFunc, method strin
 // HTTPError asserts that a specified handler returns an error status code.
 //
 //	a.HTTPError(myHandler, "POST", "/a/b/c", url.Values{"a": []string{"b", "c"}}
+//
+// Returns whether the assertion was successful (true) or not (false).
 func (a *Assertions) HTTPError(handler http.HandlerFunc, method string, url string, values url.Values, msgAndArgs ...interface{}) {
 	if h, ok := a.t.(tHelper); ok {
 		h.Helper()
@@ -592,6 +602,8 @@ func (a *Assertions) HTTPError(handler http.HandlerFunc, method string, url stri
 // HTTPErrorf asserts that a specified handler returns an error status code.
 //
 //	a.HTTPErrorf(myHandler, "POST", "/a/b/c", url.Values{"a": []string{"b", "c"}}
+//
+// Returns whether the assertion was successful (true) or not (false).
 func (a *Assertions) HTTPErrorf(handler http.HandlerFunc, method string, url string, values url.Values, msg string, args ...interface{}) {
 	if h, ok := a.t.(tHelper); ok {
 		h.Helper()
@@ -602,6 +614,8 @@ func (a *Assertions) HTTPErrorf(handler http.HandlerFunc, method string, url str
 // HTTPRedirect asserts that a specified handler returns a redirect status code.
 //
 //	a.HTTPRedirect(myHandler, "GET", "/a/b/c", url.Values{"a": []string{"b", "c"}}
+//
+// Returns whether the assertion was successful (true) or not (false).
 func (a *Assertions) HTTPRedirect(handler http.HandlerFunc, method string, url string, values url.Values, msgAndArgs ...interface{}) {
 	if h, ok := a.t.(tHelper); ok {
 		h.Helper()
@@ -612,6 +626,8 @@ func (a *Assertions) HTTPRedirect(handler http.HandlerFunc, method string, url s
 // HTTPRedirectf asserts that a specified handler returns a redirect status code.
 //
 //	a.HTTPRedirectf(myHandler, "GET", "/a/b/c", url.Values{"a": []string{"b", "c"}}
+//
+// Returns whether the assertion was successful (true) or not (false).
 func (a *Assertions) HTTPRedirectf(handler http.HandlerFunc, method string, url string, values url.Values, msg string, args ...interface{}) {
 	if h, ok := a.t.(tHelper); ok {
 		h.Helper()
@@ -622,6 +638,8 @@ func (a *Assertions) HTTPRedirectf(handler http.HandlerFunc, method string, url 
 // HTTPStatusCode asserts that a specified handler returns a specified status code.
 //
 //	a.HTTPStatusCode(myHandler, "GET", "/notImplemented", nil, 501)
+//
+// Returns whether the assertion was successful (true) or not (false).
 func (a *Assertions) HTTPStatusCode(handler http.HandlerFunc, method string, url string, values url.Values, statuscode int, msgAndArgs ...interface{}) {
 	if h, ok := a.t.(tHelper); ok {
 		h.Helper()
@@ -632,6 +650,8 @@ func (a *Assertions) HTTPStatusCode(handler http.HandlerFunc, method string, url
 // HTTPStatusCodef asserts that a specified handler returns a specified status code.
 //
 //	a.HTTPStatusCodef(myHandler, "GET", "/notImplemented", nil, 501, "error message %s", "formatted")
+//
+// Returns whether the assertion was successful (true) or not (false).
 func (a *Assertions) HTTPStatusCodef(handler http.HandlerFunc, method string, url string, values url.Values, statuscode int, msg string, args ...interface{}) {
 	if h, ok := a.t.(tHelper); ok {
 		h.Helper()
@@ -642,6 +662,8 @@ func (a *Assertions) HTTPStatusCodef(handler http.HandlerFunc, method string, ur
 // HTTPSuccess asserts that a specified handler returns a success status code.
 //
 //	a.HTTPSuccess(myHandler, "POST", "http://www.google.com", nil)
+//
+// Returns whether the assertion was successful (true) or not (false).
 func (a *Assertions) HTTPSuccess(handler http.HandlerFunc, method string, url string, values url.Values, msgAndArgs ...interface{}) {
 	if h, ok := a.t.(tHelper); ok {
 		h.Helper()
@@ -652,6 +674,8 @@ func (a *Assertions) HTTPSuccess(handler http.HandlerFunc, method string, url st
 // HTTPSuccessf asserts that a specified handler returns a success status code.
 //
 //	a.HTTPSuccessf(myHandler, "POST", "http://www.google.com", nil, "error message %s", "formatted")
+//
+// Returns whether the assertion was successful (true) or not (false).
 func (a *Assertions) HTTPSuccessf(handler http.HandlerFunc, method string, url string, values url.Values, msg string, args ...interface{}) {
 	if h, ok := a.t.(tHelper); ok {
 		h.Helper()
@@ -1073,11 +1097,12 @@ func (a *Assertions) NoDirExistsf(path string, msg string, args ...interface{}) 
 	NoDirExistsf(a.t, path, msg, args...)
 }
 
-// NoError asserts that a function returned a nil error (ie. no error).
+// NoError asserts that a function returned no error (i.e. `nil`).
 //
-//	actualObj, err := SomeFunction()
-//	a.NoError(err)
-//	a.Equal(expectedObj, actualObj)
+//	  actualObj, err := SomeFunction()
+//	  if a.NoError(err) {
+//		   assert.Equal(t, expectedObj, actualObj)
+//	  }
 func (a *Assertions) NoError(err error, msgAndArgs ...interface{}) {
 	if h, ok := a.t.(tHelper); ok {
 		h.Helper()
@@ -1085,11 +1110,12 @@ func (a *Assertions) NoError(err error, msgAndArgs ...interface{}) {
 	NoError(a.t, err, msgAndArgs...)
 }
 
-// NoErrorf asserts that a function returned a nil error (ie. no error).
+// NoErrorf asserts that a function returned no error (i.e. `nil`).
 //
-//	actualObj, err := SomeFunction()
-//	a.NoErrorf(err, "error message %s", "formatted")
-//	a.Equal(expectedObj, actualObj)
+//	  actualObj, err := SomeFunction()
+//	  if a.NoErrorf(err, "error message %s", "formatted") {
+//		   assert.Equal(t, expectedObj, actualObj)
+//	  }
 func (a *Assertions) NoErrorf(err error, msg string, args ...interface{}) {
 	if h, ok := a.t.(tHelper); ok {
 		h.Helper()
@@ -1177,8 +1203,9 @@ func (a *Assertions) NotElementsMatchf(listA interface{}, listB interface{}, msg
 
 // NotEmpty asserts that the specified object is NOT [Empty].
 //
-//	a.NotEmpty(obj)
-//	a.Equal("two", obj[1])
+//	if a.NotEmpty(obj) {
+//	  assert.Equal(t, "two", obj[1])
+//	}
 func (a *Assertions) NotEmpty(object interface{}, msgAndArgs ...interface{}) {
 	if h, ok := a.t.(tHelper); ok {
 		h.Helper()
@@ -1188,8 +1215,9 @@ func (a *Assertions) NotEmpty(object interface{}, msgAndArgs ...interface{}) {
 
 // NotEmptyf asserts that the specified object is NOT [Empty].
 //
-//	a.NotEmptyf(obj, "error message %s", "formatted")
-//	a.Equal("two", obj[1])
+//	if a.NotEmptyf(obj, "error message %s", "formatted") {
+//	  assert.Equal(t, "two", obj[1])
+//	}
 func (a *Assertions) NotEmptyf(object interface{}, msg string, args ...interface{}) {
 	if h, ok := a.t.(tHelper); ok {
 		h.Helper()
@@ -1663,19 +1691,7 @@ func (a *Assertions) WithinRangef(actual time.Time, start time.Time, end time.Ti
 	WithinRangef(a.t, actual, start, end, msg, args...)
 }
 
-// YAMLEq asserts that the first documents in the two YAML strings are equivalent.
-//
-//	expected := `---
-//	key: value
-//	---
-//	key: this is a second document, it is not evaluated
-//	`
-//	actual := `---
-//	key: value
-//	---
-//	key: this is a subsequent document, it is not evaluated
-//	`
-//	a.YAMLEq(expected, actual)
+// YAMLEq asserts that two YAML strings are equivalent.
 func (a *Assertions) YAMLEq(expected string, actual string, msgAndArgs ...interface{}) {
 	if h, ok := a.t.(tHelper); ok {
 		h.Helper()
@@ -1683,19 +1699,7 @@ func (a *Assertions) YAMLEq(expected string, actual string, msgAndArgs ...interf
 	YAMLEq(a.t, expected, actual, msgAndArgs...)
 }
 
-// YAMLEqf asserts that the first documents in the two YAML strings are equivalent.
-//
-//	expected := `---
-//	key: value
-//	---
-//	key: this is a second document, it is not evaluated
-//	`
-//	actual := `---
-//	key: value
-//	---
-//	key: this is a subsequent document, it is not evaluated
-//	`
-//	a.YAMLEqf(expected, actual, "error message %s", "formatted")
+// YAMLEqf asserts that two YAML strings are equivalent.
 func (a *Assertions) YAMLEqf(expected string, actual string, msg string, args ...interface{}) {
 	if h, ok := a.t.(tHelper); ok {
 		h.Helper()

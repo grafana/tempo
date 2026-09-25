@@ -1,7 +1,7 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package aggregate
+package aggregate // import "go.opentelemetry.io/otel/sdk/metric/internal/aggregate"
 
 import (
 	"context"
@@ -57,17 +57,18 @@ func (b Builder[N]) resFunc() func(attribute.Set) FilteredExemplarReservoir[N] {
 	return DropReservoir
 }
 
-type fltrMeasure[N int64 | float64] func(ctx context.Context, value N, lazy lazyFilteredAttributes)
+type fltrMeasure[N int64 | float64] func(ctx context.Context, value N, fltrAttr attribute.Set, droppedAttr []attribute.KeyValue)
 
 func (b Builder[N]) filter(f fltrMeasure[N]) Measure[N] {
 	if b.Filter != nil {
 		fltr := b.Filter // Copy to make it immutable after assignment.
 		return func(ctx context.Context, n N, a attribute.Set) {
-			f(ctx, n, newLazyFilteredAttributes(a, fltr))
+			fAttr, dropped := a.Filter(fltr)
+			f(ctx, n, fAttr, dropped)
 		}
 	}
 	return func(ctx context.Context, n N, a attribute.Set) {
-		f(ctx, n, newLazyFilteredAttributes(a, nil))
+		f(ctx, n, a, nil)
 	}
 }
 

@@ -1,12 +1,11 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package trace
+package trace // import "go.opentelemetry.io/otel/sdk/trace"
 
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -436,11 +435,11 @@ func (bsp *batchSpanProcessor) enqueueDrop(ctx context.Context, sd ReadOnlySpan)
 func (bsp *batchSpanProcessor) MarshalLog() any {
 	return struct {
 		Type         string
-		SpanExporter string
+		SpanExporter SpanExporter
 		Config       BatchSpanProcessorOptions
 	}{
 		Type:         "BatchSpanProcessor",
-		SpanExporter: fmt.Sprintf("%T", bsp.e),
+		SpanExporter: bsp.e,
 		Config:       bsp.o,
 	}
 }

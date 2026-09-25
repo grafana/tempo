@@ -282,8 +282,8 @@ func New(config *Config) *slog.Logger {
 	return slog.New(slog.NewTextHandler(config.Writer, logHandlerOpts))
 }
 
-// NewNopLogger is a convenience function to return an slog.Logger that
-// discards all log records.
+// NewNopLogger is a convenience function to return an slog.Logger that writes
+// to io.Discard.
 func NewNopLogger() *slog.Logger {
-	return slog.New(slog.DiscardHandler)
+	return New(&Config{Writer: io.Discard})
 }

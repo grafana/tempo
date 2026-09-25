@@ -3,7 +3,7 @@
 
 //go:build linux || dragonfly || freebsd || netbsd || openbsd || solaris
 
-package resource
+package resource // import "go.opentelemetry.io/otel/sdk/resource"
 
 import "os"
 

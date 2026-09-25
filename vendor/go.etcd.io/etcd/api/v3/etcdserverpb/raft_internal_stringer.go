@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"strings"
 
-	proto "github.com/golang/protobuf/proto" //nolint:staticcheck // TODO: remove for a supported version
+	proto "github.com/golang/protobuf/proto"
 )
 
 // InternalRaftStringer implements custom proto Stringer:

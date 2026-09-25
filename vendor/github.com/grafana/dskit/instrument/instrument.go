@@ -2,7 +2,8 @@
 // Provenance-includes-license: Apache-2.0
 // Provenance-includes-copyright: Weaveworks Ltd.
 
-//nolint:forbidigo // Changing from prometheus to promauto would break consumers.
+//lint:file-ignore faillint Changing from prometheus to promauto package would be a breaking change for consumers
+
 package instrument
 
 import (

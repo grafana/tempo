@@ -159,10 +159,9 @@ const (
 // HTTPHeaderMatch specifies how a match should be done
 // on a request's headers.
 type HTTPHeaderMatch struct {
-	Match  HTTPHeaderMatchType
-	Name   string
-	Value  string
-	Invert bool `json:",omitempty"`
+	Match HTTPHeaderMatchType
+	Name  string
+	Value string
 }
 
 // HTTPPathMatchType specifies how path matching criteria

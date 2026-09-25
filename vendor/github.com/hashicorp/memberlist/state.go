@@ -13,7 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	metrics "github.com/hashicorp/go-metrics"
+	metrics "github.com/hashicorp/go-metrics/compat"
 )
 
 type NodeStateType int

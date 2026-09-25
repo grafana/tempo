@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/coreos/go-semver/semver"
@@ -44,7 +43,6 @@ import (
 var (
 	ErrNoAvailableEndpoints = errors.New("etcdclient: no available endpoints")
 	ErrOldCluster           = errors.New("etcdclient: old cluster version")
-	ErrMutuallyExclusiveCfg = errors.New("Username/Password and Token configurations are mutually exclusive")
 )
 
 // Client provides and manages an etcd v3 client session.
@@ -71,15 +69,13 @@ type Client struct {
 	// Username is a user name for authentication.
 	Username string
 	// Password is a password for authentication.
-	Password string
-	// Token is a JWT used for authentication instead of a password.
-	Token string
-
+	Password        string
 	authTokenBundle credentials.PerRPCCredentialsBundle
 
 	callOpts []grpc.CallOption
 
-	lg atomic.Pointer[zap.Logger]
+	lgMu *sync.RWMutex
+	lg   *zap.Logger
 }
 
 // New creates a new etcdv3 client from a given configuration.
@@ -96,12 +92,12 @@ func New(cfg Config) (*Client, error) {
 // service interface implementations and do not need connection management.
 func NewCtxClient(ctx context.Context, opts ...Option) *Client {
 	cctx, cancel := context.WithCancel(ctx)
-	c := &Client{ctx: cctx, cancel: cancel, epMu: new(sync.RWMutex)}
+	c := &Client{ctx: cctx, cancel: cancel, lgMu: new(sync.RWMutex), epMu: new(sync.RWMutex)}
 	for _, opt := range opts {
 		opt(c)
 	}
-	if c.lg.Load() == nil {
-		c.lg.Store(zap.NewNop())
+	if c.lg == nil {
+		c.lg = zap.NewNop()
 	}
 	return c
 }
@@ -122,7 +118,7 @@ func NewFromURLs(urls []string) (*Client, error) {
 // WithZapLogger is a NewCtxClient option that overrides the logger
 func WithZapLogger(lg *zap.Logger) Option {
 	return func(c *Client) {
-		c.lg.Store(lg)
+		c.lg = lg
 	}
 }
 
@@ -133,14 +129,19 @@ func WithZapLogger(lg *zap.Logger) Option {
 // Does not changes grpcLogger, that can be explicitly configured
 // using grpc_zap.ReplaceGrpcLoggerV2(..) method.
 func (c *Client) WithLogger(lg *zap.Logger) *Client {
-	c.lg.Store(lg)
+	c.lgMu.Lock()
+	c.lg = lg
+	c.lgMu.Unlock()
 	return c
 }
 
 // GetLogger gets the logger.
 // NOTE: This method is for internal use of etcd-client library and should not be used as general-purpose logger.
 func (c *Client) GetLogger() *zap.Logger {
-	return c.lg.Load()
+	c.lgMu.RLock()
+	l := c.lg
+	c.lgMu.RUnlock()
+	return l
 }
 
 // Close shuts down the client's etcd connections.
@@ -196,11 +197,13 @@ func (c *Client) Sync(ctx context.Context) error {
 	}
 	// The linearizable `MemberList` returned successfully, so the
 	// endpoints shouldn't be empty.
-	verify.Verify("empty endpoints returned from etcd cluster", func() (bool, map[string]any) {
-		return len(eps) > 0, nil
+	verify.Verify(func() {
+		if len(eps) == 0 {
+			panic("empty endpoints returned from etcd cluster")
+		}
 	})
 	c.SetEndpoints(eps...)
-	c.GetLogger().Debug("set etcd endpoints by autoSync", zap.Strings("endpoints", eps))
+	c.lg.Debug("set etcd endpoints by autoSync", zap.Strings("endpoints", eps))
 	return nil
 }
 
@@ -218,7 +221,7 @@ func (c *Client) autoSync() {
 			err := c.Sync(ctx)
 			cancel()
 			if err != nil && !errors.Is(err, c.ctx.Err()) {
-				c.GetLogger().Info("Auto sync endpoints failed.", zap.Error(err))
+				c.lg.Info("Auto sync endpoints failed.", zap.Error(err))
 			}
 		}
 	}
@@ -285,11 +288,6 @@ func (c *Client) Dial(ep string) (*grpc.ClientConn, error) {
 func (c *Client) getToken(ctx context.Context) error {
 	var err error // return last error in a case of fail
 
-	if c.Token != "" {
-		c.authTokenBundle.UpdateAuthToken(c.Token)
-		return nil
-	}
-
 	if c.Username == "" || c.Password == "" {
 		return nil
 	}
@@ -324,8 +322,18 @@ func (c *Client) dial(creds grpccredentials.TransportCredentials, dopts ...grpc.
 
 	opts = append(opts, c.cfg.DialOptions...)
 
+	dctx := c.ctx
+	if c.cfg.DialTimeout > 0 {
+		var cancel context.CancelFunc
+		dctx, cancel = context.WithTimeout(c.ctx, c.cfg.DialTimeout)
+		defer cancel() // TODO: Is this right for cases where grpc.WithBlock() is not set on the dial options?
+	}
 	target := fmt.Sprintf("%s://%p/%s", resolver.Schema, c, authority(c.endpoints[0]))
-	return grpc.NewClient(target, opts...)
+	conn, err := grpc.DialContext(dctx, target, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return conn, nil
 }
 
 func authority(endpoint string) string {
@@ -368,10 +376,6 @@ func newClient(cfg *Config) (*Client, error) {
 		creds = credentials.NewTransportCredential(cfg.TLS)
 	}
 
-	if cfg.Token != "" && (cfg.Username != "" || cfg.Password != "") {
-		return nil, ErrMutuallyExclusiveCfg
-	}
-
 	// use a temporary skeleton client to bootstrap first connection
 	baseCtx := context.TODO()
 	if cfg.Context != nil {
@@ -387,36 +391,29 @@ func newClient(cfg *Config) (*Client, error) {
 		cancel:   cancel,
 		epMu:     new(sync.RWMutex),
 		callOpts: defaultCallOpts,
+		lgMu:     new(sync.RWMutex),
 	}
 
 	var err error
-	var lg *zap.Logger
 	if cfg.Logger != nil {
-		lg = cfg.Logger
+		client.lg = cfg.Logger
 	} else if cfg.LogConfig != nil {
-		lg, err = cfg.LogConfig.Build()
+		client.lg, err = cfg.LogConfig.Build()
 	} else {
-		lg, err = logutil.CreateDefaultZapLogger(ClientLogLevel())
-		if lg != nil {
-			lg = lg.Named("etcd-client")
+		client.lg, err = logutil.CreateDefaultZapLogger(etcdClientDebugLevel())
+		if client.lg != nil {
+			client.lg = client.lg.Named("etcd-client")
 		}
 	}
 	if err != nil {
 		return nil, err
 	}
-	client.lg.Store(lg)
 
 	if cfg.Username != "" && cfg.Password != "" {
 		client.Username = cfg.Username
 		client.Password = cfg.Password
 		client.authTokenBundle = credentials.NewPerRPCCredentialBundle()
 	}
-
-	if cfg.Token != "" {
-		client.Token = cfg.Token
-		client.authTokenBundle = credentials.NewPerRPCCredentialBundle()
-	}
-
 	if cfg.MaxCallSendMsgSize > 0 || cfg.MaxCallRecvMsgSize > 0 {
 		if cfg.MaxCallRecvMsgSize > 0 && cfg.MaxCallSendMsgSize > cfg.MaxCallRecvMsgSize {
 			return nil, fmt.Errorf("gRPC message recv limit (%d bytes) must be greater than send limit (%d bytes)", cfg.MaxCallRecvMsgSize, cfg.MaxCallSendMsgSize)
@@ -494,10 +491,10 @@ func (c *Client) roundRobinQuorumBackoff(waitBetween time.Duration, jitterFracti
 		n := uint(len(c.Endpoints()))
 		quorum := (n/2 + 1)
 		if attempt%quorum == 0 {
-			c.GetLogger().Debug("backoff", zap.Uint("attempt", attempt), zap.Uint("quorum", quorum), zap.Duration("waitBetween", waitBetween), zap.Float64("jitterFraction", jitterFraction))
+			c.lg.Debug("backoff", zap.Uint("attempt", attempt), zap.Uint("quorum", quorum), zap.Duration("waitBetween", waitBetween), zap.Float64("jitterFraction", jitterFraction))
 			return jitterUp(waitBetween, jitterFraction)
 		}
-		c.GetLogger().Debug("backoff skipped", zap.Uint("attempt", attempt), zap.Uint("quorum", quorum))
+		c.lg.Debug("backoff skipped", zap.Uint("attempt", attempt), zap.Uint("quorum", quorum))
 		return 0
 	}
 }

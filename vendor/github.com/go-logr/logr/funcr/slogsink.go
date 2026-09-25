@@ -1,4 +1,5 @@
 //go:build go1.21
+// +build go1.21
 
 /*
 Copyright 2023 The logr Authors.
@@ -32,7 +33,7 @@ const extraSlogSinkDepth = 3 // 2 for slog, 1 for SlogSink
 func (l fnlogger) Handle(_ context.Context, record slog.Record) error {
 	kvList := make([]any, 0, 2*record.NumAttrs())
 	record.Attrs(func(attr slog.Attr) bool {
-		kvList = attrToKVs(attr, kvList, l.opts.MaxLogDepth)
+		kvList = attrToKVs(attr, kvList)
 		return true
 	})
 
@@ -48,7 +49,7 @@ func (l fnlogger) Handle(_ context.Context, record slog.Record) error {
 func (l fnlogger) WithAttrs(attrs []slog.Attr) logr.SlogSink {
 	kvList := make([]any, 0, 2*len(attrs))
 	for _, attr := range attrs {
-		kvList = attrToKVs(attr, kvList, l.opts.MaxLogDepth)
+		kvList = attrToKVs(attr, kvList)
 	}
 	l.AddValues(kvList)
 	return &l
@@ -60,25 +61,14 @@ func (l fnlogger) WithGroup(name string) logr.SlogSink {
 }
 
 // attrToKVs appends a slog.Attr to a logr-style kvList.  It handle slog Groups
-// and other details of slog.  maxDepth bounds recursion into nested groups so a
-// deeply-nested slog.Group cannot exhaust the stack; it is decremented per group
-// level and starts at the Formatter's MaxLogDepth (past which the formatter would
-// truncate the rendering anyway).
-func attrToKVs(attr slog.Attr, kvList []any, maxDepth int) []any {
+// and other details of slog.
+func attrToKVs(attr slog.Attr, kvList []any) []any {
 	attrVal := attr.Value.Resolve()
 	if attrVal.Kind() == slog.KindGroup {
-		if maxDepth <= 0 {
-			// Nesting is too deep to build without risking a stack overflow.
-			// Stop here; the formatter truncates below MaxLogDepth regardless.
-			if attr.Key != "" {
-				kvList = append(kvList, attr.Key, "<max-log-depth-exceeded>")
-			}
-			return kvList
-		}
 		groupVal := attrVal.Group()
 		grpKVs := make([]any, 0, 2*len(groupVal))
 		for _, attr := range groupVal {
-			grpKVs = attrToKVs(attr, grpKVs, maxDepth-1)
+			grpKVs = attrToKVs(attr, grpKVs)
 		}
 		if attr.Key == "" {
 			// slog says we have to inline these

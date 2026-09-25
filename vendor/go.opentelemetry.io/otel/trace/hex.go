@@ -1,7 +1,7 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package trace
+package trace // import "go.opentelemetry.io/otel/trace"
 
 const (
 	// hexLU is a hex lookup table of the 16 lowercase hex digits.

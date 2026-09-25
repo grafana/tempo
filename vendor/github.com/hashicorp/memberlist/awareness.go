@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/go-metrics"
+	"github.com/hashicorp/go-metrics/compat"
 )
 
 // awareness manages a simple metric for tracking the estimated health of the

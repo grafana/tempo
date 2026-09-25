@@ -3,7 +3,7 @@
 
 // Package global is the internal implementation of the OpenTelemetry global
 // Logs API.
-package global
+package global // import "go.opentelemetry.io/otel/log/internal/global"
 
 import (
 	"context"
@@ -17,7 +17,7 @@ import (
 
 // instLib defines the instrumentation library a logger is created for.
 //
-// Do not use sdk/instrumentation (the API cannot depend on the SDK).
+// Do not use sdk/instrumentation (API cannot depend on the SDK).
 type instLib struct {
 	name      string
 	version   string
@@ -33,7 +33,7 @@ type loggerProvider struct {
 	delegate log.LoggerProvider
 }
 
-// This is a compile-time guarantee that loggerProvider implements LoggerProvider.
+// Compile-time guarantee loggerProvider implements LoggerProvider.
 var _ log.LoggerProvider = (*loggerProvider)(nil)
 
 func (p *loggerProvider) Logger(name string, options ...log.LoggerOption) log.Logger {
@@ -87,7 +87,7 @@ type logger struct {
 	delegate atomic.Value // log.Logger
 }
 
-// This is a compile-time guarantee that logger implements Logger.
+// Compile-time guarantee logger implements Logger.
 var _ log.Logger = (*logger)(nil)
 
 func (l *logger) Emit(ctx context.Context, r log.Record) {

@@ -18,7 +18,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/prometheus/procfs/internal/parsers"
+	"github.com/prometheus/procfs/internal/util"
 )
 
 // LoadAvg represents an entry in /proc/loadavg.
@@ -32,7 +32,7 @@ type LoadAvg struct {
 func (fs FS) LoadAvg() (*LoadAvg, error) {
 	path := fs.proc.Path("loadavg")
 
-	data, err := parsers.ReadFileNoStat(path)
+	data, err := util.ReadFileNoStat(path)
 	if err != nil {
 		return nil, err
 	}

@@ -33,7 +33,7 @@ func (f Form) Transform(dst, src []byte, atEOF bool) (nDst, nSrc int, err error)
 		return nDst + n, nSrc + n, err
 	}
 
-	if err == nil && n < len(src) {
+	if err == nil && n < len(src) && !atEOF {
 		err = transform.ErrShortSrc
 	}
 	return n, n, err
@@ -67,7 +67,6 @@ func (f Form) transform(dst, src []byte, atEOF bool) (nDst, nSrc int, err error)
 		nSrc = end
 
 		// Next quickSpan.
-		var err error
 		end = rb.nsrc
 		eof := atEOF
 		if n := nSrc + len(dst) - nDst; n < end {
@@ -80,7 +79,7 @@ func (f Form) transform(dst, src []byte, atEOF bool) (nDst, nSrc int, err error)
 		nSrc += n
 		nDst += n
 		if ok {
-			if err == nil && nSrc < rb.nsrc {
+			if err == nil && n < rb.nsrc && !atEOF {
 				err = transform.ErrShortSrc
 			}
 			return nDst, nSrc, err

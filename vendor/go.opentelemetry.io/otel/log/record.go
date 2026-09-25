@@ -1,23 +1,21 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package log
+package log // import "go.opentelemetry.io/otel/log"
 
 import (
 	"slices"
 	"time"
-
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // attributesInlineCount is the number of attributes that are efficiently
-// stored in an array within a Record. This value is borrowed from slog, which
-// performed a quantitative survey of log library use and found that this value
-// covers 95% of all use cases (https://go.dev/blog/slog#performance).
+// stored in an array within a Record. This value is borrowed from slog which
+// performed a quantitative survey of log library use and found this value to
+// cover 95% of all use-cases (https://go.dev/blog/slog#performance).
 const attributesInlineCount = 5
 
 // Record represents a log record.
-// A log record with a non-empty event name is interpreted as an event record.
+// A log record with non-empty event name is interpreted as an event record.
 type Record struct {
 	// Ensure forward compatibility by explicitly making this not comparable.
 	noCmp [0]func() //nolint: unused  // This is indeed used.
@@ -27,7 +25,7 @@ type Record struct {
 	observedTimestamp time.Time
 	severity          Severity
 	severityText      string
-	body              attribute.Value
+	body              Value
 	err               error
 
 	// The fields below are for optimizing the implementation of Attributes and
@@ -37,7 +35,7 @@ type Record struct {
 	// Allocation optimization: an inline array sized to hold
 	// the majority of log calls (based on examination of open-source
 	// code). It holds the start of the list of attributes.
-	front [attributesInlineCount]attribute.KeyValue
+	front [attributesInlineCount]KeyValue
 
 	// The number of attributes in front.
 	nFront int
@@ -45,20 +43,18 @@ type Record struct {
 	// The list of attributes except for those in front.
 	// Invariants:
 	//   - len(back) > 0 if nFront == len(front)
-	//   - Unused array elements are zeroed to detect mistakes.
-	back []attribute.KeyValue
+	//   - Unused array elements are zero-ed. Used to detect mistakes.
+	back []KeyValue
 }
 
 // EventName returns the event name.
-// A log record with a non-empty event name is interpreted as an event record.
+// A log record with non-empty event name is interpreted as an event record.
 func (r *Record) EventName() string {
 	return r.eventName
 }
 
 // SetEventName sets the event name.
-// A log record with a non-empty event name is interpreted as an event record.
-// Event names should uniquely identify the structure of the event's attributes
-// and body.
+// A log record with non-empty event name is interpreted as an event record.
 func (r *Record) SetEventName(s string) {
 	r.eventName = s
 }
@@ -93,25 +89,25 @@ func (r *Record) SetSeverity(level Severity) {
 	r.severity = level
 }
 
-// SeverityText returns the text of the severity (also known as the log level)
-// as originally known at the source.
+// SeverityText returns severity (also known as log level) text. This is the
+// original string representation of the severity as it is known at the source.
 func (r *Record) SeverityText() string {
 	return r.severityText
 }
 
-// SetSeverityText sets the text of the severity (also known as the log level)
-// as originally known at the source.
+// SetSeverityText sets severity (also known as log level) text. This is the
+// original string representation of the severity as it is known at the source.
 func (r *Record) SetSeverityText(text string) {
 	r.severityText = text
 }
 
 // Body returns the body of the log record.
-func (r *Record) Body() attribute.Value {
+func (r *Record) Body() Value {
 	return r.body
 }
 
 // SetBody sets the body of the log record.
-func (r *Record) SetBody(v attribute.Value) {
+func (r *Record) SetBody(v Value) {
 	r.body = v
 }
 
@@ -125,9 +121,9 @@ func (r *Record) SetErr(err error) {
 	r.err = err
 }
 
-// WalkAttributes walks all attributes in the log record by calling f for each
-// [attribute.KeyValue] in the [Record]. Iteration stops if f returns false.
-func (r *Record) WalkAttributes(f func(attribute.KeyValue) bool) {
+// WalkAttributes walks all attributes the log record holds by calling f for
+// each on each [KeyValue] in the [Record]. Iteration stops if f returns false.
+func (r *Record) WalkAttributes(f func(KeyValue) bool) {
 	for i := 0; i < r.nFront; i++ {
 		if !f(r.front[i]) {
 			return
@@ -141,7 +137,7 @@ func (r *Record) WalkAttributes(f func(attribute.KeyValue) bool) {
 }
 
 // AddAttributes adds attributes to the log record.
-func (r *Record) AddAttributes(attrs ...attribute.KeyValue) {
+func (r *Record) AddAttributes(attrs ...KeyValue) {
 	var i int
 	for i = 0; i < len(attrs) && r.nFront < len(r.front); i++ {
 		a := attrs[i]
@@ -159,8 +155,7 @@ func (r *Record) AttributesLen() int {
 }
 
 // Clone returns a copy of the record with no shared state.
-// The original record and the clone can both be modified without interfering
-// with each other.
+// The original record and the clone can both be modified without interfering with each other.
 func (r *Record) Clone() Record {
 	res := *r
 	res.back = slices.Clone(r.back)

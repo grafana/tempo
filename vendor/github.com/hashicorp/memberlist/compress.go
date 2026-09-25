@@ -6,7 +6,7 @@ package memberlist
 import (
 	"fmt"
 
-	metrics "github.com/hashicorp/go-metrics"
+	metrics "github.com/hashicorp/go-metrics/compat"
 )
 
 // CompressionAlgorithm selects the algorithm used to compress outgoing

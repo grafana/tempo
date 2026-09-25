@@ -1,7 +1,7 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package attribute
+package attribute // import "go.opentelemetry.io/otel/attribute"
 
 import (
 	"fmt"
@@ -18,118 +18,64 @@ func (kv KeyValue) Valid() bool {
 	return kv.Key.Defined()
 }
 
-// Bool returns a [KeyValue] for a bool value.
+// Bool creates a KeyValue with a BOOL Value type.
 func Bool(k string, v bool) KeyValue {
 	return Key(k).Bool(v)
 }
 
-// BoolSlice returns a [KeyValue] for a []bool value.
-//
-// Note that many observability backends are not optimized to query, index, or
-// aggregate complex attribute values. Complex values may also carry
-// additional performance overhead. Prefer primitive values when
-// possible.
+// BoolSlice creates a KeyValue with a BOOLSLICE Value type.
 func BoolSlice(k string, v []bool) KeyValue {
 	return Key(k).BoolSlice(v)
 }
 
-// Int returns a [KeyValue] for an int value.
-//
-// It is provided as a convenience for [Int64].
+// Int creates a KeyValue with an INT64 Value type.
 func Int(k string, v int) KeyValue {
 	return Key(k).Int(v)
 }
 
-// IntSlice returns a [KeyValue] for a []int value.
-//
-// It is provided as a convenience for [Int64Slice].
-//
-// Note that many observability backends are not optimized to query, index, or
-// aggregate complex attribute values. Complex values may also carry
-// additional performance overhead. Prefer primitive values when
-// possible.
+// IntSlice creates a KeyValue with an INT64SLICE Value type.
 func IntSlice(k string, v []int) KeyValue {
 	return Key(k).IntSlice(v)
 }
 
-// Int64 returns a [KeyValue] for an int64 value.
+// Int64 creates a KeyValue with an INT64 Value type.
 func Int64(k string, v int64) KeyValue {
 	return Key(k).Int64(v)
 }
 
-// Int64Slice returns a [KeyValue] for a []int64 value.
-//
-// Note that many observability backends are not optimized to query, index, or
-// aggregate complex attribute values. Complex values may also carry
-// additional performance overhead. Prefer primitive values when
-// possible.
+// Int64Slice creates a KeyValue with an INT64SLICE Value type.
 func Int64Slice(k string, v []int64) KeyValue {
 	return Key(k).Int64Slice(v)
 }
 
-// Float64 returns a [KeyValue] for a float64 value.
+// Float64 creates a KeyValue with a FLOAT64 Value type.
 func Float64(k string, v float64) KeyValue {
 	return Key(k).Float64(v)
 }
 
-// Float64Slice returns a [KeyValue] for a []float64 value.
-//
-// Note that many observability backends are not optimized to query, index, or
-// aggregate complex attribute values. Complex values may also carry
-// additional performance overhead. Prefer primitive values when
-// possible.
+// Float64Slice creates a KeyValue with a FLOAT64SLICE Value type.
 func Float64Slice(k string, v []float64) KeyValue {
 	return Key(k).Float64Slice(v)
 }
 
-// String returns a [KeyValue] for a string value.
+// String creates a KeyValue with a STRING Value type.
 func String(k, v string) KeyValue {
 	return Key(k).String(v)
 }
 
-// StringSlice returns a [KeyValue] for a []string value.
-//
-// Note that many observability backends are not optimized to query, index, or
-// aggregate complex attribute values. Complex values may also carry
-// additional performance overhead. Prefer primitive values when
-// possible.
+// StringSlice creates a KeyValue with a STRINGSLICE Value type.
 func StringSlice(k string, v []string) KeyValue {
 	return Key(k).StringSlice(v)
 }
 
-// ByteSlice returns a [KeyValue] for a []byte value.
-//
-// Note that many observability backends are not optimized to query, index, or
-// aggregate complex attribute values. Complex values may also carry
-// additional performance overhead. Prefer primitive values when
-// possible.
+// ByteSlice creates a KeyValue with a BYTESLICE Value type.
 func ByteSlice(k string, v []byte) KeyValue {
 	return Key(k).ByteSlice(v)
 }
 
-// Slice returns a [KeyValue] for a []Value value.
-//
-// Note that many observability backends are not optimized to query, index, or
-// aggregate complex attribute values. Complex values may also carry
-// additional performance overhead. Prefer primitive values when
-// possible.
+// Slice creates a KeyValue with a SLICE Value type.
 func Slice(k string, v ...Value) KeyValue {
 	return Key(k).Slice(v...)
-}
-
-// Map returns a [KeyValue] for a []KeyValue value.
-//
-// Note that many observability backends are not optimized to query, index, or
-// aggregate complex attribute values. Complex values may also carry
-// additional performance overhead. Prefer primitive values when
-// possible.
-//
-// Users should avoid providing duplicate keys; many receivers handle maps
-// containing duplicate keys unpredictably.
-//
-// The order of v is not preserved.
-func Map(k string, v ...KeyValue) KeyValue {
-	return Key(k).Map(v...)
 }
 
 // Stringer creates a new key-value pair with a passed name and a string

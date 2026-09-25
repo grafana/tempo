@@ -1,7 +1,7 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package otlploggrpc
+package otlploggrpc // import "go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
 
 import (
 	"context"
@@ -19,9 +19,9 @@ type logClient interface {
 	Shutdown(context.Context) error
 }
 
-// Exporter is an OpenTelemetry log exporter. It transports log data encoded as
+// Exporter is a OpenTelemetry log Exporter. It transports log data encoded as
 // OTLP protobufs using gRPC.
-// All Exporter values must be created with [New].
+// All Exporters must be created with [New].
 type Exporter struct {
 	// Ensure synchronous access to the client across all functionality.
 	clientMu sync.Mutex
@@ -30,13 +30,13 @@ type Exporter struct {
 	stopped atomic.Bool
 }
 
-// This is a compile-time check that Exporter implements [log.Exporter].
+// Compile-time check Exporter implements [log.Exporter].
 var _ log.Exporter = (*Exporter)(nil)
 
 // New returns a new [Exporter].
 //
-// Use the Exporter with a [log.BatchProcessor] or another processor that
-// exports records asynchronously.
+// It is recommended to use it with a [BatchProcessor]
+// or other processor exporting records asynchronously.
 func New(_ context.Context, options ...Option) (*Exporter, error) {
 	cfg := newConfig(options)
 	c, err := newClient(cfg)
@@ -56,11 +56,11 @@ var transformResourceLogs = transform.ResourceLogs
 
 // Export transforms and transmits log records to an OTLP receiver.
 //
-// This method returns [log.ErrExporterShutdown] if called after Shutdown.
+// This method returns nil and drops records if called after Shutdown.
 // This method returns an error if the method is canceled by the passed context.
 func (e *Exporter) Export(ctx context.Context, records []log.Record) error {
 	if e.stopped.Load() {
-		return log.ErrExporterShutdown
+		return nil
 	}
 
 	otlp := transformResourceLogs(records)
@@ -70,15 +70,11 @@ func (e *Exporter) Export(ctx context.Context, records []log.Record) error {
 
 	e.clientMu.Lock()
 	defer e.clientMu.Unlock()
-
-	if e.stopped.Load() {
-		return log.ErrExporterShutdown
-	}
 	return e.client.UploadLogs(ctx, otlp)
 }
 
-// Shutdown shuts down the Exporter. Calls to Export after Shutdown return
-// [log.ErrExporterShutdown]. Calls to ForceFlush perform no operation.
+// Shutdown shuts down the Exporter. Calls to Export or ForceFlush will perform
+// no operation after this is called.
 func (e *Exporter) Shutdown(ctx context.Context) error {
 	if e.stopped.Swap(true) {
 		return nil

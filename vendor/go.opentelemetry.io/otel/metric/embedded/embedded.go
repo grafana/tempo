@@ -11,7 +11,7 @@
 // the API package).
 //
 // [OpenTelemetry metric API]: https://pkg.go.dev/go.opentelemetry.io/otel/metric
-package embedded
+package embedded // import "go.opentelemetry.io/otel/metric/embedded"
 
 // MeterProvider is embedded in
 // [go.opentelemetry.io/otel/metric.MeterProvider].

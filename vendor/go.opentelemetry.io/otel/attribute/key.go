@@ -1,16 +1,16 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package attribute
+package attribute // import "go.opentelemetry.io/otel/attribute"
 
 // Key represents the key part in key-value pairs. It's a string. The
 // allowed character set in the key depends on the use of the key.
 type Key string
 
-// Bool returns a [KeyValue] for a bool value.
+// Bool creates a KeyValue instance with a BOOL Value.
 //
-// If creating both a key and value at the same time, use the package-level
-// [Bool] function.
+// If creating both a key and value at the same time, use the provided
+// convenience function instead -- Bool(name, value).
 func (k Key) Bool(v bool) KeyValue {
 	return KeyValue{
 		Key:   k,
@@ -18,15 +18,10 @@ func (k Key) Bool(v bool) KeyValue {
 	}
 }
 
-// BoolSlice returns a [KeyValue] for a []bool value.
+// BoolSlice creates a KeyValue instance with a BOOLSLICE Value.
 //
-// Note that many observability backends are not optimized to query, index, or
-// aggregate complex attribute values. Complex values may also carry
-// additional performance overhead. Prefer primitive values when
-// possible.
-//
-// If creating both a key and value at the same time, use the package-level
-// [BoolSlice] function.
+// If creating both a key and value at the same time, use the provided
+// convenience function instead -- BoolSlice(name, value).
 func (k Key) BoolSlice(v []bool) KeyValue {
 	return KeyValue{
 		Key:   k,
@@ -34,12 +29,10 @@ func (k Key) BoolSlice(v []bool) KeyValue {
 	}
 }
 
-// Int returns a [KeyValue] for an int value.
+// Int creates a KeyValue instance with an INT64 Value.
 //
-// It is provided as a convenience for [Key.Int64].
-//
-// If creating both a key and value at the same time, use the package-level [Int]
-// function.
+// If creating both a key and value at the same time, use the provided
+// convenience function instead -- Int(name, value).
 func (k Key) Int(v int) KeyValue {
 	return KeyValue{
 		Key:   k,
@@ -47,17 +40,10 @@ func (k Key) Int(v int) KeyValue {
 	}
 }
 
-// IntSlice returns a [KeyValue] for a []int value.
+// IntSlice creates a KeyValue instance with an INT64SLICE Value.
 //
-// It is provided as a convenience for [Key.Int64Slice].
-//
-// Note that many observability backends are not optimized to query, index, or
-// aggregate complex attribute values. Complex values may also carry
-// additional performance overhead. Prefer primitive values when
-// possible.
-//
-// If creating both a key and value at the same time, use the package-level
-// [IntSlice] function.
+// If creating both a key and value at the same time, use the provided
+// convenience function instead -- IntSlice(name, value).
 func (k Key) IntSlice(v []int) KeyValue {
 	return KeyValue{
 		Key:   k,
@@ -65,10 +51,10 @@ func (k Key) IntSlice(v []int) KeyValue {
 	}
 }
 
-// Int64 returns a [KeyValue] for an int64 value.
+// Int64 creates a KeyValue instance with an INT64 Value.
 //
-// If creating both a key and value at the same time, use the package-level
-// [Int64] function.
+// If creating both a key and value at the same time, use the provided
+// convenience function instead -- Int64(name, value).
 func (k Key) Int64(v int64) KeyValue {
 	return KeyValue{
 		Key:   k,
@@ -76,15 +62,10 @@ func (k Key) Int64(v int64) KeyValue {
 	}
 }
 
-// Int64Slice returns a [KeyValue] for a []int64 value.
+// Int64Slice creates a KeyValue instance with an INT64SLICE Value.
 //
-// Note that many observability backends are not optimized to query, index, or
-// aggregate complex attribute values. Complex values may also carry
-// additional performance overhead. Prefer primitive values when
-// possible.
-//
-// If creating both a key and value at the same time, use the package-level
-// [Int64Slice] function.
+// If creating both a key and value at the same time, use the provided
+// convenience function instead -- Int64Slice(name, value).
 func (k Key) Int64Slice(v []int64) KeyValue {
 	return KeyValue{
 		Key:   k,
@@ -92,10 +73,10 @@ func (k Key) Int64Slice(v []int64) KeyValue {
 	}
 }
 
-// Float64 returns a [KeyValue] for a float64 value.
+// Float64 creates a KeyValue instance with a FLOAT64 Value.
 //
-// If creating both a key and value at the same time, use the package-level
-// [Float64] function.
+// If creating both a key and value at the same time, use the provided
+// convenience function instead -- Float64(name, value).
 func (k Key) Float64(v float64) KeyValue {
 	return KeyValue{
 		Key:   k,
@@ -103,15 +84,10 @@ func (k Key) Float64(v float64) KeyValue {
 	}
 }
 
-// Float64Slice returns a [KeyValue] for a []float64 value.
+// Float64Slice creates a KeyValue instance with a FLOAT64SLICE Value.
 //
-// Note that many observability backends are not optimized to query, index, or
-// aggregate complex attribute values. Complex values may also carry
-// additional performance overhead. Prefer primitive values when
-// possible.
-//
-// If creating both a key and value at the same time, use the package-level
-// [Float64Slice] function.
+// If creating both a key and value at the same time, use the provided
+// convenience function instead -- Float64(name, value).
 func (k Key) Float64Slice(v []float64) KeyValue {
 	return KeyValue{
 		Key:   k,
@@ -119,10 +95,10 @@ func (k Key) Float64Slice(v []float64) KeyValue {
 	}
 }
 
-// String returns a [KeyValue] for a string value.
+// String creates a KeyValue instance with a STRING Value.
 //
-// If creating both a key and value at the same time, use the package-level
-// [String] function.
+// If creating both a key and value at the same time, use the provided
+// convenience function instead -- String(name, value).
 func (k Key) String(v string) KeyValue {
 	return KeyValue{
 		Key:   k,
@@ -130,15 +106,10 @@ func (k Key) String(v string) KeyValue {
 	}
 }
 
-// StringSlice returns a [KeyValue] for a []string value.
+// StringSlice creates a KeyValue instance with a STRINGSLICE Value.
 //
-// Note that many observability backends are not optimized to query, index, or
-// aggregate complex attribute values. Complex values may also carry
-// additional performance overhead. Prefer primitive values when
-// possible.
-//
-// If creating both a key and value at the same time, use the package-level
-// [StringSlice] function.
+// If creating both a key and value at the same time, use the provided
+// convenience function instead -- StringSlice(name, value).
 func (k Key) StringSlice(v []string) KeyValue {
 	return KeyValue{
 		Key:   k,
@@ -146,15 +117,10 @@ func (k Key) StringSlice(v []string) KeyValue {
 	}
 }
 
-// ByteSlice returns a [KeyValue] for a []byte value.
+// ByteSlice creates a KeyValue instance with a BYTESLICE Value.
 //
-// Note that many observability backends are not optimized to query, index, or
-// aggregate complex attribute values. Complex values may also carry
-// additional performance overhead. Prefer primitive values when
-// possible.
-//
-// If creating both a key and value at the same time, use the package-level
-// [ByteSlice] function.
+// If creating both a key and value at the same time, use the provided
+// convenience function instead -- ByteSlice(name, value).
 func (k Key) ByteSlice(v []byte) KeyValue {
 	return KeyValue{
 		Key:   k,
@@ -162,40 +128,14 @@ func (k Key) ByteSlice(v []byte) KeyValue {
 	}
 }
 
-// Slice returns a [KeyValue] for a []Value value.
+// Slice creates a KeyValue instance with a SLICE Value.
 //
-// Note that many observability backends are not optimized to query, index, or
-// aggregate complex attribute values. Complex values may also carry
-// additional performance overhead. Prefer primitive values when
-// possible.
-//
-// If creating both a key and value at the same time, use the package-level
-// [Slice] function.
+// If creating both a key and value at the same time, use the provided
+// convenience function instead -- Slice(name, values...).
 func (k Key) Slice(v ...Value) KeyValue {
 	return KeyValue{
 		Key:   k,
 		Value: SliceValue(v...),
-	}
-}
-
-// Map returns a [KeyValue] for a []KeyValue value.
-//
-// Note that many observability backends are not optimized to query, index, or
-// aggregate complex attribute values. Complex values may also carry
-// additional performance overhead. Prefer primitive values when
-// possible.
-//
-// Users should avoid providing duplicate keys; many receivers handle maps
-// containing duplicate keys unpredictably.
-//
-// The order of v is not preserved.
-//
-// If creating both a key and value at the same time, use the package-level [Map]
-// function.
-func (k Key) Map(v ...KeyValue) KeyValue {
-	return KeyValue{
-		Key:   k,
-		Value: MapValue(v...),
 	}
 }
 

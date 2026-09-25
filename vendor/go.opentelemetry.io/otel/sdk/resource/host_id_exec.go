@@ -3,7 +3,7 @@
 
 //go:build darwin || dragonfly || freebsd || netbsd || openbsd || solaris
 
-package resource
+package resource // import "go.opentelemetry.io/otel/sdk/resource"
 
 import (
 	"context"

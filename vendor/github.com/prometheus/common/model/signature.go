@@ -14,7 +14,7 @@
 package model
 
 import (
-	"slices"
+	"sort"
 )
 
 // SeparatorByte is a byte that cannot occur in valid UTF-8 sequences and is
@@ -37,7 +37,7 @@ func LabelsToSignature(labels map[string]string) uint64 {
 	for labelName := range labels {
 		labelNames = append(labelNames, labelName)
 	}
-	slices.Sort(labelNames)
+	sort.Strings(labelNames)
 
 	sum := hashNew()
 	for _, labelName := range labelNames {
@@ -60,7 +60,7 @@ func labelSetToFingerprint(ls LabelSet) Fingerprint {
 	for labelName := range ls {
 		labelNames = append(labelNames, labelName)
 	}
-	slices.Sort(labelNames)
+	sort.Sort(labelNames)
 
 	sum := hashNew()
 	for _, labelName := range labelNames {
@@ -100,7 +100,7 @@ func SignatureForLabels(m Metric, labels ...LabelName) uint64 {
 		return emptyLabelSignature
 	}
 
-	slices.Sort(labels)
+	sort.Sort(LabelNames(labels))
 
 	sum := hashNew()
 	for _, label := range labels {
@@ -129,7 +129,7 @@ func SignatureWithoutLabels(m Metric, labels map[LabelName]struct{}) uint64 {
 	if len(labelNames) == 0 {
 		return emptyLabelSignature
 	}
-	slices.Sort(labelNames)
+	sort.Sort(labelNames)
 
 	sum := hashNew()
 	for _, labelName := range labelNames {

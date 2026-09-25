@@ -39,7 +39,7 @@ import (
 	"go.etcd.io/etcd/client/pkg/v3/verify"
 )
 
-// NewListener creates a new listener.
+// NewListener creates a new listner.
 func NewListener(addr, scheme string, tlsinfo *TLSInfo) (l net.Listener, err error) {
 	return newListener(addr, scheme, WithTLSInfo(tlsinfo))
 }

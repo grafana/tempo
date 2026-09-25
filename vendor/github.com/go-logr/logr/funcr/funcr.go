@@ -426,7 +426,7 @@ func (f Formatter) colon() byte {
 }
 
 func (f Formatter) pretty(value any) string {
-	return f.prettyWithFlags(value, 0, 0, 0, nil)
+	return f.prettyWithFlags(value, 0, 0)
 }
 
 const (
@@ -434,13 +434,7 @@ const (
 )
 
 // TODO: This is not fast. Most of the overhead goes here.
-// value: The value to render
-// flags: Bitmask of flags (see above)
-// depth: The current depth of nested structs, slices, arrays, and maps
-// ptrDepth: The current depth of including pointer dereferences
-// ptrMap: A map of pointers already seen, to avoid infinite recursion (usually
-// nil unless ptrDepth is large)
-func (f Formatter) prettyWithFlags(value any, flags uint32, depth int, ptrDepth int, ptrMap map[uintptr]bool) string {
+func (f Formatter) prettyWithFlags(value any, flags uint32, depth int) string {
 	if depth > f.opts.MaxLogDepth {
 		return `"<max-log-depth-exceeded>"`
 	}
@@ -510,7 +504,7 @@ func (f Formatter) prettyWithFlags(value any, flags uint32, depth int, ptrDepth 
 			// arbitrary keys might need escaping
 			buf.WriteString(prettyString(k))
 			buf.WriteByte(f.colon())
-			buf.WriteString(f.prettyWithFlags(v[i+1], 0, depth+1, ptrDepth+1, ptrMap))
+			buf.WriteString(f.prettyWithFlags(v[i+1], 0, depth+1))
 		}
 		if flags&flagRawStruct == 0 {
 			buf.WriteByte('}')
@@ -582,7 +576,7 @@ func (f Formatter) prettyWithFlags(value any, flags uint32, depth int, ptrDepth 
 			}
 			printComma = true // if we got here, we are rendering a field
 			if fld.Anonymous && fld.Type.Kind() == reflect.Struct && name == "" {
-				buf.WriteString(f.prettyWithFlags(v.Field(i).Interface(), flags|flagRawStruct, depth+1, ptrDepth+1, ptrMap))
+				buf.WriteString(f.prettyWithFlags(v.Field(i).Interface(), flags|flagRawStruct, depth+1))
 				continue
 			}
 			if name == "" {
@@ -591,7 +585,7 @@ func (f Formatter) prettyWithFlags(value any, flags uint32, depth int, ptrDepth 
 			// field names can't contain characters which need escaping
 			buf.WriteString(f.quoted(name, false))
 			buf.WriteByte(f.colon())
-			buf.WriteString(f.prettyWithFlags(v.Field(i).Interface(), 0, depth+1, ptrDepth+1, ptrMap))
+			buf.WriteString(f.prettyWithFlags(v.Field(i).Interface(), 0, depth+1))
 		}
 		if flags&flagRawStruct == 0 {
 			buf.WriteByte('}')
@@ -618,7 +612,7 @@ func (f Formatter) prettyWithFlags(value any, flags uint32, depth int, ptrDepth 
 				buf.WriteByte(f.comma())
 			}
 			e := v.Index(i)
-			buf.WriteString(f.prettyWithFlags(e.Interface(), 0, depth+1, ptrDepth+1, ptrMap))
+			buf.WriteString(f.prettyWithFlags(e.Interface(), 0, depth+1))
 		}
 		buf.WriteByte(']')
 		return buf.String()
@@ -643,8 +637,7 @@ func (f Formatter) prettyWithFlags(value any, flags uint32, depth int, ptrDepth 
 				keystr = prettyString(keystr)
 			} else {
 				// prettyWithFlags will produce already-escaped values
-				// key depth is unrelated to overall depth
-				keystr = f.prettyWithFlags(it.Key().Interface(), 0, 0, ptrDepth, ptrMap)
+				keystr = f.prettyWithFlags(it.Key().Interface(), 0, depth+1)
 				if t.Key().Kind() != reflect.String {
 					// JSON only does string keys.  Unlike Go's standard JSON, we'll
 					// convert just about anything to a string.
@@ -653,34 +646,16 @@ func (f Formatter) prettyWithFlags(value any, flags uint32, depth int, ptrDepth 
 			}
 			buf.WriteString(keystr)
 			buf.WriteByte(f.colon())
-			buf.WriteString(f.prettyWithFlags(it.Value().Interface(), 0, depth+1, ptrDepth+1, ptrMap))
+			buf.WriteString(f.prettyWithFlags(it.Value().Interface(), 0, depth+1))
 			i++
 		}
 		buf.WriteByte('}')
 		return buf.String()
-	case reflect.Pointer, reflect.Interface:
+	case reflect.Ptr, reflect.Interface:
 		if v.IsNil() {
 			return "null"
 		}
-		// Special case: recursive pointers.  For normal use we do not want to
-		// count pointer dereferences as depth, but if we see the same pointer
-		// again we have a recursion and need to stop.  After a large number of
-		// pointer dereferences we will start tracking pointers to avoid the
-		// perf hit of doing it in the normal path.
-		//
-		// This should not happen accidentally (e.g. json decoding should never
-		// do this) but we can handle it gracefully.
-		if ptrMap != nil && ptrMap[uintptr(v.Pointer())] {
-			depth = f.opts.MaxLogDepth + 1 // force a depth error
-		}
-		const maxDepthFactor = 4 // arbitrary, but we want it large enough to not false-alert
-		if ptrDepth > f.opts.MaxLogDepth*maxDepthFactor && ptrMap == nil {
-			ptrMap = map[uintptr]bool{}
-		}
-		if ptrMap != nil {
-			ptrMap[(uintptr)(v.Pointer())] = true
-		}
-		return f.prettyWithFlags(v.Elem().Interface(), 0, depth, ptrDepth+1, ptrMap)
+		return f.prettyWithFlags(v.Elem().Interface(), 0, depth)
 	}
 	return fmt.Sprintf(`"<unhandled-%s>"`, t.Kind().String())
 }
@@ -722,7 +697,7 @@ func isEmpty(v reflect.Value) bool {
 		return v.Float() == 0
 	case reflect.Complex64, reflect.Complex128:
 		return v.Complex() == 0
-	case reflect.Interface, reflect.Pointer:
+	case reflect.Interface, reflect.Ptr:
 		return v.IsNil()
 	}
 	return false

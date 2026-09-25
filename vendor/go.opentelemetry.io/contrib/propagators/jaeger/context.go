@@ -1,7 +1,7 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package jaeger
+package jaeger // import "go.opentelemetry.io/contrib/propagators/jaeger"
 
 import "context"
 

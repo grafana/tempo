@@ -25,9 +25,6 @@ import (
 //
 // Returns an error flattening in a single standard error, all validation messages.
 //
-// Options are forwarded to the underlying [SpecValidator]; in particular [WithPathLoader] injects a
-// confined document loader for validating a specification from an untrusted source.
-//
 //   - Proposal for enhancement: $ref should not have siblings
 //   - Proposal for enhancement: make sure documentation reflects all checks and warnings
 //   - Proposal for enhancement: check on discriminators
@@ -38,8 +35,8 @@ import (
 //   - Proposal for enhancement: check on required properties to support anyOf, allOf, oneOf
 //
 // NOTE: SecurityScopes are maps: no need to check uniqueness.
-func Spec(doc *loads.Document, formats strfmt.Registry, options ...Option) error {
-	errs, _ /*warns*/ := NewSpecValidator(doc.Schema(), formats, options...).Validate(doc)
+func Spec(doc *loads.Document, formats strfmt.Registry) error {
+	errs, _ /*warns*/ := NewSpecValidator(doc.Schema(), formats).Validate(doc)
 	if errs.HasErrors() {
 		return errors.CompositeValidationError(errs.Errors...)
 	}
@@ -58,20 +55,14 @@ type SpecValidator struct {
 }
 
 // NewSpecValidator creates a new swagger spec validator instance.
-//
-// Options apply to the schema validators used internally. In particular, [WithPathLoader] injects
-// the document loader used to resolve $ref while validating the specification — set a confined
-// loader when validating a specification from an untrusted source (see the package "Security"
-// notes on [WithPathLoader]).
-func NewSpecValidator(schema *spec.Schema, formats strfmt.Registry, options ...Option) *SpecValidator {
-	// schema options that apply to all called validators: built-in defaults first, then
-	// caller-supplied options (which may add a loader or override a default).
+func NewSpecValidator(schema *spec.Schema, formats strfmt.Registry) *SpecValidator {
+	// schema options that apply to all called validators
 	schemaOptions := new(SchemaValidatorOptions)
-	for _, o := range append([]Option{
+	for _, o := range []Option{
 		SwaggerSchema(true),
 		WithRecycleValidators(true),
 		// withRecycleResults(true),
-	}, options...) {
+	} {
 		o(schemaOptions)
 	}
 
@@ -261,7 +252,7 @@ func (s *SpecValidator) validateDuplicatePropertyNames() *Result {
 
 func (s *SpecValidator) resolveRef(ref *spec.Ref) (*spec.Schema, error) {
 	if s.spec.SpecFilePath() != "" {
-		return spec.ResolveRefWithBase(s.spec.Spec(), ref, s.schemaOptions.expandOptions(s.spec.SpecFilePath()))
+		return spec.ResolveRefWithBase(s.spec.Spec(), ref, &spec.ExpandOptions{RelativeBase: s.spec.SpecFilePath()})
 	}
 	// NOTE: it looks like with the new spec resolver, this code is now unrecheable
 	return spec.ResolveRef(s.spec.Spec(), ref)
@@ -798,10 +789,7 @@ func (s *SpecValidator) validateReferencesValid() *Result {
 		// NOTE: with default settings, loads.Document.Expanded()
 		// stops on first error. Anyhow, the expand option to continue
 		// on errors fails to report errors at all.
-		//
-		// Pass the injected loader (if any) so whole-spec expansion is confined too. When no loader
-		// is set, this is a no-op: loads falls back to the document's own loader.
-		exp, err := s.spec.Expanded(s.schemaOptions.expandOptions(""))
+		exp, err := s.spec.Expanded()
 		if err != nil {
 			res.AddErrors(unresolvedReferencesMsg(err))
 		}

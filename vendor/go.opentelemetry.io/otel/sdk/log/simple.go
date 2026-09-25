@@ -1,7 +1,7 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package log
+package log // import "go.opentelemetry.io/otel/sdk/log"
 
 import (
 	"context"
@@ -11,10 +11,10 @@ import (
 	"go.opentelemetry.io/otel/sdk/log/internal/observ"
 )
 
-// This is a compile-time check that SimpleProcessor implements Processor.
+// Compile-time check SimpleProcessor implements Processor.
 var _ Processor = (*SimpleProcessor)(nil)
 
-// SimpleProcessor is a processor that synchronously exports log records.
+// SimpleProcessor is an processor that synchronously exports log records.
 //
 // Use [NewSimpleProcessor] to create a SimpleProcessor.
 type SimpleProcessor struct {
@@ -29,8 +29,8 @@ type SimpleProcessor struct {
 // This Processor is not recommended for production use due to its synchronous
 // nature, which makes it suitable for testing, debugging, or demonstrating
 // other features, but can lead to slow performance and high computational
-// overhead. For production environments, use [NewBatchProcessor] instead.
-// However, there may be exceptions in which certain
+// overhead. For production environments, it is recommended to use
+// [NewBatchProcessor] instead. However, there may be exceptions where certain
 // [Exporter] implementations perform better with this Processor.
 func NewSimpleProcessor(exporter Exporter, _ ...SimpleProcessorOption) *SimpleProcessor {
 	slp := &SimpleProcessor{
@@ -56,8 +56,8 @@ func (*SimpleProcessor) Enabled(context.Context, EnabledParameters) bool {
 	return true
 }
 
-// OnEmit synchronously exports the provided log record.
-func (s *SimpleProcessor) OnEmit(ctx context.Context, r *Record) error {
+// OnEmit batches provided log record.
+func (s *SimpleProcessor) OnEmit(ctx context.Context, r *Record) (err error) {
 	if s.exporter == nil {
 		return nil
 	}
@@ -73,20 +73,20 @@ func (s *SimpleProcessor) OnEmit(ctx context.Context, r *Record) error {
 	(*records)[0] = *r
 
 	if s.inst != nil {
-		// Record the log record as processed at the point it is submitted to
-		// the exporter, independent of the export outcome.
-		s.inst.LogProcessed(ctx)
+		defer func() {
+			s.inst.LogProcessed(ctx, err)
+		}()
 	}
 	return s.exporter.Export(ctx, *records)
 }
 
-// Shutdown flushes the exporter before shutting it down.
+// Shutdown shuts down the exporter.
 func (s *SimpleProcessor) Shutdown(ctx context.Context) error {
 	if s.exporter == nil {
 		return nil
 	}
 
-	return shutdownExporter(ctx, s.exporter)
+	return s.exporter.Shutdown(ctx)
 }
 
 // ForceFlush flushes the exporter.

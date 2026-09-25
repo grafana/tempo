@@ -9,7 +9,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.etcd.io/etcd/api/v3/etcdserverpb"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 
@@ -64,17 +63,6 @@ func TestCodecMarshallAndUnmarshall_foreign_type(t *testing.T) {
 	err = c.Unmarshal(data, goprotoMessage2)
 	require.NoError(t, err)
 	assert.True(t, proto.Equal(goprotoMessage1, goprotoMessage2))
-}
-
-func TestCodecMarshalAndUnmarshalEtcdResponse(t *testing.T) {
-	c := NewCodec()
-	want := &etcdserverpb.RangeResponse{Count: 7}
-	data, err := c.Marshal(want)
-	require.NoError(t, err)
-
-	got := &etcdserverpb.RangeResponse{}
-	require.NoError(t, c.Unmarshal(data, got))
-	require.True(t, proto.Equal(want, got))
 }
 
 func TestWireCompatibility(t *testing.T) {

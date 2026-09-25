@@ -1,7 +1,7 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package metric
+package metric // import "go.opentelemetry.io/otel/metric"
 
 import (
 	"context"
@@ -157,8 +157,6 @@ type Int64Histogram interface {
 	embedded.Int64Histogram
 
 	// Record adds an additional value to the distribution.
-	//
-	// The incr value is expected to be non-negative.
 	//
 	// Use the WithAttributeSet (or, if performance is not a concern,
 	// the WithAttributes) option to include measurement attributes.

@@ -21,7 +21,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/prometheus/procfs/internal/parsers"
+	"github.com/prometheus/procfs/internal/util"
 )
 
 // The VM interface is described at
@@ -102,11 +102,11 @@ func (fs FS) VM() (*VM, error) {
 		name := filepath.Join(path, f.Name())
 		// ignore errors on read, as there are some write only
 		// in /proc/sys/vm
-		value, err := parsers.SysReadFile(name)
+		value, err := util.SysReadFile(name)
 		if err != nil {
 			continue
 		}
-		vp := parsers.NewValueParser(value)
+		vp := util.NewValueParser(value)
 
 		switch f.Name() {
 		case "admin_reserve_kbytes":
@@ -143,7 +143,7 @@ func (fs FS) VM() (*VM, error) {
 			stringSlice := strings.Fields(value)
 			pint64Slice := make([]*int64, 0, len(stringSlice))
 			for _, value := range stringSlice {
-				vp := parsers.NewValueParser(value)
+				vp := util.NewValueParser(value)
 				pint64Slice = append(pint64Slice, vp.PInt64())
 			}
 			vm.LowmemReserveRatio = pint64Slice

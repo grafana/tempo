@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/prometheus/procfs/internal/parsers"
+	"github.com/prometheus/procfs/internal/util"
 )
 
 var (
@@ -49,7 +49,7 @@ type ProcFDInfo struct {
 
 // FDInfo constructor. On kernels older than 3.8, InotifyInfos will always be empty.
 func (p Proc) FDInfo(fd string) (*ProcFDInfo, error) {
-	data, err := parsers.ReadFileNoStat(p.path("fdinfo", fd))
+	data, err := util.ReadFileNoStat(p.path("fdinfo", fd))
 	if err != nil {
 		return nil, err
 	}

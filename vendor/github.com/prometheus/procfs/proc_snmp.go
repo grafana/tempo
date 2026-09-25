@@ -21,7 +21,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/prometheus/procfs/internal/parsers"
+	"github.com/prometheus/procfs/internal/util"
 )
 
 // ProcSnmp models the content of /proc/<pid>/net/snmp.
@@ -135,7 +135,7 @@ type UdpLite struct { // nolint:revive
 
 func (p Proc) Snmp() (ProcSnmp, error) {
 	filename := p.path("net/snmp")
-	data, err := parsers.ReadFileNoStat(filename)
+	data, err := util.ReadFileNoStat(filename)
 	if err != nil {
 		return ProcSnmp{PID: p.PID}, err
 	}

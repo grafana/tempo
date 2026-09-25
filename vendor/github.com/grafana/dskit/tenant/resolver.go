@@ -22,6 +22,7 @@ import (
 //
 //nolint:revive
 func TenantID(ctx context.Context) (string, error) {
+	//lint:ignore faillint wrapper around upstream method
 	orgIDs, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return "", err
@@ -55,6 +56,7 @@ func TenantID(ctx context.Context) (string, error) {
 //
 //nolint:revive
 func TenantIDs(ctx context.Context) ([]string, error) {
+	//lint:ignore faillint wrapper around upstream method
 	orgID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, err
@@ -80,6 +82,7 @@ func parseTenantIDs(orgID string) ([]string, error) {
 //
 //nolint:revive
 func ExtractWithMetadata(ctx context.Context) (tenantID string, m Metadata, err error) {
+	//lint:ignore faillint wrapper around upstream method
 	orgIDs, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return "", Metadata{}, err

@@ -17,13 +17,10 @@ type waiter struct {
 }
 
 // NewWeighted creates a new weighted semaphore with the given
-// maximum combined weight for concurrent access. NewWeighted panics if n is
-// negative.
+// maximum combined weight for concurrent access.
 func NewWeighted(n int64) *Weighted {
-	if n < 0 {
-		panic("semaphore: size < 0")
-	}
-	return &Weighted{size: n}
+	w := &Weighted{size: n}
+	return w
 }
 
 // Weighted provides a way to bound concurrent access to a resource.

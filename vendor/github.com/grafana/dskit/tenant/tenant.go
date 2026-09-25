@@ -110,6 +110,7 @@ func JoinTenantIDs(tenantIDs []string) string {
 
 // ExtractTenantIDFromHTTPRequest extracts a single tenant ID directly from a HTTP request.
 func ExtractTenantIDFromHTTPRequest(req *http.Request) (string, context.Context, error) {
+	//lint:ignore faillint wrapper around upstream method
 	_, ctx, err := user.ExtractOrgIDFromHTTPRequest(req)
 	if err != nil {
 		return "", nil, err

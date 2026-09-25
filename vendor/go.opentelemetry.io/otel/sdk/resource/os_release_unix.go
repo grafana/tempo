@@ -3,7 +3,7 @@
 
 //go:build aix || dragonfly || freebsd || linux || netbsd || openbsd || solaris || zos
 
-package resource
+package resource // import "go.opentelemetry.io/otel/sdk/resource"
 
 import (
 	"bufio"

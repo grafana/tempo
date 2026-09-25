@@ -1,18 +1,9 @@
-version: v2
+version: v1beta1
 deps:
-  - buf.build/bufbuild/protovalidate:v0.14.2
+  - buf.build/bufbuild/protovalidate:v0.2.8
+build:
+  roots:
+    - .
 lint:
   use:
-    - STANDARD
-  except:
-    - ENUM_FIRST_VALUE_ZERO
-    - FIELD_NOT_REQUIRED
-    - IMPORT_USED
-    - PACKAGE_NO_IMPORT_CYCLE
-    - PROTOVALIDATE
-    - SYNTAX_SPECIFIED
-  disallow_comment_ignores: true
-breaking:
-  except:
-    - EXTENSION_NO_DELETE
-    - FIELD_SAME_DEFAULT
+    - DEFAULT
