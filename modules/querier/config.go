@@ -24,6 +24,10 @@ type Config struct {
 	ShuffleShardingIngestersLookbackPeriod time.Duration `yaml:"shuffle_sharding_ingesters_lookback_period"`
 	QueryRelevantIngesters                 bool          `yaml:"query_relevant_ingesters"`
 	SecondaryIngesterRing                  string        `yaml:"secondary_ingester_ring,omitempty"`
+
+	// Deprecated
+	// A future release removes querier polling. false makes the query-frontend's trace by id blocks mandatory.
+	BlocklistPollingEnabled bool `yaml:"blocklist_polling_enabled"`
 }
 
 type SearchConfig struct {
@@ -63,6 +67,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.TraceByID.QueryTimeout = 10 * time.Second
 	cfg.TraceByID.External.Timeout = 10 * time.Second
 	cfg.QueryRelevantIngesters = false
+	cfg.BlocklistPollingEnabled = true
 	cfg.ExtraQueryDelay = 0
 	cfg.MaxConcurrentQueries = 20
 	cfg.Search.QueryTimeout = 30 * time.Second

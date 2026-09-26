@@ -409,7 +409,7 @@ func (t *App) initQuerier() (services.Service, error) {
 	}
 
 	// do not enable polling if this is the single binary. in that case the backend-worker will take care of polling
-	if t.cfg.Target == Querier {
+	if t.cfg.Target == Querier && t.cfg.Querier.BlocklistPollingEnabled {
 		t.store.EnablePolling(context.Background(), nil, false)
 	}
 

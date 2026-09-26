@@ -1,0 +1,14 @@
+change_type: change
+component: querier
+note: Deprecate querier blocklist polling. The query-frontend now sends the blocks to search with each trace by ID job, so queriers can set `querier.blocklist_polling_enabled` to `false`, which cuts object storage requests and querier memory.
+issues: []
+subtext: |
+  Query-frontends and queriers can be upgraded in any order. Queriers on older versions ignore the blocks and keep using their own blocklist.
+  To roll out safely:
+  1. Upgrade all query-frontends and queriers. Leave `querier.blocklist_polling_enabled` unset, so queriers keep polling and nothing changes.
+  2. After every query-frontend runs this version, set `querier.blocklist_polling_enabled: false` on queriers.
+  Do not set it before the upgrade finishes. Older binaries reject the unknown key and fail to start.
+  A querier with polling disabled rejects trace by ID jobs from an older query-frontend with a 400, instead of silently missing backend traces.
+  To roll back, set `querier.blocklist_polling_enabled: true`.
+  A future release removes querier polling.
+user: electron0zero

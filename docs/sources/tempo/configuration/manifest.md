@@ -350,6 +350,7 @@ querier:
     shuffle_sharding_ingesters_enabled: false
     shuffle_sharding_ingesters_lookback_period: 1h0m0s
     query_relevant_ingesters: false
+    blocklist_polling_enabled: true
 query_frontend:
     max_outstanding_per_tenant: 2000
     max_batch_size: 7
