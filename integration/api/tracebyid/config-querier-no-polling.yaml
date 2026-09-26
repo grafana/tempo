@@ -1,0 +1,6 @@
+querier:
+  blocklist_polling_enabled: false
+
+live_store:
+  complete_block_timeout: 5s # timings: drop traces from live-stores soon so trace by id must read the backend
+  flush_op_timeout: 1s # timings: check for blocks to drop every second

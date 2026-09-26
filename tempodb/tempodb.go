@@ -85,6 +85,8 @@ type IterateObjectCallback func(id common.ID, obj []byte) bool
 
 type Reader interface {
 	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart, timeEnd time.Time, opts common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error)
+	FindInBlocks(ctx context.Context, id common.ID, metas []*backend.BlockMeta, opts common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error)
+	TraceByIDBlockMetas(tenantID string, timeStart, timeEnd time.Time) []*backend.BlockMeta
 	Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error)
 	SearchTags(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagsBlockRequest, opts common.SearchOptions) (*tempopb.SearchTagsV2Response, error)
 	SearchTagValues(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagValuesBlockRequest, opts common.SearchOptions) (*tempopb.SearchTagValuesResponse, error)
@@ -378,11 +380,69 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		return nil, nil, nil
 	}
 
+	partialTraceObjs, funcErrs, err := rw.findInBlocks(ctx, logger, id, copiedBlocklist, opts)
+
+	span.SetAttributes(attribute.Int("blockErrs", len(funcErrs)))
+	span.SetAttributes(attribute.Int("liveBlocks", len(blocklist)))
+	span.SetAttributes(attribute.Int("liveBlocksSearched", blocksSearched))
+	span.SetAttributes(attribute.Int("compactedBlocks", len(compactedBlocklist)))
+	span.SetAttributes(attribute.Int("compactedBlocksSearched", compactedBlocksSearched))
+
+	return partialTraceObjs, funcErrs, err
+}
+
+// FindInBlocks searches the given blocks for the trace. The caller picks the blocks, see TraceByIDBlockMetas.
+func (rw *readerWriter) FindInBlocks(ctx context.Context, id common.ID, metas []*backend.BlockMeta, opts common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error) {
+	logger := log.WithContext(ctx, log.Logger)
+	ctx, span := tracer.Start(ctx, "store.FindInBlocks")
+	defer span.End()
+
+	if len(metas) == 0 {
+		return nil, nil, nil
+	}
+
+	blocks := make([]interface{}, 0, len(metas))
+	for _, m := range metas {
+		blocks = append(blocks, m)
+	}
+
+	partialTraceObjs, funcErrs, err := rw.findInBlocks(ctx, logger, id, blocks, opts)
+
+	span.SetAttributes(attribute.Int("blockErrs", len(funcErrs)))
+	span.SetAttributes(attribute.Int("blocksSearched", len(metas)))
+
+	return partialTraceObjs, funcErrs, err
+}
+
+// TraceByIDBlockMetas returns the live and recently compacted blocks that a trace by id search over the time range must read.
+func (rw *readerWriter) TraceByIDBlockMetas(tenantID string, timeStart, timeEnd time.Time) []*backend.BlockMeta {
+	blockStart := make([]byte, 16)
+	blockEnd := bytes.Repeat([]byte{0xff}, 16)
+
+	blocklist := rw.blocklist.Metas(tenantID)
+	compactedBlocklist := rw.blocklist.CompactedMetas(tenantID)
+	metas := make([]*backend.BlockMeta, 0, len(blocklist))
+
+	for _, b := range blocklist {
+		if includeBlock(b, nil, blockStart, blockEnd, timeStart, timeEnd) {
+			metas = append(metas, b)
+		}
+	}
+	for _, c := range compactedBlocklist {
+		if includeCompactedBlock(c, nil, blockStart, blockEnd, rw.cfg.BlocklistPoll, timeStart, timeEnd) {
+			metas = append(metas, &c.BlockMeta)
+		}
+	}
+
+	return metas
+}
+
+func (rw *readerWriter) findInBlocks(ctx context.Context, logger gkLog.Logger, id common.ID, blocks []interface{}, opts common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error) {
 	if rw.cfg != nil && rw.cfg.Search != nil {
 		rw.cfg.Search.ApplyToOptions(&opts)
 	}
 
-	partialTraces, funcErrs, err := rw.pool.RunJobs(ctx, copiedBlocklist, func(ctx context.Context, payload interface{}) (interface{}, error) {
+	partialTraces, funcErrs, err := rw.pool.RunJobs(ctx, blocks, func(ctx context.Context, payload interface{}) (interface{}, error) {
 		meta := payload.(*backend.BlockMeta)
 		block, err := encoding.OpenBlock(meta, rw.r)
 		if err != nil {
@@ -410,12 +470,6 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 			partialTraceObjs = append(partialTraceObjs, trace)
 		}
 	}
-
-	span.SetAttributes(attribute.Int("blockErrs", len(funcErrs)))
-	span.SetAttributes(attribute.Int("liveBlocks", len(blocklist)))
-	span.SetAttributes(attribute.Int("liveBlocksSearched", blocksSearched))
-	span.SetAttributes(attribute.Int("compactedBlocks", len(compactedBlocklist)))
-	span.SetAttributes(attribute.Int("compactedBlocksSearched", compactedBlocksSearched))
 
 	return partialTraceObjs, funcErrs, err
 }

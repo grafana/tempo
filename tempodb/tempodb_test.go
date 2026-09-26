@@ -30,6 +30,7 @@ import (
 	"github.com/grafana/tempo/v3/pkg/util/test"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 	"github.com/grafana/tempo/v3/tempodb/backend/local"
+	"github.com/grafana/tempo/v3/tempodb/blocklist"
 	"github.com/grafana/tempo/v3/tempodb/encoding"
 	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 	"github.com/grafana/tempo/v3/tempodb/wal"
@@ -196,6 +197,70 @@ func TestNilOnUnknownTenantID(t *testing.T) {
 	assert.Nil(t, buff)
 	assert.Nil(t, err)
 	assert.Nil(t, failedBlocks)
+}
+
+func TestFindInBlocks(t *testing.T) {
+	r, w, _, _ := testConfig(t, 0)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	r.EnablePolling(ctx, &mockJobSharder{}, false)
+
+	wal := w.WAL()
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+	meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID}
+	head, err := wal.NewBlock(meta, model.CurrentEncoding)
+	require.NoError(t, err)
+
+	id := test.ValidTraceID(nil)
+	req := test.MakeTrace(1, id)
+	writeTraceToWal(t, head, dec, id, req, 0, 0)
+
+	_, err = w.CompleteBlock(ctx, head)
+	require.NoError(t, err)
+
+	r.(*readerWriter).pollBlocklist(ctx)
+
+	metas := r.TraceByIDBlockMetas(testTenantID, time.Time{}, time.Time{})
+	require.Len(t, metas, 1)
+
+	bFound, failedBlocks, err := r.FindInBlocks(ctx, id, metas, common.DefaultSearchOptions())
+	require.NoError(t, err)
+	require.Nil(t, failedBlocks)
+	require.Len(t, bFound, 1)
+	require.True(t, proto.Equal(bFound[0].Trace, req))
+
+	bFound, failedBlocks, err = r.FindInBlocks(ctx, id, nil, common.DefaultSearchOptions())
+	require.NoError(t, err)
+	require.Nil(t, failedBlocks)
+	require.Empty(t, bFound)
+
+	future := time.Now().Add(100 * time.Hour)
+	require.Empty(t, r.TraceByIDBlockMetas(testTenantID, future, future.Add(time.Hour)))
+}
+
+func TestTraceByIDBlockMetas(t *testing.T) {
+	r, _, _, _ := testConfig(t, time.Minute)
+
+	live := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID}
+	recentlyCompacted := &backend.CompactedBlockMeta{
+		BlockMeta:     backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID},
+		CompactedTime: time.Now(),
+	}
+	oldCompacted := &backend.CompactedBlockMeta{
+		BlockMeta:     backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID},
+		CompactedTime: time.Now().Add(-time.Hour),
+	}
+	r.(*readerWriter).blocklist.ApplyPollResults(
+		blocklist.PerTenant{testTenantID: {live}},
+		blocklist.PerTenantCompacted{testTenantID: {recentlyCompacted, oldCompacted}},
+	)
+
+	// compacted blocks stay searchable for 2x the poll interval, matching Find
+	metas := r.TraceByIDBlockMetas(testTenantID, time.Time{}, time.Time{})
+	require.Len(t, metas, 2)
+	require.ElementsMatch(t, []backend.UUID{live.BlockID, recentlyCompacted.BlockID}, []backend.UUID{metas[0].BlockID, metas[1].BlockID})
 }
 
 func TestBlockCleanup(t *testing.T) {

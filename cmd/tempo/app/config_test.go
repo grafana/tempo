@@ -142,6 +142,25 @@ func TestConfig_CheckConfig(t *testing.T) {
 			expect: nil,
 		},
 		{
+			name: "querier with blocklist polling is deprecated",
+			config: func() *Config {
+				cfg := NewDefaultConfig()
+				cfg.Target = Querier
+				return cfg
+			}(),
+			expect: []ConfigWarning{warnQuerierBlocklistPolling},
+		},
+		{
+			name: "querier without blocklist polling",
+			config: func() *Config {
+				cfg := NewDefaultConfig()
+				cfg.Target = Querier
+				cfg.Querier.BlocklistPollingEnabled = false
+				return cfg
+			}(),
+			expect: nil,
+		},
+		{
 			name: "trace storage has too many dedicated columns",
 			config: func() *Config {
 				cfg := NewDefaultConfig()
