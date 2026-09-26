@@ -250,6 +250,10 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		}
 	}
 
+	if c.Target == Querier && c.Querier.BlocklistPollingEnabled {
+		warnings = append(warnings, warnQuerierBlocklistPolling)
+	}
+
 	if !c.Frontend.RF1After.IsZero() {
 		warnings = append(warnings, ConfigWarning{
 			Message: "query_frontend.rf1_after is deprecated and will be removed in a future release.",
@@ -304,6 +308,11 @@ var (
 	warnNativeAWSAuthEnabled = ConfigWarning{
 		Message: "c.StorageConfig.Trace.S3.NativeAWSAuthEnabled is deprecated and will be removed in a future release.",
 		Explain: "This setting is no longer necessary and will be ignored.",
+	}
+
+	warnQuerierBlocklistPolling = ConfigWarning{
+		Message: "DEPRECATED: querier.blocklist_polling_enabled is deprecated and queriers will stop polling the blocklist in a future release.",
+		Explain: "Once all query-frontends run this version, set querier.blocklist_polling_enabled: false. Queriers then search only the blocks the query-frontend sends.",
 	}
 
 	warnConfiguredLegacyCache = ConfigWarning{
