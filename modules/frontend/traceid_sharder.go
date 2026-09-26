@@ -1,9 +1,13 @@
 package frontend
 
 import (
+	"bytes"
 	"encoding/hex"
 	"math"
 	"net/http"
+	"runtime"
+	"slices"
+	"sort"
 	"time"
 
 	"github.com/go-kit/log" //nolint:all //deprecated
@@ -14,7 +18,9 @@ import (
 	"github.com/grafana/tempo/v3/pkg/blockboundary"
 	"github.com/grafana/tempo/v3/pkg/validation"
 	"github.com/grafana/tempo/v3/tempodb"
+	"github.com/grafana/tempo/v3/tempodb/backend"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -151,6 +157,22 @@ func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request, startT
 
 	blockBoundaries := s.blockBoundariesForTenant(userID, startTime, endTime)
 
+	// queriers trust blocks, so they must come from this frontend's blocklist and never from the caller
+	if q := parent.HTTPRequest().URL.Query(); q.Has(api.BlocksKey) {
+		q.Del(api.BlocksKey)
+		parent.HTTPRequest().URL.RawQuery = q.Encode()
+	}
+
+	// sorted by block id so each shard's blocks are one contiguous range
+	blocks := s.reader.TraceByIDBlockMetas(userID, startTime, endTime)
+	slices.SortFunc(blocks, func(a, b *backend.BlockMeta) int {
+		return bytes.Compare(a.BlockID[:], b.BlockID[:])
+	})
+	shardBlocks, err := encodeShardBlocks(blocks, blockBoundaries)
+	if err != nil {
+		return nil, err
+	}
+
 	reqs := make([]pipeline.Request, 0, len(blockBoundaries))
 	params := map[string]string{}
 
@@ -186,6 +208,8 @@ func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request, startT
 			params[querier.BlockStartKey] = hex.EncodeToString(blockBoundaries[i-1])
 			params[querier.BlockEndKey] = hex.EncodeToString(blockBoundaries[i])
 			params[querier.QueryModeKey] = querier.QueryModeBlocks
+			// queriers search exactly these blocks, so they don't need to poll the blocklist
+			params[api.BlocksKey] = shardBlocks[i-1]
 
 			return api.BuildQueryRequest(r, params), nil
 		})
@@ -193,4 +217,38 @@ func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request, startT
 	}
 
 	return reqs, nil
+}
+
+// encodeShardBlocks encodes the blocks of each shard between adjacent boundaries. blocks must be sorted by id.
+// It runs in parallel because encoding is most of the cost of building trace by id jobs for large tenants.
+func encodeShardBlocks(blocks []*backend.BlockMeta, blockBoundaries [][]byte) ([]string, error) {
+	numShards := len(blockBoundaries) - 1
+	if numShards <= 0 {
+		return nil, nil
+	}
+	encoded := make([]string, numShards)
+	workers := min(runtime.GOMAXPROCS(0), numShards)
+
+	var g errgroup.Group
+	for w := range workers {
+		g.Go(func() error {
+			for i := w; i < numShards; i += workers {
+				var err error
+				encoded[i], err = api.EncodeTraceByIDBlocks(blocksInRange(blocks, blockBoundaries[i], blockBoundaries[i+1]))
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+	}
+
+	return encoded, g.Wait()
+}
+
+// blocksInRange returns the blocks with start <= id <= end, matching the querier's shard check. blocks must be sorted by id.
+func blocksInRange(blocks []*backend.BlockMeta, start, end []byte) []*backend.BlockMeta {
+	lo := sort.Search(len(blocks), func(i int) bool { return bytes.Compare(blocks[i].BlockID[:], start) >= 0 })
+	hi := sort.Search(len(blocks), func(i int) bool { return bytes.Compare(blocks[i].BlockID[:], end) > 0 })
+	return blocks[lo:hi]
 }
