@@ -2158,15 +2158,6 @@ The `compaction` configuration block is used by the scheduler and worker.
 # Optional
 # Number of blocks to clear in parallel within a single tenant's retention pass.
 [retention_block_concurrency: <int> | default=4]
-
-# Optional
-# The maximum amount of time to spend compacting a single tenant before moving to the next.
-[max_time_per_tenant: <duration> | default=5m]
-
-# Optional
-# The time between compaction cycles.
-# Note: The default will be used if the value is set to 0.
-[compaction_cycle: <duration> | default=30s]
 ```
 
 ### Filter policies

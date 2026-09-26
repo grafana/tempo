@@ -47,13 +47,6 @@ func TestRetention(t *testing.T) {
 	assert.NoError(t, err)
 
 	ctx := context.Background()
-	err = c.EnableCompaction(ctx, &CompactorConfig{
-		MaxCompactionRange:      time.Hour,
-		BlockRetention:          time.Hour,
-		CompactedBlockRetention: time.Hour,
-	}, &mockSharder{}, &mockOverrides{})
-	require.NoError(t, err)
-
 	r.EnablePolling(ctx, &mockJobSharder{}, false)
 
 	blockID := backend.NewUUID()
@@ -74,13 +67,19 @@ func TestRetention(t *testing.T) {
 	checkBlocklists(ctx, t, uuid.UUID(blockID), 1, 0, rw)
 
 	// retention should mark it compacted
-	rw.compactorCfg.BlockRetention = 0
-	r.(*readerWriter).doRetention(ctx)
+	c.RetainWithConfig(ctx, &CompactorConfig{
+		BlockRetention:          0,
+		CompactedBlockRetention: time.Hour,
+		RetentionConcurrency:    DefaultRetentionConcurrency,
+	}, &mockSharder{}, &mockOverrides{})
 	checkBlocklists(ctx, t, uuid.UUID(blockID), 0, 1, rw)
 
 	// retention again should clear it
-	rw.compactorCfg.CompactedBlockRetention = 0
-	r.(*readerWriter).doRetention(ctx)
+	c.RetainWithConfig(ctx, &CompactorConfig{
+		BlockRetention:          time.Hour,
+		CompactedBlockRetention: 0,
+		RetentionConcurrency:    DefaultRetentionConcurrency,
+	}, &mockSharder{}, &mockOverrides{})
 	checkBlocklists(ctx, t, uuid.UUID(blockID), 0, 0, rw)
 }
 
@@ -109,13 +108,6 @@ func TestRetentionSkipsBlockAlreadyMarkedCompacted(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	err = c.EnableCompaction(ctx, &CompactorConfig{
-		MaxCompactionRange:      time.Hour,
-		BlockRetention:          time.Hour,
-		CompactedBlockRetention: time.Hour,
-	}, &mockSharder{}, &mockOverrides{})
-	require.NoError(t, err)
-
 	r.EnablePolling(ctx, &mockJobSharder{}, false)
 
 	blockID := backend.NewUUID()
@@ -137,8 +129,10 @@ func TestRetentionSkipsBlockAlreadyMarkedCompacted(t *testing.T) {
 
 	before := prom_testutil.ToFloat64(metricRetentionErrors)
 
-	rw.compactorCfg.BlockRetention = 0
-	rw.doRetention(ctx)
+	c.RetainWithConfig(ctx, &CompactorConfig{
+		BlockRetention:          0,
+		CompactedBlockRetention: time.Hour,
+	}, &mockSharder{}, &mockOverrides{})
 
 	require.Equal(t, before, prom_testutil.ToFloat64(metricRetentionErrors),
 		"a block already retired by someone else must not count as a retention error")
@@ -173,13 +167,6 @@ func TestRetentionSkipsBlockAlreadyCleared(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	err = c.EnableCompaction(ctx, &CompactorConfig{
-		MaxCompactionRange:      time.Hour,
-		BlockRetention:          0,
-		CompactedBlockRetention: time.Hour,
-	}, &mockSharder{}, &mockOverrides{})
-	require.NoError(t, err)
-
 	r.EnablePolling(ctx, &mockJobSharder{}, false)
 
 	blockID := backend.NewUUID()
@@ -195,7 +182,10 @@ func TestRetentionSkipsBlockAlreadyCleared(t *testing.T) {
 	checkBlocklists(ctx, t, uuid.UUID(blockID), 1, 0, rw)
 
 	// Mark it compacted for real, updating both the backend and the local view.
-	rw.doRetention(ctx)
+	c.RetainWithConfig(ctx, &CompactorConfig{
+		BlockRetention:          0,
+		CompactedBlockRetention: time.Hour,
+	}, &mockSharder{}, &mockOverrides{})
 	checkBlocklists(ctx, t, uuid.UUID(blockID), 0, 1, rw)
 
 	// Simulate a concurrent retention pass clearing the block on the backend
@@ -220,8 +210,10 @@ func TestRetentionSkipsBlockAlreadyCleared(t *testing.T) {
 	beforeErrors := prom_testutil.ToFloat64(metricRetentionErrors)
 	beforeDeleted := prom_testutil.ToFloat64(metricDeleted)
 
-	rw.compactorCfg.CompactedBlockRetention = 0
-	rw.doRetention(ctx)
+	c.RetainWithConfig(ctx, &CompactorConfig{
+		BlockRetention:          0,
+		CompactedBlockRetention: 0,
+	}, &mockSharder{}, &mockOverrides{})
 
 	require.Equal(t, beforeErrors, prom_testutil.ToFloat64(metricRetentionErrors),
 		"a block already cleared by someone else must not count as a retention error")
@@ -257,13 +249,6 @@ func TestRetentionUpdatesBlocklistImmediately(t *testing.T) {
 	ctx := context.Background()
 	r.EnablePolling(ctx, &mockJobSharder{}, false)
 
-	err = c.EnableCompaction(context.Background(), &CompactorConfig{
-		MaxCompactionRange:      time.Hour,
-		BlockRetention:          0,
-		CompactedBlockRetention: 0,
-	}, &mockSharder{}, &mockOverrides{})
-	require.NoError(t, err)
-
 	wal := w.WAL()
 	assert.NoError(t, err)
 
@@ -283,18 +268,22 @@ func TestRetentionUpdatesBlocklistImmediately(t *testing.T) {
 	require.Equal(t, blockID, rw.blocklist.Metas(testTenantID)[0].BlockID)
 
 	// Mark it compacted
-	r.(*readerWriter).compactorCfg.BlockRetention = 0 // Immediately delete
-	r.(*readerWriter).compactorCfg.CompactedBlockRetention = time.Hour
-	r.(*readerWriter).doRetention(ctx)
+	c.RetainWithConfig(ctx, &CompactorConfig{
+		BlockRetention:          0,
+		CompactedBlockRetention: time.Hour,
+		RetentionConcurrency:    DefaultRetentionConcurrency,
+	}, &mockSharder{}, &mockOverrides{})
 
 	// Immediately compacted
 	require.Empty(t, rw.blocklist.Metas(testTenantID))
 	require.Equal(t, blockID, rw.blocklist.CompactedMetas(testTenantID)[0].BlockID)
 
 	// Now delete it permanently
-	r.(*readerWriter).compactorCfg.BlockRetention = time.Hour
-	r.(*readerWriter).compactorCfg.CompactedBlockRetention = 0 // Immediately delete
-	r.(*readerWriter).doRetention(ctx)
+	c.RetainWithConfig(ctx, &CompactorConfig{
+		BlockRetention:          time.Hour,
+		CompactedBlockRetention: 0,
+		RetentionConcurrency:    DefaultRetentionConcurrency,
+	}, &mockSharder{}, &mockOverrides{})
 
 	require.Empty(t, rw.blocklist.Metas(testTenantID))
 	require.Empty(t, rw.blocklist.CompactedMetas(testTenantID))
@@ -321,15 +310,14 @@ func TestBlockRetentionOverride(t *testing.T) {
 	require.NoError(t, err)
 
 	overrides := &mockOverrides{}
-
-	ctx := context.Background()
-	err = c.EnableCompaction(ctx, &CompactorConfig{
+	cfg := &CompactorConfig{
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          time.Hour,
 		CompactedBlockRetention: 0,
-	}, &mockSharder{}, overrides)
-	require.NoError(t, err)
+		RetentionConcurrency:    DefaultRetentionConcurrency,
+	}
 
+	ctx := context.Background()
 	r.EnablePolling(ctx, &mockJobSharder{}, false)
 
 	cutTestBlocks(t, w, testTenantID, 10, 10)
@@ -344,19 +332,19 @@ func TestBlockRetentionOverride(t *testing.T) {
 
 	// Retention = 1 hour, does nothing
 	overrides.blockRetention = time.Hour
-	r.(*readerWriter).doRetention(ctx)
+	c.RetainWithConfig(ctx, cfg, &mockSharder{}, overrides)
 	rw.pollBlocklist(ctx)
 	require.Equal(t, 10, len(rw.blocklist.Metas(testTenantID)))
 
 	// Retention = 1 minute, still does nothing
 	overrides.blockRetention = time.Minute
-	r.(*readerWriter).doRetention(ctx)
+	c.RetainWithConfig(ctx, cfg, &mockSharder{}, overrides)
 	rw.pollBlocklist(ctx)
 	require.Equal(t, 10, len(rw.blocklist.Metas(testTenantID)))
 
 	// Retention = 1ns, deletes everything
 	overrides.blockRetention = time.Nanosecond
-	r.(*readerWriter).doRetention(ctx)
+	c.RetainWithConfig(ctx, cfg, &mockSharder{}, overrides)
 	rw.pollBlocklist(ctx)
 	require.Equal(t, 0, len(rw.blocklist.Metas(testTenantID)))
 }
@@ -384,15 +372,14 @@ func TestBlockRetentionOverrideDisabled(t *testing.T) {
 	overrides := &mockOverrides{
 		disabled: true,
 	}
-
-	ctx := context.Background()
-	err = c.EnableCompaction(ctx, &CompactorConfig{
+	cfg := &CompactorConfig{
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          time.Hour,
 		CompactedBlockRetention: 0,
-	}, &mockSharder{}, overrides)
-	require.NoError(t, err)
+		RetentionConcurrency:    DefaultRetentionConcurrency,
+	}
 
+	ctx := context.Background()
 	r.EnablePolling(ctx, &mockJobSharder{}, false)
 
 	cutTestBlocks(t, w, testTenantID, 10, 10)
@@ -409,7 +396,7 @@ func TestBlockRetentionOverrideDisabled(t *testing.T) {
 
 	// Retention = 1ns, deletes everything
 	overrides.blockRetention = time.Nanosecond
-	r.(*readerWriter).doRetention(ctx)
+	c.RetainWithConfig(ctx, cfg, &mockSharder{}, overrides)
 	rw.pollBlocklist(ctx)
 	require.Equal(t, 10, len(rw.blocklist.Metas(testTenantID)))
 }
@@ -560,12 +547,6 @@ func TestRetentionCacheEviction(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	err = c.EnableCompaction(ctx, &CompactorConfig{
-		MaxCompactionRange:      time.Hour,
-		BlockRetention:          time.Hour,
-		CompactedBlockRetention: time.Hour,
-	}, &mockSharder{}, &mockOverrides{})
-	require.NoError(t, err)
 
 	r.EnablePolling(ctx, &mockJobSharder{}, false)
 
@@ -599,17 +580,22 @@ func TestRetentionCacheEviction(t *testing.T) {
 	require.True(t, found, "index key should be in trace-id-index cache before retention")
 
 	// Mark compacted — cache should not be touched at this stage
-	rw.compactorCfg.BlockRetention = 0
-	rw.compactorCfg.CompactedBlockRetention = time.Hour
-	rw.doRetention(ctx)
+	c.RetainWithConfig(ctx, &CompactorConfig{
+		BlockRetention:          0,
+		CompactedBlockRetention: time.Hour,
+		RetentionConcurrency:    DefaultRetentionConcurrency,
+	}, &mockSharder{}, &mockOverrides{})
 	checkBlocklists(ctx, t, uuid.UUID(blockMeta.BlockID), 0, 1, rw)
 
 	_, found = bloomCache.FetchKey(ctx, bloomKey)
 	require.True(t, found, "bloom key should remain cached after mark-compacted")
 
 	// Delete the compacted block — each role's cache entry should be evicted
-	rw.compactorCfg.CompactedBlockRetention = 0
-	rw.doRetention(ctx)
+	c.RetainWithConfig(ctx, &CompactorConfig{
+		BlockRetention:          0,
+		CompactedBlockRetention: 0,
+		RetentionConcurrency:    DefaultRetentionConcurrency,
+	}, &mockSharder{}, &mockOverrides{})
 	checkBlocklists(ctx, t, uuid.UUID(blockMeta.BlockID), 0, 0, rw)
 
 	_, found = bloomCache.FetchKey(ctx, bloomKey)
@@ -645,13 +631,6 @@ func TestRetentionClearsEveryBlockConcurrently(t *testing.T) {
 	ctx := context.Background()
 	r.EnablePolling(ctx, &mockJobSharder{}, false)
 
-	require.NoError(t, c.EnableCompaction(ctx, &CompactorConfig{
-		MaxCompactionRange:        time.Hour,
-		BlockRetention:            0,
-		CompactedBlockRetention:   0,
-		RetentionBlockConcurrency: 4,
-	}, &mockSharder{}, &mockOverrides{}))
-
 	for i := 0; i < numBlocks; i++ {
 		head, err := w.WAL().NewBlock(&backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID}, model.CurrentEncoding)
 		require.NoError(t, err)
@@ -664,15 +643,21 @@ func TestRetentionClearsEveryBlockConcurrently(t *testing.T) {
 	rw.pollBlocklist(ctx)
 	require.Len(t, rw.blocklist.Metas(testTenantID), numBlocks)
 
-	rw.compactorCfg.BlockRetention = 0
-	rw.compactorCfg.CompactedBlockRetention = time.Hour
-	rw.doRetention(ctx)
+	c.RetainWithConfig(ctx, &CompactorConfig{
+		MaxCompactionRange:        time.Hour,
+		BlockRetention:            0,
+		CompactedBlockRetention:   time.Hour,
+		RetentionBlockConcurrency: 4,
+	}, &mockSharder{}, &mockOverrides{})
 	require.Empty(t, rw.blocklist.Metas(testTenantID))
 	require.Len(t, rw.blocklist.CompactedMetas(testTenantID), numBlocks)
 
-	rw.compactorCfg.BlockRetention = time.Hour
-	rw.compactorCfg.CompactedBlockRetention = 0
-	rw.doRetention(ctx)
+	c.RetainWithConfig(ctx, &CompactorConfig{
+		MaxCompactionRange:        time.Hour,
+		BlockRetention:            time.Hour,
+		CompactedBlockRetention:   0,
+		RetentionBlockConcurrency: 4,
+	}, &mockSharder{}, &mockOverrides{})
 
 	require.Empty(t, rw.blocklist.Metas(testTenantID))
 	require.Empty(t, rw.blocklist.CompactedMetas(testTenantID), "every compacted block must be cleared")
