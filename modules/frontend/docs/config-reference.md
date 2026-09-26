@@ -250,6 +250,7 @@ distributor:
         tls_min_version: ""
         consumer_group: ""
         consumer_group_offset_commit_interval: 0s
+        consumer_group_offset_commit_file_enforced: false
         last_produced_offset_retry_timeout: 0s
         auto_create_topic_enabled: false
         auto_create_topic_default_partitions: 0
@@ -557,6 +558,7 @@ ingest:
         tls_min_version: ""
         consumer_group: ""
         consumer_group_offset_commit_interval: 1s
+        consumer_group_offset_commit_file_enforced: false
         last_produced_offset_retry_timeout: 10s
         auto_create_topic_enabled: true
         auto_create_topic_default_partitions: 1000
@@ -573,6 +575,7 @@ block_builder:
     partitions_per_instance: 0
     consume_cycle_duration: 5m0s
     max_consuming_bytes: 5000000000
+    max_replay_period: 1h0m0s
     block:
         max_block_bytes: 20971520
     wal:
