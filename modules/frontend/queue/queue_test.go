@@ -2,6 +2,7 @@ package queue
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -18,6 +19,7 @@ const messages = 50_000
 
 type mockRequest struct {
 	weight int
+	failed chan error
 }
 
 func (r *mockRequest) Invalid() bool { return false }
@@ -26,6 +28,12 @@ func (r *mockRequest) Weight() int {
 		return r.weight
 	}
 	return 1
+}
+
+func (r *mockRequest) Fail(err error) {
+	if r.failed != nil {
+		r.failed <- err
+	}
 }
 
 func TestGetNextForQuerierOneUser(t *testing.T) {
@@ -163,7 +171,7 @@ func benchmarkGetNextForQuerier(b *testing.B, listeners int, messages int) {
 	}
 }
 
-func queueWithListeners(ctx context.Context, listeners int, batchSize int, listenerFn func(r []Request)) (*RequestQueue, chan struct{}) {
+func newTestRequestQueue() *RequestQueue {
 	g := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "test_len",
 	}, []string{"user"})
@@ -174,7 +182,11 @@ func queueWithListeners(ctx context.Context, listeners int, batchSize int, liste
 		Name: "test_batch_weight",
 	}, []string{"user"})
 
-	q := NewRequestQueue(100_000, g, b, c)
+	return NewRequestQueue(100_000, g, b, c)
+}
+
+func queueWithListeners(ctx context.Context, listeners int, batchSize int, listenerFn func(r []Request)) (*RequestQueue, chan struct{}) {
+	q := newTestRequestQueue()
 	start := make(chan struct{})
 
 	for i := 0; i < listeners; i++ {
@@ -364,7 +376,7 @@ func TestGetBatchBuffer(t *testing.T) {
 		},
 		{
 			name:           "less than requested count due to biggest weight",
-			queueContents:  []Request{&mockRequest{10}},
+			queueContents:  []Request{&mockRequest{weight: 10}},
 			requestedCount: 3,
 			expectedCount:  1,
 		},
@@ -399,6 +411,135 @@ func TestGetBatchBuffer(t *testing.T) {
 			assert.Equal(t, tt.expectedCount, len(result))
 		})
 	}
+}
+
+func TestStopWithEmptyQueues(t *testing.T) {
+	t.Parallel()
+
+	q := newTestRequestQueue()
+	require.NoError(t, services.StartAndAwaitRunning(t.Context(), q))
+
+	// a tenant queue outlives the request that created it, so any frontend that served
+	// traffic within the last cleanup period is in this state when SIGTERM arrives
+	require.NoError(t, q.EnqueueRequest("test", &mockRequest{}))
+	batch, _, err := q.GetNextRequestForQuerier(t.Context(), FirstUser(), make([]Request, 1))
+	require.NoError(t, err)
+	require.Len(t, batch, 1)
+	require.Equal(t, 1, tenantQueueCount(q))
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	require.NoError(t, services.StopAndAwaitTerminated(ctx, q))
+}
+
+func TestStopWaitsForDispatch(t *testing.T) {
+	t.Parallel()
+
+	q := newTestRequestQueue()
+	require.NoError(t, services.StartAndAwaitRunning(t.Context(), q))
+	require.NoError(t, q.EnqueueRequest("test", &mockRequest{}))
+
+	// the querier only shows up after shutdown has started, so terminating without
+	// waiting for it would drop the request
+	dequeued := make(chan int, 1)
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		batch, _, err := q.GetNextRequestForQuerier(t.Context(), FirstUser(), make([]Request, 1))
+		if err != nil {
+			dequeued <- -1
+			return
+		}
+		dequeued <- len(batch)
+	}()
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+
+	start := time.Now()
+	require.NoError(t, services.StopAndAwaitTerminated(ctx, q))
+	require.Equal(t, 1, <-dequeued)
+	require.Less(t, time.Since(start), 2*time.Second, "drain ended on its deadline instead of on dispatch")
+}
+
+func TestStopDrainsFullQueue(t *testing.T) {
+	t.Parallel()
+
+	const queued = 200
+
+	ctx := t.Context()
+
+	dispatched := atomic.NewInt32(0)
+	// listeners stay paused until start closes, so the queue is full when shutdown begins
+	q, start := queueWithListeners(ctx, 10, 1, func(r []Request) {
+		dispatched.Add(int32(len(r)))
+	})
+
+	for range queued {
+		require.NoError(t, q.EnqueueRequest("test", &mockRequest{}))
+	}
+
+	close(start)
+	q.StopAsync()
+
+	awaitCtx, awaitCancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer awaitCancel()
+	require.NoError(t, q.AwaitTerminated(awaitCtx))
+
+	require.ErrorIs(t, q.EnqueueRequest("test", &mockRequest{}), ErrStopped)
+
+	// the listener counts after its dequeue returns, so it can trail termination slightly
+	require.Eventually(t, func() bool {
+		return dispatched.Load() == int32(queued)
+	}, 5*time.Second, 10*time.Millisecond, "queued work was dropped instead of drained")
+}
+
+func TestStopRefusesNewWork(t *testing.T) {
+	t.Parallel()
+
+	q := newTestRequestQueue()
+	q.drainTimeout = 5 * time.Second
+	require.NoError(t, services.StartAndAwaitRunning(t.Context(), q))
+
+	// no querier takes this, so the drain is still running while we probe below
+	require.NoError(t, q.EnqueueRequest("test", &mockRequest{}))
+
+	q.StopAsync()
+
+	// EnqueueRequest must reject now, or new work keeps arriving and the drain never ends
+	require.Eventually(t, func() bool {
+		return errors.Is(q.EnqueueRequest("test", &mockRequest{}), ErrStopped)
+	}, 2*time.Second, 10*time.Millisecond)
+}
+
+func TestStopFailsUndispatchedWork(t *testing.T) {
+	t.Parallel()
+
+	q := newTestRequestQueue()
+	q.drainTimeout = 100 * time.Millisecond
+	require.NoError(t, services.StartAndAwaitRunning(t.Context(), q))
+
+	req := &mockRequest{failed: make(chan error, 1)}
+	require.NoError(t, q.EnqueueRequest("test", req))
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	require.NoError(t, services.StopAndAwaitTerminated(ctx, q))
+
+	// an abandoned request must be told, or its caller blocks until its own query timeout
+	// and holds the http graceful drain open for that long
+	select {
+	case err := <-req.failed:
+		require.ErrorIs(t, err, ErrStopped)
+	default:
+		t.Fatal("request was left in the queue without being failed")
+	}
+}
+
+func tenantQueueCount(q *RequestQueue) int {
+	q.mtx.RLock()
+	defer q.mtx.RUnlock()
+
+	return q.queues.len()
 }
 
 func assertChanReceived(t *testing.T, c chan struct{}, timeout time.Duration, msg string) {

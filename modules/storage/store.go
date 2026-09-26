@@ -9,6 +9,7 @@ import (
 	"github.com/grafana/tempo/v3/pkg/cache"
 	"github.com/grafana/tempo/v3/pkg/usagestats"
 	"github.com/grafana/tempo/v3/tempodb"
+	"github.com/grafana/tempo/v3/tempodb/blocklist"
 )
 
 var (
@@ -29,6 +30,9 @@ type store struct {
 	services.Service
 
 	cfg Config
+
+	// set by EnablePolling, so stopping can end the polling loop
+	stopPoller context.CancelFunc
 
 	tempodb.Reader
 	tempodb.Writer
@@ -60,7 +64,18 @@ func (s *store) starting(_ context.Context) error {
 	return nil
 }
 
+// EnablePolling owns the poller's cancel because Reader.Shutdown waits for the loop to exit.
+func (s *store) EnablePolling(ctx context.Context, sharder blocklist.JobSharder, skipNoCompactBlocks bool) {
+	ctx, s.stopPoller = context.WithCancel(ctx)
+
+	s.Reader.EnablePolling(ctx, sharder, skipNoCompactBlocks)
+}
+
 func (s *store) stopping(_ error) error {
+	if s.stopPoller != nil {
+		s.stopPoller()
+	}
+
 	s.Reader.Shutdown()
 
 	return nil
