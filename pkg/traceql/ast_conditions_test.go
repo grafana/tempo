@@ -108,14 +108,14 @@ func TestSpansetFilter_extractConditions(t *testing.T) {
 		{
 			query: `{ .foo && true }`,
 			conditions: []Condition{
-				newCondition(NewAttribute("foo"), OpNone),
+				newCondition(NewAttribute("foo"), OpEqual, NewStaticBool(true)),
 			},
 			allConditions: true,
 		},
 		{
 			query: `{ true || .foo }`,
 			conditions: []Condition{
-				newCondition(NewAttribute("foo"), OpNone),
+				newCondition(NewAttribute("foo"), OpEqual, NewStaticBool(true)),
 			},
 			allConditions: true,
 		},
