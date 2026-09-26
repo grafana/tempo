@@ -1,0 +1,6 @@
+change_type: enhancement
+component: storage
+note: Reduce CPU and allocations when writing tenant indexes with dedicated columns.
+issues: []
+subtext:
+user: julienduchesne

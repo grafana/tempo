@@ -416,9 +416,16 @@ func (dcs DedicatedColumns) Size() int {
 	if len(dcs) == 0 {
 		return 0
 	}
-
-	b, _ := dcs.Marshal()
-	return len(b)
+	// Count each encoded column without constructing the complete JSON array.
+	size := len("[]") + len(dcs) - 1
+	for i := range dcs {
+		b, err := dcs[i].MarshalJSON()
+		if err != nil {
+			return 0
+		}
+		size += len(b)
+	}
+	return size
 }
 
 func (dcs DedicatedColumns) Marshal() ([]byte, error) {
