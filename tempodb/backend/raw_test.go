@@ -24,7 +24,7 @@ const (
 // todo: add tests that check the appropriate keypath is passed
 func TestWriter(t *testing.T) {
 	m := &MockRawWriter{}
-	w := NewWriter(m)
+	w := NewWriter(m, WithTenantIndexJSONWrite(true))
 	ctx := context.Background()
 
 	expected := []byte{0x01, 0x02, 0x03, 0x04}
@@ -91,6 +91,43 @@ func TestWriter(t *testing.T) {
 	m = &MockRawWriter{err: ErrDoesNotExist}
 	w = NewWriter(m)
 	err = w.WriteTenantIndex(ctx, "test", nil, nil)
+	assert.NoError(t, err)
+}
+
+// TestWriteTenantIndexJSONDefault confirms that, without WithTenantIndexJSONWrite,
+// WriteTenantIndex writes only the protobuf tenant index and opportunistically
+// deletes any stale JSON one, tolerating it not existing.
+func TestWriteTenantIndexJSONDefault(t *testing.T) {
+	ctx := context.Background()
+	u := uuid.New()
+	meta := NewBlockMeta("test", u, "blerg")
+
+	m := &MockRawWriter{}
+	w := NewWriter(m)
+
+	err := w.WriteTenantIndex(ctx, "test", []*BlockMeta{meta}, nil)
+	assert.NoError(t, err)
+
+	tenantIndexPath := filepath.Join("test", TenantIndexName)
+	tenantIndexPathPb := filepath.Join("test", TenantIndexNamePb)
+
+	// proto was written
+	idxP := &TenantIndex{}
+	err = idxP.unmarshalPb(m.writeBuffer[tenantIndexPathPb])
+	assert.NoError(t, err)
+	assert.Equal(t, []*BlockMeta{meta}, idxP.Meta)
+
+	// json was not written...
+	_, ok := m.writeBuffer[tenantIndexPath]
+	assert.False(t, ok)
+
+	// ...but a best-effort delete of any stale json index was issued
+	assert.Equal(t, map[string]map[string]int{TenantIndexName: {"test": 1}}, m.deleteCalls)
+
+	// a missing stale json index is not an error
+	m = &MockRawWriter{err: ErrDoesNotExist}
+	w = NewWriter(m)
+	err = w.WriteTenantIndex(ctx, "test", []*BlockMeta{meta}, nil)
 	assert.NoError(t, err)
 }
 
@@ -245,9 +282,9 @@ func TestRoundTripMeta(t *testing.T) {
 func TestTenantIndexFallback(t *testing.T) {
 	var (
 		mr       = &MockRawReader{}
-		r        = NewReader(mr)
+		r        = NewReader(mr, WithTenantIndexJSONFallback(true))
 		mw       = &MockRawWriter{}
-		w        = NewWriter(mw)
+		w        = NewWriter(mw, WithTenantIndexJSONWrite(true))
 		ctx      = context.Background()
 		tenantID = "test"
 
@@ -294,6 +331,38 @@ func TestTenantIndexFallback(t *testing.T) {
 	idx, err = r.TenantIndex(ctx, tenantID)
 	assert.ErrorIs(t, err, ErrDoesNotExist)
 	assert.Nil(t, idx)
+}
+
+// TestTenantIndexJSONFallbackDefault confirms that, without
+// WithTenantIndexJSONFallback, TenantIndex does not fall back to a JSON
+// tenant index when the protobuf one is missing, even if a valid JSON one
+// exists.
+func TestTenantIndexJSONFallbackDefault(t *testing.T) {
+	var (
+		mr       = &MockRawReader{}
+		r        = NewReader(mr)
+		ctx      = context.Background()
+		tenantID = "test"
+
+		u    = uuid.New()
+		meta = NewBlockMeta(tenantID, u, "blerg")
+		idx  = newTenantIndex([]*BlockMeta{meta}, nil)
+	)
+
+	jsonBytes, err := idx.marshal()
+	assert.NoError(t, err)
+
+	mr.ReadFn = func(_ context.Context, name string, _ KeyPath, _ *CacheInfo) (io.ReadCloser, int64, error) {
+		if name == TenantIndexNamePb {
+			return nil, 0, fmt.Errorf("meow: %w", ErrDoesNotExist)
+		}
+
+		return io.NopCloser(bytes.NewReader(jsonBytes)), int64(len(jsonBytes)), nil
+	}
+
+	out, err := r.TenantIndex(ctx, tenantID)
+	assert.ErrorIs(t, err, ErrDoesNotExist)
+	assert.Nil(t, out)
 }
 
 func TestNoCompactFlag(t *testing.T) {
