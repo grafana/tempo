@@ -3,9 +3,9 @@ package lh
 import (
 	"bytes"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"os"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -41,7 +41,6 @@ type Palette struct {
 	Error     string // Color for Error level messages
 	Fatal     string // Color for Fatal level messages
 	Title     string // Color for dump titles (BEGIN/END separators)
-
 	// Field type colors
 	Key     string // Color for field keys
 	Number  string // Color for numbers
@@ -50,7 +49,6 @@ type Palette struct {
 	Time    string // Color for timestamps/durations
 	Nil     string // Color for nil values
 	Default string // Default color for unknown types
-
 	// JSON and Inspect specific colors
 	JSONKey      string // Color for JSON keys
 	JSONString   string // Color for JSON string values
@@ -80,7 +78,6 @@ var darkPalette = Palette{
 	Warn:      "\033[33m",
 	Error:     "\033[31m",
 	Fatal:     "\033[1;31m",
-
 	// Field type colors - made brighter for dark backgrounds
 	Key:     "\033[38;5;117m", // Brighter blue
 	Number:  "\033[38;5;141m", // Brighter purple
@@ -89,7 +86,6 @@ var darkPalette = Palette{
 	Time:    "\033[38;5;110m", // Brighter cyan-blue
 	Nil:     "\033[38;5;243m", // Slightly brighter gray
 	Default: "\033[38;5;250m", // Brighter gray
-
 	// JSON and Inspect colors
 	JSONKey:      "\033[38;5;117m",
 	JSONString:   "\033[38;5;223m",
@@ -104,30 +100,28 @@ var darkPalette = Palette{
 
 // lightPalette defines colors optimized for light terminal backgrounds.
 var lightPalette = Palette{
-	Header:    "\033[1;31m",
-	Goroutine: "\033[34m",
-	Func:      "\033[30m",
-	Path:      "\033[90m",
-	FileLine:  "\033[94m",
-	Reset:     "\033[0m",
-	Title:     "\033[38;5;245m",
-	Pos:       "\033[38;5;117m",
-	Hex:       "\033[38;5;156m",
-	Ascii:     "\033[38;5;224m",
-	Debug:     "\033[36m",
-	Info:      "\033[32m",
-	Warn:      "\033[33m",
-	Error:     "\033[31m",
-	Fatal:     "\033[1;31m",
-
-	Key:     "\033[34m",
-	Number:  "\033[35m",
-	String:  "\033[38;5;94m",
-	Bool:    "\033[32m",
-	Time:    "\033[38;5;24m",
-	Nil:     "\033[38;5;240m",
-	Default: "\033[30m",
-
+	Header:       "\033[1;31m",
+	Goroutine:    "\033[34m",
+	Func:         "\033[30m",
+	Path:         "\033[90m",
+	FileLine:     "\033[94m",
+	Reset:        "\033[0m",
+	Title:        "\033[38;5;245m",
+	Pos:          "\033[38;5;117m",
+	Hex:          "\033[38;5;156m",
+	Ascii:        "\033[38;5;224m",
+	Debug:        "\033[36m",
+	Info:         "\033[32m",
+	Warn:         "\033[33m",
+	Error:        "\033[31m",
+	Fatal:        "\033[1;31m",
+	Key:          "\033[34m",
+	Number:       "\033[35m",
+	String:       "\033[38;5;94m",
+	Bool:         "\033[32m",
+	Time:         "\033[38;5;24m",
+	Nil:          "\033[38;5;240m",
+	Default:      "\033[30m",
 	JSONKey:      "\033[1;34m",
 	JSONString:   "\033[1;33m",
 	JSONNumber:   "\033[1;35m",
@@ -141,30 +135,28 @@ var lightPalette = Palette{
 
 // brightPalette defines vibrant, high-contrast colors
 var brightPalette = Palette{
-	Header:    "\033[1;91m",
-	Goroutine: "\033[1;96m",
-	Func:      "\033[1;97m",
-	Path:      "\033[38;5;250m",
-	FileLine:  "\033[38;5;117m",
-	Reset:     "\033[0m",
-	Title:     "\033[1;37m",
-	Pos:       "\033[1;33m",
-	Hex:       "\033[1;32m",
-	Ascii:     "\033[1;35m",
-	Debug:     "\033[1;36m",
-	Info:      "\033[1;32m",
-	Warn:      "\033[1;33m",
-	Error:     "\033[1;31m",
-	Fatal:     "\033[1;91m",
-
-	Key:     "\033[1;34m",
-	Number:  "\033[1;35m",
-	String:  "\033[1;33m",
-	Bool:    "\033[1;32m",
-	Time:    "\033[1;36m",
-	Nil:     "\033[1;37m",
-	Default: "\033[1;37m",
-
+	Header:       "\033[1;91m",
+	Goroutine:    "\033[1;96m",
+	Func:         "\033[1;97m",
+	Path:         "\033[38;5;250m",
+	FileLine:     "\033[38;5;117m",
+	Reset:        "\033[0m",
+	Title:        "\033[1;37m",
+	Pos:          "\033[1;33m",
+	Hex:          "\033[1;32m",
+	Ascii:        "\033[1;35m",
+	Debug:        "\033[1;36m",
+	Info:         "\033[1;32m",
+	Warn:         "\033[1;33m",
+	Error:        "\033[1;31m",
+	Fatal:        "\033[1;91m",
+	Key:          "\033[1;34m",
+	Number:       "\033[1;35m",
+	String:       "\033[1;33m",
+	Bool:         "\033[1;32m",
+	Time:         "\033[1;36m",
+	Nil:          "\033[1;37m",
+	Default:      "\033[1;37m",
 	JSONKey:      "\033[1;34m",
 	JSONString:   "\033[1;33m",
 	JSONNumber:   "\033[1;35m",
@@ -178,30 +170,28 @@ var brightPalette = Palette{
 
 // pastelPalette defines soft, pastel colors
 var pastelPalette = Palette{
-	Header:    "\033[38;5;211m",
-	Goroutine: "\033[38;5;153m",
-	Func:      "\033[38;5;255m",
-	Path:      "\033[38;5;248m",
-	FileLine:  "\033[38;5;111m",
-	Reset:     "\033[0m",
-	Title:     "\033[38;5;248m",
-	Pos:       "\033[38;5;153m",
-	Hex:       "\033[38;5;158m",
-	Ascii:     "\033[38;5;218m",
-	Debug:     "\033[38;5;122m",
-	Info:      "\033[38;5;120m",
-	Warn:      "\033[38;5;221m",
-	Error:     "\033[38;5;211m",
-	Fatal:     "\033[38;5;204m",
-
-	Key:     "\033[38;5;153m",
-	Number:  "\033[38;5;183m",
-	String:  "\033[38;5;223m",
-	Bool:    "\033[38;5;120m",
-	Time:    "\033[38;5;117m",
-	Nil:     "\033[38;5;247m",
-	Default: "\033[38;5;250m",
-
+	Header:       "\033[38;5;211m",
+	Goroutine:    "\033[38;5;153m",
+	Func:         "\033[38;5;255m",
+	Path:         "\033[38;5;248m",
+	FileLine:     "\033[38;5;111m",
+	Reset:        "\033[0m",
+	Title:        "\033[38;5;248m",
+	Pos:          "\033[38;5;153m",
+	Hex:          "\033[38;5;158m",
+	Ascii:        "\033[38;5;218m",
+	Debug:        "\033[38;5;122m",
+	Info:         "\033[38;5;120m",
+	Warn:         "\033[38;5;221m",
+	Error:        "\033[38;5;211m",
+	Fatal:        "\033[38;5;204m",
+	Key:          "\033[38;5;153m",
+	Number:       "\033[38;5;183m",
+	String:       "\033[38;5;223m",
+	Bool:         "\033[38;5;120m",
+	Time:         "\033[38;5;117m",
+	Nil:          "\033[38;5;247m",
+	Default:      "\033[38;5;250m",
 	JSONKey:      "\033[38;5;153m",
 	JSONString:   "\033[38;5;223m",
 	JSONNumber:   "\033[38;5;183m",
@@ -215,30 +205,28 @@ var pastelPalette = Palette{
 
 // vibrantPalette defines highly saturated, eye-catching colors
 var vibrantPalette = Palette{
-	Header:    "\033[38;5;196m",
-	Goroutine: "\033[38;5;51m",
-	Func:      "\033[38;5;15m",
-	Path:      "\033[38;5;244m",
-	FileLine:  "\033[38;5;75m",
-	Reset:     "\033[0m",
-	Title:     "\033[38;5;244m",
-	Pos:       "\033[38;5;51m",
-	Hex:       "\033[38;5;46m",
-	Ascii:     "\033[38;5;201m",
-	Debug:     "\033[38;5;51m",
-	Info:      "\033[38;5;46m",
-	Warn:      "\033[38;5;226m",
-	Error:     "\033[38;5;196m",
-	Fatal:     "\033[1;38;5;196m",
-
-	Key:     "\033[38;5;33m",
-	Number:  "\033[38;5;129m",
-	String:  "\033[38;5;214m",
-	Bool:    "\033[38;5;46m",
-	Time:    "\033[38;5;75m",
-	Nil:     "\033[38;5;242m",
-	Default: "\033[38;5;15m",
-
+	Header:       "\033[38;5;196m",
+	Goroutine:    "\033[38;5;51m",
+	Func:         "\033[38;5;15m",
+	Path:         "\033[38;5;244m",
+	FileLine:     "\033[38;5;75m",
+	Reset:        "\033[0m",
+	Title:        "\033[38;5;244m",
+	Pos:          "\033[38;5;51m",
+	Hex:          "\033[38;5;46m",
+	Ascii:        "\033[38;5;201m",
+	Debug:        "\033[38;5;51m",
+	Info:         "\033[38;5;46m",
+	Warn:         "\033[38;5;226m",
+	Error:        "\033[38;5;196m",
+	Fatal:        "\033[1;38;5;196m",
+	Key:          "\033[38;5;33m",
+	Number:       "\033[38;5;129m",
+	String:       "\033[38;5;214m",
+	Bool:         "\033[38;5;46m",
+	Time:         "\033[38;5;75m",
+	Nil:          "\033[38;5;242m",
+	Default:      "\033[38;5;15m",
 	JSONKey:      "\033[38;5;33m",
 	JSONString:   "\033[38;5;214m",
 	JSONNumber:   "\033[38;5;129m",
@@ -349,11 +337,9 @@ func NewColorizedHandler(w io.Writer, opts ...ColorOption) *ColorizedHandler {
 		intensity:   IntensityNormal,
 		colorFields: true, // Default: enable field coloring
 	}
-
 	for _, opt := range opts {
 		opt(c)
 	}
-
 	c.palette = c.detectPalette()
 	return c
 }
@@ -368,11 +354,10 @@ func (h *ColorizedHandler) Output(w io.Writer) {
 func (h *ColorizedHandler) Handle(e *lx.Entry) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-
 	switch e.Class {
 	case lx.ClassDump:
 		return h.handleDumpOutput(e)
-	case lx.ClassJSON:
+	case lx.ClassJSON, lx.ClassOutput:
 		return h.handleJSONOutput(e)
 	case lx.ClassInspect:
 		return h.handleInspectOutput(e)
@@ -397,25 +382,20 @@ func (h *ColorizedHandler) handleRegularOutput(e *lx.Entry) error {
 	buf := colorBufPool.Get().(*bytes.Buffer)
 	buf.Reset()
 	defer colorBufPool.Put(buf)
-
 	if h.showTime {
 		buf.WriteString(e.Timestamp.Format(h.timeFormat))
 		buf.WriteString(lx.Space)
 	}
-
 	h.formatNamespace(buf, e)
 	h.formatLevel(buf, e)
 	buf.WriteString(e.Message)
 	h.formatFields(buf, e)
-
 	if len(e.Stack) > 0 {
 		h.formatStack(buf, e.Stack)
 	}
-
 	if e.Level != lx.LevelNone {
 		buf.WriteString(lx.Newline)
 	}
-
 	_, err := h.writer.Write(buf.Bytes())
 	return err
 }
@@ -425,20 +405,16 @@ func (h *ColorizedHandler) handleJSONOutput(e *lx.Entry) error {
 	buf := colorBufPool.Get().(*bytes.Buffer)
 	buf.Reset()
 	defer colorBufPool.Put(buf)
-
 	if h.showTime {
 		buf.WriteString(e.Timestamp.Format(h.timeFormat))
 		buf.WriteString(lx.Newline)
 	}
-
 	if e.Namespace != "" {
 		h.formatNamespace(buf, e)
 		h.formatLevel(buf, e)
 	}
-
 	h.colorizeJSON(buf, e.Message)
 	buf.WriteString(lx.Newline)
-
 	_, err := h.writer.Write(buf.Bytes())
 	return err
 }
@@ -448,17 +424,14 @@ func (h *ColorizedHandler) handleInspectOutput(e *lx.Entry) error {
 	buf := colorBufPool.Get().(*bytes.Buffer)
 	buf.Reset()
 	defer colorBufPool.Put(buf)
-
 	if h.showTime {
 		buf.WriteString(e.Timestamp.Format(h.timeFormat))
 		buf.WriteString(lx.Space)
 	}
-
 	h.formatNamespace(buf, e)
 	h.formatLevel(buf, e)
 	h.colorizeInspect(buf, e.Message)
 	buf.WriteString(lx.Newline)
-
 	_, err := h.writer.Write(buf.Bytes())
 	return err
 }
@@ -467,16 +440,13 @@ func (h *ColorizedHandler) handleInspectOutput(e *lx.Entry) error {
 func (h *ColorizedHandler) colorizeJSON(b *bytes.Buffer, jsonStr string) {
 	inString := false
 	escapeNext := false
-
 	for i := 0; i < len(jsonStr); i++ {
 		ch := jsonStr[i]
-
 		if escapeNext {
 			b.WriteByte(ch)
 			escapeNext = false
 			continue
 		}
-
 		switch ch {
 		case '\\':
 			escapeNext = true
@@ -484,7 +454,6 @@ func (h *ColorizedHandler) colorizeJSON(b *bytes.Buffer, jsonStr string) {
 				b.WriteString(h.palette.JSONString)
 			}
 			b.WriteByte(ch)
-
 		case '"':
 			if inString {
 				// End of string
@@ -498,7 +467,6 @@ func (h *ColorizedHandler) colorizeJSON(b *bytes.Buffer, jsonStr string) {
 				b.WriteString(h.palette.JSONString)
 				b.WriteByte(ch)
 			}
-
 		case ':':
 			if !inString {
 				b.WriteString(h.palette.JSONBrace)
@@ -507,7 +475,6 @@ func (h *ColorizedHandler) colorizeJSON(b *bytes.Buffer, jsonStr string) {
 			} else {
 				b.WriteByte(ch)
 			}
-
 		case '{', '}', '[', ']', ',':
 			if !inString {
 				b.WriteString(h.palette.JSONBrace)
@@ -516,12 +483,10 @@ func (h *ColorizedHandler) colorizeJSON(b *bytes.Buffer, jsonStr string) {
 			} else {
 				b.WriteByte(ch)
 			}
-
 		default:
 			if !inString {
 				// Check for numbers, booleans, null
 				remaining := jsonStr[i:]
-
 				// Check for null
 				if len(remaining) >= 4 && strings.HasPrefix(remaining, "null") {
 					b.WriteString(h.palette.JSONNull)
@@ -570,38 +535,31 @@ func (h *ColorizedHandler) colorizeJSON(b *bytes.Buffer, jsonStr string) {
 // colorizeInspect applies syntax highlighting to inspect output
 func (h *ColorizedHandler) colorizeInspect(b *bytes.Buffer, inspectStr string) {
 	lines := strings.Split(inspectStr, "\n")
-
 	for lineIdx, line := range lines {
 		if lineIdx > 0 {
 			b.WriteString("\n")
 		}
-
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
 			b.WriteString(line)
 			continue
 		}
-
 		// For inspect output, we'll do simple line-based coloring
 		// This preserves the original formatting
 		inString := false
 		escapeNext := false
-
 		for i := 0; i < len(line); i++ {
 			ch := line[i]
-
 			if escapeNext {
 				b.WriteByte(ch)
 				escapeNext = false
 				continue
 			}
-
 			if ch == '\\' {
 				escapeNext = true
 				b.WriteByte(ch)
 				continue
 			}
-
 			if ch == '"' {
 				inString = !inString
 				if inString {
@@ -620,7 +578,6 @@ func (h *ColorizedHandler) colorizeInspect(b *bytes.Buffer, inspectStr string) {
 				}
 				continue
 			}
-
 			if inString {
 				// Inside a string key or value
 				b.WriteByte(ch)
@@ -637,7 +594,6 @@ func (h *ColorizedHandler) colorizeInspect(b *bytes.Buffer, inspectStr string) {
 				} else {
 					// Check for numbers, booleans, null outside strings
 					remaining := line[i:]
-
 					if len(remaining) >= 4 && strings.HasPrefix(remaining, "null") {
 						b.WriteString(h.palette.JSONNull)
 						b.WriteString("null")
@@ -681,7 +637,6 @@ func (h *ColorizedHandler) formatNamespace(b *bytes.Buffer, e *lx.Entry) {
 	if e.Namespace == "" {
 		return
 	}
-
 	b.WriteString(lx.LeftBracket)
 	switch e.Style {
 	case lx.NestedPath:
@@ -711,9 +666,7 @@ func (h *ColorizedHandler) formatLevel(b *bytes.Buffer, e *lx.Entry) {
 		lx.LevelError: h.palette.Error,
 		lx.LevelFatal: h.palette.Fatal,
 	}[e.Level]
-
 	b.WriteString(color)
-	//b.WriteString(rightPad(e.Level.Name(e.Class), 8))
 	b.WriteString(e.Level.Name(e.Class))
 	b.WriteString(h.palette.Reset)
 	// b.WriteString(lx.Space)
@@ -726,32 +679,27 @@ func (h *ColorizedHandler) formatFields(b *bytes.Buffer, e *lx.Entry) {
 	if len(e.Fields) == 0 {
 		return
 	}
-
 	b.WriteString(lx.Space)
 	b.WriteString(lx.LeftBracket)
-
 	for i, pair := range e.Fields {
 		if i > 0 {
 			b.WriteString(lx.Space)
 		}
-
 		if h.colorFields {
 			// Color the key
 			b.WriteString(h.palette.Key)
 			b.WriteString(pair.Key)
 			b.WriteString(h.palette.Reset)
 			b.WriteString("=")
-
 			// Format value with type-based coloring
 			h.formatFieldValue(b, pair.Value)
 		} else {
 			// No field coloring - just write plain text
 			b.WriteString(pair.Key)
 			b.WriteString("=")
-			fmt.Fprint(b, pair.Value)
+			writeFieldValue(b, pair.Value)
 		}
 	}
-
 	b.WriteString(lx.RightBracket)
 }
 
@@ -759,68 +707,53 @@ func (h *ColorizedHandler) formatFields(b *bytes.Buffer, e *lx.Entry) {
 func (h *ColorizedHandler) formatFieldValue(b *bytes.Buffer, value interface{}) {
 	// If field coloring is disabled, just write the value
 	if !h.colorFields {
-		fmt.Fprint(b, value)
+		writeFieldValue(b, value)
 		return
 	}
-
 	switch v := value.(type) {
 	case time.Time:
 		b.WriteString(h.palette.Time)
 		b.WriteString(v.Format("2006-01-02 15:04:05"))
 		b.WriteString(h.palette.Reset)
-
 	case time.Duration:
 		b.WriteString(h.palette.Time)
 		h.formatDuration(b, v)
 		b.WriteString(h.palette.Reset)
-
 	case error:
 		b.WriteString(h.palette.Error)
 		b.WriteString(`"`)
 		b.WriteString(v.Error())
 		b.WriteString(`"`)
 		b.WriteString(h.palette.Reset)
-
 	case int, int8, int16, int32, int64:
 		b.WriteString(h.palette.Number)
-		fmt.Fprint(b, v)
+		writeFieldValue(b, v)
 		b.WriteString(h.palette.Reset)
-
 	case uint, uint8, uint16, uint32, uint64:
 		b.WriteString(h.palette.Number)
-		fmt.Fprint(b, v)
+		writeFieldValue(b, v)
 		b.WriteString(h.palette.Reset)
-
 	case float32, float64:
 		b.WriteString(h.palette.Number)
-		switch f := v.(type) {
-		case float32:
-			fmt.Fprintf(b, "%.6g", f)
-		case float64:
-			fmt.Fprintf(b, "%.6g", f)
-		}
+		writeFieldValue(b, v)
 		b.WriteString(h.palette.Reset)
-
 	case string:
 		b.WriteString(h.palette.String)
 		b.WriteString(`"`)
 		b.WriteString(v)
 		b.WriteString(`"`)
 		b.WriteString(h.palette.Reset)
-
 	case bool:
 		b.WriteString(h.palette.Bool)
-		fmt.Fprint(b, v)
+		writeFieldValue(b, v)
 		b.WriteString(h.palette.Reset)
-
 	case nil:
 		b.WriteString(h.palette.Nil)
 		b.WriteString("nil")
 		b.WriteString(h.palette.Reset)
-
 	default:
 		b.WriteString(h.palette.Default)
-		fmt.Fprint(b, v)
+		writeFieldValue(b, v)
 		b.WriteString(h.palette.Reset)
 	}
 }
@@ -853,7 +786,6 @@ func (h *ColorizedHandler) formatStack(b *bytes.Buffer, stack []byte) {
 	b.WriteString("[stack]")
 	b.WriteString(h.palette.Reset)
 	b.WriteString("\n")
-
 	lines := strings.Split(string(stack), "\n")
 	if len(lines) == 0 {
 		return
@@ -864,11 +796,9 @@ func (h *ColorizedHandler) formatStack(b *bytes.Buffer, stack []byte) {
 	b.WriteString(lines[0])
 	b.WriteString(h.palette.Reset)
 	b.WriteString("\n")
-
 	for i := 1; i < len(lines)-1; i += 2 {
 		funcLine := strings.TrimSpace(lines[i])
 		pathLine := strings.TrimSpace(lines[i+1])
-
 		if funcLine != "" {
 			b.WriteString("  │   ")
 			b.WriteString(h.palette.Func)
@@ -881,15 +811,12 @@ func (h *ColorizedHandler) formatStack(b *bytes.Buffer, stack []byte) {
 
 			lastSlash := strings.LastIndex(pathLine, "/")
 			goIndex := strings.Index(pathLine, ".go:")
-
 			if lastSlash >= 0 && goIndex > lastSlash {
 				prefix := pathLine[:lastSlash+1]
 				suffix := pathLine[lastSlash+1:]
-
 				b.WriteString(h.palette.Path)
 				b.WriteString(prefix)
 				b.WriteString(h.palette.Reset)
-
 				b.WriteString(h.palette.Path)
 				b.WriteString(suffix)
 				b.WriteString(h.palette.Reset)
@@ -898,11 +825,9 @@ func (h *ColorizedHandler) formatStack(b *bytes.Buffer, stack []byte) {
 				b.WriteString(pathLine)
 				b.WriteString(h.palette.Reset)
 			}
-
 			b.WriteString("\n")
 		}
 	}
-
 	if len(lines)%2 == 0 && strings.TrimSpace(lines[len(lines)-1]) != "" {
 		b.WriteString("  │   ")
 		b.WriteString(h.palette.Func)
@@ -919,17 +844,14 @@ func (h *ColorizedHandler) handleDumpOutput(e *lx.Entry) error {
 	buf := colorBufPool.Get().(*bytes.Buffer)
 	buf.Reset()
 	defer colorBufPool.Put(buf)
-
 	if h.showTime {
 		buf.WriteString(e.Timestamp.Format(h.timeFormat))
 		buf.WriteString(lx.Newline)
 	}
-
 	buf.WriteString(h.palette.Title)
 	buf.WriteString("---- BEGIN DUMP ----")
 	buf.WriteString(h.palette.Reset)
 	buf.WriteString("\n")
-
 	lines := strings.Split(e.Message, "\n")
 	length := len(lines)
 	for i, line := range lines {
@@ -939,13 +861,11 @@ func (h *ColorizedHandler) handleDumpOutput(e *lx.Entry) error {
 				buf.WriteString(h.palette.Pos)
 				buf.WriteString(parts[0])
 				buf.WriteString(h.palette.Reset)
-
 				hexAscii := strings.SplitN(parts[1], "'", 2)
 				buf.WriteString(h.palette.Hex)
 				buf.WriteString("hex:")
 				buf.WriteString(hexAscii[0])
 				buf.WriteString(h.palette.Reset)
-
 				if len(hexAscii) > 1 {
 					buf.WriteString(h.palette.Ascii)
 					buf.WriteString("'")
@@ -960,62 +880,64 @@ func (h *ColorizedHandler) handleDumpOutput(e *lx.Entry) error {
 		} else {
 			buf.WriteString(line)
 		}
-
 		if i < length-1 {
 			buf.WriteString("\n")
 		}
 	}
-
 	buf.WriteString(h.palette.Title)
 	buf.WriteString("---- END DUMP ----")
 	buf.WriteString(h.palette.Reset)
-	buf.WriteString("\n\n")
-
+	buf.WriteString("\n")
 	_, err := h.writer.Write(buf.Bytes())
 	return err
 }
 
-// detectPalette selects a color palette based on terminal environment variables.
-func (h *ColorizedHandler) detectPalette() Palette {
-	// If colors are explicitly disabled, return noColorPalette
-	if h.noColor {
-		return noColorPalette
-	}
+// paletteCache stores the detected palette and environment hash to avoid repeated checks.
+var paletteCache struct {
+	once    sync.Once
+	mu      sync.RWMutex
+	hash    uint64
+	palette Palette
+}
 
-	// Check NO_COLOR environment variable (standard: https://no-color.org/)
+// computeEnvHash generates a hash of relevant environment variables to detect changes.
+func computeEnvHash() uint64 {
+	h := fnv.New64a()
+	h.Write([]byte(os.Getenv("NO_COLOR")))
+	h.Write([]byte(os.Getenv("TERM")))
+	h.Write([]byte(os.Getenv("COLORFGBG")))
+	h.Write([]byte(os.Getenv("AppleInterfaceStyle")))
+	h.Write([]byte(os.Getenv("APPEARANCE")))
+	h.Write([]byte(os.Getenv("TERM_BACKGROUND")))
+	return h.Sum64()
+}
+
+// computePaletteFromEnv computes the palette based on current environment variables.
+// This contains the original logic from detectPalette, extracted for caching.
+func (h *ColorizedHandler) computePaletteFromEnv() Palette {
 	if os.Getenv("NO_COLOR") != "" {
 		return noColorPalette
 	}
 
 	term := os.Getenv("TERM")
-	if term == "dumb" || term == "" {
-		if runtime.GOOS == "windows" && !h.isWindowsTerminalAnsiSupported() {
-			return noColorPalette
-		}
+	if term == "dumb" {
+		return noColorPalette
 	}
 
-	// First, try to detect background color
-	isDarkBackground := true // Default to dark
+	// Windows is handled via build tag, just check terminal capability
+	if h.isWindowsTerminal() {
+		return h.applyIntensity(darkPalette)
+	}
 
-	// Check for common dark/light environment variables
-	if style, ok := os.LookupEnv("AppleInterfaceStyle"); ok && strings.EqualFold(style, "dark") {
-		isDarkBackground = true
-	} else if style, ok := os.LookupEnv("APPEARANCE"); ok && strings.EqualFold(style, "light") {
+	// Unix/macOS background detection
+	isDarkBackground := true
+	if style, ok := os.LookupEnv("APPEARANCE"); ok && strings.EqualFold(style, "light") {
 		isDarkBackground = false
-	} else if bg := os.Getenv("TERM_BACKGROUND"); bg != "" {
-		isDarkBackground = strings.ToLower(bg) != "light"
 	} else if fgBg := os.Getenv("COLORFGBG"); fgBg != "" {
-		// COLORFGBG format: "foreground;background" or "foreground;background;unused"
 		parts := strings.Split(fgBg, ";")
 		if len(parts) >= 2 {
-			bg := parts[len(parts)-1]
-			bgInt, err := strconv.Atoi(bg)
-			if err == nil {
-				// According to XTerm documentation:
-				// 0-7: dark colors, 15: white, 8-14: bright colors
-				// Typically, 0=black (dark), 7=light gray (light), 15=white (light)
-				isDarkBackground = (bgInt >= 0 && bgInt <= 6) || (bgInt >= 8 && bgInt <= 14)
-			}
+			bgInt, _ := strconv.Atoi(parts[len(parts)-1])
+			isDarkBackground = (bgInt >= 0 && bgInt <= 6) || (bgInt >= 8 && bgInt <= 14)
 		}
 	}
 
@@ -1023,6 +945,41 @@ func (h *ColorizedHandler) detectPalette() Palette {
 		return h.applyIntensity(darkPalette)
 	}
 	return h.applyIntensity(lightPalette)
+}
+
+// detectPalette selects a color palette based on terminal environment variables.
+// It uses caching with environment hash to avoid repeated checks.
+func (h *ColorizedHandler) detectPalette() Palette {
+	// If colors are explicitly disabled, return noColorPalette
+	if h.noColor {
+		return noColorPalette
+	}
+
+	// Fast path: Check cache
+	currentHash := computeEnvHash()
+
+	paletteCache.mu.RLock()
+	if paletteCache.hash == currentHash && paletteCache.palette != (Palette{}) {
+		p := paletteCache.palette
+		paletteCache.mu.RUnlock()
+		return p
+	}
+	paletteCache.mu.RUnlock()
+
+	// Slow path: Compute
+	paletteCache.mu.Lock()
+	defer paletteCache.mu.Unlock()
+
+	// Double-check after acquiring write lock
+	if paletteCache.hash == currentHash && paletteCache.palette != (Palette{}) {
+		return paletteCache.palette
+	}
+
+	// Compute new palette
+	p := h.computePaletteFromEnv()
+	paletteCache.hash = currentHash
+	paletteCache.palette = p
+	return p
 }
 
 // applyIntensity applies the intensity setting to a base palette
@@ -1039,25 +996,4 @@ func (h *ColorizedHandler) applyIntensity(basePalette Palette) Palette {
 	default:
 		return basePalette
 	}
-}
-
-// isWindowsTerminalAnsiSupported checks if the Windows terminal supports ANSI colors
-func (h *ColorizedHandler) isWindowsTerminalAnsiSupported() bool {
-	if runtime.GOOS != "windows" {
-		return true
-	}
-
-	if os.Getenv("WT_SESSION") != "" {
-		return true
-	}
-
-	if os.Getenv("ConEmuANSI") == "ON" {
-		return true
-	}
-
-	if os.Getenv("ANSICON") != "" {
-		return true
-	}
-
-	return false
 }
