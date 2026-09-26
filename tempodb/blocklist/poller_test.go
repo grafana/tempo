@@ -298,6 +298,99 @@ func TestTenantIndexFallback(t *testing.T) {
 	}
 }
 
+// TestTenantIndexBuilderColdSeed covers the handoff case where a pod becomes
+// the tenant index builder with no local cache for that tenant (e.g. a freshly
+// started pod). It should seed its diff from the last published tenant index
+// instead of treating every block as unknown, but only when its own local
+// cache is actually empty -- a builder with a warm local cache must never
+// pull the published index, since its own in-memory state is always at least
+// as fresh as what it last wrote.
+func TestTenantIndexBuilderColdSeed(t *testing.T) {
+	var (
+		seed1 = backend.MustParse("00000000-0000-0000-0000-000000000001")
+		seed2 = backend.MustParse("00000000-0000-0000-0000-000000000002")
+		fresh = backend.MustParse("00000000-0000-0000-0000-000000000003")
+	)
+
+	seedMetas := []*backend.BlockMeta{{BlockID: seed1}, {BlockID: seed2}}
+	freshMeta := &backend.BlockMeta{BlockID: fresh}
+	allMetas := append(append([]*backend.BlockMeta{}, seedMetas...), freshMeta)
+
+	tests := []struct {
+		name                     string
+		warmLocalCache           bool
+		tenantIndexErr           bool
+		expectTenantIndexCalled  bool
+		expectedBlockMetaFetches int // number of distinct blocks individually fetched
+	}{
+		{
+			name:                     "cold cache, valid published index seeds the diff",
+			warmLocalCache:           false,
+			tenantIndexErr:           false,
+			expectTenantIndexCalled:  true,
+			expectedBlockMetaFetches: 1, // only the block missing from the seed index
+		},
+		{
+			name:                     "cold cache, missing published index falls back to full poll",
+			warmLocalCache:           false,
+			tenantIndexErr:           true,
+			expectTenantIndexCalled:  true,
+			expectedBlockMetaFetches: 3, // no seed available, every block is unknown
+		},
+		{
+			name:                     "warm local cache never pulls the published index",
+			warmLocalCache:           true,
+			expectTenantIndexCalled:  false,
+			expectedBlockMetaFetches: 1, // diff against local cache, same as today
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			list := PerTenant{"test": allMetas}
+			r := newMockReader(list, PerTenantCompacted{}, false)
+
+			var tenantIndexCalls int
+			r.(*backend.MockReader).TenantIndexFn = func(_ context.Context, _ string) (*backend.TenantIndex, error) {
+				tenantIndexCalls++
+				if tc.tenantIndexErr {
+					return nil, backend.ErrDoesNotExist
+				}
+				return &backend.TenantIndex{
+					CreatedAt: time.Now(),
+					Meta:      seedMetas,
+				}, nil
+			}
+
+			c := newMockCompactor(PerTenantCompacted{}, false)
+			w := &backend.MockWriter{}
+
+			previous := PerTenant{}
+			if tc.warmLocalCache {
+				previous = PerTenant{"test": seedMetas}
+			}
+			b := newBlocklist(previous, PerTenantCompacted{})
+
+			poller := NewPoller(&PollerConfig{
+				PollConcurrency:       testPollConcurrency,
+				TenantPollConcurrency: testTenantPollConcurrency,
+				PollFallback:          testPollFallback,
+				TenantIndexBuilders:   testBuilders,
+			}, &mockJobSharder{owns: true}, r, c, w, log.NewNopLogger())
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			_, _, err := poller.Do(ctx, b)
+			require.NoError(t, err)
+
+			mr := r.(*backend.MockReader)
+			assert.Equal(t, tc.expectedBlockMetaFetches, len(mr.BlockMetaCalls["test"]), "unexpected number of individually fetched blocks")
+			assert.Equal(t, tc.expectTenantIndexCalled, tenantIndexCalls > 0, "unexpected TenantIndex() call count")
+		})
+	}
+}
+
 func TestPollBlock(t *testing.T) {
 	one := backend.MustParse("00000000-0000-0000-0000-000000000001")
 
