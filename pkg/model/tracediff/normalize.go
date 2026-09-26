@@ -17,6 +17,17 @@ import (
 
 const serviceNameAttribute = "service.name"
 
+// maxAttributeValueDepth bounds the recursion depth when normalizing nested
+// attribute values (arrays and kvlists). OpenTelemetry AnyValue nests
+// arbitrarily and the nesting is fully attacker-controlled via ingested span
+// data, so an unbounded walk lets a single crafted attribute exhaust the
+// goroutine stack — a fatal, unrecoverable Go runtime crash that recover()
+// cannot catch — when a trace is normalized, for example via the
+// network-reachable POST /api/v2/traces/diff endpoint. Legitimate attributes
+// nest only a handful of levels, far below this cap, so their normalized form
+// is unchanged.
+const maxAttributeValueDepth = 1000
+
 type normalizedTrace struct {
 	meta  TraceMeta
 	spans []normalizedSpan
@@ -286,15 +297,31 @@ func attributeString(attrs []*commonv1.KeyValue, key string) string {
 }
 
 func attributesMap(attrs []*commonv1.KeyValue) map[string]any {
+	return attributesMapDepth(attrs, 0)
+}
+
+func attributesMapDepth(attrs []*commonv1.KeyValue, depth int) map[string]any {
 	out := make(map[string]any, len(attrs))
 	for _, attr := range attrs {
-		out[attr.GetKey()] = anyValue(attr.GetValue())
+		out[attr.GetKey()] = anyValueDepth(attr.GetValue(), depth)
 	}
 	return out
 }
 
 func anyValue(value *commonv1.AnyValue) any {
+	return anyValueDepth(value, 0)
+}
+
+// anyValueDepth converts an OTLP attribute value to its normalized Go
+// representation, bounding recursion at maxAttributeValueDepth so a crafted,
+// deeply-nested array/kvlist attribute cannot exhaust the goroutine stack.
+// Nested values at or beyond the cap are dropped (returned as nil); legitimate
+// attributes nest far below it, so their result is unchanged.
+func anyValueDepth(value *commonv1.AnyValue, depth int) any {
 	if value == nil {
+		return nil
+	}
+	if depth >= maxAttributeValueDepth {
 		return nil
 	}
 	switch v := value.GetValue().(type) {
@@ -310,11 +337,11 @@ func anyValue(value *commonv1.AnyValue) any {
 		values := v.ArrayValue.GetValues()
 		out := make([]any, 0, len(values))
 		for _, item := range values {
-			out = append(out, anyValue(item))
+			out = append(out, anyValueDepth(item, depth+1))
 		}
 		return out
 	case *commonv1.AnyValue_KvlistValue:
-		return attributesMap(v.KvlistValue.GetValues())
+		return attributesMapDepth(v.KvlistValue.GetValues(), depth+1)
 	case *commonv1.AnyValue_BytesValue:
 		return v.BytesValue
 	default:
