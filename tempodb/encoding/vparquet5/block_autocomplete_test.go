@@ -1079,6 +1079,47 @@ func TestFetchTagNamesWithOrConditions(t *testing.T) {
 	}
 }
 
+func TestFetchTagValuesFiltersTraceID(t *testing.T) {
+	tr1 := fullyPopulatedTestTrace(common.ID{0x01})
+	tr2 := fullyPopulatedTestTrace(common.ID{0x02})
+	tr2.ResourceSpans[0].ScopeSpans[0].Spans[0].Name = "only-in-trace-two"
+
+	block := makeBackendBlockWithTraces(t, []*Trace{tr1, tr2})
+	conditions, err := traceql.ExtractConditionGroups(
+		`{ trace:id = "01000000000000000000000000000000" }`,
+		traceql.DefaultMaxConditionGroupsPerTagQuery,
+	)
+	require.NoError(t, err)
+
+	tag, err := traceql.ParseIdentifier("name")
+	require.NoError(t, err)
+	for i := range conditions {
+		conditions[i] = append(conditions[i], traceql.Condition{
+			Attribute: tag,
+			Op:        traceql.OpNone,
+		})
+	}
+
+	distinctValues := collector.NewDistinctValue[tempopb.TagValue](
+		1_000_000,
+		0,
+		0,
+		func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) },
+	)
+	err = block.FetchTagValues(
+		context.Background(),
+		traceql.FetchTagValuesRequest{ConditionGroups: conditions, TagName: tag},
+		traceql.MakeCollectTagValueFunc(distinctValues.Collect),
+		func(uint64) {},
+		common.DefaultSearchOptions(),
+	)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []tempopb.TagValue{
+		stringTagValue("hello"),
+		stringTagValue("world"),
+	}, distinctValues.Values())
+}
+
 func TestFetchTagValuesWithOrConditions(t *testing.T) {
 	testCases := []struct {
 		name           string
