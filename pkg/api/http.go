@@ -106,6 +106,7 @@ const (
 	QueryModeAll       = "all"
 	BlockStartKey      = "blockStart"
 	BlockEndKey        = "blockEnd"
+	BlocksKey          = "blocks"
 
 	defaultLimit           = 20
 	defaultSpansPerSpanSet = 3
