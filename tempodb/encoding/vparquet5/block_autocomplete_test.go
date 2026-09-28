@@ -1319,3 +1319,50 @@ func BenchmarkFetchTags(b *testing.B) {
 		}
 	}
 }
+
+func TestFetchTagValuesNoIterators(t *testing.T) {
+	const query = `{ trace:id = "" && span:id = }`
+
+	tag, err := traceql.ParseIdentifier("span:id")
+	require.NoError(t, err)
+
+	conditionGroups, err := traceql.ExtractConditionGroups(query, 0)
+	require.NoError(t, err)
+	require.Len(t, conditionGroups, 1)
+
+	var (
+		ctx   = t.Context()
+		opts  = common.DefaultSearchOptions()
+		block = makeBackendBlockWithTraces(t, []*Trace{fullyPopulatedTestTrace(common.ID{0})})
+	)
+
+	t.Run("block", func(t *testing.T) {
+		req := traceql.FetchTagValuesRequest{
+			TagName: tag,
+			ConditionGroups: [][]traceql.Condition{{
+				{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceID), Op: traceql.OpEqual, Operands: traceql.Operands{traceql.NewStaticString("")}},
+				{Attribute: tag, Op: traceql.OpNone},
+			}},
+		}
+
+		var values []traceql.Static
+		require.NotPanics(t, func() {
+			err = block.FetchTagValues(ctx, req, func(v traceql.Static) bool { values = append(values, v); return false }, func(uint64) {}, opts)
+		})
+		require.NoError(t, err)
+		require.Empty(t, values)
+	})
+
+	t.Run("engine", func(t *testing.T) {
+		fetcher := traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
+			return block.FetchTagValues(ctx, req, cb, func(uint64) {}, opts)
+		})
+
+		var values []traceql.Static
+		require.NotPanics(t, func() {
+			err = traceql.NewEngine().ExecuteTagValues(ctx, tag, conditionGroups, func(v traceql.Static) bool { values = append(values, v); return false }, fetcher, 0)
+		})
+		require.NoError(t, err)
+		require.Empty(t, values)
+	})
+}

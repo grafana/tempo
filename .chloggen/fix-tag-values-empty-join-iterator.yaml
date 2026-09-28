@@ -1,0 +1,12 @@
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: bug_fix
+
+# Component or area of the change.
+component: querier
+
+# A brief description of the change.
+note: Fix a querier panic when a tag values query contains only trace-level metadata conditions, such as `{ trace:id = "" && span:id = }`.
+
+issues: []
+
+user: TODO-github-handle
