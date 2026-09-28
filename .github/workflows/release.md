@@ -27,6 +27,3 @@ This prevents preparation from generating the same release section twice.
 RC preparation skips image-tag bumps and publishes as a prerelease.
 Bot authorship, the `release-prep` label, the prep branch name,
 and the matching base branch remain required for automatic tagging.
-
-Run the workflow shell regression checks with
-`python3 tools/release-workflows_test.py`.

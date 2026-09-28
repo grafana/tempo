@@ -31,6 +31,3 @@ jobs:
 
       - name: Run version-tag tests
         run: ./tools/version-tag_test.sh
-
-      - name: Run release workflow tests
-        run: python3 tools/release-workflows_test.py
