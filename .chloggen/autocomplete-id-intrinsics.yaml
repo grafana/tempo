@@ -1,0 +1,13 @@
+change_type: bug_fix
+
+component: storage
+
+note: Fix a querier panic in tag values search when every condition in a group is `trace:id` or `span:id`, e.g. `{ trace:id = "" && span:id = }`.
+
+issues: []
+
+subtext: |
+  Tag names and tag values search now filter on `trace:id` and `span:id` conditions instead of silently ignoring them, and return `trace:id` and `span:id` values.
+  A condition group that can't be turned into an iterator now falls back to the unfiltered search instead of building an empty join iterator.
+
+user: zhxiaogg

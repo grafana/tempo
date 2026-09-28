@@ -9,6 +9,7 @@ import (
 	"github.com/grafana/tempo/v3/pkg/collector"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/pkg/util"
 	"github.com/grafana/tempo/v3/pkg/util/test"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 	"github.com/grafana/tempo/v3/tempodb/encoding/common"
@@ -1174,6 +1175,143 @@ func TestFetchTagValuesWithOrConditions(t *testing.T) {
 			require.Equal(t, expectedValues, actualValues)
 		})
 	}
+}
+
+func TestFetchTagValuesWithIDIntrinsics(t *testing.T) {
+	const (
+		traceA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+		traceB = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+		spanA1 = "aaaaaaaaaaaaaa01"
+		spanA2 = "aaaaaaaaaaaaaa02"
+		spanB1 = "bbbbbbbbbbbbbb01"
+		spanB2 = "bbbbbbbbbbbbbb02"
+	)
+
+	makeTrace := func(traceID, span1, span2, suffix string) *Trace {
+		id, err := util.HexStringToTraceID(traceID)
+		require.NoError(t, err)
+		tr := fullyPopulatedTestTrace(id)
+		tr.TraceID = id
+		tr.TraceIDText = traceID
+
+		s1, err := util.HexStringToSpanID(span1)
+		require.NoError(t, err)
+		s2, err := util.HexStringToSpanID(span2)
+		require.NoError(t, err)
+		tr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID = s1
+		tr.ResourceSpans[0].ScopeSpans[0].Spans[0].Name = "hello" + suffix
+		tr.ResourceSpans[1].ScopeSpans[0].Spans[0].SpanID = s2
+		tr.ResourceSpans[1].ScopeSpans[0].Spans[0].Name = "world" + suffix
+		return tr
+	}
+
+	block := makeBackendBlockWithTraces(t, []*Trace{
+		makeTrace(traceA, spanA1, spanA2, ""),
+		makeTrace(traceB, spanB1, spanB2, "-b"),
+	})
+
+	testCases := []struct {
+		name           string
+		tag, query     string
+		expectedValues []tempopb.TagValue
+	}{
+		{
+			// Partial query sent by the Grafana query builder that crashed queriers:
+			// both conditions were skipped, leaving a join iterator with no children.
+			name:           "span:id with empty trace:id and incomplete span:id",
+			tag:            "span:id",
+			query:          `{ trace:id = "" && span:id = }`,
+			expectedValues: []tempopb.TagValue{},
+		},
+		{
+			name:           "span:id filtered by trace:id",
+			tag:            "span:id",
+			query:          `{ trace:id = "` + traceA + `" }`,
+			expectedValues: []tempopb.TagValue{stringTagValue(spanA1), stringTagValue(spanA2)},
+		},
+		{
+			name:           "name filtered by trace:id",
+			tag:            "name",
+			query:          `{ trace:id = "` + traceB + `" }`,
+			expectedValues: []tempopb.TagValue{stringTagValue("hello-b"), stringTagValue("world-b")},
+		},
+		{
+			name:           "name filtered by span:id",
+			tag:            "name",
+			query:          `{ span:id = "` + spanB2 + `" }`,
+			expectedValues: []tempopb.TagValue{stringTagValue("world-b")},
+		},
+		{
+			name:           "span:id filtered by name",
+			tag:            "span:id",
+			query:          `{ name = "hello-b" }`,
+			expectedValues: []tempopb.TagValue{stringTagValue(spanB1)},
+		},
+		{
+			name:           "trace:id filtered by name",
+			tag:            "trace:id",
+			query:          `{ name = "world" }`,
+			expectedValues: []tempopb.TagValue{stringTagValue(traceA)},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			conditionGroups, err := traceql.ExtractConditionGroups(tc.query, traceql.DefaultMaxConditionGroupsPerTagQuery)
+			require.NoError(t, err)
+
+			tag, err := traceql.ParseIdentifier(tc.tag)
+			require.NoError(t, err)
+
+			var (
+				distinctValues = collector.NewDistinctValue(1_000_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+				fetcher        = traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
+					return block.FetchTagValues(ctx, req, cb, func(uint64) {}, common.DefaultSearchOptions())
+				})
+			)
+
+			err = traceql.NewEngine().ExecuteTagValues(t.Context(), tag, conditionGroups, traceql.MakeCollectTagValueFunc(distinctValues.Collect), fetcher, 0)
+			require.NoError(t, err)
+
+			actualValues := distinctValues.Values()
+			sort.Slice(actualValues, func(i, j int) bool { return actualValues[i].Value < actualValues[j].Value })
+			require.Equal(t, tc.expectedValues, actualValues)
+		})
+	}
+}
+
+func TestFetchTagValuesAllConditionsUnsupported(t *testing.T) {
+	// Start time intrinsics are not handled by the autocomplete iterators. A condition
+	// group made only of them must not build an empty join iterator.
+	block := makeBackendBlockWithTraces(t, []*Trace{fullyPopulatedTestTrace(common.ID{0})})
+
+	for _, intrinsic := range []traceql.Intrinsic{traceql.IntrinsicTraceStartTime, traceql.IntrinsicSpanStartTime} {
+		t.Run(intrinsic.String(), func(t *testing.T) {
+			attr := traceql.NewIntrinsic(intrinsic)
+			req := traceql.FetchTagValuesRequest{
+				TagName: attr,
+				ConditionGroups: [][]traceql.Condition{{
+					{Attribute: attr, Op: traceql.OpGreater, Operands: traceql.Operands{traceql.NewStaticDuration(0)}},
+					{Attribute: attr, Op: traceql.OpNone},
+				}},
+			}
+
+			err := block.FetchTagValues(t.Context(), req, func(traceql.Static) bool { return false }, func(uint64) {}, common.DefaultSearchOptions())
+			require.NoError(t, err)
+		})
+	}
+
+	t.Run("tag names", func(t *testing.T) {
+		req := traceql.FetchTagsRequest{
+			Scope: traceql.AttributeScopeTrace,
+			ConditionGroups: [][]traceql.Condition{{
+				{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceStartTime), Op: traceql.OpGreater, Operands: traceql.Operands{traceql.NewStaticDuration(0)}},
+			}},
+		}
+
+		err := block.FetchTagNames(t.Context(), req, func(string, traceql.AttributeScope) bool { return false }, func(uint64) {}, common.DefaultSearchOptions())
+		require.NoError(t, err)
+	})
 }
 
 func stringTagValue(v string) tempopb.TagValue { return tempopb.TagValue{Type: "string", Value: v} }

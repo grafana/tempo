@@ -8,6 +8,7 @@ import (
 	"github.com/grafana/tempo/v3/pkg/parquetquery"
 	v1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/pkg/util"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 	"github.com/parquet-go/parquet-go"
@@ -116,6 +117,13 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 		iter, err := autocompleteIter(ctx, tr, pf, opts, b.meta.DedicatedColumns)
 		if err != nil {
 			return fmt.Errorf("creating fetch iter: %w", err)
+		}
+		if iter == nil {
+			// None of the conditions in this group can be fetched, so the group doesn't filter
+			// anything. Fall back to the unfiltered path.
+			return b.SearchTags(ctx, req.Scope, func(t string, scope traceql.AttributeScope) {
+				cb(t, scope)
+			}, mcb, opts)
 		}
 
 		done, iterErr := func() (bool, error) {
@@ -273,6 +281,11 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 		iter, err := autocompleteIter(ctx, tr, pf, opts, b.meta.DedicatedColumns)
 		if err != nil {
 			return fmt.Errorf("creating fetch iter: %w", err)
+		}
+		if iter == nil {
+			// None of the conditions in this group can be fetched, so the group doesn't filter
+			// anything. Fall back to the unfiltered path.
+			return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), mcb, opts)
 		}
 
 		done, iterErr := func() (bool, error) {
@@ -576,10 +589,17 @@ func createDistinctSpanIterator(
 		// Intrinsic?
 		switch cond.Attribute.Intrinsic {
 
-		case traceql.IntrinsicSpanID,
-			traceql.IntrinsicSpanStartTime:
-			// Metadata conditions not necessary, we don't need to fetch them
-			// TODO: Add support if they're added to TraceQL
+		case traceql.IntrinsicSpanID:
+			pred, err := createBytesPredicate(cond.Op, cond.Operands, true)
+			if err != nil {
+				return nil, err
+			}
+			addPredicate(columnPathSpanID, pred)
+			addSelectAs(cond.Attribute, columnPathSpanID, columnPathSpanID)
+			continue
+
+		case traceql.IntrinsicSpanStartTime:
+			// Not supported in TraceQL, nothing to fetch
 			continue
 
 		case traceql.IntrinsicName:
@@ -1111,6 +1131,11 @@ func createDistinctResourceIterator(
 		iters = append(iters, spanIterator)
 	}
 
+	// Nothing to join, a join iterator without iterators is invalid
+	if len(iters) == 0 {
+		return nil, nil
+	}
+
 	return parquetquery.NewJoinIterator(DefinitionLevelResourceSpans, iters, batchCol), nil
 }
 
@@ -1135,8 +1160,16 @@ func createDistinctTraceIterator(
 	// otherwise we just pass the info up to the engine to make a choice
 	for _, cond := range conds {
 		switch cond.Attribute.Intrinsic {
-		case traceql.IntrinsicTraceID, traceql.IntrinsicTraceStartTime:
-			// metadata conditions not necessary, we don't need to fetch them
+		case traceql.IntrinsicTraceID:
+			var pred parquetquery.Predicate
+			pred, err = createBytesPredicate(cond.Op, cond.Operands, false)
+			if err != nil {
+				return nil, err
+			}
+			traceIters = append(traceIters, makeIter(columnPathTraceID, pred, selectAs(cond.Attribute, columnPathTraceID)))
+
+		case traceql.IntrinsicTraceStartTime:
+			// Not supported in TraceQL, nothing to fetch
 
 		case traceql.IntrinsicTraceDuration:
 			var pred parquetquery.Predicate
@@ -1168,6 +1201,11 @@ func createDistinctTraceIterator(
 	// or the time range filtering first?
 	if resourceIter != nil {
 		traceIters = append(traceIters, resourceIter)
+	}
+
+	// Nothing to join, a join iterator without iterators is invalid
+	if len(traceIters) == 0 {
+		return nil, nil
 	}
 
 	// Final trace iterator
@@ -1308,8 +1346,9 @@ func mapLinkAttr(_ entry) traceql.Static {
 
 func mapSpanAttr(e entry) traceql.Static {
 	switch e.Key {
-	case columnPathSpanID,
-		columnPathSpanParentID,
+	case columnPathSpanID:
+		return traceql.NewStaticString(util.SpanIDToHexString(e.Value.ByteArray()))
+	case columnPathSpanParentID,
 		columnPathSpanNestedSetLeft,
 		columnPathSpanNestedSetRight,
 		columnPathSpanStartTime:
@@ -1394,7 +1433,9 @@ func mapResourceAttr(e entry) traceql.Static {
 
 func mapTraceAttr(e entry) traceql.Static {
 	switch e.Key {
-	case columnPathTraceID, columnPathEndTimeUnixNano, columnPathStartTimeUnixNano: // No TraceQL intrinsics for these
+	case columnPathTraceID:
+		return traceql.NewStaticString(util.TraceIDToHexString(e.Value.ByteArray()))
+	case columnPathEndTimeUnixNano, columnPathStartTimeUnixNano: // No TraceQL intrinsics for these
 	case columnPathDurationNanos:
 		return traceql.NewStaticDuration(time.Duration(e.Value.Int64()))
 	case columnPathRootSpanName:
