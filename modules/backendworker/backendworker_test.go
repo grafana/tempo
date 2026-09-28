@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/gogo/status"
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/kv"
@@ -30,6 +31,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
@@ -63,6 +65,40 @@ func TestWorker(t *testing.T) {
 
 	err = services.StopAndAwaitTerminated(ctx, w)
 	require.NoError(t, err)
+}
+
+func TestIsExpectedSchedulerError(t *testing.T) {
+	tests := []struct {
+		name          string
+		err           error
+		expectedCodes []codes.Code
+		want          bool
+	}{
+		{
+			name:          "expected not found",
+			err:           status.Error(codes.NotFound, "no jobs found"),
+			expectedCodes: []codes.Code{codes.NotFound},
+			want:          true,
+		},
+		{
+			name:          "unexpected not found",
+			err:           status.Error(codes.NotFound, "job not found"),
+			expectedCodes: []codes.Code{codes.Unavailable},
+			want:          false,
+		},
+		{
+			name:          "non gRPC error",
+			err:           assert.AnError,
+			expectedCodes: []codes.Code{codes.NotFound},
+			want:          false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, isExpectedSchedulerError(tt.err, tt.expectedCodes))
+		})
+	}
 }
 
 func setupDependencies(ctx context.Context, t *testing.T, limits overrides.Config) (Config, backendscheduler_client.Config, overrides.Service, *mockScheduler, storage.Store) {
