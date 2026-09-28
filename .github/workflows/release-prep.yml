@@ -1,6 +1,6 @@
 name: release-prep
 # Dispatch-triggered prep for any release, detected from the version string:
-#   - release candidate (X.Y.Z-rc.N): prepped on main, NO image-tag bump,
+#   - release candidate (X.Y.Z-rc.N): prepped on main or release-vX.Y, NO image-tag bump,
 #     published later as a pre-release.
 #   - minor / patch (X.Y.Z): prepped on release-vX.Y, WITH image-tag bump,
 #     published later as latest.
@@ -13,6 +13,10 @@ on:
         description: 'Version to release, e.g. 2.10.7 or 3.1.0-rc.0 (no leading v)'
         type: string
         required: true
+      base_branch:
+        description: 'Optional source branch: main or matching release-vX.Y for RCs; matching release-vX.Y for final releases'
+        type: string
+        default: ''
       validate_only:
         description: 'Run validation checks only; do not open a PR'
         type: boolean
@@ -29,6 +33,7 @@ jobs:
       id-token: write
     env:
       VERSION: ${{ inputs.version }}
+      REQUESTED_BASE_BRANCH: ${{ inputs.base_branch }}
     steps:
       - name: Validate version and derive release parameters
         id: vars
@@ -54,6 +59,14 @@ jobs:
           else
             base_branch="release-v${minor}"
             bump=true
+          fi
+          if [ -n "$REQUESTED_BASE_BRANCH" ]; then
+            if [ "$REQUESTED_BASE_BRANCH" != "release-v${minor}" ] && \
+               { [ "$is_rc" != true ] || [ "$REQUESTED_BASE_BRANCH" != main ]; }; then
+              echo "ERROR: invalid base branch '$REQUESTED_BASE_BRANCH' for v${VERSION}"
+              exit 1
+            fi
+            base_branch="$REQUESTED_BASE_BRANCH"
           fi
           {
             echo "base_branch=${base_branch}"
@@ -100,13 +113,29 @@ jobs:
         env:
           BASE_BRANCH: ${{ steps.vars.outputs.base_branch }}
           IS_MINOR: ${{ steps.vars.outputs.is_minor }}
+          TAG: ${{ steps.vars.outputs.tag }}
         run: |
           set -euo pipefail
           pending=$(find .chloggen -maxdepth 1 -type f \( -name '*.yaml' -o -name '*.yml' \) \
             ! -name 'config.yaml' ! -name 'TEMPLATE.yaml' | wc -l | tr -d ' ')
           echo "Found ${pending} pending changelog entr(y/ies)."
-          if [ "$pending" -lt 1 ] && [ "$IS_MINOR" != "true" ]; then
-            echo "ERROR: no pending .chloggen entries; nothing to release."
+          sections=$(grep -cxF "# ${TAG}" CHANGELOG.md || true)
+          if [ "$sections" -gt 1 ] || { [ "$sections" -eq 1 ] && [ "$pending" -gt 0 ]; }; then
+            echo "ERROR: changelog section ${TAG} already exists; refusing to generate a duplicate."
+            exit 1
+          fi
+          if [ "$sections" -eq 1 ]; then
+            if ! awk -v heading="# ${TAG}" '
+              $0 == heading {found=1; next}
+              found && /^# / {exit}
+              found && /^- / {entry=1}
+              END {exit !entry}
+            ' CHANGELOG.md; then
+              echo "ERROR: changelog section ${TAG} has no entries."
+              exit 1
+            fi
+          elif [ "$pending" -lt 1 ] && [ "$IS_MINOR" != "true" ]; then
+            echo "ERROR: no pending .chloggen entries or prepared changelog section ${TAG}."
             exit 1
           fi
           last_tag=$(git describe --tags --abbrev=0)
