@@ -620,6 +620,7 @@ func TestListBlocksWithPrefix(t *testing.T) {
 		tenant            string
 		liveBlockIDs      []uuid.UUID
 		compactedBlockIDs []uuid.UUID
+		noCompactBlockIDs []uuid.UUID
 		httpHandler       func(t *testing.T) http.HandlerFunc
 	}{
 		{
@@ -628,6 +629,7 @@ func TestListBlocksWithPrefix(t *testing.T) {
 			tenant:            "single-tenant",
 			liveBlockIDs:      []uuid.UUID{uuid.MustParse("00000000-0000-0000-0000-000000000000")},
 			compactedBlockIDs: []uuid.UUID{uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+			noCompactBlockIDs: []uuid.UUID{uuid.MustParse("00000000-0000-0000-0000-000000000000")},
 			httpHandler: func(t *testing.T) http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
 					if r.Method == getMethod {
@@ -647,6 +649,13 @@ func TestListBlocksWithPrefix(t *testing.T) {
 								<LastModified>2024-03-01T00:00:00.000Z</LastModified>
 								<ETag>&quot;d42a22ddd183f61924c661b1c026c1ef&quot;</ETag>
 								<Size>398</Size>
+								<StorageClass>STANDARD</StorageClass>
+							</Contents>
+							<Contents>
+								<Key>a/b/c/single-tenant/00000000-0000-0000-0000-000000000000/nocompact.flg</Key>
+								<LastModified>2024-03-01T00:00:00.000Z</LastModified>
+								<ETag>&quot;d41d8cd98f00b204e9800998ecf8427e&quot;</ETag>
+								<Size>0</Size>
 								<StorageClass>STANDARD</StorageClass>
 							</Contents>
 							
@@ -722,11 +731,12 @@ func TestListBlocksWithPrefix(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := context.Background()
-			blockIDs, compactedBlockIDs, err := r.ListBlocks(ctx, tc.tenant)
+			blockIDs, compactedBlockIDs, noCompactBlockIDs, err := r.ListBlocks(ctx, tc.tenant)
 			assert.NoError(t, err)
 
 			assert.ElementsMatchf(t, tc.liveBlockIDs, blockIDs, "Block IDs did not match")
 			assert.ElementsMatchf(t, tc.compactedBlockIDs, compactedBlockIDs, "Compacted block IDs did not match")
+			assert.ElementsMatchf(t, tc.noCompactBlockIDs, noCompactBlockIDs, "Nocompact block IDs did not match")
 		})
 	}
 }

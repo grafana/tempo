@@ -217,7 +217,7 @@ func (rw *Azure) List(ctx context.Context, keypath backend.KeyPath) ([]string, e
 }
 
 // ListBlocks implements backend.Reader
-func (rw *Azure) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []uuid.UUID, error) {
+func (rw *Azure) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []uuid.UUID, []uuid.UUID, error) {
 	ctx, span := tracer.Start(ctx, "V2.ListBlocks")
 	defer span.End()
 
@@ -244,6 +244,7 @@ func (rw *Azure) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []
 		mtx               sync.Mutex
 		blockIDs          = make([]uuid.UUID, 0, 1000)
 		compactedBlockIDs = make([]uuid.UUID, 0, 1000)
+		noCompactBlockIDs = make([]uuid.UUID, 0)
 	)
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -251,7 +252,7 @@ func (rw *Azure) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []
 
 	for _, listPrefix := range prefixes {
 		g.Go(func() error {
-			ids, compactedIDs, err := rw.listBlocksWithPrefix(ctx, listPrefix, prefix)
+			ids, compactedIDs, noCompactIDs, err := rw.listBlocksWithPrefix(ctx, listPrefix, prefix)
 			if err != nil {
 				return err
 			}
@@ -260,13 +261,14 @@ func (rw *Azure) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []
 			defer mtx.Unlock()
 			blockIDs = append(blockIDs, ids...)
 			compactedBlockIDs = append(compactedBlockIDs, compactedIDs...)
+			noCompactBlockIDs = append(noCompactBlockIDs, noCompactIDs...)
 
 			return nil
 		})
 	}
 
 	if err := g.Wait(); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	span.SetAttributes(
@@ -276,16 +278,17 @@ func (rw *Azure) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []
 		attribute.Int("compactedBlockIDs", len(compactedBlockIDs)),
 	)
 
-	return blockIDs, compactedBlockIDs, nil
+	return blockIDs, compactedBlockIDs, noCompactBlockIDs, nil
 }
 
 // listBlocksWithPrefix lists blocks under listPrefix, which is tenantPrefix
 // optionally narrowed by a block ID shard. Names are trimmed against
 // tenantPrefix so block IDs resolve the same in either case.
-func (rw *Azure) listBlocksWithPrefix(ctx context.Context, listPrefix, tenantPrefix string) ([]uuid.UUID, []uuid.UUID, error) {
+func (rw *Azure) listBlocksWithPrefix(ctx context.Context, listPrefix, tenantPrefix string) ([]uuid.UUID, []uuid.UUID, []uuid.UUID, error) {
 	var (
 		blockIDs          []uuid.UUID
 		compactedBlockIDs []uuid.UUID
+		noCompactBlockIDs []uuid.UUID
 		parts             []string
 		id                uuid.UUID
 		pager             = rw.containerClient.NewListBlobsFlatPager(&container.ListBlobsFlatOptions{
@@ -297,7 +300,7 @@ func (rw *Azure) listBlocksWithPrefix(ctx context.Context, listPrefix, tenantPre
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, nil, fmt.Errorf("iterating objects: %w", err)
+			return nil, nil, nil, fmt.Errorf("iterating objects: %w", err)
 		}
 
 		for _, b := range page.Segment.BlobItems {
@@ -313,13 +316,13 @@ func (rw *Azure) listBlocksWithPrefix(ctx context.Context, listPrefix, tenantPre
 				continue
 			}
 
-			if parts[1] != backend.MetaName && parts[1] != backend.CompactedMetaName {
+			if parts[1] != backend.MetaName && parts[1] != backend.CompactedMetaName && parts[1] != backend.NoCompactFileName {
 				continue
 			}
 
 			id, err = uuid.Parse(parts[0])
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 
 			switch parts[1] {
@@ -327,11 +330,13 @@ func (rw *Azure) listBlocksWithPrefix(ctx context.Context, listPrefix, tenantPre
 				blockIDs = append(blockIDs, id)
 			case backend.CompactedMetaName:
 				compactedBlockIDs = append(compactedBlockIDs, id)
+			case backend.NoCompactFileName:
+				noCompactBlockIDs = append(noCompactBlockIDs, id)
 			}
 		}
 	}
 
-	return blockIDs, compactedBlockIDs, nil
+	return blockIDs, compactedBlockIDs, noCompactBlockIDs, nil
 }
 
 // Find implements backend.Reader

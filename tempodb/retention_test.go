@@ -54,7 +54,7 @@ func TestRetention(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{}, false)
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	blockID := backend.NewUUID()
 
@@ -116,7 +116,7 @@ func TestRetentionSkipsBlockAlreadyMarkedCompacted(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{}, false)
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	blockID := backend.NewUUID()
 	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID}
@@ -180,7 +180,7 @@ func TestRetentionSkipsBlockAlreadyCleared(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{}, false)
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	blockID := backend.NewUUID()
 	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID}
@@ -255,7 +255,7 @@ func TestRetentionUpdatesBlocklistImmediately(t *testing.T) {
 	assert.NoError(t, err)
 
 	ctx := context.Background()
-	r.EnablePolling(ctx, &mockJobSharder{}, false)
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	err = c.EnableCompaction(context.Background(), &CompactorConfig{
 		MaxCompactionRange:      time.Hour,
@@ -330,7 +330,7 @@ func TestBlockRetentionOverride(t *testing.T) {
 	}, &mockSharder{}, overrides)
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{}, false)
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	cutTestBlocks(t, w, testTenantID, 10, 10)
 
@@ -393,7 +393,7 @@ func TestBlockRetentionOverrideDisabled(t *testing.T) {
 	}, &mockSharder{}, overrides)
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{}, false)
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	cutTestBlocks(t, w, testTenantID, 10, 10)
 
@@ -455,7 +455,7 @@ func testRetainWithConfig(t *testing.T, targetBlockVersion string) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	r.EnablePolling(ctx, &mockJobSharder{}, false)
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	blocks := cutTestBlocks(t, w, testTenantID, 10, 10)
 
@@ -567,7 +567,7 @@ func TestRetentionCacheEviction(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{}, false)
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	// Create and flush a block
 	head, err := w.WAL().NewBlock(
@@ -643,7 +643,7 @@ func TestRetentionClearsEveryBlockConcurrently(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	r.EnablePolling(ctx, &mockJobSharder{}, false)
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	require.NoError(t, c.EnableCompaction(ctx, &CompactorConfig{
 		MaxCompactionRange:        time.Hour,

@@ -194,7 +194,7 @@ func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger, tmpDi
 
 	// The store service is never started, so only cancel + Shutdown joins the poller.
 	ctx, cancel := context.WithCancel(ctx)
-	s.EnablePolling(ctx, &ownsEverythingSharder{}, false)
+	s.EnablePolling(ctx, &ownsEverythingSharder{})
 
 	t.Cleanup(func() {
 		cancel()
