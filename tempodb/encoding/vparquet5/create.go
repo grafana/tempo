@@ -35,6 +35,11 @@ func (b *backendWriter) Close() error {
 	return b.w.CloseAppend(b.ctx, b.tracker)
 }
 
+// maxRowGroupSizeBytes forces a row group to be cut regardless of the size
+// estimate. It keeps every column dictionary below parquet-go's 1GiB byte array
+// dictionary limit, past which the column falls back to PLAIN encoding.
+var maxRowGroupSizeBytes int64 = 800 * 1024 * 1024
+
 func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, r backend.Reader, to backend.Writer) (*backend.BlockMeta, error) {
 	s, newMeta := newStreamingBlock(ctx, cfg, meta, r, to, tempo_io.NewBufferedWriter)
 
@@ -105,7 +110,7 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 			return nil, err
 		}
 
-		if s.EstimatedBufferedBytes() > cfg.RowGroupSizeBytes {
+		if s.EstimatedBufferedBytes() > cfg.RowGroupSizeBytes || s.RowGroupFull() {
 			_, err = s.Flush()
 			if err != nil {
 				return nil, err
@@ -137,6 +142,9 @@ type streamingBlock struct {
 
 	currentBufferedTraces int
 	currentBufferedBytes  int
+
+	// pw.Size() when the current row group was started.
+	rowGroupStartSize int64
 }
 
 func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, r backend.Reader, to backend.Writer, createBufferedWriter func(w io.Writer) tempo_io.BufferedWriteFlusher) (*streamingBlock, *backend.BlockMeta) {
@@ -206,6 +214,13 @@ func (b *streamingBlock) EstimatedBufferedBytes() int {
 	return b.currentBufferedBytes
 }
 
+// RowGroupFull reports whether the row group being written has reached
+// maxRowGroupSizeBytes, as measured by the parquet writer. Unlike the estimate,
+// this includes column dictionaries.
+func (b *streamingBlock) RowGroupFull() bool {
+	return b.pw.Size()-b.rowGroupStartSize >= maxRowGroupSizeBytes
+}
+
 func (b *streamingBlock) CurrentBufferedObjects() int {
 	return b.currentBufferedTraces
 }
@@ -223,6 +238,7 @@ func (b *streamingBlock) Flush() (int, error) {
 	b.meta.TotalRecords++
 	b.currentBufferedTraces = 0
 	b.currentBufferedBytes = 0
+	b.rowGroupStartSize = b.pw.Size()
 
 	// Flush to underlying writer
 	return n, b.bw.Flush()
@@ -317,9 +333,17 @@ func estimateMarshalledSizeFromTrace(tr *Trace) (size int) {
 func estimateAttrSize(attrs []Attribute) (size int) {
 	size += len(attrs) * 7 // 7 attribute lvl fields
 
-	// 1 byte for every entry in arrays after the first one.
 	for _, a := range attrs {
-		size += max(0, len(a.Value)-1)
+		// String values are unbounded. Count ~1 byte per 20 to account for
+		// encoding and compression, like estimateMarshalledSizeFromParquetRow.
+		for _, v := range a.Value {
+			size += max(len(v)/20, 1)
+		}
+		if a.ValueUnsupported != nil {
+			size += max(len(*a.ValueUnsupported)/20, 1)
+		}
+
+		// 1 byte for every entry in arrays after the first one.
 		size += max(0, len(a.ValueInt)-1)
 		size += max(0, len(a.ValueDouble)-1)
 		size += max(0, len(a.ValueBool)-1)

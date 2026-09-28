@@ -41,7 +41,7 @@ For externally supported gRPC API, [refer to Tempo gRPC API](#tempo-grpc-api).
 | [Search tag values V2](#search-tag-values-v2)                                         | Query-frontend                            | HTTP | `GET /api/v2/search/tag/<tag>/values`                     |
 | [TraceQL Metrics](#traceql-metrics)                                                   | Query-frontend                            | HTTP | `GET /api/metrics/query_range`                            |
 | [TraceQL Metrics (instant)](#instant)                                                 | Query-frontend                            | HTTP | `GET /api/metrics/query`                                  |
-| [Trace diff](#trace-diff) (\*)                                                        | Query-frontend                            | HTTP | `POST /api/v2/traces/diff`                                |
+| [Traces diff](#traces-diff) (\*)                                                        | Query-frontend                            | HTTP | `POST /api/v2/traces/diff`                                |
 | [Query Echo Endpoint](#query-echo-endpoint)                                           | Query-frontend                            | HTTP | `GET /api/echo`                                           |
 | [Overrides API](#overrides-api)                                                       | Query-frontend                            | HTTP | `GET,POST,PATCH,DELETE /api/overrides`                    |
 | Memberlist                                                                            | Distributor, Querier, Live store          | HTTP | `GET /memberlist`                                         |
@@ -757,7 +757,7 @@ Actual API parameters must be URL-encoded. This example is left unencoded for re
 GET /api/metrics/query?q={status=error}|count_over_time()by(resource.service.name)
 ```
 
-### Trace diff
+### Traces diff
 
 {{< admonition type="warning" >}}
 This endpoint is experimental. The request and response formats may change in future releases.

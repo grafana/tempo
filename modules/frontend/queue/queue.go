@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	queueCleanupPeriod = 30 * time.Second // every 30 seconds b/c the the stopping code requires there to be no queues. i would like to make this 5-10 minutes but then shutdowns would be blocked
+	queueCleanupPeriod = 30 * time.Second
 )
 
 var (
@@ -165,6 +165,10 @@ FindQueue:
 	if queue != nil {
 		// this is all threadsafe b/c all users queues are blocked by q.mtx
 		batchBuffer := q.getBatchBuffer(batchBuffer, userID, queue)
+		if len(queue) == 0 {
+			// Shutdown may be waiting for this tenant queue to drain.
+			q.cond.Broadcast()
+		}
 		return batchBuffer, last, nil
 	}
 
@@ -213,7 +217,9 @@ func (q *RequestQueue) stopping(_ error) error {
 	q.mtx.Lock()
 	defer q.mtx.Unlock()
 
-	for q.queues.len() > 0 {
+	// The cleanup timer has stopped, so tenant entries may remain after their
+	// requests have drained. Wait for pending work, not for tenant removal.
+	for q.queues.hasPendingRequests() {
 		q.cond.Wait(context.Background())
 	}
 

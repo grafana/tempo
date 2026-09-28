@@ -62,7 +62,7 @@ func TestMCP(t *testing.T) {
 			"traceql-metrics-instant",
 			"traceql-metrics-range",
 			"get-trace",
-			"trace-diff",
+			"traces-diff",
 			"get-attribute-names",
 			"get-attribute-values",
 			"docs-traceql",
@@ -135,7 +135,7 @@ func assertTraceOverMCP(t *testing.T, mcpClient mcpclient.MCPClient, traceID str
 func assertTraceDiffOverMCP(t *testing.T, mcpClient mcpclient.MCPClient, traceID string) {
 	resp, err := mcpClient.CallTool(context.Background(), mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name: "trace-diff",
+			Name: "traces-diff",
 			Arguments: map[string]any{
 				"base_trace_id":    traceID,
 				"compare_trace_id": traceID,

@@ -1,5 +1,26 @@
 <!-- next version -->
 
+# v3.1.0-rc.2
+
+## 🧰 Bug fixes 🧰
+
+- `cache`: respect memcache circuit breaker default for yaml configuration. ([#7972](https://github.com/grafana/tempo/issues/7972)) (@ruslan-mikhailov)
+- `live-store`: Fix a panic in live-store `FindTraceByID` when more spans for the trace arrive while it is being combined with block data and marshalled. ([#7856](https://github.com/grafana/tempo/issues/7856)) (@KR-Ravindra)
+  The live trace's `Batches` slice was handed to the trace combiner with spare capacity, so the
+  combiner's append and the push path's append wrote different batches into the same slot of the
+  live trace's backing array. `Size()` and `Marshal()` then saw different objects and marshalling
+  panicked with `slice bounds out of range`.
+- `metrics-generator`: Fix span name sanitization creating a new DRAIN cluster on every span once a wildcard sibling appeared in the pattern tree ([#7922](https://github.com/grafana/tempo/issues/7922)) (@zhxiaogg)
+- `query-frontend`: Prevent empty tenant queues from blocking query-frontend queue shutdown. ([#7986](https://github.com/grafana/tempo/issues/7986)) (@javiermolinar)
+- `storage`: Fix vParquet5 blocks with large string attributes being written with oversized row groups, which could corrupt blocks and crash compaction. ([#7988](https://github.com/grafana/tempo/issues/7988)) (@zhxiaogg)
+- `storage`: Upgrade parquet-go to v0.32.0 to prevent values being lost when a column dictionary falls back to plain encoding. ([#7989](https://github.com/grafana/tempo/issues/7989)) (@renovate-sh-app[bot])
+- `storage`: Honour the job's page range in tag name and value searches, and report all bytes read for TraceQL-filtered tag searches ([#7992](https://github.com/grafana/tempo/issues/7992)) (@zhxiaogg)
+- `tempo`: Stop calculating Kafka consumer lag metrics when their update interval is set to zero. ([#7973](https://github.com/grafana/tempo/issues/7973)) (@ruslan-mikhailov)
+
+## 🔧 Changes 🔧
+
+- `tempo-cli`: Rename `tempo-cli experimental trace-diff` to `tempo-cli experimental traces-diff` and the MCP tool `trace-diff` to `traces-diff`. ([#8005](https://github.com/grafana/tempo/issues/8005)) (@javiermolinar)
+
 # v3.1.0-rc.1
 
 ## 🧰 Bug fixes 🧰

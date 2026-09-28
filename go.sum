@@ -381,8 +381,8 @@ github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 h1:JeSE6pjso5T
 github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674/go.mod h1:r4w70xmWCQKmi1ONH4KIaBptdivuRPyosB9RmPlGEwA=
 github.com/grafana/dskit v0.0.0-20260703122047-de1ec7541c44 h1:UvN85f1puVLpC6g9QWH+rcLiT7dGaBqNQrf+HPvwXgc=
 github.com/grafana/dskit v0.0.0-20260703122047-de1ec7541c44/go.mod h1:T0r0vLv/JwmOoSc/EOZw/5ni7r/djCoCdJ3/JnHDAjQ=
-github.com/grafana/e2e v0.1.2-0.20260504080022-0f57c9f0da68 h1:+GLaDMc1zkYNTMHZq3ljGaRSm1IcOxQvpBNn0YUyh60=
-github.com/grafana/e2e v0.1.2-0.20260504080022-0f57c9f0da68/go.mod h1:o6aUPNFrl7H0XjIdBpXSU2Gou6vVwctVBuSvWPN7Ogg=
+github.com/grafana/e2e v0.1.2-0.20260918025020-cfcdc6861c9c h1:coGcR88N6HpaXCxSXFxV/fBhPElyU3OPGInsG3f0Nn0=
+github.com/grafana/e2e v0.1.2-0.20260918025020-cfcdc6861c9c/go.mod h1:o6aUPNFrl7H0XjIdBpXSU2Gou6vVwctVBuSvWPN7Ogg=
 github.com/grafana/gomemcache v0.0.0-20260728143316-9448343bd654 h1:d04mpP3+tVfBec0NkKKASCnzps5xfd8UY5gBoVFOba0=
 github.com/grafana/gomemcache v0.0.0-20260728143316-9448343bd654/go.mod h1:j/s0jkda4UXTemDs7Pgw/vMT06alWc42CHisvYac0qw=
 github.com/grafana/memberlist v0.3.1-0.20260515134459-1798cf41aca7 h1:F5hMoc+tCK4AeUKfaL1XFEVEPSg+eKQe712fsSO/JA0=
@@ -645,8 +645,8 @@ github.com/parquet-go/bitpack v1.0.1 h1:nU1hqX5qEbn5oGJHgG1BpoCB8M/y132DX4bG6Exc
 github.com/parquet-go/bitpack v1.0.1/go.mod h1:XnVk9TH+O40eOOmvpAVZ7K2ocQFrQwysLMnc6M/8lgs=
 github.com/parquet-go/jsonlite v1.5.5 h1:TIqJ+b+mYoTvvEt1/ICS4fBacQO0xWwAbvtcrKjEcC8=
 github.com/parquet-go/jsonlite v1.5.5/go.mod h1:hN57TVzxtr04kaax5XwNgCCsh1KE7BT6dvY6X/zNH90=
-github.com/parquet-go/parquet-go v0.30.1 h1:Oy6ganNrAdFiVwy7wNmWagfPTWA2X9Z3tVHBc7JtuX8=
-github.com/parquet-go/parquet-go v0.30.1/go.mod h1:navtkAYr2LGoJVp141oXPlO/sxLvaOe3la2JEoD8+rg=
+github.com/parquet-go/parquet-go v0.32.0 h1:NWDqTUHfrCS4cJP/Fj2HlxvqsrVedWG3sayMkf+znzM=
+github.com/parquet-go/parquet-go v0.32.0/go.mod h1:navtkAYr2LGoJVp141oXPlO/sxLvaOe3la2JEoD8+rg=
 github.com/pascaldekloe/goe v0.1.0 h1:cBOtyMzM9HTpWjXfbbunk26uA6nG3a8n06Wieeh0MwY=
 github.com/pascaldekloe/goe v0.1.0/go.mod h1:lzWF7FIEvWOWxwDKqyGYQf6ZUaNfKdP144TG7ZOy1lc=
 github.com/pb33f/jsonpath v0.8.2 h1:Ou4C7zjYClBm97dfZjDCjdZGusJoynv/vrtiEKNfj2Y=

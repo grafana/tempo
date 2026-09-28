@@ -29,7 +29,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.23.0
 	github.com/gorilla/mux v1.8.1
 	github.com/grafana/dskit v0.0.0-20260703122047-de1ec7541c44
-	github.com/grafana/e2e v0.1.2-0.20260504080022-0f57c9f0da68
+	github.com/grafana/e2e v0.1.2-0.20260918025020-cfcdc6861c9c
 	github.com/grafana/gomemcache v0.0.0-20260728143316-9448343bd654
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.1.0
 	github.com/jaegertracing/jaeger-idl v0.9.0
@@ -49,7 +49,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.153.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.153.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.153.0
-	github.com/parquet-go/parquet-go v0.30.1
+	github.com/parquet-go/parquet-go v0.32.0
 	github.com/prometheus/client_golang v1.24.1
 	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.70.1
