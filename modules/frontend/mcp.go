@@ -40,7 +40,7 @@ const (
 	toolTraceQLMetricsInstant = "traceql-metrics-instant"
 	toolTraceQLMetricsRange   = "traceql-metrics-range"
 	toolGetTrace              = "get-trace"
-	toolTraceDiff             = "trace-diff"
+	toolTraceDiff             = "traces-diff"
 	toolGetAttributeNames     = "get-attribute-names"
 	toolGetAttributeValues    = "get-attribute-values"
 	toolDocsTraceQL           = "docs-traceql"

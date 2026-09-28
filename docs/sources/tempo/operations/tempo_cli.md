@@ -990,7 +990,7 @@ Example with intrinsic attributes:
 tempo-cli gen attr-index --add-intrinsics ./path/to/block
 ```
 
-## Experimental trace diff
+## Experimental traces diff
 
 {{< admonition type="warning" >}}
 This command is experimental. The output format and behavior may change in future releases.
@@ -1003,7 +1003,7 @@ summary or a composed summary with a size-bounded patch.
 Use this command to compare traces captured at different times or from different environments, for example, to understand how a deployment changed trace structure.
 
 ```bash
-tempo-cli experimental trace-diff --trace-a <BASELINE_PATH> --trace-b <COMPARISON_PATH>
+tempo-cli experimental traces-diff --trace-a <BASELINE_PATH> --trace-b <COMPARISON_PATH>
 ```
 
 Arguments:
@@ -1028,19 +1028,19 @@ included in `patch`. Otherwise, `patchOmitted` reports its size and the reason
 Example:
 
 ```bash
-tempo-cli experimental trace-diff --trace-a baseline.json --trace-b compare.json --pretty
+tempo-cli experimental traces-diff --trace-a baseline.json --trace-b compare.json --pretty
 ```
 
 Example writing output to a file:
 
 ```bash
-tempo-cli experimental trace-diff --trace-a baseline.json --trace-b compare.json -o diff-output.json
+tempo-cli experimental traces-diff --trace-a baseline.json --trace-b compare.json -o diff-output.json
 ```
 
 Example producing the native summary:
 
 ```bash
-tempo-cli experimental trace-diff \
+tempo-cli experimental traces-diff \
   --trace-a baseline.json \
   --trace-b compare.json \
   --format trace-summary-v0-native \
