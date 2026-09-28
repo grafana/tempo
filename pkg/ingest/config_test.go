@@ -116,6 +116,7 @@ func TestKafkaConfig_Validate_ProducerCompression(t *testing.T) {
 	cfg := KafkaConfig{
 		Address:                    "localhost:9092",
 		Topic:                      "test",
+		ProducerBatchMaxBytes:      producerBatchMaxBytes,
 		ProducerMaxRecordSizeBytes: minProducerRecordDataBytesLimit,
 	}
 
@@ -130,4 +131,46 @@ func TestKafkaConfig_Validate_ProducerCompression(t *testing.T) {
 	// validate that an invalid value raises an error.
 	cfg.ProducerCompression = "unsupported"
 	require.ErrorIs(t, cfg.Validate(), ErrInvalidProducerCompression)
+}
+
+func TestKafkaConfig_Validate_ProducerBatchMaxBytes(t *testing.T) {
+	baseConfig := func() KafkaConfig {
+		return KafkaConfig{
+			Address:                    "localhost:9092",
+			Topic:                      "test",
+			ProducerBatchMaxBytes:      producerBatchMaxBytes,
+			ProducerMaxRecordSizeBytes: minProducerRecordDataBytesLimit,
+		}
+	}
+
+	t.Run("default batch max is valid", func(t *testing.T) {
+		cfg := baseConfig()
+		require.NoError(t, cfg.Validate())
+	})
+
+	t.Run("lowered batch max with a fitting record size is valid", func(t *testing.T) {
+		cfg := baseConfig()
+		cfg.ProducerBatchMaxBytes = minProducerBatchMaxBytes
+		cfg.ProducerMaxRecordSizeBytes = minProducerRecordDataBytesLimit
+		require.NoError(t, cfg.Validate())
+	})
+
+	t.Run("batch max below the floor is rejected", func(t *testing.T) {
+		cfg := baseConfig()
+		cfg.ProducerBatchMaxBytes = minProducerBatchMaxBytes - 1
+		require.ErrorIs(t, cfg.Validate(), ErrInvalidProducerBatchMaxBytes)
+	})
+
+	t.Run("batch max above the ceiling is rejected", func(t *testing.T) {
+		cfg := baseConfig()
+		cfg.ProducerBatchMaxBytes = maxProducerBatchMaxBytes + 1
+		require.ErrorIs(t, cfg.Validate(), ErrInvalidProducerBatchMaxBytes)
+	})
+
+	t.Run("record size exceeding the configured batch max is rejected", func(t *testing.T) {
+		cfg := baseConfig()
+		cfg.ProducerBatchMaxBytes = minProducerBatchMaxBytes
+		cfg.ProducerMaxRecordSizeBytes = cfg.ProducerBatchMaxBytes - producerBatchOverheadBytes + 1
+		require.ErrorIs(t, cfg.Validate(), ErrInvalidProducerMaxRecordSizeBytes)
+	})
 }

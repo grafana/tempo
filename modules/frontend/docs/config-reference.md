@@ -253,6 +253,7 @@ distributor:
         last_produced_offset_retry_timeout: 0s
         auto_create_topic_enabled: false
         auto_create_topic_default_partitions: 0
+        producer_batch_max_bytes: 0
         producer_max_record_size_bytes: 0
         producer_max_buffered_bytes: 0
         producer_compression: ""
@@ -560,6 +561,7 @@ ingest:
         last_produced_offset_retry_timeout: 10s
         auto_create_topic_enabled: true
         auto_create_topic_default_partitions: 1000
+        producer_batch_max_bytes: 16000000
         producer_max_record_size_bytes: 15983616
         producer_max_buffered_bytes: 1073741824
         producer_compression: ""

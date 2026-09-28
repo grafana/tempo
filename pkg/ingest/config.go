@@ -66,15 +66,26 @@ const (
 	// start being processed by Kafka.
 	writerRequestTimeoutOverhead = 2 * time.Second
 
-	// producerBatchMaxBytes is the max allowed size of a batch of Kafka records.
+	// producerBatchMaxBytes is the default max allowed size of a batch of Kafka records.
 	producerBatchMaxBytes = 16_000_000
 
-	// maxProducerRecordDataBytesLimit is the max allowed size of a single record data. Given we have a limit
-	// on the max batch size (producerBatchMaxBytes), a Kafka record data can't be bigger than the batch size
-	// minus some overhead required to serialise the batch and the record itself. We use 16KB as such overhead
-	// in the worst case scenario, which is expected to be way above the actual one.
-	maxProducerRecordDataBytesLimit = producerBatchMaxBytes - 16384
+	// producerBatchOverheadBytes is the overhead required to serialize a record batch and the
+	// record itself, subtracted from the batch max to bound a single record's data. We use 16KB
+	// as such overhead in the worst case scenario, which is expected to be way above the actual one.
+	producerBatchOverheadBytes = 16384
+
+	// maxProducerRecordDataBytesLimit is the max allowed size of a single record data under the
+	// default batch max. It is used as the default for producer_max_record_size_bytes; the actual
+	// upper bound is recomputed from the configured batch max in Validate().
+	maxProducerRecordDataBytesLimit = producerBatchMaxBytes - producerBatchOverheadBytes
 	minProducerRecordDataBytesLimit = 1024 * 1024
+
+	// minProducerBatchMaxBytes is the smallest batch max that still fits the record-size floor
+	// plus serialization overhead.
+	minProducerBatchMaxBytes = minProducerRecordDataBytesLimit + producerBatchOverheadBytes
+
+	// maxProducerBatchMaxBytes caps the configurable batch max at a  128 MiB ceiling.
+	maxProducerBatchMaxBytes = 128 * 1024 * 1024
 
 	// defaultMetadataAge is the cluster metadata min and max age used by default.
 	defaultMetadataAge = 10 * time.Second
@@ -85,7 +96,8 @@ var (
 	ErrMissingKafkaTopic                 = errors.New("the Kafka topic has not been configured")
 	ErrInconsistentConsumerLagAtStartup  = errors.New("the target and max consumer lag at startup must be either both set to 0 or to a value greater than 0")
 	ErrInvalidMaxConsumerLagAtStartup    = errors.New("the configured max consumer lag at startup must greater or equal than the configured target consumer lag")
-	ErrInvalidProducerMaxRecordSizeBytes = fmt.Errorf("the configured producer max record size bytes must be a value between %d and %d", minProducerRecordDataBytesLimit, maxProducerRecordDataBytesLimit)
+	ErrInvalidProducerMaxRecordSizeBytes = errors.New("the configured producer max record size bytes is out of the allowed range [1048576, 134217728]")
+	ErrInvalidProducerBatchMaxBytes      = fmt.Errorf("the configured producer batch max bytes must be a value between %d and %d", minProducerBatchMaxBytes, maxProducerBatchMaxBytes)
 	ErrInconsistentSASLCredentials       = errors.New("the SASL username and password must be both configured to enable SASL authentication")
 	ErrInvalidProducerCompression        = errors.New("the configured producer compression must be one of: none, gzip, snappy, lz4, zstd")
 	ErrInvalidSASLMechanism              = fmt.Errorf("the configured SASL mechanism is invalid, must be one of: %s", strings.Join(saslMechanismOptions, ", "))
@@ -126,6 +138,7 @@ type KafkaConfig struct {
 	AutoCreateTopicEnabled           bool `yaml:"auto_create_topic_enabled"`
 	AutoCreateTopicDefaultPartitions int  `yaml:"auto_create_topic_default_partitions"`
 
+	ProducerBatchMaxBytes      int   `yaml:"producer_batch_max_bytes"`
 	ProducerMaxRecordSizeBytes int   `yaml:"producer_max_record_size_bytes"`
 	ProducerMaxBufferedBytes   int64 `yaml:"producer_max_buffered_bytes"`
 
@@ -190,6 +203,7 @@ func (cfg *KafkaConfig) RegisterFlagsWithPrefix(prefix string, f *flag.FlagSet) 
 	f.BoolVar(&cfg.AutoCreateTopicEnabled, prefix+".auto-create-topic-enabled", true, "Enable auto-creation of Kafka topic if it doesn't exist.")
 	f.IntVar(&cfg.AutoCreateTopicDefaultPartitions, prefix+".auto-create-topic-default-partitions", 1000, "When auto-creation of Kafka topic is enabled and this value is positive, Kafka's num.partitions configuration option is set on Kafka brokers with this value when Tempo component that uses Kafka starts. This configuration option specifies the default number of partitions that the Kafka broker uses for auto-created topics. Note that this is a Kafka-cluster wide setting, and applies to any auto-created topic. If the setting of num.partitions fails, Tempo proceeds anyways, but auto-created topics could have an incorrect number of partitions.")
 
+	f.IntVar(&cfg.ProducerBatchMaxBytes, prefix+".producer-batch-max-bytes", producerBatchMaxBytes, "The maximum size of a (uncompressed) Kafka producer record batch. The Kafka broker enforces its message.max.bytes against the compressed batch, so when sizing a lower limit to fit a broker's message.max.bytes account for the compression ratio.")
 	f.IntVar(&cfg.ProducerMaxRecordSizeBytes, prefix+".producer-max-record-size-bytes", maxProducerRecordDataBytesLimit, "The maximum size of a Kafka record data that should be generated by the producer. An incoming write request larger than this size is split into multiple Kafka records. We strongly recommend to not change this setting unless for testing purposes.")
 	f.Int64Var(&cfg.ProducerMaxBufferedBytes, prefix+".producer-max-buffered-bytes", 1024*1024*1024, "The maximum size of (uncompressed) buffered and unacknowledged produced records sent to Kafka. The produce request fails once this limit is reached. This limit is per Kafka client. 0 to disable the limit.")
 	f.StringVar(&cfg.ProducerCompression, prefix+".producer-compression", "", "Compression codec used by the Kafka producer. Supported values: none, gzip, snappy, lz4, zstd. If not set, the Kafka client's default codec preference is used.")
@@ -210,8 +224,12 @@ func (cfg *KafkaConfig) Validate() error {
 	if cfg.Topic == "" {
 		return ErrMissingKafkaTopic
 	}
-	if cfg.ProducerMaxRecordSizeBytes < minProducerRecordDataBytesLimit || cfg.ProducerMaxRecordSizeBytes > maxProducerRecordDataBytesLimit {
-		return ErrInvalidProducerMaxRecordSizeBytes
+	if cfg.ProducerBatchMaxBytes < minProducerBatchMaxBytes || cfg.ProducerBatchMaxBytes > maxProducerBatchMaxBytes {
+		return ErrInvalidProducerBatchMaxBytes
+	}
+	maxRecordSize := cfg.ProducerBatchMaxBytes - producerBatchOverheadBytes
+	if cfg.ProducerMaxRecordSizeBytes < minProducerRecordDataBytesLimit || cfg.ProducerMaxRecordSizeBytes > maxRecordSize {
+		return fmt.Errorf("the configured producer max record size bytes must be a value between %d and %d, where the upper bound is producer_batch_max_bytes (%d) minus %d bytes of batch overhead: %w", minProducerRecordDataBytesLimit, maxRecordSize, cfg.ProducerBatchMaxBytes, producerBatchOverheadBytes, ErrInvalidProducerMaxRecordSizeBytes)
 	}
 	if (cfg.TargetConsumerLagAtStartup == 0 && cfg.MaxConsumerLagAtStartup != 0) || (cfg.TargetConsumerLagAtStartup != 0 && cfg.MaxConsumerLagAtStartup == 0) {
 		return ErrInconsistentConsumerLagAtStartup
