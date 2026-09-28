@@ -25,6 +25,8 @@ type Config struct {
 	ResponseConsumers         int                    `yaml:"response_consumers"`
 	Weights                   pipeline.WeightsConfig `yaml:"weights"`
 	MCPServer                 MCPServerConfig        `yaml:"mcp_server"`
+	// ActiveQueriesEnabled exposes the active queries endpoint on the internal server when enabled.
+	ActiveQueriesEnabled bool `yaml:"active_queries_enabled,omitempty"`
 
 	// the maximum time limit that tempo will work on an api request. this includes both
 	// grpc and http requests and applies to all "api" frontend query endpoints such as
@@ -156,6 +158,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	// enabling an mcp server opens the door to send tracing data to an LLM. it should require
 	// explicit enabling. registers a flag in addition to YAML configuration.
 	f.BoolVar(&cfg.MCPServer.Enabled, util.PrefixConfig(prefix, "mcp-server.enabled"), false, "Set to true to enable the MCP server")
+	f.BoolVar(&cfg.ActiveQueriesEnabled, util.PrefixConfig(prefix, "active-queries-enabled"), false, "Set to true to enable the active queries endpoint on the internal server")
 }
 
 type CortexNoQuerierLimits struct{}

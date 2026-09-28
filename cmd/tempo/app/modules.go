@@ -510,7 +510,12 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	// http metrics endpoints
 	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathMetricsQueryInstant), base.Wrap(queryFrontend.MetricsQueryInstantHandler))
 	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathMetricsQueryRange), base.Wrap(queryFrontend.MetricsQueryRangeHandler))
-	t.registerActiveQueriesHandler(base.Wrap(queryFrontend.ActiveQueriesHandler))
+	if t.cfg.Frontend.ActiveQueriesEnabled {
+		if t.InternalServer == nil {
+			return nil, errors.New("active queries endpoint requires the internal server to be enabled")
+		}
+		t.registerActiveQueriesHandler(base.Wrap(queryFrontend.ActiveQueriesHandler))
+	}
 
 	// http mcp endpoint
 	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathMCP), base.Wrap(queryFrontend.MCPHandler))
@@ -531,7 +536,7 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 }
 
 func (t *App) registerActiveQueriesHandler(handler http.Handler) {
-	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathActiveQueries), handler).Methods(http.MethodGet)
+	t.InternalServer.HTTP.Path(addHTTPAPIPrefix(&t.cfg, api.PathActiveQueries)).Methods(http.MethodGet).Handler(handler)
 }
 
 //go:embed static

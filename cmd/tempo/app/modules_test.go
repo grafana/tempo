@@ -71,8 +71,8 @@ func newTestStore(t *testing.T, tmpDir string) storage.Store {
 func TestRegisterActiveQueriesHandler(t *testing.T) {
 	router := mux.NewRouter()
 	app := &App{
-		cfg:    *NewDefaultConfig(),
-		Server: &fakeTempoServer{router: router},
+		cfg:            *NewDefaultConfig(),
+		InternalServer: &server.Server{HTTP: router},
 	}
 	app.registerActiveQueriesHandler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
@@ -91,7 +91,7 @@ func TestRegisterActiveQueriesHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest(tt.method, api.PathActiveQueries, nil)
-			router.ServeHTTP(rec, req)
+			app.InternalServer.HTTP.ServeHTTP(rec, req)
 			require.Equal(t, tt.statusCode, rec.Code)
 		})
 	}

@@ -8,7 +8,7 @@ change_type: enhancement
 component: query-frontend
 
 # A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
-note: Expose active HTTP queries from each query-frontend instance.
+note: Expose active queries from each query-frontend instance on the internal server, with the endpoint disabled by default.
 
 # (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
 # .chloggen/README.md.
