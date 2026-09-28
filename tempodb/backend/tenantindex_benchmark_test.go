@@ -124,5 +124,5 @@ func makeTestTenantIndex(numBlocks int) *TenantIndex {
 		compactedBlocks = append(compactedBlocks, compactedMeta)
 	}
 
-	return newTenantIndex(blocks, compactedBlocks)
+	return newTenantIndex(blocks, compactedBlocks, nil)
 }

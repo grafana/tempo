@@ -69,6 +69,16 @@ func TestIndexMarshalUnmarshal(t *testing.T) {
 				},
 			},
 		},
+		{
+			idx: &TenantIndex{
+				CreatedAt: time.Now(),
+				Meta: []*BlockMeta{
+					NewBlockMeta("test", uuid.MustParse("00000000-0000-0000-0000-000000000001"), "v1"),
+					NewBlockMeta("test", uuid.MustParse("00000000-0000-0000-0000-000000000002"), "v1"),
+				},
+				NoCompact: []UUID{MustParse("00000000-0000-0000-0000-000000000002")},
+			},
+		},
 	}
 
 	for _, tc := range tests {

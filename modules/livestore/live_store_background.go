@@ -373,7 +373,7 @@ func (s *LiveStore) reloadBlocks() error {
 	}
 
 	for _, tenant := range tenants {
-		ids, _, err := r.Blocks(ctx, tenant)
+		ids, _, _, err := r.Blocks(ctx, tenant)
 		if err != nil {
 			return fmt.Errorf("failed to get local blocks for tenant %s: %w", tenant, err)
 		}
