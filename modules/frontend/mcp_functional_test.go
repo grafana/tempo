@@ -134,7 +134,7 @@ func TestMCPTraceDiffTool(t *testing.T) {
 			traceDiffTool = &toolsResp.Tools[i]
 		}
 	}
-	require.NotNil(t, traceDiffTool, "trace-diff tool should be listed")
+	require.NotNil(t, traceDiffTool, "traces-diff tool should be listed")
 	require.NotNil(t, traceDiffTool.Annotations.ReadOnlyHint)
 	require.True(t, *traceDiffTool.Annotations.ReadOnlyHint)
 	require.NotNil(t, traceDiffTool.Annotations.DestructiveHint)
