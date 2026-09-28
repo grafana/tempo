@@ -52,6 +52,11 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	blocks, err := api.ParseTraceByIDBlocks(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	span.AddEvent("validated request", oteltrace.WithAttributes(
 		attribute.String("blockStart", blockStart),
 		attribute.String("blockEnd", blockEnd),
@@ -66,7 +71,7 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		BlockStart: blockStart,
 		BlockEnd:   blockEnd,
 		QueryMode:  queryMode,
-	}, timeStart, timeEnd)
+	}, blocks, timeStart, timeEnd)
 	if err != nil {
 		handleError(w, err)
 		return
@@ -101,6 +106,11 @@ func (q *Querier) TraceByIDHandlerV2(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	blocks, err := api.ParseTraceByIDBlocks(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	span.AddEvent("validated request", oteltrace.WithAttributes(
 		attribute.String("blockStart", blockStart),
 		attribute.String("blockEnd", blockEnd),
@@ -116,7 +126,7 @@ func (q *Querier) TraceByIDHandlerV2(w http.ResponseWriter, r *http.Request) {
 		BlockEnd:          blockEnd,
 		QueryMode:         queryMode,
 		AllowPartialTrace: true,
-	}, timeStart, timeEnd)
+	}, blocks, timeStart, timeEnd)
 	if err != nil {
 		handleError(w, err)
 		return
@@ -396,6 +406,11 @@ func handleError(w http.ResponseWriter, err error) {
 	// NOTE: we receive a GRPC error from the ingesters, and so we need to check the string content of error as well.
 	if errors.Is(err, trace.ErrTraceTooLarge) || strings.Contains(err.Error(), trace.ErrTraceTooLarge.Error()) {
 		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+		return
+	}
+
+	if errors.Is(err, ErrTraceByIDBlocksRequired) {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
