@@ -1,7 +1,7 @@
 change_type: bug_fix
 component: live-store
 note: Fix a panic in live-store `FindTraceByID` when more spans for the trace arrive while it is being combined with block data and marshalled.
-issues: []
+issues: [7856]
 subtext: |
   The live trace's `Batches` slice was handed to the trace combiner with spare capacity, so the
   combiner's append and the push path's append wrote different batches into the same slot of the

@@ -12,7 +12,7 @@ note: "Rename `tempo-cli experimental trace-diff` to `tempo-cli experimental tra
 
 # (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
 # .chloggen/README.md.
-issues: []
+issues: [8005]
 
 # (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
 subtext:

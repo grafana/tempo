@@ -4,7 +4,7 @@ component: metrics-generator
 
 note: Fix span name sanitization creating a new DRAIN cluster on every span once a wildcard sibling appeared in the pattern tree
 
-issues: []
+issues: [7922]
 
 subtext:
 
