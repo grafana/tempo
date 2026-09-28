@@ -2,6 +2,7 @@ package app
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/grafana/tempo/v3/modules/generator"
 	"github.com/grafana/tempo/v3/modules/overrides"
 	"github.com/grafana/tempo/v3/modules/storage"
+	"github.com/grafana/tempo/v3/pkg/api"
 	"github.com/grafana/tempo/v3/tempodb"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 	"github.com/grafana/tempo/v3/tempodb/backend/local"
@@ -64,6 +66,35 @@ func newTestStore(t *testing.T, tmpDir string) storage.Store {
 	require.NoError(t, err)
 
 	return s
+}
+
+func TestRegisterActiveQueriesHandler(t *testing.T) {
+	router := mux.NewRouter()
+	app := &App{
+		cfg:    *NewDefaultConfig(),
+		Server: &fakeTempoServer{router: router},
+	}
+	app.registerActiveQueriesHandler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	tests := []struct {
+		name       string
+		method     string
+		statusCode int
+	}{
+		{name: "GET is registered", method: http.MethodGet, statusCode: http.StatusNoContent},
+		{name: "other methods are rejected", method: http.MethodPost, statusCode: http.StatusMethodNotAllowed},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(tt.method, api.PathActiveQueries, nil)
+			router.ServeHTTP(rec, req)
+			require.Equal(t, tt.statusCode, rec.Code)
+		})
+	}
 }
 
 func TestConfigureGenerator(t *testing.T) {
