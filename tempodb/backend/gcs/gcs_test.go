@@ -265,6 +265,38 @@ func TestRetry_ClearBlock(t *testing.T) {
 	})
 }
 
+// CompactedBlockMeta's NotFound path (blocklist/poller.go's pollBlock treats it
+// as a benign "block in an intermediate state", not a poll error) has no
+// coverage: readError's classification is unit tested in isolation, but
+// nothing confirms CompactedBlockMeta actually routes a real 404 through it.
+func TestCompactedBlockMeta_NotFound(t *testing.T) {
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/b/blerg":
+			_, _ = w.Write([]byte(`{}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"error": {"code": 404, "message": "not found"}}`))
+		}
+	}))
+	server.StartTLS()
+	t.Cleanup(server.Close)
+
+	_, _, c, err := New(&Config{
+		BucketName: "blerg",
+		Insecure:   true,
+		Endpoint:   server.URL,
+	})
+	require.NoError(t, err)
+
+	id, err := uuid.NewUUID()
+	require.NoError(t, err)
+
+	_, err = c.CompactedBlockMeta(id, "tenant")
+	require.Error(t, err)
+	require.True(t, errors.Is(err, backend.ErrDoesNotExist))
+}
+
 func fakeServer(t *testing.T, returnIn time.Duration, counter *int32) *httptest.Server {
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(returnIn)
@@ -462,6 +494,7 @@ func TestListBlocksWithPrefix(t *testing.T) {
 		tenant            string
 		liveBlockIDs      []uuid.UUID
 		compactedBlockIDs []uuid.UUID
+		noCompactBlockIDs []uuid.UUID
 		httpHandler       func(t *testing.T) http.HandlerFunc
 	}{
 		{
@@ -470,6 +503,7 @@ func TestListBlocksWithPrefix(t *testing.T) {
 			tenant:            "single-tenant",
 			liveBlockIDs:      []uuid.UUID{uuid.MustParse("00000000-0000-0000-0000-000000000000")},
 			compactedBlockIDs: []uuid.UUID{uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+			noCompactBlockIDs: []uuid.UUID{uuid.MustParse("00000000-0000-0000-0000-000000000000")},
 			httpHandler: func(t *testing.T) http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
 					if r.Method == "GET" {
@@ -485,6 +519,15 @@ func TestListBlocksWithPrefix(t *testing.T) {
 								"bucket": "blerg",
 								"storageClass": "STANDARD",
 								"size": "1024",
+								"timeCreated": "2024-03-01T00:00:00.000Z",
+								"updated": "2024-03-01T00:00:00.000Z"
+							}, {
+								"kind": "storage#object",
+								"id": "3",
+								"name": "a/b/c/single-tenant/00000000-0000-0000-0000-000000000000/nocompact.flg",
+								"bucket": "blerg",
+								"storageClass": "STANDARD",
+								"size": "0",
 								"timeCreated": "2024-03-01T00:00:00.000Z",
 								"updated": "2024-03-01T00:00:00.000Z"
 							}, {
@@ -559,11 +602,12 @@ func TestListBlocksWithPrefix(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := context.Background()
-			blockIDs, compactedBlockIDs, err := r.ListBlocks(ctx, tc.tenant)
+			blockIDs, compactedBlockIDs, noCompactBlockIDs, err := r.ListBlocks(ctx, tc.tenant)
 			assert.NoError(t, err)
 
 			assert.ElementsMatchf(t, tc.liveBlockIDs, blockIDs, "Block IDs did not match")
 			assert.ElementsMatchf(t, tc.compactedBlockIDs, compactedBlockIDs, "Compacted block IDs did not match")
+			assert.ElementsMatchf(t, tc.noCompactBlockIDs, noCompactBlockIDs, "Nocompact block IDs did not match")
 		})
 	}
 }

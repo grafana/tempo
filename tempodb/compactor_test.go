@@ -112,7 +112,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{}, true)
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	wal := w.WAL()
 	require.NoError(t, err)
@@ -260,7 +260,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{}, true)
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	wal := w.WAL()
 	require.NoError(t, err)
@@ -338,7 +338,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 
 	// force clear compacted blocks to guarantee that we're only querying the new blocks that went through the combiner
 	metas := rw.blocklist.Metas(testTenantID)
-	rw.blocklist.ApplyPollResults(blocklist.PerTenant{testTenantID: metas}, blocklist.PerTenantCompacted{})
+	rw.blocklist.ApplyPollResults(blocklist.PerTenant{testTenantID: metas}, blocklist.PerTenantCompacted{}, nil)
 
 	// search for all ids
 	for i, id := range allIDs {
@@ -400,7 +400,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{}, true)
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	// Cut x blocks with y records each
 	blockCount := 5
@@ -467,7 +467,7 @@ func TestCompactionMetrics(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{}, true)
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	// Cut x blocks with y records each
 	blockCount := 5
@@ -539,7 +539,7 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{}, true)
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	// Cut blocks for multiple tenants
 	cutTestBlocks(t, w, testTenantID, 2, 2)
@@ -606,7 +606,7 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{}, true)
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	cutTestBlockWithTraces(t, w, []testData{
 		{test.ValidTraceID(nil), test.MakeTrace(10, nil), 100, 101},
@@ -924,6 +924,33 @@ func TestCompactWithConfigFailsOnUnreadableMeta(t *testing.T) {
 	require.Empty(t, compacted)
 	require.Equal(t, before, testutil.ToFloat64(metricCompactionBlocksMissing.WithLabelValues(tenantID)),
 		"an unreadable meta must not be counted as a missing block")
+}
+
+func TestMarkCompactedSkipsAlreadyRetiredBlock(t *testing.T) {
+	// markCompacted retires each old block via MarkBlockCompacted after a
+	// successful merge. retention's own, independent age-based sweep can reach
+	// the same block first (or a duplicate compaction job can be dispatched
+	// against a stale block list). Either way, finding the block already
+	// retired is not a real compaction error.
+	tenantID := "already-retired"
+
+	_, w, c, _ := testConfig(t, 0)
+	rw := c.(*readerWriter)
+
+	blocks := cutTestBlocks(t, w, tenantID, 1, 10)
+	oldMeta := blocks[0].BlockMeta()
+
+	// Simulate a concurrent retention pass that already retired this block on
+	// the backend, bypassing markCompacted's own in-memory bookkeeping.
+	require.NoError(t, rw.c.MarkBlockCompacted(uuid.UUID(oldMeta.BlockID), tenantID))
+
+	before := testutil.ToFloat64(metricCompactionErrors)
+
+	newMeta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: tenantID}
+	err := markCompacted(rw, tenantID, []*backend.BlockMeta{oldMeta}, []*backend.BlockMeta{newMeta})
+	require.NoError(t, err)
+	require.Equal(t, before, testutil.ToFloat64(metricCompactionErrors),
+		"a block already retired by someone else must not count as a compaction error")
 }
 
 type testData struct {

@@ -1,0 +1,6 @@
+change_type: enhancement
+component: distributor
+note: Reduce trace ingestion overhead and memory allocations by avoiding a protobuf conversion round trip.
+issues: [7979]
+subtext: Profiling-only indexed attributes are treated as empty in trace data according to OTLP.
+user: julienduchesne

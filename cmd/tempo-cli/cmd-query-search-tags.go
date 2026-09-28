@@ -14,6 +14,8 @@ import (
 )
 
 type querySearchTagsCmd struct {
+	tlsOptions
+
 	HostPort string `arg:"" help:"tempo host and port. scheme and path will be provided based on query type. e.g. localhost:3200"`
 	Start    string `arg:"" optional:"" help:"start time in RFC3339 (e.g. 2006-01-02T15:04:05Z07:00) or relative (e.g. now-1h) format"`
 	End      string `arg:"" optional:"" help:"end time in RFC3339 (e.g. 2006-01-02T15:04:05Z07:00) or relative (e.g. now) format"`
@@ -52,14 +54,20 @@ func (cmd *querySearchTagsCmd) Run(_ *globalOptions) error {
 
 // nolint: goconst // goconst wants us to make http:// a const
 func (cmd *querySearchTagsCmd) searchHTTP(start, end int64) error {
+	transport, err := cmd.httpTransport(cmd.Secure)
+	if err != nil {
+		return err
+	}
+	defer transport.CloseIdleConnections()
+
 	if cmd.PathPrefix != "" {
 		cmd.HostPort = path.Join(cmd.HostPort, cmd.PathPrefix)
 	}
 	client := httpclient.New(httpScheme(cmd.Secure)+"://"+cmd.HostPort, cmd.OrgID)
+	client.WithTransport(transport)
 	applyHeaders(client, cmd.Headers)
 
 	var tags *tempopb.SearchTagsV2Response
-	var err error
 	if start != 0 || end != 0 {
 		tags, err = client.SearchTagsV2WithRange("", "", start, end)
 	} else {
@@ -81,7 +89,7 @@ func (cmd *querySearchTagsCmd) searchGRPC(start, end int64) error {
 	}
 	ctx = applyHeadersGRPC(ctx, cmd.Headers)
 
-	creds, err := grpcTransportCredentials(cmd.Secure)
+	creds, err := cmd.grpcTransportCredentials(cmd.Secure)
 	if err != nil {
 		return err
 	}
@@ -90,6 +98,7 @@ func (cmd *querySearchTagsCmd) searchGRPC(start, end int64) error {
 	if err != nil {
 		return err
 	}
+	defer clientConn.Close()
 
 	client := tempopb.NewStreamingQuerierClient(clientConn)
 

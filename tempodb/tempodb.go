@@ -98,11 +98,13 @@ type Reader interface {
 
 	BlockMeta(ctx context.Context, tenantID string, blockID backend.UUID) (*backend.BlockMeta, *backend.CompactedBlockMeta, error)
 	BlockMetas(tenantID string) []*backend.BlockMeta
+	// NoCompactBlocks returns the IDs of the tenant's live blocks that have a nocompact flag.
+	NoCompactBlocks(tenantID string) []backend.UUID
 
 	Tenants() []string
 
 	// EnablePolling in the background of the blocklists, with the given ownership of tenants.
-	EnablePolling(ctx context.Context, sharder blocklist.JobSharder, skipNoCompactBlocks bool)
+	EnablePolling(ctx context.Context, sharder blocklist.JobSharder)
 
 	// PollNow does an immediate poll of the blocklist and is for testing purposes. Must have already called EnablePolling.
 	PollNow(ctx context.Context)
@@ -326,6 +328,10 @@ func (rw *readerWriter) BlockMeta(ctx context.Context, tenantID string, blockID 
 
 func (rw *readerWriter) BlockMetas(tenantID string) []*backend.BlockMeta {
 	return rw.blocklist.Metas(tenantID)
+}
+
+func (rw *readerWriter) NoCompactBlocks(tenantID string) []backend.UUID {
+	return rw.blocklist.NoCompact(tenantID)
 }
 
 func (rw *readerWriter) Tenants() []string {
@@ -812,7 +818,7 @@ func (rw *readerWriter) RedactBlock(ctx context.Context, meta *backend.BlockMeta
 // EnablePolling activates the polling loop. Pass nil if this component
 //
 //	should never be a tenant index builder.
-func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.JobSharder, skipNoCompactBlocks bool) {
+func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.JobSharder) {
 	if sharder == nil {
 		sharder = blocklist.OwnsNothingSharder
 	}
@@ -850,7 +856,6 @@ func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.Job
 		TenantPollConcurrency:      rw.cfg.BlocklistPollTenantConcurrency,
 		EmptyTenantDeletionAge:     rw.cfg.EmptyTenantDeletionAge,
 		EmptyTenantDeletionEnabled: rw.cfg.EmptyTenantDeletionEnabled,
-		SkipNoCompactBlocks:        skipNoCompactBlocks,
 	}, sharder, rw.r, rw.c, rw.w, rw.logger)
 
 	rw.blocklistPoller = blocklistPoller
@@ -896,7 +901,7 @@ func (rw *readerWriter) pollingLoop(ctx context.Context) {
 }
 
 func (rw *readerWriter) pollBlocklist(ctx context.Context) {
-	blocklist, compactedBlocklist, err := rw.blocklistPoller.Do(ctx, rw.blocklist)
+	blocklist, compactedBlocklist, noCompactBlocklist, err := rw.blocklistPoller.Do(ctx, rw.blocklist)
 	if err != nil {
 		if ctx.Err() == nil {
 			level.Error(rw.logger).Log("msg", "failed to poll blocklist", "err", err)
@@ -905,7 +910,7 @@ func (rw *readerWriter) pollBlocklist(ctx context.Context) {
 		return
 	}
 
-	rw.blocklist.ApplyPollResults(blocklist, compactedBlocklist)
+	rw.blocklist.ApplyPollResults(blocklist, compactedBlocklist, noCompactBlocklist)
 
 	rw.pollerNotificationLock.Lock()
 	defer rw.pollerNotificationLock.Unlock()

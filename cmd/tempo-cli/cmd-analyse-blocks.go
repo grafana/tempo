@@ -43,7 +43,7 @@ func (cmd *analyseBlocksCmd) Run(ctx *globalOptions) error {
 	}
 
 	// TODO: Parallelize this
-	blocks, _, err := r.Blocks(context.Background(), cmd.TenantID)
+	blocks, _, _, err := r.Blocks(context.Background(), cmd.TenantID)
 	if err != nil {
 		return err
 	}
@@ -107,7 +107,7 @@ func (cmd *analyseBlocksCmd) Run(ctx *globalOptions) error {
 			}
 
 			// the block was already compacted and blocks might be outdated: refreshing blocks
-			blocks, _, err = r.Blocks(context.Background(), cmd.TenantID)
+			blocks, _, _, err = r.Blocks(context.Background(), cmd.TenantID)
 			if err != nil {
 				return err
 			}

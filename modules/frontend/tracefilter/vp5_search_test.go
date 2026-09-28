@@ -294,9 +294,9 @@ func (b *inMemBackend) List(ctx context.Context, keypath backend.KeyPath) ([]str
 }
 
 // ListBlocks parses tenant/<blockID>/meta keys into meta and compacted-meta block ids.
-func (b *inMemBackend) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []uuid.UUID, error) {
+func (b *inMemBackend) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []uuid.UUID, []uuid.UUID, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	prefix := tenant + "/"
 	var metas, compacted []uuid.UUID
@@ -321,7 +321,7 @@ func (b *inMemBackend) ListBlocks(ctx context.Context, tenant string) ([]uuid.UU
 		}
 	}
 	b.mu.RUnlock()
-	return metas, compacted, nil
+	return metas, compacted, nil, nil
 }
 
 func (b *inMemBackend) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindFunc) error {
@@ -422,7 +422,7 @@ func TestInMemBackendRoundTrips(t *testing.T) {
 		metaKP := backend.KeyPathForBlock(blockID, "single-tenant")
 		require.NoError(t, be.Write(ctx, backend.MetaName, metaKP, bytes.NewReader([]byte("{}")), 2, nil))
 
-		metas, compacted, err := be.ListBlocks(ctx, "single-tenant")
+		metas, compacted, _, err := be.ListBlocks(ctx, "single-tenant")
 		require.NoError(t, err)
 		require.Contains(t, metas, blockID)
 		require.Empty(t, compacted)

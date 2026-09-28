@@ -661,7 +661,7 @@ func (b *walBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope,
 		defer file.Close()
 		pf := file.parquetFile
 
-		err = searchTags(ctx, scope, cb, pf, b.meta.DedicatedColumns)
+		err = searchTags(ctx, scope, cb, pf, b.meta.DedicatedColumns, common.SearchOptions{})
 		if err != nil {
 			return fmt.Errorf("error searching block [%s %d]: %w", b.meta.BlockID.String(), i, err)
 		}
@@ -702,7 +702,7 @@ func (b *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute,
 		defer file.Close()
 		pf := file.parquetFile
 
-		err = searchTagValues(ctx, tag, cb, pf, b.meta.DedicatedColumns)
+		err = searchTagValues(ctx, tag, cb, pf, b.meta.DedicatedColumns, common.SearchOptions{})
 		if err != nil {
 			return fmt.Errorf("error searching block [%s %d]: %w", b.meta.BlockID.String(), i, err)
 		}

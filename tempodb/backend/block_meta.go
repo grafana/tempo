@@ -445,7 +445,12 @@ func (dcs *DedicatedColumns) Unmarshal(data []byte) error {
 		return nil
 	}
 
-	// NOTE: The json bytes interned in a map to avoid re-unmarshalling the same byte slice.
+	// Avoid parsing JSON before UnmarshalJSON reaches the cache for repeated layouts.
+	if v, ok := getDedicatedColumnsFromCache(data); ok && v != nil {
+		*dcs = v
+		return nil
+	}
+
 	return sonic.Unmarshal(data, &dcs)
 }
 

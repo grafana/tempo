@@ -298,6 +298,8 @@ live_store_client:
         connect_timeout: 5s
         connect_backoff_base_delay: 1s
         connect_backoff_max_delay: 5s
+        keepalive_time: 20s
+        keepalive_timeout: 10s
         cluster_validation:
             label: ""
 querier:
@@ -345,6 +347,8 @@ querier:
             connect_timeout: 0s
             connect_backoff_base_delay: 0s
             connect_backoff_max_delay: 0s
+            keepalive_time: 0s
+            keepalive_timeout: 0s
             cluster_validation:
                 label: ""
     shuffle_sharding_ingesters_enabled: false
@@ -959,6 +963,8 @@ backend_scheduler_client:
         connect_timeout: 5s
         connect_backoff_base_delay: 1s
         connect_backoff_max_delay: 5s
+        keepalive_time: 20s
+        keepalive_timeout: 10s
         cluster_validation:
             label: ""
 backend_worker:

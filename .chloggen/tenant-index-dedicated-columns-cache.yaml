@@ -1,0 +1,6 @@
+change_type: enhancement
+component: storage
+note: Reduce tenant-index decoding CPU and allocations by checking cached dedicated-column layouts before parsing JSON.
+issues: []
+subtext:
+user: julienduchesne

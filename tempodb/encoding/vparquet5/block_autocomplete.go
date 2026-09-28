@@ -230,7 +230,7 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 	defer span.End()
 
 	if len(req.ConditionGroups) == 0 {
-		return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), mcb, common.DefaultSearchOptions())
+		return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), mcb, opts)
 	}
 
 	for _, condGroup := range req.ConditionGroups {
@@ -244,7 +244,7 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 		// Last check. No conditions, use old path. It's much faster.
 		// <= 1 because we always have an OpNone condition for the tag name
 		if (len(req.ConditionGroups) == 1 && len(condGroup) <= 1) || mingledConditions {
-			return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), mcb, common.DefaultSearchOptions())
+			return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), mcb, opts)
 		}
 	}
 

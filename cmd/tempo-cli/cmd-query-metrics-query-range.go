@@ -18,6 +18,8 @@ import (
 )
 
 type metricsQueryCmd struct {
+	tlsOptions
+
 	HostPort string `arg:"" help:"tempo host and port. scheme and path will be provided based on query type. e.g. localhost:3200"`
 	TraceQL  string `arg:"" optional:"" help:"TraceQL query string"`
 	Start    string `arg:"" optional:"" help:"start time in RFC3339 (e.g. 2006-01-02T15:04:05Z07:00) or relative (e.g. now-1h) format"`
@@ -79,7 +81,7 @@ func (cmd *metricsQueryCmd) queryRangeGRPC(req *tempopb.QueryRangeRequest) error
 	}
 	ctx = applyHeadersGRPC(ctx, cmd.Headers)
 
-	creds, err := grpcTransportCredentials(cmd.Secure)
+	creds, err := cmd.grpcTransportCredentials(cmd.Secure)
 	if err != nil {
 		return err
 	}
@@ -88,6 +90,7 @@ func (cmd *metricsQueryCmd) queryRangeGRPC(req *tempopb.QueryRangeRequest) error
 	if err != nil {
 		return err
 	}
+	defer clientConn.Close()
 
 	client := tempopb.NewStreamingQuerierClient(clientConn)
 
@@ -115,6 +118,13 @@ func (cmd *metricsQueryCmd) queryRangeGRPC(req *tempopb.QueryRangeRequest) error
 
 // nolint: goconst // goconst wants us to make http:// a const
 func (cmd *metricsQueryCmd) queryRangeHTTP(req *tempopb.QueryRangeRequest) error {
+	transport, err := cmd.httpTransport(cmd.Secure)
+	if err != nil {
+		return err
+	}
+	defer transport.CloseIdleConnections()
+	client := &http.Client{Transport: transport}
+
 	httpReq, err := http.NewRequest("GET", httpScheme(cmd.Secure)+"://"+path.Join(cmd.HostPort, cmd.PathPrefix, api.PathMetricsQueryRange), nil)
 	if err != nil {
 		return err
@@ -128,7 +138,7 @@ func (cmd *metricsQueryCmd) queryRangeHTTP(req *tempopb.QueryRangeRequest) error
 	}
 	applyHeadersHTTP(httpReq, cmd.Headers)
 
-	httpResp, err := http.DefaultClient.Do(httpReq)
+	httpResp, err := client.Do(httpReq)
 	if err != nil {
 		return err
 	}
@@ -164,7 +174,7 @@ func (cmd *metricsQueryCmd) queryInstantGRPC(req *tempopb.QueryInstantRequest) e
 	}
 	ctx = applyHeadersGRPC(ctx, cmd.Headers)
 
-	creds, err := grpcTransportCredentials(cmd.Secure)
+	creds, err := cmd.grpcTransportCredentials(cmd.Secure)
 	if err != nil {
 		return err
 	}
@@ -173,6 +183,7 @@ func (cmd *metricsQueryCmd) queryInstantGRPC(req *tempopb.QueryInstantRequest) e
 	if err != nil {
 		return err
 	}
+	defer clientConn.Close()
 
 	client := tempopb.NewStreamingQuerierClient(clientConn)
 
@@ -200,6 +211,13 @@ func (cmd *metricsQueryCmd) queryInstantGRPC(req *tempopb.QueryInstantRequest) e
 
 // nolint: goconst // goconst wants us to make http:// a const
 func (cmd *metricsQueryCmd) queryInstantHTTP(req *tempopb.QueryInstantRequest) error {
+	transport, err := cmd.httpTransport(cmd.Secure)
+	if err != nil {
+		return err
+	}
+	defer transport.CloseIdleConnections()
+	client := &http.Client{Transport: transport}
+
 	httpReq, err := http.NewRequest("GET", httpScheme(cmd.Secure)+"://"+path.Join(cmd.HostPort, cmd.PathPrefix, api.PathMetricsQueryInstant), nil)
 	if err != nil {
 		return err
@@ -213,7 +231,7 @@ func (cmd *metricsQueryCmd) queryInstantHTTP(req *tempopb.QueryInstantRequest) e
 	}
 	applyHeadersHTTP(httpReq, cmd.Headers)
 
-	httpResp, err := http.DefaultClient.Do(httpReq)
+	httpResp, err := client.Do(httpReq)
 	if err != nil {
 		return err
 	}

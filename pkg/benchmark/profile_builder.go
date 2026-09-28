@@ -44,6 +44,15 @@ type ProfileOptions struct {
 // <bucket>/<tenant-id>/<block-id> because that is how backend.KeyPathForBlock
 // addresses a block.
 func LoadLocalBlock(ctx context.Context, path string) (*backend.BlockMeta, backend.Reader, error) {
+	meta, raw, err := openLocalBlock(ctx, path)
+	if err != nil {
+		return nil, nil, err
+	}
+	return meta, backend.NewReader(raw), nil
+}
+
+// openLocalBlock returns the raw reader too, for callers that need to wrap it.
+func openLocalBlock(ctx context.Context, path string) (*backend.BlockMeta, backend.RawReader, error) {
 	path = filepath.Clean(path)
 
 	blockDir, tenantID := filepath.Base(path), filepath.Base(filepath.Dir(path))
@@ -62,12 +71,11 @@ func LoadLocalBlock(ctx context.Context, path string) (*backend.BlockMeta, backe
 		return nil, nil, err
 	}
 
-	r := backend.NewReader(rawR)
-	meta, err := r.BlockMeta(ctx, blockID, tenantID)
+	meta, err := backend.NewReader(rawR).BlockMeta(ctx, blockID, tenantID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("reading block meta for %s in tenant %s: %w", blockID, tenantID, err)
 	}
-	return meta, r, nil
+	return meta, rawR, nil
 }
 
 // ProfileBlock measures the block. The read cost is paid once here, and every

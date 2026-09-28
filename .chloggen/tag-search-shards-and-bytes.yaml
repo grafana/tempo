@@ -1,0 +1,11 @@
+change_type: bug_fix
+
+component: storage
+
+note: Honour the job's page range in tag name and value searches, and report all bytes read for TraceQL-filtered tag searches
+
+issues: []
+
+subtext:
+
+user: zhxiaogg

@@ -3,6 +3,7 @@ package benchmark
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"io"
 	"math/rand"
 	"slices"
@@ -14,6 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1_common "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	v1_resource "github.com/grafana/tempo/v3/pkg/tempopb/resource/v1"
+	v1_trace "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/v3/pkg/util/test"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 	"github.com/grafana/tempo/v3/tempodb/backend/local"
@@ -62,14 +66,14 @@ func testBlockWithTraceIDs(t *testing.T, ids [][]byte) (*backend.BlockMeta, back
 	// vParquet blocks are sorted by trace ID.
 	sort.Slice(ids, func(i, j int) bool { return bytes.Compare(ids[i], ids[j]) < 0 })
 
+	// Spans are timestamped at now, so the block's window has to bracket that
+	// or every query filters them all out.
+	now := time.Now()
+
 	iter := &sliceIterator{}
 	for _, id := range ids {
-		iter.add(id, test.MakeTraceWithSpanCount(1, 4, id))
+		iter.add(id, fixedShapeTrace(id, now))
 	}
-
-	// test.MakeSpan timestamps spans at time.Now(), so the block's window has
-	// to bracket that or every query filters them all out.
-	now := time.Now()
 
 	enc := encoding.LatestEncoding()
 	meta := backend.NewBlockMeta("test-tenant", uuid.New(), enc.Version())
@@ -88,6 +92,51 @@ func testBlockWithTraceIDs(t *testing.T, ids [][]byte) (*backend.BlockMeta, back
 	require.NoError(t, err)
 
 	return out, r, bucket
+}
+
+// fixedShapeTrace builds a trace whose shape is the same for every ID. The
+// writer cuts row groups on an estimate of that shape, so the fixture's row
+// group layout is identical on every run, unlike test.MakeTrace* which
+// randomizes attribute, event and link counts from the unseeded global RNG.
+func fixedShapeTrace(id []byte, now time.Time) *tempopb.Trace {
+	str := func(k, v string) *v1_common.KeyValue {
+		return &v1_common.KeyValue{Key: k, Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: v}}}
+	}
+	hexID := hex.EncodeToString(id)
+
+	spans := make([]*v1_trace.Span, 4)
+	for i := range spans {
+		spanID := slices.Clone(id[8:])
+		spanID[7] ^= byte(i)
+		spans[i] = &v1_trace.Span{
+			TraceId:           id,
+			SpanId:            spanID,
+			Name:              "test",
+			Kind:              v1_trace.Span_SPAN_KIND_CLIENT,
+			Status:            &v1_trace.Status{Code: 1, Message: "OK"},
+			StartTimeUnixNano: uint64(now.UnixNano()),
+			EndTimeUnixNano:   uint64(now.Add(time.Second).UnixNano()),
+			Attributes: []*v1_common.KeyValue{
+				str("attr.a", hexID[:10]),
+				str("attr.b", hexID[10:20]),
+				str("attr.c", hexID[20:30]),
+				str("attr.d", hexID[:10]),
+				str("attr.e", hexID[10:20]),
+				str("key", "value"),
+			},
+		}
+	}
+
+	return &tempopb.Trace{ResourceSpans: []*v1_trace.ResourceSpans{{
+		Resource: &v1_resource.Resource{Attributes: []*v1_common.KeyValue{
+			str("random.res.attr", hexID[20:30]),
+			str("service.name", "test-service"),
+		}},
+		ScopeSpans: []*v1_trace.ScopeSpans{{
+			Scope: &v1_common.InstrumentationScope{Name: "super library", Version: "1.0.1"},
+			Spans: spans,
+		}},
+	}}}
 }
 
 type sliceIterator struct {

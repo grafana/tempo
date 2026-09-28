@@ -53,11 +53,13 @@ var cli struct {
 	} `cmd:""`
 
 	View struct {
-		Schema viewSchemaCmd `cmd:"" help:"View parquet schema"`
+		Schema  viewSchemaCmd `cmd:"" help:"View parquet schema"`
+		Heatmap heatmapCmd    `cmd:"" help:"Interactive TUI showing where a TraceQL query matches within a vParquet5 block"`
 	} `cmd:""`
 
 	Benchmark struct {
 		Profile benchmarkProfileCmd `cmd:"" help:"Profile a block for read-path benchmarking"`
+		Run     benchmarkRunCmd     `cmd:"" help:"Run read-path benchmark queries against a block"`
 	} `cmd:""`
 
 	Gen struct {
@@ -99,7 +101,7 @@ var cli struct {
 	} `cmd:""`
 
 	Experimental struct {
-		TraceDiff experimentalTraceDiffCmd `cmd:"" help:"Compare two local trace JSON files and emit an experimental trace-aware diff or summary"`
+		TracesDiff experimentalTraceDiffCmd `cmd:"" help:"Compare two local trace JSON files and emit an experimental trace-aware diff or summary"`
 	} `cmd:""`
 
 	Redact redactCmd `cmd:"" help:"Submit a redaction request to the backend scheduler"`

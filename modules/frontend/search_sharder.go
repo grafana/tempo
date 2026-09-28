@@ -20,6 +20,7 @@ import (
 	"github.com/grafana/tempo/v3/pkg/validation"
 	"github.com/grafana/tempo/v3/tempodb"
 	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/blocksharding"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -375,31 +376,6 @@ func hashForSearchRequest(searchRequest *tempopb.SearchRequest) uint64 {
 	return hash
 }
 
-// pagesPerRequest returns an integer value that indicates the number of pages
-// that should be searched per query. This value is based on the target number of bytes
-// 0 is returned if there is no valid answer
-func pagesPerRequest(m *backend.BlockMeta, bytesPerRequest int) int {
-	if m.Size_ == 0 || m.TotalRecords == 0 {
-		return 0
-	}
-	// if the block is smaller than the bytesPerRequest, we can search the entire block
-	if m.Size_ < uint64(bytesPerRequest) {
-		return int(m.TotalRecords)
-	}
-
-	bytesPerPage := m.Size_ / uint64(m.TotalRecords)
-	if bytesPerPage == 0 {
-		return 0
-	}
-
-	pagesPerQuery := bytesPerRequest / int(bytesPerPage)
-	if pagesPerQuery == 0 {
-		pagesPerQuery = 1 // have to have at least 1 page per query
-	}
-
-	return pagesPerQuery
-}
-
 func buildIngesterRequest(tenantID string, parent pipeline.Request, searchReq *tempopb.SearchRequest, reqCh chan pipeline.Request) error {
 	subR, err := cloneRequestforQueriers(parent, tenantID, func(r *http.Request) (*http.Request, error) {
 		return api.BuildSearchRequest(r, searchReq)
@@ -436,7 +412,7 @@ func backendJobsFunc(blocks []*backend.BlockMeta, targetBytesPerRequest int, max
 		blocksInShard := 0
 
 		for _, b := range blocks {
-			pages := pagesPerRequest(b, targetBytesPerRequest)
+			pages := blocksharding.PagesPerRequest(b, targetBytesPerRequest)
 			jobsInBlock := 0
 
 			if pages == 0 {

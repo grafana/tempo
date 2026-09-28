@@ -57,6 +57,8 @@ func TestReadWrite(t *testing.T) {
 		assert.NoError(t, err, "unexpected error meta.json")
 		err = w.Write(ctx, backend.CompactedMetaName, backend.KeyPathForBlock(uuid.UUID(fakeMeta.BlockID), id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
 		assert.NoError(t, err, "unexpected error meta.compacted.json")
+		err = w.Write(ctx, backend.NoCompactFileName, backend.KeyPathForBlock(uuid.UUID(fakeMeta.BlockID), id), bytes.NewReader([]byte{}), 0, nil)
+		assert.NoError(t, err, "unexpected error nocompact.flg")
 	}
 
 	actualObject, size, err := r.Read(ctx, objectName, backend.KeyPathForBlock(blockID, tenantIDs[0]), nil)
@@ -75,10 +77,11 @@ func TestReadWrite(t *testing.T) {
 	assert.Len(t, list, 1)
 	assert.Equal(t, blockID.String(), list[0])
 
-	m, cm, err := r.ListBlocks(ctx, tenantIDs[0])
+	m, cm, nc, err := r.ListBlocks(ctx, tenantIDs[0])
 	assert.NoError(t, err, "unexpected error listing blocks")
 	assert.Len(t, m, 1)
 	assert.Len(t, cm, 1)
+	assert.Equal(t, []uuid.UUID{blockID}, nc)
 }
 
 func TestShutdownLeavesTenantsWithBlocks(t *testing.T) {

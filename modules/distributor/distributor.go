@@ -491,20 +491,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		return nil, err
 	}
 
-	// Convert to bytes and back. This is unfortunate for efficiency, but it works
-	// around the otel-collector internalization of otel-proto which Tempo also uses.
-	convert, err := (&ptrace.ProtoMarshaler{}).MarshalTraces(traces)
-	if err != nil {
-		return nil, err
-	}
-
-	// tempopb.Trace is wire-compatible with ExportTraceServiceRequest
-	// used by ToOtlpProtoBytes
-	trace := tempopb.Trace{}
-	err = trace.Unmarshal(convert)
-	if err != nil {
-		return nil, err
-	}
+	trace := directTraces(traces)
 
 	batches := trace.ResourceSpans
 
