@@ -17,6 +17,10 @@ on:
         description: 'Optional source branch: main or matching release-vX.Y for RCs; matching release-vX.Y for final releases'
         type: string
         default: ''
+      skip_changelog:
+        description: 'Skip changelog generation and use an existing release section in CHANGELOG.md'
+        type: boolean
+        default: false
       validate_only:
         description: 'Run validation checks only; do not open a PR'
         type: boolean
@@ -34,6 +38,7 @@ jobs:
     env:
       VERSION: ${{ inputs.version }}
       REQUESTED_BASE_BRANCH: ${{ inputs.base_branch }}
+      SKIP_CHANGELOG: ${{ inputs.skip_changelog }}
     steps:
       - name: Validate version and derive release parameters
         id: vars
@@ -113,29 +118,13 @@ jobs:
         env:
           BASE_BRANCH: ${{ steps.vars.outputs.base_branch }}
           IS_MINOR: ${{ steps.vars.outputs.is_minor }}
-          TAG: ${{ steps.vars.outputs.tag }}
         run: |
           set -euo pipefail
           pending=$(find .chloggen -maxdepth 1 -type f \( -name '*.yaml' -o -name '*.yml' \) \
             ! -name 'config.yaml' ! -name 'TEMPLATE.yaml' | wc -l | tr -d ' ')
           echo "Found ${pending} pending changelog entr(y/ies)."
-          sections=$(grep -cxF "# ${TAG}" CHANGELOG.md || true)
-          if [ "$sections" -gt 1 ] || { [ "$sections" -eq 1 ] && [ "$pending" -gt 0 ]; }; then
-            echo "ERROR: changelog section ${TAG} already exists; refusing to generate a duplicate."
-            exit 1
-          fi
-          if [ "$sections" -eq 1 ]; then
-            if ! awk -v heading="# ${TAG}" '
-              $0 == heading {found=1; next}
-              found && /^# / {exit}
-              found && /^- / {entry=1}
-              END {exit !entry}
-            ' CHANGELOG.md; then
-              echo "ERROR: changelog section ${TAG} has no entries."
-              exit 1
-            fi
-          elif [ "$pending" -lt 1 ] && [ "$IS_MINOR" != "true" ]; then
-            echo "ERROR: no pending .chloggen entries or prepared changelog section ${TAG}."
+          if [ "$pending" -lt 1 ] && [ "$IS_MINOR" != "true" ] && [ "$SKIP_CHANGELOG" != "true" ]; then
+            echo "ERROR: no pending .chloggen entries; use skip_changelog for an already prepared release section."
             exit 1
           fi
           last_tag=$(git describe --tags --abbrev=0)
@@ -153,7 +142,9 @@ jobs:
           set -euo pipefail
           pending=$(find .chloggen -maxdepth 1 -type f \( -name '*.yaml' -o -name '*.yml' \) \
             ! -name 'config.yaml' ! -name 'TEMPLATE.yaml' | wc -l | tr -d ' ')
-          if [ "$pending" -ge 1 ]; then
+          if [ "$SKIP_CHANGELOG" = "true" ]; then
+            echo "Changelog generation skipped; using the existing ${TAG} section."
+          elif [ "$pending" -ge 1 ]; then
             make chlog-update VERSION="${TAG}"
           else
             echo "No pending entries; skipping chlog-update (changelog section expected to be prepared manually, e.g. RC heading renamed)."
@@ -167,7 +158,7 @@ jobs:
           fi
 
       - name: Verify changelog section exists
-        if: ${{ ! inputs.validate_only }}
+        if: ${{ ! inputs.validate_only || inputs.skip_changelog }}
         env:
           TAG: ${{ steps.vars.outputs.tag }}
         run: |
@@ -191,7 +182,11 @@ jobs:
           {
             echo "Automated release prep for **${TAG}** (base: \`${BASE_BRANCH}\`)."
             echo
-            echo "- Changelog collated via \`make chlog-update VERSION=${TAG}\` (skipped if no pending entries)"
+            if [ "$SKIP_CHANGELOG" = "true" ]; then
+              echo "- Existing changelog section preserved (\`skip_changelog=true\`)"
+            else
+              echo "- Changelog collated via \`make chlog-update VERSION=${TAG}\` (skipped if no pending entries)"
+            fi
             echo "- \`VERSION\` file set to ${TAG#v}"
             if [ "$BUMP" = true ]; then
               echo "- Image tag bumped via \`make bump-tempo-image-tag TEMPO_IMAGE_TAG=${IMAGE_TAG}\` + \`make jsonnet\`"
