@@ -1,5 +1,0 @@
-change_type: bug_fix
-component: storage
-note: Upgrade parquet-go to v0.32.0 to prevent values being lost when a column dictionary falls back to plain encoding.
-issues: [7989]
-user: renovate-sh-app[bot]
