@@ -24,7 +24,7 @@ var (
 type MockRawReader struct {
 	L            []string
 	ListFn       func(ctx context.Context, keypath KeyPath) ([]string, error)
-	ListBlocksFn func(ctx context.Context, tenant string) ([]uuid.UUID, []uuid.UUID, error)
+	ListBlocksFn func(ctx context.Context, tenant string) ([]uuid.UUID, []uuid.UUID, []uuid.UUID, error)
 	R            []byte // read
 	Range        []byte // ReadRange
 	ReadFn       func(ctx context.Context, name string, keypath KeyPath, cacheInfo *CacheInfo) (io.ReadCloser, int64, error)
@@ -32,6 +32,7 @@ type MockRawReader struct {
 
 	BlockIDs          []uuid.UUID
 	CompactedBlockIDs []uuid.UUID
+	NoCompactBlockIDs []uuid.UUID
 }
 
 func (m *MockRawReader) List(ctx context.Context, keypath KeyPath) ([]string, error) {
@@ -42,12 +43,12 @@ func (m *MockRawReader) List(ctx context.Context, keypath KeyPath) ([]string, er
 	return m.L, nil
 }
 
-func (m *MockRawReader) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []uuid.UUID, error) {
+func (m *MockRawReader) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []uuid.UUID, []uuid.UUID, error) {
 	if m.ListBlocksFn != nil {
 		return m.ListBlocksFn(ctx, tenant)
 	}
 
-	return m.BlockIDs, m.CompactedBlockIDs, nil
+	return m.BlockIDs, m.CompactedBlockIDs, m.NoCompactBlockIDs, nil
 }
 
 func (m *MockRawReader) Find(_ context.Context, _ KeyPath, _ FindFunc) error {
@@ -162,7 +163,7 @@ type MockReader struct {
 	sync.Mutex
 
 	T                     []string
-	BlocksFn              func(ctx context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error)
+	BlocksFn              func(ctx context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, []uuid.UUID, error)
 	M                     *BlockMeta // meta
 	BlockMetaFn           func(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error)
 	TenantIndexFn         func(ctx context.Context, tenantID string) (*TenantIndex, error)
@@ -174,6 +175,7 @@ type MockReader struct {
 	HasNoCompactFlagCalls map[string]map[uuid.UUID]int
 	BlockIDs              []uuid.UUID // blocks
 	CompactedBlockIDs     []uuid.UUID // blocks
+	NoCompactBlockIDs     []uuid.UUID // blocks
 }
 
 func (m *MockReader) Find(_ context.Context, _ KeyPath, _ FindFunc) error {
@@ -184,12 +186,12 @@ func (m *MockReader) Tenants(context.Context) ([]string, error) {
 	return m.T, nil
 }
 
-func (m *MockReader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error) {
+func (m *MockReader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, []uuid.UUID, error) {
 	if m.BlocksFn != nil {
 		return m.BlocksFn(ctx, tenantID)
 	}
 
-	return m.BlockIDs, m.CompactedBlockIDs, nil
+	return m.BlockIDs, m.CompactedBlockIDs, m.NoCompactBlockIDs, nil
 }
 
 func (m *MockReader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error) {
@@ -265,6 +267,7 @@ type MockWriter struct {
 	sync.Mutex
 	IndexMeta          map[string][]*BlockMeta
 	IndexCompactedMeta map[string][]*CompactedBlockMeta
+	IndexNoCompact     map[string][]UUID
 }
 
 func (m *MockWriter) Write(context.Context, string, uuid.UUID, string, []byte, *CacheInfo) error {
@@ -299,7 +302,7 @@ func (m *MockWriter) DeleteNoCompactFlag(context.Context, uuid.UUID, string) err
 	return nil
 }
 
-func (m *MockWriter) WriteTenantIndex(_ context.Context, tenantID string, meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) error {
+func (m *MockWriter) WriteTenantIndex(_ context.Context, tenantID string, meta []*BlockMeta, compactedMeta []*CompactedBlockMeta, noCompact []UUID) error {
 	m.Lock()
 	defer m.Unlock()
 
@@ -309,8 +312,12 @@ func (m *MockWriter) WriteTenantIndex(_ context.Context, tenantID string, meta [
 	if m.IndexCompactedMeta == nil {
 		m.IndexCompactedMeta = make(map[string][]*CompactedBlockMeta)
 	}
+	if m.IndexNoCompact == nil {
+		m.IndexNoCompact = make(map[string][]UUID)
+	}
 	m.IndexMeta[tenantID] = meta
 	m.IndexCompactedMeta[tenantID] = compactedMeta
+	m.IndexNoCompact[tenantID] = noCompact
 	return nil
 }
 

@@ -45,7 +45,7 @@ func TestFixtures(t *testing.T) {
 	// err = rc.MarkBlockCompacted((uuid.UUID)(metas[0].BlockID), tenant)
 	// assert.NoError(t, err)
 
-	listMetas, listCompactedMetas, err := rr.ListBlocks(ctx, tenant)
+	listMetas, listCompactedMetas, _, err := rr.ListBlocks(ctx, tenant)
 	require.NoError(t, err)
 	require.Len(t, listCompactedMetas, 1)
 

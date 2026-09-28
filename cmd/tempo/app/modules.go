@@ -410,7 +410,7 @@ func (t *App) initQuerier() (services.Service, error) {
 
 	// do not enable polling if this is the single binary. in that case the backend-worker will take care of polling
 	if t.cfg.Target == Querier {
-		t.store.EnablePolling(context.Background(), nil, false)
+		t.store.EnablePolling(context.Background(), nil)
 	}
 
 	liveStoreRing := t.readRings[ringLiveStore]
@@ -516,7 +516,7 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 
 	// the query frontend needs to have knowledge of the blocks so it can shard search jobs
 	if t.cfg.Target == QueryFrontend {
-		t.store.EnablePolling(context.Background(), nil, false)
+		t.store.EnablePolling(context.Background(), nil)
 	}
 
 	// http query echo endpoint
