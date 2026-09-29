@@ -1,6 +1,6 @@
 {
   _images+:: {
-    tempo: 'grafana/tempo:3.0.0',
+    tempo: 'grafana/tempo:3.1.0',
     tempo_query: 'grafana/tempo-query:3.0.0',
     tempo_vulture: 'grafana/tempo-vulture:3.0.0',
   },

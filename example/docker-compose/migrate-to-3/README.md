@@ -14,7 +14,7 @@ change.
 | Profile  | Components                                                                                                                                              |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `v2`     | distributor, ingester, querier, query-frontend, compactor, metrics-generator (`grafana/tempo:2.9.2`)                                                    |
-| `v3`     | distributor, live-store ×2, block-builder ×2, querier, query-frontend, backend-scheduler, backend-worker, metrics-generator + Redpanda (`grafana/tempo:3.0.0`) |
+| `v3`     | distributor, live-store ×2, block-builder ×2, querier, query-frontend, backend-scheduler, backend-worker, metrics-generator + Redpanda (`grafana/tempo:3.1.0`) |
 | _shared_ | MinIO (object storage), Prometheus, Grafana, Alloy (trace router), `xk6-client-tracing` (load generator)                            |
 
 | URL                                            | What                          |

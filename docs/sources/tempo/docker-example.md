@@ -99,7 +99,7 @@ operating modes and configurations.
    single-binary-grafana-1      docker.io/grafana/grafana@sha256:121a7a9ece6dc10b969f1f96eed64b4f07dfac0d0b8abc070f7cb83bbde86f63   ""                       grafana      7 seconds ago   Up 6 seconds   0.0.0.0:3000->3000/tcp
    single-binary-k6-tracing-1   ghcr.io/grafana/xk6-client-tracing:v0.0.9                                                           "run /example-script…"   k6-tracing   7 hours ago     Up 6 seconds
    single-binary-prometheus-1   docker.io/prom/prometheus:latest                                                                    "--config.file=/etc/…"   prometheus   7 seconds ago   Up 6 seconds   0.0.0.0:9090->9090/tcp
-   single-binary-tempo-1        docker.io/grafana/tempo:3.0.0                                                                       "-target=all -config…"   tempo        7 seconds ago   Up 6 seconds   0.0.0.0:3200->3200/tcp, 0.0.0.0:4317-4318->4317-4318/tcp
+   single-binary-tempo-1        docker.io/grafana/tempo:3.1.0                                                                       "-target=all -config…"   tempo        7 seconds ago   Up 6 seconds   0.0.0.0:3200->3200/tcp, 0.0.0.0:4317-4318->4317-4318/tcp
    single-binary-vulture-1      docker.io/grafana/tempo-vulture:3.0.0                                                               "-prometheus-listen-…"   vulture      7 hours ago     Up 6 seconds
    ```
 
