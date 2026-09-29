@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/grafana/tempo/v3/pkg/benchmark/compare"
+	"github.com/grafana/tempo/v3/pkg/benchmark/compare/render"
 )
 
 type benchmarkCompareCmd struct {
@@ -52,9 +53,9 @@ func (cmd *benchmarkCompareCmd) Run(_ *globalOptions) error {
 
 	switch {
 	case cmd.Format == "markdown":
-		return compare.WriteMarkdown(os.Stdout, c, metrics, stat, c.Baseline)
+		return render.WriteMarkdown(os.Stdout, c, metrics, stat, c.Baseline)
 	case cmd.Format == "text" || !isTerminal(os.Stdout):
-		return compare.WriteReport(os.Stdout, c, metrics, stat, c.Baseline, cmd.Width)
+		return render.WriteReport(os.Stdout, c, metrics, stat, c.Baseline, cmd.Width)
 	}
 	if _, err := tea.NewProgram(newBenchmarkCompareModel(c, metrics, stat)).Run(); err != nil {
 		return fmt.Errorf("running interactive view: %w", err)

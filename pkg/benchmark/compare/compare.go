@@ -1,9 +1,9 @@
-// Package compare lines benchmark results up against each other and draws them
-// as text, so a person can see what changed between two or more runs.
+// Package compare lines benchmark results up against each other: how their
+// runs were set up differently, which of their cases can be compared, and how
+// each measurement changed from a baseline.
 //
-// It holds no terminal state: every renderer returns plain strings, or lines
-// of segments saying what each piece shows, which an interactive view styles
-// and a static one prints as they are.
+// It works in numbers and settings only. Package render turns a comparison
+// into something to read.
 package compare
 
 import (
@@ -282,25 +282,30 @@ func (cs Case) Incomparable(run, baseline int) string {
 	return ""
 }
 
-// Problems says, for each run that cannot be compared with the baseline on the
-// case, why not, as "vs <run>: <why>".
-func (c *Comparison) Problems(cs Case, baseline int) []string {
-	labels, _ := c.RunLabels()
-	var out []string
+// Problem is a run that cannot be compared with the baseline on a case.
+type Problem struct {
+	Run    int
+	Reason string
+}
+
+// Problems lists the runs that cannot be compared with the baseline on the
+// case, and why.
+func (c *Comparison) Problems(cs Case, baseline int) []Problem {
+	var out []Problem
 	for run := range c.Runs {
 		if run == baseline {
 			continue
 		}
 		if why := cs.Incomparable(run, baseline); why != "" {
-			out = append(out, "vs "+labels[run]+": "+why)
+			out = append(out, Problem{Run: run, Reason: why})
 		}
 	}
 	return out
 }
 
-// delta is the change from base to v, in percent. It is not ok when base is
+// Delta is the change from base to v, in percent. It is not ok when base is
 // zero, since no change from nothing is a percentage.
-func delta(base, v float64) (pct float64, ok bool) {
+func Delta(base, v float64) (pct float64, ok bool) {
 	if base == 0 {
 		return 0, false
 	}

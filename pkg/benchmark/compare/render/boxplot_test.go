@@ -1,4 +1,4 @@
-package compare
+package render
 
 import (
 	"strings"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/v3/pkg/benchmark/compare"
 	"github.com/grafana/tempo/v3/pkg/benchmark/metrics"
 )
 
@@ -29,7 +30,7 @@ func TestNiceStep(t *testing.T) {
 }
 
 func TestNewAxis(t *testing.T) {
-	series := func(sums ...*metrics.Summary) Series { return Series{Summaries: sums} }
+	series := func(sums ...*metrics.Summary) compare.Series { return compare.Series{Summaries: sums} }
 	sum := func(minV, p99, maxV float64) *metrics.Summary {
 		s := summary(minV, minV, minV, p99, p99, p99, maxV)
 		return &s
@@ -37,7 +38,7 @@ func TestNewAxis(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		s        Series
+		s        compare.Series
 		min, max float64
 	}{
 		{"a far max is clipped", series(sum(15, 48, 1116)), 15, 50},
@@ -61,7 +62,7 @@ func TestNewAxis(t *testing.T) {
 
 func TestAxisTicks(t *testing.T) {
 	a := Axis{Min: 0, Max: 50, Step: 10, Width: 51}
-	labels, line := a.Ticks(Count)
+	labels, line := a.Ticks(compare.Count)
 
 	gap := strings.Repeat(" ", 8)
 	require.Equal(t, "0"+gap+"10"+gap+"20"+gap+"30"+gap+"40"+gap+"50", labels)
@@ -72,7 +73,7 @@ func TestAxisTicks(t *testing.T) {
 	// Labels that would touch are dropped rather than overlapped, and the ends
 	// are kept over the middle, since they say what the axis spans.
 	a = Axis{Min: 0, Max: 50, Step: 10, Width: 20}
-	labels, _ = a.Ticks(Nanoseconds)
+	labels, _ = a.Ticks(compare.Nanoseconds)
 	require.Equal(t, "0ns   20ns      50ns", labels)
 }
 
@@ -100,7 +101,7 @@ func TestAxisRow(t *testing.T) {
 func TestBoxPlot(t *testing.T) {
 	far := summary(15, 26, 32, 37, 40, 48, 1116)
 	near := summary(14, 23, 28, 33, 36, 44, 49)
-	s := Series{Unit: Count, Summaries: []*metrics.Summary{&far, &near, nil}}
+	s := compare.Series{Unit: compare.Count, Summaries: []*metrics.Summary{&far, &near, nil}}
 
 	p := BoxPlot([]string{"base", "rb-4M", "gone"}, s, 80)
 	require.Len(t, p.Header, 2)

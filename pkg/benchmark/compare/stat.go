@@ -40,7 +40,8 @@ func ParseStat(name string) (Stat, error) {
 	return P50, fmt.Errorf("unknown percentile %q, want one of p50, p90, p99", name)
 }
 
-func (s Stat) of(sum *metrics.Summary) float64 {
+// Of picks the stat out of a summary.
+func (s Stat) Of(sum *metrics.Summary) float64 {
 	switch s {
 	case P90:
 		return sum.P90
@@ -50,11 +51,3 @@ func (s Stat) of(sum *metrics.Summary) float64 {
 		return sum.P50
 	}
 }
-
-// Changes under MinorChange percent either way are too small to call out, and
-// changes of MajorChange percent or more are what a summary is for finding.
-// These are for the eye, not a test of significance.
-const (
-	MinorChange = 2.0
-	MajorChange = 10.0
-)
