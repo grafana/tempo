@@ -30,6 +30,7 @@ func validProfile() *BlockProfile {
 			Present: []string{"0102030405060708090a0b0c0d0e0f10"},
 			Absent:  []string{strings.Repeat("00", 16)},
 		},
+		Attributes: validAttributes(),
 	}
 }
 
@@ -76,6 +77,7 @@ func TestProfileValidate(t *testing.T) {
 			mutate:  func(p *BlockProfile) { p.TraceIDs.Mode = TraceIDModeAll },
 			wantErr: "present IDs are embedded",
 		},
+		{"invalid attributes", func(p *BlockProfile) { p.Attributes.Spans = 0 }, "invalid attributes"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := validProfile()
@@ -83,6 +85,10 @@ func TestProfileValidate(t *testing.T) {
 			require.ErrorContains(t, p.Validate(), tc.wantErr)
 		})
 	}
+
+	withoutAttributes := validProfile()
+	withoutAttributes.Attributes = nil
+	require.NoError(t, withoutAttributes.Validate())
 
 	require.NoError(t, validProfile().Validate())
 }

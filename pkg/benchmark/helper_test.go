@@ -56,6 +56,15 @@ func testBlock(t *testing.T, numTraces int) (*backend.BlockMeta, backend.Reader,
 // for tests that address it by path.
 func testBlockWithTraceIDs(t *testing.T, ids [][]byte) (*backend.BlockMeta, backend.Reader, string) {
 	t.Helper()
+	return writeTestBlock(t, ids, nil, func(_ int, id []byte, now time.Time) *tempopb.Trace {
+		return fixedShapeTrace(id, now)
+	})
+}
+
+// writeTestBlock writes a block of the given trace IDs with small row groups,
+// building the trace at position i of ID order with makeTrace.
+func writeTestBlock(t *testing.T, ids [][]byte, dedicated backend.DedicatedColumns, makeTrace func(i int, id []byte, now time.Time) *tempopb.Trace) (*backend.BlockMeta, backend.Reader, string) {
+	t.Helper()
 
 	bucket := t.TempDir()
 	rawR, rawW, _, err := local.New(&local.Config{Path: bucket})
@@ -71,8 +80,8 @@ func testBlockWithTraceIDs(t *testing.T, ids [][]byte) (*backend.BlockMeta, back
 	now := time.Now()
 
 	iter := &sliceIterator{}
-	for _, id := range ids {
-		iter.add(id, fixedShapeTrace(id, now))
+	for i, id := range ids {
+		iter.add(id, makeTrace(i, id, now))
 	}
 
 	enc := encoding.LatestEncoding()
@@ -80,6 +89,7 @@ func testBlockWithTraceIDs(t *testing.T, ids [][]byte) (*backend.BlockMeta, back
 	meta.TotalObjects = int64(len(ids))
 	meta.StartTime = now.Add(-time.Hour)
 	meta.EndTime = now.Add(time.Hour)
+	meta.DedicatedColumns = dedicated
 
 	cfg := &common.BlockConfig{
 		BloomFP:             0.01,

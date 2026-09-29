@@ -18,7 +18,7 @@ import (
 	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
-const ProfileSchemaVersion = 1
+const ProfileSchemaVersion = 2
 
 // traceIDHexLen is the length of a padded 16-byte trace ID in hex.
 const traceIDHexLen = 32
@@ -54,6 +54,8 @@ type BlockProfile struct {
 	// Tempo's own sharding calls an estimate.
 	RowGroups int            `json:"rowGroups"`
 	TraceIDs  TraceIDProfile `json:"traceIDs"`
+	// Attributes is nil when attribute profiling was skipped.
+	Attributes *AttributeProfiles `json:"attributes,omitempty"`
 }
 
 func (p *BlockProfile) Write(w io.Writer) error {
@@ -103,6 +105,12 @@ func (p *BlockProfile) Validate() error {
 		}
 		if _, err := util.HexStringToTraceID(id); err != nil {
 			return fmt.Errorf("invalid trace ID %q: %w", id, err)
+		}
+	}
+
+	if p.Attributes != nil {
+		if err := p.Attributes.validate(); err != nil {
+			return fmt.Errorf("invalid attributes: %w", err)
 		}
 	}
 	return nil

@@ -38,6 +38,9 @@ type ProfileOptions struct {
 	// ID, so the hit and miss paths are measured over the same number of
 	// samples.
 	NumTraceIDs int
+	// NumAttributes is how many attributes to rank by total bytes, or 0 to skip
+	// the full scan that needs.
+	NumAttributes int
 }
 
 // LoadLocalBlock opens the block at path, which must be a directory laid out as
@@ -100,6 +103,14 @@ func ProfileBlock(ctx context.Context, meta *backend.BlockMeta, r backend.Reader
 		return nil, err
 	}
 
+	var attributes *AttributeProfiles
+	if o.NumAttributes > 0 {
+		attributes, err = profileBlockAttributes(ctx, meta, r, o.NumAttributes)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	p := &BlockProfile{
 		SchemaVersion: ProfileSchemaVersion,
 		GeneratedAt:   time.Now().UTC(),
@@ -107,6 +118,7 @@ func ProfileBlock(ctx context.Context, meta *backend.BlockMeta, r backend.Reader
 		Block:         meta,
 		RowGroups:     len(pf.RowGroups()),
 		TraceIDs:      traceIDs,
+		Attributes:    attributes,
 	}
 	if err := p.Validate(); err != nil {
 		return nil, fmt.Errorf("produced an invalid profile: %w", err)

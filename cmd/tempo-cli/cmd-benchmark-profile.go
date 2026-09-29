@@ -14,8 +14,9 @@ import (
 type benchmarkProfileCmd struct {
 	Block string `arg:"" help:"path to the block directory, laid out as <bucket>/<tenant-id>/<block-id>"`
 
-	TraceIDs string `name:"trace-ids" help:"number of present trace IDs to sample, or 'all' to enumerate at run time; one absent ID is derived per present ID. 0 skips the scan they need" default:"10000"`
-	Out      string `short:"o" help:"file to write the profile to, instead of stdout" default:""`
+	TraceIDs   string `name:"trace-ids" help:"number of present trace IDs to sample, or 'all' to enumerate at run time; one absent ID is derived per present ID. 0 skips the scan they need" default:"10000"`
+	Attributes uint32 `name:"attributes" help:"number of attributes to profile, ranked by total bytes. 0 skips the scan they need" default:"100"`
+	Out        string `short:"o" help:"file to write the profile to, instead of stdout" default:""`
 }
 
 func (cmd *benchmarkProfileCmd) Run(_ *globalOptions) error {
@@ -30,7 +31,10 @@ func (cmd *benchmarkProfileCmd) Run(_ *globalOptions) error {
 		return err
 	}
 
-	profile, err := benchmark.ProfileBlock(ctx, meta, r, benchmark.ProfileOptions{NumTraceIDs: numTraceIDs})
+	profile, err := benchmark.ProfileBlock(ctx, meta, r, benchmark.ProfileOptions{
+		NumTraceIDs:   numTraceIDs,
+		NumAttributes: int(cmd.Attributes),
+	})
 	if err != nil {
 		return err
 	}
