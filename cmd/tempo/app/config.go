@@ -35,8 +35,8 @@ const defaultGRPCCompression = "snappy"
 
 // MemoryConfig configures memory management settings
 type MemoryConfig struct {
-	AutoMemLimitEnabled bool    `yaml:"automemlimit_enabled"`
-	AutoMemLimitRatio   float64 `yaml:"automemlimit_ratio"`
+	AutoMemLimitEnabled         bool          `yaml:"automemlimit_enabled"`
+	AutoMemLimitRatio           float64       `yaml:"automemlimit_ratio"`
 	AutoMemLimitRefreshInterval time.Duration `yaml:"automemlimit_refresh_interval"`
 }
 
@@ -87,8 +87,8 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 
 	// Memory settings
 	c.Memory = MemoryConfig{
-		AutoMemLimitEnabled: false,
-		AutoMemLimitRatio:   0.8,
+		AutoMemLimitEnabled:         false,
+		AutoMemLimitRatio:           0.8,
 		AutoMemLimitRefreshInterval: 15 * time.Second,
 	}
 
