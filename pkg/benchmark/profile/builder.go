@@ -15,6 +15,7 @@ import (
 	"github.com/parquet-go/parquet-go"
 	"github.com/prometheus/common/version"
 
+	"github.com/grafana/tempo/v3/pkg/benchmark/profile/attributes"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"github.com/grafana/tempo/v3/pkg/traceql"
 	"github.com/grafana/tempo/v3/pkg/util"
@@ -36,6 +37,9 @@ type Options struct {
 	// ID, so the hit and miss paths are measured over the same number of
 	// samples.
 	NumTraceIDs int
+	// NumAttributes is how many attributes to rank by total bytes, or 0 to skip
+	// the full scan that needs.
+	NumAttributes int
 }
 
 // Build measures the block. The read cost is paid once here, and every
@@ -60,6 +64,14 @@ func Build(ctx context.Context, meta *backend.BlockMeta, r backend.Reader, o Opt
 		return nil, err
 	}
 
+	var attrs *attributes.Profiles
+	if o.NumAttributes > 0 {
+		attrs, err = attributes.Build(ctx, meta, r, o.NumAttributes)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	p := &BlockProfile{
 		SchemaVersion: SchemaVersion,
 		GeneratedAt:   time.Now().UTC(),
@@ -67,6 +79,7 @@ func Build(ctx context.Context, meta *backend.BlockMeta, r backend.Reader, o Opt
 		Block:         meta,
 		RowGroups:     len(pf.RowGroups()),
 		TraceIDs:      traceIDs,
+		Attributes:    attrs,
 	}
 	if err := p.Validate(); err != nil {
 		return nil, fmt.Errorf("produced an invalid profile: %w", err)

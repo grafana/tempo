@@ -34,6 +34,7 @@ func TestProfileBlock(t *testing.T) {
 	require.Equal(t, TraceIDModeSample, p.TraceIDs.Mode)
 	require.Len(t, p.TraceIDs.Present, 50)
 	require.Len(t, p.TraceIDs.Absent, 50)
+	require.Nil(t, p.Attributes, "attributes are only profiled on request")
 }
 
 func TestProfileBlockPresentIDsAreFound(t *testing.T) {
@@ -85,12 +86,14 @@ func TestProfileBlockIsDeterministic(t *testing.T) {
 	ctx := context.Background()
 	meta, r, _ := benchtest.Block(t, 300)
 
-	first, err := Build(ctx, meta, r, Options{NumTraceIDs: 40})
+	opts := Options{NumTraceIDs: 40, NumAttributes: 20}
+	first, err := Build(ctx, meta, r, opts)
 	require.NoError(t, err)
-	second, err := Build(ctx, meta, r, Options{NumTraceIDs: 40})
+	second, err := Build(ctx, meta, r, opts)
 	require.NoError(t, err)
 
 	require.Equal(t, first.TraceIDs, second.TraceIDs)
+	require.Equal(t, first.Attributes, second.Attributes)
 }
 
 // The sample must spread over each row group's rows, not sit at its head, or a
@@ -194,6 +197,23 @@ func TestProfileBlockNoTraceIDs(t *testing.T) {
 	require.Empty(t, p.TraceIDs.Present)
 	require.Empty(t, p.TraceIDs.Absent)
 	require.NoError(t, p.Validate())
+}
+
+func TestProfileBlockAttributes(t *testing.T) {
+	ctx := context.Background()
+	meta, r, _ := benchtest.Block(t, 50)
+
+	p, err := Build(ctx, meta, r, Options{NumAttributes: 5})
+	require.NoError(t, err)
+	require.NotNil(t, p.Attributes)
+	require.Len(t, p.Attributes.Ranked, 5)
+	require.Equal(t, uint64(50*4), p.Attributes.Spans)
+
+	var buf bytes.Buffer
+	require.NoError(t, p.Write(&buf))
+	loaded, err := Load(&buf)
+	require.NoError(t, err)
+	require.Equal(t, p.Attributes, loaded.Attributes)
 }
 
 // The footer is authoritative: meta.TotalRecords must not be reported, since it
