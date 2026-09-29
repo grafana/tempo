@@ -7,6 +7,7 @@ import (
 	"sort"
 	"sync"
 	"time"
+	"unsafe"
 
 	"github.com/gogo/protobuf/proto"
 
@@ -700,9 +701,17 @@ func (d *Desc) RingCompare(o *Desc) CompareResult {
 			return Different
 		}
 
-		for ix, t := range ing.Tokens {
-			if oing.Tokens[ix] != t {
-				return Different
+		// Consecutive ring states usually share the token slice storage for instances
+		// whose tokens didn't change: the memberlist KV store only replaces map entries
+		// of changed instances, and Desc clones share the Tokens backing arrays. When
+		// both slices point at the same storage, they are equal without comparing the
+		// elements. This is only a fast path: slices with different storage but equal
+		// content still compare as equal below.
+		if unsafe.SliceData(ing.Tokens) != unsafe.SliceData(oing.Tokens) {
+			for ix, t := range ing.Tokens {
+				if oing.Tokens[ix] != t {
+					return Different
+				}
 			}
 		}
 
