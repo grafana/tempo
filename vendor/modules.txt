@@ -1997,7 +1997,7 @@ go.opentelemetry.io/collector/service/telemetry/otelconftelemetry/internal/migra
 # go.opentelemetry.io/collector/service/hostcapabilities v0.153.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/collector/service/hostcapabilities
-# go.opentelemetry.io/contrib/bridges/otelzap v0.18.0
+# go.opentelemetry.io/contrib/bridges/otelzap v0.20.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/contrib/bridges/otelzap
 # go.opentelemetry.io/contrib/bridges/prometheus v0.70.0
