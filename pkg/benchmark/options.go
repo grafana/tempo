@@ -42,6 +42,11 @@ type RunOptions struct {
 	ReadBufferCount    int    `json:"readBufferCount,omitempty"`
 	ChunkSizeBytes     uint32 `json:"chunkSizeBytes,omitempty"`
 	PrefetchTraceCount int    `json:"prefetchTraceCount,omitempty"`
+
+	// BackendLatency and BackendBandwidth, in bytes per second, charge every
+	// backend request as an object store would. Zero leaves local reads as is.
+	BackendLatency   time.Duration `json:"backendLatencyNs,omitempty"`
+	BackendBandwidth int64         `json:"backendBandwidth,omitempty"`
 }
 
 func (opts *RunOptions) applyDefaults() {

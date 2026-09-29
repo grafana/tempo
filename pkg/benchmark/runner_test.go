@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -157,6 +158,26 @@ func TestRunRejectsForeignProfile(t *testing.T) {
 
 	_, err = Run(ctx, blockPath(bucket, meta), &foreign, RunOptions{})
 	require.ErrorContains(t, err, "profile is for block")
+}
+
+func TestRunSimulatesBackendLatency(t *testing.T) {
+	ctx := context.Background()
+	meta, r, bucket := testBlock(t, 100)
+
+	profile, err := ProfileBlock(ctx, meta, r, ProfileOptions{NumTraceIDs: 5})
+	require.NoError(t, err)
+
+	const latency = 2 * time.Millisecond
+	result, err := Run(ctx, blockPath(bucket, meta), profile, RunOptions{BackendLatency: latency, BackendBandwidth: 1 << 30})
+	require.NoError(t, err)
+	require.Equal(t, latency, result.Options.BackendLatency)
+
+	for _, c := range result.Cases {
+		require.Empty(t, c.Error, "case %s", c.ID)
+		reads, timeNs := c.Metrics[metrics.KeyBackendReads].Total, c.Metrics[metrics.KeyBackendTimeNs].Total
+		require.Positive(t, reads, "case %s", c.ID)
+		require.GreaterOrEqual(t, timeNs, reads*float64(latency), "case %s", c.ID)
+	}
 }
 
 func TestRunRejectsAllMode(t *testing.T) {
