@@ -17,8 +17,7 @@ type benchmarkCompareCmd struct {
 	Metric     []string `short:"m" help:"metrics to show, as glob patterns over keys like harness.wallNs" default:"harness.wallNs,harness.cpuNs,harness.allocBytes,backend.bytes,backend.reads"`
 	Case       []string `short:"k" help:"cases to show, as glob patterns over IDs like traceid/*. Defaults to every case"`
 	Percentile string   `help:"percentile the summaries show" enum:"p50,p90,p99" default:"p50"`
-	Format     string   `help:"'interactive' opens a view to explore in, or prints 'text' when stdout is not a terminal; 'text' prints the summaries and every case; 'markdown' writes the summaries for a pull request" enum:"interactive,text,markdown" default:"interactive"`
-	Width      int      `help:"columns the text output is drawn in" default:"100"`
+	Format     string   `help:"'interactive' opens a view to explore the results in a terminal; 'markdown' writes the summaries for a pull request" enum:"interactive,markdown" default:"interactive"`
 }
 
 func (cmd *benchmarkCompareCmd) Run(_ *globalOptions) error {
@@ -51,11 +50,11 @@ func (cmd *benchmarkCompareCmd) Run(_ *globalOptions) error {
 		return err
 	}
 
-	switch {
-	case cmd.Format == "markdown":
+	if cmd.Format == "markdown" {
 		return render.WriteMarkdown(os.Stdout, c, metrics, stat, c.Baseline)
-	case cmd.Format == "text" || !isTerminal(os.Stdout):
-		return render.WriteReport(os.Stdout, c, metrics, stat, c.Baseline, cmd.Width)
+	}
+	if !isTerminal(os.Stdout) {
+		return errors.New("the interactive view needs a terminal, use --format=markdown to write the comparison out")
 	}
 	if _, err := tea.NewProgram(newBenchmarkCompareModel(c, metrics, stat)).Run(); err != nil {
 		return fmt.Errorf("running interactive view: %w", err)

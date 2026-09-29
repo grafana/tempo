@@ -644,10 +644,10 @@ and is bold at 10% or more.
 When a run's name is too long to head a column,
 runs are numbered, and listed with their numbers above.
 
-When stdout is not a terminal, or with `--format=text`,
-it prints the summaries and then every case's box plots to stdout instead.
-With `--format=markdown`, it writes the summaries as markdown tables,
+With `--format=markdown`, it writes the summaries as markdown tables instead,
 to paste into a pull request.
+The interactive view needs a terminal,
+so writing to a file or a pipe needs `--format=markdown`.
 
 Arguments:
 
@@ -663,11 +663,8 @@ Options:
   for example `traceid/*`. Defaults to every case.
 - `--percentile` Percentile the summaries show: `p50`, `p90`, or `p99`.
   Defaults to `p50`.
-- `--format` `interactive`, the default, opens the interactive view,
-  or prints `text` when stdout is not a terminal.
-  `text` prints the summaries and every case's box plots.
+- `--format` `interactive`, the default, opens the interactive view.
   `markdown` writes the summaries as markdown tables.
-- `--width` Columns the text output is drawn in. Defaults to `100`.
 
 A result given as a path is named after the settings that set it apart from the others:
 the run options and git SHA that differ between the runs,
