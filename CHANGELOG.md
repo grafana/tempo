@@ -2,35 +2,7 @@
 
 # v3.1.0
 
-## 🔒 Security 🔒
-
-- `backend-scheduler`: Prevent cross-tenant redaction by taking the target tenant exclusively from the request context (`X-Scope-OrgID`), ignoring the request body's `tenant_id` field. ([#7153](https://github.com/grafana/tempo/issues/7153)) (@zalegrala)
-- `operations`: Sign all published container images (`tempo`, `tempo-vulture`, `tempo-query`, and `tempo-cli`) with keyless cosign signatures and attach SLSA build provenance. ([#7493](https://github.com/grafana/tempo/issues/7493), [#7534](https://github.com/grafana/tempo/issues/7534), [#7543](https://github.com/grafana/tempo/issues/7543), [#7565](https://github.com/grafana/tempo/issues/7565), [#7601](https://github.com/grafana/tempo/issues/7601)) (@mattdurham)
-- `operations`: Update `memcached` to `1.6.42-alpine` and `prom/memcached-exporter` to `v0.16.0` to address known vulnerabilities. ([#7244](https://github.com/grafana/tempo/issues/7244)) (@zhxiaogg)
-
-## 🛑 Breaking changes 🛑
-
-- `cache`: Experimental Redis cache has been completely rewritten with multiple breaking changes. Sentinel support has been dropped in favor of Redis Cluster (default, opt-out) ([#7337](https://github.com/grafana/tempo/issues/7337)) (@oleg-kozlyuk-grafana)
-  * Upgrade Redis client to `github.com/redis/go-redis/v9` and make routing explicit.
-  * Redis Cluster is now the default; opt into the single-node client with `single_node: true` (or `-redis.single-node`).
-  * Redis Cluster deployments require Redis 7+.
-  * Redis Sentinel support is removed: the `master_name`, `sentinel_username`, `sentinel_password` YAML keys and their `-redis.master-name`, `-redis.sentinel-username`, `-redis.sentinel-password` flags are gone. YAML keys `idle_timeout` and `max_connection_age` are renamed to `conn_max_idle_time` and `conn_max_lifetime`.
-  * The minimal `tls_enabled`/`tls_insecure_skip_verify` pair is replaced with the dskit-style TLS block (`tls_cert_path`, `tls_key_path`, `tls_ca_path`, `tls_server_name`, `tls_insecure_skip_verify`, `tls_cipher_suites`, `tls_min_version`); invalid TLS settings now fail closed instead of silently downgrading to cleartext.
-  * Adds Redis Cluster routing options (`route_by_latency`, `route_randomly`, `read_only`, `max_redirects`, `min_idle_conns`) and a configurable `max_item_size` cap. Cross-slot `MGet`/`Del` fan out across shards in parallel; `MSet` uses `Pipeline` instead of `TxPipeline` so cross-slot writes no longer fail with `CROSSSLOT`.
-  * `RedisCache.Store` is now recorded in `tempo_rediscache_request_duration_seconds`, matching the memcached client.
-- `operations`: Stop publishing mutable Docker image tags to immutable GAR repositories and pin examples to Tempo 3.0.0. ([#7369](https://github.com/grafana/tempo/issues/7369)) (@javiermolinar)
-- `query-frontend`: Remove the cluster-wide `query_frontend.trace_by_id.span_pruning_enabled` configuration option; span pruning is always available for trace-by-ID v2 requests. ([#7912](https://github.com/grafana/tempo/issues/7912), [#8010](https://github.com/grafana/tempo/issues/8010)) (@ie-pham)
-  Pruning remains opt-in per request with `span_pruning=true` unless a default is configured.
-  The experimental `span_pruning_enabled_by_default` option and per-tenant
-  `span_pruning_enabled` override remain available; an explicit request value takes precedence.
-  Users upgrading from an earlier 3.1 RC should remove the obsolete cluster-wide option.
-- `query-frontend`: new job sharding approach for trace lookups, using a new config option `blocks_per_shard` which replaces `query_shards`. ([#7105](https://github.com/grafana/tempo/issues/7105)) (@mdisibio)
-- `storage`: Enforce the vParquet3 deprecation. Tempo now refuses to start with `storage.trace.block.version` set to `vParquet3`, and the compactor no longer compacts existing vParquet3 blocks together. ([#7858](https://github.com/grafana/tempo/issues/7858)) (@mdisibio)
-  Existing vParquet3 blocks remain readable and are left as-is. Set the block version to
-  vParquet4 or later.
-- `traceql`: Reject metrics query requests with identical start and end timestamps. ([#7602](https://github.com/grafana/tempo/issues/7602)) (@mdisibio)
-
-## 🚀 Features 🚀
+## Features 
 
 - `backend-scheduler`: redaction jobs can be submitted with a TraceQL query selector instead of an explicit trace ID list, so large deletions can be expressed as a query. ([#7663](https://github.com/grafana/tempo/issues/7663)) (@zalegrala)
 - `metrics-generator`: add `service-graphs-*` subprocessors and an opt-in `traces_service_graph_connection_info` presence gauge for topology detection under heavy sampling. ([#7202](https://github.com/grafana/tempo/issues/7202)) (@jcreixell)
@@ -59,7 +31,7 @@
   `min_over_time` and `max_over_time` are unaffected. Only supported on
   vparquet4 and later.
 
-## 💡 Enhancements 💡
+## Enhancements 
 
 - `backend-scheduler`: Expose pending backend jobs per tenant and job type, and enable native histograms for backend cache item sizes. ([#7772](https://github.com/grafana/tempo/issues/7772)) (@zalegrala)
   `tempo_backend_scheduler_jobs_pending{tenant, job_type}` counts jobs awaiting dispatch,
@@ -100,23 +72,22 @@
 - `distributor`: Auto-forget unhealthy instances from the distributor ring after `2 × distributor.ring.heartbeat-timeout`, removing the need to manually click "Forget" on `/distributor/ring` after non-graceful pod terminations. ([#7098](https://github.com/grafana/tempo/issues/7098)) (@oleg-kozlyuk-grafana)
 - `docs`: Correct single-binary quickstart documentation regarding Redpanda and Kafka requirements. ([#7704](https://github.com/grafana/tempo/issues/7704)) (@veenoise)
 - `docs`: Add guidance for configuring the Kafka-compatible backend used by Tempo microservices deployments. ([#7714](https://github.com/grafana/tempo/issues/7714)) (@javiermolinar)
-- `docs`: Add shared documentation skills, project context, and release-notes workflow for AI-assisted doc authoring ([#7447](https://github.com/grafana/tempo/issues/7447)) (@knylander-grafana)
+- `docs`: Add shared documentation skills, project context, and release-notes workflow for AI-assisted doc authoring. ([#7447](https://github.com/grafana/tempo/issues/7447)) (@knylander-grafana)
 - `live-store`: expose query inspected bytes as a metric. ([#7162](https://github.com/grafana/tempo/issues/7162), [#7163](https://github.com/grafana/tempo/issues/7163)) (@zhxiaogg)
-- `live-store`: Improve TraceQL metrics query performance by removing lock contention between concurrently evaluated WAL blocks ([#7867](https://github.com/grafana/tempo/issues/7867)) (@ruslan-mikhailov)
+- `live-store`: Improve TraceQL metrics query performance by removing lock contention between concurrently evaluated WAL blocks. ([#7867](https://github.com/grafana/tempo/issues/7867)) (@ruslan-mikhailov)
   Each block is now evaluated with its own metrics evaluator and the per-block results are
   summed, instead of all WAL blocks sharing one evaluator guarded by a mutex.
-- `live-store`: reduce mutex contention in tag search by making the scoped distinct string collector lock-free ([#7492](https://github.com/grafana/tempo/issues/7492)) (@zhxiaogg)
+- `live-store`: reduce mutex contention in tag search by making the scoped distinct string collector lock-free. ([#7492](https://github.com/grafana/tempo/issues/7492)) (@zhxiaogg)
 - `metrics-generator`: Fast-path span filter matching for the default span-kind regex and evaluate intrinsic filters before attribute filters. ([#7465](https://github.com/grafana/tempo/issues/7465)) (@carles-grafana)
 - `metrics-generator`: Recognize the `db.system.name` attribute in service graphs, for database node detection and virtual node naming. ([#7697](https://github.com/grafana/tempo/issues/7697)) (@iamrajiv)
   OpenTelemetry semantic conventions v1.30.0 renamed `db.system` to `db.system.name`. Spans from
   instrumentation that emits only the new attribute were no longer identified as database requests
   and could not name a virtual node.
-
   `db.system.name` is appended to the defaults for both `peer_attributes` and
   `database_name_attributes`, after `db.system`. Because the lists are searched in order and the
   older attribute is still listed first, spans that carry `db.system` keep producing the node names
   they do today. Both defaults can still be overridden per tenant.
-- `metrics-generator`: Reduce span-name sanitizer CPU and allocations for repeated exact names ([#7794](https://github.com/grafana/tempo/issues/7794)) (@carles-grafana)
+- `metrics-generator`: Reduce span-name sanitizer CPU and allocations for repeated exact names. ([#7794](https://github.com/grafana/tempo/issues/7794)) (@carles-grafana)
   Drain now owns retained token bytes, reuses tokenizer state, removes stale candidates during matching,
   and uses a bounded exact-match index keyed by complete span names for large leaves. Generated span-metric
   labels and existing pattern fixtures are unchanged.
@@ -131,24 +102,24 @@
   Track redaction jobs by tenant and switch latency panels between classic and native histograms.
   Select Namespace before Cluster to filter the available clusters.
   The Retry panel now uses the correct `jobs_retry_total` metric.
-- `operations`: jsonnet: support Prometheus-based KEDA autoscaling for the metrics-generator ([#7362](https://github.com/grafana/tempo/issues/7362)) (@mapno)
+- `operations`: jsonnet: support Prometheus-based KEDA autoscaling for the metrics-generator. ([#7362](https://github.com/grafana/tempo/issues/7362)) (@mapno)
 - `operations`: add `tempo-service-graph.json` dashboard visualizing the service topology from `traces_service_graph_connection_info`. ([#7207](https://github.com/grafana/tempo/issues/7207)) (@jcreixell)
 - `querier`: Add `tempo_querier_backend_processing_duration_seconds` histogram measuring time the querier spends processing backend blocks, labeled by operation and tenant. ([#7525](https://github.com/grafana/tempo/issues/7525)) (@zhxiaogg)
 - `querier`: Extend query statistics metrics to additional querier methods. ([#7568](https://github.com/grafana/tempo/issues/7568), [#7571](https://github.com/grafana/tempo/issues/7571)) (@javiermolinar)
 - `querier`: limit external endpoint response size to querier grpc MaxSendMsgSize. ([#7240](https://github.com/grafana/tempo/issues/7240)) (@electron0zero)
 - `query-frontend`: Mirror per-query response log fields as span attributes on all query paths. Query-shape span attributes renamed to snake_case (`queryType` -> `query_type`, etc.). ([#7605](https://github.com/grafana/tempo/issues/7605)) (@mapno)
-- `query-frontend`: Add a `traces-diff` tool to the Tempo MCP server for comparing complete traces ([#7785](https://github.com/grafana/tempo/issues/7785)) (@carles-grafana)
+- `query-frontend`: Add a `traces-diff` tool to the Tempo MCP server for comparing complete traces. ([#7785](https://github.com/grafana/tempo/issues/7785)) (@carles-grafana)
   The default composed response includes a compact summary and conditionally includes patches up to 64 KiB. Native summary and full patch formats remain available on request; full patches have no output-size guarantee.
-- `query-frontend`: TraceByID V2: Add `match_depth` and `ancestor_depth` query params to the `q` filter to bound how many hops of descendants/ancestors of matched spans are kept (`-1` unbounded, `0` none, `n` exactly n hops) ([#7708](https://github.com/grafana/tempo/issues/7708)) (@ie-pham)
+- `query-frontend`: TraceByID V2: Add `match_depth` and `ancestor_depth` query params to the `q` filter to bound how many hops of descendants/ancestors of matched spans are kept (`-1` unbounded, `0` none, `n` exactly n hops). ([#7708](https://github.com/grafana/tempo/issues/7708)) (@ie-pham)
 - `query-frontend`: Add read-path observability: cache hit/miss counters, query-shape on logs/spans, backend stats, vparquet5 spans. ([#7504](https://github.com/grafana/tempo/issues/7504)) (@stoewer)
-- `query-frontend`: Add an `op` label to `tempo_query_frontend_queue_duration_seconds` so queue time can be broken down by query type ([#7817](https://github.com/grafana/tempo/issues/7817)) (@zhxiaogg)
+- `query-frontend`: Add an `op` label to `tempo_query_frontend_queue_duration_seconds` so queue time can be broken down by query type. ([#7817](https://github.com/grafana/tempo/issues/7817)) (@zhxiaogg)
 - `query-frontend`: return the resolved step in the TraceQL metrics query_range response. ([#7871](https://github.com/grafana/tempo/issues/7871)) (@ruslan-mikhailov)
 - `query-frontend`: Adds new feature to compute and track the amount of data of spans and their attributes flowing through the TraceQL query engine and data returned trace lookups. Disabled by default, set the override value `engine_bytes_tracking` to enable. ([#7689](https://github.com/grafana/tempo/issues/7689)) (@mdisibio)
 - `query-frontend`: Trace diff reports span durations in nanoseconds and compares numeric values with a relative tolerance. ([#7544](https://github.com/grafana/tempo/issues/7544)) (@stoewer)
 - `query-frontend`: TraceByID V2: Add first pass of filtering support with `q` (TraceQL filter) and `keep_hierarchy` query parameters to return only matching spans ([#7483](https://github.com/grafana/tempo/issues/7483)) (@electron0zero)
 - `storage`: speed up `ByteInPredicate`/`ByteNotInPredicate` by using a map lookup instead of a linear scan for large value sets. ([#7535](https://github.com/grafana/tempo/issues/7535)) (@mapno)
 - `storage`: Evict bloom-filter and trace-ID-index cache entries for blocks deleted during retention, freeing cache space for active blocks sooner. ([#7204](https://github.com/grafana/tempo/issues/7204)) (@zalegrala)
-- `storage`: Stop scanning a block for tag values as soon as the caller's limit is reached ([#7696](https://github.com/grafana/tempo/issues/7696)) (@zhxiaogg)
+- `storage`: Stop scanning a block for tag values as soon as the caller's limit is reached. ([#7696](https://github.com/grafana/tempo/issues/7696)) (@zhxiaogg)
   SearchTagValues previously walked every row group of a block even after the response
   limit had been hit, reporting values that were then discarded. It now abandons the scan
   at the first row group where the limit is reached. On a 2.4GB block, collecting values
@@ -156,7 +127,7 @@
 - `storage`: replace O(N²) `slices.ContainsFunc` loops in `updateInternal` with pre-built map lookups, reducing per-poll cost from O(N·M) to O(N+M). ([#7140](https://github.com/grafana/tempo/issues/7140)) (@zalegrala)
 - `storage`: cache each block's dedicated-columns hash in the time-window block selector instead of recomputing it on every comparison in `BlocksToCompact`'s hot loop. ([#7803](https://github.com/grafana/tempo/issues/7803)) (@zalegrala)
 - `storage`: Upgrade grafana/gomemcache with improvements during OOM storms. ([#7809](https://github.com/grafana/tempo/issues/7809)) (@mapno)
-- `storage`: Report the configured block format in anonymous usage statistics ([#7807](https://github.com/grafana/tempo/issues/7807)) (@javiermolinar)
+- `storage`: Report the configured block format in anonymous usage statistics. ([#7807](https://github.com/grafana/tempo/issues/7807)) (@javiermolinar)
   The new `storage_block_format` field reports the effective `storage.trace.block.version` used for newly written blocks. Older Tempo versions omit the field.
 - `storage`: add `tempodb_cache_store_size_bytes` histogram labelled by `role` recording the size of every item written to the backend cache. ([#7152](https://github.com/grafana/tempo/issues/7152)) (@javiermolinar)
 - `tempo`: Avoid heap allocation and unsafe string aliasing when hex-encoding trace IDs. ([#7463](https://github.com/grafana/tempo/issues/7463)) (@carles-grafana)
@@ -164,11 +135,39 @@
 - `tempo`: re-enable darwin release builds again ([#7407](https://github.com/grafana/tempo/issues/7407)) (@electron0zero)
 - `tempo`: Add support for all otel tracing configs for self tracing ([#7577](https://github.com/grafana/tempo/issues/7577)) (@electron0zero)
   Self tracing setup is done via dskit, and supports all OTEL_* and JAEGER_* configs.
-- `traceql`: Add a span-watcher framework to the TraceQL engine for collecting extra query metrics on-demand ([#7532](https://github.com/grafana/tempo/issues/7532)) (@mapno)
+- `traceql`: Add a span-watcher framework to the TraceQL engine for collecting extra query metrics on-demand. ([#7532](https://github.com/grafana/tempo/issues/7532)) (@mapno)
   Enabled via the experimental per-tenant `span_pruning_awareness` override, it reports whether matched spans include span-pruning summary spans. Applies to search and metrics queries.
 - `traceql`: enable new span-only fetch by default. Can be disabled per-tenant via `metrics_spanonly_fetch: false` or per-query via the unsafe hint `with(spanonly_fetch=false)`. ([#7179](https://github.com/grafana/tempo/issues/7179)) (@mdisibio)
 
-## 🧰 Bug fixes 🧰
+## Security 
+
+- `backend-scheduler`: Prevent cross-tenant redaction by taking the target tenant exclusively from the request context (`X-Scope-OrgID`), ignoring the request body's `tenant_id` field. ([#7153](https://github.com/grafana/tempo/issues/7153)) (@zalegrala)
+- `operations`: Sign all published container images (`tempo`, `tempo-vulture`, `tempo-query`, and `tempo-cli`) with keyless cosign signatures and attach SLSA build provenance. ([#7493](https://github.com/grafana/tempo/issues/7493), [#7534](https://github.com/grafana/tempo/issues/7534), [#7543](https://github.com/grafana/tempo/issues/7543), [#7565](https://github.com/grafana/tempo/issues/7565), [#7601](https://github.com/grafana/tempo/issues/7601)) (@mattdurham)
+- `operations`: Update `memcached` to `1.6.42-alpine` and `prom/memcached-exporter` to `v0.16.0` to address known vulnerabilities. ([#7244](https://github.com/grafana/tempo/issues/7244)) (@zhxiaogg)
+
+## Breaking changes 
+
+- `cache`: Experimental Redis cache has been completely rewritten with multiple breaking changes. Sentinel support has been dropped in favor of Redis Cluster (default, opt-out) ([#7337](https://github.com/grafana/tempo/issues/7337)) (@oleg-kozlyuk-grafana)
+  * Upgrade Redis client to `github.com/redis/go-redis/v9` and make routing explicit.
+  * Redis Cluster is now the default; opt into the single-node client with `single_node: true` (or `-redis.single-node`).
+  * Redis Cluster deployments require Redis 7+.
+  * Redis Sentinel support is removed: the `master_name`, `sentinel_username`, `sentinel_password` YAML keys and their `-redis.master-name`, `-redis.sentinel-username`, `-redis.sentinel-password` flags are gone. YAML keys `idle_timeout` and `max_connection_age` are renamed to `conn_max_idle_time` and `conn_max_lifetime`.
+  * The minimal `tls_enabled`/`tls_insecure_skip_verify` pair is replaced with the dskit-style TLS block (`tls_cert_path`, `tls_key_path`, `tls_ca_path`, `tls_server_name`, `tls_insecure_skip_verify`, `tls_cipher_suites`, `tls_min_version`); invalid TLS settings now fail closed instead of silently downgrading to cleartext.
+  * Adds Redis Cluster routing options (`route_by_latency`, `route_randomly`, `read_only`, `max_redirects`, `min_idle_conns`) and a configurable `max_item_size` cap. Cross-slot `MGet`/`Del` fan out across shards in parallel; `MSet` uses `Pipeline` instead of `TxPipeline` so cross-slot writes no longer fail with `CROSSSLOT`.
+  * `RedisCache.Store` is now recorded in `tempo_rediscache_request_duration_seconds`, matching the memcached client.
+- `operations`: Stop publishing mutable Docker image tags to immutable GAR repositories and pin examples to Tempo 3.0.0. ([#7369](https://github.com/grafana/tempo/issues/7369)) (@javiermolinar)
+- `query-frontend`: Remove the cluster-wide `query_frontend.trace_by_id.span_pruning_enabled` configuration option; span pruning is always available for trace-by-ID v2 requests. ([#7912](https://github.com/grafana/tempo/issues/7912), [#8010](https://github.com/grafana/tempo/issues/8010)) (@ie-pham)
+  Pruning remains opt-in per request with `span_pruning=true` unless a default is configured.
+  The experimental `span_pruning_enabled_by_default` option and per-tenant
+  `span_pruning_enabled` override remain available; an explicit request value takes precedence.
+  Users upgrading from an earlier 3.1 RC should remove the obsolete cluster-wide option.
+- `query-frontend`: new job sharding approach for trace lookups, using a new config option `blocks_per_shard` which replaces `query_shards`. ([#7105](https://github.com/grafana/tempo/issues/7105)) (@mdisibio)
+- `storage`: Enforce the vParquet3 deprecation. Tempo now refuses to start with `storage.trace.block.version` set to `vParquet3`, and the compactor no longer compacts existing vParquet3 blocks together. ([#7858](https://github.com/grafana/tempo/issues/7858)) (@mdisibio)
+  Existing vParquet3 blocks remain readable and are left as-is. Set the block version to
+  vParquet4 or later.
+- `traceql`: Reject metrics query requests with identical start and end timestamps. ([#7602](https://github.com/grafana/tempo/issues/7602)) (@mdisibio)
+
+## Bug fixes
 
 - `backend-scheduler`: fix O(N) lock contention in GetJobForWorker under concurrent worker load; replace shard scan with O(1) index lookup. ([#6992](https://github.com/grafana/tempo/issues/6992)) (@zalegrala)
 - `backend-scheduler`: fix outstanding-blocks metric suppressed to zero during active redaction batch, causing autoscaler to scale down workers mid-redaction. ([#6992](https://github.com/grafana/tempo/issues/6992)) (@zalegrala)
