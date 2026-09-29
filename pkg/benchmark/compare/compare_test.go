@@ -75,7 +75,7 @@ func TestNew(t *testing.T) {
 	require.Equal(t, []string{"a", "b"}, c.Names())
 	require.Equal(t, 0, c.Baseline)
 	require.Empty(t, c.Varying)
-	require.Equal(t, []Detail{{Text: "same setup as the baseline", Kind: Derived}}, c.Describe(1, 0))
+	require.Empty(t, c.Changes(1, 0), "the runs are set up alike")
 
 	// Cases come in the first run's order, then any only later runs have.
 	require.Len(t, c.Cases, 3)
@@ -85,9 +85,9 @@ func TestNew(t *testing.T) {
 
 	require.NotNil(t, c.Cases[0].Results[0])
 	require.Nil(t, c.Cases[0].Results[1])
-	require.Equal(t, []string{"vs b: missing"}, c.Problems(c.Cases[0], 0))
+	require.Equal(t, []Problem{{Run: 1, Reason: "missing"}}, c.Problems(c.Cases[0], 0))
 	require.Empty(t, c.Problems(c.Cases[1], 0))
-	require.Equal(t, []string{"vs b: missing from the baseline"}, c.Problems(c.Cases[2], 0))
+	require.Equal(t, []Problem{{Run: 1, Reason: "missing from the baseline"}}, c.Problems(c.Cases[2], 0))
 }
 
 func TestProblems(t *testing.T) {
@@ -105,9 +105,9 @@ func TestProblems(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, []string{"readBufferSize", "gitSHA", "hostname"}, c.Varying)
-	require.Equal(t, []string{"vs b: matched 5 vs 6"}, c.Problems(c.Cases[0], 0), "the match count says it first")
-	require.Equal(t, []string{"vs b: missing from the baseline"}, c.Problems(c.Cases[1], 0))
-	require.Equal(t, []string{"vs a: missing"}, c.Problems(c.Cases[1], 1), "against another baseline")
+	require.Equal(t, []Problem{{Run: 1, Reason: "matched 5 vs 6"}}, c.Problems(c.Cases[0], 0), "the match count says it first")
+	require.Equal(t, []Problem{{Run: 1, Reason: "missing from the baseline"}}, c.Problems(c.Cases[1], 0))
+	require.Equal(t, []Problem{{Run: 0, Reason: "missing"}}, c.Problems(c.Cases[1], 1), "against another baseline")
 }
 
 func TestIncomparable(t *testing.T) {
@@ -199,15 +199,15 @@ func TestCaseSeries(t *testing.T) {
 }
 
 func TestDelta(t *testing.T) {
-	pct, ok := delta(100, 87)
+	pct, ok := Delta(100, 87)
 	require.True(t, ok)
 	require.InDelta(t, -13.0, pct, 1e-9)
 
-	pct, ok = delta(50, 75)
+	pct, ok = Delta(50, 75)
 	require.True(t, ok)
 	require.InDelta(t, 50.0, pct, 1e-9)
 
-	_, ok = delta(0, 5)
+	_, ok = Delta(0, 5)
 	require.False(t, ok)
 }
 

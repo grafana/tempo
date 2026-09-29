@@ -9,7 +9,7 @@ import (
 func TestStat(t *testing.T) {
 	sum := summary(1, 2, 3, 4, 5, 6, 7)
 	require.Equal(t, []string{"p50", "p90", "p99"}, []string{P50.String(), P90.String(), P99.String()})
-	require.Equal(t, []float64{3, 5, 6}, []float64{P50.of(&sum), P90.of(&sum), P99.of(&sum)})
+	require.Equal(t, []float64{3, 5, 6}, []float64{P50.Of(&sum), P90.Of(&sum), P99.Of(&sum)})
 }
 
 func TestParseStat(t *testing.T) {

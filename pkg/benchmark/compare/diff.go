@@ -67,54 +67,17 @@ type Change struct {
 }
 
 func (ch Change) String() string {
-	s := fmt.Sprintf("%s %s → %s", ch.Field, ch.From, ch.To)
-	if ch.Kind == Environment {
-		return "⚠ " + s
-	}
-	return s
+	return fmt.Sprintf("%s %s → %s", ch.Field, ch.From, ch.To)
 }
 
-// Detail is one piece of how a run is described, with the kind of setting it is
-// about so a caller can style it.
-type Detail struct {
-	Text string
-	Kind Kind
+// Changes lists how a run was set up differently from the baseline.
+func (c *Comparison) Changes(run, baseline int) []Change {
+	return changes(c.settings[baseline], c.settings[run])
 }
 
-// Describe says how a run was set up against the baseline: what it changed, or,
-// for the baseline itself, what the others are measured from.
-func (c *Comparison) Describe(run, baseline int) []Detail {
-	if run == baseline {
-		details := []Detail{{Text: "baseline", Kind: Setup}}
-		for _, s := range c.baselineSettings(baseline) {
-			details = append(details, Detail{Text: s.String(), Kind: Derived})
-		}
-		return details
-	}
-
-	chs := changes(c.settings[baseline], c.settings[run])
-	if len(chs) == 0 {
-		return []Detail{{Text: "same setup as the baseline", Kind: Derived}}
-	}
-	details := make([]Detail, len(chs))
-	for i, ch := range chs {
-		details[i] = Detail{Text: ch.String(), Kind: ch.Kind}
-	}
-	return details
-}
-
-// DetailText runs a description's details together as plain text.
-func DetailText(details []Detail) string {
-	texts := make([]string, len(details))
-	for i, d := range details {
-		texts[i] = d.Text
-	}
-	return strings.Join(texts, " · ")
-}
-
-// baselineSettings are what the others are measured from: the baseline's value
+// BaselineSettings are what the others are measured from: the baseline's value
 // of every setting that varies, then its build and where it ran.
-func (c *Comparison) baselineSettings(baseline int) []Setting {
+func (c *Comparison) BaselineSettings(baseline int) []Setting {
 	fields := slices.Clone(c.Varying)
 	for _, f := range []string{"gitSHA", "goVersion", "goMaxProcs", "hostname"} {
 		if !slices.Contains(fields, f) {

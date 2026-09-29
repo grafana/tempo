@@ -1,10 +1,11 @@
-package compare
+package render
 
 import (
 	"math"
 	"strings"
 	"unicode/utf8"
 
+	"github.com/grafana/tempo/v3/pkg/benchmark/compare"
 	"github.com/grafana/tempo/v3/pkg/benchmark/metrics"
 )
 
@@ -32,9 +33,6 @@ const (
 	maxReach = 1.25
 	// minPlotWidth keeps a plot readable in a narrow terminal.
 	minPlotWidth = 20
-	// maxNameWidth cuts long run names, like several settings run together,
-	// before they take the plot's room.
-	maxNameWidth = 28
 )
 
 // Axis maps values onto the columns of a plot.
@@ -48,7 +46,7 @@ type Axis struct {
 // NewAxis fits an axis in width columns to every run of the series. It spans
 // the lowest min to the highest p99, rounded out to whole ticks, and reaches
 // the highest max only when that is close.
-func NewAxis(s Series, width int) Axis {
+func NewAxis(s compare.Series, width int) Axis {
 	lo, hi, top := math.Inf(1), math.Inf(-1), math.Inf(-1)
 	for _, sum := range s.Summaries {
 		if sum == nil {
@@ -117,7 +115,7 @@ func (a Axis) col(v float64) int {
 
 // Ticks draws the axis: a line of tick labels above a ruled line with a tick at
 // each step.
-func (a Axis) Ticks(u Unit) (labels, line string) {
+func (a Axis) Ticks(u compare.Unit) (labels, line string) {
 	rule := []rune(strings.Repeat(string(markWhisker), a.Width))
 	text := []rune(strings.Repeat(" ", a.Width))
 
@@ -200,9 +198,15 @@ type Plot struct {
 	Rows   []string
 }
 
+// Title names what a case's box plot and table show. Summaries are per
+// execution: one trace lookup, or one shard of a search.
+func Title(cs compare.Case, metric string) string {
+	return cs.ID + " · " + metric + " · per execution"
+}
+
 // BoxPlot draws a series in about width columns, each row led by its run's
 // name.
-func BoxPlot(names []string, s Series, width int) Plot {
+func BoxPlot(names []string, s compare.Series, width int) Plot {
 	nw := nameWidth(names)
 	axis := NewAxis(s, 0)
 
@@ -232,38 +236,4 @@ func BoxPlot(names []string, s Series, width int) Plot {
 		p.Rows = append(p.Rows, strings.TrimRight(name+row, " "))
 	}
 	return p
-}
-
-// nameWidth is the column run names are padded to, so rows line up after them.
-// Long names are cut before they take the plot's room.
-func nameWidth(names []string) int {
-	return min(longest(names), maxNameWidth) + 2
-}
-
-// fitName cuts and pads a run name to a column of nameWidth.
-func fitName(name string, width int) string {
-	return pad(clip(name, width-2), width)
-}
-
-func longest(ss []string) int {
-	n := 0
-	for _, s := range ss {
-		n = max(n, utf8.RuneCountInString(s))
-	}
-	return n
-}
-
-func pad(s string, width int) string {
-	return s + strings.Repeat(" ", max(0, width-utf8.RuneCountInString(s)))
-}
-
-// clip cuts s to width runes, marking the cut.
-func clip(s string, width int) string {
-	if utf8.RuneCountInString(s) <= width {
-		return s
-	}
-	if width <= 0 {
-		return ""
-	}
-	return string([]rune(s)[:width-1]) + "…"
 }

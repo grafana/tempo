@@ -91,7 +91,7 @@ func TestChanges(t *testing.T) {
 	require.Equal(t, []string{
 		"targetBytesPerRequest 0B → 50MiB",
 		"readBufferSize default → 4MiB",
-		"⚠ goMaxProcs 12 → 8",
+		"goMaxProcs 12 → 8",
 		"shards 55 → 110",
 	}, strs)
 	require.Equal(t, Derived, got[3].Kind)
@@ -103,39 +103,29 @@ func TestChanges(t *testing.T) {
 	require.Empty(t, changes(baseSettings, baseSettings))
 }
 
-func TestDescribe(t *testing.T) {
+func TestBaselineSettings(t *testing.T) {
 	base := newResult("mac")
-	same := newResult("mac")
 	other := newResult("linux")
 	other.Options.ReadBufferSize = 4 << 20
-	c, err := New([]Run{{Name: "base", Result: base}, {Name: "same", Result: same}, {Name: "other", Result: other}})
+	c, err := New([]Run{{Name: "base", Result: base}, {Name: "other", Result: other}})
 	require.NoError(t, err)
 
-	texts := func(ds []Detail) []string {
-		out := make([]string, len(ds))
-		for i, d := range ds {
-			out[i] = d.Text
-		}
-		return out
+	// What the others are measured from: the settings that vary first, then
+	// the baseline's build and where it ran.
+	var got []string
+	for _, s := range c.BaselineSettings(0) {
+		got = append(got, s.String())
 	}
-
-	// The baseline shows what the others are measured from: the settings that
-	// vary first, then its build and where it ran.
 	require.Equal(t, []string{
-		"baseline",
 		"readBufferSize default",
 		"hostname mac",
 		"gitSHA abc",
 		"goVersion go1.27",
 		"goMaxProcs 12",
-	}, texts(c.Describe(0, 0)))
+	}, got)
 
-	require.Equal(t, []Detail{{Text: "same setup as the baseline", Kind: Derived}}, c.Describe(1, 0))
-	require.Equal(t, []Detail{
-		{Text: "readBufferSize default → 4MiB", Kind: Setup},
-		{Text: "⚠ hostname mac → linux", Kind: Environment},
-	}, c.Describe(2, 0))
-
-	// Against another baseline, the changes are from it instead.
-	require.Equal(t, []string{"readBufferSize 4MiB → default", "⚠ hostname linux → mac"}, texts(c.Describe(0, 2)))
+	require.Equal(t, []Change{
+		{Field: "readBufferSize", From: "default", To: "4MiB", Kind: Setup},
+		{Field: "hostname", From: "mac", To: "linux", Kind: Environment},
+	}, c.Changes(1, 0))
 }
