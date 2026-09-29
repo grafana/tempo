@@ -84,7 +84,7 @@ const (
 	// plus serialization overhead.
 	minProducerBatchMaxBytes = minProducerRecordDataBytesLimit + producerBatchOverheadBytes
 
-	// maxProducerBatchMaxBytes caps the configurable batch max at a  128 MiB ceiling.
+	// maxProducerBatchMaxBytes caps the configurable batch max at a 100 MiB ceiling.
 	maxProducerBatchMaxBytes = 100 * 1024 * 1024
 
 	// defaultMetadataAge is the cluster metadata min and max age used by default.
