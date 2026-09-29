@@ -38,10 +38,7 @@ type RunOptions struct {
 	MaxSeries             int `json:"maxSeries"`
 	Exemplars             int `json:"exemplars"`
 
-	ReadBufferSize     int    `json:"readBufferSize,omitempty"`
-	ReadBufferCount    int    `json:"readBufferCount,omitempty"`
-	ChunkSizeBytes     uint32 `json:"chunkSizeBytes,omitempty"`
-	PrefetchTraceCount int    `json:"prefetchTraceCount,omitempty"`
+	ReadBufferSize int `json:"readBufferSize,omitempty"`
 
 	// BackendLatency and BackendBandwidth, in bytes per second, charge every
 	// backend request as an object store would. Zero leaves local reads as is.
@@ -67,15 +64,6 @@ func (opts RunOptions) searchOptions() common.SearchOptions {
 	readOpts := common.DefaultSearchOptions()
 	if opts.ReadBufferSize > 0 {
 		readOpts.ReadBufferSize = opts.ReadBufferSize
-	}
-	if opts.ReadBufferCount > 0 {
-		readOpts.ReadBufferCount = opts.ReadBufferCount
-	}
-	if opts.ChunkSizeBytes > 0 {
-		readOpts.ChunkSizeBytes = opts.ChunkSizeBytes
-	}
-	if opts.PrefetchTraceCount > 0 {
-		readOpts.PrefetchTraceCount = opts.PrefetchTraceCount
 	}
 	return readOpts
 }

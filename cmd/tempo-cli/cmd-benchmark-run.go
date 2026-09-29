@@ -24,10 +24,7 @@ type benchmarkRunCmd struct {
 	MaxSeries             int    `help:"series a metrics query returns" default:"1000"`
 	Exemplars             int    `help:"exemplars a metrics query collects" default:"0"`
 
-	ReadBufferSize     string `help:"read buffer size, e.g. 8MiB, 0 for the default" default:"0"`
-	ReadBufferCount    int    `help:"number of read buffers, 0 for the default"`
-	ChunkSizeBytes     uint32 `help:"chunk size in bytes, 0 for the default"`
-	PrefetchTraceCount int    `help:"traces to prefetch, 0 for the default"`
+	ReadBufferSize string `help:"read buffer size, e.g. 8MiB, 0 for the default" default:"0"`
 
 	BackendLatency   time.Duration `help:"latency added to every backend request, simulating an object store"`
 	BackendBandwidth string        `help:"per-request backend bandwidth per second, e.g. 100MiB, simulating an object store; 0 for unlimited" default:"0"`
@@ -66,9 +63,6 @@ func (cmd *benchmarkRunCmd) Run(_ *globalOptions) error {
 		MaxSeries:             cmd.MaxSeries,
 		Exemplars:             cmd.Exemplars,
 		ReadBufferSize:        int(readBufferSize),
-		ReadBufferCount:       cmd.ReadBufferCount,
-		ChunkSizeBytes:        cmd.ChunkSizeBytes,
-		PrefetchTraceCount:    cmd.PrefetchTraceCount,
 		BackendLatency:        cmd.BackendLatency,
 		BackendBandwidth:      int64(bandwidth),
 	})
