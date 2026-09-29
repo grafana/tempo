@@ -2,7 +2,7 @@
 
 # v3.1.0
 
-## 🚀 Features 🚀
+## Features 
 
 - `backend-scheduler`: redaction jobs can be submitted with a TraceQL query selector instead of an explicit trace ID list, so large deletions can be expressed as a query. ([#7663](https://github.com/grafana/tempo/issues/7663)) (@zalegrala)
 - `metrics-generator`: add `service-graphs-*` subprocessors and an opt-in `traces_service_graph_connection_info` presence gauge for topology detection under heavy sampling. ([#7202](https://github.com/grafana/tempo/issues/7202)) (@jcreixell)
@@ -31,7 +31,7 @@
   `min_over_time` and `max_over_time` are unaffected. Only supported on
   vparquet4 and later.
 
-## 💡 Enhancements 💡
+## Enhancements 
 
 - `backend-scheduler`: Expose pending backend jobs per tenant and job type, and enable native histograms for backend cache item sizes. ([#7772](https://github.com/grafana/tempo/issues/7772)) (@zalegrala)
   `tempo_backend_scheduler_jobs_pending{tenant, job_type}` counts jobs awaiting dispatch,
@@ -139,13 +139,13 @@
   Enabled via the experimental per-tenant `span_pruning_awareness` override, it reports whether matched spans include span-pruning summary spans. Applies to search and metrics queries.
 - `traceql`: enable new span-only fetch by default. Can be disabled per-tenant via `metrics_spanonly_fetch: false` or per-query via the unsafe hint `with(spanonly_fetch=false)`. ([#7179](https://github.com/grafana/tempo/issues/7179)) (@mdisibio)
 
-## 🔒 Security 🔒
+## Security 
 
 - `backend-scheduler`: Prevent cross-tenant redaction by taking the target tenant exclusively from the request context (`X-Scope-OrgID`), ignoring the request body's `tenant_id` field. ([#7153](https://github.com/grafana/tempo/issues/7153)) (@zalegrala)
 - `operations`: Sign all published container images (`tempo`, `tempo-vulture`, `tempo-query`, and `tempo-cli`) with keyless cosign signatures and attach SLSA build provenance. ([#7493](https://github.com/grafana/tempo/issues/7493), [#7534](https://github.com/grafana/tempo/issues/7534), [#7543](https://github.com/grafana/tempo/issues/7543), [#7565](https://github.com/grafana/tempo/issues/7565), [#7601](https://github.com/grafana/tempo/issues/7601)) (@mattdurham)
 - `operations`: Update `memcached` to `1.6.42-alpine` and `prom/memcached-exporter` to `v0.16.0` to address known vulnerabilities. ([#7244](https://github.com/grafana/tempo/issues/7244)) (@zhxiaogg)
 
-## 🛑 Breaking changes 🛑
+## Breaking changes 
 
 - `cache`: Experimental Redis cache has been completely rewritten with multiple breaking changes. Sentinel support has been dropped in favor of Redis Cluster (default, opt-out) ([#7337](https://github.com/grafana/tempo/issues/7337)) (@oleg-kozlyuk-grafana)
   * Upgrade Redis client to `github.com/redis/go-redis/v9` and make routing explicit.
@@ -167,7 +167,7 @@
   vParquet4 or later.
 - `traceql`: Reject metrics query requests with identical start and end timestamps. ([#7602](https://github.com/grafana/tempo/issues/7602)) (@mdisibio)
 
-## 🧰 Bug fixes 🧰
+## Bug fixes
 
 - `backend-scheduler`: fix O(N) lock contention in GetJobForWorker under concurrent worker load; replace shard scan with O(1) index lookup. ([#6992](https://github.com/grafana/tempo/issues/6992)) (@zalegrala)
 - `backend-scheduler`: fix outstanding-blocks metric suppressed to zero during active redaction batch, causing autoscaler to scale down workers mid-redaction. ([#6992](https://github.com/grafana/tempo/issues/6992)) (@zalegrala)
