@@ -107,25 +107,26 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 		return ok
 	}
 
+	trs := make([]tagRequest, 0, len(req.ConditionGroups))
 	for _, condGroup := range req.ConditionGroups {
-		tr := tagRequest{
+		trs = append(trs, tagRequest{
 			conditions:    condGroup,
 			scope:         req.Scope,
 			existsTagName: existsTagName,
-		}
+		})
+	}
 
-		iter, err := autocompleteIter(ctx, tr, pf, opts, b.meta.DedicatedColumns)
-		if err != nil {
-			return fmt.Errorf("creating fetch iter: %w", err)
-		}
-		if iter == nil {
-			// None of the conditions in this group can be fetched, so the group doesn't filter
-			// anything. Fall back to the unfiltered path.
-			return b.SearchTags(ctx, req.Scope, func(t string, scope traceql.AttributeScope) {
-				cb(t, scope)
-			}, mcb, opts)
-		}
+	iters, err := autocompleteIters(ctx, trs, pf, opts, b.meta.DedicatedColumns)
+	if err != nil {
+		return err
+	}
+	if iters == nil {
+		return searchTags(ctx, req.Scope, func(t string, scope traceql.AttributeScope) {
+			cb(t, scope)
+		}, pf, b.meta.DedicatedColumns, opts)
+	}
 
+	for i, iter := range iters {
 		done, iterErr := func() (bool, error) {
 			defer iter.Close()
 			for {
@@ -146,11 +147,9 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 				}
 			}
 		}()
-		if iterErr != nil {
+		if iterErr != nil || done {
+			closeIters(iters[i+1:])
 			return iterErr
-		}
-		if done {
-			return nil
 		}
 	}
 
@@ -259,23 +258,24 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 		return ok
 	}
 
+	trs := make([]tagRequest, 0, len(req.ConditionGroups))
 	for _, condGroup := range req.ConditionGroups {
-		tr := tagRequest{
+		trs = append(trs, tagRequest{
 			conditions:     condGroup,
 			tag:            req.TagName,
 			existsTagValue: existsTagValue,
-		}
+		})
+	}
 
-		iter, err := autocompleteIter(ctx, tr, pf, opts, b.meta.DedicatedColumns)
-		if err != nil {
-			return fmt.Errorf("creating fetch iter: %w", err)
-		}
-		if iter == nil {
-			// None of the conditions in this group can be fetched, so the group doesn't filter
-			// anything. Fall back to the unfiltered path.
-			return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), mcb, opts)
-		}
+	iters, err := autocompleteIters(ctx, trs, pf, opts, b.meta.DedicatedColumns)
+	if err != nil {
+		return err
+	}
+	if iters == nil {
+		return searchTagValues(ctx, req.TagName, common.TagValuesCallbackV2(cb), pf, b.meta.DedicatedColumns, opts)
+	}
 
+	for i, iter := range iters {
 		done, iterErr := func() (bool, error) {
 			defer iter.Close()
 			for {
@@ -295,15 +295,39 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 				}
 			}
 		}()
-		if iterErr != nil {
+		if iterErr != nil || done {
+			closeIters(iters[i+1:])
 			return iterErr
-		}
-		if done {
-			return nil
 		}
 	}
 
 	return nil
+}
+
+// autocompleteIters creates an iterator for each tag request before any of them is run.
+// It returns nil iterators if any request can't be turned into an iterator. That request
+// doesn't filter anything, so the caller must answer with the unfiltered search instead.
+func autocompleteIters(ctx context.Context, trs []tagRequest, pf *parquet.File, opts common.SearchOptions, dc backend.DedicatedColumns) ([]parquetquery.Iterator, error) {
+	iters := make([]parquetquery.Iterator, 0, len(trs))
+	for _, tr := range trs {
+		iter, err := autocompleteIter(ctx, tr, pf, opts, dc)
+		if err != nil {
+			closeIters(iters)
+			return nil, fmt.Errorf("creating fetch iter: %w", err)
+		}
+		if iter == nil {
+			closeIters(iters)
+			return nil, nil
+		}
+		iters = append(iters, iter)
+	}
+	return iters, nil
+}
+
+func closeIters(iters []parquetquery.Iterator) {
+	for _, iter := range iters {
+		iter.Close()
+	}
 }
 
 // autocompleteIter creates an iterator that will collect values for a given attribute/tag.

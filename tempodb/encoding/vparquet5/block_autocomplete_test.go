@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/grafana/tempo/v3/pkg/collector"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
@@ -1311,6 +1312,62 @@ func TestFetchTagValuesAllConditionsUnsupported(t *testing.T) {
 
 		err := block.FetchTagNames(t.Context(), req, func(string, traceql.AttributeScope) bool { return false }, func(uint64) {}, common.DefaultSearchOptions())
 		require.NoError(t, err)
+	})
+}
+
+func TestFetchTagsUnfilteredGroupFallsBackBeforeAnyGroupRuns(t *testing.T) {
+	// A group made only of unsupported conditions can't be turned into an iterator, it doesn't
+	// filter anything and the request is answered by the unfiltered search. No other group
+	// must run before that, and the already opened file must be reused, so the request reads
+	// exactly what the unsupported group alone reads.
+	block := makeBackendBlockWithTraces(t, []*Trace{fullyPopulatedTestTrace(common.ID{0})})
+
+	var (
+		startTime   = traceql.NewIntrinsic(traceql.IntrinsicSpanStartTime)
+		unsupported = traceql.Condition{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceStartTime), Op: traceql.OpGreater, Operands: traceql.Operands{traceql.NewStaticDuration(0)}}
+	)
+
+	type readStats struct{ calls, bytes uint64 }
+	measure := func(fetch func(common.MetricsCallback) error) readStats {
+		var st readStats
+		require.NoError(t, fetch(func(bytes uint64) {
+			st.calls++
+			st.bytes += bytes
+		}))
+		return st
+	}
+
+	t.Run("tag values", func(t *testing.T) {
+		var (
+			tagCond  = traceql.Condition{Attribute: startTime, Op: traceql.OpNone}
+			filtered = traceql.Condition{Attribute: traceql.NewIntrinsic(traceql.IntrinsicName), Op: traceql.OpEqual, Operands: traceql.Operands{traceql.NewStaticString("hello")}}
+		)
+		fetch := func(groups [][]traceql.Condition) func(common.MetricsCallback) error {
+			return func(mcb common.MetricsCallback) error {
+				req := traceql.FetchTagValuesRequest{TagName: startTime, ConditionGroups: groups}
+				return block.FetchTagValues(t.Context(), req, func(traceql.Static) bool { return false }, mcb, common.DefaultSearchOptions())
+			}
+		}
+
+		alone := measure(fetch([][]traceql.Condition{{unsupported, tagCond}}))
+		withGroup := measure(fetch([][]traceql.Condition{{filtered, tagCond}, {unsupported, tagCond}}))
+
+		require.Equal(t, readStats{calls: 1, bytes: alone.bytes}, withGroup)
+	})
+
+	t.Run("tag names", func(t *testing.T) {
+		filtered := traceql.Condition{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceDuration), Op: traceql.OpGreater, Operands: traceql.Operands{traceql.NewStaticDuration(1000 * time.Hour)}}
+		fetch := func(groups [][]traceql.Condition) func(common.MetricsCallback) error {
+			return func(mcb common.MetricsCallback) error {
+				req := traceql.FetchTagsRequest{Scope: traceql.AttributeScopeTrace, ConditionGroups: groups}
+				return block.FetchTagNames(t.Context(), req, func(string, traceql.AttributeScope) bool { return false }, mcb, common.DefaultSearchOptions())
+			}
+		}
+
+		alone := measure(fetch([][]traceql.Condition{{unsupported}}))
+		withGroup := measure(fetch([][]traceql.Condition{{filtered}, {unsupported}}))
+
+		require.Equal(t, readStats{calls: 1, bytes: alone.bytes}, withGroup)
 	})
 }
 
