@@ -16,7 +16,7 @@ func Table(names []string, s compare.Series, baseline int) (header string, rows 
 	cells := [][]string{{"run", "n", "p50", "p90", "p99", "max", "Δp50", "Δp99"}}
 	base := s.Summaries[baseline]
 	for i, sum := range s.Summaries {
-		name := clip(names[i], maxNameWidth)
+		name := Clip(names[i], maxNameWidth)
 		if sum == nil {
 			cells = append(cells, []string{name, noValue, noValue, noValue, noValue, noValue, "", ""})
 			continue

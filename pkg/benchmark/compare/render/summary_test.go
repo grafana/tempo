@@ -11,7 +11,7 @@ import (
 )
 
 // tableText is a summary table as it reads.
-func tableText(st SummaryTable) []string {
+func tableText(st SummaryTable, notes []string) []string {
 	lines := []string{st.Title, strings.TrimRight("  "+st.Header.String(), " ")}
 	for _, r := range st.Rows {
 		prefix := "  "
@@ -20,7 +20,7 @@ func tableText(st SummaryTable) []string {
 		}
 		lines = append(lines, strings.TrimRight(prefix+r.Line.String(), " "))
 	}
-	for _, n := range st.Notes {
+	for _, n := range notes {
 		lines = append(lines, "  ⚠ "+n)
 	}
 	return lines
@@ -28,6 +28,7 @@ func tableText(st SummaryTable) []string {
 
 func TestSummaryTable(t *testing.T) {
 	c := newSummaryComparison(t)
+	_, notes := summaryRows(c, c.Summary("harness.wallNs", compare.P50, 0))
 	require.Equal(t, []string{
 		"harness.wallNs · p50 per execution · change from base",
 		"  case                 │  base │    again     │    2MiB     │      4MiB",
@@ -36,14 +37,15 @@ func TestSummaryTable(t *testing.T) {
 		" search",
 		"  search/nopredicate ⚠ │  10ns │  10ns     0% │ 10ns     0% │ not comparable",
 		"  ⚠ search/nopredicate vs 4MiB: matched 5 vs 6",
-	}, tableText(NewSummaryTable(c, "harness.wallNs", compare.P50, 0)))
+	}, tableText(NewSummaryTable(c, "harness.wallNs", compare.P50, 0), notes))
 
 	// Against another baseline, the changes are from it, and every other run
 	// is the one that cannot be compared on the search.
 	st := NewSummaryTable(c, "harness.wallNs", compare.P50, 3)
 	require.Equal(t, "harness.wallNs · p50 per execution · change from 4MiB", st.Title)
-	require.Equal(t, "  traceid/present      │  100ns  +14.9% │  104ns  +19.5% │   98ns  +12.6% │ 87ns", tableText(st)[3])
-	require.Len(t, st.Notes, 3)
+	require.Equal(t, "  traceid/present      │  100ns  +14.9% │  104ns  +19.5% │   98ns  +12.6% │ 87ns", tableText(st, nil)[3])
+	_, notes = summaryRows(c, c.Summary("harness.wallNs", compare.P50, 3))
+	require.Len(t, notes, 3)
 }
 
 func TestSummaryTableSegments(t *testing.T) {
@@ -107,6 +109,6 @@ func TestSummaryTableWithoutData(t *testing.T) {
 	c, err := compare.New([]compare.Run{*a, *b})
 	require.NoError(t, err)
 
-	lines := tableText(NewSummaryTable(c, "harness.wallNs", compare.P50, 0))
+	lines := tableText(NewSummaryTable(c, "harness.wallNs", compare.P50, 0), nil)
 	require.Equal(t, "  search/nopredicate │ 10ns │ –", lines[3])
 }
