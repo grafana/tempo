@@ -6,8 +6,6 @@ note: Fix a querier panic in tag values search when every condition in a group i
 
 issues: []
 
-subtext: |
-  Tag names and tag values search now filter on `trace:id` and `span:id` conditions instead of silently ignoring them, and return `trace:id` and `span:id` values.
-  A condition group that can't be turned into an iterator now falls back to the unfiltered search instead of building an empty join iterator.
+subtext:
 
 user: zhxiaogg
