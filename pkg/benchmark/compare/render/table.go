@@ -2,27 +2,38 @@ package render
 
 import (
 	"strconv"
-	"strings"
-	"unicode/utf8"
 
 	"github.com/grafana/tempo/v3/pkg/benchmark/compare"
 	"github.com/grafana/tempo/v3/pkg/benchmark/metrics"
 )
 
-// Table lists each run's summary of a series with its change from the baseline
-// run. Rows line up with the runs, so a caller can style each run's row on its
-// own.
-func Table(names []string, s compare.Series, baseline int) (header string, rows []string) {
-	cells := [][]string{{"run", "n", "p50", "p90", "p99", "max", "Δp50", "Δp99"}}
+// TableView is each run's numbers for a series, and its change from the
+// baseline's.
+type TableView struct {
+	Header []string
+	// Rows hold a row per run, in run order.
+	Rows []TableRow
+}
+
+// TableRow is one run's numbers.
+type TableRow struct {
+	// Name is the run's name, shown as the run, as its whole row is.
+	Name  Text
+	Cells []string
+}
+
+// NewTable lists every run's summary of a series.
+func NewTable(names []string, s compare.Series, baseline int) TableView {
+	v := TableView{Header: []string{"run", "n", "p50", "p90", "p99", "max", "Δp50", "Δp99"}}
 	base := s.Summaries[baseline]
 	for i, sum := range s.Summaries {
-		name := Clip(names[i], maxNameWidth)
+		row := TableRow{Name: runText(names[i], i, baseline)}
 		if sum == nil {
-			cells = append(cells, []string{name, noValue, noValue, noValue, noValue, noValue, "", ""})
+			row.Cells = []string{noValue, noValue, noValue, noValue, noValue, "", ""}
+			v.Rows = append(v.Rows, row)
 			continue
 		}
-		row := []string{
-			name,
+		row.Cells = []string{
 			strconv.Itoa(sum.Count),
 			Format(s.Unit, sum.P50),
 			Format(s.Unit, sum.P90),
@@ -31,14 +42,12 @@ func Table(names []string, s compare.Series, baseline int) (header string, rows 
 			"", "",
 		}
 		if i != baseline && base != nil {
-			row[6] = formatDelta(compare.P50, base, sum)
-			row[7] = formatDelta(compare.P99, base, sum)
+			row.Cells[5] = formatDelta(compare.P50, base, sum)
+			row.Cells[6] = formatDelta(compare.P99, base, sum)
 		}
-		cells = append(cells, row)
+		v.Rows = append(v.Rows, row)
 	}
-
-	lines := alignColumns(cells)
-	return lines[0], lines[1:]
+	return v
 }
 
 func formatDelta(stat compare.Stat, base, sum *metrics.Summary) string {
@@ -47,30 +56,4 @@ func formatDelta(stat compare.Stat, base, sum *metrics.Summary) string {
 		return notApplicable
 	}
 	return formatChange(pct)
-}
-
-// alignColumns pads cells into columns two spaces apart, the first aligned left
-// and the rest, which are numbers, aligned right.
-func alignColumns(cells [][]string) []string {
-	widths := make([]int, len(cells[0]))
-	for _, row := range cells {
-		for j, cell := range row {
-			widths[j] = max(widths[j], utf8.RuneCountInString(cell))
-		}
-	}
-
-	lines := make([]string, 0, len(cells))
-	for _, row := range cells {
-		var b strings.Builder
-		for j, cell := range row {
-			gap := strings.Repeat(" ", widths[j]-utf8.RuneCountInString(cell))
-			if j == 0 {
-				b.WriteString(cell + gap)
-				continue
-			}
-			b.WriteString("  " + gap + cell)
-		}
-		lines = append(lines, strings.TrimRight(b.String(), " "))
-	}
-	return lines
 }

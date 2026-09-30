@@ -160,15 +160,6 @@ func TestBenchmarkCompareModelNumbersLongNames(t *testing.T) {
 	require.Contains(t, view, "change from #1", "the baseline is named by its number too")
 }
 
-func TestCompareChangeText(t *testing.T) {
-	// Better is blue and worse orange, bold past MajorChange.
-	require.NotEqual(t, compareBetterText.GetForeground(), compareWorseText.GetForeground())
-	require.Equal(t, compareBetterText.GetForeground(), compareChangeText(-5).GetForeground())
-	require.Equal(t, compareWorseText.GetForeground(), compareChangeText(5).GetForeground())
-	require.False(t, compareChangeText(-5).GetBold())
-	require.True(t, compareChangeText(-13).GetBold())
-}
-
 func TestBenchmarkCompareModelSmallScreen(t *testing.T) {
 	m := newBenchmarkCompareModel(newTestComparison(t), []string{"harness.wallNs"}, compare.P50)
 	m.Update(tea.WindowSizeMsg{Width: 40, Height: 8})

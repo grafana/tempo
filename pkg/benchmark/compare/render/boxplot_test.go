@@ -1,13 +1,12 @@
 package render
 
 import (
-	"strings"
 	"testing"
-	"unicode/utf8"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/v3/pkg/benchmark/compare"
+	"github.com/grafana/tempo/v3/pkg/benchmark/compare/internal/comparetest"
 	"github.com/grafana/tempo/v3/pkg/benchmark/metrics"
 )
 
@@ -32,7 +31,7 @@ func TestNiceStep(t *testing.T) {
 func TestNewAxis(t *testing.T) {
 	series := func(sums ...*metrics.Summary) compare.Series { return compare.Series{Summaries: sums} }
 	sum := func(minV, p99, maxV float64) *metrics.Summary {
-		s := summary(minV, minV, minV, p99, p99, p99, maxV)
+		s := comparetest.Summary(minV, minV, minV, p99, p99, p99, maxV)
 		return &s
 	}
 
@@ -50,75 +49,32 @@ func TestNewAxis(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			a := NewAxis(tt.s, 40)
+			a := NewAxis(tt.s)
 			require.InDelta(t, tt.min, a.Min, 1e-9)
 			require.InDelta(t, tt.max, a.Max, 1e-9)
-			require.Equal(t, 40, a.Width)
 		})
 	}
-
-	require.Equal(t, minPlotWidth, NewAxis(series(nil), 1).Width)
 }
 
 func TestAxisTicks(t *testing.T) {
-	a := Axis{Min: 0, Max: 50, Step: 10, Width: 51}
-	labels, line := a.Ticks(compare.Count)
-
-	gap := strings.Repeat(" ", 8)
-	require.Equal(t, "0"+gap+"10"+gap+"20"+gap+"30"+gap+"40"+gap+"50", labels)
-
-	seg := strings.Repeat("─", 9)
-	require.Equal(t, "├"+seg+"┼"+seg+"┼"+seg+"┼"+seg+"┼"+seg+"┤", line)
-
-	// Labels that would touch are dropped rather than overlapped, and the ends
-	// are kept over the middle, since they say what the axis spans.
-	a = Axis{Min: 0, Max: 50, Step: 10, Width: 20}
-	labels, _ = a.Ticks(compare.Nanoseconds)
-	require.Equal(t, "0ns   20ns      50ns", labels)
+	require.Equal(t, []Tick{
+		{Value: 10, Label: "10ns"}, {Value: 20, Label: "20ns"}, {Value: 30, Label: "30ns"},
+	}, Axis{Min: 10, Max: 30, Step: 10}.Ticks(compare.Nanoseconds))
 }
 
-func TestAxisRow(t *testing.T) {
-	a := Axis{Min: 0, Max: 50, Step: 10, Width: 51}
-	rep := strings.Repeat
-
-	row, clipped := a.Row(summary(10, 20, 25, 30, 35, 40, 45))
-	require.False(t, clipped)
-	require.Equal(t,
-		rep(" ", 10)+"├"+rep("─", 9)+rep("▒", 5)+"┃"+rep("▒", 5)+rep("─", 4)+"╎"+rep("─", 4)+"┤"+rep("·", 4)+"•"+rep(" ", 5),
-		row)
-
-	row, clipped = a.Row(summary(15, 26, 32, 37, 40, 48, 1116))
-	require.True(t, clipped)
-	require.Equal(t,
-		rep(" ", 15)+"├"+rep("─", 10)+rep("▒", 6)+"┃"+rep("▒", 5)+rep("─", 2)+"╎"+rep("─", 7)+"┤"+"·"+"▸",
-		row)
-
-	// A distribution narrower than a column still shows its median.
-	row, _ = a.Row(summary(25, 25, 25, 25, 25, 25, 25))
-	require.Equal(t, rep(" ", 25)+"┃"+rep(" ", 25), row)
-}
-
-func TestBoxPlot(t *testing.T) {
-	far := summary(15, 26, 32, 37, 40, 48, 1116)
-	near := summary(14, 23, 28, 33, 36, 44, 49)
+func TestNewBoxPlot(t *testing.T) {
+	far := comparetest.Summary(15, 26, 32, 37, 40, 48, 1116)
+	near := comparetest.Summary(14, 23, 28, 33, 36, 44, 49)
 	s := compare.Series{Unit: compare.Count, Summaries: []*metrics.Summary{&far, &near, nil}}
 
-	p := BoxPlot([]string{"base", "rb-4M", "gone"}, s, 80)
-	require.Len(t, p.Header, 2)
-	require.Len(t, p.Rows, 3)
+	v := NewBoxPlot([]string{"base", "a", "gone"}, s, 1)
+	require.Equal(t, compare.Count, v.Unit)
+	require.Equal(t, Axis{Min: 10, Max: 50, Step: 5}, v.Axis)
+	require.Len(t, v.Ticks, 9)
+	require.Equal(t, Tick{Value: 50, Label: "50"}, v.Ticks[8])
 
-	indent := strings.Repeat(" ", len("rb-4M")+2)
-	for _, h := range p.Header {
-		require.True(t, strings.HasPrefix(h, indent), "header %q is indented past the names", h)
-	}
-	require.True(t, strings.HasPrefix(p.Rows[0], "base   "))
-	require.True(t, strings.HasSuffix(p.Rows[0], "▸ 1.12k"), "a clipped max is written after the plot: %q", p.Rows[0])
-	require.True(t, strings.HasPrefix(p.Rows[1], "rb-4M  "))
-	require.Equal(t, "gone   no data", p.Rows[2])
-
-	// Room for the clipped max is taken out of the plot, so the rows fit.
-	for _, r := range p.Rows[:2] {
-		require.LessOrEqual(t, utf8.RuneCountInString(r), 80)
-	}
-	require.Equal(t, 80, utf8.RuneCountInString(p.Rows[0]))
+	// A max past the axis is clipped, and written out for an output to show.
+	require.Equal(t, BoxPlotRow{Name: Text{Text: "base", Style: RunName}, Summary: &far, Clipped: true, Max: "1.12k"}, v.Rows[0])
+	require.Equal(t, BoxPlotRow{Name: Text{Text: "a", Style: BaselineName, Run: 1}, Summary: &near}, v.Rows[1])
+	require.Nil(t, v.Rows[2].Summary)
 }

@@ -1,4 +1,4 @@
-package render
+package markdown
 
 import (
 	"strings"
@@ -7,14 +7,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/v3/pkg/benchmark/compare"
+	"github.com/grafana/tempo/v3/pkg/benchmark/compare/internal/comparetest"
 )
 
-func TestWriteMarkdown(t *testing.T) {
-	c := newSummaryComparison(t)
+func TestWrite(t *testing.T) {
+	c := comparetest.Comparison(t)
 	c.Runs[3].Name = "4|MiB" // a name that would break a table
 
 	var b strings.Builder
-	require.NoError(t, WriteMarkdown(&b, c, []string{"harness.wallNs"}, compare.P50, 0))
+	require.NoError(t, Write(&b, c, []string{"harness.wallNs"}, compare.P50, 0))
 	md := b.String()
 
 	require.Contains(t, md, "### Benchmark comparison\n\nRuns in order of readBufferSize; baseline base.\n\n")
@@ -30,7 +31,7 @@ func TestWriteMarkdown(t *testing.T) {
 	// Numbered runs are listed with their numbers.
 	c.Runs[3].Name = "a-long-name-for-4MiB"
 	b.Reset()
-	require.NoError(t, WriteMarkdown(&b, c, []string{"harness.wallNs"}, compare.P50, 0))
+	require.NoError(t, Write(&b, c, []string{"harness.wallNs"}, compare.P50, 0))
 	require.Contains(t, b.String(), "| #4 **a-long-name-for-4MiB** | readBufferSize default → 4MiB |\n")
 	require.Contains(t, b.String(), "| case | #1 | #2 | | #3 | | #4 | |\n")
 	require.Contains(t, b.String(), "Change from #1.\n")
