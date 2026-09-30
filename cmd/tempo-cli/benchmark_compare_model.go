@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"image/color"
 	"math"
 	"strings"
@@ -140,7 +139,7 @@ func (m *benchmarkCompareModel) View() tea.View {
 		help = compareDetailHelp
 	}
 	header := m.renderHeader()
-	footer := compareDimStyle.Render(compareClip(help, m.width))
+	footer := compareDimStyle.Render(render.Clip(help, m.width))
 	bodyHeight := max(1, m.height-lipgloss.Height(header)-lipgloss.Height(footer))
 
 	var body string
@@ -209,14 +208,14 @@ func (m *benchmarkCompareModel) renderSummary(height int) string {
 	fit := lipgloss.NewStyle().MaxWidth(m.width)
 
 	top := []string{
-		compareTitleStyle.Render(compareClip(st.Title, m.width)),
+		compareTitleStyle.Render(render.Clip(st.Title, m.width)),
 		"",
 		fit.Render("  " + m.renderLine(st.Header)),
 	}
 	selected := m.cmp.Cases[m.selected]
 	var bottom []string
 	for _, p := range render.Problems(m.cmp, selected, m.baseline) {
-		bottom = append(bottom, compareWarnStyle.Render(compareClip("⚠ "+selected.ID+" "+p, m.width)))
+		bottom = append(bottom, compareWarnStyle.Render(render.Clip("⚠ "+selected.ID+" "+p, m.width)))
 	}
 
 	lines := make([]string, 0, len(st.Rows))
@@ -302,7 +301,7 @@ func (m *benchmarkCompareModel) renderList(width, height int) string {
 		if len(m.cmp.Problems(cs, m.baseline)) > 0 {
 			flag = " ⚠"
 		}
-		id := compareClip(cs.ID, width-2-utf8.RuneCountInString(flag))
+		id := render.Clip(cs.ID, width-2-utf8.RuneCountInString(flag))
 		if i == m.selected {
 			lines = append(lines, compareSelectedStyle.Render("▸ "+id)+compareWarnStyle.Render(flag))
 			continue
@@ -317,9 +316,9 @@ func (m *benchmarkCompareModel) renderDetail(width int) string {
 	metric := m.metrics[m.metric]
 	s := cs.Series(metric)
 
-	lines := []string{compareTitleStyle.Render(compareClip(render.Title(cs, metric), width))}
+	lines := []string{compareTitleStyle.Render(render.Clip(render.Title(cs, metric), width))}
 	if cs.Query != "" {
-		lines = append(lines, compareDimStyle.Render(compareClip("query: "+cs.Query, width)))
+		lines = append(lines, compareDimStyle.Render(render.Clip("query: "+cs.Query, width)))
 	}
 	lines = append(lines, "")
 
@@ -333,16 +332,16 @@ func (m *benchmarkCompareModel) renderDetail(width int) string {
 	lines = append(lines, "")
 
 	header, rows := render.Table(m.names, s, m.baseline)
-	lines = append(lines, compareDimStyle.Render(compareClip(header, width)))
+	lines = append(lines, compareDimStyle.Render(render.Clip(header, width)))
 	for i, row := range rows {
-		lines = append(lines, m.runStyle(i).Render(compareClip(row, width)))
+		lines = append(lines, m.runStyle(i).Render(render.Clip(row, width)))
 	}
 	lines = append(lines, "")
 
 	for _, p := range render.Problems(m.cmp, cs, m.baseline) {
-		lines = append(lines, compareWarnStyle.Render(compareClip("⚠ "+p, width)))
+		lines = append(lines, compareWarnStyle.Render(render.Clip("⚠ "+p, width)))
 	}
-	lines = append(lines, compareDimStyle.Render(compareClip(render.Legend, width)))
+	lines = append(lines, compareDimStyle.Render(render.Clip(render.Legend, width)))
 	return strings.Join(lines, "\n")
 }
 
@@ -366,18 +365,6 @@ func (m *benchmarkCompareModel) runStyle(i int) lipgloss.Style {
 	return lipgloss.NewStyle().
 		Foreground(compareRunColors[i%len(compareRunColors)]).
 		Bold(i == m.baseline)
-}
-
-// compareClip cuts plain text to width runes, marking the cut.
-func compareClip(s string, width int) string {
-	if width <= 0 {
-		return ""
-	}
-	if utf8.RuneCountInString(s) <= width {
-		return s
-	}
-	r := []rune(s)
-	return fmt.Sprintf("%s…", string(r[:width-1]))
 }
 
 // compareFit keeps the first height lines of s, so a view taller than the

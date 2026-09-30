@@ -60,7 +60,7 @@ func nameWidth(names []string) int {
 
 // fitName cuts and pads a run name to a column of nameWidth.
 func fitName(name string, width int) string {
-	return pad(clip(name, width-2), width)
+	return pad(Clip(name, width-2), width)
 }
 
 func longest(ss []string) int {
@@ -84,8 +84,8 @@ func center(s string, width int) string {
 	return strings.Repeat(" ", gap/2) + s + strings.Repeat(" ", gap-gap/2)
 }
 
-// clip cuts s to width runes, marking the cut.
-func clip(s string, width int) string {
+// Clip cuts s to width runes, marking the cut.
+func Clip(s string, width int) string {
 	if utf8.RuneCountInString(s) <= width {
 		return s
 	}

@@ -26,8 +26,6 @@ type SummaryTable struct {
 	Title  string
 	Header Line
 	Rows   []TableLine
-	// Notes say why runs could not be compared, one per case and run.
-	Notes []string
 }
 
 // NewSummaryTable lays out one stat of a metric for every case against the
@@ -35,13 +33,12 @@ type SummaryTable struct {
 func NewSummaryTable(c *compare.Comparison, metric string, stat compare.Stat, baseline int) SummaryTable {
 	sm := c.Summary(metric, stat, baseline)
 	labels, _ := Labels(c)
-	rows, notes := summaryRows(c, sm)
+	rows, _ := summaryRows(c, sm)
 	header, lines := layoutSummary(rows, labels, baseline)
 	return SummaryTable{
 		Title:  fmt.Sprintf("%s · %s per execution · change from %s", metric, stat, labels[baseline]),
 		Header: header,
 		Rows:   lines,
-		Notes:  notes,
 	}
 }
 
