@@ -23,7 +23,7 @@ services:
   # =========================================================================
 
   rustfs:
-    image: rustfs/rustfs:1.0.0
+    image: rustfs/rustfs:latest
     environment:
       - RUSTFS_ACCESS_KEY=tempo
       - RUSTFS_SECRET_KEY=supersecret

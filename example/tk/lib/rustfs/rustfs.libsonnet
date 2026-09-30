@@ -6,7 +6,7 @@
   local deployment = k.apps.v1.deployment,
 
   rustfs_container::
-    container.new('rustfs', 'rustfs/rustfs:1.0.0') +
+    container.new('rustfs', 'rustfs/rustfs:latest') +
     container.withPorts([
       containerPort.new('rustfs', 9000),
       containerPort.new('rustfs-console', 9010),

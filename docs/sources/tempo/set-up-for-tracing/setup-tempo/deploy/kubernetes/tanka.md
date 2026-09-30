@@ -160,7 +160,7 @@ Install the `k.libsonnet`, Jsonnet, and Memcached libraries.
                  mountPath: '/storage'
          containers:
            - name: rustfs
-             image: rustfs/rustfs:1.0.0
+             image: rustfs/rustfs:latest
              args:
                - /storage
              env:
