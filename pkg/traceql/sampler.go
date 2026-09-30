@@ -37,10 +37,20 @@ type probabilisticSampler struct {
 
 var _ Sampler = (*probabilisticSampler)(nil)
 
+// validSampleFraction reports whether f is a usable probabilistic sampling ratio.
+func validSampleFraction(f float64) bool {
+	return f > 0 && f < 1
+}
+
 // newProbablisticSampler creates a sampler with the given ratio between 0 and 1.
 // For performance it only supports ratios that are perfect divisors, i.e. 1/2, 1/3, 1/4, etc.
+// Ratios outside (0, 1) sample everything.
 func newProbablisticSampler(sample float64) *probabilisticSampler {
-	lim := int(1 / sample)
+	// lim must be >= 1 because Sample() takes a modulo by it.
+	lim := 1
+	if validSampleFraction(sample) {
+		lim = int(min(1/sample, math.MaxInt32))
+	}
 
 	return &probabilisticSampler{
 		sample: sample,

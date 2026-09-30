@@ -1241,10 +1241,10 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 
 func (e *Engine) applySampleHints(expr *RootExpr, pipeline Pipeline, req *FetchSpansRequest, allowUnsafeHints bool) {
 	// Debug sampling hints, remove once we settle on approach.
-	if traceSample, traceSampleOk := expr.Hints.GetFloat(HintTraceSample, allowUnsafeHints); traceSampleOk {
+	if traceSample, traceSampleOk := expr.Hints.GetFloat(HintTraceSample, allowUnsafeHints); traceSampleOk && validSampleFraction(traceSample) {
 		req.TraceSampler = newProbablisticSampler(traceSample)
 	}
-	if spanSample, spanSampleOk := expr.Hints.GetFloat(HintSpanSample, allowUnsafeHints); spanSampleOk {
+	if spanSample, spanSampleOk := expr.Hints.GetFloat(HintSpanSample, allowUnsafeHints); spanSampleOk && validSampleFraction(spanSample) {
 		req.SpanSampler = newProbablisticSampler(spanSample)
 	}
 
@@ -1267,7 +1267,7 @@ func (e *Engine) applySampleHints(expr *RootExpr, pipeline Pipeline, req *FetchS
 		}
 	}
 
-	if sampleFraction, ok := expr.Hints.GetFloat(HintSample, allowUnsafeHints); ok && sampleFraction > 0 && sampleFraction < 1 {
+	if sampleFraction, ok := expr.Hints.GetFloat(HintSample, allowUnsafeHints); ok && validSampleFraction(sampleFraction) {
 		// Fixed sampling rate.
 		s := newProbablisticSampler(sampleFraction)
 
