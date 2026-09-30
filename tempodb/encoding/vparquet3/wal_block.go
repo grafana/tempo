@@ -15,15 +15,15 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/multierror"
-	"github.com/grafana/tempo/pkg/dataquality"
-	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/parquetquery"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/pkg/dataquality"
+	"github.com/grafana/tempo/v3/pkg/model"
+	"github.com/grafana/tempo/v3/pkg/model/trace"
+	"github.com/grafana/tempo/v3/pkg/parquetquery"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 	"github.com/parquet-go/parquet-go"
 )
 
@@ -615,7 +615,7 @@ func (b *walBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope,
 		defer file.Close()
 		pf := file.parquetFile
 
-		err = searchTags(ctx, scope, cb, pf, b.meta.DedicatedColumns)
+		err = searchTags(ctx, scope, cb, pf, b.meta.DedicatedColumns, common.SearchOptions{})
 		if err != nil {
 			return fmt.Errorf("error searching block [%s %d]: %w", b.meta.BlockID.String(), i, err)
 		}
@@ -650,7 +650,7 @@ func (b *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute,
 		defer file.Close()
 		pf := file.parquetFile
 
-		err = searchTagValues(ctx, tag, cb, pf, b.meta.DedicatedColumns)
+		err = searchTagValues(ctx, tag, cb, pf, b.meta.DedicatedColumns, common.SearchOptions{})
 		if err != nil {
 			return fmt.Errorf("error searching block [%s %d]: %w", b.meta.BlockID.String(), i, err)
 		}
@@ -694,13 +694,13 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, _ c
 		Results: &mergeSpansetIterator{
 			iters: iters,
 		},
-		Bytes: func() uint64 {
+		Stats: func() traceql.FetchSpansStats {
 			// read value when callback is called
 			var totalBytesRead uint64
 			for _, r := range readers {
 				totalBytesRead += r.BytesRead()
 			}
-			return totalBytesRead
+			return traceql.FetchSpansStats{Bytes: totalBytesRead}
 		},
 	}, nil
 }

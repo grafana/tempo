@@ -8,10 +8,10 @@ import (
 	"io"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/pkg/dataquality"
-	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/pkg/dataquality"
+	tempo_io "github.com/grafana/tempo/v3/pkg/io"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 	"github.com/parquet-go/parquet-go"
 )
 
@@ -34,6 +34,11 @@ func (b *backendWriter) Write(p []byte) (n int, err error) {
 func (b *backendWriter) Close() error {
 	return b.w.CloseAppend(b.ctx, b.tracker)
 }
+
+// maxRowGroupSizeBytes forces a row group to be cut regardless of the size
+// estimate. It keeps every column dictionary below parquet-go's 1GiB byte array
+// dictionary limit, past which the column falls back to PLAIN encoding.
+var maxRowGroupSizeBytes int64 = 800 * 1024 * 1024
 
 func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, r backend.Reader, to backend.Writer) (*backend.BlockMeta, error) {
 	s, newMeta := newStreamingBlock(ctx, cfg, meta, r, to, tempo_io.NewBufferedWriter)
@@ -105,7 +110,7 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 			return nil, err
 		}
 
-		if s.EstimatedBufferedBytes() > cfg.RowGroupSizeBytes {
+		if s.EstimatedBufferedBytes() > cfg.RowGroupSizeBytes || s.RowGroupFull() {
 			_, err = s.Flush()
 			if err != nil {
 				return nil, err
@@ -137,10 +142,13 @@ type streamingBlock struct {
 
 	currentBufferedTraces int
 	currentBufferedBytes  int
+
+	// pw.Size() when the current row group was started.
+	rowGroupStartSize int64
 }
 
 func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, r backend.Reader, to backend.Writer, createBufferedWriter func(w io.Writer) tempo_io.BufferedWriteFlusher) (*streamingBlock, *backend.BlockMeta) {
-	newMeta := backend.NewBlockMeta(meta.TenantID, (uuid.UUID)(meta.BlockID), VersionString)
+	newMeta := backend.NewBlockMeta(meta.TenantID, uuid.UUID(meta.BlockID), VersionString)
 	newMeta.StartTime = meta.StartTime
 	newMeta.EndTime = meta.EndTime
 	newMeta.ReplicationFactor = meta.ReplicationFactor
@@ -151,7 +159,7 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 	bloom := common.NewBloom(cfg.BloomFP, uint(cfg.BloomShardSizeBytes), uint(meta.TotalObjects))
 
 	var (
-		w                   = &backendWriter{ctx, to, DataFileName, (uuid.UUID)(meta.BlockID), meta.TenantID, nil}
+		w                   = &backendWriter{ctx, to, DataFileName, uuid.UUID(meta.BlockID), meta.TenantID, nil}
 		bw                  = createBufferedWriter(w)
 		_, writerOptions, _ = SchemaWithDynamicChanges(meta.DedicatedColumns)
 		pw                  = parquet.NewGenericWriter[*Trace](bw, writerOptions...)
@@ -206,6 +214,13 @@ func (b *streamingBlock) EstimatedBufferedBytes() int {
 	return b.currentBufferedBytes
 }
 
+// RowGroupFull reports whether the row group being written has reached
+// maxRowGroupSizeBytes, as measured by the parquet writer. Unlike the estimate,
+// this includes column dictionaries.
+func (b *streamingBlock) RowGroupFull() bool {
+	return b.pw.Size()-b.rowGroupStartSize >= maxRowGroupSizeBytes
+}
+
 func (b *streamingBlock) CurrentBufferedObjects() int {
 	return b.currentBufferedTraces
 }
@@ -223,6 +238,7 @@ func (b *streamingBlock) Flush() (int, error) {
 	b.meta.TotalRecords++
 	b.currentBufferedTraces = 0
 	b.currentBufferedBytes = 0
+	b.rowGroupStartSize = b.pw.Size()
 
 	// Flush to underlying writer
 	return n, b.bw.Flush()
@@ -263,7 +279,7 @@ func (b *streamingBlock) Complete() (int, error) {
 
 	// Read the footer size out of the parquet footer
 	buf := make([]byte, 8)
-	err = b.r.ReadRange(b.ctx, DataFileName, (uuid.UUID)(b.meta.BlockID), b.meta.TenantID, b.meta.Size_-8, buf, nil)
+	err = b.r.ReadRange(b.ctx, DataFileName, uuid.UUID(b.meta.BlockID), b.meta.TenantID, b.meta.Size_-8, buf, nil)
 	if err != nil {
 		return 0, fmt.Errorf("error reading parquet file footer: %w", err)
 	}
@@ -276,7 +292,7 @@ func (b *streamingBlock) Complete() (int, error) {
 
 	if b.withNoCompactFlag {
 		// write nocompact flag first to prevent compaction before completion
-		err := b.to.WriteNoCompactFlag(b.ctx, (uuid.UUID)(b.meta.BlockID), b.meta.TenantID)
+		err := b.to.WriteNoCompactFlag(b.ctx, uuid.UUID(b.meta.BlockID), b.meta.TenantID)
 		if err != nil {
 			return 0, fmt.Errorf("unexpected error writing nocompact flag: %w", err)
 		}
@@ -317,9 +333,17 @@ func estimateMarshalledSizeFromTrace(tr *Trace) (size int) {
 func estimateAttrSize(attrs []Attribute) (size int) {
 	size += len(attrs) * 7 // 7 attribute lvl fields
 
-	// 1 byte for every entry in arrays after the first one.
 	for _, a := range attrs {
-		size += max(0, len(a.Value)-1)
+		// String values are unbounded. Count ~1 byte per 20 to account for
+		// encoding and compression, like estimateMarshalledSizeFromParquetRow.
+		for _, v := range a.Value {
+			size += max(len(v)/20, 1)
+		}
+		if a.ValueUnsupported != nil {
+			size += max(len(*a.ValueUnsupported)/20, 1)
+		}
+
+		// 1 byte for every entry in arrays after the first one.
 		size += max(0, len(a.ValueInt)-1)
 		size += max(0, len(a.ValueDouble)-1)
 		size += max(0, len(a.ValueBool)-1)

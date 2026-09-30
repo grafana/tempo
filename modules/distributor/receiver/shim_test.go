@@ -1,18 +1,23 @@
 package receiver
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
 
 	dslog "github.com/grafana/dskit/log"
 	"github.com/grafana/dskit/services"
+	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/twmb/franz-go/pkg/kgo"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
@@ -22,17 +27,20 @@ import (
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
 	"go.opentelemetry.io/collector/exporter/otlphttpexporter"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 	"go.opentelemetry.io/collector/pdata/testdata"
 	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/durationpb"
 
-	"github.com/grafana/tempo/modules/generator"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v3/modules/generator"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
 )
 
 // These tests use the OpenTelemetry Collector Exporters to validate the different protocols
@@ -226,6 +234,132 @@ func (p *capturingPusher) PushTraces(ctx context.Context, t ptrace.Traces) (*tem
 
 func (p *capturingPusher) RetryInfoEnabled(_ context.Context) (bool, error) {
 	return p.retryInfoEnabled, nil
+}
+
+type erroringPusher struct {
+	err error
+}
+
+func (p *erroringPusher) PushTraces(context.Context, ptrace.Traces) (*tempopb.PushResponse, error) {
+	return nil, p.err
+}
+
+func (p *erroringPusher) RetryInfoEnabled(context.Context) (bool, error) {
+	return false, nil
+}
+
+func TestConsumeTraces_RecordsPerTenantPushDuration(t *testing.T) {
+	t.Cleanup(func() {
+		metricPushDuration.Reset()
+	})
+
+	tenant := "test"
+	ctx := user.InjectOrgID(context.Background(), tenant)
+
+	shim := &receiversShim{pusher: &erroringPusher{}}
+
+	require.NoError(t, shim.ConsumeTraces(ctx, testdata.GenerateTraces(1)))
+
+	m := &dto.Metric{}
+	require.NoError(t, metricPushDuration.WithLabelValues(tenant).(prometheus.Histogram).Write(m))
+	assert.Equal(t, uint64(1), m.Histogram.GetSampleCount())
+}
+
+func TestConsumeTraces_SkipsPushDurationForInvalidTenant(t *testing.T) {
+	metricPushDuration.Reset()
+	t.Cleanup(func() {
+		metricPushDuration.Reset()
+	})
+
+	// MultiTenancyMiddleware injects the org ID header value into the context
+	// unvalidated. A malformed value here must not create a new label series.
+	invalidTenant := "not a/valid tenant"
+	ctx := user.InjectOrgID(context.Background(), invalidTenant)
+
+	shim := &receiversShim{pusher: &erroringPusher{}}
+
+	require.NoError(t, shim.ConsumeTraces(ctx, testdata.GenerateTraces(1)))
+
+	assert.Equal(t, 0, testutil.CollectAndCount(metricPushDuration))
+}
+
+func TestKafkaWriteTimeoutHTTPStatus(t *testing.T) {
+	receiverCfg := map[string]interface{}{
+		"otlp": map[string]interface{}{
+			"protocols": map[string]interface{}{
+				"http": nil,
+			},
+		},
+	}
+
+	pusher := &erroringPusher{err: kgo.ErrRecordTimeout}
+	reg := prometheus.NewPedanticRegistry()
+
+	stopShim := runReceiverShim(t, receiverCfg, pusher, reg)
+	defer stopShim()
+
+	req := ptraceotlp.NewExportRequestFromTraces(testdata.GenerateTraces(1))
+	body, err := req.MarshalProto()
+	require.NoError(t, err)
+
+	httpClient := &http.Client{Timeout: 1 * time.Second}
+
+	var resp *http.Response
+	require.Eventually(t, func() bool {
+		httpReq, reqErr := http.NewRequest(http.MethodPost, "http://127.0.0.1:4318/v1/traces", bytes.NewReader(body))
+		if reqErr != nil {
+			return false
+		}
+		httpReq.Header.Set("Content-Type", "application/x-protobuf")
+		resp, reqErr = httpClient.Do(httpReq)
+		return reqErr == nil
+	}, 5*time.Second, 50*time.Millisecond)
+	defer resp.Body.Close()
+
+	t.Logf("Kafka write timeout (kgo.ErrRecordTimeout) -> HTTP %d", resp.StatusCode)
+	require.Equal(t, http.StatusServiceUnavailable, resp.StatusCode,
+		"expected a retryable 503 for a Kafka write timeout, got %d", resp.StatusCode)
+}
+
+func TestKafkaWriteTimeoutGRPCStatus(t *testing.T) {
+	receiverCfg := map[string]interface{}{
+		"otlp": map[string]interface{}{
+			"protocols": map[string]interface{}{
+				"grpc": nil,
+			},
+		},
+	}
+
+	pusher := &erroringPusher{err: kgo.ErrRecordTimeout}
+	reg := prometheus.NewPedanticRegistry()
+
+	stopShim := runReceiverShim(t, receiverCfg, pusher, reg)
+	defer stopShim()
+
+	conn, err := grpc.NewClient("127.0.0.1:4317", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	defer conn.Close()
+
+	client := ptraceotlp.NewGRPCClient(conn)
+	req := ptraceotlp.NewExportRequestFromTraces(testdata.GenerateTraces(1))
+
+	var st *status.Status
+	require.Eventually(t, func() bool {
+		_, e := client.Export(context.Background(), req)
+		if e == nil {
+			return false
+		}
+		s, ok := status.FromError(e)
+		if !ok || !strings.Contains(s.Message(), "records have timed out") {
+			return false
+		}
+		st = s
+		return true
+	}, 5*time.Second, 50*time.Millisecond)
+
+	t.Logf("Kafka write timeout (kgo.ErrRecordTimeout) -> gRPC code %s", st.Code())
+	require.Equal(t, codes.Unavailable, st.Code(),
+		"expected retryable Unavailable, got %s (Unknown here would mean the raw error escaped without status conversion)", st.Code())
 }
 
 // TestWrapRetryableError confirms that errors are wrapped as expected

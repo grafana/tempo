@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/grafana/e2e"
-	"github.com/grafana/tempo/integration/util"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v3/integration/util"
+	tempoUtil "github.com/grafana/tempo/v3/pkg/util"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/require"
 )
@@ -168,30 +168,37 @@ func TestLiveStoreLookback(t *testing.T) {
 		configOverlay     string
 		startNewLiveStore bool
 		expectedTraces    float64
+		// gap between the old and the fresh trace. must exceed the lookback, otherwise the
+		// old trace lands inside it and the case stops discriminating
+		writeGap time.Duration
 	}{
 		{
-			name:              "restart_2s",
+			name:              "restart_10s",
 			configOverlay:     "config-livestore-short-timeout.yaml", // lookback period twice greater
 			startNewLiveStore: false,
 			expectedTraces:    2, // fresh and after start
+			writeGap:          12 * time.Second,
 		},
 		{
 			name:              "restart_default",
 			configOverlay:     "", // default is 1h
 			startNewLiveStore: false,
 			expectedTraces:    3, // old, fresh and after start, but not already committed
+			writeGap:          3 * time.Second,
 		},
 		{
-			name:              "start_2s",
+			name:              "start_10s",
 			configOverlay:     "config-livestore-short-timeout.yaml", // lookback period twice greater
 			startNewLiveStore: true,
 			expectedTraces:    2, // fresh and after start
+			writeGap:          12 * time.Second,
 		},
 		{
 			name:              "start_default",
 			configOverlay:     "", // default is 1h
 			startNewLiveStore: true,
 			expectedTraces:    4, // all traces
+			writeGap:          3 * time.Second,
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -217,7 +224,7 @@ func TestLiveStoreLookback(t *testing.T) {
 
 				// Write old trace (during downtime)
 				require.NoError(t, h.WriteTraceInfo(tempoUtil.NewTraceInfo(time.Now(), ""), ""))
-				time.Sleep(3 * time.Second)
+				time.Sleep(testCase.writeGap)
 
 				// Write fresh trace (during downtime)
 				require.NoError(t, h.WriteTraceInfo(tempoUtil.NewTraceInfo(time.Now(), ""), ""))
@@ -331,7 +338,8 @@ func waitActivePartitions(t *testing.T, service *e2e.HTTPService, count int) {
 	require.NoError(t, service.WaitSumMetricsWithOptions(
 		e2e.Equals(float64(count)),
 		[]string{"tempo_partition_ring_partitions"},
-		e2e.WithLabelMatchers(matchers...)), "distributor failed to see the partition ring")
+		e2e.WithLabelMatchers(matchers...),
+	), "distributor failed to see the partition ring")
 }
 
 func newLiveStore(name string, zone string) *e2e.HTTPService {

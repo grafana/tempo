@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -38,6 +39,16 @@ type maxCardinalityFunc func(tenant string) uint64
 type labelCardinalityState struct {
 	sketch    *Cardinality
 	overLimit bool // cached flag, updated periodically in maintenance tick
+	// ownedName is the heap-owned (cloned) label name. The incoming label name
+	// may alias a pooled/borrowed scratch buffer (see CloseAndBorrowLabels), so
+	// we keep an owned copy to hand to metricLabelValuesLimited.WithLabelValues:
+	// that retains the string, and a borrowed alias would be overwritten by a
+	// later borrow, corrupting the exported metric and leaking child series.
+	ownedName string
+	// limitedCounter is the metricLabelValuesLimited child for ownedName,
+	// created lazily on the first overflow and cached so the overflow path
+	// stays allocation-free.
+	limitedCounter prometheus.Counter
 }
 
 // PerLabelLimiter caps the number of distinct values any single label can have.
@@ -121,7 +132,15 @@ func (s *PerLabelLimiter) Limit(lbls labels.Labels) labels.Labels {
 				builder = labels.NewBuilder(lbls)
 			}
 			builder.Set(l.Name, overflowValue)
-			metricLabelValuesLimited.WithLabelValues(s.tenant, l.Name).Inc()
+			// Use the owned label name, never the borrowed l.Name:
+			// WithLabelValues retains the string header, so a borrowed alias
+			// would be corrupted once the scratch buffer is reused (and each
+			// corrupted lookup would leak a new child series). Cache the child
+			// counter on first use to keep this path allocation-free.
+			if state.limitedCounter == nil {
+				state.limitedCounter = metricLabelValuesLimited.WithLabelValues(s.tenant, state.ownedName)
+			}
+			state.limitedCounter.Inc()
 		}
 	})
 
@@ -135,10 +154,19 @@ func (s *PerLabelLimiter) Limit(lbls labels.Labels) labels.Labels {
 func (s *PerLabelLimiter) getOrCreateState(labelName string) *labelCardinalityState {
 	state, ok := s.labelsState[labelName]
 	if !ok {
+		// labelName may alias a pooled/borrowed scratch buffer (see
+		// CloseAndBorrowLabels) that the caller reuses after this call returns.
+		// Clone it once and retain only the owned copy (as the map key and as
+		// state.ownedName); a retained alias would be overwritten by a later
+		// borrow and corrupt both. Only the insert path clones; lookups above
+		// compare by value, so the hot path (existing label name) stays
+		// allocation-free.
+		owned := strings.Clone(labelName)
 		state = &labelCardinalityState{
-			sketch: NewCardinality(s.staleDuration, removeStaleSeriesInterval),
+			sketch:    NewCardinality(s.staleDuration, removeStaleSeriesInterval),
+			ownedName: owned,
 		}
-		s.labelsState[labelName] = state
+		s.labelsState[owned] = state
 	}
 	return state
 }

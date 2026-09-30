@@ -4,12 +4,12 @@ import (
 	"math/rand"
 	"testing"
 
-	pq "github.com/grafana/tempo/pkg/parquetquery"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	pq "github.com/grafana/tempo/v3/pkg/parquetquery"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,6 +46,7 @@ func TestSearchFetchSpansOnly(t *testing.T) {
 
 			resp, err := b.FetchSpans(ctx, req, common.DefaultSearchOptions())
 			require.NoError(t, err, "search request:%v", req)
+			defer resp.Results.Close()
 
 			found := false
 			for {
@@ -54,12 +55,19 @@ func TestSearchFetchSpansOnly(t *testing.T) {
 				if span == nil {
 					break
 				}
+
+				// Ensure that every attribute returned is present in the list of conditions.
+				span.AllAttributesFunc(func(a traceql.Attribute, _ traceql.Static) {
+					if !req.HasAttribute(a) {
+						t.Errorf("attribute %v not found in conditions", a)
+					}
+				})
+
 				traceID, ok := span.AttributeFor(traceql.IntrinsicTraceIDAttribute)
 				if !ok {
 					continue
 				}
 				traceIDString := traceID.EncodeToString(false)
-				// fmt.Println("got:", traceIDString, "want:", traceIDText)
 				found = (traceIDString == traceIDText)
 				if found {
 					break
@@ -79,6 +87,7 @@ func TestSearchFetchSpansOnly(t *testing.T) {
 
 			resp, err := b.FetchSpans(ctx, req, common.DefaultSearchOptions())
 			require.NoError(t, err, "search request:%v", req)
+			defer resp.Results.Close()
 
 			for {
 				span, err := resp.Results.Next(ctx)

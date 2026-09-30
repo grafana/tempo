@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/grafana/tempo/pkg/parquetquery"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/pkg/parquetquery"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 	"github.com/parquet-go/parquet-go"
 )
 
@@ -76,7 +76,7 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 		return err
 	}
 	// report metrics with defer to handle early exit
-	defer mcb(rr.BytesRead())
+	defer func() { mcb(rr.BytesRead()) }()
 
 	// track sent tag names to avoid duplicates. this is a perf improvement
 	sentKeys := make(map[tagNameKey]struct{})
@@ -188,7 +188,7 @@ func tagNamesForSpecialColumns(scope traceql.AttributeScope, pf *parquet.File, d
 
 func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, mcb common.MetricsCallback, opts common.SearchOptions) error {
 	if len(req.ConditionGroups) == 0 {
-		return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), mcb, common.DefaultSearchOptions())
+		return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), mcb, opts)
 	}
 
 	for _, condGroup := range req.ConditionGroups {
@@ -202,7 +202,7 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 		// Last check. No conditions, use old path. It's much faster.
 		// <= 1 because we always have an OpNone condition for the tag name
 		if (len(req.ConditionGroups) == 1 && len(condGroup) <= 1) || mingledConditions {
-			return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), mcb, common.DefaultSearchOptions())
+			return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), mcb, opts)
 		}
 	}
 
@@ -211,7 +211,7 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 		return err
 	}
 	// report metrics with defer to handle early exit
-	defer mcb(rr.BytesRead())
+	defer func() { mcb(rr.BytesRead()) }()
 
 	// track sent tag values to avoid duplicates. this is a perf improvement
 	sentVals := make(map[traceql.StaticMapKey]struct{})

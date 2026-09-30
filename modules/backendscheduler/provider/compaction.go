@@ -9,15 +9,15 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/modules/backendscheduler/work"
-	"github.com/grafana/tempo/modules/backendscheduler/work/tenantselector"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/modules/storage"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/tempodb"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/blockselector"
+	"github.com/grafana/tempo/v3/modules/backendscheduler/work"
+	"github.com/grafana/tempo/v3/modules/backendscheduler/work/tenantselector"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/modules/storage"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/tempodb"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/blockselector"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -416,7 +416,11 @@ func (p *CompactionProvider) newBlockSelectorForMeasurement(tenantID string) (bl
 	)
 
 	busyBlocks := p.sched.BusyBlocksForTenant(tenantID)
+	noCompact := p.noCompactBlocks(tenantID)
 	for _, block := range fullBlocklist {
+		if _, ok := noCompact[block.BlockID]; ok {
+			continue
+		}
 		if _, ok := busyBlocks[block.BlockID.String()]; ok {
 			continue
 		}
@@ -445,7 +449,8 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 	// is needed per batch: once the originally-skipped compaction jobs finish and
 	// the rescan fires, no further compaction can have created uncovered blocks.
 	if p.sched.TenantPending(tenantID) {
-		return blockselector.NewTimeWindowBlockSelector(nil,
+		return blockselector.NewTimeWindowBlockSelector(
+			nil,
 			p.cfg.Compactor.MaxCompactionRange,
 			p.cfg.Compactor.MaxCompactionObjects,
 			p.cfg.Compactor.MaxBlockBytes,
@@ -464,10 +469,14 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 	// Take a single snapshot of all busy blocks for this tenant — one lock
 	// acquisition regardless of blocklist size.
 	busyBlocks := p.sched.BusyBlocksForTenant(tenantID)
+	noCompact := p.noCompactBlocks(tenantID)
 
-	// Build the filtered blocklist, skipping blocks already busy
-	// (pending redaction, active compaction input, etc.).
+	// Build the filtered blocklist, skipping blocks with a nocompact flag and
+	// blocks already busy (pending redaction, active compaction input, etc.).
 	for _, block := range fullBlocklist {
+		if _, ok := noCompact[block.BlockID]; ok {
+			continue
+		}
 		if _, ok := busyBlocks[block.BlockID.String()]; ok {
 			continue
 		}
@@ -487,4 +496,14 @@ func (p *CompactionProvider) newBlockSelector(tenantID string) (blockselector.Co
 		p.cfg.MaxInputBlocks,
 		p.cfg.MaxCompactionLevel,
 	), len(blocklist)
+}
+
+// noCompactBlocks returns the set of the tenant's blocks that have a nocompact flag.
+func (p *CompactionProvider) noCompactBlocks(tenantID string) map[backend.UUID]struct{} {
+	ids := p.store.NoCompactBlocks(tenantID)
+	set := make(map[backend.UUID]struct{}, len(ids))
+	for _, id := range ids {
+		set[id] = struct{}{}
+	}
+	return set
 }

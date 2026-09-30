@@ -14,22 +14,23 @@ import (
 	"github.com/go-kit/log"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/model/trace"
-	v1 "github.com/grafana/tempo/pkg/model/v1"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/blocklist"
-	"github.com/grafana/tempo/tempodb/blockselector"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/pool"
-	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/v3/pkg/model"
+	"github.com/grafana/tempo/v3/pkg/model/trace"
+	v1 "github.com/grafana/tempo/v3/pkg/model/v1"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend/local"
+	"github.com/grafana/tempo/v3/tempodb/blocklist"
+	"github.com/grafana/tempo/v3/tempodb/blockselector"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/tempodb/pool"
+	"github.com/grafana/tempo/v3/tempodb/wal"
 )
 
 type mockSharder struct{}
@@ -111,7 +112,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{}, true)
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	wal := w.WAL()
 	require.NoError(t, err)
@@ -259,7 +260,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{}, true)
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	wal := w.WAL()
 	require.NoError(t, err)
@@ -337,7 +338,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 
 	// force clear compacted blocks to guarantee that we're only querying the new blocks that went through the combiner
 	metas := rw.blocklist.Metas(testTenantID)
-	rw.blocklist.ApplyPollResults(blocklist.PerTenant{testTenantID: metas}, blocklist.PerTenantCompacted{})
+	rw.blocklist.ApplyPollResults(blocklist.PerTenant{testTenantID: metas}, blocklist.PerTenantCompacted{}, nil)
 
 	// search for all ids
 	for i, id := range allIDs {
@@ -399,7 +400,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{}, true)
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	// Cut x blocks with y records each
 	blockCount := 5
@@ -466,7 +467,7 @@ func TestCompactionMetrics(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{}, true)
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	// Cut x blocks with y records each
 	blockCount := 5
@@ -538,7 +539,7 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{}, true)
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	// Cut blocks for multiple tenants
 	cutTestBlocks(t, w, testTenantID, 2, 2)
@@ -605,7 +606,7 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{}, true)
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	cutTestBlockWithTraces(t, w, []testData{
 		{test.ValidTraceID(nil), test.MakeTrace(10, nil), 100, 101},
@@ -827,6 +828,129 @@ func testCompactWithConfig(t *testing.T, targetBlockVersion string) {
 		&mockOverrides{},
 	)
 	require.NoError(t, err)
+}
+
+func TestCompactWithConfigSkipsMissingBlocks(t *testing.T) {
+	for _, enc := range encoding.AllEncodingsForWrites() {
+		t.Run(enc.Version(), func(t *testing.T) {
+			t.Parallel()
+			testCompactWithConfigSkipsMissingBlocks(t, enc.Version())
+		})
+	}
+}
+
+func testCompactWithConfigSkipsMissingBlocks(t *testing.T, targetBlockVersion string) {
+	tenantID := "missing-blocks-" + targetBlockVersion
+
+	_, w, c, _ := testConfig(t, 0, func(cfg *Config) {
+		cfg.Block.Version = targetBlockVersion
+	})
+
+	ctx := context.Background()
+	compactorCfg := &CompactorConfig{
+		MaxCompactionRange:   24 * time.Hour,
+		MaxCompactionObjects: 1000,
+		MaxBlockBytes:        100_000_000,
+	}
+
+	// A meta the block list still carries but whose block is gone from the backend:
+	// the race a caller hits when it selects blocks from a stale block list. It is
+	// placed first so the version lookup cannot depend on it.
+	missing := &backend.BlockMeta{
+		BlockID:  backend.NewUUID(),
+		TenantID: tenantID,
+		Version:  targetBlockVersion,
+	}
+
+	blocks := cutTestBlocks(t, w, tenantID, 3, 10)
+	metas := []*backend.BlockMeta{missing}
+	for _, b := range blocks {
+		metas = append(metas, b.BlockMeta())
+	}
+
+	before := testutil.ToFloat64(metricCompactionBlocksMissing.WithLabelValues(tenantID))
+
+	compacted, err := c.CompactWithConfig(ctx, metas, tenantID, compactorCfg, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
+	require.NotEmpty(t, compacted, "blocks that still exist should be compacted")
+	require.Equal(t, before+1, testutil.ToFloat64(metricCompactionBlocksMissing.WithLabelValues(tenantID)))
+
+	// A lone survivor has nothing to combine with: a no-op success, not a failure.
+	single := cutTestBlocks(t, w, tenantID, 1, 10)
+	compacted, err = c.CompactWithConfig(ctx,
+		[]*backend.BlockMeta{missing, single[0].BlockMeta()},
+		tenantID, compactorCfg, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
+	require.Empty(t, compacted)
+}
+
+func TestCompactWithConfigFailsOnUnreadableMeta(t *testing.T) {
+	tenantID := "unreadable-meta"
+
+	_, w, c, tempDir := testConfig(t, 0)
+
+	ctx := context.Background()
+	compactorCfg := &CompactorConfig{
+		MaxCompactionRange:   24 * time.Hour,
+		MaxCompactionObjects: 1000,
+		MaxBlockBytes:        100_000_000,
+	}
+
+	// A meta that is present but cannot be read is not the already-compacted race, so
+	// it must still fail the compaction instead of being skipped.
+	_, rawW, _, err := local.New(&local.Config{Path: path.Join(tempDir, "traces")})
+	require.NoError(t, err)
+
+	unreadable := backend.NewUUID()
+	garbage := []byte("not a block meta")
+	err = backend.NewWriter(rawW).Write(ctx, backend.MetaName, uuid.UUID(unreadable), tenantID, garbage, nil)
+	require.NoError(t, err)
+
+	blocks := cutTestBlocks(t, w, tenantID, 2, 10)
+	metas := []*backend.BlockMeta{{
+		BlockID:  unreadable,
+		TenantID: tenantID,
+		Version:  encoding.DefaultEncoding().Version(),
+	}}
+	for _, b := range blocks {
+		metas = append(metas, b.BlockMeta())
+	}
+
+	before := testutil.ToFloat64(metricCompactionBlocksMissing.WithLabelValues(tenantID))
+
+	compacted, err := c.CompactWithConfig(ctx, metas, tenantID, compactorCfg, &mockSharder{}, &mockOverrides{})
+	require.Error(t, err)
+	require.NotErrorIs(t, err, backend.ErrDoesNotExist)
+	require.Empty(t, compacted)
+	require.Equal(t, before, testutil.ToFloat64(metricCompactionBlocksMissing.WithLabelValues(tenantID)),
+		"an unreadable meta must not be counted as a missing block")
+}
+
+func TestMarkCompactedSkipsAlreadyRetiredBlock(t *testing.T) {
+	// markCompacted retires each old block via MarkBlockCompacted after a
+	// successful merge. retention's own, independent age-based sweep can reach
+	// the same block first (or a duplicate compaction job can be dispatched
+	// against a stale block list). Either way, finding the block already
+	// retired is not a real compaction error.
+	tenantID := "already-retired"
+
+	_, w, c, _ := testConfig(t, 0)
+	rw := c.(*readerWriter)
+
+	blocks := cutTestBlocks(t, w, tenantID, 1, 10)
+	oldMeta := blocks[0].BlockMeta()
+
+	// Simulate a concurrent retention pass that already retired this block on
+	// the backend, bypassing markCompacted's own in-memory bookkeeping.
+	require.NoError(t, rw.c.MarkBlockCompacted(uuid.UUID(oldMeta.BlockID), tenantID))
+
+	before := testutil.ToFloat64(metricCompactionErrors)
+
+	newMeta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: tenantID}
+	err := markCompacted(rw, tenantID, []*backend.BlockMeta{oldMeta}, []*backend.BlockMeta{newMeta})
+	require.NoError(t, err)
+	require.Equal(t, before, testutil.ToFloat64(metricCompactionErrors),
+		"a block already retired by someone else must not count as a compaction error")
 }
 
 type testData struct {

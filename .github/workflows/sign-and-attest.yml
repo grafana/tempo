@@ -29,7 +29,7 @@ on:
 
 permissions:
   contents: read
-  id-token: write     # keyless cosign OIDC, provenance signing, login-to-gar workload identity
+  id-token: write     # keyless cosign OIDC, provenance signing, and WIF auth to GAR
   attestations: write # write the SLSA provenance attestation to the GitHub attestations store
 
 jobs:
@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
-      id-token: write     # keyless cosign OIDC, provenance signing, login-to-gar workload identity
+      id-token: write     # keyless cosign OIDC, provenance signing, and WIF auth to GAR
       attestations: write # write the SLSA provenance attestation to the GitHub attestations store
     steps:
       - name: Parse and validate image
@@ -56,15 +56,50 @@ jobs:
           echo "name=${IMAGE%@*}" >> "$GITHUB_OUTPUT"
           echo "digest=${IMAGE##*@}" >> "$GITHUB_OUTPUT"
 
+      # Use the shared login-to-gar action for GAR auth — the same proven path
+      # every other GAR-authenticating job in this repo uses (docker.yml,
+      # docker-ci-tools.yml). It runs WIF auth via the repo's service account
+      # (so we don't have to specify/maintain a service_account input) and sets
+      # up gcloud + a gcloud docker *credential helper*. cosign is
+      # credential-helper-aware so it authenticates off this directly. The
+      # "Add static registry credentials" step below then adds a static auths
+      # entry for actions/attest, which does NOT understand credential helpers.
       - name: Login to GAR
         uses: grafana/shared-workflows/actions/login-to-gar@1f541877ceb22c7be7667d8a8df04984aeac9f9d # login-to-gar/v1.0.3
         with:
           registry: ${{ inputs.registry }}
 
+      - name: Add static registry credentials
+        # login-to-gar (above) configures a gcloud docker *credential helper*.
+        # cosign understands credential helpers, but actions/attest
+        # (push-to-registry) only reads static `auths` from the docker config and
+        # does not invoke helpers — so without this it fails with "No credentials
+        # found for registry ...". Write a static auth entry (additive; cosign
+        # still works) using a short-lived GAR access token from the gcloud auth
+        # that login-to-gar set up.
+        # Note: oauth2accesstoken is a magic literal string required by GAR —
+        # not a secret. It tells GAR the password field is an OAuth2 access token.
+        env:
+          REGISTRY: ${{ inputs.registry }}
+        run: |
+          token="$(gcloud auth print-access-token)"
+          if [[ -z "$token" ]]; then
+            echo "::error::gcloud auth print-access-token returned an empty token"
+            exit 1
+          fi
+          enc="$(printf 'oauth2accesstoken:%s' "$token" | base64 -w0)"
+          cfg="${HOME}/.docker/config.json"
+          mkdir -p "${HOME}/.docker"
+          [ -f "$cfg" ] || echo '{}' > "$cfg"
+          tmp="$(mktemp)"
+          jq --arg reg "$REGISTRY" --arg a "$enc" '.auths[$reg] = {auth: $a}' "$cfg" > "$tmp"
+          mv "$tmp" "$cfg"
+          chmod 0600 "$cfg"
+
       - name: Install cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
         with:
-          cosign-release: v3.0.6
+          cosign-release: v3.1.3
 
       - name: Sign image
         # Signs the image index by digest. Uploads to the public Rekor
@@ -80,7 +115,7 @@ jobs:
         # to this workflow, the source commit, and the run, and pushes it to the
         # registry as an OCI referrer (in addition to the GitHub attestations
         # store). This is the "tied to a commit / has provenance" requirement.
-        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-name: ${{ steps.image.outputs.name }}
           subject-digest: ${{ steps.image.outputs.digest }}

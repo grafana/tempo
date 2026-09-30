@@ -17,15 +17,15 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/pkg/model"
+	"github.com/grafana/tempo/v3/pkg/model/trace"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
 
 func TestAppendBlockStartEnd(t *testing.T) {
@@ -280,10 +280,11 @@ func testFetch(t *testing.T, e encoding.VersionedEncoding) {
 			require.NotNil(t, ss)
 			require.Equal(t, ss.TraceID, expectedID)
 
-			// ensure Bytes callback is set
-			require.NotNil(t, resp.Bytes())
-			require.NotZero(t, resp.Bytes())
-			require.LessOrEqual(t, resp.Bytes(), block.DataLength())
+			// ensure Stats callback is set and reports non-zero bytes
+			require.NotNil(t, resp.Stats)
+			stats := resp.Stats()
+			require.NotZero(t, stats.Bytes)
+			require.LessOrEqual(t, stats.Bytes, block.DataLength())
 
 			// confirm no more matches
 			ss, err = resp.Results.Next(ctx)

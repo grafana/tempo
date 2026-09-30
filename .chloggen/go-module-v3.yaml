@@ -1,0 +1,8 @@
+change_type: breaking
+component: deps
+note: Go consumers must use the github.com/grafana/tempo/v3 module and import paths for releases containing this change.
+issues: []
+subtext: |
+  Existing release tags are unchanged. Consumers of server packages must still apply
+  the memberlist replacement from Tempo's go.mod in their own module.
+user: javiermolinar

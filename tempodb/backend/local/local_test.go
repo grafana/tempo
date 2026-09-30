@@ -11,12 +11,12 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/pkg/io"
+	"github.com/grafana/tempo/v3/pkg/io"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
 const objectName = "test"
@@ -50,13 +50,15 @@ func TestReadWrite(t *testing.T) {
 	ctx := context.Background()
 	for _, id := range tenantIDs {
 		fakeMeta.TenantID = id
-		err = w.Write(ctx, objectName, backend.KeyPathForBlock((uuid.UUID)(fakeMeta.BlockID), id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
+		err = w.Write(ctx, objectName, backend.KeyPathForBlock(uuid.UUID(fakeMeta.BlockID), id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
 		assert.NoError(t, err, "unexpected error writing")
 
-		err = w.Write(ctx, backend.MetaName, backend.KeyPathForBlock((uuid.UUID)(fakeMeta.BlockID), id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
+		err = w.Write(ctx, backend.MetaName, backend.KeyPathForBlock(uuid.UUID(fakeMeta.BlockID), id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
 		assert.NoError(t, err, "unexpected error meta.json")
-		err = w.Write(ctx, backend.CompactedMetaName, backend.KeyPathForBlock((uuid.UUID)(fakeMeta.BlockID), id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
+		err = w.Write(ctx, backend.CompactedMetaName, backend.KeyPathForBlock(uuid.UUID(fakeMeta.BlockID), id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
 		assert.NoError(t, err, "unexpected error meta.compacted.json")
+		err = w.Write(ctx, backend.NoCompactFileName, backend.KeyPathForBlock(uuid.UUID(fakeMeta.BlockID), id), bytes.NewReader([]byte{}), 0, nil)
+		assert.NoError(t, err, "unexpected error nocompact.flg")
 	}
 
 	actualObject, size, err := r.Read(ctx, objectName, backend.KeyPathForBlock(blockID, tenantIDs[0]), nil)
@@ -75,10 +77,11 @@ func TestReadWrite(t *testing.T) {
 	assert.Len(t, list, 1)
 	assert.Equal(t, blockID.String(), list[0])
 
-	m, cm, err := r.ListBlocks(ctx, tenantIDs[0])
+	m, cm, nc, err := r.ListBlocks(ctx, tenantIDs[0])
 	assert.NoError(t, err, "unexpected error listing blocks")
 	assert.Len(t, m, 1)
 	assert.Len(t, cm, 1)
+	assert.Equal(t, []uuid.UUID{blockID}, nc)
 }
 
 func TestShutdownLeavesTenantsWithBlocks(t *testing.T) {
@@ -93,7 +96,7 @@ func TestShutdownLeavesTenantsWithBlocks(t *testing.T) {
 	tenant := "fake"
 
 	// write a "block"
-	err = w.Write(ctx, "test", backend.KeyPathForBlock((uuid.UUID)(blockID), tenant), contents, contents.Size(), nil)
+	err = w.Write(ctx, "test", backend.KeyPathForBlock(uuid.UUID(blockID), tenant), contents, contents.Size(), nil)
 	require.NoError(t, err)
 
 	tenantExists(t, tenant, r)
@@ -118,14 +121,14 @@ func TestShutdownRemovesTenantsWithoutBlocks(t *testing.T) {
 	tenant := "tenant"
 
 	// write a "block"
-	err = w.Write(ctx, "test", backend.KeyPathForBlock((uuid.UUID)(blockID), tenant), contents, contents.Size(), nil)
+	err = w.Write(ctx, "test", backend.KeyPathForBlock(uuid.UUID(blockID), tenant), contents, contents.Size(), nil)
 	require.NoError(t, err)
 
 	tenantExists(t, tenant, r)
 	blockExists(t, blockID, tenant, r)
 
 	// clear the block
-	err = c.ClearBlock((uuid.UUID)(blockID), tenant)
+	err = c.ClearBlock(uuid.UUID(blockID), tenant)
 	require.NoError(t, err)
 
 	tenantExists(t, tenant, r)

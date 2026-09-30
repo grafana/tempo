@@ -14,12 +14,12 @@ import (
 
 	"github.com/parquet-go/parquet-go"
 
-	"github.com/grafana/tempo/pkg/parquetquery"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/pkg/parquetquery"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
 
 var (
@@ -903,7 +903,9 @@ func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest,
 
 	return traceql.FetchSpansResponse{
 		Results: iter,
-		Bytes:   func() uint64 { return rr.BytesRead() },
+		Stats: func() traceql.FetchSpansStats {
+			return traceql.FetchSpansStats{Bytes: rr.BytesRead()}
+		},
 	}, nil
 }
 

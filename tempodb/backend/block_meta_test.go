@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
 )
 
 const (
@@ -24,7 +24,7 @@ func TestNewBlockMeta(t *testing.T) {
 	id := uuid.New()
 	b := NewBlockMeta(testTenantID, id, testVersion)
 
-	assert.Equal(t, id, (uuid.UUID)(b.BlockID))
+	assert.Equal(t, id, uuid.UUID(b.BlockID))
 	assert.Equal(t, testTenantID, b.TenantID)
 	assert.Equal(t, testVersion, b.Version)
 }

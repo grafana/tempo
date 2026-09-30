@@ -11,14 +11,14 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/google/uuid"
 
-	"github.com/grafana/tempo/pkg/boundedwaitgroup"
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/tempodb"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/pkg/boundedwaitgroup"
+	"github.com/grafana/tempo/v3/pkg/model/trace"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/tempodb"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
 
 type queryResults struct {
@@ -86,7 +86,7 @@ func (cmd *queryBlocksCmd) Run(ctx *globalOptions) error {
 }
 
 func queryBucket(ctx context.Context, percentage float32, r backend.Reader, c backend.Compactor, tenantID string, traceID common.ID) ([]queryResults, error) {
-	blockIDs, compactedBlockIDs, err := r.Blocks(context.Background(), tenantID)
+	blockIDs, compactedBlockIDs, _, err := r.Blocks(context.Background(), tenantID)
 	if err != nil {
 		return nil, err
 	}

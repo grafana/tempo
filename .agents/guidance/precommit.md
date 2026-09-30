@@ -81,3 +81,37 @@ make test-e2e-clean
 2. `make lint base=origin/main` — no new lint errors
 3. `make test` — all unit tests pass
 4. `go test -race ./...` (or `make test-with-cover`) — no races in changed packages
+5. `make chlog-validate` — a `.chloggen/` entry exists for user-facing changes
+   (never edit `CHANGELOG.md` directly; see `.chloggen/README.md`)
+
+---
+
+## PR Description
+
+When opening a PR,
+read [`.github/pull_request_template.md`](../../.github/pull_request_template.md)
+and use it as the structure for the PR body,
+filling in each section and checklist item.
+
+Note for non-interactive tooling:
+passing an explicit body to `gh pr create` (`--body` / `--body-file`)
+bypasses GitHub's template auto-fill,
+so the template must be applied manually.
+
+---
+
+## Pushing to a PR Under Review
+
+Once a PR has received a review,
+don't rewrite history the reviewer has already seen.
+
+- Address review feedback by pushing new commits —
+  don't amend, squash, or rebase commits that have been reviewed.
+- Don't force push to a branch under active review.
+  This includes `git push --force-with-lease`;
+  it protects against clobbering others' work,
+  but it still rewrites history
+  and breaks GitHub's "changes since your last review" view.
+- The one exception is rebasing on `main`, for example to resolve conflicts.
+  When you must, push the rebase on its own with no other changes mixed in,
+  and note it in a PR comment.

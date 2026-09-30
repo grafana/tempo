@@ -47,15 +47,38 @@ message RetentionDetail {
   option (gogoproto.compare) = true;
 }
 
+// RedactionMode selects whether a redaction applies (rewrites blocks) or is a dry run
+// (evaluates and counts matches without modifying storage).
+enum RedactionMode {
+  REDACTION_MODE_APPLY = 0;    // default: rewrite blocks, removing matched traces
+  REDACTION_MODE_DRY_RUN = 1;  // evaluate and count matches, never rewrite
+}
+
+// TraceQLSelector carries a TraceQL expression that selects the traces to redact,
+// as an alternative to an explicit trace ID list. Restricted at submission to a single
+// spanset filter (= on resource.*/span.* joined by && / ||).
+message TraceQLSelector {
+  option (gogoproto.equal) = true;
+  option (gogoproto.compare) = true;
+
+  string query = 1;  // TraceQL expression
+}
+
 // RedactionDetail contains fields for redaction jobs (one job per block).
-// TraceIds are the trace IDs to redact from the block. Future extension may add
-// traceql/attribute-based redaction.
+// TraceIds are the trace IDs to redact from the block; alternatively query selects
+// them via a TraceQL expression evaluated against the block.
 message RedactionDetail {
   option (gogoproto.equal) = true;
   option (gogoproto.compare) = true;
 
   string block_id = 1;       // block to redact
   repeated bytes trace_ids = 2;  // trace IDs to remove from the block
+  TraceQLSelector query = 3;     // when set, select traces via TraceQL instead of trace_ids
+  RedactionMode mode = 4;        // apply vs dry-run for this job
+  // Absolute [start, end] window (unix nanoseconds), injected from the batch; bounds the per-block
+  // scan. 0 means unbounded on that side.
+  int64 start_time_unix_nano = 5;
+  int64 end_time_unix_nano = 6;
 }
 
 // JobDetail contains the specific details for each job type
@@ -103,6 +126,19 @@ message UpdateJobStatusResponse {
 message SubmitRedactionRequest {
   string tenant_id = 1 [deprecated = true]; // ignored by the server; tenant is read from the request header
   repeated bytes trace_ids = 2;
+  // selector is a single-member oneof for now, reserving room to migrate trace_ids into
+  // it later without an API break. It carries the TraceQL query selector; query and
+  // trace_ids are mutually exclusive, enforced at submission.
+  oneof selector {
+    TraceQLSelector query = 3;
+  }
+  RedactionMode mode = 4;  // apply (default) vs dry-run
+  // Optional absolute [start, end] window (unix nanoseconds) that scopes the redaction to blocks
+  // overlapping it and bounds the per-block scan. 0 means unbounded on that side; 0/0 (default) is
+  // the whole tenant, matching prior behavior. The window is resolved to absolute time by the
+  // client (e.g. the CLI accepts Grafana-style now-7d) and frozen here, so it never chases ingest.
+  int64 start_time_unix_nano = 5;
+  int64 end_time_unix_nano = 6;
 }
 
 message SubmitRedactionResponse {
@@ -140,6 +176,23 @@ message RedactionBatch {
   // rescan_after_unix_nano is the earliest time at which the scheduler should
   // perform the rescan described above. Zero means no rescan is pending.
   int64 rescan_after_unix_nano = 6;
+  // query, when set, selects traces via a TraceQL expression instead of trace_ids.
+  // Stored in the manifest for the lifetime of the redaction and injected into each
+  // per-block job.
+  TraceQLSelector query = 7;
+  // mode selects apply (default) vs dry-run for the whole batch.
+  RedactionMode mode = 8;
+  // quiesce_until_unix_nano holds a completed batch open until this deadline before removal,
+  // so compaction stays disabled long enough for the rescan to catch any block a compaction
+  // produced just as the last redaction job finished. 0 means the batch is not yet in
+  // quiescence (still in progress); it is set once when all jobs complete, and the batch is
+  // removed on the first maintenance tick at or after the deadline. An absolute timestamp is
+  // stable across pod restarts / work reloads and avoids rewriting the batch on every tick.
+  int64 quiesce_until_unix_nano = 9;
+  // Absolute [start, end] window (unix nanoseconds) for this redaction, frozen at submission.
+  // Stored on the batch and injected into each per-block job. 0 means unbounded on that side.
+  int64 start_time_unix_nano = 10;
+  int64 end_time_unix_nano = 11;
 }
 
 // RedactionBatches is the top-level container written to batches.pb.

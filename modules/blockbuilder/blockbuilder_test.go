@@ -13,18 +13,18 @@ import (
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
-	"github.com/grafana/tempo/modules/storage"
-	"github.com/grafana/tempo/pkg/ingest"
-	"github.com/grafana/tempo/pkg/ingest/testkafka"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/blocklist"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/v3/modules/storage"
+	"github.com/grafana/tempo/v3/pkg/ingest"
+	"github.com/grafana/tempo/v3/pkg/ingest/testkafka"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend/local"
+	"github.com/grafana/tempo/v3/tempodb/blocklist"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/tempodb/wal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kadm"
@@ -952,7 +952,7 @@ func newStore(ctx context.Context, t testing.TB) storage.Store {
 	// wait for it, and it races with t.TempDir() cleanup, writing tenant index
 	// files while os.RemoveAll runs.
 	ctx, cancel := context.WithCancel(ctx)
-	store := newStoreWithLogger(ctx, t, testLogger(t), false)
+	store := newStoreWithLogger(ctx, t, testLogger(t))
 	t.Cleanup(func() {
 		cancel()
 		store.Shutdown()
@@ -961,7 +961,7 @@ func newStore(ctx context.Context, t testing.TB) storage.Store {
 	return store
 }
 
-func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger, skipNoCompactBlocks bool) storage.Store {
+func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger) storage.Store {
 	tmpDir := t.TempDir()
 
 	s, err := storage.NewStore(storage.Config{
@@ -983,7 +983,7 @@ func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger, skipN
 	}, nil, log)
 	require.NoError(t, err)
 
-	s.EnablePolling(ctx, &ownEverythingSharder{}, skipNoCompactBlocks)
+	s.EnablePolling(ctx, &ownEverythingSharder{})
 	return s
 }
 
@@ -1080,7 +1080,7 @@ func BenchmarkBlockBuilder(b *testing.B) {
 		ctx        = context.Background()
 		logger     = log.NewNopLogger()
 		_, address = testkafka.CreateCluster(b, 1, testTopic)
-		store      = newStoreWithLogger(ctx, b, logger, false)
+		store      = newStoreWithLogger(ctx, b, logger)
 		cfg        = blockbuilderConfig(b, address, []int32{0})
 		client     = testkafka.NewKafkaClient(b, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
 		o          = &mockOverrides{

@@ -3,13 +3,41 @@ package cache
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/go-kit/log"
-	"github.com/grafana/tempo/modules/cache/memcached"
-	"github.com/grafana/tempo/modules/cache/redis"
-	"github.com/grafana/tempo/pkg/cache"
+	"github.com/grafana/tempo/v3/modules/cache/memcached"
+	"github.com/grafana/tempo/v3/modules/cache/redis"
+	"github.com/grafana/tempo/v3/pkg/cache"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.yaml.in/yaml/v2"
 )
+
+func TestConfigUnmarshalAppliesMemcachedDefaults(t *testing.T) {
+	yamlCfg := `
+caches:
+- roles:
+  - bloom
+  memcached:
+    host: memcached.example.com
+`
+
+	cfg := &Config{}
+	require.NoError(t, yaml.UnmarshalStrict([]byte(yamlCfg), cfg))
+
+	require.Len(t, cfg.Caches, 1)
+	clientCfg := cfg.Caches[0].MemcachedConfig.ClientConfig
+	assert.Equal(t, "memcached.example.com", clientCfg.Host)
+	assert.Equal(t, 100, clientCfg.MaxIdleConns)
+	assert.Equal(t, float64(-1), clientCfg.MinIdleConnsHeadroomPercentage)
+	assert.Equal(t, 100*time.Millisecond, clientCfg.Timeout)
+	assert.Equal(t, time.Minute, clientCfg.UpdateInterval)
+	assert.True(t, clientCfg.ConsistentHash)
+	assert.Equal(t, uint(10), clientCfg.CBFailures)
+	assert.Equal(t, 10*time.Second, clientCfg.CBTimeout)
+	assert.Equal(t, 10*time.Second, clientCfg.CBInterval)
+}
 
 func TestConfigValidation(t *testing.T) {
 	tcs := []struct {

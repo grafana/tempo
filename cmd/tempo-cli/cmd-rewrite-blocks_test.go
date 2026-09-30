@@ -13,15 +13,15 @@ import (
 	"github.com/parquet-go/parquet-go"
 	"github.com/stretchr/testify/require"
 
-	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/pkg/parquetquery"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
+	tempo_io "github.com/grafana/tempo/v3/pkg/io"
+	"github.com/grafana/tempo/v3/pkg/parquetquery"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend/local"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet4"
 )
 
 func TestDropTraceCmd(t *testing.T) {
@@ -103,7 +103,7 @@ func getAllTraceIDs(t *testing.T, dir string, tenant string) []string {
 	require.NoError(t, err)
 	require.Equal(t, []string{tenant}, tenants)
 
-	blocks, _, err := reader.Blocks(ctx, tenant)
+	blocks, _, _, err := reader.Blocks(ctx, tenant)
 	require.NoError(t, err)
 
 	var traceIDs []string

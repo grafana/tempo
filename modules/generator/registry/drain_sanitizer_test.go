@@ -1,10 +1,14 @@
 package registry
 
 import (
+	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/require"
 )
@@ -103,6 +107,31 @@ func TestDrainSanitizer_DisabledMode(t *testing.T) {
 	require.Equal(t, lbls2, result)
 }
 
+func TestDrainSanitizer_DisabledTenantNeverRegistersMetrics(t *testing.T) {
+	const tenant = "test-drain-sanitizer-disabled-tenant"
+	s := NewDrainSanitizer(tenant, func(string) string { return SpanNameSanitizationDisabled }, 15*time.Minute)
+
+	for i := range 10 {
+		s.Sanitize(labels.FromStrings("span_name", fmt.Sprintf("GET /api/x/%d", i)))
+	}
+
+	// check the metric and assert
+	for _, vec := range []prometheus.Collector{metricPostSanitizationDemand, metricTotalSpansSanitized} {
+		ch := make(chan prometheus.Metric)
+		go func() {
+			vec.Collect(ch)
+			close(ch)
+		}()
+		for m := range ch {
+			var g io_prometheus_client.Metric
+			require.NoError(t, m.Write(&g))
+			for _, lbl := range g.GetLabel() {
+				require.NotEqual(t, tenant, lbl.GetValue(), "disabled tenant should never register a sanitizer metric")
+			}
+		}
+	}
+}
+
 func TestDrainSanitizer_NilClusterHandling(t *testing.T) {
 	t.Parallel()
 
@@ -143,6 +172,41 @@ func TestDrainSanitizer_ConcurrentAccess(t *testing.T) {
 
 	wg.Wait()
 	// No panics or race conditions should occur
+}
+
+func TestDrainSanitizer_ConcurrentPrune(t *testing.T) {
+	sanitizer := newTestDrainSanitizer(SpanNameSanitizationEnabled)
+
+	const (
+		numGoroutines        = 10
+		numCallsPerGoroutine = 100
+	)
+	pruneChan := make(chan time.Time, numGoroutines*numCallsPerGoroutine)
+	for range cap(pruneChan) {
+		pruneChan <- time.Time{}
+	}
+	sanitizer.demandUpdateChan = nil
+	sanitizer.pruneChan = pruneChan
+
+	var wg sync.WaitGroup
+	wg.Add(numGoroutines)
+	for i := range numGoroutines {
+		go func() {
+			defer wg.Done()
+			for j := range numCallsPerGoroutine {
+				// Digit-bearing suffixes collapse into DRAIN's data wildcard and stop growing the tree.
+				n := i*numCallsPerGoroutine + j
+				suffix := string([]rune{
+					rune('a' + n%26),
+					rune('a' + (n/26)%26),
+					rune('a' + (n/676)%26),
+				})
+				sanitizer.Sanitize(labels.FromStrings("span_name", "GET /api/users/"+suffix))
+			}
+		}()
+	}
+	wg.Wait()
+	require.Empty(t, pruneChan)
 }
 
 func TestDrainSanitizer_DemandTracking(t *testing.T) {
@@ -248,4 +312,72 @@ func TestDrainSanitizer_FullSanitizedOutput(t *testing.T) {
 			require.Equal(t, tc.expectedOutput, result.Get("span_name"))
 		})
 	}
+}
+
+// TestDrainSanitizer_BorrowedSpanNameNotRetained verifies that Drain owns token
+// bytes retained from a reusable scratch buffer.
+func TestDrainSanitizer_BorrowedSpanNameNotRetained(t *testing.T) {
+	s := newTestDrainSanitizer(SpanNameSanitizationEnabled)
+
+	// A single ScratchBuilder reuses one internal buffer across Overwrite calls,
+	// exactly like the pooled scratch handed out by CloseAndBorrowLabels.
+	scratch := labels.NewScratchBuilder(1)
+
+	// span_name aliases the scratch buffer; this Sanitize call creates the drain
+	// cluster, which is the only place drain retains substrings of the input.
+	scratch.Reset()
+	scratch.Add("span_name", "GET /alpha/bravo")
+	var borrowed labels.Labels
+	scratch.Overwrite(&borrowed)
+	s.Sanitize(borrowed)
+	clusters := s.drain.Clusters()
+	require.Len(t, clusters, 1)
+	cluster := clusters[0]
+
+	// Snapshot (owning a copy of) every token drain retained from the borrowed
+	// span name, so the comparison below is against the original bytes.
+	var snapshot []string
+	for _, c := range clusters {
+		for _, tok := range c.Tokens {
+			snapshot = append(snapshot, strings.Clone(tok))
+		}
+	}
+	require.NotEmpty(t, snapshot, "expected drain to create a cluster and retain tokens")
+
+	// Reuse the SAME scratch buffer with a different span name of identical
+	// length, overwriting the bytes the retained tokens alias.
+	scratch.Reset()
+	scratch.Add("span_name", "PUT /xray0/yanke")
+	var reused labels.Labels
+	scratch.Overwrite(&reused)
+	require.Equal(t, "PUT /xray0/yanke", reused.Get("span_name"))
+
+	// The tokens drain retained must be unchanged: they must have been cloned
+	// from owned memory rather than left aliasing the borrowed scratch buffer.
+	var after []string
+	for _, c := range s.drain.Clusters() {
+		after = append(after, c.Tokens...)
+	}
+	require.Equal(t, snapshot, after, "drain retained tokens were corrupted by scratch-buffer reuse")
+
+	result := s.Sanitize(labels.FromStrings("span_name", "GET /alpha/bravo"))
+	require.Equal(t, "GET /alpha/bravo", result.Get("span_name"))
+	require.Equal(t, 2, cluster.Size)
+	require.Len(t, s.drain.Clusters(), 1)
+}
+
+func TestDrainSanitizer_TenantIsolation(t *testing.T) {
+	mode := func(string) string { return SpanNameSanitizationEnabled }
+	tenantA := NewDrainSanitizer(t.Name()+"/a", mode, 15*time.Minute)
+	tenantB := NewDrainSanitizer(t.Name()+"/b", mode, 15*time.Minute)
+
+	tenantA.Sanitize(labels.FromStrings("span_name", "GET /api/users/123"))
+	resultA := tenantA.Sanitize(labels.FromStrings("span_name", "GET /api/users/456"))
+	require.Equal(t, "GET /api/users/<_>", resultA.Get("span_name"))
+
+	resultB := tenantB.Sanitize(labels.FromStrings("span_name", "GET /api/users/789"))
+	require.Equal(t, "GET /api/users/789", resultB.Get("span_name"))
+	require.NotSame(t, tenantA.drain, tenantB.drain)
+	require.Len(t, tenantA.drain.Clusters(), 1)
+	require.Len(t, tenantB.drain.Clusters(), 1)
 }

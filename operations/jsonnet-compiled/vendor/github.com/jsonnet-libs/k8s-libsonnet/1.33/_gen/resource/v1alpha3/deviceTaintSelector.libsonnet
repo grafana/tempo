@@ -1,0 +1,18 @@
+{
+  local d = (import 'doc-util/main.libsonnet'),
+  '#':: d.pkg(name='deviceTaintSelector', url='', help='"DeviceTaintSelector defines which device(s) a DeviceTaintRule applies to. The empty selector matches all devices. Without a selector, no devices are matched."'),
+  '#withDevice':: d.fn(help='"If device is set, only devices with that name are selected. This field corresponds to slice.spec.devices[].name.\\n\\nSetting also driver and pool may be required to avoid ambiguity, but is not required."', args=[d.arg(name='device', type=d.T.string)]),
+  withDevice(device): { device: device },
+  '#withDeviceClassName':: d.fn(help='"If DeviceClassName is set, the selectors defined there must be satisfied by a device to be selected. This field corresponds to class.metadata.name."', args=[d.arg(name='deviceClassName', type=d.T.string)]),
+  withDeviceClassName(deviceClassName): { deviceClassName: deviceClassName },
+  '#withDriver':: d.fn(help='"If driver is set, only devices from that driver are selected. This fields corresponds to slice.spec.driver."', args=[d.arg(name='driver', type=d.T.string)]),
+  withDriver(driver): { driver: driver },
+  '#withPool':: d.fn(help='"If pool is set, only devices in that pool are selected.\\n\\nAlso setting the driver name may be useful to avoid ambiguity when different drivers use the same pool name, but this is not required because selecting pools from different drivers may also be useful, for example when drivers with node-local devices use the node name as their pool name."', args=[d.arg(name='pool', type=d.T.string)]),
+  withPool(pool): { pool: pool },
+  '#withSelectors':: d.fn(help='"Selectors contains the same selection criteria as a ResourceClaim. Currently, CEL expressions are supported. All of these selectors must be satisfied."', args=[d.arg(name='selectors', type=d.T.array)]),
+  withSelectors(selectors): { selectors: if std.isArray(v=selectors) then selectors else [selectors] },
+  '#withSelectorsMixin':: d.fn(help='"Selectors contains the same selection criteria as a ResourceClaim. Currently, CEL expressions are supported. All of these selectors must be satisfied."\n\n**Note:** This function appends passed data to existing values', args=[d.arg(name='selectors', type=d.T.array)]),
+  withSelectorsMixin(selectors): { selectors+: if std.isArray(v=selectors) then selectors else [selectors] },
+  '#mixin': 'ignore',
+  mixin: self,
+}

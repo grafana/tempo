@@ -21,10 +21,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
-	"github.com/grafana/tempo/modules/frontend/pipeline"
-	"github.com/grafana/tempo/modules/frontend/queue"
-	"github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
+	"github.com/grafana/tempo/v3/modules/frontend/queue"
+	"github.com/grafana/tempo/v3/modules/frontend/v1/frontendv1pb"
+	"github.com/grafana/tempo/v3/pkg/util"
 )
 
 var tracer = otel.Tracer("modules/frontend/v1")
@@ -63,7 +63,7 @@ type Frontend struct {
 	queueLength       *prometheus.GaugeVec
 	discardedRequests *prometheus.CounterVec
 	numClients        prometheus.GaugeFunc
-	queueDuration     prometheus.Histogram
+	queueDuration     *prometheus.HistogramVec
 	actualBatchSize   prometheus.Histogram
 	batchWeight       *prometheus.HistogramVec
 }
@@ -83,6 +83,16 @@ func (r *request) Weight() int {
 
 func (r *request) OriginalContext() context.Context {
 	return r.request.Context()
+}
+
+// queryOp returns the query type used to label queue metrics. Every pipeline
+// stamps a shape via the weight middleware before sharding, so this is only
+// empty for requests built outside a pipeline.
+func queryOp(req pipeline.Request) string {
+	if t := req.QueryShape().Type; t != "" {
+		return t
+	}
+	return "unknown"
 }
 
 // New creates a new frontend. Frontend implements service, and must be started and stopped.
@@ -112,14 +122,14 @@ func New(cfg Config, log log.Logger, registerer prometheus.Registerer) (*Fronten
 			Name: "tempo_query_frontend_discarded_requests_total",
 			Help: "Total number of query requests discarded.",
 		}, []string{"user"}),
-		queueDuration: promauto.With(registerer).NewHistogram(prometheus.HistogramOpts{
+		queueDuration: promauto.With(registerer).NewHistogramVec(prometheus.HistogramOpts{
 			Name:                            "tempo_query_frontend_queue_duration_seconds",
 			Help:                            "Time spend by requests queued.",
 			Buckets:                         prometheus.DefBuckets,
 			NativeHistogramBucketFactor:     1.1,
 			NativeHistogramMaxBucketNumber:  100,
 			NativeHistogramMinResetDuration: 1 * time.Hour,
-		}),
+		}, []string{"op"}),
 		actualBatchSize: promauto.With(registerer).NewHistogram(prometheus.HistogramOpts{
 			Name:                            "tempo_query_frontend_actual_batch_size",
 			Help:                            "Batch size.",
@@ -241,7 +251,7 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 		for _, reqWrapper := range reqSlice {
 			req := reqWrapper.(*request)
 
-			f.queueDuration.Observe(time.Since(req.enqueueTime).Seconds())
+			f.queueDuration.WithLabelValues(queryOp(req.request)).Observe(time.Since(req.enqueueTime).Seconds())
 			req.queueSpan.End()
 
 			// only add if not expired
@@ -269,6 +279,10 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 		resps := make(chan *frontendv1pb.ClientToFrontend, 1)
 		errs := make(chan error, 1)
 		go func() {
+			// Local err: this goroutine can outlive reportResponseUpstream, so
+			// writing the outer err would race with it. Report via errs instead.
+			var err error
+
 			// todo: we are still sending the old Type_HTTP_REQUEST for backwards compat
 			// with queriers that don't support the new Type_HTTP_REQUEST_BATCH. this feature
 			// was introduced in 2.2. We should remove this in a few versions

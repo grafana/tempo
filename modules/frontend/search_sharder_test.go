@@ -24,17 +24,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/modules/frontend/combiner"
-	"github.com/grafana/tempo/modules/frontend/pipeline"
-	"github.com/grafana/tempo/modules/frontend/shardtracker"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/tempodb"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/blocklist"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
+	"github.com/grafana/tempo/v3/modules/frontend/shardtracker"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/tempodb"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/blocklist"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
 
 var _ tempodb.Reader = (*mockReader)(nil)
@@ -73,6 +73,10 @@ func (m *mockReader) BlockMetas(string) []*backend.BlockMeta {
 	return m.metas
 }
 
+func (m *mockReader) NoCompactBlocks(string) []backend.UUID {
+	return nil
+}
+
 func (m *mockReader) Tenants() []string {
 	return m.tenants
 }
@@ -93,10 +97,10 @@ func (m *mockReader) FetchTagNames(context.Context, *backend.BlockMeta, traceql.
 	return nil
 }
 
-func (m *mockReader) EnablePolling(context.Context, blocklist.JobSharder, bool) {}
-func (m *mockReader) PollNow(context.Context)                                   {}
-func (m *mockReader) PollNotification(context.Context) <-chan struct{}          { return nil }
-func (m *mockReader) Shutdown()                                                 {}
+func (m *mockReader) EnablePolling(context.Context, blocklist.JobSharder) {}
+func (m *mockReader) PollNow(context.Context)                             {}
+func (m *mockReader) PollNotification(context.Context) <-chan struct{}    { return nil }
+func (m *mockReader) Shutdown()                                           {}
 
 //nolint:all deprecated
 

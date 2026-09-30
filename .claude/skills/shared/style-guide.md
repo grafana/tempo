@@ -19,6 +19,7 @@ Style:
 - Use present simple tense, second-person, and active voice
 - Use simple words, short sentences, and few adjectives or adverbs
 - Prefer contractions
+- Write source prose with semantic line breaks ([SemBr](https://sembr.org)): break lines after sentences and clauses, not at a fixed column
 - Use sentence case for titles, headings, and UI
 - Bold UI text
 - Reference UI text, not element types such as button or tab

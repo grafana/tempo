@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet5"
+	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet4"
+	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet5"
 
 	"github.com/go-kit/log"
 	"github.com/golang/protobuf/proto" //nolint:all
@@ -21,18 +21,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/modules/cache/memcached"
-	"github.com/grafana/tempo/modules/cache/redis"
-	"github.com/grafana/tempo/pkg/cache"
-	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/v3/modules/cache/memcached"
+	"github.com/grafana/tempo/v3/modules/cache/redis"
+	"github.com/grafana/tempo/v3/pkg/cache"
+	"github.com/grafana/tempo/v3/pkg/model"
+	"github.com/grafana/tempo/v3/pkg/model/trace"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend/local"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/tempodb/wal"
 )
 
 const (
@@ -87,7 +87,7 @@ func TestDB(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{}, false)
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	blockID := backend.NewUUID()
 
@@ -143,7 +143,7 @@ func TestBlockSharding(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	r.EnablePolling(ctx, &mockJobSharder{}, false)
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	// create block with known ID
 	blockID := backend.NewUUID()
@@ -208,7 +208,7 @@ func TestBlockCleanup(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(context.Background(), &mockJobSharder{}, false)
+	r.EnablePolling(context.Background(), &mockJobSharder{})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -246,13 +246,13 @@ func checkBlocklists(ctx context.Context, t *testing.T, expectedID uuid.UUID, ex
 	blocklist := rw.blocklist.Metas(testTenantID)
 	require.Len(t, blocklist, expectedB)
 	if expectedB > 0 && expectedID != uuid.Nil {
-		require.Equal(t, expectedID, (uuid.UUID)(blocklist[0].BlockID))
+		require.Equal(t, expectedID, uuid.UUID(blocklist[0].BlockID))
 	}
 
 	compactedBlocklist := rw.blocklist.CompactedMetas(testTenantID)
 	require.Len(t, compactedBlocklist, expectedCB)
 	if expectedCB > 0 && expectedID != uuid.Nil {
-		require.Equal(t, expectedID, (uuid.UUID)(compactedBlocklist[0].BlockID))
+		require.Equal(t, expectedID, uuid.UUID(compactedBlocklist[0].BlockID))
 	}
 }
 
@@ -483,7 +483,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(context.Background(), &mockJobSharder{}, false)
+	r.EnablePolling(context.Background(), &mockJobSharder{})
 
 	wal := w.WAL()
 
@@ -832,58 +832,16 @@ func TestCreateLegacyCache(t *testing.T) {
 }
 
 func TestNoCompactFlag(t *testing.T) {
-	for _, tc := range []struct {
-		name                    string
-		createWithNoCompactFlag bool
-		skipNoCompactBlocks     bool
-		expectedNoCompactFlag   bool // flag after block completion
-		isBlockExpected         bool // should we expect the block after pull
-	}{
-		{
-			name:                    "default behaviour",
-			createWithNoCompactFlag: false,
-			skipNoCompactBlocks:     false,
-			expectedNoCompactFlag:   false,
-			isBlockExpected:         true,
-		},
-		{
-			name:                    "blockbuilder behaviour",
-			createWithNoCompactFlag: true,  // blockbuilder creates blocks with the flag
-			skipNoCompactBlocks:     false, // but blockbuilder does not skip such block on pull
-			expectedNoCompactFlag:   true,  // the flag should not be removed after block completion
-			isBlockExpected:         true,  // blockbuilder sees the block although it has the flag
-		},
-		{
-			name:                    "compactor sees its own blocks",
-			createWithNoCompactFlag: false, // compactor does not create blocks with the flag
-			skipNoCompactBlocks:     true,  // but does skip block with the flag on pull
-			expectedNoCompactFlag:   false, // no flag on created block
-			isBlockExpected:         true,  // compactor sees its own blocks
-		},
-		{
-			name:                    "blockbuilder+compactor behaviour",
-			createWithNoCompactFlag: true,  // blockbuilder creates the block with the flag
-			skipNoCompactBlocks:     true,  // compactor skips the block with the flag on pull
-			expectedNoCompactFlag:   true,  // the flag should not be removed after block completion
-			isBlockExpected:         false, // compactor does not see the block
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			r, w, c, _ := testConfig(t, 0, func(c *Config) {
-				c.Block.CreateWithNoCompactFlag = tc.createWithNoCompactFlag
+	for _, createWithNoCompactFlag := range []bool{false, true} {
+		t.Run(fmt.Sprintf("createWithNoCompactFlag=%v", createWithNoCompactFlag), func(t *testing.T) {
+			r, w, _, _ := testConfig(t, 0, func(c *Config) {
+				c.Block.CreateWithNoCompactFlag = createWithNoCompactFlag
 			})
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			err := c.EnableCompaction(ctx, &CompactorConfig{
-				MaxCompactionRange:      time.Hour,
-				BlockRetention:          0,
-				CompactedBlockRetention: 0,
-			}, &mockSharder{}, &mockOverrides{})
-			require.NoError(t, err)
-
-			r.EnablePolling(ctx, &mockJobSharder{}, tc.skipNoCompactBlocks)
+			r.EnablePolling(ctx, &mockJobSharder{})
 
 			// Create a test block
 			blockID := backend.NewUUID()
@@ -894,7 +852,6 @@ func TestNoCompactFlag(t *testing.T) {
 
 			dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
-			// Add some test data
 			id := test.ValidTraceID(nil)
 			req := test.MakeTrace(10, id)
 			writeTraceToWal(t, head, dec, id, req, 0, 0)
@@ -904,34 +861,37 @@ func TestNoCompactFlag(t *testing.T) {
 			require.NoError(t, err)
 			completedBlockID := complete.BlockMeta().BlockID
 
-			// Verify the nocompact flag
 			rw := r.(*readerWriter)
-			hasFlag, err := rw.r.HasNoCompactFlag(ctx, (uuid.UUID)(completedBlockID), testTenantID)
-			require.NoError(t, err)
-			assert.Equal(t, tc.expectedNoCompactFlag, hasFlag, "nocompact flag should remain after successful writeBlockMeta")
+			requireNoCompact := func(expected bool) {
+				rw.pollBlocklist(ctx)
 
-			// Poll to update the blocklist
-			rw.pollBlocklist(ctx)
+				var expectedIDs []backend.UUID
+				if expected {
+					expectedIDs = []backend.UUID{completedBlockID}
+				}
 
-			blocklist := rw.blocklist.Metas(testTenantID)
-			if tc.isBlockExpected {
-				assert.Len(t, blocklist, 1, "block with nocompact flag should be included for compaction")
-				assert.Equal(t, completedBlockID, blocklist[0].BlockID)
-			} else {
-				assert.Len(t, blocklist, 0, "block with nocompact flag should be excluded from compaction")
+				// The block stays in the blocklist, flagged or not.
+				blocklist := rw.blocklist.Metas(testTenantID)
+				require.Len(t, blocklist, 1)
+				require.Equal(t, completedBlockID, blocklist[0].BlockID)
+				require.Equal(t, expectedIDs, r.NoCompactBlocks(testTenantID))
+
+				// The flag is written to the tenant index.
+				idx, err := rw.r.TenantIndex(ctx, testTenantID)
+				require.NoError(t, err)
+				require.Len(t, idx.Meta, 1)
+				require.Equal(t, expectedIDs, idx.NoCompact)
 			}
 
-			// Remove the nocompact flag
-			err = rw.w.DeleteNoCompactFlag(ctx, (uuid.UUID)(completedBlockID), testTenantID)
+			requireNoCompact(createWithNoCompactFlag)
+
+			err = rw.w.WriteNoCompactFlag(ctx, uuid.UUID(completedBlockID), testTenantID)
 			require.NoError(t, err)
+			requireNoCompact(true)
 
-			// Poll blocklist again
-			rw.pollBlocklist(ctx)
-
-			// Now the block should be available for compaction in any scenarios
-			blocklist = rw.blocklist.Metas(testTenantID)
-			assert.Len(t, blocklist, 1)
-			assert.Equal(t, completedBlockID, blocklist[0].BlockID)
+			err = rw.w.DeleteNoCompactFlag(ctx, uuid.UUID(completedBlockID), testTenantID)
+			require.NoError(t, err)
+			requireNoCompact(false)
 		})
 	}
 }
@@ -942,7 +902,7 @@ func TestPollNotification(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
-	r.EnablePolling(ctx, &mockJobSharder{}, false)
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	blockID := backend.NewUUID()
 

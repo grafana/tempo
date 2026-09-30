@@ -579,7 +579,8 @@ func TestLeftJoinDown(t *testing.T) {
 
 	got := []IteratorResult{}
 
-	j, err := NewLeftJoinIterator(1, nil, nil, nil,
+	j, err := NewLeftJoinIterator(
+		1, nil, nil, nil,
 		// Primary iterator is down to level 1.
 		WithIterator(iter2DefLevel, iter2, false, nil),
 		WithIterator(iter1DefLevel, iter1, true, nil),

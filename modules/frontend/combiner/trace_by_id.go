@@ -10,10 +10,10 @@ import (
 	"sync"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/grafana/tempo/pkg/api"
-	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/api"
+	tempo_io "github.com/grafana/tempo/v3/pkg/io"
+	"github.com/grafana/tempo/v3/pkg/model/trace"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
 )
 
 const (
@@ -103,6 +103,14 @@ func (c *TraceByIDCombiner) AddResponse(r PipelineResponse) error {
 	c.MetricsCombiner.Combine(resp.Metrics, r)
 
 	return err
+}
+
+// Result returns the combined trace, or nil if none was found.
+func (c *TraceByIDCombiner) Result() *tempopb.Trace {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	t, _ := c.c.Result()
+	return t
 }
 
 func (c *TraceByIDCombiner) HTTPFinal() (*http.Response, error) {

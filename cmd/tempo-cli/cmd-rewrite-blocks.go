@@ -12,12 +12,12 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/pkg/boundedwaitgroup"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/tempodb"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/pkg/boundedwaitgroup"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/tempodb"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
 
 type dropTracesCmd struct {
@@ -88,7 +88,7 @@ func (cmd *dropTracesCmd) Run(opts *globalOptions) error {
 		}
 
 		level.Info(logger).Log("msg", "marking block compacted", "block", block.BlockID)
-		err = c.MarkBlockCompacted((uuid.UUID)(block.BlockID), block.TenantID)
+		err = c.MarkBlockCompacted(uuid.UUID(block.BlockID), block.TenantID)
 		if err != nil {
 			level.Error(logger).Log("msg", "error marking block compacted", "block", block.BlockID, "err", err)
 		}
@@ -179,7 +179,7 @@ func rewriteBlock(ctx context.Context, r backend.Reader, w backend.Writer, meta 
 // open each block and skip any of the trace IDs which are passed into the
 // command.
 func (cmd *dropTracesCmd) blocksWithAnyTraceID(ctx context.Context, r backend.Reader, logger log.Logger, tenantID string, traceIDs ...common.ID) ([]*backend.BlockMeta, error) {
-	blockIDs, _, err := r.Blocks(ctx, tenantID)
+	blockIDs, _, _, err := r.Blocks(ctx, tenantID)
 	if err != nil {
 		return nil, err
 	}

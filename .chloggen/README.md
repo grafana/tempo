@@ -50,6 +50,21 @@ entry without a PR link.
 [`config.yaml`](./config.yaml); `chlog-validate` rejects anything else. Adding a
 new component? Add it to that list in the same PR.
 
+## Writing the note
+
+Keep the note brief — one or two sentences at most —
+and focus on user impact.
+Internals of how the change is made are rarely relevant;
+when they are, the note should still open with the user impact,
+and extra implementation detail belongs in `subtext`, not the note.
+
+For example, for a change that adds predicate pushdown to the parquet iterators:
+
+- ✅ `Improve read performance by pushing down predicates to the parquet iterators.`
+- ❌ `Add support for pushdown predicates in the parquet iterators.`
+
+The note is about what users get, not the technical improvement itself.
+
 ## Validate / preview
 
 ```bash

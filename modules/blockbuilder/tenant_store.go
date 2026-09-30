@@ -7,15 +7,15 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/modules/blockbuilder/util"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/dataquality"
-	"github.com/grafana/tempo/pkg/livetraces"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/tempodb"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/v3/modules/blockbuilder/util"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/pkg/dataquality"
+	"github.com/grafana/tempo/v3/pkg/livetraces"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/tempodb"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel/attribute"
@@ -29,6 +29,17 @@ var metricBlockBuilderFlushedBlocks = promauto.NewCounterVec(
 		Name:      "flushed_blocks",
 	}, []string{"tenant"},
 )
+
+var metricBlockBuilderFlushSize = promauto.NewHistogram(prometheus.HistogramOpts{
+	Namespace:                       "tempo",
+	Subsystem:                       "block_builder",
+	Name:                            "flush_size_bytes",
+	Help:                            "Size in bytes of blocks flushed by the block-builder.",
+	Buckets:                         prometheus.ExponentialBuckets(1024*1024, 2, 10),
+	NativeHistogramBucketFactor:     1.1,
+	NativeHistogramMaxBucketNumber:  100,
+	NativeHistogramMinResetDuration: 1 * time.Hour,
+})
 
 type tenantStore struct {
 	tenantID         string
@@ -134,7 +145,7 @@ func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Wri
 	}
 
 	// Initial meta for creating the block
-	meta := backend.NewBlockMeta(s.tenantID, (uuid.UUID)(blockID), s.enc.Version())
+	meta := backend.NewBlockMeta(s.tenantID, uuid.UUID(blockID), s.enc.Version())
 	meta.DedicatedColumns = s.getDedicatedColumns()
 	meta.ReplicationFactor = 1
 	meta.TotalObjects = int64(s.liveTraces.Len())
@@ -183,8 +194,9 @@ func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Wri
 	span.AddEvent("wrote block to backend", trace.WithAttributes(attribute.String("block_id", newMeta.BlockID.String())))
 
 	metricBlockBuilderFlushedBlocks.WithLabelValues(s.tenantID).Inc()
+	metricBlockBuilderFlushSize.Observe(float64(newMeta.Size_))
 
-	if err := s.wal.LocalBackend().ClearBlock((uuid.UUID)(newMeta.BlockID), s.tenantID); err != nil {
+	if err := s.wal.LocalBackend().ClearBlock(uuid.UUID(newMeta.BlockID), s.tenantID); err != nil {
 		return err
 	}
 	span.AddEvent("cleared block from wal", trace.WithAttributes(attribute.String("block_id", newMeta.BlockID.String())))

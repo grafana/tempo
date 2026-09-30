@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
 func (rw *Backend) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
@@ -16,7 +16,8 @@ func (rw *Backend) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error 
 	metaFilename := rw.metaFileName(blockID, tenantID)
 	compactedMetaFilename := rw.compactedMetaFileName(blockID, tenantID)
 
-	return os.Rename(metaFilename, compactedMetaFilename)
+	// Another compaction or retention pass may have already retired this block.
+	return readError(os.Rename(metaFilename, compactedMetaFilename))
 }
 
 func (rw *Backend) ClearBlock(blockID uuid.UUID, tenantID string) error {

@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/tempodb"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 	"go.uber.org/atomic"
 )
 
@@ -61,7 +61,7 @@ func (b *WriteableBlock) setFlushed(ctx context.Context) error {
 		return fmt.Errorf("error marshalling flush time to text: %w", err)
 	}
 
-	err = b.writer.Write(ctx, nameFlushed, (uuid.UUID)(b.BlockMeta().BlockID), b.BlockMeta().TenantID, flushedBytes, nil)
+	err = b.writer.Write(ctx, nameFlushed, uuid.UUID(b.BlockMeta().BlockID), b.BlockMeta().TenantID, flushedBytes, nil)
 	if err != nil {
 		return fmt.Errorf("error writing ingester block flushed file: %w", err)
 	}

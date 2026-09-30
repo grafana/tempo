@@ -7,10 +7,10 @@ import (
 	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/grafana/tempo/modules/frontend/pipeline"
-	v1 "github.com/grafana/tempo/modules/frontend/v1"
-	"github.com/grafana/tempo/pkg/usagestats"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
+	v1 "github.com/grafana/tempo/v3/modules/frontend/v1"
+	"github.com/grafana/tempo/v3/pkg/usagestats"
+	"github.com/grafana/tempo/v3/pkg/util"
 )
 
 var statVersion = usagestats.NewString("frontend_version")
@@ -75,6 +75,12 @@ type TraceByIDConfig struct {
 	BlocksPerShard   uint      `yaml:"blocks_per_shard,omitempty"` // BlocksPerShard is used to dynamically create shards based on the number of blocks instead of the fixed amount in QueryShards. Set to 0 to disable and fall back to QueryShards.
 	SLO              SLOConfig `yaml:",inline"`
 	ExternalEnabled  bool      `yaml:"external_enabled,omitempty"`
+
+	// SpanPruningEnabledByDefault makes span pruning default to enabled for trace-by-id v2
+	// requests that don't set their own span_pruning param. An explicit span_pruning value in
+	// the request, true or false, always takes precedence over this default.
+	// EXPERIMENTAL: span pruning is not yet a stable feature; config and behavior may change.
+	SpanPruningEnabledByDefault bool `yaml:"span_pruning_enabled_by_default,omitempty"`
 }
 
 type MetricsConfig struct {
@@ -98,7 +104,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Config.MaxBatchSize = 7
 	cfg.MaxRetries = 2
 	cfg.ResponseConsumers = 10
-	cfg.MaxGRPCStreamingPacketSize = 2 * 1024 * 1024 // 2MB
+	cfg.MaxGRPCStreamingPacketSize = 1 * 1024 * 1024 // 1MB
 	cfg.Search = SearchConfig{
 		Sharder: SearchSharderConfig{
 			QueryBackendAfter:      15 * time.Minute,

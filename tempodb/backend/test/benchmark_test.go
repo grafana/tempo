@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend/local"
 	"github.com/stretchr/testify/require"
 )
 
@@ -45,7 +45,7 @@ func BenchmarkIndexLoad(b *testing.B) {
 	require.NoError(b, err)
 
 	w := backend.NewWriter(rw)
-	err = w.WriteTenantIndex(ctx, tenant, blockMeta, nil)
+	err = w.WriteTenantIndex(ctx, tenant, blockMeta, nil, nil)
 	require.NoError(b, err)
 
 	r := backend.NewReader(rr)

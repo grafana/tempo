@@ -9,7 +9,7 @@ import (
 
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
 func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
@@ -25,7 +25,8 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 
 	// copy meta.json to meta.compacted.json
 	// core.CopyObject does not support SSE on src object
-	_, err := rw.core.Client.CopyObject(context.TODO(),
+	_, err := rw.core.Client.CopyObject(
+		context.TODO(),
 		minio.CopyDestOptions{
 			Bucket:     rw.cfg.Bucket,
 			Object:     backend.CompactedMetaFileName(blockID, tenantID, rw.cfg.Prefix),
@@ -40,11 +41,19 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 		},
 	)
 	if err != nil {
+		if minio.ToErrorResponse(err).Code == minio.NoSuchKey {
+			// Another compaction or retention pass already retired this block.
+			return backend.ErrDoesNotExist
+		}
 		return fmt.Errorf("error copying obj meta to compacted obj meta: %w", err)
 	}
 
 	// delete meta.json
-	return rw.core.RemoveObject(context.TODO(), rw.cfg.Bucket, metaFileName, minio.RemoveObjectOptions{})
+	err = rw.core.RemoveObject(context.TODO(), rw.cfg.Bucket, metaFileName, minio.RemoveObjectOptions{})
+	if err != nil && minio.ToErrorResponse(err).Code == minio.NoSuchKey {
+		return backend.ErrDoesNotExist
+	}
+	return err
 }
 
 func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {

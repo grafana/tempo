@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/grafana/tempo/modules/distributor/forwarder/otlpgrpc"
+	"github.com/grafana/tempo/v3/modules/distributor/forwarder/otlpgrpc"
 )
 
 const (

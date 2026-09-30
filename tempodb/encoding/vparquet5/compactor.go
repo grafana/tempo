@@ -10,13 +10,13 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
+	tempoUtil "github.com/grafana/tempo/v3/pkg/util"
 	"github.com/parquet-go/parquet-go"
 	"go.opentelemetry.io/otel/attribute"
 
-	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	tempo_io "github.com/grafana/tempo/v3/pkg/io"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
 
 func NewCompactor(opts common.CompactionOptions) *Compactor {
@@ -199,7 +199,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		}
 
 		// Flush again if block is already full.
-		if currentBlock.EstimatedBufferedBytes() > c.opts.BlockConfig.RowGroupSizeBytes {
+		if currentBlock.EstimatedBufferedBytes() > c.opts.BlockConfig.RowGroupSizeBytes || currentBlock.RowGroupFull() {
 			err = c.appendBlock(ctx, currentBlock, l)
 			if err != nil {
 				return nil, fmt.Errorf("error writing partial block: %w", err)
@@ -271,7 +271,8 @@ func (c *Compactor) finishBlock(ctx context.Context, block *streamingBlock, l lo
 		return fmt.Errorf("error completing block: %w", err)
 	}
 
-	level.Info(l).Log("msg", "wrote compacted block",
+	level.Info(l).Log(
+		"msg", "wrote compacted block",
 		"version", block.meta.Version,
 		"tenantID", block.meta.TenantID,
 		"blockID", block.meta.BlockID.String(),

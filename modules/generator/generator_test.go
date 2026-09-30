@@ -14,15 +14,15 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/services"
-	"github.com/grafana/tempo/modules/generator/processor"
-	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
-	"github.com/grafana/tempo/modules/generator/storage"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/modules/overrides/histograms"
-	"github.com/grafana/tempo/pkg/tempopb"
-	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	trace_v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/v3/modules/generator/processor"
+	"github.com/grafana/tempo/v3/modules/generator/processor/spanmetrics"
+	"github.com/grafana/tempo/v3/modules/generator/storage"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/modules/overrides/histograms"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	common_v1 "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	trace_v1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/util/test"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
@@ -148,6 +148,10 @@ func (l testLogger) Log(keyvals ...interface{}) error {
 	return nil
 }
 
+// BenchmarkPushSpans measures WAL-inclusive pushSpans cost: randomized
+// test.MakeBatch fixtures pushed through an instance backed by a real WAL.
+// For deterministic, processor-only cost over a noop storage, use the
+// BenchmarkInstancePushSpans* suites in generator_benchmark_test.go.
 func BenchmarkPushSpans(b *testing.B) {
 	var (
 		tenant = "test-tenant"
