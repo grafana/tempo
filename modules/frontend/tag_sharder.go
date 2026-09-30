@@ -60,6 +60,7 @@ func (r *tagsSearchRequest) buildTagSearchBlockRequest(subR *http.Request, block
 	startPage int, pages int, m *backend.BlockMeta,
 ) (*http.Request, error) {
 	return api.BuildSearchTagsBlockRequest(subR, &tempopb.SearchTagsBlockRequest{
+		SearchReq:     &r.request,
 		BlockID:       blockID,
 		StartPage:     uint32(startPage),
 		PagesToSearch: uint32(pages),
@@ -115,6 +116,7 @@ func (r *tagValueSearchRequest) buildTagSearchBlockRequest(subR *http.Request, b
 	startPage int, pages int, m *backend.BlockMeta,
 ) (*http.Request, error) {
 	return api.BuildSearchTagValuesBlockRequest(subR, &tempopb.SearchTagValuesBlockRequest{
+		SearchReq:     &r.request,
 		BlockID:       blockID,
 		StartPage:     uint32(startPage),
 		PagesToSearch: uint32(pages),
