@@ -33,23 +33,6 @@ func Labels(c *compare.Comparison) (labels []string, numbered bool) {
 	return labels, true
 }
 
-// Leads lead each run's line of description: its name, padded so the
-// descriptions line up, after its number when runs are numbered to head
-// columns, so the lines are the key to them.
-func Leads(c *compare.Comparison) []string {
-	names := c.Names()
-	labels, numbered := Labels(c)
-	width := nameWidth(names)
-	leads := make([]string, len(names))
-	for i, name := range names {
-		leads[i] = fitName(name, width)
-		if numbered {
-			leads[i] = pad(labels[i], longest(labels)+1) + leads[i]
-		}
-	}
-	return leads
-}
-
 // Heading says how the runs were named and ordered, and which one the others
 // are compared against.
 func Heading(c *compare.Comparison, baseline int) string {
@@ -67,48 +50,73 @@ func Heading(c *compare.Comparison, baseline int) string {
 	return s + "; baseline " + c.Runs[baseline].Name
 }
 
-// Detail is one piece of how a run is described, with the kind of setting it is
-// about so a view can style it.
-type Detail struct {
-	Text string
-	Kind compare.Kind
+// RunsView says how the runs differ: how they were named and ordered, and how
+// each was set up against the baseline.
+type RunsView struct {
+	Heading string
+	// Numbered says the runs head columns by number, so each is listed with
+	// its number, as the key to them.
+	Numbered bool
+	Runs     []RunLine
 }
 
-// Describe says how a run was set up against the baseline: what it changed, or,
-// for the baseline itself, what the others are measured from. A change in where
-// a run happened is flagged, since latencies from two environments are hard to
-// compare.
-func Describe(c *compare.Comparison, run, baseline int) []Detail {
+// RunLine is one run: its name, and how it was set up against the baseline.
+type RunLine struct {
+	// Name is the run's name, shown as the run.
+	Name Text
+	// Label heads the run's columns.
+	Label   string
+	Details []Text
+}
+
+// Description runs a line's details together as plain text.
+func (r RunLine) Description() string {
+	texts := make([]string, len(r.Details))
+	for i, d := range r.Details {
+		texts[i] = d.Text
+	}
+	return strings.Join(texts, " · ")
+}
+
+// NewRuns describes every run against the baseline.
+func NewRuns(c *compare.Comparison, baseline int) RunsView {
+	labels, numbered := Labels(c)
+	v := RunsView{Heading: Heading(c, baseline), Numbered: numbered}
+	for i, name := range c.Names() {
+		v.Runs = append(v.Runs, RunLine{Name: runText(name, i, baseline), Label: labels[i], Details: describe(c, i, baseline)})
+	}
+	return v
+}
+
+// describe says how a run was set up against the baseline: what it changed, or,
+// for the baseline itself, what the others are measured from. What an
+// experiment varies reads plainly, a change in where a run happened is
+// flagged, since latencies from two environments are hard to compare, and
+// what followed from the rest recedes.
+func describe(c *compare.Comparison, run, baseline int) []Text {
 	if run == baseline {
-		details := []Detail{{Text: "baseline", Kind: compare.Setup}}
+		details := []Text{{Text: "baseline"}}
 		for _, s := range c.BaselineSettings(baseline) {
-			details = append(details, Detail{Text: s.String(), Kind: compare.Derived})
+			details = append(details, Text{Text: s.String(), Style: Dim})
 		}
 		return details
 	}
 
 	chs := c.Changes(run, baseline)
 	if len(chs) == 0 {
-		return []Detail{{Text: "same setup as the baseline", Kind: compare.Derived}}
+		return []Text{{Text: "same setup as the baseline", Style: Dim}}
 	}
-	details := make([]Detail, len(chs))
+	details := make([]Text, len(chs))
 	for i, ch := range chs {
-		text := ch.String()
-		if ch.Kind == compare.Environment {
-			text = "⚠ " + text
+		details[i] = Text{Text: ch.String()}
+		switch ch.Kind {
+		case compare.Environment:
+			details[i] = Text{Text: Flag + " " + ch.String(), Style: Warn}
+		case compare.Derived:
+			details[i].Style = Dim
 		}
-		details[i] = Detail{Text: text, Kind: ch.Kind}
 	}
 	return details
-}
-
-// DetailText runs a description's details together as plain text.
-func DetailText(details []Detail) string {
-	texts := make([]string, len(details))
-	for i, d := range details {
-		texts[i] = d.Text
-	}
-	return strings.Join(texts, " · ")
 }
 
 // Problems writes why runs cannot be compared with the baseline on a case, as

@@ -8,7 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/grafana/tempo/v3/pkg/benchmark/compare"
-	"github.com/grafana/tempo/v3/pkg/benchmark/compare/render"
+	"github.com/grafana/tempo/v3/pkg/benchmark/compare/render/markdown"
 )
 
 type benchmarkCompareCmd struct {
@@ -51,7 +51,7 @@ func (cmd *benchmarkCompareCmd) Run(_ *globalOptions) error {
 	}
 
 	if cmd.Format == "markdown" {
-		return render.WriteMarkdown(os.Stdout, c, metrics, stat, c.Baseline)
+		return markdown.Write(os.Stdout, c, metrics, stat, c.Baseline)
 	}
 	if !isTerminal(os.Stdout) {
 		return errors.New("the interactive view needs a terminal, use --format=markdown to write the comparison out")

@@ -1,8 +1,6 @@
 package main
 
 import (
-	"image/color"
-	"math"
 	"strings"
 	"unicode/utf8"
 
@@ -11,36 +9,18 @@ import (
 
 	"github.com/grafana/tempo/v3/pkg/benchmark/compare"
 	"github.com/grafana/tempo/v3/pkg/benchmark/compare/render"
+	"github.com/grafana/tempo/v3/pkg/benchmark/compare/render/term"
 )
 
 var (
-	// Runs are told apart by colour, which stays clear of the blue and orange
-	// changes are read in.
-	compareRunColors = []color.Color{
-		lipgloss.Color("170"), // magenta
-		lipgloss.Color("78"),  // green
-		lipgloss.Color("220"), // yellow
-		lipgloss.Color("45"),  // cyan
-		lipgloss.Color("141"), // purple
-		lipgloss.Color("205"), // pink
-		lipgloss.Color("37"),  // teal
-		lipgloss.Color("180"), // tan
-	}
-
-	compareTitleStyle = lipgloss.NewStyle().Bold(true)
-	compareDimStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("246"))
-	compareWarnStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+	compareTitleStyle = term.Style(render.Title)
+	compareDimStyle   = term.Style(render.Dim)
+	compareWarnStyle  = term.Style(render.Warn)
 	// Reverse video rather than a colour keeps the selection visible on light
 	// and dark themes alike.
 	compareSelectedStyle = lipgloss.NewStyle().Bold(true).Reverse(true)
-	compareTabStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("246")).Padding(0, 1)
+	compareTabStyle      = term.Style(render.Dim).Padding(0, 1)
 	compareActiveStyle   = lipgloss.NewStyle().Reverse(true).Bold(true).Padding(0, 1)
-
-	// Changes read blue when better and orange when worse, which holds for most
-	// colour-blind eyes too, and bold when large. Every default metric is
-	// better lower.
-	compareBetterText = lipgloss.NewStyle().Foreground(lipgloss.Color("33"))
-	compareWorseText  = lipgloss.NewStyle().Foreground(lipgloss.Color("208"))
 )
 
 const (
@@ -57,11 +37,14 @@ const (
 	compareDetail
 )
 
+var _ tea.Model = (*benchmarkCompareModel)(nil)
+
 // benchmarkCompareModel opens on a summary of every case, benchstat-style, and
-// drills into one case as box plots over a table.
+// drills into one case as box plots over a table. It holds what is on screen
+// and follows the keys; package render decides what a screen shows, and
+// package term lays it out and styles it.
 type benchmarkCompareModel struct {
 	cmp     *compare.Comparison
-	names   []string
 	metrics []string
 
 	screen   compareScreen
@@ -77,16 +60,14 @@ type benchmarkCompareModel struct {
 func newBenchmarkCompareModel(c *compare.Comparison, metrics []string, stat compare.Stat) *benchmarkCompareModel {
 	return &benchmarkCompareModel{
 		cmp:      c,
-		names:    c.Names(),
 		metrics:  metrics,
 		stat:     int(stat),
 		baseline: c.Baseline,
 	}
 }
 
-func (m *benchmarkCompareModel) Init() tea.Cmd {
-	return nil
-}
+// Init implements tea.Model
+func (m *benchmarkCompareModel) Init() tea.Cmd { return nil }
 
 func (m *benchmarkCompareModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -124,7 +105,7 @@ func (m *benchmarkCompareModel) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	case "left", "h", "shift+tab":
 		m.metric = (m.metric - 1 + len(m.metrics)) % len(m.metrics)
 	case "b":
-		m.baseline = (m.baseline + 1) % len(m.names)
+		m.baseline = (m.baseline + 1) % len(m.cmp.Runs)
 	}
 	return nil
 }
@@ -139,7 +120,7 @@ func (m *benchmarkCompareModel) View() tea.View {
 		help = compareDetailHelp
 	}
 	header := m.renderHeader()
-	footer := compareDimStyle.Render(render.Clip(help, m.width))
+	footer := compareDimStyle.Render(term.Clip(help, m.width))
 	bodyHeight := max(1, m.height-lipgloss.Height(header)-lipgloss.Height(footer))
 
 	var body string
@@ -161,20 +142,15 @@ func (m *benchmarkCompareModel) View() tea.View {
 
 func (m *benchmarkCompareModel) renderHeader() string {
 	fit := lipgloss.NewStyle().MaxWidth(m.width)
+	runs := render.NewRuns(m.cmp, m.baseline)
 	lines := []string{fit.Render(
-		compareTitleStyle.Render("tempo-cli benchmark compare") + "  " + compareDimStyle.Render(render.Heading(m.cmp, m.baseline)),
+		compareTitleStyle.Render("tempo-cli benchmark compare") + "  " + compareDimStyle.Render(runs.Heading),
 	)}
 
 	// One line per run, saying how it differs from the baseline. The lead is in
 	// the run's colour, so this doubles as the key to the tables and plots.
-	sep := compareDimStyle.Render(" · ")
-	for i, lead := range render.Leads(m.cmp) {
-		details := render.Describe(m.cmp, i, m.baseline)
-		parts := make([]string, len(details))
-		for j, d := range details {
-			parts[j] = compareDetailStyle(d.Kind).Render(d.Text)
-		}
-		lines = append(lines, fit.Render(m.runStyle(i).Render(lead)+strings.Join(parts, sep)))
+	for _, l := range term.Runs(runs) {
+		lines = append(lines, fit.Render(term.Paint(l)))
 	}
 	lines = append(lines, "")
 
@@ -204,25 +180,29 @@ func (m *benchmarkCompareModel) renderHeader() string {
 // renderSummary lays one metric of every case out as benchstat does, keeps the
 // selected case in view, and says under it why it is flagged, if it is.
 func (m *benchmarkCompareModel) renderSummary(height int) string {
-	st := render.NewSummaryTable(m.cmp, m.metrics[m.metric], compare.Stats[m.stat], m.baseline)
+	v := render.NewSummary(m.cmp, m.metrics[m.metric], compare.Stats[m.stat], m.baseline)
+	st := term.NewSummaryTable(v)
 	fit := lipgloss.NewStyle().MaxWidth(m.width)
 
 	top := []string{
-		compareTitleStyle.Render(render.Clip(st.Title, m.width)),
+		compareTitleStyle.Render(term.Clip(v.Title, m.width)),
 		"",
-		fit.Render("  " + m.renderLine(st.Header)),
+		fit.Render("  " + term.Paint(st.Header)),
 	}
-	selected := m.cmp.Cases[m.selected]
 	var bottom []string
-	for _, p := range render.Problems(m.cmp, selected, m.baseline) {
-		bottom = append(bottom, compareWarnStyle.Render(render.Clip("⚠ "+selected.ID+" "+p, m.width)))
+	for _, r := range v.Rows {
+		if r.Case == m.selected {
+			for _, p := range r.Problems {
+				bottom = append(bottom, compareWarnStyle.Render(term.Clip(render.Flag+" "+r.ID+" "+p, m.width)))
+			}
+		}
 	}
 
 	lines := make([]string, 0, len(st.Rows))
 	selectedLine := 0
 	for _, r := range st.Rows {
 		if r.Case < 0 {
-			lines = append(lines, fit.Render(" "+m.renderLine(r.Line)))
+			lines = append(lines, fit.Render(" "+term.Paint(r.Line)))
 			continue
 		}
 		marker, label := "  ", r.Line[0].Text
@@ -230,7 +210,7 @@ func (m *benchmarkCompareModel) renderSummary(height int) string {
 			selectedLine = len(lines)
 			marker, label = "▸ ", compareSelectedStyle.Render(label)
 		}
-		lines = append(lines, fit.Render(marker+label+m.renderLine(r.Line[1:])))
+		lines = append(lines, fit.Render(marker+label+term.Paint(r.Line[1:])))
 	}
 
 	// The title and the column names stay put while the rows scroll.
@@ -244,40 +224,6 @@ func compareScroll(selected, n, visible int) (first, last int) {
 	visible = max(1, visible)
 	first = max(0, selected-visible+1)
 	return first, min(n, first+visible)
-}
-
-// renderLine styles each segment by what it shows.
-func (m *benchmarkCompareModel) renderLine(l render.Line) string {
-	var b strings.Builder
-	for _, s := range l {
-		b.WriteString(m.segmentStyle(s).Render(s.Text))
-	}
-	return b.String()
-}
-
-func (m *benchmarkCompareModel) segmentStyle(s render.Segment) lipgloss.Style {
-	switch s.Kind {
-	case render.DimSegment:
-		return compareDimStyle
-	case render.WarnSegment:
-		return compareWarnStyle
-	case render.RunSegment:
-		return m.runStyle(s.Run)
-	case render.ChangeSegment:
-		return compareChangeText(s.Delta)
-	default:
-		return lipgloss.NewStyle()
-	}
-}
-
-// compareChangeText colours a change by which way it went, bold when it went
-// far.
-func compareChangeText(pct float64) lipgloss.Style {
-	style := compareWorseText
-	if pct < 0 {
-		style = compareBetterText
-	}
-	return style.Bold(math.Abs(pct) >= render.MajorChange)
 }
 
 // listWidth fits the longest case ID with its markers, up to a third of the
@@ -299,9 +245,9 @@ func (m *benchmarkCompareModel) renderList(width, height int) string {
 		cs := m.cmp.Cases[i]
 		flag := ""
 		if len(m.cmp.Problems(cs, m.baseline)) > 0 {
-			flag = " ⚠"
+			flag = " " + render.Flag
 		}
-		id := render.Clip(cs.ID, width-2-utf8.RuneCountInString(flag))
+		id := term.Clip(cs.ID, width-2-utf8.RuneCountInString(flag))
 		if i == m.selected {
 			lines = append(lines, compareSelectedStyle.Render("▸ "+id)+compareWarnStyle.Render(flag))
 			continue
@@ -312,59 +258,31 @@ func (m *benchmarkCompareModel) renderList(width, height int) string {
 }
 
 func (m *benchmarkCompareModel) renderDetail(width int) string {
-	cs := m.cmp.Cases[m.selected]
-	metric := m.metrics[m.metric]
-	s := cs.Series(metric)
+	v := render.NewCase(m.cmp, m.selected, m.metrics[m.metric], m.baseline)
 
-	lines := []string{compareTitleStyle.Render(render.Clip(render.Title(cs, metric), width))}
-	if cs.Query != "" {
-		lines = append(lines, compareDimStyle.Render(render.Clip("query: "+cs.Query, width)))
+	lines := []string{compareTitleStyle.Render(term.Clip(v.Title, width))}
+	if v.Query != "" {
+		lines = append(lines, compareDimStyle.Render(term.Clip("query: "+v.Query, width)))
 	}
 	lines = append(lines, "")
 
-	plot := render.BoxPlot(m.names, s, width)
-	for _, h := range plot.Header {
-		lines = append(lines, compareDimStyle.Render(h))
-	}
-	for i, row := range plot.Rows {
-		lines = append(lines, m.runStyle(i).Render(row))
+	plot := term.BoxPlot(v.Plot, width)
+	for _, l := range append(plot.Header, plot.Rows...) {
+		lines = append(lines, term.Paint(l))
 	}
 	lines = append(lines, "")
 
-	header, rows := render.Table(m.names, s, m.baseline)
-	lines = append(lines, compareDimStyle.Render(render.Clip(header, width)))
-	for i, row := range rows {
-		lines = append(lines, m.runStyle(i).Render(render.Clip(row, width)))
+	header, rows := term.Table(v.Table, width)
+	for _, l := range append([]term.Line{header}, rows...) {
+		lines = append(lines, term.Paint(l))
 	}
 	lines = append(lines, "")
 
-	for _, p := range render.Problems(m.cmp, cs, m.baseline) {
-		lines = append(lines, compareWarnStyle.Render(render.Clip("⚠ "+p, width)))
+	for _, p := range v.Problems {
+		lines = append(lines, compareWarnStyle.Render(term.Clip(render.Flag+" "+p, width)))
 	}
-	lines = append(lines, compareDimStyle.Render(render.Clip(render.Legend, width)))
+	lines = append(lines, compareDimStyle.Render(term.Clip(term.Legend, width)))
 	return strings.Join(lines, "\n")
-}
-
-// compareDetailStyle styles a piece of a run's description by what it is about:
-// what the experiment varies reads plainly, where it ran is flagged, and what
-// followed from the rest is dimmed.
-func compareDetailStyle(kind compare.Kind) lipgloss.Style {
-	switch kind {
-	case compare.Environment:
-		return compareWarnStyle
-	case compare.Derived:
-		return compareDimStyle
-	default:
-		return lipgloss.NewStyle()
-	}
-}
-
-// runStyle colours a run so its rows can be followed from plot to table. The
-// baseline is bold, since every delta is measured from it.
-func (m *benchmarkCompareModel) runStyle(i int) lipgloss.Style {
-	return lipgloss.NewStyle().
-		Foreground(compareRunColors[i%len(compareRunColors)]).
-		Bold(i == m.baseline)
 }
 
 // compareFit keeps the first height lines of s, so a view taller than the
