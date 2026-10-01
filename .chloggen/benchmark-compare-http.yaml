@@ -1,0 +1,5 @@
+change_type: enhancement
+component: tempo-cli
+note: Add `--http` to `tempo-cli benchmark compare` to explore a comparison in the browser, with the box plots of every metric of a case on one page.
+issues: []
+user: mapno

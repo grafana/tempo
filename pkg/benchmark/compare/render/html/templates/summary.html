@@ -1,0 +1,40 @@
+{{define "summary"}}{{template "head" .}}
+{{with .Summary}}
+<nav>{{range .Metrics}}<a href="{{.URL}}"{{if .Active}} class="active"{{end}}>{{.Label}}</a>{{end}}</nav>
+<nav>{{range .Stats}}<a href="{{.URL}}"{{if .Active}} class="active"{{end}}>{{.Label}}</a>{{end}}</nav>
+<h2>{{.Title}}</h2>
+<table class="data">
+  <thead>
+    <tr>
+      <th>case</th>
+      {{- range .Columns}}
+      <th class="sep{{with .Class}} {{.}}{{end}}"{{if not .Baseline}} colspan="2"{{end}} style="color: {{.Color}}">{{.Text}}</th>
+      {{- end}}
+    </tr>
+  </thead>
+  <tbody>
+  {{- range .Rows}}
+    {{- if .Group}}
+    <tr class="group"><th class="dim" colspan="99">{{.Group}}</th></tr>
+    {{- else}}
+    <tr>
+      <td><a href="{{.URL}}">{{.ID}}</a>{{if .Problems}} <span class="warn" title="{{range .Problems}}{{.}}&#10;{{end}}">⚠</span>{{end}}</td>
+      {{- range .Cells}}
+        {{- if .Incomparable}}
+      <td class="sep warn" colspan="2">not comparable</td>
+        {{- else if .Baseline}}
+      <td class="sep">{{.Value}}</td>
+        {{- else}}
+      <td class="sep">{{.Value}}</td><td{{with .Change.Class}} class="{{.}}"{{end}}>{{.Change.Text}}</td>
+        {{- end}}
+      {{- end}}
+    </tr>
+    {{- end}}
+  {{- end}}
+  </tbody>
+</table>
+{{if .Notes}}
+<ul class="notes warn">{{range .Notes}}<li>{{.}}</li>{{end}}</ul>
+{{end}}
+{{end}}
+{{template "foot"}}{{end}}

@@ -618,7 +618,8 @@ tempo-cli benchmark run /data/traces/single-tenant/ca314fba-efec-4852-ba3f-8d2b0
 ## Benchmark compare
 
 Compare two or more results from `benchmark run`,
-and write the comparison as markdown to stdout, to read or paste into a pull request.
+and write the comparison as markdown to stdout, to read or paste into a pull request,
+or serve it as web pages to explore.
 For each metric it lays every case out as benchstat does:
 the baseline's value, then each other run's value and its change from the baseline.
 
@@ -632,6 +633,19 @@ with the reason under the table:
 its match or execution count per pass differs, or it is missing the case or failed it.
 When a run's name is too long to head a column,
 runs are numbered, and listed with their numbers.
+
+With `--http`, it serves the comparison as web pages instead,
+rendered on each request as pprof's web view is.
+The summary page has a table per metric, with links to switch the metric and the percentile.
+Each case has a page with the box plots and table of every metric at once,
+and hovering a box plot's row shows its numbers.
+A box spans the 25th to 75th percentile, with a mark at the median.
+Its whisker runs from the minimum to the 99th percentile, with a tick at the 90th.
+The axis stops near the highest 99th percentile,
+so a maximum far past it is marked at the edge and written out,
+rather than squashing every box to make room for it.
+Clicking a run on either page makes it the baseline.
+As with pprof, an address without a host, like `:8080`, is served on localhost only.
 
 Arguments:
 
@@ -648,6 +662,8 @@ Options:
 - `--percentile` Percentile the summaries show:
   `min`, `p25`, `p50`, `p75`, `p90`, `p99`, or `max`.
   Defaults to `p99`, since tail latency is what hurts most.
+- `--http` Serve the comparison as web pages on this address, like `:8080`,
+  instead of writing markdown.
 
 A result given as a path is named after the settings that set it apart from the others:
 the run options and git SHA that differ between the runs,
@@ -670,11 +686,14 @@ since latencies from two environments are hard to compare.
 
 The summaries are per execution:
 one trace lookup, or one shard of a search, metrics, or tag-name query.
+The spread of a box is across those executions, not across repeated runs,
+so it describes how the inputs differ, not how noisy the measurement is.
 
 Example, where the runs are named `default`, `4MiB`, and `16MiB` from their read buffer sizes:
 
 ```bash
 tempo-cli benchmark compare main.json read-buffer-4mib.json read-buffer-16mib.json -k 'traceid/*' > comparison.md
+tempo-cli benchmark compare main.json read-buffer-4mib.json read-buffer-16mib.json --http=:8080
 ```
 
 ## Query search command

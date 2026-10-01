@@ -1,0 +1,52 @@
+{{define "head"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{.Title}} · tempo-cli benchmark compare</title>
+<style>
+  body { font: 14px/1.4 system-ui, sans-serif; margin: 1.5rem 2rem; color: #1f2328; }
+  a { color: inherit; }
+  h1 { font-size: 1.1rem; margin: 0 0 .25rem; }
+  h1 a { text-decoration: none; }
+  h2 { font-size: 1rem; margin: 1.5rem 0 .5rem; }
+  code, .mono, table.data td, table.data th, svg text { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  table.runs { border-collapse: collapse; margin: .5rem 0 1rem; }
+  table.runs td { padding: .1rem .75rem .1rem 0; vertical-align: top; }
+  table.runs a { text-decoration: none; }
+  table.runs .details span + span::before { content: " · "; color: #8c959f; }
+  nav { margin: .75rem 0; }
+  nav a { display: inline-block; padding: .15rem .5rem; margin-right: .25rem; border-radius: 4px; text-decoration: none; color: #57606a; }
+  nav a.active { background: #1f2328; color: #fff; }
+  table.data { border-collapse: collapse; }
+  table.data th, table.data td { padding: .15rem .6rem; text-align: right; white-space: nowrap; }
+  table.data th:first-child, table.data td:first-child { text-align: left; }
+  table.data thead th { border-bottom: 1px solid #d0d7de; }
+  table.data tr.group th { text-align: left; font-weight: normal; padding-top: .6rem; }
+  table.data td.sep { border-left: 1px solid #d0d7de; }
+  table.data tbody tr:hover td { background: #f6f8fa; }
+  svg.boxplot { display: block; margin: .5rem 0; }
+  svg.boxplot text { font-size: 12px; }
+  svg.boxplot .tick, svg.boxplot .nodata, svg.boxplot .clipped { fill: #57606a; }
+  svg.boxplot .axis { stroke: #8c959f; }
+  ul.notes { padding-left: 1.25rem; }
+{{.CSS}}</style>
+</head>
+<body>
+<header>
+  <h1><a href="/">tempo-cli benchmark compare</a></h1>
+  <div class="dim">{{.Heading}} · click a run to make it the baseline</div>
+  <table class="runs">
+  {{- range .Runs}}
+    <tr>
+      <td class="mono">{{if $.Numbered}}{{.Label}} {{end}}<a href="{{.URL}}" style="color: {{.Name.Color}}"{{with .Name.Class}} class="{{.}}"{{end}}>{{.Name.Text}}</a></td>
+      <td class="details">{{range .Details}}<span{{with .Class}} class="{{.}}"{{end}}>{{.Text}}</span>{{end}}</td>
+    </tr>
+  {{- end}}
+  </table>
+</header>
+{{end}}
+
+{{define "foot"}}
+</body>
+</html>
+{{end}}
