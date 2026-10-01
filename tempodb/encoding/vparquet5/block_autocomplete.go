@@ -117,6 +117,9 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 		if err != nil {
 			return fmt.Errorf("creating fetch iter: %w", err)
 		}
+		if iter == nil {
+			continue
+		}
 
 		done, iterErr := func() (bool, error) {
 			defer iter.Close()
@@ -273,6 +276,9 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 		iter, err := autocompleteIter(ctx, tr, pf, opts, b.meta.DedicatedColumns)
 		if err != nil {
 			return fmt.Errorf("creating fetch iter: %w", err)
+		}
+		if iter == nil {
+			continue
 		}
 
 		done, iterErr := func() (bool, error) {
@@ -1111,6 +1117,10 @@ func createDistinctResourceIterator(
 		iters = append(iters, spanIterator)
 	}
 
+	if len(iters) == 0 {
+		return nil, nil
+	}
+
 	return parquetquery.NewJoinIterator(DefinitionLevelResourceSpans, iters, batchCol), nil
 }
 
@@ -1168,6 +1178,10 @@ func createDistinctTraceIterator(
 	// or the time range filtering first?
 	if resourceIter != nil {
 		traceIters = append(traceIters, resourceIter)
+	}
+
+	if len(traceIters) == 0 {
+		return nil, nil
 	}
 
 	// Final trace iterator

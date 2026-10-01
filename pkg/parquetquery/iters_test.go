@@ -647,3 +647,16 @@ func (c *testCollector) Result() *IteratorResult {
 }
 
 func (c *testCollector) Close() {}
+
+func TestJoinIteratorNoIterators(t *testing.T) {
+	j := NewJoinIterator(0, nil, nil)
+	defer j.Close()
+
+	res, err := j.Next()
+	require.NoError(t, err)
+	require.Nil(t, res)
+
+	res, err = j.SeekTo(EmptyRowNumber(), 0)
+	require.NoError(t, err)
+	require.Nil(t, res)
+}

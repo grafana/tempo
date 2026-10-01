@@ -1319,3 +1319,26 @@ func BenchmarkFetchTags(b *testing.B) {
 		}
 	}
 }
+
+func TestFetchTagValuesNoIterators(t *testing.T) {
+	traceID, err := traceql.ParseIdentifier("trace:id")
+	require.NoError(t, err)
+	spanID, err := traceql.ParseIdentifier("span:id")
+	require.NoError(t, err)
+
+	block := makeBackendBlockWithTraces(t, []*Trace{fullyPopulatedTestTrace(common.ID{0})})
+
+	req := traceql.FetchTagValuesRequest{
+		TagName: spanID,
+		ConditionGroups: [][]traceql.Condition{{
+			{Attribute: traceID, Op: traceql.OpEqual, Operands: traceql.Operands{traceql.NewStaticString("cb68375b8e8f1171b5adc266711e1fdf")}},
+			{Attribute: spanID, Op: traceql.OpNone},
+		}},
+	}
+
+	distinctValues := collector.NewDistinctValue(1_000_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+	mc := collector.NewMetricsCollector()
+	err = block.FetchTagValues(t.Context(), req, traceql.MakeCollectTagValueFunc(distinctValues.Collect), mc.Add, common.DefaultSearchOptions())
+	require.NoError(t, err)
+	require.Empty(t, distinctValues.Values())
+}
