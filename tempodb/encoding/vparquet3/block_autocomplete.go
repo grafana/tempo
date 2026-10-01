@@ -105,30 +105,25 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 		}, pf, b.meta.DedicatedColumns, opts)
 	}
 
-	for i, iter := range iters {
-		done, iterErr := func() (bool, error) {
-			defer iter.Close()
-			for {
-				res, err := iter.Next()
-				if err != nil {
-					return false, err
-				}
-				if res == nil {
-					return false, nil
-				}
-				for _, oe := range res.OtherEntries {
-					scope := oe.Value.(traceql.AttributeScope)
-					key := tagNameKey{name: oe.Key, scope: scope}
-					sentKeys[key] = struct{}{}
-					if cb(oe.Key, scope) {
-						return true, nil // We have enough values
-					}
+	defer closeIters(iters)
+
+	for _, iter := range iters {
+		for {
+			res, err := iter.Next()
+			if err != nil {
+				return err
+			}
+			if res == nil {
+				break
+			}
+			for _, oe := range res.OtherEntries {
+				scope := oe.Value.(traceql.AttributeScope)
+				key := tagNameKey{name: oe.Key, scope: scope}
+				sentKeys[key] = struct{}{}
+				if cb(oe.Key, scope) {
+					return nil // We have enough values
 				}
 			}
-		}()
-		if iterErr != nil || done {
-			closeIters(iters[i+1:])
-			return iterErr
 		}
 	}
 
@@ -245,29 +240,24 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 		return searchTagValues(ctx, req.TagName, common.TagValuesCallbackV2(cb), pf, b.meta.DedicatedColumns, opts)
 	}
 
-	for i, iter := range iters {
-		done, iterErr := func() (bool, error) {
-			defer iter.Close()
-			for {
-				res, err := iter.Next()
-				if err != nil {
-					return false, err
-				}
-				if res == nil {
-					return false, nil
-				}
-				for _, oe := range res.OtherEntries {
-					v := oe.Value.(traceql.Static)
-					sentVals[v.MapKey()] = struct{}{}
-					if cb(v) {
-						return true, nil // We have enough values
-					}
+	defer closeIters(iters)
+
+	for _, iter := range iters {
+		for {
+			res, err := iter.Next()
+			if err != nil {
+				return err
+			}
+			if res == nil {
+				break
+			}
+			for _, oe := range res.OtherEntries {
+				v := oe.Value.(traceql.Static)
+				sentVals[v.MapKey()] = struct{}{}
+				if cb(v) {
+					return nil // We have enough values
 				}
 			}
-		}()
-		if iterErr != nil || done {
-			closeIters(iters[i+1:])
-			return iterErr
 		}
 	}
 
@@ -277,6 +267,8 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 // autocompleteIters creates an iterator for each tag request before any of them is run.
 // It returns nil iterators if any request can't be turned into an iterator. That request
 // doesn't filter anything, so the caller must answer with the unfiltered search instead.
+// Whether a request can be turned into an iterator depends only on its conditions, not
+// on the file. Returned iterators are owned by the caller, who must close them with closeIters.
 func autocompleteIters(ctx context.Context, trs []tagRequest, pf *parquet.File, opts common.SearchOptions, dc backend.DedicatedColumns) ([]parquetquery.Iterator, error) {
 	iters := make([]parquetquery.Iterator, 0, len(trs))
 	for _, tr := range trs {
