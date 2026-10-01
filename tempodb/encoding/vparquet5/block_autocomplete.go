@@ -8,6 +8,7 @@ import (
 	"github.com/grafana/tempo/v3/pkg/parquetquery"
 	v1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/pkg/util"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 	"github.com/parquet-go/parquet-go"
@@ -106,44 +107,47 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 		return ok
 	}
 
+	trs := make([]tagRequest, 0, len(req.ConditionGroups))
 	for _, condGroup := range req.ConditionGroups {
-		tr := tagRequest{
+		trs = append(trs, tagRequest{
 			conditions:    condGroup,
 			scope:         req.Scope,
 			existsTagName: existsTagName,
-		}
+		})
+	}
 
-		iter, err := autocompleteIter(ctx, tr, pf, opts, b.meta.DedicatedColumns)
-		if err != nil {
-			return fmt.Errorf("creating fetch iter: %w", err)
-		}
+	iters, err := autocompleteIters(ctx, trs, pf, opts, b.meta.DedicatedColumns)
+	if err != nil {
+		return err
+	}
+	if iters == nil {
+		return searchTags(ctx, req.Scope, func(t string, scope traceql.AttributeScope) {
+			cb(t, scope)
+		}, pf, b.meta.DedicatedColumns, opts)
+	}
 
-		done, iterErr := func() (bool, error) {
-			defer iter.Close()
-			for {
-				res, err := iter.Next()
-				if err != nil {
-					return false, err
-				}
-				if res == nil {
-					return false, nil
-				}
-				for _, oe := range res.OtherEntries {
-					scope := oe.Value.(traceql.AttributeScope)
-					key := tagNameKey{name: oe.Key, scope: scope}
-					sentKeys[key] = struct{}{}
-					if cb(oe.Key, scope) {
-						return true, nil // We have enough values
-					}
+	defer closeIters(iters)
+
+	for i, iter := range iters {
+		for {
+			res, err := iter.Next()
+			if err != nil {
+				return err
+			}
+			if res == nil {
+				break
+			}
+			for _, oe := range res.OtherEntries {
+				scope := oe.Value.(traceql.AttributeScope)
+				key := tagNameKey{name: oe.Key, scope: scope}
+				sentKeys[key] = struct{}{}
+				if cb(oe.Key, scope) {
+					return nil // We have enough values
 				}
 			}
-		}()
-		if iterErr != nil {
-			return iterErr
 		}
-		if done {
-			return nil
-		}
+		iter.Close()
+		iters[i] = nil
 	}
 
 	tagNamesForSpecialColumns(req.Scope, pf, b.meta.DedicatedColumns, cb)
@@ -263,46 +267,75 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 		return ok
 	}
 
+	trs := make([]tagRequest, 0, len(req.ConditionGroups))
 	for _, condGroup := range req.ConditionGroups {
-		tr := tagRequest{
+		trs = append(trs, tagRequest{
 			conditions:     condGroup,
 			tag:            req.TagName,
 			existsTagValue: existsTagValue,
-		}
+		})
+	}
 
-		iter, err := autocompleteIter(ctx, tr, pf, opts, b.meta.DedicatedColumns)
-		if err != nil {
-			return fmt.Errorf("creating fetch iter: %w", err)
-		}
+	iters, err := autocompleteIters(ctx, trs, pf, opts, b.meta.DedicatedColumns)
+	if err != nil {
+		return err
+	}
+	if iters == nil {
+		return searchTagValues(ctx, req.TagName, common.TagValuesCallbackV2(cb), pf, b.meta.DedicatedColumns, opts)
+	}
 
-		done, iterErr := func() (bool, error) {
-			defer iter.Close()
-			for {
-				res, err := iter.Next()
-				if err != nil {
-					return false, err
-				}
-				if res == nil {
-					return false, nil
-				}
-				for _, oe := range res.OtherEntries {
-					v := oe.Value.(traceql.Static)
-					sentVals[v.MapKey()] = struct{}{}
-					if cb(v) {
-						return true, nil // We have enough values
-					}
+	defer closeIters(iters)
+
+	for i, iter := range iters {
+		for {
+			res, err := iter.Next()
+			if err != nil {
+				return err
+			}
+			if res == nil {
+				break
+			}
+			for _, oe := range res.OtherEntries {
+				v := oe.Value.(traceql.Static)
+				sentVals[v.MapKey()] = struct{}{}
+				if cb(v) {
+					return nil // We have enough values
 				}
 			}
-		}()
-		if iterErr != nil {
-			return iterErr
 		}
-		if done {
-			return nil
-		}
+		iter.Close()
+		iters[i] = nil
 	}
 
 	return nil
+}
+
+// autocompleteIters builds an iterator per request, or returns nil if any request has none.
+// The caller then falls back to the unfiltered search.
+func autocompleteIters(ctx context.Context, trs []tagRequest, pf *parquet.File, opts common.SearchOptions, dc backend.DedicatedColumns) ([]parquetquery.Iterator, error) {
+	iters := make([]parquetquery.Iterator, 0, len(trs))
+	for _, tr := range trs {
+		iter, err := autocompleteIter(ctx, tr, pf, opts, dc)
+		if err != nil {
+			closeIters(iters)
+			return nil, fmt.Errorf("creating fetch iter: %w", err)
+		}
+		if iter == nil {
+			closeIters(iters)
+			return nil, nil
+		}
+		iters = append(iters, iter)
+	}
+	return iters, nil
+}
+
+// closeIters closes the iterators that aren't closed yet.
+func closeIters(iters []parquetquery.Iterator) {
+	for _, iter := range iters {
+		if iter != nil {
+			iter.Close()
+		}
+	}
 }
 
 // autocompleteIter creates an iterator that will collect values for a given attribute/tag.
@@ -576,10 +609,17 @@ func createDistinctSpanIterator(
 		// Intrinsic?
 		switch cond.Attribute.Intrinsic {
 
-		case traceql.IntrinsicSpanID,
-			traceql.IntrinsicSpanStartTime:
-			// Metadata conditions not necessary, we don't need to fetch them
-			// TODO: Add support if they're added to TraceQL
+		case traceql.IntrinsicSpanID:
+			pred, err := createBytesPredicate(cond.Op, cond.Operands, true)
+			if err != nil {
+				return nil, err
+			}
+			addPredicate(columnPathSpanID, pred)
+			addSelectAs(cond.Attribute, columnPathSpanID, columnPathSpanID)
+			continue
+
+		case traceql.IntrinsicSpanStartTime:
+			// Not supported in TraceQL, nothing to fetch
 			continue
 
 		case traceql.IntrinsicName:
@@ -1111,6 +1151,11 @@ func createDistinctResourceIterator(
 		iters = append(iters, spanIterator)
 	}
 
+	// Nothing to join
+	if len(iters) == 0 {
+		return nil, nil
+	}
+
 	return parquetquery.NewJoinIterator(DefinitionLevelResourceSpans, iters, batchCol), nil
 }
 
@@ -1135,8 +1180,16 @@ func createDistinctTraceIterator(
 	// otherwise we just pass the info up to the engine to make a choice
 	for _, cond := range conds {
 		switch cond.Attribute.Intrinsic {
-		case traceql.IntrinsicTraceID, traceql.IntrinsicTraceStartTime:
-			// metadata conditions not necessary, we don't need to fetch them
+		case traceql.IntrinsicTraceID:
+			var pred parquetquery.Predicate
+			pred, err = createBytesPredicate(cond.Op, cond.Operands, false)
+			if err != nil {
+				return nil, err
+			}
+			traceIters = append(traceIters, makeIter(columnPathTraceID, pred, selectAs(cond.Attribute, columnPathTraceID)))
+
+		case traceql.IntrinsicTraceStartTime:
+			// Not supported in TraceQL, nothing to fetch
 
 		case traceql.IntrinsicTraceDuration:
 			var pred parquetquery.Predicate
@@ -1168,6 +1221,11 @@ func createDistinctTraceIterator(
 	// or the time range filtering first?
 	if resourceIter != nil {
 		traceIters = append(traceIters, resourceIter)
+	}
+
+	// Nothing to join
+	if len(traceIters) == 0 {
+		return nil, nil
 	}
 
 	// Final trace iterator
@@ -1308,8 +1366,9 @@ func mapLinkAttr(_ entry) traceql.Static {
 
 func mapSpanAttr(e entry) traceql.Static {
 	switch e.Key {
-	case columnPathSpanID,
-		columnPathSpanParentID,
+	case columnPathSpanID:
+		return traceql.NewStaticString(util.SpanIDToHexString(e.Value.ByteArray()))
+	case columnPathSpanParentID,
 		columnPathSpanNestedSetLeft,
 		columnPathSpanNestedSetRight,
 		columnPathSpanStartTime:
@@ -1394,7 +1453,9 @@ func mapResourceAttr(e entry) traceql.Static {
 
 func mapTraceAttr(e entry) traceql.Static {
 	switch e.Key {
-	case columnPathTraceID, columnPathEndTimeUnixNano, columnPathStartTimeUnixNano: // No TraceQL intrinsics for these
+	case columnPathTraceID:
+		return traceql.NewStaticString(util.TraceIDToHexString(e.Value.ByteArray()))
+	case columnPathEndTimeUnixNano, columnPathStartTimeUnixNano: // No TraceQL intrinsics for these
 	case columnPathDurationNanos:
 		return traceql.NewStaticDuration(time.Duration(e.Value.Int64()))
 	case columnPathRootSpanName:
