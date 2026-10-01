@@ -1,0 +1,5 @@
+change_type: enhancement
+component: tempo-cli
+note: Add `--backend-latency` and `--backend-bandwidth` to `tempo-cli benchmark run` to simulate an object store.
+issues: []
+user: zhxiaogg

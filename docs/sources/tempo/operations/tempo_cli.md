@@ -566,9 +566,14 @@ Options:
 - `--search-limit` Traces a search returns per shard. Defaults to `20`.
 - `--max-series` Series a metrics query returns. Defaults to `1000`.
 - `--exemplars` Exemplars a metrics query collects. Defaults to `0`.
-- `--read-buffer-size`, `--read-buffer-count`, `--chunk-size-bytes`,
-  `--prefetch-trace-count` Storage read options. Each defaults to `0`, meaning
-  Tempo's default. These are the knobs an experiment varies.
+- `--read-buffer-size` Storage read buffer size, such as `8MiB`. Defaults to
+  `0`, meaning Tempo's default. This is the knob an experiment varies.
+- `--backend-latency`, `--backend-bandwidth` Simulate an object store: every
+  backend request waits the latency plus its size over the bandwidth, a size per
+  second such as `100MiB`. Each defaults to `0`, which reads the local block as
+  is. Without them, a local read costs almost nothing, so an option that trades
+  request count for bytes read, like `--read-buffer-size`, only shows up in
+  `backend.*` and not in latency.
 
 Each case records how many results it matched, and one `metrics` map. Two runs
 are only comparable if the match counts agree, so a difference there means the

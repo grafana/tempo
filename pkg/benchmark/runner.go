@@ -32,7 +32,8 @@ func Run(ctx context.Context, blockPath string, profile *BlockProfile, opts RunO
 		return nil, errors.New(`profile was built with --trace-ids=all, which embeds no IDs; rebuild it with a count`)
 	}
 
-	counter := &metrics.CountingReader{RawReader: raw}
+	simulated := metrics.NewSimulatedReader(raw, opts.BackendLatency, opts.BackendBandwidth)
+	counter := &metrics.CountingReader{RawReader: simulated}
 	block, err := encoding.OpenBlock(meta, backend.NewReader(counter))
 	if err != nil {
 		return nil, fmt.Errorf("opening block: %w", err)
