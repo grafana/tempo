@@ -285,9 +285,7 @@ func compareAnyValues(a, b *v1.AnyValue) int {
 	}
 	if sa, ok := a.GetValue().(*v1.AnyValue_StringValue); ok {
 		if sb, ok := b.GetValue().(*v1.AnyValue_StringValue); ok {
-			if sa.StringValue == sb.StringValue {
-				return 0
-			}
+			return cmp.Compare(sa.StringValue, sb.StringValue)
 		}
 	}
 	return cmp.Compare(a.String(), b.String())

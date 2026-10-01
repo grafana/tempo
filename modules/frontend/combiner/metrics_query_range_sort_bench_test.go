@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSortResponsePreservesAnyValueTextOrder(t *testing.T) {
+func TestSortResponseAnyValueOrder(t *testing.T) {
 	values := []*v1.AnyValue{
 		nil,
 		{},
@@ -49,7 +49,14 @@ func TestSortResponsePreservesAnyValueTextOrder(t *testing.T) {
 			}
 			want := append([]*tempopb.TimeSeries(nil), series...)
 			sort.SliceStable(want, func(i, j int) bool {
-				return want[i].Labels[0].Value.String() < want[j].Labels[0].Value.String()
+				left := want[i].Labels[0].Value
+				right := want[j].Labels[0].Value
+				if _, ok := left.GetValue().(*v1.AnyValue_StringValue); ok {
+					if _, ok := right.GetValue().(*v1.AnyValue_StringValue); ok {
+						return left.GetStringValue() < right.GetStringValue()
+					}
+				}
+				return left.String() < right.String()
 			})
 
 			sortResponse(&tempopb.QueryRangeResponse{Series: series})
@@ -60,18 +67,37 @@ func TestSortResponsePreservesAnyValueTextOrder(t *testing.T) {
 	}
 }
 
-func TestCompareAnyValuesMatchesTextOrderForEveryByte(t *testing.T) {
+func TestCompareAnyValuesMatchesStringOrderForEveryByte(t *testing.T) {
 	values := make([]*v1.AnyValue, 256)
 	for i := range values {
 		values[i] = &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: string([]byte{byte(i)})}}
 	}
 	for i, a := range values {
 		for j, b := range values {
-			want := cmp.Compare(a.String(), b.String())
+			want := cmp.Compare(a.GetStringValue(), b.GetStringValue())
 			got := compareAnyValues(a, b)
 			require.Equal(t, want, got, "bytes %d and %d", i, j)
 		}
 	}
+}
+
+func TestSortResponseEqualStringLabels(t *testing.T) {
+	newSeries := func(instance string) *tempopb.TimeSeries {
+		return &tempopb.TimeSeries{Labels: []v1.KeyValue{
+			{Key: "service", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "checkout"}}},
+			{Key: "instance", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: instance}}},
+		}}
+	}
+	first := newSeries("a")
+	second := newSeries("a ")
+	duplicate := newSeries("a")
+	response := &tempopb.QueryRangeResponse{Series: []*tempopb.TimeSeries{second, first, duplicate}}
+
+	sortResponse(response)
+
+	require.Same(t, first, response.Series[0])
+	require.Same(t, duplicate, response.Series[1])
+	require.Same(t, second, response.Series[2])
 }
 
 func BenchmarkQueryRangeHTTPFinalWithStringLabels(b *testing.B) {
