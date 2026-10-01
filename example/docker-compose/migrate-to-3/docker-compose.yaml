@@ -40,7 +40,7 @@ services:
   # To switch traffic between v2 and v3, edit the ALLOY_OTLP_UPSTREAM env var
   # (in .env or inline) and `docker compose up -d alloy`.
   alloy:
-    image: grafana/alloy:v1.18.1@sha256:0f4434c92b3e6cdac38bb129b344e1790c246f7b6e2eaffcc16a5fa363240e33
+    image: grafana/alloy:v1.20.1@sha256:2aa2099af76c0098d4af7a4d6e48f86cb66dc1a000222ad927a1c67c6542d13f
     volumes:
       - ./config.alloy:/etc/alloy/config.alloy
     command:
