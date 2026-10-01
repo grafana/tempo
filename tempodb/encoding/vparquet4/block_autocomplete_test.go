@@ -1212,8 +1212,7 @@ func TestFetchTagValuesWithIDIntrinsics(t *testing.T) {
 		expectedValues []tempopb.TagValue
 	}{
 		{
-			// Partial query sent by the Grafana query builder that crashed queriers:
-			// both conditions were skipped, leaving a join iterator with no children.
+			// Partial query from the Grafana query builder that crashed queriers
 			name:           "span:id with empty trace:id and incomplete span:id",
 			tag:            "span:id",
 			query:          `{ trace:id = "" && span:id = }`,
@@ -1277,8 +1276,7 @@ func TestFetchTagValuesWithIDIntrinsics(t *testing.T) {
 }
 
 func TestFetchTagValuesAllConditionsUnsupported(t *testing.T) {
-	// Start time intrinsics are not handled by the autocomplete iterators. A condition
-	// group made only of them must not build an empty join iterator.
+	// A group of only start time conditions has no iterator.
 	block := makeBackendBlockWithTraces(t, []*Trace{fullyPopulatedTestTrace(common.ID{0})})
 
 	for _, intrinsic := range []traceql.Intrinsic{traceql.IntrinsicTraceStartTime, traceql.IntrinsicSpanStartTime} {
@@ -1311,10 +1309,7 @@ func TestFetchTagValuesAllConditionsUnsupported(t *testing.T) {
 }
 
 func TestFetchTagsUnfilteredGroupFallsBackBeforeAnyGroupRuns(t *testing.T) {
-	// A group made only of unsupported conditions can't be turned into an iterator, it doesn't
-	// filter anything and the request is answered by the unfiltered search. No other group
-	// must run before that, and the already opened file must be reused, so the request reads
-	// exactly what the unsupported group alone reads.
+	// No group runs before falling back to the unfiltered search, so an extra group reads nothing.
 	block := makeBackendBlockWithTraces(t, []*Trace{fullyPopulatedTestTrace(common.ID{0})})
 
 	var (

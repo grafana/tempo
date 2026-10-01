@@ -294,11 +294,8 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 	return nil
 }
 
-// autocompleteIters creates an iterator for each tag request before any of them is run.
-// It returns nil iterators if any request can't be turned into an iterator. That request
-// doesn't filter anything, so the caller must answer with the unfiltered search instead.
-// Whether a request can be turned into an iterator depends only on its conditions, not
-// on the file. Returned iterators are owned by the caller, who must close them with closeIters.
+// autocompleteIters builds an iterator per request, or returns nil if any request has none.
+// The caller then falls back to the unfiltered search.
 func autocompleteIters(ctx context.Context, trs []tagRequest, pf *parquet.File, opts common.SearchOptions, dc backend.DedicatedColumns) ([]parquetquery.Iterator, error) {
 	iters := make([]parquetquery.Iterator, 0, len(trs))
 	for _, tr := range trs {
@@ -1102,7 +1099,7 @@ func createDistinctResourceIterator(
 		iters = append(iters, spanIterator)
 	}
 
-	// Nothing to join, a join iterator without iterators is invalid
+	// Nothing to join
 	if len(iters) == 0 {
 		return nil, nil
 	}
@@ -1174,7 +1171,7 @@ func createDistinctTraceIterator(
 		traceIters = append(traceIters, resourceIter)
 	}
 
-	// Nothing to join, a join iterator without iterators is invalid
+	// Nothing to join
 	if len(traceIters) == 0 {
 		return nil, nil
 	}

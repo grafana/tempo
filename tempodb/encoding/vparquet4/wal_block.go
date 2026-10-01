@@ -846,7 +846,7 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValue
 			return err
 		}
 		if unfiltered {
-			// Only the first file can get here, since it doesn't depend on the file.
+			// Not file dependent, so only reached on the first file
 			return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), mcb, common.DefaultSearchOptions())
 		}
 		if done {
@@ -953,7 +953,7 @@ func (b *walBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsReque
 			return err
 		}
 		if unfiltered {
-			// Only the first file can get here, since it doesn't depend on the file.
+			// Not file dependent, so only reached on the first file
 			return b.SearchTags(ctx, req.Scope, func(t string, scope traceql.AttributeScope) {
 				cb(t, scope)
 			}, mcb, opts)

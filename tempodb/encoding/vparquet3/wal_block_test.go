@@ -589,8 +589,7 @@ func TestWalBlockFetchTagValuesWithIDIntrinsics(t *testing.T) {
 		}
 		sort.Strings(spanIDs)
 
-		// Span IDs with a leading zero byte can't be matched by span:id: HexStringToSpanID
-		// drops leading zeros. Filter on one without.
+		// HexStringToSpanID drops leading zeros, so those span IDs can't be matched
 		filterSpanID := ""
 		for _, id := range spanIDs {
 			if !strings.HasPrefix(id, "00") {
@@ -654,8 +653,7 @@ func TestWalBlockFetchTagValuesWithIDIntrinsics(t *testing.T) {
 }
 
 func TestWalBlockFetchTagsAllConditionsUnsupported(t *testing.T) {
-	// Start time intrinsics are not handled by the autocomplete iterators. A condition
-	// group made only of them can't be turned into an iterator.
+	// A group of only start time conditions has no iterator.
 	testWalBlock(t, func(w *walBlock, _ []common.ID, _ []*tempopb.Trace) {
 		for _, intrinsic := range []traceql.Intrinsic{traceql.IntrinsicTraceStartTime, traceql.IntrinsicSpanStartTime} {
 			t.Run(intrinsic.String(), func(t *testing.T) {
@@ -688,9 +686,7 @@ func TestWalBlockFetchTagsAllConditionsUnsupported(t *testing.T) {
 }
 
 func TestWalBlockFetchTagsUnfilteredGroupFallsBackBeforeAnyGroupRuns(t *testing.T) {
-	// A group made only of unsupported conditions doesn't filter anything and the request is
-	// answered by the unfiltered search. No other group must run before that, so the request
-	// reads exactly what the unsupported group alone reads.
+	// No group runs before falling back to the unfiltered search, so an extra group reads nothing.
 	testWalBlock(t, func(w *walBlock, _ []common.ID, _ []*tempopb.Trace) {
 		var (
 			startTime   = traceql.NewIntrinsic(traceql.IntrinsicSpanStartTime)
