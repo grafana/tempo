@@ -19,12 +19,19 @@ func TestWrite(t *testing.T) {
 	md := b.String()
 
 	require.Contains(t, md, "### Benchmark comparison\n\nRuns in order of readBufferSize; baseline base.\n\n")
-	require.Contains(t, md, "| run | setup |\n|:--|:--|\n| **base** | baseline · readBufferSize default")
-	require.Contains(t, md, "| **4\\|MiB** | readBufferSize default → 4MiB |\n")
+	// The runs' table is padded too, both its columns aligned left.
+	require.Contains(t, md, "| run        | setup ")
+	require.Contains(t, md, "| :--------- | :----")
+	require.Contains(t, md, "| **4\\|MiB** | readBufferSize default → 4MiB ")
 	require.Contains(t, md, "#### harness.wallNs · p50 per execution\n\nChange from base.\n\n")
-	require.Contains(t, md, "| case | base | again | | 2MiB | | 4\\|MiB | |\n|:--|--:|--:|--:|--:|--:|--:|--:|\n")
-	require.Contains(t, md, "| traceid/present | 100ns | 104ns | +4.0% | 98ns | -2.0% | 87ns | **-13.0%** |\n", "a large change stands out")
-	require.Contains(t, md, "| search/nopredicate ⚠ | 10ns | 10ns | 0% | 10ns | 0% | not comparable | |\n")
+
+	// Columns are padded to line up, the case aligned left and numbers right,
+	// so the table reads in a terminal as it does rendered.
+	require.Contains(t, md, ""+
+		"| case                 |  base | again |       | 2MiB |       |         4\\|MiB |            |\n"+
+		"| :------------------- | ----: | ----: | ----: | ---: | ----: | -------------: | ---------: |\n"+
+		"| traceid/present      | 100ns | 104ns | +4.0% | 98ns | -2.0% |           87ns | **-13.0%** |\n"+
+		"| search/nopredicate ⚠ |  10ns |  10ns |    0% | 10ns |    0% | not comparable |            |\n")
 	require.Contains(t, md, "\n- ⚠ search/nopredicate vs 4\\|MiB: matched 5 vs 6\n")
 	require.NotContains(t, md, "traceByID", "headings are for the terminal; a markdown table stays flat")
 
@@ -32,7 +39,7 @@ func TestWrite(t *testing.T) {
 	c.Runs[3].Name = "a-long-name-for-4MiB"
 	b.Reset()
 	require.NoError(t, Write(&b, c, []string{"harness.wallNs"}, compare.P50, 0))
-	require.Contains(t, b.String(), "| #4 **a-long-name-for-4MiB** | readBufferSize default → 4MiB |\n")
-	require.Contains(t, b.String(), "| case | #1 | #2 | | #3 | | #4 | |\n")
+	require.Contains(t, b.String(), "| #4 **a-long-name-for-4MiB** | readBufferSize default → 4MiB ")
+	require.Contains(t, b.String(), "| case                 |    #1 |    #2 |       |   #3 |       |             #4 |            |\n")
 	require.Contains(t, b.String(), "Change from #1.\n")
 }

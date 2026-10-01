@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/grafana/tempo/v3/pkg/benchmark/compare"
 	"github.com/grafana/tempo/v3/pkg/benchmark/compare/render"
@@ -17,30 +18,28 @@ func Write(w io.Writer, c *compare.Comparison, metrics []string, stat compare.St
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "### Benchmark comparison\n\n%s.\n\n", escape(strings.ToUpper(runs.Heading[:1])+runs.Heading[1:]))
-	b.WriteString("| run | setup |\n|:--|:--|\n")
+	rows := [][]string{{"run", "setup"}}
 	for _, r := range runs.Runs {
 		name := "**" + escape(r.Name.Text) + "**"
 		if runs.Numbered {
 			name = r.Label + " " + name
 		}
-		fmt.Fprintf(&b, "| %s | %s |\n", name, escape(r.Description()))
+		rows = append(rows, []string{name, escape(r.Description())})
 	}
+	table(&b, rows, false)
 
 	for _, metric := range metrics {
 		v := render.NewSummary(c, metric, stat, baseline)
 		base := escape(v.Columns[baseline].Text)
 		fmt.Fprintf(&b, "\n#### %s · %s per execution\n\nChange from %s.\n\n", metric, stat, base)
 
-		b.WriteString("| case | " + base + " |")
-		align := "|:--|--:|"
+		header := []string{"case", base}
 		for run, col := range v.Columns {
 			if run != baseline {
-				b.WriteString(" " + escape(col.Text) + " | |")
-				align += "--:|--:|"
+				header = append(header, escape(col.Text), "")
 			}
 		}
-		b.WriteString("\n" + align + "\n")
-
+		rows := [][]string{header}
 		for _, r := range v.Rows {
 			if r.Group != "" {
 				continue
@@ -49,18 +48,20 @@ func Write(w io.Writer, c *compare.Comparison, metrics []string, stat compare.St
 			if len(r.Problems) > 0 {
 				label += " " + render.Flag
 			}
-			fmt.Fprintf(&b, "| %s | %s |", escape(label), r.Cells[baseline].Value)
+			row := []string{escape(label), r.Cells[baseline].Value}
 			for run, cell := range r.Cells {
 				switch {
 				case run == baseline:
 				case cell.Incomparable:
-					fmt.Fprintf(&b, " %s | |", render.NotComparable)
+					row = append(row, render.NotComparable, "")
 				default:
-					fmt.Fprintf(&b, " %s | %s |", cell.Value, change(cell.Change))
+					row = append(row, cell.Value, change(cell.Change))
 				}
 			}
-			b.WriteString("\n")
+			rows = append(rows, row)
 		}
+		table(&b, rows, true)
+
 		if notes := v.Notes(); len(notes) > 0 {
 			b.WriteString("\n")
 			for _, n := range notes {
@@ -73,6 +74,47 @@ func Write(w io.Writer, c *compare.Comparison, metrics []string, stat compare.St
 		return fmt.Errorf("writing markdown: %w", err)
 	}
 	return nil
+}
+
+// table writes rows as a markdown table, the first its header, with each
+// column padded to line up so the table reads in a terminal as it does
+// rendered. The first column is aligned left, and so are the rest unless they
+// are numbers.
+func table(b *strings.Builder, rows [][]string, numbers bool) {
+	widths := make([]int, len(rows[0]))
+	for _, row := range rows {
+		for i, cell := range row {
+			// An alignment marker needs three characters.
+			widths[i] = max(widths[i], 3, utf8.RuneCountInString(cell))
+		}
+	}
+	right := func(i int) bool { return numbers && i > 0 }
+
+	line := func(cells []string) {
+		for i, cell := range cells {
+			gap := strings.Repeat(" ", widths[i]-utf8.RuneCountInString(cell))
+			if right(i) {
+				cell = gap + cell
+			} else {
+				cell += gap
+			}
+			b.WriteString("| " + cell + " ")
+		}
+		b.WriteString("|\n")
+	}
+
+	line(rows[0])
+	align := make([]string, len(widths))
+	for i, w := range widths {
+		align[i] = ":" + strings.Repeat("-", w-1)
+		if right(i) {
+			align[i] = strings.Repeat("-", w-1) + ":"
+		}
+	}
+	line(align)
+	for _, row := range rows[1:] {
+		line(row)
+	}
 }
 
 // change writes a change, in bold when it stands out.
