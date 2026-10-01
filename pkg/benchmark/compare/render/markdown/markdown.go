@@ -56,7 +56,7 @@ func Write(w io.Writer, c *compare.Comparison, metrics []string, stat compare.St
 				case cell.Incomparable:
 					fmt.Fprintf(&b, " %s | |", render.NotComparable)
 				default:
-					fmt.Fprintf(&b, " %s | %s |", cell.Value, cell.Change.Text)
+					fmt.Fprintf(&b, " %s | %s |", cell.Value, change(cell.Change))
 				}
 			}
 			b.WriteString("\n")
@@ -73,6 +73,14 @@ func Write(w io.Writer, c *compare.Comparison, metrics []string, stat compare.St
 		return fmt.Errorf("writing markdown: %w", err)
 	}
 	return nil
+}
+
+// change writes a change, in bold when it stands out.
+func change(t render.Text) string {
+	if t.Text != "" && t.Style.Bold() {
+		return "**" + t.Text + "**"
+	}
+	return t.Text
 }
 
 // escape keeps text from breaking a markdown table.

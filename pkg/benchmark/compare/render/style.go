@@ -21,9 +21,8 @@ const (
 	MuchBetter
 	Worse
 	MuchWorse
-	// RunName shows something as the run it belongs to, in the run's colour,
-	// and BaselineName as the baseline, in bold too, since every change is
-	// measured from it.
+	// RunName shows something as the run it belongs to, and BaselineName as
+	// the baseline, which stands out since every change is measured from it.
 	RunName
 	BaselineName
 )
@@ -38,51 +37,6 @@ type Text struct {
 	Style Style
 	// Run is the run a RunName or BaselineName piece belongs to.
 	Run int
-}
-
-// Color is a colour, as each output writes it.
-type Color struct {
-	// ANSI is its number in the 256 colours terminals share.
-	ANSI string
-}
-
-var (
-	dimColor  = Color{ANSI: "246"}
-	warnColor = Color{ANSI: "214"}
-	// Blue for better and orange for worse read for most colour-blind eyes
-	// as well.
-	betterColor = Color{ANSI: "33"}
-	worseColor  = Color{ANSI: "208"}
-	// runColors tell runs apart, and stay clear of the blue and orange changes
-	// are read in.
-	runColors = []Color{
-		{ANSI: "170"}, // magenta
-		{ANSI: "78"},  // green
-		{ANSI: "220"}, // yellow
-		{ANSI: "45"},  // cyan
-		{ANSI: "141"}, // purple
-		{ANSI: "205"}, // pink
-		{ANSI: "37"},  // teal
-		{ANSI: "180"}, // tan
-	}
-)
-
-// Color is the colour a piece is shown in, if it has one.
-func (t Text) Color() (Color, bool) {
-	switch t.Style {
-	case Dim:
-		return dimColor, true
-	case Warn:
-		return warnColor, true
-	case Better, MuchBetter:
-		return betterColor, true
-	case Worse, MuchWorse:
-		return worseColor, true
-	case RunName, BaselineName:
-		return runColors[t.Run%len(runColors)], true
-	default:
-		return Color{}, false
-	}
 }
 
 // Bold says whether a piece in this style stands out.

@@ -23,7 +23,7 @@ func TestWrite(t *testing.T) {
 	require.Contains(t, md, "| **4\\|MiB** | readBufferSize default → 4MiB |\n")
 	require.Contains(t, md, "#### harness.wallNs · p50 per execution\n\nChange from base.\n\n")
 	require.Contains(t, md, "| case | base | again | | 2MiB | | 4\\|MiB | |\n|:--|--:|--:|--:|--:|--:|--:|--:|\n")
-	require.Contains(t, md, "| traceid/present | 100ns | 104ns | +4.0% | 98ns | -2.0% | 87ns | -13.0% |\n")
+	require.Contains(t, md, "| traceid/present | 100ns | 104ns | +4.0% | 98ns | -2.0% | 87ns | **-13.0%** |\n", "a large change stands out")
 	require.Contains(t, md, "| search/nopredicate ⚠ | 10ns | 10ns | 0% | 10ns | 0% | not comparable | |\n")
 	require.Contains(t, md, "\n- ⚠ search/nopredicate vs 4\\|MiB: matched 5 vs 6\n")
 	require.NotContains(t, md, "traceByID", "headings are for the terminal; a markdown table stays flat")
