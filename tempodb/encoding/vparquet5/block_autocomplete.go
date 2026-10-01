@@ -128,7 +128,7 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 
 	defer closeIters(iters)
 
-	for _, iter := range iters {
+	for i, iter := range iters {
 		for {
 			res, err := iter.Next()
 			if err != nil {
@@ -146,6 +146,8 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 				}
 			}
 		}
+		iter.Close()
+		iters[i] = nil
 	}
 
 	tagNamesForSpecialColumns(req.Scope, pf, b.meta.DedicatedColumns, cb)
@@ -284,7 +286,7 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 
 	defer closeIters(iters)
 
-	for _, iter := range iters {
+	for i, iter := range iters {
 		for {
 			res, err := iter.Next()
 			if err != nil {
@@ -301,6 +303,8 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 				}
 			}
 		}
+		iter.Close()
+		iters[i] = nil
 	}
 
 	return nil
@@ -325,9 +329,12 @@ func autocompleteIters(ctx context.Context, trs []tagRequest, pf *parquet.File, 
 	return iters, nil
 }
 
+// closeIters closes the iterators that aren't closed yet.
 func closeIters(iters []parquetquery.Iterator) {
 	for _, iter := range iters {
-		iter.Close()
+		if iter != nil {
+			iter.Close()
+		}
 	}
 }
 

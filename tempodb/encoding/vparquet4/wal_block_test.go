@@ -3,6 +3,7 @@ package vparquet4
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -18,6 +19,7 @@ import (
 	"github.com/grafana/tempo/v3/pkg/model"
 	"github.com/grafana/tempo/v3/pkg/model/trace"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1_common "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/v3/pkg/traceql"
 	"github.com/grafana/tempo/v3/pkg/util"
 	"github.com/grafana/tempo/v3/pkg/util/test"
@@ -738,4 +740,35 @@ func TestWalBlockFetchTagsUnfilteredGroupFallsBackBeforeAnyGroupRuns(t *testing.
 			require.Equal(t, alone, withGroup)
 		})
 	})
+}
+
+func TestWalBlockFetchTagValuesClosesGroupBeforeNextRuns(t *testing.T) {
+	exporter := testSpans(t)
+
+	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
+	w, err := createWALBlock(meta, t.TempDir(), model.CurrentEncoding, 0)
+	require.NoError(t, err)
+
+	id := test.ValidTraceID(nil)
+	tr := test.MakeTrace(2, id)
+	for i, rs := range tr.ResourceSpans {
+		for _, a := range rs.Resource.Attributes {
+			if a.Key == "service.name" {
+				a.Value = &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: fmt.Sprintf("svc-%d", i)}}
+			}
+		}
+		for _, ss := range rs.ScopeSpans {
+			for _, sp := range ss.Spans {
+				sp.Name = fmt.Sprintf("name-%d", i)
+			}
+		}
+	}
+	trace.SortTrace(tr)
+	require.NoError(t, w.AppendTrace(id, tr, 0, 0, true))
+	require.NoError(t, w.Flush())
+
+	ended := runTwoGroups(t, exporter, "svc-0", "svc-1", "name-1", func(req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
+		return w.FetchTagValues(t.Context(), req, cb, func(uint64) {}, common.DefaultSearchOptions())
+	})
+	require.Positive(t, ended)
 }

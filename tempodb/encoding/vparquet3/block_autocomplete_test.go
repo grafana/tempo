@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,6 +19,9 @@ import (
 	"github.com/grafana/tempo/v3/tempodb/backend/local"
 	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 func TestFetchTagNames(t *testing.T) {
@@ -1100,6 +1104,58 @@ func TestFetchTagsUnfilteredGroupFallsBackBeforeAnyGroupRuns(t *testing.T) {
 
 		require.Equal(t, readStats{calls: 1, bytes: alone.bytes}, withGroup)
 	})
+}
+
+func TestFetchTagValuesClosesGroupBeforeNextRuns(t *testing.T) {
+	exporter := testSpans(t)
+	block := makeBackendBlockWithTraces(t, []*Trace{fullyPopulatedTestTrace(common.ID{0})})
+
+	ended := runTwoGroups(t, exporter, "myservice", "service2", "world", func(req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
+		return block.FetchTagValues(t.Context(), req, cb, func(uint64) {}, common.DefaultSearchOptions())
+	})
+	require.Positive(t, ended)
+}
+
+// runTwoGroups returns how many iterators were closed when the second group's first value arrived.
+func runTwoGroups(t *testing.T, exporter *tracetest.InMemoryExporter, first, second, secondValue string, fetch func(traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback) error) int {
+	name := traceql.NewIntrinsic(traceql.IntrinsicName)
+	group := func(service string) []traceql.Condition {
+		return []traceql.Condition{
+			{Attribute: traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "service.name"), Op: traceql.OpEqual, Operands: traceql.Operands{traceql.NewStaticString(service)}},
+			{Attribute: name, Op: traceql.OpNone},
+		}
+	}
+	req := traceql.FetchTagValuesRequest{TagName: name, ConditionGroups: [][]traceql.Condition{group(first), group(second)}}
+
+	ended := -1
+	require.NoError(t, fetch(req, func(v traceql.Static) bool {
+		if ended < 0 && v.EncodeToString(false) == secondValue {
+			ended = 0
+			for _, s := range exporter.GetSpans() {
+				if s.Name == "syncIterator" {
+					ended++
+				}
+			}
+		}
+		return false
+	}))
+	require.NotEqual(t, -1, ended, "second group returned no value")
+	return ended
+}
+
+// OTel only delegates to the first provider set, so share one per test binary.
+var (
+	testTraceExporter = tracetest.NewInMemoryExporter()
+	testTraceOnce     sync.Once
+)
+
+func testSpans(t *testing.T) *tracetest.InMemoryExporter {
+	t.Helper()
+	testTraceOnce.Do(func() {
+		otel.SetTracerProvider(sdktrace.NewTracerProvider(sdktrace.WithSyncer(testTraceExporter)))
+	})
+	testTraceExporter.Reset()
+	return testTraceExporter
 }
 
 func stringTagValue(v string) tempopb.TagValue { return tempopb.TagValue{Type: "string", Value: v} }

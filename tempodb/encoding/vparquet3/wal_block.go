@@ -766,7 +766,7 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValue
 			}
 			defer closeIters(iters)
 
-			for _, iter := range iters {
+			for i, iter := range iters {
 				for {
 					// Exhaust the iterator
 					res, err := iter.Next()
@@ -785,6 +785,8 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValue
 						}
 					}
 				}
+				iter.Close()
+				iters[i] = nil
 			}
 			return false, false, nil
 		}()
@@ -863,7 +865,7 @@ func (b *walBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsReque
 			}
 			defer closeIters(iters)
 
-			for _, iter := range iters {
+			for i, iter := range iters {
 				for {
 					// Exhaust the iterator
 					res, err := iter.Next()
@@ -881,6 +883,8 @@ func (b *walBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsReque
 						}
 					}
 				}
+				iter.Close()
+				iters[i] = nil
 			}
 
 			// Add well known columns once per file, not once per condition group.
