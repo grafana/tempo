@@ -26,7 +26,7 @@ type Config struct {
 	Weights                   pipeline.WeightsConfig `yaml:"weights"`
 	MCPServer                 MCPServerConfig        `yaml:"mcp_server"`
 	// ActiveQueriesEnabled exposes the active queries endpoint on the internal server when enabled.
-	ActiveQueriesEnabled bool `yaml:"active_queries_enabled,omitempty"`
+	ActiveQueriesEnabled bool `yaml:"active_queries_enabled"`
 
 	// the maximum time limit that tempo will work on an api request. this includes both
 	// grpc and http requests and applies to all "api" frontend query endpoints such as
