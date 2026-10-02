@@ -11,13 +11,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	tempo_io "github.com/grafana/tempo/v3/pkg/io"
+	"github.com/grafana/tempo/v3/pkg/model/trace"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend/local"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
 
 func TestBackendBlockFindTraceByID(t *testing.T) {
@@ -116,7 +116,7 @@ func TestBackendBlockFindTraceByID_TestData(t *testing.T) {
 	r := backend.NewReader(rawR)
 	ctx := context.Background()
 
-	blocks, _, err := r.Blocks(ctx, "single-tenant")
+	blocks, _, _, err := r.Blocks(ctx, "single-tenant")
 	require.NoError(t, err)
 	assert.Len(t, blocks, 1)
 

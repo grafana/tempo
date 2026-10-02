@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend/local"
 )
 
 func TestRawIteratorReadsAllRows(t *testing.T) {
@@ -19,7 +19,7 @@ func TestRawIteratorReadsAllRows(t *testing.T) {
 	r := backend.NewReader(rawR)
 	ctx := context.Background()
 
-	blocks, _, err := r.Blocks(ctx, "single-tenant")
+	blocks, _, _, err := r.Blocks(ctx, "single-tenant")
 	require.NoError(t, err)
 	require.Len(t, blocks, 1)
 

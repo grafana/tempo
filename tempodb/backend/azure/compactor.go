@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
 type BlobAttributes struct {
@@ -38,7 +38,8 @@ func (rw *Azure) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
 
 	src, _, err := rw.readAll(ctx, metaFilename)
 	if err != nil {
-		return err
+		// Another compaction or retention pass already retired this block.
+		return readError(err)
 	}
 
 	err = rw.writeAll(ctx, compactedMetaFilename, src)

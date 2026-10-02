@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/grafana/tempo/modules/overrides/histograms"
-	tempo_util "github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v3/modules/overrides/histograms"
+	tempo_util "github.com/grafana/tempo/v3/pkg/util"
 	"github.com/prometheus/client_golang/prometheus"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/model/labels"

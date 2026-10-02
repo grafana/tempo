@@ -19,11 +19,12 @@ var (
 	Zstd               = &ZstdCodec{}
 )
 
-func newTenantIndex(meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) *TenantIndex {
+func newTenantIndex(meta []*BlockMeta, compactedMeta []*CompactedBlockMeta, noCompact []UUID) *TenantIndex {
 	return &TenantIndex{
 		CreatedAt:     time.Now(),
 		Meta:          meta,
 		CompactedMeta: compactedMeta,
+		NoCompact:     noCompact,
 	}
 }
 

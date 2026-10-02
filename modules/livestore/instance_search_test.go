@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -30,20 +31,20 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/collector"
-	"github.com/grafana/tempo/pkg/ingest/testkafka"
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	trace_v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/pkg/collector"
+	"github.com/grafana/tempo/v3/pkg/ingest/testkafka"
+	"github.com/grafana/tempo/v3/pkg/model/trace"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	trace_v1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/tempodb/wal"
 )
 
 const (
@@ -841,6 +842,8 @@ func defaultConfig(t testing.TB, tmpDir string) Config {
 	cfg.IngestConfig.Kafka.Address = kafkaAddr
 	cfg.IngestConfig.Kafka.Topic = testTopic
 	cfg.IngestConfig.Kafka.ConsumerGroup = "test-consumer-group"
+	// at the default 10s this costs ~10s per live store shutdown, which dominates this package's runtime
+	cfg.IngestConfig.Kafka.SetMetadataAges(10*time.Millisecond, 100*time.Millisecond)
 
 	cfg.holdAllBackgroundProcesses = true // note that the default testing live store disables background processes so we can deterministically run tests
 
@@ -1202,6 +1205,55 @@ func TestInstanceFindByTraceID(t *testing.T) {
 
 	err = services.StopAndAwaitTerminated(t.Context(), ls)
 	require.NoError(t, err)
+}
+
+func TestInstanceFindByTraceIDDoesNotShareLiveTraceBackingArray(t *testing.T) {
+	i, ls := defaultInstanceAndTmpDir(t)
+	defer func() {
+		err := services.StopAndAwaitTerminated(t.Context(), ls)
+		require.NoError(t, err)
+	}()
+
+	id := test.ValidTraceID(nil)
+	now := time.Now()
+	push := func(batches int) {
+		traceBytes, err := test.MakeTrace(batches, id).Marshal()
+		require.NoError(t, err)
+		i.pushBytes(t.Context(), now, &tempopb.PushBytesRequest{
+			Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
+			Ids:    [][]byte{id},
+		})
+	}
+
+	// Part of the trace is already in the head block ...
+	push(1)
+	drained, err := i.cutIdleTraces(t.Context(), true)
+	require.NoError(t, err)
+	require.True(t, drained)
+
+	// ... and the rest is still live, with spare capacity in Batches.
+	push(3)
+	i.liveTracesMtx.Lock()
+	liveTrace := i.liveTraces.Traces[util.HashForTraceID(id)]
+	i.liveTracesMtx.Unlock()
+	require.NotNil(t, liveTrace)
+	require.Len(t, liveTrace.Batches, 3)
+	require.Greater(t, cap(liveTrace.Batches), len(liveTrace.Batches))
+
+	resp, err := i.FindByTraceID(t.Context(), id, true)
+	require.NoError(t, err)
+	require.NotNil(t, resp.Trace)
+	require.Len(t, resp.Trace.ResourceSpans, 4)
+	batches := slices.Clone(resp.Trace.ResourceSpans)
+	size := resp.Trace.Size()
+
+	// More spans for the same trace arrive after the lookup. The response must not
+	// change, otherwise Size() and Marshal() disagree and marshalling panics.
+	push(1)
+	for n, batch := range batches {
+		require.Same(t, batch, resp.Trace.ResourceSpans[n])
+	}
+	require.Equal(t, size, resp.Trace.Size())
 }
 
 func TestInstanceFindByTraceIDWithSizeLimits(t *testing.T) {

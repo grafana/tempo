@@ -14,7 +14,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/v3/pkg/util/test"
 )
 
 func TestStatusFromProduceErr(t *testing.T) {

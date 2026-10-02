@@ -298,6 +298,8 @@ live_store_client:
         connect_timeout: 5s
         connect_backoff_base_delay: 1s
         connect_backoff_max_delay: 5s
+        keepalive_time: 20s
+        keepalive_timeout: 10s
         cluster_validation:
             label: ""
 querier:
@@ -345,6 +347,8 @@ querier:
             connect_timeout: 0s
             connect_backoff_base_delay: 0s
             connect_backoff_max_delay: 0s
+            keepalive_time: 0s
+            keepalive_timeout: 0s
             cluster_validation:
                 label: ""
     shuffle_sharding_ingesters_enabled: false
@@ -732,6 +736,7 @@ storage:
             buffer_size: 3145728
             hedge_requests_at: 0s
             hedge_requests_up_to: 2
+            list_blocks_concurrency: 1
         cache: ""
         background_cache:
             writeback_goroutines: 10
@@ -829,6 +834,7 @@ overrides:
                 buffer_size: 3145728
                 hedge_requests_at: 0s
                 hedge_requests_up_to: 2
+                list_blocks_concurrency: 1
         api:
             check_for_conflicting_runtime_overrides: false
     enable_legacy_overrides: false
@@ -957,6 +963,8 @@ backend_scheduler_client:
         connect_timeout: 5s
         connect_backoff_base_delay: 1s
         connect_backoff_max_delay: 5s
+        keepalive_time: 20s
+        keepalive_timeout: 10s
         cluster_validation:
             label: ""
 backend_worker:

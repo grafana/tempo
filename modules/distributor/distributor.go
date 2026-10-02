@@ -29,20 +29,20 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/grafana/tempo/modules/distributor/forwarder"
-	"github.com/grafana/tempo/modules/distributor/receiver"
-	"github.com/grafana/tempo/modules/distributor/usage"
-	"github.com/grafana/tempo/modules/generator"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/dataquality"
-	"github.com/grafana/tempo/pkg/ingest"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/usagestats"
-	"github.com/grafana/tempo/pkg/util"
-	tempo_log "github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/pkg/validation"
+	"github.com/grafana/tempo/v3/modules/distributor/forwarder"
+	"github.com/grafana/tempo/v3/modules/distributor/receiver"
+	"github.com/grafana/tempo/v3/modules/distributor/usage"
+	"github.com/grafana/tempo/v3/modules/generator"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/pkg/dataquality"
+	"github.com/grafana/tempo/v3/pkg/ingest"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1_common "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/usagestats"
+	"github.com/grafana/tempo/v3/pkg/util"
+	tempo_log "github.com/grafana/tempo/v3/pkg/util/log"
+	"github.com/grafana/tempo/v3/pkg/validation"
 )
 
 const (
@@ -491,20 +491,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		return nil, err
 	}
 
-	// Convert to bytes and back. This is unfortunate for efficiency, but it works
-	// around the otel-collector internalization of otel-proto which Tempo also uses.
-	convert, err := (&ptrace.ProtoMarshaler{}).MarshalTraces(traces)
-	if err != nil {
-		return nil, err
-	}
-
-	// tempopb.Trace is wire-compatible with ExportTraceServiceRequest
-	// used by ToOtlpProtoBytes
-	trace := tempopb.Trace{}
-	err = trace.Unmarshal(convert)
-	if err != nil {
-		return nil, err
-	}
+	trace := directTraces(traces)
 
 	batches := trace.ResourceSpans
 

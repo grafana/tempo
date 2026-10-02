@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/grafana/tempo/cmd/tempo/app"
+	"github.com/grafana/tempo/v3/cmd/tempo/app"
 	"go.yaml.in/yaml/v3"
 )
 

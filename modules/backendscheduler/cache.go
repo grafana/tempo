@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 
 	"github.com/go-kit/log/level"
-	"github.com/grafana/tempo/modules/backendscheduler/work"
-	"github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v3/modules/backendscheduler/work"
+	"github.com/grafana/tempo/v3/pkg/util/log"
+	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
 func (s *BackendScheduler) flushWorkCacheToBackend(ctx context.Context) error {

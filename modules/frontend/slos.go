@@ -6,8 +6,8 @@ import (
 
 	"github.com/gogo/status"
 	"github.com/grafana/dskit/grpcutil"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/util"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"google.golang.org/grpc/codes"

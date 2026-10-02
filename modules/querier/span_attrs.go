@@ -10,8 +10,8 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/validation"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/validation"
 )
 
 func startQuerierSpan(ctx context.Context, name, query string, attrs ...attribute.KeyValue) (context.Context, oteltrace.Span, string, error) {

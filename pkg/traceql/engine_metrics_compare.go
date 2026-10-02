@@ -6,7 +6,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
 )
 
 const (

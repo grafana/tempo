@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/grafana/tempo/pkg/collector"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v3/pkg/collector"
+	"github.com/grafana/tempo/v3/pkg/util"
 	"go.opentelemetry.io/otel/attribute"
 
 	gkLog "github.com/go-kit/log"
@@ -20,23 +20,23 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/modules/cache/memcached"
-	"github.com/grafana/tempo/modules/cache/redis"
-	"github.com/grafana/tempo/pkg/cache"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/azure"
-	backend_cache "github.com/grafana/tempo/tempodb/backend/cache"
-	"github.com/grafana/tempo/tempodb/backend/gcs"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/backend/s3"
-	"github.com/grafana/tempo/tempodb/blocklist"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/pool"
-	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/v3/modules/cache/memcached"
+	"github.com/grafana/tempo/v3/modules/cache/redis"
+	"github.com/grafana/tempo/v3/pkg/cache"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/pkg/util/log"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend/azure"
+	backend_cache "github.com/grafana/tempo/v3/tempodb/backend/cache"
+	"github.com/grafana/tempo/v3/tempodb/backend/gcs"
+	"github.com/grafana/tempo/v3/tempodb/backend/local"
+	"github.com/grafana/tempo/v3/tempodb/backend/s3"
+	"github.com/grafana/tempo/v3/tempodb/blocklist"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/tempodb/pool"
+	"github.com/grafana/tempo/v3/tempodb/wal"
 )
 
 const (
@@ -98,11 +98,13 @@ type Reader interface {
 
 	BlockMeta(ctx context.Context, tenantID string, blockID backend.UUID) (*backend.BlockMeta, *backend.CompactedBlockMeta, error)
 	BlockMetas(tenantID string) []*backend.BlockMeta
+	// NoCompactBlocks returns the IDs of the tenant's live blocks that have a nocompact flag.
+	NoCompactBlocks(tenantID string) []backend.UUID
 
 	Tenants() []string
 
 	// EnablePolling in the background of the blocklists, with the given ownership of tenants.
-	EnablePolling(ctx context.Context, sharder blocklist.JobSharder, skipNoCompactBlocks bool)
+	EnablePolling(ctx context.Context, sharder blocklist.JobSharder)
 
 	// PollNow does an immediate poll of the blocklist and is for testing purposes. Must have already called EnablePolling.
 	PollNow(ctx context.Context)
@@ -326,6 +328,10 @@ func (rw *readerWriter) BlockMeta(ctx context.Context, tenantID string, blockID 
 
 func (rw *readerWriter) BlockMetas(tenantID string) []*backend.BlockMeta {
 	return rw.blocklist.Metas(tenantID)
+}
+
+func (rw *readerWriter) NoCompactBlocks(tenantID string) []backend.UUID {
+	return rw.blocklist.NoCompact(tenantID)
 }
 
 func (rw *readerWriter) Tenants() []string {
@@ -812,7 +818,7 @@ func (rw *readerWriter) RedactBlock(ctx context.Context, meta *backend.BlockMeta
 // EnablePolling activates the polling loop. Pass nil if this component
 //
 //	should never be a tenant index builder.
-func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.JobSharder, skipNoCompactBlocks bool) {
+func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.JobSharder) {
 	if sharder == nil {
 		sharder = blocklist.OwnsNothingSharder
 	}
@@ -850,7 +856,6 @@ func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.Job
 		TenantPollConcurrency:      rw.cfg.BlocklistPollTenantConcurrency,
 		EmptyTenantDeletionAge:     rw.cfg.EmptyTenantDeletionAge,
 		EmptyTenantDeletionEnabled: rw.cfg.EmptyTenantDeletionEnabled,
-		SkipNoCompactBlocks:        skipNoCompactBlocks,
 	}, sharder, rw.r, rw.c, rw.w, rw.logger)
 
 	rw.blocklistPoller = blocklistPoller
@@ -896,7 +901,7 @@ func (rw *readerWriter) pollingLoop(ctx context.Context) {
 }
 
 func (rw *readerWriter) pollBlocklist(ctx context.Context) {
-	blocklist, compactedBlocklist, err := rw.blocklistPoller.Do(ctx, rw.blocklist)
+	blocklist, compactedBlocklist, noCompactBlocklist, err := rw.blocklistPoller.Do(ctx, rw.blocklist)
 	if err != nil {
 		if ctx.Err() == nil {
 			level.Error(rw.logger).Log("msg", "failed to poll blocklist", "err", err)
@@ -905,7 +910,7 @@ func (rw *readerWriter) pollBlocklist(ctx context.Context) {
 		return
 	}
 
-	rw.blocklist.ApplyPollResults(blocklist, compactedBlocklist)
+	rw.blocklist.ApplyPollResults(blocklist, compactedBlocklist, noCompactBlocklist)
 
 	rw.pollerNotificationLock.Lock()
 	defer rw.pollerNotificationLock.Unlock()

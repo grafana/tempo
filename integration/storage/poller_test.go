@@ -13,17 +13,17 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/integration/util"
+	"github.com/grafana/tempo/v3/integration/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/pkg/blockboundary"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/azure"
-	"github.com/grafana/tempo/tempodb/backend/gcs"
-	"github.com/grafana/tempo/tempodb/backend/s3"
-	"github.com/grafana/tempo/tempodb/blocklist"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
+	"github.com/grafana/tempo/v3/pkg/blockboundary"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend/azure"
+	"github.com/grafana/tempo/v3/tempodb/backend/gcs"
+	"github.com/grafana/tempo/v3/tempodb/backend/s3"
+	"github.com/grafana/tempo/v3/tempodb/blocklist"
+	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet3"
 )
 
 const (
@@ -95,6 +95,7 @@ func TestPollerOwnership(t *testing.T) {
 					cfg.StorageConfig.Trace.GCS.Prefix = pc.prefix
 					rr, ww, cc, err = gcs.New(cfg.StorageConfig.Trace.GCS)
 				case backend.Azure:
+					cfg.StorageConfig.Trace.Azure.ListBlocksConcurrency = listBlockConcurrency
 					cfg.StorageConfig.Trace.Azure.Endpoint = e
 					cfg.StorageConfig.Trace.Azure.Prefix = pc.prefix
 					rr, ww, cc, err = azure.New(cfg.StorageConfig.Trace.Azure)
@@ -122,7 +123,7 @@ func TestPollerOwnership(t *testing.T) {
 					testTenant := tenant + strconv.Itoa(i)
 					tenantExpected[testTenant] = pushBlocksToTenant(t, testTenant, bb, w)
 
-					mmResults, cmResults, listBlocksErr := rr.ListBlocks(context.Background(), testTenant)
+					mmResults, cmResults, _, listBlocksErr := rr.ListBlocks(context.Background(), testTenant)
 					require.NoError(t, listBlocksErr)
 					sort.Slice(mmResults, func(i, j int) bool { return mmResults[i].String() < mmResults[j].String() })
 
@@ -135,10 +136,10 @@ func TestPollerOwnership(t *testing.T) {
 				defer cancel()
 
 				l := blocklist.New()
-				mm, cm, err := blocklistPoller.Do(ctx, l)
+				mm, cm, _, err := blocklistPoller.Do(ctx, l)
 				require.NoError(t, err)
 
-				l.ApplyPollResults(mm, cm)
+				l.ApplyPollResults(mm, cm, nil)
 
 				for testTenant, expected := range tenantExpected {
 					metas := l.Metas(testTenant)
@@ -220,6 +221,7 @@ func TestTenantDeletion(t *testing.T) {
 					cfg.StorageConfig.Trace.GCS.Prefix = pc.prefix
 					rr, ww, cc, err = gcs.New(cfg.StorageConfig.Trace.GCS)
 				case backend.Azure:
+					cfg.StorageConfig.Trace.Azure.ListBlocksConcurrency = listBlockConcurrency
 					cfg.StorageConfig.Trace.Azure.Endpoint = e
 					cfg.StorageConfig.Trace.Azure.Prefix = pc.prefix
 					rr, ww, cc, err = azure.New(cfg.StorageConfig.Trace.Azure)
@@ -238,7 +240,7 @@ func TestTenantDeletion(t *testing.T) {
 				}, OwnsEverythingSharder, r, cc, w, logger)
 
 				l := blocklist.New()
-				mm, cm, err := blocklistPoller.Do(ctx, l)
+				mm, cm, _, err := blocklistPoller.Do(ctx, l)
 				require.NoError(t, err)
 				t.Logf("mm: %v", mm)
 				t.Logf("cm: %v", cm)
@@ -256,7 +258,7 @@ func TestTenantDeletion(t *testing.T) {
 
 				time.Sleep(500 * time.Millisecond)
 
-				_, _, err = blocklistPoller.Do(ctx, l)
+				_, _, _, err = blocklistPoller.Do(ctx, l)
 				require.NoError(t, err)
 
 				tennants, err = r.Tenants(ctx)
@@ -274,7 +276,7 @@ func TestTenantDeletion(t *testing.T) {
 				}, OwnsEverythingSharder, r, cc, w, logger)
 
 				// Again
-				_, _, err = blocklistPoller.Do(ctx, l)
+				_, _, _, err = blocklistPoller.Do(ctx, l)
 				require.NoError(t, err)
 
 				tennants, err = r.Tenants(ctx)

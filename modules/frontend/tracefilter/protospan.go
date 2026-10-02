@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/grafana/tempo/pkg/tempopb"
-	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	resourcev1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
-	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	commonv1 "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	resourcev1 "github.com/grafana/tempo/v3/pkg/tempopb/resource/v1"
+	tracev1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/pkg/util"
 )
 
 // protoSpan adapts a span to traceql.Span. A span becomes one protoSpan per (event, link) pair so

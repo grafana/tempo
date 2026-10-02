@@ -1,16 +1,18 @@
 package combiner
 
 import (
+	"cmp"
 	"fmt"
 	"math"
 	"net/http"
 	"slices"
 	"sort"
 
-	"github.com/grafana/tempo/modules/frontend/shardtracker"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/v3/modules/frontend/shardtracker"
+	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	"github.com/grafana/tempo/v3/pkg/traceql"
 )
 
 // QueryRangeJobResponse wraps shardtracker.JobMetadata and implements PipelineResponse.
@@ -261,10 +263,8 @@ func sortResponse(res *tempopb.QueryRangeResponse) {
 				return ki < kj
 			}
 
-			si := res.Series[i].Labels[k].Value.String()
-			sj := res.Series[j].Labels[k].Value.String()
-			if si != sj {
-				return si < sj
+			if order := compareAnyValues(res.Series[i].Labels[k].Value, res.Series[j].Labels[k].Value); order != 0 {
+				return order < 0
 			}
 		}
 		return false
@@ -277,6 +277,18 @@ func sortResponse(res *tempopb.QueryRangeResponse) {
 			return series.Exemplars[i].TimestampMs < series.Exemplars[j].TimestampMs
 		})
 	}
+}
+
+func compareAnyValues(a, b *v1.AnyValue) int {
+	if a == b {
+		return 0
+	}
+	if sa, ok := a.GetValue().(*v1.AnyValue_StringValue); ok {
+		if sb, ok := b.GetValue().(*v1.AnyValue_StringValue); ok {
+			return cmp.Compare(sa.StringValue, sb.StringValue)
+		}
+	}
+	return cmp.Compare(a.String(), b.String())
 }
 
 // attachExemplars to the final series outputs. Placeholder exemplars for things like rate()

@@ -7,7 +7,7 @@ import (
 
 	"github.com/go-kit/log/level"
 	dstracing "github.com/grafana/dskit/tracing"
-	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/v3/pkg/util/log"
 	"github.com/prometheus/common/version"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 )

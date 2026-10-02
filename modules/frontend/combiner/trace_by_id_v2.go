@@ -8,10 +8,10 @@ import (
 	"github.com/go-kit/log/level" //nolint:all //deprecated
 	spanpruningprocessor "github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanpruningprocessor"
 
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/spanpruning"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/model/trace"
+	"github.com/grafana/tempo/v3/pkg/spanpruning"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
 )
 
 // TraceFilter runs on a complete trace and applies a filter to it.

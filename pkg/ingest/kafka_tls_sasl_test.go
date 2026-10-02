@@ -23,7 +23,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kfake"
 	"github.com/twmb/franz-go/pkg/kgo"
 
-	"github.com/grafana/tempo/pkg/ingest"
+	"github.com/grafana/tempo/v3/pkg/ingest"
 )
 
 // TestKafkaClient_MTLS_SCRAM_RoundTrip is an end-to-end test that exercises the

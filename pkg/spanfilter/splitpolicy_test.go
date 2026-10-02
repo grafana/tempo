@@ -4,13 +4,13 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/v3/pkg/traceql"
 
-	"github.com/grafana/tempo/pkg/spanfilter/policymatch"
-	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/spanfilter/policymatch"
+	tracev1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/pkg/spanfilter/config"
+	"github.com/grafana/tempo/v3/pkg/spanfilter/config"
 )
 
 func Test_newSplitPolicy(t *testing.T) {

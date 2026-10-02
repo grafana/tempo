@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"github.com/stretchr/testify/assert"
 )
 

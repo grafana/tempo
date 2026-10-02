@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/services"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

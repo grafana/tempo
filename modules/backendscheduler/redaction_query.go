@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/v3/pkg/traceql"
 )
 
 // validateRedactionQuery enforces the redaction query subset: a single spanset filter

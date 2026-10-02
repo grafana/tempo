@@ -10,7 +10,7 @@ import (
 	"testing/synctest"
 	"time"
 
-	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	v1_trace "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
