@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/flagext"
+	minio "github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -100,6 +101,43 @@ func TestS3ExpressTransportAnswersCreateSession(t *testing.T) {
 	assert.Equal(t, fakeSessionAccessKey, result.Credentials.AccessKeyID)
 	assert.Equal(t, fakeSessionToken, result.Credentials.SessionToken)
 	assert.Equal(t, 1, bucket.createdSessions())
+}
+
+func TestS3ExpressTransportAnswersMinioCreateSession(t *testing.T) {
+	// minio-go sends its own CreateSession requests for directory buckets in the Availability Zones
+	// it knows, and only decodes answers in the S3 namespace
+	const (
+		zonalEndpoint = "s3express-use1-az4.us-east-1.amazonaws.com"
+		azBucket      = "tempo--use1-az4--x-s3"
+	)
+	bucket, endpoint := newFakeBucket(t, true)
+	creds := credentials.NewStaticV4("test", "test", "")
+	transport := newS3ExpressTransport(redirectTransport{host: endpoint}, creds, "us-east-1", "https://"+zonalEndpoint+"/"+azBucket+"/?session")
+
+	core, err := minio.NewCore(zonalEndpoint, &minio.Options{
+		Creds:        creds,
+		Region:       "us-east-1",
+		Secure:       true,
+		Transport:    transport,
+		BucketLookup: minio.BucketLookupPath,
+	})
+	require.NoError(t, err)
+
+	_, err = core.ListObjectsV2(azBucket, "", "", "", "/", 0)
+	require.NoError(t, err)
+	assert.Equal(t, 1, bucket.createdSessions())
+}
+
+// redirectTransport sends every request to host over http, whatever host it was addressed to.
+type redirectTransport struct {
+	host string
+}
+
+func (r redirectTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req = req.Clone(req.Context())
+	req.URL.Scheme = "http"
+	req.URL.Host = r.host
+	return http.DefaultTransport.RoundTrip(req)
 }
 
 func TestS3ExpressTransportCreateSessionError(t *testing.T) {

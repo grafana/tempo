@@ -43,8 +43,10 @@ func s3ExpressZonalEndpoint(bucket, region string) string {
 	return "s3express-" + parts[len(parts)-2] + "." + region + ".amazonaws.com"
 }
 
+// createSessionResult uses the S3 namespace, as AWS does. minio-go only decodes CreateSession
+// responses in that namespace, including those sessionResponse answers its requests with.
 type createSessionResult struct {
-	XMLName     xml.Name `xml:"CreateSessionResult"`
+	XMLName     xml.Name `xml:"http://s3.amazonaws.com/doc/2006-03-01/ CreateSessionResult"`
 	Credentials struct {
 		AccessKeyID     string    `xml:"AccessKeyId"`
 		SecretAccessKey string    `xml:"SecretAccessKey"`
