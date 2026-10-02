@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"maps"
 	"math/rand"
@@ -1000,12 +1001,19 @@ func TestIsDirectoryBucket(t *testing.T) {
 // end in "/" and keys aren't listed in lexicographical order.
 // https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-express-differences.html
 type fakeBucket struct {
-	directory bool
+	directory       bool
+	sessionLifetime time.Duration
 
-	mtx     sync.Mutex
-	keys    map[string]struct{}
-	queries []url.Values
+	mtx      sync.Mutex
+	keys     map[string]struct{}
+	queries  []url.Values
+	sessions int
 }
+
+const (
+	fakeSessionAccessKey = "session-access-key"
+	fakeSessionToken     = "session-token"
+)
 
 type fakeListResult struct {
 	XMLName               xml.Name           `xml:"ListBucketResult"`
@@ -1026,7 +1034,7 @@ type fakeListPrefix struct {
 func newFakeBucket(t *testing.T, directory bool, keys ...string) (*fakeBucket, string) {
 	t.Helper()
 
-	b := &fakeBucket{directory: directory, keys: map[string]struct{}{}}
+	b := &fakeBucket{directory: directory, sessionLifetime: 5 * time.Minute, keys: map[string]struct{}{}}
 	for _, key := range keys {
 		b.keys[key] = struct{}{}
 	}
@@ -1046,21 +1054,96 @@ func (b *fakeBucket) remainingKeys() []string {
 	return slices.Collect(maps.Keys(b.keys))
 }
 
+func (b *fakeBucket) createdSessions() int {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+	return b.sessions
+}
+
 func (b *fakeBucket) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	b.mtx.Lock()
 	defer b.mtx.Unlock()
 
 	// path-style requests: /<bucket>/<key>
 	_, key, _ := strings.Cut(strings.TrimPrefix(r.URL.Path, "/"), "/")
+	if r.Method == http.MethodGet && key == "" && r.URL.Query().Has("session") {
+		b.createSession(w, r)
+		return
+	}
+	if err := b.authorize(r); err != nil {
+		w.WriteHeader(http.StatusForbidden)
+		_ = xml.NewEncoder(w).Encode(minio.ErrorResponse{Code: "AccessDenied", Message: err.Error()})
+		return
+	}
+
 	switch {
 	case r.Method == http.MethodGet && key == "":
 		b.list(w, r.URL.Query())
+	case r.Method == http.MethodPut && r.Header.Get("X-Amz-Copy-Source") != "":
+		source, _ := url.PathUnescape(r.Header.Get("X-Amz-Copy-Source"))
+		_, sourceKey, _ := strings.Cut(strings.TrimPrefix(source, "/"), "/")
+		if _, ok := b.keys[sourceKey]; !ok {
+			w.WriteHeader(http.StatusNotFound)
+			_ = xml.NewEncoder(w).Encode(minio.ErrorResponse{Code: minio.NoSuchKey})
+			return
+		}
+		b.keys[key] = struct{}{}
+		_, _ = w.Write([]byte(`<CopyObjectResult><ETag>"etag"</ETag></CopyObjectResult>`))
 	case r.Method == http.MethodDelete:
 		delete(b.keys, key)
 		w.WriteHeader(http.StatusNoContent)
 	default:
 		w.WriteHeader(http.StatusNotImplemented)
 	}
+}
+
+// signingScope returns the access key and service of the SigV4 Authorization header.
+func signingScope(r *http.Request) (accessKey, service string) {
+	// AWS4-HMAC-SHA256 Credential=<access key>/<date>/<region>/<service>/aws4_request, ...
+	credential, _, _ := strings.Cut(strings.TrimPrefix(r.Header.Get("Authorization"), "AWS4-HMAC-SHA256 Credential="), ",")
+	parts := strings.Split(credential, "/")
+	if len(parts) != 5 {
+		return "", ""
+	}
+	return parts[0], parts[3]
+}
+
+// createSession serves CreateSession, which directory buckets authorize with IAM credentials.
+func (b *fakeBucket) createSession(w http.ResponseWriter, r *http.Request) {
+	if accessKey, service := signingScope(r); accessKey != "test" || service != "s3express" {
+		w.WriteHeader(http.StatusForbidden)
+		_ = xml.NewEncoder(w).Encode(minio.ErrorResponse{Code: "AccessDenied", Message: "CreateSession must be signed with IAM credentials for s3express"})
+		return
+	}
+	b.sessions++
+
+	var res createSessionResult
+	res.Credentials.AccessKeyID = fakeSessionAccessKey
+	res.Credentials.SecretAccessKey = "session-secret-key"
+	res.Credentials.SessionToken = fakeSessionToken
+	res.Credentials.Expiration = time.Now().Add(b.sessionLifetime)
+	_ = xml.NewEncoder(w).Encode(res)
+}
+
+// authorize checks requests are signed like S3 expects: directory buckets take session
+// credentials for the s3express service, except for CopyObject which takes IAM credentials.
+func (b *fakeBucket) authorize(r *http.Request) error {
+	accessKey, service := signingScope(r)
+	switch {
+	case !b.directory:
+		if service != "s3" {
+			return fmt.Errorf("expected a signature for s3, got %q", service)
+		}
+	case service != "s3express":
+		return fmt.Errorf("expected a signature for s3express, got %q", service)
+	case r.Header.Get("X-Amz-Copy-Source") != "":
+		if accessKey != "test" || r.Header.Get("X-Amz-S3session-Token") != "" {
+			return errors.New("CopyObject must be signed with IAM credentials")
+		}
+	case accessKey != fakeSessionAccessKey || r.Header.Get("X-Amz-S3session-Token") != fakeSessionToken:
+		return errors.New("expected session credentials")
+	}
+	return nil
 }
 
 func (b *fakeBucket) list(w http.ResponseWriter, query url.Values) {

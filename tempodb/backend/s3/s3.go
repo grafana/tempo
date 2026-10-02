@@ -754,8 +754,38 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 		customTransport.TLSClientConfig = tlsConfig
 	}
 
+	endpoint := cfg.Endpoint
+	lookup := minio.BucketLookupType(cfg.BucketLookupType)
+	if cfg.ForcePathStyle {
+		lookup = minio.BucketLookupPath
+	}
+
+	var base http.RoundTripper = customTransport
+	if isDirectoryBucket(cfg.Bucket) {
+		if cfg.Region == "" {
+			return nil, fmt.Errorf("region is required for S3 directory bucket %s", cfg.Bucket)
+		}
+		if endpoint == "" {
+			endpoint = s3ExpressZonalEndpoint(cfg.Bucket, cfg.Region)
+		}
+		// directory buckets only accept virtual-hosted-style requests
+		if lookup == minio.BucketLookupAuto && strings.HasSuffix(endpoint, ".amazonaws.com") {
+			lookup = minio.BucketLookupDNS
+		}
+
+		scheme := "https"
+		if cfg.Insecure {
+			scheme = "http"
+		}
+		sessionURL := scheme + "://" + endpoint + "/" + cfg.Bucket + "/?session"
+		if lookup == minio.BucketLookupDNS {
+			sessionURL = scheme + "://" + cfg.Bucket + "." + endpoint + "/?session"
+		}
+		base = newS3ExpressTransport(base, creds, cfg.Region, sessionURL)
+	}
+
 	// add instrumentation
-	transport := instrumentation.NewTransport(customTransport)
+	transport := instrumentation.NewTransport(base)
 	var stats *hedgedhttp.Stats
 	if hedge && cfg.HedgeRequestsAt != 0 {
 		transport, stats, err = hedgedhttp.NewRoundTripperAndStats(cfg.HedgeRequestsAt, cfg.HedgeRequestsUpTo, transport)
@@ -766,19 +796,14 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 	}
 
 	opts := &minio.Options{
-		Region:    cfg.Region,
-		Secure:    !cfg.Insecure,
-		Creds:     creds,
-		Transport: transport,
+		Region:       cfg.Region,
+		Secure:       !cfg.Insecure,
+		Creds:        creds,
+		Transport:    transport,
+		BucketLookup: lookup,
 	}
 
-	if cfg.ForcePathStyle {
-		opts.BucketLookup = minio.BucketLookupPath
-	} else {
-		opts.BucketLookup = minio.BucketLookupType(cfg.BucketLookupType)
-	}
-
-	core, err := minio.NewCore(cfg.Endpoint, opts)
+	core, err := minio.NewCore(endpoint, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create minio client: %w", err)
 	}
@@ -795,13 +820,6 @@ func listPrefix(keypath backend.KeyPath) string {
 		prefix += "/"
 	}
 	return prefix
-}
-
-// isDirectoryBucket reports whether bucket names an S3 directory bucket, in an Availability Zone
-// (S3 Express One Zone) or a Local Zone, or an access point for one. These are identified by the
-// same name suffixes the AWS SDKs use.
-func isDirectoryBucket(bucket string) bool {
-	return strings.HasSuffix(bucket, "--x-s3") || strings.HasSuffix(bucket, "--xa-s3")
 }
 
 func readError(err error) error {
