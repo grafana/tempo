@@ -620,6 +620,68 @@ tempo-cli benchmark profile /data/traces/single-tenant/ca314fba-efec-4852-ba3f-8
 tempo-cli benchmark run /data/traces/single-tenant/ca314fba-efec-4852-ba3f-8d2b0bbf69f1 -p profile.json -o result.json
 ```
 
+## Benchmark compare
+
+Compare two or more results from `benchmark run`,
+and write the comparison as markdown to stdout, to read or paste into a pull request.
+For each metric it lays every case out as benchstat does:
+the baseline's value, then each other run's value and its change from the baseline.
+
+```bash
+tempo-cli benchmark compare <result.json> <result.json>...
+```
+
+A change of 10% or more is in bold.
+A run that cannot be compared with the baseline on a case reads `not comparable`,
+with the reason under the table:
+its match or execution count per pass differs, or it is missing the case or failed it.
+When a run's name is too long to head a column,
+runs are numbered, and listed with their numbers.
+
+Arguments:
+
+- `results` Results to compare, as `name=path` or a path.
+  The first is the baseline.
+
+Options:
+
+- `-m`, `--metric` Metrics to show, as glob patterns over the metric keys.
+  Defaults to `harness.wallNs`, `harness.cpuNs`, `harness.allocBytes`,
+  `backend.bytes`, and `backend.reads`.
+- `-k`, `--case` Cases to show, as glob patterns over the case IDs,
+  for example `traceid/*`. Defaults to every case.
+- `--percentile` Percentile the summaries show:
+  `min`, `p25`, `p50`, `p75`, `p90`, `p99`, or `max`.
+  Defaults to `p99`, since tail latency is what hurts most.
+
+A result given as a path is named after the settings that set it apart from the others:
+the run options and git SHA that differ between the runs,
+or, when those are all the same, the Go version, `GOMAXPROCS`, or host.
+When one setting differs, the name is its value, like `4MiB`.
+When several do, the name lists each, like `targetBytesPerRequest=2MiB readBufferSize=4MiB`.
+Runs set up alike, such as repeats of one setup,
+are named after their files instead.
+When the one setting that differs is a number,
+the runs are put in its order, with those left at Tempo's default first,
+so reading across the columns follows the setting as it grows.
+The baseline stays the run given first wherever it lands.
+
+Above the tables, each run has a line saying how it differs from the baseline,
+like `readBufferSize default → 4MiB`.
+The baseline's line shows what the others are measured from:
+its value of every setting that differs, then its git SHA, Go version, `GOMAXPROCS`, and host.
+A difference in where a run happened, its Go version, `GOMAXPROCS`, or host, is flagged with ⚠,
+since latencies from two environments are hard to compare.
+
+The summaries are per execution:
+one trace lookup, or one shard of a search, metrics, or tag-name query.
+
+Example, where the runs are named `default`, `4MiB`, and `16MiB` from their read buffer sizes:
+
+```bash
+tempo-cli benchmark compare main.json read-buffer-4mib.json read-buffer-16mib.json -k 'traceid/*' > comparison.md
+```
+
 ## Query search command
 
 Search blocks in a given time range for a specific key/value pair.
