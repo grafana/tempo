@@ -41,7 +41,7 @@ func TestFormat(t *testing.T) {
 }
 
 func TestFormatChange(t *testing.T) {
-	require.Equal(t, "-13.0%", formatChange(-13.04))
-	require.Equal(t, "+4.0%", formatChange(4))
-	require.Equal(t, "0%", formatChange(0), "no change is not a signed zero")
+	require.Equal(t, "-13.0%", FormatChange(-13.04))
+	require.Equal(t, "+4.0%", FormatChange(4))
+	require.Equal(t, "0%", FormatChange(0), "no change is not a signed zero")
 }

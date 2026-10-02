@@ -83,7 +83,7 @@ func NewRuns(c *compare.Comparison, baseline int) RunsView {
 	labels, numbered := Labels(c)
 	v := RunsView{Heading: Heading(c, baseline), Numbered: numbered}
 	for i, name := range c.Names() {
-		v.Runs = append(v.Runs, RunLine{Name: runText(name, i, baseline), Label: labels[i], Details: describe(c, i, baseline)})
+		v.Runs = append(v.Runs, RunLine{Name: RunText(name, i, baseline), Label: labels[i], Details: describe(c, i, baseline)})
 	}
 	return v
 }

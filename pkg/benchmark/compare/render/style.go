@@ -66,8 +66,8 @@ func changeStyle(pct float64) Style {
 	}
 }
 
-// runText shows text as the run it belongs to.
-func runText(text string, run, baseline int) Text {
+// RunText shows text as the run it belongs to.
+func RunText(text string, run, baseline int) Text {
 	style := RunName
 	if run == baseline {
 		style = BaselineName
