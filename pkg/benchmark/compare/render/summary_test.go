@@ -63,9 +63,9 @@ func TestSummaryCell(t *testing.T) {
 		{"a large fall", change(8.7, -13), value(10), false, SummaryCell{Value: "8.7ns", Change: Text{Text: "-13.0%", Style: MuchBetter}}},
 		{"a large rise", change(12, 20), value(10), false, SummaryCell{Value: "12ns", Change: Text{Text: "+20.0%", Style: MuchWorse}}},
 		{"a small change", change(9.9, -1), value(10), false, SummaryCell{Value: "9.9ns", Change: Text{Text: "-1.0%", Style: Dim}}},
-		{"from a baseline of zero", value(3), value(0), false, SummaryCell{Value: "3ns", Change: Text{Text: notApplicable, Style: Dim}}},
+		{"from a baseline of zero", value(3), value(0), false, SummaryCell{Value: "3ns", Change: Text{Text: NotApplicable, Style: Dim}}},
 		{"with the baseline missing", value(3), none, false, SummaryCell{Value: "3ns"}},
-		{"without data", none, value(10), false, SummaryCell{Value: noValue}},
+		{"without data", none, value(10), false, SummaryCell{Value: NoValue}},
 		{"not comparable", compare.SummaryCell{Incomparable: "matched 5 vs 6"}, value(10), false, SummaryCell{Incomparable: true}},
 	}
 	for _, tt := range tests {

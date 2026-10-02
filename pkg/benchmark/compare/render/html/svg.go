@@ -26,7 +26,7 @@ const (
 
 // boxPlotSVG draws a box plot: a row per run, shown as the run, on the view's
 // axis. Every run's numbers are in a tooltip on its row.
-func boxPlotSVG(v render.BoxPlotView) template.HTML {
+func boxPlotSVG(v boxPlot) template.HTML {
 	names := make([]string, len(v.Rows))
 	longest := 0
 	for i, r := range v.Rows {
@@ -47,13 +47,13 @@ func boxPlotSVG(v render.BoxPlotView) template.HTML {
 
 	for i, r := range v.Rows {
 		y := float64(svgPad + i*svgRowHeight + svgRowHeight/2)
-		color, _ := r.Name.Color()
+		c := color(r.Name)
 		weight := "normal"
 		if r.Name.Style.Bold() {
 			weight = "bold"
 		}
 		fmt.Fprintf(&b, `<text class="name" x="%d" y="%.1f" fill="%s" font-weight="%s">%s</text>`,
-			svgPad, y+4, color.Hex, weight, esc(names[i]))
+			svgPad, y+4, c, weight, esc(names[i]))
 		sum := r.Summary
 		if sum == nil {
 			fmt.Fprintf(&b, `<text class="nodata" x="%.1f" y="%.1f">no data</text>`, nameWidth, y+4)
@@ -62,7 +62,7 @@ func boxPlotSVG(v render.BoxPlotView) template.HTML {
 
 		f := func(val float64) string { return render.Format(v.Unit, val) }
 		top, bottom := y-svgBoxHeight/2, y+svgBoxHeight/2
-		fmt.Fprintf(&b, `<g stroke="%s" fill="%s"><title>%s</title>`, color.Hex, color.Hex, esc(fmt.Sprintf(
+		fmt.Fprintf(&b, `<g stroke="%s" fill="%s"><title>%s</title>`, c, c, esc(fmt.Sprintf(
 			"%s: min %s · p25 %s · p50 %s · p75 %s · p90 %s · p99 %s · max %s",
 			r.Name.Text, f(sum.Min), f(sum.P25), f(sum.P50), f(sum.P75), f(sum.P90), f(sum.P99), f(sum.Max))))
 		// The whisker runs from the min to the p99, with a tick at each end and

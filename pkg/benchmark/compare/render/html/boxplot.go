@@ -1,9 +1,10 @@
-package render
+package html
 
 import (
 	"math"
 
 	"github.com/grafana/tempo/v3/pkg/benchmark/compare"
+	"github.com/grafana/tempo/v3/pkg/benchmark/compare/render"
 	"github.com/grafana/tempo/v3/pkg/benchmark/metrics"
 )
 
@@ -16,21 +17,21 @@ const (
 	maxReach = 1.25
 )
 
-// BoxPlotView is a series as a box per run on a shared axis, in the series'
-// own values: where each run's marks fall, for an output to draw. A box spans
-// the p25 to the p75 with a mark at the median, and its whisker runs from the
-// min to the p99 with a tick at the p90.
-type BoxPlotView struct {
+// boxPlot is a series as a box per run on a shared axis, in the series' own
+// values: where each run's marks fall, for boxPlotSVG to draw. A box spans the
+// p25 to the p75 with a mark at the median, and its whisker runs from the min
+// to the p99 with a tick at the p90.
+type boxPlot struct {
 	Unit  compare.Unit
-	Axis  Axis
-	Ticks []Tick
-	Rows  []BoxPlotRow
+	Axis  axis
+	Ticks []tick
+	Rows  []boxPlotRow
 }
 
-// BoxPlotRow is one run's box.
-type BoxPlotRow struct {
+// boxPlotRow is one run's box.
+type boxPlotRow struct {
 	// Name is the run's name, shown as the run, as its whole row is.
-	Name Text
+	Name render.Text
 	// Summary is the run's, or nil for a run without data.
 	Summary *metrics.Summary
 	// Clipped says the max is past the axis, so it is marked at the axis's
@@ -39,37 +40,37 @@ type BoxPlotRow struct {
 	Max     string
 }
 
-// NewBoxPlot plots every run of a series on one axis.
-func NewBoxPlot(names []string, s compare.Series, baseline int) BoxPlotView {
-	axis := NewAxis(s)
-	v := BoxPlotView{Unit: s.Unit, Axis: axis, Ticks: axis.Ticks(s.Unit)}
+// newBoxPlot plots every run of a series on one axis.
+func newBoxPlot(names []string, s compare.Series, baseline int) boxPlot {
+	a := newAxis(s)
+	v := boxPlot{Unit: s.Unit, Axis: a, Ticks: a.ticks(s.Unit)}
 	for i, sum := range s.Summaries {
-		row := BoxPlotRow{Name: runText(names[i], i, baseline), Summary: sum}
-		if sum != nil && sum.Max > axis.Max {
-			row.Clipped, row.Max = true, Format(s.Unit, sum.Max)
+		row := boxPlotRow{Name: render.RunText(names[i], i, baseline), Summary: sum}
+		if sum != nil && sum.Max > a.Max {
+			row.Clipped, row.Max = true, render.Format(s.Unit, sum.Max)
 		}
 		v.Rows = append(v.Rows, row)
 	}
 	return v
 }
 
-// Axis spans a series' values in round steps.
-type Axis struct {
+// axis spans a series' values in round steps.
+type axis struct {
 	Min, Max float64
 	// Step is the distance between ticks.
 	Step float64
 }
 
-// Tick is a value an axis marks, and how it is written.
-type Tick struct {
+// tick is a value an axis marks, and how it is written.
+type tick struct {
 	Value float64
 	Label string
 }
 
-// NewAxis fits an axis to every run of the series. It spans the lowest min to
+// newAxis fits an axis to every run of the series. It spans the lowest min to
 // the highest p99, rounded out to whole ticks, and reaches the highest max
 // only when that is close.
-func NewAxis(s compare.Series) Axis {
+func newAxis(s compare.Series) axis {
 	lo, hi, top := math.Inf(1), math.Inf(-1), math.Inf(-1)
 	for _, sum := range s.Summaries {
 		if sum == nil {
@@ -100,16 +101,16 @@ func NewAxis(s compare.Series) Axis {
 	}
 
 	step := niceStep((hi - lo) / targetTicks)
-	return Axis{Min: math.Floor(lo/step) * step, Max: math.Ceil(hi/step) * step, Step: step}
+	return axis{Min: math.Floor(lo/step) * step, Max: math.Ceil(hi/step) * step, Step: step}
 }
 
-// Ticks are the values the axis marks, a step apart from its min to its max.
-func (a Axis) Ticks(u compare.Unit) []Tick {
+// ticks are the values the axis marks, a step apart from its min to its max.
+func (a axis) ticks(u compare.Unit) []tick {
 	n := int(math.Round((a.Max-a.Min)/a.Step)) + 1
-	ticks := make([]Tick, n)
+	ticks := make([]tick, n)
 	for i := range ticks {
 		v := a.Min + float64(i)*a.Step
-		ticks[i] = Tick{Value: v, Label: Format(u, v)}
+		ticks[i] = tick{Value: v, Label: render.Format(u, v)}
 	}
 	return ticks
 }

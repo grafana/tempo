@@ -56,7 +56,7 @@ func NewSummary(c *compare.Comparison, metric string, stat compare.Stat, baselin
 		Baseline: baseline,
 	}
 	for run, label := range labels {
-		v.Columns = append(v.Columns, runText(label, run, baseline))
+		v.Columns = append(v.Columns, RunText(label, run, baseline))
 	}
 
 	group := ""
@@ -93,15 +93,15 @@ func summaryCell(u compare.Unit, cell, base compare.SummaryCell, isBaseline bool
 	case cell.Incomparable != "":
 		return SummaryCell{Incomparable: true}
 	case !cell.HasValue:
-		return SummaryCell{Value: noValue}
+		return SummaryCell{Value: NoValue}
 	}
 	out := SummaryCell{Value: Format(u, cell.Value)}
 	switch {
 	case cell.HasDelta:
-		out.Change = Text{Text: formatChange(cell.Delta), Style: changeStyle(cell.Delta)}
+		out.Change = Text{Text: FormatChange(cell.Delta), Style: changeStyle(cell.Delta)}
 	case !isBaseline && base.HasValue:
 		// A baseline of zero leaves no percentage to show.
-		out.Change = Text{Text: notApplicable, Style: Dim}
+		out.Change = Text{Text: NotApplicable, Style: Dim}
 	}
 	return out
 }

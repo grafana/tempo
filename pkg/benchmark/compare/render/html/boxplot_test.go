@@ -1,4 +1,4 @@
-package render
+package html
 
 import (
 	"testing"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/grafana/tempo/v3/pkg/benchmark/compare"
 	"github.com/grafana/tempo/v3/pkg/benchmark/compare/internal/comparetest"
+	"github.com/grafana/tempo/v3/pkg/benchmark/compare/render"
 	"github.com/grafana/tempo/v3/pkg/benchmark/metrics"
 )
 
@@ -49,7 +50,7 @@ func TestNewAxis(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			a := NewAxis(tt.s)
+			a := newAxis(tt.s)
 			require.InDelta(t, tt.min, a.Min, 1e-9)
 			require.InDelta(t, tt.max, a.Max, 1e-9)
 		})
@@ -57,9 +58,9 @@ func TestNewAxis(t *testing.T) {
 }
 
 func TestAxisTicks(t *testing.T) {
-	require.Equal(t, []Tick{
+	require.Equal(t, []tick{
 		{Value: 10, Label: "10ns"}, {Value: 20, Label: "20ns"}, {Value: 30, Label: "30ns"},
-	}, Axis{Min: 10, Max: 30, Step: 10}.Ticks(compare.Nanoseconds))
+	}, axis{Min: 10, Max: 30, Step: 10}.ticks(compare.Nanoseconds))
 }
 
 func TestNewBoxPlot(t *testing.T) {
@@ -67,14 +68,14 @@ func TestNewBoxPlot(t *testing.T) {
 	near := comparetest.Summary(14, 23, 28, 33, 36, 44, 49)
 	s := compare.Series{Unit: compare.Count, Summaries: []*metrics.Summary{&far, &near, nil}}
 
-	v := NewBoxPlot([]string{"base", "a", "gone"}, s, 1)
+	v := newBoxPlot([]string{"base", "a", "gone"}, s, 1)
 	require.Equal(t, compare.Count, v.Unit)
-	require.Equal(t, Axis{Min: 10, Max: 50, Step: 5}, v.Axis)
+	require.Equal(t, axis{Min: 10, Max: 50, Step: 5}, v.Axis)
 	require.Len(t, v.Ticks, 9)
-	require.Equal(t, Tick{Value: 50, Label: "50"}, v.Ticks[8])
+	require.Equal(t, tick{Value: 50, Label: "50"}, v.Ticks[8])
 
-	// A max past the axis is clipped, and written out for an output to show.
-	require.Equal(t, BoxPlotRow{Name: Text{Text: "base", Style: RunName}, Summary: &far, Clipped: true, Max: "1.12k"}, v.Rows[0])
-	require.Equal(t, BoxPlotRow{Name: Text{Text: "a", Style: BaselineName, Run: 1}, Summary: &near}, v.Rows[1])
+	// A max past the axis is clipped, and written out to show at its edge.
+	require.Equal(t, boxPlotRow{Name: render.Text{Text: "base", Style: render.RunName}, Summary: &far, Clipped: true, Max: "1.12k"}, v.Rows[0])
+	require.Equal(t, boxPlotRow{Name: render.Text{Text: "a", Style: render.BaselineName, Run: 1}, Summary: &near}, v.Rows[1])
 	require.Nil(t, v.Rows[2].Summary)
 }

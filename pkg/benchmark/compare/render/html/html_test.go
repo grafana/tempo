@@ -92,11 +92,14 @@ func TestSummaryPageView(t *testing.T) {
 }
 
 func TestCasePage(t *testing.T) {
-	h := newTestHandler(t, comparetest.Comparison(t))
+	c := comparetest.Comparison(t)
+	c.Cases[1].Query = "{}"
+	h := newTestHandler(t, c)
 
 	code, body := get(t, h, "/case?id=search/nopredicate&baseline=0")
 	require.Equal(t, http.StatusOK, code)
 	require.Contains(t, body, "<h2>search/nopredicate · per execution</h2>")
+	require.Contains(t, body, "query: <code>{}</code>")
 	require.Contains(t, body, "<li>vs 4MiB: matched 5 vs 6</li>")
 	require.Contains(t, body, `‹ previous case`)
 	require.NotContains(t, body, `next case ›`, "the last case has none after it")
@@ -142,7 +145,7 @@ func TestBoxPlotSVG(t *testing.T) {
 	far := comparetest.Summary(15, 26, 32, 37, 40, 48, 1116)
 	near := comparetest.Summary(14, 23, 28, 33, 36, 44, 49)
 	s := compare.Series{Unit: compare.Count, Summaries: []*metrics.Summary{&far, &near, nil}}
-	svg := string(boxPlotSVG(render.NewBoxPlot([]string{"base", "a&b", "gone"}, s, 0)))
+	svg := string(boxPlotSVG(newBoxPlot([]string{"base", "a&b", "gone"}, s, 0)))
 
 	require.True(t, strings.HasPrefix(svg, `<svg class="boxplot"`))
 	require.Equal(t, 2, strings.Count(svg, "<rect "), "a box per run with data")

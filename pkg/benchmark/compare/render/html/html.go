@@ -214,11 +214,6 @@ type caseMetricView struct {
 	Rows   []tableRowView
 }
 
-type tableRowView struct {
-	Name  textView
-	Cells []string
-}
-
 func (s *server) casePage(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	v, err := s.parseView(q)
@@ -233,21 +228,22 @@ func (s *server) casePage(w http.ResponseWriter, r *http.Request) {
 	}
 	cs := s.c.Cases[i]
 
-	cv := &caseView{ID: cs.ID, Query: cs.Query, SummaryURL: s.summaryURL(v)}
+	cv := &caseView{ID: cs.ID, Query: cs.Query, Problems: render.Problems(s.c, cs, v.baseline), SummaryURL: s.summaryURL(v)}
 	if i > 0 {
 		cv.PrevURL = s.caseURL(v, s.c.Cases[i-1].ID)
 	}
 	if i < len(s.c.Cases)-1 {
 		cv.NextURL = s.caseURL(v, s.c.Cases[i+1].ID)
 	}
+	names := s.c.Names()
 	for _, metric := range s.metrics {
-		mv := render.NewCase(s.c, i, metric, v.baseline)
-		cv.Problems = mv.Problems
-		m := caseMetricView{Metric: metric, Plot: boxPlotSVG(mv.Plot), Header: mv.Table.Header}
-		for _, row := range mv.Table.Rows {
-			m.Rows = append(m.Rows, tableRowView{Name: text(row.Name), Cells: row.Cells})
-		}
-		cv.Metrics = append(cv.Metrics, m)
+		series := cs.Series(metric)
+		cv.Metrics = append(cv.Metrics, caseMetricView{
+			Metric: metric,
+			Plot:   boxPlotSVG(newBoxPlot(names, series, v.baseline)),
+			Header: tableHeader,
+			Rows:   tableRows(names, series, v.baseline),
+		})
 	}
 
 	p := s.page(v, cs.ID, func(v view) string { return s.caseURL(v, cs.ID) })
@@ -275,8 +271,7 @@ type textView struct {
 func text(t render.Text) textView {
 	v := textView{Text: t.Text, Class: class(t.Style)}
 	if t.Style == render.RunName || t.Style == render.BaselineName {
-		c, _ := t.Color()
-		v.Color = c.Hex
+		v.Color = color(t)
 	}
 	return v
 }
@@ -300,12 +295,11 @@ func class(s render.Style) string {
 	return strings.Join(classes, " ")
 }
 
-// css colours the styles' classes from the one palette every output shares.
+// css colours the styles' classes from the palette.
 func css() template.CSS {
 	var b strings.Builder
 	for _, s := range []render.Style{render.Dim, render.Warn, render.Better, render.Worse} {
-		c, _ := render.Text{Style: s}.Color()
-		fmt.Fprintf(&b, ".%s { color: %s; }\n", class(s), c.Hex)
+		fmt.Fprintf(&b, ".%s { color: %s; }\n", class(s), color(render.Text{Style: s}))
 	}
 	b.WriteString(".bold { font-weight: 600; }\n")
 	// Every value in it is a class name or a colour from the palette.

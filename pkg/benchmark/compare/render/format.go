@@ -10,10 +10,11 @@ import (
 )
 
 const (
-	noValue = "–"
-	// notApplicable stands for a change from a baseline of zero, which no
+	// NoValue stands for a run without data.
+	NoValue = "–"
+	// NotApplicable stands for a change from a baseline of zero, which no
 	// percentage can say.
-	notApplicable = "n/a"
+	NotApplicable = "n/a"
 )
 
 // Changes under MinorChange percent either way are too small to call out, and
@@ -74,9 +75,9 @@ func roundSig(v float64, digits int) float64 {
 	return math.Round(v*scale) / scale
 }
 
-// formatChange writes a change to a tenth of a percent, and no change as 0%
+// FormatChange writes a change to a tenth of a percent, and no change as 0%
 // rather than a signed zero.
-func formatChange(pct float64) string {
+func FormatChange(pct float64) string {
 	if pct == 0 {
 		return "0%"
 	}
