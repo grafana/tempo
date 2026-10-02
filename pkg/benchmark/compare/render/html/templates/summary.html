@@ -1,7 +1,7 @@
 {{define "summary"}}{{template "head" .}}
 {{with .Summary}}
-<nav>{{range .Metrics}}<a href="{{.URL}}" class="{{if .Active}}active{{end}}">{{.Label}}</a>{{end}}</nav>
-<nav>{{range .Stats}}<a href="{{.URL}}" class="{{if .Active}}active{{end}}">{{.Label}}</a>{{end}}</nav>
+<nav>{{range .Metrics}}<a href="/{{.URL}}" class="{{if .Active}}active{{end}}">{{.Label}}</a>{{end}}</nav>
+<nav>{{range .Stats}}<a href="/{{.URL}}" class="{{if .Active}}active{{end}}">{{.Label}}</a>{{end}}</nav>
 <h2>{{.Title}}</h2>
 <table class="data">
   <thead>
@@ -18,7 +18,7 @@
     <tr class="group"><th class="dim" colspan="99">{{.Group}}</th></tr>
     {{- else}}
     <tr>
-      <td><a href="{{.URL}}">{{.ID}}</a>{{if .Problems}} <span class="warn" title="{{range .Problems}}{{.}}&#10;{{end}}">⚠</span>{{end}}</td>
+      <td><a href="/{{.URL}}">{{.ID}}</a>{{if .Problems}} <span class="warn" title="{{range .Problems}}{{.}}&#10;{{end}}">⚠</span>{{end}}</td>
       {{- range .Cells}}
         {{- if .Incomparable}}
       <td class="sep warn" colspan="2">not comparable</td>

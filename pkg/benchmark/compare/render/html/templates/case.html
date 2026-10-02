@@ -1,9 +1,9 @@
 {{define "case"}}{{template "head" .}}
 {{with .Case}}
 <nav>
-  <a href="{{.SummaryURL}}">← summary</a>
-  {{- if .PrevURL}}<a href="{{.PrevURL}}">‹ previous case</a>{{end}}
-  {{- if .NextURL}}<a href="{{.NextURL}}">next case ›</a>{{end}}
+  <a href="/{{.SummaryURL}}">← summary</a>
+  {{- if .PrevURL}}<a href="/{{.PrevURL}}">‹ previous case</a>{{end}}
+  {{- if .NextURL}}<a href="/{{.NextURL}}">next case ›</a>{{end}}
 </nav>
 <h2>{{.ID}} · per execution</h2>
 {{if .Query}}<div class="dim">query: <code>{{.Query}}</code></div>{{end}}

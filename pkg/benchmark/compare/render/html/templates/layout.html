@@ -38,7 +38,7 @@
   <table class="runs">
   {{- range .Runs}}
     <tr>
-      <td class="mono">{{if $.Numbered}}{{.Label}} {{end}}<a href="{{.URL}}" style="color: {{.Name.Color}}" class="{{.Name.Class}}">{{.Name.Text}}</a></td>
+      <td class="mono">{{if $.Numbered}}{{.Label}} {{end}}<a href="/{{.URL}}" style="color: {{.Name.Color}}" class="{{.Name.Class}}">{{.Name.Text}}</a></td>
       <td class="details">{{range .Details}}<span class="{{.Class}}">{{.Text}}</span>{{end}}</td>
     </tr>
   {{- end}}

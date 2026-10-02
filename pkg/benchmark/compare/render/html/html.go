@@ -86,14 +86,16 @@ func (s *server) values(v view) url.Values {
 	}
 }
 
+// summaryURL and caseURL link to a page relative to the server's root, as the
+// templates write every link: under "/", so that none can lead off the server.
 func (s *server) summaryURL(v view) string {
-	return "/?" + s.values(v).Encode()
+	return "?" + s.values(v).Encode()
 }
 
 func (s *server) caseURL(v view, id string) string {
 	q := s.values(v)
 	q.Set("id", id)
-	return "/case?" + q.Encode()
+	return "case?" + q.Encode()
 }
 
 // page is what every page shows, how the runs differ, above its own content.
