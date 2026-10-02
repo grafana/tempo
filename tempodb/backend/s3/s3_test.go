@@ -910,11 +910,12 @@ func TestListObjectsVersion(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := context.Background()
-			blockIDs, compactedBlockIDs, err := r.ListBlocks(ctx, tenant)
+			blockIDs, compactedBlockIDs, noCompactBlockIDs, err := r.ListBlocks(ctx, tenant)
 			assert.NoError(t, err)
 
 			assert.ElementsMatchf(t, tc.liveBlockIDs, blockIDs, "Block IDs did not match")
 			assert.ElementsMatchf(t, tc.compactedBlockIDs, compactedBlockIDs, "Compacted block IDs did not match")
+			assert.Empty(t, noCompactBlockIDs)
 		})
 	}
 }
