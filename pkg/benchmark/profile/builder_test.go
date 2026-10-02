@@ -1,4 +1,4 @@
-package benchmark
+package profile
 
 import (
 	"bytes"
@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/v3/pkg/benchmark/internal/benchtest"
 	"github.com/grafana/tempo/v3/pkg/util"
 	"github.com/grafana/tempo/v3/tempodb/encoding"
 	"github.com/grafana/tempo/v3/tempodb/encoding/common"
@@ -17,16 +18,16 @@ import (
 
 func TestProfileBlock(t *testing.T) {
 	ctx := context.Background()
-	meta, r, _ := testBlock(t, 300)
+	meta, r, _ := benchtest.Block(t, 300)
 
-	p, err := ProfileBlock(ctx, meta, r, ProfileOptions{NumTraceIDs: 50})
+	p, err := Build(ctx, meta, r, Options{NumTraceIDs: 50})
 	require.NoError(t, err)
 	require.NoError(t, p.Validate())
 
 	footer, err := rowGroupCount(ctx, meta, r)
 	require.NoError(t, err)
 
-	require.Equal(t, ProfileSchemaVersion, p.SchemaVersion)
+	require.Equal(t, SchemaVersion, p.SchemaVersion)
 	require.Equal(t, meta, p.Block)
 	require.Equal(t, footer, p.RowGroups)
 
@@ -37,9 +38,9 @@ func TestProfileBlock(t *testing.T) {
 
 func TestProfileBlockPresentIDsAreFound(t *testing.T) {
 	ctx := context.Background()
-	meta, r, _ := testBlock(t, 300)
+	meta, r, _ := benchtest.Block(t, 300)
 
-	p, err := ProfileBlock(ctx, meta, r, ProfileOptions{NumTraceIDs: 20})
+	p, err := Build(ctx, meta, r, Options{NumTraceIDs: 20})
 	require.NoError(t, err)
 
 	blk, err := encoding.OpenBlock(meta, r)
@@ -58,9 +59,9 @@ func TestProfileBlockPresentIDsAreFound(t *testing.T) {
 
 func TestProfileBlockAbsentIDsAreNotFound(t *testing.T) {
 	ctx := context.Background()
-	meta, r, _ := testBlock(t, 300)
+	meta, r, _ := benchtest.Block(t, 300)
 
-	p, err := ProfileBlock(ctx, meta, r, ProfileOptions{NumTraceIDs: 5})
+	p, err := Build(ctx, meta, r, Options{NumTraceIDs: 5})
 	require.NoError(t, err)
 
 	blk, err := encoding.OpenBlock(meta, r)
@@ -82,11 +83,11 @@ func TestProfileBlockAbsentIDsAreNotFound(t *testing.T) {
 // experiment would look up different IDs and their latencies would not compare.
 func TestProfileBlockIsDeterministic(t *testing.T) {
 	ctx := context.Background()
-	meta, r, _ := testBlock(t, 300)
+	meta, r, _ := benchtest.Block(t, 300)
 
-	first, err := ProfileBlock(ctx, meta, r, ProfileOptions{NumTraceIDs: 40})
+	first, err := Build(ctx, meta, r, Options{NumTraceIDs: 40})
 	require.NoError(t, err)
-	second, err := ProfileBlock(ctx, meta, r, ProfileOptions{NumTraceIDs: 40})
+	second, err := Build(ctx, meta, r, Options{NumTraceIDs: 40})
 	require.NoError(t, err)
 
 	require.Equal(t, first.TraceIDs, second.TraceIDs)
@@ -97,7 +98,7 @@ func TestProfileBlockIsDeterministic(t *testing.T) {
 // trace-by-ID benchmark reads only the opening pages of each group.
 func TestSampleTraceIDsSpreadsOverAllRows(t *testing.T) {
 	ctx := context.Background()
-	meta, r, _ := testBlock(t, 300)
+	meta, r, _ := benchtest.Block(t, 300)
 
 	blk, err := encoding.OpenBlock(meta, r)
 	require.NoError(t, err)
@@ -150,7 +151,7 @@ func TestSampleTraceIDsSpreadsOverAllRows(t *testing.T) {
 // absent, so the scan must return every row.
 func TestListTraceIDsReturnsEveryRow(t *testing.T) {
 	ctx := context.Background()
-	meta, r, _ := testBlock(t, 300)
+	meta, r, _ := benchtest.Block(t, 300)
 
 	blk, err := encoding.OpenBlock(meta, r)
 	require.NoError(t, err)
@@ -169,9 +170,9 @@ func TestListTraceIDsReturnsEveryRow(t *testing.T) {
 
 func TestProfileBlockTraceIDsAll(t *testing.T) {
 	ctx := context.Background()
-	meta, r, _ := testBlock(t, 100)
+	meta, r, _ := benchtest.Block(t, 100)
 
-	p, err := ProfileBlock(ctx, meta, r, ProfileOptions{NumTraceIDs: TraceIDsAll})
+	p, err := Build(ctx, meta, r, Options{NumTraceIDs: TraceIDsAll})
 	require.NoError(t, err)
 
 	require.Equal(t, TraceIDModeAll, p.TraceIDs.Mode)
@@ -184,9 +185,9 @@ func TestProfileBlockTraceIDsAll(t *testing.T) {
 // so asking for no trace IDs must not read them.
 func TestProfileBlockNoTraceIDs(t *testing.T) {
 	ctx := context.Background()
-	meta, r, _ := testBlock(t, 50)
+	meta, r, _ := benchtest.Block(t, 50)
 
-	p, err := ProfileBlock(ctx, meta, r, ProfileOptions{NumTraceIDs: 0})
+	p, err := Build(ctx, meta, r, Options{NumTraceIDs: 0})
 	require.NoError(t, err)
 
 	require.Equal(t, TraceIDModeSample, p.TraceIDs.Mode)
@@ -199,59 +200,17 @@ func TestProfileBlockNoTraceIDs(t *testing.T) {
 // can over-count and a shard past the real end of the file reads nothing.
 func TestProfileBlockIgnoresStaleRowGroupCount(t *testing.T) {
 	ctx := context.Background()
-	meta, r, _ := testBlock(t, 300)
+	meta, r, _ := benchtest.Block(t, 300)
 
 	truth, err := rowGroupCount(ctx, meta, r)
 	require.NoError(t, err)
 
 	meta.TotalRecords = uint32(truth) + 7
 
-	p, err := ProfileBlock(ctx, meta, r, ProfileOptions{NumTraceIDs: 0})
+	p, err := Build(ctx, meta, r, Options{NumTraceIDs: 0})
 	require.NoError(t, err)
 	require.Equal(t, truth, p.RowGroups)
 	require.NoError(t, p.Validate())
-}
-
-func TestLoadLocalBlock(t *testing.T) {
-	want, _, bucket := testBlock(t, 20)
-
-	path := filepath.Join(bucket, want.TenantID, want.BlockID.String())
-	got, r, err := LoadLocalBlock(context.Background(), path)
-	require.NoError(t, err)
-	require.NotNil(t, r)
-
-	// meta.json is JSON, so times lose their monotonic reading; compare fields.
-	require.Equal(t, want.BlockID, got.BlockID)
-	require.Equal(t, want.TenantID, got.TenantID)
-	require.Equal(t, want.Version, got.Version)
-	require.Equal(t, want.TotalObjects, got.TotalObjects)
-	require.Equal(t, want.TotalRecords, got.TotalRecords)
-	require.Equal(t, want.Size_, got.Size_)
-	require.True(t, want.StartTime.Equal(got.StartTime))
-	require.True(t, want.EndTime.Equal(got.EndTime))
-
-	// A trailing separator must address the same block.
-	got, _, err = LoadLocalBlock(context.Background(), path+string(filepath.Separator))
-	require.NoError(t, err)
-	require.Equal(t, want.BlockID, got.BlockID)
-}
-
-func TestLoadLocalBlockRejectsBadPaths(t *testing.T) {
-	ctx := context.Background()
-
-	for _, tc := range []struct {
-		name    string
-		path    string
-		wantErr string
-	}{
-		{"block dir is not a UUID", filepath.Join(t.TempDir(), "tenant", "not-a-uuid"), "not a block directory"},
-		{"no tenant above the block", "/00000000-0000-0000-0000-000000000000", "no tenant directory"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			_, _, err := LoadLocalBlock(ctx, tc.path)
-			require.ErrorContains(t, err, tc.wantErr)
-		})
-	}
 }
 
 // Each absent ID must sit strictly between two present IDs: that is what
@@ -259,7 +218,7 @@ func TestLoadLocalBlockRejectsBadPaths(t *testing.T) {
 // follows it in the block, which is what makes it absent by construction.
 func TestAbsentTraceIDsLieNextToPresentIDs(t *testing.T) {
 	ctx := context.Background()
-	meta, r, _ := testBlock(t, 300)
+	meta, r, _ := benchtest.Block(t, 300)
 
 	blk, err := encoding.OpenBlock(meta, r)
 	require.NoError(t, err)
@@ -297,9 +256,9 @@ func TestAbsentTraceIDsLieNextToPresentIDs(t *testing.T) {
 // IDs must land across the block's shards rather than on a few of them.
 func TestAbsentTraceIDsCoverBloomShards(t *testing.T) {
 	ctx := context.Background()
-	meta, r, _ := testBlock(t, 300)
+	meta, r, _ := benchtest.Block(t, 300)
 
-	p, err := ProfileBlock(ctx, meta, r, ProfileOptions{NumTraceIDs: 200})
+	p, err := Build(ctx, meta, r, Options{NumTraceIDs: 200})
 	require.NoError(t, err)
 
 	const shardCount = 28
@@ -337,7 +296,7 @@ func TestMidpointTraceID(t *testing.T) {
 // bloom filters are missing can still be profiled in full.
 func TestProfileBlockWithoutBloomFilters(t *testing.T) {
 	ctx := context.Background()
-	meta, r, bucket := testBlock(t, 300)
+	meta, r, bucket := benchtest.Block(t, 300)
 
 	blockDir := filepath.Join(bucket, meta.TenantID, meta.BlockID.String())
 	blooms, err := filepath.Glob(filepath.Join(blockDir, "bloom-*"))
@@ -347,7 +306,7 @@ func TestProfileBlockWithoutBloomFilters(t *testing.T) {
 		require.NoError(t, os.Remove(f))
 	}
 
-	p, err := ProfileBlock(ctx, meta, r, ProfileOptions{NumTraceIDs: 20})
+	p, err := Build(ctx, meta, r, Options{NumTraceIDs: 20})
 	require.NoError(t, err)
 	require.Len(t, p.TraceIDs.Present, 20)
 	require.Len(t, p.TraceIDs.Absent, 20)

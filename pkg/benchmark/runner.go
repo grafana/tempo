@@ -11,6 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/grafana/tempo/v3/pkg/benchmark/metrics"
+	"github.com/grafana/tempo/v3/pkg/benchmark/profile"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 	"github.com/grafana/tempo/v3/tempodb/encoding"
 	"github.com/grafana/tempo/v3/tempodb/encoding/common"
@@ -18,17 +19,17 @@ import (
 
 // Run executes the benchmark cases against the block at blockPath, using the
 // trace IDs the profile measured.
-func Run(ctx context.Context, blockPath string, profile *BlockProfile, opts RunOptions) (*Result, error) {
+func Run(ctx context.Context, blockPath string, prof *profile.BlockProfile, opts RunOptions) (*Result, error) {
 	opts.applyDefaults()
 
 	meta, raw, err := openLocalBlock(ctx, blockPath)
 	if err != nil {
 		return nil, err
 	}
-	if err := checkProfileMatchesBlock(profile, meta); err != nil {
+	if err := checkProfileMatchesBlock(prof, meta); err != nil {
 		return nil, err
 	}
-	if profile.TraceIDs.Mode == TraceIDModeAll {
+	if prof.TraceIDs.Mode == profile.TraceIDModeAll {
 		return nil, errors.New(`profile was built with --trace-ids=all, which embeds no IDs; rebuild it with a count`)
 	}
 
@@ -48,7 +49,7 @@ func Run(ctx context.Context, blockPath string, profile *BlockProfile, opts RunO
 	all := phase1Cases()
 	cases := make([]CaseResult, 0, len(all))
 	for _, queryCase := range all {
-		cases = append(cases, runCase(ctx, block, profile, shards, queryCase, opts, counter, prometheus.DefaultGatherer))
+		cases = append(cases, runCase(ctx, block, prof, shards, queryCase, opts, counter, prometheus.DefaultGatherer))
 	}
 
 	return &Result{
@@ -65,26 +66,26 @@ func Run(ctx context.Context, blockPath string, profile *BlockProfile, opts RunO
 // checkProfileMatchesBlock refuses a profile built from a different block. Its
 // trace IDs would not be in this one, and the result would look like a
 // wall-to-wall miss.
-func checkProfileMatchesBlock(profile *BlockProfile, meta *backend.BlockMeta) error {
-	if profile == nil || profile.Block == nil {
+func checkProfileMatchesBlock(prof *profile.BlockProfile, meta *backend.BlockMeta) error {
+	if prof == nil || prof.Block == nil {
 		return errors.New("profile has no block metadata")
 	}
-	if profile.Block.BlockID != meta.BlockID || profile.Block.TenantID != meta.TenantID {
+	if prof.Block.BlockID != meta.BlockID || prof.Block.TenantID != meta.TenantID {
 		return fmt.Errorf("profile is for block %s in tenant %s, but the block here is %s in tenant %s",
-			profile.Block.BlockID, profile.Block.TenantID, meta.BlockID, meta.TenantID)
+			prof.Block.BlockID, prof.Block.TenantID, meta.BlockID, meta.TenantID)
 	}
-	if profile.Block.Version != meta.Version {
-		return fmt.Errorf("profile is for a %s block but this one is %s", profile.Block.Version, meta.Version)
+	if prof.Block.Version != meta.Version {
+		return fmt.Errorf("profile is for a %s block but this one is %s", prof.Block.Version, meta.Version)
 	}
 	return nil
 }
 
 // runCase measures one query shape. Latency is per execution; everything else
 // is a total over the case, because the counters are process-wide.
-func runCase(ctx context.Context, block common.BackendBlock, profile *BlockProfile, shards []Shard, queryCase benchCase, opts RunOptions, counter *metrics.CountingReader, gatherer prometheus.Gatherer) CaseResult {
+func runCase(ctx context.Context, block common.BackendBlock, prof *profile.BlockProfile, shards []Shard, queryCase benchCase, opts RunOptions, counter *metrics.CountingReader, gatherer prometheus.Gatherer) CaseResult {
 	res := CaseResult{ID: queryCase.id, API: queryCase.api, Query: queryCase.query}
 
-	executions, err := queryCase.executions(profile, shards, opts)
+	executions, err := queryCase.executions(prof, shards, opts)
 	if err != nil {
 		res.Error = err.Error()
 		return res
@@ -130,7 +131,7 @@ func runCase(ctx context.Context, block common.BackendBlock, profile *BlockProfi
 
 func runEnv() RunEnv {
 	host, _ := os.Hostname()
-	info := buildInfo()
+	info := profile.CurrentBuildInfo()
 	return RunEnv{
 		TempoVersion: info.TempoVersion,
 		GitSHA:       info.GitSHA,
