@@ -117,19 +117,29 @@ func TestIncomparable(t *testing.T) {
 	tests := []struct {
 		name      string
 		base, run *benchmark.CaseResult
+		repeat    int // the run's; the baseline's is 1
 		want      string
 	}{
-		{"alike", cr(5, 55, ""), cr(5, 55, ""), ""},
-		{"missing", cr(5, 55, ""), nil, "missing"},
-		{"missing from the baseline", nil, cr(5, 55, ""), "missing from the baseline"},
-		{"failed", cr(5, 55, ""), cr(5, 55, "boom"), "failed: boom"},
-		{"the baseline failed", cr(5, 55, "boom"), cr(5, 55, ""), "the baseline failed: boom"},
-		{"matched", cr(5, 55, ""), cr(6, 55, ""), "matched 5 vs 6"},
-		{"executions", cr(5, 55, ""), cr(5, 110, ""), "executions 55 vs 110"},
+		{"alike", cr(5, 55, ""), cr(5, 55, ""), 1, ""},
+		{"missing", cr(5, 55, ""), nil, 1, "missing"},
+		{"missing from the baseline", nil, cr(5, 55, ""), 1, "missing from the baseline"},
+		{"failed", cr(5, 55, ""), cr(5, 55, "boom"), 1, "failed: boom"},
+		{"the baseline failed", cr(5, 55, "boom"), cr(5, 55, ""), 1, "the baseline failed: boom"},
+		{"matched", cr(5, 55, ""), cr(6, 55, ""), 1, "matched 5 vs 6"},
+		{"executions", cr(5, 55, ""), cr(5, 110, ""), 1, "executions 55 vs 110"},
+		// Counts add up over every pass, so a run repeated more often still
+		// measures the same work.
+		{"repeated", cr(5, 55, ""), cr(15, 165, ""), 3, ""},
+		{"repeated, matched", cr(5, 55, ""), cr(18, 165, ""), 3, "matched 5 vs 6 per pass"},
+		{"repeated, executions", cr(5, 55, ""), cr(15, 330, ""), 3, "executions 55 vs 110 per pass"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, Case{Results: []*benchmark.CaseResult{tt.base, tt.run}}.Incomparable(1, 0))
+			run := func(repeat int) Run {
+				return Run{Result: &benchmark.Result{Options: benchmark.RunOptions{Repeat: repeat}}}
+			}
+			c := &Comparison{Runs: []Run{run(1), run(tt.repeat)}}
+			require.Equal(t, tt.want, c.Incomparable(Case{Results: []*benchmark.CaseResult{tt.base, tt.run}}, 1, 0))
 		})
 	}
 }

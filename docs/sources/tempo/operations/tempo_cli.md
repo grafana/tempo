@@ -629,7 +629,7 @@ tempo-cli benchmark compare <result.json> <result.json>...
 A change of 10% or more is in bold.
 A run that cannot be compared with the baseline on a case reads `not comparable`,
 with the reason under the table:
-its match or execution count differs, or it is missing the case or failed it.
+its match or execution count per pass differs, or it is missing the case or failed it.
 When a run's name is too long to head a column,
 runs are numbered, and listed with their numbers.
 

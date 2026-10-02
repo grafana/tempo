@@ -43,16 +43,16 @@ func (c *Comparison) Summary(metric string, stat Stat, baseline int) Summary {
 		s := cs.Series(metric)
 		row := SummaryRow{Case: i, Cells: make([]SummaryCell, len(c.Runs))}
 		for run := range c.Runs {
-			row.Cells[run] = summaryCell(cs, s, stat, run, baseline)
+			row.Cells[run] = c.summaryCell(cs, s, stat, run, baseline)
 		}
 		sm.Rows = append(sm.Rows, row)
 	}
 	return sm
 }
 
-func summaryCell(cs Case, s Series, stat Stat, run, baseline int) SummaryCell {
+func (c *Comparison) summaryCell(cs Case, s Series, stat Stat, run, baseline int) SummaryCell {
 	if run != baseline {
-		if why := cs.Incomparable(run, baseline); why != "" {
+		if why := c.Incomparable(cs, run, baseline); why != "" {
 			return SummaryCell{Incomparable: why}
 		}
 	}

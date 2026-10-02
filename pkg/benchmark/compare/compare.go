@@ -257,13 +257,15 @@ func (cs Case) Series(metric string) Series {
 	return s
 }
 
-// Incomparable says why a run's results for the case cannot be compared with
+// Incomparable says why a run's results for a case cannot be compared with
 // the baseline's, or nothing when they can.
 //
 // A different match count means the two runs answered different questions,
 // and a different execution count means their per-execution numbers measure
-// different amounts of work, as when a shard size changes.
-func (cs Case) Incomparable(run, baseline int) string {
+// different amounts of work, as when a shard size changes. Both are counted
+// over every pass, so they are compared per pass: a run repeated more often
+// still measures the same work.
+func (c *Comparison) Incomparable(cs Case, run, baseline int) string {
 	base, r := cs.Results[baseline], cs.Results[run]
 	switch {
 	case base == nil:
@@ -274,12 +276,27 @@ func (cs Case) Incomparable(run, baseline int) string {
 		return "the baseline failed: " + base.Error
 	case r.Error != "":
 		return "failed: " + r.Error
-	case base.Matched != r.Matched:
-		return fmt.Sprintf("matched %d vs %d", base.Matched, r.Matched)
-	case base.Executions != r.Executions:
-		return fmt.Sprintf("executions %d vs %d", base.Executions, r.Executions)
+	}
+
+	basePasses, passes := c.passes(baseline), c.passes(run)
+	perPass := func(what string, base, v int64) string {
+		if basePasses == 1 && passes == 1 {
+			return fmt.Sprintf("%s %d vs %d", what, base, v)
+		}
+		return fmt.Sprintf("%s %g vs %g per pass", what, float64(base)/float64(basePasses), float64(v)/float64(passes))
+	}
+	switch {
+	case base.Matched*passes != r.Matched*basePasses:
+		return perPass("matched", base.Matched, r.Matched)
+	case int64(base.Executions)*passes != int64(r.Executions)*basePasses:
+		return perPass("executions", int64(base.Executions), int64(r.Executions))
 	}
 	return ""
+}
+
+// passes is how many times a run measured each of its cases.
+func (c *Comparison) passes(run int) int64 {
+	return int64(max(c.Runs[run].Result.Options.Repeat, 1))
 }
 
 // Problem is a run that cannot be compared with the baseline on a case.
@@ -296,7 +313,7 @@ func (c *Comparison) Problems(cs Case, baseline int) []Problem {
 		if run == baseline {
 			continue
 		}
-		if why := cs.Incomparable(run, baseline); why != "" {
+		if why := c.Incomparable(cs, run, baseline); why != "" {
 			out = append(out, Problem{Run: run, Reason: why})
 		}
 	}
