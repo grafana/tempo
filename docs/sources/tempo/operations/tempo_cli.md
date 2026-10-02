@@ -653,7 +653,7 @@ A result given as a path is named after the settings that set it apart from the 
 the run options and git SHA that differ between the runs,
 or, when those are all the same, the Go version, `GOMAXPROCS`, or host.
 When one setting differs, the name is its value, like `4MiB`.
-When several do, the name lists each, like `readBufferSize=4MiB readBufferCount=8`.
+When several do, the name lists each, like `targetBytesPerRequest=2MiB readBufferSize=4MiB`.
 Runs set up alike, such as repeats of one setup,
 are named after their files instead.
 When the one setting that differs is a number,

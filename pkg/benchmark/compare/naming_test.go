@@ -41,12 +41,12 @@ func TestNaming(t *testing.T) {
 		{
 			name: "several settings vary: named field by field, left in order",
 			runs: func() []Run {
-				r := withReadBuffer(4 << 20)
-				r.Options.ReadBufferCount = 8
-				return []Run{run("", "a.json", withReadBuffer(0)), run("", "b.json", r)}
+				a, b := withReadBuffer(0), withReadBuffer(4<<20)
+				a.Options.SearchLimit, b.Options.SearchLimit = 20, 100
+				return []Run{run("", "a.json", a), run("", "b.json", b)}
 			}(),
-			names:   []string{"readBufferSize=default readBufferCount=default", "readBufferSize=4MiB readBufferCount=8"},
-			namedBy: []string{"readBufferSize", "readBufferCount"},
+			names:   []string{"searchLimit=20 readBufferSize=default", "searchLimit=100 readBufferSize=4MiB"},
+			namedBy: []string{"searchLimit", "readBufferSize"},
 		},
 		{
 			name: "the build varies: named by short SHA",

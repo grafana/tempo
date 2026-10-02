@@ -25,11 +25,11 @@ func TestHeading(t *testing.T) {
 	c := &compare.Comparison{Runs: []compare.Run{{Name: "a"}, {Name: "b"}}}
 	require.Equal(t, "runs; baseline a", Heading(c, 0))
 
-	c.NamedBy = []string{"readBufferSize", "readBufferCount"}
-	require.Equal(t, "runs named by readBufferSize, readBufferCount; baseline b", Heading(c, 1))
+	c.NamedBy = []string{"searchLimit", "readBufferSize"}
+	require.Equal(t, "runs named by searchLimit, readBufferSize; baseline b", Heading(c, 1))
 
 	c.OrderedBy = "readBufferSize"
-	require.Equal(t, "runs named by readBufferSize, readBufferCount in order of readBufferSize; baseline a", Heading(c, 0))
+	require.Equal(t, "runs named by searchLimit, readBufferSize in order of readBufferSize; baseline a", Heading(c, 0))
 
 	c.NamedBy = []string{"readBufferSize"}
 	require.Equal(t, "runs named by readBufferSize, in its order; baseline a", Heading(c, 0))
