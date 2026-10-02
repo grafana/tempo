@@ -523,6 +523,16 @@ func (w *BackendWorker) MaxCompactionRangeForTenant(tenantID string) time.Durati
 	return w.overrides.MaxCompactionRange(tenantID)
 }
 
+// noJobsAvailable reports whether err is the scheduler saying that its job queue is empty.
+// The Next long-poll answers codes.NotFound once it times out with nothing to hand out, and
+// processJobs passes that through to the backoff loop so that polling continues. It is the
+// expected state of a cluster with nothing to compact, not a failure.
+func noJobsAvailable(err error) bool {
+	errStatus, ok := status.FromError(err)
+
+	return ok && errStatus.Code() == codes.NotFound
+}
+
 func (w *BackendWorker) callSchedulerWithBackoff(ctx context.Context, f func(context.Context) error) error {
 	var (
 		b   = backoff.New(ctx, w.cfg.Backoff)
@@ -540,8 +550,16 @@ func (w *BackendWorker) callSchedulerWithBackoff(ctx context.Context, f func(con
 					return nil
 				}
 
-				level.Error(log.Logger).Log("msg", "error calling scheduler", "err", err, "backoff", b.NextDelay())
-				metricWorkerCallRetries.WithLabelValues().Inc()
+				if noJobsAvailable(err) {
+					// An idle cluster takes this branch on every poll, so it is reported at
+					// debug and is not counted as a retry. The polling itself is unchanged:
+					// the backoff below still applies.
+					level.Debug(log.Logger).Log("msg", "no jobs available from scheduler", "backoff", b.NextDelay())
+				} else {
+					level.Error(log.Logger).Log("msg", "error calling scheduler", "err", err, "backoff", b.NextDelay())
+					metricWorkerCallRetries.WithLabelValues().Inc()
+				}
+
 				// Add jitter so all workers don't all retry at once and cause a thundering herd.
 				time.Sleep(time.Duration(rand.Float32() * float32(1*time.Second)))
 				b.Wait()

@@ -1,0 +1,11 @@
+change_type: bug_fix
+
+component: backend-worker
+
+note: Stop reporting an empty job queue as a scheduler failure. `codes.NotFound` from the `Next` long-poll is now logged at debug and no longer counted in `tempo_backend_worker_call_retries_total`, so an idle cluster does not emit an error line on every poll.
+
+issues: [7403]
+
+subtext: The gRPC server request log still reports the `NotFound` response at warn level, since the status itself is unchanged; silencing that half means having `Next` answer an empty queue with an OK response instead, which changes its contract.
+
+user: robinbowes
