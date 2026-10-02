@@ -46,7 +46,7 @@ func Block(t *testing.T, numTraces int) (*backend.BlockMeta, backend.Reader, str
 
 	meta, r, bucket := BlockWithTraceIDs(t, ids)
 
-	rowGroups, err := rowGroupCount(context.Background(), meta, r)
+	rowGroups, err := RowGroupCount(context.Background(), meta, r)
 	require.NoError(t, err)
 	require.Greater(t, rowGroups, 1, "need more than one row group to exercise per-row-group work")
 
@@ -57,6 +57,15 @@ func Block(t *testing.T, numTraces int) (*backend.BlockMeta, backend.Reader, str
 // using a small row group size. It returns the bucket root alongside the block,
 // for tests that address it by path.
 func BlockWithTraceIDs(t *testing.T, ids [][]byte) (*backend.BlockMeta, backend.Reader, string) {
+	t.Helper()
+	return WriteBlock(t, ids, nil, func(_ int, id []byte, now time.Time) *tempopb.Trace {
+		return fixedShapeTrace(id, now)
+	})
+}
+
+// WriteBlock writes a block of the given trace IDs with small row groups,
+// building the trace at position i of ID order with makeTrace.
+func WriteBlock(t *testing.T, ids [][]byte, dedicated backend.DedicatedColumns, makeTrace func(i int, id []byte, now time.Time) *tempopb.Trace) (*backend.BlockMeta, backend.Reader, string) {
 	t.Helper()
 
 	bucket := t.TempDir()
@@ -72,9 +81,9 @@ func BlockWithTraceIDs(t *testing.T, ids [][]byte) (*backend.BlockMeta, backend.
 	// or every query filters them all out.
 	now := time.Now()
 
-	iter := &sliceIterator{}
-	for _, id := range ids {
-		iter.add(id, fixedShapeTrace(id, now))
+	iter := &SliceIterator{}
+	for i, id := range ids {
+		iter.Add(id, makeTrace(i, id, now))
 	}
 
 	enc := encoding.LatestEncoding()
@@ -82,6 +91,7 @@ func BlockWithTraceIDs(t *testing.T, ids [][]byte) (*backend.BlockMeta, backend.
 	meta.TotalObjects = int64(len(ids))
 	meta.StartTime = now.Add(-time.Hour)
 	meta.EndTime = now.Add(time.Hour)
+	meta.DedicatedColumns = dedicated
 
 	cfg := &common.BlockConfig{
 		BloomFP:             0.01,
@@ -141,19 +151,19 @@ func fixedShapeTrace(id []byte, now time.Time) *tempopb.Trace {
 	}}}
 }
 
-type sliceIterator struct {
+type SliceIterator struct {
 	ids    []common.ID
 	traces []*tempopb.Trace
 }
 
-var _ common.Iterator = (*sliceIterator)(nil)
+var _ common.Iterator = (*SliceIterator)(nil)
 
-func (i *sliceIterator) add(id common.ID, tr *tempopb.Trace) {
+func (i *SliceIterator) Add(id common.ID, tr *tempopb.Trace) {
 	i.ids = append(i.ids, id)
 	i.traces = append(i.traces, tr)
 }
 
-func (i *sliceIterator) Next(context.Context) (common.ID, *tempopb.Trace, error) {
+func (i *SliceIterator) Next(context.Context) (common.ID, *tempopb.Trace, error) {
 	if len(i.ids) == 0 {
 		return nil, nil, io.EOF
 	}
@@ -162,10 +172,10 @@ func (i *sliceIterator) Next(context.Context) (common.ID, *tempopb.Trace, error)
 	return id, tr, nil
 }
 
-func (i *sliceIterator) Close() {}
+func (i *SliceIterator) Close() {}
 
-// rowGroupCount reads the block's parquet footer.
-func rowGroupCount(ctx context.Context, meta *backend.BlockMeta, r backend.Reader) (int, error) {
+// RowGroupCount reads the block's parquet footer.
+func RowGroupCount(ctx context.Context, meta *backend.BlockMeta, r backend.Reader) (int, error) {
 	pf, err := parquet.OpenFile(&blockReaderAt{ctx: ctx, r: r, meta: meta}, int64(meta.Size_))
 	if err != nil {
 		return 0, err
