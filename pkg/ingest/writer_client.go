@@ -49,7 +49,7 @@ func NewWriterClient(kafkaCfg KafkaConfig, maxInflightProduceRequests int, logge
 		kgo.RecordPartitioner(kgo.ManualPartitioner()),
 
 		// Set the upper bounds the size of a record batch.
-		kgo.ProducerBatchMaxBytes(producerBatchMaxBytes),
+		kgo.ProducerBatchMaxBytes(int32(kafkaCfg.ProducerBatchMaxBytes)),
 
 		// By default, the Kafka client allows 1 Produce in-flight request per broker. Disabling write idempotency
 		// (which we don't need), we can increase the max number of in-flight Produce requests per broker. A higher
