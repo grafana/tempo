@@ -8,8 +8,14 @@ import (
 
 func TestStat(t *testing.T) {
 	sum := summary(1, 2, 3, 4, 5, 6, 7)
-	require.Equal(t, []string{"p50", "p90", "p99"}, []string{P50.String(), P90.String(), P99.String()})
-	require.Equal(t, []float64{3, 5, 6}, []float64{P50.Of(&sum), P90.Of(&sum), P99.Of(&sum)})
+	var names []string
+	var values []float64
+	for _, s := range Stats {
+		names = append(names, s.String())
+		values = append(values, s.Of(&sum))
+	}
+	require.Equal(t, []string{"min", "p25", "p50", "p75", "p90", "p99", "max"}, names)
+	require.Equal(t, []float64{1, 2, 3, 4, 5, 6, 7}, values)
 }
 
 func TestParseStat(t *testing.T) {

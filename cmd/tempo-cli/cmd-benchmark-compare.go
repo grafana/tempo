@@ -13,7 +13,7 @@ type benchmarkCompareCmd struct {
 
 	Metric     []string `short:"m" help:"metrics to show, as glob patterns over keys like harness.wallNs" default:"harness.wallNs,harness.cpuNs,harness.allocBytes,backend.bytes,backend.reads"`
 	Case       []string `short:"k" help:"cases to show, as glob patterns over IDs like traceid/*. Defaults to every case"`
-	Percentile string   `help:"percentile the summaries show" enum:"p50,p90,p99" default:"p50"`
+	Percentile string   `help:"percentile the summaries show" enum:"min,p25,p50,p75,p90,p99,max" default:"p99"`
 }
 
 func (cmd *benchmarkCompareCmd) Run(_ *globalOptions) error {

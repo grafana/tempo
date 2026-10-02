@@ -645,8 +645,9 @@ Options:
   `backend.bytes`, and `backend.reads`.
 - `-k`, `--case` Cases to show, as glob patterns over the case IDs,
   for example `traceid/*`. Defaults to every case.
-- `--percentile` Percentile the summaries show: `p50`, `p90`, or `p99`.
-  Defaults to `p50`.
+- `--percentile` Percentile the summaries show:
+  `min`, `p25`, `p50`, `p75`, `p90`, `p99`, or `max`.
+  Defaults to `p99`, since tail latency is what hurts most.
 
 A result given as a path is named after the settings that set it apart from the others:
 the run options and git SHA that differ between the runs,
