@@ -60,6 +60,7 @@ type appendTracker struct {
 	partNum    int
 	buffer     []byte   // buffer to accumulate data for R2-compliant fixed-size chunks
 	tmpFile    *os.File // buffers the object on disk when multipart upload is disabled
+	tmpSize    int64    // bytes written to tmpFile
 }
 
 type overrideSignatureVersion struct {
@@ -272,13 +273,25 @@ func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend
 			if err != nil {
 				return nil, fmt.Errorf("error creating temp file for s3 upload: %w", err)
 			}
+			// Unlink the file right away so it cannot outlive the writer. Callers drop the
+			// tracker without CloseAppend on their error paths, and the process can crash;
+			// either way the kernel frees the space once the descriptor is closed.
+			// Where an open file cannot be removed, CloseAppend removes it instead.
+			_ = os.Remove(f.Name())
 			a.tmpFile = f
 		}
-		if _, err := a.tmpFile.Write(buffer); err != nil {
+		if err := checkSinglePutObjectSize(objectName, a.tmpSize+int64(len(buffer))); err != nil {
+			_ = a.tmpFile.Close()
+			_ = os.Remove(a.tmpFile.Name())
+			return nil, err
+		}
+		n, err := a.tmpFile.Write(buffer)
+		if err != nil {
 			_ = a.tmpFile.Close()
 			_ = os.Remove(a.tmpFile.Name())
 			return nil, fmt.Errorf("error buffering object for s3 upload: %w", err)
 		}
+		a.tmpSize += int64(n)
 		return a, nil
 	}
 

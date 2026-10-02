@@ -1016,6 +1016,42 @@ func TestDisableMultipartUpload(t *testing.T) {
 	})
 }
 
+// A caller that hits an error between Append and CloseAppend drops the tracker, so the
+// buffer file must not stay behind in the temp dir. An object that grows past the
+// single-PutObject limit must fail on the Append that crosses it, not after buffering it all.
+func TestDisableMultipartUploadTempFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("TMPDIR", tmpDir)
+
+	_, w, _, err := NewNoConfirm(&Config{
+		Region:                 "blerg",
+		AccessKey:              "test",
+		SecretKey:              flagext.SecretWithValue("test"),
+		Bucket:                 "blerg",
+		Insecure:               true,
+		Endpoint:               "localhost:1",
+		DisableMultipartUpload: true,
+	})
+	require.NoError(t, err)
+	ctx := context.Background()
+
+	t.Run("abandoned append leaves no file", func(t *testing.T) {
+		tracker, err := w.Append(ctx, "data", backend.KeyPath{"tenant"}, nil, []byte("hello"))
+		require.NoError(t, err)
+		require.NotNil(t, tracker)
+
+		entries, err := os.ReadDir(tmpDir)
+		require.NoError(t, err)
+		require.Empty(t, entries)
+	})
+
+	t.Run("append past the single PutObject limit fails", func(t *testing.T) {
+		tracker := appendTracker{tmpSize: maxSinglePutObjectSize}
+		_, err := w.Append(ctx, "data", backend.KeyPath{"tenant"}, tracker, []byte("x"))
+		require.ErrorContains(t, err, "5 GiB")
+	})
+}
+
 // Write() is the path the ingester uses to flush a finished block; unlike Append it hands
 // minio-go a reader and a known size, so it needs its own guard. Without one, minio-go
 // switches to a multipart upload above its default 16 MiB part size and stores that do not
