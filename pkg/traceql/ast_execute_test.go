@@ -1740,6 +1740,70 @@ func TestBinaryOperationsWorkAcrossNumberTypes(t *testing.T) {
 	}
 }
 
+func TestBinaryOperationsOrShortCircuitsOnMissingAttribute(t *testing.T) {
+	testCases := []evalTC{
+		{
+			"{ true || .does_not_exist }",
+			[]*Spanset{{Spans: []Span{
+				&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{}},
+			}}},
+			[]*Spanset{{Spans: []Span{
+				&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{}},
+			}}},
+		},
+		{
+			"{ .cache.hit || .does_not_exist }",
+			[]*Spanset{{Spans: []Span{
+				&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("cache.hit"): NewStaticBool(true)}},
+			}}},
+			[]*Spanset{{Spans: []Span{
+				&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("cache.hit"): NewStaticBool(true)}},
+			}}},
+		},
+		{
+			// reversed operand order: the missing attribute resolves first
+			"{ .does_not_exist || true }",
+			[]*Spanset{{Spans: []Span{
+				&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{}},
+			}}},
+			[]*Spanset{{Spans: []Span{
+				&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{}},
+			}}},
+		},
+		{
+			// && must still correctly reject when the resolved operand is false,
+			// regardless of the other operand being a missing attribute
+			"{ false && .does_not_exist }",
+			[]*Spanset{{Spans: []Span{
+				&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{}},
+			}}},
+			[]*Spanset{},
+		},
+		{
+			// a resolved true on one side of && must not short-circuit past a
+			// missing attribute on the other side
+			"{ true && .does_not_exist }",
+			[]*Spanset{{Spans: []Span{
+				&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{}},
+			}}},
+			[]*Spanset{},
+		},
+		{
+			// a resolved false on either side of || must still fall through to
+			// the missing-attribute handling rather than being forced true
+			"{ false || .does_not_exist }",
+			[]*Spanset{{Spans: []Span{
+				&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{}},
+			}}},
+			[]*Spanset{},
+		},
+	}
+
+	for _, tc := range testCases {
+		testEvaluator(t, tc)
+	}
+}
+
 func TestBinOp(t *testing.T) {
 	testCases := []struct {
 		op        Operator
