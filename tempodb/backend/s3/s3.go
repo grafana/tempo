@@ -415,15 +415,15 @@ func (rw *readerWriter) listObjects(prefix, startAfter, token string) (contents 
 		}
 		next = res.NextMarker
 		truncated = res.IsTruncated
-		// The low-level minio-go Core does not derive NextMarker when the request omits a
-		// delimiter, so fall back to the last key to advance pagination.
+		// S3 returns NextMarker only when the request sets a delimiter, and this one does
+		// not, so fall back to the last key of the page, as the V1 API specifies.
 		if next == "" && truncated && len(res.Contents) > 0 {
 			next = res.Contents[len(res.Contents)-1].Key
 		}
-		// If the response is truncated but offers no way to advance the marker (no
-		// NextMarker and an empty page), stop rather than re-issue the same request.
-		if next == "" && truncated {
-			truncated = false
+		// A truncated page must move the marker forward. Otherwise the next request would
+		// repeat this one, and stopping here would return an incomplete listing as complete.
+		if truncated && next <= marker {
+			return nil, "", false, fmt.Errorf("list objects v1: truncated response does not advance the marker past %q", marker)
 		}
 		return res.Contents, next, truncated, nil
 	}
