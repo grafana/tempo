@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/grafana/tempo/v3/pkg/benchmark"
+	"github.com/grafana/tempo/v3/pkg/benchmark/profile"
 )
 
 type benchmarkProfileCmd struct {
@@ -30,7 +31,7 @@ func (cmd *benchmarkProfileCmd) Run(_ *globalOptions) error {
 		return err
 	}
 
-	profile, err := benchmark.ProfileBlock(ctx, meta, r, benchmark.ProfileOptions{NumTraceIDs: numTraceIDs})
+	prof, err := profile.Build(ctx, meta, r, profile.Options{NumTraceIDs: numTraceIDs})
 	if err != nil {
 		return err
 	}
@@ -44,12 +45,12 @@ func (cmd *benchmarkProfileCmd) Run(_ *globalOptions) error {
 		defer f.Close()
 		out = f
 	}
-	return profile.Write(out)
+	return prof.Write(out)
 }
 
 func parseTraceIDCount(s string) (int, error) {
 	if strings.EqualFold(strings.TrimSpace(s), "all") {
-		return benchmark.TraceIDsAll, nil
+		return profile.TraceIDsAll, nil
 	}
 	n, err := strconv.Atoi(s)
 	if err != nil {

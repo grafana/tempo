@@ -11,7 +11,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/v3/pkg/benchmark/internal/benchtest"
 	"github.com/grafana/tempo/v3/pkg/benchmark/metrics"
+	"github.com/grafana/tempo/v3/pkg/benchmark/profile"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
@@ -21,12 +23,12 @@ func blockPath(bucket string, meta *backend.BlockMeta) string {
 
 func TestRun(t *testing.T) {
 	ctx := context.Background()
-	meta, r, bucket := testBlock(t, 300)
+	meta, r, bucket := benchtest.Block(t, 300)
 
-	profile, err := ProfileBlock(ctx, meta, r, ProfileOptions{NumTraceIDs: 25})
+	prof, err := profile.Build(ctx, meta, r, profile.Options{NumTraceIDs: 25})
 	require.NoError(t, err)
 
-	result, err := Run(ctx, blockPath(bucket, meta), profile, RunOptions{})
+	result, err := Run(ctx, blockPath(bucket, meta), prof, RunOptions{})
 	require.NoError(t, err)
 
 	require.Equal(t, ResultSchemaVersion, result.SchemaVersion)
@@ -126,12 +128,12 @@ func TestRun(t *testing.T) {
 
 func TestRunRepeatMultipliesExecutions(t *testing.T) {
 	ctx := context.Background()
-	meta, r, bucket := testBlock(t, 200)
+	meta, r, bucket := benchtest.Block(t, 200)
 
-	profile, err := ProfileBlock(ctx, meta, r, ProfileOptions{NumTraceIDs: 10})
+	prof, err := profile.Build(ctx, meta, r, profile.Options{NumTraceIDs: 10})
 	require.NoError(t, err)
 
-	result, err := Run(ctx, blockPath(bucket, meta), profile, RunOptions{Repeat: 3, Warmup: 1})
+	result, err := Run(ctx, blockPath(bucket, meta), prof, RunOptions{Repeat: 3, Warmup: 1})
 	require.NoError(t, err)
 
 	for _, c := range result.Cases {
@@ -146,14 +148,14 @@ func TestRunRepeatMultipliesExecutions(t *testing.T) {
 // as a fast run rather than a broken one.
 func TestRunRejectsForeignProfile(t *testing.T) {
 	ctx := context.Background()
-	meta, r, bucket := testBlock(t, 100)
+	meta, r, bucket := benchtest.Block(t, 100)
 
-	profile, err := ProfileBlock(ctx, meta, r, ProfileOptions{NumTraceIDs: 5})
+	prof, err := profile.Build(ctx, meta, r, profile.Options{NumTraceIDs: 5})
 	require.NoError(t, err)
 
-	other := *profile.Block
+	other := *prof.Block
 	other.BlockID = backend.UUID(uuid.New())
-	foreign := *profile
+	foreign := *prof
 	foreign.Block = &other
 
 	_, err = Run(ctx, blockPath(bucket, meta), &foreign, RunOptions{})
@@ -162,13 +164,13 @@ func TestRunRejectsForeignProfile(t *testing.T) {
 
 func TestRunSimulatesBackendLatency(t *testing.T) {
 	ctx := context.Background()
-	meta, r, bucket := testBlock(t, 100)
+	meta, r, bucket := benchtest.Block(t, 100)
 
-	profile, err := ProfileBlock(ctx, meta, r, ProfileOptions{NumTraceIDs: 5})
+	prof, err := profile.Build(ctx, meta, r, profile.Options{NumTraceIDs: 5})
 	require.NoError(t, err)
 
 	const latency = 2 * time.Millisecond
-	result, err := Run(ctx, blockPath(bucket, meta), profile, RunOptions{BackendLatency: latency, BackendBandwidth: 1 << 30})
+	result, err := Run(ctx, blockPath(bucket, meta), prof, RunOptions{BackendLatency: latency, BackendBandwidth: 1 << 30})
 	require.NoError(t, err)
 	require.Equal(t, latency, result.Options.BackendLatency)
 
@@ -182,23 +184,23 @@ func TestRunSimulatesBackendLatency(t *testing.T) {
 
 func TestRunRejectsAllMode(t *testing.T) {
 	ctx := context.Background()
-	meta, r, bucket := testBlock(t, 100)
+	meta, r, bucket := benchtest.Block(t, 100)
 
-	profile, err := ProfileBlock(ctx, meta, r, ProfileOptions{NumTraceIDs: TraceIDsAll})
+	prof, err := profile.Build(ctx, meta, r, profile.Options{NumTraceIDs: profile.TraceIDsAll})
 	require.NoError(t, err)
 
-	_, err = Run(ctx, blockPath(bucket, meta), profile, RunOptions{})
+	_, err = Run(ctx, blockPath(bucket, meta), prof, RunOptions{})
 	require.ErrorContains(t, err, "embeds no IDs")
 }
 
 func TestResultRoundTrip(t *testing.T) {
 	ctx := context.Background()
-	meta, r, bucket := testBlock(t, 100)
+	meta, r, bucket := benchtest.Block(t, 100)
 
-	profile, err := ProfileBlock(ctx, meta, r, ProfileOptions{NumTraceIDs: 5})
+	prof, err := profile.Build(ctx, meta, r, profile.Options{NumTraceIDs: 5})
 	require.NoError(t, err)
 
-	want, err := Run(ctx, blockPath(bucket, meta), profile, RunOptions{})
+	want, err := Run(ctx, blockPath(bucket, meta), prof, RunOptions{})
 	require.NoError(t, err)
 
 	var buf bytes.Buffer

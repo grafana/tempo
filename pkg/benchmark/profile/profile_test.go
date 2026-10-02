@@ -1,4 +1,4 @@
-package benchmark
+package profile
 
 import (
 	"bytes"
@@ -20,7 +20,7 @@ func validProfile() *BlockProfile {
 	meta.TotalRecords = 3
 
 	return &BlockProfile{
-		SchemaVersion: ProfileSchemaVersion,
+		SchemaVersion: SchemaVersion,
 		GeneratedAt:   time.Unix(5000, 0).UTC(),
 		GeneratedBy:   BuildInfo{TempoVersion: "0.0.0-test", GitSHA: "deadbeef"},
 		Block:         meta,
@@ -39,19 +39,19 @@ func TestProfileRoundTrip(t *testing.T) {
 	var buf bytes.Buffer
 	require.NoError(t, want.Write(&buf))
 
-	got, err := LoadProfile(&buf)
+	got, err := Load(&buf)
 	require.NoError(t, err)
 	require.Equal(t, want, got)
 }
 
 func TestLoadProfileRejectsOtherSchemaVersion(t *testing.T) {
 	p := validProfile()
-	p.SchemaVersion = ProfileSchemaVersion + 1
+	p.SchemaVersion = SchemaVersion + 1
 
 	var buf bytes.Buffer
 	require.NoError(t, p.Write(&buf))
 
-	_, err := LoadProfile(&buf)
+	_, err := Load(&buf)
 	require.ErrorContains(t, err, "schema version")
 }
 

@@ -1,4 +1,5 @@
-package benchmark
+// Package benchtest writes small blocks for the benchmark packages' tests.
+package benchtest
 
 import (
 	"bytes"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/parquet-go/parquet-go"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/v3/pkg/tempopb"
@@ -25,9 +27,9 @@ import (
 	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
 
-// testBlock writes a block of numTraces traces, with enough row groups to
+// Block writes a block of numTraces traces, with enough row groups to
 // exercise per-row-group work.
-func testBlock(t *testing.T, numTraces int) (*backend.BlockMeta, backend.Reader, string) {
+func Block(t *testing.T, numTraces int) (*backend.BlockMeta, backend.Reader, string) {
 	t.Helper()
 
 	// Real trace IDs are random across all 16 bytes, and code under test hashes
@@ -42,7 +44,7 @@ func testBlock(t *testing.T, numTraces int) (*backend.BlockMeta, backend.Reader,
 		ids = append(ids, test.ValidTraceID(id))
 	}
 
-	meta, r, bucket := testBlockWithTraceIDs(t, ids)
+	meta, r, bucket := BlockWithTraceIDs(t, ids)
 
 	rowGroups, err := rowGroupCount(context.Background(), meta, r)
 	require.NoError(t, err)
@@ -51,10 +53,10 @@ func testBlock(t *testing.T, numTraces int) (*backend.BlockMeta, backend.Reader,
 	return meta, r, bucket
 }
 
-// testBlockWithTraceIDs writes a block holding exactly the given trace IDs,
+// BlockWithTraceIDs writes a block holding exactly the given trace IDs,
 // using a small row group size. It returns the bucket root alongside the block,
 // for tests that address it by path.
-func testBlockWithTraceIDs(t *testing.T, ids [][]byte) (*backend.BlockMeta, backend.Reader, string) {
+func BlockWithTraceIDs(t *testing.T, ids [][]byte) (*backend.BlockMeta, backend.Reader, string) {
 	t.Helper()
 
 	bucket := t.TempDir()
@@ -161,3 +163,26 @@ func (i *sliceIterator) Next(context.Context) (common.ID, *tempopb.Trace, error)
 }
 
 func (i *sliceIterator) Close() {}
+
+// rowGroupCount reads the block's parquet footer.
+func rowGroupCount(ctx context.Context, meta *backend.BlockMeta, r backend.Reader) (int, error) {
+	pf, err := parquet.OpenFile(&blockReaderAt{ctx: ctx, r: r, meta: meta}, int64(meta.Size_))
+	if err != nil {
+		return 0, err
+	}
+	return len(pf.RowGroups()), nil
+}
+
+type blockReaderAt struct {
+	ctx  context.Context
+	r    backend.Reader
+	meta *backend.BlockMeta
+}
+
+func (b *blockReaderAt) ReadAt(p []byte, off int64) (int, error) {
+	err := b.r.ReadRange(b.ctx, "data.parquet", uuid.UUID(b.meta.BlockID), b.meta.TenantID, uint64(off), p, nil)
+	if err != nil {
+		return 0, err
+	}
+	return len(p), nil
+}
