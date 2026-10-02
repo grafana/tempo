@@ -6,15 +6,19 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
+	"maps"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -487,7 +491,7 @@ func TestObjectWithPrefix(t *testing.T) {
 			httpHandler: func(t *testing.T) http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
 					if r.Method == getMethod {
-						assert.Equal(t, r.URL.Query().Get("prefix"), "test_storage")
+						assert.Equal(t, "test_storage/", r.URL.Query().Get("prefix"))
 
 						_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
 						<ListBucketResult>
@@ -578,7 +582,7 @@ func TestDelete(t *testing.T) {
 			httpHandler: func(t *testing.T) http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
 					if r.Method == getMethod {
-						assert.Equal(t, r.URL.Query().Get("prefix"), "test_storage")
+						assert.Equal(t, "test_storage/", r.URL.Query().Get("prefix"))
 
 						_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
 						<ListBucketResult>
@@ -832,6 +836,387 @@ func testServer(t *testing.T, httpHandler http.HandlerFunc) *httptest.Server {
 	server := httptest.NewServer(httpHandler)
 	t.Cleanup(server.Close)
 	return server
+}
+
+// directoryBucketName follows the naming scheme of S3 directory buckets, here one in a Local Zone.
+const directoryBucketName = "tempo--euc1-ist1-az1--x-s3"
+
+func TestNewConfirmsBucketWithListObjectsV2(t *testing.T) {
+	tests := []struct {
+		name           string
+		prefix         string
+		expectedPrefix string
+	}{
+		{name: "without prefix", prefix: "", expectedPrefix: ""},
+		{name: "with prefix", prefix: "tempo", expectedPrefix: "tempo/"},
+		{name: "with trailing slash prefix", prefix: "a/b/c/", expectedPrefix: "a/b/c/"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			bucket, endpoint := newFakeBucket(t, true)
+			_, _, _, err := New(&Config{
+				Region:    "blerg",
+				AccessKey: "test",
+				SecretKey: flagext.SecretWithValue("test"),
+				Bucket:    directoryBucketName,
+				Prefix:    tc.prefix,
+				Insecure:  true,
+				Endpoint:  endpoint,
+			})
+			require.NoError(t, err)
+
+			queries := bucket.listQueries()
+			require.Len(t, queries, 1)
+			assert.Equal(t, tc.expectedPrefix, queries[0].Get("prefix"))
+		})
+	}
+}
+
+func TestList(t *testing.T) {
+	blockID := uuid.MustParse("11111111-1111-1111-1111-111111111111").String()
+	bucket, endpoint := newFakeBucket(t, true,
+		"tempo/tempo_cluster_seed.json",
+		"tempo/tenant-1/index.json.gz",
+		"tempo/tenant-2/"+blockID+"/meta.json",
+		"tempo/tenant-3/"+blockID+"/data.parquet",
+	)
+	r, _, _, err := NewNoConfirm(&Config{
+		Region:    "blerg",
+		AccessKey: "test",
+		SecretKey: flagext.SecretWithValue("test"),
+		Bucket:    directoryBucketName,
+		Prefix:    "tempo",
+		Insecure:  true,
+		Endpoint:  endpoint,
+	})
+	require.NoError(t, err)
+
+	tenants, err := r.List(context.Background(), nil)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"tenant-1", "tenant-2", "tenant-3"}, tenants)
+	assert.Greater(t, len(bucket.listQueries()), 1, "expected the listing to span several pages")
+}
+
+func TestListBlocks(t *testing.T) {
+	var (
+		liveBlockIDs = []uuid.UUID{
+			uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+			uuid.MustParse("77777777-7777-7777-7777-777777777777"),
+			uuid.MustParse("dddddddd-dddd-dddd-dddd-dddddddddddd"),
+		}
+		compactedBlockIDs = []uuid.UUID{
+			uuid.MustParse("33333333-3333-3333-3333-333333333333"),
+			uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
+		}
+		noCompactBlockIDs = []uuid.UUID{
+			uuid.MustParse("77777777-7777-7777-7777-777777777777"),
+		}
+		keys = []string{"tempo/tenant/index.json.gz"}
+	)
+	for _, id := range liveBlockIDs {
+		keys = append(keys, "tempo/tenant/"+id.String()+"/meta.json", "tempo/tenant/"+id.String()+"/data.parquet")
+	}
+	for _, id := range compactedBlockIDs {
+		keys = append(keys, "tempo/tenant/"+id.String()+"/meta.compacted.json", "tempo/tenant/"+id.String()+"/data.parquet")
+	}
+	for _, id := range noCompactBlockIDs {
+		keys = append(keys, "tempo/tenant/"+id.String()+"/nocompact.flg")
+	}
+
+	tests := []struct {
+		name               string
+		bucket             string
+		directory          bool
+		expectedStartAfter int
+	}{
+		{
+			// each of the three shards lists from its lowest block ID
+			name:               "general purpose bucket",
+			bucket:             "blerg",
+			expectedStartAfter: 3,
+		},
+		{
+			name:               "directory bucket",
+			bucket:             directoryBucketName,
+			directory:          true,
+			expectedStartAfter: 0,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			bucket, endpoint := newFakeBucket(t, tc.directory, keys...)
+			r, _, _, err := NewNoConfirm(&Config{
+				Region:                "blerg",
+				AccessKey:             "test",
+				SecretKey:             flagext.SecretWithValue("test"),
+				Bucket:                tc.bucket,
+				Prefix:                "tempo",
+				Insecure:              true,
+				Endpoint:              endpoint,
+				ListBlocksConcurrency: 3,
+			})
+			require.NoError(t, err)
+
+			blockIDs, compacted, noCompact, err := r.ListBlocks(context.Background(), "tenant")
+			require.NoError(t, err)
+			assert.ElementsMatch(t, liveBlockIDs, blockIDs)
+			assert.ElementsMatch(t, compactedBlockIDs, compacted)
+			assert.ElementsMatch(t, noCompactBlockIDs, noCompact)
+
+			startAfter := map[string]struct{}{}
+			for _, q := range bucket.listQueries() {
+				if q.Has("start-after") {
+					startAfter[q.Get("start-after")] = struct{}{}
+				}
+			}
+			assert.Len(t, startAfter, tc.expectedStartAfter)
+		})
+	}
+}
+
+func TestIsDirectoryBucket(t *testing.T) {
+	tests := []struct {
+		bucket   string
+		expected bool
+	}{
+		{bucket: "blerg", expected: false},
+		{bucket: "tempo-x-s3", expected: false},
+		{bucket: "amzn-s3-demo-bucket--usw2-az1--x-s3", expected: true},
+		{bucket: directoryBucketName, expected: true},
+		{bucket: "my-access-point--usw2-az1--xa-s3", expected: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.bucket, func(t *testing.T) {
+			assert.Equal(t, tc.expected, isDirectoryBucket(tc.bucket))
+		})
+	}
+}
+
+// fakeBucket is an in-memory bucket serving the list and delete calls of the backend. It only
+// supports ListObjectsV2 and returns at most two entries per page. With directory set it also
+// follows the listing rules of S3 directory buckets: start-after isn't supported, prefixes must
+// end in "/" and keys aren't listed in lexicographical order.
+// https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-express-differences.html
+type fakeBucket struct {
+	directory       bool
+	sessionLifetime time.Duration
+
+	mtx      sync.Mutex
+	keys     map[string]struct{}
+	queries  []url.Values
+	sessions int
+}
+
+const (
+	fakeSessionAccessKey = "session-access-key"
+	fakeSessionToken     = "session-token"
+)
+
+type fakeListResult struct {
+	XMLName               xml.Name           `xml:"ListBucketResult"`
+	IsTruncated           bool               `xml:"IsTruncated"`
+	NextContinuationToken string             `xml:"NextContinuationToken,omitempty"`
+	Contents              []fakeListContents `xml:"Contents"`
+	CommonPrefixes        []fakeListPrefix   `xml:"CommonPrefixes"`
+}
+
+type fakeListContents struct {
+	Key string `xml:"Key"`
+}
+
+type fakeListPrefix struct {
+	Prefix string `xml:"Prefix"`
+}
+
+func newFakeBucket(t *testing.T, directory bool, keys ...string) (*fakeBucket, string) {
+	t.Helper()
+
+	b := &fakeBucket{directory: directory, sessionLifetime: 5 * time.Minute, keys: map[string]struct{}{}}
+	for _, key := range keys {
+		b.keys[key] = struct{}{}
+	}
+	server := testServer(t, b.serveHTTP)
+	return b, server.URL[7:] // [7:] -> strip http://
+}
+
+func (b *fakeBucket) listQueries() []url.Values {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+	return slices.Clone(b.queries)
+}
+
+func (b *fakeBucket) remainingKeys() []string {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+	return slices.Collect(maps.Keys(b.keys))
+}
+
+func (b *fakeBucket) createdSessions() int {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+	return b.sessions
+}
+
+func (b *fakeBucket) serveHTTP(w http.ResponseWriter, r *http.Request) {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+
+	// path-style requests: /<bucket>/<key>
+	_, key, _ := strings.Cut(strings.TrimPrefix(r.URL.Path, "/"), "/")
+	if r.Method == http.MethodGet && key == "" && r.URL.Query().Has("session") {
+		b.createSession(w, r)
+		return
+	}
+	if err := b.authorize(r); err != nil {
+		w.WriteHeader(http.StatusForbidden)
+		_ = xml.NewEncoder(w).Encode(minio.ErrorResponse{Code: "AccessDenied", Message: err.Error()})
+		return
+	}
+
+	switch {
+	case r.Method == http.MethodGet && key == "":
+		b.list(w, r.URL.Query())
+	case r.Method == http.MethodPut && r.Header.Get("X-Amz-Copy-Source") != "":
+		source, _ := url.PathUnescape(r.Header.Get("X-Amz-Copy-Source"))
+		_, sourceKey, _ := strings.Cut(strings.TrimPrefix(source, "/"), "/")
+		if _, ok := b.keys[sourceKey]; !ok {
+			w.WriteHeader(http.StatusNotFound)
+			_ = xml.NewEncoder(w).Encode(minio.ErrorResponse{Code: minio.NoSuchKey})
+			return
+		}
+		b.keys[key] = struct{}{}
+		_, _ = w.Write([]byte(`<CopyObjectResult><ETag>"etag"</ETag></CopyObjectResult>`))
+	case r.Method == http.MethodDelete:
+		delete(b.keys, key)
+		w.WriteHeader(http.StatusNoContent)
+	default:
+		w.WriteHeader(http.StatusNotImplemented)
+	}
+}
+
+// signingScope returns the access key and service of the SigV4 Authorization header.
+func signingScope(r *http.Request) (accessKey, service string) {
+	// AWS4-HMAC-SHA256 Credential=<access key>/<date>/<region>/<service>/aws4_request, ...
+	credential, _, _ := strings.Cut(strings.TrimPrefix(r.Header.Get("Authorization"), "AWS4-HMAC-SHA256 Credential="), ",")
+	parts := strings.Split(credential, "/")
+	if len(parts) != 5 {
+		return "", ""
+	}
+	return parts[0], parts[3]
+}
+
+// createSession serves CreateSession, which directory buckets authorize with IAM credentials.
+func (b *fakeBucket) createSession(w http.ResponseWriter, r *http.Request) {
+	if accessKey, service := signingScope(r); accessKey != "test" || service != "s3express" {
+		w.WriteHeader(http.StatusForbidden)
+		_ = xml.NewEncoder(w).Encode(minio.ErrorResponse{Code: "AccessDenied", Message: "CreateSession must be signed with IAM credentials for s3express"})
+		return
+	}
+	b.sessions++
+
+	var res createSessionResult
+	res.Credentials.AccessKeyID = fakeSessionAccessKey
+	res.Credentials.SecretAccessKey = "session-secret-key"
+	res.Credentials.SessionToken = fakeSessionToken
+	res.Credentials.Expiration = time.Now().Add(b.sessionLifetime)
+	_ = xml.NewEncoder(w).Encode(res)
+}
+
+// authorize checks requests are signed like S3 expects: directory buckets take session
+// credentials for the s3express service, except for CopyObject which takes IAM credentials.
+func (b *fakeBucket) authorize(r *http.Request) error {
+	accessKey, service := signingScope(r)
+	switch {
+	case !b.directory:
+		if service != "s3" {
+			return fmt.Errorf("expected a signature for s3, got %q", service)
+		}
+	case service != "s3express":
+		return fmt.Errorf("expected a signature for s3express, got %q", service)
+	case r.Header.Get("X-Amz-Copy-Source") != "":
+		if accessKey != "test" || r.Header.Get("X-Amz-S3session-Token") != "" {
+			return errors.New("CopyObject must be signed with IAM credentials")
+		}
+	case accessKey != fakeSessionAccessKey || r.Header.Get("X-Amz-S3session-Token") != fakeSessionToken:
+		return errors.New("expected session credentials")
+	}
+	return nil
+}
+
+func (b *fakeBucket) list(w http.ResponseWriter, query url.Values) {
+	b.queries = append(b.queries, query)
+
+	prefix, delimiter, startAfter := query.Get("prefix"), query.Get("delimiter"), query.Get("start-after")
+	switch {
+	case query.Get("list-type") != "2":
+		writeS3Error(w, "This bucket does not support ListObjects API. Consider using ListObjectsV2 API.")
+		return
+	case b.directory && query.Has("start-after"):
+		writeS3Error(w, "start-after is not supported by directory buckets")
+		return
+	case b.directory && prefix != "" && !strings.HasSuffix(prefix, "/"):
+		writeS3Error(w, "directory buckets only support prefixes that end in a delimiter")
+		return
+	}
+
+	type entry struct {
+		name     string
+		isPrefix bool
+	}
+	var (
+		entries  []entry
+		prefixes = map[string]struct{}{}
+	)
+	for key := range b.keys {
+		if !strings.HasPrefix(key, prefix) || (startAfter != "" && key <= startAfter) {
+			continue
+		}
+		if i := strings.Index(key[len(prefix):], delimiter); delimiter != "" && i >= 0 {
+			commonPrefix := key[:len(prefix)+i+len(delimiter)]
+			if _, ok := prefixes[commonPrefix]; !ok {
+				prefixes[commonPrefix] = struct{}{}
+				entries = append(entries, entry{name: commonPrefix, isPrefix: true})
+			}
+			continue
+		}
+		entries = append(entries, entry{name: key})
+	}
+	slices.SortFunc(entries, func(a, c entry) int {
+		if b.directory {
+			return strings.Compare(c.name, a.name)
+		}
+		return strings.Compare(a.name, c.name)
+	})
+
+	// the continuation token is the offset of the next page
+	pageSize := 2
+	if maxKeys, _ := strconv.Atoi(query.Get("max-keys")); maxKeys > 0 && maxKeys < pageSize {
+		pageSize = maxKeys
+	}
+	start, _ := strconv.Atoi(query.Get("continuation-token"))
+	start = min(start, len(entries))
+	end := min(start+pageSize, len(entries))
+
+	res := fakeListResult{IsTruncated: end < len(entries)}
+	if res.IsTruncated {
+		res.NextContinuationToken = strconv.Itoa(end)
+	}
+	for _, e := range entries[start:end] {
+		if e.isPrefix {
+			res.CommonPrefixes = append(res.CommonPrefixes, fakeListPrefix{Prefix: e.name})
+		} else {
+			res.Contents = append(res.Contents, fakeListContents{Key: e.name})
+		}
+	}
+	_ = xml.NewEncoder(w).Encode(res)
+}
+
+func writeS3Error(w http.ResponseWriter, message string) {
+	w.WriteHeader(http.StatusBadRequest)
+	_ = xml.NewEncoder(w).Encode(minio.ErrorResponse{Code: "InvalidRequest", Message: message})
 }
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"

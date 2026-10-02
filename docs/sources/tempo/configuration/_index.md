@@ -1640,6 +1640,7 @@ storage:
 
             # The number of list calls to make in parallel to the backend per instance.
             # Adjustments here will impact the polling time, as well as the number of Go routines.
+            # Ignored for S3 directory buckets (bucket names ending in `--x-s3`), which don't support parallel listing.
             # Default is 3
             [list_blocks_concurrency: <int>]
 
