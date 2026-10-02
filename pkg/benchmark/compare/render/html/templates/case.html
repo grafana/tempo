@@ -16,7 +16,7 @@
   <thead><tr>{{range .Header}}<th>{{.}}</th>{{end}}</tr></thead>
   <tbody>
   {{- range .Rows}}
-    <tr><td style="color: {{.Name.Color}}"{{with .Name.Class}} class="{{.}}"{{end}}>{{.Name.Text}}</td>{{range .Cells}}<td>{{.}}</td>{{end}}</tr>
+    <tr><td style="color: {{.Name.Color}}" class="{{.Name.Class}}">{{.Name.Text}}</td>{{range .Cells}}<td>{{.}}</td>{{end}}</tr>
   {{- end}}
   </tbody>
 </table>

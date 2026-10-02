@@ -1,14 +1,14 @@
 {{define "summary"}}{{template "head" .}}
 {{with .Summary}}
-<nav>{{range .Metrics}}<a href="{{.URL}}"{{if .Active}} class="active"{{end}}>{{.Label}}</a>{{end}}</nav>
-<nav>{{range .Stats}}<a href="{{.URL}}"{{if .Active}} class="active"{{end}}>{{.Label}}</a>{{end}}</nav>
+<nav>{{range .Metrics}}<a href="{{.URL}}" class="{{if .Active}}active{{end}}">{{.Label}}</a>{{end}}</nav>
+<nav>{{range .Stats}}<a href="{{.URL}}" class="{{if .Active}}active{{end}}">{{.Label}}</a>{{end}}</nav>
 <h2>{{.Title}}</h2>
 <table class="data">
   <thead>
     <tr>
       <th>case</th>
       {{- range .Columns}}
-      <th class="sep{{with .Class}} {{.}}{{end}}"{{if not .Baseline}} colspan="2"{{end}} style="color: {{.Color}}">{{.Text}}</th>
+      <th class="sep{{with .Class}} {{.}}{{end}}" colspan="{{if .Baseline}}1{{else}}2{{end}}" style="color: {{.Color}}">{{.Text}}</th>
       {{- end}}
     </tr>
   </thead>
@@ -25,7 +25,7 @@
         {{- else if .Baseline}}
       <td class="sep">{{.Value}}</td>
         {{- else}}
-      <td class="sep">{{.Value}}</td><td{{with .Change.Class}} class="{{.}}"{{end}}>{{.Change.Text}}</td>
+      <td class="sep">{{.Value}}</td><td class="{{.Change.Class}}">{{.Change.Text}}</td>
         {{- end}}
       {{- end}}
     </tr>

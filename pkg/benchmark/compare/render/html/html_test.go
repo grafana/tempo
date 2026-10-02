@@ -42,9 +42,9 @@ func TestSummaryPage(t *testing.T) {
 
 	// The runs are listed with what they changed, each a link to making it the
 	// baseline, in its colour from the palette.
-	require.Contains(t, body, `<span>readBufferSize default → 4MiB</span>`)
+	require.Contains(t, body, `<span class="">readBufferSize default → 4MiB</span>`)
 	require.Contains(t, body, `<span class="dim">gitSHA abc</span>`)
-	require.Contains(t, body, `<a href="/?baseline=3&amp;metric=harness.wallNs&amp;p=p50" style="color: #0b7fa3">4MiB</a>`)
+	require.Contains(t, body, `<a href="/?baseline=3&amp;metric=harness.wallNs&amp;p=p50" style="color: #0b7fa3" class="">4MiB</a>`)
 	require.Contains(t, body, `style="color: #a3329a" class="bold">base</a>`, "the baseline stands out")
 
 	// The table has a value and a change for each run, styled by how it moved.
@@ -55,7 +55,7 @@ func TestSummaryPage(t *testing.T) {
 	require.Contains(t, body, `<td class="sep">10ns</td><td class="dim">0%</td>`)
 	require.Contains(t, body, `<td class="sep warn" colspan="2">not comparable</td>`)
 	require.Contains(t, body, "<li>search/nopredicate vs 4MiB: matched 5 vs 6</li>")
-	require.Contains(t, body, `<th class="sep bold" style="color: #a3329a">base</th>`, "the baseline's column is one wide")
+	require.Contains(t, body, `<th class="sep bold" colspan="1" style="color: #a3329a">base</th>`, "the baseline's column is one wide")
 	require.Contains(t, body, `<th class="sep" colspan="2" style="color: #2e7d4f">again</th>`)
 
 	// The styles' colours come from the palette.
@@ -63,7 +63,7 @@ func TestSummaryPage(t *testing.T) {
 	require.Contains(t, body, ".bold { font-weight: 600; }")
 
 	// Tabs switch the metric and the percentile.
-	require.Contains(t, body, `<a href="/?baseline=0&amp;metric=backend.reads&amp;p=p50">backend.reads</a>`)
+	require.Contains(t, body, `<a href="/?baseline=0&amp;metric=backend.reads&amp;p=p50" class="">backend.reads</a>`)
 	require.Contains(t, body, `<a href="/?baseline=0&amp;metric=harness.wallNs&amp;p=p50" class="active">p50</a>`)
 	require.NotContains(t, body, "ZgotmplZ", "every value made it through the template's escaping")
 }
@@ -110,7 +110,7 @@ func TestCasePage(t *testing.T) {
 	require.Contains(t, body, "<h2>harness.wallNs</h2>")
 	require.Contains(t, body, "<h2>backend.reads</h2>")
 	require.Contains(t, body, "<th>Δp50</th>")
-	require.Contains(t, body, `<td style="color: #2e7d4f">again</td><td>10</td><td>10ns</td>`)
+	require.Contains(t, body, `<td style="color: #2e7d4f" class="">again</td><td>10</td><td>10ns</td>`)
 	require.Contains(t, body, "no data")
 	require.NotContains(t, body, "ZgotmplZ")
 
