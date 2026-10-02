@@ -1722,6 +1722,7 @@ storage:
             # Optional. Default is v2.
             # Use a specific version of the S3 list objects API. Supported values are v1 and v2.
             # Set to v1 for S3-compatible stores that do not implement ListObjectsV2 pagination correctly.
+            # Leave the default otherwise: v2 is the API AWS recommends.
             [list_objects_version: <string>]
 
             # Optional. Default is 0 (disabled)
