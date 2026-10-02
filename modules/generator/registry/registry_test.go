@@ -207,6 +207,7 @@ func TestManagedRegistry_externalLabels(t *testing.T) {
 	appender := &capturingAppender{}
 
 	cfg := &Config{
+		GeneratorInstanceID: "ring-instance",
 		ExternalLabels: map[string]string{
 			"__foo": "bar",
 		},
@@ -218,8 +219,8 @@ func TestManagedRegistry_externalLabels(t *testing.T) {
 	counter.Inc(labels.New(), 1.0)
 
 	expectedSamples := []sample{
-		newSample(map[string]string{"__name__": "my_counter", "__metrics_gen_instance": mustGetHostname(), "__foo": "bar"}, 0, 0),
-		newSample(map[string]string{"__name__": "my_counter", "__metrics_gen_instance": mustGetHostname(), "__foo": "bar"}, 0, 1),
+		newSample(map[string]string{"__name__": "my_counter", "__metrics_gen_instance": "ring-instance", "__foo": "bar"}, 0, 0),
+		newSample(map[string]string{"__name__": "my_counter", "__metrics_gen_instance": "ring-instance", "__foo": "bar"}, 0, 1),
 	}
 	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
 }

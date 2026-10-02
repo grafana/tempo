@@ -6,6 +6,9 @@ import (
 )
 
 type Config struct {
+	// GeneratorInstanceID is injected from the metrics-generator ring configuration.
+	GeneratorInstanceID string `yaml:"-"`
+
 	// CollectionInterval controls how often to collect metrics.
 	// Defaults to 15s.
 	CollectionInterval time.Duration `yaml:"collection_interval"`
