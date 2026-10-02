@@ -2,6 +2,7 @@ package backendworker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"math/rand"
@@ -25,6 +26,15 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc/codes"
 )
+
+// errNoJobsAvailable is how the worker says "the scheduler had nothing to hand out" to its
+// own poll loop. It is not a failure: an idle cluster produces it on every poll, so the loop
+// paces itself on it rather than reporting it.
+//
+// Two scheduler behaviours arrive here as the same thing -- an empty NextJobResponse, and a
+// codes.NotFound from a scheduler older than this worker, which is what the 2.x and early
+// 3.x schedulers send. Both mean the queue is empty.
+var errNoJobsAvailable = errors.New("no jobs available")
 
 const (
 	// ringAutoForgetUnhealthyPeriods is how many consecutive timeout periods an unhealthy instance
@@ -180,6 +190,19 @@ func (w *BackendWorker) starting(ctx context.Context) (err error) {
 	return nil
 }
 
+// logPollFailure reports what a poll of the scheduler returned. An empty queue is the
+// expected state of an idle cluster and is logged at debug; everything else is an error.
+// Shared by the two poll loops in running() so they cannot drift apart.
+func logPollFailure(err error, next time.Duration) {
+	if errors.Is(err, errNoJobsAvailable) {
+		level.Debug(log.Logger).Log("msg", "no jobs available from scheduler", "backoff", next)
+
+		return
+	}
+
+	level.Error(log.Logger).Log("msg", "error processing jobs", "err", err, "backoff", next)
+}
+
 func (w *BackendWorker) running(ctx context.Context) error {
 	level.Info(log.Logger).Log("msg", "backend worker running")
 
@@ -201,7 +224,7 @@ func (w *BackendWorker) running(ctx context.Context) error {
 				return fmt.Errorf("worker subservices failed: %w", err)
 			default:
 				if err := w.processJobs(jobCtx); err != nil {
-					level.Error(log.Logger).Log("msg", "error processing jobs", "err", err, "backoff", b.NextDelay())
+					logPollFailure(err, b.NextDelay())
 					b.Wait()
 					continue
 				}
@@ -216,7 +239,7 @@ func (w *BackendWorker) running(ctx context.Context) error {
 				return nil
 			default:
 				if err := w.processJobs(jobCtx); err != nil {
-					level.Error(log.Logger).Log("msg", "error processing jobs", "err", err, "backoff", b.NextDelay())
+					logPollFailure(err, b.NextDelay())
 					b.Wait()
 					continue
 				}
@@ -240,10 +263,11 @@ func (w *BackendWorker) processJobs(ctx context.Context) error {
 			WorkerId: w.workerID,
 		})
 		if funcErr != nil {
-			if errStatus, ok := status.FromError(funcErr); ok {
-				if errStatus.Code() == codes.NotFound {
-					return errStatus.Err()
-				}
+			// Checked here, on the error as it comes off the RPC, and translated into this
+			// worker's own sentinel so every layer above can recognise it when it is wrapped.
+			// Returned rather than swallowed so the backoff loop keeps polling.
+			if noJobsAvailable(funcErr) {
+				return errNoJobsAvailable
 			}
 
 			return fmt.Errorf("error getting next job: %w", funcErr)
@@ -252,11 +276,15 @@ func (w *BackendWorker) processJobs(ctx context.Context) error {
 		return nil
 	})
 	if err != nil {
+		if noJobsAvailable(err) {
+			return errNoJobsAvailable
+		}
+
 		return fmt.Errorf("failed processing jobs: %w", err)
 	}
 
 	if resp == nil || resp.JobId == "" {
-		return fmt.Errorf("no jobs available")
+		return errNoJobsAvailable
 	}
 
 	metricWorkerJobsTotal.WithLabelValues().Inc()
@@ -523,11 +551,19 @@ func (w *BackendWorker) MaxCompactionRangeForTenant(tenantID string) time.Durati
 	return w.overrides.MaxCompactionRange(tenantID)
 }
 
-// noJobsAvailable reports whether err is the scheduler saying that its job queue is empty.
-// The Next long-poll answers codes.NotFound once it times out with nothing to hand out, and
-// processJobs passes that through to the backoff loop so that polling continues. It is the
+// noJobsAvailable reports whether err means the scheduler had nothing to hand out. It is the
 // expected state of a cluster with nothing to compact, not a failure.
+//
+// Two legs, because the signal arrives in two shapes. errNoJobsAvailable is this worker's own
+// vocabulary and is recognised however it has been wrapped on the way up. A codes.NotFound is
+// what a scheduler older than this worker sends, and is only reliable on the error as it
+// comes off the RPC: status.FromError does not look through a wrapped error, so the leg that
+// matters for a rolling upgrade is checked next to the Next call rather than here.
 func noJobsAvailable(err error) bool {
+	if errors.Is(err, errNoJobsAvailable) {
+		return true
+	}
+
 	errStatus, ok := status.FromError(err)
 
 	return ok && errStatus.Code() == codes.NotFound

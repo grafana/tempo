@@ -3,6 +3,7 @@ package backendworker
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"flag"
 	"fmt"
 	"net"
@@ -58,7 +59,9 @@ func TestWorker(t *testing.T) {
 	w.backendScheduler = scheduler
 
 	err = w.processJobs(ctx)
-	require.Error(t, err, "no jobs found")
+	// nextNoop answers OK with an empty response, which is how a 3.x scheduler reports an
+	// empty queue. The worker must recognise it as "nothing to do" and not as a failure.
+	require.ErrorIs(t, err, errNoJobsAvailable)
 
 	w.backendScheduler = &mockScheduler{
 		next:      nextFuncWithJob(store, tenant),
@@ -419,4 +422,52 @@ func TestCallSchedulerWithBackoffStillReportsRealFailures(t *testing.T) {
 		"a scheduler that cannot be reached must still count as a call retry")
 	require.Contains(t, captured.captured(), "level=error",
 		"a scheduler that cannot be reached must still be logged at error level")
+}
+
+// The poll loop logs whatever processJobs returns. An empty queue reaching that site as an
+// ordinary error is how the idle case stays an error line even once the scheduler stops
+// sending codes.NotFound -- the report moves rather than goes away.
+func TestPollFailureLoggingSeparatesAnEmptyQueueFromAFailure(t *testing.T) {
+	t.Run("an empty queue is debug", func(t *testing.T) {
+		captured := captureSchedulerLogs(t)
+
+		logPollFailure(errNoJobsAvailable, time.Second)
+
+		require.Contains(t, captured.captured(), "level=debug")
+		require.NotContains(t, captured.captured(), "level=error")
+	})
+
+	t.Run("a wrapped empty queue is still debug", func(t *testing.T) {
+		captured := captureSchedulerLogs(t)
+
+		logPollFailure(fmt.Errorf("failed processing jobs: %w", errNoJobsAvailable), time.Second)
+
+		require.NotContains(t, captured.captured(), "level=error")
+	})
+
+	t.Run("anything else is an error", func(t *testing.T) {
+		captured := captureSchedulerLogs(t)
+
+		logPollFailure(errors.New("connection refused"), time.Second)
+
+		require.Contains(t, captured.captured(), "level=error")
+	})
+}
+
+// A worker newer than its scheduler still has to recognise an empty queue: the 2.x and
+// early-3.x schedulers answer Next with codes.NotFound, and during a rolling upgrade this
+// worker talks to one of them. The status arrives wrapped by callSchedulerWithBackoff, so
+// this also pins that the classification sees through the wrapping.
+func TestProcessJobsTreatsAnOlderSchedulersNotFoundAsAnEmptyQueue(t *testing.T) {
+	w := backoffWorker()
+	w.backendScheduler = &mockScheduler{
+		next: func(context.Context, *tempopb.NextJobRequest, ...grpc.CallOption) (*tempopb.NextJobResponse, error) {
+			return &tempopb.NextJobResponse{}, status.Error(codes.NotFound, "no jobs found")
+		},
+		updateJob: updateJobNoop,
+	}
+
+	err := w.processJobs(context.Background())
+
+	require.ErrorIs(t, err, errNoJobsAvailable)
 }
