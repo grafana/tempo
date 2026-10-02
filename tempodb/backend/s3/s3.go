@@ -146,9 +146,9 @@ func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
 
 	// try listing objects
 	if confirm {
-		_, err = core.ListObjects(cfg.Bucket, cfg.Prefix, "", "/", 1)
+		_, err = core.ListObjectsV2(cfg.Bucket, listPrefix(backend.KeyPathWithPrefix(nil, cfg.Prefix)), "", "", "/", 1)
 		if err != nil {
-			return nil, fmt.Errorf("unexpected error from ListObjects on %s: %w", cfg.Bucket, err)
+			return nil, fmt.Errorf("unexpected error from ListObjectsV2 on %s: %w", cfg.Bucket, err)
 		}
 	}
 
@@ -364,26 +364,21 @@ func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend
 // List implements backend.Reader
 func (rw *readerWriter) List(_ context.Context, keypath backend.KeyPath) ([]string, error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
-	prefix := path.Join(keypath...)
+	prefix := listPrefix(keypath)
 	var objects []string
 
-	if len(prefix) > 0 {
-		prefix += "/"
-	}
-
-	nextMarker := ""
+	nextToken := ""
 	isTruncated := true
 	for isTruncated {
-		// ListObjects(bucket, prefix, nextMarker, delimiter string, maxKeys int)
-		res, err := rw.core.ListObjects(rw.cfg.Bucket, prefix, nextMarker, "/", 0)
+		res, err := rw.core.ListObjectsV2(rw.cfg.Bucket, prefix, "", nextToken, "/", 0)
 		if err != nil {
 			return nil, fmt.Errorf("error listing blocks in s3 bucket, bucket: %s: %w", rw.cfg.Bucket, err)
 		}
 		isTruncated = res.IsTruncated
-		nextMarker = res.NextMarker
+		nextToken = res.NextContinuationToken
 
 		level.Debug(rw.logger).Log("msg", "listing blocks", "keypath", path.Join(keypath...)+"/",
-			"found", len(res.CommonPrefixes), "IsTruncated", res.IsTruncated, "NextMarker", res.NextMarker)
+			"found", len(res.CommonPrefixes), "IsTruncated", res.IsTruncated, "NextContinuationToken", res.NextContinuationToken)
 
 		for _, cp := range res.CommonPrefixes {
 			objects = append(objects, strings.Split(strings.TrimPrefix(cp.Prefix, prefix), "/")[0])
@@ -400,10 +395,20 @@ func (rw *readerWriter) ListBlocks(
 	ctx, span := tracer.Start(ctx, "readerWriter.ListBlocks")
 	defer span.End()
 
+	// Directory buckets don't support start-after and don't list keys in lexicographical order,
+	// so their block IDs can't be split into ranges that are listed concurrently. They are listed
+	// with a single shard instead, which covers all block IDs and so never trips the shard bounds
+	// checks below.
+	directoryBucket := isDirectoryBucket(rw.cfg.Bucket)
+	shards := rw.cfg.ListBlocksConcurrency
+	if directoryBucket {
+		shards = 1
+	}
+
 	var (
 		wg                = sync.WaitGroup{}
 		mtx               = sync.Mutex{}
-		bb                = blockboundary.CreateBlockBoundaries(rw.cfg.ListBlocksConcurrency)
+		bb                = blockboundary.CreateBlockBoundaries(shards)
 		errChan           = make(chan error, len(bb))
 		keypath           = backend.KeyPathWithPrefix(backend.KeyPath{tenant}, rw.cfg.Prefix)
 		minID             uuid.UUID
@@ -413,10 +418,7 @@ func (rw *readerWriter) ListBlocks(
 		noCompactBlockIDs = make([]uuid.UUID, 0)
 	)
 
-	prefix := path.Join(keypath...)
-	if len(prefix) > 0 {
-		prefix += "/"
-	}
+	prefix := listPrefix(keypath)
 
 	for i := 0; i < len(bb)-1; i++ {
 		minID = uuid.UUID(bb[i])
@@ -429,8 +431,11 @@ func (rw *readerWriter) ListBlocks(
 			var (
 				err        error
 				res        minio.ListBucketV2Result
-				startAfter = prefix + minUUID.String()
+				startAfter string
 			)
+			if !directoryBucket {
+				startAfter = prefix + minUUID.String()
+			}
 
 			for res.IsTruncated = true; res.IsTruncated; {
 				if ctx.Err() != nil {
@@ -508,11 +513,7 @@ func (rw *readerWriter) ListBlocks(
 // Find implements backend.Reader
 func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindFunc) (err error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
-	prefix := path.Join(keypath...)
-
-	if len(prefix) > 0 {
-		prefix += "/"
-	}
+	prefix := listPrefix(keypath)
 
 	nextToken := ""
 	isTruncated := true
@@ -784,6 +785,23 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 
 	core.SetS3EnableDualstack(cfg.UseDualStack)
 	return core, err
+}
+
+// listPrefix returns the prefix to list the objects under keypath with. Directory buckets only
+// accept list prefixes that end in a delimiter, so a non-empty prefix always ends in "/".
+func listPrefix(keypath backend.KeyPath) string {
+	prefix := path.Join(keypath...)
+	if len(prefix) > 0 {
+		prefix += "/"
+	}
+	return prefix
+}
+
+// isDirectoryBucket reports whether bucket names an S3 directory bucket, in an Availability Zone
+// (S3 Express One Zone) or a Local Zone, or an access point for one. These are identified by the
+// same name suffixes the AWS SDKs use.
+func isDirectoryBucket(bucket string) bool {
+	return strings.HasSuffix(bucket, "--x-s3") || strings.HasSuffix(bucket, "--xa-s3")
 }
 
 func readError(err error) error {
