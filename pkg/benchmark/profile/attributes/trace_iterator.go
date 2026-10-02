@@ -43,11 +43,15 @@ func newVParquet5TraceIterator(ctx context.Context, meta *backend.BlockMeta, r b
 	size := int64(meta.Size_)
 	ra := tempo_io.NewBufferedReaderAt(vparquet5.NewBackendReaderAt(ctx, r, vparquet5.DataFileName, meta), size, traceReadBufferSize, traceReadBufferCount)
 
-	pf, err := parquet.OpenFile(ra, size, parquet.SkipBloomFilters(true), parquet.SkipPageIndex(true))
+	// Dedicated columns can change the schema, such as blobs written without a
+	// dictionary, so the block is read with its own as the block iterator does.
+	sch, _, readerOptions := vparquet5.SchemaWithDynamicChanges(meta.DedicatedColumns)
+	pf, err := parquet.OpenFile(ra, size, parquet.SkipBloomFilters(true), parquet.SkipPageIndex(true), parquet.FileSchema(sch))
 	if err != nil {
 		return nil, fmt.Errorf("opening %s for block %s: %w", vparquet5.DataFileName, meta.BlockID, err)
 	}
-	return &vparquet5TraceIterator{meta: meta, r: parquet.NewGenericReader[*vparquet5.Trace](pf)}, nil
+	gr := parquet.NewGenericReader[*vparquet5.Trace](pf, append(readerOptions, sch)...)
+	return &vparquet5TraceIterator{meta: meta, r: gr}, nil
 }
 
 // Next returns io.EOF after the last trace.

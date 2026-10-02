@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/v3/pkg/benchmark/internal/benchtest"
+	"github.com/grafana/tempo/v3/pkg/benchmark/profile/attributes"
 	"github.com/grafana/tempo/v3/pkg/util"
 	"github.com/grafana/tempo/v3/tempodb/encoding"
 	"github.com/grafana/tempo/v3/tempodb/encoding/common"
@@ -206,8 +207,19 @@ func TestProfileBlockAttributes(t *testing.T) {
 	p, err := Build(ctx, meta, r, Options{NumAttributes: 5})
 	require.NoError(t, err)
 	require.NotNil(t, p.Attributes)
-	require.Len(t, p.Attributes.Ranked, 5)
 	require.Equal(t, uint64(50*4), p.Attributes.Spans)
+
+	// The fixture has six span strings, two resource strings and the four
+	// intrinsics; NumAttributes caps each scope and kind of value.
+	perScope := map[string]int{}
+	for _, a := range p.Attributes.Ranked {
+		perScope[a.Scope]++
+	}
+	require.Equal(t, map[string]int{
+		attributes.ScopeSpan:      5,
+		attributes.ScopeResource:  2,
+		attributes.ScopeIntrinsic: 4,
+	}, perScope)
 
 	var buf bytes.Buffer
 	require.NoError(t, p.Write(&buf))

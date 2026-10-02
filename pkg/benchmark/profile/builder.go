@@ -37,8 +37,8 @@ type Options struct {
 	// ID, so the hit and miss paths are measured over the same number of
 	// samples.
 	NumTraceIDs int
-	// NumAttributes is how many attributes to rank by total bytes, or 0 to skip
-	// the full scan that needs.
+	// NumAttributes is how many attributes to keep in each scope and kind of
+	// value, ranked by total bytes, or 0 to skip the full scan that needs.
 	NumAttributes int
 }
 
@@ -68,7 +68,7 @@ func Build(ctx context.Context, meta *backend.BlockMeta, r backend.Reader, o Opt
 	if o.NumAttributes > 0 {
 		attrs, err = attributes.Build(ctx, meta, r, o.NumAttributes)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("profiling attributes (pass --attributes 0 to skip): %w", err)
 		}
 	}
 

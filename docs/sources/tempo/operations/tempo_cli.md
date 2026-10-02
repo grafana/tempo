@@ -527,18 +527,16 @@ Options:
   every ID at run time rather than embedding them. Defaults to `10000`. One
   absent ID is derived per present ID. Pass `0` to skip trace IDs, and with them
   the full scan they require.
-- `--attributes` Number of attributes to profile, ranked by total bytes as
+- `--attributes` Number of attributes to profile in each scope (resource, span)
+  and kind of value (string, numeric, boolean), ranked by total bytes as
   `analyse block` counts them: a resource attribute once per resource, a span
-  attribute once per span. Covers resource and span attributes and the `name`,
-  `status`, `kind` and `duration` intrinsics. Each records its cardinality, the
+  attribute once per span. The `name`, `status`, `kind` and `duration`
+  intrinsics are always included. Each records its cardinality, the
   share of spans carrying it, and the share carrying each of its 100 most
   frequent values, or, for a numeric attribute with more than 100 distinct
   values, quantiles of its values. Defaults to `100`. Pass `0` to skip the full
   scan it requires. Supported for vParquet5 blocks.
 - `-o`, `--out` File to write the profile to. Defaults to stdout.
-
-Profiles built from a customer block embed real trace IDs and attribute values.
-Treat them as local artifacts.
 
 Example:
 

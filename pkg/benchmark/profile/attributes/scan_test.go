@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -105,7 +106,14 @@ func attributeTestBlock(t *testing.T) (*backend.BlockMeta, backend.Reader) {
 		ids[i] = make([]byte, 16)
 		binary.BigEndian.PutUint64(ids[i][8:], uint64(i+1))
 	}
-	dedicated := backend.DedicatedColumns{{Scope: backend.DedicatedColumnScopeSpan, Name: "http.method", Type: backend.DedicatedColumnTypeString}}
+	// A blob column is written without dictionary encoding, so reading it needs
+	// the block's own schema.
+	dedicated := backend.DedicatedColumns{{
+		Scope:   backend.DedicatedColumnScopeSpan,
+		Name:    "http.method",
+		Type:    backend.DedicatedColumnTypeString,
+		Options: backend.DedicatedColumnOptions{backend.DedicatedColumnOptionBlob},
+	}}
 
 	meta, r, _ := benchtest.WriteBlock(t, ids, dedicated, attributeTrace)
 	require.Equal(t, dedicated, meta.DedicatedColumns, "the writer dropped the dedicated column")
@@ -236,12 +244,50 @@ func TestProfileAttributes(t *testing.T) {
 	}
 }
 
-func TestProfileAttributesKeepsTopN(t *testing.T) {
+// n applies to each scope and kind of value, and intrinsics are always kept.
+func TestProfileAttributesKeepsTopNPerGroup(t *testing.T) {
 	meta, r := attributeTestBlock(t)
 
-	got, err := Build(context.Background(), meta, r, 3)
+	got, err := Build(context.Background(), meta, r, 1)
 	require.NoError(t, err)
-	require.Equal(t, []string{"intrinsic/duration", "span/http.status_code", "span/seq"}, rankedKeys(got.Ranked))
+	require.Equal(t, []string{
+		"intrinsic/duration", "span/http.status_code",
+		"intrinsic/name",
+		"span/http.method",
+		"resource/service.name",
+		"intrinsic/kind", "intrinsic/status",
+	}, rankedKeys(got.Ranked))
+}
+
+// Long span strings must not crowd out numbers, booleans or resource
+// attributes, which are worth benchmarking however few bytes they take.
+func TestProfileAttributesRanksEachKindApart(t *testing.T) {
+	str := func(k, v string) *v1_common.KeyValue {
+		return &v1_common.KeyValue{Key: k, Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: v}}}
+	}
+	long := strings.Repeat("x", 1000)
+
+	iter := &benchtest.SliceIterator{}
+	iter.Add([]byte{1}, &tempopb.Trace{ResourceSpans: []*v1_trace.ResourceSpans{{
+		Resource: &v1_resource.Resource{Attributes: []*v1_common.KeyValue{str("host", "h")}},
+		ScopeSpans: []*v1_trace.ScopeSpans{{Spans: []*v1_trace.Span{{
+			Name: "op",
+			Attributes: []*v1_common.KeyValue{
+				str("url", long),
+				str("body", long+long),
+				{Key: "size", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 1}}},
+				{Key: "ok", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+			},
+		}}}},
+	}}})
+
+	got, err := profileAttributes(context.Background(), iter, nil, 1)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{
+		"span/body", "span/size", "span/ok", "resource/host",
+		"intrinsic/name", "intrinsic/status", "intrinsic/kind", "intrinsic/duration",
+	}, rankedKeys(got.Ranked))
+	require.NoError(t, got.Validate())
 }
 
 // Two resources with the same attributes are still stored twice, and a

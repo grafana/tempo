@@ -21,7 +21,8 @@ import (
 // serviceNameAttribute has a column of its own in every vParquet version.
 const serviceNameAttribute = "service.name"
 
-// Build ranks the block's n attributes with the most bytes.
+// Build ranks the block's attributes, keeping the n with the most bytes in
+// each scope and kind of value.
 func Build(ctx context.Context, meta *backend.BlockMeta, r backend.Reader, n int) (*Profiles, error) {
 	iter, err := openTraceIterator(ctx, meta, r)
 	if err != nil {
@@ -157,21 +158,44 @@ func (s *attributeScan) flush(spans uint64) {
 	s.attrs = s.attrs[:0]
 }
 
-// rank finishes only the top n, since finishing sorts each one's values.
+// rank keeps the top n by bytes in each scope and kind of value, as analyse
+// block ranks strings and integers apart: by bytes alone long span strings
+// crowd out numbers, booleans and resource attributes. Intrinsics are always
+// kept. Only kept attributes are finished, since finishing sorts their values.
 func (s *attributeScan) rank(dedicated backend.DedicatedColumns, n int) *Profiles {
 	accs := slices.Collect(maps.Values(s.accs))
 	slices.SortFunc(accs, func(a, b *attrAccumulator) int {
 		return cmp.Or(cmp.Compare(b.totalBytes, a.totalBytes), compareAttrKeys(a.key, b.key))
 	})
-	accs = accs[:min(n, len(accs))]
 
-	ranked := make([]Profile, 0, len(accs))
+	type group struct{ scope, kind string }
+	kept := map[group]int{}
+	var ranked []Profile
 	for _, acc := range accs {
+		g := group{acc.key.scope, valueKind(acc.key.typ)}
+		if g.scope != ScopeIntrinsic && kept[g] >= n {
+			continue
+		}
+		kept[g]++
+
 		p := acc.finish(s.spans)
 		p.Dedicated = hasOwnColumn(acc.key, dedicated)
 		ranked = append(ranked, p)
 	}
 	return &Profiles{Spans: s.spans, Ranked: ranked}
+}
+
+// valueKind groups types for ranking: numbers are ranked together, as are
+// strings and enumerations, and booleans on their own.
+func valueKind(typ string) string {
+	switch {
+	case isNumericType(typ):
+		return "numeric"
+	case typ == TypeBool:
+		return TypeBool
+	default:
+		return TypeString
+	}
 }
 
 func compareAttrKeys(a, b attrKey) int {
