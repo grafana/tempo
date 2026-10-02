@@ -2932,6 +2932,11 @@ cache:
         - <role1>
         - <role2>
 
+        # Probability of each cache store call. Cache reads are unaffected.
+        # Valid values range from 0 to 1, inclusive. Default is 1 (skip no stores).
+        # Set to 0 to skip all stores, or, for example, 0.25 to store approximately 25%.
+        [store_probability: <float>]
+
         # Memcached caching configuration block
         memcached:
 

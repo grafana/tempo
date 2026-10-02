@@ -1,0 +1,6 @@
+change_type: enhancement
+component: cache
+note: Add store_probability to store hot keys more efficiently.
+issues: [7981]
+subtext: Defaults to 1 (skip no stores). Set to 0 to skip all stores. Cache reads are unaffected.
+user: ruslan-mikhailov
