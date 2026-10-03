@@ -267,25 +267,26 @@ func TranslateWithLocale(layout string, value string, locale Locale) (string, er
 				written = true
 			}
 		case '_': // _2, _2006, __2
-			// Although no translations happens here, it is still necessary to calculate the
-			// variable size of `_`  values, so the layoutOffset stays synchronized with
+			// Although no translations happen here, it is still necessary to calculate the
+			// variable size of `_` values, so the layoutOffset stays synchronized with
 			// its layout element counterpart.
 			if len(layout) >= layoutOffset+2 && layout[layoutOffset+1] == '2' {
-				var layoutElemSize int
+				var layoutElem string
 				// _2006 is really a literal _, followed by the long year placeholder
 				if len(layout) >= layoutOffset+5 && layout[layoutOffset+1:layoutOffset+5] == "2006" {
 					if len(value) >= valueOffset+5 {
-						layoutElemSize = 5 // _2006
+						layoutElem = "_2006"
 					}
 				} else {
 					if len(value) >= valueOffset+2 {
-						layoutElemSize = 2 // _2
+						layoutElem = "_2"
 					}
 				}
 
+				layoutElemSize := len(layoutElem)
 				if layoutElemSize > 0 {
 					layoutOffset += layoutElemSize
-					valueOffset, err = writeNextNonSpaceValue(value, valueOffset, layoutElemSize, &sb)
+					valueOffset, err = writeNextNonSpaceValue(value, valueOffset, layoutElemSize, layoutElem, &sb)
 					if err != nil {
 						return "", err
 					}
@@ -296,12 +297,22 @@ func TranslateWithLocale(layout string, value string, locale Locale) (string, er
 			if len(layout) >= layoutOffset+3 && layout[layoutOffset+1] == '_' && layout[layoutOffset+2] == '2' {
 				if len(value) >= valueOffset+3 {
 					layoutOffset += 3
-					valueOffset, err = writeNextNonSpaceValue(value, valueOffset, 3, &sb)
+					valueOffset, err = writeNextNonSpaceValue(value, valueOffset, 3, "__2", &sb)
 					if err != nil {
 						return "", err
 					}
 					written = true
 				}
+			}
+		case '3', '4', '5': // variable-width h/m/s from reference time, skip when second digit of 03/04/05
+			if layoutOffset == 0 || layout[layoutOffset-1] != '0' {
+				layoutElem := layout[layoutOffset]
+				valueOffset, err = writeFlexibleClockDigits(layoutElem, value, valueOffset, &sb)
+				if err != nil {
+					return "", err
+				}
+				layoutOffset++
+				written = true
 			}
 		}
 
@@ -326,8 +337,26 @@ func TranslateWithLocale(layout string, value string, locale Locale) (string, er
 	return sb.String(), nil
 }
 
-func writeNextNonSpaceValue(value string, offset int, max int, sb *strings.Builder) (int, error) {
-	nextValOffset, skippedSpaces, val, err := nextNonSpaceValue(value, offset, max)
+func writeFlexibleClockDigits(layoutElem byte, value string, valueOffset int, sb *strings.Builder) (int, error) {
+	newOffset, skippedSpaces := skipLeadingSpace(value, valueOffset)
+	if newOffset >= len(value) || value[newOffset] < '0' || value[newOffset] > '9' {
+		return valueOffset, newLayoutMismatchError(string(layoutElem), value)
+	}
+
+	end := newOffset + 1
+	if end < len(value) && value[end] >= '0' && value[end] <= '9' {
+		end++
+	}
+
+	if skippedSpaces > 0 {
+		sb.WriteString(strings.Repeat(" ", skippedSpaces))
+	}
+	sb.WriteString(value[newOffset:end])
+	return end, nil
+}
+
+func writeNextNonSpaceValue(value string, offset int, max int, layoutElem string, sb *strings.Builder) (int, error) {
+	nextValOffset, skippedSpaces, val, err := nextNonSpaceValue(value, offset, max, layoutElem)
 	if err != nil {
 		return offset, err
 	}
@@ -345,7 +374,7 @@ func writeNextNonSpaceValue(value string, offset int, max int, sb *strings.Build
 }
 
 func writeLayoutValue(layoutElem string, lookupTab, stdTab []string, valueOffset int, value string, sb *strings.Builder) (int, error) {
-	newOffset, skippedSpaces, foundStdValue, val := lookup(lookupTab, valueOffset, value, stdTab)
+	newOffset, skippedSpaces, foundStdValue, matched := lookup(lookupTab, valueOffset, value, stdTab)
 	if foundStdValue == "" {
 		return valueOffset, newLayoutMismatchError(layoutElem, value)
 	}
@@ -359,51 +388,48 @@ func writeLayoutValue(layoutElem string, lookupTab, stdTab []string, valueOffset
 		return valueOffset, err
 	}
 
-	newOffset += len(val)
+	newOffset += len(matched)
 	return newOffset, nil
 }
 
-func nextNonSpaceValue(value string, offset int, max int) (newOffset, skippedSpaces int, val string, err error) {
+func nextNonSpaceValue(value string, offset int, max int, layoutElem string) (newOffset, skippedSpaces int, foundVal string, err error) {
 	newOffset = offset
 	for newOffset < len(value) && unicode.IsSpace(rune(value[newOffset])) {
 		newOffset++
 	}
 
 	skippedSpaces = newOffset - offset
-	if newOffset > len(value) {
-		return offset, skippedSpaces, "", errors.New("next non-space value not found")
+	if newOffset >= len(value) {
+		return offset, skippedSpaces, "", newLayoutMismatchError(layoutElem, value)
 	}
 
+	var sb strings.Builder
+	sb.Grow(len(value) - newOffset)
 	for newOffset < len(value) {
 		if !unicode.IsSpace(rune(value[newOffset])) {
-			val += string(value[newOffset])
+			sb.WriteByte(value[newOffset])
 			newOffset++
 		} else {
-			return newOffset, skippedSpaces, val, nil
+			return newOffset, skippedSpaces, sb.String(), nil
 		}
 
-		if len(val) == max {
-			return newOffset, skippedSpaces, val, nil
+		if sb.Len() == max {
+			return newOffset, skippedSpaces, sb.String(), nil
 		}
 	}
 
-	return newOffset, skippedSpaces, val, nil
+	return newOffset, skippedSpaces, sb.String(), nil
 }
 
-func lookup(lookupTab []string, offset int, val string, stdTab []string) (newOffset, skippedSpaces int, stdValue string, value string) {
-	newOffset = offset
-	for newOffset < len(val) && unicode.IsSpace(rune(val[newOffset])) {
-		newOffset++
-	}
-
-	skippedSpaces = newOffset - offset
-	if newOffset > len(val) {
-		return offset, skippedSpaces, "", val
+func lookup(lookupTab []string, offset int, val string, stdTab []string) (newOffset, skippedSpaces int, stdValue string, matched string) {
+	newOffset, skippedSpaces = skipLeadingSpace(val, offset)
+	if newOffset >= len(val) {
+		return newOffset, skippedSpaces, "", val
 	}
 
 	for i, v := range lookupTab {
 		// Already matched a more specific/longer value
-		if stdValue != "" && len(v) <= len(value) {
+		if stdValue != "" && len(v) <= len(matched) {
 			continue
 		}
 
@@ -415,11 +441,19 @@ func lookup(lookupTab []string, offset int, val string, stdTab []string) (newOff
 		candidate := val[newOffset:end]
 		if len(candidate) == len(v) && strings.EqualFold(candidate, v) {
 			stdValue = stdTab[i]
-			value = candidate
+			matched = candidate
 		}
 	}
 
-	return newOffset, skippedSpaces, stdValue, value
+	return newOffset, skippedSpaces, stdValue, matched
+}
+
+func skipLeadingSpace(s string, i int) (newI int, skippedBytes int) {
+	start := i
+	for i < len(s) && unicode.IsSpace(rune(s[i])) {
+		i++
+	}
+	return i, i - start
 }
 
 func startsWithLowerCase(value string) bool {
@@ -463,7 +497,7 @@ type ErrUnsupportedLayoutElem struct {
 }
 
 func (u *ErrUnsupportedLayoutElem) Error() string {
-	return fmt.Sprintf(`layout element "%s" is not support by the language "%s"`, u.LayoutElem, u.Language)
+	return fmt.Sprintf(`layout element "%s" is not supported by the language "%s"`, u.LayoutElem, u.Language)
 }
 
 func (u *ErrUnsupportedLayoutElem) Is(err error) bool {

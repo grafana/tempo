@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding"
 	"fmt"
+	"math"
 	"reflect"
 	"sort"
 	"strconv"
@@ -367,29 +368,26 @@ func (ko *Koanf) Get(path string) any {
 	return out
 }
 
-// Slices returns a list of Koanf instances constructed out of a
-// []map[string]any interface at the given path.
+// Slices returns a list of Koanf instances constructed from the value
+// at path. It accepts []map[string]any or []any containing map[string]any
+// elements. Non-slice elements are skipped.
 func (ko *Koanf) Slices(path string) []*Koanf {
 	out := []*Koanf{}
 	if path == "" {
 		return out
 	}
 
-	// Does the path exist?
-	sl, ok := ko.Get(path).([]any)
-	if !ok {
-		return out
-	}
-
-	for _, s := range sl {
-		mp, ok := s.(map[string]any)
-		if !ok {
-			continue
+	switch v := ko.Get(path).(type) {
+	case []map[string]any:
+		for _, mp := range v {
+			out = ko.appendMap(mp, out)
 		}
-
-		k := New(ko.conf.Delim)
-		_ = k.merge(mp, new(options))
-		out = append(out, k)
+	case []any:
+		for _, item := range v {
+			if mp, ok := item.(map[string]any); ok {
+				out = ko.appendMap(mp, out)
+			}
+		}
 	}
 
 	return out
@@ -483,15 +481,51 @@ func toInt64(v any) (int64, error) {
 		return int64(i), nil
 	case int64:
 		return i, nil
+	case uint8:
+		return int64(i), nil
+	case uint16:
+		return int64(i), nil
+	case uint32:
+		return int64(i), nil
+	case uint:
+		return uintToInt64(uint64(i))
+	case uint64:
+		return uintToInt64(i)
 	}
 
 	// Force it to a string and try to convert.
-	f, err := strconv.ParseFloat(fmt.Sprintf("%v", v), 64)
+	s := fmt.Sprintf("%v", v)
+
+	// Try parsing as int64 first, and on failure, attempt float64 parsing.
+	// Parsing directly as float64, when the number is beyond its upper limit (2^53)
+	// causes unnecessary precision loss when the value is actually an int.
+	if i, err := strconv.ParseInt(s, 10, 64); err == nil {
+		return i, nil
+	}
+
+	f, err := strconv.ParseFloat(s, 64)
 	if err != nil {
 		return 0, err
 	}
 
+	// int64(f) is undefined for numbers that are out of range and returns different
+	// results on different architectures. float64 cannot exactly represent MaxInt64,
+	// so check against the ACTUAL upper limit of 2^63.
+	// If neither match, return an error instead of the undefined result.
+	if math.IsNaN(f) || f < math.MinInt64 || f >= 1<<63 {
+		return 0, fmt.Errorf("value %v overflows int64", v)
+	}
+
 	return int64(f), nil
+}
+
+// uintToInt64 converts an unsigned integer to int64 and throw an error on overflow.
+func uintToInt64(v uint64) (int64, error) {
+	if v > math.MaxInt64 {
+		return 0, fmt.Errorf("value %d overflows int64", v)
+	}
+
+	return int64(v), nil
 }
 
 // toInt64 takes a `v any` value and if it is a float type,
@@ -618,4 +652,11 @@ func textUnmarshalerHookFunc() mapstructure.DecodeHookFuncType {
 		}
 		return result, nil
 	}
+}
+
+// appendMap creates new Koanf instances from a map returns a slice of Koanf instances.
+func (ko *Koanf) appendMap(mp map[string]any, out []*Koanf) []*Koanf {
+	k := New(ko.conf.Delim)
+	_ = k.merge(mp, new(options))
+	return append(out, k)
 }

@@ -39,11 +39,13 @@ func (m *Middleware) Remove() {
 	// Acquire write lock to modify middleware slice
 	m.logger.mu.Lock()
 	defer m.logger.mu.Unlock()
+
 	// Iterate through middleware slice to find and remove matching ID
 	for i, entry := range m.logger.middleware {
 		if entry.id == m.id {
-			// Remove middleware by slicing out the matching entry
-			m.logger.middleware = append(m.logger.middleware[:i], m.logger.middleware[i+1:]...)
+			last := len(m.logger.middleware) - 1
+			m.logger.middleware[i] = m.logger.middleware[last]
+			m.logger.middleware = m.logger.middleware[:last]
 			return
 		}
 	}
