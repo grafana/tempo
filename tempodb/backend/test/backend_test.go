@@ -97,7 +97,9 @@ func TestOriginalFixtures(t *testing.T) {
 
 	var (
 		_ = backend.NewWriter(rw)
-		r = backend.NewReader(rr)
+		// This fixture predates protobuf-encoded tenant indexes and only has a
+		// JSON one on disk.
+		r = backend.NewReader(rr, backend.WithTenantIndexJSONFallback(true))
 	)
 
 	expectedDedicatedColumns := backend.DedicatedColumns{
