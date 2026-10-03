@@ -35,6 +35,7 @@ type Config struct {
 	PartitionsPerInstance int                `yaml:"partitions_per_instance" doc:"Number of partitions assigned to this block builder."`
 	ConsumeCycleDuration  time.Duration      `yaml:"consume_cycle_duration" doc:"Interval between consumption cycles."`
 	MaxBytesPerCycle      uint64             `yaml:"max_consuming_bytes" doc:"Maximum number of bytes that can be consumed in a single cycle.  0 to disable"`
+	MaxReplayPeriod       time.Duration      `yaml:"max_replay_period" doc:"How far back to replay a partition when neither the local offset file nor the Kafka consumer group offset has a usable committed offset. Only used when ingest.consumer-group-offset-commit-file-enforced is set; otherwise the partition is replayed from its start."`
 
 	BlockConfig BlockConfig `yaml:"block" doc:"Configuration for the block builder."`
 	WAL         wal.Config  `yaml:"wal" doc:"Configuration for the write ahead log."`
@@ -84,6 +85,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.IntVar(&c.PartitionsPerInstance, prefix+".partitions-per-instance", 0, "Number of partitions assigned to this block builder.")
 	f.DurationVar(&c.ConsumeCycleDuration, prefix+".consume-cycle-duration", 5*time.Minute, "Interval between consumption cycles.")
 	f.Uint64Var(&c.MaxBytesPerCycle, prefix+".max-bytes-per-cycle", 5e9, "Maximum number of bytes that can be consumed in a single cycle. 0 to disable") // 5 Gb
+	f.DurationVar(&c.MaxReplayPeriod, prefix+".max-replay-period", time.Hour, "How far back to replay a partition when neither the local offset file nor the Kafka consumer group offset has a usable committed offset, and ingest.consumer-group-offset-commit-file-enforced is set. 0 to replay from the start of the partition.")
 
 	c.BlockConfig.RegisterFlagsAndApplyDefaults(prefix+".block", f)
 	c.WAL.RegisterFlags(f)
