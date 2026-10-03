@@ -20,6 +20,7 @@ http_api_prefix: ""
 memory:
     automemlimit_enabled: false
     automemlimit_ratio: 0.8
+    automemlimit_refresh_interval: 15s
 server:
     http_listen_network: tcp
     http_listen_address: ""

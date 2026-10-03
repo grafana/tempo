@@ -1,0 +1,6 @@
+change_type: enhancement
+component: tempo
+note: make the automemlimit refresh interval configurable via `memory.automemlimit_refresh_interval`.
+issues: []
+subtext:
+user: VishalVinayRam
