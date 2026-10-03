@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: backend-worker
+note: fix backend-worker retrying job completion (UpdateJob) forever on codes.NotFound, which starved it of new work; a NotFound on completion is now terminal for that job.
+issues: [7879]
+subtext:
+user: DeviousCardi
