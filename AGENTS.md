@@ -22,3 +22,4 @@ Before writing or editing Markdown prose (docs, READMEs, design docs), read [`.a
 ## Pre-Commit Checklist
 
 Before pushing or opening a PR, read [`.agents/guidance/precommit.md`](.agents/guidance/precommit.md).
+- Security issues should be reported via [Grafana's security issue reporting page](https://grafana.com/legal/report-a-security-issue/) and not directly in this repository.
