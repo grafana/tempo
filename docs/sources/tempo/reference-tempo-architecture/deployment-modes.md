@@ -31,6 +31,12 @@ In monolithic mode, the required components run in a single process using `-targ
 
 No Kafka is required. The distributor pushes trace data in-process directly to the live-store and metrics-generator. Traces are flushed to the configured storage backend without an intermediate message queue. Object storage is recommended for production deployments.
 
+{{< admonition type="note" >}}
+In monolithic mode, tenant-facing APIs and internal operational endpoints share the same HTTP and gRPC listeners.
+If you expose these listeners through an ingress or reverse proxy, restrict routing to tenant-facing APIs and block internal management routes.
+For more information, refer to [Manage authentication](/docs/tempo/<TEMPO_VERSION>/operations/authentication/).
+{{< /admonition >}}
+
 ### When to use monolithic mode
 
 Monolithic mode is suitable for getting started, development environments, and low to moderate trace volumes where operational simplicity matters more than independent scaling.
@@ -52,6 +58,10 @@ For an annotated example configuration for Tempo, refer to the [Introduction to 
 ## Microservices mode
 
 In microservices mode, each component runs as a separate process with its own `-target`. This is the recommended mode for production.
+
+Expose only tenant-facing components and routes through ingress.
+Keep internal component HTTP and gRPC listeners, such as backend-scheduler and live-store, restricted to operator or cluster-internal access.
+For more information, refer to [Manage authentication](/docs/tempo/<TEMPO_VERSION>/operations/authentication/).
 
 The configuration associated with each component's deployment specifies a `target`. For example, to deploy a `querier`, the configuration would contain `target: querier`. A command-line deployment may specify the `-target=querier` flag.
 
