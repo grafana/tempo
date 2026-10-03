@@ -17,10 +17,7 @@ type testInt struct {
 }
 
 type mockPredicate struct {
-	ret         bool
-	valCalled   bool
-	pageCalled  bool
-	chunkCalled bool
+	ret bool
 }
 
 type testDictString struct {
@@ -29,20 +26,22 @@ type testDictString struct {
 
 var _ Predicate = (*mockPredicate)(nil)
 
-func newAlwaysTruePredicate() *mockPredicate {
-	return &mockPredicate{ret: true}
+func (p *mockPredicate) String() string                              { return "mockPredicate{}" }
+func (p *mockPredicate) KeepValue(parquet.Value) bool                { return p.ret }
+func (p *mockPredicate) KeepRange(parquet.Value, parquet.Value) bool { return p.ret }
+
+func TestKeepRange(t *testing.T) {
+	i64 := parquet.Int64Value
+	ba := func(s string) parquet.Value { return parquet.ByteArrayValue([]byte(s)) }
+
+	require.True(t, NewIntBetweenPredicate(5, 10).KeepRange(i64(0), i64(7)))
+	require.False(t, NewIntBetweenPredicate(5, 10).KeepRange(i64(0), i64(4)))
+	require.True(t, NewByteInPredicate([][]byte{[]byte("m")}).KeepRange(ba("a"), ba("z")))
+	require.False(t, NewByteInPredicate([][]byte{[]byte("zz")}).KeepRange(ba("a"), ba("m")))
+	require.True(t, NewSubstringPredicate("x").KeepRange(ba("a"), ba("b"))) // unbounded → true
+	require.False(t, NilValuePredicate{}.KeepRange(ba("a"), ba("z")))       // never matches a present value
+	require.True(t, NewSkipNilsPredicate().KeepRange(ba("a"), ba("z")))
 }
-
-func newAlwaysFalsePredicate() *mockPredicate {
-	return &mockPredicate{ret: false}
-}
-
-func (p *mockPredicate) String() string               { return "mockPredicate{}" }
-func (p *mockPredicate) KeepValue(parquet.Value) bool { p.valCalled = true; return p.ret }
-
-func (p *mockPredicate) KeepPage(parquet.Page) bool { p.pageCalled = true; return p.ret }
-
-func (p *mockPredicate) KeepColumnChunk(*ColumnChunkHelper) bool { p.chunkCalled = true; return p.ret }
 
 type predicateTestCase struct {
 	testName   string
@@ -288,57 +287,6 @@ func TestNewRegexNotInPredicate(t *testing.T) {
 	}
 }
 
-// TestOrPredicateCallsKeepColumnChunk ensures that the OrPredicate calls
-// KeepColumnChunk on all of its children. This is important because the
-// Dictionary predicates rely on KeepColumnChunk always being called at the
-// beginning of a row group to reset their page.
-func TestOrPredicateCallsKeepColumnChunk(t *testing.T) {
-	tcs := []struct {
-		preds []*mockPredicate
-	}{
-		{},
-		{
-			preds: []*mockPredicate{
-				newAlwaysTruePredicate(),
-			},
-		},
-		{
-			preds: []*mockPredicate{
-				newAlwaysFalsePredicate(),
-			},
-		},
-		{
-			preds: []*mockPredicate{
-				newAlwaysFalsePredicate(),
-				newAlwaysTruePredicate(),
-			},
-		},
-		{
-			preds: []*mockPredicate{
-				newAlwaysTruePredicate(),
-				newAlwaysFalsePredicate(),
-			},
-		},
-	}
-
-	for _, tc := range tcs {
-		preds := make([]Predicate, 0, len(tc.preds)+1)
-		for _, pred := range tc.preds {
-			preds = append(preds, pred)
-		}
-
-		recordPred := &mockPredicate{}
-		preds = append(preds, recordPred)
-
-		p := NewOrPredicate(preds...)
-		p.KeepColumnChunk(nil)
-
-		for _, pred := range preds {
-			require.True(t, pred.(*mockPredicate).chunkCalled)
-		}
-	}
-}
-
 // testPredicate by writing data and then iterating the column.
 // The data model must contain a single column.
 func testPredicate(t *testing.T, tc predicateTestCase) {
@@ -353,9 +301,9 @@ func testPredicate(t *testing.T, tc predicateTestCase) {
 	r, err := parquet.OpenFile(file, int64(buf.Len()))
 	require.NoError(t, err)
 
-	p := InstrumentedPredicate{Pred: tc.predicate}
-
-	i := NewSyncIterator(context.TODO(), r.RowGroups(), 0, SyncIteratorOptPredicate(&p))
+	var stats PredicateStats
+	i := NewSyncIterator(context.TODO(), r.RowGroups(), 0,
+		SyncIteratorOptPredicate(tc.predicate), SyncIteratorOptStats(&stats))
 	for {
 		res, err := i.Next()
 		require.NoError(t, err)
@@ -364,9 +312,9 @@ func testPredicate(t *testing.T, tc predicateTestCase) {
 		}
 	}
 
-	require.Equal(t, tc.keptChunks, int(p.KeptColumnChunks), "keptChunks")
-	require.Equal(t, tc.keptPages, int(p.KeptPages), "keptPages")
-	require.Equal(t, tc.keptValues, int(p.KeptValues), "keptValues")
+	require.Equal(t, tc.keptChunks, int(stats.KeptColumnChunks), "keptChunks")
+	require.Equal(t, tc.keptPages, int(stats.KeptPages), "keptPages")
+	require.Equal(t, tc.keptValues, int(stats.KeptValues), "keptValues")
 }
 
 func BenchmarkSubstringPredicate(b *testing.B) {
