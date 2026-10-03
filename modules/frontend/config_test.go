@@ -13,3 +13,13 @@ func TestSearchSharderConfigDefaults(t *testing.T) {
 
 	assert.Equal(t, uint32(256*1024), cfg.Search.Sharder.MaxLimit)
 }
+
+func TestActiveQueriesEndpointConfig(t *testing.T) {
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	cfg := &Config{}
+	cfg.RegisterFlagsAndApplyDefaults("query-frontend", fs)
+
+	assert.False(t, cfg.ActiveQueriesEnabled)
+	assert.NoError(t, fs.Parse([]string{"-query-frontend.active-queries-enabled=true"}))
+	assert.True(t, cfg.ActiveQueriesEnabled)
+}
