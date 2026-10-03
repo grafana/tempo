@@ -18,6 +18,7 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"go.yaml.in/yaml/v2"
 
 	"github.com/grafana/tempo/v3/pkg/sharedconfig"
@@ -850,6 +851,30 @@ func createAndInitializeRuntimeOverridesManager(t *testing.T, defaultLimits Over
 		err := services.StopAndAwaitTerminated(context.TODO(), overrides)
 		require.NoError(t, err)
 	}
+}
+
+func TestRuntimeConfigOverrides_invalidFileFailsAndStops(t *testing.T) {
+	leakOpts := goleak.IgnoreCurrent()
+
+	overridesFile := filepath.Join(t.TempDir(), "Overrides.yaml")
+	require.NoError(t, os.WriteFile(overridesFile, []byte("not: valid: {{{"), 0o700))
+
+	cfg := Config{
+		PerTenantOverrideConfig: overridesFile,
+		PerTenantOverridePeriod: model.Duration(time.Hour),
+	}
+
+	overrides, err := newRuntimeConfigOverrides(cfg, &mockValidator{}, prometheus.NewRegistry())
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	err = services.StartAndAwaitRunning(ctx, overrides)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "failed to start subservices")
+	require.Equal(t, services.Failed, overrides.State())
+	goleak.VerifyNone(t, leakOpts)
 }
 
 func toYamlBytes(t *testing.T, perTenantOverrides *perTenantOverrides) []byte {
