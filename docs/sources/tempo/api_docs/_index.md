@@ -42,6 +42,7 @@ For externally supported gRPC API, [refer to Tempo gRPC API](#tempo-grpc-api).
 | [TraceQL Metrics](#traceql-metrics)                                                   | Query-frontend                            | HTTP | `GET /api/metrics/query_range`                            |
 | [TraceQL Metrics (instant)](#instant)                                                 | Query-frontend                            | HTTP | `GET /api/metrics/query`                                  |
 | [Traces diff](#traces-diff) (\*)                                                        | Query-frontend                            | HTTP | `POST /api/v2/traces/diff`                                |
+| [Active queries](#active-queries)                                                      | Internal server                           | HTTP | `GET /api/status/active_queries`                          |
 | [Query Echo Endpoint](#query-echo-endpoint)                                           | Query-frontend                            | HTTP | `GET /api/echo`                                           |
 | [Overrides API](#overrides-api)                                                       | Query-frontend                            | HTTP | `GET,POST,PATCH,DELETE /api/overrides`                    |
 | Memberlist                                                                            | Distributor, Querier, Live store          | HTTP | `GET /memberlist`                                         |
@@ -834,6 +835,21 @@ Returns status code 200 and body `echo` when the query frontend is up and ready 
 
 {{< admonition type="note" >}}
 Meant to be used in a Query Visualization UI like Grafana to test that the Tempo data source is working.
+{{< /admonition >}}
+
+### Active queries
+
+```
+GET /api/status/active_queries
+```
+
+Returns the queries that are currently being processed by this query-frontend instance for the authenticated tenant.
+Each query includes its ID, tenant, request method and path, query details, and start time. The endpoint is disabled by default.
+
+Enable it by setting `query_frontend.active_queries_enabled: true` and `internal_server.enable: true`. The endpoint is served on the internal server, which listens on port `3101` by default.
+
+{{< admonition type="note" >}}
+In a distributed deployment, query each query-frontend instance to see active queries for that tenant.
 {{< /admonition >}}
 
 ### Overrides API
