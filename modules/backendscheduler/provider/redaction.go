@@ -73,7 +73,7 @@ func (p *RedactionProvider) Start(ctx context.Context) <-chan *work.Job {
 						// Shutdown lost the handoff: this job was counted in-flight by
 						// NextPendingJob and will never reach Next() to be promoted or dropped,
 						// so release its count here or it leaks.
-						p.sched.ReleaseRedactionInFlight(job.Tenant())
+						p.sched.ReleaseRedactionInFlight(job)
 						return
 					}
 					continue
