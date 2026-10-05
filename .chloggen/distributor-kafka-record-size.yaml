@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: distributor
+note: Correct record size calculation
+issues: [8046]
+subtext: Prevent Kafka write failures when requests contain many small traces.
+user: ruslan-mikhailov
