@@ -138,22 +138,31 @@ prints a summary of bloom filter shards per day and per compaction level. The ou
 
 This image shows the bloom filter shards over 14 days and 6 compaction levels. This can be used to decide the configuration parameters.
 
-## Reduce cache fill with store_probability
+## Store a fraction of cache writes
 
-When a cache fills with keys that are written once and rarely read,
-you can store only a fraction of writes.
+High-volume roles, such as `parquet-page`, can fill a cache with items that are written once and rarely read again.
+These items evict items that Tempo reads often,
+which lowers the [cache hit ratio](#monitor-cache-hit-ratio).
 
-Set `store_probability` on a cache instance under `cache.caches`.
-Tempo applies that probability to each store call.
-Cache reads are unchanged.
+To reduce this, set `store_probability` on a cache instance under `cache.caches`.
+This setting is the probability that Tempo writes an item to the cache.
+It applies to every role assigned to that cache instance.
+Cache reads aren't affected.
 
 Valid values range from `0` to `1`, inclusive.
-The default is `1`, which stores every write.
-Set `0` to skip all stores.
-For example, `0.25` stores about 25% of writes.
+The default is `1`, which writes every item.
+Set `0` to skip all cache writes.
+For example, `0.25` writes about 25% of items.
 
-A key that is looked up many times is more likely to be stored at least once.
-Keys that are written once are more likely to be skipped, which reduces cache fill.
+Tempo writes an item to the cache after each cache miss,
+so an item that's read often gets more chances to be written.
+Items that are read only once are more likely to be skipped.
+The trade-off is that frequently read items take more misses before they're cached.
+With a probability of `p`, an item is cached after about `1/p` misses,
+for example, about four misses at `0.25`.
+
+The `tempodb_cache_store_size_bytes` histogram records every item Tempo attempts to write,
+including items that `store_probability` skips.
 
 ```yaml
 cache:
@@ -164,7 +173,3 @@ cache:
       memcached:
         host: memcached
 ```
-
-For the full cache block, refer to
-[Cache](/docs/tempo/<TEMPO_VERSION>/configuration/#cache)
-in the Tempo configuration reference.
