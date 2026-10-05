@@ -171,7 +171,7 @@ func (cfg *KafkaConfig) RegisterFlags(f *flag.FlagSet) {
 }
 
 func (cfg *KafkaConfig) RegisterFlagsWithPrefix(prefix string, f *flag.FlagSet) {
-	f.StringVar(&cfg.Address, prefix+".address", "localhost:9092", "The Kafka backend address.")
+	f.StringVar(&cfg.Address, prefix+".address", "localhost:9092", "Comma-separated list of Kafka broker addresses in host:port format.")
 	f.StringVar(&cfg.Topic, prefix+".topic", "", "The Kafka topic name.")
 	f.StringVar(&cfg.ClientID, prefix+".client-id", "", "The Kafka client ID.")
 	f.StringVar(&cfg.ClientRack, prefix+".client-rack", "", "The rack identifier for this Kafka client. Corresponds to the Kafka client.rack setting and enables fetching from the closest replica (KIP-392). Set this to the instance's availability zone to reduce cross-zone Kafka traffic.")

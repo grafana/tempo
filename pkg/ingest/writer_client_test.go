@@ -73,3 +73,16 @@ func TestCommonKafkaClientOptions_EmptyClientRack(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(client.Close)
 }
+
+func TestCommonKafkaClientOptions_MultipleSeedBrokers(t *testing.T) {
+	cfg := KafkaConfig{Address: "broker-one:9092,broker-two:9093", Topic: "test"}
+
+	opts, err := commonKafkaClientOptions(cfg, nil, test.NewTestingLogger(t))
+	require.NoError(t, err)
+
+	client, err := kgo.NewClient(opts...)
+	require.NoError(t, err)
+	t.Cleanup(client.Close)
+
+	require.Equal(t, []any{[]string{"broker-one:9092", "broker-two:9093"}}, client.OptValues(kgo.SeedBrokers))
+}

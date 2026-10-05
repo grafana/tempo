@@ -448,7 +448,7 @@ For architectural details, refer to the [Kafka architecture](/docs/tempo/<TEMPO_
 ingest:
 
     kafka:
-        # The Kafka backend address.
+        # Comma-separated list of Kafka broker addresses in host:port format.
         [address: <string> | default = "localhost:9092"]
 
         # The Kafka topic name.
