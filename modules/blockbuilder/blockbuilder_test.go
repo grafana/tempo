@@ -1371,7 +1371,7 @@ type recordingWriter struct {
 }
 
 func (w *recordingWriter) pushBytes(_ time.Time, tenant string, req *tempopb.PushBytesRequest) error {
-	// The decoder reuses req once pushTraces returns, so keep copies.
+	// The decoder reuses req on the next Decode, so keep copies.
 	w.pushes = append(w.pushes, recordedPush{
 		tenant: tenant,
 		traces: slices.Clone(req.Traces),

@@ -52,7 +52,6 @@ func TestEncoderDecoder(t *testing.T) {
 			var decodedIDs [][]byte
 
 			for _, record := range records {
-				decoder.Reset()
 				req, err := decoder.Decode(record.Value)
 				require.NoError(t, err)
 				decodedEntries = append(decodedEntries, req.Traces...)

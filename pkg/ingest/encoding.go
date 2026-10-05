@@ -22,14 +22,15 @@ var encoderPool = sync.Pool{
 	},
 }
 
+// resetPushBytesRequest empties req but keeps its slice capacity. It clears
+// the slices first so the previous contents can be GC'd.
 func resetPushBytesRequest(req *tempopb.PushBytesRequest) {
-	traces := req.Traces
-	ids := req.Ids
-	clear(traces)
-	clear(ids)
-	req.Reset()
-	req.Traces = traces[:0]
-	req.Ids = ids[:0]
+	clear(req.Traces)
+	clear(req.Ids)
+	*req = tempopb.PushBytesRequest{
+		Traces: req.Traces[:0],
+		Ids:    req.Ids[:0],
+	}
 }
 
 func encoderPoolPut(req *tempopb.PushBytesRequest) {
@@ -135,22 +136,12 @@ func NewDecoder() *Decoder {
 // It resets the decoder first, so entries from a previous Decode — including
 // partial entries left behind by a failed one — never leak into the result.
 func (d *Decoder) Decode(data []byte) (*tempopb.PushBytesRequest, error) {
-	d.Reset()
+	resetPushBytesRequest(d.req)
 	err := d.req.Unmarshal(data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal record: %w", err)
 	}
 	return d.req, nil
-}
-
-func (d *Decoder) Reset() {
-	// Retain slice capacity, but drop references to the previously decoded
-	// contents so they can be GC'd.
-	clear(d.req.Ids)
-	clear(d.req.Traces)
-	d.req.Ids = d.req.Ids[:0]
-	d.req.Traces = d.req.Traces[:0]
-	d.req.SkipMetricsGeneration = false
 }
 
 // sovPush calculates the size of varint-encoded uint64.
