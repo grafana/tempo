@@ -53,16 +53,21 @@ func Encode(partitionID int32, tenantID string, req *tempopb.PushBytesRequest, m
 	batch := encoderPool.Get().(*tempopb.PushBytesRequest)
 	defer encoderPoolPut(batch)
 
-	currentSize := 0
+	batch.SkipMetricsGeneration = req.SkipMetricsGeneration
+	metadataSize := 0
+	if batch.SkipMetricsGeneration {
+		metadataSize = 2 // if enabled, proto writes 2 bytes
+	}
+	currentSize := metadataSize
 
 	for i, entry := range req.Traces {
-		l := entry.Size() + len(req.Ids[i])
-		// Size of the entry in the req
-		entrySize := 1 + l + sovPush(uint64(l))
+		traceSize := entry.Size()
+		idSize := len(req.Ids[i])
+		entrySize := 1 + traceSize + sovPush(uint64(traceSize))
+		entrySize += 1 + idSize + sovPush(uint64(idSize)) // trace id field
 
-		// Check if a single entry is too big
-		if entrySize > maxSize || (i == 0 && currentSize+entrySize > maxSize) {
-			return nil, fmt.Errorf("single entry size (%d) exceeds maximum allowed size (%d)", entrySize, maxSize)
+		if entrySize+metadataSize > maxSize {
+			return nil, fmt.Errorf("single entry size (%d) exceeds maximum allowed size (%d)", entrySize+metadataSize, maxSize)
 		}
 
 		if currentSize+entrySize > maxSize {
@@ -77,7 +82,7 @@ func Encode(partitionID int32, tenantID string, req *tempopb.PushBytesRequest, m
 			// Reset currentStream
 			batch.Traces = batch.Traces[:0]
 			batch.Ids = batch.Ids[:0]
-			currentSize = 0
+			currentSize = metadataSize
 		}
 		batch.Traces = append(batch.Traces, entry)
 		batch.Ids = append(batch.Ids, req.Ids[i])
