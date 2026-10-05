@@ -132,7 +132,10 @@ func NewDecoder() *Decoder {
 }
 
 // Decode converts a Kafka record's byte data back into a tempopb.Trace.
+// It resets the decoder first, so entries from a previous Decode — including
+// partial entries left behind by a failed one — never leak into the result.
 func (d *Decoder) Decode(data []byte) (*tempopb.PushBytesRequest, error) {
+	d.Reset()
 	err := d.req.Unmarshal(data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal record: %w", err)
@@ -141,7 +144,10 @@ func (d *Decoder) Decode(data []byte) (*tempopb.PushBytesRequest, error) {
 }
 
 func (d *Decoder) Reset() {
-	// Retain slice capacity
+	// Retain slice capacity, but drop references to the previously decoded
+	// contents so they can be GC'd.
+	clear(d.req.Ids)
+	clear(d.req.Traces)
 	d.req.Ids = d.req.Ids[:0]
 	d.req.Traces = d.req.Traces[:0]
 	d.req.SkipMetricsGeneration = false
@@ -171,7 +177,6 @@ func NewPushBytesDecoder() *PushBytesDecoder {
 
 // Decode implements GeneratorCodec.
 func (d *PushBytesDecoder) Decode(data []byte) (iter.Seq2[*tempopb.PushSpansRequest, error], error) {
-	d.dec.Reset()
 	spanBytes, err := d.dec.Decode(data)
 	if err != nil {
 		return nil, err

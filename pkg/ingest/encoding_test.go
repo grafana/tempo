@@ -1,6 +1,7 @@
 package ingest
 
 import (
+	"bytes"
 	"math/rand"
 	"reflect"
 	"testing"
@@ -133,6 +134,59 @@ func TestDecoderInvalidData(t *testing.T) {
 
 	_, err := decoder.Decode([]byte("invalid data"))
 	require.Error(t, err)
+}
+
+func TestDecoderDecodeResetsState(t *testing.T) {
+	decoder := NewDecoder()
+
+	data, err := generateRequest(3, 100).Marshal()
+	require.NoError(t, err)
+
+	got, err := decoder.Decode(data)
+	require.NoError(t, err)
+	require.Len(t, got.Traces, 3)
+	require.Len(t, got.Ids, 3)
+
+	// Decoding again without an intervening Reset must not accumulate entries.
+	got, err = decoder.Decode(data)
+	require.NoError(t, err)
+	require.Len(t, got.Traces, 3, "Decode must reset state, entries must not accumulate")
+	require.Len(t, got.Ids, 3, "Decode must reset state, entries must not accumulate")
+}
+
+func TestDecoderDecodeAfterFailure(t *testing.T) {
+	// A record that unmarshals some entries before failing leaves partial
+	// state behind. The next successful Decode must not include it.
+	valid, err := generateRequest(2, 100).Marshal()
+	require.NoError(t, err)
+
+	tests := []struct {
+		name    string
+		corrupt []byte
+	}{
+		// Every entry decodes, then the trailing bytes fail.
+		{"trailing garbage", append(bytes.Clone(valid), 0xFF, 0xFF)},
+		// Traces are encoded before IDs, so cutting the last byte leaves
+		// more traces than IDs behind.
+		{"truncated id", valid[:len(valid)-1]},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			decoder := NewDecoder()
+
+			_, err := decoder.Decode(tt.corrupt)
+			require.Error(t, err)
+
+			want := generateRequest(1, 100)
+			data, err := want.Marshal()
+			require.NoError(t, err)
+
+			got, err := decoder.Decode(data)
+			require.NoError(t, err)
+			require.Equal(t, want.Traces, got.Traces, "failed Decode must not leak partial entries into the next Decode")
+			require.Equal(t, want.Ids, got.Ids, "failed Decode must not leak partial entries into the next Decode")
+		})
+	}
 }
 
 func TestEncoderDecoderEmptyStream(t *testing.T) {

@@ -648,7 +648,6 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 			continue
 		}
 
-		s.decoder.Reset()
 		pushReq, err := s.decoder.Decode(record.Value)
 		if err != nil {
 			metricRecordsDropped.WithLabelValues(tenant, droppedRecordReasonDecodingFailed).Inc()
