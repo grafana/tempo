@@ -488,6 +488,36 @@ Use `nil` to check for attributes that are missing or null  and `!= nil` to ensu
 { span.required_field != nil }
 ```
 
+#### Booleans
+
+Boolean literals are `true` and `false`.
+Compare a custom attribute to a boolean when the stored value is a boolean:
+
+```
+{ span.cache.hit = true }
+```
+
+When a custom attribute is an operand of `&&` or `||` inside a spanset,
+Tempo treats it as `attr = true`.
+A missing attribute then evaluates as boolean `false` instead of `nil`.
+
+These queries are equivalent:
+
+```
+{ span.cache.hit || span.http.status_code = 500 }
+{ span.cache.hit = true || span.http.status_code = 500 }
+```
+
+Because a missing attribute is `false`, this query matches every span:
+
+```
+{ true || span.does_not_exist }
+```
+
+This treatment applies only to custom attributes used with `&&` or `||`.
+A bare attribute that isn't an operand of those operators isn't treated as `attr = true`.
+Typed intrinsics, such as `status`, aren't treated this way.
+
 ### Comparison operators
 
 Comparison operators are used to test values within an expression.
