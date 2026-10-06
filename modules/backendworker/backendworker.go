@@ -240,18 +240,24 @@ func (w *BackendWorker) processJobs(ctx context.Context) error {
 			WorkerId: w.workerID,
 		})
 		if funcErr != nil {
-			if errStatus, ok := status.FromError(funcErr); ok {
-				if errStatus.Code() == codes.NotFound {
-					return errStatus.Err()
-				}
-			}
-
-			return fmt.Errorf("error getting next job: %w", funcErr)
+			return wrapSchedulerErr(funcErr, "error getting next job")
 		}
 
 		return nil
 	})
 	if err != nil {
+		if isNotFound(err) {
+			// The scheduler's Next() RPC returns codes.NotFound simply to
+			// signal that no work is currently queued (it long-polls for
+			// cfg.JobTimeout and then times out). This happens on every idle
+			// poll cycle and is expected, routine behavior -- unlike
+			// NotFound on a job-completion call, it does not mean anything
+			// is wrong, so it must not be logged as an error or otherwise
+			// treated like a failure. Return quietly so running() resets its
+			// backoff and polls again immediately.
+			return nil
+		}
+
 		return fmt.Errorf("failed processing jobs: %w", err)
 	}
 
@@ -314,13 +320,13 @@ func (w *BackendWorker) processCompactionJob(ctx context.Context, resp *tempopb.
 			},
 		})
 		if err != nil {
-			return fmt.Errorf("failed marking job %q as complete: %w", resp.JobId, err)
+			return wrapSchedulerErr(err, "failed marking job %q as complete", resp.JobId)
 		}
 
 		return nil
 	})
 	if err != nil {
-		return w.failJob(ctx, resp.JobId, fmt.Sprintf("error marking job as complete: %v", err))
+		return w.handleCompletionErr(ctx, resp.JobId, "job", err)
 	}
 
 	return nil
@@ -345,13 +351,13 @@ func (w *BackendWorker) processRetentionJob(ctx context.Context, resp *tempopb.N
 			Status: tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
 		})
 		if err != nil {
-			return fmt.Errorf("failed marking job %q as complete: %w", resp.JobId, err)
+			return wrapSchedulerErr(err, "failed marking job %q as complete", resp.JobId)
 		}
 
 		return nil
 	})
 	if err != nil {
-		return w.failJob(ctx, resp.JobId, fmt.Sprintf("error marking job as complete: %v", err))
+		return w.handleCompletionErr(ctx, resp.JobId, "job", err)
 	}
 
 	return nil
@@ -419,7 +425,7 @@ func (w *BackendWorker) processRedactionJob(ctx context.Context, resp *tempopb.N
 }
 
 func (w *BackendWorker) completeRedactionJob(ctx context.Context, jobID string, tracesFound int) error {
-	return w.callSchedulerWithBackoff(ctx, func(ctx context.Context) error {
+	err := w.callSchedulerWithBackoff(ctx, func(ctx context.Context) error {
 		_, err := w.backendScheduler.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
 			JobId:  jobID,
 			Status: tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
@@ -428,10 +434,15 @@ func (w *BackendWorker) completeRedactionJob(ctx context.Context, jobID string, 
 			},
 		})
 		if err != nil {
-			return fmt.Errorf("failed marking redaction job %q as complete: %w", jobID, err)
+			return wrapSchedulerErr(err, "failed marking redaction job %q as complete", jobID)
 		}
 		return nil
 	})
+	if err != nil {
+		return w.handleCompletionErr(ctx, jobID, "redaction job", err)
+	}
+
+	return nil
 }
 
 func (w *BackendWorker) stopping(_ error) error {
@@ -444,6 +455,24 @@ func (w *BackendWorker) stopping(_ error) error {
 	return nil
 }
 
+// handleCompletionErr handles the error returned by callSchedulerWithBackoff
+// when marking a job complete (UpdateJob with a SUCCEEDED status). If the
+// scheduler no longer knows about the job (codes.NotFound), the error is
+// terminal -- retrying can never succeed and calling failJob would just hit
+// the same NotFound -- so the job is dropped with a warning log and the
+// worker resumes polling. Any other error is a genuine failure and is
+// forwarded to failJob, which marks the job as failed and returns an error.
+// jobDesc distinguishes the job kind in the log message (e.g. "job" vs
+// "redaction job"); err must be non-nil.
+func (w *BackendWorker) handleCompletionErr(ctx context.Context, jobID string, jobDesc string, err error) error {
+	if isNotFound(err) {
+		level.Warn(log.Logger).Log("msg", jobDesc+" no longer known to scheduler, dropping and resuming polling", "job_id", jobID, "err", err)
+		return nil
+	}
+
+	return w.failJob(ctx, jobID, fmt.Sprintf("error marking job as complete: %v", err))
+}
+
 func (w *BackendWorker) failJob(ctx context.Context, jobID string, errMsg string) error {
 	level.Error(log.Logger).Log("msg", "job failed", "job_id", jobID, "error", errMsg)
 
@@ -454,13 +483,17 @@ func (w *BackendWorker) failJob(ctx context.Context, jobID string, errMsg string
 			Error:  errMsg,
 		})
 		if err != nil {
-			return fmt.Errorf("failed marking job %q as failed: %w", jobID, err)
+			return wrapSchedulerErr(err, "failed marking job %q as failed", jobID)
 		}
 
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("error marking job %q as failed: %w", jobID, err)
+		if isNotFound(err) {
+			level.Warn(log.Logger).Log("msg", "job no longer known to scheduler while marking as failed, dropping and resuming polling", "job_id", jobID, "err", err)
+		} else {
+			return fmt.Errorf("error marking job %q as failed: %w", jobID, err)
+		}
 	}
 
 	return fmt.Errorf("%s", errMsg)
@@ -540,6 +573,15 @@ func (w *BackendWorker) callSchedulerWithBackoff(ctx context.Context, f func(con
 					return nil
 				}
 
+				if isNotFound(err) {
+					// The scheduler no longer knows about this job (e.g. it
+					// restarted and lost the in-flight assignment, or the job
+					// was already completed/removed). Retrying can never
+					// succeed, so treat it as terminal instead of retrying
+					// forever and starving the worker of new work.
+					return err
+				}
+
 				level.Error(log.Logger).Log("msg", "error calling scheduler", "err", err, "backoff", b.NextDelay())
 				metricWorkerCallRetries.WithLabelValues().Inc()
 				// Add jitter so all workers don't all retry at once and cause a thundering herd.
@@ -554,6 +596,31 @@ func (w *BackendWorker) callSchedulerWithBackoff(ctx context.Context, f func(con
 	}
 
 	return fmt.Errorf("backoff terminated: %w, %w", b.Err(), err)
+}
+
+// isNotFound reports whether err is a gRPC status error with code
+// codes.NotFound, e.g. the scheduler no longer knows about a job because it
+// restarted or the job was already removed. Such errors are terminal: they
+// will never succeed on retry, so callers should drop the job rather than
+// retrying indefinitely via callSchedulerWithBackoff.
+func isNotFound(err error) bool {
+	errStatus, ok := status.FromError(err)
+	return ok && errStatus.Code() == codes.NotFound
+}
+
+// wrapSchedulerErr wraps a scheduler RPC error for propagation out of a
+// callSchedulerWithBackoff callback. A codes.NotFound error is returned
+// unchanged so isNotFound can still detect it upstream: gogo/status's
+// FromError performs a plain type assertion rather than errors.As, so
+// wrapping a NotFound error with fmt.Errorf's %w would hide it from later
+// isNotFound checks. Any other error is wrapped with msg (formatted with
+// args, in the style of fmt.Errorf) for context.
+func wrapSchedulerErr(err error, msg string, args ...any) error {
+	if isNotFound(err) {
+		return err
+	}
+
+	return fmt.Errorf(msg+": %w", append(args, err)...)
 }
 
 func (w *BackendWorker) isSharded() bool {
