@@ -65,10 +65,10 @@ func (s *store) starting(_ context.Context) error {
 }
 
 // EnablePolling owns the poller's cancel because Reader.Shutdown waits for the loop to exit.
-func (s *store) EnablePolling(ctx context.Context, sharder blocklist.JobSharder, skipNoCompactBlocks bool) {
+func (s *store) EnablePolling(ctx context.Context, sharder blocklist.JobSharder) {
 	ctx, s.stopPoller = context.WithCancel(ctx)
 
-	s.Reader.EnablePolling(ctx, sharder, skipNoCompactBlocks)
+	s.Reader.EnablePolling(ctx, sharder)
 }
 
 func (s *store) stopping(_ error) error {
