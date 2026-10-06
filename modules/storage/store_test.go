@@ -24,7 +24,7 @@ func TestStopTerminatesWithPollingEnabled(t *testing.T) {
 
 	// query-frontend and querier enable polling with a context they never cancel, so the
 	// store has to end the poller itself or Reader.Shutdown never returns
-	s.EnablePolling(context.Background(), nil, false)
+	s.EnablePolling(context.Background(), nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
