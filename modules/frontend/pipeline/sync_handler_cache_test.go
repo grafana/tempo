@@ -3,6 +3,9 @@ package pipeline
 import (
 	"bytes"
 	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/go-kit/log"
@@ -82,6 +85,49 @@ func TestDetermineContentType(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			contentType := determineContentType(tc.body)
 			require.Equal(t, tc.expectedType, contentType)
+		})
+	}
+}
+
+func TestCachingWareNotFound(t *testing.T) {
+	tcs := []struct {
+		name          string
+		cacheNotFound bool
+		status        int
+		expectedCalls int
+	}{
+		{name: "200 is cached", status: http.StatusOK, expectedCalls: 1},
+		{name: "404 is not cached by default", status: http.StatusNotFound, expectedCalls: 2},
+		{name: "404 is cached when enabled", cacheNotFound: true, status: http.StatusNotFound, expectedCalls: 1},
+		{name: "200 is cached when 404 caching is enabled", cacheNotFound: true, status: http.StatusOK, expectedCalls: 1},
+		{name: "500 is never cached", cacheNotFound: true, status: http.StatusInternalServerError, expectedCalls: 2},
+	}
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			calls := 0
+			next := RoundTripperFunc(func(_ Request) (*http.Response, error) {
+				calls++
+				return &http.Response{
+					StatusCode: tc.status,
+					Body:       io.NopCloser(bytes.NewReader([]byte("{}"))),
+					Header:     http.Header{},
+				}, nil
+			})
+
+			ware := NewCachingWare(test.NewMockProvider(), cache.RoleFrontendTraceByID, log.NewNopLogger())
+			if tc.cacheNotFound {
+				ware = NewCachingWareWithNotFound(test.NewMockProvider(), cache.RoleFrontendTraceByID, log.NewNopLogger())
+			}
+			rt := ware.Wrap(next)
+
+			for range 2 {
+				req := NewHTTPRequest(httptest.NewRequest(http.MethodGet, "/", nil))
+				req.SetCacheKey("key")
+				resp, err := rt.RoundTrip(req)
+				require.NoError(t, err)
+				require.Equal(t, tc.status, resp.StatusCode)
+			}
+			require.Equal(t, tc.expectedCalls, calls)
 		})
 	}
 }
