@@ -1,9 +1,12 @@
 package frontend
 
 import (
+	"encoding/hex"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/cespare/xxhash/v2"
 
 	"github.com/grafana/tempo/v3/tempodb/backend"
 )
@@ -13,6 +16,7 @@ const (
 	cacheKeyPrefixSearchTag       = "st:"
 	cacheKeyPrefixSearchTagValues = "stv:"
 	cacheKeyPrefixQueryRange      = "qr:"
+	cacheKeyPrefixTraceByIDJob    = "tbi:"
 )
 
 func searchJobCacheKey(tenant string, queryHash uint64, start, end time.Time, meta *backend.BlockMeta, startPage, pagesToSearch int) string {
@@ -61,4 +65,14 @@ func cacheKey(prefix string, tenant string, queryHash uint64, start, end time.Ti
 	sb.WriteString(strconv.Itoa(pagesToSearch))
 
 	return sb.String()
+}
+
+// traceByIDJobCacheKey keys a trace by id block job on its immutable block set, or returns empty if it has none.
+func traceByIDJobCacheKey(tenant, apiVersion string, traceID []byte, maxBytesPerTrace int, blocks string) string {
+	if blocks == "" {
+		return ""
+	}
+
+	return cacheKeyPrefixTraceByIDJob + tenant + ":" + apiVersion + ":" + hex.EncodeToString(traceID) + ":" +
+		strconv.Itoa(maxBytesPerTrace) + ":" + strconv.FormatUint(xxhash.Sum64String(blocks), 16)
 }

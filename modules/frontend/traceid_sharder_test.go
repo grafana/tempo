@@ -3,11 +3,14 @@ package frontend
 import (
 	"context"
 	"net/http/httptest"
+	"slices"
 	"testing"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
+	"github.com/grafana/tempo/v3/modules/overrides"
 	"github.com/grafana/tempo/v3/pkg/api"
 	"github.com/grafana/tempo/v3/pkg/blockboundary"
 	"github.com/grafana/tempo/v3/tempodb/backend"
@@ -461,4 +464,63 @@ func TestBlocksInRange(t *testing.T) {
 			require.Equal(t, tc.expected, blocksInRange(blocks, tc.start, tc.end))
 		})
 	}
+}
+
+type mockOverridesMaxBytesPerTrace struct {
+	overrides.Interface
+	maxBytes int
+}
+
+func (m *mockOverridesMaxBytesPerTrace) MaxBytesPerTrace(string) int {
+	return m.maxBytes
+}
+
+func TestBuildShardedRequestsCacheKeys(t *testing.T) {
+	queryShards := 5
+	metas := []*backend.BlockMeta{
+		{BlockID: backend.MustParse("10000000-0000-0000-0000-000000000000")},
+		{BlockID: backend.MustParse("50000000-0000-0000-0000-000000000000")},
+		{BlockID: backend.MustParse("f0000000-0000-0000-0000-000000000000")},
+	}
+	traceID := "0102030405060708090a0b0c0d0e0f10"
+
+	keys := func(path string, metas []*backend.BlockMeta) []string {
+		sharder := &asyncTraceSharder{
+			cfg:             &TraceByIDConfig{QueryShards: queryShards},
+			reader:          &mockReader{metas: metas},
+			overrides:       &mockOverridesMaxBytesPerTrace{maxBytes: 1000},
+			blockBoundaries: blockboundary.CreateBlockBoundaries(queryShards - 1),
+		}
+		req := httptest.NewRequest("GET", path, nil).WithContext(user.InjectOrgID(context.Background(), "blerg"))
+		req = mux.SetURLVars(req, map[string]string{"traceID": traceID})
+
+		shardedReqs, err := sharder.buildShardedRequests(pipeline.NewHTTPRequest(req), time.Time{}, time.Time{})
+		require.NoError(t, err)
+
+		keys := make([]string, 0, len(shardedReqs))
+		for _, r := range shardedReqs {
+			keys = append(keys, r.CacheKey())
+		}
+		return keys
+	}
+
+	v2 := keys("/api/v2/traces/"+traceID, metas)
+	require.Len(t, v2, queryShards)
+	require.Empty(t, v2[0], "ingester job")
+	require.NotEmpty(t, v2[1])
+	require.NotEmpty(t, v2[2])
+	require.Empty(t, v2[3], "shard without blocks")
+	require.NotEmpty(t, v2[4])
+
+	require.Equal(t, v2, keys("/api/v2/traces/"+traceID, metas), "same blocks give the same keys")
+
+	// a new block in the second shard changes only that shard's key
+	withNewBlock := append(slices.Clone(metas), &backend.BlockMeta{BlockID: backend.MustParse("51000000-0000-0000-0000-000000000000")})
+	changed := keys("/api/v2/traces/"+traceID, withNewBlock)
+	require.Equal(t, v2[1], changed[1])
+	require.NotEqual(t, v2[2], changed[2])
+	require.Equal(t, v2[4], changed[4])
+
+	v1 := keys("/api/traces/"+traceID, metas)
+	require.NotEqual(t, v2[1], v1[1], "v1 and v2 responses differ")
 }

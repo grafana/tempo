@@ -131,6 +131,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	adjustEndWareSeconds := pipeline.NewAdjustStartEndWare(cfg.Search.Sharder.QueryBackendAfter, cfg.QueryEndCutoff, false)
 	retryWare := pipeline.NewRetryWare(cfg.MaxRetries, cfg.Weights.RetryWithWeights, registerer)
 	cacheWare := pipeline.NewCachingWare(cacheProvider, cache.RoleFrontendSearch, logger)
+	// v1 queriers answer 404 for shards without the trace, which is most shards, so those must be cached too
+	traceByIDCacheWare := pipeline.NewCachingWareWithNotFound(cacheProvider, cache.RoleFrontendTraceByID, logger)
 	statusCodeWare := pipeline.NewStatusCodeAdjustWare()
 	traceIDStatusCodeWare := pipeline.NewStatusCodeAdjustWareWithAllowedCode(http.StatusNotFound)
 	urlDenyListWare := pipeline.NewURLDenyListWare(cfg.URLDenyList)
@@ -145,9 +147,9 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			pipeline.NewWeightRequestWare(pipeline.TraceByID, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			tenantValidatorWare,
-			newAsyncTraceIDSharder(&cfg.TraceByID, cfg.Config.MaxOutstandingPerTenant, reader, jobsPerQuery, logger),
+			newAsyncTraceIDSharder(&cfg.TraceByID, cfg.Config.MaxOutstandingPerTenant, reader, o, jobsPerQuery, logger),
 		},
-		[]pipeline.Middleware{traceIDStatusCodeWare, retryWare},
+		[]pipeline.Middleware{traceByIDCacheWare, traceIDStatusCodeWare, retryWare},
 		next,
 	)
 
