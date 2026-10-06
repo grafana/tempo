@@ -90,7 +90,6 @@ func TestEncodeManySmallTracesStayWithinProducerBatchLimit(t *testing.T) {
 	for _, record := range records {
 		require.LessOrEqual(t, len(record.Value), maxProducerRecordDataBytesLimit)
 		require.Less(t, len(record.Value)+len(record.Key), producerBatchMaxBytes)
-		decoder.Reset()
 		decoded, err := decoder.Decode(record.Value)
 		require.NoError(t, err)
 		decodedTraces += len(decoded.Traces)
@@ -113,7 +112,6 @@ func TestEncodeSplitPreservesSkipMetricsGeneration(t *testing.T) {
 	require.Len(t, records, 2)
 	decoder := NewDecoder()
 	for _, record := range records {
-		decoder.Reset()
 		decoded, err := decoder.Decode(record.Value)
 		require.NoError(t, err)
 		require.True(t, decoded.SkipMetricsGeneration)
