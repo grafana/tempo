@@ -16,17 +16,31 @@ import (
 )
 
 func NewCachingWare(cacheProvider cache.Provider, role cache.Role, logger log.Logger) Middleware {
+	return newCachingWare(cacheProvider, role, false, logger)
+}
+
+// NewCachingWareWithNotFound also caches 404 responses, for jobs where not found is a stable, valid result.
+func NewCachingWareWithNotFound(cacheProvider cache.Provider, role cache.Role, logger log.Logger) Middleware {
+	return newCachingWare(cacheProvider, role, true, logger)
+}
+
+func newCachingWare(cacheProvider cache.Provider, role cache.Role, cacheNotFound bool, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next RoundTripper) RoundTripper {
 		return cachingWare{
-			next:  next,
-			cache: newFrontendCache(cacheProvider, role, logger),
+			next:          next,
+			cache:         newFrontendCache(cacheProvider, role, logger),
+			cacheNotFound: cacheNotFound,
 		}
 	})
 }
 
+// notFoundMarker is cached for 404s. A 0x00 byte can't start a valid proto or JSON body.
+var notFoundMarker = []byte{0}
+
 type cachingWare struct {
-	next  RoundTripper
-	cache *frontendCache
+	next          RoundTripper
+	cache         *frontendCache
+	cacheNotFound bool
 }
 
 // RoundTrip implements http.RoundTripper
@@ -40,6 +54,14 @@ func (c cachingWare) RoundTrip(req Request) (*http.Response, error) {
 	key := req.CacheKey()
 	if len(key) > 0 {
 		body := c.cache.fetchBytes(req.Context(), key)
+		if c.cacheNotFound && bytes.Equal(body, notFoundMarker) {
+			return &http.Response{
+				Header:     http.Header{combiner.TempoCacheHeader: []string{combiner.TempoCacheHit}},
+				StatusCode: http.StatusNotFound,
+				Status:     http.StatusText(http.StatusNotFound),
+				Body:       http.NoBody,
+			}, nil
+		}
 		if len(body) > 0 {
 			contentType := determineContentType(body)
 
@@ -68,6 +90,11 @@ func (c cachingWare) RoundTrip(req Request) (*http.Response, error) {
 	// do not cache if there was an error
 	if err != nil {
 		return resp, err
+	}
+
+	if c.cacheNotFound && resp.StatusCode == http.StatusNotFound {
+		c.cache.store(req.Context(), key, notFoundMarker)
+		return resp, nil
 	}
 
 	// do not cache if response is not HTTP 2xx
