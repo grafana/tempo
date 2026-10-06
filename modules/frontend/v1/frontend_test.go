@@ -2,19 +2,23 @@ package v1
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/httpgrpc"
+	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
+	"github.com/grafana/tempo/v3/modules/frontend/queue"
 	"github.com/grafana/tempo/v3/modules/frontend/v1/frontendv1pb"
 )
 
@@ -142,6 +146,136 @@ func TestQueryOp(t *testing.T) {
 			require.Equal(t, tc.expected, queryOp(req))
 		})
 	}
+}
+
+func TestInflightJobsCountsQueuedAndExecuting(t *testing.T) {
+	f, reg := newInflightTestFrontend(t, 10)
+	done := startRoundTrip(f, tenantRequest(context.Background()))
+
+	require.Eventually(t, func() bool { return inflightJobs(reg) == 1 }, time.Second, time.Millisecond, "queued job not counted")
+
+	r := dequeueForQuerier(t, f)
+	require.Equal(t, 1.0, inflightJobs(reg), "executing job not counted")
+
+	r.response <- &http.Response{StatusCode: http.StatusOK}
+	require.NoError(t, (<-done).err)
+	require.Equal(t, 0.0, inflightJobs(reg))
+}
+
+func TestInflightJobsReleasedOnError(t *testing.T) {
+	f, reg := newInflightTestFrontend(t, 10)
+	done := startRoundTrip(f, tenantRequest(context.Background()))
+	require.Eventually(t, func() bool { return inflightJobs(reg) == 1 }, time.Second, time.Millisecond)
+
+	dequeueForQuerier(t, f).Fail(errors.New("querier stream closed"))
+	require.Error(t, (<-done).err)
+	require.Equal(t, 0.0, inflightJobs(reg))
+}
+
+func TestInflightJobsReleasedOnCancel(t *testing.T) {
+	f, reg := newInflightTestFrontend(t, 10)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := startRoundTrip(f, tenantRequest(ctx))
+	require.Eventually(t, func() bool { return inflightJobs(reg) == 1 }, time.Second, time.Millisecond)
+
+	cancel()
+	require.ErrorIs(t, (<-done).err, context.Canceled)
+	require.Equal(t, 0.0, inflightJobs(reg))
+}
+
+func TestInflightJobsExcludesRejected(t *testing.T) {
+	f, reg := newInflightTestFrontend(t, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	startRoundTrip(f, tenantRequest(ctx)) // fills the tenant queue
+	require.Eventually(t, func() bool { return inflightJobs(reg) == 1 }, time.Second, time.Millisecond)
+
+	res := <-startRoundTrip(f, tenantRequest(context.Background()))
+	require.ErrorIs(t, res.err, queue.ErrTooManyRequests)
+	require.Equal(t, 1.0, inflightJobs(reg))
+}
+
+func TestInflightJobsRemovedForInactiveUser(t *testing.T) {
+	f, reg := newInflightTestFrontend(t, 10)
+	done := startRoundTrip(f, tenantRequest(context.Background()))
+	require.Eventually(t, func() bool { return inflightJobs(reg) == 1 }, time.Second, time.Millisecond)
+	dequeueForQuerier(t, f).response <- &http.Response{StatusCode: http.StatusOK}
+	require.NoError(t, (<-done).err)
+
+	f.cleanupInactiveUserMetrics(testTenant)
+	require.Equal(t, -1.0, inflightJobs(reg))
+}
+
+func TestInflightJobsCleanupDuringJobDoesNotGoNegative(t *testing.T) {
+	f, reg := newInflightTestFrontend(t, 10)
+	done := startRoundTrip(f, tenantRequest(context.Background()))
+	require.Eventually(t, func() bool { return inflightJobs(reg) == 1 }, time.Second, time.Millisecond)
+
+	f.cleanupInactiveUserMetrics(testTenant)
+	dequeueForQuerier(t, f).response <- &http.Response{StatusCode: http.StatusOK}
+	require.NoError(t, (<-done).err)
+	require.Equal(t, -1.0, inflightJobs(reg))
+}
+
+const testTenant = "test-tenant"
+
+func newInflightTestFrontend(t *testing.T, maxOutstanding int) (*Frontend, *prometheus.Registry) {
+	reg := prometheus.NewRegistry()
+	f, err := New(Config{MaxOutstandingPerTenant: maxOutstanding, MaxBatchSize: 1}, log.NewNopLogger(), reg)
+	require.NoError(t, err)
+	return f, reg
+}
+
+func tenantRequest(ctx context.Context) pipeline.Request {
+	httpReq := httptest.NewRequest("GET", "http://example.com", nil)
+	req := pipeline.NewHTTPRequest(httpReq.WithContext(user.InjectOrgID(ctx, testTenant)))
+	req.SetQueryShape(pipeline.QueryShape{Type: pipeline.QueryTypeSearch})
+	return req
+}
+
+type roundTripResult struct {
+	resp *http.Response
+	err  error
+}
+
+func startRoundTrip(f *Frontend, req pipeline.Request) <-chan roundTripResult {
+	done := make(chan roundTripResult, 1)
+	go func() {
+		resp, err := f.RoundTrip(req)
+		done <- roundTripResult{resp: resp, err: err}
+	}()
+	return done
+}
+
+// dequeueForQuerier pulls the next queued job the way a querier worker does.
+func dequeueForQuerier(t *testing.T, f *Frontend) *request {
+	t.Helper()
+	reqs, _, err := f.requestQueue.GetNextRequestForQuerier(context.Background(), queue.FirstUser(), make([]queue.Request, 1))
+	require.NoError(t, err)
+	return reqs[0].(*request)
+}
+
+// inflightJobs returns the {user=testTenant, op="search"} gauge value, or -1 when the series is absent.
+func inflightJobs(reg *prometheus.Registry) float64 {
+	mfs, err := reg.Gather()
+	if err != nil {
+		return -1
+	}
+	for _, mf := range mfs {
+		if mf.GetName() != "tempo_query_frontend_inflight_jobs" {
+			continue
+		}
+		for _, m := range mf.GetMetric() {
+			labels := map[string]string{}
+			for _, lp := range m.GetLabel() {
+				labels[lp.GetName()] = lp.GetValue()
+			}
+			if labels["user"] == testTenant && labels["op"] == pipeline.QueryTypeSearch {
+				return m.GetGauge().GetValue()
+			}
+		}
+	}
+	return -1
 }
 
 // TestQueryOpSurvivesSharding asserts the shape stamped on the parent request is

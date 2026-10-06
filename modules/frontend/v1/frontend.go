@@ -61,6 +61,7 @@ type Frontend struct {
 
 	// Metrics.
 	queueLength       *prometheus.GaugeVec
+	inflightJobs      *prometheus.GaugeVec
 	discardedRequests *prometheus.CounterVec
 	numClients        prometheus.GaugeFunc
 	queueDuration     *prometheus.HistogramVec
@@ -115,6 +116,10 @@ func New(cfg Config, log log.Logger, registerer prometheus.Registerer) (*Fronten
 			Name: "tempo_query_frontend_queue_length",
 			Help: "Number of queries in the queue.",
 		}, []string{"user"}),
+		inflightJobs: promauto.With(registerer).NewGaugeVec(prometheus.GaugeOpts{
+			Name: "tempo_query_frontend_inflight_jobs",
+			Help: "Number of jobs queued or executing on queriers.",
+		}, []string{"user", "op"}),
 		batchWeight: promauto.With(registerer).NewHistogramVec(prometheus.HistogramOpts{
 			Name:                            "tempo_query_frontend_batch_weight",
 			Help:                            "Weight of the batch.",
@@ -196,6 +201,7 @@ func (f *Frontend) stopping(_ error) error {
 func (f *Frontend) cleanupInactiveUserMetrics(user string) {
 	f.queueLength.DeleteLabelValues(user)
 	f.discardedRequests.DeleteLabelValues(user)
+	f.inflightJobs.DeletePartialMatch(prometheus.Labels{"user": user})
 }
 
 // RoundTrip a HTTP request
@@ -211,9 +217,17 @@ func (f *Frontend) RoundTrip(req pipeline.Request) (*http.Response, error) {
 	}
 
 	ctx := req.Context()
-	if err := f.queueRequest(ctx, &request); err != nil {
+	userID, err := tenantIDFromContext(ctx)
+	if err != nil {
 		return nil, err
 	}
+	if err := f.queueRequest(ctx, userID, &request); err != nil {
+		return nil, err
+	}
+	// Hold the child so a decrement after user cleanup can't recreate the series.
+	inflight := f.inflightJobs.WithLabelValues(userID, queryOp(req))
+	inflight.Inc()
+	defer inflight.Dec()
 
 	select {
 	case <-ctx.Done():
@@ -391,20 +405,23 @@ func getQuerierInfo(server frontendv1pb.Frontend_ProcessServer) (string, int32, 
 	return resp.GetClientID(), resp.Features, err
 }
 
-func (f *Frontend) queueRequest(ctx context.Context, req *request) error {
+// tenantIDFromContext returns the tenant ID in ctx, with multiple tenant IDs joined.
+func tenantIDFromContext(ctx context.Context) (string, error) {
 	tenantIDs, err := tenant.TenantIDs(ctx)
 	if err != nil {
-		return err
+		return "", err
 	}
+	return tenant.JoinTenantIDs(tenantIDs), nil
+}
 
+func (f *Frontend) queueRequest(ctx context.Context, userID string, req *request) error {
 	now := time.Now()
 	req.enqueueTime = now
 	_, req.queueSpan = tracer.Start(ctx, "queued")
 
-	joinedTenantID := tenant.JoinTenantIDs(tenantIDs)
-	f.activeUsers.UpdateUserTimestamp(joinedTenantID, now)
+	f.activeUsers.UpdateUserTimestamp(userID, now)
 
-	return f.requestQueue.EnqueueRequest(joinedTenantID, req)
+	return f.requestQueue.EnqueueRequest(userID, req)
 }
 
 // CheckReady determines if the query frontend is ready.  Function parameters/return

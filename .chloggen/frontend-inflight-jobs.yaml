@@ -1,0 +1,11 @@
+change_type: enhancement
+
+component: query-frontend
+
+note: Add `tempo_query_frontend_inflight_jobs` gauge counting jobs queued or executing on queriers, per user and op
+
+issues: []
+
+subtext:
+
+user: zhxiaogg
