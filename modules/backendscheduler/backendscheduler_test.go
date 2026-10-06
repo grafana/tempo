@@ -24,6 +24,7 @@ import (
 	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 	"github.com/grafana/tempo/v3/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -52,20 +53,26 @@ func TestBackendScheduler(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
-	t.Run("next with no jobs returns correct errors", func(t *testing.T) {
+	t.Run("next with no jobs answers OK with no job", func(t *testing.T) {
 		s, err := New(cfg, store, limits, rr, ww)
 		require.NoError(t, err)
+
+		before := testutil.ToFloat64(metricJobsNotFound.WithLabelValues("test-worker"))
 
 		resp, err := s.Next(ctx, &tempopb.NextJobRequest{
 			WorkerId: "test-worker",
 		})
-		require.Error(t, err)
-		errStatus, ok := status.FromError(err)
-		require.True(t, ok)
-		require.Equal(t, errStatus.Code(), codes.NotFound)
 
+		// An empty queue is the expected state of an idle cluster, so it is NOT a gRPC
+		// error: returning one puts every poll through the server's error path, where the
+		// request log reports it at warn level for the life of the deployment.
+		require.NoError(t, err)
 		require.NotNil(t, resp)
-		require.Equal(t, "", resp.JobId)
+		require.Equal(t, "", resp.JobId, "an empty JobId is how the worker sees 'nothing to do'")
+
+		// Still counted, because tempo_backend_scheduler_jobs_not_found_total is on the
+		// backendwork dashboard and is the measure of how often workers find nothing.
+		require.Greater(t, testutil.ToFloat64(metricJobsNotFound.WithLabelValues("test-worker")), before)
 	})
 
 	tenantCount := 5
@@ -218,15 +225,14 @@ func TestBackendScheduler(t *testing.T) {
 			resp, err = s.Next(ctx, &tempopb.NextJobRequest{
 				WorkerId: "test-worker",
 			})
-			if err != nil {
-				statusErr, ok := status.FromError(err)
-				require.True(t, ok)
-				require.Equal(t, codes.NotFound, statusErr.Code())
-				break
-			}
-
 			require.NoError(t, err)
 			require.NotNil(t, resp)
+
+			// The queue running dry is an OK response with no job, so the empty JobId is
+			// the terminator here -- not an error.
+			if resp.JobId == "" {
+				break
+			}
 
 			updateResp, err = s.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
 				JobId:  resp.JobId,
