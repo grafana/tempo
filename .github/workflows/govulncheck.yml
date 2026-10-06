@@ -35,7 +35,7 @@ jobs:
       # Pinned rather than @latest so the gate is reproducible and an upstream
       # release can't silently change CI behavior; bump deliberately.
       - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@v1.3.0
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
 
       # Fail only on vulnerabilities this PR introduces. A reachable vuln already
       # present in the base branch shows up in both scans and is filtered out, so
@@ -48,9 +48,21 @@ jobs:
           # fail the step rather than diffing against empty output. The jq filter keeps
           # only reachable (symbol-level) findings, which carry a function frame in trace[0].
           scan() { govulncheck -json ./... | jq -r 'select(.finding.trace[0].function != null) | .finding.osv' | sort -u; }
+          # Package-level scan: loads imports without type-checking, so it still works
+          # when the tree doesn't compile. It reports every vuln in an imported package,
+          # a superset of what scan() finds on the same tree.
+          scan_pkg() { govulncheck -json -scan package ./... | jq -r 'select(.finding.trace[0].package != null) | .finding.osv' | sort -u; }
 
           (cd head && scan) > head.ids
-          (cd base && scan) > base.ids
+
+          # A base that doesn't compile (e.g. a bad merge on main) must not block the PR
+          # that fixes it, so fall back to a package-level baseline. Being a superset it
+          # can't produce false positives; the cost is missing vulns in packages base
+          # already imports but that the PR newly starts calling.
+          if ! (cd base && scan) > base.ids; then
+            echo "::warning::Base branch failed the symbol-level scan (does it compile?); using a package-level baseline instead."
+            (cd base && scan_pkg) > base.ids
+          fi
 
           # comm splits two sorted files into 3 columns: base-only, head-only, common.
           # -13 suppresses columns 1 and 3, leaving column 2 = OSV IDs in head but not
