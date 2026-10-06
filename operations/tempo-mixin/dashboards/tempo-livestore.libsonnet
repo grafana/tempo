@@ -14,7 +14,7 @@ dashboard_utils {
       local liveStoreMatcher = namespaceMatcher + ', pod=~"$pod", container="%s"' % liveStoreContainer;
       local liveStoreTenantMatcher = namespaceMatcher + ', pod=~"$pod", tenant=~"$tenant", container="%s"' % liveStoreContainer;
       local liveStoreTenantAfterMatcher = liveStoreMatcher + ', tenant=~"$tenant"';
-      local liveStoreIngestMatcher = namespaceMatcher + ', pod=~"$pod", group=~"live-store.*", container="%s"' % liveStoreContainer;
+      local liveStoreIngestMatcher = namespaceMatcher + ', pod=~"$pod", group=~".*live-store.*", container="%s"' % liveStoreContainer;
       local zoneFromPod(expr) = 'label_replace(%s, "zone", "$1", "pod", "(%s-[^-]+)-.*")' % [expr, liveStoreContainer + '-zone'];
       local rate(selector) = 'rate(%s[$__rate_interval])' % selector;
       local metric(metricName, matcher=liveStoreMatcher, extra='') = '%s{%s%s}' % [metricName, matcher, extra];
