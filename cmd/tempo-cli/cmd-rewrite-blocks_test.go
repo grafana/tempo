@@ -103,7 +103,7 @@ func getAllTraceIDs(t *testing.T, dir string, tenant string) []string {
 	require.NoError(t, err)
 	require.Equal(t, []string{tenant}, tenants)
 
-	blocks, _, err := reader.Blocks(ctx, tenant)
+	blocks, _, _, err := reader.Blocks(ctx, tenant)
 	require.NoError(t, err)
 
 	var traceIDs []string

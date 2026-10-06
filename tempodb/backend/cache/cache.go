@@ -105,7 +105,7 @@ func (r *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]str
 	return r.nextReader.List(ctx, keypath)
 }
 
-func (r *readerWriter) ListBlocks(ctx context.Context, tenant string) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error) {
+func (r *readerWriter) ListBlocks(ctx context.Context, tenant string) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, noCompactBlockIDs []uuid.UUID, err error) {
 	return r.nextReader.ListBlocks(ctx, tenant)
 }
 

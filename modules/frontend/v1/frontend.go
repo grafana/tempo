@@ -81,6 +81,11 @@ func (r *request) Weight() int {
 	return r.request.Weight()
 }
 
+// Fail unblocks RoundTrip when the queue stops before this request reaches a querier.
+func (r *request) Fail(err error) {
+	r.err <- err
+}
+
 func (r *request) OriginalContext() context.Context {
 	return r.request.Context()
 }
