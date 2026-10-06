@@ -7,10 +7,12 @@ import (
 	"net/http"
 	"slices"
 	"sort"
+	"strings"
 
 	"github.com/go-kit/log" //nolint:all //deprecated
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
+	"github.com/grafana/tempo/v3/modules/overrides"
 	"github.com/grafana/tempo/v3/modules/querier"
 	"github.com/grafana/tempo/v3/pkg/api"
 	"github.com/grafana/tempo/v3/pkg/blockboundary"
@@ -30,13 +32,14 @@ type asyncTraceSharder struct {
 	next                  pipeline.AsyncRoundTripper[combiner.PipelineResponse]
 	cfg                   *TraceByIDConfig
 	reader                tempodb.Reader
+	overrides             overrides.Interface
 	logger                log.Logger
 	blockBoundaries       [][]byte
 	jobsPerQuery          *prometheus.HistogramVec
 	maxDynamicBlockShards int // 0 means uncapped
 }
 
-func newAsyncTraceIDSharder(cfg *TraceByIDConfig, maxOutstandingPerTenant int, reader tempodb.Reader, jobsPerQuery *prometheus.HistogramVec, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
+func newAsyncTraceIDSharder(cfg *TraceByIDConfig, maxOutstandingPerTenant int, reader tempodb.Reader, o overrides.Interface, jobsPerQuery *prometheus.HistogramVec, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
 	return pipeline.AsyncMiddlewareFunc[combiner.PipelineResponse](func(next pipeline.AsyncRoundTripper[combiner.PipelineResponse]) pipeline.AsyncRoundTripper[combiner.PipelineResponse] {
 		// Fixed jobs that are always emitted: 1 ingester (+ 1 external when enabled).
 		fixedJobs := 1
@@ -59,6 +62,7 @@ func newAsyncTraceIDSharder(cfg *TraceByIDConfig, maxOutstandingPerTenant int, r
 			next:                  next,
 			cfg:                   cfg,
 			reader:                reader,
+			overrides:             o,
 			logger:                logger,
 			blockBoundaries:       blockBoundaries,
 			jobsPerQuery:          jobsPerQuery,
@@ -150,6 +154,17 @@ func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request, traceB
 	// shards are sized from the blocks the jobs carry, including recently compacted ones
 	blockBoundaries := s.blockBoundariesForTenant(len(blocks))
 
+	// cache keys need the normalized trace id, requests without one are not cached
+	traceID, _ := api.ParseTraceID(parent.HTTPRequest())
+	var maxBytesPerTrace int
+	if traceID != nil {
+		maxBytesPerTrace = s.overrides.MaxBytesPerTrace(userID)
+	}
+	apiVersion := "v1"
+	if strings.Contains(parent.HTTPRequest().URL.Path, strings.TrimSuffix(api.PathTracesV2, "{traceID}")) {
+		apiVersion = "v2"
+	}
+
 	reqs := make([]pipeline.Request, 0, len(blockBoundaries))
 
 	// Job 0: ingester job
@@ -198,6 +213,9 @@ func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request, traceB
 		})
 		if err != nil {
 			return nil, err
+		}
+		if traceID != nil && len(shardBlocks.Blocks) > 0 {
+			req.SetCacheKey(traceByIDJobCacheKey(userID, apiVersion, traceID, maxBytesPerTrace, req.HTTPRequest().URL.Query().Get(api.BlocksKey)))
 		}
 		reqs = append(reqs, req)
 	}

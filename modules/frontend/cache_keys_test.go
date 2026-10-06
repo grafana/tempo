@@ -168,3 +168,34 @@ func BenchmarkCacheKeyForJob(b *testing.B) {
 		}
 	}
 }
+
+func TestTraceByIDJobCacheKey(t *testing.T) {
+	traceID := []byte{0x01, 0x02, 0x03}
+	base := traceByIDJobCacheKey("foo", "v2", traceID, 1000, "AQoAGAA")
+	require.NotEmpty(t, base)
+	require.Equal(t, base, traceByIDJobCacheKey("foo", "v2", traceID, 1000, "AQoAGAA"))
+
+	tcs := []struct {
+		name     string
+		tenant   string
+		api      string
+		traceID  []byte
+		maxBytes int
+		blocks   string
+	}{
+		{name: "tenant", tenant: "bar", api: "v2", traceID: traceID, maxBytes: 1000, blocks: "AQoAGAA"},
+		{name: "api version", tenant: "foo", api: "v1", traceID: traceID, maxBytes: 1000, blocks: "AQoAGAA"},
+		{name: "trace id", tenant: "foo", api: "v2", traceID: []byte{0x01, 0x02, 0x04}, maxBytes: 1000, blocks: "AQoAGAA"},
+		{name: "max bytes per trace", tenant: "foo", api: "v2", traceID: traceID, maxBytes: 2000, blocks: "AQoAGAA"},
+		{name: "blocks", tenant: "foo", api: "v2", traceID: traceID, maxBytes: 1000, blocks: "AQoAGAE"},
+	}
+	for _, tc := range tcs {
+		t.Run(tc.name+" changes the key", func(t *testing.T) {
+			require.NotEqual(t, base, traceByIDJobCacheKey(tc.tenant, tc.api, tc.traceID, tc.maxBytes, tc.blocks))
+		})
+	}
+
+	t.Run("no blocks has no key", func(t *testing.T) {
+		require.Empty(t, traceByIDJobCacheKey("foo", "v2", traceID, 1000, ""))
+	})
+}

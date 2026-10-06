@@ -1,0 +1,8 @@
+change_type: enhancement
+component: query-frontend
+note: Cache trace by ID job results in the query-frontend when a cache has the new `frontend-trace-by-id` role, so repeated lookups of the same trace skip the backend work.
+issues: []
+subtext: |
+  Jobs are keyed on the exact blocks the query-frontend sends, which are immutable, so cached results can't go stale. Not-found results are cached too.
+  Caching is off unless a cache is configured with the `frontend-trace-by-id` role.
+user: electron0zero
