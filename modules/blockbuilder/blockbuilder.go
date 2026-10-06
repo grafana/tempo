@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -151,6 +152,18 @@ func (p partitionState) getStartOffset() kgo.Offset {
 
 func (p partitionState) hasRecords() bool {
 	return p.endOffset > emptyPartitionEndOffset
+}
+
+// offsetFilePath returns the path of the local offset file for the given partition.
+//
+// This is deliberately the WAL directory's *parent*, not the WAL directory itself: consume()
+// calls b.wal.Clear() (os.RemoveAll of the whole WAL.Filepath) at the start of every cycle to
+// discard scratch data from the previous one, which would silently delete the offset file too
+// if it lived inside that directory. Block-builder also handles multiple partitions per
+// instance sharing one WAL directory, so each partition gets its own file rather than the one
+// shared file live-store uses.
+func (b *BlockBuilder) offsetFilePath(partition int32) string {
+	return filepath.Join(filepath.Dir(b.cfg.WAL.Filepath), fmt.Sprintf("kafka-offset-%d.json", partition))
 }
 
 func New(
@@ -534,6 +547,12 @@ func (b *BlockBuilder) commitOffset(ctx context.Context, offset kadm.Offset, gro
 	if err := boff.ErrCause(); err != nil {
 		return fmt.Errorf("error committing offset %d for partition %d, it won't be retried: %w", offset.At, partition, err)
 	}
+
+	of := ingest.NewOffsetFile(b.offsetFilePath(partition), partition, b.logger)
+	if err := of.Write(offset.At); err != nil {
+		return fmt.Errorf("error writing offset %d for partition %d to local file: %w", offset.At, partition, err)
+	}
+
 	return nil
 }
 
@@ -549,10 +568,11 @@ func formatActivePartitions(partitions []int32) string {
 // end record offset. Based on that it sort the partitions by lag
 func (b *BlockBuilder) fetchPartitions(ctx context.Context, partitions []int32) ([]partitionState, error) {
 	var (
-		ps          = make([]partitionState, 0, len(partitions))
-		commits     kadm.OffsetResponses
-		endsOffsets kadm.ListedOffsets
-		err         error
+		ps           = make([]partitionState, 0, len(partitions))
+		commits      kadm.OffsetResponses
+		endsOffsets  kadm.ListedOffsets
+		startOffsets kadm.ListedOffsets
+		err          error
 	)
 
 	boff := backoff.New(ctx, backoff.Config{
@@ -561,7 +581,7 @@ func (b *BlockBuilder) fetchPartitions(ctx context.Context, partitions []int32) 
 		MaxRetries: 5,
 	})
 	for boff.Ongoing() {
-		commits, endsOffsets, err = b.getPartitionOffsets(ctx, partitions)
+		commits, endsOffsets, startOffsets, err = b.getPartitionOffsets(ctx, partitions)
 		if err == nil {
 			break
 		}
@@ -572,7 +592,7 @@ func (b *BlockBuilder) fetchPartitions(ctx context.Context, partitions []int32) 
 		return nil, fmt.Errorf("failed to fetch partition offsets: %w", err)
 	}
 	for _, partition := range partitions {
-		p := b.getPartitionState(partition, commits, endsOffsets)
+		p := b.getPartitionState(ctx, partition, commits, endsOffsets, startOffsets)
 		ps = append(ps, p)
 	}
 
@@ -581,45 +601,106 @@ func (b *BlockBuilder) fetchPartitions(ctx context.Context, partitions []int32) 
 
 // todo: this function fetches the offsets for all the partitions including the ones that are not assigned to this block builder.
 // improve it to only fetch the offsets for the assigned partitions
-func (b *BlockBuilder) getPartitionOffsets(ctx context.Context, partitionIDs []int32) (kadm.OffsetResponses, kadm.ListedOffsets, error) {
+func (b *BlockBuilder) getPartitionOffsets(ctx context.Context, partitionIDs []int32) (kadm.OffsetResponses, kadm.ListedOffsets, kadm.ListedOffsets, error) {
 	var (
 		topic = b.cfg.IngestStorageConfig.Kafka.Topic
 		group = b.cfg.IngestStorageConfig.Kafka.ConsumerGroup
 	)
 	commits, err := b.kadm.FetchOffsetsForTopics(ctx, group, topic)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	if err := commits.Error(); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	endsOffsets, err := b.partitionOffsetClient.FetchPartitionsLastProducedOffsets(ctx, partitionIDs)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	if err := endsOffsets.Error(); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	return commits, endsOffsets, nil
+	// The partition start offset is only needed to validate a local offset file against
+	// the partition's current retained range, which only matters when the file is enforced.
+	var startOffsets kadm.ListedOffsets
+	if b.cfg.IngestStorageConfig.Kafka.ConsumerGroupOffsetCommitFileEnforced {
+		startOffsets, err = b.partitionOffsetClient.FetchPartitionsStartProducedOffsets(ctx, partitionIDs)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		if err := startOffsets.Error(); err != nil {
+			return nil, nil, nil, err
+		}
+	}
+
+	return commits, endsOffsets, startOffsets, nil
 }
 
-// Returns the existing state of a partition. Including the last committed record and the last one
-func (b *BlockBuilder) getPartitionState(partition int32, commits kadm.OffsetResponses, endsOffsets kadm.ListedOffsets) partitionState {
+// getPartitionState returns the existing state of a partition, including the offset it should
+// resume consuming from and the partition's last produced offset.
+//
+// block-builder commits its consumed offset to a Kafka consumer group it never joins as a
+// member, so Kafka (or Warpstream) can garbage collect that offset regardless of how recently
+// it was committed - see grafana/tempo-squad#1389. Without ingest.consumer-group-offset-commit-file-enforced,
+// losing the Kafka offset means commits.Lookup below finds nothing and the partition is
+// replayed from its absolute start. With it set, a local offset file (written on every commit,
+// see commitOffset) is preferred over the Kafka-stored offset, and a bounded replay window is
+// used instead of the partition start as the last resort: replaying already-flushed data
+// duplicates blocks in the backend, and Tempo's read path doesn't dedupe well enough to keep
+// TraceQL metrics correct over duplicated blocks.
+func (b *BlockBuilder) getPartitionState(ctx context.Context, partition int32, commits kadm.OffsetResponses, endsOffsets, startOffsets kadm.ListedOffsets) partitionState {
 	var (
-		topic = b.cfg.IngestStorageConfig.Kafka.Topic
-		ps    = partitionState{partition: partition, commitOffset: commitOffsetAtEnd, endOffset: emptyPartitionEndOffset}
+		topic    = b.cfg.IngestStorageConfig.Kafka.Topic
+		enforced = b.cfg.IngestStorageConfig.Kafka.ConsumerGroupOffsetCommitFileEnforced
+		ps       = partitionState{partition: partition, commitOffset: commitOffsetAtEnd, endOffset: emptyPartitionEndOffset}
 	)
-
-	lastCommit, found := commits.Lookup(topic, partition)
-	if found {
-		ps.commitOffset = lastCommit.At
-	}
 
 	lastRecord, found := endsOffsets.Lookup(topic, partition)
 	if found {
 		ps.endOffset = lastRecord.Offset
+	}
+
+	// Kafka's OffsetFetch returns a response entry for every requested partition even when
+	// the group has never committed one, with At == commitOffsetAtEnd (-1) - found alone
+	// doesn't mean there's a usable offset.
+	if lastCommit, found := commits.Lookup(topic, partition); found {
+		ps.commitOffset = lastCommit.At
+	}
+	kafkaUsable := ps.commitOffset > commitOffsetAtEnd
+
+	if !enforced {
+		return ps
+	}
+
+	of := ingest.NewOffsetFile(b.offsetFilePath(partition), partition, b.logger)
+	if fileOffset, ok := of.Read(); ok {
+		partitionStart, startFound := startOffsets.Lookup(topic, partition)
+		if startFound && fileOffset >= partitionStart.Offset {
+			ps.commitOffset = fileOffset
+			return ps
+		}
+		level.Warn(b.logger).Log("msg", "local offset file is stale or before the partition start, ignoring it", "partition", partition, "file_offset", fileOffset)
+	}
+
+	if kafkaUsable {
+		return ps
+	}
+
+	// Neither the file nor Kafka has a usable offset. Bound the replay instead of
+	// defaulting to the partition start.
+	if b.cfg.MaxReplayPeriod > 0 {
+		ts := time.Now().Add(-b.cfg.MaxReplayPeriod)
+		offsets, err := b.partitionOffsetClient.FetchPartitionsOffsetsAfterMilli(ctx, ts.UnixMilli(), []int32{partition})
+		if err != nil {
+			level.Warn(b.logger).Log("msg", "failed to bound replay by max replay period, falling back to partition start", "partition", partition, "err", err)
+			return ps
+		}
+		if o, ok := offsets.Lookup(topic, partition); ok && o.Offset >= 0 {
+			ps.commitOffset = o.Offset
+			level.Warn(b.logger).Log("msg", "no usable committed offset found, replaying from max replay period instead of partition start", "partition", partition, "max_replay_period", b.cfg.MaxReplayPeriod, "start_offset", o.Offset)
+		}
 	}
 
 	return ps
