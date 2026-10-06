@@ -1225,9 +1225,7 @@ Options:
 
 You must provide exactly one of `--trace-id` or `--query`. Providing both, or neither, returns an error before the request is submitted.
 
-`attr != nil` selects spans that **have** the attribute. It is not a negation: the TraceQL grammar rewrites it into an existence check rather than parsing it as `!=`, so it does not select the spans that lack the attribute. `!=` against any other value, including `""`, is refused, because that match set is everything except the value you named.
-
-This is broader than it looks on a large tenant. `span.user_id != nil` selects every span carrying a user ID, so preview with `--dry-run` before running one for real.
+`attr != nil` is rewritten to an existence check, so it selects spans that **have** the attribute, not the ones missing it. Other `!=` forms are refused. This can be broader than it looks on a large tenant (`span.user_id != nil` matches every span carrying a user ID), so preview with `--dry-run` first.
 
 A tenant can have only one redaction in progress at a time, dry runs included.
 A submission made while an earlier one is still running, or still in its quiescence period, is rejected.

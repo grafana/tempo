@@ -7,10 +7,9 @@ import (
 	"github.com/grafana/tempo/v3/pkg/traceql"
 )
 
-// validateRedactionQuery enforces the redaction query subset: a single spanset filter whose
-// expression combines, with && / ||, either an = comparison on a resource.*/span.* attribute or an
-// `attr != nil` existence check on one. Anything else (value negation, regex, ordered comparisons,
-// unscoped attributes, pipelines, aggregates, multiple/structural filters) is rejected at submission.
+// validateRedactionQuery enforces the redaction query subset: a single spanset filter combining,
+// with && / ||, = comparisons and `attr != nil` existence checks on resource.*/span.* attributes.
+// Everything else is rejected at submission.
 //
 // Parsing uses ParseNoOptimizations so the optimizer does not fold an OR of equalities
 // on the same attribute into a regex, which the subset would then wrongly reject.
@@ -43,9 +42,8 @@ func validateRedactionQuery(query string) error {
 // validateRedactionExpr recursively checks that fe is built only from &&/|| combinators over the
 // comparisons the subset allows.
 func validateRedactionExpr(fe traceql.FieldExpression) error {
-	// `attr != nil` never reaches the operator switch below. The grammar rewrites it into a unary
-	// existence check, so it arrives as OpExists rather than as a negation. It selects spans that
-	// have the attribute, which is a positive match.
+	// The grammar rewrites `attr != nil` into a unary OpExists, so it never reaches the
+	// operator switch below as a negation.
 	if un, ok := fe.(traceql.UnaryOperation); ok {
 		if un.Op != traceql.OpExists {
 			return fmt.Errorf("operator %v not allowed in redaction query", un.Op)
@@ -71,9 +69,8 @@ func validateRedactionExpr(fe traceql.FieldExpression) error {
 	case traceql.OpEqual:
 		return validateRedactionComparison(bin.LHS, bin.RHS)
 	default:
-		// Only positive equality and the != nil existence check are allowed. Negation against a
-		// value is excluded on purpose: its match set is the complement (potentially all data), so
-		// a typo is as catastrophic as a bad regex on an irreversible delete.
+		// Negation against a value is excluded on purpose: its match set is the complement
+		// (potentially all data), as catastrophic as a bad regex on an irreversible delete.
 		return fmt.Errorf("operator %v not allowed in redaction query; only = and != nil are supported", bin.Op)
 	}
 }
