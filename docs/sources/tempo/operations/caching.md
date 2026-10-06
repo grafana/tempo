@@ -25,6 +25,7 @@ This lets you size and tune each cache independently based on the workload it ha
 | `parquet-offset-idx` | Parquet offset index sections. | Low |
 | `parquet-page` | Parquet data pages. Caches most Parquet reads. | **High** |
 | `frontend-search` | Query-frontend search job outcomes. | Varies |
+| `frontend-trace-by-id` | Query-frontend trace by ID job outcomes, including not-found results. | Varies |
 
 You can assign multiple roles to a single cache instance, or split high-volume roles (like `parquet-page`) onto a dedicated instance.
 For example, you might use a large Memcached pool for `parquet-page` and a smaller one for `bloom` and `parquet-footer`.

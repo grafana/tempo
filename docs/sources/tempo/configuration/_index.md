@@ -2933,6 +2933,7 @@ cache:
         #   parquet-offset-idx - Parquet offset index sections.
         #   parquet-page       - Parquet data pages. WARNING: This caches most reads from Parquet and is very high volume.
         #   frontend-search    - Frontend search job results.
+        #   frontend-trace-by-id - Frontend trace by ID job results.
 
     -   roles:
         - <role1>
