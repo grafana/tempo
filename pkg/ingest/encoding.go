@@ -22,8 +22,8 @@ var encoderPool = sync.Pool{
 	},
 }
 
-// resetPushBytesRequest empties req but keeps its slice capacity. It clears
-// the slices first so the previous contents can be GC'd.
+// resetPushBytesRequest empties req but keeps its slice capacity.
+// It clears the slices first so the previous contents can be GC'd.
 func resetPushBytesRequest(req *tempopb.PushBytesRequest) {
 	clear(req.Traces)
 	clear(req.Ids)
@@ -133,8 +133,7 @@ func NewDecoder() *Decoder {
 }
 
 // Decode converts a Kafka record's byte data back into a tempopb.Trace.
-// It resets the decoder first, so entries from a previous Decode — including
-// partial entries left behind by a failed one — never leak into the result.
+// It resets the decoder first, so entries from a previous Decode never leak into the result.
 func (d *Decoder) Decode(data []byte) (*tempopb.PushBytesRequest, error) {
 	resetPushBytesRequest(d.req)
 	err := d.req.Unmarshal(data)
