@@ -73,13 +73,12 @@ func Build(ctx context.Context, meta *backend.BlockMeta, r backend.Reader, o Opt
 	}
 
 	p := &BlockProfile{
-		SchemaVersion: SchemaVersion,
-		GeneratedAt:   time.Now().UTC(),
-		GeneratedBy:   CurrentBuildInfo(),
-		Block:         meta,
-		RowGroups:     len(pf.RowGroups()),
-		TraceIDs:      traceIDs,
-		Attributes:    attrs,
+		GeneratedAt: time.Now().UTC(),
+		GeneratedBy: CurrentBuildInfo(),
+		Block:       meta,
+		RowGroups:   len(pf.RowGroups()),
+		TraceIDs:    traceIDs,
+		Attributes:  attrs,
 	}
 	if err := p.Validate(); err != nil {
 		return nil, fmt.Errorf("produced an invalid profile: %w", err)

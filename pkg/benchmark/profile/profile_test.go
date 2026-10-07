@@ -32,11 +32,10 @@ func validProfile() *BlockProfile {
 	meta.TotalRecords = 3
 
 	return &BlockProfile{
-		SchemaVersion: SchemaVersion,
-		GeneratedAt:   time.Unix(5000, 0).UTC(),
-		GeneratedBy:   BuildInfo{TempoVersion: "0.0.0-test", GitSHA: "deadbeef"},
-		Block:         meta,
-		RowGroups:     3,
+		GeneratedAt: time.Unix(5000, 0).UTC(),
+		GeneratedBy: BuildInfo{TempoVersion: "0.0.0-test", GitSHA: "deadbeef"},
+		Block:       meta,
+		RowGroups:   3,
 		TraceIDs: TraceIDProfile{
 			Mode:    TraceIDModeSample,
 			Present: []string{"0102030405060708090a0b0c0d0e0f10"},
@@ -55,17 +54,6 @@ func TestProfileRoundTrip(t *testing.T) {
 	got, err := Load(&buf)
 	require.NoError(t, err)
 	require.Equal(t, want, got)
-}
-
-func TestLoadProfileRejectsOtherSchemaVersion(t *testing.T) {
-	p := validProfile()
-	p.SchemaVersion = SchemaVersion + 1
-
-	var buf bytes.Buffer
-	require.NoError(t, p.Write(&buf))
-
-	_, err := Load(&buf)
-	require.ErrorContains(t, err, "schema version")
 }
 
 func TestProfileValidate(t *testing.T) {

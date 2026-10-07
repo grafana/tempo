@@ -19,8 +19,6 @@ import (
 	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
-const SchemaVersion = 2
-
 // traceIDHexLen is the length of a padded 16-byte trace ID in hex.
 const traceIDHexLen = 32
 
@@ -47,10 +45,9 @@ type BuildInfo struct {
 // recorded in full because two runs are only comparable if they agree on every
 // property of the block except the one under test.
 type BlockProfile struct {
-	SchemaVersion int                `json:"schemaVersion"`
-	GeneratedAt   time.Time          `json:"generatedAt"`
-	GeneratedBy   BuildInfo          `json:"generatedBy"`
-	Block         *backend.BlockMeta `json:"block"`
+	GeneratedAt time.Time          `json:"generatedAt"`
+	GeneratedBy BuildInfo          `json:"generatedBy"`
+	Block       *backend.BlockMeta `json:"block"`
 	// RowGroups comes from the parquet footer, not Block.TotalRecords, which
 	// Tempo's own sharding calls an estimate.
 	RowGroups int            `json:"rowGroups"`
@@ -69,9 +66,6 @@ func Load(r io.Reader) (*BlockProfile, error) {
 	var p BlockProfile
 	if err := json.NewDecoder(r).Decode(&p); err != nil {
 		return nil, err
-	}
-	if p.SchemaVersion != SchemaVersion {
-		return nil, fmt.Errorf("profile schema version %d is not supported, expected %d", p.SchemaVersion, SchemaVersion)
 	}
 	if err := p.Validate(); err != nil {
 		return nil, err

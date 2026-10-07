@@ -28,7 +28,6 @@ func TestProfileBlock(t *testing.T) {
 	footer, err := rowGroupCount(ctx, meta, r)
 	require.NoError(t, err)
 
-	require.Equal(t, SchemaVersion, p.SchemaVersion)
 	require.Equal(t, meta, p.Block)
 	require.Equal(t, footer, p.RowGroups)
 
