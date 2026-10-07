@@ -8,7 +8,7 @@ change_type: enhancement
 component: tempo-cli
 
 # A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
-note: "Make `tempo-cli benchmark compare` results comparable across blocks with different row group sizes: `matched` now counts the merged logical result as the query frontend reports it, and `benchmark compare` shows case totals per pass when the runs' shard counts differ"
+note: "Make `tempo-cli benchmark compare` results comparable across blocks with different row group sizes"
 
 # (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
 # .chloggen/README.md.
