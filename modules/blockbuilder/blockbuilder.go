@@ -643,7 +643,6 @@ func (b *BlockBuilder) pushTraces(ts time.Time, tenantBytes, reqBytes []byte, p 
 	if err != nil {
 		return fmt.Errorf("failed to decode trace: %w", err)
 	}
-	defer b.decoder.Reset()
 
 	return p.pushBytes(ts, string(tenantBytes), req)
 }
