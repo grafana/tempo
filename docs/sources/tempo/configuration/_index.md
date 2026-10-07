@@ -1144,6 +1144,15 @@ query_frontend:
         # The maximum allowed value of spans per span set. 0 disables this limit.
         [max_spans_per_span_set: <int> | default = 100]
 
+        # If a search result is missing its root service/span name (shown as
+        # "<root span not yet received>"), attempt to backfill it by fetching the trace by ID.
+        # This can resolve traces whose root span landed in a block that was never compacted
+        # together with the rest of the trace, which trace-by-ID lookups already handle by
+        # combining every block that contains the trace ID.
+        # 0 disables repair. A positive value enables it and caps how many traces per search
+        # response get a repair attempt, since each attempt is an extra trace-by-ID round trip.
+        [repair_root_span_max_traces: <int> | default = 5]
+
         # SLO configuration for Metadata (tags and tag values) endpoints.
         metadata_slo:
             # If set to a non-zero value, it's value will be used to decide if metadata query is within SLO or not.
