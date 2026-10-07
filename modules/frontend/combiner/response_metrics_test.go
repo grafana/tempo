@@ -186,3 +186,22 @@ func TestMergeAdditionalMetrics(t *testing.T) {
 	}, true)
 	assert.Equal(t, map[string]int64{tempopb.AdditionalMetricEngineBytes: 3}, dst)
 }
+
+func TestMetricsCombiners_ReportInspectedBytesPerResponse(t *testing.T) {
+	var reported []uint64
+	opt := WithInspectedBytesReporter(func(b uint64) { reported = append(reported, b) })
+
+	search := NewSearchMetricsCombiner(opt)
+	metadata := NewMetadataMetricsCombiner(opt)
+	queryRange := NewQueryRangeMetricsCombiner(opt)
+
+	search.Combine(&tempopb.SearchMetrics{InspectedBytes: 1}, &fakePipelineResponse{})
+	search.Combine(&tempopb.SearchMetrics{InspectedBytes: 10}, &fakePipelineResponse{cacheHit: true})
+	metadata.Combine(&tempopb.MetadataMetrics{InspectedBytes: 100}, &fakePipelineResponse{})
+	queryRange.Combine(&tempopb.SearchMetrics{InspectedBytes: 1000}, &fakePipelineResponse{})
+	queryRange.Combine(&tempopb.SearchMetrics{InspectedBytes: 10000}, &fakePipelineResponse{cacheHit: true})
+	queryRange.Combine(&tempopb.SearchMetrics{}, &fakePipelineResponse{})
+
+	// cache hits and zero-byte responses are not reported
+	assert.Equal(t, []uint64{1, 100, 1000}, reported)
+}

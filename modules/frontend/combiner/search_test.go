@@ -857,3 +857,20 @@ func TestSegmentSearchResponse(t *testing.T) {
 		require.Equal(t, input.Metrics, out[2].Metrics)
 	})
 }
+
+func TestSearchReportsInspectedBytesBeforeRequestFails(t *testing.T) {
+	var reported []uint64
+	c := NewTypedSearch(10, false, api.MarshallingFormatProtobuf, false,
+		WithInspectedBytesReporter(func(b uint64) { reported = append(reported, b) }))
+
+	ok := func(b uint64) PipelineResponse {
+		return toHTTPResponseWithFormat(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{InspectedBytes: b}}, http.StatusOK, nil, api.MarshallingFormatProtobuf)
+	}
+	require.NoError(t, c.AddResponse(ok(5)))
+	require.NoError(t, c.AddResponse(toHTTPResponse(t, nil, http.StatusInternalServerError)))
+	require.NoError(t, c.AddResponse(ok(7))) // dropped: the combiner already quit
+
+	_, err := c.GRPCFinal()
+	require.Error(t, err)
+	require.Equal(t, []uint64{5}, reported)
+}

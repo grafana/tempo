@@ -6,6 +6,7 @@ import (
 
 	"github.com/gogo/status"
 	"github.com/grafana/dskit/grpcutil"
+	"github.com/grafana/tempo/v3/modules/frontend/combiner"
 	"github.com/grafana/tempo/v3/pkg/api"
 	"github.com/grafana/tempo/v3/pkg/util"
 	"github.com/prometheus/client_golang/prometheus"
@@ -79,23 +80,31 @@ type (
 	handlerPostHook func(resp *http.Response, tenant string, bytesProcessed uint64, latency time.Duration, err error)
 )
 
+// inspectedBytesReporter returns a callback that adds to the inspected bytes counter as query jobs complete.
+func inspectedBytesReporter(vec *prometheus.CounterVec, tenant string) combiner.Option {
+	return combiner.WithInspectedBytesReporter(func(b uint64) {
+		vec.WithLabelValues(tenant).Add(float64(b))
+	})
+}
+
 // todo: remove post hooks and implement as a handler
 func traceByIDSLOPostHook(cfg SLOConfig) handlerPostHook {
 	return sloHook(traceByIDCounter, sloTraceByIDCounter, traceByIDThroughput, traceByIDInspectedBytes, cfg)
 }
 
 func searchSLOPostHook(cfg SLOConfig) handlerPostHook {
-	return sloHook(searchCounter, sloSearchCounter, searchThroughput, searchInspectedBytes, cfg)
+	return sloHook(searchCounter, sloSearchCounter, searchThroughput, nil, cfg)
 }
 
 func metadataSLOPostHook(cfg SLOConfig) handlerPostHook {
-	return sloHook(metadataCounter, sloMetadataCounter, metadataThroughput, metadataInspectedBytes, cfg)
+	return sloHook(metadataCounter, sloMetadataCounter, metadataThroughput, nil, cfg)
 }
 
 func metricsSLOPostHook(cfg SLOConfig) handlerPostHook {
-	return sloHook(metricsCounter, sloMetricsCounter, metricsThroughput, metricsInspectedBytes, cfg)
+	return sloHook(metricsCounter, sloMetricsCounter, metricsThroughput, nil, cfg)
 }
 
+// inspectedBytesVec is nil for ops that report inspected bytes incrementally through the combiners.
 func sloHook(allByTenantCounter, withinSLOByTenantCounter *prometheus.CounterVec, throughputVec *prometheus.CounterVec, inspectedBytesVec *prometheus.CounterVec, cfg SLOConfig) handlerPostHook {
 	return func(resp *http.Response, tenant string, bytesProcessed uint64, latency time.Duration, err error) {
 		// most errors are SLO violations but we have few exceptions.
@@ -143,7 +152,9 @@ func sloHook(allByTenantCounter, withinSLOByTenantCounter *prometheus.CounterVec
 			return
 		}
 
-		inspectedBytesVec.WithLabelValues(tenant).Add(float64(bytesProcessed))
+		if inspectedBytesVec != nil {
+			inspectedBytesVec.WithLabelValues(tenant).Add(float64(bytesProcessed))
+		}
 
 		passedThroughput := false
 		// final check is throughput
