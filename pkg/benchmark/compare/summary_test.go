@@ -91,4 +91,12 @@ func TestTotalSummary(t *testing.T) {
 	c.Cases[0].Results[1].Metrics = nil
 	sm = c.TotalSummary("harness.wallNs", 0)
 	require.Equal(t, SummaryCell{}, sm.Rows[0].Cells[1])
+
+	// A gauge has no total to compare: its Total is the value left behind
+	// when the case finished, not a sum, so it is not one either.
+	gauge := totalMeasurement(100)
+	gauge.Kind = metrics.Gauge
+	c.Cases[0].Results[1].Metrics = metrics.Set{"harness.wallNs": gauge}
+	sm = c.TotalSummary("harness.wallNs", 0)
+	require.Equal(t, SummaryCell{}, sm.Rows[0].Cells[1])
 }

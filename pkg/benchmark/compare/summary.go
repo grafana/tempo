@@ -1,6 +1,9 @@
 package compare
 
-import "github.com/grafana/tempo/v3/pkg/benchmark"
+import (
+	"github.com/grafana/tempo/v3/pkg/benchmark"
+	"github.com/grafana/tempo/v3/pkg/benchmark/metrics"
+)
 
 // Summary is one stat of one metric for every case: each run's value, and its
 // change from the baseline's.
@@ -72,7 +75,9 @@ func (c *Comparison) summaryCell(cs Case, s Series, stat Stat, run, baseline int
 // TotalSummary lines up one metric's case total per pass for every case
 // against the baseline. Runs whose executions differ measure different amounts
 // of work per execution, but their totals cost the same logical query, so the
-// totals are compared whenever the match counts agree.
+// totals are compared whenever the match counts agree. A gauge has no total,
+// so its cases have no values here; the per-execution summary is where they
+// show.
 func (c *Comparison) TotalSummary(metric string, baseline int) Summary {
 	sm := Summary{Metric: metric, Unit: UnitFor(metric), Baseline: baseline}
 	for i, cs := range c.Cases {
@@ -102,13 +107,14 @@ func (c *Comparison) totalCell(cs Case, metric string, run, baseline int) Summar
 	return cell
 }
 
-// caseTotal is a case's total of a metric over every pass, or nil when the
-// case did not report it.
+// caseTotal is a case's total of a counter metric over every pass, or nil
+// when the case did not report it. A gauge's Total is the value left behind
+// when the case finished, not a sum, so a gauge has no total to compare.
 func caseTotal(cr *benchmark.CaseResult, metric string) *float64 {
 	if cr == nil {
 		return nil
 	}
-	if m, ok := cr.Metrics[metric]; ok && m.Summary.Count > 0 {
+	if m, ok := cr.Metrics[metric]; ok && m.Kind == metrics.Counter && m.Summary.Count > 0 {
 		return &m.Total
 	}
 	return nil
