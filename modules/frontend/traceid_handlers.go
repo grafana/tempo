@@ -59,6 +59,9 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 		}
 
 		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat, traceRedactor)
+		if comb.MetricsCombiner != nil {
+			comb.MetricsCombiner.SetInspectedBytesReporter(inspectedBytesCounter(traceByIDInspectedBytes, tenant))
+		}
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 
 		start := time.Now()
@@ -183,6 +186,7 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			opts.Logger = logger
 		}
 		opts.TraceFilter = traceFilter
+		opts.ReportInspectedBytes = inspectedBytesCounter(traceByIDInspectedBytes, tenant)
 
 		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat, traceRedactor, opts)
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)

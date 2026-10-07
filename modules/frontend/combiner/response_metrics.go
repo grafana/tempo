@@ -92,13 +92,20 @@ func (mc *SearchMetricsCombiner) CombineMetadata(newMetrics *tempopb.SearchMetri
 }
 
 type TraceByIDMetricsCombiner struct {
-	Metrics *tempopb.TraceByIDMetrics
+	reportInspectedBytes func(uint64)
+	Metrics              *tempopb.TraceByIDMetrics
 }
 
-func NewTraceByIDMetricsCombiner() *TraceByIDMetricsCombiner {
+func NewTraceByIDMetricsCombiner(opts ...Option) *TraceByIDMetricsCombiner {
 	return &TraceByIDMetricsCombiner{
-		Metrics: &tempopb.TraceByIDMetrics{},
+		reportInspectedBytes: reporterFrom(opts),
+		Metrics:              &tempopb.TraceByIDMetrics{},
 	}
+}
+
+// SetInspectedBytesReporter sets the callback used to report inspected bytes as each job response is combined.
+func (mc *TraceByIDMetricsCombiner) SetInspectedBytesReporter(fn func(uint64)) {
+	mc.reportInspectedBytes = fn
 }
 
 func (mc *TraceByIDMetricsCombiner) Combine(newMetrics *tempopb.TraceByIDMetrics, resp PipelineResponse) {
@@ -108,6 +115,7 @@ func (mc *TraceByIDMetricsCombiner) Combine(newMetrics *tempopb.TraceByIDMetrics
 	cacheHit := IsCacheHit(resp.HTTPResponse())
 	if !cacheHit {
 		mc.Metrics.InspectedBytes += newMetrics.InspectedBytes
+		report(mc.reportInspectedBytes, newMetrics.InspectedBytes)
 		mc.Metrics.BackendReads += newMetrics.BackendReads
 		mc.Metrics.BackendBytes += newMetrics.BackendBytes
 	}

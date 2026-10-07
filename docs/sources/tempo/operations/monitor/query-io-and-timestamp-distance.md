@@ -20,7 +20,6 @@ Use these metrics together to correlate query cost with data quality and pipelin
 ## Reference
 
 The query frontend emits `tempo_query_frontend_bytes_inspected_total` as querier jobs complete, aggregating bytes inspected by the query path.
-For `traces`, the bytes are emitted when the request finishes.
 The `op` label uses `traces`, `search`, `metadata`, or `metrics`.
 
 The live-store emits `tempo_live_store_query_inspected_bytes_total` while serving recent data.
@@ -30,7 +29,7 @@ The distributor emits `tempo_spans_distance_in_future_seconds` and `tempo_spans_
 
 | Names | Type | Labels | Buckets | Emitted | Notes |
 |---|---|---|---|---|---|
-| `tempo_query_frontend_bytes_inspected_total` | Counter | `tenant`, `op` | - | As each querier job response is combined at the query frontend (on request completion for `op="traces"`); aggregates bytes inspected by the query path, including requests that later fail or are canceled; excludes cached querier responses. | Includes TraceQL metrics queries with `op="metrics"`. |
+| `tempo_query_frontend_bytes_inspected_total` | Counter | `tenant`, `op` | - | As each querier job response is combined at the query frontend; aggregates bytes inspected by the query path, including requests that later fail or are canceled; excludes cached querier responses. | Includes TraceQL metrics queries with `op="metrics"`. |
 | `tempo_live_store_query_inspected_bytes_total` | Counter | `tenant`, `op` | - | During live-store query execution. | Live-store `op` values are `search`, `search_tags`, `search_tag_values`, `trace_by_id`, and `query_range`. |
 | `tempo_spans_distance_in_future_seconds`, `tempo_spans_distance_in_past_seconds` | Histogram | `tenant` | 300s, 1800s, 3600s (5m, 30m, 1h) | In the distributor on ingest; observes seconds between span end time and ingestion time. | Spans in the future are accepted but invalid and might not be searchable. |
 

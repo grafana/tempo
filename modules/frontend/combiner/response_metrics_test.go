@@ -191,10 +191,13 @@ func TestMetricsCombiners_ReportInspectedBytesPerResponse(t *testing.T) {
 	var reported []uint64
 	opt := WithInspectedBytesReporter(func(b uint64) { reported = append(reported, b) })
 
+	traceByID := NewTraceByIDMetricsCombiner(opt)
 	search := NewSearchMetricsCombiner(opt)
 	metadata := NewMetadataMetricsCombiner(opt)
 	queryRange := NewQueryRangeMetricsCombiner(opt)
 
+	traceByID.Combine(&tempopb.TraceByIDMetrics{InspectedBytes: 3}, &fakePipelineResponse{})
+	traceByID.Combine(&tempopb.TraceByIDMetrics{InspectedBytes: 30}, &fakePipelineResponse{cacheHit: true})
 	search.Combine(&tempopb.SearchMetrics{InspectedBytes: 1}, &fakePipelineResponse{})
 	search.Combine(&tempopb.SearchMetrics{InspectedBytes: 10}, &fakePipelineResponse{cacheHit: true})
 	metadata.Combine(&tempopb.MetadataMetrics{InspectedBytes: 100}, &fakePipelineResponse{})
@@ -203,5 +206,5 @@ func TestMetricsCombiners_ReportInspectedBytesPerResponse(t *testing.T) {
 	queryRange.Combine(&tempopb.SearchMetrics{}, &fakePipelineResponse{})
 
 	// cache hits and zero-byte responses are not reported
-	assert.Equal(t, []uint64{1, 100, 1000}, reported)
+	assert.Equal(t, []uint64{3, 1, 100, 1000}, reported)
 }
