@@ -118,7 +118,7 @@ func TestDB(t *testing.T) {
 
 	// read
 	for i, id := range ids {
-		bFound, failedBlocks, err := r.Find(ctx, testTenantID, id, BlockIDMin, BlockIDMax, time.Time{}, time.Time{}, common.DefaultSearchOptions())
+		bFound, failedBlocks, err := r.Find(ctx, testTenantID, &tempopb.TraceByIDRequest{TraceID: id, BlockStart: BlockIDMin, BlockEnd: BlockIDMax}, common.DefaultSearchOptions())
 		assert.NoError(t, err)
 		assert.Nil(t, failedBlocks)
 		assert.True(t, proto.Equal(bFound[0].Trace, reqs[i]))
@@ -174,7 +174,7 @@ func TestBlockSharding(t *testing.T) {
 	// check if it respects the blockstart/blockend params - case1: hit
 	blockStart := uuid.MustParse(BlockIDMin).String()
 	blockEnd := uuid.MustParse(BlockIDMax).String()
-	bFound, failedBlocks, err := r.Find(ctx, testTenantID, id, blockStart, blockEnd, time.Time{}, time.Time{}, common.DefaultSearchOptions())
+	bFound, failedBlocks, err := r.Find(ctx, testTenantID, &tempopb.TraceByIDRequest{TraceID: id, BlockStart: blockStart, BlockEnd: blockEnd}, common.DefaultSearchOptions())
 	assert.NoError(t, err)
 	assert.Nil(t, failedBlocks)
 	assert.Greater(t, len(bFound), 0)
@@ -184,7 +184,7 @@ func TestBlockSharding(t *testing.T) {
 	// check if it respects the blockstart/blockend params - case2: miss
 	blockStart = uuid.MustParse(BlockIDMin).String()
 	blockEnd = uuid.MustParse(BlockIDMin).String()
-	bFound, failedBlocks, err = r.Find(ctx, testTenantID, id, blockStart, blockEnd, time.Time{}, time.Time{}, common.DefaultSearchOptions())
+	bFound, failedBlocks, err = r.Find(ctx, testTenantID, &tempopb.TraceByIDRequest{TraceID: id, BlockStart: blockStart, BlockEnd: blockEnd}, common.DefaultSearchOptions())
 	assert.NoError(t, err)
 	assert.Nil(t, failedBlocks)
 	assert.Len(t, bFound, 0)
@@ -193,13 +193,13 @@ func TestBlockSharding(t *testing.T) {
 func TestNilOnUnknownTenantID(t *testing.T) {
 	r, _, _, _ := testConfig(t, 0)
 
-	buff, failedBlocks, err := r.Find(context.Background(), "unknown", []byte{0x01}, BlockIDMin, BlockIDMax, time.Time{}, time.Time{}, common.DefaultSearchOptions())
+	buff, failedBlocks, err := r.Find(context.Background(), "unknown", &tempopb.TraceByIDRequest{TraceID: []byte{0x01}, BlockStart: BlockIDMin, BlockEnd: BlockIDMax}, common.DefaultSearchOptions())
 	assert.Nil(t, buff)
 	assert.Nil(t, err)
 	assert.Nil(t, failedBlocks)
 }
 
-func TestFindInBlocks(t *testing.T) {
+func TestFindWithBlocks(t *testing.T) {
 	r, w, _, _ := testConfig(t, 0)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -225,13 +225,17 @@ func TestFindInBlocks(t *testing.T) {
 	metas := r.TraceByIDBlockMetas(testTenantID, time.Time{}, time.Time{})
 	require.Len(t, metas, 1)
 
-	bFound, failedBlocks, err := r.FindInBlocks(ctx, id, metas, common.DefaultSearchOptions())
+	blocks, err := backend.TraceByIDBlocksFromMetas(metas)
+	require.NoError(t, err)
+
+	bFound, failedBlocks, err := r.Find(ctx, testTenantID, &tempopb.TraceByIDRequest{TraceID: id, Blocks: blocks}, common.DefaultSearchOptions())
 	require.NoError(t, err)
 	require.Nil(t, failedBlocks)
 	require.Len(t, bFound, 1)
 	require.True(t, proto.Equal(bFound[0].Trace, req))
 
-	bFound, failedBlocks, err = r.FindInBlocks(ctx, id, nil, common.DefaultSearchOptions())
+	// an empty list searches nothing, even though the blocklist has the block
+	bFound, failedBlocks, err = r.Find(ctx, testTenantID, &tempopb.TraceByIDRequest{TraceID: id, Blocks: &tempopb.TraceByIDBlocks{}}, common.DefaultSearchOptions())
 	require.NoError(t, err)
 	require.Nil(t, failedBlocks)
 	require.Empty(t, bFound)
@@ -583,7 +587,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 
 	// read
 	for i, id := range ids {
-		bFound, failedBlocks, err := r.Find(ctx, testTenantID, id, blockID, blockID, time.Time{}, time.Time{}, common.DefaultSearchOptions())
+		bFound, failedBlocks, err := r.Find(ctx, testTenantID, &tempopb.TraceByIDRequest{TraceID: id, BlockStart: blockID, BlockEnd: blockID}, common.DefaultSearchOptions())
 		require.NoError(t, err)
 		require.Nil(t, failedBlocks)
 		require.True(t, proto.Equal(bFound[0].Trace, reqs[i]))
@@ -608,7 +612,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 
 	// find should succeed with old block range
 	for i, id := range ids {
-		bFound, failedBlocks, err := r.Find(ctx, testTenantID, id, blockID, blockID, time.Time{}, time.Time{}, common.DefaultSearchOptions())
+		bFound, failedBlocks, err := r.Find(ctx, testTenantID, &tempopb.TraceByIDRequest{TraceID: id, BlockStart: blockID, BlockEnd: blockID}, common.DefaultSearchOptions())
 		require.NoError(t, err)
 		require.Nil(t, failedBlocks)
 		require.True(t, proto.Equal(bFound[0].Trace, reqs[i]))

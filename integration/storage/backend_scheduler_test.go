@@ -304,7 +304,7 @@ func TestBackendSchedulerRedaction(t *testing.T) {
 		// tempodbReader's poll can still race the writer's last block - retry like the post-redaction check below.
 		require.Eventually(t, func() bool {
 			tempodbReader.PollNow(ctx)
-			trs, failedBlocks, err = tempodbReader.Find(ctx, testTenant, traceID, tempodb.BlockIDMin, tempodb.BlockIDMax, time.Time{}, time.Time{}, common.DefaultSearchOptions())
+			trs, failedBlocks, err = tempodbReader.Find(ctx, testTenant, &tempopb.TraceByIDRequest{TraceID: traceID, BlockStart: tempodb.BlockIDMin, BlockEnd: tempodb.BlockIDMax}, common.DefaultSearchOptions())
 			return err == nil && len(failedBlocks) == 0 && len(trs) > 0
 		}, 60*time.Second, 2*time.Second, "trace must be findable in all blocks before redaction")
 
@@ -361,7 +361,7 @@ func TestBackendSchedulerRedaction(t *testing.T) {
 		// of the lookback window and the trace is no longer findable.
 		require.Eventually(t, func() bool {
 			tempodbReader.PollNow(ctx)
-			trs, _, err = tempodbReader.Find(ctx, testTenant, traceID, tempodb.BlockIDMin, tempodb.BlockIDMax, time.Time{}, time.Time{}, common.DefaultSearchOptions())
+			trs, _, err = tempodbReader.Find(ctx, testTenant, &tempopb.TraceByIDRequest{TraceID: traceID, BlockStart: tempodb.BlockIDMin, BlockEnd: tempodb.BlockIDMax}, common.DefaultSearchOptions())
 			return err == nil && len(trs) == 0
 		}, 60*time.Second, 2*time.Second, "trace must not be findable in any block after redaction")
 	})
@@ -416,7 +416,7 @@ func TestBackendSchedulerRedactionQuery(t *testing.T) {
 			// tempodbReader's poll can still race the writer's last block, as in TestBackendSchedulerRedaction
 			require.Eventually(t, func() bool {
 				tempodbReader.PollNow(ctx)
-				trs, failedBlocks, err := tempodbReader.Find(ctx, testTenant, id, tempodb.BlockIDMin, tempodb.BlockIDMax, time.Time{}, time.Time{}, common.DefaultSearchOptions())
+				trs, failedBlocks, err := tempodbReader.Find(ctx, testTenant, &tempopb.TraceByIDRequest{TraceID: id, BlockStart: tempodb.BlockIDMin, BlockEnd: tempodb.BlockIDMax}, common.DefaultSearchOptions())
 				return err == nil && len(failedBlocks) == 0 && len(trs) > 0
 			}, 60*time.Second, 2*time.Second, "trace %x must be findable before redaction", id)
 		}
@@ -459,11 +459,11 @@ func TestBackendSchedulerRedactionQuery(t *testing.T) {
 		// The matching trace ages out of the lookback window; the keeper stays findable.
 		require.Eventually(t, func() bool {
 			tempodbReader.PollNow(ctx)
-			trs, _, err := tempodbReader.Find(ctx, testTenant, matchID, tempodb.BlockIDMin, tempodb.BlockIDMax, time.Time{}, time.Time{}, common.DefaultSearchOptions())
+			trs, _, err := tempodbReader.Find(ctx, testTenant, &tempopb.TraceByIDRequest{TraceID: matchID, BlockStart: tempodb.BlockIDMin, BlockEnd: tempodb.BlockIDMax}, common.DefaultSearchOptions())
 			return err == nil && len(trs) == 0
 		}, 60*time.Second, 2*time.Second, "query-matched trace must not be findable after redaction")
 
-		keepTrs, _, err := tempodbReader.Find(ctx, testTenant, keepID, tempodb.BlockIDMin, tempodb.BlockIDMax, time.Time{}, time.Time{}, common.DefaultSearchOptions())
+		keepTrs, _, err := tempodbReader.Find(ctx, testTenant, &tempopb.TraceByIDRequest{TraceID: keepID, BlockStart: tempodb.BlockIDMin, BlockEnd: tempodb.BlockIDMax}, common.DefaultSearchOptions())
 		require.NoError(t, err)
 		require.NotEmpty(t, keepTrs, "non-matching trace must survive redaction")
 	})

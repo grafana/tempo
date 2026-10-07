@@ -84,8 +84,7 @@ type Writer interface {
 type IterateObjectCallback func(id common.ID, obj []byte) bool
 
 type Reader interface {
-	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart, timeEnd time.Time, opts common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error)
-	FindInBlocks(ctx context.Context, id common.ID, metas []*backend.BlockMeta, opts common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error)
+	Find(ctx context.Context, tenantID string, req *tempopb.TraceByIDRequest, opts common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error)
 	TraceByIDBlockMetas(tenantID string, timeStart, timeEnd time.Time) []*backend.BlockMeta
 	Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error)
 	SearchTags(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagsBlockRequest, opts common.SearchOptions) (*tempopb.SearchTagsV2Response, error)
@@ -340,13 +339,41 @@ func (rw *readerWriter) Tenants() []string {
 	return rw.blocklist.Tenants()
 }
 
-func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart, timeEnd time.Time, opts common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error) {
+// Find searches the blocks sent with the request for the trace, or selects them from the polled blocklist if none were sent.
+func (rw *readerWriter) Find(ctx context.Context, tenantID string, req *tempopb.TraceByIDRequest, opts common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error) {
 	// tracing instrumentation
 	logger := log.WithContext(ctx, log.Logger)
 	ctx, span := tracer.Start(ctx, "store.Find")
 	defer span.End()
 
-	blockStartUUID, err := uuid.Parse(blockStart)
+	id := common.ID(req.TraceID)
+
+	if req.Blocks != nil {
+		metas, err := backend.MetasFromTraceByIDBlocks(req.Blocks, tenantID)
+		if err != nil {
+			return nil, nil, err
+		}
+		if len(metas) == 0 {
+			return nil, nil, nil
+		}
+
+		blocks := make([]interface{}, 0, len(metas))
+		for _, m := range metas {
+			blocks = append(blocks, m)
+		}
+
+		partialTraceObjs, funcErrs, err := rw.findInBlocks(ctx, logger, id, blocks, opts)
+
+		span.SetAttributes(attribute.Int("blockErrs", len(funcErrs)))
+		span.SetAttributes(attribute.Int("blocksSearched", len(metas)))
+
+		return partialTraceObjs, funcErrs, err
+	}
+
+	// TODO: remove with querier blocklist polling
+	timeStart, timeEnd := req.TimeRange()
+
+	blockStartUUID, err := uuid.Parse(req.BlockStart)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -354,7 +381,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 	if err != nil {
 		return nil, nil, err
 	}
-	blockEndUUID, err := uuid.Parse(blockEnd)
+	blockEndUUID, err := uuid.Parse(req.BlockEnd)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -393,29 +420,6 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 	span.SetAttributes(attribute.Int("liveBlocksSearched", blocksSearched))
 	span.SetAttributes(attribute.Int("compactedBlocks", len(compactedBlocklist)))
 	span.SetAttributes(attribute.Int("compactedBlocksSearched", compactedBlocksSearched))
-
-	return partialTraceObjs, funcErrs, err
-}
-
-// FindInBlocks searches the given blocks for the trace. The caller picks the blocks, see TraceByIDBlockMetas.
-func (rw *readerWriter) FindInBlocks(ctx context.Context, id common.ID, metas []*backend.BlockMeta, opts common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error) {
-	logger := log.WithContext(ctx, log.Logger)
-	ctx, span := tracer.Start(ctx, "store.FindInBlocks")
-	defer span.End()
-
-	if len(metas) == 0 {
-		return nil, nil, nil
-	}
-
-	blocks := make([]interface{}, 0, len(metas))
-	for _, m := range metas {
-		blocks = append(blocks, m)
-	}
-
-	partialTraceObjs, funcErrs, err := rw.findInBlocks(ctx, logger, id, blocks, opts)
-
-	span.SetAttributes(attribute.Int("blockErrs", len(funcErrs)))
-	span.SetAttributes(attribute.Int("blocksSearched", len(metas)))
 
 	return partialTraceObjs, funcErrs, err
 }

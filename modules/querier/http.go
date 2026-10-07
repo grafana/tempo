@@ -47,31 +47,23 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// validate request
-	blockStart, blockEnd, queryMode, timeStart, timeEnd, err := api.ParseTraceByIDRequest(r)
+	req, err := api.ParseTraceByIDRequest(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	blocks, err := api.ParseTraceByIDBlocks(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
+	req.TraceID = byteID
+	timeStart, timeEnd := req.TimeRange()
 	span.AddEvent("validated request", oteltrace.WithAttributes(
-		attribute.String("blockStart", blockStart),
-		attribute.String("blockEnd", blockEnd),
-		attribute.String("queryMode", queryMode),
+		attribute.String("blockStart", req.BlockStart),
+		attribute.String("blockEnd", req.BlockEnd),
+		attribute.String("queryMode", req.QueryMode),
 		attribute.String("timeStart", timeStart.String()),
 		attribute.String("timeEnd", timeEnd.String()),
 		attribute.String("apiVersion", "v1"),
 	))
 
-	resp, err := q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
-		TraceID:    byteID,
-		BlockStart: blockStart,
-		BlockEnd:   blockEnd,
-		QueryMode:  queryMode,
-	}, blocks, timeStart, timeEnd)
+	resp, err := q.FindTraceByID(ctx, req)
 	if err != nil {
 		handleError(w, err)
 		return
@@ -101,32 +93,24 @@ func (q *Querier) TraceByIDHandlerV2(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// validate request
-	blockStart, blockEnd, queryMode, timeStart, timeEnd, err := api.ParseTraceByIDRequest(r)
+	req, err := api.ParseTraceByIDRequest(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	blocks, err := api.ParseTraceByIDBlocks(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
+	req.TraceID = byteID
+	timeStart, timeEnd := req.TimeRange()
 	span.AddEvent("validated request", oteltrace.WithAttributes(
-		attribute.String("blockStart", blockStart),
-		attribute.String("blockEnd", blockEnd),
-		attribute.String("queryMode", queryMode),
+		attribute.String("blockStart", req.BlockStart),
+		attribute.String("blockEnd", req.BlockEnd),
+		attribute.String("queryMode", req.QueryMode),
 		attribute.String("timeStart", timeStart.String()),
 		attribute.String("timeEnd", timeEnd.String()),
 		attribute.String("apiVersion", "v2"),
 	))
 
-	resp, err := q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
-		TraceID:           byteID,
-		BlockStart:        blockStart,
-		BlockEnd:          blockEnd,
-		QueryMode:         queryMode,
-		AllowPartialTrace: true,
-	}, blocks, timeStart, timeEnd)
+	req.AllowPartialTrace = true
+	resp, err := q.FindTraceByID(ctx, req)
 	if err != nil {
 		handleError(w, err)
 		return

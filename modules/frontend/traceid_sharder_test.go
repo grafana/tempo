@@ -10,6 +10,7 @@ import (
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
 	"github.com/grafana/tempo/v3/pkg/api"
 	"github.com/grafana/tempo/v3/pkg/blockboundary"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 	"github.com/stretchr/testify/require"
 )
@@ -28,12 +29,12 @@ func TestBuildShardedRequests(t *testing.T) {
 	ctx := user.InjectOrgID(context.Background(), "blerg")
 	req := httptest.NewRequest("GET", "/", nil).WithContext(ctx)
 
-	shardedReqs, err := sharder.buildShardedRequests(pipeline.NewHTTPRequest(req), time.Time{}, time.Time{})
+	shardedReqs, err := sharder.buildShardedRequests(pipeline.NewHTTPRequest(req), &tempopb.TraceByIDRequest{})
 	require.NoError(t, err)
 	require.Len(t, shardedReqs, queryShards)
 
 	require.Equal(t, "/querier?mode=ingesters", shardedReqs[0].HTTPRequest().RequestURI)
-	urisEqual(t, []string{"/querier?blockEnd=ffffffffffffffffffffffffffffffff&blockStart=00000000000000000000000000000000&blocks=AQ&mode=blocks"}, []string{shardedReqs[1].HTTPRequest().RequestURI})
+	urisEqual(t, []string{"/querier?blockEnd=ffffffffffffffffffffffffffffffff&blockStart=00000000000000000000000000000000&blocks=&mode=blocks"}, []string{shardedReqs[1].HTTPRequest().RequestURI})
 }
 
 func TestBuildShardedRequestsWithExternal(t *testing.T) {
@@ -51,7 +52,7 @@ func TestBuildShardedRequestsWithExternal(t *testing.T) {
 	ctx := user.InjectOrgID(context.Background(), "blerg")
 	req := httptest.NewRequest("GET", "/", nil).WithContext(ctx)
 
-	shardedReqs, err := sharder.buildShardedRequests(pipeline.NewHTTPRequest(req), time.Time{}, time.Time{})
+	shardedReqs, err := sharder.buildShardedRequests(pipeline.NewHTTPRequest(req), &tempopb.TraceByIDRequest{})
 	require.NoError(t, err)
 	require.Len(t, shardedReqs, queryShards)
 
@@ -131,7 +132,7 @@ func TestBuildShardedRequestsBlocksPerShard(t *testing.T) {
 			ctx := user.InjectOrgID(context.Background(), "test-tenant")
 			req := httptest.NewRequest("GET", "/", nil).WithContext(ctx)
 
-			shardedReqs, err := sharder.buildShardedRequests(pipeline.NewHTTPRequest(req), time.Time{}, time.Time{})
+			shardedReqs, err := sharder.buildShardedRequests(pipeline.NewHTTPRequest(req), &tempopb.TraceByIDRequest{})
 			require.NoError(t, err)
 			require.Len(t, shardedReqs, tc.wantTotalShards, "total shards (ingester + block shards)")
 
@@ -169,48 +170,46 @@ func TestBlocksPerShardTimeRangeFiltering(t *testing.T) {
 		name            string
 		blocks          []*backend.BlockMeta
 		blocksPerShard  uint
-		startTime       time.Time
-		endTime         time.Time
+		start           uint32
+		end             uint32
 		wantTotalShards int // ingester + block shards
 	}{
 		{
 			name:            "no time range – all blocks counted",
 			blocks:          []*backend.BlockMeta{inRange, outOfRange},
 			blocksPerShard:  1,
-			startTime:       time.Time{},
-			endTime:         time.Time{},
 			wantTotalShards: 3, // 1 ingester + 2 block shards
 		},
 		{
 			name:            "time range filters out-of-range blocks",
 			blocks:          []*backend.BlockMeta{inRange, outOfRange},
 			blocksPerShard:  1,
-			startTime:       time.Unix(1000, 0),
-			endTime:         time.Unix(2000, 0),
+			start:           1000,
+			end:             2000,
 			wantTotalShards: 2, // 1 ingester + 1 block shard (only inRange matches)
 		},
 		{
 			name:            "partial overlap is included",
 			blocks:          []*backend.BlockMeta{inRange, outOfRange, partialOverlap},
 			blocksPerShard:  1,
-			startTime:       time.Unix(1000, 0),
-			endTime:         time.Unix(2000, 0),
+			start:           1000,
+			end:             2000,
 			wantTotalShards: 3, // 1 ingester + 2 block shards (inRange + partialOverlap)
 		},
 		{
 			name:            "time range with no matching blocks falls back to 1 block shard",
 			blocks:          []*backend.BlockMeta{inRange},
 			blocksPerShard:  1,
-			startTime:       time.Unix(9000, 0),
-			endTime:         time.Unix(10000, 0),
+			start:           9000,
+			end:             10000,
 			wantTotalShards: 2, // 1 ingester + 1 block shard (minimum)
 		},
 		{
 			name:            "blocks per shard groups filtered blocks",
 			blocks:          []*backend.BlockMeta{inRange, outOfRange, partialOverlap},
 			blocksPerShard:  2,
-			startTime:       time.Unix(1000, 0),
-			endTime:         time.Unix(2000, 0),
+			start:           1000,
+			end:             2000,
 			wantTotalShards: 2, // 1 ingester + 1 block shard (ceil(2/2)=1)
 		},
 	}
@@ -229,7 +228,7 @@ func TestBlocksPerShardTimeRangeFiltering(t *testing.T) {
 			ctx := user.InjectOrgID(context.Background(), "test-tenant")
 			req := httptest.NewRequest("GET", "/", nil).WithContext(ctx)
 
-			shardedReqs, err := sharder.buildShardedRequests(pipeline.NewHTTPRequest(req), tc.startTime, tc.endTime)
+			shardedReqs, err := sharder.buildShardedRequests(pipeline.NewHTTPRequest(req), &tempopb.TraceByIDRequest{Start: tc.start, End: tc.end})
 			require.NoError(t, err)
 			require.Len(t, shardedReqs, tc.wantTotalShards)
 
@@ -312,7 +311,7 @@ func TestBlocksPerShardRespectsMaxOutstanding(t *testing.T) {
 			ctx := user.InjectOrgID(context.Background(), "test-tenant")
 			req := httptest.NewRequest("GET", "/", nil).WithContext(ctx)
 
-			shardedReqs, err := sharder.buildShardedRequests(pipeline.NewHTTPRequest(req), time.Time{}, time.Time{})
+			shardedReqs, err := sharder.buildShardedRequests(pipeline.NewHTTPRequest(req), &tempopb.TraceByIDRequest{})
 			require.NoError(t, err)
 			require.Len(t, shardedReqs, tc.wantTotalShards)
 		})
@@ -335,7 +334,7 @@ func TestBlocksPerShardFallsBackToQueryShards(t *testing.T) {
 	ctx := user.InjectOrgID(context.Background(), "blerg")
 	req := httptest.NewRequest("GET", "/", nil).WithContext(ctx)
 
-	shardedReqs, err := sharder.buildShardedRequests(pipeline.NewHTTPRequest(req), time.Time{}, time.Time{})
+	shardedReqs, err := sharder.buildShardedRequests(pipeline.NewHTTPRequest(req), &tempopb.TraceByIDRequest{})
 	require.NoError(t, err)
 	require.Len(t, shardedReqs, queryShards)
 
@@ -368,7 +367,7 @@ func TestBuildShardedRequestsAttachesBlocks(t *testing.T) {
 	ctx := user.InjectOrgID(context.Background(), "blerg")
 	req := httptest.NewRequest("GET", "/", nil).WithContext(ctx)
 
-	shardedReqs, err := sharder.buildShardedRequests(pipeline.NewHTTPRequest(req), time.Time{}, time.Time{})
+	shardedReqs, err := sharder.buildShardedRequests(pipeline.NewHTTPRequest(req), &tempopb.TraceByIDRequest{})
 	require.NoError(t, err)
 	require.Len(t, shardedReqs, queryShards)
 
@@ -381,8 +380,13 @@ func TestBuildShardedRequestsAttachesBlocks(t *testing.T) {
 		{"f0000000-0000-0000-0000-000000000000"},
 	}
 	for i, r := range shardedReqs {
-		blocks, err := api.ParseTraceByIDBlocks(r.HTTPRequest())
+		traceByIDReq, err := api.ParseTraceByIDRequest(r.HTTPRequest())
 		require.NoError(t, err)
+		var blocks []*backend.BlockMeta
+		if traceByIDReq.Blocks != nil {
+			blocks, err = backend.MetasFromTraceByIDBlocks(traceByIDReq.Blocks, "blerg")
+			require.NoError(t, err)
+		}
 
 		var ids []string
 		if blocks != nil {
@@ -395,7 +399,7 @@ func TestBuildShardedRequestsAttachesBlocks(t *testing.T) {
 	}
 }
 
-func TestBuildShardedRequestsIgnoresCallerBlocks(t *testing.T) {
+func TestBuildShardedRequestsIgnoresCallerParams(t *testing.T) {
 	queryShards := 3
 	sharder := &asyncTraceSharder{
 		cfg: &TraceByIDConfig{
@@ -406,14 +410,21 @@ func TestBuildShardedRequestsIgnoresCallerBlocks(t *testing.T) {
 	}
 
 	ctx := user.InjectOrgID(context.Background(), "blerg")
-	req := httptest.NewRequest("GET", "/?"+api.BlocksKey+"=callerblocks", nil).WithContext(ctx)
+	req := httptest.NewRequest("GET", "/?mode=ingesters&blockStart=00000000000000000000000000000000&blockEnd=ffffffffffffffffffffffffffffffff&"+api.BlocksKey+"=callerblocks", nil).WithContext(ctx)
 
-	shardedReqs, err := sharder.buildShardedRequests(pipeline.NewHTTPRequest(req), time.Time{}, time.Time{})
+	shardedReqs, err := sharder.buildShardedRequests(pipeline.NewHTTPRequest(req), &tempopb.TraceByIDRequest{})
 	require.NoError(t, err)
 	require.Len(t, shardedReqs, queryShards)
 
-	for _, r := range shardedReqs {
-		require.NotContains(t, r.HTTPRequest().RequestURI, "callerblocks")
+	// queriers read the first value of a param, so a caller's value must never reach a job
+	for i, r := range shardedReqs {
+		q := r.HTTPRequest().URL.Query()
+		require.Len(t, q[api.QueryModeKey], 1, "shard %d", i)
+		require.NotContains(t, r.HTTPRequest().RequestURI, "callerblocks", "shard %d", i)
+		if i > 0 {
+			require.Equal(t, api.QueryModeBlocks, q.Get(api.QueryModeKey), "shard %d", i)
+			require.Len(t, q[api.BlockStartKey], 1, "shard %d", i)
+		}
 	}
 }
 
@@ -431,7 +442,7 @@ func TestBuildShardedRequestsWithoutBlockShards(t *testing.T) {
 	ctx := user.InjectOrgID(context.Background(), "blerg")
 	req := httptest.NewRequest("GET", "/", nil).WithContext(ctx)
 
-	shardedReqs, err := sharder.buildShardedRequests(pipeline.NewHTTPRequest(req), time.Time{}, time.Time{})
+	shardedReqs, err := sharder.buildShardedRequests(pipeline.NewHTTPRequest(req), &tempopb.TraceByIDRequest{})
 	require.NoError(t, err)
 	require.Len(t, shardedReqs, 2)
 }
