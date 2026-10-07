@@ -51,6 +51,40 @@ message TraceByIDRequest {
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
   ];
+
+  uint32 start = 8;
+  uint32 end = 9;
+  // set by the query-frontend so the querier searches exactly these blocks
+  TraceByIDBlocks blocks = 10;
+}
+
+// Backend blocks for a trace by ID job to search.
+message TraceByIDBlocks {
+  repeated TraceByIDBlock blocks = 1;
+  // distinct dedicated column sets, sent once per job because blocks of a tenant share them
+  repeated TraceByIDDedicatedColumns dedicatedColumns = 2;
+}
+
+// Mirrors backend.BlockMeta, without the tenant which queriers take from the org ID.
+message TraceByIDBlock {
+  bytes blockID = 1;
+  string version = 2;
+  uint64 startTimeUnixNano = 3;
+  uint64 endTimeUnixNano = 4;
+  int64 totalObjects = 5;
+  uint64 size = 6;
+  uint32 compactionLevel = 7;
+  uint32 indexPageSize = 8;
+  uint32 totalRecords = 9;
+  uint32 bloomShardCount = 10;
+  uint32 footerSize = 11;
+  uint32 replicationFactor = 12;
+  // 1-based index into TraceByIDBlocks.dedicatedColumns, 0 for none
+  uint32 dedicatedColumnsIndex = 13;
+}
+
+message TraceByIDDedicatedColumns {
+  repeated DedicatedColumn columns = 1;
 }
 
 message TraceByIDResponse {
