@@ -197,10 +197,12 @@ func (q *Querier) stopping(_ error) error {
 var ErrTraceByIDBlocksRequired = errors.New("query-frontend must send the blocks to search when querier blocklist polling is disabled")
 
 // FindTraceByID implements tempopb.Querier.
-func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest, blocks []*backend.BlockMeta, timeStart, timeEnd time.Time) (resp *tempopb.TraceByIDResponse, err error) {
+func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest) (resp *tempopb.TraceByIDResponse, err error) {
 	if !validation.ValidTraceID(req.TraceID) {
 		return nil, errors.New("invalid trace id")
 	}
+
+	timeStart, timeEnd := req.TimeRange()
 
 	ctx, span, userID, err := startTraceByIDSpan(ctx, "Querier.FindTraceByID", req, timeStart, timeEnd)
 	if err != nil {
@@ -260,22 +262,11 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		opts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
 
 		findStart := time.Now()
-		var partialTraces []*tempopb.TraceByIDResponse
-		var blockErrs []error
-		switch {
-		case blocks != nil:
-			for _, b := range blocks {
-				// tenant comes from the org id, never from the request payload
-				b.TenantID = userID
-			}
-			partialTraces, blockErrs, err = q.store.FindInBlocks(ctx, req.TraceID, blocks, opts)
-		case !q.cfg.BlocklistPollingEnabled:
+		if req.Blocks == nil && !q.cfg.BlocklistPollingEnabled {
 			// without a polled blocklist, searching would silently miss every backend trace
 			return nil, ErrTraceByIDBlocksRequired
-		default:
-			// TODO: remove with querier blocklist polling
-			partialTraces, blockErrs, err = q.store.Find(ctx, userID, req.TraceID, req.BlockStart, req.BlockEnd, timeStart, timeEnd, opts)
 		}
+		partialTraces, blockErrs, err := q.store.Find(ctx, userID, req, opts)
 		observeBackendProcessing(api.OpTraceByID, userID, findStart)
 		if err != nil {
 			return nil, fmt.Errorf("error querying store in Querier.FindTraceByID: %w", err)

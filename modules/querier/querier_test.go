@@ -19,7 +19,6 @@ import (
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	v1_trace "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/v3/pkg/util/test"
-	"github.com/grafana/tempo/v3/tempodb/backend"
 	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
@@ -224,7 +223,9 @@ func TestFindTraceByID_ExternalMode(t *testing.T) {
 	resp, err := q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 		TraceID:   traceID,
 		QueryMode: QueryModeExternal,
-	}, nil, time.Unix(startTime, 0), time.Unix(endTime, 0))
+		Start:     uint32(startTime),
+		End:       uint32(endTime),
+	})
 
 	require.NoError(t, err)
 	require.NotNil(t, resp)
@@ -237,35 +238,28 @@ func TestFindTraceByID_ExternalMode(t *testing.T) {
 
 type mockTraceByIDStore struct {
 	storage.Store
-	findCalls          int
-	findInBlocksMetas  []*backend.BlockMeta
-	findInBlocksCalled bool
+	findCalls    int
+	findTenantID string
+	findReq      *tempopb.TraceByIDRequest
 }
 
-func (m *mockTraceByIDStore) Find(context.Context, string, common.ID, string, string, time.Time, time.Time, common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error) {
+func (m *mockTraceByIDStore) Find(_ context.Context, tenantID string, req *tempopb.TraceByIDRequest, _ common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error) {
 	m.findCalls++
-	return nil, nil, nil
-}
-
-func (m *mockTraceByIDStore) FindInBlocks(_ context.Context, _ common.ID, metas []*backend.BlockMeta, _ common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error) {
-	m.findInBlocksCalled = true
-	m.findInBlocksMetas = metas
+	m.findTenantID = tenantID
+	m.findReq = req
 	return nil, nil, nil
 }
 
 func TestFindTraceByIDUsesFrontendBlocks(t *testing.T) {
 	tests := []struct {
-		name             string
-		pollingDisabled  bool
-		blocks           []*backend.BlockMeta
-		expectFind       bool
-		expectErr        error
-		expectedTenantID string
+		name            string
+		pollingDisabled bool
+		blocks          *tempopb.TraceByIDBlocks
+		expectErr       error
 	}{
 		{
-			name:       "no blocks falls back to the polled blocklist",
-			blocks:     nil,
-			expectFind: true,
+			name:   "no blocks falls back to the polled blocklist",
+			blocks: nil,
 		},
 		{
 			name:            "no blocks without polling is rejected",
@@ -274,20 +268,18 @@ func TestFindTraceByIDUsesFrontendBlocks(t *testing.T) {
 			expectErr:       ErrTraceByIDBlocksRequired,
 		},
 		{
-			name:             "blocks are searched with the tenant from the org id",
-			blocks:           []*backend.BlockMeta{{BlockID: backend.NewUUID(), TenantID: "other-tenant"}},
-			expectedTenantID: "blerg",
+			name:   "blocks are searched with polling",
+			blocks: &tempopb.TraceByIDBlocks{Blocks: []*tempopb.TraceByIDBlock{{Version: "vParquet5"}}},
 		},
 		{
-			name:             "blocks are searched without polling",
-			pollingDisabled:  true,
-			blocks:           []*backend.BlockMeta{{BlockID: backend.NewUUID()}},
-			expectedTenantID: "blerg",
+			name:            "blocks are searched without polling",
+			pollingDisabled: true,
+			blocks:          &tempopb.TraceByIDBlocks{Blocks: []*tempopb.TraceByIDBlock{{Version: "vParquet5"}}},
 		},
 		{
 			name:            "empty blocks are searched, not rejected",
 			pollingDisabled: true,
-			blocks:          []*backend.BlockMeta{},
+			blocks:          &tempopb.TraceByIDBlocks{},
 		},
 	}
 	for _, tc := range tests {
@@ -303,26 +295,19 @@ func TestFindTraceByIDUsesFrontendBlocks(t *testing.T) {
 			_, err = q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 				TraceID:   test.ValidTraceID(nil),
 				QueryMode: QueryModeBlocks,
-			}, tc.blocks, time.Time{}, time.Time{})
+				Blocks:    tc.blocks,
+			})
 			if tc.expectErr != nil {
 				require.ErrorIs(t, err, tc.expectErr)
 				require.Equal(t, 0, store.findCalls)
-				require.False(t, store.findInBlocksCalled)
 				return
 			}
 			require.NoError(t, err)
 
-			if tc.expectFind {
-				require.Equal(t, 1, store.findCalls)
-				require.False(t, store.findInBlocksCalled)
-				return
-			}
-			require.Equal(t, 0, store.findCalls)
-			require.True(t, store.findInBlocksCalled)
-			require.Len(t, store.findInBlocksMetas, len(tc.blocks))
-			for _, m := range store.findInBlocksMetas {
-				require.Equal(t, tc.expectedTenantID, m.TenantID)
-			}
+			require.Equal(t, 1, store.findCalls)
+			// tenant comes from the org id, never from the request payload
+			require.Equal(t, "blerg", store.findTenantID)
+			require.Equal(t, tc.blocks, store.findReq.Blocks)
 		})
 	}
 }

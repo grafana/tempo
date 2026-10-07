@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -870,79 +871,136 @@ func parseTraceDiffTraceRequest(name string, traceReq *TraceDiffTraceRequest) er
 }
 
 // ParseTraceByIDRequest parses and validates params for the trace by id API.
-// return values are (blockStart, blockEnd, queryMode, start, end, error)
-// start and end are zero time.Time values when not provided by the caller.
-func ParseTraceByIDRequest(r *http.Request) (string, string, string, time.Time, time.Time, error) {
+// The trace id is a path param and is left for the caller to set.
+// Start and end are 0 when not provided by the caller.
+func ParseTraceByIDRequest(r *http.Request) (*tempopb.TraceByIDRequest, error) {
 	vals := r.URL.Query()
+	req := &tempopb.TraceByIDRequest{}
 
 	q, _ := extractQueryParam(vals, QueryModeKey)
 
 	// validate queryMode. it should either be empty or one of (QueryModeIngesters|QueryModeBlocks|QueryModeAll)
-	var queryMode string
-	var startTime time.Time
-	var endTime time.Time
-	var blockStart string
-	var blockEnd string
-
 	switch {
 	case len(q) == 0 || q == QueryModeAll:
-		queryMode = QueryModeAll
+		req.QueryMode = QueryModeAll
 	case q == QueryModeIngesters:
-		queryMode = QueryModeIngesters
+		req.QueryMode = QueryModeIngesters
 	case q == QueryModeBlocks:
-		queryMode = QueryModeBlocks
+		req.QueryMode = QueryModeBlocks
 	case q == QueryModeExternal:
-		queryMode = QueryModeExternal
+		req.QueryMode = QueryModeExternal
 	default:
-		return "", "", "", time.Time{}, time.Time{}, fmt.Errorf("invalid value for mode %s", q)
+		return nil, fmt.Errorf("invalid value for mode %s", q)
 	}
 
 	// no need to validate/sanitize other parameters if queryMode == QueryModeIngesters
-	if queryMode == QueryModeIngesters {
-		return "", "", queryMode, time.Time{}, time.Time{}, nil
+	if req.QueryMode == QueryModeIngesters {
+		return req, nil
 	}
 
 	if start, ok := extractQueryParam(vals, BlockStartKey); ok {
 		_, err := uuid.Parse(start)
 		if err != nil {
-			return "", "", "", time.Time{}, time.Time{}, fmt.Errorf("invalid value for blockstart: %w", err)
+			return nil, fmt.Errorf("invalid value for blockstart: %w", err)
 		}
-		blockStart = start
+		req.BlockStart = start
 	} else {
-		blockStart = tempodb.BlockIDMin
+		req.BlockStart = tempodb.BlockIDMin
 	}
 
 	if end, ok := extractQueryParam(vals, BlockEndKey); ok {
 		_, err := uuid.Parse(end)
 		if err != nil {
-			return "", "", "", time.Time{}, time.Time{}, fmt.Errorf("invalid value for blockEnd: %w", err)
+			return nil, fmt.Errorf("invalid value for blockEnd: %w", err)
 		}
-		blockEnd = end
+		req.BlockEnd = end
 	} else {
-		blockEnd = tempodb.BlockIDMax
+		req.BlockEnd = tempodb.BlockIDMax
 	}
 
 	if s, ok := extractQueryParam(vals, urlParamStart); ok {
-		startUnix, err := strconv.ParseInt(s, 10, 64)
+		start, err := strconv.ParseUint(s, 10, 32)
 		if err != nil {
-			return "", "", "", time.Time{}, time.Time{}, fmt.Errorf("invalid start: %w", err)
+			return nil, fmt.Errorf("invalid start: %w", err)
 		}
-		startTime = time.Unix(startUnix, 0)
+		req.Start = uint32(start)
 	}
 
 	if s, ok := extractQueryParam(vals, urlParamEnd); ok {
-		endUnix, err := strconv.ParseInt(s, 10, 64)
+		end, err := strconv.ParseUint(s, 10, 32)
 		if err != nil {
-			return "", "", "", time.Time{}, time.Time{}, fmt.Errorf("invalid end: %w", err)
+			return nil, fmt.Errorf("invalid end: %w", err)
 		}
-		endTime = time.Unix(endUnix, 0)
+		req.End = uint32(end)
 	}
 
-	if !startTime.IsZero() && !endTime.IsZero() && !endTime.After(startTime) {
-		return "", "", "", time.Time{}, time.Time{}, fmt.Errorf("http parameter start must be before end. received start=%d end=%d", startTime.Unix(), endTime.Unix())
+	if req.Start != 0 && req.End != 0 && req.End <= req.Start {
+		return nil, fmt.Errorf("http parameter start must be before end. received start=%d end=%d", req.Start, req.End)
 	}
 
-	return blockStart, blockEnd, queryMode, startTime, endTime, nil
+	// presence matters, an empty list means the frontend found no blocks for the job
+	if vals.Has(BlocksKey) {
+		blocks, err := decodeTraceByIDBlocks(vals.Get(BlocksKey))
+		if err != nil {
+			return nil, fmt.Errorf("invalid value for blocks: %w", err)
+		}
+		req.Blocks = blocks
+	}
+
+	return req, nil
+}
+
+// BuildTraceByIDRequest builds a trace by id job from scratch, so params of the original request don't leak into it.
+func BuildTraceByIDRequest(req *http.Request, traceByIDReq *tempopb.TraceByIDRequest) (*http.Request, error) {
+	if req == nil {
+		req = &http.Request{
+			URL: &url.URL{},
+		}
+	}
+
+	if traceByIDReq == nil {
+		return req, nil
+	}
+
+	qb := newQueryBuilder("")
+	qb.addParam(QueryModeKey, traceByIDReq.QueryMode)
+	if traceByIDReq.BlockStart != "" {
+		qb.addParam(BlockStartKey, traceByIDReq.BlockStart)
+	}
+	if traceByIDReq.BlockEnd != "" {
+		qb.addParam(BlockEndKey, traceByIDReq.BlockEnd)
+	}
+	if traceByIDReq.Start != 0 {
+		qb.addParam(urlParamStart, strconv.FormatUint(uint64(traceByIDReq.Start), 10))
+	}
+	if traceByIDReq.End != 0 {
+		qb.addParam(urlParamEnd, strconv.FormatUint(uint64(traceByIDReq.End), 10))
+	}
+	if traceByIDReq.Blocks != nil {
+		blocks, err := traceByIDReq.Blocks.Marshal()
+		if err != nil {
+			return nil, fmt.Errorf("error marshalling blocks: %w", err)
+		}
+		qb.addParam(BlocksKey, base64.RawURLEncoding.EncodeToString(blocks))
+	}
+
+	req.URL.RawQuery = qb.query()
+
+	return req, nil
+}
+
+func decodeTraceByIDBlocks(v string) (*tempopb.TraceByIDBlocks, error) {
+	b, err := base64.RawURLEncoding.DecodeString(v)
+	if err != nil {
+		return nil, err
+	}
+
+	blocks := &tempopb.TraceByIDBlocks{}
+	if err := blocks.Unmarshal(b); err != nil {
+		return nil, err
+	}
+
+	return blocks, nil
 }
 
 // TraceByIDFilterParams holds the parsed q spanset filter params for the trace by id v2 API.

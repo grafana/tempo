@@ -16,6 +16,7 @@ import (
 	"github.com/grafana/tempo/v3/modules/querier"
 	"github.com/grafana/tempo/v3/pkg/api"
 	"github.com/grafana/tempo/v3/pkg/blockboundary"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"github.com/grafana/tempo/v3/pkg/validation"
 	"github.com/grafana/tempo/v3/tempodb"
 	"github.com/grafana/tempo/v3/tempodb/backend"
@@ -75,12 +76,12 @@ func (s asyncTraceSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 	defer span.End()
 	pipelineRequest.SetContext(ctx)
 
-	_, _, _, startTime, endTime, err := api.ParseTraceByIDRequest(pipelineRequest.HTTPRequest())
+	traceByIDReq, err := api.ParseTraceByIDRequest(pipelineRequest.HTTPRequest())
 	if err != nil {
 		return pipeline.NewBadRequest(err), nil
 	}
 
-	reqs, err := s.buildShardedRequests(pipelineRequest, startTime, endTime)
+	reqs, err := s.buildShardedRequests(pipelineRequest, traceByIDReq)
 	if err != nil {
 		return nil, err
 	}
@@ -149,37 +150,22 @@ func (s *asyncTraceSharder) blockBoundariesForTenant(tenantID string, startTime,
 // buildShardedRequests returns a slice of requests sharded on block boundaries.
 // When cfg.BlocksPerShard > 0 the boundaries are computed from the live blocklist;
 // otherwise the pre-computed boundaries (derived from query_shards) are used.
-func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request, startTime, endTime time.Time) ([]pipeline.Request, error) {
+func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request, traceByIDReq *tempopb.TraceByIDRequest) ([]pipeline.Request, error) {
 	userID, err := validation.ExtractValidTenantID(parent.Context())
 	if err != nil {
 		return nil, err
 	}
 
+	startTime, endTime := traceByIDReq.TimeRange()
 	blockBoundaries := s.blockBoundariesForTenant(userID, startTime, endTime)
 
-	// queriers trust blocks, so they must come from this frontend's blocklist and never from the caller
-	if q := parent.HTTPRequest().URL.Query(); q.Has(api.BlocksKey) {
-		q.Del(api.BlocksKey)
-		parent.HTTPRequest().URL.RawQuery = q.Encode()
-	}
-
-	// sorted by block id so each shard's blocks are one contiguous range
-	blocks := s.reader.TraceByIDBlockMetas(userID, startTime, endTime)
-	slices.SortFunc(blocks, func(a, b *backend.BlockMeta) int {
-		return bytes.Compare(a.BlockID[:], b.BlockID[:])
-	})
-	shardBlocks, err := encodeShardBlocks(blocks, blockBoundaries)
-	if err != nil {
-		return nil, err
-	}
-
 	reqs := make([]pipeline.Request, 0, len(blockBoundaries))
-	params := map[string]string{}
 
 	// Job 0: ingester job
 	req, err := cloneRequestforQueriers(parent, userID, func(r *http.Request) (*http.Request, error) {
-		params[querier.QueryModeKey] = querier.QueryModeIngesters
-		return api.BuildQueryRequest(r, params), nil
+		return api.BuildTraceByIDRequest(r, &tempopb.TraceByIDRequest{
+			QueryMode: querier.QueryModeIngesters,
+		})
 	})
 	if err != nil {
 		return nil, err
@@ -189,8 +175,11 @@ func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request, startT
 	// Job 1: external job (if enabled)
 	if s.cfg.ExternalEnabled {
 		req, err = cloneRequestforQueriers(parent, userID, func(r *http.Request) (*http.Request, error) {
-			params[querier.QueryModeKey] = querier.QueryModeExternal
-			return api.BuildQueryRequest(r, params), nil
+			return api.BuildTraceByIDRequest(r, &tempopb.TraceByIDRequest{
+				QueryMode: querier.QueryModeExternal,
+				Start:     traceByIDReq.Start,
+				End:       traceByIDReq.End,
+			})
 		})
 		if err != nil {
 			return nil, err
@@ -202,39 +191,52 @@ func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request, startT
 	// When external is enabled, we have N-2 block shards
 	// When external is disabled, we have N-1 block shards
 	// blockBoundaries has length equal to numBlockShards+1, and we create shards between adjacent boundaries
-	for i := 1; i < len(blockBoundaries); i++ {
-		pipelineR, _ := cloneRequestforQueriers(parent, userID, func(r *http.Request) (*http.Request, error) {
-			// block queries
-			params[querier.BlockStartKey] = hex.EncodeToString(blockBoundaries[i-1])
-			params[querier.BlockEndKey] = hex.EncodeToString(blockBoundaries[i])
-			params[querier.QueryModeKey] = querier.QueryModeBlocks
-			// queriers search exactly these blocks, so they don't need to poll the blocklist
-			params[api.BlocksKey] = shardBlocks[i-1]
-
-			return api.BuildQueryRequest(r, params), nil
-		})
-		reqs = append(reqs, pipelineR)
+	blockReqs, err := s.buildBlockRequests(parent, userID, traceByIDReq, blockBoundaries)
+	if err != nil {
+		return nil, err
 	}
 
-	return reqs, nil
+	return append(reqs, blockReqs...), nil
 }
 
-// encodeShardBlocks encodes the blocks of each shard between adjacent boundaries. blocks must be sorted by id.
-// It runs in parallel because encoding is most of the cost of building trace by id jobs for large tenants.
-func encodeShardBlocks(blocks []*backend.BlockMeta, blockBoundaries [][]byte) ([]string, error) {
+// buildBlockRequests returns a job per shard between adjacent boundaries with the shard's blocks.
+// It runs in parallel because encoding the blocks is most of the cost of building trace by id jobs for large tenants.
+func (s *asyncTraceSharder) buildBlockRequests(parent pipeline.Request, userID string, traceByIDReq *tempopb.TraceByIDRequest, blockBoundaries [][]byte) ([]pipeline.Request, error) {
 	numShards := len(blockBoundaries) - 1
 	if numShards <= 0 {
 		return nil, nil
 	}
-	encoded := make([]string, numShards)
+
+	// sorted by block id so each shard's blocks are one contiguous range
+	startTime, endTime := traceByIDReq.TimeRange()
+	blocks := s.reader.TraceByIDBlockMetas(userID, startTime, endTime)
+	slices.SortFunc(blocks, func(a, b *backend.BlockMeta) int {
+		return bytes.Compare(a.BlockID[:], b.BlockID[:])
+	})
+
+	reqs := make([]pipeline.Request, numShards)
 	workers := min(runtime.GOMAXPROCS(0), numShards)
 
 	var g errgroup.Group
 	for w := range workers {
 		g.Go(func() error {
 			for i := w; i < numShards; i += workers {
-				var err error
-				encoded[i], err = api.EncodeTraceByIDBlocks(blocksInRange(blocks, blockBoundaries[i], blockBoundaries[i+1]))
+				// queriers search exactly these blocks, so they don't need to poll the blocklist
+				shardBlocks, err := backend.TraceByIDBlocksFromMetas(blocksInRange(blocks, blockBoundaries[i], blockBoundaries[i+1]))
+				if err != nil {
+					return err
+				}
+
+				reqs[i], err = cloneRequestforQueriers(parent, userID, func(r *http.Request) (*http.Request, error) {
+					return api.BuildTraceByIDRequest(r, &tempopb.TraceByIDRequest{
+						QueryMode:  querier.QueryModeBlocks,
+						BlockStart: hex.EncodeToString(blockBoundaries[i]),
+						BlockEnd:   hex.EncodeToString(blockBoundaries[i+1]),
+						Start:      traceByIDReq.Start,
+						End:        traceByIDReq.End,
+						Blocks:     shardBlocks,
+					})
+				})
 				if err != nil {
 					return err
 				}
@@ -243,7 +245,7 @@ func encodeShardBlocks(blocks []*backend.BlockMeta, blockBoundaries [][]byte) ([
 		})
 	}
 
-	return encoded, g.Wait()
+	return reqs, g.Wait()
 }
 
 // blocksInRange returns the blocks with start <= id <= end, matching the querier's shard check. blocks must be sorted by id.

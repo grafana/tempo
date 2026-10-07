@@ -11,7 +11,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/proto"
@@ -46,11 +45,11 @@ func TestBuildTraceDiffTraceByIDRequest(t *testing.T) {
 	_, err := api.ParseTraceID(req)
 	require.NoError(t, err)
 
-	_, _, queryMode, startTime, endTime, err := api.ParseTraceByIDRequest(req)
+	traceByIDReq, err := api.ParseTraceByIDRequest(req)
 	require.NoError(t, err)
-	require.Equal(t, api.QueryModeAll, queryMode)
-	require.Equal(t, time.Unix(start, 0), startTime)
-	require.Equal(t, time.Unix(end, 0), endTime)
+	require.Equal(t, api.QueryModeAll, traceByIDReq.QueryMode)
+	require.Equal(t, uint32(start), traceByIDReq.Start)
+	require.Equal(t, uint32(end), traceByIDReq.End)
 }
 
 func TestTraceDiffHandlerFetchTraceForDiff(t *testing.T) {
