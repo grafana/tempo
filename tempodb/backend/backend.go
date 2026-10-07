@@ -23,6 +23,8 @@ var (
 	ErrEmptyTenantID = fmt.Errorf("empty tenant id")
 	ErrEmptyBlockID  = fmt.Errorf("empty block id")
 	ErrBadSeedFile   = fmt.Errorf("bad seed file")
+	// ErrCorruptMeta is returned when a block meta exists but cannot be decoded.
+	ErrCorruptMeta = fmt.Errorf("corrupt block meta")
 
 	GlobalMaxBlockID = uuid.MustParse("ffffffff-ffff-ffff-ffff-ffffffffffff")
 

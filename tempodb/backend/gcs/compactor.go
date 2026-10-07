@@ -97,7 +97,7 @@ func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (
 	out := &backend.CompactedBlockMeta{}
 	err = json.Unmarshal(bytes, out)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", backend.ErrCorruptMeta, err)
 	}
 	out.CompactedTime = attrs.LastModified
 

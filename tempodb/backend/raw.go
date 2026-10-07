@@ -252,7 +252,7 @@ func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID stri
 	out := &BlockMeta{}
 	err = json.Unmarshal(bytes, out)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrCorruptMeta, err)
 	}
 
 	return out, nil

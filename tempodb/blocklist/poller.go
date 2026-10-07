@@ -67,6 +67,11 @@ var (
 		Name:      "blocklist_tenant_index_errors_total",
 		Help:      "Total number of times an error occurred while retrieving or building the tenant index.",
 	}, []string{"tenant"})
+	metricCorruptBlockMeta = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempodb",
+		Name:      "blocklist_corrupt_block_meta_total",
+		Help:      "Total number of block metas skipped because they could not be decoded.",
+	}, []string{"tenant"})
 	metricTenantIndexBuilder = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempodb",
 		Name:      "blocklist_tenant_index_builder",
@@ -509,6 +514,13 @@ func (p *Poller) pollBlock(
 	// blocks in intermediate states may not have a compacted or normal block meta.
 	//   this is not necessarily an error, just bail out
 	if errors.Is(err, backend.ErrDoesNotExist) {
+		return nil, nil, nil
+	}
+
+	// a block with an undecodable meta is skipped, so one bad block can't hide the rest of the tenant.
+	if errors.Is(err, backend.ErrCorruptMeta) {
+		metricCorruptBlockMeta.WithLabelValues(tenantID).Inc()
+		level.Warn(p.logger).Log("msg", "skipping block with corrupt meta", "tenant", tenantID, "block", blockID, "err", err)
 		return nil, nil, nil
 	}
 

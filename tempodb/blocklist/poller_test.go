@@ -441,6 +441,60 @@ func TestPollNoCompactFlag(t *testing.T) {
 	require.Empty(t, w.IndexNoCompact[tenantID])
 }
 
+// A single unreadable meta.json should not stop the tenant's valid blocks from being
+// discovered or the tenant index from being written, even with errors tolerated.
+func TestPollEmptyBlockMeta(t *testing.T) {
+	const (
+		tenantID   = "test"
+		validCount = 4
+	)
+
+	rr, ww, cc, err := local.New(&local.Config{Path: t.TempDir()})
+	require.NoError(t, err)
+
+	var (
+		ctx = context.Background()
+		r   = backend.NewReader(rr)
+		w   = backend.NewWriter(ww)
+	)
+
+	metas := newBlockMetas(validCount+1, tenantID)
+	for _, m := range metas {
+		require.NoError(t, w.WriteBlockMeta(ctx, m))
+	}
+
+	// Empty the last block's meta.json, as seen after an interrupted write.
+	bad := metas[validCount]
+	err = ww.Write(ctx, backend.MetaName, backend.KeyPathForBlock(uuid.UUID(bad.BlockID), tenantID), bytes.NewReader(nil), 0, nil)
+	require.NoError(t, err)
+
+	poller := NewPoller(&PollerConfig{
+		PollConcurrency:           testPollConcurrency,
+		TenantPollConcurrency:     testTenantPollConcurrency,
+		PollFallback:              testPollFallback,
+		TenantIndexBuilders:       testBuilders,
+		TolerateConsecutiveErrors: 2,
+	}, &mockJobSharder{owns: true}, r, cc, w, log.NewNopLogger())
+
+	// Cold start: no previous blocklist to fall back on.
+	listed, _, _, err := poller.Do(ctx, New())
+	require.NoError(t, err)
+
+	ids := make([]backend.UUID, 0, validCount)
+	for _, m := range listed[tenantID] {
+		ids = append(ids, m.BlockID)
+	}
+	expected := make([]backend.UUID, 0, validCount)
+	for _, m := range metas[:validCount] {
+		expected = append(expected, m.BlockID)
+	}
+	require.ElementsMatch(t, expected, ids, "valid blocks should be listed despite one empty meta.json")
+
+	idx, err := r.TenantIndex(ctx, tenantID)
+	require.NoError(t, err, "tenant index should be written")
+	require.Len(t, idx.Meta, validCount)
+}
+
 func TestTenantIndexPollError(t *testing.T) {
 	p := NewPoller(&PollerConfig{
 		StaleTenantIndex: time.Minute,
