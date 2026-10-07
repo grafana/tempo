@@ -27,18 +27,16 @@ type TraceByIDV2Options struct {
 	Logger log.Logger
 	// TraceFilter, when set, restricts the trace to the spans matching a TraceQL filter.
 	TraceFilter TraceFilter
-	// ReportInspectedBytes, when set, is called with the inspected bytes of each non-cached job response as it is combined.
-	ReportInspectedBytes func(uint64)
 }
 
-func NewTypedTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceRedactor TraceRedactor, opts TraceByIDV2Options) GRPCCombiner[*tempopb.TraceByIDResponse] {
-	return NewTraceByIDV2(maxBytes, marshalingFormat, traceRedactor, opts).(GRPCCombiner[*tempopb.TraceByIDResponse])
+func NewTypedTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceRedactor TraceRedactor, opts TraceByIDV2Options, copts ...Option) GRPCCombiner[*tempopb.TraceByIDResponse] {
+	return NewTraceByIDV2(maxBytes, marshalingFormat, traceRedactor, opts, copts...).(GRPCCombiner[*tempopb.TraceByIDResponse])
 }
 
-func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceRedactor TraceRedactor, opts TraceByIDV2Options) Combiner {
+func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceRedactor TraceRedactor, opts TraceByIDV2Options, copts ...Option) Combiner {
 	combiner := trace.NewCombiner(maxBytes, true)
 	var partialTrace bool
-	metricsCombiner := NewTraceByIDMetricsCombiner(WithInspectedBytesReporter(opts.ReportInspectedBytes))
+	metricsCombiner := NewTraceByIDMetricsCombiner(copts...)
 	gc := &genericCombiner[*tempopb.TraceByIDResponse]{
 		combine: func(partial *tempopb.TraceByIDResponse, _ *tempopb.TraceByIDResponse, pipelineResp PipelineResponse) error {
 			if partial.Status == tempopb.PartialStatus_PARTIAL {

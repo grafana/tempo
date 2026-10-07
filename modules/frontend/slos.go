@@ -80,15 +80,11 @@ type (
 	handlerPostHook func(resp *http.Response, tenant string, bytesProcessed uint64, latency time.Duration, err error)
 )
 
-// inspectedBytesCounter returns a callback that adds to the inspected bytes counter as query jobs complete.
-func inspectedBytesCounter(vec *prometheus.CounterVec, tenant string) func(uint64) {
-	return func(b uint64) {
-		vec.WithLabelValues(tenant).Add(float64(b))
-	}
-}
-
+// inspectedBytesReporter returns a combiner option that adds to the inspected bytes counter as query jobs complete.
 func inspectedBytesReporter(vec *prometheus.CounterVec, tenant string) combiner.Option {
-	return combiner.WithInspectedBytesReporter(inspectedBytesCounter(vec, tenant))
+	return combiner.WithInspectedBytesReporter(func(b uint64) {
+		vec.WithLabelValues(tenant).Add(float64(b))
+	})
 }
 
 // todo: remove post hooks and implement as a handler

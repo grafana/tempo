@@ -103,11 +103,6 @@ func NewTraceByIDMetricsCombiner(opts ...Option) *TraceByIDMetricsCombiner {
 	}
 }
 
-// SetInspectedBytesReporter sets the callback used to report inspected bytes as each job response is combined.
-func (mc *TraceByIDMetricsCombiner) SetInspectedBytesReporter(fn func(uint64)) {
-	mc.reportInspectedBytes = fn
-}
-
 func (mc *TraceByIDMetricsCombiner) Combine(newMetrics *tempopb.TraceByIDMetrics, resp PipelineResponse) {
 	if newMetrics == nil {
 		return
