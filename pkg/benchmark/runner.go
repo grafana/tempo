@@ -109,6 +109,7 @@ func runCase(ctx context.Context, block common.BackendBlock, prof *profile.Block
 
 	count := 0
 	for range opts.Repeat {
+		outputs := make([]execOutput, 0, len(executions))
 		for _, execute := range executions {
 			collector.BeginExecution()
 			started := time.Now()
@@ -119,8 +120,14 @@ func runCase(ctx context.Context, block common.BackendBlock, prof *profile.Block
 				return res
 			}
 			collector.EndExecution(wallNs, out.metrics)
-			res.Matched += out.matched
+			res.RawMatched += out.matched
+			outputs = append(outputs, out)
 			count++
+		}
+		if queryCase.merge != nil {
+			res.Matched += queryCase.merge(outputs, opts)
+		} else {
+			res.Matched += mergeSum(outputs, opts)
 		}
 	}
 

@@ -1,0 +1,27 @@
+# Changelog entry. Generate a copy with `make chlog-new`, then fill in the fields.
+
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: enhancement
+
+# Component or area of the change. Must be one of the components in .chloggen/config.yaml,
+# e.g. distributor, querier, query-frontend, storage, operations.
+component: tempo-cli
+
+# A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
+note: "Make `tempo-cli benchmark compare` results comparable across blocks with different row group sizes: `matched` now counts the merged logical result as the query frontend reports it, and `benchmark compare` shows case totals per pass when the runs' shard counts differ"
+
+# (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
+# .chloggen/README.md.
+issues: []
+
+# (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
+subtext: |
+  Shard-fanned cases (search, metrics, tag names) previously summed per-shard
+  results into `matched`, so changing a block's row group size changed the
+  totals and every such case was flagged "not comparable". The per-shard sum
+  is still recorded as `rawMatched`. When shard counts differ, the comparison
+  explains that only case totals are compared, and per-execution tables are
+  limited to the cases whose shard counts agree.
+
+# The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
+user: mapno

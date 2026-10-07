@@ -28,10 +28,9 @@ func Write(w io.Writer, c *compare.Comparison, metrics []string, stat compare.St
 	}
 	table(&b, rows, false)
 
-	for _, metric := range metrics {
-		v := render.NewSummary(c, metric, stat, baseline)
+	writeSummary := func(v render.SummaryView, heading string) {
 		base := escape(v.Columns[baseline].Text)
-		fmt.Fprintf(&b, "\n#### %s · %s per execution\n\nChange from %s.\n\n", metric, stat, base)
+		fmt.Fprintf(&b, "\n#### %s\n\nChange from %s.\n\n", heading, base)
 
 		header := []string{"case", base}
 		for run, col := range v.Columns {
@@ -67,6 +66,29 @@ func Write(w io.Writer, c *compare.Comparison, metrics []string, stat compare.St
 			for _, n := range notes {
 				fmt.Fprintf(&b, "- %s %s\n", render.Flag, escape(n))
 			}
+		}
+	}
+
+	if note := render.ShardingNote(c); note != "" {
+		fmt.Fprintf(&b, "\n%s\n\n", escape(note))
+	}
+
+	// Case totals are only shown when the runs' executions measure different
+	// amounts of work, as when their blocks shard differently: then they are
+	// the comparison that means something, and per-execution numbers are
+	// withheld for the cases they cannot compare.
+	totals := c.ShardingDiffers()
+
+	for _, metric := range metrics {
+		v := render.NewSummary(c, metric, stat, baseline)
+		if totals {
+			v = render.ComparableOnly(v, baseline)
+		}
+		if len(v.Rows) > 0 {
+			writeSummary(v, fmt.Sprintf("%s · %s per execution", metric, stat))
+		}
+		if totals {
+			writeSummary(render.NewTotalSummary(c, metric, baseline), fmt.Sprintf("%s · case total per pass", metric))
 		}
 	}
 

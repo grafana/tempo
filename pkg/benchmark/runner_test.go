@@ -144,6 +144,46 @@ func TestRunRepeatMultipliesExecutions(t *testing.T) {
 	}
 }
 
+// The shard count follows the row groups and the shard sizing, so two runs
+// of one block can fan out differently. Their logical results must still
+// agree: the merged match count is what the frontend would report, whatever
+// the sharding, while the raw per-shard sum scales with the shard count.
+func TestRunMatchedIsShardCountIndependent(t *testing.T) {
+	ctx := context.Background()
+	meta, r, bucket := testBlock(t, 300)
+
+	profile, err := ProfileBlock(ctx, meta, r, ProfileOptions{NumTraceIDs: 25})
+	require.NoError(t, err)
+
+	few, err := Run(ctx, blockPath(bucket, meta), profile, RunOptions{TargetBytesPerRequest: 64 << 20})
+	require.NoError(t, err)
+	many, err := Run(ctx, blockPath(bucket, meta), profile, RunOptions{TargetBytesPerRequest: 8 << 10})
+	require.NoError(t, err)
+
+	require.Equal(t, 1, few.Shards)
+	require.Greater(t, many.Shards, few.Shards)
+
+	casesByID := func(result *Result) map[string]CaseResult {
+		byID := map[string]CaseResult{}
+		for _, c := range result.Cases {
+			require.Empty(t, c.Error, "case %s", c.ID)
+			byID[c.ID] = c
+		}
+		return byID
+	}
+	fewCases, manyCases := casesByID(few), casesByID(many)
+
+	for id, c := range fewCases {
+		other, ok := manyCases[id]
+		require.True(t, ok, "case %s missing from the many-sharded run", id)
+		require.Equal(t, c.Matched, other.Matched, "case %s matched must not depend on the shard count", id)
+	}
+
+	// The raw per-shard sum does depend on the shard count: more shards, each
+	// with its own limit, return more.
+	require.Greater(t, manyCases["search/nopredicate"].RawMatched, fewCases["search/nopredicate"].RawMatched)
+}
+
 // A profile from another block would make every lookup a miss, which would read
 // as a fast run rather than a broken one.
 func TestRunRejectsForeignProfile(t *testing.T) {

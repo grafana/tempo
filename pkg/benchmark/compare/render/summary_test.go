@@ -46,6 +46,64 @@ func TestNewSummary(t *testing.T) {
 	require.Equal(t, []string{"search/nopredicate vs 4MiB: matched 5 vs 6"}, v.Notes())
 }
 
+func TestComparableOnly(t *testing.T) {
+	cell := SummaryCell{Value: "1"}
+	tests := []struct {
+		name string
+		rows []SummaryRow
+		want []SummaryRow
+	}{
+		{
+			"a row one run can compare stays, with its heading",
+			[]SummaryRow{
+				{Group: "traceByID", Case: -1},
+				{Case: 0, ID: "traceid/present", Cells: []SummaryCell{cell, cell}},
+				{Group: "search", Case: -1},
+				{Case: 1, ID: "search/nopredicate", Cells: []SummaryCell{cell, {Incomparable: true}}},
+			},
+			[]SummaryRow{
+				{Group: "traceByID", Case: -1},
+				{Case: 0, ID: "traceid/present", Cells: []SummaryCell{cell, cell}},
+			},
+		},
+		{
+			"a row comparable in one of two other runs stays",
+			[]SummaryRow{
+				{Group: "search", Case: -1},
+				{Case: 0, ID: "search/nopredicate", Cells: []SummaryCell{cell, {Incomparable: true}, cell}},
+			},
+			[]SummaryRow{
+				{Group: "search", Case: -1},
+				{Case: 0, ID: "search/nopredicate", Cells: []SummaryCell{cell, {Incomparable: true}, cell}},
+			},
+		},
+		{
+			"nothing comparable leaves nothing",
+			[]SummaryRow{
+				{Group: "search", Case: -1},
+				{Case: 0, ID: "search/nopredicate", Cells: []SummaryCell{cell, {Incomparable: true}}},
+				{Group: "metrics", Case: -1},
+				{Case: 1, ID: "metrics/rate", Cells: []SummaryCell{cell, {Incomparable: true}}},
+			},
+			nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, ComparableOnly(SummaryView{Rows: tt.rows}, 0).Rows)
+		})
+	}
+}
+
+func TestShardingNote(t *testing.T) {
+	// The shared fixture's runs shard alike, so there is nothing to explain.
+	require.Empty(t, ShardingNote(comparetest.Comparison(t)))
+
+	resharded := comparetest.Comparison(t)
+	resharded.Runs[1].Result.Cases[0].Executions = 28
+	require.NotEmpty(t, ShardingNote(resharded))
+}
+
 func TestSummaryCell(t *testing.T) {
 	value := func(v float64) compare.SummaryCell { return compare.SummaryCell{Value: v, HasValue: true} }
 	change := func(v, pct float64) compare.SummaryCell {

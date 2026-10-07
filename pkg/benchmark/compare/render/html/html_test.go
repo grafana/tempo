@@ -68,6 +68,48 @@ func TestSummaryPage(t *testing.T) {
 	require.NotContains(t, body, "ZgotmplZ", "every value made it through the template's escaping")
 }
 
+func TestSummaryPageTotals(t *testing.T) {
+	withTotal := func(m metrics.Measurement, total float64) metrics.Measurement {
+		m.Total = total
+		return m
+	}
+	run := func(name string, searchExecutions int) compare.Run {
+		r := comparetest.Result("mac",
+			comparetest.Case("traceid/present", 200, metrics.Set{
+				"harness.wallNs": withTotal(comparetest.Measurement(50), 5000),
+			}),
+			comparetest.Case("search/nopredicate", 5, metrics.Set{
+				"harness.wallNs": withTotal(comparetest.Measurement(10), 5500),
+			}),
+		)
+		r.Cases[0].API = "traceByID"
+		// The search case's executions measure different amounts of work, as
+		// when the runs' blocks shard differently, but the match counts agree.
+		r.Cases[1].Executions = searchExecutions
+		return compare.Run{Name: name, Result: r}
+	}
+	c, err := compare.New([]compare.Run{run("base", 55), run("200mb", 28)})
+	require.NoError(t, err)
+	h := newTestHandler(t, c)
+
+	code, body := get(t, h, "/")
+	require.Equal(t, http.StatusOK, code)
+
+	// The page teaches why some per-execution comparisons are withheld.
+	require.Contains(t, body, `<p class="note">Shard counts differ between runs`)
+
+	// The per-execution table keeps the case whose shard counts agree, and
+	// drops the one they do not; the totals table compares every case.
+	perExec := strings.Index(body, "p50 per execution · change from base")
+	totals := strings.Index(body, "case total per pass · change from base")
+	require.NotEqual(t, -1, perExec)
+	require.NotEqual(t, -1, totals)
+	require.Contains(t, body[perExec:totals], "traceid/present")
+	require.NotContains(t, body[perExec:totals], "search/nopredicate")
+	require.Contains(t, body[totals:], "search/nopredicate")
+	require.Contains(t, body[totals:], "traceid/present")
+}
+
 func TestSummaryPageView(t *testing.T) {
 	h := newTestHandler(t, comparetest.Comparison(t))
 

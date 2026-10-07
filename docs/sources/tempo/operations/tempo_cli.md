@@ -581,9 +581,14 @@ Options:
   request count for bytes read, like `--read-buffer-size`, only shows up in
   `backend.*` and not in latency.
 
-Each case records how many results it matched, and one `metrics` map. Two runs
-are only comparable if the match counts agree, so a difference there means the
-comparison is invalid rather than interesting.
+Each case records how many results it matched, and one `metrics` map.
+Matched counts the merged logical result, as the query frontend reports it
+after merging the per-shard responses:
+the distinct traces, capped at the search limit, for a search,
+and the distinct series or tag names for a metrics or metadata query.
+The raw per-shard sum is recorded alongside as `rawMatched`.
+Two runs are only comparable if the match counts agree, so a difference there
+means the comparison is invalid rather than interesting.
 
 Every measurement has the same shape whatever its source, so nothing reading a
 result needs a rule per source:
@@ -644,6 +649,14 @@ with the reason under the table:
 its match or execution count per pass differs, or it is missing the case or failed it.
 When a run's name is too long to head a column,
 runs are numbered, and listed with their numbers.
+
+When the runs' shard counts differ, as when their blocks have different row
+group sizes, an execution measures a different amount of work in each run, and
+per-execution numbers cannot compare them.
+The comparison says so,
+limits the per-execution tables to the cases whose shard counts agree,
+and adds a table per metric comparing each case's total per pass,
+which costs the same logical query in every run.
 
 With `--http`, it serves the comparison as web pages instead,
 rendered on each request as pprof's web view is.

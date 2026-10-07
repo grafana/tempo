@@ -144,6 +144,56 @@ func TestIncomparable(t *testing.T) {
 	}
 }
 
+func TestMatchedDifference(t *testing.T) {
+	cr := func(matched int64, executions int, err string) *benchmark.CaseResult {
+		return &benchmark.CaseResult{Matched: matched, Executions: executions, Error: err}
+	}
+	tests := []struct {
+		name      string
+		base, run *benchmark.CaseResult
+		repeat    int // the run's; the baseline's is 1
+		want      string
+	}{
+		{"alike", cr(5, 55, ""), cr(5, 55, ""), 1, ""},
+		// Executions measure different amounts of work, but the match counts
+		// agreeing means the runs answered the same question.
+		{"executions differ", cr(5, 55, ""), cr(5, 28, ""), 1, ""},
+		{"missing", cr(5, 55, ""), nil, 1, "missing"},
+		{"missing from the baseline", nil, cr(5, 55, ""), 1, "missing from the baseline"},
+		{"failed", cr(5, 55, ""), cr(5, 55, "boom"), 1, "failed: boom"},
+		{"the baseline failed", cr(5, 55, "boom"), cr(5, 55, ""), 1, "the baseline failed: boom"},
+		{"matched", cr(5, 55, ""), cr(6, 55, ""), 1, "matched 5 vs 6"},
+		{"repeated", cr(5, 55, ""), cr(15, 165, ""), 3, ""},
+		{"repeated, matched", cr(5, 55, ""), cr(18, 165, ""), 3, "matched 5 vs 6 per pass"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			run := func(repeat int) Run {
+				return Run{Result: &benchmark.Result{Options: benchmark.RunOptions{Repeat: repeat}}}
+			}
+			c := &Comparison{Runs: []Run{run(1), run(tt.repeat)}}
+			require.Equal(t, tt.want, c.MatchedDifference(Case{Results: []*benchmark.CaseResult{tt.base, tt.run}}, 1, 0))
+		})
+	}
+}
+
+func TestShardingDiffers(t *testing.T) {
+	newComparison := func(baseExecutions, runExecutions int) *Comparison {
+		cr := func(executions int) benchmark.CaseResult {
+			return benchmark.CaseResult{ID: "search/nopredicate", API: "search", Executions: executions, Matched: 5}
+		}
+		c, err := New([]Run{
+			{Name: "a", Result: newResult("h", cr(baseExecutions))},
+			{Name: "b", Result: newResult("h", cr(runExecutions))},
+		})
+		require.NoError(t, err)
+		return c
+	}
+
+	require.False(t, newComparison(55, 55).ShardingDiffers())
+	require.True(t, newComparison(55, 28).ShardingDiffers())
+}
+
 func TestFilterCases(t *testing.T) {
 	newComparison := func() *Comparison {
 		r := newResult("h",

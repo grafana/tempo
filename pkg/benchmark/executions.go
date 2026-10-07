@@ -16,12 +16,54 @@ import (
 // execOutput is what one execution produced.
 type execOutput struct {
 	matched int64
+	// keys are the result elements this execution produced: trace IDs for a
+	// search, series keys for a metrics query, tag names for a metadata one.
+	// The case's merge turns one pass's keys into the logical result count,
+	// as the query frontend merges job responses. Nil when the executions are
+	// the logical results already, as a trace lookup's are.
+	keys []string
 	// metrics is what the API reported, flattened. Nil when it reported
 	// nothing, which a trace-by-ID miss does.
 	metrics map[string]int64
 }
 
 type execution func(context.Context, common.BackendBlock, RunOptions) (execOutput, error)
+
+// mergeSum counts a pass's matches as the plain sum of its executions', for a
+// case whose executions are logical results already.
+func mergeSum(outputs []execOutput, _ RunOptions) int64 {
+	var n int64
+	for _, o := range outputs {
+		n += o.matched
+	}
+	return n
+}
+
+// mergeSearch counts a pass's matches the way the query frontend reports
+// them: the distinct traces over every shard's response, capped at the search
+// limit.
+func mergeSearch(outputs []execOutput, opts RunOptions) int64 {
+	seen := make(map[string]struct{})
+	for _, o := range outputs {
+		for _, id := range o.keys {
+			seen[id] = struct{}{}
+		}
+	}
+	return min(int64(len(seen)), int64(opts.SearchLimit))
+}
+
+// mergeDistinct counts a pass's matches as the distinct result elements over
+// every shard's response, as the frontend unions tag names and combines
+// metrics series.
+func mergeDistinct(outputs []execOutput, _ RunOptions) int64 {
+	seen := make(map[string]struct{})
+	for _, o := range outputs {
+		for _, k := range o.keys {
+			seen[k] = struct{}{}
+		}
+	}
+	return int64(len(seen))
+}
 
 // fetcherFor wraps a block's fetch methods for the TraceQL engine.
 func fetcherFor(block common.BackendBlock, readOpts common.SearchOptions) traceql.SpansetFetcher {
@@ -100,6 +142,9 @@ func searchExecutions(query string, shards []Shard, meta *backend.BlockMeta, bas
 				return out, nil
 			}
 			out.matched = int64(len(resp.Traces))
+			for _, tr := range resp.Traces {
+				out.keys = append(out.keys, tr.TraceID)
+			}
 			if resp.Metrics != nil {
 				if out.metrics, err = metrics.FromResponse(resp.Metrics); err != nil {
 					return execOutput{}, err
@@ -159,6 +204,9 @@ func metricsExecutions(query string, shards []Shard, meta *backend.BlockMeta, ba
 			results := eval.Results()
 
 			out := execOutput{matched: int64(len(results))}
+			for _, ts := range results {
+				out.keys = append(out.keys, ts.Labels.String())
+			}
 			if out.metrics, err = metrics.FromEvaluator(eval.Metrics()); err != nil {
 				return execOutput{}, err
 			}
@@ -180,9 +228,10 @@ func tagNamesExecutions(scope traceql.AttributeScope, shards []Shard, baseOpts c
 		readOpts := shardOptions(baseOpts, shard)
 
 		executions = append(executions, func(ctx context.Context, block common.BackendBlock, _ RunOptions) (execOutput, error) {
-			var names, bytesRead int64
+			var names []string
+			var bytesRead int64
 			err := block.SearchTags(ctx, scope,
-				func(string, traceql.AttributeScope) { names++ },
+				func(name string, _ traceql.AttributeScope) { names = append(names, name) },
 				func(b uint64) { bytesRead += int64(b) },
 				readOpts,
 			)
@@ -190,7 +239,7 @@ func tagNamesExecutions(scope traceql.AttributeScope, shards []Shard, baseOpts c
 				return execOutput{}, err
 			}
 
-			out := execOutput{matched: names}
+			out := execOutput{matched: int64(len(names)), keys: names}
 			if out.metrics, err = metrics.BytesRead(bytesRead); err != nil {
 				return execOutput{}, err
 			}

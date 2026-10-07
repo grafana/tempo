@@ -46,13 +46,73 @@ type SummaryCell struct {
 	Incomparable bool
 }
 
+// ShardingNote explains, when the runs' shard counts differ, why some
+// per-execution comparisons are withheld and case totals are shown as well.
+// It is empty when the runs shard alike.
+func ShardingNote(c *compare.Comparison) string {
+	if !c.ShardingDiffers() {
+		return ""
+	}
+	return "Shard counts differ between runs, so per-execution numbers measure different amounts of work: " +
+		"they are compared only where the shard counts agree, and every case is compared by its total per pass."
+}
+
+// ComparableOnly drops the case rows no run can compare with the baseline —
+// those whose executions measure different amounts of work in every run, where
+// a per-execution number says nothing — and group headings left with no case
+// rows under them.
+func ComparableOnly(v SummaryView, baseline int) SummaryView {
+	kept := func(r SummaryRow) bool {
+		for run, cell := range r.Cells {
+			if run != baseline && !cell.Incomparable {
+				return true
+			}
+		}
+		return false
+	}
+
+	var rows []SummaryRow
+	pending := "" // a group heading awaiting its first kept row
+	for _, r := range v.Rows {
+		if r.Group != "" {
+			pending = r.Group
+			continue
+		}
+		if !kept(r) {
+			continue
+		}
+		if pending != "" {
+			rows = append(rows, SummaryRow{Group: pending, Case: -1})
+			pending = ""
+		}
+		rows = append(rows, r)
+	}
+	v.Rows = rows
+	return v
+}
+
 // NewSummary lines up one stat of a metric for every case against the
 // baseline.
 func NewSummary(c *compare.Comparison, metric string, stat compare.Stat, baseline int) SummaryView {
 	sm := c.Summary(metric, stat, baseline)
 	labels, _ := Labels(c)
+	return newSummaryView(c, sm, fmt.Sprintf("%s · %s per execution · change from %s", metric, stat, labels[baseline]), baseline, Problems)
+}
+
+// NewTotalSummary lines up a metric's case total per pass for every case
+// against the baseline. Case totals are the comparison that still means
+// something when the runs' executions measure different amounts of work, as
+// when their blocks shard differently.
+func NewTotalSummary(c *compare.Comparison, metric string, baseline int) SummaryView {
+	sm := c.TotalSummary(metric, baseline)
+	labels, _ := Labels(c)
+	return newSummaryView(c, sm, fmt.Sprintf("%s · case total per pass · change from %s", metric, labels[baseline]), baseline, MatchedProblems)
+}
+
+func newSummaryView(c *compare.Comparison, sm compare.Summary, title string, baseline int, problems func(*compare.Comparison, compare.Case, int) []string) SummaryView {
+	labels, _ := Labels(c)
 	v := SummaryView{
-		Title:    fmt.Sprintf("%s · %s per execution · change from %s", metric, stat, labels[baseline]),
+		Title:    title,
 		Baseline: baseline,
 	}
 	for run, label := range labels {
@@ -66,7 +126,7 @@ func NewSummary(c *compare.Comparison, metric string, stat compare.Stat, baselin
 			group = cs.API
 			v.Rows = append(v.Rows, SummaryRow{Group: group, Case: -1})
 		}
-		row := SummaryRow{Case: r.Case, ID: cs.ID, Problems: Problems(c, cs, baseline)}
+		row := SummaryRow{Case: r.Case, ID: cs.ID, Problems: problems(c, cs, baseline)}
 		base := r.Cells[baseline]
 		for run, cell := range r.Cells {
 			row.Cells = append(row.Cells, summaryCell(sm.Unit, cell, base, run == baseline))

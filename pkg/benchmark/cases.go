@@ -46,6 +46,11 @@ type benchCase struct {
 	query string
 
 	executions func(*profile.BlockProfile, []Shard, RunOptions) ([]execution, error)
+	// merge turns one pass's execution outputs into the case's match count,
+	// the way the query frontend merges job responses into the logical
+	// result. Nil means the executions are the logical results already, and
+	// their matches are simply summed.
+	merge func(outputs []execOutput, opts RunOptions) int64
 }
 
 // phase1Cases is the fixed query set: no generated queries, no attribute
@@ -82,6 +87,7 @@ func phase1Cases() []benchCase {
 			executions: func(prof *profile.BlockProfile, shards []Shard, opts RunOptions) ([]execution, error) {
 				return searchExecutions("{}", shards, prof.Block, opts.searchOptions()), nil
 			},
+			merge: mergeSearch,
 		},
 	}
 
@@ -97,6 +103,7 @@ func phase1Cases() []benchCase {
 				}
 				return metricsExecutions(q.query, shards, prof.Block, opts.searchOptions()), nil
 			},
+			merge: mergeDistinct,
 		})
 	}
 
@@ -108,6 +115,7 @@ func phase1Cases() []benchCase {
 			executions: func(_ *profile.BlockProfile, shards []Shard, opts RunOptions) ([]execution, error) {
 				return tagNamesExecutions(scope, shards, opts.searchOptions()), nil
 			},
+			merge: mergeDistinct,
 		})
 	}
 

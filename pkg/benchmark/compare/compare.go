@@ -258,7 +258,7 @@ func (cs Case) Series(metric string) Series {
 }
 
 // Incomparable says why a run's results for a case cannot be compared with
-// the baseline's, or nothing when they can.
+// the baseline's per execution, or nothing when they can.
 //
 // A different match count means the two runs answered different questions,
 // and a different execution count means their per-execution numbers measure
@@ -266,6 +266,24 @@ func (cs Case) Series(metric string) Series {
 // over every pass, so they are compared per pass: a run repeated more often
 // still measures the same work.
 func (c *Comparison) Incomparable(cs Case, run, baseline int) string {
+	if why := c.MatchedDifference(cs, run, baseline); why != "" {
+		return why
+	}
+
+	base, r := cs.Results[baseline], cs.Results[run]
+	basePasses, passes := c.passes(baseline), c.passes(run)
+	if int64(base.Executions)*passes != int64(r.Executions)*basePasses {
+		return perPass("executions", int64(base.Executions), int64(r.Executions), basePasses, passes)
+	}
+	return ""
+}
+
+// MatchedDifference says why a run's results for a case cannot be compared
+// with the baseline's at all: missing or failed data, or a match count that
+// differs per pass, which means the two runs answered different questions.
+// It returns nothing when the match counts agree, in which case the runs'
+// case totals can be compared even if their per-execution numbers cannot.
+func (c *Comparison) MatchedDifference(cs Case, run, baseline int) string {
 	base, r := cs.Results[baseline], cs.Results[run]
 	switch {
 	case base == nil:
@@ -279,19 +297,45 @@ func (c *Comparison) Incomparable(cs Case, run, baseline int) string {
 	}
 
 	basePasses, passes := c.passes(baseline), c.passes(run)
-	perPass := func(what string, base, v int64) string {
-		if basePasses == 1 && passes == 1 {
-			return fmt.Sprintf("%s %d vs %d", what, base, v)
-		}
-		return fmt.Sprintf("%s %g vs %g per pass", what, float64(base)/float64(basePasses), float64(v)/float64(passes))
-	}
-	switch {
-	case base.Matched*passes != r.Matched*basePasses:
-		return perPass("matched", base.Matched, r.Matched)
-	case int64(base.Executions)*passes != int64(r.Executions)*basePasses:
-		return perPass("executions", int64(base.Executions), int64(r.Executions))
+	if base.Matched*passes != r.Matched*basePasses {
+		return perPass("matched", base.Matched, r.Matched, basePasses, passes)
 	}
 	return ""
+}
+
+// perPass phrases a difference in a per-case count, accounting for how many
+// passes each run measured.
+func perPass(what string, base, v, basePasses, passes int64) string {
+	if basePasses == 1 && passes == 1 {
+		return fmt.Sprintf("%s %d vs %d", what, base, v)
+	}
+	return fmt.Sprintf("%s %g vs %g per pass", what, float64(base)/float64(basePasses), float64(v)/float64(passes))
+}
+
+// ShardingDiffers reports whether any case's executions per pass differ
+// between a run and the baseline, as when the runs' blocks produce different
+// shard counts. Those runs' per-execution numbers measure different amounts
+// of work, so only their case totals are comparable.
+func (c *Comparison) ShardingDiffers() bool {
+	for _, cs := range c.Cases {
+		base := cs.Results[c.Baseline]
+		if base == nil {
+			continue
+		}
+		for run := range c.Runs {
+			if run == c.Baseline {
+				continue
+			}
+			r := cs.Results[run]
+			if r == nil {
+				continue
+			}
+			if int64(base.Executions)*c.passes(run) != int64(r.Executions)*c.passes(c.Baseline) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // passes is how many times a run measured each of its cases.
@@ -314,6 +358,22 @@ func (c *Comparison) Problems(cs Case, baseline int) []Problem {
 			continue
 		}
 		if why := c.Incomparable(cs, run, baseline); why != "" {
+			out = append(out, Problem{Run: run, Reason: why})
+		}
+	}
+	return out
+}
+
+// MatchedProblems lists the runs whose match counts differ from the
+// baseline's on the case, and why. Their case totals cannot be compared, even
+// though their per-execution numbers may not be comparable either.
+func (c *Comparison) MatchedProblems(cs Case, baseline int) []Problem {
+	var out []Problem
+	for run := range c.Runs {
+		if run == baseline {
+			continue
+		}
+		if why := c.MatchedDifference(cs, run, baseline); why != "" {
 			out = append(out, Problem{Run: run, Reason: why})
 		}
 	}

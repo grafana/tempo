@@ -129,3 +129,15 @@ func Problems(c *compare.Comparison, cs compare.Case, baseline int) []string {
 	}
 	return out
 }
+
+// MatchedProblems is Problems over the runs' match counts alone, for a case
+// totals summary, where a different execution count does not block the
+// comparison.
+func MatchedProblems(c *compare.Comparison, cs compare.Case, baseline int) []string {
+	labels, _ := Labels(c)
+	var out []string
+	for _, p := range c.MatchedProblems(cs, baseline) {
+		out = append(out, "vs "+labels[p.Run]+": "+p.Reason)
+	}
+	return out
+}

@@ -105,8 +105,14 @@ type page struct {
 	Heading  string
 	Numbered bool
 	Runs     []runView
-	Summary  *summaryView
-	Case     *caseView
+	// Note teaches how to read the page when the runs shard differently.
+	Note    string
+	Summary *summaryView
+	// Totals is the case totals table, shown when the runs' executions
+	// measure different amounts of work, as when their blocks shard
+	// differently, so the per-execution summary does not compare them.
+	Totals *summaryView
+	Case   *caseView
 }
 
 type runView struct {
@@ -169,15 +175,33 @@ func (s *server) summary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	metric := s.metrics[v.metric]
-	sm := render.NewSummary(s.c, metric, v.stat, v.baseline)
 
-	sv := &summaryView{Title: sm.Title, Notes: sm.Notes()}
+	totals := s.c.ShardingDiffers()
+	perExec := render.NewSummary(s.c, metric, v.stat, v.baseline)
+	if totals {
+		perExec = render.ComparableOnly(perExec, v.baseline)
+	}
+
+	sv := s.summaryTable(v, perExec)
 	for i, m := range s.metrics {
 		sv.Metrics = append(sv.Metrics, tabView{Label: m, URL: s.summaryURL(view{metric: i, stat: v.stat, baseline: v.baseline}), Active: i == v.metric})
 	}
 	for _, st := range compare.Stats {
 		sv.Stats = append(sv.Stats, tabView{Label: st.String(), URL: s.summaryURL(view{metric: v.metric, stat: st, baseline: v.baseline}), Active: st == v.stat})
 	}
+
+	p := s.page(v, metric, s.summaryURL)
+	p.Note = render.ShardingNote(s.c)
+	p.Summary = sv
+	if totals {
+		p.Totals = s.summaryTable(v, render.NewTotalSummary(s.c, metric, v.baseline))
+	}
+	s.render(w, "summary", p)
+}
+
+// summaryTable turns a summary view into the page's table of it.
+func (s *server) summaryTable(v view, sm render.SummaryView) *summaryView {
+	sv := &summaryView{Title: sm.Title, Notes: sm.Notes()}
 	for run, col := range sm.Columns {
 		sv.Columns = append(sv.Columns, columnView{textView: text(col), Baseline: run == v.baseline})
 	}
@@ -195,10 +219,7 @@ func (s *server) summary(w http.ResponseWriter, r *http.Request) {
 		}
 		sv.Rows = append(sv.Rows, rv)
 	}
-
-	p := s.page(v, metric, s.summaryURL)
-	p.Summary = sv
-	s.render(w, "summary", p)
+	return sv
 }
 
 type caseView struct {

@@ -23,9 +23,14 @@ type CaseResult struct {
 	Query string `json:"query,omitempty"`
 
 	Executions int `json:"executions"`
-	// Matched is the total result size. Two runs are only comparable if this
-	// agrees, so it is recorded to be checked.
+	// Matched is the size of the case's logical result: what the query
+	// frontend would report after merging the per-shard responses. Two runs
+	// are only comparable if this agrees, so it is recorded to be checked.
 	Matched int64 `json:"matched"`
+	// RawMatched is the sum of the per-execution result sizes. It depends on
+	// how the block is sharded, so it is recorded for reference only, not
+	// compared.
+	RawMatched int64 `json:"rawMatched,omitempty"`
 
 	Metrics metrics.Set `json:"metrics,omitempty"`
 

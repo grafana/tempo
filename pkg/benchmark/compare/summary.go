@@ -1,5 +1,7 @@
 package compare
 
+import "github.com/grafana/tempo/v3/pkg/benchmark"
+
 // Summary is one stat of one metric for every case: each run's value, and its
 // change from the baseline's.
 type Summary struct {
@@ -65,4 +67,49 @@ func (c *Comparison) summaryCell(cs Case, s Series, stat Stat, run, baseline int
 		cell.Delta, cell.HasDelta = Delta(stat.Of(base), cell.Value)
 	}
 	return cell
+}
+
+// TotalSummary lines up one metric's case total per pass for every case
+// against the baseline. Runs whose executions differ measure different amounts
+// of work per execution, but their totals cost the same logical query, so the
+// totals are compared whenever the match counts agree.
+func (c *Comparison) TotalSummary(metric string, baseline int) Summary {
+	sm := Summary{Metric: metric, Unit: UnitFor(metric), Baseline: baseline}
+	for i, cs := range c.Cases {
+		row := SummaryRow{Case: i, Cells: make([]SummaryCell, len(c.Runs))}
+		for run := range c.Runs {
+			row.Cells[run] = c.totalCell(cs, metric, run, baseline)
+		}
+		sm.Rows = append(sm.Rows, row)
+	}
+	return sm
+}
+
+func (c *Comparison) totalCell(cs Case, metric string, run, baseline int) SummaryCell {
+	if run != baseline {
+		if why := c.MatchedDifference(cs, run, baseline); why != "" {
+			return SummaryCell{Incomparable: why}
+		}
+	}
+	total := caseTotal(cs.Results[run], metric)
+	if total == nil {
+		return SummaryCell{}
+	}
+	cell := SummaryCell{Value: *total / float64(c.passes(run)), HasValue: true}
+	if base := caseTotal(cs.Results[baseline], metric); run != baseline && base != nil {
+		cell.Delta, cell.HasDelta = Delta(*base/float64(c.passes(baseline)), cell.Value)
+	}
+	return cell
+}
+
+// caseTotal is a case's total of a metric over every pass, or nil when the
+// case did not report it.
+func caseTotal(cr *benchmark.CaseResult, metric string) *float64 {
+	if cr == nil {
+		return nil
+	}
+	if m, ok := cr.Metrics[metric]; ok && m.Summary.Count > 0 {
+		return &m.Total
+	}
+	return nil
 }

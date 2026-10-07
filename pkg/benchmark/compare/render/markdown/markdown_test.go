@@ -8,6 +8,7 @@ import (
 
 	"github.com/grafana/tempo/v3/pkg/benchmark/compare"
 	"github.com/grafana/tempo/v3/pkg/benchmark/compare/internal/comparetest"
+	"github.com/grafana/tempo/v3/pkg/benchmark/metrics"
 )
 
 func TestWrite(t *testing.T) {
@@ -42,4 +43,60 @@ func TestWrite(t *testing.T) {
 	require.Contains(t, b.String(), "| #4 **a-long-name-for-4MiB** | readBufferSize default → 4MiB ")
 	require.Contains(t, b.String(), "| case                 |    #1 |    #2 |       |   #3 |       |             #4 |            |\n")
 	require.Contains(t, b.String(), "Change from #1.\n")
+
+	// Every run fanned out alike, so no case totals are shown.
+	require.NotContains(t, b.String(), "case total per pass")
+}
+
+func TestWriteTotalsTable(t *testing.T) {
+	withTotal := func(m metrics.Measurement, total float64) metrics.Measurement {
+		m.Total = total
+		return m
+	}
+	run := func(name string, searchExecutions int, searchTotal float64) compare.Run {
+		r := comparetest.Result("mac",
+			comparetest.Case("traceid/present", 200, metrics.Set{
+				"harness.wallNs": withTotal(comparetest.Measurement(50), 5000),
+			}),
+			comparetest.Case("search/nopredicate", 5, metrics.Set{
+				"harness.wallNs": withTotal(comparetest.Measurement(10), searchTotal),
+			}),
+		)
+		r.Cases[0].API = "traceByID"
+		// The search case's executions measure different amounts of work, as
+		// when the runs' blocks shard differently, but the match counts agree.
+		r.Cases[1].Executions = searchExecutions
+		return compare.Run{Name: name, Result: r}
+	}
+	c, err := compare.New([]compare.Run{
+		run("base", 55, 5500),
+		run("200mb", 28, 5600),
+	})
+	require.NoError(t, err)
+
+	var b strings.Builder
+	require.NoError(t, Write(&b, c, []string{"harness.wallNs"}, compare.P50, 0))
+	md := b.String()
+
+	// The output teaches why some per-execution comparisons are withheld.
+	require.Contains(t, md, "Shard counts differ between runs")
+
+	// The per-execution table keeps the case whose shard counts agree, and
+	// drops the one they do not.
+	perExec := strings.Index(md, "#### harness.wallNs · p50 per execution")
+	totals := strings.Index(md, "#### harness.wallNs · case total per pass")
+	require.NotEqual(t, -1, perExec)
+	require.NotEqual(t, -1, totals)
+	require.Contains(t, md[perExec:totals], "traceid/present")
+	require.NotContains(t, md[perExec:totals], "search/nopredicate")
+
+	// The totals table compares every case.
+	require.Contains(t, md[totals:], "traceid/present")
+	require.Contains(t, md[totals:], "search/nopredicate")
+	// 5500ns and 5600ns total over the case, a +1.8% change.
+	require.Contains(t, md[totals:], "5.5µs")
+	require.Contains(t, md[totals:], "5.6µs")
+	require.Contains(t, md[totals:], "+1.8%")
+
+	require.NotContains(t, md, "not comparable")
 }
