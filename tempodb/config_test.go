@@ -169,7 +169,7 @@ func TestDeprecatedVersions(t *testing.T) {
 					Version:             "vParquet3",
 				},
 			},
-			err: "vParquet3 is not a valid block version for creating blocks",
+			err: "vParquet3 is not a valid block version",
 		},
 	}
 
