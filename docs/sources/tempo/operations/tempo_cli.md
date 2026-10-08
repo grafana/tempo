@@ -743,30 +743,6 @@ Converts a vParquet file (actual data.parquet) of format A to a block of newer f
 Actual supported versions for A and B vary by Tempo release. This utility command is useful when testing the impact of different combinations
 of dedicated columns.
 
-### Convert vParquet3 to vParquet4
-
-{{< admonition type="note" >}}
-`vParquet3` is deprecated.
-Tempo 3.x still reads existing vParquet3 blocks, so you don't need to convert them before you upgrade.
-Use this command to convert remaining vParquet3 blocks to vParquet4 or later.
-{{< /admonition >}}
-
-```bash
-tempo-cli parquet convert-3to4 <in file> [<out path>] [<list of dedicated columns>]
-```
-
-Arguments:
-
-- `in file` Path to an existing vParquet3 block directory.
-- `out path` Path to write the vParquet4 block to. The default is `./out`.
-- `list of dedicated columns` Optional list of columns to make dedicated. Columns use TraceQL syntax with scope. For example, `span.db.statement`, `resource.namespace`.
-
-Example:
-
-```bash
-tempo-cli parquet convert-3to4 ./block-in ./out span.db.statement span.db.name
-```
-
 ### Convert vParquet4 to vParquet5
 
 Converts a vParquet4 block to vParquet5 format with an optional list of dedicated attribute columns.
@@ -927,7 +903,7 @@ tempo-cli migrate config --kafka-address=kafka:9092 --kafka-topic=tempo-traces o
 
 Analyses a block and outputs a summary of the block's generic attributes.
 
-It's of particular use when trying to determine candidates for dedicated attribute columns in vParquet3+.
+It's of particular use when trying to determine candidates for dedicated attribute columns.
 The output includes span, resource, and event attributes with cardinality and size information.
 
 Arguments:
@@ -965,7 +941,7 @@ tempo-cli analyse block --blob-threshold=4MiB --generate-jsonnet --backend=local
 
 Analyses all blocks in a given time range and outputs a summary of the blocks' generic attributes.
 
-It's of particular use when trying to determine candidates for dedicated attribute columns in vParquet3+.
+It's of particular use when trying to determine candidates for dedicated attribute columns.
 The output includes span, resource, and event attributes with cardinality and size information.
 
 Arguments:

@@ -32,7 +32,6 @@ import (
 	"github.com/grafana/tempo/v3/tempodb/backend/local"
 	"github.com/grafana/tempo/v3/tempodb/encoding"
 	"github.com/grafana/tempo/v3/tempodb/encoding/common"
-	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet3"
 	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet4"
 	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet5"
 	"github.com/grafana/tempo/v3/tempodb/wal"
@@ -363,11 +362,9 @@ func traceQLNilRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSea
 		{Query: "{ resource.service.name = `RootService` && resource.foobar=nil}"},
 	}
 
-	if meta.Version != vparquet3.VersionString {
-		searchesThatMatch = append(searchesThatMatch, []*tempopb.SearchRequest{
-			{Query: "{ resource.service.name = `MyService` && instrumentation.foobar=nil }"},
-		}...)
-	}
+	searchesThatMatch = append(searchesThatMatch, []*tempopb.SearchRequest{
+		{Query: "{ resource.service.name = `MyService` && instrumentation.foobar=nil }"},
+	}...)
 
 	searchesThatDontMatch := []*tempopb.SearchRequest{
 		{Query: "{ resource.service.name = `MyService` && resource.bat=nil }"},

@@ -166,7 +166,7 @@ test-with-cover-tempodb-wal: tools-test  ## Test tempodb/wal with code coverage
 	mkdir -p $(COVERAGE_DIR)
 	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/tempodb-wal.out $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './tempodb/wal*/*' -type f | sort))))
 
-# tests in tempodb/encoding/vparquet3, vparquet4, vparquet5
+# tests in tempodb/encoding/vparquet4, vparquet5
 .PHONY: test-with-cover-tempodb-encoding
 test-with-cover-tempodb-encoding: tools-test ## Run tempodb vparquet encoding tests with code coverage
 	mkdir -p $(COVERAGE_DIR)

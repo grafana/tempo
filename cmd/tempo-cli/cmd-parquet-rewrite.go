@@ -17,7 +17,6 @@ import (
 	"github.com/grafana/tempo/v3/tempodb/backend/local"
 	"github.com/grafana/tempo/v3/tempodb/encoding"
 	"github.com/grafana/tempo/v3/tempodb/encoding/common"
-	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet3"
 	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet4"
 	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet5"
 )
@@ -157,7 +156,7 @@ func openParquetForRewrite(blockPath string, meta *backend.BlockMeta) (*os.File,
 	)
 
 	switch meta.Version {
-	case vparquet3.VersionString, vparquet4.VersionString:
+	case vparquet4.VersionString:
 	case vparquet5.VersionString:
 		schema, _, ro := vparquet5.SchemaWithDynamicChanges(meta.DedicatedColumns)
 		readerOptions = ro
@@ -175,11 +174,6 @@ func openParquetForRewrite(blockPath string, meta *backend.BlockMeta) (*os.File,
 
 	var iter common.Iterator
 	switch meta.Version {
-	case vparquet3.VersionString:
-		iter = &parquetIterator3{
-			r: parquet.NewGenericReader[*vparquet3.Trace](pf),
-			m: meta,
-		}
 	case vparquet4.VersionString:
 		iter = &parquetIterator4{
 			r: parquet.NewGenericReader[*vparquet4.Trace](pf),
