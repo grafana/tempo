@@ -279,6 +279,9 @@ func (c *memcachedClient) Set(item *memcache.Item) error {
 }
 
 func (c *memcachedClient) updateLoop(updateInterval time.Duration) {
+	const cooldownPeriod = time.Second
+	lastRefresh := time.Now()
+
 	defer c.wait.Done()
 	ticker := time.NewTicker(updateInterval)
 	defer ticker.Stop()
@@ -286,6 +289,9 @@ func (c *memcachedClient) updateLoop(updateInterval time.Duration) {
 		select {
 		case <-ticker.C:
 		case <-c.refresh:
+			// prevent too frequent updates
+			if time.Since(lastRefresh) < cooldownPeriod {
+				continue
 			}
 		case <-c.quit:
 			return
@@ -295,6 +301,7 @@ func (c *memcachedClient) updateLoop(updateInterval time.Duration) {
 		if err != nil {
 			level.Warn(c.logger).Log("msg", "error updating memcache servers", "err", err)
 		}
+		lastRefresh = time.Now()
 	}
 }
 
