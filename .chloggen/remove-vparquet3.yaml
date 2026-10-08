@@ -6,7 +6,7 @@ change_type: breaking
 component: storage
 
 # A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
-note: Remove vParquet3 support. Tempo can no longer read vParquet3 blocks, and `tempo-cli parquet convert-3to4` is removed.
+note: vParquet3 was deprecated in the last release and this now removes it. Tempo can no longer read vParquet3 blocks, and related tempo-cli commands are removed.
 
 # (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
 # .chloggen/README.md.
