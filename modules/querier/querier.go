@@ -202,7 +202,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		return nil, errors.New("invalid trace id")
 	}
 
-	ctx, span, userID, err := startTraceByIDSpan(ctx, "Querier.FindTraceByID", req, req.Start, req.End)
+	ctx, span, userID, err := startTraceByIDSpan(ctx, "Querier.FindTraceByID", req)
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.FindTraceByID: %w", err)
 	}

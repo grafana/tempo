@@ -317,7 +317,9 @@ func TestTraceByIDSpanAttributesAndMetrics(t *testing.T) {
 		BlockEnd:          "block-end",
 		QueryMode:         QueryModeAll,
 		AllowPartialTrace: true,
-	}, start, end)
+		Start:             start,
+		End:               end,
+	})
 	require.NoError(t, err)
 	finishQuerierSpan(span, nil, &tempopb.TraceByIDMetrics{
 		InspectedBytes: 11,

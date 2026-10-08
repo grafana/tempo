@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
-	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -48,7 +47,8 @@ func setQuerierSpanAttributes(span oteltrace.Span, tenantID, query string, attrs
 	}
 }
 
-func startTraceByIDSpan(ctx context.Context, name string, req *tempopb.TraceByIDRequest, timeStart, timeEnd time.Time) (context.Context, oteltrace.Span, string, error) {
+func startTraceByIDSpan(ctx context.Context, name string, req *tempopb.TraceByIDRequest) (context.Context, oteltrace.Span, string, error) {
+	timeStart, timeEnd := req.Start, req.End
 	attrs := []attribute.KeyValue{
 		attribute.String("traceID", hex.EncodeToString(req.TraceID)),
 		attribute.String("queryMode", req.QueryMode),

@@ -20,10 +20,6 @@ import (
 )
 
 const (
-	BlockStartKey = "blockStart"
-	BlockEndKey   = "blockEnd"
-	QueryModeKey  = "mode"
-
 	QueryModeIngesters = "ingesters"
 	QueryModeBlocks    = "blocks"
 	QueryModeAll       = "all"
