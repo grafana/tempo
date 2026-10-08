@@ -339,7 +339,7 @@ func (rw *readerWriter) Tenants() []string {
 	return rw.blocklist.Tenants()
 }
 
-// Find searches the blocks sent with the request for the trace, or selects them from the polled blocklist if none were sent.
+// Find uses the polled blocklist only when req.Blocks is nil, an empty list searches nothing.
 func (rw *readerWriter) Find(ctx context.Context, tenantID string, req *tempopb.TraceByIDRequest, opts common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error) {
 	// tracing instrumentation
 	logger := log.WithContext(ctx, log.Logger)
@@ -422,7 +422,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, req *tempopb.
 	return partialTraceObjs, funcErrs, err
 }
 
-// TraceByIDBlockMetas returns the live and recently compacted blocks that a trace by id search over the time range must read.
+// TraceByIDBlockMetas includes recently compacted blocks to match Find's selection.
 func (rw *readerWriter) TraceByIDBlockMetas(tenantID string, timeStart, timeEnd time.Time) []*backend.BlockMeta {
 	blockStart := make([]byte, 16)
 	blockEnd := bytes.Repeat([]byte{0xff}, 16)

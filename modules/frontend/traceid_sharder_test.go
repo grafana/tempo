@@ -347,8 +347,7 @@ func TestBlocksPerShardFallsBackToQueryShards(t *testing.T) {
 	}
 }
 
-// TestBuildShardedRequestsAttachesBlocks verifies that each block shard carries the blocks in its id range,
-// so queriers can search them without polling the blocklist.
+// TestBuildShardedRequestsAttachesBlocks verifies that each block shard carries the blocks in its id range.
 func TestBuildShardedRequestsAttachesBlocks(t *testing.T) {
 	queryShards := 5
 	metas := []*backend.BlockMeta{

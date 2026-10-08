@@ -181,7 +181,7 @@ type TraceByIDRequest struct {
 	RF1After          time.Time `protobuf:"bytes,7,opt,name=RF1After,proto3,stdtime" json:"RF1After"` // Deprecated: Do not use.
 	Start             time.Time `protobuf:"bytes,8,opt,name=start,proto3,stdtime" json:"start"`
 	End               time.Time `protobuf:"bytes,9,opt,name=end,proto3,stdtime" json:"end"`
-	// set by the query-frontend so the querier searches exactly these blocks
+	// lets queriers search without polling the blocklist
 	Blocks *TraceByIDBlocks `protobuf:"bytes,10,opt,name=blocks,proto3" json:"blocks,omitempty"`
 }
 
@@ -282,10 +282,9 @@ func (m *TraceByIDRequest) GetBlocks() *TraceByIDBlocks {
 	return nil
 }
 
-// Backend blocks for a trace by ID job to search.
 type TraceByIDBlocks struct {
 	Blocks []*TraceByIDBlock `protobuf:"bytes,1,rep,name=blocks,proto3" json:"blocks,omitempty"`
-	// distinct dedicated column sets, sent once per job because blocks of a tenant share them
+	// deduped because a tenant's blocks share column sets
 	DedicatedColumns []*TraceByIDDedicatedColumns `protobuf:"bytes,2,rep,name=dedicatedColumns,proto3" json:"dedicatedColumns,omitempty"`
 }
 
@@ -336,7 +335,7 @@ func (m *TraceByIDBlocks) GetDedicatedColumns() []*TraceByIDDedicatedColumns {
 	return nil
 }
 
-// Mirrors backend.BlockMeta, without the tenant which queriers take from the org ID.
+// No tenant field, queriers take it from the org ID.
 type TraceByIDBlock struct {
 	BlockID           []byte `protobuf:"bytes,1,opt,name=blockID,proto3" json:"blockID,omitempty"`
 	Version           string `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`

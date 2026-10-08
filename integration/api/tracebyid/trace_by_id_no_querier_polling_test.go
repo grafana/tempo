@@ -14,8 +14,7 @@ import (
 	tempoUtil "github.com/grafana/tempo/v3/pkg/util"
 )
 
-// TestTraceByIDWithoutQuerierPolling verifies that queriers find traces in backend blocks
-// using the blocks sent by the query-frontend, without polling the blocklist themselves.
+// TestTraceByIDWithoutQuerierPolling checks that queriers find backend traces using only the blocks the query-frontend sends.
 func TestTraceByIDWithoutQuerierPolling(t *testing.T) {
 	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		ConfigOverlay: "config-querier-no-polling.yaml",
@@ -23,7 +22,7 @@ func TestTraceByIDWithoutQuerierPolling(t *testing.T) {
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
 
-		// two batches flushed separately give at least two blocks for the backend-worker to compact
+		// separate flushes give the backend-worker blocks to compact
 		countTraces := 5
 		var infos []*tempoUtil.TraceInfo
 		for batch := 1; batch <= 2; batch++ {
@@ -46,8 +45,7 @@ func TestTraceByIDWithoutQuerierPolling(t *testing.T) {
 			return resp.StatusCode != http.StatusNotFound
 		}
 
-		// query through the handoff from live-stores to the backend and through compaction, the frontend's
-		// blocklist view lags both, so any gap between the views shows up as a missing trace here
+		// the frontend's blocklist lags flushes and compaction, so a gap between views shows up as a missing trace
 		var settledAt time.Time
 		deadline := time.Now().Add(2 * time.Minute)
 		for {
@@ -69,7 +67,7 @@ func TestTraceByIDWithoutQuerierPolling(t *testing.T) {
 					settledAt = time.Now()
 				}
 			}
-			// keep querying for a few polls after settling, so the frontend's view catches up with compaction
+			// give the frontend's view a few polls to catch up with compaction
 			if !settledAt.IsZero() && time.Since(settledAt) > 10*time.Second {
 				break
 			}
@@ -78,12 +76,12 @@ func TestTraceByIDWithoutQuerierPolling(t *testing.T) {
 			time.Sleep(500 * time.Millisecond)
 		}
 
-		// the querier never polled, so it can only find backend traces through the blocks the frontend sends
+		// without its own blocklist, the querier can only have used the frontend's blocks
 		polls, err := querier.SumMetrics([]string{"tempodb_blocklist_poll_duration_seconds"}, e2e.WithMetricCount)
 		require.NoError(t, err)
 		require.Equal(t, float64(0), polls[0])
 
-		// a job without blocks, as sent by an older query-frontend, is rejected instead of silently finding nothing
+		// an older query-frontend sends no blocks, which must fail instead of finding nothing
 		resp, err := http.Get("http://" + querier.HTTPEndpoint() + "/querier/api/traces/" + infos[0].HexID() + "?mode=blocks")
 		require.NoError(t, err)
 		defer resp.Body.Close()

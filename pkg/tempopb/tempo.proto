@@ -60,18 +60,17 @@ message TraceByIDRequest {
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
   ];
-  // set by the query-frontend so the querier searches exactly these blocks
+  // lets queriers search without polling the blocklist
   TraceByIDBlocks blocks = 10;
 }
 
-// Backend blocks for a trace by ID job to search.
 message TraceByIDBlocks {
   repeated TraceByIDBlock blocks = 1;
-  // distinct dedicated column sets, sent once per job because blocks of a tenant share them
+  // deduped because a tenant's blocks share column sets
   repeated TraceByIDDedicatedColumns dedicatedColumns = 2;
 }
 
-// Mirrors backend.BlockMeta, without the tenant which queriers take from the org ID.
+// No tenant field, queriers take it from the org ID.
 message TraceByIDBlock {
   bytes blockID = 1;
   string version = 2;

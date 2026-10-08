@@ -25,8 +25,7 @@ type Config struct {
 	QueryRelevantIngesters                 bool          `yaml:"query_relevant_ingesters"`
 	SecondaryIngesterRing                  string        `yaml:"secondary_ingester_ring,omitempty"`
 
-	// Deprecated
-	// A future release removes querier polling. false makes the query-frontend's trace by id blocks mandatory.
+	// BlocklistPollingEnabled is deprecated and will be removed. With false, trace by ID jobs must carry blocks.
 	BlocklistPollingEnabled bool `yaml:"blocklist_polling_enabled"`
 }
 

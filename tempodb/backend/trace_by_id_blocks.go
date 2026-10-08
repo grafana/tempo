@@ -7,7 +7,7 @@ import (
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 )
 
-// TraceByIDBlocksFromMetas converts the blocks a trace by id job must search into their tempopb form.
+// TraceByIDBlocksFromMetas dedupes dedicated columns because a tenant's blocks usually share them.
 func TraceByIDBlocksFromMetas(metas []*BlockMeta) (*tempopb.TraceByIDBlocks, error) {
 	blocks := &tempopb.TraceByIDBlocks{
 		Blocks: make([]*tempopb.TraceByIDBlock, 0, len(metas)),
@@ -51,7 +51,7 @@ func TraceByIDBlocksFromMetas(metas []*BlockMeta) (*tempopb.TraceByIDBlocks, err
 	return blocks, nil
 }
 
-// MetasFromTraceByIDBlocks converts the blocks sent with a trace by id job back into block metas of the tenant.
+// MetasFromTraceByIDBlocks takes the tenant from the caller, never from the payload.
 func MetasFromTraceByIDBlocks(blocks *tempopb.TraceByIDBlocks, tenantID string) ([]*BlockMeta, error) {
 	columns := make([]DedicatedColumns, 0, len(blocks.DedicatedColumns))
 	for _, c := range blocks.DedicatedColumns {
@@ -93,7 +93,7 @@ func MetasFromTraceByIDBlocks(blocks *tempopb.TraceByIDBlocks, tenantID string) 
 	return metas, nil
 }
 
-// unixNano keeps the zero time as 0, its UnixNano is out of the int64 range.
+// unixNano maps the zero time to 0 because its UnixNano overflows int64.
 func unixNano(t time.Time) uint64 {
 	if t.IsZero() {
 		return 0
