@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -122,9 +123,16 @@ func (cfg *MemcachedClientConfig) RegisterFlagsWithPrefix(prefix, description st
 // from SRV and updates the server list on a regular basis.
 func NewMemcachedClient(cfg MemcachedClientConfig, name string, r prometheus.Registerer, logger log.Logger) MemcachedClient {
 	var selector serverSelector
-	if cfg.ConsistentHash {
+	switch {
+	case cfg.PinServers > 0:
+		hostname, err := os.Hostname()
+		if err != nil {
+			level.Error(logger).Log("msg", "couldn't get hostname for memcache proxy selection", "err", err)
+		}
+		selector = newMemcachedPinnedSelector(hostname, cfg.PinServers)
+	case cfg.ConsistentHash:
 		selector = &MemcachedJumpHashSelector{}
-	} else {
+	default:
 		selector = &memcache.ServerList{}
 	}
 
@@ -263,7 +271,10 @@ func (c *memcachedClient) Set(item *memcache.Item) error {
 	if err == nil {
 		return nil
 	}
-
+	if c.cfg.PinServers > 1 {
+		// A second PickServer call would choose a different proxy.
+		return err
+	}
 	// Inject the server address in order to have more information about which memcached
 	// backend server failed. This is a best effort.
 	addr, addrErr := c.serverList.PickServer(item.Key)
@@ -313,7 +324,6 @@ func (c *memcachedClient) updateMemcacheServers() error {
 			servers = append(servers, net.JoinHostPort(srv.Target, strconv.Itoa(int(srv.Port))))
 		}
 	}
-
 	if len(servers) > 0 {
 		// Copy across circuit-breakers for current set of addresses, thus
 		// leaving behind any for servers we won't talk to again
