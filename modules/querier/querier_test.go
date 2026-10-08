@@ -199,6 +199,8 @@ func TestFindTraceByID_ExternalMode(t *testing.T) {
 	defer server.Close()
 
 	cfg := Config{
+		// external lookups never carry blocks, so they must work without querier polling
+		BlocklistPollingEnabled: false,
 		TraceByID: TraceByIDConfig{
 			External: ExternalConfig{
 				Endpoint: server.URL,
@@ -321,6 +323,30 @@ func TestFindTraceByIDUsesFrontendBlocks(t *testing.T) {
 			// tenant comes from the org id, never from the request payload
 			require.Equal(t, "blerg", store.findTenantID)
 			require.Equal(t, tc.blocks, store.findReq.Blocks)
+		})
+	}
+}
+
+// TestFindTraceByIDRequiresBlocksOnlyForBackendModes guards live-store and external lookups, which never carry blocks.
+func TestFindTraceByIDRequiresBlocksOnlyForBackendModes(t *testing.T) {
+	for _, mode := range []string{QueryModeIngesters, QueryModeExternal} {
+		t.Run(mode, func(t *testing.T) {
+			o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
+			require.NoError(t, err)
+
+			store := &mockTraceByIDStore{}
+			q, err := New(Config{BlocklistPollingEnabled: false}, nil, livestore_client.Config{}, nil, false, store, o)
+			require.NoError(t, err)
+
+			// no live-store ring or external client is set up, so each mode fails later with its own error
+			ctx := user.InjectOrgID(context.Background(), "blerg")
+			_, err = q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
+				TraceID:   test.ValidTraceID(nil),
+				QueryMode: mode,
+			})
+			require.Error(t, err)
+			require.NotErrorIs(t, err, ErrTraceByIDBlocksRequired)
+			require.Equal(t, 0, store.findCalls)
 		})
 	}
 }
