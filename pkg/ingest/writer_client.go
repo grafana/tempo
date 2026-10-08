@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"strings"
 	"sync"
 	"time"
 
@@ -118,14 +117,10 @@ func (o onlySampledTraces) Inject(ctx context.Context, carrier propagation.TextM
 
 func commonKafkaClientOptions(cfg KafkaConfig, metrics *kprom.Metrics, logger log.Logger) ([]kgo.Opt, error) {
 	metadataMinAge, metadataMaxAge := cfg.metadataAges()
-	seedBrokers := strings.Split(cfg.Address, ",")
-	for i := range seedBrokers {
-		seedBrokers[i] = strings.TrimSpace(seedBrokers[i])
-	}
 
 	opts := []kgo.Opt{
 		kgo.ClientID(cfg.ClientID),
-		kgo.SeedBrokers(seedBrokers...),
+		kgo.SeedBrokers(cfg.seedBrokers()...),
 		kgo.DialTimeout(cfg.DialTimeout),
 
 		// A cluster metadata update is a request sent to a broker and getting back the map of partitions and

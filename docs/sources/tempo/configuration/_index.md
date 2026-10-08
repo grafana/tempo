@@ -448,8 +448,13 @@ For architectural details, refer to the [Kafka architecture](/docs/tempo/<TEMPO_
 ingest:
 
     kafka:
-        # Comma-separated list of Kafka broker addresses in host:port format.
+        # The Kafka backend address in host:port format (a single host).
+        # Used when address_list is empty.
         [address: <string> | default = "localhost:9092"]
+
+        # List of Kafka seed broker addresses in host:port format.
+        # When non-empty, this list takes precedence over address.
+        [address_list: <list of string> | default = []]
 
         # The Kafka topic name.
         [topic: <string>]

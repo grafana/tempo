@@ -75,7 +75,7 @@ func TestCommonKafkaClientOptions_EmptyClientRack(t *testing.T) {
 }
 
 func TestCommonKafkaClientOptions_MultipleSeedBrokers(t *testing.T) {
-	cfg := KafkaConfig{Address: "broker-one:9092, broker-two:9093", Topic: "test"}
+	cfg := KafkaConfig{AddressList: []string{"broker-one:9092", " broker-two:9093"}, Topic: "test"}
 
 	opts, err := commonKafkaClientOptions(cfg, nil, test.NewTestingLogger(t))
 	require.NoError(t, err)
