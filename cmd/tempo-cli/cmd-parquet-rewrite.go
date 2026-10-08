@@ -99,11 +99,7 @@ func (cmd *parquetRewrite) Run() error {
 	return nil
 }
 
-// blockConfig assembles the common.BlockConfig used to create the new block. The row
-// group size falls back to the Tempo default with a warning: row groups are cut once the
-// estimated buffered bytes exceed that size, so the default reproduces the layout of blocks
-// written with it. The bloom filter parameters are inherited from the input block so that
-// the rewrite reproduces the original bloom filters.
+// blockConfig assembles the common.BlockConfig used to create the new block.
 func (cmd *parquetRewrite) blockConfig(version string, meta *backend.BlockMeta) (*common.BlockConfig, error) {
 	cfg := &common.BlockConfig{
 		BloomFP:             cmd.BloomFP,
@@ -164,20 +160,15 @@ func inheritedBloomParams(blockPath string, meta *backend.BlockMeta) (fp float64
 	return reconstructBloomFP(uint64(meta.TotalObjects), m, uint64(meta.BloomShardCount), k), int(m / 8), nil
 }
 
+const bloomMaxShardCount = 1000 // mirrors common.maxShardCount
+
 // reconstructBloomFP inverts the vendored bloom.EstimateParameters, which is
 //
 //	m = ceil(-1 * n * ln(p) / ln(2)^2)
 //	k = ceil(ln(2) * m / n)
 //
-// returning a rate that reproduces an existing block's bloom filters: same shard
-// size, same hash count k, same shard count. The original rate is stored nowhere,
-// but any total bit count m with the same resulting k and shard count does, so this
-// picks the largest m the block allows: m <= k*n/ln(2), and m <= shardCount*shardBits
-// unless the shard count was clamped (or is 0, legacy blocks), where only the k bound
-// applies. Half a bit is subtracted before exponentiating so that float rounding in
-// EstimateParameters cannot push the reconstructed bit count past m.
-const bloomMaxShardCount = 1000 // mirrors common.maxShardCount
-
+// returning a rate that reproduces an existing block's bloom filters:
+// same shard size, same hash count k, same shard count.
 func reconstructBloomFP(n, shardBits, shardCount, k uint64) float64 {
 	if n == 0 || k == 0 || shardBits == 0 {
 		// Cannot invert; fall back to a rate that at least matches the hash count.
