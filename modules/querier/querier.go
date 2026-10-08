@@ -202,7 +202,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		return nil, errors.New("invalid trace id")
 	}
 
-	if req.Blocks == nil && !q.cfg.BlocklistPollingEnabled && (req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll) {
+	if req.Blocks == nil && !q.cfg.BlocklistPolling && (req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll) {
 		return nil, ErrTraceByIDBlocksRequired
 	}
 

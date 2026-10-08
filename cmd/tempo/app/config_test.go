@@ -155,7 +155,7 @@ func TestConfig_CheckConfig(t *testing.T) {
 			config: func() *Config {
 				cfg := NewDefaultConfig()
 				cfg.Target = Querier
-				cfg.Querier.BlocklistPollingEnabled = false
+				cfg.Querier.BlocklistPolling = false
 				return cfg
 			}(),
 			expect: nil,

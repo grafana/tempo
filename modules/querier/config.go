@@ -25,8 +25,8 @@ type Config struct {
 	QueryRelevantIngesters                 bool          `yaml:"query_relevant_ingesters"`
 	SecondaryIngesterRing                  string        `yaml:"secondary_ingester_ring,omitempty"`
 
-	// BlocklistPollingEnabled is deprecated and will be removed. With false, trace by ID jobs must carry blocks.
-	BlocklistPollingEnabled bool `yaml:"blocklist_polling_enabled"`
+	// BlocklistPolling is a temporary rollout switch, removed together with querier polling.
+	BlocklistPolling bool `yaml:"blocklist_polling"`
 }
 
 type SearchConfig struct {
@@ -66,7 +66,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.TraceByID.QueryTimeout = 10 * time.Second
 	cfg.TraceByID.External.Timeout = 10 * time.Second
 	cfg.QueryRelevantIngesters = false
-	cfg.BlocklistPollingEnabled = true
+	cfg.BlocklistPolling = true
 	cfg.ExtraQueryDelay = 0
 	cfg.MaxConcurrentQueries = 20
 	cfg.Search.QueryTimeout = 30 * time.Second
