@@ -81,6 +81,10 @@
       },
     },
     querier+: {
+      partition_ring+: {
+        // Stop reading inactive partitions 5m before the default 35m downscale delay.
+        read_lookback_period: '30m',
+      },
       frontend_worker+: {
         frontend_address: 'query-frontend-discovery.%s.svc.cluster.local.:9095' % [$._config.namespace],
       },

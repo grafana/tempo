@@ -310,6 +310,7 @@ querier:
         concurrent_blocks: 2
         time_overlap_cutoff: 0.2
     partition_ring:
+        read_lookback_period: 0s
         minimize_requests: true
         hedging_delay: 3s
     max_concurrent_queries: 20
