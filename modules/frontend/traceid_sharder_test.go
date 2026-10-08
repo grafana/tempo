@@ -170,46 +170,48 @@ func TestBlocksPerShardTimeRangeFiltering(t *testing.T) {
 		name            string
 		blocks          []*backend.BlockMeta
 		blocksPerShard  uint
-		start           uint32
-		end             uint32
+		startTime       time.Time
+		endTime         time.Time
 		wantTotalShards int // ingester + block shards
 	}{
 		{
 			name:            "no time range – all blocks counted",
 			blocks:          []*backend.BlockMeta{inRange, outOfRange},
 			blocksPerShard:  1,
+			startTime:       time.Time{},
+			endTime:         time.Time{},
 			wantTotalShards: 3, // 1 ingester + 2 block shards
 		},
 		{
 			name:            "time range filters out-of-range blocks",
 			blocks:          []*backend.BlockMeta{inRange, outOfRange},
 			blocksPerShard:  1,
-			start:           1000,
-			end:             2000,
+			startTime:       time.Unix(1000, 0),
+			endTime:         time.Unix(2000, 0),
 			wantTotalShards: 2, // 1 ingester + 1 block shard (only inRange matches)
 		},
 		{
 			name:            "partial overlap is included",
 			blocks:          []*backend.BlockMeta{inRange, outOfRange, partialOverlap},
 			blocksPerShard:  1,
-			start:           1000,
-			end:             2000,
+			startTime:       time.Unix(1000, 0),
+			endTime:         time.Unix(2000, 0),
 			wantTotalShards: 3, // 1 ingester + 2 block shards (inRange + partialOverlap)
 		},
 		{
 			name:            "time range with no matching blocks falls back to 1 block shard",
 			blocks:          []*backend.BlockMeta{inRange},
 			blocksPerShard:  1,
-			start:           9000,
-			end:             10000,
+			startTime:       time.Unix(9000, 0),
+			endTime:         time.Unix(10000, 0),
 			wantTotalShards: 2, // 1 ingester + 1 block shard (minimum)
 		},
 		{
 			name:            "blocks per shard groups filtered blocks",
 			blocks:          []*backend.BlockMeta{inRange, outOfRange, partialOverlap},
 			blocksPerShard:  2,
-			start:           1000,
-			end:             2000,
+			startTime:       time.Unix(1000, 0),
+			endTime:         time.Unix(2000, 0),
 			wantTotalShards: 2, // 1 ingester + 1 block shard (ceil(2/2)=1)
 		},
 	}
@@ -228,7 +230,7 @@ func TestBlocksPerShardTimeRangeFiltering(t *testing.T) {
 			ctx := user.InjectOrgID(context.Background(), "test-tenant")
 			req := httptest.NewRequest("GET", "/", nil).WithContext(ctx)
 
-			shardedReqs, err := sharder.buildShardedRequests(pipeline.NewHTTPRequest(req), &tempopb.TraceByIDRequest{Start: tc.start, End: tc.end})
+			shardedReqs, err := sharder.buildShardedRequests(pipeline.NewHTTPRequest(req), &tempopb.TraceByIDRequest{Start: tc.startTime, End: tc.endTime})
 			require.NoError(t, err)
 			require.Len(t, shardedReqs, tc.wantTotalShards)
 

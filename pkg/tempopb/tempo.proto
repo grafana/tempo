@@ -52,8 +52,14 @@ message TraceByIDRequest {
     (gogoproto.nullable) = false
   ];
 
-  uint32 start = 8;
-  uint32 end = 9;
+  google.protobuf.Timestamp start = 8 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+  google.protobuf.Timestamp end = 9 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
   // set by the query-frontend so the querier searches exactly these blocks
   TraceByIDBlocks blocks = 10;
 }

@@ -371,8 +371,6 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, req *tempopb.
 	}
 
 	// TODO: remove with querier blocklist polling
-	timeStart, timeEnd := req.TimeRange()
-
 	blockStartUUID, err := uuid.Parse(req.BlockStart)
 	if err != nil {
 		return nil, nil, err
@@ -398,13 +396,13 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, req *tempopb.
 	compactedBlocksSearched := 0
 
 	for _, b := range blocklist {
-		if includeBlock(b, id, blockStartBytes, blockEndBytes, timeStart, timeEnd) {
+		if includeBlock(b, id, blockStartBytes, blockEndBytes, req.Start, req.End) {
 			copiedBlocklist = append(copiedBlocklist, b)
 			blocksSearched++
 		}
 	}
 	for _, c := range compactedBlocklist {
-		if includeCompactedBlock(c, id, blockStartBytes, blockEndBytes, rw.cfg.BlocklistPoll, timeStart, timeEnd) {
+		if includeCompactedBlock(c, id, blockStartBytes, blockEndBytes, rw.cfg.BlocklistPoll, req.Start, req.End) {
 			copiedBlocklist = append(copiedBlocklist, &c.BlockMeta)
 			compactedBlocksSearched++
 		}

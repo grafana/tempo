@@ -202,9 +202,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		return nil, errors.New("invalid trace id")
 	}
 
-	timeStart, timeEnd := req.TimeRange()
-
-	ctx, span, userID, err := startTraceByIDSpan(ctx, "Querier.FindTraceByID", req, timeStart, timeEnd)
+	ctx, span, userID, err := startTraceByIDSpan(ctx, "Querier.FindTraceByID", req, req.Start, req.End)
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.FindTraceByID: %w", err)
 	}
@@ -255,8 +253,8 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 	if req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll {
 		span.AddEvent("searching store", oteltrace.WithAttributes(
-			attribute.String("timeStart", timeStart.String()),
-			attribute.String("timeEnd", timeEnd.String()),
+			attribute.String("timeStart", req.Start.String()),
+			attribute.String("timeEnd", req.End.String()),
 		))
 
 		opts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
@@ -296,10 +294,10 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		if req.QueryMode == QueryModeExternal || req.QueryMode == QueryModeAll {
 			span.AddEvent("searching external", oteltrace.WithAttributes(
 				attribute.String("traceID", hex.EncodeToString(req.TraceID)),
-				attribute.String("timeStart", timeStart.String()),
-				attribute.String("timeEnd", timeEnd.String()),
+				attribute.String("timeStart", req.Start.String()),
+				attribute.String("timeEnd", req.End.String()),
 			))
-			externalResp, err := q.externalClient.TraceByID(ctx, userID, req.TraceID, timeStart, timeEnd)
+			externalResp, err := q.externalClient.TraceByID(ctx, userID, req.TraceID, req.Start, req.End)
 			if err != nil {
 				return nil, fmt.Errorf("error querying external in Querier.FindTraceByID: %w", err)
 			}

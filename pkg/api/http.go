@@ -872,7 +872,7 @@ func parseTraceDiffTraceRequest(name string, traceReq *TraceDiffTraceRequest) er
 
 // ParseTraceByIDRequest parses and validates params for the trace by id API.
 // The trace id is a path param and is left for the caller to set.
-// Start and end are 0 when not provided by the caller.
+// Start and end are zero time.Time values when not provided by the caller.
 func ParseTraceByIDRequest(r *http.Request) (*tempopb.TraceByIDRequest, error) {
 	vals := r.URL.Query()
 	req := &tempopb.TraceByIDRequest{}
@@ -919,23 +919,23 @@ func ParseTraceByIDRequest(r *http.Request) (*tempopb.TraceByIDRequest, error) {
 	}
 
 	if s, ok := extractQueryParam(vals, urlParamStart); ok {
-		start, err := strconv.ParseUint(s, 10, 32)
+		startUnix, err := strconv.ParseInt(s, 10, 64)
 		if err != nil {
 			return nil, fmt.Errorf("invalid start: %w", err)
 		}
-		req.Start = uint32(start)
+		req.Start = time.Unix(startUnix, 0)
 	}
 
 	if s, ok := extractQueryParam(vals, urlParamEnd); ok {
-		end, err := strconv.ParseUint(s, 10, 32)
+		endUnix, err := strconv.ParseInt(s, 10, 64)
 		if err != nil {
 			return nil, fmt.Errorf("invalid end: %w", err)
 		}
-		req.End = uint32(end)
+		req.End = time.Unix(endUnix, 0)
 	}
 
-	if req.Start != 0 && req.End != 0 && req.End <= req.Start {
-		return nil, fmt.Errorf("http parameter start must be before end. received start=%d end=%d", req.Start, req.End)
+	if !req.Start.IsZero() && !req.End.IsZero() && !req.End.After(req.Start) {
+		return nil, fmt.Errorf("http parameter start must be before end. received start=%d end=%d", req.Start.Unix(), req.End.Unix())
 	}
 
 	// presence matters, an empty list means the frontend found no blocks for the job
@@ -970,11 +970,11 @@ func BuildTraceByIDRequest(req *http.Request, traceByIDReq *tempopb.TraceByIDReq
 	if traceByIDReq.BlockEnd != "" {
 		qb.addParam(BlockEndKey, traceByIDReq.BlockEnd)
 	}
-	if traceByIDReq.Start != 0 {
-		qb.addParam(urlParamStart, strconv.FormatUint(uint64(traceByIDReq.Start), 10))
+	if !traceByIDReq.Start.IsZero() {
+		qb.addParam(urlParamStart, strconv.FormatInt(traceByIDReq.Start.Unix(), 10))
 	}
-	if traceByIDReq.End != 0 {
-		qb.addParam(urlParamEnd, strconv.FormatUint(uint64(traceByIDReq.End), 10))
+	if !traceByIDReq.End.IsZero() {
+		qb.addParam(urlParamEnd, strconv.FormatInt(traceByIDReq.End.Unix(), 10))
 	}
 	if traceByIDReq.Blocks != nil {
 		blocks, err := traceByIDReq.Blocks.Marshal()

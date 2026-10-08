@@ -53,13 +53,12 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.TraceID = byteID
-	timeStart, timeEnd := req.TimeRange()
 	span.AddEvent("validated request", oteltrace.WithAttributes(
 		attribute.String("blockStart", req.BlockStart),
 		attribute.String("blockEnd", req.BlockEnd),
 		attribute.String("queryMode", req.QueryMode),
-		attribute.String("timeStart", timeStart.String()),
-		attribute.String("timeEnd", timeEnd.String()),
+		attribute.String("timeStart", req.Start.String()),
+		attribute.String("timeEnd", req.End.String()),
 		attribute.String("apiVersion", "v1"),
 	))
 
@@ -99,13 +98,12 @@ func (q *Querier) TraceByIDHandlerV2(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.TraceID = byteID
-	timeStart, timeEnd := req.TimeRange()
 	span.AddEvent("validated request", oteltrace.WithAttributes(
 		attribute.String("blockStart", req.BlockStart),
 		attribute.String("blockEnd", req.BlockEnd),
 		attribute.String("queryMode", req.QueryMode),
-		attribute.String("timeStart", timeStart.String()),
-		attribute.String("timeEnd", timeEnd.String()),
+		attribute.String("timeStart", req.Start.String()),
+		attribute.String("timeEnd", req.End.String()),
 		attribute.String("apiVersion", "v2"),
 	))
 
