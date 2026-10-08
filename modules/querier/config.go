@@ -48,6 +48,10 @@ type MetricsConfig struct {
 }
 
 type PartitionRingConfig struct {
+	// ReadLookbackPeriod limits how long INACTIVE partitions remain eligible for reads.
+	// Zero disables filtering. Set it shorter than the live-store downscale delay.
+	ReadLookbackPeriod time.Duration `yaml:"read_lookback_period"`
+
 	MinimizeRequests             bool          `yaml:"minimize_requests"`
 	MinimizeRequestsHedgingDelay time.Duration `yaml:"hedging_delay"`
 	PreferredZone                string        `yaml:"preferred_zone,omitempty"`
@@ -89,5 +93,6 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.PartitionRing.MinimizeRequestsHedgingDelay = 3 * time.Second
 	cfg.PartitionRing.PreferredZone = ""
 
+	f.DurationVar(&cfg.PartitionRing.ReadLookbackPeriod, prefix+".partition-ring.read-lookback-period", 0, "How long to query INACTIVE live-store partitions after they become read-only. Must be shorter than the live-store downscale delay. 0 disables partition filtering.")
 	f.StringVar(&cfg.Worker.FrontendAddress, prefix+".frontend-address", "", "Address of query frontend service, in host:port format.")
 }

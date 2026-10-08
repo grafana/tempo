@@ -334,7 +334,7 @@ func (q *Querier) forLiveStoreRing(ctx context.Context, f forEachFn) ([]any, err
 		return nil, errors.New("forLiveStoreRing: partition ring is not configured")
 	}
 
-	rs, err := q.partitionRing.GetReplicationSetsForOperation(ring.Read)
+	rs, err := q.liveStoreReplicationSets(time.Now())
 	if err != nil {
 		return nil, fmt.Errorf("error finding partition ring replicas: %w", err)
 	}
@@ -354,7 +354,7 @@ func (q *Querier) forLiveStoreMetricsRing(ctx context.Context, f forEachMetricsF
 	if q.partitionRing == nil {
 		return nil, errors.New("forLiveStoreMetricsRing: partition ring is not configured")
 	}
-	rs, err := q.partitionRing.GetReplicationSetsForOperation(ring.Read)
+	rs, err := q.liveStoreReplicationSets(time.Now())
 	if err != nil {
 		return nil, fmt.Errorf("error finding partition ring replicas: %w", err)
 	}
