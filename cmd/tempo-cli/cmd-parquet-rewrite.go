@@ -115,10 +115,7 @@ func (cmd *parquetRewrite) blockConfig(version string, meta *backend.BlockMeta) 
 
 	if cfg.RowGroupSizeBytes == 0 {
 		cfg.RowGroupSizeBytes = defaultRowGroupSizeBytes
-		fmt.Println(strings.Repeat("!", 86))
-		fmt.Printf("!! NO ROW GROUP SIZE SPECIFIED, USING THE %dMB DEFAULT.\n", defaultRowGroupSizeBytes/(1024*1024))
-		fmt.Println("!! Pass --row-group-size-bytes to set an explicit row group size.")
-		fmt.Println(strings.Repeat("!", 86))
+		fmt.Printf("Warning: no row group size specified, using the %dMB default. Pass --row-group-size-bytes to set an explicit row group size.\n", defaultRowGroupSizeBytes/(1024*1024))
 	}
 
 	if cfg.BloomFP == 0 || cfg.BloomShardSizeBytes == 0 {
@@ -146,12 +143,7 @@ func (cmd *parquetRewrite) blockConfig(version string, meta *backend.BlockMeta) 
 	return cfg, nil
 }
 
-// inheritedBloomParams recovers the bloom filter false positive rate and shard size
-// from an existing block directory. The header of every bloom shard (written by
-// bloom.BloomFilter.WriteTo) stores m, the number of bits in the shard, and k, the
-// number of hash functions. The shard size is m/8 bytes. The false positive rate is
-// not stored anywhere, so it is reconstructed from m, k, the shard count and the
-// block's object count with reconstructBloomFP.
+// inheritedBloomParams recovers the bloom filter false positive rate and shard size from an existing block directory.
 func inheritedBloomParams(blockPath string, meta *backend.BlockMeta) (fp float64, shardSizeBytes int, err error) {
 	f, err := os.Open(filepath.Join(blockPath, common.BloomName(0)))
 	if err != nil {
@@ -177,13 +169,6 @@ func inheritedBloomParams(blockPath string, meta *backend.BlockMeta) (fp float64
 //
 //	m = ceil(-1 * n * ln(p) / ln(2)^2)
 //	k = ceil(ln(2) * m / n)
-//
-// Given the per-shard bit count m, the hash count k, the shard count and the object
-// count n of an existing block, it returns the false positive rate that reproduces
-// the block's hash count and shard count. EstimateParameters is not invertible in
-// general (many rates map to the same k), so this picks the largest bit count m'
-// that fits the block's shards and verifies it by running EstimateParameters forward.
-// Falls back to 2^-k if no rate reproduces the block exactly.
 const bloomMaxShardCount = 1000 // mirrors common.maxShardCount
 
 func ceilDiv(a, b uint64) uint64 {
