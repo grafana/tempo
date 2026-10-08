@@ -205,7 +205,7 @@ func TestFindWithBlocks(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	r.EnablePolling(ctx, &mockJobSharder{}, false)
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	wal := w.WAL()
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
@@ -259,6 +259,7 @@ func TestTraceByIDBlockMetas(t *testing.T) {
 	r.(*readerWriter).blocklist.ApplyPollResults(
 		blocklist.PerTenant{testTenantID: {live}},
 		blocklist.PerTenantCompacted{testTenantID: {recentlyCompacted, oldCompacted}},
+		nil,
 	)
 
 	// compacted blocks stay searchable for 2x the poll interval, matching Find
