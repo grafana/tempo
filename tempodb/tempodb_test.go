@@ -244,6 +244,90 @@ func TestFindWithBlocks(t *testing.T) {
 	require.Empty(t, r.TraceByIDBlockMetas(testTenantID, future, future.Add(time.Hour)))
 }
 
+// TestFindWithBlocksFromStaleView covers the query-frontend sending blocks from a blocklist view that compaction has since changed.
+func TestFindWithBlocksFromStaleView(t *testing.T) {
+	r, w, c, _ := testConfig(t, time.Minute)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	require.NoError(t, c.EnableCompaction(ctx, &CompactorConfig{
+		MaxCompactionRange:      24 * time.Hour,
+		CompactedBlockRetention: time.Hour,
+	}, &mockSharder{}, &mockOverrides{}))
+	r.EnablePolling(ctx, &mockJobSharder{})
+
+	rw := r.(*readerWriter)
+	wal := w.WAL()
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+	id := test.ValidTraceID(nil)
+
+	// the trace is split across two blocks, so each block holds different spans of it
+	for range 2 {
+		head, err := wal.NewBlock(&backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID}, model.CurrentEncoding)
+		require.NoError(t, err)
+		writeTraceToWal(t, head, dec, id, test.MakeTrace(1, id), 0, 0)
+		_, err = w.CompleteBlock(ctx, head)
+		require.NoError(t, err)
+	}
+	rw.pollBlocklist(ctx)
+
+	staleView := r.TraceByIDBlockMetas(testTenantID, time.Time{}, time.Time{})
+	require.Len(t, staleView, 2)
+
+	find := func(metas []*backend.BlockMeta) (int, []error, error) {
+		blocks, err := backend.TraceByIDBlocksFromMetas(metas)
+		require.NoError(t, err)
+		partials, failedBlocks, err := r.Find(ctx, testTenantID, &tempopb.TraceByIDRequest{TraceID: id, Blocks: blocks}, common.DefaultSearchOptions())
+		combiner := trace.NewCombiner(0, false)
+		for _, p := range partials {
+			_, cErr := combiner.Consume(p.Trace)
+			require.NoError(t, cErr)
+		}
+		tr, _ := combiner.Result()
+		return countSpans(tr), failedBlocks, err
+	}
+
+	wantSpans, failedBlocks, err := find(staleView)
+	require.NoError(t, err)
+	require.Nil(t, failedBlocks)
+	require.Positive(t, wantSpans)
+
+	require.NoError(t, rw.compactOneJob(ctx, staleView, testTenantID))
+	rw.pollBlocklist(ctx)
+
+	// compacted inputs stay readable for compacted_block_retention, so a view from before compaction still finds the whole trace
+	spans, failedBlocks, err := find(staleView)
+	require.NoError(t, err)
+	require.Nil(t, failedBlocks)
+	require.Equal(t, wantSpans, spans)
+
+	// right after compaction the view holds the output and both inputs, the combiner drops the duplicate spans
+	freshView := r.TraceByIDBlockMetas(testTenantID, time.Time{}, time.Time{})
+	require.Len(t, freshView, 3)
+	spans, failedBlocks, err = find(freshView)
+	require.NoError(t, err)
+	require.Nil(t, failedBlocks)
+	require.Equal(t, wantSpans, spans)
+
+	// once retention deletes the inputs, a view still naming them fails the job instead of silently missing the trace
+	for _, m := range staleView {
+		require.NoError(t, rw.c.ClearBlock(uuid.UUID(m.BlockID), testTenantID))
+	}
+	_, failedBlocks, err = find(staleView)
+	require.True(t, err != nil || len(failedBlocks) > 0, "expected an error for deleted blocks")
+}
+
+func countSpans(tr *tempopb.Trace) int {
+	n := 0
+	for _, rs := range tr.GetResourceSpans() {
+		for _, ss := range rs.ScopeSpans {
+			n += len(ss.Spans)
+		}
+	}
+	return n
+}
+
 func TestTraceByIDBlockMetas(t *testing.T) {
 	r, _, _, _ := testConfig(t, time.Minute)
 
