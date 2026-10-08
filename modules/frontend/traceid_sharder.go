@@ -158,7 +158,7 @@ func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request, traceB
 
 	// sorted by block id so each shard's blocks are one contiguous range.
 	// A second blocklist copy after blockBoundariesForTenant, cheap next to marshalling the jobs.
-	blocks := s.reader.TraceByIDBlockMetas(userID, traceByIDReq.Start, traceByIDReq.End)
+	blocks := s.reader.TraceByIDBlockMetas(parent.Context(), userID, traceByIDReq.Start, traceByIDReq.End)
 	slices.SortFunc(blocks, func(a, b *backend.BlockMeta) int {
 		return bytes.Compare(a.BlockID[:], b.BlockID[:])
 	})
