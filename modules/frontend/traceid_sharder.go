@@ -220,7 +220,7 @@ func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request, traceB
 	return reqs, nil
 }
 
-// blocksInRange returns the blocks with start <= id <= end, matching the querier's shard check. blocks must be sorted by id.
+// blocksInRange expects blocks sorted by id and is inclusive on both ends, matching the querier's includeBlock.
 func blocksInRange(blocks []*backend.BlockMeta, start, end []byte) []*backend.BlockMeta {
 	lo := sort.Search(len(blocks), func(i int) bool { return bytes.Compare(blocks[i].BlockID[:], start) >= 0 })
 	hi := sort.Search(len(blocks), func(i int) bool { return bytes.Compare(blocks[i].BlockID[:], end) > 0 })
