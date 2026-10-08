@@ -1161,7 +1161,7 @@ func TestProcessAttributesDetail(t *testing.T) {
 	attributes := []*v1_common.KeyValue{
 		test.MakeAttribute("key", strings.Repeat("v", 5000)),
 	}
-	count := processAttributes(attributes, 2048, nil, "span")
+	count := processAttributes(attributes, 2048, nil, "span", "test")
 	assert.Equal(t, 1, count)
 	assert.Equal(t, 2048, len(attributes[0].Value.GetStringValue()))
 
@@ -1170,7 +1170,7 @@ func TestProcessAttributesDetail(t *testing.T) {
 		test.MakeAttribute("key", strings.Repeat("v", 5000)),
 	}
 	detail := truncatedAttrInfo{}
-	count = processAttributes(attributes, 2048, &detail, "span")
+	count = processAttributes(attributes, 2048, &detail, "span", "test")
 	assert.Equal(t, 1, count)
 	assert.Equal(t, "key", detail.name)
 	assert.Equal(t, "span", detail.scope)
@@ -1182,7 +1182,7 @@ func TestProcessAttributesDetail(t *testing.T) {
 		test.MakeAttribute(strings.Repeat("k", 5000), "short"),
 	}
 	detail = truncatedAttrInfo{}
-	count = processAttributes(attributes, 2048, &detail, "resource")
+	count = processAttributes(attributes, 2048, &detail, "resource", "test")
 	assert.Equal(t, 1, count)
 	assert.Equal(t, "key", detail.field)
 	assert.Equal(t, "resource", detail.scope)
@@ -1195,7 +1195,7 @@ func TestProcessAttributesDetail(t *testing.T) {
 		test.MakeAttribute("key2", strings.Repeat("v", 6000)),
 	}
 	detail = truncatedAttrInfo{}
-	count = processAttributes(attributes, 2048, &detail, "span")
+	count = processAttributes(attributes, 2048, &detail, "span", "test")
 	assert.Equal(t, 2, count)
 	assert.Equal(t, "key1", detail.name)
 	assert.Equal(t, 5000, detail.origSize)
@@ -1205,7 +1205,7 @@ func TestProcessAttributesDetail(t *testing.T) {
 		test.MakeAttribute(strings.Repeat("k", 5000), strings.Repeat("v", 6000)),
 	}
 	detail = truncatedAttrInfo{}
-	count = processAttributes(attributes, 2048, &detail, "span")
+	count = processAttributes(attributes, 2048, &detail, "span", "test")
 	assert.Equal(t, 2, count)
 	assert.Equal(t, "key", detail.field)
 	assert.Equal(t, 5000, detail.origSize)
@@ -1215,10 +1215,29 @@ func TestProcessAttributesDetail(t *testing.T) {
 	attributes = []*v1_common.KeyValue{
 		test.MakeAttribute("key2", strings.Repeat("v", 6000)),
 	}
-	count = processAttributes(attributes, 2048, &detail, "span")
+	count = processAttributes(attributes, 2048, &detail, "span", "test")
 	assert.Equal(t, 1, count)
 	assert.Equal(t, "first", detail.name)
 	assert.Equal(t, 3000, detail.origSize)
+}
+
+func TestProcessAttributesRecordsSizeMetric(t *testing.T) {
+	metricAttributeSizeBytes.Reset()
+	t.Cleanup(metricAttributeSizeBytes.Reset)
+
+	attributes := []*v1_common.KeyValue{
+		test.MakeAttribute("key", strings.Repeat("v", 5000)),   // in-limit key, oversized value
+		test.MakeAttribute(strings.Repeat("k", 6000), "short"), // oversized key, in-limit value
+	}
+	count := processAttributes(attributes, 2048, nil, "span", "test")
+	require.Equal(t, 2, count)
+
+	// The combined key+value size of every attribute is measured, whether or not it is truncated.
+	// Observed: key 3 + value 5000 = 5003 (attr 1), key 6000 + value "short"=5 = 6005 (attr 2).
+	m := &dto.Metric{}
+	require.NoError(t, metricAttributeSizeBytes.WithLabelValues("test", "span").(prometheus.Histogram).Write(m))
+	require.Equal(t, uint64(2), m.Histogram.GetSampleCount())
+	require.Equal(t, float64(11008), m.Histogram.GetSampleSum())
 }
 
 func BenchmarkTestsByRequestID(b *testing.B) {
@@ -1755,6 +1774,44 @@ func TestPushTracesToLocalLiveStore(t *testing.T) {
 	decoded := &tempopb.Trace{}
 	require.NoError(t, decoded.Unmarshal(gotReq.Traces[0].Slice))
 	require.NotEmpty(t, decoded.ResourceSpans)
+}
+
+func TestPushTracesRecordsTraceSizeMetric(t *testing.T) {
+	metricTraceSizeBytes.Reset()
+	t.Cleanup(metricTraceSizeBytes.Reset)
+
+	limits := overrides.Config{}
+	limits.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+	distributorCfg, overridesSvc, loggingLevel, middleware := setupDependencies(t, limits)
+
+	d, err := New(
+		distributorCfg,
+		LocalPushTargets{
+			LiveStore: func(_ context.Context, _ *tempopb.PushBytesRequest) (*tempopb.PushResponse, error) {
+				return &tempopb.PushResponse{}, nil
+			},
+		},
+		nil,
+		overridesSvc,
+		middleware,
+		kitlog.NewNopLogger(),
+		loggingLevel,
+		prometheus.NewRegistry(),
+	)
+	require.NoError(t, err)
+
+	// A push spanning several traces must observe the size of every trace, not
+	// just oversized ones.
+	const traceCount = 3
+	batches, _ := makeRebatchRequest(traceCount, 4)
+	traces := batchesToTraces(t, batches)
+	_, err = d.PushTraces(ctx, traces)
+	require.NoError(t, err)
+
+	m := &dto.Metric{}
+	require.NoError(t, metricTraceSizeBytes.WithLabelValues("test").(prometheus.Histogram).Write(m))
+	require.Equal(t, uint64(traceCount), m.Histogram.GetSampleCount())
+	require.Greater(t, m.Histogram.GetSampleSum(), 0.0)
 }
 
 func TestPushTracesToLocalLiveStoreError(t *testing.T) {

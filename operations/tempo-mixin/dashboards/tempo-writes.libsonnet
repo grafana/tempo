@@ -133,6 +133,20 @@ dashboard_utils {
             fieldConfig+: { defaults+: { unit: 'ms' } },
           }
         )
+        .addPanel(
+          $.panel('Trace size') +
+          $.queryPanel(
+            [
+              ncOrFallback(utils.ncHistogramQuantile('0.99', 'tempo_distributor_trace_size_bytes', $.jobMatcher($._config.jobs.distributor))),
+              ncOrFallback(utils.ncHistogramQuantile('0.50', 'tempo_distributor_trace_size_bytes', $.jobMatcher($._config.jobs.distributor))),
+              ncOrFallback(utils.ncHistogramAverageRate('tempo_distributor_trace_size_bytes', $.jobMatcher($._config.jobs.distributor))),
+            ],
+            ['99th Percentile', '50th Percentile', 'Average']
+          ) + {
+            yaxes: $.yaxes('bytes'),
+            fieldConfig+: { defaults+: { unit: 'bytes' } },
+          }
+        )
       )
       .addRow(
         g.row('')
@@ -150,6 +164,29 @@ dashboard_utils {
           $.panel('Push size by tenant (top 10, p99)') +
           $.queryPanel(
             'topk(10, %s)' % ncOrFallback(utils.ncHistogramQuantile('0.99', 'tempo_distributor_push_bytes', $.jobMatcher($._config.jobs.distributor), sum_by=['tenant'])),
+            '{{tenant}}'
+          ) + {
+            yaxes: $.yaxes('bytes'),
+            fieldConfig+: { defaults+: { unit: 'bytes' } },
+          }
+        )
+      )
+      .addRow(
+        g.row('Trace & attribute size')
+        .addPanel(
+          $.panel('Trace size by tenant (top 10, p99)') +
+          $.queryPanel(
+            'topk(10, %s)' % ncOrFallback(utils.ncHistogramQuantile('0.99', 'tempo_distributor_trace_size_bytes', $.jobMatcher($._config.jobs.distributor), sum_by=['tenant'])),
+            '{{tenant}}'
+          ) + {
+            yaxes: $.yaxes('bytes'),
+            fieldConfig+: { defaults+: { unit: 'bytes' } },
+          }
+        )
+        .addPanel(
+          $.panel('Attribute size by tenant (top 10, p99)') +
+          $.queryPanel(
+            'topk(10, %s)' % ncOrFallback(utils.ncHistogramQuantile('0.99', 'tempo_distributor_attribute_size_bytes', $.jobMatcher($._config.jobs.distributor), sum_by=['tenant'])),
             '{{tenant}}'
           ) + {
             yaxes: $.yaxes('bytes'),
