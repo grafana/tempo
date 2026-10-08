@@ -1,4 +1,4 @@
-package benchmark
+package profile
 
 import (
 	"bytes"
@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"math"
 	"math/big"
-	"path/filepath"
 	"runtime/debug"
 	"slices"
 	"time"
@@ -20,7 +19,6 @@ import (
 	"github.com/grafana/tempo/v3/pkg/traceql"
 	"github.com/grafana/tempo/v3/pkg/util"
 	"github.com/grafana/tempo/v3/tempodb/backend"
-	"github.com/grafana/tempo/v3/tempodb/backend/local"
 	"github.com/grafana/tempo/v3/tempodb/encoding"
 	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
@@ -31,8 +29,8 @@ const dataFileName = "data.parquet"
 // TraceIDsAll asks for every trace ID in the block rather than a sample.
 const TraceIDsAll = -1
 
-// ProfileOptions control what is measured.
-type ProfileOptions struct {
+// Options control what is measured.
+type Options struct {
 	// NumTraceIDs is how many present IDs to sample: 0 for none, or TraceIDsAll
 	// to defer enumeration to run time. One absent ID is derived per present
 	// ID, so the hit and miss paths are measured over the same number of
@@ -40,47 +38,9 @@ type ProfileOptions struct {
 	NumTraceIDs int
 }
 
-// LoadLocalBlock opens the block at path, which must be a directory laid out as
-// <bucket>/<tenant-id>/<block-id> because that is how backend.KeyPathForBlock
-// addresses a block.
-func LoadLocalBlock(ctx context.Context, path string) (*backend.BlockMeta, backend.Reader, error) {
-	meta, raw, err := openLocalBlock(ctx, path)
-	if err != nil {
-		return nil, nil, err
-	}
-	return meta, backend.NewReader(raw), nil
-}
-
-// openLocalBlock returns the raw reader too, for callers that need to wrap it.
-func openLocalBlock(ctx context.Context, path string) (*backend.BlockMeta, backend.RawReader, error) {
-	path = filepath.Clean(path)
-
-	blockDir, tenantID := filepath.Base(path), filepath.Base(filepath.Dir(path))
-	bucket := filepath.Dir(filepath.Dir(path))
-
-	blockID, err := uuid.Parse(blockDir)
-	if err != nil {
-		return nil, nil, fmt.Errorf("%q is not a block directory: its name must be a block ID: %w", path, err)
-	}
-	if tenantID == "." || tenantID == string(filepath.Separator) {
-		return nil, nil, fmt.Errorf("%q has no tenant directory above the block", path)
-	}
-
-	rawR, _, _, err := local.New(&local.Config{Path: bucket})
-	if err != nil {
-		return nil, nil, err
-	}
-
-	meta, err := backend.NewReader(rawR).BlockMeta(ctx, blockID, tenantID)
-	if err != nil {
-		return nil, nil, fmt.Errorf("reading block meta for %s in tenant %s: %w", blockID, tenantID, err)
-	}
-	return meta, rawR, nil
-}
-
-// ProfileBlock measures the block. The read cost is paid once here, and every
+// Build measures the block. The read cost is paid once here, and every
 // variant of an experiment then works from the same profile.
-func ProfileBlock(ctx context.Context, meta *backend.BlockMeta, r backend.Reader, o ProfileOptions) (*BlockProfile, error) {
+func Build(ctx context.Context, meta *backend.BlockMeta, r backend.Reader, o Options) (*BlockProfile, error) {
 	if meta == nil {
 		return nil, errors.New("block metadata is required")
 	}
@@ -101,9 +61,9 @@ func ProfileBlock(ctx context.Context, meta *backend.BlockMeta, r backend.Reader
 	}
 
 	p := &BlockProfile{
-		SchemaVersion: ProfileSchemaVersion,
+		SchemaVersion: SchemaVersion,
 		GeneratedAt:   time.Now().UTC(),
-		GeneratedBy:   buildInfo(),
+		GeneratedBy:   CurrentBuildInfo(),
 		Block:         meta,
 		RowGroups:     len(pf.RowGroups()),
 		TraceIDs:      traceIDs,
@@ -308,9 +268,9 @@ func midpointTraceID(a, b []byte) []byte {
 	return out
 }
 
-// buildInfo falls back to the VCS stamp because the ldflags that populate
+// CurrentBuildInfo falls back to the VCS stamp because the ldflags that populate
 // prometheus/common/version are only set by the Makefile.
-func buildInfo() BuildInfo {
+func CurrentBuildInfo() BuildInfo {
 	info := BuildInfo{TempoVersion: version.Version, GitSHA: version.Revision}
 	if info.TempoVersion != "" && info.GitSHA != "" {
 		return info

@@ -1,10 +1,10 @@
-// Package benchmark profiles a Tempo block for read-path benchmarking.
+// Package profile profiles a Tempo block for read-path benchmarking.
 //
 // A profile records what had to be measured from the block: its metadata, the
 // authoritative row-group count, and a sample of trace IDs. Everything a run
 // derives from those — shards, query windows, steps — is left to the runner, so
 // one profile serves every variant of an experiment.
-package benchmark
+package profile
 
 import (
 	"encoding/json"
@@ -18,7 +18,7 @@ import (
 	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
-const ProfileSchemaVersion = 1
+const SchemaVersion = 1
 
 // traceIDHexLen is the length of a padded 16-byte trace ID in hex.
 const traceIDHexLen = 32
@@ -62,13 +62,13 @@ func (p *BlockProfile) Write(w io.Writer) error {
 	return enc.Encode(p)
 }
 
-func LoadProfile(r io.Reader) (*BlockProfile, error) {
+func Load(r io.Reader) (*BlockProfile, error) {
 	var p BlockProfile
 	if err := json.NewDecoder(r).Decode(&p); err != nil {
 		return nil, err
 	}
-	if p.SchemaVersion != ProfileSchemaVersion {
-		return nil, fmt.Errorf("profile schema version %d is not supported, expected %d", p.SchemaVersion, ProfileSchemaVersion)
+	if p.SchemaVersion != SchemaVersion {
+		return nil, fmt.Errorf("profile schema version %d is not supported, expected %d", p.SchemaVersion, SchemaVersion)
 	}
 	if err := p.Validate(); err != nil {
 		return nil, err

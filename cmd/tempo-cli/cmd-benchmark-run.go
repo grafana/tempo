@@ -9,6 +9,7 @@ import (
 	"github.com/dustin/go-humanize"
 
 	"github.com/grafana/tempo/v3/pkg/benchmark"
+	"github.com/grafana/tempo/v3/pkg/benchmark/profile"
 )
 
 type benchmarkRunCmd struct {
@@ -50,12 +51,12 @@ func (cmd *benchmarkRunCmd) Run(_ *globalOptions) error {
 	}
 	defer f.Close()
 
-	profile, err := benchmark.LoadProfile(f)
+	prof, err := profile.Load(f)
 	if err != nil {
 		return fmt.Errorf("reading profile %s: %w", cmd.Profile, err)
 	}
 
-	result, err := benchmark.Run(context.Background(), cmd.Block, profile, benchmark.RunOptions{
+	result, err := benchmark.Run(context.Background(), cmd.Block, prof, benchmark.RunOptions{
 		Repeat:                cmd.Repeat,
 		Warmup:                cmd.Warmup,
 		TargetBytesPerRequest: int(targetBytes),

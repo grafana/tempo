@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/grafana/tempo/v3/pkg/benchmark/profile"
 	"github.com/grafana/tempo/v3/pkg/traceql"
 )
 
@@ -44,7 +45,7 @@ type benchCase struct {
 	api   string
 	query string
 
-	executions func(*BlockProfile, []Shard, RunOptions) ([]execution, error)
+	executions func(*profile.BlockProfile, []Shard, RunOptions) ([]execution, error)
 }
 
 // phase1Cases is the fixed query set: no generated queries, no attribute
@@ -54,11 +55,11 @@ func phase1Cases() []benchCase {
 		{
 			id:  "traceid/present",
 			api: apiTraceByID,
-			executions: func(profile *BlockProfile, _ []Shard, opts RunOptions) ([]execution, error) {
-				if len(profile.TraceIDs.Present) == 0 {
+			executions: func(prof *profile.BlockProfile, _ []Shard, opts RunOptions) ([]execution, error) {
+				if len(prof.TraceIDs.Present) == 0 {
 					return nil, errors.New("profile has no present trace IDs")
 				}
-				return traceByIDExecutions(profile.TraceIDs.Present, opts.searchOptions())
+				return traceByIDExecutions(prof.TraceIDs.Present, opts.searchOptions())
 			},
 		},
 		{
@@ -66,11 +67,11 @@ func phase1Cases() []benchCase {
 			// index rather than by reading a trace, so it is measured apart.
 			id:  "traceid/absent",
 			api: apiTraceByID,
-			executions: func(profile *BlockProfile, _ []Shard, opts RunOptions) ([]execution, error) {
-				if len(profile.TraceIDs.Absent) == 0 {
+			executions: func(prof *profile.BlockProfile, _ []Shard, opts RunOptions) ([]execution, error) {
+				if len(prof.TraceIDs.Absent) == 0 {
 					return nil, errors.New("profile has no absent trace IDs")
 				}
-				return traceByIDExecutions(profile.TraceIDs.Absent, opts.searchOptions())
+				return traceByIDExecutions(prof.TraceIDs.Absent, opts.searchOptions())
 			},
 		},
 		{
@@ -78,8 +79,8 @@ func phase1Cases() []benchCase {
 			id:    "search/nopredicate",
 			api:   apiSearch,
 			query: "{}",
-			executions: func(profile *BlockProfile, shards []Shard, opts RunOptions) ([]execution, error) {
-				return searchExecutions("{}", shards, profile.Block, opts.searchOptions()), nil
+			executions: func(prof *profile.BlockProfile, shards []Shard, opts RunOptions) ([]execution, error) {
+				return searchExecutions("{}", shards, prof.Block, opts.searchOptions()), nil
 			},
 		},
 	}
@@ -89,12 +90,12 @@ func phase1Cases() []benchCase {
 			id:    "metrics/" + q.id,
 			api:   apiMetrics,
 			query: q.query,
-			executions: func(profile *BlockProfile, shards []Shard, opts RunOptions) ([]execution, error) {
-				if !profile.Block.EndTime.After(profile.Block.StartTime) {
+			executions: func(prof *profile.BlockProfile, shards []Shard, opts RunOptions) ([]execution, error) {
+				if !prof.Block.EndTime.After(prof.Block.StartTime) {
 					return nil, fmt.Errorf("a metrics query needs a non-empty time window, but the block's is %s to %s",
-						profile.Block.StartTime, profile.Block.EndTime)
+						prof.Block.StartTime, prof.Block.EndTime)
 				}
-				return metricsExecutions(q.query, shards, profile.Block, opts.searchOptions()), nil
+				return metricsExecutions(q.query, shards, prof.Block, opts.searchOptions()), nil
 			},
 		})
 	}
@@ -104,7 +105,7 @@ func phase1Cases() []benchCase {
 		cases = append(cases, benchCase{
 			id:  "metadata/tagnames/" + scope.String(),
 			api: apiMetadata,
-			executions: func(_ *BlockProfile, shards []Shard, opts RunOptions) ([]execution, error) {
+			executions: func(_ *profile.BlockProfile, shards []Shard, opts RunOptions) ([]execution, error) {
 				return tagNamesExecutions(scope, shards, opts.searchOptions()), nil
 			},
 		})
