@@ -56,6 +56,17 @@ func (a *staticAddr) String() string  { return a.str }
 // number of servers in subsequent calls to SetServers, servers
 // are stored in natural sort order.
 func (s *MemcachedJumpHashSelector) SetServers(servers ...string) error {
+	naddrs, err := convertAddesses(servers)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.addrs = naddrs
+	return nil
+}
+
+func convertAddesses(servers []string) ([]net.Addr, error) {
 	sortedServers := make([]string, len(servers))
 	copy(sortedServers, servers)
 	natsort.Sort(sortedServers)
@@ -65,22 +76,18 @@ func (s *MemcachedJumpHashSelector) SetServers(servers ...string) error {
 		if strings.Contains(server, "/") {
 			addr, err := net.ResolveUnixAddr("unix", server)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			naddrs[i] = newStaticAddr(addr)
 		} else {
 			tcpAddr, err := net.ResolveTCPAddr("tcp", server)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			naddrs[i] = newStaticAddr(tcpAddr)
 		}
 	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.addrs = naddrs
-	return nil
+	return naddrs, nil
 }
 
 // jumpHash consistently chooses a hash bucket number in the range [0, numBuckets) for the given key.
