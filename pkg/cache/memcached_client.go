@@ -59,8 +59,9 @@ type memcachedClient struct {
 
 	maxItemSize int
 
-	quit chan struct{}
-	wait sync.WaitGroup
+	quit    chan struct{}
+	refresh chan struct{}
+	wait    sync.WaitGroup
 
 	numServers prometheus.Gauge
 	skipped    prometheus.Counter
@@ -169,6 +170,7 @@ func NewMemcachedClient(cfg MemcachedClientConfig, name string, r prometheus.Reg
 		cbTimeout:   cfg.CBTimeout,
 		maxItemSize: cfg.MaxItemSize,
 		quit:        make(chan struct{}),
+		refresh:     make(chan struct{}, 1),
 
 		numServers: promauto.With(r).NewGauge(prometheus.GaugeOpts{
 			Namespace:   "tempo",
@@ -214,6 +216,12 @@ func NewMemcachedClient(cfg MemcachedClientConfig, name string, r prometheus.Reg
 
 func (c *memcachedClient) circuitBreakerStateChange(name string, from gobreaker.State, to gobreaker.State) {
 	level.Info(c.logger).Log("msg", "circuit-breaker state change", "name", name, "from-state", from, "to-state", to)
+	if to == gobreaker.StateOpen {
+		select {
+		case c.refresh <- struct{}{}:
+		default:
+		}
+	}
 }
 
 func (c *memcachedClient) dialViaCircuitBreaker(network, address string, timeout time.Duration) (net.Conn, error) {
@@ -271,19 +279,29 @@ func (c *memcachedClient) Set(item *memcache.Item) error {
 }
 
 func (c *memcachedClient) updateLoop(updateInterval time.Duration) {
+	const cooldownPeriod = time.Second
+	lastRefresh := time.Now()
+
 	defer c.wait.Done()
 	ticker := time.NewTicker(updateInterval)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
-			err := c.updateMemcacheServers()
-			if err != nil {
-				level.Warn(c.logger).Log("msg", "error updating memcache servers", "err", err)
+		case <-c.refresh:
+			// prevent too frequent updates
+			if time.Since(lastRefresh) < cooldownPeriod {
+				continue
 			}
 		case <-c.quit:
-			ticker.Stop()
 			return
 		}
+
+		err := c.updateMemcacheServers()
+		if err != nil {
+			level.Warn(c.logger).Log("msg", "error updating memcache servers", "err", err)
+		}
+		lastRefresh = time.Now()
 	}
 }
 
