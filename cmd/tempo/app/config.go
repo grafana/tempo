@@ -250,7 +250,7 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		}
 	}
 
-	if c.Target == Querier && c.Querier.BlocklistPollingEnabled {
+	if c.Target == Querier && c.Querier.BlocklistPolling {
 		warnings = append(warnings, warnQuerierBlocklistPolling)
 	}
 
@@ -311,8 +311,8 @@ var (
 	}
 
 	warnQuerierBlocklistPolling = ConfigWarning{
-		Message: "DEPRECATED: querier.blocklist_polling_enabled is deprecated and queriers will stop polling the blocklist in a future release.",
-		Explain: "Once all query-frontends run this version, set querier.blocklist_polling_enabled: false. Queriers then search only the blocks the query-frontend sends.",
+		Message: "Querier blocklist polling is deprecated and will be removed in a future release.",
+		Explain: "Once all query-frontends run this version, set querier.blocklist_polling: false. Queriers then search only the blocks the query-frontend sends.",
 	}
 
 	warnConfiguredLegacyCache = ConfigWarning{

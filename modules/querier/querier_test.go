@@ -200,7 +200,7 @@ func TestFindTraceByID_ExternalMode(t *testing.T) {
 
 	cfg := Config{
 		// external lookups never carry blocks, so they must work without querier polling
-		BlocklistPollingEnabled: false,
+		BlocklistPolling: false,
 		TraceByID: TraceByIDConfig{
 			External: ExternalConfig{
 				Endpoint: server.URL,
@@ -298,7 +298,7 @@ func TestFindTraceByIDUsesFrontendBlocks(t *testing.T) {
 			require.NoError(t, err)
 
 			store := &mockTraceByIDStore{}
-			q, err := New(Config{BlocklistPollingEnabled: !tc.pollingDisabled}, nil, livestore_client.Config{}, nil, false, store, o)
+			q, err := New(Config{BlocklistPolling: !tc.pollingDisabled}, nil, livestore_client.Config{}, nil, false, store, o)
 			require.NoError(t, err)
 
 			ctx := user.InjectOrgID(context.Background(), "blerg")
@@ -335,7 +335,7 @@ func TestFindTraceByIDRequiresBlocksOnlyForBackendModes(t *testing.T) {
 			require.NoError(t, err)
 
 			store := &mockTraceByIDStore{}
-			q, err := New(Config{BlocklistPollingEnabled: false}, nil, livestore_client.Config{}, nil, false, store, o)
+			q, err := New(Config{BlocklistPolling: false}, nil, livestore_client.Config{}, nil, false, store, o)
 			require.NoError(t, err)
 
 			// no live-store ring or external client is set up, so each mode fails later with its own error
