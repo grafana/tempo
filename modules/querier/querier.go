@@ -202,6 +202,11 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		return nil, errors.New("invalid trace id")
 	}
 
+	// without a polled blocklist, searching would silently miss every backend trace
+	if req.Blocks == nil && !q.cfg.BlocklistPollingEnabled && (req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll) {
+		return nil, ErrTraceByIDBlocksRequired
+	}
+
 	ctx, span, userID, err := startTraceByIDSpan(ctx, "Querier.FindTraceByID", req)
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.FindTraceByID: %w", err)
@@ -260,10 +265,6 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		opts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
 
 		findStart := time.Now()
-		if req.Blocks == nil && !q.cfg.BlocklistPollingEnabled {
-			// without a polled blocklist, searching would silently miss every backend trace
-			return nil, ErrTraceByIDBlocksRequired
-		}
 		partialTraces, blockErrs, err := q.store.Find(ctx, userID, req, opts)
 		observeBackendProcessing(api.OpTraceByID, userID, findStart)
 		if err != nil {
