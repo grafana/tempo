@@ -13,19 +13,14 @@ func TestTraceByIDBlocksRoundTrip(t *testing.T) {
 	start := time.Unix(1700000000, 0).UTC()
 	metas := []*BlockMeta{
 		{
-			Version:           "vParquet5",
-			BlockID:           MustParse("00000000-0000-0000-0000-000000000001"),
-			TenantID:          "tenant",
-			StartTime:         start,
-			EndTime:           start.Add(time.Hour),
-			TotalObjects:      10,
-			Size_:             1024,
-			CompactionLevel:   2,
-			IndexPageSize:     4,
-			TotalRecords:      5,
-			BloomShardCount:   3,
-			FooterSize:        100,
-			ReplicationFactor: 1,
+			Version:         "vParquet5",
+			BlockID:         MustParse("00000000-0000-0000-0000-000000000001"),
+			TenantID:        "tenant",
+			StartTime:       start,
+			Size_:           1024,
+			CompactionLevel: 2,
+			BloomShardCount: 3,
+			FooterSize:      100,
 			DedicatedColumns: DedicatedColumns{
 				{Scope: DedicatedColumnScopeSpan, Name: "http.method", Type: DedicatedColumnTypeString},
 			},

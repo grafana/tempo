@@ -70,22 +70,18 @@ message TraceByIDBlocks {
   repeated TraceByIDDedicatedColumns dedicatedColumns = 2;
 }
 
-// No tenant field, queriers take it from the org ID.
+// The BlockMeta fields a querier needs to open a block and find a trace.
 message TraceByIDBlock {
   bytes blockID = 1;
   string version = 2;
-  uint64 startTimeUnixNano = 3;
-  uint64 endTimeUnixNano = 4;
-  int64 totalObjects = 5;
-  uint64 size = 6;
-  uint32 compactionLevel = 7;
-  uint32 indexPageSize = 8;
-  uint32 totalRecords = 9;
-  uint32 bloomShardCount = 10;
-  uint32 footerSize = 11;
-  uint32 replicationFactor = 12;
+  uint64 size = 3;
+  uint32 footerSize = 4;
+  uint32 bloomShardCount = 5;
+  // compactionLevel and startTimeUnixNano feed the backend cache's admission rules
+  uint32 compactionLevel = 6;
+  uint64 startTimeUnixNano = 7;
   // 1-based index into TraceByIDBlocks.dedicatedColumns, 0 for none
-  uint32 dedicatedColumnsIndex = 13;
+  uint32 dedicatedColumnsIndex = 8;
 }
 
 message TraceByIDDedicatedColumns {

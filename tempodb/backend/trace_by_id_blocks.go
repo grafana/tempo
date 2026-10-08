@@ -35,15 +35,10 @@ func TraceByIDBlocksFromMetas(metas []*BlockMeta) (*tempopb.TraceByIDBlocks, err
 			BlockID:               m.BlockID[:],
 			Version:               m.Version,
 			StartTimeUnixNano:     unixNano(m.StartTime),
-			EndTimeUnixNano:       unixNano(m.EndTime),
-			TotalObjects:          m.TotalObjects,
 			Size_:                 m.Size_,
 			CompactionLevel:       m.CompactionLevel,
-			IndexPageSize:         m.IndexPageSize,
-			TotalRecords:          m.TotalRecords,
 			BloomShardCount:       m.BloomShardCount,
 			FooterSize:            m.FooterSize,
-			ReplicationFactor:     m.ReplicationFactor,
 			DedicatedColumnsIndex: idx,
 		})
 	}
@@ -51,7 +46,7 @@ func TraceByIDBlocksFromMetas(metas []*BlockMeta) (*tempopb.TraceByIDBlocks, err
 	return blocks, nil
 }
 
-// MetasFromTraceByIDBlocks takes the tenant from the caller, never from the payload.
+// MetasFromTraceByIDBlocks is the inverse of TraceByIDBlocksFromMetas.
 func MetasFromTraceByIDBlocks(blocks *tempopb.TraceByIDBlocks, tenantID string) ([]*BlockMeta, error) {
 	columns := make([]DedicatedColumns, 0, len(blocks.DedicatedColumns))
 	for _, c := range blocks.DedicatedColumns {
@@ -64,19 +59,15 @@ func MetasFromTraceByIDBlocks(blocks *tempopb.TraceByIDBlocks, tenantID string) 
 
 	metas := make([]*BlockMeta, 0, len(blocks.Blocks))
 	for _, b := range blocks.Blocks {
+		// unsent BlockMeta fields stay zero, add them to TraceByIDBlock in proto if trace by id path needs them.
 		m := &BlockMeta{
-			Version:           b.Version,
-			TenantID:          tenantID,
-			StartTime:         fromUnixNano(b.StartTimeUnixNano),
-			EndTime:           fromUnixNano(b.EndTimeUnixNano),
-			TotalObjects:      b.TotalObjects,
-			Size_:             b.Size_,
-			CompactionLevel:   b.CompactionLevel,
-			IndexPageSize:     b.IndexPageSize,
-			TotalRecords:      b.TotalRecords,
-			BloomShardCount:   b.BloomShardCount,
-			FooterSize:        b.FooterSize,
-			ReplicationFactor: b.ReplicationFactor,
+			Version:         b.Version,
+			TenantID:        tenantID,
+			StartTime:       fromUnixNano(b.StartTimeUnixNano),
+			Size_:           b.Size_,
+			CompactionLevel: b.CompactionLevel,
+			BloomShardCount: b.BloomShardCount,
+			FooterSize:      b.FooterSize,
 		}
 		if err := m.BlockID.Unmarshal(b.BlockID); err != nil {
 			return nil, fmt.Errorf("invalid block id: %w", err)
