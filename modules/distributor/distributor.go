@@ -137,7 +137,7 @@ var (
 	metricAttributeSizeBytes = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace:                       "tempo",
 		Name:                            "distributor_attribute_size_bytes",
-		Help:                            "The original size in bytes of attribute keys or values truncated, per tenant and scope",
+		Help:                            "The combined size in bytes of each attribute's key and string value received, per tenant and scope",
 		Buckets:                         prometheus.ExponentialBuckets(64, 2, 16), // 64B to 4MiB
 		NativeHistogramBucketFactor:     1.1,
 		NativeHistogramMaxBucketNumber:  100,
@@ -869,11 +869,9 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 func processAttributes(attributes []*v1_common.KeyValue, maxAttrSize int, truncationExample *truncatedAttrInfo, scope, tenant string) int {
 	count := 0
 	for _, attr := range attributes {
-		// Measure every attribute key, regardless of whether it gets truncated.
-		metricAttributeSizeBytes.WithLabelValues(tenant, scope).Observe(float64(len(attr.Key)))
-
-		if len(attr.Key) > maxAttrSize {
-			origSize := len(attr.Key)
+		keySize := len(attr.Key)
+		if keySize > maxAttrSize {
+			origSize := keySize
 			attr.Key = attr.Key[:maxAttrSize]
 			if truncationExample != nil && truncationExample.origSize == 0 { // only capture the first truncation
 				// name is the truncated prefix; origSize records the full original length.
@@ -884,8 +882,8 @@ func processAttributes(attributes []*v1_common.KeyValue, maxAttrSize int, trunca
 
 		switch value := attr.GetValue().Value.(type) {
 		case *v1_common.AnyValue_StringValue:
-			// Measure every string value, regardless of whether it gets truncated.
-			metricAttributeSizeBytes.WithLabelValues(tenant, scope).Observe(float64(len(value.StringValue)))
+			// Measure the combined key+value size of every attribute, regardless of whether it gets truncated.
+			metricAttributeSizeBytes.WithLabelValues(tenant, scope).Observe(float64(keySize + len(value.StringValue)))
 
 			if len(value.StringValue) > maxAttrSize {
 				origSize := len(value.StringValue)

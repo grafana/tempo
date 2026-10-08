@@ -1232,11 +1232,11 @@ func TestProcessAttributesRecordsSizeMetric(t *testing.T) {
 	count := processAttributes(attributes, 2048, nil, "span", "test")
 	require.Equal(t, 2, count)
 
-	// Every attribute key and string value is measured, whether or not it is truncated.
-	// Observed: key "key"=3, value 5000, key 6000, value "short"=5.
+	// The combined key+value size of every attribute is measured, whether or not it is truncated.
+	// Observed: key 3 + value 5000 = 5003 (attr 1), key 6000 + value "short"=5 = 6005 (attr 2).
 	m := &dto.Metric{}
 	require.NoError(t, metricAttributeSizeBytes.WithLabelValues("test", "span").(prometheus.Histogram).Write(m))
-	require.Equal(t, uint64(4), m.Histogram.GetSampleCount())
+	require.Equal(t, uint64(2), m.Histogram.GetSampleCount())
 	require.Equal(t, float64(11008), m.Histogram.GetSampleSum())
 }
 
