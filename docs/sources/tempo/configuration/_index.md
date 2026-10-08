@@ -1290,9 +1290,9 @@ querier:
     # not distinguish between the types of queries.
     [max_concurrent_queries: <int> | default = 20]
 
+    # Whether queriers poll the blocklist. Queriers only use it to choose blocks for trace by ID, which query-frontends now send with each job.
     # Deprecated: a future release removes querier blocklist polling.
-    # The query-frontend sends the blocks to search with each trace by ID job, so queriers don't need their own blocklist.
-    # Set to false only after all query-frontends run a version that sends blocks, the same release that deprecates this setting.
+    # Set to false only after all query-frontends and queriers run the release that deprecated this setting.
     # With false, the querier rejects trace by ID jobs without blocks, such as jobs from older query-frontends.
     [blocklist_polling_enabled: <bool> | default = true]
 
