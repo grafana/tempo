@@ -36,15 +36,15 @@ type parquetRewrite struct {
 	Out              string   `arg:"" help:"The output folder to write block to." default:"./out" optional:""`
 	DedicatedColumns []string `arg:"" help:"List of dedicated columns to convert. Overwrites existing dedicated columns" optional:""`
 
-	// Parameters below are optional. Unset (zero) values are inherited from the input block.
-	RowGroupSizeBytes   int     `help:"Target row group size in bytes. Unset inherits the input block's row group size." optional:""`
+	// Optional parameters. The row group size falls back to the Tempo default (100MB)
+	// with a warning; the bloom filter parameters are inherited from the input block.
+	RowGroupSizeBytes   int     `help:"Target row group size in bytes. Unset uses the 100MB Tempo default." optional:""`
 	BloomFP             float64 `help:"Bloom filter false positive rate. Unset inherits the input block's rate." optional:""`
 	BloomShardSizeBytes int     `help:"Bloom filter shard size in bytes. Unset inherits the input block's shard size." optional:""`
 }
 
-// defaultRowGroupSizeBytes is the fallback row group size when the input parquet
-// file has no row groups to inherit from. It matches the ~100MB default that
-// common.BlockConfig and the rest of Tempo use.
+// defaultRowGroupSizeBytes is the row group size used when --row-group-size-bytes is not
+// passed. It matches the ~100MB default used across Tempo (common.BlockConfig).
 const defaultRowGroupSizeBytes = 100 * 1024 * 1024
 
 func (cmd *parquetRewrite) Run() error {
@@ -79,7 +79,7 @@ func (cmd *parquetRewrite) Run() error {
 		return err
 	}
 
-	blockCfg, err := cmd.blockConfig(enc.Version(), meta, pf)
+	blockCfg, err := cmd.blockConfig(enc.Version(), meta)
 	if err != nil {
 		return err
 	}
@@ -100,12 +100,12 @@ func (cmd *parquetRewrite) Run() error {
 	return nil
 }
 
-// blockConfig assembles the common.BlockConfig used to create the new block. Every
-// parameter that is not set on the command line is inherited from the input block so
-// that the rewrite reproduces the original block's properties as closely as possible:
-// the row group size from the input parquet file, and the bloom filter parameters from
-// the input block's bloom shard header.
-func (cmd *parquetRewrite) blockConfig(version string, meta *backend.BlockMeta, pf *parquet.File) (*common.BlockConfig, error) {
+// blockConfig assembles the common.BlockConfig used to create the new block. The row
+// group size falls back to the Tempo default with a warning: row groups are cut once the
+// estimated buffered bytes exceed that size, so the default reproduces the layout of blocks
+// written with it. The bloom filter parameters are inherited from the input block so that
+// the rewrite reproduces the original bloom filters.
+func (cmd *parquetRewrite) blockConfig(version string, meta *backend.BlockMeta) (*common.BlockConfig, error) {
 	cfg := &common.BlockConfig{
 		BloomFP:             cmd.BloomFP,
 		BloomShardSizeBytes: cmd.BloomShardSizeBytes,
@@ -114,8 +114,11 @@ func (cmd *parquetRewrite) blockConfig(version string, meta *backend.BlockMeta, 
 	}
 
 	if cfg.RowGroupSizeBytes == 0 {
-		cfg.RowGroupSizeBytes = inheritedRowGroupSizeBytes(pf)
-		fmt.Printf("Inheriting row group size %d bytes from the input block\n", cfg.RowGroupSizeBytes)
+		cfg.RowGroupSizeBytes = defaultRowGroupSizeBytes
+		fmt.Println(strings.Repeat("!", 86))
+		fmt.Printf("!! NO ROW GROUP SIZE SPECIFIED, USING THE %dMB DEFAULT.\n", defaultRowGroupSizeBytes/(1024*1024))
+		fmt.Println("!! Pass --row-group-size-bytes to set an explicit row group size.")
+		fmt.Println(strings.Repeat("!", 86))
 	}
 
 	if cfg.BloomFP == 0 || cfg.BloomShardSizeBytes == 0 {
@@ -141,26 +144,6 @@ func (cmd *parquetRewrite) blockConfig(version string, meta *backend.BlockMeta, 
 	}
 
 	return cfg, nil
-}
-
-// inheritedRowGroupSizeBytes returns a row group size that reproduces the input
-// parquet file's row group layout. The originally configured size is neither
-// recoverable nor needed: row groups are cut once the estimated buffered bytes
-// exceed it, so the largest row group in the file is the best surviving record
-// of where that threshold landed — and if the configured size was larger than
-// that (a block that fit in a single group, or a final group flushed before
-// filling), the exact number would not make the rewritten block any closer to
-// the input. Because the cut is made on estimated sizes, a multi-group input may
-// regroup slightly. Falls back to the Tempo default if the file has no row groups.
-func inheritedRowGroupSizeBytes(pf *parquet.File) int {
-	var size int64
-	for _, rg := range pf.Metadata().RowGroups {
-		size = max(size, rg.TotalByteSize)
-	}
-	if size <= 0 {
-		return defaultRowGroupSizeBytes
-	}
-	return int(size)
 }
 
 // inheritedBloomParams recovers the bloom filter false positive rate and shard size
