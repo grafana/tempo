@@ -223,8 +223,8 @@ func TestFindTraceByID_ExternalMode(t *testing.T) {
 	resp, err := q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 		TraceID:   traceID,
 		QueryMode: QueryModeExternal,
-		Start:     uint32(startTime),
-		End:       uint32(endTime),
+		Start:     time.Unix(startTime, 0),
+		End:       time.Unix(endTime, 0),
 	})
 
 	require.NoError(t, err)
