@@ -202,16 +202,23 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		return nil, errors.New("invalid trace id")
 	}
 
-	// TODO: remove with querier blocklist polling, then always require blocks for blocks and all modes
-	if req.Blocks == nil && !q.cfg.BlocklistPolling && (req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll) {
-		return nil, ErrTraceByIDBlocksRequired
-	}
-
 	ctx, span, userID, err := startTraceByIDSpan(ctx, "Querier.FindTraceByID", req)
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.FindTraceByID: %w", err)
 	}
 	defer func() { finishQuerierSpan(span, err, resp.GetMetrics()) }()
+
+	// shows in traces whether a job used the frontend's blocks or the querier's own blocklist
+	span.SetAttributes(
+		attribute.Bool("blocklistPolling", q.cfg.BlocklistPolling),
+		attribute.Bool("frontendBlocks", req.Blocks != nil),
+		attribute.Int("frontendBlockCount", len(req.Blocks.GetBlocks())),
+	)
+
+	// TODO: remove with querier blocklist polling, then always require blocks for blocks and all modes
+	if req.Blocks == nil && !q.cfg.BlocklistPolling && (req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll) {
+		return nil, ErrTraceByIDBlocksRequired
+	}
 
 	maxBytes := q.limits.MaxBytesPerTrace(userID)
 	combiner := trace.NewCombiner(maxBytes, req.AllowPartialTrace)

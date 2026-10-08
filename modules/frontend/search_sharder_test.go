@@ -66,7 +66,7 @@ func (m *mockReader) Find(context.Context, string, *tempopb.TraceByIDRequest, co
 	return nil, nil, nil
 }
 
-func (m *mockReader) TraceByIDBlockMetas(string, time.Time, time.Time) []*backend.BlockMeta {
+func (m *mockReader) TraceByIDBlockMetas(context.Context, string, time.Time, time.Time) []*backend.BlockMeta {
 	return slices.Clone(m.metas)
 }
 

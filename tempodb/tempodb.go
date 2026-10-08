@@ -12,6 +12,7 @@ import (
 	"github.com/grafana/tempo/v3/pkg/collector"
 	"github.com/grafana/tempo/v3/pkg/util"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	gkLog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -85,7 +86,8 @@ type IterateObjectCallback func(id common.ID, obj []byte) bool
 
 type Reader interface {
 	Find(ctx context.Context, tenantID string, req *tempopb.TraceByIDRequest, opts common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error)
-	TraceByIDBlockMetas(tenantID string, timeStart, timeEnd time.Time) []*backend.BlockMeta
+	TraceByIDBlockMetas(ctx context.Context, tenantID string, timeStart, timeEnd time.Time) []*backend.BlockMeta
+
 	Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error)
 	SearchTags(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagsBlockRequest, opts common.SearchOptions) (*tempopb.SearchTagsV2Response, error)
 	SearchTagValues(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagValuesBlockRequest, opts common.SearchOptions) (*tempopb.SearchTagValuesResponse, error)
@@ -348,11 +350,14 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, req *tempopb.
 
 	id := common.ID(req.TraceID)
 
+	span.SetAttributes(attribute.Bool("frontendBlocks", req.Blocks != nil))
+
 	if req.Blocks != nil {
 		metas, err := backend.MetasFromTraceByIDBlocks(req.Blocks, tenantID)
 		if err != nil {
 			return nil, nil, err
 		}
+		span.SetAttributes(attribute.Int("blocksSearched", len(metas)))
 		if len(metas) == 0 {
 			return nil, nil, nil
 		}
@@ -365,7 +370,6 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, req *tempopb.
 		partialTraceObjs, funcErrs, err := rw.findInBlocks(ctx, logger, id, blocks, opts)
 
 		span.SetAttributes(attribute.Int("blockErrs", len(funcErrs)))
-		span.SetAttributes(attribute.Int("blocksSearched", len(metas)))
 
 		return partialTraceObjs, funcErrs, err
 	}
@@ -423,7 +427,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, req *tempopb.
 }
 
 // TraceByIDBlockMetas includes recently compacted blocks to match Find's selection.
-func (rw *readerWriter) TraceByIDBlockMetas(tenantID string, timeStart, timeEnd time.Time) []*backend.BlockMeta {
+func (rw *readerWriter) TraceByIDBlockMetas(ctx context.Context, tenantID string, timeStart, timeEnd time.Time) []*backend.BlockMeta {
 	blockStart := make([]byte, 16)
 	blockEnd := bytes.Repeat([]byte{0xff}, 16)
 
@@ -436,11 +440,20 @@ func (rw *readerWriter) TraceByIDBlockMetas(tenantID string, timeStart, timeEnd 
 			metas = append(metas, b)
 		}
 	}
+	liveBlocksSearched := len(metas)
 	for _, c := range compactedBlocklist {
 		if includeCompactedBlock(c, nil, blockStart, blockEnd, rw.cfg.BlocklistPoll, timeStart, timeEnd) {
 			metas = append(metas, &c.BlockMeta)
 		}
 	}
+
+	// same names as the polled Find path, so traces read alike whichever side picked the blocks
+	trace.SpanFromContext(ctx).SetAttributes(
+		attribute.Int("liveBlocks", len(blocklist)),
+		attribute.Int("liveBlocksSearched", liveBlocksSearched),
+		attribute.Int("compactedBlocks", len(compactedBlocklist)),
+		attribute.Int("compactedBlocksSearched", len(metas)-liveBlocksSearched),
+	)
 
 	return metas
 }

@@ -20,6 +20,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"github.com/grafana/tempo/v3/modules/cache/memcached"
 	"github.com/grafana/tempo/v3/modules/cache/redis"
@@ -222,7 +225,7 @@ func TestFindWithBlocks(t *testing.T) {
 
 	r.(*readerWriter).pollBlocklist(ctx)
 
-	metas := r.TraceByIDBlockMetas(testTenantID, time.Time{}, time.Time{})
+	metas := r.TraceByIDBlockMetas(ctx, testTenantID, time.Time{}, time.Time{})
 	require.Len(t, metas, 1)
 
 	blocks, err := backend.TraceByIDBlocksFromMetas(metas)
@@ -241,7 +244,7 @@ func TestFindWithBlocks(t *testing.T) {
 	require.Empty(t, bFound)
 
 	future := time.Now().Add(100 * time.Hour)
-	require.Empty(t, r.TraceByIDBlockMetas(testTenantID, future, future.Add(time.Hour)))
+	require.Empty(t, r.TraceByIDBlockMetas(ctx, testTenantID, future, future.Add(time.Hour)))
 }
 
 // TestFindWithBlocksFromStaleView covers a frontend blocklist view that compaction has since changed.
@@ -272,7 +275,7 @@ func TestFindWithBlocksFromStaleView(t *testing.T) {
 	}
 	rw.pollBlocklist(ctx)
 
-	staleView := r.TraceByIDBlockMetas(testTenantID, time.Time{}, time.Time{})
+	staleView := r.TraceByIDBlockMetas(ctx, testTenantID, time.Time{}, time.Time{})
 	require.Len(t, staleView, 2)
 
 	find := func(metas []*backend.BlockMeta) (int, []error, error) {
@@ -303,7 +306,7 @@ func TestFindWithBlocksFromStaleView(t *testing.T) {
 	require.Equal(t, wantSpans, spans)
 
 	// the fresh view holds inputs and output, so the spans must dedupe
-	freshView := r.TraceByIDBlockMetas(testTenantID, time.Time{}, time.Time{})
+	freshView := r.TraceByIDBlockMetas(ctx, testTenantID, time.Time{}, time.Time{})
 	require.Len(t, freshView, 3)
 	spans, failedBlocks, err = find(freshView)
 	require.NoError(t, err)
@@ -346,10 +349,22 @@ func TestTraceByIDBlockMetas(t *testing.T) {
 		nil,
 	)
 
+	recorder := tracetest.NewSpanRecorder()
+	ctx, span := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder)).Tracer("test").Start(context.Background(), "test")
+
 	// compacted blocks stay searchable for 2x the poll interval, matching Find
-	metas := r.TraceByIDBlockMetas(testTenantID, time.Time{}, time.Time{})
+	metas := r.TraceByIDBlockMetas(ctx, testTenantID, time.Time{}, time.Time{})
 	require.Len(t, metas, 2)
 	require.ElementsMatch(t, []backend.UUID{live.BlockID, recentlyCompacted.BlockID}, []backend.UUID{metas[0].BlockID, metas[1].BlockID})
+
+	span.End()
+	require.Len(t, recorder.Ended(), 1)
+	require.ElementsMatch(t, []attribute.KeyValue{
+		attribute.Int("liveBlocks", 1),
+		attribute.Int("liveBlocksSearched", 1),
+		attribute.Int("compactedBlocks", 2),
+		attribute.Int("compactedBlocksSearched", 1),
+	}, recorder.Ended()[0].Attributes())
 }
 
 func TestBlockCleanup(t *testing.T) {
