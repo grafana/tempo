@@ -304,7 +304,7 @@ func TestFindTraceByIDUsesFrontendBlocks(t *testing.T) {
 			if tc.queryMode != "" {
 				queryMode = tc.queryMode
 			}
-			// no partition ring is configured, so reaching the live-stores fails with a different error
+			// with no partition ring, reaching the live-stores would return a different error
 			_, err = q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 				TraceID:   test.ValidTraceID(nil),
 				QueryMode: queryMode,

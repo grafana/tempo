@@ -193,7 +193,7 @@ func (q *Querier) stopping(_ error) error {
 	return nil
 }
 
-// ErrTraceByIDBlocksRequired is returned when blocklist polling is disabled and the query-frontend did not send the blocks to search.
+// ErrTraceByIDBlocksRequired fails a job with no blocks, because a querier without a blocklist would miss every backend trace.
 var ErrTraceByIDBlocksRequired = errors.New("query-frontend must send the blocks to search when querier blocklist polling is disabled")
 
 // FindTraceByID implements tempopb.Querier.
@@ -202,7 +202,6 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		return nil, errors.New("invalid trace id")
 	}
 
-	// without a polled blocklist, searching would silently miss every backend trace
 	if req.Blocks == nil && !q.cfg.BlocklistPollingEnabled && (req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll) {
 		return nil, ErrTraceByIDBlocksRequired
 	}
@@ -220,6 +219,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	if req.QueryMode == QueryModeIngesters || req.QueryMode == QueryModeAll {
 		// Get responses from all live stores in parallel.
 		span.AddEvent("searching live-stores")
+		// live-stores ignore req.Blocks, and only direct callers send blocks with mode=all
 		forEach := func(funcCtx context.Context, client tempopb.QuerierClient) (any, error) {
 			return client.FindTraceByID(funcCtx, req)
 		}

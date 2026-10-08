@@ -244,7 +244,7 @@ func TestFindWithBlocks(t *testing.T) {
 	require.Empty(t, r.TraceByIDBlockMetas(testTenantID, future, future.Add(time.Hour)))
 }
 
-// TestFindWithBlocksFromStaleView covers the query-frontend sending blocks from a blocklist view that compaction has since changed.
+// TestFindWithBlocksFromStaleView covers a frontend blocklist view that compaction has since changed.
 func TestFindWithBlocksFromStaleView(t *testing.T) {
 	r, w, c, _ := testConfig(t, time.Minute)
 
@@ -262,7 +262,7 @@ func TestFindWithBlocksFromStaleView(t *testing.T) {
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 	id := test.ValidTraceID(nil)
 
-	// the trace is split across two blocks, so each block holds different spans of it
+	// split the trace so compaction has two inputs to merge
 	for range 2 {
 		head, err := wal.NewBlock(&backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID}, model.CurrentEncoding)
 		require.NoError(t, err)
@@ -296,13 +296,13 @@ func TestFindWithBlocksFromStaleView(t *testing.T) {
 	require.NoError(t, rw.compactOneJob(ctx, staleView, testTenantID))
 	rw.pollBlocklist(ctx)
 
-	// compacted inputs stay readable for compacted_block_retention, so a view from before compaction still finds the whole trace
+	// inputs stay readable for compacted_block_retention
 	spans, failedBlocks, err := find(staleView)
 	require.NoError(t, err)
 	require.Nil(t, failedBlocks)
 	require.Equal(t, wantSpans, spans)
 
-	// right after compaction the view holds the output and both inputs, the combiner drops the duplicate spans
+	// the fresh view holds inputs and output, so the spans must dedupe
 	freshView := r.TraceByIDBlockMetas(testTenantID, time.Time{}, time.Time{})
 	require.Len(t, freshView, 3)
 	spans, failedBlocks, err = find(freshView)
@@ -310,7 +310,7 @@ func TestFindWithBlocksFromStaleView(t *testing.T) {
 	require.Nil(t, failedBlocks)
 	require.Equal(t, wantSpans, spans)
 
-	// once retention deletes the inputs, a view still naming them fails the job instead of silently missing the trace
+	// deleted blocks must fail the job, not return an empty trace
 	for _, m := range staleView {
 		require.NoError(t, rw.c.ClearBlock(uuid.UUID(m.BlockID), testTenantID))
 	}

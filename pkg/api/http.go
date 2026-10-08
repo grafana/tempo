@@ -853,7 +853,7 @@ func parseTraceDiffTraceRequest(name string, traceReq *TraceDiffTraceRequest) er
 }
 
 // ParseTraceByIDRequest parses and validates params for the trace by id API.
-// The trace id is a path param and is left for the caller to set.
+// The trace id is a path param, so the caller sets it.
 // Start and end are zero time.Time values when not provided by the caller.
 func ParseTraceByIDRequest(r *http.Request) (*tempopb.TraceByIDRequest, error) {
 	vals := r.URL.Query()
@@ -920,7 +920,7 @@ func ParseTraceByIDRequest(r *http.Request) (*tempopb.TraceByIDRequest, error) {
 		return nil, fmt.Errorf("http parameter start must be before end. received start=%d end=%d", req.Start.Unix(), req.End.Unix())
 	}
 
-	// presence matters, an empty list means the frontend found no blocks for the job
+	// an empty value still means "search these zero blocks", so check presence
 	if vals.Has(BlocksKey) {
 		blocks, err := decodeTraceByIDBlocks(vals.Get(BlocksKey))
 		if err != nil {
@@ -932,7 +932,7 @@ func ParseTraceByIDRequest(r *http.Request) (*tempopb.TraceByIDRequest, error) {
 	return req, nil
 }
 
-// BuildTraceByIDRequest builds a trace by id job from scratch, so params of the original request don't leak into it.
+// BuildTraceByIDRequest starts from an empty query so the caller's params can't override the job's.
 func BuildTraceByIDRequest(req *http.Request, traceByIDReq *tempopb.TraceByIDRequest) (*http.Request, error) {
 	if req == nil {
 		req = &http.Request{
@@ -958,6 +958,7 @@ func BuildTraceByIDRequest(req *http.Request, traceByIDReq *tempopb.TraceByIDReq
 	if !traceByIDReq.End.IsZero() {
 		qb.addParam(urlParamEnd, strconv.FormatInt(traceByIDReq.End.Unix(), 10))
 	}
+	// ~100 B per block, so job URIs stay small only while blocks_per_shard is small
 	if traceByIDReq.Blocks != nil {
 		blocks, err := traceByIDReq.Blocks.Marshal()
 		if err != nil {

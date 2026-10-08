@@ -130,8 +130,7 @@ func (s *asyncTraceSharder) blockBoundariesForTenant(tenantID string, startTime,
 	numBlockShards := int(math.Ceil(float64(len(blocks)) / float64(s.cfg.BlocksPerShard)))
 
 	// Always ensure at least one job is created.
-	// Even in case the query-frontend sees zero blocks within range, it's
-	// possible that the querier may have a different view of the blocklist.
+	// Older queriers ignore the blocks and search their own blocklist, so they still need a block job.
 	if numBlockShards < 1 {
 		numBlockShards = 1
 	}
@@ -156,7 +155,8 @@ func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request, traceB
 
 	blockBoundaries := s.blockBoundariesForTenant(userID, traceByIDReq.Start, traceByIDReq.End)
 
-	// sorted by block id so each shard's blocks are one contiguous range
+	// sorted by block id so each shard's blocks are one contiguous range.
+	// A second blocklist copy after blockBoundariesForTenant, cheap next to marshalling the jobs.
 	blocks := s.reader.TraceByIDBlockMetas(userID, traceByIDReq.Start, traceByIDReq.End)
 	slices.SortFunc(blocks, func(a, b *backend.BlockMeta) int {
 		return bytes.Compare(a.BlockID[:], b.BlockID[:])
@@ -195,7 +195,7 @@ func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request, traceB
 	// When external is disabled, we have N-1 block shards
 	// blockBoundaries has length equal to numBlockShards+1, and we create shards between adjacent boundaries
 	for i := 1; i < len(blockBoundaries); i++ {
-		// queriers search exactly these blocks, so they don't need to poll the blocklist
+		// lets queriers skip polling the blocklist
 		shardBlocks, err := backend.TraceByIDBlocksFromMetas(blocksInRange(blocks, blockBoundaries[i-1], blockBoundaries[i]))
 		if err != nil {
 			return nil, err
@@ -220,7 +220,7 @@ func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request, traceB
 	return reqs, nil
 }
 
-// blocksInRange expects blocks sorted by id and is inclusive on both ends, matching the querier's includeBlock.
+// blocksInRange needs blocks sorted by id and matches includeBlock's inclusive bounds.
 func blocksInRange(blocks []*backend.BlockMeta, start, end []byte) []*backend.BlockMeta {
 	lo := sort.Search(len(blocks), func(i int) bool { return bytes.Compare(blocks[i].BlockID[:], start) >= 0 })
 	hi := sort.Search(len(blocks), func(i int) bool { return bytes.Compare(blocks[i].BlockID[:], end) > 0 })
