@@ -150,9 +150,9 @@ func TestRunRepeatMultipliesExecutions(t *testing.T) {
 // the sharding, while the raw per-shard sum scales with the shard count.
 func TestRunMatchedIsShardCountIndependent(t *testing.T) {
 	ctx := context.Background()
-	meta, r, bucket := testBlock(t, 300)
+	meta, r, bucket := benchtest.Block(t, 300)
 
-	profile, err := ProfileBlock(ctx, meta, r, ProfileOptions{NumTraceIDs: 25})
+	profile, err := profile.Build(ctx, meta, r, profile.Options{NumTraceIDs: 25})
 	require.NoError(t, err)
 
 	few, err := Run(ctx, blockPath(bucket, meta), profile, RunOptions{TargetBytesPerRequest: 64 << 20})
