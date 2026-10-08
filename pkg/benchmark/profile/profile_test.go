@@ -9,8 +9,20 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/v3/pkg/benchmark/profile/attributes"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 )
+
+func validAttributes() *attributes.Profiles {
+	return &attributes.Profiles{
+		Spans: 4,
+		Ranked: []attributes.Profile{{
+			Scope: attributes.ScopeResource, Name: "service.name", Type: attributes.TypeString,
+			Dedicated: true, TotalBytes: 3, Cardinality: 1, Density: 1,
+			Values: []attributes.Value{{Value: "svc", Selectivity: 1}},
+		}},
+	}
+}
 
 func validProfile() *BlockProfile {
 	meta := backend.NewBlockMeta("test-tenant", uuid.MustParse("00000000-0000-0000-0000-00000000beef"), "vParquet5")
@@ -20,16 +32,16 @@ func validProfile() *BlockProfile {
 	meta.TotalRecords = 3
 
 	return &BlockProfile{
-		SchemaVersion: SchemaVersion,
-		GeneratedAt:   time.Unix(5000, 0).UTC(),
-		GeneratedBy:   BuildInfo{TempoVersion: "0.0.0-test", GitSHA: "deadbeef"},
-		Block:         meta,
-		RowGroups:     3,
+		GeneratedAt: time.Unix(5000, 0).UTC(),
+		GeneratedBy: BuildInfo{TempoVersion: "0.0.0-test", GitSHA: "deadbeef"},
+		Block:       meta,
+		RowGroups:   3,
 		TraceIDs: TraceIDProfile{
 			Mode:    TraceIDModeSample,
 			Present: []string{"0102030405060708090a0b0c0d0e0f10"},
 			Absent:  []string{strings.Repeat("00", 16)},
 		},
+		Attributes: validAttributes(),
 	}
 }
 
@@ -42,17 +54,6 @@ func TestProfileRoundTrip(t *testing.T) {
 	got, err := Load(&buf)
 	require.NoError(t, err)
 	require.Equal(t, want, got)
-}
-
-func TestLoadProfileRejectsOtherSchemaVersion(t *testing.T) {
-	p := validProfile()
-	p.SchemaVersion = SchemaVersion + 1
-
-	var buf bytes.Buffer
-	require.NoError(t, p.Write(&buf))
-
-	_, err := Load(&buf)
-	require.ErrorContains(t, err, "schema version")
 }
 
 func TestProfileValidate(t *testing.T) {
@@ -76,6 +77,7 @@ func TestProfileValidate(t *testing.T) {
 			mutate:  func(p *BlockProfile) { p.TraceIDs.Mode = TraceIDModeAll },
 			wantErr: "present IDs are embedded",
 		},
+		{"invalid attributes", func(p *BlockProfile) { p.Attributes.Spans = 0 }, "invalid attributes"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := validProfile()
@@ -83,6 +85,10 @@ func TestProfileValidate(t *testing.T) {
 			require.ErrorContains(t, p.Validate(), tc.wantErr)
 		})
 	}
+
+	withoutAttributes := validProfile()
+	withoutAttributes.Attributes = nil
+	require.NoError(t, withoutAttributes.Validate())
 
 	require.NoError(t, validProfile().Validate())
 }

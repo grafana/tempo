@@ -507,10 +507,10 @@ tempo-cli view schema -c ./tempo.yaml single-tenant ca314fba-efec-4852-ba3f-8d2b
 ## Benchmark profile
 
 Profile a local block for read-path benchmarking. Writes a JSON file recording
-what had to be measured from the block — its metadata, its row-group count, and
-present and absent trace IDs to look up — so that a benchmark run does not have
-to inspect the block, and every variant of an experiment works from the same
-measurements.
+what had to be measured from the block — its metadata, its row-group count,
+present and absent trace IDs to look up, and its attributes ranked by size — so
+that a benchmark run does not have to inspect the block, and every variant of an
+experiment works from the same measurements.
 
 ```bash
 tempo-cli benchmark profile <block-path>
@@ -527,10 +527,16 @@ Options:
   every ID at run time rather than embedding them. Defaults to `10000`. One
   absent ID is derived per present ID. Pass `0` to skip trace IDs, and with them
   the full scan they require.
+- `--attributes` Number of attributes to profile in each scope (resource, span)
+  and kind of value (string, numeric, boolean), ranked by total bytes as
+  `analyse block` counts them: a resource attribute once per resource, a span
+  attribute once per span. The `name`, `status`, `kind` and `duration`
+  intrinsics are always included. Each records its cardinality, the
+  share of spans carrying it, and the share carrying each of its 100 most
+  frequent values, or, for a numeric attribute with more than 100 distinct
+  values, quantiles of its values. Defaults to `100`. Pass `0` to skip the full
+  scan it requires. Supported for vParquet5 blocks.
 - `-o`, `--out` File to write the profile to. Defaults to stdout.
-
-Profiles built from a customer block embed real trace IDs. Treat them as local
-artifacts.
 
 Example:
 
