@@ -33,11 +33,11 @@ var _ PipelineResponse = (*SearchJobResponse)(nil)
 var _ GRPCCombiner[*tempopb.SearchResponse] = (*genericCombiner[*tempopb.SearchResponse])(nil)
 
 // NewSearch returns a search combiner
-func NewSearch(limit int, keepMostRecent bool, marshalingFormat api.MarshallingFormat, padTraceIDs bool) Combiner {
+func NewSearch(limit int, keepMostRecent bool, marshalingFormat api.MarshallingFormat, padTraceIDs bool, opts ...Option) Combiner {
 	metadataCombiner := traceql.NewMetadataCombiner(limit, keepMostRecent)
 	diffTraces := map[string]struct{}{}
 	completedThroughTracker := &shardtracker.CompletionTracker{}
-	metricsCombiner := NewSearchMetricsCombiner()
+	metricsCombiner := NewSearchMetricsCombiner(opts...)
 
 	c := &genericCombiner[*tempopb.SearchResponse]{
 		httpStatusCode: 200,
@@ -146,8 +146,8 @@ func addRootSpanNotReceivedText(results []*tempopb.TraceSearchMetadata) {
 	}
 }
 
-func NewTypedSearch(limit int, keepMostRecent bool, marshalingFormat api.MarshallingFormat, padTraceIDs bool) GRPCCombiner[*tempopb.SearchResponse] {
-	return NewSearch(limit, keepMostRecent, marshalingFormat, padTraceIDs).(GRPCCombiner[*tempopb.SearchResponse])
+func NewTypedSearch(limit int, keepMostRecent bool, marshalingFormat api.MarshallingFormat, padTraceIDs bool, opts ...Option) GRPCCombiner[*tempopb.SearchResponse] {
+	return NewSearch(limit, keepMostRecent, marshalingFormat, padTraceIDs, opts...).(GRPCCombiner[*tempopb.SearchResponse])
 }
 
 // padTraceIDsInResponse left-pads all trace IDs in the given search metadata to 32 hex characters.

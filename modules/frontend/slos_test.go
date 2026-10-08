@@ -136,9 +136,8 @@ func TestSLOHook(t *testing.T) {
 			allCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "all"}, []string{metricLabelTenant, metricLabelResult})
 			sloCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "slo"}, []string{metricLabelTenant, metricLabelResult})
 			throughputVec := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "throughput"}, []string{metricLabelTenant})
-			inspectedBytesVec := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "inspected_bytes"}, []string{metricLabelTenant})
 
-			hook := sloHook(allCounter, sloCounter, throughputVec, inspectedBytesVec, tc.cfg)
+			hook := sloHook(allCounter, sloCounter, throughputVec, tc.cfg)
 
 			resp := &http.Response{
 				StatusCode: tc.httpStatusCode,
@@ -167,9 +166,8 @@ func TestBadRequest(t *testing.T) {
 	allCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "all"}, []string{metricLabelTenant, metricLabelResult})
 	sloCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "slo"}, []string{metricLabelTenant, metricLabelResult})
 	throughputVec := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "throughput"}, []string{metricLabelTenant})
-	inspectedBytesVec := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "inspected_bytes"}, []string{metricLabelTenant})
 
-	hook := sloHook(allCounter, sloCounter, throughputVec, inspectedBytesVec, SLOConfig{
+	hook := sloHook(allCounter, sloCounter, throughputVec, SLOConfig{
 		DurationSLO:        10 * time.Second,
 		ThroughputBytesSLO: 100,
 	})
@@ -363,10 +361,9 @@ func TestCanceledRequest(t *testing.T) {
 			allCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "all"}, []string{metricLabelTenant, metricLabelResult})
 			sloCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "slo"}, []string{metricLabelTenant, metricLabelResult})
 			throughputVec := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "throughput"}, []string{metricLabelTenant})
-			inspectedBytesVec := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "inspected_bytes"}, []string{metricLabelTenant})
 
 			// anything over 10s is considered outside SLO
-			hook := sloHook(allCounter, sloCounter, throughputVec, inspectedBytesVec, SLOConfig{
+			hook := sloHook(allCounter, sloCounter, throughputVec, SLOConfig{
 				DurationSLO:        10 * time.Second,
 				ThroughputBytesSLO: 100,
 			})
