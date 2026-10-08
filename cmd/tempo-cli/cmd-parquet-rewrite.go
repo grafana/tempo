@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,11 +26,25 @@ import (
 // parquetRewrite is a command that rewrites a parquet block on disk using the latest code for that encoding, and optionally
 // a new set of dedicated columns.  This command is useful to test changes of things like encoding, compression, or different
 // dedicated columns, or other code changes.
+//
+// Block parameters that are not passed on the command line are inherited from the input
+// block, so that a rewrite without arguments reproduces the original block as closely
+// as possible.
 type parquetRewrite struct {
 	In               string   `arg:"" help:"The input parquet block to read from."`
 	Out              string   `arg:"" help:"The output folder to write block to." default:"./out" optional:""`
 	DedicatedColumns []string `arg:"" help:"List of dedicated columns to convert. Overwrites existing dedicated columns" optional:""`
+
+	// Optional parameters. The row group size falls back to the Tempo default (100MB)
+	// with a warning; the bloom filter parameters are inherited from the input block.
+	RowGroupSizeBytes   int     `help:"Target row group size in bytes. Unset uses the 100MB Tempo default." optional:""`
+	BloomFP             float64 `help:"Bloom filter false positive rate. Unset inherits the input block's rate." optional:""`
+	BloomShardSizeBytes int     `help:"Bloom filter shard size in bytes. Unset inherits the input block's shard size." optional:""`
 }
+
+// defaultRowGroupSizeBytes is the row group size used when --row-group-size-bytes is not
+// passed. It matches the ~100MB default used across Tempo (common.BlockConfig).
+const defaultRowGroupSizeBytes = 100 * 1024 * 1024
 
 func (cmd *parquetRewrite) Run() error {
 	cmd.In = getPathToBlockDir(cmd.In)
@@ -62,11 +78,9 @@ func (cmd *parquetRewrite) Run() error {
 		return err
 	}
 
-	blockCfg := &common.BlockConfig{
-		BloomFP:             common.DefaultBloomFP,
-		BloomShardSizeBytes: common.DefaultBloomShardSizeBytes,
-		Version:             enc.Version(),
-		RowGroupSizeBytes:   100 * 1024 * 1024,
+	blockCfg, err := cmd.blockConfig(enc.Version(), meta)
+	if err != nil {
+		return err
 	}
 
 	newMeta := *meta
@@ -83,6 +97,91 @@ func (cmd *parquetRewrite) Run() error {
 
 	fmt.Printf("Successfully created block with size=%d and footerSize=%d\n", outMeta.Size_, outMeta.FooterSize)
 	return nil
+}
+
+// blockConfig assembles the common.BlockConfig used to create the new block.
+func (cmd *parquetRewrite) blockConfig(version string, meta *backend.BlockMeta) (*common.BlockConfig, error) {
+	cfg := &common.BlockConfig{
+		BloomFP:             cmd.BloomFP,
+		BloomShardSizeBytes: cmd.BloomShardSizeBytes,
+		Version:             version,
+		RowGroupSizeBytes:   cmd.RowGroupSizeBytes,
+	}
+
+	if cfg.RowGroupSizeBytes == 0 {
+		cfg.RowGroupSizeBytes = defaultRowGroupSizeBytes
+		fmt.Printf("Warning: no row group size specified, using the %dMB default. Pass --row-group-size-bytes to set an explicit row group size.\n", defaultRowGroupSizeBytes/(1024*1024))
+	}
+
+	if cfg.BloomFP == 0 || cfg.BloomShardSizeBytes == 0 {
+		fp, shardSizeBytes, err := inheritedBloomParams(cmd.In, meta)
+		if err != nil {
+			return nil, fmt.Errorf("inheriting bloom filter parameters, pass --bloom-fp and --bloom-shard-size-bytes to override: %w", err)
+		}
+		if cfg.BloomFP == 0 {
+			cfg.BloomFP = fp
+			fmt.Printf("Inheriting bloom filter false positive rate %v from the input block\n", cfg.BloomFP)
+		}
+		if cfg.BloomShardSizeBytes == 0 {
+			cfg.BloomShardSizeBytes = shardSizeBytes
+			fmt.Printf("Inheriting bloom filter shard size %d bytes from the input block\n", cfg.BloomShardSizeBytes)
+		}
+	}
+
+	if cfg.RowGroupSizeBytes <= 0 {
+		return nil, fmt.Errorf("row group size must be positive, got %d", cfg.RowGroupSizeBytes)
+	}
+	if err := common.ValidateConfig(cfg); err != nil {
+		return nil, fmt.Errorf("validating block config: %w", err)
+	}
+
+	return cfg, nil
+}
+
+// inheritedBloomParams recovers the bloom filter false positive rate and shard size from an existing block directory.
+func inheritedBloomParams(blockPath string, meta *backend.BlockMeta) (fp float64, shardSizeBytes int, err error) {
+	f, err := os.Open(filepath.Join(blockPath, common.BloomName(0)))
+	if err != nil {
+		return 0, 0, fmt.Errorf("opening bloom shard: %w", err)
+	}
+	defer f.Close()
+
+	var header [16]byte
+	if _, err = io.ReadFull(f, header[:]); err != nil {
+		return 0, 0, fmt.Errorf("reading bloom shard header: %w", err)
+	}
+
+	m := binary.BigEndian.Uint64(header[0:8])
+	k := binary.BigEndian.Uint64(header[8:16])
+	if m == 0 || m%8 != 0 || k == 0 {
+		return 0, 0, fmt.Errorf("invalid bloom shard header: m=%d k=%d", m, k)
+	}
+
+	return reconstructBloomFP(uint64(meta.TotalObjects), m, uint64(meta.BloomShardCount), k), int(m / 8), nil
+}
+
+const bloomMaxShardCount = 1000 // mirrors common.maxShardCount
+
+// reconstructBloomFP inverts the vendored bloom.EstimateParameters, which is
+//
+//	m = ceil(-1 * n * ln(p) / ln(2)^2)
+//	k = ceil(ln(2) * m / n)
+//
+// returning a rate that reproduces an existing block's bloom filters:
+// same shard size, same hash count k, same shard count.
+func reconstructBloomFP(n, shardBits, shardCount, k uint64) float64 {
+	if n == 0 || k == 0 || shardBits == 0 {
+		// Cannot invert; fall back to a rate that at least matches the hash count.
+		return math.Pow(2, -float64(k))
+	}
+
+	m := float64(uint64(float64(n) * float64(k) / math.Ln2)) // <= k*n/ln(2)
+	if shardCount > 0 && shardCount < bloomMaxShardCount {
+		m = math.Min(m, float64(shardCount*shardBits))
+	}
+
+	// Inverse of m = ceil(-1 * n * ln(p) / ln(2)^2).
+	return math.Exp(-math.Ln2 * math.Ln2 * (m - 0.5) / float64(n))
 }
 
 func parseDedicatedColumns(fromCLI []string, fromMeta backend.DedicatedColumns) (backend.DedicatedColumns, error) {
