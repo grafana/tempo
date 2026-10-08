@@ -253,6 +253,7 @@ func (m *mockTraceByIDStore) Find(_ context.Context, tenantID string, req *tempo
 func TestFindTraceByIDUsesFrontendBlocks(t *testing.T) {
 	tests := []struct {
 		name            string
+		queryMode       string
 		pollingDisabled bool
 		blocks          *tempopb.TraceByIDBlocks
 		expectErr       error
@@ -263,6 +264,13 @@ func TestFindTraceByIDUsesFrontendBlocks(t *testing.T) {
 		},
 		{
 			name:            "no blocks without polling is rejected",
+			pollingDisabled: true,
+			blocks:          nil,
+			expectErr:       ErrTraceByIDBlocksRequired,
+		},
+		{
+			name:            "no blocks without polling is rejected before querying live-stores",
+			queryMode:       QueryModeAll,
 			pollingDisabled: true,
 			blocks:          nil,
 			expectErr:       ErrTraceByIDBlocksRequired,
@@ -292,9 +300,14 @@ func TestFindTraceByIDUsesFrontendBlocks(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := user.InjectOrgID(context.Background(), "blerg")
+			queryMode := QueryModeBlocks
+			if tc.queryMode != "" {
+				queryMode = tc.queryMode
+			}
+			// no partition ring is configured, so reaching the live-stores fails with a different error
 			_, err = q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 				TraceID:   test.ValidTraceID(nil),
-				QueryMode: QueryModeBlocks,
+				QueryMode: queryMode,
 				Blocks:    tc.blocks,
 			})
 			if tc.expectErr != nil {
