@@ -1,6 +1,6 @@
 change_type: change
 component: querier
-note: Pass the blocks to search with each trace by ID query and deprecate querier blocklist polling.
+note: Move trace by ID block selection from queriers to the query-frontend and deprecate querier blocklist polling.
 issues: []
 subtext: |
   Upgrade Note: Upgrade query-frontends and queriers to this version, then set `querier.blocklist_polling: false` on queriers. Older versions don't support `blocklist_polling` config and they will fail to start.

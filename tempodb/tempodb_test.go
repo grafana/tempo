@@ -242,9 +242,6 @@ func TestFindWithBlocks(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, failedBlocks)
 	require.Empty(t, bFound)
-
-	future := time.Now().Add(100 * time.Hour)
-	require.Empty(t, r.TraceByIDBlockMetas(ctx, testTenantID, future, future.Add(time.Hour)))
 }
 
 // TestFindWithBlocksFromStaleView covers a frontend blocklist view that compaction has since changed.
@@ -318,7 +315,8 @@ func TestFindWithBlocksFromStaleView(t *testing.T) {
 		require.NoError(t, rw.c.ClearBlock(uuid.UUID(m.BlockID), testTenantID))
 	}
 	_, failedBlocks, err = find(staleView)
-	require.True(t, err != nil || len(failedBlocks) > 0, "expected an error for deleted blocks")
+	require.NoError(t, err)
+	require.Len(t, failedBlocks, 2)
 }
 
 func countSpans(tr *tempopb.Trace) int {
@@ -365,6 +363,10 @@ func TestTraceByIDBlockMetas(t *testing.T) {
 		attribute.Int("compactedBlocks", 2),
 		attribute.Int("compactedBlocksSearched", 1),
 	}, recorder.Ended()[0].Attributes())
+
+	// blocks have zero start and end times, so a later range excludes them all
+	future := time.Now().Add(100 * time.Hour)
+	require.Empty(t, r.TraceByIDBlockMetas(context.Background(), testTenantID, future, future.Add(time.Hour)))
 }
 
 func TestBlockCleanup(t *testing.T) {
