@@ -30,18 +30,23 @@ func TestKafkaConfig_AddressList(t *testing.T) {
 			expectedBrokers: []string{"legacy:9092"},
 		},
 		{
+			name:            "single address in AddressList",
+			yaml:            "address_list: broker-one:9092",
+			expectedBrokers: []string{"broker-one:9092"},
+		},
+		{
 			name:            "AddressList overrides legacy address",
-			yaml:            "address: ignored:invalid\naddress_list: [broker-one:9092, broker-two:9093]",
+			yaml:            "address: ignored:invalid\naddress_list: 'broker-one:9092, broker-two:9093'",
 			expectedBrokers: []string{"broker-one:9092", "broker-two:9093"},
 		},
 		{
 			name:            "AddressList overrides empty legacy address",
-			yaml:            "address: ''\naddress_list: [broker-one:9092, broker-two:9093]",
+			yaml:            "address: ''\naddress_list: 'broker-one:9092, broker-two:9093'",
 			expectedBrokers: []string{"broker-one:9092", "broker-two:9093"},
 		},
 		{
 			name:            "empty AddressList falls back to legacy address",
-			yaml:            "address: legacy:9092\naddress_list: []",
+			yaml:            "address: legacy:9092\naddress_list: ''",
 			expectedBrokers: []string{"legacy:9092"},
 		},
 		{
@@ -50,13 +55,25 @@ func TestKafkaConfig_AddressList(t *testing.T) {
 			expectedBrokers: []string{"broker-one:9092", "broker-two:9093"},
 		},
 		{
-			name:            "repeated flags",
+			name:            "last AddressList flag wins",
 			flags:           []string{"-ingest.address-list=broker-one:9092", "-ingest.address-list=broker-two:9093"},
+			expectedBrokers: []string{"broker-two:9093"},
+		},
+		{
+			name:            "AddressList flag overrides YAML",
+			yaml:            "address_list: ignored:9092",
+			flags:           []string{"-ingest.address-list=broker-one:9092, broker-two:9093"},
 			expectedBrokers: []string{"broker-one:9092", "broker-two:9093"},
 		},
 		{
-			name:            "whitespace around YAML list entries",
-			yaml:            "address_list: [' broker-one:9092 ', ' broker-two:9093 ']",
+			name:            "empty AddressList flag falls back to legacy address",
+			yaml:            "address: legacy:9092\naddress_list: broker-one:9092",
+			flags:           []string{"-ingest.address-list="},
+			expectedBrokers: []string{"legacy:9092"},
+		},
+		{
+			name:            "whitespace around CSV addresses",
+			yaml:            "address_list: ' broker-one:9092 , broker-two:9093 '",
 			expectedBrokers: []string{"broker-one:9092", "broker-two:9093"},
 		},
 	}
@@ -82,6 +99,11 @@ func TestKafkaConfig_AddressList(t *testing.T) {
 	}
 }
 
+func TestKafkaConfig_AddressListRejectsYAMLList(t *testing.T) {
+	var cfg KafkaConfig
+	require.Error(t, yaml.UnmarshalStrict([]byte("address_list: [broker-one:9092, broker-two:9093]"), &cfg))
+}
+
 func TestKafkaConfig_AddressListFlag_SplitsCSV(t *testing.T) {
 	var cfg KafkaConfig
 	f := flag.NewFlagSet("test", flag.ContinueOnError)
@@ -105,9 +127,9 @@ func TestKafkaConfig_Validate_AddressList(t *testing.T) {
 		flags []string
 	}{
 		{name: "missing brokers", yaml: "address: ''"},
-		{name: "empty list without address", yaml: "address: ''\naddress_list: []"},
-		{name: "empty broker", yaml: "address_list: ['']"},
-		{name: "whitespace broker", yaml: "address_list: ['  ']"},
+		{name: "empty AddressList without legacy address", yaml: "address: ''\naddress_list: ''"},
+		{name: "empty YAML CSV entry", yaml: "address_list: 'broker-one:9092,'"},
+		{name: "whitespace broker", yaml: "address_list: '  '"},
 		{name: "empty CSV flag entry", flags: []string{"-ingest.address-list=broker-one:9092,"}},
 	}
 	for _, tt := range tests {

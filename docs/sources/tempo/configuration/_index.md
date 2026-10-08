@@ -452,9 +452,10 @@ ingest:
         # Used when address_list is empty.
         [address: <string> | default = "localhost:9092"]
 
-        # List of Kafka seed broker addresses in host:port format.
+        # Comma-separated list of Kafka seed broker addresses in host:port format.
+        # Whitespace around each address is trimmed.
         # When non-empty, this list takes precedence over address.
-        [address_list: <list of string> | default = []]
+        [address_list: <string> | default = ""]
 
         # The Kafka topic name.
         [topic: <string>]
