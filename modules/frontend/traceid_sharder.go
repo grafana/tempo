@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"math"
 	"net/http"
-	"runtime"
 	"slices"
 	"sort"
 	"time"
@@ -21,7 +20,6 @@ import (
 	"github.com/grafana/tempo/v3/tempodb"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -159,6 +157,12 @@ func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request, traceB
 	startTime, endTime := traceByIDReq.TimeRange()
 	blockBoundaries := s.blockBoundariesForTenant(userID, startTime, endTime)
 
+	// sorted by block id so each shard's blocks are one contiguous range
+	blocks := s.reader.TraceByIDBlockMetas(userID, startTime, endTime)
+	slices.SortFunc(blocks, func(a, b *backend.BlockMeta) int {
+		return bytes.Compare(a.BlockID[:], b.BlockID[:])
+	})
+
 	reqs := make([]pipeline.Request, 0, len(blockBoundaries))
 
 	// Job 0: ingester job
@@ -191,61 +195,30 @@ func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request, traceB
 	// When external is enabled, we have N-2 block shards
 	// When external is disabled, we have N-1 block shards
 	// blockBoundaries has length equal to numBlockShards+1, and we create shards between adjacent boundaries
-	blockReqs, err := s.buildBlockRequests(parent, userID, traceByIDReq, blockBoundaries)
-	if err != nil {
-		return nil, err
-	}
+	for i := 1; i < len(blockBoundaries); i++ {
+		// queriers search exactly these blocks, so they don't need to poll the blocklist
+		shardBlocks, err := backend.TraceByIDBlocksFromMetas(blocksInRange(blocks, blockBoundaries[i-1], blockBoundaries[i]))
+		if err != nil {
+			return nil, err
+		}
 
-	return append(reqs, blockReqs...), nil
-}
-
-// buildBlockRequests returns a job per shard between adjacent boundaries with the shard's blocks.
-// It runs in parallel because encoding the blocks is most of the cost of building trace by id jobs for large tenants.
-func (s *asyncTraceSharder) buildBlockRequests(parent pipeline.Request, userID string, traceByIDReq *tempopb.TraceByIDRequest, blockBoundaries [][]byte) ([]pipeline.Request, error) {
-	numShards := len(blockBoundaries) - 1
-	if numShards <= 0 {
-		return nil, nil
-	}
-
-	// sorted by block id so each shard's blocks are one contiguous range
-	startTime, endTime := traceByIDReq.TimeRange()
-	blocks := s.reader.TraceByIDBlockMetas(userID, startTime, endTime)
-	slices.SortFunc(blocks, func(a, b *backend.BlockMeta) int {
-		return bytes.Compare(a.BlockID[:], b.BlockID[:])
-	})
-
-	reqs := make([]pipeline.Request, numShards)
-	workers := min(runtime.GOMAXPROCS(0), numShards)
-
-	var g errgroup.Group
-	for w := range workers {
-		g.Go(func() error {
-			for i := w; i < numShards; i += workers {
-				// queriers search exactly these blocks, so they don't need to poll the blocklist
-				shardBlocks, err := backend.TraceByIDBlocksFromMetas(blocksInRange(blocks, blockBoundaries[i], blockBoundaries[i+1]))
-				if err != nil {
-					return err
-				}
-
-				reqs[i], err = cloneRequestforQueriers(parent, userID, func(r *http.Request) (*http.Request, error) {
-					return api.BuildTraceByIDRequest(r, &tempopb.TraceByIDRequest{
-						QueryMode:  querier.QueryModeBlocks,
-						BlockStart: hex.EncodeToString(blockBoundaries[i]),
-						BlockEnd:   hex.EncodeToString(blockBoundaries[i+1]),
-						Start:      traceByIDReq.Start,
-						End:        traceByIDReq.End,
-						Blocks:     shardBlocks,
-					})
-				})
-				if err != nil {
-					return err
-				}
-			}
-			return nil
+		req, err = cloneRequestforQueriers(parent, userID, func(r *http.Request) (*http.Request, error) {
+			return api.BuildTraceByIDRequest(r, &tempopb.TraceByIDRequest{
+				QueryMode:  querier.QueryModeBlocks,
+				BlockStart: hex.EncodeToString(blockBoundaries[i-1]),
+				BlockEnd:   hex.EncodeToString(blockBoundaries[i]),
+				Start:      traceByIDReq.Start,
+				End:        traceByIDReq.End,
+				Blocks:     shardBlocks,
+			})
 		})
+		if err != nil {
+			return nil, err
+		}
+		reqs = append(reqs, req)
 	}
 
-	return reqs, g.Wait()
+	return reqs, nil
 }
 
 // blocksInRange returns the blocks with start <= id <= end, matching the querier's shard check. blocks must be sorted by id.
