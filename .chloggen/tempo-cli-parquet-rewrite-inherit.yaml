@@ -1,0 +1,10 @@
+change_type: enhancement
+component: tempo-cli
+note: Allow `parquet rewrite` to override the row group size and bloom filter parameters, and inherit all block parameters from the input block by default.
+issues: []
+subtext: |
+  `parquet rewrite` now accepts `--row-group-size-bytes`, `--bloom-fp` and `--bloom-shard-size-bytes`.
+  When not set, the values are inherited from the input block instead of using defaults,
+  so a plain rewrite reproduces the original block.
+  The vParquet3/vParquet4 block iterators used by the conversion commands no longer drop the final trace.
+user: mapno
