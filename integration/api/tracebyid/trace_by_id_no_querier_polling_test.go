@@ -81,7 +81,7 @@ func TestTraceByIDWithoutQuerierPolling(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, float64(0), polls[0])
 
-		// an older query-frontend sends no blocks, which must fail instead of finding nothing
+		// mode=blocks without blocks simulates an old query-frontend, which must fail on a querier with polling disabled
 		resp, err := http.Get("http://" + querier.HTTPEndpoint() + "/querier/api/traces/" + infos[0].HexID() + "?mode=blocks")
 		require.NoError(t, err)
 		defer resp.Body.Close()
