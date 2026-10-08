@@ -1198,7 +1198,7 @@ query_frontend:
         [concurrent_jobs: <int> | default = 1000 ]
 
         # The target number of bytes for each job to handle when querying the backend.
-        [target_bytes_per_job: <int> | default = 100MiB ]
+        [target_bytes_per_job: <int> | default = 600MiB ]
 
         # The maximum allowed time range for a metrics query.
         # 0 disables this limit.

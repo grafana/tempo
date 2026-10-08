@@ -87,6 +87,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 
 	c.BlockConfig.RegisterFlagsAndApplyDefaults(prefix+".block", f)
 	c.WAL.RegisterFlags(f)
+	c.WAL.IngestionSlack = 2 * time.Hour
 	f.StringVar(&c.WAL.Filepath, prefix+".wal.path", "/var/tempo/block-builder/traces", "Path at which store WAL blocks.")
 }
 

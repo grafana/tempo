@@ -651,7 +651,7 @@ func TestBlockBuilder_honor_maxBytesPerCycle(t *testing.T) {
 }
 
 func TestBlockbuilder_usesRecordTimestampForBlockStartAndEnd(t *testing.T) {
-	// default ingestion slack is 2 minutes. create some convenient times to help the test below
+	// ingestion slack is set to 2 minutes below. create some convenient times to help the test below
 	now := time.Unix(1000000, 0)
 	oneMinuteAgo := now.Add(-time.Minute)
 	oneMinuteLater := now.Add(time.Minute)
@@ -687,7 +687,7 @@ func TestBlockbuilder_usesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 			startTime:     threeMinutesAgo,
 			endTime:       now,
 			recordTime:    now,
-			expectedStart: twoMinutesAgo, // default ingestion slack is 2 minutes
+			expectedStart: twoMinutesAgo, // ingestion slack is 2 minutes
 			expectedEnd:   now,
 		},
 	}
@@ -707,6 +707,7 @@ func TestBlockbuilder_usesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 
 			store := newStore(ctx, t)
 			cfg := blockbuilderConfig(t, address, []int32{0})
+			cfg.WAL.IngestionSlack = 2 * time.Minute
 
 			client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
 

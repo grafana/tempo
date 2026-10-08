@@ -130,7 +130,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 			MaxDuration:           24 * time.Hour,
 			QueryBackendAfter:     15 * time.Minute,
 			ConcurrentRequests:    defaultConcurrentRequests,
-			TargetBytesPerRequest: defaultTargetBytesPerRequest,
+			TargetBytesPerRequest: defaultMetricsTargetBytesPerRequest,
 			Interval:              5 * time.Minute,
 			MaxExemplars:          100,
 			MaxResponseSeries:     0,
