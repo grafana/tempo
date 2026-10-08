@@ -202,6 +202,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		return nil, errors.New("invalid trace id")
 	}
 
+	// TODO: remove with querier blocklist polling, then always require blocks for blocks and all modes
 	if req.Blocks == nil && !q.cfg.BlocklistPolling && (req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll) {
 		return nil, ErrTraceByIDBlocksRequired
 	}
