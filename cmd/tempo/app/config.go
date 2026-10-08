@@ -250,6 +250,7 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		}
 	}
 
+	// TODO: remove with querier blocklist polling
 	if c.Target == Querier && c.Querier.BlocklistPolling {
 		warnings = append(warnings, warnQuerierBlocklistPolling)
 	}
@@ -310,6 +311,7 @@ var (
 		Explain: "This setting is no longer necessary and will be ignored.",
 	}
 
+	// TODO: remove with querier blocklist polling
 	warnQuerierBlocklistPolling = ConfigWarning{
 		Message: "Querier blocklist polling is deprecated and will be removed in a future release.",
 		Explain: "Once all query-frontends run this version, set querier.blocklist_polling: false. Queriers then search only the blocks the query-frontend sends.",

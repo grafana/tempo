@@ -131,6 +131,7 @@ func (s *asyncTraceSharder) blockBoundariesForTenant(tenantID string, startTime,
 
 	// Always ensure at least one job is created.
 	// Older queriers ignore the blocks and search their own blocklist, so they still need a block job.
+	// TODO: remove with querier blocklist polling, then zero blocks can mean zero block jobs
 	if numBlockShards < 1 {
 		numBlockShards = 1
 	}
