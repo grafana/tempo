@@ -14,7 +14,10 @@ import (
 	"github.com/grafana/tempo/v3/pkg/benchmark/internal/benchtest"
 	"github.com/grafana/tempo/v3/pkg/benchmark/metrics"
 	"github.com/grafana/tempo/v3/pkg/benchmark/profile"
+	"github.com/grafana/tempo/v3/pkg/traceql"
 	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
 
 func blockPath(bucket string, meta *backend.BlockMeta) string {
@@ -124,6 +127,39 @@ func TestRun(t *testing.T) {
 
 	// A scope with no attributes still costs a read, which is worth measuring.
 	require.Positive(t, byID["metadata/tagnames/instrumentation"].Metrics[metrics.PrefixResponse+"inspectedBytes"].Total)
+}
+
+// A block reports a tag name once per row group that has it, so the count
+// must be of distinct names or it would grow with the number of row groups.
+func TestTagNamesCountDistinctNames(t *testing.T) {
+	ctx := context.Background()
+	meta, r, bucket := benchtest.Block(t, 300)
+
+	rowGroups, err := benchtest.RowGroupCount(ctx, meta, r)
+	require.NoError(t, err)
+	require.Greater(t, rowGroups, 1)
+
+	_, raw, err := openLocalBlock(ctx, blockPath(bucket, meta))
+	require.NoError(t, err)
+	block, err := encoding.OpenBlock(meta, backend.NewReader(raw))
+	require.NoError(t, err)
+
+	var calls int
+	distinct := map[string]struct{}{}
+	require.NoError(t, block.SearchTags(ctx, traceql.AttributeScopeNone,
+		func(name string, scope traceql.AttributeScope) {
+			calls++
+			distinct[scope.String()+"."+name] = struct{}{}
+		},
+		func(uint64) {},
+		common.DefaultSearchOptions(),
+	))
+	require.Greater(t, calls, len(distinct), "fixture should repeat names across row groups")
+
+	executions := tagNamesExecutions(traceql.AttributeScopeNone, []Shard{{Index: 0, StartPage: 0, TotalPages: rowGroups}}, common.DefaultSearchOptions())
+	out, err := executions[0](ctx, block, RunOptions{})
+	require.NoError(t, err)
+	require.Equal(t, int64(len(distinct)), out.matched)
 }
 
 func TestRunRepeatMultipliesExecutions(t *testing.T) {

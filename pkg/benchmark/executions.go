@@ -180,9 +180,12 @@ func tagNamesExecutions(scope traceql.AttributeScope, shards []Shard, baseOpts c
 		readOpts := shardOptions(baseOpts, shard)
 
 		executions = append(executions, func(ctx context.Context, block common.BackendBlock, _ RunOptions) (execOutput, error) {
-			var names, bytesRead int64
+			// The block reports a name once per row group that has it, and the
+			// frontend de-duplicates them, so count distinct scope and name pairs.
+			names := make(map[string]struct{})
+			var bytesRead int64
 			err := block.SearchTags(ctx, scope,
-				func(string, traceql.AttributeScope) { names++ },
+				func(name string, s traceql.AttributeScope) { names[s.String()+"."+name] = struct{}{} },
 				func(b uint64) { bytesRead += int64(b) },
 				readOpts,
 			)
@@ -190,7 +193,7 @@ func tagNamesExecutions(scope traceql.AttributeScope, shards []Shard, baseOpts c
 				return execOutput{}, err
 			}
 
-			out := execOutput{matched: names}
+			out := execOutput{matched: int64(len(names))}
 			if out.metrics, err = metrics.BytesRead(bytesRead); err != nil {
 				return execOutput{}, err
 			}
