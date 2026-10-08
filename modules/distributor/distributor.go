@@ -124,7 +124,7 @@ var (
 		Namespace:                       "tempo",
 		Name:                            "distributor_trace_size_bytes",
 		Help:                            "The size in bytes of each trace received, per tenant",
-		Buckets:                         prometheus.ExponentialBuckets(1024, 2, 16), // 1KiB to 32MiB
+		Buckets:                         prometheus.ExponentialBuckets(1024, 2, 31), // 1KiB to 1TiB, traces can be very large
 		NativeHistogramBucketFactor:     1.1,
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
