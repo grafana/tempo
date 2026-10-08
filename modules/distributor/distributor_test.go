@@ -1226,17 +1226,18 @@ func TestProcessAttributesRecordsSizeMetric(t *testing.T) {
 	t.Cleanup(metricAttributeSizeBytes.Reset)
 
 	attributes := []*v1_common.KeyValue{
-		test.MakeAttribute("key", strings.Repeat("v", 5000)),   // oversized value
-		test.MakeAttribute(strings.Repeat("k", 6000), "short"), // oversized key
+		test.MakeAttribute("key", strings.Repeat("v", 5000)),   // in-limit key, oversized value
+		test.MakeAttribute(strings.Repeat("k", 6000), "short"), // oversized key, in-limit value
 	}
 	count := processAttributes(attributes, 2048, nil, "span", "test")
 	require.Equal(t, 2, count)
 
-	// The histogram records the original (pre-truncation) size of each truncated key/value.
+	// Every attribute key and string value is measured, whether or not it is truncated.
+	// Observed: key "key"=3, value 5000, key 6000, value "short"=5.
 	m := &dto.Metric{}
 	require.NoError(t, metricAttributeSizeBytes.WithLabelValues("test", "span").(prometheus.Histogram).Write(m))
-	require.Equal(t, uint64(2), m.Histogram.GetSampleCount())
-	require.Equal(t, float64(11000), m.Histogram.GetSampleSum())
+	require.Equal(t, uint64(4), m.Histogram.GetSampleCount())
+	require.Equal(t, float64(11008), m.Histogram.GetSampleSum())
 }
 
 func BenchmarkTestsByRequestID(b *testing.B) {

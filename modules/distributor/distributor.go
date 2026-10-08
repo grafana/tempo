@@ -869,9 +869,11 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 func processAttributes(attributes []*v1_common.KeyValue, maxAttrSize int, truncationExample *truncatedAttrInfo, scope, tenant string) int {
 	count := 0
 	for _, attr := range attributes {
+		// Measure every attribute key, regardless of whether it gets truncated.
+		metricAttributeSizeBytes.WithLabelValues(tenant, scope).Observe(float64(len(attr.Key)))
+
 		if len(attr.Key) > maxAttrSize {
 			origSize := len(attr.Key)
-			metricAttributeSizeBytes.WithLabelValues(tenant, scope).Observe(float64(origSize))
 			attr.Key = attr.Key[:maxAttrSize]
 			if truncationExample != nil && truncationExample.origSize == 0 { // only capture the first truncation
 				// name is the truncated prefix; origSize records the full original length.
@@ -882,9 +884,11 @@ func processAttributes(attributes []*v1_common.KeyValue, maxAttrSize int, trunca
 
 		switch value := attr.GetValue().Value.(type) {
 		case *v1_common.AnyValue_StringValue:
+			// Measure every string value, regardless of whether it gets truncated.
+			metricAttributeSizeBytes.WithLabelValues(tenant, scope).Observe(float64(len(value.StringValue)))
+
 			if len(value.StringValue) > maxAttrSize {
 				origSize := len(value.StringValue)
-				metricAttributeSizeBytes.WithLabelValues(tenant, scope).Observe(float64(origSize))
 				if truncationExample != nil && truncationExample.origSize == 0 { // only capture the first truncation
 					*truncationExample = truncatedAttrInfo{scope: scope, name: attr.Key, field: "value", origSize: origSize}
 				}
