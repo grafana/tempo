@@ -1,0 +1,6 @@
+change_type: enhancement
+component: cache
+note: Refresh Memcached server addresses when dial failures open a circuit breaker, reducing stale routing during rollouts.
+issues: [8063]
+subtext:
+user: ruslan-mikhailov
