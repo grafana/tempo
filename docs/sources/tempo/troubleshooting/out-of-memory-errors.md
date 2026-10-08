@@ -21,6 +21,9 @@ Use the `tempo_distributor_attributes_truncated_total` metric to track how many 
 This metric includes `tenant` and `scope` labels, where `scope` is one of `resource`, `scope`, `span`, `event`, or `link`.
 Use the `scope` label to identify which part of your trace data produces the most oversized attributes.
 
+Use the `tempo_distributor_attribute_size_bytes` histogram to observe the size distribution of truncated attributes.
+It records the original size of each attribute before truncation, labeled by `tenant` and `scope`.
+
 When truncation occurs, the distributor also emits a rate-limited log line (at most one per second) with an example of the truncated attribute, including its scope, name, whether the key or value was truncated, and the original size in bytes.
 
 ```yaml

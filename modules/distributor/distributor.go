@@ -120,10 +120,28 @@ var (
 		Name:      "distributor_received_traces_total",
 		Help:      "The total number of traces received per tenant",
 	}, []string{"tenant"})
+	metricTraceSizeBytes = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace:                       "tempo",
+		Name:                            "distributor_trace_size_bytes",
+		Help:                            "The size in bytes of each trace received, per tenant",
+		Buckets:                         prometheus.ExponentialBuckets(1024, 2, 16), // 1KiB to 32MiB
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
+	}, []string{"tenant"})
 	metricAttributesTruncated = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "distributor_attributes_truncated_total",
 		Help:      "The total number of attribute keys or values truncated per tenant and scope",
+	}, []string{"tenant", "scope"})
+	metricAttributeSizeBytes = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace:                       "tempo",
+		Name:                            "distributor_attribute_size_bytes",
+		Help:                            "The original size in bytes of attribute keys or values truncated, per tenant and scope",
+		Buckets:                         prometheus.ExponentialBuckets(64, 2, 16), // 64B to 4MiB
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
 	}, []string{"tenant", "scope"})
 	metricKafkaRecordsPerRequest = promauto.NewHistogram(prometheus.HistogramOpts{
 		Namespace:                       "tempo",
@@ -594,6 +612,7 @@ func (d *Distributor) pushTracesToLiveStore(ctx context.Context, userID string, 
 		if err != nil {
 			return fmt.Errorf("failed to marshal trace for local live-store push: %w", err)
 		}
+		metricTraceSizeBytes.WithLabelValues(userID).Observe(float64(len(b)))
 		req.Traces[i].Slice = b
 		req.Ids[i] = tr.id
 	}
@@ -645,6 +664,7 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 		if err != nil {
 			return fmt.Errorf("failed to marshal trace: %w", err)
 		}
+		metricTraceSizeBytes.WithLabelValues(userID).Observe(float64(len(b)))
 		marshalledTraces[i] = b
 	}
 
@@ -733,28 +753,28 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 		spansByILS := make(map[uint64]*v1.ScopeSpans)
 		// check resource for large attributes
 		if maxSpanAttrSize > 0 && b.Resource != nil {
-			truncatedCount.Resource += processAttributes(b.Resource.Attributes, maxSpanAttrSize, &truncationExample, "resource")
+			truncatedCount.Resource += processAttributes(b.Resource.Attributes, maxSpanAttrSize, &truncationExample, "resource", userID)
 		}
 
 		for _, ils := range b.ScopeSpans {
 
 			// check instrumentation for large attributes
 			if maxSpanAttrSize > 0 && ils.Scope != nil {
-				truncatedCount.Scope += processAttributes(ils.Scope.Attributes, maxSpanAttrSize, &truncationExample, "scope")
+				truncatedCount.Scope += processAttributes(ils.Scope.Attributes, maxSpanAttrSize, &truncationExample, "scope", userID)
 			}
 
 			for _, span := range ils.Spans {
 				// check spans for large attributes
 				if maxSpanAttrSize > 0 {
-					truncatedCount.Span += processAttributes(span.Attributes, maxSpanAttrSize, &truncationExample, "span")
+					truncatedCount.Span += processAttributes(span.Attributes, maxSpanAttrSize, &truncationExample, "span", userID)
 
 					// check large attributes for events and links
 					for _, event := range span.Events {
-						truncatedCount.Event += processAttributes(event.Attributes, maxSpanAttrSize, &truncationExample, "event")
+						truncatedCount.Event += processAttributes(event.Attributes, maxSpanAttrSize, &truncationExample, "event", userID)
 					}
 
 					for _, link := range span.Links {
-						truncatedCount.Link += processAttributes(link.Attributes, maxSpanAttrSize, &truncationExample, "link")
+						truncatedCount.Link += processAttributes(link.Attributes, maxSpanAttrSize, &truncationExample, "link", userID)
 					}
 				}
 				traceID := span.TraceId
@@ -846,11 +866,12 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 }
 
 // processAttributes finds and truncates attribute keys/values that exceed maxAttrSize.
-func processAttributes(attributes []*v1_common.KeyValue, maxAttrSize int, truncationExample *truncatedAttrInfo, scope string) int {
+func processAttributes(attributes []*v1_common.KeyValue, maxAttrSize int, truncationExample *truncatedAttrInfo, scope, tenant string) int {
 	count := 0
 	for _, attr := range attributes {
 		if len(attr.Key) > maxAttrSize {
 			origSize := len(attr.Key)
+			metricAttributeSizeBytes.WithLabelValues(tenant, scope).Observe(float64(origSize))
 			attr.Key = attr.Key[:maxAttrSize]
 			if truncationExample != nil && truncationExample.origSize == 0 { // only capture the first truncation
 				// name is the truncated prefix; origSize records the full original length.
@@ -862,8 +883,10 @@ func processAttributes(attributes []*v1_common.KeyValue, maxAttrSize int, trunca
 		switch value := attr.GetValue().Value.(type) {
 		case *v1_common.AnyValue_StringValue:
 			if len(value.StringValue) > maxAttrSize {
+				origSize := len(value.StringValue)
+				metricAttributeSizeBytes.WithLabelValues(tenant, scope).Observe(float64(origSize))
 				if truncationExample != nil && truncationExample.origSize == 0 { // only capture the first truncation
-					*truncationExample = truncatedAttrInfo{scope: scope, name: attr.Key, field: "value", origSize: len(value.StringValue)}
+					*truncationExample = truncatedAttrInfo{scope: scope, name: attr.Key, field: "value", origSize: origSize}
 				}
 				value.StringValue = value.StringValue[:maxAttrSize]
 				count++

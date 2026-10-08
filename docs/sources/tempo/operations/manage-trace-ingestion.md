@@ -57,6 +57,9 @@ This limit is enforced asynchronously in live-stores and block-builders.
 Traces that exceed this limit are partially dropped.
 Unusually large traces often indicate a retry loop or misconfigured instrumentation rather than normal application behavior.
 
+Use the `tempo_distributor_trace_size_bytes` histogram to observe the size distribution of every trace received by the distributor, per tenant.
+Unlike the limits above, this histogram records all traces, so you can see how close traces get to the limit before they are dropped.
+
 ### Example configuration
 
 To estimate the rate limit you need, multiply your average span size by your peak spans-per-second across all services for a given tenant.
