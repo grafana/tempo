@@ -2,6 +2,8 @@ package backend
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 
@@ -23,7 +25,7 @@ var (
 	ErrEmptyTenantID = fmt.Errorf("empty tenant id")
 	ErrEmptyBlockID  = fmt.Errorf("empty block id")
 	ErrBadSeedFile   = fmt.Errorf("bad seed file")
-	// ErrCorruptMeta is returned when a block meta exists but cannot be decoded.
+	// ErrCorruptMeta is returned when a block meta was read in full but is not valid JSON.
 	ErrCorruptMeta = fmt.Errorf("corrupt block meta")
 
 	GlobalMaxBlockID = uuid.MustParse("ffffffff-ffff-ffff-ffff-ffffffffffff")
@@ -94,4 +96,14 @@ type Compactor interface {
 	ClearBlock(blockID uuid.UUID, tenantID string) error
 	// CompactedBlockMeta returns the compacted blockmeta given a block and tenant id
 	CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*CompactedBlockMeta, error)
+}
+
+// MetaDecodeError wraps err with ErrCorruptMeta when it shows the meta is not valid JSON.
+// Valid JSON of an unexpected shape may come from a different version, so it is returned as is.
+func MetaDecodeError(err error) error {
+	var syntaxErr *json.SyntaxError
+	if errors.As(err, &syntaxErr) {
+		return fmt.Errorf("%w: %w", ErrCorruptMeta, err)
+	}
+	return err
 }

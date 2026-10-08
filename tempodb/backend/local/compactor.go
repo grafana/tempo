@@ -119,7 +119,7 @@ func (rw *Backend) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*back
 	out := &backend.CompactedBlockMeta{}
 	err = json.Unmarshal(bytes, out)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", backend.ErrCorruptMeta, err)
+		return nil, backend.MetaDecodeError(err)
 	}
 	out.CompactedTime = fi.ModTime()
 
