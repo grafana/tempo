@@ -16,7 +16,6 @@ import (
 
 	"github.com/grafana/tempo/v3/tempodb/backend"
 	"github.com/grafana/tempo/v3/tempodb/encoding/common"
-	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet3"
 	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet4"
 	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet5"
 )
@@ -43,54 +42,6 @@ func writeParquetRewriteBloom(t *testing.T, dir string, fp float64, shardSizeByt
 
 func TestParquetIteratorsYieldAllTraces(t *testing.T) {
 	ctx := context.Background()
-
-	t.Run("vparquet3", func(t *testing.T) {
-		dir := t.TempDir()
-		path := filepath.Join(dir, "data.parquet")
-		f, err := os.Create(path)
-		require.NoError(t, err)
-
-		w := parquet.NewGenericWriter[*vparquet3.Trace](f)
-		traces := make([]*vparquet3.Trace, 0, 3)
-		for i := range 3 {
-			traces = append(traces, &vparquet3.Trace{
-				TraceID:      []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, byte(i + 1)},
-				TraceIDText:  fmt.Sprintf("%032d", i+1),
-				RootSpanName: fmt.Sprintf("root-%d", i),
-			})
-		}
-		_, err = w.Write(traces)
-		require.NoError(t, err)
-		require.NoError(t, w.Close())
-		require.NoError(t, f.Close())
-
-		in, err := os.Open(path)
-		require.NoError(t, err)
-		t.Cleanup(func() { _ = in.Close() })
-		stat, err := in.Stat()
-		require.NoError(t, err)
-		pf, err := parquet.OpenFile(in, stat.Size())
-		require.NoError(t, err)
-
-		iter := &parquetIterator3{
-			r: parquet.NewGenericReader[*vparquet3.Trace](pf),
-			m: &backend.BlockMeta{},
-		}
-		t.Cleanup(iter.Close)
-
-		yielded := 0
-		for {
-			_, tr, err := iter.Next(ctx)
-			if tr != nil {
-				yielded++
-			}
-			if errors.Is(err, io.EOF) {
-				break
-			}
-			require.NoError(t, err)
-		}
-		require.Equal(t, 3, yielded)
-	})
 
 	t.Run("vparquet4", func(t *testing.T) {
 		dir := t.TempDir()
