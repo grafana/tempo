@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/bits-and-blooms/bloom/v3"
 	"github.com/parquet-go/parquet-go"
 
 	"github.com/grafana/tempo/v3/pkg/tempopb"
@@ -169,36 +168,29 @@ func inheritedBloomParams(blockPath string, meta *backend.BlockMeta) (fp float64
 //
 //	m = ceil(-1 * n * ln(p) / ln(2)^2)
 //	k = ceil(ln(2) * m / n)
+//
+// returning a rate that reproduces an existing block's bloom filters: same shard
+// size, same hash count k, same shard count. The original rate is stored nowhere,
+// but any total bit count m with the same resulting k and shard count does, so this
+// picks the largest m the block allows: m <= k*n/ln(2), and m <= shardCount*shardBits
+// unless the shard count was clamped (or is 0, legacy blocks), where only the k bound
+// applies. Half a bit is subtracted before exponentiating so that float rounding in
+// EstimateParameters cannot push the reconstructed bit count past m.
 const bloomMaxShardCount = 1000 // mirrors common.maxShardCount
 
-func ceilDiv(a, b uint64) uint64 {
-	return (a + b - 1) / b
-}
-
-func reconstructBloomFP(n, mPerShard, shardCount, k uint64) float64 {
-	if n == 0 || k == 0 || mPerShard == 0 {
+func reconstructBloomFP(n, shardBits, shardCount, k uint64) float64 {
+	if n == 0 || k == 0 || shardBits == 0 {
+		// Cannot invert; fall back to a rate that at least matches the hash count.
 		return math.Pow(2, -float64(k))
 	}
 
-	// Largest bit count that can still produce k hashes: ceil(ln(2)*m/n) <= k.
-	mKBound := uint64(float64(n) * float64(k) / math.Ln2)
-
-	// Search down from the block's own shard boundary. A shard count at the cap
-	// says nothing about m (the original m was larger), so start at the k bound.
-	start := mKBound
-	if shardCount != bloomMaxShardCount {
-		start = min(start, mPerShard*shardCount)
+	m := float64(uint64(float64(n) * float64(k) / math.Ln2)) // <= k*n/ln(2)
+	if shardCount > 0 && shardCount < bloomMaxShardCount {
+		m = math.Min(m, float64(shardCount*shardBits))
 	}
 
-	for m := start; m > 0; m-- {
-		fp := math.Exp(-math.Ln2 * math.Ln2 * float64(m) / float64(n))
-		m2, k2 := bloom.EstimateParameters(uint(n), fp)
-		if k2 == uint(k) && min(ceilDiv(uint64(m2), mPerShard), bloomMaxShardCount) == shardCount {
-			return fp
-		}
-	}
-
-	return math.Pow(2, -float64(k))
+	// Inverse of m = ceil(-1 * n * ln(p) / ln(2)^2).
+	return math.Exp(-math.Ln2 * math.Ln2 * (m - 0.5) / float64(n))
 }
 
 func parseDedicatedColumns(fromCLI []string, fromMeta backend.DedicatedColumns) (backend.DedicatedColumns, error) {
