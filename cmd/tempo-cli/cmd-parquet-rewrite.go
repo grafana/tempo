@@ -143,10 +143,15 @@ func (cmd *parquetRewrite) blockConfig(version string, meta *backend.BlockMeta, 
 	return cfg, nil
 }
 
-// inheritedRowGroupSizeBytes returns the row group size that best matches the given
-// input parquet file. Row groups are cut once the estimated buffered bytes exceed the
-// configured size, so the largest row group in the file is the closest surviving record
-// of what that size was. Falls back to the Tempo default if the file has no row groups.
+// inheritedRowGroupSizeBytes returns a row group size that reproduces the input
+// parquet file's row group layout. The originally configured size is neither
+// recoverable nor needed: row groups are cut once the estimated buffered bytes
+// exceed it, so the largest row group in the file is the best surviving record
+// of where that threshold landed — and if the configured size was larger than
+// that (a block that fit in a single group, or a final group flushed before
+// filling), the exact number would not make the rewritten block any closer to
+// the input. Because the cut is made on estimated sizes, a multi-group input may
+// regroup slightly. Falls back to the Tempo default if the file has no row groups.
 func inheritedRowGroupSizeBytes(pf *parquet.File) int {
 	var size int64
 	for _, rg := range pf.Metadata().RowGroups {
