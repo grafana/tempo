@@ -2,6 +2,7 @@ package registry
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
 	hll "github.com/axiomhq/hyperloglog"
@@ -47,6 +48,7 @@ type Cardinality struct {
 	current        int
 	cachedMerge    *hll.Sketch
 	lastAdvance    time.Time
+	generation     atomic.Uint64
 }
 
 // NewCardinality creates a new Cardinality estimate with a 3.25 standard error.
@@ -92,6 +94,11 @@ func (c *Cardinality) Insert(hash uint64) {
 	c.mu.Unlock()
 }
 
+// Generation returns a number that changes whenever Advance replaces the current sketch.
+func (c *Cardinality) Generation() uint64 {
+	return c.generation.Load()
+}
+
 // Estimate returns the estimated cardinality over the last staleTime window.
 func (c *Cardinality) Estimate() uint64 {
 	c.mu.RLock()
@@ -128,6 +135,7 @@ func (c *Cardinality) Advance() {
 		c.sketches[c.current], _ = hll.NewSketch(c.precision, true)
 		c.lastAdvance = c.lastAdvance.Add(c.sketchDuration)
 	}
+	c.generation.Add(1)
 
 	// Recompute cached merge of all non-current sketches
 	cachedMerge, _ := hll.NewSketch(c.precision, true)

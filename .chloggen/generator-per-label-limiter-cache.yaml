@@ -1,0 +1,11 @@
+change_type: enhancement
+
+component: metrics-generator
+
+note: Reduce the CPU cost of `max_cardinality_per_label` by skipping repeated label values and reading label state without a lock.
+
+issues: []
+
+subtext:
+
+user: csmarchbanks

@@ -10,6 +10,7 @@ import (
 )
 
 type mockOverrides struct {
+	maxCardinalityPerLabel                             uint64
 	processors                                         map[string]struct{}
 	nativeHistogramMaxBucketNumber                     uint32
 	nativeHistogramBucketFactor                        float64
@@ -155,7 +156,7 @@ func (m *mockOverrides) MetricsGeneratorSpanNameSanitization(string) string {
 }
 
 func (m *mockOverrides) MetricsGeneratorMaxCardinalityPerLabel(string) uint64 {
-	return 0
+	return m.maxCardinalityPerLabel
 }
 
 // MetricsGeneratorProcessorSpanMetricsEnableTargetInfo enables target_info metrics
