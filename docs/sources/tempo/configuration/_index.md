@@ -1722,6 +1722,12 @@ storage:
             # Notice: ignore this option if `forcepathstyle` is set true, this option exposes the minio-go SDK setting.
             [bucket_lookup_type: <int> | default = 0]
 
+            # Optional. Default is v2.
+            # Use a specific version of the S3 list objects API. Supported values are v1 and v2.
+            # Set to v1 for S3-compatible stores that do not implement ListObjectsV2 pagination correctly.
+            # Leave the default otherwise: v2 is the API AWS recommends.
+            [list_objects_version: <string>]
+
             # Optional. Default is 0 (disabled)
             # Example: "hedge_requests_at: 500ms"
             # If set to a non-zero value a second request will be issued at the provided duration. Recommended to
