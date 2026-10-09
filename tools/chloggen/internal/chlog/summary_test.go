@@ -138,6 +138,51 @@ func TestConfiguredChangeTypes(t *testing.T) {
 	assert.Less(t, strings.Index(actual, "### Security"), strings.Index(actual, "### Enhancements"))
 }
 
+func TestIndentSubtext(t *testing.T) {
+	indent := TemplateFuncMap()["indent"].(func(int, string) string)
+	tests := []struct {
+		name string
+		text string
+		want string
+	}{
+		{name: "empty"},
+		{name: "yaml trailing newline", text: "Details.\n", want: "  Details."},
+		{name: "multiple trailing newlines", text: "Details.\n\n", want: "  Details."},
+		{name: "paragraphs", text: "First.\n \t\nSecond.\n", want: "  First.\n\n  Second."},
+		{name: "nested list", text: "Details:\n* Item\n  * Nested\n", want: "  Details:\n  * Item\n    * Nested"},
+		{name: "hard break", text: "First.  \nSecond.\n", want: "  First.  \n  Second."},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, indent(2, tt.text))
+		})
+	}
+}
+
+func TestTempoSummarySpacing(t *testing.T) {
+	cfg := &config.Config{
+		SummaryTemplate: filepath.Join("..", "..", "..", "..", ".chloggen", "summary.tmpl"),
+		ChangeTypes: []config.ChangeType{
+			{Key: "feature", Heading: "Features"},
+			{Key: BugFix, Heading: "Bug fixes"},
+		},
+	}
+	entries := []*Entry{
+		{ChangeType: "feature", Component: "tempo", Note: "Add a feature.", Issues: []int{1}, User: "octocat", SubText: "First paragraph.\n\nSecond paragraph.\n"},
+		{ChangeType: "feature", Component: "tempo", Note: "Add another feature.", Issues: []int{2}, User: "octocat"},
+		{ChangeType: BugFix, Component: "tempo", Note: "Fix a bug.", Issues: []int{3}, User: "octocat", SubText: "Details.\n"},
+	}
+	got, err := GenerateSummary("v3.1.0-rc.0", entries, cfg)
+	require.NoError(t, err)
+	want := "\n# v3.1.0-rc.0\n\n## Features\n\n" +
+		"- `tempo`: Add a feature. ([#1](https://github.com/grafana/tempo/issues/1)) (@octocat)\n" +
+		"  First paragraph.\n\n  Second paragraph.\n" +
+		"- `tempo`: Add another feature. ([#2](https://github.com/grafana/tempo/issues/2)) (@octocat)\n\n" +
+		"## Bug fixes\n\n" +
+		"- `tempo`: Fix a bug. ([#3](https://github.com/grafana/tempo/issues/3)) (@octocat)\n  Details.\n"
+	assert.Equal(t, want, got)
+}
+
 func TestCustomSummary(t *testing.T) {
 	brk1 := Entry{
 		ChangeType: Breaking,
