@@ -410,13 +410,19 @@ func (p *Poller) pollTenantBlocks(
 		unknownBlockIDs[blockID] = true
 	}
 
-	newM, newCm, err := p.pollUnknown(derivedCtx, unknownBlockIDs, tenantID)
+	newM, newCm, skipped, err := p.pollUnknown(derivedCtx, unknownBlockIDs, tenantID)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed reading unknown blocks: %w", err)
 	}
 
 	newBlockList = append(newBlockList, newM...)
 	newCompactedBlocklist = append(newCompactedBlocklist, newCm...)
+
+	// Skipping every block points at the backend, not at the blocks. Fail the tenant so it is not
+	// treated as empty, which would delete its tenant index and may allow empty tenant deletion.
+	if skipped > 0 && len(newBlockList) == 0 && len(newCompactedBlocklist) == 0 {
+		return nil, nil, nil, fmt.Errorf("skipped all %d blocks with corrupt meta", skipped)
+	}
 
 	return newBlockList, newCompactedBlocklist, liveNoCompact(newBlockList, noCompactBlockIDs), nil
 }
@@ -425,7 +431,7 @@ func (p *Poller) pollUnknown(
 	ctx context.Context,
 	unknownBlocks map[uuid.UUID]bool,
 	tenantID string,
-) (_ []*backend.BlockMeta, _ []*backend.CompactedBlockMeta, err error) {
+) (_ []*backend.BlockMeta, _ []*backend.CompactedBlockMeta, skipped int, err error) {
 	derivedCtx, span := tracer.Start(ctx, "pollUnknown", trace.WithAttributes(
 		attribute.Int("unknownBlockIDs", len(unknownBlocks)),
 	))
@@ -469,6 +475,11 @@ func (p *Poller) pollUnknown(
 				return
 			}
 
+			if errors.Is(pollBlockErr, backend.ErrCorruptMeta) {
+				skipped++
+				return
+			}
+
 			if pollBlockErr != nil {
 				errs = append(errs, pollBlockErr)
 			}
@@ -481,10 +492,10 @@ func (p *Poller) pollUnknown(
 		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()
 		err = errors.Join(errs...)
 
-		return nil, nil, err
+		return nil, nil, 0, err
 	}
 
-	return newBlockList, newCompactedBlocklist, nil
+	return newBlockList, newCompactedBlocklist, skipped, nil
 }
 
 func (p *Poller) pollBlock(
@@ -521,7 +532,7 @@ func (p *Poller) pollBlock(
 	if errors.Is(err, backend.ErrCorruptMeta) {
 		metricCorruptBlockMeta.WithLabelValues(tenantID).Inc()
 		level.Warn(p.logger).Log("msg", "skipping block with corrupt meta", "tenant", tenantID, "block", blockID, "err", err)
-		return nil, nil, nil
+		return nil, nil, err
 	}
 
 	if err != nil {
