@@ -376,7 +376,7 @@ query_frontend:
         blocks_per_shard: 30
     metrics:
         concurrent_jobs: 1000
-        target_bytes_per_job: 104857600
+        target_bytes_per_job: 629145600
         max_duration: 24h0m0s
         query_backend_after: 15m0s
         interval: 5m0s
@@ -582,7 +582,7 @@ block_builder:
         max_block_bytes: 20971520
     wal:
         path: /var/tempo/block-builder/traces
-        ingestion_time_range_slack: 2m0s
+        ingestion_time_range_slack: 2h0m0s
 storage:
     trace:
         pool:

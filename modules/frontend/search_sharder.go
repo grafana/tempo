@@ -25,9 +25,10 @@ import (
 )
 
 const (
-	defaultTargetBytesPerRequest = 100 * 1024 * 1024
-	defaultConcurrentRequests    = 1000
-	defaultMostRecentShards      = 200
+	defaultTargetBytesPerRequest        = 100 * 1024 * 1024
+	defaultMetricsTargetBytesPerRequest = 600 * 1024 * 1024
+	defaultConcurrentRequests           = 1000
+	defaultMostRecentShards             = 200
 )
 
 type SearchSharderConfig struct {
