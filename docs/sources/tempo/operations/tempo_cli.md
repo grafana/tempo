@@ -610,7 +610,17 @@ without a change to the benchmark. Only metrics that moved are kept.
 
 The query set covers trace lookups by ID, present and absent; an unfiltered
 search; `rate()` and `rate() by (resource.service.name)` as metrics range
-queries; and tag-name lookups in each attribute scope. Metrics queries run over
+queries; and tag-name lookups in each attribute scope. A profile with ranked
+attributes adds a search per selectivity band — `search/attr/high`,
+`search/attr/medium`, `search/attr/low` — the selectivity being what informs a
+predicate's cost: a high-selectivity value is carried by most spans, so the
+query reads about everything it scans; a low-selectivity one is rejected early.
+Each band's query is an equality over its most sizeable attribute, against the
+attribute's most common value, the value the profile proves the block holds,
+so the query matches. The query field records which attribute and value a case
+picked; a band with nothing to match is left out, and a profile built with
+`--attributes 0` generates no such searches. Generated cases can be shown
+alone with `--case 'search/attr/*'`. Metrics queries run over
 the block's whole time range, stepping at `max(60s, window/30)` to land about 30
 points. Searches and metrics queries are split into shards of row groups,
 mirroring how the query frontend splits a job.
